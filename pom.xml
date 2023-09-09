@@ -30,7 +30,9 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>edu.iu.util</groupId>
@@ -44,7 +46,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	<licenses>
 		<license>
 			<name>BSD-3-Clause</name>
-			<url>https://github.iu.edu/iu-uits-es/iu-java-util/blob/develop/LICENSE</url>
+			<url>
+				https://github.iu.edu/iu-uits-es/iu-java-util/blob/develop/LICENSE</url>
 			<distribution>repo</distribution>
 			<comments>Copyright (c) 2023 Indiana Univeristy</comments>
 		</license>
@@ -53,6 +56,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+		<argLine>-ea</argLine>
+
+		<junit-jupiter.version>5.10.0</junit-jupiter.version>
+		<mockito.version>5.5.0</mockito.version>
 	</properties>
 
 	<distributionManagement>
@@ -62,7 +69,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		</repository>
 		<snapshotRepository>
 			<id>IUMaven</id>
-			<url>https://apps.iu.edu/nxs-prd/content/repositories/IUPublic-Snapshot</url>
+			<url>
+				https://apps.iu.edu/nxs-prd/content/repositories/IUPublic-Snapshot</url>
 		</snapshotRepository>
 	</distributionManagement>
 
@@ -122,9 +130,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<plugin>
 					<artifactId>maven-surefire-plugin</artifactId>
 					<version>3.1.2</version>
-					<configuration>
-						<argLine>-ea</argLine>
-					</configuration>
 				</plugin>
 				<plugin>
 					<artifactId>maven-ear-plugin</artifactId>
@@ -189,6 +194,50 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<plugin>
 					<artifactId>maven-deploy-plugin</artifactId>
 					<version>3.1.0</version>
+				</plugin>
+				<plugin>
+					<groupId>org.jacoco</groupId>
+					<artifactId>jacoco-maven-plugin</artifactId>
+					<version>0.8.10</version>
+					<executions>
+						<execution>
+							<id>coverage-agent</id>
+							<goals>
+								<goal>prepare-agent</goal>
+							</goals>
+							<phase>generate-test-resources</phase>
+						</execution>
+						<execution>
+							<id>coverage-check</id>
+							<goals>
+								<goal>check</goal>
+							</goals>
+							<phase>test</phase>
+							<configuration>
+								<haltOnFailure>true</haltOnFailure>
+								<rules>
+									<rule>
+										<element>BUNDLE</element>
+										<excludes>
+											<exclude>*Test</exclude>
+										</excludes>
+										<limits>
+											<limit>
+												<counter>INSTRUCTION</counter>
+												<value>COVEREDRATIO</value>
+												<minimum>0.80</minimum>
+											</limit>
+											<limit>
+												<counter>CLASS</counter>
+												<value>MISSEDCOUNT</value>
+												<maximum>0</maximum>
+											</limit>
+										</limits>
+									</rule>
+								</rules>
+							</configuration>
+						</execution>
+					</executions>
 				</plugin>
 				<plugin>
 					<groupId>org.eclipse.m2e</groupId>
