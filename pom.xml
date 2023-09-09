@@ -300,6 +300,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<activeByDefault>true</activeByDefault>
 			</activation>
 			<modules>
+				<module>runtime</module>
 			</modules>
 		</profile>
 	</profiles>
