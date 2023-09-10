@@ -1,6 +1,15 @@
 name: publish-site
 
-on: push
+on:
+  workflow_run:
+    workflows:
+      - verify
+    types:
+      - completed
+    branches:
+      - 'main'
+      - 'develop'
+  workflow_dispatch:
 
 env:
   TZ: America/Indianapolis
@@ -27,6 +36,7 @@ jobs:
           retention-days: 1
 
   publish-site:
+    needs: build
     runs-on: ubuntu-latest
 
     steps:
