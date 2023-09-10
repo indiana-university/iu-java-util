@@ -6,9 +6,9 @@ on:
       - verify
     types:
       - completed
-    branches:
-      - 'main'
-      - 'develop'
+    #branches:
+      #- 'main'
+      #- 'develop'
   workflow_dispatch:
 
 env:
