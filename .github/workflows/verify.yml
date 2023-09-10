@@ -25,9 +25,3 @@ jobs:
 
       - run: mvn --batch-mode clean verify
 
-      - uses: actions/upload-artifact@v3
-        with:
-          name: site
-          path: target/iu-site.tar
-          retention-days: 1
-
