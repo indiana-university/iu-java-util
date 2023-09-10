@@ -58,6 +58,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<argLine>-ea</argLine>
 
+		<jakarta.annotation-api.version>2.1.1</jakarta.annotation-api.version>
+		<jakarta.interceptor-api.version>2.1.0</jakarta.interceptor-api.version>
+
 		<junit-jupiter.version>5.10.0</junit-jupiter.version>
 		<mockito.version>5.5.0</mockito.version>
 	</properties>
@@ -79,6 +82,21 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			<url>https://jakarta.oss.sonatype.org/content/repositories/releases</url>
 		</repository>
 	</repositories>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-engine</artifactId>
+			<version>${junit-jupiter.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.mockito</groupId>
+			<artifactId>mockito-core</artifactId>
+			<version>${mockito.version}</version>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
 
 	<reporting>
 		<plugins>
@@ -149,6 +167,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<artifactId>maven-javadoc-plugin</artifactId>
 				<inherited>false</inherited>
 				<configuration>
+					<windowtitle>IU Java Utilities ${project.version}</windowtitle>
+					<doctitle>IU Java Utilities API Reference</doctitle>
 					<top><![CDATA[
 					<header class="rvt-header-wrapper">
 					  <div class="rvt-header-global">
@@ -234,6 +254,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<plugin>
 					<artifactId>maven-surefire-plugin</artifactId>
 					<version>3.1.2</version>
+					<configuration>
+						<useModulePath>false</useModulePath>
+					</configuration>
 				</plugin>
 				<plugin>
 					<artifactId>maven-ear-plugin</artifactId>
@@ -246,6 +269,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<plugin>
 					<artifactId>maven-war-plugin</artifactId>
 					<version>3.3.2</version>
+				</plugin>
+				<plugin>
+					<artifactId>maven-dependency-plugin</artifactId>
+					<version>3.6.0</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-compiler-plugin</artifactId>
@@ -333,6 +360,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 							</goals>
 							<phase>test</phase>
 							<configuration>
+								<skip>${skipTests}</skip>
 								<haltOnFailure>true</haltOnFailure>
 								<rules>
 									<rule>
@@ -416,6 +444,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<activeByDefault>true</activeByDefault>
 			</activation>
 			<modules>
+				<module>type</module>
 				<module>runtime</module>
 			</modules>
 		</profile>
