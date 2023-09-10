@@ -35,21 +35,21 @@ import edu.iu.runtime.IuRuntime;
 import edu.iu.runtime.IuRuntimeConfiguration;
 
 public class EmptyRuntime implements IuRuntime {
-
+	
 	@Override
 	public IuRuntimeConfiguration getEnvironment() throws UnsupportedOperationException {
-		return new EmptyConfiguration();
+		return EmptyConfiguration.$;
 	}
 
 	@Override
 	public IuRuntimeConfiguration getBuildConfiguration() throws UnsupportedOperationException {
-		return new EmptyConfiguration();
+		return EmptyConfiguration.$;
 	}
 
 	@Override
 	public IuRuntimeConfiguration getSecret(String secret)
 			throws IllegalArgumentException, UnsupportedOperationException {
-		return new EmptyConfiguration();
+		return EmptyConfiguration.$;
 	}
 
 }

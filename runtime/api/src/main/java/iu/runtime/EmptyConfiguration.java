@@ -35,7 +35,12 @@ import java.lang.reflect.Type;
 
 import edu.iu.runtime.IuRuntimeConfiguration;
 
-public class EmptyConfiguration implements IuRuntimeConfiguration {
+final class EmptyConfiguration implements IuRuntimeConfiguration {
+
+	static EmptyConfiguration $ = new EmptyConfiguration();
+
+	private EmptyConfiguration() {
+	}
 
 	@Override
 	public Object getValue(String reference, Type type) {

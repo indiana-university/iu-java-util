@@ -35,14 +35,16 @@ import java.util.ServiceLoader;
 
 import edu.iu.runtime.IuRuntime;
 
-public class RuntimeFactory {
+public final class RuntimeFactory {
 
 	public static IuRuntime getProvider() {
-		var loader = ServiceLoader.load(IuRuntime.class).iterator();
+		var loader = ServiceLoader.load(IuRuntime.class, null).iterator();
 		if (!loader.hasNext())
 			return new EmptyRuntime();
 		else
 			return loader.next();
 	}
 
+	private RuntimeFactory() {
+	}
 }

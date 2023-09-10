@@ -31,7 +31,6 @@
  */
 package edu.iu.runtime;
 
-import java.lang.System.Logger.Level;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -50,6 +49,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
@@ -65,11 +66,11 @@ import java.util.stream.Stream;
  * otherwise {@link IllegalArgumentException} is thrown.
  * </p>
  * 
+ * <h2>Atomic Types</h2>
  * <p>
- * Implementations must support all of the following atomic types:
+ * The following atomic types <em>must</em> be supported:
  * </p>
  * 
- * <h2>Supported Atomic Types</h2>
  * <ul>
  * <li>{@link BigDecimal}</li>
  * <li>{@link BigInteger}</li>
@@ -89,7 +90,11 @@ import java.util.stream.Stream;
  * <li>{@link ZonedDateTime}</li>
  * </ul>
  * 
- * <h2>Supported Collection Types</h2>
+ * <h2>Collection Types</h2>
+ * <p>
+ * The following collection types <em>must</em> be supported:
+ * </p>
+ * 
  * <ul>
  * <li>Array</li>
  * <li>{@link Collection}</li>
@@ -104,63 +109,62 @@ import java.util.stream.Stream;
  * </ul>
  * 
  * <p>
- * Implementations must convert atomic values from the underlying configuration
- * source to a singleton when a collection type is expected.
+ * When handing collection types, an implementation:
  * </p>
  * 
- * <p>
- * Implementations <em>must not</em> return an empty collection instead of
- * throwing {@link IllegalArgumentException} when the reference cannot be
- * resolved.
- * </p>
+ * <ul>
+ * <li><em>Must</em> convert atomic values from the underlying configuration
+ * source to a singleton when a collection type is expected.</li>
  * 
- * <p>
- * Implementations must use {@link ParameterizedType},
+ * <li><em>Must</em> use {@link ParameterizedType},
  * {@link GenericArrayType#getGenericComponentType()}, or
  * {@link Class#getComponentType()} to determine the expected type of items in
- * the collection.
- * </p>
+ * the collection.</li>
  * 
- * <h2>Supported Named Value Types</h2>
+ * <li><em>Must not</em> return an empty collection instead of throwing
+ * {@link IllegalArgumentException} when the reference cannot be resolved.</li>
+ * </ul>
+ * 
+ * <h2>Named Value Types</h2>
+ * <p>
+ * The following named value collection types <em>must</em> be supported:
+ * </p>
+ *
  * <ul>
  * <li>{@link IuRuntimeConfiguration}</li>
  * <li>{@link Map}</li>
  * </ul>
  * 
  * <p>
- * Implementations must convert atomic types from the underlying configuration
+ * When handing named value collection types, an implementation:
+ * </p>
+ * 
+ * <ul>
+ * <li><em>Must</em> convert atomic types from the underlying configuration
  * source to a singleton with an empty (non-null) name when a named value type
- * is expected and only one value is provided.
- * </p>
+ * is expected and only one value is provided.</li>
  * 
- * <p>
- * Implementations must convert collection types from the underlying
- * configuration source to a named value collection using the non-negative
- * integer index values implied by the underlying collection's iterator as
- * names.
- * </p>
+ * <li><em>Must</em> convert collection types from the underlying configuration
+ * source to a named value collection using the non-negative integer index
+ * values implied by the underlying collection's iterator as names.</li>
  * 
- * <p>
- * Implementations must return all configured values relative to the reference
- * when {@link IuRuntimeConfiguration} is used. The resulting configuration must
- * only understand references relative to the resulting configuration.
- * </p>
+ * <li><em>Must</em> return all configured values relative to the reference when
+ * {@link IuRuntimeConfiguration} is used. The resulting configuration must only
+ * understand references relative to the resulting configuration.</li>
  * 
- * <p>
- * Implementations must use {@link ParameterizedType} to determine the expected
- * type of named values when a generic {@link Map} is used.
- * </p>
+ * <li><em>Must</em> use {@link ParameterizedType} to determine the expected
+ * type of named values when a generic {@link Map} is used.</li>
  * 
- * <p>
- * Implementations should support the use of qualified Java module, package, and
+ * <li><em>Should</em> support the use of qualified Java module, package, and
  * type names to resolve specific configuration subsets when using
- * {@link IuRuntimeConfiguration} as the expected type.
- * </p>
+ * {@link IuRuntimeConfiguration} as the expected type.</li>
+ * </ul>
  *
  * <h2>Jakarta JSON-P Types</h2>
  * <p>
- * Implementations should support the following types from the
- * <a href="https://jakarta.ee/specifications/jsonp/">Jakarta JSON-P API</a>.
+ * The following types from the
+ * <a href="https://jakarta.ee/specifications/jsonp/">Jakarta JSON-P API</a>
+ * <em>should</em> be supported.
  * </p>
  * 
  * <ul>
@@ -174,62 +178,62 @@ import java.util.stream.Stream;
  * </ul>
  * 
  * <p>
- * Implementations should support the use of
- * <a href="https://datatracker.ietf.org/doc/html/rfc6901">JSON Pointer</a> to
- * dereference configuration values.
+ * <a href="https://datatracker.ietf.org/doc/html/rfc6901">JSON Pointer</a>
+ * <em>should</em> be a supported configuration reference format.
  * </p>
  * 
  * <h2>Serialized Form</h2>
  * <p>
- * All atomic and collection configuration values must be retrievable using the
- * {@link String} type. Values with an underlying collection type should use
- * <a href="https://www.ietf.org/rfc/rfc4180.txt">CSV</a> format when converting
- * to {@link String}.
+ * All atomic and collection configuration values <em>must</em> be retrievable
+ * using the {@link String} type.
  * </p>
  * 
  * <ul>
- * <li>A null value implies an explicit null was defined by the underlying
+ * <li>Values with an underlying collection type <em>should</em> use
+ * <a href="https://www.ietf.org/rfc/rfc4180.txt">CSV</a> format when converting
+ * to {@link String}.</li>
+ * <li>A null value implies that an explicit null was defined by the underlying
  * configuration source.</li>
- * <li>An empty string implies an empty collection.</li>
- * <li>Two double quote characters ("") implies a singleton collection with an
- * empty string value.</li>
+ * <li>An empty string value implies an empty collection.</li>
+ * <li>An empty string literal (two double quote characters "") implies a
+ * singleton collection with an empty string value.</li>
  * </ul>
  * 
  * <p>
- * Implementations should not support retrieval of named value types as
- * {@link String}.
+ * Attempted retrieval of a value with an underlying named value collection type
+ * using {@link String} <em>should</em> result in
+ * {@link IllegalArgumentException} being thrown.
  * </p>
  * 
  * <h2>Null Values</h2>
  * <p>
- * Implementations should support null values when a reference resolved to an
- * explicit null in the configuration source. A null value does not imply that
- * configuration is missing.
+ * Implementations <em>should</em> support null values when a reference resolved
+ * to an explicit null in the configuration source. A null value does not imply
+ * that configuration is missing.
  * </p>
  * 
  * <p>
- * An application can use the {@link Void} type to check for the presence of a
- * null configuration value.
+ * For example, an application can use the {@link Void} type to check for the
+ * presence of a null configuration value.
  * </p>
  * 
  * <pre>
  * try {
- * 	config.getValue(reference, Void.class);
- * 	// The value is defined
+ *     config.getValue(reference, Void.class);
+ *     // The value is defined
  * } catch (IllegalArgumentException e) {
- * 	// The value is not defined
+ *     // The value is not defined
  * }
  * </pre>
  *
  * <h2>Security Considerations</h2>
  * <p>
- * Implementations should not include the unresolveable reference a message when
- * {@link IllegalArgumentException} is thrown.
+ * When throwing {@link IllegalArgumentException}, an implementation:
  * </p>
- * <p>
- * Implementations must not include any configuration values in the a message
- * when {@link IllegalArgumentException} is thrown.
- * </p>
+ * <ul>
+ * <li><em>Should not</em> include the unresolved reference in the message.</li>
+ * <li><em>Must not</em> include any configuration values in the a message.</li>
+ * </ul>
  */
 public interface IuRuntimeConfiguration {
 
@@ -258,7 +262,7 @@ public interface IuRuntimeConfiguration {
 	 * @return property value
 	 */
 	default String getValue(String reference, String defaultValue) {
-		return getValue(reference, String.class);
+		return getValue(reference, String.class, defaultValue);
 	}
 
 	/**
@@ -287,8 +291,8 @@ public interface IuRuntimeConfiguration {
 		try {
 			return getValue(reference, type);
 		} catch (IllegalArgumentException e) {
-			System.getLogger(getClass().getName()).log(Level.TRACE,
-					() -> "Invalid configuration value for " + reference + " using default", e);
+			Logger.getLogger(IuRuntimeConfiguration.class.getName()).log(Level.FINEST, e,
+					() -> "Invalid configuration value for " + reference + " using default");
 			return defaultValue;
 		}
 	}
