@@ -1254,7 +1254,7 @@ table.striped > tbody > tr > th {
 }
 
 pre {
-    font: var(--code-font-family);
+    font-family: var(--code-font-family) !important;
     color: #00385f;
     background-color: #edfafd;
     padding: 0.625rem;
