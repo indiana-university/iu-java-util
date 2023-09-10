@@ -48,7 +48,7 @@ jobs:
           name: site
 
       - run: |
-        echo $GITHUB_REF_NAME
-        ls -l $(find -type f)
-        git status
+          echo $GITHUB_REF_NAME
+          ls -l $(find -type f)
+          git status
 
