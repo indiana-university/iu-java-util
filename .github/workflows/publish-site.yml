@@ -1,15 +1,6 @@
 name: publish-site
 
-on:
-  workflow_run:
-    workflows:
-      - verify
-    types:
-      - completed
-    branches:
-      - 'main'
-      - 'develop'
-      - 'feature/**'
+on: push
 
 env:
   TZ: America/Indianapolis
