@@ -1,0 +1,29 @@
+name: clean-pages
+
+on: delete
+env:
+  TZ: America/Indianapolis
+
+jobs:
+  clean-site:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: github_pages
+
+      - name: unpack-and-push
+        run: |
+          ref=${{ github.event.ref }}
+          if [ -d docs/$ref ]
+          then
+            git config user.name eshrastg
+            git config user.email ess-dev-l@iu.edu
+            git rm -r docs/$ref
+            git commit -m "clean $ref"
+            git push
+          else
+            echo "Nothing to do for $ref"
+          fi
+

@@ -25,3 +25,34 @@ jobs:
 
       - run: mvn --batch-mode clean verify
 
+      - uses: actions/upload-artifact@v3
+        with:
+          name: site
+          path: target/iu-site.tar
+          retention-days: 1
+
+  publish-site:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: github_pages
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: site
+
+      - name: unpack-and-push
+        run: |
+          tar xf iu-site.tar
+          rm -rf docs/$GITHUB_REF_NAME
+          mkdir -p docs/$GITHUB_REF_NAME
+          mv iu/* docs/$GITHUB_REF_NAME
+          git config user.name eshrastg
+          git config user.email ess-dev-l@iu.edu
+          git add docs
+          git commit -m "publish $GITHUB_ACTOR $GITHUB_REF_NAME"
+          git push
+

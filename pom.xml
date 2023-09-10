@@ -69,8 +69,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		</repository>
 		<snapshotRepository>
 			<id>IUMaven</id>
-			<url>
-				https://apps.iu.edu/nxs-prd/content/repositories/IUPublic-Snapshot</url>
+			<url>https://apps.iu.edu/nxs-prd/content/repositories/IUPublic-Snapshot</url>
 		</snapshotRepository>
 	</distributionManagement>
 
@@ -80,6 +79,30 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			<url>https://jakarta.oss.sonatype.org/content/repositories/releases</url>
 		</repository>
 	</repositories>
+
+	<reporting>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<reportSets>
+					<reportSet>
+						<id>aggregate-javadoc</id>
+						<inherited>false</inherited>
+						<reports>
+							<report>aggregate</report>
+						</reports>
+					</reportSet>
+					<reportSet>
+						<id>default-javadoc</id>
+						<reports>
+							<report>javadoc</report>
+						</reports>
+					</reportSet>
+				</reportSets>
+			</plugin>
+		</plugins>
+	</reporting>
 
 	<build>
 		<resources>
@@ -118,6 +141,43 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 						</configuration>
 					</execution>
 				</executions>
+			</plugin>
+			<plugin>
+				<artifactId>maven-source-plugin</artifactId>
+			</plugin>
+			<plugin>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<inherited>false</inherited>
+				<configuration>
+					<stylesheetfile>${basedir}/src/main/javadoc/stylesheet.css</stylesheetfile>
+				</configuration>
+			</plugin>
+			<plugin>
+				<artifactId>maven-assembly-plugin</artifactId>
+				<version>3.6.0</version>
+				<inherited>false</inherited>
+				<executions>
+					<execution>
+						<id>create-site-tar</id>
+						<goals>
+							<goal>single</goal>
+						</goals>
+						<phase>package</phase>
+						<configuration>
+							<finalName>iu</finalName>
+							<formats>
+								<format>tar</format>
+							</formats>
+							<descriptors>
+								<descriptor>src/assembly/site.xml</descriptor>
+							</descriptors>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
 			</plugin>
 		</plugins>
 
@@ -168,8 +228,24 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 					<version>3.5.0</version>
 					<configuration>
 						<failOnError>true</failOnError>
+						<failOnWarnings>true</failOnWarnings>
+						<bottom><![CDATA[<a href="https://www.iu.edu/copyright/">Copyright</a> &#169; {currentYear} <a href="https://iu.edu/">Indiana University</a>. All rights reserved.]]></bottom>
 					</configuration>
 					<executions>
+						<execution>
+							<id>default-javadoc</id>
+							<phase>prepare-package</phase>
+							<goals>
+								<goal>javadoc</goal>
+							</goals>
+						</execution>
+						<execution>
+							<id>aggregate-javadoc</id>
+							<phase>prepare-package</phase>
+							<goals>
+								<goal>aggregate</goal>
+							</goals>
+						</execution>
 						<execution>
 							<id>default-javadoc-jar</id>
 							<phase>package</phase>
@@ -218,14 +294,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 								<rules>
 									<rule>
 										<element>BUNDLE</element>
-										<excludes>
-											<exclude>*Test</exclude>
-										</excludes>
 										<limits>
 											<limit>
 												<counter>INSTRUCTION</counter>
 												<value>COVEREDRATIO</value>
-												<minimum>0.80</minimum>
+												<minimum>1.000</minimum>
 											</limit>
 											<limit>
 												<counter>CLASS</counter>
@@ -300,6 +373,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<activeByDefault>true</activeByDefault>
 			</activation>
 			<modules>
+				<module>runtime</module>
 			</modules>
 		</profile>
 	</profiles>
