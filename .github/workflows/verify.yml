@@ -44,12 +44,13 @@ jobs:
         with:
           name: site
 
-      - run: |
+      - name: unpack-and-push
+        run: |
           tar xf iu-site.tar
           rm -rf docs/$GITHUB_REF_NAME
           mkdir -p docs/$GITHUB_REF_NAME
           mv iu/* docs/$GITHUB_REF_NAME
-          ls -l $(find -type f)
           git add docs
-          git status
+          git commit -m "publish $GITHUB_ACTOR $GITHUB_REF_NAME"
+          git show
 
