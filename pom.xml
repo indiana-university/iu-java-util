@@ -103,7 +103,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			</plugin>
 		</plugins>
 	</reporting>
-  
+
 	<build>
 		<resources>
 			<resource>
@@ -143,6 +143,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				</executions>
 			</plugin>
 			<plugin>
+				<artifactId>maven-source-plugin</artifactId>
+			</plugin>
+			<plugin>
 				<artifactId>maven-javadoc-plugin</artifactId>
 				<inherited>false</inherited>
 				<configuration>
@@ -150,7 +153,27 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				</configuration>
 			</plugin>
 			<plugin>
-				<artifactId>maven-source-plugin</artifactId>
+				<artifactId>maven-assembly-plugin</artifactId>
+				<version>3.6.0</version>
+				<inherited>false</inherited>
+				<executions>
+					<execution>
+						<id>create-site-tar</id>
+						<goals>
+							<goal>single</goal>
+						</goals>
+						<phase>package</phase>
+						<configuration>
+							<finalName>iu</finalName>
+							<formats>
+								<format>tar</format>
+							</formats>
+							<descriptors>
+								<descriptor>src/assembly/site.xml</descriptor>
+							</descriptors>
+						</configuration>
+					</execution>
+				</executions>
 			</plugin>
 			<plugin>
 				<groupId>org.jacoco</groupId>
@@ -211,7 +234,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 					<executions>
 						<execution>
 							<id>default-javadoc</id>
-							<phase>site</phase>
+							<phase>prepare-package</phase>
 							<goals>
 								<goal>javadoc</goal>
 							</goals>
