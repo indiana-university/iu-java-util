@@ -1,59 +1,16 @@
-/*
- * Javadoc style sheet
- */
-@font-face {
-  font-family: BentonSans;
-  font-style: normal;
-  font-weight: 400;
-  src: url("https://fonts.iu.edu/fonts/benton-sans-regular.eot");
-  src: url("https://fonts.iu.edu/fonts/benton-sans-regular.eot?#iefix") format("embedded-opentype"), url("https://fonts.iu.edu/fonts/benton-sans-regular.woff") format("woff"), url("https://fonts.iu.edu/fonts/benton-sans-regular.ttf") format("truetype"), url("https://fonts.iu.edu/fonts/benton-sans-regular.svg#BentonSansRegular") format("svg");
-  font-display: swap;
-}
-@font-face {
-  font-family: BentonSans;
-  font-style: normal;
-  font-weight: 500;
-  src: url("https://fonts.iu.edu/fonts/benton-sans-medium.eot");
-  src: url("https://fonts.iu.edu/fonts/benton-sans-medium.eot?#iefix") format("embedded-opentype"), url("https://fonts.iu.edu/fonts/benton-sans-medium.woff") format("woff"), url("https://fonts.iu.edu/fonts/benton-sans-medium.ttf") format("truetype"), url("https://fonts.iu.edu/fonts/benton-sans-medium.svg#BentonSansMedium") format("svg");
-  font-display: swap;
-}
-@font-face {
-  font-family: BentonSans;
-  font-style: normal;
-  font-weight: 700;
-  src: url("https://fonts.iu.edu/fonts/benton-sans-bold.eot");
-  src: url("https://fonts.iu.edu/fonts/benton-sans-bold.eot?#iefix") format("embedded-opentype"), url("https://fonts.iu.edu/fonts/benton-sans-bold.woff") format("woff"), url("https://fonts.iu.edu/fonts/benton-sans-bold.ttf") format("truetype"), url("https://fonts.iu.edu/fonts/benton-sans-bold.svg#BentonSansRegular") format("svg");
-  font-display: swap;
-}
-@font-face {
-  font-family: GeorgiaPro;
-  font-style: normal;
-  font-weight: 400;
-  src: url("https://fonts.iu.edu/fonts/georgia-pro-regular.eot");
-  src: url("https://fonts.iu.edu/fonts/georgia-pro-regular.eot?#iefix") format("embedded-opentype"), url("https://fonts.iu.edu/fonts/georgia-pro-regular.woff") format("woff"), url("https://fonts.iu.edu/fonts/georgia-pro-regular.ttf") format("truetype"), url("https://fonts.iu.edu/fonts/georgia-pro-regular.svg#GeorgiaProRegular") format("svg");
-  font-display: swap;
-}
-@font-face {
-  font-family: GeorgiaPro;
-  font-style: italic;
-  font-weight: 400;
-  src: url("https://fonts.iu.edu/fonts/georgia-pro-italic.eot");
-  src: url("https://fonts.iu.edu/fonts/georgia-pro-italic.eot?#iefix") format("embedded-opentype"), url("https://fonts.iu.edu/fonts/georgia-pro-italic.woff") format("woff"), url("https://fonts.iu.edu/fonts/georgia-pro-italic.ttf") format("truetype"), url("https://fonts.iu.edu/fonts/georgia-pro-italic.svg#GeorgiaProItalic") format("svg");
-  font-display: swap;
-}
-@font-face {
-  font-family: GeorgiaPro;
-  font-style: normal;
-  font-weight: 700;
-  src: url("https://fonts.iu.edu/fonts/georgia-pro-bold.eot");
-  src: url("https://fonts.iu.edu/fonts/georgia-pro-bold.eot?#iefix") format("embedded-opentype"), url("https://fonts.iu.edu/fonts/georgia-pro-bold.woff") format("woff"), url("https://fonts.iu.edu/fonts/georgia-pro-bold.ttf") format("truetype"), url("https://fonts.iu.edu/fonts/georgia-pro-bold.svg#GeorgiaProBold") format("svg");
-  font-display: swap;
+header .rvt-header-wrapper {
+    position: relative;
 }
 
-/*
- * These CSS custom properties (variables) define the core color and font
- * properties used in this stylesheet.
- */
+header nav {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+}
+
+.rvt-footer-base__inner {
+    border-top: 0 !important;
+}
+
 :root {
     /* body, block and code fonts */
   	--body-font-family: "BentonSans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
@@ -70,8 +27,8 @@
     --section-background-color: #f8f9fa;
     --detail-background-color: #ffffff;
     /* Colors for navigation bar and table captions */
-    --navbar-background-color: #990000;
-    --navbar-text-color: #f8f9fa;
+    --navbar-background-color: #ffffff;
+    --navbar-text-color: #5a0c0c;
     /* Background color for subnavigation and various headers */
     --subnav-background-color: #e2e7e9;
     /* Background and text colors for selected tabs and navigation items */
@@ -212,7 +169,7 @@ button {
     height:2.9em;
 }
 .legal-copy {
-    margin-left:.5em;
+    margin:0;
 }
 /*
  * Styles for navigation bar.
@@ -481,6 +438,7 @@ ul.preview-feature-list {
 .caption span {
     font-weight:bold;
     white-space:nowrap;
+    box-sizing:unset;
     padding:5px 12px 7px 12px;
     display:inline-block;
     float:left;
@@ -905,7 +863,7 @@ section.class-description {
 }
 .summary section[class$="-summary"], .details section[class$="-details"],
 .class-uses .detail, .serialized-class-details {
-    padding: 0 20px 5px 10px;
+    padding: 10px 20px 5px 10px;
     border: 1px solid var(--border-color);
     background-color: var(--section-background-color);
 }
@@ -1308,3 +1266,4 @@ pre.snippet .highlighted {
     background-color: var(--snippet-highlight-color);
     border-radius: 10%;
 }
+
