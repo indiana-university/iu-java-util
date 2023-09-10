@@ -6,6 +6,10 @@ Overview
 
 Utility modules for Java projects.
 
+References
+==========
+- [API Documentation](https://indiana-university.github.io/iu-java-util/develop/apidocs/)
+
 Contact
 =======
 - [ESHRS Architecture Team](mailto:ess-dev-l@iu.edu)
