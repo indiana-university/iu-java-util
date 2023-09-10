@@ -45,7 +45,10 @@ jobs:
           name: site
 
       - run: |
-          echo $GITHUB_REF_NAME
+          tar xf iu-site.tar
+          rm -rf docs/$GITHUB_REF_NAME
+          mkdir -p docs/$GITHUB_REF_NAME
+          mv iu docs/$GITHUB_REF_NAME
           ls -l $(find -type f)
           git status
 
