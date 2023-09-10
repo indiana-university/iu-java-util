@@ -73,11 +73,11 @@
     --navbar-background-color: #990000;
     --navbar-text-color: #f8f9fa;
     /* Background color for subnavigation and various headers */
-    --subnav-background-color: #fffceb;
+    --subnav-background-color: #e2e7e9;
     /* Background and text colors for selected tabs and navigation items */
-    --selected-background-color: #fffceb;
-    --selected-text-color: #5a0c0c;
-    --selected-link-color: #800000;
+    --selected-background-color: #fff4c6;
+    --selected-text-color: #990000;
+    --selected-link-color: #dc231e;
     /* Background colors for generated tables */
     --even-row-color: #ffffff;
     --odd-row-color: #fffceb;
