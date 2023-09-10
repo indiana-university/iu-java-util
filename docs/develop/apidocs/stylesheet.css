@@ -32,7 +32,7 @@ header nav {
     /* Background color for subnavigation and various headers */
     --subnav-background-color: #e2e7e9;
     /* Background and text colors for selected tabs and navigation items */
-    --selected-background-color: #fff4c6;
+    --selected-background-color: #fff3f0;
     --selected-text-color: #990000;
     --selected-link-color: #dc231e;
     /* Background colors for generated tables */
@@ -197,9 +197,13 @@ button {
     width:100%;
     clear:right;
     min-height:2.8em;
-    padding:10px 0 0 0;
+    padding:1rem 0.25rem 0 0.25rem;
     overflow:hidden;
     font-size:0.857em;
+    border-bottom: 1px solid #e2e7e9;
+}
+.top-nav .nav-list li {
+    padding: 1rem 1rem 0.75rem 1rem;
 }
 button#navbar-toggle-button {
     display:none;
@@ -208,7 +212,7 @@ ul.sub-nav-list-small {
     display: none;
 }
 .sub-nav {
-    background-color:var(--subnav-background-color);
+		padding:1rem;
     float:left;
     width:100%;
     overflow:hidden;
@@ -250,6 +254,7 @@ ul.nav-list li {
 ul.sub-nav-list li {
     list-style:none;
     float:left;
+    padding: 0.25rem 0;
 }
 .top-nav a:link, .top-nav a:active, .top-nav a:visited {
     color:var(--navbar-text-color);
@@ -260,9 +265,17 @@ ul.sub-nav-list li {
     color:var(--link-color-active);
 }
 .nav-bar-cell1-rev {
-    background-color:var(--selected-background-color);
-    color:var(--selected-text-color);
-    margin: auto 5px;
+    background-color: #fff3f0;
+    color: #990000;
+    border-bottom: 0.25rem solid #990000;
+}
+.top-nav li:hover {
+    background-color: #edfafd;
+    color: #006298;
+    border-bottom: 0.25rem solid #006298;
+}
+.top-nav li:hover a {
+    color: #006298;
 }
 .skip-nav {
     position:absolute;
@@ -320,7 +333,7 @@ body.class-declaration-page .summary .inherited-list h2 {
  */
 main {
     clear:both;
-    padding:10px 20px;
+    padding:0.5rem 2rem;
     position:relative;
 }
 dl.notes > dt {
@@ -453,13 +466,17 @@ div.table-tabs {
 div.table-tabs > button {
     border: none;
     cursor: pointer;
-    padding: 5px 12px 7px 12px;
-    font-weight: bold;
-    margin-right: 8px;
+    padding: 0.75rem 0.75rem 0.5rem 0.75rem;
+}
+div.table-tabs > button.table-tab:hover {
+    background: #edfafd;
+    color: #006298;
+    border-bottom: 0.25rem solid #006298
 }
 div.table-tabs > .active-table-tab {
-    background: var(--selected-background-color);
-    color: var(--selected-text-color);
+    background: #fff3f0;
+    color: #990000;
+    border-bottom: 0.25rem solid #990000
 }
 div.table-tabs > button.table-tab {
     background: var(--navbar-background-color);
