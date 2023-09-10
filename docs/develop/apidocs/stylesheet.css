@@ -44,9 +44,9 @@ header nav {
     --link-color: #5a0c0c;
     --link-color-active: #dc231e;
     /* Snippet colors */
-    --snippet-background-color: #fff4c6;
+    --snippet-background-color: #edfdfa;
     --snippet-text-color: var(--block-text-color);
-    --snippet-highlight-color: #ffe694;
+    --snippet-highlight-color: #c6ecf6;
     /* Border colors for structural elements and user defined tables */
     --border-color: #e2e7e9;
     --table-border-color: #000000;
@@ -1251,6 +1251,16 @@ table.striped > tbody > tr > th {
     #search-input, #page-search-input {
         width: 80%;
     }
+}
+
+pre {
+    font: var(--code-font-family);
+    color: #00385f;
+    background-color: #edfafd;
+    padding: 0.625rem;
+    border: 1px solid #004f80;
+    margin-left: 1rem;
+    margin-right: 2rem;
 }
 
 pre.snippet {
