@@ -1,0 +1,34 @@
+name: publish-site
+
+on:
+  workflow-run:
+    workflows:
+      - verify
+    types:
+      - completed
+    branches:
+      - 'main'
+      - 'develop'
+  workflow_dispatch:
+
+env:
+  TZ: America/Indianapolis
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: github_pages
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: site
+
+      - run: |
+        echo $GITHUB_REF_NAME
+        ls -l $(find -type f)
+        git status
+
