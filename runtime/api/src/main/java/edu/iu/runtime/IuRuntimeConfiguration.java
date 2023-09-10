@@ -223,8 +223,7 @@ import java.util.stream.Stream;
  *     // The value is defined
  * } catch (IllegalArgumentException e) {
  *     // The value is not defined
- * }
- * </pre>
+ * }</pre>
  *
  * <h2>Security Considerations</h2>
  * <p>
