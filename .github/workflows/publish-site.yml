@@ -6,10 +6,10 @@ on:
       - verify
     types:
       - completed
-    #branches:
-      #- 'main'
-      #- 'develop'
-  workflow_dispatch:
+    branches:
+      - 'main'
+      - 'develop'
+      - 'feature/**'
 
 env:
   TZ: America/Indianapolis
