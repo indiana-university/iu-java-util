@@ -13,7 +13,7 @@ jobs:
         with:
           ref: github_pages
 
-      - name: unpack-and-push
+      - name: prune-and-push
         run: |
           ref=${{ github.event.ref }}
           if [ -d docs/$ref ]
