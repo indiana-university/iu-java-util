@@ -144,6 +144,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			</plugin>
 			<plugin>
 				<artifactId>maven-javadoc-plugin</artifactId>
+				<inherited>false</inherited>
+				<configuration>
+					<stylesheetfile>${basedir}/src/main/javadoc/stylesheet.css</stylesheetfile>
+				</configuration>
 			</plugin>
 			<plugin>
 				<artifactId>maven-source-plugin</artifactId>
@@ -218,9 +222,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 							<goals>
 								<goal>aggregate</goal>
 							</goals>
-							<configuration>
-								<stylesheetfile>${basedir}/src/site/apidocs/stylesheet.css</stylesheetfile>
-							</configuration>
 						</execution>
 						<execution>
 							<id>default-javadoc-jar</id>
