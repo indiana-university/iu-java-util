@@ -54,5 +54,5 @@ jobs:
           git config user.email ess-dev-l@iu.edu
           git add docs
           git commit -m "publish $GITHUB_ACTOR $GITHUB_REF_NAME"
-          git show
+          git push
 
