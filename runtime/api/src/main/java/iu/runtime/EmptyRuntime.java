@@ -34,6 +34,9 @@ package iu.runtime;
 import edu.iu.runtime.IuRuntime;
 import edu.iu.runtime.IuRuntimeConfiguration;
 
+/**
+ * Failsafe {@link IuRuntime} implementation. 
+ */
 public class EmptyRuntime implements IuRuntime {
 	
 	@Override

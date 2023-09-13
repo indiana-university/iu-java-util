@@ -30,4 +30,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 module iu.util.type.testcomponent {
+	requires javax.interceptor.api;
+	requires java.annotation;
 }

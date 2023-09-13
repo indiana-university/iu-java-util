@@ -35,47 +35,46 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.util.Map;
 
-import iu.type.BackwardsCompatibilityHelper;
-
 /**
- * Encompasses generic type resolution behavior equivalent to
- * {@link AnnotatedElement}.
+ * Facade interface for annotated type elements.
  * 
  * <p>
  * This interface supports backwards compatibility for annotations on elements
- * defined using legacy annotation types.
+ * defined using legacy annotation types. For example, if a type is marked with
+ * {@code javax.annotation.Resource}, it will automatically be translated to
+ * {@code jakarta.annotation.Resource}.
  * </p>
  * 
- * @see BackwardsCompatibilityHelper
+ * @see AnnotatedElement
  */
 public interface IuAnnotatedElement {
 
 	/**
-	 * Determines if an annotation is present.
+	 * Gets all defined annotations.
 	 * 
-	 * @param annocationType annotation type
-	 * @return true if the annotation is present, else null
-	 * @see BackwardsCompatibilityHelper#isAnnotationPresent(Class,
-	 *      AnnotatedElement)
-	 */
-	boolean hasAnnotation(Class<? extends Annotation> annocationType);
-
-	/**
-	 * Gets a type annotation.
-	 * 
-	 * @param <A>            annotation type
-	 * @param annocationType annotation type
-	 * @return annotation if present, else null
-	 * @see BackwardsCompatibilityHelper#getAnnotation(Class, AnnotatedElement)
-	 */
-	<A extends Annotation> A annotation(Class<A> annocationType);
-
-	/**
-	 * Gets the annotations defined on the type.
-	 * 
-	 * @return annotations
-	 * @see BackwardsCompatibilityHelper#getAnnotations(AnnotatedElement)
+	 * @return all annotations
 	 */
 	Map<Class<? extends Annotation>, ? extends Annotation> annotations();
+
+	/**
+	 * Determines if an annotation is present.
+	 * 
+	 * @param annotationType annotation type
+	 * @return true if the annotation is present, else null
+	 */
+	default boolean hasAnnotation(Class<? extends Annotation> annotationType) {
+		return annotations().containsKey(annotationType);
+	}
+
+	/**
+	 * Gets an annotation.
+	 * 
+	 * @param <A>            annotation type
+	 * @param annotationType annotation type
+	 * @return annotation if present, else null
+	 */
+	default <A extends Annotation> A annotation(Class<A> annotationType) {
+		return annotationType.cast(annotations().get(annotationType));
+	}
 
 }

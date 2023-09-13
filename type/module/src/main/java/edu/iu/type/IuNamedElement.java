@@ -32,50 +32,16 @@
 package edu.iu.type;
 
 /**
- * Represents a attribute of an object that may be accessed or modified.
- *
- * @param <T> attribute type
+ * Facade interface for a named declared by a type: a field, bean property,
+ * method, or enclosed type.
  */
-public interface IuTypeAttribute<T> {
+public interface IuNamedElement extends IuDeclaredElement {
 
 	/**
-	 * Gets the attribute name.
+	 * Gets the name.
 	 * 
-	 * @return attribute name
+	 * @return name
 	 */
 	String name();
-
-	/**
-	 * Gets the attribute type.
-	 * 
-	 * @return attribute type
-	 */
-	IuType<T> type();
-
-	/**
-	 * Gets the attribute value.
-	 * 
-	 * @param o object
-	 * @return attribute value.
-	 */
-	T get(Object o);
-
-	/**
-	 * Gets the attribute value.
-	 * 
-	 * @param o     object
-	 * @param value attribute value
-	 */
-	void set(Object o, T value);
-
-	/**
-	 * Determines whether or not the attribute should be included when converting to
-	 * serialized form to be converted back to object form by the same module.
-	 * 
-	 * @return true if the attribute is serializable, else false
-	 * @see IuField#isSerializable()
-	 * @see IuProperty#isSerializable()
-	 */
-	boolean isSerializable();
 
 }

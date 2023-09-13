@@ -31,14 +31,30 @@
  */
 package iu.runtime;
 
+import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 
 import edu.iu.runtime.IuRuntime;
 
+/**
+ * Service initialization helper for {@link IuRuntime#PROVIDER}.
+ */
 public final class RuntimeFactory {
 
-	public static IuRuntime getProvider() {
-		var loader = ServiceLoader.load(IuRuntime.class, null).iterator();
+	/**
+	 * Attempts to load a provider using the same {@link ClassLoader} that loaded
+	 * {@link IuRuntime}.
+	 * 
+	 * <p>
+	 * Fails over to an empty configuration if a service provider is not defined.
+	 * </p>
+	 * 
+	 * @return {@link IuRuntime} service provider.
+	 * @throws ServiceConfigurationError If a service provider was defined but
+	 *                                   failed to initialize.
+	 */
+	public static IuRuntime getProvider() throws ServiceConfigurationError {
+		var loader = ServiceLoader.load(IuRuntime.class, IuRuntime.class.getClassLoader()).iterator();
 		if (!loader.hasNext())
 			return new EmptyRuntime();
 		else

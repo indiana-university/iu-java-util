@@ -29,63 +29,58 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type;
-
-import java.util.Arrays;
-
-import edu.iu.type.IuObject;
+package edu.iu.type;
 
 /**
- * Represents the call signature for a method or constructor.
+ * Facade interface for an attribute: a field or bean property.
+ *
+ * @param <T> attribute value type
  */
-public class ExecutableKey {
-
-	private final String methodName;
-	private final Class<?>[] parameterTypes;
+public interface IuAttribute<T> extends IuNamedElement {
 
 	/**
-	 * Creates a key representing a constructor call signature.
+	 * Gets the attribute type.
 	 * 
-	 * @param parameterTypes parameter types.
+	 * @return attribute type
 	 */
-	public ExecutableKey(Class<?>... parameterTypes) {
-		this(null, parameterTypes);
-	}
+	IuType<T> type();
 
 	/**
-	 * Creates a key representing a method call signature.
+	 * Gets the attribute value.
 	 * 
-	 * @param methodName     method name
-	 * @param parameterTypes parameter types.
+	 * @param o object
+	 * @return attribute value.
 	 */
-	public ExecutableKey(String methodName, Class<?>... parameterTypes) {
-		this.methodName = methodName;
-		this.parameterTypes = parameterTypes;
-	}
+	T get(Object o);
 
-	@Override
-	public int hashCode() {
-		return IuObject.hashCode(methodName, parameterTypes);
-	}
+	/**
+	 * Gets the attribute value.
+	 * 
+	 * @param o     object
+	 * @param value attribute value
+	 */
+	void set(Object o, T value);
 
-	@Override
-	public boolean equals(Object obj) {
-		if (!IuObject.typeCheck(this, obj))
-			return false;
-		ExecutableKey other = (ExecutableKey) obj;
-		return IuObject.equals(methodName, other.methodName) && IuObject.equals(parameterTypes, other.parameterTypes);
-	}
-
-	@Override
-	public String toString() {
-		var sb = new StringBuilder("(");
-		if (methodName == null)
-			sb.append("constructor");
-		else
-			sb.append(methodName);
-		sb.append(Arrays.toString(parameterTypes));
-		sb.append(')');
-		return sb.toString();
-	}
+	/**
+	 * Determines whether or not the attribute should be included when serializing
+	 * declaring type.
+	 * 
+	 * <p>
+	 * Note that is check has nothing to do with the {@link java.io.Serializable}
+	 * interface or any of its related types or behaviors. Java serialization
+	 * streams <em>should not</em> be used by applications, and will not be
+	 * supported by any IU Java Utilities or IU JEE modules.
+	 * </p>
+	 * 
+	 * <p>
+	 * Serialization in this context refers to a back-end, cache, or configuration
+	 * storage scenario, as a check to verify that an attribute may be retrieved if
+	 * stored from the same version of the type.
+	 * </p>
+	 * 
+	 * @return True if the attribute should be included in serialized form; else
+	 *         false
+	 */
+	boolean isSerializable();
 
 }

@@ -31,6 +31,13 @@
  */
 package edu.iu.type.testcomponent;
 
-public interface TestBean {
+import java.util.List;
+import java.util.Map;
 
+public interface TestBean {
+	
+	List<String> getStringList();
+
+	<T extends Iterable<InternalClass>> Map<? extends TestResource, T> getComplicatedMap(TestBean bean);
+	
 }

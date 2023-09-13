@@ -38,14 +38,46 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
 
 /**
- * Used to mark interceptors to bind by default to all beans in the container.
+ * Used to mark interceptors to bind by default to a target set of resources.
  * 
- * <p>
- * Note: JSR-318 section 2.10 designates that default interceptors may be
- * defined by a deployment descriptor.
- * </p>
+ * @see <a href=
+ *      "https://jakarta.ee/specifications/interceptors/2.1/jakarta-interceptors-spec-2.1#default_interceptors">
+ *      Jakarta Interceptors 2.1</a>
  */
 @Retention(RUNTIME)
 @Target(TYPE)
 public @interface DefaultInterceptor {
+
+	/**
+	 * Defines the scope of the target interceptor set.
+	 */
+	enum Scope {
+		/**
+		 * Applies to all applicable types in the same {@link Module}.
+		 * 
+		 * <p>
+		 * This is the default scope.
+		 * </p>
+		 */
+		MODULE,
+
+		/**
+		 * Applies to all applicable types loaded by the same {@link ClassLoader}.
+		 */
+		CLASS_LOADER,
+
+		/**
+		 * Applies to all applicable types deployed to the same container:
+		 * {@link ClassLoader} and all child {@link ClassLoader}s.
+		 */
+		CONTAINER;
+	}
+
+	/**
+	 * Defines the scope of coverage for the default class loader.
+	 * 
+	 * @return scope
+	 */
+	Scope scope() default Scope.MODULE;
+
 }

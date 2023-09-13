@@ -31,6 +31,34 @@
  */
 package edu.iu.type.testcomponent;
 
+import java.util.List;
+import java.util.Map;
+
+import javax.interceptor.Interceptors;
+
+@SuppressWarnings("unused")
+@Interceptors(TestInterceptor.class)
 public class TestBeanImpl implements TestBean {
+
+	private static class InternalSupportingClass {
+	}
+
+	private byte[] binary;
+
+	private List<String> stringList;
+
+	@Override
+	public List<String> getStringList() {
+		return stringList;
+	}
+
+	public void setStringList(List<String> stringList) {
+		this.stringList = stringList;
+	}
+
+	@Override
+	public <T extends Iterable<InternalClass>> Map<? extends TestResource, T> getComplicatedMap(TestBean bean) {
+		return null;
+	}
 
 }

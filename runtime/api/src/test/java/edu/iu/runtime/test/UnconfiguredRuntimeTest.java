@@ -55,6 +55,7 @@ import edu.iu.runtime.IuRuntime;
 import edu.iu.runtime.IuRuntimeConfiguration;
 import iu.runtime.EmptyRuntime;
 
+@SuppressWarnings("javadoc")
 public class UnconfiguredRuntimeTest {
 
 	@Test
