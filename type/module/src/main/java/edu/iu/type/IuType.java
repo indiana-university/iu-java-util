@@ -40,24 +40,6 @@ import iu.type.TypeFactory;
 /**
  * Facade interface for a generic type.
  * 
- * <p>
- * Provides uniform, optimized, access to the runtime metadata describing a Java
- * type available via the following APIs:
- * </p>
- * 
- * <ul>
- * <li><a href=
- * "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/reflect/package-summary.html">Java
- * Reflection</a></li>
- * <li><a href=
- * "https://docs.oracle.com/en/java/javase/17/docs/api/java.desktop/java/beans/package-summary.html">Java
- * Beans</a></li>
- * <li><a href= "https://jakarta.ee/specifications/interceptors/2.1/">Jakarta
- * Interceptors 2.1</a></li>
- * <li><a href="https://jakarta.ee/specifications/annotations/2.1/">Jakarta
- * Annotations 2.1</a></li>
- * </ul>
- * 
  * @param <T> described generic type
  */
 public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
