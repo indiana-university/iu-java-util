@@ -30,8 +30,11 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /**
- * Provides uniform, optimized, access to the runtime metadata describing a Java
- * type available via the following APIs:
+ * Provides uniform, optimized, access to runtime type introspection metadata.
+ * 
+ * <p>
+ * Includes support for:
+ * </p>
  * 
  * <ul>
  * <li><a href=
@@ -41,9 +44,9 @@
  * "https://docs.oracle.com/en/java/javase/17/docs/api/java.desktop/java/beans/package-summary.html">Java
  * Beans</a></li>
  * <li><a href= "https://jakarta.ee/specifications/interceptors/2.1/">Jakarta
- * Interceptors 2.1</a></li>
+ * Interceptors</a></li>
  * <li><a href="https://jakarta.ee/specifications/annotations/2.1/">Jakarta
- * Annotations 2.1</a></li>
+ * Annotations</a></li>
  * </ul>
  *
  * @see edu.iu.type.IuType
