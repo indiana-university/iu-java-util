@@ -36,7 +36,7 @@ import java.util.Map;
 
 import javax.interceptor.Interceptors;
 
-@SuppressWarnings("unused")
+@SuppressWarnings({ "unused", "javadoc" })
 @Interceptors(TestInterceptor.class)
 public class TestBeanImpl implements TestBean {
 

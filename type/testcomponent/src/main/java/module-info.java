@@ -29,6 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+@SuppressWarnings({"javadoc", "module"})
 module iu.util.type.testcomponent {
 	requires javax.interceptor.api;
 	requires java.annotation;

@@ -15,19 +15,6 @@
 
 	<name>IU Type Introspection Parent POM</name>
 
-	<build>
-		<pluginManagement>
-			<plugins>
-				<plugin>
-					<artifactId>maven-compiler-plugin</artifactId>
-					<configuration>
-						<release>17</release>
-					</configuration>
-				</plugin>
-			</plugins>
-		</pluginManagement>
-	</build>
-
 	<profiles>
 		<profile>
 			<id>default</id>

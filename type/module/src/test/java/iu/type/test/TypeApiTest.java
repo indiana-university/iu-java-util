@@ -31,13 +31,13 @@
  */
 package iu.type.test;
 
-import static iu.type.test.TestUtil.mock;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
@@ -45,8 +45,10 @@ import java.beans.Transient;
 import java.util.List;
 import java.util.Map;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import edu.iu.test.IuTest;
 import edu.iu.type.DefaultInterceptor;
 import edu.iu.type.IuAnnotatedElement;
 import edu.iu.type.IuExecutable;
@@ -58,13 +60,16 @@ import edu.iu.type.IuReferenceKind;
 import edu.iu.type.IuType;
 import iu.type.TypeFactory;
 import jakarta.annotation.Resource;
-import jakarta.annotation.security.DenyAll;
 import jakarta.annotation.security.PermitAll;
-import jakarta.annotation.security.RolesAllowed;
 
 @SuppressWarnings("javadoc")
 public class TypeApiTest {
-	
+
+	@BeforeAll
+	public static void setup() {
+		IuType.class.getModule().addOpens(IuType.class.getPackageName(), IuTest.class.getModule());
+	}
+
 	@Test
 	public void testTypeIsNotImplemented() {
 		assertThrows(UnsupportedOperationException.class, () -> IuType.of(Object.class));
@@ -93,7 +98,7 @@ public class TypeApiTest {
 		class IsAnnotated {
 		}
 		var resource = IsAnnotated.class.getAnnotation(Resource.class);
-		var annotatedElement = mock(IuAnnotatedElement.class);
+		var annotatedElement = IuTest.mockWithDefaults(IuAnnotatedElement.class);
 		when(annotatedElement.annotations()).thenReturn((Map) Map.of(Resource.class, resource));
 		assertTrue(annotatedElement.hasAnnotation(Resource.class));
 		assertSame(resource, annotatedElement.annotation(Resource.class));
@@ -101,16 +106,16 @@ public class TypeApiTest {
 
 	@Test
 	public void testParameterized() {
-		var parameterizedElement = mock(IuParameterizedElement.class);
-		var type = mock(IuType.class);
+		var parameterizedElement = IuTest.mockWithDefaults(IuParameterizedElement.class);
+		var type = IuTest.mockWithDefaults(IuType.class);
 		when(parameterizedElement.typeParameters()).thenReturn(Map.of("foo", type));
 		assertSame(type, parameterizedElement.typeParameter("foo"));
 	}
 
 	@Test
 	public void testExecutable() {
-		var executable = mock(IuExecutable.class);
-		var param = mock(IuParameter.class);
+		var executable = IuTest.mockWithDefaults(IuExecutable.class);
+		var param = IuTest.mockWithDefaults(IuParameter.class);
 		when(executable.parameters()).thenReturn(List.of(param));
 		assertSame(param, executable.parameter(0));
 	}
@@ -118,12 +123,12 @@ public class TypeApiTest {
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testReadOnlyProperty() {
-		var property = mock(IuProperty.class);
+		var property = IuTest.mockWithDefaults(IuProperty.class);
 
-		var type = mock(IuType.class);
+		var type = IuTest.mockWithDefaults(IuType.class);
 		when(property.declaringType()).thenReturn(type);
 
-		var method = mock(IuMethod.class);
+		var method = IuTest.mockWithDefaults(IuMethod.class);
 		when(property.read()).thenReturn(method);
 
 		assertTrue(property.canRead());
@@ -135,12 +140,12 @@ public class TypeApiTest {
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testWriteOnlyProperty() {
-		var property = mock(IuProperty.class);
+		var property = IuTest.mockWithDefaults(IuProperty.class);
 
-		var type = mock(IuType.class);
+		var type = IuTest.mockWithDefaults(IuType.class);
 		when(property.declaringType()).thenReturn(type);
 
-		var method = mock(IuMethod.class);
+		var method = IuTest.mockWithDefaults(IuMethod.class);
 		when(property.write()).thenReturn(method);
 
 		assertFalse(property.canRead());
@@ -152,17 +157,17 @@ public class TypeApiTest {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Test
 	public void testTransientProperty() {
-		var property = mock(IuProperty.class);
+		var property = IuTest.mockWithDefaults(IuProperty.class);
 
-		var type = mock(IuType.class);
+		var type = IuTest.mockWithDefaults(IuType.class);
 		when(property.declaringType()).thenReturn(type);
 
-		var read = mock(IuMethod.class);
-		var transientAnnotation = mock(Transient.class);
+		var read = IuTest.mockWithDefaults(IuMethod.class);
+		var transientAnnotation = IuTest.mockWithDefaults(Transient.class);
 		when(read.annotations()).thenReturn((Map) Map.of(Transient.class, transientAnnotation));
 		when(property.read()).thenReturn(read);
 
-		var write = mock(IuMethod.class);
+		var write = IuTest.mockWithDefaults(IuMethod.class);
 		when(property.write()).thenReturn(write);
 
 		assertTrue(property.canRead());
@@ -174,17 +179,17 @@ public class TypeApiTest {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Test
 	public void testReadWritePropertyPermittedByMethodAnnotation() {
-		var property = mock(IuProperty.class);
+		var property = IuTest.mockWithDefaults(IuProperty.class);
 
-		var type = mock(IuType.class);
+		var type = IuTest.mockWithDefaults(IuType.class);
 		when(property.declaringType()).thenReturn(type);
 
-		var read = mock(IuMethod.class);
+		var read = IuTest.mockWithDefaults(IuMethod.class);
 		var permitAllAnnotation = mock(PermitAll.class);
 		when(read.annotations()).thenReturn((Map) Map.of(PermitAll.class, permitAllAnnotation));
 		when(property.read()).thenReturn(read);
 
-		var write = mock(IuMethod.class);
+		var write = IuTest.mockWithDefaults(IuMethod.class);
 		when(property.write()).thenReturn(write);
 
 		assertTrue(property.canRead());
@@ -196,17 +201,17 @@ public class TypeApiTest {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Test
 	public void testReadWritePropertyPermittedByTypeAnnotation() {
-		var property = mock(IuProperty.class);
+		var property = IuTest.mockWithDefaults(IuProperty.class);
 
-		var type = mock(IuType.class);
+		var type = IuTest.mockWithDefaults(IuType.class);
 		var permitAllAnnotation = mock(PermitAll.class);
 		when(type.annotations()).thenReturn((Map) Map.of(PermitAll.class, permitAllAnnotation));
 		when(property.declaringType()).thenReturn(type);
 
-		var read = mock(IuMethod.class);
+		var read = IuTest.mockWithDefaults(IuMethod.class);
 		when(property.read()).thenReturn(read);
 
-		var write = mock(IuMethod.class);
+		var write = IuTest.mockWithDefaults(IuMethod.class);
 		when(property.write()).thenReturn(write);
 
 		assertTrue(property.canRead());
@@ -218,7 +223,7 @@ public class TypeApiTest {
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testType() {
-		var type = mock(IuType.class);
+		var type = IuTest.mockWithDefaults(IuType.class);
 		when(type.base()).thenReturn(type);
 		when(type.deref()).thenReturn(Object.class);
 		try (var typeFactory = mockStatic(TypeFactory.class)) {
@@ -228,55 +233,55 @@ public class TypeApiTest {
 		assertSame(Object.class, type.autoboxClass());
 		assertNull(type.autoboxDefault());
 
-		type = mock(IuType.class);
+		type = IuTest.mockWithDefaults(IuType.class);
 		when(type.base()).thenReturn(type);
 		when(type.deref()).thenReturn(boolean.class);
 		assertSame(Boolean.class, type.autoboxClass());
 		assertSame(Boolean.FALSE, type.autoboxDefault());
 
-		type = mock(IuType.class);
+		type = IuTest.mockWithDefaults(IuType.class);
 		when(type.base()).thenReturn(type);
 		when(type.deref()).thenReturn(char.class);
 		assertSame(Character.class, type.autoboxClass());
 		assertSame('\0', type.autoboxDefault());
 
-		type = mock(IuType.class);
+		type = IuTest.mockWithDefaults(IuType.class);
 		when(type.base()).thenReturn(type);
 		when(type.deref()).thenReturn(byte.class);
 		assertSame(Byte.class, type.autoboxClass());
 		assertSame((byte) 0, type.autoboxDefault());
 
-		type = mock(IuType.class);
+		type = IuTest.mockWithDefaults(IuType.class);
 		when(type.base()).thenReturn(type);
 		when(type.deref()).thenReturn(short.class);
 		assertSame(Short.class, type.autoboxClass());
 		assertSame((short) 0, type.autoboxDefault());
 
-		type = mock(IuType.class);
+		type = IuTest.mockWithDefaults(IuType.class);
 		when(type.base()).thenReturn(type);
 		when(type.deref()).thenReturn(int.class);
 		assertSame(Integer.class, type.autoboxClass());
 		assertSame((int) 0, type.autoboxDefault());
 
-		type = mock(IuType.class);
+		type = IuTest.mockWithDefaults(IuType.class);
 		when(type.base()).thenReturn(type);
 		when(type.deref()).thenReturn(long.class);
 		assertSame(Long.class, type.autoboxClass());
 		assertSame(0L, type.autoboxDefault());
 
-		type = mock(IuType.class);
+		type = IuTest.mockWithDefaults(IuType.class);
 		when(type.base()).thenReturn(type);
 		when(type.deref()).thenReturn(float.class);
 		assertSame(Float.class, type.autoboxClass());
 		assertEquals(0.0f, type.autoboxDefault());
 
-		type = mock(IuType.class);
+		type = IuTest.mockWithDefaults(IuType.class);
 		when(type.base()).thenReturn(type);
 		when(type.deref()).thenReturn(double.class);
 		assertSame(Double.class, type.autoboxClass());
 		assertEquals(0.0, type.autoboxDefault());
 
-		type = mock(IuType.class);
+		type = IuTest.mockWithDefaults(IuType.class);
 		when(type.base()).thenReturn(type);
 		when(type.deref()).thenReturn(void.class);
 		assertSame(Void.class, type.autoboxClass());

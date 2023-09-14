@@ -34,6 +34,7 @@ package edu.iu.type.testcomponent;
 import java.util.List;
 import java.util.Map;
 
+@SuppressWarnings("javadoc")
 public interface TestBean {
 	
 	List<String> getStringList();

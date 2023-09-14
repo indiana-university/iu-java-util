@@ -34,6 +34,7 @@ package edu.iu.type.testcomponent;
 import javax.annotation.Resource;
 import javax.interceptor.Interceptors;
 
+@SuppressWarnings("javadoc")
 @Interceptors(TestInterceptor.class)
 @Resource
 public class TestResource {

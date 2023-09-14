@@ -80,21 +80,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		</repository>
 	</repositories>
 
-	<dependencies>
-		<dependency>
-			<groupId>org.junit.jupiter</groupId>
-			<artifactId>junit-jupiter-engine</artifactId>
-			<version>${junit-jupiter.version}</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.mockito</groupId>
-			<artifactId>mockito-core</artifactId>
-			<version>${mockito.version}</version>
-			<scope>test</scope>
-		</dependency>
-	</dependencies>
-
 	<reporting>
 		<plugins>
 			<plugin>
@@ -441,8 +426,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<activeByDefault>true</activeByDefault>
 			</activation>
 			<modules>
-				<module>type</module>
 				<module>test</module>
+				<module>type</module>
 				<module>runtime</module>
 			</modules>
 		</profile>

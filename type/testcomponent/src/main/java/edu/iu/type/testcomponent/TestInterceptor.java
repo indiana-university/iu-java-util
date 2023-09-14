@@ -36,6 +36,7 @@ import javax.interceptor.AroundInvoke;
 import javax.interceptor.Interceptor;
 import javax.interceptor.InvocationContext;
 
+@SuppressWarnings("javadoc")
 @Interceptor
 public class TestInterceptor {
 
