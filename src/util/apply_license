@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for f in $(find -type f -regex '.*\.\(java\|js\|jsx\)')
+for f in $(find -type f -regex '.*\.\(java\|js\|jsx\)' | fgrep -v target | fgrep -v __review)
 do
 	temp=$(dirname $f)/.$(basename $f)
 	if grep -El '^(package|module|import)' $f
@@ -39,7 +39,7 @@ do
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 LICENSE
-			tail -n +$(grep -Ehn '^(package|module|import|/\*\*)' $f | cut -d: -f1 | head -1) $f
+			tail -n +$(grep -Ehn '^(package|module|import|@[A-Z]|/\*\*)' $f | cut -d: -f1 | head -1) $f
 		) > $temp && mv $temp $f
 	fi
 done
