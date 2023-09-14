@@ -31,6 +31,7 @@
  */
 package edu.iu.type;
 
+import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
 import java.util.Map;
 import java.util.Set;
@@ -57,6 +58,21 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	/**
 	 * Resolves a type introspection facade for a class.
 	 * 
+	 * <p>
+	 * An introspection facade returned by this method <em>must</em>:
+	 * </p>
+	 * <ul>
+	 * <li>Be {@link Modifier#FINAL final} and immutable.</li>
+	 * <li>Have 1:1 parity with {@link Class} instances, such that
+	 * {@code IuType.of(MyClass.class) == IuType.of(MyClass.class)} returns for all
+	 * classes.</li>
+	 * </ul>
+	 * 
+	 * <p>
+	 * All use of this method and subsequent type introspection lookups
+	 * <em>must</em> thread-safe.
+	 * </p>
+	 * 
 	 * @param <T>  type
 	 * @param type type
 	 * @return type introspection facade
@@ -71,7 +87,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * 
 	 * @return type reference
 	 */
-	IuTypeReference<T> getReference();
+	IuTypeReference<?> reference();
 
 	/**
 	 * Gets the generic type.

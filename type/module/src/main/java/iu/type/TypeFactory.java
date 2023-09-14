@@ -32,13 +32,17 @@
 package iu.type;
 
 import java.lang.reflect.Type;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 import edu.iu.type.IuType;
 
 /**
- * Resolves {@link IuType} instances for {@link IuType#of(Type)}.
+ * Resolves {@link IuType} instances for {@link IuType#of(Class)}.
  */
 public final class TypeFactory {
+
+	private static final Map<Type, IuType<?>> FACADES = new WeakHashMap<>();
 
 	/**
 	 * Resolve an {@link IuType} instance.
@@ -47,8 +51,14 @@ public final class TypeFactory {
 	 * @return {@link IuType} instance
 	 */
 	public static IuType<?> resolve(Type type) {
-		// TODO: implement
-		throw new UnsupportedOperationException("TODO");
+		var facade = FACADES.get(type);
+		if (facade == null)
+			synchronized (FACADES) {
+				facade = new TypeFacade<>(type);
+				FACADES.put(type, facade);
+			}
+		
+		return facade;
 	}
 
 	private TypeFactory() {
