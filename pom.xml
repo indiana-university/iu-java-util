@@ -57,9 +57,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<argLine>-ea</argLine>
-
-		<junit-jupiter.version>5.10.0</junit-jupiter.version>
-		<mockito.version>5.5.0</mockito.version>
 	</properties>
 
 	<distributionManagement>
@@ -251,7 +248,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 					<artifactId>maven-compiler-plugin</artifactId>
 					<version>3.11.0</version>
 					<configuration>
-						<release>20</release>
+						<release>17</release>
 					</configuration>
 				</plugin>
 				<plugin>
@@ -416,6 +413,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<activeByDefault>true</activeByDefault>
 			</activation>
 			<modules>
+				<module>test</module>
 				<module>runtime</module>
 			</modules>
 		</profile>
