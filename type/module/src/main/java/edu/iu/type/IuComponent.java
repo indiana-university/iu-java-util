@@ -20,7 +20,10 @@ public interface IuComponent {
 	 * @return component
 	 */
 	static IuComponent of(Path componentModuleJar, Path... dependencyModuleJars) {
-		return ComponentFactory.newComponent(componentModuleJar, dependencyModuleJars);
+		var modulepath = new Path[dependencyModuleJars.length + 1];
+		modulepath[0] = componentModuleJar;
+		System.arraycopy(dependencyModuleJars, 0, modulepath, 1, dependencyModuleJars.length);
+		return ComponentFactory.newComponent(modulepath);
 	}
 
 	/**

@@ -1,6 +1,5 @@
 package iu.type.test;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
@@ -19,11 +18,8 @@ public class ComponentApiTest {
 		var path = mock(Path.class);
 		try (var componentFactory = mockStatic(ComponentFactory.class)) {
 			IuComponent.of(path);
-			componentFactory.verify(() -> ComponentFactory.newComponent(path, new Path[0]));
+			componentFactory.verify(() -> ComponentFactory.newComponent(path));
 		}
-		
-		// TODO remove implementation stub
-		assertThrows(UnsupportedOperationException.class, () -> IuComponent.of(path));
 	}
 
 }
