@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for f in $(find -type f -regex '.*\.\(java\|js\|jsx\)')
+for f in $(find $(find -type d -name src) -type f -regex '.*\.\(java\|js\|jsx\)')
 do
 	temp=$(dirname $f)/.$(basename $f)
 	if grep -El '^(package|module|import)' $f
