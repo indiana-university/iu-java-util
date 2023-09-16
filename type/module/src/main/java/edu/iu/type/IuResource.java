@@ -32,7 +32,7 @@
 package edu.iu.type;
 
 /**
- * Facade for a resource from an {@link IuComponent}.
+ * Facade interface for a resource in a {@link IuComponent}.
  * 
  * @param <T> resource type
  */
@@ -43,7 +43,7 @@ public interface IuResource<T> {
 	 * 
 	 * @return true if the resource is shared; else false
 	 */
-	boolean isShared();
+	boolean shared();
 
 	/**
 	 * Gets the resource name.
@@ -63,7 +63,7 @@ public interface IuResource<T> {
 	 * Gets the resource instance.
 	 * 
 	 * <p>
-	 * When {@link #isShared() shared}, returns the same singleton instance each
+	 * When {@link #shared() shared}, returns the same singleton instance each
 	 * time this method is invoked. When not shared, returns a new instance of the
 	 * resource on each invocation.
 	 * </p>
