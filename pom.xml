@@ -278,7 +278,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 					<artifactId>maven-compiler-plugin</artifactId>
 					<version>3.11.0</version>
 					<configuration>
-						<release>20</release>
+						<release>17</release>
 					</configuration>
 				</plugin>
 				<plugin>
@@ -444,6 +444,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<activeByDefault>true</activeByDefault>
 			</activation>
 			<modules>
+				<module>test</module>
 				<module>type</module>
 				<module>runtime</module>
 			</modules>

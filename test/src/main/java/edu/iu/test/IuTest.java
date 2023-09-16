@@ -29,32 +29,48 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type.test;
+package edu.iu.test;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.nio.file.Path;
+import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Proxy;
 
-import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
-import edu.iu.type.IuComponent;
-import iu.type.ComponentFactory;
+/**
+ * Unit testing utilities.
+ */
+public final class IuTest {
 
-@SuppressWarnings("javadoc")
-public class ComponentApiTest {
-
-	@Test
-	public void testNewComponent() {
-		var path = mock(Path.class);
-		try (var componentFactory = mockStatic(ComponentFactory.class)) {
-			IuComponent.of(path);
-			componentFactory.verify(() -> ComponentFactory.newComponent(path, new Path[0]));
-		}
+	/**
+	 * Decorates a {@link Mockito#mock(Class)} with a proxy capable of invoking the
+	 * default methods on an interface.
+	 * 
+	 * @param <T>  interface type
+	 * @param type interface class
+	 * @return decorated mock instance
+	 */
+	public static <T> T mockWithDefaults(Class<T> type) {
+		IuTest.class.getModule().addReads(type.getModule());
 		
-		// TODO remove implementation stub
-		assertThrows(UnsupportedOperationException.class, () -> IuComponent.of(path));
+		var mock = Mockito.mock(type);
+		assertTrue(type.isInterface());
+
+		return Mockito.spy(type
+				.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type }, (proxy, method, args) -> {
+					if (method.isDefault())
+						try {
+							return MethodHandles.privateLookupIn(type, MethodHandles.lookup())
+									.unreflectSpecial(method, type).bindTo(proxy).invokeWithArguments(args);
+						} catch (UnsupportedOperationException e) {
+						}
+
+					return method.invoke(mock, args);
+				})));
+	}
+
+	private IuTest() {
 	}
 
 }

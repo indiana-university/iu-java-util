@@ -29,32 +29,19 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type.test;
-
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-
-import java.nio.file.Path;
-
-import org.junit.jupiter.api.Test;
-
-import edu.iu.type.IuComponent;
-import iu.type.ComponentFactory;
+package edu.iu.test;
 
 @SuppressWarnings("javadoc")
-public class ComponentApiTest {
+public interface InterfaceWithDefaults {
 
-	@Test
-	public void testNewComponent() {
-		var path = mock(Path.class);
-		try (var componentFactory = mockStatic(ComponentFactory.class)) {
-			IuComponent.of(path);
-			componentFactory.verify(() -> ComponentFactory.newComponent(path, new Path[0]));
-		}
-		
-		// TODO remove implementation stub
-		assertThrows(UnsupportedOperationException.class, () -> IuComponent.of(path));
+	String getAbstractString();
+
+	default String getDefaultString() {
+		return "foobar";
 	}
-
+	
+	default void throwsUnsupportedOperationException() {
+		throw new UnsupportedOperationException();
+	}
+	
 }

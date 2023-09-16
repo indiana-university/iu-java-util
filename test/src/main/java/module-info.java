@@ -29,32 +29,24 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type.test;
-
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-
-import java.nio.file.Path;
-
-import org.junit.jupiter.api.Test;
-
-import edu.iu.type.IuComponent;
-import iu.type.ComponentFactory;
-
-@SuppressWarnings("javadoc")
-public class ComponentApiTest {
-
-	@Test
-	public void testNewComponent() {
-		var path = mock(Path.class);
-		try (var componentFactory = mockStatic(ComponentFactory.class)) {
-			IuComponent.of(path);
-			componentFactory.verify(() -> ComponentFactory.newComponent(path, new Path[0]));
-		}
-		
-		// TODO remove implementation stub
-		assertThrows(UnsupportedOperationException.class, () -> IuComponent.of(path));
-	}
-
+/**
+ * Provides unit testing support.
+ * 
+ * <p>
+ * Supports the use of:
+ * </p>
+ * 
+ * <ul>
+ * <li>JUnit Juptier Engine</li>
+ * <li>Mockito</li>
+ * </ul>
+ * 
+ * @see edu.iu.test.IuTest
+ */
+module iu.util.test {
+	exports edu.iu.test;
+	
+	requires org.mockito;
+	requires org.junit.jupiter.api;
+	requires org.junit.platform.launcher;
 }

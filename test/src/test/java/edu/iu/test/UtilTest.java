@@ -29,36 +29,47 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type.test;
+package edu.iu.test;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Proxy;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
 
-import org.mockito.Mockito;
+import org.junit.jupiter.api.Test;
 
-public final class TestUtil {
+@SuppressWarnings("javadoc")
+public class UtilTest {
 
-	public static <T> T mock(Class<T> type) {
-		var mock = Mockito.mock(type);
-		if (!type.isInterface())
-			return mock;
-		else
-			return Mockito.spy(type.cast(
-					Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type }, (proxy, method, args) -> {
-						if (method.isDefault())
-							try {
-								return MethodHandles.privateLookupIn(type, MethodHandles.lookup())
-										.unreflectSpecial(method, type).bindTo(proxy).invokeWithArguments(args);
-							} catch (UnsupportedOperationException e) {
-							}
+	@Test
+	public void testMockWithDefaults() {
+		var hasDefaults = IuTest.mockWithDefaults(InterfaceWithDefaults.class);
+		assertNull(hasDefaults.getAbstractString());
+		assertEquals("foobar", hasDefaults.getDefaultString());
+	}
 
-						try {
-							return method.invoke(mock, args);
-						} catch (InvocationTargetException e) {
-							throw e.getCause();
-						}
-					})));
+	@Test
+	public void testMockWithDefaultsHandlesUnsupportedOperationException() {
+		var hasDefaults = IuTest.mockWithDefaults(InterfaceWithDefaults.class);
+		assertDoesNotThrow(() -> hasDefaults.throwsUnsupportedOperationException());
+		
+		var exception = new RuntimeException();
+		doThrow(exception).when(hasDefaults).throwsUnsupportedOperationException();
+		try {
+			hasDefaults.throwsUnsupportedOperationException();
+		} catch (RuntimeException e) {
+			assertSame(exception, e);
+		}
+	}
+
+	@Test
+	public void testMockWithDefaultsHandlesOtherExceptions() {
+		var hasDefaults = IuTest.mockWithDefaults(InterfaceWithDefaults.class);
+		when(hasDefaults.getAbstractString()).thenThrow(IllegalStateException.class);
+		assertThrows(IllegalStateException.class, () -> hasDefaults.getAbstractString());
 	}
 
 }
