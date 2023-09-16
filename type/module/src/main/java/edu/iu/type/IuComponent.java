@@ -31,6 +31,7 @@
  */
 package edu.iu.type;
 
+import java.lang.annotation.Annotation;
 import java.nio.file.Path;
 
 import iu.type.ComponentFactory;
@@ -51,6 +52,24 @@ public interface IuComponent {
 	}
 
 	/**
+	 * Creates a component that delegates to this component.
+	 * <p>
+	 * A delegating component <em>must</em>:
+	 * </p>
+	 * <ul>
+	 * <li>Have a {@link #classLoader() class loader} that delegates to this
+	 * component's {@link #classLoader()}.</li>
+	 * <li>Include of this component's {@link #interfaces() interfaces},
+	 * {@link #annotatedTypes(Class) annotation types}, and
+	 * {@link #resources()}.</li>
+	 * </ul>
+	 * 
+	 * @param modulePath Paths to valid {@link Module}-defining jar files.
+	 * @return delegating component
+	 */
+	IuComponent extend(Path... modulePath);
+
+	/**
 	 * Gets the {@link ClassLoader} for this component.
 	 * 
 	 * @return {@link ClassLoader}
@@ -58,40 +77,25 @@ public interface IuComponent {
 	ClassLoader classLoader();
 
 	/**
-	 * Gets all public interfaces {@link Module#isOpen(String, Module) opened} by
-	 * the component's {@link Module} that are {@link Module#canRead(Module)
-	 * readable} by a target {@link Module}.
+	 * Gets all of the component's public interfaces.
 	 * 
-	 * <p>
-	 * The method <em>should</em> return interfaces from dependency modules.
-	 * </p>
-	 * 
-	 * @param module {@link Module} that intends to use the interfaces
 	 * @return interface facades
 	 */
-	Iterable<IuType<?>> interfaces(Module module);
+	Iterable<IuType<?>> interfaces();
 
 	/**
-	 * Gets all types {@link Module#isOpen(String, Module) opened} by the
-	 * component's {@link Module} that are {@link Module#canRead(Module) readable}
-	 * by a target {@link Module}.
+	 * Gets all types in the component annotated by a specific type.
 	 * 
-	 * <p>
-	 * The method <em>should</em> include interfaces from dependent modules.
-	 * </p>
-	 * 
-	 * @param module {@link Module} that intends to use the annotated types
+	 * @param annotationType annotation type
 	 * @return annotated type facades
 	 */
-	Iterable<IuType<?>> annotatedTypes(Module module);
+	Iterable<IuType<?>> annotatedTypes(Class<? extends Annotation> annotationType);
 
 	/**
-	 * Gets resources defined by the component that may be
-	 * {@link Module#canRead(Module) read} by a target {@link Module}.
+	 * Gets component's resources.
 	 * 
-	 * @param module {@link Module} that intends to use the resources
 	 * @return resources
 	 */
-	Iterable<IuResource<?>> resources(Module module);
+	Iterable<IuResource<?>> resources();
 
 }
