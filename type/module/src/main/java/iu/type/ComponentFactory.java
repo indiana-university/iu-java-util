@@ -32,6 +32,8 @@
 package iu.type;
 
 import java.io.IOException;
+import java.lang.module.Configuration;
+import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
 import java.net.URL;
 import java.nio.file.Path;
@@ -40,6 +42,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
@@ -57,43 +60,74 @@ public final class ComponentFactory {
 	 *                   <em>Must</em> contain at least one path; the first entry
 	 *                   <em>must</em> refer to the jar that defines the component's
 	 *                   primary module.
-	 *                   
+	 * 
 	 * @return {@link IuComponent} instance
 	 */
 	public static IuComponent newComponent(Path... modulePath) {
-		var componentModuleJar = modulePath[0];
-
 		Set<String> classNames = new LinkedHashSet<>();
 		Map<String, URL> resourcesByName = new LinkedHashMap<>();
-		try {
-			var url = componentModuleJar.toUri().toURL();
-			try (var in = url.openStream(); var jar = new JarInputStream(in)) {
-				JarEntry entry = jar.getNextJarEntry();
-				while (entry != null) {
-					var name = entry.getName();
-					if (name.endsWith(".class")) {
-						if (!name.equals("module-info.class") //
-								&& !name.endsWith("package-info.class") //
-								&& name.indexOf('$') == -1)
-							classNames.add(name.substring(0, name.length() - 6).replace('/', '.'));
-					} else if (name.charAt(name.length() - 1) != '/' //
-							&& !name.startsWith("META-INF/maven/"))
-						resourcesByName.put(name, new URL("jar:" + url + "!/" + name));
 
-					jar.closeEntry();
-					entry = jar.getNextJarEntry();
+		for (Path componentModuleJar : modulePath)
+			try {
+				var url = componentModuleJar.toUri().toURL();
+				try (var in = url.openStream(); var jar = new JarInputStream(in)) {
+					JarEntry entry = jar.getNextJarEntry();
+					while (entry != null) {
+						var name = entry.getName();
+						if (name.endsWith(".class")) {
+							if (!name.equals("module-info.class") //
+									&& !name.endsWith("package-info.class") //
+									&& name.indexOf('$') == -1)
+								classNames.add(name.substring(0, name.length() - 6).replace('/', '.'));
+						} else if (name.charAt(name.length() - 1) != '/' //
+								&& !name.startsWith("META-INF/maven/"))
+							resourcesByName.put(name, new URL("jar:" + url + "!/" + name));
+
+						jar.closeEntry();
+						entry = jar.getNextJarEntry();
+					}
 				}
+			} catch (IOException e) {
+				throw new IllegalArgumentException(e);
 			}
-		} catch (IOException e) {
-			throw new IllegalArgumentException(e);
+
+		Map<String, String> openPackagesToModuleName = new LinkedHashMap<>();
+		Set<String> moduleNames = new LinkedHashSet<>();
+		Consumer<ModuleDescriptor> mapModuleDescriptor = descriptor -> {
+			var moduleName = descriptor.name();
+			moduleNames.add(moduleName);
+			for (var packageName : descriptor.packages())
+				openPackagesToModuleName.put(packageName, moduleName);
+		};
+
+		var moduleFinder = ModuleFinder.of(modulePath);
+		var moduleIterator = moduleFinder.findAll().iterator();
+		var componentModuleDescriptor = moduleIterator.next().descriptor();
+		mapModuleDescriptor.accept(componentModuleDescriptor);
+
+		while (moduleIterator.hasNext()) {
+			var descriptor = moduleIterator.next().descriptor();
+			mapModuleDescriptor.accept(descriptor);
+			moduleNames.add(descriptor.name());
 		}
 
-		var loader = new ComponentClassLoader(ModuleFinder.of(modulePath), null);
+		ClassLoader parentClassLoader;
+		ModuleLayer parentModuleLayer;
+//		if (parent == null) {
+			parentClassLoader = ClassLoader.getPlatformClassLoader();
+			parentModuleLayer = ModuleLayer.boot();
+//		} else {
+//			parentClassLoader = parent.classLoader();
+//			parentModuleLayer = parent.controller().layer();
+//		}
 
-		// TODO implementation stub
-		System.out.println(classNames);
-		System.out.println(resourcesByName);
-		throw new UnsupportedOperationException("TODO");
+		var configuration = Configuration.resolveAndBind( //
+				moduleFinder, List.of(parentModuleLayer.configuration()), ModuleFinder.of(), moduleNames);
+
+		var controller = ModuleLayer.defineModulesWithOneLoader(configuration, List.of(parentModuleLayer),
+				parentClassLoader);
+
+		return new Component(null, moduleFinder, controller);
 	}
 
 	private ComponentFactory() {

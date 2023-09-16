@@ -3,11 +3,11 @@ package iu.type;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.Map;
-import java.util.Set;
 
 import edu.iu.type.IuConstructor;
 import edu.iu.type.IuField;
 import edu.iu.type.IuMethod;
+import edu.iu.type.IuProperty;
 import edu.iu.type.IuType;
 import edu.iu.type.IuTypeReference;
 
@@ -38,6 +38,15 @@ class TypeFacade<T> implements IuType<T> {
 	}
 
 	@Override
+	public IuType<T> base() {
+		if (reference() == null && (type instanceof Class))
+			return this;
+		else
+			// TODO Auto-generated method stub
+			throw new UnsupportedOperationException("TODO");
+	}
+
+	@Override
 	public IuType<?> declaringType() {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
@@ -56,15 +65,6 @@ class TypeFacade<T> implements IuType<T> {
 	}
 
 	@Override
-	public IuType<T> base() {
-		if (reference() == null && (type instanceof Class))
-			return this;
-		else
-			// TODO Auto-generated method stub
-			throw new UnsupportedOperationException("TODO");
-	}
-
-	@Override
 	public Iterable<IuType<?>> hierarchy() {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
@@ -77,31 +77,31 @@ class TypeFacade<T> implements IuType<T> {
 	}
 
 	@Override
-	public Set<IuType<?>> enclosedTypes() {
+	public Iterable<IuType<?>> enclosedTypes() {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}
 
 	@Override
-	public Set<IuConstructor> constructors() {
+	public Iterable<IuConstructor<T>> constructors() {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}
 
 	@Override
-	public IuConstructor constructors(Type... parameterTypes) {
+	public IuConstructor<T> constructors(Type... parameterTypes) {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}
 
 	@Override
-	public IuConstructor constructor(IuType<?>... parameterTypes) {
+	public IuConstructor<T> constructor(IuType<?>... parameterTypes) {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}
 
 	@Override
-	public Map<String, IuField<T>> fields() {
+	public Iterable<IuField<T>> fields() {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}
@@ -113,19 +113,31 @@ class TypeFacade<T> implements IuType<T> {
 	}
 
 	@Override
-	public Set<IuMethod> methods() {
+	public Iterable<IuProperty<T>> properties() {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}
 
 	@Override
-	public IuMethod methods(String name, Type... parameterTypes) {
+	public IuProperty<?> property(String name) {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}
 
 	@Override
-	public IuMethod method(String name, IuType<?>... parameterTypes) {
+	public Iterable<IuMethod<?>> methods() {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException("TODO");
+	}
+
+	@Override
+	public IuMethod<?> methods(String name, Type... parameterTypes) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException("TODO");
+	}
+
+	@Override
+	public IuMethod<?> method(String name, IuType<?>... parameterTypes) {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}

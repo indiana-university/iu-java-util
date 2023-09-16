@@ -1,5 +1,6 @@
 package iu.type;
 
+import java.lang.ModuleLayer.Controller;
 import java.lang.module.ModuleFinder;
 
 import edu.iu.type.IuComponent;
@@ -8,12 +9,14 @@ import edu.iu.type.IuType;
 
 class Component implements IuComponent {
 
-	final ModuleFinder moduleFinder;
-	final ModuleLayer moduleLayer;
+	final Component parent;
+	private final ModuleFinder moduleFinder;
+	private final Controller controller;
 
-	Component(ModuleFinder moduleFinder, ModuleLayer moduleLayer) {
+	Component(Component parent, ModuleFinder moduleFinder, Controller controller) {
+		this.parent = parent;
 		this.moduleFinder = moduleFinder;
-		this.moduleLayer = moduleLayer;
+		this.controller = controller;
 	}
 
 	@Override
