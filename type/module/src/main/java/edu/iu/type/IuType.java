@@ -33,8 +33,6 @@ package edu.iu.type;
 
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
-import java.util.Map;
-import java.util.Set;
 
 import iu.type.TypeFactory;
 
@@ -144,14 +142,14 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * 
 	 * @return enclosed types
 	 */
-	Set<IuType<?>> enclosedTypes();
+	Iterable<IuType<?>> enclosedTypes();
 
 	/**
 	 * Gets all constructors defined by this type.
 	 * 
 	 * @return constructors
 	 */
-	Set<IuConstructor> constructors();
+	Iterable<IuConstructor<T>> constructors();
 
 	/**
 	 * Gets a constructor defined by this type.
@@ -159,7 +157,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param parameterTypes parameter types
 	 * @return constructor
 	 */
-	IuConstructor constructors(Type... parameterTypes);
+	IuConstructor<T> constructors(Type... parameterTypes);
 
 	/**
 	 * Gets a constructor declared by this type.
@@ -167,14 +165,14 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param parameterTypes parameter types
 	 * @return constructor
 	 */
-	IuConstructor constructor(IuType<?>... parameterTypes);
+	IuConstructor<T> constructor(IuType<?>... parameterTypes);
 
 	/**
 	 * Gets all fields defined by this type.
 	 * 
 	 * @return fields
 	 */
-	Map<String, IuField<T>> fields();
+	Iterable<IuField<T>> fields();
 
 	/**
 	 * Gets a field declared by this type.
@@ -185,11 +183,26 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	IuField<?> field(String name);
 
 	/**
+	 * Gets all properties defined by this type.
+	 * 
+	 * @return properties by name
+	 */
+	Iterable<IuProperty<T>> properties();
+
+	/**
+	 * Gets a property declared by this type.
+	 * 
+	 * @param name property name
+	 * @return property
+	 */
+	IuProperty<?> property(String name);
+
+	/**
 	 * Gets all methods defined by this type.
 	 * 
 	 * @return methods
 	 */
-	Set<IuMethod> methods();
+	Iterable<IuMethod<?>> methods();
 
 	/**
 	 * Gets a method defined by this type.
@@ -198,7 +211,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param parameterTypes parameter types
 	 * @return method
 	 */
-	IuMethod methods(String name, Type... parameterTypes);
+	IuMethod<?> methods(String name, Type... parameterTypes);
 
 	/**
 	 * Gets a method declared by this type.
@@ -207,7 +220,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param parameterTypes parameter types
 	 * @return method
 	 */
-	IuMethod method(String name, IuType<?>... parameterTypes);
+	IuMethod<?> method(String name, IuType<?>... parameterTypes);
 
 	/**
 	 * Get the resolved base class.

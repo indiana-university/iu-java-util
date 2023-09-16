@@ -45,7 +45,7 @@ public interface IuParameter<T> extends IuAnnotatedElement {
 	 * 
 	 * @return declaring executable
 	 */
-	IuExecutable declaringExecutable();
+	IuExecutable<?> declaringExecutable();
 
 	/**
 	 * Gets the parameter index.
@@ -59,7 +59,7 @@ public interface IuParameter<T> extends IuAnnotatedElement {
 	 * 
 	 * @return parameter name
 	 */
-	int name();
+	String name();
 
 	/**
 	 * Gets the parameter type.

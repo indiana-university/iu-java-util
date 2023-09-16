@@ -35,7 +35,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
@@ -79,9 +78,9 @@ public class TypeApiTest {
 
 	@Test
 	public void testReferenceKind() {
-		assertNull(IuReferenceKind.BASE.getReferrerType());
-		assertFalse(IuReferenceKind.BASE.isNamed());
-		assertFalse(IuReferenceKind.BASE.isIndexed());
+		assertNull(IuReferenceKind.BASE.referrerType());
+		assertFalse(IuReferenceKind.BASE.named());
+		assertFalse(IuReferenceKind.BASE.indexed());
 	}
 
 	@Test
@@ -135,8 +134,8 @@ public class TypeApiTest {
 
 		assertTrue(property.canRead());
 		assertFalse(property.canWrite());
-		assertFalse(property.isPrintSafe());
-		assertFalse(property.isSerializable());
+		assertFalse(property.printSafe());
+		assertFalse(property.serializable());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -152,8 +151,8 @@ public class TypeApiTest {
 
 		assertFalse(property.canRead());
 		assertTrue(property.canWrite());
-		assertFalse(property.isPrintSafe());
-		assertFalse(property.isSerializable());
+		assertFalse(property.printSafe());
+		assertFalse(property.serializable());
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -174,8 +173,8 @@ public class TypeApiTest {
 
 		assertTrue(property.canRead());
 		assertTrue(property.canWrite());
-		assertFalse(property.isPrintSafe());
-		assertFalse(property.isSerializable());
+		assertFalse(property.printSafe());
+		assertFalse(property.serializable());
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -196,8 +195,8 @@ public class TypeApiTest {
 
 		assertTrue(property.canRead());
 		assertTrue(property.canWrite());
-		assertTrue(property.isPrintSafe());
-		assertTrue(property.isSerializable());
+		assertTrue(property.printSafe());
+		assertTrue(property.serializable());
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -218,8 +217,8 @@ public class TypeApiTest {
 
 		assertTrue(property.canRead());
 		assertTrue(property.canWrite());
-		assertTrue(property.isPrintSafe());
-		assertTrue(property.isSerializable());
+		assertTrue(property.printSafe());
+		assertTrue(property.serializable());
 	}
 
 	@SuppressWarnings("unchecked")

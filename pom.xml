@@ -60,6 +60,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 		<jakarta.annotation-api.version>2.1.1</jakarta.annotation-api.version>
 		<jakarta.interceptor-api.version>2.1.0</jakarta.interceptor-api.version>
+
+		<junit-jupiter.version>5.10.0</junit-jupiter.version>
+		<mockito.version>5.5.0</mockito.version>
 	</properties>
 
 	<distributionManagement>

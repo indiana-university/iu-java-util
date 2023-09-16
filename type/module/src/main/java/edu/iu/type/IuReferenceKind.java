@@ -137,7 +137,7 @@ public enum IuReferenceKind {
 	 * 
 	 * @return referrer type; may be null if the reference is a base type.
 	 */
-	public Class<? extends IuAnnotatedElement> getReferrerType() {
+	public Class<? extends IuAnnotatedElement> referrerType() {
 		return referrerType;
 	}
 
@@ -145,13 +145,13 @@ public enum IuReferenceKind {
 	 * Determines if the reference was obtained by name.
 	 * 
 	 * <p>
-	 * Only only of {@link #isNamed()} and {@link #isIndexed()} may return true,
-	 * both may return false.
+	 * Only one of {@link #named()} and {@link #indexed()} may return true, both
+	 * may return false.
 	 * </p>
 	 * 
 	 * @return true if the reference is a name; else false.
 	 */
-	public boolean isNamed() {
+	public boolean named() {
 		return named;
 	}
 
@@ -159,13 +159,13 @@ public enum IuReferenceKind {
 	 * Determines if the reference was obtained by index.
 	 * 
 	 * <p>
-	 * Only only of {@link #isNamed()} and {@link #isIndexed()} may return true,
-	 * both may return false.
+	 * Only only of {@link #named()} and {@link #indexed()} may return true, both
+	 * may return false.
 	 * </p>
 	 * 
 	 * @return true if the reference is an index; else false.
 	 */
-	public boolean isIndexed() {
+	public boolean indexed() {
 		return indexed;
 	}
 

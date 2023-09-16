@@ -33,7 +33,12 @@ package edu.iu.type;
 
 /**
  * Facade interface for a constructor.
+ * 
+ * @param <T> declaring type
  */
-public interface IuConstructor extends IuExecutable {
+public interface IuConstructor<T> extends IuExecutable<T> {
+
+	@Override
+	IuType<T> declaringType();
 
 }
