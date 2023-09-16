@@ -33,7 +33,35 @@ package edu.iu.type;
 
 /**
  * Represents a method reflected from the base class of a generic type.
+ * 
+ * @param <R> Return type
  */
-public interface IuMethod extends IuExecutable {
+public interface IuMethod<R> extends IuExecutable<R> {
+
+	/**
+	 * Determines if this is a static method.
+	 * 
+	 * @return true if static; else false
+	 */
+	boolean isStatic();
+
+	/**
+	 * Gets the return type.
+	 * 
+	 * @return return type
+	 */
+	IuType<R> returnType();
+
+	/**
+	 * Executes a method.
+	 * 
+	 * @param arguments argument values; when {@link #isStatic()} returns false, the
+	 *                  first argument <em>must</em> be the instance to invoke the
+	 *                  method on.
+	 * @return return value
+	 * @throws Exception If an exception occurs
+	 */
+	@Override
+	R exec(Object... arguments) throws Exception;
 
 }

@@ -52,14 +52,14 @@ public interface IuProperty<T> extends IuAttribute<T> {
 	 * 
 	 * @return read method facade
 	 */
-	IuMethod read();
+	IuMethod<T> read();
 
 	/**
 	 * Gets a facade describing the property write method.
 	 * 
 	 * @return write method facade
 	 */
-	IuMethod write();
+	IuMethod<Void> write();
 
 	/**
 	 * Determines if the property is readable.
@@ -103,7 +103,7 @@ public interface IuProperty<T> extends IuAttribute<T> {
 	 * 
 	 * @return true if the property may be printed
 	 */
-	default boolean isPrintSafe() {
+	default boolean printSafe() {
 		return canRead() //
 				&& !hasAnnotation(Transient.class) //
 				&& (StaticDependencyHelper.hasPermitAll(read())
@@ -149,7 +149,7 @@ public interface IuProperty<T> extends IuAttribute<T> {
 	 * @return true if readable, writable, and not transient; else false
 	 */
 	@Override
-	default boolean isSerializable() {
+	default boolean serializable() {
 		return canRead() && canWrite() && !hasAnnotation(Transient.class);
 	}
 

@@ -81,6 +81,6 @@ public interface IuAttribute<T> extends IuNamedElement {
 	 * @return True if the attribute should be included in serialized form; else
 	 *         false
 	 */
-	boolean isSerializable();
+	boolean serializable();
 
 }

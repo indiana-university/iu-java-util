@@ -43,15 +43,11 @@ public interface IuComponent {
 	/**
 	 * Creates a new component.
 	 * 
-	 * @param componentModuleJar   Path to a valid jar file that defines a
-	 *                             {@link Module}.
-	 * @param dependencyModuleJars Paths valid jar files that define a
-	 *                             {@link Module} to include in the component's
-	 *                             module path.
+	 * @param modulePath Paths to valid {@link Module}-defining jar files.
 	 * @return component
 	 */
-	static IuComponent of(Path componentModuleJar, Path... dependencyModuleJars) {
-		return ComponentFactory.newComponent(componentModuleJar, dependencyModuleJars);
+	static IuComponent of(Path... modulePath) {
+		return ComponentFactory.newComponent(modulePath);
 	}
 
 	/**
@@ -67,7 +63,7 @@ public interface IuComponent {
 	 * readable} by a target {@link Module}.
 	 * 
 	 * <p>
-	 * The method <em>must</em> not return interfaces from dependency modules.
+	 * The method <em>should</em> return interfaces from dependency modules.
 	 * </p>
 	 * 
 	 * @param module {@link Module} that intends to use the interfaces
@@ -81,7 +77,7 @@ public interface IuComponent {
 	 * by a target {@link Module}.
 	 * 
 	 * <p>
-	 * The method <em>must</em> not include interfaces from dependent modules.
+	 * The method <em>should</em> include interfaces from dependent modules.
 	 * </p>
 	 * 
 	 * @param module {@link Module} that intends to use the annotated types

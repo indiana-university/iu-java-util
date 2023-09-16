@@ -32,13 +32,14 @@
 package edu.iu.type;
 
 import java.lang.reflect.Executable;
-import java.util.Collection;
 import java.util.List;
 
 /**
  * Facade interface for an {@link Executable} element: a method or constructor.
+ * 
+ * @param <T> Target type: method return type, or constructor declaring type
  */
-public interface IuExecutable extends IuDeclaredElement, IuParameterizedElement {
+public interface IuExecutable<T> extends IuDeclaredElement, IuParameterizedElement {
 
 	/**
 	 * Gets the parameters.
@@ -58,10 +59,12 @@ public interface IuExecutable extends IuDeclaredElement, IuParameterizedElement 
 	}
 
 	/**
-	 * Gets interceptors
+	 * Executes the element.
 	 * 
-	 * @return interceptor classes
+	 * @param arguments argument values
+	 * @return result
+	 * @throws Exception If an exception occurs
 	 */
-	Collection<?> interceptors();
-
+	T exec(Object... arguments) throws Exception;
+	
 }

@@ -50,7 +50,7 @@ public class ComponentApiTest {
 		var path = mock(Path.class);
 		try (var componentFactory = mockStatic(ComponentFactory.class)) {
 			IuComponent.of(path);
-			componentFactory.verify(() -> ComponentFactory.newComponent(path, new Path[0]));
+			componentFactory.verify(() -> ComponentFactory.newComponent(path));
 		}
 		
 		// TODO remove implementation stub

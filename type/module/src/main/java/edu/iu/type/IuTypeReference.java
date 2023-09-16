@@ -56,34 +56,38 @@ public interface IuTypeReference<T> {
 	 * 
 	 * @return reference kind
 	 */
-	IuReferenceKind getKind();
+	IuReferenceKind kind();
 
 	/**
 	 * Gets the introspection wrapper through which the reference was obtained.
 	 * 
 	 * @return introspection wrapper
 	 */
-	IuAnnotatedElement getReferrer();
+	IuAnnotatedElement referrer();
 
 	/**
 	 * Gets the name of the referent type as known by the referrer.
 	 * 
-	 * @return reference name
+	 * @return reference name; <em>must</em> be non-null when
+	 *         {@link #kind()}{@link IuReferenceKind#named() .isNamed()} is true,
+	 *         if false <em>must</em> be null.
 	 */
-	String getName();
+	String name();
 
 	/**
 	 * Gets the ordinal index associated with a parameter reference.
 	 * 
-	 * @return parameter index
+	 * @return index; <em>must</em> be &gt;= 0 when
+	 *         {@link #kind()}{@link IuReferenceKind#indexed() .isIndexed()} is
+	 *         true, if false <em>must</em> be -1.
 	 */
-	int getParameterIndex();
+	int index();
 
 	/**
 	 * Gets the referent type.
 	 * 
 	 * @return referent type
 	 */
-	IuType<T> getReferent();
+	IuType<T> referent();
 
 }

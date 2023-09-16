@@ -43,12 +43,13 @@ public final class ComponentFactory {
 	/**
 	 * Creates a new component from the provided module path elements.
 	 * 
-	 * @param componentModuleJar   Path to the primary component jar
-	 * @param dependencyModuleJars Path to all non-JDK dependency jars required by
-	 *                             the component
+	 * @param modulePath Paths to the jar files that compose the component.
+	 *                   <em>Must</em> contain at least one path; the first entry
+	 *                   <em>must</em> refer to the jar that defines the component's
+	 *                   primary module.
 	 * @return {@link IuComponent} instance
 	 */
-	public static IuComponent newComponent(Path componentModuleJar, Path[] dependencyModuleJars) {
+	public static IuComponent newComponent(Path... modulePath) {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}

@@ -45,6 +45,7 @@ import java.beans.Transient;
 import java.util.List;
 import java.util.Map;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.test.IuTest;
@@ -63,17 +64,27 @@ import jakarta.annotation.security.PermitAll;
 
 @SuppressWarnings("javadoc")
 public class TypeApiTest {
-	
+
+	@BeforeAll
+	public static void setup() {
+		IuType.class.getModule().addOpens(IuType.class.getPackageName(), IuTest.class.getModule());
+	}
+
 	@Test
 	public void testTypeIsNotImplemented() {
+		try (var typeFactory = mockStatic(TypeFactory.class)) {
+			IuType.of(Object.class);
+			typeFactory.verify(() -> TypeFactory.resolve(Object.class));
+		}
+		// TODO remove implementation stub
 		assertThrows(UnsupportedOperationException.class, () -> IuType.of(Object.class));
 	}
 
 	@Test
 	public void testReferenceKind() {
-		assertNull(IuReferenceKind.BASE.getReferrerType());
-		assertFalse(IuReferenceKind.BASE.isNamed());
-		assertFalse(IuReferenceKind.BASE.isIndexed());
+		assertNull(IuReferenceKind.BASE.referrerType());
+		assertFalse(IuReferenceKind.BASE.named());
+		assertFalse(IuReferenceKind.BASE.indexed());
 	}
 
 	@Test
@@ -127,8 +138,8 @@ public class TypeApiTest {
 
 		assertTrue(property.canRead());
 		assertFalse(property.canWrite());
-		assertFalse(property.isPrintSafe());
-		assertFalse(property.isSerializable());
+		assertFalse(property.printSafe());
+		assertFalse(property.serializable());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -144,8 +155,8 @@ public class TypeApiTest {
 
 		assertFalse(property.canRead());
 		assertTrue(property.canWrite());
-		assertFalse(property.isPrintSafe());
-		assertFalse(property.isSerializable());
+		assertFalse(property.printSafe());
+		assertFalse(property.serializable());
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -157,7 +168,7 @@ public class TypeApiTest {
 		when(property.declaringType()).thenReturn(type);
 
 		var read = IuTest.mockWithDefaults(IuMethod.class);
-		var transientAnnotation = mock(Transient.class);
+		var transientAnnotation = IuTest.mockWithDefaults(Transient.class);
 		when(read.annotations()).thenReturn((Map) Map.of(Transient.class, transientAnnotation));
 		when(property.read()).thenReturn(read);
 
@@ -166,8 +177,8 @@ public class TypeApiTest {
 
 		assertTrue(property.canRead());
 		assertTrue(property.canWrite());
-		assertFalse(property.isPrintSafe());
-		assertFalse(property.isSerializable());
+		assertFalse(property.printSafe());
+		assertFalse(property.serializable());
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -188,8 +199,8 @@ public class TypeApiTest {
 
 		assertTrue(property.canRead());
 		assertTrue(property.canWrite());
-		assertTrue(property.isPrintSafe());
-		assertTrue(property.isSerializable());
+		assertTrue(property.printSafe());
+		assertTrue(property.serializable());
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -210,8 +221,8 @@ public class TypeApiTest {
 
 		assertTrue(property.canRead());
 		assertTrue(property.canWrite());
-		assertTrue(property.isPrintSafe());
-		assertTrue(property.isSerializable());
+		assertTrue(property.printSafe());
+		assertTrue(property.serializable());
 	}
 
 	@SuppressWarnings("unchecked")
