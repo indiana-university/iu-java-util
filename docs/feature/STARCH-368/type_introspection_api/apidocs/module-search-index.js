@@ -1,1 +1,1 @@
-moduleSearchIndex = [{"l":"iu.util.runtime"},{"l":"iu.util.type"}];updateSearchResults();
+moduleSearchIndex = [{"l":"iu.util.runtime"},{"l":"iu.util.test"},{"l":"iu.util.type"}];updateSearchResults();
