@@ -34,7 +34,7 @@ package edu.iu.type.testcomponent;
 import java.util.List;
 import java.util.Map;
 
-import javax.interceptor.Interceptors;
+import jakarta.interceptor.Interceptors;
 
 @SuppressWarnings({ "unused", "javadoc" })
 @Interceptors(TestInterceptor.class)

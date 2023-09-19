@@ -8,8 +8,8 @@
 		<version>7.0.0-SNAPSHOT</version>
 	</parent>
 	
-	<artifactId>iu-java-type-testcomponent</artifactId>
-	<name>IU Type Introspection Test Component</name>
+	<artifactId>iu-java-type-testruntime</artifactId>
+	<name>IU Type Introspection Test runtime Component</name>
 
 	<properties>
 		<maven.install.skip>true</maven.install.skip>
@@ -20,22 +20,19 @@
 	
 	<dependencies>
 		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-type-testruntime</artifactId>
-			<version>${project.version}</version>
-			<scope>provided</scope>
+			<groupId>jakarta.interceptor</groupId>
+			<artifactId>jakarta.interceptor-api</artifactId>
+			<version>${jakarta.interceptor-api.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>jakarta.annotation</groupId>
 			<artifactId>jakarta.annotation-api</artifactId>
 			<version>${jakarta.annotation-api.version}</version>
-			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>jakarta.json</groupId>
 			<artifactId>jakarta.json-api</artifactId>
 			<version>${jakarta.json-api.version}</version>
-			<scope>provided</scope>
 		</dependency>
 	</dependencies>
 
@@ -47,6 +44,18 @@
 					<execution>
 						<id>default-jar</id>
 						<phase>process-classes</phase>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<artifactId>maven-dependency-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>prepare-dependencies</id>
+						<phase>process-classes</phase>
+						<goals>
+							<goal>copy-dependencies</goal>
+						</goals>
 					</execution>
 				</executions>
 			</plugin>

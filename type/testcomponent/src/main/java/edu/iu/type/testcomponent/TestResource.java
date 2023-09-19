@@ -31,8 +31,8 @@
  */
 package edu.iu.type.testcomponent;
 
-import javax.annotation.Resource;
-import javax.interceptor.Interceptors;
+import jakarta.annotation.Resource;
+import jakarta.interceptor.Interceptors;
 
 @SuppressWarnings("javadoc")
 @Interceptors(TestInterceptor.class)

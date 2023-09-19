@@ -46,8 +46,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	<licenses>
 		<license>
 			<name>BSD-3-Clause</name>
-			<url>
-				https://github.iu.edu/iu-uits-es/iu-java-util/blob/develop/LICENSE</url>
+			<url>https://github.iu.edu/iu-uits-es/iu-java-util/blob/develop/LICENSE</url>
 			<distribution>repo</distribution>
 			<comments>Copyright (c) 2023 Indiana Univeristy</comments>
 		</license>
@@ -56,12 +55,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-		<argLine>-ea</argLine>
+		<argLine>-ea --add-modules ALL-MODULE-PATH</argLine>
 
 		<jakarta.annotation-api.version>2.1.1</jakarta.annotation-api.version>
 		<jakarta.interceptor-api.version>2.1.0</jakarta.interceptor-api.version>
+		<jakarta.json-api.version>2.1.2</jakarta.json-api.version>
 
 		<junit-jupiter.version>5.10.0</junit-jupiter.version>
+		<junit-platform.version>1.10.0</junit-platform.version>
 		<mockito.version>5.5.0</mockito.version>
 	</properties>
 
@@ -72,7 +73,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		</repository>
 		<snapshotRepository>
 			<id>IUMaven</id>
-			<url>https://apps.iu.edu/nxs-prd/content/repositories/IUPublic-Snapshot</url>
+			<url>
+				https://apps.iu.edu/nxs-prd/content/repositories/IUPublic-Snapshot</url>
 		</snapshotRepository>
 	</distributionManagement>
 
@@ -100,6 +102,17 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 						<id>default-javadoc</id>
 						<reports>
 							<report>javadoc</report>
+						</reports>
+					</reportSet>
+				</reportSets>
+			</plugin>
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<reportSets>
+					<reportSet>
+						<reports>
+							<report>report</report>
 						</reports>
 					</reportSet>
 				</reportSets>
@@ -239,9 +252,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<plugin>
 					<artifactId>maven-surefire-plugin</artifactId>
 					<version>3.1.2</version>
-					<configuration>
-						<useModulePath>false</useModulePath>
-					</configuration>
 				</plugin>
 				<plugin>
 					<artifactId>maven-ear-plugin</artifactId>
@@ -339,6 +349,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 							<phase>generate-test-resources</phase>
 						</execution>
 						<execution>
+							<id>coverage-report</id>
+							<goals>
+								<goal>report</goal>
+							</goals>
+							<phase>test</phase>
+						</execution>
+						<execution>
 							<id>coverage-check</id>
 							<goals>
 								<goal>check</goal>
@@ -365,6 +382,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 									</rule>
 								</rules>
 							</configuration>
+						</execution>
+						<execution>
+							<id>coverage-aggregate</id>
+							<goals>
+								<goal>report-aggregate</goal>
+							</goals>
 						</execution>
 					</executions>
 				</plugin>

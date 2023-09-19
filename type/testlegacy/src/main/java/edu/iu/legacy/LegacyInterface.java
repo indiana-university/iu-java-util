@@ -29,25 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.type.testcomponent;
+package edu.iu.legacy;
 
-import jakarta.interceptor.AroundConstruct;
-import jakarta.interceptor.AroundInvoke;
-import jakarta.interceptor.Interceptor;
-import jakarta.interceptor.InvocationContext;
-
-@SuppressWarnings("javadoc")
-@Interceptor
-public class TestInterceptor {
-
-	@AroundConstruct
-	public Object interceptConstruct(InvocationContext ctx) throws Exception {
-		throw new UnsupportedOperationException("called interceptConstruct");
-	}
-	
-	@AroundInvoke
-	public Object interceptMethod(InvocationContext ctx) throws Exception {
-		throw new UnsupportedOperationException("called interceptMethod");
-	}
-	
+interface LegacyInterface {
 }

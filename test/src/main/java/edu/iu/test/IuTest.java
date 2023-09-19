@@ -33,8 +33,12 @@ package edu.iu.test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Proxy;
+import java.net.URL;
+import java.util.Enumeration;
+import java.util.Properties;
 
 import org.mockito.Mockito;
 
@@ -42,6 +46,12 @@ import org.mockito.Mockito;
  * Unit testing utilities.
  */
 public final class IuTest {
+
+	private static Properties properties;
+
+	static Enumeration<URL> getResources(String name) throws IOException {
+		return ClassLoader.getSystemResources(name);
+	}
 
 	/**
 	 * Decorates a {@link Mockito#mock(Class)} with a proxy capable of invoking the
@@ -53,7 +63,7 @@ public final class IuTest {
 	 */
 	public static <T> T mockWithDefaults(Class<T> type) {
 		IuTest.class.getModule().addReads(type.getModule());
-		
+
 		var mock = Mockito.mock(type);
 		assertTrue(type.isInterface());
 
@@ -68,6 +78,44 @@ public final class IuTest {
 
 					return method.invoke(mock, args);
 				})));
+	}
+
+	/**
+	 * Loads {@link Properties} from the system classpath resource
+	 * {@code META-INF/test.properties}.
+	 * 
+	 * <p>
+	 * The method facilitates passing properties defined in {@code pom.xml} to a
+	 * unit test.
+	 * </p>
+	 * 
+	 * @return properties
+	 */
+	public static Properties properties() {
+		if (properties == null)
+			try {
+				var properties = new Properties();
+				Enumeration<URL> sources = getResources("META-INF/iu-test.properties");
+				for (var source : (Iterable<URL>) sources::asIterator)
+					try (var in = source.openStream()) {
+						properties.load(in);
+					}
+				IuTest.properties = properties;
+			} catch (IOException e) {
+				throw new IllegalStateException(e);
+			}
+		return properties;
+	}
+
+	/**
+	 * Gets a build-time property value.
+	 * 
+	 * @param key property name
+	 * @return property value
+	 */
+	public static String getProperty(String key) {
+		return properties().getProperty(key);
+
 	}
 
 	private IuTest() {

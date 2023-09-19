@@ -22,6 +22,8 @@
 				<activeByDefault>true</activeByDefault>
 			</activation>
 			<modules>
+				<module>testlegacy</module>
+				<module>testruntime</module>
 				<module>testcomponent</module>
 				<module>module</module>
 			</modules>

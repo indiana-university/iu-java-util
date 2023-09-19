@@ -55,7 +55,7 @@ public class UtilTest {
 	public void testMockWithDefaultsHandlesUnsupportedOperationException() {
 		var hasDefaults = IuTest.mockWithDefaults(InterfaceWithDefaults.class);
 		assertDoesNotThrow(() -> hasDefaults.throwsUnsupportedOperationException());
-		
+
 		var exception = new RuntimeException();
 		doThrow(exception).when(hasDefaults).throwsUnsupportedOperationException();
 		try {

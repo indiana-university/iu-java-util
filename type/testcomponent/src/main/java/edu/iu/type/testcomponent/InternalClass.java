@@ -31,7 +31,7 @@
  */
 package edu.iu.type.testcomponent;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 
 class InternalClass {
 

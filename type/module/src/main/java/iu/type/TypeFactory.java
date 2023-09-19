@@ -42,7 +42,7 @@ import edu.iu.type.IuType;
  */
 public final class TypeFactory {
 
-	private static final Map<Type, IuType<?>> FACADES = new WeakHashMap<>();
+	private static final Map<Type, TypeFacade<?>> FACADES = new WeakHashMap<>();
 
 	/**
 	 * Resolve an {@link IuType} instance.

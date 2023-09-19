@@ -29,25 +29,36 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.type.testcomponent;
+package edu.iu.test;
 
-import jakarta.interceptor.AroundConstruct;
-import jakarta.interceptor.AroundInvoke;
-import jakarta.interceptor.Interceptor;
-import jakarta.interceptor.InvocationContext;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mockStatic;
+
+import java.io.IOException;
+
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("javadoc")
-@Interceptor
-public class TestInterceptor {
+public class PropertiesTest {
 
-	@AroundConstruct
-	public Object interceptConstruct(InvocationContext ctx) throws Exception {
-		throw new UnsupportedOperationException("called interceptConstruct");
+	@BeforeAll
+	public static void testPropertiesDoesntThrowChecked() {
+		try (var iuTest = mockStatic(IuTest.class)) {
+			iuTest.when(() -> IuTest.getResources(any(String.class))).thenThrow(IOException.class);
+			iuTest.when(() -> IuTest.properties()).thenCallRealMethod();
+			assertThrows(IllegalStateException.class, () -> IuTest.properties());
+		}
 	}
-	
-	@AroundInvoke
-	public Object interceptMethod(InvocationContext ctx) throws Exception {
-		throw new UnsupportedOperationException("called interceptMethod");
+
+	@Test
+	public void testLoadsProperties() throws Exception {
+		var properties = IuTest.properties();
+		assertSame(properties, IuTest.properties());
+		assertEquals("bar", IuTest.getProperty("foo"));
 	}
-	
+
 }
