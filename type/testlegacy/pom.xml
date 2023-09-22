@@ -9,7 +9,7 @@
 	</parent>
 	
 	<artifactId>iu-java-type-testlegacy</artifactId>
-	<name>IU Type Introspection Test legacy component</name>
+	<name>IU Type Introspection Test Legacy component</name>
 
 	<properties>
 		<maven.install.skip>true</maven.install.skip>

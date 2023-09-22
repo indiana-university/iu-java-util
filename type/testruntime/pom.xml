@@ -1,15 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
-	
+
 	<parent>
 		<groupId>edu.iu.util</groupId>
 		<artifactId>iu-java-type-parent</artifactId>
 		<version>7.0.0-SNAPSHOT</version>
 	</parent>
-	
+
 	<artifactId>iu-java-type-testruntime</artifactId>
-	<name>IU Type Introspection Test runtime Component</name>
+	<name>IU Type Introspection Test Runtime Component</name>
 
 	<properties>
 		<maven.install.skip>true</maven.install.skip>
@@ -17,7 +19,7 @@
 		<maven.javadoc.skip>true</maven.javadoc.skip>
 		<maven.test.skip>true</maven.test.skip>
 	</properties>
-	
+
 	<dependencies>
 		<dependency>
 			<groupId>jakarta.interceptor</groupId>
@@ -34,6 +36,12 @@
 			<artifactId>jakarta.json-api</artifactId>
 			<version>${jakarta.json-api.version}</version>
 		</dependency>
+		<dependency>
+			<groupId>org.eclipse.parsson</groupId>
+			<artifactId>parsson</artifactId>
+			<version>${parsson.version}</version>
+			<scope>provided</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -44,6 +52,13 @@
 					<execution>
 						<id>default-jar</id>
 						<phase>process-classes</phase>
+						<configuration>
+							<archive>
+								<manifest>
+									<addClasspath>true</addClasspath>
+								</manifest>
+							</archive>
+						</configuration>
 					</execution>
 				</executions>
 			</plugin>
@@ -51,11 +66,25 @@
 				<artifactId>maven-dependency-plugin</artifactId>
 				<executions>
 					<execution>
+						<id>embed-dependencies</id>
+						<phase>process-resources</phase>
+						<goals>
+							<goal>copy-dependencies</goal>
+						</goals>
+						<configuration>
+							<outputDirectory>${project.build.outputDirectory}/META-INF/lib</outputDirectory>
+							<excludeArtifactIds>parsson</excludeArtifactIds>
+						</configuration>
+					</execution>
+					<execution>
 						<id>prepare-dependencies</id>
 						<phase>process-classes</phase>
 						<goals>
 							<goal>copy-dependencies</goal>
 						</goals>
+						<configuration>
+							<includeArtifactIds>parsson</includeArtifactIds>
+						</configuration>
 					</execution>
 				</executions>
 			</plugin>

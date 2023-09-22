@@ -60,6 +60,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<jakarta.annotation-api.version>2.1.1</jakarta.annotation-api.version>
 		<jakarta.interceptor-api.version>2.1.0</jakarta.interceptor-api.version>
 		<jakarta.json-api.version>2.1.2</jakarta.json-api.version>
+		
+		<parsson.version>1.1.2</parsson.version>
 
 		<junit-jupiter.version>5.10.0</junit-jupiter.version>
 		<junit-platform.version>1.10.0</junit-platform.version>
@@ -260,6 +262,20 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<plugin>
 					<artifactId>maven-jar-plugin</artifactId>
 					<version>3.3.0</version>
+					<configuration>
+						<archive>
+							<manifest>
+								<classpathPrefix>META-INF/lib</classpathPrefix>
+								<addExtensions>true</addExtensions>
+								<addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+								<addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
+							</manifest>
+							<manifestEntries>
+								<Extension-Name>${project.artifactId}</Extension-Name>
+								<Sealed>true</Sealed>
+							</manifestEntries>
+						</archive>
+					</configuration>
 				</plugin>
 				<plugin>
 					<artifactId>maven-war-plugin</artifactId>
@@ -299,14 +315,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 					<executions>
 						<execution>
 							<id>default-javadoc</id>
-							<phase>prepare-package</phase>
+							<phase>compile</phase>
 							<goals>
 								<goal>javadoc</goal>
 							</goals>
 						</execution>
 						<execution>
 							<id>aggregate-javadoc</id>
-							<phase>prepare-package</phase>
+							<phase>compile</phase>
 							<goals>
 								<goal>aggregate</goal>
 							</goals>

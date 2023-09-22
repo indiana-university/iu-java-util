@@ -35,7 +35,6 @@ import java.lang.annotation.Annotation;
 import java.lang.module.ModuleDescriptor;
 import java.lang.reflect.Modifier;
 import java.nio.file.Path;
-import java.util.jar.Manifest;
 
 import iu.type.ComponentFactory;
 
@@ -46,36 +45,97 @@ import iu.type.ComponentFactory;
  * A component is defined by one or more <a href=
  * "https://docs.oracle.com/en/java/javase/17/docs/specs/jar/jar.html">Java
  * Archive (jar)</a> files. In addition to operating as a element in a class
- * and/or module path, a application components are strictly validated and
- * loaded into an isolated context.
+ * and/or module path, application components are strictly validated and loaded
+ * into an isolated context.
  * </p>
  * 
- * <h2>Modular Component</h2>
+ * <h2>Class Loading</h2>
+ * <p>
+ * See {@link ClassLoader}. {@link IuComponent} is intended for use as a
+ * bootstrap utility that shields loaded components from class loading and type
+ * introspection details. Therefore, application modules loaded using this
+ * interface <em>must not</em> have access to the {@code iu.util.type} module
+ * that loaded the component or any of its transitive dependencies.
+ * </p>
+ * <p>
+ * Modular components are loaded with an isolated {@link ModuleLayer} that
+ * <em>must not</em> delegate to any non-{@link ModuleLayer#boot() platform
+ * modules}.
+ * </p>
+ * <p>
+ * Legacy components are loaded with an isolated {@link ClassLoader} that
+ * <em>must not</em> delegate to the {@link ClassLoader#getSystemClassLoader()
+ * system class loader}.
+ * </p>
+ * 
+ * <h2>Modular Components</h2>
  * <p>
  * The common-case component type for IU Java Utilities is a <strong>Modular
  * Component</strong>. This format has strong parity with and <em>must</em> meet
- * all requireents of the <a href="https://openjdk.org/projects/jigsaw/">Java
+ * all requirements of the <a href="https://openjdk.org/projects/jigsaw/">Java
  * Module System</a>.
  * </p>
  * 
  * <p>
- * A <strong>modular component</strong> <em>must</em>:
+ * Each <strong>modular component</strong> <em>must</em>:
  * </p>
  * <ul>
+ * <li>Meet all component packaging requirements outlined in <a href=
+ * "https://jakarta.ee/specifications/platform/10/jakarta-platform-spec-10.0#application-assembly-and-deployment">JEE
+ * 10 Section 8</a></li>
+ * <li>Seal all packages</li>
  * <li>Include a {@link ModuleDescriptor module descriptor} (module-info.class)
  * for each element in its path.</li>
  * <li>If the {@link ModuleDescriptor module descriptor} is missing from the
  * first element in the path, the {@link #of(Path...)} method will attempt to
- * load it as an <strong>unnamed</strong> component.</li>
+ * load it as a <strong>legacy</strong> component.</li>
  * <li>If the {@link ModuleDescriptor module descriptor} is missing from any
  * subsequent path element, an {@link IllegalArgumentException} will be
  * thrown.</li>
  * </ul>
  * 
+ * <p>
+ * <strong>Modular components</strong> <em>should</em>:
+ * </p>
+ * <ul>
+ * <li>Enumerate dependencies required on the class in the
+ * <strong>Extension-List</strong> manifest attribute. When present, the
+ * extension list will be enforced. This is not required, however, since a
+ * module descriptor <em>must</em> be present.</li>
+ * <li>Include the following manifest attributes when intended for use as a
+ * dependency. These attributes <em>must</em> be present when a dependent
+ * component lists the modular component in its extension list.
+ * <ul>
+ * <li>Extension-Name</li>
+ * <li>Implementation-Version</li>
+ * </ul>
+ * </li>
+ * </ul>
+ * 
+ * <p>
+ * <strong>Modular components</strong> <em>may</em>:
+ * </p>
+ * <ul>
+ * <li>Embed dependencies. When embedding, the modular component:
+ * <ul>
+ * <li><em>Must</em> list each embedded dependency in the
+ * <strong>Class-Path</strong> manifest attribute</li>
+ * <li><em>Should</em> embed dependencies in the <strong>META-INF/lib/</strong>
+ * folder.</li>
+ * </ul>
+ * </li>
+ * </ul>
+ * 
+ * <p>
+ * All dependencies of <strong>modular</strong> <em>must</em> meet all
+ * requirements listed above for <strong>modular</strong> components.
+ * </p>
+ * 
  * <h2>Legacy Component</h2>
  * <p>
- * A component <em>should</em> typically be <strong>modular</strong>. However,
- * when the component is unable to meet the requirements outlined above, it may
+ * A component <em>should</em> be <strong>modular</strong>. However, when the
+ * component is unable to meet the requirements outlined above, for example
+ * because adding a module descriptor would introduce breaking changes, it may
  * be loaded as an <strong>legacy</strong> component.
  * </p>
  * 
@@ -90,6 +150,20 @@ import iu.type.ComponentFactory;
  * A component <em>may</em> be defined as a <a href=
  * "https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-archive-file">Web
  * Application Archive</a>
+ * </p>
+ * 
+ * <p>
+ * Each web component <em>must</em> meet all requirements listed above for
+ * either <strong>modular</strong> or <strong>legacy</strong> components. A web
+ * component <em>must not</em> be listed as a dependency and <em>should not</em>
+ * include the <strong>Extension-Name</strong> or
+ * <strong>Specification-Version</strong> manifest attributes.
+ * </p>
+ * 
+ * <p>
+ * Web components may only embed dependencies in the
+ * <strong>WEB-INF/lib/</strong> folder, and <em>should not</em> include the
+ * <strong>Class-Path</strong> manifest attribute.
  * </p>
  * 
  * <h2>Remotable Types</h2>
@@ -171,7 +245,7 @@ import iu.type.ComponentFactory;
  * be supplied to the {@link #of(Path...)} method.
  * </p>
  */
-public interface IuComponent {
+public interface IuComponent extends AutoCloseable {
 
 	/**
 	 * Enumerates the different kinds of components that may be loaded using this
@@ -246,14 +320,13 @@ public interface IuComponent {
 	Kind kind();
 
 	/**
-	 * Gets the {@link Manifest} for the component-defining archive.
-	 * 
-	 * @return {@link Manifest}
-	 */
-	Manifest manifest();
-
-	/**
 	 * Gets the component name.
+	 * 
+	 * <p>Returns the first non-null value of:</p>
+	 * <ol>
+	 * <li><strong>Extension-Name</strong> manifest attribute</li>
+	 * <li><strong>artifactId</strong> POM property</li>
+	 * </ol>
 	 * 
 	 * @return component name
 	 */
@@ -261,6 +334,12 @@ public interface IuComponent {
 
 	/**
 	 * Gets the component version.
+	 * 
+	 * <p>Returns the first non-null value of:</p>
+	 * <ol>
+	 * <li><strong>Implementation-Version</strong> manifest attribute</li>
+	 * <li><strong>version</strong> POM property</li>
+	 * </ol>
 	 * 
 	 * @return component version
 	 */
@@ -300,5 +379,8 @@ public interface IuComponent {
 	 * @return resources
 	 */
 	Iterable<? extends IuResource<?>> resources();
+
+	@Override
+	void close();
 
 }

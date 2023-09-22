@@ -33,11 +33,14 @@ package iu.type;
 
 import java.lang.ModuleLayer.Controller;
 import java.lang.annotation.Annotation;
+import java.net.URLClassLoader;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.Queue;
 import java.util.Set;
 import java.util.jar.Manifest;
 import java.util.logging.Level;
@@ -76,26 +79,30 @@ class Component implements IuComponent {
 		return isRemotable(module.getName());
 	}
 
-	final Component parent;
-	final Controller controller;
-	private final Kind kind;
-	private final Manifest manifest;
-	private final String name;
-	private final String version;
-	private final Properties properties;
-	private final ClassLoader classLoader;
-	private final Set<TypeFacade<?>> interfaces;
+	private Component parent;
+	private ComponentModuleFinder moduleFinder;
+	private Controller controller;
+	private Kind kind;
+	private String name;
+	private String version;
+	private Properties properties;
+	private ClassLoader classLoader;
+	private Set<TypeFacade<?>> interfaces;
+	private Queue<Path> tempFiles;
+	private boolean closed;
 
-	private Component(Component parent, Controller controller, Kind kind, Manifest manifest, String name,
-			String version, Properties properties, ClassLoader classLoader, Set<String> classNames) {
+	private Component(Component parent, ComponentModuleFinder moduleFinder, Controller controller, Kind kind,
+			String name, String version, Properties properties, ClassLoader classLoader,
+			Set<String> classNames, Queue<Path> tempFiles) {
 		this.parent = parent;
+		this.moduleFinder = moduleFinder;
 		this.controller = controller;
 		this.kind = Objects.requireNonNull(kind, "kind");
-		this.manifest = Objects.requireNonNull(manifest, "manifest");
 		this.name = Objects.requireNonNull(name, "name");
-		this.version = Objects.requireNonNull(name, "version");
+		this.version = Objects.requireNonNull(version, "version");
 		this.properties = Objects.requireNonNull(properties, "properties");
 		this.classLoader = Objects.requireNonNull(classLoader, "classLoader");
+		this.tempFiles = Objects.requireNonNull(tempFiles, "tempFiles");
 
 		Set<TypeFacade<?>> interfaces = new LinkedHashSet<>();
 		if (parent != null)
@@ -111,43 +118,56 @@ class Component implements IuComponent {
 		this.interfaces = Collections.unmodifiableSet(interfaces);
 	}
 
-	Component(Component parent, Controller controller, Manifest manifest, String name, String version,
-			Properties properties, ClassLoader classLoader, Set<String> classNames) {
-		this(parent, controller, Kind.MODULAR_JAR, manifest, name, version, properties, classLoader, classNames);
+	Component(Component parent, ComponentModuleFinder moduleFinder, Controller controller,
+			String name, String version, Properties properties, ClassLoader classLoader, Set<String> classNames,
+			Queue<Path> tempFiles) {
+		this(parent, moduleFinder, controller, Kind.MODULAR_JAR, name, version, properties, classLoader,
+				classNames, tempFiles);
+	}
+
+	Controller controller() {
+		return controller;
 	}
 
 	@Override
 	public IuComponent extend(Path... modulePath) {
+		if (closed)
+			throw new IllegalStateException();
 		return ComponentFactory.newComponent(this, modulePath);
 	}
 
 	@Override
 	public Kind kind() {
+		if (closed)
+			throw new IllegalStateException();
 		return kind;
 	}
 
 	@Override
-	public Manifest manifest() {
-		return manifest;
-	}
-
-	@Override
 	public String name() {
+		if (closed)
+			throw new IllegalStateException();
 		return name;
 	}
 
 	@Override
 	public String version() {
+		if (closed)
+			throw new IllegalStateException();
 		return version;
 	}
 
 	@Override
 	public ClassLoader classLoader() {
+		if (closed)
+			throw new IllegalStateException();
 		return classLoader;
 	}
 
 	@Override
 	public Set<? extends IuType<?>> interfaces() {
+		if (closed)
+			throw new IllegalStateException();
 		return interfaces;
 	}
 
@@ -161,6 +181,46 @@ class Component implements IuComponent {
 	public Iterable<IuResource<?>> resources() {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
+	}
+
+	@Override
+	public void close() {
+		if (moduleFinder != null)
+			try {
+				moduleFinder.close();
+			} catch (Throwable e) {
+				LOG.log(Level.WARNING, e, () -> "Failed to close module finder");
+			}
+
+		if (classLoader instanceof URLClassLoader)
+			try {
+				((URLClassLoader) classLoader).close();
+			} catch (Throwable e) {
+				LOG.log(Level.WARNING, e, () -> "Failed to close class loader");
+			}
+
+		if (tempFiles != null)
+			while (!tempFiles.isEmpty()) {
+				var tempFile = tempFiles.poll();
+				try {
+					Files.delete(tempFile);
+					if (Files.exists(tempFile))
+						LOG.log(Level.WARNING, () -> "Ttemp file still exists after delete " + tempFile);
+				} catch (Throwable e) {
+					LOG.log(Level.WARNING, e, () -> "Failed to clean up temp file " + tempFile);
+				}
+			}
+
+		parent = null;
+		moduleFinder = null;
+		controller = null;
+		kind = null;
+		name = null;
+		version = null;
+		properties = null;
+		classLoader = null;
+		interfaces = null;
+		closed = true;
 	}
 
 }

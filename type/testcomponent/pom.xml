@@ -23,19 +23,6 @@
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-type-testruntime</artifactId>
 			<version>${project.version}</version>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>jakarta.annotation</groupId>
-			<artifactId>jakarta.annotation-api</artifactId>
-			<version>${jakarta.annotation-api.version}</version>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>jakarta.json</groupId>
-			<artifactId>jakarta.json-api</artifactId>
-			<version>${jakarta.json-api.version}</version>
-			<scope>provided</scope>
 		</dependency>
 	</dependencies>
 
