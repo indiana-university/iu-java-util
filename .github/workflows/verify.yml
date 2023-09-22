@@ -23,7 +23,7 @@ jobs:
           java-version: '20'
           cache: 'maven'
 
-      - run: mvn --batch-mode clean compile
+      - run: mvn --batch-mode clean process-classes
 
       - uses: actions/upload-artifact@v3
         with:
