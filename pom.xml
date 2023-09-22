@@ -226,7 +226,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 						<goals>
 							<goal>single</goal>
 						</goals>
-						<phase>package</phase>
+						<phase>compile</phase>
 						<configuration>
 							<finalName>iu</finalName>
 							<formats>
