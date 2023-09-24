@@ -71,11 +71,9 @@ import iu.type.api.TypeImplementationLoader;
  * {@code META-INF/MANIFEST.MF}.</li>
  * <li><em>Not</em> include {@code Main-Class} in the
  * {@link Manifest#getMainAttributes() manifest's main attribute section}.</li>
- * <li>Include at most one <a href=
+ * <li>Include exactly one <a href=
  * "https://maven.apache.org/shared/maven-archiver/index.html">META-INF/maven/.../pom.properties</a>
- * entry if {@code Element-Name} and {@code Implementation-Version} are missing
- * from {@link Manifest#getMainAttributes() manifest's main attribute
- * section}.</li>
+ * entry.</li>
  * </ul>
  * 
  * <h2>Modular Components</h2>
@@ -114,10 +112,12 @@ import iu.type.api.TypeImplementationLoader;
  * <ul>
  * <li>Does not include {@code Extension-List} in its
  * {@link Manifest#getMainAttributes() manifest's main attributes section}, or
- * if {@code Extension-List} includes {@code javax.servlet} or
- * {@code javax.ejb}. If both {@link ModuleDescriptor module-info.class} and a
- * <strong>legacy dependency</strong> is named, the <strong>component</strong>
- * will be loaded as <strong>modular</strong>.</li>
+ * if {@code Extension-List} includes {@code javax.servlet-api},
+ * {@code javax.ejb-api}, {@code jakarta.servlet-api} with version &lt; 6.0, or
+ * {@code jakarta.ejb-api} with version &lt; 4.0. If both
+ * {@link ModuleDescriptor module-info.class} and a <strong>legacy
+ * dependency</strong> is named, the <strong>component</strong> will be loaded
+ * as <strong>modular</strong>.</li>
  * <li>Includes {@code META-INF/iu.properties}. When both
  * {@code META-INF/iu.properties} and {@link ModuleDescriptor module-info.class}
  * are present, the <strong>archive</strong> will be rejected with
@@ -128,7 +128,7 @@ import iu.type.api.TypeImplementationLoader;
  * Types defined by <strong>legacy components</strong> that
  * <strong>depend</strong> on packages named {@code javax.*} <em>may</em> be
  * converted to access equivalent types named {@code jakarta.*} when an
- * equivalent package is <strong>provided</strong> by by a <strong>modular
+ * equivalent package is <strong>inherited</strong> from a <strong>modular
  * parent component</strong>. To facilitate this consideration,
  * {@link IuType#referTo(Type) type references} and {@link IuAnnotatedElement
  * annotated elements} <em>may</em> automatically be converted to
@@ -180,8 +180,11 @@ import iu.type.api.TypeImplementationLoader;
  * <strong>Components</strong> <em>should</em> enumerate dependencies using the
  * <strong>Extension-List</strong> manifest attribute. When present, the
  * <strong>dependencies</strong> referred to in the extension list will be
- * enforced as present the <strong>component's path</strong> or
- * <strong>inherited</strong> by its <strong>parent component</strong>.
+ * enforced using <a href=
+ * "https://maven.apache.org/shared/maven-archiver/index.html">pom.properties</a>
+ * {@code artifactId} and {@code version} as present the <strong>component's
+ * path</strong> or <strong>inherited</strong> by its <strong>parent
+ * component</strong>.
  * </p>
  * 
  * <h2>Class Loading</h2>
@@ -263,10 +266,7 @@ import iu.type.api.TypeImplementationLoader;
  * </p>
  * 
  * <p>
- * A <strong>web component</strong> <em>must not</em> be listed as a dependency
- * or include include <strong>Extension-Name</strong> or
- * <strong>Implementation-Version</strong> in its
- * {@link Manifest#getMainAttributes() manifest's main attributes section}.
+ * A <strong>web component</strong> <em>must not</em> be listed as a dependency.
  * </p>
  * 
  * <h2>Unsupported Component Formats</h2>
@@ -401,12 +401,8 @@ public interface IuComponent extends AutoCloseable {
 	 * Gets the component name.
 	 * 
 	 * <p>
-	 * Returns the first non-null value of:
+	 * Returns the <strong>artifactId</strong> POM property
 	 * </p>
-	 * <ol>
-	 * <li><strong>Extension-Name</strong> manifest attribute</li>
-	 * <li><strong>artifactId</strong> POM property</li>
-	 * </ol>
 	 * 
 	 * @return component name
 	 */
@@ -416,12 +412,8 @@ public interface IuComponent extends AutoCloseable {
 	 * Gets the component version.
 	 * 
 	 * <p>
-	 * Returns the first non-null value of:
+	 * Returns the <strong>version</strong> POM property
 	 * </p>
-	 * <ol>
-	 * <li><strong>Implementation-Version</strong> manifest attribute</li>
-	 * <li><strong>version</strong> POM property</li>
-	 * </ol>
 	 * 
 	 * @return component version
 	 */

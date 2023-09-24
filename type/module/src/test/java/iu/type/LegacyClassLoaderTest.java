@@ -19,7 +19,7 @@ public class LegacyClassLoaderTest {
 
 	@Test
 	public void testDoesNotDelegateToSystem() throws Throwable {
-		var url = Path.of(IuTest.getProperty("testlegacy.jar")).toRealPath().toUri().toURL();
+		var url = Path.of(IuTest.getProperty("testlegacy.archive")).toRealPath().toUri().toURL();
 		try (var loader = new LegacyClassLoader(Set.of(), new URL[] { url }, null)) {
 			assertThrows(ClassNotFoundException.class, () -> loader.loadClass(IuComponent.class.getName()));
 			assertSame(Object.class, loader.loadClass(Object.class.getName()));
@@ -31,7 +31,7 @@ public class LegacyClassLoaderTest {
 
 	@Test
 	public void testEndorsed() throws Throwable {
-		var url = Path.of(IuTest.getProperty("testlegacy.jar")).toRealPath().toUri().toURL();
+		var url = Path.of(IuTest.getProperty("testlegacy.archive")).toRealPath().toUri().toURL();
 		try (var loader = new LegacyClassLoader(Set.of(), new URL[] { url }, null)) {
 			var legacyInterface = loader.loadClass("edu.iu.legacy.LegacyInterface");
 			var nonEndorsedChild = new LegacyClassLoader(Set.of(), new URL[] { url }, loader);

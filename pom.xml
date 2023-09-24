@@ -267,11 +267,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 							<manifest>
 								<classpathPrefix>META-INF/lib</classpathPrefix>
 								<addExtensions>true</addExtensions>
-								<addDefaultImplementationEntries>true</addDefaultImplementationEntries>
-								<addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
 							</manifest>
 							<manifestEntries>
-								<Extension-Name>${project.artifactId}</Extension-Name>
 								<Sealed>true</Sealed>
 							</manifestEntries>
 						</archive>
@@ -280,6 +277,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<plugin>
 					<artifactId>maven-war-plugin</artifactId>
 					<version>3.3.2</version>
+					<configuration>
+						<archive>
+							<manifest>
+								<addExtensions>true</addExtensions>
+							</manifest>
+							<manifestEntries>
+								<Sealed>true</Sealed>
+							</manifestEntries>
+						</archive>
+					</configuration>
 				</plugin>
 				<plugin>
 					<artifactId>maven-dependency-plugin</artifactId>

@@ -55,6 +55,16 @@
 			</plugin>
 			<plugin>
 				<artifactId>maven-jar-plugin</artifactId>
+				<configuration>
+					<archive>
+						<manifest>
+							<addExtensions>false</addExtensions>
+						</manifest>
+						<manifestEntries>
+							<Sealed>false</Sealed>
+						</manifestEntries>
+					</archive>
+				</configuration>
 				<executions>
 					<execution>
 						<id>default-jar</id>

@@ -3,13 +3,11 @@ package iu.type;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Queue;
-import java.util.Set;
 import java.util.jar.Attributes.Name;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
@@ -18,11 +16,9 @@ class ArchiveSource implements AutoCloseable {
 
 	private final InputStream in;
 	private final JarInputStream jar;
-	private final String name;
-	private final String version;
 	private final boolean sealed;
-	private final Iterable<String> classPath;
-	private final Iterable<ComponentDependency> dependencies;
+	private final List<String> classPath;
+	private final List<ComponentDependency> dependencies;
 	private Optional<ComponentEntry> next;
 	private ComponentEntry last;
 	private boolean closed;
@@ -44,21 +40,19 @@ class ArchiveSource implements AutoCloseable {
 			throw new IllegalArgumentException(
 					"Missing " + Name.MANIFEST_VERSION + " attribute in META-INF/MANIFEST.MF");
 
-		name = attributes.getValue(Name.EXTENSION_NAME);
-		version = attributes.getValue(Name.IMPLEMENTATION_VERSION);
 		sealed = "true".equals(attributes.getValue(Name.SEALED));
 
 		var classPathAttribute = manifest.getMainAttributes().getValue(Name.CLASS_PATH);
 		if (classPathAttribute == null)
-			classPath = Set.of();
+			classPath = List.of();
 		else
 			classPath = List.of(classPathAttribute.split(" "));
 
 		var extensionListAttribute = attributes.getValue(Name.EXTENSION_LIST);
 		if (extensionListAttribute == null)
-			dependencies = Set.of();
+			dependencies = List.of();
 		else {
-			Queue<ComponentDependency> dependencies = new ArrayDeque<>();
+			List<ComponentDependency> dependencies = new ArrayList<>();
 			for (var extension : List.of(extensionListAttribute.split(" "))) {
 				extension = extension.replace('.', '_');
 				var name = Objects.requireNonNull(attributes.getValue(extension + '-' + Name.EXTENSION_NAME));
@@ -74,19 +68,11 @@ class ArchiveSource implements AutoCloseable {
 		return sealed;
 	}
 
-	String name() {
-		return name;
-	}
-
-	String version() {
-		return version;
-	}
-
-	Iterable<String> classPath() {
+	List<String> classPath() {
 		return classPath;
 	}
 
-	Iterable<ComponentDependency> dependencies() {
+	List<ComponentDependency> dependencies() {
 		return dependencies;
 	}
 

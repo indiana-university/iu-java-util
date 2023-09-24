@@ -43,7 +43,7 @@ import edu.iu.test.IuTest;
 class TestArchives {
 
 	static InputStream getComponentArchive(String componentName) throws IOException {
-		return Files.newInputStream(Path.of(IuTest.getProperty(componentName + ".jar")));
+		return Files.newInputStream(Path.of(IuTest.getProperty(componentName + ".archive")));
 	}
 
 	static InputStream[] getProvidedDependencyArchives(String componentName) throws IOException {

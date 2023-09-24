@@ -4,12 +4,10 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -18,23 +16,21 @@ import edu.iu.type.IuComponent.Kind;
 
 record ComponentArchive(Path path, Kind kind, String name, String version, Properties properties,
 		Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources, Map<String, URL> allResources,
-		Iterable<ArchiveSource> embeddedComponents) {
+		Map<String, ArchiveSource> bundledDependencies) {
 
 	private static record ScannedAttributes(Kind kind, String name, String version, Properties properties) {
 	}
 
 	private static ScannedAttributes scan(ArchiveSource source, ComponentTarget target,
 			Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources, Map<String, URL> allResources,
-			List<ArchiveSource> embeddedDependencies) throws IOException {
+			Map<String, ArchiveSource> bundledDependencies) throws IOException {
 
 		final Set<String> classPath = new HashSet<>();
 		source.classPath().forEach(classPath::add);
 
 		var isWeb = false;
-		var hasModuleDescirptor = false;
+		var hasModuleDescriptor = false;
 		var hasNonWebTypes = false;
-		var componentName = source.name();
-		var version = source.version();
 		Properties pomProperties = null;
 		Properties typeProperties = null;
 		Properties iuProperties = null;
@@ -55,19 +51,11 @@ record ComponentArchive(Path path, Kind kind, String name, String version, Prope
 
 			// Detect web component first; later logic expects isWeb == true if any
 			// component entry begins with WEB-INF, including the current entry
-			if (name.startsWith("WEB-INF/")) {
-				if (source.name() != null)
-					throw new IllegalArgumentException(
-							"Web archive must not include Extension-Name in META-INF/MANIFEST.MF");
-
-				if (source.version() != null)
-					throw new IllegalArgumentException(
-							"Web archive must not include Implementation-Version in META-INF/MANIFEST.MF");
-
+			if (!isWeb && name.startsWith("WEB-INF/")) {
 				if (hasNonWebTypes)
 					throw new IllegalArgumentException("Web archive must not define types outside WEB-INF/classes/");
 
-				if (!embeddedDependencies.isEmpty())
+				if (!bundledDependencies.isEmpty())
 					throw new IllegalArgumentException("Web archive must not embed components outside WEB-INF/lib/");
 
 				if (typeProperties != null)
@@ -89,12 +77,14 @@ record ComponentArchive(Path path, Kind kind, String name, String version, Prope
 						// also temporarily allow IU JEE 6 embedded class path entries
 						// these will be validated for the presence of META-INF/iu.properties
 						// after scanning the full archive
-						|| name.startsWith("META-INF/lib/") || name.startsWith("META-INF/ejb/endorsed/")
+						|| name.startsWith("WEB-INF/lib/") //
+						|| name.startsWith("META-INF/lib/") //
+						|| name.startsWith("META-INF/ejb/endorsed/") //
 						|| name.startsWith("META-INF/ejb/lib/")) {
 					var embeddedDependencyData = componentEntry.data();
 					var embeddedDependencyInput = new ByteArrayInputStream(embeddedDependencyData);
 					var embeddedDependency = new ArchiveSource(embeddedDependencyInput);
-					embeddedDependencies.add(embeddedDependency);
+					bundledDependencies.put(name, embeddedDependency);
 					continue;
 				}
 			}
@@ -121,7 +111,7 @@ record ComponentArchive(Path path, Kind kind, String name, String version, Prope
 
 			if (name.equals("WEB-INF/classes/META-INF/iu.properties") //
 					|| name.equals("META-INF/iu.properties")) {
-				if (hasModuleDescirptor)
+				if (hasModuleDescriptor)
 					throw new IllegalArgumentException(
 							"Modular component archive must not include META-INF/iu.properties");
 				if (isWeb && name.startsWith("META-INF/"))
@@ -132,6 +122,8 @@ record ComponentArchive(Path path, Kind kind, String name, String version, Prope
 				componentEntry.read(iuProperties::load);
 				continue;
 			}
+
+			// after this point, source resources are captured
 
 			if (name.endsWith(".class")) {
 				String resourceName;
@@ -151,7 +143,9 @@ record ComponentArchive(Path path, Kind kind, String name, String version, Prope
 						// the target archive and stop collecting web resource. Further entries
 						// with name starting with WEB-INF/ will trigger the same error as above
 						for (var resourceEntry : webResources.entrySet())
-							target.put(resourceEntry.getKey(), new ByteArrayInputStream(resourceEntry.getValue()));
+							allResources.put(resourceEntry.getKey(), target.put(resourceEntry.getKey(),
+									new ByteArrayInputStream(resourceEntry.getValue())));
+						webResources.clear();
 					}
 				}
 
@@ -160,37 +154,64 @@ record ComponentArchive(Path path, Kind kind, String name, String version, Prope
 						throw new IllegalArgumentException(
 								"Modular component archive must not include META-INF/iu.properties");
 
-					hasModuleDescirptor = true;
+					hasModuleDescriptor = true;
 				} else if (!resourceName.endsWith("package-info.class") //
 						&& resourceName.indexOf('$') == -1) // check for '$' skips enclosed classes
-					nonEnclosedTypeNames.add(resourceName.substring(0, name.length() - 6).replace('/', '.'));
-			}
+					nonEnclosedTypeNames.add(resourceName.substring(0, resourceName.length() - 6).replace('/', '.'));
 
+				componentEntry.read(in -> target.put(resourceName, in));
+
+			} else if (name.startsWith("WEB-INF/classes/")) {
+				var resourceName = name.substring(16);
+				if (resourceName.startsWith("META-INF/") && resourceName.charAt(resourceName.length() - 1) == '/')
+					continue;
+				componentEntry.read(in -> allResources.put(resourceName, target.put(resourceName, in)));
+			} else if (name.startsWith("META-INF/") && name.charAt(name.length() - 1) == '/')
+				continue;
+			else if (!hasNonWebTypes)
+				webResources.put(name, componentEntry.data());
+			else
+				componentEntry.read(in -> allResources.put(name, target.put(name, in)));
 		}
 
-		if ((componentName == null || componentName.isBlank()) && pomProperties != null)
-			componentName = pomProperties.getProperty("artifactId");
-		if (componentName == null || componentName.isBlank())
-			throw new IllegalArgumentException(
-					"Component archive must provide a name as either Extension-Name in META-INF/MANIFEST.MF or artifactId in pom.properties");
+		if (pomProperties == null)
+			throw new IllegalArgumentException("Component archive missing META-INF/maven/.../pom.properties");
 
-		if ((version == null || version.isBlank()) && pomProperties != null)
-			version = pomProperties.getProperty("version");
-		if (version == null || version.isBlank())
-			throw new IllegalArgumentException(
-					"Component archive must provide a version as either Implementation-Version in META-INF/MANIFEST.MF or version in pom.properties");
+		var componentName = pomProperties.getProperty("artifactId");
+		if (componentName == null)
+			throw new IllegalArgumentException("Component archive must provide a name as artifactId in pom.properties");
+
+		var version = pomProperties.getProperty("version");
+		if (version == null)
+			throw new IllegalArgumentException("Component archive must provide a version in pom.properties");
 
 		final Kind kind;
 		final Properties properties;
-		if (isWeb)
-			if (iuProperties == null) {
+		if (isWeb) {
+
+			var webResourceIterator = webResources.entrySet().iterator();
+			while (webResourceIterator.hasNext())
+				if (webResourceIterator.next().getKey().startsWith("META-INF/"))
+					webResourceIterator.remove();
+
+			var isServlet6 = false;
+			for (var dependency : source.dependencies())
+				if (dependency.name().equals("jakarta.servlet-api")) {
+					var servletVersion = dependency.version();
+					if (Integer.parseInt(servletVersion.substring(0, servletVersion.indexOf('.'))) >= 6) {
+						isServlet6 = true;
+						continue;
+					}
+				}
+
+			if (hasModuleDescriptor || isServlet6) {
 				kind = Kind.MODULAR_WAR;
 				properties = typeProperties;
 			} else {
 				kind = Kind.LEGACY_WAR;
 				properties = iuProperties;
 			}
-		else if (iuProperties == null) {
+		} else if (iuProperties == null) {
 			kind = Kind.MODULAR_JAR;
 			properties = typeProperties;
 		} else {
@@ -207,7 +228,7 @@ record ComponentArchive(Path path, Kind kind, String name, String version, Prope
 				Set<String> nonEnclosedTypeNames = new LinkedHashSet<>();
 				Map<String, byte[]> webResources = new LinkedHashMap<>();
 				Map<String, URL> allResources = new LinkedHashMap<>();
-				List<ArchiveSource> embeddedComponents = new ArrayList<>();
+				Map<String, ArchiveSource> embeddedComponents = new LinkedHashMap<>();
 
 				var scannedAttributes = scan(source, target, nonEnclosedTypeNames, webResources, allResources,
 						embeddedComponents);
@@ -220,41 +241,10 @@ record ComponentArchive(Path path, Kind kind, String name, String version, Prope
 						Collections.unmodifiableSet(nonEnclosedTypeNames), //
 						Collections.unmodifiableMap(webResources), //
 						Collections.unmodifiableMap(allResources), //
-						Collections.unmodifiableList(embeddedComponents) //
+						Collections.unmodifiableMap(embeddedComponents) //
 				);
 			}
 		});
 	}
-
-//		if (webResources == null) {
-//			JarEntry outEntry = new JarEntry(name);
-//			outJar.putNextEntry(outEntry);
-//			if (name.charAt(name.length() - 1) != '/') {
-//				while ((r = jar.read(buf, 0, buf.length)) > 0)
-//					outJar.write(buf, 0, r);
-//				outJar.flush();
-//				outJar.closeEntry();
-//			}
-//			jar.closeEntry();
-//
-//		} else if (!name.startsWith("WEB-INF/classes/") //
-//				&& !name.startsWith("WEB-INF/lib/") //
-//				&& !name.equals("WEB-INF/web.xml")) {
-//
-//			if (name.charAt(name.length() - 1) != '/') {
-//				ByteArrayOutputStream resource = new ByteArrayOutputStream();
-//				while ((r = jar.read(buf, 0, buf.length)) > 0)
-//					resource.write(buf, 0, r);
-//				webResources.put(name, resource.toByteArray());
-//				jar.closeEntry();
-//			} else
-//				webResources.put(name, B0);
-//		}
-//
-//	}
-//}
-//
-//if (pomProperties == null)
-//	throw new IllegalArgumentException("Component must include Maven properties");
 
 }

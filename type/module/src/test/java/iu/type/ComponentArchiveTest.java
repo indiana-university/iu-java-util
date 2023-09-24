@@ -1,24 +1,33 @@
 package iu.type;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.jar.Attributes.Name;
 import java.util.jar.JarEntry;
+import java.util.jar.JarInputStream;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 
 import org.junit.jupiter.api.Test;
 import org.opentest4j.AssertionFailedError;
 
+import edu.iu.test.IuTest;
 import edu.iu.type.IuComponent.Kind;
 
 @SuppressWarnings("javadoc")
@@ -45,8 +54,7 @@ public class ComponentArchiveTest {
 		EMPTY_JAR = out.toByteArray();
 	}
 
-	private ArchiveSource createSource(String name, String version, Iterable<String> classPath,
-			Map<String, byte[]> entries) throws IOException {
+	private ArchiveSource createSource(Iterable<String> classPath, Map<String, byte[]> entries) throws IOException {
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
 		try (JarOutputStream jar = new JarOutputStream(out)) {
 			jar.putNextEntry(new JarEntry("META-INF/"));
@@ -57,10 +65,6 @@ public class ComponentArchiveTest {
 			var mainAttributes = manifest.getMainAttributes();
 			mainAttributes.put(Name.MANIFEST_VERSION, "1.0");
 
-			if (name != null)
-				mainAttributes.put(Name.EXTENSION_NAME, name);
-			if (version != null)
-				mainAttributes.put(Name.IMPLEMENTATION_VERSION, version);
 			if (classPath != null) {
 				StringBuilder classPathAttribute = new StringBuilder();
 				for (var classPathEntry : classPath) {
@@ -84,25 +88,23 @@ public class ComponentArchiveTest {
 		return new ArchiveSource(new ByteArrayInputStream(out.toByteArray()));
 	}
 
-	private void assertInvalidNameOrVersion(String expectedMessage, String name, String version) {
-		assertInvalidSource(expectedMessage, name, version, null);
-	}
-
 	private void assertInvalidEntries(String expectedMessage, String... entryNames) {
-		assertInvalidSource(expectedMessage, null, null, null, entryNames);
+		assertInvalidSource(expectedMessage, null, entryNames);
 	}
 
-	private void assertInvalidSource(String expectedMessage, String name, String version, Iterable<String> classPath,
-			String... entryNames) {
+	private void assertInvalidSource(String expectedMessage, Iterable<String> classPath, String... entryNames) {
 		Map<String, byte[]> entries = new LinkedHashMap<>();
 		for (var entryName : entryNames)
 			if (entryName.endsWith(".jar"))
 				entries.put(entryName, EMPTY_JAR);
 			else
-				entries.put(entryName, new byte[0]);
+				entries.put(entryName, B0);
+		assertInvalidSource(expectedMessage, classPath, entries);
+	}
 
+	private void assertInvalidSource(String expectedMessage, Iterable<String> classPath, Map<String, byte[]> entries) {
 		var threw = assertThrows(IllegalArgumentException.class,
-				() -> ComponentArchive.of(createSource(name, version, classPath, entries)));
+				() -> ComponentArchive.of(createSource(classPath, entries)));
 		try {
 			assertEquals(expectedMessage, threw.getMessage());
 		} catch (AssertionFailedError e) {
@@ -111,47 +113,96 @@ public class ComponentArchiveTest {
 		}
 	}
 
+	private void assertReadsArchive(String name, Consumer<ComponentArchive> archiveConsumer,
+			Map<String, Integer> expectedContents) throws IOException {
+		assertReadsArchive(name, (archive, source) -> archiveConsumer.accept(archive), expectedContents);
+	}
+
+	private void assertReadsArchive(String name, BiConsumer<ComponentArchive, ArchiveSource> archiveAndSourceConsumer,
+			Map<String, Integer> expectedContents) throws IOException {
+		try ( //
+				var testcomponent = TestArchives.getComponentArchive(name); //
+				var source = new ArchiveSource(testcomponent)) {
+			assertReadsArchive(name, source, archive -> archiveAndSourceConsumer.accept(archive, source),
+					expectedContents);
+		}
+	}
+
+	private void assertReadsArchive(String name, ArchiveSource source, Consumer<ComponentArchive> archiveConsumer,
+			Map<String, Integer> expectedContents) throws IOException {
+		ComponentArchive archive = ComponentArchive.of(source);
+		Throwable thrown = null;
+		try {
+			archiveConsumer.accept(archive);
+			var expectedEntryNames = new LinkedHashSet<>();
+			expectedContents.forEach((entryName, size) -> {
+				if (size >= 0L)
+					expectedEntryNames.add(entryName);
+			});
+
+			Map<String, Integer> listing = new LinkedHashMap<>();
+			try (InputStream in = Files.newInputStream(archive.path()); JarInputStream jar = new JarInputStream(in)) {
+				JarEntry entry;
+				while ((entry = jar.getNextJarEntry()) != null) {
+					var entryName = entry.getName();
+					var data = jar.readAllBytes();
+					listing.put(entryName, data.length);
+
+					var expectedSize = expectedContents.get(entryName);
+					if (expectedSize == null)
+						continue;
+
+					assertTrue(expectedSize >= 0, "Unexpected " + entryName);
+					if (expectedEntryNames.remove(entryName))
+						assertTrue(data.length >= expectedSize, "Expected " + entryName + " to be at least "
+								+ expectedSize + " bytes, was " + data.length);
+
+					jar.closeEntry();
+				}
+			}
+
+			printListing(name, listing);
+
+			assertTrue(expectedEntryNames.isEmpty(),
+					"Not all expected entries were listed, missing " + expectedEntryNames + " from " + listing);
+		} catch (RuntimeException | Error e) {
+			thrown = e;
+			throw e;
+		} finally {
+			try {
+				Files.delete(archive.path());
+			} catch (IOException | RuntimeException | Error e) {
+				if (thrown != null)
+					e.addSuppressed(thrown);
+				throw e;
+			}
+		}
+	}
+
+	private void printListing(String name, Map<String, Integer> entries) {
+		System.out.println(name);
+		for (var entry : entries.entrySet())
+			System.out.printf("  %2$6d %1$s\n", entry.getKey(), entry.getValue());
+		System.out.println();
+	}
+
 	@Test
-	public void testRequiresNameAndVersion() {
-		var expectedMessage = "Component archive must provide a name as either Extension-Name in META-INF/MANIFEST.MF or artifactId in pom.properties";
-		assertInvalidNameOrVersion(expectedMessage, null, null);
-		assertInvalidNameOrVersion(expectedMessage, "", null);
+	public void testRequiresPomProperties() {
+		var expectedMessage = "Component archive missing META-INF/maven/.../pom.properties";
+		assertInvalidEntries(expectedMessage);
+	}
+
+	@Test
+	public void testRequiresArtifactId() {
+		var expectedMessage = "Component archive must provide a name as artifactId in pom.properties";
+		assertInvalidSource(expectedMessage, List.of(), "META-INF/maven/a/pom.properties");
 	}
 
 	@Test
 	public void testRequiresVersion() {
-		var expectedMessage = "Component archive must provide a version as either Implementation-Version in META-INF/MANIFEST.MF or version in pom.properties";
-		assertInvalidNameOrVersion(expectedMessage, "component-name", null);
-		assertInvalidNameOrVersion(expectedMessage, "component-name", "");
-	}
-
-	@Test
-	public void testReadsModularJar() throws IOException {
-		var source = createSource("component-name", "component-version", null, Map.of("module-info.class", B0));
-		var archive = ComponentArchive.of(source);
-		assertEquals(Kind.MODULAR_JAR, archive.kind());
-	}
-
-	@Test
-	public void testEmbedsNamedLib() throws IOException {
-		var expectedName = "embedded-lib";
-		var embeddedLib = new ByteArrayOutputStream();
-		try (JarOutputStream jar = new JarOutputStream(embeddedLib)) {
-			var manifest = new Manifest();
-			var mainAttributes = manifest.getMainAttributes();
-			mainAttributes.put(Name.MANIFEST_VERSION, "1.0");
-			mainAttributes.put(Name.EXTENSION_NAME, expectedName);
-			jar.putNextEntry(new JarEntry("META-INF/MANIFEST.MF"));
-			manifest.write(jar);
-			jar.closeEntry();
-		}
-		var source = createSource("component-name", "component-version", Set.of("embedded-lib.jar"),
-				Map.of("module-info.class", B0, "embedded-lib.jar", embeddedLib.toByteArray()));
-		var archive = ComponentArchive.of(source);
-		var embeddedComponents = archive.embeddedComponents().iterator();
-		assertTrue(embeddedComponents.hasNext());
-		assertEquals(expectedName, embeddedComponents.next().name());
-		assertFalse(embeddedComponents.hasNext());
+		var expectedMessage = "Component archive must provide a version in pom.properties";
+		assertInvalidSource(expectedMessage, List.of(),
+				Map.of("META-INF/maven/a/pom.properties", "artifactId=a".getBytes()));
 	}
 
 	@Test
@@ -185,6 +236,7 @@ public class ComponentArchiveTest {
 		var expectedMessage = "Web archive must not embed components outside WEB-INF/lib/";
 		assertInvalidEntries(expectedMessage, "META-INF/lib/.jar", "WEB-INF/");
 		assertInvalidEntries(expectedMessage, "WEB-INF/", "META-INF/lib/.jar");
+		assertInvalidEntries(expectedMessage, "WEB-INF/lib/.jar", "META-INF/lib/.jar");
 	}
 
 	@Test
@@ -216,14 +268,329 @@ public class ComponentArchiveTest {
 	}
 
 	@Test
-	public void testRejectsWebComponentWithExtensionName() {
-		var expectedMessage = "Web archive must not include Extension-Name in META-INF/MANIFEST.MF";
-		assertInvalidSource(expectedMessage, "invalid-war", "1.0", null, "WEB-INF/");
+	public void testReadsTestComponent() throws IOException {
+		assertReadsArchive("testcomponent", archive -> {
+			assertEquals(Kind.MODULAR_JAR, archive.kind());
+			assertEquals("iu-java-type-testcomponent", archive.name());
+			assertEquals(IuTest.getProperty("project.version"), archive.version());
+			assertFalse(archive.nonEnclosedTypeNames().contains("module-info"));
+			assertFalse(archive.nonEnclosedTypeNames().contains("edu.iu.type.testcomponent.package-info"));
+			assertTrue(archive.nonEnclosedTypeNames().contains("edu.iu.type.testcomponent.TestBeanImpl"));
+			assertFalse(archive.nonEnclosedTypeNames()
+					.contains("edu.iu.type.testcomponent.TestBeanImpl$InternalSupportingClass"));
+			assertTrue(archive.webResources().isEmpty());
+			assertFalse(archive.allResources().containsKey("META-INF/iu-type.properties"));
+			assertFalse(archive.allResources().containsKey("edu/iu/type/testcomponent/TestBean"));
+			assertEquals("testcomponent", archive.properties().getProperty("remotableModules"));
+		}, Map.of( //
+				"META-INF/MANIFEST.MF", -1, //
+				"META-INF/maven/edu.iu.util/iu-java-type-testcomponent/pom.properties", -1, //
+				"META-INF/lib/", -1, //
+				"META-INF/iu-type.properties", -1, //
+				"module-info.class", 300, //
+				"edu/iu/type/testcomponent/package-info.class", 100, //
+				"edu/iu/type/testcomponent/TestBeanImpl$InternalSupportingClass.class", 400,
+				"edu/iu/type/testcomponent/TestBean.class", 400));
 	}
 
 	@Test
-	public void testRejectsWebComponentWithImplementationVersion() {
-		var expectedMessage = "Web archive must not include Implementation-Version in META-INF/MANIFEST.MF";
-		assertInvalidSource(expectedMessage, null, "1.0", null, "WEB-INF/");
+	public void testReadsTestRuntime() throws IOException {
+		assertReadsArchive("testruntime", (archive, source) -> {
+			assertEquals(Kind.MODULAR_JAR, archive.kind());
+			assertEquals("iu-java-type-testruntime", archive.name());
+			assertEquals(IuTest.getProperty("project.version"), archive.version());
+			assertFalse(archive.nonEnclosedTypeNames().contains("module-info"));
+			assertFalse(archive.nonEnclosedTypeNames().contains("edu.iu.type.testruntime.package-info"));
+			assertTrue(archive.nonEnclosedTypeNames().contains("edu.iu.type.testruntime.TestRuntime"));
+			assertTrue(archive.webResources().isEmpty());
+
+			var expected = new LinkedHashSet<>(source.dependencies());
+			assertEquals(3, expected.size());
+			for (var bundledDependency : archive.bundledDependencies().entrySet()) {
+				assertTrue(source.classPath().contains(bundledDependency.getKey()));
+
+				ComponentArchive bundledArchive;
+				try {
+					bundledArchive = ComponentArchive.of(bundledDependency.getValue());
+					assertTrue(
+							expected.remove(new ComponentDependency(bundledArchive.name(), bundledArchive.version())));
+					Files.delete(bundledArchive.path());
+				} catch (IOException e) {
+					throw new IllegalStateException(e);
+				}
+			}
+			assertTrue(expected.isEmpty());
+
+			assertNull(archive.properties());
+		}, Map.of( //
+				"META-INF/MANIFEST.MF", -1, //
+				"META-INF/maven/edu.iu.util/iu-java-type-testruntime/pom.properties", -1, //
+				"META-INF/lib/", -1, //
+				"module-info.class", 300, //
+				"edu/iu/type/testruntime/package-info.class", 100, //
+				"edu/iu/type/testruntime/TestRuntime.class", 100));
 	}
+
+	@Test
+	public void testReadsTestWeb() throws IOException {
+		assertReadsArchive("testweb", (archive, source) -> {
+			assertEquals(Kind.MODULAR_WAR, archive.kind());
+			assertEquals("iu-java-type-testweb", archive.name());
+			assertEquals(IuTest.getProperty("project.version"), archive.version());
+			assertFalse(archive.nonEnclosedTypeNames().contains("module-info"),
+					archive.nonEnclosedTypeNames().toString());
+			assertFalse(archive.nonEnclosedTypeNames().contains("edu.iu.type.testweb.package-info"),
+					archive.nonEnclosedTypeNames().toString());
+			assertTrue(archive.nonEnclosedTypeNames().contains("edu.iu.type.testweb.TestServlet"),
+					archive.nonEnclosedTypeNames().toString());
+			assertArrayEquals(B0, archive.webResources().get("WEB-INF/"),
+					"expected zero-length WEB-INF/ " + archive.webResources().toString());
+			assertTrue(archive.webResources().containsKey("WEB-INF/web.xml"),
+					"missing WEB-INF/web.xml " + archive.webResources().toString());
+			assertTrue(archive.webResources().containsKey("index.html"),
+					"missing index.html " + archive.webResources().toString());
+			assertFalse(archive.webResources().containsKey("META-INF/"),
+					"shouldn't include META-INF/ " + archive.webResources().toString());
+
+			var expected = new LinkedHashSet<>(source.dependencies());
+			assertEquals(7, expected.size());
+			for (var bundledDependency : archive.bundledDependencies().values()) {
+				ComponentArchive bundledArchive;
+				try {
+					bundledArchive = ComponentArchive.of(bundledDependency);
+					assertTrue(
+							expected.remove(new ComponentDependency(bundledArchive.name(), bundledArchive.version())));
+					Files.delete(bundledArchive.path());
+				} catch (IOException e) {
+					throw new IllegalStateException(e);
+				}
+			}
+
+			assertTrue(
+					expected.contains(
+							new ComponentDependency("iu-java-type-testruntime", IuTest.getProperty("project.version"))),
+					expected.toString());
+			assertTrue(expected.contains(new ComponentDependency("jakarta.interceptor-api",
+					IuTest.getProperty("jakarta.interceptor-api.version"))), expected.toString());
+			assertTrue(expected.contains(
+					new ComponentDependency("jakarta.json-api", IuTest.getProperty("jakarta.json-api.version"))),
+					expected.toString());
+			assertTrue(expected.contains(new ComponentDependency("jakarta.annotation-api",
+					IuTest.getProperty("jakarta.annotation-api.version"))), expected.toString());
+			assertTrue(expected.contains(new ComponentDependency("jakarta.servlet-api", "6.0.0")), expected.toString());
+			assertEquals(5, expected.size());
+
+			assertEquals("true", archive.properties().getProperty("sample.type.property"));
+
+		}, Map.of( //
+				"META-INF/MANIFEST.MF", -1, //
+				"META-INF/maven/edu.iu.util/iu-java-type-testweb/pom.properties", -1, //
+				"WEB-INF/", -1, //
+				"WEB-INF/lib/", -1, //
+				"module-info.class", 200, //
+				"edu/iu/type/testweb/package-info.class", 100, //
+				"edu/iu/type/testweb/TestServlet.class", 100));
+	}
+
+	@Test
+	public void testReadsTestWebWithoutNamedDeps() throws IOException {
+		try (var in = TestArchives.getComponentArchive("testweb")) {
+			var out = new ByteArrayOutputStream();
+			try (var inJar = new JarInputStream(in); var outJar = new JarOutputStream(out)) {
+				outJar.putNextEntry(new JarEntry("META-INF/MANIFEST.MF"));
+				var manifest = inJar.getManifest();
+				var attr = manifest.getMainAttributes();
+				attr.remove(Name.EXTENSION_LIST);
+				manifest.write(outJar);
+				outJar.closeEntry();
+
+				JarEntry entry;
+				while ((entry = inJar.getNextJarEntry()) != null) {
+					outJar.putNextEntry(entry);
+					outJar.write(inJar.readAllBytes());
+					outJar.closeEntry();
+					inJar.closeEntry();
+				}
+			}
+			try (var source = new ArchiveSource(new ByteArrayInputStream(out.toByteArray()))) {
+				assertReadsArchive("testweb (w/o named deps)", source, archive -> {
+					assertEquals(Kind.MODULAR_WAR, archive.kind());
+				}, Map.of());
+			}
+		}
+	}
+
+	@Test
+	public void testReadsTestWebWithoutModuleInfo() throws IOException {
+		try (var in = TestArchives.getComponentArchive("testweb")) {
+			var out = new ByteArrayOutputStream();
+			try (var inJar = new JarInputStream(in); var outJar = new JarOutputStream(out)) {
+				outJar.putNextEntry(new JarEntry("META-INF/MANIFEST.MF"));
+				inJar.getManifest().write(outJar);
+				outJar.closeEntry();
+
+				JarEntry entry;
+				while ((entry = inJar.getNextJarEntry()) != null) {
+					if (!entry.getName().equals("WEB-INF/classes/module-info.class")) {
+						outJar.putNextEntry(entry);
+						outJar.write(inJar.readAllBytes());
+						outJar.closeEntry();
+					}
+					inJar.closeEntry();
+				}
+			}
+			try (var source = new ArchiveSource(new ByteArrayInputStream(out.toByteArray()))) {
+				assertReadsArchive("testweb (w/o module-info)", source, archive -> {
+					assertEquals(Kind.MODULAR_WAR, archive.kind());
+				}, Map.of("WEB-INF/classes/module-info.class", -1));
+			}
+		}
+	}
+
+	@Test
+	public void testReadsTestLegacy() throws IOException {
+		assertReadsArchive("testlegacy", (archive, source) -> {
+			assertEquals(Kind.LEGACY_JAR, archive.kind());
+			assertEquals("iu-java-type-testlegacy", archive.name());
+			assertEquals(IuTest.getProperty("project.version"), archive.version());
+			assertTrue(archive.nonEnclosedTypeNames().contains("edu.iu.legacy.LegacyInterface"),
+					archive.nonEnclosedTypeNames().toString());
+
+			assertTrue(archive.webResources().isEmpty());
+			assertTrue(source.dependencies().isEmpty());
+
+			assertEquals(3, archive.bundledDependencies().size());
+			assertTrue(archive.bundledDependencies().containsKey("META-INF/lib/javax.annotation-api-1.3.2.jar"),
+					"missing META-INF/lib/javax.annotation-api-1.3.2.jar " + archive.bundledDependencies().keySet());
+			assertTrue(archive.bundledDependencies().containsKey("META-INF/lib/javax.interceptor-api-1.2.2.jar"),
+					"missing META-INF/lib/javax.interceptor-api-1.2.2.jar " + archive.bundledDependencies().keySet());
+			assertTrue(archive.bundledDependencies().containsKey("META-INF/lib/javax.json-api-1.1.4.jar"),
+					"missing META-INF/lib/javax.json-api-1.1.4.jar " + archive.bundledDependencies().keySet());
+
+			assertEquals("legacytest", archive.properties().getProperty("application"));
+
+			try {
+				var c = archive.allResources().get("html/index.html").openConnection();
+				c.setUseCaches(false);
+				try (var in = c.getInputStream()) {
+					var text = new String(in.readAllBytes()).replace("\r\n", "\n");
+					assertEquals("<html>\n\t<body>\n\t\t<main>This is a legacy component</main>\n\t</body>\n</html>",
+							text);
+				}
+
+			} catch (IOException e) {
+				throw new IllegalStateException(e);
+			}
+
+		}, Map.of( //
+				"META-INF/MANIFEST.MF", -1, //
+				"META-INF/maven/edu.iu.util/iu-java-type-testlegacy/pom.properties", -1, //
+				"META-INF/lib/", -1, //
+				"META-INF/lib/javax.json-api-1.1.4.jar", -1, //
+				"html/index.html", 75, //
+				"edu/iu/legacy/LegacyInterface.class", 100));
+	}
+
+	@Test
+	public void testReadsTestLegacyWeb() throws IOException {
+		assertReadsArchive("testlegacyweb", (archive, source) -> {
+			assertEquals(Kind.LEGACY_WAR, archive.kind());
+			assertEquals("iu-java-type-testlegacyweb", archive.name());
+			assertEquals(IuTest.getProperty("project.version"), archive.version());
+			assertTrue(archive.nonEnclosedTypeNames().contains("edu.iu.type.testlegacyweb.TestLegacyWebServlet"),
+					archive.nonEnclosedTypeNames().toString());
+
+			assertArrayEquals(B0, archive.webResources().get("WEB-INF/"),
+					"expected zero-length WEB-INF/ " + archive.webResources().toString());
+			assertTrue(archive.webResources().containsKey("WEB-INF/web.xml"),
+					"missing WEB-INF/web.xml " + archive.webResources().toString());
+			assertTrue(archive.webResources().containsKey("index.jsp"),
+					"missing index.jsp " + archive.webResources().toString());
+			assertFalse(archive.webResources().containsKey("META-INF/"),
+					"shouldn't include META-INF/ " + archive.webResources().toString());
+			assertFalse(archive.webResources().containsKey("META-INF/legacyweb.properties"),
+					"shouldn't include META-INF/legacyweb.properties " + archive.webResources().toString());
+
+			assertTrue(source.dependencies().isEmpty());
+
+			assertEquals(1, archive.bundledDependencies().size());
+			assertTrue(archive.bundledDependencies().containsKey("WEB-INF/lib/jakarta.servlet.jsp.jstl-api-1.2.7.jar"),
+					"missing WEB-INF/lib/jakarta.servlet.jsp.jstl-api-1.2.7.jar "
+							+ archive.bundledDependencies().keySet());
+
+			assertNull(archive.properties());
+
+			var text = new String(archive.webResources().get("index.jsp")).replace("\r\n", "\n");
+			assertEquals(
+					"<html>\n\n<body>\n\t<h1>Some items</h1>\n\t<c:forEach var=\"item\" items=\"${items}\">\n\t\t<div>${item}</div>\n\t</c:forEach>\n</body>\n\n</html>",
+					text);
+
+		}, Map.of( //
+				"META-INF/MANIFEST.MF", -1, //
+				"META-INF/maven/edu.iu.util/iu-java-type-testlegacy/pom.properties", -1, //
+				"META-INF/legacyweb.properties", 0, //
+				"edu/iu/type/testlegacyweb/TestLegacyWebServlet.class", 300));
+	}
+
+	@Test
+	public void testReadsTestLegacyWebWithNamedDeps() throws IOException {
+		try (var in = TestArchives.getComponentArchive("testlegacyweb")) {
+			var out = new ByteArrayOutputStream();
+			try (var inJar = new JarInputStream(in); var outJar = new JarOutputStream(out)) {
+				outJar.putNextEntry(new JarEntry("META-INF/MANIFEST.MF"));
+				var manifest = inJar.getManifest();
+				var attr = manifest.getMainAttributes();
+				attr.put(Name.EXTENSION_LIST, "jakarta.servlet-api");
+				attr.put(new Name("jakarta_servlet-api-Extension-Name"), "jakarta.servlet-api");
+				attr.put(new Name("jakarta_servlet-api-Implementation-Version"), "4.0.4");
+				manifest.write(outJar);
+				outJar.closeEntry();
+
+				JarEntry entry;
+				while ((entry = inJar.getNextJarEntry()) != null) {
+					outJar.putNextEntry(entry);
+					outJar.write(inJar.readAllBytes());
+					outJar.closeEntry();
+					inJar.closeEntry();
+				}
+			}
+			try (var source = new ArchiveSource(new ByteArrayInputStream(out.toByteArray()))) {
+				assertReadsArchive("testlegacyweb (w/ named deps)", source, archive -> {
+					assertEquals(Kind.LEGACY_WAR, archive.kind());
+				}, Map.of());
+			}
+		}
+	}
+
+	@Test
+	public void testReadsTestLegacyWebWithIuProperties() throws IOException {
+		try (var in = TestArchives.getComponentArchive("testlegacyweb")) {
+			var out = new ByteArrayOutputStream();
+			try (var inJar = new JarInputStream(in); var outJar = new JarOutputStream(out)) {
+				outJar.putNextEntry(new JarEntry("META-INF/MANIFEST.MF"));
+				inJar.getManifest().write(outJar);
+				outJar.closeEntry();
+
+				JarEntry entry;
+				while ((entry = inJar.getNextJarEntry()) != null) {
+					outJar.putNextEntry(entry);
+					outJar.write(inJar.readAllBytes());
+					outJar.closeEntry();
+					inJar.closeEntry();
+				}
+
+				outJar.putNextEntry(new JarEntry("WEB-INF/classes/META-INF/iu.properties"));
+				outJar.write("component=testlegacyweb\n".getBytes());
+				outJar.closeEntry();
+			}
+
+			try (var source = new ArchiveSource(new ByteArrayInputStream(out.toByteArray()))) {
+				assertReadsArchive("testlegacyweb (w/ iu.properties)", source, archive -> {
+					assertEquals(Kind.LEGACY_WAR, archive.kind());
+					assertEquals("testlegacyweb", archive.properties().getProperty("component"));
+				}, Map.of("META-INF/iu.properties", -1));
+			}
+		}
+	}
+
 }
