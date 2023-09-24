@@ -4,3 +4,5 @@ module:iu.util.test
 edu.iu.test
 module:iu.util.type
 edu.iu.type
+edu.iu.type.spi
+iu.type.api
