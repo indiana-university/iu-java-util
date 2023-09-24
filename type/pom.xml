@@ -22,9 +22,11 @@
 				<activeByDefault>true</activeByDefault>
 			</activation>
 			<modules>
+				<module>api</module>
 				<module>testlegacy</module>
 				<module>testruntime</module>
 				<module>testcomponent</module>
+				<module>testlegacyweb</module>
 				<module>testweb</module>
 				<module>module</module>
 			</modules>

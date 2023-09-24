@@ -29,7 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type.test;
+package edu.iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -37,7 +37,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import java.beans.Transient;
@@ -48,16 +47,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.test.IuTest;
-import edu.iu.type.DefaultInterceptor;
-import edu.iu.type.IuAnnotatedElement;
-import edu.iu.type.IuExecutable;
-import edu.iu.type.IuMethod;
-import edu.iu.type.IuParameter;
-import edu.iu.type.IuParameterizedElement;
-import edu.iu.type.IuProperty;
-import edu.iu.type.IuReferenceKind;
-import edu.iu.type.IuType;
-import iu.type.TypeFactory;
 import jakarta.annotation.Resource;
 import jakarta.annotation.security.PermitAll;
 
@@ -67,14 +56,6 @@ public class TypeApiTest {
 	@BeforeAll
 	public static void setup() {
 		IuType.class.getModule().addOpens(IuType.class.getPackageName(), IuTest.class.getModule());
-	}
-
-	@Test
-	public void testTypeIsNotImplemented() {
-		try (var typeFactory = mockStatic(TypeFactory.class)) {
-			IuType.of(Object.class);
-			typeFactory.verify(() -> TypeFactory.resolve(Object.class));
-		}
 	}
 
 	@Test
@@ -228,9 +209,6 @@ public class TypeApiTest {
 		var type = IuTest.mockWithDefaults(IuType.class);
 		when(type.base()).thenReturn(type);
 		when(type.deref()).thenReturn(Object.class);
-		try (var typeFactory = mockStatic(TypeFactory.class)) {
-			typeFactory.when(() -> IuType.of(Object.class)).thenReturn(type);
-		}
 		assertSame(type, type.sub(Object.class));
 		assertSame(Object.class, type.autoboxClass());
 		assertNull(type.autoboxDefault());

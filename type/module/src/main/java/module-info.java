@@ -30,13 +30,16 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /**
- * Type introspection utilities.
+ * Type introspection utilities implementation module.
+ *  * @provides edu.iu.type.spi.IuTypeSpi Implementation service provider.
  */
-module iu.util.type {
-	exports edu.iu.type;
-
+module iu.util.type.impl {
+	requires iu.util.type;
+	
 	requires java.logging;
 	requires java.desktop;
 	requires static jakarta.annotation;
 	requires static jakarta.interceptor;
+	
+	provides edu.iu.type.spi.IuTypeSpi with iu.type.TypeSpi;
 }

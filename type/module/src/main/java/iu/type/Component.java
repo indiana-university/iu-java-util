@@ -31,6 +31,8 @@
  */
 package iu.type;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.ModuleLayer.Controller;
 import java.lang.annotation.Annotation;
 import java.net.URLClassLoader;
@@ -42,7 +44,6 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.Set;
-import java.util.jar.Manifest;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -92,8 +93,8 @@ class Component implements IuComponent {
 	private boolean closed;
 
 	private Component(Component parent, ComponentModuleFinder moduleFinder, Controller controller, Kind kind,
-			String name, String version, Properties properties, ClassLoader classLoader,
-			Set<String> classNames, Queue<Path> tempFiles) {
+			String name, String version, Properties properties, ClassLoader classLoader, Set<String> classNames,
+			Queue<Path> tempFiles) {
 		this.parent = parent;
 		this.moduleFinder = moduleFinder;
 		this.controller = controller;
@@ -118,11 +119,10 @@ class Component implements IuComponent {
 		this.interfaces = Collections.unmodifiableSet(interfaces);
 	}
 
-	Component(Component parent, ComponentModuleFinder moduleFinder, Controller controller,
-			String name, String version, Properties properties, ClassLoader classLoader, Set<String> classNames,
-			Queue<Path> tempFiles) {
-		this(parent, moduleFinder, controller, Kind.MODULAR_JAR, name, version, properties, classLoader,
-				classNames, tempFiles);
+	Component(Component parent, ComponentModuleFinder moduleFinder, Controller controller, String name, String version,
+			Properties properties, ClassLoader classLoader, Set<String> classNames, Queue<Path> tempFiles) {
+		this(parent, moduleFinder, controller, Kind.MODULAR_JAR, name, version, properties, classLoader, classNames,
+				tempFiles);
 	}
 
 	Controller controller() {
@@ -130,10 +130,11 @@ class Component implements IuComponent {
 	}
 
 	@Override
-	public IuComponent extend(Path... modulePath) {
+	public IuComponent extend(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
+			throws IOException, IllegalArgumentException {
 		if (closed)
 			throw new IllegalStateException();
-		return ComponentFactory.newComponent(this, modulePath);
+		throw new UnsupportedOperationException();
 	}
 
 	@Override

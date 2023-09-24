@@ -29,28 +29,30 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type.test;
+package iu.type;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.Queue;
 
-import org.junit.jupiter.api.Test;
+import edu.iu.test.IuTest;
 
-import edu.iu.type.IuComponent;
-import iu.type.ComponentFactory;
+class TestArchives {
 
-@SuppressWarnings("javadoc")
-public class ComponentApiTest {
+	static InputStream getComponentArchive(String componentName) throws IOException {
+		return Files.newInputStream(Path.of(IuTest.getProperty(componentName + ".jar")));
+	}
 
-	@Test
-	public void testNewComponent() {
-		var path = mock(Path.class);
-		try (var componentFactory = mockStatic(ComponentFactory.class)) {
-			IuComponent.of(path);
-			componentFactory.verify(() -> ComponentFactory.newComponent(path));
-		}
+	static InputStream[] getProvidedDependencyArchives(String componentName) throws IOException {
+		Queue<InputStream> providedDependencyArchives = new ArrayDeque<>();
+		var deps = IuTest.getProperty(componentName + ".deps");
+		if (deps != null)
+			for (var jar : Files.newDirectoryStream(Path.of(deps).toRealPath()))
+				providedDependencyArchives.offer(Files.newInputStream(jar));
+		return providedDependencyArchives.toArray(new InputStream[providedDependencyArchives.size()]);
 	}
 
 }

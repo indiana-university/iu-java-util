@@ -25,10 +25,10 @@ public class TemporaryFileTest {
 	}
 
 	@Test
-	public void testIllegalState() {
+	public void testCantCreateTempFile() {
 		try (var mockFiles = mockStatic(Files.class)) {
 			mockFiles.when(() -> Files.createTempFile("iu-type-", ".jar")).thenThrow(IOException.class);
-			assertThrows(IllegalStateException.class, () -> TemporaryFile.init(null));
+			assertThrows(IOException.class, () -> TemporaryFile.init(null));
 		}
 	}
 

@@ -29,30 +29,16 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type.test;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
+package edu.iu.type;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.type.IuType;
-
 @SuppressWarnings("javadoc")
-public class TypeFactoryTest {
+public class ComponentApiTest {
 
 	@Test
-	public void testResolves() {
-		var type = IuType.of(Object.class);
-		assertNotNull(type);
-		assertSame(Object.class, type.deref());
-		assertEquals(Object.class.getName(), type.name());
-	}
-
-	@Test
-	public void testParityWithClass() {
-		assertSame(IuType.of(Object.class), IuType.of(Object.class));
+	public void testCoversKind() throws ClassNotFoundException {
+		Class.forName(IuComponent.Kind.class.getName());
 	}
 
 }

@@ -37,7 +37,7 @@ import java.lang.annotation.Annotation;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import iu.type.StaticDependencyHelper;
+import iu.type.api.StaticDependencyHelper;
 
 /**
  * Facade interface for a bean property.

@@ -29,7 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type.test;
+package edu.iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -42,8 +42,7 @@ import java.net.URLClassLoader;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.type.IuAnnotatedElement;
-import iu.type.StaticDependencyHelper;
+import iu.type.api.StaticDependencyHelper;
 import jakarta.annotation.security.PermitAll;
 
 @SuppressWarnings("javadoc")

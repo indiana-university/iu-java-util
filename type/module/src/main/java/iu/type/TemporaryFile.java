@@ -12,12 +12,7 @@ final class TemporaryFile {
 	}
 
 	static <T> T init(TempFileInitializer<T> tempFileInitializer) throws IOException {
-		Path temp;
-		try {
-			temp = Files.createTempFile("iu-type-", ".jar");
-		} catch (IOException e) {
-			throw new IllegalStateException(e);
-		}
+		Path temp = Files.createTempFile("iu-type-", ".jar");
 
 		try {
 			return tempFileInitializer.initialize(temp);

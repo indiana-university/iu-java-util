@@ -34,7 +34,7 @@ package edu.iu.type;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
 
-import iu.type.TypeFactory;
+import iu.type.api.TypeImplementationLoader;
 
 /**
  * Facade interface for a generic type.
@@ -50,7 +50,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @return type introspection facade
 	 */
 	static IuType<?> of(Type type) {
-		return TypeFactory.resolve(type);
+		return TypeImplementationLoader.resolve(type);
 	}
 
 	/**

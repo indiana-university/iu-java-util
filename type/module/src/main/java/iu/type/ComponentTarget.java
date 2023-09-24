@@ -14,35 +14,23 @@ class ComponentTarget implements AutoCloseable {
 	private final JarOutputStream jar;
 	private final byte[] buf = new byte[16384];
 
-	ComponentTarget(Path path) {
-		try {
-			out = Files.newOutputStream(path);
-			jar = new JarOutputStream(out); // never throws IOException
-		} catch (IOException e) {
-			throw new IllegalStateException(e);
-		}
+	ComponentTarget(Path path) throws IOException {
+		out = Files.newOutputStream(path);
+		jar = new JarOutputStream(out);
 	}
 
-	void put(String name, InputStream data) {
+	void put(String name, InputStream data) throws IOException {
 		int r;
-		try {
-			jar.putNextEntry(new JarEntry(name));
-			while ((r = data.read(buf, 0, buf.length)) > 0)
-				jar.write(buf, 0, r);
-			jar.closeEntry();
-		} catch (IOException e) {
-			throw new IllegalStateException(e);
-		}
+		jar.putNextEntry(new JarEntry(name));
+		while ((r = data.read(buf, 0, buf.length)) > 0)
+			jar.write(buf, 0, r);
+		jar.closeEntry();
 	}
 
 	@Override
-	public void close() {
-		try {
-			jar.close();
-			out.close();
-		} catch (IOException e) {
-			throw new IllegalStateException(e);
-		}
+	public void close() throws IOException {
+		jar.close();
+		out.close();
 	}
 
 }

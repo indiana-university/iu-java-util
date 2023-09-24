@@ -29,30 +29,53 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type.test;
+package edu.iu.type;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+import java.util.ServiceLoader;
+
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import edu.iu.type.IuType;
+import edu.iu.type.spi.IuTypeSpi;
+import iu.type.api.TypeImplementationLoader;
 
 @SuppressWarnings("javadoc")
-public class TypeFactoryTest {
+public class TypeSpiTest {
 
-	@Test
-	public void testResolves() {
-		var type = IuType.of(Object.class);
-		assertNotNull(type);
-		assertSame(Object.class, type.deref());
-		assertEquals(Object.class.getName(), type.name());
+	private static IuTypeSpi iuTypeSpi;
+
+	@BeforeAll
+	public static void setupClass() throws ClassNotFoundException {
+		iuTypeSpi = mock(IuTypeSpi.class);
+		var serviceLoader = mock(ServiceLoader.class);
+		when(serviceLoader.iterator()).thenReturn(List.of(iuTypeSpi).iterator());
+		try (var mockServiceLoader = mockStatic(ServiceLoader.class)) {
+			mockServiceLoader.when(() -> ServiceLoader.load(IuTypeSpi.class, IuTypeSpi.class.getClassLoader()))
+					.thenReturn(serviceLoader);
+			Class.forName(TypeImplementationLoader.class.getName());
+		}
 	}
 
 	@Test
-	public void testParityWithClass() {
-		assertSame(IuType.of(Object.class), IuType.of(Object.class));
+	public void testResolveType() {
+		IuType.of(Object.class);
+		verify(iuTypeSpi, times(1)).resolveType(Object.class);
+	}
+	
+	@Test
+	public void testNewComponent() throws IOException {
+		var in = mock(InputStream.class);
+		IuComponent.of(in);
+		verify(iuTypeSpi, times(1)).createComponent(in);
 	}
 
 }

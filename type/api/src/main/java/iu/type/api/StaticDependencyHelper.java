@@ -29,30 +29,54 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type.test;
+package iu.type.api;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import edu.iu.type.IuAnnotatedElement;
 
-import org.junit.jupiter.api.Test;
+/**
+ * Isolates references static module dependencies to prevent
+ * {@link NoClassDefFoundError} when the Jakarta Annotations API is not present
+ * in the classpath.
+ */
+public class StaticDependencyHelper {
 
-import edu.iu.type.IuType;
+	private static final boolean ANNOTATION_SUPPORTED;
 
-@SuppressWarnings("javadoc")
-public class TypeFactoryTest {
-
-	@Test
-	public void testResolves() {
-		var type = IuType.of(Object.class);
-		assertNotNull(type);
-		assertSame(Object.class, type.deref());
-		assertEquals(Object.class.getName(), type.name());
+	static {
+		boolean annotationSupported;
+		try {
+			@jakarta.annotation.Resource
+			class HasResource {
+			}
+			annotationSupported = new HasResource().getClass().isAnnotationPresent(jakarta.annotation.Resource.class);
+		} catch (NoClassDefFoundError e) {
+			annotationSupported = false;
+		}
+		ANNOTATION_SUPPORTED = annotationSupported;
 	}
 
-	@Test
-	public void testParityWithClass() {
-		assertSame(IuType.of(Object.class), IuType.of(Object.class));
+	/**
+	 * Check to see if the Jakarta Annotations API is present in the classpath.
+	 * 
+	 * @return true if present; false if missing
+	 */
+	public static boolean isAnnotationSupported() {
+		return ANNOTATION_SUPPORTED;
+	}
+
+	/**
+	 * Determines whether or not access to an annotated element contains the
+	 * {@link jakarta.annotation.security.PermitAll} annotation.
+	 * 
+	 * @param annotatedElement annotated element
+	 * @return true if the element contains the
+	 *         {@link jakarta.annotation.security.PermitAll} annotation.
+	 */
+	public static boolean hasPermitAll(IuAnnotatedElement annotatedElement) {
+		return isAnnotationSupported() && annotatedElement.hasAnnotation(jakarta.annotation.security.PermitAll.class);
+	}
+
+	private StaticDependencyHelper() {
 	}
 
 }
