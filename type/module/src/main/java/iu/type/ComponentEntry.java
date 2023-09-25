@@ -61,4 +61,10 @@ class ComponentEntry implements AutoCloseable {
 		closed = true;
 	}
 
+	@Override
+	public String toString() {
+		return "ComponentEntry [name=" + name + ", read=" + read + (data == null ? "" : ", data=" + data.length + 'B')
+				+ ", closed=" + closed + "]";
+	}
+
 }

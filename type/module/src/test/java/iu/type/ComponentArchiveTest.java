@@ -11,11 +11,14 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
 import java.nio.file.Files;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.jar.Attributes.Name;
@@ -34,25 +37,6 @@ import edu.iu.type.IuComponent.Kind;
 public class ComponentArchiveTest {
 
 	private static final byte[] B0 = new byte[0];
-	private static final byte[] EMPTY_JAR;
-
-	static {
-		ByteArrayOutputStream out = new ByteArrayOutputStream();
-		try (JarOutputStream jar = new JarOutputStream(out)) {
-			jar.putNextEntry(new JarEntry("META-INF/"));
-			jar.closeEntry();
-
-			jar.putNextEntry(new JarEntry("META-INF/MANIFEST.MF"));
-			var manifest = new Manifest();
-			var mainAttributes = manifest.getMainAttributes();
-			mainAttributes.put(Name.MANIFEST_VERSION, "1.0");
-			manifest.write(jar);
-			jar.closeEntry();
-		} catch (IOException e) {
-			throw new ExceptionInInitializerError(e);
-		}
-		EMPTY_JAR = out.toByteArray();
-	}
 
 	private ArchiveSource createSource(Iterable<String> classPath, Map<String, byte[]> entries) throws IOException {
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -96,7 +80,7 @@ public class ComponentArchiveTest {
 		Map<String, byte[]> entries = new LinkedHashMap<>();
 		for (var entryName : entryNames)
 			if (entryName.endsWith(".jar"))
-				entries.put(entryName, EMPTY_JAR);
+				entries.put(entryName, TestArchives.EMPTY_JAR);
 			else
 				entries.put(entryName, B0);
 		assertInvalidSource(expectedMessage, classPath, entries);
@@ -104,7 +88,7 @@ public class ComponentArchiveTest {
 
 	private void assertInvalidSource(String expectedMessage, Iterable<String> classPath, Map<String, byte[]> entries) {
 		var threw = assertThrows(IllegalArgumentException.class,
-				() -> ComponentArchive.of(createSource(classPath, entries)));
+				() -> ComponentArchive.from(createSource(classPath, entries)));
 		try {
 			assertEquals(expectedMessage, threw.getMessage());
 		} catch (AssertionFailedError e) {
@@ -130,7 +114,7 @@ public class ComponentArchiveTest {
 
 	private void assertReadsArchive(String name, ArchiveSource source, Consumer<ComponentArchive> archiveConsumer,
 			Map<String, Integer> expectedContents) throws IOException {
-		ComponentArchive archive = ComponentArchive.of(source);
+		ComponentArchive archive = ComponentArchive.from(source);
 		Throwable thrown = null;
 		try {
 			archiveConsumer.accept(archive);
@@ -268,6 +252,13 @@ public class ComponentArchiveTest {
 	}
 
 	@Test
+	public void testRejetsIncompleteClassPath() {
+		var expectedMessage = "Component archive didn't include all bundled dependencies, missing [missing.jar]";
+		assertInvalidSource(expectedMessage, List.of("not-missing.jar", "missing.jar"),
+				Map.of("not-missing.jar", TestArchives.EMPTY_JAR));
+	}
+
+	@Test
 	public void testReadsTestComponent() throws IOException {
 		assertReadsArchive("testcomponent", archive -> {
 			assertEquals(Kind.MODULAR_JAR, archive.kind());
@@ -279,8 +270,8 @@ public class ComponentArchiveTest {
 			assertFalse(archive.nonEnclosedTypeNames()
 					.contains("edu.iu.type.testcomponent.TestBeanImpl$InternalSupportingClass"));
 			assertTrue(archive.webResources().isEmpty());
-			assertFalse(archive.allResources().containsKey("META-INF/iu-type.properties"));
-			assertFalse(archive.allResources().containsKey("edu/iu/type/testcomponent/TestBean"));
+			assertFalse(archive.allResources().contains("META-INF/iu-type.properties"));
+			assertFalse(archive.allResources().contains("edu/iu/type/testcomponent/TestBean"));
 			assertEquals("testcomponent", archive.properties().getProperty("remotableModules"));
 		}, Map.of( //
 				"META-INF/MANIFEST.MF", -1, //
@@ -304,22 +295,18 @@ public class ComponentArchiveTest {
 			assertTrue(archive.nonEnclosedTypeNames().contains("edu.iu.type.testruntime.TestRuntime"));
 			assertTrue(archive.webResources().isEmpty());
 
-			var expected = new LinkedHashSet<>(source.dependencies());
-			assertEquals(3, expected.size());
-			for (var bundledDependency : archive.bundledDependencies().entrySet()) {
-				assertTrue(source.classPath().contains(bundledDependency.getKey()));
-
-				ComponentArchive bundledArchive;
+			var expectedDependencies = new LinkedHashSet<>(source.dependencies());
+			assertEquals(3, expectedDependencies.size());
+			for (var bundledDependency : archive.bundledDependencies())
 				try {
-					bundledArchive = ComponentArchive.of(bundledDependency.getValue());
-					assertTrue(
-							expected.remove(new ComponentDependency(bundledArchive.name(), bundledArchive.version())));
+					var bundledArchive = ComponentArchive.from(bundledDependency);
+					assertTrue(expectedDependencies.remove(ComponentDependency.from(bundledArchive)));
+					bundledDependency.close();
 					Files.delete(bundledArchive.path());
 				} catch (IOException e) {
 					throw new IllegalStateException(e);
 				}
-			}
-			assertTrue(expected.isEmpty());
+			assertTrue(expectedDependencies.isEmpty());
 
 			assertNull(archive.properties());
 		}, Map.of( //
@@ -354,10 +341,10 @@ public class ComponentArchiveTest {
 
 			var expected = new LinkedHashSet<>(source.dependencies());
 			assertEquals(7, expected.size());
-			for (var bundledDependency : archive.bundledDependencies().values()) {
+			for (var bundledDependency : archive.bundledDependencies()) {
 				ComponentArchive bundledArchive;
 				try {
-					bundledArchive = ComponentArchive.of(bundledDependency);
+					bundledArchive = ComponentArchive.from(bundledDependency);
 					assertTrue(
 							expected.remove(new ComponentDependency(bundledArchive.name(), bundledArchive.version())));
 					Files.delete(bundledArchive.path());
@@ -460,17 +447,25 @@ public class ComponentArchiveTest {
 			assertTrue(source.dependencies().isEmpty());
 
 			assertEquals(3, archive.bundledDependencies().size());
-			assertTrue(archive.bundledDependencies().containsKey("META-INF/lib/javax.annotation-api-1.3.2.jar"),
-					"missing META-INF/lib/javax.annotation-api-1.3.2.jar " + archive.bundledDependencies().keySet());
-			assertTrue(archive.bundledDependencies().containsKey("META-INF/lib/javax.interceptor-api-1.2.2.jar"),
-					"missing META-INF/lib/javax.interceptor-api-1.2.2.jar " + archive.bundledDependencies().keySet());
-			assertTrue(archive.bundledDependencies().containsKey("META-INF/lib/javax.json-api-1.1.4.jar"),
-					"missing META-INF/lib/javax.json-api-1.1.4.jar " + archive.bundledDependencies().keySet());
+			Set<ComponentDependency> expectedDependencies = new HashSet<>();
+			expectedDependencies.add(new ComponentDependency("javax.annotation-api", "1.3.2"));
+			expectedDependencies.add(new ComponentDependency("javax.interceptor-api", "1.2.2"));
+			expectedDependencies.add(new ComponentDependency("javax.json-api", "1.1.4"));
+			for (var bundledDependency : archive.bundledDependencies()) {
+				try {
+					var bundledArchive = ComponentArchive.from(bundledDependency);
+					assertTrue(expectedDependencies.remove(ComponentDependency.from(bundledArchive)));
+					bundledDependency.close();
+					Files.delete(bundledArchive.path());
+				} catch (IOException e) {
+					throw new IllegalStateException(e);
+				}
+			}
 
 			assertEquals("legacytest", archive.properties().getProperty("application"));
 
 			try {
-				var c = archive.allResources().get("html/index.html").openConnection();
+				var c = new URL("jar:" + archive.path().toUri().toURL() + "!/html/index.html").openConnection();
 				c.setUseCaches(false);
 				try (var in = c.getInputStream()) {
 					var text = new String(in.readAllBytes()).replace("\r\n", "\n");
@@ -514,9 +509,18 @@ public class ComponentArchiveTest {
 			assertTrue(source.dependencies().isEmpty());
 
 			assertEquals(1, archive.bundledDependencies().size());
-			assertTrue(archive.bundledDependencies().containsKey("WEB-INF/lib/jakarta.servlet.jsp.jstl-api-1.2.7.jar"),
-					"missing WEB-INF/lib/jakarta.servlet.jsp.jstl-api-1.2.7.jar "
-							+ archive.bundledDependencies().keySet());
+			Set<ComponentDependency> expectedDependencies = new HashSet<>();
+			expectedDependencies.add(new ComponentDependency("jakarta.servlet.jsp.jstl-api", "1.2.7"));
+			for (var bundledDependency : archive.bundledDependencies()) {
+				try {
+					var bundledArchive = ComponentArchive.from(bundledDependency);
+					assertTrue(expectedDependencies.remove(ComponentDependency.from(bundledArchive)));
+					bundledDependency.close();
+					Files.delete(bundledArchive.path());
+				} catch (IOException e) {
+					throw new IllegalStateException(e);
+				}
+			}
 
 			assertNull(archive.properties());
 

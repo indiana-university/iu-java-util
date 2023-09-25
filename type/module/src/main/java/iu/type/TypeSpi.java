@@ -23,8 +23,7 @@ public class TypeSpi implements IuTypeSpi {
 	@Override
 	public IuComponent createComponent(InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+		return ComponentFactory.createComponent(componentArchiveSource, providedDependencyArchiveSources);
 	}
 
 }

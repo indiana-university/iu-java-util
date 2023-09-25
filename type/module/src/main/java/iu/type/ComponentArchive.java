@@ -2,8 +2,8 @@ package iu.type;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.net.URL;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -15,15 +15,19 @@ import java.util.Set;
 import edu.iu.type.IuComponent.Kind;
 
 record ComponentArchive(Path path, Kind kind, String name, String version, Properties properties,
-		Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources, Map<String, URL> allResources,
-		Map<String, ArchiveSource> bundledDependencies) {
+		Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources, Set<String> allResources,
+		Collection<ArchiveSource> bundledDependencies) {
 
-	private static record ScannedAttributes(Kind kind, String name, String version, Properties properties) {
+	private static record ScannedAttributes(Kind kind, String name, String version, Properties properties,
+			Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources, Set<String> allResources,
+			Collection<ArchiveSource> bundledDependencies) {
 	}
 
-	private static ScannedAttributes scan(ArchiveSource source, ComponentTarget target,
-			Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources, Map<String, URL> allResources,
-			Map<String, ArchiveSource> bundledDependencies) throws IOException {
+	private static ScannedAttributes scan(ArchiveSource source, ComponentTarget target) throws IOException {
+		final Set<String> nonEnclosedTypeNames = new LinkedHashSet<>();
+		final Map<String, byte[]> webResources = new LinkedHashMap<>();
+		final Set<String> allResources = new LinkedHashSet<>();
+		final Map<String, ArchiveSource> bundledDependencies = new LinkedHashMap<>();
 
 		final Set<String> classPath = new HashSet<>();
 		source.classPath().forEach(classPath::add);
@@ -142,9 +146,13 @@ record ComponentArchive(Path path, Kind kind, String name, String version, Prope
 						// This is not a web archive, so write all resources collected so far to
 						// the target archive and stop collecting web resource. Further entries
 						// with name starting with WEB-INF/ will trigger the same error as above
-						for (var resourceEntry : webResources.entrySet())
-							allResources.put(resourceEntry.getKey(), target.put(resourceEntry.getKey(),
-									new ByteArrayInputStream(resourceEntry.getValue())));
+						for (var resourceEntry : webResources.entrySet()) {
+							var resourceEntryName = resourceEntry.getKey();
+							if (resourceEntryName.charAt(resourceEntryName.length() - 1) != '/') {
+								target.put(resourceEntryName, new ByteArrayInputStream(resourceEntry.getValue()));
+								allResources.add(resourceEntryName);
+							}
+						}
 						webResources.clear();
 					}
 				}
@@ -165,14 +173,25 @@ record ComponentArchive(Path path, Kind kind, String name, String version, Prope
 				var resourceName = name.substring(16);
 				if (resourceName.startsWith("META-INF/") && resourceName.charAt(resourceName.length() - 1) == '/')
 					continue;
-				componentEntry.read(in -> allResources.put(resourceName, target.put(resourceName, in)));
+
+				componentEntry.read(in -> target.put(resourceName, in));
+				allResources.add(resourceName);
+
 			} else if (name.startsWith("META-INF/") && name.charAt(name.length() - 1) == '/')
 				continue;
+
 			else if (!hasNonWebTypes)
 				webResources.put(name, componentEntry.data());
-			else
-				componentEntry.read(in -> allResources.put(name, target.put(name, in)));
+
+			else if (name.charAt(name.length() - 1) != '/') {
+				componentEntry.read(in -> target.put(name, in));
+				allResources.add(name);
+			}
 		}
+
+		if (!classPath.isEmpty())
+			throw new IllegalArgumentException(
+					"Component archive didn't include all bundled dependencies, missing " + classPath);
 
 		if (pomProperties == null)
 			throw new IllegalArgumentException("Component archive missing META-INF/maven/.../pom.properties");
@@ -196,12 +215,9 @@ record ComponentArchive(Path path, Kind kind, String name, String version, Prope
 
 			var isServlet6 = false;
 			for (var dependency : source.dependencies())
-				if (dependency.name().equals("jakarta.servlet-api")) {
-					var servletVersion = dependency.version();
-					if (Integer.parseInt(servletVersion.substring(0, servletVersion.indexOf('.'))) >= 6) {
-						isServlet6 = true;
-						continue;
-					}
+				if (dependency.isAtLeast(ComponentDependency.SERVLET_6)) {
+					isServlet6 = true;
+					continue;
 				}
 
 			if (hasModuleDescriptor || isServlet6) {
@@ -219,29 +235,32 @@ record ComponentArchive(Path path, Kind kind, String name, String version, Prope
 			properties = iuProperties;
 		}
 
-		return new ScannedAttributes(kind, componentName, version, properties);
+		return new ScannedAttributes( //
+				kind, //
+				componentName, //
+				version, //
+				properties, //
+				Collections.unmodifiableSet(nonEnclosedTypeNames), //
+				Collections.unmodifiableMap(webResources), //
+				Collections.unmodifiableSet(allResources), //
+				Collections.unmodifiableCollection(bundledDependencies.values()));
 	}
 
-	static ComponentArchive of(ArchiveSource source) throws IOException {
+	static ComponentArchive from(ArchiveSource source) throws IOException {
 		return TemporaryFile.init(path -> {
 			try (var target = new ComponentTarget(path)) {
-				Set<String> nonEnclosedTypeNames = new LinkedHashSet<>();
-				Map<String, byte[]> webResources = new LinkedHashMap<>();
-				Map<String, URL> allResources = new LinkedHashMap<>();
-				Map<String, ArchiveSource> embeddedComponents = new LinkedHashMap<>();
 
-				var scannedAttributes = scan(source, target, nonEnclosedTypeNames, webResources, allResources,
-						embeddedComponents);
+				var scannedAttributes = scan(source, target);
 
 				return new ComponentArchive(path, //
 						scannedAttributes.kind, //
 						scannedAttributes.name, //
 						scannedAttributes.version, //
 						scannedAttributes.properties, //
-						Collections.unmodifiableSet(nonEnclosedTypeNames), //
-						Collections.unmodifiableMap(webResources), //
-						Collections.unmodifiableMap(allResources), //
-						Collections.unmodifiableMap(embeddedComponents) //
+						scannedAttributes.nonEnclosedTypeNames, //
+						scannedAttributes.webResources, //
+						scannedAttributes.allResources, //
+						scannedAttributes.bundledDependencies //
 				);
 			}
 		});

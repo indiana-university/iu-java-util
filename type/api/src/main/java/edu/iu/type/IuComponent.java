@@ -66,7 +66,8 @@ import iu.type.api.TypeImplementationLoader;
  * <ul>
  * <li>Be a <a href=
  * "https://docs.oracle.com/en/java/javase/21/docs/specs/jar/jar.html">jar
- * archive</a>, <em>not</em> a filesystem directory.</li>
+ * archive</a> built using <a href="https://maven.apache.org/">Apache Maven</a>.</li>
+ * <li><em>Not</em> be directory in a file system, either originally or unpacked.</li>
  * <li>Include a well-formed {@link Manifest manifest} in
  * {@code META-INF/MANIFEST.MF}.</li>
  * <li><em>Not</em> include {@code Main-Class} in the
@@ -186,6 +187,86 @@ import iu.type.api.TypeImplementationLoader;
  * path</strong> or <strong>inherited</strong> by its <strong>parent
  * component</strong>.
  * </p>
+ * 
+ * <p>
+ * Note that {@code Extension-List} was originally intended for applets, which
+ * are no longer supported by Java SE or related products. However, <a href=
+ * "https://jakarta.ee/specifications/platform/10/jakarta-platform-spec-10.0#installed-libraries">JEE
+ * 10 Section 8.2.2</a> <em>requires</em> this attribute to be supported for all
+ * <strong>component</strong> types, and clarifies by example that
+ * {@code extension-Specification-Version} may be used to declare that an
+ * installed library meet a minimum specification version as opposed to
+ * declaring a specific {@code extension-Implementation-Version}. This
+ * requirement by JEE 10 supersedes the implied deprecation of
+ * {@code Extension-List} by Java SE.
+ * </p>
+ * 
+ * <p>
+ * <a href="https://maven.apache.org/shared/maven-archiver/index.html">Maven
+ * Archiver</a> includes support for generating the {@code Class-Path} and
+ * {@code Extension-List} attributes from the project's dependency artifacts.
+ * </p>
+ * <ul>
+ * <li>The {@code addClasspath} configuration parameter may be {@code true} to
+ * enumerate all
+ * <a href="https://maven.apache.org/pom.html#dependencies">compile and runtime
+ * scoped dependencies</a> in the {@code Class-Path} attribute. However, this
+ * does not bundle the related artifacts in the resulting <strong>component
+ * archive</strong>. When using {@code addClasspath}, a <strong>component
+ * archive's</strong> Maven project should also configure the <a href=
+ * "https://maven.apache.org/plugins/maven-dependency-plugin/copy-dependencies-mojo.html">Maven
+ * Dependency Plugin</a> to copy related artifacts from the local Maven
+ * repository into the archive's output folder. For example:
+ * 
+ * <pre>
+ *   &lt;plugin&gt;
+ *      &lt;artifactId&gt;maven-jar-plugin&lt;/artifactId&gt;
+ *      &lt;executions&gt;
+ *        &lt;execution&gt;
+ *          &lt;id&gt;default-jar&lt;/id&gt;
+ *          &lt;configuration&gt;
+ *            &lt;archive&gt;
+ *              &lt;manifest&gt;
+ *                &lt;addClasspath&gt;true&lt;/addClasspath&gt;
+ *                &lt;classpathPrefix&gt;META-INF/lib&lt;/classpathPrefix&gt;
+ *              &lt;/manifest&gt;
+ *            &lt;/archive&gt;
+ *          &lt;/configuration&gt;
+ *        &lt;/execution&gt;
+ *      &lt;/executions&gt;
+ *    &lt;/plugin&gt;
+ *    &lt;plugin&gt;
+ *      &lt;artifactId&gt;maven-dependency-plugin&lt;/artifactId&gt;
+ *      &lt;executions&gt;
+ *        &lt;execution&gt;
+ *          &lt;id&gt;embed-dependencies&lt;/id&gt;
+ *          &lt;phase&gt;process-resources&lt;/phase&gt;
+ *          &lt;goals&gt;
+ *            &lt;goal&gt;copy-dependencies&lt;/goal&gt;
+ *          &lt;/goals&gt;
+ *          &lt;configuration&gt;
+ *            &lt;outputDirectory&gt;${project.build.outputDirectory}/META-INF/lib&lt;/outputDirectory&gt;
+ *          &lt;/configuration&gt;
+ *        &lt;/execution&gt;
+ *      &lt;/executions&gt;
+ *    &lt;/plugin&gt;
+ * </pre>
+ * 
+ * </li>
+ * <li><a href="https://maven.apache.org/shared/maven-archiver/index.html">Maven
+ * Archiver documentation</a> as well as the <a href=
+ * "https://github.com/apache/maven-archiver/blob/master/src/main/java/org/apache/maven/archiver/MavenArchiver.java#L403">Maven
+ * Archiver source code related to {@code addExtensions}</a> reveal only minimal
+ * support for {@code Extension-List} with caveats related to applets indicated
+ * in inline comments. This configuration parameter may be used by a
+ * <strong>component archive's</strong> Maven project to declare that specific
+ * versions of all
+ * <a href="https://maven.apache.org/pom.html#dependencies">compile and runtime
+ * scoped dependencies</a> be <strong>provided</strong> to the
+ * <strong>component</strong>. The {@code addExtensions} archive configuration
+ * parameter <em>should not</em> be {@code true} when {@code addClasspath} is
+ * also {@code true}.
+ * </ul>
  * 
  * <h2>Class Loading</h2>
  * 

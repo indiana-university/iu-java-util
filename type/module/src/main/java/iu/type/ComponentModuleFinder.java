@@ -11,16 +11,12 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 /**
  * Closeable module finder.
  */
 class ComponentModuleFinder implements ModuleFinder, AutoCloseable {
-
-	private static final Logger LOG = Logger.getLogger(ComponentModuleFinder.class.getName());
 
 	@FunctionalInterface
 	private interface ReaderSupplier {
@@ -50,20 +46,14 @@ class ComponentModuleFinder implements ModuleFinder, AutoCloseable {
 		}
 
 		@Override
-		public void close() {
-			if (!closed) {
-				if (reader != null) {
-					try {
-						reader.close();
-					} catch (Throwable e) {
-						LOG.log(Level.WARNING, e, () -> "Failed to close module reader");
-					}
-					reader = null;
-				}
-				if (readerSupplier != null)
-					readerSupplier = null;
-				closed = true;
+		public void close() throws IOException {
+			if (reader != null) {
+				reader.close();
+				reader = null;
 			}
+			if (readerSupplier != null)
+				readerSupplier = null;
+			closed = true;
 		}
 	}
 
@@ -92,7 +82,7 @@ class ComponentModuleFinder implements ModuleFinder, AutoCloseable {
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void close() throws IOException {
 		Map<String, Ref> refs;
 		synchronized (this) {
 			refs = this.refs;
@@ -101,7 +91,8 @@ class ComponentModuleFinder implements ModuleFinder, AutoCloseable {
 		}
 
 		if (refs != null)
-			refs.values().forEach(Ref::close);
+			for (var ref : refs.values())
+				ref.close();
 	}
 
 }

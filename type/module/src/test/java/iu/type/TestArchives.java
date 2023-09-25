@@ -31,28 +31,68 @@
  */
 package iu.type;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
+import java.util.jar.Manifest;
+import java.util.jar.Attributes.Name;
 
 import edu.iu.test.IuTest;
 
-class TestArchives {
+@SuppressWarnings("javadoc")
+public class TestArchives {
 
-	static InputStream getComponentArchive(String componentName) throws IOException {
+	public static final byte[] EMPTY_JAR;
+
+	static {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		try (JarOutputStream jar = new JarOutputStream(out)) {
+			jar.putNextEntry(new JarEntry("META-INF/"));
+			jar.closeEntry();
+
+			jar.putNextEntry(new JarEntry("META-INF/MANIFEST.MF"));
+			var manifest = new Manifest();
+			var mainAttributes = manifest.getMainAttributes();
+			mainAttributes.put(Name.MANIFEST_VERSION, "1.0");
+			manifest.write(jar);
+			jar.closeEntry();
+		} catch (IOException e) {
+			throw new ExceptionInInitializerError(e);
+		}
+		EMPTY_JAR = out.toByteArray();
+	}
+
+	public static InputStream getComponentArchive(String componentName) throws IOException {
 		return Files.newInputStream(Path.of(IuTest.getProperty(componentName + ".archive")));
 	}
 
-	static InputStream[] getProvidedDependencyArchives(String componentName) throws IOException {
+	public static InputStream[] getProvidedDependencyArchives(String componentName) throws IOException {
 		Queue<InputStream> providedDependencyArchives = new ArrayDeque<>();
 		var deps = IuTest.getProperty(componentName + ".deps");
 		if (deps != null)
 			for (var jar : Files.newDirectoryStream(Path.of(deps).toRealPath()))
 				providedDependencyArchives.offer(Files.newInputStream(jar));
 		return providedDependencyArchives.toArray(new InputStream[providedDependencyArchives.size()]);
+	}
+
+	public static Path[] getModulePath(String componentName) throws IOException {
+		Queue<Path> path = new ArrayDeque<>();
+		try (var in = getComponentArchive(componentName); var source = new ArchiveSource(in)) {
+			path.add(ComponentArchive.from(source).path());
+		}
+		for (var in : getProvidedDependencyArchives(componentName)) {
+			try (var source = new ArchiveSource(in)) {
+				path.add(ComponentArchive.from(source).path());
+			}
+			in.close();
+		}
+		return path.toArray(path.toArray(new Path[path.size()]));
 	}
 
 }

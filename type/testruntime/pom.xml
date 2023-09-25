@@ -56,7 +56,13 @@
 							<archive>
 								<manifest>
 									<addClasspath>true</addClasspath>
+									<addExtensions>false</addExtensions>
 								</manifest>
+								<manifestEntries>
+									<Extension-List>parsson</Extension-List>
+									<parsson-Extension-Name>parsson</parsson-Extension-Name>
+									<parsson-Specification-Version>1.1</parsson-Specification-Version>
+								</manifestEntries>
 							</archive>
 						</configuration>
 					</execution>

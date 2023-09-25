@@ -40,7 +40,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.type.IuType;
 
 @SuppressWarnings("javadoc")
-public class TypeFactoryTest {
+public class IuTypeTest {
 
 	@Test
 	public void testResolves() {
