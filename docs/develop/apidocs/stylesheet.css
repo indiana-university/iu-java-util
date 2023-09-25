@@ -11,6 +11,11 @@ header nav {
     border-top: 0 !important;
 }
 
+h1.title {
+    font-size: 1.625em;
+    font-weight: bold;
+}
+
 :root {
     /* body, block and code fonts */
   	--body-font-family: "BentonSans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
@@ -212,7 +217,7 @@ ul.sub-nav-list-small {
     display: none;
 }
 .sub-nav {
-		padding:1rem;
+		padding: 0.5rem 2rem 0 1rem;
     float:left;
     width:100%;
     overflow:hidden;

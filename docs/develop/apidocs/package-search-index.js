@@ -1,1 +1,1 @@
-packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html"},{"m":"iu.util.runtime","l":"edu.iu.runtime"}];updateSearchResults();
+packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html"},{"m":"iu.util.runtime","l":"edu.iu.runtime"},{"m":"iu.util.test","l":"edu.iu.test"},{"m":"iu.util.type","l":"edu.iu.type"}];updateSearchResults();
