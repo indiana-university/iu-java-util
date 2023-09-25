@@ -1,14 +1,5 @@
-#!/bin/bash
-
-for f in $(find $(find -type d -name src) -type f -regex '.*\.\(java\|js\|jsx\)')
-do
-	temp=$(dirname $f)/.$(basename $f)
-	if grep -El '^(package|module|import)' $f
-	then
-	(
-		cat << LICENSE
 /*
- * Copyright © $(date +'%Y') Indiana University
+ * Copyright © 2023 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -38,9 +29,43 @@ do
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-LICENSE
-			tail -n +$(grep -Ehn '^(package|module|import|/\*\*)' $f | cut -d: -f1 | head -1) $f
-		) > $temp && mv $temp $f
-	fi
-done
+package edu.iu.type;
 
+import java.lang.reflect.Parameter;
+
+/**
+ * Facade interface for a {@link Parameter}.
+ * 
+ * @param <T> field type
+ */
+public interface IuParameter<T> extends IuAnnotatedElement {
+
+	/**
+	 * Gets the executable element that declares the parameter.
+	 * 
+	 * @return declaring executable
+	 */
+	IuExecutable<?> declaringExecutable();
+
+	/**
+	 * Gets the parameter index.
+	 * 
+	 * @return parameter index
+	 */
+	int index();
+
+	/**
+	 * Gets the parameter name.
+	 * 
+	 * @return parameter name
+	 */
+	String name();
+
+	/**
+	 * Gets the parameter type.
+	 * 
+	 * @return parameter type.
+	 */
+	IuType<T> type();
+
+}

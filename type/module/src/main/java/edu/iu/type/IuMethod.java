@@ -1,14 +1,5 @@
-#!/bin/bash
-
-for f in $(find $(find -type d -name src) -type f -regex '.*\.\(java\|js\|jsx\)')
-do
-	temp=$(dirname $f)/.$(basename $f)
-	if grep -El '^(package|module|import)' $f
-	then
-	(
-		cat << LICENSE
 /*
- * Copyright © $(date +'%Y') Indiana University
+ * Copyright © 2023 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -38,9 +29,39 @@ do
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-LICENSE
-			tail -n +$(grep -Ehn '^(package|module|import|/\*\*)' $f | cut -d: -f1 | head -1) $f
-		) > $temp && mv $temp $f
-	fi
-done
+package edu.iu.type;
 
+/**
+ * Represents a method reflected from the base class of a generic type.
+ * 
+ * @param <R> Return type
+ */
+public interface IuMethod<R> extends IuExecutable<R> {
+
+	/**
+	 * Determines if this is a static method.
+	 * 
+	 * @return true if static; else false
+	 */
+	boolean isStatic();
+
+	/**
+	 * Gets the return type.
+	 * 
+	 * @return return type
+	 */
+	IuType<R> returnType();
+
+	/**
+	 * Executes a method.
+	 * 
+	 * @param arguments argument values; when {@link #isStatic()} returns false, the
+	 *                  first argument <em>must</em> be the instance to invoke the
+	 *                  method on.
+	 * @return return value
+	 * @throws Exception If an exception occurs
+	 */
+	@Override
+	R exec(Object... arguments) throws Exception;
+
+}

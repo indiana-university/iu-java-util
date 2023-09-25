@@ -44,14 +44,13 @@ import java.util.NoSuchElementException;
 import java.util.ServiceLoader;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.parallel.Isolated;
 
 import edu.iu.runtime.IuRuntime;
 import edu.iu.runtime.IuRuntimeConfiguration;
 import iu.runtime.EmptyRuntime;
 import iu.runtime.RuntimeFactory;
 
-@Isolated
+@SuppressWarnings("javadoc")
 public class ConfiguredRuntimeTest {
 
 	@Test
@@ -76,7 +75,8 @@ public class ConfiguredRuntimeTest {
 			var loader = mock(ServiceLoader.class);
 			when(loader.iterator()).thenReturn(iter);
 
-			serviceLoader.when(() -> ServiceLoader.load(IuRuntime.class, null)).thenReturn(loader);
+			serviceLoader.when(() -> ServiceLoader.load(IuRuntime.class, IuRuntime.class.getClassLoader()))
+					.thenReturn(loader);
 
 			env = RuntimeFactory.getProvider().getEnvironment();
 		}

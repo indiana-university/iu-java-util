@@ -1,14 +1,5 @@
-#!/bin/bash
-
-for f in $(find $(find -type d -name src) -type f -regex '.*\.\(java\|js\|jsx\)')
-do
-	temp=$(dirname $f)/.$(basename $f)
-	if grep -El '^(package|module|import)' $f
-	then
-	(
-		cat << LICENSE
 /*
- * Copyright © $(date +'%Y') Indiana University
+ * Copyright © 2023 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -38,9 +29,58 @@ do
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-LICENSE
-			tail -n +$(grep -Ehn '^(package|module|import|/\*\*)' $f | cut -d: -f1 | head -1) $f
-		) > $temp && mv $temp $f
-	fi
-done
+package edu.iu.type;
 
+/**
+ * Facade interface for an attribute: a field or bean property.
+ *
+ * @param <T> attribute value type
+ */
+public interface IuAttribute<T> extends IuNamedElement {
+
+	/**
+	 * Gets the attribute type.
+	 * 
+	 * @return attribute type
+	 */
+	IuType<T> type();
+
+	/**
+	 * Gets the attribute value.
+	 * 
+	 * @param o object
+	 * @return attribute value.
+	 */
+	T get(Object o);
+
+	/**
+	 * Gets the attribute value.
+	 * 
+	 * @param o     object
+	 * @param value attribute value
+	 */
+	void set(Object o, T value);
+
+	/**
+	 * Determines whether or not the attribute should be included when serializing
+	 * declaring type.
+	 * 
+	 * <p>
+	 * Note that is check has nothing to do with the {@link java.io.Serializable}
+	 * interface or any of its related types or behaviors. Java serialization
+	 * streams <em>should not</em> be used by applications, and will not be
+	 * supported by any IU Java Utilities or IU JEE modules.
+	 * </p>
+	 * 
+	 * <p>
+	 * Serialization in this context refers to a back-end, cache, or configuration
+	 * storage scenario, as a check to verify that an attribute may be retrieved if
+	 * stored from the same version of the type.
+	 * </p>
+	 * 
+	 * @return True if the attribute should be included in serialized form; else
+	 *         false
+	 */
+	boolean serializable();
+
+}

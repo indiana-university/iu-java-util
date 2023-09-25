@@ -1,14 +1,5 @@
-#!/bin/bash
-
-for f in $(find $(find -type d -name src) -type f -regex '.*\.\(java\|js\|jsx\)')
-do
-	temp=$(dirname $f)/.$(basename $f)
-	if grep -El '^(package|module|import)' $f
-	then
-	(
-		cat << LICENSE
 /*
- * Copyright © $(date +'%Y') Indiana University
+ * Copyright © 2023 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -38,9 +29,42 @@ do
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-LICENSE
-			tail -n +$(grep -Ehn '^(package|module|import|/\*\*)' $f | cut -d: -f1 | head -1) $f
-		) > $temp && mv $temp $f
-	fi
-done
+package edu.iu.type;
 
+import java.lang.reflect.Executable;
+import java.util.List;
+
+/**
+ * Facade interface for an {@link Executable} element: a method or constructor.
+ * 
+ * @param <T> Target type: method return type, or constructor declaring type
+ */
+public interface IuExecutable<T> extends IuDeclaredElement, IuParameterizedElement {
+
+	/**
+	 * Gets the parameters.
+	 * 
+	 * @return parameters
+	 */
+	List<IuParameter<?>> parameters();
+
+	/**
+	 * Gets a parameter type.
+	 * 
+	 * @param i index
+	 * @return parameter type
+	 */
+	default IuParameter<?> parameter(int i) {
+		return parameters().get(i);
+	}
+
+	/**
+	 * Executes the element.
+	 * 
+	 * @param arguments argument values
+	 * @return result
+	 * @throws Exception If an exception occurs
+	 */
+	T exec(Object... arguments) throws Exception;
+	
+}

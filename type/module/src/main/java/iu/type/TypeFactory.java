@@ -1,14 +1,5 @@
-#!/bin/bash
-
-for f in $(find $(find -type d -name src) -type f -regex '.*\.\(java\|js\|jsx\)')
-do
-	temp=$(dirname $f)/.$(basename $f)
-	if grep -El '^(package|module|import)' $f
-	then
-	(
-		cat << LICENSE
 /*
- * Copyright © $(date +'%Y') Indiana University
+ * Copyright © 2023 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -38,9 +29,29 @@ do
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-LICENSE
-			tail -n +$(grep -Ehn '^(package|module|import|/\*\*)' $f | cut -d: -f1 | head -1) $f
-		) > $temp && mv $temp $f
-	fi
-done
+package iu.type;
 
+import java.lang.reflect.Type;
+
+import edu.iu.type.IuType;
+
+/**
+ * Resolves {@link IuType} instances for {@link IuType#of(Type)}.
+ */
+public final class TypeFactory {
+
+	/**
+	 * Resolve an {@link IuType} instance.
+	 * 
+	 * @param type type to resolve
+	 * @return {@link IuType} instance
+	 */
+	public static IuType<?> resolve(Type type) {
+		// TODO: implement
+		throw new UnsupportedOperationException("TODO");
+	}
+
+	private TypeFactory() {
+	}
+
+}

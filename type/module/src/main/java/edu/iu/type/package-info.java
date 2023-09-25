@@ -1,14 +1,5 @@
-#!/bin/bash
-
-for f in $(find $(find -type d -name src) -type f -regex '.*\.\(java\|js\|jsx\)')
-do
-	temp=$(dirname $f)/.$(basename $f)
-	if grep -El '^(package|module|import)' $f
-	then
-	(
-		cat << LICENSE
 /*
- * Copyright © $(date +'%Y') Indiana University
+ * Copyright © 2023 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -38,9 +29,26 @@ do
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-LICENSE
-			tail -n +$(grep -Ehn '^(package|module|import|/\*\*)' $f | cut -d: -f1 | head -1) $f
-		) > $temp && mv $temp $f
-	fi
-done
-
+/**
+ * Provides uniform, optimized, access to runtime type introspection metadata.
+ * 
+ * <p>
+ * Includes support for:
+ * </p>
+ * 
+ * <ul>
+ * <li><a href=
+ * "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/reflect/package-summary.html">Java
+ * Reflection</a></li>
+ * <li><a href=
+ * "https://docs.oracle.com/en/java/javase/17/docs/api/java.desktop/java/beans/package-summary.html">Java
+ * Beans</a></li>
+ * <li><a href= "https://jakarta.ee/specifications/interceptors/2.1/">Jakarta
+ * Interceptors</a></li>
+ * <li><a href="https://jakarta.ee/specifications/annotations/2.1/">Jakarta
+ * Annotations</a></li>
+ * </ul>
+ *
+ * @see edu.iu.type.IuType
+ */
+package edu.iu.type;

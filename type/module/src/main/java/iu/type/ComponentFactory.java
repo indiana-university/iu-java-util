@@ -1,14 +1,5 @@
-#!/bin/bash
-
-for f in $(find $(find -type d -name src) -type f -regex '.*\.\(java\|js\|jsx\)')
-do
-	temp=$(dirname $f)/.$(basename $f)
-	if grep -El '^(package|module|import)' $f
-	then
-	(
-		cat << LICENSE
 /*
- * Copyright © $(date +'%Y') Indiana University
+ * Copyright © 2023 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -38,9 +29,31 @@ do
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-LICENSE
-			tail -n +$(grep -Ehn '^(package|module|import|/\*\*)' $f | cut -d: -f1 | head -1) $f
-		) > $temp && mv $temp $f
-	fi
-done
+package iu.type;
 
+import java.nio.file.Path;
+
+import edu.iu.type.IuComponent;
+
+/**
+ * Creates component instances for {@link IuComponent}.
+ */
+public final class ComponentFactory {
+
+	/**
+	 * Creates a new component from the provided module path elements.
+	 * 
+	 * @param modulePath Paths to the jar files that compose the component.
+	 *                   <em>Must</em> contain at least one path; the first entry
+	 *                   <em>must</em> refer to the jar that defines the component's
+	 *                   primary module.
+	 * @return {@link IuComponent} instance
+	 */
+	public static IuComponent newComponent(Path... modulePath) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException("TODO");
+	}
+
+	private ComponentFactory() {}
+	
+}

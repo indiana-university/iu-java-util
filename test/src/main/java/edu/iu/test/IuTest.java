@@ -1,14 +1,5 @@
-#!/bin/bash
-
-for f in $(find $(find -type d -name src) -type f -regex '.*\.\(java\|js\|jsx\)')
-do
-	temp=$(dirname $f)/.$(basename $f)
-	if grep -El '^(package|module|import)' $f
-	then
-	(
-		cat << LICENSE
 /*
- * Copyright © $(date +'%Y') Indiana University
+ * Copyright © 2023 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -38,9 +29,48 @@ do
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-LICENSE
-			tail -n +$(grep -Ehn '^(package|module|import|/\*\*)' $f | cut -d: -f1 | head -1) $f
-		) > $temp && mv $temp $f
-	fi
-done
+package edu.iu.test;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Proxy;
+
+import org.mockito.Mockito;
+
+/**
+ * Unit testing utilities.
+ */
+public final class IuTest {
+
+	/**
+	 * Decorates a {@link Mockito#mock(Class)} with a proxy capable of invoking the
+	 * default methods on an interface.
+	 * 
+	 * @param <T>  interface type
+	 * @param type interface class
+	 * @return decorated mock instance
+	 */
+	public static <T> T mockWithDefaults(Class<T> type) {
+		IuTest.class.getModule().addReads(type.getModule());
+		
+		var mock = Mockito.mock(type);
+		assertTrue(type.isInterface());
+
+		return Mockito.spy(type
+				.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type }, (proxy, method, args) -> {
+					if (method.isDefault())
+						try {
+							return MethodHandles.privateLookupIn(type, MethodHandles.lookup())
+									.unreflectSpecial(method, type).bindTo(proxy).invokeWithArguments(args);
+						} catch (UnsupportedOperationException e) {
+						}
+
+					return method.invoke(mock, args);
+				})));
+	}
+
+	private IuTest() {
+	}
+
+}

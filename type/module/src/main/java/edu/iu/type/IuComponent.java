@@ -29,38 +29,73 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.runtime;
+package edu.iu.type;
 
-import java.util.ServiceConfigurationError;
-import java.util.ServiceLoader;
+import java.lang.annotation.Annotation;
+import java.nio.file.Path;
 
-import edu.iu.runtime.IuRuntime;
+import iu.type.ComponentFactory;
 
 /**
- * Service initialization helper for {@link IuRuntime#PROVIDER}.
+ * Defines an application component.
  */
-public final class RuntimeFactory {
+public interface IuComponent {
 
 	/**
-	 * Attempts to load a provider using the same {@link ClassLoader} that loaded
-	 * {@link IuRuntime}.
+	 * Creates a new component.
 	 * 
-	 * <p>
-	 * Fails over to an empty configuration if a service provider is not defined.
-	 * </p>
-	 * 
-	 * @return {@link IuRuntime} service provider.
-	 * @throws ServiceConfigurationError If a service provider was defined but
-	 *                                   failed to initialize.
+	 * @param modulePath Paths to valid {@link Module}-defining jar files.
+	 * @return component
 	 */
-	public static IuRuntime getProvider() throws ServiceConfigurationError {
-		var loader = ServiceLoader.load(IuRuntime.class, IuRuntime.class.getClassLoader()).iterator();
-		if (!loader.hasNext())
-			return new EmptyRuntime();
-		else
-			return loader.next();
+	static IuComponent of(Path... modulePath) {
+		return ComponentFactory.newComponent(modulePath);
 	}
 
-	private RuntimeFactory() {
-	}
+	/**
+	 * Creates a component that delegates to this component.
+	 * <p>
+	 * A delegating component <em>must</em>:
+	 * </p>
+	 * <ul>
+	 * <li>Have a {@link #classLoader() class loader} that delegates to this
+	 * component's {@link #classLoader()}.</li>
+	 * <li>Include of this component's {@link #interfaces() interfaces},
+	 * {@link #annotatedTypes(Class) annotation types}, and
+	 * {@link #resources()}.</li>
+	 * </ul>
+	 * 
+	 * @param modulePath Paths to valid {@link Module}-defining jar files.
+	 * @return delegating component
+	 */
+	IuComponent extend(Path... modulePath);
+
+	/**
+	 * Gets the {@link ClassLoader} for this component.
+	 * 
+	 * @return {@link ClassLoader}
+	 */
+	ClassLoader classLoader();
+
+	/**
+	 * Gets all of the component's public interfaces.
+	 * 
+	 * @return interface facades
+	 */
+	Iterable<IuType<?>> interfaces();
+
+	/**
+	 * Gets all types in the component annotated by a specific type.
+	 * 
+	 * @param annotationType annotation type
+	 * @return annotated type facades
+	 */
+	Iterable<IuType<?>> annotatedTypes(Class<? extends Annotation> annotationType);
+
+	/**
+	 * Gets component's resources.
+	 * 
+	 * @return resources
+	 */
+	Iterable<IuResource<?>> resources();
+
 }

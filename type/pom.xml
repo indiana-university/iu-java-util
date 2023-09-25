@@ -10,19 +10,23 @@
 		<version>7.0.0-SNAPSHOT</version>
 	</parent>
 
-	<artifactId>iu-java-runtime-parent</artifactId>
+	<artifactId>iu-java-type-parent</artifactId>
 	<packaging>pom</packaging>
 
-	<name>IU Runtime Environment Parent POM</name>
+	<name>IU Type Introspection Parent POM</name>
 
-	<dependencies>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-test</artifactId>
-			<version>${project.version}</version>
-			<scope>test</scope>
-		</dependency>
-	</dependencies>
+	<build>
+		<pluginManagement>
+			<plugins>
+				<plugin>
+					<artifactId>maven-compiler-plugin</artifactId>
+					<configuration>
+						<release>17</release>
+					</configuration>
+				</plugin>
+			</plugins>
+		</pluginManagement>
+	</build>
 
 	<profiles>
 		<profile>
@@ -31,7 +35,8 @@
 				<activeByDefault>true</activeByDefault>
 			</activation>
 			<modules>
-				<module>api</module>
+				<module>testcomponent</module>
+				<module>module</module>
 			</modules>
 		</profile>
 	</profiles>

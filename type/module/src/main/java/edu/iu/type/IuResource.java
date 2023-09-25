@@ -1,14 +1,5 @@
-#!/bin/bash
-
-for f in $(find $(find -type d -name src) -type f -regex '.*\.\(java\|js\|jsx\)')
-do
-	temp=$(dirname $f)/.$(basename $f)
-	if grep -El '^(package|module|import)' $f
-	then
-	(
-		cat << LICENSE
 /*
- * Copyright © $(date +'%Y') Indiana University
+ * Copyright © 2023 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -38,9 +29,47 @@ do
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-LICENSE
-			tail -n +$(grep -Ehn '^(package|module|import|/\*\*)' $f | cut -d: -f1 | head -1) $f
-		) > $temp && mv $temp $f
-	fi
-done
+package edu.iu.type;
 
+/**
+ * Facade interface for a resource in a {@link IuComponent}.
+ * 
+ * @param <T> resource type
+ */
+public interface IuResource<T> {
+
+	/**
+	 * Determines whether or not the resource is shared.
+	 * 
+	 * @return true if the resource is shared; else false
+	 */
+	boolean shared();
+
+	/**
+	 * Gets the resource name.
+	 * 
+	 * @return resource name
+	 */
+	String name();
+
+	/**
+	 * Gets the resource type.
+	 * 
+	 * @return resource type
+	 */
+	IuType<T> type();
+
+	/**
+	 * Gets the resource instance.
+	 * 
+	 * <p>
+	 * When {@link #shared() shared}, returns the same singleton instance each
+	 * time this method is invoked. When not shared, returns a new instance of the
+	 * resource on each invocation.
+	 * </p>
+	 * 
+	 * @return resource instance
+	 */
+	T get();
+
+}

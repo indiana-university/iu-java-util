@@ -29,30 +29,47 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.runtime;
+package edu.iu.test;
 
-import edu.iu.runtime.IuRuntime;
-import edu.iu.runtime.IuRuntimeConfiguration;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
 
-/**
- * Failsafe {@link IuRuntime} implementation. 
- */
-public class EmptyRuntime implements IuRuntime {
-	
-	@Override
-	public IuRuntimeConfiguration getEnvironment() throws UnsupportedOperationException {
-		return EmptyConfiguration.$;
+import org.junit.jupiter.api.Test;
+
+@SuppressWarnings("javadoc")
+public class UtilTest {
+
+	@Test
+	public void testMockWithDefaults() {
+		var hasDefaults = IuTest.mockWithDefaults(InterfaceWithDefaults.class);
+		assertNull(hasDefaults.getAbstractString());
+		assertEquals("foobar", hasDefaults.getDefaultString());
 	}
 
-	@Override
-	public IuRuntimeConfiguration getBuildConfiguration() throws UnsupportedOperationException {
-		return EmptyConfiguration.$;
+	@Test
+	public void testMockWithDefaultsHandlesUnsupportedOperationException() {
+		var hasDefaults = IuTest.mockWithDefaults(InterfaceWithDefaults.class);
+		assertDoesNotThrow(() -> hasDefaults.throwsUnsupportedOperationException());
+		
+		var exception = new RuntimeException();
+		doThrow(exception).when(hasDefaults).throwsUnsupportedOperationException();
+		try {
+			hasDefaults.throwsUnsupportedOperationException();
+		} catch (RuntimeException e) {
+			assertSame(exception, e);
+		}
 	}
 
-	@Override
-	public IuRuntimeConfiguration getSecret(String secret)
-			throws IllegalArgumentException, UnsupportedOperationException {
-		return EmptyConfiguration.$;
+	@Test
+	public void testMockWithDefaultsHandlesOtherExceptions() {
+		var hasDefaults = IuTest.mockWithDefaults(InterfaceWithDefaults.class);
+		when(hasDefaults.getAbstractString()).thenThrow(IllegalStateException.class);
+		assertThrows(IllegalStateException.class, () -> hasDefaults.getAbstractString());
 	}
 
 }

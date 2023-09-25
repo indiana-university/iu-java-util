@@ -29,30 +29,65 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.runtime;
+package edu.iu.type;
 
-import edu.iu.runtime.IuRuntime;
-import edu.iu.runtime.IuRuntimeConfiguration;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
 
 /**
- * Failsafe {@link IuRuntime} implementation. 
+ * Describes a reference to a generic type.
+ * 
+ * <p>
+ * Each {@link IuType} instance either wraps a plain {@link Class} instance
+ * ("base" type) or contains a reference back to the {@link Class},
+ * {@link TypeVariable Type Parameter}, {@link Parameter}, {@link Constructor},
+ * or {@link Method} that defined a generic and/or component {@link Type}.
+ * </p>
+ * 
+ * @param <T> referent type
  */
-public class EmptyRuntime implements IuRuntime {
-	
-	@Override
-	public IuRuntimeConfiguration getEnvironment() throws UnsupportedOperationException {
-		return EmptyConfiguration.$;
-	}
+public interface IuTypeReference<T> {
 
-	@Override
-	public IuRuntimeConfiguration getBuildConfiguration() throws UnsupportedOperationException {
-		return EmptyConfiguration.$;
-	}
+	/**
+	 * Gets the reference kind.
+	 * 
+	 * @return reference kind
+	 */
+	IuReferenceKind kind();
 
-	@Override
-	public IuRuntimeConfiguration getSecret(String secret)
-			throws IllegalArgumentException, UnsupportedOperationException {
-		return EmptyConfiguration.$;
-	}
+	/**
+	 * Gets the introspection wrapper through which the reference was obtained.
+	 * 
+	 * @return introspection wrapper
+	 */
+	IuAnnotatedElement referrer();
+
+	/**
+	 * Gets the name of the referent type as known by the referrer.
+	 * 
+	 * @return reference name; <em>must</em> be non-null when
+	 *         {@link #kind()}{@link IuReferenceKind#named() .isNamed()} is true,
+	 *         if false <em>must</em> be null.
+	 */
+	String name();
+
+	/**
+	 * Gets the ordinal index associated with a parameter reference.
+	 * 
+	 * @return index; <em>must</em> be &gt;= 0 when
+	 *         {@link #kind()}{@link IuReferenceKind#indexed() .isIndexed()} is
+	 *         true, if false <em>must</em> be -1.
+	 */
+	int index();
+
+	/**
+	 * Gets the referent type.
+	 * 
+	 * @return referent type
+	 */
+	IuType<T> referent();
 
 }
