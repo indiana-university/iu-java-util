@@ -11,10 +11,10 @@ import java.util.regex.Pattern;
  * <strong>version</strong>.
  * 
  * <p>
- * All {@link IuComponent components} have a <strong>name</strong> and a
- * <strong>version</strong>. <strong>Versions</strong> are immutable,
- * {@link Comparable comparable}, and <em>must</em> implement
- * {@link #hashCode()} and {@link #equals(Object)}.
+ * All {@link IuComponent components} are <strong>named</strong> and may be
+ * <strong>referred to</strong> by <strong>version</strong>. <strong>Version
+ * references</strong> are immutable, {@link Comparable comparable}, and
+ * <em>must</em> implement {@link #hashCode()} and {@link #equals(Object)}.
  * <a href="https://semver.org/">Semantic Versioning</a> <em>must</em> be used
  * to ensure consistency across a variety of <strong>components</strong>.
  * </p>
@@ -79,18 +79,18 @@ public interface IuComponentVersion extends Comparable<IuComponentVersion> {
 
 	/**
 	 * Gets the <strong>specification version</strong> implied by this
-	 * <strong>version</strong>.
+	 * <strong>version reference</strong>.
 	 * 
 	 * <p>
 	 * The <strong>specification version</strong> relates to the
 	 * <strong>minor</strong> version of the <strong>implementation</strong>. For
-	 * example, if the <strong>implementation version</strong> is {code
+	 * example, if the <strong>implementation version</strong> is {@code
 	 * 1.2.34-SNAPSHOT}, then the <strong>specification version</strong> is
 	 * {@code 1.2}.
 	 * </p>
 	 * 
 	 * @return <strong>Specification version</strong> implied by this
-	 *         <strong>version</strong>. For an <strong>implementation
+	 *         <strong>version reference</strong>. For an <strong>implementation
 	 *         version</strong>, the version of the <strong>implemented
 	 *         specification</strong> is returned. For a <strong>specification
 	 *         version</strong>, {@code this} is returned.
@@ -133,12 +133,13 @@ public interface IuComponentVersion extends Comparable<IuComponentVersion> {
 	 * 
 	 * @param requiredVersion <strong>Reference</strong> to the required
 	 *                        <strong>version</strong>.
-	 * @return True if the {@code this} <strong>version refers to</strong> a
+	 * @return True if the {@code this} <strong>refers to</strong> a
 	 *         <strong>version</strong> with the same {@link #name() name}, and
 	 *         either the same {@link #implementationVersion() implementation
 	 *         version} or same {@link #major() major version} and the same or
-	 *         higher {@link #minor() minor version} as the <strong>version</strong>
-	 *         passed as an argument to the {@code requiredVersion} parameter.
+	 *         higher {@link #minor() minor version} as the <strong>version
+	 *         reference</strong> passed as an argument to the
+	 *         {@code requiredVersion} parameter.
 	 */
 	default boolean meets(IuComponentVersion requiredVersion) {
 		if (!name().equals(requiredVersion.name()))
@@ -152,12 +153,12 @@ public interface IuComponentVersion extends Comparable<IuComponentVersion> {
 	}
 
 	/**
-	 * Compares two <strong>versions</strong>.
+	 * Compares two <strong>version references</strong>.
 	 * 
 	 * <ul>
-	 * <li><strong>Versions</strong> with different {@link #name() names} <em>must
-	 * not</em> return {@code 0}; otherwise, the return value enforces natural
-	 * ordering of the {@link #name() component name}.</li>
+	 * <li><strong>Version references</strong> with different {@link #name() names}
+	 * <em>must not</em> return {@code 0}; otherwise, the return value enforces
+	 * natural ordering of the {@link #name() component name}.</li>
 	 * <li>An {@link #implementationVersion() implementation version} compared to
 	 * another {@link #implementationVersion() implementation version} will return a
 	 * value that:
@@ -171,7 +172,7 @@ public interface IuComponentVersion extends Comparable<IuComponentVersion> {
 	 * identical</li>
 	 * </ul>
 	 * </li>
-	 * <li>An {@link #specificationVersion() specification version} compared to
+	 * <li>A {@link #specificationVersion() specification version} compared to
 	 * another <strong>version</strong> will return a value that enforces the
 	 * numeric order of the {@link #major() major} and {@link #minor() minor}
 	 * version numbers</li>
@@ -257,10 +258,10 @@ public interface IuComponentVersion extends Comparable<IuComponentVersion> {
 	/**
 	 * <p>
 	 * Two <strong>implementation versions</strong> are {@link Object#equals(Object)
-	 * equal} if both {@link #name()} and {@link #implementationVersion()} are
-	 * equal. Two <strong>specification versions</strong> are
-	 * {@link Object#equals(Object) equal} if {@link #name()}, {@link #major()}, and
-	 * {@link #minor()} are equal.
+	 * equal} if both {@link #name() name} and {@link #implementationVersion()
+	 * implementation version} are equal. Two <strong>specification
+	 * versions</strong> are {@link Object#equals(Object) equal} if {@link #name()},
+	 * {@link #major()}, and {@link #minor()} are equal.
 	 * </p>
 	 * 
 	 * <p>
