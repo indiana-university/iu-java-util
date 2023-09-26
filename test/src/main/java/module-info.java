@@ -45,8 +45,8 @@
  */
 module iu.util.test {
 	exports edu.iu.test;
-	
+
 	requires org.mockito;
-	requires org.junit.jupiter.api;
-	requires org.junit.platform.launcher;
+	requires transitive org.junit.jupiter.api;
+	requires transitive org.junit.platform.launcher;
 }
