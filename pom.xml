@@ -226,7 +226,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 						<goals>
 							<goal>single</goal>
 						</goals>
-						<phase>package</phase>
+						<phase>process-classes</phase>
 						<configuration>
 							<finalName>iu</finalName>
 							<formats>
@@ -304,14 +304,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 					<executions>
 						<execution>
 							<id>default-javadoc</id>
-							<phase>prepare-package</phase>
+							<phase>compile</phase>
 							<goals>
 								<goal>javadoc</goal>
 							</goals>
 						</execution>
 						<execution>
 							<id>aggregate-javadoc</id>
-							<phase>prepare-package</phase>
+							<phase>compile</phase>
 							<goals>
 								<goal>aggregate</goal>
 							</goals>
