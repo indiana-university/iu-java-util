@@ -34,9 +34,7 @@ package iu.type;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayDeque;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 
@@ -50,25 +48,25 @@ final class ComponentFactory {
 	static IuComponent createFromSourceQueue(Queue<ArchiveSource> sources) throws IOException {
 		Queue<ComponentArchive> archives = new ArrayDeque<>();
 		Set<ComponentArchive> dependencyArchives = new LinkedHashSet<>();
-		Set<ComponentDependency> unmetDependencies = new LinkedHashSet<>();
+//		Set<ComponentDependency> unmetDependencies = new LinkedHashSet<>();
 
 		while (!sources.isEmpty()) {
 			try (var source = sources.poll()) {
 
-				for (var sourceDependency : source.dependencies())
-					if (!sourceDependency.isMetBy(dependencyArchives))
-						unmetDependencies.add(sourceDependency);
+//				for (var sourceDependency : source.dependencies())
+//					if (!sourceDependency.isMetBy(dependencyArchives))
+//						unmetDependencies.add(sourceDependency);
 
 				var archive = ComponentArchive.from(source);
-
-				var archiveDependencyReference = ComponentDependency.from(archive);
-				if (dependencyArchives.containsKey(archiveDependencyReference))
-					throw new IllegalArgumentException("Dependency " + archiveDependencyReference
-							+ " was already provided by " + dependencyArchives.get(archiveDependencyReference));
-				else
-					dependencyArchives.put(archiveDependencyReference, archive);
-
-				unmetDependencies.remove(archiveDependencyReference);
+//
+//				var archiveDependencyReference = ComponentDependency.from(archive);
+//				if (dependencyArchives.containsKey(archiveDependencyReference))
+//					throw new IllegalArgumentException("Dependency " + archiveDependencyReference
+//							+ " was already provided by " + dependencyArchives.get(archiveDependencyReference));
+//				else
+//					dependencyArchives.put(archiveDependencyReference, archive);
+//
+//				unmetDependencies.remove(archiveDependencyReference);
 				archives.offer(archive);
 
 				for (var bundledDependency : archive.bundledDependencies())
@@ -76,8 +74,8 @@ final class ComponentFactory {
 			}
 		}
 
-		if (!unmetDependencies.isEmpty())
-			throw new IllegalArgumentException("Not all depdendencies were met, missing " + unmetDependencies);
+//		if (!unmetDependencies.isEmpty())
+//			throw new IllegalArgumentException("Not all depdendencies were met, missing " + unmetDependencies);
 
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");

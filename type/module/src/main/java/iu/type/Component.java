@@ -48,6 +48,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.iu.type.IuComponent;
+import edu.iu.type.IuComponentVersion;
 import edu.iu.type.IuResource;
 import edu.iu.type.IuType;
 
@@ -84,8 +85,7 @@ class Component implements IuComponent {
 	private ComponentModuleFinder moduleFinder;
 	private Controller controller;
 	private Kind kind;
-	private String name;
-	private String version;
+	private ComponentVersion version;
 	private Properties properties;
 	private ClassLoader classLoader;
 	private Set<TypeFacade<?>> interfaces;
@@ -93,13 +93,12 @@ class Component implements IuComponent {
 	private boolean closed;
 
 	private Component(Component parent, ComponentModuleFinder moduleFinder, Controller controller, Kind kind,
-			String name, String version, Properties properties, ClassLoader classLoader, Set<String> classNames,
+			ComponentVersion version, Properties properties, ClassLoader classLoader, Set<String> classNames,
 			Queue<Path> tempFiles) {
 		this.parent = parent;
 		this.moduleFinder = moduleFinder;
 		this.controller = controller;
 		this.kind = Objects.requireNonNull(kind, "kind");
-		this.name = Objects.requireNonNull(name, "name");
 		this.version = Objects.requireNonNull(version, "version");
 		this.properties = Objects.requireNonNull(properties, "properties");
 		this.classLoader = Objects.requireNonNull(classLoader, "classLoader");
@@ -114,14 +113,14 @@ class Component implements IuComponent {
 				if (isRemotable(loadedClass))
 					interfaces.add((TypeFacade<?>) TypeFactory.resolve(loadedClass));
 			} catch (Throwable e) {
-				LOG.log(Level.WARNING, e, () -> "Invalid class " + className + " in component " + name);
+				LOG.log(Level.WARNING, e, () -> "Invalid class " + className + " in component " + version);
 			}
 		this.interfaces = Collections.unmodifiableSet(interfaces);
 	}
 
-	Component(Component parent, ComponentModuleFinder moduleFinder, Controller controller, String name, String version,
+	Component(Component parent, ComponentModuleFinder moduleFinder, Controller controller, ComponentVersion version,
 			Properties properties, ClassLoader classLoader, Set<String> classNames, Queue<Path> tempFiles) {
-		this(parent, moduleFinder, controller, Kind.MODULAR_JAR, name, version, properties, classLoader, classNames,
+		this(parent, moduleFinder, controller, Kind.MODULAR_JAR, version, properties, classLoader, classNames,
 				tempFiles);
 	}
 
@@ -145,17 +144,9 @@ class Component implements IuComponent {
 	}
 
 	@Override
-	public String name() {
-		if (closed)
-			throw new IllegalStateException();
-		return name;
-	}
-
-	@Override
-	public String version() {
-		if (closed)
-			throw new IllegalStateException();
-		return version;
+	public IuComponentVersion version() {
+		// TODO Auto-generated method stub
+		return null;
 	}
 
 	@Override
@@ -216,7 +207,6 @@ class Component implements IuComponent {
 		moduleFinder = null;
 		controller = null;
 		kind = null;
-		name = null;
 		version = null;
 		properties = null;
 		classLoader = null;

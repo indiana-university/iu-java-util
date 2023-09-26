@@ -262,8 +262,8 @@ public class ComponentArchiveTest {
 	public void testReadsTestComponent() throws IOException {
 		assertReadsArchive("testcomponent", archive -> {
 			assertEquals(Kind.MODULAR_JAR, archive.kind());
-			assertEquals("iu-java-type-testcomponent", archive.name());
-			assertEquals(IuTest.getProperty("project.version"), archive.version());
+			assertEquals("iu-java-type-testcomponent", archive.version().name());
+			assertEquals(IuTest.getProperty("project.version"), archive.version().implementationVersion());
 			assertFalse(archive.nonEnclosedTypeNames().contains("module-info"));
 			assertFalse(archive.nonEnclosedTypeNames().contains("edu.iu.type.testcomponent.package-info"));
 			assertTrue(archive.nonEnclosedTypeNames().contains("edu.iu.type.testcomponent.TestBeanImpl"));
@@ -288,8 +288,8 @@ public class ComponentArchiveTest {
 	public void testReadsTestRuntime() throws IOException {
 		assertReadsArchive("testruntime", (archive, source) -> {
 			assertEquals(Kind.MODULAR_JAR, archive.kind());
-			assertEquals("iu-java-type-testruntime", archive.name());
-			assertEquals(IuTest.getProperty("project.version"), archive.version());
+			assertEquals("iu-java-type-testruntime", archive.version().name());
+			assertEquals(IuTest.getProperty("project.version"), archive.version().implementationVersion());
 			assertFalse(archive.nonEnclosedTypeNames().contains("module-info"));
 			assertFalse(archive.nonEnclosedTypeNames().contains("edu.iu.type.testruntime.package-info"));
 			assertTrue(archive.nonEnclosedTypeNames().contains("edu.iu.type.testruntime.TestRuntime"));
@@ -300,7 +300,7 @@ public class ComponentArchiveTest {
 			for (var bundledDependency : archive.bundledDependencies())
 				try {
 					var bundledArchive = ComponentArchive.from(bundledDependency);
-					assertTrue(expectedDependencies.remove(ComponentDependency.from(bundledArchive)));
+					assertTrue(expectedDependencies.remove(bundledArchive.version()));
 					bundledDependency.close();
 					Files.delete(bundledArchive.path());
 				} catch (IOException e) {
@@ -322,8 +322,8 @@ public class ComponentArchiveTest {
 	public void testReadsTestWeb() throws IOException {
 		assertReadsArchive("testweb", (archive, source) -> {
 			assertEquals(Kind.MODULAR_WAR, archive.kind());
-			assertEquals("iu-java-type-testweb", archive.name());
-			assertEquals(IuTest.getProperty("project.version"), archive.version());
+			assertEquals("iu-java-type-testweb", archive.version().name());
+			assertEquals(IuTest.getProperty("project.version"), archive.version().implementationVersion());
 			assertFalse(archive.nonEnclosedTypeNames().contains("module-info"),
 					archive.nonEnclosedTypeNames().toString());
 			assertFalse(archive.nonEnclosedTypeNames().contains("edu.iu.type.testweb.package-info"),
@@ -345,8 +345,7 @@ public class ComponentArchiveTest {
 				ComponentArchive bundledArchive;
 				try {
 					bundledArchive = ComponentArchive.from(bundledDependency);
-					assertTrue(
-							expected.remove(new ComponentDependency(bundledArchive.name(), bundledArchive.version())));
+					assertTrue(expected.remove(bundledArchive.version()));
 					Files.delete(bundledArchive.path());
 				} catch (IOException e) {
 					throw new IllegalStateException(e);
@@ -355,16 +354,17 @@ public class ComponentArchiveTest {
 
 			assertTrue(
 					expected.contains(
-							new ComponentDependency("iu-java-type-testruntime", IuTest.getProperty("project.version"))),
+							new ComponentVersion("iu-java-type-testruntime", IuTest.getProperty("project.version"))),
 					expected.toString());
-			assertTrue(expected.contains(new ComponentDependency("jakarta.interceptor-api",
+			assertTrue(expected.contains(new ComponentVersion("jakarta.interceptor-api",
 					IuTest.getProperty("jakarta.interceptor-api.version"))), expected.toString());
-			assertTrue(expected.contains(
-					new ComponentDependency("jakarta.json-api", IuTest.getProperty("jakarta.json-api.version"))),
+			assertTrue(
+					expected.contains(
+							new ComponentVersion("jakarta.json-api", IuTest.getProperty("jakarta.json-api.version"))),
 					expected.toString());
-			assertTrue(expected.contains(new ComponentDependency("jakarta.annotation-api",
+			assertTrue(expected.contains(new ComponentVersion("jakarta.annotation-api",
 					IuTest.getProperty("jakarta.annotation-api.version"))), expected.toString());
-			assertTrue(expected.contains(new ComponentDependency("jakarta.servlet-api", "6.0.0")), expected.toString());
+			assertTrue(expected.contains(new ComponentVersion("jakarta.servlet-api", "6.0.0")), expected.toString());
 			assertEquals(5, expected.size());
 
 			assertEquals("true", archive.properties().getProperty("sample.type.property"));
@@ -438,8 +438,8 @@ public class ComponentArchiveTest {
 	public void testReadsTestLegacy() throws IOException {
 		assertReadsArchive("testlegacy", (archive, source) -> {
 			assertEquals(Kind.LEGACY_JAR, archive.kind());
-			assertEquals("iu-java-type-testlegacy", archive.name());
-			assertEquals(IuTest.getProperty("project.version"), archive.version());
+			assertEquals("iu-java-type-testlegacy", archive.version().name());
+			assertEquals(IuTest.getProperty("project.version"), archive.version().implementationVersion());
 			assertTrue(archive.nonEnclosedTypeNames().contains("edu.iu.legacy.LegacyInterface"),
 					archive.nonEnclosedTypeNames().toString());
 
@@ -447,14 +447,14 @@ public class ComponentArchiveTest {
 			assertTrue(source.dependencies().isEmpty());
 
 			assertEquals(3, archive.bundledDependencies().size());
-			Set<ComponentDependency> expectedDependencies = new HashSet<>();
-			expectedDependencies.add(new ComponentDependency("javax.annotation-api", "1.3.2"));
-			expectedDependencies.add(new ComponentDependency("javax.interceptor-api", "1.2.2"));
-			expectedDependencies.add(new ComponentDependency("javax.json-api", "1.1.4"));
+			Set<ComponentVersion> expectedDependencies = new HashSet<>();
+			expectedDependencies.add(new ComponentVersion("javax.annotation-api", "1.3.2"));
+			expectedDependencies.add(new ComponentVersion("javax.interceptor-api", "1.2.2"));
+			expectedDependencies.add(new ComponentVersion("javax.json-api", "1.1.4"));
 			for (var bundledDependency : archive.bundledDependencies()) {
 				try {
 					var bundledArchive = ComponentArchive.from(bundledDependency);
-					assertTrue(expectedDependencies.remove(ComponentDependency.from(bundledArchive)));
+					assertTrue(expectedDependencies.remove(bundledArchive.version()));
 					bundledDependency.close();
 					Files.delete(bundledArchive.path());
 				} catch (IOException e) {
@@ -490,8 +490,8 @@ public class ComponentArchiveTest {
 	public void testReadsTestLegacyWeb() throws IOException {
 		assertReadsArchive("testlegacyweb", (archive, source) -> {
 			assertEquals(Kind.LEGACY_WAR, archive.kind());
-			assertEquals("iu-java-type-testlegacyweb", archive.name());
-			assertEquals(IuTest.getProperty("project.version"), archive.version());
+			assertEquals("iu-java-type-testlegacyweb", archive.version().name());
+			assertEquals(IuTest.getProperty("project.version"), archive.version().implementationVersion());
 			assertTrue(archive.nonEnclosedTypeNames().contains("edu.iu.type.testlegacyweb.TestLegacyWebServlet"),
 					archive.nonEnclosedTypeNames().toString());
 
@@ -509,12 +509,12 @@ public class ComponentArchiveTest {
 			assertTrue(source.dependencies().isEmpty());
 
 			assertEquals(1, archive.bundledDependencies().size());
-			Set<ComponentDependency> expectedDependencies = new HashSet<>();
-			expectedDependencies.add(new ComponentDependency("jakarta.servlet.jsp.jstl-api", "1.2.7"));
+			Set<ComponentVersion> expectedDependencies = new HashSet<>();
+			expectedDependencies.add(new ComponentVersion("jakarta.servlet.jsp.jstl-api", "1.2.7"));
 			for (var bundledDependency : archive.bundledDependencies()) {
 				try {
 					var bundledArchive = ComponentArchive.from(bundledDependency);
-					assertTrue(expectedDependencies.remove(ComponentDependency.from(bundledArchive)));
+					assertTrue(expectedDependencies.remove(bundledArchive.version()));
 					bundledDependency.close();
 					Files.delete(bundledArchive.path());
 				} catch (IOException e) {

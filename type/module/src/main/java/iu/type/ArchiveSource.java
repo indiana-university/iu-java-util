@@ -18,7 +18,7 @@ class ArchiveSource implements AutoCloseable {
 	private final JarInputStream jar;
 	private final boolean sealed;
 	private final List<String> classPath;
-	private final List<ComponentDependency> dependencies;
+	private final List<ComponentVersion> dependencies;
 	private Optional<ComponentEntry> next;
 	private ComponentEntry last;
 	private boolean closed;
@@ -53,7 +53,7 @@ class ArchiveSource implements AutoCloseable {
 			dependencies = List.of();
 		else
 			this.dependencies = Stream.of(extensionListAttribute.split(" "))
-					.map(extension -> new ComponentDependency(extension, attributes)).collect(Collectors.toList());
+					.map(extension -> new ComponentVersion(extension, attributes)).collect(Collectors.toList());
 	}
 
 	boolean sealed() {
@@ -64,7 +64,7 @@ class ArchiveSource implements AutoCloseable {
 		return classPath;
 	}
 
-	List<ComponentDependency> dependencies() {
+	List<ComponentVersion> dependencies() {
 		return dependencies;
 	}
 

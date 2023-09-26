@@ -14,11 +14,11 @@ import java.util.Set;
 
 import edu.iu.type.IuComponent.Kind;
 
-record ComponentArchive(Path path, Kind kind, String name, String version, Properties properties,
+record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properties properties,
 		Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources, Set<String> allResources,
 		Collection<ArchiveSource> bundledDependencies) {
 
-	private static record ScannedAttributes(Kind kind, String name, String version, Properties properties,
+	private static record ScannedAttributes(Kind kind, ComponentVersion version, Properties properties,
 			Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources, Set<String> allResources,
 			Collection<ArchiveSource> bundledDependencies) {
 	}
@@ -215,7 +215,7 @@ record ComponentArchive(Path path, Kind kind, String name, String version, Prope
 
 			var isServlet6 = false;
 			for (var dependency : source.dependencies())
-				if (dependency.isAtLeast(ComponentDependency.SERVLET_6)) {
+				if (dependency.compareTo(ComponentVersion.SERVLET_6) >= 0) {
 					isServlet6 = true;
 					continue;
 				}
@@ -237,8 +237,7 @@ record ComponentArchive(Path path, Kind kind, String name, String version, Prope
 
 		return new ScannedAttributes( //
 				kind, //
-				componentName, //
-				version, //
+				new ComponentVersion(componentName, version), //
 				properties, //
 				Collections.unmodifiableSet(nonEnclosedTypeNames), //
 				Collections.unmodifiableMap(webResources), //
@@ -254,7 +253,6 @@ record ComponentArchive(Path path, Kind kind, String name, String version, Prope
 
 				return new ComponentArchive(path, //
 						scannedAttributes.kind, //
-						scannedAttributes.name, //
 						scannedAttributes.version, //
 						scannedAttributes.properties, //
 						scannedAttributes.nonEnclosedTypeNames, //

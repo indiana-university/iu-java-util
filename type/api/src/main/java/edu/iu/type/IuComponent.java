@@ -479,26 +479,11 @@ public interface IuComponent extends AutoCloseable {
 	Kind kind();
 
 	/**
-	 * Gets the component name.
-	 * 
-	 * <p>
-	 * Returns the <strong>artifactId</strong> POM property
-	 * </p>
-	 * 
-	 * @return component name
-	 */
-	String name();
-
-	/**
 	 * Gets the component version.
 	 * 
-	 * <p>
-	 * Returns the <strong>version</strong> POM property
-	 * </p>
-	 * 
-	 * @return component version
+	 * @return {@link IuComponentVersion}
 	 */
-	String version();
+	IuComponentVersion version();
 
 	/**
 	 * Gets the {@link ClassLoader} for this component.
