@@ -104,9 +104,28 @@ public interface IuComponentVersion extends Comparable<IuComponentVersion> {
 	 *         <strong>dependency</strong> on the <strong>component's specification
 	 *         version</strong>.<br>
 	 *         <em>Must</em> {@link String#startsWith(String) start with}
-	 *         {@code minor() + '.' + major + '.'} when {@code non-null}.
+	 *         {@code major() + '.' + minor() + '.'} when {@code non-null}.
 	 */
 	String implementationVersion();
+
+	/**
+	 * Gets the <strong>major</strong> version number as defined by
+	 * <a href="https://semver.org/">Semantic Versioning</a>.
+	 * 
+	 * @return <strong>Major</strong> version; <em>must</em> be non-negative,
+	 *         <em>should</em> be positive. Non-development applications
+	 *         <em>may</em> reject <strong>versions</strong> with a major version of
+	 *         {@code 0}.
+	 */
+	int major();
+
+	/**
+	 * Gets the <strong>minor</strong> version number as defined by
+	 * <a href="https://semver.org/">Semantic Versioning</a>.
+	 * 
+	 * @return <strong>Minor</strong> version; <em>must</em> be non-negative
+	 */
+	int minor();
 
 	/**
 	 * Gets the <strong>specification version</strong> implied by this
@@ -128,26 +147,33 @@ public interface IuComponentVersion extends Comparable<IuComponentVersion> {
 	 * @see #major()
 	 * @see #minor()
 	 */
-	IuComponentVersion specificationVersion();
+	default IuComponentVersion specificationVersion() {
+		var implementationVersion = implementationVersion();
+		if (implementationVersion == null)
+			return this;
+		else
+			return new IuComponentVersion() {
+				@Override
+				public String name() {
+					return IuComponentVersion.this.name();
+				}
 
-	/**
-	 * Gets the <strong>major</strong> version number as defined by
-	 * <a href="https://semver.org/">Semantic Versioning</a>.
-	 * 
-	 * @return <strong>Major</strong> version; <em>must</em> be non-negative,
-	 *         <em>should</em> be positive. Non-development applications
-	 *         <em>may</em> reject <strong>versions</strong> with a major version of
-	 *         {@code 0}.
-	 */
-	int major();
+				@Override
+				public String implementationVersion() {
+					return null;
+				}
 
-	/**
-	 * Gets the <strong>minor</strong> version number as defined by
-	 * <a href="https://semver.org/">Semantic Versioning</a>.
-	 * 
-	 * @return <strong>Minor</strong> version; <em>must</em> be non-negative
-	 */
-	int minor();
+				@Override
+				public int major() {
+					return IuComponentVersion.this.major();
+				}
+
+				@Override
+				public int minor() {
+					return IuComponentVersion.this.minor();
+				}
+			};
+	}
 
 	/**
 	 * Determines if the <strong>version</strong> implied by {@code this}
