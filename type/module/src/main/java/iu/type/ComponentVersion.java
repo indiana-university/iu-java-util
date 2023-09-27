@@ -40,7 +40,8 @@ import edu.iu.type.IuComponentVersion;
 
 class ComponentVersion implements IuComponentVersion {
 
-	private static final Pattern SPEC_VERSION_PATTERN = Pattern.compile("^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)");
+	private static final Pattern SPEC_VERSION_PATTERN = Pattern.compile("^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$");
+	private static final Pattern NAME_PATTERN = Pattern.compile("^[a-zA-Z][a-zA-Z0-9\\-\\.]*$");
 
 	static final ComponentVersion SERVLET_6 = new ComponentVersion("jakarta.servlet-api", 6, 0);
 
@@ -50,6 +51,9 @@ class ComponentVersion implements IuComponentVersion {
 	private final int minor;
 
 	ComponentVersion(String name, int major, int minor) {
+		if (name == null || !NAME_PATTERN.matcher(name).matches())
+			throw new IllegalArgumentException(
+					"Component name must be non-null, start with a letter, and contain only letters, numbers, dots '.', and hyphens '-'");
 		if (major < 0)
 			throw new IllegalArgumentException("Component major version number must be non-negative");
 		if (minor < 0)
@@ -61,14 +65,21 @@ class ComponentVersion implements IuComponentVersion {
 	}
 
 	ComponentVersion(String name, String version) {
-		this.name = Objects.requireNonNull(name);
-		this.version = Objects.requireNonNull(version);
+		if (name == null || !NAME_PATTERN.matcher(name).matches())
+			throw new IllegalArgumentException(
+					"Component name must be non-null, start with a letter, and contain only letters, numbers, dots '.', and hyphens '-'");
+
+		if (version == null)
+			throw new IllegalArgumentException("Missing version for " + name + ", must be a valid semantic version");
 
 		var semverMatcher = SEMANTIC_VERSION_PATTERN.matcher(version);
 		if (!semverMatcher.matches())
 			throw new IllegalArgumentException("Invalid version for " + name + ", must be a valid semantic version");
-		major = Integer.parseInt(semverMatcher.group(1));
-		minor = Integer.parseInt(semverMatcher.group(2));
+
+		this.name = name;
+		this.version = version;
+		this.major = Integer.parseInt(semverMatcher.group(1));
+		this.minor = Integer.parseInt(semverMatcher.group(2));
 	}
 
 	ComponentVersion(String extenstionListItem, Attributes mainAttributes) {
@@ -85,7 +96,7 @@ class ComponentVersion implements IuComponentVersion {
 			var semverMatcher = SEMANTIC_VERSION_PATTERN.matcher(version);
 			if (!semverMatcher.matches())
 				throw new IllegalArgumentException("Invalid version for " + implementationVersionAttribute
-						+ " in META-INF/MANIFEST.MF main attributes , must be a valid semantic version");
+						+ " in META-INF/MANIFEST.MF main attributes, must be a valid semantic version");
 			major = Integer.parseInt(semverMatcher.group(1));
 			minor = Integer.parseInt(semverMatcher.group(2));
 
@@ -116,14 +127,6 @@ class ComponentVersion implements IuComponentVersion {
 	}
 
 	@Override
-	public IuComponentVersion specificationVersion() {
-		if (version == null)
-			return this;
-		else
-			return new ComponentVersion(name, major, minor);
-	}
-
-	@Override
 	public int major() {
 		return major;
 	}
@@ -131,6 +134,14 @@ class ComponentVersion implements IuComponentVersion {
 	@Override
 	public int minor() {
 		return minor;
+	}
+
+	@Override
+	public IuComponentVersion specificationVersion() {
+		if (version == null)
+			return this;
+		else
+			return new ComponentVersion(name, major, minor);
 	}
 
 	@Override
@@ -144,11 +155,12 @@ class ComponentVersion implements IuComponentVersion {
 			return true;
 		if (obj == null)
 			return false;
-		if (getClass() != obj.getClass())
+		if (!(obj instanceof IuComponentVersion))
 			return false;
-		ComponentVersion other = (ComponentVersion) obj;
-		return major == other.major && minor == other.minor && Objects.equals(name, other.name)
-				&& Objects.equals(version, other.version);
+
+		IuComponentVersion other = (IuComponentVersion) obj;
+		return major == other.major() && minor == other.minor() && Objects.equals(name, other.name())
+				&& Objects.equals(version, other.implementationVersion());
 	}
 
 	@Override

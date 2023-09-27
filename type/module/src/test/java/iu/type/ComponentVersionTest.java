@@ -32,49 +32,67 @@
 package iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.HashSet;
+import java.util.jar.Attributes.Name;
 import java.util.jar.Manifest;
 
 import org.junit.jupiter.api.Test;
+
+import edu.iu.type.IuComponentVersion;
 
 @SuppressWarnings("javadoc")
 public class ComponentVersionTest {
 
 	@Test
-	public void testSpecificationVersion() {
-		var version = new ComponentVersion("", 1, 0);
-		assertEquals("", version.name());
-		assertEquals(1, version.major());
-		assertEquals(0, version.minor());
+	public void testSpecRequiesName() {
+		assertEquals(
+				"Component name must be non-null, start with a letter, and contain only letters, numbers, dots '.', and hyphens '-'",
+				assertThrows(IllegalArgumentException.class, () -> new ComponentVersion(null, 0, 0)).getMessage());
 	}
 
 	@Test
 	public void testSpecMustUseNonNegativeMajor() {
 		assertEquals("Component major version number must be non-negative",
-				assertThrows(IllegalArgumentException.class, () -> new ComponentVersion("", -1, 0)).getMessage());
+				assertThrows(IllegalArgumentException.class, () -> new ComponentVersion("my.component", -1, 0))
+						.getMessage());
 	}
 
 	@Test
 	public void testSpecMustUseNonNegativeMinor() {
 		assertEquals("Component minor version number must be non-negative",
-				assertThrows(IllegalArgumentException.class, () -> new ComponentVersion("", 0, -1)).getMessage());
+				assertThrows(IllegalArgumentException.class, () -> new ComponentVersion("my.component", 0, -1))
+						.getMessage());
 	}
 
 	@Test
-	public void testSpecRequiesName() {
-		assertThrows(NullPointerException.class, () -> new ComponentVersion(null, 0, 0));
+	public void testSpecificationVersion() {
+		var version = new ComponentVersion("my.component", 1, 0);
+		assertEquals("my.component", version.name());
+		assertNull(version.implementationVersion());
+		assertEquals(1, version.major());
+		assertEquals(0, version.minor());
 	}
 
 	@Test
 	public void testImplRequiesName() {
-		assertThrows(NullPointerException.class, () -> new ComponentVersion(null, (String) null));
+		assertEquals(
+				"Component name must be non-null, start with a letter, and contain only letters, numbers, dots '.', and hyphens '-'",
+				assertThrows(IllegalArgumentException.class, () -> new ComponentVersion(null, (String) null))
+						.getMessage());
 	}
 
 	@Test
 	public void testImplRequiresVersion() {
-		assertThrows(NullPointerException.class, () -> new ComponentVersion("", (String) null));
+		assertEquals("Missing version for my-component, must be a valid semantic version",
+				assertThrows(IllegalArgumentException.class, () -> new ComponentVersion("my-component", (String) null))
+						.getMessage());
 	}
 
 	@Test
@@ -100,8 +118,9 @@ public class ComponentVersionTest {
 
 	@Test
 	public void testImplExtractsMajorAndMinor() {
-		var version = new ComponentVersion("", "1.0.2");
-		assertEquals("", version.name());
+		var version = new ComponentVersion("a", "1.0.2");
+		assertEquals("a", version.name());
+		assertEquals("1.0.2", version.implementationVersion());
 		assertEquals(1, version.major());
 		assertEquals(0, version.minor());
 	}
@@ -112,6 +131,163 @@ public class ComponentVersionTest {
 		assertEquals("Missing my_dependency-api-Extension-Name in META-INF/MANIFEST.MF main attributes",
 				assertThrows(IllegalArgumentException.class, () -> new ComponentVersion("my.dependency-api", attr))
 						.getMessage());
+	}
+
+	@Test
+	public void testDepRequiresImplOrSpecVersion() {
+		var attr = new Manifest().getMainAttributes();
+		attr.put(new Name("my_dependency-api-" + Name.EXTENSION_NAME), "my.dependency-api");
+		assertEquals(
+				"Missing my_dependency-api-Implementation-Version or my_dependency-api-Specification-Version in META-INF/MANIFEST.MF main attributes",
+				assertThrows(IllegalArgumentException.class, () -> new ComponentVersion("my.dependency-api", attr))
+						.getMessage());
+	}
+
+	@Test
+	public void testDepRequiresValidSpecVersion() {
+		var attr = new Manifest().getMainAttributes();
+		attr.put(new Name("my_dependency-api-" + Name.EXTENSION_NAME), "my.dependency-api");
+		attr.put(new Name("my_dependency-api-" + Name.SPECIFICATION_VERSION), "");
+		assertEquals(
+				"Invalid version for my_dependency-api-Specification-Version in META-INF/MANIFEST.MF main attributes , must be a valid semantic version",
+				assertThrows(IllegalArgumentException.class, () -> new ComponentVersion("my.dependency-api", attr))
+						.getMessage());
+	}
+
+	@Test
+	public void testDepSpecificationVersion() {
+		var attr = new Manifest().getMainAttributes();
+		attr.put(new Name("my_dependency-api-" + Name.EXTENSION_NAME), "my.dependency-api");
+		attr.put(new Name("my_dependency-api-" + Name.SPECIFICATION_VERSION), "1.0");
+		var version = new ComponentVersion("my.dependency-api", attr);
+		assertEquals("my.dependency-api", version.name());
+		assertNull(version.implementationVersion());
+		assertEquals(1, version.major());
+		assertEquals(0, version.minor());
+	}
+
+	@Test
+	public void testDepRequiresValidImplVersion() {
+		var attr = new Manifest().getMainAttributes();
+		attr.put(new Name("my_dependency-api-" + Name.EXTENSION_NAME), "my.dependency-api");
+		attr.put(new Name("my_dependency-api-" + Name.IMPLEMENTATION_VERSION), "");
+		assertEquals(
+				"Invalid version for my_dependency-api-Implementation-Version in META-INF/MANIFEST.MF main attributes, must be a valid semantic version",
+				assertThrows(IllegalArgumentException.class, () -> new ComponentVersion("my.dependency-api", attr))
+						.getMessage());
+	}
+
+	@Test
+	public void testDepImplementationVersion() {
+		var attr = new Manifest().getMainAttributes();
+		attr.put(new Name("my_dependency-api-" + Name.EXTENSION_NAME), "my.dependency-api");
+		attr.put(new Name("my_dependency-api-" + Name.IMPLEMENTATION_VERSION), "1.0.2");
+		var version = new ComponentVersion("my.dependency-api", attr);
+		assertEquals("my.dependency-api", version.name());
+		assertEquals("1.0.2", version.implementationVersion());
+		assertEquals(1, version.major());
+		assertEquals(0, version.minor());
+	}
+
+	@Test
+	public void testSpecFromSpec() {
+		var version = new ComponentVersion("a", 1, 0);
+		assertSame(version, version.specificationVersion());
+	}
+
+	@Test
+	public void testSpecFromImpl() {
+		var version = new ComponentVersion("a", "1.0.2").specificationVersion();
+		assertEquals("a", version.name());
+		assertNull(version.implementationVersion());
+		assertEquals(1, version.major());
+		assertEquals(0, version.minor());
+	}
+
+	@Test
+	public void testHashCode() {
+		var versionSet = new HashSet<IuComponentVersion>();
+		versionSet.add(new ComponentVersion("a", 1, 0));
+		assertTrue(versionSet.contains(new ComponentVersion("a", 1, 0)));
+		assertFalse(versionSet.contains(new ComponentVersion("a", "1.0.2")));
+		assertTrue(versionSet.contains(new ComponentVersion("a", "1.0.2").specificationVersion()));
+	}
+
+	@Test
+	public void testSameIsEquals() {
+		var version = new ComponentVersion("a", 1, 0);
+		assertEquals(version, version);
+	}
+
+	@Test
+	public void testImplsAreEqual() {
+		assertEquals(new ComponentVersion("a", 1, 0), new ComponentVersion("a", 1, 0));
+	}
+
+	@Test
+	public void testNullIsNotEquals() {
+		assertNotEquals(new ComponentVersion("a", 1, 0), null);
+	}
+
+	@Test
+	public void testNonVersionNotEquals() {
+		assertNotEquals(new ComponentVersion("a", 1, 0), this);
+	}
+
+	@Test
+	public void testOtherImplEquals() {
+		assertEquals(new ComponentVersion("a", 1, 0), new IuComponentVersion() {
+			@Override
+			public String name() {
+				return "a";
+			}
+
+			@Override
+			public int major() {
+				return 1;
+			}
+
+			@Override
+			public int minor() {
+				return 0;
+			}
+
+			@Override
+			public String implementationVersion() {
+				return null;
+			}
+		});
+	}
+
+	@Test
+	public void testNameMismatchNotEquals() {
+		assertNotEquals(new ComponentVersion("a", 1, 0), new ComponentVersion("b", 1, 0));
+	}
+
+	@Test
+	public void testMajorMismatchNotEquals() {
+		assertNotEquals(new ComponentVersion("a", 1, 0), new ComponentVersion("a", 2, 0));
+	}
+
+	@Test
+	public void testMinorMismatchNotEquals() {
+		assertNotEquals(new ComponentVersion("a", 1, 0), new ComponentVersion("a", 1, 1));
+	}
+
+	@Test
+	public void testSpecAndImplNotEquals() {
+		var version = new ComponentVersion("a", "1.0.2");
+		assertNotEquals(version, version.specificationVersion());
+	}
+
+	@Test
+	public void testSpecToString() {
+		assertEquals("a-1.0+", new ComponentVersion("a", 1, 0).toString());
+	}
+
+	@Test
+	public void testImplToString() {
+		assertEquals("a-1.0.2", new ComponentVersion("a", "1.0.2").toString());
 	}
 
 }

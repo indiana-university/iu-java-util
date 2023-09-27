@@ -31,7 +31,10 @@
  */
 package edu.iu.type;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
@@ -219,4 +222,35 @@ public class ComponentVersionTest {
 		assertTrue(version.compareTo(version2) > 0);
 	}
 
+	@Test
+	public void testSpecVersion() {
+		var version = new IuComponentVersion() {
+			@Override
+			public String name() {
+				return "a";
+			}
+
+			@Override
+			public int major() {
+				return 1;
+			}
+			
+			@Override
+			public int minor() {
+				return 2;
+			}
+
+			@Override
+			public String implementationVersion() {
+				return "1.2.3";
+			}
+		};
+
+		var specVersion = version.specificationVersion();
+		assertEquals("a", specVersion.name());
+		assertNull(specVersion.implementationVersion());
+		assertEquals(1, specVersion.major());
+		assertEquals(2, specVersion.minor());
+		assertSame(specVersion, specVersion.specificationVersion());
+	}
 }
