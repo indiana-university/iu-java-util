@@ -33,6 +33,7 @@ package edu.iu.type;
 
 import java.util.HashMap;
 import java.util.Hashtable;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -171,6 +172,30 @@ public interface IuComponentVersion extends Comparable<IuComponentVersion> {
 				@Override
 				public int minor() {
 					return IuComponentVersion.this.minor();
+				}
+
+				@Override
+				public int hashCode() {
+					return Objects.hash(major(), minor(), name(), null);
+				}
+
+				@Override
+				public boolean equals(Object obj) {
+					if (this == obj)
+						return true;
+					if (obj == null)
+						return false;
+					if (!(obj instanceof IuComponentVersion))
+						return false;
+
+					IuComponentVersion other = (IuComponentVersion) obj;
+					return major() == other.major() && minor() == other.minor() && Objects.equals(name(), other.name())
+							&& other.implementationVersion() == null;
+				}
+
+				@Override
+				public String toString() {
+					return name() + '-' + major() + '.' + minor() + '+';
 				}
 			};
 	}

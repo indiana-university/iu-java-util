@@ -33,6 +33,7 @@ package edu.iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -45,6 +46,30 @@ import edu.iu.test.IuTest;
 
 @SuppressWarnings("javadoc")
 public class ComponentVersionTest {
+
+	private IuComponentVersion createVersion(String name, String impl, int major, int minor) {
+		return new IuComponentVersion() {
+			@Override
+			public String name() {
+				return name;
+			}
+
+			@Override
+			public int major() {
+				return major;
+			}
+
+			@Override
+			public int minor() {
+				return minor;
+			}
+
+			@Override
+			public String implementationVersion() {
+				return impl;
+			}
+		};
+	}
 
 	@Test
 	public void testSpecMeetsSpec() {
@@ -224,33 +249,23 @@ public class ComponentVersionTest {
 
 	@Test
 	public void testSpecVersion() {
-		var version = new IuComponentVersion() {
-			@Override
-			public String name() {
-				return "a";
-			}
-
-			@Override
-			public int major() {
-				return 1;
-			}
-			
-			@Override
-			public int minor() {
-				return 2;
-			}
-
-			@Override
-			public String implementationVersion() {
-				return "1.2.3";
-			}
-		};
-
+		var version = createVersion("a", "1.2.3", 1, 2);
 		var specVersion = version.specificationVersion();
 		assertEquals("a", specVersion.name());
 		assertNull(specVersion.implementationVersion());
 		assertEquals(1, specVersion.major());
 		assertEquals(2, specVersion.minor());
 		assertSame(specVersion, specVersion.specificationVersion());
+		assertEquals(specVersion, specVersion.specificationVersion());
+		assertEquals(specVersion, version.specificationVersion());
+		assertNotEquals(specVersion, null);
+		assertNotEquals(specVersion, this);
+		assertNotEquals(specVersion, version);
+		assertNotEquals(specVersion, createVersion("b", null, 1, 2));
+		assertNotEquals(specVersion, createVersion("a", null, 2, 2));
+		assertNotEquals(specVersion, createVersion("a", null, 1, 0));
+		assertEquals(specVersion.hashCode(), version.specificationVersion().hashCode());
+		assertEquals("a-1.2+", version.specificationVersion().toString());
 	}
+
 }
