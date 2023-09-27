@@ -69,7 +69,7 @@ public interface IuComponentVersion extends Comparable<IuComponentVersion> {
 	 * 
 	 * @see <a href="https://semver.org/">Semantic Versioning</a>
 	 */
-	static final Pattern SEMANITC_VERSION_PATTERN = Pattern.compile(
+	static final Pattern SEMANTIC_VERSION_PATTERN = Pattern.compile(
 			"^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$");
 
 	/**
@@ -92,7 +92,7 @@ public interface IuComponentVersion extends Comparable<IuComponentVersion> {
 	 * 
 	 * <p>
 	 * <em>Must</em> return a value for which
-	 * {@link #SEMANITC_VERSION_PATTERN}{@link Pattern#matcher(CharSequence)
+	 * {@link #SEMANTIC_VERSION_PATTERN}{@link Pattern#matcher(CharSequence)
 	 * .matcher(implementationVersion())}{@link Matcher#matches() .matches()}
 	 * returns {@code true}, or {@code null}.
 	 * </p>
@@ -256,13 +256,13 @@ public interface IuComponentVersion extends Comparable<IuComponentVersion> {
 		else if (iv2 == null)
 			return 1;
 
-		var m1 = SEMANITC_VERSION_PATTERN.matcher(iv1);
-		if (!m1.find())
+		var m1 = SEMANTIC_VERSION_PATTERN.matcher(iv1);
+		if (!m1.matches())
 			throw new IllegalStateException();
 		var z1 = Integer.parseInt(m1.group(3));
 
-		var m2 = SEMANITC_VERSION_PATTERN.matcher(iv2);
-		if (!m2.find())
+		var m2 = SEMANTIC_VERSION_PATTERN.matcher(iv2);
+		if (!m2.matches())
 			throw new IllegalStateException();
 		var z2 = Integer.parseInt(m2.group(3));
 
