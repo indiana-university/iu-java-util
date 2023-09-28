@@ -34,11 +34,21 @@ package iu.type;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
@@ -55,8 +65,8 @@ public class ComponentFactoryTest {
 			}
 		};
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
-			mockComponentFactory.when(() -> ComponentFactory.createComponent(in)).thenCallRealMethod();
-			assertSame(ioException, assertThrows(IOException.class, () -> ComponentFactory.createComponent(in)));
+			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, in)).thenCallRealMethod();
+			assertSame(ioException, assertThrows(IOException.class, () -> ComponentFactory.createComponent(null, in)));
 		}
 	}
 
@@ -70,8 +80,8 @@ public class ComponentFactoryTest {
 			}
 		};
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
-			mockComponentFactory.when(() -> ComponentFactory.createComponent(in)).thenCallRealMethod();
-			assertSame(ioException, assertThrows(IOException.class, () -> ComponentFactory.createComponent(in)));
+			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, in)).thenCallRealMethod();
+			assertSame(ioException, assertThrows(IOException.class, () -> ComponentFactory.createComponent(null, in)));
 		}
 	}
 
@@ -86,10 +96,12 @@ public class ComponentFactoryTest {
 			}
 		};
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
-			mockComponentFactory.when(() -> ComponentFactory.createComponent(dep, in)).thenCallRealMethod();
-			mockComponentFactory.when(() -> ComponentFactory.createFromSourceQueue(any())).thenThrow(new IOException());
-			assertSame(ioException, assertThrows(IOException.class, () -> ComponentFactory.createComponent(dep, in))
-					.getSuppressed()[0]);
+			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, dep, in)).thenCallRealMethod();
+			mockComponentFactory.when(() -> ComponentFactory.createFromSourceQueue(isNull(), any()))
+					.thenThrow(new IOException());
+			assertSame(ioException,
+					assertThrows(IOException.class, () -> ComponentFactory.createComponent(null, dep, in))
+							.getSuppressed()[0]);
 		}
 	}
 
@@ -103,9 +115,9 @@ public class ComponentFactoryTest {
 			}
 		};
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
-			mockComponentFactory.when(() -> ComponentFactory.createComponent(in)).thenCallRealMethod();
+			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, in)).thenCallRealMethod();
 			assertSame(illegalStateException,
-					assertThrows(IllegalStateException.class, () -> ComponentFactory.createComponent(in)));
+					assertThrows(IllegalStateException.class, () -> ComponentFactory.createComponent(null, in)));
 		}
 	}
 
@@ -119,9 +131,87 @@ public class ComponentFactoryTest {
 			}
 		};
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
-			mockComponentFactory.when(() -> ComponentFactory.createComponent(in)).thenCallRealMethod();
-			assertSame(error, assertThrows(Error.class, () -> ComponentFactory.createComponent(in)));
+			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, in)).thenCallRealMethod();
+			assertSame(error, assertThrows(Error.class, () -> ComponentFactory.createComponent(null, in)));
 		}
 	}
 
+	@Test
+	public void testSuppressesCloseError() throws IOException {
+		var error = new Error();
+		var path = mock(Path.class);
+		var source = mock(ArchiveSource.class);
+		var archive = mock(ComponentArchive.class);
+		when(archive.path()).thenReturn(path);
+		when(archive.bundledDependencies()).thenThrow(error);
+		var ioException = new IOException();
+		try ( //
+				var mockComponentArchive = mockStatic(ComponentArchive.class); //
+				var mockFiles = mockStatic(Files.class)) {
+			mockComponentArchive.when(() -> ComponentArchive.from(source)).thenReturn(archive);
+			mockFiles.when(() -> Files.delete(path)).thenThrow(ioException);
+			assertSame(ioException,
+					assertThrows(Error.class,
+							() -> ComponentFactory.createFromSourceQueue(null, new ArrayDeque<>(List.of(source))))
+							.getSuppressed()[0]);
+		}
+	}
+
+	@Test
+	public void testCheckIfAlreadyProvidedDeletesArchive() throws IOException {
+		var ioException = new IOException();
+		var path = mock(Path.class);
+
+		var version = new ComponentVersion("a", 0, 0);
+		var alreadyProvidedArchive = mock(ComponentArchive.class);
+		when(alreadyProvidedArchive.version()).thenReturn(version);
+
+		var archive = mock(ComponentArchive.class);
+		when(archive.version()).thenReturn(version);
+		when(archive.path()).thenReturn(path);
+
+		try (var mockFiles = mockStatic(Files.class)) {
+			mockFiles.when(() -> Files.delete(path)).thenThrow(ioException);
+			assertSame(ioException,
+					assertThrows(IllegalArgumentException.class,
+							() -> ComponentFactory.checkIfAlreadyProvided(alreadyProvidedArchive, archive))
+							.getSuppressed()[0]);
+
+		}
+	}
+
+	@Test
+	public void testClosesModuleFinderIfCreateFails() throws IOException {
+		var path = mock(Path.class);
+		var archive = mock(ComponentArchive.class);
+		when(archive.path()).thenReturn(path);
+
+		var error = new Error();
+		try (var mockModuleFinder = mockConstruction(ComponentModuleFinder.class, (finder, context) -> {
+			when(finder.findAll()).thenThrow(error);
+		})) {
+			assertSame(error, assertThrows(Error.class,
+					() -> ComponentFactory.createModular(null, new ArrayDeque<>(List.of(archive)))));
+			verify(mockModuleFinder.constructed().get(0)).close();
+		}
+	}
+
+	@Test
+	public void testSuppressesModuleFinderCloseErrorIfCreateFails() throws IOException {
+		var path = mock(Path.class);
+		var archive = mock(ComponentArchive.class);
+		when(archive.path()).thenReturn(path);
+
+		var error = new Error();
+		var closeError = new Error();
+		try (var mockModuleFinder = mockConstruction(ComponentModuleFinder.class, (finder, context) -> {
+			when(finder.findAll()).thenThrow(error);
+			doThrow(closeError).when(finder).close();
+		})) {
+			var thrown = assertThrows(Error.class,
+					() -> ComponentFactory.createModular(null, new ArrayDeque<>(List.of(archive))));
+			assertSame(error, thrown);
+			assertSame(closeError, thrown.getSuppressed()[0]);
+		}
+	}
 }

@@ -66,8 +66,10 @@ import iu.type.api.TypeImplementationLoader;
  * <ul>
  * <li>Be a <a href=
  * "https://docs.oracle.com/en/java/javase/21/docs/specs/jar/jar.html">jar
- * archive</a> built using <a href="https://maven.apache.org/">Apache Maven</a>.</li>
- * <li><em>Not</em> be directory in a file system, either originally or unpacked.</li>
+ * archive</a> built using <a href="https://maven.apache.org/">Apache
+ * Maven</a>.</li>
+ * <li><em>Not</em> be directory in a file system, either originally or
+ * unpacked.</li>
  * <li>Include a well-formed {@link Manifest manifest} in
  * {@code META-INF/MANIFEST.MF}.</li>
  * <li><em>Not</em> include {@code Main-Class} in the
@@ -407,25 +409,52 @@ public interface IuComponent extends AutoCloseable {
 		 * Designates <strong>modular</strong> component defined by one or more Java
 		 * Archive (jar) files.
 		 */
-		MODULAR_JAR,
+		MODULAR_JAR(true, false),
 
 		/**
 		 * Designates an <strong>legacy</strong> component defined by a Java Archive
 		 * (jar) file.
 		 */
-		LEGACY_JAR,
+		LEGACY_JAR(false, false),
 
 		/**
 		 * Designates <strong>modular</strong> component defined by a Web Application
 		 * Archive (war) file.
 		 */
-		MODULAR_WAR,
+		MODULAR_WAR(true, true),
 
 		/**
 		 * Designates an <strong>legacy</strong> component defined by a Web Application
 		 * Archive (war) file.
 		 */
-		LEGACY_WAR;
+		LEGACY_WAR(false, true);
+
+		private final boolean modular;
+		private final boolean web;
+
+		private Kind(boolean modular, boolean web) {
+			this.modular = modular;
+			this.web = web;
+		}
+
+		/**
+		 * Determines if the <strong>component</strong> is <strong>modular</strong>.
+		 * 
+		 * @return {@code true} if <strong>modular</strong>; else {@code false}
+		 */
+		public boolean isModular() {
+			return modular;
+		}
+
+		/**
+		 * Determines if the <strong>component</strong> is a <strong>web
+		 * component</strong>.
+		 * 
+		 * @return {@code true} if <strong>web component</strong>; else {@code false}
+		 */
+		public boolean isWeb() {
+			return web;
+		}
 	}
 
 	/**
@@ -497,8 +526,14 @@ public interface IuComponent extends AutoCloseable {
 	 * 
 	 * <p>
 	 * This method is intended to support resource and service discovery of public
-	 * APIs defined by the applications. <em>Must not</em> include interfaces from a
-	 * standard Java or JEE module.
+	 * APIs defined by the applications. A <strong>modular component</strong>
+	 * <em>Must not</em> include interfaces from a module that does not
+	 * {@link Module#isOpen(String, Module) open} the package containing the
+	 * interface to the {@code iu.util.type.impl} module. A <strong>legacy
+	 * component</strong> <em>Must not</em> include interfaces from any
+	 * <strong>dependencies</strong> unless the <strong>dependency</strong> is a
+	 * {@link Kind#LEGACY_JAR} that includes an {@code META-INF/iu.properties}
+	 * resource.
 	 * </p>
 	 * 
 	 * @return interface facades

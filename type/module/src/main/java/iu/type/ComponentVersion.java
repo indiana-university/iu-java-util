@@ -137,7 +137,7 @@ class ComponentVersion implements IuComponentVersion {
 	}
 
 	@Override
-	public IuComponentVersion specificationVersion() {
+	public ComponentVersion specificationVersion() {
 		if (version == null)
 			return this;
 		else

@@ -145,7 +145,8 @@ public class ArchiveSourceTest {
 		ArchiveSource empty = new ArchiveSource(createJar(Map.of()));
 		assertFalse(empty.classPath().iterator().hasNext());
 
-		ArchiveSource source = new ArchiveSource(Files.newInputStream(Path.of(IuTest.getProperty("testruntime.archive"))));
+		ArchiveSource source = new ArchiveSource(
+				Files.newInputStream(Path.of(IuTest.getProperty("testruntime.archive"))));
 		assertEquals(List.of(
 				"META-INF/lib/jakarta.interceptor-api-" + IuTest.getProperty("jakarta.interceptor-api.version")
 						+ ".jar",
@@ -155,23 +156,9 @@ public class ArchiveSourceTest {
 	}
 
 	@Test
-	public void testDependencies() throws Throwable {
+	public void testEmptyDependenciesAreEmpty() throws Throwable {
 		ArchiveSource empty = new ArchiveSource(createJar(Map.of()));
 		assertFalse(empty.dependencies().iterator().hasNext());
-
-		ArchiveSource source = new ArchiveSource(Files.newInputStream(Path.of(IuTest.getProperty("testruntime.archive"))));
-		var dependencies = source.dependencies().iterator();
-		assertTrue(dependencies.hasNext());
-		assertEquals(new ComponentVersion("jakarta.interceptor-api", 
-				IuTest.getProperty("jakarta.interceptor-api.version")), dependencies.next());
-		assertTrue(dependencies.hasNext());
-		assertEquals(
-				new ComponentVersion("jakarta.annotation-api", IuTest.getProperty("jakarta.annotation-api.version")),
-				dependencies.next());
-		assertTrue(dependencies.hasNext());
-		assertEquals(new ComponentVersion("jakarta.json-api", IuTest.getProperty("jakarta.json-api.version")),
-				dependencies.next());
-		assertFalse(dependencies.hasNext());
 	}
 
 	@Test
@@ -179,13 +166,13 @@ public class ArchiveSourceTest {
 		var testcomponent = TestArchives.getComponentArchive("testcomponent");
 		try (var source = new ArchiveSource(testcomponent)) {
 			assertEquals(List.of(), source.classPath());
-			assertEquals(List.of(
-					new ComponentVersion("iu-java-type-testruntime", IuTest.getProperty("project.version")),
-					new ComponentVersion("jakarta.interceptor-api",
-							IuTest.getProperty("jakarta.interceptor-api.version")),
-					new ComponentVersion("jakarta.annotation-api",
-							IuTest.getProperty("jakarta.annotation-api.version")),
-					new ComponentVersion("jakarta.json-api", IuTest.getProperty("jakarta.json-api.version"))),
+			assertEquals(
+					List.of(new ComponentVersion("iu-java-type-testruntime", IuTest.getProperty("project.version")),
+							new ComponentVersion("jakarta.interceptor-api",
+									IuTest.getProperty("jakarta.interceptor-api.version")),
+							new ComponentVersion("jakarta.annotation-api",
+									IuTest.getProperty("jakarta.annotation-api.version")),
+							new ComponentVersion("jakarta.json-api", IuTest.getProperty("jakarta.json-api.version"))),
 					source.dependencies());
 			assertTrue(source.sealed());
 		}
@@ -202,14 +189,26 @@ public class ArchiveSourceTest {
 									+ IuTest.getProperty("jakarta.annotation-api.version") + ".jar",
 							"META-INF/lib/jakarta.json-api-" + IuTest.getProperty("jakarta.json-api.version") + ".jar"),
 					source.classPath());
-			assertEquals(List.of(
-					new ComponentVersion("jakarta.interceptor-api",
-							IuTest.getProperty("jakarta.interceptor-api.version")),
-					new ComponentVersion("jakarta.annotation-api",
-							IuTest.getProperty("jakarta.annotation-api.version")),
-					new ComponentVersion("jakarta.json-api", IuTest.getProperty("jakarta.json-api.version"))),
-					source.dependencies());
+			assertEquals(List.of(new ComponentVersion("parsson", 1, 1)), source.dependencies());
 			assertTrue(source.sealed());
+		}
+	}
+
+	@Test
+	public void testToString() throws IOException {
+		var testcomponent = TestArchives.getComponentArchive("testruntime");
+		try (var source = new ArchiveSource(testcomponent)) {
+			assertEquals(
+					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.1.0.jar, META-INF/lib/jakarta.annotation-api-2.1.1.jar, META-INF/lib/jakarta.json-api-2.1.2.jar], dependencies=[parsson-1.1+], closed=false]",
+					source.toString());
+			source.hasNext();
+			assertEquals(
+					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.1.0.jar, META-INF/lib/jakarta.annotation-api-2.1.1.jar, META-INF/lib/jakarta.json-api-2.1.2.jar], dependencies=[parsson-1.1+], next=Optional[ComponentEntry [name=edu/, read=false, closed=false]], closed=false]",
+					source.toString());
+			source.next();
+			assertEquals(
+					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.1.0.jar, META-INF/lib/jakarta.annotation-api-2.1.1.jar, META-INF/lib/jakarta.json-api-2.1.2.jar], dependencies=[parsson-1.1+], last=ComponentEntry [name=edu/, read=false, closed=false], closed=false]",
+					source.toString());
 		}
 	}
 

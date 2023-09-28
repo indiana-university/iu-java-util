@@ -301,8 +301,6 @@ public class ComponentArchiveTest {
 			assertFalse(archive.nonEnclosedTypeNames()
 					.contains("edu.iu.type.testcomponent.TestBeanImpl$InternalSupportingClass"));
 			assertTrue(archive.webResources().isEmpty());
-			assertFalse(archive.allResources().contains("META-INF/iu-type.properties"));
-			assertFalse(archive.allResources().contains("edu/iu/type/testcomponent/TestBean"));
 			assertEquals("testcomponent", archive.properties().getProperty("remotableModules"));
 		}, Map.of( //
 				"META-INF/MANIFEST.MF", -1, //

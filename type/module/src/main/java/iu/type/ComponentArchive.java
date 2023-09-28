@@ -46,18 +46,17 @@ import java.util.Set;
 import edu.iu.type.IuComponent.Kind;
 
 record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properties properties,
-		Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources, Set<String> allResources,
+		Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources, 
 		Collection<ArchiveSource> bundledDependencies) {
 
 	private static record ScannedAttributes(Kind kind, ComponentVersion version, Properties properties,
-			Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources, Set<String> allResources,
+			Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources, 
 			Collection<ArchiveSource> bundledDependencies) {
 	}
 
 	private static ScannedAttributes scan(ArchiveSource source, ComponentTarget target) throws IOException {
 		final Set<String> nonEnclosedTypeNames = new LinkedHashSet<>();
 		final Map<String, byte[]> webResources = new LinkedHashMap<>();
-		final Set<String> allResources = new LinkedHashSet<>();
 		final Map<String, ArchiveSource> bundledDependencies = new LinkedHashMap<>();
 
 		final Set<String> classPath = new HashSet<>();
@@ -179,10 +178,8 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 						// with name starting with WEB-INF/ will trigger the same error as above
 						for (var resourceEntry : webResources.entrySet()) {
 							var resourceEntryName = resourceEntry.getKey();
-							if (resourceEntryName.charAt(resourceEntryName.length() - 1) != '/') {
+							if (resourceEntryName.charAt(resourceEntryName.length() - 1) != '/')
 								target.put(resourceEntryName, new ByteArrayInputStream(resourceEntry.getValue()));
-								allResources.add(resourceEntryName);
-							}
 						}
 						webResources.clear();
 					}
@@ -206,7 +203,6 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 					continue;
 
 				componentEntry.read(in -> target.put(resourceName, in));
-				allResources.add(resourceName);
 
 			} else if (name.startsWith("META-INF/") && name.charAt(name.length() - 1) == '/')
 				continue;
@@ -214,10 +210,8 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 			else if (!hasNonWebTypes)
 				webResources.put(name, componentEntry.data());
 
-			else if (name.charAt(name.length() - 1) != '/') {
+			else if (name.charAt(name.length() - 1) != '/')
 				componentEntry.read(in -> target.put(name, in));
-				allResources.add(name);
-			}
 		}
 
 		if (!classPath.isEmpty())
@@ -272,7 +266,6 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 				properties, //
 				Collections.unmodifiableSet(nonEnclosedTypeNames), //
 				Collections.unmodifiableMap(webResources), //
-				Collections.unmodifiableSet(allResources), //
 				Collections.unmodifiableCollection(bundledDependencies.values()));
 	}
 
@@ -288,7 +281,6 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 						scannedAttributes.properties, //
 						scannedAttributes.nonEnclosedTypeNames, //
 						scannedAttributes.webResources, //
-						scannedAttributes.allResources, //
 						scannedAttributes.bundledDependencies //
 				);
 			}

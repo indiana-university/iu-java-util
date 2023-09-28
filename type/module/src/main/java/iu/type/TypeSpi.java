@@ -55,7 +55,7 @@ public class TypeSpi implements IuTypeSpi {
 	@Override
 	public IuComponent createComponent(InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException {
-		return ComponentFactory.createComponent(componentArchiveSource, providedDependencyArchiveSources);
+		return ComponentFactory.createComponent(null, componentArchiveSource, providedDependencyArchiveSources);
 	}
 
 }

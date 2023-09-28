@@ -35,11 +35,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ModuleLayer.Controller;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Modifier;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Queue;
@@ -55,124 +59,160 @@ import edu.iu.type.IuType;
 class Component implements IuComponent {
 
 	private static final Logger LOG = Logger.getLogger(Component.class.getName());
-
-	private static final Set<String> NON_REMOTEABLE = Set.of("java", "javax", "jakarta", "jdk", "com.sun");
-
-	private static boolean isRemotable(String name) {
-		for (var nonRemoteable : NON_REMOTEABLE)
-			if (name.startsWith(nonRemoteable))
-				return false;
-		return true;
-	}
-
-	private static boolean isRemotable(Class<?> ifc) {
-		if (!ifc.isInterface())
-			return false;
-		if (ifc.isAnnotation())
-			return false;
-
-		var module = ifc.getModule();
-		if (!module.isNamed())
-			return isRemotable(ifc.getPackageName());
-
-		if (!module.isOpen(ifc.getPackageName()))
-			return false;
-
-		return isRemotable(module.getName());
-	}
+	private static final Module TYPE_MODULE = Component.class.getModule();
 
 	private Component parent;
-	private ComponentModuleFinder moduleFinder;
+
 	private Controller controller;
+
+	private ClassLoader classLoader;
+
 	private Kind kind;
 	private ComponentVersion version;
 	private Properties properties;
-	private ClassLoader classLoader;
+
 	private Set<IuType<?>> interfaces;
-	private Queue<Path> tempFiles;
+	private Map<Class<?>, List<IuType<?>>> annotatedTypes;
+	private List<ComponentResource<?>> resources;
+
+	private ComponentModuleFinder moduleFinder;
+	private Queue<ComponentArchive> archives;
 	private boolean closed;
 
-	private Component(Component parent, ComponentModuleFinder moduleFinder, Controller controller, Kind kind,
-			ComponentVersion version, Properties properties, ClassLoader classLoader, Set<String> classNames,
-			Queue<Path> tempFiles) {
-		this.parent = parent;
-		this.moduleFinder = moduleFinder;
-		this.controller = controller;
-		this.kind = Objects.requireNonNull(kind, "kind");
-		this.version = Objects.requireNonNull(version, "version");
-		this.properties = Objects.requireNonNull(properties, "properties");
-		this.classLoader = Objects.requireNonNull(classLoader, "classLoader");
-		this.tempFiles = Objects.requireNonNull(tempFiles, "tempFiles");
-
+	Component(Component parent, Controller controller, ClassLoader classLoader, ComponentModuleFinder moduleFinder,
+			Queue<ComponentArchive> archives) {
 		Set<IuType<?>> interfaces = new LinkedHashSet<>();
-		if (parent != null)
+		Map<Class<?>, List<IuType<?>>> annotatedTypes = new LinkedHashMap<>();
+		List<ComponentResource<?>> resources = new ArrayList<>();
+		if (parent != null) {
+			if (parent.kind.isWeb())
+				throw new IllegalArgumentException("Component must not extend a web component");
+
 			interfaces.addAll(parent.interfaces);
-		for (var className : classNames)
-			try {
-				var loadedClass = classLoader.loadClass(className);
-				if (isRemotable(loadedClass))
-					interfaces.add((IuType<?>) IuType.of(loadedClass));
-			} catch (Throwable e) {
-				LOG.log(Level.WARNING, e, () -> "Invalid class " + className + " in component " + version);
-			}
+			for (var annotatedTypeEntry : parent.annotatedTypes.entrySet())
+				annotatedTypes.put(annotatedTypeEntry.getKey(), new ArrayList<>(annotatedTypeEntry.getValue()));
+			resources.addAll(parent.resources);
+		}
+
+		this.parent = parent;
+
+		this.controller = controller;
+		this.classLoader = Objects.requireNonNull(classLoader, "classLoader");
+
+		this.moduleFinder = moduleFinder;
+		this.archives = Objects.requireNonNull(archives, "archives");
+
+		var firstArchive = archives.iterator().next();
+		kind = firstArchive.kind();
+		version = firstArchive.version();
+		properties = firstArchive.properties();
+
+		for (var archive : archives) {
+			if (archive.kind().isWeb())
+				if (archive == firstArchive)
+					for (var webResource : archive.webResources().entrySet())
+						resources.add(new ComponentResource<>(true, webResource.getKey(), IuType.of(byte[].class),
+								webResource::getValue));
+				else
+					throw new IllegalArgumentException("Component must not include a web component as a dependency");
+
+			for (var className : archive.nonEnclosedTypeNames())
+				try {
+					var loadedClass = classLoader.loadClass(className);
+					var module = loadedClass.getModule();
+					if ((module.isNamed() && module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) //
+							|| (!module.isNamed() && !archive.kind().isModular() && archive.properties() != null)) {
+
+						var mod = loadedClass.getModifiers();
+						if ((mod & Modifier.PUBLIC) != mod && loadedClass.isInterface())
+							interfaces.add(IuType.of(loadedClass));
+
+						for (var annotation : loadedClass.getAnnotations()) {
+							var annotationType = annotation.annotationType();
+
+							var annotatedWithType = annotatedTypes.get(annotationType);
+							if (annotatedWithType == null) {
+								annotatedWithType = new ArrayList<>();
+								annotatedTypes.put(annotationType, annotatedWithType);
+							}
+
+							annotatedWithType.add(IuType.of(loadedClass));
+							
+						}
+					}
+				} catch (Throwable e) {
+					LOG.log(Level.WARNING, e, () -> "Invalid class " + className + " in component " + version);
+				}
+		}
+
 		this.interfaces = Collections.unmodifiableSet(interfaces);
 	}
 
-	Component(Component parent, ComponentModuleFinder moduleFinder, Controller controller, ComponentVersion version,
-			Properties properties, ClassLoader classLoader, Set<String> classNames, Queue<Path> tempFiles) {
-		this(parent, moduleFinder, controller, Kind.MODULAR_JAR, version, properties, classLoader, classNames,
-				tempFiles);
+	private void checkClosed() {
+		if (closed)
+			throw new IllegalStateException("closed");
+	}
+
+	Component parent() {
+		checkClosed();
+		return parent;
 	}
 
 	Controller controller() {
+		checkClosed();
 		return controller;
+	}
+
+	Properties properties() {
+		checkClosed();
+		return properties;
 	}
 
 	@Override
 	public IuComponent extend(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
 			throws IOException, IllegalArgumentException {
-		if (closed)
-			throw new IllegalStateException();
+		checkClosed();
 		throw new UnsupportedOperationException();
 	}
 
 	@Override
 	public Kind kind() {
-		if (closed)
-			throw new IllegalStateException();
+		checkClosed();
 		return kind;
 	}
 
 	@Override
 	public IuComponentVersion version() {
-		// TODO Auto-generated method stub
-		return null;
+		checkClosed();
+		return version;
 	}
 
 	@Override
 	public ClassLoader classLoader() {
-		if (closed)
-			throw new IllegalStateException();
+		checkClosed();
 		return classLoader;
 	}
 
 	@Override
 	public Set<? extends IuType<?>> interfaces() {
-		if (closed)
-			throw new IllegalStateException();
+		checkClosed();
 		return interfaces;
 	}
 
 	@Override
-	public Iterable<IuType<?>> annotatedTypes(Class<? extends Annotation> annotationType) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+	public Iterable<? extends IuType<?>> annotatedTypes(Class<? extends Annotation> annotationType) {
+		checkClosed();
+		var annotatedTypes = this.annotatedTypes.get(annotationType);
+		if (annotatedTypes == null)
+			return Collections.emptySet();
+		else
+			return annotatedTypes;
 	}
 
 	@Override
-	public Iterable<IuResource<?>> resources() {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+	public Iterable<? extends IuResource<?>> resources() {
+		checkClosed();
+		return resources;
 	}
 
 	@Override
@@ -191,17 +231,14 @@ class Component implements IuComponent {
 				LOG.log(Level.WARNING, e, () -> "Failed to close class loader");
 			}
 
-		if (tempFiles != null)
-			while (!tempFiles.isEmpty()) {
-				var tempFile = tempFiles.poll();
-				try {
-					Files.delete(tempFile);
-					if (Files.exists(tempFile))
-						LOG.log(Level.WARNING, () -> "Ttemp file still exists after delete " + tempFile);
-				} catch (Throwable e) {
-					LOG.log(Level.WARNING, e, () -> "Failed to clean up temp file " + tempFile);
-				}
+		while (!archives.isEmpty()) {
+			var archive = archives.poll();
+			try {
+				Files.delete(archive.path());
+			} catch (Throwable e) {
+				LOG.log(Level.WARNING, e, () -> "Failed to clean up archive " + archive.path());
 			}
+		}
 
 		parent = null;
 		moduleFinder = null;
