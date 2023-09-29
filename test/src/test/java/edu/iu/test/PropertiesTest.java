@@ -31,45 +31,34 @@
  */
 package edu.iu.test;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mockStatic;
 
+import java.io.IOException;
+
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("javadoc")
-public class UtilTest {
+public class PropertiesTest {
 
-	@Test
-	public void testMockWithDefaults() {
-		var hasDefaults = IuTest.mockWithDefaults(InterfaceWithDefaults.class);
-		assertNull(hasDefaults.getAbstractString());
-		assertEquals("foobar", hasDefaults.getDefaultString());
-	}
-
-	@Test
-	public void testMockWithDefaultsHandlesUnsupportedOperationException() {
-		var hasDefaults = IuTest.mockWithDefaults(InterfaceWithDefaults.class);
-		assertDoesNotThrow(() -> hasDefaults.throwsUnsupportedOperationException());
-
-		var exception = new RuntimeException();
-		doThrow(exception).when(hasDefaults).throwsUnsupportedOperationException();
-		try {
-			hasDefaults.throwsUnsupportedOperationException();
-		} catch (RuntimeException e) {
-			assertSame(exception, e);
+	@BeforeAll
+	public static void testPropertiesDoesntThrowChecked() {
+		try (var iuTest = mockStatic(IuTest.class)) {
+			iuTest.when(() -> IuTest.getResources(any(String.class))).thenThrow(IOException.class);
+			iuTest.when(() -> IuTest.properties()).thenCallRealMethod();
+			assertThrows(IllegalStateException.class, () -> IuTest.properties());
 		}
 	}
 
 	@Test
-	public void testMockWithDefaultsHandlesOtherExceptions() {
-		var hasDefaults = IuTest.mockWithDefaults(InterfaceWithDefaults.class);
-		when(hasDefaults.getAbstractString()).thenThrow(IllegalStateException.class);
-		assertThrows(IllegalStateException.class, () -> hasDefaults.getAbstractString());
+	public void testLoadsProperties() throws Exception {
+		var properties = IuTest.properties();
+		assertSame(properties, IuTest.properties());
+		assertEquals("bar", IuTest.getProperty("foo"));
 	}
 
 }
