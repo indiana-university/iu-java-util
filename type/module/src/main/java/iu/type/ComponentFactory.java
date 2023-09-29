@@ -35,11 +35,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Queue;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import edu.iu.type.IuComponent;
@@ -106,6 +109,28 @@ final class ComponentFactory {
 		}
 	}
 
+	static IuComponent createLegacy(Component parent, Queue<ComponentArchive> archives) throws IOException {
+		var path = new URL[archives.size()];
+		{
+			var i = 0;
+			for (var archive : archives)
+				path[i++] = archive.path().toUri().toURL();
+		}
+
+		var loader = new LegacyClassLoader(archives.iterator().next().kind().isWeb(), path,
+				parent == null ? null : parent.classLoader());
+		try {
+			return new Component(parent, null, loader, null, archives);
+		} catch (RuntimeException | Error e) {
+			try {
+				loader.close();
+			} catch (Throwable e2) {
+				e.addSuppressed(e2);
+			}
+			throw e;
+		}
+	}
+
 	static IuComponent createFromSourceQueue(Component parent, Queue<ArchiveSource> sources) throws IOException {
 		Queue<ComponentArchive> archives = new ArrayDeque<>();
 		Queue<ComponentVersion> unmetDependencies = new ArrayDeque<>();
@@ -141,8 +166,7 @@ final class ComponentFactory {
 			if (kind.isModular())
 				return createModular(parent, archives);
 			else
-				// TODO Auto-generated method stub
-				throw new UnsupportedOperationException("TODO");
+				return createLegacy(parent, archives);
 
 		} catch (IOException | RuntimeException | Error e) {
 			while (!archives.isEmpty())

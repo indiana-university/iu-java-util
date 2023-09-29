@@ -111,7 +111,7 @@ class Component implements IuComponent {
 			if (archive.kind().isWeb())
 				if (archive == firstArchive)
 					for (var webResource : archive.webResources().entrySet())
-						resources.add(new ComponentResource<>(true, webResource.getKey(), IuType.of(byte[].class),
+						resources.add(new ComponentResource<>(true, true, webResource.getKey(), IuType.of(byte[].class),
 								webResource::getValue));
 				else
 					throw new IllegalArgumentException("Component must not include a web component as a dependency");
@@ -137,7 +137,7 @@ class Component implements IuComponent {
 							}
 
 							annotatedWithType.add(IuType.of(loadedClass));
-							
+
 						}
 					}
 				} catch (Throwable e) {

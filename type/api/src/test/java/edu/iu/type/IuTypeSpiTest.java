@@ -29,60 +29,53 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type;
+package edu.iu.type;
 
-import java.util.function.Supplier;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-import edu.iu.type.IuResource;
-import edu.iu.type.IuType;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+import java.util.ServiceLoader;
 
-class ComponentResource<T> implements IuResource<T> {
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
-	private final boolean needsAuthentication;
-	private final boolean shared;
-	private final String name;
-	private final IuType<T> type;
-	private final Supplier<T> factory;
+import edu.iu.type.spi.IuTypeSpi;
+import iu.type.api.TypeImplementationLoader;
 
-	ComponentResource(boolean needsAuthentication, boolean shared, String name, IuType<T> type, Supplier<T> factory) {
-		this.needsAuthentication = needsAuthentication;
-		this.shared = shared;
-		this.name = name;
-		this.type = type;
-		this.factory = factory;
+@SuppressWarnings("javadoc")
+public class IuTypeSpiTest {
+
+	private static IuTypeSpi iuTypeSpi;
+
+	@BeforeAll
+	public static void setupClass() throws ClassNotFoundException {
+		iuTypeSpi = mock(IuTypeSpi.class);
+		var serviceLoader = mock(ServiceLoader.class);
+		when(serviceLoader.iterator()).thenReturn(List.of(iuTypeSpi).iterator());
+		try (var mockServiceLoader = mockStatic(ServiceLoader.class)) {
+			mockServiceLoader.when(() -> ServiceLoader.load(IuTypeSpi.class, IuTypeSpi.class.getClassLoader()))
+					.thenReturn(serviceLoader);
+			Class.forName(TypeImplementationLoader.class.getName());
+		}
 	}
 
-	ComponentResource(IuResource<T> copy, Supplier<T> factory) {
-		this.needsAuthentication = copy.needsAuthentication();
-		this.shared = copy.shared();
-		this.name = copy.name();
-		this.type = copy.type();
-		this.factory = factory;
+	@Test
+	public void testResolveType() {
+		IuType.of(Object.class);
+		verify(iuTypeSpi, times(1)).resolveType(Object.class);
 	}
-
-	@Override
-	public boolean needsAuthentication() {
-		return needsAuthentication;
-	}
-
-	@Override
-	public boolean shared() {
-		return shared;
-	}
-
-	@Override
-	public String name() {
-		return name;
-	}
-
-	@Override
-	public IuType<T> type() {
-		return type;
-	}
-
-	@Override
-	public T get() {
-		return factory.get();
+	
+	@Test
+	public void testNewComponent() throws IOException {
+		var in = mock(InputStream.class);
+		IuComponent.of(in);
+		verify(iuTypeSpi, times(1)).createComponent(in);
 	}
 
 }

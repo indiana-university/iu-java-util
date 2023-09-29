@@ -31,58 +31,45 @@
  */
 package iu.type;
 
-import java.util.function.Supplier;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 
-import edu.iu.type.IuResource;
-import edu.iu.type.IuType;
+import java.io.IOException;
+import java.io.InputStream;
 
-class ComponentResource<T> implements IuResource<T> {
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
-	private final boolean needsAuthentication;
-	private final boolean shared;
-	private final String name;
-	private final IuType<T> type;
-	private final Supplier<T> factory;
+@SuppressWarnings("javadoc")
+public class TypeSpiTest {
 
-	ComponentResource(boolean needsAuthentication, boolean shared, String name, IuType<T> type, Supplier<T> factory) {
-		this.needsAuthentication = needsAuthentication;
-		this.shared = shared;
-		this.name = name;
-		this.type = type;
-		this.factory = factory;
+	private TypeSpi typeSpi;
+
+	@BeforeEach
+	public void setup() {
+		typeSpi = new TypeSpi();
 	}
 
-	ComponentResource(IuResource<T> copy, Supplier<T> factory) {
-		this.needsAuthentication = copy.needsAuthentication();
-		this.shared = copy.shared();
-		this.name = copy.name();
-		this.type = copy.type();
-		this.factory = factory;
+	@AfterEach
+	public void teardown() {
+		typeSpi = null;
 	}
 
-	@Override
-	public boolean needsAuthentication() {
-		return needsAuthentication;
+	@Test
+	public void testTypeIsNotImplemented() {
+		assertEquals("Not implemented in this version",
+				assertThrows(UnsupportedOperationException.class, () -> typeSpi.resolveType(getClass())).getMessage());
 	}
 
-	@Override
-	public boolean shared() {
-		return shared;
+	@Test
+	public void testComponentIsImplemented() throws IOException {
+		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
+			var in = mock(InputStream.class);
+			typeSpi.createComponent(in);
+			mockComponentFactory.verify(() -> ComponentFactory.createComponent(null, in));
+		}
 	}
-
-	@Override
-	public String name() {
-		return name;
-	}
-
-	@Override
-	public IuType<T> type() {
-		return type;
-	}
-
-	@Override
-	public T get() {
-		return factory.get();
-	}
-
 }

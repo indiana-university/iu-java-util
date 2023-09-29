@@ -48,8 +48,8 @@ public class TypeSpi implements IuTypeSpi {
 
 	@Override
 	public IuType<?> resolveType(Type type) {
-		// TODO implementation stub
-		throw new UnsupportedOperationException("TODO");
+		// TODO STARCH-606: implement
+		throw new UnsupportedOperationException("Not implemented in this version");
 	}
 
 	@Override

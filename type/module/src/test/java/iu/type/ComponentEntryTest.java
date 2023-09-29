@@ -57,6 +57,17 @@ public class ComponentEntryTest {
 	}
 
 	@Test
+	public void testImplementsToString() {
+		var data = new byte[32768];
+		ThreadLocalRandom.current().nextBytes(data);
+		try (var componentEntry = new ComponentEntry("foo", new ByteArrayInputStream(data))) {
+			assertEquals("ComponentEntry [name=foo, read=false, closed=false]", componentEntry.toString());
+			assertArrayEquals(data, componentEntry.data());
+			assertEquals("ComponentEntry [name=foo, read=true, data=32768B, closed=false]", componentEntry.toString());
+		}
+	}
+
+	@Test
 	public void testReadsData() throws IOException {
 		var data = new byte[32768];
 		ThreadLocalRandom.current().nextBytes(data);

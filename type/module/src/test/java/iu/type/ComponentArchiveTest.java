@@ -478,11 +478,12 @@ public class ComponentArchiveTest {
 			assertTrue(archive.webResources().isEmpty());
 			assertTrue(source.dependencies().isEmpty());
 
-			assertEquals(3, archive.bundledDependencies().size());
+			assertEquals(4, archive.bundledDependencies().size());
 			Set<ComponentVersion> expectedDependencies = new HashSet<>();
 			expectedDependencies.add(new ComponentVersion("javax.annotation-api", "1.3.2"));
 			expectedDependencies.add(new ComponentVersion("javax.interceptor-api", "1.2.2"));
 			expectedDependencies.add(new ComponentVersion("javax.json-api", "1.1.4"));
+			expectedDependencies.add(new ComponentVersion("javax.json", "1.1.4"));
 			for (var bundledDependency : archive.bundledDependencies()) {
 				try {
 					var bundledArchive = ComponentArchive.from(bundledDependency);

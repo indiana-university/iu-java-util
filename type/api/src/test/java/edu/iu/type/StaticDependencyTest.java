@@ -31,18 +31,26 @@
  */
 package edu.iu.type;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
 import iu.type.api.StaticDependencyHelper;
+import jakarta.annotation.Resource;
+import jakarta.annotation.Resource.AuthenticationType;
+import jakarta.annotation.Resources;
 import jakarta.annotation.security.PermitAll;
 
 @SuppressWarnings("javadoc")
@@ -75,8 +83,11 @@ public class StaticDependencyTest {
 			assertFalse((Boolean) staticDependencyHelper.getMethod("isAnnotationSupported").invoke(null));
 
 			var annotatedElement = mock(IuAnnotatedElement.class);
-			assertFalse((Boolean) staticDependencyHelper.getMethod("hasPermitAll", IuAnnotatedElement.class).invoke(null,
-					annotatedElement));
+			assertFalse((Boolean) staticDependencyHelper.getMethod("hasPermitAll", IuAnnotatedElement.class)
+					.invoke(null, annotatedElement));
+
+			assertTrue(((Set<?>) staticDependencyHelper.getMethod("getResources", Class.class).invoke(null,
+					HasResources.class)).isEmpty());
 		}
 	}
 
@@ -90,6 +101,45 @@ public class StaticDependencyTest {
 		annotatedElement = mock(IuAnnotatedElement.class);
 		when(annotatedElement.hasAnnotation(PermitAll.class)).thenReturn(true);
 		assertTrue(StaticDependencyHelper.hasPermitAll(annotatedElement));
+	}
+
+	@Resources({ @Resource(name = "one", shareable = false), @Resource(type = String.class) })
+	private interface HasResources {
+	}
+
+	@Resource(name = "no-auth", authenticationType = AuthenticationType.APPLICATION)
+	private class HasResource {
+	}
+
+	@Test
+	public void testResources() {
+		try (var mockType = mockStatic(IuType.class)) {
+			mockType.when(() -> IuType.of(any())).then(a -> {
+				var type = mock(IuType.class);
+				when(type.baseClass()).thenReturn(a.getArgument(0));
+				return type;
+			});
+
+			var hasOne = false;
+			var hasString = false;
+			for (var resource : StaticDependencyHelper.getResources(HasResources.class)) {
+				assertNull(resource.get());
+				if (resource.needsAuthentication() && !resource.shared() && resource.name().equals("one")
+						&& resource.type().baseClass() == Object.class)
+					hasOne = true;
+				if (resource.needsAuthentication() && resource.shared() && resource.name().isEmpty()
+						&& resource.type().baseClass() == String.class)
+					hasString = true;
+			}
+			assertTrue(hasOne);
+			assertTrue(hasString);
+
+			var resources = StaticDependencyHelper.getResources(HasResource.class);
+			assertEquals(1, resources.size());
+			var resource = resources.iterator().next();
+			assertEquals("no-auth", resource.name());
+			assertFalse(resource.needsAuthentication());
+		}
 	}
 
 }

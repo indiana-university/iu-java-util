@@ -31,7 +31,14 @@
  */
 package iu.type.api;
 
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 import edu.iu.type.IuAnnotatedElement;
+import edu.iu.type.IuResource;
+import edu.iu.type.IuType;
+import jakarta.annotation.Resource;
 
 /**
  * Isolates references static module dependencies to prevent
@@ -55,6 +62,40 @@ public class StaticDependencyHelper {
 		ANNOTATION_SUPPORTED = annotationSupported;
 	}
 
+	private static class NullAdaptedResource implements IuResource<Object> {
+
+		private final jakarta.annotation.Resource resource;
+
+		private NullAdaptedResource(Resource resource) {
+			this.resource = resource;
+		}
+
+		@Override
+		public boolean needsAuthentication() {
+			return resource.authenticationType().equals(jakarta.annotation.Resource.AuthenticationType.CONTAINER);
+		}
+
+		@Override
+		public boolean shared() {
+			return resource.shareable();
+		}
+
+		@Override
+		public String name() {
+			return resource.name();
+		}
+
+		@Override
+		public IuType<Object> type() {
+			return IuType.of(resource.type());
+		}
+
+		@Override
+		public Object get() {
+			return null;
+		}
+	}
+
 	/**
 	 * Check to see if the Jakarta Annotations API is present in the classpath.
 	 * 
@@ -74,6 +115,31 @@ public class StaticDependencyHelper {
 	 */
 	public static boolean hasPermitAll(IuAnnotatedElement annotatedElement) {
 		return isAnnotationSupported() && annotatedElement.hasAnnotation(jakarta.annotation.security.PermitAll.class);
+	}
+
+	/**
+	 * Returns a set of null-adapted resource ({@link IuResource#get()} returns
+	 * null, with no translation for blank name or {@link Object} type defaults)
+	 * instances describing all @Resource annotation on a type, if present.
+	 * 
+	 * @param type Type to inspect
+	 * @return Set of null-adapted resources
+	 */
+	public static Set<IuResource<?>> getResources(Class<?> type) {
+		if (!isAnnotationSupported())
+			return Collections.emptySet();
+
+		Set<IuResource<?>> resourceSet = new LinkedHashSet<>();
+		var resources = type.getAnnotation(jakarta.annotation.Resources.class);
+		if (resources != null)
+			for (var resource : resources.value())
+				resourceSet.add(new NullAdaptedResource(resource));
+
+		var resource = type.getAnnotation(jakarta.annotation.Resource.class);
+		if (resource != null)
+			resourceSet.add(new NullAdaptedResource(resource));
+
+		return resourceSet;
 	}
 
 	private StaticDependencyHelper() {

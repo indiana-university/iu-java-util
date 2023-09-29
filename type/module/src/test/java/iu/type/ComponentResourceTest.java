@@ -29,53 +29,44 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.type;
+package iu.type;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.List;
-import java.util.ServiceLoader;
-
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import edu.iu.type.spi.IuTypeSpi;
-import iu.type.api.TypeImplementationLoader;
+import edu.iu.type.IuType;
 
 @SuppressWarnings("javadoc")
-public class TypeSpiTest {
+public class ComponentResourceTest {
 
-	private static IuTypeSpi iuTypeSpi;
-
-	@BeforeAll
-	public static void setupClass() throws ClassNotFoundException {
-		iuTypeSpi = mock(IuTypeSpi.class);
-		var serviceLoader = mock(ServiceLoader.class);
-		when(serviceLoader.iterator()).thenReturn(List.of(iuTypeSpi).iterator());
-		try (var mockServiceLoader = mockStatic(ServiceLoader.class)) {
-			mockServiceLoader.when(() -> ServiceLoader.load(IuTypeSpi.class, IuTypeSpi.class.getClassLoader()))
-					.thenReturn(serviceLoader);
-			Class.forName(TypeImplementationLoader.class.getName());
-		}
+	@Test
+	public void testComponentConstructor() {
+		var o = new Object();
+		var t = mock(IuType.class);
+		@SuppressWarnings("unchecked")
+		var r = new ComponentResource<>(true, true, "", t, () -> o);
+		assertTrue(r.needsAuthentication());
+		assertTrue(r.shared());
+		assertEquals("", r.name());
+		assertSame(t, r.type());
+		assertSame(o, r.get());
 	}
 
 	@Test
-	public void testResolveType() {
-		IuType.of(Object.class);
-		verify(iuTypeSpi, times(1)).resolveType(Object.class);
-	}
-	
-	@Test
-	public void testNewComponent() throws IOException {
-		var in = mock(InputStream.class);
-		IuComponent.of(in);
-		verify(iuTypeSpi, times(1)).createComponent(in);
+	public void testCopyConstructor() {
+		var o = new Object();
+		var t = mock(IuType.class);
+		@SuppressWarnings("unchecked")
+		var r = new ComponentResource<>(new ComponentResource<>(true, true, "", t, null), () -> o);
+		assertTrue(r.needsAuthentication());
+		assertTrue(r.shared());
+		assertEquals("", r.name());
+		assertSame(t, r.type());
+		assertSame(o, r.get());
 	}
 
 }

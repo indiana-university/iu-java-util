@@ -29,60 +29,30 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type;
+package edu.iu.legacy;
 
-import java.util.function.Supplier;
+import java.io.IOException;
+import java.io.StringReader;
+import java.net.URL;
 
-import edu.iu.type.IuResource;
-import edu.iu.type.IuType;
+import javax.json.Json;
+import javax.json.JsonValue;
 
-class ComponentResource<T> implements IuResource<T> {
+@SuppressWarnings("javadoc")
+public class LegacyUrlReader {
 
-	private final boolean needsAuthentication;
-	private final boolean shared;
-	private final String name;
-	private final IuType<T> type;
-	private final Supplier<T> factory;
-
-	ComponentResource(boolean needsAuthentication, boolean shared, String name, IuType<T> type, Supplier<T> factory) {
-		this.needsAuthentication = needsAuthentication;
-		this.shared = shared;
-		this.name = name;
-		this.type = type;
-		this.factory = factory;
+	public JsonValue parseJson(String json) {
+		return Json.createReader(new StringReader(json)).readValue();
 	}
 
-	ComponentResource(IuResource<T> copy, Supplier<T> factory) {
-		this.needsAuthentication = copy.needsAuthentication();
-		this.shared = copy.shared();
-		this.name = copy.name();
-		this.type = copy.type();
-		this.factory = factory;
-	}
-
-	@Override
-	public boolean needsAuthentication() {
-		return needsAuthentication;
-	}
-
-	@Override
-	public boolean shared() {
-		return shared;
-	}
-
-	@Override
-	public String name() {
-		return name;
-	}
-
-	@Override
-	public IuType<T> type() {
-		return type;
-	}
-
-	@Override
-	public T get() {
-		return factory.get();
+	public JsonValue get(String url) {
+		try {
+			return Json
+					.createReader(new URL(url).openStream())
+					.readValue();
+		} catch (IOException e) {
+			throw new IllegalStateException(e);
+		}
 	}
 
 }

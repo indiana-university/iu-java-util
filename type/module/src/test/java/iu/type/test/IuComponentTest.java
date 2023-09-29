@@ -129,4 +129,51 @@ public class IuComponentTest {
 		}
 	}
 
+	@Test
+	public void testLoadsLegacy() throws Exception {
+		var publicUrlThatWorksAndReturnsJson = "https://idp-stg.login.iu.edu/.well-known/openid-configuration";
+		String expected;
+		try (InputStream in = new URL(publicUrlThatWorksAndReturnsJson).openStream()) {
+			expected = new String(in.readAllBytes());
+		} catch (Throwable e) {
+			e.printStackTrace();
+			Assumptions.abort(
+					"Expected this to be a public URL that works and returns JSON " + publicUrlThatWorksAndReturnsJson);
+			return;
+		}
+
+		try (var mockIuType = mockStatic(IuType.class)) {
+			mockIuType.when(() -> IuType.of(any(Class.class))).then(a -> {
+				var c = (Class<?>) a.getArgument(0);
+				var type = mock(IuType.class);
+				when(type.name()).thenReturn(c.getName());
+				return type;
+			});
+			try (var component = IuComponent.of(TestArchives.getComponentArchive("testlegacy"),
+					TestArchives.getProvidedDependencyArchives("testlegacy"))) {
+
+				assertEquals(Kind.LEGACY_JAR, component.kind());
+				assertEquals("iu-java-type-testlegacy", component.version().name());
+				assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
+
+				var interfaces = component.interfaces().iterator();
+				assertTrue(interfaces.hasNext());
+				assertEquals("edu.iu.legacy.LegacyInterface", interfaces.next().name());
+				assertFalse(interfaces.hasNext());
+
+				var contextLoader = Thread.currentThread().getContextClassLoader();
+				var loader = component.classLoader();
+				try {
+					Thread.currentThread().setContextClassLoader(loader);
+					var urlReader = loader.loadClass("edu.iu.legacy.LegacyUrlReader");
+					var urlReader$ = urlReader.getConstructor().newInstance();
+					assertEquals(urlReader.getMethod("parseJson", String.class).invoke(urlReader$, expected), urlReader
+							.getMethod("get", String.class).invoke(urlReader$, publicUrlThatWorksAndReturnsJson));
+				} finally {
+					Thread.currentThread().setContextClassLoader(contextLoader);
+				}
+			}
+		}
+	}
+
 }
