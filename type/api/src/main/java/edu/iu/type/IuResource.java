@@ -32,7 +32,7 @@
 package edu.iu.type;
 
 /**
- * Facade interface for a resource in a {@link IuComponent}.
+ * Facade interface for a resource in a {@link IuComponent component}.
  * 
  * @param <T> resource type
  */

@@ -45,6 +45,7 @@ import java.net.URL;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
 import edu.iu.test.IuTest;
 import edu.iu.type.IuComponent;
@@ -176,4 +177,36 @@ public class IuComponentTest {
 		}
 	}
 
+	@Test
+	public void testLoadsTestComponent() throws Exception {
+		try (var mockIuType = mockStatic(IuType.class)) {
+			mockIuType.when(() -> IuType.of(any(Class.class))).then(a -> {
+				var c = (Class<?>) a.getArgument(0);
+				var type = mock(IuType.class);
+				when(type.name()).thenReturn(c.getName());
+				when(type.baseClass()).thenReturn(c);
+				return type;
+			});
+			try (var parent = IuComponent.of(TestArchives.getComponentArchive("testruntime"),
+					TestArchives.getProvidedDependencyArchives("testruntime"));
+					var component = parent.extend(TestArchives.getComponentArchive("testcomponent"))) {
+
+				assertEquals(Kind.MODULAR_JAR, component.kind());
+				assertEquals("iu-java-type-testcomponent", component.version().name());
+				assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
+
+				var interfaces = component.interfaces().iterator();
+				assertTrue(interfaces.hasNext());
+				assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
+				assertTrue(interfaces.hasNext());
+				assertEquals("edu.iu.type.testcomponent.TestBean", interfaces.next().name());
+				assertFalse(interfaces.hasNext());
+
+				var resources = component.resources().iterator();
+				assertTrue(resources.hasNext());
+				assertEquals("edu.iu.type.testcomponent.TestResource", resources.next().name());
+				assertFalse(resources.hasNext());
+			}
+		}
+	}
 }

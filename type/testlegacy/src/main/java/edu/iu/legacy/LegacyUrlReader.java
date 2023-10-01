@@ -40,7 +40,7 @@ import javax.json.JsonValue;
 
 @SuppressWarnings("javadoc")
 public class LegacyUrlReader {
-
+	
 	public JsonValue parseJson(String json) {
 		return Json.createReader(new StringReader(json)).readValue();
 	}

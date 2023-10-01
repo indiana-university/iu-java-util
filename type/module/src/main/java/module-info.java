@@ -34,6 +34,7 @@
  *  * @provides edu.iu.type.spi.IuTypeSpi Implementation service provider.
  */
 module iu.util.type.impl {
+	requires iu.util;
 	requires iu.util.type;
 	
 	requires java.logging;

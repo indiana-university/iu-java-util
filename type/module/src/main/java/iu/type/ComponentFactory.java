@@ -39,10 +39,8 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Queue;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import edu.iu.type.IuComponent;
@@ -139,6 +137,10 @@ final class ComponentFactory {
 			while (!sources.isEmpty())
 				try (var source = sources.poll()) {
 					dep: for (var sourceDependency : source.dependencies()) {
+						if (parent != null)
+							for (var version : parent.versions())
+								if (version.meets(sourceDependency))
+									continue dep;
 						for (var archive : archives)
 							if (archive.version().meets(sourceDependency))
 								continue dep;

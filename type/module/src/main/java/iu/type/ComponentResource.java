@@ -31,12 +31,112 @@
  */
 package iu.type;
 
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Proxy;
+import java.util.ArrayDeque;
+import java.util.Queue;
 import java.util.function.Supplier;
 
 import edu.iu.type.IuResource;
 import edu.iu.type.IuType;
+import jakarta.annotation.Resource;
+import jakarta.annotation.Resource.AuthenticationType;
+import jakarta.annotation.Resources;
 
 class ComponentResource<T> implements IuResource<T> {
+
+	static ComponentResource<byte[]> createWebResource(String name, byte[] data) {
+		return new ComponentResource<byte[]>(true, true, name, IuType.of(byte[].class), () -> data);
+	}
+
+	static boolean isApplicationResource(Resource resourceReference, Class<?> classToCheck) {
+		Class<?> resourceType = resourceReference.type();
+		if (InvocationHandler.class.isAssignableFrom(classToCheck))
+			return resourceType.isInterface();
+		else
+			return resourceType.isAssignableFrom(classToCheck);
+	}
+
+	static Object createImplementationInstance(Class<?> implementationClass) {
+		try {
+			return IuType.of(implementationClass).constructor().exec();
+		} catch (RuntimeException | Error e) {
+			throw e;
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw new ExceptionInInitializerError(e);
+		}
+	}
+
+	static <T> T createResourceInstance(Class<T> type, Class<?> implementationClass) {
+		var implementationInstance = createImplementationInstance(implementationClass);
+		if (implementationInstance instanceof InvocationHandler)
+			return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type },
+					(InvocationHandler) implementationInstance));
+		else
+			return type.cast(implementationInstance);
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	static ComponentResource<?> createResource(Resource resourceReference, Class<?> implementationClass) {
+		IuType type;
+		if (InvocationHandler.class.isAssignableFrom(implementationClass)) {
+			Class<?> resourceClass = resourceReference.type();
+			if (!resourceClass.isInterface())
+				throw new IllegalArgumentException(
+						"Application resource defined by InvocationHandler requires resource type to be an interface");
+			else
+				type = IuType.of(resourceClass);
+		} else {
+			Class<?> resourceClass = resourceReference.type();
+			if (resourceClass == Object.class) {
+				for (var i : implementationClass.getInterfaces())
+					if (!TypeUtils.isPlatformType(i.getName())) {
+						resourceClass = i;
+						break;
+					}
+				if (resourceClass == Object.class)
+					resourceClass = implementationClass;
+			}
+
+			if (!resourceClass.isAssignableFrom(implementationClass))
+				throw new IllegalArgumentException(
+						"Application resource implementation class must be an InvocationHandler or assignable from resource type");
+			else
+				type = IuType.of(resourceClass);
+		}
+
+		var name = resourceReference.name();
+		if (name.isEmpty())
+			name = type.baseClass().getSimpleName();
+
+		Supplier supplier;
+		if (resourceReference.shareable()) {
+			var instance = createResourceInstance(type.baseClass(), implementationClass);
+			supplier = () -> instance;
+		} else
+			supplier = () -> createResourceInstance(type.baseClass(), implementationClass);
+
+		return new ComponentResource(resourceReference.authenticationType().equals(AuthenticationType.CONTAINER),
+				resourceReference.shareable(), name, type, supplier);
+	}
+
+	static Iterable<ComponentResource<?>> getResources(Class<?> implementationClass) {
+		Queue<ComponentResource<?>> resources = new ArrayDeque<>();
+
+		var resourceReferences = AnnotationBridge.getAnnotation(Resources.class, implementationClass);
+		if (resourceReferences != null)
+			for (var resourceReference : resourceReferences.value())
+				if (isApplicationResource(resourceReference, implementationClass))
+					resources.add(createResource(resourceReference, implementationClass));
+
+		var resourceReference = AnnotationBridge.getAnnotation(Resource.class, implementationClass);
+		if (resourceReference != null)
+			if (isApplicationResource(resourceReference, implementationClass))
+				resources.add(createResource(resourceReference, implementationClass));
+
+		return resources;
+	}
 
 	private final boolean needsAuthentication;
 	private final boolean shared;
@@ -44,19 +144,12 @@ class ComponentResource<T> implements IuResource<T> {
 	private final IuType<T> type;
 	private final Supplier<T> factory;
 
-	ComponentResource(boolean needsAuthentication, boolean shared, String name, IuType<T> type, Supplier<T> factory) {
+	private ComponentResource(boolean needsAuthentication, boolean shared, String name, IuType<T> type,
+			Supplier<T> factory) {
 		this.needsAuthentication = needsAuthentication;
 		this.shared = shared;
 		this.name = name;
 		this.type = type;
-		this.factory = factory;
-	}
-
-	ComponentResource(IuResource<T> copy, Supplier<T> factory) {
-		this.needsAuthentication = copy.needsAuthentication();
-		this.shared = copy.shared();
-		this.name = copy.name();
-		this.type = copy.type();
 		this.factory = factory;
 	}
 
@@ -83,6 +176,12 @@ class ComponentResource<T> implements IuResource<T> {
 	@Override
 	public T get() {
 		return factory.get();
+	}
+
+	@Override
+	public String toString() {
+		return "ComponentResource [needsAuthentication=" + needsAuthentication + ", shared=" + shared + ", name=" + name
+				+ ", type=" + type + "]";
 	}
 
 }

@@ -32,12 +32,10 @@
 package iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.net.URL;
@@ -89,15 +87,6 @@ public class LegacyClassLoaderTest {
 	public void testIsolationFromSystemLoader() throws Throwable {
 		assertThrows(ClassNotFoundException.class, () -> loader.loadClass(getClass().getName()));
 		assertThrows(ClassNotFoundException.class, () -> loader.loadClass(Resource.class.getName()));
-	}
-
-	@Test
-	public void testPlatformClassNames() throws Throwable {
-		assertTrue(loader.isPlatformType("jakarta."));
-		assertTrue(loader.isPlatformType("java."));
-		assertTrue(loader.isPlatformType("javax."));
-		assertTrue(loader.isPlatformType("jdk."));
-		assertFalse(loader.isPlatformType("iu."));
 	}
 
 	@Test

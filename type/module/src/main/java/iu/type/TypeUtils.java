@@ -1,0 +1,74 @@
+package iu.type;
+
+import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Executable;
+import java.lang.reflect.Field;
+import java.lang.reflect.Parameter;
+import java.util.concurrent.Callable;
+
+final class TypeUtils {
+
+	/**
+	 * Determines if a type name is exempt from the {@link ClassLoader} delegation
+	 * suppression required for web applications.
+	 * 
+	 * @see <a href=
+	 *      "https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader">
+	 *      Servlet 6.0, section 10.7.2</a>
+	 */
+	static boolean isPlatformType(String name) {
+		return name.startsWith("jakarta.") //
+				|| name.startsWith("java.") //
+				|| name.startsWith("javax.") //
+				|| name.startsWith("jdk.");
+	}
+
+	static ClassLoader getContext(AnnotatedElement element) {
+		if (element instanceof Class)
+			return ((Class<?>) element).getClassLoader();
+		else if (element instanceof Executable)
+			return ((Executable) element).getDeclaringClass().getClassLoader();
+		else if (element instanceof Field)
+			return ((Field) element).getDeclaringClass().getClassLoader();
+		else if (element instanceof Parameter)
+			return ((Parameter) element).getDeclaringExecutable().getDeclaringClass().getClassLoader();
+		else
+			throw new UnsupportedOperationException("Cannot determine context for " + element);
+	}
+
+	static <T> T callWithContext(AnnotatedElement element, Callable<T> call) throws Exception {
+		return callWithContext(getContext(element), call);
+	}
+
+	static void doInContext(AnnotatedElement element, Runnable run) {
+		doInContext(getContext(element), run);
+	}
+
+	static <T> T callWithContext(ClassLoader contextLoader, Callable<T> call) throws Exception {
+		var current = Thread.currentThread();
+		var loader = current.getContextClassLoader();
+		try {
+			current.setContextClassLoader(contextLoader);
+			return call.call();
+		} finally {
+			current.setContextClassLoader(loader);
+		}
+	}
+
+	static void doInContext(ClassLoader contextLoader, Runnable run) {
+		try {
+			callWithContext(contextLoader, () -> {
+				run.run();
+				return null;
+			});
+		} catch (RuntimeException | Error e) {
+			throw e;
+		} catch (Exception e) {
+			throw new IllegalStateException(e);
+		}
+	}
+
+	private TypeUtils() {
+	}
+
+}

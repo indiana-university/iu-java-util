@@ -68,7 +68,7 @@ class Component implements IuComponent {
 	private ClassLoader classLoader;
 
 	private Kind kind;
-	private ComponentVersion version;
+	private Set<ComponentVersion> versions;
 	private Properties properties;
 
 	private Set<IuType<?>> interfaces;
@@ -104,15 +104,16 @@ class Component implements IuComponent {
 
 		var firstArchive = archives.iterator().next();
 		kind = firstArchive.kind();
-		version = firstArchive.version();
 		properties = firstArchive.properties();
 
+		versions = new LinkedHashSet<>();
 		for (var archive : archives) {
+			versions.add(archive.version());
 			if (archive.kind().isWeb())
 				if (archive == firstArchive)
 					for (var webResource : archive.webResources().entrySet())
-						resources.add(new ComponentResource<>(true, true, webResource.getKey(), IuType.of(byte[].class),
-								webResource::getValue));
+						resources
+								.add(ComponentResource.createWebResource(webResource.getKey(), webResource.getValue()));
 				else
 					throw new IllegalArgumentException("Component must not include a web component as a dependency");
 
@@ -137,15 +138,25 @@ class Component implements IuComponent {
 							}
 
 							annotatedWithType.add(IuType.of(loadedClass));
-
 						}
+
+						for (var resource : ComponentResource.getResources(loadedClass))
+							resources.add(resource);
 					}
 				} catch (Throwable e) {
-					LOG.log(Level.WARNING, e, () -> "Invalid class " + className + " in component " + version);
+					LOG.log(Level.WARNING, e,
+							() -> "Invalid class " + className + " in component " + archive.version());
 				}
 		}
 
+		if (parent != null)
+			versions.addAll(parent.versions);
+
 		this.interfaces = Collections.unmodifiableSet(interfaces);
+		for (var annotatedTypeEntry : annotatedTypes.entrySet())
+			annotatedTypeEntry.setValue(Collections.unmodifiableList(annotatedTypeEntry.getValue()));
+		this.annotatedTypes = Collections.unmodifiableMap(annotatedTypes);
+		this.resources = Collections.unmodifiableList(resources);
 	}
 
 	private void checkClosed() {
@@ -168,11 +179,16 @@ class Component implements IuComponent {
 		return properties;
 	}
 
+	Set<ComponentVersion> versions() {
+		checkClosed();
+		return versions;
+	}
+
 	@Override
 	public IuComponent extend(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
 			throws IOException, IllegalArgumentException {
 		checkClosed();
-		throw new UnsupportedOperationException();
+		return ComponentFactory.createComponent(this, componentArchiveSource, providedDependencyArchiveSources);
 	}
 
 	@Override
@@ -184,7 +200,7 @@ class Component implements IuComponent {
 	@Override
 	public IuComponentVersion version() {
 		checkClosed();
-		return version;
+		return versions.iterator().next();
 	}
 
 	@Override
@@ -244,7 +260,7 @@ class Component implements IuComponent {
 		moduleFinder = null;
 		controller = null;
 		kind = null;
-		version = null;
+		versions = null;
 		properties = null;
 		classLoader = null;
 		interfaces = null;

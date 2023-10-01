@@ -43,24 +43,9 @@ class LegacyClassLoader extends URLClassLoader {
 		this.web = web;
 	}
 
-	/**
-	 * Determines if a type name is exempt from the {@link ClassLoader} delegation
-	 * suppression required for web applications.
-	 * 
-	 * @see <a href=
-	 *      "https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader">
-	 *      Servlet 6.0, section 10.7.2</a>
-	 */
-	boolean isPlatformType(String name) {
-		return name.startsWith("jakarta.") //
-				|| name.startsWith("java.") //
-				|| name.startsWith("javax.") //
-				|| name.startsWith("jdk.");
-	}
-
 	@Override
 	protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-		if (!web || isPlatformType(name))
+		if (!web || TypeUtils.isPlatformType(name))
 			return super.loadClass(name, resolve);
 
 		synchronized (getClassLoadingLock(name)) {

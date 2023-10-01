@@ -34,14 +34,15 @@ package iu.type;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.jar.Attributes.Name;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
-import java.util.jar.Attributes.Name;
 
 import edu.iu.test.IuTest;
 
@@ -79,6 +80,16 @@ public class TestArchives {
 			for (var jar : Files.newDirectoryStream(Path.of(deps).toRealPath()))
 				providedDependencyArchives.offer(Files.newInputStream(jar));
 		return providedDependencyArchives.toArray(new InputStream[providedDependencyArchives.size()]);
+	}
+
+	public static URL[] getClassPath(String componentName) throws IOException {
+		Queue<URL> path = new ArrayDeque<>();
+		path.offer(Path.of(IuTest.getProperty(componentName + ".archive")).toUri().toURL());
+		var deps = IuTest.getProperty(componentName + ".deps");
+		if (deps != null)
+			for (var jar : Files.newDirectoryStream(Path.of(deps).toRealPath()))
+				path.offer(jar.toUri().toURL());
+		return path.toArray(path.toArray(new URL[path.size()]));
 	}
 
 	public static Path[] getModulePath(String componentName) throws IOException {
