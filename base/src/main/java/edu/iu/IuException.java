@@ -332,7 +332,8 @@ public final class IuException {
 	 * re-throwing.
 	 * </p>
 	 * <p>
-	 * Handles other exceptions via {@link #checked(Throwable, Class)}.
+	 * Handles other exceptions via {@link #checked(Throwable)}.
+	 * </p>
 	 * 
 	 * @param executable constructor or method
 	 * @param args       Arguments for a constructor or static method; target
@@ -356,7 +357,8 @@ public final class IuException {
 	 * re-throwing.
 	 * </p>
 	 * <p>
-	 * Handles other exceptions via {@link #checked(Throwable, Class, Class)}.
+	 * Handles other exceptions via {@link #checked(Throwable, Class)}.
+	 * </p>
 	 * 
 	 * @param <T>                    Expected exception type
 	 * 
@@ -385,7 +387,8 @@ public final class IuException {
 	 * re-throwing.
 	 * </p>
 	 * <p>
-	 * Handles other exceptions via {@link #checked(Throwable)}.
+	 * Handles other exceptions via {@link #checked(Throwable, Class, Class)}.
+	 * </p>
 	 * 
 	 * @param <T1>                    Expected exception type
 	 * @param <T2>                    Expected exception type
@@ -417,7 +420,8 @@ public final class IuException {
 	 * re-throwing.
 	 * </p>
 	 * <p>
-	 * Handles other exceptions via {@link #checked(Throwable)}.
+	 * Handles other exceptions via {@link #checked(Throwable, Class, Class, Class)}.
+	 * </p>
 	 * 
 	 * @param <T1>                    Expected exception type
 	 * @param <T2>                    Expected exception type
@@ -449,7 +453,7 @@ public final class IuException {
 	 * Gracefully runs an {@link UnsafeRunnable}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #unchecked(Throwable)}.
 	 * </p>
 	 * 
 	 * @param runnable Any {@link UnsafeRunnable}
@@ -466,7 +470,7 @@ public final class IuException {
 	 * Gracefully runs an {@link UnsafeRunnable}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable)}.
 	 * </p>
 	 * 
 	 * @param runnable Any {@link UnsafeRunnable}
@@ -484,7 +488,7 @@ public final class IuException {
 	 * Gracefully runs an {@link UnsafeRunnable}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable, Class)}.
 	 * </p>
 	 * 
 	 * @param <T>                    Expected exception type
@@ -507,7 +511,7 @@ public final class IuException {
 	 * Gracefully runs an {@link UnsafeRunnable}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class)}.
 	 * </p>
 	 * 
 	 * @param <T1>                    Expected exception type
@@ -533,7 +537,7 @@ public final class IuException {
 	 * Gracefully runs an {@link UnsafeRunnable}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class, Class)}.
 	 * </p>
 	 * 
 	 * @param <T1>                    Expected exception type
@@ -563,7 +567,7 @@ public final class IuException {
 	 * Gracefully gets from an {@link UnsafeSupplier}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #unchecked(Throwable)}.
 	 * </p>
 	 * 
 	 * @param <T>      result type
@@ -583,7 +587,7 @@ public final class IuException {
 	 * Gracefully gets from an {@link UnsafeSupplier}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable)}.
 	 * </p>
 	 * 
 	 * @param <T>      result type
@@ -604,7 +608,7 @@ public final class IuException {
 	 * Gracefully gets from an {@link UnsafeSupplier}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable, Class)}.
 	 * </p>
 	 * 
 	 * @param <T>                    result type
@@ -628,7 +632,7 @@ public final class IuException {
 	 * Gracefully gets from an {@link UnsafeSupplier}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class)}.
 	 * </p>
 	 * 
 	 * @param <T>                     result type
@@ -655,7 +659,7 @@ public final class IuException {
 	 * Gracefully gets from an {@link UnsafeSupplier}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class, Class)}.
 	 * </p>
 	 * 
 	 * @param <T>                     result type
@@ -686,7 +690,7 @@ public final class IuException {
 	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #unchecked(Throwable)}.
 	 * </p>
 	 * 
 	 * @param <T>      argument type
@@ -706,7 +710,7 @@ public final class IuException {
 	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable)}.
 	 * </p>
 	 * 
 	 * @param <T>      argument type
@@ -727,7 +731,7 @@ public final class IuException {
 	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable, Class)}.
 	 * </p>
 	 * 
 	 * @param <T>                    argument type
@@ -753,7 +757,7 @@ public final class IuException {
 	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class)}.
 	 * </p>
 	 * 
 	 * @param <T>                     argument type
@@ -782,7 +786,7 @@ public final class IuException {
 	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class, Class)}.
 	 * </p>
 	 * 
 	 * @param <T>                     argument type
@@ -815,7 +819,7 @@ public final class IuException {
 	 * Gracefully applies an {@link UnsafeFunction}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #unchecked(Throwable)}.
 	 * </p>
 	 * 
 	 * @param <T>      argument type
@@ -837,7 +841,7 @@ public final class IuException {
 	 * Gracefully applies an {@link UnsafeFunction}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable)}.
 	 * </p>
 	 * 
 	 * @param <T>      argument type
@@ -860,7 +864,7 @@ public final class IuException {
 	 * Gracefully applies an {@link UnsafeFunction}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable, Class)}.
 	 * </p>
 	 * 
 	 * @param <T>                    argument type
@@ -887,7 +891,7 @@ public final class IuException {
 	 * Gracefully applies an {@link UnsafeFunction}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class)}.
 	 * </p>
 	 * 
 	 * @param <T>                     argument type
@@ -917,7 +921,7 @@ public final class IuException {
 	 * Gracefully applies an {@link UnsafeFunction}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class, Class)}.
 	 * </p>
 	 * 
 	 * @param <T>                     argument type
@@ -951,7 +955,7 @@ public final class IuException {
 	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #unchecked(Throwable)}.
 	 * </p>
 	 * 
 	 * @param <T>            first argument type
@@ -975,7 +979,7 @@ public final class IuException {
 	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable)}.
 	 * </p>
 	 * 
 	 * @param <T>            first argument type
@@ -1001,7 +1005,7 @@ public final class IuException {
 	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable, Class)}.
 	 * </p>
 	 * 
 	 * @param <T>                    first argument type
@@ -1030,7 +1034,7 @@ public final class IuException {
 	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class)}.
 	 * </p>
 	 * 
 	 * @param <T>                     first argument type
@@ -1063,7 +1067,7 @@ public final class IuException {
 	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class, Class)}.
 	 * </p>
 	 * 
 	 * @param <T>                     first argument type
@@ -1099,7 +1103,7 @@ public final class IuException {
 	 * Gracefully applies an {@link UnsafeBiFunction}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #unchecked(Throwable)}.
 	 * </p>
 	 * 
 	 * @param <T>            first argument type
@@ -1125,7 +1129,7 @@ public final class IuException {
 	 * Gracefully applies an {@link UnsafeBiFunction}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable)}.
 	 * </p>
 	 * 
 	 * @param <T>            first argument type
@@ -1153,7 +1157,7 @@ public final class IuException {
 	 * Gracefully applies an {@link UnsafeBiFunction}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable, Class)}.
 	 * </p>
 	 * 
 	 * @param <T>                    first argument type
@@ -1183,7 +1187,7 @@ public final class IuException {
 	 * Gracefully applies an {@link UnsafeBiFunction}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class)}.
 	 * </p>
 	 * 
 	 * @param <T>                     first argument type
@@ -1217,7 +1221,7 @@ public final class IuException {
 	 * Gracefully applies an {@link UnsafeBiFunction}.
 	 * 
 	 * <p>
-	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class, Class)}.
 	 * </p>
 	 * 
 	 * @param <T>                     first argument type
