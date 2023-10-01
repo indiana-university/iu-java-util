@@ -559,6 +559,697 @@ public final class IuException {
 		}
 	}
 
+	/**
+	 * Gracefully gets from an {@link UnsafeSupplier}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>      result type
+	 * 
+	 * @param supplier Any {@link UnsafeSupplier}
+	 * @return result
+	 */
+	public static <T> T unchecked(UnsafeSupplier<T> supplier) {
+		try {
+			return supplier.get();
+		} catch (Throwable e) {
+			throw unchecked(e);
+		}
+	}
+
+	/**
+	 * Gracefully gets from an {@link UnsafeSupplier}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>      result type
+	 * 
+	 * @param supplier Any {@link UnsafeSupplier}
+	 * @return result
+	 * @throws Exception If thrown by {@link UnsafeSupplier#get()}
+	 */
+	public static <T> T checked(UnsafeSupplier<T> supplier) throws Exception {
+		try {
+			return supplier.get();
+		} catch (Throwable e) {
+			throw checked(e);
+		}
+	}
+
+	/**
+	 * Gracefully gets from an {@link UnsafeSupplier}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>                    result type
+	 * @param <T1>                   Expected exception type
+	 * 
+	 * @param expectedExceptionClass Expected exception class
+	 * @param supplier               Any {@link UnsafeSupplier}
+	 * @return result
+	 * @throws T1 If thrown by {@link UnsafeSupplier#get()}
+	 */
+	public static <T, T1 extends Exception> T checked(Class<T1> expectedExceptionClass, UnsafeSupplier<T> supplier)
+			throws T1 {
+		try {
+			return supplier.get();
+		} catch (Throwable e) {
+			throw checked(e, expectedExceptionClass);
+		}
+	}
+
+	/**
+	 * Gracefully gets from an {@link UnsafeSupplier}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>                     result type
+	 * @param <T1>                    Expected exception type
+	 * @param <T2>                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param supplier                Any {@link UnsafeSupplier}
+	 * @return result
+	 * @throws T1 If thrown by {@link UnsafeSupplier#get()}
+	 * @throws T2 If thrown by {@link UnsafeSupplier#get()}
+	 */
+	public static <T, T1 extends Exception, T2 extends Exception> T checked(Class<T1> expectedExceptionClass1,
+			Class<T2> expectedExceptionClass2, UnsafeSupplier<T> supplier) throws T1, T2 {
+		try {
+			return supplier.get();
+		} catch (Throwable e) {
+			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);
+		}
+	}
+
+	/**
+	 * Gracefully gets from an {@link UnsafeSupplier}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>                     result type
+	 * @param <T1>                    Expected exception type
+	 * @param <T2>                    Expected exception type
+	 * @param <T3>                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param expectedExceptionClass3 Expected exception class
+	 * @param supplier                Any {@link UnsafeSupplier}
+	 * @return result
+	 * @throws T1 If thrown by {@link UnsafeSupplier#get()}
+	 * @throws T2 If thrown by {@link UnsafeSupplier#get()}
+	 * @throws T3 If thrown by {@link UnsafeSupplier#get()}
+	 */
+	public static <T, T1 extends Exception, T2 extends Exception, T3 extends Exception> T checked(
+			Class<T1> expectedExceptionClass1, Class<T2> expectedExceptionClass2, Class<T3> expectedExceptionClass3,
+			UnsafeSupplier<T> supplier) throws T1, T2, T3 {
+		try {
+			return supplier.get();
+		} catch (Throwable e) {
+			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);
+		}
+	}
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>      argument type
+	 * 
+	 * @param argument Argument for {@link UnsafeConsumer#accept(Object)}
+	 * @param consumer Any {@link UnsafeConsumer}
+	 */
+	public static <T> void unchecked(T argument, UnsafeConsumer<T> consumer) {
+		try {
+			consumer.accept(argument);
+		} catch (Throwable e) {
+			throw unchecked(e);
+		}
+	}
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>      argument type
+	 * 
+	 * @param argument Argument for {@link UnsafeConsumer#accept(Object)}
+	 * @param consumer Any {@link UnsafeConsumer}
+	 * @throws Exception If thrown by {@link UnsafeConsumer#accept(Object)}
+	 */
+	public static <T> void checked(T argument, UnsafeConsumer<T> consumer) throws Exception {
+		try {
+			consumer.accept(argument);
+		} catch (Throwable e) {
+			throw checked(e);
+		}
+	}
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>                    argument type
+	 * @param <T1>                   Expected exception type
+	 * 
+	 * @param expectedExceptionClass Expected exception class
+	 * @param argument               Argument for
+	 *                               {@link UnsafeConsumer#accept(Object)}
+	 * @param consumer               Any {@link UnsafeConsumer}
+	 * 
+	 * @throws T1 If thrown by {@link UnsafeConsumer#accept(Object)}
+	 */
+	public static <T, T1 extends Exception> void checked(Class<T1> expectedExceptionClass, T argument,
+			UnsafeConsumer<T> consumer) throws T1 {
+		try {
+			consumer.accept(argument);
+		} catch (Throwable e) {
+			throw checked(e, expectedExceptionClass);
+		}
+	}
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>                     argument type
+	 * @param <T1>                    Expected exception type
+	 * @param <T2>                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param argument                Argument for
+	 *                                {@link UnsafeConsumer#accept(Object)}
+	 * @param consumer                Any {@link UnsafeConsumer}
+	 * 
+	 * @throws T1 If thrown by {@link UnsafeConsumer#accept(Object)}
+	 * @throws T2 If thrown by {@link UnsafeConsumer#accept(Object)}
+	 */
+	public static <T, T1 extends Exception, T2 extends Exception> void checked(Class<T1> expectedExceptionClass1,
+			Class<T2> expectedExceptionClass2, T argument, UnsafeConsumer<T> consumer) throws T1, T2 {
+		try {
+			consumer.accept(argument);
+		} catch (Throwable e) {
+			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);
+		}
+	}
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>                     argument type
+	 * @param <T1>                    Expected exception type
+	 * @param <T2>                    Expected exception type
+	 * @param <T3>                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param expectedExceptionClass3 Expected exception class
+	 * @param argument                Argument for
+	 *                                {@link UnsafeConsumer#accept(Object)}
+	 * @param consumer                Any {@link UnsafeConsumer}
+	 * 
+	 * @throws T1 If thrown by {@link UnsafeConsumer#accept(Object)}
+	 * @throws T2 If thrown by {@link UnsafeConsumer#accept(Object)}
+	 * @throws T3 If thrown by {@link UnsafeConsumer#accept(Object)}
+	 */
+	public static <T, T1 extends Exception, T2 extends Exception, T3 extends Exception> void checked(
+			Class<T1> expectedExceptionClass1, Class<T2> expectedExceptionClass2, Class<T3> expectedExceptionClass3,
+			T argument, UnsafeConsumer<T> consumer) throws T1, T2, T3 {
+		try {
+			consumer.accept(argument);
+		} catch (Throwable e) {
+			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);
+		}
+	}
+
+	/**
+	 * Gracefully applies an {@link UnsafeFunction}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>      argument type
+	 * @param <R>      result type
+	 * 
+	 * @param argument Argument to {@link UnsafeFunction#apply(Object)}
+	 * @param function Any {@link UnsafeFunction}
+	 * @return result
+	 */
+	public static <T, R> R unchecked(T argument, UnsafeFunction<T, R> function) {
+		try {
+			return function.apply(argument);
+		} catch (Throwable e) {
+			throw unchecked(e);
+		}
+	}
+
+	/**
+	 * Gracefully applies an {@link UnsafeFunction}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>      argument type
+	 * @param <R>      result type
+	 * 
+	 * @param argument Argument to {@link UnsafeFunction#apply(Object)}
+	 * @param function Any {@link UnsafeFunction}
+	 * @return result
+	 * @throws Exception If thrown by {@link UnsafeFunction#apply(Object)}
+	 */
+	public static <T, R> R checked(T argument, UnsafeFunction<T, R> function) throws Exception {
+		try {
+			return function.apply(argument);
+		} catch (Throwable e) {
+			throw checked(e);
+		}
+	}
+
+	/**
+	 * Gracefully applies an {@link UnsafeFunction}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>                    argument type
+	 * @param <R>                    result type
+	 * @param <T1>                   Expected exception type
+	 * 
+	 * @param expectedExceptionClass Expected exception class
+	 * @param argument               Argument to
+	 *                               {@link UnsafeFunction#apply(Object)}
+	 * @param function               Any {@link UnsafeFunction}
+	 * @return result
+	 * @throws T1 If thrown by {@link UnsafeFunction#apply(Object)}
+	 */
+	public static <T, R, T1 extends Exception> R checked(Class<T1> expectedExceptionClass, T argument,
+			UnsafeFunction<T, R> function) throws T1 {
+		try {
+			return function.apply(argument);
+		} catch (Throwable e) {
+			throw checked(e, expectedExceptionClass);
+		}
+	}
+
+	/**
+	 * Gracefully applies an {@link UnsafeFunction}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>                     argument type
+	 * @param <R>                     result type
+	 * @param <T1>                    Expected exception type
+	 * @param <T2>                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param argument                Argument to
+	 *                                {@link UnsafeFunction#apply(Object)}
+	 * @param function                Any {@link UnsafeFunction}
+	 * @return result
+	 * @throws T1 If thrown by {@link UnsafeFunction#apply(Object)}
+	 * @throws T2 If thrown by {@link UnsafeFunction#apply(Object)}
+	 */
+	public static <T, R, T1 extends Exception, T2 extends Exception> R checked(Class<T1> expectedExceptionClass1,
+			Class<T2> expectedExceptionClass2, T argument, UnsafeFunction<T, R> function) throws T1, T2 {
+		try {
+			return function.apply(argument);
+		} catch (Throwable e) {
+			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);
+		}
+	}
+
+	/**
+	 * Gracefully applies an {@link UnsafeFunction}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>                     argument type
+	 * @param <R>                     result type
+	 * @param <T1>                    Expected exception type
+	 * @param <T2>                    Expected exception type
+	 * @param <T3>                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param expectedExceptionClass3 Expected exception class
+	 * @param argument                Argument to
+	 *                                {@link UnsafeFunction#apply(Object)}
+	 * @param function                Any {@link UnsafeFunction}
+	 * @return result
+	 * @throws T1 If thrown by {@link UnsafeFunction#apply(Object)}
+	 * @throws T2 If thrown by {@link UnsafeFunction#apply(Object)}
+	 * @throws T3 If thrown by {@link UnsafeFunction#apply(Object)}
+	 */
+	public static <T, R, T1 extends Exception, T2 extends Exception, T3 extends Exception> R checked(
+			Class<T1> expectedExceptionClass1, Class<T2> expectedExceptionClass2, Class<T3> expectedExceptionClass3,
+			T argument, UnsafeFunction<T, R> function) throws T1, T2, T3 {
+		try {
+			return function.apply(argument);
+		} catch (Throwable e) {
+			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);
+		}
+	}
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>            first argument type
+	 * @param <U>            second argument type
+	 * 
+	 * @param firstArgument  First argument for
+	 *                       {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param secondArgument Second argument for
+	 *                       {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param consumer       Any {@link UnsafeBiConsumer}
+	 */
+	public static <T, U> void unchecked(T firstArgument, U secondArgument, UnsafeBiConsumer<T, U> consumer) {
+		try {
+			consumer.accept(firstArgument, secondArgument);
+		} catch (Throwable e) {
+			throw unchecked(e);
+		}
+	}
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>            first argument type
+	 * @param <U>            second argument type
+	 * 
+	 * @param firstArgument  Argument for
+	 *                       {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param secondArgument Second argument for
+	 *                       {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param consumer       Any {@link UnsafeBiConsumer}
+	 * @throws Exception If thrown by {@link UnsafeBiConsumer#accept(Object,Object)}
+	 */
+	public static <T, U> void checked(T firstArgument, U secondArgument, UnsafeBiConsumer<T, U> consumer)
+			throws Exception {
+		try {
+			consumer.accept(firstArgument, secondArgument);
+		} catch (Throwable e) {
+			throw checked(e);
+		}
+	}
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>                    first argument type
+	 * @param <U>                    second argument type
+	 * @param <T1>                   Expected exception type
+	 * 
+	 * @param expectedExceptionClass Expected exception class
+	 * @param firstArgument          Argument for
+	 *                               {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param secondArgument         Second argument for
+	 *                               {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param consumer               Any {@link UnsafeBiConsumer}
+	 * 
+	 * @throws T1 If thrown by {@link UnsafeBiConsumer#accept(Object,Object)}
+	 */
+	public static <T, U, T1 extends Exception> void checked(Class<T1> expectedExceptionClass, T firstArgument,
+			U secondArgument, UnsafeBiConsumer<T, U> consumer) throws T1 {
+		try {
+			consumer.accept(firstArgument, secondArgument);
+		} catch (Throwable e) {
+			throw checked(e, expectedExceptionClass);
+		}
+	}
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>                     first argument type
+	 * @param <U>                     second argument type
+	 * @param <T1>                    Expected exception type
+	 * @param <T2>                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param firstArgument           Argument for
+	 *                                {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param secondArgument          Second argument for
+	 *                                {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param consumer                Any {@link UnsafeBiConsumer}
+	 * 
+	 * @throws T1 If thrown by {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @throws T2 If thrown by {@link UnsafeBiConsumer#accept(Object,Object)}
+	 */
+	public static <T, U, T1 extends Exception, T2 extends Exception> void checked(Class<T1> expectedExceptionClass1,
+			Class<T2> expectedExceptionClass2, T firstArgument, U secondArgument, UnsafeBiConsumer<T, U> consumer)
+			throws T1, T2 {
+		try {
+			consumer.accept(firstArgument, secondArgument);
+		} catch (Throwable e) {
+			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);
+		}
+	}
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>                     first argument type
+	 * @param <U>                     second argument type
+	 * @param <T1>                    Expected exception type
+	 * @param <T2>                    Expected exception type
+	 * @param <T3>                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param expectedExceptionClass3 Expected exception class
+	 * @param firstArgument           Argument for
+	 *                                {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param secondArgument          Second argument for
+	 *                                {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param consumer                Any {@link UnsafeBiConsumer}
+	 * 
+	 * @throws T1 If thrown by {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @throws T2 If thrown by {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @throws T3 If thrown by {@link UnsafeBiConsumer#accept(Object,Object)}
+	 */
+	public static <T, U, T1 extends Exception, T2 extends Exception, T3 extends Exception> void checked(
+			Class<T1> expectedExceptionClass1, Class<T2> expectedExceptionClass2, Class<T3> expectedExceptionClass3,
+			T firstArgument, U secondArgument, UnsafeBiConsumer<T, U> consumer) throws T1, T2, T3 {
+		try {
+			consumer.accept(firstArgument, secondArgument);
+		} catch (Throwable e) {
+			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);
+		}
+	}
+
+	/**
+	 * Gracefully applies an {@link UnsafeBiFunction}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>            first argument type
+	 * @param <U>            second argument type
+	 * @param <R>            result type
+	 * 
+	 * @param firstArgument  First argument to
+	 *                       {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param secondArgument Second argument to
+	 *                       {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param function       Any {@link UnsafeFunction}
+	 * @return result
+	 */
+	public static <T, U, R> R unchecked(T firstArgument, U secondArgument, UnsafeBiFunction<T, U, R> function) {
+		try {
+			return function.apply(firstArgument, secondArgument);
+		} catch (Throwable e) {
+			throw unchecked(e);
+		}
+	}
+
+	/**
+	 * Gracefully applies an {@link UnsafeBiFunction}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>            first argument type
+	 * @param <U>            second argument type
+	 * @param <R>            result type
+	 * 
+	 * @param firstArgument  First argument to
+	 *                       {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param secondArgument Second argument to
+	 *                       {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param function       Any {@link UnsafeBiFunction}
+	 * @return result
+	 * @throws Exception If thrown by {@link UnsafeBiFunction#apply(Object, Object)}
+	 */
+	public static <T, U, R> R checked(T firstArgument, U secondArgument, UnsafeBiFunction<T, U, R> function)
+			throws Exception {
+		try {
+			return function.apply(firstArgument, secondArgument);
+		} catch (Throwable e) {
+			throw checked(e);
+		}
+	}
+
+	/**
+	 * Gracefully applies an {@link UnsafeBiFunction}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>                    first argument type
+	 * @param <U>                    second argument type
+	 * @param <R>                    result type
+	 * @param <T1>                   Expected exception type
+	 * 
+	 * @param expectedExceptionClass Expected exception class
+	 * @param firstArgument          First argument to
+	 *                               {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param secondArgument         Second argument to
+	 *                               {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param function               Any {@link UnsafeBiFunction}
+	 * @return result
+	 * @throws T1 If thrown by {@link UnsafeBiFunction#apply(Object, Object)}
+	 */
+	public static <T, U, R, T1 extends Exception> R checked(Class<T1> expectedExceptionClass, T firstArgument,
+			U secondArgument, UnsafeBiFunction<T, U, R> function) throws T1 {
+		try {
+			return function.apply(firstArgument, secondArgument);
+		} catch (Throwable e) {
+			throw checked(e, expectedExceptionClass);
+		}
+	}
+
+	/**
+	 * Gracefully applies an {@link UnsafeBiFunction}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>                     first argument type
+	 * @param <U>                     second argument type
+	 * @param <R>                     result type
+	 * @param <T1>                    Expected exception type
+	 * @param <T2>                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param firstArgument           First argument to
+	 *                                {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param secondArgument          Second argument to
+	 *                                {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param function                Any {@link UnsafeBiFunction}
+	 * @return result
+	 * @throws T1 If thrown by {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @throws T2 If thrown by {@link UnsafeBiFunction#apply(Object, Object)}
+	 */
+	public static <T, U, R, T1 extends Exception, T2 extends Exception> R checked(Class<T1> expectedExceptionClass1,
+			Class<T2> expectedExceptionClass2, T firstArgument, U secondArgument, UnsafeBiFunction<T, U, R> function)
+			throws T1, T2 {
+		try {
+			return function.apply(firstArgument, secondArgument);
+		} catch (Throwable e) {
+			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);
+		}
+	}
+
+	/**
+	 * Gracefully applies an {@link UnsafeBiFunction}.
+	 * 
+	 * <p>
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>                     first argument type
+	 * @param <U>                     second argument type
+	 * @param <R>                     result type
+	 * @param <T1>                    Expected exception type
+	 * @param <T2>                    Expected exception type
+	 * @param <T3>                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param expectedExceptionClass3 Expected exception class
+	 * @param firstArgument           First argument to
+	 *                                {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param secondArgument          Second argument to
+	 *                                {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param function                Any {@link UnsafeBiFunction}
+	 * @return result
+	 * @throws T1 If thrown by {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @throws T2 If thrown by {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @throws T3 If thrown by {@link UnsafeBiFunction#apply(Object, Object)}
+	 */
+	public static <T, U, R, T1 extends Exception, T2 extends Exception, T3 extends Exception> R checked(
+			Class<T1> expectedExceptionClass1, Class<T2> expectedExceptionClass2, Class<T3> expectedExceptionClass3,
+			T firstArgument, U secondArgument, UnsafeBiFunction<T, U, R> function) throws T1, T2, T3 {
+		try {
+			return function.apply(firstArgument, secondArgument);
+		} catch (Throwable e) {
+			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);
+		}
+	}
+
 	private IuException() {
 	}
 }

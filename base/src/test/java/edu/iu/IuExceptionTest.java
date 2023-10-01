@@ -1,5 +1,6 @@
 package edu.iu;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
@@ -136,6 +137,54 @@ public class IuExceptionTest {
 		})));
 	}
 
+	private void assertSupplier(Class<? extends Throwable> throwableClass,
+			UnsafeFunction<UnsafeSupplier<Object>, Object> function) throws Throwable {
+		var echo = new Object();
+		var throwable = throwableClass.getDeclaredConstructor().newInstance();
+		assertSame(echo, function.apply(() -> echo));
+		assertSame(throwable, Assertions.assertThrows(throwableClass, () -> function.apply(() -> {
+			throw throwable;
+		})));
+	}
+
+	private void assertConsumer(Class<? extends Throwable> throwableClass,
+			UnsafeConsumer<UnsafeConsumer<Object>> consumer) throws Throwable {
+		var throwable = throwableClass.getDeclaredConstructor().newInstance();
+		assertDoesNotThrow(() -> consumer.accept(o -> {
+		}));
+		assertSame(throwable, Assertions.assertThrows(throwableClass, () -> consumer.accept(o -> {
+			throw throwable;
+		})));
+	}
+
+	private void assertBiConsumer(Class<? extends Throwable> throwableClass,
+			UnsafeConsumer<UnsafeBiConsumer<Object, Object>> consumer) throws Throwable {
+		var throwable = throwableClass.getDeclaredConstructor().newInstance();
+		assertDoesNotThrow(() -> consumer.accept((a, b) -> {
+		}));
+		assertSame(throwable, Assertions.assertThrows(throwableClass, () -> consumer.accept((a, b) -> {
+			throw throwable;
+		})));
+	}
+
+	private void assertFunction(Class<? extends Throwable> throwableClass, Object echo,
+			UnsafeFunction<UnsafeFunction<Object, Object>, Object> consumer) throws Throwable {
+		var throwable = throwableClass.getDeclaredConstructor().newInstance();
+		assertSame(echo, consumer.apply(o -> o));
+		assertSame(throwable, Assertions.assertThrows(throwableClass, () -> consumer.apply(o -> {
+			throw throwable;
+		})));
+	}
+
+	private void assertBiFunction(Class<? extends Throwable> throwableClass, Object echo1, Object echo2,
+			UnsafeFunction<UnsafeBiFunction<Object, Object, Object[]>, Object[]> consumer) throws Throwable {
+		var throwable = throwableClass.getDeclaredConstructor().newInstance();
+		assertArrayEquals(new Object[] { echo1, echo2 }, consumer.apply((a, b) -> new Object[] { a, b }));
+		assertSame(throwable, Assertions.assertThrows(throwableClass, () -> consumer.apply((a, b) -> {
+			throw throwable;
+		})));
+	}
+
 	@Test
 	public void testUncheckedReturnsRuntimeException() throws Throwable {
 		assertReturns(RuntimeException.class, IuException::unchecked);
@@ -255,7 +304,7 @@ public class IuExceptionTest {
 	public void testUnsafeUnchecked() throws Throwable {
 		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
 			assertUnsafe(RuntimeException.class, (o, a) -> IuException.unchecked(o, a));
-			mockIuException.verify(() -> IuException.unchecked(any(Executable.class), any()), times(3));
+			mockIuException.verify(() -> IuException.unchecked(any(Executable.class), any(Object[].class)), times(6));
 			mockIuException.verify(() -> IuException.unchecked(any(Throwable.class)), times(3));
 		}
 	}
@@ -264,7 +313,7 @@ public class IuExceptionTest {
 	public void testUnsafeChecked() throws Throwable {
 		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
 			assertUnsafe(Exception.class, (o, a) -> IuException.checked(o, a));
-			mockIuException.verify(() -> IuException.checked(any(Executable.class), any()), times(3));
+			mockIuException.verify(() -> IuException.checked(any(Executable.class), any(Object[].class)), times(6));
 			mockIuException.verify(() -> IuException.checked(any(Throwable.class)), times(3));
 		}
 	}
@@ -273,8 +322,9 @@ public class IuExceptionTest {
 	public void testUnsafeChecked1() throws Throwable {
 		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
 			assertUnsafe(CheckedException1.class, (o, a) -> IuException.checked(CheckedException1.class, o, a));
-			mockIuException.verify(() -> IuException.checked(eq(CheckedException1.class), any(Executable.class), any()),
-					times(3));
+			mockIuException.verify(
+					() -> IuException.checked(eq(CheckedException1.class), any(Executable.class), any(Object[].class)),
+					times(6));
 			mockIuException.verify(() -> IuException.checked(any(Throwable.class), eq(CheckedException1.class)),
 					times(3));
 		}
@@ -286,7 +336,7 @@ public class IuExceptionTest {
 			assertUnsafe(CheckedException1.class,
 					(o, a) -> IuException.checked(CheckedException1.class, CheckedException2.class, o, a));
 			mockIuException.verify(() -> IuException.checked(eq(CheckedException1.class), eq(CheckedException2.class),
-					any(Executable.class), any()), times(3));
+					any(Executable.class), any(Object[].class)), times(6));
 			mockIuException.verify(() -> IuException.checked(any(Throwable.class), eq(CheckedException1.class),
 					eq(CheckedException2.class)), times(3));
 		}
@@ -298,7 +348,7 @@ public class IuExceptionTest {
 			assertUnsafe(CheckedException1.class, (o, a) -> IuException.checked(CheckedException1.class,
 					CheckedException2.class, CheckedException3.class, o, a));
 			mockIuException.verify(() -> IuException.checked(eq(CheckedException1.class), eq(CheckedException2.class),
-					eq(CheckedException3.class), any(Executable.class), any()), times(3));
+					eq(CheckedException3.class), any(Executable.class), any(Object[].class)), times(6));
 			mockIuException.verify(() -> IuException.checked(any(Throwable.class), eq(CheckedException1.class),
 					eq(CheckedException2.class), eq(CheckedException3.class)), times(3));
 		}
@@ -357,4 +407,331 @@ public class IuExceptionTest {
 		}
 	}
 
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testUncheckedUnsafeSupplier() throws Throwable {
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertSupplier(RuntimeException.class, r -> IuException.unchecked(r));
+			mockIuException.verify(() -> IuException.unchecked(any(UnsafeSupplier.class)), times(2));
+			mockIuException.verify(() -> IuException.unchecked(any(RuntimeException.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testCheckedUnsafeSupplier() throws Throwable {
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertSupplier(Exception.class, r -> IuException.checked(r));
+			mockIuException.verify(() -> IuException.checked(any(UnsafeSupplier.class)), times(2));
+			mockIuException.verify(() -> IuException.checked(any(Exception.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testChecked1UnsafeSupplier() throws Throwable {
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertSupplier(CheckedException1.class, r -> IuException.checked(CheckedException1.class, r));
+			mockIuException.verify(() -> IuException.checked(eq(CheckedException1.class), any(UnsafeSupplier.class)),
+					times(2));
+			mockIuException.verify(() -> IuException.checked(any(CheckedException1.class), eq(CheckedException1.class)),
+					times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testChecked2UnsafeSupplier() throws Throwable {
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertSupplier(CheckedException1.class,
+					r -> IuException.checked(CheckedException1.class, CheckedException2.class, r));
+			mockIuException.verify(() -> IuException.checked(eq(CheckedException1.class), eq(CheckedException2.class),
+					any(UnsafeSupplier.class)), times(2));
+			mockIuException.verify(() -> IuException.checked(any(CheckedException1.class), eq(CheckedException1.class),
+					eq(CheckedException2.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testChecked3UnsafeSupplier() throws Throwable {
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertSupplier(CheckedException1.class, r -> IuException.checked(CheckedException1.class,
+					CheckedException2.class, CheckedException3.class, r));
+			mockIuException.verify(() -> IuException.checked(eq(CheckedException1.class), eq(CheckedException2.class),
+					eq(CheckedException3.class), any(UnsafeSupplier.class)), times(2));
+			mockIuException.verify(() -> IuException.checked(any(CheckedException1.class), eq(CheckedException1.class),
+					eq(CheckedException2.class), eq(CheckedException3.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testUncheckedUnsafeConsumer() throws Throwable {
+		var echo = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertConsumer(RuntimeException.class, c -> IuException.unchecked(echo, c));
+			mockIuException.verify(() -> IuException.unchecked(eq(echo), any(UnsafeConsumer.class)), times(2));
+			mockIuException.verify(() -> IuException.unchecked(any(RuntimeException.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testCheckedUnsafeConsumer() throws Throwable {
+		var echo = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertConsumer(RuntimeException.class, c -> IuException.checked(echo, c));
+			mockIuException.verify(() -> IuException.checked(eq(echo), any(UnsafeConsumer.class)), times(2));
+			mockIuException.verify(() -> IuException.checked(any(Exception.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testChecked1UnsafeConsumer() throws Throwable {
+		var echo = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertConsumer(CheckedException1.class, c -> IuException.checked(CheckedException1.class, echo, c));
+			mockIuException.verify(
+					() -> IuException.checked(eq(CheckedException1.class), eq(echo), any(UnsafeConsumer.class)),
+					times(2));
+			mockIuException.verify(() -> IuException.checked(any(CheckedException1.class), eq(CheckedException1.class)),
+					times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testChecked2UnsafeConsumer() throws Throwable {
+		var echo = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertConsumer(CheckedException1.class,
+					c -> IuException.checked(CheckedException1.class, CheckedException2.class, echo, c));
+			mockIuException.verify(() -> IuException.checked(eq(CheckedException1.class), eq(CheckedException2.class),
+					eq(echo), any(UnsafeConsumer.class)), times(2));
+			mockIuException.verify(() -> IuException.checked(any(CheckedException1.class), eq(CheckedException1.class),
+					eq(CheckedException2.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testChecked3UnsafeConsumer() throws Throwable {
+		var echo = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertConsumer(CheckedException1.class, c -> IuException.checked(CheckedException1.class,
+					CheckedException2.class, CheckedException3.class, echo, c));
+			mockIuException.verify(() -> IuException.checked(eq(CheckedException1.class), eq(CheckedException2.class),
+					eq(CheckedException3.class), eq(echo), any(UnsafeConsumer.class)), times(2));
+			mockIuException.verify(() -> IuException.checked(any(CheckedException1.class), eq(CheckedException1.class),
+					eq(CheckedException2.class), eq(CheckedException3.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testUncheckedUnsafeBiConsumer() throws Throwable {
+		var echo1 = new Object();
+		var echo2 = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertBiConsumer(RuntimeException.class, c -> IuException.unchecked(echo1, echo2, c));
+			mockIuException.verify(() -> IuException.unchecked(eq(echo1), eq(echo2), any(UnsafeBiConsumer.class)),
+					times(2));
+			mockIuException.verify(() -> IuException.unchecked(any(RuntimeException.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testCheckedUnsafeBiConsumer() throws Throwable {
+		var echo1 = new Object();
+		var echo2 = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertBiConsumer(RuntimeException.class, c -> IuException.checked(echo1, echo2, c));
+			mockIuException.verify(() -> IuException.checked(eq(echo1), eq(echo2), any(UnsafeBiConsumer.class)),
+					times(2));
+			mockIuException.verify(() -> IuException.checked(any(Exception.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testChecked1UnsafeBiConsumer() throws Throwable {
+		var echo1 = new Object();
+		var echo2 = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertBiConsumer(CheckedException1.class,
+					c -> IuException.checked(CheckedException1.class, echo1, echo2, c));
+			mockIuException.verify(() -> IuException.checked(eq(CheckedException1.class), eq(echo1), eq(echo2),
+					any(UnsafeBiConsumer.class)), times(2));
+			mockIuException.verify(() -> IuException.checked(any(CheckedException1.class), eq(CheckedException1.class)),
+					times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testChecked2UnsafeBiConsumer() throws Throwable {
+		var echo1 = new Object();
+		var echo2 = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertBiConsumer(CheckedException1.class,
+					c -> IuException.checked(CheckedException1.class, CheckedException2.class, echo1, echo2, c));
+			mockIuException.verify(() -> IuException.checked(eq(CheckedException1.class), eq(CheckedException2.class),
+					eq(echo1), eq(echo2), any(UnsafeBiConsumer.class)), times(2));
+			mockIuException.verify(() -> IuException.checked(any(CheckedException1.class), eq(CheckedException1.class),
+					eq(CheckedException2.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testChecked3UnsafeBiConsumer() throws Throwable {
+		var echo1 = new Object();
+		var echo2 = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertBiConsumer(CheckedException1.class, c -> IuException.checked(CheckedException1.class,
+					CheckedException2.class, CheckedException3.class, echo1, echo2, c));
+			mockIuException.verify(() -> IuException.checked(eq(CheckedException1.class), eq(CheckedException2.class),
+					eq(CheckedException3.class), eq(echo1), eq(echo2), any(UnsafeBiConsumer.class)), times(2));
+			mockIuException.verify(() -> IuException.checked(any(CheckedException1.class), eq(CheckedException1.class),
+					eq(CheckedException2.class), eq(CheckedException3.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testUncheckedUnsafeFunction() throws Throwable {
+		var echo = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertFunction(RuntimeException.class, echo, f -> IuException.unchecked(echo, f));
+			mockIuException.verify(() -> IuException.unchecked(eq(echo), any(UnsafeFunction.class)), times(2));
+			mockIuException.verify(() -> IuException.unchecked(any(RuntimeException.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testCheckedUnsafeFunction() throws Throwable {
+		var echo = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertFunction(Exception.class, echo, f -> IuException.checked(echo, f));
+			mockIuException.verify(() -> IuException.checked(eq(echo), any(UnsafeFunction.class)), times(2));
+			mockIuException.verify(() -> IuException.checked(any(Exception.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testChecked1UnsafeFunction() throws Throwable {
+		var echo = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertFunction(CheckedException1.class, echo, f -> IuException.checked(CheckedException1.class, echo, f));
+			mockIuException.verify(
+					() -> IuException.checked(eq(CheckedException1.class), eq(echo), any(UnsafeFunction.class)),
+					times(2));
+			mockIuException.verify(() -> IuException.checked(any(CheckedException1.class), eq(CheckedException1.class)),
+					times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testChecked2UnsafeFunction() throws Throwable {
+		var echo = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertFunction(CheckedException1.class, echo,
+					f -> IuException.checked(CheckedException1.class, CheckedException2.class, echo, f));
+			mockIuException.verify(() -> IuException.checked(eq(CheckedException1.class), eq(CheckedException2.class),
+					eq(echo), any(UnsafeFunction.class)), times(2));
+			mockIuException.verify(() -> IuException.checked(any(CheckedException1.class), eq(CheckedException1.class),
+					eq(CheckedException2.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testChecked3UnsafeFunction() throws Throwable {
+		var echo = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertFunction(CheckedException1.class, echo, f -> IuException.checked(CheckedException1.class,
+					CheckedException2.class, CheckedException3.class, echo, f));
+			mockIuException.verify(() -> IuException.checked(eq(CheckedException1.class), eq(CheckedException2.class),
+					eq(CheckedException3.class), eq(echo), any(UnsafeFunction.class)), times(2));
+			mockIuException.verify(() -> IuException.checked(any(CheckedException1.class), eq(CheckedException1.class),
+					eq(CheckedException2.class), eq(CheckedException3.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testUncheckedUnsafeBiFunction() throws Throwable {
+		var echo1 = new Object();
+		var echo2 = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertBiFunction(RuntimeException.class, echo1, echo2, f -> IuException.unchecked(echo1, echo2, f));
+			mockIuException.verify(() -> IuException.unchecked(eq(echo1), eq(echo2), any(UnsafeBiFunction.class)),
+					times(2));
+			mockIuException.verify(() -> IuException.unchecked(any(RuntimeException.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testCheckedUnsafeBiFunction() throws Throwable {
+		var echo1 = new Object();
+		var echo2 = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertBiFunction(Exception.class, echo1, echo2, f -> IuException.checked(echo1, echo2, f));
+			mockIuException.verify(() -> IuException.checked(eq(echo1), eq(echo2), any(UnsafeBiFunction.class)),
+					times(2));
+			mockIuException.verify(() -> IuException.checked(any(Exception.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testChecked1UnsafeBiFunction() throws Throwable {
+		var echo1 = new Object();
+		var echo2 = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertBiFunction(CheckedException1.class, echo1, echo2,
+					f -> IuException.checked(CheckedException1.class, echo1, echo2, f));
+			mockIuException.verify(() -> IuException.checked(eq(CheckedException1.class), eq(echo1), eq(echo2),
+					any(UnsafeBiFunction.class)), times(2));
+			mockIuException.verify(() -> IuException.checked(any(CheckedException1.class), eq(CheckedException1.class)),
+					times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testChecked2UnsafeBiFunction() throws Throwable {
+		var echo1 = new Object();
+		var echo2 = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertBiFunction(CheckedException1.class, echo1, echo2,
+					f -> IuException.checked(CheckedException1.class, CheckedException2.class, echo1, echo2, f));
+			mockIuException.verify(() -> IuException.checked(eq(CheckedException1.class), eq(CheckedException2.class),
+					eq(echo1), eq(echo2), any(UnsafeBiFunction.class)), times(2));
+			mockIuException.verify(() -> IuException.checked(any(CheckedException1.class), eq(CheckedException1.class),
+					eq(CheckedException2.class)), times(1));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testChecked3UnsafeBiFunction() throws Throwable {
+		var echo1 = new Object();
+		var echo2 = new Object();
+		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
+			assertBiFunction(CheckedException1.class, echo1, echo2, f -> IuException.checked(CheckedException1.class,
+					CheckedException2.class, CheckedException3.class, echo1, echo2, f));
+			mockIuException.verify(() -> IuException.checked(eq(CheckedException1.class), eq(CheckedException2.class),
+					eq(CheckedException3.class), eq(echo1), eq(echo2), any(UnsafeBiFunction.class)), times(2));
+			mockIuException.verify(() -> IuException.checked(any(CheckedException1.class), eq(CheckedException1.class),
+					eq(CheckedException2.class), eq(CheckedException3.class)), times(1));
+		}
+	}
 }
