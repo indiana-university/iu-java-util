@@ -29,7 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.runtime.test;
+package edu.iu.runtime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -45,8 +45,6 @@ import java.util.ServiceLoader;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.runtime.IuRuntime;
-import edu.iu.runtime.IuRuntimeConfiguration;
 import iu.runtime.EmptyRuntime;
 import iu.runtime.RuntimeFactory;
 

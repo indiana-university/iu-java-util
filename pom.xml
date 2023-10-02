@@ -76,8 +76,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		</repository>
 		<snapshotRepository>
 			<id>IUMaven</id>
-			<url>
-				https://apps.iu.edu/nxs-prd/content/repositories/IUPublic-Snapshot</url>
+			<url>https://apps.iu.edu/nxs-prd/content/repositories/IUPublic-Snapshot</url>
 		</snapshotRepository>
 	</distributionManagement>
 

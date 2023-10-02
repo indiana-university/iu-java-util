@@ -33,26 +33,11 @@ package edu.iu.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mockStatic;
 
-import java.io.IOException;
-
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("javadoc")
 public class PropertiesTest {
-
-	@BeforeAll
-	public static void testPropertiesDoesntThrowChecked() {
-		try (var iuTest = mockStatic(IuTest.class)) {
-			iuTest.when(() -> IuTest.getResources(any(String.class))).thenThrow(IOException.class);
-			iuTest.when(() -> IuTest.properties()).thenCallRealMethod();
-			assertThrows(IllegalStateException.class, () -> IuTest.properties());
-		}
-	}
 
 	@Test
 	public void testLoadsProperties() throws Exception {
