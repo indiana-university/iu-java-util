@@ -467,6 +467,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			</activation>
 			<modules>
 				<module>test</module>
+				<module>base</module>
 				<module>type</module>
 				<module>runtime</module>
 			</modules>
