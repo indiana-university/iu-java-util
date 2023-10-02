@@ -53,10 +53,12 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Queue;
+import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuComponent.Kind;
 import edu.iu.type.IuType;
 
@@ -113,6 +115,9 @@ public class ComponentTest {
 		var component = new Component(null, null, loader, finder, new ArrayDeque<>(List.of(archive)));
 		try (var mockFiles = mockStatic(Files.class)) {
 			mockFiles.when(() -> Files.delete(path)).thenThrow(error);
+			IuTestLogger.expect(Component.class.getName(), Level.WARNING, "Failed to close module finder", Error.class);
+			IuTestLogger.expect(Component.class.getName(), Level.WARNING, "Failed to close class loader", Error.class);
+			IuTestLogger.expect(Component.class.getName(), Level.WARNING, "Failed to clean up archive .*", Error.class);
 			component.close();
 		}
 	}

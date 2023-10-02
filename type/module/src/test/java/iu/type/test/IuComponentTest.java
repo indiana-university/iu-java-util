@@ -42,6 +42,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.InputStream;
 import java.net.URL;
+import java.util.logging.Level;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -186,6 +187,8 @@ public class IuComponentTest {
 				when(type.baseClass()).thenReturn(c);
 				return type;
 			});
+			IuTestLogger.expect("iu.type.Component", Level.WARNING, "Invalid class invalid.*",
+					ClassNotFoundException.class);
 			try (var parent = IuComponent.of(TestArchives.getComponentArchive("testruntime"),
 					TestArchives.getProvidedDependencyArchives("testruntime"));
 					var component = parent.extend(TestArchives.getComponentArchive("testcomponent"))) {
