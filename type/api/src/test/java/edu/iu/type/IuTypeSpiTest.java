@@ -46,10 +46,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.type.spi.IuTypeSpi;
-import iu.type.api.TypeImplementationLoader;
+import edu.iu.type.spi.TypeImplementation;
 
 @SuppressWarnings("javadoc")
-public class TypeSpiTest {
+public class IuTypeSpiTest {
 
 	private static IuTypeSpi iuTypeSpi;
 
@@ -61,7 +61,7 @@ public class TypeSpiTest {
 		try (var mockServiceLoader = mockStatic(ServiceLoader.class)) {
 			mockServiceLoader.when(() -> ServiceLoader.load(IuTypeSpi.class, IuTypeSpi.class.getClassLoader()))
 					.thenReturn(serviceLoader);
-			Class.forName(TypeImplementationLoader.class.getName());
+			Class.forName(TypeImplementation.class.getName());
 		}
 	}
 

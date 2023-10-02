@@ -37,8 +37,6 @@ import java.lang.annotation.Annotation;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import iu.type.api.StaticDependencyHelper;
-
 /**
  * Facade interface for a bean property.
  * 
@@ -91,14 +89,7 @@ public interface IuProperty<T> extends IuAttribute<T> {
 	 * <li>Is {@link #canRead() readable}</li>
 	 * <li>Does not {@link #hasAnnotation(Class) have} the {@link Transient}
 	 * annotation</li>
-	 * <li>One of
-	 * <ul>
-	 * <li>Read method {@link #hasAnnotation(Class) has} the
-	 * {@link jakarta.annotation.security.PermitAll} annotation</li>
-	 * <li>Declaring type {@link #hasAnnotation(Class) has} the
-	 * {@link jakarta.annotation.security.PermitAll} annotation</li>
-	 * </ul>
-	 * </li>
+	 * <li>{@link IuExecutable#permitted() Permits} {@link #read() read method} execution.</li> 
 	 * </ul>
 	 * 
 	 * @return true if the property may be printed
@@ -106,8 +97,7 @@ public interface IuProperty<T> extends IuAttribute<T> {
 	default boolean printSafe() {
 		return canRead() //
 				&& !hasAnnotation(Transient.class) //
-				&& (StaticDependencyHelper.hasPermitAll(read())
-						|| StaticDependencyHelper.hasPermitAll(declaringType()));
+				&& read().permitted();
 	}
 
 	/**

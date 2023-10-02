@@ -36,14 +36,10 @@
  */
 module iu.util.type {
 	exports edu.iu.type;
-	
 	exports edu.iu.type.spi to iu.util.type.impl;
-	exports iu.type.api to iu.util.type.impl;
 
 	requires java.logging;
 	requires java.desktop;
-	requires static jakarta.annotation;
-	requires static jakarta.interceptor;
 
 	uses edu.iu.type.spi.IuTypeSpi;
 }

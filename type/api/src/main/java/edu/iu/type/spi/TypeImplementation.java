@@ -29,54 +29,26 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type.api;
+package edu.iu.type.spi;
 
-import edu.iu.type.IuAnnotatedElement;
+import java.util.ServiceLoader;
+
+import edu.iu.type.IuComponent;
+import edu.iu.type.IuType;
 
 /**
- * Isolates references static module dependencies to prevent
- * {@link NoClassDefFoundError} when the Jakarta Annotations API is not present
- * in the classpath.
+ * Loads a single static {@link IuTypeSpi} instance from the same
+ * {@link ClassLoader} that defines {@link IuType} and uses it to delegate
+ * access to {@link IuType} and {@link IuComponent} instances.
  */
-public class StaticDependencyHelper {
-
-	private static final boolean ANNOTATION_SUPPORTED;
-
-	static {
-		boolean annotationSupported;
-		try {
-			@jakarta.annotation.Resource
-			class HasResource {
-			}
-			annotationSupported = new HasResource().getClass().isAnnotationPresent(jakarta.annotation.Resource.class);
-		} catch (NoClassDefFoundError e) {
-			annotationSupported = false;
-		}
-		ANNOTATION_SUPPORTED = annotationSupported;
-	}
+public class TypeImplementation {
 
 	/**
-	 * Check to see if the Jakarta Annotations API is present in the classpath.
-	 * 
-	 * @return true if present; false if missing
+	 * Singleton fully initialized instance of {@link IuTypeSpi}.
 	 */
-	public static boolean isAnnotationSupported() {
-		return ANNOTATION_SUPPORTED;
-	}
+	public static final IuTypeSpi SPI = ServiceLoader.load(IuTypeSpi.class, IuType.class.getClassLoader()).iterator()
+			.next();
 
-	/**
-	 * Determines whether or not access to an annotated element contains the
-	 * {@link jakarta.annotation.security.PermitAll} annotation.
-	 * 
-	 * @param annotatedElement annotated element
-	 * @return true if the element contains the
-	 *         {@link jakarta.annotation.security.PermitAll} annotation.
-	 */
-	public static boolean hasPermitAll(IuAnnotatedElement annotatedElement) {
-		return isAnnotationSupported() && annotatedElement.hasAnnotation(jakarta.annotation.security.PermitAll.class);
+	private TypeImplementation() {
 	}
-
-	private StaticDependencyHelper() {
-	}
-
 }

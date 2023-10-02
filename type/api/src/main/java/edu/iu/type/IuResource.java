@@ -32,11 +32,19 @@
 package edu.iu.type;
 
 /**
- * Facade interface for a resource in a {@link IuComponent}.
+ * Facade interface for a resource in a {@link IuComponent component}.
  * 
  * @param <T> resource type
  */
 public interface IuResource<T> {
+
+	/**
+	 * Determines whether or not the resource should be authenticated before handing
+	 * off to a managed application.
+	 * 
+	 * @return true if the resource requires authentication; else false
+	 */
+	boolean needsAuthentication();
 
 	/**
 	 * Determines whether or not the resource is shared.
@@ -63,8 +71,8 @@ public interface IuResource<T> {
 	 * Gets the resource instance.
 	 * 
 	 * <p>
-	 * When {@link #shared() shared}, returns the same singleton instance each
-	 * time this method is invoked. When not shared, returns a new instance of the
+	 * When {@link #shared() shared}, returns the same singleton instance each time
+	 * this method is invoked. When not shared, returns a new instance of the
 	 * resource on each invocation.
 	 * </p>
 	 * 

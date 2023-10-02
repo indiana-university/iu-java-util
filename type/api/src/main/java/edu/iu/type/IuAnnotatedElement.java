@@ -34,6 +34,7 @@ package edu.iu.type;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * Facade interface for annotated type elements.
@@ -76,5 +77,22 @@ public interface IuAnnotatedElement {
 	default <A extends Annotation> A annotation(Class<A> annotationType) {
 		return annotationType.cast(annotations().get(annotationType));
 	}
+
+	/**
+	 * Determines if access to this element is permitted for all users in the current context.
+	 * 
+	 * @return true if access is permitted for all users in the current context; else false
+	 */
+	default boolean permitted() {
+		return permitted(role -> false);
+	}
+
+	/**
+	 * Determines if access to this element is permitted in the current context.
+	 * 
+	 * @param isUserInRole Delegates role-checks to a higher level module.
+	 * @return true if access is permitted in the current context; else false
+	 */
+	boolean permitted(Predicate<String> isUserInRole);
 
 }

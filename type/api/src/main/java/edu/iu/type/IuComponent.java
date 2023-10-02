@@ -36,10 +36,12 @@ import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.module.ModuleDescriptor;
 import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
 import java.util.jar.Manifest;
 
-import iu.type.api.TypeImplementationLoader;
+import edu.iu.type.spi.TypeImplementation;
 
 /**
  * Facade interface representing an application component.
@@ -66,8 +68,10 @@ import iu.type.api.TypeImplementationLoader;
  * <ul>
  * <li>Be a <a href=
  * "https://docs.oracle.com/en/java/javase/21/docs/specs/jar/jar.html">jar
- * archive</a> built using <a href="https://maven.apache.org/">Apache Maven</a>.</li>
- * <li><em>Not</em> be directory in a file system, either originally or unpacked.</li>
+ * archive</a> built using <a href="https://maven.apache.org/">Apache
+ * Maven</a>.</li>
+ * <li><em>Not</em> be directory in a file system, either originally or
+ * unpacked.</li>
  * <li>Include a well-formed {@link Manifest manifest} in
  * {@code META-INF/MANIFEST.MF}.</li>
  * <li><em>Not</em> include {@code Main-Class} in the
@@ -407,25 +411,52 @@ public interface IuComponent extends AutoCloseable {
 		 * Designates <strong>modular</strong> component defined by one or more Java
 		 * Archive (jar) files.
 		 */
-		MODULAR_JAR,
+		MODULAR_JAR(true, false),
 
 		/**
 		 * Designates an <strong>legacy</strong> component defined by a Java Archive
 		 * (jar) file.
 		 */
-		LEGACY_JAR,
+		LEGACY_JAR(false, false),
 
 		/**
 		 * Designates <strong>modular</strong> component defined by a Web Application
 		 * Archive (war) file.
 		 */
-		MODULAR_WAR,
+		MODULAR_WAR(true, true),
 
 		/**
 		 * Designates an <strong>legacy</strong> component defined by a Web Application
 		 * Archive (war) file.
 		 */
-		LEGACY_WAR;
+		LEGACY_WAR(false, true);
+
+		private final boolean modular;
+		private final boolean web;
+
+		private Kind(boolean modular, boolean web) {
+			this.modular = modular;
+			this.web = web;
+		}
+
+		/**
+		 * Determines if the <strong>component</strong> is <strong>modular</strong>.
+		 * 
+		 * @return {@code true} if <strong>modular</strong>; else {@code false}
+		 */
+		public boolean isModular() {
+			return modular;
+		}
+
+		/**
+		 * Determines if the <strong>component</strong> is a <strong>web
+		 * component</strong>.
+		 * 
+		 * @return {@code true} if <strong>web component</strong>; else {@code false}
+		 */
+		public boolean isWeb() {
+			return web;
+		}
 	}
 
 	/**
@@ -447,7 +478,7 @@ public interface IuComponent extends AutoCloseable {
 	 */
 	static IuComponent of(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
 			throws IOException, IllegalArgumentException {
-		return TypeImplementationLoader.create(componentArchiveSource, providedDependencyArchiveSources);
+		return TypeImplementation.SPI.createComponent(componentArchiveSource, providedDependencyArchiveSources);
 	}
 
 	/**
@@ -497,8 +528,14 @@ public interface IuComponent extends AutoCloseable {
 	 * 
 	 * <p>
 	 * This method is intended to support resource and service discovery of public
-	 * APIs defined by the applications. <em>Must not</em> include interfaces from a
-	 * standard Java or JEE module.
+	 * APIs defined by the applications. A <strong>modular component</strong>
+	 * <em>Must not</em> include interfaces from a module that does not
+	 * {@link Module#isOpen(String, Module) open} the package containing the
+	 * interface to the {@code iu.util.type.impl} module. A <strong>legacy
+	 * component</strong> <em>Must not</em> include interfaces from any
+	 * <strong>dependencies</strong> unless the <strong>dependency</strong> is a
+	 * {@link Kind#LEGACY_JAR} that includes an {@code META-INF/iu.properties}
+	 * resource.
 	 * </p>
 	 * 
 	 * @return interface facades
@@ -515,6 +552,77 @@ public interface IuComponent extends AutoCloseable {
 
 	/**
 	 * Gets component's resources.
+	 *
+	 * <p>
+	 * Includes:
+	 * </p>
+	 * <ul>
+	 * <li>Static web resources when {@link #kind()}.{@link Kind#isWeb() isWeb()} is
+	 * true, with {@link IuResource#type() type} {@code byte[]}. This includes
+	 * zero-length binary resources for folder entries ({@link IuResource#name()}
+	 * ends with '/').</li>
+	 * <li>All types in the <strong>component</strong> and all
+	 * <strong>dependencies</strong> declared as part of an package open to
+	 * {@code iu.util.type.impl}, or in a <strong>legacy component</strong> with
+	 * {@code META-INF/iu.properties}, that includes the @Resource or @Resources
+	 * annotation where either the <strong>resource type</strong> designated by the
+	 * annotation {@link Class#isAssignableFrom(Class) is assignable from} the
+	 * <strong>annotated type</strong>, or the designated type is an interface and
+	 * the <strong>annotated type</strong> is an {@link InvocationHandler}.</li>
+	 * </ul>
+	 * 
+	 * <p>
+	 * <em>Must not</em> include resources available from
+	 * {@link ClassLoader#getResources(String)} and related methods. Although the
+	 * name and functionality are similar, the {@code iu.util.type} module is
+	 * intended only to simplify, not duplicate, base platform functionality
+	 * provided by the platform.
+	 * </p>
+	 * 
+	 * <p>
+	 * This method discovers resources in a manner that deviates from the behavior
+	 * described in <a href=
+	 * "https://jakarta.ee/specifications/annotations/2.1/annotations-spec-2.1#jakarta-annotation-resource">Jakarta
+	 * Annotations 2.1 Section 3.3</a>. This deviation from the standard is an
+	 * important element of IU JEE's self-defining behavior for application
+	 * resources, and eliminates the need for a deployment descriptor that describes
+	 * the <strong>resources</strong> available to a <strong>component</strong>.
+	 * </p>
+	 * <p>
+	 * The standard specification describes the behavior of @Resource on a type as
+	 * declaring a dependency that must be available for lookup via JNDI and
+	 * requires that name() be non-empty. That behavior <em>should</em> be preserved
+	 * for cases when the <strong>resource type</strong> is not assignable from the
+	 * <strong>annotated type</strong>, however when the <strong>resource
+	 * type</strong> is assignable or is and interface and the <strong>annotated
+	 * type</strong> implements {@link InvocationHandler}, the <strong>annotated
+	 * type</strong> itself is considered the <strong>resource implementation
+	 * type</strong> and the default <strong>resource name</strong> is the
+	 * {@link Class#getSimpleName() simple name} of <strong>resource type</strong>.
+	 * When the <strong>annotated type</strong> is an {@link InvocationHandler},
+	 * then the <strong>resource type</strong> <em>must</em> be an {@code interface}
+	 * in order to be discovered, otherwise the default <strong>resource
+	 * type</strong> is the first non-platform interface implemented by the
+	 * <strong>resource implementation type</strong>, or the <strong>resource
+	 * implementation type</strong> itself if no non-platform interfaces are
+	 * implemented.
+	 * </p>
+	 * <p>
+	 * <strong>Resources</strong> discovered in this manner use
+	 * {@link IuConstructor#exec(Object...)} with no args to create an instance.
+	 * When shareable(), {@link IuResource#get()} returns a pre-constructed single
+	 * instance; else each invocation returns a new instance. When the
+	 * <strong>annotated type</strong> is an {@link InvocationHandler}, a
+	 * {@link Proxy} is created with the <strong>resource type</strong> as its only
+	 * interface.
+	 * </p>
+	 * <p>
+	 * Note that <strong>resources</strong> provided by this method do not have
+	 * {@link IuField field} or {@link IuProperty property} bindings applied. That
+	 * binding behavior would require a fully formed JNDI context be available and
+	 * is the responsibility JEE Container, via the {@code iu.jee.resources} module,
+	 * not this base utilities module.
+	 * </p>
 	 * 
 	 * @return resources
 	 */
