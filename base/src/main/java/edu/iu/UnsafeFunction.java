@@ -29,30 +29,26 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Provides unit testing support.
- * 
- * <p>
- * Supports the use of:
- * </p>
- * 
- * <ul>
- * <li>JUnit Juptier Engine</li>
- * <li>Mockito</li>
- * </ul>
- * 
- * @see edu.iu.test.IuTest
- * @provides org.junit.jupiter.api.extension.Extension Ties logging expectations in to test runs
- * @provides org.junit.platform.launcher.LauncherSessionListener Enables logging expectations
- */
-module iu.util.test {
-	exports edu.iu.test;
+package edu.iu;
 
-	requires iu.util;
-	requires org.mockito;
-	requires transitive org.junit.jupiter.api;
-	requires transitive org.junit.platform.launcher;
-	
-	provides org.junit.platform.launcher.LauncherSessionListener with edu.iu.test.IuTestSessionListener;
-	provides org.junit.jupiter.api.extension.Extension with edu.iu.test.IuTestExtension;
+import java.util.function.Function;
+
+/**
+ * Equivalent to {@link Function}, but may throw any exception.
+ * 
+ * @param <T> Argument type
+ * @param <R> Return type
+ */
+@FunctionalInterface
+public interface UnsafeFunction<T, R> {
+
+	/**
+	 * Applies an argument to a function that uses unsafe code.
+	 * 
+	 * @param argument The argument.
+	 * @return The result.
+	 * @throws Throwable If thrown by the unsafe code.
+	 */
+	R apply(T argument) throws Throwable;
+
 }

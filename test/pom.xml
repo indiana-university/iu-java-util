@@ -15,6 +15,11 @@
 
 	<dependencies>
 		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-base</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter-api</artifactId>
 			<version>${junit-jupiter.version}</version>
@@ -65,8 +70,7 @@
 								<rule>
 									<element>CLASS</element>
 									<excludes>
-										<exclude>
-											edu.iu.test.IuLauncherSessionListener</exclude>
+										<exclude>edu.iu.test.IuTestExtension</exclude>
 									</excludes>
 								</rule>
 							</rules>

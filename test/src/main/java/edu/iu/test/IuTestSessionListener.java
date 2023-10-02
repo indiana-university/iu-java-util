@@ -29,30 +29,30 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Provides unit testing support.
- * 
- * <p>
- * Supports the use of:
- * </p>
- * 
- * <ul>
- * <li>JUnit Juptier Engine</li>
- * <li>Mockito</li>
- * </ul>
- * 
- * @see edu.iu.test.IuTest
- * @provides org.junit.jupiter.api.extension.Extension Ties logging expectations in to test runs
- * @provides org.junit.platform.launcher.LauncherSessionListener Enables logging expectations
- */
-module iu.util.test {
-	exports edu.iu.test;
+package edu.iu.test;
 
-	requires iu.util;
-	requires org.mockito;
-	requires transitive org.junit.jupiter.api;
-	requires transitive org.junit.platform.launcher;
-	
-	provides org.junit.platform.launcher.LauncherSessionListener with edu.iu.test.IuTestSessionListener;
-	provides org.junit.jupiter.api.extension.Extension with edu.iu.test.IuTestExtension;
+import org.junit.platform.launcher.LauncherSession;
+import org.junit.platform.launcher.LauncherSessionListener;
+
+/**
+ * Initializes and destroys {@link IuTestLogger}.
+ */
+public class IuTestSessionListener implements LauncherSessionListener {
+
+	/**
+	 * Default constructor
+	 */
+	public IuTestSessionListener() {
+	}
+
+	@Override
+	public void launcherSessionOpened(LauncherSession session) {
+		IuTestLogger.init();
+	}
+
+	@Override
+	public void launcherSessionClosed(LauncherSession session) {
+		IuTestLogger.destroy();
+	}
+
 }
