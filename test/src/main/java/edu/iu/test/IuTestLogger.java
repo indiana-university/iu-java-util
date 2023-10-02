@@ -104,7 +104,7 @@ public final class IuTestLogger {
 		@Override
 		public void publish(LogRecord record) {
 			var loggerName = record.getLoggerName();
-			if (loggerName.startsWith("org.junit.")) {
+			if (isPlatformLogger(loggerName)) {
 				for (var handler : originalRootHandlers)
 					handler.publish(record);
 				return;
@@ -112,7 +112,7 @@ public final class IuTestLogger {
 
 			if (expectedMessages.isEmpty())
 				throw new AssertionFailedError("Unexpected log message " + record.getLevel() + " "
-						+ record.getLoggerName() + " " + record.getMessage());
+						+ record.getLoggerName() + " " + record.getMessage(), record.getThrown());
 			else
 				expectedMessages.poll().assertMatches(record);
 
@@ -142,6 +142,19 @@ public final class IuTestLogger {
 	private static Level originalLevel;
 	private static Logger root;
 
+	static boolean isPlatformLogger(String loggerName) {
+		return loggerName.startsWith("org.junit.") || //
+				loggerName.startsWith("org.mockito.") || //
+				loggerName.startsWith("org.apache.") || //
+				loggerName.startsWith("java.") || //
+				loggerName.startsWith("javax.") || //
+				loggerName.startsWith("jakarta.") || //
+				loggerName.startsWith("jdk.") || //
+				loggerName.startsWith("com.sun.") || //
+				loggerName.startsWith("com.oracle.") || //
+				loggerName.startsWith("sun.");
+	}
+	
 	static void init() {
 		root = LogManager.getLogManager().getLogger("");
 		originalLevel = root.getLevel();

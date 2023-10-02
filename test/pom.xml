@@ -70,7 +70,6 @@
 								<rule>
 									<element>CLASS</element>
 									<excludes>
-										<exclude>edu.iu.test.IuTestLogger.IuTestLogHandler</exclude>
 										<exclude>edu.iu.test.IuTestExtension</exclude>
 									</excludes>
 								</rule>

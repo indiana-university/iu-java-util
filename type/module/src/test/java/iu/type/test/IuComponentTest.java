@@ -47,6 +47,7 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.test.IuTest;
+import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuComponent.Kind;
 import edu.iu.type.IuType;

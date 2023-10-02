@@ -32,6 +32,7 @@
 package edu.iu.test;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -43,6 +44,22 @@ import org.opentest4j.AssertionFailedError;
 public class LoggingTest {
 
 	private static final Logger LOG = Logger.getLogger(LoggingTest.class.getName());
+
+	@Test
+	public void testCoversPlatformLoggers() {
+		// TODO: consider moving list to iu-test.properties
+		assertTrue(IuTestLogger.isPlatformLogger("org.junit."));
+		assertTrue(IuTestLogger.isPlatformLogger("org.mockito."));
+		assertTrue(IuTestLogger.isPlatformLogger("org.apache."));
+		assertTrue(IuTestLogger.isPlatformLogger("java."));
+		assertTrue(IuTestLogger.isPlatformLogger("javax."));
+		assertTrue(IuTestLogger.isPlatformLogger("jakarta."));
+		assertTrue(IuTestLogger.isPlatformLogger("jdk."));
+		assertTrue(IuTestLogger.isPlatformLogger("com.sun."));
+		assertTrue(IuTestLogger.isPlatformLogger("com.oracle."));
+		assertTrue(IuTestLogger.isPlatformLogger("sun."));
+		Logger.getLogger("java.test.platformlogger").info("Should be logged on console and not cause the test to fail");
+	}
 
 	@Test
 	public void testLoggingFailsWithoutExpectedMessage() {
