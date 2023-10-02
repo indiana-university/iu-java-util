@@ -54,10 +54,8 @@ final class AnnotationBridge {
 			legacyAnnotationType = TypeUtils.callWithContext(annotatedElement, () -> getLegacyClass(annotationType));
 		} catch (ClassNotFoundException e) {
 			return false;
-		} catch (RuntimeException e) {
-			throw e;
 		} catch (Exception e) {
-			throw new IllegalStateException(e);
+			throw IuException.unchecked(e);
 		}
 
 		if (legacyAnnotationType == null || !Annotation.class.isAssignableFrom(legacyAnnotationType))

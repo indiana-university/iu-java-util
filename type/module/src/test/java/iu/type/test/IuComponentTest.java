@@ -45,7 +45,6 @@ import java.net.URL;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtensionContext;
 
 import edu.iu.test.IuTest;
 import edu.iu.type.IuComponent;
@@ -150,8 +149,7 @@ public class IuComponentTest {
 				when(type.name()).thenReturn(c.getName());
 				return type;
 			});
-			try (var component = IuComponent.of(TestArchives.getComponentArchive("testlegacy"),
-					TestArchives.getProvidedDependencyArchives("testlegacy"))) {
+			try (var component = IuComponent.of(TestArchives.getComponentArchive("testlegacy"))) {
 
 				assertEquals(Kind.LEGACY_JAR, component.kind());
 				assertEquals("iu-java-type-testlegacy", component.version().name());
@@ -160,7 +158,7 @@ public class IuComponentTest {
 				var interfaces = component.interfaces().iterator();
 				assertTrue(interfaces.hasNext());
 				assertEquals("edu.iu.legacy.LegacyInterface", interfaces.next().name());
-				assertFalse(interfaces.hasNext());
+				assertFalse(interfaces.hasNext(), interfaces.next().name());
 
 				var contextLoader = Thread.currentThread().getContextClassLoader();
 				var loader = component.classLoader();

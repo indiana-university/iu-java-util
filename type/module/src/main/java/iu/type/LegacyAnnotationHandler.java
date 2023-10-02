@@ -34,11 +34,11 @@ package iu.type;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Objects;
 
+import edu.iu.IuException;
 import edu.iu.type.IuType;
 
 class LegacyAnnotationHandler implements InvocationHandler {
@@ -89,35 +89,26 @@ class LegacyAnnotationHandler implements InvocationHandler {
 		if (!nonLegacyAnnotationType.isInstance(object))
 			return false;
 
-		for (var method : nonLegacyAnnotationType.getDeclaredMethods()) {
-			assert method.getParameterCount() == 0 : method;
-			try {
-				if (!Objects.equals(invoke(proxy, method, O0), method.invoke(object)))
-					return false;
-			} catch (InvocationTargetException e) {
-				throw e.getCause();
-			}
-		}
+		for (var method : nonLegacyAnnotationType.getDeclaredMethods())
+			if (!Objects.equals(invoke(proxy, method, O0), IuException.checked(method, object)))
+				return false;
 		return true;
 	}
 
 	@Override
 	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 		String methodName = method.getName();
-		
+
 		if (methodName.equals("annotationType") && method.getParameterCount() == 0)
 			return nonLegacyAnnotationType;
-		
+
 		if (methodName.equals("equals") && method.getParameterCount() == 1
 				&& method.getParameterTypes()[0] == Object.class)
 			return handleEquals(proxy, args[0]);
-		
-		try {
-			return convert(legacyAnnotation.annotationType().getMethod(method.getName(), method.getParameterTypes())
-					.invoke(legacyAnnotation, args), IuType.of(method.getGenericReturnType()).autoboxClass());
-		} catch (InvocationTargetException e) {
-			throw e.getCause();
-		}
+
+		return convert(IuException.checked(
+				legacyAnnotation.annotationType().getMethod(method.getName(), method.getParameterTypes()),
+				legacyAnnotation, args), IuType.of(method.getGenericReturnType()).autoboxClass());
 	}
 
 }
