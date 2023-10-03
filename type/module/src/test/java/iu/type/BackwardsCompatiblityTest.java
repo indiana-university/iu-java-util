@@ -64,7 +64,7 @@ public class BackwardsCompatiblityTest {
 	}
 
 	@Test
-	public void testConvertsJakartaToJavax() throws Exception {
+	public void testConvertsJakartaToJavax() throws Throwable {
 		TypeUtils.callWithContext(LegacyContextSupport.get(), () -> {
 			assertSame(LegacyContextSupport.get().loadClass("javax.annotation.Resource"),
 					BackwardsCompatibility.getLegacyClass(Resource.class));
@@ -79,7 +79,7 @@ public class BackwardsCompatiblityTest {
 	}
 
 	@Test
-	public void testConvertsDefaultInterceptorToIuJee6() throws Exception {
+	public void testConvertsDefaultInterceptorToIuJee6() throws Throwable {
 		TypeUtils.callWithContext(LegacyContextSupport.get(), () -> {
 			assertSame(LegacyContextSupport.get().loadClass("edu.iu.spi.DefaultInterceptor"),
 					BackwardsCompatibility.getLegacyClass(DefaultInterceptor.class));
@@ -88,7 +88,7 @@ public class BackwardsCompatiblityTest {
 	}
 
 	@Test
-	public void testTriesJakartaAndJavax() throws Exception {
+	public void testTriesJakartaAndJavax() throws Throwable {
 		TypeUtils.callWithContext(LegacyContextSupport.get(), () -> {
 			var classNotFound = assertThrows(ClassNotFoundException.class,
 					() -> BackwardsCompatibility.getLegacyClass(Jsonb.class));
@@ -99,7 +99,7 @@ public class BackwardsCompatiblityTest {
 	}
 
 	@Test
-	public void testTriesIuType() throws Exception {
+	public void testTriesIuType() throws Throwable {
 		TypeUtils.callWithContext(LegacyContextSupport.get(), () -> {
 			var classNotFound = assertThrows(ClassNotFoundException.class,
 					() -> BackwardsCompatibility.getLegacyClass(IuType.class));

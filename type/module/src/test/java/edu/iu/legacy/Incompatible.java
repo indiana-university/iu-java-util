@@ -29,33 +29,23 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type;
+package edu.iu.legacy;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import jakarta.annotation.Resource;
 
-import edu.iu.IuException;
-import edu.iu.UnsafeFunction;
+@SuppressWarnings("javadoc")
+public @interface Incompatible {
 
-final class TemporaryFile {
+	String notAnEnum() default "NOT_ENUM";
 
-	static <T> T init(UnsafeFunction<Path, T> tempFileInitializer) throws IOException {
-		Path temp = Files.createTempFile("iu-type-", ".jar");
+	int notAnArray() default 1;
 
-		try {
-			return tempFileInitializer.apply(temp);
-		} catch (Throwable e) {
-			try {
-				Files.deleteIfExists(temp);
-			} catch (Throwable e2) {
-				e.addSuppressed(e2);
-			}
-			throw IuException.checked(e, IOException.class);
-		}
-	}
+	IncompatibleEnum isAnEnum() default IncompatibleEnum.ENUM;
 
-	private TemporaryFile() {
-	}
+	int[] isAnArray() default {};
+
+	NotResource notResource() default @NotResource;
+
+	Resource isResource() default @Resource;
 
 }

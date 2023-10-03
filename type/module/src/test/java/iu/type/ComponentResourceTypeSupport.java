@@ -39,11 +39,14 @@ import static org.mockito.Mockito.when;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.HashMap;
 
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.InvocationInterceptor;
 import org.junit.jupiter.api.extension.ReflectiveInvocationContext;
+import org.mockito.stubbing.Answer;
 
 import edu.iu.type.IuConstructor;
 import edu.iu.type.IuType;
@@ -59,28 +62,47 @@ public class ComponentResourceTypeSupport implements InvocationInterceptor {
 			ExtensionContext extensionContext) throws Throwable {
 		try (var mockType = mockStatic(IuType.class)) {
 			var mockTypes = new HashMap<Class<?>, IuType<?>>();
-			mockType.when(() -> IuType.of(any())).then(a -> {
-				Class c = (Class) a.getArgument(0);
+			Answer ofAnswer = a -> {
+				var t = a.getArgument(0);
+				
+				Class c;
+				if (t instanceof ParameterizedType)
+					c = (Class) ((ParameterizedType) t).getRawType();
+				else
+					c = (Class) t;
+				
 				var type = mockTypes.get(c);
 				if (type == null) {
 					type = mock(IuType.class);
+					when(type.name()).thenReturn(c.getName());
 					when(type.baseClass()).thenReturn(c);
+					if (c == boolean.class)
+						when(type.autoboxClass()).thenReturn((Class) Boolean.class);
+					else
+						when(type.autoboxClass()).thenReturn(c);
 					var constructor = mock(IuConstructor.class);
 					assertDoesNotThrow(() -> when(constructor.exec()).then(b -> {
 						try {
-							return c.getDeclaredConstructor(invocationContext.getTargetClass())
-									.newInstance(invocationContext.getTarget().get());
+							try {
+								return c.getDeclaredConstructor().newInstance();
+							} catch (NoSuchMethodException e) {
+								return c.getDeclaredConstructor(invocationContext.getTargetClass())
+										.newInstance(invocationContext.getTarget().get());
+							}
 						} catch (InvocationTargetException e) {
 							throw e.getCause();
 						}
+
 					}));
 					when(type.constructor()).thenReturn(constructor);
 					mockTypes.put(c, type);
 				}
 				return type;
-			});
+			};
+			mockType.when(() -> IuType.of(any(Class.class))).then(ofAnswer);
+			mockType.when(() -> IuType.of(any(Type.class))).then(ofAnswer);
 			invocation.proceed();
 		}
-	}
+}
 
 }

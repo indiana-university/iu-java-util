@@ -36,8 +36,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mockStatic;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,19 +54,7 @@ public class TypeUtilsTest {
 	}
 
 	@Test
-	public void testDoInContext() {
-		TypeUtils.doInContext(LegacyContextSupport.get(),
-				() -> assertSame(LegacyContextSupport.get(), Thread.currentThread().getContextClassLoader()));
-	}
-
-	@Test
-	public void testDoInContextOfClass() throws ClassNotFoundException {
-		TypeUtils.doInContext(LegacyContextSupport.get().loadClass("edu.iu.legacy.LegacyBean"),
-				() -> assertSame(LegacyContextSupport.get(), Thread.currentThread().getContextClassLoader()));
-	}
-
-	@Test
-	public void testCallWithContextOfClass() throws Exception {
+	public void testCallWithContextOfClass() throws Throwable {
 		TypeUtils.callWithContext(LegacyContextSupport.get().loadClass("edu.iu.legacy.LegacyBean"), () -> {
 			assertSame(LegacyContextSupport.get(), Thread.currentThread().getContextClassLoader());
 			return null;
@@ -76,29 +62,7 @@ public class TypeUtilsTest {
 	}
 
 	@Test
-	public void testdoInContextRethrowsRuntimeException() {
-		assertThrows(RuntimeException.class, () -> TypeUtils.doInContext(LegacyContextSupport.get(), () -> {
-			throw new RuntimeException();
-		}));
-	}
-
-	@Test
-	public void testdoInContextWrapsCheckedException() {
-		class CheckedException extends Exception {
-			private static final long serialVersionUID = 1L;
-		}
-		try (var mockTypeUtils = mockStatic(TypeUtils.class)) {
-			mockTypeUtils.when(() -> TypeUtils.doInContext(any(ClassLoader.class), any())).thenCallRealMethod();
-			mockTypeUtils.when(() -> TypeUtils.callWithContext(any(ClassLoader.class), any()))
-					.thenThrow(new CheckedException());
-			assertSame(CheckedException.class, assertThrows(IllegalStateException.class,
-					() -> TypeUtils.doInContext(LegacyContextSupport.get(), () -> {
-					})).getCause().getClass());
-		}
-	}
-
-	@Test
-	public void testCallWithClassContext() throws Exception {
+	public void testCallWithClassContext() throws Throwable {
 		TypeUtils.callWithContext(LegacyContextSupport.get(), () -> {
 			assertSame(LegacyContextSupport.get(), Thread.currentThread().getContextClassLoader());
 			return null;

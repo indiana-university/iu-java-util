@@ -35,7 +35,8 @@ import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Parameter;
-import java.util.concurrent.Callable;
+
+import edu.iu.UnsafeSupplier;
 
 final class TypeUtils {
 
@@ -67,36 +68,19 @@ final class TypeUtils {
 			throw new UnsupportedOperationException("Cannot determine context for " + element);
 	}
 
-	static <T> T callWithContext(AnnotatedElement element, Callable<T> call) throws Exception {
-		return callWithContext(getContext(element), call);
-	}
-
-	static void doInContext(AnnotatedElement element, Runnable run) {
-		doInContext(getContext(element), run);
-	}
-
-	static <T> T callWithContext(ClassLoader contextLoader, Callable<T> call) throws Exception {
+	static <T> T callWithContext(ClassLoader contextLoader, UnsafeSupplier<T> supplier) throws Throwable {
 		var current = Thread.currentThread();
 		var loader = current.getContextClassLoader();
 		try {
 			current.setContextClassLoader(contextLoader);
-			return call.call();
+			return supplier.get();
 		} finally {
 			current.setContextClassLoader(loader);
 		}
 	}
 
-	static void doInContext(ClassLoader contextLoader, Runnable run) {
-		try {
-			callWithContext(contextLoader, () -> {
-				run.run();
-				return null;
-			});
-		} catch (RuntimeException | Error e) {
-			throw e;
-		} catch (Exception e) {
-			throw new IllegalStateException(e);
-		}
+	static <T> T callWithContext(AnnotatedElement element, UnsafeSupplier<T> supplier) throws Throwable {
+		return callWithContext(getContext(element), supplier);
 	}
 
 	private TypeUtils() {

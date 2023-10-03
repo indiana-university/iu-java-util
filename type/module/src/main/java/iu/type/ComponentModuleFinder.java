@@ -44,23 +44,18 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * Closeable module finder.
- */
-class ComponentModuleFinder implements ModuleFinder, AutoCloseable {
+import edu.iu.IuException;
+import edu.iu.UnsafeSupplier;
 
-	@FunctionalInterface
-	private interface ReaderSupplier {
-		ModuleReader get() throws IOException;
-	}
+class ComponentModuleFinder implements ModuleFinder, AutoCloseable {
 
 	private class Ref extends ModuleReference implements AutoCloseable {
 
-		private ReaderSupplier readerSupplier;
+		private UnsafeSupplier<ModuleReader> readerSupplier;
 		private ModuleReader reader;
 		private boolean closed;
 
-		protected Ref(ModuleDescriptor descriptor, URI location, ReaderSupplier readerSupplier) {
+		protected Ref(ModuleDescriptor descriptor, URI location, UnsafeSupplier<ModuleReader> readerSupplier) {
 			super(descriptor, location);
 			this.readerSupplier = readerSupplier;
 		}
@@ -70,7 +65,7 @@ class ComponentModuleFinder implements ModuleFinder, AutoCloseable {
 			if (closed)
 				throw new IllegalStateException();
 			if (reader == null) {
-				reader = readerSupplier.get();
+				reader = IuException.checked(IOException.class, readerSupplier);
 				readerSupplier = null;
 			}
 			return reader;

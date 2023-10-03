@@ -37,6 +37,7 @@ import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.function.Supplier;
 
+import edu.iu.IuException;
 import edu.iu.type.IuResource;
 import edu.iu.type.IuType;
 import jakarta.annotation.Resource;
@@ -57,19 +58,8 @@ class ComponentResource<T> implements IuResource<T> {
 			return resourceType.isAssignableFrom(classToCheck);
 	}
 
-	static Object createImplementationInstance(Class<?> implementationClass) {
-		try {
-			return IuType.of(implementationClass).constructor().exec();
-		} catch (RuntimeException | Error e) {
-			throw e;
-		} catch (Exception e) {
-			e.printStackTrace();
-			throw new ExceptionInInitializerError(e);
-		}
-	}
-
 	static <T> T createResourceInstance(Class<T> type, Class<?> implementationClass) {
-		var implementationInstance = createImplementationInstance(implementationClass);
+		var implementationInstance = IuException.unchecked(() -> IuType.of(implementationClass).constructor().exec());
 		if (implementationInstance instanceof InvocationHandler)
 			return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type },
 					(InvocationHandler) implementationInstance));

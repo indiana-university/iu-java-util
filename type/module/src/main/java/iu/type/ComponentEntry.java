@@ -32,15 +32,12 @@
 package iu.type;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 
-class ComponentEntry implements AutoCloseable {
+import edu.iu.IuException;
+import edu.iu.UnsafeConsumer;
 
-	@FunctionalInterface
-	interface InputStreamConsumer {
-		void accept(InputStream in) throws IOException;
-	}
+class ComponentEntry implements AutoCloseable {
 
 	private final String name;
 	private final InputStream input;
@@ -59,22 +56,25 @@ class ComponentEntry implements AutoCloseable {
 		return name;
 	}
 
-	void read(InputStreamConsumer with) {
+	void read(UnsafeConsumer<InputStream> with) {
 		if (closed)
 			throw new IllegalStateException("closed");
+		
 		if (read)
 			throw new IllegalStateException("already read");
+		
 		try {
 			with.accept(input);
 			read = true;
-		} catch (IOException e) {
-			throw new IllegalStateException(e);
+		} catch (Throwable e) {
+			throw IuException.unchecked(e);
 		}
 	}
 
 	byte[] data() {
 		if (closed)
 			throw new IllegalStateException("closed");
+		
 		if (data == null)
 			read(in -> {
 				byte[] buf = new byte[16384];

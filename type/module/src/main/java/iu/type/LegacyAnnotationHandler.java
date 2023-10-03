@@ -43,7 +43,11 @@ import edu.iu.type.IuType;
 
 class LegacyAnnotationHandler implements InvocationHandler {
 
-	private static Object[] O0 = new Object[0];
+	private static final Object[] O0 = new Object[0];
+
+	private static final Method ANNOTATION_TYPE = IuException
+			.unchecked(() -> Annotation.class.getMethod("annotationType"));
+	private static final Method EQUALS = IuException.unchecked(() -> Object.class.getMethod("equals", Object.class));
 
 	private final Class<? extends Annotation> nonLegacyAnnotationType;
 	private final Annotation legacyAnnotation;
@@ -55,14 +59,12 @@ class LegacyAnnotationHandler implements InvocationHandler {
 
 	@SuppressWarnings("unchecked")
 	private Object convert(Object o, Class<?> type) throws ClassNotFoundException {
-		assert o != null : type;
 		if (type.isInstance(o))
 			return o;
 
 		if (Annotation.class.isAssignableFrom(type)) {
 			var legacyAnnotationType = BackwardsCompatibility.getLegacyClass(type);
-			if (legacyAnnotationType != null && Annotation.class.isAssignableFrom(legacyAnnotationType)
-					&& legacyAnnotationType.isInstance(o))
+			if (Annotation.class.isAssignableFrom(legacyAnnotationType) && legacyAnnotationType.isInstance(o))
 				return Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type },
 						new LegacyAnnotationHandler(type.asSubclass(Annotation.class), (Annotation) o));
 		}
@@ -86,6 +88,7 @@ class LegacyAnnotationHandler implements InvocationHandler {
 	private boolean handleEquals(Object proxy, Object object) throws Throwable {
 		if (legacyAnnotation.equals(object))
 			return true;
+
 		if (!nonLegacyAnnotationType.isInstance(object))
 			return false;
 
@@ -97,18 +100,26 @@ class LegacyAnnotationHandler implements InvocationHandler {
 
 	@Override
 	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-		String methodName = method.getName();
+		return TypeUtils.callWithContext(legacyAnnotation.annotationType(), () -> {
+			if (method.equals(ANNOTATION_TYPE))
+				return nonLegacyAnnotationType;
 
-		if (methodName.equals("annotationType") && method.getParameterCount() == 0)
-			return nonLegacyAnnotationType;
+			if (method.equals(EQUALS))
+				return handleEquals(proxy, args[0]);
 
-		if (methodName.equals("equals") && method.getParameterCount() == 1
-				&& method.getParameterTypes()[0] == Object.class)
-			return handleEquals(proxy, args[0]);
+			var legacyMethod = legacyAnnotation.annotationType().getMethod(method.getName(),
+					method.getParameterTypes());
 
-		return convert(IuException.checked(
-				legacyAnnotation.annotationType().getMethod(method.getName(), method.getParameterTypes()),
-				legacyAnnotation, args), IuType.of(method.getGenericReturnType()).autoboxClass());
+			var legacyInvokeArgs = new Object[args == null ? 1 : args.length + 1];
+			legacyInvokeArgs[0] = legacyAnnotation;
+			if (args != null)
+				System.arraycopy(args, 0, legacyInvokeArgs, 1, args.length);
+
+			var legacyReturnValue = IuException.checked(legacyMethod, legacyInvokeArgs);
+			var returnType = IuType.of(method.getGenericReturnType()).autoboxClass();
+
+			return convert(legacyReturnValue, returnType);
+		});
 	}
 
 }

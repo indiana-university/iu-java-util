@@ -117,36 +117,40 @@ class Component implements IuComponent {
 				else
 					throw new IllegalArgumentException("Component must not include a web component as a dependency");
 
-			for (var className : archive.nonEnclosedTypeNames())
+			for (var className : archive.nonEnclosedTypeNames()) {
+				Class<?> loadedClass;
 				try {
-					var loadedClass = classLoader.loadClass(className);
-					var module = loadedClass.getModule();
-					if ((module.isNamed() && module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) //
-							|| (!module.isNamed() && !archive.kind().isModular() && archive.properties() != null)) {
-
-						var mod = loadedClass.getModifiers();
-						if ((mod & Modifier.PUBLIC) != mod && loadedClass.isInterface())
-							interfaces.add(IuType.of(loadedClass));
-
-						for (var annotation : loadedClass.getAnnotations()) {
-							var annotationType = annotation.annotationType();
-
-							var annotatedWithType = annotatedTypes.get(annotationType);
-							if (annotatedWithType == null) {
-								annotatedWithType = new ArrayList<>();
-								annotatedTypes.put(annotationType, annotatedWithType);
-							}
-
-							annotatedWithType.add(IuType.of(loadedClass));
-						}
-
-						for (var resource : ComponentResource.getResources(loadedClass))
-							resources.add(resource);
-					}
-				} catch (Throwable e) {
+					loadedClass = classLoader.loadClass(className);
+				} catch (ClassNotFoundException | Error e) {
 					LOG.log(Level.WARNING, e,
 							() -> "Invalid class " + className + " in component " + archive.version());
+					continue;
 				}
+				
+				var module = loadedClass.getModule();
+				if ((module.isNamed() && module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) //
+						|| (!module.isNamed() && !archive.kind().isModular() && archive.properties() != null)) {
+
+					var mod = loadedClass.getModifiers();
+					if ((mod & Modifier.PUBLIC) != mod && loadedClass.isInterface() && !loadedClass.isAnnotation())
+						interfaces.add(IuType.of(loadedClass));
+
+					for (var annotation : AnnotationBridge.getAnnotations(loadedClass)) {
+						var annotationType = annotation.annotationType();
+
+						var annotatedWithType = annotatedTypes.get(annotationType);
+						if (annotatedWithType == null) {
+							annotatedWithType = new ArrayList<>();
+							annotatedTypes.put(annotationType, annotatedWithType);
+						}
+
+						annotatedWithType.add(IuType.of(loadedClass));
+					}
+
+					for (var resource : ComponentResource.getResources(loadedClass))
+						resources.add(resource);
+				}
+			}
 		}
 
 		if (parent != null)

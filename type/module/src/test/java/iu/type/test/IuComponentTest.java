@@ -35,10 +35,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.when;
 
 import java.io.InputStream;
 import java.net.URL;
@@ -46,15 +42,17 @@ import java.util.logging.Level;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import edu.iu.test.IuTest;
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuComponent.Kind;
-import edu.iu.type.IuType;
+import iu.type.ComponentResourceTypeSupport;
 import iu.type.TestArchives;
 
 @SuppressWarnings("javadoc")
+@ExtendWith(ComponentResourceTypeSupport.class)
 public class IuComponentTest {
 
 	@Test
@@ -97,36 +95,28 @@ public class IuComponentTest {
 			return;
 		}
 
-		try (var mockIuType = mockStatic(IuType.class)) {
-			mockIuType.when(() -> IuType.of(any(Class.class))).then(a -> {
-				var c = (Class<?>) a.getArgument(0);
-				var type = mock(IuType.class);
-				when(type.name()).thenReturn(c.getName());
-				return type;
-			});
-			try (var component = IuComponent.of(TestArchives.getComponentArchive("testruntime"),
-					TestArchives.getProvidedDependencyArchives("testruntime"))) {
+		try (var component = IuComponent.of(TestArchives.getComponentArchive("testruntime"),
+				TestArchives.getProvidedDependencyArchives("testruntime"))) {
 
-				assertEquals(Kind.MODULAR_JAR, component.kind());
-				assertEquals("iu-java-type-testruntime", component.version().name());
-				assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
+			assertEquals(Kind.MODULAR_JAR, component.kind());
+			assertEquals("iu-java-type-testruntime", component.version().name());
+			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
 
-				var interfaces = component.interfaces().iterator();
-				assertTrue(interfaces.hasNext());
-				assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
-				assertFalse(interfaces.hasNext());
+			var interfaces = component.interfaces().iterator();
+			assertTrue(interfaces.hasNext());
+			assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
+			assertFalse(interfaces.hasNext());
 
-				var contextLoader = Thread.currentThread().getContextClassLoader();
-				var loader = component.classLoader();
-				try {
-					Thread.currentThread().setContextClassLoader(loader);
-					var urlReader = loader.loadClass("edu.iu.type.testruntime.UrlReader");
-					var urlReader$ = urlReader.getConstructor().newInstance();
-					assertEquals(urlReader.getMethod("parseJson", String.class).invoke(urlReader$, expected), urlReader
-							.getMethod("get", String.class).invoke(urlReader$, publicUrlThatWorksAndReturnsJson));
-				} finally {
-					Thread.currentThread().setContextClassLoader(contextLoader);
-				}
+			var contextLoader = Thread.currentThread().getContextClassLoader();
+			var loader = component.classLoader();
+			try {
+				Thread.currentThread().setContextClassLoader(loader);
+				var urlReader = loader.loadClass("edu.iu.type.testruntime.UrlReader");
+				var urlReader$ = urlReader.getConstructor().newInstance();
+				assertEquals(urlReader.getMethod("parseJson", String.class).invoke(urlReader$, expected),
+						urlReader.getMethod("get", String.class).invoke(urlReader$, publicUrlThatWorksAndReturnsJson));
+			} finally {
+				Thread.currentThread().setContextClassLoader(contextLoader);
 			}
 		}
 	}
@@ -144,71 +134,56 @@ public class IuComponentTest {
 			return;
 		}
 
-		try (var mockIuType = mockStatic(IuType.class)) {
-			mockIuType.when(() -> IuType.of(any(Class.class))).then(a -> {
-				var c = (Class<?>) a.getArgument(0);
-				var type = mock(IuType.class);
-				when(type.name()).thenReturn(c.getName());
-				return type;
-			});
-			try (var component = IuComponent.of(TestArchives.getComponentArchive("testlegacy"))) {
+		try (var component = IuComponent.of(TestArchives.getComponentArchive("testlegacy"))) {
 
-				assertEquals(Kind.LEGACY_JAR, component.kind());
-				assertEquals("iu-java-type-testlegacy", component.version().name());
-				assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
+			assertEquals(Kind.LEGACY_JAR, component.kind());
+			assertEquals("iu-java-type-testlegacy", component.version().name());
+			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
 
-				var interfaces = component.interfaces().iterator();
-				assertTrue(interfaces.hasNext());
-				assertEquals("edu.iu.legacy.LegacyInterface", interfaces.next().name());
-				assertFalse(interfaces.hasNext(), interfaces.next().name());
+			var interfaces = component.interfaces().iterator();
+			assertTrue(interfaces.hasNext());
+			assertEquals("edu.iu.legacy.LegacyInterface", interfaces.next().name());
+			assertTrue(interfaces.hasNext());
+			assertEquals("edu.iu.legacy.NotResource", interfaces.next().name());
+			assertFalse(interfaces.hasNext(), () -> interfaces.next().name());
 
-				var contextLoader = Thread.currentThread().getContextClassLoader();
-				var loader = component.classLoader();
-				try {
-					Thread.currentThread().setContextClassLoader(loader);
-					var urlReader = loader.loadClass("edu.iu.legacy.LegacyUrlReader");
-					var urlReader$ = urlReader.getConstructor().newInstance();
-					assertEquals(urlReader.getMethod("parseJson", String.class).invoke(urlReader$, expected), urlReader
-							.getMethod("get", String.class).invoke(urlReader$, publicUrlThatWorksAndReturnsJson));
-				} finally {
-					Thread.currentThread().setContextClassLoader(contextLoader);
-				}
+			var contextLoader = Thread.currentThread().getContextClassLoader();
+			var loader = component.classLoader();
+			try {
+				Thread.currentThread().setContextClassLoader(loader);
+				var urlReader = loader.loadClass("edu.iu.legacy.LegacyUrlReader");
+				var urlReader$ = urlReader.getConstructor().newInstance();
+				assertEquals(urlReader.getMethod("parseJson", String.class).invoke(urlReader$, expected),
+						urlReader.getMethod("get", String.class).invoke(urlReader$, publicUrlThatWorksAndReturnsJson));
+			} finally {
+				Thread.currentThread().setContextClassLoader(contextLoader);
 			}
 		}
 	}
 
 	@Test
 	public void testLoadsTestComponent() throws Exception {
-		try (var mockIuType = mockStatic(IuType.class)) {
-			mockIuType.when(() -> IuType.of(any(Class.class))).then(a -> {
-				var c = (Class<?>) a.getArgument(0);
-				var type = mock(IuType.class);
-				when(type.name()).thenReturn(c.getName());
-				when(type.baseClass()).thenReturn(c);
-				return type;
-			});
-			IuTestLogger.expect("iu.type.Component", Level.WARNING, "Invalid class invalid.*",
-					ClassNotFoundException.class);
-			try (var parent = IuComponent.of(TestArchives.getComponentArchive("testruntime"),
-					TestArchives.getProvidedDependencyArchives("testruntime"));
-					var component = parent.extend(TestArchives.getComponentArchive("testcomponent"))) {
+		IuTestLogger.expect("iu.type.Component", Level.WARNING, "Invalid class invalid.*",
+				ClassNotFoundException.class);
+		try (var parent = IuComponent.of(TestArchives.getComponentArchive("testruntime"),
+				TestArchives.getProvidedDependencyArchives("testruntime"));
+				var component = parent.extend(TestArchives.getComponentArchive("testcomponent"))) {
 
-				assertEquals(Kind.MODULAR_JAR, component.kind());
-				assertEquals("iu-java-type-testcomponent", component.version().name());
-				assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
+			assertEquals(Kind.MODULAR_JAR, component.kind());
+			assertEquals("iu-java-type-testcomponent", component.version().name());
+			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
 
-				var interfaces = component.interfaces().iterator();
-				assertTrue(interfaces.hasNext());
-				assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
-				assertTrue(interfaces.hasNext());
-				assertEquals("edu.iu.type.testcomponent.TestBean", interfaces.next().name());
-				assertFalse(interfaces.hasNext());
+			var interfaces = component.interfaces().iterator();
+			assertTrue(interfaces.hasNext());
+			assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
+			assertTrue(interfaces.hasNext());
+			assertEquals("edu.iu.type.testcomponent.TestBean", interfaces.next().name());
+			assertFalse(interfaces.hasNext());
 
-				var resources = component.resources().iterator();
-				assertTrue(resources.hasNext());
-				assertEquals("edu.iu.type.testcomponent.TestResource", resources.next().name());
-				assertFalse(resources.hasNext());
-			}
+			var resources = component.resources().iterator();
+			assertTrue(resources.hasNext());
+			assertEquals("TestResource", resources.next().name());
+			assertFalse(resources.hasNext());
 		}
 	}
 }

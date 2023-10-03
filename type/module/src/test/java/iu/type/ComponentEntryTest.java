@@ -46,6 +46,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.UnsafeConsumer;
+
 @SuppressWarnings("javadoc")
 public class ComponentEntryTest {
 
@@ -78,12 +80,15 @@ public class ComponentEntryTest {
 	}
 
 	@Test
-	public void testOnlyReadsOnce() throws IOException {
+	@SuppressWarnings("unchecked")
+	public void testOnlyReadsOnce() throws Throwable {
 		var in = mock(InputStream.class);
-		var inputStreamConsumer = mock(ComponentEntry.InputStreamConsumer.class);
+		var inputStreamConsumer = mock(UnsafeConsumer.class);
 		try (var componentEntry = new ComponentEntry(null, in)) {
 			componentEntry.read(inputStreamConsumer);
-			assertEquals("already read", assertThrows(IllegalStateException.class, () -> componentEntry.read(inputStreamConsumer)).getMessage());
+			assertEquals("already read",
+					assertThrows(IllegalStateException.class, () -> componentEntry.read(inputStreamConsumer))
+							.getMessage());
 			assertEquals("already read", assertThrows(IllegalStateException.class, componentEntry::data).getMessage());
 		}
 		verify(inputStreamConsumer, times(1)).accept(in);

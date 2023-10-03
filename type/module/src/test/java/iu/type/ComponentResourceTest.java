@@ -38,9 +38,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.when;
 
 import java.io.Serializable;
 import java.lang.reflect.InvocationHandler;
@@ -50,7 +47,6 @@ import java.lang.reflect.Proxy;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import edu.iu.type.IuConstructor;
 import edu.iu.type.IuType;
 import jakarta.annotation.Resource;
 import jakarta.annotation.Resource.AuthenticationType;
@@ -136,58 +132,11 @@ public class ComponentResourceTest {
 	}
 
 	@Test
-	@SuppressWarnings("unchecked")
-	public void testCreateImplementationInstanceWorks() throws Exception {
-		class ResourceClass {
-		}
-		var type = IuType.of(ResourceClass.class);
-		var con = mock(IuConstructor.class);
-		when(con.exec()).thenReturn(new ResourceClass());
-		when(type.constructor()).thenReturn(con);
-		assertTrue(ComponentResource.createImplementationInstance(ResourceClass.class) instanceof ResourceClass);
-	}
-
-	@Test
-	public void testCreateImplementationInstanceRethrowsError() throws Exception {
-		class ResourceClass {
-			@SuppressWarnings("unused")
-			ResourceClass() {
-				throw new Error();
-			}
-		}
-		assertThrows(Error.class, () -> ComponentResource.createImplementationInstance(ResourceClass.class));
-	}
-
-	@Test
-	public void testCreateImplementationInstanceHandlesException() throws Exception {
-		class ResourceException extends Exception {
-			private static final long serialVersionUID = 1L;
-		}
-		class ResourceClass {
-			@SuppressWarnings("unused")
-			ResourceClass() throws ResourceException {
-				throw new ResourceException();
-			}
-		}
-		assertTrue(assertThrows(ExceptionInInitializerError.class,
-				() -> ComponentResource.createImplementationInstance(ResourceClass.class))
-				.getCause() instanceof ResourceException);
-	}
-
-	@Test
 	public void testCreateResourceInstance() throws Exception {
 		class ResourceClass {
 		}
-		try (var mockComponentResource = mockStatic(ComponentResource.class)) {
-			mockComponentResource
-					.when(() -> ComponentResource.createResourceInstance(ResourceClass.class, ResourceClass.class))
-					.thenCallRealMethod();
-			mockComponentResource.when(() -> ComponentResource.createImplementationInstance(ResourceClass.class))
-					.then(a -> new ResourceClass());
-
-			var resource = ComponentResource.createResourceInstance(ResourceClass.class, ResourceClass.class);
-			assertNotSame(resource, ComponentResource.createResourceInstance(ResourceClass.class, ResourceClass.class));
-		}
+		var resource = ComponentResource.createResourceInstance(ResourceClass.class, ResourceClass.class);
+		assertNotSame(resource, ComponentResource.createResourceInstance(ResourceClass.class, ResourceClass.class));
 	}
 
 	@Test
@@ -201,18 +150,10 @@ public class ComponentResourceTest {
 				return null;
 			}
 		}
-		try (var mockComponentResource = mockStatic(ComponentResource.class)) {
-			mockComponentResource.when(() -> ComponentResource.createResourceInstance(ResourceInterface.class,
-					ResourceInvocationHandler.class)).thenCallRealMethod();
-			mockComponentResource
-					.when(() -> ComponentResource.createImplementationInstance(ResourceInvocationHandler.class))
-					.then(a -> new ResourceInvocationHandler());
-
-			var resource = ComponentResource.createResourceInstance(ResourceInterface.class,
-					ResourceInvocationHandler.class);
-			assertTrue(Proxy.isProxyClass(resource.getClass()));
-			assertTrue(Proxy.getInvocationHandler(resource) instanceof ResourceInvocationHandler);
-		}
+		var resource = ComponentResource.createResourceInstance(ResourceInterface.class,
+				ResourceInvocationHandler.class);
+		assertTrue(Proxy.isProxyClass(resource.getClass()));
+		assertTrue(Proxy.getInvocationHandler(resource) instanceof ResourceInvocationHandler);
 	}
 
 	@Test

@@ -45,7 +45,7 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import iu.type.TemporaryFile.TempFileInitializer;
+import edu.iu.UnsafeFunction;
 
 @SuppressWarnings("javadoc")
 public class TemporaryFileTest {
@@ -65,10 +65,10 @@ public class TemporaryFileTest {
 
 	@Test
 	@SuppressWarnings("unchecked")
-	public void testThrowsDeletesOnError() throws IOException {
+	public void testThrowsDeletesOnError() throws Throwable {
 		var temp = mock(Path.class);
-		var initializer = mock(TempFileInitializer.class);
-		when(initializer.initialize(temp)).thenThrow(IOException.class);
+		var initializer = mock(UnsafeFunction.class);
+		when(initializer.apply(temp)).thenThrow(IOException.class);
 		try (var mockFiles = mockStatic(Files.class)) {
 			mockFiles.when(() -> Files.createTempFile("iu-type-", ".jar")).thenReturn(temp);
 			assertThrows(IOException.class, () -> TemporaryFile.init(initializer));
@@ -78,11 +78,11 @@ public class TemporaryFileTest {
 
 	@Test
 	@SuppressWarnings("unchecked")
-	public void testSuppressesDeleteError() throws IOException {
+	public void testSuppressesDeleteError() throws Throwable {
 		var temp = mock(Path.class);
 		var deleteError = new IOException();
-		var initializer = mock(TempFileInitializer.class);
-		when(initializer.initialize(temp)).thenThrow(new IOException());
+		var initializer = mock(UnsafeFunction.class);
+		when(initializer.apply(temp)).thenThrow(new IOException());
 		try (var mockFiles = mockStatic(Files.class)) {
 			mockFiles.when(() -> Files.createTempFile("iu-type-", ".jar")).thenReturn(temp);
 			mockFiles.when(() -> Files.deleteIfExists(temp)).thenThrow(deleteError);
@@ -93,14 +93,14 @@ public class TemporaryFileTest {
 
 	@Test
 	@SuppressWarnings("unchecked")
-	public void testWorks() throws IOException {
+	public void testWorks() throws Throwable {
 		var temp = mock(Path.class);
-		var initializer = mock(TempFileInitializer.class);
-		when(initializer.initialize(temp)).thenReturn(temp);
+		var initializer = mock(UnsafeFunction.class);
+		when(initializer.apply(temp)).thenReturn(temp);
 		try (var mockFiles = mockStatic(Files.class)) {
 			mockFiles.when(() -> Files.createTempFile("iu-type-", ".jar")).thenReturn(temp);
 			assertSame(temp, TemporaryFile.init(initializer));
-			verify(initializer).initialize(temp);
+			verify(initializer).apply(temp);
 		}
 	}
 

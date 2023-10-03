@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.stream.Collectors;
 
+import edu.iu.IuException;
 import edu.iu.type.IuComponent;
 
 final class ComponentFactory {
@@ -208,12 +209,7 @@ final class ComponentFactory {
 						thrown.addSuppressed(e);
 				}
 			if (!throwing && thrown != null)
-				if (thrown instanceof IOException)
-					throw (IOException) thrown;
-				else if (thrown instanceof RuntimeException)
-					throw (RuntimeException) thrown;
-				else
-					throw (Error) thrown;
+				throw IuException.checked(thrown, IOException.class);
 		}
 	}
 

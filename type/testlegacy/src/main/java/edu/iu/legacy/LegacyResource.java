@@ -29,33 +29,16 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type;
+package edu.iu.legacy;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import javax.annotation.Resource;
+import javax.annotation.Resources;
 
-import edu.iu.IuException;
-import edu.iu.UnsafeFunction;
-
-final class TemporaryFile {
-
-	static <T> T init(UnsafeFunction<Path, T> tempFileInitializer) throws IOException {
-		Path temp = Files.createTempFile("iu-type-", ".jar");
-
-		try {
-			return tempFileInitializer.apply(temp);
-		} catch (Throwable e) {
-			try {
-				Files.deleteIfExists(temp);
-			} catch (Throwable e2) {
-				e.addSuppressed(e2);
-			}
-			throw IuException.checked(e, IOException.class);
-		}
-	}
-
-	private TemporaryFile() {
-	}
-
+@SuppressWarnings("javadoc")
+@Resource
+@Resources({ @Resource(name = "one", type = LegacyBean.class), @Resource(name = "two") })
+@Incompatible
+@Removed
+@Repurposed
+public class LegacyResource {
 }
