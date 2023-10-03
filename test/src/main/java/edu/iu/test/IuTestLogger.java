@@ -120,20 +120,26 @@ public final class IuTestLogger {
 		}
 
 		private void assertMatches(LogRecord record) {
-			assertEquals(loggerName, record.getLoggerName());
-			assertEquals(level, record.getLevel());
-
 			var thrown = record.getThrown();
-			if (thrownClass == null)
-				assertNull(thrown);
-			else {
-				assertSame(thrownClass, thrown.getClass());
-				if (thrownTest != null)
-					assertTrue(thrownTest.test(thrownClass.cast(thrown)), "Thrown exception mismatch " + this);
-			}
+			try {
+				assertEquals(loggerName, record.getLoggerName());
+				assertEquals(level, record.getLevel());
 
-			var message = record.getMessage();
-			assertTrue(pattern.matcher(message).matches(), message + " doesn't match " + this);
+				if (thrownClass == null)
+					assertNull(thrown);
+				else {
+					assertSame(thrownClass, thrown.getClass());
+					if (thrownTest != null)
+						assertTrue(thrownTest.test(thrownClass.cast(thrown)), "Thrown exception mismatch " + this);
+				}
+
+				var message = record.getMessage();
+				assertTrue(pattern.matcher(message).matches(), message + " doesn't match " + this);
+			} catch (AssertionFailedError e) {
+				if (thrown != null)
+					e.addSuppressed(thrown);
+				throw e;
+			}
 		}
 
 		@Override

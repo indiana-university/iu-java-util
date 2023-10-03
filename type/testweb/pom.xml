@@ -35,6 +35,12 @@
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
+			<groupId>jakarta.servlet.jsp</groupId>
+			<artifactId>jakarta.servlet.jsp-api</artifactId>
+			<version>3.1.0</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
 			<groupId>jakarta.servlet.jsp.jstl</groupId>
 			<artifactId>jakarta.servlet.jsp.jstl-api</artifactId>
 			<version>3.0.0</version>
@@ -51,6 +57,20 @@
 						<phase>process-classes</phase>
 					</execution>
 				</executions>
+				<configuration>
+					<archive>
+						<manifestEntries>
+							<Sealed>true</Sealed>
+							<Extension-List>jakarta.servlet-api jakarta.servlet.jsp-api iu-java-type-testruntime</Extension-List>
+							<jakarta_servlet-api-Extension-Name>jakarta.servlet-api</jakarta_servlet-api-Extension-Name>
+							<jakarta_servlet-api-Specification-Version>6.0</jakarta_servlet-api-Specification-Version>
+							<jakarta_servlet_jsp-api-Extension-Name>jakarta.servlet.jsp-api</jakarta_servlet_jsp-api-Extension-Name>
+							<jakarta_servlet_jsp-api-Specification-Version>3.1</jakarta_servlet_jsp-api-Specification-Version>
+							<iu-java-type-testruntime-Extension-Name>iu-java-type-testruntime</iu-java-type-testruntime-Extension-Name>
+							<iu-java-type-testruntime-Specification-Version>7.0</iu-java-type-testruntime-Specification-Version>
+						</manifestEntries>
+					</archive>
+				</configuration>
 			</plugin>
 			<plugin>
 				<artifactId>maven-dependency-plugin</artifactId>
@@ -62,7 +82,7 @@
 							<goal>copy-dependencies</goal>
 						</goals>
 						<configuration>
-							<includeArtifactIds>jakarta.servlet-api</includeArtifactIds>
+							<includeArtifactIds>jakarta.servlet-api,jakarta.servlet.jsp-api</includeArtifactIds>
 						</configuration>
 					</execution>
 				</executions>

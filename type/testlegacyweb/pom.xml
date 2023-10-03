@@ -29,6 +29,18 @@
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
+			<groupId>jakarta.servlet.jsp</groupId>
+			<artifactId>jakarta.servlet.jsp-api</artifactId>
+			<version>2.3.6</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.el</groupId>
+			<artifactId>jakarta.el-api</artifactId>
+			<version>3.0.3</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
 			<groupId>jakarta.servlet.jsp.jstl</groupId>
 			<artifactId>jakarta.servlet.jsp.jstl-api</artifactId>
 			<version>1.2.7</version>
@@ -41,9 +53,6 @@
 				<artifactId>maven-war-plugin</artifactId>
 				<configuration>
 					<archive>
-						<manifest>
-							<addExtensions>false</addExtensions>
-						</manifest>
 						<manifestEntries>
 							<Sealed>false</Sealed>
 						</manifestEntries>
@@ -66,7 +75,7 @@
 							<goal>copy-dependencies</goal>
 						</goals>
 						<configuration>
-							<includeArtifactIds>jakarta.servlet-api</includeArtifactIds>
+							<includeScope>provided</includeScope>
 						</configuration>
 					</execution>
 				</executions>

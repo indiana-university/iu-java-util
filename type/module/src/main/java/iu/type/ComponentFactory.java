@@ -116,18 +116,11 @@ final class ComponentFactory {
 				path[i++] = archive.path().toUri().toURL();
 		}
 
-		var loader = new LegacyClassLoader(archives.iterator().next().kind().isWeb(), path,
-				parent == null ? null : parent.classLoader());
-		try {
-			return new Component(parent, null, loader, null, archives);
-		} catch (RuntimeException | Error e) {
-			try {
-				loader.close();
-			} catch (Throwable e2) {
-				e.addSuppressed(e2);
-			}
-			throw e;
-		}
+		return IuException.checked(IOException.class,
+				() -> IuException.initialize(
+						new LegacyClassLoader(archives.iterator().next().kind().isWeb(), path,
+								parent == null ? null : parent.classLoader()),
+						loader -> new Component(parent, null, loader, null, archives)));
 	}
 
 	static IuComponent createFromSourceQueue(Component parent, Queue<ArchiveSource> sources) throws IOException {

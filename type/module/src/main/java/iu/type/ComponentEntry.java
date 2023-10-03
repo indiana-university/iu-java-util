@@ -63,12 +63,10 @@ class ComponentEntry implements AutoCloseable {
 		if (read)
 			throw new IllegalStateException("already read");
 		
-		try {
+		IuException.unchecked(() -> {
 			with.accept(input);
 			read = true;
-		} catch (Throwable e) {
-			throw IuException.unchecked(e);
-		}
+		});
 	}
 
 	byte[] data() {

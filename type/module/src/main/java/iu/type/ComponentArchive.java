@@ -46,11 +46,11 @@ import java.util.Set;
 import edu.iu.type.IuComponent.Kind;
 
 record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properties properties,
-		Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources, 
+		Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources,
 		Collection<ArchiveSource> bundledDependencies) {
 
 	private static record ScannedAttributes(Kind kind, ComponentVersion version, Properties properties,
-			Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources, 
+			Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources,
 			Collection<ArchiveSource> bundledDependencies) {
 	}
 
@@ -204,7 +204,8 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 
 				componentEntry.read(in -> target.put(resourceName, in));
 
-			} else if (name.startsWith("META-INF/") && name.charAt(name.length() - 1) == '/')
+			} else if ((name.startsWith("META-INF/") || name.startsWith("WEB-INF/"))
+					&& name.charAt(name.length() - 1) == '/')
 				continue;
 
 			else if (!hasNonWebTypes)

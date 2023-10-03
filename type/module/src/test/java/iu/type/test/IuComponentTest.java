@@ -186,4 +186,60 @@ public class IuComponentTest {
 			assertFalse(resources.hasNext());
 		}
 	}
+
+	@Test
+	public void testLoadsTestWar() throws Exception {
+		try (var parent = IuComponent.of(TestArchives.getComponentArchive("testruntime"),
+				TestArchives.getProvidedDependencyArchives("testruntime"));
+				var component = parent.extend(TestArchives.getComponentArchive("testweb"),
+						TestArchives.getProvidedDependencyArchives("testweb"))) {
+
+			assertEquals(Kind.MODULAR_WAR, component.kind());
+			assertEquals("iu-java-type-testweb", component.version().name());
+			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
+
+			var interfaces = component.interfaces().iterator();
+			assertTrue(interfaces.hasNext());
+			assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
+			assertFalse(interfaces.hasNext());
+
+			var resources = component.resources().iterator();
+			assertTrue(resources.hasNext());
+			assertEquals("index.html", resources.next().name());
+			assertTrue(resources.hasNext());
+			assertEquals("WEB-INF/web.xml", resources.next().name());
+			assertFalse(resources.hasNext(), () -> resources.next().name());
+		}
+	}
+
+	@Test
+	public void testLoadsLegacyWar() throws Exception {
+		try (var parent = IuComponent.of(TestArchives.getComponentArchive("testlegacy"));
+				var component = parent.extend(TestArchives.getComponentArchive("testlegacyweb"),
+						TestArchives.getProvidedDependencyArchives("testlegacyweb"))) {
+
+			assertEquals(Kind.LEGACY_WAR, component.kind());
+			assertEquals("iu-java-type-testlegacyweb", component.version().name());
+			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
+
+			var interfaces = component.interfaces().iterator();
+			assertTrue(interfaces.hasNext());
+			assertEquals("edu.iu.legacy.LegacyInterface", interfaces.next().name());
+			assertTrue(interfaces.hasNext());
+			assertEquals("edu.iu.legacy.NotResource", interfaces.next().name());
+			assertFalse(interfaces.hasNext(), () -> interfaces.next().name());
+
+			var resources = component.resources().iterator();
+			assertTrue(resources.hasNext());
+			assertEquals("two", resources.next().name());
+			assertTrue(resources.hasNext());
+			assertEquals("LegacyResource", resources.next().name());
+			assertTrue(resources.hasNext());
+			assertEquals("index.jsp", resources.next().name());
+			assertTrue(resources.hasNext());
+			assertEquals("WEB-INF/web.xml", resources.next().name());
+			assertFalse(resources.hasNext(), () -> resources.next().name());
+		}
+	}
+
 }
