@@ -36,19 +36,18 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import java.beans.Transient;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.test.IuTest;
-import jakarta.annotation.Resource;
-import jakarta.annotation.security.PermitAll;
 
 @SuppressWarnings("javadoc")
 public class TypeApiTest {
@@ -77,14 +76,14 @@ public class TypeApiTest {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Test
 	public void testAnnotations() {
-		@Resource
+		@DefaultInterceptor
 		class IsAnnotated {
 		}
-		var resource = IsAnnotated.class.getAnnotation(Resource.class);
+		var annotation = IsAnnotated.class.getAnnotation(DefaultInterceptor.class);
 		var annotatedElement = IuTest.mockWithDefaults(IuAnnotatedElement.class);
-		when(annotatedElement.annotations()).thenReturn((Map) Map.of(Resource.class, resource));
-		assertTrue(annotatedElement.hasAnnotation(Resource.class));
-		assertSame(resource, annotatedElement.annotation(Resource.class));
+		when(annotatedElement.annotations()).thenReturn((Map) Map.of(DefaultInterceptor.class, annotation));
+		assertTrue(annotatedElement.hasAnnotation(DefaultInterceptor.class));
+		assertSame(annotation, annotatedElement.annotation(DefaultInterceptor.class));
 	}
 
 	@Test
@@ -101,6 +100,14 @@ public class TypeApiTest {
 		var param = IuTest.mockWithDefaults(IuParameter.class);
 		when(executable.parameters()).thenReturn(List.of(param));
 		assertSame(param, executable.parameter(0));
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testPermitted() {
+		var element = IuTest.mockWithDefaults(IuAnnotatedElement.class);
+		when(element.permitted(any())).then(a -> ((Predicate<String>) a.getArguments()[0]).test(""));
+		assertFalse(element.permitted());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -159,8 +166,8 @@ public class TypeApiTest {
 		assertFalse(property.serializable());
 	}
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Test
+	@SuppressWarnings("unchecked")
 	public void testReadWritePropertyPermittedByMethodAnnotation() {
 		var property = IuTest.mockWithDefaults(IuProperty.class);
 
@@ -168,30 +175,7 @@ public class TypeApiTest {
 		when(property.declaringType()).thenReturn(type);
 
 		var read = IuTest.mockWithDefaults(IuMethod.class);
-		var permitAllAnnotation = mock(PermitAll.class);
-		when(read.annotations()).thenReturn((Map) Map.of(PermitAll.class, permitAllAnnotation));
-		when(property.read()).thenReturn(read);
-
-		var write = IuTest.mockWithDefaults(IuMethod.class);
-		when(property.write()).thenReturn(write);
-
-		assertTrue(property.canRead());
-		assertTrue(property.canWrite());
-		assertTrue(property.printSafe());
-		assertTrue(property.serializable());
-	}
-
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	@Test
-	public void testReadWritePropertyPermittedByTypeAnnotation() {
-		var property = IuTest.mockWithDefaults(IuProperty.class);
-
-		var type = IuTest.mockWithDefaults(IuType.class);
-		var permitAllAnnotation = mock(PermitAll.class);
-		when(type.annotations()).thenReturn((Map) Map.of(PermitAll.class, permitAllAnnotation));
-		when(property.declaringType()).thenReturn(type);
-
-		var read = IuTest.mockWithDefaults(IuMethod.class);
+		when(read.permitted()).thenReturn(true);
 		when(property.read()).thenReturn(read);
 
 		var write = IuTest.mockWithDefaults(IuMethod.class);

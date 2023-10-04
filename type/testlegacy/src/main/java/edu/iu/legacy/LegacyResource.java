@@ -29,39 +29,16 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type;
+package edu.iu.legacy;
 
-import java.lang.reflect.Type;
-import java.util.Map;
-import java.util.WeakHashMap;
+import javax.annotation.Resource;
+import javax.annotation.Resources;
 
-import edu.iu.type.IuType;
-
-/**
- * Resolves {@link IuType} instances for {@link IuType#of(Class)}.
- */
-public final class TypeFactory {
-
-	private static final Map<Type, TypeFacade<?>> FACADES = new WeakHashMap<>();
-
-	/**
-	 * Resolve an {@link IuType} instance.
-	 * 
-	 * @param type type to resolve
-	 * @return {@link IuType} instance
-	 */
-	public static IuType<?> resolve(Type type) {
-		var facade = FACADES.get(type);
-		if (facade == null)
-			synchronized (FACADES) {
-				facade = new TypeFacade<>(type);
-				FACADES.put(type, facade);
-			}
-		
-		return facade;
-	}
-
-	private TypeFactory() {
-	}
-
+@SuppressWarnings("javadoc")
+@Resource
+@Resources({ @Resource(name = "one", type = LegacyBean.class), @Resource(name = "two") })
+@Incompatible
+@Removed
+@Repurposed
+public class LegacyResource {
 }

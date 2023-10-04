@@ -1,6 +1,36 @@
+/*
+ * Copyright © 2023 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package iu.type;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -32,6 +62,7 @@ import org.opentest4j.AssertionFailedError;
 
 import edu.iu.test.IuTest;
 import edu.iu.type.IuComponent.Kind;
+import edu.iu.type.IuComponentVersion;
 
 @SuppressWarnings("javadoc")
 public class ComponentArchiveTest {
@@ -270,8 +301,6 @@ public class ComponentArchiveTest {
 			assertFalse(archive.nonEnclosedTypeNames()
 					.contains("edu.iu.type.testcomponent.TestBeanImpl$InternalSupportingClass"));
 			assertTrue(archive.webResources().isEmpty());
-			assertFalse(archive.allResources().contains("META-INF/iu-type.properties"));
-			assertFalse(archive.allResources().contains("edu/iu/type/testcomponent/TestBean"));
 			assertEquals("testcomponent", archive.properties().getProperty("remotableModules"));
 		}, Map.of( //
 				"META-INF/MANIFEST.MF", -1, //
@@ -296,17 +325,20 @@ public class ComponentArchiveTest {
 			assertTrue(archive.webResources().isEmpty());
 
 			var expectedDependencies = new LinkedHashSet<>(source.dependencies());
-			assertEquals(3, expectedDependencies.size());
-			for (var bundledDependency : archive.bundledDependencies())
+			assertEquals(1, expectedDependencies.size());
+			assertTrue(expectedDependencies.contains(new ComponentVersion("parsson", 1, 1)));
+
+			var bundledDependencies = archive.bundledDependencies();
+			assertEquals(3, bundledDependencies.size());
+			for (var bundledDependency : bundledDependencies)
 				try {
 					var bundledArchive = ComponentArchive.from(bundledDependency);
-					assertTrue(expectedDependencies.remove(bundledArchive.version()));
+					assertFalse(expectedDependencies.contains(bundledArchive.version()));
 					bundledDependency.close();
 					Files.delete(bundledArchive.path());
 				} catch (IOException e) {
 					throw new IllegalStateException(e);
 				}
-			assertTrue(expectedDependencies.isEmpty());
 
 			assertNull(archive.properties());
 		}, Map.of( //
@@ -330,42 +362,41 @@ public class ComponentArchiveTest {
 					archive.nonEnclosedTypeNames().toString());
 			assertTrue(archive.nonEnclosedTypeNames().contains("edu.iu.type.testweb.TestServlet"),
 					archive.nonEnclosedTypeNames().toString());
-			assertArrayEquals(B0, archive.webResources().get("WEB-INF/"),
-					"expected zero-length WEB-INF/ " + archive.webResources().toString());
 			assertTrue(archive.webResources().containsKey("WEB-INF/web.xml"),
 					"missing WEB-INF/web.xml " + archive.webResources().toString());
 			assertTrue(archive.webResources().containsKey("index.html"),
 					"missing index.html " + archive.webResources().toString());
 			assertFalse(archive.webResources().containsKey("META-INF/"),
 					"shouldn't include META-INF/ " + archive.webResources().toString());
+			assertFalse(archive.webResources().containsKey("WEB-INF/lib/"),
+					"shouldn't include WEB-INF/ " + archive.webResources().toString());
+			assertFalse(archive.webResources().containsKey("WEB-INF/lib/"),
+					"shouldn't include WEB-INF/lib/ " + archive.webResources().toString());
+			assertFalse(archive.webResources().containsKey("WEB-INF/classes/"),
+					"shouldn't include WEB-INF/classes/ " + archive.webResources().toString());
 
 			var expected = new LinkedHashSet<>(source.dependencies());
-			assertEquals(7, expected.size());
+			assertEquals(3, expected.size());
+			assertTrue(expected.contains(new ComponentVersion("iu-java-type-testruntime", 7, 0)), expected::toString);
+			assertTrue(expected.contains(new ComponentVersion("jakarta.servlet-api", 6, 0)), expected::toString);
+			assertTrue(expected.contains(new ComponentVersion("jakarta.servlet.jsp-api", 3, 1)), expected::toString);
+
+			Set<IuComponentVersion> bundled = new LinkedHashSet<>();
 			for (var bundledDependency : archive.bundledDependencies()) {
 				ComponentArchive bundledArchive;
 				try {
 					bundledArchive = ComponentArchive.from(bundledDependency);
-					assertTrue(expected.remove(bundledArchive.version()));
+					var bundledVersion = bundledArchive.version();
+					assertFalse(expected.remove(bundledVersion));
+					bundled.add(bundledVersion);
 					Files.delete(bundledArchive.path());
 				} catch (IOException e) {
 					throw new IllegalStateException(e);
 				}
 			}
-
-			assertTrue(
-					expected.contains(
-							new ComponentVersion("iu-java-type-testruntime", IuTest.getProperty("project.version"))),
-					expected.toString());
-			assertTrue(expected.contains(new ComponentVersion("jakarta.interceptor-api",
-					IuTest.getProperty("jakarta.interceptor-api.version"))), expected.toString());
-			assertTrue(
-					expected.contains(
-							new ComponentVersion("jakarta.json-api", IuTest.getProperty("jakarta.json-api.version"))),
-					expected.toString());
-			assertTrue(expected.contains(new ComponentVersion("jakarta.annotation-api",
-					IuTest.getProperty("jakarta.annotation-api.version"))), expected.toString());
-			assertTrue(expected.contains(new ComponentVersion("jakarta.servlet-api", "6.0.0")), expected.toString());
-			assertEquals(5, expected.size());
+			assertEquals(2, bundled.size());
+			assertTrue(bundled.contains(new ComponentVersion("jakarta.el-api", "5.0.0")), bundled::toString);
+			assertTrue(bundled.contains(new ComponentVersion("jakarta.servlet.jsp.jstl-api", "3.0.0")), bundled::toString);
 
 			assertEquals("true", archive.properties().getProperty("sample.type.property"));
 
@@ -374,7 +405,7 @@ public class ComponentArchiveTest {
 				"META-INF/maven/edu.iu.util/iu-java-type-testweb/pom.properties", -1, //
 				"WEB-INF/", -1, //
 				"WEB-INF/lib/", -1, //
-				"module-info.class", 200, //
+				"module-info.class", 180, //
 				"edu/iu/type/testweb/package-info.class", 100, //
 				"edu/iu/type/testweb/TestServlet.class", 100));
 	}
@@ -446,11 +477,12 @@ public class ComponentArchiveTest {
 			assertTrue(archive.webResources().isEmpty());
 			assertTrue(source.dependencies().isEmpty());
 
-			assertEquals(3, archive.bundledDependencies().size());
+			assertEquals(4, archive.bundledDependencies().size());
 			Set<ComponentVersion> expectedDependencies = new HashSet<>();
 			expectedDependencies.add(new ComponentVersion("javax.annotation-api", "1.3.2"));
 			expectedDependencies.add(new ComponentVersion("javax.interceptor-api", "1.2.2"));
 			expectedDependencies.add(new ComponentVersion("javax.json-api", "1.1.4"));
+			expectedDependencies.add(new ComponentVersion("javax.json", "1.1.4"));
 			for (var bundledDependency : archive.bundledDependencies()) {
 				try {
 					var bundledArchive = ComponentArchive.from(bundledDependency);
@@ -495,8 +527,6 @@ public class ComponentArchiveTest {
 			assertTrue(archive.nonEnclosedTypeNames().contains("edu.iu.type.testlegacyweb.TestLegacyWebServlet"),
 					archive.nonEnclosedTypeNames().toString());
 
-			assertArrayEquals(B0, archive.webResources().get("WEB-INF/"),
-					"expected zero-length WEB-INF/ " + archive.webResources().toString());
 			assertTrue(archive.webResources().containsKey("WEB-INF/web.xml"),
 					"missing WEB-INF/web.xml " + archive.webResources().toString());
 			assertTrue(archive.webResources().containsKey("index.jsp"),
@@ -505,7 +535,12 @@ public class ComponentArchiveTest {
 					"shouldn't include META-INF/ " + archive.webResources().toString());
 			assertFalse(archive.webResources().containsKey("META-INF/legacyweb.properties"),
 					"shouldn't include META-INF/legacyweb.properties " + archive.webResources().toString());
-
+			assertFalse(archive.webResources().containsKey("WEB-INF/lib/"),
+					"shouldn't include WEB-INF/ " + archive.webResources().toString());
+			assertFalse(archive.webResources().containsKey("WEB-INF/lib/"),
+					"shouldn't include WEB-INF/lib/ " + archive.webResources().toString());
+			assertFalse(archive.webResources().containsKey("WEB-INF/classes/"),
+					"shouldn't include WEB-INF/classes/ " + archive.webResources().toString());
 			assertTrue(source.dependencies().isEmpty());
 
 			assertEquals(1, archive.bundledDependencies().size());
@@ -546,7 +581,7 @@ public class ComponentArchiveTest {
 				var attr = manifest.getMainAttributes();
 				attr.put(Name.EXTENSION_LIST, "jakarta.servlet-api");
 				attr.put(new Name("jakarta_servlet-api-Extension-Name"), "jakarta.servlet-api");
-				attr.put(new Name("jakarta_servlet-api-Implementation-Version"), "4.0.4");
+				attr.put(new Name("jakarta_servlet-api-Specification-Version"), "4.0");
 				manifest.write(outJar);
 				outJar.closeEntry();
 

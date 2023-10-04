@@ -1,7 +1,39 @@
+/*
+ * Copyright © 2023 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package edu.iu.type;
 
 import java.util.HashMap;
 import java.util.Hashtable;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -38,7 +70,7 @@ public interface IuComponentVersion extends Comparable<IuComponentVersion> {
 	 * 
 	 * @see <a href="https://semver.org/">Semantic Versioning</a>
 	 */
-	static final Pattern SEMANITC_VERSION_PATTERN = Pattern.compile(
+	static final Pattern SEMANTIC_VERSION_PATTERN = Pattern.compile(
 			"^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$");
 
 	/**
@@ -61,7 +93,7 @@ public interface IuComponentVersion extends Comparable<IuComponentVersion> {
 	 * 
 	 * <p>
 	 * <em>Must</em> return a value for which
-	 * {@link #SEMANITC_VERSION_PATTERN}{@link Pattern#matcher(CharSequence)
+	 * {@link #SEMANTIC_VERSION_PATTERN}{@link Pattern#matcher(CharSequence)
 	 * .matcher(implementationVersion())}{@link Matcher#matches() .matches()}
 	 * returns {@code true}, or {@code null}.
 	 * </p>
@@ -73,9 +105,28 @@ public interface IuComponentVersion extends Comparable<IuComponentVersion> {
 	 *         <strong>dependency</strong> on the <strong>component's specification
 	 *         version</strong>.<br>
 	 *         <em>Must</em> {@link String#startsWith(String) start with}
-	 *         {@code minor() + '.' + major + '.'} when {@code non-null}.
+	 *         {@code major() + '.' + minor() + '.'} when {@code non-null}.
 	 */
 	String implementationVersion();
+
+	/**
+	 * Gets the <strong>major</strong> version number as defined by
+	 * <a href="https://semver.org/">Semantic Versioning</a>.
+	 * 
+	 * @return <strong>Major</strong> version; <em>must</em> be non-negative,
+	 *         <em>should</em> be positive. Non-development applications
+	 *         <em>may</em> reject <strong>versions</strong> with a major version of
+	 *         {@code 0}.
+	 */
+	int major();
+
+	/**
+	 * Gets the <strong>minor</strong> version number as defined by
+	 * <a href="https://semver.org/">Semantic Versioning</a>.
+	 * 
+	 * @return <strong>Minor</strong> version; <em>must</em> be non-negative
+	 */
+	int minor();
 
 	/**
 	 * Gets the <strong>specification version</strong> implied by this
@@ -97,26 +148,57 @@ public interface IuComponentVersion extends Comparable<IuComponentVersion> {
 	 * @see #major()
 	 * @see #minor()
 	 */
-	IuComponentVersion specificationVersion();
+	default IuComponentVersion specificationVersion() {
+		var implementationVersion = implementationVersion();
+		if (implementationVersion == null)
+			return this;
+		else
+			return new IuComponentVersion() {
+				@Override
+				public String name() {
+					return IuComponentVersion.this.name();
+				}
 
-	/**
-	 * Gets the <strong>major</strong> version number as defined by
-	 * <a href="https://semver.org/">Semantic Versioning</a>.
-	 * 
-	 * @return <strong>Major</strong> version; <em>must</em> be non-negative,
-	 *         <em>should</em> be positive. Non-development applications
-	 *         <em>may</em> reject <strong>versions</strong> with a major version of
-	 *         {@code 0}.
-	 */
-	int major();
+				@Override
+				public String implementationVersion() {
+					return null;
+				}
 
-	/**
-	 * Gets the <strong>minor</strong> version number as defined by
-	 * <a href="https://semver.org/">Semantic Versioning</a>.
-	 * 
-	 * @return <strong>Minor</strong> version; <em>must</em> be non-negative
-	 */
-	int minor();
+				@Override
+				public int major() {
+					return IuComponentVersion.this.major();
+				}
+
+				@Override
+				public int minor() {
+					return IuComponentVersion.this.minor();
+				}
+
+				@Override
+				public int hashCode() {
+					return Objects.hash(major(), minor(), name(), null);
+				}
+
+				@Override
+				public boolean equals(Object obj) {
+					if (this == obj)
+						return true;
+					if (obj == null)
+						return false;
+					if (!(obj instanceof IuComponentVersion))
+						return false;
+
+					IuComponentVersion other = (IuComponentVersion) obj;
+					return major() == other.major() && minor() == other.minor() && Objects.equals(name(), other.name())
+							&& other.implementationVersion() == null;
+				}
+
+				@Override
+				public String toString() {
+					return name() + '-' + major() + '.' + minor() + '+';
+				}
+			};
+	}
 
 	/**
 	 * Determines if the <strong>version</strong> implied by {@code this}
@@ -225,13 +307,13 @@ public interface IuComponentVersion extends Comparable<IuComponentVersion> {
 		else if (iv2 == null)
 			return 1;
 
-		var m1 = SEMANITC_VERSION_PATTERN.matcher(iv1);
-		if (!m1.find())
+		var m1 = SEMANTIC_VERSION_PATTERN.matcher(iv1);
+		if (!m1.matches())
 			throw new IllegalStateException();
 		var z1 = Integer.parseInt(m1.group(3));
 
-		var m2 = SEMANITC_VERSION_PATTERN.matcher(iv2);
-		if (!m2.find())
+		var m2 = SEMANTIC_VERSION_PATTERN.matcher(iv2);
+		if (!m2.matches())
 			throw new IllegalStateException();
 		var z2 = Integer.parseInt(m2.group(3));
 

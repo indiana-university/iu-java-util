@@ -1,15 +1,65 @@
+/*
+ * Copyright © 2023 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package iu.type;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.List;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+
+import edu.iu.type.IuComponent;
+import edu.iu.type.IuComponent.Kind;
+import edu.iu.type.IuType;
 
 @SuppressWarnings("javadoc")
 public class ComponentFactoryTest {
@@ -24,8 +74,8 @@ public class ComponentFactoryTest {
 			}
 		};
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
-			mockComponentFactory.when(() -> ComponentFactory.createComponent(in)).thenCallRealMethod();
-			assertSame(ioException, assertThrows(IOException.class, () -> ComponentFactory.createComponent(in)));
+			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, in)).thenCallRealMethod();
+			assertSame(ioException, assertThrows(IOException.class, () -> ComponentFactory.createComponent(null, in)));
 		}
 	}
 
@@ -39,8 +89,8 @@ public class ComponentFactoryTest {
 			}
 		};
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
-			mockComponentFactory.when(() -> ComponentFactory.createComponent(in)).thenCallRealMethod();
-			assertSame(ioException, assertThrows(IOException.class, () -> ComponentFactory.createComponent(in)));
+			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, in)).thenCallRealMethod();
+			assertSame(ioException, assertThrows(IOException.class, () -> ComponentFactory.createComponent(null, in)));
 		}
 	}
 
@@ -55,10 +105,12 @@ public class ComponentFactoryTest {
 			}
 		};
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
-			mockComponentFactory.when(() -> ComponentFactory.createComponent(dep, in)).thenCallRealMethod();
-			mockComponentFactory.when(() -> ComponentFactory.createFromSourceQueue(any())).thenThrow(new IOException());
-			assertSame(ioException, assertThrows(IOException.class, () -> ComponentFactory.createComponent(dep, in))
-					.getSuppressed()[0]);
+			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, dep, in)).thenCallRealMethod();
+			mockComponentFactory.when(() -> ComponentFactory.createFromSourceQueue(isNull(), any()))
+					.thenThrow(new IOException());
+			assertSame(ioException,
+					assertThrows(IOException.class, () -> ComponentFactory.createComponent(null, dep, in))
+							.getSuppressed()[0]);
 		}
 	}
 
@@ -72,9 +124,9 @@ public class ComponentFactoryTest {
 			}
 		};
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
-			mockComponentFactory.when(() -> ComponentFactory.createComponent(in)).thenCallRealMethod();
+			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, in)).thenCallRealMethod();
 			assertSame(illegalStateException,
-					assertThrows(IllegalStateException.class, () -> ComponentFactory.createComponent(in)));
+					assertThrows(IllegalStateException.class, () -> ComponentFactory.createComponent(null, in)));
 		}
 	}
 
@@ -88,8 +140,134 @@ public class ComponentFactoryTest {
 			}
 		};
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
-			mockComponentFactory.when(() -> ComponentFactory.createComponent(in)).thenCallRealMethod();
-			assertSame(error, assertThrows(Error.class, () -> ComponentFactory.createComponent(in)));
+			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, in)).thenCallRealMethod();
+			assertSame(error, assertThrows(Error.class, () -> ComponentFactory.createComponent(null, in)));
+		}
+	}
+
+	@Test
+	public void testSuppressesCloseError() throws IOException {
+		var error = new Error();
+		var path = mock(Path.class);
+		var source = mock(ArchiveSource.class);
+		var archive = mock(ComponentArchive.class);
+		when(archive.path()).thenReturn(path);
+		when(archive.bundledDependencies()).thenThrow(error);
+		var ioException = new IOException();
+		try ( //
+				var mockComponentArchive = mockStatic(ComponentArchive.class); //
+				var mockFiles = mockStatic(Files.class)) {
+			mockComponentArchive.when(() -> ComponentArchive.from(source)).thenReturn(archive);
+			mockFiles.when(() -> Files.delete(path)).thenThrow(ioException);
+			assertSame(ioException,
+					assertThrows(Error.class,
+							() -> ComponentFactory.createFromSourceQueue(null, new ArrayDeque<>(List.of(source))))
+							.getSuppressed()[0]);
+		}
+	}
+
+	@Test
+	public void testCheckIfAlreadyProvidedDeletesArchive() throws IOException {
+		var ioException = new IOException();
+		var path = mock(Path.class);
+
+		var version = new ComponentVersion("a", 0, 0);
+		var alreadyProvidedArchive = mock(ComponentArchive.class);
+		when(alreadyProvidedArchive.version()).thenReturn(version);
+
+		var archive = mock(ComponentArchive.class);
+		when(archive.version()).thenReturn(version);
+		when(archive.path()).thenReturn(path);
+
+		try (var mockFiles = mockStatic(Files.class)) {
+			mockFiles.when(() -> Files.delete(path)).thenThrow(ioException);
+			assertSame(ioException,
+					assertThrows(IllegalArgumentException.class,
+							() -> ComponentFactory.checkIfAlreadyProvided(alreadyProvidedArchive, archive))
+							.getSuppressed()[0]);
+
+		}
+	}
+
+	@Test
+	public void testClosesModuleFinderIfCreateFails() throws IOException {
+		var path = mock(Path.class);
+		var archive = mock(ComponentArchive.class);
+		when(archive.path()).thenReturn(path);
+
+		var error = new Error();
+		try (var mockModuleFinder = mockConstruction(ComponentModuleFinder.class, (finder, context) -> {
+			when(finder.findAll()).thenThrow(error);
+		})) {
+			assertSame(error, assertThrows(Error.class,
+					() -> ComponentFactory.createModular(null, new ArrayDeque<>(List.of(archive)))));
+			verify(mockModuleFinder.constructed().get(0)).close();
+		}
+	}
+
+	@Test
+	public void testSuppressesModuleFinderCloseErrorIfCreateFails() throws IOException {
+		var path = mock(Path.class);
+		var archive = mock(ComponentArchive.class);
+		when(archive.path()).thenReturn(path);
+
+		var error = new Error();
+		var closeError = new Error();
+		try (var mockModuleFinder = mockConstruction(ComponentModuleFinder.class, (finder, context) -> {
+			when(finder.findAll()).thenThrow(error);
+			doThrow(closeError).when(finder).close();
+		})) {
+			var thrown = assertThrows(Error.class,
+					() -> ComponentFactory.createModular(null, new ArrayDeque<>(List.of(archive))));
+			assertSame(error, thrown);
+			assertSame(closeError, thrown.getSuppressed()[0]);
+		}
+	}
+	
+	@Test
+	public void testLoadsRuntimeIfSwitchedWithDeps() throws Exception {
+		var publicUrlThatWorksAndReturnsJson = "https://idp-stg.login.iu.edu/.well-known/openid-configuration";
+		String expected;
+		try (InputStream in = new URL(publicUrlThatWorksAndReturnsJson).openStream()) {
+			expected = new String(in.readAllBytes());
+		} catch (Throwable e) {
+			e.printStackTrace();
+			Assumptions.abort(
+					"Expected this to be a public URL that works and returns JSON " + publicUrlThatWorksAndReturnsJson);
+			return;
+		}
+
+		try (var mockIuType = mockStatic(IuType.class)) {
+			mockIuType.when(() -> IuType.of(any(Class.class))).then(a -> {
+				var c = (Class<?>) a.getArgument(0);
+				var type = mock(IuType.class);
+				when(type.name()).thenReturn(c.getName());
+				return type;
+			});
+			try (var component = IuComponent.of(
+					TestArchives.getProvidedDependencyArchives("testruntime")[0],
+					TestArchives.getComponentArchive("testruntime"))) {
+
+				assertEquals(Kind.MODULAR_JAR, component.kind());
+				assertEquals("parsson", component.version().name());
+
+				var interfaces = component.interfaces().iterator();
+				assertTrue(interfaces.hasNext());
+				assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
+				assertFalse(interfaces.hasNext());
+
+				var contextLoader = Thread.currentThread().getContextClassLoader();
+				var loader = component.classLoader();
+				try {
+					Thread.currentThread().setContextClassLoader(loader);
+					var urlReader = loader.loadClass("edu.iu.type.testruntime.UrlReader");
+					var urlReader$ = urlReader.getConstructor().newInstance();
+					assertEquals(urlReader.getMethod("parseJson", String.class).invoke(urlReader$, expected), urlReader
+							.getMethod("get", String.class).invoke(urlReader$, publicUrlThatWorksAndReturnsJson));
+				} finally {
+					Thread.currentThread().setContextClassLoader(contextLoader);
+				}
+			}
 		}
 	}
 

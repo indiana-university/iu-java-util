@@ -66,5 +66,5 @@ public interface IuExecutable<T> extends IuDeclaredElement, IuParameterizedEleme
 	 * @throws Exception If an exception occurs
 	 */
 	T exec(Object... arguments) throws Exception;
-	
+
 }

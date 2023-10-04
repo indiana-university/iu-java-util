@@ -29,53 +29,24 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.type;
+package edu.iu;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import java.util.function.Consumer;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.List;
-import java.util.ServiceLoader;
+/**
+ * Equivalent to {@link Consumer}, but may throw any exception.
+ * 
+ * @param <T> Argument type
+ */
+@FunctionalInterface
+public interface UnsafeConsumer<T> {
 
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-
-import edu.iu.type.spi.IuTypeSpi;
-import iu.type.api.TypeImplementationLoader;
-
-@SuppressWarnings("javadoc")
-public class TypeSpiTest {
-
-	private static IuTypeSpi iuTypeSpi;
-
-	@BeforeAll
-	public static void setupClass() throws ClassNotFoundException {
-		iuTypeSpi = mock(IuTypeSpi.class);
-		var serviceLoader = mock(ServiceLoader.class);
-		when(serviceLoader.iterator()).thenReturn(List.of(iuTypeSpi).iterator());
-		try (var mockServiceLoader = mockStatic(ServiceLoader.class)) {
-			mockServiceLoader.when(() -> ServiceLoader.load(IuTypeSpi.class, IuTypeSpi.class.getClassLoader()))
-					.thenReturn(serviceLoader);
-			Class.forName(TypeImplementationLoader.class.getName());
-		}
-	}
-
-	@Test
-	public void testResolveType() {
-		IuType.of(Object.class);
-		verify(iuTypeSpi, times(1)).resolveType(Object.class);
-	}
-	
-	@Test
-	public void testNewComponent() throws IOException {
-		var in = mock(InputStream.class);
-		IuComponent.of(in);
-		verify(iuTypeSpi, times(1)).createComponent(in);
-	}
+	/**
+	 * Accepts an argument using unsafe code.
+	 * 
+	 * @param argument The argument.
+	 * @throws Throwable If thrown by the unsafe code.
+	 */
+	void accept(T argument) throws Throwable;
 
 }

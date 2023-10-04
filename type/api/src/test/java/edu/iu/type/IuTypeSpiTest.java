@@ -29,64 +29,53 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.runtime.test;
+package edu.iu.type;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.lang.reflect.Type;
-import java.util.Iterator;
-import java.util.NoSuchElementException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
 import java.util.ServiceLoader;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import edu.iu.runtime.IuRuntime;
-import edu.iu.runtime.IuRuntimeConfiguration;
-import iu.runtime.EmptyRuntime;
-import iu.runtime.RuntimeFactory;
+import edu.iu.type.spi.IuTypeSpi;
+import edu.iu.type.spi.TypeImplementation;
 
 @SuppressWarnings("javadoc")
-public class ConfiguredRuntimeTest {
+public class IuTypeSpiTest {
+
+	private static IuTypeSpi iuTypeSpi;
+
+	@BeforeAll
+	public static void setupClass() throws ClassNotFoundException {
+		iuTypeSpi = mock(IuTypeSpi.class);
+		var serviceLoader = mock(ServiceLoader.class);
+		when(serviceLoader.iterator()).thenReturn(List.of(iuTypeSpi).iterator());
+		try (var mockServiceLoader = mockStatic(ServiceLoader.class)) {
+			mockServiceLoader.when(() -> ServiceLoader.load(IuTypeSpi.class, IuTypeSpi.class.getClassLoader()))
+					.thenReturn(serviceLoader);
+			Class.forName(TypeImplementation.class.getName());
+		}
+	}
 
 	@Test
-	public void testGetValue() {
-		assertTrue(IuRuntime.PROVIDER instanceof EmptyRuntime);
-
-		IuRuntimeConfiguration env;
-		try (var serviceLoader = mockStatic(ServiceLoader.class)) {
-			var runtime = mock(IuRuntime.class);
-			when(runtime.getEnvironment()).thenReturn((reference, type) -> {
-				assertEquals(String.class, type);
-				if ("foo".equals(reference))
-					return "baz";
-				else
-					throw new IllegalArgumentException();
-			});
-
-			var iter = mock(Iterator.class);
-			when(iter.hasNext()).thenReturn(true, false);
-			when(iter.next()).thenReturn(runtime).thenThrow(NoSuchElementException.class);
-
-			var loader = mock(ServiceLoader.class);
-			when(loader.iterator()).thenReturn(iter);
-
-			serviceLoader.when(() -> ServiceLoader.load(IuRuntime.class, IuRuntime.class.getClassLoader()))
-					.thenReturn(loader);
-
-			env = RuntimeFactory.getProvider().getEnvironment();
-		}
-		assertThrows(IllegalArgumentException.class, () -> env.getValue("bar"));
-		assertEquals("baz", env.getValue("foo"));
-		assertEquals("baz", env.getValue("foo", String.class));
-		assertEquals("baz", env.getValue("foo", (Type) String.class));
-		assertEquals("baz", env.getValue("foo", "bar"));
-		assertEquals("baz", env.getValue("foo", String.class, "bar"));
-		assertEquals("baz", env.getValue("foo", (Type) String.class, "bar"));
+	public void testResolveType() {
+		IuType.of(Object.class);
+		verify(iuTypeSpi, times(1)).resolveType(Object.class);
+	}
+	
+	@Test
+	public void testNewComponent() throws IOException {
+		var in = mock(InputStream.class);
+		IuComponent.of(in);
+		verify(iuTypeSpi, times(1)).createComponent(in);
 	}
 
 }

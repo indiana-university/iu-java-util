@@ -29,73 +29,62 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.runtime.test;
+package edu.iu.runtime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Type;
-import java.util.function.Supplier;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+import java.util.ServiceLoader;
 
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentMatcher;
 
-import edu.iu.runtime.IuRuntime;
-import edu.iu.runtime.IuRuntimeConfiguration;
 import iu.runtime.EmptyRuntime;
+import iu.runtime.RuntimeFactory;
 
 @SuppressWarnings("javadoc")
-public class UnconfiguredRuntimeTest {
-
-	@Test
-	public void testFailsafe() {
-		assertTrue(IuRuntime.PROVIDER instanceof EmptyRuntime);
-	}
-
-	@Test
-	public void testSameSame() {
-		var env = IuRuntime.PROVIDER.getEnvironment();
-		assertSame(env, IuRuntime.PROVIDER.getBuildConfiguration());
-		assertSame(env, IuRuntime.PROVIDER.getSecret(null));
-	}
-
-	@Test
-	public void testLogsFailures() {
-		try (var logger = mockStatic(Logger.class)) {
-			var log = mock(Logger.class);
-			logger.when(() -> Logger.getLogger(IuRuntimeConfiguration.class.getName())).thenReturn(log);
-			assertEquals("bar", IuRuntime.PROVIDER.getEnvironment().getValue("foo", "bar"));
-			verify(log).log(eq(Level.FINEST), isA(IllegalArgumentException.class),
-					argThat(new ArgumentMatcher<Supplier<String>>() {
-						@Override
-						public boolean matches(Supplier<String> argument) {
-							assertNotNull(argument.get());
-							return true;
-						}
-					}));
-		}
-	}
+public class ConfiguredRuntimeTest {
 
 	@Test
 	public void testGetValue() {
-		var env = IuRuntime.PROVIDER.getEnvironment();
-		assertThrows(IllegalArgumentException.class, () -> env.getValue("foo"));
-		assertThrows(IllegalArgumentException.class, () -> env.getValue("foo", String.class));
-		assertThrows(IllegalArgumentException.class, () -> env.getValue("foo", (Type) String.class));
-		assertEquals("bar", env.getValue("foo", "bar"));
-		assertEquals("bar", env.getValue("foo", String.class, "bar"));
-		assertEquals("bar", env.getValue("foo", (Type) String.class, "bar"));
+		assertTrue(IuRuntime.PROVIDER instanceof EmptyRuntime);
+
+		IuRuntimeConfiguration env;
+		try (var serviceLoader = mockStatic(ServiceLoader.class)) {
+			var runtime = mock(IuRuntime.class);
+			when(runtime.getEnvironment()).thenReturn((reference, type) -> {
+				assertEquals(String.class, type);
+				if ("foo".equals(reference))
+					return "baz";
+				else
+					throw new IllegalArgumentException();
+			});
+
+			var iter = mock(Iterator.class);
+			when(iter.hasNext()).thenReturn(true, false);
+			when(iter.next()).thenReturn(runtime).thenThrow(NoSuchElementException.class);
+
+			var loader = mock(ServiceLoader.class);
+			when(loader.iterator()).thenReturn(iter);
+
+			serviceLoader.when(() -> ServiceLoader.load(IuRuntime.class, IuRuntime.class.getClassLoader()))
+					.thenReturn(loader);
+
+			env = RuntimeFactory.getProvider().getEnvironment();
+		}
+		assertThrows(IllegalArgumentException.class, () -> env.getValue("bar"));
+		assertEquals("baz", env.getValue("foo"));
+		assertEquals("baz", env.getValue("foo", String.class));
+		assertEquals("baz", env.getValue("foo", (Type) String.class));
+		assertEquals("baz", env.getValue("foo", "bar"));
+		assertEquals("baz", env.getValue("foo", String.class, "bar"));
+		assertEquals("baz", env.getValue("foo", (Type) String.class, "bar"));
 	}
 
 }

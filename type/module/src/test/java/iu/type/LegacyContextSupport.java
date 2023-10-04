@@ -29,54 +29,32 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type.api;
+package iu.type;
 
-import edu.iu.type.IuAnnotatedElement;
+import org.junit.jupiter.api.extension.AfterEachCallback;
+import org.junit.jupiter.api.extension.BeforeEachCallback;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
-/**
- * Isolates references static module dependencies to prevent
- * {@link NoClassDefFoundError} when the Jakarta Annotations API is not present
- * in the classpath.
- */
-public class StaticDependencyHelper {
+@SuppressWarnings("javadoc")
+public class LegacyContextSupport implements BeforeEachCallback, AfterEachCallback {
 
-	private static final boolean ANNOTATION_SUPPORTED;
+	private static final ThreadLocal<LegacyClassLoader> LEGACY_CONTEXT = new ThreadLocal<>();
 
-	static {
-		boolean annotationSupported;
-		try {
-			@jakarta.annotation.Resource
-			class HasResource {
-			}
-			annotationSupported = new HasResource().getClass().isAnnotationPresent(jakarta.annotation.Resource.class);
-		} catch (NoClassDefFoundError e) {
-			annotationSupported = false;
-		}
-		ANNOTATION_SUPPORTED = annotationSupported;
+	static LegacyClassLoader get() {
+		return LEGACY_CONTEXT.get();
 	}
 
-	/**
-	 * Check to see if the Jakarta Annotations API is present in the classpath.
-	 * 
-	 * @return true if present; false if missing
-	 */
-	public static boolean isAnnotationSupported() {
-		return ANNOTATION_SUPPORTED;
+	@Override
+	public void beforeEach(ExtensionContext context) throws Exception {
+		LEGACY_CONTEXT.set(new LegacyClassLoader(false, TestArchives.getClassPath("testlegacy"), null));
 	}
 
-	/**
-	 * Determines whether or not access to an annotated element contains the
-	 * {@link jakarta.annotation.security.PermitAll} annotation.
-	 * 
-	 * @param annotatedElement annotated element
-	 * @return true if the element contains the
-	 *         {@link jakarta.annotation.security.PermitAll} annotation.
-	 */
-	public static boolean hasPermitAll(IuAnnotatedElement annotatedElement) {
-		return isAnnotationSupported() && annotatedElement.hasAnnotation(jakarta.annotation.security.PermitAll.class);
-	}
-
-	private StaticDependencyHelper() {
+	@Override
+	public void afterEach(ExtensionContext context) throws Exception {
+		var legacyContext = get();
+		LEGACY_CONTEXT.remove();
+		if (legacyContext != null)
+			legacyContext.close();
 	}
 
 }

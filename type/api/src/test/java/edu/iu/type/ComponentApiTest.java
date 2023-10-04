@@ -31,14 +31,26 @@
  */
 package edu.iu.type;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import org.junit.jupiter.api.Test;
+
+import edu.iu.type.IuComponent.Kind;
 
 @SuppressWarnings("javadoc")
 public class ComponentApiTest {
 
 	@Test
 	public void testCoversKind() throws ClassNotFoundException {
-		Class.forName(IuComponent.Kind.class.getName());
+		assertTrue(Kind.MODULAR_JAR.isModular());
+		assertFalse(Kind.MODULAR_JAR.isWeb());
+		assertTrue(Kind.MODULAR_WAR.isModular());
+		assertTrue(Kind.MODULAR_WAR.isWeb());
+		assertFalse(Kind.LEGACY_JAR.isModular());
+		assertFalse(Kind.LEGACY_JAR.isWeb());
+		assertFalse(Kind.LEGACY_WAR.isModular());
+		assertTrue(Kind.LEGACY_WAR.isWeb());
 	}
 
 }

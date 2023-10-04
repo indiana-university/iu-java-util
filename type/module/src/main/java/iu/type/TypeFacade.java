@@ -34,6 +34,7 @@ package iu.type;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import edu.iu.type.IuConstructor;
 import edu.iu.type.IuField;
@@ -61,6 +62,12 @@ class TypeFacade<T> implements IuType<T> {
 	@Override
 	public Type deref() {
 		return type;
+	}
+
+	@Override
+	public boolean permitted(Predicate<String> isUserInRole) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException("TODO");
 	}
 
 	@Override

@@ -42,11 +42,17 @@
  * </ul>
  * 
  * @see edu.iu.test.IuTest
+ * @provides org.junit.jupiter.api.extension.Extension Ties logging expectations in to test runs
+ * @provides org.junit.platform.launcher.LauncherSessionListener Enables logging expectations
  */
 module iu.util.test {
 	exports edu.iu.test;
 
+	requires iu.util;
 	requires org.mockito;
 	requires transitive org.junit.jupiter.api;
 	requires transitive org.junit.platform.launcher;
+	
+	provides org.junit.platform.launcher.LauncherSessionListener with edu.iu.test.IuTestSessionListener;
+	provides org.junit.jupiter.api.extension.Extension with edu.iu.test.IuTestExtension;
 }

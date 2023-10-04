@@ -1,3 +1,34 @@
+/*
+ * Copyright © 2023 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package iu.type;
 
 import java.io.ByteArrayInputStream;
@@ -15,18 +46,17 @@ import java.util.Set;
 import edu.iu.type.IuComponent.Kind;
 
 record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properties properties,
-		Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources, Set<String> allResources,
+		Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources,
 		Collection<ArchiveSource> bundledDependencies) {
 
 	private static record ScannedAttributes(Kind kind, ComponentVersion version, Properties properties,
-			Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources, Set<String> allResources,
+			Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources,
 			Collection<ArchiveSource> bundledDependencies) {
 	}
 
 	private static ScannedAttributes scan(ArchiveSource source, ComponentTarget target) throws IOException {
 		final Set<String> nonEnclosedTypeNames = new LinkedHashSet<>();
 		final Map<String, byte[]> webResources = new LinkedHashMap<>();
-		final Set<String> allResources = new LinkedHashSet<>();
 		final Map<String, ArchiveSource> bundledDependencies = new LinkedHashMap<>();
 
 		final Set<String> classPath = new HashSet<>();
@@ -148,10 +178,8 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 						// with name starting with WEB-INF/ will trigger the same error as above
 						for (var resourceEntry : webResources.entrySet()) {
 							var resourceEntryName = resourceEntry.getKey();
-							if (resourceEntryName.charAt(resourceEntryName.length() - 1) != '/') {
+							if (resourceEntryName.charAt(resourceEntryName.length() - 1) != '/')
 								target.put(resourceEntryName, new ByteArrayInputStream(resourceEntry.getValue()));
-								allResources.add(resourceEntryName);
-							}
 						}
 						webResources.clear();
 					}
@@ -175,18 +203,16 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 					continue;
 
 				componentEntry.read(in -> target.put(resourceName, in));
-				allResources.add(resourceName);
 
-			} else if (name.startsWith("META-INF/") && name.charAt(name.length() - 1) == '/')
+			} else if ((name.startsWith("META-INF/") || name.startsWith("WEB-INF/"))
+					&& name.charAt(name.length() - 1) == '/')
 				continue;
 
 			else if (!hasNonWebTypes)
 				webResources.put(name, componentEntry.data());
 
-			else if (name.charAt(name.length() - 1) != '/') {
+			else if (name.charAt(name.length() - 1) != '/')
 				componentEntry.read(in -> target.put(name, in));
-				allResources.add(name);
-			}
 		}
 
 		if (!classPath.isEmpty())
@@ -241,7 +267,6 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 				properties, //
 				Collections.unmodifiableSet(nonEnclosedTypeNames), //
 				Collections.unmodifiableMap(webResources), //
-				Collections.unmodifiableSet(allResources), //
 				Collections.unmodifiableCollection(bundledDependencies.values()));
 	}
 
@@ -257,7 +282,6 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 						scannedAttributes.properties, //
 						scannedAttributes.nonEnclosedTypeNames, //
 						scannedAttributes.webResources, //
-						scannedAttributes.allResources, //
 						scannedAttributes.bundledDependencies //
 				);
 			}
