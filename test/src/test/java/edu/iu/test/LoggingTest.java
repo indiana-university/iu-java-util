@@ -32,6 +32,7 @@
 package edu.iu.test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -120,6 +121,14 @@ public class LoggingTest {
 	public void testFailsUnlessExpectedMessageIsLogged() {
 		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINER, "expected");
 		IuTestExtension.expectFailure();
+	}
+
+	@Test
+	public void testLoggingAssertionFailureSuppressesThrown() {
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.INFO, "it's thrown", IllegalArgumentException.class);
+		var e = new IllegalStateException();
+		assertSame(e, assertThrows(AssertionFailedError.class, () -> LOG.log(Level.INFO, e, () -> "it's thrown"))
+				.getSuppressed()[0]);
 	}
 
 }
