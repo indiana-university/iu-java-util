@@ -31,8 +31,6 @@
  */
 package iu.type;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
@@ -60,8 +58,10 @@ public class TypeSpiTest {
 
 	@Test
 	public void testTypeIsNotImplemented() {
-		assertEquals("Not implemented in this version",
-				assertThrows(UnsupportedOperationException.class, () -> typeSpi.resolveType(getClass())).getMessage());
+		try (var mockTypeFactory = mockStatic(TypeFactory.class)) {
+			typeSpi.resolveType(getClass());
+			mockTypeFactory.verify(() -> TypeFactory.resolveType(getClass()));
+		}
 	}
 
 	@Test

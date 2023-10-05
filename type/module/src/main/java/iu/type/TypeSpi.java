@@ -48,8 +48,7 @@ public class TypeSpi implements IuTypeSpi {
 
 	@Override
 	public IuType<?> resolveType(Type type) {
-		// TODO STARCH-606: implement
-		throw new UnsupportedOperationException("Not implemented in this version");
+		return TypeFactory.resolveType(type);
 	}
 
 	@Override

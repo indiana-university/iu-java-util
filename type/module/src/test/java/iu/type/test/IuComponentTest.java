@@ -42,17 +42,14 @@ import java.util.logging.Level;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 
 import edu.iu.test.IuTest;
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuComponent.Kind;
-import iu.type.ComponentResourceTypeSupport;
 import iu.type.TestArchives;
 
 @SuppressWarnings("javadoc")
-@ExtendWith(ComponentResourceTypeSupport.class)
 public class IuComponentTest {
 
 	@Test

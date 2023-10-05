@@ -49,7 +49,6 @@ import jakarta.annotation.Resource.AuthenticationType;
 import jakarta.annotation.Resources;
 
 @SuppressWarnings("javadoc")
-@ExtendWith(ComponentResourceTypeSupport.class)
 @ExtendWith(LegacyContextSupport.class)
 public class LegacyAnnotationTest {
 

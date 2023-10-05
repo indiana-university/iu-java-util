@@ -45,7 +45,6 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 
 import edu.iu.type.IuType;
 import jakarta.annotation.Resource;
@@ -53,7 +52,6 @@ import jakarta.annotation.Resource.AuthenticationType;
 import jakarta.annotation.Resources;
 
 @SuppressWarnings("javadoc")
-@ExtendWith(ComponentResourceTypeSupport.class)
 public class ComponentResourceTest {
 
 	private <T> ComponentResource<T> assertComponentResource(Class<T> type) {
@@ -80,7 +78,7 @@ public class ComponentResourceTest {
 		assertEquals(shared, r.shared());
 		assertEquals(needsAuthentication, r.needsAuthentication());
 		assertEquals(name, r.name());
-		assertSame(type, r.type().baseClass());
+		assertSame(type, r.type().erasedClass());
 
 		var instance = r.get();
 		assertTrue(type.isInstance(instance));

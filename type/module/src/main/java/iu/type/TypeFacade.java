@@ -40,6 +40,7 @@ import edu.iu.type.IuConstructor;
 import edu.iu.type.IuField;
 import edu.iu.type.IuMethod;
 import edu.iu.type.IuProperty;
+import edu.iu.type.IuReferenceKind;
 import edu.iu.type.IuType;
 import edu.iu.type.IuTypeReference;
 
@@ -47,16 +48,43 @@ class TypeFacade<T> implements IuType<T> {
 
 	// IuType#of(Type): All fields MUST be final
 	private final Type type;
-	private final IuTypeReference<T> reference;
+	private final IuTypeReference<T, ?> reference;
+	private final TypeFacade<T> erasedType;
 
-	TypeFacade(Type type) {
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private TypeFacade(IuReferenceKind kind, TypeFacade<?> referrer, TypeFacade<T> referentTemplate) {
+		this.type = referentTemplate.type;
+		this.erasedType = referentTemplate.erasedType;
+		this.reference = new TypeReference(kind, referrer, this, null, 0);
+	}
+
+	TypeFacade(Class<T> type) {
 		this.type = type;
 		this.reference = null;
+		this.erasedType = this;
+	}
+
+	TypeFacade(Type type, TypeFacade<T> erasureTemplate) {
+		assert !(type instanceof Class) : type;
+		assert erasureTemplate.deref() instanceof Class : erasureTemplate;
+		this.type = type;
+		this.reference = null;
+		this.erasedType = new TypeFacade<>(IuReferenceKind.ERASURE, this, erasureTemplate);
 	}
 
 	@Override
-	public IuTypeReference<?> reference() {
+	public IuTypeReference<T, ?> reference() {
 		return reference;
+	}
+
+	@Override
+	public String name() {
+		return erasedClass().getName();
+	}
+
+	@Override
+	public TypeFacade<T> erase() {
+		return erasedType;
 	}
 
 	@Override
@@ -68,20 +96,6 @@ class TypeFacade<T> implements IuType<T> {
 	public boolean permitted(Predicate<String> isUserInRole) {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
-	}
-
-	@Override
-	public String name() {
-		return baseClass().getName();
-	}
-
-	@Override
-	public IuType<T> base() {
-		if (reference() == null && (type instanceof Class))
-			return this;
-		else
-			// TODO Auto-generated method stub
-			throw new UnsupportedOperationException("TODO");
 	}
 
 	@Override
@@ -97,31 +111,31 @@ class TypeFacade<T> implements IuType<T> {
 	}
 
 	@Override
-	public Map<String, IuType<?>> typeParameters() {
+	public Map<String, ? extends IuType<?>> typeParameters() {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}
 
 	@Override
-	public Iterable<IuType<?>> hierarchy() {
+	public Iterable<? extends IuType<?>> hierarchy() {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}
 
 	@Override
-	public IuType<?> referTo(Type referentType) {
+	public IuType<? super T> referTo(Type referentType) {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}
 
 	@Override
-	public Iterable<IuType<?>> enclosedTypes() {
+	public Iterable<? extends IuType<?>> enclosedTypes() {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}
 
 	@Override
-	public Iterable<IuConstructor<T>> constructors() {
+	public Iterable<? extends IuConstructor<T>> constructors() {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}
@@ -139,7 +153,7 @@ class TypeFacade<T> implements IuType<T> {
 	}
 
 	@Override
-	public Iterable<IuField<T>> fields() {
+	public Iterable<? extends IuField<?>> fields() {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}
@@ -151,7 +165,7 @@ class TypeFacade<T> implements IuType<T> {
 	}
 
 	@Override
-	public Iterable<IuProperty<T>> properties() {
+	public Iterable<? extends IuProperty<?>> properties() {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}
@@ -163,7 +177,7 @@ class TypeFacade<T> implements IuType<T> {
 	}
 
 	@Override
-	public Iterable<IuMethod<?>> methods() {
+	public Iterable<? extends IuMethod<?>> methods() {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}
@@ -184,5 +198,5 @@ class TypeFacade<T> implements IuType<T> {
 	public String toString() {
 		return type.toString();
 	}
-	
+
 }

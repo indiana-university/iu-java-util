@@ -32,7 +32,7 @@
 package edu.iu.type;
 
 /**
- * Represents a method reflected from the base class of a generic type.
+ * Represents a method reflected from the type erasure of a generic type.
  * 
  * @param <R> Return type
  */

@@ -47,12 +47,12 @@ import java.lang.reflect.WildcardType;
 public enum IuReferenceKind {
 
 	/**
-	 * The type referred to is a {@link Class}.
+	 * The referent type is the {@link Class} type erasure of a generic type.
 	 */
-	BASE(null, false, false),
+	ERASURE(IuType.class, false, false),
 
 	/**
-	 * The type referred to is a generic abstract class or interface in the referent
+	 * The referent type is a generic abstract class or interface in the referent
 	 * type's hierarchy.
 	 */
 	SUPER(IuType.class, false, false),
@@ -135,7 +135,7 @@ public enum IuReferenceKind {
 	/**
 	 * Gets the type of the referrer.
 	 * 
-	 * @return referrer type; may be null if the reference is a base type.
+	 * @return referrer type
 	 */
 	public Class<? extends IuAnnotatedElement> referrerType() {
 		return referrerType;
@@ -145,8 +145,8 @@ public enum IuReferenceKind {
 	 * Determines if the reference was obtained by name.
 	 * 
 	 * <p>
-	 * Only one of {@link #named()} and {@link #indexed()} may return true, both
-	 * may return false.
+	 * Only one of {@link #named()} and {@link #indexed()} may return true, both may
+	 * return false.
 	 * </p>
 	 * 
 	 * @return true if the reference is a name; else false.

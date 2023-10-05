@@ -478,7 +478,7 @@ public interface IuComponent extends AutoCloseable {
 	 */
 	static IuComponent of(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
 			throws IOException, IllegalArgumentException {
-		return TypeImplementation.SPI.createComponent(componentArchiveSource, providedDependencyArchiveSources);
+		return TypeImplementation.PROVIDER.createComponent(componentArchiveSource, providedDependencyArchiveSources);
 	}
 
 	/**
