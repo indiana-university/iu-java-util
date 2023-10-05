@@ -37,8 +37,11 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
@@ -765,4 +768,36 @@ public class IuExceptionTest {
 					eq(CheckedException2.class), eq(CheckedException3.class)), times(1));
 		}
 	}
+
+	@Test
+	public void testLeavesResourceOpen() throws Exception {
+		var closeable = mock(AutoCloseable.class);
+		assertSame(closeable, IuException.initialize(closeable, c -> {
+			assertSame(closeable, c);
+			return c;
+		}));
+		verify(closeable, times(0)).close();
+	}
+
+	@Test
+	public void testClosesOnException() throws Exception {
+		var closeable = mock(AutoCloseable.class);
+		var exception = new Exception();
+		assertSame(exception, Assertions.assertThrows(Exception.class, () -> IuException.initialize(closeable, c -> {
+			throw exception;
+		})));
+		verify(closeable, times(1)).close();
+	}
+
+	@Test
+	public void testClosesAndSuppressesCloseExceptionOnError() throws Exception {
+		var exception = new Exception();
+		var closeable = mock(AutoCloseable.class);
+		doThrow(exception).when(closeable).close();
+		assertSame(exception, Assertions.assertThrows(Error.class, () -> IuException.initialize(closeable, c -> {
+			throw new Error();
+		})).getSuppressed()[0]);
+		verify(closeable, times(1)).close();
+	}
+
 }
