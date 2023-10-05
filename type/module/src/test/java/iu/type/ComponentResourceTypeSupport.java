@@ -75,7 +75,7 @@ public class ComponentResourceTypeSupport implements InvocationInterceptor {
 				if (type == null) {
 					type = mock(IuType.class);
 					when(type.name()).thenReturn(c.getName());
-					when(type.baseClass()).thenReturn(c);
+					when(type.erasedClass()).thenReturn(c);
 					if (c == boolean.class)
 						when(type.autoboxClass()).thenReturn((Class) Boolean.class);
 					else

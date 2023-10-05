@@ -80,7 +80,7 @@ public class ComponentResourceTest {
 		assertEquals(shared, r.shared());
 		assertEquals(needsAuthentication, r.needsAuthentication());
 		assertEquals(name, r.name());
-		assertSame(type, r.type().baseClass());
+		assertSame(type, r.type().erasedClass());
 
 		var instance = r.get();
 		assertTrue(type.isInstance(instance));

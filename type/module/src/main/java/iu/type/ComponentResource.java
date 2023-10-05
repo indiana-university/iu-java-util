@@ -98,14 +98,14 @@ class ComponentResource<T> implements IuResource<T> {
 
 		var name = resourceReference.name();
 		if (name.isEmpty())
-			name = type.baseClass().getSimpleName();
+			name = type.erasedClass().getSimpleName();
 
 		Supplier supplier;
 		if (resourceReference.shareable()) {
-			var instance = createResourceInstance(type.baseClass(), implementationClass);
+			var instance = createResourceInstance(type.erasedClass(), implementationClass);
 			supplier = () -> instance;
 		} else
-			supplier = () -> createResourceInstance(type.baseClass(), implementationClass);
+			supplier = () -> createResourceInstance(type.erasedClass(), implementationClass);
 
 		return new ComponentResource(resourceReference.authenticationType().equals(AuthenticationType.CONTAINER),
 				resourceReference.shareable(), name, type, supplier);
