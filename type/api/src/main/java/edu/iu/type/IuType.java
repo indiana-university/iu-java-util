@@ -50,7 +50,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @return type introspection facade
 	 */
 	static IuType<?> of(Type type) {
-		return TypeImplementation.SPI.resolveType(type);
+		return TypeImplementation.PROVIDER.resolveType(type);
 	}
 
 	/**
@@ -85,7 +85,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * 
 	 * @return type reference
 	 */
-	IuTypeReference<?> reference();
+	IuTypeReference<T, ?> reference();
 
 	/**
 	 * Gets the generic type.
@@ -95,16 +95,22 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	Type deref();
 
 	/**
-	 * Gets the {@link IuReferenceKind#BASE base} facade describing the
-	 * {@link Class} associated with the generic type.
+	 * Gets the {@link IuReferenceKind#ERASURE erased} facade, which describing the
+	 * {@link Class} representing the <a href=
+	 * "https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.6">erasure</a>
+	 * of the generic type.
 	 * 
 	 * <p>
-	 * The {@link #deref()} of the base facade <em>must</em> return a {@link Class}.
+	 * The {@link #deref()} of the erased facade <em>must</em> return a
+	 * {@link Class}.
 	 * </p>
 	 * 
-	 * @return base facade
+	 * @return erased type facade
+	 * @see <a href=
+	 *      "https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.6">JLS
+	 *      21 Section 4.4: Type Erasure</a>
 	 */
-	IuType<T> base();
+	IuType<T> erase();
 
 	/**
 	 * Iterates the type hierarchy, from most specific to least specific.
@@ -120,9 +126,9 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * the last element.
 	 * </p>
 	 * 
-	 * @return enclosed types
+	 * @return inherited and extended types
 	 */
-	Iterable<IuType<?>> hierarchy();
+	Iterable<? extends IuType<?>> hierarchy();
 
 	/**
 	 * Refers to a type in the the described type's hierarchy.
@@ -135,21 +141,21 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param referentType type to refer to
 	 * @return referent facade
 	 */
-	IuType<?> referTo(Type referentType);
+	IuType<? super T> referTo(Type referentType);
 
 	/**
 	 * Gets all types enclosed by this type.
 	 * 
 	 * @return enclosed types
 	 */
-	Iterable<IuType<?>> enclosedTypes();
+	Iterable<? extends IuType<?>> enclosedTypes();
 
 	/**
 	 * Gets all constructors defined by this type.
 	 * 
 	 * @return constructors
 	 */
-	Iterable<IuConstructor<T>> constructors();
+	Iterable<? extends IuConstructor<T>> constructors();
 
 	/**
 	 * Gets a constructor defined by this type.
@@ -172,7 +178,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * 
 	 * @return fields
 	 */
-	Iterable<IuField<T>> fields();
+	Iterable<? extends IuField<?>> fields();
 
 	/**
 	 * Gets a field declared by this type.
@@ -187,7 +193,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * 
 	 * @return properties by name
 	 */
-	Iterable<IuProperty<T>> properties();
+	Iterable<? extends IuProperty<?>> properties();
 
 	/**
 	 * Gets a property declared by this type.
@@ -202,7 +208,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * 
 	 * @return methods
 	 */
-	Iterable<IuMethod<?>> methods();
+	Iterable<? extends IuMethod<?>> methods();
 
 	/**
 	 * Gets a method defined by this type.
@@ -223,18 +229,21 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	IuMethod<?> method(String name, IuType<?>... parameterTypes);
 
 	/**
-	 * Get the resolved base class.
+	 * Get the type erasure class.
 	 * 
 	 * <p>
-	 * Shorthand for {@link #base()}.{@link #deref()}
+	 * Shorthand for {@link #erase()}.{@link #deref()}
 	 * </p>
 	 * 
-	 * @return base class
-	 * @see #base()
+	 * @return type erasure class
+	 * @see #erase()
+	 * @see <a href=
+	 *      "https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.6">JLS
+	 *      21 Section 4.4: Type Erasure</a>
 	 */
 	@SuppressWarnings("unchecked")
-	default Class<T> baseClass() {
-		return (Class<T>) base().deref();
+	default Class<T> erasedClass() {
+		return (Class<T>) erase().deref();
 	}
 
 	/**
@@ -243,11 +252,11 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param subclass subclass of the described type
 	 * @param <S>      sub-type
 	 * @return this
-	 * @throws ClassCastException If the base type does not describe a subclass
+	 * @throws ClassCastException If the type does not erase to a subclass
 	 */
 	@SuppressWarnings("unchecked")
 	default <S> IuType<? extends S> sub(Class<S> subclass) throws ClassCastException {
-		baseClass().asSubclass(subclass);
+		erasedClass().asSubclass(subclass);
 		return (IuType<? extends S>) this;
 	}
 
@@ -261,7 +270,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 */
 	@SuppressWarnings("unchecked")
 	default Class<T> autoboxClass() {
-		var potentiallyPrimitive = baseClass();
+		var potentiallyPrimitive = erasedClass();
 		if (Boolean.TYPE.equals(potentiallyPrimitive))
 			return (Class<T>) Boolean.class;
 		else if (Character.TYPE.equals(potentiallyPrimitive))
@@ -293,7 +302,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 */
 	@SuppressWarnings("unchecked")
 	default T autoboxDefault() {
-		var potentiallyPrimitive = baseClass();
+		var potentiallyPrimitive = erasedClass();
 		if (Boolean.TYPE.equals(potentiallyPrimitive))
 			return (T) Boolean.FALSE;
 		else if (Character.TYPE.equals(potentiallyPrimitive))

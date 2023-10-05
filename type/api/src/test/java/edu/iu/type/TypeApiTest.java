@@ -59,9 +59,9 @@ public class TypeApiTest {
 
 	@Test
 	public void testReferenceKind() {
-		assertNull(IuReferenceKind.BASE.referrerType());
-		assertFalse(IuReferenceKind.BASE.named());
-		assertFalse(IuReferenceKind.BASE.indexed());
+		assertSame(IuType.class, IuReferenceKind.ERASURE.referrerType());
+		assertFalse(IuReferenceKind.ERASURE.named());
+		assertFalse(IuReferenceKind.ERASURE.indexed());
 	}
 
 	@Test
@@ -86,11 +86,12 @@ public class TypeApiTest {
 		assertSame(annotation, annotatedElement.annotation(DefaultInterceptor.class));
 	}
 
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Test
 	public void testParameterized() {
 		var parameterizedElement = IuTest.mockWithDefaults(IuParameterizedElement.class);
 		var type = IuTest.mockWithDefaults(IuType.class);
-		when(parameterizedElement.typeParameters()).thenReturn(Map.of("foo", type));
+		when(parameterizedElement.typeParameters()).thenReturn((Map) Map.of("foo", type));
 		assertSame(type, parameterizedElement.typeParameter("foo"));
 	}
 
@@ -191,62 +192,62 @@ public class TypeApiTest {
 	@Test
 	public void testType() {
 		var type = IuTest.mockWithDefaults(IuType.class);
-		when(type.base()).thenReturn(type);
+		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(Object.class);
 		assertSame(type, type.sub(Object.class));
 		assertSame(Object.class, type.autoboxClass());
 		assertNull(type.autoboxDefault());
 
 		type = IuTest.mockWithDefaults(IuType.class);
-		when(type.base()).thenReturn(type);
+		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(boolean.class);
 		assertSame(Boolean.class, type.autoboxClass());
 		assertSame(Boolean.FALSE, type.autoboxDefault());
 
 		type = IuTest.mockWithDefaults(IuType.class);
-		when(type.base()).thenReturn(type);
+		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(char.class);
 		assertSame(Character.class, type.autoboxClass());
 		assertSame('\0', type.autoboxDefault());
 
 		type = IuTest.mockWithDefaults(IuType.class);
-		when(type.base()).thenReturn(type);
+		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(byte.class);
 		assertSame(Byte.class, type.autoboxClass());
 		assertSame((byte) 0, type.autoboxDefault());
 
 		type = IuTest.mockWithDefaults(IuType.class);
-		when(type.base()).thenReturn(type);
+		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(short.class);
 		assertSame(Short.class, type.autoboxClass());
 		assertSame((short) 0, type.autoboxDefault());
 
 		type = IuTest.mockWithDefaults(IuType.class);
-		when(type.base()).thenReturn(type);
+		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(int.class);
 		assertSame(Integer.class, type.autoboxClass());
 		assertSame((int) 0, type.autoboxDefault());
 
 		type = IuTest.mockWithDefaults(IuType.class);
-		when(type.base()).thenReturn(type);
+		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(long.class);
 		assertSame(Long.class, type.autoboxClass());
 		assertSame(0L, type.autoboxDefault());
 
 		type = IuTest.mockWithDefaults(IuType.class);
-		when(type.base()).thenReturn(type);
+		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(float.class);
 		assertSame(Float.class, type.autoboxClass());
 		assertEquals(0.0f, type.autoboxDefault());
 
 		type = IuTest.mockWithDefaults(IuType.class);
-		when(type.base()).thenReturn(type);
+		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(double.class);
 		assertSame(Double.class, type.autoboxClass());
 		assertEquals(0.0, type.autoboxDefault());
 
 		type = IuTest.mockWithDefaults(IuType.class);
-		when(type.base()).thenReturn(type);
+		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(void.class);
 		assertSame(Void.class, type.autoboxClass());
 		assertNull(type.autoboxDefault());

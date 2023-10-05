@@ -31,25 +31,19 @@
  */
 package edu.iu.type;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
-import java.lang.reflect.Type;
-import java.lang.reflect.TypeVariable;
-
 /**
  * Describes a reference to a generic type.
  * 
  * <p>
- * Each {@link IuType} instance either wraps a plain {@link Class} instance
- * ("base" type) or contains a reference back to the {@link Class},
- * {@link TypeVariable Type Parameter}, {@link Parameter}, {@link Constructor},
- * or {@link Method} that defined a generic and/or component {@link Type}.
+ * Each {@link IuType} instance either wraps a plain {@link Class} instance or
+ * contains a reference back to the {@link IuAnnotatedElement element} that it
+ * originated from.
  * </p>
  * 
  * @param <T> referent type
+ * @param <R> referrer type
  */
-public interface IuTypeReference<T> {
+public interface IuTypeReference<T, R extends IuAnnotatedElement> {
 
 	/**
 	 * Gets the reference kind.
@@ -59,18 +53,30 @@ public interface IuTypeReference<T> {
 	IuReferenceKind kind();
 
 	/**
-	 * Gets the introspection wrapper through which the reference was obtained.
+	 * Gets the referent type.
 	 * 
-	 * @return introspection wrapper
+	 * <p>
+	 * {@code referent().reference() == this} <em>must</em> be true
+	 * </p>
+	 * 
+	 * @return referent type
 	 */
-	IuAnnotatedElement referrer();
+	IuType<T> referent();
+
+	/**
+	 * Gets the introspection facade for the element through which the reference was
+	 * obtained.
+	 * 
+	 * @return introspection facade
+	 */
+	R referrer();
 
 	/**
 	 * Gets the name of the referent type as known by the referrer.
 	 * 
 	 * @return reference name; <em>must</em> be non-null when
-	 *         {@link #kind()}{@link IuReferenceKind#named() .isNamed()} is true,
-	 *         if false <em>must</em> be null.
+	 *         {@link #kind()}{@link IuReferenceKind#named() .isNamed()} is true, if
+	 *         false <em>must</em> be null.
 	 */
 	String name();
 
@@ -82,12 +88,5 @@ public interface IuTypeReference<T> {
 	 *         true, if false <em>must</em> be -1.
 	 */
 	int index();
-
-	/**
-	 * Gets the referent type.
-	 * 
-	 * @return referent type
-	 */
-	IuType<T> referent();
 
 }
