@@ -420,7 +420,8 @@ public final class IuException {
 	 * re-throwing.
 	 * </p>
 	 * <p>
-	 * Handles other exceptions via {@link #checked(Throwable, Class, Class, Class)}.
+	 * Handles other exceptions via
+	 * {@link #checked(Throwable, Class, Class, Class)}.
 	 * </p>
 	 * 
 	 * @param <T1>                    Expected exception type
@@ -1251,6 +1252,41 @@ public final class IuException {
 			return function.apply(firstArgument, secondArgument);
 		} catch (Throwable e) {
 			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);
+		}
+	}
+
+	/**
+	 * Gracefully initializes a component that depends on an {@link AutoCloseable}
+	 * resource, {@link AutoCloseable#close() closing} the resource and suppressing
+	 * any close errors before rethrowing a checked exception if the component fails
+	 * to initialize.
+	 * 
+	 * <p>
+	 * If no exception or error is thrown by {@code initializer}, then
+	 * the resource remains open, and becomes the responsibility of the initialized
+	 * component to close when finished with it.
+	 * </p>
+	 * 
+	 * @param <T>         {@link AutoCloseable} resource type
+	 * @param <R>         {@link UnsafeFunction} dependent component type
+	 * 
+	 * @param resource    Open resource
+	 * @param initializer {@link UnsafeFunction} for initializing the resource
+	 * @return {@code resource}, after successfully invoking
+	 *         {@code initializationConsumer}
+	 * @throws Exception If thrown from by {@code initializationConsumer}
+	 */
+	public static <T extends AutoCloseable, R> R initialize(T resource, UnsafeFunction<T, R> initializer)
+			throws Exception {
+		try {
+			return initializer.apply(resource);
+		} catch (Throwable e) {
+			try {
+				resource.close();
+			} catch (Throwable e2) {
+				e.addSuppressed(e2);
+			}
+			throw checked(e);
 		}
 	}
 
