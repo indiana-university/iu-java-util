@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.io.Serializable;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -100,6 +101,28 @@ public class TypeFactoryTest {
 		};
 		assertSame("Invalid generic type, must be ParameterizedType, GenericArrayType, TypeVariable, or WildcardType",
 				assertThrows(IllegalArgumentException.class, () -> TypeFactory.resolveType(type)).getMessage());
+	}
+
+	@Test
+	public void testHierarchy() {
+		interface AnInterface<T> {
+		}
+		abstract class AnAbstractClass<A extends AnAbstractClass<A>> implements AnInterface<Number> {
+		}
+		class AClass extends AnAbstractClass<AClass> implements Serializable {
+			private static final long serialVersionUID = 1L;
+		}
+		var type = TypeFactory.resolveRawClass(AClass.class);
+		var hierarchy = type.hierarchy();
+		assertEquals(4, hierarchy.size(), hierarchy::toString);
+		assertSame(Serializable.class, hierarchy.get(0).erasedClass());
+		assertSame(type, hierarchy.get(0).reference().referrer());
+		assertSame(AnAbstractClass.class, hierarchy.get(1).erasedClass());
+		assertSame(type, hierarchy.get(1).reference().referrer());
+		assertSame(AnInterface.class, hierarchy.get(2).erasedClass());
+		assertSame(hierarchy.get(1), hierarchy.get(2).reference().referrer());
+		assertSame(Object.class, hierarchy.get(3).erasedClass());
+		assertSame(hierarchy.get(1), hierarchy.get(3).reference().referrer());
 	}
 
 }

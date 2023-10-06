@@ -128,7 +128,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * 
 	 * @return inherited and extended types
 	 */
-	Iterable<? extends IuType<?>> hierarchy();
+	Iterable<? extends IuType<? super T>> hierarchy();
 
 	/**
 	 * Refers to a type in the the described type's hierarchy.

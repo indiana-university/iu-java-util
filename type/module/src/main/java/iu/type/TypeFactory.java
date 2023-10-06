@@ -1,42 +1,86 @@
 package iu.type;
 
 import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
+import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 import java.lang.reflect.WildcardType;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Deque;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Queue;
+import java.util.Objects;
 import java.util.WeakHashMap;
 
 import edu.iu.type.IuType;
 
 final class TypeFactory {
 
-	private static final Map<Class<?>, TypeFacade<?>> BASIC = new WeakHashMap<>();
+	record HierarchyElement(Type type, Class<?> referrer) {
+	}
 
-	static Iterable<Type> getGenericHierarchy(Class<?> baseClass) {
-		Queue<Type> genericHierarchy = new ArrayDeque<>();
+	static class ClassMetadata {
+		final List<HierarchyElement> hierarchy;
+		final Map<ExecutableKey, Constructor<?>> constructors;
+		final Map<String, Field> fields;
+		final Map<ExecutableKey, Method> methods;
 
-		Deque<Type> todo = new ArrayDeque<>();
-		todo.push(baseClass);
-		while (!todo.isEmpty()) {
-			var type = todo.pop();
-			genericHierarchy.offer(type);
+		private ClassMetadata(Class<?> rawClass) {
+			constructors = new LinkedHashMap<>();
+			for (var constructor : rawClass.getDeclaredConstructors())
+				constructors.put(ExecutableKey.of(constructor), constructor);
 
-			var baseClassToCheck = getErasedClass(type);
-			for (var interfaceToCheck : baseClassToCheck.getGenericInterfaces())
-				todo.push(interfaceToCheck);
+			hierarchy = new ArrayList<>();
+			methods = new LinkedHashMap<>();
+			fields = new LinkedHashMap<>();
+			Deque<HierarchyElement> reverse = new ArrayDeque<>();
+			Deque<HierarchyElement> todo = new ArrayDeque<>();
+			todo.push(new HierarchyElement(rawClass, null));
+			while (!todo.isEmpty()) {
+				var hierarchyElement = todo.pop();
+				if (hierarchyElement.referrer != null)
+					hierarchy.add(hierarchyElement);
 
-			var superType = baseClassToCheck.getGenericSuperclass();
-			if (superType != null)
-				todo.push(superType);
+				var erasedClass = getErasedClass(hierarchyElement.type);
+				for (var field : erasedClass.getDeclaredFields()) {
+					var fieldName = field.getName();
+					if (!fields.containsKey(fieldName))
+						fields.put(fieldName, field);
+				}
+
+				var superType = erasedClass.getGenericSuperclass();
+				if (superType != null)
+					reverse.push(new HierarchyElement(superType, erasedClass));
+
+				for (var interfaceToCheck : erasedClass.getGenericInterfaces())
+					reverse.push(new HierarchyElement(interfaceToCheck, erasedClass));
+
+				while (!reverse.isEmpty())
+					todo.push(reverse.pop());
+			}
 		}
+	}
 
-		return genericHierarchy;
+	private static final TypeFacade<Object> OBJECT = TypeFacade.builder(Object.class).build();
+	private static final Map<Class<?>, TypeFacade<?>> RAW_TYPES = new WeakHashMap<>();
+	private static final Map<Class<?>, ClassMetadata> CLASS_METADATA = new WeakHashMap<>();
+
+	private static ClassMetadata getClassMetadata(Class<?> rawClass) {
+		ClassMetadata classMetadata = CLASS_METADATA.get(rawClass);
+		if (classMetadata == null) {
+			classMetadata = new ClassMetadata(rawClass);
+			synchronized (CLASS_METADATA) {
+				CLASS_METADATA.put(rawClass, classMetadata);
+			}
+		}
+		return classMetadata;
 	}
 
 	static Class<?> getErasedClass(Type type) {
@@ -107,24 +151,47 @@ final class TypeFactory {
 	}
 
 	@SuppressWarnings("unchecked")
-	static <T> TypeFacade<T> resolveClass(Class<T> type) {
-		var resolved = BASIC.get(type);
+	static <T> TypeFacade<T> resolveRawClass(Class<T> rawClass) {
+		if (rawClass == Object.class)
+			return (TypeFacade<T>) OBJECT;
+
+		var resolved = RAW_TYPES.get(rawClass);
 
 		if (resolved == null) {
-			resolved = new TypeFacade<>(type);
-			synchronized (BASIC) {
-				BASIC.put(type, resolved);
+			var metadata = getClassMetadata(rawClass);
+
+			TypeFacade<? super T>[] hierarchy = new TypeFacade[metadata.hierarchy.size()];
+			for (int i = metadata.hierarchy.size() - 1; i >= 0; i--) {
+				var e = metadata.hierarchy.get(i);
+				var referrer = e.referrer;
+				if (referrer == rawClass)
+					hierarchy[i] = (TypeFacade<? super T>) resolveType(e.type);
+				else {
+					var j = i;
+					Type referrerType = null;
+					while (j >= 0)
+						if (getErasedClass(metadata.hierarchy.get(--j).type) == referrer)
+							break;
+					hierarchy[i] = (TypeFacade<? super T>) //
+					resolveType(Objects.requireNonNull(referrerType)).referTo(e.type);
+				}
+			}
+			resolved = TypeFacade.builder(rawClass).hierarchy(List.of(hierarchy)).build();
+
+			synchronized (RAW_TYPES) {
+				RAW_TYPES.put(rawClass, resolved);
 			}
 		}
 
 		return (TypeFacade<T>) resolved;
+
 	}
 
 	static IuType<?> resolveType(Type type) {
 		if (type instanceof Class)
-			return resolveClass((Class<?>) type);
+			return resolveRawClass((Class<?>) type);
 		else
-			return new TypeFacade<>(type, resolveClass(getErasedClass(type)));
+			return TypeFacade.builder(type, resolveRawClass(getErasedClass(type))).build();
 	}
 
 	private TypeFactory() {

@@ -33,9 +33,14 @@ package iu.type;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import edu.iu.IuObject;
+import edu.iu.type.IuAnnotatedElement;
 import edu.iu.type.IuConstructor;
 import edu.iu.type.IuField;
 import edu.iu.type.IuMethod;
@@ -46,30 +51,76 @@ import edu.iu.type.IuTypeReference;
 
 class TypeFacade<T> implements IuType<T> {
 
-	// IuType#of(Type): All fields MUST be final
+	static class Builder<T> {
+		private final Type type;
+		private final TypeFacade<T> erasureTemplate;
+
+		private List<TypeFacade<? super T>> hierarchy;
+
+		private Builder(Class<T> rawClass) {
+			this.type = rawClass;
+			this.erasureTemplate = null;
+		}
+
+		private Builder(Type type, TypeFacade<T> erasureTemplate) {
+			assert !(type instanceof Class) : type;
+			assert erasureTemplate.deref() instanceof Class : erasureTemplate;
+			this.type = type;
+			this.erasureTemplate = erasureTemplate;
+		}
+
+		Builder<T> hierarchy(List<TypeFacade<? super T>> hierarchy) {
+			assert this.hierarchy == null;
+			this.hierarchy = hierarchy;
+			return this;
+		}
+
+		TypeFacade<T> build() {
+			return new TypeFacade<>(this);
+		}
+	}
+
+	static <T> Builder<T> builder(Class<T> rawClass) {
+		return new Builder<>(rawClass);
+	}
+
+	static <T> Builder<T> builder(Type type, TypeFacade<T> erasureTemplate) {
+		return new Builder<>(type, erasureTemplate);
+	}
+
 	private final Type type;
-	private final IuTypeReference<T, ?> reference;
 	private final TypeFacade<T> erasedType;
+	private final TypeReference<T, ?> reference;
+	private final List<TypeFacade<? super T>> hierarchy;
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private TypeFacade(IuReferenceKind kind, TypeFacade<?> referrer, TypeFacade<T> referentTemplate) {
-		this.type = referentTemplate.type;
-		this.erasedType = referentTemplate.erasedType;
-		this.reference = new TypeReference(kind, referrer, this, null, 0);
+	private TypeFacade(TypeFacade<T> template, IuAnnotatedElement referrer, IuReferenceKind referenceKind) {
+		this.type = template.type;
+		this.erasedType = template.erasedType;
+		this.hierarchy = template.hierarchy;
+		this.reference = new TypeReference<>(referenceKind, referrer, this);
 	}
 
-	TypeFacade(Class<T> type) {
-		this.type = type;
-		this.reference = null;
-		this.erasedType = this;
+	private TypeFacade(Builder<T> builder) {
+		this.type = builder.type;
+		reference = null;
+
+		if (builder.erasureTemplate == null)
+			this.erasedType = this;
+		else
+			this.erasedType = bindReference(builder.erasureTemplate, IuReferenceKind.ERASURE);
+
+		if (builder.hierarchy == null)
+			this.hierarchy = Collections.emptyList();
+		else {
+			List<TypeFacade<? super T>> hierarchy = new ArrayList<>(builder.hierarchy.size());
+			for (var superType : builder.hierarchy)
+				hierarchy.add(bindReference(superType, IuReferenceKind.SUPER));
+			this.hierarchy = Collections.unmodifiableList(hierarchy);
+		}
 	}
 
-	TypeFacade(Type type, TypeFacade<T> erasureTemplate) {
-		assert !(type instanceof Class) : type;
-		assert erasureTemplate.deref() instanceof Class : erasureTemplate;
-		this.type = type;
-		this.reference = null;
-		this.erasedType = new TypeFacade<>(IuReferenceKind.ERASURE, this, erasureTemplate);
+	private <U> TypeFacade<U> bindReference(TypeFacade<U> referentTemplate, IuReferenceKind kind) {
+		return new TypeFacade<U>(referentTemplate, this, kind);
 	}
 
 	@Override
@@ -117,9 +168,8 @@ class TypeFacade<T> implements IuType<T> {
 	}
 
 	@Override
-	public Iterable<? extends IuType<?>> hierarchy() {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+	public List<TypeFacade<? super T>> hierarchy() {
+		return hierarchy;
 	}
 
 	@Override
@@ -195,8 +245,51 @@ class TypeFacade<T> implements IuType<T> {
 	}
 
 	@Override
+	public int hashCode() {
+		if (erasedType == this)
+			return type.hashCode();
+		else
+			return super.hashCode();
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (!IuObject.typeCheck(this, obj))
+			return false;
+
+		TypeFacade<?> other = (TypeFacade<?>) obj;
+		return (erasedType == this //
+				&& other.erasedType == other //
+				&& this.type == other.type) //
+				|| super.equals(obj);
+	}
+
+	@Override
 	public String toString() {
-		return type.toString();
+		var sb = new StringBuilder("IuType[").append(type.toString());
+		IuTypeReference<?, ?> ref = reference;
+		while (ref != null) {
+			sb.append(' ').append(ref.kind());
+			if (ref.index() >= 0)
+				sb.append('(').append(ref.index()).append(") ");
+			else if (ref.name() != null)
+				sb.append('(').append(ref.name()).append(") ");
+			else
+				sb.append(" ");
+
+			var referrer = ref.referrer();
+
+			if (referrer instanceof TypeFacade) {
+				var referrerType = (TypeFacade<?>) referrer;
+				sb.append(referrerType.type);
+				ref = referrerType.reference;
+			} else {
+				sb.append(referrer);
+				ref = null;
+			}
+		}
+		sb.append(']');
+		return sb.toString();
 	}
 
 }
