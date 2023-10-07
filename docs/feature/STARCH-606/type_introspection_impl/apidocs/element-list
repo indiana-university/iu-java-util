@@ -7,3 +7,5 @@ edu.iu.test
 module:iu.util.type
 edu.iu.type
 edu.iu.type.spi
+module:iu.util.type.impl
+iu.type
