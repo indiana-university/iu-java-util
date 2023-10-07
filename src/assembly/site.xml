@@ -8,6 +8,7 @@
 			<directory>target/site</directory>
 			<outputDirectory></outputDirectory>
 			<lineEnding>unix</lineEnding>
+			<nonFilteredFileExtensions>jpg</nonFilteredFileExtensions>
 		</fileSet>
 	</fileSets>
 
