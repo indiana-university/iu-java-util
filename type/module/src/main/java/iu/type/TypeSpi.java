@@ -46,11 +46,18 @@ import edu.iu.type.spi.IuTypeSpi;
  */
 public class TypeSpi implements IuTypeSpi {
 
+	/**
+	 * Default constructor.
+	 */
+	public TypeSpi() {
+	}
+
 	@Override
 	public IuType<?> resolveType(Type type) {
 		return TypeFactory.resolveType(type);
 	}
 
+	@SuppressWarnings("exports")
 	@Override
 	public IuComponent createComponent(InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException {

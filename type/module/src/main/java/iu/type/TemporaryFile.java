@@ -38,8 +38,21 @@ import java.nio.file.Path;
 import edu.iu.IuException;
 import edu.iu.UnsafeFunction;
 
+/**
+ * Initializes a temporary file with fail-safe delete when initialization fails.
+ */
 final class TemporaryFile {
 
+	/**
+	 * Initializes a temp file.
+	 * 
+	 * @param <T>                 initialization result
+	 * @param tempFileInitializer initialization function
+	 * @return result of initialization; <em>must</em> contain
+	 *         implementation-specific logic to delete the temp file as part of
+	 *         destroying the initialized resource
+	 * @throws IOException If an I/O error is thrown from the initializer
+	 */
 	static <T> T init(UnsafeFunction<Path, T> tempFileInitializer) throws IOException {
 		Path temp = Files.createTempFile("iu-type-", ".jar");
 

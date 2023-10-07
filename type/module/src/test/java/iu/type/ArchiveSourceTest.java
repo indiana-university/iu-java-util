@@ -59,6 +59,10 @@ import edu.iu.test.IuTest;
 @SuppressWarnings("javadoc")
 public class ArchiveSourceTest {
 
+	private ArchiveSource read(ComponentEntry componentEntry) throws IOException {
+		return new ArchiveSource(new ByteArrayInputStream(componentEntry.data()));
+	}
+
 	private ComponentEntry createJar(Map<String, byte[]> source) throws IOException {
 		var out = new ByteArrayOutputStream();
 		try (JarOutputStream jar = new JarOutputStream(out)) {
@@ -106,7 +110,7 @@ public class ArchiveSourceTest {
 	@Test
 	public void testReturnsData() throws IOException {
 		byte[] data = new byte[] { -1 };
-		try (var source = new ArchiveSource(createJar(Map.of("", data)))) {
+		try (var source = read(createJar(Map.of("", data)))) {
 			var next = source.next();
 			var nextData = next.data();
 			assertArrayEquals(data, nextData);
@@ -117,7 +121,7 @@ public class ArchiveSourceTest {
 	@Test
 	public void testIterates() throws IOException {
 		byte[] data = new byte[] { -1 };
-		try (var source = new ArchiveSource(createJar(Map.of("", data)))) {
+		try (var source = read(createJar(Map.of("", data)))) {
 			assertTrue(source.hasNext());
 			assertArrayEquals(data, source.next().data());
 			assertFalse(source.hasNext());
@@ -131,7 +135,7 @@ public class ArchiveSourceTest {
 		Map<String, byte[]> map = new LinkedHashMap<>();
 		map.put("anEntry", data);
 		map.put("anotherEntry", data);
-		var source = new ArchiveSource(createJar(map));
+		var source = read(createJar(map));
 		assertTrue(source.hasNext());
 		assertEquals("anEntry", source.next().name());
 		assertTrue(source.hasNext());
@@ -142,7 +146,7 @@ public class ArchiveSourceTest {
 
 	@Test
 	public void testClassPath() throws Throwable {
-		ArchiveSource empty = new ArchiveSource(createJar(Map.of()));
+		ArchiveSource empty = read(createJar(Map.of()));
 		assertFalse(empty.classPath().iterator().hasNext());
 
 		ArchiveSource source = new ArchiveSource(
@@ -157,7 +161,7 @@ public class ArchiveSourceTest {
 
 	@Test
 	public void testEmptyDependenciesAreEmpty() throws Throwable {
-		ArchiveSource empty = new ArchiveSource(createJar(Map.of()));
+		ArchiveSource empty = read(createJar(Map.of()));
 		assertFalse(empty.dependencies().iterator().hasNext());
 	}
 

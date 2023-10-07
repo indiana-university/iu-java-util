@@ -31,9 +31,12 @@
  */
 /**
  * Type introspection utilities implementation module.
- *  * @provides edu.iu.type.spi.IuTypeSpi Implementation service provider.
+ *
+ * @provides edu.iu.type.spi.IuTypeSpi Implementation service provider.
  */
 module iu.util.type.impl {
+	exports iu.type;
+	
 	requires iu.util;
 	requires iu.util.type;
 	

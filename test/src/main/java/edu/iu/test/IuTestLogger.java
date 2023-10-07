@@ -196,6 +196,13 @@ public final class IuTestLogger {
 	private static Logger root;
 	private static Set<String> propertyDefinedPlatformLoggers;
 
+	/**
+	 * Determines if a logger name is related to a platform logger, and so should
+	 * omitted from test expectations.
+	 * 
+	 * @param loggerName logger name
+	 * @return true if name is associated with a platform logger
+	 */
 	static boolean isPlatformLogger(String loggerName) {
 		if (STANDARD_PLATFORM_LOGGER_NAMES.contains(loggerName))
 			return true;
@@ -230,6 +237,9 @@ public final class IuTestLogger {
 		return false;
 	}
 
+	/**
+	 * Initialization hook.
+	 */
 	static void init() {
 		root = LogManager.getLogManager().getLogger("");
 		originalLevel = root.getLevel();
@@ -244,11 +254,21 @@ public final class IuTestLogger {
 		root.setLevel(Level.ALL);
 	}
 
+	/**
+	 * Test start hook.
+	 * 
+	 * @param name test name
+	 */
 	static void startTest(String name) {
 		assertNull(testHandler.activeTest);
 		testHandler.activeTest = name;
 	}
 
+	/**
+	 * Test finish hook.
+	 * 
+	 * @param name test name
+	 */
 	static void finishTest(String name) {
 		assertTrue(testHandler.activeTest.equals(name));
 		testHandler.activeTest = null;
@@ -256,6 +276,9 @@ public final class IuTestLogger {
 		propertyDefinedPlatformLoggers = null;
 	}
 
+	/**
+	 * Test destroy hook.
+	 */
 	static void destroy() {
 		testHandler.flush();
 		testHandler.close();

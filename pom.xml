@@ -308,6 +308,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 					<configuration>
 						<failOnError>true</failOnError>
 						<failOnWarnings>true</failOnWarnings>
+						<docfilessubdirs>true</docfilessubdirs>
+						<show>package</show>
 					</configuration>
 					<executions>
 						<execution>

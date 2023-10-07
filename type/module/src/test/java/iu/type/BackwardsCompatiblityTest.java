@@ -49,25 +49,25 @@ public class BackwardsCompatiblityTest {
 
 	@Test
 	public void testNonLegacyReturnsSameType() throws ClassNotFoundException {
-		assertSame(Resource.class, BackwardsCompatibility.getNonLegacyClass(Resource.class));
+		assertSame(Resource.class, BackwardsCompatibility.getLocalClass(Resource.class));
 	}
 
 	@Test
 	public void testLegacyReturnsSameType() throws ClassNotFoundException {
-		assertSame(Resource.class, BackwardsCompatibility.getLegacyClass(Resource.class));
+		assertSame(Resource.class, BackwardsCompatibility.getPotentiallyRemoteClass(Resource.class));
 	}
 
 	@Test
 	public void testConvertsJavaxToJakarta() throws ClassNotFoundException {
 		assertSame(Resource.class, BackwardsCompatibility
-				.getNonLegacyClass(LegacyContextSupport.get().loadClass("javax.annotation.Resource")));
+				.getLocalClass(LegacyContextSupport.get().loadClass("javax.annotation.Resource")));
 	}
 
 	@Test
 	public void testConvertsJakartaToJavax() throws Throwable {
 		TypeUtils.callWithContext(LegacyContextSupport.get(), () -> {
 			assertSame(LegacyContextSupport.get().loadClass("javax.annotation.Resource"),
-					BackwardsCompatibility.getLegacyClass(Resource.class));
+					BackwardsCompatibility.getPotentiallyRemoteClass(Resource.class));
 			return null;
 		});
 	}
@@ -75,14 +75,14 @@ public class BackwardsCompatiblityTest {
 	@Test
 	public void testConvertsDefaultInterceptorFromIuJee6() throws ClassNotFoundException {
 		assertSame(DefaultInterceptor.class, BackwardsCompatibility
-				.getNonLegacyClass(LegacyContextSupport.get().loadClass("edu.iu.spi.DefaultInterceptor")));
+				.getLocalClass(LegacyContextSupport.get().loadClass("edu.iu.spi.DefaultInterceptor")));
 	}
 
 	@Test
 	public void testConvertsDefaultInterceptorToIuJee6() throws Throwable {
 		TypeUtils.callWithContext(LegacyContextSupport.get(), () -> {
 			assertSame(LegacyContextSupport.get().loadClass("edu.iu.spi.DefaultInterceptor"),
-					BackwardsCompatibility.getLegacyClass(DefaultInterceptor.class));
+					BackwardsCompatibility.getPotentiallyRemoteClass(DefaultInterceptor.class));
 			return null;
 		});
 	}
@@ -91,7 +91,7 @@ public class BackwardsCompatiblityTest {
 	public void testTriesJakartaAndJavax() throws Throwable {
 		TypeUtils.callWithContext(LegacyContextSupport.get(), () -> {
 			var classNotFound = assertThrows(ClassNotFoundException.class,
-					() -> BackwardsCompatibility.getLegacyClass(Jsonb.class));
+					() -> BackwardsCompatibility.getPotentiallyRemoteClass(Jsonb.class));
 			assertEquals("javax" + Jsonb.class.getName().substring(7), classNotFound.getMessage());
 			assertEquals(Jsonb.class.getName(), classNotFound.getSuppressed()[0].getMessage());
 			return null;
@@ -102,7 +102,7 @@ public class BackwardsCompatiblityTest {
 	public void testTriesIuType() throws Throwable {
 		TypeUtils.callWithContext(LegacyContextSupport.get(), () -> {
 			var classNotFound = assertThrows(ClassNotFoundException.class,
-					() -> BackwardsCompatibility.getLegacyClass(IuType.class));
+					() -> BackwardsCompatibility.getPotentiallyRemoteClass(IuType.class));
 			assertEquals(IuType.class.getName(), classNotFound.getMessage());
 			return null;
 		});

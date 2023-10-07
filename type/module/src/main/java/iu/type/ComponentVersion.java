@@ -34,15 +34,24 @@ package iu.type;
 import java.util.Objects;
 import java.util.jar.Attributes;
 import java.util.jar.Attributes.Name;
+import java.util.jar.Manifest;
 import java.util.regex.Pattern;
 
 import edu.iu.type.IuComponentVersion;
 
+/**
+ * Implementation of {@link IuComponentVersion}.
+ */
 class ComponentVersion implements IuComponentVersion {
 
 	private static final Pattern SPEC_VERSION_PATTERN = Pattern.compile("^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$");
 	private static final Pattern NAME_PATTERN = Pattern.compile("^[a-zA-Z][a-zA-Z0-9\\-\\.]*$");
 
+	/**
+	 * Specification version constant for detecting <a href=
+	 * "https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0">Jakarta
+	 * Servlet version 6</a> or higher.
+	 */
 	static final ComponentVersion SERVLET_6 = new ComponentVersion("jakarta.servlet-api", 6, 0);
 
 	private final String name;
@@ -50,6 +59,13 @@ class ComponentVersion implements IuComponentVersion {
 	private final int major;
 	private final int minor;
 
+	/**
+	 * Creates a specification version.
+	 * 
+	 * @param name  extension name
+	 * @param major major version number
+	 * @param minor minor version number
+	 */
 	ComponentVersion(String name, int major, int minor) {
 		if (name == null || !NAME_PATTERN.matcher(name).matches())
 			throw new IllegalArgumentException(
@@ -64,6 +80,12 @@ class ComponentVersion implements IuComponentVersion {
 		this.minor = minor;
 	}
 
+	/**
+	 * Creates an implementation version
+	 * 
+	 * @param name    extension name
+	 * @param version implementation version
+	 */
 	ComponentVersion(String name, String version) {
 		if (name == null || !NAME_PATTERN.matcher(name).matches())
 			throw new IllegalArgumentException(
@@ -82,6 +104,12 @@ class ComponentVersion implements IuComponentVersion {
 		this.minor = Integer.parseInt(semverMatcher.group(2));
 	}
 
+	/**
+	 * Reads a dependency item from an extension list
+	 * 
+	 * @param extenstionListItem extension list item
+	 * @param mainAttributes     {@link Manifest#getMainAttributes()}
+	 */
 	ComponentVersion(String extenstionListItem, Attributes mainAttributes) {
 		var extensionAttributePrefix = extenstionListItem.replace('.', '_');
 		var extensionNameAttribute = extensionAttributePrefix + '-' + Name.EXTENSION_NAME;

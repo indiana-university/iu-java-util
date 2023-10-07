@@ -163,7 +163,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param parameterTypes parameter types
 	 * @return constructor
 	 */
-	IuConstructor<T> constructors(Type... parameterTypes);
+	IuConstructor<T> constructor(Type... parameterTypes);
 
 	/**
 	 * Gets a constructor declared by this type.
@@ -217,7 +217,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param parameterTypes parameter types
 	 * @return method
 	 */
-	IuMethod<?> methods(String name, Type... parameterTypes);
+	IuMethod<?> method(String name, Type... parameterTypes);
 
 	/**
 	 * Gets a method declared by this type.

@@ -33,6 +33,7 @@ package iu.type;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
+import java.lang.reflect.Type;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.function.Supplier;
@@ -44,12 +45,33 @@ import jakarta.annotation.Resource;
 import jakarta.annotation.Resource.AuthenticationType;
 import jakarta.annotation.Resources;
 
+/**
+ * Implementation of {@link IuResource};
+ * 
+ * @param <T> resource type
+ */
 class ComponentResource<T> implements IuResource<T> {
 
+	/**
+	 * Creates a static web resource.
+	 * 
+	 * @param name name
+	 * @param data content
+	 * @return static web resource
+	 */
 	static ComponentResource<byte[]> createWebResource(String name, byte[] data) {
 		return new ComponentResource<byte[]>(true, true, name, IuType.of(byte[].class), () -> data);
 	}
 
+	/**
+	 * Determines if a resource annotation indicates an instance of a potential
+	 * implementation class.
+	 * 
+	 * @param resourceReference {@link Resource} annotation
+	 * @param classToCheck      class to check
+	 * @return true if the class satisfies a requirement implied by the
+	 *         {@link Resource}; else false
+	 */
 	static boolean isApplicationResource(Resource resourceReference, Class<?> classToCheck) {
 		Class<?> resourceType = resourceReference.type();
 		if (InvocationHandler.class.isAssignableFrom(classToCheck))
@@ -58,15 +80,34 @@ class ComponentResource<T> implements IuResource<T> {
 			return resourceType.isAssignableFrom(classToCheck);
 	}
 
-	static <T> T createResourceInstance(Class<T> type, Class<?> implementationClass) {
-		var implementationInstance = IuException.unchecked(() -> IuType.of(implementationClass).constructor().exec());
+	/**
+	 * Gets an instance of the resource.
+	 * 
+	 * @param <T>                 resource type
+	 * @param resourceInterface   resource interface or raw implemenation class
+	 * @param implementationClass resource implementation or
+	 *                            {@link InvocationHandler}
+	 * @return resource instance
+	 */
+	static <T> T createResourceInstance(Class<T> resourceInterface, Class<?> implementationClass) {
+		var implementationInstance = IuException
+				.unchecked(() -> IuType.of(implementationClass).constructor(new Type[0]).exec());
 		if (implementationInstance instanceof InvocationHandler)
-			return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type },
-					(InvocationHandler) implementationInstance));
+			return resourceInterface.cast(Proxy.newProxyInstance(resourceInterface.getClassLoader(),
+					new Class<?>[] { resourceInterface }, (InvocationHandler) implementationInstance));
 		else
-			return type.cast(implementationInstance);
+			return resourceInterface.cast(implementationInstance);
 	}
 
+	/**
+	 * Gets an instance of the resource.
+	 * 
+	 * @param resourceReference   resource annotation;
+	 *                            {@link #isApplicationResource(Resource, Class)}
+	 *                            <em>must</em> return true.
+	 * @param implementationClass implementation class or {@link InvocationHandler}
+	 * @return resource instance
+	 */
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	static ComponentResource<?> createResource(Resource resourceReference, Class<?> implementationClass) {
 		IuType type;
@@ -111,6 +152,12 @@ class ComponentResource<T> implements IuResource<T> {
 				resourceReference.shareable(), name, type, supplier);
 	}
 
+	/**
+	 * Gets all resources definitions tied to an implementation class
+	 * 
+	 * @param implementationClass implemenation class
+	 * @return resource definitions
+	 */
 	static Iterable<ComponentResource<?>> getResources(Class<?> implementationClass) {
 		Queue<ComponentResource<?>> resources = new ArrayDeque<>();
 

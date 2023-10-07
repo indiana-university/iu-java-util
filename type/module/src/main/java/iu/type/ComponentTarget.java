@@ -39,17 +39,33 @@ import java.nio.file.Path;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 
+/**
+ * Writes entries to a {@link Component}'s dedicated temporary path files.
+ */
 class ComponentTarget implements AutoCloseable {
 
 	private final OutputStream out;
 	private final JarOutputStream jar;
 	private final byte[] buf = new byte[16384];
 
+	/**
+	 * Creates a new target at a given temporary file location.
+	 * 
+	 * @param path temp file path
+	 * @throws IOException If an I/O error occurs writing to the file
+	 */
 	ComponentTarget(Path path) throws IOException {
 		out = Files.newOutputStream(path);
 		jar = new JarOutputStream(out);
 	}
 
+	/**
+	 * Adds an entry.
+	 * 
+	 * @param name entry name
+	 * @param data input for reading raw data to copy to the entry
+	 * @throws IOException If an I/O error occurs writing to the file
+	 */
 	void put(String name, InputStream data) throws IOException {
 		int r;
 		jar.putNextEntry(new JarEntry(name));

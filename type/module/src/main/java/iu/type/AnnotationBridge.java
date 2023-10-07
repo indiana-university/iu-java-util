@@ -31,7 +31,7 @@
  */
 package iu.type;
 
-import static iu.type.BackwardsCompatibility.getNonLegacyClass;
+import static iu.type.BackwardsCompatibility.getLocalClass;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
@@ -41,27 +41,49 @@ import java.util.Queue;
 
 import edu.iu.IuException;
 
+/**
+ * Bridge utility for adapting annotations defined in one module to a different
+ * module with an isolated and potentially different version of the same
+ * annotation library.
+ */
 final class AnnotationBridge {
 
 	private static final Annotation[] A0 = new Annotation[0];
 
-	static Class<?> getLegacyClass(AnnotatedElement annotatedElement, Class<?> nonLegacyClass)
+	/**
+	 * Gets an equivalent, potentially remote, class.
+	 * 
+	 * @param annotatedElement {@link AnnotatedElement} context target
+	 * @param localClass       local class
+	 * @return remote class; <em>may</em> be same as local class
+	 * @throws ClassNotFoundException if an equivalent remote type cannot be found
+	 */
+	static Class<?> getRemoteClass(AnnotatedElement annotatedElement, Class<?> localClass)
 			throws ClassNotFoundException {
 		try {
 			return TypeUtils.callWithContext(annotatedElement,
-					() -> BackwardsCompatibility.getLegacyClass(nonLegacyClass));
+					() -> BackwardsCompatibility.getPotentiallyRemoteClass(localClass));
 		} catch (Throwable e) {
 			throw IuException.checked(e, ClassNotFoundException.class);
 		}
 	}
 
+	/**
+	 * Determines if an equivalent annotation is present on a potentially remote
+	 * target element.
+	 * 
+	 * @param annotationType   local annotation type
+	 * @param annotatedElement {@link AnnotatedElement} context target
+	 * @return true if an equivalent annotation is present on the potentially remote
+	 *         target element; else false
+	 */
 	static boolean isAnnotationPresent(Class<? extends Annotation> annotationType, AnnotatedElement annotatedElement) {
 		if (annotatedElement.isAnnotationPresent(annotationType))
 			return true;
 
 		Class<?> legacyAnnotationType;
 		try {
-			legacyAnnotationType = getLegacyClass(annotatedElement, annotationType);
+			legacyAnnotationType = getRemoteClass(annotatedElement, annotationType);
 		} catch (ClassNotFoundException e) {
 			return false;
 		}
@@ -72,6 +94,14 @@ final class AnnotationBridge {
 		return annotatedElement.isAnnotationPresent(legacyAnnotationType.asSubclass(Annotation.class));
 	}
 
+	/**
+	 * Gets an equivalent annotation if present on a potentially remote target.
+	 * 
+	 * @param <A>              local annotation type
+	 * @param annotationType   local annotation type
+	 * @param annotatedElement {@link AnnotatedElement} context target
+	 * @return equivalent annotation; else false
+	 */
 	static <A extends Annotation> A getAnnotation(Class<A> annotationType, AnnotatedElement annotatedElement) {
 		var annotation = annotatedElement.getAnnotation(annotationType);
 		if (annotation != null)
@@ -79,7 +109,7 @@ final class AnnotationBridge {
 
 		Class<?> legacyAnnotationType;
 		try {
-			legacyAnnotationType = getLegacyClass(annotatedElement, annotationType);
+			legacyAnnotationType = getRemoteClass(annotatedElement, annotationType);
 		} catch (ClassNotFoundException e) {
 			return null;
 		}
@@ -95,6 +125,12 @@ final class AnnotationBridge {
 				new Class<?>[] { annotationType }, new LegacyAnnotationHandler(annotationType, legacyAnnotation)));
 	}
 
+	/**
+	 * Gets all annotations for an potentially remote element.
+	 * 
+	 * @param annotatedElement {@link AnnotatedElement} context target
+	 * @return local equivalents to all adaptable remote annotations
+	 */
 	static Annotation[] getAnnotations(AnnotatedElement annotatedElement) {
 		var annotations = annotatedElement.getAnnotations();
 		if (annotations.length == 0)
@@ -105,7 +141,7 @@ final class AnnotationBridge {
 			var annotationType = annotation.annotationType();
 			Class<?> nonLegacyType;
 			try {
-				nonLegacyType = getNonLegacyClass(annotationType);
+				nonLegacyType = getLocalClass(annotationType);
 			} catch (ClassNotFoundException e) {
 				continue;
 			}

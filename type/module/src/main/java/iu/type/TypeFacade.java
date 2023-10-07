@@ -49,8 +49,18 @@ import edu.iu.type.IuReferenceKind;
 import edu.iu.type.IuType;
 import edu.iu.type.IuTypeReference;
 
+/**
+ * Implementation of {@link IuType}.
+ * 
+ * @param <T> generic type
+ */
 class TypeFacade<T> implements IuType<T> {
 
+	/**
+	 * Type builder utility for use by {@link TypeFactory}.
+	 * 
+	 * @param <T> generic type
+	 */
 	static class Builder<T> {
 		private final Type type;
 		private final TypeFacade<T> erasureTemplate;
@@ -69,21 +79,48 @@ class TypeFacade<T> implements IuType<T> {
 			this.erasureTemplate = erasureTemplate;
 		}
 
+		/**
+		 * Adds hierarchy templates to the builder. <em>May</em> only be called once.
+		 * 
+		 * @param hierarchy hierarchy templates.
+		 * @return this
+		 */
 		Builder<T> hierarchy(List<TypeFacade<? super T>> hierarchy) {
 			assert this.hierarchy == null;
 			this.hierarchy = hierarchy;
 			return this;
 		}
 
+		/**
+		 * Gets the type facade instance.
+		 * 
+		 * @return type facade instance
+		 */
 		TypeFacade<T> build() {
 			return new TypeFacade<>(this);
 		}
 	}
 
+	/**
+	 * Creates a builder for a raw class.
+	 * 
+	 * @param <T>      raw type
+	 * @param rawClass raw class
+	 * @return raw class facade builder
+	 */
 	static <T> Builder<T> builder(Class<T> rawClass) {
 		return new Builder<>(rawClass);
 	}
 
+	/**
+	 * Creates a builder for a generic type.
+	 * 
+	 * @param <T>             generic type
+	 * @param type            generic type
+	 * @param erasureTemplate facade for the raw type representing the generic
+	 *                        type's erasure
+	 * @return generic type facade builder
+	 */
 	static <T> Builder<T> builder(Type type, TypeFacade<T> erasureTemplate) {
 		return new Builder<>(type, erasureTemplate);
 	}
@@ -191,7 +228,7 @@ class TypeFacade<T> implements IuType<T> {
 	}
 
 	@Override
-	public IuConstructor<T> constructors(Type... parameterTypes) {
+	public IuConstructor<T> constructor(Type... parameterTypes) {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}
@@ -233,7 +270,7 @@ class TypeFacade<T> implements IuType<T> {
 	}
 
 	@Override
-	public IuMethod<?> methods(String name, Type... parameterTypes) {
+	public IuMethod<?> method(String name, Type... parameterTypes) {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
 	}

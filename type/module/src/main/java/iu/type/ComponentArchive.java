@@ -45,6 +45,29 @@ import java.util.Set;
 
 import edu.iu.type.IuComponent.Kind;
 
+/**
+ * Reads a component archive and provides attributes necessary to realizing the
+ * component's instance.
+ * 
+ * <p>
+ * An archive represents a single element in the component's path
+ * </p>
+ * 
+ * @param path                 location of temporary file dedicated to this
+ *                             archive
+ * @param kind                 component kind detected via {@link ArchiveSource}
+ * @param version              component version info read from the archive
+ * @param properties           {@code META-INF/iu-type.properties} when
+ *                             {@link Kind#isModular()}, else
+ *                             {@code META-INF/iu.properties}
+ * @param nonEnclosedTypeNames all top-level classes, including those defined
+ *                             with package and protected encapsulation levels
+ * @param webResources         all static web resources found in a
+ *                             {@link Kind#isWeb() web} archive, include those
+ *                             under WEB-INF/
+ * @param bundledDependencies  archive sources for all dependencies bundled
+ *                             (i.e. WEB-INF/lib/*.jar) with the archive
+ */
 record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properties properties,
 		Set<String> nonEnclosedTypeNames, Map<String, byte[]> webResources,
 		Collection<ArchiveSource> bundledDependencies) {
@@ -270,6 +293,13 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 				Collections.unmodifiableCollection(bundledDependencies.values()));
 	}
 
+	/**
+	 * Reads a component archive from its source.
+	 * 
+	 * @param source {@link ArchiveSource}
+	 * @return archive-level component attributes
+	 * @throws IOException If an I/O error occurs reading from the source
+	 */
 	static ComponentArchive from(ArchiveSource source) throws IOException {
 		return TemporaryFile.init(path -> {
 			try (var target = new ComponentTarget(path)) {

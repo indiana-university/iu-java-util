@@ -47,6 +47,9 @@ import java.util.stream.Collectors;
 import edu.iu.IuException;
 import edu.iu.UnsafeSupplier;
 
+/**
+ * {@link AutoCloseable} version of {@link ComponentModuleFinder}.
+ */
 class ComponentModuleFinder implements ModuleFinder, AutoCloseable {
 
 	private class Ref extends ModuleReference implements AutoCloseable {
@@ -55,7 +58,7 @@ class ComponentModuleFinder implements ModuleFinder, AutoCloseable {
 		private ModuleReader reader;
 		private boolean closed;
 
-		protected Ref(ModuleDescriptor descriptor, URI location, UnsafeSupplier<ModuleReader> readerSupplier) {
+		private Ref(ModuleDescriptor descriptor, URI location, UnsafeSupplier<ModuleReader> readerSupplier) {
 			super(descriptor, location);
 			this.readerSupplier = readerSupplier;
 		}
@@ -85,6 +88,11 @@ class ComponentModuleFinder implements ModuleFinder, AutoCloseable {
 
 	private Map<String, Ref> refs = new LinkedHashMap<>();
 
+	/**
+	 * Equivalent to {@link ModuleFinder#of(Path...)}.
+	 * 
+	 * @param path path entries
+	 */
 	ComponentModuleFinder(Path... path) {
 		var finder = ModuleFinder.of(path);
 		for (var ref : finder.findAll()) {

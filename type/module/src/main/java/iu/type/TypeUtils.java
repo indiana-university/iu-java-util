@@ -38,11 +38,17 @@ import java.lang.reflect.Parameter;
 
 import edu.iu.UnsafeSupplier;
 
+/**
+ * Miscellaneous type introspection utilities.
+ */
 final class TypeUtils {
 
 	/**
 	 * Determines if a type name is exempt from the {@link ClassLoader} delegation
 	 * suppression required for web applications.
+	 * 
+	 * @param name type name
+	 * @return {code true} if a platform type; else false
 	 * 
 	 * @see <a href=
 	 *      "https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader">
@@ -55,6 +61,12 @@ final class TypeUtils {
 				|| name.startsWith("jdk.");
 	}
 
+	/**
+	 * Gets the context class loader appropriate for a given annotated element.
+	 * 
+	 * @param element annotated element
+	 * @return class loader that loaded the element
+	 */
 	static ClassLoader getContext(AnnotatedElement element) {
 		if (element instanceof Class)
 			return ((Class<?>) element).getClassLoader();
@@ -68,6 +80,16 @@ final class TypeUtils {
 			throw new UnsupportedOperationException("Cannot determine context for " + element);
 	}
 
+	/**
+	 * Invokes an {@link UnsafeSupplier} using a specific context class loader.
+	 * 
+	 * @param <T>           return type
+	 * @param contextLoader {@link ClassLoader}
+	 * @param supplier      {@link UnsafeSupplier}
+	 * @return result of {@link UnsafeSupplier#get()}
+	 * 
+	 * @throws Throwable from {@link UnsafeSupplier#get()}
+	 */
 	static <T> T callWithContext(ClassLoader contextLoader, UnsafeSupplier<T> supplier) throws Throwable {
 		var current = Thread.currentThread();
 		var loader = current.getContextClassLoader();
@@ -79,6 +101,17 @@ final class TypeUtils {
 		}
 	}
 
+	/**
+	 * Invokes an {@link UnsafeSupplier} using a context appropriate for an
+	 * annotated element.
+	 * 
+	 * @param <T>      return type
+	 * @param element  {@link AnnotatedElement}
+	 * @param supplier {@link UnsafeSupplier}
+	 * @return result of {@link UnsafeSupplier#get()}
+	 * 
+	 * @throws Throwable from {@link UnsafeSupplier#get()}
+	 */
 	static <T> T callWithContext(AnnotatedElement element, UnsafeSupplier<T> supplier) throws Throwable {
 		return callWithContext(getContext(element), supplier);
 	}

@@ -36,7 +36,7 @@ package edu.iu.type;
  * 
  * @param <R> Return type
  */
-public interface IuMethod<R> extends IuExecutable<R> {
+public interface IuMethod<R> extends IuNamedElement, IuExecutable<R> {
 
 	/**
 	 * Determines if this is a static method.

@@ -56,6 +56,11 @@ import edu.iu.type.IuComponentVersion;
 import edu.iu.type.IuResource;
 import edu.iu.type.IuType;
 
+/**
+ * Component Implementation
+ * 
+ * @see IuComponent
+ */
 class Component implements IuComponent {
 
 	private static final Logger LOG = Logger.getLogger(Component.class.getName());
@@ -79,6 +84,19 @@ class Component implements IuComponent {
 	private Queue<ComponentArchive> archives;
 	private boolean closed;
 
+	/**
+	 * Constructor for use from {@link ComponentFactory}.
+	 * 
+	 * @param parent       parent component, see
+	 *                     {@link #extend(InputStream, InputStream...)}
+	 * @param controller   module controller; must be non-null when first archive is
+	 *                     {@link edu.iu.type.IuComponent.Kind#isModular() modular}.
+	 * @param classLoader  component context loader
+	 * @param moduleFinder module finder backing the controller and classLoader
+	 *                     arguments, to close with this component
+	 * @param archives     archives dedicated to this component, to close and delete
+	 *                     when the component is closed
+	 */
 	Component(Component parent, Controller controller, ClassLoader classLoader, ComponentModuleFinder moduleFinder,
 			Queue<ComponentArchive> archives) {
 		Set<IuType<?>> interfaces = new LinkedHashSet<>();
@@ -126,7 +144,7 @@ class Component implements IuComponent {
 							() -> "Invalid class " + className + " in component " + archive.version());
 					continue;
 				}
-				
+
 				var module = loadedClass.getModule();
 				if ((module.isNamed() && module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) //
 						|| (!module.isNamed() && !archive.kind().isModular() && archive.properties() != null)) {
@@ -168,21 +186,49 @@ class Component implements IuComponent {
 			throw new IllegalStateException("closed");
 	}
 
+	/**
+	 * Gets the parent component.
+	 * 
+	 * @return parent component
+	 */
 	Component parent() {
 		checkClosed();
 		return parent;
 	}
 
+	/**
+	 * Gets the controller for the component context's module loader.
+	 * 
+	 * @return {@link Controller}
+	 */
 	Controller controller() {
 		checkClosed();
 		return controller;
 	}
 
+	/**
+	 * Gets the {@code META-INF/iu-type.properties} for a
+	 * {@link edu.iu.type.IuComponent.Kind#isModular() modular component}, or
+	 * {@code META-INF/iu.properties} for a legacy component.
+	 * 
+	 * @return parsed properties
+	 */
 	Properties properties() {
 		checkClosed();
 		return properties;
 	}
 
+	/**
+	 * Gets the version information for this component and all dependencies included
+	 * in its path.
+	 * 
+	 * <p>
+	 * The return value is ordered; this component version is the first returned by
+	 * the iterator.
+	 * </p>
+	 * 
+	 * @return version information
+	 */
 	Set<ComponentVersion> versions() {
 		checkClosed();
 		return versions;

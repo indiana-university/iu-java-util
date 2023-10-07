@@ -31,18 +31,23 @@
  */
 package iu.type;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.jar.Attributes.Name;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
+import java.util.jar.Manifest;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * Reads entries from a {@link JarInputStream} for validating and initializing a
+ * {@link ComponentArchive}.
+ */
 class ArchiveSource implements AutoCloseable {
 
 	private final InputStream in;
@@ -54,10 +59,19 @@ class ArchiveSource implements AutoCloseable {
 	private ComponentEntry last;
 	private boolean closed;
 
-	ArchiveSource(ComponentEntry componentEntry) throws IOException {
-		this(new ByteArrayInputStream(componentEntry.data()));
-	}
-
+	/**
+	 * Constructs an {@link ArchiveSource} for an {@link InputStream}.
+	 * 
+	 * <p>
+	 * The input stream provided is opened and validated as a jar file with a valid
+	 * manifest. The source is considered sealed if {@code Sealed} appears in the
+	 * manifest. If the manifest provides a class path or extension list, those
+	 * attributes are processed.
+	 * </p>
+	 * 
+	 * @param in input stream; this method is not responsible for closing the stream
+	 * @throws IOException If an I/O error occurs
+	 */
 	ArchiveSource(InputStream in) throws IOException {
 		this.in = in;
 		jar = new JarInputStream(in);
@@ -87,18 +101,51 @@ class ArchiveSource implements AutoCloseable {
 					.map(extension -> new ComponentVersion(extension, attributes)).collect(Collectors.toList());
 	}
 
+	/**
+	 * If packages in this archive should be sealed.
+	 * 
+	 * @return true if packages should be sealed; else false
+	 */
 	boolean sealed() {
 		return sealed;
 	}
 
+	/**
+	 * Gets the class path defined in the {@link Manifest}.
+	 * 
+	 * @return {@link Name#CLASS_PATH} {@link Manifest#getMainAttributes() mainfest
+	 *         main attribute}.
+	 */
 	List<String> classPath() {
 		return classPath;
 	}
 
+	/**
+	 * Gets the component's dependencies named in the {@link Name#EXTENSION_LIST
+	 * Extension-List} {@link Manifest#getMainAttributes() manifest main
+	 * attributes}.
+	 * 
+	 * @return dependency versions
+	 */
 	List<ComponentVersion> dependencies() {
 		return dependencies;
 	}
 
+	/**
+	 * Same behavior as {@link Iterator#hasNext()}, but can throw
+	 * {@link IOException} if there is an error reading from the jar file.
+	 * 
+	 * <p>
+	 * Note that this method closes the last entry returned from {@link #next()} and
+	 * positions the jar file for reading the next entry as part of determining
+	 * whether or not there is a next entry. So, this should only be called after
+	 * all interactions with the last entry are complete.
+	 * </p>
+	 * 
+	 * @return see {@link Iterator#hasNext()}
+	 * @throws IOException If there is an error reading the next entry from the jar
+	 *                     file.
+	 */
 	boolean hasNext() throws IOException {
 		if (closed)
 			return false;
@@ -122,6 +169,13 @@ class ArchiveSource implements AutoCloseable {
 		return true;
 	}
 
+	/**
+	 * Same behavior as {@link Iterator#next()}, but can throw {@link IOException}
+	 * if there is an error reading from the jar file.
+	 * 
+	 * @return see {@link Iterator#next()}
+	 * @throws IOException from {@link #hasNext()}
+	 */
 	ComponentEntry next() throws IOException {
 		if (!hasNext())
 			throw new NoSuchElementException();

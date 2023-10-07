@@ -33,44 +33,71 @@ package iu.type;
 
 import edu.iu.type.DefaultInterceptor;
 
+/**
+ * Maps class names from the current {@link Thread#getContextClassLoader()
+ * context class loader} to a potentially remote context loader that
+ * <em>may</em> contain an old and potentially incompatible version of the same
+ * class.
+ * 
+ * <p>
+ * Handling of compatibility issues between the current and remote contexts is
+ * not the responsibility of this utility.
+ * </p>
+ */
 final class BackwardsCompatibility {
 
-	static Class<?> getNonLegacyClass(Class<?> maybeLegacyClass) throws ClassNotFoundException {
-		var className = maybeLegacyClass.getName();
+	/**
+	 * Get the local equivalent for an potentially remote class.
+	 * 
+	 * @param potentiallyRemoteClass potentially remote class
+	 * @return local equivalent
+	 * @throws ClassNotFoundException If a local equivalent for the remote class
+	 *                                cannot be found.
+	 */
+	static Class<?> getLocalClass(Class<?> potentiallyRemoteClass) throws ClassNotFoundException {
+		var className = potentiallyRemoteClass.getName();
 
-		String nonLegacyClassName;
+		String localClassName;
 		if (className.startsWith("javax."))
-			nonLegacyClassName = "jakarta" + className.substring(5);
+			localClassName = "jakarta" + className.substring(5);
 		else if (className.equals("edu.iu.spi.DefaultInterceptor"))
-			nonLegacyClassName = DefaultInterceptor.class.getName();
+			localClassName = DefaultInterceptor.class.getName();
 		else
-			nonLegacyClassName = className;
+			localClassName = className;
 
-		return Thread.currentThread().getContextClassLoader().loadClass(nonLegacyClassName);
+		return Thread.currentThread().getContextClassLoader().loadClass(localClassName);
 	}
 
-	static Class<?> getLegacyClass(Class<?> mayHaveLegacyEquivalent) throws ClassNotFoundException {
-		var className = mayHaveLegacyEquivalent.getName();
+	/**
+	 * Gets the potentially remote equivalent of a local class
+	 * 
+	 * @param localClass local class
+	 * @return potentially remote equivalent
+	 * @throws ClassNotFoundException If a remote equivalent is not available for
+	 *                                the local class.
+	 */
+	static Class<?> getPotentiallyRemoteClass(Class<?> localClass) throws ClassNotFoundException {
+		var className = localClass.getName();
 
-		ClassNotFoundException nonLegacyNotFound;
+		ClassNotFoundException localClassNameNotFound;
 		try {
 			return Thread.currentThread().getContextClassLoader().loadClass(className);
 		} catch (ClassNotFoundException e) {
-			nonLegacyNotFound = e;
+			localClassNameNotFound = e;
 		}
 
-		String legacyClassName;
+		String remoteClassName;
 		if (className.startsWith("jakarta."))
-			legacyClassName = "javax" + className.substring(7);
+			remoteClassName = "javax" + className.substring(7);
 		else if (className.equals(DefaultInterceptor.class.getName()))
-			legacyClassName = "edu.iu.spi.DefaultInterceptor";
+			remoteClassName = "edu.iu.spi.DefaultInterceptor";
 		else
-			throw nonLegacyNotFound;
+			throw localClassNameNotFound;
 
 		try {
-			return Thread.currentThread().getContextClassLoader().loadClass(legacyClassName);
+			return Thread.currentThread().getContextClassLoader().loadClass(remoteClassName);
 		} catch (ClassNotFoundException e) {
-			e.addSuppressed(nonLegacyNotFound);
+			e.addSuppressed(localClassNameNotFound);
 			throw e;
 		}
 	}

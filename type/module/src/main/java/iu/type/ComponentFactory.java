@@ -44,14 +44,51 @@ import java.util.Queue;
 import java.util.stream.Collectors;
 
 import edu.iu.IuException;
-import edu.iu.type.IuComponent;
 
+/**
+ * Creates instances of {@link Component} for
+ * {@link TypeSpi#createComponent(InputStream, InputStream...)}.
+ */
 final class ComponentFactory {
 
 	private ComponentFactory() {
 	}
 
-	static IuComponent createModular(Component parent, Queue<ComponentArchive> archives) {
+	/**
+	 * Checks a archive version against another archive to verify two don't have the
+	 * same version name.
+	 * 
+	 * <p>
+	 * Deletes the archive temp file before throwing
+	 * {@link IllegalArgumentException} if the version names match.
+	 * 
+	 * @param alreadyProvidedArchive archive already in the component path
+	 * @param archive                archve to verify before adding to the component
+	 *                               path.
+	 */
+	static void checkIfAlreadyProvided(ComponentArchive alreadyProvidedArchive, ComponentArchive archive) {
+		if (alreadyProvidedArchive.version().name().equals(archive.version().name())) {
+			var illegalArgumentException = new IllegalArgumentException(
+					archive.version() + " was already provided by " + alreadyProvidedArchive.version());
+
+			try {
+				Files.delete(archive.path());
+			} catch (Throwable deleteFailure) {
+				illegalArgumentException.addSuppressed(deleteFailure);
+			}
+
+			throw illegalArgumentException;
+		}
+	}
+
+	/**
+	 * Creates a modular component.
+	 * 
+	 * @param parent   parent component
+	 * @param archives component path
+	 * @return module component
+	 */
+	static Component createModular(Component parent, Queue<ComponentArchive> archives) {
 		var path = new Path[archives.size()];
 		{
 			var i = 0;
@@ -93,22 +130,15 @@ final class ComponentFactory {
 		}
 	}
 
-	static void checkIfAlreadyProvided(ComponentArchive alreadyProvidedArchive, ComponentArchive archive) {
-		if (alreadyProvidedArchive.version().name().equals(archive.version().name())) {
-			var illegalArgumentException = new IllegalArgumentException(
-					archive.version() + " was already provided by " + alreadyProvidedArchive.version());
-
-			try {
-				Files.delete(archive.path());
-			} catch (Throwable deleteFailure) {
-				illegalArgumentException.addSuppressed(deleteFailure);
-			}
-
-			throw illegalArgumentException;
-		}
-	}
-
-	static IuComponent createLegacy(Component parent, Queue<ComponentArchive> archives) throws IOException {
+	/**
+	 * Creates a modular component.
+	 * 
+	 * @param parent   parent component
+	 * @param archives component path
+	 * @return module component
+	 * @throws IOException If an I/O error occurs reading from an archive
+	 */
+	static Component createLegacy(Component parent, Queue<ComponentArchive> archives) throws IOException {
 		var path = new URL[archives.size()];
 		{
 			var i = 0;
@@ -123,7 +153,16 @@ final class ComponentFactory {
 						loader -> new Component(parent, null, loader, null, archives)));
 	}
 
-	static IuComponent createFromSourceQueue(Component parent, Queue<ArchiveSource> sources) throws IOException {
+	/**
+	 * Creates a component from the source queue.
+	 * 
+	 * @param parent  parent component
+	 * @param sources source queue; will be drained and all entries closed when the
+	 *                component is closed, or if an initialization error occurs.
+	 * @return fully loaded component instance
+	 * @throws IOException If an I/O error occurs reaching from an archive source
+	 */
+	static Component createFromSourceQueue(Component parent, Queue<ArchiveSource> sources) throws IOException {
 		Queue<ComponentArchive> archives = new ArrayDeque<>();
 		Queue<ComponentVersion> unmetDependencies = new ArrayDeque<>();
 
@@ -175,7 +214,17 @@ final class ComponentFactory {
 		}
 	}
 
-	static IuComponent createComponent(Component parent, InputStream componentArchiveSource,
+	/**
+	 * Creates a component from the source inputs
+	 * 
+	 * @param parent                           parent component
+	 * @param componentArchiveSource           component archive source input
+	 * @param providedDependencyArchiveSources dependency source inputs
+	 * @return fully loaded component instance
+	 * 
+	 * @throws IOException If an I/O error occurs reaching from an archive source
+	 */
+	static Component createComponent(Component parent, InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException {
 
 		Queue<ArchiveSource> sources = new ArrayDeque<>();

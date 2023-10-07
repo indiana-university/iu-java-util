@@ -37,6 +37,9 @@ import java.io.InputStream;
 import edu.iu.IuException;
 import edu.iu.UnsafeConsumer;
 
+/**
+ * Represents an entry in the component archive.
+ */
 class ComponentEntry implements AutoCloseable {
 
 	private final String name;
@@ -45,34 +48,67 @@ class ComponentEntry implements AutoCloseable {
 	private byte[] data;
 	private boolean closed;
 
+	/**
+	 * Constructor use only from {@link ArchiveSource}.
+	 * 
+	 * @param name  entry name
+	 * @param input entry input stream
+	 */
 	ComponentEntry(String name, InputStream input) {
 		this.name = name;
 		this.input = input;
 	}
 
+	/**
+	 * Gets the entry name.
+	 * 
+	 * @return entry name
+	 */
 	String name() {
 		if (closed)
 			throw new IllegalStateException("closed");
 		return name;
 	}
 
+	/**
+	 * Reads raw data from the archive with externally provided logic.
+	 * 
+	 * <p>
+	 * Either may only be called once, and must not be invoked after
+	 * {@link #data()}. Will cause subsequent calls to {@link #data()} to throw
+	 * {@link IllegalStateException}.
+	 * </p>
+	 * 
+	 * @param with input handling logic
+	 */
 	void read(UnsafeConsumer<InputStream> with) {
 		if (closed)
 			throw new IllegalStateException("closed");
-		
+
 		if (read)
 			throw new IllegalStateException("already read");
-		
+
 		IuException.unchecked(() -> {
 			with.accept(input);
 			read = true;
 		});
 	}
 
+	/**
+	 * Reads and buffers raw data.
+	 * 
+	 * <p>
+	 * May be invoked multiple times, but not if {@link #read(UnsafeConsumer)} is
+	 * invoked first. The result of first invocation will be returned by all
+	 * subsequent invocations.
+	 * </p>
+	 * 
+	 * @return raw data
+	 */
 	byte[] data() {
 		if (closed)
 			throw new IllegalStateException("closed");
-		
+
 		if (data == null)
 			read(in -> {
 				byte[] buf = new byte[16384];

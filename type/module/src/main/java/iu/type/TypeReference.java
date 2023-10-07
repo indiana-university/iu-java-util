@@ -8,6 +8,12 @@ import edu.iu.type.IuReferenceKind;
 import edu.iu.type.IuType;
 import edu.iu.type.IuTypeReference;
 
+/**
+ * Implementation of {@link IuTypeReference}.
+ * 
+ * @param <T> referent type
+ * @param <R> referrer type
+ */
 class TypeReference<T, R extends IuAnnotatedElement> implements IuTypeReference<T, R> {
 
 	private final IuReferenceKind kind;
@@ -16,6 +22,13 @@ class TypeReference<T, R extends IuAnnotatedElement> implements IuTypeReference<
 	private final String name;
 	private final int index;
 
+	/**
+	 * Gets a non-named, non-indexed reference.
+	 * 
+	 * @param kind     non-named, non-indexed kind
+	 * @param referrer referrer element
+	 * @param referent referent type
+	 */
 	TypeReference(IuReferenceKind kind, R referrer, IuType<T> referent) {
 		kind.referrerType().cast(Objects.requireNonNull(referrer));
 		assert !kind.named() && !kind.indexed();
@@ -26,6 +39,14 @@ class TypeReference<T, R extends IuAnnotatedElement> implements IuTypeReference<
 		this.index = -1;
 	}
 
+	/**
+	 * Gets a named reference.
+	 * 
+	 * @param kind     named kind
+	 * @param referrer referrer element
+	 * @param referent referent type
+	 * @param name     name
+	 */
 	TypeReference(IuReferenceKind kind, R referrer, IuType<T> referent, String name) {
 		kind.referrerType().cast(Objects.requireNonNull(referrer));
 		assert kind.named();
@@ -36,6 +57,14 @@ class TypeReference<T, R extends IuAnnotatedElement> implements IuTypeReference<
 		this.index = -1;
 	}
 
+	/**
+	 * Gets a indexed reference.
+	 * 
+	 * @param kind     indexed kind
+	 * @param referrer referrer element
+	 * @param referent referent type
+	 * @param index    index
+	 */
 	TypeReference(IuReferenceKind kind, R referrer, IuType<T> referent, int index) {
 		kind.referrerType().cast(Objects.requireNonNull(referrer));
 		assert kind.indexed();

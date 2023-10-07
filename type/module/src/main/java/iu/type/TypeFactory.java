@@ -11,7 +11,6 @@ import java.lang.reflect.TypeVariable;
 import java.lang.reflect.WildcardType;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,16 +20,20 @@ import java.util.WeakHashMap;
 
 import edu.iu.type.IuType;
 
+/**
+ * Creates instances of {@link TypeFacade} for
+ * {@link TypeSpi#resolveType(Type)}.
+ */
 final class TypeFactory {
 
-	record HierarchyElement(Type type, Class<?> referrer) {
+	private record HierarchyElement(Type type, Class<?> referrer) {
 	}
 
-	static class ClassMetadata {
-		final List<HierarchyElement> hierarchy;
-		final Map<ExecutableKey, Constructor<?>> constructors;
-		final Map<String, Field> fields;
-		final Map<ExecutableKey, Method> methods;
+	private static class ClassMetadata {
+		private final List<HierarchyElement> hierarchy;
+		private final Map<ExecutableKey, Constructor<?>> constructors;
+		private final Map<String, Field> fields;
+		private final Map<ExecutableKey, Method> methods;
 
 		private ClassMetadata(Class<?> rawClass) {
 			constructors = new LinkedHashMap<>();
@@ -83,6 +86,13 @@ final class TypeFactory {
 		return classMetadata;
 	}
 
+	/**
+	 * Gets the type erasure for a generic type.
+	 * 
+	 * @param type raw or generic type
+	 * @return type erasure
+	 * @see IuType#erasedClass()
+	 */
 	static Class<?> getErasedClass(Type type) {
 		if (type instanceof Class)
 			return (Class<?>) type;
@@ -150,6 +160,13 @@ final class TypeFactory {
 		return erasure;
 	}
 
+	/**
+	 * Gets a resolved type facade for a raw class.
+	 * 
+	 * @param <T>      raw type
+	 * @param rawClass raw class
+	 * @return {@link TypeFacade}
+	 */
 	@SuppressWarnings("unchecked")
 	static <T> TypeFacade<T> resolveRawClass(Class<T> rawClass) {
 		if (rawClass == Object.class)
@@ -187,6 +204,12 @@ final class TypeFactory {
 
 	}
 
+	/**
+	 * Resolves a facade for a generic type.
+	 * 
+	 * @param type generic type
+	 * @return {@link TypeFacade}
+	 */
 	static IuType<?> resolveType(Type type) {
 		if (type instanceof Class)
 			return resolveRawClass((Class<?>) type);

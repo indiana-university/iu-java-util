@@ -41,6 +41,9 @@ import java.util.Objects;
 import edu.iu.IuException;
 import edu.iu.type.IuType;
 
+/**
+ * Handles remote bridge semantics for {@link AnnotationBridge}.
+ */
 class LegacyAnnotationHandler implements InvocationHandler {
 
 	private static final Object[] O0 = new Object[0];
@@ -52,9 +55,15 @@ class LegacyAnnotationHandler implements InvocationHandler {
 	private final Class<? extends Annotation> nonLegacyAnnotationType;
 	private final Annotation legacyAnnotation;
 
-	LegacyAnnotationHandler(Class<? extends Annotation> nonLegacyAnnotationType, Annotation legacyAnnotation) {
-		this.nonLegacyAnnotationType = nonLegacyAnnotationType;
-		this.legacyAnnotation = legacyAnnotation;
+	/**
+	 * Constructor for use by {@link AnnotationBridge}.
+	 * 
+	 * @param localAnnotationType         local annotation type
+	 * @param potentiallyRemoteAnnotation potentially remote annotation
+	 */
+	LegacyAnnotationHandler(Class<? extends Annotation> localAnnotationType, Annotation potentiallyRemoteAnnotation) {
+		this.nonLegacyAnnotationType = localAnnotationType;
+		this.legacyAnnotation = potentiallyRemoteAnnotation;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -63,7 +72,7 @@ class LegacyAnnotationHandler implements InvocationHandler {
 			return o;
 
 		if (Annotation.class.isAssignableFrom(type)) {
-			var legacyAnnotationType = BackwardsCompatibility.getLegacyClass(type);
+			var legacyAnnotationType = BackwardsCompatibility.getPotentiallyRemoteClass(type);
 			if (Annotation.class.isAssignableFrom(legacyAnnotationType) && legacyAnnotationType.isInstance(o))
 				return Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type },
 						new LegacyAnnotationHandler(type.asSubclass(Annotation.class), (Annotation) o));
