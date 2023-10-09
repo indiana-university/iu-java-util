@@ -157,7 +157,6 @@ sealed class TypeTemplate<T> extends ParameterizedElementBase<Class<T>> implemen
 			this.erasedType = new TypeFacade<T>(erasedType, this, IuReferenceKind.ERASURE);
 
 		TypeFacade<? super T> last = null;
-		Queue<TypeFacade<? super T>> hierarchy = new ArrayDeque<>();
 		Map<Class<?>, TypeFacade<? super T>> hierarchyByErasure = new LinkedHashMap<>();
 		for (var hierarchyTemplate : hierarchyTemplates) {
 			var templateReference = hierarchyTemplate.reference();
@@ -171,17 +170,16 @@ sealed class TypeTemplate<T> extends ParameterizedElementBase<Class<T>> implemen
 			}
 
 			last = new TypeFacade<>(hierarchyTemplate, referrer, IuReferenceKind.SUPER);
-			hierarchy.offer(last);
 
 			var replaced = hierarchyByErasure.put(last.erasedClass(), last);
 			assert replaced == null : replaced;
 		}
 
-		if (hierarchy.isEmpty()) {
+		if (hierarchyByErasure.isEmpty()) {
 			if (annotatedElement != Object.class && !annotatedElement.isInterface())
 				throw new IllegalArgumentException("Missing hierarchy for " + annotatedElement);
 		} else
-			assert last.deref() == Object.class : last;
+			assert last.erasedClass() == Object.class : hierarchyByErasure;
 
 		this.hierarchy = hierarchyByErasure.values();
 	}

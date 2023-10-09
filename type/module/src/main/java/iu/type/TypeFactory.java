@@ -243,7 +243,7 @@ final class TypeFactory {
 							var erasedClass = inheritedSuperType.erasedClass();
 							if ((erasedClass != Object.class || !erasedSuperClass.isInterface()) //
 									&& erasedClass.isAssignableFrom(erasedSuperClass))
-								superHierarchy.offer(inheritedSuperType);
+								superHierarchy.push(inheritedSuperType);
 						}
 						superTypeBuilder.hierarchy((Iterable) superHierarchy);
 
@@ -263,9 +263,9 @@ final class TypeFactory {
 
 			var resolvedTypeBuilder = TypeTemplate.builder(rawClass);
 			
-			Queue<TypeTemplate<? super T>> hierarchy = new ArrayDeque<>();
+			Deque<TypeTemplate<? super T>> hierarchy = new ArrayDeque<>();
 			for (Box<TypeTemplate<? super T>> hierarchyReference : hierarchyByErasure.values())
-				hierarchy.offer(hierarchyReference.value);
+				hierarchy.push(hierarchyReference.value);
 			resolvedTypeBuilder.hierarchy(hierarchy);
 			
 			resolvedType = resolvedTypeBuilder.build();
