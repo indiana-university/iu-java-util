@@ -1,3 +1,34 @@
+/*
+ * Copyright © 2023 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package iu.type;
 
 import java.lang.reflect.Array;
@@ -10,69 +41,77 @@ import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 import java.lang.reflect.WildcardType;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Deque;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.WeakHashMap;
 
 import edu.iu.type.IuType;
 
 /**
- * Creates instances of {@link TypeFacade} for
+ * Provides fully formed instances of {@link TypeTemplate} to
  * {@link TypeSpi#resolveType(Type)}.
  */
 final class TypeFactory {
 
-	private record HierarchyElement(Type type, Class<?> referrer) {
-	}
+	private static final TypeTemplate<Object> OBJECT = TypeTemplate.builder(Object.class).build();
+	private static final Map<Class<?>, TypeTemplate<?>> RAW_TYPES = new WeakHashMap<>();
 
 	private static class ClassMetadata {
-		private final List<HierarchyElement> hierarchy;
+		/**
+		 * Object-first.
+		 */
+		private final Iterable<Type> hierarchy;
 		private final Map<ExecutableKey, Constructor<?>> constructors;
 		private final Map<String, Field> fields;
 		private final Map<ExecutableKey, Method> methods;
 
 		private ClassMetadata(Class<?> rawClass) {
+			{
+				Deque<Type> hierarchy = new ArrayDeque<>();
+				Deque<Type> todo = new ArrayDeque<>();
+				todo.push(rawClass);
+
+				while (!todo.isEmpty()) {
+					var type = todo.pop();
+					if (type != rawClass) // Object-first reversal of todo
+						hierarchy.push(type);
+
+					var erasedClass = getErasedClass(type);
+
+					// todo is Object-last so push superType first
+					var superType = erasedClass.getGenericSuperclass();
+					if (superType != null)
+						todo.push(superType);
+
+					for (var implemented : erasedClass.getGenericInterfaces())
+						todo.push(implemented);
+				}
+
+				this.hierarchy = hierarchy;
+			}
+
 			constructors = new LinkedHashMap<>();
 			for (var constructor : rawClass.getDeclaredConstructors())
 				constructors.put(ExecutableKey.of(constructor), constructor);
 
-			hierarchy = new ArrayList<>();
 			methods = new LinkedHashMap<>();
 			fields = new LinkedHashMap<>();
-			Deque<HierarchyElement> reverse = new ArrayDeque<>();
-			Deque<HierarchyElement> todo = new ArrayDeque<>();
-			todo.push(new HierarchyElement(rawClass, null));
-			while (!todo.isEmpty()) {
-				var hierarchyElement = todo.pop();
-				if (hierarchyElement.referrer != null)
-					hierarchy.add(hierarchyElement);
 
-				var erasedClass = getErasedClass(hierarchyElement.type);
+			for (var type : hierarchy) {
+				var erasedClass = getErasedClass(type);
 				for (var field : erasedClass.getDeclaredFields()) {
 					var fieldName = field.getName();
 					if (!fields.containsKey(fieldName))
 						fields.put(fieldName, field);
 				}
-
-				var superType = erasedClass.getGenericSuperclass();
-				if (superType != null)
-					reverse.push(new HierarchyElement(superType, erasedClass));
-
-				for (var interfaceToCheck : erasedClass.getGenericInterfaces())
-					reverse.push(new HierarchyElement(interfaceToCheck, erasedClass));
-
-				while (!reverse.isEmpty())
-					todo.push(reverse.pop());
 			}
+
 		}
 	}
 
-	private static final TypeFacade<Object> OBJECT = TypeFacade.builder(Object.class).build();
-	private static final Map<Class<?>, TypeFacade<?>> RAW_TYPES = new WeakHashMap<>();
 	private static final Map<Class<?>, ClassMetadata> CLASS_METADATA = new WeakHashMap<>();
 
 	private static ClassMetadata getClassMetadata(Class<?> rawClass) {
@@ -167,40 +206,76 @@ final class TypeFactory {
 	 * @param rawClass raw class
 	 * @return {@link TypeFacade}
 	 */
-	@SuppressWarnings("unchecked")
-	static <T> TypeFacade<T> resolveRawClass(Class<T> rawClass) {
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	static <T> TypeTemplate<T> resolveRawClass(Class<T> rawClass) {
 		if (rawClass == Object.class)
-			return (TypeFacade<T>) OBJECT;
+			return (TypeTemplate<T>) OBJECT;
 
-		var resolved = RAW_TYPES.get(rawClass);
+		var resolvedType = RAW_TYPES.get(rawClass);
 
-		if (resolved == null) {
+		if (resolvedType == null) {
 			var metadata = getClassMetadata(rawClass);
 
-			TypeFacade<? super T>[] hierarchy = new TypeFacade[metadata.hierarchy.size()];
-			for (int i = metadata.hierarchy.size() - 1; i >= 0; i--) {
-				var e = metadata.hierarchy.get(i);
-				var referrer = e.referrer;
-				if (referrer == rawClass)
-					hierarchy[i] = (TypeFacade<? super T>) resolveType(e.type);
+			// Resulting queue is Object-last, modifications use push()
+			class Box<U> {
+				U value;
+
+				Box(U value) {
+					this.value = value;
+				}
+			} // box pattern maintains hierarchy reference chain
+			final Map<Class<?>, Box<TypeTemplate<? super T>>> hierarchyByErasure = new LinkedHashMap<>();
+
+			for (var type : metadata.hierarchy) {
+				// Must be Object-first so super classes may be resolved first
+				var erasedSuperClass = getErasedClass(type);
+				if (erasedSuperClass == Object.class)
+					hierarchyByErasure.put(Object.class, new Box(OBJECT));
+
 				else {
-					var j = i;
-					Type referrerType = null;
-					while (j >= 0)
-						if (getErasedClass(metadata.hierarchy.get(--j).type) == referrer)
-							break;
-					hierarchy[i] = (TypeFacade<? super T>) //
-					resolveType(Objects.requireNonNull(referrerType)).referTo(e.type);
+					var superType = RAW_TYPES.get(erasedSuperClass);
+					if (superType == null) {
+						var superTypeBuilder = TypeTemplate.builder(erasedSuperClass);
+
+						final Deque<TypeTemplate<? super T>> superHierarchy = new ArrayDeque<>();
+						for (var h : hierarchyByErasure.values()) {
+							var inheritedSuperType = h.value;
+							var erasedClass = inheritedSuperType.erasedClass();
+							if ((erasedClass != Object.class || !erasedSuperClass.isInterface()) //
+									&& erasedClass.isAssignableFrom(erasedSuperClass))
+								superHierarchy.offer(inheritedSuperType);
+						}
+						superTypeBuilder.hierarchy((Iterable) superHierarchy);
+
+						superType = superTypeBuilder.build();
+						synchronized (RAW_TYPES) {
+							RAW_TYPES.put(erasedSuperClass, superType);
+						}
+					}
+
+					for (var inheritedSuperType : superType.hierarchy())
+						Objects.requireNonNull(hierarchyByErasure.get(
+								inheritedSuperType.erasedClass())).value = (TypeTemplate<? super T>) inheritedSuperType;
+
+					hierarchyByErasure.put(erasedSuperClass, new Box(superType));
 				}
 			}
-			resolved = TypeFacade.builder(rawClass).hierarchy(List.of(hierarchy)).build();
+
+			var resolvedTypeBuilder = TypeTemplate.builder(rawClass);
+			
+			Queue<TypeTemplate<? super T>> hierarchy = new ArrayDeque<>();
+			for (Box<TypeTemplate<? super T>> hierarchyReference : hierarchyByErasure.values())
+				hierarchy.offer(hierarchyReference.value);
+			resolvedTypeBuilder.hierarchy(hierarchy);
+			
+			resolvedType = resolvedTypeBuilder.build();
 
 			synchronized (RAW_TYPES) {
-				RAW_TYPES.put(rawClass, resolved);
+				RAW_TYPES.put(rawClass, resolvedType);
 			}
 		}
 
-		return (TypeFacade<T>) resolved;
+		return (TypeTemplate<T>) resolvedType;
 
 	}
 
@@ -210,62 +285,18 @@ final class TypeFactory {
 	 * @param type generic type
 	 * @return {@link TypeFacade}
 	 */
-	static IuType<?> resolveType(Type type) {
+	static TypeTemplate<?> resolveType(Type type) {
+		Objects.requireNonNull(type, "type");
 		if (type instanceof Class)
 			return resolveRawClass((Class<?>) type);
-		else
-			return TypeFacade.builder(type, resolveRawClass(getErasedClass(type))).build();
+		else {
+			var typeErasure = resolveRawClass(getErasedClass(type));
+			var typeBuilder = TypeFacade.builder(type, typeErasure);
+			return typeBuilder.build();
+		}
 	}
 
 	private TypeFactory() {
 	}
 
-//	@Override
-//	@SuppressWarnings({ "unchecked", "rawtypes" })
-//	public void interceptTestMethod(Invocation<Void> invocation, ReflectiveInvocationContext<Method> invocationContext,
-//			ExtensionContext extensionContext) throws Throwable {
-//		try (var mockType = mockStatic(IuType.class)) {
-//			var mockTypes = new HashMap<Class<?>, IuType<?>>();
-//			Answer ofAnswer = a -> {
-//				var t = a.getArgument(0);
-//				
-//				Class c;
-//				if (t instanceof ParameterizedType)
-//					c = (Class) ((ParameterizedType) t).getRawType();
-//				else
-//					c = (Class) t;
-//				
-//				var type = mockTypes.get(c);
-//				if (type == null) {
-//					type = mock(IuType.class);
-//					when(type.name()).thenReturn(c.getName());
-//					when(type.baseClass()).thenReturn(c);
-//					if (c == boolean.class)
-//						when(type.autoboxClass()).thenReturn((Class) Boolean.class);
-//					else
-//						when(type.autoboxClass()).thenReturn(c);
-//					var constructor = mock(IuConstructor.class);
-//					assertDoesNotThrow(() -> when(constructor.exec()).then(b -> {
-//						try {
-//							try {
-//								return c.getDeclaredConstructor().newInstance();
-//							} catch (NoSuchMethodException e) {
-//								return c.getDeclaredConstructor(invocationContext.getTargetClass())
-//										.newInstance(invocationContext.getTarget().get());
-//							}
-//						} catch (InvocationTargetException e) {
-//							throw e.getCause();
-//						}
-//
-//					}));
-//					when(type.constructor()).thenReturn(constructor);
-//					mockTypes.put(c, type);
-//				}
-//				return type;
-//			};
-//			mockType.when(() -> IuType.of(any(Class.class))).then(ofAnswer);
-//			mockType.when(() -> IuType.of(any(Type.class))).then(ofAnswer);
-//			invocation.proceed();
-//		}
-//}
 }

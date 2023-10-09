@@ -33,7 +33,6 @@ package edu.iu.type;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
-import java.util.Map;
 import java.util.function.Predicate;
 
 /**
@@ -55,7 +54,7 @@ public interface IuAnnotatedElement {
 	 * 
 	 * @return all annotations
 	 */
-	Map<Class<? extends Annotation>, ? extends Annotation> annotations();
+	Iterable<? extends Annotation> annotations();
 
 	/**
 	 * Determines if an annotation is present.
@@ -64,7 +63,10 @@ public interface IuAnnotatedElement {
 	 * @return true if the annotation is present, else null
 	 */
 	default boolean hasAnnotation(Class<? extends Annotation> annotationType) {
-		return annotations().containsKey(annotationType);
+		for (var a : annotations())
+			if (annotationType.isInstance(a))
+				return true;
+		return false;
 	}
 
 	/**
@@ -75,13 +77,18 @@ public interface IuAnnotatedElement {
 	 * @return annotation if present, else null
 	 */
 	default <A extends Annotation> A annotation(Class<A> annotationType) {
-		return annotationType.cast(annotations().get(annotationType));
+		for (var a : annotations())
+			if (annotationType.isInstance(a))
+				return annotationType.cast(a);
+		return null;
 	}
 
 	/**
-	 * Determines if access to this element is permitted for all users in the current context.
+	 * Determines if access to this element is permitted for all users in the
+	 * current context.
 	 * 
-	 * @return true if access is permitted for all users in the current context; else false
+	 * @return true if access is permitted for all users in the current context;
+	 *         else false
 	 */
 	default boolean permitted() {
 		return permitted(role -> false);

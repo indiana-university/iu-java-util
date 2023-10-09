@@ -40,6 +40,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import java.beans.Transient;
+import java.lang.annotation.Documented;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -81,9 +82,11 @@ public class TypeApiTest {
 		}
 		var annotation = IsAnnotated.class.getAnnotation(DefaultInterceptor.class);
 		var annotatedElement = IuTest.mockWithDefaults(IuAnnotatedElement.class);
-		when(annotatedElement.annotations()).thenReturn((Map) Map.of(DefaultInterceptor.class, annotation));
+		when(annotatedElement.annotations()).thenReturn((List) List.of(annotation));
 		assertTrue(annotatedElement.hasAnnotation(DefaultInterceptor.class));
+		assertFalse(annotatedElement.hasAnnotation(Documented.class));
 		assertSame(annotation, annotatedElement.annotation(DefaultInterceptor.class));
+		assertNull(annotatedElement.annotation(Documented.class));
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -155,7 +158,7 @@ public class TypeApiTest {
 
 		var read = IuTest.mockWithDefaults(IuMethod.class);
 		var transientAnnotation = IuTest.mockWithDefaults(Transient.class);
-		when(read.annotations()).thenReturn((Map) Map.of(Transient.class, transientAnnotation));
+		when(read.annotations()).thenReturn((List) List.of(transientAnnotation));
 		when(property.read()).thenReturn(read);
 
 		var write = IuTest.mockWithDefaults(IuMethod.class);

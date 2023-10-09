@@ -34,8 +34,8 @@ package edu.iu.type;
 import java.beans.PropertyDescriptor;
 import java.beans.Transient;
 import java.lang.annotation.Annotation;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.ArrayDeque;
+import java.util.Queue;
 
 /**
  * Facade interface for a bean property.
@@ -111,16 +111,16 @@ public interface IuProperty<T> extends IuAttribute<T> {
 	 * @return annotations
 	 */
 	@Override
-	default Map<Class<? extends Annotation>, ? extends Annotation> annotations() {
-		Map<Class<? extends Annotation>, Annotation> annotations = new LinkedHashMap<>();
+	default Iterable<? extends Annotation> annotations() {
+		Queue<Annotation> annotations = new ArrayDeque<>();
 
 		var write = write();
 		if (write != null)
-			annotations.putAll(write.annotations());
+			write.annotations().forEach(annotations::offer);
 
 		var read = read();
 		if (read != null)
-			annotations.putAll(read.annotations());
+			read.annotations().forEach(annotations::offer);
 
 		return annotations;
 	}

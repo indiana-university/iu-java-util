@@ -37,6 +37,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Proxy;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Queue;
 
 import edu.iu.IuException;
@@ -47,8 +48,6 @@ import edu.iu.IuException;
  * annotation library.
  */
 final class AnnotationBridge {
-
-	private static final Annotation[] A0 = new Annotation[0];
 
 	/**
 	 * Gets an equivalent, potentially remote, class.
@@ -131,30 +130,31 @@ final class AnnotationBridge {
 	 * @param annotatedElement {@link AnnotatedElement} context target
 	 * @return local equivalents to all adaptable remote annotations
 	 */
-	static Annotation[] getAnnotations(AnnotatedElement annotatedElement) {
+	static Iterable<? extends Annotation> getAnnotations(AnnotatedElement annotatedElement) {
 		var annotations = annotatedElement.getAnnotations();
 		if (annotations.length == 0)
-			return A0;
+			return Collections.emptySet();
 
-		Queue<Annotation> upgradedAnnotations = new ArrayDeque<>();
+		Queue<Annotation> localAnnotations = new ArrayDeque<>();
 		for (var annotation : annotations) {
-			var annotationType = annotation.annotationType();
-			Class<?> nonLegacyType;
+			var potentiallyRemoteClass = annotation.annotationType();
+			Class<?> localClass;
 			try {
-				nonLegacyType = getLocalClass(annotationType);
+				localClass = getLocalClass(potentiallyRemoteClass);
 			} catch (ClassNotFoundException e) {
 				continue;
 			}
 
-			if (Annotation.class.isAssignableFrom(nonLegacyType)) {
-				var nonLegacyAnnotationType = nonLegacyType.asSubclass(Annotation.class);
-				upgradedAnnotations.offer((Annotation) Proxy.newProxyInstance(nonLegacyType.getClassLoader(),
-						new Class<?>[] { nonLegacyType },
-						new LegacyAnnotationHandler(nonLegacyAnnotationType, annotation)));
+			if (localClass.isInstance(annotation))
+				localAnnotations.offer(annotation);
+			else if (Annotation.class.isAssignableFrom(localClass)) {
+				var localAnnotationType = localClass.asSubclass(Annotation.class);
+				localAnnotations.offer((Annotation) Proxy.newProxyInstance(localClass.getClassLoader(),
+						new Class<?>[] { localClass }, new LegacyAnnotationHandler(localAnnotationType, annotation)));
 			}
 		}
 
-		return upgradedAnnotations.toArray(A0);
+		return localAnnotations;
 	}
 
 	private AnnotationBridge() {

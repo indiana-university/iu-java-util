@@ -31,35 +31,58 @@
  */
 package iu.type;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Executable;
+import java.lang.reflect.GenericDeclaration;
 import java.lang.reflect.Method;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+import edu.iu.type.IuParameterizedElement;
+import edu.iu.type.IuReferenceKind;
 
 /**
- * Hash key for mapping {@link Executable} instances.
+ * Implements the facade view of an {@link GenericDeclaration}.
  * 
- * @param name   method name; null for constructors
- * @param params parameter raw types
+ * @param <E> generic declaration type
  */
-record ExecutableKey(String name, Class<?>... params) {
+sealed class ParameterizedElementBase<E extends GenericDeclaration> extends AnnotatedElementBase<E>
+		implements IuParameterizedElement permits TypeTemplate {
+
+	private Map<String, TypeFacade<?>> typeParameters;
 
 	/**
-	 * Gets a hash key for a constructor.
+	 * Facade constructor.
 	 * 
-	 * @param constructor constructor
-	 * @return constructor hash key
+	 * @param annotatedElement parameterized element to provide a view of
 	 */
-	static ExecutableKey of(Constructor<?> constructor) {
-		return new ExecutableKey(null, constructor.getParameterTypes());
+	protected ParameterizedElementBase(E annotatedElement) {
+		super(annotatedElement);
 	}
 
-	/**
-	 * Gets a hash key for a method.
-	 * 
-	 * @param method method
-	 * @return method hash key
-	 */
-	static ExecutableKey of(Method method) {
-		return new ExecutableKey(method.getName(), method.getParameterTypes());
+	@Override
+	public Map<String, TypeFacade<?>> typeParameters() {
+		if (typeParameters == null) {
+			Map<String, TypeFacade<?>> typeParameterMap = new LinkedHashMap<>();
+			var typeParameters = annotatedElement.getTypeParameters();
+			if (typeParameters != null)
+				for (var typeParameter : typeParameters) {
+					var name = typeParameter.getName();
+
+					IuReferenceKind kind;
+					if (annotatedElement instanceof Class)
+						kind = IuReferenceKind.TYPE_PARAM;
+					else if (annotatedElement instanceof Method)
+						kind = IuReferenceKind.METHOD_PARAM;
+					else
+						kind = IuReferenceKind.CONSTRUCTOR_PARAM;
+
+					typeParameterMap.put(name,
+							new TypeFacade<>(TypeFactory.resolveType(typeParameter), this, kind, name));
+				}
+
+			this.typeParameters = Collections.unmodifiableMap(typeParameterMap);
+		}
+		return typeParameters;
 	}
+
 }

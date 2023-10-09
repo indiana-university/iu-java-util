@@ -31,7 +31,6 @@
  */
 package iu.type;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -132,13 +131,12 @@ public class AnnotationBridgeTest {
 	public void testGetsNoAnnotations() throws ClassNotFoundException {
 		class HasNoAnnotations {
 		}
-		assertTrue(AnnotationBridge.getAnnotations(HasNoAnnotations.class).length == 0);
+		assertFalse(AnnotationBridge.getAnnotations(HasNoAnnotations.class).iterator().hasNext());
 	}
 
 	@Test
 	public void testGetsLegacyAnnotations() throws ClassNotFoundException {
 		var annotations = AnnotationBridge.getAnnotations(getLegacyResource());
-		assertEquals(3, annotations.length);
 		Set<Class<?>> annotationTypes = new HashSet<>();
 		for (var annotation : annotations)
 			annotationTypes.add(annotation.annotationType());
@@ -151,7 +149,6 @@ public class AnnotationBridgeTest {
 	public void testGetsPlatformBaseAnnotations() throws ClassNotFoundException {
 		var annotations = AnnotationBridge.getAnnotations(
 				IuException.unchecked(() -> LegacyContextSupport.get().loadClass("edu.iu.legacy.Incompatible")));
-		assertEquals(2, annotations.length);
 		Set<Class<?>> annotationTypes = new HashSet<>();
 		for (var annotation : annotations)
 			annotationTypes.add(annotation.annotationType());
