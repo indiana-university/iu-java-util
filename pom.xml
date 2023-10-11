@@ -59,6 +59,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 		<jakarta.annotation-api.version>2.1.1</jakarta.annotation-api.version>
 		<jakarta.interceptor-api.version>2.1.0</jakarta.interceptor-api.version>
+		<jakarta.json-api.version>2.1.2</jakarta.json-api.version>
+		<jakarta.json.bind-api.version>3.0.0</jakarta.json.bind-api.version>
+		
+		<parsson.version>1.1.2</parsson.version>
 
 		<junit-jupiter.version>5.10.0</junit-jupiter.version>
 		<junit-platform.version>1.10.0</junit-platform.version>
@@ -72,8 +76,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		</repository>
 		<snapshotRepository>
 			<id>IUMaven</id>
-			<url>
-				https://apps.iu.edu/nxs-prd/content/repositories/IUPublic-Snapshot</url>
+			<url>https://apps.iu.edu/nxs-prd/content/repositories/IUPublic-Snapshot</url>
 		</snapshotRepository>
 	</distributionManagement>
 
@@ -403,6 +406,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 								</rules>
 							</configuration>
 						</execution>
+						<execution>
+							<id>coverage-aggregate</id>
+							<goals>
+								<goal>report-aggregate</goal>
+							</goals>
+						</execution>
 					</executions>
 				</plugin>
 				<plugin>
@@ -419,6 +428,19 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 										<versionRange>[0,)</versionRange>
 										<goals>
 											<goal>enforce</goal>
+										</goals>
+									</pluginExecutionFilter>
+									<action>
+										<ignore />
+									</action>
+								</pluginExecution>
+								<pluginExecution>
+									<pluginExecutionFilter>
+										<groupId>org.apache.maven.plugins</groupId>
+										<artifactId>maven-dependency-plugin</artifactId>
+										<versionRange>[0,)</versionRange>
+										<goals>
+											<goal>copy-dependencies</goal>
 										</goals>
 									</pluginExecutionFilter>
 									<action>
@@ -467,6 +489,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			</activation>
 			<modules>
 				<module>test</module>
+				<module>base</module>
 				<module>type</module>
 				<module>runtime</module>
 			</modules>

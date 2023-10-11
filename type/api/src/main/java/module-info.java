@@ -30,29 +30,16 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /**
- * Provides unit testing support.
+ * Type introspection utilities.
  * 
- * <p>
- * Supports the use of:
- * </p>
- * 
- * <ul>
- * <li>JUnit Juptier Engine</li>
- * <li>Mockito</li>
- * </ul>
- * 
- * @see edu.iu.test.IuTest
- * @provides org.junit.jupiter.api.extension.Extension Ties logging expectations in to test runs
- * @provides org.junit.platform.launcher.LauncherSessionListener Enables logging expectations
+ * @uses edu.iu.type.spi.IuTypeSpi Implementation service provider.
  */
-module iu.util.test {
-	exports edu.iu.test;
+module iu.util.type {
+	exports edu.iu.type;
+	exports edu.iu.type.spi to iu.util.type.impl;
 
-	requires iu.util;
-	requires org.mockito;
-	requires transitive org.junit.jupiter.api;
-	requires transitive org.junit.platform.launcher;
-	
-	provides org.junit.platform.launcher.LauncherSessionListener with edu.iu.test.IuTestSessionListener;
-	provides org.junit.jupiter.api.extension.Extension with edu.iu.test.IuTestExtension;
+	requires java.logging;
+	requires java.desktop;
+
+	uses edu.iu.type.spi.IuTypeSpi;
 }

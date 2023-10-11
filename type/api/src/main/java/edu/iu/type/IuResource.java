@@ -29,30 +29,55 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Provides unit testing support.
- * 
- * <p>
- * Supports the use of:
- * </p>
- * 
- * <ul>
- * <li>JUnit Juptier Engine</li>
- * <li>Mockito</li>
- * </ul>
- * 
- * @see edu.iu.test.IuTest
- * @provides org.junit.jupiter.api.extension.Extension Ties logging expectations in to test runs
- * @provides org.junit.platform.launcher.LauncherSessionListener Enables logging expectations
- */
-module iu.util.test {
-	exports edu.iu.test;
+package edu.iu.type;
 
-	requires iu.util;
-	requires org.mockito;
-	requires transitive org.junit.jupiter.api;
-	requires transitive org.junit.platform.launcher;
-	
-	provides org.junit.platform.launcher.LauncherSessionListener with edu.iu.test.IuTestSessionListener;
-	provides org.junit.jupiter.api.extension.Extension with edu.iu.test.IuTestExtension;
+/**
+ * Facade interface for a resource in a {@link IuComponent component}.
+ * 
+ * @param <T> resource type
+ */
+public interface IuResource<T> {
+
+	/**
+	 * Determines whether or not the resource should be authenticated before handing
+	 * off to a managed application.
+	 * 
+	 * @return true if the resource requires authentication; else false
+	 */
+	boolean needsAuthentication();
+
+	/**
+	 * Determines whether or not the resource is shared.
+	 * 
+	 * @return true if the resource is shared; else false
+	 */
+	boolean shared();
+
+	/**
+	 * Gets the resource name.
+	 * 
+	 * @return resource name
+	 */
+	String name();
+
+	/**
+	 * Gets the resource type.
+	 * 
+	 * @return resource type
+	 */
+	IuType<T> type();
+
+	/**
+	 * Gets the resource instance.
+	 * 
+	 * <p>
+	 * When {@link #shared() shared}, returns the same singleton instance each time
+	 * this method is invoked. When not shared, returns a new instance of the
+	 * resource on each invocation.
+	 * </p>
+	 * 
+	 * @return resource instance
+	 */
+	T get();
+
 }

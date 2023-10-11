@@ -29,21 +29,54 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.test;
+package edu.iu.runtime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.lang.reflect.Type;
+import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.test.IuTestLogger;
+import iu.runtime.EmptyRuntime;
+
 @SuppressWarnings("javadoc")
-public class PropertiesTest {
+public class UnconfiguredRuntimeTest {
 
 	@Test
-	public void testLoadsProperties() throws Exception {
-		var properties = IuTest.properties();
-		assertSame(properties, IuTest.properties());
-		assertEquals("bar", IuTest.getProperty("foo"));
+	public void testFailsafe() {
+		assertTrue(IuRuntime.PROVIDER instanceof EmptyRuntime);
+	}
+
+	@Test
+	public void testSameSame() {
+		var env = IuRuntime.PROVIDER.getEnvironment();
+		assertSame(env, IuRuntime.PROVIDER.getBuildConfiguration());
+		assertSame(env, IuRuntime.PROVIDER.getSecret(null));
+	}
+
+	@Test
+	public void testGetValue() {
+		var env = IuRuntime.PROVIDER.getEnvironment();
+		assertThrows(IllegalArgumentException.class, () -> env.getValue("foo"));
+		assertThrows(IllegalArgumentException.class, () -> env.getValue("foo", String.class));
+		assertThrows(IllegalArgumentException.class, () -> env.getValue("foo", (Type) String.class));
+		
+		IuTestLogger.expect(IuRuntimeConfiguration.class.getName(), Level.FINEST,
+				"Invalid configuration value for foo using default", IllegalArgumentException.class);
+		assertEquals("bar", env.getValue("foo", "bar"));
+		
+		IuTestLogger.expect(IuRuntimeConfiguration.class.getName(), Level.FINEST,
+				"Invalid configuration value for foo using default", IllegalArgumentException.class);
+		assertEquals("bar", env.getValue("foo", String.class, "bar"));
+		
+		IuTestLogger.expect(IuRuntimeConfiguration.class.getName(), Level.FINEST,
+				"Invalid configuration value for foo using default", IllegalArgumentException.class);
+		assertEquals("bar", env.getValue("foo", (Type) String.class, "bar"));
 	}
 
 }

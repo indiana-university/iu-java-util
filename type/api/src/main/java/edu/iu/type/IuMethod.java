@@ -29,30 +29,39 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Provides unit testing support.
- * 
- * <p>
- * Supports the use of:
- * </p>
- * 
- * <ul>
- * <li>JUnit Juptier Engine</li>
- * <li>Mockito</li>
- * </ul>
- * 
- * @see edu.iu.test.IuTest
- * @provides org.junit.jupiter.api.extension.Extension Ties logging expectations in to test runs
- * @provides org.junit.platform.launcher.LauncherSessionListener Enables logging expectations
- */
-module iu.util.test {
-	exports edu.iu.test;
+package edu.iu.type;
 
-	requires iu.util;
-	requires org.mockito;
-	requires transitive org.junit.jupiter.api;
-	requires transitive org.junit.platform.launcher;
-	
-	provides org.junit.platform.launcher.LauncherSessionListener with edu.iu.test.IuTestSessionListener;
-	provides org.junit.jupiter.api.extension.Extension with edu.iu.test.IuTestExtension;
+/**
+ * Represents a method reflected from the type erasure of a generic type.
+ * 
+ * @param <R> Return type
+ */
+public interface IuMethod<R> extends IuExecutable<R> {
+
+	/**
+	 * Determines if this is a static method.
+	 * 
+	 * @return true if static; else false
+	 */
+	boolean isStatic();
+
+	/**
+	 * Gets the return type.
+	 * 
+	 * @return return type
+	 */
+	IuType<R> returnType();
+
+	/**
+	 * Executes a method.
+	 * 
+	 * @param arguments argument values; when {@link #isStatic()} returns false, the
+	 *                  first argument <em>must</em> be the instance to invoke the
+	 *                  method on.
+	 * @return return value
+	 * @throws Exception If an exception occurs
+	 */
+	@Override
+	R exec(Object... arguments) throws Exception;
+
 }

@@ -29,30 +29,64 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package edu.iu.type;
+
 /**
- * Provides unit testing support.
+ * Describes a reference to a generic type.
  * 
  * <p>
- * Supports the use of:
+ * Each {@link IuType} instance either wraps a plain {@link Class} instance or
+ * contains a reference back to the {@link IuAnnotatedElement element} that it
+ * originated from.
  * </p>
  * 
- * <ul>
- * <li>JUnit Juptier Engine</li>
- * <li>Mockito</li>
- * </ul>
- * 
- * @see edu.iu.test.IuTest
- * @provides org.junit.jupiter.api.extension.Extension Ties logging expectations in to test runs
- * @provides org.junit.platform.launcher.LauncherSessionListener Enables logging expectations
+ * @param <T> referent type
+ * @param <R> referrer type
  */
-module iu.util.test {
-	exports edu.iu.test;
+public interface IuTypeReference<T, R extends IuAnnotatedElement> {
 
-	requires iu.util;
-	requires org.mockito;
-	requires transitive org.junit.jupiter.api;
-	requires transitive org.junit.platform.launcher;
-	
-	provides org.junit.platform.launcher.LauncherSessionListener with edu.iu.test.IuTestSessionListener;
-	provides org.junit.jupiter.api.extension.Extension with edu.iu.test.IuTestExtension;
+	/**
+	 * Gets the reference kind.
+	 * 
+	 * @return reference kind
+	 */
+	IuReferenceKind kind();
+
+	/**
+	 * Gets the referent type.
+	 * 
+	 * <p>
+	 * {@code referent().reference() == this} <em>must</em> be true
+	 * </p>
+	 * 
+	 * @return referent type
+	 */
+	IuType<T> referent();
+
+	/**
+	 * Gets the introspection facade for the element through which the reference was
+	 * obtained.
+	 * 
+	 * @return introspection facade
+	 */
+	R referrer();
+
+	/**
+	 * Gets the name of the referent type as known by the referrer.
+	 * 
+	 * @return reference name; <em>must</em> be non-null when
+	 *         {@link #kind()}{@link IuReferenceKind#named() .isNamed()} is true, if
+	 *         false <em>must</em> be null.
+	 */
+	String name();
+
+	/**
+	 * Gets the ordinal index associated with a parameter reference.
+	 * 
+	 * @return index; <em>must</em> be &gt;= 0 when
+	 *         {@link #kind()}{@link IuReferenceKind#indexed() .isIndexed()} is
+	 *         true, if false <em>must</em> be -1.
+	 */
+	int index();
+
 }

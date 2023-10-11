@@ -42,6 +42,8 @@ import java.util.Properties;
 
 import org.mockito.Mockito;
 
+import edu.iu.IuException;
+
 /**
  * Unit testing utilities.
  */
@@ -93,7 +95,7 @@ public final class IuTest {
 	 */
 	public static Properties properties() {
 		if (properties == null)
-			try {
+			IuException.unchecked(() -> {
 				var properties = new Properties();
 				Enumeration<URL> sources = getResources("META-INF/iu-test.properties");
 				for (var source : (Iterable<URL>) sources::asIterator)
@@ -101,9 +103,7 @@ public final class IuTest {
 						properties.load(in);
 					}
 				IuTest.properties = properties;
-			} catch (IOException e) {
-				throw new IllegalStateException(e);
-			}
+			});
 		return properties;
 	}
 

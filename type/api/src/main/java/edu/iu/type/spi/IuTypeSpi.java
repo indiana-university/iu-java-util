@@ -29,30 +29,42 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Provides unit testing support.
- * 
- * <p>
- * Supports the use of:
- * </p>
- * 
- * <ul>
- * <li>JUnit Juptier Engine</li>
- * <li>Mockito</li>
- * </ul>
- * 
- * @see edu.iu.test.IuTest
- * @provides org.junit.jupiter.api.extension.Extension Ties logging expectations in to test runs
- * @provides org.junit.platform.launcher.LauncherSessionListener Enables logging expectations
- */
-module iu.util.test {
-	exports edu.iu.test;
+package edu.iu.type.spi;
 
-	requires iu.util;
-	requires org.mockito;
-	requires transitive org.junit.jupiter.api;
-	requires transitive org.junit.platform.launcher;
-	
-	provides org.junit.platform.launcher.LauncherSessionListener with edu.iu.test.IuTestSessionListener;
-	provides org.junit.jupiter.api.extension.Extension with edu.iu.test.IuTestExtension;
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.reflect.Type;
+
+import edu.iu.type.IuComponent;
+import edu.iu.type.IuType;
+
+/**
+ * Implementation service provider interface.
+ */
+public interface IuTypeSpi {
+
+	/**
+	 * Resolves an {@link IuType} instance for a generic type.
+	 * 
+	 * @param type Type
+	 * @return Type introspection facade
+	 * @see IuType#of(Type)
+	 * @see IuType#of(Class)
+	 */
+	IuType<?> resolveType(Type type);
+
+	/**
+	 * Implements {@link IuComponent#of(InputStream, InputStream...)}.
+	 * 
+	 * @param componentArchiveSource           component archive
+	 * @param providedDependencyArchiveSources provided dependency archives
+	 * @return {@link IuComponent} instance
+	 * @throws IOException If the <strong>component archive</strong> or any
+	 *                     <strong>dependency archives</strong> are unreadable.
+	 * 
+	 * @see IuComponent
+	 */
+	IuComponent createComponent(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
+			throws IOException;
+
 }

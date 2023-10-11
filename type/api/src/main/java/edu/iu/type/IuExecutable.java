@@ -29,30 +29,42 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Provides unit testing support.
- * 
- * <p>
- * Supports the use of:
- * </p>
- * 
- * <ul>
- * <li>JUnit Juptier Engine</li>
- * <li>Mockito</li>
- * </ul>
- * 
- * @see edu.iu.test.IuTest
- * @provides org.junit.jupiter.api.extension.Extension Ties logging expectations in to test runs
- * @provides org.junit.platform.launcher.LauncherSessionListener Enables logging expectations
- */
-module iu.util.test {
-	exports edu.iu.test;
+package edu.iu.type;
 
-	requires iu.util;
-	requires org.mockito;
-	requires transitive org.junit.jupiter.api;
-	requires transitive org.junit.platform.launcher;
-	
-	provides org.junit.platform.launcher.LauncherSessionListener with edu.iu.test.IuTestSessionListener;
-	provides org.junit.jupiter.api.extension.Extension with edu.iu.test.IuTestExtension;
+import java.lang.reflect.Executable;
+import java.util.List;
+
+/**
+ * Facade interface for an {@link Executable} element: a method or constructor.
+ * 
+ * @param <T> Target type: method return type, or constructor declaring type
+ */
+public interface IuExecutable<T> extends IuDeclaredElement, IuParameterizedElement {
+
+	/**
+	 * Gets the parameters.
+	 * 
+	 * @return parameters
+	 */
+	List<IuParameter<?>> parameters();
+
+	/**
+	 * Gets a parameter type.
+	 * 
+	 * @param i index
+	 * @return parameter type
+	 */
+	default IuParameter<?> parameter(int i) {
+		return parameters().get(i);
+	}
+
+	/**
+	 * Executes the element.
+	 * 
+	 * @param arguments argument values
+	 * @return result
+	 * @throws Exception If an exception occurs
+	 */
+	T exec(Object... arguments) throws Exception;
+
 }

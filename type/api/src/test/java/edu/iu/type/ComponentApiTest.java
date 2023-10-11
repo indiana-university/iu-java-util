@@ -29,30 +29,28 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Provides unit testing support.
- * 
- * <p>
- * Supports the use of:
- * </p>
- * 
- * <ul>
- * <li>JUnit Juptier Engine</li>
- * <li>Mockito</li>
- * </ul>
- * 
- * @see edu.iu.test.IuTest
- * @provides org.junit.jupiter.api.extension.Extension Ties logging expectations in to test runs
- * @provides org.junit.platform.launcher.LauncherSessionListener Enables logging expectations
- */
-module iu.util.test {
-	exports edu.iu.test;
+package edu.iu.type;
 
-	requires iu.util;
-	requires org.mockito;
-	requires transitive org.junit.jupiter.api;
-	requires transitive org.junit.platform.launcher;
-	
-	provides org.junit.platform.launcher.LauncherSessionListener with edu.iu.test.IuTestSessionListener;
-	provides org.junit.jupiter.api.extension.Extension with edu.iu.test.IuTestExtension;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import org.junit.jupiter.api.Test;
+
+import edu.iu.type.IuComponent.Kind;
+
+@SuppressWarnings("javadoc")
+public class ComponentApiTest {
+
+	@Test
+	public void testCoversKind() throws ClassNotFoundException {
+		assertTrue(Kind.MODULAR_JAR.isModular());
+		assertFalse(Kind.MODULAR_JAR.isWeb());
+		assertTrue(Kind.MODULAR_WAR.isModular());
+		assertTrue(Kind.MODULAR_WAR.isWeb());
+		assertFalse(Kind.LEGACY_JAR.isModular());
+		assertFalse(Kind.LEGACY_JAR.isWeb());
+		assertFalse(Kind.LEGACY_WAR.isModular());
+		assertTrue(Kind.LEGACY_WAR.isWeb());
+	}
+
 }

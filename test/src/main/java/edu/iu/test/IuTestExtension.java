@@ -29,30 +29,50 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Provides unit testing support.
- * 
- * <p>
- * Supports the use of:
- * </p>
- * 
- * <ul>
- * <li>JUnit Juptier Engine</li>
- * <li>Mockito</li>
- * </ul>
- * 
- * @see edu.iu.test.IuTest
- * @provides org.junit.jupiter.api.extension.Extension Ties logging expectations in to test runs
- * @provides org.junit.platform.launcher.LauncherSessionListener Enables logging expectations
- */
-module iu.util.test {
-	exports edu.iu.test;
+package edu.iu.test;
 
-	requires iu.util;
-	requires org.mockito;
-	requires transitive org.junit.jupiter.api;
-	requires transitive org.junit.platform.launcher;
-	
-	provides org.junit.platform.launcher.LauncherSessionListener with edu.iu.test.IuTestSessionListener;
-	provides org.junit.jupiter.api.extension.Extension with edu.iu.test.IuTestExtension;
+import static org.junit.jupiter.api.Assertions.fail;
+
+import org.junit.jupiter.api.extension.AfterEachCallback;
+import org.junit.jupiter.api.extension.BeforeEachCallback;
+import org.junit.jupiter.api.extension.ExtensionContext;
+
+import edu.iu.IuException;
+
+/**
+ * Intercepts log messages during test execution.
+ */
+public class IuTestExtension implements BeforeEachCallback, AfterEachCallback {
+
+	private static boolean failureExpected;
+
+	static void expectFailure() {
+		failureExpected = true;
+	}
+
+	/**
+	 * Default constructor
+	 */
+	public IuTestExtension() {
+	}
+
+	@Override
+	public void beforeEach(ExtensionContext context) throws Exception {
+		IuTestLogger.startTest(context.getDisplayName());
+	}
+
+	@Override
+	public void afterEach(ExtensionContext context) throws Exception {
+		try {
+			IuTestLogger.finishTest(context.getDisplayName());
+			if (failureExpected)
+				fail();
+		} catch (Throwable e) {
+			if (!failureExpected)
+				throw IuException.checked(e);
+		} finally {
+			failureExpected = false;
+		}
+	}
+
 }

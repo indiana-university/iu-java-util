@@ -29,30 +29,26 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Provides unit testing support.
- * 
- * <p>
- * Supports the use of:
- * </p>
- * 
- * <ul>
- * <li>JUnit Juptier Engine</li>
- * <li>Mockito</li>
- * </ul>
- * 
- * @see edu.iu.test.IuTest
- * @provides org.junit.jupiter.api.extension.Extension Ties logging expectations in to test runs
- * @provides org.junit.platform.launcher.LauncherSessionListener Enables logging expectations
- */
-module iu.util.test {
-	exports edu.iu.test;
+package edu.iu.type.spi;
 
-	requires iu.util;
-	requires org.mockito;
-	requires transitive org.junit.jupiter.api;
-	requires transitive org.junit.platform.launcher;
-	
-	provides org.junit.platform.launcher.LauncherSessionListener with edu.iu.test.IuTestSessionListener;
-	provides org.junit.jupiter.api.extension.Extension with edu.iu.test.IuTestExtension;
+import java.util.ServiceLoader;
+
+import edu.iu.type.IuComponent;
+import edu.iu.type.IuType;
+
+/**
+ * Loads a single static {@link IuTypeSpi} instance from the same
+ * {@link ClassLoader} that defines {@link IuType} and uses it to delegate
+ * access to {@link IuType} and {@link IuComponent} instances.
+ */
+public class TypeImplementation {
+
+	/**
+	 * Singleton fully initialized instance of {@link IuTypeSpi}.
+	 */
+	public static final IuTypeSpi PROVIDER = ServiceLoader.load(IuTypeSpi.class, IuType.class.getClassLoader()).iterator()
+			.next();
+
+	private TypeImplementation() {
+	}
 }
