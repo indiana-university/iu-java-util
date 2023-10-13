@@ -31,13 +31,60 @@
  */
 package edu.iu.type;
 
+import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
+import java.lang.reflect.WildcardType;
+import java.util.WeakHashMap;
 
 import edu.iu.type.spi.TypeImplementation;
 
 /**
  * Facade interface for a generic type.
+ * 
+ * <p>
+ * {@link IuType} is sterotyped as a <strong>hash key</strong>, so may be used
+ * as the key value with {@link WeakHashMap} to build type-level extensions from
+ * specific generic type scenarios. For example IuType has a 1:1 relationship
+ * with Class, but a separate 1:1 with a Classes referred to via specific
+ * {@link TypeVariable}, {@link ParameterizedType}, {@link GenericArrayType}, or
+ * {@link WildcardType}.
+ * </p>
+ * 
+ * <p>
+ * The <strong>hash key stereotype</strong> is implemented by {@link #of(Class)}
+ * and {@link #of(Type)}, and is only implied by implementations provided by
+ * those methods.
+ * </p>
+ *
+ * <h2>Private Erasure</h2>
+ * <p>
+ * This interface exposes all declared field and method members from all types
+ * in decorated type's hierarchy in additional to those declared directly on its
+ * type erasure. That includes private members of superclasses. The purpose of
+ * this utility is to find fields and bean properties on well-formed application
+ * classes that may or may not be annotated as container-managed associations.
+ * The container therefore uses {@code IuType} to access privately scoped
+ * members and populate those associations.
+ * </p>
+ * <p>
+ * It is the application developer's responsibility to ensure that private
+ * members only shadow same-named private members in a super class when it is
+ * intended for the subclass to use its member instead of any inherited
+ * <strong>shadowed</strong> member of the same name. For example, when
+ * using @AroundInvoke to define interceptor methods intended to be inherited
+ * from a superclass, use a name reasonably unique to the declaring class. This
+ * scenario mirrors method override behavior, but fields may be shadowed and
+ * continue to exist as separate private fields with the same name but
+ * potentially different type and value.
+ * </p>
+ * <p>
+ * Private erasure is relevant for deserialization, remote service discovery,
+ * and method invocation. Other scenarios, i.e., dependency injection,
+ * <em>should</em> iterate all members unless a specific name is provided.
+ * </p>
  * 
  * @param <T> described generic type
  */
@@ -163,7 +210,15 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param parameterTypes parameter types
 	 * @return constructor
 	 */
-	IuConstructor<T> constructor(Type... parameterTypes);
+	default IuConstructor<T> constructor(Type... parameterTypes) {
+		var hash = IuExecutableKey.hashCode(null, parameterTypes);
+		for (var constructor : constructors()) {
+			var constructorKey = constructor.getKey();
+			if (hash == constructorKey.hashCode() && constructorKey.equals(null, parameterTypes))
+				return constructor;
+		}
+		throw new IllegalArgumentException(this + " missing constructor " + IuExecutableKey.of(null, parameterTypes));
+	}
 
 	/**
 	 * Gets a constructor declared by this type.
@@ -171,27 +226,50 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param parameterTypes parameter types
 	 * @return constructor
 	 */
-	IuConstructor<T> constructor(IuType<?>... parameterTypes);
+	default IuConstructor<T> constructor(Iterable<IuType<?>> parameterTypes) {
+		var hash = IuExecutableKey.hashCode(null, parameterTypes);
+		for (var constructor : constructors()) {
+			var constructorKey = constructor.getKey();
+			if (hash == constructorKey.hashCode() && constructorKey.equals(null, parameterTypes))
+				return constructor;
+		}
+		throw new IllegalArgumentException(this + " missing constructor " + IuExecutableKey.of(null, parameterTypes));
+	}
 
 	/**
-	 * Gets all fields defined by this type.
+	 * Gets all fields defined by this type, followed by all fields defined by all
+	 * types in this type's hierarchy, in {@link #hierarchy()} order.
 	 * 
-	 * @return fields
+	 * @return fields declared by this type and its hierarchy, in this followed by
+	 *         {@link #hierarchy()} order
 	 */
 	Iterable<? extends IuField<?>> fields();
 
 	/**
 	 * Gets a field declared by this type.
 	 * 
+	 * <p>
+	 * When a private field has the same name as a different field declared by a
+	 * super class, the "inherited" field is shadowed by this method. To retrieve
+	 * all fields, including those shadowed by a superclass, use {@link #fields()}.
+	 * </p>
+	 * 
 	 * @param name field name
 	 * @return field
 	 */
-	IuField<?> field(String name);
+	default IuField<?> field(String name) {
+		for (var field : fields())
+			if (name.equals(field.name()))
+				return field;
+		throw new IllegalArgumentException(this + " missing field " + name);
+	}
 
 	/**
-	 * Gets all properties defined by this type.
+	 * Gets all properties defined by this type, followed by all properties defined
+	 * by all types in this type's hierarchy, in {@link #hierarchy()} order.
 	 * 
-	 * @return properties by name
+	 * @return properties declared by this type and its hierarchy, in this followed
+	 *         by {@link #hierarchy()} order
 	 */
 	Iterable<? extends IuProperty<?>> properties();
 
@@ -201,10 +279,21 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param name property name
 	 * @return property
 	 */
-	IuProperty<?> property(String name);
+	default IuProperty<?> property(String name) {
+		for (var property : properties())
+			if (name.equals(property.name()))
+				return property;
+		throw new IllegalArgumentException(this + " missing property " + name);
+	}
 
 	/**
 	 * Gets all methods defined by this type.
+	 * 
+	 * <p>
+	 * The result {@link Iterable iterates} all methods declared on all classes in
+	 * the type erasure's hierarchy with private erasure for duplicately defined
+	 * methods.
+	 * </p>
 	 * 
 	 * @return methods
 	 */
@@ -217,7 +306,15 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param parameterTypes parameter types
 	 * @return method
 	 */
-	IuMethod<?> method(String name, Type... parameterTypes);
+	default IuMethod<?> method(String name, Type... parameterTypes) {
+		var hash = IuExecutableKey.hashCode(name, parameterTypes);
+		for (var method : methods()) {
+			var methodKey = method.getKey();
+			if (hash == methodKey.hashCode() && methodKey.equals(name, parameterTypes))
+				return method;
+		}
+		throw new IllegalArgumentException(this + " missing method " + IuExecutableKey.of(name, parameterTypes));
+	}
 
 	/**
 	 * Gets a method declared by this type.
@@ -226,7 +323,15 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param parameterTypes parameter types
 	 * @return method
 	 */
-	IuMethod<?> method(String name, IuType<?>... parameterTypes);
+	default IuMethod<?> method(String name, Iterable<IuType<?>> parameterTypes) {
+		var hash = IuExecutableKey.hashCode(name, parameterTypes);
+		for (var method : methods()) {
+			var methodKey = method.getKey();
+			if (hash == methodKey.hashCode() && methodKey.equals(name, parameterTypes))
+				return method;
+		}
+		throw new IllegalArgumentException(this + " missing method " + IuExecutableKey.of(name, parameterTypes));
+	}
 
 	/**
 	 * Get the type erasure class.

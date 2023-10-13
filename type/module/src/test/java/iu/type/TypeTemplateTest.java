@@ -32,21 +32,17 @@
 package iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Type;
-import java.util.HashSet;
+import java.lang.reflect.WildcardType;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
@@ -62,7 +58,7 @@ public class TypeTemplateTest {
 		assertSame(baseTemplate, baseTemplate.erase());
 		assertSame(baseClass, baseTemplate.erasedClass());
 		assertSame(baseClass.getName(), baseTemplate.name());
-		assertEquals("IuType[" + baseClass + ']', baseTemplate.toString());
+		assertEquals("IuType[" + TypeUtils.printType(baseClass) + ']', baseTemplate.toString());
 	}
 
 	private void assertGeneric(Type genericType, TypeTemplate<?> genericTemplate) {
@@ -70,7 +66,7 @@ public class TypeTemplateTest {
 		assertSame(genericType, genericTemplate.deref());
 		assertNotSame(genericTemplate, genericTemplate.erase());
 		assertSame(genericTemplate.erasedClass().getName(), genericTemplate.name());
-		assertEquals("IuType[" + genericType + ']', genericTemplate.toString());
+		assertEquals("IuType[" + TypeUtils.printType(genericType) + ']', genericTemplate.toString());
 
 		var erasedClass = genericTemplate.erasedClass();
 		var erasedTemplate = genericTemplate.erase();
@@ -78,20 +74,16 @@ public class TypeTemplateTest {
 		assertSame(erasedTemplate, erasedTemplate.reference().referent());
 		assertSame(genericTemplate, erasedTemplate.reference().referrer());
 		assertSame(erasedClass, erasedTemplate.deref());
-		assertNotSame(erasedTemplate, erasedTemplate.erase());
 		assertSame(erasedClass, erasedTemplate.erasedClass());
 		assertSame(erasedClass.getName(), erasedTemplate.name());
-		assertEquals("IuType[" + erasedClass + " ERASURE " + genericType + ']', erasedTemplate.toString());
+		assertEquals("IuType[" + TypeUtils.printType(erasedClass) + " ERASURE IuType["
+				+ TypeUtils.printType(genericType) + "]]", erasedTemplate.toString());
 	}
 
 	@Test
 	public void testRawBuilderIsValid() {
-		var raw = TypeTemplate.builder(Object.class).build();
+		var raw = new TypeTemplate<>(Object.class, null, List.of());
 		assertRaw(Object.class, raw);
-
-		var raw2 = TypeTemplate.builder(Object.class).build();
-		assertTrue(Set.of(raw).contains(raw2));
-		assertEquals(raw, raw2);
 	}
 
 	@Test
@@ -102,130 +94,32 @@ public class TypeTemplateTest {
 		}
 		var type = HasAFieldWithAParameterizedType.class.getDeclaredField("fieldWithAParameterizedType")
 				.getGenericType();
-		assertGeneric(type, TypeTemplate.builder(type, TypeTemplate.builder(Optional.class).build()).build());
+		assertGeneric(type, new TypeTemplate<>(null, type,
+				new TypeTemplate<>(Optional.class, null, List.of(new TypeTemplate<>(Object.class, null, List.of())))));
 	}
 
 	@Test
 	public void testGenericBuilderAssertsNotClass() {
-		assertThrows(AssertionError.class, () -> TypeTemplate.builder(Object.class, null));
-	}
-
-	@Test
-	@SuppressWarnings("unchecked")
-	public void testGenericBuilderAssertsErasureIsClass() {
-		var mockType = mock(Type.class);
-		var mockTemplate = mock(TypeTemplate.class);
-		when(mockTemplate.deref()).thenReturn(mockType);
-		assertThrows(AssertionError.class, () -> TypeTemplate.builder(mockType, mockTemplate));
-	}
-
-	@Test
-	public void testAssertsBuilderAcceptsHierarchyOnlyOnce() {
 		assertThrows(AssertionError.class,
-				() -> TypeTemplate.builder(Object.class).hierarchy(List.of()).hierarchy(List.of()));
+				() -> new TypeTemplate<>(null, Object.class, new TypeTemplate<>(Object.class, null, List.of())));
 	}
 
 	@Test
-	public void testEqualsTypeChecks() {
-		var t1 = TypeTemplate.builder(Object.class).build();
-		var t2 = mock(IuType.class);
-		assertNotEquals(t1, t2);
+	public void testGenericBuilderAssertsErasureIsClass() {
+		var mockType = mock(WildcardType.class);
+		when(mockType.getUpperBounds()).thenReturn(new Class<?>[] { Object.class });
+		assertThrows(AssertionError.class,
+				() -> new TypeTemplate<>(null, mockType, TypeFactory.resolveRawClass(Number.class)));
 	}
 
 	@Test
-	public void testSameRawAreEquals() {
-		var t1 = TypeTemplate.builder(Object.class).build();
-		var t2 = TypeTemplate.builder(Object.class).build();
-		assertEquals(t1, t2);
-		assertEquals(t2, t1);
-	}
-
-	@Test
-	public void testDifferentRawNotEquals() {
-		var t1 = TypeTemplate.builder(Object.class).build();
-		var t2 = TypeTemplate.builder(Number.class).build();
-		assertNotEquals(t1, t2);
-		assertNotEquals(t2, t1);
-	}
-
-	@Test
-	public void testSetsOfRaw() {
-		Set<IuType<?>> set = new HashSet<>();
-		assertTrue(set.add(TypeTemplate.builder(Object.class).build()));
-		assertFalse(set.add(TypeTemplate.builder(Object.class).build()));
-		assertTrue(set.add(TypeTemplate.builder(Number.class).build()));
-		assertTrue(set.contains(TypeTemplate.builder(Object.class).build()));
-		assertTrue(set.contains(TypeTemplate.builder(Number.class).build()));
-	}
-
-	@Test
-	public void testSetsOfGeneric() {
-		interface HasTypeParam<T> {
+	public void testTypeOfIterable() {
+		@SuppressWarnings("unused")
+		class HasStringListParam {
+			List<String> stringList;
 		}
-		var e = TypeTemplate.builder(Object.class).build();
-		Set<IuType<?>> set = new HashSet<>();
-		assertTrue(set.add(TypeTemplate.builder(HasTypeParam.class.getTypeParameters()[0], e).build()));
-		assertTrue(set.add(TypeTemplate.builder(HasTypeParam.class.getTypeParameters()[0], e).build()));
-	}
-
-	@Test
-	public void testGenericNotEqualsRaw() {
-		interface HasTypeParam<T> {
-		}
-		var t1 = TypeTemplate.builder(Object.class).build();
-		var t2 = TypeTemplate.builder(HasTypeParam.class.getTypeParameters()[0], t1).build();
-		assertNotEquals(t1, t2);
-		assertNotEquals(t2, t1);
-	}
-
-	@Test
-	public void testErasureNotEqualsRaw() {
-		interface HasTypeParam<T> {
-		}
-		var t1 = TypeTemplate.builder(Object.class).build();
-		var t2 = TypeTemplate.builder(HasTypeParam.class.getTypeParameters()[0], t1).build().erase();
-		assertNotEquals(t1, t2);
-		assertNotEquals(t2, t1);
-	}
-
-	@Test
-	public void testSameGenericsIsEquals() {
-		interface HasTypeParam<T> {
-		}
-		var t1 = TypeTemplate
-				.builder(HasTypeParam.class.getTypeParameters()[0], TypeTemplate.builder(Object.class).build()).build()
-				.erase();
-		assertEquals(t1, t1);
-	}
-
-	@Test
-	public void testEquivalentGenericsAreNotEquals() {
-		interface HasTypeParam<T> {
-		}
-		var t1 = TypeTemplate
-				.builder(HasTypeParam.class.getTypeParameters()[0], TypeTemplate.builder(Object.class).build()).build()
-				.erase();
-		var t2 = TypeTemplate
-				.builder(HasTypeParam.class.getTypeParameters()[0], TypeTemplate.builder(Object.class).build()).build()
-				.erase();
-		assertNotEquals(t1, t2);
-		assertNotEquals(t2, t1);
-	}
-
-	@Test
-	public void testTypeParamsWithDifferentBoundsNotEqua() {
-		interface HasTypeParam<T> {
-		}
-		interface HasBoundedTypeParam<T extends Number> {
-		}
-		var t1 = TypeTemplate
-				.builder(HasTypeParam.class.getTypeParameters()[0], TypeTemplate.builder(Object.class).build()).build()
-				.erase();
-		var t2 = TypeTemplate
-				.builder(HasBoundedTypeParam.class.getTypeParameters()[0], TypeTemplate.builder(Number.class).build())
-				.build().erase();
-		assertNotEquals(t1, t2);
-		assertNotEquals(t2, t1);
+		assertSame(String.class, IuType.of(HasStringListParam.class).field("stringList").type().referTo(Iterable.class)
+				.typeParameter("T").erasedClass());
 	}
 
 }

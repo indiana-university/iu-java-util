@@ -33,6 +33,9 @@ package iu.type;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
+import java.util.ArrayDeque;
+import java.util.Queue;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import edu.iu.type.IuAnnotatedElement;
@@ -46,20 +49,65 @@ import jakarta.annotation.security.RolesAllowed;
  * @param <E> annotated element type
  */
 sealed class AnnotatedElementBase<E extends AnnotatedElement> implements IuAnnotatedElement
-		permits ParameterizedElementBase {
+		permits ParameterizedElementBase, FieldFacade {
 
 	/**
 	 * Real annotated element viewed via this facade.
 	 */
 	protected final E annotatedElement;
 
+	private Queue<Runnable> postInit;
+
 	/**
 	 * Facade constructor.
 	 * 
 	 * @param annotatedElement real annotated element to provide a view of
+	 * @param preInitHook      receives a handle to {@code this} after binding the
+	 *                         annotated element but before initializing and
+	 *                         members. {@code preInitHook} is used by TypeFactory
+	 *                         to bind template instances to its weak singleton
+	 *                         cache prior to initializing related members, so those
+	 *                         members responsible for building references can
+	 *                         safely use TypeFactory.resolveType() within their own
+	 *                         constructors. When non-null,
+	 *                         {@link #finishPostInit()} should be invoked at the
+	 *                         end of the last constructor in the chain.
+	 * @see #finishPostInit()
 	 */
-	AnnotatedElementBase(E annotatedElement) {
+	AnnotatedElementBase(E annotatedElement, Consumer<AnnotatedElementBase<E>> preInitHook) {
 		this.annotatedElement = annotatedElement;
+
+		if (preInitHook != null) {
+			postInit = new ArrayDeque<>();
+			preInitHook.accept(this);
+		}
+	}
+
+	/**
+	 * <em>May</em> be invoked within a base constructor to defer part of
+	 * initialization until after the facade instance is fully formed.
+	 * 
+	 * @param postInit initialization segment to run after all facade elements are
+	 *                 populated
+	 */
+	void postInit(Runnable postInit) {
+		if (this.postInit == null)
+			postInit.run();
+		else
+			this.postInit.offer(postInit);
+	}
+
+	/**
+	 * <em>Should</em> be called at the end of any constructor that passes a
+	 * non-null {@code preInitHook} to
+	 * {@link #AnnotatedElementBase(AnnotatedElement, Consumer)}.
+	 */
+	void finishPostInit() {
+		var postInit = this.postInit;
+		this.postInit = null;
+		if (postInit != null)
+			while (!postInit.isEmpty())
+				postInit.poll().run();
 	}
 
 	@Override

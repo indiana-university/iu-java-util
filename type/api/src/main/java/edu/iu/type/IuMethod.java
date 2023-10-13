@@ -34,7 +34,7 @@ package edu.iu.type;
 /**
  * Represents a method reflected from the type erasure of a generic type.
  * 
- * @param <R> Return type
+ * @param <R> method return type
  */
 public interface IuMethod<R> extends IuNamedElement, IuExecutable<R> {
 

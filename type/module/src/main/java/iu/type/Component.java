@@ -148,6 +148,7 @@ class Component implements IuComponent {
 				var module = loadedClass.getModule();
 				if ((module.isNamed() && module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) //
 						|| (!module.isNamed() && !archive.kind().isModular() && archive.properties() != null)) {
+					var type = IuType.of(loadedClass);
 
 					var mod = loadedClass.getModifiers();
 					if ((mod & Modifier.PUBLIC) != mod && loadedClass.isInterface() && !loadedClass.isAnnotation())
@@ -162,10 +163,11 @@ class Component implements IuComponent {
 							annotatedTypes.put(annotationType, annotatedWithType);
 						}
 
-						annotatedWithType.add(IuType.of(loadedClass));
+						annotatedWithType.add(type);
 					}
 
-					for (var resource : ComponentResource.getResources(loadedClass))
+					for (var resource : ComponentResource.getResources(loadedClass,
+							() -> loadedClass.cast(type.constructor().exec())))
 						resources.add(resource);
 				}
 			}

@@ -29,58 +29,52 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.type;
+package iu.type;
+
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+
+import edu.iu.type.IuMethod;
+import edu.iu.type.IuType;
 
 /**
- * Facade interface for an attribute: a field or bean property.
+ * Facade implementation for {@link IuMethod}.
  * 
- * @param <T> attribute value type
+ * @param <D> declaring type
+ * @param <R> method return type
  */
-public interface IuAttribute<T> extends IuNamedElement {
+final class MethodFacade<D, R> extends ExecutableBase<D, R, Method> implements IuMethod<R> {
 
 	/**
-	 * Gets the attribute type.
+	 * Facade constructor.
 	 * 
-	 * @return attribute type
+	 * @param method        {@link Method}
+	 * @param delcaringType {@link TypeTemplate}
 	 */
-	IuType<T> type();
+	MethodFacade(Method method, TypeTemplate<D> delcaringType) {
+		super(method, delcaringType);
+	}
 
-	/**
-	 * Gets the attribute value.
-	 * 
-	 * @param o object
-	 * @return attribute value.
-	 */
-	T get(Object o);
+	@Override
+	public R exec(Object... arguments) throws Exception {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException("TODO");
+	}
 
-	/**
-	 * Gets the attribute value.
-	 * 
-	 * @param o     object
-	 * @param value attribute value
-	 */
-	void set(Object o, T value);
+	@Override
+	public String name() {
+		return annotatedElement.getName();
+	}
 
-	/**
-	 * Determines whether or not the attribute should be included when serializing
-	 * declaring type.
-	 * 
-	 * <p>
-	 * Note that is check has nothing to do with the {@link java.io.Serializable}
-	 * interface or any of its related types or behaviors. Java serialization
-	 * streams <em>should not</em> be used by applications, and will not be
-	 * supported by any IU Java Utilities or IU JEE modules.
-	 * </p>
-	 * 
-	 * <p>
-	 * Serialization in this context refers to a back-end, cache, or configuration
-	 * storage scenario, as a check to verify that an attribute may be retrieved if
-	 * stored from the same version of the type.
-	 * </p>
-	 * 
-	 * @return True if the attribute should be included in serialized form; else
-	 *         false
-	 */
-	boolean serializable();
+	@Override
+	public boolean isStatic() {
+		return (annotatedElement.getModifiers() & Modifier.STATIC) == Modifier.STATIC;
+	}
+
+	@Override
+	public IuType<R> returnType() {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException("TODO");
+	}
 
 }

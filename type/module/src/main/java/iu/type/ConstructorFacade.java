@@ -29,58 +29,33 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.type;
+package iu.type;
+
+import java.lang.reflect.Constructor;
+
+import edu.iu.IuException;
+import edu.iu.type.IuConstructor;
 
 /**
- * Facade interface for an attribute: a field or bean property.
+ * Facade implementation for {@link IuConstructor}.
  * 
- * @param <T> attribute value type
+ * @param <C> constructor declaring type
  */
-public interface IuAttribute<T> extends IuNamedElement {
+final class ConstructorFacade<C> extends ExecutableBase<C, C, Constructor<C>> implements IuConstructor<C> {
 
 	/**
-	 * Gets the attribute type.
+	 * Facade constructor.
 	 * 
-	 * @return attribute type
+	 * @param constructor   {@link Constructor}
+	 * @param declaringType {@link TypeTemplate}
 	 */
-	IuType<T> type();
+	ConstructorFacade(Constructor<C> constructor, TypeTemplate<C> declaringType) {
+		super(constructor, declaringType);
+	}
 
-	/**
-	 * Gets the attribute value.
-	 * 
-	 * @param o object
-	 * @return attribute value.
-	 */
-	T get(Object o);
-
-	/**
-	 * Gets the attribute value.
-	 * 
-	 * @param o     object
-	 * @param value attribute value
-	 */
-	void set(Object o, T value);
-
-	/**
-	 * Determines whether or not the attribute should be included when serializing
-	 * declaring type.
-	 * 
-	 * <p>
-	 * Note that is check has nothing to do with the {@link java.io.Serializable}
-	 * interface or any of its related types or behaviors. Java serialization
-	 * streams <em>should not</em> be used by applications, and will not be
-	 * supported by any IU Java Utilities or IU JEE modules.
-	 * </p>
-	 * 
-	 * <p>
-	 * Serialization in this context refers to a back-end, cache, or configuration
-	 * storage scenario, as a check to verify that an attribute may be retrieved if
-	 * stored from the same version of the type.
-	 * </p>
-	 * 
-	 * @return True if the attribute should be included in serialized form; else
-	 *         false
-	 */
-	boolean serializable();
+	@Override
+	public C exec(Object... arguments) throws Exception {
+		return annotatedElement.getDeclaringClass().cast(IuException.checked(annotatedElement, arguments));
+	}
 
 }

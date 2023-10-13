@@ -36,6 +36,7 @@ import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.GenericDeclaration;
+import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.TypeVariable;
@@ -120,7 +121,13 @@ public enum IuReferenceKind {
 	/**
 	 * The type was referred to by {@link Method#getGenericReturnType()}.
 	 */
-	RETURN_TYPE(IuMethod.class, true, false);
+	RETURN_TYPE(IuMethod.class, true, false),
+
+	/**
+	 * The referent describes the {@link Member#getDeclaringClass() declaring type}
+	 * of a (referring) {@link Member member}.
+	 */
+	DECLARING_TYPE(IuAnnotatedElement.class, false, false);
 
 	private final Class<? extends IuAnnotatedElement> referrerType;
 	private final boolean named;

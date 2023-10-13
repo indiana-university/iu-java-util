@@ -31,7 +31,20 @@
  */
 package iu.type;
 
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Predicate;
+
 import edu.iu.type.IuAnnotatedElement;
+import edu.iu.type.IuConstructor;
+import edu.iu.type.IuField;
+import edu.iu.type.IuMethod;
+import edu.iu.type.IuProperty;
 import edu.iu.type.IuReferenceKind;
 import edu.iu.type.IuType;
 import edu.iu.type.IuTypeReference;
@@ -41,8 +54,15 @@ import edu.iu.type.IuTypeReference;
  * 
  * @param <T> generic type
  */
-final class TypeFacade<T> extends TypeTemplate<T> implements IuType<T> {
+final class TypeFacade<T> implements IuType<T> {
 
+	/**
+	 * Holds a reference to the template this facade delegates to.
+	 */
+	final TypeTemplate<T> template;
+
+	private Map<String, TypeFacade<?>> typeParameters;
+	private Iterable<TypeFacade<? super T>> hierarchy;
 	private final TypeReference<T, ?> reference;
 
 	/**
@@ -53,8 +73,7 @@ final class TypeFacade<T> extends TypeTemplate<T> implements IuType<T> {
 	 * @param referenceKind reference kind
 	 */
 	TypeFacade(TypeTemplate<T> template, IuAnnotatedElement referrer, IuReferenceKind referenceKind) {
-		super(template);
-		this.reference = new TypeReference<>(referenceKind, referrer, this);
+		this(template, a -> new TypeReference<>(referenceKind, referrer, a));
 	}
 
 	/**
@@ -67,8 +86,7 @@ final class TypeFacade<T> extends TypeTemplate<T> implements IuType<T> {
 	 */
 	TypeFacade(TypeTemplate<T> template, IuAnnotatedElement referrer, IuReferenceKind referenceKind,
 			String referenceName) {
-		super(template);
-		this.reference = new TypeReference<>(referenceKind, referrer, this, referenceName);
+		this(template, a -> new TypeReference<>(referenceKind, referrer, a, referenceName));
 	}
 
 	/**
@@ -81,8 +99,56 @@ final class TypeFacade<T> extends TypeTemplate<T> implements IuType<T> {
 	 */
 	TypeFacade(TypeTemplate<T> template, IuAnnotatedElement referrer, IuReferenceKind referenceKind,
 			int referenceIndex) {
-		super(template);
-		this.reference = new TypeReference<>(referenceKind, referrer, this, referenceIndex);
+		this(template, a -> new TypeReference<>(referenceKind, referrer, a, referenceIndex));
+	}
+
+	private TypeFacade(TypeTemplate<T> template, Function<TypeFacade<T>, TypeReference<T, ?>> referenceFactory) {
+		this.template = template;
+		this.reference = referenceFactory.apply(this);
+	}
+
+	/**
+	 * <em>Should</em> be called at the end of {@link TypeTemplate} initialization
+	 * to propagate type arguments through the reference chain and prevent further
+	 * modification.
+	 * 
+	 * @param typeParameters fully initialized parameters from the
+	 *                       {@link TypeTemplate} owning the root reference to this
+	 *                       facade
+	 */
+	public void sealTypeParameters(Map<String, TypeFacade<?>> typeParameters) {
+		this.typeParameters = new LinkedHashMap<>();
+		
+		// step through template.typeParameters
+		for (var templateTypeParameterEntry : template.typeParameters.entrySet()) {
+			final var templateTypeParameterName = templateTypeParameterEntry.getKey();
+			final var templateTypeArgument = templateTypeParameterEntry.getValue();
+
+			final var templateGenericType = templateTypeArgument.deref();
+			if (templateGenericType instanceof TypeVariable) {
+				// attempt to map those that resolve to type variable ...
+				var typeVariable = (TypeVariable<?>) templateGenericType;
+				var typeVariableName = typeVariable.getName();
+				var typeArgument = typeParameters.get(typeVariableName);
+				if (typeArgument != null)
+					// ... to a type argument from incoming typeParameters
+					this.typeParameters.put(templateTypeParameterName, typeArgument);
+				else
+					// pass through as-is if not replaced by incoming parameter
+					this.typeParameters.put(templateTypeParameterName, templateTypeArgument);
+			} else
+				// pass through as-is if generic type is not a variable
+				this.typeParameters.put(templateTypeParameterName, templateTypeArgument);
+		}
+		this.typeParameters = Collections.unmodifiableMap(this.typeParameters);
+
+		// TODO: REMOVE
+//		Queue<TypeFacade<? super T>> hierarchy = new ArrayDeque<>();
+//		template.postInit(() -> {
+//			for (var superType : template.hierarchy())
+//				hierarchy.offer(
+//						new TypeFacade<>((TypeTemplate<? super T>) superType.template, this, IuReferenceKind.SUPER));
+//		});
 	}
 
 	@Override
@@ -91,8 +157,119 @@ final class TypeFacade<T> extends TypeTemplate<T> implements IuType<T> {
 	}
 
 	@Override
+	public Map<String, TypeFacade<?>> typeParameters() {
+		if (typeParameters == null)
+			return template.typeParameters;
+		else
+			return typeParameters;
+	}
+
+	@Override
+	public boolean hasAnnotation(Class<? extends Annotation> annotationType) {
+		return template.hasAnnotation(annotationType);
+	}
+
+	@Override
+	public <A extends Annotation> A annotation(Class<A> annotationType) {
+		return template.annotation(annotationType);
+	}
+
+	@Override
+	public Iterable<? extends Annotation> annotations() {
+		return template.annotations();
+	}
+
+	@Override
+	public boolean permitted(Predicate<String> isUserInRole) {
+		return template.permitted(isUserInRole);
+	}
+
+	@Override
+	public boolean permitted() {
+		return template.permitted();
+	}
+
+	@Override
+	public <S> IuType<? extends S> sub(Class<S> subclass) throws ClassCastException {
+		return template.sub(subclass);
+	}
+
+	@Override
+	public Class<T> autoboxClass() {
+		return template.autoboxClass();
+	}
+
+	@Override
+	public T autoboxDefault() {
+		return template.autoboxDefault();
+	}
+
+	@Override
+	public String name() {
+		return template.name();
+	}
+
+	@Override
+	public IuType<?> declaringType() {
+		return template.declaringType();
+	}
+
+	@Override
+	public Type deref() {
+		return template.deref();
+	}
+
+	@Override
+	public IuType<T> erase() {
+		return template.erase();
+	}
+
+	@Override
+	public Class<T> erasedClass() {
+		return template.erasedClass();
+	}
+
+	@Override
+	public Iterable<TypeFacade<? super T>> hierarchy() {
+		if (hierarchy == null)
+			return template.hierarchy();
+		else
+			return hierarchy;
+	}
+
+	@Override
+	public TypeFacade<? super T> referTo(Type referentType) {
+		return TypeUtils.referTo(this, hierarchy(), referentType);
+	}
+
+	@Override
+	public Iterable<? extends IuType<?>> enclosedTypes() {
+		return template.enclosedTypes();
+	}
+
+	@Override
+	public Iterable<? extends IuConstructor<T>> constructors() {
+		return template.constructors();
+	}
+
+	@Override
+	public Iterable<? extends IuField<?>> fields() {
+		return template.fields();
+	}
+
+	@Override
+	public Iterable<? extends IuProperty<?>> properties() {
+		return template.properties();
+	}
+
+	@Override
+	public Iterable<? extends IuMethod<?>> methods() {
+		return template.methods();
+	}
+
+	@Override
 	public String toString() {
-		var sb = new StringBuilder("IuType[").append(annotatedElement);
+		var sb = new StringBuilder("IuType[").append(TypeUtils.printType(template.deref()));
 		IuTypeReference<?, ?> ref = reference;
 		while (ref != null) {
 			sb.append(' ').append(ref.kind());
@@ -107,7 +284,7 @@ final class TypeFacade<T> extends TypeTemplate<T> implements IuType<T> {
 
 			if (referrer instanceof TypeFacade) {
 				var referrerType = (TypeFacade<?>) referrer;
-				sb.append(referrerType.annotatedElement);
+				sb.append(TypeUtils.printType(referrerType.template.deref()));
 				ref = referrerType.reference;
 			} else {
 				sb.append(referrer);

@@ -37,16 +37,24 @@ import java.util.List;
 /**
  * Facade interface for an {@link Executable} element: a method or constructor.
  * 
- * @param <T> Target type: method return type, or constructor declaring type
+ * @param <R> result type
+ * 
  */
-public interface IuExecutable<T> extends IuDeclaredElement, IuParameterizedElement {
+public interface IuExecutable<R> extends IuDeclaredElement, IuParameterizedElement {
+
+	/**
+	 * Gets the hash key for this executable.
+	 * 
+	 * @return hash key
+	 */
+	IuExecutableKey getKey();
 
 	/**
 	 * Gets the parameters.
 	 * 
 	 * @return parameters
 	 */
-	List<IuParameter<?>> parameters();
+	List<? extends IuParameter<?>> parameters();
 
 	/**
 	 * Gets a parameter type.
@@ -65,6 +73,6 @@ public interface IuExecutable<T> extends IuDeclaredElement, IuParameterizedEleme
 	 * @return result
 	 * @throws Exception If an exception occurs
 	 */
-	T exec(Object... arguments) throws Exception;
+	R exec(Object... arguments) throws Exception;
 
 }

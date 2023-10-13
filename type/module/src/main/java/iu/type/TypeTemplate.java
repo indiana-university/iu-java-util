@@ -31,14 +31,16 @@
  */
 package iu.type;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayDeque;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.function.Consumer;
 
 import edu.iu.type.IuAnnotatedElement;
 import edu.iu.type.IuConstructor;
@@ -54,169 +56,223 @@ import edu.iu.type.IuTypeReference;
  * 
  * <p>
  * Each template is a standalone representation of a single generic type,
- * potentially pair with a raw template
+ * potentially paired with a raw template.
+ * </p>
+ * 
+ * <p>
+ * Note that {@link TypeTemplate} is not sterotyped as a hash key, but
+ * {@link IuType} is. This hash key behavior comes from same-instance identity
+ * (default) {@link #hashCode()} and {@link #equals(Object)} implementations by
+ * instances managed by {@link TypeFactory}. Since ClassLoading data is loaded
+ * exactly once and remains static once loaded, type introspection instances
+ * should match that load-once static behavior. It is expected that each raw
+ * type (primitive, class, interface, enum, record, etc) has exactly one
+ * {@link TypeTemplate} instance, and a {@link TypeFacade} instance for each raw
+ * type. Internal checks for equality (and inequality) may use == (and !=).
+ * </p>
+ * 
+ * <p>
+ * Note also that Java does not constrain the number of {@link Type} instances,
+ * and considers those instances other than {@link Class} to be disposable.
+ * {@link TypeFactory} does not manage {@link TypeTemplate} instances for
+ * generic type markers once returned to the application.
+ * </p>
  * 
  * @param <T> raw or generic type
  */
-sealed class TypeTemplate<T> extends ParameterizedElementBase<Class<T>> implements IuType<T> permits TypeFacade {
-
-	/**
-	 * Type builder utility for use by {@link TypeFactory}.
-	 * 
-	 * @param <T> generic type
-	 */
-	static class Builder<T> {
-		private final Class<T> erasedClass;
-		private final Type type;
-		private final TypeTemplate<T> erasedType;
-		private Iterable<TypeTemplate<? super T>> hierarchy;
-
-		private Builder(Class<T> rawClass) {
-			this.type = rawClass;
-			this.erasedClass = rawClass;
-			this.erasedType = null;
-		}
-
-		private Builder(Type type, TypeTemplate<T> erasedType) {
-			assert !(type instanceof Class) : type;
-			assert erasedType.deref() instanceof Class : erasedType;
-			this.type = type;
-			this.erasedClass = erasedType.erasedClass();
-			this.erasedType = erasedType;
-
-			Queue<TypeTemplate<? super T>> hierarchy = new ArrayDeque<>();
-			for (var superType : erasedType.hierarchy)
-				hierarchy.add(superType);
-			this.hierarchy = hierarchy;
-		}
-
-		/**
-		 * Adds hierarchy templates to the builder. <em>May</em> only be called once.
-		 * 
-		 * @param hierarchy hierarchy templates, arguments <em>must not</em> be modified
-		 *                  after passing in.
-		 * @return this
-		 */
-		Builder<T> hierarchy(Iterable<TypeTemplate<? super T>> hierarchy) {
-			assert this.hierarchy == null : this.hierarchy + " " + hierarchy;
-			this.hierarchy = hierarchy;
-			return this;
-		}
-
-		/**
-		 * Gets the type template instance.
-		 * 
-		 * @return type template instance
-		 */
-		TypeTemplate<T> build() {
-			if (hierarchy == null)
-				if (erasedClass != Object.class && !erasedClass.isInterface())
-					throw new IllegalStateException("Missing hierarchy for " + erasedClass);
-				else
-					hierarchy = Collections.emptySet();
-
-			return new TypeTemplate<>(erasedClass, type, erasedType, hierarchy);
-		}
-	}
-
-	/**
-	 * Creates a builder for a raw class.
-	 * 
-	 * @param <T>      raw type
-	 * @param rawClass raw class
-	 * @return raw class template builder
-	 */
-	static <T> Builder<T> builder(Class<T> rawClass) {
-		return new Builder<>(rawClass);
-	}
-
-	/**
-	 * Creates a builder for a generic type.
-	 * 
-	 * @param <T>             generic type
-	 * @param type            generic type
-	 * @param erasureTemplate raw type representing the generic type's erasure
-	 * @return generic type facade builder
-	 */
-	static <T> Builder<T> builder(Type type, TypeTemplate<T> erasureTemplate) {
-		return new Builder<>(type, erasureTemplate);
-	}
+final class TypeTemplate<T> extends ParameterizedElementBase<Class<T>> implements IuType<T> {
 
 	private final Type type;
-	private final TypeTemplate<T> erasedType;
+	private final IuType<T> erasedType;
 	private final Iterable<TypeFacade<? super T>> hierarchy;
+	private final Iterable<ConstructorFacade<T>> constructors;
+	private final Iterable<FieldFacade<? super T, ?>> fields;
+	private final Iterable<MethodFacade<? super T, ?>> methods;
 
-	private TypeTemplate(Class<T> annotatedElement, Type type, TypeTemplate<T> erasedType,
-			Iterable<TypeTemplate<? super T>> hierarchyTemplates) {
-		super(annotatedElement);
+	private TypeTemplate(Class<T> annotatedElement, Consumer<TypeTemplate<T>> preInitHook, Type type,
+			TypeTemplate<T> erasedType, Iterable<? extends IuType<? super T>> hierarchy) {
+		super(annotatedElement, preInitHook == null ? null : s -> preInitHook.accept((TypeTemplate<T>) s));
+
 		this.type = type;
+		this.erasedType = initializeErasedType(erasedType);
+		this.hierarchy = initializeHierarchy(hierarchy);
+		this.constructors = initializeConstructors();
+		this.fields = initializeFields();
+		this.methods = initializeMethods();
 
+		finishPostInit();
+
+		if (type instanceof ParameterizedType) {
+			final var parameterizedType = (ParameterizedType) type;
+			final var actualTypeArguments = parameterizedType.getActualTypeArguments();
+			final var typeParameters = annotatedElement.getTypeParameters();
+			final var length = typeParameters.length;
+			for (var i = 0; i < length; i++) {
+				var typeParam = typeParameters[i].getName();
+				var typeArgument = TypeFactory.resolveType(actualTypeArguments[i]);
+				this.typeParameters.put(typeParam,
+						new TypeFacade<>(typeArgument, this, IuReferenceKind.TYPE_PARAM, typeParam));
+			}
+		}
+
+		typeParameters = Collections.unmodifiableMap(typeParameters);
+
+		if (this.erasedType instanceof TypeFacade)
+			((TypeFacade<T>) this.erasedType).sealTypeParameters(typeParameters);
+
+		for (var superType : this.hierarchy)
+			superType.sealTypeParameters(typeParameters);
+	}
+
+	/**
+	 * Raw class constructor intended for use only by {@link TypeFactory}.
+	 * 
+	 * @param rawClass    raw class
+	 * @param preInitHook receives a handle to {@code this} after binding the
+	 *                    annotated element but before initializing and members
+	 * @param hierarchy   pre-calculated type hierarchy; a {@link TypeTemplate}
+	 *                    cannot be created without fully formed instances of all
+	 *                    extended classes and implemented interfaces provided as an
+	 *                    argument to this parameter
+	 */
+	TypeTemplate(Class<T> rawClass, Consumer<TypeTemplate<T>> preInitHook,
+			Iterable<? extends IuType<? super T>> hierarchy) {
+		this(rawClass, preInitHook, rawClass, null, hierarchy);
+	}
+
+	/**
+	 * Generic type constructor intended for use only by {@link TypeFactory}.
+	 * 
+	 * @param preInitHook receives a handle to {@code this} after binding the
+	 *                    annotated element but before initializing and members
+	 * @param type        generic type; <em>must not</em> be a class
+	 * @param erasedType  pre-calculated raw type template; a {@link TypeTemplate}
+	 *                    cannot be created for a generic type without a
+	 *                    fully-formed instance of its type erasure, provided as an
+	 *                    argument to this parameter
+	 */
+	TypeTemplate(Consumer<TypeTemplate<T>> preInitHook, Type type, TypeTemplate<T> erasedType) {
+		this(erasedType.erasedClass(), preInitHook, type, erasedType, erasedType.hierarchy);
+		assert !(type instanceof Class) : type;
+		assert erasedType.erasedClass() == TypeFactory.getErasedClass(type)
+				: erasedType + " " + TypeUtils.printType(type);
+	}
+
+	// Builder constructor helpers
+	private IuType<T> initializeErasedType(TypeTemplate<T> erasedType) {
 		if (erasedType == null)
-			this.erasedType = this;
+			return this;
 		else
-			this.erasedType = new TypeFacade<T>(erasedType, this, IuReferenceKind.ERASURE);
+			return new TypeFacade<T>(erasedType, this, IuReferenceKind.ERASURE);
+	}
+
+	private Iterable<TypeFacade<? super T>> initializeHierarchy(Iterable<? extends IuType<? super T>> hierarchy) {
+		if (hierarchy == null)
+			if (annotatedElement != Object.class && annotatedElement != Enum.class && !annotatedElement.isInterface())
+				throw new IllegalStateException("Missing hierarchy for " + annotatedElement);
+			else
+				hierarchy = Collections.emptySet();
 
 		TypeFacade<? super T> last = null;
 		Map<Class<?>, TypeFacade<? super T>> hierarchyByErasure = new LinkedHashMap<>();
-		for (var hierarchyTemplate : hierarchyTemplates) {
-			var templateReference = hierarchyTemplate.reference();
+		for (var superType : hierarchy) {
+			var templateReference = superType.reference();
 
 			IuAnnotatedElement referrer;
-			if (templateReference == null || templateReference.referrer() == hierarchyTemplate)
+			TypeTemplate<? super T> superTypeTemplate;
+			if (templateReference == null) {
 				referrer = this;
-			else {
-				TypeTemplate<?> referrerTemplate = (TypeTemplate<?>) templateReference.referrer();
-				referrer = Objects.requireNonNull(hierarchyByErasure.get(referrerTemplate.erasedClass()));
+				superTypeTemplate = (TypeTemplate<? super T>) superType;
+			} else {
+				superTypeTemplate = ((TypeFacade<? super T>) superType).template;
+
+				var erasedReferrerClass = ((IuType<?>) templateReference.referrer()).erasedClass();
+				if (erasedReferrerClass == annotatedElement)
+					referrer = this;
+				else {
+					referrer = Objects.requireNonNull(hierarchyByErasure.get(erasedReferrerClass),
+							() -> hierarchyByErasure + "; " + erasedReferrerClass);
+				}
 			}
 
-			last = new TypeFacade<>(hierarchyTemplate, referrer, IuReferenceKind.SUPER);
+			last = new TypeFacade<>(superTypeTemplate, referrer, IuReferenceKind.SUPER);
 
 			var replaced = hierarchyByErasure.put(last.erasedClass(), last);
 			assert replaced == null : replaced;
 		}
 
 		if (hierarchyByErasure.isEmpty()) {
-			if (annotatedElement != Object.class && !annotatedElement.isInterface())
+			if (annotatedElement != Object.class && annotatedElement != Enum.class && !annotatedElement.isInterface()
+					&& !annotatedElement.isPrimitive())
 				throw new IllegalArgumentException("Missing hierarchy for " + annotatedElement);
 		} else
-			assert last.erasedClass() == Object.class : hierarchyByErasure;
+			assert last.erasedClass() == Object.class || last.erasedClass().isInterface() : hierarchyByErasure;
 
-		this.hierarchy = hierarchyByErasure.values();
+		return hierarchyByErasure.values();
 	}
 
-	/**
-	 * Copy constructor, for extension by {@link TypeFacade}.
-	 * 
-	 * <p>
-	 * Limited scope head recursion. <em>Must not</em> call
-	 * {@code new TypeFacade(this, ...)}.
-	 * </p>
-	 * 
-	 * @param copy template to copy from
-	 */
-	protected TypeTemplate(TypeTemplate<T> copy) {
-		super(copy.annotatedElement);
-		this.type = copy.type;
+	private boolean isNative() {
+		return TypeUtils.isPlatformType(name()) //
+				|| ("iu.type".equals(annotatedElement.getPackageName()) //
+						&& annotatedElement.getEnclosingClass() == null //
+						&& annotatedElement.getEnclosingMethod() == null //
+						&& annotatedElement.getEnclosingConstructor() == null);
+	}
 
-		if (copy.erasedType == copy)
-			this.erasedType = this;
-		else
-			this.erasedType = new TypeFacade<>(copy.erasedType, this, IuReferenceKind.ERASURE);
+	@SuppressWarnings("unchecked")
+	private Iterable<ConstructorFacade<T>> initializeConstructors() {
+		Queue<ConstructorFacade<T>> rv = new ArrayDeque<>();
 
-		Map<Class<?>, TypeFacade<? super T>> hierarchyByErasure = new HashMap<>();
-		Queue<TypeFacade<? super T>> hierarchy = new ArrayDeque<>();
-		for (var copySuperType : copy.hierarchy) {
-			@SuppressWarnings("unchecked")
-			TypeTemplate<? super T> copyReferrer = (TypeTemplate<? super T>) copySuperType.reference().referrer();
-			TypeTemplate<? super T> referrer;
-			if (copyReferrer == copy)
-				referrer = this;
-			else
-				referrer = Objects.requireNonNull(hierarchyByErasure.get(copyReferrer.erasedClass()));
+		if (!isNative() //
+				&& !annotatedElement.isInterface() //
+				&& !annotatedElement.isEnum() //
+				&& !annotatedElement.isPrimitive())
+			for (var constructor : annotatedElement.getDeclaredConstructors())
+				// _unchecked warning_: see source for #getDeclaredConstructors()
+				// => This cast is safe as of Java 17
+				rv.offer(new ConstructorFacade<>((Constructor<T>) constructor, this));
 
-			hierarchy.offer(new TypeFacade<>(copySuperType, referrer, IuReferenceKind.SUPER));
-		}
-		this.hierarchy = hierarchy;
+		return rv;
+	}
+
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private Iterable<FieldFacade<? super T, ?>> initializeFields() {
+		Queue<FieldFacade<? super T, ?>> rv = new ArrayDeque<>();
+
+		if (!isNative()) //
+			for (var field : annotatedElement.getDeclaredFields()) {
+				TypeTemplate<?> fieldType;
+				if (field.getType() == annotatedElement)
+					fieldType = this;
+				else
+					fieldType = TypeFactory.resolveType(field.getGenericType());
+
+				rv.offer(new FieldFacade(field, fieldType, this));
+			}
+
+		for (var superType : hierarchy)
+			superType.template.postInit(() -> {
+				for (var inheritedField : superType.template.fields)
+					rv.offer(inheritedField);
+			});
+
+		return rv;
+	}
+
+	private Iterable<MethodFacade<? super T, ?>> initializeMethods() {
+		Queue<MethodFacade<? super T, ?>> rv = new ArrayDeque<>();
+
+		if (!isNative()) //
+			for (var method : annotatedElement.getDeclaredMethods())
+				rv.offer(new MethodFacade<>(method, this));
+
+		for (var superType : hierarchy)
+			superType.template.postInit(() -> {
+				for (var inheritedMethod : superType.template.methods)
+					rv.offer(inheritedMethod);
+			});
+
+		return rv;
 	}
 
 	@Override
@@ -236,11 +292,12 @@ sealed class TypeTemplate<T> extends ParameterizedElementBase<Class<T>> implemen
 
 	@Override
 	public Type deref() {
-		return type;
+		// initialization race condition required by toString()
+		return type == null ? annotatedElement : type;
 	}
 
 	@Override
-	public TypeTemplate<T> erase() {
+	public IuType<T> erase() {
 		return erasedType;
 	}
 
@@ -256,11 +313,7 @@ sealed class TypeTemplate<T> extends ParameterizedElementBase<Class<T>> implemen
 
 	@Override
 	public TypeFacade<? super T> referTo(Type referentType) {
-		var erasedClass = TypeFactory.getErasedClass(referentType);
-		for (var superType : hierarchy)
-			if (superType.erasedClass() == erasedClass)
-				return superType;
-		throw new IllegalArgumentException(referentType + " present in type hierarchy for " + this);
+		return TypeUtils.referTo(this, hierarchy, referentType);
 	}
 
 	@Override
@@ -271,32 +324,12 @@ sealed class TypeTemplate<T> extends ParameterizedElementBase<Class<T>> implemen
 
 	@Override
 	public Iterable<? extends IuConstructor<T>> constructors() {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
-	}
-
-	@Override
-	public IuConstructor<T> constructor(Type... parameterTypes) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
-	}
-
-	@Override
-	public IuConstructor<T> constructor(IuType<?>... parameterTypes) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+		return constructors;
 	}
 
 	@Override
 	public Iterable<? extends IuField<?>> fields() {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
-	}
-
-	@Override
-	public IuField<?> field(String name) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+		return fields;
 	}
 
 	@Override
@@ -306,32 +339,13 @@ sealed class TypeTemplate<T> extends ParameterizedElementBase<Class<T>> implemen
 	}
 
 	@Override
-	public IuProperty<?> property(String name) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
-	}
-
-	@Override
 	public Iterable<? extends IuMethod<?>> methods() {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
-	}
-
-	@Override
-	public IuMethod<?> method(String name, Type... parameterTypes) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
-	}
-
-	@Override
-	public IuMethod<?> method(String name, IuType<?>... parameterTypes) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+		return methods;
 	}
 
 	@Override
 	public String toString() {
-		return "IuType[" + type + ']';
+		return "IuType[" + TypeUtils.printType(deref()) + ']';
 	}
 
 }

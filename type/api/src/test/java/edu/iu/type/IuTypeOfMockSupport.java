@@ -29,37 +29,42 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type;
+package edu.iu.type;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Executable;
-import java.lang.reflect.Method;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
-/**
- * Hash key for mapping {@link Executable} instances.
- * 
- * @param name   method name; null for constructors
- * @param params parameter raw types
- */
-record ExecutableKey(String name, Class<?>... params) {
+import java.lang.reflect.Type;
 
-	/**
-	 * Gets a hash key for a constructor.
-	 * 
-	 * @param constructor constructor
-	 * @return constructor hash key
-	 */
-	static ExecutableKey of(Constructor<?> constructor) {
-		return new ExecutableKey(null, constructor.getParameterTypes());
+import org.junit.jupiter.api.extension.AfterEachCallback;
+import org.junit.jupiter.api.extension.BeforeEachCallback;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.mockito.MockedStatic;
+import org.mockito.stubbing.Answer;
+
+@SuppressWarnings({ "javadoc", "exports", "rawtypes" })
+public class IuTypeOfMockSupport implements AfterEachCallback, BeforeEachCallback {
+
+	private MockedStatic<IuType> mockType;
+
+	@Override
+	public void beforeEach(ExtensionContext context) throws Exception {
+		mockType = mockStatic(IuType.class);
+		Answer<?> answer = a -> {
+			var type = mock(IuType.class);
+			var generic = (Class<?>) a.getArguments()[0];
+			when(type.erasedClass()).thenReturn(generic);
+			return type;
+		};
+		mockType.when(() -> IuType.of(any(Type.class))).then(answer);
+		mockType.when(() -> IuType.of(any(Class.class))).then(answer);
 	}
 
-	/**
-	 * Gets a hash key for a method.
-	 * 
-	 * @param method method
-	 * @return method hash key
-	 */
-	static ExecutableKey of(Method method) {
-		return new ExecutableKey(method.getName(), method.getParameterTypes());
+	@Override
+	public void afterEach(ExtensionContext context) throws Exception {
+		mockType.close();
 	}
+
 }

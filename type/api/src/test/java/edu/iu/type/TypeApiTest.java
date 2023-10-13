@@ -35,8 +35,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.beans.Transient;
@@ -47,10 +49,12 @@ import java.util.function.Predicate;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import edu.iu.test.IuTest;
 
 @SuppressWarnings("javadoc")
+@ExtendWith(IuTypeOfMockSupport.class)
 public class TypeApiTest {
 
 	@BeforeAll
@@ -254,6 +258,97 @@ public class TypeApiTest {
 		when(type.deref()).thenReturn(void.class);
 		assertSame(Void.class, type.autoboxClass());
 		assertNull(type.autoboxDefault());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testConstructors() {
+		var con1 = mock(IuConstructor.class);
+		when(con1.getKey()).thenReturn(IuExecutableKey.of(null));
+		var con2 = mock(IuConstructor.class);
+		var key2 = IuExecutableKey.of(null, Object.class);
+		when(con2.getKey()).thenReturn(key2);
+		var type = IuTest.mockWithDefaults(IuType.class);
+		when(type.constructors()).thenReturn(List.of(con1, con2));
+		assertSame(con1, type.constructor());
+		assertSame(con2, type.constructor(Object.class));
+		assertSame(con1, type.constructor(List.of()));
+		assertSame(con2, type.constructor(List.of(IuType.of(Object.class))));
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testConstructorHashCollisions() {
+		var key1 = IuExecutableKey.of("", Object.class);
+		var key2 = IuExecutableKey.of(null, Object.class);
+		assertEquals(key1.hashCode(), key2.hashCode());
+
+		var con1 = mock(IuConstructor.class);
+		when(con1.getKey()).thenReturn(key1);
+		var con2 = mock(IuConstructor.class);
+		when(con2.getKey()).thenReturn(key2);
+		var type = IuTest.mockWithDefaults(IuType.class);
+		when(type.constructors()).thenReturn(List.of(con1, con2));
+		assertEquals(type + " missing constructor <init>()",
+				assertThrows(IllegalArgumentException.class, () -> type.constructor()).getMessage());
+		assertSame(con2, type.constructor(Object.class));
+		assertEquals(type + " missing constructor <init>()",
+				assertThrows(IllegalArgumentException.class, () -> type.constructor(List.of())).getMessage());
+		assertSame(con2, type.constructor(List.of(IuType.of(Object.class))));
+	}
+
+	@Test
+	public void testFields() {
+		var f1 = mock(IuField.class);
+		when(f1.name()).thenReturn("a");
+		var f2 = mock(IuField.class);
+		when(f2.name()).thenReturn("b");
+		var f3 = mock(IuField.class);
+		when(f3.name()).thenReturn("b");
+		var type = IuTest.mockWithDefaults(IuType.class);
+		when(type.fields()).thenReturn(List.of(f1, f2, f3));
+		assertSame(f1, type.field("a"));
+		assertSame(f2, type.field("b"));
+		assertEquals(type + " missing field c",
+				assertThrows(IllegalArgumentException.class, () -> type.field("c")).getMessage());
+	}
+
+	@Test
+	public void testProperties() {
+		var f1 = mock(IuProperty.class);
+		when(f1.name()).thenReturn("a");
+		var f2 = mock(IuProperty.class);
+		when(f2.name()).thenReturn("b");
+		var f3 = mock(IuProperty.class);
+		when(f3.name()).thenReturn("b");
+		var type = IuTest.mockWithDefaults(IuType.class);
+		when(type.properties()).thenReturn(List.of(f1, f2, f3));
+		assertSame(f1, type.property("a"));
+		assertSame(f2, type.property("b"));
+		assertEquals(type + " missing property c",
+				assertThrows(IllegalArgumentException.class, () -> type.property("c")).getMessage());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testMethods() {
+		var m1 = mock(IuMethod.class);
+		when(m1.getKey()).thenReturn(IuExecutableKey.of(null));
+		var m2 = mock(IuMethod.class);
+		when(m2.getKey()).thenReturn(IuExecutableKey.of(""));
+		var m3 = mock(IuMethod.class);
+		var k3 = IuExecutableKey.of("", Object.class);
+		when(m3.getKey()).thenReturn(k3);
+		var type = IuTest.mockWithDefaults(IuType.class);
+		when(type.methods()).thenReturn(List.of(m1, m2, m3));
+		assertSame(m2, type.method(""));
+		assertSame(m3, type.method("", Object.class));
+		assertSame(m2, type.method("", List.of()));
+		assertSame(m3, type.method("", List.of(IuType.of(Object.class))));
+		assertEquals(type + " missing method c()",
+				assertThrows(IllegalArgumentException.class, () -> type.method("c")).getMessage());
+		assertEquals(type + " missing method c(Object)",
+				assertThrows(IllegalArgumentException.class, () -> type.method("c", List.of(IuType.of(Object.class)))).getMessage());
 	}
 
 }

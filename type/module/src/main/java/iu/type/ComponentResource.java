@@ -33,12 +33,12 @@ package iu.type;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
-import java.lang.reflect.Type;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.function.Supplier;
 
 import edu.iu.IuException;
+import edu.iu.UnsafeSupplier;
 import edu.iu.type.IuResource;
 import edu.iu.type.IuType;
 import jakarta.annotation.Resource;
@@ -83,15 +83,14 @@ class ComponentResource<T> implements IuResource<T> {
 	/**
 	 * Gets an instance of the resource.
 	 * 
-	 * @param <T>                 resource type
-	 * @param resourceInterface   resource interface or raw implemenation class
-	 * @param implementationClass resource implementation or
-	 *                            {@link InvocationHandler}
+	 * @param <T>                   resource type
+	 * @param resourceInterface     resource interface or raw implemenation class
+	 * @param implementationFactory supplies a resource implementation or
+	 *                              {@link InvocationHandler} instance
 	 * @return resource instance
 	 */
-	static <T> T createResourceInstance(Class<T> resourceInterface, Class<?> implementationClass) {
-		var implementationInstance = IuException
-				.unchecked(() -> IuType.of(implementationClass).constructor(new Type[0]).exec());
+	static <T> T createResourceInstance(Class<T> resourceInterface, UnsafeSupplier<?> implementationFactory) {
+		var implementationInstance = IuException.unchecked(implementationFactory);
 		if (implementationInstance instanceof InvocationHandler)
 			return resourceInterface.cast(Proxy.newProxyInstance(resourceInterface.getClassLoader(),
 					new Class<?>[] { resourceInterface }, (InvocationHandler) implementationInstance));
@@ -102,14 +101,18 @@ class ComponentResource<T> implements IuResource<T> {
 	/**
 	 * Gets an instance of the resource.
 	 * 
-	 * @param resourceReference   resource annotation;
-	 *                            {@link #isApplicationResource(Resource, Class)}
-	 *                            <em>must</em> return true.
-	 * @param implementationClass implementation class or {@link InvocationHandler}
+	 * @param resourceReference     resource annotation;
+	 *                              {@link #isApplicationResource(Resource, Class)}
+	 *                              <em>must</em> return true.
+	 * @param implementationClass   implementation class or
+	 *                              {@link InvocationHandler}
+	 * @param implementationFactory supplies a resource implementation or
+	 *                              {@link InvocationHandler} instance
 	 * @return resource instance
 	 */
 	@SuppressWarnings({ "rawtypes", "unchecked" })
-	static ComponentResource<?> createResource(Resource resourceReference, Class<?> implementationClass) {
+	static ComponentResource<?> createResource(Resource resourceReference, Class<?> implementationClass,
+			UnsafeSupplier<?> implementationFactory) {
 		IuType type;
 		if (InvocationHandler.class.isAssignableFrom(implementationClass)) {
 			Class<?> resourceClass = resourceReference.type();
@@ -143,10 +146,10 @@ class ComponentResource<T> implements IuResource<T> {
 
 		Supplier supplier;
 		if (resourceReference.shareable()) {
-			var instance = createResourceInstance(type.erasedClass(), implementationClass);
+			var instance = createResourceInstance(type.erasedClass(), implementationFactory);
 			supplier = () -> instance;
 		} else
-			supplier = () -> createResourceInstance(type.erasedClass(), implementationClass);
+			supplier = () -> createResourceInstance(type.erasedClass(), implementationFactory);
 
 		return new ComponentResource(resourceReference.authenticationType().equals(AuthenticationType.CONTAINER),
 				resourceReference.shareable(), name, type, supplier);
@@ -155,22 +158,25 @@ class ComponentResource<T> implements IuResource<T> {
 	/**
 	 * Gets all resources definitions tied to an implementation class
 	 * 
-	 * @param implementationClass implemenation class
+	 * @param implementationClass   implementation class
+	 * @param implementationFactory supplies resource implementation or
+	 *                              {@link InvocationHandler} instances
 	 * @return resource definitions
 	 */
-	static Iterable<ComponentResource<?>> getResources(Class<?> implementationClass) {
+	static Iterable<ComponentResource<?>> getResources(Class<?> implementationClass,
+			UnsafeSupplier<?> implementationFactory) {
 		Queue<ComponentResource<?>> resources = new ArrayDeque<>();
 
 		var resourceReferences = AnnotationBridge.getAnnotation(Resources.class, implementationClass);
 		if (resourceReferences != null)
 			for (var resourceReference : resourceReferences.value())
 				if (isApplicationResource(resourceReference, implementationClass))
-					resources.add(createResource(resourceReference, implementationClass));
+					resources.add(createResource(resourceReference, implementationClass, implementationFactory));
 
 		var resourceReference = AnnotationBridge.getAnnotation(Resource.class, implementationClass);
 		if (resourceReference != null)
 			if (isApplicationResource(resourceReference, implementationClass))
-				resources.add(createResource(resourceReference, implementationClass));
+				resources.add(createResource(resourceReference, implementationClass, implementationFactory));
 
 		return resources;
 	}

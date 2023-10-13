@@ -34,9 +34,13 @@ package iu.type;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
+import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Parameter;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 
 import edu.iu.UnsafeSupplier;
+import edu.iu.type.IuType;
 
 /**
  * Miscellaneous type introspection utilities.
@@ -114,6 +118,59 @@ final class TypeUtils {
 	 */
 	static <T> T callWithContext(AnnotatedElement element, UnsafeSupplier<T> supplier) throws Throwable {
 		return callWithContext(getContext(element), supplier);
+	}
+
+	/**
+	 * Prints a generic type.
+	 * 
+	 * @param type generic type
+	 * @return human-readable form
+	 */
+	static String printType(Type type) {
+		if (type instanceof Class) {
+			var c = (Class<?>) type;
+			if (c.isArray())
+				return printType(c.componentType()) + "[]";
+			else
+				return c.getSimpleName();
+		} else if (type instanceof GenericArrayType) {
+			var genericArrayType = (GenericArrayType) type;
+			var genericComponentType = genericArrayType.getGenericComponentType();
+			return printType(genericComponentType) + "[]";
+		} else if (type instanceof ParameterizedType) {
+			var parameterizedType = (ParameterizedType) type;
+			StringBuilder sb = new StringBuilder(printType(parameterizedType.getRawType()));
+			sb.append('<');
+			var l = sb.length();
+			for (var actualTypeArgument : parameterizedType.getActualTypeArguments()) {
+				if (sb.length() > l)
+					sb.append(',');
+				sb.append(printType(actualTypeArgument));
+			}
+			sb.append('>');
+			return sb.toString();
+		} else
+			return type.toString();
+	}
+
+	/**
+	 * Refers to a type in a hierarchy, for internal use by {@link TypeTemplate} and
+	 * {@link TypeFacade}.
+	 * 
+	 * @param <T>          referrer type
+	 * @param referrerType referrer type facade
+	 * @param hierarchy    referrer's type hierarchy
+	 * @param referentType generic referent type to match
+	 * 
+	 * @return inherited type facade with same erasure as the {@code referentType}
+	 */
+	static <T> TypeFacade<? super T> referTo(IuType<T> referrerType, Iterable<TypeFacade<? super T>> hierarchy,
+			Type referentType) {
+		var erasedClass = TypeFactory.getErasedClass(referentType);
+		for (var superType : hierarchy)
+			if (superType.erasedClass() == erasedClass)
+				return superType;
+		throw new IllegalArgumentException(referentType + " present in type hierarchy for " + referrerType);
 	}
 
 	private TypeUtils() {

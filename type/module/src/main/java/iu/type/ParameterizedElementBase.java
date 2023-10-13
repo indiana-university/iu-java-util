@@ -33,9 +33,9 @@ package iu.type;
 
 import java.lang.reflect.GenericDeclaration;
 import java.lang.reflect.Method;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import edu.iu.type.IuParameterizedElement;
 import edu.iu.type.IuReferenceKind;
@@ -46,25 +46,28 @@ import edu.iu.type.IuReferenceKind;
  * @param <E> generic declaration type
  */
 sealed class ParameterizedElementBase<E extends GenericDeclaration> extends AnnotatedElementBase<E>
-		implements IuParameterizedElement permits TypeTemplate {
+		implements IuParameterizedElement permits TypeTemplate, ExecutableBase {
 
-	private Map<String, TypeFacade<?>> typeParameters;
+	/**
+	 * Type parameter mapping, may be resolved during construction, then converted
+	 * to unmodifiable at postInit phase.
+	 */
+	protected Map<String, TypeFacade<?>> typeParameters;
 
 	/**
 	 * Facade constructor.
 	 * 
 	 * @param annotatedElement parameterized element to provide a view of
+	 * @param preInitHook      receives a handle to {@code this} after binding the
+	 *                         annotated element but before initializing and members
 	 */
-	protected ParameterizedElementBase(E annotatedElement) {
-		super(annotatedElement);
-	}
+	protected ParameterizedElementBase(E annotatedElement, Consumer<ParameterizedElementBase<E>> preInitHook) {
+		super(annotatedElement, preInitHook == null ? null : s -> preInitHook.accept((ParameterizedElementBase<E>) s));
 
-	@Override
-	public Map<String, TypeFacade<?>> typeParameters() {
-		if (typeParameters == null) {
-			Map<String, TypeFacade<?>> typeParameterMap = new LinkedHashMap<>();
-			var typeParameters = annotatedElement.getTypeParameters();
-			if (typeParameters != null)
+		this.typeParameters = new LinkedHashMap<>();
+		var typeParameters = annotatedElement.getTypeParameters();
+		if (typeParameters != null)
+			postInit(() -> {
 				for (var typeParameter : typeParameters) {
 					var name = typeParameter.getName();
 
@@ -76,12 +79,14 @@ sealed class ParameterizedElementBase<E extends GenericDeclaration> extends Anno
 					else
 						kind = IuReferenceKind.CONSTRUCTOR_PARAM;
 
-					typeParameterMap.put(name,
+					this.typeParameters.put(name,
 							new TypeFacade<>(TypeFactory.resolveType(typeParameter), this, kind, name));
 				}
+			});
+	}
 
-			this.typeParameters = Collections.unmodifiableMap(typeParameterMap);
-		}
+	@Override
+	public Map<String, TypeFacade<?>> typeParameters() {
 		return typeParameters;
 	}
 

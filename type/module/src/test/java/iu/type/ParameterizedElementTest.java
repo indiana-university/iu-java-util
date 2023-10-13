@@ -29,43 +29,49 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.type;
+package iu.type;
 
-import java.lang.reflect.Parameter;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
-/**
- * Facade interface for a {@link Parameter}.
- * 
- * @param <T> parameter type
- */
-public interface IuParameter<T> extends IuAnnotatedElement {
+import org.junit.jupiter.api.Test;
 
-	/**
-	 * Gets the executable element that declares the parameter.
-	 * 
-	 * @return declaring executable
-	 */
-	IuExecutable<?> declaringExecutable();
+import edu.iu.type.IuType;
 
-	/**
-	 * Gets the parameter index.
-	 * 
-	 * @return parameter index
-	 */
-	int index();
+@SuppressWarnings({"javadoc", "unused"})
+public class ParameterizedElementTest {
 
-	/**
-	 * Gets the parameter name.
-	 * 
-	 * @return parameter name
-	 */
-	String name();
+	@Test
+	public void testTypeParams() {
+		class HasTypeParams<A, B extends Number> {
+		}
+		var parameterizedElement = IuType.of(HasTypeParams.class);
+		assertEquals(Object.class, parameterizedElement.typeParameter("A").erasedClass());
+		assertEquals(Number.class, parameterizedElement.typeParameter("B").erasedClass());
+		assertNull(parameterizedElement.typeParameter("C"));
+	}
 
-	/**
-	 * Gets the parameter type.
-	 * 
-	 * @return parameter type.
-	 */
-	IuType<T> type();
+	@Test
+	public void testConstructorParams() {
+		class HasConstructorParams {
+			<A, B extends Number> HasConstructorParams() {
+			}
+		}
+		var parameterizedElement = IuType.of(HasConstructorParams.class).constructor(getClass());
+		assertEquals(Object.class, parameterizedElement.typeParameter("A").erasedClass());
+		assertEquals(Number.class, parameterizedElement.typeParameter("B").erasedClass());
+		assertNull(parameterizedElement.typeParameter("C"));
+	}
 
+	@Test
+	public void testMethodParams() {
+		class HasMethodParams {
+			<A, B extends Number> void methodWithParams() {
+			}
+		}
+		var parameterizedElement = IuType.of(HasMethodParams.class).method("methodWithParams");
+		assertEquals(Object.class, parameterizedElement.typeParameter("A").erasedClass());
+		assertEquals(Number.class, parameterizedElement.typeParameter("B").erasedClass());
+		assertNull(parameterizedElement.typeParameter("C"));
+	}
 }

@@ -33,7 +33,6 @@ package iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -41,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
@@ -151,11 +151,8 @@ public class TypeReferenceTest {
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
 	public void testReferrerUsesIdentityForEquals() {
-		var type1 = TypeFacade.builder(Object.class).build();
-		var type2 = TypeFacade.builder(Object.class).build();
-		assertEquals(type1, type2);
-		assertEquals(type2, type1);
-		assertNotSame(type1, type2);
+		var type1 = new TypeTemplate<>(Object.class, null, List.of());
+		var type2 = new TypeTemplate<>(Object.class, null, List.of());
 		var ref1 = new TypeReference(IuReferenceKind.ERASURE, type1, type1);
 		var ref2 = new TypeReference(IuReferenceKind.ERASURE, type2, type1);
 		assertNotEquals(ref1, ref2);
@@ -172,7 +169,7 @@ public class TypeReferenceTest {
 		assertNotEquals(ref1, ref2);
 		assertNotEquals(ref2, ref1);
 	}
-	
+
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
 	public void testDifferentReferentNotEquals() {
@@ -195,7 +192,7 @@ public class TypeReferenceTest {
 		assertNotEquals(ref1, ref2);
 		assertNotEquals(ref2, ref1);
 	}
-	
+
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
 	public void testDifferentKindsNotEquals() {
