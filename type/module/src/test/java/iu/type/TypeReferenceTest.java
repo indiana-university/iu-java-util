@@ -45,8 +45,8 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.type.IuExecutable;
 import edu.iu.type.IuField;
+import edu.iu.type.IuParameter;
 import edu.iu.type.IuReferenceKind;
 
 @SuppressWarnings("javadoc")
@@ -71,8 +71,8 @@ public class TypeReferenceTest {
 		var type = mock(TypeFacade.class);
 		var field = mock(IuField.class);
 		assertThrows(AssertionError.class, () -> new TypeReference(IuReferenceKind.FIELD, field, type));
-		var exec = mock(IuExecutable.class);
-		assertThrows(AssertionError.class, () -> new TypeReference(IuReferenceKind.PARAMETER, exec, type));
+		var param = mock(IuParameter.class);
+		assertThrows(AssertionError.class, () -> new TypeReference(IuReferenceKind.PARAMETER, param, type));
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
@@ -93,19 +93,19 @@ public class TypeReferenceTest {
 	@Test
 	public void testNamedArgumentKindConstructorRequiresNamedArgumentKind() {
 		var type = mock(TypeFacade.class);
-		var exec = mock(IuExecutable.class);
-		assertThrows(AssertionError.class, () -> new TypeReference(IuReferenceKind.PARAMETER, exec, type, ""));
+		var param = mock(IuParameter.class);
+		assertThrows(AssertionError.class, () -> new TypeReference(IuReferenceKind.PARAMETER, param, type, ""));
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
 	public void testIndexedArgumentKindIsStable() {
 		var type = mock(TypeFacade.class);
-		var exec = mock(IuExecutable.class);
-		var ref = new TypeReference(IuReferenceKind.PARAMETER, exec, type, 0);
+		var param = mock(IuParameter.class);
+		var ref = new TypeReference(IuReferenceKind.PARAMETER, param, type, 0);
 		assertEquals(IuReferenceKind.PARAMETER, ref.kind());
 		assertSame(type, ref.referent());
-		assertSame(exec, ref.referrer());
+		assertSame(param, ref.referrer());
 		assertNull(ref.name());
 		assertEquals(0, ref.index());
 		assertEquals(ref, ref);
@@ -123,8 +123,8 @@ public class TypeReferenceTest {
 	@Test
 	public void testIndexedArgumentKindConstructorRequiresValidIndex() {
 		var type = mock(TypeFacade.class);
-		var exec = mock(IuExecutable.class);
-		assertThrows(AssertionError.class, () -> new TypeReference(IuReferenceKind.PARAMETER, exec, type, -1));
+		var param = mock(IuParameter.class);
+		assertThrows(AssertionError.class, () -> new TypeReference(IuReferenceKind.PARAMETER, param, type, -1));
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
@@ -186,9 +186,9 @@ public class TypeReferenceTest {
 	@Test
 	public void testDifferentIndexNotEquals() {
 		var type = mock(TypeFacade.class);
-		var exec = mock(IuExecutable.class);
-		var ref1 = new TypeReference(IuReferenceKind.PARAMETER, exec, type, 1);
-		var ref2 = new TypeReference(IuReferenceKind.PARAMETER, exec, type, 2);
+		var param = mock(IuParameter.class);
+		var ref1 = new TypeReference(IuReferenceKind.PARAMETER, param, type, 1);
+		var ref2 = new TypeReference(IuReferenceKind.PARAMETER, param, type, 2);
 		assertNotEquals(ref1, ref2);
 		assertNotEquals(ref2, ref1);
 	}

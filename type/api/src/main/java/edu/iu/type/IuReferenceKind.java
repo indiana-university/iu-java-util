@@ -116,7 +116,7 @@ public enum IuReferenceKind {
 	/**
 	 * The type was referred to by {@link Executable#getGenericParameterTypes()}.
 	 */
-	PARAMETER(IuExecutable.class, false, true),
+	PARAMETER(IuParameter.class, false, true),
 
 	/**
 	 * The type was referred to by {@link Method#getGenericReturnType()}.

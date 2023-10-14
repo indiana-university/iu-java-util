@@ -38,6 +38,11 @@ import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
 
 import edu.iu.UnsafeSupplier;
 import edu.iu.type.IuType;
@@ -171,6 +176,50 @@ final class TypeUtils {
 			if (superType.erasedClass() == erasedClass)
 				return superType;
 		throw new IllegalArgumentException(referentType + " present in type hierarchy for " + referrerType);
+	}
+
+	/**
+	 * Internal helper for {@link TypeFacade}, {@link ExecutableBase},
+	 * {@link FieldFacade}.
+	 * 
+	 * @param typeParameters original type parameters
+	 * @param typeArguments  incoming type arguments from the referrer
+	 * 
+	 * @return resulting type parameters, with matching arguments applied
+	 */
+	static Map<String, TypeFacade<?>> sealTypeParameters(Map<String, TypeFacade<?>> typeParameters,
+			Map<String, TypeFacade<?>> typeArguments) {
+		Objects.requireNonNull(typeArguments);
+
+		if (typeParameters.isEmpty())
+			return Collections.emptyMap();
+
+		Map<String, TypeFacade<?>> sealedTypeParameters = new LinkedHashMap<>();
+
+		// step through template.typeParameters
+		for (var templateTypeParameterEntry : typeParameters.entrySet()) {
+			final var templateTypeParameterName = templateTypeParameterEntry.getKey();
+			final var templateTypeParameter = templateTypeParameterEntry.getValue();
+			final var templateGenericType = templateTypeParameter.deref();
+
+			// map type variable ...
+			if (templateGenericType instanceof TypeVariable) {
+				final var typeVariable = (TypeVariable<?>) templateGenericType;
+				final var typeVariableName = typeVariable.getName();
+				final var typeArgument = typeArguments.get(typeVariableName);
+
+				if (typeArgument != null)
+					// ... to type argument
+					sealedTypeParameters.put(templateTypeParameterName, typeArgument);
+				else
+					// pass original parameter if no matching argument
+					sealedTypeParameters.put(templateTypeParameterName, templateTypeParameter);
+			} else
+				// pass original parameter if generic type was not a variable
+				sealedTypeParameters.put(templateTypeParameterName, templateTypeParameter);
+		}
+
+		return Collections.unmodifiableMap(sealedTypeParameters);
 	}
 
 	private TypeUtils() {

@@ -196,7 +196,6 @@ final class TypeTemplate<T> extends ParameterizedElementBase<Class<T>> implement
 			}
 
 			last = new TypeFacade<>(superTypeTemplate, referrer, IuReferenceKind.SUPER);
-
 			var replaced = hierarchyByErasure.put(last.erasedClass(), last);
 			assert replaced == null : replaced;
 		}

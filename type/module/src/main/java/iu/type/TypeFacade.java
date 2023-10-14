@@ -33,9 +33,6 @@ package iu.type;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
-import java.lang.reflect.TypeVariable;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -108,47 +105,22 @@ final class TypeFacade<T> implements IuType<T> {
 	}
 
 	/**
-	 * <em>Should</em> be called at the end of {@link TypeTemplate} initialization
-	 * to propagate type arguments through the reference chain and prevent further
-	 * modification.
+	 * <em>Should</em> be called after referrer initialization to propagate type
+	 * arguments through the reference chain and prevent further modification to
+	 * this facade's internal state.
 	 * 
-	 * @param typeParameters fully initialized parameters from the
-	 *                       {@link TypeTemplate} owning the root reference to this
-	 *                       facade
+	 * <p>
+	 * Until this <em>optional</em> method is called, all type parameter lookups
+	 * default to the template.
+	 * </p>
+	 * 
+	 * @param typeArguments type arguments from the referrer
 	 */
-	public void sealTypeParameters(Map<String, TypeFacade<?>> typeParameters) {
-		this.typeParameters = new LinkedHashMap<>();
-		
-		// step through template.typeParameters
-		for (var templateTypeParameterEntry : template.typeParameters.entrySet()) {
-			final var templateTypeParameterName = templateTypeParameterEntry.getKey();
-			final var templateTypeArgument = templateTypeParameterEntry.getValue();
+	void sealTypeParameters(Map<String, TypeFacade<?>> typeArguments) {
+		if (this.typeParameters != null)
+			throw new IllegalStateException("already sealed");
 
-			final var templateGenericType = templateTypeArgument.deref();
-			if (templateGenericType instanceof TypeVariable) {
-				// attempt to map those that resolve to type variable ...
-				var typeVariable = (TypeVariable<?>) templateGenericType;
-				var typeVariableName = typeVariable.getName();
-				var typeArgument = typeParameters.get(typeVariableName);
-				if (typeArgument != null)
-					// ... to a type argument from incoming typeParameters
-					this.typeParameters.put(templateTypeParameterName, typeArgument);
-				else
-					// pass through as-is if not replaced by incoming parameter
-					this.typeParameters.put(templateTypeParameterName, templateTypeArgument);
-			} else
-				// pass through as-is if generic type is not a variable
-				this.typeParameters.put(templateTypeParameterName, templateTypeArgument);
-		}
-		this.typeParameters = Collections.unmodifiableMap(this.typeParameters);
-
-		// TODO: REMOVE
-//		Queue<TypeFacade<? super T>> hierarchy = new ArrayDeque<>();
-//		template.postInit(() -> {
-//			for (var superType : template.hierarchy())
-//				hierarchy.offer(
-//						new TypeFacade<>((TypeTemplate<? super T>) superType.template, this, IuReferenceKind.SUPER));
-//		});
+		this.typeParameters = TypeUtils.sealTypeParameters(template.typeParameters, typeArguments);
 	}
 
 	@Override

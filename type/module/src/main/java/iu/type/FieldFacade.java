@@ -59,8 +59,10 @@ final class FieldFacade<D, T> extends AnnotatedElementBase<Field> implements IuF
 	FieldFacade(Field field, TypeTemplate<T> typeTemplate, TypeTemplate<D> declaringTypeTemplate) {
 		super(field, null);
 		assert field.getType() == typeTemplate.erasedClass();
-		this.type = new TypeFacade<>(typeTemplate, this, IuReferenceKind.FIELD, field.getName());
 		this.declaringType = new TypeFacade<>(declaringTypeTemplate, this, IuReferenceKind.DECLARING_TYPE);
+		
+		this.type = new TypeFacade<>(typeTemplate, this, IuReferenceKind.FIELD, field.getName());
+		this.type.sealTypeParameters(declaringType.typeParameters());
 	}
 
 	@Override

@@ -34,12 +34,12 @@ package iu.type;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 import edu.iu.type.IuExecutable;
 import edu.iu.type.IuExecutableKey;
-import edu.iu.type.IuParameter;
 import edu.iu.type.IuReferenceKind;
 
 /**
@@ -49,11 +49,12 @@ import edu.iu.type.IuReferenceKind;
  * @param <R> result type: constructor declaring type or method return type
  * @param <E> executable type: {@link Method} or {@link Constructor}
  */
-abstract sealed class ExecutableBase<D, R, E extends Executable> extends ParameterizedElementBase<E> implements IuExecutable<R>
-		permits ConstructorFacade, MethodFacade {
+abstract sealed class ExecutableBase<D, R, E extends Executable> extends ParameterizedElementBase<E>
+		implements IuExecutable<R> permits ConstructorFacade, MethodFacade {
 
 	private final IuExecutableKey key;
 	private final TypeFacade<D> declaringType;
+	private final List<ParameterFacade<?>> parameters;
 
 	/**
 	 * Facade constructor.
@@ -74,8 +75,19 @@ abstract sealed class ExecutableBase<D, R, E extends Executable> extends Paramet
 		this.key = IuExecutableKey.of(name, executable.getParameterTypes());
 
 		this.declaringType = new TypeFacade<>(declaringTypeTemplate, this, IuReferenceKind.DECLARING_TYPE);
-		
-		typeParameters = Collections.unmodifiableMap(typeParameters);
+
+		List<ParameterFacade<?>> parameters = new ArrayList<>();
+		this.parameters = Collections.unmodifiableList(parameters);
+
+		for (var parameter : executable.getParameters())
+			parameters.add(new ParameterFacade<>(parameter, parameters.size(), this,
+					TypeFactory.resolveType(parameter.getParameterizedType())));
+
+		declaringTypeTemplate.postInit(() -> {
+			typeParameters = TypeUtils.sealTypeParameters(typeParameters, declaringTypeTemplate.typeParameters);
+			for (var parameter : parameters)
+				parameter.sealTypeParameters(typeParameters);
+		});
 	}
 
 	@Override
@@ -89,9 +101,8 @@ abstract sealed class ExecutableBase<D, R, E extends Executable> extends Paramet
 	}
 
 	@Override
-	public List<IuParameter<?>> parameters() {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+	public List<ParameterFacade<?>> parameters() {
+		return parameters;
 	}
 
 }

@@ -49,7 +49,7 @@ import jakarta.annotation.security.RolesAllowed;
  * @param <E> annotated element type
  */
 sealed class AnnotatedElementBase<E extends AnnotatedElement> implements IuAnnotatedElement
-		permits ParameterizedElementBase, FieldFacade {
+		permits ParameterizedElementBase, FieldFacade, ParameterFacade {
 
 	/**
 	 * Real annotated element viewed via this facade.
