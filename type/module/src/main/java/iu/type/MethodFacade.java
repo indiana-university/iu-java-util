@@ -34,8 +34,9 @@ package iu.type;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 
+import edu.iu.IuException;
 import edu.iu.type.IuMethod;
-import edu.iu.type.IuType;
+import edu.iu.type.IuReferenceKind;
 
 /**
  * Facade implementation for {@link IuMethod}.
@@ -45,20 +46,22 @@ import edu.iu.type.IuType;
  */
 final class MethodFacade<D, R> extends ExecutableBase<D, R, Method> implements IuMethod<R> {
 
+	private final TypeFacade<R> returnType;
+
 	/**
 	 * Facade constructor.
 	 * 
-	 * @param method        {@link Method}
-	 * @param delcaringType {@link TypeTemplate}
+	 * @param method                {@link Method}
+	 * @param returnTypeTemplate    {@link TypeTemplate} for the return type
+	 * @param declaringTypeTemplate {@link TypeTemplate} for the declaring type
 	 */
-	MethodFacade(Method method, TypeTemplate<D> delcaringType) {
-		super(method, delcaringType);
-	}
+	MethodFacade(Method method, TypeTemplate<R> returnTypeTemplate, TypeTemplate<D> declaringTypeTemplate) {
+		super(method, declaringTypeTemplate);
 
-	@Override
-	public R exec(Object... arguments) throws Exception {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+		this.returnType = new TypeFacade<>(returnTypeTemplate, this, IuReferenceKind.RETURN_TYPE);
+		declaringTypeTemplate.postInit(() -> {
+			this.returnType.sealTypeParameters(typeParameters);
+		});
 	}
 
 	@Override
@@ -72,9 +75,13 @@ final class MethodFacade<D, R> extends ExecutableBase<D, R, Method> implements I
 	}
 
 	@Override
-	public IuType<R> returnType() {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+	public TypeFacade<R> returnType() {
+		return returnType;
+	}
+
+	@Override
+	public R exec(Object... arguments) throws Exception {
+		return returnType.autoboxClass().cast(IuException.checked(annotatedElement, arguments));
 	}
 
 }

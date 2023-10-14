@@ -162,10 +162,10 @@
       ><path d="M0 0 L0 30 L99 30 L99 0 Z"
       /></clipPath
       ><clipPath clipPathUnits="userSpaceOnUse" id="clipPath53"
-      ><path d="M-7 -7 L155 -7 L155 274 L-7 274 L-7 -7 Z"
+      ><path d="M-7 -7 L155 -7 L155 209 L-7 209 L-7 -7 Z"
       /></clipPath
       ><clipPath clipPathUnits="userSpaceOnUse" id="clipPath54"
-      ><path d="M0 0 L0 233 L144 233 L144 0 Z"
+      ><path d="M0 0 L0 168 L144 168 L144 0 Z"
       /></clipPath
       ><clipPath clipPathUnits="userSpaceOnUse" id="clipPath55"
       ><path d="M0 0 L0 30 L144 30 L144 0 Z"
@@ -944,74 +944,58 @@
       ><text x="5" xml:space="preserve" y="27" clip-path="url(#clipPath52)" font-weight="bold" stroke="none"
       >IuTypeReference</text
     ></g
-    ><g font-size="11px" transform="translate(362,40)" fill-opacity="1" fill="rgb(255,192,128)" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="rgb(255,192,128)" font-weight="bold" stroke-opacity="1"
-    ><rect x="0" width="144" height="263" y="0" clip-path="url(#clipPath53)" stroke="none"
+    ><g font-size="11px" transform="translate(362,82)" fill-opacity="1" fill="rgb(255,192,128)" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="rgb(255,192,128)" font-weight="bold" stroke-opacity="1"
+    ><rect x="0" width="144" height="198" y="0" clip-path="url(#clipPath53)" stroke="none"
     /></g
-    ><g fill-opacity="1" text-rendering="geometricPrecision" stroke="black" stroke-linecap="butt" transform="translate(362,40)" stroke-miterlimit="0" stroke-opacity="1" fill="black" font-weight="bold" font-family="sans-serif" stroke-linejoin="round" font-size="11px" image-rendering="optimizeQuality"
-    ><rect fill="none" x="0" width="144" height="263" y="0" clip-path="url(#clipPath53)"
+    ><g fill-opacity="1" text-rendering="geometricPrecision" stroke="black" stroke-linecap="butt" transform="translate(362,82)" stroke-miterlimit="0" stroke-opacity="1" fill="black" font-weight="bold" font-family="sans-serif" stroke-linejoin="round" font-size="11px" image-rendering="optimizeQuality"
+    ><rect fill="none" x="0" width="144" height="198" y="0" clip-path="url(#clipPath53)"
       /><line y2="30" fill="none" x1="0" clip-path="url(#clipPath53)" x2="144" y1="30"
     /></g
-    ><g font-size="11px" transform="matrix(1,0,0,1,362,70)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
+    ><g font-size="11px" transform="matrix(1,0,0,1,362,112)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
     ><text x="2" xml:space="preserve" y="14" clip-path="url(#clipPath54)" stroke="none"
-      >+BOUNDS</text
-    ></g
-    ><g font-size="11px" transform="matrix(1,0,0,1,362,70)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
-    ><text x="2" xml:space="preserve" y="29" clip-path="url(#clipPath54)" stroke="none"
-      >+COMPONENT_TYPE</text
-    ></g
-    ><g font-size="11px" transform="matrix(1,0,0,1,362,70)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
-    ><text x="2" xml:space="preserve" y="44" clip-path="url(#clipPath54)" stroke="none"
-      >+CONSTRUCTOR_PARAM</text
-    ></g
-    ><g font-size="11px" transform="matrix(1,0,0,1,362,70)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
-    ><text x="2" xml:space="preserve" y="59" clip-path="url(#clipPath54)" stroke="none"
       >+ERASURE</text
     ></g
-    ><g font-size="11px" transform="matrix(1,0,0,1,362,70)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
+    ><g font-size="11px" transform="matrix(1,0,0,1,362,112)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
+    ><text x="2" xml:space="preserve" y="29" clip-path="url(#clipPath54)" stroke="none"
+      >+SUPER</text
+    ></g
+    ><g font-size="11px" transform="matrix(1,0,0,1,362,112)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
+    ><text x="2" xml:space="preserve" y="44" clip-path="url(#clipPath54)" stroke="none"
+      >+DECLARING_TYPE</text
+    ></g
+    ><g font-size="11px" transform="matrix(1,0,0,1,362,112)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
+    ><text x="2" xml:space="preserve" y="59" clip-path="url(#clipPath54)" stroke="none"
+      >+TYPE_PARAM</text
+    ></g
+    ><g font-size="11px" transform="matrix(1,0,0,1,362,112)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
     ><text x="2" xml:space="preserve" y="74" clip-path="url(#clipPath54)" stroke="none"
-      >+FIELDS</text
+      >+CONSTRUCTOR_PARAM</text
     ></g
-    ><g font-size="11px" transform="matrix(1,0,0,1,362,70)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
+    ><g font-size="11px" transform="matrix(1,0,0,1,362,112)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
     ><text x="2" xml:space="preserve" y="89" clip-path="url(#clipPath54)" stroke="none"
-      >+LOWER_BOUNDS</text
-    ></g
-    ><g font-size="11px" transform="matrix(1,0,0,1,362,70)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
-    ><text x="2" xml:space="preserve" y="104" clip-path="url(#clipPath54)" stroke="none"
       >+METHOD_PARAM</text
     ></g
-    ><g font-size="11px" transform="matrix(1,0,0,1,362,70)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
-    ><text x="2" xml:space="preserve" y="119" clip-path="url(#clipPath54)" stroke="none"
-      >+PARAMETER</text
+    ><g font-size="11px" transform="matrix(1,0,0,1,362,112)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
+    ><text x="2" xml:space="preserve" y="104" clip-path="url(#clipPath54)" stroke="none"
+      >+COMPONENT_TYPE</text
     ></g
-    ><g font-size="11px" transform="matrix(1,0,0,1,362,70)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
+    ><g font-size="11px" transform="matrix(1,0,0,1,362,112)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
+    ><text x="2" xml:space="preserve" y="119" clip-path="url(#clipPath54)" stroke="none"
+      >+FIELD</text
+    ></g
+    ><g font-size="11px" transform="matrix(1,0,0,1,362,112)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
     ><text x="2" xml:space="preserve" y="134" clip-path="url(#clipPath54)" stroke="none"
       >+PROPERTY</text
     ></g
-    ><g font-size="11px" transform="matrix(1,0,0,1,362,70)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
+    ><g font-size="11px" transform="matrix(1,0,0,1,362,112)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
     ><text x="2" xml:space="preserve" y="149" clip-path="url(#clipPath54)" stroke="none"
-      >+RAW</text
+      >+PARAMETER</text
     ></g
-    ><g font-size="11px" transform="matrix(1,0,0,1,362,70)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
+    ><g font-size="11px" transform="matrix(1,0,0,1,362,112)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
     ><text x="2" xml:space="preserve" y="164" clip-path="url(#clipPath54)" stroke="none"
       >+RETURN_TYPE</text
     ></g
-    ><g font-size="11px" transform="matrix(1,0,0,1,362,70)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
-    ><text x="2" xml:space="preserve" y="179" clip-path="url(#clipPath54)" stroke="none"
-      >+SUPER</text
-    ></g
-    ><g font-size="11px" transform="matrix(1,0,0,1,362,70)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
-    ><text x="2" xml:space="preserve" y="194" clip-path="url(#clipPath54)" stroke="none"
-      >+TYPE_PARAM</text
-    ></g
-    ><g font-size="11px" transform="matrix(1,0,0,1,362,70)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
-    ><text x="2" xml:space="preserve" y="209" clip-path="url(#clipPath54)" stroke="none"
-      >+UPPER_BOUNDS</text
-    ></g
-    ><g font-size="11px" transform="matrix(1,0,0,1,362,70)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
-    ><text x="2" xml:space="preserve" y="224" clip-path="url(#clipPath54)" stroke="none"
-      >+EXECUTABLE</text
-    ></g
-    ><g font-size="11px" transform="translate(362,40)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
+    ><g font-size="11px" transform="translate(362,82)" fill-opacity="1" fill="black" text-rendering="geometricPrecision" image-rendering="optimizeQuality" font-family="sans-serif" stroke="black" stroke-opacity="1"
     ><text x="28" xml:space="preserve" y="12" clip-path="url(#clipPath55)" stroke="none"
       >&lt;&lt;enumeration&gt;&gt;</text
       ><text x="27" xml:space="preserve" y="27" clip-path="url(#clipPath55)" font-weight="bold" stroke="none"

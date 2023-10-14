@@ -31,6 +31,7 @@
  */
 package iu.type;
 
+import java.beans.Introspector;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -42,6 +43,7 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.function.Consumer;
 
+import edu.iu.IuException;
 import edu.iu.type.IuAnnotatedElement;
 import edu.iu.type.IuConstructor;
 import edu.iu.type.IuField;
@@ -56,19 +58,22 @@ import edu.iu.type.IuTypeReference;
  * 
  * <p>
  * Each template is a standalone representation of a single generic type,
- * potentially paired with a raw template.
+ * potentially paired with a raw template representing its erasure.
  * </p>
  * 
  * <p>
  * Note that {@link TypeTemplate} is not sterotyped as a hash key, but
  * {@link IuType} is. This hash key behavior comes from same-instance identity
- * (default) {@link #hashCode()} and {@link #equals(Object)} implementations by
+ * default {@link #hashCode()} and {@link #equals(Object)} implementations of
  * instances managed by {@link TypeFactory}. Since ClassLoading data is loaded
  * exactly once and remains static once loaded, type introspection instances
- * should match that load-once static behavior. It is expected that each raw
- * type (primitive, class, interface, enum, record, etc) has exactly one
- * {@link TypeTemplate} instance, and a {@link TypeFacade} instance for each raw
- * type. Internal checks for equality (and inequality) may use == (and !=).
+ * match that load-once static behavior. It is expected that each raw type
+ * (primitive, class, interface, enum, record, etc) has exactly one
+ * {@link TypeTemplate} instance, and that each {@link TypeTemplate} instance
+ * backed by a generic type contains a {@link TypeFacade} backed by a singleton
+ * raw type instances representing its {@link #erase() type erasure}. This
+ * behavior mirrors the hash key behavior of {@link Type}, so internal checks
+ * for equality (and inequality) may use == (and !=).
  * </p>
  * 
  * <p>
@@ -87,6 +92,7 @@ final class TypeTemplate<T> extends ParameterizedElementBase<Class<T>> implement
 	private final Iterable<TypeFacade<? super T>> hierarchy;
 	private final Iterable<ConstructorFacade<T>> constructors;
 	private final Iterable<FieldFacade<? super T, ?>> fields;
+	private final Iterable<PropertyFacade<? super T, ?>> properties;
 	private final Iterable<MethodFacade<? super T, ?>> methods;
 
 	private TypeTemplate(Class<T> annotatedElement, Consumer<TypeTemplate<T>> preInitHook, Type type,
@@ -98,6 +104,7 @@ final class TypeTemplate<T> extends ParameterizedElementBase<Class<T>> implement
 		this.hierarchy = initializeHierarchy(hierarchy);
 		this.constructors = initializeConstructors();
 		this.fields = initializeFields();
+		this.properties = initializeProperties();
 		this.methods = initializeMethods();
 
 		finishPostInit();
@@ -258,12 +265,56 @@ final class TypeTemplate<T> extends ParameterizedElementBase<Class<T>> implement
 		return rv;
 	}
 
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private Iterable<PropertyFacade<? super T, ?>> initializeProperties() {
+		Queue<PropertyFacade<? super T, ?>> rv = new ArrayDeque<>();
+
+		if (!isNative()) //
+			for (var property : IuException.unchecked(() -> Introspector.getBeanInfo(annotatedElement))
+					.getPropertyDescriptors()) {
+				if (property.getName().equals("class"))
+					continue;
+
+				var readMethod = property.getReadMethod();
+				var writeMethod = property.getWriteMethod();
+
+				Type propertyType;
+				if (readMethod != null)
+					propertyType = readMethod.getGenericReturnType();
+				else
+					propertyType = writeMethod.getGenericParameterTypes()[0];
+
+				TypeTemplate<T> propertyTypeTemplate;
+				if (propertyType == annotatedElement)
+					propertyTypeTemplate = this;
+				else
+					propertyTypeTemplate = (TypeTemplate<T>) TypeFactory.resolveType(propertyType);
+
+				rv.offer(new PropertyFacade(property, propertyTypeTemplate, this));
+			}
+
+		for (var superType : hierarchy)
+			superType.template.postInit(() -> {
+				for (var inheritedProperty : superType.template.properties)
+					rv.offer(inheritedProperty);
+			});
+
+		return rv;
+	}
+
 	private Iterable<MethodFacade<? super T, ?>> initializeMethods() {
 		Queue<MethodFacade<? super T, ?>> rv = new ArrayDeque<>();
 
 		if (!isNative()) //
-			for (var method : annotatedElement.getDeclaredMethods())
-				rv.offer(new MethodFacade<>(method, this));
+			for (var method : annotatedElement.getDeclaredMethods()) {
+				TypeTemplate<?> returnType;
+				if (method.getReturnType() == annotatedElement)
+					returnType = this;
+				else
+					returnType = TypeFactory.resolveType(method.getGenericReturnType());
+
+				rv.offer(new MethodFacade<>(method, returnType, this));
+			}
 
 		for (var superType : hierarchy)
 			superType.template.postInit(() -> {

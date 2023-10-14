@@ -47,7 +47,26 @@ import edu.iu.type.IuType;
 import edu.iu.type.IuTypeReference;
 
 /**
- * Implementation of {@link IuType}.
+ * Facade implementation of {@link IuType}.
+ * 
+ * <p>
+ * Always includes a non-null {@link #reference()} for which
+ * {@link IuTypeReference#referent()} == {@code this}.
+ * </p>
+ * 
+ * <p>
+ * Delegates most lookups to a {@link TypeTemplate}, but propagates independent
+ * resolution of type parameters based on arguments provided via referrer, which
+ * may or may not be the same {@link TypeTemplate} this facade delegates to.
+ * </p>
+ * 
+ * <p>
+ * Each facade instance is fully-formed and strictly immutable once
+ * {@link #sealTypeParameters(Map) sealed}. Instantiation and parameter sealing
+ * are separate steps in template initialization order, so temporary mutability
+ * is necessary to prevent recursion loops; A {@link TypeFacade} passed from the
+ * block that created it may be assumed immutable whether or not it was sealed.
+ * </p>
  * 
  * @param <T> generic type
  */

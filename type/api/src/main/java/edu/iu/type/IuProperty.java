@@ -36,6 +36,7 @@ import java.beans.Transient;
 import java.lang.annotation.Annotation;
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.function.Predicate;
 
 /**
  * Facade interface for a bean property.
@@ -89,7 +90,8 @@ public interface IuProperty<T> extends IuAttribute<T> {
 	 * <li>Is {@link #canRead() readable}</li>
 	 * <li>Does not {@link #hasAnnotation(Class) have} the {@link Transient}
 	 * annotation</li>
-	 * <li>{@link IuExecutable#permitted() Permits} {@link #read() read method} execution.</li> 
+	 * <li>{@link IuExecutable#permitted() Permits} {@link #read() read method}
+	 * execution.</li>
 	 * </ul>
 	 * 
 	 * @return true if the property may be printed
@@ -98,6 +100,25 @@ public interface IuProperty<T> extends IuAttribute<T> {
 		return canRead() //
 				&& !hasAnnotation(Transient.class) //
 				&& read().permitted();
+	}
+
+	/**
+	 * {@inheritDoc} Combines permissions from both {@link #read()} and
+	 * {@link #write} to determine read-write permission.
+	 * 
+	 * <p>
+	 * A true return value from this method does not imply that the property is
+	 * {@link #canRead() readable} or {@link #canWrite() writable}, but does imply
+	 * that at least one of those is true.
+	 * </p>
+	 */
+	@Override
+	default boolean permitted(Predicate<String> isUserInRole) {
+		var read = read();
+		var write = write();
+		return (read != null || write != null) //
+				&& (read == null || read.permitted(isUserInRole)) //
+				&& (write == null || write.permitted(isUserInRole));
 	}
 
 	/**
