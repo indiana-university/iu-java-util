@@ -46,6 +46,8 @@ import static org.mockito.Mockito.verify;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -334,30 +336,46 @@ public class IuExceptionTest {
 				e -> IuException.checked(e, CheckedException1.class, CheckedException2.class, CheckedException3.class));
 	}
 
+	private Object doInvoke(Executable o, Object[] a) throws Throwable {
+		if (o instanceof Constructor)
+			return ((Constructor<?>) o).newInstance(a);
+
+		var method = (Method) o;
+		var mod = method.getModifiers();
+		if ((mod | Modifier.STATIC) == mod)
+			return method.invoke(null, a);
+		else
+			return method.invoke(a[0], Arrays.copyOfRange(a, 1, a.length));
+	}
+
 	@Test
+	@SuppressWarnings("unchecked")
 	public void testUnsafeUnchecked() throws Throwable {
 		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
-			assertUnsafe(RuntimeException.class, (o, a) -> IuException.unchecked(o, a));
-			mockIuException.verify(() -> IuException.unchecked(any(Executable.class), any(Object[].class)), times(6));
+			assertUnsafe(RuntimeException.class, (o, a) -> IuException.uncheckedInvocation(() -> doInvoke(o, a)));
+			mockIuException.verify(() -> IuException.uncheckedInvocation(any(UnsafeSupplier.class)), times(6));
 			mockIuException.verify(() -> IuException.unchecked(any(Throwable.class)), times(3));
 		}
 	}
 
 	@Test
+	@SuppressWarnings("unchecked")
 	public void testUnsafeChecked() throws Throwable {
 		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
-			assertUnsafe(Exception.class, (o, a) -> IuException.checked(o, a));
-			mockIuException.verify(() -> IuException.checked(any(Executable.class), any(Object[].class)), times(6));
+			assertUnsafe(Exception.class, (o, a) -> IuException.checkedInvocation(() -> doInvoke(o, a)));
+			mockIuException.verify(() -> IuException.checkedInvocation(any(UnsafeSupplier.class)), times(6));
 			mockIuException.verify(() -> IuException.checked(any(Throwable.class)), times(3));
 		}
 	}
 
 	@Test
+	@SuppressWarnings("unchecked")
 	public void testUnsafeChecked1() throws Throwable {
 		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
-			assertUnsafe(CheckedException1.class, (o, a) -> IuException.checked(CheckedException1.class, o, a));
+			assertUnsafe(CheckedException1.class,
+					(o, a) -> IuException.checkedInvocation(CheckedException1.class, () -> doInvoke(o, a)));
 			mockIuException.verify(
-					() -> IuException.checked(eq(CheckedException1.class), any(Executable.class), any(Object[].class)),
+					() -> IuException.checkedInvocation(eq(CheckedException1.class), any(UnsafeSupplier.class)),
 					times(6));
 			mockIuException.verify(() -> IuException.checked(any(Throwable.class), eq(CheckedException1.class)),
 					times(3));
@@ -365,24 +383,26 @@ public class IuExceptionTest {
 	}
 
 	@Test
+	@SuppressWarnings("unchecked")
 	public void testUnsafeChecked2() throws Throwable {
 		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
-			assertUnsafe(CheckedException1.class,
-					(o, a) -> IuException.checked(CheckedException1.class, CheckedException2.class, o, a));
-			mockIuException.verify(() -> IuException.checked(eq(CheckedException1.class), eq(CheckedException2.class),
-					any(Executable.class), any(Object[].class)), times(6));
+			assertUnsafe(CheckedException1.class, (o, a) -> IuException.checkedInvocation(CheckedException1.class,
+					CheckedException2.class, () -> doInvoke(o, a)));
+			mockIuException.verify(() -> IuException.checkedInvocation(eq(CheckedException1.class),
+					eq(CheckedException2.class), any(UnsafeSupplier.class)), times(6));
 			mockIuException.verify(() -> IuException.checked(any(Throwable.class), eq(CheckedException1.class),
 					eq(CheckedException2.class)), times(3));
 		}
 	}
 
 	@Test
+	@SuppressWarnings("unchecked")
 	public void testUnsafeChecked3() throws Throwable {
 		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
-			assertUnsafe(CheckedException1.class, (o, a) -> IuException.checked(CheckedException1.class,
-					CheckedException2.class, CheckedException3.class, o, a));
-			mockIuException.verify(() -> IuException.checked(eq(CheckedException1.class), eq(CheckedException2.class),
-					eq(CheckedException3.class), any(Executable.class), any(Object[].class)), times(6));
+			assertUnsafe(CheckedException1.class, (o, a) -> IuException.checkedInvocation(CheckedException1.class,
+					CheckedException2.class, CheckedException3.class, () -> doInvoke(o, a)));
+			mockIuException.verify(() -> IuException.checkedInvocation(eq(CheckedException1.class),
+					eq(CheckedException2.class), eq(CheckedException3.class), any(UnsafeSupplier.class)), times(6));
 			mockIuException.verify(() -> IuException.checked(any(Throwable.class), eq(CheckedException1.class),
 					eq(CheckedException2.class), eq(CheckedException3.class)), times(3));
 		}
