@@ -77,7 +77,7 @@ public final class IuExecutableKey {
 	 * @return result of {@link #of(String, Type...)}.hashCode() without object
 	 *         creation.
 	 */
-	static int hashCode(String name, Iterable<? extends IuType<?>> parameterTypes) {
+	static int hashCode(String name, Iterable<? extends IuType<?, ?>> parameterTypes) {
 		final int prime = 31;
 		int result = prime;
 		if (name != null)
@@ -117,7 +117,7 @@ public final class IuExecutableKey {
 	 * 
 	 * @return executable key of erased classes
 	 */
-	public static IuExecutableKey of(String name, Iterable<? extends IuType<?>> parameterTypes) {
+	public static IuExecutableKey of(String name, Iterable<? extends IuType<?, ?>> parameterTypes) {
 		Queue<Class<?>> erasedParameterClasses = new ArrayDeque<>();
 		for (var type : parameterTypes)
 			erasedParameterClasses.offer(type.erasedClass());
@@ -166,7 +166,7 @@ public final class IuExecutableKey {
 	 * @return result of {@link #of(String, Type...)}.equals(key) without object
 	 *         creation.
 	 */
-	boolean equals(String name, Iterable<IuType<?>> parameterTypes) {
+	boolean equals(String name, Iterable<IuType<?, ?>> parameterTypes) {
 		if (!IuObject.equals(name, this.name))
 			return false;
 

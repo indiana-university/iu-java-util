@@ -53,7 +53,7 @@ public class TypeSpi implements IuTypeSpi {
 	}
 
 	@Override
-	public IuType<?> resolveType(Type type) {
+	public IuType<?, ?> resolveType(Type type) {
 		return TypeFactory.resolveType(type);
 	}
 

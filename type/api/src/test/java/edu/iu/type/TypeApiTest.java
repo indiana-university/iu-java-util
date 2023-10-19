@@ -118,7 +118,6 @@ public class TypeApiTest {
 		assertFalse(element.permitted());
 	}
 
-	@SuppressWarnings("unchecked")
 	@Test
 	public void testReadOnlyProperty() {
 		var property = IuTest.mockWithDefaults(IuProperty.class);
@@ -135,7 +134,6 @@ public class TypeApiTest {
 		assertFalse(property.serializable());
 	}
 
-	@SuppressWarnings("unchecked")
 	@Test
 	public void testWriteOnlyProperty() {
 		var property = IuTest.mockWithDefaults(IuProperty.class);
@@ -175,7 +173,6 @@ public class TypeApiTest {
 	}
 
 	@Test
-	@SuppressWarnings("unchecked")
 	public void testReadWritePropertyPermittedByMethodAnnotation() {
 		var property = IuTest.mockWithDefaults(IuProperty.class);
 
@@ -328,32 +325,32 @@ public class TypeApiTest {
 		assertEquals(type + " missing property c",
 				assertThrows(IllegalArgumentException.class, () -> type.property("c")).getMessage());
 	}
-	
+
 	@Test
 	public void testPropertiesArePermitted() {
 		var arm = mock(IuMethod.class);
 		when(arm.permitted(any())).thenReturn(true);
 		var drm = mock(IuMethod.class);
-		
+
 		var awm = mock(IuMethod.class);
 		when(awm.permitted(any())).thenReturn(true);
 		var dwm = mock(IuMethod.class);
-		
+
 		var p = IuTest.mockWithDefaults(IuProperty.class);
 		assertFalse(p.permitted());
-		
+
 		p = IuTest.mockWithDefaults(IuProperty.class);
 		when(p.read()).thenReturn(arm);
 		assertTrue(p.permitted());
-		
+
 		p = IuTest.mockWithDefaults(IuProperty.class);
 		when(p.write()).thenReturn(awm);
 		assertTrue(p.permitted());
-		
+
 		p = IuTest.mockWithDefaults(IuProperty.class);
 		when(p.read()).thenReturn(drm);
 		assertFalse(p.permitted());
-		
+
 		p = IuTest.mockWithDefaults(IuProperty.class);
 		when(p.write()).thenReturn(dwm);
 		assertFalse(p.permitted());
@@ -362,17 +359,17 @@ public class TypeApiTest {
 		when(p.read()).thenReturn(arm);
 		when(p.write()).thenReturn(awm);
 		assertTrue(p.permitted());
-		
+
 		p = IuTest.mockWithDefaults(IuProperty.class);
 		when(p.read()).thenReturn(drm);
 		when(p.write()).thenReturn(awm);
 		assertFalse(p.permitted());
-		
+
 		p = IuTest.mockWithDefaults(IuProperty.class);
 		when(p.read()).thenReturn(drm);
 		when(p.write()).thenReturn(dwm);
 		assertFalse(p.permitted());
-		
+
 		p = IuTest.mockWithDefaults(IuProperty.class);
 		when(p.read()).thenReturn(drm);
 		when(p.write()).thenReturn(dwm);
@@ -395,10 +392,11 @@ public class TypeApiTest {
 		assertSame(m3, type.method("", Object.class));
 		assertSame(m2, type.method("", List.of()));
 		assertSame(m3, type.method("", List.of(IuType.of(Object.class))));
-		assertEquals(type + " missing method c()",
+		assertEquals(type + " missing method c(); [" + m1 + ", " + m2 + ", " + m3 + "]",
 				assertThrows(IllegalArgumentException.class, () -> type.method("c")).getMessage());
-		assertEquals(type + " missing method c(Object)",
-				assertThrows(IllegalArgumentException.class, () -> type.method("c", List.of(IuType.of(Object.class)))).getMessage());
+		assertEquals(type + " missing method c(Object); [" + m1 + ", " + m2 + ", " + m3 + "]",
+				assertThrows(IllegalArgumentException.class, () -> type.method("c", List.of(IuType.of(Object.class))))
+						.getMessage());
 	}
 
 }

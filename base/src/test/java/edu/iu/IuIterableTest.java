@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 
@@ -208,6 +209,11 @@ public class IuIterableTest {
 	public void testNoSuchElementFromFilter() {
 		assertThrows(NoSuchElementException.class,
 				() -> filter(iter("one", "two", "three"), a -> false).iterator().next());
+	}
+	
+	@Test
+	public void testStream() {
+		assertEquals("[one, two, three]", of(Stream.of("one","two","three")::iterator).toString());
 	}
 
 }

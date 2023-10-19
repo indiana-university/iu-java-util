@@ -76,8 +76,8 @@ class Component implements IuComponent {
 	private Set<ComponentVersion> versions;
 	private Properties properties;
 
-	private Set<IuType<?>> interfaces;
-	private Map<Class<?>, List<IuType<?>>> annotatedTypes;
+	private Set<IuType<?, ?>> interfaces;
+	private Map<Class<?>, List<IuType<?, ?>>> annotatedTypes;
 	private List<ComponentResource<?>> resources;
 
 	private ComponentModuleFinder moduleFinder;
@@ -99,8 +99,8 @@ class Component implements IuComponent {
 	 */
 	Component(Component parent, Controller controller, ClassLoader classLoader, ComponentModuleFinder moduleFinder,
 			Queue<ComponentArchive> archives) {
-		Set<IuType<?>> interfaces = new LinkedHashSet<>();
-		Map<Class<?>, List<IuType<?>>> annotatedTypes = new LinkedHashMap<>();
+		Set<IuType<?, ?>> interfaces = new LinkedHashSet<>();
+		Map<Class<?>, List<IuType<?, ?>>> annotatedTypes = new LinkedHashMap<>();
 		List<ComponentResource<?>> resources = new ArrayList<>();
 		if (parent != null) {
 			if (parent.kind.isWeb())
@@ -237,7 +237,7 @@ class Component implements IuComponent {
 	}
 
 	@Override
-	public IuComponent extend(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
+	public Component extend(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
 			throws IOException, IllegalArgumentException {
 		checkClosed();
 		return ComponentFactory.createComponent(this, componentArchiveSource, providedDependencyArchiveSources);
@@ -262,13 +262,13 @@ class Component implements IuComponent {
 	}
 
 	@Override
-	public Set<? extends IuType<?>> interfaces() {
+	public Set<? extends IuType<?, ?>> interfaces() {
 		checkClosed();
 		return interfaces;
 	}
 
 	@Override
-	public Iterable<? extends IuType<?>> annotatedTypes(Class<? extends Annotation> annotationType) {
+	public Iterable<? extends IuType<?, ?>> annotatedTypes(Class<? extends Annotation> annotationType) {
 		checkClosed();
 		var annotatedTypes = this.annotatedTypes.get(annotationType);
 		if (annotatedTypes == null)

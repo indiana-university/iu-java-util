@@ -19,7 +19,10 @@ import java.util.stream.Stream;
  * {@link Supplier Supplier<Iterator>} compatible iterator sources.
  * 
  * <p>
- * This utility is useful for low-level optimization routines. Note that:
+ * This utility is useful for low-level optimization due its minimal,
+ * lightweight operation. It is also valuable for improving readability and
+ * reachablility when refactoring logic that makes extensive single-line use of
+ * forEach, lambda, and stream operators.
  * </p>
  * 
  * <pre>
@@ -52,8 +55,18 @@ import java.util.stream.Stream;
  * </p>
  * <p>
  * <strong>Factory iterables</strong> are also preferred over {@link Stream}
- * forms.
+ * forms for covered scenarios involving determinant streams of constant data.
+ * When {@link Stream} data is preferred, the stream may be used with
+ * <em>factory iterator</em> and/or a for loop using {@link #of(Supplier)} as in
+ * the example below, for reduced overhead compared to collecting items from the
+ * stream then looping over the collection:
  * </p>
+ * 
+ * <pre>
+ * for (var item : IuIterable.of(myStream::iterator)) {
+ * 	// ...
+ * }
+ * </pre>
  * 
  * <p>
  * In particular, {@link #cat(Iterable...)} is useful for union joins of like
@@ -159,13 +172,13 @@ public final class IuIterable {
 	}
 
 	/**
-	 * Creates an {@link Iterable} instance from a <strong>constantly
-	 * repeatable</strong> supplier.
+	 * Creates a <strong>factory {@link Iterable iterable}</strong> instance from a
+	 * <strong>constantly repeatable</strong> supplier.
 	 * 
 	 * @param <T>      item type
 	 * @param supplier {@link Iterable} {@link Supplier}; <em>must</em> be
 	 *                 </strong>constantly repeatable</strong>.
-	 * @return {@link Iterable}
+	 * @return <strong>factory {@link Iterable iterable}</strong>
 	 */
 	public static <T> Iterable<T> of(Supplier<Iterator<T>> supplier) {
 		return new Iterable<T>() {

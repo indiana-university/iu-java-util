@@ -57,7 +57,7 @@ final class AnnotationBridge {
 	 * @return remote class; <em>may</em> be same as local class
 	 * @throws ClassNotFoundException if an equivalent remote type cannot be found
 	 */
-	static Class<?> getRemoteClass(AnnotatedElement annotatedElement, Class<?> localClass)
+	static Class<?> getPotentiallyRemoteClass(AnnotatedElement annotatedElement, Class<?> localClass)
 			throws ClassNotFoundException {
 		try {
 			return TypeUtils.callWithContext(annotatedElement,
@@ -82,7 +82,7 @@ final class AnnotationBridge {
 
 		Class<?> legacyAnnotationType;
 		try {
-			legacyAnnotationType = getRemoteClass(annotatedElement, annotationType);
+			legacyAnnotationType = getPotentiallyRemoteClass(annotatedElement, annotationType);
 		} catch (ClassNotFoundException e) {
 			return false;
 		}
@@ -108,7 +108,7 @@ final class AnnotationBridge {
 
 		Class<?> legacyAnnotationType;
 		try {
-			legacyAnnotationType = getRemoteClass(annotatedElement, annotationType);
+			legacyAnnotationType = getPotentiallyRemoteClass(annotatedElement, annotationType);
 		} catch (ClassNotFoundException e) {
 			return null;
 		}
@@ -121,7 +121,7 @@ final class AnnotationBridge {
 			return null;
 
 		return annotationType.cast(Proxy.newProxyInstance(annotationType.getClassLoader(),
-				new Class<?>[] { annotationType }, new LegacyAnnotationHandler(annotationType, legacyAnnotation)));
+				new Class<?>[] { annotationType }, new PotentiallyRemoteAnnotationHandler(annotationType, legacyAnnotation)));
 	}
 
 	/**
@@ -150,7 +150,7 @@ final class AnnotationBridge {
 			else if (Annotation.class.isAssignableFrom(localClass)) {
 				var localAnnotationType = localClass.asSubclass(Annotation.class);
 				localAnnotations.offer((Annotation) Proxy.newProxyInstance(localClass.getClassLoader(),
-						new Class<?>[] { localClass }, new LegacyAnnotationHandler(localAnnotationType, annotation)));
+						new Class<?>[] { localClass }, new PotentiallyRemoteAnnotationHandler(localAnnotationType, annotation)));
 			}
 		}
 

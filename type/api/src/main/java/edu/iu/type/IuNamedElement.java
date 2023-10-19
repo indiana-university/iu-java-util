@@ -34,8 +34,10 @@ package edu.iu.type;
 /**
  * Facade interface for a named declared by a type: a field, bean property,
  * method, or enclosed type.
+ * 
+ * @param <D> declaring type
  */
-public interface IuNamedElement extends IuDeclaredElement {
+public interface IuNamedElement<D> extends IuDeclaredElement<D> {
 
 	/**
 	 * Gets the name.

@@ -33,6 +33,7 @@ package iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -51,6 +52,7 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Queue;
 import java.util.logging.Level;
@@ -59,6 +61,7 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.test.IuTestLogger;
+import edu.iu.type.IuComponent;
 import edu.iu.type.IuComponent.Kind;
 import edu.iu.type.IuType;
 
@@ -201,6 +204,40 @@ public class ComponentTest {
 					assertFalse(interfaces.hasNext(), () -> interfaces.next().name());
 				}
 			}
+		}
+	}
+
+	@Test
+	public void testCantExtendWithWebAsDependency() throws IOException {
+		var rd = TestArchives.getProvidedDependencyArchives("testruntime");
+		var wd = TestArchives.getProvidedDependencyArchives("testweb");
+		var deps = Arrays.copyOf(rd, rd.length + wd.length + 1);
+		System.arraycopy(wd, 0, deps, rd.length, wd.length);
+		deps[deps.length - 1] = TestArchives.getComponentArchive("testweb");
+		assertEquals("Component must not include a web component as a dependency",
+				assertThrows(IllegalArgumentException.class,
+						() -> IuComponent.of(TestArchives.getComponentArchive("testruntime"), deps)).getMessage());
+	}
+
+	@Test
+	public void testCantExtendWeb() throws IOException {
+		try (var parent = IuComponent.of(TestArchives.getComponentArchive("testruntime"),
+				TestArchives.getProvidedDependencyArchives("testruntime"));
+				var component = parent.extend(TestArchives.getComponentArchive("testweb"),
+						TestArchives.getProvidedDependencyArchives("testweb"))) {
+			assertEquals("Component must not extend a web component", assertThrows(IllegalArgumentException.class,
+					() -> component.extend(TestArchives.getComponentArchive("testruntime"))).getMessage());
+		}
+	}
+
+	@Test
+	public void testParentAccessor() throws Exception {
+		try (var parent = ComponentFactory.createComponent(null, TestArchives.getComponentArchive("testruntime"),
+				TestArchives.getProvidedDependencyArchives("testruntime"));
+				var component = parent.extend(TestArchives.getComponentArchive("testweb"),
+						TestArchives.getProvidedDependencyArchives("testweb"))) {
+			assertSame(parent, component.parent());
+			assertEquals("true", component.properties().get("sample.type.property"));
 		}
 	}
 

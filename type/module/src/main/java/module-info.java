@@ -36,6 +36,7 @@
  */
 module iu.util.type.impl {
 	exports iu.type;
+	opens iu.type to iu.util;
 	
 	requires iu.util;
 	requires iu.util.type;

@@ -49,6 +49,7 @@ public class IuTypeOfMockSupport implements AfterEachCallback, BeforeEachCallbac
 
 	private MockedStatic<IuType> mockType;
 
+	@SuppressWarnings("unchecked")
 	@Override
 	public void beforeEach(ExtensionContext context) throws Exception {
 		mockType = mockStatic(IuType.class);

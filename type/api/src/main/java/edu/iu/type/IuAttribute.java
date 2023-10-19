@@ -34,16 +34,17 @@ package edu.iu.type;
 /**
  * Facade interface for an attribute: a field or bean property.
  * 
+ * @param <D> declaring type
  * @param <T> attribute value type
  */
-public interface IuAttribute<T> extends IuNamedElement {
+public interface IuAttribute<D, T> extends IuNamedElement<D> {
 
 	/**
-	 * Gets the attribute type.
+	 * Gets the type.
 	 * 
-	 * @return attribute type
+	 * @return type
 	 */
-	IuType<T> type();
+	IuType<?, T> type();
 
 	/**
 	 * Gets the attribute value.

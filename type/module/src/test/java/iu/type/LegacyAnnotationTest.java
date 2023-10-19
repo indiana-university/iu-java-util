@@ -61,7 +61,7 @@ public class LegacyAnnotationTest {
 				.asSubclass(Annotation.class);
 		var legacyAnnotation = getLegacyResourceClass().getAnnotation(legacyAnnotationType);
 		return (Resource) Proxy.newProxyInstance(Resource.class.getClassLoader(), new Class<?>[] { Resource.class },
-				new LegacyAnnotationHandler(Resource.class, legacyAnnotation));
+				new PotentiallyRemoteAnnotationHandler(Resource.class, legacyAnnotation));
 	}
 
 	private Resources getLegacyResources() throws Throwable {
@@ -69,7 +69,7 @@ public class LegacyAnnotationTest {
 				.asSubclass(Annotation.class);
 		var legacyAnnotation = getLegacyResourceClass().getAnnotation(legacyAnnotationType);
 		return (Resources) Proxy.newProxyInstance(Resources.class.getClassLoader(), new Class<?>[] { Resources.class },
-				new LegacyAnnotationHandler(Resources.class, legacyAnnotation));
+				new PotentiallyRemoteAnnotationHandler(Resources.class, legacyAnnotation));
 	}
 
 	@Test
@@ -128,9 +128,13 @@ public class LegacyAnnotationTest {
 		var legacyAnnotationType = LegacyContextSupport.get().loadClass(Incompatible.class.getName())
 				.asSubclass(Annotation.class);
 		var legacyAnnotation = getLegacyResourceClass().getAnnotation(legacyAnnotationType);
+		var handler = new PotentiallyRemoteAnnotationHandler(Incompatible.class, legacyAnnotation);
 		var incompatible = (Incompatible) Proxy.newProxyInstance(Incompatible.class.getClassLoader(),
-				new Class<?>[] { Incompatible.class },
-				new LegacyAnnotationHandler(Incompatible.class, legacyAnnotation));
+				new Class<?>[] { Incompatible.class }, handler);
+
+		assertThrows(AssertionError.class,
+				() -> handler.invoke(incompatible, Incompatible.class.getMethod("notAnEnum"), new Object[0]));
+
 		assertTrue(assertThrows(IllegalStateException.class, incompatible::notAnEnum).getMessage()
 				.startsWith("cannot convert "));
 		assertTrue(assertThrows(IllegalStateException.class, incompatible::notAnArray).getMessage()
@@ -144,5 +148,4 @@ public class LegacyAnnotationTest {
 		assertTrue(assertThrows(IllegalStateException.class, incompatible::isResource).getMessage()
 				.startsWith("cannot convert "));
 	}
-
 }

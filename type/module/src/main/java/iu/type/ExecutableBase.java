@@ -34,13 +34,14 @@ package iu.type;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import edu.iu.type.IuExecutable;
 import edu.iu.type.IuExecutableKey;
-import edu.iu.type.IuReferenceKind;
 
 /**
  * Facade implementation for an {@link Executable}.
@@ -49,23 +50,24 @@ import edu.iu.type.IuReferenceKind;
  * @param <R> result type: constructor declaring type or method return type
  * @param <E> executable type: {@link Method} or {@link Constructor}
  */
-abstract sealed class ExecutableBase<D, R, E extends Executable> extends ParameterizedElementBase<E>
-		implements IuExecutable<R> permits ConstructorFacade, MethodFacade {
+abstract sealed class ExecutableBase<D, R, E extends Executable> extends DeclaredElementBase<D, E>
+		implements IuExecutable<D, R> permits ConstructorFacade, MethodFacade {
 
+	private final ParameterizedElement parameterizedElement = new ParameterizedElement();
 	private final IuExecutableKey key;
-	private final TypeFacade<D> declaringType;
 	private final List<ParameterFacade<?>> parameters;
 
 	/**
 	 * Facade constructor.
 	 * 
 	 * @param executable            method or constructor
+	 * @param type                  generic type associated with the element
 	 * @param declaringTypeTemplate fully realized {@link TypeTemplate} for a
 	 *                              generic type whose erasure declared the
 	 *                              executable
 	 */
-	ExecutableBase(E executable, TypeTemplate<D> declaringTypeTemplate) {
-		super(executable, null);
+	ExecutableBase(E executable, Type type, TypeTemplate<?, D> declaringTypeTemplate) {
+		super(executable, type, declaringTypeTemplate);
 
 		final String name;
 		if (executable instanceof Method)
@@ -74,20 +76,48 @@ abstract sealed class ExecutableBase<D, R, E extends Executable> extends Paramet
 			name = null;
 		this.key = IuExecutableKey.of(name, executable.getParameterTypes());
 
-		this.declaringType = new TypeFacade<>(declaringTypeTemplate, this, IuReferenceKind.DECLARING_TYPE);
-
 		List<ParameterFacade<?>> parameters = new ArrayList<>();
 		this.parameters = Collections.unmodifiableList(parameters);
 
-		for (var parameter : executable.getParameters())
-			parameters.add(new ParameterFacade<>(parameter, parameters.size(), this,
-					TypeFactory.resolveType(parameter.getParameterizedType())));
+		final var allParameters = executable.getParameters();
+		final var parameterCount = allParameters.length;
 
-		declaringTypeTemplate.postInit(() -> {
-			typeParameters = TypeUtils.sealTypeParameters(typeParameters, declaringTypeTemplate.typeParameters);
-			for (var parameter : parameters)
-				parameter.sealTypeParameters(typeParameters);
-		});
+		final var genericParameterTypes = executable.getGenericParameterTypes();
+		final var genericParameterCount = genericParameterTypes.length;
+		final var nonGenericParameterCount = parameterCount - genericParameterCount;
+
+		for (var parameterIndex = 0; parameterIndex < parameterCount; parameterIndex++) {
+			final var parameter = allParameters[parameterIndex];
+			final var genericParameterIndex = parameterIndex - nonGenericParameterCount;
+
+			TypeTemplate<?, ?> paramTypeTemplate;
+			if (genericParameterIndex >= 0)
+				paramTypeTemplate = TypeFactory.resolveType(genericParameterTypes[genericParameterIndex]);
+			else
+				paramTypeTemplate = TypeFactory.resolveType(parameter.getParameterizedType());
+
+			parameters.add(new ParameterFacade<>(parameter, parameters.size(), this, paramTypeTemplate));
+		}
+
+		declaringTypeTemplate.postInit(() -> parameterizedElement.apply(declaringTypeTemplate.typeParameters()));
+	}
+	
+	@Override
+	void seal() {
+		parameterizedElement.seal(annotatedElement, this);
+		super.seal();
+	}
+
+	@Override
+	public Map<String, TypeFacade<?, ?>> typeParameters() {
+		checkSealed();
+		return parameterizedElement.typeParameters();
+	}
+
+	@Override
+	public TypeFacade<?, ?> typeParameter(String name) {
+		checkSealed();
+		return parameterizedElement.typeParameter(name);
 	}
 
 	@Override
@@ -96,13 +126,23 @@ abstract sealed class ExecutableBase<D, R, E extends Executable> extends Paramet
 	}
 
 	@Override
-	public TypeFacade<D> declaringType() {
-		return declaringType;
+	public List<ParameterFacade<?>> parameters() {
+		return parameters;
 	}
 
 	@Override
-	public List<ParameterFacade<?>> parameters() {
-		return parameters;
+	public String toString() {
+		var sb = new StringBuilder();
+		sb.append(TypeUtils.printType(declaringType().deref()));
+		sb.append('(');
+		var l = sb.length();
+		for (var p : parameters) {
+			if (l < sb.length())
+				sb.append(',');
+			sb.append(TypeUtils.printType(p.type().deref()));
+		}
+		sb.append(')');
+		return sb.toString();
 	}
 
 }

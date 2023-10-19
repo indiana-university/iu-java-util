@@ -31,84 +31,68 @@
  */
 package iu.type;
 
-import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.GenericDeclaration;
+import java.lang.reflect.Type;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
-import edu.iu.type.IuAnnotatedElement;
-import jakarta.annotation.security.DenyAll;
-import jakarta.annotation.security.PermitAll;
-import jakarta.annotation.security.RolesAllowed;
+import edu.iu.type.IuDeclaredElement;
+import edu.iu.type.IuReferenceKind;
 
 /**
- * Implements the facade view of an {@link AnnotatedElement}.
+ * Implements the facade view of an {@link GenericDeclaration}.
  * 
- * @param <E> annotated element type
+ * @param <D> declaring type
+ * @param <E> generic declaration type
  */
-sealed class AnnotatedElementBase<E extends AnnotatedElement> extends ElementBase implements IuAnnotatedElement
-		permits DeclaredElementBase, ParameterFacade {
+abstract sealed class DeclaredElementBase<D, E extends AnnotatedElement> extends AnnotatedElementBase<E>
+		implements IuDeclaredElement<D>, ParameterizedFacade permits ExecutableBase, FieldFacade, TypeTemplate {
 
 	/**
-	 * Real annotated element viewed via this facade.
+	 * Holds the generic type associated with the declared element.
+	 * 
+	 * <p>
+	 * Initialized first (after {@code preInitHook}) accessible early.
+	 * </p>
 	 */
-	protected final E annotatedElement;
+	final Type type;
+
+	private final TypeFacade<?, D> declaringType;
 
 	/**
 	 * Default constructor, for use by all subclasses extend {@link TypeTemplate}.
 	 * 
-	 * @param annotatedElement real annotated element to provide a view of
+	 * @param annotatedElement      parameterized element to provide a view of
+	 * @param type                  generic type associated with the element
+	 * @param declaringTypeTemplate type template for the type that declares this
+	 *                              element
 	 */
-	AnnotatedElementBase(E annotatedElement) {
-		this.annotatedElement = annotatedElement;
+	DeclaredElementBase(E annotatedElement, Type type, TypeTemplate<?, D> declaringTypeTemplate) {
+		super(annotatedElement);
+		this.type = type;
+		this.declaringType = new TypeFacade<>(declaringTypeTemplate, this, IuReferenceKind.DECLARING_TYPE);
 	}
 
 	/**
 	 * Constructor for use by {@link TypeTemplate}.
 	 * 
-	 * @param annotatedElement real annotated element to provide a view of
-	 * @param preInitHook      used by {@link TypeFactory}
+	 * @param annotatedElement      parameterized element to provide a view of
+	 * @param preInitHook           used by {@link TypeFactory}
+	 * @param type                  generic type associated with the element
+	 * @param declaringTypeTemplate type template for the type that declares this
+	 *                              element
 	 */
-	AnnotatedElementBase(E annotatedElement, Consumer<TypeTemplate<?, ?>> preInitHook) {
-		super(preInitHook);
-		this.annotatedElement = annotatedElement;
+	DeclaredElementBase(E annotatedElement, Consumer<TypeTemplate<?, ?>> preInitHook, Type type,
+			TypeTemplate<?, D> declaringTypeTemplate) {
+		super(annotatedElement, preInitHook);
+		this.type = type;
+		this.declaringType = new TypeFacade<>(declaringTypeTemplate, this, IuReferenceKind.DECLARING_TYPE);
 	}
 
 	@Override
-	public boolean hasAnnotation(Class<? extends Annotation> annotationType) {
+	public TypeFacade<?, D> declaringType() {
 		checkSealed();
-		return AnnotationBridge.isAnnotationPresent(annotationType, annotatedElement);
-	}
-
-	@Override
-	public <A extends Annotation> A annotation(Class<A> annotationType) {
-		checkSealed();
-		return AnnotationBridge.getAnnotation(annotationType, annotatedElement);
-	}
-
-	@Override
-	public Iterable<? extends Annotation> annotations() {
-		checkSealed();
-		return AnnotationBridge.getAnnotations(annotatedElement);
-	}
-
-	@Override
-	public boolean permitted(Predicate<String> isUserInRole) {
-		checkSealed();
-
-		if (hasAnnotation(DenyAll.class))
-			return false;
-
-		if (hasAnnotation(PermitAll.class))
-			return true;
-
-		var rolesAllowed = annotation(RolesAllowed.class);
-		if (rolesAllowed != null)
-			for (var role : rolesAllowed.value())
-				if (isUserInRole.test(role))
-					return true;
-
-		return false;
+		return declaringType;
 	}
 
 }

@@ -61,7 +61,7 @@ public interface IuTypeReference<T, R extends IuAnnotatedElement> {
 	 * 
 	 * @return referent type
 	 */
-	IuType<T> referent();
+	IuType<?, T> referent();
 
 	/**
 	 * Gets the introspection facade for the element through which the reference was

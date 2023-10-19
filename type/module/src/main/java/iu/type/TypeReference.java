@@ -34,7 +34,6 @@ package iu.type;
 import java.util.Objects;
 
 import edu.iu.IuObject;
-import edu.iu.type.IuAnnotatedElement;
 import edu.iu.type.IuReferenceKind;
 import edu.iu.type.IuType;
 import edu.iu.type.IuTypeReference;
@@ -45,11 +44,11 @@ import edu.iu.type.IuTypeReference;
  * @param <T> referent type
  * @param <R> referrer type
  */
-class TypeReference<T, R extends IuAnnotatedElement> implements IuTypeReference<T, R> {
+class TypeReference<T, R extends ElementBase> implements IuTypeReference<T, R> {
 
 	private final IuReferenceKind kind;
 	private final R referrer;
-	private final IuType<T> referent;
+	private final IuType<?, T> referent;
 	private final String name;
 	private final int index;
 
@@ -60,7 +59,7 @@ class TypeReference<T, R extends IuAnnotatedElement> implements IuTypeReference<
 	 * @param referrer referrer element
 	 * @param referent referent type
 	 */
-	TypeReference(IuReferenceKind kind, R referrer, IuType<T> referent) {
+	TypeReference(IuReferenceKind kind, R referrer, IuType<?, T> referent) {
 		kind.referrerType().cast(Objects.requireNonNull(referrer));
 		assert !kind.named() && !kind.indexed();
 		this.kind = Objects.requireNonNull(kind);
@@ -78,7 +77,7 @@ class TypeReference<T, R extends IuAnnotatedElement> implements IuTypeReference<
 	 * @param referent referent type
 	 * @param name     name
 	 */
-	TypeReference(IuReferenceKind kind, R referrer, IuType<T> referent, String name) {
+	TypeReference(IuReferenceKind kind, R referrer, IuType<?, T> referent, String name) {
 		kind.referrerType().cast(Objects.requireNonNull(referrer));
 		assert kind.named();
 		this.kind = Objects.requireNonNull(kind);
@@ -96,7 +95,7 @@ class TypeReference<T, R extends IuAnnotatedElement> implements IuTypeReference<
 	 * @param referent referent type
 	 * @param index    index
 	 */
-	TypeReference(IuReferenceKind kind, R referrer, IuType<T> referent, int index) {
+	TypeReference(IuReferenceKind kind, R referrer, IuType<?, T> referent, int index) {
 		kind.referrerType().cast(Objects.requireNonNull(referrer));
 		assert kind.indexed();
 		assert index >= 0;
@@ -118,7 +117,7 @@ class TypeReference<T, R extends IuAnnotatedElement> implements IuTypeReference<
 	}
 
 	@Override
-	public IuType<T> referent() {
+	public IuType<?, T> referent() {
 		return referent;
 	}
 
@@ -149,6 +148,33 @@ class TypeReference<T, R extends IuAnnotatedElement> implements IuTypeReference<
 				&& kind == other.kind //
 				&& IuObject.equals(name, other.name) //
 				&& IuObject.equals(referent, other.referent);
+	}
+
+	@Override
+	public String toString() {
+		var sb = new StringBuilder(TypeUtils.printType(referent.deref()));
+		IuTypeReference<?, ?> ref = this;
+		while (ref != null) {
+			sb.append(' ').append(ref.kind());
+			if (ref.index() >= 0)
+				sb.append('(').append(ref.index()).append(") ");
+			else if (ref.name() != null)
+				sb.append('(').append(ref.name()).append(") ");
+			else
+				sb.append(" ");
+
+			var referrer = ref.referrer();
+
+			if (referrer instanceof IuType) {
+				var referrerType = (IuType<?, ?>) referrer;
+				sb.append(TypeUtils.printType(referrerType.deref()));
+				ref = referrerType.reference();
+			} else {
+				sb.append(referrer);
+				ref = null;
+			}
+		}
+		return sb.toString();
 	}
 
 }

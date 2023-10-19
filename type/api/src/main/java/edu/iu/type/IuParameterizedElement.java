@@ -48,7 +48,7 @@ public interface IuParameterizedElement {
 	 * 
 	 * @return map of type parameter facades
 	 */
-	Map<String, ? extends IuType<?>> typeParameters();
+	Map<String, ? extends IuType<?, ?>> typeParameters();
 
 	/**
 	 * Gets a type parameter by name.
@@ -56,7 +56,7 @@ public interface IuParameterizedElement {
 	 * @param name parameter name
 	 * @return type parameter facade
 	 */
-	default IuType<?> typeParameter(String name) {
+	default IuType<?, ?> typeParameter(String name) {
 		return typeParameters().get(name);
 	}
 

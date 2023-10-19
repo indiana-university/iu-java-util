@@ -65,7 +65,7 @@ public interface IuResource<T> {
 	 * 
 	 * @return resource type
 	 */
-	IuType<T> type();
+	IuType<?, T> type();
 
 	/**
 	 * Gets the resource instance.

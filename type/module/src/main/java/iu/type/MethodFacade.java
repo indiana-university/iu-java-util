@@ -33,10 +33,13 @@ package iu.type;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.Arrays;
 
 import edu.iu.IuException;
 import edu.iu.type.IuMethod;
 import edu.iu.type.IuReferenceKind;
+import jakarta.interceptor.AroundInvoke;
+import jakarta.interceptor.Interceptors;
 
 /**
  * Facade implementation for {@link IuMethod}.
@@ -44,9 +47,9 @@ import edu.iu.type.IuReferenceKind;
  * @param <D> declaring type
  * @param <R> method return type
  */
-final class MethodFacade<D, R> extends ExecutableBase<D, R, Method> implements IuMethod<R> {
+final class MethodFacade<D, R> extends ExecutableBase<D, R, Method> implements IuMethod<D, R> {
 
-	private final TypeFacade<R> returnType;
+	private final TypeFacade<?, R> returnType;
 
 	/**
 	 * Facade constructor.
@@ -55,13 +58,12 @@ final class MethodFacade<D, R> extends ExecutableBase<D, R, Method> implements I
 	 * @param returnTypeTemplate    {@link TypeTemplate} for the return type
 	 * @param declaringTypeTemplate {@link TypeTemplate} for the declaring type
 	 */
-	MethodFacade(Method method, TypeTemplate<R> returnTypeTemplate, TypeTemplate<D> declaringTypeTemplate) {
-		super(method, declaringTypeTemplate);
+	MethodFacade(Method method, TypeTemplate<?, R> returnTypeTemplate, TypeTemplate<?, D> declaringTypeTemplate) {
+		super(method, returnTypeTemplate.deref(), declaringTypeTemplate);
+		method.setAccessible(true);
 
 		this.returnType = new TypeFacade<>(returnTypeTemplate, this, IuReferenceKind.RETURN_TYPE);
-		declaringTypeTemplate.postInit(() -> {
-			this.returnType.sealTypeParameters(typeParameters);
-		});
+		declaringTypeTemplate.postInit(() -> returnTypeTemplate.postInit(this::seal));
 	}
 
 	@Override
@@ -71,17 +73,37 @@ final class MethodFacade<D, R> extends ExecutableBase<D, R, Method> implements I
 
 	@Override
 	public boolean isStatic() {
-		return (annotatedElement.getModifiers() & Modifier.STATIC) == Modifier.STATIC;
+		var mod = annotatedElement.getModifiers();
+		return (mod | Modifier.STATIC) == mod;
 	}
 
 	@Override
-	public TypeFacade<R> returnType() {
+	public TypeFacade<?, R> returnType() {
+		checkSealed();
 		return returnType;
 	}
 
 	@Override
 	public R exec(Object... arguments) throws Exception {
-		return returnType.autoboxClass().cast(IuException.checked(annotatedElement, arguments));
+		checkSealed();
+
+		// TODO: Implement @AroundInvoke
+		if (hasAnnotation(Interceptors.class) || declaringType().hasAnnotation(Interceptors.class) || declaringType())
+		if (hasAnnotation(AroundInvoke.class))
+			throw new UnsupportedOperationException("@AroundInvoke not supported in this version");
+
+		Object obj;
+		Object[] args;
+
+		if (isStatic()) {
+			obj = null;
+			args = arguments;
+		} else {
+			obj = arguments[0];
+			args = Arrays.copyOfRange(arguments, 1, arguments.length);
+		}
+
+		return IuException.checkedInvocation(() -> returnType.autoboxClass().cast(annotatedElement.invoke(obj, args)));
 	}
 
 }

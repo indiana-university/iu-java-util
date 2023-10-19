@@ -53,8 +53,8 @@ import edu.iu.type.IuType;
  */
 final class TypeFactory {
 
-	private static final Map<Class<?>, TypeTemplate<?>> RAW_TYPES = new WeakHashMap<>();
-	private static final ThreadLocal<Map<Type, TypeTemplate<?>>> PENDING_GENERIC_TYPES = new ThreadLocal<>();
+	private static final Map<Class<?>, TypeTemplate<?, ?>> RAW_TYPES = new WeakHashMap<>();
+	private static final ThreadLocal<Map<Type, TypeTemplate<?, ?>>> PENDING_GENERIC_TYPES = new ThreadLocal<>();
 
 	/**
 	 * Gets the type erasure for a generic type.
@@ -138,7 +138,7 @@ final class TypeFactory {
 	 * @return {@link TypeFacade}
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	static <T> TypeTemplate<T> resolveRawClass(Class<T> rawClass) {
+	static <T> TypeTemplate<?, T> resolveRawClass(Class<T> rawClass) {
 		var resolvedType = RAW_TYPES.get(rawClass);
 
 		if (resolvedType == null) {
@@ -154,7 +154,7 @@ final class TypeFactory {
 			}
 
 			// LinkedHashMap maintains object-first order
-			final Map<Class<?>, Box<IuType<? super T>>> hierarchyByErasure = new LinkedHashMap<>();
+			final Map<Class<?>, Box<IuType<?, ? super T>>> hierarchyByErasure = new LinkedHashMap<>();
 
 			// Create a top-down (Object-first) traversal queue for all classes
 			// extended and interfaces implemented by the raw class
@@ -170,14 +170,22 @@ final class TypeFactory {
 
 					var erasedClass = getErasedClass(type);
 
-					// traversal stack will be reversed, so push Object before interfaces
-					// : last in stack traversal results in first queued
-					var superType = erasedClass.getGenericSuperclass();
-					if (superType != null)
-						todo.push(superType);
+					// truncate hierarchy at Object for Java language-native types
+					if (erasedClass == Object.class)
+						continue;
+					else if (erasedClass == Class.class)
+						todo.push(Object.class);
 
-					for (var implemented : erasedClass.getGenericInterfaces())
-						todo.push(implemented);
+					else {
+						// traversal stack will be reversed, so push Object before interfaces
+						// : last in stack traversal results in first queued
+						var superType = erasedClass.getGenericSuperclass();
+						if (superType != null)
+							todo.push(superType);
+
+						for (var implemented : erasedClass.getGenericInterfaces())
+							todo.push(implemented);
+					}
 				}
 			}
 
@@ -192,7 +200,7 @@ final class TypeFactory {
 					// Build and cache new template on the fly. This is possible since we
 					// already have the interim type's full hierarchy available.
 
-					final Deque<IuType<? super T>> superHierarchy = new ArrayDeque<>();
+					final Deque<IuType<?, ? super T>> superHierarchy = new ArrayDeque<>();
 					for (var superTypeBox : hierarchyByErasure.values()) {
 						var inheritedSuperType = superTypeBox.value;
 						var erasedClass = inheritedSuperType.erasedClass();
@@ -207,16 +215,16 @@ final class TypeFactory {
 
 					rawSuperType = new TypeTemplate<>(erasedSuperClass, s -> {
 						synchronized (RAW_TYPES) {
-							RAW_TYPES.put(erasedSuperClass, (TypeTemplate<?>) s);
+							RAW_TYPES.put(erasedSuperClass, (TypeTemplate<?, ?>) s);
 						}
 					}, (Iterable) superHierarchy);
 				}
 
-				TypeTemplate<? super T> superTypeTemplate;
+				TypeTemplate<?, ? super T> superTypeTemplate;
 				if (superType == erasedSuperClass)
-					superTypeTemplate = (TypeTemplate<? super T>) rawSuperType;
+					superTypeTemplate = (TypeTemplate<?, ? super T>) rawSuperType;
 				else
-					superTypeTemplate = (TypeTemplate<? super T>) resolveType(superType);
+					superTypeTemplate = (TypeTemplate<?, ? super T>) resolveType(superType);
 
 				// replace previously resolved super type references with references through the
 				// declaring extended class or implemented interface
@@ -229,18 +237,18 @@ final class TypeFactory {
 				hierarchyByErasure.put(erasedSuperClass, new Box(superTypeTemplate));
 			}
 
-			Deque<IuType<? super T>> hierarchyTemplates = new ArrayDeque<>();
-			for (Box<IuType<? super T>> hierarchyReference : hierarchyByErasure.values())
+			Deque<IuType<?, ? super T>> hierarchyTemplates = new ArrayDeque<>();
+			for (Box<IuType<?, ? super T>> hierarchyReference : hierarchyByErasure.values())
 				hierarchyTemplates.push(hierarchyReference.value);
 
 			resolvedType = new TypeTemplate<>(rawClass, s -> {
 				synchronized (RAW_TYPES) {
-					RAW_TYPES.put(rawClass, (TypeTemplate<?>) s);
+					RAW_TYPES.put(rawClass, s);
 				}
 			}, hierarchyTemplates);
 		}
 
-		return (TypeTemplate<T>) resolvedType;
+		return (TypeTemplate<?, T>) resolvedType;
 
 	}
 
@@ -250,7 +258,7 @@ final class TypeFactory {
 	 * @param type generic type
 	 * @return {@link TypeFacade}
 	 */
-	static TypeTemplate<?> resolveType(Type type) {
+	static TypeTemplate<?, ?> resolveType(Type type) {
 		Objects.requireNonNull(type, "type");
 		if (type instanceof Class)
 			return resolveRawClass((Class<?>) type);
@@ -258,7 +266,7 @@ final class TypeFactory {
 			// Establish base case for self and loop references
 			final var restorePendingGenericTypes = PENDING_GENERIC_TYPES.get();
 			try {
-				final Map<Type, TypeTemplate<?>> pendingGenericTypes;
+				final Map<Type, TypeTemplate<?, ?>> pendingGenericTypes;
 				if (restorePendingGenericTypes == null) {
 					pendingGenericTypes = new HashMap<>();
 					PENDING_GENERIC_TYPES.set(pendingGenericTypes);

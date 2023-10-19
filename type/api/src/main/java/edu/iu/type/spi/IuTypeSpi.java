@@ -51,7 +51,7 @@ public interface IuTypeSpi {
 	 * @see IuType#of(Type)
 	 * @see IuType#of(Class)
 	 */
-	IuType<?> resolveType(Type type);
+	IuType<?, ?> resolveType(Type type);
 
 	/**
 	 * Implements {@link IuComponent#of(InputStream, InputStream...)}.

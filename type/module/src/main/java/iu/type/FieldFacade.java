@@ -32,7 +32,10 @@
 package iu.type;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.Map;
 
+import edu.iu.IuException;
 import edu.iu.type.IuField;
 import edu.iu.type.IuReferenceKind;
 
@@ -42,10 +45,9 @@ import edu.iu.type.IuReferenceKind;
  * @param <D> declaring type
  * @param <T> field type
  */
-final class FieldFacade<D, T> extends AnnotatedElementBase<Field> implements IuField<T> {
+final class FieldFacade<D, T> extends DeclaredElementBase<D, Field> implements IuField<D, T> {
 
-	private final TypeFacade<T> type;
-	private final TypeFacade<D> declaringType;
+	private final TypeFacade<?, T> type;
 
 	/**
 	 * Facade constructor.
@@ -56,23 +58,24 @@ final class FieldFacade<D, T> extends AnnotatedElementBase<Field> implements IuF
 	 *                              generic type whose erasure declared the field
 	 * @param field                 {@link Field}
 	 */
-	FieldFacade(Field field, TypeTemplate<T> typeTemplate, TypeTemplate<D> declaringTypeTemplate) {
-		super(field, null);
+	FieldFacade(Field field, TypeTemplate<?, T> typeTemplate, TypeTemplate<?, D> declaringTypeTemplate) {
+		super(field, typeTemplate.deref(), declaringTypeTemplate);
 		assert field.getType() == typeTemplate.erasedClass();
-		this.declaringType = new TypeFacade<>(declaringTypeTemplate, this, IuReferenceKind.DECLARING_TYPE);
-		
+		field.setAccessible(true);
+
 		this.type = new TypeFacade<>(typeTemplate, this, IuReferenceKind.FIELD, field.getName());
-		this.type.sealTypeParameters(declaringType.typeParameters());
+		
+		declaringType().postInit(this::seal);
 	}
 
 	@Override
-	public TypeFacade<T> type() {
+	public Map<String, TypeFacade<?, ?>> typeParameters() {
+		return declaringType().typeParameters();
+	}
+
+	@Override
+	public TypeFacade<?, T> type() {
 		return type;
-	}
-
-	@Override
-	public TypeFacade<D> declaringType() {
-		return declaringType;
 	}
 
 	@Override
@@ -82,25 +85,24 @@ final class FieldFacade<D, T> extends AnnotatedElementBase<Field> implements IuF
 
 	@Override
 	public T get(Object o) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+		return type.autoboxClass().cast(IuException.unchecked(o, annotatedElement::get));
 	}
 
 	@Override
 	public void set(Object o, T value) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+		IuException.unchecked(o, value, annotatedElement::set);
 	}
 
 	@Override
 	public boolean serializable() {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+		var mod = annotatedElement.getModifiers();
+		return (mod | Modifier.TRANSIENT) != mod && (mod | Modifier.STATIC) != mod;
 	}
 
 	@Override
 	public String toString() {
-		return TypeUtils.printType(declaringType.template.deref()) + "#" + name();
+		return TypeUtils.printType(declaringType().template.deref()) + "#" + name() + ':'
+				+ TypeUtils.printType(type.template.deref());
 	}
 
 }

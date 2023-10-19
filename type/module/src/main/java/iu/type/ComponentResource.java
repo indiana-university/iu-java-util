@@ -184,10 +184,10 @@ class ComponentResource<T> implements IuResource<T> {
 	private final boolean needsAuthentication;
 	private final boolean shared;
 	private final String name;
-	private final IuType<T> type;
+	private final IuType<?, T> type;
 	private final Supplier<T> factory;
 
-	private ComponentResource(boolean needsAuthentication, boolean shared, String name, IuType<T> type,
+	private ComponentResource(boolean needsAuthentication, boolean shared, String name, IuType<?, T> type,
 			Supplier<T> factory) {
 		this.needsAuthentication = needsAuthentication;
 		this.shared = shared;
@@ -212,7 +212,7 @@ class ComponentResource<T> implements IuResource<T> {
 	}
 
 	@Override
-	public IuType<T> type() {
+	public IuType<?, T> type() {
 		return type;
 	}
 

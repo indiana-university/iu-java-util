@@ -36,14 +36,16 @@ import java.lang.reflect.Member;
 /**
  * Facade interface for an element declared by a type: a {@link Member}, bean
  * property, or enclosed {@link Class}.
+ * 
+ * @param <D> declaring type
  */
-public interface IuDeclaredElement extends IuAnnotatedElement {
+public interface IuDeclaredElement<D> extends IuAnnotatedElement {
 
 	/**
 	 * Gets the declaring type.
 	 * 
 	 * @return declaring type
 	 */
-	IuType<?> declaringType();
+	IuType<?, D> declaringType();
 
 }

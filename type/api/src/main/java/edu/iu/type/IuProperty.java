@@ -41,24 +41,25 @@ import java.util.function.Predicate;
 /**
  * Facade interface for a bean property.
  * 
+ * @param <D> declaring type
  * @param <T> property type
  * @see PropertyDescriptor
  */
-public interface IuProperty<T> extends IuAttribute<T> {
+public interface IuProperty<D, T> extends IuAttribute<D, T> {
 
 	/**
 	 * Gets a facade describing the property read method.
 	 * 
 	 * @return read method facade
 	 */
-	IuMethod<T> read();
+	IuMethod<D, T> read();
 
 	/**
 	 * Gets a facade describing the property write method.
 	 * 
 	 * @return write method facade
 	 */
-	IuMethod<Void> write();
+	IuMethod<D, Void> write();
 
 	/**
 	 * Determines if the property is readable.

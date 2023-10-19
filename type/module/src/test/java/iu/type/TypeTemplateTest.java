@@ -32,6 +32,7 @@
 package iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -76,8 +77,8 @@ public class TypeTemplateTest {
 		assertSame(erasedClass, erasedTemplate.deref());
 		assertSame(erasedClass, erasedTemplate.erasedClass());
 		assertSame(erasedClass.getName(), erasedTemplate.name());
-		assertEquals("IuType[" + TypeUtils.printType(erasedClass) + " ERASURE IuType["
-				+ TypeUtils.printType(genericType) + "]]", erasedTemplate.toString());
+		assertEquals("IuType[" + TypeUtils.printType(erasedClass) + " ERASURE "
+				+ TypeUtils.printType(genericType) + "]", erasedTemplate.toString());
 	}
 
 	@Test

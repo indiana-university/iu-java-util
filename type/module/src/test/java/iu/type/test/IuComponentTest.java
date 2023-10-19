@@ -43,6 +43,7 @@ import java.util.logging.Level;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
+import edu.iu.legacy.Incompatible;
 import edu.iu.test.IuTest;
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuComponent;
@@ -225,6 +226,14 @@ public class IuComponentTest {
 			assertTrue(interfaces.hasNext());
 			assertEquals("edu.iu.legacy.NotResource", interfaces.next().name());
 			assertFalse(interfaces.hasNext(), () -> interfaces.next().name());
+
+			var incompatible = component.annotatedTypes(Incompatible.class).iterator();
+			assertTrue(incompatible.hasNext());
+			assertEquals("edu.iu.legacy.LegacyResource", incompatible.next().name());
+			assertFalse(incompatible.hasNext(), () -> incompatible.next().name());
+
+			var testsShouldBeEmpty = component.annotatedTypes(Test.class).iterator();
+			assertFalse(testsShouldBeEmpty.hasNext(), () -> testsShouldBeEmpty.next().name());
 
 			var resources = component.resources().iterator();
 			assertTrue(resources.hasNext());

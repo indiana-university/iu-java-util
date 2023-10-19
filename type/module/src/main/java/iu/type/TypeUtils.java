@@ -39,6 +39,7 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
+import java.lang.reflect.WildcardType;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -51,6 +52,8 @@ import edu.iu.type.IuType;
  * Miscellaneous type introspection utilities.
  */
 final class TypeUtils {
+
+	private static final Type[] T0 = new Type[0];
 
 	/**
 	 * Determines if a type name is exempt from the {@link ClassLoader} delegation
@@ -169,17 +172,22 @@ final class TypeUtils {
 	 * 
 	 * @return inherited type facade with same erasure as the {@code referentType}
 	 */
-	static <T> TypeFacade<? super T> referTo(IuType<T> referrerType, Iterable<TypeFacade<? super T>> hierarchy,
+	static <T> IuType<?, ? super T> referTo(IuType<?, T> referrerType, Iterable<TypeFacade<?, ? super T>> hierarchy,
 			Type referentType) {
 		var erasedClass = TypeFactory.getErasedClass(referentType);
+		if (erasedClass == referrerType.erasedClass())
+			return referrerType;
+
 		for (var superType : hierarchy)
 			if (superType.erasedClass() == erasedClass)
 				return superType;
-		throw new IllegalArgumentException(referentType + " present in type hierarchy for " + referrerType);
+
+		throw new IllegalArgumentException(
+				printType(referentType) + " not present in type hierarchy for " + referrerType + "; " + hierarchy);
 	}
 
 	/**
-	 * Internal helper for {@link TypeFacade}, {@link ExecutableBase},
+	 * Internal helper for {@link TypeFacade}, {@link ExecutableBase}, and
 	 * {@link FieldFacade}.
 	 * 
 	 * @param typeParameters original type parameters
@@ -187,36 +195,82 @@ final class TypeUtils {
 	 * 
 	 * @return resulting type parameters, with matching arguments applied
 	 */
-	static Map<String, TypeFacade<?>> sealTypeParameters(Map<String, TypeFacade<?>> typeParameters,
-			Map<String, TypeFacade<?>> typeArguments) {
+	// TODO: REMOVE
+	private static Map<String, TypeFacade<?, ?>> sealTypeParameters(Map<String, TypeFacade<?, ?>> typeParameters,
+			Map<String, TypeFacade<?, ?>> typeArguments) {
 		Objects.requireNonNull(typeArguments);
 
 		if (typeParameters.isEmpty())
 			return Collections.emptyMap();
 
-		Map<String, TypeFacade<?>> sealedTypeParameters = new LinkedHashMap<>();
+		Map<String, TypeFacade<?, ?>> sealedTypeParameters = new LinkedHashMap<>();
 
-		// step through template.typeParameters
+		// Step through all incoming type parameters
 		for (var templateTypeParameterEntry : typeParameters.entrySet()) {
 			final var templateTypeParameterName = templateTypeParameterEntry.getKey();
 			final var templateTypeParameter = templateTypeParameterEntry.getValue();
-			final var templateGenericType = templateTypeParameter.deref();
 
-			// map type variable ...
+			// Extract type boundaries
+			Type[] upperBounds;
+			Type[] lowerBounds;
+			var templateGenericType = templateTypeParameter.deref();
+			if (templateGenericType instanceof TypeVariable) {
+				upperBounds = ((TypeVariable<?>) templateGenericType).getBounds();
+				lowerBounds = T0;
+			} else if (templateGenericType instanceof WildcardType) {
+				var wildcardType = (WildcardType) templateGenericType;
+				upperBounds = wildcardType.getUpperBounds();
+				lowerBounds = wildcardType.getLowerBounds();
+			} else {
+				upperBounds = new Type[] { templateGenericType };
+				lowerBounds = T0;
+			}
+
+			/*
+			 * Reduce type variables and wildcards if a leftmost bound is a downstream
+			 * variable reference (i.e. U extends T, ? extends T, ? super T)
+			 * 
+			 * This is needed because the argument matching the variable will use the
+			 * downstream name (i.e. "T", the name to the right of extends)
+			 */
+			if (upperBounds[0] instanceof TypeVariable)
+				templateGenericType = upperBounds[0];
+			else if (lowerBounds.length > 0 && lowerBounds[0] instanceof TypeVariable)
+				templateGenericType = lowerBounds[0];
+
+			// Check type variables for an argument matching the variable name
 			if (templateGenericType instanceof TypeVariable) {
 				final var typeVariable = (TypeVariable<?>) templateGenericType;
 				final var typeVariableName = typeVariable.getName();
 				final var typeArgument = typeArguments.get(typeVariableName);
 
-				if (typeArgument != null)
-					// ... to type argument
+				if (typeArgument != null) {
+					/*
+					 * Verify that upper and lower bounds contain the argument's erasure. The bounds
+					 * may only be narrowed, not widened. This should be superfluous for compiled
+					 * code since the same conditions were already verified by the compiler, but
+					 * reflection generic interfaces are not strictly sealed so could be spoofed,
+					 * modified through instrumentation, or by language extension, so we're
+					 * verifying bounds here as recommended by JLS, and as a security precaution.
+					 */
+					var typeArgumentErasure = typeArgument.erasedClass();
+					for (var upperBound : upperBounds)
+						if (!TypeFactory.getErasedClass(upperBound).isAssignableFrom(typeArgumentErasure))
+							throw new IllegalArgumentException("Type argument " + typeArgument
+									+ " doesn't match upper bound " + printType(upperBound));
+					for (var lowerBound : lowerBounds)
+						if (!typeArgumentErasure.isAssignableFrom(TypeFactory.getErasedClass(lowerBound)))
+							throw new IllegalArgumentException("Type argument " + typeArgument
+									+ " doesn't match lower bound " + printType(lowerBound));
+
+					// Reduce type parameter with the matching argument
 					sealedTypeParameters.put(templateTypeParameterName, typeArgument);
-				else
-					// pass original parameter if no matching argument
-					sealedTypeParameters.put(templateTypeParameterName, templateTypeParameter);
-			} else
-				// pass original parameter if generic type was not a variable
-				sealedTypeParameters.put(templateTypeParameterName, templateTypeParameter);
+					continue;
+				}
+			}
+
+			// Retain parameters that didn't match an argument
+			sealedTypeParameters.put(templateTypeParameterName, templateTypeParameter);
 		}
 
 		return Collections.unmodifiableMap(sealedTypeParameters);

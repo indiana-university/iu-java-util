@@ -37,7 +37,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import edu.iu.type.IuAnnotatedElement;
 import edu.iu.type.IuConstructor;
 import edu.iu.type.IuField;
 import edu.iu.type.IuMethod;
@@ -60,25 +59,27 @@ import edu.iu.type.IuTypeReference;
  * may or may not be the same {@link TypeTemplate} this facade delegates to.
  * </p>
  * 
- * <p>
- * Each facade instance is fully-formed and strictly immutable once
- * {@link #sealTypeParameters(Map) sealed}. Instantiation and parameter sealing
- * are separate steps in template initialization order, so temporary mutability
- * is necessary to prevent recursion loops; A {@link TypeFacade} passed from the
- * block that created it may be assumed immutable whether or not it was sealed.
- * </p>
- * 
+ * @param <D> declaring type
  * @param <T> generic type
  */
-final class TypeFacade<T> implements IuType<T> {
+final class TypeFacade<D, T> extends ElementBase implements IuType<D, T>, ParameterizedFacade {
 
 	/**
 	 * Holds a reference to the template this facade delegates to.
 	 */
-	final TypeTemplate<T> template;
+	final TypeTemplate<D, T> template;
 
-	private Map<String, TypeFacade<?>> typeParameters;
-	private Iterable<TypeFacade<? super T>> hierarchy;
+	/**
+	 * Parameterized element mix-in.
+	 * 
+	 * <p>
+	 * May be used by related components to apply type arguments to managed
+	 * instances before sealing. Once sealed, the public interface (i.e.,
+	 * {@link #typeParameter(String)}) is preferred.
+	 * </p>
+	 */
+	final ParameterizedElement parameterizedElement = new ParameterizedElement();
+
 	private final TypeReference<T, ?> reference;
 
 	/**
@@ -88,7 +89,7 @@ final class TypeFacade<T> implements IuType<T> {
 	 * @param referrer      referrer element
 	 * @param referenceKind reference kind
 	 */
-	TypeFacade(TypeTemplate<T> template, IuAnnotatedElement referrer, IuReferenceKind referenceKind) {
+	TypeFacade(TypeTemplate<D, T> template, ElementBase referrer, IuReferenceKind referenceKind) {
 		this(template, a -> new TypeReference<>(referenceKind, referrer, a));
 	}
 
@@ -100,8 +101,7 @@ final class TypeFacade<T> implements IuType<T> {
 	 * @param referenceKind reference kind
 	 * @param referenceName reference name
 	 */
-	TypeFacade(TypeTemplate<T> template, IuAnnotatedElement referrer, IuReferenceKind referenceKind,
-			String referenceName) {
+	TypeFacade(TypeTemplate<D, T> template, ElementBase referrer, IuReferenceKind referenceKind, String referenceName) {
 		this(template, a -> new TypeReference<>(referenceKind, referrer, a, referenceName));
 	}
 
@@ -113,33 +113,26 @@ final class TypeFacade<T> implements IuType<T> {
 	 * @param referenceKind  reference kind
 	 * @param referenceIndex reference index
 	 */
-	TypeFacade(TypeTemplate<T> template, IuAnnotatedElement referrer, IuReferenceKind referenceKind,
-			int referenceIndex) {
+	TypeFacade(TypeTemplate<D, T> template, ElementBase referrer, IuReferenceKind referenceKind, int referenceIndex) {
 		this(template, a -> new TypeReference<>(referenceKind, referrer, a, referenceIndex));
 	}
 
-	private TypeFacade(TypeTemplate<T> template, Function<TypeFacade<T>, TypeReference<T, ?>> referenceFactory) {
+	private TypeFacade(TypeTemplate<D, T> template, Function<TypeFacade<D, T>, TypeReference<T, ?>> referenceFactory) {
 		this.template = template;
-		this.reference = referenceFactory.apply(this);
-	}
+		reference = referenceFactory.apply(this);
 
-	/**
-	 * <em>Should</em> be called after referrer initialization to propagate type
-	 * arguments through the reference chain and prevent further modification to
-	 * this facade's internal state.
-	 * 
-	 * <p>
-	 * Until this <em>optional</em> method is called, all type parameter lookups
-	 * default to the template.
-	 * </p>
-	 * 
-	 * @param typeArguments type arguments from the referrer
-	 */
-	void sealTypeParameters(Map<String, TypeFacade<?>> typeArguments) {
-		if (this.typeParameters != null)
-			throw new IllegalStateException("already sealed");
+		template.postInit(() -> {
+			this.parameterizedElement.apply(template.typeParameters());
 
-		this.typeParameters = TypeUtils.sealTypeParameters(template.typeParameters, typeArguments);
+			var referrer = reference.referrer();
+			referrer.postInit(() -> {
+				if (referrer instanceof ParameterizedFacade parameterizedReferrer)
+					parameterizedElement.apply(parameterizedReferrer.typeParameters());
+
+				parameterizedElement.seal(template.annotatedElement, template);
+				seal();
+			});
+		});
 	}
 
 	@Override
@@ -148,11 +141,8 @@ final class TypeFacade<T> implements IuType<T> {
 	}
 
 	@Override
-	public Map<String, TypeFacade<?>> typeParameters() {
-		if (typeParameters == null)
-			return template.typeParameters;
-		else
-			return typeParameters;
+	public Map<String, TypeFacade<?, ?>> typeParameters() {
+		return parameterizedElement.typeParameters();
 	}
 
 	@Override
@@ -181,7 +171,7 @@ final class TypeFacade<T> implements IuType<T> {
 	}
 
 	@Override
-	public <S> IuType<? extends S> sub(Class<S> subclass) throws ClassCastException {
+	public <S> IuType<D, ? extends S> sub(Class<S> subclass) throws ClassCastException {
 		return template.sub(subclass);
 	}
 
@@ -201,7 +191,7 @@ final class TypeFacade<T> implements IuType<T> {
 	}
 
 	@Override
-	public IuType<?> declaringType() {
+	public IuType<?, D> declaringType() {
 		return template.declaringType();
 	}
 
@@ -211,7 +201,7 @@ final class TypeFacade<T> implements IuType<T> {
 	}
 
 	@Override
-	public IuType<T> erase() {
+	public IuType<D, T> erase() {
 		return template.erase();
 	}
 
@@ -221,20 +211,17 @@ final class TypeFacade<T> implements IuType<T> {
 	}
 
 	@Override
-	public Iterable<TypeFacade<? super T>> hierarchy() {
-		if (hierarchy == null)
-			return template.hierarchy();
-		else
-			return hierarchy;
+	public Iterable<TypeFacade<?, ? super T>> hierarchy() {
+		return template.hierarchy();
 	}
 
 	@Override
-	public TypeFacade<? super T> referTo(Type referentType) {
+	public IuType<?, ? super T> referTo(Type referentType) {
 		return TypeUtils.referTo(this, hierarchy(), referentType);
 	}
 
 	@Override
-	public Iterable<? extends IuType<?>> enclosedTypes() {
+	public Iterable<? extends IuType<T, ?>> enclosedTypes() {
 		return template.enclosedTypes();
 	}
 
@@ -244,46 +231,23 @@ final class TypeFacade<T> implements IuType<T> {
 	}
 
 	@Override
-	public Iterable<? extends IuField<?>> fields() {
+	public Iterable<? extends IuField<? super T, ?>> fields() {
 		return template.fields();
 	}
 
 	@Override
-	public Iterable<? extends IuProperty<?>> properties() {
+	public Iterable<? extends IuProperty<? super T, ?>> properties() {
 		return template.properties();
 	}
 
 	@Override
-	public Iterable<? extends IuMethod<?>> methods() {
+	public Iterable<? extends IuMethod<? super T, ?>> methods() {
 		return template.methods();
 	}
 
 	@Override
 	public String toString() {
-		var sb = new StringBuilder("IuType[").append(TypeUtils.printType(template.deref()));
-		IuTypeReference<?, ?> ref = reference;
-		while (ref != null) {
-			sb.append(' ').append(ref.kind());
-			if (ref.index() >= 0)
-				sb.append('(').append(ref.index()).append(") ");
-			else if (ref.name() != null)
-				sb.append('(').append(ref.name()).append(") ");
-			else
-				sb.append(" ");
-
-			var referrer = ref.referrer();
-
-			if (referrer instanceof TypeFacade) {
-				var referrerType = (TypeFacade<?>) referrer;
-				sb.append(TypeUtils.printType(referrerType.template.deref()));
-				ref = referrerType.reference;
-			} else {
-				sb.append(referrer);
-				ref = null;
-			}
-		}
-		sb.append(']');
-		return sb.toString();
+		return "IuType[" + reference + ']';
 	}
 
 }

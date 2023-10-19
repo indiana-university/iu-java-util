@@ -31,6 +31,7 @@
  */
 package edu.iu.type;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
@@ -39,6 +40,7 @@ import java.lang.reflect.TypeVariable;
 import java.lang.reflect.WildcardType;
 import java.util.WeakHashMap;
 
+import edu.iu.IuIterable;
 import edu.iu.type.spi.TypeImplementation;
 
 /**
@@ -86,9 +88,10 @@ import edu.iu.type.spi.TypeImplementation;
  * <em>should</em> iterate all members unless a specific name is provided.
  * </p>
  * 
+ * @param <D> declaring type, nullable
  * @param <T> described generic type
  */
-public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
+public interface IuType<D, T> extends IuNamedElement<D> {
 
 	/**
 	 * Resolves a type introspection facade for a generic type.
@@ -96,7 +99,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param type generic type
 	 * @return type introspection facade
 	 */
-	static IuType<?> of(Type type) {
+	static IuType<?, ?> of(Type type) {
 		return TypeImplementation.PROVIDER.resolveType(type);
 	}
 
@@ -123,8 +126,8 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @return type introspection facade
 	 */
 	@SuppressWarnings("unchecked")
-	static <T> IuType<T> of(Class<?> type) {
-		return (IuType<T>) of((Type) type);
+	static <T> IuType<?, T> of(Class<T> type) {
+		return (IuType<?, T>) of((Type) type);
 	}
 
 	/**
@@ -157,7 +160,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 *      "https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.6">JLS
 	 *      21 Section 4.4: Type Erasure</a>
 	 */
-	IuType<T> erase();
+	IuType<D, T> erase();
 
 	/**
 	 * Iterates the type hierarchy, from most specific to least specific.
@@ -175,7 +178,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * 
 	 * @return inherited and extended types
 	 */
-	Iterable<? extends IuType<? super T>> hierarchy();
+	Iterable<? extends IuType<?, ? super T>> hierarchy();
 
 	/**
 	 * Refers to a type in the the described type's hierarchy.
@@ -188,14 +191,14 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param referentType type to refer to
 	 * @return referent facade
 	 */
-	IuType<? super T> referTo(Type referentType);
+	IuType<?, ? super T> referTo(Type referentType);
 
 	/**
 	 * Gets all types enclosed by this type.
 	 * 
 	 * @return enclosed types
 	 */
-	Iterable<? extends IuType<?>> enclosedTypes();
+	Iterable<? extends IuType<T, ?>> enclosedTypes();
 
 	/**
 	 * Gets all constructors defined by this type.
@@ -226,7 +229,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param parameterTypes parameter types
 	 * @return constructor
 	 */
-	default IuConstructor<T> constructor(Iterable<IuType<?>> parameterTypes) {
+	default IuConstructor<T> constructor(Iterable<IuType<?, ?>> parameterTypes) {
 		var hash = IuExecutableKey.hashCode(null, parameterTypes);
 		for (var constructor : constructors()) {
 			var constructorKey = constructor.getKey();
@@ -237,13 +240,23 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	}
 
 	/**
+	 * Scans constructors for those annotated with a specific annotation type.
+	 * 
+	 * @param annotationType annotation type to filter by
+	 * @return {@link #constructors()}, filtered by annotation type
+	 */
+	default Iterable<? extends IuConstructor<T>> annotatedConstructors(Class<? extends Annotation> annotationType) {
+		return IuIterable.filter(constructors(), c -> c.hasAnnotation(annotationType));
+	}
+
+	/**
 	 * Gets all fields defined by this type, followed by all fields defined by all
 	 * types in this type's hierarchy, in {@link #hierarchy()} order.
 	 * 
 	 * @return fields declared by this type and its hierarchy, in this followed by
 	 *         {@link #hierarchy()} order
 	 */
-	Iterable<? extends IuField<?>> fields();
+	Iterable<? extends IuField<? super T, ?>> fields();
 
 	/**
 	 * Gets a field declared by this type.
@@ -254,14 +267,26 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * all fields, including those shadowed by a superclass, use {@link #fields()}.
 	 * </p>
 	 * 
+	 * @param <F>  field type
 	 * @param name field name
 	 * @return field
 	 */
-	default IuField<?> field(String name) {
+	@SuppressWarnings("unchecked")
+	default <F> IuField<? super T, F> field(String name) {
 		for (var field : fields())
 			if (name.equals(field.name()))
-				return field;
+				return (IuField<? super T, F>) field;
 		throw new IllegalArgumentException(this + " missing field " + name);
+	}
+
+	/**
+	 * Scans fields for those annotated with a specific annotation type.
+	 * 
+	 * @param annotationType annotation type to filter by
+	 * @return {@link #fields()}, filtered by annotation type
+	 */
+	default Iterable<? extends IuField<? super T, ?>> annotatedFields(Class<? extends Annotation> annotationType) {
+		return IuIterable.filter(fields(), f -> f.hasAnnotation(annotationType));
 	}
 
 	/**
@@ -271,7 +296,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @return properties declared by this type and its hierarchy, in this followed
 	 *         by {@link #hierarchy()} order
 	 */
-	Iterable<? extends IuProperty<?>> properties();
+	Iterable<? extends IuProperty<? super T, ?>> properties();
 
 	/**
 	 * Gets a property declared by this type.
@@ -279,11 +304,22 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param name property name
 	 * @return property
 	 */
-	default IuProperty<?> property(String name) {
+	default IuProperty<? super T, ?> property(String name) {
 		for (var property : properties())
 			if (name.equals(property.name()))
 				return property;
 		throw new IllegalArgumentException(this + " missing property " + name);
+	}
+
+	/**
+	 * Scans properties for those annotated with a specific annotation type.
+	 * 
+	 * @param annotationType annotation type to filter by
+	 * @return {@link #properties()}, filtered by annotation type
+	 */
+	default Iterable<? extends IuProperty<? super T, ?>> annotatedProperties(
+			Class<? extends Annotation> annotationType) {
+		return IuIterable.filter(properties(), f -> f.hasAnnotation(annotationType));
 	}
 
 	/**
@@ -297,7 +333,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * 
 	 * @return methods
 	 */
-	Iterable<? extends IuMethod<?>> methods();
+	Iterable<? extends IuMethod<? super T, ?>> methods();
 
 	/**
 	 * Gets a method defined by this type.
@@ -306,14 +342,16 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param parameterTypes parameter types
 	 * @return method
 	 */
-	default IuMethod<?> method(String name, Type... parameterTypes) {
-		var hash = IuExecutableKey.hashCode(name, parameterTypes);
-		for (var method : methods()) {
+	default IuMethod<? super T, ?> method(String name, Type... parameterTypes) {
+		final var hash = IuExecutableKey.hashCode(name, parameterTypes);
+		final var methods = methods();
+		for (var method : methods) {
 			var methodKey = method.getKey();
 			if (hash == methodKey.hashCode() && methodKey.equals(name, parameterTypes))
 				return method;
 		}
-		throw new IllegalArgumentException(this + " missing method " + IuExecutableKey.of(name, parameterTypes));
+		throw new IllegalArgumentException(
+				this + " missing method " + IuExecutableKey.of(name, parameterTypes) + "; " + methods);
 	}
 
 	/**
@@ -323,14 +361,26 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param parameterTypes parameter types
 	 * @return method
 	 */
-	default IuMethod<?> method(String name, Iterable<IuType<?>> parameterTypes) {
-		var hash = IuExecutableKey.hashCode(name, parameterTypes);
-		for (var method : methods()) {
+	default IuMethod<? super T, ?> method(String name, Iterable<IuType<?, ?>> parameterTypes) {
+		final var hash = IuExecutableKey.hashCode(name, parameterTypes);
+		final var methods = methods();
+		for (var method : methods) {
 			var methodKey = method.getKey();
 			if (hash == methodKey.hashCode() && methodKey.equals(name, parameterTypes))
 				return method;
 		}
-		throw new IllegalArgumentException(this + " missing method " + IuExecutableKey.of(name, parameterTypes));
+		throw new IllegalArgumentException(
+				this + " missing method " + IuExecutableKey.of(name, parameterTypes) + "; " + methods);
+	}
+
+	/**
+	 * Scans methods for those annotated with a specific annotation type.
+	 * 
+	 * @param annotationType annotation type to filter by
+	 * @return {@link #methods()}, filtered by annotation type
+	 */
+	default Iterable<? extends IuMethod<? super T, ?>> annotatedMethod(Class<? extends Annotation> annotationType) {
+		return IuIterable.filter(methods(), f -> f.hasAnnotation(annotationType));
 	}
 
 	/**
@@ -360,9 +410,9 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @throws ClassCastException If the type does not erase to a subclass
 	 */
 	@SuppressWarnings("unchecked")
-	default <S> IuType<? extends S> sub(Class<S> subclass) throws ClassCastException {
+	default <S> IuType<D, ? extends S> sub(Class<S> subclass) throws ClassCastException {
 		erasedClass().asSubclass(subclass);
-		return (IuType<? extends S>) this;
+		return (IuType<D, ? extends S>) this;
 	}
 
 	/**

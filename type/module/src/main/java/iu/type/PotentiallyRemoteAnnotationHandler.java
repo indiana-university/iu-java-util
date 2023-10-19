@@ -36,6 +36,7 @@ import java.lang.reflect.Array;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.Arrays;
 import java.util.Objects;
 
 import edu.iu.IuException;
@@ -44,9 +45,7 @@ import edu.iu.type.IuType;
 /**
  * Handles remote bridge semantics for {@link AnnotationBridge}.
  */
-class LegacyAnnotationHandler implements InvocationHandler {
-
-	private static final Object[] O0 = new Object[0];
+class PotentiallyRemoteAnnotationHandler implements InvocationHandler {
 
 	private static final Method ANNOTATION_TYPE = IuException
 			.unchecked(() -> Annotation.class.getMethod("annotationType"));
@@ -61,7 +60,8 @@ class LegacyAnnotationHandler implements InvocationHandler {
 	 * @param localAnnotationType         local annotation type
 	 * @param potentiallyRemoteAnnotation potentially remote annotation
 	 */
-	LegacyAnnotationHandler(Class<? extends Annotation> localAnnotationType, Annotation potentiallyRemoteAnnotation) {
+	PotentiallyRemoteAnnotationHandler(Class<? extends Annotation> localAnnotationType,
+			Annotation potentiallyRemoteAnnotation) {
 		this.localAnnotationType = localAnnotationType;
 		this.potentiallyRemoteAnnotation = potentiallyRemoteAnnotation;
 	}
@@ -75,7 +75,8 @@ class LegacyAnnotationHandler implements InvocationHandler {
 			var potentiallyRemoteClass = BackwardsCompatibility.getPotentiallyRemoteClass(localClass);
 			if (Annotation.class.isAssignableFrom(potentiallyRemoteClass) && potentiallyRemoteClass.isInstance(o))
 				return Proxy.newProxyInstance(localClass.getClassLoader(), new Class<?>[] { localClass },
-						new LegacyAnnotationHandler(localClass.asSubclass(Annotation.class), (Annotation) o));
+						new PotentiallyRemoteAnnotationHandler(localClass.asSubclass(Annotation.class),
+								(Annotation) o));
 		}
 
 		if (localClass.isArray() && o.getClass().isArray()) {
@@ -102,7 +103,7 @@ class LegacyAnnotationHandler implements InvocationHandler {
 			return false;
 
 		for (var method : localAnnotationType.getDeclaredMethods())
-			if (!Objects.equals(invoke(proxy, method, O0), IuException.checked(method, object)))
+			if (!Objects.equals(invoke(proxy, method, null), IuException.checkedInvocation(() -> method.invoke(object))))
 				return false;
 		return true;
 	}
@@ -116,18 +117,13 @@ class LegacyAnnotationHandler implements InvocationHandler {
 			if (method.equals(EQUALS))
 				return handleEquals(proxy, args[0]);
 
-			var legacyMethod = potentiallyRemoteAnnotation.annotationType().getMethod(method.getName(),
-					method.getParameterTypes());
-
-			var legacyInvokeArgs = new Object[args == null ? 1 : args.length + 1];
-			legacyInvokeArgs[0] = potentiallyRemoteAnnotation;
-			if (args != null)
-				System.arraycopy(args, 0, legacyInvokeArgs, 1, args.length);
-
-			var legacyReturnValue = IuException.checked(legacyMethod, legacyInvokeArgs);
+			assert args == null : Arrays.toString(args);
+			var potentiallyRemoteMethod = potentiallyRemoteAnnotation.annotationType().getMethod(method.getName());
+			var potentiallyRemoteReturnValue = IuException
+					.checkedInvocation(() -> potentiallyRemoteMethod.invoke(potentiallyRemoteAnnotation));
 			var returnType = IuType.of(method.getGenericReturnType()).autoboxClass();
 
-			return convert(legacyReturnValue, returnType);
+			return convert(potentiallyRemoteReturnValue, returnType);
 		});
 	}
 

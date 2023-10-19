@@ -37,18 +37,17 @@ import java.util.Map;
 
 import edu.iu.type.IuParameter;
 import edu.iu.type.IuReferenceKind;
-import edu.iu.type.IuType;
 
 /**
  * Facade implementation of {@link IuParameter}.
  * 
  * @param <T> parameter type
  */
-final class ParameterFacade<T> extends AnnotatedElementBase<Parameter> implements IuParameter<T> {
+final class ParameterFacade<T> extends AnnotatedElementBase<Parameter> implements IuParameter<T>, ParameterizedFacade {
 
 	private final int index;
 	private final ExecutableBase<?, ?, ?> executable;
-	private final TypeFacade<T> type;
+	private final TypeFacade<?, T> type;
 
 	/**
 	 * Facade constructor, for exclusive use by {@link ExecutableBase}.
@@ -59,21 +58,18 @@ final class ParameterFacade<T> extends AnnotatedElementBase<Parameter> implement
 	 * @param typeTemplate {@link TypeTemplate} for the parameter type
 	 * @param executable   declaring executable facade
 	 */
-	ParameterFacade(Parameter parameter, int index, ExecutableBase<?, ?, ?> executable, TypeTemplate<T> typeTemplate) {
+	ParameterFacade(Parameter parameter, int index, ExecutableBase<?, ?, ?> executable,
+			TypeTemplate<?, T> typeTemplate) {
 		super(parameter, null);
 		this.index = index;
 		this.executable = executable;
 		this.type = new TypeFacade<>(typeTemplate, this, IuReferenceKind.PARAMETER, index);
+		executable.postInit(this::seal);
 	}
 
-	/**
-	 * Seals parameter type variables.
-	 * 
-	 * @param typeArguments arguments passed from the declaring
-	 *                      {@link ExecutableBase}
-	 */
-	void sealTypeParameters(Map<String, TypeFacade<?>> typeArguments) {
-		this.type.sealTypeParameters(typeArguments);
+	@Override
+	public Map<String, TypeFacade<?, ?>> typeParameters() {
+		return executable.typeParameters();
 	}
 
 	@Override
@@ -92,8 +88,13 @@ final class ParameterFacade<T> extends AnnotatedElementBase<Parameter> implement
 	}
 
 	@Override
-	public IuType<T> type() {
+	public TypeFacade<?, T> type() {
 		return type;
+	}
+
+	@Override
+	public String toString() {
+		return name() + ":" + TypeUtils.printType(type.deref());
 	}
 
 }

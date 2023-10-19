@@ -36,9 +36,9 @@ package edu.iu.type;
  * 
  * @param <C> declaring type
  */
-public interface IuConstructor<C> extends IuExecutable<C> {
+public interface IuConstructor<C> extends IuExecutable<C, C> {
 
 	@Override
-	IuType<C> declaringType();
+	IuType<?, C> declaringType();
 
 }

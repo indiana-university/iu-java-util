@@ -37,10 +37,11 @@ import java.util.List;
 /**
  * Facade interface for an {@link Executable} element: a method or constructor.
  * 
+ * @param <D> declaring type
  * @param <R> result type
  * 
  */
-public interface IuExecutable<R> extends IuDeclaredElement, IuParameterizedElement {
+public interface IuExecutable<D, R> extends IuDeclaredElement<D>, IuParameterizedElement {
 
 	/**
 	 * Gets the hash key for this executable.

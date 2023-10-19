@@ -43,11 +43,11 @@ import edu.iu.type.IuReferenceKind;
  * @param <D> declaring type
  * @param <T> property type
  */
-class PropertyFacade<D, T> implements IuProperty<T> {
+final class PropertyFacade<D, T> extends ElementBase implements IuProperty<D, T> {
 
 	private final PropertyDescriptor propertyDescriptor;
-	private final TypeFacade<T> type;
-	private final TypeFacade<D> declaringType;
+	private final TypeFacade<?, T> type;
+	private final TypeFacade<?, D> declaringType;
 	private final MethodFacade<D, T> read;
 	private final MethodFacade<D, Void> write;
 
@@ -60,8 +60,8 @@ class PropertyFacade<D, T> implements IuProperty<T> {
 	 * @param declaringTypeTemplate fully realized {@link TypeTemplate} for a
 	 *                              generic type whose erasure declared the property
 	 */
-	PropertyFacade(PropertyDescriptor propertyDescriptor, TypeTemplate<T> typeTemplate,
-			TypeTemplate<D> declaringTypeTemplate) {
+	PropertyFacade(PropertyDescriptor propertyDescriptor, TypeTemplate<?, T> typeTemplate,
+			TypeTemplate<?, D> declaringTypeTemplate) {
 		this.propertyDescriptor = propertyDescriptor;
 		this.type = new TypeFacade<>(typeTemplate, this, IuReferenceKind.PROPERTY, name());
 		this.declaringType = new TypeFacade<>(declaringTypeTemplate, this, IuReferenceKind.DECLARING_TYPE);
@@ -76,38 +76,44 @@ class PropertyFacade<D, T> implements IuProperty<T> {
 		if (write == null)
 			this.write = null;
 		else
-			this.write = new MethodFacade<>(read, TypeFactory.resolveRawClass(Void.class), declaringTypeTemplate);
+			this.write = new MethodFacade<>(write, TypeFactory.resolveRawClass(Void.class), declaringTypeTemplate);
 
 		declaringTypeTemplate.postInit(() -> this.type.sealTypeParameters(declaringType.typeParameters()));
 	}
 
 	@Override
-	public TypeFacade<T> type() {
+	public TypeFacade<?, T> type() {
+		checkSealed();
 		return type;
 	}
 
 	@Override
 	public String name() {
+		checkSealed();
 		return propertyDescriptor.getName();
 	}
 
 	@Override
-	public TypeFacade<D> declaringType() {
+	public TypeFacade<?, D> declaringType() {
+		checkSealed();
 		return declaringType;
 	}
 
 	@Override
 	public MethodFacade<D, T> read() {
+		checkSealed();
 		return read;
 	}
 
 	@Override
 	public MethodFacade<D, Void> write() {
+		checkSealed();
 		return write;
 	}
 
 	@Override
 	public T get(Object o) {
+		checkSealed();
 		if (read == null)
 			throw new IllegalArgumentException("Property " + name() + " is not readable for " + type);
 		else
@@ -116,6 +122,7 @@ class PropertyFacade<D, T> implements IuProperty<T> {
 
 	@Override
 	public void set(Object o, T value) {
+		checkSealed();
 		if (write == null)
 			throw new IllegalArgumentException("Property " + name() + " is not writable for " + type);
 		else
