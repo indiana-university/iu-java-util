@@ -1,3 +1,34 @@
+/*
+ * Copyright © 2023 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package edu.iu;
 
 import java.lang.constant.Constable;
@@ -16,13 +47,10 @@ import java.util.stream.Stream;
 /**
  * Lightweight <strong>factory</strong>, manipulation, and processing utility
  * for <strong>constantly repeatable</strong> {@link Iterable} and other
- * {@link Supplier Supplier<Iterator>} compatible iterator sources.
+ * {@link Supplier Supplier&lt;Iterator&gt;} compatible iterator sources.
  * 
  * <p>
- * This utility is useful for low-level optimization due its minimal,
- * lightweight operation. It is also valuable for improving readability and
- * reachablility when refactoring logic that makes extensive single-line use of
- * forEach, lambda, and stream operators.
+ * This utility is useful for low-level optimization routines. Note that:
  * </p>
  * 
  * <pre>
@@ -55,18 +83,8 @@ import java.util.stream.Stream;
  * </p>
  * <p>
  * <strong>Factory iterables</strong> are also preferred over {@link Stream}
- * forms for covered scenarios involving determinant streams of constant data.
- * When {@link Stream} data is preferred, the stream may be used with
- * <em>factory iterator</em> and/or a for loop using {@link #of(Supplier)} as in
- * the example below, for reduced overhead compared to collecting items from the
- * stream then looping over the collection:
+ * forms.
  * </p>
- * 
- * <pre>
- * for (var item : IuIterable.of(myStream::iterator)) {
- * 	// ...
- * }
- * </pre>
  * 
  * <p>
  * In particular, {@link #cat(Iterable...)} is useful for union joins of like
@@ -102,7 +120,7 @@ import java.util.stream.Stream;
  * values, etc). Source <em>must</em> be immutable—{@link Iterator#remove()}
  * will not be invoked and <em>should not</em> be implemented. These conditions
  * are not verifiable, so results are undefined if not met by the
- * application.</dd>
+ * application.
  * </p>
  * 
  * <p>
@@ -172,13 +190,13 @@ public final class IuIterable {
 	}
 
 	/**
-	 * Creates a <strong>factory {@link Iterable iterable}</strong> instance from a
-	 * <strong>constantly repeatable</strong> supplier.
+	 * Creates an {@link Iterable} instance from a <strong>constantly
+	 * repeatable</strong> supplier.
 	 * 
 	 * @param <T>      item type
 	 * @param supplier {@link Iterable} {@link Supplier}; <em>must</em> be
-	 *                 </strong>constantly repeatable</strong>.
-	 * @return <strong>factory {@link Iterable iterable}</strong>
+	 *                 <strong>constantly repeatable</strong>.
+	 * @return {@link Iterable}
 	 */
 	public static <T> Iterable<T> of(Supplier<Iterator<T>> supplier) {
 		return new Iterable<T>() {
@@ -243,7 +261,7 @@ public final class IuIterable {
 	 * @return string representation
 	 * @throws NoSuchElementException   if skip requests skipping elements no
 	 *                                  present on the source iterable.
-	 * @throws IllegalArgumentException if skip < 0
+	 * @throws IllegalArgumentException if skip &lt; 0
 	 */
 	public static String print(Iterator<?> iterator, int skip) throws NoSuchElementException, IllegalArgumentException {
 		if (skip < 0)
@@ -314,7 +332,8 @@ public final class IuIterable {
 	/**
 	 * Wraps an array.
 	 * 
-	 * @param a array
+	 * @param <T> item type
+	 * @param a   array
 	 * @return An iterable over the entire array.
 	 */
 	@SafeVarargs
@@ -325,6 +344,7 @@ public final class IuIterable {
 	/**
 	 * Wraps an array.
 	 * 
+	 * @param <T>  item type
 	 * @param a    array
 	 * @param from starting point
 	 * @return An iterable over the array starting from the point indicated.
@@ -364,6 +384,7 @@ public final class IuIterable {
 	/**
 	 * Concatenates one or more iterables.
 	 * 
+	 * @param <T>       item type
 	 * @param iterables iterables
 	 * @return A single iterable over all iterables in sequence.
 	 */
@@ -409,8 +430,10 @@ public final class IuIterable {
 	/**
 	 * Maps an iterable using a transform function.
 	 * 
-	 * @param i iterable
-	 * @param f transform function
+	 * @param <T> item type
+	 * @param <U> transformed item type
+	 * @param i   iterable
+	 * @param f   transform function
 	 * @return An iterable over the results of applying the transform function to
 	 *         the items available from the iterable.
 	 */
@@ -434,8 +457,9 @@ public final class IuIterable {
 	/**
 	 * Filters an interable using predicate.
 	 * 
-	 * @param i iterable
-	 * @param p predicate
+	 * @param <T> item type
+	 * @param i   iterable
+	 * @param p   predicate
 	 * @return An iterable over the items for which the predicate returns true.
 	 */
 	public static <T> Iterable<T> filter(Iterable<T> i, Predicate<T> p) {
