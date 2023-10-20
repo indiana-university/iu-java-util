@@ -32,7 +32,6 @@
 package iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -53,7 +52,7 @@ import edu.iu.type.IuType;
 @SuppressWarnings("javadoc")
 public class TypeTemplateTest {
 
-	private void assertRaw(Class<?> baseClass, TypeTemplate<?> baseTemplate) {
+	private void assertRaw(Class<?> baseClass, TypeTemplate<?, ?> baseTemplate) {
 		assertNull(baseTemplate.reference());
 		assertSame(baseClass, baseTemplate.deref());
 		assertSame(baseTemplate, baseTemplate.erase());
@@ -62,7 +61,7 @@ public class TypeTemplateTest {
 		assertEquals("IuType[" + TypeUtils.printType(baseClass) + ']', baseTemplate.toString());
 	}
 
-	private void assertGeneric(Type genericType, TypeTemplate<?> genericTemplate) {
+	private void assertGeneric(Type genericType, TypeTemplate<?, ?> genericTemplate) {
 		assertNull(genericTemplate.reference());
 		assertSame(genericType, genericTemplate.deref());
 		assertNotSame(genericTemplate, genericTemplate.erase());

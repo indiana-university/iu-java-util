@@ -51,11 +51,11 @@ import edu.iu.type.IuType;
 @SuppressWarnings("javadoc")
 public class TypeFactoryTest {
 
-	private void assertErased(Class<?> erasedClass, IuType<?> shouldBeErased) {
+	private void assertErased(Class<?> erasedClass, IuType<?, ?> shouldBeErased) {
 		assertSame(erasedClass, shouldBeErased.deref());
 		assertEquals(IuReferenceKind.ERASURE, shouldBeErased.reference().kind());
-		assertSame(shouldBeErased, ((IuType<?>) shouldBeErased.reference().referrer()).erase());
-		assertSame(shouldBeErased, ((IuType<?>) shouldBeErased.reference().referent()));
+		assertSame(shouldBeErased, ((IuType<?, ?>) shouldBeErased.reference().referrer()).erase());
+		assertSame(shouldBeErased, ((IuType<?, ?>) shouldBeErased.reference().referent()));
 	}
 
 	@Test
@@ -156,7 +156,7 @@ public class TypeFactoryTest {
 		assertSame(AnAbstractClass.class, h.erasedClass());
 		assertSame(type, h.reference().referrer());
 		assertTrue(hierarchy.hasNext());
-		
+
 		var anAbstractClass = h;
 		h = hierarchy.next();
 		assertSame(AnInterface.class, h.erasedClass());

@@ -38,8 +38,6 @@ import java.util.Arrays;
 import edu.iu.IuException;
 import edu.iu.type.IuMethod;
 import edu.iu.type.IuReferenceKind;
-import jakarta.interceptor.AroundInvoke;
-import jakarta.interceptor.Interceptors;
 
 /**
  * Facade implementation for {@link IuMethod}.
@@ -86,11 +84,6 @@ final class MethodFacade<D, R> extends ExecutableBase<D, R, Method> implements I
 	@Override
 	public R exec(Object... arguments) throws Exception {
 		checkSealed();
-
-		// TODO: Implement @AroundInvoke
-		if (hasAnnotation(Interceptors.class) || declaringType().hasAnnotation(Interceptors.class) || declaringType())
-		if (hasAnnotation(AroundInvoke.class))
-			throw new UnsupportedOperationException("@AroundInvoke not supported in this version");
 
 		Object obj;
 		Object[] args;

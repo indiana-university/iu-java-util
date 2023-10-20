@@ -125,6 +125,7 @@ public class ComponentTest {
 		}
 	}
 
+	@SuppressWarnings("unchecked")
 	@Test
 	public void testControllerCanOpenPackages() throws IOException {
 		try (var mockIuType = mockStatic(IuType.class)) {
@@ -173,6 +174,7 @@ public class ComponentTest {
 		}
 	}
 
+	@SuppressWarnings("unchecked")
 	@Test
 	public void testLegacyDoesntOpenPackages() throws IOException {
 		try (var mockIuType = mockStatic(IuType.class)) {

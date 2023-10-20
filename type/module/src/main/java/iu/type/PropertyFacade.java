@@ -32,6 +32,7 @@
 package iu.type;
 
 import java.beans.PropertyDescriptor;
+import java.util.Objects;
 
 import edu.iu.IuException;
 import edu.iu.type.IuProperty;
@@ -66,19 +67,28 @@ final class PropertyFacade<D, T> extends ElementBase implements IuProperty<D, T>
 		this.type = new TypeFacade<>(typeTemplate, this, IuReferenceKind.PROPERTY, name());
 		this.declaringType = new TypeFacade<>(declaringTypeTemplate, this, IuReferenceKind.DECLARING_TYPE);
 
-		var read = propertyDescriptor.getReadMethod();
-		if (read == null)
+		final Runnable postRead;
+		final var read = propertyDescriptor.getReadMethod();
+		if (read == null) {
 			this.read = null;
-		else
+			postRead = this::seal;
+		} else {
 			this.read = new MethodFacade<>(read, typeTemplate, declaringTypeTemplate);
+			postRead = () -> this.read.postInit(this::seal);
+		}
 
-		var write = propertyDescriptor.getWriteMethod();
-		if (write == null)
+		final Runnable seal;
+		final var write = propertyDescriptor.getWriteMethod();
+		if (write == null) {
+			Objects.requireNonNull(read);
 			this.write = null;
-		else
+			seal = postRead;
+		} else {
 			this.write = new MethodFacade<>(write, TypeFactory.resolveRawClass(Void.class), declaringTypeTemplate);
+			seal = () -> this.write.postInit(postRead);
+		}
 
-		declaringTypeTemplate.postInit(() -> this.type.sealTypeParameters(declaringType.typeParameters()));
+		this.declaringType.postInit(() -> this.type.postInit(seal));
 	}
 
 	@Override

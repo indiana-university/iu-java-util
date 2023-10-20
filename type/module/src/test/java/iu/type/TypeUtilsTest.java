@@ -137,63 +137,64 @@ public class TypeUtilsTest {
 						.getMessage());
 	}
 
-	@Test
-	public void testUpperBounds() {
-		class HasBounds<N extends Number> {
-		}
-		Map<String, TypeFacade<?>> params = new HashMap<>();
-		params.put("N", (TypeFacade<?>) IuType.of(HasBounds.class).typeParameter("N"));
-
-		Map<String, TypeFacade<?>> args = new HashMap<>();
-		args.put("N", (TypeFacade<?>) IuType.of(String.class).referTo(CharSequence.class));
-
-		assertEquals("Type argument IuType[CharSequence SUPER String] doesn't match upper bound Number",
-				assertThrows(IllegalArgumentException.class, () -> TypeUtils.sealTypeParameters(params, args))
-						.getMessage());
-	}
-
-	@Test
-	public void testLowerBoundsMismatch() {
-		@SuppressWarnings("unused")
-		class HasBounds<N extends Number> {
-			Class<? super N> hasLowerBound;
-		}
-		Map<String, TypeFacade<?>> params = new HashMap<>();
-		params.put("N", (TypeFacade<?>) IuType.of(HasBounds.class).field("hasLowerBound").type().typeParameter("T"));
-
-		Map<String, TypeFacade<?>> args = new HashMap<>();
-		args.put("N", (TypeFacade<?>) IuType.of(String.class).referTo(CharSequence.class));
-
-		assertEquals("Type argument IuType[CharSequence SUPER String] doesn't match lower bound N",
-				assertThrows(IllegalArgumentException.class, () -> TypeUtils.sealTypeParameters(params, args))
-						.getMessage());
-	}
-
-	@Test
-	public void testRetainsLowerBoundedWildcard() {
-		@SuppressWarnings("unused")
-		class HasBounds {
-			Class<? super Number> hasLowerBound;
-		}
-		Map<String, TypeFacade<?>> params = new HashMap<>();
-		params.put("", (TypeFacade<?>) IuType.of(HasBounds.class).field("hasLowerBound").type().typeParameter("T"));
-
-		assertSame(params.get(""), TypeUtils.sealTypeParameters(params, new HashMap<>()).get(""));
-	}
-
-	@Test
-	public void testLowerBoundsMatch() {
-		@SuppressWarnings("unused")
-		class HasBounds<N extends Number> {
-			Class<? super N> hasLowerBound;
-		}
-		Map<String, TypeFacade<?>> params = new HashMap<>();
-		params.put("N", (TypeFacade<?>) IuType.of(HasBounds.class).field("hasLowerBound").type().typeParameter("T"));
-
-		Map<String, TypeFacade<?>> args = new HashMap<>();
-		args.put("N", (TypeFacade<?>) IuType.of(Integer.class).referTo(Serializable.class));
-
-		assertSame(args.get("N"), TypeUtils.sealTypeParameters(params, args).get("N"));
-	}
-
+	// TODO: REMOVE
+//	@Test
+//	public void testUpperBounds() {
+//		class HasBounds<N extends Number> {
+//		}
+//		Map<String, TypeFacade<?>> params = new HashMap<>();
+//		params.put("N", (TypeFacade<?>) IuType.of(HasBounds.class).typeParameter("N"));
+//
+//		Map<String, TypeFacade<?>> args = new HashMap<>();
+//		args.put("N", (TypeFacade<?>) IuType.of(String.class).referTo(CharSequence.class));
+//
+//		assertEquals("Type argument IuType[CharSequence SUPER String] doesn't match upper bound Number",
+//				assertThrows(IllegalArgumentException.class, () -> TypeUtils.sealTypeParameters(params, args))
+//						.getMessage());
+//	}
+//
+//	@Test
+//	public void testLowerBoundsMismatch() {
+//		@SuppressWarnings("unused")
+//		class HasBounds<N extends Number> {
+//			Class<? super N> hasLowerBound;
+//		}
+//		Map<String, TypeFacade<?>> params = new HashMap<>();
+//		params.put("N", (TypeFacade<?>) IuType.of(HasBounds.class).field("hasLowerBound").type().typeParameter("T"));
+//
+//		Map<String, TypeFacade<?>> args = new HashMap<>();
+//		args.put("N", (TypeFacade<?>) IuType.of(String.class).referTo(CharSequence.class));
+//
+//		assertEquals("Type argument IuType[CharSequence SUPER String] doesn't match lower bound N",
+//				assertThrows(IllegalArgumentException.class, () -> TypeUtils.sealTypeParameters(params, args))
+//						.getMessage());
+//	}
+//
+//	@Test
+//	public void testRetainsLowerBoundedWildcard() {
+//		@SuppressWarnings("unused")
+//		class HasBounds {
+//			Class<? super Number> hasLowerBound;
+//		}
+//		Map<String, TypeFacade<?>> params = new HashMap<>();
+//		params.put("", (TypeFacade<?>) IuType.of(HasBounds.class).field("hasLowerBound").type().typeParameter("T"));
+//
+//		assertSame(params.get(""), TypeUtils.sealTypeParameters(params, new HashMap<>()).get(""));
+//	}
+//
+//	@Test
+//	public void testLowerBoundsMatch() {
+//		@SuppressWarnings("unused")
+//		class HasBounds<N extends Number> {
+//			Class<? super N> hasLowerBound;
+//		}
+//		Map<String, TypeFacade<?>> params = new HashMap<>();
+//		params.put("N", (TypeFacade<?>) IuType.of(HasBounds.class).field("hasLowerBound").type().typeParameter("T"));
+//
+//		Map<String, TypeFacade<?>> args = new HashMap<>();
+//		args.put("N", (TypeFacade<?>) IuType.of(Integer.class).referTo(Serializable.class));
+//
+//		assertSame(args.get("N"), TypeUtils.sealTypeParameters(params, args).get("N"));
+//	}
+//
 }

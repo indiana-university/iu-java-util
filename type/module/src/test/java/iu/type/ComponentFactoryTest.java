@@ -224,6 +224,7 @@ public class ComponentFactoryTest {
 		}
 	}
 	
+	@SuppressWarnings("unchecked")
 	@Test
 	public void testLoadsRuntimeIfSwitchedWithDeps() throws Exception {
 		var publicUrlThatWorksAndReturnsJson = "https://idp-stg.login.iu.edu/.well-known/openid-configuration";

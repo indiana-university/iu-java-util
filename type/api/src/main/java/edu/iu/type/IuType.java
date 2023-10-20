@@ -91,7 +91,7 @@ import edu.iu.type.spi.TypeImplementation;
  * @param <D> declaring type, nullable
  * @param <T> described generic type
  */
-public interface IuType<D, T> extends IuNamedElement<D> {
+public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement {
 
 	/**
 	 * Resolves a type introspection facade for a generic type.
@@ -379,7 +379,7 @@ public interface IuType<D, T> extends IuNamedElement<D> {
 	 * @param annotationType annotation type to filter by
 	 * @return {@link #methods()}, filtered by annotation type
 	 */
-	default Iterable<? extends IuMethod<? super T, ?>> annotatedMethod(Class<? extends Annotation> annotationType) {
+	default Iterable<? extends IuMethod<? super T, ?>> annotatedMethods(Class<? extends Annotation> annotationType) {
 		return IuIterable.filter(methods(), f -> f.hasAnnotation(annotationType));
 	}
 

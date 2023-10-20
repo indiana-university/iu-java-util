@@ -261,7 +261,8 @@ public final class IuIterable {
 	 * @return string representation
 	 * @throws NoSuchElementException   if skip requests skipping elements no
 	 *                                  present on the source iterable.
-	 * @throws IllegalArgumentException if skip &lt; 0
+	 * @throws IllegalArgumentException if skip &lt;
+	 *  0
 	 */
 	public static String print(Iterator<?> iterator, int skip) throws NoSuchElementException, IllegalArgumentException {
 		if (skip < 0)

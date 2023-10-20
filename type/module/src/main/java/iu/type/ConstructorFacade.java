@@ -35,7 +35,6 @@ import java.lang.reflect.Constructor;
 
 import edu.iu.IuException;
 import edu.iu.type.IuConstructor;
-import jakarta.interceptor.AroundConstruct;
 
 /**
  * Facade implementation for {@link IuConstructor}.
@@ -58,10 +57,10 @@ final class ConstructorFacade<C> extends ExecutableBase<C, C, Constructor<C>> im
 
 	@Override
 	public C exec(Object... arguments) throws Exception {
-		// TODO: Implement @AroundConstruct
-		if (hasAnnotation(AroundConstruct.class))
-			throw new UnsupportedOperationException("@AroundConstruct not supported in this version");
-
+//		if (hasAnnotation(Interceptors.class) || declaringType().hasAnnotation(Interceptors.class)
+//				|| declaringType().annotatedMethods(AroundConstruct.class).iterator().hasNext())
+//			throw new UnsupportedOperationException("@AroundConstruct not supported in this version");
+//
 		return annotatedElement.getDeclaringClass()
 				.cast(IuException.checkedInvocation(() -> annotatedElement.newInstance(arguments)));
 	}

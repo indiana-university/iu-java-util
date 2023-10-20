@@ -45,8 +45,6 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.type.IuField;
-import edu.iu.type.IuParameter;
 import edu.iu.type.IuReferenceKind;
 
 @SuppressWarnings("javadoc")
@@ -69,9 +67,9 @@ public class TypeReferenceTest {
 	@Test
 	public void testNonArgumentKindConstructorRequiresNonArgumentKind() {
 		var type = mock(TypeFacade.class);
-		var field = mock(IuField.class);
+		var field = mock(FieldFacade.class);
 		assertThrows(AssertionError.class, () -> new TypeReference(IuReferenceKind.FIELD, field, type));
-		var param = mock(IuParameter.class);
+		var param = mock(ParameterFacade.class);
 		assertThrows(AssertionError.class, () -> new TypeReference(IuReferenceKind.PARAMETER, param, type));
 	}
 
@@ -79,7 +77,7 @@ public class TypeReferenceTest {
 	@Test
 	public void testNamedArgumentKindIsStable() {
 		var type = mock(TypeFacade.class);
-		var field = mock(IuField.class);
+		var field = mock(FieldFacade.class);
 		var ref = new TypeReference(IuReferenceKind.FIELD, field, type, "");
 		assertEquals(IuReferenceKind.FIELD, ref.kind());
 		assertSame(type, ref.referent());
@@ -93,7 +91,7 @@ public class TypeReferenceTest {
 	@Test
 	public void testNamedArgumentKindConstructorRequiresNamedArgumentKind() {
 		var type = mock(TypeFacade.class);
-		var param = mock(IuParameter.class);
+		var param = mock(ParameterFacade.class);
 		assertThrows(AssertionError.class, () -> new TypeReference(IuReferenceKind.PARAMETER, param, type, ""));
 	}
 
@@ -101,7 +99,7 @@ public class TypeReferenceTest {
 	@Test
 	public void testIndexedArgumentKindIsStable() {
 		var type = mock(TypeFacade.class);
-		var param = mock(IuParameter.class);
+		var param = mock(ParameterFacade.class);
 		var ref = new TypeReference(IuReferenceKind.PARAMETER, param, type, 0);
 		assertEquals(IuReferenceKind.PARAMETER, ref.kind());
 		assertSame(type, ref.referent());
@@ -115,7 +113,7 @@ public class TypeReferenceTest {
 	@Test
 	public void testIndexedArgumentKindConstructorRequiresIndexedArgumentKind() {
 		var type = mock(TypeFacade.class);
-		var field = mock(IuField.class);
+		var field = mock(FieldFacade.class);
 		assertThrows(AssertionError.class, () -> new TypeReference(IuReferenceKind.FIELD, field, type, 0));
 	}
 
@@ -123,7 +121,7 @@ public class TypeReferenceTest {
 	@Test
 	public void testIndexedArgumentKindConstructorRequiresValidIndex() {
 		var type = mock(TypeFacade.class);
-		var param = mock(IuParameter.class);
+		var param = mock(ParameterFacade.class);
 		assertThrows(AssertionError.class, () -> new TypeReference(IuReferenceKind.PARAMETER, param, type, -1));
 	}
 
@@ -163,7 +161,7 @@ public class TypeReferenceTest {
 	@Test
 	public void testDifferentNamesNotEquals() {
 		var type = mock(TypeFacade.class);
-		var field = mock(IuField.class);
+		var field = mock(FieldFacade.class);
 		var ref1 = new TypeReference(IuReferenceKind.FIELD, field, type, "a");
 		var ref2 = new TypeReference(IuReferenceKind.FIELD, field, type, "b");
 		assertNotEquals(ref1, ref2);
@@ -175,7 +173,7 @@ public class TypeReferenceTest {
 	public void testDifferentReferentNotEquals() {
 		var type1 = mock(TypeFacade.class);
 		var type2 = mock(TypeFacade.class);
-		var field = mock(IuField.class);
+		var field = mock(FieldFacade.class);
 		var ref1 = new TypeReference(IuReferenceKind.FIELD, field, type1, "a");
 		var ref2 = new TypeReference(IuReferenceKind.FIELD, field, type2, "a");
 		assertNotEquals(ref1, ref2);
@@ -186,7 +184,7 @@ public class TypeReferenceTest {
 	@Test
 	public void testDifferentIndexNotEquals() {
 		var type = mock(TypeFacade.class);
-		var param = mock(IuParameter.class);
+		var param = mock(ParameterFacade.class);
 		var ref1 = new TypeReference(IuReferenceKind.PARAMETER, param, type, 1);
 		var ref2 = new TypeReference(IuReferenceKind.PARAMETER, param, type, 2);
 		assertNotEquals(ref1, ref2);

@@ -23,12 +23,12 @@ jobs:
           java-version: '20'
           cache: 'maven'
 
-      - run: mvn --batch-mode clean process-classes
+      - run: mvn --batch-mode clean verify -DskipTests
 
       - uses: actions/upload-artifact@v3
         with:
           name: site
-          path: target/iu-site.tar
+          path: site/target/iu-site.tar
           retention-days: 1
 
   verify:
@@ -44,7 +44,7 @@ jobs:
           java-version: '20'
           cache: 'maven'
 
-      - run: mvn --batch-mode verify
+      - run: mvn --batch-mode clean verify
 
   publish-site:
     needs: compile

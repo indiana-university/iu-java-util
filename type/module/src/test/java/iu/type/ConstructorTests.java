@@ -18,7 +18,7 @@ public class ConstructorTests {
 		var type = IuType.of(HasDirect.class);
 		var con = type.constructor(getClass());
 		assertEquals("HasDirect(ConstructorTests)", con.toString());
-		assertSame(type, ((TypeFacade<?>) con.declaringType()).template);
+		assertSame(type, ((TypeFacade<?,?>) con.declaringType()).template);
 		assertEquals(1, con.parameters().size());
 		assertSame(getClass(), con.parameter(0).type().erasedClass());
 		assertInstanceOf(HasDirect.class, con.exec(this));
