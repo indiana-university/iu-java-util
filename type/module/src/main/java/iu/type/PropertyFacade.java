@@ -92,15 +92,14 @@ final class PropertyFacade<D, T> extends ElementBase implements IuProperty<D, T>
 	}
 
 	@Override
-	public TypeFacade<?, T> type() {
-		checkSealed();
-		return type;
+	public String name() {
+		return propertyDescriptor.getName();
 	}
 
 	@Override
-	public String name() {
+	public TypeFacade<?, T> type() {
 		checkSealed();
-		return propertyDescriptor.getName();
+		return type;
 	}
 
 	@Override

@@ -61,7 +61,8 @@ public class AnnotatedElementTest {
 		when(e.getAnnotation(Resource.class)).thenReturn(r);
 		when(e.getAnnotations()).thenReturn(new Annotation[] { r });
 
-		var annotatedElement = new AnnotatedElementBase<>(e, null);
+		var annotatedElement = new AnnotatedElementBase<>(e);
+		annotatedElement.seal();
 		assertTrue(annotatedElement.hasAnnotation(Resource.class));
 		assertSame(r, annotatedElement.annotation(Resource.class));
 		var i = annotatedElement.annotations().iterator();
@@ -70,12 +71,18 @@ public class AnnotatedElementTest {
 		assertFalse(i.hasNext());
 	}
 
+	private <T> AnnotatedElementBase<Class<T>> base(Class<T> c) {
+		final var rv = new AnnotatedElementBase<>(c);
+		rv.seal();
+		return rv;
+	}
+	
 	@Test
 	public void testJustDenyAllDenys() {
 		@DenyAll
 		interface JustDenysAll {
 		}
-		assertFalse(new AnnotatedElementBase<>(JustDenysAll.class, null).permitted());
+		assertFalse(base(JustDenysAll.class).permitted());
 	}
 
 	@Test
@@ -84,7 +91,7 @@ public class AnnotatedElementTest {
 		@DenyAll
 		interface PermitsAndDenysAll {
 		}
-		assertFalse(new AnnotatedElementBase<>(PermitsAndDenysAll.class, null).permitted());
+		assertFalse(base(PermitsAndDenysAll.class).permitted());
 	}
 
 	@Test
@@ -93,7 +100,7 @@ public class AnnotatedElementTest {
 		@DenyAll
 		interface AllowsRoleAndDenysAll {
 		}
-		assertFalse(new AnnotatedElementBase<>(AllowsRoleAndDenysAll.class, null)
+		assertFalse(base(AllowsRoleAndDenysAll.class)
 				.permitted(r -> "should not work".equals(r)));
 	}
 
@@ -102,7 +109,7 @@ public class AnnotatedElementTest {
 		@PermitAll
 		interface JustPermitAll {
 		}
-		assertTrue(new AnnotatedElementBase<>(JustPermitAll.class, null).permitted());
+		assertTrue(base(JustPermitAll.class).permitted());
 	}
 
 	@Test
@@ -111,7 +118,7 @@ public class AnnotatedElementTest {
 		@PermitAll
 		interface AllowsRoleAndPermitsAll {
 		}
-		assertTrue(new AnnotatedElementBase<>(AllowsRoleAndPermitsAll.class, null)
+		assertTrue(base(AllowsRoleAndPermitsAll.class)
 				.permitted(r -> "would not work".equals(r)));
 	}
 
@@ -120,15 +127,15 @@ public class AnnotatedElementTest {
 		@RolesAllowed("works")
 		interface AllowsRole {
 		}
-		assertFalse(new AnnotatedElementBase<>(AllowsRole.class, null).permitted(r -> "will not work".equals(r)));
-		assertTrue(new AnnotatedElementBase<>(AllowsRole.class, null).permitted(r -> "works".equals(r)));
+		assertFalse(base(AllowsRole.class).permitted(r -> "will not work".equals(r)));
+		assertTrue(base(AllowsRole.class).permitted(r -> "works".equals(r)));
 	}
 
 	@Test
 	public void testDenyByDefault() {
 		interface CantJustDoIt {
 		}
-		assertFalse(new AnnotatedElementBase<>(CantJustDoIt.class, null).permitted());
+		assertFalse(base(CantJustDoIt.class).permitted());
 	}
 
 }

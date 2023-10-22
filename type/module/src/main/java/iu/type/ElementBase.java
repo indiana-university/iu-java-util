@@ -31,6 +31,8 @@
  */
 package iu.type;
 
+import java.util.ArrayDeque;
+import java.util.Queue;
 import java.util.function.Consumer;
 
 import edu.iu.type.IuAnnotatedElement;
@@ -42,7 +44,7 @@ abstract sealed class ElementBase implements IuAnnotatedElement
 		permits AnnotatedElementBase, TypeFacade, PropertyFacade {
 
 	private boolean sealed;
-	private Runnable postInit;
+	private Queue<Runnable> postInit = new ArrayDeque<>();
 
 	/**
 	 * Default constructor, for use by all subclasses extend {@link TypeTemplate}.
@@ -84,16 +86,8 @@ abstract sealed class ElementBase implements IuAnnotatedElement
 	void postInit(Runnable run) {
 		if (sealed)
 			run.run();
-		else {
-			var postInit = this.postInit;
-			if (postInit == null)
-				this.postInit = run;
-			else
-				this.postInit = () -> {
-					postInit.run();
-					run.run();
-				};
-		}
+		else
+			postInit.offer(run);
 	}
 
 	/**
@@ -104,12 +98,11 @@ abstract sealed class ElementBase implements IuAnnotatedElement
 			throw new IllegalStateException("Already sealed");
 
 		var postInit = this.postInit;
-
 		this.sealed = true;
 		this.postInit = null;
-
-		if (postInit != null)
-			postInit.run();
+		
+		while (!postInit.isEmpty())
+			postInit.poll().run();
 	}
 
 }

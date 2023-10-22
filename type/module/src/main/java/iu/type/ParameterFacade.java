@@ -60,7 +60,7 @@ final class ParameterFacade<T> extends AnnotatedElementBase<Parameter> implement
 	 */
 	ParameterFacade(Parameter parameter, int index, ExecutableBase<?, ?, ?> executable,
 			TypeTemplate<?, T> typeTemplate) {
-		super(parameter, null);
+		super(parameter);
 		this.index = index;
 		this.executable = executable;
 		this.type = new TypeFacade<>(typeTemplate, this, IuReferenceKind.PARAMETER, index);

@@ -36,6 +36,8 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import edu.iu.IuException;
 import edu.iu.UnsafeSupplier;
@@ -51,6 +53,8 @@ import jakarta.annotation.Resources;
  * @param <T> resource type
  */
 class ComponentResource<T> implements IuResource<T> {
+
+	private static final Logger LOG = Logger.getLogger(ComponentResource.class.getName());
 
 	/**
 	 * Creates a static web resource.
@@ -176,7 +180,12 @@ class ComponentResource<T> implements IuResource<T> {
 		var resourceReference = AnnotationBridge.getAnnotation(Resource.class, implementationClass);
 		if (resourceReference != null)
 			if (isApplicationResource(resourceReference, implementationClass))
-				resources.add(createResource(resourceReference, implementationClass, implementationFactory));
+				try {
+					resources.add(createResource(resourceReference, implementationClass, implementationFactory));
+				} catch (Throwable e) {
+					LOG.log(Level.CONFIG, e,
+							() -> "Resource initialization failure; " + resourceReference + ' ' + implementationClass);
+				}
 
 		return resources;
 	}

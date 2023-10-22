@@ -33,7 +33,6 @@ package iu.type;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.Map;
 
 import edu.iu.IuException;
 import edu.iu.type.IuField;
@@ -65,12 +64,10 @@ final class FieldFacade<D, T> extends DeclaredElementBase<D, Field> implements I
 
 		this.type = new TypeFacade<>(typeTemplate, this, IuReferenceKind.FIELD, field.getName());
 		
-		declaringType().postInit(this::seal);
-	}
-
-	@Override
-	public Map<String, TypeFacade<?, ?>> typeParameters() {
-		return declaringType().typeParameters();
+		declaringTypeTemplate.postInit(() -> {
+			this.type.parameterizedElement.apply(declaringTypeTemplate.typeParameters());
+			this.seal();
+		});
 	}
 
 	@Override

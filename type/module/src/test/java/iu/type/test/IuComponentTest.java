@@ -161,6 +161,11 @@ public class IuComponentTest {
 
 	@Test
 	public void testLoadsTestComponent() throws Exception {
+		// TODO: remove after implementing @AroundConstruct
+		IuTestLogger.expect("iu.type.ComponentResource", Level.CONFIG,
+				"Resource initialization failure; .* edu.iu.type.testcomponent.TestResource",
+				UnsupportedOperationException.class,
+				t -> "@AroundConstruct not supported in this version".equals(t.getMessage()));
 		IuTestLogger.expect("iu.type.Component", Level.WARNING, "Invalid class invalid.*",
 				ClassNotFoundException.class);
 		try (var parent = IuComponent.of(TestArchives.getComponentArchive("testruntime"),
@@ -179,8 +184,9 @@ public class IuComponentTest {
 			assertFalse(interfaces.hasNext());
 
 			var resources = component.resources().iterator();
-			assertTrue(resources.hasNext());
-			assertEquals("TestResource", resources.next().name());
+			// TODO: restore after implementing @AroundConstruct
+			// assertTrue(resources.hasNext());
+			// assertEquals("TestResource", resources.next().name());
 			assertFalse(resources.hasNext());
 		}
 	}

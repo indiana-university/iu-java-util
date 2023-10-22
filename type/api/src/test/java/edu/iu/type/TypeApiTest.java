@@ -399,4 +399,54 @@ public class TypeApiTest {
 						.getMessage());
 	}
 
+	@interface AnAnnotation {
+	}
+
+	@interface AnotherAnnotation {
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testAnnotatedConstructor() {
+		var con = mock(IuConstructor.class);
+		when(con.hasAnnotation(AnAnnotation.class)).thenReturn(true);
+		var type = IuTest.mockWithDefaults(IuType.class);
+		when(type.constructors()).thenReturn(List.of(con));
+		assertSame(con, type.annotatedConstructors(AnAnnotation.class).iterator().next());
+		assertFalse(type.annotatedConstructors(AnotherAnnotation.class).iterator().hasNext());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testAnnotatedField() {
+		var f = mock(IuField.class);
+		when(f.hasAnnotation(AnAnnotation.class)).thenReturn(true);
+		var type = IuTest.mockWithDefaults(IuType.class);
+		when(type.fields()).thenReturn(List.of(f));
+		assertSame(f, type.annotatedFields(AnAnnotation.class).iterator().next());
+		assertFalse(type.annotatedFields(AnotherAnnotation.class).iterator().hasNext());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testAnnotatedMethod() {
+		var m = mock(IuMethod.class);
+		when(m.hasAnnotation(AnAnnotation.class)).thenReturn(true);
+		var type = IuTest.mockWithDefaults(IuType.class);
+		when(type.methods()).thenReturn(List.of(m));
+		assertSame(m, type.annotatedMethods(AnAnnotation.class).iterator().next());
+		assertFalse(type.annotatedMethods(AnotherAnnotation.class).iterator().hasNext());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testAnnotatedProperty() {
+		var p = mock(IuProperty.class);
+		when(p.hasAnnotation(AnAnnotation.class)).thenReturn(true);
+		var type = IuTest.mockWithDefaults(IuType.class);
+		when(type.properties()).thenReturn(List.of(p));
+		assertSame(p, type.annotatedProperties(AnAnnotation.class).iterator().next());
+		assertFalse(type.annotatedProperties(AnotherAnnotation.class).iterator().hasNext());
+	}
+
 }

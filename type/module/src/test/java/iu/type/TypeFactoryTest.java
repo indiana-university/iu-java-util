@@ -38,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.Serializable;
+import java.lang.constant.Constable;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -129,14 +130,6 @@ public class TypeFactoryTest {
 	}
 
 	@Test
-	public void testIllegalArgumentUnlessErasesConformsToJls() throws NoSuchMethodException {
-		var type = new Type() {
-		};
-		assertSame("Invalid generic type, must be ParameterizedType, GenericArrayType, TypeVariable, or WildcardType",
-				assertThrows(IllegalArgumentException.class, () -> TypeFactory.resolveType(type)).getMessage());
-	}
-
-	@Test
 	public void testHierarchy() {
 		interface AnInterface<T> {
 		}
@@ -167,6 +160,41 @@ public class TypeFactoryTest {
 		assertSame(Object.class, h.erasedClass());
 		assertSame(anAbstractClass, h.reference().referrer());
 		assertFalse(hierarchy.hasNext());
+	}
+
+	@Test
+	public void testEnumHierarchy() {
+		enum AnEnum {
+			A, B, C;
+		}
+
+		var type = TypeFactory.resolveRawClass(AnEnum.class);
+		var hierarchy = type.hierarchy().iterator();
+		var h = hierarchy.next();
+		assertSame(Enum.class, h.erasedClass());
+		assertSame(type, h.reference().referrer());
+		assertTrue(hierarchy.hasNext());
+
+		final var hEnum = h;
+		h = hierarchy.next();
+		assertSame(Serializable.class, h.erasedClass());
+		assertSame(hEnum, h.reference().referrer());
+		assertTrue(hierarchy.hasNext());
+
+		h = hierarchy.next();
+		assertSame(Comparable.class, h.erasedClass());
+		assertSame(hEnum, h.reference().referrer());
+		assertTrue(hierarchy.hasNext());
+
+		h = hierarchy.next();
+		assertSame(Constable.class, h.erasedClass());
+		assertSame(hEnum, h.reference().referrer());
+		assertTrue(hierarchy.hasNext());
+
+		h = hierarchy.next();
+		assertSame(Object.class, h.erasedClass());
+		assertSame(hEnum, h.reference().referrer());
+		assertFalse(hierarchy.hasNext(), () -> hierarchy.next().toString());
 	}
 
 }

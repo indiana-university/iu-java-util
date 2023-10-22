@@ -121,17 +121,24 @@ final class TypeFacade<D, T> extends ElementBase implements IuType<D, T>, Parame
 		this.template = template;
 		reference = referenceFactory.apply(this);
 
-		template.postInit(() -> {
-			this.parameterizedElement.apply(template.typeParameters());
+		var referrer = reference.referrer();
+		referrer.postInit(new Runnable() {
+			public void run() {
+				template.postInit(() -> {
+					parameterizedElement.apply(template.typeParameters());
 
-			var referrer = reference.referrer();
-			referrer.postInit(() -> {
-				if (referrer instanceof ParameterizedFacade parameterizedReferrer)
-					parameterizedElement.apply(parameterizedReferrer.typeParameters());
+					if (referrer instanceof ParameterizedFacade parameterizedReferrer)
+						parameterizedElement.apply(parameterizedReferrer.typeParameters());
 
-				parameterizedElement.seal(template.annotatedElement, template);
-				seal();
-			});
+					parameterizedElement.seal(template.annotatedElement, template);
+					seal();
+				});
+			}
+
+			@Override
+			public String toString() {
+				return "TypeFacade-post(" + reference.kind() + " " + template + ')';
+			}
 		});
 	}
 

@@ -35,6 +35,8 @@ import java.lang.reflect.Constructor;
 
 import edu.iu.IuException;
 import edu.iu.type.IuConstructor;
+import jakarta.interceptor.AroundConstruct;
+import jakarta.interceptor.Interceptors;
 
 /**
  * Facade implementation for {@link IuConstructor}.
@@ -50,17 +52,17 @@ final class ConstructorFacade<C> extends ExecutableBase<C, C, Constructor<C>> im
 	 * @param declaringType {@link TypeTemplate}
 	 */
 	ConstructorFacade(Constructor<C> constructor, TypeTemplate<?, C> declaringType) {
-		super(constructor, declaringType.deref(), declaringType);
+		super(constructor, declaringType.type, declaringType);
 		annotatedElement.setAccessible(true);
 		declaringType.postInit(this::seal);
 	}
 
 	@Override
 	public C exec(Object... arguments) throws Exception {
-//		if (hasAnnotation(Interceptors.class) || declaringType().hasAnnotation(Interceptors.class)
-//				|| declaringType().annotatedMethods(AroundConstruct.class).iterator().hasNext())
-//			throw new UnsupportedOperationException("@AroundConstruct not supported in this version");
-//
+		if (hasAnnotation(Interceptors.class) || declaringType().hasAnnotation(Interceptors.class)
+				|| declaringType().annotatedMethods(AroundConstruct.class).iterator().hasNext())
+			throw new UnsupportedOperationException("@AroundConstruct not supported in this version");
+
 		return annotatedElement.getDeclaringClass()
 				.cast(IuException.checkedInvocation(() -> annotatedElement.newInstance(arguments)));
 	}

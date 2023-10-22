@@ -76,13 +76,16 @@ public class TypeTemplateTest {
 		assertSame(erasedClass, erasedTemplate.deref());
 		assertSame(erasedClass, erasedTemplate.erasedClass());
 		assertSame(erasedClass.getName(), erasedTemplate.name());
-		assertEquals("IuType[" + TypeUtils.printType(erasedClass) + " ERASURE "
-				+ TypeUtils.printType(genericType) + "]", erasedTemplate.toString());
+		assertEquals(
+				"IuType[" + TypeUtils.printType(erasedClass) + " ERASURE " + TypeUtils.printType(genericType) + "]",
+				erasedTemplate.toString());
 	}
 
 	@Test
 	public void testRawBuilderIsValid() {
-		var raw = new TypeTemplate<>(Object.class, null, List.of());
+		var raw = new TypeTemplate<>(Object.class, a -> {
+		});
+		raw.sealHierarchy(List.of());
 		assertRaw(Object.class, raw);
 	}
 
@@ -94,22 +97,31 @@ public class TypeTemplateTest {
 		}
 		var type = HasAFieldWithAParameterizedType.class.getDeclaredField("fieldWithAParameterizedType")
 				.getGenericType();
-		assertGeneric(type, new TypeTemplate<>(null, type,
-				new TypeTemplate<>(Optional.class, null, List.of(new TypeTemplate<>(Object.class, null, List.of())))));
+		var template = new TypeTemplate<>(Object.class, a -> {
+		});
+		template.sealHierarchy(List.of());
+		var o = new TypeTemplate<>(Optional.class, a -> {
+		});
+		o.sealHierarchy(List.of(template));
+		assertGeneric(type, new TypeTemplate<>(a -> {
+		}, type, o));
 	}
 
 	@Test
 	public void testGenericBuilderAssertsNotClass() {
-		assertThrows(AssertionError.class,
-				() -> new TypeTemplate<>(null, Object.class, new TypeTemplate<>(Object.class, null, List.of())));
+		var raw = new TypeTemplate<>(Object.class, a -> {
+		});
+		raw.sealHierarchy(List.of());
+		assertThrows(AssertionError.class, () -> new TypeTemplate<>(a -> {
+		}, Object.class, raw));
 	}
 
 	@Test
 	public void testGenericBuilderAssertsErasureIsClass() {
 		var mockType = mock(WildcardType.class);
 		when(mockType.getUpperBounds()).thenReturn(new Class<?>[] { Object.class });
-		assertThrows(AssertionError.class,
-				() -> new TypeTemplate<>(null, mockType, TypeFactory.resolveRawClass(Number.class)));
+		assertThrows(AssertionError.class, () -> new TypeTemplate<>(a -> {
+		}, mockType, TypeFactory.resolveRawClass(Number.class)));
 	}
 
 	@Test

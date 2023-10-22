@@ -111,7 +111,7 @@ final class ParameterizedElement implements ParameterizedFacade {
 		this.typeArguments = null;
 
 		final var typeVariables = genericDeclaration.getTypeParameters();
-		if (typeVariables == null) {
+		if (typeVariables.length == 0) {
 			this.typeParameters = Collections.emptyMap();
 			return;
 		}
@@ -150,6 +150,7 @@ final class ParameterizedElement implements ParameterizedFacade {
 				typeParameters.put(typeVariableName,
 						new TypeFacade<>(TypeFactory.resolveType(typeVariable), referrer, kind, typeVariableName));
 		}
+		this.typeParameters = typeParameters;
 	}
 
 	@Override

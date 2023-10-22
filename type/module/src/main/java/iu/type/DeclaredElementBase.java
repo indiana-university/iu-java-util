@@ -46,7 +46,7 @@ import edu.iu.type.IuReferenceKind;
  * @param <E> generic declaration type
  */
 abstract sealed class DeclaredElementBase<D, E extends AnnotatedElement> extends AnnotatedElementBase<E>
-		implements IuDeclaredElement<D>, ParameterizedFacade permits ExecutableBase, FieldFacade, TypeTemplate {
+		implements IuDeclaredElement<D> permits ExecutableBase, FieldFacade, TypeTemplate {
 
 	/**
 	 * Holds the generic type associated with the declared element.
@@ -57,10 +57,14 @@ abstract sealed class DeclaredElementBase<D, E extends AnnotatedElement> extends
 	 */
 	final Type type;
 
-	private final TypeFacade<?, D> declaringType;
+	/**
+	 * Hold an unguarded reference to the declaring {@link TypeFacade}, to
+	 * facilitate subclasses registering {@link #postInit(Runnable)} hooks.
+	 */
+	final TypeFacade<?, D> declaringType;
 
 	/**
-	 * Default constructor, for use by all subclasses extend {@link TypeTemplate}.
+	 * Default constructor, for use by all subclasses extended by {@link TypeTemplate}.
 	 * 
 	 * @param annotatedElement      parameterized element to provide a view of
 	 * @param type                  generic type associated with the element
@@ -86,12 +90,17 @@ abstract sealed class DeclaredElementBase<D, E extends AnnotatedElement> extends
 			TypeTemplate<?, D> declaringTypeTemplate) {
 		super(annotatedElement, preInitHook);
 		this.type = type;
-		this.declaringType = new TypeFacade<>(declaringTypeTemplate, this, IuReferenceKind.DECLARING_TYPE);
+
+		if (declaringTypeTemplate == null)
+			this.declaringType = null;
+		else
+			this.declaringType = new TypeFacade<>(declaringTypeTemplate, this, IuReferenceKind.DECLARING_TYPE);
 	}
 
 	@Override
 	public TypeFacade<?, D> declaringType() {
-		checkSealed();
+		if (declaringType != null)
+			declaringType.checkSealed();
 		return declaringType;
 	}
 

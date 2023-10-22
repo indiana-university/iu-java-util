@@ -51,7 +51,7 @@ import edu.iu.type.IuExecutableKey;
  * @param <E> executable type: {@link Method} or {@link Constructor}
  */
 abstract sealed class ExecutableBase<D, R, E extends Executable> extends DeclaredElementBase<D, E>
-		implements IuExecutable<D, R> permits ConstructorFacade, MethodFacade {
+		implements IuExecutable<D, R>, ParameterizedFacade permits ConstructorFacade, MethodFacade {
 
 	private final ParameterizedElement parameterizedElement = new ParameterizedElement();
 	private final IuExecutableKey key;

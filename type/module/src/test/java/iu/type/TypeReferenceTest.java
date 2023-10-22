@@ -149,8 +149,12 @@ public class TypeReferenceTest {
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
 	public void testReferrerUsesIdentityForEquals() {
-		var type1 = new TypeTemplate<>(Object.class, null, List.of());
-		var type2 = new TypeTemplate<>(Object.class, null, List.of());
+		var type1 = new TypeTemplate<>(Object.class, a -> {
+		});
+		type1.sealHierarchy(List.of());
+		var type2 = new TypeTemplate<>(Object.class, a -> {
+		});
+		type2.sealHierarchy(List.of());
 		var ref1 = new TypeReference(IuReferenceKind.ERASURE, type1, type1);
 		var ref2 = new TypeReference(IuReferenceKind.ERASURE, type2, type1);
 		assertNotEquals(ref1, ref2);
