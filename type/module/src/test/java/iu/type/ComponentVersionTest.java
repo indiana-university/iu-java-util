@@ -48,7 +48,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.type.IuComponentVersion;
 
 @SuppressWarnings("javadoc")
-public class ComponentVersionTest {
+public class ComponentVersionTest extends IuTypeTestCase {
 
 	@Test
 	public void testSpecRequiesName() {

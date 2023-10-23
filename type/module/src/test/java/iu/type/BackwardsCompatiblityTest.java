@@ -45,7 +45,7 @@ import jakarta.json.bind.Jsonb;
 
 @SuppressWarnings("javadoc")
 @ExtendWith(LegacyContextSupport.class)
-public class BackwardsCompatiblityTest {
+public class BackwardsCompatiblityTest extends IuTypeTestCase {
 
 	@Test
 	public void testNonLegacyReturnsSameType() throws ClassNotFoundException {

@@ -35,7 +35,7 @@ import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
-@SuppressWarnings({"javadoc", "exports"})
+@SuppressWarnings({ "javadoc", "exports" })
 public class LegacyContextSupport implements BeforeEachCallback, AfterEachCallback {
 
 	private static final ThreadLocal<LegacyClassLoader> LEGACY_CONTEXT = new ThreadLocal<>();

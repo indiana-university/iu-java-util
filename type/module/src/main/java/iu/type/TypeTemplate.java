@@ -114,7 +114,8 @@ import edu.iu.type.IuTypeReference;
  * 
  * <h3>Inherited Elements</h3>
  * <p>
- * Resolved by {@link #sealHierarchy(Iterable)}, order incidental</li>
+ * Resolved by {@link #sealHierarchy(Iterable)}, order incidental
+ * </p>
  * <ul>
  * <li>{@link #fields()}</li>
  * <li>{@link #properties()}</li>
@@ -306,7 +307,6 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 	 * @param hierarchy Resolved type hierarchy
 	 */
 	void sealHierarchy(Iterable<? extends IuType<?, ? super T>> hierarchy) {
-		TypeFacade<?, ? super T> last = null;
 		Map<Class<?>, TypeFacade<?, ? super T>> hierarchyByErasure = new LinkedHashMap<>();
 		for (var superType : hierarchy) {
 			var templateReference = superType.reference();
@@ -314,20 +314,30 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 			TypeTemplate<?, ? super T> superTypeTemplate;
 			if (templateReference == null) {
 				superTypeTemplate = (TypeTemplate<?, ? super T>) superType;
-				last = new TypeFacade<>(superTypeTemplate, this, IuReferenceKind.SUPER);
-			} else {
-				superTypeTemplate = ((TypeFacade<?, ? super T>) superType).template;
 
-				var erasedReferrerClass = ((IuType<?, ?>) templateReference.referrer()).erasedClass();
-				if (erasedReferrerClass == annotatedElement)
-					last = new TypeFacade<>(superTypeTemplate, this, IuReferenceKind.SUPER);
-				else
-					last = new TypeFacade<>(superTypeTemplate,
-							Objects.requireNonNull(hierarchyByErasure.get(erasedReferrerClass)), IuReferenceKind.SUPER);
+				// common case: direct generalization of raw class
+				hierarchyByErasure.put(superType.erasedClass(),
+						new TypeFacade<>(superTypeTemplate, this, IuReferenceKind.SUPER));
+				continue;
 			}
 
-			hierarchyByErasure.put(last.erasedClass(), last);
+			else // exception case: inherited generalization ...
+				superTypeTemplate = ((TypeFacade<?, ? super T>) superType).template;
+
+			// ... by type erasure, same as direct
+			var erasedReferrerClass = ((IuType<?, ?>) templateReference.referrer()).erasedClass();
+			if (erasedReferrerClass == annotatedElement) {
+				hierarchyByErasure.put(superType.erasedClass(),
+						new TypeFacade<>(superTypeTemplate, this, IuReferenceKind.SUPER));
+				continue;
+			}
+
+			// ... via superclass or interface, look up unsealed reference by erasure
+			final var referrer = Objects.requireNonNull(hierarchyByErasure.get(erasedReferrerClass));
+			final var superTypeFacade = new TypeFacade<>(superTypeTemplate, referrer, IuReferenceKind.SUPER);
+			hierarchyByErasure.put(superTypeFacade.erasedClass(), superTypeFacade);
 		}
+
 		this.hierarchy = hierarchyByErasure.values();
 
 		if (type instanceof ParameterizedType parameterizedType) {

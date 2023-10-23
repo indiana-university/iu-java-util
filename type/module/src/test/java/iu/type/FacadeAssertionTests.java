@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("javadoc")
-public class FacadeAssertionTests {
+public class FacadeAssertionTests extends IuTypeTestCase {
 
 	@SuppressWarnings("unused")
 	private Object field;

@@ -41,9 +41,11 @@ import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.function.Predicate;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -119,6 +121,30 @@ public final class IuTestLogger {
 			this.pattern = pattern;
 		}
 
+		private boolean matches(LogRecord record) {
+			if (!loggerName.equals(record.getLoggerName()))
+				return false;
+			if (level.intValue() < record.getLevel().intValue())
+				return false;
+
+			var thrown = record.getThrown();
+			if (thrownClass == null) {
+				if (thrown != null)
+					return false;
+			} else if (thrown == null)
+				return false;
+			else {
+				if (thrownClass != thrown.getClass())
+					return false;
+
+				if (thrownTest != null && !thrownTest.test(thrownClass.cast(thrown)))
+					return false;
+			}
+
+			var message = record.getMessage();
+			return pattern.matcher(message).matches();
+		}
+
 		private void assertMatches(LogRecord record) {
 			var thrown = record.getThrown();
 			try {
@@ -153,22 +179,12 @@ public final class IuTestLogger {
 	private static class IuTestLogHandler extends Handler {
 		private String activeTest;
 		private Queue<LogRecordMatcher<?>> expectedMessages = new ArrayDeque<>();
+		private Queue<LogRecordMatcher<?>> allowedMessages = new ArrayDeque<>();
 
-		@Override
-		public void publish(LogRecord record) {
-			var loggerName = record.getLoggerName();
-			if (isPlatformLogger(loggerName)) {
-				for (var handler : originalRootHandlers)
-					handler.publish(record);
-				return;
-			}
-
-			if (expectedMessages.isEmpty())
-				throw new AssertionFailedError("Unexpected log message " + record.getLevel() + " "
-						+ record.getLoggerName() + " " + record.getMessage(), record.getThrown());
-			else
-				expectedMessages.poll().assertMatches(record);
-
+		private void reset(String activeTest) {
+			this.activeTest = activeTest;
+			expectedMessages.clear();
+			allowedMessages.clear();
 		}
 
 		private void assertExpectedMessages() {
@@ -182,16 +198,90 @@ public final class IuTestLogger {
 		}
 
 		@Override
+		public void publish(LogRecord record) {
+			var loggerName = record.getLoggerName();
+			if (isPlatformLogger(loggerName)) {
+				for (var handler : originalRootHandlers)
+					handler.publish(record);
+				return;
+			}
+
+			for (var allowedMessage : allowedMessages)
+				if (allowedMessage.matches(record))
+					return;
+
+			if (expectedMessages.isEmpty())
+				throw new AssertionFailedError("Unexpected log message " + record.getLevel() + " "
+						+ record.getLoggerName() + " " + record.getMessage(), record.getThrown());
+			else
+				expectedMessages.poll().assertMatches(record);
+
+		}
+
+		@Override
 		public void flush() {
 		}
 
 		@Override
 		public void close() throws SecurityException {
+			reset(null);
+		}
+	}
+
+	private static class StaticLogHandler extends Handler {
+
+		private static final Map<IuTestLogHandler, IuTestLogHandler> ALL_DELEGATES = new WeakHashMap<>();
+		private static final ThreadLocal<IuTestLogHandler> DELEGATE = new ThreadLocal<>() {
+			@Override
+			protected IuTestLogHandler initialValue() {
+				final var delegate = new IuTestLogHandler();
+
+				synchronized (ALL_DELEGATES) {
+					ALL_DELEGATES.put(delegate, delegate);
+				}
+
+				return delegate;
+			}
+		};
+
+		private void startTest(String activeTest) {
+			DELEGATE.get().reset(activeTest);
+		}
+
+		private void finishTest(String activeTest) {
+			final var testHandler = DELEGATE.get();
+			try {
+
+				assertTrue(testHandler.activeTest.equals(activeTest));
+				testHandler.assertExpectedMessages();
+
+			} finally {
+				testHandler.reset(null);
+			}
+		}
+
+		@Override
+		public void publish(LogRecord record) {
+			DELEGATE.get().publish(record);
+		}
+
+		@Override
+		public void flush() {
+			synchronized (ALL_DELEGATES) {
+				ALL_DELEGATES.keySet().forEach(IuTestLogHandler::flush);
+			}
+		}
+
+		@Override
+		public void close() throws SecurityException {
+			synchronized (ALL_DELEGATES) {
+				ALL_DELEGATES.keySet().forEach(IuTestLogHandler::close);
+			}
 		}
 	}
 
 	private static Handler[] originalRootHandlers;
-	private static IuTestLogHandler testHandler;
+	private static StaticLogHandler testHandler;
 	private static Level originalLevel;
 	private static Logger root;
 	private static Set<String> propertyDefinedPlatformLoggers;
@@ -248,7 +338,7 @@ public final class IuTestLogger {
 		for (var rootHandler : originalRootHandlers)
 			root.removeHandler(rootHandler);
 
-		testHandler = new IuTestLogHandler();
+		testHandler = new StaticLogHandler();
 		testHandler.setLevel(Level.ALL);
 		root.addHandler(testHandler);
 		root.setLevel(Level.ALL);
@@ -260,8 +350,7 @@ public final class IuTestLogger {
 	 * @param name test name
 	 */
 	static void startTest(String name) {
-		assertNull(testHandler.activeTest);
-		testHandler.activeTest = name;
+		testHandler.startTest(name);
 	}
 
 	/**
@@ -270,10 +359,11 @@ public final class IuTestLogger {
 	 * @param name test name
 	 */
 	static void finishTest(String name) {
-		assertTrue(testHandler.activeTest.equals(name));
-		testHandler.activeTest = null;
-		testHandler.assertExpectedMessages();
-		propertyDefinedPlatformLoggers = null;
+		try {
+			testHandler.finishTest(name);
+		} finally {
+			propertyDefinedPlatformLoggers = null;
+		}
 	}
 
 	/**
@@ -291,6 +381,69 @@ public final class IuTestLogger {
 	}
 
 	/**
+	 * Allows a log message with no thrown exception.
+	 * 
+	 * <p>
+	 * The message <em>may</em> be logged zero or more times, and will be exempt
+	 * from expectation checks.
+	 * </p>
+	 * 
+	 * @param loggerName Logger name, must match exactly
+	 * @param level      level, must match exactly
+	 * @param message    regular expression to match against the message
+	 */
+	public static void allow(String loggerName, Level level, String message) {
+		final var testHandler = StaticLogHandler.DELEGATE.get();
+		assertNotNull(testHandler.activeTest);
+		testHandler.allowedMessages
+				.offer(new LogRecordMatcher<>(loggerName, level, null, null, Pattern.compile(message)));
+	}
+
+	/**
+	 * Allows a log message with a thrown exception.
+	 * 
+	 * <p>
+	 * The message <em>may</em> be logged zero or more times, and will be exempt
+	 * from expectation checks.
+	 * </p>
+	 * 
+	 * @param loggerName  Logger name, must match exactly
+	 * @param level       level, must match exactly
+	 * @param message     regular expression to match against the message
+	 * @param thrownClass Expected exception class, must match exactly
+	 */
+	public static void allow(String loggerName, Level level, String message, Class<? extends Throwable> thrownClass) {
+		final var testHandler = StaticLogHandler.DELEGATE.get();
+		assertNotNull(testHandler.activeTest);
+		testHandler.allowedMessages.offer(new LogRecordMatcher<>(loggerName, level, Objects.requireNonNull(thrownClass),
+				null, Pattern.compile(message)));
+	}
+
+	/**
+	 * Allows a log message with a thrown exception.
+	 * 
+	 * <p>
+	 * The message <em>may</em> be logged zero or more times, and will be exempt
+	 * from expectation checks.
+	 * </p>
+	 * 
+	 * @param <T>         Thrown exception type
+	 * 
+	 * @param loggerName  Logger name, must match exactly
+	 * @param level       level, must match exactly
+	 * @param message     regular expression to match against the message
+	 * @param thrownClass Expected exception class, must match exactly
+	 * @param thrownTest  Expected exception test
+	 */
+	public static <T extends Throwable> void allow(String loggerName, Level level, String message, Class<T> thrownClass,
+			Predicate<T> thrownTest) {
+		final var testHandler = StaticLogHandler.DELEGATE.get();
+		assertNotNull(testHandler.activeTest);
+		testHandler.allowedMessages.offer(new LogRecordMatcher<>(loggerName, level, Objects.requireNonNull(thrownClass),
+				thrownTest, Pattern.compile(message)));
+	}
+
+	/**
 	 * Expects a log message with no thrown exception.
 	 * 
 	 * @param loggerName Logger name, must match exactly
@@ -298,6 +451,7 @@ public final class IuTestLogger {
 	 * @param message    regular expression to match against the message
 	 */
 	public static void expect(String loggerName, Level level, String message) {
+		final var testHandler = StaticLogHandler.DELEGATE.get();
 		assertNotNull(testHandler.activeTest);
 		testHandler.expectedMessages
 				.offer(new LogRecordMatcher<>(loggerName, level, null, null, Pattern.compile(message)));
@@ -312,6 +466,7 @@ public final class IuTestLogger {
 	 * @param thrownClass Expected exception class, must match exactly
 	 */
 	public static void expect(String loggerName, Level level, String message, Class<? extends Throwable> thrownClass) {
+		final var testHandler = StaticLogHandler.DELEGATE.get();
 		assertNotNull(testHandler.activeTest);
 		testHandler.expectedMessages.offer(new LogRecordMatcher<>(loggerName, level,
 				Objects.requireNonNull(thrownClass), null, Pattern.compile(message)));
@@ -330,6 +485,7 @@ public final class IuTestLogger {
 	 */
 	public static <T extends Throwable> void expect(String loggerName, Level level, String message,
 			Class<T> thrownClass, Predicate<T> thrownTest) {
+		final var testHandler = StaticLogHandler.DELEGATE.get();
 		assertNotNull(testHandler.activeTest);
 		testHandler.expectedMessages.offer(new LogRecordMatcher<>(loggerName, level,
 				Objects.requireNonNull(thrownClass), thrownTest, Pattern.compile(message)));

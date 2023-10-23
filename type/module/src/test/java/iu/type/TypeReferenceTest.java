@@ -48,7 +48,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.type.IuReferenceKind;
 
 @SuppressWarnings("javadoc")
-public class TypeReferenceTest {
+public class TypeReferenceTest extends IuTypeTestCase {
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test

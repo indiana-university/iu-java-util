@@ -98,6 +98,9 @@ final class FieldFacade<D, T> extends DeclaredElementBase<D, Field> implements I
 
 	@Override
 	public String toString() {
+		if (declaringType == null || type == null)
+			return "<uninitialized>";
+
 		return TypeUtils.printType(declaringType().template.deref()) + "#" + name() + ':'
 				+ TypeUtils.printType(type.template.deref());
 	}

@@ -64,6 +64,14 @@ final class MethodFacade<D, R> extends ExecutableBase<D, R, Method> implements I
 		declaringTypeTemplate.postInit(() -> returnTypeTemplate.postInit(this::seal));
 	}
 
+	// TODO: STARCH-653 restore to exec() and resolve Javadoc error triggered by importing jakarta.interceptors
+	// or create a static dependency helper utility 
+	private boolean hasAroundInvoke() {
+		return (hasAnnotation(jakarta.interceptor.Interceptors.class)
+				|| declaringType().hasAnnotation(jakarta.interceptor.Interceptors.class)
+				|| declaringType().annotatedMethods(jakarta.interceptor.AroundInvoke.class).iterator().hasNext());
+	}
+
 	@Override
 	public String name() {
 		return annotatedElement.getName();
@@ -84,6 +92,9 @@ final class MethodFacade<D, R> extends ExecutableBase<D, R, Method> implements I
 	@Override
 	public R exec(Object... arguments) throws Exception {
 		checkSealed();
+		
+		if (hasAroundInvoke())
+			throw new UnsupportedOperationException("@AroundInvoke not supported in this version");
 
 		Object obj;
 		Object[] args;

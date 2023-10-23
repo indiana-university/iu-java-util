@@ -47,7 +47,7 @@ import java.util.jar.Manifest;
 import edu.iu.test.IuTest;
 
 @SuppressWarnings("javadoc")
-public class TestArchives {
+public class TestArchives extends IuTypeTestCase {
 
 	public static final byte[] EMPTY_JAR;
 

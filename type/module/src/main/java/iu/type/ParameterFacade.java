@@ -94,7 +94,10 @@ final class ParameterFacade<T> extends AnnotatedElementBase<Parameter> implement
 
 	@Override
 	public String toString() {
-		return name() + ":" + TypeUtils.printType(type.deref());
+		if (type == null)
+			return name();
+		else
+			return name() + ":" + TypeUtils.printType(type.deref());
 	}
 
 }

@@ -41,6 +41,7 @@ import java.net.URL;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.legacy.Incompatible;
@@ -48,10 +49,16 @@ import edu.iu.test.IuTest;
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuComponent.Kind;
+import iu.type.IuTypeTestCase;
 import iu.type.TestArchives;
 
 @SuppressWarnings("javadoc")
-public class IuComponentTest {
+public class IuComponentTest extends IuTypeTestCase {
+	
+	@BeforeEach
+	public void setup() {
+		IuTestLogger.allow("iu.type.ParameterizedElement", Level.FINEST, "replaced type argument .*");
+	}
 
 	@Test
 	public void testMustProvideNonBundledDependencies() {

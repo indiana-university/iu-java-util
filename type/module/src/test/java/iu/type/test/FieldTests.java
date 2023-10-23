@@ -41,9 +41,10 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.type.IuType;
+import iu.type.IuTypeTestCase;
 
 @SuppressWarnings({ "javadoc", "unused" })
-public class FieldTests {
+public class FieldTests extends IuTypeTestCase {
 
 	private static long timestamp = System.currentTimeMillis();
 	private final String message = "foo";

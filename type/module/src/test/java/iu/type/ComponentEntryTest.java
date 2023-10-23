@@ -49,7 +49,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.UnsafeConsumer;
 
 @SuppressWarnings("javadoc")
-public class ComponentEntryTest {
+public class ComponentEntryTest extends IuTypeTestCase {
 
 	@Test
 	public void testWrapsName() {

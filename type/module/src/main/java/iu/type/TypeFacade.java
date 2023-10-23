@@ -123,10 +123,17 @@ final class TypeFacade<D, T> extends ElementBase implements IuType<D, T>, Parame
 
 		var referrer = reference.referrer();
 		referrer.postInit(new Runnable() {
-			public void run() {
-				template.postInit(() -> {
-					parameterizedElement.apply(template.typeParameters());
+			{ // coverage assertion
+				toString();
+			}
 
+			public void run() {
+				// i.e. resolve Iterable<T> from Collection<E> implements Iterable<E>
+				template.postInit(() -> {
+					// template: {T=IuType[E TYPE_PARAM(T) Iterable<E>]}
+					parameterizedElement.apply(template.typeParameters());
+					
+					// referrer: {E=IuType[E TYPE_PARAM(E) Collection]}
 					if (referrer instanceof ParameterizedFacade parameterizedReferrer)
 						parameterizedElement.apply(parameterizedReferrer.typeParameters());
 
@@ -137,8 +144,9 @@ final class TypeFacade<D, T> extends ElementBase implements IuType<D, T>, Parame
 
 			@Override
 			public String toString() {
-				return "TypeFacade-post(" + reference.kind() + " " + template + ')';
+				return "TypeFacade-post(" + reference + ')';
 			}
+
 		});
 	}
 

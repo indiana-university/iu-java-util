@@ -48,7 +48,7 @@ import jakarta.annotation.security.PermitAll;
 import jakarta.annotation.security.RolesAllowed;
 
 @SuppressWarnings("javadoc")
-public class AnnotatedElementTest {
+public class AnnotatedElementTest extends IuTypeTestCase {
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Test
@@ -76,7 +76,7 @@ public class AnnotatedElementTest {
 		rv.seal();
 		return rv;
 	}
-	
+
 	@Test
 	public void testJustDenyAllDenys() {
 		@DenyAll
@@ -100,8 +100,7 @@ public class AnnotatedElementTest {
 		@DenyAll
 		interface AllowsRoleAndDenysAll {
 		}
-		assertFalse(base(AllowsRoleAndDenysAll.class)
-				.permitted(r -> "should not work".equals(r)));
+		assertFalse(base(AllowsRoleAndDenysAll.class).permitted(r -> "should not work".equals(r)));
 	}
 
 	@Test
@@ -118,8 +117,7 @@ public class AnnotatedElementTest {
 		@PermitAll
 		interface AllowsRoleAndPermitsAll {
 		}
-		assertTrue(base(AllowsRoleAndPermitsAll.class)
-				.permitted(r -> "would not work".equals(r)));
+		assertTrue(base(AllowsRoleAndPermitsAll.class).permitted(r -> "would not work".equals(r)));
 	}
 
 	@Test

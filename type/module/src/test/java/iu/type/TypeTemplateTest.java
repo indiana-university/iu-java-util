@@ -43,15 +43,23 @@ import java.lang.reflect.Type;
 import java.lang.reflect.WildcardType;
 import java.util.List;
 import java.util.Optional;
+import java.util.logging.Level;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuReferenceKind;
 import edu.iu.type.IuType;
 
 @SuppressWarnings("javadoc")
-public class TypeTemplateTest {
+public class TypeTemplateTest extends IuTypeTestCase {
 
+	@BeforeEach
+	public void setup() {
+		IuTestLogger.allow("iu.type.ParameterizedElement", Level.FINEST, "replaced type argument .*");
+	}
+	
 	private void assertRaw(Class<?> baseClass, TypeTemplate<?, ?> baseTemplate) {
 		assertNull(baseTemplate.reference());
 		assertSame(baseClass, baseTemplate.deref());

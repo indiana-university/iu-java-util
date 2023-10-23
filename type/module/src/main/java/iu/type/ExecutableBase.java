@@ -101,7 +101,7 @@ abstract sealed class ExecutableBase<D, R, E extends Executable> extends Declare
 
 		declaringTypeTemplate.postInit(() -> parameterizedElement.apply(declaringTypeTemplate.typeParameters()));
 	}
-	
+
 	@Override
 	void seal() {
 		parameterizedElement.seal(annotatedElement, this);
@@ -132,8 +132,11 @@ abstract sealed class ExecutableBase<D, R, E extends Executable> extends Declare
 
 	@Override
 	public String toString() {
+		if (declaringType == null)
+			return "<uninitialized>";
+
 		var sb = new StringBuilder();
-		sb.append(TypeUtils.printType(declaringType().deref()));
+		sb.append(TypeUtils.printType(declaringType.deref()));
 		sb.append('(');
 		var l = sb.length();
 		for (var p : parameters) {

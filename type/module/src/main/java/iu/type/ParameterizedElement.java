@@ -39,6 +39,7 @@ import java.lang.reflect.TypeVariable;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.logging.Logger;
 
 import edu.iu.type.IuParameterizedElement;
 import edu.iu.type.IuReferenceKind;
@@ -48,6 +49,8 @@ import edu.iu.type.IuReferenceKind;
  * delegating mix-in.
  */
 final class ParameterizedElement implements ParameterizedFacade {
+
+	private static final Logger LOG = Logger.getLogger(ParameterizedElement.class.getName());
 
 	private Map<String, TypeFacade<?, ?>> typeArguments = new LinkedHashMap<>();
 	private Map<String, TypeFacade<?, ?>> typeParameters;
@@ -74,7 +77,11 @@ final class ParameterizedElement implements ParameterizedFacade {
 		if (this.typeArguments == null)
 			throw new IllegalStateException("sealed");
 
-		this.typeArguments.putAll(typeArguments);
+		typeArguments.forEach((name, value) -> {
+			final var replacedValue = this.typeArguments.put(name, value);
+			if (replacedValue != null)
+				LOG.finest(() -> "replaced type argument " + name + " " + replacedValue + " with " + value);
+		});
 	}
 
 	/**
@@ -107,6 +114,9 @@ final class ParameterizedElement implements ParameterizedFacade {
 	 *                           generated from {@code genericDeclaration}
 	 */
 	void seal(GenericDeclaration genericDeclaration, AnnotatedElementBase<?> referrer) {
+		if (typeParameters != null)
+			throw new IllegalStateException("already sealed");
+
 		final var typeArguments = this.typeArguments;
 		this.typeArguments = null;
 
@@ -129,26 +139,34 @@ final class ParameterizedElement implements ParameterizedFacade {
 		for (var typeVariable : typeVariables) {
 			final var typeVariableName = typeVariable.getName();
 
-			// Extract type boundaries
-			final Type[] bounds = typeVariable.getBounds();
+			var typeArgument = typeArguments.get(typeVariableName);
+			if (typeArgument != null) {
+				while (typeArgument.deref() instanceof TypeVariable<?> argVariable) {
+					final var derefArgVar = typeArguments.get(argVariable.getName());
+					if (derefArgVar == null // if unresolved or
+							|| derefArgVar == typeArgument) // self-reference
+						break; // then keep variable and defer to bounds
 
-			/*
-			 * Reduce if a leftmost bound is a downstream variable reference (i.e. U extends
-			 * T) to accommodate the argument matching the variable name "T", to the right
-			 * of extends)
-			 */
-			if (bounds[0] instanceof TypeVariable<?> t)
-				typeVariable = t;
-
-			// Check type variables for an argument matching the variable name
-			final var typeArgumentName = typeVariable.getName();
-
-			final var typeArgument = typeArguments.get(typeArgumentName);
-			if (typeArgument != null)
+					else // push dereferenced argument and check again
+						typeArgument = derefArgVar;
+				}
 				typeParameters.put(typeVariableName, typeArgument);
-			else
+			} else
 				typeParameters.put(typeVariableName,
 						new TypeFacade<>(TypeFactory.resolveType(typeVariable), referrer, kind, typeVariableName));
+
+			// TODO: REMOVE Extract type boundaries
+			/*
+			 * final Type[] bounds = typeVariable.getBounds();
+			 * 
+			 * Reduce if a leftmost bound is a downstream variable reference (i.e. U extends
+			 * T) to accommodate the argument matching the variable name "T", to the right
+			 * of extends) if (bounds[0] instanceof TypeVariable<?> t) typeVariable = t;
+			 */
+
+			// Check type variables for an argument matching the variable name
+			// final var typeArgumentName = typeVariable.getName();
+
 		}
 		this.typeParameters = typeParameters;
 	}

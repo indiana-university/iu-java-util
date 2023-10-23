@@ -35,13 +35,22 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+import java.util.logging.Level;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuType;
 
 @SuppressWarnings("javadoc")
 public class ConstructorTests {
 
+	@BeforeEach
+	public void setup() {
+		IuTestLogger.allow("iu.type.ParameterizedElement", Level.FINEST, "replaced type argument .*");
+	}
+	
 	@Test
 	public void testDirect() throws Exception {
 		class HasDirect {

@@ -38,9 +38,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.type.IuType;
+import iu.type.IuTypeTestCase;
 
 @SuppressWarnings("javadoc")
-public class IuTypeTest {
+public class IuTypeTest extends IuTypeTestCase {
 
 	@Test
 	public void testResolves() {

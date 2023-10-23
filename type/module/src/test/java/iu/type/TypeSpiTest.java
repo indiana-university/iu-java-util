@@ -42,7 +42,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("javadoc")
-public class TypeSpiTest {
+public class TypeSpiTest extends IuTypeTestCase {
 
 	private TypeSpi typeSpi;
 

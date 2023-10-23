@@ -43,8 +43,8 @@ module iu.util.type.impl {
 	
 	requires java.logging;
 	requires java.desktop;
-	requires static jakarta.annotation;
-	requires static jakarta.interceptor;
+	requires jakarta.annotation;
+	requires jakarta.interceptor;
 	
 	provides edu.iu.type.spi.IuTypeSpi with iu.type.TypeSpi;
 }

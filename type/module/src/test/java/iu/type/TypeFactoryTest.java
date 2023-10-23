@@ -34,24 +34,30 @@ package iu.type;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.Serializable;
 import java.lang.constant.Constable;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
 import java.util.Optional;
+import java.util.logging.Level;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuReferenceKind;
 import edu.iu.type.IuType;
 
 @SuppressWarnings("javadoc")
-public class TypeFactoryTest {
+public class TypeFactoryTest extends IuTypeTestCase {
 
+	@BeforeEach
+	public void setup() {
+		IuTestLogger.allow("iu.type.ParameterizedElement", Level.FINEST, "replaced type argument .*");
+	}
+	
 	private void assertErased(Class<?> erasedClass, IuType<?, ?> shouldBeErased) {
 		assertSame(erasedClass, shouldBeErased.deref());
 		assertEquals(IuReferenceKind.ERASURE, shouldBeErased.reference().kind());

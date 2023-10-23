@@ -53,7 +53,7 @@ import jakarta.annotation.Resource.AuthenticationType;
 import jakarta.annotation.Resources;
 
 @SuppressWarnings("javadoc")
-public class ComponentResourceTest {
+public class ComponentResourceTest extends IuTypeTestCase {
 
 	private <T> ComponentResource<T> assertComponentResource(Class<T> type, UnsafeSupplier<T> factory) {
 		return assertComponentResource(type, type, factory);

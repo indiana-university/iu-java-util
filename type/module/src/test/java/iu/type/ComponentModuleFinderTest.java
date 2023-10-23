@@ -46,7 +46,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("javadoc")
-public class ComponentModuleFinderTest {
+public class ComponentModuleFinderTest extends IuTypeTestCase {
 
 	@Test
 	public void testRuntime() throws IOException {

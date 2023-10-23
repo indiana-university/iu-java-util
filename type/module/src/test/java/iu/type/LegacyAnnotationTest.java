@@ -50,7 +50,7 @@ import jakarta.annotation.Resources;
 
 @SuppressWarnings("javadoc")
 @ExtendWith(LegacyContextSupport.class)
-public class LegacyAnnotationTest {
+public class LegacyAnnotationTest extends IuTypeTestCase {
 
 	private Class<?> getLegacyResourceClass() throws Throwable {
 		return LegacyContextSupport.get().loadClass("edu.iu.legacy.LegacyResource");

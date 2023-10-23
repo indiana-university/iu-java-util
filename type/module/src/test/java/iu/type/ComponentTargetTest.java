@@ -44,7 +44,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("javadoc")
-public class ComponentTargetTest {
+public class ComponentTargetTest extends IuTypeTestCase {
 
 	@BeforeAll
 	public static void setupClass() throws ClassNotFoundException {

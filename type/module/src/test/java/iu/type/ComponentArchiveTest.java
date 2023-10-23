@@ -65,7 +65,7 @@ import edu.iu.type.IuComponent.Kind;
 import edu.iu.type.IuComponentVersion;
 
 @SuppressWarnings("javadoc")
-public class ComponentArchiveTest {
+public class ComponentArchiveTest extends IuTypeTestCase {
 
 	private static final byte[] B0 = new byte[0];
 

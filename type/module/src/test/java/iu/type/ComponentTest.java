@@ -66,7 +66,7 @@ import edu.iu.type.IuComponent.Kind;
 import edu.iu.type.IuType;
 
 @SuppressWarnings("javadoc")
-public class ComponentTest {
+public class ComponentTest extends IuTypeTestCase {
 
 	@Test
 	public void testAssertModuleName() {

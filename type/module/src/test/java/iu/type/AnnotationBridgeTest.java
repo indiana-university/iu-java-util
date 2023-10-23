@@ -57,7 +57,7 @@ import jakarta.annotation.security.PermitAll;
 
 @SuppressWarnings("javadoc")
 @ExtendWith(LegacyContextSupport.class)
-public class AnnotationBridgeTest {
+public class AnnotationBridgeTest extends IuTypeTestCase {
 
 	@interface MissingAnnotation {
 	}

@@ -37,10 +37,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.Serializable;
-import java.util.HashMap;
-import java.util.Map;
-
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -48,7 +44,7 @@ import edu.iu.type.IuType;
 
 @SuppressWarnings("javadoc")
 @ExtendWith(LegacyContextSupport.class)
-public class TypeUtilsTest {
+public class TypeUtilsTest extends IuTypeTestCase {
 
 	@Test
 	public void testPlatformClassNames() throws Throwable {

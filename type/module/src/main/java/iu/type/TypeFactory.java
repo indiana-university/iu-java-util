@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.WeakHashMap;
 
+import edu.iu.IuException;
 import edu.iu.type.IuType;
 import edu.iu.type.IuTypeKey;
 
@@ -56,6 +57,24 @@ final class TypeFactory {
 
 	private static final Map<Class<?>, TypeTemplate<?, ?>> RAW_TYPES = new WeakHashMap<>();
 	private static final ThreadLocal<Map<IuTypeKey, TypeTemplate<?, ?>>> PENDING_GENERIC_TYPES = new ThreadLocal<>();
+
+	/**
+	 * Clears all indexed and cached data.
+	 * 
+	 * <p>
+	 * <em>Should</em> be used:
+	 * </p>
+	 * 
+	 * <ul>
+	 * <li>Between internal unit tests to reset state.</li>
+	 * <li>As an administrative function from a container management interface.</li>
+	 * </ul>
+	 */
+	static void clear() {
+		synchronized (RAW_TYPES) {
+			RAW_TYPES.clear();
+		}
+	}
 
 	/**
 	 * Gets the type erasure for a generic type.
@@ -138,7 +157,7 @@ final class TypeFactory {
 	 * @param rawClass raw class
 	 * @return {@link TypeFacade}
 	 */
-	@SuppressWarnings({"rawtypes", "unchecked"})
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	static <T> TypeTemplate<?, T> resolveRawClass(Class<T> rawClass) {
 		TypeTemplate<?, T> resolvedType = (TypeTemplate<?, T>) RAW_TYPES.get(rawClass);
 
@@ -150,107 +169,128 @@ final class TypeFactory {
 				}
 			});
 
-			// Box pattern helps maintain hierarchy reference chain
-			// by facilitating in-place swap for finer-grained references
-			// as discovered in the type hierarchy
-			class Box {
-				IuType<?, ? super T> value;
+			try {
+				// Box pattern helps maintain hierarchy reference chain
+				// by facilitating in-place swap for finer-grained references
+				// as discovered in the type hierarchy
+				class Box {
+					IuType<?, ? super T> value;
 
-				Box(IuType<?, ? super T> value) {
-					this.value = value;
-				}
-			}
-
-			// LinkedHashMap maintains object-first order
-			final Map<Class<?>, Box> hierarchyByErasure = new LinkedHashMap<>();
-
-			// Create a top-down (Object-first) traversal queue for all classes
-			// extended and interfaces implemented by the raw class
-			final Deque<Type> hierarchy = new ArrayDeque<>();
-			{
-				final Deque<Type> todo = new ArrayDeque<>();
-				todo.push(rawClass); // bottom-up traversal stack
-
-				while (!todo.isEmpty()) {
-					final var type = todo.pop();
-					if (type != rawClass) // don't include raw class in hierarchy
-						hierarchy.push(type); // push in reverse of traversal order
-
-					final var erasedClass = getErasedClass(type);
-
-					// truncate hierarchy at Object for Java language-native types
-					if (erasedClass == Object.class)
-						continue;
-					else if (erasedClass == Class.class)
-						todo.push(Object.class);
-
-					else {
-						// traversal stack will be reversed, so push Object before interfaces
-						// : last in stack traversal results in first queued
-						final var superType = erasedClass.getGenericSuperclass();
-						if (superType != null)
-							todo.push(superType);
-
-						for (final var implemented : erasedClass.getGenericInterfaces())
-							todo.push(implemented);
+					Box(IuType<?, ? super T> value) {
+						this.value = value;
 					}
 				}
-			}
 
-			// This loop trusts getHierarchy() to return Object-first so super classes may
-			// be resolved first, in place, while scanning deeper in the hierarchy
-			for (var superType : hierarchy) {
-				final var erasedSuperClass = (Class<? super T>) getErasedClass(superType);
+				// LinkedHashMap maintains object-first order
+				final Map<Class<?>, Box> hierarchyByErasure = new LinkedHashMap<>();
 
-				var rawSuperType = (TypeTemplate<?, ? super T>) RAW_TYPES.get(erasedSuperClass);
-				if (rawSuperType == null) {
-					rawSuperType = new TypeTemplate<>(erasedSuperClass, s -> {
-						synchronized (RAW_TYPES) {
-							RAW_TYPES.put(erasedSuperClass, (TypeTemplate<?, ?>) s);
+				// Create a top-down (Object-first) traversal queue for all classes
+				// extended and interfaces implemented by the raw class
+				final Deque<Type> hierarchy = new ArrayDeque<>();
+				{
+					final Deque<Type> todo = new ArrayDeque<>();
+					todo.push(rawClass); // bottom-up traversal stack
+
+					while (!todo.isEmpty()) {
+						final var type = todo.pop();
+						if (type != rawClass) // don't include raw class in hierarchy
+							hierarchy.push(type); // push in reverse of traversal order
+
+						final var erasedClass = getErasedClass(type);
+
+						// truncate hierarchy at Object for Java language-native types
+						if (erasedClass == Object.class)
+							continue;
+						else if (erasedClass == Class.class)
+							todo.push(Object.class);
+
+						else {
+							// traversal stack will be reversed, so push Object before interfaces
+							// : last in stack traversal results in first queued
+							final var superType = erasedClass.getGenericSuperclass();
+							if (superType != null)
+								todo.push(superType);
+
+							for (final var implemented : erasedClass.getGenericInterfaces())
+								todo.push(implemented);
 						}
-					});
+					}
+				}
 
-					// Build and cache new template on the fly. This is possible since we
-					// already have the interim type's full hierarchy available.
+				// This loop trusts getHierarchy() to return Object-first so super classes may
+				// be resolved first, in place, while scanning deeper in the hierarchy
+				for (var superType : hierarchy) {
+					final var erasedSuperClass = (Class<? super T>) getErasedClass(superType);
 
-					final Deque<IuType<?, ? super T>> superHierarchy = new ArrayDeque<>();
-					for (var superTypeBox : hierarchyByErasure.values()) {
-						final var inheritedSuperType = superTypeBox.value;
-						final var erasedClass = inheritedSuperType.erasedClass();
+					var rawSuperType = (TypeTemplate<?, ? super T>) RAW_TYPES.get(erasedSuperClass);
+					if (rawSuperType == null) {
+						try {
+							rawSuperType = new TypeTemplate<>(erasedSuperClass, s -> {
+								synchronized (RAW_TYPES) {
+									RAW_TYPES.put(erasedSuperClass, (TypeTemplate<?, ?>) s);
+								}
+							});
 
-						// filter super-type hierarchy to only include assignable elements
-						// Note that interfaces do not declare Object as superclass
-						// https://docs.oracle.com/javase/specs/jls/se21/html/jls-9.html
-						if ((erasedClass != Object.class || !erasedSuperClass.isInterface()) //
-								&& erasedClass.isAssignableFrom(erasedSuperClass))
-							superHierarchy.push(inheritedSuperType);
+							// Build and cache new template on the fly. This is possible since we
+							// already have the interim type's full hierarchy available.
+							final Deque<IuType<?, ? super T>> superHierarchy = new ArrayDeque<>();
+							for (var superTypeBox : hierarchyByErasure.values()) {
+								final var inheritedSuperType = superTypeBox.value;
+								final var erasedClass = inheritedSuperType.erasedClass();
+
+								// filter super-type hierarchy to only include assignable elements
+								// Note that interfaces do not declare Object as superclass
+								// https://docs.oracle.com/javase/specs/jls/se21/html/jls-9.html
+								if ((erasedClass != Object.class || !erasedSuperClass.isInterface()) //
+										&& erasedClass.isAssignableFrom(erasedSuperClass))
+									superHierarchy.push(inheritedSuperType);
+							}
+
+							rawSuperType.sealHierarchy((Iterable) superHierarchy);
+
+						} catch (Throwable e) {
+
+							// Clear incomplete raw type templates from the cache
+							synchronized (RAW_TYPES) {
+								RAW_TYPES.remove(erasedSuperClass);
+							}
+
+							throw IuException.unchecked(e);
+						}
 					}
 
-					rawSuperType.sealHierarchy((Iterable) superHierarchy);
+					TypeTemplate<?, ? super T> superTypeTemplate;
+					if (superType == erasedSuperClass)
+						superTypeTemplate = (TypeTemplate<?, ? super T>) rawSuperType;
+					else
+						superTypeTemplate = (TypeTemplate<?, ? super T>) resolveType(superType);
+
+					// replace previously resolved super type references with references through the
+					// declaring extended class or implemented interface
+					for (var inheritedSuperType : superTypeTemplate.hierarchy()) {
+						var inheritedErasedClass = inheritedSuperType.erasedClass();
+						var inheritedBox = Objects.requireNonNull(hierarchyByErasure.get(inheritedErasedClass));
+						inheritedBox.value = inheritedSuperType;
+					}
+
+					hierarchyByErasure.put(erasedSuperClass, new Box(superTypeTemplate));
 				}
 
-				TypeTemplate<?, ? super T> superTypeTemplate;
-				if (superType == erasedSuperClass)
-					superTypeTemplate = (TypeTemplate<?, ? super T>) rawSuperType;
-				else
-					superTypeTemplate = (TypeTemplate<?, ? super T>) resolveType(superType);
+				final Deque<IuType<?, ? super T>> hierarchyTemplates = new ArrayDeque<>();
+				for (final var hierarchyReference : hierarchyByErasure.values())
+					hierarchyTemplates.push(hierarchyReference.value);
 
-				// replace previously resolved super type references with references through the
-				// declaring extended class or implemented interface
-				for (var inheritedSuperType : superTypeTemplate.hierarchy()) {
-					var inheritedErasedClass = inheritedSuperType.erasedClass();
-					var inheritedBox = Objects.requireNonNull(hierarchyByErasure.get(inheritedErasedClass));
-					inheritedBox.value = inheritedSuperType;
+				resolvedType.sealHierarchy(hierarchyTemplates);
+
+			} catch (Throwable e) {
+
+				// Clear incomplete raw type templates from the cache
+				synchronized (RAW_TYPES) {
+					RAW_TYPES.remove(rawClass);
 				}
 
-				hierarchyByErasure.put(erasedSuperClass, new Box(superTypeTemplate));
+				throw IuException.unchecked(e);
 			}
-
-			final Deque<IuType<?, ? super T>> hierarchyTemplates = new ArrayDeque<>();
-			for (final var hierarchyReference : hierarchyByErasure.values())
-				hierarchyTemplates.push(hierarchyReference.value);
-
-			resolvedType.sealHierarchy(hierarchyTemplates);
 		}
 
 		return (TypeTemplate<?, T>) resolvedType;

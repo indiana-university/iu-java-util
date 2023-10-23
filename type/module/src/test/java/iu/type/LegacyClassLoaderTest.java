@@ -50,7 +50,7 @@ import edu.iu.type.IuComponent;
 import jakarta.annotation.Resource;
 
 @SuppressWarnings("javadoc")
-public class LegacyClassLoaderTest {
+public class LegacyClassLoaderTest extends IuTypeTestCase {
 
 	private URL url;
 	private LegacyClassLoader loader;

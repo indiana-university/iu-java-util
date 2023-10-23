@@ -48,7 +48,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.UnsafeFunction;
 
 @SuppressWarnings("javadoc")
-public class TemporaryFileTest {
+public class TemporaryFileTest extends IuTypeTestCase {
 
 	@BeforeAll
 	private static void setupClass() throws ClassNotFoundException {

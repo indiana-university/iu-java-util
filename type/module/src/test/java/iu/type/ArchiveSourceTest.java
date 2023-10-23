@@ -57,7 +57,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.test.IuTest;
 
 @SuppressWarnings("javadoc")
-public class ArchiveSourceTest {
+public class ArchiveSourceTest extends IuTypeTestCase {
 
 	private ArchiveSource read(ComponentEntry componentEntry) throws IOException {
 		return new ArchiveSource(new ByteArrayInputStream(componentEntry.data()));

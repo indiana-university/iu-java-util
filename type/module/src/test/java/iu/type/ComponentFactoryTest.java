@@ -62,7 +62,7 @@ import edu.iu.type.IuComponent.Kind;
 import edu.iu.type.IuType;
 
 @SuppressWarnings("javadoc")
-public class ComponentFactoryTest {
+public class ComponentFactoryTest extends IuTypeTestCase {
 
 	@Test
 	public void testThrowsIOExceptionOnRead() throws IOException {

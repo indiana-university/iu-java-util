@@ -37,9 +37,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.type.IuType;
+import iu.type.IuTypeTestCase;
 
 @SuppressWarnings("javadoc")
-public class ParameterTests {
+public class ParameterTests extends IuTypeTestCase {
 
 	@SuppressWarnings("unused")
 	private void parameterTest(String param) {

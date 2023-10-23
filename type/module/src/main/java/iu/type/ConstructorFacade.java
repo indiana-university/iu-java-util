@@ -35,8 +35,6 @@ import java.lang.reflect.Constructor;
 
 import edu.iu.IuException;
 import edu.iu.type.IuConstructor;
-import jakarta.interceptor.AroundConstruct;
-import jakarta.interceptor.Interceptors;
 
 /**
  * Facade implementation for {@link IuConstructor}.
@@ -57,10 +55,17 @@ final class ConstructorFacade<C> extends ExecutableBase<C, C, Constructor<C>> im
 		declaringType.postInit(this::seal);
 	}
 
+	// TODO: STARCH-653 restore to exec() and resolve Javadoc error triggered by
+	// importing jakarta.interceptors or create a static dependency helper utility
+	private boolean hasAroundConstruct() {
+		return (hasAnnotation(jakarta.interceptor.Interceptors.class)
+				|| declaringType().hasAnnotation(jakarta.interceptor.Interceptors.class)
+				|| declaringType().annotatedMethods(jakarta.interceptor.AroundConstruct.class).iterator().hasNext());
+	}
+
 	@Override
 	public C exec(Object... arguments) throws Exception {
-		if (hasAnnotation(Interceptors.class) || declaringType().hasAnnotation(Interceptors.class)
-				|| declaringType().annotatedMethods(AroundConstruct.class).iterator().hasNext())
+		if (hasAroundConstruct())
 			throw new UnsupportedOperationException("@AroundConstruct not supported in this version");
 
 		return annotatedElement.getDeclaringClass()

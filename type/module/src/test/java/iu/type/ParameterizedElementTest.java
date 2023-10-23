@@ -39,7 +39,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.type.IuType;
 
 @SuppressWarnings({"javadoc", "unused"})
-public class ParameterizedElementTest {
+public class ParameterizedElementTest extends IuTypeTestCase {
 
 	@Test
 	public void testTypeParams() {
