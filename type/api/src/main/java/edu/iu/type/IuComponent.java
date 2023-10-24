@@ -524,6 +524,14 @@ public interface IuComponent extends AutoCloseable {
 	ClassLoader classLoader();
 
 	/**
+	 * Gets all types in the component annotated by a specific type.
+	 * 
+	 * @param annotationType annotation type
+	 * @return annotated type facades
+	 */
+	Iterable<? extends IuType<?, ?>> annotatedTypes(Class<? extends Annotation> annotationType);
+
+	/**
 	 * Gets all of the component's public interfaces.
 	 * 
 	 * <p>
@@ -541,14 +549,6 @@ public interface IuComponent extends AutoCloseable {
 	 * @return interface facades
 	 */
 	Iterable<? extends IuType<?, ?>> interfaces();
-
-	/**
-	 * Gets all types in the component annotated by a specific type.
-	 * 
-	 * @param annotationType annotation type
-	 * @return annotated type facades
-	 */
-	Iterable<? extends IuType<?, ?>> annotatedTypes(Class<? extends Annotation> annotationType);
 
 	/**
 	 * Gets component's resources.

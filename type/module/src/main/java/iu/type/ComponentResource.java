@@ -88,7 +88,7 @@ class ComponentResource<T> implements IuResource<T> {
 	 * Gets an instance of the resource.
 	 * 
 	 * @param <T>                   resource type
-	 * @param resourceInterface     resource interface or raw implemenation class
+	 * @param resourceInterface     resource interface or raw implementation class
 	 * @param implementationFactory supplies a resource implementation or
 	 *                              {@link InvocationHandler} instance
 	 * @return resource instance

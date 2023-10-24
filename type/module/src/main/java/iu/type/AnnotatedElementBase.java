@@ -52,7 +52,7 @@ sealed class AnnotatedElementBase<E extends AnnotatedElement> extends ElementBas
 	/**
 	 * Real annotated element viewed via this facade.
 	 */
-	protected final E annotatedElement;
+	final E annotatedElement;
 
 	/**
 	 * Default constructor, for use by all subclasses extend {@link TypeTemplate}.

@@ -154,19 +154,6 @@ final class ParameterizedElement implements ParameterizedFacade {
 			} else
 				typeParameters.put(typeVariableName,
 						new TypeFacade<>(TypeFactory.resolveType(typeVariable), referrer, kind, typeVariableName));
-
-			// TODO: REMOVE Extract type boundaries
-			/*
-			 * final Type[] bounds = typeVariable.getBounds();
-			 * 
-			 * Reduce if a leftmost bound is a downstream variable reference (i.e. U extends
-			 * T) to accommodate the argument matching the variable name "T", to the right
-			 * of extends) if (bounds[0] instanceof TypeVariable<?> t) typeVariable = t;
-			 */
-
-			// Check type variables for an argument matching the variable name
-			// final var typeArgumentName = typeVariable.getName();
-
 		}
 		this.typeParameters = typeParameters;
 	}

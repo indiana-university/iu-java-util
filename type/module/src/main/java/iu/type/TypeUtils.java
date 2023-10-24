@@ -38,12 +38,6 @@ import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-import java.lang.reflect.TypeVariable;
-import java.lang.reflect.WildcardType;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Objects;
 
 import edu.iu.UnsafeSupplier;
 import edu.iu.type.IuType;
@@ -52,8 +46,6 @@ import edu.iu.type.IuType;
  * Miscellaneous type introspection utilities.
  */
 final class TypeUtils {
-
-	private static final Type[] T0 = new Type[0];
 
 	/**
 	 * Determines if a type name is exempt from the {@link ClassLoader} delegation

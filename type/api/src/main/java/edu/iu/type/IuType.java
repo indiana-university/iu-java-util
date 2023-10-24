@@ -122,12 +122,12 @@ public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement 
 	 * </p>
 	 * 
 	 * @param <T>  type
-	 * @param type type
+	 * @param rawClass type
 	 * @return type introspection facade
 	 */
 	@SuppressWarnings("unchecked")
-	static <T> IuType<?, T> of(Class<T> type) {
-		return (IuType<?, T>) of((Type) type);
+	static <T> IuType<?, T> of(Class<T> rawClass) {
+		return (IuType<?, T>) of((Type) rawClass);
 	}
 
 	/**
@@ -143,6 +143,87 @@ public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement 
 	 * @return generic type
 	 */
 	Type deref();
+
+	/**
+	 * Get the type erasure class.
+	 * 
+	 * <p>
+	 * Shorthand for {@link #erase()}.{@link #deref()}
+	 * </p>
+	 * 
+	 * @return type erasure class
+	 * @see #erase()
+	 * @see <a href=
+	 *      "https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.6">JLS
+	 *      21 Section 4.4: Type Erasure</a>
+	 */
+	@SuppressWarnings("unchecked")
+	default Class<T> erasedClass() {
+		return (Class<T>) erase().deref();
+	}
+
+	/**
+	 * Returns the <a href=
+	 * "https://docs.oracle.com/javase/tutorial/java/data/autoboxing.html">autobox</a>
+	 * equivalent
+	 * 
+	 * @return the object version related to a primitive type, or the class passed
+	 *         in as-is if not primitive
+	 */
+	@SuppressWarnings("unchecked")
+	default Class<T> autoboxClass() {
+		var potentiallyPrimitive = erasedClass();
+		if (Boolean.TYPE.equals(potentiallyPrimitive))
+			return (Class<T>) Boolean.class;
+		else if (Character.TYPE.equals(potentiallyPrimitive))
+			return (Class<T>) Character.class;
+		else if (Byte.TYPE.equals(potentiallyPrimitive))
+			return (Class<T>) Byte.class;
+		else if (Short.TYPE.equals(potentiallyPrimitive))
+			return (Class<T>) Short.class;
+		else if (Integer.TYPE.equals(potentiallyPrimitive))
+			return (Class<T>) Integer.class;
+		else if (Long.TYPE.equals(potentiallyPrimitive))
+			return (Class<T>) Long.class;
+		else if (Float.TYPE.equals(potentiallyPrimitive))
+			return (Class<T>) Float.class;
+		else if (Double.TYPE.equals(potentiallyPrimitive))
+			return (Class<T>) Double.class;
+		else if (Void.TYPE.equals(potentiallyPrimitive))
+			return (Class<T>) Void.class;
+		else
+			return potentiallyPrimitive;
+	}
+
+	/**
+	 * Returns the default value for an object or primitive type.
+	 * 
+	 * @return The default value that would be assigned to a field of described
+	 *         primitive type if declared without an initializer; null if the
+	 *         described time is not primitive.
+	 */
+	@SuppressWarnings("unchecked")
+	default T autoboxDefault() {
+		var potentiallyPrimitive = erasedClass();
+		if (Boolean.TYPE.equals(potentiallyPrimitive))
+			return (T) Boolean.FALSE;
+		else if (Character.TYPE.equals(potentiallyPrimitive))
+			return (T) Character.valueOf('\0');
+		else if (Byte.TYPE.equals(potentiallyPrimitive))
+			return (T) Byte.valueOf((byte) 0);
+		else if (Short.TYPE.equals(potentiallyPrimitive))
+			return (T) Short.valueOf((short) 0);
+		else if (Integer.TYPE.equals(potentiallyPrimitive))
+			return (T) Integer.valueOf(0);
+		else if (Long.TYPE.equals(potentiallyPrimitive))
+			return (T) Long.valueOf(0L);
+		else if (Float.TYPE.equals(potentiallyPrimitive))
+			return (T) Float.valueOf(0.0f);
+		else if (Double.TYPE.equals(potentiallyPrimitive))
+			return (T) Double.valueOf(0.0);
+		else
+			return null;
+	}
 
 	/**
 	 * Gets the {@link IuReferenceKind#ERASURE erased} facade, which describing the
@@ -161,6 +242,20 @@ public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement 
 	 *      21 Section 4.4: Type Erasure</a>
 	 */
 	IuType<D, T> erase();
+
+	/**
+	 * Gets a type-enforced facade for a specific sub-type of the described type.
+	 * 
+	 * @param subclass subclass of the described type
+	 * @param <S>      sub-type
+	 * @return this
+	 * @throws ClassCastException If the type does not erase to a subclass
+	 */
+	@SuppressWarnings("unchecked")
+	default <S> IuType<D, ? extends S> sub(Class<S> subclass) throws ClassCastException {
+		erasedClass().asSubclass(subclass);
+		return (IuType<D, ? extends S>) this;
+	}
 
 	/**
 	 * Iterates the type hierarchy, from most specific to least specific.
@@ -290,39 +385,6 @@ public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement 
 	}
 
 	/**
-	 * Gets all properties defined by this type, followed by all properties defined
-	 * by all types in this type's hierarchy, in {@link #hierarchy()} order.
-	 * 
-	 * @return properties declared by this type and its hierarchy, in this followed
-	 *         by {@link #hierarchy()} order
-	 */
-	Iterable<? extends IuProperty<? super T, ?>> properties();
-
-	/**
-	 * Gets a property declared by this type.
-	 * 
-	 * @param name property name
-	 * @return property
-	 */
-	default IuProperty<? super T, ?> property(String name) {
-		for (var property : properties())
-			if (name.equals(property.name()))
-				return property;
-		throw new IllegalArgumentException(this + " missing property " + name);
-	}
-
-	/**
-	 * Scans properties for those annotated with a specific annotation type.
-	 * 
-	 * @param annotationType annotation type to filter by
-	 * @return {@link #properties()}, filtered by annotation type
-	 */
-	default Iterable<? extends IuProperty<? super T, ?>> annotatedProperties(
-			Class<? extends Annotation> annotationType) {
-		return IuIterable.filter(properties(), f -> f.hasAnnotation(annotationType));
-	}
-
-	/**
 	 * Gets all methods defined by this type.
 	 * 
 	 * <p>
@@ -384,98 +446,36 @@ public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement 
 	}
 
 	/**
-	 * Get the type erasure class.
+	 * Gets all properties defined by this type, followed by all properties defined
+	 * by all types in this type's hierarchy, in {@link #hierarchy()} order.
 	 * 
-	 * <p>
-	 * Shorthand for {@link #erase()}.{@link #deref()}
-	 * </p>
-	 * 
-	 * @return type erasure class
-	 * @see #erase()
-	 * @see <a href=
-	 *      "https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.6">JLS
-	 *      21 Section 4.4: Type Erasure</a>
+	 * @return properties declared by this type and its hierarchy, in this followed
+	 *         by {@link #hierarchy()} order
 	 */
-	@SuppressWarnings("unchecked")
-	default Class<T> erasedClass() {
-		return (Class<T>) erase().deref();
+	Iterable<? extends IuProperty<? super T, ?>> properties();
+
+	/**
+	 * Gets a property declared by this type.
+	 * 
+	 * @param name property name
+	 * @return property
+	 */
+	default IuProperty<? super T, ?> property(String name) {
+		for (var property : properties())
+			if (name.equals(property.name()))
+				return property;
+		throw new IllegalArgumentException(this + " missing property " + name);
 	}
 
 	/**
-	 * Gets a type-enforced facade for a specific sub-type of the described type.
+	 * Scans properties for those annotated with a specific annotation type.
 	 * 
-	 * @param subclass subclass of the described type
-	 * @param <S>      sub-type
-	 * @return this
-	 * @throws ClassCastException If the type does not erase to a subclass
+	 * @param annotationType annotation type to filter by
+	 * @return {@link #properties()}, filtered by annotation type
 	 */
-	@SuppressWarnings("unchecked")
-	default <S> IuType<D, ? extends S> sub(Class<S> subclass) throws ClassCastException {
-		erasedClass().asSubclass(subclass);
-		return (IuType<D, ? extends S>) this;
-	}
-
-	/**
-	 * Returns the <a href=
-	 * "https://docs.oracle.com/javase/tutorial/java/data/autoboxing.html">autobox</a>
-	 * equivalent
-	 * 
-	 * @return the object version related to a primitive type, or the class passed
-	 *         in as-is if not primitive
-	 */
-	@SuppressWarnings("unchecked")
-	default Class<T> autoboxClass() {
-		var potentiallyPrimitive = erasedClass();
-		if (Boolean.TYPE.equals(potentiallyPrimitive))
-			return (Class<T>) Boolean.class;
-		else if (Character.TYPE.equals(potentiallyPrimitive))
-			return (Class<T>) Character.class;
-		else if (Byte.TYPE.equals(potentiallyPrimitive))
-			return (Class<T>) Byte.class;
-		else if (Short.TYPE.equals(potentiallyPrimitive))
-			return (Class<T>) Short.class;
-		else if (Integer.TYPE.equals(potentiallyPrimitive))
-			return (Class<T>) Integer.class;
-		else if (Long.TYPE.equals(potentiallyPrimitive))
-			return (Class<T>) Long.class;
-		else if (Float.TYPE.equals(potentiallyPrimitive))
-			return (Class<T>) Float.class;
-		else if (Double.TYPE.equals(potentiallyPrimitive))
-			return (Class<T>) Double.class;
-		else if (Void.TYPE.equals(potentiallyPrimitive))
-			return (Class<T>) Void.class;
-		else
-			return potentiallyPrimitive;
-	}
-
-	/**
-	 * Returns the default value for an object or primitive type.
-	 * 
-	 * @return The default value that would be assigned to a field of described
-	 *         primitive type if declared without an initializer; null if the
-	 *         described time is not primitive.
-	 */
-	@SuppressWarnings("unchecked")
-	default T autoboxDefault() {
-		var potentiallyPrimitive = erasedClass();
-		if (Boolean.TYPE.equals(potentiallyPrimitive))
-			return (T) Boolean.FALSE;
-		else if (Character.TYPE.equals(potentiallyPrimitive))
-			return (T) Character.valueOf('\0');
-		else if (Byte.TYPE.equals(potentiallyPrimitive))
-			return (T) Byte.valueOf((byte) 0);
-		else if (Short.TYPE.equals(potentiallyPrimitive))
-			return (T) Short.valueOf((short) 0);
-		else if (Integer.TYPE.equals(potentiallyPrimitive))
-			return (T) Integer.valueOf(0);
-		else if (Long.TYPE.equals(potentiallyPrimitive))
-			return (T) Long.valueOf(0L);
-		else if (Float.TYPE.equals(potentiallyPrimitive))
-			return (T) Float.valueOf(0.0f);
-		else if (Double.TYPE.equals(potentiallyPrimitive))
-			return (T) Double.valueOf(0.0);
-		else
-			return null;
+	default Iterable<? extends IuProperty<? super T, ?>> annotatedProperties(
+			Class<? extends Annotation> annotationType) {
+		return IuIterable.filter(properties(), f -> f.hasAnnotation(annotationType));
 	}
 
 }

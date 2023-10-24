@@ -57,19 +57,6 @@ public interface IuAnnotatedElement {
 	Iterable<? extends Annotation> annotations();
 
 	/**
-	 * Determines if an annotation is present.
-	 * 
-	 * @param annotationType annotation type
-	 * @return true if the annotation is present, else null
-	 */
-	default boolean hasAnnotation(Class<? extends Annotation> annotationType) {
-		for (var a : annotations())
-			if (annotationType.isInstance(a))
-				return true;
-		return false;
-	}
-
-	/**
 	 * Gets an annotation.
 	 * 
 	 * @param <A>            annotation type
@@ -84,14 +71,16 @@ public interface IuAnnotatedElement {
 	}
 
 	/**
-	 * Determines if access to this element is permitted for all users in the
-	 * current context.
+	 * Determines if an annotation is present.
 	 * 
-	 * @return true if access is permitted for all users in the current context;
-	 *         else false
+	 * @param annotationType annotation type
+	 * @return true if the annotation is present, else null
 	 */
-	default boolean permitted() {
-		return permitted(role -> false);
+	default boolean hasAnnotation(Class<? extends Annotation> annotationType) {
+		for (var a : annotations())
+			if (annotationType.isInstance(a))
+				return true;
+		return false;
 	}
 
 	/**
@@ -101,5 +90,16 @@ public interface IuAnnotatedElement {
 	 * @return true if access is permitted in the current context; else false
 	 */
 	boolean permitted(Predicate<String> isUserInRole);
+
+	/**
+	 * Determines if access to this element is permitted for all users in the
+	 * current context.
+	 * 
+	 * @return true if access is permitted for all users in the current context;
+	 *         else false
+	 */
+	default boolean permitted() {
+		return permitted(role -> false);
+	}
 
 }
