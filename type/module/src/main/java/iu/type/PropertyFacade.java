@@ -88,7 +88,7 @@ final class PropertyFacade<D, T> extends ElementBase implements IuProperty<D, T>
 			seal = () -> this.write.postInit(postRead);
 		}
 
-		this.declaringType.postInit(() -> this.type.postInit(seal));
+		declaringTypeTemplate.postInit(() -> typeTemplate.postInit(seal));
 	}
 
 	@Override
@@ -124,7 +124,7 @@ final class PropertyFacade<D, T> extends ElementBase implements IuProperty<D, T>
 	public T get(Object o) {
 		checkSealed();
 		if (read == null)
-			throw new IllegalArgumentException("Property " + name() + " is not readable for " + type);
+			throw new IllegalStateException("Property " + name() + " is not readable for " + type);
 		else
 			return IuException.unchecked(() -> read.exec(o));
 	}
@@ -133,9 +133,18 @@ final class PropertyFacade<D, T> extends ElementBase implements IuProperty<D, T>
 	public void set(Object o, T value) {
 		checkSealed();
 		if (write == null)
-			throw new IllegalArgumentException("Property " + name() + " is not writable for " + type);
+			throw new IllegalStateException("Property " + name() + " is not writable for " + type);
 		else
 			IuException.unchecked(() -> write.exec(o, value));
 	}
 
+	@Override
+	public String toString() {
+		if (declaringType == null)
+			return "<uninitialized>";
+
+		return TypeUtils.printType(declaringType().template.deref()) + "." + name() + ':'
+				+ TypeUtils.printType(type.template.deref());
+	}
+	
 }

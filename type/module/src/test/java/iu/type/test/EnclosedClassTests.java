@@ -29,18 +29,26 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Type introspection utilities.
- * 
- * @uses edu.iu.type.spi.IuTypeSpi Implementation service provider.
- */
-module iu.util.type {
-	exports edu.iu.type;
-	exports edu.iu.type.spi to iu.util.type.impl;
-	
-	requires iu.util;
-	requires java.logging;
-	requires java.desktop;
+package iu.type.test;
 
-	uses edu.iu.type.spi.IuTypeSpi;
+import static org.junit.jupiter.api.Assertions.assertSame;
+
+import org.junit.jupiter.api.Test;
+
+import edu.iu.type.IuType;
+import iu.type.IuTypeTestCase;
+
+@SuppressWarnings({ "javadoc" })
+public class EnclosedClassTests extends IuTypeTestCase {
+
+	private static class EnclosedClass {
+	}
+
+	@Test
+	public void testEnclosedDeclaringRefs() {
+		var type = IuType.of(EnclosedClassTests.class);
+		var enclosed = type.enclosedTypes().iterator().next();
+		assertSame(EnclosedClass.class, enclosed.erasedClass());
+	}
+	
 }

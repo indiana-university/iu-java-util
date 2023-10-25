@@ -121,7 +121,7 @@ public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement 
 	 * <em>must</em> thread-safe.
 	 * </p>
 	 * 
-	 * @param <T>  type
+	 * @param <T>      type
 	 * @param rawClass type
 	 * @return type introspection facade
 	 */
@@ -289,11 +289,11 @@ public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement 
 	IuType<?, ? super T> referTo(Type referentType);
 
 	/**
-	 * Gets all types enclosed by this type.
+	 * Gets enclosed types.
 	 * 
 	 * @return enclosed types
 	 */
-	Iterable<? extends IuType<T, ?>> enclosedTypes();
+	Iterable<? extends IuType<?, ?>> enclosedTypes();
 
 	/**
 	 * Gets all constructors defined by this type.
@@ -400,17 +400,19 @@ public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement 
 	/**
 	 * Gets a method defined by this type.
 	 * 
+	 * @param <R>            return type
 	 * @param name           method name
 	 * @param parameterTypes parameter types
 	 * @return method
 	 */
-	default IuMethod<? super T, ?> method(String name, Type... parameterTypes) {
+	@SuppressWarnings("unchecked")
+	default <R> IuMethod<? super T, R> method(String name, Type... parameterTypes) {
 		final var hash = IuExecutableKey.hashCode(name, parameterTypes);
 		final var methods = methods();
 		for (var method : methods) {
 			var methodKey = method.getKey();
 			if (hash == methodKey.hashCode() && methodKey.equals(name, parameterTypes))
-				return method;
+				return (IuMethod<? super T, R>) method;
 		}
 		throw new IllegalArgumentException(
 				this + " missing method " + IuExecutableKey.of(name, parameterTypes) + "; " + methods);
@@ -419,17 +421,19 @@ public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement 
 	/**
 	 * Gets a method declared by this type.
 	 * 
+	 * @param <R>            return type
 	 * @param name           method name
 	 * @param parameterTypes parameter types
 	 * @return method
 	 */
-	default IuMethod<? super T, ?> method(String name, Iterable<IuType<?, ?>> parameterTypes) {
+	@SuppressWarnings("unchecked")
+	default <R> IuMethod<? super T, R> method(String name, Iterable<IuType<?, ?>> parameterTypes) {
 		final var hash = IuExecutableKey.hashCode(name, parameterTypes);
 		final var methods = methods();
 		for (var method : methods) {
 			var methodKey = method.getKey();
 			if (hash == methodKey.hashCode() && methodKey.equals(name, parameterTypes))
-				return method;
+				return (IuMethod<? super T, R>) method;
 		}
 		throw new IllegalArgumentException(
 				this + " missing method " + IuExecutableKey.of(name, parameterTypes) + "; " + methods);
@@ -457,13 +461,15 @@ public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement 
 	/**
 	 * Gets a property declared by this type.
 	 * 
+	 * @param <P>  property type
 	 * @param name property name
 	 * @return property
 	 */
-	default IuProperty<? super T, ?> property(String name) {
+	@SuppressWarnings("unchecked")
+	default <P> IuProperty<? super T, P> property(String name) {
 		for (var property : properties())
 			if (name.equals(property.name()))
-				return property;
+				return (IuProperty<? super T, P>) property;
 		throw new IllegalArgumentException(this + " missing property " + name);
 	}
 

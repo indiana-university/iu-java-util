@@ -109,6 +109,11 @@ abstract sealed class ExecutableBase<D, R, E extends Executable> extends Declare
 	}
 
 	@Override
+	public IuExecutableKey getKey() {
+		return key;
+	}
+
+	@Override
 	public Map<String, TypeFacade<?, ?>> typeParameters() {
 		checkSealed();
 		return parameterizedElement.typeParameters();
@@ -118,11 +123,6 @@ abstract sealed class ExecutableBase<D, R, E extends Executable> extends Declare
 	public TypeFacade<?, ?> typeParameter(String name) {
 		checkSealed();
 		return parameterizedElement.typeParameter(name);
-	}
-
-	@Override
-	public IuExecutableKey getKey() {
-		return key;
 	}
 
 	@Override

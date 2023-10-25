@@ -128,8 +128,17 @@ import edu.iu.type.IuTypeReference;
  */
 final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implements IuType<D, T>, ParameterizedFacade {
 
+	@SuppressWarnings("unchecked")
+	private static <D> TypeTemplate<?, D> resolveDeclaringType(Class<?> enclosed) {
+		final var declaringClass = enclosed.getDeclaringClass();
+		if (declaringClass == null)
+			return null;
+		return (TypeTemplate<?, D>) TypeFactory.resolveRawClass(declaringClass);
+	}
+
 	// Declared
 	private IuType<D, T> erasedType;
+	private Iterable<TypeFacade<T, ?>> enclosedTypes;
 	private Iterable<ConstructorFacade<T>> constructors;
 
 	// Inherited
@@ -142,13 +151,13 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 	private final ParameterizedElement parameterizedElement = new ParameterizedElement();
 
 	private TypeTemplate(Class<T> annotatedElement, Consumer<TypeTemplate<?, ?>> preInitHook, Type type,
-			TypeTemplate<?, D> declaringTypeTemplate, TypeTemplate<D, T> erasedType) {
-		super(annotatedElement, preInitHook, type, declaringTypeTemplate);
+			TypeTemplate<D, T> erasedType) {
+		super(annotatedElement, preInitHook, type, resolveDeclaringType(annotatedElement));
 
-		if (declaringTypeTemplate == null)
+		if (declaringType == null)
 			initializeDeclared(erasedType);
 		else
-			declaringTypeTemplate.postInit(() -> initializeDeclared(erasedType));
+			declaringType.template.postInit(() -> initializeDeclared(erasedType));
 	}
 
 	/**
@@ -159,7 +168,7 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 	 *                    annotated element but before initializing and members
 	 */
 	TypeTemplate(Class<T> rawClass, Consumer<TypeTemplate<?, ?>> preInitHook) {
-		this(rawClass, preInitHook, rawClass, null, null);
+		this(rawClass, preInitHook, rawClass, null);
 	}
 
 	/**
@@ -174,10 +183,11 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 	 *                    argument to this parameter
 	 */
 	TypeTemplate(Consumer<TypeTemplate<?, ?>> preInitHook, Type type, TypeTemplate<D, T> erasedType) {
-		this(erasedType.erasedClass(), preInitHook, type, null, erasedType);
+		this(erasedType.erasedClass(), preInitHook, type, erasedType);
 		assert !(type instanceof Class) : type;
 		assert erasedType.erasedClass() == TypeFactory.getErasedClass(type)
 				: erasedType + " " + TypeUtils.printType(type);
+
 		sealHierarchy(erasedType.hierarchy);
 	}
 
@@ -188,17 +198,31 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 	}
 
 	private void initializeDeclared(TypeTemplate<D, T> erasedType) {
-		final var declaringType = declaringType();
 		if (declaringType != null)
-			parameterizedElement.apply(declaringType.typeParameters());
+			parameterizedElement.apply(declaringType.template.typeParameters());
 
 		if (erasedType == null) {
 			this.erasedType = this;
+			initializeEnclosedTypes();
 			initializeConstructors();
 		} else {
 			this.erasedType = new TypeFacade<D, T>(erasedType, this, IuReferenceKind.ERASURE);
-			erasedType.postInit(this::initializeConstructors);
+			erasedType.postInit(() -> {
+				initializeEnclosedTypes();
+				initializeConstructors();
+			});
 		}
+	}
+
+	private void initializeEnclosedTypes() {
+		Queue<TypeFacade<T, ?>> enclosedTypes = new ArrayDeque<>();
+
+		if (!isNative())
+			for (var enclosedClass : annotatedElement.getDeclaredClasses())
+				enclosedTypes.offer(new TypeFacade<>(TypeFactory.resolveRawClass(enclosedClass), this,
+						IuReferenceKind.ENCLOSING_TYPE));
+
+		this.enclosedTypes = enclosedTypes;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -283,6 +307,9 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 
 		if (!isNative()) //
 			for (var method : annotatedElement.getDeclaredMethods()) {
+				if (method.isSynthetic())
+					continue; // skip lambdas
+				
 				TypeTemplate<?, ?> returnType;
 				if (method.getReturnType() == annotatedElement)
 					returnType = this;
@@ -301,12 +328,7 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 		return rv;
 	}
 
-	/**
-	 * Seals {@link #hierarchy()} and resolves <strong>inherited elements</strong>.
-	 * 
-	 * @param hierarchy Resolved type hierarchy
-	 */
-	void sealHierarchy(Iterable<? extends IuType<?, ? super T>> hierarchy) {
+	private void doSealHierarchy(Iterable<? extends IuType<?, ? super T>> hierarchy) {
 		Map<Class<?>, TypeFacade<?, ? super T>> hierarchyByErasure = new LinkedHashMap<>();
 		for (var superType : hierarchy) {
 			var templateReference = superType.reference();
@@ -357,6 +379,18 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 		seal();
 	}
 
+	/**
+	 * Seals {@link #hierarchy()} and resolves <strong>inherited elements</strong>.
+	 * 
+	 * @param hierarchy Resolved type hierarchy
+	 */
+	void sealHierarchy(Iterable<? extends IuType<?, ? super T>> hierarchy) {
+		if (declaringType == null)
+			doSealHierarchy(hierarchy);
+		else
+			declaringType.template.postInit(() -> doSealHierarchy(hierarchy));
+	}
+
 	@Override
 	public Map<String, TypeFacade<?, ?>> typeParameters() {
 		checkSealed();
@@ -403,10 +437,9 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 	}
 
 	@Override
-	public Iterable<? extends IuType<T, ?>> enclosedTypes() {
+	public Iterable<TypeFacade<T, ?>> enclosedTypes() {
 		checkSealed();
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+		return enclosedTypes;
 	}
 
 	@Override

@@ -63,6 +63,12 @@ public enum IuReferenceKind {
 	DECLARING_TYPE(IuAnnotatedElement.class, false, false),
 
 	/**
+	 * The referent describes the {@link Class#getEnclosingClass() enclosing type}
+	 * of a (referring) {@link Class}.
+	 */
+	ENCLOSING_TYPE(IuAnnotatedElement.class, false, false),
+
+	/**
 	 * The type was referred to by {@link GenericDeclaration#getTypeParameters()}
 	 * from a {@link ParameterizedType}.
 	 */
