@@ -214,12 +214,13 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 		}
 	}
 
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	private void initializeEnclosedTypes() {
 		Queue<TypeFacade<T, ?>> enclosedTypes = new ArrayDeque<>();
 
 		if (!isNative())
 			for (var enclosedClass : annotatedElement.getDeclaredClasses())
-				enclosedTypes.offer(new TypeFacade<>(TypeFactory.resolveRawClass(enclosedClass), this,
+				enclosedTypes.offer(new TypeFacade(TypeFactory.resolveRawClass(enclosedClass), this,
 						IuReferenceKind.ENCLOSING_TYPE));
 
 		this.enclosedTypes = enclosedTypes;
