@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.WildcardType;
 import java.util.List;
@@ -50,7 +51,6 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuReferenceKind;
-import edu.iu.type.IuType;
 
 @SuppressWarnings("javadoc")
 public class TypeTemplateTest extends IuTypeTestCase {
@@ -59,7 +59,7 @@ public class TypeTemplateTest extends IuTypeTestCase {
 	public void setup() {
 		IuTestLogger.allow("iu.type.ParameterizedElement", Level.FINEST, "replaced type argument .*");
 	}
-	
+
 	private void assertRaw(Class<?> baseClass, TypeTemplate<?, ?> baseTemplate) {
 		assertNull(baseTemplate.reference());
 		assertSame(baseClass, baseTemplate.deref());
@@ -133,13 +133,69 @@ public class TypeTemplateTest extends IuTypeTestCase {
 	}
 
 	@Test
+	@SuppressWarnings("rawtypes")
 	public void testTypeOfIterable() {
 		@SuppressWarnings("unused")
 		class HasStringListParam {
 			List<String> stringList;
 		}
-		assertSame(String.class, IuType.of(HasStringListParam.class).field("stringList").type().referTo(Iterable.class)
-				.typeParameter("T").erasedClass());
+
+		final var type = (TypeFacade) TypeFactory.resolveType(HasStringListParam.class).field("stringList").type();
+		assertSame(String.class, type.referTo(Iterable.class).typeParameter("T").erasedClass());
+		assertSame(String.class, type.template.referTo(Iterable.class).typeParameter("T").erasedClass());
+	}
+
+	@Test
+	public void testSealAssertsMatchingTypeArgLength() {
+		var type = mock(ParameterizedType.class);
+		when(type.getRawType()).thenReturn(Iterable.class);
+		when(type.getActualTypeArguments()).thenReturn(new Type[0]);
+		assertThrows(AssertionError.class, () -> new TypeTemplate<>(t -> {
+		}, type, TypeFactory.resolveRawClass(Iterable.class)));
+	}
+
+	@Test
+	public void testHierarchyRequiresSealed() {
+		var template = new TypeTemplate<>(Object.class, a -> {
+		});
+		assertEquals("hierarchy not sealed",
+				assertThrows(IllegalStateException.class, template::hierarchy).getMessage());
+	}
+
+	@Test
+	public void testFieldsRequiresSealed() {
+		var template = new TypeTemplate<>(Object.class, a -> {
+		});
+		assertEquals("fields not sealed", assertThrows(IllegalStateException.class, template::fields).getMessage());
+	}
+
+	@Test
+	public void testMethodsRequiresSealed() {
+		var template = new TypeTemplate<>(Object.class, a -> {
+		});
+		assertEquals("methods not sealed", assertThrows(IllegalStateException.class, template::methods).getMessage());
+	}
+
+	@Test
+	public void testPropertiesRequiresSealed() {
+		var template = new TypeTemplate<>(Object.class, a -> {
+		});
+		assertEquals("properties not sealed",
+				assertThrows(IllegalStateException.class, template::properties).getMessage());
+	}
+
+	@Test
+	public void testCheckSealed() {
+		var template = new TypeTemplate<>(Object.class, a -> {
+		});
+		assertEquals("not sealed", assertThrows(IllegalStateException.class, template::checkSealed).getMessage());
+	}
+
+	@Test
+	public void testCantSealDirectly() {
+		var template = new TypeTemplate<>(Object.class, a -> {
+		});
+		assertEquals("use sealHierarchy() only with TypeTemplate", assertThrows(UnsupportedOperationException.class, template::seal).getMessage());
 	}
 
 }

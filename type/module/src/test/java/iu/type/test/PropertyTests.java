@@ -56,6 +56,17 @@ public class PropertyTests extends IuTypeTestCase {
 		public int getBar() {
 			return bar;
 		}
+		
+		public TestBean getSelf() {
+			return this;
+		}
+	}
+
+	@Test
+	public void testSelfIsSafe() {
+		var testBean = new TestBean();
+		var bar = IuType.of(TestBean.class).property("self");
+		assertSame(testBean, bar.get(testBean));
 	}
 
 	@Test

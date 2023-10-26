@@ -33,7 +33,9 @@ package iu.type;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.util.ArrayDeque;
 import java.util.Map;
+import java.util.Queue;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -81,6 +83,7 @@ final class TypeFacade<D, T> extends ElementBase implements IuType<D, T>, Parame
 	final ParameterizedElement parameterizedElement = new ParameterizedElement();
 
 	private final TypeReference<T, ?> reference;
+	private Iterable<TypeFacade<?, ? super T>> hierarchy;
 
 	/**
 	 * Constructor for a non-named, non-indexed reference.
@@ -128,11 +131,18 @@ final class TypeFacade<D, T> extends ElementBase implements IuType<D, T>, Parame
 			}
 
 			public void run() {
-				// i.e. resolve Iterable<T> from Collection<E> implements Iterable<E>
 				template.postInit(() -> {
+					final var templateHierarchy = template.hierarchy();
+					Queue<TypeFacade<?, ? super T>> hierarchy = new ArrayDeque<>();
+					for (final var templateSuperType : templateHierarchy)
+						hierarchy.offer(new TypeFacade<>(templateSuperType.template, TypeFacade.this,
+								templateSuperType.reference.kind()));
+					TypeFacade.this.hierarchy = hierarchy;
+
+					// i.e. resolve Iterable<T> from Collection<E> implements Iterable<E>
 					// template: {T=IuType[E TYPE_PARAM(T) Iterable<E>]}
 					parameterizedElement.apply(template.typeParameters());
-					
+
 					// referrer: {E=IuType[E TYPE_PARAM(E) Collection]}
 					if (referrer instanceof ParameterizedFacade parameterizedReferrer)
 						parameterizedElement.apply(parameterizedReferrer.typeParameters());
@@ -227,7 +237,8 @@ final class TypeFacade<D, T> extends ElementBase implements IuType<D, T>, Parame
 
 	@Override
 	public Iterable<TypeFacade<?, ? super T>> hierarchy() {
-		return template.hierarchy();
+		checkSealed();
+		return hierarchy;
 	}
 
 	@Override

@@ -310,7 +310,7 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 			for (var method : annotatedElement.getDeclaredMethods()) {
 				if (method.isSynthetic())
 					continue; // skip lambdas
-				
+
 				TypeTemplate<?, ?> returnType;
 				if (method.getReturnType() == annotatedElement)
 					returnType = this;
@@ -377,7 +377,18 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 		methods = initializeMethods();
 
 		parameterizedElement.seal(annotatedElement, this);
-		seal();
+		super.seal();
+	}
+
+	/**
+	 * Unsupported, use {@link #sealHierarchy(Iterable)} to provide hierarchy when
+	 * sealing.
+	 * 
+	 * @throws UnsupportedOperationException when invoked
+	 */
+	@Override
+	final void seal() throws UnsupportedOperationException {
+		throw new UnsupportedOperationException("use sealHierarchy() only with TypeTemplate");
 	}
 
 	/**
@@ -415,21 +426,12 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 
 	@Override
 	public IuType<D, T> erase() {
-		if (erasedType == null)
-			throw new IllegalStateException("erasedType not initialized");
 		return erasedType;
 	}
 
 	@Override
 	public Class<T> erasedClass() {
 		return annotatedElement;
-	}
-
-	@Override
-	public Iterable<TypeFacade<?, ? super T>> hierarchy() {
-		if (hierarchy == null)
-			throw new IllegalStateException("hierarchy not initialized");
-		return hierarchy;
 	}
 
 	@Override
@@ -445,9 +447,14 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 
 	@Override
 	public Iterable<? extends IuConstructor<T>> constructors() {
-		if (constructors == null)
-			throw new IllegalStateException("constructors not initialized");
 		return constructors;
+	}
+
+	@Override
+	public Iterable<TypeFacade<?, ? super T>> hierarchy() {
+		if (hierarchy == null)
+			throw new IllegalStateException("hierarchy not sealed");
+		return hierarchy;
 	}
 
 	@Override

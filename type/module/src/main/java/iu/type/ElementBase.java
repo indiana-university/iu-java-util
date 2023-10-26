@@ -32,6 +32,7 @@
 package iu.type;
 
 import java.util.ArrayDeque;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.function.Consumer;
 
@@ -94,13 +95,10 @@ abstract sealed class ElementBase implements IuAnnotatedElement
 	 * <em>Should</em> be called at the end of all concrete subclass constructors.
 	 */
 	void seal() {
-		if (sealed)
-			throw new IllegalStateException("Already sealed");
-
-		var postInit = this.postInit;
+		var postInit = Objects.requireNonNull(this.postInit, "already sealed");
 		this.sealed = true;
 		this.postInit = null;
-		
+
 		while (!postInit.isEmpty())
 			postInit.poll().run();
 	}

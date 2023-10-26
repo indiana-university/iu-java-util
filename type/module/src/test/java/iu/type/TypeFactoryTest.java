@@ -34,12 +34,15 @@ package iu.type;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 import java.io.Serializable;
 import java.lang.constant.Constable;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.Optional;
 import java.util.logging.Level;
 
@@ -57,7 +60,7 @@ public class TypeFactoryTest extends IuTypeTestCase {
 	public void setup() {
 		IuTestLogger.allow("iu.type.ParameterizedElement", Level.FINEST, "replaced type argument .*");
 	}
-	
+
 	private void assertErased(Class<?> erasedClass, IuType<?, ?> shouldBeErased) {
 		assertSame(erasedClass, shouldBeErased.deref());
 		assertEquals(IuReferenceKind.ERASURE, shouldBeErased.reference().kind());
@@ -133,6 +136,13 @@ public class TypeFactoryTest extends IuTypeTestCase {
 				.getDeclaredMethod("methodThatReturnsAMultiDimensionalGenericArray").getGenericReturnType());
 		var facade = TypeFactory.resolveType(type);
 		assertErased(Number[][].class, facade.erase());
+	}
+
+	@Test
+	public void testEraseMustBeValidType() {
+		final var type = mock(Type.class);
+		assertEquals("Invalid generic type, must be ParameterizedType, GenericArrayType, TypeVariable, or WildcardType",
+				assertThrows(IllegalArgumentException.class, () -> TypeFactory.getErasedClass(type)).getMessage());
 	}
 
 	@Test
