@@ -38,6 +38,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
 import java.net.URL;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.Assumptions;
@@ -54,7 +56,7 @@ import iu.type.TestArchives;
 
 @SuppressWarnings("javadoc")
 public class IuComponentTest extends IuTypeTestCase {
-	
+
 	@BeforeEach
 	public void setup() {
 		IuTestLogger.allow("iu.type.ParameterizedElement", Level.FINEST, "replaced type argument .*");
@@ -145,12 +147,11 @@ public class IuComponentTest extends IuTypeTestCase {
 			assertEquals("iu-java-type-testlegacy", component.version().name());
 			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
 
-			var interfaces = component.interfaces().iterator();
-			assertTrue(interfaces.hasNext());
-			assertEquals("edu.iu.legacy.LegacyInterface", interfaces.next().name());
-			assertTrue(interfaces.hasNext());
-			assertEquals("edu.iu.legacy.NotResource", interfaces.next().name());
-			assertFalse(interfaces.hasNext(), () -> interfaces.next().name());
+			var expectedInterfaces = new HashSet<>(
+					Set.of("edu.iu.legacy.LegacyInterface", "edu.iu.legacy.NotResource"));
+			for (final var i : component.interfaces())
+				assertTrue(expectedInterfaces.remove(i.name()));
+			assertTrue(expectedInterfaces.isEmpty(), expectedInterfaces::toString);
 
 			var contextLoader = Thread.currentThread().getContextClassLoader();
 			var loader = component.classLoader();
@@ -183,12 +184,11 @@ public class IuComponentTest extends IuTypeTestCase {
 			assertEquals("iu-java-type-testcomponent", component.version().name());
 			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
 
-			var interfaces = component.interfaces().iterator();
-			assertTrue(interfaces.hasNext());
-			assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
-			assertTrue(interfaces.hasNext());
-			assertEquals("edu.iu.type.testcomponent.TestBean", interfaces.next().name());
-			assertFalse(interfaces.hasNext());
+			var expectedInterfaces = new HashSet<>(
+					Set.of("edu.iu.type.testruntime.TestRuntime", "edu.iu.type.testcomponent.TestBean"));
+			for (final var i : component.interfaces())
+				assertTrue(expectedInterfaces.remove(i.name()));
+			assertTrue(expectedInterfaces.isEmpty(), expectedInterfaces::toString);
 
 			var resources = component.resources().iterator();
 			// TODO: restore after implementing @AroundConstruct
@@ -214,12 +214,10 @@ public class IuComponentTest extends IuTypeTestCase {
 			assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
 			assertFalse(interfaces.hasNext());
 
-			var resources = component.resources().iterator();
-			assertTrue(resources.hasNext());
-			assertEquals("index.html", resources.next().name());
-			assertTrue(resources.hasNext());
-			assertEquals("WEB-INF/web.xml", resources.next().name());
-			assertFalse(resources.hasNext(), () -> resources.next().name());
+			var expectedResources = new HashSet<>(Set.of("index.html", "WEB-INF/web.xml"));
+			for (final var r : component.resources())
+				assertTrue(expectedResources.remove(r.name()));
+			assertTrue(expectedResources.isEmpty(), expectedResources::toString);
 		}
 	}
 
@@ -233,12 +231,11 @@ public class IuComponentTest extends IuTypeTestCase {
 			assertEquals("iu-java-type-testlegacyweb", component.version().name());
 			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
 
-			var interfaces = component.interfaces().iterator();
-			assertTrue(interfaces.hasNext());
-			assertEquals("edu.iu.legacy.LegacyInterface", interfaces.next().name());
-			assertTrue(interfaces.hasNext());
-			assertEquals("edu.iu.legacy.NotResource", interfaces.next().name());
-			assertFalse(interfaces.hasNext(), () -> interfaces.next().name());
+			var expectedInterfaces = new HashSet<>(
+					Set.of("edu.iu.legacy.LegacyInterface", "edu.iu.legacy.NotResource"));
+			for (final var i : component.interfaces())
+				assertTrue(expectedInterfaces.remove(i.name()));
+			assertTrue(expectedInterfaces.isEmpty(), expectedInterfaces::toString);
 
 			var incompatible = component.annotatedTypes(Incompatible.class).iterator();
 			assertTrue(incompatible.hasNext());

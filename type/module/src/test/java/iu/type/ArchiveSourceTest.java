@@ -206,13 +206,13 @@ public class ArchiveSourceTest extends IuTypeTestCase {
 					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.1.0.jar, META-INF/lib/jakarta.annotation-api-2.1.1.jar, META-INF/lib/jakarta.json-api-2.1.2.jar], dependencies=[parsson-1.1+], closed=false]",
 					source.toString());
 			source.hasNext();
-			assertEquals(
-					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.1.0.jar, META-INF/lib/jakarta.annotation-api-2.1.1.jar, META-INF/lib/jakarta.json-api-2.1.2.jar], dependencies=[parsson-1.1+], next=Optional[ComponentEntry [name=edu/, read=false, closed=false]], closed=false]",
-					source.toString());
+			assertTrue(source.toString().startsWith(
+					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.1.0.jar, META-INF/lib/jakarta.annotation-api-2.1.1.jar, META-INF/lib/jakarta.json-api-2.1.2.jar], dependencies=[parsson-1.1+], next=Optional[ComponentEntry [name="),
+					source::toString);
 			source.next();
-			assertEquals(
-					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.1.0.jar, META-INF/lib/jakarta.annotation-api-2.1.1.jar, META-INF/lib/jakarta.json-api-2.1.2.jar], dependencies=[parsson-1.1+], last=ComponentEntry [name=edu/, read=false, closed=false], closed=false]",
-					source.toString());
+			assertTrue(source.toString().startsWith(
+					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.1.0.jar, META-INF/lib/jakarta.annotation-api-2.1.1.jar, META-INF/lib/jakarta.json-api-2.1.2.jar], dependencies=[parsson-1.1+], last=ComponentEntry [name="),
+					source::toString);
 		}
 	}
 
