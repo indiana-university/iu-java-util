@@ -34,16 +34,20 @@ package iu.type.test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.logging.Level;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuType;
 import iu.type.IuTypeTestCase;
+import jakarta.interceptor.AroundInvoke;
+import jakarta.interceptor.Interceptors;
 
 @SuppressWarnings("javadoc")
 public class MethodTests extends IuTypeTestCase {
@@ -84,4 +88,51 @@ public class MethodTests extends IuTypeTestCase {
 		assertSame(int.class, method.returnType().erasedClass());
 		assertEquals(7, method.exec(3, 4));
 	}
+
+	@Test
+	@SuppressWarnings("unused")
+	public void testInterceptorsOnTypeNotSupported() throws Exception {
+		@Interceptors({})
+		class HasInterceptors {
+			void fail() {
+				Assertions.fail();
+			}
+		}
+		var method = IuType.of(HasInterceptors.class).method("fail");
+		assertEquals("@AroundInvoke not supported in this version",
+				assertThrows(UnsupportedOperationException.class, () -> method.exec(new HasInterceptors()))
+						.getMessage());
+	}
+
+	@Test
+	public void testInterceptorsOnMethodNotSupported() throws Exception {
+		class HasInterceptors {
+			@Interceptors({})
+			void fail() {
+				Assertions.fail();
+			}
+		}
+		var method = IuType.of(HasInterceptors.class).method("fail");
+		assertEquals("@AroundInvoke not supported in this version",
+				assertThrows(UnsupportedOperationException.class, () -> method.exec(new HasInterceptors()))
+						.getMessage());
+	}
+
+	@Test
+	@SuppressWarnings("unused")
+	public void testAroundInvokeNotSupported() throws Exception {
+		class HasInterceptors {
+			@AroundInvoke
+			void intercept() {}
+			
+			void fail() {
+				Assertions.fail();
+			}
+		}
+		var method = IuType.of(HasInterceptors.class).method("fail");
+		assertEquals("@AroundInvoke not supported in this version",
+				assertThrows(UnsupportedOperationException.class, () -> method.exec(new HasInterceptors()))
+						.getMessage());
+	}
+
 }

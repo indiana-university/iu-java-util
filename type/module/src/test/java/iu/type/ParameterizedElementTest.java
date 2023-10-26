@@ -33,13 +33,33 @@ package iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.type.IuType;
 
-@SuppressWarnings({"javadoc", "unused"})
+@SuppressWarnings({ "javadoc", "unused" })
 public class ParameterizedElementTest extends IuTypeTestCase {
+
+	@Test
+	public void testSealGuards() {
+		var parameterizedElement = new ParameterizedElement();
+		assertEquals("not sealed",
+				assertThrows(IllegalStateException.class, () -> parameterizedElement.typeParameters()).getMessage());
+
+		parameterizedElement.seal(getClass(), TypeFactory.resolveRawClass(getClass()));
+
+		assertEquals("sealed",
+				assertThrows(IllegalStateException.class, () -> parameterizedElement.apply(null)).getMessage());
+		assertEquals("sealed",
+				assertThrows(IllegalStateException.class, () -> parameterizedElement.apply(null, null, null))
+						.getMessage());
+		assertEquals("already sealed",
+				assertThrows(IllegalStateException.class,
+						() -> parameterizedElement.seal(getClass(), TypeFactory.resolveRawClass(getClass())))
+						.getMessage());
+	}
 
 	@Test
 	public void testTypeParams() {

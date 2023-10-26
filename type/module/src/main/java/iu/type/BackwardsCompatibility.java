@@ -82,10 +82,7 @@ final class BackwardsCompatibility {
 		ClassNotFoundException localClassNameNotFound;
 		try {
 			var contextLoader = Thread.currentThread().getContextClassLoader();
-			if (contextLoader == null)
-				return Class.forName(className);
-			else
-				return contextLoader.loadClass(className);
+			return contextLoader.loadClass(className);
 		} catch (ClassNotFoundException e) {
 			localClassNameNotFound = e;
 		}
