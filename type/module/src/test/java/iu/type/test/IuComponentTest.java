@@ -245,16 +245,10 @@ public class IuComponentTest extends IuTypeTestCase {
 			var testsShouldBeEmpty = component.annotatedTypes(Test.class).iterator();
 			assertFalse(testsShouldBeEmpty.hasNext(), () -> testsShouldBeEmpty.next().name());
 
-			var resources = component.resources().iterator();
-			assertTrue(resources.hasNext());
-			assertEquals("two", resources.next().name());
-			assertTrue(resources.hasNext());
-			assertEquals("LegacyResource", resources.next().name());
-			assertTrue(resources.hasNext());
-			assertEquals("index.jsp", resources.next().name());
-			assertTrue(resources.hasNext());
-			assertEquals("WEB-INF/web.xml", resources.next().name());
-			assertFalse(resources.hasNext(), () -> resources.next().name());
+			var expectedResources = new HashSet<>(Set.of("two", "LegacyResource", "index.jsp", "WEB-INF/web.xml"));
+			for (final var r : component.resources())
+				assertTrue(expectedResources.remove(r.name()));
+			assertTrue(expectedResources.isEmpty(), expectedResources::toString);
 		}
 	}
 

@@ -124,14 +124,6 @@ public class LoggingTest {
 	}
 
 	@Test
-	public void testLoggingAssertionFailureSuppressesThrown() {
-		IuTestLogger.expect(LoggingTest.class.getName(), Level.INFO, "it's thrown", IllegalArgumentException.class);
-		var e = new IllegalStateException();
-		assertSame(e, assertThrows(AssertionFailedError.class, () -> LOG.log(Level.INFO, e, () -> "it's thrown"))
-				.getSuppressed()[0]);
-	}
-
-	@Test
 	public void testAllowedMessagesDoesntExpect() {
 		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed");
 	}

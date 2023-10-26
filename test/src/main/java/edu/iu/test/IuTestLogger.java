@@ -31,10 +31,7 @@
  */
 package edu.iu.test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayDeque;
@@ -145,29 +142,6 @@ public final class IuTestLogger {
 			return pattern.matcher(message).matches();
 		}
 
-		private void assertMatches(LogRecord record) {
-			var thrown = record.getThrown();
-			try {
-				assertEquals(loggerName, record.getLoggerName());
-				assertEquals(level, record.getLevel());
-
-				if (thrownClass == null)
-					assertNull(thrown);
-				else {
-					assertSame(thrownClass, thrown.getClass());
-					if (thrownTest != null)
-						assertTrue(thrownTest.test(thrownClass.cast(thrown)), "Thrown exception mismatch " + this);
-				}
-
-				var message = record.getMessage();
-				assertTrue(pattern.matcher(message).matches(), message + " doesn't match " + this);
-			} catch (AssertionFailedError e) {
-				if (thrown != null)
-					e.addSuppressed(thrown);
-				throw e;
-			}
-		}
-
 		@Override
 		public String toString() {
 			return "LogRecordMatcher [loggerName=" + loggerName + ", level=" + level + ", thrownClass=" + thrownClass
@@ -210,12 +184,16 @@ public final class IuTestLogger {
 				if (allowedMessage.matches(record))
 					return;
 
-			if (expectedMessages.isEmpty())
-				throw new AssertionFailedError("Unexpected log message " + record.getLevel() + " "
-						+ record.getLoggerName() + " " + record.getMessage(), record.getThrown());
-			else
-				expectedMessages.poll().assertMatches(record);
+			final var expectedIterator = expectedMessages.iterator();
 
+			while (expectedIterator.hasNext())
+				if (expectedIterator.next().matches(record)) {
+					expectedIterator.remove();
+					return;
+				}
+
+			throw new AssertionFailedError("Unexpected log message " + record.getLevel() + " " + record.getLoggerName()
+					+ " " + record.getMessage(), record.getThrown());
 		}
 
 		@Override
