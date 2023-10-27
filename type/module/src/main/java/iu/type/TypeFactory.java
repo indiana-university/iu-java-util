@@ -57,6 +57,7 @@ final class TypeFactory {
 
 	private static final Map<Class<?>, TypeTemplate<?, ?>> RAW_TYPES = new WeakHashMap<>();
 	private static final ThreadLocal<Map<IuTypeKey, TypeTemplate<?, ?>>> PENDING_GENERIC_TYPES = new ThreadLocal<>();
+	private static final ThreadLocal<Map<Class<?>, TypeTemplate<?, ?>>> PENDING_RAW_TYPES = new ThreadLocal<>();
 
 	/**
 	 * Clears all indexed and cached data.
@@ -149,8 +150,6 @@ final class TypeFactory {
 			erasure = Array.newInstance(erasure, 0).getClass();
 		return erasure;
 	}
-
-	private static final ThreadLocal<Map<Class<?>, TypeTemplate<?, ?>>> PENDING_RAW_TYPES = new ThreadLocal<>();
 
 	/**
 	 * Applies a front-loaded pre-initialization cache to the current thread to
