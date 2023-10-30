@@ -32,6 +32,7 @@
 package edu.iu.type;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 
 /**
  * Facade interface for a {@link Field}.
@@ -40,4 +41,13 @@ import java.lang.reflect.Field;
  * @param <T> field type
  */
 public interface IuField<D, T> extends IuAttribute<D, T> {
+
+	/**
+	 * Determines if the {@link Field} includes the {@link Modifier#STATIC static
+	 * modifier}.
+	 * 
+	 * @return true if the field is {@link Modifier#STATIC static}; else false;
+	 */
+	boolean isStatic();
+
 }

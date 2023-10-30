@@ -29,26 +29,36 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package iu.type.jsonb;
+
+import jakarta.json.bind.Jsonb;
+import jakarta.json.bind.JsonbBuilder;
+import jakarta.json.bind.JsonbConfig;
+import jakarta.json.spi.JsonProvider;
+
 /**
- * Type introspection utilities implementation module.
- *
- * @provides edu.iu.type.spi.IuTypeSpi Implementation service provider.
- * @provides jakarta.json.bind.spi.JsonbProvider JSON-B provider.
+ * JSON-B builder implementation.
  */
-module iu.util.type.impl {
-	exports iu.type;
-	opens iu.type to iu.util;
-	
-	requires iu.util;
-	requires iu.util.type;
-	
-	requires java.logging;
-	requires java.desktop;
-	requires jakarta.annotation;
-	requires jakarta.interceptor;
-	requires jakarta.json;
-	requires jakarta.json.bind;
-	
-	provides edu.iu.type.spi.IuTypeSpi with iu.type.TypeSpi;
-	provides jakarta.json.bind.spi.JsonbProvider with iu.type.jsonb.IuJsonbProvider;
+public class IuJsonbBuilder implements JsonbBuilder {
+
+	private final IuJsonbConfig config = new IuJsonbConfig();
+	private JsonProvider jsonpProvider = JsonProvider.provider();
+
+	@Override
+	public JsonbBuilder withConfig(JsonbConfig config) {
+		this.config.apply(config.getAsMap());
+		return this;
+	}
+
+	@Override
+	public JsonbBuilder withProvider(JsonProvider jsonpProvider) {
+		this.jsonpProvider = jsonpProvider;
+		return this;
+	}
+
+	@Override
+	public Jsonb build() {
+		return new IuJsonb(config, jsonpProvider);
+	}
+
 }

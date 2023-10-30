@@ -41,6 +41,7 @@ import java.lang.reflect.WildcardType;
 import java.util.WeakHashMap;
 
 import edu.iu.IuIterable;
+import edu.iu.IuSingleValue;
 import edu.iu.type.spi.TypeImplementation;
 
 /**
@@ -170,29 +171,8 @@ public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement 
 	 * @return the object version related to a primitive type, or the class passed
 	 *         in as-is if not primitive
 	 */
-	@SuppressWarnings("unchecked")
 	default Class<T> autoboxClass() {
-		var potentiallyPrimitive = erasedClass();
-		if (Boolean.TYPE.equals(potentiallyPrimitive))
-			return (Class<T>) Boolean.class;
-		else if (Character.TYPE.equals(potentiallyPrimitive))
-			return (Class<T>) Character.class;
-		else if (Byte.TYPE.equals(potentiallyPrimitive))
-			return (Class<T>) Byte.class;
-		else if (Short.TYPE.equals(potentiallyPrimitive))
-			return (Class<T>) Short.class;
-		else if (Integer.TYPE.equals(potentiallyPrimitive))
-			return (Class<T>) Integer.class;
-		else if (Long.TYPE.equals(potentiallyPrimitive))
-			return (Class<T>) Long.class;
-		else if (Float.TYPE.equals(potentiallyPrimitive))
-			return (Class<T>) Float.class;
-		else if (Double.TYPE.equals(potentiallyPrimitive))
-			return (Class<T>) Double.class;
-		else if (Void.TYPE.equals(potentiallyPrimitive))
-			return (Class<T>) Void.class;
-		else
-			return potentiallyPrimitive;
+		return IuSingleValue.getNonPrimitiveClass(erasedClass());
 	}
 
 	/**
@@ -202,27 +182,8 @@ public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement 
 	 *         primitive type if declared without an initializer; null if the
 	 *         described time is not primitive.
 	 */
-	@SuppressWarnings("unchecked")
 	default T autoboxDefault() {
-		var potentiallyPrimitive = erasedClass();
-		if (Boolean.TYPE.equals(potentiallyPrimitive))
-			return (T) Boolean.FALSE;
-		else if (Character.TYPE.equals(potentiallyPrimitive))
-			return (T) Character.valueOf('\0');
-		else if (Byte.TYPE.equals(potentiallyPrimitive))
-			return (T) Byte.valueOf((byte) 0);
-		else if (Short.TYPE.equals(potentiallyPrimitive))
-			return (T) Short.valueOf((short) 0);
-		else if (Integer.TYPE.equals(potentiallyPrimitive))
-			return (T) Integer.valueOf(0);
-		else if (Long.TYPE.equals(potentiallyPrimitive))
-			return (T) Long.valueOf(0L);
-		else if (Float.TYPE.equals(potentiallyPrimitive))
-			return (T) Float.valueOf(0.0f);
-		else if (Double.TYPE.equals(potentiallyPrimitive))
-			return (T) Double.valueOf(0.0);
-		else
-			return null;
+		return IuSingleValue.getDefaultValue(erasedClass());
 	}
 
 	/**

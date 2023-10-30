@@ -29,26 +29,24 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Type introspection utilities implementation module.
- *
- * @provides edu.iu.type.spi.IuTypeSpi Implementation service provider.
- * @provides jakarta.json.bind.spi.JsonbProvider JSON-B provider.
- */
-module iu.util.type.impl {
-	exports iu.type;
-	opens iu.type to iu.util;
+package iu.type.jsonb;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import org.junit.jupiter.api.Test;
+
+import iu.type.IuTypeTestCase;
+import jakarta.json.bind.JsonbBuilder;
+
+@SuppressWarnings("javadoc")
+public class JsonbBuilderTest extends IuTypeTestCase {
 	
-	requires iu.util;
-	requires iu.util.type;
-	
-	requires java.logging;
-	requires java.desktop;
-	requires jakarta.annotation;
-	requires jakarta.interceptor;
-	requires jakarta.json;
-	requires jakarta.json.bind;
-	
-	provides edu.iu.type.spi.IuTypeSpi with iu.type.TypeSpi;
-	provides jakarta.json.bind.spi.JsonbProvider with iu.type.jsonb.IuJsonbProvider;
+	@Test
+	@SuppressWarnings("unused")
+	public void testSimple() {
+		class Simple {
+			String foo = "bar";
+		}
+		assertEquals("{\"foo\":\"bar\"}", JsonbBuilder.create().toJson(new Simple()));
+	}
 }

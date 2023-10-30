@@ -29,26 +29,87 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package iu.type.jsonb;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+
+import jakarta.json.JsonArrayBuilder;
+import jakarta.json.JsonObjectBuilder;
+import jakarta.json.JsonValue;
+
 /**
- * Type introspection utilities implementation module.
- *
- * @provides edu.iu.type.spi.IuTypeSpi Implementation service provider.
- * @provides jakarta.json.bind.spi.JsonbProvider JSON-B provider.
+ * Encapsulates add a single attribute value to a {@link JsonObjectBuilder}.
  */
-module iu.util.type.impl {
-	exports iu.type;
-	opens iu.type to iu.util;
-	
-	requires iu.util;
-	requires iu.util.type;
-	
-	requires java.logging;
-	requires java.desktop;
-	requires jakarta.annotation;
-	requires jakarta.interceptor;
-	requires jakarta.json;
-	requires jakarta.json.bind;
-	
-	provides edu.iu.type.spi.IuTypeSpi with iu.type.TypeSpi;
-	provides jakarta.json.bind.spi.JsonbProvider with iu.type.jsonb.IuJsonbProvider;
+class JsonAttributeBuilder implements JsonStructureBuilder {
+
+	private final JsonObjectBuilder builder;
+	private final String name;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param builder {@link JsonObjectBuilder}
+	 * @param name    attribute name
+	 */
+	JsonAttributeBuilder(JsonObjectBuilder builder, String name) {
+		this.builder = builder;
+		this.name = name;
+	}
+
+	@Override
+	public void addNull() {
+		builder.addNull(name);
+	}
+
+	@Override
+	public void add(JsonArrayBuilder value) {
+		builder.add(name, value);
+	}
+
+	@Override
+	public void add(JsonObjectBuilder value) {
+		builder.add(name, value);
+	}
+
+	@Override
+	public void add(boolean value) {
+		builder.add(name, value);
+	}
+
+	@Override
+	public void add(double value) {
+		builder.add(name, value);
+	}
+
+	@Override
+	public void add(long value) {
+		builder.add(name, value);
+	}
+
+	@Override
+	public void add(int value) {
+		builder.add(name, value);
+	}
+
+	@Override
+	public void add(BigInteger value) {
+		builder.add(name, value);
+	}
+
+	@Override
+	public void add(BigDecimal value) {
+		builder.add(name, value);
+	}
+
+	@Override
+	public void add(String value) {
+		builder.add(name, value);
+	}
+
+	@Override
+	public void add(JsonValue value) {
+		builder.add(name, value);
+	}
+
 }

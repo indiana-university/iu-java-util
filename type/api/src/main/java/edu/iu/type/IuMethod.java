@@ -31,8 +31,12 @@
  */
 package edu.iu.type;
 
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+
 /**
- * Represents a method reflected from the type erasure of a generic type.
+ * Represents a {@link Method} reflected from the type erasure of a generic
+ * type.
  * 
  * @param <D> declaring type
  * @param <R> method return type
@@ -40,9 +44,10 @@ package edu.iu.type;
 public interface IuMethod<D, R> extends IuNamedElement<D>, IuExecutable<D, R> {
 
 	/**
-	 * Determines if this is a static method.
+	 * Determines if the {@link Method} includes the {@link Modifier#STATIC static
+	 * modifier}.
 	 * 
-	 * @return true if static; else false
+	 * @return true if the field is {@link Modifier#STATIC static}; else false;
 	 */
 	boolean isStatic();
 

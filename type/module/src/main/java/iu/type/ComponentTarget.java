@@ -39,6 +39,9 @@ import java.nio.file.Path;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 
+import edu.iu.IuException;
+import edu.iu.UnsafeConsumer;
+
 /**
  * Writes entries to a {@link Component}'s dedicated temporary path files.
  */
@@ -67,10 +70,23 @@ class ComponentTarget implements AutoCloseable {
 	 * @throws IOException If an I/O error occurs writing to the file
 	 */
 	void put(String name, InputStream data) throws IOException {
-		int r;
+		put(name, out -> {
+			int r;
+			while ((r = data.read(buf, 0, buf.length)) > 0)
+				out.write(buf, 0, r);
+		});
+	}
+
+	/**
+	 * Adds an entry.
+	 * 
+	 * @param name entry name
+	 * @param data output consumer for writing data to the entry
+	 * @throws IOException If an I/O error occurs writing to the file
+	 */
+	void put(String name, UnsafeConsumer<OutputStream> data) throws IOException {
 		jar.putNextEntry(new JarEntry(name));
-		while ((r = data.read(buf, 0, buf.length)) > 0)
-			jar.write(buf, 0, r);
+		IuException.checked(IOException.class, jar, data);
 		jar.closeEntry();
 	}
 

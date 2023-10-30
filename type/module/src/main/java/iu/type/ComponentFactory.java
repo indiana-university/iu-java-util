@@ -40,6 +40,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.List;
+import java.util.Properties;
 import java.util.Queue;
 import java.util.stream.Collectors;
 
@@ -89,7 +90,7 @@ final class ComponentFactory {
 	 * @return module component
 	 */
 	static Component createModular(Component parent, Queue<ComponentArchive> archives) {
-		var path = new Path[archives.size()];
+		final var path = new Path[archives.size()];
 		{
 			var i = 0;
 			for (var archive : archives)

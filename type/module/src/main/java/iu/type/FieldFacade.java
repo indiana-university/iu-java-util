@@ -81,6 +81,12 @@ final class FieldFacade<D, T> extends DeclaredElementBase<D, Field> implements I
 	}
 
 	@Override
+	public boolean isStatic() {
+		var mod = annotatedElement.getModifiers();
+		return (mod | Modifier.STATIC) == mod;
+	}
+	
+	@Override
 	public T get(Object o) {
 		return type.autoboxClass().cast(IuException.unchecked(o, annotatedElement::get));
 	}

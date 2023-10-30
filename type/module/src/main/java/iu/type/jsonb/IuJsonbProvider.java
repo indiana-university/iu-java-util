@@ -29,26 +29,19 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package iu.type.jsonb;
+
+import jakarta.json.bind.JsonbBuilder;
+import jakarta.json.bind.spi.JsonbProvider;
+
 /**
- * Type introspection utilities implementation module.
- *
- * @provides edu.iu.type.spi.IuTypeSpi Implementation service provider.
- * @provides jakarta.json.bind.spi.JsonbProvider JSON-B provider.
+ * JSON-B provider implementation.
  */
-module iu.util.type.impl {
-	exports iu.type;
-	opens iu.type to iu.util;
-	
-	requires iu.util;
-	requires iu.util.type;
-	
-	requires java.logging;
-	requires java.desktop;
-	requires jakarta.annotation;
-	requires jakarta.interceptor;
-	requires jakarta.json;
-	requires jakarta.json.bind;
-	
-	provides edu.iu.type.spi.IuTypeSpi with iu.type.TypeSpi;
-	provides jakarta.json.bind.spi.JsonbProvider with iu.type.jsonb.IuJsonbProvider;
+public class IuJsonbProvider extends JsonbProvider {
+
+	@Override
+	public JsonbBuilder create() {
+		return new IuJsonbBuilder();
+	}
+
 }
