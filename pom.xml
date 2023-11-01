@@ -55,7 +55,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-		<argLine>-ea --add-modules ALL-MODULE-PATH</argLine>
+		<argLine>-ea --add-modules ALL-MODULE-PATH -XX:+EnableDynamicAgentLoading</argLine>
 
 		<jakarta.annotation-api.version>2.1.1</jakarta.annotation-api.version>
 		<jakarta.interceptor-api.version>2.1.0</jakarta.interceptor-api.version>
@@ -131,7 +131,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 						<configuration>
 							<rules>
 								<requireJavaVersion>
-									<version>20</version>
+									<version>21</version>
 								</requireJavaVersion>
 								<requireMavenVersion>
 									<version>3.8</version>
