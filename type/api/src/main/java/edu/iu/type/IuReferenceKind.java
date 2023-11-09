@@ -36,10 +36,9 @@ import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.GenericDeclaration;
+import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.TypeVariable;
-import java.lang.reflect.WildcardType;
 
 /**
  * Describes the kind of reference used to refer to a generic type.
@@ -58,9 +57,16 @@ public enum IuReferenceKind {
 	SUPER(IuType.class, false, false),
 
 	/**
-	 * The type was referred to by {@link ParameterizedType#getRawType()}.
+	 * The referent describes the {@link Member#getDeclaringClass() declaring type}
+	 * of a (referring) {@link Member member}.
 	 */
-	RAW(IuType.class, false, false),
+	DECLARING_TYPE(IuAnnotatedElement.class, false, false),
+
+	/**
+	 * The referent describes the {@link Class#getEnclosingClass() enclosing type}
+	 * of a (referring) {@link Class}.
+	 */
+	ENCLOSING_TYPE(IuAnnotatedElement.class, false, false),
 
 	/**
 	 * The type was referred to by {@link GenericDeclaration#getTypeParameters()}
@@ -79,21 +85,6 @@ public enum IuReferenceKind {
 	 * from a {@link Constructor}.
 	 */
 	CONSTRUCTOR_PARAM(IuConstructor.class, true, false),
-
-	/**
-	 * The type was referred to by {@link TypeVariable#getBounds()}.
-	 */
-	BOUNDS(IuType.class, false, true),
-
-	/**
-	 * The type was referred to by {@link WildcardType#getUpperBounds()}.
-	 */
-	UPPER_BOUNDS(IuType.class, false, true),
-
-	/**
-	 * The type was referred to by {@link WildcardType#getLowerBounds()}.
-	 */
-	LOWER_BOUNDS(IuType.class, false, true),
 
 	/**
 	 * The type was referred to by {@link Class#getComponentType()} or
@@ -115,12 +106,12 @@ public enum IuReferenceKind {
 	/**
 	 * The type was referred to by {@link Executable#getGenericParameterTypes()}.
 	 */
-	PARAMETER(IuExecutable.class, false, true),
+	PARAMETER(IuParameter.class, false, true),
 
 	/**
 	 * The type was referred to by {@link Method#getGenericReturnType()}.
 	 */
-	RETURN_TYPE(IuMethod.class, true, false);
+	RETURN_TYPE(IuMethod.class, false, false);
 
 	private final Class<? extends IuAnnotatedElement> referrerType;
 	private final boolean named;

@@ -32,6 +32,7 @@
 package edu.iu.test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -122,4 +123,85 @@ public class LoggingTest {
 		IuTestExtension.expectFailure();
 	}
 
+	@Test
+	public void testAllowedMessagesDoesntExpect() {
+		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed");
+	}
+	
+	@Test
+	public void testAllowedMessagesAllowsMoreThanOnce() {
+		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed");
+		LOG.finer("allowed");
+		LOG.finer("allowed");
+	}
+
+	@Test
+	public void testAllowedMessagesDoesntAllowDifferentLogger() {
+		IuTestLogger.allow("wrong logger", Level.FINER, "allowed");
+		assertThrows(AssertionFailedError.class, () -> LOG.finer(() -> "allowed"));
+	}
+
+
+	@Test
+	public void testAllowedMessagesDoesntAllowsOnlyFinerLevel() {
+		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed");
+		LOG.finest(() -> "allowed");
+		assertThrows(AssertionFailedError.class, () -> LOG.fine(() -> "allowed"));
+	}
+
+	@Test
+	public void testAllowedWithoutDoesntAllowsWithThrown() {
+		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed");
+		assertThrows(AssertionFailedError.class, () -> LOG.log(Level.FINER, new Throwable(), () -> "allowed"));
+	}
+
+	@Test
+	public void testAllowedWithDoesntAllowsWithoutThrown() {
+		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed", Throwable.class);
+		assertThrows(AssertionFailedError.class, () -> LOG.finer(() -> "allowed"));
+	}
+
+	@Test
+	public void testAllowedWithDoesntAllowsWrongThrownClass() {
+		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed", Throwable.class);
+		assertThrows(AssertionFailedError.class, () -> LOG.log(Level.FINER, new Error(), () -> "allowed"));
+	}
+
+	@Test
+	public void testWithAllowsWithThrown() {
+		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed", Throwable.class);
+		LOG.log(Level.FINER, new Throwable(), () -> "allowed");
+	}
+
+	@Test
+	public void testWithAllowsWithThrownAndTest() {
+		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed", Throwable.class, t -> true);
+		LOG.log(Level.FINER, new Throwable(), () -> "allowed");
+	}
+
+	@Test
+	public void testWithDoesntAllowsWithSameThrownButFailedTest() {
+		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed", Throwable.class, t -> false);
+		assertThrows(AssertionFailedError.class, () -> LOG.log(Level.FINER, new Throwable(), () -> "allowed"));
+	}
+
+//	@Test
+//	public void testAllowedMessages() {
+//		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed");
+//		IuTestLogger.allow("testAllowedMessages", Level.INFO, "allowed info");
+//		IuTestLogger.allow("testAllowedMessages", Level.WARNING, "allowed warning", IllegalStateException.class,
+//				t -> t.getMessage().equals("a"));
+//		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "throw", IllegalArgumentException.class);
+//		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected");
+//		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINER, "threw", UnsupportedOperationException.class);
+//		IuTestLogger.expect("testAllowedMessages", Level.WARNING, "expected warning", IllegalStateException.class,
+//				t -> t.getMessage().equals("b"));
+//		LOG.finer("allowed");
+//		LOG.fine("expected");
+//		LOG.log(Level.FINER, "threw", new UnsupportedOperationException());
+//		log.log(Level.WARNING, new IllegalStateException("b"), () -> "expected warning");
+//		log.log(Level.WARNING, new IllegalStateException("a"), () -> "allowed warning");
+//		LOG.finer("allowed");
+//	}
+//
 }

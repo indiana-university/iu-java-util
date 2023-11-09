@@ -31,17 +31,67 @@
  */
 package edu.iu.type;
 
+import java.lang.annotation.Annotation;
+import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
+import java.lang.reflect.WildcardType;
+import java.util.WeakHashMap;
 
+import edu.iu.IuIterable;
 import edu.iu.type.spi.TypeImplementation;
 
 /**
  * Facade interface for a generic type.
  * 
+ * <p>
+ * {@link IuType} is sterotyped as a <strong>hash key</strong>, so may be used
+ * as the key value with {@link WeakHashMap} to build type-level extensions from
+ * specific generic type scenarios. For example IuType has a 1:1 relationship
+ * with Class, but a separate 1:1 with a Classes referred to via specific
+ * {@link TypeVariable}, {@link ParameterizedType}, {@link GenericArrayType}, or
+ * {@link WildcardType}.
+ * </p>
+ * 
+ * <p>
+ * The <strong>hash key stereotype</strong> is implemented by {@link #of(Class)}
+ * and {@link #of(Type)}, and is only implied by implementations provided by
+ * those methods.
+ * </p>
+ *
+ * <h2>Private Erasure</h2>
+ * <p>
+ * This interface exposes all declared field and method members from all types
+ * in decorated type's hierarchy in additional to those declared directly on its
+ * type erasure. That includes private members of superclasses. The purpose of
+ * this utility is to find fields and bean properties on well-formed application
+ * classes that may or may not be annotated as container-managed associations.
+ * The container therefore uses {@code IuType} to access privately scoped
+ * members and populate those associations.
+ * </p>
+ * <p>
+ * It is the application developer's responsibility to ensure that private
+ * members only shadow same-named private members in a super class when it is
+ * intended for the subclass to use its member instead of any inherited
+ * <strong>shadowed</strong> member of the same name. For example, when
+ * using @AroundInvoke to define interceptor methods intended to be inherited
+ * from a superclass, use a name reasonably unique to the declaring class. This
+ * scenario mirrors method override behavior, but fields may be shadowed and
+ * continue to exist as separate private fields with the same name but
+ * potentially different type and value.
+ * </p>
+ * <p>
+ * Private erasure is relevant for deserialization, remote service discovery,
+ * and method invocation. Other scenarios, i.e., dependency injection,
+ * <em>should</em> iterate all members unless a specific name is provided.
+ * </p>
+ * 
+ * @param <D> declaring type, nullable
  * @param <T> described generic type
  */
-public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
+public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement {
 
 	/**
 	 * Resolves a type introspection facade for a generic type.
@@ -49,7 +99,7 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * @param type generic type
 	 * @return type introspection facade
 	 */
-	static IuType<?> of(Type type) {
+	static IuType<?, ?> of(Type type) {
 		return TypeImplementation.PROVIDER.resolveType(type);
 	}
 
@@ -71,13 +121,13 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	 * <em>must</em> thread-safe.
 	 * </p>
 	 * 
-	 * @param <T>  type
-	 * @param type type
+	 * @param <T>      type
+	 * @param rawClass type
 	 * @return type introspection facade
 	 */
 	@SuppressWarnings("unchecked")
-	static <T> IuType<T> of(Class<?> type) {
-		return (IuType<T>) of((Type) type);
+	static <T> IuType<?, T> of(Class<T> rawClass) {
+		return (IuType<?, T>) of((Type) rawClass);
 	}
 
 	/**
@@ -95,140 +145,6 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	Type deref();
 
 	/**
-	 * Gets the {@link IuReferenceKind#ERASURE erased} facade, which describing the
-	 * {@link Class} representing the <a href=
-	 * "https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.6">erasure</a>
-	 * of the generic type.
-	 * 
-	 * <p>
-	 * The {@link #deref()} of the erased facade <em>must</em> return a
-	 * {@link Class}.
-	 * </p>
-	 * 
-	 * @return erased type facade
-	 * @see <a href=
-	 *      "https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.6">JLS
-	 *      21 Section 4.4: Type Erasure</a>
-	 */
-	IuType<T> erase();
-
-	/**
-	 * Iterates the type hierarchy, from most specific to least specific.
-	 * 
-	 * <ol>
-	 * <li>All {@link Class#getGenericInterfaces()}</li>
-	 * <li>{@link Class#getGenericSuperclass()}</li>
-	 * <li>Iterate {@link IuType#hierarchy()} until {@link Object} is reached</li>
-	 * </ol>
-	 * 
-	 * <p>
-	 * This type described by this facade is not included. {@link Object} is always
-	 * the last element.
-	 * </p>
-	 * 
-	 * @return inherited and extended types
-	 */
-	Iterable<? extends IuType<?>> hierarchy();
-
-	/**
-	 * Refers to a type in the the described type's hierarchy.
-	 * 
-	 * <p>
-	 * When the referent type declares type parameters, the resolved generic types
-	 * associated with those parameters are described by the returned facade.
-	 * </p>
-	 * 
-	 * @param referentType type to refer to
-	 * @return referent facade
-	 */
-	IuType<? super T> referTo(Type referentType);
-
-	/**
-	 * Gets all types enclosed by this type.
-	 * 
-	 * @return enclosed types
-	 */
-	Iterable<? extends IuType<?>> enclosedTypes();
-
-	/**
-	 * Gets all constructors defined by this type.
-	 * 
-	 * @return constructors
-	 */
-	Iterable<? extends IuConstructor<T>> constructors();
-
-	/**
-	 * Gets a constructor defined by this type.
-	 * 
-	 * @param parameterTypes parameter types
-	 * @return constructor
-	 */
-	IuConstructor<T> constructors(Type... parameterTypes);
-
-	/**
-	 * Gets a constructor declared by this type.
-	 * 
-	 * @param parameterTypes parameter types
-	 * @return constructor
-	 */
-	IuConstructor<T> constructor(IuType<?>... parameterTypes);
-
-	/**
-	 * Gets all fields defined by this type.
-	 * 
-	 * @return fields
-	 */
-	Iterable<? extends IuField<?>> fields();
-
-	/**
-	 * Gets a field declared by this type.
-	 * 
-	 * @param name field name
-	 * @return field
-	 */
-	IuField<?> field(String name);
-
-	/**
-	 * Gets all properties defined by this type.
-	 * 
-	 * @return properties by name
-	 */
-	Iterable<? extends IuProperty<?>> properties();
-
-	/**
-	 * Gets a property declared by this type.
-	 * 
-	 * @param name property name
-	 * @return property
-	 */
-	IuProperty<?> property(String name);
-
-	/**
-	 * Gets all methods defined by this type.
-	 * 
-	 * @return methods
-	 */
-	Iterable<? extends IuMethod<?>> methods();
-
-	/**
-	 * Gets a method defined by this type.
-	 * 
-	 * @param name           method name
-	 * @param parameterTypes parameter types
-	 * @return method
-	 */
-	IuMethod<?> methods(String name, Type... parameterTypes);
-
-	/**
-	 * Gets a method declared by this type.
-	 * 
-	 * @param name           method name
-	 * @param parameterTypes parameter types
-	 * @return method
-	 */
-	IuMethod<?> method(String name, IuType<?>... parameterTypes);
-
-	/**
 	 * Get the type erasure class.
 	 * 
 	 * <p>
@@ -244,20 +160,6 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 	@SuppressWarnings("unchecked")
 	default Class<T> erasedClass() {
 		return (Class<T>) erase().deref();
-	}
-
-	/**
-	 * Gets a type-enforced facade for a specific sub-type of the described type.
-	 * 
-	 * @param subclass subclass of the described type
-	 * @param <S>      sub-type
-	 * @return this
-	 * @throws ClassCastException If the type does not erase to a subclass
-	 */
-	@SuppressWarnings("unchecked")
-	default <S> IuType<? extends S> sub(Class<S> subclass) throws ClassCastException {
-		erasedClass().asSubclass(subclass);
-		return (IuType<? extends S>) this;
 	}
 
 	/**
@@ -321,6 +223,265 @@ public interface IuType<T> extends IuNamedElement, IuParameterizedElement {
 			return (T) Double.valueOf(0.0);
 		else
 			return null;
+	}
+
+	/**
+	 * Gets the {@link IuReferenceKind#ERASURE erased} facade, which describing the
+	 * {@link Class} representing the <a href=
+	 * "https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.6">erasure</a>
+	 * of the generic type.
+	 * 
+	 * <p>
+	 * The {@link #deref()} of the erased facade <em>must</em> return a
+	 * {@link Class}.
+	 * </p>
+	 * 
+	 * @return erased type facade
+	 * @see <a href=
+	 *      "https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.6">JLS
+	 *      21 Section 4.4: Type Erasure</a>
+	 */
+	IuType<D, T> erase();
+
+	/**
+	 * Gets a type-enforced facade for a specific sub-type of the described type.
+	 * 
+	 * @param subclass subclass of the described type
+	 * @param <S>      sub-type
+	 * @return this
+	 * @throws ClassCastException If the type does not erase to a subclass
+	 */
+	@SuppressWarnings("unchecked")
+	default <S> IuType<D, ? extends S> sub(Class<S> subclass) throws ClassCastException {
+		erasedClass().asSubclass(subclass);
+		return (IuType<D, ? extends S>) this;
+	}
+
+	/**
+	 * Iterates the type hierarchy, from most specific to least specific.
+	 * 
+	 * <ol>
+	 * <li>All {@link Class#getGenericInterfaces()}</li>
+	 * <li>{@link Class#getGenericSuperclass()}</li>
+	 * <li>Iterate {@link IuType#hierarchy()} until {@link Object} is reached</li>
+	 * </ol>
+	 * 
+	 * <p>
+	 * This type described by this facade is not included. {@link Object} is always
+	 * the last element.
+	 * </p>
+	 * 
+	 * @return inherited and extended types
+	 */
+	Iterable<? extends IuType<?, ? super T>> hierarchy();
+
+	/**
+	 * Refers to a type in the the described type's hierarchy.
+	 * 
+	 * <p>
+	 * When the referent type declares type parameters, the resolved generic types
+	 * associated with those parameters are described by the returned facade.
+	 * </p>
+	 * 
+	 * @param referentType type to refer to
+	 * @return referent facade
+	 */
+	IuType<?, ? super T> referTo(Type referentType);
+
+	/**
+	 * Gets enclosed types.
+	 * 
+	 * @return enclosed types
+	 */
+	Iterable<? extends IuType<?, ?>> enclosedTypes();
+
+	/**
+	 * Gets all constructors defined by this type.
+	 * 
+	 * @return constructors
+	 */
+	Iterable<? extends IuConstructor<T>> constructors();
+
+	/**
+	 * Gets a constructor defined by this type.
+	 * 
+	 * @param parameterTypes parameter types
+	 * @return constructor
+	 */
+	default IuConstructor<T> constructor(Type... parameterTypes) {
+		var hash = IuExecutableKey.hashCode(null, parameterTypes);
+		for (var constructor : constructors()) {
+			var constructorKey = constructor.getKey();
+			if (hash == constructorKey.hashCode() && constructorKey.equals(null, parameterTypes))
+				return constructor;
+		}
+		throw new IllegalArgumentException(this + " missing constructor " + IuExecutableKey.of(null, parameterTypes));
+	}
+
+	/**
+	 * Gets a constructor declared by this type.
+	 * 
+	 * @param parameterTypes parameter types
+	 * @return constructor
+	 */
+	default IuConstructor<T> constructor(Iterable<IuType<?, ?>> parameterTypes) {
+		var hash = IuExecutableKey.hashCode(null, parameterTypes);
+		for (var constructor : constructors()) {
+			var constructorKey = constructor.getKey();
+			if (hash == constructorKey.hashCode() && constructorKey.equals(null, parameterTypes))
+				return constructor;
+		}
+		throw new IllegalArgumentException(this + " missing constructor " + IuExecutableKey.of(null, parameterTypes));
+	}
+
+	/**
+	 * Scans constructors for those annotated with a specific annotation type.
+	 * 
+	 * @param annotationType annotation type to filter by
+	 * @return {@link #constructors()}, filtered by annotation type
+	 */
+	default Iterable<? extends IuConstructor<T>> annotatedConstructors(Class<? extends Annotation> annotationType) {
+		return IuIterable.filter(constructors(), c -> c.hasAnnotation(annotationType));
+	}
+
+	/**
+	 * Gets all fields defined by this type, followed by all fields defined by all
+	 * types in this type's hierarchy, in {@link #hierarchy()} order.
+	 * 
+	 * @return fields declared by this type and its hierarchy, in this followed by
+	 *         {@link #hierarchy()} order
+	 */
+	Iterable<? extends IuField<? super T, ?>> fields();
+
+	/**
+	 * Gets a field declared by this type.
+	 * 
+	 * <p>
+	 * When a private field has the same name as a different field declared by a
+	 * super class, the "inherited" field is shadowed by this method. To retrieve
+	 * all fields, including those shadowed by a superclass, use {@link #fields()}.
+	 * </p>
+	 * 
+	 * @param <F>  field type
+	 * @param name field name
+	 * @return field
+	 */
+	@SuppressWarnings("unchecked")
+	default <F> IuField<? super T, F> field(String name) {
+		for (var field : fields())
+			if (name.equals(field.name()))
+				return (IuField<? super T, F>) field;
+		throw new IllegalArgumentException(this + " missing field " + name);
+	}
+
+	/**
+	 * Scans fields for those annotated with a specific annotation type.
+	 * 
+	 * @param annotationType annotation type to filter by
+	 * @return {@link #fields()}, filtered by annotation type
+	 */
+	default Iterable<? extends IuField<? super T, ?>> annotatedFields(Class<? extends Annotation> annotationType) {
+		return IuIterable.filter(fields(), f -> f.hasAnnotation(annotationType));
+	}
+
+	/**
+	 * Gets all methods defined by this type.
+	 * 
+	 * <p>
+	 * The result {@link Iterable iterates} all methods declared on all classes in
+	 * the type erasure's hierarchy with private erasure for duplicately defined
+	 * methods.
+	 * </p>
+	 * 
+	 * @return methods
+	 */
+	Iterable<? extends IuMethod<? super T, ?>> methods();
+
+	/**
+	 * Gets a method defined by this type.
+	 * 
+	 * @param <R>            return type
+	 * @param name           method name
+	 * @param parameterTypes parameter types
+	 * @return method
+	 */
+	@SuppressWarnings("unchecked")
+	default <R> IuMethod<? super T, R> method(String name, Type... parameterTypes) {
+		final var hash = IuExecutableKey.hashCode(name, parameterTypes);
+		final var methods = methods();
+		for (var method : methods) {
+			var methodKey = method.getKey();
+			if (hash == methodKey.hashCode() && methodKey.equals(name, parameterTypes))
+				return (IuMethod<? super T, R>) method;
+		}
+		throw new IllegalArgumentException(
+				this + " missing method " + IuExecutableKey.of(name, parameterTypes) + "; " + methods);
+	}
+
+	/**
+	 * Gets a method declared by this type.
+	 * 
+	 * @param <R>            return type
+	 * @param name           method name
+	 * @param parameterTypes parameter types
+	 * @return method
+	 */
+	@SuppressWarnings("unchecked")
+	default <R> IuMethod<? super T, R> method(String name, Iterable<IuType<?, ?>> parameterTypes) {
+		final var hash = IuExecutableKey.hashCode(name, parameterTypes);
+		final var methods = methods();
+		for (var method : methods) {
+			var methodKey = method.getKey();
+			if (hash == methodKey.hashCode() && methodKey.equals(name, parameterTypes))
+				return (IuMethod<? super T, R>) method;
+		}
+		throw new IllegalArgumentException(
+				this + " missing method " + IuExecutableKey.of(name, parameterTypes) + "; " + methods);
+	}
+
+	/**
+	 * Scans methods for those annotated with a specific annotation type.
+	 * 
+	 * @param annotationType annotation type to filter by
+	 * @return {@link #methods()}, filtered by annotation type
+	 */
+	default Iterable<? extends IuMethod<? super T, ?>> annotatedMethods(Class<? extends Annotation> annotationType) {
+		return IuIterable.filter(methods(), f -> f.hasAnnotation(annotationType));
+	}
+
+	/**
+	 * Gets all properties defined by this type, followed by all properties defined
+	 * by all types in this type's hierarchy, in {@link #hierarchy()} order.
+	 * 
+	 * @return properties declared by this type and its hierarchy, in this followed
+	 *         by {@link #hierarchy()} order
+	 */
+	Iterable<? extends IuProperty<? super T, ?>> properties();
+
+	/**
+	 * Gets a property declared by this type.
+	 * 
+	 * @param <P>  property type
+	 * @param name property name
+	 * @return property
+	 */
+	@SuppressWarnings("unchecked")
+	default <P> IuProperty<? super T, P> property(String name) {
+		for (var property : properties())
+			if (name.equals(property.name()))
+				return (IuProperty<? super T, P>) property;
+		throw new IllegalArgumentException(this + " missing property " + name);
+	}
+
+	/**
+	 * Scans properties for those annotated with a specific annotation type.
+	 * 
+	 * @param annotationType annotation type to filter by
+	 * @return {@link #properties()}, filtered by annotation type
+	 */
+	default Iterable<? extends IuProperty<? super T, ?>> annotatedProperties(
+			Class<? extends Annotation> annotationType) {
+		return IuIterable.filter(properties(), f -> f.hasAnnotation(annotationType));
 	}
 
 }

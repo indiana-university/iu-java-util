@@ -34,30 +34,32 @@ package edu.iu.type;
 import java.beans.PropertyDescriptor;
 import java.beans.Transient;
 import java.lang.annotation.Annotation;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.ArrayDeque;
+import java.util.Queue;
+import java.util.function.Predicate;
 
 /**
  * Facade interface for a bean property.
  * 
+ * @param <D> declaring type
  * @param <T> property type
  * @see PropertyDescriptor
  */
-public interface IuProperty<T> extends IuAttribute<T> {
+public interface IuProperty<D, T> extends IuAttribute<D, T> {
 
 	/**
 	 * Gets a facade describing the property read method.
 	 * 
 	 * @return read method facade
 	 */
-	IuMethod<T> read();
+	IuMethod<D, T> read();
 
 	/**
 	 * Gets a facade describing the property write method.
 	 * 
 	 * @return write method facade
 	 */
-	IuMethod<Void> write();
+	IuMethod<D, Void> write();
 
 	/**
 	 * Determines if the property is readable.
@@ -89,7 +91,8 @@ public interface IuProperty<T> extends IuAttribute<T> {
 	 * <li>Is {@link #canRead() readable}</li>
 	 * <li>Does not {@link #hasAnnotation(Class) have} the {@link Transient}
 	 * annotation</li>
-	 * <li>{@link IuExecutable#permitted() Permits} {@link #read() read method} execution.</li> 
+	 * <li>{@link IuExecutable#permitted() Permits} {@link #read() read method}
+	 * execution.</li>
 	 * </ul>
 	 * 
 	 * @return true if the property may be printed
@@ -98,6 +101,25 @@ public interface IuProperty<T> extends IuAttribute<T> {
 		return canRead() //
 				&& !hasAnnotation(Transient.class) //
 				&& read().permitted();
+	}
+
+	/**
+	 * {@inheritDoc} Combines permissions from both {@link #read()} and
+	 * {@link #write} to determine read-write permission.
+	 * 
+	 * <p>
+	 * A true return value from this method does not imply that the property is
+	 * {@link #canRead() readable} or {@link #canWrite() writable}, but does imply
+	 * that at least one of those is true.
+	 * </p>
+	 */
+	@Override
+	default boolean permitted(Predicate<String> isUserInRole) {
+		var read = read();
+		var write = write();
+		return (read != null || write != null) //
+				&& (read == null || read.permitted(isUserInRole)) //
+				&& (write == null || write.permitted(isUserInRole));
 	}
 
 	/**
@@ -111,16 +133,16 @@ public interface IuProperty<T> extends IuAttribute<T> {
 	 * @return annotations
 	 */
 	@Override
-	default Map<Class<? extends Annotation>, ? extends Annotation> annotations() {
-		Map<Class<? extends Annotation>, Annotation> annotations = new LinkedHashMap<>();
+	default Iterable<? extends Annotation> annotations() {
+		Queue<Annotation> annotations = new ArrayDeque<>();
 
 		var write = write();
 		if (write != null)
-			annotations.putAll(write.annotations());
+			write.annotations().forEach(annotations::offer);
 
 		var read = read();
 		if (read != null)
-			annotations.putAll(read.annotations());
+			read.annotations().forEach(annotations::offer);
 
 		return annotations;
 	}

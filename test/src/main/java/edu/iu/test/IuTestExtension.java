@@ -46,7 +46,10 @@ public class IuTestExtension implements BeforeEachCallback, AfterEachCallback {
 
 	private static boolean failureExpected;
 
-	static void expectFailure() {
+	/**
+	 * Indicates that a test failure related to unexpected log messages is expected.
+	 */
+	public static void expectFailure() {
 		failureExpected = true;
 	}
 

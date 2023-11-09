@@ -36,7 +36,7 @@ import java.lang.reflect.Parameter;
 /**
  * Facade interface for a {@link Parameter}.
  * 
- * @param <T> field type
+ * @param <T> parameter type
  */
 public interface IuParameter<T> extends IuAnnotatedElement {
 
@@ -45,7 +45,7 @@ public interface IuParameter<T> extends IuAnnotatedElement {
 	 * 
 	 * @return declaring executable
 	 */
-	IuExecutable<?> declaringExecutable();
+	IuExecutable<?, ?> declaringExecutable();
 
 	/**
 	 * Gets the parameter index.
@@ -66,6 +66,6 @@ public interface IuParameter<T> extends IuAnnotatedElement {
 	 * 
 	 * @return parameter type.
 	 */
-	IuType<T> type();
+	IuType<?, T> type();
 
 }

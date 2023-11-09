@@ -34,9 +34,10 @@ package edu.iu.type;
 /**
  * Represents a method reflected from the type erasure of a generic type.
  * 
- * @param <R> Return type
+ * @param <D> declaring type
+ * @param <R> method return type
  */
-public interface IuMethod<R> extends IuExecutable<R> {
+public interface IuMethod<D, R> extends IuNamedElement<D>, IuExecutable<D, R> {
 
 	/**
 	 * Determines if this is a static method.
@@ -47,10 +48,10 @@ public interface IuMethod<R> extends IuExecutable<R> {
 
 	/**
 	 * Gets the return type.
-	 * 
+	 *
 	 * @return return type
 	 */
-	IuType<R> returnType();
+	IuType<?, R> returnType();
 
 	/**
 	 * Executes a method.

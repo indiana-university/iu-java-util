@@ -51,7 +51,7 @@ public final class IuTest {
 
 	private static Properties properties;
 
-	static Enumeration<URL> getResources(String name) throws IOException {
+	private static Enumeration<URL> getResources(String name) throws IOException {
 		return ClassLoader.getSystemResources(name);
 	}
 

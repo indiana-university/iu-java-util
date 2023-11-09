@@ -35,21 +35,26 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.beans.Transient;
+import java.lang.annotation.Documented;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import edu.iu.test.IuTest;
 
 @SuppressWarnings("javadoc")
+@ExtendWith(IuTypeOfMockSupport.class)
 public class TypeApiTest {
 
 	@BeforeAll
@@ -81,9 +86,11 @@ public class TypeApiTest {
 		}
 		var annotation = IsAnnotated.class.getAnnotation(DefaultInterceptor.class);
 		var annotatedElement = IuTest.mockWithDefaults(IuAnnotatedElement.class);
-		when(annotatedElement.annotations()).thenReturn((Map) Map.of(DefaultInterceptor.class, annotation));
+		when(annotatedElement.annotations()).thenReturn((List) List.of(annotation));
 		assertTrue(annotatedElement.hasAnnotation(DefaultInterceptor.class));
+		assertFalse(annotatedElement.hasAnnotation(Documented.class));
 		assertSame(annotation, annotatedElement.annotation(DefaultInterceptor.class));
+		assertNull(annotatedElement.annotation(Documented.class));
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -111,7 +118,6 @@ public class TypeApiTest {
 		assertFalse(element.permitted());
 	}
 
-	@SuppressWarnings("unchecked")
 	@Test
 	public void testReadOnlyProperty() {
 		var property = IuTest.mockWithDefaults(IuProperty.class);
@@ -128,7 +134,6 @@ public class TypeApiTest {
 		assertFalse(property.serializable());
 	}
 
-	@SuppressWarnings("unchecked")
 	@Test
 	public void testWriteOnlyProperty() {
 		var property = IuTest.mockWithDefaults(IuProperty.class);
@@ -155,7 +160,7 @@ public class TypeApiTest {
 
 		var read = IuTest.mockWithDefaults(IuMethod.class);
 		var transientAnnotation = IuTest.mockWithDefaults(Transient.class);
-		when(read.annotations()).thenReturn((Map) Map.of(Transient.class, transientAnnotation));
+		when(read.annotations()).thenReturn((List) List.of(transientAnnotation));
 		when(property.read()).thenReturn(read);
 
 		var write = IuTest.mockWithDefaults(IuMethod.class);
@@ -168,7 +173,6 @@ public class TypeApiTest {
 	}
 
 	@Test
-	@SuppressWarnings("unchecked")
 	public void testReadWritePropertyPermittedByMethodAnnotation() {
 		var property = IuTest.mockWithDefaults(IuProperty.class);
 
@@ -251,6 +255,198 @@ public class TypeApiTest {
 		when(type.deref()).thenReturn(void.class);
 		assertSame(Void.class, type.autoboxClass());
 		assertNull(type.autoboxDefault());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testConstructors() {
+		var con1 = mock(IuConstructor.class);
+		when(con1.getKey()).thenReturn(IuExecutableKey.of(null));
+		var con2 = mock(IuConstructor.class);
+		var key2 = IuExecutableKey.of(null, Object.class);
+		when(con2.getKey()).thenReturn(key2);
+		var type = IuTest.mockWithDefaults(IuType.class);
+		when(type.constructors()).thenReturn(List.of(con1, con2));
+		assertSame(con1, type.constructor());
+		assertSame(con2, type.constructor(Object.class));
+		assertSame(con1, type.constructor(List.of()));
+		assertSame(con2, type.constructor(List.of(IuType.of(Object.class))));
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testConstructorHashCollisions() {
+		var key1 = IuExecutableKey.of("", Object.class);
+		var key2 = IuExecutableKey.of(null, Object.class);
+		assertEquals(key1.hashCode(), key2.hashCode());
+
+		var con1 = mock(IuConstructor.class);
+		when(con1.getKey()).thenReturn(key1);
+		var con2 = mock(IuConstructor.class);
+		when(con2.getKey()).thenReturn(key2);
+		var type = IuTest.mockWithDefaults(IuType.class);
+		when(type.constructors()).thenReturn(List.of(con1, con2));
+		assertEquals(type + " missing constructor <init>()",
+				assertThrows(IllegalArgumentException.class, () -> type.constructor()).getMessage());
+		assertSame(con2, type.constructor(Object.class));
+		assertEquals(type + " missing constructor <init>()",
+				assertThrows(IllegalArgumentException.class, () -> type.constructor(List.of())).getMessage());
+		assertSame(con2, type.constructor(List.of(IuType.of(Object.class))));
+	}
+
+	@Test
+	public void testFields() {
+		var f1 = mock(IuField.class);
+		when(f1.name()).thenReturn("a");
+		var f2 = mock(IuField.class);
+		when(f2.name()).thenReturn("b");
+		var f3 = mock(IuField.class);
+		when(f3.name()).thenReturn("b");
+		var type = IuTest.mockWithDefaults(IuType.class);
+		when(type.fields()).thenReturn(List.of(f1, f2, f3));
+		assertSame(f1, type.field("a"));
+		assertSame(f2, type.field("b"));
+		assertEquals(type + " missing field c",
+				assertThrows(IllegalArgumentException.class, () -> type.field("c")).getMessage());
+	}
+
+	@Test
+	public void testProperties() {
+		var f1 = mock(IuProperty.class);
+		when(f1.name()).thenReturn("a");
+		var f2 = mock(IuProperty.class);
+		when(f2.name()).thenReturn("b");
+		var f3 = mock(IuProperty.class);
+		when(f3.name()).thenReturn("b");
+		var type = IuTest.mockWithDefaults(IuType.class);
+		when(type.properties()).thenReturn(List.of(f1, f2, f3));
+		assertSame(f1, type.property("a"));
+		assertSame(f2, type.property("b"));
+		assertEquals(type + " missing property c",
+				assertThrows(IllegalArgumentException.class, () -> type.property("c")).getMessage());
+	}
+
+	@Test
+	public void testPropertiesArePermitted() {
+		var arm = mock(IuMethod.class);
+		when(arm.permitted(any())).thenReturn(true);
+		var drm = mock(IuMethod.class);
+
+		var awm = mock(IuMethod.class);
+		when(awm.permitted(any())).thenReturn(true);
+		var dwm = mock(IuMethod.class);
+
+		var p = IuTest.mockWithDefaults(IuProperty.class);
+		assertFalse(p.permitted());
+
+		p = IuTest.mockWithDefaults(IuProperty.class);
+		when(p.read()).thenReturn(arm);
+		assertTrue(p.permitted());
+
+		p = IuTest.mockWithDefaults(IuProperty.class);
+		when(p.write()).thenReturn(awm);
+		assertTrue(p.permitted());
+
+		p = IuTest.mockWithDefaults(IuProperty.class);
+		when(p.read()).thenReturn(drm);
+		assertFalse(p.permitted());
+
+		p = IuTest.mockWithDefaults(IuProperty.class);
+		when(p.write()).thenReturn(dwm);
+		assertFalse(p.permitted());
+
+		p = IuTest.mockWithDefaults(IuProperty.class);
+		when(p.read()).thenReturn(arm);
+		when(p.write()).thenReturn(awm);
+		assertTrue(p.permitted());
+
+		p = IuTest.mockWithDefaults(IuProperty.class);
+		when(p.read()).thenReturn(drm);
+		when(p.write()).thenReturn(awm);
+		assertFalse(p.permitted());
+
+		p = IuTest.mockWithDefaults(IuProperty.class);
+		when(p.read()).thenReturn(drm);
+		when(p.write()).thenReturn(dwm);
+		assertFalse(p.permitted());
+
+		p = IuTest.mockWithDefaults(IuProperty.class);
+		when(p.read()).thenReturn(drm);
+		when(p.write()).thenReturn(dwm);
+		assertFalse(p.permitted());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testMethods() {
+		var m1 = mock(IuMethod.class);
+		when(m1.getKey()).thenReturn(IuExecutableKey.of(null));
+		var m2 = mock(IuMethod.class);
+		when(m2.getKey()).thenReturn(IuExecutableKey.of(""));
+		var m3 = mock(IuMethod.class);
+		var k3 = IuExecutableKey.of("", Object.class);
+		when(m3.getKey()).thenReturn(k3);
+		var type = IuTest.mockWithDefaults(IuType.class);
+		when(type.methods()).thenReturn(List.of(m1, m2, m3));
+		assertSame(m2, type.method(""));
+		assertSame(m3, type.method("", Object.class));
+		assertSame(m2, type.method("", List.of()));
+		assertSame(m3, type.method("", List.of(IuType.of(Object.class))));
+		assertEquals(type + " missing method c(); [" + m1 + ", " + m2 + ", " + m3 + "]",
+				assertThrows(IllegalArgumentException.class, () -> type.method("c")).getMessage());
+		assertEquals(type + " missing method c(Object); [" + m1 + ", " + m2 + ", " + m3 + "]",
+				assertThrows(IllegalArgumentException.class, () -> type.method("c", List.of(IuType.of(Object.class))))
+						.getMessage());
+	}
+
+	@interface AnAnnotation {
+	}
+
+	@interface AnotherAnnotation {
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testAnnotatedConstructor() {
+		var con = mock(IuConstructor.class);
+		when(con.hasAnnotation(AnAnnotation.class)).thenReturn(true);
+		var type = IuTest.mockWithDefaults(IuType.class);
+		when(type.constructors()).thenReturn(List.of(con));
+		assertSame(con, type.annotatedConstructors(AnAnnotation.class).iterator().next());
+		assertFalse(type.annotatedConstructors(AnotherAnnotation.class).iterator().hasNext());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testAnnotatedField() {
+		var f = mock(IuField.class);
+		when(f.hasAnnotation(AnAnnotation.class)).thenReturn(true);
+		var type = IuTest.mockWithDefaults(IuType.class);
+		when(type.fields()).thenReturn(List.of(f));
+		assertSame(f, type.annotatedFields(AnAnnotation.class).iterator().next());
+		assertFalse(type.annotatedFields(AnotherAnnotation.class).iterator().hasNext());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testAnnotatedMethod() {
+		var m = mock(IuMethod.class);
+		when(m.hasAnnotation(AnAnnotation.class)).thenReturn(true);
+		var type = IuTest.mockWithDefaults(IuType.class);
+		when(type.methods()).thenReturn(List.of(m));
+		assertSame(m, type.annotatedMethods(AnAnnotation.class).iterator().next());
+		assertFalse(type.annotatedMethods(AnotherAnnotation.class).iterator().hasNext());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testAnnotatedProperty() {
+		var p = mock(IuProperty.class);
+		when(p.hasAnnotation(AnAnnotation.class)).thenReturn(true);
+		var type = IuTest.mockWithDefaults(IuType.class);
+		when(type.properties()).thenReturn(List.of(p));
+		assertSame(p, type.annotatedProperties(AnAnnotation.class).iterator().next());
+		assertFalse(type.annotatedProperties(AnotherAnnotation.class).iterator().hasNext());
 	}
 
 }

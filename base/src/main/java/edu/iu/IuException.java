@@ -31,34 +31,13 @@
  */
 package edu.iu;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.util.Arrays;
 
 /**
  * Exception handling utilities.
  */
 public final class IuException {
-
-	private static Object doInvoke(Executable executable, Object[] args) throws Throwable {
-		try {
-			if (executable instanceof Constructor)
-				return ((Constructor<?>) executable).newInstance(args);
-
-			var method = (Method) executable;
-			var mod = method.getModifiers();
-			if ((mod | Modifier.STATIC) == mod)
-				return method.invoke(null, args);
-			else
-				return method.invoke(args[0], Arrays.copyOfRange(args, 1, args.length));
-
-		} catch (InvocationTargetException e) {
-			throw e.getCause();
-		}
-	}
 
 	/**
 	 * Expects a {@link Throwable} to be an (unchecked) {@link RuntimeException}.
@@ -301,7 +280,7 @@ public final class IuException {
 	}
 
 	/**
-	 * Gracefully invokes a {@link Executable method or constructor}.
+	 * Gracefully invokes a supplier assumed to wrap {@link Executable invocation}.
 	 * 
 	 * <p>
 	 * Handles {@link InvocationTargetException} by unwrapping the cause and
@@ -311,14 +290,18 @@ public final class IuException {
 	 * Handles other exceptions via {@link #unchecked(Throwable)}.
 	 * </p>
 	 * 
-	 * @param executable constructor or method
-	 * @param args       Arguments for a constructor or static method; target
-	 *                   instance followed by arguments for an instance method
-	 * @return New instance or method return value
+	 * @param <R>      result type
+	 * @param supplier {@link UnsafeSupplier} assumed to wrap {@link Executable
+	 *                 invocation}.
+	 * @return result
 	 */
-	public static Object unchecked(Executable executable, Object... args) {
+	public static <R> R uncheckedInvocation(UnsafeSupplier<R> supplier) {
 		try {
-			return doInvoke(executable, args);
+			try {
+				return supplier.get();
+			} catch (InvocationTargetException e) {
+				throw e.getCause();
+			}
 		} catch (Throwable e) {
 			throw unchecked(e);
 		}
@@ -335,15 +318,19 @@ public final class IuException {
 	 * Handles other exceptions via {@link #checked(Throwable)}.
 	 * </p>
 	 * 
-	 * @param executable constructor or method
-	 * @param args       Arguments for a constructor or static method; target
-	 *                   instance followed by arguments for an instance method
-	 * @return New instance or method return value
+	 * @param <R>      result type
+	 * @param supplier {@link UnsafeSupplier} assumed to wrap {@link Executable
+	 *                 invocation}.
+	 * @return result
 	 * @throws Exception If invocation fails
 	 */
-	public static Object checked(Executable executable, Object... args) throws Exception {
+	public static <R> R checkedInvocation(UnsafeSupplier<R> supplier) throws Exception {
 		try {
-			return doInvoke(executable, args);
+			try {
+				return supplier.get();
+			} catch (InvocationTargetException e) {
+				throw e.getCause();
+			}
 		} catch (Throwable e) {
 			throw checked(e);
 		}
@@ -360,20 +347,24 @@ public final class IuException {
 	 * Handles other exceptions via {@link #checked(Throwable, Class)}.
 	 * </p>
 	 * 
+	 * @param <R>                    result type
 	 * @param <T>                    Expected exception type
 	 * 
 	 * @param expectedExceptionClass Expected exception class
-	 * @param executable             constructor or method
-	 * @param args                   Arguments for a constructor or static method;
-	 *                               target instance followed by arguments for an
-	 *                               instance method
-	 * @return New instance or method return value
+	 * @param supplier               {@link UnsafeSupplier} assumed to wrap
+	 *                               {@link Executable invocation}.
+	 * @return result
+	 * 
 	 * @throws T If invocation fails
 	 */
-	public static <T extends Exception> Object checked(Class<T> expectedExceptionClass, Executable executable,
-			Object... args) throws T {
+	public static <R, T extends Exception> R checkedInvocation(Class<T> expectedExceptionClass,
+			UnsafeSupplier<R> supplier) throws T {
 		try {
-			return doInvoke(executable, args);
+			try {
+				return supplier.get();
+			} catch (InvocationTargetException e) {
+				throw e.getCause();
+			}
 		} catch (Throwable e) {
 			throw checked(e, expectedExceptionClass);
 		}
@@ -390,23 +381,26 @@ public final class IuException {
 	 * Handles other exceptions via {@link #checked(Throwable, Class, Class)}.
 	 * </p>
 	 * 
+	 * @param <R>                     result type
 	 * @param <T1>                    Expected exception type
 	 * @param <T2>                    Expected exception type
 	 * 
 	 * @param expectedExceptionClass1 Expected exception class
 	 * @param expectedExceptionClass2 Expected exception class
-	 * @param executable              constructor or method
-	 * @param args                    Arguments for a constructor or static method;
-	 *                                target instance followed by arguments for an
-	 *                                instance method
-	 * @return New instance or method return value
+	 * @param supplier                {@link UnsafeSupplier} assumed to wrap
+	 *                                {@link Executable invocation}.
+	 * @return result
 	 * @throws T1 If invocation fails
 	 * @throws T2 If invocation fails
 	 */
-	public static <T1 extends Exception, T2 extends Exception> Object checked(Class<T1> expectedExceptionClass1,
-			Class<T2> expectedExceptionClass2, Executable executable, Object... args) throws T1, T2 {
+	public static <R, T1 extends Exception, T2 extends Exception> R checkedInvocation(Class<T1> expectedExceptionClass1,
+			Class<T2> expectedExceptionClass2, UnsafeSupplier<R> supplier) throws T1, T2 {
 		try {
-			return doInvoke(executable, args);
+			try {
+				return supplier.get();
+			} catch (InvocationTargetException e) {
+				throw e.getCause();
+			}
 		} catch (Throwable e) {
 			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);
 		}
@@ -424,6 +418,7 @@ public final class IuException {
 	 * {@link #checked(Throwable, Class, Class, Class)}.
 	 * </p>
 	 * 
+	 * @param <R>                     result type
 	 * @param <T1>                    Expected exception type
 	 * @param <T2>                    Expected exception type
 	 * @param <T3>                    Expected exception type
@@ -431,20 +426,22 @@ public final class IuException {
 	 * @param expectedExceptionClass1 Expected exception class
 	 * @param expectedExceptionClass2 Expected exception class
 	 * @param expectedExceptionClass3 Expected exception class
-	 * @param executable              constructor or method
-	 * @param args                    Arguments for a constructor or static method;
-	 *                                target instance followed by arguments for an
-	 *                                instance method
-	 * @return New instance or method return value
+	 * @param supplier                {@link UnsafeSupplier} assumed to wrap
+	 *                                {@link Executable invocation}.
+	 * @return result
 	 * @throws T1 If invocation fails
 	 * @throws T2 If invocation fails
 	 * @throws T3 If invocation fails
 	 */
-	public static <T1 extends Exception, T2 extends Exception, T3 extends Exception> Object checked(
+	public static <R, T1 extends Exception, T2 extends Exception, T3 extends Exception> R checkedInvocation(
 			Class<T1> expectedExceptionClass1, Class<T2> expectedExceptionClass2, Class<T3> expectedExceptionClass3,
-			Executable executable, Object... args) throws T1, T2, T3 {
+			UnsafeSupplier<R> supplier) throws T1, T2, T3 {
 		try {
-			return doInvoke(executable, args);
+			try {
+				return supplier.get();
+			} catch (InvocationTargetException e) {
+				throw e.getCause();
+			}
 		} catch (Throwable e) {
 			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);
 		}
@@ -1262,9 +1259,9 @@ public final class IuException {
 	 * to initialize.
 	 * 
 	 * <p>
-	 * If no exception or error is thrown by {@code initializer}, then
-	 * the resource remains open, and becomes the responsibility of the initialized
-	 * component to close when finished with it.
+	 * If no exception or error is thrown by {@code initializer}, then the resource
+	 * remains open, and becomes the responsibility of the initialized component to
+	 * close when finished with it.
 	 * </p>
 	 * 
 	 * @param <T>         {@link AutoCloseable} resource type

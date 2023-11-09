@@ -36,7 +36,8 @@ import java.lang.reflect.Field;
 /**
  * Facade interface for a {@link Field}.
  * 
+ * @param <D> declaring type
  * @param <T> field type
  */
-public interface IuField<T> extends IuAttribute<T> {
+public interface IuField<D, T> extends IuAttribute<D, T> {
 }

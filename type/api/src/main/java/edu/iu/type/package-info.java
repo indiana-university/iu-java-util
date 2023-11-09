@@ -33,6 +33,9 @@
  * Provides uniform, optimized, access to runtime type introspection metadata.
  * 
  * <p>
+ * <img alt="UML Class Diagram" src="doc-files/iu-java-type-api.svg" />
+ * 
+ * <p>
  * Includes support for:
  * </p>
  * 
