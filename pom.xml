@@ -224,7 +224,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 					<version>3.5.0</version>
 					<configuration>
 						<windowtitle>${project.name} ${project.version}</windowtitle>
-						<doctitle>${project.name} API Reference</doctitle>
+						<doctitle>${project.name}</doctitle>
 						<top><![CDATA[
 					<header class="rvt-header-wrapper">
 					  <div class="rvt-header-global">
@@ -329,6 +329,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 							<goals>
 								<goal>report</goal>
 							</goals>
+ 							<configuration>
+								<excludes>
+									<exclude>**/*.jar</exclude>
+								</excludes>
+							</configuration>
 							<phase>test</phase>	
 						</execution>
 						<execution>
@@ -357,12 +362,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 									</rule>
 								</rules>
 							</configuration>
-						</execution>
-						<execution>
-							<id>coverage-aggregate</id>
-							<goals>
-								<goal>report-aggregate</goal>
-							</goals>
 						</execution>
 					</executions>
 				</plugin>
