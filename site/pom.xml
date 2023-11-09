@@ -41,7 +41,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<version>7.0.0-SNAPSHOT</version>
 	</parent>
 
-	<name>IU Java Utilities Project Web Site</name>
+	<name>IU Java Utilities API Reference</name>
 	<artifactId>iu-java-site</artifactId>
 	<packaging>pom</packaging>
 
@@ -112,66 +112,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<artifactId>maven-javadoc-plugin</artifactId>
 				<configuration>
 					<includeDependencySources>true</includeDependencySources>
-					<windowtitle>IU Java Utilities ${project.version}</windowtitle>
-					<doctitle>IU Java Utilities API Reference</doctitle>
-					<top><![CDATA[
-					<header class="rvt-header-wrapper">
-					  <div class="rvt-header-global">
-					    <div class="rvt-container-xl">
-					      <div class="rvt-header-global__inner">
-					        <div class="rvt-header-global__logo-slot">
-					          <span class="rvt-lockup">  
-					            <div class="rvt-lockup__tab">
-					              <svg xmlns="http://www.w3.org/2000/svg" class="rvt-lockup__trident" viewBox="0 0 28 34">
-					                <path d="M-3.34344e-05 4.70897H8.83308V7.174H7.1897V21.1426H10.6134V2.72321H8.83308V0.121224H18.214V2.65476H16.2283V21.1426H19.7889V7.174H18.214V4.64047H27.0471V7.174H25.0614V23.6761L21.7746 26.8944H16.2967V30.455H18.214V33.8787H8.76463V30.592H10.6819V26.8259H5.20403L1.91726 23.6077V7.174H-3.34344e-05V4.70897Z" fill="currentColor"></path>
-					              </svg>
-					            </div>
-					            <div class="rvt-lockup__body">
-					              <span class="rvt-lockup__title">${project.name}</span>
-					              <span class="rvt-lockup__subtitle">Version ${project.version}</span>
-					            </div>
-					          </span>
-					        </div>
-					      </div>
-					    </div>
-					  </div>
-					</header>
-					]]></top>
-					<bottom><![CDATA[
-					<footer class="rvt-footer-base rvt-footer-base--light">
-					  <div class="rvt-container-lg">
-					    <div class="rvt-footer-base__inner">
-					      <div class="rvt-footer-base__logo">
-					        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-					          <polygon fill="currentColor" points="15.3 3.19 15.3 5 16.55 5 16.55 15.07 13.9 15.07 13.9 1.81 15.31 1.81 15.31 0 8.72 0 8.72 1.81 10.12 1.81 10.12 15.07 7.45 15.07 7.45 5 8.7 5 8.7 3.19 2.5 3.19 2.5 5 3.9 5 3.9 16.66 6.18 18.98 10.12 18.98 10.12 21.67 8.72 21.67 8.72 24 15.3 24 15.3 21.67 13.9 21.67 13.9 18.98 17.82 18.98 20.09 16.66 20.09 5 21.5 5 21.5 3.19 15.3 3.19" fill="#231f20"/>
-					        </svg>
-					      </div>
-					      <ul class="rvt-footer-base__list">
-					        <li class="rvt-footer-base__item">
-					          <a class="rvt-footer-base__link" href="https://www.iu.edu/copyright/index.html">Copyright</a> &#169; {currentYear} <a class="rvt-footer-base__link" href="https://www.iu.edu">Indiana University</a>
-					        </li>
-					      </ul>
-					    </div>
-					  </div>
-					</footer>
-					]]></bottom>
-					<resourcesArtifacts>
-						<resourcesArtifact>
-							<groupId>edu.iu.util</groupId>
-							<artifactId>iu-java-docfiles</artifactId>
-							<version>${project.version}</version>
-						</resourcesArtifact>
-					</resourcesArtifacts>
-					<additionalOptions>
-						<additionalOption>--main-stylesheet</additionalOption>
-						<additionalOption>iu-javadoc.css</additionalOption>
-						<additionalOption>--add-stylesheet</additionalOption>
-						<additionalOption>rivet.min.css</additionalOption>
-					</additionalOptions>
-					<failOnError>true</failOnError>
-					<failOnWarnings>true</failOnWarnings>
-					<docfilessubdirs>true</docfilessubdirs>
-					<show>package</show>
 				</configuration>
 				<executions>
 					<execution>
@@ -184,33 +124,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				</executions>
 			</plugin>
 			<plugin>
-				<artifactId>maven-assembly-plugin</artifactId>
-				<version>3.6.0</version>
-				<executions>
-					<execution>
-						<id>create-site-tar</id>
-						<goals>
-							<goal>single</goal>
-						</goals>
-						<phase>package</phase>
-						<configuration>
-							<finalName>iu</finalName>
-							<formats>
-								<format>tar</format>
-							</formats>
-							<descriptors>
-								<descriptor>src/assembly/site.xml</descriptor>
-							</descriptors>
-						</configuration>
-					</execution>
-				</executions>
-			</plugin>
-			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
 				<executions>
 					<execution>
 						<id>coverage-aggregate</id>
+						<phase>package</phase>
 						<goals>
 							<goal>report-aggregate</goal>
 						</goals>
