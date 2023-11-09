@@ -1,4 +1,4 @@
-name: clean-pages
+name: Clean Pages
 
 on: delete
 env:
@@ -13,9 +13,12 @@ jobs:
         with:
           ref: github_pages
 
-      - name: prune-and-push
+      - name: Unpublish Docs
         run: |
           ref=${{ github.event.ref }}
+          pwd
+          ls -ld . docs docs/$ref
+          git config --global --add safe.directory $PWD
           if [ -d docs/$ref ]
           then
             git config user.name eshrastg
