@@ -44,22 +44,6 @@
 	<build>
 		<plugins>
 			<plugin>
-				<artifactId>maven-dependency-plugin</artifactId>
-				<executions>
-					<execution>
-						<id>export-support-modules</id>
-						<goals>
-							<goal>copy-dependencies</goal>
-						</goals>
-						<phase>prepare-package</phase>
-						<configuration>
-							<stripVersion>true</stripVersion>
-							<outputDirectory>${project.build.outputDirectory}/META-INF/modules</outputDirectory>
-						</configuration>
-					</execution>
-				</executions>
-			</plugin>
-			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
 				<executions>

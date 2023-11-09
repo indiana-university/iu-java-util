@@ -316,6 +316,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 					<version>0.8.10</version>
 					<configuration>
 						<skip>${skipTests}</skip>
+						<excludes>**/*.jar</excludes>
 					</configuration>
 					<executions>
 						<execution>
