@@ -1,26 +1,57 @@
+/*
+ * Copyright © 2023 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package edu.iu;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.Writer;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
-import java.util.ArrayDeque;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 import java.util.Spliterator;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
@@ -32,19 +63,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
-import org.opentest4j.AssertionFailedError;
 
-import edu.iu.util.IdGenerator;
-
-@SuppressWarnings("javadoc")
+@SuppressWarnings({ "javadoc", "exports" })
 public class IuAsynchronousPipeTest {
-
-	private static final Logger LOG;
-	static {
-		LOG = Logger.getLogger(IuAsynchronousPipeTest.class.getName());
-		LOG.setUseParentHandlers(false);
-		LOG.setLevel(Level.FINE);
-	}
 
 	// Committed values balance thorough verification with fast build times
 	// This default configuration is set for high-latency; e.g. PSJOA CI
@@ -55,155 +76,359 @@ public class IuAsynchronousPipeTest {
 	private static final Duration SIMULATED_SOURCE_DELAY = Duration.ofMillis(25L);
 	private static final Duration SIMULATED_SEND_DELAY = Duration.ofMillis(25L);
 	private static final Duration SIMULATED_SEND_PER_ITEM = Duration.ofNanos(100_000L);
-	private static final Duration TIME_OUT = Duration.ofMillis(2500L);
+	private static final Duration TIME_OUT = Duration.ofMillis(5000L);
 	private static final int POOL_SIZE = 16;
 
 	// Largest verified scenario:
-	// low-latency 100M sent via split collector within 15 minutes
+	// low-latency 100M sent via split collector in 30 minutes on VM with 4xCPU
 //	private static final int N = 100_000_000;
-//	private static final int LOG_PER_N = 25_000;
+//	private static final int LOG_PER_N = 100_000;
 //	private static final int PARTIAL_SEND_SIZE = 50_000;
 //	private static final Duration SIMULATED_SOURCE_DELAY = Duration.ofMillis(1L);
-//	private static final Duration SIMULATED_SEND_DELAY = Duration.ofMillis(1L);
-//	private static final Duration SIMULATED_SEND_PER_ITEM = Duration.ofNanos(1_000L);
-//	private static final Duration TIME_OUT = Duration.ofMinutes(15L);
-//	private static final int POOL_SIZE = 375;
+//	private static final Duration SIMULATED_SEND_DELAY = Duration.ofMillis(2L);
+//	private static final Duration SIMULATED_SEND_PER_ITEM = Duration.ofNanos(10_000L);
+//	private static final Duration TIME_OUT = Duration.ofMinutes(30L);
+//	private static final int POOL_SIZE = 250;
 
-	private IuParallelWorkloadController parallelController;
+	private IuParallelWorkloadController workload;
 	private IuAsynchronousPipe<String> pipe;
 	private Stream<String> stream;
 	private List<String> controlList;
 	private volatile int count;
-	private PrintWriter logWriter;
+	private Logger log;
 	private Handler logHandler;
 
-	private void log(Thread thread, LogRecord record) {
-		StringBuilder sb = new StringBuilder();
-		sb.append(parallelController.elapsed());
-		sb.append(" ").append(thread.getName());
-		sb.append(" ").append(record.getLevel());
+	private record LogEntry( //
+			Duration elapsed, Thread thread, //
+			LogRecord record) {
 
-		String className = record.getSourceClassName();
-		if (className != null)
-			sb.append(" ").append(className);
+		void commit(PrintWriter logWriter) {
+			logWriter.print(elapsed);
+			logWriter.print(" ");
+			logWriter.print(thread.getName());
+			logWriter.print(" ");
+			logWriter.print(record.getLevel());
 
-		String methodName = record.getSourceMethodName();
-		if (methodName != null) {
-			if (className == null)
-				sb.append(" ");
-			sb.append("#").append(record.getSourceMethodName());
+			String className = record.getSourceClassName();
+			if (className != null) {
+				logWriter.print(" ");
+				logWriter.print(className);
+			}
+
+			String methodName = record.getSourceMethodName();
+			if (methodName != null) {
+				if (className == null)
+					logWriter.print(" ");
+				logWriter.print("#");
+				logWriter.print(record.getSourceMethodName());
+			}
+
+			logWriter.print(": ");
+			logWriter.println(record.getMessage());
+
+			Throwable thrown = record.getThrown();
+			if (thrown != null) {
+				try (PrintWriter w = new PrintWriter(new Writer() {
+					@Override
+					public void write(char[] cbuf, int off, int len) throws IOException {
+						char last = '\n';
+						for (int i = off; i < len; i++) {
+							char c = cbuf[i];
+							if (c != '\n' && last == '\n')
+								logWriter.write("  ");
+							logWriter.write(c);
+							last = c;
+						}
+					}
+
+					@Override
+					public void flush() throws IOException {
+					}
+
+					@Override
+					public void close() throws IOException {
+					}
+				})) {
+					thrown.printStackTrace(w);
+				}
+			}
+		}
+	}
+
+	private class PipeLog extends Handler {
+		private final Queue<LogEntry> logEntries = new ConcurrentLinkedQueue<>();
+		private final Thread flushAndCommit;
+		private volatile boolean closed;
+
+		private PipeLog() throws IOException {
+			setLevel(Level.FINE);
+			flushAndCommit = new Thread(() -> {
+				final var logFile = Paths.get("target", "pipe.log");
+				try (final var logWriter = new PrintWriter(
+						Files.newBufferedWriter(logFile, StandardOpenOption.APPEND, StandardOpenOption.CREATE))) {
+
+					while (!closed || !logEntries.isEmpty()) {
+						while (!logEntries.isEmpty())
+							logEntries.poll().commit(logWriter);
+
+						logWriter.flush();
+						synchronized (this) {
+							this.notifyAll();
+							this.wait(500L);
+						}
+					}
+
+				} catch (Throwable e) {
+					e.printStackTrace();
+				}
+			});
+			flushAndCommit.start();
 		}
 
-		sb.append(": ").append(record.getMessage());
-		sb.append("\n");
+		@Override
+		public synchronized void publish(LogRecord record) {
+			logEntries.offer(new LogEntry(workload.getElapsed(), Thread.currentThread(), record));
+		}
 
-		Throwable thrown = record.getThrown();
-		if (thrown != null) {
-			try (PrintWriter w = new PrintWriter(new Writer() {
-				@Override
-				public void write(char[] cbuf, int off, int len) throws IOException {
-					for (int i = off; i < len; i++) {
-						char c = cbuf[i];
-						if (c != '\n' && sb.charAt(sb.length() - 1) == '\n')
-							sb.append("  ");
-						sb.append(c);
+		@Override
+		public synchronized void flush() {
+			synchronized (this) {
+				this.notifyAll();
+				while (flushAndCommit.isAlive() && logEntries.isEmpty())
+					try {
+						this.wait(500L);
+					} catch (InterruptedException e) {
+						break;
 					}
-				}
-
-				@Override
-				public void flush() throws IOException {
-				}
-
-				@Override
-				public void close() throws IOException {
-				}
-			})) {
-				thrown.printStackTrace(w);
 			}
 		}
 
-		logWriter.write(sb.toString());
+		@Override
+		public synchronized void close() throws SecurityException {
+			closed = true;
+			flush();
+		}
 	}
 
 	@BeforeEach
 	public void setup(TestInfo testInfo) throws Throwable {
-		Path logFile = Paths.get("target", "pipe.log");
-
-		final PrintWriter logWriter = new PrintWriter(
-				Files.newBufferedWriter(logFile, StandardOpenOption.APPEND, StandardOpenOption.CREATE));
-		this.logWriter = logWriter;
-
-		logHandler = new Handler() {
-			@Override
-			public void publish(LogRecord record) {
-				log(Thread.currentThread(), record);
-			}
-
-			@Override
-			public void flush() {
-				logWriter.flush();
-			}
-
-			@Override
-			public void close() throws SecurityException {
-				logWriter.close();
-			}
-		};
-		LOG.addHandler(logHandler);
-
-		parallelController = new IuParallelWorkloadController(testInfo.getTestMethod().get().getName(), POOL_SIZE,
-				TIME_OUT);
-		parallelController.listen(Level.FINE, this::log, Throwable::printStackTrace);
-
 		pipe = new IuAsynchronousPipe<>();
 		stream = pipe.stream();
 		controlList = new ArrayList<>(N);
 		count = 0;
 
-		LOG.config("setup complete");
+		logHandler = new PipeLog();
+		log = Logger.getAnonymousLogger();
+		log.setLevel(Level.FINE);
+		log.setUseParentHandlers(false);
+		log.addHandler(logHandler);
+
+		workload = new IuParallelWorkloadController(testInfo.getTestMethod().get().getName(), POOL_SIZE, TIME_OUT);
+		workload.setLog(log);
+
+		log.config("setup complete");
 	}
 
 	@AfterEach
-	public void tearDown() {
-		LOG.config("begin teardown");
+	public void tearDown() throws Exception {
+		log.config("begin teardown");
 		try {
-			Throwable pipeClose = null;
-
 			pipe.close();
-			try {
-				pipe.pauseController(count, TIME_OUT);
-			} catch (Exception e) {
-				pipeClose = e;
-			}
-
-			LOG.config("cleared pipe");
-
-			try {
-				parallelController.close();
-			} catch (ExecutionException e) {
-				AssertionFailedError failure = new AssertionFailedError("parallel workload graceful close error", e);
-				if (pipeClose != null)
-					failure.addSuppressed(pipeClose);
-				throw failure;
-			}
-			LOG.config("closed controller");
-
-			if (pipeClose != null)
-				throw new AssertionFailedError("last-ditch controller pause resulted in error", pipeClose);
-
+			pipe.pauseController(workload.getExpires());
+			log.config("cleared pipe");
+			workload.close();
+			log.config("closed controller");
 		} finally {
 			pipe = null;
 			stream = null;
 			controlList = null;
 			count = 0;
-			LOG.config("teardown complete\n");
-			LOG.removeHandler(logHandler);
+			log.config("teardown complete\n");
+			log.removeHandler(logHandler);
 			logHandler.flush();
 			logHandler.close();
-			parallelController = null;
-			logWriter = null;
+			workload = null;
 			logHandler = null;
+			log = null;
 		}
+	}
+
+	@Test
+	public void testCantGetStreamAgain() {
+		assertEquals("Stream has already been retreived",
+				assertThrows(IllegalStateException.class, pipe::stream).getMessage());
+	}
+
+	@Test
+	public void testItCanCount() {
+		assertEquals(0, pipe.getAcceptedCount());
+		assertEquals(0, pipe.getPendingCount());
+		assertEquals(0, pipe.getReceivedCount());
+		pipe.accept("foo");
+		assertEquals(1, pipe.getAcceptedCount());
+		assertEquals(1, pipe.getPendingCount());
+		assertEquals(0, pipe.getReceivedCount());
+		final var i = stream.iterator();
+		assertTrue(i.hasNext());
+		assertEquals("foo", i.next());
+		assertEquals(1, pipe.getAcceptedCount());
+		assertEquals(0, pipe.getPendingCount());
+		assertEquals(1, pipe.getReceivedCount());
+	}
+
+	@Test
+	public void testRejectAfterClose() {
+		pipe.close();
+		assertEquals("closed", assertThrows(IllegalStateException.class, () -> pipe.accept("")).getMessage());
+	}
+
+	@Test
+	public void testPauseControllerTimeout() {
+		assertEquals("Timed out after receiving 0 of 1 values in PT0.005S",
+				assertThrows(TimeoutException.class, () -> pipe.pauseController(1, Duration.ofMillis(5L)))
+						.getMessage());
+	}
+
+	@Test
+	public void testPauseController() throws InterruptedException, TimeoutException {
+		workload.apply(c -> {
+			final var i = stream.iterator();
+			for (int a = 0; a < 100; a++) {
+				simulateRemoteWait(SIMULATED_SEND_DELAY);
+				final var value = i.next();
+				IdGenerator.verifyId(value, TIME_OUT.toMillis());
+			}
+			Thread.sleep(25L);
+			IdGenerator.verifyId(i.next(), TIME_OUT.toMillis());
+			synchronized (pipe) {
+				pipe.notifyAll();
+			}
+			Thread.sleep(25L);
+			stream.close();
+		});
+
+		var before = Instant.now();
+		// should be no-op boudary checks
+		pipe.pauseController(Instant.now().minus(SIMULATED_SEND_DELAY));
+		pipe.pauseController(0, SIMULATED_SEND_DELAY);
+		var sinceBefore = Duration.between(before, Instant.now());
+		assertTrue(sinceBefore.toMillis() < 5L, sinceBefore::toString);
+
+		for (int a = 0; a < 100; a++) {
+			pipe.accept(IdGenerator.generateId());
+			if (pipe.getPendingCount() > 15)
+				pipe.pauseController(10, TIME_OUT);
+		}
+		pipe.accept(IdGenerator.generateId());
+		assertThrows(TimeoutException.class, () -> pipe.pauseController(16, SIMULATED_SEND_DELAY));
+
+		pipe.pauseController(workload.getExpires());
+		assertTrue(pipe.isCompleted());
+		assertEquals(101, pipe.getReceivedCount());
+		assertEquals("IuAsynchronousPipe [acceptedCount=101, receivedCount=101, queued=0, completed=true, closed=true]",
+				pipe.toString());
+	}
+
+	@Test
+	public void testPauseControllerEarlyComplete() throws InterruptedException, TimeoutException {
+		workload.apply(c -> {
+			Thread.sleep(50L);
+			stream.close();
+		});
+		pipe.accept("one");
+		assertEquals(0, pipe.pauseController(1, Duration.ofMillis(100L)));
+	}
+
+	@Test
+	public void testPauseReceiverNoop() throws TimeoutException, InterruptedException {
+		final var before = Instant.now();
+		pipe.pauseReceiver(0, SIMULATED_SEND_DELAY);
+		final var sinceBefore = Duration.between(before, Instant.now());
+		assertTrue(sinceBefore.toMillis() <= 5L, sinceBefore::toString);
+	}
+
+	@Test
+	public void testPauseReceiverTimeout() {
+		assertEquals("Timed out waiting for 0 of 1 values in PT0.005S",
+				assertThrows(TimeoutException.class, () -> pipe.pauseReceiver(1, Duration.ofMillis(5L))).getMessage());
+	}
+
+	@Test
+	public void testPauseReceiverBySegment() throws Throwable {
+		workload.apply(c -> {
+			final var i = stream.iterator();
+
+			var accepted = pipe.pauseReceiver(10, TIME_OUT);
+			while (accepted > 0) {
+				log.info("accepted " + accepted);
+				for (int b = 0; b < accepted; b++) {
+					final var value = i.next();
+					IdGenerator.verifyId(value, TIME_OUT.toMillis());
+				}
+				accepted = pipe.pauseReceiver(10, TIME_OUT);
+			}
+		});
+
+		for (int a = 0; a < 100; a++) {
+			simulateRemoteWait(SIMULATED_SEND_DELAY);
+			pipe.accept(IdGenerator.generateId());
+		}
+		log.info("closing");
+		pipe.close();
+		log.info("closed");
+		pipe.pauseController(workload.getExpires());
+		log.info("unpaused after close " + pipe);
+		assertTrue(pipe.isCompleted());
+		assertEquals(100, pipe.getReceivedCount());
+	}
+
+	@Test
+	public void testPauseReceiverTotal() throws Throwable {
+		class Box {
+			Throwable thrown;
+		}
+		final var box = new Box();
+		workload.apply(c -> {
+			try {
+				var before = Instant.now();
+				var accepted = pipe.pauseReceiver(before);
+				var sinceBefore = Duration.between(before, Instant.now());
+				assertTrue(sinceBefore.toMillis() <= 5L);
+				assertEquals(0, accepted);
+
+				accepted = pipe.pauseReceiver(workload.getExpires());
+				assertEquals(100, accepted);
+
+				assertTrue(pipe.isClosed());
+
+				before = Instant.now();
+				accepted = pipe.pauseReceiver(workload.getExpires());
+				sinceBefore = Duration.between(before, Instant.now());
+				assertTrue(sinceBefore.toMillis() <= 5L);
+				assertEquals(0, accepted);
+
+				assertFalse(pipe.isCompleted());
+				stream.forEach(value -> IdGenerator.verifyId(value, TIME_OUT.toMillis()));
+				assertTrue(pipe.isCompleted());
+			} catch (Throwable e) {
+				box.thrown = e;
+				stream.close();
+			}
+		});
+
+		for (int a = 0; a < 100; a++) {
+			simulateRemoteWait(SIMULATED_SEND_DELAY);
+			pipe.accept(IdGenerator.generateId());
+		}
+		log.info("closing");
+		pipe.close();
+		log.info("closed");
+		pipe.pauseController(workload.getExpires());
+		if (box.thrown != null)
+			throw box.thrown;
+		log.info("unpaused after close " + pipe);
+		assertTrue(pipe.isCompleted());
+		assertEquals(100, pipe.getReceivedCount());
 	}
 
 	@Test
@@ -213,58 +438,56 @@ public class IuAsynchronousPipeTest {
 	}
 
 	@Test
-	public void testSequentialAsyncReceiver() throws Exception {
-		Runnable receiver = parallelController.async("receiver", () -> simulateFullSend(collectAllSequential(stream)));
+	public void testSequentialAsyncReceiver() throws Throwable {
+		IuTaskController receiver = workload.apply(c -> simulateFullSend(collectAllSequential(stream)));
 		simulateSequentialRun();
-		receiver.run();
+		receiver.join();
 	}
 
 	@Test
-	public void testSequentialAsyncController() throws Exception {
-		Runnable controller = parallelController.async("controller", this::simulateSequentialRun);
+	public void testSequentialAsyncController() throws Throwable {
+		IuTaskController controller = workload.apply(c -> this.simulateSequentialRun());
 		simulateFullSend(collectAllSequential(stream));
-		controller.run();
+		controller.join();
 	}
 
 	@Test
-	public void testSequentialAsyncBoth() throws Exception {
-		Runnable receiver = parallelController.async("receiver", () -> simulateFullSend(collectAllSequential(stream)));
-		Runnable controller = parallelController.async("controller", this::simulateSequentialRun);
-		controller.run();
-		receiver.run();
+	public void testSequentialAsyncBoth() throws Throwable {
+		IuTaskController receiver = workload.apply(c -> simulateFullSend(collectAllSequential(stream)));
+		IuTaskController controller = workload.apply(c -> this.simulateSequentialRun());
+		controller.join();
+		receiver.join();
 	}
 
 	@Test
-	public void testParallel() throws Exception {
+	public void testParallel() throws Throwable {
 		simulateParallelRun();
 		simulatePartialSend(collectAllParallel(stream.parallel()));
 		assertAllPartsSent();
 	}
 
 	@Test
-	public void testParallelAsyncReceiver() throws Exception {
-		Runnable receiver = parallelController.async("receiver",
-				() -> simulatePartialSend(collectAllParallel(stream.parallel())));
+	public void testParallelAsyncReceiver() throws Throwable {
+		IuTaskController receiver = workload.apply(c -> simulatePartialSend(collectAllParallel(stream.parallel())));
 		simulateParallelRun();
-		receiver.run();
+		receiver.join();
 		assertAllPartsSent();
 	}
 
 	@Test
-	public void testParallelAsyncSupplier() throws Exception {
-		Runnable controller = parallelController.async("controller", this::simulateParallelRun);
+	public void testParallelAsyncSupplier() throws Throwable {
+		IuTaskController controller = workload.apply(c -> this.simulateParallelRun());
 		simulatePartialSend(collectAllParallel(stream.parallel()));
-		controller.run();
+		controller.join();
 		assertAllPartsSent();
 	}
 
 	@Test
-	public void testParallelAsyncBoth() throws Exception {
-		Runnable receiver = parallelController.async("receiver",
-				() -> simulatePartialSend(collectAllParallel(stream.parallel())));
-		Runnable controller = parallelController.async("controller", this::simulateParallelRun);
-		controller.run();
-		receiver.run();
+	public void testParallelAsyncBoth() throws Throwable {
+		IuTaskController receiver = workload.apply(c -> simulatePartialSend(collectAllParallel(stream.parallel())));
+		IuTaskController controller = workload.apply(c -> this.simulateParallelRun());
+		controller.join();
+		receiver.join();
 		assertAllPartsSent();
 	}
 
@@ -272,22 +495,24 @@ public class IuAsynchronousPipeTest {
 	public void testParallelSplitCollector() throws Throwable {
 		try {
 			final Spliterator<String> pipeSplitter = stream.parallel().spliterator();
-			parallelController.async("controller", this::simulateParallelRun);
+			workload.apply(c -> this.simulateParallelRun());
 
-			Queue<Runnable> pending = new ArrayDeque<>();
+			IuRateLimitter rateLimit = new IuRateLimitter(POOL_SIZE, workload.getExpires());
 			while (!pipe.isClosed()) {
-				while (pending.size() > POOL_SIZE)
-					pending.poll().run();
-				
-				pipe.pauseReceiver(PARTIAL_SEND_SIZE, parallelController.remaining());
+				final var remaining = workload.getRemaining();
+				final var ready = pipe.pauseReceiver(PARTIAL_SEND_SIZE, remaining);
+
+				rateLimit.failFast();
+
 				Spliterator<String> split = pipeSplitter.trySplit();
-				if (split != null)
-					pending.offer(parallelController.async("partial send",
-							() -> simulatePartialSend(collectAllParallel(StreamSupport.stream(split, true)))));
+				if (split != null) {
+					assertTrue(ready >= 0);
+					assertTrue(ready <= split.estimateSize());
+					rateLimit.accept(workload
+							.apply(c -> simulatePartialSend(collectAllParallel(StreamSupport.stream(split, true)))));
+				}
 			}
-			
-			while (!pending.isEmpty())
-				pending.poll().run();
+			rateLimit.join();
 
 			simulatePartialSend(collectAllParallel(StreamSupport.stream(pipeSplitter, true)));
 			assertAllPartsSent();
@@ -299,21 +524,18 @@ public class IuAsynchronousPipeTest {
 
 	// BEGIN private load simulator methods
 
-	private void simulateRemoteWait(Duration max) {
-		long remaining = parallelController.remaining().toMillis();
-		if (remaining < 1)
+	private void simulateRemoteWait(Duration max) throws InterruptedException {
+		Duration timeToSleep = workload.getRemaining();
+		if (timeToSleep.compareTo(Duration.ZERO) <= 0)
 			return;
 
-		long maxMillis = Long.min(remaining, max.toMillis());
-		long duration = ThreadLocalRandom.current().nextLong(maxMillis / 2, maxMillis);
-		try {
-			Thread.sleep(duration);
-		} catch (InterruptedException e) {
-			throw new IllegalStateException(e);
-		}
+		if (timeToSleep.compareTo(max) > 0)
+			timeToSleep = max;
+
+		Thread.sleep(timeToSleep.toMillis(), timeToSleep.toNanosPart() % 1_000_000);
 	}
 
-	private void supplyFromExternalSource() {
+	private void supplyFromExternalSource() throws InterruptedException {
 		simulateRemoteWait(SIMULATED_SOURCE_DELAY);
 
 		String next = IdGenerator.generateId();
@@ -323,38 +545,33 @@ public class IuAsynchronousPipeTest {
 
 			int c = ++count;
 			if (c < N && c % LOG_PER_N == 0)
-				LOG.fine(() -> "supplied " + c + " so far");
+				log.fine(() -> "supplied " + c + " so far");
 		}
 
 		pipe.accept(next);
 	}
 
-	private void simulateSequentialRun() {
+	private void simulateSequentialRun() throws InterruptedException {
 		try {
-			for (int i = 0; !parallelController.expired() && i < N; i++)
+			for (int i = 0; !workload.isExpired() && i < N; i++)
 				supplyFromExternalSource();
 
-			assertFalse(parallelController.expired(), () -> "Timed out after completing " + count);
+			assertFalse(workload.isExpired(), () -> "Timed out after completing " + count);
 
-			LOG.info(() -> "supplied " + count + " sequentially");
+			log.info(() -> "supplied " + count + " sequentially");
 		} finally {
 			pipe.close();
 		}
 	}
 
-	private void simulateParallelRun() {
+	private void simulateParallelRun() throws Throwable {
 		try {
-			Queue<Runnable> pending = new ArrayDeque<>();
-			for (int i = 0; i < N; i++) {
-				while (pending.size() > POOL_SIZE)
-					pending.poll().run();
-				pending.offer(parallelController.async("controller", this::supplyFromExternalSource));
-			}
+			IuRateLimitter rateLimit = new IuRateLimitter(POOL_SIZE, workload.getExpires());
+			for (int i = 0; i < N; i++)
+				rateLimit.accept(workload.apply(c -> this.supplyFromExternalSource()));
+			rateLimit.join();
 
-			while (!pending.isEmpty())
-				pending.poll().run();
-
-			LOG.info("supplied " + count + " in parallel");
+			log.info("supplied " + count + " in parallel");
 		} finally {
 			pipe.close();
 		}
@@ -367,11 +584,11 @@ public class IuAsynchronousPipeTest {
 				all.add(a);
 			}
 		});
-		LOG.fine(() -> "collected " + all.size() + " sequentially");
+		log.fine(() -> "collected " + all.size() + " sequentially");
 		return all;
 	}
 
-	private void simulateFullSend(List<String> collectedSequentialItems) {
+	private void simulateFullSend(List<String> collectedSequentialItems) throws InterruptedException {
 		int size = collectedSequentialItems.size();
 
 		assertEquals(N, size);
@@ -382,10 +599,9 @@ public class IuAsynchronousPipeTest {
 			controlList.clear();
 		}
 
-		simulateRemoteWait(Duration.ofMillis(SIMULATED_SEND_DELAY.toMillis()
-				+ Duration.ofNanos(SIMULATED_SEND_PER_ITEM.toNanos() * size).toMillis()));
+		simulateRemoteWait(SIMULATED_SEND_DELAY.plus(SIMULATED_SEND_PER_ITEM.multipliedBy(size)));
 
-		LOG.info(() -> "sent " + size + " in full");
+		log.info(() -> "sent " + size + " in full");
 	}
 
 	private Set<String> collectAllParallel(Stream<String> stream) {
@@ -395,11 +611,11 @@ public class IuAsynchronousPipeTest {
 				all.add(a);
 			}
 		});
-		LOG.fine(() -> "collected " + all.size() + " in parallel");
+		log.fine(() -> "collected " + all.size() + " in parallel");
 		return all;
 	}
 
-	private void simulatePartialSend(Set<String> collectedParallelItems) {
+	private void simulatePartialSend(Set<String> collectedParallelItems) throws InterruptedException {
 		final int size = collectedParallelItems.size();
 		if (size > 0) {
 			synchronized (this) {
@@ -408,12 +624,11 @@ public class IuAsynchronousPipeTest {
 				assertEquals(beforeSize, size + controlList.size());
 			}
 
-			simulateRemoteWait(Duration.ofMillis(SIMULATED_SEND_DELAY.toMillis()
-					+ Duration.ofNanos(SIMULATED_SEND_PER_ITEM.toNanos() * size).toMillis()));
+			simulateRemoteWait(SIMULATED_SEND_DELAY.plus(SIMULATED_SEND_PER_ITEM.multipliedBy(size)));
 
-			LOG.info(() -> "sent " + size + " in part");
+			log.info(() -> "sent " + size + " in part");
 		} else
-			LOG.fine(() -> "skipped empty partial send");
+			log.fine(() -> "skipped empty partial send");
 	}
 
 	private void assertAllPartsSent() {
@@ -424,7 +639,7 @@ public class IuAsynchronousPipeTest {
 		assertEquals(N, count);
 		assertTrue(pipe.isClosed());
 
-		LOG.info(() -> "sent " + count + " in total of all parts");
+		log.info(() -> "sent " + count + " in total of all parts");
 	}
 
 }
