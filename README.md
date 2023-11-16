@@ -8,7 +8,8 @@ Utility modules for Java projects.
 
 References
 ==========
-- [API Documentation](https://indiana-university.github.io/iu-java-util/develop/apidocs/)
+- [API Documentation](https://indiana-university.github.io/iu-java-util/develop/site/apidocs/)
+- [Coverage Report](https://indiana-university.github.io/iu-java-util/develop/site/jacoco-aggregate/)
 
 Contact
 =======
