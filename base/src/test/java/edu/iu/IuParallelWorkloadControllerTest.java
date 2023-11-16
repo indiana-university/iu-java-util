@@ -280,7 +280,7 @@ public class IuParallelWorkloadControllerTest {
 
 		logListener = record -> {
 			final var a = record.getMessage();
-			if (!expected.remove(a))
+			if (!expected.remove(a) || a.startsWith("Closed "));
 				unexpected.add(a);
 		};
 
