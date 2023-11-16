@@ -457,7 +457,7 @@ public class IuParallelWorkloadControllerTest {
 		final Set<String> unhandled = new HashSet<>();
 		logListener = record -> {
 			final var message = record.getMessage();
-			if (message.matches("Thread pool failed to terminate gracefully after PT0.0[0-9]{1,6}S, interrupting"))
+			if (message.matches("Thread pool failed to terminate gracefully after PT0.0[0-9]{1,8}S, interrupting"))
 				box.found = true;
 			else
 				unhandled.add(message);
@@ -466,7 +466,7 @@ public class IuParallelWorkloadControllerTest {
 		final var timeoutException = assertThrows(TimeoutException.class, workload::close);
 		assertTrue(
 				timeoutException.getMessage().matches(
-						"Graceful thread termination timed out after PT0.0[0-9]{1,6}S, 1 still active after interrupt"),
+						"Graceful thread termination timed out after PT0.0[0-9]{1,8}S, 1 still active after interrupt"),
 				timeoutException::getMessage);
 		assertTrue(box.found, unhandled::toString);
 		assertTrue(Instant.now().isAfter(until));
