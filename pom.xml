@@ -463,4 +463,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		</profile>
 	</profiles>
 
+	<modules>
+		<module>iu-java-logging</module>
+	</modules>
 </project>
