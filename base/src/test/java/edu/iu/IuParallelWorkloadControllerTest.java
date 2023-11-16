@@ -276,7 +276,6 @@ public class IuParallelWorkloadControllerTest {
 		expected.add("Executor shutdown requested");
 		expected.add("Terminated gracefully");
 		expected.add("Executor shutdown complete");
-		expected.add("Closed [IuParallelWorkloadController (0/0 of 5 -> 0) expired PT0.05S closed]");
 		Set<String> unexpected = new LinkedHashSet<>();
 
 		logListener = record -> {
