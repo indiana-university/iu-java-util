@@ -1,0 +1,9 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+IU Unit Test Support Module,edu.iu.test,IuTestLogger.StaticLogHandler.new ThreadLocal() {...},0,21,0,0,0,6,0,2,0,2
+IU Unit Test Support Module,edu.iu.test,IuTest,0,92,0,6,0,23,0,9,0,6
+IU Unit Test Support Module,edu.iu.test,IuTestLogger.StaticLogHandler,0,60,0,0,0,19,0,6,0,6
+IU Unit Test Support Module,edu.iu.test,IuTestLogger,0,330,0,24,0,76,0,24,0,12
+IU Unit Test Support Module,edu.iu.test,IuTestLogger.IuTestLogHandler,0,131,1,15,0,32,1,13,0,6
+IU Unit Test Support Module,edu.iu.test,IuTestSessionListener,0,7,0,0,0,6,0,3,0,3
+IU Unit Test Support Module,edu.iu.test,IuTestLogger.LogRecordMatcher,0,92,0,16,0,24,0,11,0,3
+IU Unit Test Support Module,edu.iu.test,IuTestExtension,5,21,2,2,2,12,2,4,0,4
