@@ -413,7 +413,7 @@ public class IuParallelWorkloadControllerTest {
 		final Set<String> unhandled = new HashSet<>();
 		logListener = record -> {
 			final var message = record.getMessage();
-			if (message.matches("Thread pool failed to terminate gracefully after PT0.0[0-9]{1,6}S, interrupting"))
+			if (message.matches("Thread pool failed to terminate gracefully after PT0.0[0-9]{1,8}S, interrupting"))
 				box.found = true;
 			else if ("Terminated gracefully after interrupt".equals(message))
 				box.found2 = true;

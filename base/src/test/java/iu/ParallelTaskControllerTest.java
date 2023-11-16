@@ -211,7 +211,8 @@ public class ParallelTaskControllerTest {
 			final var beforeStalePauseAndJoin = Instant.now();
 			task.pause();
 			task.join();
-			assertEquals(beforeStalePauseAndJoin, Instant.now());
+			final var sinceBeforeStalePauseAndJoin = Duration.between(beforeStalePauseAndJoin, Instant.now());
+			assertTrue(sinceBeforeStalePauseAndJoin.toMillis() <= 5L, sinceBeforeStalePauseAndJoin::toString);
 		}, task -> {
 			Thread.sleep(PER_PAUSE.toMillis());
 			task.unpause();

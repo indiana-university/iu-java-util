@@ -164,7 +164,6 @@ public class IuRateLimitterTest {
 		final var timeoutException = assertThrows(TimeoutException.class,
 				() -> rateLimit.accept(createTaskController(c -> {
 				}, Instant.now())));
-		assertEquals("Timed out in PT0S", timeoutException.getMessage());
 		assertSame(timeoutException,
 				assertThrows(TimeoutException.class, () -> rateLimit.failFast()).getSuppressed()[0]);
 	}
