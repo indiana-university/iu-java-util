@@ -286,7 +286,11 @@ public class IuAsynchronousPipe&lt;T&gt; implements Consumer&lt;T&gt;, AutoClose
 	 * for (final var value : source.getValues()) {
 	 * 	pipe.accept(value);
 	 * 	if (pipe.getPendingCount() &gt; 100)
-	 * 		pipe.pauseController(10, Duration.ofSeconds(1L));
+	 * 		try {
+	 * 			pipe.pauseController(10, Duration.ofSeconds(1L));
+	 * 		} catch (TimeoutException e) {
+	 * 			// keep-alive
+	 * 		}
 	 * }
 	 * pipe.pauseController(workload.getExpires());
 	 * &lt;/pre&gt;
@@ -302,18 +306,18 @@ public class IuAsynchronousPipe&lt;T&gt; implements Consumer&lt;T&gt;, AutoClose
 	 *                              waiting for values to be received
 	 */
 	public int pauseController(int receivedCount, Duration timeout) throws TimeoutException, InterruptedException {
-<span class="fc bfc" id="L305" title="All 2 branches covered.">		if (receivedCount &lt;= 0)</span>
-<span class="fc" id="L306">			return 0;</span>
+<span class="fc bfc" id="L309" title="All 2 branches covered.">		if (receivedCount &lt;= 0)</span>
+<span class="fc" id="L310">			return 0;</span>
 
-<span class="fc" id="L308">		final var initialReceivedCount = this.receivedCount;</span>
-<span class="fc" id="L309">		final var targetReceivedCount = initialReceivedCount + receivedCount;</span>
+<span class="fc" id="L312">		final var initialReceivedCount = this.receivedCount;</span>
+<span class="fc" id="L313">		final var targetReceivedCount = initialReceivedCount + receivedCount;</span>
 
-<span class="fc bfc" id="L311" title="All 4 branches covered.">		IuObject.waitFor(this, () -&gt; completed //</span>
+<span class="fc bfc" id="L315" title="All 4 branches covered.">		IuObject.waitFor(this, () -&gt; completed //</span>
 				|| this.receivedCount &gt;= targetReceivedCount, timeout,
-<span class="fc" id="L313">				() -&gt; new TimeoutException(&quot;Timed out after receiving &quot; + (this.receivedCount - initialReceivedCount)</span>
+<span class="fc" id="L317">				() -&gt; new TimeoutException(&quot;Timed out after receiving &quot; + (this.receivedCount - initialReceivedCount)</span>
 						+ &quot; of &quot; + receivedCount + &quot; values in &quot; + timeout));
 
-<span class="fc" id="L316">		return this.receivedCount - initialReceivedCount;</span>
+<span class="fc" id="L320">		return this.receivedCount - initialReceivedCount;</span>
 	}
 
 	/**
@@ -346,7 +350,11 @@ public class IuAsynchronousPipe&lt;T&gt; implements Consumer&lt;T&gt;, AutoClose
 	 * for (final var value : source.getValues()) {
 	 * 	pipe.accept(value);
 	 * 	if (pipe.getPendingCount() &gt; 100)
-	 * 		pipe.pauseController(10, Duration.ofSeconds(1L));
+	 * 		try {
+	 * 			pipe.pauseController(10, Duration.ofSeconds(1L));
+	 * 		} catch (TimeoutException e) {
+	 * 			// keep-alive
+	 * 		}
 	 * }
 	 * pipe.pauseController(workload.getExpires());
 	 * &lt;/pre&gt;
@@ -358,21 +366,21 @@ public class IuAsynchronousPipe&lt;T&gt; implements Consumer&lt;T&gt;, AutoClose
 	 *                              waiting for values to be received
 	 */
 	public int pauseController(Instant expires) throws InterruptedException {
-<span class="fc bfc" id="L361" title="All 2 branches covered.">		if (completed)</span>
-<span class="fc" id="L362">			return 0;</span>
+<span class="fc bfc" id="L369" title="All 2 branches covered.">		if (completed)</span>
+<span class="fc" id="L370">			return 0;</span>
 
-<span class="fc" id="L364">		final var initialReceivedCount = this.receivedCount;</span>
-<span class="fc" id="L365">		synchronized (this) {</span>
-<span class="fc bfc" id="L366" title="All 2 branches covered.">			while (!completed) {</span>
-<span class="fc" id="L367">				final var now = Instant.now();</span>
-<span class="fc bfc" id="L368" title="All 2 branches covered.">				if (now.isBefore(expires)) {</span>
-<span class="fc" id="L369">					final var waitFor = Duration.between(now, expires);</span>
-<span class="fc" id="L370">					this.wait(waitFor.toMillis(), waitFor.toNanosPart() % 1_000_000);</span>
+<span class="fc" id="L372">		final var initialReceivedCount = this.receivedCount;</span>
+<span class="fc" id="L373">		synchronized (this) {</span>
+<span class="fc bfc" id="L374" title="All 2 branches covered.">			while (!completed) {</span>
+<span class="fc" id="L375">				final var now = Instant.now();</span>
+<span class="fc bfc" id="L376" title="All 2 branches covered.">				if (now.isBefore(expires)) {</span>
+<span class="fc" id="L377">					final var waitFor = Duration.between(now, expires);</span>
+<span class="fc" id="L378">					this.wait(waitFor.toMillis(), waitFor.toNanosPart() % 1_000_000);</span>
 				} else
 					break;
-<span class="fc" id="L373">			}</span>
-<span class="fc" id="L374">		}</span>
-<span class="fc" id="L375">		return this.receivedCount - initialReceivedCount;</span>
+<span class="fc" id="L381">			}</span>
+<span class="fc" id="L382">		}</span>
+<span class="fc" id="L383">		return this.receivedCount - initialReceivedCount;</span>
 	}
 
 	/**
@@ -408,17 +416,17 @@ public class IuAsynchronousPipe&lt;T&gt; implements Consumer&lt;T&gt;, AutoClose
 	 *                              waiting for values to be received
 	 */
 	public int pauseReceiver(int acceptedCount, Duration timeout) throws TimeoutException, InterruptedException {
-<span class="fc bfc" id="L411" title="All 2 branches covered.">		if (acceptedCount &lt;= 0)</span>
-<span class="fc" id="L412">			return 0;</span>
+<span class="fc bfc" id="L419" title="All 2 branches covered.">		if (acceptedCount &lt;= 0)</span>
+<span class="fc" id="L420">			return 0;</span>
 
-<span class="fc" id="L414">		final var initialAcceptedCount = this.acceptedCount;</span>
-<span class="fc" id="L415">		final var targetAcceptedCount = initialAcceptedCount + acceptedCount;</span>
+<span class="fc" id="L422">		final var initialAcceptedCount = this.acceptedCount;</span>
+<span class="fc" id="L423">		final var targetAcceptedCount = initialAcceptedCount + acceptedCount;</span>
 
-<span class="fc bfc" id="L417" title="All 4 branches covered.">		IuObject.waitFor(this, () -&gt; closed || this.acceptedCount &gt;= targetAcceptedCount, timeout,</span>
-<span class="fc" id="L418">				() -&gt; new TimeoutException(&quot;Timed out waiting for &quot; + (this.acceptedCount - initialAcceptedCount)</span>
+<span class="fc bfc" id="L425" title="All 4 branches covered.">		IuObject.waitFor(this, () -&gt; closed || this.acceptedCount &gt;= targetAcceptedCount, timeout,</span>
+<span class="fc" id="L426">				() -&gt; new TimeoutException(&quot;Timed out waiting for &quot; + (this.acceptedCount - initialAcceptedCount)</span>
 						+ &quot; of &quot; + acceptedCount + &quot; values in &quot; + timeout));
 
-<span class="fc" id="L421">		return this.acceptedCount - initialAcceptedCount;</span>
+<span class="fc" id="L429">		return this.acceptedCount - initialAcceptedCount;</span>
 	}
 
 	/**
@@ -450,21 +458,21 @@ public class IuAsynchronousPipe&lt;T&gt; implements Consumer&lt;T&gt;, AutoClose
 	 *                              waiting for the pipe to close
 	 */
 	public int pauseReceiver(Instant expires) throws InterruptedException {
-<span class="fc bfc" id="L453" title="All 2 branches covered.">		if (closed)</span>
-<span class="fc" id="L454">			return 0;</span>
+<span class="fc bfc" id="L461" title="All 2 branches covered.">		if (closed)</span>
+<span class="fc" id="L462">			return 0;</span>
 
-<span class="fc" id="L456">		final var initialAcceptedCount = this.acceptedCount;</span>
-<span class="fc" id="L457">		synchronized (this) {</span>
-<span class="fc bfc" id="L458" title="All 2 branches covered.">			while (!closed) {</span>
-<span class="fc" id="L459">				final var now = Instant.now();</span>
-<span class="fc bfc" id="L460" title="All 2 branches covered.">				if (now.isBefore(expires)) {</span>
-<span class="fc" id="L461">					final var waitFor = Duration.between(now, expires);</span>
-<span class="fc" id="L462">					this.wait(waitFor.toMillis(), waitFor.toNanosPart() % 1_000_000);</span>
+<span class="fc" id="L464">		final var initialAcceptedCount = this.acceptedCount;</span>
+<span class="fc" id="L465">		synchronized (this) {</span>
+<span class="fc bfc" id="L466" title="All 2 branches covered.">			while (!closed) {</span>
+<span class="fc" id="L467">				final var now = Instant.now();</span>
+<span class="fc bfc" id="L468" title="All 2 branches covered.">				if (now.isBefore(expires)) {</span>
+<span class="fc" id="L469">					final var waitFor = Duration.between(now, expires);</span>
+<span class="fc" id="L470">					this.wait(waitFor.toMillis(), waitFor.toNanosPart() % 1_000_000);</span>
 				} else
 					break;
-<span class="fc" id="L465">			}</span>
-<span class="fc" id="L466">		}</span>
-<span class="fc" id="L467">		return this.acceptedCount - initialAcceptedCount;</span>
+<span class="fc" id="L473">			}</span>
+<span class="fc" id="L474">		}</span>
+<span class="fc" id="L475">		return this.acceptedCount - initialAcceptedCount;</span>
 	}
 
 	/**
@@ -473,7 +481,7 @@ public class IuAsynchronousPipe&lt;T&gt; implements Consumer&lt;T&gt;, AutoClose
 	 * @return true if closed; else return false
 	 */
 	public boolean isClosed() {
-<span class="fc" id="L476">		return closed;</span>
+<span class="fc" id="L484">		return closed;</span>
 	}
 
 	/**
@@ -482,7 +490,7 @@ public class IuAsynchronousPipe&lt;T&gt; implements Consumer&lt;T&gt;, AutoClose
 	 * @return true if closed; else return false
 	 */
 	public boolean isCompleted() {
-<span class="fc" id="L485">		return completed;</span>
+<span class="fc" id="L493">		return completed;</span>
 	}
 
 	/**
@@ -500,16 +508,16 @@ public class IuAsynchronousPipe&lt;T&gt; implements Consumer&lt;T&gt;, AutoClose
 	 */
 	@Override
 	public void accept(T value) {
-<span class="fc bfc" id="L503" title="All 2 branches covered.">		if (closed)</span>
-<span class="fc" id="L504">			throw new IllegalStateException(&quot;closed&quot;);</span>
+<span class="fc bfc" id="L511" title="All 2 branches covered.">		if (closed)</span>
+<span class="fc" id="L512">			throw new IllegalStateException(&quot;closed&quot;);</span>
 
-<span class="fc" id="L506">		queue.offer(value);</span>
+<span class="fc" id="L514">		queue.offer(value);</span>
 
-<span class="fc" id="L508">		synchronized (this) {</span>
-<span class="fc" id="L509">			acceptedCount++;</span>
-<span class="fc" id="L510">			this.notifyAll();</span>
-<span class="fc" id="L511">		}</span>
-<span class="fc" id="L512">	}</span>
+<span class="fc" id="L516">		synchronized (this) {</span>
+<span class="fc" id="L517">			acceptedCount++;</span>
+<span class="fc" id="L518">			this.notifyAll();</span>
+<span class="fc" id="L519">		}</span>
+<span class="fc" id="L520">	}</span>
 
 	/**
 	 * Used by the &lt;strong&gt;controlling component&lt;/strong&gt; to close the pipe.
@@ -529,16 +537,16 @@ public class IuAsynchronousPipe&lt;T&gt; implements Consumer&lt;T&gt;, AutoClose
 	 */
 	@Override
 	public synchronized void close() {
-<span class="fc" id="L532">		closed = true;</span>
-<span class="fc bfc" id="L533" title="All 2 branches covered.">		if (getPendingCount() &lt;= 0)</span>
-<span class="fc" id="L534">			completed = true;</span>
-<span class="fc" id="L535">		this.notifyAll();</span>
-<span class="fc" id="L536">	}</span>
+<span class="fc" id="L540">		closed = true;</span>
+<span class="fc bfc" id="L541" title="All 2 branches covered.">		if (getPendingCount() &lt;= 0)</span>
+<span class="fc" id="L542">			completed = true;</span>
+<span class="fc" id="L543">		this.notifyAll();</span>
+<span class="fc" id="L544">	}</span>
 
 	@Override
 	public String toString() {
-<span class="fc" id="L540">		return &quot;IuAsynchronousPipe [acceptedCount=&quot; + acceptedCount + &quot;, receivedCount=&quot; + receivedCount + &quot;, queued=&quot;</span>
-<span class="fc" id="L541">				+ queue.size() + &quot;, completed=&quot; + completed + &quot;, closed=&quot; + closed + &quot;]&quot;;</span>
+<span class="fc" id="L548">		return &quot;IuAsynchronousPipe [acceptedCount=&quot; + acceptedCount + &quot;, receivedCount=&quot; + receivedCount + &quot;, queued=&quot;</span>
+<span class="fc" id="L549">				+ queue.size() + &quot;, completed=&quot; + completed + &quot;, closed=&quot; + closed + &quot;]&quot;;</span>
 	}
 
 }
