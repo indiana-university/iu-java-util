@@ -286,7 +286,11 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 	 * for (final var value : source.getValues()) {
 	 * 	pipe.accept(value);
 	 * 	if (pipe.getPendingCount() > 100)
-	 * 		pipe.pauseController(10, Duration.ofSeconds(1L));
+	 * 		try {
+	 * 			pipe.pauseController(10, Duration.ofSeconds(1L));
+	 * 		} catch (TimeoutException e) {
+	 * 			// keep-alive
+	 * 		}
 	 * }
 	 * pipe.pauseController(workload.getExpires());
 	 * </pre>
@@ -346,7 +350,11 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 	 * for (final var value : source.getValues()) {
 	 * 	pipe.accept(value);
 	 * 	if (pipe.getPendingCount() > 100)
-	 * 		pipe.pauseController(10, Duration.ofSeconds(1L));
+	 * 		try {
+	 * 			pipe.pauseController(10, Duration.ofSeconds(1L));
+	 * 		} catch (TimeoutException e) {
+	 * 			// keep-alive
+	 * 		}
 	 * }
 	 * pipe.pauseController(workload.getExpires());
 	 * </pre>
