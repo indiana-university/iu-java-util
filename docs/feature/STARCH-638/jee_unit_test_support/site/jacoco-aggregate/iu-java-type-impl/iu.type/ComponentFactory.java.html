@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ComponentFactory.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-type-impl</a> &gt; <a href="index.source.html" class="el_package">iu.type</a> &gt; <span class="el_source">ComponentFactory.java</span></div><h1>ComponentFactory.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2023 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.type;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.module.Configuration;
+import java.lang.module.ModuleFinder;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.List;
+import java.util.Queue;
+import java.util.stream.Collectors;
+
+import edu.iu.IuException;
+
+/**
+ * Creates instances of {@link Component} for
+ * {@link TypeSpi#createComponent(InputStream, InputStream...)}.
+ */
+final class ComponentFactory {
+
+	private ComponentFactory() {
+	}
+
+	/**
+	 * Checks a archive version against another archive to verify two don't have the
+	 * same version name.
+	 * 
+	 * &lt;p&gt;
+	 * Deletes the archive temp file before throwing
+	 * {@link IllegalArgumentException} if the version names match.
+	 * 
+	 * @param alreadyProvidedArchive archive already in the component path
+	 * @param archive                archve to verify before adding to the component
+	 *                               path.
+	 */
+	static void checkIfAlreadyProvided(ComponentArchive alreadyProvidedArchive, ComponentArchive archive) {
+<span class="fc bfc" id="L70" title="All 2 branches covered.">		if (alreadyProvidedArchive.version().name().equals(archive.version().name())) {</span>
+<span class="fc" id="L71">			var illegalArgumentException = new IllegalArgumentException(</span>
+<span class="fc" id="L72">					archive.version() + &quot; was already provided by &quot; + alreadyProvidedArchive.version());</span>
+
+			try {
+<span class="fc" id="L75">				Files.delete(archive.path());</span>
+<span class="fc" id="L76">			} catch (Throwable deleteFailure) {</span>
+<span class="fc" id="L77">				illegalArgumentException.addSuppressed(deleteFailure);</span>
+<span class="fc" id="L78">			}</span>
+
+<span class="fc" id="L80">			throw illegalArgumentException;</span>
+		}
+<span class="fc" id="L82">	}</span>
+
+	/**
+	 * Creates a modular component.
+	 * 
+	 * @param parent   parent component
+	 * @param archives component path
+	 * @return module component
+	 */
+	static Component createModular(Component parent, Queue&lt;ComponentArchive&gt; archives) {
+<span class="fc" id="L92">		var path = new Path[archives.size()];</span>
+		{
+<span class="fc" id="L94">			var i = 0;</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">			for (var archive : archives)</span>
+<span class="fc" id="L96">				path[i++] = archive.path();</span>
+		}
+
+<span class="fc" id="L99">		var moduleFinder = new ComponentModuleFinder(path);</span>
+		try {
+<span class="fc" id="L101">			var moduleNames = moduleFinder.findAll().stream().map(ref -&gt; ref.descriptor().name())</span>
+<span class="fc" id="L102">					.collect(Collectors.toList());</span>
+
+			ClassLoader parentClassLoader;
+			ModuleLayer parentModuleLayer;
+<span class="fc bfc" id="L106" title="All 2 branches covered.">			if (parent == null) {</span>
+<span class="fc" id="L107">				parentClassLoader = null;</span>
+<span class="fc" id="L108">				parentModuleLayer = ModuleLayer.boot();</span>
+			} else {
+<span class="fc" id="L110">				parentClassLoader = parent.classLoader();</span>
+<span class="fc" id="L111">				parentModuleLayer = parent.controller().layer();</span>
+			}
+
+<span class="fc" id="L114">			var configuration = Configuration.resolveAndBind( //</span>
+<span class="fc" id="L115">					moduleFinder, List.of(parentModuleLayer.configuration()), ModuleFinder.of(), moduleNames);</span>
+
+<span class="fc" id="L117">			var controller = ModuleLayer.defineModulesWithOneLoader(configuration, List.of(parentModuleLayer),</span>
+					parentClassLoader);
+
+<span class="fc" id="L120">			return new Component(parent, controller, controller.layer().findLoader(moduleNames.iterator().next()),</span>
+					moduleFinder, archives);
+
+<span class="fc" id="L123">		} catch (RuntimeException | Error e) {</span>
+			try {
+<span class="fc" id="L125">				moduleFinder.close();</span>
+<span class="fc" id="L126">			} catch (Throwable e2) {</span>
+<span class="fc" id="L127">				e.addSuppressed(e2);</span>
+<span class="fc" id="L128">			}</span>
+<span class="fc" id="L129">			throw e;</span>
+		}
+	}
+
+	/**
+	 * Creates a modular component.
+	 * 
+	 * @param parent   parent component
+	 * @param archives component path
+	 * @return module component
+	 * @throws IOException If an I/O error occurs reading from an archive
+	 */
+	static Component createLegacy(Component parent, Queue&lt;ComponentArchive&gt; archives) throws IOException {
+<span class="fc" id="L142">		var path = new URL[archives.size()];</span>
+		{
+<span class="fc" id="L144">			var i = 0;</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">			for (var archive : archives)</span>
+<span class="fc" id="L146">				path[i++] = archive.path().toUri().toURL();</span>
+		}
+
+<span class="fc" id="L149">		return IuException.checked(IOException.class,</span>
+<span class="fc" id="L150">				() -&gt; IuException.initialize(</span>
+<span class="fc" id="L151">						new LegacyClassLoader(archives.iterator().next().kind().isWeb(), path,</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">								parent == null ? null : parent.classLoader()),</span>
+<span class="fc" id="L153">						loader -&gt; new Component(parent, null, loader, null, archives)));</span>
+	}
+
+	/**
+	 * Creates a component from the source queue.
+	 * 
+	 * @param parent  parent component
+	 * @param sources source queue; will be drained and all entries closed when the
+	 *                component is closed, or if an initialization error occurs.
+	 * @return fully loaded component instance
+	 * @throws IOException If an I/O error occurs reaching from an archive source
+	 */
+	static Component createFromSourceQueue(Component parent, Queue&lt;ArchiveSource&gt; sources) throws IOException {
+<span class="fc" id="L166">		Queue&lt;ComponentArchive&gt; archives = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L167">		Queue&lt;ComponentVersion&gt; unmetDependencies = new ArrayDeque&lt;&gt;();</span>
+
+		try {
+<span class="fc bfc" id="L170" title="All 2 branches covered.">			while (!sources.isEmpty())</span>
+<span class="fc" id="L171">				try (var source = sources.poll()) {</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">					dep: for (var sourceDependency : source.dependencies()) {</span>
+<span class="fc bfc" id="L173" title="All 2 branches covered.">						if (parent != null)</span>
+<span class="fc bfc" id="L174" title="All 2 branches covered.">							for (var version : parent.versions())</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">								if (version.meets(sourceDependency))</span>
+<span class="fc" id="L176">									continue dep;</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">						for (var archive : archives)</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">							if (archive.version().meets(sourceDependency))</span>
+<span class="fc" id="L179">								continue dep;</span>
+<span class="fc" id="L180">						unmetDependencies.add(sourceDependency);</span>
+<span class="fc" id="L181">					}</span>
+
+<span class="fc" id="L183">					var archive = ComponentArchive.from(source);</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">					for (var alreadyProvidedArchive : archives)</span>
+<span class="fc" id="L185">						checkIfAlreadyProvided(alreadyProvidedArchive, archive);</span>
+
+<span class="fc" id="L187">					var unmetDependencyIterator = unmetDependencies.iterator();</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">					while (unmetDependencyIterator.hasNext())</span>
+<span class="fc bfc" id="L189" title="All 2 branches covered.">						if (archive.version().meets(unmetDependencyIterator.next()))</span>
+<span class="fc" id="L190">							unmetDependencies.remove();</span>
+<span class="fc" id="L191">					archives.offer(archive);</span>
+
+<span class="fc bfc" id="L193" title="All 2 branches covered.">					for (var bundledDependency : archive.bundledDependencies())</span>
+<span class="fc" id="L194">						sources.offer(bundledDependency);</span>
+				}
+
+<span class="fc bfc" id="L197" title="All 2 branches covered.">			if (!unmetDependencies.isEmpty())</span>
+<span class="fc" id="L198">				throw new IllegalArgumentException(&quot;Not all depdendencies were met, missing &quot; + unmetDependencies);</span>
+
+<span class="fc" id="L200">			var kind = archives.iterator().next().kind();</span>
+<span class="fc bfc" id="L201" title="All 2 branches covered.">			if (kind.isModular())</span>
+<span class="fc" id="L202">				return createModular(parent, archives);</span>
+			else
+<span class="fc" id="L204">				return createLegacy(parent, archives);</span>
+
+<span class="fc" id="L206">		} catch (IOException | RuntimeException | Error e) {</span>
+<span class="fc bfc" id="L207" title="All 2 branches covered.">			while (!archives.isEmpty())</span>
+				try {
+<span class="fc" id="L209">					Files.delete(archives.poll().path());</span>
+<span class="fc" id="L210">				} catch (Throwable e2) {</span>
+<span class="fc" id="L211">					e.addSuppressed(e2);</span>
+<span class="fc" id="L212">				}</span>
+<span class="fc" id="L213">			throw e;</span>
+		}
+	}
+
+	/**
+	 * Creates a component from the source inputs
+	 * 
+	 * @param parent                           parent component
+	 * @param componentArchiveSource           component archive source input
+	 * @param providedDependencyArchiveSources dependency source inputs
+	 * @return fully loaded component instance
+	 * 
+	 * @throws IOException If an I/O error occurs reaching from an archive source
+	 */
+	static Component createComponent(Component parent, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) throws IOException {
+
+<span class="fc" id="L230">		Queue&lt;ArchiveSource&gt; sources = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L231">		Throwable thrown = null;</span>
+		try {
+<span class="fc" id="L233">			sources.offer(new ArchiveSource(componentArchiveSource));</span>
+<span class="fc bfc" id="L234" title="All 2 branches covered.">			for (var providedDependencyArchiveSource : providedDependencyArchiveSources)</span>
+<span class="fc" id="L235">				sources.offer(new ArchiveSource(providedDependencyArchiveSource));</span>
+
+<span class="fc" id="L237">			return createFromSourceQueue(parent, sources);</span>
+
+<span class="fc" id="L239">		} catch (IOException | RuntimeException | Error e) {</span>
+<span class="fc" id="L240">			thrown = e;</span>
+<span class="fc" id="L241">			throw e;</span>
+		} finally {
+<span class="fc bfc" id="L243" title="All 2 branches covered.">			final var throwing = thrown != null;</span>
+<span class="fc bfc" id="L244" title="All 2 branches covered.">			while (!sources.isEmpty())</span>
+				try {
+<span class="fc" id="L246">					sources.poll().close();</span>
+<span class="fc" id="L247">				} catch (IOException | RuntimeException | Error e) {</span>
+<span class="fc bfc" id="L248" title="All 2 branches covered.">					if (thrown == null)</span>
+<span class="fc" id="L249">						thrown = e;</span>
+					else
+<span class="fc" id="L251">						thrown.addSuppressed(e);</span>
+<span class="fc" id="L252">				}</span>
+<span class="fc bfc" id="L253" title="All 4 branches covered.">			if (!throwing &amp;&amp; thrown != null)</span>
+<span class="fc" id="L254">				throw IuException.checked(thrown, IOException.class);</span>
+		}
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

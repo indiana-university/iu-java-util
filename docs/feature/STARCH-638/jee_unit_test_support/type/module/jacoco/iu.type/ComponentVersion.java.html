@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentVersion.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Type Introspection Implementation Module</a> &gt; <a href="index.source.html" class="el_package">iu.type</a> &gt; <span class="el_source">ComponentVersion.java</span></div><h1>ComponentVersion.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2023 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.type;
+
+import java.util.Objects;
+import java.util.jar.Attributes;
+import java.util.jar.Attributes.Name;
+import java.util.jar.Manifest;
+import java.util.regex.Pattern;
+
+import edu.iu.type.IuComponentVersion;
+
+/**
+ * Implementation of {@link IuComponentVersion}.
+ */
+class ComponentVersion implements IuComponentVersion {
+
+<span class="fc" id="L47">	private static final Pattern SPEC_VERSION_PATTERN = Pattern.compile(&quot;^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$&quot;);</span>
+<span class="fc" id="L48">	private static final Pattern NAME_PATTERN = Pattern.compile(&quot;^[a-zA-Z][a-zA-Z0-9\\-\\.]*$&quot;);</span>
+
+	/**
+	 * Specification version constant for detecting &lt;a href=
+	 * &quot;https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0&quot;&gt;Jakarta
+	 * Servlet version 6&lt;/a&gt; or higher.
+	 */
+<span class="fc" id="L55">	static final ComponentVersion SERVLET_6 = new ComponentVersion(&quot;jakarta.servlet-api&quot;, 6, 0);</span>
+
+	private final String name;
+	private final String version;
+	private final int major;
+	private final int minor;
+
+	/**
+	 * Creates a specification version.
+	 * 
+	 * @param name  extension name
+	 * @param major major version number
+	 * @param minor minor version number
+	 */
+<span class="fc" id="L69">	ComponentVersion(String name, int major, int minor) {</span>
+<span class="pc bpc" id="L70" title="1 of 4 branches missed.">		if (name == null || !NAME_PATTERN.matcher(name).matches())</span>
+<span class="fc" id="L71">			throw new IllegalArgumentException(</span>
+					&quot;Component name must be non-null, start with a letter, and contain only letters, numbers, dots '.', and hyphens '-'&quot;);
+<span class="fc bfc" id="L73" title="All 2 branches covered.">		if (major &lt; 0)</span>
+<span class="fc" id="L74">			throw new IllegalArgumentException(&quot;Component major version number must be non-negative&quot;);</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">		if (minor &lt; 0)</span>
+<span class="fc" id="L76">			throw new IllegalArgumentException(&quot;Component minor version number must be non-negative&quot;);</span>
+<span class="fc" id="L77">		this.name = Objects.requireNonNull(name);</span>
+<span class="fc" id="L78">		this.version = null;</span>
+<span class="fc" id="L79">		this.major = major;</span>
+<span class="fc" id="L80">		this.minor = minor;</span>
+<span class="fc" id="L81">	}</span>
+
+	/**
+	 * Creates an implementation version
+	 * 
+	 * @param name    extension name
+	 * @param version implementation version
+	 */
+<span class="fc" id="L89">	ComponentVersion(String name, String version) {</span>
+<span class="pc bpc" id="L90" title="1 of 4 branches missed.">		if (name == null || !NAME_PATTERN.matcher(name).matches())</span>
+<span class="fc" id="L91">			throw new IllegalArgumentException(</span>
+					&quot;Component name must be non-null, start with a letter, and contain only letters, numbers, dots '.', and hyphens '-'&quot;);
+
+<span class="fc bfc" id="L94" title="All 2 branches covered.">		if (version == null)</span>
+<span class="fc" id="L95">			throw new IllegalArgumentException(&quot;Missing version for &quot; + name + &quot;, must be a valid semantic version&quot;);</span>
+
+<span class="fc" id="L97">		var semverMatcher = SEMANTIC_VERSION_PATTERN.matcher(version);</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">		if (!semverMatcher.matches())</span>
+<span class="fc" id="L99">			throw new IllegalArgumentException(&quot;Invalid version for &quot; + name + &quot;, must be a valid semantic version&quot;);</span>
+
+<span class="fc" id="L101">		this.name = name;</span>
+<span class="fc" id="L102">		this.version = version;</span>
+<span class="fc" id="L103">		this.major = Integer.parseInt(semverMatcher.group(1));</span>
+<span class="fc" id="L104">		this.minor = Integer.parseInt(semverMatcher.group(2));</span>
+<span class="fc" id="L105">	}</span>
+
+	/**
+	 * Reads a dependency item from an extension list
+	 * 
+	 * @param extenstionListItem extension list item
+	 * @param mainAttributes     {@link Manifest#getMainAttributes()}
+	 */
+<span class="fc" id="L113">	ComponentVersion(String extenstionListItem, Attributes mainAttributes) {</span>
+<span class="fc" id="L114">		var extensionAttributePrefix = extenstionListItem.replace('.', '_');</span>
+<span class="fc" id="L115">		var extensionNameAttribute = extensionAttributePrefix + '-' + Name.EXTENSION_NAME;</span>
+<span class="fc" id="L116">		name = mainAttributes.getValue(extensionNameAttribute);</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">		if (name == null)</span>
+<span class="fc" id="L118">			throw new IllegalArgumentException(</span>
+					&quot;Missing &quot; + extensionNameAttribute + &quot; in META-INF/MANIFEST.MF main attributes&quot;);
+
+<span class="fc" id="L121">		var implementationVersionAttribute = extensionAttributePrefix + '-' + Name.IMPLEMENTATION_VERSION;</span>
+<span class="fc" id="L122">		version = mainAttributes.getValue(implementationVersionAttribute);</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">		if (version != null) {</span>
+<span class="fc" id="L124">			var semverMatcher = SEMANTIC_VERSION_PATTERN.matcher(version);</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">			if (!semverMatcher.matches())</span>
+<span class="fc" id="L126">				throw new IllegalArgumentException(&quot;Invalid version for &quot; + implementationVersionAttribute</span>
+						+ &quot; in META-INF/MANIFEST.MF main attributes, must be a valid semantic version&quot;);
+<span class="fc" id="L128">			major = Integer.parseInt(semverMatcher.group(1));</span>
+<span class="fc" id="L129">			minor = Integer.parseInt(semverMatcher.group(2));</span>
+
+<span class="fc" id="L131">		} else {</span>
+<span class="fc" id="L132">			var specificationVersionAttribute = extensionAttributePrefix + '-' + Name.SPECIFICATION_VERSION;</span>
+<span class="fc" id="L133">			var specificationVersion = mainAttributes.getValue(specificationVersionAttribute);</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">			if (specificationVersion == null)</span>
+<span class="fc" id="L135">				throw new IllegalArgumentException(&quot;Missing &quot; + implementationVersionAttribute + &quot; or &quot;</span>
+						+ specificationVersionAttribute + &quot; in META-INF/MANIFEST.MF main attributes&quot;);
+
+<span class="fc" id="L138">			var specverMatcher = SPEC_VERSION_PATTERN.matcher(specificationVersion);</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">			if (!specverMatcher.matches())</span>
+<span class="fc" id="L140">				throw new IllegalArgumentException(&quot;Invalid version for &quot; + specificationVersionAttribute</span>
+						+ &quot; in META-INF/MANIFEST.MF main attributes , must be a valid semantic version&quot;);
+<span class="fc" id="L142">			major = Integer.parseInt(specverMatcher.group(1));</span>
+<span class="fc" id="L143">			minor = Integer.parseInt(specverMatcher.group(2));</span>
+		}
+<span class="fc" id="L145">	}</span>
+
+	@Override
+	public String name() {
+<span class="fc" id="L149">		return name;</span>
+	}
+
+	@Override
+	public String implementationVersion() {
+<span class="fc" id="L154">		return version;</span>
+	}
+
+	@Override
+	public int major() {
+<span class="fc" id="L159">		return major;</span>
+	}
+
+	@Override
+	public int minor() {
+<span class="fc" id="L164">		return minor;</span>
+	}
+
+	@Override
+	public ComponentVersion specificationVersion() {
+<span class="fc bfc" id="L169" title="All 2 branches covered.">		if (version == null)</span>
+<span class="fc" id="L170">			return this;</span>
+		else
+<span class="fc" id="L172">			return new ComponentVersion(name, major, minor);</span>
+	}
+
+	@Override
+	public int hashCode() {
+<span class="fc" id="L177">		return Objects.hash(major, minor, name, version);</span>
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+<span class="fc bfc" id="L182" title="All 2 branches covered.">		if (this == obj)</span>
+<span class="fc" id="L183">			return true;</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">		if (obj == null)</span>
+<span class="fc" id="L185">			return false;</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">		if (!(obj instanceof IuComponentVersion))</span>
+<span class="fc" id="L187">			return false;</span>
+
+<span class="fc" id="L189">		IuComponentVersion other = (IuComponentVersion) obj;</span>
+<span class="fc bfc" id="L190" title="All 6 branches covered.">		return major == other.major() &amp;&amp; minor == other.minor() &amp;&amp; Objects.equals(name, other.name())</span>
+<span class="fc bfc" id="L191" title="All 2 branches covered.">				&amp;&amp; Objects.equals(version, other.implementationVersion());</span>
+	}
+
+	@Override
+	public String toString() {
+<span class="fc" id="L196">		var sb = new StringBuilder();</span>
+<span class="fc" id="L197">		sb.append(name).append('-');</span>
+<span class="fc bfc" id="L198" title="All 2 branches covered.">		if (version == null)</span>
+<span class="fc" id="L199">			sb.append(major).append('.').append(minor).append('+');</span>
+		else
+<span class="fc" id="L201">			sb.append(version);</span>
+<span class="fc" id="L202">		return sb.toString();</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
