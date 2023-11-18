@@ -185,7 +185,14 @@ public class ParallelTaskController implements IuTaskController, UnsafeConsumer<
 			task.run();
 		} catch (Throwable e) {
 			e.addSuppressed(callerStackTrace);
-			throw error = e;
+
+			synchronized (this) {
+				error = e;
+				this.notifyAll();
+			}
+
+			throw e;
+
 		} finally {
 			currentThread.setContextClassLoader(contextToRestore);
 

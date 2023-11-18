@@ -30,17 +30,16 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /**
- * Type introspection utilities.
+ * IU Type Introspection Utilities bundled implementation module.
  * 
- * @uses edu.iu.type.spi.IuTypeSpi Implementation service provider.
+ * @uses edu.iu.type.spi.IuTypeSpi to delegate to the bundled implementation
+ * @provides edu.iu.type.spi.IuTypeSpi via bundled implementation bootstrap
  */
-module iu.util.type {
-	exports edu.iu.type;
-	exports edu.iu.type.spi;
-	
+module iu.util.type.bundle {
 	requires iu.util;
-	requires java.logging;
-	requires java.desktop;
+	requires iu.util.type;
 
 	uses edu.iu.type.spi.IuTypeSpi;
+
+	provides edu.iu.type.spi.IuTypeSpi with iu.type.bundle.TypeBundleSpi;
 }

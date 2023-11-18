@@ -29,18 +29,24 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Type introspection utilities.
- * 
- * @uses edu.iu.type.spi.IuTypeSpi Implementation service provider.
- */
-module iu.util.type {
-	exports edu.iu.type;
-	exports edu.iu.type.spi;
-	
-	requires iu.util;
-	requires java.logging;
-	requires java.desktop;
+package iu.type.bundle;
 
-	uses edu.iu.type.spi.IuTypeSpi;
+import static org.junit.jupiter.api.Assertions.assertSame;
+
+import java.util.logging.Level;
+
+import org.junit.jupiter.api.Test;
+
+import edu.iu.test.IuTestLogger;
+import edu.iu.type.IuType;
+
+@SuppressWarnings("javadoc")
+public class IuTypeIT {
+
+	@Test
+	public void testSanity() {
+		IuTestLogger.allow("iu.type.ParameterizedElement", Level.FINEST, "replaced type argument.*");
+		assertSame(String.class, IuType.of(String.class).erasedClass());
+	}
+
 }

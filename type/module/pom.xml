@@ -8,19 +8,21 @@
 		<version>7.0.0-SNAPSHOT</version>
 	</parent>
 	
-	<artifactId>iu-java-type</artifactId>
-	<name>IU Type Introspection Module</name>
+	<artifactId>iu-java-type-impl</artifactId>
+	<name>IU Type Introspection Implementation Module</name>
 
 	<dependencies>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-base</artifactId>
 			<version>${project.version}</version>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-type-api</artifactId>
 			<version>${project.version}</version>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>jakarta.annotation</groupId>
@@ -56,4 +58,26 @@
 		</dependency>
 	</dependencies>
 
+	<build>
+		<plugins>
+			<plugin>
+				<artifactId>maven-assembly-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>bundle-distribution</id>
+						<goals>
+							<goal>single</goal>
+						</goals>
+						<phase>package</phase>
+						<configuration>
+							<descriptors>
+								<descriptor>src/assembly/bundle.xml</descriptor>
+							</descriptors>
+						</configuration>
+					</execution>
+				</executions>				
+			</plugin>
+		</plugins>	
+	</build>
+		
 </project>

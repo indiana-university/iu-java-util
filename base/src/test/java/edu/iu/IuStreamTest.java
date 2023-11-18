@@ -29,18 +29,27 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Type introspection utilities.
- * 
- * @uses edu.iu.type.spi.IuTypeSpi Implementation service provider.
- */
-module iu.util.type {
-	exports edu.iu.type;
-	exports edu.iu.type.spi;
-	
-	requires iu.util;
-	requires java.logging;
-	requires java.desktop;
+package edu.iu;
 
-	uses edu.iu.type.spi.IuTypeSpi;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.StringReader;
+
+import org.junit.jupiter.api.Test;
+
+@SuppressWarnings("javadoc")
+public class IuStreamTest {
+
+	@Test
+	public void testReadReader() throws IOException {
+		assertEquals("foobar", IuStream.read(new StringReader("foobar")));
+	}
+
+	@Test
+	public void testReadInputStream() throws IOException {
+		assertEquals("foobar", new String(IuStream.read(new ByteArrayInputStream("foobar".getBytes()))));
+	}
+
 }

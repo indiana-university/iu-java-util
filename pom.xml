@@ -160,6 +160,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
 			</plugin>
+			<plugin>
+				<artifactId>maven-failsafe-plugin</artifactId>
+			</plugin>
 		</plugins>
 
 		<pluginManagement>
@@ -170,7 +173,23 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				</plugin>
 				<plugin>
 					<artifactId>maven-surefire-plugin</artifactId>
-					<version>3.1.2</version>
+					<version>3.2.2</version>
+				</plugin>
+				<plugin>
+					<artifactId>maven-failsafe-plugin</artifactId>
+					<version>3.2.2</version>
+					<executions>
+						<execution>
+							<goals>
+								<goal>integration-test</goal>
+								<goal>verify</goal>
+							</goals>
+						</execution>
+					</executions>
+				</plugin>
+				<plugin>
+					<artifactId>maven-assembly-plugin</artifactId>
+					<version>3.6.0</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-ear-plugin</artifactId>
@@ -334,16 +353,19 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 									<exclude>**/*.jar</exclude>
 								</excludes>
 							</configuration>
-							<phase>test</phase>	
+							<phase>verify</phase>	
 						</execution>
 						<execution>
 							<id>coverage-check</id>
 							<goals>
 								<goal>check</goal>
 							</goals>
-							<phase>test</phase>
+							<phase>verify</phase>
 							<configuration>
 								<haltOnFailure>true</haltOnFailure>
+								<excludes>
+									<exclude>**/*.jar</exclude>
+								</excludes>
 								<rules>
 									<rule>
 										<element>BUNDLE</element>
@@ -391,6 +413,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 										<artifactId>maven-dependency-plugin</artifactId>
 										<versionRange>[0,)</versionRange>
 										<goals>
+											<goal>copy</goal>
 											<goal>copy-dependencies</goal>
 										</goals>
 									</pluginExecutionFilter>
