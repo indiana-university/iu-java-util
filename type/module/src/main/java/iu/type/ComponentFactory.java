@@ -170,6 +170,7 @@ final class ComponentFactory {
 			while (!sources.isEmpty())
 				try (var source = sources.poll()) {
 					dep: for (var sourceDependency : source.dependencies()) {
+						System.out.println(sourceDependency.toString());
 						if (parent != null)
 							for (var version : parent.versions())
 								if (version.meets(sourceDependency))

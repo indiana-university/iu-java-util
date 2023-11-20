@@ -209,6 +209,7 @@ public class IuComponentTest extends IuTypeTestCase {
 
 	@Test
 	public void testLoadsTestWar() throws Exception {
+		System.out.println("Before testLoadsTestWar");
 		try (var parent = IuComponent.of(TestArchives.getComponentArchive("testruntime"),
 				TestArchives.getProvidedDependencyArchives("testruntime"));
 				var component = parent.extend(TestArchives.getComponentArchive("testweb"),
