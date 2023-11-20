@@ -186,9 +186,15 @@ final class ComponentFactory {
 						checkIfAlreadyProvided(alreadyProvidedArchive, archive);
 
 					var unmetDependencyIterator = unmetDependencies.iterator();
-					while (unmetDependencyIterator.hasNext())
-						if (archive.version().meets(unmetDependencyIterator.next()))
+					while (unmetDependencyIterator.hasNext()) {
+						final var unmetDependency = unmetDependencyIterator.next();
+						System.out.print(archive.version() + " => " + unmetDependency + "? ");
+						if (archive.version().meets(unmetDependency)) {
+							System.out.println("met");
 							unmetDependencies.remove();
+						} else
+							System.out.println("unmet");
+					}
 					archives.offer(archive);
 
 					for (var bundledDependency : archive.bundledDependencies())
