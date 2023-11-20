@@ -39,8 +39,12 @@ import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
+import java.net.URI;
+import java.nio.file.Path;
+import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
+import edu.iu.IuException;
 import edu.iu.type.spi.TypeImplementation;
 
 /**
@@ -406,38 +410,50 @@ public interface IuComponent extends AutoCloseable {
 	 * Enumerates the different kinds of components that may be loaded using this
 	 * interface.
 	 */
-<span class="fc" id="L409">	enum Kind {</span>
+<span class="fc" id="L413">	enum Kind {</span>
+		/**
+		 * Designates &lt;strong&gt;single entry&lt;/strong&gt; component defined by a single
+		 * resource path in an externally managed {@link ClassLoader}.
+		 */
+<span class="fc" id="L418">		MODULAR_ENTRY(true, false),</span>
+
+		/**
+		 * Designates &lt;strong&gt;single entry&lt;/strong&gt; component defined by a single
+		 * resource path in an externally managed {@link ClassLoader}.
+		 */
+<span class="fc" id="L424">		LEGACY_ENTRY(false, false),</span>
+
 		/**
 		 * Designates &lt;strong&gt;modular&lt;/strong&gt; component defined by one or more Java
 		 * Archive (jar) files.
 		 */
-<span class="fc" id="L414">		MODULAR_JAR(true, false),</span>
+<span class="fc" id="L430">		MODULAR_JAR(true, false),</span>
 
 		/**
 		 * Designates an &lt;strong&gt;legacy&lt;/strong&gt; component defined by a Java Archive
 		 * (jar) file.
 		 */
-<span class="fc" id="L420">		LEGACY_JAR(false, false),</span>
+<span class="fc" id="L436">		LEGACY_JAR(false, false),</span>
 
 		/**
 		 * Designates &lt;strong&gt;modular&lt;/strong&gt; component defined by a Web Application
 		 * Archive (war) file.
 		 */
-<span class="fc" id="L426">		MODULAR_WAR(true, true),</span>
+<span class="fc" id="L442">		MODULAR_WAR(true, true),</span>
 
 		/**
 		 * Designates an &lt;strong&gt;legacy&lt;/strong&gt; component defined by a Web Application
 		 * Archive (war) file.
 		 */
-<span class="fc" id="L432">		LEGACY_WAR(false, true);</span>
+<span class="fc" id="L448">		LEGACY_WAR(false, true);</span>
 
 		private final boolean modular;
 		private final boolean web;
 
-<span class="fc" id="L437">		private Kind(boolean modular, boolean web) {</span>
-<span class="fc" id="L438">			this.modular = modular;</span>
-<span class="fc" id="L439">			this.web = web;</span>
-<span class="fc" id="L440">		}</span>
+<span class="fc" id="L453">		private Kind(boolean modular, boolean web) {</span>
+<span class="fc" id="L454">			this.modular = modular;</span>
+<span class="fc" id="L455">			this.web = web;</span>
+<span class="fc" id="L456">		}</span>
 
 		/**
 		 * Determines if the &lt;strong&gt;component&lt;/strong&gt; is &lt;strong&gt;modular&lt;/strong&gt;.
@@ -445,7 +461,7 @@ public interface IuComponent extends AutoCloseable {
 		 * @return {@code true} if &lt;strong&gt;modular&lt;/strong&gt;; else {@code false}
 		 */
 		public boolean isModular() {
-<span class="fc" id="L448">			return modular;</span>
+<span class="fc" id="L464">			return modular;</span>
 		}
 
 		/**
@@ -455,7 +471,7 @@ public interface IuComponent extends AutoCloseable {
 		 * @return {@code true} if &lt;strong&gt;web component&lt;/strong&gt;; else {@code false}
 		 */
 		public boolean isWeb() {
-<span class="fc" id="L458">			return web;</span>
+<span class="fc" id="L474">			return web;</span>
 		}
 	}
 
@@ -478,7 +494,82 @@ public interface IuComponent extends AutoCloseable {
 	 */
 	static IuComponent of(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
 			throws IOException, IllegalArgumentException {
-<span class="fc" id="L481">		return TypeImplementation.PROVIDER.createComponent(componentArchiveSource, providedDependencyArchiveSources);</span>
+<span class="fc" id="L497">		return TypeImplementation.PROVIDER.createComponent(componentArchiveSource, providedDependencyArchiveSources);</span>
+	}
+
+	/**
+	 * Decorates a path entry in a previously loaded class environment.
+	 * 
+	 * &lt;p&gt;
+	 * The {@link IuComponent} instance returned by this method represents a view of
+	 * a subset of classes visible from an externally managed {@link ClassLoader}.
+	 * The external {@link ClassLoader} is fully responsible for the lifecycle of
+	 * its resources and embedded components, and any related security
+	 * configuration. The {@code iu.util.type.impl} module &lt;em&gt;must&lt;/em&gt; must have
+	 * &lt;a href=
+	 * &quot;https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/invoke/MethodHandles.Lookup.html#privacc&quot;&gt;private
+	 * access&lt;/a&gt; to all packages encapsulated by the path entry in order to perform
+	 * introspection; likewise all packages &lt;em&gt;must&lt;/em&gt; be open to
+	 * {@code iu.util.type.impl}. {@link #close() Closing} the component view has no
+	 * effect on the external-defined system.
+	 * &lt;/p&gt;
+	 * 
+	 * @param classLoader {@link ClassLoader}; &lt;em&gt;must&lt;/em&gt; include
+	 *                    {@code pathEntry} on its class or module path.
+	 * @param pathEntry   Single {@link Path path entry} representing a
+	 *                    {@link JarFile jar file} or folder containing resources
+	 *                    loaded by {@code classLoader}
+	 * @return {@link IuComponent} decorated view of the path entry relative to the
+	 *         class loader.
+	 * @throws IOException            if an I/O error occurs while scanning the path
+	 *                                for resources.
+	 * @throws ClassNotFoundException if any class discovered on the path could not
+	 *                                be loaded using {@code classLoader}
+	 */
+	static IuComponent scan(ClassLoader classLoader, Path pathEntry) throws IOException, ClassNotFoundException {
+<span class="fc" id="L530">		return TypeImplementation.PROVIDER.scanComponentEntry(classLoader, pathEntry);</span>
+	}
+
+	/**
+	 * Decorates a previously loaded component by target class.
+	 * 
+	 * &lt;p&gt;
+	 * The method is a convenient introspection wrapper for
+	 * {@link #scan(ClassLoader, Path)} that discovers arguments based on the actual
+	 * resource a target class was loaded from. This method scans
+	 * {@link Class#getClassLoader() targetClass.getClassLoader()} for classes
+	 * defined by the path entry that defined {@code targetClass}. Since at least
+	 * one valid class must have been loaded by the loader, from the path entry to
+	 * be scanned, as a platform-enforced precondition for passing a non-null value
+	 * to this method, checked exceptions are thrown as the cause of
+	 * {@link IllegalStateException}.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * Assumes {@code targetClass} was loaded from a {@code jar} file or directory
+	 * entry.
+	 * &lt;/p&gt;
+	 * 
+	 * @param targetClass target class
+	 * 
+	 * @return component view of the path entry that defined {@code targetClass} in
+	 *         its {@link Class#getClassLoader() ClassLoader}.
+	 */
+	static IuComponent scan(Class&lt;?&gt; targetClass) {
+<span class="fc" id="L559">		final var classLoader = targetClass.getClassLoader();</span>
+<span class="fc" id="L560">		final var resourceName = targetClass.getName().replace('.', '/') + &quot;.class&quot;;</span>
+<span class="fc" id="L561">		final var resource = classLoader.getResource(resourceName).toExternalForm();</span>
+
+<span class="fc" id="L563">		return IuException.unchecked(() -&gt; {</span>
+			Path pathEntry;
+<span class="fc bfc" id="L565" title="All 2 branches covered.">			if (resource.startsWith(&quot;jar:&quot;))</span>
+<span class="fc" id="L566">				pathEntry = Path.of(URI.create(resource.substring(4, resource.indexOf(&quot;!/&quot;))));</span>
+			else
+<span class="fc" id="L568">				pathEntry = Path.of(URI.create(resource.substring(0, resource.length() - resourceName.length())));</span>
+<span class="fc" id="L569">			pathEntry = pathEntry.toRealPath();</span>
+
+<span class="fc" id="L571">			return scan(classLoader, pathEntry);</span>
+		});
 	}
 
 	/**

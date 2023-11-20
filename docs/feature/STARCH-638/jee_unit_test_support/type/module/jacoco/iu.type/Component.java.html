@@ -31,6 +31,7 @@
  */
 package iu.type;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ModuleLayer.Controller;
@@ -38,6 +39,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Modifier;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -63,8 +65,46 @@ import edu.iu.type.IuType;
  */
 class Component implements IuComponent {
 
-<span class="fc" id="L66">	private static final Logger LOG = Logger.getLogger(Component.class.getName());</span>
-<span class="fc" id="L67">	private static final Module TYPE_MODULE = Component.class.getModule();</span>
+<span class="fc" id="L68">	private static final Logger LOG = Logger.getLogger(Component.class.getName());</span>
+<span class="fc" id="L69">	private static final Module TYPE_MODULE = Component.class.getModule();</span>
+
+	private static void indexClass(String className, ClassLoader classLoader, ComponentVersion version, Kind kind,
+			Properties properties, Set&lt;IuType&lt;?, ?&gt;&gt; interfaces, Map&lt;Class&lt;?&gt;, List&lt;IuType&lt;?, ?&gt;&gt;&gt; annotatedTypes,
+			List&lt;ComponentResource&lt;?&gt;&gt; resources) {
+		Class&lt;?&gt; loadedClass;
+		try {
+<span class="fc" id="L76">			loadedClass = classLoader.loadClass(className);</span>
+<span class="fc" id="L77">		} catch (ClassNotFoundException | Error e) {</span>
+<span class="fc" id="L78">			LOG.log(Level.WARNING, e, () -&gt; &quot;Invalid class &quot; + className + &quot; in component &quot; + version);</span>
+<span class="fc" id="L79">			return;</span>
+<span class="fc" id="L80">		}</span>
+
+<span class="fc" id="L82">		var module = loadedClass.getModule();</span>
+<span class="fc bfc" id="L83" title="All 4 branches covered.">		if ((module.isNamed() &amp;&amp; module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) //</span>
+<span class="fc bfc" id="L84" title="All 6 branches covered.">				|| (!module.isNamed() &amp;&amp; !kind.isModular() &amp;&amp; properties != null)) {</span>
+<span class="fc" id="L85">			var type = IuType.of(loadedClass);</span>
+
+<span class="fc" id="L87">			var mod = loadedClass.getModifiers();</span>
+<span class="fc bfc" id="L88" title="All 6 branches covered.">			if ((mod &amp; Modifier.PUBLIC) != mod &amp;&amp; loadedClass.isInterface() &amp;&amp; !loadedClass.isAnnotation())</span>
+<span class="fc" id="L89">				interfaces.add(IuType.of(loadedClass));</span>
+
+<span class="fc bfc" id="L91" title="All 2 branches covered.">			for (var annotation : AnnotationBridge.getAnnotations(loadedClass)) {</span>
+<span class="fc" id="L92">				var annotationType = annotation.annotationType();</span>
+
+<span class="fc" id="L94">				var annotatedWithType = annotatedTypes.get(annotationType);</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">				if (annotatedWithType == null) {</span>
+<span class="fc" id="L96">					annotatedWithType = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L97">					annotatedTypes.put(annotationType, annotatedWithType);</span>
+				}
+
+<span class="fc" id="L100">				annotatedWithType.add(type);</span>
+<span class="fc" id="L101">			}</span>
+
+<span class="fc bfc" id="L103" title="All 2 branches covered.">			for (var resource : ComponentResource.getResources(loadedClass,</span>
+<span class="fc" id="L104">					() -&gt; loadedClass.cast(type.constructor().exec())))</span>
+<span class="fc" id="L105">				resources.add(resource);</span>
+		}
+<span class="fc" id="L107">	}</span>
 
 	private Component parent;
 
@@ -85,6 +125,53 @@ class Component implements IuComponent {
 	private boolean closed;
 
 	/**
+	 * Single entry constructor.
+	 * 
+	 * @param classLoader class loader
+	 * @param pathEntry   resource root
+	 * @throws IOException if an I/O error occurs scanning the path provided for
+	 *                     resources
+	 */
+<span class="fc" id="L135">	Component(ClassLoader classLoader, Path pathEntry) throws IOException {</span>
+<span class="fc" id="L136">		Set&lt;IuType&lt;?, ?&gt;&gt; interfaces = new LinkedHashSet&lt;&gt;();</span>
+<span class="fc" id="L137">		Map&lt;Class&lt;?&gt;, List&lt;IuType&lt;?, ?&gt;&gt;&gt; annotatedTypes = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L138">		List&lt;ComponentResource&lt;?&gt;&gt; resources = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L140">		this.classLoader = classLoader;</span>
+
+<span class="fc" id="L142">		final var version = ComponentVersion.of(pathEntry);</span>
+<span class="fc" id="L143">		this.versions = Set.of(version);</span>
+
+<span class="fc" id="L145">		Set&lt;String&gt; resourceNames = PathEntryScanner.findResources(pathEntry);</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">		this.kind = resourceNames.contains(&quot;module-info.class&quot;) ? Kind.MODULAR_ENTRY : Kind.LEGACY_ENTRY;</span>
+
+		byte[] propertiesSource;
+<span class="fc bfc" id="L149" title="All 2 branches covered.">		if (resourceNames.contains(&quot;META-INF/iu.properties&quot;))</span>
+<span class="fc" id="L150">			propertiesSource = PathEntryScanner.read(pathEntry, &quot;META-INF/iu.properties&quot;);</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">		else if (resourceNames.contains(&quot;META-INF/iu-type.properties&quot;))</span>
+<span class="fc" id="L152">			propertiesSource = PathEntryScanner.read(pathEntry, &quot;META-INF/iu-type.properties&quot;);</span>
+		else
+<span class="fc" id="L154">			propertiesSource = null;</span>
+
+<span class="fc" id="L156">		this.properties = new Properties();</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">		if (propertiesSource != null)</span>
+<span class="fc" id="L158">			this.properties.load(new ByteArrayInputStream(propertiesSource));</span>
+
+<span class="fc bfc" id="L160" title="All 2 branches covered.">		for (final var resourceName : resourceNames)</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">			if (resourceName.endsWith(&quot;.class&quot;) //</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">					&amp;&amp; !resourceName.endsWith(&quot;-info.class&quot;) //</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">					&amp;&amp; resourceName.indexOf('$') == -1)</span>
+<span class="fc" id="L164">				indexClass(resourceName.substring(0, resourceName.length() - 6).replace('/', '.'), classLoader, version,</span>
+						kind, properties, interfaces, annotatedTypes, resources);
+		
+<span class="fc" id="L167">		this.interfaces = Collections.unmodifiableSet(interfaces);</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">		for (var annotatedTypeEntry : annotatedTypes.entrySet())</span>
+<span class="fc" id="L169">			annotatedTypeEntry.setValue(Collections.unmodifiableList(annotatedTypeEntry.getValue()));</span>
+<span class="fc" id="L170">		this.annotatedTypes = Collections.unmodifiableMap(annotatedTypes);</span>
+<span class="fc" id="L171">		this.resources = Collections.unmodifiableList(resources);</span>
+<span class="fc" id="L172">	}</span>
+
+	/**
 	 * Constructor for use from {@link ComponentFactory}.
 	 * 
 	 * @param parent       parent component, see
@@ -98,95 +185,62 @@ class Component implements IuComponent {
 	 *                     when the component is closed
 	 */
 	Component(Component parent, Controller controller, ClassLoader classLoader, ComponentModuleFinder moduleFinder,
-<span class="fc" id="L101">			Queue&lt;ComponentArchive&gt; archives) {</span>
-<span class="fc" id="L102">		Set&lt;IuType&lt;?, ?&gt;&gt; interfaces = new LinkedHashSet&lt;&gt;();</span>
-<span class="fc" id="L103">		Map&lt;Class&lt;?&gt;, List&lt;IuType&lt;?, ?&gt;&gt;&gt; annotatedTypes = new LinkedHashMap&lt;&gt;();</span>
-<span class="fc" id="L104">		List&lt;ComponentResource&lt;?&gt;&gt; resources = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L105" title="All 2 branches covered.">		if (parent != null) {</span>
-<span class="fc bfc" id="L106" title="All 2 branches covered.">			if (parent.kind.isWeb())</span>
-<span class="fc" id="L107">				throw new IllegalArgumentException(&quot;Component must not extend a web component&quot;);</span>
+<span class="fc" id="L188">			Queue&lt;ComponentArchive&gt; archives) {</span>
+<span class="fc" id="L189">		Set&lt;IuType&lt;?, ?&gt;&gt; interfaces = new LinkedHashSet&lt;&gt;();</span>
+<span class="fc" id="L190">		Map&lt;Class&lt;?&gt;, List&lt;IuType&lt;?, ?&gt;&gt;&gt; annotatedTypes = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L191">		List&lt;ComponentResource&lt;?&gt;&gt; resources = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">		if (parent != null) {</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">			if (parent.kind.isWeb())</span>
+<span class="fc" id="L194">				throw new IllegalArgumentException(&quot;Component must not extend a web component&quot;);</span>
 
-<span class="fc" id="L109">			interfaces.addAll(parent.interfaces);</span>
-<span class="fc bfc" id="L110" title="All 2 branches covered.">			for (var annotatedTypeEntry : parent.annotatedTypes.entrySet())</span>
-<span class="fc" id="L111">				annotatedTypes.put(annotatedTypeEntry.getKey(), new ArrayList&lt;&gt;(annotatedTypeEntry.getValue()));</span>
-<span class="fc" id="L112">			resources.addAll(parent.resources);</span>
+<span class="fc" id="L196">			interfaces.addAll(parent.interfaces);</span>
+<span class="fc bfc" id="L197" title="All 2 branches covered.">			for (var annotatedTypeEntry : parent.annotatedTypes.entrySet())</span>
+<span class="fc" id="L198">				annotatedTypes.put(annotatedTypeEntry.getKey(), new ArrayList&lt;&gt;(annotatedTypeEntry.getValue()));</span>
+<span class="fc" id="L199">			resources.addAll(parent.resources);</span>
 		}
 
-<span class="fc" id="L115">		this.parent = parent;</span>
+<span class="fc" id="L202">		this.parent = parent;</span>
 
-<span class="fc" id="L117">		this.controller = controller;</span>
-<span class="fc" id="L118">		this.classLoader = Objects.requireNonNull(classLoader, &quot;classLoader&quot;);</span>
+<span class="fc" id="L204">		this.controller = controller;</span>
+<span class="fc" id="L205">		this.classLoader = Objects.requireNonNull(classLoader, &quot;classLoader&quot;);</span>
 
-<span class="fc" id="L120">		this.moduleFinder = moduleFinder;</span>
-<span class="fc" id="L121">		this.archives = Objects.requireNonNull(archives, &quot;archives&quot;);</span>
+<span class="fc" id="L207">		this.moduleFinder = moduleFinder;</span>
+<span class="fc" id="L208">		this.archives = Objects.requireNonNull(archives, &quot;archives&quot;);</span>
 
-<span class="fc" id="L123">		var firstArchive = archives.iterator().next();</span>
-<span class="fc" id="L124">		kind = firstArchive.kind();</span>
-<span class="fc" id="L125">		properties = firstArchive.properties();</span>
+<span class="fc" id="L210">		var firstArchive = archives.iterator().next();</span>
+<span class="fc" id="L211">		kind = firstArchive.kind();</span>
+<span class="fc" id="L212">		properties = firstArchive.properties();</span>
 
-<span class="fc" id="L127">		versions = new LinkedHashSet&lt;&gt;();</span>
-<span class="fc bfc" id="L128" title="All 2 branches covered.">		for (var archive : archives) {</span>
-<span class="fc" id="L129">			versions.add(archive.version());</span>
-<span class="fc bfc" id="L130" title="All 2 branches covered.">			if (archive.kind().isWeb())</span>
-<span class="fc bfc" id="L131" title="All 2 branches covered.">				if (archive == firstArchive)</span>
-<span class="fc bfc" id="L132" title="All 2 branches covered.">					for (var webResource : archive.webResources().entrySet())</span>
-<span class="fc" id="L133">						resources</span>
-<span class="fc" id="L134">								.add(ComponentResource.createWebResource(webResource.getKey(), webResource.getValue()));</span>
+<span class="fc" id="L214">		versions = new LinkedHashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L215" title="All 2 branches covered.">		for (var archive : archives) {</span>
+<span class="fc" id="L216">			versions.add(archive.version());</span>
+<span class="fc bfc" id="L217" title="All 2 branches covered.">			if (archive.kind().isWeb())</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">				if (archive == firstArchive)</span>
+<span class="fc bfc" id="L219" title="All 2 branches covered.">					for (var webResource : archive.webResources().entrySet())</span>
+<span class="fc" id="L220">						resources</span>
+<span class="fc" id="L221">								.add(ComponentResource.createWebResource(webResource.getKey(), webResource.getValue()));</span>
 				else
-<span class="fc" id="L136">					throw new IllegalArgumentException(&quot;Component must not include a web component as a dependency&quot;);</span>
+<span class="fc" id="L223">					throw new IllegalArgumentException(&quot;Component must not include a web component as a dependency&quot;);</span>
 
-<span class="fc bfc" id="L138" title="All 2 branches covered.">			for (var className : archive.nonEnclosedTypeNames()) {</span>
-				Class&lt;?&gt; loadedClass;
-				try {
-<span class="fc" id="L141">					loadedClass = classLoader.loadClass(className);</span>
-<span class="fc" id="L142">				} catch (ClassNotFoundException | Error e) {</span>
-<span class="fc" id="L143">					LOG.log(Level.WARNING, e,</span>
-<span class="fc" id="L144">							() -&gt; &quot;Invalid class &quot; + className + &quot; in component &quot; + archive.version());</span>
-<span class="fc" id="L145">					continue;</span>
-<span class="fc" id="L146">				}</span>
+<span class="fc bfc" id="L225" title="All 2 branches covered.">			for (var className : archive.nonEnclosedTypeNames())</span>
+<span class="fc" id="L226">				indexClass(className, classLoader, archive.version(), archive.kind(), archive.properties(), interfaces,</span>
+						annotatedTypes, resources);
+<span class="fc" id="L228">		}</span>
 
-<span class="fc" id="L148">				var module = loadedClass.getModule();</span>
-<span class="fc bfc" id="L149" title="All 4 branches covered.">				if ((module.isNamed() &amp;&amp; module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) //</span>
-<span class="fc bfc" id="L150" title="All 6 branches covered.">						|| (!module.isNamed() &amp;&amp; !archive.kind().isModular() &amp;&amp; archive.properties() != null)) {</span>
-<span class="fc" id="L151">					var type = IuType.of(loadedClass);</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">		if (parent != null)</span>
+<span class="fc" id="L231">			versions.addAll(parent.versions);</span>
 
-<span class="fc" id="L153">					var mod = loadedClass.getModifiers();</span>
-<span class="fc bfc" id="L154" title="All 6 branches covered.">					if ((mod &amp; Modifier.PUBLIC) != mod &amp;&amp; loadedClass.isInterface() &amp;&amp; !loadedClass.isAnnotation())</span>
-<span class="fc" id="L155">						interfaces.add(IuType.of(loadedClass));</span>
-
-<span class="fc bfc" id="L157" title="All 2 branches covered.">					for (var annotation : AnnotationBridge.getAnnotations(loadedClass)) {</span>
-<span class="fc" id="L158">						var annotationType = annotation.annotationType();</span>
-
-<span class="fc" id="L160">						var annotatedWithType = annotatedTypes.get(annotationType);</span>
-<span class="fc bfc" id="L161" title="All 2 branches covered.">						if (annotatedWithType == null) {</span>
-<span class="fc" id="L162">							annotatedWithType = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L163">							annotatedTypes.put(annotationType, annotatedWithType);</span>
-						}
-
-<span class="fc" id="L166">						annotatedWithType.add(type);</span>
-<span class="fc" id="L167">					}</span>
-
-<span class="fc bfc" id="L169" title="All 2 branches covered.">					for (var resource : ComponentResource.getResources(loadedClass,</span>
-<span class="fc" id="L170">							() -&gt; loadedClass.cast(type.constructor().exec())))</span>
-<span class="fc" id="L171">						resources.add(resource);</span>
-				}
-<span class="fc" id="L173">			}</span>
-<span class="fc" id="L174">		}</span>
-
-<span class="fc bfc" id="L176" title="All 2 branches covered.">		if (parent != null)</span>
-<span class="fc" id="L177">			versions.addAll(parent.versions);</span>
-
-<span class="fc" id="L179">		this.interfaces = Collections.unmodifiableSet(interfaces);</span>
-<span class="fc bfc" id="L180" title="All 2 branches covered.">		for (var annotatedTypeEntry : annotatedTypes.entrySet())</span>
-<span class="fc" id="L181">			annotatedTypeEntry.setValue(Collections.unmodifiableList(annotatedTypeEntry.getValue()));</span>
-<span class="fc" id="L182">		this.annotatedTypes = Collections.unmodifiableMap(annotatedTypes);</span>
-<span class="fc" id="L183">		this.resources = Collections.unmodifiableList(resources);</span>
-<span class="fc" id="L184">	}</span>
+<span class="fc" id="L233">		this.interfaces = Collections.unmodifiableSet(interfaces);</span>
+<span class="fc bfc" id="L234" title="All 2 branches covered.">		for (var annotatedTypeEntry : annotatedTypes.entrySet())</span>
+<span class="fc" id="L235">			annotatedTypeEntry.setValue(Collections.unmodifiableList(annotatedTypeEntry.getValue()));</span>
+<span class="fc" id="L236">		this.annotatedTypes = Collections.unmodifiableMap(annotatedTypes);</span>
+<span class="fc" id="L237">		this.resources = Collections.unmodifiableList(resources);</span>
+<span class="fc" id="L238">	}</span>
 
 	private void checkClosed() {
-<span class="fc bfc" id="L187" title="All 2 branches covered.">		if (closed)</span>
-<span class="fc" id="L188">			throw new IllegalStateException(&quot;closed&quot;);</span>
-<span class="fc" id="L189">	}</span>
+<span class="fc bfc" id="L241" title="All 2 branches covered.">		if (closed)</span>
+<span class="fc" id="L242">			throw new IllegalStateException(&quot;closed&quot;);</span>
+<span class="fc" id="L243">	}</span>
 
 	/**
 	 * Gets the parent component.
@@ -194,8 +248,8 @@ class Component implements IuComponent {
 	 * @return parent component
 	 */
 	Component parent() {
-<span class="fc" id="L197">		checkClosed();</span>
-<span class="fc" id="L198">		return parent;</span>
+<span class="fc" id="L251">		checkClosed();</span>
+<span class="fc" id="L252">		return parent;</span>
 	}
 
 	/**
@@ -204,8 +258,8 @@ class Component implements IuComponent {
 	 * @return {@link Controller}
 	 */
 	Controller controller() {
-<span class="fc" id="L207">		checkClosed();</span>
-<span class="fc" id="L208">		return controller;</span>
+<span class="fc" id="L261">		checkClosed();</span>
+<span class="fc" id="L262">		return controller;</span>
 	}
 
 	/**
@@ -216,8 +270,8 @@ class Component implements IuComponent {
 	 * @return parsed properties
 	 */
 	Properties properties() {
-<span class="fc" id="L219">		checkClosed();</span>
-<span class="fc" id="L220">		return properties;</span>
+<span class="fc" id="L273">		checkClosed();</span>
+<span class="fc" id="L274">		return properties;</span>
 	}
 
 	/**
@@ -232,92 +286,93 @@ class Component implements IuComponent {
 	 * @return version information
 	 */
 	Set&lt;ComponentVersion&gt; versions() {
-<span class="fc" id="L235">		checkClosed();</span>
-<span class="fc" id="L236">		return versions;</span>
+<span class="fc" id="L289">		checkClosed();</span>
+<span class="fc" id="L290">		return versions;</span>
 	}
 
 	@Override
 	public Component extend(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
 			throws IOException, IllegalArgumentException {
-<span class="fc" id="L242">		checkClosed();</span>
-<span class="fc" id="L243">		return ComponentFactory.createComponent(this, componentArchiveSource, providedDependencyArchiveSources);</span>
+<span class="fc" id="L296">		checkClosed();</span>
+<span class="fc" id="L297">		return ComponentFactory.createComponent(this, componentArchiveSource, providedDependencyArchiveSources);</span>
 	}
 
 	@Override
 	public Kind kind() {
-<span class="fc" id="L248">		checkClosed();</span>
-<span class="fc" id="L249">		return kind;</span>
+<span class="fc" id="L302">		checkClosed();</span>
+<span class="fc" id="L303">		return kind;</span>
 	}
 
 	@Override
 	public IuComponentVersion version() {
-<span class="fc" id="L254">		checkClosed();</span>
-<span class="fc" id="L255">		return versions.iterator().next();</span>
+<span class="fc" id="L308">		checkClosed();</span>
+<span class="fc" id="L309">		return versions.iterator().next();</span>
 	}
 
 	@Override
 	public ClassLoader classLoader() {
-<span class="fc" id="L260">		checkClosed();</span>
-<span class="fc" id="L261">		return classLoader;</span>
+<span class="fc" id="L314">		checkClosed();</span>
+<span class="fc" id="L315">		return classLoader;</span>
 	}
 
 	@Override
 	public Set&lt;? extends IuType&lt;?, ?&gt;&gt; interfaces() {
-<span class="fc" id="L266">		checkClosed();</span>
-<span class="fc" id="L267">		return interfaces;</span>
+<span class="fc" id="L320">		checkClosed();</span>
+<span class="fc" id="L321">		return interfaces;</span>
 	}
 
 	@Override
 	public Iterable&lt;? extends IuType&lt;?, ?&gt;&gt; annotatedTypes(Class&lt;? extends Annotation&gt; annotationType) {
-<span class="fc" id="L272">		checkClosed();</span>
-<span class="fc" id="L273">		var annotatedTypes = this.annotatedTypes.get(annotationType);</span>
-<span class="fc bfc" id="L274" title="All 2 branches covered.">		if (annotatedTypes == null)</span>
-<span class="fc" id="L275">			return Collections.emptySet();</span>
+<span class="fc" id="L326">		checkClosed();</span>
+<span class="fc" id="L327">		var annotatedTypes = this.annotatedTypes.get(annotationType);</span>
+<span class="fc bfc" id="L328" title="All 2 branches covered.">		if (annotatedTypes == null)</span>
+<span class="fc" id="L329">			return Collections.emptySet();</span>
 		else
-<span class="fc" id="L277">			return annotatedTypes;</span>
+<span class="fc" id="L331">			return annotatedTypes;</span>
 	}
 
 	@Override
 	public Iterable&lt;? extends IuResource&lt;?&gt;&gt; resources() {
-<span class="fc" id="L282">		checkClosed();</span>
-<span class="fc" id="L283">		return resources;</span>
+<span class="fc" id="L336">		checkClosed();</span>
+<span class="fc" id="L337">		return resources;</span>
 	}
 
 	@Override
 	public void close() {
-<span class="fc bfc" id="L288" title="All 2 branches covered.">		if (moduleFinder != null)</span>
+<span class="fc bfc" id="L342" title="All 2 branches covered.">		if (moduleFinder != null)</span>
 			try {
-<span class="fc" id="L290">				moduleFinder.close();</span>
-<span class="fc" id="L291">			} catch (Throwable e) {</span>
-<span class="fc" id="L292">				LOG.log(Level.WARNING, e, () -&gt; &quot;Failed to close module finder&quot;);</span>
-<span class="fc" id="L293">			}</span>
+<span class="fc" id="L344">				moduleFinder.close();</span>
+<span class="fc" id="L345">			} catch (Throwable e) {</span>
+<span class="fc" id="L346">				LOG.log(Level.WARNING, e, () -&gt; &quot;Failed to close module finder&quot;);</span>
+<span class="fc" id="L347">			}</span>
 
-<span class="fc bfc" id="L295" title="All 2 branches covered.">		if (classLoader instanceof URLClassLoader)</span>
+<span class="fc bfc" id="L349" title="All 2 branches covered.">		if (classLoader instanceof URLClassLoader)</span>
 			try {
-<span class="fc" id="L297">				((URLClassLoader) classLoader).close();</span>
-<span class="fc" id="L298">			} catch (Throwable e) {</span>
-<span class="fc" id="L299">				LOG.log(Level.WARNING, e, () -&gt; &quot;Failed to close class loader&quot;);</span>
-<span class="fc" id="L300">			}</span>
+<span class="fc" id="L351">				((URLClassLoader) classLoader).close();</span>
+<span class="fc" id="L352">			} catch (Throwable e) {</span>
+<span class="fc" id="L353">				LOG.log(Level.WARNING, e, () -&gt; &quot;Failed to close class loader&quot;);</span>
+<span class="fc" id="L354">			}</span>
 
-<span class="fc bfc" id="L302" title="All 2 branches covered.">		while (!archives.isEmpty()) {</span>
-<span class="fc" id="L303">			var archive = archives.poll();</span>
-			try {
-<span class="fc" id="L305">				Files.delete(archive.path());</span>
-<span class="fc" id="L306">			} catch (Throwable e) {</span>
-<span class="fc" id="L307">				LOG.log(Level.WARNING, e, () -&gt; &quot;Failed to clean up archive &quot; + archive.path());</span>
-<span class="fc" id="L308">			}</span>
-<span class="fc" id="L309">		}</span>
+<span class="pc bpc" id="L356" title="1 of 2 branches missed.">		if (archives != null)</span>
+<span class="fc bfc" id="L357" title="All 2 branches covered.">			while (!archives.isEmpty()) {</span>
+<span class="fc" id="L358">				var archive = archives.poll();</span>
+				try {
+<span class="fc" id="L360">					Files.delete(archive.path());</span>
+<span class="fc" id="L361">				} catch (Throwable e) {</span>
+<span class="fc" id="L362">					LOG.log(Level.WARNING, e, () -&gt; &quot;Failed to clean up archive &quot; + archive.path());</span>
+<span class="fc" id="L363">				}</span>
+<span class="fc" id="L364">			}</span>
 
-<span class="fc" id="L311">		parent = null;</span>
-<span class="fc" id="L312">		moduleFinder = null;</span>
-<span class="fc" id="L313">		controller = null;</span>
-<span class="fc" id="L314">		kind = null;</span>
-<span class="fc" id="L315">		versions = null;</span>
-<span class="fc" id="L316">		properties = null;</span>
-<span class="fc" id="L317">		classLoader = null;</span>
-<span class="fc" id="L318">		interfaces = null;</span>
-<span class="fc" id="L319">		closed = true;</span>
-<span class="fc" id="L320">	}</span>
+<span class="fc" id="L366">		parent = null;</span>
+<span class="fc" id="L367">		moduleFinder = null;</span>
+<span class="fc" id="L368">		controller = null;</span>
+<span class="fc" id="L369">		kind = null;</span>
+<span class="fc" id="L370">		versions = null;</span>
+<span class="fc" id="L371">		properties = null;</span>
+<span class="fc" id="L372">		classLoader = null;</span>
+<span class="fc" id="L373">		interfaces = null;</span>
+<span class="fc" id="L374">		closed = true;</span>
+<span class="fc" id="L375">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

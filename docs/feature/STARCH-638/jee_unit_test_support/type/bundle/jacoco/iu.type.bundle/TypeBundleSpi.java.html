@@ -202,13 +202,21 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 	}
 
 	@Override
+	public IuComponent scanComponentEntry(ClassLoader classLoader, Path pathEntry)
+			throws IOException, ClassNotFoundException {
+<span class="fc bfc" id="L207" title="All 2 branches covered.">		if (delegate == null)</span>
+<span class="fc" id="L208">			throw new IllegalStateException(&quot;closed&quot;);</span>
+<span class="fc" id="L209">		return delegate.spi.scanComponentEntry(classLoader, pathEntry);</span>
+	}
+
+	@Override
 	public synchronized void close() {
-<span class="fc" id="L206">		final var delegate = this.delegate;</span>
-<span class="fc bfc" id="L207" title="All 2 branches covered.">		if (delegate != null) {</span>
-<span class="fc" id="L208">			this.delegate = null;</span>
-<span class="fc" id="L209">			delegate.close.run();</span>
+<span class="fc" id="L214">		final var delegate = this.delegate;</span>
+<span class="fc bfc" id="L215" title="All 2 branches covered.">		if (delegate != null) {</span>
+<span class="fc" id="L216">			this.delegate = null;</span>
+<span class="fc" id="L217">			delegate.close.run();</span>
 		}
-<span class="fc" id="L211">	}</span>
+<span class="fc" id="L219">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
