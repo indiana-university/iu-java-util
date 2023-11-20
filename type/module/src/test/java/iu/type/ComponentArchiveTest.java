@@ -343,7 +343,7 @@ public class ComponentArchiveTest extends IuTypeTestCase {
 			assertNull(archive.properties());
 		}, Map.of( //
 				"META-INF/MANIFEST.MF", -1, //
-				"META-INF/maven/edu.iu.util/iu-java-type-testruntime/pom.properties", 80, //
+				"META-INF/maven/edu.iu.util/iu-java-type-testruntime/pom.properties", 50, //
 				"META-INF/lib/", -1, //
 				"module-info.class", 300, //
 				"edu/iu/type/testruntime/package-info.class", 100, //
@@ -511,7 +511,7 @@ public class ComponentArchiveTest extends IuTypeTestCase {
 
 		}, Map.of( //
 				"META-INF/MANIFEST.MF", -1, //
-				"META-INF/maven/edu.iu.util/iu-java-type-testlegacy/pom.properties", 80, //
+				"META-INF/maven/edu.iu.util/iu-java-type-testlegacy/pom.properties", 50, //
 				"META-INF/lib/", -1, //
 				"META-INF/lib/javax.json-api-1.1.4.jar", -1, //
 				"html/index.html", 75, //
