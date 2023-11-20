@@ -191,7 +191,7 @@ final class ComponentFactory {
 						System.out.print(archive.version() + " => " + unmetDependency + "? ");
 						if (archive.version().meets(unmetDependency)) {
 							System.out.println("met");
-							unmetDependencies.remove();
+							unmetDependencyIterator.remove();
 						} else
 							System.out.println("unmet");
 					}
