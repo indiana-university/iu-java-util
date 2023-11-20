@@ -209,7 +209,6 @@ public class IuComponentTest extends IuTypeTestCase {
 
 	@Test
 	public void testLoadsTestWar() throws Exception {
-		System.out.println("Before testLoadsTestWar");
 		try (var parent = IuComponent.of(TestArchives.getComponentArchive("testruntime"),
 				TestArchives.getProvidedDependencyArchives("testruntime"));
 				var component = parent.extend(TestArchives.getComponentArchive("testweb"),
@@ -303,13 +302,13 @@ public class IuComponentTest extends IuTypeTestCase {
 						""");
 			}
 
-			final var scannedView = IuComponent.scan(ClassLoader.getSystemClassLoader(), root);
-			
+			IuComponent.scan(ClassLoader.getSystemClassLoader(), root);
+
 		} finally {
 			while (!toDelete.isEmpty())
 				Files.deleteIfExists(toDelete.pop());
 		}
-		
+
 	}
 
 	@Test
@@ -347,13 +346,13 @@ public class IuComponentTest extends IuTypeTestCase {
 						""");
 			}
 
-			final var scannedView = IuComponent.scan(ClassLoader.getSystemClassLoader(), root);
-			
+			IuComponent.scan(ClassLoader.getSystemClassLoader(), root);
+
 		} finally {
 			while (!toDelete.isEmpty())
 				Files.deleteIfExists(toDelete.pop());
 		}
-		
+
 	}
 
 	@Test
@@ -366,18 +365,18 @@ public class IuComponentTest extends IuTypeTestCase {
 			final var root = Files.createTempDirectory("iu-java-type-testJunkFolder");
 			toDelete.push(root);
 			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
-			
+
 			final var maven = root.resolve("maven");
 			toDelete.push(maven);
 			Files.createDirectory(maven);
 			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
-			
+
 			final var groupId = maven.resolve("fake.group.id");
 			toDelete.push(groupId);
 			Files.createFile(groupId);
 			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
 			Files.delete(groupId);
-			
+
 			Files.createDirectory(groupId);
 			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
 
@@ -386,16 +385,16 @@ public class IuComponentTest extends IuTypeTestCase {
 			Files.createDirectory(badGroup);
 			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
 			Files.delete(badGroup);
-			
+
 			final var artifactId = groupId.resolve("iu-fake-artifact");
 			toDelete.push(artifactId);
 			Files.createFile(artifactId);
 			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
 			Files.delete(artifactId);
-			
+
 			Files.createDirectory(artifactId);
 			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
-			
+
 			final var badArtifact = groupId.resolve("iu-bad-artifact");
 			toDelete.push(badArtifact);
 			Files.createDirectory(badArtifact);
@@ -410,9 +409,9 @@ public class IuComponentTest extends IuTypeTestCase {
 						version=1.2.3-SNAPSHOT
 						""");
 			}
-			
+
 			final var scannedView = IuComponent.scan(ClassLoader.getSystemClassLoader(), root);
-			
+
 		} finally {
 			while (!toDelete.isEmpty())
 				Files.deleteIfExists(toDelete.pop());

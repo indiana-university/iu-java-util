@@ -177,7 +177,6 @@ final class ComponentFactory {
 						for (var archive : archives)
 							if (archive.version().meets(sourceDependency))
 								continue dep;
-						System.out.println(" !=> " + sourceDependency.toString());
 						unmetDependencies.add(sourceDependency);
 					}
 
@@ -188,12 +187,8 @@ final class ComponentFactory {
 					var unmetDependencyIterator = unmetDependencies.iterator();
 					while (unmetDependencyIterator.hasNext()) {
 						final var unmetDependency = unmetDependencyIterator.next();
-						System.out.print(archive.version() + " => " + unmetDependency + "? ");
-						if (archive.version().meets(unmetDependency)) {
-							System.out.println("met");
+						if (archive.version().meets(unmetDependency))
 							unmetDependencyIterator.remove();
-						} else
-							System.out.println("unmet");
 					}
 					archives.offer(archive);
 
@@ -201,10 +196,8 @@ final class ComponentFactory {
 						sources.offer(bundledDependency);
 				}
 
-			if (!unmetDependencies.isEmpty()) {
-				System.out.println(" ERROR ");
+			if (!unmetDependencies.isEmpty())
 				throw new IllegalArgumentException("Not all depdendencies were met, missing " + unmetDependencies);
-			}
 
 			var kind = archives.iterator().next().kind();
 			if (kind.isModular())
