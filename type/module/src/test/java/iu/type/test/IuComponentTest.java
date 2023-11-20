@@ -33,20 +33,29 @@ package iu.type.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 
+import edu.iu.IuIterable;
 import edu.iu.legacy.Incompatible;
+import edu.iu.legacy.Repurposed;
 import edu.iu.test.IuTest;
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuComponent;
@@ -249,6 +258,178 @@ public class IuComponentTest extends IuTypeTestCase {
 			for (final var r : component.resources())
 				assertTrue(expectedResources.remove(r.name()));
 			assertTrue(expectedResources.isEmpty(), expectedResources::toString);
+		}
+	}
+
+	@Test
+	public void testScanFolder() throws Exception {
+		var scannedView = IuComponent.scan(getClass());
+		assertSame(Repurposed.class, scannedView.interfaces().iterator().next().erasedClass());
+	}
+
+	@Test
+	public void testFolderWithIuProps() throws Exception {
+		final Deque<Path> toDelete = new ArrayDeque<>();
+		try {
+			final var root = Files.createTempDirectory("iu-java-type-testIuProps");
+			toDelete.push(root);
+			final var maven = root.resolve("maven");
+			toDelete.push(maven);
+			Files.createDirectory(maven);
+			final var groupId = maven.resolve("fake.group.id");
+			toDelete.push(groupId);
+			Files.createDirectory(groupId);
+			final var artifactId = groupId.resolve("iu-fake-artifact");
+			toDelete.push(artifactId);
+			Files.createDirectory(artifactId);
+			final var pomProperties = artifactId.resolve("pom.properties");
+			toDelete.push(pomProperties);
+			try (final var out = Files.newBufferedWriter(pomProperties)) {
+				out.write("""
+						artifactId=iu-fake-artifact
+						version=1.2.3-SNAPSHOT
+						""");
+			}
+
+			final var metaInf = root.resolve("META-INF");
+			toDelete.push(metaInf);
+			Files.createDirectory(metaInf);
+			final var iuProperties = metaInf.resolve("iu.properties");
+			toDelete.push(iuProperties);
+			try (final var out = Files.newBufferedWriter(iuProperties)) {
+				out.write("""
+						foo=bar
+						""");
+			}
+
+			final var scannedView = IuComponent.scan(ClassLoader.getSystemClassLoader(), root);
+			
+		} finally {
+			while (!toDelete.isEmpty())
+				Files.deleteIfExists(toDelete.pop());
+		}
+		
+	}
+
+	@Test
+	public void testFolderWithIuTypeProps() throws Exception {
+		final Deque<Path> toDelete = new ArrayDeque<>();
+		try {
+			final var root = Files.createTempDirectory("iu-java-type-testIuTypeProps");
+			toDelete.push(root);
+			final var maven = root.resolve("maven");
+			toDelete.push(maven);
+			Files.createDirectory(maven);
+			final var groupId = maven.resolve("fake.group.id");
+			toDelete.push(groupId);
+			Files.createDirectory(groupId);
+			final var artifactId = groupId.resolve("iu-fake-artifact");
+			toDelete.push(artifactId);
+			Files.createDirectory(artifactId);
+			final var pomProperties = artifactId.resolve("pom.properties");
+			toDelete.push(pomProperties);
+			try (final var out = Files.newBufferedWriter(pomProperties)) {
+				out.write("""
+						artifactId=iu-fake-artifact
+						version=1.2.3-SNAPSHOT
+						""");
+			}
+
+			final var metaInf = root.resolve("META-INF");
+			toDelete.push(metaInf);
+			Files.createDirectory(metaInf);
+			final var iuTypeProperties = metaInf.resolve("iu-type.properties");
+			toDelete.push(iuTypeProperties);
+			try (final var out = Files.newBufferedWriter(iuTypeProperties)) {
+				out.write("""
+						foo=bar
+						""");
+			}
+
+			final var scannedView = IuComponent.scan(ClassLoader.getSystemClassLoader(), root);
+			
+		} finally {
+			while (!toDelete.isEmpty())
+				Files.deleteIfExists(toDelete.pop());
+		}
+		
+	}
+
+	@Test
+	public void testJunkFolder() throws Exception {
+		final Consumer<Executable> assertMissing = exec -> assertEquals(
+				"Missing ../maven-archiver/pom.properties or META-INF/maven/{groupId}/{artifactId}/pom.properties",
+				assertThrows(IllegalArgumentException.class, exec).getMessage());
+		final Deque<Path> toDelete = new ArrayDeque<>();
+		try {
+			final var root = Files.createTempDirectory("iu-java-type-testJunkFolder");
+			toDelete.push(root);
+			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
+			
+			final var maven = root.resolve("maven");
+			toDelete.push(maven);
+			Files.createDirectory(maven);
+			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
+			
+			final var groupId = maven.resolve("fake.group.id");
+			toDelete.push(groupId);
+			Files.createFile(groupId);
+			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
+			Files.delete(groupId);
+			
+			Files.createDirectory(groupId);
+			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
+
+			final var badGroup = maven.resolve("bad.group.id");
+			toDelete.push(badGroup);
+			Files.createDirectory(badGroup);
+			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
+			Files.delete(badGroup);
+			
+			final var artifactId = groupId.resolve("iu-fake-artifact");
+			toDelete.push(artifactId);
+			Files.createFile(artifactId);
+			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
+			Files.delete(artifactId);
+			
+			Files.createDirectory(artifactId);
+			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
+			
+			final var badArtifact = groupId.resolve("iu-bad-artifact");
+			toDelete.push(badArtifact);
+			Files.createDirectory(badArtifact);
+			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
+			Files.delete(badArtifact);
+
+			final var pomProperties = artifactId.resolve("pom.properties");
+			toDelete.push(pomProperties);
+			try (final var out = Files.newBufferedWriter(pomProperties)) {
+				out.write("""
+						artifactId=iu-fake-artifact
+						version=1.2.3-SNAPSHOT
+						""");
+			}
+			
+			final var scannedView = IuComponent.scan(ClassLoader.getSystemClassLoader(), root);
+			
+		} finally {
+			while (!toDelete.isEmpty())
+				Files.deleteIfExists(toDelete.pop());
+		}
+	}
+
+	@Test
+	public void testScanJar() throws Exception {
+		try (var controlComponent = IuComponent.of(TestArchives.getComponentArchive("testruntime"),
+				TestArchives.getProvidedDependencyArchives("testruntime"))) {
+			final var interfaces = controlComponent.interfaces();
+			final var i = interfaces.iterator();
+			final var targetInterface = i.next().erasedClass();
+
+			var scannedView = IuComponent.scan(targetInterface);
+			final var scannedInterfacesIterator = scannedView.interfaces().iterator();
+			assertSame(targetInterface, scannedInterfacesIterator.next().erasedClass());
+			assertTrue(IuIterable.remaindersAreEqual(i, scannedInterfacesIterator));
 		}
 	}
 

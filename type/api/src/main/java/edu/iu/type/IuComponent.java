@@ -39,8 +39,12 @@ import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
+import java.net.URI;
+import java.nio.file.Path;
+import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
+import edu.iu.IuException;
 import edu.iu.type.spi.TypeImplementation;
 
 /**
@@ -408,6 +412,18 @@ public interface IuComponent extends AutoCloseable {
 	 */
 	enum Kind {
 		/**
+		 * Designates <strong>single entry</strong> component defined by a single
+		 * resource path in an externally managed {@link ClassLoader}.
+		 */
+		MODULAR_ENTRY(true, false),
+
+		/**
+		 * Designates <strong>single entry</strong> component defined by a single
+		 * resource path in an externally managed {@link ClassLoader}.
+		 */
+		LEGACY_ENTRY(false, false),
+
+		/**
 		 * Designates <strong>modular</strong> component defined by one or more Java
 		 * Archive (jar) files.
 		 */
@@ -479,6 +495,81 @@ public interface IuComponent extends AutoCloseable {
 	static IuComponent of(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
 			throws IOException, IllegalArgumentException {
 		return TypeImplementation.PROVIDER.createComponent(componentArchiveSource, providedDependencyArchiveSources);
+	}
+
+	/**
+	 * Decorates a path entry in a previously loaded class environment.
+	 * 
+	 * <p>
+	 * The {@link IuComponent} instance returned by this method represents a view of
+	 * a subset of classes visible from an externally managed {@link ClassLoader}.
+	 * The external {@link ClassLoader} is fully responsible for the lifecycle of
+	 * its resources and embedded components, and any related security
+	 * configuration. The {@code iu.util.type.impl} module <em>must</em> must have
+	 * <a href=
+	 * "https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/invoke/MethodHandles.Lookup.html#privacc">private
+	 * access</a> to all packages encapsulated by the path entry in order to perform
+	 * introspection; likewise all packages <em>must</em> be open to
+	 * {@code iu.util.type.impl}. {@link #close() Closing} the component view has no
+	 * effect on the external-defined system.
+	 * </p>
+	 * 
+	 * @param classLoader {@link ClassLoader}; <em>must</em> include
+	 *                    {@code pathEntry} on its class or module path.
+	 * @param pathEntry   Single {@link Path path entry} representing a
+	 *                    {@link JarFile jar file} or folder containing resources
+	 *                    loaded by {@code classLoader}
+	 * @return {@link IuComponent} decorated view of the path entry relative to the
+	 *         class loader.
+	 * @throws IOException            if an I/O error occurs while scanning the path
+	 *                                for resources.
+	 * @throws ClassNotFoundException if any class discovered on the path could not
+	 *                                be loaded using {@code classLoader}
+	 */
+	static IuComponent scan(ClassLoader classLoader, Path pathEntry) throws IOException, ClassNotFoundException {
+		return TypeImplementation.PROVIDER.scanComponentEntry(classLoader, pathEntry);
+	}
+
+	/**
+	 * Decorates a previously loaded component by target class.
+	 * 
+	 * <p>
+	 * The method is a convenient introspection wrapper for
+	 * {@link #scan(ClassLoader, Path)} that discovers arguments based on the actual
+	 * resource a target class was loaded from. This method scans
+	 * {@link Class#getClassLoader() targetClass.getClassLoader()} for classes
+	 * defined by the path entry that defined {@code targetClass}. Since at least
+	 * one valid class must have been loaded by the loader, from the path entry to
+	 * be scanned, as a platform-enforced precondition for passing a non-null value
+	 * to this method, checked exceptions are thrown as the cause of
+	 * {@link IllegalStateException}.
+	 * </p>
+	 * 
+	 * <p>
+	 * Assumes {@code targetClass} was loaded from a {@code jar} file or directory
+	 * entry.
+	 * </p>
+	 * 
+	 * @param targetClass target class
+	 * 
+	 * @return component view of the path entry that defined {@code targetClass} in
+	 *         its {@link Class#getClassLoader() ClassLoader}.
+	 */
+	static IuComponent scan(Class<?> targetClass) {
+		final var classLoader = targetClass.getClassLoader();
+		final var resourceName = targetClass.getName().replace('.', '/') + ".class";
+		final var resource = classLoader.getResource(resourceName).toExternalForm();
+
+		return IuException.unchecked(() -> {
+			Path pathEntry;
+			if (resource.startsWith("jar:"))
+				pathEntry = Path.of(URI.create(resource.substring(4, resource.indexOf("!/"))));
+			else
+				pathEntry = Path.of(URI.create(resource.substring(0, resource.length() - resourceName.length())));
+			pathEntry = pathEntry.toRealPath();
+
+			return scan(classLoader, pathEntry);
+		});
 	}
 
 	/**

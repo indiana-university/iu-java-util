@@ -34,6 +34,7 @@ package iu.type;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Type;
+import java.nio.file.Path;
 
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuType;
@@ -64,4 +65,11 @@ public class TypeSpi implements IuTypeSpi {
 		return ComponentFactory.createComponent(null, componentArchiveSource, providedDependencyArchiveSources);
 	}
 
+	@SuppressWarnings("exports")
+	@Override
+	public IuComponent scanComponentEntry(ClassLoader classLoader, Path pathEntry)
+			throws IOException, ClassNotFoundException {
+		return new Component(classLoader, pathEntry);
+	}
+	
 }

@@ -50,6 +50,7 @@ public class TypeBundleSpiIT {
 		spi.close();
 		assertThrows(IllegalStateException.class, () -> spi.resolveType(null));
 		assertThrows(IllegalStateException.class, () -> spi.createComponent(null));
+		assertThrows(IllegalStateException.class, () -> spi.scanComponentEntry(null, null));
 		spi.close(); // second call is no-op
 	}
 

@@ -202,6 +202,14 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 	}
 
 	@Override
+	public IuComponent scanComponentEntry(ClassLoader classLoader, Path pathEntry)
+			throws IOException, ClassNotFoundException {
+		if (delegate == null)
+			throw new IllegalStateException("closed");
+		return delegate.spi.scanComponentEntry(classLoader, pathEntry);
+	}
+
+	@Override
 	public synchronized void close() {
 		final var delegate = this.delegate;
 		if (delegate != null) {

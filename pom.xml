@@ -143,15 +143,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			</plugin>
 			<plugin>
 				<artifactId>maven-source-plugin</artifactId>
-				<executions>
-					<execution>
-						<id>bundle-sources</id>
-						<phase>process-classes</phase>
-						<goals>
-							<goal>jar-no-fork</goal>
-						</goals>
-					</execution>
-				</executions>
 			</plugin>
 			<plugin>
 				<artifactId>maven-javadoc-plugin</artifactId>
@@ -201,8 +192,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 					<configuration>
 						<archive>
 							<manifest>
-								<classpathPrefix>META-INF/lib</classpathPrefix>
 								<addExtensions>true</addExtensions>
+								<classpathPrefix>META-INF/lib</classpathPrefix>
 							</manifest>
 							<manifestEntries>
 								<Sealed>true</Sealed>
@@ -231,9 +222,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 					<executions>
 						<execution>
 							<id>default-source-jar</id>
-							<phase>package</phase>
+							<phase>process-classes</phase>
 							<goals>
-								<goal>jar</goal>
+								<goal>jar-no-fork</goal>
 							</goals>
 						</execution>
 					</executions>

@@ -40,6 +40,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuComponent;
+import edu.iu.type.IuComponent.Kind;
 
 @SuppressWarnings("javadoc")
 public class IuComponentIT {
@@ -51,6 +52,12 @@ public class IuComponentIT {
 				TestBundleArchives.getProvidedDependencyArchives("testruntime"))) {
 			assertEquals("edu.iu.type.testruntime.TestRuntime", runtime.interfaces().iterator().next().name());
 		}
+	}
+	
+	@Test
+	public void testScan() {
+		IuComponent component = IuComponent.scan(getClass());
+		assertEquals(Kind.LEGACY_ENTRY, component.kind());
 	}
 
 }

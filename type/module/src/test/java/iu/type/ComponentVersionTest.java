@@ -39,8 +39,12 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.HashSet;
 import java.util.jar.Attributes.Name;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 
 import org.junit.jupiter.api.Test;
@@ -288,6 +292,45 @@ public class ComponentVersionTest extends IuTypeTestCase {
 	@Test
 	public void testImplToString() {
 		assertEquals("a-1.0.2", new ComponentVersion("a", "1.0.2").toString());
+	}
+
+	@Test
+	public void testEmptyJar() throws IOException {
+		final var p = Files.createTempFile("iu-type-ComponentVersionTest", ".jar");
+		try {
+			try (final var out = Files.newOutputStream(p)) {
+				out.write(TestArchives.EMPTY_JAR);
+			}
+			assertEquals("Missing META-INF/maven/{groupId}/{artifactId}/pom.properties",
+					assertThrows(IllegalArgumentException.class, () -> ComponentVersion.of(p)).getMessage());
+		} finally {
+			Files.deleteIfExists(p);
+		}
+	}
+
+	@Test
+	public void testMalformedJar() throws IOException {
+		final var p = Files.createTempFile("iu-type-ComponentVersionTest", ".jar");
+		try {
+			try (final var out = Files.newOutputStream(p); JarOutputStream jar = new JarOutputStream(out)) {
+				jar.putNextEntry(new JarEntry("META-INF/"));
+				jar.closeEntry();
+
+				jar.putNextEntry(new JarEntry("META-INF/MANIFEST.MF"));
+				var manifest = new Manifest();
+				var mainAttributes = manifest.getMainAttributes();
+				mainAttributes.put(Name.MANIFEST_VERSION, "1.0");
+				manifest.write(jar);
+				jar.closeEntry();
+
+				jar.putNextEntry(new JarEntry("META-INF/maven/"));
+				jar.closeEntry();
+			}
+			assertEquals("Missing META-INF/maven/{groupId}/{artifactId}/pom.properties",
+					assertThrows(IllegalArgumentException.class, () -> ComponentVersion.of(p)).getMessage());
+		} finally {
+			Files.deleteIfExists(p);
+		}
 	}
 
 }

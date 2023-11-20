@@ -31,6 +31,11 @@
  */
 package edu.iu.type;
 
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
@@ -39,6 +44,8 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.ServiceLoader;
 
@@ -70,12 +77,46 @@ public class IuTypeSpiTest {
 		IuType.of(Object.class);
 		verify(iuTypeSpi, times(1)).resolveType(Object.class);
 	}
-	
+
 	@Test
 	public void testNewComponent() throws IOException {
 		var in = mock(InputStream.class);
 		IuComponent.of(in);
-		verify(iuTypeSpi, times(1)).createComponent(in);
+		verify(iuTypeSpi).createComponent(in);
+	}
+
+	@Test
+	public void testScanComponent() throws IOException, ClassNotFoundException {
+		var path = mock(Path.class);
+		IuComponent.scan(ClassLoader.getSystemClassLoader(), path);
+		verify(iuTypeSpi).scanComponentEntry(ClassLoader.getSystemClassLoader(), path);
+	}
+
+	@Test
+	public void testScanClassFolder() throws IOException, ClassNotFoundException {
+		final var target = getClass();
+		final var loader = target.getClassLoader();
+		final var resourceName = target.getName().replace('.', '/') + ".class";
+		final var resource = loader.getResource(resourceName).toExternalForm();
+		assertTrue(resource.startsWith("file:"), () -> resource);
+		assertTrue(resource.endsWith(resourceName), () -> resource + " " + resourceName);
+		final var pathEntry = Path.of(URI.create(resource.substring(0, resource.length() - resourceName.length())))
+				.toRealPath();
+
+		IuComponent.scan(getClass());
+
+		verify(iuTypeSpi, atLeastOnce()).scanComponentEntry(loader, pathEntry);
+	}
+
+	@Test
+	public void testScanClassJar() throws IOException, ClassNotFoundException {
+		final var target = Test.class;
+		final var loader = target.getClassLoader();
+		final var resource = loader.getResource(target.getName().replace('.', '/') + ".class").toExternalForm();
+		assertTrue(resource.startsWith("jar:"), () -> resource);
+		final var pathEntry = Path.of(URI.create(resource.substring(4, resource.indexOf("!/")))).toRealPath();
+		IuComponent.scan(Test.class);
+		verify(iuTypeSpi).scanComponentEntry(loader, pathEntry);
 	}
 
 }

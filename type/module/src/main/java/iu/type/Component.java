@@ -31,6 +31,7 @@
  */
 package iu.type;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ModuleLayer.Controller;
@@ -38,6 +39,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Modifier;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -66,6 +68,44 @@ class Component implements IuComponent {
 	private static final Logger LOG = Logger.getLogger(Component.class.getName());
 	private static final Module TYPE_MODULE = Component.class.getModule();
 
+	private static void indexClass(String className, ClassLoader classLoader, ComponentVersion version, Kind kind,
+			Properties properties, Set<IuType<?, ?>> interfaces, Map<Class<?>, List<IuType<?, ?>>> annotatedTypes,
+			List<ComponentResource<?>> resources) {
+		Class<?> loadedClass;
+		try {
+			loadedClass = classLoader.loadClass(className);
+		} catch (ClassNotFoundException | Error e) {
+			LOG.log(Level.WARNING, e, () -> "Invalid class " + className + " in component " + version);
+			return;
+		}
+
+		var module = loadedClass.getModule();
+		if ((module.isNamed() && module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) //
+				|| (!module.isNamed() && !kind.isModular() && properties != null)) {
+			var type = IuType.of(loadedClass);
+
+			var mod = loadedClass.getModifiers();
+			if ((mod & Modifier.PUBLIC) != mod && loadedClass.isInterface() && !loadedClass.isAnnotation())
+				interfaces.add(IuType.of(loadedClass));
+
+			for (var annotation : AnnotationBridge.getAnnotations(loadedClass)) {
+				var annotationType = annotation.annotationType();
+
+				var annotatedWithType = annotatedTypes.get(annotationType);
+				if (annotatedWithType == null) {
+					annotatedWithType = new ArrayList<>();
+					annotatedTypes.put(annotationType, annotatedWithType);
+				}
+
+				annotatedWithType.add(type);
+			}
+
+			for (var resource : ComponentResource.getResources(loadedClass,
+					() -> loadedClass.cast(type.constructor().exec())))
+				resources.add(resource);
+		}
+	}
+
 	private Component parent;
 
 	private Controller controller;
@@ -83,6 +123,53 @@ class Component implements IuComponent {
 	private ComponentModuleFinder moduleFinder;
 	private Queue<ComponentArchive> archives;
 	private boolean closed;
+
+	/**
+	 * Single entry constructor.
+	 * 
+	 * @param classLoader class loader
+	 * @param pathEntry   resource root
+	 * @throws IOException if an I/O error occurs scanning the path provided for
+	 *                     resources
+	 */
+	Component(ClassLoader classLoader, Path pathEntry) throws IOException {
+		Set<IuType<?, ?>> interfaces = new LinkedHashSet<>();
+		Map<Class<?>, List<IuType<?, ?>>> annotatedTypes = new LinkedHashMap<>();
+		List<ComponentResource<?>> resources = new ArrayList<>();
+
+		this.classLoader = classLoader;
+
+		final var version = ComponentVersion.of(pathEntry);
+		this.versions = Set.of(version);
+
+		Set<String> resourceNames = PathEntryScanner.findResources(pathEntry);
+		this.kind = resourceNames.contains("module-info.class") ? Kind.MODULAR_ENTRY : Kind.LEGACY_ENTRY;
+
+		byte[] propertiesSource;
+		if (resourceNames.contains("META-INF/iu.properties"))
+			propertiesSource = PathEntryScanner.read(pathEntry, "META-INF/iu.properties");
+		else if (resourceNames.contains("META-INF/iu-type.properties"))
+			propertiesSource = PathEntryScanner.read(pathEntry, "META-INF/iu-type.properties");
+		else
+			propertiesSource = null;
+
+		this.properties = new Properties();
+		if (propertiesSource != null)
+			this.properties.load(new ByteArrayInputStream(propertiesSource));
+
+		for (final var resourceName : resourceNames)
+			if (resourceName.endsWith(".class") //
+					&& !resourceName.endsWith("-info.class") //
+					&& resourceName.indexOf('$') == -1)
+				indexClass(resourceName.substring(0, resourceName.length() - 6).replace('/', '.'), classLoader, version,
+						kind, properties, interfaces, annotatedTypes, resources);
+		
+		this.interfaces = Collections.unmodifiableSet(interfaces);
+		for (var annotatedTypeEntry : annotatedTypes.entrySet())
+			annotatedTypeEntry.setValue(Collections.unmodifiableList(annotatedTypeEntry.getValue()));
+		this.annotatedTypes = Collections.unmodifiableMap(annotatedTypes);
+		this.resources = Collections.unmodifiableList(resources);
+	}
 
 	/**
 	 * Constructor for use from {@link ComponentFactory}.
@@ -135,42 +222,9 @@ class Component implements IuComponent {
 				else
 					throw new IllegalArgumentException("Component must not include a web component as a dependency");
 
-			for (var className : archive.nonEnclosedTypeNames()) {
-				Class<?> loadedClass;
-				try {
-					loadedClass = classLoader.loadClass(className);
-				} catch (ClassNotFoundException | Error e) {
-					LOG.log(Level.WARNING, e,
-							() -> "Invalid class " + className + " in component " + archive.version());
-					continue;
-				}
-
-				var module = loadedClass.getModule();
-				if ((module.isNamed() && module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) //
-						|| (!module.isNamed() && !archive.kind().isModular() && archive.properties() != null)) {
-					var type = IuType.of(loadedClass);
-
-					var mod = loadedClass.getModifiers();
-					if ((mod & Modifier.PUBLIC) != mod && loadedClass.isInterface() && !loadedClass.isAnnotation())
-						interfaces.add(IuType.of(loadedClass));
-
-					for (var annotation : AnnotationBridge.getAnnotations(loadedClass)) {
-						var annotationType = annotation.annotationType();
-
-						var annotatedWithType = annotatedTypes.get(annotationType);
-						if (annotatedWithType == null) {
-							annotatedWithType = new ArrayList<>();
-							annotatedTypes.put(annotationType, annotatedWithType);
-						}
-
-						annotatedWithType.add(type);
-					}
-
-					for (var resource : ComponentResource.getResources(loadedClass,
-							() -> loadedClass.cast(type.constructor().exec())))
-						resources.add(resource);
-				}
-			}
+			for (var className : archive.nonEnclosedTypeNames())
+				indexClass(className, classLoader, archive.version(), archive.kind(), archive.properties(), interfaces,
+						annotatedTypes, resources);
 		}
 
 		if (parent != null)
@@ -299,14 +353,15 @@ class Component implements IuComponent {
 				LOG.log(Level.WARNING, e, () -> "Failed to close class loader");
 			}
 
-		while (!archives.isEmpty()) {
-			var archive = archives.poll();
-			try {
-				Files.delete(archive.path());
-			} catch (Throwable e) {
-				LOG.log(Level.WARNING, e, () -> "Failed to clean up archive " + archive.path());
+		if (archives != null)
+			while (!archives.isEmpty()) {
+				var archive = archives.poll();
+				try {
+					Files.delete(archive.path());
+				} catch (Throwable e) {
+					LOG.log(Level.WARNING, e, () -> "Failed to clean up archive " + archive.path());
+				}
 			}
-		}
 
 		parent = null;
 		moduleFinder = null;
