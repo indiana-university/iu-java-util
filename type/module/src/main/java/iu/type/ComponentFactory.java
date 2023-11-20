@@ -170,7 +170,6 @@ final class ComponentFactory {
 			while (!sources.isEmpty())
 				try (var source = sources.poll()) {
 					dep: for (var sourceDependency : source.dependencies()) {
-						System.out.println(sourceDependency.toString());
 						if (parent != null)
 							for (var version : parent.versions())
 								if (version.meets(sourceDependency))
@@ -178,6 +177,7 @@ final class ComponentFactory {
 						for (var archive : archives)
 							if (archive.version().meets(sourceDependency))
 								continue dep;
+						System.out.println(" !=> " + sourceDependency.toString());
 						unmetDependencies.add(sourceDependency);
 					}
 
@@ -201,8 +201,10 @@ final class ComponentFactory {
 						sources.offer(bundledDependency);
 				}
 
-			if (!unmetDependencies.isEmpty())
+			if (!unmetDependencies.isEmpty()) {
+				System.out.println(" ERROR ");
 				throw new IllegalArgumentException("Not all depdendencies were met, missing " + unmetDependencies);
+			}
 
 			var kind = archives.iterator().next().kind();
 			if (kind.isModular())
