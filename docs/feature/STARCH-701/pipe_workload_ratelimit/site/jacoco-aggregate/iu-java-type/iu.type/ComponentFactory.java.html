@@ -187,7 +187,7 @@ final class ComponentFactory {
 <span class="fc" id="L187">					var unmetDependencyIterator = unmetDependencies.iterator();</span>
 <span class="fc bfc" id="L188" title="All 2 branches covered.">					while (unmetDependencyIterator.hasNext())</span>
 <span class="fc bfc" id="L189" title="All 2 branches covered.">						if (archive.version().meets(unmetDependencyIterator.next()))</span>
-<span class="fc" id="L190">							unmetDependencies.remove();</span>
+<span class="fc" id="L190">							unmetDependencyIterator.remove();</span>
 <span class="fc" id="L191">					archives.offer(archive);</span>
 
 <span class="fc bfc" id="L193" title="All 2 branches covered.">					for (var bundledDependency : archive.bundledDependencies())</span>
