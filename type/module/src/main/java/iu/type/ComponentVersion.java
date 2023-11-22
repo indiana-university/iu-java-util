@@ -44,6 +44,7 @@ import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import edu.iu.IuException;
@@ -168,8 +169,9 @@ class ComponentVersion implements IuComponentVersion {
 		if (version == null)
 			throw new IllegalArgumentException("Missing version for " + name + ", must be a valid semantic version");
 
-		var semverMatcher = SEMANTIC_VERSION_PATTERN.matcher(version);
-		if (!semverMatcher.matches())
+		Matcher semverMatcher;
+		if (!(semverMatcher = SEMANTIC_VERSION_PATTERN.matcher(version)).matches()
+				&& !(semverMatcher = SPEC_VERSION_PATTERN.matcher(version)).matches())
 			throw new IllegalArgumentException("Invalid version for " + name + ", must be a valid semantic version");
 
 		this.name = name;
@@ -195,8 +197,9 @@ class ComponentVersion implements IuComponentVersion {
 		var implementationVersionAttribute = extensionAttributePrefix + '-' + Name.IMPLEMENTATION_VERSION;
 		version = mainAttributes.getValue(implementationVersionAttribute);
 		if (version != null) {
-			var semverMatcher = SEMANTIC_VERSION_PATTERN.matcher(version);
-			if (!semverMatcher.matches())
+			Matcher semverMatcher;
+			if (!(semverMatcher = SEMANTIC_VERSION_PATTERN.matcher(version)).matches()
+					&& !(semverMatcher = SPEC_VERSION_PATTERN.matcher(version)).matches())
 				throw new IllegalArgumentException("Invalid version for " + implementationVersionAttribute
 						+ " in META-INF/MANIFEST.MF main attributes, must be a valid semantic version");
 			major = Integer.parseInt(semverMatcher.group(1));

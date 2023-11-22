@@ -87,16 +87,18 @@ final class ComponentFactory {
 	 * @param parent   parent component
 	 * @param archives component path
 	 * @return module component
+	 * @throws IOException If an I/O error occurs reading from an archive
 	 */
-	static Component createModular(Component parent, Queue<ComponentArchive> archives) {
-		var path = new Path[archives.size()];
-		{
-			var i = 0;
-			for (var archive : archives)
-				path[i++] = archive.path();
-		}
+	static Component createModular(Component parent, Queue<ComponentArchive> archives) throws IOException {
+		final Queue<ComponentArchive> classpath = new ArrayDeque<>(archives.size());
+		final Queue<Path> modulepath = new ArrayDeque<>(archives.size());
+		for (var archive : archives)
+			if (archive.kind().isModular())
+				modulepath.offer(archive.path());
+			else
+				classpath.offer(archive);
 
-		var moduleFinder = new ComponentModuleFinder(path);
+		var moduleFinder = new ComponentModuleFinder(modulepath.toArray(new Path[modulepath.size()]));
 		try {
 			var moduleNames = moduleFinder.findAll().stream().map(ref -> ref.descriptor().name())
 					.collect(Collectors.toList());
@@ -111,16 +113,18 @@ final class ComponentFactory {
 				parentModuleLayer = parent.controller().layer();
 			}
 
+			var loader = new ModularClassLoader(archives.iterator().next().kind().isWeb(), moduleFinder, classpath,
+					parentClassLoader);
+
 			var configuration = Configuration.resolveAndBind( //
 					moduleFinder, List.of(parentModuleLayer.configuration()), ModuleFinder.of(), moduleNames);
 
-			var controller = ModuleLayer.defineModulesWithOneLoader(configuration, List.of(parentModuleLayer),
-					parentClassLoader);
+			var controller = ModuleLayer.defineModules(configuration, List.of(parentModuleLayer), a -> loader);
 
 			return new Component(parent, controller, controller.layer().findLoader(moduleNames.iterator().next()),
 					moduleFinder, archives);
 
-		} catch (RuntimeException | Error e) {
+		} catch (IOException | RuntimeException | Error e) {
 			try {
 				moduleFinder.close();
 			} catch (Throwable e2) {

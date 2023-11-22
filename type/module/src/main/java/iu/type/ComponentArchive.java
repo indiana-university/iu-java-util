@@ -282,7 +282,7 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 				kind = Kind.LEGACY_WAR;
 				properties = iuProperties;
 			}
-		} else if (iuProperties == null) {
+		} else if (hasModuleDescriptor) {
 			kind = Kind.MODULAR_JAR;
 			properties = typeProperties;
 		} else {

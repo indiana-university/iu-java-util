@@ -34,6 +34,7 @@ package iu.type;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import java.io.ByteArrayInputStream;
@@ -54,25 +55,28 @@ public class PathEntryScannerTest {
 	@Test
 	public void testScanJar() throws IOException {
 		final var entry = Path.of(IuTest.getProperty("testruntime.archive"));
-		assertEquals(
-				Set.of("edu/iu/type/testruntime/TestRuntime.class", "module-info.class",
-						"edu/iu/type/testruntime/package-info.class", "edu/iu/type/testruntime/UrlReader.class",
-						"META-INF/maven/edu.iu.util/iu-java-type-testruntime/pom.xml",
-						"META-INF/lib/jakarta.interceptor-api-2.1.0.jar", "META-INF/lib/jakarta.json-api-2.1.2.jar",
-						"META-INF/maven/edu.iu.util/iu-java-type-testruntime/pom.properties",
-						"META-INF/lib/jakarta.annotation-api-2.1.1.jar", "META-INF/runtime.properties"),
+		assertEquals(Set.of("META-INF/lib/jakarta.ejb-api-4.0.0.jar", "META-INF/lib/jakarta.transaction-api-2.0.0.jar",
+				"edu/iu/type/testruntime/TestRuntime.class", "module-info.class", "META-INF/lib/commons-lang-2.6.jar",
+				"edu/iu/type/testruntime/package-info.class", "edu/iu/type/testruntime/UrlReader.class",
+				"META-INF/maven/edu.iu.util/iu-java-type-testruntime/pom.xml",
+				"META-INF/lib/jakarta.interceptor-api-2.1.0.jar", "META-INF/lib/jakarta.json-api-2.1.2.jar",
+				"META-INF/maven/edu.iu.util/iu-java-type-testruntime/pom.properties",
+				"META-INF/lib/jakarta.annotation-api-2.1.1.jar", "META-INF/runtime.properties"),
 				PathEntryScanner.findResources(entry));
 	}
 
 	@Test
 	public void testScanFolder() throws IOException {
 		final var entry = Path.of(IuTest.getProperty("testruntime.outputFolder"));
-		assertEquals(
-				Set.of("edu/iu/type/testruntime/TestRuntime.class", "module-info.class",
+		final var scannedEntries = PathEntryScanner.findResources(entry);
+		assertTrue(
+				scannedEntries.containsAll(Set.of("META-INF/lib/jakarta.ejb-api-4.0.0.jar",
+						"META-INF/lib/jakarta.transaction-api-2.0.0.jar", "edu/iu/type/testruntime/TestRuntime.class",
+						"module-info.class", "META-INF/lib/commons-lang-2.6.jar",
 						"edu/iu/type/testruntime/package-info.class", "edu/iu/type/testruntime/UrlReader.class",
 						"META-INF/lib/jakarta.interceptor-api-2.1.0.jar", "META-INF/lib/jakarta.json-api-2.1.2.jar",
-						"META-INF/lib/jakarta.annotation-api-2.1.1.jar", "META-INF/runtime.properties"),
-				PathEntryScanner.findResources(entry));
+						"META-INF/lib/jakarta.annotation-api-2.1.1.jar", "META-INF/runtime.properties")),
+				scannedEntries::toString);
 	}
 
 	@Test

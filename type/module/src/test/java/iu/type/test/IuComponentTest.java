@@ -128,6 +128,9 @@ public class IuComponentTest extends IuTypeTestCase {
 			try {
 				Thread.currentThread().setContextClassLoader(loader);
 				var urlReader = loader.loadClass("edu.iu.type.testruntime.UrlReader");
+				assertSame(urlReader, loader.loadClass("edu.iu.type.testruntime.UrlReader"));
+				var ejb = loader.loadClass("jakarta.ejb.EJB");
+				assertSame(ejb, loader.loadClass("jakarta.ejb.EJB"));
 				var urlReader$ = urlReader.getConstructor().newInstance();
 				assertEquals(urlReader.getMethod("parseJson", String.class).invoke(urlReader$, expected),
 						urlReader.getMethod("get", String.class).invoke(urlReader$, publicUrlThatWorksAndReturnsJson));
@@ -183,8 +186,7 @@ public class IuComponentTest extends IuTypeTestCase {
 				"Resource initialization failure; .* edu.iu.type.testcomponent.TestResource",
 				UnsupportedOperationException.class,
 				t -> "@AroundConstruct not supported in this version".equals(t.getMessage()));
-		IuTestLogger.expect("iu.type.Component", Level.WARNING, "Invalid class invalid.*",
-				ClassNotFoundException.class);
+		IuTestLogger.expect("iu.type.Component", Level.WARNING, "Invalid class invalid.*", ClassFormatError.class);
 		try (var parent = IuComponent.of(TestArchives.getComponentArchive("testruntime"),
 				TestArchives.getProvidedDependencyArchives("testruntime"));
 				var component = parent.extend(TestArchives.getComponentArchive("testcomponent"))) {
@@ -218,9 +220,13 @@ public class IuComponentTest extends IuTypeTestCase {
 			assertEquals("iu-java-type-testweb", component.version().name());
 			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
 
+			final var loader = component.classLoader();
+			final var testRuntime = loader.loadClass("edu.iu.type.testruntime.TestRuntime");
+			assertSame(testRuntime, loader.loadClass("edu.iu.type.testruntime.TestRuntime"));
+
 			var interfaces = component.interfaces().iterator();
 			assertTrue(interfaces.hasNext());
-			assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
+			assertSame(testRuntime, interfaces.next().erasedClass());
 			assertFalse(interfaces.hasNext());
 
 			var expectedResources = new HashSet<>(Set.of("index.html", "WEB-INF/web.xml"));
@@ -410,7 +416,7 @@ public class IuComponentTest extends IuTypeTestCase {
 						""");
 			}
 
-			final var scannedView = IuComponent.scan(ClassLoader.getSystemClassLoader(), root);
+			IuComponent.scan(ClassLoader.getSystemClassLoader(), root);
 
 		} finally {
 			while (!toDelete.isEmpty())

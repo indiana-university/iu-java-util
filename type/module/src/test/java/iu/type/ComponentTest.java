@@ -144,21 +144,26 @@ public class ComponentTest extends IuTypeTestCase {
 			for (var bundledDependency : runtimeArchive.bundledDependencies())
 				archives.offer(ComponentArchive.from(bundledDependency));
 
-			var path = new Path[archives.size()];
-			{
-				var i = 0;
-				for (var archive : archives)
-					path[i++] = archive.path();
-			}
+			final Queue<ComponentArchive> classpath = new ArrayDeque<>(archives.size());
+			final Queue<Path> modulepath = new ArrayDeque<>(archives.size());
+			for (var archive : archives)
+				if (archive.kind().isModular())
+					modulepath.offer(archive.path());
+				else
+					classpath.offer(archive);
 
-			var moduleFinder = new ComponentModuleFinder(path);
+			var moduleFinder = new ComponentModuleFinder(modulepath.toArray(new Path[modulepath.size()]));
+
 			var moduleNames = moduleFinder.findAll().stream().map(ref -> ref.descriptor().name())
 					.collect(Collectors.toList());
 
+			var loader = new ModularClassLoader(archives.iterator().next().kind().isWeb(), moduleFinder, classpath,
+					null);
+			
 			var configuration = Configuration.resolveAndBind( //
 					moduleFinder, List.of(ModuleLayer.boot().configuration()), ModuleFinder.of(), moduleNames);
 
-			var controller = ModuleLayer.defineModulesWithOneLoader(configuration, List.of(ModuleLayer.boot()), null);
+			var controller = ModuleLayer.defineModules(configuration, List.of(ModuleLayer.boot()), a -> loader);
 			controller.addOpens(controller.layer().findModule("jakarta.json").get(), "jakarta.json",
 					getClass().getModule());
 

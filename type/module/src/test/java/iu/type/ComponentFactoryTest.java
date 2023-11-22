@@ -193,6 +193,7 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 	public void testClosesModuleFinderIfCreateFails() throws IOException {
 		var path = mock(Path.class);
 		var archive = mock(ComponentArchive.class);
+		when(archive.kind()).thenReturn(Kind.MODULAR_JAR);
 		when(archive.path()).thenReturn(path);
 
 		var error = new Error();
@@ -209,6 +210,7 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 	public void testSuppressesModuleFinderCloseErrorIfCreateFails() throws IOException {
 		var path = mock(Path.class);
 		var archive = mock(ComponentArchive.class);
+		when(archive.kind()).thenReturn(Kind.MODULAR_JAR);
 		when(archive.path()).thenReturn(path);
 
 		var error = new Error();

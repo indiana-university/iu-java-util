@@ -329,7 +329,7 @@ public class ComponentArchiveTest extends IuTypeTestCase {
 			assertTrue(expectedDependencies.contains(new ComponentVersion("parsson", 1, 1)));
 
 			var bundledDependencies = archive.bundledDependencies();
-			assertEquals(3, bundledDependencies.size());
+			assertEquals(6, bundledDependencies.size());
 			for (var bundledDependency : bundledDependencies)
 				try {
 					var bundledArchive = ComponentArchive.from(bundledDependency);

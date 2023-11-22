@@ -43,6 +43,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +62,13 @@ public class ArchiveSourceTest extends IuTypeTestCase {
 
 	private ArchiveSource read(ComponentEntry componentEntry) throws IOException {
 		return new ArchiveSource(new ByteArrayInputStream(componentEntry.data()));
+	}
+
+	private void assertManifest(ComponentEntry componentEntry) throws IOException {
+		assertEquals("META-INF/MANIFEST.MF", componentEntry.name());
+		final var manifest = new Manifest();
+		componentEntry.read(manifest::read);
+		assertEquals("1.0", manifest.getMainAttributes().getValue(Name.MANIFEST_VERSION));
 	}
 
 	private ComponentEntry createJar(Map<String, byte[]> source) throws IOException {
@@ -111,6 +119,7 @@ public class ArchiveSourceTest extends IuTypeTestCase {
 	public void testReturnsData() throws IOException {
 		byte[] data = new byte[] { -1 };
 		try (var source = read(createJar(Map.of("", data)))) {
+			assertManifest(source.next());
 			var next = source.next();
 			var nextData = next.data();
 			assertArrayEquals(data, nextData);
@@ -123,6 +132,7 @@ public class ArchiveSourceTest extends IuTypeTestCase {
 		byte[] data = new byte[] { -1 };
 		try (var source = read(createJar(Map.of("", data)))) {
 			assertTrue(source.hasNext());
+			assertManifest(source.next());
 			assertArrayEquals(data, source.next().data());
 			assertFalse(source.hasNext());
 			assertThrows(NoSuchElementException.class, source::next);
@@ -136,6 +146,7 @@ public class ArchiveSourceTest extends IuTypeTestCase {
 		map.put("anEntry", data);
 		map.put("anotherEntry", data);
 		var source = read(createJar(map));
+		assertManifest(source.next());
 		assertTrue(source.hasNext());
 		assertEquals("anEntry", source.next().name());
 		assertTrue(source.hasNext());
@@ -155,8 +166,9 @@ public class ArchiveSourceTest extends IuTypeTestCase {
 				"META-INF/lib/jakarta.interceptor-api-" + IuTest.getProperty("jakarta.interceptor-api.version")
 						+ ".jar",
 				"META-INF/lib/jakarta.annotation-api-" + IuTest.getProperty("jakarta.annotation-api.version") + ".jar",
-				"META-INF/lib/jakarta.json-api-" + IuTest.getProperty("jakarta.json-api.version") + ".jar"),
-				source.classPath());
+				"META-INF/lib/jakarta.json-api-" + IuTest.getProperty("jakarta.json-api.version") + ".jar",
+				"META-INF/lib/commons-lang-2.6.jar", "META-INF/lib/jakarta.ejb-api-4.0.0.jar",
+				"META-INF/lib/jakarta.transaction-api-2.0.0.jar"), source.classPath());
 	}
 
 	@Test
@@ -170,14 +182,15 @@ public class ArchiveSourceTest extends IuTypeTestCase {
 		var testcomponent = TestArchives.getComponentArchive("testcomponent");
 		try (var source = new ArchiveSource(testcomponent)) {
 			assertEquals(List.of(), source.classPath());
-			assertEquals(
-					List.of(new ComponentVersion("iu-java-type-testruntime", IuTest.getProperty("project.version")),
-							new ComponentVersion("jakarta.interceptor-api",
-									IuTest.getProperty("jakarta.interceptor-api.version")),
-							new ComponentVersion("jakarta.annotation-api",
-									IuTest.getProperty("jakarta.annotation-api.version")),
-							new ComponentVersion("jakarta.json-api", IuTest.getProperty("jakarta.json-api.version"))),
-					source.dependencies());
+			assertEquals(List.of(
+					new ComponentVersion("iu-java-type-testruntime", IuTest.getProperty("project.version")),
+					new ComponentVersion("jakarta.interceptor-api",
+							IuTest.getProperty("jakarta.interceptor-api.version")),
+					new ComponentVersion("jakarta.annotation-api",
+							IuTest.getProperty("jakarta.annotation-api.version")),
+					new ComponentVersion("jakarta.json-api", IuTest.getProperty("jakarta.json-api.version")),
+					new ComponentVersion("commons-lang", "2.6"), new ComponentVersion("jakarta.ejb-api", "4.0.0"),
+					new ComponentVersion("jakarta.transaction-api", "2.0.0")), source.dependencies());
 			assertTrue(source.sealed());
 		}
 	}
@@ -186,13 +199,14 @@ public class ArchiveSourceTest extends IuTypeTestCase {
 	public void testReadsTestRuntime() throws IOException {
 		var testcomponent = TestArchives.getComponentArchive("testruntime");
 		try (var source = new ArchiveSource(testcomponent)) {
-			assertEquals(
-					List.of("META-INF/lib/jakarta.interceptor-api-"
-							+ IuTest.getProperty("jakarta.interceptor-api.version") + ".jar",
-							"META-INF/lib/jakarta.annotation-api-"
-									+ IuTest.getProperty("jakarta.annotation-api.version") + ".jar",
-							"META-INF/lib/jakarta.json-api-" + IuTest.getProperty("jakarta.json-api.version") + ".jar"),
-					source.classPath());
+			assertEquals(List.of(
+					"META-INF/lib/jakarta.interceptor-api-" + IuTest.getProperty("jakarta.interceptor-api.version")
+							+ ".jar",
+					"META-INF/lib/jakarta.annotation-api-" + IuTest.getProperty("jakarta.annotation-api.version")
+							+ ".jar",
+					"META-INF/lib/jakarta.json-api-" + IuTest.getProperty("jakarta.json-api.version") + ".jar",
+					"META-INF/lib/commons-lang-2.6.jar", "META-INF/lib/jakarta.ejb-api-4.0.0.jar",
+					"META-INF/lib/jakarta.transaction-api-2.0.0.jar"), source.classPath());
 			assertEquals(List.of(new ComponentVersion("parsson", 1, 1)), source.dependencies());
 			assertTrue(source.sealed());
 		}
@@ -203,15 +217,15 @@ public class ArchiveSourceTest extends IuTypeTestCase {
 		var testcomponent = TestArchives.getComponentArchive("testruntime");
 		try (var source = new ArchiveSource(testcomponent)) {
 			assertEquals(
-					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.1.0.jar, META-INF/lib/jakarta.annotation-api-2.1.1.jar, META-INF/lib/jakarta.json-api-2.1.2.jar], dependencies=[parsson-1.1+], closed=false]",
+					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.1.0.jar, META-INF/lib/jakarta.annotation-api-2.1.1.jar, META-INF/lib/jakarta.json-api-2.1.2.jar, META-INF/lib/commons-lang-2.6.jar, META-INF/lib/jakarta.ejb-api-4.0.0.jar, META-INF/lib/jakarta.transaction-api-2.0.0.jar], dependencies=[parsson-1.1+], closed=false]",
 					source.toString());
 			source.hasNext();
 			assertTrue(source.toString().startsWith(
-					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.1.0.jar, META-INF/lib/jakarta.annotation-api-2.1.1.jar, META-INF/lib/jakarta.json-api-2.1.2.jar], dependencies=[parsson-1.1+], next=Optional[ComponentEntry [name="),
+					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.1.0.jar, META-INF/lib/jakarta.annotation-api-2.1.1.jar, META-INF/lib/jakarta.json-api-2.1.2.jar, META-INF/lib/commons-lang-2.6.jar, META-INF/lib/jakarta.ejb-api-4.0.0.jar, META-INF/lib/jakarta.transaction-api-2.0.0.jar], dependencies=[parsson-1.1+], next=Optional[ComponentEntry [name="),
 					source::toString);
 			source.next();
 			assertTrue(source.toString().startsWith(
-					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.1.0.jar, META-INF/lib/jakarta.annotation-api-2.1.1.jar, META-INF/lib/jakarta.json-api-2.1.2.jar], dependencies=[parsson-1.1+], last=ComponentEntry [name="),
+					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.1.0.jar, META-INF/lib/jakarta.annotation-api-2.1.1.jar, META-INF/lib/jakarta.json-api-2.1.2.jar, META-INF/lib/commons-lang-2.6.jar, META-INF/lib/jakarta.ejb-api-4.0.0.jar, META-INF/lib/jakarta.transaction-api-2.0.0.jar], dependencies=[parsson-1.1+], last=ComponentEntry [name="),
 					source::toString);
 		}
 	}

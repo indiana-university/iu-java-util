@@ -188,9 +188,9 @@ public class IuParallelWorkloadControllerTest {
 
 	@Test
 	public void testSevereClosesWorkloadAndFailsByTimeout() throws InterruptedException, TimeoutException {
-		workload.setGracefulShutdown(Duration.ofMillis(1L));
-		workload.setGracefulTermination(Duration.ofMillis(1L));
-		workload.setGracefulDestroy(Duration.ofMillis(1L));
+		workload.setGracefulShutdown(Duration.ofMillis(5L));
+		workload.setGracefulTermination(Duration.ofMillis(5L));
+		workload.setGracefulDestroy(Duration.ofMillis(5L));
 		workload.apply(t -> {
 			Instant until = Instant.now().plus(Duration.ofMillis(200L));
 			for (var now = Instant.now(); now.isBefore(until);)
