@@ -99,6 +99,8 @@ public class ComponentTest extends IuTypeTestCase {
 		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.version()).getMessage());
 		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.interfaces()).getMessage());
 		assertEquals("closed",
+				assertThrows(IllegalStateException.class, () -> component.annotatedAttributes(null)).getMessage());
+		assertEquals("closed",
 				assertThrows(IllegalStateException.class, () -> component.annotatedTypes(null)).getMessage());
 		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.resources()).getMessage());
 	}
@@ -123,7 +125,7 @@ public class ComponentTest extends IuTypeTestCase {
 			component.close();
 		}
 	}
-
+	
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testControllerCanOpenPackages() throws IOException {

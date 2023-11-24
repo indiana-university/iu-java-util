@@ -36,8 +36,6 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.function.Supplier;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import edu.iu.IuException;
 import edu.iu.UnsafeSupplier;
@@ -53,8 +51,6 @@ import jakarta.annotation.Resources;
  * @param <T> resource type
  */
 class ComponentResource<T> implements IuResource<T> {
-
-	private static final Logger LOG = Logger.getLogger(ComponentResource.class.getName());
 
 	/**
 	 * Creates a static web resource.
@@ -149,10 +145,18 @@ class ComponentResource<T> implements IuResource<T> {
 			name = type.erasedClass().getSimpleName();
 
 		Supplier supplier;
-		if (resourceReference.shareable()) {
-			var instance = createResourceInstance(type.erasedClass(), implementationFactory);
-			supplier = () -> instance;
-		} else
+		if (resourceReference.shareable())
+			supplier = new Supplier() {
+				volatile Object instance;
+
+				@Override
+				public synchronized Object get() {
+					if (instance == null)
+						instance = createResourceInstance(type.erasedClass(), implementationFactory);
+					return instance;
+				}
+			};
+		else
 			supplier = () -> createResourceInstance(type.erasedClass(), implementationFactory);
 
 		return new ComponentResource(resourceReference.authenticationType().equals(AuthenticationType.CONTAINER),
@@ -180,12 +184,7 @@ class ComponentResource<T> implements IuResource<T> {
 		var resourceReference = AnnotationBridge.getAnnotation(Resource.class, implementationClass);
 		if (resourceReference != null)
 			if (isApplicationResource(resourceReference, implementationClass))
-				try {
-					resources.add(createResource(resourceReference, implementationClass, implementationFactory));
-				} catch (Throwable e) {
-					LOG.log(Level.CONFIG, e,
-							() -> "Resource initialization failure; " + resourceReference + ' ' + implementationClass);
-				}
+				resources.add(createResource(resourceReference, implementationClass, implementationFactory));
 
 		return resources;
 	}

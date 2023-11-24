@@ -50,6 +50,8 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import edu.iu.IuIterable;
+import edu.iu.type.IuAttribute;
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuComponentVersion;
 import edu.iu.type.IuResource;
@@ -66,8 +68,9 @@ class Component implements IuComponent {
 	private static final Module TYPE_MODULE = Component.class.getModule();
 
 	private static void indexClass(String className, ClassLoader classLoader, ComponentVersion version, Kind kind,
-			Properties properties, Set<IuType<?, ?>> interfaces, Map<Class<?>, List<IuType<?, ?>>> annotatedTypes,
-			List<ComponentResource<?>> resources) {
+			Properties properties, Set<IuType<?, ?>> interfaces,
+			Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes,
+			Map<Class<?>, List<IuType<?, ?>>> annotatedTypes, List<ComponentResource<?>> resources) {
 		Class<?> loadedClass;
 		try {
 			loadedClass = classLoader.loadClass(className);
@@ -80,6 +83,20 @@ class Component implements IuComponent {
 		if ((module.isNamed() && module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) //
 				|| (!module.isNamed() && !kind.isModular() && properties != null)) {
 			var type = IuType.of(loadedClass);
+
+			for (final var attribute : IuIterable.<IuAttribute<?, ?>>cat(type.fields(), type.properties())) {
+				for (var annotation : attribute.annotations()) {
+					var annotationType = annotation.annotationType();
+
+					var annotatedWithType = annotatedAttributes.get(annotationType);
+					if (annotatedWithType == null) {
+						annotatedWithType = new ArrayList<>();
+						annotatedAttributes.put(annotationType, annotatedWithType);
+					}
+
+					annotatedWithType.add(attribute);
+				}
+			}
 
 			var mod = loadedClass.getModifiers();
 			if ((mod & Modifier.PUBLIC) != mod && loadedClass.isInterface() && !loadedClass.isAnnotation())
@@ -113,6 +130,7 @@ class Component implements IuComponent {
 
 	private Set<IuType<?, ?>> interfaces;
 	private Map<Class<?>, List<IuType<?, ?>>> annotatedTypes;
+	private Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes;
 	private List<ComponentResource<?>> resources;
 
 	private AutoCloseable closeableResources;
@@ -130,6 +148,7 @@ class Component implements IuComponent {
 	Component(ClassLoader classLoader, Path pathEntry) throws IOException {
 		Set<IuType<?, ?>> interfaces = new LinkedHashSet<>();
 		Map<Class<?>, List<IuType<?, ?>>> annotatedTypes = new LinkedHashMap<>();
+		Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes = new LinkedHashMap<>();
 		List<ComponentResource<?>> resources = new ArrayList<>();
 
 		this.classLoader = classLoader;
@@ -157,12 +176,15 @@ class Component implements IuComponent {
 					&& !resourceName.endsWith("-info.class") //
 					&& resourceName.indexOf('$') == -1)
 				indexClass(resourceName.substring(0, resourceName.length() - 6).replace('/', '.'), classLoader, version,
-						kind, properties, interfaces, annotatedTypes, resources);
+						kind, properties, interfaces, annotatedAttributes, annotatedTypes, resources);
 
 		this.interfaces = Collections.unmodifiableSet(interfaces);
 		for (var annotatedTypeEntry : annotatedTypes.entrySet())
 			annotatedTypeEntry.setValue(Collections.unmodifiableList(annotatedTypeEntry.getValue()));
 		this.annotatedTypes = Collections.unmodifiableMap(annotatedTypes);
+		for (var annotatedAttributeEntry : annotatedAttributes.entrySet())
+			annotatedAttributeEntry.setValue(Collections.unmodifiableList(annotatedAttributeEntry.getValue()));
+		this.annotatedAttributes = Collections.unmodifiableMap(annotatedAttributes);
 		this.resources = Collections.unmodifiableList(resources);
 	}
 
@@ -182,6 +204,7 @@ class Component implements IuComponent {
 			Queue<ComponentArchive> archives) {
 		Set<IuType<?, ?>> interfaces = new LinkedHashSet<>();
 		Map<Class<?>, List<IuType<?, ?>>> annotatedTypes = new LinkedHashMap<>();
+		Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes = new LinkedHashMap<>();
 		List<ComponentResource<?>> resources = new ArrayList<>();
 		if (parent != null) {
 			if (parent.kind.isWeb())
@@ -215,7 +238,7 @@ class Component implements IuComponent {
 
 			for (var className : archive.nonEnclosedTypeNames())
 				indexClass(className, classLoader, archive.version(), archive.kind(), archive.properties(), interfaces,
-						annotatedTypes, resources);
+						annotatedAttributes, annotatedTypes, resources);
 		}
 
 		if (parent != null)
@@ -225,6 +248,9 @@ class Component implements IuComponent {
 		for (var annotatedTypeEntry : annotatedTypes.entrySet())
 			annotatedTypeEntry.setValue(Collections.unmodifiableList(annotatedTypeEntry.getValue()));
 		this.annotatedTypes = Collections.unmodifiableMap(annotatedTypes);
+		for (var annotatedAttributeEntry : annotatedAttributes.entrySet())
+			annotatedAttributeEntry.setValue(Collections.unmodifiableList(annotatedAttributeEntry.getValue()));
+		this.annotatedAttributes = Collections.unmodifiableMap(annotatedAttributes);
 		this.resources = Collections.unmodifiableList(resources);
 	}
 
@@ -303,9 +329,19 @@ class Component implements IuComponent {
 	}
 
 	@Override
+	public Iterable<? extends IuAttribute<?, ?>> annotatedAttributes(Class<? extends Annotation> annotationType) {
+		checkClosed();
+		final var annotatedAttributes = this.annotatedAttributes.get(annotationType);
+		if (annotatedAttributes == null)
+			return Collections.emptySet();
+		else
+			return annotatedAttributes;
+	}
+
+	@Override
 	public Iterable<? extends IuType<?, ?>> annotatedTypes(Class<? extends Annotation> annotationType) {
 		checkClosed();
-		var annotatedTypes = this.annotatedTypes.get(annotationType);
+		final var annotatedTypes = this.annotatedTypes.get(annotationType);
 		if (annotatedTypes == null)
 			return Collections.emptySet();
 		else

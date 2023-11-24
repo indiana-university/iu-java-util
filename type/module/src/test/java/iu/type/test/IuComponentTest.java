@@ -33,17 +33,20 @@ package iu.type.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
+import java.lang.annotation.Annotation;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.logging.Level;
@@ -60,8 +63,11 @@ import edu.iu.test.IuTest;
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuComponent.Kind;
+import edu.iu.type.IuField;
+import edu.iu.type.IuType;
 import iu.type.IuTypeTestCase;
 import iu.type.TestArchives;
+import jakarta.annotation.Resource;
 
 @SuppressWarnings("javadoc")
 public class IuComponentTest extends IuTypeTestCase {
@@ -165,6 +171,13 @@ public class IuComponentTest extends IuTypeTestCase {
 				assertTrue(expectedInterfaces.remove(i.name()));
 			assertTrue(expectedInterfaces.isEmpty(), expectedInterfaces::toString);
 
+			var resources = component.resources().iterator();
+			assertTrue(resources.hasNext());
+			while (resources.hasNext()) {
+				final var resource = resources.next();
+				assertInstanceOf(resource.type().erasedClass(), resource.get());
+			}
+
 			var contextLoader = Thread.currentThread().getContextClassLoader();
 			var loader = component.classLoader();
 			try {
@@ -182,11 +195,11 @@ public class IuComponentTest extends IuTypeTestCase {
 	@Test
 	public void testLoadsTestComponent() throws Exception {
 		// TODO: remove after implementing @AroundConstruct
-		IuTestLogger.expect("iu.type.ComponentResource", Level.CONFIG,
+		IuTestLogger.allow("iu.type.ComponentResource", Level.CONFIG,
 				"Resource initialization failure; .* edu.iu.type.testcomponent.TestResource",
 				UnsupportedOperationException.class,
 				t -> "@AroundConstruct not supported in this version".equals(t.getMessage()));
-		IuTestLogger.expect("iu.type.Component", Level.WARNING, "Invalid class invalid.*", ClassFormatError.class);
+		IuTestLogger.allow("iu.type.Component", Level.WARNING, "Invalid class invalid.*", ClassFormatError.class);
 		try (var parent = IuComponent.of(TestArchives.getComponentArchive("testruntime"),
 				TestArchives.getProvidedDependencyArchives("testruntime"));
 				var component = parent.extend(TestArchives.getComponentArchive("testcomponent"))) {
@@ -201,11 +214,34 @@ public class IuComponentTest extends IuTypeTestCase {
 				assertTrue(expectedInterfaces.remove(i.name()));
 			assertTrue(expectedInterfaces.isEmpty(), expectedInterfaces::toString);
 
+			assertFalse(component
+					.annotatedAttributes(parent.classLoader().loadClass("jakarta.ejb.EJB").asSubclass(Annotation.class))
+					.iterator().hasNext());
+
+			var found = false;
+			for (final var resourceRef : component.annotatedAttributes(Resource.class))
+				if (resourceRef.name().equals("stringList")) {
+					found = true;
+					assertInstanceOf(IuField.class, resourceRef);
+					assertEquals("edu.iu.type.testcomponent.TestBeanImpl", resourceRef.declaringType().name());
+					assertEquals(List.class, resourceRef.type().erasedClass());
+					assertEquals(String.class, resourceRef.type().referTo(List.class).typeParameter("E").erasedClass());
+				}
+			assertTrue(found);
+
 			var resources = component.resources().iterator();
-			// TODO: restore after implementing @AroundConstruct
-			// assertTrue(resources.hasNext());
-			// assertEquals("TestResource", resources.next().name());
+			assertTrue(resources.hasNext());
+			var resource = resources.next();
+			assertEquals("TestResource", resource.name());
+			// TODO: STARCH-653 Implement @AroundConstruct
+			assertThrows(UnsupportedOperationException.class, resource::get);
 			assertFalse(resources.hasNext());
+
+			final var target = component.classLoader().loadClass("edu.iu.type.testcomponent.TestBean");
+			final var view = IuComponent.scan(target);
+			assertSame(IuType.of(target), view.interfaces().iterator().next());
+			view.close();
+			component.interfaces(); // not closed
 		}
 	}
 
@@ -230,8 +266,10 @@ public class IuComponentTest extends IuTypeTestCase {
 			assertFalse(interfaces.hasNext());
 
 			var expectedResources = new HashSet<>(Set.of("index.html", "WEB-INF/web.xml"));
-			for (final var r : component.resources())
+			for (final var r : component.resources()) {
+				assertInstanceOf(byte[].class, r.get());
 				assertTrue(expectedResources.remove(r.name()));
+			}
 			assertTrue(expectedResources.isEmpty(), expectedResources::toString);
 		}
 	}

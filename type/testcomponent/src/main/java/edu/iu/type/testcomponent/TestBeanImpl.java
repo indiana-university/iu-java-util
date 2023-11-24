@@ -34,6 +34,7 @@ package edu.iu.type.testcomponent;
 import java.util.List;
 import java.util.Map;
 
+import jakarta.annotation.Resource;
 import jakarta.interceptor.Interceptors;
 
 @SuppressWarnings({ "unused", "javadoc" })
@@ -45,6 +46,7 @@ public class TestBeanImpl implements TestBean {
 
 	private byte[] binary;
 
+	@Resource
 	private List<String> stringList;
 
 	@Override

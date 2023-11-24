@@ -299,4 +299,5 @@ public class ComponentResourceTest extends IuTypeTestCase {
 						+ IuType.of(ToStringResource.class) + "]]",
 				ComponentResource.getResources(ToStringResource.class, ToStringResource::new).toString());
 	}
+
 }
