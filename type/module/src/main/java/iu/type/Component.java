@@ -34,10 +34,8 @@ package iu.type;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.ModuleLayer.Controller;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Modifier;
-import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -46,7 +44,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.Set;
@@ -108,8 +105,6 @@ class Component implements IuComponent {
 
 	private Component parent;
 
-	private Controller controller;
-
 	private ClassLoader classLoader;
 
 	private Kind kind;
@@ -120,7 +115,7 @@ class Component implements IuComponent {
 	private Map<Class<?>, List<IuType<?, ?>>> annotatedTypes;
 	private List<ComponentResource<?>> resources;
 
-	private ComponentModuleFinder moduleFinder;
+	private AutoCloseable closeableResources;
 	private Queue<ComponentArchive> archives;
 	private boolean closed;
 
@@ -163,7 +158,7 @@ class Component implements IuComponent {
 					&& resourceName.indexOf('$') == -1)
 				indexClass(resourceName.substring(0, resourceName.length() - 6).replace('/', '.'), classLoader, version,
 						kind, properties, interfaces, annotatedTypes, resources);
-		
+
 		this.interfaces = Collections.unmodifiableSet(interfaces);
 		for (var annotatedTypeEntry : annotatedTypes.entrySet())
 			annotatedTypeEntry.setValue(Collections.unmodifiableList(annotatedTypeEntry.getValue()));
@@ -174,17 +169,16 @@ class Component implements IuComponent {
 	/**
 	 * Constructor for use from {@link ComponentFactory}.
 	 * 
-	 * @param parent       parent component, see
-	 *                     {@link #extend(InputStream, InputStream...)}
-	 * @param controller   module controller; must be non-null when first archive is
-	 *                     {@link edu.iu.type.IuComponent.Kind#isModular() modular}.
-	 * @param classLoader  component context loader
-	 * @param moduleFinder module finder backing the controller and classLoader
-	 *                     arguments, to close with this component
-	 * @param archives     archives dedicated to this component, to close and delete
-	 *                     when the component is closed
+	 * @param <C>         {@link ClassLoader} type, typically
+	 *                    {@link ModularClassLoader} or {@link LegacyClassLoader};
+	 *                    <em>must</em> implement {@link AutoCloseable}.
+	 * @param parent      parent component, see
+	 *                    {@link #extend(InputStream, InputStream...)}
+	 * @param classLoader component context loader
+	 * @param archives    archives dedicated to this component, to close and delete
+	 *                    when the component is closed
 	 */
-	Component(Component parent, Controller controller, ClassLoader classLoader, ComponentModuleFinder moduleFinder,
+	<C extends ClassLoader & AutoCloseable> Component(Component parent, C classLoader,
 			Queue<ComponentArchive> archives) {
 		Set<IuType<?, ?>> interfaces = new LinkedHashSet<>();
 		Map<Class<?>, List<IuType<?, ?>>> annotatedTypes = new LinkedHashMap<>();
@@ -200,12 +194,9 @@ class Component implements IuComponent {
 		}
 
 		this.parent = parent;
-
-		this.controller = controller;
-		this.classLoader = Objects.requireNonNull(classLoader, "classLoader");
-
-		this.moduleFinder = moduleFinder;
-		this.archives = Objects.requireNonNull(archives, "archives");
+		this.classLoader = classLoader;
+		this.closeableResources = classLoader;
+		this.archives = archives;
 
 		var firstArchive = archives.iterator().next();
 		kind = firstArchive.kind();
@@ -250,16 +241,6 @@ class Component implements IuComponent {
 	Component parent() {
 		checkClosed();
 		return parent;
-	}
-
-	/**
-	 * Gets the controller for the component context's module loader.
-	 * 
-	 * @return {@link Controller}
-	 */
-	Controller controller() {
-		checkClosed();
-		return controller;
 	}
 
 	/**
@@ -339,39 +320,38 @@ class Component implements IuComponent {
 
 	@Override
 	public void close() {
-		if (moduleFinder != null)
-			try {
-				moduleFinder.close();
-			} catch (Throwable e) {
-				LOG.log(Level.WARNING, e, () -> "Failed to close module finder");
-			}
+		if (closed)
+			return;
 
-		if (classLoader instanceof URLClassLoader)
-			try {
-				((URLClassLoader) classLoader).close();
-			} catch (Throwable e) {
-				LOG.log(Level.WARNING, e, () -> "Failed to close class loader");
-			}
-
-		if (archives != null)
-			while (!archives.isEmpty()) {
-				var archive = archives.poll();
+		synchronized (this) {
+			final var closeableResources = this.closeableResources;
+			if (closeableResources != null)
 				try {
-					Files.delete(archive.path());
+					this.closeableResources = null;
+					closeableResources.close();
 				} catch (Throwable e) {
-					LOG.log(Level.WARNING, e, () -> "Failed to clean up archive " + archive.path());
+					LOG.log(Level.WARNING, e, () -> "Close component resources failed " + versions);
 				}
-			}
 
-		parent = null;
-		moduleFinder = null;
-		controller = null;
-		kind = null;
-		versions = null;
-		properties = null;
-		classLoader = null;
-		interfaces = null;
-		closed = true;
+			if (archives != null)
+				while (!archives.isEmpty()) {
+					var archive = archives.poll();
+					try {
+						Files.delete(archive.path());
+					} catch (Throwable e) {
+						LOG.log(Level.WARNING, e,
+								() -> "Failed to clean up archive " + archive.path() + "; " + versions);
+					}
+				}
+
+			parent = null;
+			kind = null;
+			versions = null;
+			properties = null;
+			classLoader = null;
+			interfaces = null;
+			closed = true;
+		}
 	}
 
 }

@@ -45,18 +45,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.lang.module.Configuration;
-import java.lang.module.ModuleFinder;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Queue;
 import java.util.logging.Level;
-import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 
@@ -81,16 +80,19 @@ public class ComponentTest extends IuTypeTestCase {
 		when(archive.path()).thenReturn(path);
 
 		var loader = spy(new URLClassLoader(new URL[0]));
-		var finder = mock(ComponentModuleFinder.class);
-		var component = new Component(null, null, loader, finder, new ArrayDeque<>(List.of(archive)));
+		var component = new Component(null, loader, new ArrayDeque<>(List.of(archive)));
 		try (var mockFiles = mockStatic(Files.class)) {
 			component.close();
-			verify(finder).close();
 			verify(loader).close();
 			mockFiles.verify(() -> Files.delete(path));
 		}
+
+		final var beforeExtraClose = Instant.now();
+		component.close(); // no-op does not throw
+		final var sinceBeforeExtraClose = Duration.between(beforeExtraClose, Instant.now());
+		assertTrue(sinceBeforeExtraClose.compareTo(Duration.ofNanos(5_000L)) <= 0);
+
 		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.parent()).getMessage());
-		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.controller()).getMessage());
 		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.properties()).getMessage());
 		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.classLoader()).getMessage());
 		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.kind()).getMessage());
@@ -112,14 +114,11 @@ public class ComponentTest extends IuTypeTestCase {
 		var loader = spy(new URLClassLoader(new URL[0]));
 		doThrow(error).when(loader).close();
 
-		var finder = mock(ComponentModuleFinder.class);
-		doThrow(error).when(finder).close();
-
-		var component = new Component(null, null, loader, finder, new ArrayDeque<>(List.of(archive)));
+		var component = new Component(null, loader, new ArrayDeque<>(List.of(archive)));
 		try (var mockFiles = mockStatic(Files.class)) {
 			mockFiles.when(() -> Files.delete(path)).thenThrow(error);
-			IuTestLogger.expect(Component.class.getName(), Level.WARNING, "Failed to close module finder", Error.class);
-			IuTestLogger.expect(Component.class.getName(), Level.WARNING, "Failed to close class loader", Error.class);
+			IuTestLogger.expect(Component.class.getName(), Level.WARNING, "Close component resources failed \\[null\\]",
+					Error.class);
 			IuTestLogger.expect(Component.class.getName(), Level.WARNING, "Failed to clean up archive .*", Error.class);
 			component.close();
 		}
@@ -144,37 +143,18 @@ public class ComponentTest extends IuTypeTestCase {
 			for (var bundledDependency : runtimeArchive.bundledDependencies())
 				archives.offer(ComponentArchive.from(bundledDependency));
 
-			final Queue<ComponentArchive> classpath = new ArrayDeque<>(archives.size());
-			final Queue<Path> modulepath = new ArrayDeque<>(archives.size());
-			for (var archive : archives)
-				if (archive.kind().isModular())
-					modulepath.offer(archive.path());
-				else
-					classpath.offer(archive);
-
-			var moduleFinder = new ComponentModuleFinder(modulepath.toArray(new Path[modulepath.size()]));
-
-			var moduleNames = moduleFinder.findAll().stream().map(ref -> ref.descriptor().name())
-					.collect(Collectors.toList());
-
-			var loader = new ModularClassLoader(archives.iterator().next().kind().isWeb(), moduleFinder, classpath,
-					null);
-			
-			var configuration = Configuration.resolveAndBind( //
-					moduleFinder, List.of(ModuleLayer.boot().configuration()), ModuleFinder.of(), moduleNames);
-
-			var controller = ModuleLayer.defineModules(configuration, List.of(ModuleLayer.boot()), a -> loader);
+			final var loader = new ModularClassLoader(archives, null);
+			final var controller = loader.controller();
 			controller.addOpens(controller.layer().findModule("jakarta.json").get(), "jakarta.json",
 					getClass().getModule());
 
-			try (var component = new Component(null, controller,
-					controller.layer().findLoader(moduleNames.iterator().next()), moduleFinder, archives)) {
-
+			try (var component = new Component(null, loader, archives)) {
 				var interfaces = component.interfaces().iterator();
 				assertTrue(interfaces.hasNext());
 				assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
 				assertTrue(interfaces.hasNext());
-				assertTrue(interfaces.next().name().startsWith("jakarta.json"));
+				var next = interfaces.next();
+				assertTrue(next.name().startsWith("jakarta.json"), next + " " + interfaces);
 			}
 		}
 	}
@@ -206,7 +186,7 @@ public class ComponentTest extends IuTypeTestCase {
 			}
 
 			try (var loader = new LegacyClassLoader(false, path, null)) {
-				try (var component = new Component(null, null, loader, null, archives)) {
+				try (var component = new Component(null, loader, archives)) {
 					var interfaces = component.interfaces().iterator();
 					assertFalse(interfaces.hasNext(), () -> interfaces.next().name());
 				}

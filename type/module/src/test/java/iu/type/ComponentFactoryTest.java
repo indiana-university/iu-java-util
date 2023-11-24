@@ -189,43 +189,6 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 		}
 	}
 
-	@Test
-	public void testClosesModuleFinderIfCreateFails() throws IOException {
-		var path = mock(Path.class);
-		var archive = mock(ComponentArchive.class);
-		when(archive.kind()).thenReturn(Kind.MODULAR_JAR);
-		when(archive.path()).thenReturn(path);
-
-		var error = new Error();
-		try (var mockModuleFinder = mockConstruction(ComponentModuleFinder.class, (finder, context) -> {
-			when(finder.findAll()).thenThrow(error);
-		})) {
-			assertSame(error, assertThrows(Error.class,
-					() -> ComponentFactory.createModular(null, new ArrayDeque<>(List.of(archive)))));
-			verify(mockModuleFinder.constructed().get(0)).close();
-		}
-	}
-
-	@Test
-	public void testSuppressesModuleFinderCloseErrorIfCreateFails() throws IOException {
-		var path = mock(Path.class);
-		var archive = mock(ComponentArchive.class);
-		when(archive.kind()).thenReturn(Kind.MODULAR_JAR);
-		when(archive.path()).thenReturn(path);
-
-		var error = new Error();
-		var closeError = new Error();
-		try (var mockModuleFinder = mockConstruction(ComponentModuleFinder.class, (finder, context) -> {
-			when(finder.findAll()).thenThrow(error);
-			doThrow(closeError).when(finder).close();
-		})) {
-			var thrown = assertThrows(Error.class,
-					() -> ComponentFactory.createModular(null, new ArrayDeque<>(List.of(archive))));
-			assertSame(error, thrown);
-			assertSame(closeError, thrown.getSuppressed()[0]);
-		}
-	}
-	
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testLoadsRuntimeIfSwitchedWithDeps() throws Exception {

@@ -1,11 +1,17 @@
 package iu.type;
 
 import java.io.IOException;
+import java.lang.ModuleLayer.Controller;
+import java.lang.module.Configuration;
+import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
 import java.net.URL;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Deque;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,39 +23,51 @@ import java.util.jar.JarInputStream;
 
 import edu.iu.IuException;
 import edu.iu.IuStream;
+import edu.iu.UnsafeRunnable;
 import edu.iu.type.IuComponent.Kind;
 
 /**
  * {@link ClassLoader} implementation for loading {@link Kind#isModular()
  * modular components}.
  */
-class ModularClassLoader extends ClassLoader {
+class ModularClassLoader extends ClassLoader implements AutoCloseable {
 
 	private final boolean web;
 	private final ComponentModuleFinder moduleFinder;
+	private final Controller controller;
 	private final Map<String, byte[]> classData;
 	private final Map<String, List<URL>> resourceUrls;
+	private final Deque<UnsafeRunnable> onClose = new ArrayDeque<>();
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param web          true for <a href=
-	 *                     "https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader">web
-	 *                     classloading semantics</a>; false for normal parent
-	 *                     delegation semantics
-	 * @param moduleFinder fully initialized {@link ComponentModuleFinder module
-	 *                     path}
-	 * @param classpath    paths to import as classpath elements
-	 * @param parent       parent class loader
-	 * @throws IOException if an error occurs reading a classpath entry
+	 * @param archives component archives to load into a {@link ModuleLayer}
+	 * @param parent   parent class loader
+	 * @throws IOException if an error occurs reading a class path entry
 	 */
-	ModularClassLoader(boolean web, ComponentModuleFinder moduleFinder, Iterable<ComponentArchive> classpath,
-			ClassLoader parent) throws IOException {
+	ModularClassLoader(Iterable<ComponentArchive> archives, ClassLoader parent) throws IOException {
 		super(parent);
 		registerAsParallelCapable();
 
-		this.web = web;
+		final Queue<ComponentArchive> classpath = new ArrayDeque<>();
+		final Queue<Path> modulepath = new ArrayDeque<>();
+		Boolean web = null;
+		for (var archive : archives) {
+			final var kind = archive.kind();
+			if (web == null)
+				web = kind.isWeb();
 
+			if (archive.kind().isModular())
+				modulepath.offer(archive.path());
+			else
+				classpath.offer(archive);
+		}
+
+		var moduleFinder = new ComponentModuleFinder(modulepath.toArray(new Path[modulepath.size()]));
+		onClose.push(moduleFinder::close);
+
+		this.web = web;
 		this.moduleFinder = moduleFinder;
 
 		classData = new LinkedHashMap<>();
@@ -75,6 +93,26 @@ class ModularClassLoader extends ClassLoader {
 				}
 			}
 		}
+
+		final Collection<String> moduleNames = new ArrayDeque<>();
+		for (final var moduleRef : moduleFinder.findAll())
+			moduleNames.add(moduleRef.descriptor().name());
+
+		final ModuleLayer parentModuleLayer;
+		if (parent instanceof ModularClassLoader modularParent)
+			parentModuleLayer = modularParent.controller.layer();
+		else
+			parentModuleLayer = ModuleLayer.boot();
+
+		var configuration = Configuration.resolveAndBind( //
+				moduleFinder, List.of(parentModuleLayer.configuration()), ModuleFinder.of(), moduleNames);
+
+		controller = ModuleLayer.defineModules(configuration, List.of(parentModuleLayer), a -> this);
+	}
+
+	@Override
+	public void close() throws Exception {
+		moduleFinder.close();
 	}
 
 	@Override
@@ -143,12 +181,11 @@ class ModularClassLoader extends ClassLoader {
 
 		final var resourceName = name.replace('.', '/') + ".class";
 		return IuException.unchecked(() -> {
-			final var resource = moduleRef.get().open().open(resourceName);
+			final var resource = moduleRef.get().open().read(resourceName);
 			if (resource.isEmpty())
 				return null;
 
-			final var classData = IuStream.read(resource.get());
-			return defineClass(name, classData, 0, classData.length);
+			return defineClass(name, resource.get(), null);
 		});
 	}
 
@@ -189,7 +226,8 @@ class ModularClassLoader extends ClassLoader {
 		final var box = new Box();
 		findResource(name, box);
 
-		if (box.moduleReference == null || isOpen(box.moduleReference, name))
+		if (box.moduleReference == null //
+				|| isOpen(controller.layer().findModule(box.moduleReference.descriptor().name()).get(), name))
 			return box.resource;
 		else
 			return null;
@@ -200,7 +238,8 @@ class ModularClassLoader extends ClassLoader {
 	protected Enumeration<URL> findResources(String name) throws IOException {
 		final Queue<URL> resources = new ArrayDeque<>();
 		findResource(name, (moduleRef, resource) -> {
-			if (moduleRef == null || isOpen(moduleRef, name))
+			if (moduleRef == null //
+					|| isOpen(controller.layer().findModule(moduleRef.descriptor().name()).get(), name))
 				resources.offer(resource);
 			return false;
 		});
@@ -217,6 +256,15 @@ class ModularClassLoader extends ClassLoader {
 				return i.next();
 			}
 		};
+	}
+
+	/**
+	 * Gets the controller for this class loader's {@link ModuleLayer module layer}.
+	 * 
+	 * @return {@link Controller}
+	 */
+	Controller controller() {
+		return controller;
 	}
 
 	/**
@@ -247,8 +295,8 @@ class ModularClassLoader extends ClassLoader {
 	 * Helper fragment for {@link #findResource(String)} and
 	 * {@link #findResources(String)}.
 	 * 
-	 * @param moduleReference reference to the module that contains the resource
-	 * @param name            resource name
+	 * @param module module that contains the resource
+	 * @param name   resource name
 	 * 
 	 * @return true if the resource is either not encapsulated or is in a package
 	 *         that is unconditionally open
@@ -257,9 +305,9 @@ class ModularClassLoader extends ClassLoader {
 	 * @see #findResources(String)
 	 * @see Module#getResourceAsStream(String)
 	 */
-	boolean isOpen(ModuleReference moduleReference, String name) {
+	boolean isOpen(Module module, String name) {
 		// + A resource in a named module may be encapsulated ...
-		if (moduleReference == null)
+		if (module == null)
 			return true; // not in a module
 
 		// ... so that it cannot be located by code in other modules.
@@ -288,9 +336,9 @@ class ModularClassLoader extends ClassLoader {
 		final String packageName = name.substring(startOfPackageName, lastSlash).replace('/', '.');
 
 		// + If the package name is a package in the module ...
-		final var moduleDescriptor = moduleReference.descriptor();
-		if (!moduleDescriptor.packages().contains(packageName))
+		if (!module.isExported(packageName))
 			return false;
+
 		/*
 		 * ... then the resource can only be located by the caller of this method when
 		 * the package is open to at least the caller's module ... + additionally, it
@@ -299,12 +347,8 @@ class ModularClassLoader extends ClassLoader {
 		 */
 		// ==> the caller's module is not important: .class is not encapsulated, others
 		// must be in an unconditionally open package
-		if (moduleDescriptor.isOpen())
+		if (module.isOpen(packageName))
 			return true;
-
-		for (final var opens : moduleDescriptor.opens())
-			if (opens.source().equals(packageName) && !opens.isQualified())
-				return true;
 
 		return false;
 	}

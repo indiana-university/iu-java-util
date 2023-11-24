@@ -33,15 +33,10 @@ package iu.type;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.module.Configuration;
-import java.lang.module.ModuleFinder;
 import java.net.URL;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayDeque;
-import java.util.List;
 import java.util.Queue;
-import java.util.stream.Collectors;
 
 import edu.iu.IuException;
 
@@ -90,48 +85,8 @@ final class ComponentFactory {
 	 * @throws IOException If an I/O error occurs reading from an archive
 	 */
 	static Component createModular(Component parent, Queue<ComponentArchive> archives) throws IOException {
-		final Queue<ComponentArchive> classpath = new ArrayDeque<>(archives.size());
-		final Queue<Path> modulepath = new ArrayDeque<>(archives.size());
-		for (var archive : archives)
-			if (archive.kind().isModular())
-				modulepath.offer(archive.path());
-			else
-				classpath.offer(archive);
-
-		var moduleFinder = new ComponentModuleFinder(modulepath.toArray(new Path[modulepath.size()]));
-		try {
-			var moduleNames = moduleFinder.findAll().stream().map(ref -> ref.descriptor().name())
-					.collect(Collectors.toList());
-
-			ClassLoader parentClassLoader;
-			ModuleLayer parentModuleLayer;
-			if (parent == null) {
-				parentClassLoader = null;
-				parentModuleLayer = ModuleLayer.boot();
-			} else {
-				parentClassLoader = parent.classLoader();
-				parentModuleLayer = parent.controller().layer();
-			}
-
-			var loader = new ModularClassLoader(archives.iterator().next().kind().isWeb(), moduleFinder, classpath,
-					parentClassLoader);
-
-			var configuration = Configuration.resolveAndBind( //
-					moduleFinder, List.of(parentModuleLayer.configuration()), ModuleFinder.of(), moduleNames);
-
-			var controller = ModuleLayer.defineModules(configuration, List.of(parentModuleLayer), a -> loader);
-
-			return new Component(parent, controller, controller.layer().findLoader(moduleNames.iterator().next()),
-					moduleFinder, archives);
-
-		} catch (IOException | RuntimeException | Error e) {
-			try {
-				moduleFinder.close();
-			} catch (Throwable e2) {
-				e.addSuppressed(e2);
-			}
-			throw e;
-		}
+		return new Component(parent, new ModularClassLoader(archives, parent == null ? null : parent.classLoader()),
+				archives);
 	}
 
 	/**
@@ -154,7 +109,7 @@ final class ComponentFactory {
 				() -> IuException.initialize(
 						new LegacyClassLoader(archives.iterator().next().kind().isWeb(), path,
 								parent == null ? null : parent.classLoader()),
-						loader -> new Component(parent, null, loader, null, archives)));
+						loader -> new Component(parent, loader, archives)));
 	}
 
 	/**

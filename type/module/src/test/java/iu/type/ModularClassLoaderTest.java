@@ -5,23 +5,21 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.lang.module.ModuleDescriptor;
-import java.lang.module.ModuleReference;
 import java.net.URL;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.Queue;
 import java.util.Set;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.UnsafeRunnable;
@@ -39,31 +37,22 @@ public class ModularClassLoaderTest extends IuTypeTestCase {
 		});
 
 		final var primary = ComponentArchive.from(new ArchiveSource(TestArchives.getComponentArchive(componentName)));
-		final Queue<Path> modulepath = new ArrayDeque<>();
-		modulepath.offer(primary.path());
+		archives.offer(primary);
+		for (final var lib : primary.bundledDependencies())
+			archives.offer(ComponentArchive.from(lib));
 
-		final Queue<ComponentArchive> classpath = new ArrayDeque<>(archives.size());
-		for (final var lib : primary.bundledDependencies()) {
-			final var archive = ComponentArchive.from(lib);
-			archives.offer(archive);
-			if (archive.kind().isModular())
-				modulepath.offer(archive.path());
-			else
-				classpath.offer(archive);
-		}
-		for (final var dep : TestArchives.getProvidedDependencyArchives(componentName)) {
-			final var archive = ComponentArchive.from(new ArchiveSource(dep));
-			archives.offer(archive);
-			if (archive.kind().isModular())
-				modulepath.offer(archive.path());
-			else
-				classpath.offer(archive);
-		}
+		for (final var dep : TestArchives.getProvidedDependencyArchives(componentName))
+			archives.offer(ComponentArchive.from(new ArchiveSource(dep)));
 
-		final var moduleFinder = new ComponentModuleFinder(modulepath.toArray(new Path[modulepath.size()]));
-		onTeardown.push(moduleFinder::close);
+		final var loader = new ModularClassLoader(archives, parent);
+		onTeardown.push(loader::close);
+		return loader;
+	}
 
-		return new ModularClassLoader(archives.iterator().next().kind().isWeb(), moduleFinder, classpath, parent);
+	@AfterEach
+	public void teardown() throws Throwable {
+		while (!onTeardown.isEmpty())
+			onTeardown.pop().run();
 	}
 
 	@Test
@@ -75,66 +64,39 @@ public class ModularClassLoaderTest extends IuTypeTestCase {
 	@Test
 	public void testClassResourceIsNotEncapsulaed() throws IOException {
 		final var loader = createModularLoader("testruntime", null);
-		final var moduleRef = mock(ModuleReference.class);
-		final var desc = mock(ModuleDescriptor.class);
-		when(desc.name()).thenReturn("foo.bar");
-		when(moduleRef.descriptor()).thenReturn(desc);
-		assertTrue(loader.isOpen(moduleRef, ".class"));
+		final var module = mock(Module.class);
+		when(module.getName()).thenReturn("foo.bar");
+		assertTrue(loader.isOpen(module, ".class"));
 	}
 
 	@Test
 	public void testRootPackageIsOpen() throws IOException {
 		final var loader = createModularLoader("testruntime", null);
-		final var moduleRef = mock(ModuleReference.class);
-		final var desc = mock(ModuleDescriptor.class);
-		when(desc.name()).thenReturn("foo.bar");
-		when(moduleRef.descriptor()).thenReturn(desc);
-		assertTrue(loader.isOpen(moduleRef, "foo"));
-		assertTrue(loader.isOpen(moduleRef, "/foo"));
+		final var module = mock(Module.class);
+		when(module.getName()).thenReturn("foo.bar");
+		assertTrue(loader.isOpen(module, "foo"));
+		assertTrue(loader.isOpen(module, "/foo"));
 	}
 
 	@Test
 	public void testMetaInfIsOpen() throws IOException {
 		final var loader = createModularLoader("testruntime", null);
-		final var moduleRef = mock(ModuleReference.class);
-		final var desc = mock(ModuleDescriptor.class);
-		when(desc.name()).thenReturn("foo.bar");
-		when(moduleRef.descriptor()).thenReturn(desc);
-		assertTrue(loader.isOpen(moduleRef, "META-INF/whatever"));
-	}
-
-	@Test
-	public void testOpenModulePackagesAreOpen() throws IOException {
-		final var loader = createModularLoader("testruntime", null);
-		final var moduleRef = mock(ModuleReference.class);
-		final var desc = mock(ModuleDescriptor.class);
-		when(desc.name()).thenReturn("foo.bar");
-		when(desc.packages()).thenReturn(Set.of("bar.foo"));
-		when(desc.isOpen()).thenReturn(true);
-		when(moduleRef.descriptor()).thenReturn(desc);
-		assertFalse(loader.isOpen(moduleRef, "foo/bar/baz"));
-		assertTrue(loader.isOpen(moduleRef, "bar/foo/baz"));
-		assertTrue(loader.isOpen(moduleRef, "/bar/foo/baz"));
+		final var module = mock(Module.class);
+		when(module.getName()).thenReturn("foo.bar");
+		assertTrue(loader.isOpen(module, "META-INF/whatever"));
 	}
 
 	@Test
 	public void testOpenPackagesAreOpen() throws IOException {
 		final var loader = createModularLoader("testruntime", null);
-		final var moduleRef = mock(ModuleReference.class);
-		final var desc = mock(ModuleDescriptor.class);
-		when(desc.name()).thenReturn("foo.bar");
-		when(desc.packages()).thenReturn(Set.of("bar.foo", "foo.bar"));
-		final var opens = mock(ModuleDescriptor.Opens.class);
-		when(opens.source()).thenReturn("bar.foo");
-		when(opens.isQualified()).thenReturn(false);
-		final var opens2 = mock(ModuleDescriptor.Opens.class);
-		when(opens2.source()).thenReturn("foo.bar");
-		when(opens2.isQualified()).thenReturn(true);
-		when(desc.opens()).thenReturn(Set.of(opens, opens2));
-		when(moduleRef.descriptor()).thenReturn(desc);
-		assertFalse(loader.isOpen(moduleRef, "foo/bar/baz"));
-		assertTrue(loader.isOpen(moduleRef, "bar/foo/baz"));
-		assertTrue(loader.isOpen(moduleRef, "/bar/foo/baz"));
+		final var module = mock(Module.class);
+		when(module.getName()).thenReturn("foo.bar");
+		when(module.isExported("bar.foo")).thenReturn(true);
+		when(module.isExported("foo.bar")).thenReturn(true);
+		when(module.isOpen("bar.foo")).thenReturn(true);
+		assertFalse(loader.isOpen(module, "foo/bar/baz"));
+		assertTrue(loader.isOpen(module, "bar/foo/baz"));
+		assertTrue(loader.isOpen(module, "/bar/foo/baz"));
 	}
 
 	@Test
@@ -150,6 +112,7 @@ public class ModularClassLoaderTest extends IuTypeTestCase {
 			assertTrue(expected.remove(name), name + " " + expected);
 			return true;
 		});
+		assertEquals(3, expected.size());
 	}
 
 	@Test
@@ -204,6 +167,61 @@ public class ModularClassLoaderTest extends IuTypeTestCase {
 	}
 
 	@Test
+	public void testFindsClassInModule() throws IOException, ClassNotFoundException {
+		final var loader = createModularLoader("testruntime", null);
+		final var className = "edu.iu.type.testruntime.TestRuntime";
+		assertSame(loader.findClass(className), loader.loadClass(className));
+	}
+
+	@Test
+	public void testFindsClassInClasspath() throws IOException, ClassNotFoundException {
+		final var loader = createModularLoader("testruntime", null);
+		final var className = "jakarta.ejb.EJB";
+		assertSame(loader.findClass(className), loader.loadClass(className));
+	}
+
+	@Test
+	public void testFindsClassInBaseModule() throws IOException, ClassNotFoundException {
+		final var loader = createModularLoader("testruntime", null);
+		final var className = "java.net.http.HttpClient";
+		assertSame(loader.findClass(className), loader.loadClass(className));
+	}
+
+	@Test
+	public void testFindsClassInWebModule() throws IOException, ClassNotFoundException {
+		final var parent = createModularLoader("testruntime", null);
+		final var loader = createModularLoader("testweb", parent);
+		final var className = "edu.iu.type.testweb.TestServlet";
+		final var loaded = loader.loadClass(className, true);
+		assertSame(loader.loadClass(className), loaded);
+	}
+
+	@Test
+	public void testFindsClassInParentModule() throws IOException, ClassNotFoundException {
+		final var parent = createModularLoader("testruntime", null);
+		final var loader = createModularLoader("testweb", parent);
+		final var className = "edu.iu.type.testruntime.TestRuntime";
+		assertSame(loader.findClass(className), loader.loadClass(className));
+	}
+
+	@Test
+	public void testDoesntFindClassDelegatedToParent() throws IOException, ClassNotFoundException {
+		final var parent = createModularLoader("testruntime", null);
+		final var loader = createModularLoader("testweb", parent);
+		final var className = "jakarta.ejb.EJB";
+		assertThrows(ClassNotFoundException.class, () -> loader.findClass(className));
+	}
+
+	@Test
+	public void testLoadsClassDelegatedToParent() throws IOException, ClassNotFoundException {
+		final var parent = createModularLoader("testruntime", null);
+		final var loader = createModularLoader("testweb", parent);
+		final var className = "org.apache.commons.lang.StringEscapeUtils";
+		final var ejb = loader.loadClass(className, true);
+		assertSame(ejb, parent.loadClass(className));
+	}
+
+	@Test
 	public void testFindNoResources() throws IOException {
 		final var loader = createModularLoader("testruntime", null);
 		final var resources = loader.findResources("foo/bar");
@@ -224,6 +242,24 @@ public class ModularClassLoaderTest extends IuTypeTestCase {
 	}
 
 	@Test
+	public void testFindModuleResource() throws IOException {
+		final var loader = createModularLoader("testruntime", null);
+		assertNotNull(loader.findResource("module-info.class"));
+	}
+
+	@Test
+	public void testFindNoResource() throws IOException {
+		final var loader = createModularLoader("testruntime", null);
+		assertNull(loader.findResource("foo/bar"));
+	}
+
+	@Test
+	public void testFindClasspathResource() throws IOException {
+		final var loader = createModularLoader("testruntime", null);
+		assertNotNull(loader.findResource("META-INF/LICENSE.txt"));
+	}
+
+	@Test
 	public void testFindResourceByModule() throws IOException {
 		final var loader = createModularLoader("testruntime", null);
 		final var jsonLicense = loader.findResource("jakarta.json", "META-INF/LICENSE.md");
@@ -232,6 +268,14 @@ public class ModularClassLoaderTest extends IuTypeTestCase {
 		assertNull(loader.findResource("foo.bar", "META-INF/LICENSE.md"));
 		assertNotNull(loader.findResource(null, "META-INF/LICENSE.md"));
 		assertNull(loader.findResource(null, "foo.bar"));
+	}
+
+	@Test
+	public void testDoesntFindEncapsulatedResource() throws IOException {
+		final var loader = createModularLoader("testruntime", null);
+		final var resources = loader.findResources("org/eclipse/parsson/messages.properties");
+		assertFalse(resources.hasMoreElements());
+		assertNull(loader.findResource("org/eclipse/parsson/messages.properties"));
 	}
 
 }

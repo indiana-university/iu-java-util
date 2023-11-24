@@ -120,7 +120,6 @@ class ComponentVersion implements IuComponentVersion {
 				JarEntry entry;
 				while ((entry = jar.getNextJarEntry()) != null) {
 					final var entryName = entry.getName();
-					System.out.println(entryName);
 					if (entryName.startsWith("META-INF/maven/") && entryName.endsWith("/pom.properties"))
 						return IuException.checked(IOException.class, jar, withPomPropertiesInput);
 				}
