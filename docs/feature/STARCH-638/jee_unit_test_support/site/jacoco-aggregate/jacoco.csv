@@ -43,7 +43,7 @@ IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuComponent.Kind,0,
 IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,DefaultInterceptor.Scope,0,21,0,0,0,4,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuComponentVersion,0,157,0,32,0,46,0,20,0,4
 IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuComponent,0,66,0,2,0,11,0,5,0,4
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,ArchiveSource,0,222,0,28,0,54,0,23,0,9
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,ArchiveSource,0,252,0,30,0,62,0,24,0,9
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeFactory.new Record() {...},0,9,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,PropertyFacade,0,204,0,10,0,41,0,19,0,14
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ParameterizedFacade,0,6,0,0,0,1,0,1,0,1
@@ -55,15 +55,17 @@ IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeFacade,0,174,0,0,0
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ParameterizedElement,0,207,0,26,0,51,0,22,0,9
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ElementBase,0,62,0,6,0,19,0,8,0,5
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeFactory.new Object() {...},0,6,0,0,0,3,0,1,0,1
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,ModularClassLoader,0,658,0,84,0,143,0,58,0,16
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,ModularClassLoader.new BiPredicate() {...},0,14,0,0,0,4,0,2,0,2
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentModuleFinder,0,109,0,12,0,23,0,10,0,4
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,DeclaredElementBase,0,46,0,4,0,13,0,5,0,3
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeTemplate,0,784,0,90,0,157,0,81,0,36
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentFactory,0,437,0,50,0,98,0,33,0,8
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentFactory,0,355,0,48,0,77,0,31,0,7
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentArchive.ScannedAttributes,0,21,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,LegacyClassLoader,0,56,0,8,0,15,0,6,0,2
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentModuleFinder.Ref,0,53,0,8,0,17,0,7,0,3
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TemporaryFile,0,24,0,0,0,8,0,1,0,1
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentVersion,0,525,2,68,0,110,2,48,0,15
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentVersion,0,537,2,72,0,109,2,50,0,15
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentTarget,0,57,0,2,0,13,0,4,0,3
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentArchive,0,658,0,128,0,148,0,71,0,7
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentEntry,0,116,0,14,0,30,0,15,0,8
@@ -72,9 +74,10 @@ IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeUtils,0,207,0,34,0
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeFactory,0,496,0,60,0,112,0,40,0,10
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,FieldFacade,0,119,0,10,0,21,0,14,0,9
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,BackwardsCompatibility,0,72,0,8,0,21,0,6,0,2
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,Component,0,663,1,71,0,149,1,57,0,22
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,Component,0,650,2,70,0,146,2,54,0,20
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeSpi,0,17,0,0,0,5,0,4,0,4
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,PathEntryScanner,0,180,1,25,0,36,1,16,0,4
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,ModularClassLoader.new Enumeration() {...},0,18,0,0,0,3,0,3,0,3
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeFacade.new Runnable() {...},0,96,0,4,0,18,0,6,0,4
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeReference,0,291,0,32,0,62,0,28,0,12
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,AnnotatedElementBase,0,79,0,10,0,23,0,11,0,6

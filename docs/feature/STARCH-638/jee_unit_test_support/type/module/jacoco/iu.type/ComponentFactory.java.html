@@ -33,15 +33,10 @@ package iu.type;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.module.Configuration;
-import java.lang.module.ModuleFinder;
 import java.net.URL;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayDeque;
-import java.util.List;
 import java.util.Queue;
-import java.util.stream.Collectors;
 
 import edu.iu.IuException;
 
@@ -67,19 +62,19 @@ final class ComponentFactory {
 	 *                               path.
 	 */
 	static void checkIfAlreadyProvided(ComponentArchive alreadyProvidedArchive, ComponentArchive archive) {
-<span class="fc bfc" id="L70" title="All 2 branches covered.">		if (alreadyProvidedArchive.version().name().equals(archive.version().name())) {</span>
-<span class="fc" id="L71">			var illegalArgumentException = new IllegalArgumentException(</span>
-<span class="fc" id="L72">					archive.version() + &quot; was already provided by &quot; + alreadyProvidedArchive.version());</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">		if (alreadyProvidedArchive.version().name().equals(archive.version().name())) {</span>
+<span class="fc" id="L66">			var illegalArgumentException = new IllegalArgumentException(</span>
+<span class="fc" id="L67">					archive.version() + &quot; was already provided by &quot; + alreadyProvidedArchive.version());</span>
 
 			try {
-<span class="fc" id="L75">				Files.delete(archive.path());</span>
-<span class="fc" id="L76">			} catch (Throwable deleteFailure) {</span>
-<span class="fc" id="L77">				illegalArgumentException.addSuppressed(deleteFailure);</span>
-<span class="fc" id="L78">			}</span>
+<span class="fc" id="L70">				Files.delete(archive.path());</span>
+<span class="fc" id="L71">			} catch (Throwable deleteFailure) {</span>
+<span class="fc" id="L72">				illegalArgumentException.addSuppressed(deleteFailure);</span>
+<span class="fc" id="L73">			}</span>
 
-<span class="fc" id="L80">			throw illegalArgumentException;</span>
+<span class="fc" id="L75">			throw illegalArgumentException;</span>
 		}
-<span class="fc" id="L82">	}</span>
+<span class="fc" id="L77">	}</span>
 
 	/**
 	 * Creates a modular component.
@@ -87,47 +82,11 @@ final class ComponentFactory {
 	 * @param parent   parent component
 	 * @param archives component path
 	 * @return module component
+	 * @throws IOException If an I/O error occurs reading from an archive
 	 */
-	static Component createModular(Component parent, Queue&lt;ComponentArchive&gt; archives) {
-<span class="fc" id="L92">		var path = new Path[archives.size()];</span>
-		{
-<span class="fc" id="L94">			var i = 0;</span>
-<span class="fc bfc" id="L95" title="All 2 branches covered.">			for (var archive : archives)</span>
-<span class="fc" id="L96">				path[i++] = archive.path();</span>
-		}
-
-<span class="fc" id="L99">		var moduleFinder = new ComponentModuleFinder(path);</span>
-		try {
-<span class="fc" id="L101">			var moduleNames = moduleFinder.findAll().stream().map(ref -&gt; ref.descriptor().name())</span>
-<span class="fc" id="L102">					.collect(Collectors.toList());</span>
-
-			ClassLoader parentClassLoader;
-			ModuleLayer parentModuleLayer;
-<span class="fc bfc" id="L106" title="All 2 branches covered.">			if (parent == null) {</span>
-<span class="fc" id="L107">				parentClassLoader = null;</span>
-<span class="fc" id="L108">				parentModuleLayer = ModuleLayer.boot();</span>
-			} else {
-<span class="fc" id="L110">				parentClassLoader = parent.classLoader();</span>
-<span class="fc" id="L111">				parentModuleLayer = parent.controller().layer();</span>
-			}
-
-<span class="fc" id="L114">			var configuration = Configuration.resolveAndBind( //</span>
-<span class="fc" id="L115">					moduleFinder, List.of(parentModuleLayer.configuration()), ModuleFinder.of(), moduleNames);</span>
-
-<span class="fc" id="L117">			var controller = ModuleLayer.defineModulesWithOneLoader(configuration, List.of(parentModuleLayer),</span>
-					parentClassLoader);
-
-<span class="fc" id="L120">			return new Component(parent, controller, controller.layer().findLoader(moduleNames.iterator().next()),</span>
-					moduleFinder, archives);
-
-<span class="fc" id="L123">		} catch (RuntimeException | Error e) {</span>
-			try {
-<span class="fc" id="L125">				moduleFinder.close();</span>
-<span class="fc" id="L126">			} catch (Throwable e2) {</span>
-<span class="fc" id="L127">				e.addSuppressed(e2);</span>
-<span class="fc" id="L128">			}</span>
-<span class="fc" id="L129">			throw e;</span>
-		}
+	static Component createModular(Component parent, Queue&lt;ComponentArchive&gt; archives) throws IOException {
+<span class="fc bfc" id="L88" title="All 2 branches covered.">		return new Component(parent, new ModularClassLoader(archives, parent == null ? null : parent.classLoader()),</span>
+				archives);
 	}
 
 	/**
@@ -139,18 +98,18 @@ final class ComponentFactory {
 	 * @throws IOException If an I/O error occurs reading from an archive
 	 */
 	static Component createLegacy(Component parent, Queue&lt;ComponentArchive&gt; archives) throws IOException {
-<span class="fc" id="L142">		var path = new URL[archives.size()];</span>
+<span class="fc" id="L101">		var path = new URL[archives.size()];</span>
 		{
-<span class="fc" id="L144">			var i = 0;</span>
-<span class="fc bfc" id="L145" title="All 2 branches covered.">			for (var archive : archives)</span>
-<span class="fc" id="L146">				path[i++] = archive.path().toUri().toURL();</span>
+<span class="fc" id="L103">			var i = 0;</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">			for (var archive : archives)</span>
+<span class="fc" id="L105">				path[i++] = archive.path().toUri().toURL();</span>
 		}
 
-<span class="fc" id="L149">		return IuException.checked(IOException.class,</span>
-<span class="fc" id="L150">				() -&gt; IuException.initialize(</span>
-<span class="fc" id="L151">						new LegacyClassLoader(archives.iterator().next().kind().isWeb(), path,</span>
-<span class="fc bfc" id="L152" title="All 2 branches covered.">								parent == null ? null : parent.classLoader()),</span>
-<span class="fc" id="L153">						loader -&gt; new Component(parent, null, loader, null, archives)));</span>
+<span class="fc" id="L108">		return IuException.checked(IOException.class,</span>
+<span class="fc" id="L109">				() -&gt; IuException.initialize(</span>
+<span class="fc" id="L110">						new LegacyClassLoader(archives.iterator().next().kind().isWeb(), path,</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">								parent == null ? null : parent.classLoader()),</span>
+<span class="fc" id="L112">						loader -&gt; new Component(parent, loader, archives)));</span>
 	}
 
 	/**
@@ -163,56 +122,56 @@ final class ComponentFactory {
 	 * @throws IOException If an I/O error occurs reaching from an archive source
 	 */
 	static Component createFromSourceQueue(Component parent, Queue&lt;ArchiveSource&gt; sources) throws IOException {
-<span class="fc" id="L166">		Queue&lt;ComponentArchive&gt; archives = new ArrayDeque&lt;&gt;();</span>
-<span class="fc" id="L167">		Queue&lt;ComponentVersion&gt; unmetDependencies = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L125">		Queue&lt;ComponentArchive&gt; archives = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L126">		Queue&lt;ComponentVersion&gt; unmetDependencies = new ArrayDeque&lt;&gt;();</span>
 
 		try {
-<span class="fc bfc" id="L170" title="All 2 branches covered.">			while (!sources.isEmpty())</span>
-<span class="fc" id="L171">				try (var source = sources.poll()) {</span>
-<span class="fc bfc" id="L172" title="All 2 branches covered.">					dep: for (var sourceDependency : source.dependencies()) {</span>
-<span class="fc bfc" id="L173" title="All 2 branches covered.">						if (parent != null)</span>
-<span class="fc bfc" id="L174" title="All 2 branches covered.">							for (var version : parent.versions())</span>
-<span class="fc bfc" id="L175" title="All 2 branches covered.">								if (version.meets(sourceDependency))</span>
-<span class="fc" id="L176">									continue dep;</span>
-<span class="fc bfc" id="L177" title="All 2 branches covered.">						for (var archive : archives)</span>
-<span class="fc bfc" id="L178" title="All 2 branches covered.">							if (archive.version().meets(sourceDependency))</span>
-<span class="fc" id="L179">								continue dep;</span>
-<span class="fc" id="L180">						unmetDependencies.add(sourceDependency);</span>
-<span class="fc" id="L181">					}</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">			while (!sources.isEmpty())</span>
+<span class="fc" id="L130">				try (var source = sources.poll()) {</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">					dep: for (var sourceDependency : source.dependencies()) {</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">						if (parent != null)</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">							for (var version : parent.versions())</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">								if (version.meets(sourceDependency))</span>
+<span class="fc" id="L135">									continue dep;</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">						for (var archive : archives)</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">							if (archive.version().meets(sourceDependency))</span>
+<span class="fc" id="L138">								continue dep;</span>
+<span class="fc" id="L139">						unmetDependencies.add(sourceDependency);</span>
+<span class="fc" id="L140">					}</span>
 
-<span class="fc" id="L183">					var archive = ComponentArchive.from(source);</span>
-<span class="fc bfc" id="L184" title="All 2 branches covered.">					for (var alreadyProvidedArchive : archives)</span>
-<span class="fc" id="L185">						checkIfAlreadyProvided(alreadyProvidedArchive, archive);</span>
+<span class="fc" id="L142">					var archive = ComponentArchive.from(source);</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">					for (var alreadyProvidedArchive : archives)</span>
+<span class="fc" id="L144">						checkIfAlreadyProvided(alreadyProvidedArchive, archive);</span>
 
-<span class="fc" id="L187">					var unmetDependencyIterator = unmetDependencies.iterator();</span>
-<span class="fc bfc" id="L188" title="All 2 branches covered.">					while (unmetDependencyIterator.hasNext()) {</span>
-<span class="fc" id="L189">						final var unmetDependency = unmetDependencyIterator.next();</span>
-<span class="fc bfc" id="L190" title="All 2 branches covered.">						if (archive.version().meets(unmetDependency))</span>
-<span class="fc" id="L191">							unmetDependencyIterator.remove();</span>
-<span class="fc" id="L192">					}</span>
-<span class="fc" id="L193">					archives.offer(archive);</span>
+<span class="fc" id="L146">					var unmetDependencyIterator = unmetDependencies.iterator();</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">					while (unmetDependencyIterator.hasNext()) {</span>
+<span class="fc" id="L148">						final var unmetDependency = unmetDependencyIterator.next();</span>
+<span class="fc bfc" id="L149" title="All 2 branches covered.">						if (archive.version().meets(unmetDependency))</span>
+<span class="fc" id="L150">							unmetDependencyIterator.remove();</span>
+<span class="fc" id="L151">					}</span>
+<span class="fc" id="L152">					archives.offer(archive);</span>
 
-<span class="fc bfc" id="L195" title="All 2 branches covered.">					for (var bundledDependency : archive.bundledDependencies())</span>
-<span class="fc" id="L196">						sources.offer(bundledDependency);</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">					for (var bundledDependency : archive.bundledDependencies())</span>
+<span class="fc" id="L155">						sources.offer(bundledDependency);</span>
 				}
 
-<span class="fc bfc" id="L199" title="All 2 branches covered.">			if (!unmetDependencies.isEmpty())</span>
-<span class="fc" id="L200">				throw new IllegalArgumentException(&quot;Not all depdendencies were met, missing &quot; + unmetDependencies);</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">			if (!unmetDependencies.isEmpty())</span>
+<span class="fc" id="L159">				throw new IllegalArgumentException(&quot;Not all depdendencies were met, missing &quot; + unmetDependencies);</span>
 
-<span class="fc" id="L202">			var kind = archives.iterator().next().kind();</span>
-<span class="fc bfc" id="L203" title="All 2 branches covered.">			if (kind.isModular())</span>
-<span class="fc" id="L204">				return createModular(parent, archives);</span>
+<span class="fc" id="L161">			var kind = archives.iterator().next().kind();</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">			if (kind.isModular())</span>
+<span class="fc" id="L163">				return createModular(parent, archives);</span>
 			else
-<span class="fc" id="L206">				return createLegacy(parent, archives);</span>
+<span class="fc" id="L165">				return createLegacy(parent, archives);</span>
 
-<span class="fc" id="L208">		} catch (IOException | RuntimeException | Error e) {</span>
-<span class="fc bfc" id="L209" title="All 2 branches covered.">			while (!archives.isEmpty())</span>
+<span class="fc" id="L167">		} catch (IOException | RuntimeException | Error e) {</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">			while (!archives.isEmpty())</span>
 				try {
-<span class="fc" id="L211">					Files.delete(archives.poll().path());</span>
-<span class="fc" id="L212">				} catch (Throwable e2) {</span>
-<span class="fc" id="L213">					e.addSuppressed(e2);</span>
-<span class="fc" id="L214">				}</span>
-<span class="fc" id="L215">			throw e;</span>
+<span class="fc" id="L170">					Files.delete(archives.poll().path());</span>
+<span class="fc" id="L171">				} catch (Throwable e2) {</span>
+<span class="fc" id="L172">					e.addSuppressed(e2);</span>
+<span class="fc" id="L173">				}</span>
+<span class="fc" id="L174">			throw e;</span>
 		}
 	}
 
@@ -229,31 +188,31 @@ final class ComponentFactory {
 	static Component createComponent(Component parent, InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException {
 
-<span class="fc" id="L232">		Queue&lt;ArchiveSource&gt; sources = new ArrayDeque&lt;&gt;();</span>
-<span class="fc" id="L233">		Throwable thrown = null;</span>
+<span class="fc" id="L191">		Queue&lt;ArchiveSource&gt; sources = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L192">		Throwable thrown = null;</span>
 		try {
-<span class="fc" id="L235">			sources.offer(new ArchiveSource(componentArchiveSource));</span>
-<span class="fc bfc" id="L236" title="All 2 branches covered.">			for (var providedDependencyArchiveSource : providedDependencyArchiveSources)</span>
-<span class="fc" id="L237">				sources.offer(new ArchiveSource(providedDependencyArchiveSource));</span>
+<span class="fc" id="L194">			sources.offer(new ArchiveSource(componentArchiveSource));</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">			for (var providedDependencyArchiveSource : providedDependencyArchiveSources)</span>
+<span class="fc" id="L196">				sources.offer(new ArchiveSource(providedDependencyArchiveSource));</span>
 
-<span class="fc" id="L239">			return createFromSourceQueue(parent, sources);</span>
+<span class="fc" id="L198">			return createFromSourceQueue(parent, sources);</span>
 
-<span class="fc" id="L241">		} catch (IOException | RuntimeException | Error e) {</span>
-<span class="fc" id="L242">			thrown = e;</span>
-<span class="fc" id="L243">			throw e;</span>
+<span class="fc" id="L200">		} catch (IOException | RuntimeException | Error e) {</span>
+<span class="fc" id="L201">			thrown = e;</span>
+<span class="fc" id="L202">			throw e;</span>
 		} finally {
-<span class="fc bfc" id="L245" title="All 2 branches covered.">			final var throwing = thrown != null;</span>
-<span class="fc bfc" id="L246" title="All 2 branches covered.">			while (!sources.isEmpty())</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">			final var throwing = thrown != null;</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">			while (!sources.isEmpty())</span>
 				try {
-<span class="fc" id="L248">					sources.poll().close();</span>
-<span class="fc" id="L249">				} catch (IOException | RuntimeException | Error e) {</span>
-<span class="fc bfc" id="L250" title="All 2 branches covered.">					if (thrown == null)</span>
-<span class="fc" id="L251">						thrown = e;</span>
+<span class="fc" id="L207">					sources.poll().close();</span>
+<span class="fc" id="L208">				} catch (IOException | RuntimeException | Error e) {</span>
+<span class="fc bfc" id="L209" title="All 2 branches covered.">					if (thrown == null)</span>
+<span class="fc" id="L210">						thrown = e;</span>
 					else
-<span class="fc" id="L253">						thrown.addSuppressed(e);</span>
-<span class="fc" id="L254">				}</span>
-<span class="fc bfc" id="L255" title="All 4 branches covered.">			if (!throwing &amp;&amp; thrown != null)</span>
-<span class="fc" id="L256">				throw IuException.checked(thrown, IOException.class);</span>
+<span class="fc" id="L212">						thrown.addSuppressed(e);</span>
+<span class="fc" id="L213">				}</span>
+<span class="fc bfc" id="L214" title="All 4 branches covered.">			if (!throwing &amp;&amp; thrown != null)</span>
+<span class="fc" id="L215">				throw IuException.checked(thrown, IOException.class);</span>
 		}
 	}
 

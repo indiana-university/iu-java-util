@@ -282,7 +282,7 @@ import edu.iu.type.IuComponent.Kind;
 <span class="fc" id="L282">				kind = Kind.LEGACY_WAR;</span>
 <span class="fc" id="L283">				properties = iuProperties;</span>
 			}
-<span class="fc bfc" id="L285" title="All 2 branches covered.">		} else if (iuProperties == null) {</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">		} else if (hasModuleDescriptor) {</span>
 <span class="fc" id="L286">			kind = Kind.MODULAR_JAR;</span>
 <span class="fc" id="L287">			properties = typeProperties;</span>
 		} else {
