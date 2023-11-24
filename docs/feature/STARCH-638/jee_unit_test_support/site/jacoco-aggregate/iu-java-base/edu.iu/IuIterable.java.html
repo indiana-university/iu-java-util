@@ -390,7 +390,7 @@ public final class IuIterable {
 	 * @return A single iterable over all iterables in sequence.
 	 */
 	@SafeVarargs
-	public static &lt;T&gt; Iterable&lt;T&gt; cat(Iterable&lt;T&gt;... iterables) {
+	public static &lt;T&gt; Iterable&lt;? extends T&gt; cat(Iterable&lt;? extends T&gt;... iterables) {
 <span class="fc bfc" id="L394" title="All 3 branches covered.">		switch (iterables.length) {</span>
 		case 0:
 <span class="fc" id="L396">			return empty();</span>
@@ -401,7 +401,7 @@ public final class IuIterable {
 		default:
 <span class="fc" id="L402">			return of(() -&gt; new Iterator&lt;T&gt;() {</span>
 <span class="fc" id="L403">				@SuppressWarnings(&quot;unchecked&quot;)</span>
-				final Iterator&lt;T&gt;[] i = new Iterator[iterables.length];
+				final Iterator&lt;? extends T&gt;[] i = new Iterator[iterables.length];
 <span class="fc" id="L405">				int n = 0;</span>
 
 				@Override
