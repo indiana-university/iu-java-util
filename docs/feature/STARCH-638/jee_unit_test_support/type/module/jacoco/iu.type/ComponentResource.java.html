@@ -38,7 +38,6 @@ import java.util.Queue;
 import java.util.function.Supplier;
 
 import edu.iu.IuException;
-import edu.iu.UnsafeSupplier;
 import edu.iu.type.IuResource;
 import edu.iu.type.IuType;
 import jakarta.annotation.Resource;
@@ -60,179 +59,139 @@ class ComponentResource&lt;T&gt; implements IuResource&lt;T&gt; {
 	 * @return static web resource
 	 */
 	static ComponentResource&lt;byte[]&gt; createWebResource(String name, byte[] data) {
-<span class="fc" id="L63">		return new ComponentResource&lt;byte[]&gt;(true, true, name, IuType.of(byte[].class), () -&gt; data);</span>
-	}
-
-	/**
-	 * Determines if a resource annotation indicates an instance of a potential
-	 * implementation class.
-	 * 
-	 * @param resourceReference {@link Resource} annotation
-	 * @param classToCheck      class to check
-	 * @return true if the class satisfies a requirement implied by the
-	 *         {@link Resource}; else false
-	 */
-	static boolean isApplicationResource(Resource resourceReference, Class&lt;?&gt; classToCheck) {
-<span class="fc" id="L76">		Class&lt;?&gt; resourceType = resourceReference.type();</span>
-<span class="fc bfc" id="L77" title="All 2 branches covered.">		if (InvocationHandler.class.isAssignableFrom(classToCheck))</span>
-<span class="fc" id="L78">			return resourceType.isInterface();</span>
-		else
-<span class="fc" id="L80">			return resourceType.isAssignableFrom(classToCheck);</span>
-	}
-
-	/**
-	 * Gets an instance of the resource.
-	 * 
-	 * @param &lt;T&gt;                   resource type
-	 * @param resourceInterface     resource interface or raw implementation class
-	 * @param implementationFactory supplies a resource implementation or
-	 *                              {@link InvocationHandler} instance
-	 * @return resource instance
-	 */
-	static &lt;T&gt; T createResourceInstance(Class&lt;T&gt; resourceInterface, UnsafeSupplier&lt;?&gt; implementationFactory) {
-<span class="fc" id="L93">		var implementationInstance = IuException.unchecked(implementationFactory);</span>
-<span class="fc bfc" id="L94" title="All 2 branches covered.">		if (implementationInstance instanceof InvocationHandler)</span>
-<span class="fc" id="L95">			return resourceInterface.cast(Proxy.newProxyInstance(resourceInterface.getClassLoader(),</span>
-					new Class&lt;?&gt;[] { resourceInterface }, (InvocationHandler) implementationInstance));
-		else
-<span class="fc" id="L98">			return resourceInterface.cast(implementationInstance);</span>
-	}
-
-	/**
-	 * Gets an instance of the resource.
-	 * 
-	 * @param resourceReference     resource annotation;
-	 *                              {@link #isApplicationResource(Resource, Class)}
-	 *                              &lt;em&gt;must&lt;/em&gt; return true.
-	 * @param implementationClass   implementation class or
-	 *                              {@link InvocationHandler}
-	 * @param implementationFactory supplies a resource implementation or
-	 *                              {@link InvocationHandler} instance
-	 * @return resource instance
-	 */
-	@SuppressWarnings({ &quot;rawtypes&quot;, &quot;unchecked&quot; })
-	static ComponentResource&lt;?&gt; createResource(Resource resourceReference, Class&lt;?&gt; implementationClass,
-			UnsafeSupplier&lt;?&gt; implementationFactory) {
-		IuType type;
-<span class="fc bfc" id="L117" title="All 2 branches covered.">		if (InvocationHandler.class.isAssignableFrom(implementationClass)) {</span>
-<span class="fc" id="L118">			Class&lt;?&gt; resourceClass = resourceReference.type();</span>
-<span class="fc bfc" id="L119" title="All 2 branches covered.">			if (!resourceClass.isInterface())</span>
-<span class="fc" id="L120">				throw new IllegalArgumentException(</span>
-						&quot;Application resource defined by InvocationHandler requires resource type to be an interface&quot;);
-			else
-<span class="fc" id="L123">				type = IuType.of(resourceClass);</span>
-<span class="fc" id="L124">		} else {</span>
-<span class="fc" id="L125">			Class&lt;?&gt; resourceClass = resourceReference.type();</span>
-<span class="fc bfc" id="L126" title="All 2 branches covered.">			if (resourceClass == Object.class) {</span>
-<span class="fc bfc" id="L127" title="All 2 branches covered.">				for (var i : implementationClass.getInterfaces())</span>
-<span class="fc bfc" id="L128" title="All 2 branches covered.">					if (!TypeUtils.isPlatformType(i.getName())) {</span>
-<span class="fc" id="L129">						resourceClass = i;</span>
-<span class="fc" id="L130">						break;</span>
-					}
-<span class="fc bfc" id="L132" title="All 2 branches covered.">				if (resourceClass == Object.class)</span>
-<span class="fc" id="L133">					resourceClass = implementationClass;</span>
-			}
-
-<span class="fc bfc" id="L136" title="All 2 branches covered.">			if (!resourceClass.isAssignableFrom(implementationClass))</span>
-<span class="fc" id="L137">				throw new IllegalArgumentException(</span>
-						&quot;Application resource implementation class must be an InvocationHandler or assignable from resource type&quot;);
-			else
-<span class="fc" id="L140">				type = IuType.of(resourceClass);</span>
-		}
-
-<span class="fc" id="L143">		var name = resourceReference.name();</span>
-<span class="fc bfc" id="L144" title="All 2 branches covered.">		if (name.isEmpty())</span>
-<span class="fc" id="L145">			name = type.erasedClass().getSimpleName();</span>
-
-		Supplier supplier;
-<span class="fc bfc" id="L148" title="All 2 branches covered.">		if (resourceReference.shareable())</span>
-<span class="fc" id="L149">			supplier = new Supplier() {</span>
-				volatile Object instance;
-
-				@Override
-				public synchronized Object get() {
-<span class="fc bfc" id="L154" title="All 2 branches covered.">					if (instance == null)</span>
-<span class="fc" id="L155">						instance = createResourceInstance(type.erasedClass(), implementationFactory);</span>
-<span class="fc" id="L156">					return instance;</span>
-				}
-			};
-		else
-<span class="fc" id="L160">			supplier = () -&gt; createResourceInstance(type.erasedClass(), implementationFactory);</span>
-
-<span class="fc" id="L162">		return new ComponentResource(resourceReference.authenticationType().equals(AuthenticationType.CONTAINER),</span>
-<span class="fc" id="L163">				resourceReference.shareable(), name, type, supplier);</span>
+<span class="fc" id="L62">		return new ComponentResource&lt;byte[]&gt;(true, true,</span>
+<span class="fc" id="L63">				new ResourceKey&lt;&gt;(name, TypeFactory.resolveRawClass(byte[].class)), () -&gt; data);</span>
 	}
 
 	/**
 	 * Gets all resources definitions tied to an implementation class
 	 * 
-	 * @param implementationClass   implementation class
-	 * @param implementationFactory supplies resource implementation or
-	 *                              {@link InvocationHandler} instances
+	 * @param targetClass class to check
 	 * @return resource definitions
 	 */
-	static Iterable&lt;ComponentResource&lt;?&gt;&gt; getResources(Class&lt;?&gt; implementationClass,
-			UnsafeSupplier&lt;?&gt; implementationFactory) {
-<span class="fc" id="L176">		Queue&lt;ComponentResource&lt;?&gt;&gt; resources = new ArrayDeque&lt;&gt;();</span>
+	static Iterable&lt;ComponentResource&lt;?&gt;&gt; getResources(Class&lt;?&gt; targetClass) {
+<span class="fc" id="L73">		Queue&lt;ComponentResource&lt;?&gt;&gt; componentResources = new ArrayDeque&lt;&gt;();</span>
 
-<span class="fc" id="L178">		var resourceReferences = AnnotationBridge.getAnnotation(Resources.class, implementationClass);</span>
-<span class="fc bfc" id="L179" title="All 2 branches covered.">		if (resourceReferences != null)</span>
-<span class="fc bfc" id="L180" title="All 2 branches covered.">			for (var resourceReference : resourceReferences.value())</span>
-<span class="fc bfc" id="L181" title="All 2 branches covered.">				if (isApplicationResource(resourceReference, implementationClass))</span>
-<span class="fc" id="L182">					resources.add(createResource(resourceReference, implementationClass, implementationFactory));</span>
+<span class="fc" id="L75">		var resources = AnnotationBridge.getAnnotation(Resources.class, targetClass);</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">		if (resources != null)</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">			for (var resourceReference : resources.value())</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">				if (isApplicationResource(resourceReference, targetClass))</span>
+<span class="fc" id="L79">					componentResources.add(createResource(resourceReference, targetClass));</span>
 
-<span class="fc" id="L184">		var resourceReference = AnnotationBridge.getAnnotation(Resource.class, implementationClass);</span>
-<span class="fc bfc" id="L185" title="All 2 branches covered.">		if (resourceReference != null)</span>
-<span class="fc bfc" id="L186" title="All 2 branches covered.">			if (isApplicationResource(resourceReference, implementationClass))</span>
-<span class="fc" id="L187">				resources.add(createResource(resourceReference, implementationClass, implementationFactory));</span>
+<span class="fc" id="L81">		var resource = AnnotationBridge.getAnnotation(Resource.class, targetClass);</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">		if (resource != null)</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">			if (isApplicationResource(resource, targetClass))</span>
+<span class="fc" id="L84">				componentResources.add(createResource(resource, targetClass));</span>
 
-<span class="fc" id="L189">		return resources;</span>
+<span class="fc" id="L86">		return componentResources;</span>
+	}
+
+	private static boolean isApplicationResource(Resource resourceReference, Class&lt;?&gt; classToCheck) {
+<span class="fc" id="L90">		Class&lt;?&gt; resourceType = resourceReference.type();</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">		if (InvocationHandler.class.isAssignableFrom(classToCheck))</span>
+<span class="fc" id="L92">			return resourceType.isInterface();</span>
+		else
+<span class="fc" id="L94">			return resourceType.isAssignableFrom(classToCheck);</span>
+	}
+
+	private static ComponentResource&lt;?&gt; createResource(Resource resource, Class&lt;?&gt; targetClass) {
+		final TypeTemplate&lt;?, ?&gt; type;
+<span class="fc bfc" id="L99" title="All 2 branches covered.">		if (InvocationHandler.class.isAssignableFrom(targetClass))</span>
+<span class="fc" id="L100">			type = TypeFactory.resolveRawClass(resource.type());</span>
+		else {
+<span class="fc" id="L102">			Class&lt;?&gt; resourceClass = resource.type();</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">			if (resourceClass == Object.class) {</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">				for (var i : targetClass.getInterfaces())</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">					if (!TypeUtils.isPlatformType(i.getName())) {</span>
+<span class="fc" id="L106">						resourceClass = i;</span>
+<span class="fc" id="L107">						break;</span>
+					}
+<span class="fc bfc" id="L109" title="All 2 branches covered.">				if (resourceClass == Object.class)</span>
+<span class="fc" id="L110">					resourceClass = targetClass;</span>
+			}
+<span class="fc" id="L112">			type = TypeFactory.resolveRawClass(resourceClass);</span>
+		}
+
+		final String name;
+<span class="fc bfc" id="L116" title="All 2 branches covered.">		if (resource.name().isEmpty())</span>
+<span class="fc" id="L117">			name = type.erasedClass().getSimpleName();</span>
+		else
+<span class="fc" id="L119">			name = resource.name();</span>
+
+<span class="fc" id="L121">		return new ComponentResource&lt;&gt;(resource.authenticationType().equals(AuthenticationType.CONTAINER),</span>
+<span class="fc" id="L122">				resource.shareable(), new ResourceKey&lt;&gt;(name, type),</span>
+<span class="fc" id="L123">				() -&gt; IuException.unchecked(() -&gt; TypeFactory.resolveRawClass(targetClass).constructor().exec()));</span>
 	}
 
 	private final boolean needsAuthentication;
 	private final boolean shared;
-	private final String name;
-	private final IuType&lt;?, T&gt; type;
-	private final Supplier&lt;T&gt; factory;
+	private final ResourceKey&lt;T&gt; key;
+	private volatile T singleton;
+	private Supplier&lt;?&gt; factory;
 
-	private ComponentResource(boolean needsAuthentication, boolean shared, String name, IuType&lt;?, T&gt; type,
-<span class="fc" id="L199">			Supplier&lt;T&gt; factory) {</span>
-<span class="fc" id="L200">		this.needsAuthentication = needsAuthentication;</span>
-<span class="fc" id="L201">		this.shared = shared;</span>
-<span class="fc" id="L202">		this.name = name;</span>
-<span class="fc" id="L203">		this.type = type;</span>
-<span class="fc" id="L204">		this.factory = factory;</span>
-<span class="fc" id="L205">	}</span>
+<span class="fc" id="L132">	private ComponentResource(boolean needsAuthentication, boolean shared, ResourceKey&lt;T&gt; key, Supplier&lt;?&gt; factory) {</span>
+<span class="fc" id="L133">		this.needsAuthentication = needsAuthentication;</span>
+<span class="fc" id="L134">		this.shared = shared;</span>
+<span class="fc" id="L135">		this.key = key;</span>
+<span class="fc" id="L136">		this.factory = factory;</span>
+<span class="fc" id="L137">	}</span>
 
 	@Override
 	public boolean needsAuthentication() {
-<span class="fc" id="L209">		return needsAuthentication;</span>
+<span class="fc" id="L141">		return needsAuthentication;</span>
 	}
 
 	@Override
 	public boolean shared() {
-<span class="fc" id="L214">		return shared;</span>
+<span class="fc" id="L146">		return shared;</span>
 	}
 
 	@Override
 	public String name() {
-<span class="fc" id="L219">		return name;</span>
+<span class="fc" id="L151">		return key.name();</span>
 	}
 
 	@Override
 	public IuType&lt;?, T&gt; type() {
-<span class="fc" id="L224">		return type;</span>
+<span class="fc" id="L156">		return key.type();</span>
 	}
 
 	@Override
+	public Supplier&lt;?&gt; factory() {
+<span class="fc" id="L161">		return factory;</span>
+	}
+
+	@Override
+	public void factory(Supplier&lt;?&gt; factory) {
+<span class="fc" id="L166">		this.factory = factory;</span>
+<span class="fc" id="L167">	}</span>
+
+	@Override
 	public T get() {
-<span class="fc" id="L229">		return factory.get();</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">		if (shared)</span>
+<span class="fc" id="L172">			synchronized (this) {</span>
+<span class="fc bfc" id="L173" title="All 2 branches covered.">				if (singleton == null)</span>
+<span class="fc" id="L174">					singleton = create();</span>
+<span class="fc" id="L175">				return singleton;</span>
+			}
+		else
+<span class="fc" id="L178">			return create();</span>
 	}
 
 	@Override
 	public String toString() {
-<span class="fc" id="L234">		return &quot;ComponentResource [needsAuthentication=&quot; + needsAuthentication + &quot;, shared=&quot; + shared + &quot;, name=&quot; + name</span>
-				+ &quot;, type=&quot; + type + &quot;]&quot;;
+<span class="fc" id="L183">		return &quot;ComponentResource [needsAuthentication=&quot; + needsAuthentication + &quot;, shared=&quot; + shared + &quot;, key=&quot; + key</span>
+				+ &quot;]&quot;;
+	}
+
+	private T create() {
+<span class="fc" id="L188">		var type = type().erasedClass();</span>
+<span class="fc" id="L189">		var impl = factory.get();</span>
+<span class="fc bfc" id="L190" title="All 2 branches covered.">		if (impl instanceof InvocationHandler h)</span>
+<span class="fc" id="L191">			return type.cast(</span>
+<span class="fc" id="L192">					Proxy.newProxyInstance(type.getClassLoader(), new Class&lt;?&gt;[] { type }, (InvocationHandler) impl));</span>
+		else
+<span class="fc" id="L194">			return type.cast(impl);</span>
 	}
 
 }

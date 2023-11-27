@@ -727,6 +727,14 @@ public interface IuComponent extends AutoCloseable {
 	 */
 	Iterable&lt;? extends IuResource&lt;?&gt;&gt; resources();
 
+	/**
+	 * Iterates all occurrences of this component's elements referring to a
+	 * resource.
+	 * 
+	 * @return resource references
+	 */
+	Iterable&lt;? extends IuResourceReference&lt;?, ?&gt;&gt; resourceReferences();
+
 	@Override
 	void close();
 

@@ -44,7 +44,7 @@ import edu.iu.type.IuReferenceKind;
  * @param &lt;D&gt; declaring type
  * @param &lt;T&gt; property type
  */
-final class PropertyFacade&lt;D, T&gt; extends ElementBase implements IuProperty&lt;D, T&gt; {
+final class PropertyFacade&lt;D, T&gt; extends ElementBase implements IuProperty&lt;D, T&gt;, DeclaredAttribute&lt;D, T&gt; {
 
 	private final PropertyDescriptor propertyDescriptor;
 	private final TypeFacade&lt;?, T&gt; type;

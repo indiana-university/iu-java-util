@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuVisitor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Base Utilities Module</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuVisitor.java</span></div><h1>IuVisitor.java</h1><pre class="source lang-java linenums">package edu.iu;
+
+import java.lang.ref.Reference;
+import java.lang.ref.WeakReference;
+import java.util.Optional;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
+/**
+ * Implements a basic visitor pattern for tracking disparate uniform instances
+ * of a specific element type.
+ * 
+ * &lt;p&gt;
+ * This resource is thread-safe and intended for use in high-volume and
+ * time-sensitive component initialization scenarios. Elements are weakly held,
+ * so will may only be visited until cleared by the garbage collector.
+ * &lt;/p&gt;
+ * 
+ * @param &lt;T&gt; element type
+ */
+public class IuVisitor&lt;T&gt; implements Consumer&lt;T&gt; {
+
+<span class="fc" id="L25">	private final Queue&lt;Reference&lt;T&gt;&gt; elements = new ConcurrentLinkedQueue&lt;&gt;();</span>
+
+	/**
+	 * Default constructor.
+	 */
+<span class="fc" id="L30">	public IuVisitor() {</span>
+<span class="fc" id="L31">	}</span>
+
+	/**
+	 * Applies a function to each element until a generic condition is satisfied.
+	 * 
+	 * @param &lt;V&gt;     value type
+	 * @param visitor Function to {@link Function#apply(Object) apply} each element
+	 *                to until an {@link Optional} value is returned. {@code null}
+	 *                will be {@link Function#apply(Object) applied} last if no
+	 *                elements result in an {@link Optional} value. The function
+	 *                &lt;em&gt;may&lt;/em&gt; return {@code null} to continue to the next
+	 *                element, and &lt;em&gt;may&lt;/em&gt; always return {@code null} to always
+	 *                visit all elements. A non-null {@link Optional} result
+	 *                indicates the visited element satisfied a generic condition of
+	 *                some sort and so no other elements should be visited; the
+	 *                {@link Optional} is immediately returned as-is.
+	 * @return {@link Optional} result of the first terminal condition satisfied;
+	 *         null if a terminal condition was not met.
+	 */
+	public &lt;V&gt; Optional&lt;V&gt; visit(Function&lt;T, Optional&lt;V&gt;&gt; visitor) {
+<span class="fc" id="L51">		final var elementIterator = elements.iterator();</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">		while (elementIterator.hasNext()) {</span>
+<span class="fc" id="L53">			final var elementReference = elementIterator.next();</span>
+<span class="fc" id="L54">			final var element = elementReference.get();</span>
+<span class="fc bfc" id="L55" title="All 2 branches covered.">			if (element == null) {</span>
+<span class="fc" id="L56">				elementIterator.remove();</span>
+<span class="fc" id="L57">				continue;</span>
+			}
+
+<span class="fc" id="L60">			final var optionalValue = visitor.apply(element);</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">			if (optionalValue != null)</span>
+<span class="fc" id="L62">				return optionalValue;</span>
+<span class="fc" id="L63">		}</span>
+
+<span class="fc" id="L65">		return visitor.apply(null);</span>
+	}
+
+	/**
+	 * Accepts an element to be observed.
+	 * 
+	 * @param element to observe
+	 */
+	@Override
+	public void accept(T element) {
+<span class="fc" id="L75">		elements.add(new WeakReference&lt;&gt;(element));</span>
+<span class="fc" id="L76">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
