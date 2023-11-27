@@ -36,7 +36,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -62,7 +61,6 @@ import org.junit.jupiter.api.Test;
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuComponent.Kind;
-import edu.iu.type.IuType;
 
 @SuppressWarnings("javadoc")
 public class ComponentTest extends IuTypeTestCase {
@@ -125,73 +123,54 @@ public class ComponentTest extends IuTypeTestCase {
 			component.close();
 		}
 	}
-	
-	@SuppressWarnings("unchecked")
+
 	@Test
 	public void testControllerCanOpenPackages() throws IOException {
-		try (var mockIuType = mockStatic(IuType.class)) {
-			mockIuType.when(() -> IuType.of(any(Class.class))).then(a -> {
-				var c = (Class<?>) a.getArgument(0);
-				var type = mock(IuType.class);
-				when(type.name()).thenReturn(c.getName());
-				return type;
-			});
-			Queue<ComponentArchive> archives = new ArrayDeque<>();
-			var runtimeArchive = ComponentArchive
-					.from(new ArchiveSource(TestArchives.getComponentArchive("testruntime")));
-			archives.offer(runtimeArchive);
-			for (var providedDependencyArchiveSource : TestArchives.getProvidedDependencyArchives("testruntime"))
-				archives.offer(ComponentArchive.from(new ArchiveSource(providedDependencyArchiveSource)));
-			for (var bundledDependency : runtimeArchive.bundledDependencies())
-				archives.offer(ComponentArchive.from(bundledDependency));
+		Queue<ComponentArchive> archives = new ArrayDeque<>();
+		var runtimeArchive = ComponentArchive.from(new ArchiveSource(TestArchives.getComponentArchive("testruntime")));
+		archives.offer(runtimeArchive);
+		for (var providedDependencyArchiveSource : TestArchives.getProvidedDependencyArchives("testruntime"))
+			archives.offer(ComponentArchive.from(new ArchiveSource(providedDependencyArchiveSource)));
+		for (var bundledDependency : runtimeArchive.bundledDependencies())
+			archives.offer(ComponentArchive.from(bundledDependency));
 
-			final var loader = new ModularClassLoader(archives, null);
-			final var controller = loader.controller();
-			controller.addOpens(controller.layer().findModule("jakarta.json").get(), "jakarta.json",
-					getClass().getModule());
+		final var loader = new ModularClassLoader(archives, null);
+		final var controller = loader.controller();
+		controller.addOpens(controller.layer().findModule("jakarta.json").get(), "jakarta.json",
+				getClass().getModule());
 
-			try (var component = new Component(null, loader, archives)) {
-				var interfaces = component.interfaces().iterator();
-				assertTrue(interfaces.hasNext());
-				assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
-				assertTrue(interfaces.hasNext());
-				var next = interfaces.next();
-				assertTrue(next.name().startsWith("jakarta.json"), next + " " + interfaces);
-			}
+		try (var component = new Component(null, loader, archives)) {
+			var interfaces = component.interfaces().iterator();
+			assertTrue(interfaces.hasNext());
+			assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
+			assertTrue(interfaces.hasNext());
+			var next = interfaces.next();
+			assertTrue(next.name().startsWith("jakarta.json"), next + " " + interfaces);
 		}
 	}
 
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testLegacyDoesntOpenPackages() throws IOException {
-		try (var mockIuType = mockStatic(IuType.class)) {
-			mockIuType.when(() -> IuType.of(any(Class.class))).then(a -> {
-				var c = (Class<?>) a.getArgument(0);
-				var type = mock(IuType.class);
-				when(type.name()).thenReturn(c.getName());
-				return type;
-			});
-			Queue<ComponentArchive> archives = new ArrayDeque<>();
-			var runtimeArchive = ComponentArchive
-					.from(new ArchiveSource(TestArchives.getComponentArchive("testruntime")));
-			archives.offer(runtimeArchive);
-			for (var providedDependencyArchiveSource : TestArchives.getProvidedDependencyArchives("testruntime"))
-				archives.offer(ComponentArchive.from(new ArchiveSource(providedDependencyArchiveSource)));
-			for (var bundledDependency : runtimeArchive.bundledDependencies())
-				archives.offer(ComponentArchive.from(bundledDependency));
+		Queue<ComponentArchive> archives = new ArrayDeque<>();
+		var runtimeArchive = ComponentArchive.from(new ArchiveSource(TestArchives.getComponentArchive("testruntime")));
+		archives.offer(runtimeArchive);
+		for (var providedDependencyArchiveSource : TestArchives.getProvidedDependencyArchives("testruntime"))
+			archives.offer(ComponentArchive.from(new ArchiveSource(providedDependencyArchiveSource)));
+		for (var bundledDependency : runtimeArchive.bundledDependencies())
+			archives.offer(ComponentArchive.from(bundledDependency));
 
-			var path = new URL[archives.size()];
-			{
-				var i = 0;
-				for (var archive : archives)
-					path[i++] = archive.path().toUri().toURL();
-			}
+		var path = new URL[archives.size()];
+		{
+			var i = 0;
+			for (var archive : archives)
+				path[i++] = archive.path().toUri().toURL();
+		}
 
-			try (var loader = new LegacyClassLoader(false, path, null)) {
-				try (var component = new Component(null, loader, archives)) {
-					var interfaces = component.interfaces().iterator();
-					assertFalse(interfaces.hasNext(), () -> interfaces.next().name());
-				}
+		try (var loader = new LegacyClassLoader(false, path, null)) {
+			try (var component = new Component(null, loader, archives)) {
+				var interfaces = component.interfaces().iterator();
+				assertFalse(interfaces.hasNext(), () -> interfaces.next().name());
 			}
 		}
 	}

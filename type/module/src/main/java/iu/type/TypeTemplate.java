@@ -44,10 +44,8 @@ import java.util.Queue;
 import java.util.function.Consumer;
 
 import edu.iu.IuException;
+import edu.iu.IuVisitor;
 import edu.iu.type.IuConstructor;
-import edu.iu.type.IuField;
-import edu.iu.type.IuMethod;
-import edu.iu.type.IuProperty;
 import edu.iu.type.IuReferenceKind;
 import edu.iu.type.IuType;
 import edu.iu.type.IuTypeReference;
@@ -149,6 +147,9 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 
 	// Parameterized
 	private final ParameterizedElement parameterizedElement = new ParameterizedElement();
+
+	// Instance management
+	private final IuVisitor<Consumer<T>> instanceListeners = new IuVisitor<>();
 
 	private TypeTemplate(Class<T> annotatedElement, Consumer<TypeTemplate<?, ?>> preInitHook, Type type,
 			TypeTemplate<D, T> erasedType) {
@@ -403,6 +404,31 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 			declaringType.template.postInit(() -> doSealHierarchy(hierarchy));
 	}
 
+	/**
+	 * Subscribes a new instance listener.
+	 * 
+	 * @param instanceListener will be provided a reference to each new instance
+	 *                         created via {@link IuConstructor#exec(Object...)},
+	 *                         directly before return
+	 */
+	void observeNewInstances(Consumer<T> instanceListener) {
+		instanceListeners.accept(instanceListener);
+	}
+
+	/**
+	 * Observes a new instance.
+	 * 
+	 * @param instance newly created instance of the decorated type, directly before
+	 *                 return from {@link IuConstructor#exec(Object...)},
+	 */
+	void observeNewInstance(T instance) {
+		instanceListeners.visit(listener -> {
+			if (listener != null)
+				listener.accept(instance);
+			return null;
+		});
+	}
+
 	@Override
 	public Map<String, TypeFacade<?, ?>> typeParameters() {
 		checkSealed();
@@ -458,21 +484,27 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 	}
 
 	@Override
-	public Iterable<? extends IuField<? super T, ?>> fields() {
+	@SuppressWarnings("unchecked")
+	public <F> FieldFacade<? super T, F> field(String name) {
+		return (FieldFacade<? super T, F>) IuType.super.field(name);
+	}
+
+	@Override
+	public Iterable<FieldFacade<? super T, ?>> fields() {
 		if (fields == null)
 			throw new IllegalStateException("fields not sealed");
 		return fields;
 	}
 
 	@Override
-	public Iterable<? extends IuProperty<? super T, ?>> properties() {
+	public Iterable<PropertyFacade<? super T, ?>> properties() {
 		if (properties == null)
 			throw new IllegalStateException("properties not sealed");
 		return properties;
 	}
 
 	@Override
-	public Iterable<? extends IuMethod<? super T, ?>> methods() {
+	public Iterable<MethodFacade<? super T, ?>> methods() {
 		if (methods == null)
 			throw new IllegalStateException("methods not sealed");
 		return methods;

@@ -48,6 +48,10 @@ public class TestBeanImpl implements TestBean {
 
 	@Resource
 	private List<String> stringList;
+	@Resource(type = String.class)
+	private Object foo = "baz";
+	@Resource(name = "baz")
+	private boolean bar;
 
 	@Override
 	public List<String> getStringList() {

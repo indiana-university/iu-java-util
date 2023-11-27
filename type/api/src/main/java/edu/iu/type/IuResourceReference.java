@@ -29,16 +29,48 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.type.testcomponent;
+package edu.iu.type;
 
-import jakarta.annotation.Resource;
+import java.util.function.Consumer;
 
-@SuppressWarnings("javadoc")
-class InternalClass {
+/**
+ * Manages <strong>reference</strong> to a {@link IuResource resource}.
+ * 
+ * @param <R> <strong>referrer</strong> type
+ * @param <T> {@link IuResourceKey#type() resource type}
+ */
+public interface IuResourceReference<R, T> extends IuResourceKey<T>, Consumer<R> {
 
-	@Resource
-	private TestBean beanField;
-	@Resource
-	private TestResource resourceField;
-	
+	/**
+	 * Gets the <strong>referrer</strong> type.
+	 * 
+	 * @return <strong>referrer</strong> type
+	 */
+	IuType<?, R> referrerType();
+
+	/**
+	 * Binds a {@link IuResource resource} to all <strong>referrer
+	 * instances</strong>.
+	 * 
+	 * <p>
+	 * A <strong>reference</strong> to the bound resource will be provided to all
+	 * <strong>referrer instances</strong> {@link #accept(Object) accepted} prior to
+	 * binding. Once bound, new <strong>referrer instances</strong> will be provided
+	 * a <strong>reference</strong> to the {@link IuResource resource} when
+	 * {@link #accept(Object) accepted}.
+	 * </p>
+	 * 
+	 * @param resource {@link IuResource} to bind to the <strong>reference</strong>
+	 */
+	void bind(IuResource<T> resource);
+
+	/**
+	 * Accepts a <strong>referrer instance</strong> as a {@link #bind(IuResource)
+	 * binding target}.
+	 * 
+	 * @param referrer <strong>referrer instance</strong>
+	 */
+	@Override
+	void accept(R referrer);
+
 }

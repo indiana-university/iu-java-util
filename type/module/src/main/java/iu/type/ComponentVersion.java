@@ -43,7 +43,6 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -55,8 +54,6 @@ import edu.iu.type.IuComponentVersion;
  * Implementation of {@link IuComponentVersion}.
  */
 class ComponentVersion implements IuComponentVersion {
-
-	private static final Logger LOG = Logger.getLogger(ComponentVersion.class.getName());
 
 	private static final Pattern SPEC_VERSION_PATTERN = Pattern.compile("^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$");
 	private static final Pattern NAME_PATTERN = Pattern.compile("^[a-zA-Z][a-zA-Z0-9\\-\\.]*$");

@@ -55,7 +55,9 @@ import edu.iu.type.IuAttribute;
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuComponentVersion;
 import edu.iu.type.IuResource;
+import edu.iu.type.IuResourceReference;
 import edu.iu.type.IuType;
+import jakarta.annotation.Resource;
 
 /**
  * Component Implementation
@@ -70,7 +72,8 @@ class Component implements IuComponent {
 	private static void indexClass(String className, ClassLoader classLoader, ComponentVersion version, Kind kind,
 			Properties properties, Set<IuType<?, ?>> interfaces,
 			Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes,
-			Map<Class<?>, List<IuType<?, ?>>> annotatedTypes, List<ComponentResource<?>> resources) {
+			Map<Class<?>, List<IuType<?, ?>>> annotatedTypes, List<ComponentResource<?>> resources,
+			List<ComponentResourceReference<?, ?>> resourceReferences) {
 		Class<?> loadedClass;
 		try {
 			loadedClass = classLoader.loadClass(className);
@@ -82,9 +85,9 @@ class Component implements IuComponent {
 		var module = loadedClass.getModule();
 		if ((module.isNamed() && module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) //
 				|| (!module.isNamed() && !kind.isModular() && properties != null)) {
-			var type = IuType.of(loadedClass);
+			var type = TypeFactory.resolveRawClass(loadedClass);
 
-			for (final var attribute : IuIterable.<IuAttribute<?, ?>>cat(type.fields(), type.properties())) {
+			for (final var attribute : IuIterable.<DeclaredAttribute<?, ?>>cat(type.fields(), type.properties())) {
 				for (var annotation : attribute.annotations()) {
 					var annotationType = annotation.annotationType();
 
@@ -95,6 +98,9 @@ class Component implements IuComponent {
 					}
 
 					annotatedWithType.add(attribute);
+
+					if (annotationType == Resource.class)
+						resourceReferences.add(new ComponentResourceReference<>(attribute));
 				}
 			}
 
@@ -114,28 +120,28 @@ class Component implements IuComponent {
 				annotatedWithType.add(type);
 			}
 
-			for (var resource : ComponentResource.getResources(loadedClass,
-					() -> loadedClass.cast(type.constructor().exec())))
+			for (var resource : ComponentResource.getResources(loadedClass))
 				resources.add(resource);
 		}
 	}
 
-	private Component parent;
+	private final Component parent;
+	private final ClassLoader classLoader;
 
-	private ClassLoader classLoader;
+	private final Kind kind;
+	private final Set<ComponentVersion> versions;
+	private final Properties properties;
 
-	private Kind kind;
-	private Set<ComponentVersion> versions;
-	private Properties properties;
+	private final Set<IuType<?, ?>> interfaces;
+	private final Map<Class<?>, List<IuType<?, ?>>> annotatedTypes;
+	private final Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes;
+	private final List<ComponentResource<?>> resources;
+	private final List<ComponentResourceReference<?, ?>> resourceReferences;
 
-	private Set<IuType<?, ?>> interfaces;
-	private Map<Class<?>, List<IuType<?, ?>>> annotatedTypes;
-	private Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes;
-	private List<ComponentResource<?>> resources;
+	private final AutoCloseable closeableResources;
+	private final Queue<ComponentArchive> archives;
 
-	private AutoCloseable closeableResources;
-	private Queue<ComponentArchive> archives;
-	private boolean closed;
+	private volatile boolean closed;
 
 	/**
 	 * Single entry constructor.
@@ -150,6 +156,11 @@ class Component implements IuComponent {
 		Map<Class<?>, List<IuType<?, ?>>> annotatedTypes = new LinkedHashMap<>();
 		Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes = new LinkedHashMap<>();
 		List<ComponentResource<?>> resources = new ArrayList<>();
+		List<ComponentResourceReference<?, ?>> resourceReferences = new ArrayList<>();
+
+		this.parent = null;
+		this.closeableResources = null;
+		this.archives = null;
 
 		this.classLoader = classLoader;
 
@@ -176,7 +187,8 @@ class Component implements IuComponent {
 					&& !resourceName.endsWith("-info.class") //
 					&& resourceName.indexOf('$') == -1)
 				indexClass(resourceName.substring(0, resourceName.length() - 6).replace('/', '.'), classLoader, version,
-						kind, properties, interfaces, annotatedAttributes, annotatedTypes, resources);
+						kind, properties, interfaces, annotatedAttributes, annotatedTypes, resources,
+						resourceReferences);
 
 		this.interfaces = Collections.unmodifiableSet(interfaces);
 		for (var annotatedTypeEntry : annotatedTypes.entrySet())
@@ -186,6 +198,7 @@ class Component implements IuComponent {
 			annotatedAttributeEntry.setValue(Collections.unmodifiableList(annotatedAttributeEntry.getValue()));
 		this.annotatedAttributes = Collections.unmodifiableMap(annotatedAttributes);
 		this.resources = Collections.unmodifiableList(resources);
+		this.resourceReferences = Collections.unmodifiableList(resourceReferences);
 	}
 
 	/**
@@ -206,6 +219,8 @@ class Component implements IuComponent {
 		Map<Class<?>, List<IuType<?, ?>>> annotatedTypes = new LinkedHashMap<>();
 		Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes = new LinkedHashMap<>();
 		List<ComponentResource<?>> resources = new ArrayList<>();
+		List<ComponentResourceReference<?, ?>> resourceReferences = new ArrayList<>();
+
 		if (parent != null) {
 			if (parent.kind.isWeb())
 				throw new IllegalArgumentException("Component must not extend a web component");
@@ -238,7 +253,7 @@ class Component implements IuComponent {
 
 			for (var className : archive.nonEnclosedTypeNames())
 				indexClass(className, classLoader, archive.version(), archive.kind(), archive.properties(), interfaces,
-						annotatedAttributes, annotatedTypes, resources);
+						annotatedAttributes, annotatedTypes, resources, resourceReferences);
 		}
 
 		if (parent != null)
@@ -252,6 +267,7 @@ class Component implements IuComponent {
 			annotatedAttributeEntry.setValue(Collections.unmodifiableList(annotatedAttributeEntry.getValue()));
 		this.annotatedAttributes = Collections.unmodifiableMap(annotatedAttributes);
 		this.resources = Collections.unmodifiableList(resources);
+		this.resourceReferences = Collections.unmodifiableList(resourceReferences);
 	}
 
 	private void checkClosed() {
@@ -355,15 +371,19 @@ class Component implements IuComponent {
 	}
 
 	@Override
+	public Iterable<? extends IuResourceReference<?, ?>> resourceReferences() {
+		checkClosed();
+		return resourceReferences;
+	}
+
+	@Override
 	public void close() {
 		if (closed)
 			return;
 
 		synchronized (this) {
-			final var closeableResources = this.closeableResources;
 			if (closeableResources != null)
 				try {
-					this.closeableResources = null;
 					closeableResources.close();
 				} catch (Throwable e) {
 					LOG.log(Level.WARNING, e, () -> "Close component resources failed " + versions);
@@ -380,12 +400,6 @@ class Component implements IuComponent {
 					}
 				}
 
-			parent = null;
-			kind = null;
-			versions = null;
-			properties = null;
-			classLoader = null;
-			interfaces = null;
 			closed = true;
 		}
 	}

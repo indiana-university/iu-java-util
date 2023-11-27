@@ -229,6 +229,16 @@ public class IuComponentTest extends IuTypeTestCase {
 				}
 			assertTrue(found);
 
+			found = false;
+			for (final var resourceRef : component.resourceReferences())
+				if (resourceRef.name().equals("stringList")) {
+					found = true;
+					assertEquals("edu.iu.type.testcomponent.TestBeanImpl", resourceRef.referrerType().name());
+					assertEquals(List.class, resourceRef.type().erasedClass());
+					assertEquals(String.class, resourceRef.type().referTo(List.class).typeParameter("E").erasedClass());
+				}
+			assertTrue(found);
+
 			var resources = component.resources().iterator();
 			assertTrue(resources.hasNext());
 			var resource = resources.next();
