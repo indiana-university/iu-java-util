@@ -101,7 +101,9 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 					if (pomProperties != null)
 						throw new IllegalArgumentException("Component archive must not be a shaded (uber-)jar");
 					pomProperties = new Properties();
-					componentEntry.read(pomProperties::load);
+					final var data = componentEntry.data();
+					pomProperties.load(new ByteArrayInputStream(data));
+					target.put(name, new ByteArrayInputStream(data));
 				}
 				continue;
 			}
@@ -162,7 +164,9 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 					throw new IllegalArgumentException(
 							"Web archive must define META-INF/iu-type.properties as WEB-INF/classes/META-INF/iu-type.properties");
 				typeProperties = new Properties();
-				componentEntry.read(typeProperties::load);
+				final var data = componentEntry.data();
+				typeProperties.load(new ByteArrayInputStream(data));
+				target.put(name, new ByteArrayInputStream(data));
 				continue;
 			}
 
@@ -176,7 +180,9 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 							"Web archive must define META-INF/iu.properties as WEB-INF/classes/META-INF/iu.properties");
 
 				iuProperties = new Properties();
-				componentEntry.read(iuProperties::load);
+				final var data = componentEntry.data();
+				iuProperties.load(new ByteArrayInputStream(data));
+				target.put(name, new ByteArrayInputStream(data));
 				continue;
 			}
 
@@ -276,7 +282,7 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 				kind = Kind.LEGACY_WAR;
 				properties = iuProperties;
 			}
-		} else if (iuProperties == null) {
+		} else if (hasModuleDescriptor) {
 			kind = Kind.MODULAR_JAR;
 			properties = typeProperties;
 		} else {

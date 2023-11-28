@@ -31,30 +31,33 @@
  */
 package iu.type;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.ModuleLayer.Controller;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Modifier;
-import java.net.URLClassLoader;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import edu.iu.IuIterable;
+import edu.iu.type.IuAttribute;
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuComponentVersion;
 import edu.iu.type.IuResource;
+import edu.iu.type.IuResourceReference;
 import edu.iu.type.IuType;
+import jakarta.annotation.Resource;
 
 /**
  * Component Implementation
@@ -66,42 +69,158 @@ class Component implements IuComponent {
 	private static final Logger LOG = Logger.getLogger(Component.class.getName());
 	private static final Module TYPE_MODULE = Component.class.getModule();
 
-	private Component parent;
+	private static void indexClass(String className, ClassLoader classLoader, ComponentVersion version, Kind kind,
+			Properties properties, Set<IuType<?, ?>> interfaces,
+			Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes,
+			Map<Class<?>, List<IuType<?, ?>>> annotatedTypes, List<ComponentResource<?>> resources,
+			List<ComponentResourceReference<?, ?>> resourceReferences) {
+		Class<?> loadedClass;
+		try {
+			loadedClass = classLoader.loadClass(className);
+		} catch (ClassNotFoundException | Error e) {
+			LOG.log(Level.WARNING, e, () -> "Invalid class " + className + " in component " + version);
+			return;
+		}
 
-	private Controller controller;
+		var module = loadedClass.getModule();
+		if ((module.isNamed() && module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) //
+				|| (!module.isNamed() && !kind.isModular() && properties != null)) {
+			var type = TypeFactory.resolveRawClass(loadedClass);
 
-	private ClassLoader classLoader;
+			for (final var attribute : IuIterable.<DeclaredAttribute<?, ?>>cat(type.fields(), type.properties())) {
+				for (var annotation : attribute.annotations()) {
+					var annotationType = annotation.annotationType();
 
-	private Kind kind;
-	private Set<ComponentVersion> versions;
-	private Properties properties;
+					var annotatedWithType = annotatedAttributes.get(annotationType);
+					if (annotatedWithType == null) {
+						annotatedWithType = new ArrayList<>();
+						annotatedAttributes.put(annotationType, annotatedWithType);
+					}
 
-	private Set<IuType<?, ?>> interfaces;
-	private Map<Class<?>, List<IuType<?, ?>>> annotatedTypes;
-	private List<ComponentResource<?>> resources;
+					annotatedWithType.add(attribute);
 
-	private ComponentModuleFinder moduleFinder;
-	private Queue<ComponentArchive> archives;
-	private boolean closed;
+					if (annotationType == Resource.class)
+						resourceReferences.add(new ComponentResourceReference<>(attribute));
+				}
+			}
+
+			var mod = loadedClass.getModifiers();
+			if ((mod & Modifier.PUBLIC) != mod && loadedClass.isInterface() && !loadedClass.isAnnotation())
+				interfaces.add(IuType.of(loadedClass));
+
+			for (var annotation : AnnotationBridge.getAnnotations(loadedClass)) {
+				var annotationType = annotation.annotationType();
+
+				var annotatedWithType = annotatedTypes.get(annotationType);
+				if (annotatedWithType == null) {
+					annotatedWithType = new ArrayList<>();
+					annotatedTypes.put(annotationType, annotatedWithType);
+				}
+
+				annotatedWithType.add(type);
+			}
+
+			for (var resource : ComponentResource.getResources(loadedClass))
+				resources.add(resource);
+		}
+	}
+
+	private final Component parent;
+	private final ClassLoader classLoader;
+
+	private final Kind kind;
+	private final Set<ComponentVersion> versions;
+	private final Properties properties;
+
+	private final Set<IuType<?, ?>> interfaces;
+	private final Map<Class<?>, List<IuType<?, ?>>> annotatedTypes;
+	private final Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes;
+	private final List<ComponentResource<?>> resources;
+	private final List<ComponentResourceReference<?, ?>> resourceReferences;
+
+	private final AutoCloseable closeableResources;
+	private final Queue<ComponentArchive> archives;
+
+	private volatile boolean closed;
+
+	/**
+	 * Single entry constructor.
+	 * 
+	 * @param classLoader class loader
+	 * @param pathEntry   resource root
+	 * @throws IOException if an I/O error occurs scanning the path provided for
+	 *                     resources
+	 */
+	Component(ClassLoader classLoader, Path pathEntry) throws IOException {
+		Set<IuType<?, ?>> interfaces = new LinkedHashSet<>();
+		Map<Class<?>, List<IuType<?, ?>>> annotatedTypes = new LinkedHashMap<>();
+		Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes = new LinkedHashMap<>();
+		List<ComponentResource<?>> resources = new ArrayList<>();
+		List<ComponentResourceReference<?, ?>> resourceReferences = new ArrayList<>();
+
+		this.parent = null;
+		this.closeableResources = null;
+		this.archives = null;
+
+		this.classLoader = classLoader;
+
+		final var version = ComponentVersion.of(pathEntry);
+		this.versions = Set.of(version);
+
+		Set<String> resourceNames = PathEntryScanner.findResources(pathEntry);
+		this.kind = resourceNames.contains("module-info.class") ? Kind.MODULAR_ENTRY : Kind.LEGACY_ENTRY;
+
+		byte[] propertiesSource;
+		if (resourceNames.contains("META-INF/iu.properties"))
+			propertiesSource = PathEntryScanner.read(pathEntry, "META-INF/iu.properties");
+		else if (resourceNames.contains("META-INF/iu-type.properties"))
+			propertiesSource = PathEntryScanner.read(pathEntry, "META-INF/iu-type.properties");
+		else
+			propertiesSource = null;
+
+		this.properties = new Properties();
+		if (propertiesSource != null)
+			this.properties.load(new ByteArrayInputStream(propertiesSource));
+
+		for (final var resourceName : resourceNames)
+			if (resourceName.endsWith(".class") //
+					&& !resourceName.endsWith("-info.class") //
+					&& resourceName.indexOf('$') == -1)
+				indexClass(resourceName.substring(0, resourceName.length() - 6).replace('/', '.'), classLoader, version,
+						kind, properties, interfaces, annotatedAttributes, annotatedTypes, resources,
+						resourceReferences);
+
+		this.interfaces = Collections.unmodifiableSet(interfaces);
+		for (var annotatedTypeEntry : annotatedTypes.entrySet())
+			annotatedTypeEntry.setValue(Collections.unmodifiableList(annotatedTypeEntry.getValue()));
+		this.annotatedTypes = Collections.unmodifiableMap(annotatedTypes);
+		for (var annotatedAttributeEntry : annotatedAttributes.entrySet())
+			annotatedAttributeEntry.setValue(Collections.unmodifiableList(annotatedAttributeEntry.getValue()));
+		this.annotatedAttributes = Collections.unmodifiableMap(annotatedAttributes);
+		this.resources = Collections.unmodifiableList(resources);
+		this.resourceReferences = Collections.unmodifiableList(resourceReferences);
+	}
 
 	/**
 	 * Constructor for use from {@link ComponentFactory}.
 	 * 
-	 * @param parent       parent component, see
-	 *                     {@link #extend(InputStream, InputStream...)}
-	 * @param controller   module controller; must be non-null when first archive is
-	 *                     {@link edu.iu.type.IuComponent.Kind#isModular() modular}.
-	 * @param classLoader  component context loader
-	 * @param moduleFinder module finder backing the controller and classLoader
-	 *                     arguments, to close with this component
-	 * @param archives     archives dedicated to this component, to close and delete
-	 *                     when the component is closed
+	 * @param <C>         {@link ClassLoader} type, typically
+	 *                    {@link ModularClassLoader} or {@link LegacyClassLoader};
+	 *                    <em>must</em> implement {@link AutoCloseable}.
+	 * @param parent      parent component, see
+	 *                    {@link #extend(InputStream, InputStream...)}
+	 * @param classLoader component context loader
+	 * @param archives    archives dedicated to this component, to close and delete
+	 *                    when the component is closed
 	 */
-	Component(Component parent, Controller controller, ClassLoader classLoader, ComponentModuleFinder moduleFinder,
+	<C extends ClassLoader & AutoCloseable> Component(Component parent, C classLoader,
 			Queue<ComponentArchive> archives) {
 		Set<IuType<?, ?>> interfaces = new LinkedHashSet<>();
 		Map<Class<?>, List<IuType<?, ?>>> annotatedTypes = new LinkedHashMap<>();
+		Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes = new LinkedHashMap<>();
 		List<ComponentResource<?>> resources = new ArrayList<>();
+		List<ComponentResourceReference<?, ?>> resourceReferences = new ArrayList<>();
+
 		if (parent != null) {
 			if (parent.kind.isWeb())
 				throw new IllegalArgumentException("Component must not extend a web component");
@@ -113,12 +232,9 @@ class Component implements IuComponent {
 		}
 
 		this.parent = parent;
-
-		this.controller = controller;
-		this.classLoader = Objects.requireNonNull(classLoader, "classLoader");
-
-		this.moduleFinder = moduleFinder;
-		this.archives = Objects.requireNonNull(archives, "archives");
+		this.classLoader = classLoader;
+		this.closeableResources = classLoader;
+		this.archives = archives;
 
 		var firstArchive = archives.iterator().next();
 		kind = firstArchive.kind();
@@ -135,42 +251,9 @@ class Component implements IuComponent {
 				else
 					throw new IllegalArgumentException("Component must not include a web component as a dependency");
 
-			for (var className : archive.nonEnclosedTypeNames()) {
-				Class<?> loadedClass;
-				try {
-					loadedClass = classLoader.loadClass(className);
-				} catch (ClassNotFoundException | Error e) {
-					LOG.log(Level.WARNING, e,
-							() -> "Invalid class " + className + " in component " + archive.version());
-					continue;
-				}
-
-				var module = loadedClass.getModule();
-				if ((module.isNamed() && module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) //
-						|| (!module.isNamed() && !archive.kind().isModular() && archive.properties() != null)) {
-					var type = IuType.of(loadedClass);
-
-					var mod = loadedClass.getModifiers();
-					if ((mod & Modifier.PUBLIC) != mod && loadedClass.isInterface() && !loadedClass.isAnnotation())
-						interfaces.add(IuType.of(loadedClass));
-
-					for (var annotation : AnnotationBridge.getAnnotations(loadedClass)) {
-						var annotationType = annotation.annotationType();
-
-						var annotatedWithType = annotatedTypes.get(annotationType);
-						if (annotatedWithType == null) {
-							annotatedWithType = new ArrayList<>();
-							annotatedTypes.put(annotationType, annotatedWithType);
-						}
-
-						annotatedWithType.add(type);
-					}
-
-					for (var resource : ComponentResource.getResources(loadedClass,
-							() -> loadedClass.cast(type.constructor().exec())))
-						resources.add(resource);
-				}
-			}
+			for (var className : archive.nonEnclosedTypeNames())
+				indexClass(className, classLoader, archive.version(), archive.kind(), archive.properties(), interfaces,
+						annotatedAttributes, annotatedTypes, resources, resourceReferences);
 		}
 
 		if (parent != null)
@@ -180,7 +263,11 @@ class Component implements IuComponent {
 		for (var annotatedTypeEntry : annotatedTypes.entrySet())
 			annotatedTypeEntry.setValue(Collections.unmodifiableList(annotatedTypeEntry.getValue()));
 		this.annotatedTypes = Collections.unmodifiableMap(annotatedTypes);
+		for (var annotatedAttributeEntry : annotatedAttributes.entrySet())
+			annotatedAttributeEntry.setValue(Collections.unmodifiableList(annotatedAttributeEntry.getValue()));
+		this.annotatedAttributes = Collections.unmodifiableMap(annotatedAttributes);
 		this.resources = Collections.unmodifiableList(resources);
+		this.resourceReferences = Collections.unmodifiableList(resourceReferences);
 	}
 
 	private void checkClosed() {
@@ -196,16 +283,6 @@ class Component implements IuComponent {
 	Component parent() {
 		checkClosed();
 		return parent;
-	}
-
-	/**
-	 * Gets the controller for the component context's module loader.
-	 * 
-	 * @return {@link Controller}
-	 */
-	Controller controller() {
-		checkClosed();
-		return controller;
 	}
 
 	/**
@@ -268,9 +345,19 @@ class Component implements IuComponent {
 	}
 
 	@Override
+	public Iterable<? extends IuAttribute<?, ?>> annotatedAttributes(Class<? extends Annotation> annotationType) {
+		checkClosed();
+		final var annotatedAttributes = this.annotatedAttributes.get(annotationType);
+		if (annotatedAttributes == null)
+			return Collections.emptySet();
+		else
+			return annotatedAttributes;
+	}
+
+	@Override
 	public Iterable<? extends IuType<?, ?>> annotatedTypes(Class<? extends Annotation> annotationType) {
 		checkClosed();
-		var annotatedTypes = this.annotatedTypes.get(annotationType);
+		final var annotatedTypes = this.annotatedTypes.get(annotationType);
 		if (annotatedTypes == null)
 			return Collections.emptySet();
 		else
@@ -284,39 +371,37 @@ class Component implements IuComponent {
 	}
 
 	@Override
+	public Iterable<? extends IuResourceReference<?, ?>> resourceReferences() {
+		checkClosed();
+		return resourceReferences;
+	}
+
+	@Override
 	public void close() {
-		if (moduleFinder != null)
-			try {
-				moduleFinder.close();
-			} catch (Throwable e) {
-				LOG.log(Level.WARNING, e, () -> "Failed to close module finder");
-			}
+		if (closed)
+			return;
 
-		if (classLoader instanceof URLClassLoader)
-			try {
-				((URLClassLoader) classLoader).close();
-			} catch (Throwable e) {
-				LOG.log(Level.WARNING, e, () -> "Failed to close class loader");
-			}
+		synchronized (this) {
+			if (closeableResources != null)
+				try {
+					closeableResources.close();
+				} catch (Throwable e) {
+					LOG.log(Level.WARNING, e, () -> "Close component resources failed " + versions);
+				}
 
-		while (!archives.isEmpty()) {
-			var archive = archives.poll();
-			try {
-				Files.delete(archive.path());
-			} catch (Throwable e) {
-				LOG.log(Level.WARNING, e, () -> "Failed to clean up archive " + archive.path());
-			}
+			if (archives != null)
+				while (!archives.isEmpty()) {
+					var archive = archives.poll();
+					try {
+						Files.delete(archive.path());
+					} catch (Throwable e) {
+						LOG.log(Level.WARNING, e,
+								() -> "Failed to clean up archive " + archive.path() + "; " + versions);
+					}
+				}
+
+			closed = true;
 		}
-
-		parent = null;
-		moduleFinder = null;
-		controller = null;
-		kind = null;
-		versions = null;
-		properties = null;
-		classLoader = null;
-		interfaces = null;
-		closed = true;
 	}
 
 }

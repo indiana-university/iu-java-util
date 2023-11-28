@@ -304,9 +304,9 @@ public class ComponentArchiveTest extends IuTypeTestCase {
 			assertEquals("testcomponent", archive.properties().getProperty("remotableModules"));
 		}, Map.of( //
 				"META-INF/MANIFEST.MF", -1, //
-				"META-INF/maven/edu.iu.util/iu-java-type-testcomponent/pom.properties", -1, //
+				"META-INF/maven/edu.iu.util/iu-java-type-testcomponent/pom.properties", 80, //
 				"META-INF/lib/", -1, //
-				"META-INF/iu-type.properties", -1, //
+				"META-INF/iu-type.properties", 10, //
 				"module-info.class", 300, //
 				"edu/iu/type/testcomponent/package-info.class", 100, //
 				"edu/iu/type/testcomponent/TestBeanImpl$InternalSupportingClass.class", 400,
@@ -329,7 +329,7 @@ public class ComponentArchiveTest extends IuTypeTestCase {
 			assertTrue(expectedDependencies.contains(new ComponentVersion("parsson", 1, 1)));
 
 			var bundledDependencies = archive.bundledDependencies();
-			assertEquals(3, bundledDependencies.size());
+			assertEquals(6, bundledDependencies.size());
 			for (var bundledDependency : bundledDependencies)
 				try {
 					var bundledArchive = ComponentArchive.from(bundledDependency);
@@ -343,7 +343,7 @@ public class ComponentArchiveTest extends IuTypeTestCase {
 			assertNull(archive.properties());
 		}, Map.of( //
 				"META-INF/MANIFEST.MF", -1, //
-				"META-INF/maven/edu.iu.util/iu-java-type-testruntime/pom.properties", -1, //
+				"META-INF/maven/edu.iu.util/iu-java-type-testruntime/pom.properties", 50, //
 				"META-INF/lib/", -1, //
 				"module-info.class", 300, //
 				"edu/iu/type/testruntime/package-info.class", 100, //
@@ -402,7 +402,7 @@ public class ComponentArchiveTest extends IuTypeTestCase {
 
 		}, Map.of( //
 				"META-INF/MANIFEST.MF", -1, //
-				"META-INF/maven/edu.iu.util/iu-java-type-testweb/pom.properties", -1, //
+				"META-INF/maven/edu.iu.util/iu-java-type-testweb/pom.properties", 50, //
 				"WEB-INF/", -1, //
 				"WEB-INF/lib/", -1, //
 				"module-info.class", 180, //
@@ -511,7 +511,7 @@ public class ComponentArchiveTest extends IuTypeTestCase {
 
 		}, Map.of( //
 				"META-INF/MANIFEST.MF", -1, //
-				"META-INF/maven/edu.iu.util/iu-java-type-testlegacy/pom.properties", -1, //
+				"META-INF/maven/edu.iu.util/iu-java-type-testlegacy/pom.properties", 50, //
 				"META-INF/lib/", -1, //
 				"META-INF/lib/javax.json-api-1.1.4.jar", -1, //
 				"html/index.html", 75, //

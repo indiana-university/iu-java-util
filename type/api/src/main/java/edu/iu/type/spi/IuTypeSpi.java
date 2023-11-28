@@ -34,6 +34,8 @@ package edu.iu.type.spi;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Type;
+import java.nio.file.Path;
+import java.util.jar.JarFile;
 
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuType;
@@ -66,5 +68,23 @@ public interface IuTypeSpi {
 	 */
 	IuComponent createComponent(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
 			throws IOException;
+
+	/**
+	 * Decorates a path entry in a loaded class environment as a {@link IuComponent
+	 * component}.
+	 * 
+	 * @param classLoader {@link ClassLoader}; <em>must</em> include
+	 *                    {@code pathEntry} on its class or module path.
+	 * @param pathEntry   Single {@link Path path entry} representing a
+	 *                    {@link JarFile jar file} or folder containing resources
+	 *                    loaded by {@code classLoader}
+	 * @return {@link IuComponent} decorated view of the path entry relative to the
+	 *         class loader.
+	 * @throws IOException            if an I/O error occurs while scanning the path
+	 *                                for resources.
+	 * @throws ClassNotFoundException if any class discovered on the path could not
+	 *                                be loaded using {@code classLoader}
+	 */
+	IuComponent scanComponentEntry(ClassLoader classLoader, Path pathEntry) throws IOException, ClassNotFoundException;
 
 }

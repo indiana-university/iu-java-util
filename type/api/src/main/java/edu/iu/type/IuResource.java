@@ -31,12 +31,16 @@
  */
 package edu.iu.type;
 
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Proxy;
+import java.util.function.Supplier;
+
 /**
- * Facade interface for a resource in a {@link IuComponent component}.
+ * Facade interface for a resource declared by a {@link IuComponent component}.
  * 
  * @param <T> resource type
  */
-public interface IuResource<T> {
+public interface IuResource<T> extends IuResourceKey<T>, Supplier<T> {
 
 	/**
 	 * Determines whether or not the resource should be authenticated before handing
@@ -54,30 +58,57 @@ public interface IuResource<T> {
 	boolean shared();
 
 	/**
-	 * Gets the resource name.
-	 * 
-	 * @return resource name
-	 */
-	String name();
-
-	/**
-	 * Gets the resource type.
-	 * 
-	 * @return resource type
-	 */
-	IuType<?, T> type();
-
-	/**
-	 * Gets the resource instance.
+	 * Gets the factory to be used for creating new instances.
 	 * 
 	 * <p>
-	 * When {@link #shared() shared}, returns the same singleton instance each time
-	 * this method is invoked. When not shared, returns a new instance of the
-	 * resource on each invocation.
+	 * By default, returns a {@link Supplier} that:
+	 * </p>
+	 * <ul>
+	 * <li>Returns {@link IuType#autoboxDefault} if the {@link #type() resource
+	 * type} is an immutable single-value</li>
+	 * <li>Invokes {@link IuConstructor#exec(Object...)} on an an internally managed
+	 * implementation class or {@link InvocationHandler} suitable for representing
+	 * the resource</li>
+	 * </ul>
+	 * 
+	 * @return factory that supplies new instance of the resource, or an
+	 *         {@link InvocationHandler} for backing a {@link Proxy}.
+	 */
+	Supplier<?> factory();
+
+	/**
+	 * Provides a factory to use for creating new instances of the resource.
+	 * 
+	 * <p>
+	 * The factory <em>may</em> return:
+	 * </p>
+	 * <ul>
+	 * <li>A direct instance of the {@link #type() resource class}.</li>
+	 * <li>A instance of a class that implements the {@link #type() resource
+	 * interface}</li>
+	 * <li>An {@link InvocationHandler} to back a {@link Proxy} for the
+	 * {@link #type() resource interface}</li>
+	 * </ul>
+	 * 
+	 * <p>
+	 * To selective override default behavior, call {@link #factory()}
+	 * first to get a reference to the default factory.
 	 * </p>
 	 * 
-	 * @return resource instance
+	 * @param factory resource implementation factory.
 	 */
+	void factory(Supplier<?> factory);
+
+	/**
+	 * Gets the resource value.
+	 * 
+	 * <p>
+	 * Provides a new or immutable instance when {@link #shared()} returns false;
+	 * <em>may</em> provide the same instance on subsequent calls when
+	 * {@link #shared()} returns true.
+	 * </p>
+	 */
+	@Override
 	T get();
 
 }

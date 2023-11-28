@@ -68,7 +68,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-type</artifactId>
+			<artifactId>iu-java-type-impl</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>

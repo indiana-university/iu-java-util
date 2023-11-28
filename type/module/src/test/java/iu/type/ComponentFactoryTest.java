@@ -38,11 +38,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
@@ -59,7 +56,6 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuComponent.Kind;
-import edu.iu.type.IuType;
 
 @SuppressWarnings("javadoc")
 public class ComponentFactoryTest extends IuTypeTestCase {
@@ -189,41 +185,6 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 		}
 	}
 
-	@Test
-	public void testClosesModuleFinderIfCreateFails() throws IOException {
-		var path = mock(Path.class);
-		var archive = mock(ComponentArchive.class);
-		when(archive.path()).thenReturn(path);
-
-		var error = new Error();
-		try (var mockModuleFinder = mockConstruction(ComponentModuleFinder.class, (finder, context) -> {
-			when(finder.findAll()).thenThrow(error);
-		})) {
-			assertSame(error, assertThrows(Error.class,
-					() -> ComponentFactory.createModular(null, new ArrayDeque<>(List.of(archive)))));
-			verify(mockModuleFinder.constructed().get(0)).close();
-		}
-	}
-
-	@Test
-	public void testSuppressesModuleFinderCloseErrorIfCreateFails() throws IOException {
-		var path = mock(Path.class);
-		var archive = mock(ComponentArchive.class);
-		when(archive.path()).thenReturn(path);
-
-		var error = new Error();
-		var closeError = new Error();
-		try (var mockModuleFinder = mockConstruction(ComponentModuleFinder.class, (finder, context) -> {
-			when(finder.findAll()).thenThrow(error);
-			doThrow(closeError).when(finder).close();
-		})) {
-			var thrown = assertThrows(Error.class,
-					() -> ComponentFactory.createModular(null, new ArrayDeque<>(List.of(archive))));
-			assertSame(error, thrown);
-			assertSame(closeError, thrown.getSuppressed()[0]);
-		}
-	}
-	
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testLoadsRuntimeIfSwitchedWithDeps() throws Exception {
@@ -238,36 +199,27 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 			return;
 		}
 
-		try (var mockIuType = mockStatic(IuType.class)) {
-			mockIuType.when(() -> IuType.of(any(Class.class))).then(a -> {
-				var c = (Class<?>) a.getArgument(0);
-				var type = mock(IuType.class);
-				when(type.name()).thenReturn(c.getName());
-				return type;
-			});
-			try (var component = IuComponent.of(
-					TestArchives.getProvidedDependencyArchives("testruntime")[0],
-					TestArchives.getComponentArchive("testruntime"))) {
+		try (var component = IuComponent.of(TestArchives.getProvidedDependencyArchives("testruntime")[0],
+				TestArchives.getComponentArchive("testruntime"))) {
 
-				assertEquals(Kind.MODULAR_JAR, component.kind());
-				assertEquals("parsson", component.version().name());
+			assertEquals(Kind.MODULAR_JAR, component.kind());
+			assertEquals("parsson", component.version().name());
 
-				var interfaces = component.interfaces().iterator();
-				assertTrue(interfaces.hasNext());
-				assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
-				assertFalse(interfaces.hasNext());
+			var interfaces = component.interfaces().iterator();
+			assertTrue(interfaces.hasNext());
+			assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
+			assertFalse(interfaces.hasNext());
 
-				var contextLoader = Thread.currentThread().getContextClassLoader();
-				var loader = component.classLoader();
-				try {
-					Thread.currentThread().setContextClassLoader(loader);
-					var urlReader = loader.loadClass("edu.iu.type.testruntime.UrlReader");
-					var urlReader$ = urlReader.getConstructor().newInstance();
-					assertEquals(urlReader.getMethod("parseJson", String.class).invoke(urlReader$, expected), urlReader
-							.getMethod("get", String.class).invoke(urlReader$, publicUrlThatWorksAndReturnsJson));
-				} finally {
-					Thread.currentThread().setContextClassLoader(contextLoader);
-				}
+			var contextLoader = Thread.currentThread().getContextClassLoader();
+			var loader = component.classLoader();
+			try {
+				Thread.currentThread().setContextClassLoader(loader);
+				var urlReader = loader.loadClass("edu.iu.type.testruntime.UrlReader");
+				var urlReader$ = urlReader.getConstructor().newInstance();
+				assertEquals(urlReader.getMethod("parseJson", String.class).invoke(urlReader$, expected),
+						urlReader.getMethod("get", String.class).invoke(urlReader$, publicUrlThatWorksAndReturnsJson));
+			} finally {
+				Thread.currentThread().setContextClassLoader(contextLoader);
 			}
 		}
 	}
