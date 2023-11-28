@@ -1,4 +1,4 @@
-package edu.iu.logging;
+package iu.logging;
 
 import java.io.IOException;
 import java.io.InputStream;

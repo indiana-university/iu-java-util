@@ -115,6 +115,8 @@ public final class LoggingEnvironment {
 	private static IuLoggingContext callProps;
 
 	private static <T> T loadService(Class<T> serviceInterface) {
+		System.err.println("LoggingEnvironment.loadService. serviceInterface. package: " + serviceInterface.getPackageName()
+			+ " simpleName: " + serviceInterface.getSimpleName());
 		URL implResource = serviceInterface.getClassLoader()
 				.getResource("META-INF/services/" + serviceInterface.getName());
 		if (implResource != null)
@@ -176,6 +178,7 @@ public final class LoggingEnvironment {
 	}
 
 	public static Queue<Logger> getCurrentLoggers(ClassLoader loader) {
+		System.err.println("LoggingEnvironment.getCurrentLoggers(loader)");
 		Thread current = Thread.currentThread();
 		ClassLoader currentLoader = current.getContextClassLoader();
 		try {
@@ -203,6 +206,7 @@ public final class LoggingEnvironment {
 	 * levels, once per class loader.
 	 */
 	public static void bootstrap(ClassLoader loader) {
+		System.err.println("LoggingEnvironment.bootstrap(loader)");
 		Thread current = Thread.currentThread();
 		ClassLoader currentLoader = current.getContextClassLoader();
 		try {
