@@ -185,7 +185,6 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 		}
 	}
 
-	@SuppressWarnings("unchecked")
 	@Test
 	public void testLoadsRuntimeIfSwitchedWithDeps() throws Exception {
 		var publicUrlThatWorksAndReturnsJson = "https://idp-stg.login.iu.edu/.well-known/openid-configuration";
@@ -201,6 +200,9 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 
 		try (var component = IuComponent.of(TestArchives.getProvidedDependencyArchives("testruntime")[0],
 				TestArchives.getComponentArchive("testruntime"))) {
+			assertEquals(
+					"Component [parent=null, kind=MODULAR_JAR, versions=[parsson-1.1.2, iu-java-type-testruntime-7.0.0-SNAPSHOT, commons-lang-2.6, jakarta.annotation-api-2.1.1, jakarta.ejb-api-4.0.0, jakarta.interceptor-api-2.1.0, jakarta.json-api-2.1.2, jakarta.transaction-api-2.0.0], closed=false]",
+					component.toString());
 
 			assertEquals(Kind.MODULAR_JAR, component.kind());
 			assertEquals("parsson", component.version().name());

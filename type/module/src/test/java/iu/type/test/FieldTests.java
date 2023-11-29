@@ -36,43 +36,81 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.concurrent.ThreadLocalRandom;
-
 import org.junit.jupiter.api.Test;
 
 import edu.iu.type.IuType;
+import edu.iu.type.testresources.FieldTestSupport;
+import edu.iu.type.testresources.InheritedFieldTestSupport;
 import iu.type.IuTypeTestCase;
 
-@SuppressWarnings({ "javadoc", "unused" })
+@SuppressWarnings({ "javadoc" })
 public class FieldTests extends IuTypeTestCase {
-
-	private static long timestamp = System.currentTimeMillis();
-	private final String message = "foo";
-	private transient int value;
 
 	@Test
 	public void testGet() {
-		final var messageField = IuType.of(getClass()).field("message");
+		final var messageField = IuType.of(FieldTestSupport.class).field("message");
 		assertTrue(messageField.serializable());
-		assertEquals("foo", messageField.get(this));
-		messageField.set(this, "bar");
+		final var support = new FieldTestSupport();
+		assertEquals("foo", messageField.get(support));
+		messageField.set(support, "bar");
+		assertEquals("bar", messageField.get(support));
 		assertEquals("message", messageField.name());
-		assertEquals("FieldTests#message:String", messageField.toString());
-		assertSame(getClass(), messageField.declaringType().erasedClass());
+		assertEquals("FieldTestSupport#message:String", messageField.toString());
+		assertSame(FieldTestSupport.class, messageField.declaringType().erasedClass());
 	}
 
 	@Test
 	public void testGetSet() {
-		final var rand = ThreadLocalRandom.current().nextInt();
-		final var valueField = IuType.of(getClass()).field("value");
+		final var valueField = IuType.of(FieldTestSupport.class).field("value");
 		assertFalse(valueField.serializable());
 	}
 
 	@Test
-	public void testStatic() {
-		final var timestampField = IuType.of(getClass()).field("timestamp");
+	public void testStatic() throws IllegalAccessException, NoSuchFieldException {
+		final var timestampField = IuType.of(FieldTestSupport.class).field("timestamp");
 		assertFalse(timestampField.serializable());
-		assertEquals(timestamp, timestampField.get(null));
+		final var controlField = FieldTestSupport.class.getDeclaredField("timestamp");
+		controlField.setAccessible(true);
+		assertEquals(controlField.get(null), timestampField.get(null));
 	}
 
+	@Test
+	public void testInheritance() {
+		final var type = IuType.of(InheritedFieldTestSupport.class);
+		assertEquals("bar", type.field("message").get(new InheritedFieldTestSupport()));
+		
+		final var i = type.fields().iterator();
+		assertTrue(i.hasNext());
+		var n = i.next();
+		assertEquals("message", n.name());
+		assertEquals(InheritedFieldTestSupport.class, n.declaringType().erasedClass());
+		assertEquals(String.class, n.type().erasedClass());
+		
+		assertTrue(i.hasNext());
+		n = i.next();
+		assertEquals("stringValue", n.name());
+		assertEquals(InheritedFieldTestSupport.class, n.declaringType().erasedClass());
+		assertEquals(String.class, n.type().erasedClass());
+
+		assertTrue(i.hasNext());
+		n = i.next();
+		assertEquals("timestamp", n.name());
+		assertEquals(FieldTestSupport.class, n.declaringType().erasedClass());
+		assertEquals(long.class, n.type().erasedClass());
+
+		assertTrue(i.hasNext());
+		n = i.next();
+		assertEquals("message", n.name());
+		assertEquals(FieldTestSupport.class, n.declaringType().erasedClass());
+		assertEquals(String.class, n.type().erasedClass());
+
+		assertTrue(i.hasNext());
+		n = i.next();
+		assertEquals("value", n.name());
+		assertEquals(FieldTestSupport.class, n.declaringType().erasedClass());
+		assertEquals(int.class, n.type().erasedClass());
+
+		assertFalse(i.hasNext(), i::toString);
+	}
+	
 }

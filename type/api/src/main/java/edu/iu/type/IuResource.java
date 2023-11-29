@@ -40,7 +40,21 @@ import java.util.function.Supplier;
  * 
  * @param <T> resource type
  */
-public interface IuResource<T> extends IuResourceKey<T>, Supplier<T> {
+public interface IuResource<T> extends Supplier<T> {
+
+	/**
+	 * Gets the resource name.
+	 * 
+	 * @return resource name
+	 */
+	String name();
+
+	/**
+	 * Gets the resource type
+	 * 
+	 * @return resource type
+	 */
+	IuType<?, T> type();
 
 	/**
 	 * Determines whether or not the resource should be authenticated before handing

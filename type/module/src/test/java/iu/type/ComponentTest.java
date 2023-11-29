@@ -149,7 +149,6 @@ public class ComponentTest extends IuTypeTestCase {
 		}
 	}
 
-	@SuppressWarnings("unchecked")
 	@Test
 	public void testLegacyDoesntOpenPackages() throws IOException {
 		Queue<ComponentArchive> archives = new ArrayDeque<>();

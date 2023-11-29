@@ -40,27 +40,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.type.IuType;
+import edu.iu.type.testresources.TestBean;
 import iu.type.IuTypeTestCase;
 
-@SuppressWarnings({ "javadoc", "unused" })
+@SuppressWarnings({ "javadoc" })
 public class PropertyTests extends IuTypeTestCase {
-
-	private static class TestBean {
-		private String foo;
-		private int bar;
-
-		public void setFoo(String foo) {
-			this.foo = foo;
-		}
-		
-		public int getBar() {
-			return bar;
-		}
-		
-		public TestBean getSelf() {
-			return this;
-		}
-	}
 
 	@Test
 	public void testSelfIsSafe() {
@@ -78,13 +62,12 @@ public class PropertyTests extends IuTypeTestCase {
 		assertSame(TestBean.class, bar.declaringType().erasedClass());
 		assertSame(int.class, bar.type().erasedClass());
 
-		testBean.bar = 34;
+		IuType.of(TestBean.class).field("bar").set(testBean, 34);
 		assertEquals(34, bar.get(testBean));
 
 		assertEquals("Property bar is not writable for IuType[int PROPERTY(bar) TestBean.bar:int]",
 				assertThrows(IllegalStateException.class, () -> bar.set(testBean, 0)).getMessage());
 	}
-
 
 	@Test
 	public void testWriteOnly() {
@@ -96,7 +79,7 @@ public class PropertyTests extends IuTypeTestCase {
 		assertSame(String.class, foo.type().erasedClass());
 
 		foo.set(testBean, "bar");
-		assertEquals("bar", testBean.foo);
+		assertEquals("bar", IuType.of(TestBean.class).field("foo").get(testBean));
 
 		assertEquals("Property foo is not readable for IuType[String PROPERTY(foo) TestBean.foo:String]",
 				assertThrows(IllegalStateException.class, () -> foo.get(testBean)).getMessage());

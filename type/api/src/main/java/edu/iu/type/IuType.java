@@ -94,6 +94,42 @@ import edu.iu.type.spi.TypeImplementation;
 public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement {
 
 	/**
+	 * Determines if a type name is considered a <strong>platform type</strong>.
+	 * 
+	 * <p>
+	 * <strong>Platform types</strong> are those provided by the JDK or JEE
+	 * platform. <strong>Platform types</strong> are shielded from type
+	 * introspection, and exempt from the {@link ClassLoader} delegation suppression
+	 * required for web applications.
+	 * </p>
+	 * 
+	 * <p>
+	 * <strong>API Note:</strong> Accepts {@link String} instead of {@link Class} as
+	 * the type argument to allow this method to be used by {@link ClassLoader}
+	 * implementations prior to loading the class.
+	 * </p>
+	 * 
+	 * @param name type name
+	 * @return {@code true} if a platform type; else false
+	 * 
+	 * @see <a href=
+	 *      "https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader">
+	 *      Servlet 6.0, section 10.7.2</a>
+	 */
+	static boolean isPlatformType(String name) {
+		return name.startsWith("jakarta.") // JEE and related:
+				// JDK packages:
+				|| name.startsWith("com.sun.") //
+				|| name.startsWith("java.") //
+				|| name.startsWith("javax.") //
+				|| name.startsWith("jdk.") //
+				|| name.startsWith("netscape.javascript.") //
+				|| name.startsWith("org.ietf.jgss.") //
+				|| name.startsWith("org.w3c.dom.") //
+				|| name.startsWith("org.xml.sax.");
+	}
+
+	/**
 	 * Resolves a type introspection facade for a generic type.
 	 * 
 	 * @param type generic type

@@ -77,6 +77,8 @@ public final class IuTest {
 									.unreflectSpecial(method, type).bindTo(proxy).invokeWithArguments(args);
 						} catch (UnsupportedOperationException e) {
 						}
+					else
+						method.setAccessible(true);
 
 					return method.invoke(mock, args);
 				})));

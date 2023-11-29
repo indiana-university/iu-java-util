@@ -51,6 +51,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuReferenceKind;
+import edu.iu.type.testresources.HasStringListParam;
 
 @SuppressWarnings("javadoc")
 public class TypeTemplateTest extends IuTypeTestCase {
@@ -98,6 +99,14 @@ public class TypeTemplateTest extends IuTypeTestCase {
 	}
 
 	@Test
+	public void testPrimitiveBuilderIsValid() {
+		var raw = new TypeTemplate<>(int.class, a -> {
+		});
+		raw.sealHierarchy(List.of());
+		assertRaw(int.class, raw);
+	}
+
+	@Test
 	public void testGenericBuilderIsValid() throws NoSuchFieldException {
 		@SuppressWarnings("unused")
 		class HasAFieldWithAParameterizedType {
@@ -135,11 +144,6 @@ public class TypeTemplateTest extends IuTypeTestCase {
 	@Test
 	@SuppressWarnings("rawtypes")
 	public void testTypeOfIterable() {
-		@SuppressWarnings("unused")
-		class HasStringListParam {
-			List<String> stringList;
-		}
-
 		final var type = (TypeFacade) TypeFactory.resolveType(HasStringListParam.class).field("stringList").type();
 		assertSame(String.class, type.referTo(Iterable.class).typeParameter("T").erasedClass());
 		assertSame(String.class, type.template.referTo(Iterable.class).typeParameter("T").erasedClass());

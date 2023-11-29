@@ -404,4 +404,9 @@ class Component implements IuComponent {
 		}
 	}
 
+	@Override
+	public String toString() {
+		return "Component [parent=" + parent + ", kind=" + kind + ", versions=" + versions + ", closed=" + closed + "]";
+	}
+
 }

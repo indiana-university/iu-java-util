@@ -193,9 +193,12 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 	}
 
 	private boolean isNative() {
-		return TypeUtils.isPlatformType(name()) //
-				|| ("iu.type".equals(annotatedElement.getPackageName()) //
-						&& annotatedElement.getEnclosingClass() == null);
+		final var packageName = annotatedElement.getPackageName();
+		final var targetModule = annotatedElement.getModule();
+		final var typeImplModule = getClass().getModule();
+		return IuType.isPlatformType(name()) //
+				|| targetModule == typeImplModule //
+				|| !targetModule.isOpen(packageName, typeImplModule);
 	}
 
 	private void initializeDeclared(TypeTemplate<D, T> erasedType) {
@@ -233,8 +236,7 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 
 		if (!isNative() //
 				&& !annotatedElement.isInterface() //
-				&& !annotatedElement.isEnum() //
-				&& !annotatedElement.isPrimitive())
+				&& !annotatedElement.isEnum())
 			for (var constructor : annotatedElement.getDeclaredConstructors())
 				// _unchecked warning_: see source for #getDeclaredConstructors()
 				// => This cast is safe as of Java 17

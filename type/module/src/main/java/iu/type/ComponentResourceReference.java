@@ -41,14 +41,15 @@ import jakarta.annotation.Resource;
 /**
  * Implementation of {@link IuResource};
  * 
- * @param <D> declaring type
+ * @param <R> referrer type
  * @param <T> resource type
  */
-class ComponentResourceReference<D, T> implements IuResourceReference<D, T> {
+class ComponentResourceReference<R, T> implements IuResourceReference<R, T> {
 
-	private final ResourceKey<T> key;
-	private final IuAttribute<D, ? super T> attribute;
-	private final IuVisitor<D> visitor = new IuVisitor<>();
+	private final String name;
+	private final TypeTemplate<?, T> type;
+	private final IuAttribute<R, ? super T> attribute;
+	private final IuVisitor<R> visitor = new IuVisitor<>();
 	private volatile IuResource<T> boundResource;
 
 	/**
@@ -57,7 +58,7 @@ class ComponentResourceReference<D, T> implements IuResourceReference<D, T> {
 	 * @param attribute facade for the attribute backing the resource
 	 */
 	@SuppressWarnings("unchecked")
-	ComponentResourceReference(DeclaredAttribute<D, ? super T> attribute) {
+	ComponentResourceReference(DeclaredAttribute<R, ? super T> attribute) {
 		this.attribute = attribute;
 
 		attribute.declaringType().template.observeNewInstances(this);
@@ -69,31 +70,33 @@ class ComponentResourceReference<D, T> implements IuResourceReference<D, T> {
 		String name = resource.name();
 		if (name.isEmpty())
 			name = attribute.name();
+		this.name = name;
 
-		TypeTemplate<?, ?> type;
+		TypeTemplate<?, T> type;
 		if (resource.type() != Object.class)
-			type = TypeFactory.resolveRawClass(resource.type());
+			type = TypeFactory.resolveRawClass((Class<T>) resource.type());
 		else
-			type = attribute.type().template;
+			type = (TypeTemplate<?, T>) attribute.type().template;
 
-		if (!attribute.type().erasedClass().isAssignableFrom(type.erasedClass()))
+		final var erased = type.erasedClass();
+		if (!attribute.type().erasedClass().isAssignableFrom(erased))
 			throw new IllegalArgumentException("attribute " + attribute + " is not assignable from " + type);
 
-		key = new ResourceKey<>(name, (TypeTemplate<?, T>) type);
+		this.type = type;
 	}
 
 	@Override
 	public String name() {
-		return key.name();
+		return name;
 	}
 
 	@Override
-	public IuType<?, T> type() {
-		return key.type();
+	public TypeTemplate<?, T> type() {
+		return type;
 	}
 
 	@Override
-	public IuType<?, D> referrerType() {
+	public IuType<?, R> referrerType() {
 		return attribute.declaringType();
 	}
 
@@ -113,7 +116,7 @@ class ComponentResourceReference<D, T> implements IuResourceReference<D, T> {
 	}
 
 	@Override
-	public synchronized void accept(D referrer) {
+	public synchronized void accept(R referrer) {
 		if (boundResource != null)
 			attribute.set(referrer, boundResource.get());
 		visitor.accept(referrer);
@@ -121,8 +124,8 @@ class ComponentResourceReference<D, T> implements IuResourceReference<D, T> {
 
 	@Override
 	public String toString() {
-		return "ComponentResourceReference [key=" + key + ", attribute=" + attribute + ", boundResource="
-				+ boundResource + "]";
+		return "ComponentResourceReference [name=" + name + ", type=" + type + ", attribute=" + attribute
+				+ ", boundResource=" + boundResource + "]";
 	}
 
 }

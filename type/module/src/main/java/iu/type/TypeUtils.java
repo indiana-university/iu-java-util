@@ -48,24 +48,6 @@ import edu.iu.type.IuType;
 final class TypeUtils {
 
 	/**
-	 * Determines if a type name is exempt from the {@link ClassLoader} delegation
-	 * suppression required for web applications.
-	 * 
-	 * @param name type name
-	 * @return {code true} if a platform type; else false
-	 * 
-	 * @see <a href=
-	 *      "https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader">
-	 *      Servlet 6.0, section 10.7.2</a>
-	 */
-	static boolean isPlatformType(String name) {
-		return name.startsWith("jakarta.") //
-				|| name.startsWith("java.") //
-				|| name.startsWith("javax.") //
-				|| name.startsWith("jdk.");
-	}
-
-	/**
 	 * Gets the context class loader appropriate for a given annotated element.
 	 * 
 	 * @param element annotated element

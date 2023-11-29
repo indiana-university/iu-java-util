@@ -31,24 +31,39 @@
  */
 package iu.type.test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.type.IuType;
+import edu.iu.type.testresources.EnclosedClassesSupport;
 import iu.type.IuTypeTestCase;
 
 @SuppressWarnings({ "javadoc" })
 public class EnclosedClassTests extends IuTypeTestCase {
 
-	private static class EnclosedClass {
+	@Test
+	public void testEnclosedDeclaringRefs() {
+		var type = IuType.of(EnclosedClassesSupport.class);
+		var enclosed = type.enclosedTypes().iterator().next();
+		assertEquals("IuType[EnclosedClass ENCLOSING_TYPE EnclosedClassesSupport]", enclosed.toString());
+		assertSame(EnclosedClassesSupport.class.getDeclaredClasses()[0], enclosed.erasedClass());
 	}
 
 	@Test
-	public void testEnclosedDeclaringRefs() {
-		var type = IuType.of(EnclosedClassTests.class);
-		var enclosed = type.enclosedTypes().iterator().next();
-		assertSame(EnclosedClass.class, enclosed.erasedClass());
+	public void testEnclosedConstructor() throws Exception {
+		var type = IuType.of(EnclosedClassesSupport.class).enclosedTypes().iterator().next();
+		var con = type.constructor(EnclosedClassesSupport.class);
+		assertEquals("EnclosedClass(EnclosedClassesSupport)", con.toString());
+		con = type.constructor(EnclosedClassesSupport.class, Object.class);
+		assertEquals("EnclosedClass(EnclosedClassesSupport,Object)", con.toString());
+		assertSame(Object.class, con.parameter(1).type().erasedClass());
 	}
-	
+
+	@Test
+	public void testEnclosedByMethod() {
+		var type = IuType.of(new EnclosedClassesSupport().getMethodLevelClass());
+		assertEquals("A", type.constructor(EnclosedClassesSupport.class, Class.class).typeParameters().keySet().iterator().next());
+	}
 }
