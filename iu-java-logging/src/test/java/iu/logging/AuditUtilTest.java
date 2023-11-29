@@ -1,9 +1,11 @@
 package iu.logging;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.junit.jupiter.api.Test;
@@ -17,36 +19,34 @@ public class AuditUtilTest {
 		LoggingEnvironment.bootstrap(AuditUtilTest.class.getClassLoader());
 		LOG = Logger.getLogger(AuditUtilTest.class.getName());
 	}
+	
+	record LogMessage (Level logLevel, String message) {};
 
 	@Test
 	public void testLogLevels() {
 		System.err.println("before log calls");
-		LOG.finest("Test finest 1");
-		LOG.finer("Test finer 1");
-		LOG.fine("Test fine 1");
-		LOG.config("Test config 1");
-		LOG.info("Test info 1");
-		LOG.warning("Test warning 1");
-		LOG.severe("Test severe 1");
-		LOG.finest("Test finest 2");
-		LOG.finer("Test finer 2");
-		LOG.fine("Test fine 2");
-		LOG.config("Test config 2");
-		LOG.info("Test info 2");
-		LOG.warning("Test warning 2");
-		LOG.severe("Test severe 2");
+		List<LogMessage> logMessages = Arrays.asList(new LogMessage[] {
+				new LogMessage(Level.FINEST, "Test finest 1"), new LogMessage(Level.FINER, "Test finer 1"),
+				new LogMessage(Level.FINE, "Test fine 1"), new LogMessage(Level.CONFIG, "Test config 1"),
+				new LogMessage(Level.INFO, "Test info 1"), new LogMessage(Level.WARNING, "Test warning 1"),
+				new LogMessage(Level.SEVERE, "Test severe 1"), new LogMessage(Level.FINEST, "Test finest 2"),
+				new LogMessage(Level.FINER, "Test finer 2"), new LogMessage(Level.FINE, "Test fine 2"),
+				new LogMessage(Level.CONFIG, "Test config 2"), new LogMessage(Level.INFO, "Test info 2"),
+				new LogMessage(Level.WARNING, "Test warning 2"), new LogMessage(Level.SEVERE, "Test severe 2")
+		});
+		for (LogMessage message : logMessages) {
+			LOG.log(message.logLevel(), message.message());
+		}
 		System.err.println("after log calls");
 
+		Level logLevel = LOG.getParent().getLevel();
 		Iterable<IuLogEvent> events = IuLogHandler.getLogEvents();
-		List<IuLogEvent> eventsList = new ArrayList<>();
-		events.forEach(eventsList::add);
-		for (IuLogEvent e : eventsList) {
-			System.err.println(e.getMessage());
+		List<String> messageList = new ArrayList<>();
+		events.forEach(v -> messageList.add(v.getMessage()));
+		for (LogMessage message : logMessages) {
+			if (logLevel.intValue() <= message.logLevel().intValue())
+				assertTrue(messageList.contains(message.message()));
 		}
-		for (int i = 0; i < eventsList.size(); i++) {
-			System.err.println("i: " + i + eventsList.get(i).getMessage());
-		}
-		assertEquals(15, eventsList.size());
 	}
 
 }

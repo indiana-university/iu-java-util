@@ -113,10 +113,10 @@ public final class LoggingEnvironment {
 		}
 	}
 
-	private static IuLoggingEnvironment DEFAULT_ENV_PROPS = new IuLoggingEnvironment() {
+	private static IuLoggingEnvironment TODO_ENV_PROPS = new IuLoggingEnvironment() {
 	};
 
-	private static IuLoggingContext DEFAULT_CALL_PROPS = new IuLoggingContext() {
+	private static IuLoggingContext TODO_CALL_CONTEXT_PROPS = new IuLoggingContext() {
 
 //		@Override
 //		public String getRequestNumber() {
@@ -168,7 +168,7 @@ public final class LoggingEnvironment {
 			return envProps;
 		envProps = loadService(IuLoggingEnvironment.class);
 		if (envProps == null)
-			return DEFAULT_ENV_PROPS;
+			return TODO_ENV_PROPS;
 		else
 			return envProps;
 	}
@@ -178,7 +178,7 @@ public final class LoggingEnvironment {
 			return callProps;
 		callProps = loadService(IuLoggingContext.class);
 		if (callProps == null)
-			return DEFAULT_CALL_PROPS;
+			return TODO_CALL_CONTEXT_PROPS;
 		else
 			return callProps;
 	}
@@ -423,22 +423,21 @@ public final class LoggingEnvironment {
 //	}
 
 	/**
-	 * Get the environment.
+	 * Get the application.
 	 * 
-	 * @return String representing the environment.
+	 * @return String representing the application.
 	 */
-	public static String getEnvironment() {
-		return getEnvironmentProperties().getEnvironment();
+	public static String getApplication() {
+		return getEnvironmentProperties().getApplication();
 	}
 
 	/**
-	 * Convenience method to determine if this is a development environment.
+	 * Get the component.
 	 * 
-	 * @return boolean representing whether this is a development environment.
+	 * @return String representing the component.
 	 */
-	public static boolean isDevelopment() {
-		return RuntimeMode.DEVELOPMENT == getEnvironmentProperties().getMode();
-//		return getEnvironmentProperties().isDevelopment();
+	public static String getComponent() {
+		return getEnvironmentProperties().getComponent();
 	}
 
 	/**
@@ -451,12 +450,12 @@ public final class LoggingEnvironment {
 	}
 
 	/**
-	 * Get the application.
+	 * Get the environment.
 	 * 
-	 * @return String representing the application.
+	 * @return String representing the environment.
 	 */
-	public static String getApplication() {
-		return getEnvironmentProperties().getApplication();
+	public static String getEnvironment() {
+		return getEnvironmentProperties().getEnvironment();
 	}
 
 	/**
@@ -466,15 +465,6 @@ public final class LoggingEnvironment {
 	 */
 	public static String getModule() {
 		return getEnvironmentProperties().getModule();
-	}
-
-	/**
-	 * Get the component.
-	 * 
-	 * @return String representing the component.
-	 */
-	public static String getComponent() {
-		return getEnvironmentProperties().getComponent();
 	}
 
 //	public static String getVersion() {
@@ -488,6 +478,16 @@ public final class LoggingEnvironment {
 	 */
 	public static String getNodeId() {
 		return getEnvironmentProperties().getNodeId();
+	}
+
+	/**
+	 * Convenience method to determine if this is a development environment.
+	 * 
+	 * @return boolean representing whether this is a development environment.
+	 */
+	public static boolean isDevelopment() {
+		return RuntimeMode.DEVELOPMENT == getEnvironmentProperties().getMode();
+//		return getEnvironmentProperties().isDevelopment();
 	}
 
 //	public static Level getLogLevel() {
