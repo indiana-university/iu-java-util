@@ -38,30 +38,67 @@ import edu.iu.UnsafeRunnable;
  */
 public interface IuLoggingContext {
 
+	/**
+	 * Get the authenticated principal.
+	 * 
+	 * @return String representation of the authenticated principal. Defaults to
+	 *         null.
+	 */
 	default String getAuthenticatedPrincipal() {
 		return null;
 	}
 
+	/**
+	 * Get the called URL.
+	 * 
+	 * @return String reprentation of the called URL. Defaults to null.
+	 */
 	default String getCalledUrl() {
 		return null;
 	}
 
+	/**
+	 * Get the remote address.
+	 * 
+	 * @return String representation of the remote address. Defaults to null.
+	 */
 	default String getRemoteAddr() {
 		return null;
 	}
 
+	/**
+	 * Get the request number.
+	 * 
+	 * @return String representation of the request number. Defaults to null.
+	 */
 	default String getReqNum() {
 		return null;
 	}
 
+	/**
+	 * Get the user principal.
+	 * 
+	 * @return String representation of the user principal. Defaults to null.
+	 */
 	default String getUserPrincipal() {
 		return null;
 	}
 
+	/**
+	 * Run a task with the given context.
+	 * 
+	 * @param context IuLoggingContext to which a task will be bound.
+	 * @param task UnsafeRunnable to run with the given context.
+	 */
 	static void bound(IuLoggingContext context, UnsafeRunnable task) {
-		
+
 	}
-	
+
+	/**
+	 * Get the current context.
+	 * 
+	 * @return IuLoggingContext representing the current context.
+	 */
 	static IuLoggingContext getCurrentContext() {
 		return null;
 	}

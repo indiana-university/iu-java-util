@@ -148,8 +148,8 @@ public final class LoggingEnvironment {
 	private static IuLoggingContext callProps;
 
 	private static <T> T loadService(Class<T> serviceInterface) {
-		System.err.println("LoggingEnvironment.loadService. serviceInterface. package: " + serviceInterface.getPackageName()
-			+ " simpleName: " + serviceInterface.getSimpleName());
+		System.err.println("LoggingEnvironment.loadService. serviceInterface. package: "
+				+ serviceInterface.getPackageName() + " simpleName: " + serviceInterface.getSimpleName());
 		URL implResource = serviceInterface.getClassLoader()
 				.getResource("META-INF/services/" + serviceInterface.getName());
 		if (implResource != null)
@@ -210,6 +210,12 @@ public final class LoggingEnvironment {
 		return rv;
 	}
 
+	/**
+	 * Get current loggers for a given ClassLoader.
+	 * 
+	 * @param loader ClassLoader for which to retrieve Loggers.
+	 * @return Queue&lt;Logger&gt; for the given ClassLoader.
+	 */
 	public static Queue<Logger> getCurrentLoggers(ClassLoader loader) {
 		System.err.println("LoggingEnvironment.getCurrentLoggers(loader)");
 		Thread current = Thread.currentThread();
@@ -237,6 +243,8 @@ public final class LoggingEnvironment {
 	/**
 	 * Register IuLogHandler as root logger. Pre-initialize loggers to fine-tune
 	 * levels, once per class loader.
+	 * 
+	 * @param loader. The ClassLoader for which we want to bootstrap logging.
 	 */
 	public static void bootstrap(ClassLoader loader) {
 		System.err.println("LoggingEnvironment.bootstrap(loader)");
@@ -414,27 +422,57 @@ public final class LoggingEnvironment {
 //		return getEnvironmentProperties().getLogPath();
 //	}
 
+	/**
+	 * Get the environment.
+	 * 
+	 * @return String representing the environment.
+	 */
 	public static String getEnvironment() {
 		return getEnvironmentProperties().getEnvironment();
 	}
 
+	/**
+	 * Convenience method to determine if this is a development environment.
+	 * 
+	 * @return boolean representing whether this is a development environment.
+	 */
 	public static boolean isDevelopment() {
 		return RuntimeMode.DEVELOPMENT == getEnvironmentProperties().getMode();
 //		return getEnvironmentProperties().isDevelopment();
 	}
 
+	/**
+	 * Get the endpoint.
+	 * 
+	 * @return String representing the endpoint.
+	 */
 	public static String getEndpoint() {
 		return getEnvironmentProperties().getEndpoint();
 	}
 
+	/**
+	 * Get the application.
+	 * 
+	 * @return String representing the application.
+	 */
 	public static String getApplication() {
 		return getEnvironmentProperties().getApplication();
 	}
 
+	/**
+	 * Get the module.
+	 * 
+	 * @return String representing the module.
+	 */
 	public static String getModule() {
 		return getEnvironmentProperties().getModule();
 	}
 
+	/**
+	 * Get the component.
+	 * 
+	 * @return String representing the component.
+	 */
 	public static String getComponent() {
 		return getEnvironmentProperties().getComponent();
 	}
@@ -443,6 +481,11 @@ public final class LoggingEnvironment {
 //		return getEnvironmentProperties().getVersion();
 //	}
 
+	/**
+	 * Get the node id.
+	 * 
+	 * @return String representing the node id.
+	 */
 	public static String getNodeId() {
 		return getEnvironmentProperties().getNodeId();
 	}

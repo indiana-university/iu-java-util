@@ -45,28 +45,52 @@ interface IuLogEvent extends IuLoggingContext, IuLoggingEnvironment {
 //	String sourceClassName;
 //	
 //	String sourceMethodName;
-	
+
+	/**
+	 * Get the logger name.
+	 * 
+	 * @return String representing the logger name.
+	 */
 	default String getLoggerName() {
 		return null;
 	}
-	
+
+	/**
+	 * Get the level.
+	 * 
+	 * @return String representing the level.
+	 */
 	default Level getLevel() {
 		return null;
 	}
-	
+
+	/**
+	 * Get the message.
+	 * 
+	 * @return String representing the message.
+	 */
 	default String getMessage() {
 		return null;
 	}
-	
+
+	/**
+	 * Get the instant.
+	 * 
+	 * @return Instant representing the instant.
+	 */
 	default Instant getInstant() {
 		return null;
 	}
-	
+
+	/**
+	 * Get the thrown error.
+	 * 
+	 * @return String representing the thrown error.
+	 */
 	default String getThrown() {
 		return null;
 	}
-	
-	
+
 //	private static final Formatter MESSAGE_FORMATTER = new Formatter() {
 //		@Override
 //		public String format(LogRecord record) {

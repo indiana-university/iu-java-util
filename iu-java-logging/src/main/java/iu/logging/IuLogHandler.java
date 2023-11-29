@@ -117,11 +117,23 @@ public class IuLogHandler extends ConsoleHandler {
 		}, TimeUnit.SECONDS.toMillis(15L), TimeUnit.SECONDS.toMillis(15L));
 	}
 
+	/**
+	 * Get the log events.
+	 * 
+	 * @return Iterable&lt;IuLogEvent&gt; representing the log events that have been
+	 *         tracked so far.
+	 */
 	public static Iterable<IuLogEvent> getLogEvents() {
 //		System.err.println("GETTING LOG_EVENTS");
 		return Collections.unmodifiableCollection(LOG_EVENTS);
 	}
 
+	/**
+	 * Print the stack trace and an error message to System.err
+	 * 
+	 * @param message String providing additional information related to the error
+	 * @param e       Throwable the error that was thrown.
+	 */
 	public static void handleFileWriteError(String message, Throwable e) {
 		StringBuilder sb = new StringBuilder();
 		sb.append(new Date());
@@ -167,16 +179,34 @@ public class IuLogHandler extends ConsoleHandler {
 		LOG_EVENTS.push(event);
 	}
 
+	/**
+	 * default constructor for IuLogHandler.
+	 */
 	public IuLogHandler() {
 //		setLevel(LoggingEnvironment.getLogLevel());
 //		System.err.println("PUBLIC IuLogHandler()");
 		setLevel(Level.ALL);
 	}
 
+	/**
+	 * Determine if a given LogRecord is loggable for a given Handler.
+	 * 
+	 * @param record  LogRecord to be logged.
+	 * @param handler Handler to check for logability of this record.
+	 * @return Boolean representing whether this LogRecord is loggable for the given
+	 *         Handler.
+	 */
 	public static boolean isLoggable(LogRecord record, Handler handler) {
 		return handler.isLoggable(record);
 	}
 
+	/**
+	 * Determine if the given LogRecord is loggable.
+	 * 
+	 * @param record LogRecord to be logged.
+	 * @return boolean representing whether the given Log Record is loggable for
+	 *         this Handler.
+	 */
 	@Override
 	public boolean isLoggable(LogRecord record) {
 //		System.err.println("RUNNING IuLogHandler.isLoggable(record)");
@@ -190,6 +220,11 @@ public class IuLogHandler extends ConsoleHandler {
 		return super.isLoggable(record);
 	}
 
+	/**
+	 * Publish the LogRecord
+	 * 
+	 * @param record LogRecord to be published.
+	 */
 	@Override
 	public void publish(LogRecord record) {
 //		System.err.println("IuLogHandler publish(record)");

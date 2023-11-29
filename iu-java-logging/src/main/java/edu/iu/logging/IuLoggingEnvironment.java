@@ -36,36 +36,92 @@ package edu.iu.logging;
  */
 public interface IuLoggingEnvironment {
 
-	public static enum RuntimeMode { DEVELOPMENT, TEST, PRODUCTION }
+	/**
+	 * Enumeration of possible runtime modes.
+	 */
+	public static enum RuntimeMode {
+		/**
+		 * Development
+		 */
+		DEVELOPMENT,
+		/**
+		 * Test
+		 */
+		TEST,
+		/**
+		 * Production
+		 */
+		PRODUCTION
+	}
 
+	/**
+	 * Get the application.
+	 * 
+	 * @return String representation of the application. Defaults to null.
+	 */
 	default String getApplication() {
 		return null;
 	}
 
+	/**
+	 * Get the component.
+	 * 
+	 * @return String representation of the component. Defaults to null.
+	 */
 	default String getComponent() {
 		return null;
 	}
 
+	/**
+	 * Get the endpoint.
+	 * 
+	 * @return String representation of the endpoint. Defaults to null.
+	 */
 	default String getEndpoint() {
 		return null;
 	}
 
+	/**
+	 * Get the environment.
+	 * 
+	 * @return String representation of the environment. Defaults to null.
+	 */
 	default String getEnvironment() {
 		return null;
 	}
 
+	/**
+	 * Get the hostname.
+	 * 
+	 * @return String representation of the hostname. Defaults to null.
+	 */
 	default String getHostname() {
 		return null;
 	}
 
+	/**
+	 * Get the mode.
+	 * 
+	 * @return String representation of the mode. Defaults to null.
+	 */
 	default RuntimeMode getMode() {
 		return null;
 	}
 
+	/**
+	 * Get the module.
+	 * 
+	 * @return String representation of the module. Defaults to null.
+	 */
 	default String getModule() {
 		return null;
 	}
 
+	/**
+	 * Get the node id.
+	 * 
+	 * @return String representation of the node id. Defaults to null.
+	 */
 	default String getNodeId() {
 		return null;
 	}
