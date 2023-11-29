@@ -56,6 +56,7 @@ import edu.iu.IuException;
 import edu.iu.IuStream;
 import edu.iu.UnsafeRunnable;
 import edu.iu.type.IuComponent.Kind;
+import edu.iu.type.IuType;
 
 /**
  * {@link ClassLoader} implementation for loading {@link Kind#isModular()
@@ -148,7 +149,7 @@ class ModularClassLoader extends ClassLoader implements AutoCloseable {
 
 	@Override
 	protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-		if (!web || TypeUtils.isPlatformType(name))
+		if (!web || IuType.isPlatformType(name))
 			return super.loadClass(name, resolve);
 
 		synchronized (getClassLoadingLock(name)) {

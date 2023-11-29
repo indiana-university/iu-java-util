@@ -218,4 +218,13 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 		}
 	}
 
+	/**
+	 * Gets a reference to the loaded {@code iu.util.type.impl} module.
+	 * 
+	 * @return loaded {@code iu.util.type.impl} module
+	 */
+	public Module getModule() {
+		return this.delegate.spi.getClass().getModule();
+	}
+	
 }

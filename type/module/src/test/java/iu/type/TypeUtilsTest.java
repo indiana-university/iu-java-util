@@ -32,10 +32,8 @@
 package iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,15 +43,6 @@ import edu.iu.type.IuType;
 @SuppressWarnings("javadoc")
 @ExtendWith(LegacyContextSupport.class)
 public class TypeUtilsTest extends IuTypeTestCase {
-
-	@Test
-	public void testPlatformClassNames() throws Throwable {
-		assertTrue(TypeUtils.isPlatformType("jakarta."));
-		assertTrue(TypeUtils.isPlatformType("java."));
-		assertTrue(TypeUtils.isPlatformType("javax."));
-		assertTrue(TypeUtils.isPlatformType("jdk."));
-		assertFalse(TypeUtils.isPlatformType("iu."));
-	}
 
 	@Test
 	public void testCallWithContextOfClass() throws Throwable {

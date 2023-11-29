@@ -61,6 +61,7 @@ public class IuTypeOfMockSupport implements AfterEachCallback, BeforeEachCallbac
 		};
 		mockType.when(() -> IuType.of(any(Type.class))).then(answer);
 		mockType.when(() -> IuType.of(any(Class.class))).then(answer);
+		mockType.when(() -> IuType.isPlatformType(any())).thenCallRealMethod();
 	}
 
 	@Override

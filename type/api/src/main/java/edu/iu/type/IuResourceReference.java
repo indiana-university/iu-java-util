@@ -39,7 +39,21 @@ import java.util.function.Consumer;
  * @param <R> <strong>referrer</strong> type
  * @param <T> {@link IuResourceKey#type() resource type}
  */
-public interface IuResourceReference<R, T> extends IuResourceKey<T>, Consumer<R> {
+public interface IuResourceReference<R, T> extends Consumer<R> {
+
+	/**
+	 * Gets the resource name.
+	 * 
+	 * @return resource name
+	 */
+	String name();
+
+	/**
+	 * Gets the resource type
+	 * 
+	 * @return resource type
+	 */
+	IuType<?, ? super T> type();
 
 	/**
 	 * Gets the <strong>referrer</strong> type.

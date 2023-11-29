@@ -59,8 +59,7 @@ class ComponentResource<T> implements IuResource<T> {
 	 * @return static web resource
 	 */
 	static ComponentResource<byte[]> createWebResource(String name, byte[] data) {
-		return new ComponentResource<byte[]>(true, true,
-				new ResourceKey<>(name, TypeFactory.resolveRawClass(byte[].class)), () -> data);
+		return new ComponentResource<byte[]>(true, true, name, TypeFactory.resolveRawClass(byte[].class), () -> data);
 	}
 
 	/**
@@ -102,7 +101,7 @@ class ComponentResource<T> implements IuResource<T> {
 			Class<?> resourceClass = resource.type();
 			if (resourceClass == Object.class) {
 				for (var i : targetClass.getInterfaces())
-					if (!TypeUtils.isPlatformType(i.getName())) {
+					if (!IuType.isPlatformType(i.getName())) {
 						resourceClass = i;
 						break;
 					}
@@ -119,20 +118,23 @@ class ComponentResource<T> implements IuResource<T> {
 			name = resource.name();
 
 		return new ComponentResource<>(resource.authenticationType().equals(AuthenticationType.CONTAINER),
-				resource.shareable(), new ResourceKey<>(name, type),
+				resource.shareable(), name, type,
 				() -> IuException.unchecked(() -> TypeFactory.resolveRawClass(targetClass).constructor().exec()));
 	}
 
 	private final boolean needsAuthentication;
 	private final boolean shared;
-	private final ResourceKey<T> key;
+	private final String name;
+	private final TypeTemplate<?, T> type;
 	private volatile T singleton;
 	private Supplier<?> factory;
 
-	private ComponentResource(boolean needsAuthentication, boolean shared, ResourceKey<T> key, Supplier<?> factory) {
+	private ComponentResource(boolean needsAuthentication, boolean shared, String name, TypeTemplate<?, T> type,
+			Supplier<?> factory) {
 		this.needsAuthentication = needsAuthentication;
 		this.shared = shared;
-		this.key = key;
+		this.name = name;
+		this.type = type;
 		this.factory = factory;
 	}
 
@@ -148,12 +150,12 @@ class ComponentResource<T> implements IuResource<T> {
 
 	@Override
 	public String name() {
-		return key.name();
+		return name;
 	}
 
 	@Override
 	public IuType<?, T> type() {
-		return key.type();
+		return type;
 	}
 
 	@Override
@@ -180,8 +182,8 @@ class ComponentResource<T> implements IuResource<T> {
 
 	@Override
 	public String toString() {
-		return "ComponentResource [needsAuthentication=" + needsAuthentication + ", shared=" + shared + ", key=" + key
-				+ "]";
+		return "ComponentResource [needsAuthentication=" + needsAuthentication + ", shared=" + shared + ", name=" + name
+				+ ", type=" + type + "]";
 	}
 
 	private T create() {

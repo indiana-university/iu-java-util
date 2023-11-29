@@ -38,6 +38,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.type.IuType;
+import edu.iu.type.testresources.HasConstructorParams;
+import edu.iu.type.testresources.HasMethodParams;
 
 @SuppressWarnings({ "javadoc", "unused" })
 public class ParameterizedElementTest extends IuTypeTestCase {
@@ -73,11 +75,7 @@ public class ParameterizedElementTest extends IuTypeTestCase {
 
 	@Test
 	public void testConstructorParams() {
-		class HasConstructorParams {
-			<A, B extends Number> HasConstructorParams() {
-			}
-		}
-		var parameterizedElement = IuType.of(HasConstructorParams.class).constructor(getClass());
+		var parameterizedElement = IuType.of(HasConstructorParams.class).constructor();
 		assertEquals(Object.class, parameterizedElement.typeParameter("A").erasedClass());
 		assertEquals(Number.class, parameterizedElement.typeParameter("B").erasedClass());
 		assertNull(parameterizedElement.typeParameter("C"));
@@ -85,10 +83,6 @@ public class ParameterizedElementTest extends IuTypeTestCase {
 
 	@Test
 	public void testMethodParams() {
-		class HasMethodParams {
-			<A, B extends Number> void methodWithParams() {
-			}
-		}
 		var parameterizedElement = IuType.of(HasMethodParams.class).method("methodWithParams");
 		assertEquals(Object.class, parameterizedElement.typeParameter("A").erasedClass());
 		assertEquals(Number.class, parameterizedElement.typeParameter("B").erasedClass());
