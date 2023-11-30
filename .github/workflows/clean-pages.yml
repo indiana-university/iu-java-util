@@ -6,7 +6,12 @@ env:
 
 jobs:
   clean-site:
-    runs-on: ubuntu-latest
+    runs-on: [ Linux ]
+    container:
+      image: registry.docker.iu.edu/eshr-architecture/ess-build:latest
+      credentials:
+        username: ${{ secrets.ESHR_REGISTRY_USERNAME }}
+        password: ${{ secrets.ESHR_REGISTRY_PASSWORD }}
 
     steps:
       - uses: actions/checkout@v3
@@ -29,4 +34,3 @@ jobs:
           else
             echo "Nothing to do for $ref"
           fi
-
