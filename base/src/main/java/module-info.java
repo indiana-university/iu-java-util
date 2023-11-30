@@ -34,4 +34,6 @@
  */
 module iu.util {
 	exports edu.iu;
+	
+	requires transitive java.logging;
 }

@@ -187,7 +187,7 @@ final class ComponentFactory {
 					var unmetDependencyIterator = unmetDependencies.iterator();
 					while (unmetDependencyIterator.hasNext())
 						if (archive.version().meets(unmetDependencyIterator.next()))
-							unmetDependencies.remove();
+							unmetDependencyIterator.remove();
 					archives.offer(archive);
 
 					for (var bundledDependency : archive.bundledDependencies())

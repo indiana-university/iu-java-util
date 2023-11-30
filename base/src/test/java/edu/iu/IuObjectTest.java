@@ -34,8 +34,12 @@ package edu.iu;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -45,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.jupiter.api.Test;
 
@@ -103,7 +108,10 @@ public class IuObjectTest {
 		assertEquals(1089, IuObject.hashCode(new int[] { 3, 4 }));
 		assertEquals(1155, IuObject.hashCode(new long[] { 5, 8 }));
 		assertEquals(1232, IuObject.hashCode(new short[] { 8, -8 }));
-		assertEquals(-1100575154, IuObject.hashCode((Object) new String[] { "foo", "bar" }));
+
+		int result = 31 + (31 * (31 * String.class.hashCode() + 31 + "foo".hashCode()) + 31 + "bar".hashCode());
+		assertEquals(result, IuObject.hashCode((Object) new String[] { "foo", "bar" }));
+
 		assertEquals(31, IuObject.hashCode(""));
 	}
 
@@ -230,4 +238,46 @@ public class IuObjectTest {
 	public void testObjectsAreNotEqual() {
 		assertFalse(IuObject.equals(new Object(), new Object()));
 	}
+
+	@Test
+	public void testWaitFor() throws InterruptedException, TimeoutException {
+		final var timeout = Duration.ofMillis(100L);
+		final var thirdOfTimeout = timeout.dividedBy(3L);
+		final var expires = Instant.now().plus(timeout);
+		class Box {
+			volatile boolean done;
+			Throwable thrown;
+		}
+		final var box = new Box();
+		new Thread(() -> {
+			try {
+				Thread.sleep(thirdOfTimeout.toMillis(), thirdOfTimeout.toNanosPart() % 1000000);
+				synchronized (box) {
+					box.notifyAll();
+				}
+
+				Thread.sleep(thirdOfTimeout.toMillis(), thirdOfTimeout.toNanosPart() % 1000000);
+				synchronized (box) {
+					box.done = true;
+					box.notifyAll();
+				}
+
+				Thread.sleep(timeout.toMillis(), timeout.toNanosPart() % 1000000);
+			} catch (Throwable e) {
+				box.thrown = e;
+			}
+		}).start();
+		IuObject.waitFor(box, () -> box.done, timeout);
+		assertNull(box.thrown);
+		assertThrows(TimeoutException.class, () -> IuObject.waitFor(box, () -> !box.done, expires));
+	}
+
+	@Test
+	public void testWaitForWithFactory() throws InterruptedException, TimeoutException {
+		IuObject.waitFor(this, () -> true, Duration.ZERO, TimeoutException::new);
+		final var timeout = new TimeoutException();
+		assertSame(timeout, assertThrows(TimeoutException.class,
+				() -> IuObject.waitFor(this, () -> false, Duration.ZERO, () -> timeout)));
+	}
+
 }
