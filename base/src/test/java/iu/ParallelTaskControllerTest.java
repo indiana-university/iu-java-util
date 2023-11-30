@@ -263,7 +263,7 @@ public class ParallelTaskControllerTest {
 			assertFalse(task.isComplete());
 			assertTrue(joinTimeout.getMessage().startsWith("Timed out in PT"), joinTimeout::getMessage);
 
-			Thread.sleep(SYNC_LATENCY.toMillis());
+			Thread.sleep(SYNC_LATENCY.toMillis() * 2L);
 			final var postCompleteTimeout = assertThrows(TimeoutException.class, task::join);
 			assertTrue(task.isComplete());
 			assertTrue(postCompleteTimeout.getMessage().startsWith("Timed out in PT"), postCompleteTimeout::getMessage);

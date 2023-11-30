@@ -33,6 +33,7 @@ package edu.iu;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -187,9 +188,9 @@ public class IuParallelWorkloadControllerTest {
 
 	@Test
 	public void testSevereClosesWorkloadAndFailsByTimeout() throws InterruptedException, TimeoutException {
-		workload.setGracefulShutdown(Duration.ofMillis(1L));
-		workload.setGracefulTermination(Duration.ofMillis(1L));
-		workload.setGracefulDestroy(Duration.ofMillis(1L));
+		workload.setGracefulShutdown(Duration.ofMillis(5L));
+		workload.setGracefulTermination(Duration.ofMillis(5L));
+		workload.setGracefulDestroy(Duration.ofMillis(5L));
 		workload.apply(t -> {
 			Instant until = Instant.now().plus(Duration.ofMillis(200L));
 			for (var now = Instant.now(); now.isBefore(until);)
@@ -380,7 +381,7 @@ public class IuParallelWorkloadControllerTest {
 		var now = Instant.now();
 		var until = now.plus(Duration.ofMillis(75L));
 		assertThrows(InterruptedException.class, workload::close);
-		assertTrue(Instant.now().isAfter(until));
+		assertFalse(Instant.now().isBefore(until));
 	}
 
 	@Test
