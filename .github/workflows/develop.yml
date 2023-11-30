@@ -17,23 +17,40 @@ jobs:
   deploy:
     if: ( github.event_name == 'workflow_dispatch' || github.event_name == 'push' ) && startsWith(github.ref, 'refs/heads/develop')
     name: Verify and Deploy Maven Project
-    runs-on: ubuntu-latest
+    runs-on: [ Linux ]
+    container:
+      image: registry.docker.iu.edu/eshr-architecture/ess-build:latest
+      credentials:
+        username: ${{ secrets.ESHR_REGISTRY_USERNAME }}
+        password: ${{ secrets.ESHR_REGISTRY_PASSWORD }}
+      volumes:
+        - /opt/actions/cache/m2/repository:/root/.m2/repository
 
     steps:
        - name: Clone GitHub repository
          uses: actions/checkout@v3
-
-       - uses: actions/setup-java@v3
-         with:
-          distribution: 'temurin'
-          java-version: '21'
-          cache: 'maven'
+     
+       - name: Generate build time configuration
+         env:
+          ESSBUILD_VAULT_APPROLE_ROLE_ID_UNT: ${{ secrets.ESSBUILD_VAULT_APPROLE_ROLE_ID_UNT }}
+          ESSBUILD_VAULT_APPROLE_SECRET_ID_UNT: ${{ secrets.ESSBUILD_VAULT_APPROLE_SECRET_ID_UNT }}
+          ESSBUILD_VAULT_APPROLE_ROLE_ID_STG: ${{ secrets.ESSBUILD_VAULT_APPROLE_ROLE_ID_STG }}
+          ESSBUILD_VAULT_APPROLE_SECRET_ID_STG: ${{ secrets.ESSBUILD_VAULT_APPROLE_SECRET_ID_STG }}
+          ESSBUILD_VAULT_APPROLE_ROLE_ID_REG: ${{ secrets.ESSBUILD_VAULT_APPROLE_ROLE_ID_REG }}
+          ESSBUILD_VAULT_APPROLE_SECRET_ID_REG: ${{ secrets.ESSBUILD_VAULT_APPROLE_SECRET_ID_REG }}
+         run: |
+           generate_build_properties
+           generate_deploy_properties
 
        - name: Compile, Verify, and Build Javadoc
          id: verify
          run: |
           mvn clean verify -U --batch-mode
           
+       - name: Deploy Artifacts
+         run: |
+          mvn deploy -DskipTests --batch-mode
+
        - name: Publish Documentation
          if: steps.verify.outcome == 'success'
          run: |
