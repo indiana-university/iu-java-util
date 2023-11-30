@@ -185,31 +185,38 @@ import edu.iu.UnsafeRunnable;
 <span class="fc" id="L185">			task.run();</span>
 <span class="fc" id="L186">		} catch (Throwable e) {</span>
 <span class="fc" id="L187">			e.addSuppressed(callerStackTrace);</span>
-<span class="fc" id="L188">			throw error = e;</span>
-		} finally {
-<span class="fc" id="L190">			currentThread.setContextClassLoader(contextToRestore);</span>
 
-<span class="fc" id="L192">			synchronized (this) {</span>
-<span class="fc" id="L193">				paused.clear();</span>
-<span class="fc" id="L194">				end = Instant.now();</span>
-<span class="fc" id="L195">				thread = null;</span>
-<span class="fc" id="L196">				this.notifyAll();</span>
-<span class="fc" id="L197">			}</span>
+<span class="fc" id="L189">			synchronized (this) {</span>
+<span class="fc" id="L190">				error = e;</span>
+<span class="fc" id="L191">				this.notifyAll();</span>
+<span class="fc" id="L192">			}</span>
+
+<span class="fc" id="L194">			throw e;</span>
+
+		} finally {
+<span class="fc" id="L197">			currentThread.setContextClassLoader(contextToRestore);</span>
+
+<span class="fc" id="L199">			synchronized (this) {</span>
+<span class="fc" id="L200">				paused.clear();</span>
+<span class="fc" id="L201">				end = Instant.now();</span>
+<span class="fc" id="L202">				thread = null;</span>
+<span class="fc" id="L203">				this.notifyAll();</span>
+<span class="fc" id="L204">			}</span>
 		}
-<span class="fc" id="L199">	}</span>
+<span class="fc" id="L206">	}</span>
 
 	private synchronized TimeoutException createTimeoutException() {
-<span class="fc" id="L202">		StringBuilder sb = new StringBuilder(&quot;Timed out in &quot;);</span>
-<span class="fc" id="L203">		sb.append(Duration.between(init, expires));</span>
-<span class="fc" id="L204">		final var timeoutException = new TimeoutException(sb.toString());</span>
+<span class="fc" id="L209">		StringBuilder sb = new StringBuilder(&quot;Timed out in &quot;);</span>
+<span class="fc" id="L210">		sb.append(Duration.between(init, expires));</span>
+<span class="fc" id="L211">		final var timeoutException = new TimeoutException(sb.toString());</span>
 
-<span class="fc bfc" id="L206" title="All 2 branches covered.">		if (thread != null) {</span>
-<span class="fc" id="L207">			Throwable currentStack = new Throwable(&quot;current stack&quot;);</span>
-<span class="fc" id="L208">			currentStack.setStackTrace(thread.getStackTrace());</span>
-<span class="fc" id="L209">			timeoutException.initCause(currentStack);</span>
+<span class="fc bfc" id="L213" title="All 2 branches covered.">		if (thread != null) {</span>
+<span class="fc" id="L214">			Throwable currentStack = new Throwable(&quot;current stack&quot;);</span>
+<span class="fc" id="L215">			currentStack.setStackTrace(thread.getStackTrace());</span>
+<span class="fc" id="L216">			timeoutException.initCause(currentStack);</span>
 		}
 
-<span class="fc" id="L212">		return timeoutException;</span>
+<span class="fc" id="L219">		return timeoutException;</span>
 	}
 
 }
