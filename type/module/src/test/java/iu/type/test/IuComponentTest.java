@@ -208,18 +208,20 @@ public class IuComponentTest extends IuTypeTestCase {
 			assertEquals("iu-java-type-testcomponent", component.version().name());
 			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
 
-			var expectedInterfaces = new HashSet<>(
-					Set.of("edu.iu.type.testruntime.TestRuntime", "edu.iu.type.testcomponent.TestBean"));
-			for (final var i : component.interfaces())
-				assertTrue(expectedInterfaces.remove(i.name()));
-			assertTrue(expectedInterfaces.isEmpty(), expectedInterfaces::toString);
+			final Set<String> interfaces = new HashSet<>();
+			IuIterable.map(component.interfaces(), IuType::name).forEach(interfaces::add);
+			assertTrue(interfaces.contains("edu.iu.type.testruntime.TestRuntime"), interfaces::toString);
+			assertTrue(interfaces.contains("edu.iu.type.testcomponent.TestBean"), interfaces::toString);
+			assertFalse(interfaces.contains("jakarta.ejb.SessionContext"), interfaces::toString);
+			assertFalse(interfaces.contains("jakarta.transaction.TransactionManager"), interfaces::toString);
 
 			assertFalse(component
 					.annotatedAttributes(parent.classLoader().loadClass("jakarta.ejb.EJB").asSubclass(Annotation.class))
 					.iterator().hasNext());
 
 			var found = false;
-			for (final var resourceRef : component.annotatedAttributes(Resource.class))
+			final var resourceRefs = component.annotatedAttributes(Resource.class);
+			for (final var resourceRef : resourceRefs)
 				if (resourceRef.name().equals("stringList")) {
 					found = true;
 					assertInstanceOf(IuField.class, resourceRef);

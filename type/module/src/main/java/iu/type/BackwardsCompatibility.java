@@ -31,74 +31,96 @@
  */
 package iu.type;
 
-import edu.iu.type.DefaultInterceptor;
+import java.lang.reflect.Modifier;
 
 /**
- * Maps class names from the current {@link Thread#getContextClassLoader()
- * context class loader} to a potentially remote context loader that
- * <em>may</em> contain an old and potentially incompatible version of the same
- * class.
+ * Provides access to <strong>context-compatible</strong> versions of
+ * <strong>context-sensitive</strong> classes.
  * 
  * <p>
- * Handling of compatibility issues between the current and remote contexts is
- * not the responsibility of this utility.
+ * A <strong>context-sensitive</strong> class is {@link Modifier#PUBLIC public}
+ * and intended to be loaded by direct reference from its {@link IuComponent
+ * component} rather than shared by parent or module delegation. For example,
+ * {@link Resource}.
+ * </p>
+ * 
+ * <p>
+ * <strong>Context-compatible</strong> refers to a class that has the same name,
+ * or a compatible name (i.e., javax.* vs. jakarta.*), as a
+ * <strong>context-sensitive</strong> class, and is guaranteed to be visible to
+ * the current thread's {@link Thread#getContextClassLoader()}.
  * </p>
  */
 final class BackwardsCompatibility {
 
+//	/**
+//	 * Get the local equivalent for an potentially remote class.
+//	 * 
+//	 * @param potentiallyRemoteClass potentially remote class
+//	 * @return local equivalent
+//	 * @throws ClassNotFoundException If a local equivalent for the remote class
+//	 *                                cannot be found.
+//	 */
+//	static Class<?> getLocalClass(Class<?> potentiallyRemoteClass) throws ClassNotFoundException {
+//		var className = potentiallyRemoteClass.getName();
+//
+//		String localClassName;
+//		if (className.startsWith("javax."))
+//			localClassName = "jakarta" + className.substring(5);
+//		else if (className.equals("edu.iu.spi.DefaultInterceptor"))
+//			localClassName = DefaultInterceptor.class.getName();
+//		else
+//			localClassName = className;
+//
+//		return Thread.currentThread().getContextClassLoader().loadClass(localClassName);
+//	}
+
 	/**
-	 * Get the local equivalent for an potentially remote class.
+	 * Gets a <strong>context-compatible</strong> equivalent of a
+	 * <strong>context-sensitive</strong> class.
 	 * 
-	 * @param potentiallyRemoteClass potentially remote class
-	 * @return local equivalent
-	 * @throws ClassNotFoundException If a local equivalent for the remote class
-	 *                                cannot be found.
-	 */
-	static Class<?> getLocalClass(Class<?> potentiallyRemoteClass) throws ClassNotFoundException {
-		var className = potentiallyRemoteClass.getName();
-
-		String localClassName;
-		if (className.startsWith("javax."))
-			localClassName = "jakarta" + className.substring(5);
-		else if (className.equals("edu.iu.spi.DefaultInterceptor"))
-			localClassName = DefaultInterceptor.class.getName();
-		else
-			localClassName = className;
-
-		return Thread.currentThread().getContextClassLoader().loadClass(localClassName);
-	}
-
-	/**
-	 * Gets the potentially remote equivalent of a local class
-	 * 
-	 * @param localClass local class
-	 * @return potentially remote equivalent
+	 * @param contextSensitive <strong>context-sensitive</strong> class
+	 * @return context-compatible equivalent
 	 * @throws ClassNotFoundException If a remote equivalent is not available for
 	 *                                the local class.
 	 */
-	static Class<?> getPotentiallyRemoteClass(Class<?> localClass) throws ClassNotFoundException {
-		var className = localClass.getName();
+	static Class<?> getCompatibleClass(Class<?> contextSensitive) throws ClassNotFoundException {
+		return getCompatibleClass(contextSensitive, Thread.currentThread().getContextClassLoader());
+	}
 
-		ClassNotFoundException localClassNameNotFound;
+	/**
+	 * Gets a <strong>context-compatible</strong> equivalent of a
+	 * <strong>context-sensitive</strong> class.
+	 * 
+	 * @param contextSensitive <strong>context-sensitive</strong> class
+	 * @param contextLoader    {@link ClassLoader} that defines the context
+	 * @return context-compatible equivalent
+	 * @throws ClassNotFoundException If a remote equivalent is not available for
+	 *                                the local class.
+	 */
+	static Class<?> getCompatibleClass(Class<?> contextSensitive, ClassLoader contextLoader)
+			throws ClassNotFoundException {
+		var className = contextSensitive.getName();
+
+		ClassNotFoundException contextClassNameNotFound;
 		try {
-			var contextLoader = Thread.currentThread().getContextClassLoader();
 			return contextLoader.loadClass(className);
 		} catch (ClassNotFoundException e) {
-			localClassNameNotFound = e;
+			contextClassNameNotFound = e;
 		}
 
-		String remoteClassName;
+		String compatibleClassName;
 		if (className.startsWith("jakarta."))
-			remoteClassName = "javax" + className.substring(7);
-		else if (className.equals(DefaultInterceptor.class.getName()))
-			remoteClassName = "edu.iu.spi.DefaultInterceptor";
+			compatibleClassName = "javax" + className.substring(7);
+		else if (className.startsWith("javax."))
+			compatibleClassName = "jakarta" + className.substring(5);
 		else
-			throw localClassNameNotFound;
+			throw contextClassNameNotFound;
 
 		try {
-			return Thread.currentThread().getContextClassLoader().loadClass(remoteClassName);
+			return Thread.currentThread().getContextClassLoader().loadClass(compatibleClassName);
 		} catch (ClassNotFoundException e) {
-			e.addSuppressed(localClassNameNotFound);
+			e.addSuppressed(contextClassNameNotFound);
 			throw e;
 		}
 	}

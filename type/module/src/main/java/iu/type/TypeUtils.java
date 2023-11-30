@@ -39,6 +39,7 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 
+import edu.iu.UnsafeRunnable;
 import edu.iu.UnsafeSupplier;
 import edu.iu.type.IuType;
 
@@ -82,6 +83,25 @@ final class TypeUtils {
 		try {
 			current.setContextClassLoader(contextLoader);
 			return supplier.get();
+		} finally {
+			current.setContextClassLoader(loader);
+		}
+	}
+
+	/**
+	 * Invokes an {@link UnsafeRunnable} using a specific context class loader.
+	 * 
+	 * @param contextLoader {@link ClassLoader}
+	 * @param runnable      {@link UnsafeRunnable}
+	 * 
+	 * @throws Throwable from {@link UnsafeRunnable#run()}
+	 */
+	static void callWithContext(ClassLoader contextLoader, UnsafeRunnable runnable) throws Throwable {
+		var current = Thread.currentThread();
+		var loader = current.getContextClassLoader();
+		try {
+			current.setContextClassLoader(contextLoader);
+			runnable.run();
 		} finally {
 			current.setContextClassLoader(loader);
 		}

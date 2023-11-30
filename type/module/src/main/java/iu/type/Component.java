@@ -50,6 +50,7 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.type.IuAttribute;
 import edu.iu.type.IuComponent;
@@ -73,8 +74,8 @@ class Component implements IuComponent {
 			Properties properties, Set<IuType<?, ?>> interfaces,
 			Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes,
 			Map<Class<?>, List<IuType<?, ?>>> annotatedTypes, List<ComponentResource<?>> resources,
-			List<ComponentResourceReference<?, ?>> resourceReferences) {
-		Class<?> loadedClass;
+			Class<?> resourceAnnotationType, List<ComponentResourceReference<?, ?>> resourceReferences) {
+		final Class<?> loadedClass;
 		try {
 			loadedClass = classLoader.loadClass(className);
 		} catch (ClassNotFoundException | Error e) {
@@ -83,8 +84,8 @@ class Component implements IuComponent {
 		}
 
 		var module = loadedClass.getModule();
-		if ((module.isNamed() && module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) //
-				|| (!module.isNamed() && !kind.isModular() && properties != null)) {
+		if (!IuType.isPlatformType(loadedClass.getName()) //
+				&& module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) {
 			var type = TypeFactory.resolveRawClass(loadedClass);
 
 			for (final var attribute : IuIterable.<DeclaredAttribute<?, ?>>cat(type.fields(), type.properties())) {
@@ -99,7 +100,7 @@ class Component implements IuComponent {
 
 					annotatedWithType.add(attribute);
 
-					if (annotationType == Resource.class)
+					if (annotationType == resourceAnnotationType)
 						resourceReferences.add(new ComponentResourceReference<>(attribute));
 				}
 			}
@@ -182,13 +183,23 @@ class Component implements IuComponent {
 		if (propertiesSource != null)
 			this.properties.load(new ByteArrayInputStream(propertiesSource));
 
-		for (final var resourceName : resourceNames)
-			if (resourceName.endsWith(".class") //
-					&& !resourceName.endsWith("-info.class") //
-					&& resourceName.indexOf('$') == -1)
-				indexClass(resourceName.substring(0, resourceName.length() - 6).replace('/', '.'), classLoader, version,
-						kind, properties, interfaces, annotatedAttributes, annotatedTypes, resources,
-						resourceReferences);
+		IuException.checked(IOException.class, () -> TypeUtils.callWithContext(classLoader, () -> {
+			Class<?> resourceAnnotationType;
+			try {
+				resourceAnnotationType = BackwardsCompatibility.getCompatibleClass(Resource.class, classLoader);
+			} catch (ClassNotFoundException e) {
+				LOG.log(Level.FINEST, e, () -> "Resource annotation not available in scanned ClassLoader");
+				resourceAnnotationType = null;
+			}
+
+			for (final var resourceName : resourceNames)
+				if (resourceName.endsWith(".class") //
+						&& !resourceName.endsWith("-info.class") //
+						&& resourceName.indexOf('$') == -1)
+					indexClass(resourceName.substring(0, resourceName.length() - 6).replace('/', '.'), classLoader,
+							version, kind, properties, interfaces, annotatedAttributes, annotatedTypes, resources,
+							resourceAnnotationType, resourceReferences);
+		}));
 
 		this.interfaces = Collections.unmodifiableSet(interfaces);
 		for (var annotatedTypeEntry : annotatedTypes.entrySet())
@@ -199,6 +210,7 @@ class Component implements IuComponent {
 		this.annotatedAttributes = Collections.unmodifiableMap(annotatedAttributes);
 		this.resources = Collections.unmodifiableList(resources);
 		this.resourceReferences = Collections.unmodifiableList(resourceReferences);
+
 	}
 
 	/**
@@ -241,20 +253,32 @@ class Component implements IuComponent {
 		properties = firstArchive.properties();
 
 		versions = new LinkedHashSet<>();
-		for (var archive : archives) {
-			versions.add(archive.version());
-			if (archive.kind().isWeb())
-				if (archive == firstArchive)
-					for (var webResource : archive.webResources().entrySet())
-						resources
-								.add(ComponentResource.createWebResource(webResource.getKey(), webResource.getValue()));
-				else
-					throw new IllegalArgumentException("Component must not include a web component as a dependency");
+		IuException.unchecked(() -> TypeUtils.callWithContext(classLoader, () -> {
+			Class<?> resourceAnnotationType;
+			try {
+				resourceAnnotationType = BackwardsCompatibility.getCompatibleClass(Resource.class, classLoader);
+			} catch (ClassNotFoundException e) {
+				LOG.log(Level.FINEST, e, () -> "Resource annotation not available in scanned ClassLoader");
+				resourceAnnotationType = null;
+			}
 
-			for (var className : archive.nonEnclosedTypeNames())
-				indexClass(className, classLoader, archive.version(), archive.kind(), archive.properties(), interfaces,
-						annotatedAttributes, annotatedTypes, resources, resourceReferences);
-		}
+			for (var archive : archives) {
+				versions.add(archive.version());
+				if (archive.kind().isWeb())
+					if (archive == firstArchive)
+						for (var webResource : archive.webResources().entrySet())
+							resources.add(
+									ComponentResource.createWebResource(webResource.getKey(), webResource.getValue()));
+					else
+						throw new IllegalArgumentException(
+								"Component must not include a web component as a dependency");
+
+				for (var className : archive.nonEnclosedTypeNames())
+					indexClass(className, classLoader, archive.version(), archive.kind(), archive.properties(),
+							interfaces, annotatedAttributes, annotatedTypes, resources, resourceAnnotationType,
+							resourceReferences);
+			}
+		}));
 
 		if (parent != null)
 			versions.addAll(parent.versions);
@@ -347,7 +371,14 @@ class Component implements IuComponent {
 	@Override
 	public Iterable<? extends IuAttribute<?, ?>> annotatedAttributes(Class<? extends Annotation> annotationType) {
 		checkClosed();
-		final var annotatedAttributes = this.annotatedAttributes.get(annotationType);
+		final List<IuAttribute<?, ?>> annotatedAttributes;
+		try {
+			final var compatibleClass = BackwardsCompatibility.getCompatibleClass(annotationType, classLoader);
+			annotatedAttributes = this.annotatedAttributes.get(compatibleClass);
+		} catch (ClassNotFoundException e) {
+			return Collections.emptySet();
+		}
+
 		if (annotatedAttributes == null)
 			return Collections.emptySet();
 		else
@@ -357,7 +388,14 @@ class Component implements IuComponent {
 	@Override
 	public Iterable<? extends IuType<?, ?>> annotatedTypes(Class<? extends Annotation> annotationType) {
 		checkClosed();
-		final var annotatedTypes = this.annotatedTypes.get(annotationType);
+		List<IuType<?, ?>> annotatedTypes;
+		try {
+			annotatedTypes = this.annotatedTypes
+					.get(BackwardsCompatibility.getCompatibleClass(annotationType, classLoader));
+		} catch (ClassNotFoundException e) {
+			return Collections.emptySet();
+		}
+
 		if (annotatedTypes == null)
 			return Collections.emptySet();
 		else

@@ -72,7 +72,7 @@ class PotentiallyRemoteAnnotationHandler implements InvocationHandler {
 			return o;
 
 		if (Annotation.class.isAssignableFrom(localClass)) {
-			var potentiallyRemoteClass = BackwardsCompatibility.getPotentiallyRemoteClass(localClass);
+			var potentiallyRemoteClass = BackwardsCompatibility.getCompatibleClass(localClass);
 			if (Annotation.class.isAssignableFrom(potentiallyRemoteClass) && potentiallyRemoteClass.isInstance(o))
 				return Proxy.newProxyInstance(localClass.getClassLoader(), new Class<?>[] { localClass },
 						new PotentiallyRemoteAnnotationHandler(localClass.asSubclass(Annotation.class),

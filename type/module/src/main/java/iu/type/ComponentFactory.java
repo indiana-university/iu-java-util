@@ -85,8 +85,17 @@ final class ComponentFactory {
 	 * @throws IOException If an I/O error occurs reading from an archive
 	 */
 	static Component createModular(Component parent, Queue<ComponentArchive> archives) throws IOException {
-		return new Component(parent, new ModularClassLoader(archives, parent == null ? null : parent.classLoader()),
-				archives);
+		final var loader = new ModularClassLoader(archives, parent == null ? null : parent.classLoader());
+		try {
+			return new Component(parent, loader, archives);
+		} catch (Throwable e) {
+			try {
+				loader.close();
+			} catch (Throwable e2) {
+				e.addSuppressed(e2);
+			}
+			throw IuException.checked(e, IOException.class);
+		}
 	}
 
 	/**
