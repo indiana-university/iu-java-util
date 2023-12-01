@@ -31,8 +31,6 @@
  */
 package iu.type;
 
-import static iu.type.BackwardsCompatibility.getLocalClass;
-
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Proxy;
@@ -61,7 +59,7 @@ final class AnnotationBridge {
 			throws ClassNotFoundException {
 		try {
 			return TypeUtils.callWithContext(annotatedElement,
-					() -> BackwardsCompatibility.getPotentiallyRemoteClass(localClass));
+					() -> BackwardsCompatibility.getCompatibleClass(localClass));
 		} catch (Throwable e) {
 			throw IuException.checked(e, ClassNotFoundException.class);
 		}
@@ -136,11 +134,11 @@ final class AnnotationBridge {
 			return Collections.emptySet();
 
 		Queue<Annotation> localAnnotations = new ArrayDeque<>();
-		for (var annotation : annotations) {
-			var potentiallyRemoteClass = annotation.annotationType();
+		for (final var annotation : annotations) {
+			final var annotationType = annotation.annotationType();
 			Class<?> localClass;
 			try {
-				localClass = getLocalClass(potentiallyRemoteClass);
+				localClass = BackwardsCompatibility.getCompatibleClass(annotationType);
 			} catch (ClassNotFoundException e) {
 				continue;
 			}

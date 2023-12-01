@@ -1,6 +1,6 @@
 /*
  * Copyright © 2023 Indiana University
- * All rights reserved.
+* All rights reserved.
  *
  * BSD 3-Clause License
  *
@@ -47,6 +47,10 @@ import java.util.function.Function;
  * This resource is thread-safe and intended for use in high-volume and
  * time-sensitive component initialization scenarios. Elements are weakly held,
  * so will may only be visited until cleared by the garbage collector.
+ * </p>
+ * 
+ * <p>
+ * <img src="doc-files/Visitor.svg" alt="UML Class Diagram" />
  * </p>
  * 
  * @param <T> element type

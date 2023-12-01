@@ -1278,12 +1278,31 @@ public final class IuException {
 		try {
 			return initializer.apply(resource);
 		} catch (Throwable e) {
-			try {
-				resource.close();
-			} catch (Throwable e2) {
-				e.addSuppressed(e2);
-			}
+			suppress(e, resource::close);
 			throw checked(e);
+		}
+	}
+
+	/**
+	 * Runs an {@link UnsafeRunnable} and adds any exception thrown as suppressed by
+	 * an another exception.
+	 * 
+	 * <p>
+	 * This is useful for adding clean-up tasks to error handling routines related
+	 * to failed initialization of closeable resources.
+	 * </p>
+	 * 
+	 * @param throwable Throwable that will
+	 *                  {@link Throwable#addSuppressed(Throwable) suppress}
+	 *                  exceptions thrown from {@code runnable}.
+	 * @param runnable  {@link UnsafeRunnable}; will be run, and any exceptions
+	 *                  thrown will be suppressed by {@code throwable}
+	 */
+	public static void suppress(Throwable throwable, UnsafeRunnable runnable) {
+		try {
+			runnable.run();
+		} catch (Throwable e) {
+			throwable.addSuppressed(e);
 		}
 	}
 

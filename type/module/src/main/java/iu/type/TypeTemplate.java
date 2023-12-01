@@ -34,9 +34,11 @@ package iu.type;
 import java.beans.Introspector;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -155,7 +157,7 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 			TypeTemplate<D, T> erasedType) {
 		super(annotatedElement, preInitHook, type, resolveDeclaringType(annotatedElement));
 
-		if (declaringType == null)
+		if (declaringType == null || isStatic())
 			initializeDeclared(erasedType);
 		else
 			declaringType.template.postInit(() -> initializeDeclared(erasedType));
@@ -189,7 +191,7 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 		assert erasedType.erasedClass() == TypeFactory.getErasedClass(type)
 				: erasedType + " " + TypeUtils.printType(type);
 
-		sealHierarchy(erasedType.hierarchy);
+		erasedType.postInit(() -> sealHierarchy(erasedType.hierarchy));
 	}
 
 	private boolean isNative() {
@@ -202,17 +204,15 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 	}
 
 	private void initializeDeclared(TypeTemplate<D, T> erasedType) {
-		if (declaringType != null)
+		if (declaringType != null && !isStatic())
 			parameterizedElement.apply(declaringType.template.typeParameters());
 
 		if (erasedType == null) {
 			this.erasedType = this;
-			initializeEnclosedTypes();
 			initializeConstructors();
 		} else {
 			this.erasedType = new TypeFacade<D, T>(erasedType, this, IuReferenceKind.ERASURE);
 			erasedType.postInit(() -> {
-				initializeEnclosedTypes();
 				initializeConstructors();
 			});
 		}
@@ -222,10 +222,15 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 	private void initializeEnclosedTypes() {
 		Queue<TypeFacade<T, ?>> enclosedTypes = new ArrayDeque<>();
 
-		if (!isNative())
-			for (var enclosedClass : annotatedElement.getDeclaredClasses())
-				enclosedTypes.offer(new TypeFacade(TypeFactory.resolveRawClass(enclosedClass), this,
-						IuReferenceKind.ENCLOSING_TYPE));
+		if (!isNative()) {
+			Class<?>[] enclosedClasses = annotatedElement.getDeclaredClasses();
+			postInit(() -> {
+				for (var enclosedClass : enclosedClasses) {
+					final var enclosedType = TypeFactory.resolveRawClass(enclosedClass);
+					enclosedTypes.offer(new TypeFacade(enclosedType, this, IuReferenceKind.ENCLOSING_TYPE));
+				}
+			});
+		}
 
 		this.enclosedTypes = enclosedTypes;
 	}
@@ -285,8 +290,10 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 				Type propertyType;
 				if (readMethod != null)
 					propertyType = readMethod.getGenericReturnType();
-				else
+				else if (writeMethod != null)
 					propertyType = writeMethod.getGenericParameterTypes()[0];
+				else
+					continue;
 
 				TypeTemplate<?, T> propertyTypeTemplate;
 				if (propertyType == annotatedElement)
@@ -394,13 +401,22 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 		throw new UnsupportedOperationException("use sealHierarchy() only with TypeTemplate");
 	}
 
+	private boolean isStatic() {
+		final var erased = erasedClass();
+		if (erased.isInterface() || erased.isRecord() || erased.isEnum())
+			return true;
+
+		final var mod = annotatedElement.getModifiers();
+		return (mod | Modifier.STATIC) == mod;
+	}
+
 	/**
 	 * Seals {@link #hierarchy()} and resolves <strong>inherited elements</strong>.
 	 * 
 	 * @param hierarchy Resolved type hierarchy
 	 */
 	void sealHierarchy(Iterable<? extends IuType<?, ? super T>> hierarchy) {
-		if (declaringType == null)
+		if (declaringType == null || isStatic())
 			doSealHierarchy(hierarchy);
 		else
 			declaringType.template.postInit(() -> doSealHierarchy(hierarchy));
@@ -469,7 +485,8 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 
 	@Override
 	public Iterable<TypeFacade<T, ?>> enclosedTypes() {
-		checkSealed();
+		if (enclosedTypes == null)
+			initializeEnclosedTypes();
 		return enclosedTypes;
 	}
 

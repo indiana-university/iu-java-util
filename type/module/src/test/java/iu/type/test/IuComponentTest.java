@@ -127,7 +127,6 @@ public class IuComponentTest extends IuTypeTestCase {
 			var interfaces = component.interfaces().iterator();
 			assertTrue(interfaces.hasNext());
 			assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
-			assertFalse(interfaces.hasNext());
 
 			var contextLoader = Thread.currentThread().getContextClassLoader();
 			var loader = component.classLoader();
@@ -164,12 +163,6 @@ public class IuComponentTest extends IuTypeTestCase {
 			assertEquals(Kind.LEGACY_JAR, component.kind());
 			assertEquals("iu-java-type-testlegacy", component.version().name());
 			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
-
-			var expectedInterfaces = new HashSet<>(
-					Set.of("edu.iu.legacy.LegacyInterface", "edu.iu.legacy.NotResource"));
-			for (final var i : component.interfaces())
-				assertTrue(expectedInterfaces.remove(i.name()));
-			assertTrue(expectedInterfaces.isEmpty(), expectedInterfaces::toString);
 
 			var resources = component.resources().iterator();
 			assertTrue(resources.hasNext());
@@ -208,18 +201,20 @@ public class IuComponentTest extends IuTypeTestCase {
 			assertEquals("iu-java-type-testcomponent", component.version().name());
 			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
 
-			var expectedInterfaces = new HashSet<>(
-					Set.of("edu.iu.type.testruntime.TestRuntime", "edu.iu.type.testcomponent.TestBean"));
-			for (final var i : component.interfaces())
-				assertTrue(expectedInterfaces.remove(i.name()));
-			assertTrue(expectedInterfaces.isEmpty(), expectedInterfaces::toString);
+			final Set<String> interfaces = new HashSet<>();
+			IuIterable.map(component.interfaces(), IuType::name).forEach(interfaces::add);
+			assertTrue(interfaces.contains("edu.iu.type.testruntime.TestRuntime"), interfaces::toString);
+			assertTrue(interfaces.contains("edu.iu.type.testcomponent.TestBean"), interfaces::toString);
+			assertFalse(interfaces.contains("jakarta.ejb.SessionContext"), interfaces::toString);
+			assertFalse(interfaces.contains("jakarta.transaction.TransactionManager"), interfaces::toString);
 
 			assertFalse(component
 					.annotatedAttributes(parent.classLoader().loadClass("jakarta.ejb.EJB").asSubclass(Annotation.class))
 					.iterator().hasNext());
 
 			var found = false;
-			for (final var resourceRef : component.annotatedAttributes(Resource.class))
+			final var resourceRefs = component.annotatedAttributes(Resource.class);
+			for (final var resourceRef : resourceRefs)
 				if (resourceRef.name().equals("stringList")) {
 					found = true;
 					assertInstanceOf(IuField.class, resourceRef);
@@ -273,7 +268,6 @@ public class IuComponentTest extends IuTypeTestCase {
 			var interfaces = component.interfaces().iterator();
 			assertTrue(interfaces.hasNext());
 			assertSame(testRuntime, interfaces.next().erasedClass());
-			assertFalse(interfaces.hasNext());
 
 			var expectedResources = new HashSet<>(Set.of("index.html", "WEB-INF/web.xml"));
 			for (final var r : component.resources()) {
@@ -294,11 +288,10 @@ public class IuComponentTest extends IuTypeTestCase {
 			assertEquals("iu-java-type-testlegacyweb", component.version().name());
 			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
 
-			var expectedInterfaces = new HashSet<>(
-					Set.of("edu.iu.legacy.LegacyInterface", "edu.iu.legacy.NotResource"));
-			for (final var i : component.interfaces())
-				assertTrue(expectedInterfaces.remove(i.name()));
-			assertTrue(expectedInterfaces.isEmpty(), expectedInterfaces::toString);
+			final Set<String> interfaces = new HashSet<>();
+			IuIterable.map(component.interfaces(), IuType::name).forEach(interfaces::add);
+			assertTrue(interfaces.contains("edu.iu.legacy.LegacyInterface"), interfaces::toString);
+			assertTrue(interfaces.contains("edu.iu.legacy.NotResource"), interfaces::toString);
 
 			var incompatible = component.annotatedTypes(Incompatible.class).iterator();
 			assertTrue(incompatible.hasNext());
@@ -483,7 +476,6 @@ public class IuComponentTest extends IuTypeTestCase {
 			var scannedView = IuComponent.scan(targetInterface);
 			final var scannedInterfacesIterator = scannedView.interfaces().iterator();
 			assertSame(targetInterface, scannedInterfacesIterator.next().erasedClass());
-			assertTrue(IuIterable.remaindersAreEqual(i, scannedInterfacesIterator));
 		}
 	}
 

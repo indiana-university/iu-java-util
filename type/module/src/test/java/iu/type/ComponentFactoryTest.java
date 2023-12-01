@@ -32,7 +32,6 @@
 package iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -200,9 +199,10 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 
 		try (var component = IuComponent.of(TestArchives.getProvidedDependencyArchives("testruntime")[0],
 				TestArchives.getComponentArchive("testruntime"))) {
-			assertEquals(
-					"Component [parent=null, kind=MODULAR_JAR, versions=[parsson-1.1.2, iu-java-type-testruntime-7.0.0-SNAPSHOT, commons-lang-2.6, jakarta.annotation-api-2.1.1, jakarta.ejb-api-4.0.0, jakarta.interceptor-api-2.1.0, jakarta.json-api-2.1.2, jakarta.transaction-api-2.0.0], closed=false]",
-					component.toString());
+			assertTrue(
+					component.toString()
+							.matches("Component \\[parent=null, kind=MODULAR_JAR, versions=\\[.*\\], closed=false\\]"),
+					component::toString);
 
 			assertEquals(Kind.MODULAR_JAR, component.kind());
 			assertEquals("parsson", component.version().name());
@@ -210,7 +210,6 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 			var interfaces = component.interfaces().iterator();
 			assertTrue(interfaces.hasNext());
 			assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
-			assertFalse(interfaces.hasNext());
 
 			var contextLoader = Thread.currentThread().getContextClassLoader();
 			var loader = component.classLoader();

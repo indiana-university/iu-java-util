@@ -42,6 +42,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.ServiceLoader;
 import java.util.jar.JarEntry;
@@ -83,11 +84,7 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 		try (final var out = Files.newOutputStream(target, StandardOpenOption.CREATE)) {
 			IuStream.copy(sourceStream, out);
 		} catch (Throwable e) {
-			try {
-				Files.deleteIfExists(target);
-			} catch (Throwable e2) {
-				e.addSuppressed(e2);
-			}
+			IuException.suppress(e, () -> Files.deleteIfExists(target));
 			throw IuException.checked(e, IOException.class);
 		}
 		return target;
@@ -120,6 +117,10 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 	}
 
 	private static final CloseableDelegate createDelegate() throws IOException {
+		final var spiModule = IuTypeSpi.class.getModule();
+		final var spiModuleName = Objects.requireNonNull(spiModule.getName(),
+				"IuTypeSpi must be loaded from a named module");
+
 		final Deque<Path> libs = new ArrayDeque<>();
 
 		final var bundle = TypeBundleSpi.class.getClassLoader().getResource("iu-java-type-impl-bundle.jar");
@@ -148,16 +149,15 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 		final Runnable close = () -> cleanUp(moduleFinder, libs);
 		try {
 			final Queue<String> moduleNames = new ArrayDeque<>();
-			moduleNames.add("iu.util.type");
+			moduleNames.add(spiModuleName);
 			for (final var moduleRefence : moduleFinder.findAll())
 				moduleNames.offer(moduleRefence.descriptor().name());
 
-			final var spiModule = IuTypeSpi.class.getModule();
 			final var parentModuleLayer = spiModule.getLayer();
 			final var configuration = Configuration.resolveAndBind( //
 					ModuleFinder.of(), List.of(parentModuleLayer.configuration()), moduleFinder, moduleNames);
 			final var controller = ModuleLayer.defineModulesWithOneLoader(configuration, List.of(parentModuleLayer),
-					parentModuleLayer.findLoader("iu.util.type"));
+					parentModuleLayer.findLoader(spiModuleName));
 
 			final var layer = controller.layer();
 
@@ -226,5 +226,5 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 	public Module getModule() {
 		return this.delegate.spi.getClass().getModule();
 	}
-	
+
 }
