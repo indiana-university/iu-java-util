@@ -218,5 +218,14 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 		}
 <span class="fc" id="L219">	}</span>
 
+	/**
+	 * Gets a reference to the loaded {@code iu.util.type.impl} module.
+	 * 
+	 * @return loaded {@code iu.util.type.impl} module
+	 */
+	public Module getModule() {
+<span class="fc" id="L227">		return this.delegate.spi.getClass().getModule();</span>
+	}
+	
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

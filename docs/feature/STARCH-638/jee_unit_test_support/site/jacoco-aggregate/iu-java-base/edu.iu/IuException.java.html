@@ -1278,14 +1278,33 @@ public final class IuException {
 		try {
 <span class="fc" id="L1279">			return initializer.apply(resource);</span>
 <span class="fc" id="L1280">		} catch (Throwable e) {</span>
-			try {
-<span class="fc" id="L1282">				resource.close();</span>
-<span class="fc" id="L1283">			} catch (Throwable e2) {</span>
-<span class="fc" id="L1284">				e.addSuppressed(e2);</span>
-<span class="fc" id="L1285">			}</span>
-<span class="fc" id="L1286">			throw checked(e);</span>
+<span class="fc" id="L1281">			suppress(e, resource::close);</span>
+<span class="fc" id="L1282">			throw checked(e);</span>
 		}
 	}
+
+	/**
+	 * Runs an {@link UnsafeRunnable} and adds any exception thrown as suppressed by
+	 * an another exception.
+	 * 
+	 * &lt;p&gt;
+	 * This is useful for adding clean-up tasks to error handling routines related
+	 * to failed initialization of closeable resources.
+	 * &lt;/p&gt;
+	 * 
+	 * @param throwable Throwable that will
+	 *                  {@link Throwable#addSuppressed(Throwable) suppress}
+	 *                  exceptions thrown from {@code runnable}.
+	 * @param runnable  {@link UnsafeRunnable}; will be run, and any exceptions
+	 *                  thrown will be suppressed by {@code throwable}
+	 */
+	public static void suppress(Throwable throwable, UnsafeRunnable runnable) {
+		try {
+<span class="fc" id="L1303">			runnable.run();</span>
+<span class="fc" id="L1304">		} catch (Throwable e) {</span>
+<span class="fc" id="L1305">			throwable.addSuppressed(e);</span>
+<span class="fc" id="L1306">		}</span>
+<span class="fc" id="L1307">	}</span>
 
 	private IuException() {
 	}
