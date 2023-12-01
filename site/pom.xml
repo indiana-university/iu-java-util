@@ -38,7 +38,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	<parent>
 		<groupId>edu.iu.util</groupId>
 		<artifactId>iu-java-parent</artifactId>
-		<version>7.0.0-SNAPSHOT</version>
+		<version>7.0.1-SNAPSHOT</version>
 	</parent>
 
 	<name>IU Java Utilities API Reference</name>
