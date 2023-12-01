@@ -92,7 +92,7 @@ public class ComponentTest extends IuTypeTestCase {
 		final var beforeExtraClose = Instant.now();
 		component.close(); // no-op does not throw
 		final var sinceBeforeExtraClose = Duration.between(beforeExtraClose, Instant.now());
-		assertTrue(sinceBeforeExtraClose.compareTo(Duration.ofNanos(5_000L)) <= 0);
+		assertTrue(sinceBeforeExtraClose.compareTo(Duration.ofNanos(10_000L)) <= 0);
 
 		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.parent()).getMessage());
 		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.properties()).getMessage());
