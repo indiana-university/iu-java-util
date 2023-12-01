@@ -28,7 +28,9 @@
 				<module>testcomponent</module>
 				<module>testlegacyweb</module>
 				<module>testweb</module>
+				<module>testresources</module>
 				<module>module</module>
+				<module>bundle</module>
 			</modules>
 		</profile>
 	</profiles>

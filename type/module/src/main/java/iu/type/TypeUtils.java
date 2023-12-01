@@ -39,6 +39,7 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 
+import edu.iu.UnsafeRunnable;
 import edu.iu.UnsafeSupplier;
 import edu.iu.type.IuType;
 
@@ -46,24 +47,6 @@ import edu.iu.type.IuType;
  * Miscellaneous type introspection utilities.
  */
 final class TypeUtils {
-
-	/**
-	 * Determines if a type name is exempt from the {@link ClassLoader} delegation
-	 * suppression required for web applications.
-	 * 
-	 * @param name type name
-	 * @return {code true} if a platform type; else false
-	 * 
-	 * @see <a href=
-	 *      "https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader">
-	 *      Servlet 6.0, section 10.7.2</a>
-	 */
-	static boolean isPlatformType(String name) {
-		return name.startsWith("jakarta.") //
-				|| name.startsWith("java.") //
-				|| name.startsWith("javax.") //
-				|| name.startsWith("jdk.");
-	}
 
 	/**
 	 * Gets the context class loader appropriate for a given annotated element.
@@ -100,6 +83,25 @@ final class TypeUtils {
 		try {
 			current.setContextClassLoader(contextLoader);
 			return supplier.get();
+		} finally {
+			current.setContextClassLoader(loader);
+		}
+	}
+
+	/**
+	 * Invokes an {@link UnsafeRunnable} using a specific context class loader.
+	 * 
+	 * @param contextLoader {@link ClassLoader}
+	 * @param runnable      {@link UnsafeRunnable}
+	 * 
+	 * @throws Throwable from {@link UnsafeRunnable#run()}
+	 */
+	static void callWithContext(ClassLoader contextLoader, UnsafeRunnable runnable) throws Throwable {
+		var current = Thread.currentThread();
+		var loader = current.getContextClassLoader();
+		try {
+			current.setContextClassLoader(contextLoader);
+			runnable.run();
 		} finally {
 			current.setContextClassLoader(loader);
 		}

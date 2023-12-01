@@ -39,15 +39,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.logging.Level;
 
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuType;
+import edu.iu.type.testresources.HasAroundInvokeMethod;
+import edu.iu.type.testresources.HasInterceptors;
+import edu.iu.type.testresources.HasInterceptorsOnMethod;
+import edu.iu.type.testresources.MethodTestSupport;
 import iu.type.IuTypeTestCase;
-import jakarta.interceptor.AroundInvoke;
-import jakarta.interceptor.Interceptors;
 
 @SuppressWarnings("javadoc")
 public class MethodTests extends IuTypeTestCase {
@@ -57,32 +58,18 @@ public class MethodTests extends IuTypeTestCase {
 		IuTestLogger.allow("iu.type.ParameterizedElement", Level.FINEST, "replaced type argument .*");
 	}
 
-	private static int add(int x, int y) {
-		return x + y;
-	}
-
-	private String echo(String message) {
-		return message;
-	}
-
-	@Test
-	public void testDirectInvocation() {
-		assertEquals("foobar", echo("foobar"));
-		assertEquals(7, add(3, 4));
-	}
-
 	@Test
 	public void testInstanceInvocation() throws Exception {
-		var method = IuType.of(getClass()).method("echo", String.class);
+		var method = IuType.of(MethodTestSupport.class).method("echo", String.class);
 		assertFalse(method.isStatic());
 		assertEquals("echo", method.name());
 		assertSame(String.class, method.returnType().erasedClass());
-		assertEquals("foobar", method.exec(this, "foobar"));
+		assertEquals("foobar", method.exec(new MethodTestSupport(), "foobar"));
 	}
 
 	@Test
 	public void testStaticInvocation() throws Exception {
-		var method = IuType.of(getClass()).method("add", int.class, int.class);
+		var method = IuType.of(MethodTestSupport.class).method("add", int.class, int.class);
 		assertTrue(method.isStatic());
 		assertEquals("add", method.name());
 		assertSame(int.class, method.returnType().erasedClass());
@@ -90,14 +77,7 @@ public class MethodTests extends IuTypeTestCase {
 	}
 
 	@Test
-	@SuppressWarnings("unused")
 	public void testInterceptorsOnTypeNotSupported() throws Exception {
-		@Interceptors({})
-		class HasInterceptors {
-			void fail() {
-				Assertions.fail();
-			}
-		}
 		var method = IuType.of(HasInterceptors.class).method("fail");
 		assertEquals("@AroundInvoke not supported in this version",
 				assertThrows(UnsupportedOperationException.class, () -> method.exec(new HasInterceptors()))
@@ -106,32 +86,17 @@ public class MethodTests extends IuTypeTestCase {
 
 	@Test
 	public void testInterceptorsOnMethodNotSupported() throws Exception {
-		class HasInterceptors {
-			@Interceptors({})
-			void fail() {
-				Assertions.fail();
-			}
-		}
-		var method = IuType.of(HasInterceptors.class).method("fail");
+		var method = IuType.of(HasInterceptorsOnMethod.class).method("fail");
 		assertEquals("@AroundInvoke not supported in this version",
-				assertThrows(UnsupportedOperationException.class, () -> method.exec(new HasInterceptors()))
+				assertThrows(UnsupportedOperationException.class, () -> method.exec(new HasInterceptorsOnMethod()))
 						.getMessage());
 	}
 
 	@Test
-	@SuppressWarnings("unused")
 	public void testAroundInvokeNotSupported() throws Exception {
-		class HasInterceptors {
-			@AroundInvoke
-			void intercept() {}
-			
-			void fail() {
-				Assertions.fail();
-			}
-		}
-		var method = IuType.of(HasInterceptors.class).method("fail");
+		var method = IuType.of(HasAroundInvokeMethod.class).method("fail");
 		assertEquals("@AroundInvoke not supported in this version",
-				assertThrows(UnsupportedOperationException.class, () -> method.exec(new HasInterceptors()))
+				assertThrows(UnsupportedOperationException.class, () -> method.exec(new HasAroundInvokeMethod()))
 						.getMessage());
 	}
 

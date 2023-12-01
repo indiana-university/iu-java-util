@@ -33,44 +33,59 @@ package iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
-import java.io.Serializable;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.UnsafeSupplier;
 import edu.iu.type.IuType;
+import edu.iu.type.testresources.AnInterface;
+import edu.iu.type.testresources.AnInterfaceImpl;
+import edu.iu.type.testresources.AnInterfaceSerializableImpl;
+import edu.iu.type.testresources.ApplicationResource;
+import edu.iu.type.testresources.CreateProxyInterface;
+import edu.iu.type.testresources.CreateProxyInvocationHandler;
+import edu.iu.type.testresources.MultiResource;
+import edu.iu.type.testresources.NamedResource;
+import edu.iu.type.testresources.NonSharedResource;
+import edu.iu.type.testresources.ProxyNonResource;
+import edu.iu.type.testresources.ProxyResource;
+import edu.iu.type.testresources.ThrownFromDefaultFactory;
+import edu.iu.type.testresources.ThrowsFromDefaultFactory;
 import jakarta.annotation.Resource;
-import jakarta.annotation.Resource.AuthenticationType;
 import jakarta.annotation.Resources;
 
 @SuppressWarnings("javadoc")
 public class ComponentResourceTest extends IuTypeTestCase {
 
-	private <T> ComponentResource<T> assertComponentResource(Class<T> type, UnsafeSupplier<T> factory) {
+	private <T> ComponentResource<T> assertComponentResource(Class<T> type, Supplier<?> factory) {
 		return assertComponentResource(type, type, factory);
 	}
 
-	private <T> ComponentResource<T> assertComponentResource(String name, Class<T> type, UnsafeSupplier<T> factory) {
+	private <T> ComponentResource<T> assertComponentResource(String name, Class<T> type, Supplier<?> factory) {
 		return assertComponentResource(true, true, name, type, type, factory);
 	}
 
-	private <T> ComponentResource<T> assertComponentResource(Class<T> type, Class<?> impl, UnsafeSupplier<?> factory) {
+	private <T> ComponentResource<T> assertComponentResource(Class<T> type, Class<?> impl, Supplier<?> factory) {
 		return assertComponentResource(true, true, type.getSimpleName(), type, impl, factory);
 	}
 
 	private <T> ComponentResource<T> assertComponentResource(boolean needsAuthentication, boolean shared, String name,
-			Class<T> type, Class<?> impl, UnsafeSupplier<?> factory) {
-		return assertComponentResource(needsAuthentication, shared, name, type,
-				ComponentResource.createResource(impl.getAnnotation(Resource.class), impl, factory));
+			Class<T> type, Class<?> impl, Supplier<?> factory) {
+		ComponentResource<T> last = null;
+		for (final var r : ComponentResource.getResources(impl)) {
+			r.factory(factory);
+			last = assertComponentResource(needsAuthentication, shared, name, type, r);
+		}
+		assertNotNull(last);
+		return last;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -103,171 +118,87 @@ public class ComponentResourceTest extends IuTypeTestCase {
 
 	@Test
 	public void testApplicationResourceIsApplicationResource() {
-		@Resource
-		class ApplicationResource {
-		}
-		assertTrue(ComponentResource.isApplicationResource(ApplicationResource.class.getAnnotation(Resource.class),
-				ApplicationResource.class));
+		assertTrue(ComponentResource.getResources(ApplicationResource.class).iterator().hasNext());
 	}
 
 	@Test
 	public void testProxyResourceIsApplicationResource() {
-		interface AnInterface {
-		}
-		@Resource(type = AnInterface.class)
-		abstract class ProxyResource implements InvocationHandler {
-		}
-		assertTrue(ComponentResource.isApplicationResource(ProxyResource.class.getAnnotation(Resource.class),
-				ProxyResource.class));
+		assertTrue(ComponentResource.getResources(ProxyResource.class).iterator().hasNext());
 	}
 
 	@Test
 	public void testProxyResourceIsApplicationResourceWithoutAnInterface() {
-		@Resource
-		abstract class ProxyResource implements InvocationHandler {
-		}
-		assertFalse(ComponentResource.isApplicationResource(ProxyResource.class.getAnnotation(Resource.class),
-				ProxyResource.class));
+		assertFalse(ComponentResource.getResources(ProxyNonResource.class).iterator().hasNext());
 	}
 
 	@Test
 	public void testCreateResourceInstance() throws Exception {
-		class ResourceClass {
-		}
-		var resource = ComponentResource.createResourceInstance(ResourceClass.class, ResourceClass::new);
-		assertNotSame(resource, ComponentResource.createResourceInstance(ResourceClass.class, ResourceClass::new));
+		var resource = ComponentResource.getResources(ApplicationResource.class).iterator().next();
+		resource.factory(ApplicationResource::new);
+		assertInstanceOf(ApplicationResource.class, resource.get());
 	}
 
 	@Test
 	public void testCreateProxyResourceInstance() throws Exception {
-		interface ResourceInterface {
-		}
-		class ResourceInvocationHandler implements InvocationHandler {
-			@Override
-			public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-				fail();
-				return null;
-			}
-		}
-		var resource = ComponentResource.createResourceInstance(ResourceInterface.class,
-				ResourceInvocationHandler::new);
-		assertTrue(Proxy.isProxyClass(resource.getClass()));
-		assertTrue(Proxy.getInvocationHandler(resource) instanceof ResourceInvocationHandler);
-	}
+		final var resource = ComponentResource.getResources(ProxyResource.class).iterator().next();
+		resource.factory(ProxyResource::new);
 
-	@Test
-	public void testCreateProxyResourceRequiresInterface() {
-		@Resource
-		abstract class ProxyResource implements InvocationHandler {
-		}
-		assertEquals("Application resource defined by InvocationHandler requires resource type to be an interface",
-				assertThrows(IllegalArgumentException.class,
-						() -> ComponentResource.createResource(ProxyResource.class.getAnnotation(Resource.class),
-								ProxyResource.class, () -> new ProxyResource() {
-									@Override
-									public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-										throw new UnsupportedOperationException();
-									}
-								}))
-						.getMessage());
-	}
-
-	@Test
-	public void testCreateResourceRequiresSubclass() {
-		@Resource(type = ComponentResource.class)
-		class ApplicationResource {
-		}
-		assertEquals(
-				"Application resource implementation class must be an InvocationHandler or assignable from resource type",
-				assertThrows(IllegalArgumentException.class,
-						() -> ComponentResource.createResource(ApplicationResource.class.getAnnotation(Resource.class),
-								ApplicationResource.class, ApplicationResource::new))
-						.getMessage());
+		final var resourceInstance = resource.get();
+		assertInstanceOf(AnInterface.class, resourceInstance);
+		assertTrue(Proxy.isProxyClass(resourceInstance.getClass()));
+		assertTrue(Proxy.getInvocationHandler(resourceInstance) instanceof ProxyResource);
 	}
 
 	@Test
 	public void testCreatePlainResource() {
-		@Resource
-		class PlainResource {
-		}
-		assertComponentResource(PlainResource.class, PlainResource::new);
+		assertComponentResource(ApplicationResource.class, ApplicationResource::new);
 	}
 
 	@Test
 	public void testCreateResourceImplementsInterface() {
-		interface ResourceInterface {
-		}
-		@Resource
-		class ResourceImplementation implements ResourceInterface {
-		}
-		var resource = assertComponentResource(ResourceInterface.class, ResourceImplementation.class,
-				ResourceImplementation::new);
-		assertTrue(resource.get() instanceof ResourceImplementation);
+		var resource = assertComponentResource(AnInterface.class, AnInterfaceImpl.class, AnInterfaceImpl::new);
+		assertTrue(resource.get() instanceof AnInterfaceImpl);
 	}
 
 	@Test
 	public void testCreateResourceSelectsFirstNonPlatformInterface() {
-		interface ResourceInterface {
-		}
-		@Resource
-		class ResourceImplementation implements Serializable, ResourceInterface {
-			private static final long serialVersionUID = 1L;
-		}
-		var resource = assertComponentResource(ResourceInterface.class, ResourceImplementation.class,
-				ResourceImplementation::new);
-		assertTrue(resource.get() instanceof ResourceImplementation);
+		var resource = assertComponentResource(AnInterface.class, AnInterfaceSerializableImpl.class,
+				AnInterfaceSerializableImpl::new);
+		assertTrue(resource.get() instanceof AnInterfaceSerializableImpl);
 	}
 
 	@Test
 	public void testCreateNamedResource() {
-		@Resource(name = "java:comp/env/resourceName")
-		class NamedResource {
-		}
 		assertComponentResource("java:comp/env/resourceName", NamedResource.class, NamedResource::new);
 	}
 
 	@Test
 	public void testCreateProxyResource() {
-		interface AnInterface {
-			String getFoo();
-		}
-		@Resource(type = AnInterface.class)
-		class ProxyResource implements InvocationHandler {
-			boolean invoked;
-
-			@Override
-			public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-				assertEquals(method, AnInterface.class.getDeclaredMethod("getFoo"));
-				assertFalse(invoked);
-				invoked = true;
-				return "bar";
-			}
-		}
-		var proxyResource = assertComponentResource(AnInterface.class, ProxyResource.class, ProxyResource::new);
-		assertEquals("bar", ((AnInterface) proxyResource.get()).getFoo());
+		var proxyResource = assertComponentResource(CreateProxyInterface.class, CreateProxyInvocationHandler.class,
+				CreateProxyInvocationHandler::new);
+		assertEquals("bar", ((CreateProxyInterface) proxyResource.get()).getFoo());
 	}
 
 	@Test
 	public void testNonSharedResource() {
-		@Resource(shareable = false, authenticationType = AuthenticationType.APPLICATION)
-		class NonSharedResource {
-		}
 		assertComponentResource(false, false, "NonSharedResource", NonSharedResource.class, NonSharedResource.class,
 				NonSharedResource::new);
 	}
 
 	@Test
 	public void testCollectsSelfReferences() {
-		@Resources(@Resource)
-		@Resource(name = "sharedMultiResource", shareable = false)
-		class MultiResource {
-		}
-		var resources = ComponentResource.getResources(MultiResource.class, MultiResource::new);
-		var resourceIterator = resources.iterator();
+		final var resources = ComponentResource.getResources(MultiResource.class);
+		final var resourceIterator = resources.iterator();
+
 		assertTrue(resourceIterator.hasNext());
-		assertComponentResource(true, true, "MultiResource", MultiResource.class, resourceIterator.next());
+		var resource = resourceIterator.next();
+		resource.factory(MultiResource::new);
+		assertComponentResource(true, true, "MultiResource", MultiResource.class, resource);
+
 		assertTrue(resourceIterator.hasNext());
-		assertComponentResource(true, false, "sharedMultiResource", MultiResource.class, resourceIterator.next());
+		resource = resourceIterator.next();
+		resource.factory(MultiResource::new);
+		assertComponentResource(true, false, "sharedMultiResource", MultiResource.class, resource);
 		assertFalse(resourceIterator.hasNext());
 	}
 
@@ -277,7 +208,7 @@ public class ComponentResourceTest extends IuTypeTestCase {
 		@Resource(type = ComponentResourceTest.class)
 		class MultiResource {
 		}
-		var resources = ComponentResource.getResources(MultiResource.class, MultiResource::new).iterator();
+		var resources = ComponentResource.getResources(MultiResource.class).iterator();
 		assertFalse(resources.hasNext());
 	}
 
@@ -285,7 +216,7 @@ public class ComponentResourceTest extends IuTypeTestCase {
 	public void testDoesntCollectNothing() {
 		class NonResource {
 		}
-		var resources = ComponentResource.getResources(NonResource.class, NonResource::new).iterator();
+		var resources = ComponentResource.getResources(NonResource.class).iterator();
 		assertFalse(resources.hasNext());
 	}
 
@@ -295,8 +226,20 @@ public class ComponentResourceTest extends IuTypeTestCase {
 		class ToStringResource {
 		}
 		assertEquals(
-				"[ComponentResource [needsAuthentication=true, shared=true, name=ToStringResource, type="
-						+ IuType.of(ToStringResource.class) + "]]",
-				ComponentResource.getResources(ToStringResource.class, ToStringResource::new).toString());
+				"ComponentResource [needsAuthentication=true, shared=true, name=ToStringResource, type=IuType[ToStringResource]]",
+				ComponentResource.getResources(ToStringResource.class).iterator().next().toString());
 	}
+
+	@Test
+	public void testDefaultFactory() {
+		assertInstanceOf(ApplicationResource.class,
+				ComponentResource.getResources(ApplicationResource.class).iterator().next().get());
+	}
+
+	@Test
+	public void testDefaultFactoryThrows() {
+		assertThrows(ThrownFromDefaultFactory.class,
+				() -> ComponentResource.getResources(ThrowsFromDefaultFactory.class).iterator().next().factory().get());
+	}
+
 }

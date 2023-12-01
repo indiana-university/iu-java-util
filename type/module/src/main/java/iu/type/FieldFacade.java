@@ -44,7 +44,7 @@ import edu.iu.type.IuReferenceKind;
  * @param <D> declaring type
  * @param <T> field type
  */
-final class FieldFacade<D, T> extends DeclaredElementBase<D, Field> implements IuField<D, T> {
+final class FieldFacade<D, T> extends DeclaredElementBase<D, Field> implements IuField<D, T>, DeclaredAttribute<D, T> {
 
 	private final TypeFacade<?, T> type;
 

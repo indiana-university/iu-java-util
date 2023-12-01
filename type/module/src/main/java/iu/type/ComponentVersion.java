@@ -31,12 +31,23 @@
  */
 package iu.type;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Objects;
+import java.util.Properties;
 import java.util.jar.Attributes;
 import java.util.jar.Attributes.Name;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
+import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import edu.iu.IuException;
+import edu.iu.UnsafeFunction;
 import edu.iu.type.IuComponentVersion;
 
 /**
@@ -53,6 +64,66 @@ class ComponentVersion implements IuComponentVersion {
 	 * Servlet version 6</a> or higher.
 	 */
 	static final ComponentVersion SERVLET_6 = new ComponentVersion("jakarta.servlet-api", 6, 0);
+
+	/**
+	 * Determines the component version for a path entry: class folder or
+	 * {@link JarFile jar file}.
+	 * 
+	 * @param pathEntry path entry
+	 * @return component version
+	 * @throws IOException if an I/O error occurs discovering the component version
+	 */
+	static ComponentVersion of(Path pathEntry) throws IOException {
+		final var properties = new Properties();
+		final UnsafeFunction<InputStream, ComponentVersion> withPomPropertiesInput = in -> {
+			properties.load(in);
+			final var name = Objects.requireNonNull(properties.getProperty("artifactId"));
+			final var version = Objects.requireNonNull(properties.getProperty("version"));
+			return new ComponentVersion(name, version);
+		};
+		final UnsafeFunction<Path, ComponentVersion> withPomPropertiesPath = pomPropertiesPath -> {
+			try (final var in = Files.newInputStream(pomPropertiesPath)) {
+				return withPomPropertiesInput.apply(in);
+			}
+		};
+
+		if (Files.isDirectory(pathEntry)) {
+			Path pomPropertiesPath;
+			if (Files.isReadable(pomPropertiesPath = pathEntry.resolveSibling("maven-archiver/pom.properties")))
+				return IuException.checked(IOException.class, pomPropertiesPath, withPomPropertiesPath);
+
+			final var metaInfMaven = pathEntry.resolve("maven");
+			if (Files.isDirectory(metaInfMaven)) {
+				final var groupIdIterator = Files.list(metaInfMaven).iterator();
+				final Path groupId;
+				if (groupIdIterator.hasNext() //
+						&& Files.isDirectory(groupId = groupIdIterator.next()) //
+						&& !groupIdIterator.hasNext()) {
+					final var artifactIdIterator = Files.list(groupId).iterator();
+					final Path artifactId;
+					if (artifactIdIterator.hasNext() //
+							&& Files.isDirectory(artifactId = artifactIdIterator.next()) //
+							&& !artifactIdIterator.hasNext() //
+							&& Files.isReadable(pomPropertiesPath = artifactId.resolve("pom.properties")))
+						return IuException.checked(IOException.class, pomPropertiesPath, withPomPropertiesPath);
+				}
+			}
+
+			throw new IllegalArgumentException(
+					"Missing ../maven-archiver/pom.properties or META-INF/maven/{groupId}/{artifactId}/pom.properties");
+
+		} else
+			try (final var in = Files.newInputStream(pathEntry); final var jar = new JarInputStream(in)) {
+				JarEntry entry;
+				while ((entry = jar.getNextJarEntry()) != null) {
+					final var entryName = entry.getName();
+					if (entryName.startsWith("META-INF/maven/") && entryName.endsWith("/pom.properties"))
+						return IuException.checked(IOException.class, jar, withPomPropertiesInput);
+				}
+
+				throw new IllegalArgumentException("Missing META-INF/maven/{groupId}/{artifactId}/pom.properties");
+			}
+	}
 
 	private final String name;
 	private final String version;
@@ -94,8 +165,9 @@ class ComponentVersion implements IuComponentVersion {
 		if (version == null)
 			throw new IllegalArgumentException("Missing version for " + name + ", must be a valid semantic version");
 
-		var semverMatcher = SEMANTIC_VERSION_PATTERN.matcher(version);
-		if (!semverMatcher.matches())
+		Matcher semverMatcher;
+		if (!(semverMatcher = SEMANTIC_VERSION_PATTERN.matcher(version)).matches()
+				&& !(semverMatcher = SPEC_VERSION_PATTERN.matcher(version)).matches())
 			throw new IllegalArgumentException("Invalid version for " + name + ", must be a valid semantic version");
 
 		this.name = name;
@@ -121,8 +193,9 @@ class ComponentVersion implements IuComponentVersion {
 		var implementationVersionAttribute = extensionAttributePrefix + '-' + Name.IMPLEMENTATION_VERSION;
 		version = mainAttributes.getValue(implementationVersionAttribute);
 		if (version != null) {
-			var semverMatcher = SEMANTIC_VERSION_PATTERN.matcher(version);
-			if (!semverMatcher.matches())
+			Matcher semverMatcher;
+			if (!(semverMatcher = SEMANTIC_VERSION_PATTERN.matcher(version)).matches()
+					&& !(semverMatcher = SPEC_VERSION_PATTERN.matcher(version)).matches())
 				throw new IllegalArgumentException("Invalid version for " + implementationVersionAttribute
 						+ " in META-INF/MANIFEST.MF main attributes, must be a valid semantic version");
 			major = Integer.parseInt(semverMatcher.group(1));

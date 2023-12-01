@@ -34,6 +34,7 @@ package iu.type;
 import java.beans.Introspector;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayDeque;
@@ -44,10 +45,8 @@ import java.util.Queue;
 import java.util.function.Consumer;
 
 import edu.iu.IuException;
+import edu.iu.IuVisitor;
 import edu.iu.type.IuConstructor;
-import edu.iu.type.IuField;
-import edu.iu.type.IuMethod;
-import edu.iu.type.IuProperty;
 import edu.iu.type.IuReferenceKind;
 import edu.iu.type.IuType;
 import edu.iu.type.IuTypeReference;
@@ -150,11 +149,14 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 	// Parameterized
 	private final ParameterizedElement parameterizedElement = new ParameterizedElement();
 
+	// Instance management
+	private final IuVisitor<Consumer<T>> instanceListeners = new IuVisitor<>();
+
 	private TypeTemplate(Class<T> annotatedElement, Consumer<TypeTemplate<?, ?>> preInitHook, Type type,
 			TypeTemplate<D, T> erasedType) {
 		super(annotatedElement, preInitHook, type, resolveDeclaringType(annotatedElement));
 
-		if (declaringType == null)
+		if (declaringType == null || isStatic())
 			initializeDeclared(erasedType);
 		else
 			declaringType.template.postInit(() -> initializeDeclared(erasedType));
@@ -188,27 +190,28 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 		assert erasedType.erasedClass() == TypeFactory.getErasedClass(type)
 				: erasedType + " " + TypeUtils.printType(type);
 
-		sealHierarchy(erasedType.hierarchy);
+		erasedType.postInit(() -> sealHierarchy(erasedType.hierarchy));
 	}
 
 	private boolean isNative() {
-		return TypeUtils.isPlatformType(name()) //
-				|| ("iu.type".equals(annotatedElement.getPackageName()) //
-						&& annotatedElement.getEnclosingClass() == null);
+		final var packageName = annotatedElement.getPackageName();
+		final var targetModule = annotatedElement.getModule();
+		final var typeImplModule = getClass().getModule();
+		return IuType.isPlatformType(name()) //
+				|| targetModule == typeImplModule //
+				|| !targetModule.isOpen(packageName, typeImplModule);
 	}
 
 	private void initializeDeclared(TypeTemplate<D, T> erasedType) {
-		if (declaringType != null)
+		if (declaringType != null && !isStatic())
 			parameterizedElement.apply(declaringType.template.typeParameters());
 
 		if (erasedType == null) {
 			this.erasedType = this;
-			initializeEnclosedTypes();
 			initializeConstructors();
 		} else {
 			this.erasedType = new TypeFacade<D, T>(erasedType, this, IuReferenceKind.ERASURE);
 			erasedType.postInit(() -> {
-				initializeEnclosedTypes();
 				initializeConstructors();
 			});
 		}
@@ -218,10 +221,15 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 	private void initializeEnclosedTypes() {
 		Queue<TypeFacade<T, ?>> enclosedTypes = new ArrayDeque<>();
 
-		if (!isNative())
-			for (var enclosedClass : annotatedElement.getDeclaredClasses())
-				enclosedTypes.offer(new TypeFacade(TypeFactory.resolveRawClass(enclosedClass), this,
-						IuReferenceKind.ENCLOSING_TYPE));
+		if (!isNative()) {
+			Class<?>[] enclosedClasses = annotatedElement.getDeclaredClasses();
+			postInit(() -> {
+				for (var enclosedClass : enclosedClasses) {
+					final var enclosedType = TypeFactory.resolveRawClass(enclosedClass);
+					enclosedTypes.offer(new TypeFacade(enclosedType, this, IuReferenceKind.ENCLOSING_TYPE));
+				}
+			});
+		}
 
 		this.enclosedTypes = enclosedTypes;
 	}
@@ -232,8 +240,7 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 
 		if (!isNative() //
 				&& !annotatedElement.isInterface() //
-				&& !annotatedElement.isEnum() //
-				&& !annotatedElement.isPrimitive())
+				&& !annotatedElement.isEnum())
 			for (var constructor : annotatedElement.getDeclaredConstructors())
 				// _unchecked warning_: see source for #getDeclaredConstructors()
 				// => This cast is safe as of Java 17
@@ -282,8 +289,10 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 				Type propertyType;
 				if (readMethod != null)
 					propertyType = readMethod.getGenericReturnType();
-				else
+				else if (writeMethod != null)
 					propertyType = writeMethod.getGenericParameterTypes()[0];
+				else
+					continue;
 
 				TypeTemplate<?, T> propertyTypeTemplate;
 				if (propertyType == annotatedElement)
@@ -391,16 +400,50 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 		throw new UnsupportedOperationException("use sealHierarchy() only with TypeTemplate");
 	}
 
+	private boolean isStatic() {
+		final var erased = erasedClass();
+		if (erased.isInterface() || erased.isRecord() || erased.isEnum())
+			return true;
+
+		final var mod = annotatedElement.getModifiers();
+		return (mod | Modifier.STATIC) == mod;
+	}
+
 	/**
 	 * Seals {@link #hierarchy()} and resolves <strong>inherited elements</strong>.
 	 * 
 	 * @param hierarchy Resolved type hierarchy
 	 */
 	void sealHierarchy(Iterable<? extends IuType<?, ? super T>> hierarchy) {
-		if (declaringType == null)
+		if (declaringType == null || isStatic())
 			doSealHierarchy(hierarchy);
 		else
 			declaringType.template.postInit(() -> doSealHierarchy(hierarchy));
+	}
+
+	/**
+	 * Subscribes a new instance listener.
+	 * 
+	 * @param instanceListener will be provided a reference to each new instance
+	 *                         created via {@link IuConstructor#exec(Object...)},
+	 *                         directly before return
+	 */
+	void observeNewInstances(Consumer<T> instanceListener) {
+		instanceListeners.accept(instanceListener);
+	}
+
+	/**
+	 * Observes a new instance.
+	 * 
+	 * @param instance newly created instance of the decorated type, directly before
+	 *                 return from {@link IuConstructor#exec(Object...)},
+	 */
+	void observeNewInstance(T instance) {
+		instanceListeners.visit(listener -> {
+			if (listener != null)
+				listener.accept(instance);
+			return null;
+		});
 	}
 
 	@Override
@@ -441,7 +484,8 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 
 	@Override
 	public Iterable<TypeFacade<T, ?>> enclosedTypes() {
-		checkSealed();
+		if (enclosedTypes == null)
+			initializeEnclosedTypes();
 		return enclosedTypes;
 	}
 
@@ -458,21 +502,27 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 	}
 
 	@Override
-	public Iterable<? extends IuField<? super T, ?>> fields() {
+	@SuppressWarnings("unchecked")
+	public <F> FieldFacade<? super T, F> field(String name) {
+		return (FieldFacade<? super T, F>) IuType.super.field(name);
+	}
+
+	@Override
+	public Iterable<FieldFacade<? super T, ?>> fields() {
 		if (fields == null)
 			throw new IllegalStateException("fields not sealed");
 		return fields;
 	}
 
 	@Override
-	public Iterable<? extends IuProperty<? super T, ?>> properties() {
+	public Iterable<PropertyFacade<? super T, ?>> properties() {
 		if (properties == null)
 			throw new IllegalStateException("properties not sealed");
 		return properties;
 	}
 
 	@Override
-	public Iterable<? extends IuMethod<? super T, ?>> methods() {
+	public Iterable<MethodFacade<? super T, ?>> methods() {
 		if (methods == null)
 			throw new IllegalStateException("methods not sealed");
 		return methods;

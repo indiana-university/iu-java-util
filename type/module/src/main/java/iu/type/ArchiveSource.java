@@ -31,6 +31,8 @@
  */
 package iu.type;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
@@ -55,6 +57,7 @@ class ArchiveSource implements AutoCloseable {
 	private final boolean sealed;
 	private final List<String> classPath;
 	private final List<ComponentVersion> dependencies;
+	private boolean seenManifest;
 	private Optional<ComponentEntry> next;
 	private ComponentEntry last;
 	private boolean closed;
@@ -157,13 +160,22 @@ class ArchiveSource implements AutoCloseable {
 				last = null;
 			}
 
-			JarEntry jarEntry = jar.getNextJarEntry();
-			if (jarEntry == null) {
-				close();
-				return false;
-			}
+			if (!seenManifest) {
+				final var manifest = jar.getManifest();
+				final var manifestOut = new ByteArrayOutputStream();
+				manifest.write(manifestOut);
+				next = Optional.of(new ComponentEntry("META-INF/MANIFEST.MF",
+						new ByteArrayInputStream(manifestOut.toByteArray())));
+				seenManifest = true;
+			} else {
+				JarEntry jarEntry = jar.getNextJarEntry();
+				if (jarEntry == null) {
+					close();
+					return false;
+				}
 
-			next = Optional.of(new ComponentEntry(jarEntry.getName(), jar));
+				next = Optional.of(new ComponentEntry(jarEntry.getName(), jar));
+			}
 		}
 
 		return true;

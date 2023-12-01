@@ -173,7 +173,7 @@ public class IuParallelWorkloadControllerTest {
 			Instant until = Instant.now().plus(Duration.ofMillis(200L));
 			for (var now = Instant.now(); now.isBefore(until);)
 				try {
-					Thread.sleep(50L);
+					Thread.sleep(15L);
 				} catch (InterruptedException ignore) {
 				}
 		});

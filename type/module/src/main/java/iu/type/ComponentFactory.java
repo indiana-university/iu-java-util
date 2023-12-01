@@ -33,15 +33,10 @@ package iu.type;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.module.Configuration;
-import java.lang.module.ModuleFinder;
 import java.net.URL;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayDeque;
-import java.util.List;
 import java.util.Queue;
-import java.util.stream.Collectors;
 
 import edu.iu.IuException;
 
@@ -87,47 +82,13 @@ final class ComponentFactory {
 	 * @param parent   parent component
 	 * @param archives component path
 	 * @return module component
+	 * @throws IOException If an I/O error occurs reading from an archive
 	 */
-	static Component createModular(Component parent, Queue<ComponentArchive> archives) {
-		var path = new Path[archives.size()];
-		{
-			var i = 0;
-			for (var archive : archives)
-				path[i++] = archive.path();
-		}
-
-		var moduleFinder = new ComponentModuleFinder(path);
-		try {
-			var moduleNames = moduleFinder.findAll().stream().map(ref -> ref.descriptor().name())
-					.collect(Collectors.toList());
-
-			ClassLoader parentClassLoader;
-			ModuleLayer parentModuleLayer;
-			if (parent == null) {
-				parentClassLoader = null;
-				parentModuleLayer = ModuleLayer.boot();
-			} else {
-				parentClassLoader = parent.classLoader();
-				parentModuleLayer = parent.controller().layer();
-			}
-
-			var configuration = Configuration.resolveAndBind( //
-					moduleFinder, List.of(parentModuleLayer.configuration()), ModuleFinder.of(), moduleNames);
-
-			var controller = ModuleLayer.defineModulesWithOneLoader(configuration, List.of(parentModuleLayer),
-					parentClassLoader);
-
-			return new Component(parent, controller, controller.layer().findLoader(moduleNames.iterator().next()),
-					moduleFinder, archives);
-
-		} catch (RuntimeException | Error e) {
-			try {
-				moduleFinder.close();
-			} catch (Throwable e2) {
-				e.addSuppressed(e2);
-			}
-			throw e;
-		}
+	static Component createModular(Component parent, Queue<ComponentArchive> archives) throws IOException {
+		return IuException.checked(IOException.class,
+				new ModularClassLoader(archives, parent == null ? null : parent.classLoader()), loader -> {
+					return new Component(parent, loader, archives);
+				});
 	}
 
 	/**
@@ -150,7 +111,7 @@ final class ComponentFactory {
 				() -> IuException.initialize(
 						new LegacyClassLoader(archives.iterator().next().kind().isWeb(), path,
 								parent == null ? null : parent.classLoader()),
-						loader -> new Component(parent, null, loader, null, archives)));
+						loader -> new Component(parent, loader, archives)));
 	}
 
 	/**
@@ -185,9 +146,11 @@ final class ComponentFactory {
 						checkIfAlreadyProvided(alreadyProvidedArchive, archive);
 
 					var unmetDependencyIterator = unmetDependencies.iterator();
-					while (unmetDependencyIterator.hasNext())
-						if (archive.version().meets(unmetDependencyIterator.next()))
+					while (unmetDependencyIterator.hasNext()) {
+						final var unmetDependency = unmetDependencyIterator.next();
+						if (archive.version().meets(unmetDependency))
 							unmetDependencyIterator.remove();
+					}
 					archives.offer(archive);
 
 					for (var bundledDependency : archive.bundledDependencies())

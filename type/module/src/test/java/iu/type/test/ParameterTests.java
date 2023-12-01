@@ -37,18 +37,15 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.type.IuType;
+import edu.iu.type.testresources.MethodTestSupport;
 import iu.type.IuTypeTestCase;
 
 @SuppressWarnings("javadoc")
 public class ParameterTests extends IuTypeTestCase {
 
-	@SuppressWarnings("unused")
-	private void parameterTest(String param) {
-	}
-
 	@Test
 	public void testBasicParam() {
-		var method = IuType.of(getClass()).method("parameterTest", String.class);
+		var method = IuType.of(MethodTestSupport.class).method("parameterTest", String.class);
 		var parameter = method.parameter(0);
 		assertSame(method, parameter.declaringExecutable());
 		assertEquals(0, parameter.index());

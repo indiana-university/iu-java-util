@@ -36,7 +36,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -45,25 +44,25 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.lang.module.Configuration;
-import java.lang.module.ModuleFinder;
+import java.lang.annotation.Documented;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Queue;
 import java.util.logging.Level;
-import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuComponent.Kind;
-import edu.iu.type.IuType;
+import jakarta.annotation.Resource;
 
 @SuppressWarnings("javadoc")
 public class ComponentTest extends IuTypeTestCase {
@@ -81,21 +80,28 @@ public class ComponentTest extends IuTypeTestCase {
 		when(archive.path()).thenReturn(path);
 
 		var loader = spy(new URLClassLoader(new URL[0]));
-		var finder = mock(ComponentModuleFinder.class);
-		var component = new Component(null, null, loader, finder, new ArrayDeque<>(List.of(archive)));
+		IuTestLogger.expect("iu.type.Component", Level.FINEST,
+				"Resource annotation not available in scanned ClassLoader", ClassNotFoundException.class);
+		var component = new Component(null, loader, new ArrayDeque<>(List.of(archive)));
 		try (var mockFiles = mockStatic(Files.class)) {
 			component.close();
-			verify(finder).close();
 			verify(loader).close();
 			mockFiles.verify(() -> Files.delete(path));
 		}
+
+		final var beforeExtraClose = Instant.now();
+		component.close(); // no-op does not throw
+		final var sinceBeforeExtraClose = Duration.between(beforeExtraClose, Instant.now());
+		assertTrue(sinceBeforeExtraClose.compareTo(Duration.ofNanos(10_000L)) <= 0);
+
 		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.parent()).getMessage());
-		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.controller()).getMessage());
 		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.properties()).getMessage());
 		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.classLoader()).getMessage());
 		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.kind()).getMessage());
 		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.version()).getMessage());
 		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.interfaces()).getMessage());
+		assertEquals("closed",
+				assertThrows(IllegalStateException.class, () -> component.annotatedAttributes(null)).getMessage());
 		assertEquals("closed",
 				assertThrows(IllegalStateException.class, () -> component.annotatedTypes(null)).getMessage());
 		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.resources()).getMessage());
@@ -112,99 +118,86 @@ public class ComponentTest extends IuTypeTestCase {
 		var loader = spy(new URLClassLoader(new URL[0]));
 		doThrow(error).when(loader).close();
 
-		var finder = mock(ComponentModuleFinder.class);
-		doThrow(error).when(finder).close();
+		IuTestLogger.expect("iu.type.Component", Level.FINEST,
+				"Resource annotation not available in scanned ClassLoader", ClassNotFoundException.class);
+		var component = new Component(null, loader, new ArrayDeque<>(List.of(archive)));
 
-		var component = new Component(null, null, loader, finder, new ArrayDeque<>(List.of(archive)));
 		try (var mockFiles = mockStatic(Files.class)) {
 			mockFiles.when(() -> Files.delete(path)).thenThrow(error);
-			IuTestLogger.expect(Component.class.getName(), Level.WARNING, "Failed to close module finder", Error.class);
-			IuTestLogger.expect(Component.class.getName(), Level.WARNING, "Failed to close class loader", Error.class);
+			IuTestLogger.expect(Component.class.getName(), Level.WARNING, "Close component resources failed \\[null\\]",
+					Error.class);
 			IuTestLogger.expect(Component.class.getName(), Level.WARNING, "Failed to clean up archive .*", Error.class);
 			component.close();
 		}
 	}
 
-	@SuppressWarnings("unchecked")
+	@Test
+	public void testScannedComponentGracefullyHandlesMissingResourceAnnotation() throws IOException {
+		var error = new Error();
+		var path = mock(Path.class);
+		var archive = mock(ComponentArchive.class);
+		when(archive.kind()).thenReturn(Kind.LEGACY_JAR);
+		when(archive.path()).thenReturn(path);
+
+		var loader = spy(new URLClassLoader(new URL[0]));
+		doThrow(error).when(loader).close();
+
+		IuTestLogger.expect("iu.type.Component", Level.FINEST,
+				"Resource annotation not available in scanned ClassLoader", ClassNotFoundException.class);
+		final var temp = Files.createTempDirectory(Path.of("target"), "iu-type-ComponentTest");
+		try (final var component = new Component(loader, temp)) {
+			assertFalse(component.annotatedAttributes(Resource.class).iterator().hasNext());
+			assertFalse(component.annotatedTypes(Resource.class).iterator().hasNext());
+			assertFalse(component.annotatedTypes(Documented.class).iterator().hasNext());
+		}
+		Files.delete(temp);
+	}
+
 	@Test
 	public void testControllerCanOpenPackages() throws IOException {
-		try (var mockIuType = mockStatic(IuType.class)) {
-			mockIuType.when(() -> IuType.of(any(Class.class))).then(a -> {
-				var c = (Class<?>) a.getArgument(0);
-				var type = mock(IuType.class);
-				when(type.name()).thenReturn(c.getName());
-				return type;
-			});
-			Queue<ComponentArchive> archives = new ArrayDeque<>();
-			var runtimeArchive = ComponentArchive
-					.from(new ArchiveSource(TestArchives.getComponentArchive("testruntime")));
-			archives.offer(runtimeArchive);
-			for (var providedDependencyArchiveSource : TestArchives.getProvidedDependencyArchives("testruntime"))
-				archives.offer(ComponentArchive.from(new ArchiveSource(providedDependencyArchiveSource)));
-			for (var bundledDependency : runtimeArchive.bundledDependencies())
-				archives.offer(ComponentArchive.from(bundledDependency));
+		Queue<ComponentArchive> archives = new ArrayDeque<>();
+		var runtimeArchive = ComponentArchive.from(new ArchiveSource(TestArchives.getComponentArchive("testruntime")));
+		archives.offer(runtimeArchive);
+		for (var providedDependencyArchiveSource : TestArchives.getProvidedDependencyArchives("testruntime"))
+			archives.offer(ComponentArchive.from(new ArchiveSource(providedDependencyArchiveSource)));
+		for (var bundledDependency : runtimeArchive.bundledDependencies())
+			archives.offer(ComponentArchive.from(bundledDependency));
 
-			var path = new Path[archives.size()];
-			{
-				var i = 0;
-				for (var archive : archives)
-					path[i++] = archive.path();
-			}
+		final var loader = new ModularClassLoader(archives, null);
+		final var controller = loader.controller();
+		controller.addOpens(controller.layer().findModule("jakarta.json").get(), "jakarta.json",
+				getClass().getModule());
 
-			var moduleFinder = new ComponentModuleFinder(path);
-			var moduleNames = moduleFinder.findAll().stream().map(ref -> ref.descriptor().name())
-					.collect(Collectors.toList());
-
-			var configuration = Configuration.resolveAndBind( //
-					moduleFinder, List.of(ModuleLayer.boot().configuration()), ModuleFinder.of(), moduleNames);
-
-			var controller = ModuleLayer.defineModulesWithOneLoader(configuration, List.of(ModuleLayer.boot()), null);
-			controller.addOpens(controller.layer().findModule("jakarta.json").get(), "jakarta.json",
-					getClass().getModule());
-
-			try (var component = new Component(null, controller,
-					controller.layer().findLoader(moduleNames.iterator().next()), moduleFinder, archives)) {
-
-				var interfaces = component.interfaces().iterator();
-				assertTrue(interfaces.hasNext());
-				assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
-				assertTrue(interfaces.hasNext());
-				assertTrue(interfaces.next().name().startsWith("jakarta.json"));
-			}
+		try (var component = new Component(null, loader, archives)) {
+			var interfaces = component.interfaces().iterator();
+			assertTrue(interfaces.hasNext());
+			assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
 		}
 	}
 
-	@SuppressWarnings("unchecked")
 	@Test
-	public void testLegacyDoesntOpenPackages() throws IOException {
-		try (var mockIuType = mockStatic(IuType.class)) {
-			mockIuType.when(() -> IuType.of(any(Class.class))).then(a -> {
-				var c = (Class<?>) a.getArgument(0);
-				var type = mock(IuType.class);
-				when(type.name()).thenReturn(c.getName());
-				return type;
-			});
-			Queue<ComponentArchive> archives = new ArrayDeque<>();
-			var runtimeArchive = ComponentArchive
-					.from(new ArchiveSource(TestArchives.getComponentArchive("testruntime")));
-			archives.offer(runtimeArchive);
-			for (var providedDependencyArchiveSource : TestArchives.getProvidedDependencyArchives("testruntime"))
-				archives.offer(ComponentArchive.from(new ArchiveSource(providedDependencyArchiveSource)));
-			for (var bundledDependency : runtimeArchive.bundledDependencies())
-				archives.offer(ComponentArchive.from(bundledDependency));
+	public void testLegacyLoadsModule() throws IOException {
+		Queue<ComponentArchive> archives = new ArrayDeque<>();
+		var runtimeArchive = ComponentArchive.from(new ArchiveSource(TestArchives.getComponentArchive("testruntime")));
+		archives.offer(runtimeArchive);
+		for (var providedDependencyArchiveSource : TestArchives.getProvidedDependencyArchives("testruntime"))
+			archives.offer(ComponentArchive.from(new ArchiveSource(providedDependencyArchiveSource)));
+		for (var bundledDependency : runtimeArchive.bundledDependencies())
+			archives.offer(ComponentArchive.from(bundledDependency));
 
-			var path = new URL[archives.size()];
-			{
-				var i = 0;
-				for (var archive : archives)
-					path[i++] = archive.path().toUri().toURL();
-			}
+		var path = new URL[archives.size()];
+		{
+			var i = 0;
+			for (var archive : archives)
+				path[i++] = archive.path().toUri().toURL();
+		}
 
-			try (var loader = new LegacyClassLoader(false, path, null)) {
-				try (var component = new Component(null, null, loader, null, archives)) {
-					var interfaces = component.interfaces().iterator();
-					assertFalse(interfaces.hasNext(), () -> interfaces.next().name());
-				}
+		try (var loader = new LegacyClassLoader(false, path, ClassLoader.getSystemClassLoader())) {
+			try (var component = new Component(null, loader, archives)) {
+				var interfaces = component.interfaces().iterator();
+				assertTrue(interfaces.hasNext());
+				var next = interfaces.next();
+				assertEquals("edu.iu.type.testruntime.TestRuntime", next.name());
 			}
 		}
 	}
