@@ -46,8 +46,8 @@ public class TypeImplementation {
 	/**
 	 * Singleton fully initialized instance of {@link IuTypeSpi}.
 	 */
-<span class="fc" id="L49">	public static final IuTypeSpi PROVIDER = ServiceLoader.load(IuTypeSpi.class, IuType.class.getClassLoader()).iterator()</span>
-<span class="fc" id="L50">			.next();</span>
+<span class="fc" id="L49">	public static final IuTypeSpi PROVIDER = ServiceLoader.load(IuTypeSpi.class, IuTypeSpi.class.getClassLoader())</span>
+<span class="fc" id="L50">			.iterator().next();</span>
 
 	private TypeImplementation() {
 	}
