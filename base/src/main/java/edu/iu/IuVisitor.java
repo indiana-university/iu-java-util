@@ -1,6 +1,6 @@
 /*
  * Copyright © 2023 Indiana University
- * All rights reserved.
+* All rights reserved.
  *
  * BSD 3-Clause License
  *
