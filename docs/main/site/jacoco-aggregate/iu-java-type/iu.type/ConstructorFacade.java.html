@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ConstructorFacade.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-type</a> &gt; <a href="index.source.html" class="el_package">iu.type</a> &gt; <span class="el_source">ConstructorFacade.java</span></div><h1>ConstructorFacade.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2023 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.type;
+
+import java.lang.reflect.Constructor;
+
+import edu.iu.IuException;
+import edu.iu.type.IuConstructor;
+
+/**
+ * Facade implementation for {@link IuConstructor}.
+ * 
+ * @param &lt;C&gt; constructor declaring type
+ */
+final class ConstructorFacade&lt;C&gt; extends ExecutableBase&lt;C, C, Constructor&lt;C&gt;&gt; implements IuConstructor&lt;C&gt; {
+
+	/**
+	 * Facade constructor.
+	 * 
+	 * @param constructor   {@link Constructor}
+	 * @param declaringType {@link TypeTemplate}
+	 */
+	ConstructorFacade(Constructor&lt;C&gt; constructor, TypeTemplate&lt;?, C&gt; declaringType) {
+<span class="fc" id="L53">		super(constructor, declaringType.type, declaringType);</span>
+<span class="fc" id="L54">		annotatedElement.setAccessible(true);</span>
+<span class="fc" id="L55">		declaringType.postInit(this::seal);</span>
+<span class="fc" id="L56">	}</span>
+
+	// TODO: STARCH-653 restore to exec() and resolve Javadoc error triggered by
+	// importing jakarta.interceptors or create a static dependency helper utility
+	private boolean hasAroundConstruct() {
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">		return (hasAnnotation(jakarta.interceptor.Interceptors.class)</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">				|| declaringType().hasAnnotation(jakarta.interceptor.Interceptors.class)</span>
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">				|| declaringType().annotatedMethods(jakarta.interceptor.AroundConstruct.class).iterator().hasNext());</span>
+	}
+
+	@Override
+	public C exec(Object... arguments) throws Exception {
+<span class="fc bfc" id="L68" title="All 2 branches covered.">		if (hasAroundConstruct())</span>
+<span class="fc" id="L69">			throw new UnsupportedOperationException(&quot;@AroundConstruct not supported in this version&quot;);</span>
+
+<span class="fc" id="L71">		return annotatedElement.getDeclaringClass()</span>
+<span class="fc" id="L72">				.cast(IuException.checkedInvocation(() -&gt; annotatedElement.newInstance(arguments)));</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
