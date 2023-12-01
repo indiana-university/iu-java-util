@@ -33,6 +33,9 @@ package iu.type;
 
 import java.lang.reflect.Modifier;
 
+import edu.iu.type.IuComponent;
+import jakarta.annotation.Resource;
+
 /**
  * Provides access to <strong>context-compatible</strong> versions of
  * <strong>context-sensitive</strong> classes.

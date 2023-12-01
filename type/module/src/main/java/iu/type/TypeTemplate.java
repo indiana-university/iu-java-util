@@ -191,7 +191,7 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 		assert erasedType.erasedClass() == TypeFactory.getErasedClass(type)
 				: erasedType + " " + TypeUtils.printType(type);
 
-		sealHierarchy(erasedType.hierarchy);
+		erasedType.postInit(() -> sealHierarchy(erasedType.hierarchy));
 	}
 
 	private boolean isNative() {
@@ -224,14 +224,6 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 
 		if (!isNative()) {
 			Class<?>[] enclosedClasses = annotatedElement.getDeclaredClasses();
-			Arrays.sort(enclosedClasses, (a, b) -> {
-				if (a.isAssignableFrom(b))
-					return -1;
-				if (b.isAssignableFrom(a))
-					return 1;
-				return a.getName().compareTo(b.getName());
-			});
-
 			postInit(() -> {
 				for (var enclosedClass : enclosedClasses) {
 					final var enclosedType = TypeFactory.resolveRawClass(enclosedClass);

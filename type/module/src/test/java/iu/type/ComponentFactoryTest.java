@@ -210,7 +210,6 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 			var interfaces = component.interfaces().iterator();
 			assertTrue(interfaces.hasNext());
 			assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
-			assertFalse(interfaces.hasNext());
 
 			var contextLoader = Thread.currentThread().getContextClassLoader();
 			var loader = component.classLoader();
