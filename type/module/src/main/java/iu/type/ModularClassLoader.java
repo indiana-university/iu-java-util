@@ -42,7 +42,6 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Deque;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -54,7 +53,6 @@ import java.util.jar.JarInputStream;
 
 import edu.iu.IuException;
 import edu.iu.IuStream;
-import edu.iu.UnsafeRunnable;
 import edu.iu.type.IuComponent.Kind;
 import edu.iu.type.IuType;
 
@@ -69,7 +67,6 @@ class ModularClassLoader extends ClassLoader implements AutoCloseable {
 	private final Controller controller;
 	private final Map<String, byte[]> classData;
 	private final Map<String, List<URL>> resourceUrls;
-	private final Deque<UnsafeRunnable> onClose = new ArrayDeque<>();
 
 	/**
 	 * Constructor.
@@ -97,7 +94,6 @@ class ModularClassLoader extends ClassLoader implements AutoCloseable {
 		}
 
 		var moduleFinder = new ComponentModuleFinder(modulepath.toArray(new Path[modulepath.size()]));
-		onClose.push(moduleFinder::close);
 
 		this.web = web;
 		this.moduleFinder = moduleFinder;
