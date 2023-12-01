@@ -66,10 +66,18 @@ final class ConstructorFacade&lt;C&gt; extends ExecutableBase&lt;C, C, Construct
 <span class="fc bfc" id="L66" title="All 2 branches covered.">		if (hasAroundConstruct())</span>
 <span class="fc" id="L67">			throw new UnsupportedOperationException(&quot;@AroundConstruct not supported in this version&quot;);</span>
 
-<span class="fc" id="L69">		final var instance = annotatedElement.getDeclaringClass()</span>
-<span class="fc" id="L70">				.cast(IuException.checkedInvocation(() -&gt; annotatedElement.newInstance(arguments)));</span>
-<span class="fc" id="L71">		declaringType.template.observeNewInstance(instance);</span>
-<span class="fc" id="L72">		return instance;</span>
+		// @AroundConstruct
+
+<span class="fc" id="L71">		final var instance = annotatedElement.getDeclaringClass()</span>
+<span class="fc" id="L72">				.cast(IuException.checkedInvocation(() -&gt; annotatedElement.newInstance(arguments)));</span>
+
+<span class="fc" id="L74">		declaringType.template.observeNewInstance(instance);</span>
+		
+		// TODO: *after* observing new instances 
+		// @PostConstruct
+//			declaringType.annotatedMethods(PostConstruct.class).forEach(m -&gt; IuException.unchecked(() -&gt; m.exec()));
+
+<span class="fc" id="L80">		return instance;</span>
 	}
 
 }
