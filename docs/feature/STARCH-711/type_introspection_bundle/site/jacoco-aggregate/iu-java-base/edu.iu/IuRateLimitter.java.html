@@ -1,0 +1,369 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>IuRateLimitter.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-base</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuRateLimitter.java</span></div><h1>IuRateLimitter.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2023 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Deque;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
+
+/**
+ * Unifies control over a bounded queue of {@link IuTaskController controlled
+ * tasks}.
+ * 
+ * &lt;p&gt;
+ * This rate limiter is fail-fast. All tasks are expected to complete normally
+ * without error. The first error or timeout condition &lt;em&gt;should&lt;/em&gt; be thrown
+ * when the controlling process reaches its next blocking operation.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * Once a fixed limit on incomplete tasks has been reached, new tasks cannot be
+ * accepted without first removing and joining the task at the head of the
+ * queue. Once any task has timed out or produced an error, any attempt to
+ * {@link #accept(IuTaskController)} or {@link #join()} will throw that error.
+ * Additional errors encountered after the first error will be suppressed.
+ * &lt;/p&gt;
+ * 
+ * &lt;pre&gt;
+ * final var limit = new IuRateLimitter(10, Duration.ofSeconds(1L));
+ * for (UnsafeRunnable task : tasks)
+ * 	limit.accept(workload.accept(task));
+ * limit.join();
+ * &lt;/pre&gt;
+ */
+public class IuRateLimitter implements UnsafeConsumer&lt;IuTaskController&gt;, IuTaskController {
+
+<span class="fc" id="L70">	private final Instant start = Instant.now();</span>
+	private final Instant expires;
+	private final int limit;
+<span class="fc" id="L73">	private final Deque&lt;IuTaskController&gt; queue = new ConcurrentLinkedDeque&lt;&gt;();</span>
+<span class="fc" id="L74">	private final Queue&lt;Throwable&gt; errors = new ConcurrentLinkedQueue&lt;&gt;();</span>
+<span class="fc" id="L75">	private final Queue&lt;TimeoutException&gt; timeouts = new ConcurrentLinkedQueue&lt;&gt;();</span>
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param limit   upper limit on the number of tasks that may be pending in the
+	 *                queue.
+	 * @param timeout timeout interval
+	 */
+	public IuRateLimitter(int limit, Duration timeout) {
+<span class="fc" id="L85">		this(limit, Instant.now().plus(timeout));</span>
+<span class="fc" id="L86">	}</span>
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param limit   upper limit on the number of tasks that may be pending in the
+	 *                queue.
+	 * @param expires instant the workload timeout interval expires
+	 */
+<span class="fc" id="L95">	public IuRateLimitter(int limit, Instant expires) {</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">		if (limit &lt;= 0)</span>
+<span class="fc" id="L97">			throw new IllegalArgumentException(&quot;Limit must be positive&quot;);</span>
+
+<span class="fc" id="L99">		this.limit = limit;</span>
+<span class="fc" id="L100">		this.expires = expires;</span>
+<span class="fc" id="L101">	}</span>
+
+	/**
+	 * Checks for a non-blocking failure condition that would prevent a new task
+	 * from being {@link #accept(IuTaskController) accepted} for processing.
+	 * 
+	 * &lt;p&gt;
+	 * The method &lt;em&gt;should&lt;/em&gt; be called returning control from any blocking
+	 * operation, before scheduling a new task to be accepted by this rate limiter.
+	 * If the task would be rejected, an error is thrown to prevent it from being
+	 * scheduled.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * At the instant of return, the following conditions are guaranteed to have
+	 * been true:
+	 * &lt;/p&gt;
+	 * &lt;ul&gt;
+	 * &lt;li&gt;No {@link IuTaskController#getError() error} was observed by an
+	 * {@link #accept(IuTaskController) accepted} task. {@link ExecutionException}
+	 * will be thrown with the first error observed as the cause; additional
+	 * observed errors will be suppressed.&lt;/li&gt;
+	 * &lt;li&gt;No tasks have expired without completing successfully.
+	 * {@link TimeoutException} will be thrown; any related task
+	 * {@link TimeoutException}s will be suppressed.&lt;/li&gt;
+	 * &lt;/ul&gt;
+	 * 
+	 * @throws ExecutionException if an {@link IuTaskController#getError() error}
+	 *                            has been observed by an
+	 *                            {@link #accept(IuTaskController) accepted} task.
+	 * @throws TimeoutException   if any task has expired; related task timeouts
+	 *                            will be suppressed
+	 */
+	public void failFast() throws ExecutionException, TimeoutException {
+<span class="fc" id="L135">		observeCompletedTasks();</span>
+
+<span class="fc bfc" id="L137" title="All 2 branches covered.">		if (!errors.isEmpty()) {</span>
+<span class="fc" id="L138">			final var errorIterator = errors.iterator();</span>
+<span class="fc" id="L139">			final var executionException = new ExecutionException(errorIterator.next());</span>
+<span class="fc" id="L140">			errorIterator.forEachRemaining(executionException::addSuppressed);</span>
+<span class="fc" id="L141">			timeouts.forEach(executionException::addSuppressed);</span>
+<span class="fc" id="L142">			throw executionException;</span>
+		}
+
+<span class="fc" id="L145">		final var now = Instant.now();</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">		if (!timeouts.isEmpty() //</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">				|| !now.isBefore(expires)) {</span>
+			final Duration timeout;
+<span class="fc bfc" id="L149" title="All 2 branches covered.">			if (now.isBefore(expires))</span>
+<span class="fc" id="L150">				timeout = Duration.between(start, now);</span>
+			else
+<span class="fc" id="L152">				timeout = Duration.between(start, expires);</span>
+
+<span class="fc" id="L154">			final var timeoutException = new TimeoutException(&quot;Timed out after &quot; + timeout);</span>
+<span class="fc" id="L155">			timeouts.forEach(timeoutException::addSuppressed);</span>
+<span class="fc" id="L156">			throw timeoutException;</span>
+		}
+<span class="fc" id="L158">	}</span>
+
+	/**
+	 * Accepts a task for parallel processing, blocking until an error is observed,
+	 * a timeout interval expires, the task completes successfully, or until there
+	 * is room in the queue.
+	 * 
+	 * &lt;p&gt;
+	 * At the instant of return, the following conditions are guaranteed to have
+	 * been true:
+	 * &lt;/p&gt;
+	 * &lt;ul&gt;
+	 * &lt;li&gt;{@link #failFast()} returned successfully.&lt;/li&gt;
+	 * &lt;li&gt;The new task did not observe an error
+	 * &lt;ul&gt;
+	 * &lt;li&gt;else {@link ExecutionException} is thrown with the observed error as the
+	 * cause.&lt;/li&gt;
+	 * &lt;/ul&gt;
+	 * &lt;/li&gt;
+	 * &lt;li&gt;The new task did not {@link IuTaskController#isExpired() expire}
+	 * &lt;ul&gt;
+	 * &lt;li&gt;else {@link TimeoutException} is thrown.&lt;/li&gt;
+	 * &lt;/ul&gt;
+	 * &lt;/li&gt;
+	 * &lt;li&gt;The task either {@link IuTaskController#isComplete() completed}
+	 * {@link IuTaskController#isSuccess() succesfully}, or was accepted for
+	 * parallel processing.&lt;/li&gt;
+	 * &lt;li&gt;Accepted tasks &lt;em&gt;may&lt;/em&gt; have been {@link IuTaskController#join()
+	 * joined} to create room in the queue.&lt;/li&gt;
+	 * &lt;li&gt;No more than {@link #IuRateLimitter(int, Instant) limit} accepted tasks,
+	 * including the new task, were incomplete.&lt;/li&gt;
+	 * &lt;/ul&gt;
+	 * 
+	 * @param taskController task controller
+	 * @throws ExecutionException   if an observed; the observed error is the cause
+	 * @throws InterruptedException from {@link IuTaskController#join()}
+	 * @throws TimeoutException     if a timeout interval expires
+	 */
+	@Override
+	public void accept(IuTaskController taskController)
+			throws ExecutionException, InterruptedException, TimeoutException {
+		while (true) {
+<span class="fc" id="L200">			failFast();</span>
+
+<span class="fc" id="L202">			final var complete = taskController.isComplete();</span>
+<span class="fc" id="L203">			final var error = taskController.getError();</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">			if (error != null) {</span>
+<span class="fc" id="L205">				errors.offer(error);</span>
+<span class="fc" id="L206">				throw new ExecutionException(error);</span>
+			}
+
+<span class="fc bfc" id="L209" title="All 2 branches covered.">			if (taskController.isExpired())</span>
+				try {
+<span class="fc" id="L211">					taskController.join();</span>
+					// _should_ throw TimeoutException
+<span class="fc" id="L213">				} catch (TimeoutException e) {</span>
+<span class="fc" id="L214">					timeouts.add(e);</span>
+<span class="fc" id="L215">					throw e;</span>
+<span class="fc" id="L216">				}</span>
+
+<span class="fc bfc" id="L218" title="All 2 branches covered.">			if (complete)</span>
+<span class="fc" id="L219">				return;</span>
+
+			final IuTaskController overflowTask;
+<span class="fc" id="L222">			synchronized (this) {</span>
+<span class="fc bfc" id="L223" title="All 2 branches covered.">				if (queue.size() &gt;= limit)</span>
+<span class="fc" id="L224">					overflowTask = queue.poll();</span>
+				else {
+<span class="fc" id="L226">					queue.offer(taskController);</span>
+<span class="fc" id="L227">					return;</span>
+				}
+<span class="fc" id="L229">			}</span>
+
+<span class="fc" id="L231">			joinAndObserve(overflowTask);</span>
+<span class="fc" id="L232">		}</span>
+	}
+
+	@Override
+	public Instant getStart() {
+<span class="fc" id="L237">		return start;</span>
+	}
+
+	@Override
+	public Duration getElapsed() {
+<span class="fc" id="L242">		return Duration.between(start, Instant.now());</span>
+	}
+
+	@Override
+	public Duration getRemaining() {
+<span class="fc" id="L247">		observeCompletedTasks();</span>
+
+<span class="fc" id="L249">		final var now = Instant.now();</span>
+<span class="fc bfc" id="L250" title="All 2 branches covered.">		if (isExpired())</span>
+<span class="fc bfc" id="L251" title="All 2 branches covered.">			if (now.isBefore(expires))</span>
+<span class="fc" id="L252">				return Duration.ZERO;</span>
+			else
+<span class="fc" id="L254">				return Duration.between(now, expires);</span>
+		else
+<span class="fc" id="L256">			return Duration.between(now, expires);</span>
+	}
+
+	@Override
+	public Instant getExpires() {
+<span class="fc bfc" id="L261" title="All 2 branches covered.">		if (isExpired()) {</span>
+<span class="fc" id="L262">			final var now = Instant.now();</span>
+<span class="fc bfc" id="L263" title="All 2 branches covered.">			if (now.isBefore(expires))</span>
+<span class="fc" id="L264">				return now;</span>
+		}
+<span class="fc" id="L266">		return expires;</span>
+	}
+
+	@Override
+	public boolean isComplete() {
+<span class="fc" id="L271">		observeCompletedTasks();</span>
+<span class="fc" id="L272">		return queue.isEmpty();</span>
+	}
+
+	@Override
+	public boolean isSuccess() {
+<span class="fc bfc" id="L277" title="All 4 branches covered.">		return isComplete() &amp;&amp; errors.isEmpty();</span>
+	}
+
+	@Override
+	public Throwable getError() {
+<span class="fc" id="L282">		return errors.peek();</span>
+	}
+
+	@Override
+	public boolean isExpired() {
+<span class="fc" id="L287">		observeCompletedTasks();</span>
+<span class="fc bfc" id="L288" title="All 4 branches covered.">		return !timeouts.isEmpty() || !Instant.now().isBefore(expires);</span>
+	}
+
+	@Override
+	public void join() throws ExecutionException, InterruptedException, TimeoutException {
+<span class="fc" id="L293">		failFast();</span>
+
+		IuTaskController task;
+<span class="fc bfc" id="L296" title="All 2 branches covered.">		while ((task = queue.poll()) != null)</span>
+<span class="fc" id="L297">			joinAndObserve(task);</span>
+<span class="fc" id="L298">	}</span>
+
+	@Override
+	public void pause() throws InterruptedException, TimeoutException {
+<span class="fc" id="L302">		observeCompletedTasks();</span>
+<span class="fc" id="L303">		final var task = queue.peekFirst();</span>
+<span class="fc bfc" id="L304" title="All 2 branches covered.">		if (task != null)</span>
+<span class="fc" id="L305">			task.pause();</span>
+<span class="fc" id="L306">	}</span>
+
+	@Override
+	public void unpause() {
+<span class="fc" id="L310">		observeCompletedTasks();</span>
+<span class="fc" id="L311">		queue.forEach(IuTaskController::unpause);</span>
+<span class="fc" id="L312">	}</span>
+
+	@Override
+	public void interrupt() {
+<span class="fc" id="L316">		observeCompletedTasks();</span>
+<span class="fc" id="L317">		queue.forEach(IuTaskController::interrupt);</span>
+<span class="fc" id="L318">	}</span>
+
+	private void joinAndObserve(IuTaskController taskController)
+			throws ExecutionException, InterruptedException, TimeoutException {
+		try {
+<span class="fc" id="L323">			taskController.join();</span>
+<span class="fc" id="L324">		} catch (ExecutionException e) {</span>
+<span class="fc" id="L325">			errors.add(e.getCause());</span>
+<span class="fc bfc" id="L326" title="All 2 branches covered.">			for (Throwable suppressed : e.getSuppressed())</span>
+<span class="fc" id="L327">				errors.offer(suppressed);</span>
+<span class="fc" id="L328">			throw e;</span>
+<span class="fc" id="L329">		} catch (TimeoutException e) {</span>
+<span class="fc" id="L330">			timeouts.add(e);</span>
+<span class="fc" id="L331">			throw e;</span>
+<span class="fc" id="L332">		}</span>
+<span class="fc" id="L333">	}</span>
+
+	private void observeCompleted(IuTaskController task) {
+<span class="fc" id="L336">		final var error = task.getError();</span>
+<span class="fc bfc" id="L337" title="All 2 branches covered.">		if (error != null)</span>
+<span class="fc" id="L338">			errors.offer(error);</span>
+<span class="fc bfc" id="L339" title="All 2 branches covered.">		else if (!task.isSuccess())</span>
+<span class="fc" id="L340">			errors.offer(new IllegalStateException(&quot;Task completed unsuccessfully but didn't provide an error&quot;));</span>
+<span class="fc" id="L341">	}</span>
+
+	/**
+	 * Observes status (non-blocking) of all queued tasks, flags the process as
+	 * expired, observes errors, and removes completed tasks from the queue.
+	 */
+	private void observeCompletedTasks() {
+<span class="fc" id="L348">		final var i = queue.iterator();</span>
+<span class="fc bfc" id="L349" title="All 2 branches covered.">		while (i.hasNext()) {</span>
+<span class="fc" id="L350">			final var next = i.next();</span>
+
+<span class="fc bfc" id="L352" title="All 2 branches covered.">			if (next.isExpired()) {</span>
+				try {
+<span class="fc" id="L354">					joinAndObserve(next);</span>
+<span class="fc" id="L355">				} catch (TimeoutException | ExecutionException | InterruptedException e) {</span>
+					// TimeoutException and ExecutionException are handled by joinAndObserve, silence re-throw
+					// InterruptedException is not allowed when IuTaskController#isExpired()
+<span class="fc" id="L358">				}</span>
+			}
+
+<span class="fc bfc" id="L361" title="All 2 branches covered.">			if (next.isComplete()) {</span>
+<span class="fc" id="L362">				i.remove();</span>
+<span class="fc" id="L363">				observeCompleted(next);</span>
+			}
+<span class="fc" id="L365">		}</span>
+<span class="fc" id="L366">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

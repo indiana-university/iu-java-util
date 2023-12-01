@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TypeBundleSpi.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Type Introspection Utilities</a> &gt; <a href="index.source.html" class="el_package">iu.type.bundle</a> &gt; <span class="el_source">TypeBundleSpi.java</span></div><h1>TypeBundleSpi.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2023 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.type.bundle;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.module.Configuration;
+import java.lang.module.ModuleFinder;
+import java.lang.reflect.Type;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.List;
+import java.util.Queue;
+import java.util.ServiceLoader;
+import java.util.jar.JarEntry;
+import java.util.jar.JarInputStream;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import edu.iu.IuException;
+import edu.iu.IuStream;
+import edu.iu.type.IuComponent;
+import edu.iu.type.IuType;
+import edu.iu.type.spi.IuTypeSpi;
+
+/**
+ * Service provider implementation.
+ * 
+ * @see IuTypeSpi
+ */
+public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
+
+<span class="fc" id="L65">	private static final Logger LOG = Logger.getLogger(TypeBundleSpi.class.getName());</span>
+
+<span class="fc" id="L67">	private record CloseableDelegate(IuTypeSpi spi, Runnable close) {</span>
+	}
+
+	/**
+	 * Copies a jar archive from a source stream to a temp file name relative to its
+	 * source
+	 * 
+	 * @param sourceName   visual name of the jar file, typically {@code artifactId}
+	 * @param sourceStream input stream for reading raw (jar) file data
+	 * @return {@link Path} to a temp file with the raw jar archive, suitable for
+	 *         use with an isolated {@link ClassLoader}
+	 * 
+	 * @throws IOException if the jar data could not be copied
+	 */
+	static Path copyJarToTempFile(String sourceName, InputStream sourceStream) throws IOException {
+<span class="fc" id="L82">		final var target = Files.createTempFile(&quot;iu-type-bundle_&quot; + sourceName, &quot;.jar&quot;);</span>
+<span class="fc" id="L83">		try (final var out = Files.newOutputStream(target, StandardOpenOption.CREATE)) {</span>
+<span class="fc" id="L84">			IuStream.copy(sourceStream, out);</span>
+<span class="fc" id="L85">		} catch (Throwable e) {</span>
+			try {
+<span class="fc" id="L87">				Files.deleteIfExists(target);</span>
+<span class="fc" id="L88">			} catch (Throwable e2) {</span>
+<span class="fc" id="L89">				e.addSuppressed(e2);</span>
+<span class="fc" id="L90">			}</span>
+<span class="fc" id="L91">			throw IuException.checked(e, IOException.class);</span>
+<span class="fc" id="L92">		}</span>
+<span class="fc" id="L93">		return target;</span>
+	}
+
+	/**
+	 * Closes open resources, then deletes temp files, after releasing all
+	 * references to the delegate.
+	 * 
+	 * &lt;p&gt;
+	 * Implements {@link #close()}
+	 * &lt;/p&gt;
+	 * 
+	 * @param openResources open resources
+	 * @param tempFiles     temp files
+	 */
+	static void cleanUp(AutoCloseable openResources, Iterable&lt;Path&gt; tempFiles) {
+		try {
+<span class="fc" id="L109">			openResources.close();</span>
+<span class="fc" id="L110">		} catch (Throwable e) {</span>
+<span class="fc" id="L111">			LOG.log(Level.WARNING, e, () -&gt; &quot;Failed to clean up resources&quot;);</span>
+<span class="fc" id="L112">		}</span>
+
+<span class="fc bfc" id="L114" title="All 2 branches covered.">		for (final var temp : tempFiles)</span>
+			try {
+<span class="fc" id="L116">				Files.deleteIfExists(temp);</span>
+<span class="fc" id="L117">			} catch (Throwable e) {</span>
+<span class="fc" id="L118">				LOG.log(Level.WARNING, e, () -&gt; &quot;Failed to clean up temp file &quot; + temp);</span>
+<span class="fc" id="L119">			}</span>
+<span class="fc" id="L120">	}</span>
+
+	private static final CloseableDelegate createDelegate() throws IOException {
+<span class="fc" id="L123">		final Deque&lt;Path&gt; libs = new ArrayDeque&lt;&gt;();</span>
+
+<span class="fc" id="L125">		final var bundle = TypeBundleSpi.class.getClassLoader().getResource(&quot;iu-java-type-impl-bundle.jar&quot;);</span>
+<span class="fc" id="L126">		final var bundleConnection = bundle.openConnection();</span>
+<span class="fc" id="L127">		bundleConnection.setUseCaches(false);</span>
+<span class="fc" id="L128">		try (final var in = bundleConnection.getInputStream(); //</span>
+<span class="fc" id="L129">				final var bundleJar = new JarInputStream(in)) {</span>
+			JarEntry entry;
+<span class="fc bfc" id="L131" title="All 2 branches covered.">			while ((entry = bundleJar.getNextJarEntry()) != null) {</span>
+<span class="fc" id="L132">				final var name = entry.getName();</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">				if (name.endsWith(&quot;.jar&quot;)) {</span>
+<span class="fc" id="L134">					final var lib = name.startsWith(&quot;lib/&quot;);</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">					final var entryName = name.substring(lib ? 4 : 0, name.length() - 4);</span>
+<span class="fc" id="L136">					final var bundledLib = copyJarToTempFile(entryName, bundleJar);</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">					if (lib)</span>
+<span class="fc" id="L138">						libs.offer(bundledLib);</span>
+					else
+<span class="fc" id="L140">						libs.offerFirst(bundledLib);</span>
+				}
+
+<span class="fc" id="L143">				bundleJar.closeEntry();</span>
+<span class="fc" id="L144">			}</span>
+		}
+
+<span class="fc" id="L147">		final var moduleFinder = new BundleModuleFinder(libs.toArray(new Path[libs.size()]));</span>
+<span class="fc" id="L148">		final Runnable close = () -&gt; cleanUp(moduleFinder, libs);</span>
+		try {
+<span class="fc" id="L150">			final Queue&lt;String&gt; moduleNames = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L151">			moduleNames.add(&quot;iu.util.type&quot;);</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">			for (final var moduleRefence : moduleFinder.findAll())</span>
+<span class="fc" id="L153">				moduleNames.offer(moduleRefence.descriptor().name());</span>
+
+<span class="fc" id="L155">			final var spiModule = IuTypeSpi.class.getModule();</span>
+<span class="fc" id="L156">			final var parentModuleLayer = spiModule.getLayer();</span>
+<span class="fc" id="L157">			final var configuration = Configuration.resolveAndBind( //</span>
+<span class="fc" id="L158">					ModuleFinder.of(), List.of(parentModuleLayer.configuration()), moduleFinder, moduleNames);</span>
+<span class="fc" id="L159">			final var controller = ModuleLayer.defineModulesWithOneLoader(configuration, List.of(parentModuleLayer),</span>
+<span class="fc" id="L160">					parentModuleLayer.findLoader(&quot;iu.util.type&quot;));</span>
+
+<span class="fc" id="L162">			final var layer = controller.layer();</span>
+
+<span class="fc" id="L164">			return new CloseableDelegate(</span>
+<span class="fc" id="L165">					ServiceLoader.load(IuTypeSpi.class, layer.findLoader(&quot;iu.util.type.impl&quot;)).iterator().next(),</span>
+					close);
+
+<span class="fc" id="L168">		} catch (RuntimeException | Error e) {</span>
+			try {
+<span class="fc" id="L170">				close.run();</span>
+<span class="fc" id="L171">			} catch (Throwable e2) {</span>
+<span class="fc" id="L172">				e.addSuppressed(e2);</span>
+<span class="fc" id="L173">			}</span>
+<span class="fc" id="L174">			throw e;</span>
+		}
+	}
+
+<span class="fc" id="L178">	private CloseableDelegate delegate = createDelegate();</span>
+
+	/**
+	 * Target constructor for {@link ServiceLoader}.
+	 * 
+	 * @throws IOException if an error occurs establishing a module path for the
+	 *                     bundle
+	 */
+<span class="fc" id="L186">	public TypeBundleSpi() throws IOException {</span>
+<span class="fc" id="L187">	}</span>
+
+	@Override
+	public IuType&lt;?, ?&gt; resolveType(Type type) {
+<span class="fc bfc" id="L191" title="All 2 branches covered.">		if (delegate == null)</span>
+<span class="fc" id="L192">			throw new IllegalStateException(&quot;closed&quot;);</span>
+<span class="fc" id="L193">		return delegate.spi.resolveType(type);</span>
+	}
+
+	@Override
+	public IuComponent createComponent(InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) throws IOException {
+<span class="fc bfc" id="L199" title="All 2 branches covered.">		if (delegate == null)</span>
+<span class="fc" id="L200">			throw new IllegalStateException(&quot;closed&quot;);</span>
+<span class="fc" id="L201">		return delegate.spi.createComponent(componentArchiveSource, providedDependencyArchiveSources);</span>
+	}
+
+	@Override
+	public IuComponent scanComponentEntry(ClassLoader classLoader, Path pathEntry)
+			throws IOException, ClassNotFoundException {
+<span class="fc bfc" id="L207" title="All 2 branches covered.">		if (delegate == null)</span>
+<span class="fc" id="L208">			throw new IllegalStateException(&quot;closed&quot;);</span>
+<span class="fc" id="L209">		return delegate.spi.scanComponentEntry(classLoader, pathEntry);</span>
+	}
+
+	@Override
+	public synchronized void close() {
+<span class="fc" id="L214">		final var delegate = this.delegate;</span>
+<span class="fc bfc" id="L215" title="All 2 branches covered.">		if (delegate != null) {</span>
+<span class="fc" id="L216">			this.delegate = null;</span>
+<span class="fc" id="L217">			delegate.close.run();</span>
+		}
+<span class="fc" id="L219">	}</span>
+
+	/**
+	 * Gets a reference to the loaded {@code iu.util.type.impl} module.
+	 * 
+	 * @return loaded {@code iu.util.type.impl} module
+	 */
+	public Module getModule() {
+<span class="fc" id="L227">		return this.delegate.spi.getClass().getModule();</span>
+	}
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

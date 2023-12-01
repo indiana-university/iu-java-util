@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ArchiveSource.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Type Introspection Implementation Module</a> &gt; <a href="index.source.html" class="el_package">iu.type</a> &gt; <span class="el_source">ArchiveSource.java</span></div><h1>ArchiveSource.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2023 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.type;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Optional;
+import java.util.jar.Attributes.Name;
+import java.util.jar.JarEntry;
+import java.util.jar.JarInputStream;
+import java.util.jar.Manifest;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+/**
+ * Reads entries from a {@link JarInputStream} for validating and initializing a
+ * {@link ComponentArchive}.
+ */
+class ArchiveSource implements AutoCloseable {
+
+	private final InputStream in;
+	private final JarInputStream jar;
+	private final boolean sealed;
+	private final List&lt;String&gt; classPath;
+	private final List&lt;ComponentVersion&gt; dependencies;
+	private boolean seenManifest;
+	private Optional&lt;ComponentEntry&gt; next;
+	private ComponentEntry last;
+	private boolean closed;
+
+	/**
+	 * Constructs an {@link ArchiveSource} for an {@link InputStream}.
+	 * 
+	 * &lt;p&gt;
+	 * The input stream provided is opened and validated as a jar file with a valid
+	 * manifest. The source is considered sealed if {@code Sealed} appears in the
+	 * manifest. If the manifest provides a class path or extension list, those
+	 * attributes are processed.
+	 * &lt;/p&gt;
+	 * 
+	 * @param in input stream; this method is not responsible for closing the stream
+	 * @throws IOException If an I/O error occurs
+	 */
+<span class="fc" id="L78">	ArchiveSource(InputStream in) throws IOException {</span>
+<span class="fc" id="L79">		this.in = in;</span>
+<span class="fc" id="L80">		jar = new JarInputStream(in);</span>
+
+<span class="fc" id="L82">		var manifest = jar.getManifest();</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">		if (manifest == null)</span>
+<span class="fc" id="L84">			throw new IllegalArgumentException(&quot;Missing META-INF/MANIFEST.MF&quot;);</span>
+
+<span class="fc" id="L86">		var attributes = manifest.getMainAttributes();</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">		if (attributes.getValue(Name.MANIFEST_VERSION) == null)</span>
+<span class="fc" id="L88">			throw new IllegalArgumentException(</span>
+					&quot;Missing &quot; + Name.MANIFEST_VERSION + &quot; attribute in META-INF/MANIFEST.MF&quot;);
+
+<span class="fc" id="L91">		sealed = &quot;true&quot;.equals(attributes.getValue(Name.SEALED));</span>
+
+<span class="fc" id="L93">		var classPathAttribute = manifest.getMainAttributes().getValue(Name.CLASS_PATH);</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">		if (classPathAttribute == null)</span>
+<span class="fc" id="L95">			classPath = List.of();</span>
+		else
+<span class="fc" id="L97">			classPath = List.of(classPathAttribute.split(&quot; &quot;));</span>
+
+<span class="fc" id="L99">		var extensionListAttribute = attributes.getValue(Name.EXTENSION_LIST);</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">		if (extensionListAttribute == null)</span>
+<span class="fc" id="L101">			dependencies = List.of();</span>
+		else
+<span class="fc" id="L103">			this.dependencies = Stream.of(extensionListAttribute.split(&quot; &quot;))</span>
+<span class="fc" id="L104">					.map(extension -&gt; new ComponentVersion(extension, attributes)).collect(Collectors.toList());</span>
+<span class="fc" id="L105">	}</span>
+
+	/**
+	 * If packages in this archive should be sealed.
+	 * 
+	 * @return true if packages should be sealed; else false
+	 */
+	boolean sealed() {
+<span class="fc" id="L113">		return sealed;</span>
+	}
+
+	/**
+	 * Gets the class path defined in the {@link Manifest}.
+	 * 
+	 * @return {@link Name#CLASS_PATH} {@link Manifest#getMainAttributes() mainfest
+	 *         main attribute}.
+	 */
+	List&lt;String&gt; classPath() {
+<span class="fc" id="L123">		return classPath;</span>
+	}
+
+	/**
+	 * Gets the component's dependencies named in the {@link Name#EXTENSION_LIST
+	 * Extension-List} {@link Manifest#getMainAttributes() manifest main
+	 * attributes}.
+	 * 
+	 * @return dependency versions
+	 */
+	List&lt;ComponentVersion&gt; dependencies() {
+<span class="fc" id="L134">		return dependencies;</span>
+	}
+
+	/**
+	 * Same behavior as {@link Iterator#hasNext()}, but can throw
+	 * {@link IOException} if there is an error reading from the jar file.
+	 * 
+	 * &lt;p&gt;
+	 * Note that this method closes the last entry returned from {@link #next()} and
+	 * positions the jar file for reading the next entry as part of determining
+	 * whether or not there is a next entry. So, this should only be called after
+	 * all interactions with the last entry are complete.
+	 * &lt;/p&gt;
+	 * 
+	 * @return see {@link Iterator#hasNext()}
+	 * @throws IOException If there is an error reading the next entry from the jar
+	 *                     file.
+	 */
+	boolean hasNext() throws IOException {
+<span class="fc bfc" id="L153" title="All 2 branches covered.">		if (closed)</span>
+<span class="fc" id="L154">			return false;</span>
+
+<span class="fc bfc" id="L156" title="All 2 branches covered.">		if (next == null) {</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">			if (last != null) {</span>
+<span class="fc" id="L158">				jar.closeEntry();</span>
+<span class="fc" id="L159">				last.close();</span>
+<span class="fc" id="L160">				last = null;</span>
+			}
+
+<span class="fc bfc" id="L163" title="All 2 branches covered.">			if (!seenManifest) {</span>
+<span class="fc" id="L164">				final var manifest = jar.getManifest();</span>
+<span class="fc" id="L165">				final var manifestOut = new ByteArrayOutputStream();</span>
+<span class="fc" id="L166">				manifest.write(manifestOut);</span>
+<span class="fc" id="L167">				next = Optional.of(new ComponentEntry(&quot;META-INF/MANIFEST.MF&quot;,</span>
+<span class="fc" id="L168">						new ByteArrayInputStream(manifestOut.toByteArray())));</span>
+<span class="fc" id="L169">				seenManifest = true;</span>
+<span class="fc" id="L170">			} else {</span>
+<span class="fc" id="L171">				JarEntry jarEntry = jar.getNextJarEntry();</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">				if (jarEntry == null) {</span>
+<span class="fc" id="L173">					close();</span>
+<span class="fc" id="L174">					return false;</span>
+				}
+
+<span class="fc" id="L177">				next = Optional.of(new ComponentEntry(jarEntry.getName(), jar));</span>
+			}
+		}
+
+<span class="fc" id="L181">		return true;</span>
+	}
+
+	/**
+	 * Same behavior as {@link Iterator#next()}, but can throw {@link IOException}
+	 * if there is an error reading from the jar file.
+	 * 
+	 * @return see {@link Iterator#next()}
+	 * @throws IOException from {@link #hasNext()}
+	 */
+	ComponentEntry next() throws IOException {
+<span class="fc bfc" id="L192" title="All 2 branches covered.">		if (!hasNext())</span>
+<span class="fc" id="L193">			throw new NoSuchElementException();</span>
+
+<span class="fc" id="L195">		last = next.get();</span>
+<span class="fc" id="L196">		next = null;</span>
+
+<span class="fc" id="L198">		return last;</span>
+	}
+
+	@Override
+	public void close() throws IOException {
+<span class="fc bfc" id="L203" title="All 2 branches covered.">		if (!closed) {</span>
+<span class="fc" id="L204">			jar.close();</span>
+<span class="fc" id="L205">			in.close();</span>
+
+<span class="fc bfc" id="L207" title="All 2 branches covered.">			if (next != null) {</span>
+<span class="fc" id="L208">				next.get().close();</span>
+<span class="fc" id="L209">				next = null;</span>
+			}
+
+<span class="fc bfc" id="L212" title="All 2 branches covered.">			if (last != null) {</span>
+<span class="fc" id="L213">				last.close();</span>
+<span class="fc" id="L214">				last = null;</span>
+			}
+
+<span class="fc" id="L217">			closed = true;</span>
+		}
+<span class="fc" id="L219">	}</span>
+
+	@Override
+	public String toString() {
+<span class="fc" id="L223">		return &quot;ArchiveSource [sealed=&quot; + sealed + &quot;, classPath=&quot; + classPath + &quot;, dependencies=&quot; + dependencies</span>
+<span class="fc bfc" id="L224" title="All 4 branches covered.">				+ (next == null ? &quot;&quot; : &quot;, next=&quot; + next) + (last == null ? &quot;&quot; : &quot;, last=&quot; + last) + &quot;, closed=&quot; + closed</span>
+				+ &quot;]&quot;;
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

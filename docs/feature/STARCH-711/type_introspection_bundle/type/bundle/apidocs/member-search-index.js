@@ -1,0 +1,1 @@
+memberSearchIndex = [{"p":"edu.iu.type.bundle","c":"IuTypeBundle","l":"getModule()"}];updateSearchResults();

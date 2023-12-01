@@ -1,0 +1,6 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+IU Runtime Environment,edu.iu.runtime,IuRuntimeConfiguration,0,47,0,0,0,9,0,6,0,6
+IU Runtime Environment,edu.iu.runtime,IuRuntime,0,3,0,0,0,1,0,1,0,1
+IU Runtime Environment,iu.runtime,EmptyConfiguration,0,9,0,0,0,2,0,2,0,2
+IU Runtime Environment,iu.runtime,EmptyRuntime,0,9,0,0,0,4,0,4,0,4
+IU Runtime Environment,iu.runtime,RuntimeFactory,0,17,0,2,0,4,0,2,0,1
