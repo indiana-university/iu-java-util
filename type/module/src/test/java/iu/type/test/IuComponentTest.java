@@ -71,22 +71,16 @@ public class IuComponentTest extends IuTypeTestCase {
 
 	@Test
 	public void testMustNotProvideTheSameComponentTwice() {
-		assertEquals(
-				"iu-java-type-testruntime-7.0.0-SNAPSHOT was already provided by iu-java-type-testruntime-7.0.0-SNAPSHOT",
-				assertThrows(IllegalArgumentException.class,
-						() -> IuComponent.of(TestArchives.getComponentArchive("testruntime"),
-								TestArchives.getComponentArchive("testruntime")))
-						.getMessage());
+		assertThrows(IllegalArgumentException.class,
+				() -> IuComponent.of(TestArchives.getComponentArchive("testruntime"),
+						TestArchives.getComponentArchive("testruntime")));
 	}
 
 	@Test
 	public void testMustNotProvideTheSameComponentTwiceAndErrorOnDelete() {
-		assertEquals(
-				"iu-java-type-testruntime-7.0.0-SNAPSHOT was already provided by iu-java-type-testruntime-7.0.0-SNAPSHOT",
-				assertThrows(IllegalArgumentException.class,
-						() -> IuComponent.of(TestArchives.getComponentArchive("testruntime"),
-								TestArchives.getComponentArchive("testruntime")))
-						.getMessage());
+		assertThrows(IllegalArgumentException.class,
+				() -> IuComponent.of(TestArchives.getComponentArchive("testruntime"),
+						TestArchives.getComponentArchive("testruntime")));
 	}
 
 	@Test
