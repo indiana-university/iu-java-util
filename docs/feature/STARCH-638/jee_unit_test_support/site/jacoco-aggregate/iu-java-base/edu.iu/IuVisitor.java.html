@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>IuVisitor.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-base</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuVisitor.java</span></div><h1>IuVisitor.java</h1><pre class="source lang-java linenums">/*
  * Copyright © 2023 Indiana University
- * All rights reserved.
+* All rights reserved.
  *
  * BSD 3-Clause License
  *
@@ -49,17 +49,21 @@ import java.util.function.Function;
  * so will may only be visited until cleared by the garbage collector.
  * &lt;/p&gt;
  * 
+ * &lt;p&gt;
+ * &lt;img src=&quot;doc-files/Visitor.svg&quot; alt=&quot;UML Class Diagram&quot; /&gt;
+ * &lt;/p&gt;
+ * 
  * @param &lt;T&gt; element type
  */
 public class IuVisitor&lt;T&gt; implements Consumer&lt;T&gt; {
 
-<span class="fc" id="L56">	private final Queue&lt;Reference&lt;T&gt;&gt; elements = new ConcurrentLinkedQueue&lt;&gt;();</span>
+<span class="fc" id="L60">	private final Queue&lt;Reference&lt;T&gt;&gt; elements = new ConcurrentLinkedQueue&lt;&gt;();</span>
 
 	/**
 	 * Default constructor.
 	 */
-<span class="fc" id="L61">	public IuVisitor() {</span>
-<span class="fc" id="L62">	}</span>
+<span class="fc" id="L65">	public IuVisitor() {</span>
+<span class="fc" id="L66">	}</span>
 
 	/**
 	 * Applies a function to each element until a generic condition is satisfied.
@@ -79,21 +83,21 @@ public class IuVisitor&lt;T&gt; implements Consumer&lt;T&gt; {
 	 *         null if a terminal condition was not met.
 	 */
 	public &lt;V&gt; Optional&lt;V&gt; visit(Function&lt;T, Optional&lt;V&gt;&gt; visitor) {
-<span class="fc" id="L82">		final var elementIterator = elements.iterator();</span>
-<span class="fc bfc" id="L83" title="All 2 branches covered.">		while (elementIterator.hasNext()) {</span>
-<span class="fc" id="L84">			final var elementReference = elementIterator.next();</span>
-<span class="fc" id="L85">			final var element = elementReference.get();</span>
-<span class="fc bfc" id="L86" title="All 2 branches covered.">			if (element == null) {</span>
-<span class="fc" id="L87">				elementIterator.remove();</span>
-<span class="fc" id="L88">				continue;</span>
+<span class="fc" id="L86">		final var elementIterator = elements.iterator();</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">		while (elementIterator.hasNext()) {</span>
+<span class="fc" id="L88">			final var elementReference = elementIterator.next();</span>
+<span class="fc" id="L89">			final var element = elementReference.get();</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">			if (element == null) {</span>
+<span class="fc" id="L91">				elementIterator.remove();</span>
+<span class="fc" id="L92">				continue;</span>
 			}
 
-<span class="fc" id="L91">			final var optionalValue = visitor.apply(element);</span>
-<span class="fc bfc" id="L92" title="All 2 branches covered.">			if (optionalValue != null)</span>
-<span class="fc" id="L93">				return optionalValue;</span>
-<span class="fc" id="L94">		}</span>
+<span class="fc" id="L95">			final var optionalValue = visitor.apply(element);</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">			if (optionalValue != null)</span>
+<span class="fc" id="L97">				return optionalValue;</span>
+<span class="fc" id="L98">		}</span>
 
-<span class="fc" id="L96">		return visitor.apply(null);</span>
+<span class="fc" id="L100">		return visitor.apply(null);</span>
 	}
 
 	/**
@@ -103,8 +107,8 @@ public class IuVisitor&lt;T&gt; implements Consumer&lt;T&gt; {
 	 */
 	@Override
 	public void accept(T element) {
-<span class="fc" id="L106">		elements.add(new WeakReference&lt;&gt;(element));</span>
-<span class="fc" id="L107">	}</span>
+<span class="fc" id="L110">		elements.add(new WeakReference&lt;&gt;(element));</span>
+<span class="fc" id="L111">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
