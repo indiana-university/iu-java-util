@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PotentiallyRemoteAnnotationHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Type Introspection Module</a> &gt; <a href="index.source.html" class="el_package">iu.type</a> &gt; <span class="el_source">PotentiallyRemoteAnnotationHandler.java</span></div><h1>PotentiallyRemoteAnnotationHandler.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2023 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.type;
+
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Array;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.Arrays;
+import java.util.Objects;
+
+import edu.iu.IuException;
+import edu.iu.type.IuType;
+
+/**
+ * Handles remote bridge semantics for {@link AnnotationBridge}.
+ */
+class PotentiallyRemoteAnnotationHandler implements InvocationHandler {
+
+<span class="fc" id="L50">	private static final Method ANNOTATION_TYPE = IuException</span>
+<span class="fc" id="L51">			.unchecked(() -&gt; Annotation.class.getMethod(&quot;annotationType&quot;));</span>
+<span class="fc" id="L52">	private static final Method EQUALS = IuException.unchecked(() -&gt; Object.class.getMethod(&quot;equals&quot;, Object.class));</span>
+
+	private final Class&lt;? extends Annotation&gt; localAnnotationType;
+	private final Annotation potentiallyRemoteAnnotation;
+
+	/**
+	 * Constructor for use by {@link AnnotationBridge}.
+	 * 
+	 * @param localAnnotationType         local annotation type
+	 * @param potentiallyRemoteAnnotation potentially remote annotation
+	 */
+	PotentiallyRemoteAnnotationHandler(Class&lt;? extends Annotation&gt; localAnnotationType,
+<span class="fc" id="L64">			Annotation potentiallyRemoteAnnotation) {</span>
+<span class="fc" id="L65">		this.localAnnotationType = localAnnotationType;</span>
+<span class="fc" id="L66">		this.potentiallyRemoteAnnotation = potentiallyRemoteAnnotation;</span>
+<span class="fc" id="L67">	}</span>
+
+	@SuppressWarnings(&quot;unchecked&quot;)
+	private Object convert(Object o, Class&lt;?&gt; localClass) throws ClassNotFoundException {
+<span class="fc bfc" id="L71" title="All 2 branches covered.">		if (localClass.isInstance(o))</span>
+<span class="fc" id="L72">			return o;</span>
+
+<span class="fc bfc" id="L74" title="All 2 branches covered.">		if (Annotation.class.isAssignableFrom(localClass)) {</span>
+<span class="fc" id="L75">			var potentiallyRemoteClass = BackwardsCompatibility.getPotentiallyRemoteClass(localClass);</span>
+<span class="fc bfc" id="L76" title="All 4 branches covered.">			if (Annotation.class.isAssignableFrom(potentiallyRemoteClass) &amp;&amp; potentiallyRemoteClass.isInstance(o))</span>
+<span class="fc" id="L77">				return Proxy.newProxyInstance(localClass.getClassLoader(), new Class&lt;?&gt;[] { localClass },</span>
+<span class="fc" id="L78">						new PotentiallyRemoteAnnotationHandler(localClass.asSubclass(Annotation.class),</span>
+								(Annotation) o));
+		}
+
+<span class="fc bfc" id="L82" title="All 4 branches covered.">		if (localClass.isArray() &amp;&amp; o.getClass().isArray()) {</span>
+<span class="fc" id="L83">			var length = Array.getLength(o);</span>
+<span class="fc" id="L84">			var componentType = localClass.getComponentType();</span>
+<span class="fc" id="L85">			var convertedArray = Array.newInstance(componentType, length);</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">			for (int i = 0; i &lt; length; i++)</span>
+<span class="fc" id="L87">				Array.set(convertedArray, i, convert(Array.get(o, i), componentType));</span>
+<span class="fc" id="L88">			return convertedArray;</span>
+		}
+
+<span class="fc bfc" id="L91" title="All 4 branches covered.">		if (localClass.isEnum() &amp;&amp; o.getClass().isEnum())</span>
+<span class="fc" id="L92">			return Enum.valueOf(localClass.asSubclass(Enum.class), ((Enum&lt;?&gt;) o).name());</span>
+
+<span class="fc" id="L94">		throw new IllegalStateException(&quot;cannot convert &quot; + o + &quot; (&quot; + o.getClass().getName() + &quot;) to &quot; + localClass</span>
+				+ &quot;, handling legacy annotation &quot; + potentiallyRemoteAnnotation);
+	}
+
+	private boolean handleEquals(Object proxy, Object object) throws Throwable {
+<span class="fc bfc" id="L99" title="All 2 branches covered.">		if (potentiallyRemoteAnnotation.equals(object))</span>
+<span class="fc" id="L100">			return true;</span>
+
+<span class="fc bfc" id="L102" title="All 2 branches covered.">		if (!localAnnotationType.isInstance(object))</span>
+<span class="fc" id="L103">			return false;</span>
+
+<span class="fc bfc" id="L105" title="All 2 branches covered.">		for (var method : localAnnotationType.getDeclaredMethods())</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">			if (!Objects.equals(invoke(proxy, method, null), IuException.checkedInvocation(() -&gt; method.invoke(object))))</span>
+<span class="fc" id="L107">				return false;</span>
+<span class="fc" id="L108">		return true;</span>
+	}
+
+	@Override
+	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+<span class="fc" id="L113">		return TypeUtils.callWithContext(potentiallyRemoteAnnotation.annotationType(), () -&gt; {</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">			if (method.equals(ANNOTATION_TYPE))</span>
+<span class="fc" id="L115">				return localAnnotationType;</span>
+
+<span class="fc bfc" id="L117" title="All 2 branches covered.">			if (method.equals(EQUALS))</span>
+<span class="fc" id="L118">				return handleEquals(proxy, args[0]);</span>
+
+<span class="fc bfc" id="L120" title="All 2 branches covered.">			assert args == null : Arrays.toString(args);</span>
+<span class="fc" id="L121">			var potentiallyRemoteMethod = potentiallyRemoteAnnotation.annotationType().getMethod(method.getName());</span>
+<span class="fc" id="L122">			var potentiallyRemoteReturnValue = IuException</span>
+<span class="fc" id="L123">					.checkedInvocation(() -&gt; potentiallyRemoteMethod.invoke(potentiallyRemoteAnnotation));</span>
+<span class="fc" id="L124">			var returnType = IuType.of(method.getGenericReturnType()).autoboxClass();</span>
+
+<span class="fc" id="L126">			return convert(potentiallyRemoteReturnValue, returnType);</span>
+		});
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
