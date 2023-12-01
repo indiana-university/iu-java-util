@@ -303,7 +303,6 @@ public class ComponentArchiveTest extends IuTypeTestCase {
 			assertTrue(archive.webResources().isEmpty());
 			assertEquals("testcomponent", archive.properties().getProperty("remotableModules"));
 		}, Map.of( //
-				"META-INF/MANIFEST.MF", -1, //
 				"META-INF/maven/edu.iu.util/iu-java-type-testcomponent/pom.properties", 80, //
 				"META-INF/lib/", -1, //
 				"META-INF/iu-type.properties", 10, //
@@ -510,7 +509,6 @@ public class ComponentArchiveTest extends IuTypeTestCase {
 			}
 
 		}, Map.of( //
-				"META-INF/MANIFEST.MF", -1, //
 				"META-INF/maven/edu.iu.util/iu-java-type-testlegacy/pom.properties", 50, //
 				"META-INF/lib/", -1, //
 				"META-INF/lib/javax.json-api-1.1.4.jar", -1, //
