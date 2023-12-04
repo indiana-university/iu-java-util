@@ -231,7 +231,7 @@ public class IuComponentTest extends IuTypeTestCase {
 			var resources = component.resources().iterator();
 			assertTrue(resources.hasNext());
 			var resource = resources.next();
-			assertEquals("TestResource", resource.name());
+			assertEquals("testResource", resource.name());
 			// TODO: STARCH-653 Implement @AroundConstruct
 			assertThrows(UnsupportedOperationException.class, resource::get);
 			assertFalse(resources.hasNext());
@@ -295,7 +295,7 @@ public class IuComponentTest extends IuTypeTestCase {
 			var testsShouldBeEmpty = component.annotatedTypes(Test.class).iterator();
 			assertFalse(testsShouldBeEmpty.hasNext(), () -> testsShouldBeEmpty.next().name());
 
-			var expectedResources = new HashSet<>(Set.of("two", "LegacyResource", "index.jsp", "WEB-INF/web.xml"));
+			var expectedResources = new HashSet<>(Set.of("two", "legacyResource", "index.jsp", "WEB-INF/web.xml"));
 			for (final var r : component.resources())
 				assertTrue(expectedResources.remove(r.name()));
 			assertTrue(expectedResources.isEmpty(), expectedResources::toString);

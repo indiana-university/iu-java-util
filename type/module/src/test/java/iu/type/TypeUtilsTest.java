@@ -61,6 +61,13 @@ public class TypeUtilsTest extends IuTypeTestCase {
 	}
 
 	@Test
+	public void testCallWithPlatformContext() throws Throwable {
+		TypeUtils.callWithContext(null, () -> {
+			assertSame(ClassLoader.getPlatformClassLoader(), Thread.currentThread().getContextClassLoader());
+		});
+	}
+
+	@Test
 	public void testContextOfClass() throws ClassNotFoundException {
 		var c = LegacyContextSupport.get().loadClass("edu.iu.legacy.LegacyBean");
 		assertSame(LegacyContextSupport.get(), TypeUtils.getContext(c));

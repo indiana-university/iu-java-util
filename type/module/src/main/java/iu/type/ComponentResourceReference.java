@@ -31,8 +31,13 @@
  */
 package iu.type;
 
+import java.util.Map;
+import java.util.Optional;
+import java.util.WeakHashMap;
+
 import edu.iu.IuVisitor;
 import edu.iu.type.IuAttribute;
+import edu.iu.type.IuProperty;
 import edu.iu.type.IuResource;
 import edu.iu.type.IuResourceReference;
 import edu.iu.type.IuType;
@@ -49,6 +54,7 @@ class ComponentResourceReference<R, T> implements IuResourceReference<R, T> {
 	private final String name;
 	private final TypeTemplate<?, T> type;
 	private final IuAttribute<R, ? super T> attribute;
+	private final Map<R, Optional<T>> unboundValues = new WeakHashMap<>();
 	private final IuVisitor<R> visitor = new IuVisitor<>();
 	private volatile IuResource<T> boundResource;
 
@@ -56,14 +62,14 @@ class ComponentResourceReference<R, T> implements IuResourceReference<R, T> {
 	 * Constructor.
 	 * 
 	 * @param attribute facade for the attribute backing the resource
+	 * @param resource  resource annotation associated with the attribute
 	 */
 	@SuppressWarnings("unchecked")
-	ComponentResourceReference(DeclaredAttribute<R, ? super T> attribute) {
+	ComponentResourceReference(DeclaredAttribute<R, ? super T> attribute, Resource resource) {
 		this.attribute = attribute;
 
 		attribute.declaringType().template.observeNewInstances(this);
 
-		final var resource = attribute.annotation(Resource.class);
 		if (resource == null)
 			throw new IllegalArgumentException("Missing @Resource: " + attribute);
 
@@ -101,24 +107,48 @@ class ComponentResourceReference<R, T> implements IuResourceReference<R, T> {
 	}
 
 	@Override
+	public boolean isBound() {
+		return boundResource != null;
+	}
+
+	@Override
 	public synchronized void bind(IuResource<T> resource) {
-		if (!resource.name().equals(name()) //
-				|| !type().erasedClass().isAssignableFrom(resource.type().erasedClass()))
+		if (resource != null //
+				&& (!resource.name().equals(name()) //
+						|| !type().erasedClass().isAssignableFrom(resource.type().erasedClass())))
 			throw new IllegalArgumentException("Resource " + resource + " does not apply to " + this);
 
 		boundResource = resource;
 
 		visitor.visit(referrer -> {
-			if (referrer != null)
-				attribute.set(referrer, boundResource.get());
+			if (referrer != null) {
+				final T resourceValue;
+				if (boundResource == null)
+					if (unboundValues.containsKey(referrer))
+						resourceValue = unboundValues.get(referrer).orElse(null);
+					else
+						return null;
+				else
+					resourceValue = boundResource.get();
+
+				attribute.set(referrer, resourceValue);
+			}
 			return null;
 		});
 	}
 
 	@Override
 	public synchronized void accept(R referrer) {
+		if (visitor.visit(r -> r == referrer ? Optional.empty() : null) != null)
+			return;
+
+		if (!(attribute instanceof IuProperty property) //
+				|| property.canRead())
+			unboundValues.put(referrer, Optional.ofNullable(type.erasedClass().cast(attribute.get(referrer))));
+
 		if (boundResource != null)
 			attribute.set(referrer, boundResource.get());
+
 		visitor.accept(referrer);
 	}
 

@@ -45,6 +45,7 @@ import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.type.IuResourceKey;
 import edu.iu.type.IuType;
 import edu.iu.type.testresources.AnInterface;
 import edu.iu.type.testresources.AnInterfaceImpl;
@@ -74,7 +75,7 @@ public class ComponentResourceTest extends IuTypeTestCase {
 	}
 
 	private <T> ComponentResource<T> assertComponentResource(Class<T> type, Class<?> impl, Supplier<?> factory) {
-		return assertComponentResource(true, true, type.getSimpleName(), type, impl, factory);
+		return assertComponentResource(true, true, IuResourceKey.getDefaultResourceName(type), type, impl, factory);
 	}
 
 	private <T> ComponentResource<T> assertComponentResource(boolean needsAuthentication, boolean shared, String name,
@@ -181,7 +182,7 @@ public class ComponentResourceTest extends IuTypeTestCase {
 
 	@Test
 	public void testNonSharedResource() {
-		assertComponentResource(false, false, "NonSharedResource", NonSharedResource.class, NonSharedResource.class,
+		assertComponentResource(false, false, "nonSharedResource", NonSharedResource.class, NonSharedResource.class,
 				NonSharedResource::new);
 	}
 
@@ -193,7 +194,7 @@ public class ComponentResourceTest extends IuTypeTestCase {
 		assertTrue(resourceIterator.hasNext());
 		var resource = resourceIterator.next();
 		resource.factory(MultiResource::new);
-		assertComponentResource(true, true, "MultiResource", MultiResource.class, resource);
+		assertComponentResource(true, true, "multiResource", MultiResource.class, resource);
 
 		assertTrue(resourceIterator.hasNext());
 		resource = resourceIterator.next();
@@ -226,7 +227,7 @@ public class ComponentResourceTest extends IuTypeTestCase {
 		class ToStringResource {
 		}
 		assertEquals(
-				"ComponentResource [needsAuthentication=true, shared=true, name=ToStringResource, type=IuType[ToStringResource]]",
+				"ComponentResource [needsAuthentication=true, shared=true, name=toStringResource, type=IuType[ToStringResource]]",
 				ComponentResource.getResources(ToStringResource.class).iterator().next().toString());
 	}
 

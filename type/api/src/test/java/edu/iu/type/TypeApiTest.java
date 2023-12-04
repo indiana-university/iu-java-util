@@ -42,7 +42,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.beans.Transient;
-import java.lang.annotation.Documented;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -90,21 +89,6 @@ public class TypeApiTest {
 		}
 		assertEquals(DefaultInterceptor.Scope.MODULE,
 				IsADefaultInterceptor.class.getAnnotation(DefaultInterceptor.class).scope());
-	}
-
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	@Test
-	public void testAnnotations() {
-		@DefaultInterceptor
-		class IsAnnotated {
-		}
-		var annotation = IsAnnotated.class.getAnnotation(DefaultInterceptor.class);
-		var annotatedElement = IuTest.mockWithDefaults(IuAnnotatedElement.class);
-		when(annotatedElement.annotations()).thenReturn((List) List.of(annotation));
-		assertTrue(annotatedElement.hasAnnotation(DefaultInterceptor.class));
-		assertFalse(annotatedElement.hasAnnotation(Documented.class));
-		assertSame(annotation, annotatedElement.annotation(DefaultInterceptor.class));
-		assertNull(annotatedElement.annotation(Documented.class));
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -164,7 +148,6 @@ public class TypeApiTest {
 		assertFalse(property.serializable());
 	}
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Test
 	public void testTransientProperty() {
 		var property = IuTest.mockWithDefaults(IuProperty.class);
@@ -173,8 +156,7 @@ public class TypeApiTest {
 		when(property.declaringType()).thenReturn(type);
 
 		var read = IuTest.mockWithDefaults(IuMethod.class);
-		var transientAnnotation = IuTest.mockWithDefaults(Transient.class);
-		when(read.annotations()).thenReturn((List) List.of(transientAnnotation));
+		when(read.hasAnnotation(Transient.class)).thenReturn(true);
 		when(property.read()).thenReturn(read);
 
 		var write = IuTest.mockWithDefaults(IuMethod.class);
@@ -388,6 +370,174 @@ public class TypeApiTest {
 		when(p.read()).thenReturn(drm);
 		when(p.write()).thenReturn(dwm);
 		assertFalse(p.permitted());
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	@Test
+	public void testPropertyAnnotationOnBothReadAndWriteAndNotEqual() {
+		final var read = IuTest.mockWithDefaults(IuMethod.class);
+		final var readTransient = mock(Transient.class);
+		final var readAnnotations = List.of(readTransient);
+		when(read.hasAnnotation(Transient.class)).thenReturn(true);
+		when(read.annotation(Transient.class)).thenReturn(readTransient);
+		when(read.annotations()).thenReturn((List) readAnnotations);
+
+		final var write = IuTest.mockWithDefaults(IuMethod.class);
+		final var writeTransient = mock(Transient.class);
+		final var writeAnnotations = List.of(writeTransient);
+		when(write.hasAnnotation(Transient.class)).thenReturn(true);
+		when(write.annotation(Transient.class)).thenReturn(writeTransient);
+		when(write.annotations()).thenReturn((List) writeAnnotations);
+
+		final var prop = IuTest.mockWithDefaults(IuProperty.class);
+		when(prop.read()).thenReturn(read);
+		when(prop.write()).thenReturn(write);
+
+		final var annotationIterator = prop.annotations().iterator();
+		assertTrue(annotationIterator.hasNext());
+		assertSame(writeTransient, annotationIterator.next());
+		assertTrue(annotationIterator.hasNext());
+		assertSame(readTransient, annotationIterator.next());
+		assertFalse(annotationIterator.hasNext());
+
+		assertTrue(prop.hasAnnotation(Transient.class));
+		assertEquals(prop + " defines unequal values for @interface java.beans.Transient on both read and write methods",
+				assertThrows(IllegalArgumentException.class, () -> prop.annotation(Transient.class)).getMessage());
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	@Test
+	public void testPropertyAnnotationOnBothReadAndWriteAndEqual() {
+		final var mockTransient = mock(Transient.class);
+		final var mockAnnotations = List.of(mockTransient);
+		
+		final var read = IuTest.mockWithDefaults(IuMethod.class);
+		when(read.hasAnnotation(Transient.class)).thenReturn(true);
+		when(read.annotation(Transient.class)).thenReturn(mockTransient);
+		when(read.annotations()).thenReturn((List) mockAnnotations);
+
+		final var write = IuTest.mockWithDefaults(IuMethod.class);
+		when(write.hasAnnotation(Transient.class)).thenReturn(true);
+		when(write.annotation(Transient.class)).thenReturn(mockTransient);
+		when(write.annotations()).thenReturn((List) mockAnnotations);
+
+		final var prop = IuTest.mockWithDefaults(IuProperty.class);
+		when(prop.read()).thenReturn(read);
+		when(prop.write()).thenReturn(write);
+
+		final var annotationIterator = prop.annotations().iterator();
+		assertTrue(annotationIterator.hasNext());
+		assertSame(mockTransient, annotationIterator.next());
+		assertTrue(annotationIterator.hasNext());
+		assertSame(mockTransient, annotationIterator.next());
+		assertFalse(annotationIterator.hasNext());
+
+		assertTrue(prop.hasAnnotation(Transient.class));
+		assertSame(mockTransient, prop.annotation(Transient.class));
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	@Test
+	public void testPropertyAnnotationOnReadOnly() {
+		final var mockTransient = mock(Transient.class);
+		final var mockAnnotations = List.of(mockTransient);
+		
+		final var read = IuTest.mockWithDefaults(IuMethod.class);
+		when(read.hasAnnotation(Transient.class)).thenReturn(true);
+		when(read.annotation(Transient.class)).thenReturn(mockTransient);
+		when(read.annotations()).thenReturn((List) mockAnnotations);
+
+		final var write = IuTest.mockWithDefaults(IuMethod.class);
+		when(write.hasAnnotation(Transient.class)).thenReturn(false);
+		when(write.annotation(Transient.class)).thenReturn(null);
+		when(write.annotations()).thenReturn(List.of());
+
+		final var prop = IuTest.mockWithDefaults(IuProperty.class);
+		when(prop.read()).thenReturn(read);
+		when(prop.write()).thenReturn(write);
+
+		final var annotationIterator = prop.annotations().iterator();
+		assertTrue(annotationIterator.hasNext());
+		assertSame(mockTransient, annotationIterator.next());
+		assertFalse(annotationIterator.hasNext());
+
+		assertTrue(prop.hasAnnotation(Transient.class));
+		assertSame(mockTransient, prop.annotation(Transient.class));
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	@Test
+	public void testPropertyAnnotationOnWriteOnly() {
+		final var mockTransient = mock(Transient.class);
+		final var mockAnnotations = List.of(mockTransient);
+		
+		final var read = IuTest.mockWithDefaults(IuMethod.class);
+		when(read.hasAnnotation(Transient.class)).thenReturn(false);
+		when(read.annotation(Transient.class)).thenReturn(null);
+		when(read.annotations()).thenReturn(List.of());
+
+		final var write = IuTest.mockWithDefaults(IuMethod.class);
+		when(write.hasAnnotation(Transient.class)).thenReturn(true);
+		when(write.annotation(Transient.class)).thenReturn(mockTransient);
+		when(write.annotations()).thenReturn((List) mockAnnotations);
+
+		final var prop = IuTest.mockWithDefaults(IuProperty.class);
+		when(prop.read()).thenReturn(read);
+		when(prop.write()).thenReturn(write);
+
+		final var annotationIterator = prop.annotations().iterator();
+		assertTrue(annotationIterator.hasNext());
+		assertSame(mockTransient, annotationIterator.next());
+		assertFalse(annotationIterator.hasNext());
+
+		assertTrue(prop.hasAnnotation(Transient.class));
+		assertSame(mockTransient, prop.annotation(Transient.class));
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	@Test
+	public void testAnnotationOnReadOnlyProperty() {
+		final var mockTransient = mock(Transient.class);
+		final var mockAnnotations = List.of(mockTransient);
+		
+		final var read = IuTest.mockWithDefaults(IuMethod.class);
+		when(read.hasAnnotation(Transient.class)).thenReturn(true);
+		when(read.annotation(Transient.class)).thenReturn(mockTransient);
+		when(read.annotations()).thenReturn((List) mockAnnotations);
+
+		final var prop = IuTest.mockWithDefaults(IuProperty.class);
+		when(prop.read()).thenReturn(read);
+
+		final var annotationIterator = prop.annotations().iterator();
+		assertTrue(annotationIterator.hasNext());
+		assertSame(mockTransient, annotationIterator.next());
+		assertFalse(annotationIterator.hasNext());
+
+		assertTrue(prop.hasAnnotation(Transient.class));
+		assertSame(mockTransient, prop.annotation(Transient.class));
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	@Test
+	public void testAnnotationOnWriteOnlyProperty() {
+		final var mockTransient = mock(Transient.class);
+		final var mockAnnotations = List.of(mockTransient);
+		
+		final var write = IuTest.mockWithDefaults(IuMethod.class);
+		when(write.hasAnnotation(Transient.class)).thenReturn(true);
+		when(write.annotation(Transient.class)).thenReturn(mockTransient);
+		when(write.annotations()).thenReturn((List) mockAnnotations);
+
+		final var prop = IuTest.mockWithDefaults(IuProperty.class);
+		when(prop.write()).thenReturn(write);
+
+		final var annotationIterator = prop.annotations().iterator();
+		assertTrue(annotationIterator.hasNext());
+		assertSame(mockTransient, annotationIterator.next());
+		assertFalse(annotationIterator.hasNext());
+
+		assertTrue(prop.hasAnnotation(Transient.class));
+		assertSame(mockTransient, prop.annotation(Transient.class));
 	}
 
 	@Test

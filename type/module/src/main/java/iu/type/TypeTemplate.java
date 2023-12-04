@@ -515,6 +515,12 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 	}
 
 	@Override
+	@SuppressWarnings("unchecked")
+	public <P> PropertyFacade<? super T, P> property(String name) {
+		return (PropertyFacade<? super T, P>) IuType.super.property(name);
+	}
+
+	@Override
 	public Iterable<PropertyFacade<? super T, ?>> properties() {
 		if (properties == null)
 			throw new IllegalStateException("properties not sealed");

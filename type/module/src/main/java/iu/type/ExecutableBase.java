@@ -42,6 +42,7 @@ import java.util.Map;
 
 import edu.iu.type.IuExecutable;
 import edu.iu.type.IuExecutableKey;
+import edu.iu.type.IuNamedElement;
 
 /**
  * Facade implementation for an {@link Executable}.
@@ -137,6 +138,8 @@ abstract sealed class ExecutableBase<D, R, E extends Executable> extends Declare
 
 		var sb = new StringBuilder();
 		sb.append(TypeUtils.printType(declaringType.deref()));
+		if (this instanceof IuNamedElement named)
+			sb.append('.').append(named.name());
 		sb.append('(');
 		var l = sb.length();
 		for (var p : parameters) {

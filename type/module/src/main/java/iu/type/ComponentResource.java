@@ -39,6 +39,7 @@ import java.util.function.Supplier;
 
 import edu.iu.IuException;
 import edu.iu.type.IuResource;
+import edu.iu.type.IuResourceKey;
 import edu.iu.type.IuType;
 import jakarta.annotation.Resource;
 import jakarta.annotation.Resource.AuthenticationType;
@@ -113,7 +114,7 @@ class ComponentResource<T> implements IuResource<T> {
 
 		final String name;
 		if (resource.name().isEmpty())
-			name = type.erasedClass().getSimpleName();
+			name = IuResourceKey.getDefaultResourceName(type.erasedClass());
 		else
 			name = resource.name();
 

@@ -80,8 +80,6 @@ public class ComponentTest extends IuTypeTestCase {
 		when(archive.path()).thenReturn(path);
 
 		var loader = spy(new URLClassLoader(new URL[0]));
-		IuTestLogger.expect("iu.type.Component", Level.FINEST,
-				"Resource annotation not available in scanned ClassLoader", ClassNotFoundException.class);
 		var component = new Component(null, loader, new ArrayDeque<>(List.of(archive)));
 		try (var mockFiles = mockStatic(Files.class)) {
 			component.close();
@@ -118,8 +116,6 @@ public class ComponentTest extends IuTypeTestCase {
 		var loader = spy(new URLClassLoader(new URL[0]));
 		doThrow(error).when(loader).close();
 
-		IuTestLogger.expect("iu.type.Component", Level.FINEST,
-				"Resource annotation not available in scanned ClassLoader", ClassNotFoundException.class);
 		var component = new Component(null, loader, new ArrayDeque<>(List.of(archive)));
 
 		try (var mockFiles = mockStatic(Files.class)) {
@@ -142,8 +138,6 @@ public class ComponentTest extends IuTypeTestCase {
 		var loader = spy(new URLClassLoader(new URL[0]));
 		doThrow(error).when(loader).close();
 
-		IuTestLogger.expect("iu.type.Component", Level.FINEST,
-				"Resource annotation not available in scanned ClassLoader", ClassNotFoundException.class);
 		final var temp = Files.createTempDirectory(Path.of("target"), "iu-type-ComponentTest");
 		try (final var component = new Component(loader, temp)) {
 			assertFalse(component.annotatedAttributes(Resource.class).iterator().hasNext());

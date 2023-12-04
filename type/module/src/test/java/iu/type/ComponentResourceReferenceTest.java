@@ -32,9 +32,15 @@
 package iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
@@ -46,15 +52,24 @@ import edu.iu.type.testresources.HasNamedTypedResourceRef;
 import edu.iu.type.testresources.HasNoResourceRef;
 import edu.iu.type.testresources.HasResourceRef;
 import edu.iu.type.testresources.HasTypedResourceRef;
+import jakarta.annotation.Resource;
 
 @SuppressWarnings("javadoc")
 public class ComponentResourceReferenceTest extends IuTypeTestCase {
 
+	private ComponentResourceReference<?, ?> fieldRef(Class<?> referrer, String name) {
+		final var field = TypeFactory.resolveRawClass(referrer).field(name);
+		return new ComponentResourceReference<>(field, field.annotation(Resource.class));
+	}
+
+	private ComponentResourceReference<?, ?> setterRef(Class<?> referrer, String name) {
+		final var property = TypeFactory.resolveRawClass(referrer).property(name);
+		return new ComponentResourceReference<>(property, property.annotation(Resource.class));
+	}
+
 	@Test
 	public void testUnbound() {
-
-		final var ref = new ComponentResourceReference<>(
-				TypeFactory.resolveRawClass(HasResourceRef.class).field("resource"));
+		final var ref = fieldRef(HasResourceRef.class, "resource");
 		assertEquals("resource", ref.name());
 		assertEquals(TypeFactory.resolveRawClass(Object.class), ref.type());
 		assertEquals(HasResourceRef.class, ref.referrerType().erasedClass());
@@ -66,21 +81,20 @@ public class ComponentResourceReferenceTest extends IuTypeTestCase {
 	@Test
 	public void testMustBeAnnotated() {
 		assertEquals("Missing @Resource: HasNoResourceRef#resource:Object",
-				assertThrows(IllegalArgumentException.class, () -> new ComponentResourceReference<>(
-						TypeFactory.resolveRawClass(HasNoResourceRef.class).field("resource"))).getMessage());
+				assertThrows(IllegalArgumentException.class, () -> fieldRef(HasNoResourceRef.class, "resource"))
+						.getMessage());
 	}
 
 	@Test
 	public void testMustBeAssignable() {
 		assertEquals("attribute HasInvalidResourceRef#resource:Number is not assignable from IuType[String]",
-				assertThrows(IllegalArgumentException.class, () -> new ComponentResourceReference<>(
-						TypeFactory.resolveRawClass(HasInvalidResourceRef.class).field("resource"))).getMessage());
+				assertThrows(IllegalArgumentException.class, () -> fieldRef(HasInvalidResourceRef.class, "resource"))
+						.getMessage());
 	}
 
 	@Test
 	public void testSetsNameAndType() {
-		final var ref = new ComponentResourceReference<>(
-				TypeFactory.resolveRawClass(HasNamedTypedResourceRef.class).field("resource"));
+		final var ref = fieldRef(HasNamedTypedResourceRef.class, "resource");
 		assertEquals("foo", ref.name());
 		assertEquals(TypeFactory.resolveRawClass(Number.class), ref.type());
 		assertEquals(HasNamedTypedResourceRef.class, ref.referrerType().erasedClass());
@@ -92,27 +106,84 @@ public class ComponentResourceReferenceTest extends IuTypeTestCase {
 	@Test
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public void testBind() throws Exception {
-		final var ref = new ComponentResourceReference<>(
-				TypeFactory.resolveRawClass(HasResourceRef.class).field("resource"));
+		final var ref = fieldRef(HasResourceRef.class, "resource");
 		final var value = new Object();
 		final var refer1 = TypeFactory.resolveRawClass(HasResourceRef.class).constructor().exec();
+		assertNull(refer1.resource);
 
 		final var resource = mock(IuResource.class);
 		when(resource.name()).thenReturn("resource");
 		when(resource.type()).thenReturn((IuType) TypeFactory.resolveRawClass(Object.class));
 		when(resource.get()).thenReturn(value);
+		assertFalse(ref.isBound());
 		ref.bind(resource);
+		assertTrue(ref.isBound());
 		assertSame(value, refer1.resource);
 
 		final var refer2 = TypeFactory.resolveRawClass(HasResourceRef.class).constructor().exec();
 		assertSame(value, refer2.resource);
+
+		ref.bind(null);
+		assertFalse(ref.isBound());
+		assertNull(refer1.resource);
+		assertNull(refer2.resource);
+	}
+
+	@Test
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	public void testBindBySetter() throws Exception {
+		final ComponentResourceReference ref = setterRef(HasResourceRef.class, "propResource");
+		final var value = new Object();
+		final var refer1 = TypeFactory.resolveRawClass(HasResourceRef.class).constructor().exec();
+		assertNull(refer1.propResource);
+
+		final var resource = mock(IuResource.class);
+		when(resource.name()).thenReturn("propResource");
+		when(resource.type()).thenReturn((IuType) TypeFactory.resolveRawClass(Object.class));
+		when(resource.get()).thenReturn(value);
+		ref.bind(resource);
+		assertSame(value, refer1.propResource);
+
+		final var refer2 = TypeFactory.resolveRawClass(HasResourceRef.class).constructor().exec();
+		assertSame(value, refer2.propResource);
+		
+		// refer2 was already accepted by TypeTemplate, verify not accepted twice
+		final var refer2spy = spy(refer2);
+		ref.accept(refer2);
+		verify(refer2spy, never()).setPropResource(value);
+
+		ref.bind(null);
+		assertNull(refer1.propResource);
+		assertNull(refer2.propResource);
+	}
+
+	@Test
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	public void testBindBySetterNoGetter() throws Exception {
+		final var ref = setterRef(HasResourceRef.class, "setterResource");
+		final var value = new Object();
+		final var refer1 = TypeFactory.resolveRawClass(HasResourceRef.class).constructor().exec();
+		assertNull(refer1.setterResource);
+
+		final var resource = mock(IuResource.class);
+		when(resource.name()).thenReturn("setterResource");
+		when(resource.type()).thenReturn((IuType) TypeFactory.resolveRawClass(Object.class));
+		when(resource.get()).thenReturn(value);
+		ref.bind(resource);
+		assertSame(value, refer1.setterResource);
+
+		final var refer2 = TypeFactory.resolveRawClass(HasResourceRef.class).constructor().exec();
+		assertSame(value, refer2.setterResource);
+
+		ref.bind(null); // does not clear w/o getter
+		assertSame(value, refer1.setterResource);
+		assertSame(value, refer2.setterResource);
 	}
 
 	@Test
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public void testBindRequiresNameMatch() {
-		final var ref = new ComponentResourceReference<>(
-				TypeFactory.resolveRawClass(HasResourceRef.class).field("resource"));
+		final var ref = fieldRef(HasResourceRef.class, "resource");
 		final var resource = mock(IuResource.class);
 		when(resource.name()).thenReturn("foo");
 		when(resource.type()).thenReturn((IuType) TypeFactory.resolveRawClass(Object.class));
@@ -124,8 +195,7 @@ public class ComponentResourceReferenceTest extends IuTypeTestCase {
 	@Test
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public void testBindRequiresSuperType() {
-		final var ref = new ComponentResourceReference<>(
-				TypeFactory.resolveRawClass(HasTypedResourceRef.class).field("resource"));
+		final var ref = fieldRef(HasTypedResourceRef.class, "resource");
 		final var resource = mock(IuResource.class);
 		when(resource.name()).thenReturn("resource");
 		when(resource.type()).thenReturn((IuType) TypeFactory.resolveRawClass(String.class));

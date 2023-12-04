@@ -56,8 +56,6 @@ public class IuComponentIT {
 
 	@Test
 	public void testScan() {
-		IuTestLogger.expect("iu.type.Component", Level.FINEST,
-				"Resource annotation not available in scanned ClassLoader", ClassNotFoundException.class);
 		IuComponent component = IuComponent.scan(getClass());
 		assertEquals(Kind.LEGACY_ENTRY, component.kind());
 	}

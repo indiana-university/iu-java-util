@@ -38,7 +38,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import edu.iu.type.DefaultInterceptor;
 import edu.iu.type.IuType;
 import jakarta.annotation.Resource;
 import jakarta.json.bind.Jsonb;
