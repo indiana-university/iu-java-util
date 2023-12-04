@@ -42,6 +42,7 @@ import java.util.Map;
 
 import edu.iu.type.IuExecutable;
 import edu.iu.type.IuExecutableKey;
+import edu.iu.type.IuNamedElement;
 
 /**
  * Facade implementation for an {@link Executable}.
@@ -53,7 +54,7 @@ import edu.iu.type.IuExecutableKey;
 abstract sealed class ExecutableBase&lt;D, R, E extends Executable&gt; extends DeclaredElementBase&lt;D, E&gt;
 		implements IuExecutable&lt;D, R&gt;, ParameterizedFacade permits ConstructorFacade, MethodFacade {
 
-<span class="fc" id="L56">	private final ParameterizedElement parameterizedElement = new ParameterizedElement();</span>
+<span class="fc" id="L57">	private final ParameterizedElement parameterizedElement = new ParameterizedElement();</span>
 	private final IuExecutableKey key;
 	private final List&lt;ParameterFacade&lt;?&gt;&gt; parameters;
 
@@ -67,85 +68,87 @@ abstract sealed class ExecutableBase&lt;D, R, E extends Executable&gt; extends D
 	 *                              executable
 	 */
 	ExecutableBase(E executable, Type type, TypeTemplate&lt;?, D&gt; declaringTypeTemplate) {
-<span class="fc" id="L70">		super(executable, type, declaringTypeTemplate);</span>
+<span class="fc" id="L71">		super(executable, type, declaringTypeTemplate);</span>
 
 		final String name;
-<span class="fc bfc" id="L73" title="All 2 branches covered.">		if (executable instanceof Method)</span>
-<span class="fc" id="L74">			name = ((Method) executable).getName();</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">		if (executable instanceof Method)</span>
+<span class="fc" id="L75">			name = ((Method) executable).getName();</span>
 		else
-<span class="fc" id="L76">			name = null;</span>
-<span class="fc" id="L77">		this.key = IuExecutableKey.of(name, executable.getParameterTypes());</span>
+<span class="fc" id="L77">			name = null;</span>
+<span class="fc" id="L78">		this.key = IuExecutableKey.of(name, executable.getParameterTypes());</span>
 
-<span class="fc" id="L79">		List&lt;ParameterFacade&lt;?&gt;&gt; parameters = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L80">		this.parameters = Collections.unmodifiableList(parameters);</span>
+<span class="fc" id="L80">		List&lt;ParameterFacade&lt;?&gt;&gt; parameters = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L81">		this.parameters = Collections.unmodifiableList(parameters);</span>
 
-<span class="fc" id="L82">		final var allParameters = executable.getParameters();</span>
-<span class="fc" id="L83">		final var parameterCount = allParameters.length;</span>
+<span class="fc" id="L83">		final var allParameters = executable.getParameters();</span>
+<span class="fc" id="L84">		final var parameterCount = allParameters.length;</span>
 
-<span class="fc" id="L85">		final var genericParameterTypes = executable.getGenericParameterTypes();</span>
-<span class="fc" id="L86">		final var genericParameterCount = genericParameterTypes.length;</span>
-<span class="fc" id="L87">		final var nonGenericParameterCount = parameterCount - genericParameterCount;</span>
+<span class="fc" id="L86">		final var genericParameterTypes = executable.getGenericParameterTypes();</span>
+<span class="fc" id="L87">		final var genericParameterCount = genericParameterTypes.length;</span>
+<span class="fc" id="L88">		final var nonGenericParameterCount = parameterCount - genericParameterCount;</span>
 
-<span class="fc bfc" id="L89" title="All 2 branches covered.">		for (var parameterIndex = 0; parameterIndex &lt; parameterCount; parameterIndex++) {</span>
-<span class="fc" id="L90">			final var parameter = allParameters[parameterIndex];</span>
-<span class="fc" id="L91">			final var genericParameterIndex = parameterIndex - nonGenericParameterCount;</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">		for (var parameterIndex = 0; parameterIndex &lt; parameterCount; parameterIndex++) {</span>
+<span class="fc" id="L91">			final var parameter = allParameters[parameterIndex];</span>
+<span class="fc" id="L92">			final var genericParameterIndex = parameterIndex - nonGenericParameterCount;</span>
 
 			TypeTemplate&lt;?, ?&gt; paramTypeTemplate;
-<span class="fc bfc" id="L94" title="All 2 branches covered.">			if (genericParameterIndex &gt;= 0)</span>
-<span class="fc" id="L95">				paramTypeTemplate = TypeFactory.resolveType(genericParameterTypes[genericParameterIndex]);</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">			if (genericParameterIndex &gt;= 0)</span>
+<span class="fc" id="L96">				paramTypeTemplate = TypeFactory.resolveType(genericParameterTypes[genericParameterIndex]);</span>
 			else
-<span class="fc" id="L97">				paramTypeTemplate = TypeFactory.resolveType(parameter.getParameterizedType());</span>
+<span class="fc" id="L98">				paramTypeTemplate = TypeFactory.resolveType(parameter.getParameterizedType());</span>
 
-<span class="fc" id="L99">			parameters.add(new ParameterFacade&lt;&gt;(parameter, parameters.size(), this, paramTypeTemplate));</span>
+<span class="fc" id="L100">			parameters.add(new ParameterFacade&lt;&gt;(parameter, parameters.size(), this, paramTypeTemplate));</span>
 		}
 
-<span class="fc" id="L102">		declaringTypeTemplate.postInit(() -&gt; parameterizedElement.apply(declaringTypeTemplate.typeParameters()));</span>
-<span class="fc" id="L103">	}</span>
+<span class="fc" id="L103">		declaringTypeTemplate.postInit(() -&gt; parameterizedElement.apply(declaringTypeTemplate.typeParameters()));</span>
+<span class="fc" id="L104">	}</span>
 
 	@Override
 	void seal() {
-<span class="fc" id="L107">		parameterizedElement.seal(annotatedElement, this);</span>
-<span class="fc" id="L108">		super.seal();</span>
-<span class="fc" id="L109">	}</span>
+<span class="fc" id="L108">		parameterizedElement.seal(annotatedElement, this);</span>
+<span class="fc" id="L109">		super.seal();</span>
+<span class="fc" id="L110">	}</span>
 
 	@Override
 	public IuExecutableKey getKey() {
-<span class="fc" id="L113">		return key;</span>
+<span class="fc" id="L114">		return key;</span>
 	}
 
 	@Override
 	public Map&lt;String, TypeFacade&lt;?, ?&gt;&gt; typeParameters() {
-<span class="fc" id="L118">		checkSealed();</span>
-<span class="fc" id="L119">		return parameterizedElement.typeParameters();</span>
+<span class="fc" id="L119">		checkSealed();</span>
+<span class="fc" id="L120">		return parameterizedElement.typeParameters();</span>
 	}
 
 	@Override
 	public TypeFacade&lt;?, ?&gt; typeParameter(String name) {
-<span class="fc" id="L124">		checkSealed();</span>
-<span class="fc" id="L125">		return parameterizedElement.typeParameter(name);</span>
+<span class="fc" id="L125">		checkSealed();</span>
+<span class="fc" id="L126">		return parameterizedElement.typeParameter(name);</span>
 	}
 
 	@Override
 	public List&lt;ParameterFacade&lt;?&gt;&gt; parameters() {
-<span class="fc" id="L130">		return parameters;</span>
+<span class="fc" id="L131">		return parameters;</span>
 	}
 
 	@Override
 	public String toString() {
-<span class="fc bfc" id="L135" title="All 2 branches covered.">		if (declaringType == null)</span>
-<span class="fc" id="L136">			return &quot;&lt;uninitialized&gt;&quot;;</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">		if (declaringType == null)</span>
+<span class="fc" id="L137">			return &quot;&lt;uninitialized&gt;&quot;;</span>
 
-<span class="fc" id="L138">		var sb = new StringBuilder();</span>
-<span class="fc" id="L139">		sb.append(TypeUtils.printType(declaringType.deref()));</span>
-<span class="fc" id="L140">		sb.append('(');</span>
-<span class="fc" id="L141">		var l = sb.length();</span>
-<span class="fc bfc" id="L142" title="All 2 branches covered.">		for (var p : parameters) {</span>
-<span class="fc bfc" id="L143" title="All 2 branches covered.">			if (l &lt; sb.length())</span>
-<span class="fc" id="L144">				sb.append(',');</span>
-<span class="fc" id="L145">			sb.append(TypeUtils.printType(p.type().deref()));</span>
-<span class="fc" id="L146">		}</span>
-<span class="fc" id="L147">		sb.append(')');</span>
-<span class="fc" id="L148">		return sb.toString();</span>
+<span class="fc" id="L139">		var sb = new StringBuilder();</span>
+<span class="fc" id="L140">		sb.append(TypeUtils.printType(declaringType.deref()));</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">		if (this instanceof IuNamedElement named)</span>
+<span class="fc" id="L142">			sb.append('.').append(named.name());</span>
+<span class="fc" id="L143">		sb.append('(');</span>
+<span class="fc" id="L144">		var l = sb.length();</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">		for (var p : parameters) {</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">			if (l &lt; sb.length())</span>
+<span class="fc" id="L147">				sb.append(',');</span>
+<span class="fc" id="L148">			sb.append(TypeUtils.printType(p.type().deref()));</span>
+<span class="fc" id="L149">		}</span>
+<span class="fc" id="L150">		sb.append(')');</span>
+<span class="fc" id="L151">		return sb.toString();</span>
 	}
 
 }

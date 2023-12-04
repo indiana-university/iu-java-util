@@ -31,8 +31,13 @@
  */
 package iu.type;
 
+import java.util.Map;
+import java.util.Optional;
+import java.util.WeakHashMap;
+
 import edu.iu.IuVisitor;
 import edu.iu.type.IuAttribute;
+import edu.iu.type.IuProperty;
 import edu.iu.type.IuResource;
 import edu.iu.type.IuResourceReference;
 import edu.iu.type.IuType;
@@ -49,82 +54,107 @@ class ComponentResourceReference&lt;R, T&gt; implements IuResourceReference&lt;R
 	private final String name;
 	private final TypeTemplate&lt;?, T&gt; type;
 	private final IuAttribute&lt;R, ? super T&gt; attribute;
-<span class="fc" id="L52">	private final IuVisitor&lt;R&gt; visitor = new IuVisitor&lt;&gt;();</span>
+<span class="fc" id="L57">	private final Map&lt;R, Optional&lt;T&gt;&gt; unboundValues = new WeakHashMap&lt;&gt;();</span>
+<span class="fc" id="L58">	private final IuVisitor&lt;R&gt; visitor = new IuVisitor&lt;&gt;();</span>
 	private volatile IuResource&lt;T&gt; boundResource;
 
 	/**
 	 * Constructor.
 	 * 
 	 * @param attribute facade for the attribute backing the resource
+	 * @param resource  resource annotation associated with the attribute
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
-<span class="fc" id="L61">	ComponentResourceReference(DeclaredAttribute&lt;R, ? super T&gt; attribute) {</span>
-<span class="fc" id="L62">		this.attribute = attribute;</span>
+<span class="fc" id="L68">	ComponentResourceReference(DeclaredAttribute&lt;R, ? super T&gt; attribute, Resource resource) {</span>
+<span class="fc" id="L69">		this.attribute = attribute;</span>
 
-<span class="fc" id="L64">		attribute.declaringType().template.observeNewInstances(this);</span>
+<span class="fc" id="L71">		attribute.declaringType().template.observeNewInstances(this);</span>
 
-<span class="fc" id="L66">		final var resource = attribute.annotation(Resource.class);</span>
-<span class="fc bfc" id="L67" title="All 2 branches covered.">		if (resource == null)</span>
-<span class="fc" id="L68">			throw new IllegalArgumentException(&quot;Missing @Resource: &quot; + attribute);</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">		if (resource == null)</span>
+<span class="fc" id="L74">			throw new IllegalArgumentException(&quot;Missing @Resource: &quot; + attribute);</span>
 
-<span class="fc" id="L70">		String name = resource.name();</span>
-<span class="fc bfc" id="L71" title="All 2 branches covered.">		if (name.isEmpty())</span>
-<span class="fc" id="L72">			name = attribute.name();</span>
-<span class="fc" id="L73">		this.name = name;</span>
+<span class="fc" id="L76">		String name = resource.name();</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">		if (name.isEmpty())</span>
+<span class="fc" id="L78">			name = attribute.name();</span>
+<span class="fc" id="L79">		this.name = name;</span>
 
 		TypeTemplate&lt;?, T&gt; type;
-<span class="fc bfc" id="L76" title="All 2 branches covered.">		if (resource.type() != Object.class)</span>
-<span class="fc" id="L77">			type = TypeFactory.resolveRawClass((Class&lt;T&gt;) resource.type());</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">		if (resource.type() != Object.class)</span>
+<span class="fc" id="L83">			type = TypeFactory.resolveRawClass((Class&lt;T&gt;) resource.type());</span>
 		else
-<span class="fc" id="L79">			type = (TypeTemplate&lt;?, T&gt;) attribute.type().template;</span>
+<span class="fc" id="L85">			type = (TypeTemplate&lt;?, T&gt;) attribute.type().template;</span>
 
-<span class="fc" id="L81">		final var erased = type.erasedClass();</span>
-<span class="fc bfc" id="L82" title="All 2 branches covered.">		if (!attribute.type().erasedClass().isAssignableFrom(erased))</span>
-<span class="fc" id="L83">			throw new IllegalArgumentException(&quot;attribute &quot; + attribute + &quot; is not assignable from &quot; + type);</span>
+<span class="fc" id="L87">		final var erased = type.erasedClass();</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">		if (!attribute.type().erasedClass().isAssignableFrom(erased))</span>
+<span class="fc" id="L89">			throw new IllegalArgumentException(&quot;attribute &quot; + attribute + &quot; is not assignable from &quot; + type);</span>
 
-<span class="fc" id="L85">		this.type = type;</span>
-<span class="fc" id="L86">	}</span>
+<span class="fc" id="L91">		this.type = type;</span>
+<span class="fc" id="L92">	}</span>
 
 	@Override
 	public String name() {
-<span class="fc" id="L90">		return name;</span>
+<span class="fc" id="L96">		return name;</span>
 	}
 
 	@Override
 	public TypeTemplate&lt;?, T&gt; type() {
-<span class="fc" id="L95">		return type;</span>
+<span class="fc" id="L101">		return type;</span>
 	}
 
 	@Override
 	public IuType&lt;?, R&gt; referrerType() {
-<span class="fc" id="L100">		return attribute.declaringType();</span>
+<span class="fc" id="L106">		return attribute.declaringType();</span>
+	}
+
+	@Override
+	public boolean isBound() {
+<span class="fc bfc" id="L111" title="All 2 branches covered.">		return boundResource != null;</span>
 	}
 
 	@Override
 	public synchronized void bind(IuResource&lt;T&gt; resource) {
-<span class="fc bfc" id="L105" title="All 2 branches covered.">		if (!resource.name().equals(name()) //</span>
-<span class="fc bfc" id="L106" title="All 2 branches covered.">				|| !type().erasedClass().isAssignableFrom(resource.type().erasedClass()))</span>
-<span class="fc" id="L107">			throw new IllegalArgumentException(&quot;Resource &quot; + resource + &quot; does not apply to &quot; + this);</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">		if (resource != null //</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">				&amp;&amp; (!resource.name().equals(name()) //</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">						|| !type().erasedClass().isAssignableFrom(resource.type().erasedClass())))</span>
+<span class="fc" id="L119">			throw new IllegalArgumentException(&quot;Resource &quot; + resource + &quot; does not apply to &quot; + this);</span>
 
-<span class="fc" id="L109">		boundResource = resource;</span>
+<span class="fc" id="L121">		boundResource = resource;</span>
 
-<span class="fc" id="L111">		visitor.visit(referrer -&gt; {</span>
-<span class="fc bfc" id="L112" title="All 2 branches covered.">			if (referrer != null)</span>
-<span class="fc" id="L113">				attribute.set(referrer, boundResource.get());</span>
-<span class="fc" id="L114">			return null;</span>
+<span class="fc" id="L123">		visitor.visit(referrer -&gt; {</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">			if (referrer != null) {</span>
+				final T resourceValue;
+<span class="fc bfc" id="L126" title="All 2 branches covered.">				if (boundResource == null)</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">					if (unboundValues.containsKey(referrer))</span>
+<span class="fc" id="L128">						resourceValue = unboundValues.get(referrer).orElse(null);</span>
+					else
+<span class="fc" id="L130">						return null;</span>
+				else
+<span class="fc" id="L132">					resourceValue = boundResource.get();</span>
+
+<span class="fc" id="L134">				attribute.set(referrer, resourceValue);</span>
+			}
+<span class="fc" id="L136">			return null;</span>
 		});
-<span class="fc" id="L116">	}</span>
+<span class="fc" id="L138">	}</span>
 
 	@Override
 	public synchronized void accept(R referrer) {
-<span class="fc bfc" id="L120" title="All 2 branches covered.">		if (boundResource != null)</span>
-<span class="fc" id="L121">			attribute.set(referrer, boundResource.get());</span>
-<span class="fc" id="L122">		visitor.accept(referrer);</span>
-<span class="fc" id="L123">	}</span>
+<span class="fc bfc" id="L142" title="All 4 branches covered.">		if (visitor.visit(r -&gt; r == referrer ? Optional.empty() : null) != null)</span>
+<span class="fc" id="L143">			return;</span>
+
+<span class="fc bfc" id="L145" title="All 2 branches covered.">		if (!(attribute instanceof IuProperty property) //</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">				|| property.canRead())</span>
+<span class="fc" id="L147">			unboundValues.put(referrer, Optional.ofNullable(type.erasedClass().cast(attribute.get(referrer))));</span>
+
+<span class="fc bfc" id="L149" title="All 2 branches covered.">		if (boundResource != null)</span>
+<span class="fc" id="L150">			attribute.set(referrer, boundResource.get());</span>
+
+<span class="fc" id="L152">		visitor.accept(referrer);</span>
+<span class="fc" id="L153">	}</span>
 
 	@Override
 	public String toString() {
-<span class="fc" id="L127">		return &quot;ComponentResourceReference [name=&quot; + name + &quot;, type=&quot; + type + &quot;, attribute=&quot; + attribute</span>
+<span class="fc" id="L157">		return &quot;ComponentResourceReference [name=&quot; + name + &quot;, type=&quot; + type + &quot;, attribute=&quot; + attribute</span>
 				+ &quot;, boundResource=&quot; + boundResource + &quot;]&quot;;
 	}
 

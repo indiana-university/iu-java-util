@@ -515,22 +515,28 @@ import edu.iu.type.IuTypeReference;
 	}
 
 	@Override
+	@SuppressWarnings(&quot;unchecked&quot;)
+	public &lt;P&gt; PropertyFacade&lt;? super T, P&gt; property(String name) {
+<span class="fc" id="L520">		return (PropertyFacade&lt;? super T, P&gt;) IuType.super.property(name);</span>
+	}
+
+	@Override
 	public Iterable&lt;PropertyFacade&lt;? super T, ?&gt;&gt; properties() {
-<span class="fc bfc" id="L519" title="All 2 branches covered.">		if (properties == null)</span>
-<span class="fc" id="L520">			throw new IllegalStateException(&quot;properties not sealed&quot;);</span>
-<span class="fc" id="L521">		return properties;</span>
+<span class="fc bfc" id="L525" title="All 2 branches covered.">		if (properties == null)</span>
+<span class="fc" id="L526">			throw new IllegalStateException(&quot;properties not sealed&quot;);</span>
+<span class="fc" id="L527">		return properties;</span>
 	}
 
 	@Override
 	public Iterable&lt;MethodFacade&lt;? super T, ?&gt;&gt; methods() {
-<span class="fc bfc" id="L526" title="All 2 branches covered.">		if (methods == null)</span>
-<span class="fc" id="L527">			throw new IllegalStateException(&quot;methods not sealed&quot;);</span>
-<span class="fc" id="L528">		return methods;</span>
+<span class="fc bfc" id="L532" title="All 2 branches covered.">		if (methods == null)</span>
+<span class="fc" id="L533">			throw new IllegalStateException(&quot;methods not sealed&quot;);</span>
+<span class="fc" id="L534">		return methods;</span>
 	}
 
 	@Override
 	public String toString() {
-<span class="fc" id="L533">		return &quot;IuType[&quot; + TypeUtils.printType(deref()) + ']';</span>
+<span class="fc" id="L539">		return &quot;IuType[&quot; + TypeUtils.printType(deref()) + ']';</span>
 	}
 
 }
