@@ -1,0 +1,584 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>IuAsynchronousPipe.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-base</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuAsynchronousPipe.java</span></div><h1>IuAsynchronousPipe.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2023 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Queue;
+import java.util.Spliterator;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
+
+/**
+ * {@link Consumer#accept Accepts} values for asynchronous retrieval via
+ * {@link Stream}.
+ * 
+ * &lt;p&gt;
+ * &lt;img alt=&quot;UML Class Diagram&quot; src=&quot;doc-files/edu.iu.IuAsynchronousPipe.svg&quot; /&gt;
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * A common use case is passing large sets of homogeneous values between
+ * heterogeneous components.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * &lt;img alt=&quot;UML Sequence Diagram&quot; src=&quot;doc-files/Asynchronous Pipe.svg&quot; /&gt;
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * Within an asynchronous process: the &lt;strong&gt;controlling component&lt;/strong&gt;
+ * creates a pipe and passes to the &lt;strong&gt;receiving component&lt;/strong&gt;. The
+ * &lt;strong&gt;receiving component&lt;/strong&gt; detaches a {@link #stream() Stream}
+ * through which values are retrieved. Once &lt;strong&gt;connected&lt;/strong&gt; in this
+ * fashion, the &lt;strong&gt;controlling component&lt;/strong&gt; can asynchronously
+ * {@link #accept(Object) supply} values to the &lt;strong&gt;receiving
+ * component&lt;/strong&gt;.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * Any time after creating the pipe,
+ * &lt;/p&gt;
+ * &lt;ul&gt;
+ * &lt;li&gt;the &lt;strong&gt;controlling component&lt;/strong&gt; &lt;em&gt;may&lt;/em&gt;:
+ * &lt;ul&gt;
+ * &lt;li&gt;asynchronously retrieve values from an external source and
+ * {@link #accept(Object) supply} them to the pipe.&lt;/li&gt;
+ * &lt;li&gt;{@link #pauseController(int, Duration) pause} until
+ * &lt;ul&gt;
+ * &lt;li&gt;some or all of the values supplied to the pipe have been
+ * &lt;strong&gt;received&lt;/strong&gt;.&lt;/li&gt;
+ * &lt;li&gt;the {@link #stream() stream} is {@link Stream#close() closed} by the
+ * &lt;strong&gt;receiving component&lt;/strong&gt;.&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;/li&gt;
+ * &lt;li&gt;The &lt;strong&gt;receiving component&lt;/strong&gt; &lt;em&gt;may&lt;/em&gt;:
+ * &lt;ul&gt;
+ * &lt;li&gt;{@link Spliterator#trySplit() split} the stream.&lt;/li&gt;
+ * &lt;li&gt;{@link #pauseReceiver(int, Duration) pause} until values have been
+ * {@link #accept(Object) accepted}.&lt;/li&gt;
+ * &lt;li&gt;block until values sufficient to complete a {@link Stream terminal
+ * operation} have been {@link #accept(Object) accepted}.&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;/li&gt;
+ * &lt;/ul&gt;
+ * 
+ * &lt;p&gt;
+ * Although {@link IuAsynchronousPipe} may be used as a simple queue on a single
+ * thread, it is intended to be used concurrently on multiple threads in order
+ * to distribute load related to loading and consuming large sets of homogeneous
+ * values.
+ * &lt;/p&gt;
+ * 
+ * @param &lt;T&gt; value type
+ * 
+ * @see IuParallelWorkloadController
+ */
+public class IuAsynchronousPipe&lt;T&gt; implements Consumer&lt;T&gt;, AutoCloseable {
+
+<span class="fc" id="L113">	private class Splitr implements Spliterator&lt;T&gt; {</span>
+
+		@Override
+		public boolean tryAdvance(Consumer&lt;? super T&gt; action) {
+			T next;
+<span class="fc" id="L118">			synchronized (IuAsynchronousPipe.this) {</span>
+<span class="fc bfc" id="L119" title="All 4 branches covered.">				while ((next = queue.poll()) == null &amp;&amp; !closed)</span>
+<span class="fc" id="L120">					IuException.unchecked(() -&gt; IuAsynchronousPipe.this.wait(500L));</span>
+				
+<span class="fc bfc" id="L122" title="All 2 branches covered.">				if (error != null)</span>
+<span class="fc" id="L123">					throw IuException.unchecked(error);</span>
+<span class="fc" id="L124">			}</span>
+
+<span class="fc bfc" id="L126" title="All 2 branches covered.">			if (next != null)</span>
+<span class="fc" id="L127">				action.accept(next);</span>
+
+<span class="fc" id="L129">			synchronized (IuAsynchronousPipe.this) {</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">				if (next != null)</span>
+<span class="fc" id="L131">					receivedCount++;</span>
+
+<span class="fc bfc" id="L133" title="All 4 branches covered.">				if (!completed //</span>
+<span class="fc bfc" id="L134" title="All 4 branches covered.">						&amp;&amp; (completed = closed &amp;&amp; queue.isEmpty()))</span>
+<span class="fc" id="L135">					streamClose.run();</span>
+
+<span class="fc" id="L137">				IuAsynchronousPipe.this.notifyAll();</span>
+
+<span class="fc bfc" id="L139" title="All 2 branches covered.">				return !completed;</span>
+			}
+		}
+
+		@Override
+		public Spliterator&lt;T&gt; trySplit() {
+<span class="fc bfc" id="L145" title="All 2 branches covered.">			if (!queue.isEmpty()) {</span>
+<span class="fc" id="L146">				final Queue&lt;T&gt; newQueue = new ConcurrentLinkedQueue&lt;&gt;();</span>
+
+<span class="fc" id="L148">				synchronized (IuAsynchronousPipe.this) {</span>
+<span class="fc" id="L149">					final Queue&lt;T&gt; queue = IuAsynchronousPipe.this.queue;</span>
+<span class="fc" id="L150">					IuAsynchronousPipe.this.queue = newQueue;</span>
+
+<span class="fc" id="L152">					receivedCount += queue.size();</span>
+<span class="fc" id="L153">					IuAsynchronousPipe.this.notifyAll();</span>
+
+<span class="fc" id="L155">					return queue.spliterator();</span>
+				}
+			} else
+<span class="fc" id="L158">				return null;</span>
+		}
+
+		@Override
+		public long estimateSize() {
+<span class="fc bfc" id="L163" title="All 2 branches covered.">			if (closed)</span>
+<span class="fc" id="L164">				return queue.size();</span>
+			else
+<span class="fc" id="L166">				return Long.MAX_VALUE;</span>
+		}
+
+		@Override
+		public int characteristics() {
+<span class="fc bfc" id="L171" title="All 2 branches covered.">			if (closed)</span>
+<span class="fc" id="L172">				return CONCURRENT | SIZED | SUBSIZED;</span>
+			else
+<span class="fc" id="L174">				return CONCURRENT;</span>
+		}
+	}
+
+	private volatile Stream&lt;T&gt; stream;
+<span class="fc" id="L179">	private volatile Queue&lt;T&gt; queue = new ConcurrentLinkedQueue&lt;&gt;();</span>
+	private volatile int acceptedCount;
+	private volatile int receivedCount;
+	private volatile Throwable error;
+	private volatile boolean completed;
+	private volatile boolean closed;
+
+	private final Runnable streamClose;
+
+	/**
+	 * Default constructor.
+	 */
+<span class="fc" id="L191">	public IuAsynchronousPipe() {</span>
+<span class="fc" id="L192">		final Stream&lt;T&gt; stream = StreamSupport.stream(new Splitr(), false).onClose(() -&gt; {</span>
+<span class="fc" id="L193">			close();</span>
+
+<span class="fc" id="L195">			synchronized (this) {</span>
+<span class="fc" id="L196">				completed = true;</span>
+<span class="fc" id="L197">				this.stream = null;</span>
+<span class="fc" id="L198">				notifyAll();</span>
+<span class="fc" id="L199">			}</span>
+<span class="fc" id="L200">		});</span>
+
+<span class="fc" id="L202">		this.streamClose = stream::close;</span>
+<span class="fc" id="L203">		this.stream = stream;</span>
+<span class="fc" id="L204">	}</span>
+
+	/**
+	 * Gets a sequential {@link Stream} for &lt;strong&gt;receiving&lt;/strong&gt; values as
+	 * they are {@link #accept(Object) accepted} by the pipe.
+	 * 
+	 * &lt;p&gt;
+	 * For a parallel stream, call {@link Stream#parallel()} on the stream returned
+	 * by this method.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * The {@link Stream} returned by this method is not controlled by the pipe and
+	 * &lt;em&gt;may&lt;/em&gt; be retrieved &lt;em&gt;once&lt;/em&gt;. The &lt;strong&gt;receiving
+	 * component&lt;/strong&gt; in control of the stream, and &lt;em&gt;should&lt;/em&gt; call this
+	 * method synchronously during initialization from the thread that
+	 * {@link #IuAsynchronousPipe() creates the pipe}. All aggregation details are
+	 * out scope; all {@link Stream} operations are supported natively and without
+	 * interference by an internally managed {@link Spliterator}.
+	 * &lt;/p&gt;
+	 * 
+	 * @return {@link Stream}
+	 * @throws IllegalStateException if this method is invoked more than once
+	 */
+	public synchronized Stream&lt;T&gt; stream() throws IllegalStateException {
+<span class="fc" id="L229">		Stream&lt;T&gt; stream = this.stream;</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">		if (stream == null)</span>
+<span class="fc" id="L231">			throw new IllegalStateException(&quot;Stream has already been retreived&quot;);</span>
+
+<span class="fc" id="L233">		this.stream = null;</span>
+<span class="fc" id="L234">		return stream;</span>
+	}
+
+	/**
+	 * Gets a count of all values accepted by the pipe since opening.
+	 * 
+	 * @return count of accepted values
+	 */
+	public int getAcceptedCount() {
+<span class="fc" id="L243">		return acceptedCount;</span>
+	}
+
+	/**
+	 * Gets a count of all values received from the pipe since opening.
+	 * 
+	 * @return count of received values
+	 */
+	public int getReceivedCount() {
+<span class="fc" id="L252">		return receivedCount;</span>
+	}
+
+	/**
+	 * Gets a count of values accepted by the pipe that have not yet been received.
+	 * 
+	 * @return count of pending values
+	 */
+	public synchronized int getPendingCount() {
+<span class="fc" id="L261">		return acceptedCount - receivedCount;</span>
+	}
+
+	/**
+	 * Pauses execution on the current thread until values have been received via
+	 * {@link #stream()}.
+	 * 
+	 * &lt;p&gt;
+	 * Typically, the &lt;strong&gt;controlling component&lt;/strong&gt; will invoke this method
+	 * during a processing loop to manage resource utilization rate relative to the
+	 * rate values are being &lt;strong&gt;retrieved&lt;/strong&gt;, then invoke
+	 * {@link #pauseController(Instant)} to pause until the &lt;strong&gt;receiving
+	 * component&lt;/strong&gt; has received all values or invoked {@link Stream#close()}.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * The basic &lt;strong&gt;controller&lt;/strong&gt; loop example below checks the pending
+	 * count before iterating, and if there are 100 pending values in the pipe
+	 * pauses until 10 of those values have been have been received, or up to PT1S,
+	 * before scanning for and providing more values. Finally, the controller pauses
+	 * after all values have been provided until either its
+	 * {@link IuParallelWorkloadController workload controller} expires, or all
+	 * values have been received. The PT1S pause in this example represents a
+	 * keep-alive pulse, for example if the loop is a live iterator over a connected
+	 * resource then one business resource per second is typically a sufficient
+	 * keep-alive interval.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;pre&gt;
+	 * for (final var value : source.getValues()) {
+	 * 	pipe.accept(value);
+	 * 	if (pipe.getPendingCount() &gt; 100)
+	 * 		try {
+	 * 			pipe.pauseController(10, Duration.ofSeconds(1L));
+	 * 		} catch (TimeoutException e) {
+	 * 			// keep-alive
+	 * 		}
+	 * }
+	 * pipe.pauseController(workload.getExpires());
+	 * &lt;/pre&gt;
+	 * 
+	 * @param receivedCount count of received values to wait for; returns without
+	 *                      delay if &amp;lt;= 0
+	 * @param timeout       amount of time to wait; &lt;em&gt;should&lt;/em&gt; be positive
+	 * 
+	 * @return the actual number of values received while paused
+	 * @throws TimeoutException     if the timeout interval expires before
+	 *                              {@code receivedCount} values are received
+	 * @throws InterruptedException if the current thread is interrupted while
+	 *                              waiting for values to be received
+	 */
+	public int pauseController(int receivedCount, Duration timeout) throws TimeoutException, InterruptedException {
+<span class="fc bfc" id="L313" title="All 2 branches covered.">		if (receivedCount &lt;= 0)</span>
+<span class="fc" id="L314">			return 0;</span>
+
+<span class="fc" id="L316">		final var initialReceivedCount = this.receivedCount;</span>
+<span class="fc" id="L317">		final var targetReceivedCount = initialReceivedCount + receivedCount;</span>
+
+<span class="fc bfc" id="L319" title="All 4 branches covered.">		IuObject.waitFor(this, () -&gt; completed //</span>
+				|| this.receivedCount &gt;= targetReceivedCount, timeout,
+<span class="fc" id="L321">				() -&gt; new TimeoutException(&quot;Timed out after receiving &quot; + (this.receivedCount - initialReceivedCount)</span>
+						+ &quot; of &quot; + receivedCount + &quot; values in &quot; + timeout));
+
+<span class="fc bfc" id="L324" title="All 2 branches covered.">		if (error != null)</span>
+<span class="fc" id="L325">			throw IuException.unchecked(error);</span>
+
+<span class="fc" id="L327">		return this.receivedCount - initialReceivedCount;</span>
+	}
+
+	/**
+	 * Pauses execution until either a timeout interval expires or all values have
+	 * been received from the pipe.
+	 * 
+	 * &lt;p&gt;
+	 * Typically, the &lt;strong&gt;controlling component&lt;/strong&gt; will invoke
+	 * {@link #pauseController(int, Duration)} during a processing loop to manage
+	 * resource utilization rate relative to the rate values are being
+	 * &lt;strong&gt;retrieved&lt;/strong&gt;, then invoke this method to pause until the
+	 * &lt;strong&gt;receiving component&lt;/strong&gt; has received all values or invoked
+	 * {@link Stream#close()}.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * The basic &lt;strong&gt;controller&lt;/strong&gt; loop example below checks the pending
+	 * count before iterating, and if there are 100 pending values in the pipe
+	 * pauses until 10 of those values have been have been received, or up to PT1S,
+	 * before scanning for and providing more values. Finally, the controller pauses
+	 * after all values have been provided until either its
+	 * {@link IuParallelWorkloadController workload controller} expires, or all
+	 * values have been received. The PT1S pause in this example represents a
+	 * keep-alive pulse, for example if the loop is a live iterator over a connected
+	 * resource then one business resource per second is typically a sufficient
+	 * keep-alive interval.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;pre&gt;
+	 * for (final var value : source.getValues()) {
+	 * 	pipe.accept(value);
+	 * 	if (pipe.getPendingCount() &gt; 100)
+	 * 		try {
+	 * 			pipe.pauseController(10, Duration.ofSeconds(1L));
+	 * 		} catch (TimeoutException e) {
+	 * 			// keep-alive
+	 * 		}
+	 * }
+	 * pipe.pauseController(workload.getExpires());
+	 * &lt;/pre&gt;
+	 * 
+	 * @param expires instant the timeout interval expires
+	 * 
+	 * @return the number of values received while paused
+	 * @throws InterruptedException if the current thread is interrupted while
+	 *                              waiting for values to be received
+	 */
+	public int pauseController(Instant expires) throws InterruptedException {
+<span class="fc bfc" id="L376" title="All 2 branches covered.">		if (completed)</span>
+<span class="fc" id="L377">			return 0;</span>
+
+<span class="fc" id="L379">		final var initialReceivedCount = this.receivedCount;</span>
+<span class="fc" id="L380">		synchronized (this) {</span>
+<span class="fc bfc" id="L381" title="All 2 branches covered.">			while (!completed) {</span>
+<span class="fc" id="L382">				final var now = Instant.now();</span>
+<span class="fc bfc" id="L383" title="All 2 branches covered.">				if (now.isBefore(expires)) {</span>
+<span class="fc" id="L384">					final var waitFor = Duration.between(now, expires);</span>
+<span class="fc" id="L385">					this.wait(waitFor.toMillis(), waitFor.toNanosPart() % 1_000_000);</span>
+				} else
+					break;
+<span class="fc" id="L388">			}</span>
+			
+<span class="fc bfc" id="L390" title="All 2 branches covered.">			if (error != null)</span>
+<span class="fc" id="L391">				throw IuException.unchecked(error);</span>
+<span class="fc" id="L392">		}</span>
+<span class="fc" id="L393">		return this.receivedCount - initialReceivedCount;</span>
+	}
+
+	/**
+	 * Pauses execution on the current thread until new values are
+	 * {@link #accept(Object) accepted} onto the pipe.
+	 * 
+	 * &lt;p&gt;
+	 * This method is useful for breaking up output into segments, i.e., via
+	 * {@link Spliterator#trySplit()}, as in the example below:
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;pre&gt;
+	 * final var pipeSplitter = pipe.stream().spliterator();
+	 * while (!pipe.isClosed()) {
+	 * 	pipe.pauseReceiver(targetSplitSize, workload.getRemaining());
+	 * 	Spliterator&amp;lt;String&amp;gt; split = pipeSplitter.trySplit();
+	 * 	if (split != null)
+	 * 		final var segmentStream = StreamSupport.stream(split, true);
+	 * 		// perform terminal operation on segmentStream
+	 * }
+	 * final var tailStream = StreamSupport.stream(pipeSplitter, true);
+	 * // perform terminal operation on tailStream
+	 * &lt;/pre&gt;
+	 * 
+	 * @param acceptedCount count of newly accepted values to wait for; returns
+	 *                      without delay if &amp;lt;= 0
+	 * @param timeout       amount of time to wait; &lt;em&gt;should&lt;/em&gt; be positive
+	 * 
+	 * @return the actual number of values accepted while paused
+	 * @throws TimeoutException     if the timeout interval expires before
+	 *                              {@code receivedCount} values are received
+	 * @throws InterruptedException if the current thread is interrupted while
+	 *                              waiting for values to be received
+	 */
+	public int pauseReceiver(int acceptedCount, Duration timeout) throws TimeoutException, InterruptedException {
+<span class="fc bfc" id="L429" title="All 2 branches covered.">		if (acceptedCount &lt;= 0)</span>
+<span class="fc" id="L430">			return 0;</span>
+
+<span class="fc" id="L432">		final var initialAcceptedCount = this.acceptedCount;</span>
+<span class="fc" id="L433">		final var targetAcceptedCount = initialAcceptedCount + acceptedCount;</span>
+
+<span class="fc bfc" id="L435" title="All 4 branches covered.">		IuObject.waitFor(this, () -&gt; closed || this.acceptedCount &gt;= targetAcceptedCount, timeout,</span>
+<span class="fc" id="L436">				() -&gt; new TimeoutException(&quot;Timed out waiting for &quot; + (this.acceptedCount - initialAcceptedCount)</span>
+						+ &quot; of &quot; + acceptedCount + &quot; values in &quot; + timeout));
+
+<span class="fc bfc" id="L439" title="All 2 branches covered.">		if (error != null)</span>
+<span class="fc" id="L440">			throw IuException.unchecked(error);</span>
+
+<span class="fc" id="L442">		return this.acceptedCount - initialAcceptedCount;</span>
+	}
+
+	/**
+	 * Pauses execution until either a timeout interval expires or the pipe has been
+	 * closed.
+	 * 
+	 * &lt;p&gt;
+	 * This method is useful for waiting until the &lt;strong&gt;controlling
+	 * component&lt;/strong&gt; has completed all work before collecting values from the
+	 * stream, to give the &lt;strong&gt;receiving component&lt;/strong&gt; time-sensitive
+	 * control over directly blocking via the stream.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * For example, to give the &lt;strong&gt;controlling component&lt;/strong&gt; up to 15
+	 * seconds lead time, or for all values to be provided, before collecting from
+	 * the pipe:
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;pre&gt;
+	 * pipe.pauseReceiver(Instant.now().plus(Duration.ofSeconds(15L));
+	 * final var values = pipe.stream().collect(aCollector);
+	 * &lt;/pre&gt;
+	 * 
+	 * @param expires instant the timeout interval expires
+	 * 
+	 * @return the number of values accepted onto the pipe while paused
+	 * @throws InterruptedException if the current thread is interrupted while
+	 *                              waiting for the pipe to close
+	 */
+	public int pauseReceiver(Instant expires) throws InterruptedException {
+<span class="fc bfc" id="L474" title="All 2 branches covered.">		if (closed)</span>
+<span class="fc" id="L475">			return 0;</span>
+
+<span class="fc" id="L477">		final var initialAcceptedCount = this.acceptedCount;</span>
+<span class="fc" id="L478">		synchronized (this) {</span>
+<span class="fc bfc" id="L479" title="All 2 branches covered.">			while (!closed) {</span>
+<span class="fc" id="L480">				final var now = Instant.now();</span>
+<span class="fc bfc" id="L481" title="All 2 branches covered.">				if (now.isBefore(expires)) {</span>
+<span class="fc" id="L482">					final var waitFor = Duration.between(now, expires);</span>
+<span class="fc" id="L483">					this.wait(waitFor.toMillis(), waitFor.toNanosPart() % 1_000_000);</span>
+				} else
+					break;
+<span class="fc" id="L486">			}</span>
+			
+<span class="fc bfc" id="L488" title="All 2 branches covered.">			if (error != null)</span>
+<span class="fc" id="L489">				throw IuException.unchecked(error);</span>
+<span class="fc" id="L490">		}</span>
+<span class="fc" id="L491">		return this.acceptedCount - initialAcceptedCount;</span>
+	}
+
+	/**
+	 * Determines if this pipe is closed.
+	 * 
+	 * @return true if closed; else return false
+	 */
+	public boolean isClosed() {
+<span class="fc" id="L500">		return closed;</span>
+	}
+
+	/**
+	 * Determines if both this pipe and its {@link #stream() stream} are closed.
+	 * 
+	 * @return true if closed; else return false
+	 */
+	public boolean isCompleted() {
+<span class="fc" id="L509">		return completed;</span>
+	}
+
+	/**
+	 * Used by the &lt;strong&gt;controlling component&lt;/strong&gt; to &lt;strong&gt;supply&lt;/strong&gt;
+	 * values to the &lt;strong&gt;receiving component&lt;/strong&gt; via the {@link Consumer}
+	 * interface.
+	 * 
+	 * &lt;p&gt;
+	 * Values {@link #accept(Object) accepted} by the pipe may be received via
+	 * {@link #stream()}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param value &lt;strong&gt;supplied&lt;/strong&gt; by the &lt;strong&gt;controlling
+	 *              component&lt;/strong&gt;.
+	 */
+	@Override
+	public void accept(T value) {
+<span class="fc bfc" id="L527" title="All 2 branches covered.">		if (closed)</span>
+<span class="fc" id="L528">			throw new IllegalStateException(&quot;closed&quot;);</span>
+
+<span class="fc" id="L530">		queue.offer(value);</span>
+
+<span class="fc" id="L532">		synchronized (this) {</span>
+<span class="fc" id="L533">			acceptedCount++;</span>
+<span class="fc" id="L534">			this.notifyAll();</span>
+<span class="fc" id="L535">		}</span>
+<span class="fc" id="L536">	}</span>
+
+	/**
+	 * Reports an error that occurred on either end of the pipe.
+	 * 
+	 * &lt;p&gt;
+	 * The error will interrupt all activity and cause the pipe to close.
+	 * &lt;/p&gt;
+	 * 
+	 * @param e error
+	 */
+	public synchronized void error(Throwable e) {
+<span class="fc" id="L548">		error = e;</span>
+<span class="fc" id="L549">		completed = true;</span>
+<span class="fc" id="L550">		close();</span>
+<span class="fc" id="L551">	}</span>
+
+	/**
+	 * Used by the &lt;strong&gt;controlling component&lt;/strong&gt; to close the pipe.
+	 * 
+	 * &lt;p&gt;
+	 * The &lt;strong&gt;receiving component&lt;/strong&gt; &lt;em&gt;should&lt;/em&gt; use
+	 * {@link Stream#close()} instead of this method to close the pipe.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * Closing the pipe prevents further values from being {@link #accept(Object)
+	 * accepted}, then unpauses all threads.
+	 * &lt;/p&gt;
+	 * 
+	 * @see #pauseController(int, Duration)
+	 * @see #pauseReceiver(int, Duration)
+	 */
+	@Override
+	public synchronized void close() {
+<span class="fc" id="L571">		closed = true;</span>
+<span class="fc bfc" id="L572" title="All 2 branches covered.">		if (getPendingCount() &lt;= 0)</span>
+<span class="fc" id="L573">			completed = true;</span>
+<span class="fc" id="L574">		this.notifyAll();</span>
+<span class="fc" id="L575">	}</span>
+
+	@Override
+	public String toString() {
+<span class="fc" id="L579">		return &quot;IuAsynchronousPipe [acceptedCount=&quot; + acceptedCount + &quot;, receivedCount=&quot; + receivedCount + &quot;, queued=&quot;</span>
+<span class="fc" id="L580">				+ queue.size() + &quot;, completed=&quot; + completed + &quot;, closed=&quot; + closed + &quot;]&quot;;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

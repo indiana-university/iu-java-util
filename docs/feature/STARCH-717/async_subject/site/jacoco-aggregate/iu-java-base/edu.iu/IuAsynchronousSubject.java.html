@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>IuAsynchronousSubject.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-base</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuAsynchronousSubject.java</span></div><h1>IuAsynchronousSubject.java</h1><pre class="source lang-java linenums">package edu.iu;
+
+import java.util.Queue;
+import java.util.Spliterator;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
+
+/**
+ * Provides &lt;strong&gt;subscriber&lt;/strong&gt; {@link Stream} instances over a shared
+ * source &lt;strong&gt;subject&lt;/strong&gt;.
+ * 
+ * &lt;p&gt;
+ * &lt;strong&gt;Subjects&lt;/strong&gt; are backed externally by a &lt;strong&gt;controlling
+ * component&lt;/strong&gt;, which is responsible for both appending new values to a
+ * &lt;strong&gt;source&lt;/strong&gt; capable of supplying a {@link Spliterator}, and
+ * independently {@link #accept(Object) supplying} the same values to be
+ * distributed to all active subscribers. The &lt;strong&gt;subject&lt;/strong&gt; makes no
+ * guarantee to the &lt;strong&gt;controlling component&lt;/strong&gt; when or if a
+ * &lt;strong&gt;subscriber&lt;/strong&gt; will transition from non-blocking access to
+ * available values to potentially blocking access via
+ * {@link IuAsynchronousPipe}. It is, however, guaranteed that all values
+ * available from the point in time the &lt;strong&gt;subscriber&lt;/strong&gt; begins
+ * processing the {@link Stream} until &lt;strong&gt;unsubscribing&lt;/strong&gt; will be
+ * supplied exactly once.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * For example:
+ * &lt;/p&gt;
+ * 
+ * &lt;pre&gt;
+ * class MyControllingComponent&amp;lt;T&amp;gt; implements Consumer&amp;lt;T&amp;gt; {
+ * 	private final Queue&amp;lt;T&amp;gt; queue = new ConcurrentLinkedQueue&amp;lt;&amp;gt;();
+ * 	private final IuAsynchronousSubject&amp;lt;T&amp;gt; subject =
+ * 		new IuAsynchronousSubject&amp;lt;&amp;gt;(queue::spliterator);
+ * 
+ * 	{@literal @}Override
+ * 	public void accept(T t) {
+ * 		queue.offer(t);
+ * 		subject.accept(t);
+ * 	}
+ * }
+ * &lt;/pre&gt;
+ * 
+ * &lt;p&gt;
+ * When the &lt;strong&gt;source&lt;/strong&gt; is sequential, &lt;strong&gt;subscribers&lt;/strong&gt;
+ * &lt;em&gt;may&lt;/em&gt; expect to receive values in the order supplied.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * Each &lt;strong&gt;subscriber&lt;/strong&gt; {@link Stream} provides all values that may
+ * be retrieved without blocking, then once values then is transitioned to an
+ * {@link IuAsynchronousPipe} managed by the &lt;strong&gt;subject&lt;/strong&gt; to block
+ * until new values become available.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * A &lt;strong&gt;subscriber's&lt;/strong&gt; {@link Stream} may be {@link Stream#close()
+ * closed} without affecting the status of the &lt;strong&gt;controlling
+ * component&lt;/strong&gt;, or of any other &lt;strong&gt;subscriber&lt;/strong&gt; {@link Stream
+ * streams}.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * This class is thread-safe and intended for use by high-volume
+ * parallel-processing workloads.
+ * &lt;/p&gt;
+ * 
+ * @param &lt;T&gt; value type
+ */
+public class IuAsynchronousSubject&lt;T&gt; implements Consumer&lt;T&gt;, AutoCloseable {
+
+	private final Supplier&lt;Spliterator&lt;T&gt;&gt; source;
+<span class="fc" id="L77">	private final Queue&lt;Subscriber&gt; subscribers = new ConcurrentLinkedQueue&lt;&gt;();</span>
+	private boolean closed;
+
+<span class="fc" id="L80">	private class Subscriber implements Spliterator&lt;T&gt; {</span>
+<span class="fc" id="L81">		private final Spliterator&lt;T&gt; sourceSplit = source.get();</span>
+<span class="fc" id="L82">		private final IuAsynchronousPipe&lt;T&gt; pipe = new IuAsynchronousPipe&lt;T&gt;();</span>
+
+		private volatile Spliterator&lt;T&gt; pipedSplit;
+
+		@Override
+		public synchronized boolean tryAdvance(Consumer&lt;? super T&gt; action) {
+<span class="fc bfc" id="L88" title="All 2 branches covered.">			if (pipedSplit == null)</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">				if (sourceSplit.tryAdvance(action))</span>
+<span class="fc" id="L90">					return true;</span>
+				else
+<span class="fc" id="L92">					pipedSplit = pipe.stream().spliterator();</span>
+
+<span class="fc" id="L94">			return pipedSplit.tryAdvance(action);</span>
+		}
+
+		@Override
+		public synchronized Spliterator&lt;T&gt; trySplit() {
+<span class="fc bfc" id="L99" title="All 2 branches covered.">			if (pipedSplit == null) {</span>
+<span class="fc" id="L100">				pipedSplit = pipe.stream().spliterator();</span>
+<span class="fc" id="L101">				return sourceSplit;</span>
+			}
+
+<span class="fc" id="L104">			return pipedSplit.trySplit();</span>
+		}
+
+		@Override
+		public long estimateSize() {
+<span class="fc bfc" id="L109" title="All 2 branches covered.">			if (pipedSplit == null)</span>
+<span class="fc" id="L110">				return Long.MAX_VALUE;</span>
+			else
+<span class="fc" id="L112">				return pipedSplit.estimateSize();</span>
+		}
+
+		@Override
+		public int characteristics() {
+<span class="fc bfc" id="L117" title="All 2 branches covered.">			if (pipedSplit == null)</span>
+<span class="fc" id="L118">				return CONCURRENT;</span>
+			else
+<span class="fc" id="L120">				return pipedSplit.characteristics();</span>
+		}
+	}
+
+	/**
+	 * Creates a new &lt;strong&gt;subject&lt;/strong&gt;.
+	 * 
+	 * @param source supplies the initial split backing new
+	 *               &lt;strong&gt;subscriber&lt;/strong&gt; streams.
+	 */
+<span class="fc" id="L130">	public IuAsynchronousSubject(Supplier&lt;Spliterator&lt;T&gt;&gt; source) {</span>
+<span class="fc" id="L131">		this.source = source;</span>
+<span class="fc" id="L132">	}</span>
+
+	/**
+	 * &lt;strong&gt;Subscribes&lt;/strong&gt; to a {@link Stream} that supplies all values
+	 * available without blocking then blocks until new values are available or the
+	 * &lt;strong&gt;subject&lt;/strong&gt; is {@link #close() closed}.
+	 * 
+	 * @return {@link Stream}
+	 */
+	public Stream&lt;T&gt; subscribe() {
+<span class="fc bfc" id="L142" title="All 2 branches covered.">		if (closed)</span>
+<span class="fc" id="L143">			throw new IllegalStateException(&quot;closed&quot;);</span>
+
+<span class="fc" id="L145">		final var subscriber = new Subscriber();</span>
+<span class="fc" id="L146">		subscribers.offer(subscriber);</span>
+
+<span class="fc" id="L148">		return StreamSupport.stream(subscriber, false).onClose(() -&gt; subscribers.remove(subscriber));</span>
+	}
+
+	@Override
+	public void accept(T t) {
+<span class="fc bfc" id="L153" title="All 2 branches covered.">		if (closed)</span>
+<span class="fc" id="L154">			throw new IllegalStateException(&quot;closed&quot;);</span>
+
+<span class="fc" id="L156">		subscribers.forEach(subscriber -&gt; subscriber.pipe.accept(t));</span>
+<span class="fc" id="L157">	}</span>
+
+	@Override
+	public synchronized void close() {
+<span class="fc bfc" id="L161" title="All 2 branches covered.">		if (closed)</span>
+<span class="fc" id="L162">			return;</span>
+
+<span class="fc" id="L164">		closed = true;</span>
+
+<span class="fc" id="L166">		Throwable e = null;</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">		while (!subscribers.isEmpty())</span>
+<span class="fc" id="L168">			e = IuException.suppress(e, () -&gt; subscribers.poll().pipe.close());</span>
+
+<span class="fc bfc" id="L170" title="All 2 branches covered.">		if (e != null)</span>
+<span class="fc" id="L171">			throw IuException.unchecked(e);</span>
+<span class="fc" id="L172">	}</span>
+
+	/**
+	 * Reports a fatal error to all &lt;strong&gt;subscribers&lt;/strong&gt; and {@link #close()
+	 * closes} the &lt;strong&gt;subject&lt;/strong&gt;.
+	 * 
+	 * @param e fatal error
+	 */
+	public synchronized void error(Throwable e) {
+<span class="fc bfc" id="L181" title="All 2 branches covered.">		while (!subscribers.isEmpty())</span>
+<span class="fc" id="L182">			IuException.suppress(e, () -&gt; subscribers.poll().pipe.error(e));</span>
+
+<span class="fc" id="L184">		closed = true;</span>
+<span class="fc" id="L185">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
