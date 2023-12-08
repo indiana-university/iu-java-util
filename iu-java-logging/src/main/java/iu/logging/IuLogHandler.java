@@ -47,8 +47,6 @@ import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
 
-import edu.iu.logging.LoggingEnvironment;
-
 /**
  * Main handler for console logs and accessing event queue.
  */
@@ -124,6 +122,7 @@ public class IuLogHandler extends ConsoleHandler {
 	 *         tracked so far.
 	 */
 	public static Iterable<IuLogEvent> getLogEvents() {
+		// System.err.println("IuLogHandler.getLogEvents()");
 //		System.err.println("GETTING LOG_EVENTS");
 		return Collections.unmodifiableCollection(LOG_EVENTS);
 	}
@@ -138,9 +137,9 @@ public class IuLogHandler extends ConsoleHandler {
 		StringBuilder sb = new StringBuilder();
 		sb.append(new Date());
 		sb.append(" iu-logging ");
-		sb.append(LoggingEnvironment.getEndpoint());
+//		sb.append(LogEventFactory.getEndpoint()); // Endpoint was removed because it is not in the vpp file
 		sb.append("-");
-		sb.append(LoggingEnvironment.getEnvironment());
+		sb.append(LogEventFactory.getEnvironment());
 		sb.append(" failure: ");
 		sb.append(message);
 		System.err.println(sb);
@@ -151,10 +150,12 @@ public class IuLogHandler extends ConsoleHandler {
 	}
 
 	private static void publishAsynchronously(LogRecord record, Handler handler) {
+		// System.err.println("IuLogHandler.publishAsynchronousy(record, handler)");
 //		System.err.println("PUBLISH ASYNCHRONOUSLY");
 //		if (!LoggingFilters.isLocal())
 //			return;
 
+		// System.err.println("IuLogHandler.publishAsynchronousy(record, handler). message: " + record.getMessage());
 		if (record.getMessage() == null)
 			return;
 
@@ -165,6 +166,7 @@ public class IuLogHandler extends ConsoleHandler {
 		boolean loggable = isLoggable(record, handler);
 //		if (!sql && !loggable)
 //			return;
+		// System.err.println("IuLogHandler.publishAsynchronousy(record, handler). loggable: " + loggable);
 		if (!loggable)
 			return;
 
@@ -176,6 +178,7 @@ public class IuLogHandler extends ConsoleHandler {
 		};
 //		if (loggable)
 //			ProcessLogger.trace(() -> event.message);
+		// System.err.println("IuLogHandler.publishAsynchronousy(record, handler). adding event: " + event + " with message: " + event.getMessage() + " to LOG_EVENTS");
 		LOG_EVENTS.push(event);
 	}
 
@@ -183,9 +186,10 @@ public class IuLogHandler extends ConsoleHandler {
 	 * default constructor for IuLogHandler.
 	 */
 	public IuLogHandler() {
+		// System.err.println("IuLogHandler()");
 //		setLevel(LoggingEnvironment.getLogLevel());
 //		System.err.println("PUBLIC IuLogHandler()");
-		setLevel(Level.ALL);
+//		setLevel(Level.ALL);
 	}
 
 	/**
@@ -197,6 +201,7 @@ public class IuLogHandler extends ConsoleHandler {
 	 *         Handler.
 	 */
 	public static boolean isLoggable(LogRecord record, Handler handler) {
+		// System.err.println("IuLogHandler.isLoggable(record, handler)");
 		return handler.isLoggable(record);
 	}
 
@@ -209,6 +214,7 @@ public class IuLogHandler extends ConsoleHandler {
 	 */
 	@Override
 	public boolean isLoggable(LogRecord record) {
+		// System.err.println("IuLogHandler.isLoggable(record)");
 //		System.err.println("RUNNING IuLogHandler.isLoggable(record)");
 //		if (!LoggingFilters.isLocal())
 //			return false;
@@ -217,6 +223,7 @@ public class IuLogHandler extends ConsoleHandler {
 //		Level level = record.getLevel();
 //		return LoggingFilters.isSql(loggerName, level) || LoggingFilters.isLoggable(loggerName, level);
 //		return LoggingFilters.isSql(loggerName, level) || super.isLoggable(record);
+		// System.err.println("IuLogHandler.isLoggable(record). super class name: " + super.getClass().getName() + " super level: " + super.getLevel() + "super.isLoggable(record): " + super.isLoggable(record));
 		return super.isLoggable(record);
 	}
 
@@ -227,7 +234,12 @@ public class IuLogHandler extends ConsoleHandler {
 	 */
 	@Override
 	public void publish(LogRecord record) {
+		// System.err.println("IuLogHandler.publish(record)");
 //		System.err.println("IuLogHandler publish(record)");
+		// Should the bound call be part of createEvent?
+		// TODO: LogEvent event = LogEventFactory.bound(LogEventFactory.getCurrentContext(), () -> { return LogEventFactory.createEvent(record); })
+		// then add event to queue.
 		publishAsynchronously(record, this);
+		super.publish(record);
 	}
 }

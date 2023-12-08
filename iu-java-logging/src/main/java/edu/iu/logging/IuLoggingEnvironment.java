@@ -73,15 +73,6 @@ public interface IuLoggingEnvironment {
 	}
 
 	/**
-	 * Get the endpoint.
-	 * 
-	 * @return String representation of the endpoint. Defaults to null.
-	 */
-	default String getEndpoint() {
-		return null;
-	}
-
-	/**
 	 * Get the environment.
 	 * 
 	 * @return String representation of the environment. Defaults to null.
@@ -102,7 +93,7 @@ public interface IuLoggingEnvironment {
 	/**
 	 * Get the mode.
 	 * 
-	 * @return String representation of the mode. Defaults to null.
+	 * @return RuntimeMode enum with values for DEVELOPMENT, TEST, and PRODUCTION. Defaults to null.
 	 */
 	default RuntimeMode getMode() {
 		return null;
@@ -125,57 +116,13 @@ public interface IuLoggingEnvironment {
 	default String getNodeId() {
 		return null;
 	}
-//
-//	default String getVersion() {
-//		return null;
-//	}
-//
-//	default String getAlertFrom() {
-//		return null;
-//	}
-//
-//	default String getDeveloperEmail() {
-//		return null;
-//	}
-//
-//	default String getOpsEmail() {
-//		return null;
-//	}
-//
-//	default String getAlertSmtp() {
-//		return null;
-//	}
-//
-//	default String getContactDeveloper() {
-//		return null;
-//	}
-//
-//	default Level getLogLevel() {
-//		return Level.INFO;
-//	}
-//
-//	default Level getLogLevel(String loggerName) {
-//		return Level.INFO;
-//	}
-//
-//	default Level getConsoleLogLevel() {
-//		return Level.WARNING;
-//	}
-//
-//	default long getSevereInterval() {
-//		return TimeUnit.MINUTES.toMillis(15L);
-//	}
-//
-//	default long getWarningInterval() {
-//		return TimeUnit.MINUTES.toMillis(30L);
-//	}
-//
-//	default long getInfoInterval() {
-//		return TimeUnit.HOURS.toMillis(8L);
-//	}
-//	
-//	default int getLogEventBufferSize() {
-//		return 0x100000;
-//	}
 
+	/**
+	 * Get the runtime.
+	 * 
+	 * @return String representation of the runtime. Defaults to null.
+	 */
+	default String getRuntime() {
+		return null;
+	}
 }

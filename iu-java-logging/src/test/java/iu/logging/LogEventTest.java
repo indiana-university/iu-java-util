@@ -5,22 +5,25 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.time.Instant;
 import java.util.logging.Level;
+import java.util.logging.LogRecord;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.logging.IuLoggingContext;
+import edu.iu.logging.IuLoggingEnvironment;
 import edu.iu.logging.IuLoggingEnvironment.RuntimeMode;
 
 /**
  * Test class for IuLogEvent.
  */
-public class IuLogEventTest {
+public class LogEventTest {
 
 	/**
 	 * Test default methods.
 	 */
 	@Test
-	public void TestIuLogEventDefaults() {
-		IuLogEvent event = new IuLogEvent() {
+	public void TestLogEventDefaults() {
+		LogEvent event = new LogEvent() {
 			
 		};
 		assertNull(event.getApplication());
@@ -38,8 +41,10 @@ public class IuLogEventTest {
 		assertNull(event.getNodeId());
 		assertNull(event.getRemoteAddr());
 		assertNull(event.getReqNum());
+		assertNull(event.getRuntime());
 		assertNull(event.getSourceClassName());
 		assertNull(event.getSourceMethodName());
+		assertEquals("main", event.getThread());
 		assertNull(event.getThrown());
 		assertNull(event.getUserPrincipal());		
 	}
@@ -49,102 +54,16 @@ public class IuLogEventTest {
 	 */
 	@Test
 	public void TestIuLogEventOverrides() {
-		IuLogEvent event = new IuLogEvent() {
-			@Override
-			public String getApplication() {
-				return "Test Application";
-			}
+		IuLoggingEnvironment testLoggingEnvironment = new TestIuLoggingEnvironmentImpl();
+		IuLoggingContext testLoggingContext = new TestIuLoggingContextImpl();
+		LogRecord testRecord = new LogRecord(Level.FINE, "Test Message");
+		testRecord.setInstant(Instant.EPOCH);
+		testRecord.setLoggerName("Test Logger Name");
+		testRecord.setSourceClassName("Test Source Class Name");
+		testRecord.setSourceMethodName("Test Source Method Name");
+		testRecord.setThrown(new Throwable("Test Thrown"));
+		LogEvent event = new LogEvent(testRecord, testLoggingContext, testLoggingEnvironment);
 
-			@Override
-			public String getAuthenticatedPrincipal() {
-				return "Test Authenticated Principal";
-			}
-
-			@Override
-			public String getCalledUrl() {
-				return "Test Called URL";
-			}
-
-			@Override
-			public String getComponent() {
-				return "Test Component";
-			}
-
-			@Override
-			public String getEnvironment() {
-				return "Test Environment";
-			}
-
-			@Override
-			public String getHostname() {
-				return "Test Hostname";
-			}
-
-			@Override
-			public Instant getInstant() {
-				return Instant.EPOCH;
-			}
-
-			@Override
-			public Level getLevel() {
-				return Level.FINE;
-			}
-
-			@Override
-			public String getLoggerName() {
-				return "Test Logger Name";
-			}
-
-			@Override
-			public String getMessage() {
-				return "Test Message";
-			}
-
-			@Override
-			public RuntimeMode getMode() {
-				return RuntimeMode.TEST;
-			}
-
-			@Override
-			public String getModule() {
-				return "Test Module";
-			}
-
-			@Override
-			public String getNodeId() {
-				return "Test Node Id";
-			}
-
-			@Override
-			public String getRemoteAddr() {
-				return "Test Remote Address";
-			}
-
-			@Override
-			public String getReqNum() {
-				return "Test Request Number";
-			}
-
-			@Override
-			public String getSourceClassName() {
-				return "Test Source Class Name";
-			}
-
-			@Override
-			public String getSourceMethodName() {
-				return "Test Source Method Name";
-			}
-
-			@Override
-			public String getThrown() {
-				return "Test Thrown";
-			}
-
-			@Override
-			public String getUserPrincipal() {
-				return "Test User Principal";
-			}
-		};
 		assertEquals("Test Application", event.getApplication(), "Incorrect Overridden Application");
 		assertEquals("Test Authenticated Principal", event.getAuthenticatedPrincipal(), "Incorrect Overridden Authenticated Principal");
 		assertEquals("Test Called URL", event.getCalledUrl(), "Incorrect Overridden Called Url");
@@ -160,9 +79,24 @@ public class IuLogEventTest {
 		assertEquals("Test Node Id", event.getNodeId(), "Incorrect Overridden Node Id");
 		assertEquals("Test Remote Address", event.getRemoteAddr(), "Incorrect Overridden Remote Address");
 		assertEquals("Test Request Number", event.getReqNum(), "Incorrect Overridden Request Number");
+		assertEquals("Test Runtime", event.getRuntime(), "Incorrect Overridden Runtime");
 		assertEquals("Test Source Class Name", event.getSourceClassName(), "Incorrect Overridden Source Class Name");
 		assertEquals("Test Source Method Name", event.getSourceMethodName(), "Incorrect Overridden Source Method Name");
+		assertEquals("main", event.getThread());
 		assertEquals("Test Thrown", event.getThrown(), "Incorrect Overridden Thrown");
-		assertEquals("Test User Principal", event.getUserPrincipal(), "Incorrect Overridden User Principal");		
+		assertEquals("Test User Principal", event.getUserPrincipal(), "Incorrect Overridden User Principal");
+	}
+
+	/**
+	 * Test overridden methods.
+	 */
+	@Test
+	public void TestIuLogEventOverridesThrownNotSet() {
+		IuLoggingEnvironment testLoggingEnvironment = new TestIuLoggingEnvironmentImpl();
+		IuLoggingContext testLoggingContext = new TestIuLoggingContextImpl();
+		LogRecord testRecord = new LogRecord(Level.FINE, "Test Message");
+		LogEvent event = new LogEvent(testRecord, testLoggingContext, testLoggingEnvironment);
+
+		assertNull(event.getThrown());
 	}
 }

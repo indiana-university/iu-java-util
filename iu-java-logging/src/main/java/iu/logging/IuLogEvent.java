@@ -83,6 +83,24 @@ interface IuLogEvent extends IuLoggingContext, IuLoggingEnvironment {
 	}
 
 	/**
+	 * Get the source class name.
+	 * 
+	 * @return String representing the source class name.
+	 */
+	default String getSourceClassName() {
+		return null;
+	}
+
+	/**
+	 * Get the source method name.
+	 * 
+	 * @return String representing the source method name.
+	 */
+	default String getSourceMethodName() {
+		return null;
+	}
+
+	/**
 	 * Get the thrown error.
 	 * 
 	 * @return String representing the thrown error.

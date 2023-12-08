@@ -31,10 +31,13 @@
  */
 /**
  * Provides customizable logging through standard java logging implementations.  
+ * @uses edu.iu.logging.IuLoggingEnvironment
  */
 module iu.util.logging {
 	requires iu.util;
 	requires iu.util.runtime;
 	requires jakarta.json;
 	requires java.logging;
+	
+	uses edu.iu.logging.IuLoggingEnvironment;
 }

@@ -31,8 +31,6 @@
  */
 package edu.iu.logging;
 
-import edu.iu.UnsafeRunnable;
-
 /**
  * Logging Context Interface
  */
@@ -51,7 +49,7 @@ public interface IuLoggingContext {
 	/**
 	 * Get the called URL.
 	 * 
-	 * @return String reprentation of the called URL. Defaults to null.
+	 * @return String representation of the called URL. Defaults to null.
 	 */
 	default String getCalledUrl() {
 		return null;
@@ -88,18 +86,17 @@ public interface IuLoggingContext {
 	 * Run a task with the given context.
 	 * 
 	 * @param context IuLoggingContext to which a task will be bound.
-	 * @param task UnsafeRunnable to run with the given context.
+	 * @param task    UnsafeRunnable to run with the given context.
 	 */
-	static void bound(IuLoggingContext context, UnsafeRunnable task) {
-
-	}
+//	static void bound(IuLoggingContext context, UnsafeRunnable task) {
+//	}
 
 	/**
 	 * Get the current context.
 	 * 
 	 * @return IuLoggingContext representing the current context.
 	 */
-	static IuLoggingContext getCurrentContext() {
-		return null;
-	}
+//	static IuLoggingContext getCurrentContext() {
+//		return null;
+//	}
 }
