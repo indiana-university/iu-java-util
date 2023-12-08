@@ -52,7 +52,7 @@ import java.util.stream.StreamSupport;
  * 
  * <p>
  * Each <strong>subscriber</strong> {@link Stream} provides all values that may
- * be retrieved without blocking, then once values then is transitioned to an
+ * be retrieved without blocking, then transitions to an
  * {@link IuAsynchronousPipe} managed by the <strong>subject</strong> to block
  * until new values become available.
  * </p>
@@ -70,6 +70,7 @@ import java.util.stream.StreamSupport;
  * </p>
  * 
  * @param <T> value type
+ * @see IuAsynchronousPipe
  */
 public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 
@@ -148,14 +149,42 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 		return StreamSupport.stream(subscriber, false).onClose(() -> subscribers.remove(subscriber));
 	}
 
+	/**
+	 * Distributes a value to all potentially blocking <strong>subscribers</strong>
+	 * that have completed the transition to an {@link IuAsynchronousPipe}.
+	 * 
+	 * <p>
+	 * This method does not supply values to <strong>subscribers</strong> that
+	 * haven't yet completed the transition. The <strong>controlling
+	 * component</strong> is responsible for independently supplying those values to
+	 * it's {@link Spliterator}-supplying backing <strong>source</strong>.
+	 * </p>
+	 * 
+	 * @param value value to supply to all <strong>subscribers</strong>
+	 */
 	@Override
-	public void accept(T t) {
+	public void accept(T value) {
 		if (closed)
 			throw new IllegalStateException("closed");
 
-		subscribers.forEach(subscriber -> subscriber.pipe.accept(t));
+		subscribers.forEach(subscriber -> subscriber.pipe.accept(value));
 	}
 
+	/**
+	 * Closes the <strong>subject</strong>.
+	 * 
+	 * <p>
+	 * Once closed:
+	 * </p>
+	 * <ul>
+	 * <li>Existing <strong>subscribers</strong> may finish retrieving all values
+	 * already supplied</li>
+	 * <li>Blocking <strong>subscriber</strong> {@link Stream}s will be terminated
+	 * gracefully</li>
+	 * <li>No new <strong>subscribers</strong> may be created</li>
+	 * <li>No new <strong>values</strong> may be supplied</li>
+	 * </ul>
+	 */
 	@Override
 	public synchronized void close() {
 		if (closed)
