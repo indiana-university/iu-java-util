@@ -475,6 +475,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>site</module>
 			</modules>
 		</profile>
+		<profile>
+			<id>scan</id>
+			<activation>
+				<activeByDefault>true</activeByDefault>
+			</activation>
+			<modules>
+				<module>scan</module>
+			</modules>
+		</profile>
 	</profiles>
 
 </project>

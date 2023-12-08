@@ -117,7 +117,11 @@ public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement 
 	 *      Servlet 6.0, section 10.7.2</a>
 	 */
 	static boolean isPlatformType(String name) {
-		return name.startsWith("jakarta.") // JEE and related:
+		/*
+		 * Below packages are from JDK 21 When updating for a future JDK release, also
+		 * update the same-named method in iu-java-type-base::ModularClassLoader
+		 */
+		return name.startsWith("jakarta.") // JEE and related
 				// JDK packages:
 				|| name.startsWith("com.sun.") //
 				|| name.startsWith("java.") //

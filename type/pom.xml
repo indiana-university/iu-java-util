@@ -29,8 +29,10 @@
 				<module>testlegacyweb</module>
 				<module>testweb</module>
 				<module>testresources</module>
-				<module>module</module>
+				<module>base</module>
+				<module>impl</module>
 				<module>bundle</module>
+				<module>loader</module>
 			</modules>
 		</profile>
 	</profiles>

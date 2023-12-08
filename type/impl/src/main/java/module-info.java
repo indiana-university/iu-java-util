@@ -29,23 +29,23 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type.bundle;
-
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
-import org.junit.jupiter.api.Test;
-
-@SuppressWarnings("javadoc")
-public class TypeBundleSpiIT {
-
-	@Test
-	public void testCloses() throws Exception {
-		final var spi = new TypeBundleSpi();
-		spi.close();
-		assertThrows(IllegalStateException.class, () -> spi.resolveType(null));
-		assertThrows(IllegalStateException.class, () -> spi.createComponent(null));
-		assertThrows(IllegalStateException.class, () -> spi.scanComponentEntry(null, null));
-		spi.close(); // second call is no-op
-	}
-
+/**
+ * Type introspection utilities implementation module.
+ *
+ * @provides edu.iu.type.spi.IuTypeSpi Implementation service provider.
+ */
+module iu.util.type.impl {
+	exports iu.type;
+	opens iu.type to iu.util;
+	
+	requires iu.util;
+	requires iu.util.type;
+	requires iu.util.type.base;
+	
+	requires java.logging;
+	requires java.desktop;
+	requires jakarta.annotation;
+	requires jakarta.interceptor;
+	
+	provides edu.iu.type.spi.IuTypeSpi with iu.type.TypeSpi;
 }

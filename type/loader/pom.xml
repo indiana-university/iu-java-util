@@ -8,13 +8,13 @@
 		<version>7.0.1-SNAPSHOT</version>
 	</parent>
 	
-	<artifactId>iu-java-type</artifactId>
-	<name>IU Type Introspection Utilities</name>
+	<artifactId>iu-java-type-loader</artifactId>
+	<name>IU Type Introspection Module Loader</name>
 
 	<dependencies>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-type-api</artifactId>
+			<artifactId>iu-java-base</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
@@ -45,9 +45,23 @@
 							<artifactItems>
 								<artifactItem>
 									<groupId>${project.groupId}</groupId>
-									<artifactId>iu-java-type-impl</artifactId>
+									<artifactId>iu-java-base</artifactId>
 									<version>${project.version}</version>
-									<classifier>bundle</classifier>
+								</artifactItem>
+								<artifactItem>
+									<groupId>${project.groupId}</groupId>
+									<artifactId>iu-java-type-api</artifactId>
+									<version>${project.version}</version>
+								</artifactItem>
+								<artifactItem>
+									<groupId>${project.groupId}</groupId>
+									<artifactId>iu-java-type-base</artifactId>
+									<version>${project.version}</version>
+								</artifactItem>
+								<artifactItem>
+									<groupId>${project.groupId}</groupId>
+									<artifactId>iu-java-type</artifactId>
+									<version>${project.version}</version>
 								</artifactItem>
 							</artifactItems>
 							<stripVersion>true</stripVersion>
