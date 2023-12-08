@@ -125,12 +125,13 @@ public class AsynchronousSubjectTest {
 		try (final var subject = new IuAsynchronousSubject<>(q::spliterator)) {
 			new Thread(() -> {
 				try {
-					for (var i = 0; i < 1000; i++) {
+					for (var i = 0; i < 10000; i++) {
 						final var id = IdGenerator.generateId();
 						control.add(id);
 						q.add(id);
 						subject.accept(id);
 					}
+					Thread.sleep(100L);
 					subject.close();
 				} catch (Throwable e) {
 					subject.error(e);
