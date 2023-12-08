@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mockConstruction;
 
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.HashSet;
@@ -104,13 +105,27 @@ public class AsynchronousSubjectTest {
 	}
 
 	@Test
+	public void testCloseStreamUnsubscribes() throws Throwable {
+		final var q = new ConcurrentLinkedQueue<String>();
+		final var f = IuAsynchronousSubject.class.getDeclaredField("subscribers");
+		f.setAccessible(true);
+		try (final var subject = new IuAsynchronousSubject<>(q::spliterator)) {
+			final Queue<?> subscribers = (Queue<?>) f.get(subject);
+			final var stream = subject.subscribe();
+			assertEquals(1, subscribers.size());
+			stream.close();
+			assertEquals(0, subscribers.size());
+		}
+	}
+
+	@Test
 	public void testTwoSubscribers() throws Throwable {
 		final Set<String> control = Collections.synchronizedSet(new HashSet<>());
 		final var q = new ConcurrentLinkedQueue<String>();
 		try (final var subject = new IuAsynchronousSubject<>(q::spliterator)) {
 			new Thread(() -> {
 				try {
-					for (var i = 0; i < 100; i++) {
+					for (var i = 0; i < 1000; i++) {
 						final var id = IdGenerator.generateId();
 						control.add(id);
 						q.add(id);
@@ -122,11 +137,38 @@ public class AsynchronousSubjectTest {
 				}
 			}).start();
 
+			class Box {
+				boolean done;
+				Throwable error;
+			}
+			final var box = new Box();
+			final var t = new Thread(() -> {
+				try {
+					final var subscriber = subject.subscribe().parallel();
+					final var collected = subscriber.collect(Collectors.toSet());
+					assertEquals(control.size(), collected.size());
+					assertTrue(collected.containsAll(control));
+				} catch (Throwable e) {
+					box.error = e;
+				} finally {
+					box.done = true;
+					synchronized (box) {
+						box.notifyAll();
+					}
+				}
+			});
+			t.start();
+
 			Thread.sleep(20L);
 			final var subscriber = subject.subscribe().parallel();
 			final var collected = subscriber.collect(Collectors.toSet());
 			assertEquals(control.size(), collected.size());
 			assertTrue(collected.containsAll(control));
+
+			IuObject.waitFor(box, () -> box.done, Duration.ofMillis(200L));
+			assertTrue(box.done);
+			if (box.error != null)
+				throw box.error;
 		}
 	}
 
