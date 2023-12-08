@@ -40,6 +40,7 @@ module iu.util.type.bundle {
 
 	requires iu.util;
 	requires iu.util.type;
+	requires iu.util.type.base;
 
 	uses edu.iu.type.spi.IuTypeSpi;
 

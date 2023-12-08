@@ -33,7 +33,6 @@ package iu.type.bundle;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import java.io.IOException;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
@@ -46,7 +45,7 @@ import edu.iu.type.IuComponent.Kind;
 public class IuComponentIT {
 
 	@Test
-	public void testSanity() throws IllegalArgumentException, IOException {
+	public void testSanity() throws Exception {
 		IuTestLogger.allow("iu.type.ParameterizedElement", Level.FINEST, "replaced type argument.*");
 		try (final var runtime = IuComponent.of(TestBundleArchives.getComponentArchive("testruntime"),
 				TestBundleArchives.getProvidedDependencyArchives("testruntime"))) {
@@ -56,8 +55,6 @@ public class IuComponentIT {
 
 	@Test
 	public void testScan() {
-		IuTestLogger.expect("iu.type.Component", Level.FINEST,
-				"Resource annotation not available in scanned ClassLoader", ClassNotFoundException.class);
 		IuComponent component = IuComponent.scan(getClass());
 		assertEquals(Kind.LEGACY_ENTRY, component.kind());
 	}

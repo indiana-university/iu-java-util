@@ -63,6 +63,14 @@ public interface IuResourceReference<R, T> extends Consumer<R> {
 	IuType<?, R> referrerType();
 
 	/**
+	 * Determines whether or not the reference has been bound.
+	 * 
+	 * @return true if {@link #bind(IuResource) bound} with a non-null resource;
+	 *         else false
+	 */
+	boolean isBound();
+
+	/**
 	 * Binds a {@link IuResource resource} to all <strong>referrer
 	 * instances</strong>.
 	 * 
@@ -74,7 +82,8 @@ public interface IuResourceReference<R, T> extends Consumer<R> {
 	 * {@link #accept(Object) accepted}.
 	 * </p>
 	 * 
-	 * @param resource {@link IuResource} to bind to the <strong>reference</strong>
+	 * @param resource {@link IuResource} to bind to the <strong>reference</strong>;
+	 *                 may be null to unbind the reference
 	 */
 	void bind(IuResource<T> resource);
 

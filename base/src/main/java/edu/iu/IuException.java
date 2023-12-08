@@ -1297,13 +1297,39 @@ public final class IuException {
 	 *                  exceptions thrown from {@code runnable}.
 	 * @param runnable  {@link UnsafeRunnable}; will be run, and any exceptions
 	 *                  thrown will be suppressed by {@code throwable}
+	 * @return throwable if non-null; the exception thrown from runnable or null if
+	 *         no exception was thrown
 	 */
-	public static void suppress(Throwable throwable, UnsafeRunnable runnable) {
+	public static Throwable suppress(Throwable throwable, UnsafeRunnable runnable) {
 		try {
 			runnable.run();
 		} catch (Throwable e) {
-			throwable.addSuppressed(e);
+			if (throwable == null)
+				throwable = e;
+			else
+				throwable.addSuppressed(e);
 		}
+		return throwable;
+	}
+
+	/**
+	 * Runs a sequence of tasks with error suppression.
+	 * 
+	 * <p>
+	 * All tasks are guaranteed to run, but not guaranteed to finish. After all
+	 * tasks have run, the first error encountered will be thrown; all additional
+	 * errors will be suppressed.
+	 * </p>
+	 * 
+	 * @param tasks tasks to run
+	 * @throws Throwable from the first task the fails in error
+	 */
+	public static void suppress(UnsafeRunnable... tasks) throws Throwable {
+		Throwable e = null;
+		for (final var task : tasks)
+			e = suppress(e, task);
+		if (e != null)
+			throw e;
 	}
 
 	private IuException() {

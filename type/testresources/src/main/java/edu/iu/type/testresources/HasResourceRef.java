@@ -37,4 +37,21 @@ import jakarta.annotation.Resource;
 public class HasResourceRef {
 	@Resource
 	public Object resource;
+
+	public Object propResource;
+	public Object setterResource;
+
+	public Object getPropResource() {
+		return propResource;
+	}
+
+	@Resource
+	public void setPropResource(Object propResource) {
+		this.propResource = propResource;
+	}
+
+	@Resource
+	public void setSetterResource(Object o) {
+		setterResource = o;
+	}
 }

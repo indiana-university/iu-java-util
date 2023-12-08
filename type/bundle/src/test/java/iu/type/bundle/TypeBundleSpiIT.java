@@ -31,19 +31,13 @@
  */
 package iu.type.bundle;
 
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mockConstruction;
-import static org.mockito.Mockito.mockStatic;
 
 import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("javadoc")
 public class TypeBundleSpiIT {
-	
+
 	@Test
 	public void testCloses() throws Exception {
 		final var spi = new TypeBundleSpi();
@@ -52,30 +46,6 @@ public class TypeBundleSpiIT {
 		assertThrows(IllegalStateException.class, () -> spi.createComponent(null));
 		assertThrows(IllegalStateException.class, () -> spi.scanComponentEntry(null, null));
 		spi.close(); // second call is no-op
-	}
-
-	@Test
-	public void testDelegateCleansUpOnCreateError() throws Exception {
-		final var e = new RuntimeException();
-		try (final var mockFinder = mockConstruction(BundleModuleFinder.class, (finder, context) -> {
-			doThrow(e).when(finder).findAll();
-		})) {
-			assertSame(e, assertThrows(RuntimeException.class, TypeBundleSpi::new));
-		}
-	}
-
-	@Test
-	public void testDelegateSuppressesCleanUpErrorAfterCreateError() throws Exception {
-		final var e = new RuntimeException();
-		final var e2 = new RuntimeException();
-		try (final var mockFinder = mockConstruction(BundleModuleFinder.class, (finder, context) -> {
-			doThrow(e).when(finder).findAll();
-		}); //
-				final var mockTypeBundle = mockStatic(TypeBundleSpi.class, CALLS_REAL_METHODS)) {
-			mockTypeBundle.when(() -> TypeBundleSpi.cleanUp(any(), any())).thenThrow(e2);
-			assertSame(e, assertThrows(RuntimeException.class, TypeBundleSpi::new));
-			assertSame(e2, e.getSuppressed()[0]);
-		}
 	}
 
 }

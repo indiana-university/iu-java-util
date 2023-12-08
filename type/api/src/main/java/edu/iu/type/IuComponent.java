@@ -736,6 +736,6 @@ public interface IuComponent extends AutoCloseable {
 	Iterable<? extends IuResourceReference<?, ?>> resourceReferences();
 
 	@Override
-	void close();
+	void close() throws Exception;
 
 }
