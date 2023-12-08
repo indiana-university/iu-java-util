@@ -1,6 +1,4 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
 IU Type Introspection Utilities,edu.iu.type.bundle,IuTypeBundle,0,4,0,0,0,1,0,1,0,1
-IU Type Introspection Utilities,iu.type.bundle,TypeBundleSpi,0,316,0,20,0,76,0,24,0,14
-IU Type Introspection Utilities,iu.type.bundle,BundleModuleFinder,0,109,0,12,0,23,0,10,0,4
-IU Type Introspection Utilities,iu.type.bundle,TypeBundleSpi.CloseableDelegate,0,9,0,0,0,1,0,1,0,1
-IU Type Introspection Utilities,iu.type.bundle,BundleModuleFinder.Ref,0,50,0,6,0,16,0,6,0,3
+IU Type Introspection Utilities,iu.type.bundle,TypeBundleSpi,0,205,0,14,0,50,0,18,0,11
+IU Type Introspection Utilities,iu.type.bundle,TypeBundleSpi.new Object() {...},0,6,0,0,0,1,0,1,0,1

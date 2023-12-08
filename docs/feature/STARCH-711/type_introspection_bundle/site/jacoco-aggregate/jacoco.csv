@@ -8,7 +8,7 @@ IU Java Utilities API Reference/iu-java-base,edu.iu,IuVisitor,0,51,0,6,0,17,0,6,
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuStream.Buffers,0,11,0,0,0,3,0,1,0,1
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuStream,0,65,0,4,0,17,0,7,0,5
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuObject,0,547,0,118,0,135,0,71,0,12
-IU Java Utilities API Reference/iu-java-base,edu.iu,IuException,0,514,0,32,0,191,0,58,0,42
+IU Java Utilities API Reference/iu-java-base,edu.iu,IuException,0,548,0,38,0,199,0,62,0,43
 IU Java Utilities API Reference/iu-java-base,edu.iu,IdGenerator,0,531,0,58,0,90,0,36,0,7
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuAsynchronousPipe,0,318,0,30,0,76,0,34,0,19
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuIterable.new Iterable() {...},0,19,0,0,0,3,0,3,0,3
@@ -45,29 +45,34 @@ IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuComponent.Kind,0,
 IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,DefaultInterceptor.Scope,0,21,0,0,0,4,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuComponentVersion,0,157,0,32,0,46,0,20,0,4
 IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuComponent,0,66,0,2,0,11,0,5,0,4
+IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,TemporaryFile.new Object() {...},0,3,0,0,0,1,0,1,0,1
+IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,ModularClassLoader,0,723,0,106,0,160,0,71,0,18
+IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,CloseableModuleFinder.Ref,0,53,0,8,0,17,0,7,0,3
+IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,CloseableModuleFinder,0,109,0,12,0,23,0,10,0,4
+IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,ModularClassLoader.new Object() {...},0,6,0,0,0,1,0,1,0,1
+IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,TemporaryFile,0,110,0,8,0,27,0,10,0,6
+IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,ModularClassLoader.new BiPredicate() {...},0,14,0,0,0,4,0,2,0,2
+IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,ModularClassLoader.new Enumeration() {...},0,18,0,0,0,3,0,3,0,3
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ArchiveSource,0,252,0,30,0,62,0,24,0,9
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentResourceReference,0,228,0,32,0,48,0,26,0,10
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeFactory.new Record() {...},0,9,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,PropertyFacade,0,204,0,10,0,41,0,19,0,14
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentResource,0,272,0,30,0,60,0,32,0,17
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ParameterizedFacade,0,6,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,MethodFacade,0,117,0,12,0,22,0,14,0,8
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentResource,0,272,0,30,0,60,0,32,0,17
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,AnnotationBridge,0,165,0,18,0,42,0,14,0,5
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ParameterFacade,0,55,0,2,0,14,0,8,0,7
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeFacade,0,174,0,0,0,37,0,30,0,30
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ParameterizedElement,0,207,0,26,0,51,0,22,0,9
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ElementBase,0,62,0,6,0,19,0,8,0,5
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeFactory.new Object() {...},0,6,0,0,0,3,0,1,0,1
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,ModularClassLoader,0,645,0,84,0,141,0,58,0,16
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,ModularClassLoader.new BiPredicate() {...},0,14,0,0,0,4,0,2,0,2
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,DeclaredElementBase,0,46,0,4,0,13,0,5,0,3
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentModuleFinder,0,109,0,12,0,23,0,10,0,4
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeTemplate,0,878,1,107,0,177,1,97,0,44
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentFactory,0,363,0,48,0,79,0,32,0,8
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentFactory,0,424,0,44,0,77,0,33,0,11
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentArchive.ScannedAttributes,0,21,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,LegacyClassLoader,0,56,0,8,0,15,0,6,0,2
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentModuleFinder.Ref,0,53,0,8,0,17,0,7,0,3
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,TemporaryFile,0,24,0,0,0,8,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentVersion,0,533,2,72,0,108,2,50,0,15
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentTarget,0,57,0,2,0,13,0,4,0,3
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentArchive,0,658,0,128,0,148,0,71,0,7
@@ -77,15 +82,310 @@ IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeUtils,0,209,0,30,0
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeFactory,0,496,0,60,0,112,0,40,0,10
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,FieldFacade,0,119,0,10,0,21,0,14,0,9
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,BackwardsCompatibility,0,48,0,4,0,14,0,4,0,2
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,Component,0,883,0,84,0,191,0,68,0,26
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,Component,0,827,0,80,0,175,0,64,0,24
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeSpi,0,17,0,0,0,5,0,4,0,4
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,PathEntryScanner,0,180,1,25,0,36,1,16,0,4
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,ModularClassLoader.new Enumeration() {...},0,18,0,0,0,3,0,3,0,3
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeFacade.new Runnable() {...},0,96,0,4,0,18,0,6,0,4
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeReference,0,291,0,32,0,62,0,28,0,12
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,AnnotatedElementBase,0,79,0,10,0,23,0,11,0,6
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,PotentiallyRemoteAnnotationHandler,0,260,0,32,0,43,0,26,0,10
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ConstructorFacade,0,67,2,6,0,13,2,6,0,4
+IU Java Utilities API Reference/iu-java-type,jakarta.json.bind.spi,JsonbProvider,76,0,8,0,22,0,7,0,3,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json.stream,JsonParser.Event,104,0,0,0,11,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json.stream,JsonParsingException,18,0,0,0,7,0,3,0,3,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json.stream,JsonGenerationException,9,0,0,0,4,0,2,0,2,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json.stream,JsonCollectors,134,0,2,0,25,0,13,0,12,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json.stream,JsonParser,36,0,0,0,9,0,9,0,9,0
+IU Java Utilities API Reference/iu-java-type,iu.type.bundle,TypeBundleSpi.new Object() {...},0,6,0,0,0,1,0,1,0,1
+IU Java Utilities API Reference/iu-java-type,iu.type.bundle,TypeBundleSpi,0,205,0,14,0,50,0,18,0,11
+IU Java Utilities API Reference/iu-java-type,jakarta.annotation,Resource.AuthenticationType,0,24,0,0,0,3,0,1,0,1
+IU Java Utilities API Reference/iu-java-type,edu.iu.type.bundle,IuTypeBundle,0,4,0,0,0,1,0,1,0,1
+IU Java Utilities API Reference/iu-java-type,jakarta.json,EmptyObject,53,0,0,0,15,0,15,0,15,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonObjectBuilder,8,0,0,0,2,0,2,0,2,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonNumber,4,0,0,0,1,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonWriter,4,0,0,0,1,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json,EmptyArray,77,0,4,0,17,0,19,0,17,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonConfig.KeyStrategy,34,0,0,0,4,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonValue.ValueType,74,0,0,0,8,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json,Json,147,0,0,0,35,0,35,0,35,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonPatch.Operation,116,0,4,0,15,0,6,0,4,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonValueImpl,35,0,4,0,11,0,7,0,5,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonArrayBuilder,98,0,0,0,24,0,24,0,24,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonReader,4,0,0,0,1,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonException,9,0,0,0,4,0,2,0,2,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonArray,10,0,0,0,2,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonStructure,5,0,0,0,1,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonValue,34,0,0,0,7,0,3,0,3,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonBuilderFactory,16,0,0,0,4,0,4,0,4,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json.bind,JsonbException,9,0,0,0,4,0,2,0,2,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json.bind,JsonbBuilder,20,0,0,0,5,0,5,0,5,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json.bind,JsonbConfig,162,0,4,0,35,0,22,0,20,0
+IU Java Utilities API Reference/iu-java-type,jakarta.json.spi,JsonProvider,340,0,26,0,82,0,39,0,26,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonNumberImpl.JsonNumberNumber,27,0,2,0,8,0,4,0,3,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonNumberImpl.JsonLongNumber,51,0,2,0,15,0,11,0,10,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonReaderFactoryImpl,32,0,0,0,7,0,5,0,5,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonStructureParser.ObjectScope,37,0,0,0,10,0,5,0,5,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserImpl,571,0,70,0,129,0,66,0,28,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonWriterFactoryImpl,32,0,0,0,7,0,5,0,5,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonBuilderFactoryImpl,50,0,0,0,10,0,8,0,8,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonStructureParser.Scope,24,0,4,0,5,0,3,0,1,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,NodeReference.ArrayReference,153,0,18,0,24,0,15,0,6,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonArrayBuilderImpl,534,0,38,0,138,0,64,0,45,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},17,0,2,0,4,0,3,0,2,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},9,0,0,0,2,0,2,0,2,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},13,0,2,0,4,0,3,0,2,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonPointerImpl,379,0,51,0,74,0,39,0,13,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonTokenizer,1304,0,216,0,269,0,145,0,28,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonPatchImpl,258,0,33,0,53,0,30,0,11,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserFactoryImpl,42,0,0,0,9,0,7,0,7,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonStructureParser.ArrayScope,28,0,0,0,8,0,5,0,5,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonObjectBuilderImpl.JsonObjectImpl,161,0,16,0,46,0,28,0,20,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserImpl.Stack,35,0,4,0,10,0,6,0,4,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonGeneratorImpl.Context,9,0,0,0,4,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonNumberImpl.JsonIntNumber,51,0,2,0,15,0,11,0,10,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonGeneratorImpl.Scope,44,0,0,0,5,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonNumberImpl.JsonBigDecimalNumber,13,0,0,0,5,0,3,0,3,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonWriterImpl,215,0,25,0,58,0,21,0,8,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonPatchImpl.DiffGenerator,478,0,38,0,62,0,27,0,8,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonReaderImpl,205,0,20,0,52,0,18,0,8,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonMergePatchImpl,191,0,26,0,48,0,24,0,11,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonArrayBuilderImpl.JsonArrayImpl,134,0,6,0,38,0,22,0,19,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonTokenizer.JsonToken,165,0,0,0,19,0,4,0,4,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserImpl.ArrayContext,147,0,23,0,34,0,15,0,3,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonPrettyGeneratorImpl,113,0,6,0,36,0,15,0,12,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserImpl.NoneContext,69,0,6,0,14,0,6,0,3,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonPatchBuilderImpl,354,0,0,0,85,0,20,0,20,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonProviderImpl,353,0,10,0,46,0,39,0,34,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserImpl.new Spliterators.AbstractSpliterator() {...},33,0,4,0,9,0,5,0,3,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonGeneratorImpl,2251,0,155,0,351,0,135,0,49,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserImpl.new Spliterators.AbstractSpliterator() {...},36,0,6,0,10,0,6,0,3,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserImpl.new Spliterators.AbstractSpliterator() {...},69,0,10,0,18,0,8,0,3,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonStringImpl,161,0,21,0,36,0,20,0,7,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonContext,339,0,49,0,73,0,46,0,21,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonWriterImpl.NoFlushOutputStream,12,0,0,0,5,0,3,0,3,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonStructureParser,391,0,76,0,92,0,58,0,15,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonNumberImpl,233,0,28,0,54,0,33,0,19,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,UnicodeDetectingInputStream,395,0,74,0,78,0,44,0,7,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonLocationImpl,51,0,0,0,10,0,6,0,6,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonObjectBuilderImpl,334,0,22,0,88,0,33,0,22,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,MapUtil,132,0,28,0,31,0,15,0,1,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserImpl.ObjectContext,183,0,30,0,42,0,19,0,3,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,NodeReference,22,0,0,0,4,0,4,0,4,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,NodeReference.RootReference,44,0,4,0,12,0,8,0,6,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonMessages,500,0,6,0,72,0,61,0,58,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy,76,0,8,0,14,0,7,0,3,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,NodeReference.ObjectReference,91,0,10,0,16,0,11,0,6,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonGeneratorFactoryImpl,66,0,6,0,13,0,8,0,5,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,BufferPoolImpl,46,0,6,0,15,0,7,0,4,0
+IU Java Utilities API Reference/iu-java-type,iu.type,TypeFacade,0,174,0,0,0,37,0,30,0,30
+IU Java Utilities API Reference/iu-java-type,iu.type,ComponentFactory,0,424,0,44,0,77,0,33,0,11
+IU Java Utilities API Reference/iu-java-type,iu.type,LegacyClassLoader,0,56,0,8,0,15,0,6,0,2
+IU Java Utilities API Reference/iu-java-type,iu.type,ComponentVersion,0,533,2,72,0,108,2,50,0,15
+IU Java Utilities API Reference/iu-java-type,iu.type,ComponentTarget,0,57,0,2,0,13,0,4,0,3
+IU Java Utilities API Reference/iu-java-type,iu.type,FieldFacade,0,119,0,10,0,21,0,14,0,9
+IU Java Utilities API Reference/iu-java-type,iu.type,AnnotatedElementBase,0,79,0,10,0,23,0,11,0,6
+IU Java Utilities API Reference/iu-java-type,iu.type,TypeFactory.new Record() {...},0,9,0,0,0,1,0,1,0,1
+IU Java Utilities API Reference/iu-java-type,iu.type,ComponentResource,0,272,0,30,0,60,0,32,0,17
+IU Java Utilities API Reference/iu-java-type,iu.type,MethodFacade,0,117,0,12,0,22,0,14,0,8
+IU Java Utilities API Reference/iu-java-type,iu.type,ParameterFacade,0,55,0,2,0,14,0,8,0,7
+IU Java Utilities API Reference/iu-java-type,iu.type,TypeUtils,0,209,0,30,0,54,0,21,0,6
+IU Java Utilities API Reference/iu-java-type,iu.type,PathEntryScanner,0,180,1,25,0,36,1,16,0,4
+IU Java Utilities API Reference/iu-java-type,iu.type,TypeReference,0,291,0,32,0,62,0,28,0,12
+IU Java Utilities API Reference/iu-java-type,iu.type,ParameterizedFacade,0,6,0,0,0,1,0,1,0,1
+IU Java Utilities API Reference/iu-java-type,iu.type,ParameterizedElement,0,207,0,26,0,51,0,22,0,9
+IU Java Utilities API Reference/iu-java-type,iu.type,ElementBase,0,62,0,6,0,19,0,8,0,5
+IU Java Utilities API Reference/iu-java-type,iu.type,ComponentModuleFinder,0,109,0,12,0,23,0,10,0,4
+IU Java Utilities API Reference/iu-java-type,iu.type,TypeTemplate,0,878,1,107,0,177,1,97,0,44
+IU Java Utilities API Reference/iu-java-type,iu.type,ComponentArchive.ScannedAttributes,0,21,0,0,0,1,0,1,0,1
+IU Java Utilities API Reference/iu-java-type,iu.type,ComponentModuleFinder.Ref,0,53,0,8,0,17,0,7,0,3
+IU Java Utilities API Reference/iu-java-type,iu.type,BackwardsCompatibility,0,48,0,4,0,14,0,4,0,2
+IU Java Utilities API Reference/iu-java-type,iu.type,ConstructorFacade,0,67,2,6,0,13,2,6,0,4
+IU Java Utilities API Reference/iu-java-type,iu.type,ArchiveSource,0,252,0,30,0,62,0,24,0,9
+IU Java Utilities API Reference/iu-java-type,iu.type,ComponentResourceReference,0,228,0,32,0,48,0,26,0,10
+IU Java Utilities API Reference/iu-java-type,iu.type,PropertyFacade,0,204,0,10,0,41,0,19,0,14
+IU Java Utilities API Reference/iu-java-type,iu.type,AnnotationBridge,0,165,0,18,0,42,0,14,0,5
+IU Java Utilities API Reference/iu-java-type,iu.type,TypeFactory.new Object() {...},0,6,0,0,0,3,0,1,0,1
+IU Java Utilities API Reference/iu-java-type,iu.type,DeclaredElementBase,0,46,0,4,0,13,0,5,0,3
+IU Java Utilities API Reference/iu-java-type,iu.type,ComponentArchive,0,658,0,128,0,148,0,71,0,7
+IU Java Utilities API Reference/iu-java-type,iu.type,ComponentEntry,0,116,0,14,0,30,0,15,0,8
+IU Java Utilities API Reference/iu-java-type,iu.type,ExecutableBase,0,201,0,14,0,46,0,15,0,8
+IU Java Utilities API Reference/iu-java-type,iu.type,TypeFactory,0,496,0,60,0,112,0,40,0,10
+IU Java Utilities API Reference/iu-java-type,iu.type,Component,0,827,0,80,0,175,0,64,0,24
+IU Java Utilities API Reference/iu-java-type,iu.type,TypeSpi,0,17,0,0,0,5,0,4,0,4
+IU Java Utilities API Reference/iu-java-type,iu.type,TypeFacade.new Runnable() {...},0,96,0,4,0,18,0,6,0,4
+IU Java Utilities API Reference/iu-java-type,iu.type,PotentiallyRemoteAnnotationHandler,0,260,0,32,0,43,0,26,0,10
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.spi,TypeImplementation,0,9,0,0,0,2,0,1,0,1
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json.bind.spi,JsonbProvider,76,0,8,0,22,0,7,0,3,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json.stream,JsonParsingException,18,0,0,0,7,0,3,0,3,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json.stream,JsonParser.Event,104,0,0,0,11,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json.stream,JsonGenerationException,9,0,0,0,4,0,2,0,2,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json.stream,JsonCollectors,134,0,2,0,25,0,13,0,12,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json.stream,JsonParser,36,0,0,0,9,0,9,0,9,0
+IU Java Utilities API Reference/iu-java-type-loader,iu,ParallelTaskController,0,329,0,40,0,81,0,38,0,18
+IU Java Utilities API Reference/iu-java-type-loader,iu.type.bundle,TypeBundleSpi.new Object() {...},0,6,0,0,0,1,0,1,0,1
+IU Java Utilities API Reference/iu-java-type-loader,iu.type.bundle,TypeBundleSpi,0,205,0,14,0,50,0,18,0,11
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,DefaultInterceptor.Scope,0,21,0,0,0,4,0,1,0,1
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuReferenceKind,0,134,0,0,0,21,0,5,0,5
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuResourceKey,0,152,0,14,0,28,0,18,0,11
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuComponentVersion.new IuComponentVersion() {...},0,93,0,14,0,16,0,15,0,8
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuComponentVersion,0,157,0,32,0,46,0,20,0,4
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuProperty,0,167,1,49,0,36,1,32,0,8
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuExecutableKey,0,320,0,38,0,72,0,29,0,10
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuExecutable,0,6,0,0,0,1,0,1,0,1
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuComponent.Kind,0,68,0,0,0,13,0,4,0,4
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuParameterizedElement,0,6,0,0,0,1,0,1,0,1
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuTypeKey,0,477,0,56,0,95,0,42,0,14
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuTypeKey.Kind,0,33,0,0,0,6,0,1,0,1
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuComponent,0,66,0,2,0,11,0,5,0,4
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuAnnotatedElement,0,6,0,0,0,1,0,2,0,2
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuType,0,444,0,84,0,96,0,63,0,21
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,CloseableModuleFinder.Ref,0,53,0,8,0,17,0,7,0,3
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,CloseableModuleFinder,0,109,0,12,0,23,0,10,0,4
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,ModularClassLoader.new Enumeration() {...},0,18,0,0,0,3,0,3,0,3
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,TemporaryFile,0,110,0,8,0,27,0,10,0,6
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,TemporaryFile.new Object() {...},0,3,0,0,0,1,0,1,0,1
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,ModularClassLoader,0,723,0,106,0,160,0,71,0,18
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,ModularClassLoader.new Object() {...},0,6,0,0,0,1,0,1,0,1
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,ModularClassLoader.new BiPredicate() {...},0,14,0,0,0,4,0,2,0,2
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.annotation,Resource.AuthenticationType,0,24,0,0,0,3,0,1,0,1
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuStream.new ThreadLocal() {...},0,7,0,0,0,2,0,2,0,2
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuStream.Buffers,0,11,0,0,0,3,0,1,0,1
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuObject,0,547,0,118,0,135,0,71,0,12
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IdGenerator,0,531,0,58,0,90,0,36,0,7
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuAsynchronousPipe,0,318,0,30,0,76,0,34,0,19
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuIterable.IuIterator,0,81,0,6,0,19,0,9,0,6
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuAsynchronousPipe.Splitr,0,151,0,24,0,30,0,18,0,6
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuStream,0,65,0,4,0,17,0,7,0,5
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuRateLimitter,0,408,0,50,0,115,0,44,0,19
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuVisitor,0,51,0,6,0,17,0,6,0,3
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuIterable.new Iterable() {...},0,19,0,0,0,3,0,3,0,3
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuIterable.new Iterator() {...},0,70,0,8,0,13,0,7,0,3
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuIterable.new Iterator() {...},0,45,0,4,0,6,0,5,0,3
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuParallelWorkloadController.new Runnable() {...},0,182,0,6,0,32,0,10,0,7
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuIterable.new Iterator() {...},0,55,0,6,0,12,0,6,0,3
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuIterable.new Iterator() {...},0,25,0,0,0,4,0,3,0,3
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuIterable,0,209,0,39,0,59,0,36,0,16
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuParallelWorkloadController.CloseTask,0,42,0,2,0,11,0,5,0,4
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuException,0,548,0,38,0,199,0,62,0,43
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuParallelWorkloadController,0,726,0,60,0,158,0,57,0,27
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IdGenerator.new ThreadLocal() {...},0,27,0,0,0,9,0,2,0,2
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.loader,IuComponentLoader,266,0,8,0,43,0,14,0,10,0
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.loader,IuComponentLoader.new Object() {...},6,0,0,0,1,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,EmptyObject,53,0,0,0,15,0,15,0,15,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonObjectBuilder,8,0,0,0,2,0,2,0,2,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonConfig.KeyStrategy,34,0,0,0,4,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,Json,147,0,0,0,35,0,35,0,35,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonArrayBuilder,98,0,0,0,24,0,24,0,24,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonReader,4,0,0,0,1,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonException,9,0,0,0,4,0,2,0,2,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonStructure,5,0,0,0,1,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonNumber,4,0,0,0,1,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonWriter,4,0,0,0,1,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,EmptyArray,77,0,4,0,17,0,19,0,17,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonValue.ValueType,74,0,0,0,8,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonPatch.Operation,116,0,4,0,15,0,6,0,4,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonValueImpl,35,0,4,0,11,0,7,0,5,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonArray,10,0,0,0,2,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonValue,34,0,0,0,7,0,3,0,3,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonBuilderFactory,16,0,0,0,4,0,4,0,4,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json.bind,JsonbException,9,0,0,0,4,0,2,0,2,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json.bind,JsonbConfig,162,0,4,0,35,0,22,0,20,0
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json.bind,JsonbBuilder,20,0,0,0,5,0,5,0,5,0
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.bundle,IuTypeBundle,0,4,0,0,0,1,0,1,0,1
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json.spi,JsonProvider,340,0,26,0,82,0,39,0,26,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonNumberImpl.JsonLongNumber,51,0,2,0,15,0,11,0,10,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonReaderFactoryImpl,32,0,0,0,7,0,5,0,5,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonWriterFactoryImpl,32,0,0,0,7,0,5,0,5,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonBuilderFactoryImpl,50,0,0,0,10,0,8,0,8,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonArrayBuilderImpl,534,0,38,0,138,0,64,0,45,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},17,0,2,0,4,0,3,0,2,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},9,0,0,0,2,0,2,0,2,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},13,0,2,0,4,0,3,0,2,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonTokenizer,1304,0,216,0,269,0,145,0,28,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonStructureParser.ArrayScope,28,0,0,0,8,0,5,0,5,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonObjectBuilderImpl.JsonObjectImpl,161,0,16,0,46,0,28,0,20,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonNumberImpl.JsonIntNumber,51,0,2,0,15,0,11,0,10,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonGeneratorImpl.Scope,44,0,0,0,5,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonNumberImpl.JsonBigDecimalNumber,13,0,0,0,5,0,3,0,3,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonPatchImpl.DiffGenerator,478,0,38,0,62,0,27,0,8,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonReaderImpl,205,0,20,0,52,0,18,0,8,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonArrayBuilderImpl.JsonArrayImpl,134,0,6,0,38,0,22,0,19,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonTokenizer.JsonToken,165,0,0,0,19,0,4,0,4,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonStringImpl,161,0,21,0,36,0,20,0,7,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonContext,339,0,49,0,73,0,46,0,21,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonWriterImpl.NoFlushOutputStream,12,0,0,0,5,0,3,0,3,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonNumberImpl,233,0,28,0,54,0,33,0,19,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonLocationImpl,51,0,0,0,10,0,6,0,6,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonObjectBuilderImpl,334,0,22,0,88,0,33,0,22,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,MapUtil,132,0,28,0,31,0,15,0,1,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserImpl.ObjectContext,183,0,30,0,42,0,19,0,3,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,NodeReference,22,0,0,0,4,0,4,0,4,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonMessages,500,0,6,0,72,0,61,0,58,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy,76,0,8,0,14,0,7,0,3,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonGeneratorFactoryImpl,66,0,6,0,13,0,8,0,5,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,BufferPoolImpl,46,0,6,0,15,0,7,0,4,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonNumberImpl.JsonNumberNumber,27,0,2,0,8,0,4,0,3,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonStructureParser.ObjectScope,37,0,0,0,10,0,5,0,5,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserImpl,571,0,70,0,129,0,66,0,28,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonStructureParser.Scope,24,0,4,0,5,0,3,0,1,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,NodeReference.ArrayReference,153,0,18,0,24,0,15,0,6,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonPointerImpl,379,0,51,0,74,0,39,0,13,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonPatchImpl,258,0,33,0,53,0,30,0,11,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserFactoryImpl,42,0,0,0,9,0,7,0,7,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserImpl.Stack,35,0,4,0,10,0,6,0,4,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonGeneratorImpl.Context,9,0,0,0,4,0,1,0,1,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonWriterImpl,215,0,25,0,58,0,21,0,8,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonMergePatchImpl,191,0,26,0,48,0,24,0,11,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserImpl.ArrayContext,147,0,23,0,34,0,15,0,3,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonPrettyGeneratorImpl,113,0,6,0,36,0,15,0,12,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserImpl.NoneContext,69,0,6,0,14,0,6,0,3,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonPatchBuilderImpl,354,0,0,0,85,0,20,0,20,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonProviderImpl,353,0,10,0,46,0,39,0,34,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserImpl.new Spliterators.AbstractSpliterator() {...},33,0,4,0,9,0,5,0,3,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonGeneratorImpl,2251,0,155,0,351,0,135,0,49,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserImpl.new Spliterators.AbstractSpliterator() {...},36,0,6,0,10,0,6,0,3,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserImpl.new Spliterators.AbstractSpliterator() {...},69,0,10,0,18,0,8,0,3,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonStructureParser,391,0,76,0,92,0,58,0,15,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,UnicodeDetectingInputStream,395,0,74,0,78,0,44,0,7,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,NodeReference.RootReference,44,0,4,0,12,0,8,0,6,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,NodeReference.ObjectReference,91,0,10,0,16,0,11,0,6,0
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeFacade,0,174,0,0,0,37,0,30,0,30
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentFactory,0,424,0,44,0,77,0,33,0,11
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentVersion,0,533,2,72,0,108,2,50,0,15
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,FieldFacade,0,119,0,10,0,21,0,14,0,9
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,AnnotatedElementBase,0,79,0,10,0,23,0,11,0,6
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeFactory.new Record() {...},0,9,0,0,0,1,0,1,0,1
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,MethodFacade,0,117,0,12,0,22,0,14,0,8
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ParameterFacade,0,55,0,2,0,14,0,8,0,7
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeUtils,0,209,0,30,0,54,0,21,0,6
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeReference,0,291,0,32,0,62,0,28,0,12
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentArchive.ScannedAttributes,0,21,0,0,0,1,0,1,0,1
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentResourceReference,0,228,0,32,0,48,0,26,0,10
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,AnnotationBridge,0,165,0,18,0,42,0,14,0,5
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeFactory.new Object() {...},0,6,0,0,0,3,0,1,0,1
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,DeclaredElementBase,0,46,0,4,0,13,0,5,0,3
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ExecutableBase,0,201,0,14,0,46,0,15,0,8
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeFactory,0,496,0,60,0,112,0,40,0,10
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,PotentiallyRemoteAnnotationHandler,0,260,0,32,0,43,0,26,0,10
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,LegacyClassLoader,0,56,0,8,0,15,0,6,0,2
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentTarget,0,57,0,2,0,13,0,4,0,3
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentResource,0,272,0,30,0,60,0,32,0,17
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,PathEntryScanner,0,180,1,25,0,36,1,16,0,4
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ParameterizedFacade,0,6,0,0,0,1,0,1,0,1
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ParameterizedElement,0,207,0,26,0,51,0,22,0,9
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ElementBase,0,62,0,6,0,19,0,8,0,5
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentModuleFinder,0,109,0,12,0,23,0,10,0,4
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeTemplate,0,878,1,107,0,177,1,97,0,44
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentModuleFinder.Ref,0,53,0,8,0,17,0,7,0,3
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,BackwardsCompatibility,0,48,0,4,0,14,0,4,0,2
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ConstructorFacade,0,67,2,6,0,13,2,6,0,4
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ArchiveSource,0,252,0,30,0,62,0,24,0,9
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,PropertyFacade,0,204,0,10,0,41,0,19,0,14
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentArchive,0,658,0,128,0,148,0,71,0,7
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentEntry,0,116,0,14,0,30,0,15,0,8
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,Component,0,827,0,80,0,175,0,64,0,24
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeSpi,0,17,0,0,0,5,0,4,0,4
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeFacade.new Runnable() {...},0,96,0,4,0,18,0,6,0,4
 IU Java Utilities API Reference/iu-java-runtime-api,edu.iu.runtime,IuRuntimeConfiguration,0,47,0,0,0,9,0,6,0,6
 IU Java Utilities API Reference/iu-java-runtime-api,edu.iu.runtime,IuRuntime,0,3,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-runtime-api,iu.runtime,EmptyConfiguration,0,9,0,0,0,2,0,2,0,2

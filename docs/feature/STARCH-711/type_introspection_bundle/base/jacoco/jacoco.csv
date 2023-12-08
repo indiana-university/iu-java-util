@@ -8,7 +8,7 @@ IU Base Utilities Module,edu.iu,IuVisitor,0,51,0,6,0,17,0,6,0,3
 IU Base Utilities Module,edu.iu,IuStream.Buffers,0,11,0,0,0,3,0,1,0,1
 IU Base Utilities Module,edu.iu,IuStream,0,65,0,4,0,17,0,7,0,5
 IU Base Utilities Module,edu.iu,IuObject,0,547,0,118,0,135,0,71,0,12
-IU Base Utilities Module,edu.iu,IuException,0,514,0,32,0,191,0,58,0,42
+IU Base Utilities Module,edu.iu,IuException,0,548,0,38,0,199,0,62,0,43
 IU Base Utilities Module,edu.iu,IdGenerator,0,531,0,58,0,90,0,36,0,7
 IU Base Utilities Module,edu.iu,IuAsynchronousPipe,0,318,0,30,0,76,0,34,0,19
 IU Base Utilities Module,edu.iu,IuIterable.new Iterable() {...},0,19,0,0,0,3,0,3,0,3
