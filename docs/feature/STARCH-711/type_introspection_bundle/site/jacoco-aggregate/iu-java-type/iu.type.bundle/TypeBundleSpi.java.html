@@ -58,6 +58,9 @@ import edu.iu.type.spi.IuTypeSpi;
  */
 public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 
+<span class="fc" id="L61">	private static final ClassLoader TYPE_SPI_LOADER = IuTypeSpi.class.getClassLoader();</span>
+<span class="fc" id="L62">	private static final ModuleLayer TYPE_SPI_LAYER = IuTypeSpi.class.getModule().getLayer();</span>
+
 	private IuTypeSpi delegate;
 	private final ModularClassLoader bundleLoader;
 	private final IORunnable destroy;
@@ -68,89 +71,91 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 	 * @throws IOException if an error occurs establishing a module path for the
 	 *                     bundle
 	 */
-<span class="fc" id="L71">	public TypeBundleSpi() throws IOException {</span>
-<span class="fc" id="L72">		final Deque&lt;Path&gt; libs = new ArrayDeque&lt;&gt;();</span>
-<span class="fc" id="L73">		destroy = TemporaryFile.init(() -&gt; {</span>
-<span class="fc" id="L74">			final var bundle = TypeBundleSpi.class.getClassLoader().getResource(&quot;iu-java-type-impl-bundle.jar&quot;);</span>
-<span class="fc" id="L75">			final var bundleConnection = bundle.openConnection();</span>
-<span class="fc" id="L76">			bundleConnection.setUseCaches(false);</span>
-<span class="fc" id="L77">			try (final var in = bundleConnection.getInputStream(); //</span>
-<span class="fc" id="L78">					final var bundleJar = new JarInputStream(in)) {</span>
+<span class="fc" id="L74">	public TypeBundleSpi() throws IOException {</span>
+<span class="fc" id="L75">		final Deque&lt;Path&gt; libs = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L76">		destroy = TemporaryFile.init(() -&gt; {</span>
+<span class="fc" id="L77">			final var bundle = TypeBundleSpi.class.getClassLoader().getResource(&quot;iu-java-type-impl-bundle.jar&quot;);</span>
+<span class="fc" id="L78">			final var bundleConnection = bundle.openConnection();</span>
+<span class="fc" id="L79">			bundleConnection.setUseCaches(false);</span>
+<span class="fc" id="L80">			try (final var in = bundleConnection.getInputStream(); //</span>
+<span class="fc" id="L81">					final var bundleJar = new JarInputStream(in)) {</span>
 				JarEntry entry;
-<span class="fc bfc" id="L80" title="All 2 branches covered.">				while ((entry = bundleJar.getNextJarEntry()) != null) {</span>
-<span class="fc" id="L81">					final var name = entry.getName();</span>
-<span class="fc bfc" id="L82" title="All 2 branches covered.">					if (name.endsWith(&quot;.jar&quot;)) {</span>
-<span class="fc" id="L83">						final var lib = name.startsWith(&quot;lib/&quot;);</span>
-<span class="fc" id="L84">						final var bundledLib = TemporaryFile.init(path -&gt; {</span>
-<span class="fc" id="L85">							try (final var out = Files.newOutputStream(path)) {</span>
-<span class="fc" id="L86">								IuStream.copy(bundleJar, out);</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">				while ((entry = bundleJar.getNextJarEntry()) != null) {</span>
+<span class="fc" id="L84">					final var name = entry.getName();</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">					if (name.endsWith(&quot;.jar&quot;)) {</span>
+<span class="fc" id="L86">						final var lib = name.startsWith(&quot;lib/&quot;);</span>
+<span class="fc" id="L87">						final var bundledLib = TemporaryFile.init(path -&gt; {</span>
+<span class="fc" id="L88">							try (final var out = Files.newOutputStream(path)) {</span>
+<span class="fc" id="L89">								IuStream.copy(bundleJar, out);</span>
 							}
-<span class="fc" id="L88">							return path;</span>
+<span class="fc" id="L91">							return path;</span>
 						});
-<span class="fc bfc" id="L90" title="All 2 branches covered.">						if (lib)</span>
-<span class="fc" id="L91">							libs.offer(bundledLib);</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">						if (lib)</span>
+<span class="fc" id="L94">							libs.offer(bundledLib);</span>
 						else
-<span class="fc" id="L93">							libs.offerFirst(bundledLib);</span>
+<span class="fc" id="L96">							libs.offerFirst(bundledLib);</span>
 					}
 
-<span class="fc" id="L96">					bundleJar.closeEntry();</span>
-<span class="fc" id="L97">				}</span>
+<span class="fc" id="L99">					bundleJar.closeEntry();</span>
+<span class="fc" id="L100">				}</span>
 			}
-<span class="fc" id="L99">		});</span>
+<span class="fc" id="L102">		});</span>
 
-<span class="fc" id="L101">		class Box {</span>
+<span class="fc" id="L104">		class Box {</span>
 			ModularClassLoader bundleLoader;
 			IuTypeSpi delegate;
 		}
-<span class="fc" id="L105">		final var box = new Box();</span>
+<span class="fc" id="L108">		final var box = new Box();</span>
 
 		try {
-<span class="fc" id="L108">			IuException.checked(IOException.class,</span>
-<span class="fc" id="L109">					() -&gt; IuException.initialize(new ModularClassLoader(false, libs, null, null), bundleLoader -&gt; {</span>
-<span class="fc" id="L110">						box.bundleLoader = bundleLoader;</span>
-<span class="fc" id="L111">						box.delegate = ServiceLoader.load(IuTypeSpi.class, bundleLoader).iterator().next();</span>
-<span class="fc" id="L112">						return null;</span>
-					}));
-<span class="fc" id="L114">		} catch (Throwable e) {</span>
-<span class="fc" id="L115">			IuException.suppress(e, destroy);</span>
-<span class="fc" id="L116">			throw e;</span>
-<span class="fc" id="L117">		}</span>
+<span class="fc" id="L111">			IuException.checked(IOException.class,</span>
+<span class="fc" id="L112">					() -&gt; IuException.initialize(</span>
+							new ModularClassLoader(false, libs, TYPE_SPI_LAYER, TYPE_SPI_LOADER, null),
+							bundleLoader -&gt; {
+<span class="fc" id="L115">								box.bundleLoader = bundleLoader;</span>
+<span class="fc" id="L116">								box.delegate = ServiceLoader.load(IuTypeSpi.class, bundleLoader).iterator().next();</span>
+<span class="fc" id="L117">								return null;</span>
+							}));
+<span class="fc" id="L119">		} catch (Throwable e) {</span>
+<span class="fc" id="L120">			IuException.suppress(e, destroy);</span>
+<span class="fc" id="L121">			throw e;</span>
+<span class="fc" id="L122">		}</span>
 
-<span class="fc" id="L119">		this.bundleLoader = box.bundleLoader;</span>
-<span class="fc" id="L120">		this.delegate = box.delegate;</span>
-<span class="fc" id="L121">	}</span>
+<span class="fc" id="L124">		this.bundleLoader = box.bundleLoader;</span>
+<span class="fc" id="L125">		this.delegate = box.delegate;</span>
+<span class="fc" id="L126">	}</span>
 
 	@Override
 	public IuType&lt;?, ?&gt; resolveType(Type type) {
-<span class="fc bfc" id="L125" title="All 2 branches covered.">		if (delegate == null)</span>
-<span class="fc" id="L126">			throw new IllegalStateException(&quot;closed&quot;);</span>
-<span class="fc" id="L127">		return delegate.resolveType(type);</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">		if (delegate == null)</span>
+<span class="fc" id="L131">			throw new IllegalStateException(&quot;closed&quot;);</span>
+<span class="fc" id="L132">		return delegate.resolveType(type);</span>
 	}
 
 	@Override
 	public IuComponent createComponent(InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException {
-<span class="fc bfc" id="L133" title="All 2 branches covered.">		if (delegate == null)</span>
-<span class="fc" id="L134">			throw new IllegalStateException(&quot;closed&quot;);</span>
-<span class="fc" id="L135">		return delegate.createComponent(componentArchiveSource, providedDependencyArchiveSources);</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">		if (delegate == null)</span>
+<span class="fc" id="L139">			throw new IllegalStateException(&quot;closed&quot;);</span>
+<span class="fc" id="L140">		return delegate.createComponent(componentArchiveSource, providedDependencyArchiveSources);</span>
 	}
 
 	@Override
 	public IuComponent scanComponentEntry(ClassLoader classLoader, Path pathEntry)
 			throws IOException, ClassNotFoundException {
-<span class="fc bfc" id="L141" title="All 2 branches covered.">		if (delegate == null)</span>
-<span class="fc" id="L142">			throw new IllegalStateException(&quot;closed&quot;);</span>
-<span class="fc" id="L143">		return delegate.scanComponentEntry(classLoader, pathEntry);</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">		if (delegate == null)</span>
+<span class="fc" id="L147">			throw new IllegalStateException(&quot;closed&quot;);</span>
+<span class="fc" id="L148">		return delegate.scanComponentEntry(classLoader, pathEntry);</span>
 	}
 
 	@Override
 	public synchronized void close() throws Exception {
-<span class="fc" id="L148">		final var delegate = this.delegate;</span>
-<span class="fc bfc" id="L149" title="All 2 branches covered.">		if (delegate != null) {</span>
-<span class="fc" id="L150">			this.delegate = null;</span>
-<span class="fc" id="L151">			IuException.checked(() -&gt; IuException.suppress(bundleLoader::close, destroy));</span>
+<span class="fc" id="L153">		final var delegate = this.delegate;</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">		if (delegate != null) {</span>
+<span class="fc" id="L155">			this.delegate = null;</span>
+<span class="fc" id="L156">			IuException.checked(() -&gt; IuException.suppress(bundleLoader::close, destroy));</span>
 		}
-<span class="fc" id="L153">	}</span>
+<span class="fc" id="L158">	}</span>
 
 	/**
 	 * Gets a reference to the loaded {@code iu.util.type.impl} module.
@@ -158,7 +163,7 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 	 * @return loaded {@code iu.util.type.impl} module
 	 */
 	public Module getModule() {
-<span class="fc" id="L161">		return this.delegate.getClass().getModule();</span>
+<span class="fc" id="L166">		return this.delegate.getClass().getModule();</span>
 	}
 
 }

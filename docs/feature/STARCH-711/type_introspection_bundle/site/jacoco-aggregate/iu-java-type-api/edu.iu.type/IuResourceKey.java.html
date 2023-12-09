@@ -60,7 +60,7 @@ public class IuResourceKey&lt;T&gt; {
 	public static String getDefaultResourceName(Class&lt;?&gt; type) {
 <span class="fc bfc" id="L61" title="All 2 branches covered.">		if (!type.isInterface())</span>
 <span class="fc bfc" id="L62" title="All 2 branches covered.">			for (final var i : type.getInterfaces())</span>
-<span class="fc bfc" id="L63" title="All 2 branches covered.">				if (!IuType.isPlatformType(i.getName())) {</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">				if (!IuObject.isPlatformName(i.getName())) {</span>
 <span class="fc" id="L64">					type = i;</span>
 <span class="fc" id="L65">					break;</span>
 				}

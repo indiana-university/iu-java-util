@@ -94,53 +94,13 @@ import edu.iu.type.spi.TypeImplementation;
 public interface IuType&lt;D, T&gt; extends IuNamedElement&lt;D&gt;, IuParameterizedElement {
 
 	/**
-	 * Determines if a type name is considered a &lt;strong&gt;platform type&lt;/strong&gt;.
-	 * 
-	 * &lt;p&gt;
-	 * &lt;strong&gt;Platform types&lt;/strong&gt; are those provided by the JDK or JEE
-	 * platform. &lt;strong&gt;Platform types&lt;/strong&gt; are shielded from type
-	 * introspection, and exempt from the {@link ClassLoader} delegation suppression
-	 * required for web applications.
-	 * &lt;/p&gt;
-	 * 
-	 * &lt;p&gt;
-	 * &lt;strong&gt;API Note:&lt;/strong&gt; Accepts {@link String} instead of {@link Class} as
-	 * the type argument to allow this method to be used by {@link ClassLoader}
-	 * implementations prior to loading the class.
-	 * &lt;/p&gt;
-	 * 
-	 * @param name type name
-	 * @return {@code true} if a platform type; else false
-	 * 
-	 * @see &lt;a href=
-	 *      &quot;https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader&quot;&gt;
-	 *      Servlet 6.0, section 10.7.2&lt;/a&gt;
-	 */
-	static boolean isPlatformType(String name) {
-		/*
-		 * Below packages are from JDK 21 When updating for a future JDK release, also
-		 * update the same-named method in iu-java-type-base::ModularClassLoader
-		 */
-<span class="fc bfc" id="L124" title="All 2 branches covered.">		return name.startsWith(&quot;jakarta.&quot;) // JEE and related</span>
-				// JDK packages:
-<span class="fc bfc" id="L126" title="All 2 branches covered.">				|| name.startsWith(&quot;com.sun.&quot;) //</span>
-<span class="fc bfc" id="L127" title="All 2 branches covered.">				|| name.startsWith(&quot;java.&quot;) //</span>
-<span class="fc bfc" id="L128" title="All 2 branches covered.">				|| name.startsWith(&quot;javax.&quot;) //</span>
-<span class="fc bfc" id="L129" title="All 2 branches covered.">				|| name.startsWith(&quot;jdk.&quot;) //</span>
-<span class="fc bfc" id="L130" title="All 2 branches covered.">				|| name.startsWith(&quot;netscape.javascript.&quot;) //</span>
-<span class="fc bfc" id="L131" title="All 2 branches covered.">				|| name.startsWith(&quot;org.ietf.jgss.&quot;) //</span>
-<span class="fc bfc" id="L132" title="All 2 branches covered.">				|| name.startsWith(&quot;org.w3c.dom.&quot;) //</span>
-<span class="fc bfc" id="L133" title="All 2 branches covered.">				|| name.startsWith(&quot;org.xml.sax.&quot;);</span>
-	}
-
-	/**
 	 * Resolves a type introspection facade for a generic type.
 	 * 
 	 * @param type generic type
 	 * @return type introspection facade
 	 */
 	static IuType&lt;?, ?&gt; of(Type type) {
-<span class="fc" id="L143">		return TypeImplementation.PROVIDER.resolveType(type);</span>
+<span class="fc" id="L103">		return TypeImplementation.PROVIDER.resolveType(type);</span>
 	}
 
 	/**
@@ -167,7 +127,7 @@ public interface IuType&lt;D, T&gt; extends IuNamedElement&lt;D&gt;, IuParameter
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	static &lt;T&gt; IuType&lt;?, T&gt; of(Class&lt;T&gt; rawClass) {
-<span class="fc" id="L170">		return (IuType&lt;?, T&gt;) of((Type) rawClass);</span>
+<span class="fc" id="L130">		return (IuType&lt;?, T&gt;) of((Type) rawClass);</span>
 	}
 
 	/**
@@ -199,7 +159,7 @@ public interface IuType&lt;D, T&gt; extends IuNamedElement&lt;D&gt;, IuParameter
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	default Class&lt;T&gt; erasedClass() {
-<span class="fc" id="L202">		return (Class&lt;T&gt;) erase().deref();</span>
+<span class="fc" id="L162">		return (Class&lt;T&gt;) erase().deref();</span>
 	}
 
 	/**
@@ -212,27 +172,27 @@ public interface IuType&lt;D, T&gt; extends IuNamedElement&lt;D&gt;, IuParameter
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	default Class&lt;T&gt; autoboxClass() {
-<span class="fc" id="L215">		var potentiallyPrimitive = erasedClass();</span>
-<span class="fc bfc" id="L216" title="All 2 branches covered.">		if (Boolean.TYPE.equals(potentiallyPrimitive))</span>
-<span class="fc" id="L217">			return (Class&lt;T&gt;) Boolean.class;</span>
-<span class="fc bfc" id="L218" title="All 2 branches covered.">		else if (Character.TYPE.equals(potentiallyPrimitive))</span>
-<span class="fc" id="L219">			return (Class&lt;T&gt;) Character.class;</span>
-<span class="fc bfc" id="L220" title="All 2 branches covered.">		else if (Byte.TYPE.equals(potentiallyPrimitive))</span>
-<span class="fc" id="L221">			return (Class&lt;T&gt;) Byte.class;</span>
-<span class="fc bfc" id="L222" title="All 2 branches covered.">		else if (Short.TYPE.equals(potentiallyPrimitive))</span>
-<span class="fc" id="L223">			return (Class&lt;T&gt;) Short.class;</span>
-<span class="fc bfc" id="L224" title="All 2 branches covered.">		else if (Integer.TYPE.equals(potentiallyPrimitive))</span>
-<span class="fc" id="L225">			return (Class&lt;T&gt;) Integer.class;</span>
-<span class="fc bfc" id="L226" title="All 2 branches covered.">		else if (Long.TYPE.equals(potentiallyPrimitive))</span>
-<span class="fc" id="L227">			return (Class&lt;T&gt;) Long.class;</span>
-<span class="fc bfc" id="L228" title="All 2 branches covered.">		else if (Float.TYPE.equals(potentiallyPrimitive))</span>
-<span class="fc" id="L229">			return (Class&lt;T&gt;) Float.class;</span>
-<span class="fc bfc" id="L230" title="All 2 branches covered.">		else if (Double.TYPE.equals(potentiallyPrimitive))</span>
-<span class="fc" id="L231">			return (Class&lt;T&gt;) Double.class;</span>
-<span class="fc bfc" id="L232" title="All 2 branches covered.">		else if (Void.TYPE.equals(potentiallyPrimitive))</span>
-<span class="fc" id="L233">			return (Class&lt;T&gt;) Void.class;</span>
+<span class="fc" id="L175">		var potentiallyPrimitive = erasedClass();</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">		if (Boolean.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L177">			return (Class&lt;T&gt;) Boolean.class;</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">		else if (Character.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L179">			return (Class&lt;T&gt;) Character.class;</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">		else if (Byte.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L181">			return (Class&lt;T&gt;) Byte.class;</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">		else if (Short.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L183">			return (Class&lt;T&gt;) Short.class;</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">		else if (Integer.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L185">			return (Class&lt;T&gt;) Integer.class;</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">		else if (Long.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L187">			return (Class&lt;T&gt;) Long.class;</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">		else if (Float.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L189">			return (Class&lt;T&gt;) Float.class;</span>
+<span class="fc bfc" id="L190" title="All 2 branches covered.">		else if (Double.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L191">			return (Class&lt;T&gt;) Double.class;</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">		else if (Void.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L193">			return (Class&lt;T&gt;) Void.class;</span>
 		else
-<span class="fc" id="L235">			return potentiallyPrimitive;</span>
+<span class="fc" id="L195">			return potentiallyPrimitive;</span>
 	}
 
 	/**
@@ -244,25 +204,25 @@ public interface IuType&lt;D, T&gt; extends IuNamedElement&lt;D&gt;, IuParameter
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	default T autoboxDefault() {
-<span class="fc" id="L247">		var potentiallyPrimitive = erasedClass();</span>
-<span class="fc bfc" id="L248" title="All 2 branches covered.">		if (Boolean.TYPE.equals(potentiallyPrimitive))</span>
-<span class="fc" id="L249">			return (T) Boolean.FALSE;</span>
-<span class="fc bfc" id="L250" title="All 2 branches covered.">		else if (Character.TYPE.equals(potentiallyPrimitive))</span>
-<span class="fc" id="L251">			return (T) Character.valueOf('\0');</span>
-<span class="fc bfc" id="L252" title="All 2 branches covered.">		else if (Byte.TYPE.equals(potentiallyPrimitive))</span>
-<span class="fc" id="L253">			return (T) Byte.valueOf((byte) 0);</span>
-<span class="fc bfc" id="L254" title="All 2 branches covered.">		else if (Short.TYPE.equals(potentiallyPrimitive))</span>
-<span class="fc" id="L255">			return (T) Short.valueOf((short) 0);</span>
-<span class="fc bfc" id="L256" title="All 2 branches covered.">		else if (Integer.TYPE.equals(potentiallyPrimitive))</span>
-<span class="fc" id="L257">			return (T) Integer.valueOf(0);</span>
-<span class="fc bfc" id="L258" title="All 2 branches covered.">		else if (Long.TYPE.equals(potentiallyPrimitive))</span>
-<span class="fc" id="L259">			return (T) Long.valueOf(0L);</span>
-<span class="fc bfc" id="L260" title="All 2 branches covered.">		else if (Float.TYPE.equals(potentiallyPrimitive))</span>
-<span class="fc" id="L261">			return (T) Float.valueOf(0.0f);</span>
-<span class="fc bfc" id="L262" title="All 2 branches covered.">		else if (Double.TYPE.equals(potentiallyPrimitive))</span>
-<span class="fc" id="L263">			return (T) Double.valueOf(0.0);</span>
+<span class="fc" id="L207">		var potentiallyPrimitive = erasedClass();</span>
+<span class="fc bfc" id="L208" title="All 2 branches covered.">		if (Boolean.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L209">			return (T) Boolean.FALSE;</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">		else if (Character.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L211">			return (T) Character.valueOf('\0');</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">		else if (Byte.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L213">			return (T) Byte.valueOf((byte) 0);</span>
+<span class="fc bfc" id="L214" title="All 2 branches covered.">		else if (Short.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L215">			return (T) Short.valueOf((short) 0);</span>
+<span class="fc bfc" id="L216" title="All 2 branches covered.">		else if (Integer.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L217">			return (T) Integer.valueOf(0);</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">		else if (Long.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L219">			return (T) Long.valueOf(0L);</span>
+<span class="fc bfc" id="L220" title="All 2 branches covered.">		else if (Float.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L221">			return (T) Float.valueOf(0.0f);</span>
+<span class="fc bfc" id="L222" title="All 2 branches covered.">		else if (Double.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L223">			return (T) Double.valueOf(0.0);</span>
 		else
-<span class="fc" id="L265">			return null;</span>
+<span class="fc" id="L225">			return null;</span>
 	}
 
 	/**
@@ -293,8 +253,8 @@ public interface IuType&lt;D, T&gt; extends IuNamedElement&lt;D&gt;, IuParameter
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	default &lt;S&gt; IuType&lt;D, ? extends S&gt; sub(Class&lt;S&gt; subclass) throws ClassCastException {
-<span class="fc" id="L296">		erasedClass().asSubclass(subclass);</span>
-<span class="fc" id="L297">		return (IuType&lt;D, ? extends S&gt;) this;</span>
+<span class="fc" id="L256">		erasedClass().asSubclass(subclass);</span>
+<span class="fc" id="L257">		return (IuType&lt;D, ? extends S&gt;) this;</span>
 	}
 
 	/**
@@ -349,13 +309,13 @@ public interface IuType&lt;D, T&gt; extends IuNamedElement&lt;D&gt;, IuParameter
 	 * @return constructor
 	 */
 	default IuConstructor&lt;T&gt; constructor(Type... parameterTypes) {
-<span class="fc" id="L352">		var hash = IuExecutableKey.hashCode(null, parameterTypes);</span>
-<span class="fc bfc" id="L353" title="All 2 branches covered.">		for (var constructor : constructors()) {</span>
-<span class="fc" id="L354">			var constructorKey = constructor.getKey();</span>
-<span class="fc bfc" id="L355" title="All 4 branches covered.">			if (hash == constructorKey.hashCode() &amp;&amp; constructorKey.equals(null, parameterTypes))</span>
-<span class="fc" id="L356">				return constructor;</span>
-<span class="fc" id="L357">		}</span>
-<span class="fc" id="L358">		throw new IllegalArgumentException(this + &quot; missing constructor &quot; + IuExecutableKey.of(null, parameterTypes));</span>
+<span class="fc" id="L312">		var hash = IuExecutableKey.hashCode(null, parameterTypes);</span>
+<span class="fc bfc" id="L313" title="All 2 branches covered.">		for (var constructor : constructors()) {</span>
+<span class="fc" id="L314">			var constructorKey = constructor.getKey();</span>
+<span class="fc bfc" id="L315" title="All 4 branches covered.">			if (hash == constructorKey.hashCode() &amp;&amp; constructorKey.equals(null, parameterTypes))</span>
+<span class="fc" id="L316">				return constructor;</span>
+<span class="fc" id="L317">		}</span>
+<span class="fc" id="L318">		throw new IllegalArgumentException(this + &quot; missing constructor &quot; + IuExecutableKey.of(null, parameterTypes));</span>
 	}
 
 	/**
@@ -365,13 +325,13 @@ public interface IuType&lt;D, T&gt; extends IuNamedElement&lt;D&gt;, IuParameter
 	 * @return constructor
 	 */
 	default IuConstructor&lt;T&gt; constructor(Iterable&lt;IuType&lt;?, ?&gt;&gt; parameterTypes) {
-<span class="fc" id="L368">		var hash = IuExecutableKey.hashCode(null, parameterTypes);</span>
-<span class="fc bfc" id="L369" title="All 2 branches covered.">		for (var constructor : constructors()) {</span>
-<span class="fc" id="L370">			var constructorKey = constructor.getKey();</span>
-<span class="fc bfc" id="L371" title="All 4 branches covered.">			if (hash == constructorKey.hashCode() &amp;&amp; constructorKey.equals(null, parameterTypes))</span>
-<span class="fc" id="L372">				return constructor;</span>
-<span class="fc" id="L373">		}</span>
-<span class="fc" id="L374">		throw new IllegalArgumentException(this + &quot; missing constructor &quot; + IuExecutableKey.of(null, parameterTypes));</span>
+<span class="fc" id="L328">		var hash = IuExecutableKey.hashCode(null, parameterTypes);</span>
+<span class="fc bfc" id="L329" title="All 2 branches covered.">		for (var constructor : constructors()) {</span>
+<span class="fc" id="L330">			var constructorKey = constructor.getKey();</span>
+<span class="fc bfc" id="L331" title="All 4 branches covered.">			if (hash == constructorKey.hashCode() &amp;&amp; constructorKey.equals(null, parameterTypes))</span>
+<span class="fc" id="L332">				return constructor;</span>
+<span class="fc" id="L333">		}</span>
+<span class="fc" id="L334">		throw new IllegalArgumentException(this + &quot; missing constructor &quot; + IuExecutableKey.of(null, parameterTypes));</span>
 	}
 
 	/**
@@ -381,7 +341,7 @@ public interface IuType&lt;D, T&gt; extends IuNamedElement&lt;D&gt;, IuParameter
 	 * @return {@link #constructors()}, filtered by annotation type
 	 */
 	default Iterable&lt;? extends IuConstructor&lt;T&gt;&gt; annotatedConstructors(Class&lt;? extends Annotation&gt; annotationType) {
-<span class="fc" id="L384">		return IuIterable.filter(constructors(), c -&gt; c.hasAnnotation(annotationType));</span>
+<span class="fc" id="L344">		return IuIterable.filter(constructors(), c -&gt; c.hasAnnotation(annotationType));</span>
 	}
 
 	/**
@@ -408,10 +368,10 @@ public interface IuType&lt;D, T&gt; extends IuNamedElement&lt;D&gt;, IuParameter
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	default &lt;F&gt; IuField&lt;? super T, F&gt; field(String name) {
-<span class="fc bfc" id="L411" title="All 2 branches covered.">		for (var field : fields())</span>
-<span class="fc bfc" id="L412" title="All 2 branches covered.">			if (name.equals(field.name()))</span>
-<span class="fc" id="L413">				return (IuField&lt;? super T, F&gt;) field;</span>
-<span class="fc" id="L414">		throw new IllegalArgumentException(this + &quot; missing field &quot; + name);</span>
+<span class="fc bfc" id="L371" title="All 2 branches covered.">		for (var field : fields())</span>
+<span class="fc bfc" id="L372" title="All 2 branches covered.">			if (name.equals(field.name()))</span>
+<span class="fc" id="L373">				return (IuField&lt;? super T, F&gt;) field;</span>
+<span class="fc" id="L374">		throw new IllegalArgumentException(this + &quot; missing field &quot; + name);</span>
 	}
 
 	/**
@@ -421,7 +381,7 @@ public interface IuType&lt;D, T&gt; extends IuNamedElement&lt;D&gt;, IuParameter
 	 * @return {@link #fields()}, filtered by annotation type
 	 */
 	default Iterable&lt;? extends IuField&lt;? super T, ?&gt;&gt; annotatedFields(Class&lt;? extends Annotation&gt; annotationType) {
-<span class="fc" id="L424">		return IuIterable.filter(fields(), f -&gt; f.hasAnnotation(annotationType));</span>
+<span class="fc" id="L384">		return IuIterable.filter(fields(), f -&gt; f.hasAnnotation(annotationType));</span>
 	}
 
 	/**
@@ -447,15 +407,15 @@ public interface IuType&lt;D, T&gt; extends IuNamedElement&lt;D&gt;, IuParameter
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	default &lt;R&gt; IuMethod&lt;? super T, R&gt; method(String name, Type... parameterTypes) {
-<span class="fc" id="L450">		final var hash = IuExecutableKey.hashCode(name, parameterTypes);</span>
-<span class="fc" id="L451">		final var methods = methods();</span>
-<span class="fc bfc" id="L452" title="All 2 branches covered.">		for (var method : methods) {</span>
-<span class="fc" id="L453">			var methodKey = method.getKey();</span>
-<span class="fc bfc" id="L454" title="All 4 branches covered.">			if (hash == methodKey.hashCode() &amp;&amp; methodKey.equals(name, parameterTypes))</span>
-<span class="fc" id="L455">				return (IuMethod&lt;? super T, R&gt;) method;</span>
-<span class="fc" id="L456">		}</span>
-<span class="fc" id="L457">		throw new IllegalArgumentException(</span>
-<span class="fc" id="L458">				this + &quot; missing method &quot; + IuExecutableKey.of(name, parameterTypes) + &quot;; &quot; + methods);</span>
+<span class="fc" id="L410">		final var hash = IuExecutableKey.hashCode(name, parameterTypes);</span>
+<span class="fc" id="L411">		final var methods = methods();</span>
+<span class="fc bfc" id="L412" title="All 2 branches covered.">		for (var method : methods) {</span>
+<span class="fc" id="L413">			var methodKey = method.getKey();</span>
+<span class="fc bfc" id="L414" title="All 4 branches covered.">			if (hash == methodKey.hashCode() &amp;&amp; methodKey.equals(name, parameterTypes))</span>
+<span class="fc" id="L415">				return (IuMethod&lt;? super T, R&gt;) method;</span>
+<span class="fc" id="L416">		}</span>
+<span class="fc" id="L417">		throw new IllegalArgumentException(</span>
+<span class="fc" id="L418">				this + &quot; missing method &quot; + IuExecutableKey.of(name, parameterTypes) + &quot;; &quot; + methods);</span>
 	}
 
 	/**
@@ -468,15 +428,15 @@ public interface IuType&lt;D, T&gt; extends IuNamedElement&lt;D&gt;, IuParameter
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	default &lt;R&gt; IuMethod&lt;? super T, R&gt; method(String name, Iterable&lt;IuType&lt;?, ?&gt;&gt; parameterTypes) {
-<span class="fc" id="L471">		final var hash = IuExecutableKey.hashCode(name, parameterTypes);</span>
-<span class="fc" id="L472">		final var methods = methods();</span>
-<span class="fc bfc" id="L473" title="All 2 branches covered.">		for (var method : methods) {</span>
-<span class="fc" id="L474">			var methodKey = method.getKey();</span>
-<span class="fc bfc" id="L475" title="All 4 branches covered.">			if (hash == methodKey.hashCode() &amp;&amp; methodKey.equals(name, parameterTypes))</span>
-<span class="fc" id="L476">				return (IuMethod&lt;? super T, R&gt;) method;</span>
-<span class="fc" id="L477">		}</span>
-<span class="fc" id="L478">		throw new IllegalArgumentException(</span>
-<span class="fc" id="L479">				this + &quot; missing method &quot; + IuExecutableKey.of(name, parameterTypes) + &quot;; &quot; + methods);</span>
+<span class="fc" id="L431">		final var hash = IuExecutableKey.hashCode(name, parameterTypes);</span>
+<span class="fc" id="L432">		final var methods = methods();</span>
+<span class="fc bfc" id="L433" title="All 2 branches covered.">		for (var method : methods) {</span>
+<span class="fc" id="L434">			var methodKey = method.getKey();</span>
+<span class="fc bfc" id="L435" title="All 4 branches covered.">			if (hash == methodKey.hashCode() &amp;&amp; methodKey.equals(name, parameterTypes))</span>
+<span class="fc" id="L436">				return (IuMethod&lt;? super T, R&gt;) method;</span>
+<span class="fc" id="L437">		}</span>
+<span class="fc" id="L438">		throw new IllegalArgumentException(</span>
+<span class="fc" id="L439">				this + &quot; missing method &quot; + IuExecutableKey.of(name, parameterTypes) + &quot;; &quot; + methods);</span>
 	}
 
 	/**
@@ -486,7 +446,7 @@ public interface IuType&lt;D, T&gt; extends IuNamedElement&lt;D&gt;, IuParameter
 	 * @return {@link #methods()}, filtered by annotation type
 	 */
 	default Iterable&lt;? extends IuMethod&lt;? super T, ?&gt;&gt; annotatedMethods(Class&lt;? extends Annotation&gt; annotationType) {
-<span class="fc" id="L489">		return IuIterable.filter(methods(), f -&gt; f.hasAnnotation(annotationType));</span>
+<span class="fc" id="L449">		return IuIterable.filter(methods(), f -&gt; f.hasAnnotation(annotationType));</span>
 	}
 
 	/**
@@ -507,10 +467,10 @@ public interface IuType&lt;D, T&gt; extends IuNamedElement&lt;D&gt;, IuParameter
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	default &lt;P&gt; IuProperty&lt;? super T, P&gt; property(String name) {
-<span class="fc bfc" id="L510" title="All 2 branches covered.">		for (var property : properties())</span>
-<span class="fc bfc" id="L511" title="All 2 branches covered.">			if (name.equals(property.name()))</span>
-<span class="fc" id="L512">				return (IuProperty&lt;? super T, P&gt;) property;</span>
-<span class="fc" id="L513">		throw new IllegalArgumentException(this + &quot; missing property &quot; + name);</span>
+<span class="fc bfc" id="L470" title="All 2 branches covered.">		for (var property : properties())</span>
+<span class="fc bfc" id="L471" title="All 2 branches covered.">			if (name.equals(property.name()))</span>
+<span class="fc" id="L472">				return (IuProperty&lt;? super T, P&gt;) property;</span>
+<span class="fc" id="L473">		throw new IllegalArgumentException(this + &quot; missing property &quot; + name);</span>
 	}
 
 	/**
@@ -521,7 +481,7 @@ public interface IuType&lt;D, T&gt; extends IuNamedElement&lt;D&gt;, IuParameter
 	 */
 	default Iterable&lt;? extends IuProperty&lt;? super T, ?&gt;&gt; annotatedProperties(
 			Class&lt;? extends Annotation&gt; annotationType) {
-<span class="fc" id="L524">		return IuIterable.filter(properties(), f -&gt; f.hasAnnotation(annotationType));</span>
+<span class="fc" id="L484">		return IuIterable.filter(properties(), f -&gt; f.hasAnnotation(annotationType));</span>
 	}
 
 }

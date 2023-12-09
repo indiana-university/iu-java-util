@@ -1,6 +1,6 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
 IU Type Introspection Base Utilities,edu.iu.type.base,TemporaryFile.new Object() {...},0,3,0,0,0,1,0,1,0,1
-IU Type Introspection Base Utilities,edu.iu.type.base,ModularClassLoader,0,723,0,106,0,160,0,71,0,18
+IU Type Introspection Base Utilities,edu.iu.type.base,ModularClassLoader,0,738,0,106,0,163,0,74,0,21
 IU Type Introspection Base Utilities,edu.iu.type.base,CloseableModuleFinder.Ref,0,53,0,8,0,17,0,7,0,3
 IU Type Introspection Base Utilities,edu.iu.type.base,CloseableModuleFinder,0,109,0,12,0,23,0,10,0,4
 IU Type Introspection Base Utilities,edu.iu.type.base,ModularClassLoader.new Object() {...},0,6,0,0,0,1,0,1,0,1
