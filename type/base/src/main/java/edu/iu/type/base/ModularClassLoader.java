@@ -94,6 +94,26 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 	 *                           classloading semantics</a>; false for normal parent
 	 *                           delegation semantics
 	 * @param path               class/module path
+	 * @param controllerConsumer receives a reference to the {@link Controller} for
+	 *                           the module layer created in conjunction with this
+	 *                           loader. API Note from {@link Controller}: <em>Care
+	 *                           should be taken with Controller objects, they
+	 *                           should never be shared with untrusted code.</em>
+	 * @throws IOException if an error occurs reading a class path entry
+	 */
+	public ModularClassLoader(boolean web, Iterable<Path> path, Consumer<Controller> controllerConsumer)
+			throws IOException {
+		this(web, path, null, controllerConsumer);
+	}
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param web                true for <a href=
+	 *                           "https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader">web
+	 *                           classloading semantics</a>; false for normal parent
+	 *                           delegation semantics
+	 * @param path               class/module path
 	 * @param parent             parent class loader
 	 * @param controllerConsumer receives a reference to the {@link Controller} for
 	 *                           the module layer created in conjunction with this
@@ -103,6 +123,30 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 	 * @throws IOException if an error occurs reading a class path entry
 	 */
 	public ModularClassLoader(boolean web, Iterable<Path> path, ClassLoader parent,
+			Consumer<Controller> controllerConsumer) throws IOException {
+		this(web, path,
+				(parent instanceof ModularClassLoader modularParent) ? modularParent.getModuleLayer() : ModuleLayer.boot(),
+				parent, controllerConsumer);
+	}
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param web                true for <a href=
+	 *                           "https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader">web
+	 *                           classloading semantics</a>; false for normal parent
+	 *                           delegation semantics
+	 * @param path               class/module path
+	 * @param parentLayer        parent module layer
+	 * @param parent             parent class loader
+	 * @param controllerConsumer receives a reference to the {@link Controller} for
+	 *                           the module layer created in conjunction with this
+	 *                           loader. API Note from {@link Controller}: <em>Care
+	 *                           should be taken with Controller objects, they
+	 *                           should never be shared with untrusted code.</em>
+	 * @throws IOException if an error occurs reading a class path entry
+	 */
+	public ModularClassLoader(boolean web, Iterable<Path> path, ModuleLayer parentLayer, ClassLoader parent,
 			Consumer<Controller> controllerConsumer) throws IOException {
 		super(parent);
 		registerAsParallelCapable();
@@ -160,21 +204,15 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 				() -> IuException.initialize(new CloseableModuleFinder(modulepath.toArray(new Path[modulepath.size()])),
 						moduleFinder -> {
 							box.moduleFinder = moduleFinder;
+
 							final Collection<String> moduleNames = new ArrayDeque<>();
 							for (final var moduleRef : moduleFinder.findAll())
 								moduleNames.add(moduleRef.descriptor().name());
 
-							final ModuleLayer parentModuleLayer;
-							if (parent instanceof ModularClassLoader modularParent)
-								parentModuleLayer = modularParent.moduleLayer;
-							else
-								parentModuleLayer = ModuleLayer.boot();
-
 							final var configuration = Configuration.resolveAndBind( //
-									moduleFinder, List.of(parentModuleLayer.configuration()), ModuleFinder.of(),
-									moduleNames);
+									moduleFinder, List.of(parentLayer.configuration()), ModuleFinder.of(), moduleNames);
 
-							final var controller = ModuleLayer.defineModules(configuration, List.of(parentModuleLayer),
+							final var controller = ModuleLayer.defineModules(configuration, List.of(parentLayer),
 									a -> this);
 							box.moduleLayer = controller.layer();
 							if (controllerConsumer != null)
@@ -183,6 +221,15 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 						}));
 		this.moduleFinder = box.moduleFinder;
 		this.moduleLayer = box.moduleLayer;
+	}
+
+	/**
+	 * Gets the module layer associated with this class loader.
+	 * 
+	 * @return {@link ModuleLayer}
+	 */
+	public ModuleLayer getModuleLayer() {
+		return moduleLayer;
 	}
 
 	@Override

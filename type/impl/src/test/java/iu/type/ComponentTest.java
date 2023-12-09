@@ -135,7 +135,7 @@ public class ComponentTest extends IuTypeTestCase {
 
 		Queue<Path> path = new ArrayDeque<>();
 		archives.forEach(a -> path.offer(a.path()));
-		final var loader = new ModularClassLoader(false, path, null, controller -> {
+		final var loader = new ModularClassLoader(false, path, controller -> {
 			controller.addOpens(controller.layer().findModule("jakarta.json").get(), "jakarta.json",
 					getClass().getModule());
 		});

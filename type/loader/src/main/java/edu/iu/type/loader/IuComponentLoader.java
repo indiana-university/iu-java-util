@@ -10,6 +10,7 @@ import java.util.Objects;
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuStream;
+import edu.iu.UnsafeRunnable;
 import edu.iu.type.base.ModularClassLoader;
 import edu.iu.type.base.TemporaryFile;
 
@@ -29,7 +30,7 @@ public class IuComponentLoader implements AutoCloseable {
 		};
 	});
 
-	private final Path[] typeBundleJars;
+	private final UnsafeRunnable destroy;
 	private final ModularClassLoader typeBundleLoader;
 	private final AutoCloseable component;
 	private final ClassLoader loader;
@@ -48,8 +49,16 @@ public class IuComponentLoader implements AutoCloseable {
 	 */
 	public IuComponentLoader(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
 			throws IOException {
-		typeBundleJars = new Path[4];
-		try {
+		class Box {
+			ModularClassLoader typeBundleLoader;
+			AutoCloseable component;
+			ClassLoader loader;
+		}
+		final var box = new Box();
+
+		destroy = TemporaryFile.init(() -> {
+			final var typeBundleJars = new Path[TYPE_BUNDLE_MODULE_PATH.length];
+
 			for (var i = 0; i < TYPE_BUNDLE_MODULE_PATH.length; i++) {
 				final var connection = TYPE_BUNDLE_MODULE_PATH[i].openConnection();
 				connection.setUseCaches(false);
@@ -63,34 +72,25 @@ public class IuComponentLoader implements AutoCloseable {
 				}
 			}
 
-			class Box {
-				AutoCloseable component;
-				ClassLoader loader;
-			}
-			final var box = new Box();
+			box.typeBundleLoader = IuException.checked(IOException.class,
+					() -> IuException.initialize(new ModularClassLoader(false, IuIterable.iter(typeBundleJars), null),
+							typeBundleLoader -> {
+								final var iuComponent = typeBundleLoader.loadClass("edu.iu.type.IuComponent");
+								final var of = iuComponent.getMethod("of", InputStream.class, InputStream[].class);
+								final var classLoader = iuComponent.getMethod("classLoader");
 
-			typeBundleLoader = IuException.initialize(
-					new ModularClassLoader(false, IuIterable.iter(typeBundleJars), null, null), typeBundleLoader -> {
-						final var iuComponent = typeBundleLoader.loadClass("edu.iu.type.IuComponent");
-						final var of = iuComponent.getMethod("of", InputStream.class, InputStream[].class);
-						final var classLoader = iuComponent.getMethod("classLoader");
+								return IuException.checkedInvocation(() -> {
+									box.component = (AutoCloseable) of.invoke(null, componentArchiveSource,
+											providedDependencyArchiveSources);
+									box.loader = (ClassLoader) classLoader.invoke(box.component);
+									return typeBundleLoader;
+								});
+							}));
+		});
 
-						return IuException.checkedInvocation(() -> {
-							box.component = (AutoCloseable) of.invoke(null, componentArchiveSource,
-									providedDependencyArchiveSources);
-							box.loader = (ClassLoader) classLoader.invoke(box.component);
-							return typeBundleLoader;
-						});
-					});
-
-			component = box.component;
-			loader = box.loader;
-
-		} catch (Throwable e) {
-			for (final var jar : typeBundleJars)
-				IuException.suppress(e, () -> Files.deleteIfExists(jar));
-			throw IuException.checked(e, IOException.class);
-		}
+		typeBundleLoader = box.typeBundleLoader;
+		component = box.component;
+		loader = box.loader;
 	}
 
 	/**
@@ -106,9 +106,7 @@ public class IuComponentLoader implements AutoCloseable {
 	public void close() throws IOException {
 		var closeError = IuException.suppress(null, component::close);
 		closeError = IuException.suppress(closeError, typeBundleLoader::close);
-		for (final var jar : typeBundleJars)
-			closeError = IuException.suppress(closeError, () -> Files.deleteIfExists(jar));
-
+		closeError = IuException.suppress(closeError, destroy::run);
 		if (closeError != null)
 			throw IuException.checked(closeError, IOException.class);
 	}

@@ -60,7 +60,7 @@ public class IuResourceKey<T> {
 	public static String getDefaultResourceName(Class<?> type) {
 		if (!type.isInterface())
 			for (final var i : type.getInterfaces())
-				if (!IuType.isPlatformType(i.getName())) {
+				if (!IuObject.isPlatformName(i.getName())) {
 					type = i;
 					break;
 				}

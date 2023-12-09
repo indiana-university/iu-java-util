@@ -58,6 +58,9 @@ import edu.iu.type.spi.IuTypeSpi;
  */
 public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 
+	private static final ClassLoader TYPE_SPI_LOADER = IuTypeSpi.class.getClassLoader();
+	private static final ModuleLayer TYPE_SPI_LAYER = IuTypeSpi.class.getModule().getLayer();
+
 	private IuTypeSpi delegate;
 	private final ModularClassLoader bundleLoader;
 	private final IORunnable destroy;
@@ -106,11 +109,13 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 
 		try {
 			IuException.checked(IOException.class,
-					() -> IuException.initialize(new ModularClassLoader(false, libs, null, null), bundleLoader -> {
-						box.bundleLoader = bundleLoader;
-						box.delegate = ServiceLoader.load(IuTypeSpi.class, bundleLoader).iterator().next();
-						return null;
-					}));
+					() -> IuException.initialize(
+							new ModularClassLoader(false, libs, TYPE_SPI_LAYER, TYPE_SPI_LOADER, null),
+							bundleLoader -> {
+								box.bundleLoader = bundleLoader;
+								box.delegate = ServiceLoader.load(IuTypeSpi.class, bundleLoader).iterator().next();
+								return null;
+							}));
 		} catch (Throwable e) {
 			IuException.suppress(e, destroy);
 			throw e;

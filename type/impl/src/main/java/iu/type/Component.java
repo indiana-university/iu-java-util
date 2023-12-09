@@ -51,6 +51,7 @@ import java.util.logging.Logger;
 
 import edu.iu.IuException;
 import edu.iu.IuIterable;
+import edu.iu.IuObject;
 import edu.iu.UnsafeRunnable;
 import edu.iu.type.IuAttribute;
 import edu.iu.type.IuComponent;
@@ -85,7 +86,7 @@ class Component implements IuComponent {
 		}
 
 		var module = loadedClass.getModule();
-		if (!IuType.isPlatformType(loadedClass.getName()) //
+		if (!IuObject.isPlatformName(loadedClass.getName()) //
 				&& module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) {
 			final var type = TypeFactory.resolveRawClass(loadedClass);
 

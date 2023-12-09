@@ -38,6 +38,7 @@ import java.util.Queue;
 import java.util.function.Supplier;
 
 import edu.iu.IuException;
+import edu.iu.IuObject;
 import edu.iu.type.IuResource;
 import edu.iu.type.IuResourceKey;
 import edu.iu.type.IuType;
@@ -102,7 +103,7 @@ class ComponentResource<T> implements IuResource<T> {
 			Class<?> resourceClass = resource.type();
 			if (resourceClass == Object.class) {
 				for (var i : targetClass.getInterfaces())
-					if (!IuType.isPlatformType(i.getName())) {
+					if (!IuObject.isPlatformName(i.getName())) {
 						resourceClass = i;
 						break;
 					}

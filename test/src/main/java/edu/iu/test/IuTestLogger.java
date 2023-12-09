@@ -53,6 +53,8 @@ import java.util.regex.Pattern;
 
 import org.opentest4j.AssertionFailedError;
 
+import edu.iu.IuObject;
+
 /**
  * Asserts that calls to {@link Logger#log(LogRecord)} must be expected by the
  * test case being evaluated, and that all expected log events <em>must</em>
@@ -84,23 +86,17 @@ import org.opentest4j.AssertionFailedError;
  * <ul>
  * <li>org.junit</li>
  * <li>org.mockito</li>
- * <li>java</li>
- * <li>javax</li>
- * <li>jakarta</li>
- * <li>jdk</li>
- * <li>com.sun</li>
- * <li>com.oracle.</li>
- * <li>oracle</li>
- * <li>sun</li>
+ * <li>org.apiguardian</li>
+ * <li>net.bytebuddy</li>
+ * <li>org.objenesis</li>
+ * <li>org.opentest4j</li>
+ * <li>Any logger name for which {@link IuObject#isPlatformName(String)} returns true</li>
  * <li>Any logger name prefixed by the comma-separated
  * {@link IuTest#getProperty(String) test property value}
  * {@code iu.util.test.platformLoggers}</li>
  * </ul>
  */
 public final class IuTestLogger {
-
-	private static final Set<String> STANDARD_PLATFORM_LOGGER_NAMES = Set.of( //
-			"org.junit", "org.mockito", "java", "javax", "jakarta", "jdk", "com.sun", "com.oracle", "oracle", "sun");
 
 	private static class LogRecordMatcher<T extends Throwable> {
 		private final String loggerName;
@@ -272,12 +268,16 @@ public final class IuTestLogger {
 	 * @return true if name is associated with a platform logger
 	 */
 	static boolean isPlatformLogger(String loggerName) {
-		if (STANDARD_PLATFORM_LOGGER_NAMES.contains(loggerName))
+		if (loggerName.startsWith("org.junit.") //
+			 || loggerName.startsWith("org.mockito.") //
+			 || loggerName.startsWith("org.apiguardian.") //
+			 || loggerName.startsWith("net.bytebuddy.") //
+			 || loggerName.startsWith("org.objenesis.") //
+			 || loggerName.startsWith("org.opentest4j."))
 			return true;
-
-		for (var standardPlatformLoggerName : STANDARD_PLATFORM_LOGGER_NAMES)
-			if (loggerName.startsWith(standardPlatformLoggerName + '.'))
-				return true;
+		
+		if (IuObject.isPlatformName(loggerName))
+			return true;
 
 		if (propertyDefinedPlatformLoggers == null) {
 			var propertyDefinedPlatformLoggerNames = IuTest.getProperty("iu.util.test.platformLoggers");

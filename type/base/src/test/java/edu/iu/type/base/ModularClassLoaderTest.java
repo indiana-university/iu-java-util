@@ -133,8 +133,12 @@ public class ModularClassLoaderTest {
 	}
 
 	private ModularClassLoader createModularLoader(String componentName, ClassLoader parent) throws IOException {
-		final var loader = new ModularClassLoader("testweb".equals(componentName), getModulePath(componentName), parent,
-				null);
+		final ModularClassLoader loader;
+		if (parent == null)
+			loader = new ModularClassLoader("testweb".equals(componentName), getModulePath(componentName), null);
+		else
+			loader = new ModularClassLoader("testweb".equals(componentName), getModulePath(componentName), parent,
+					null);
 		onTeardown.push(loader::close);
 		return loader;
 	}
@@ -151,12 +155,11 @@ public class ModularClassLoaderTest {
 			Controller controller;
 		}
 		final var box = new Box();
-		final var loader = new ModularClassLoader(false, getModulePath("testruntime"), null,
-				c -> box.controller = c);
+		final var loader = new ModularClassLoader(false, getModulePath("testruntime"), c -> box.controller = c);
 		onTeardown.push(loader::close);
 		assertInstanceOf(Controller.class, box.controller);
 	}
-	
+
 	@Test
 	public void testPlatformType() {
 		assertFalse(ModularClassLoader.isPlatformType(""));

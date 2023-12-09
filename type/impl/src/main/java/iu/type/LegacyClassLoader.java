@@ -34,8 +34,8 @@ package iu.type;
 import java.net.URL;
 import java.net.URLClassLoader;
 
+import edu.iu.IuObject;
 import edu.iu.type.IuComponent.Kind;
-import edu.iu.type.IuType;
 
 /**
  * Class loader for {@link Kind#isModular() legacy} components.
@@ -61,7 +61,7 @@ class LegacyClassLoader extends URLClassLoader {
 
 	@Override
 	protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-		if (!web || IuType.isPlatformType(name))
+		if (!web || IuObject.isPlatformName(name))
 			return super.loadClass(name, resolve);
 
 		synchronized (getClassLoadingLock(name)) {

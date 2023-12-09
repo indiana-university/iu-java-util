@@ -45,6 +45,7 @@ import java.util.Queue;
 import java.util.function.Consumer;
 
 import edu.iu.IuException;
+import edu.iu.IuObject;
 import edu.iu.IuVisitor;
 import edu.iu.type.IuConstructor;
 import edu.iu.type.IuReferenceKind;
@@ -197,7 +198,7 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 		final var packageName = annotatedElement.getPackageName();
 		final var targetModule = annotatedElement.getModule();
 		final var typeImplModule = getClass().getModule();
-		return IuType.isPlatformType(name()) //
+		return IuObject.isPlatformName(name()) //
 				|| targetModule == typeImplModule //
 				|| !targetModule.isOpen(packageName, typeImplModule);
 	}
