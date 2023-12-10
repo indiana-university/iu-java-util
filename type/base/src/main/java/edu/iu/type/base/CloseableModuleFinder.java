@@ -50,7 +50,7 @@ import edu.iu.UnsafeSupplier;
 /**
  * {@link AutoCloseable} version of {@link ModuleFinder}.
  */
-class CloseableModuleFinder implements ModuleFinder, AutoCloseable {
+public class CloseableModuleFinder implements ModuleFinder, AutoCloseable {
 
 	private class Ref extends ModuleReference implements AutoCloseable {
 
@@ -93,7 +93,7 @@ class CloseableModuleFinder implements ModuleFinder, AutoCloseable {
 	 * 
 	 * @param path path entries
 	 */
-	CloseableModuleFinder(Path... path) {
+	public CloseableModuleFinder(Path... path) {
 		var finder = ModuleFinder.of(path);
 		for (var ref : finder.findAll()) {
 			var descriptor = ref.descriptor();

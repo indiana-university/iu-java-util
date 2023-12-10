@@ -33,8 +33,10 @@ package edu.iu.type.spi;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ModuleLayer.Controller;
 import java.lang.reflect.Type;
 import java.nio.file.Path;
+import java.util.function.BiConsumer;
 import java.util.jar.JarFile;
 
 import edu.iu.type.IuComponent;
@@ -58,6 +60,16 @@ public interface IuTypeSpi {
 	/**
 	 * Implements {@link IuComponent#of(InputStream, InputStream...)}.
 	 * 
+	 * @param controllerCallback               receives a reference to
+	 *                                         {@link Module} defined by the
+	 *                                         <strong>component archive</strong>
+	 *                                         and the {@link Controller} for the
+	 *                                         module layer created in conjunction
+	 *                                         with this loader. API Note from
+	 *                                         {@link Controller}: <em>Care should
+	 *                                         be taken with Controller objects,
+	 *                                         they should never be shared with
+	 *                                         untrusted code.</em>
 	 * @param componentArchiveSource           component archive
 	 * @param providedDependencyArchiveSources provided dependency archives
 	 * @return {@link IuComponent} instance
@@ -66,8 +78,8 @@ public interface IuTypeSpi {
 	 * 
 	 * @see IuComponent
 	 */
-	IuComponent createComponent(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
-			throws IOException;
+	IuComponent createComponent(BiConsumer<Module, Controller> controllerCallback, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) throws IOException;
 
 	/**
 	 * Decorates a path entry in a loaded class environment as a {@link IuComponent

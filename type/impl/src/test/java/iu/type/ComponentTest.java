@@ -207,7 +207,7 @@ public class ComponentTest extends IuTypeTestCase {
 
 	@Test
 	public void testParentAccessor() throws Exception {
-		try (var parent = ComponentFactory.createComponent(null, TestArchives.getComponentArchive("testruntime"),
+		try (var parent = ComponentFactory.createComponent(null, null, TestArchives.getComponentArchive("testruntime"),
 				TestArchives.getProvidedDependencyArchives("testruntime"));
 				var component = parent.extend(TestArchives.getComponentArchive("testweb"),
 						TestArchives.getProvidedDependencyArchives("testweb"))) {

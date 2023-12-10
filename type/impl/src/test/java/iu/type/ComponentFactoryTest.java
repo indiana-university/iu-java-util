@@ -67,8 +67,8 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 			}
 		};
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
-			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, in)).thenCallRealMethod();
-			assertSame(ioException, assertThrows(IOException.class, () -> ComponentFactory.createComponent(null, in)));
+			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, null, in)).thenCallRealMethod();
+			assertSame(ioException, assertThrows(IOException.class, () -> ComponentFactory.createComponent(null, null, in)));
 		}
 	}
 
@@ -82,8 +82,8 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 			}
 		};
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
-			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, in)).thenCallRealMethod();
-			assertSame(ioException, assertThrows(IOException.class, () -> ComponentFactory.createComponent(null, in)));
+			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, null, in)).thenCallRealMethod();
+			assertSame(ioException, assertThrows(IOException.class, () -> ComponentFactory.createComponent(null, null, in)));
 		}
 	}
 
@@ -98,11 +98,11 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 			}
 		};
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
-			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, dep, in)).thenCallRealMethod();
-			mockComponentFactory.when(() -> ComponentFactory.createFromSourceQueue(isNull(), any()))
+			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, null, dep, in)).thenCallRealMethod();
+			mockComponentFactory.when(() -> ComponentFactory.createFromSourceQueue(isNull(), isNull(), any()))
 					.thenThrow(new IOException());
 			assertSame(ioException,
-					assertThrows(IOException.class, () -> ComponentFactory.createComponent(null, dep, in))
+					assertThrows(IOException.class, () -> ComponentFactory.createComponent(null, null, dep, in))
 							.getSuppressed()[0]);
 		}
 	}
@@ -117,9 +117,9 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 			}
 		};
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
-			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, in)).thenCallRealMethod();
+			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, null, in)).thenCallRealMethod();
 			assertSame(illegalStateException,
-					assertThrows(IllegalStateException.class, () -> ComponentFactory.createComponent(null, in)));
+					assertThrows(IllegalStateException.class, () -> ComponentFactory.createComponent(null, null, in)));
 		}
 	}
 
@@ -133,8 +133,8 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 			}
 		};
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
-			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, in)).thenCallRealMethod();
-			assertSame(error, assertThrows(Error.class, () -> ComponentFactory.createComponent(null, in)));
+			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, null, in)).thenCallRealMethod();
+			assertSame(error, assertThrows(Error.class, () -> ComponentFactory.createComponent(null, null, in)));
 		}
 	}
 

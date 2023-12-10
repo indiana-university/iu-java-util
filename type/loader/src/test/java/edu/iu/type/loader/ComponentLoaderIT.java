@@ -36,6 +36,16 @@ public class ComponentLoaderIT {
 
 	@Test
 	public void testLoadsRuntime() throws Exception {
+		new IuComponentLoader(a -> {
+			assertEquals("iu.util.type.impl", a.getTypeModule().getName());
+			final var module = a.getComponentModule();
+			assertEquals("iu.util.type.testruntime", module.getName());
+			assertSame(module, a.getController().layer().findModule(module.getName()).get());
+		}, getComponentArchive("testruntime"), getProvidedDependencyArchives("testruntime")).close();
+	}
+
+	@Test
+	public void testLoadsRuntimeAndWorks() throws Exception {
 		var publicUrlThatWorksAndReturnsJson = "https://idp-stg.login.iu.edu/.well-known/openid-configuration";
 		String expected;
 		try (InputStream in = new URL(publicUrlThatWorksAndReturnsJson).openStream()) {
@@ -47,7 +57,7 @@ public class ComponentLoaderIT {
 			return;
 		}
 
-		try (final var componentLoader = new IuComponentLoader(getComponentArchive("testruntime"),
+		try (final var componentLoader = new IuComponentLoader(null, getComponentArchive("testruntime"),
 				getProvidedDependencyArchives("testruntime"))) {
 
 			var contextLoader = Thread.currentThread().getContextClassLoader();
@@ -67,7 +77,7 @@ public class ComponentLoaderIT {
 	@Test
 	public void testCloseError() throws Exception {
 		final var e = new IOException();
-		final var componentLoader = new IuComponentLoader(getComponentArchive("testruntime"),
+		final var componentLoader = new IuComponentLoader(null, getComponentArchive("testruntime"),
 				getProvidedDependencyArchives("testruntime"));
 		final var destroyField = componentLoader.getClass().getDeclaredField("destroy");
 		destroyField.setAccessible(true);

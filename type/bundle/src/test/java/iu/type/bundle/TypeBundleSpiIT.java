@@ -37,18 +37,20 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mockStatic;
 
 import java.util.ServiceLoader;
+import java.util.function.BiConsumer;
 
 import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("javadoc")
 public class TypeBundleSpiIT {
 
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
 	public void testCloses() throws Exception {
 		final var spi = new TypeBundleSpi();
 		spi.close();
 		assertThrows(IllegalStateException.class, () -> spi.resolveType(null));
-		assertThrows(IllegalStateException.class, () -> spi.createComponent(null));
+		assertThrows(IllegalStateException.class, () -> spi.createComponent((BiConsumer) null, null));
 		assertThrows(IllegalStateException.class, () -> spi.scanComponentEntry(null, null));
 		spi.close(); // second call is no-op
 	}

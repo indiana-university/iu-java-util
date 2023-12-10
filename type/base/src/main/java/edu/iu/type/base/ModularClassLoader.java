@@ -94,16 +94,16 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 	 *                           classloading semantics</a>; false for normal parent
 	 *                           delegation semantics
 	 * @param path               class/module path
-	 * @param controllerConsumer receives a reference to the {@link Controller} for
+	 * @param controllerCallback receives a reference to the {@link Controller} for
 	 *                           the module layer created in conjunction with this
 	 *                           loader. API Note from {@link Controller}: <em>Care
 	 *                           should be taken with Controller objects, they
 	 *                           should never be shared with untrusted code.</em>
 	 * @throws IOException if an error occurs reading a class path entry
 	 */
-	public ModularClassLoader(boolean web, Iterable<Path> path, Consumer<Controller> controllerConsumer)
+	public ModularClassLoader(boolean web, Iterable<Path> path, Consumer<Controller> controllerCallback)
 			throws IOException {
-		this(web, path, null, controllerConsumer);
+		this(web, path, null, controllerCallback);
 	}
 
 	/**
@@ -115,7 +115,7 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 	 *                           delegation semantics
 	 * @param path               class/module path
 	 * @param parent             parent class loader
-	 * @param controllerConsumer receives a reference to the {@link Controller} for
+	 * @param controllerCallback receives a reference to the {@link Controller} for
 	 *                           the module layer created in conjunction with this
 	 *                           loader. API Note from {@link Controller}: <em>Care
 	 *                           should be taken with Controller objects, they
@@ -123,10 +123,9 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 	 * @throws IOException if an error occurs reading a class path entry
 	 */
 	public ModularClassLoader(boolean web, Iterable<Path> path, ClassLoader parent,
-			Consumer<Controller> controllerConsumer) throws IOException {
-		this(web, path,
-				(parent instanceof ModularClassLoader modularParent) ? modularParent.getModuleLayer() : ModuleLayer.boot(),
-				parent, controllerConsumer);
+			Consumer<Controller> controllerCallback) throws IOException {
+		this(web, path, (parent instanceof ModularClassLoader modularParent) ? modularParent.getModuleLayer()
+				: ModuleLayer.boot(), parent, controllerCallback);
 	}
 
 	/**
@@ -139,7 +138,7 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 	 * @param path               class/module path
 	 * @param parentLayer        parent module layer
 	 * @param parent             parent class loader
-	 * @param controllerConsumer receives a reference to the {@link Controller} for
+	 * @param controllerCallback receives a reference to the {@link Controller} for
 	 *                           the module layer created in conjunction with this
 	 *                           loader. API Note from {@link Controller}: <em>Care
 	 *                           should be taken with Controller objects, they
@@ -147,7 +146,7 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 	 * @throws IOException if an error occurs reading a class path entry
 	 */
 	public ModularClassLoader(boolean web, Iterable<Path> path, ModuleLayer parentLayer, ClassLoader parent,
-			Consumer<Controller> controllerConsumer) throws IOException {
+			Consumer<Controller> controllerCallback) throws IOException {
 		super(parent);
 		registerAsParallelCapable();
 
@@ -215,8 +214,8 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 							final var controller = ModuleLayer.defineModules(configuration, List.of(parentLayer),
 									a -> this);
 							box.moduleLayer = controller.layer();
-							if (controllerConsumer != null)
-								controllerConsumer.accept(controller);
+							if (controllerCallback != null)
+								controllerCallback.accept(controller);
 							return null;
 						}));
 		this.moduleFinder = box.moduleFinder;

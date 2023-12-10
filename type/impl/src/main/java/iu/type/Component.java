@@ -34,6 +34,7 @@ package iu.type;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ModuleLayer.Controller;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Modifier;
 import java.nio.file.Path;
@@ -46,6 +47,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -222,10 +224,10 @@ class Component implements IuComponent {
 	 * @param classLoader component context loader
 	 * @param archives    archives dedicated to this component, to close and delete
 	 *                    when the component is closed
-	 * @param onClose     thunk for tearing down resources after closing the component
+	 * @param onClose     thunk for tearing down resources after closing the
+	 *                    component
 	 */
-	Component(Component parent, ClassLoader classLoader, Queue<ComponentArchive> archives,
-			UnsafeRunnable onClose) {
+	Component(Component parent, ClassLoader classLoader, Queue<ComponentArchive> archives, UnsafeRunnable onClose) {
 		Set<IuType<?, ?>> interfaces = new LinkedHashSet<>();
 		Map<Class<?>, List<IuType<?, ?>>> annotatedTypes = new LinkedHashMap<>();
 		Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes = new LinkedHashMap<>();
@@ -329,8 +331,15 @@ class Component implements IuComponent {
 	@Override
 	public Component extend(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
 			throws IOException, IllegalArgumentException {
+		return extend(null, componentArchiveSource, providedDependencyArchiveSources);
+	}
+
+	@Override
+	public Component extend(BiConsumer<Module, Controller> controllerCallback, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException {
 		checkClosed();
-		return ComponentFactory.createComponent(this, componentArchiveSource, providedDependencyArchiveSources);
+		return ComponentFactory.createComponent(this, controllerCallback, componentArchiveSource,
+				providedDependencyArchiveSources);
 	}
 
 	@Override
@@ -411,7 +420,7 @@ class Component implements IuComponent {
 		closed = true;
 		if (onClose != null)
 			IuException.checked(onClose::run);
-		
+
 //		if (closeableResources != null)
 //			try {
 //				closeableResources.close();

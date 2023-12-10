@@ -39,7 +39,7 @@ module iu.util.type.impl {
 	opens iu.type to iu.util;
 	
 	requires iu.util;
-	requires iu.util.type;
+	requires transitive iu.util.type;
 	requires iu.util.type.base;
 	
 	requires java.logging;

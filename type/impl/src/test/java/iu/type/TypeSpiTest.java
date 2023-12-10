@@ -68,8 +68,8 @@ public class TypeSpiTest extends IuTypeTestCase {
 	public void testComponentIsImplemented() throws IOException {
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
 			var in = mock(InputStream.class);
-			typeSpi.createComponent(in);
-			mockComponentFactory.verify(() -> ComponentFactory.createComponent(null, in));
+			typeSpi.createComponent(null, in);
+			mockComponentFactory.verify(() -> ComponentFactory.createComponent(null, null, in));
 		}
 	}
 }

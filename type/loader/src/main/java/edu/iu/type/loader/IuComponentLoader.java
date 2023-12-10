@@ -2,10 +2,13 @@ package edu.iu.type.loader;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ModuleLayer.Controller;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import edu.iu.IuException;
 import edu.iu.IuIterable;
@@ -40,6 +43,12 @@ public class IuComponentLoader implements AutoCloseable {
 	 * archives</strong>, loads a <strong>component</strong>, and returns a
 	 * {@link ClassLoader} for accessing classes managed by the component.
 	 * 
+	 * @param controllerCallback               receives a reference to an
+	 *                                         {@link IuComponentController} that
+	 *                                         may be used to set up access rules
+	 *                                         for the component. This reference
+	 *                                         <em>should not</em> be passed beyond
+	 *                                         the scope of the callback.
 	 * @param componentArchiveSource           {@link InputStream} for reading the
 	 *                                         <strong>component archive</strong>.
 	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
@@ -47,8 +56,8 @@ public class IuComponentLoader implements AutoCloseable {
 	 *                                         archives</strong>.
 	 * @throws IOException If an IO error occurs initializing the component
 	 */
-	public IuComponentLoader(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
-			throws IOException {
+	public IuComponentLoader(Consumer<IuComponentController> controllerCallback, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) throws IOException {
 		class Box {
 			ModularClassLoader typeBundleLoader;
 			AutoCloseable component;
@@ -72,20 +81,59 @@ public class IuComponentLoader implements AutoCloseable {
 				}
 			}
 
-			box.typeBundleLoader = IuException.checked(IOException.class,
-					() -> IuException.initialize(new ModularClassLoader(false, IuIterable.iter(typeBundleJars), null),
-							typeBundleLoader -> {
-								final var iuComponent = typeBundleLoader.loadClass("edu.iu.type.IuComponent");
-								final var of = iuComponent.getMethod("of", InputStream.class, InputStream[].class);
-								final var classLoader = iuComponent.getMethod("classLoader");
+			box.typeBundleLoader = IuException.checked(IOException.class, () -> IuException
+					.initialize(new ModularClassLoader(false, IuIterable.iter(typeBundleJars), controller -> {
+						controller.addOpens(controller.layer().findModule("iu.util.type.bundle").get(),
+								"iu.type.bundle", getClass().getModule());
+					}), typeBundleLoader -> {
+						final var typeImpl = typeBundleLoader.loadClass("edu.iu.type.spi.TypeImplementation");
+						final var provider = typeImpl.getField("PROVIDER");
+						provider.setAccessible(true);
+						final var bundleSpi = typeBundleLoader.loadClass("iu.type.bundle.TypeBundleSpi");
+						final var getModule = bundleSpi.getMethod("getModule");
+						getModule.setAccessible(true);
+						final var typeModule = (Module) getModule.invoke(provider.get(typeImpl));
 
-								return IuException.checkedInvocation(() -> {
-									box.component = (AutoCloseable) of.invoke(null, componentArchiveSource,
-											providedDependencyArchiveSources);
-									box.loader = (ClassLoader) classLoader.invoke(box.component);
-									return typeBundleLoader;
-								});
-							}));
+						final var iuComponent = typeBundleLoader.loadClass("edu.iu.type.IuComponent");
+						final var of = iuComponent.getMethod("of", BiConsumer.class, InputStream.class,
+								InputStream[].class);
+						final var classLoader = iuComponent.getMethod("classLoader");
+
+						class ComponentController implements IuComponentController {
+							private final Module componentModule;
+							private final Controller controller;
+
+							ComponentController(Module componentModule, Controller controller) {
+								this.componentModule = componentModule;
+								this.controller = controller;
+							}
+
+							@Override
+							public Module getTypeModule() {
+								return typeModule;
+							}
+
+							@Override
+							public Module getComponentModule() {
+								return componentModule;
+							}
+
+							@Override
+							public Controller getController() {
+								return controller;
+							}
+						}
+
+						return IuException.checkedInvocation(() -> {
+							box.component = (AutoCloseable) of.invoke(null,
+									(BiConsumer<Module, Controller>) (module, controller) -> {
+										if (controllerCallback != null)
+											controllerCallback.accept(new ComponentController(module, controller));
+									}, componentArchiveSource, providedDependencyArchiveSources);
+							box.loader = (ClassLoader) classLoader.invoke(box.component);
+							return typeBundleLoader;
+						});
+					}));
 		});
 
 		typeBundleLoader = box.typeBundleLoader;

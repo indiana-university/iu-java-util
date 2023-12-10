@@ -86,16 +86,14 @@ public class IuComponentTest extends IuTypeTestCase {
 
 	@Test
 	public void testMustNotProvideTheSameComponentTwice() {
-		assertThrows(IllegalArgumentException.class,
-				() -> IuComponent.of(TestArchives.getComponentArchive("testruntime"),
-						TestArchives.getComponentArchive("testruntime")));
+		assertThrows(IllegalArgumentException.class, () -> IuComponent
+				.of(TestArchives.getComponentArchive("testruntime"), TestArchives.getComponentArchive("testruntime")));
 	}
 
 	@Test
 	public void testMustNotProvideTheSameComponentTwiceAndErrorOnDelete() {
-		assertThrows(IllegalArgumentException.class,
-				() -> IuComponent.of(TestArchives.getComponentArchive("testruntime"),
-						TestArchives.getComponentArchive("testruntime")));
+		assertThrows(IllegalArgumentException.class, () -> IuComponent
+				.of(TestArchives.getComponentArchive("testruntime"), TestArchives.getComponentArchive("testruntime")));
 	}
 
 	@Test
@@ -111,7 +109,9 @@ public class IuComponentTest extends IuTypeTestCase {
 			return;
 		}
 
-		try (var component = IuComponent.of(TestArchives.getComponentArchive("testruntime"),
+		try (var component = IuComponent.of((module, controller) -> {
+			assertEquals("iu.util.type.testruntime", module.getName());
+		}, TestArchives.getComponentArchive("testruntime"),
 				TestArchives.getProvidedDependencyArchives("testruntime"))) {
 
 			assertEquals(Kind.MODULAR_JAR, component.kind());

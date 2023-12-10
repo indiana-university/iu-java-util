@@ -33,12 +33,14 @@ package iu.type.bundle;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ModuleLayer.Controller;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.ServiceLoader;
+import java.util.function.BiConsumer;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
@@ -133,11 +135,11 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 	}
 
 	@Override
-	public IuComponent createComponent(InputStream componentArchiveSource,
+	public IuComponent createComponent(BiConsumer<Module, Controller> controllerCallback, InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException {
 		if (delegate == null)
 			throw new IllegalStateException("closed");
-		return delegate.createComponent(componentArchiveSource, providedDependencyArchiveSources);
+		return delegate.createComponent(controllerCallback, componentArchiveSource, providedDependencyArchiveSources);
 	}
 
 	@Override

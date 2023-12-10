@@ -45,10 +45,12 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.ServiceLoader;
+import java.util.function.BiConsumer;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import edu.iu.test.IuTest;
 import edu.iu.type.spi.IuTypeSpi;
 import edu.iu.type.spi.TypeImplementation;
 
@@ -79,7 +81,16 @@ public class IuTypeSpiTest {
 	public void testNewComponent() throws IOException {
 		var in = mock(InputStream.class);
 		IuComponent.of(in);
-		verify(iuTypeSpi).createComponent(in);
+		verify(iuTypeSpi).createComponent(null, in);
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	@Test
+	public void testExtendComponent() throws IOException {
+		var in = mock(InputStream.class);
+		var comp = IuTest.mockWithDefaults(IuComponent.class);
+		comp.extend(in);
+		verify(comp).extend((BiConsumer) null, in);
 	}
 
 	@Test
