@@ -110,5 +110,41 @@ public class IuVisitor&lt;T&gt; implements Consumer&lt;T&gt; {
 <span class="fc" id="L110">		elements.add(new WeakReference&lt;&gt;(element));</span>
 <span class="fc" id="L111">	}</span>
 
+	/**
+	 * Removes an element from observation queue without waiting for the garbage
+	 * collector to clear it.
+	 * 
+	 * &lt;p&gt;
+	 * This method does not tear down or take any other action on the element, the
+	 * controlling component &lt;em&gt;should&lt;/em&gt; handle all tear down logic related to
+	 * this visitor instance prior to clearing the reference, typically invoking
+	 * this method last in a managed instance's lifecycle teardown process.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * This method has no effect if the element is not in the observation queue.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * &lt;strong&gt;API Note:&lt;/strong&gt; Since elements are {@link WeakReference weakly
+	 * held}, this method is only necessary when hooking in to an external instance
+	 * management mechanism. Typically, instances may simply be discarded rather
+	 * then explicitly cleared.
+	 * &lt;/p&gt;
+	 * 
+	 * @param element element to clear
+	 */
+	public void clear(T element) {
+<span class="fc" id="L138">		final var elementIterator = elements.iterator();</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">		while (elementIterator.hasNext()) {</span>
+<span class="fc" id="L140">			final var elementReference = elementIterator.next();</span>
+<span class="fc" id="L141">			final var deref = elementReference.get();</span>
+<span class="fc bfc" id="L142" title="All 4 branches covered.">			if (deref == null || element == deref) {</span>
+<span class="fc" id="L143">				elementIterator.remove();</span>
+<span class="fc" id="L144">				continue;</span>
+			}
+<span class="fc" id="L146">		}</span>
+<span class="fc" id="L147">	}</span>
+
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

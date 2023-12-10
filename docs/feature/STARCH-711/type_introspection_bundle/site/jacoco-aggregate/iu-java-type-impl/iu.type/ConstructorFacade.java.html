@@ -71,7 +71,7 @@ final class ConstructorFacade&lt;C&gt; extends ExecutableBase&lt;C, C, Construct
 <span class="fc" id="L71">		final var instance = annotatedElement.getDeclaringClass()</span>
 <span class="fc" id="L72">				.cast(IuException.checkedInvocation(() -&gt; annotatedElement.newInstance(arguments)));</span>
 
-<span class="fc" id="L74">		declaringType.template.observeNewInstance(instance);</span>
+<span class="fc" id="L74">		declaringType.template.observe(instance);</span>
 		
 		// TODO: *after* observing new instances 
 		// @PostConstruct
