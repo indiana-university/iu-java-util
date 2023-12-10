@@ -484,4 +484,44 @@ public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement 
 		return IuIterable.filter(properties(), f -> f.hasAnnotation(annotationType));
 	}
 
+	/**
+	 * Observes a new instance.
+	 * 
+	 * <p>
+	 * Observing an instance registers it with the implementation module as an
+	 * available target for type introspection, for example, for resource binding.
+	 * Implementors of {@link InstanceReference} may use
+	 * {@link #subscribe(InstanceReference)} to be notified when new instances are
+	 * observed.
+	 * </p>
+	 * 
+	 * <p>
+	 * This method is invoked internally for all instances created via
+	 * {@link IuConstructor#exec(Object...)}, directly before return from that
+	 * method, and <em>may</em> used to integrate with an external instance
+	 * lifecycle management framework.
+	 * </p>
+	 * 
+	 * <p>
+	 * Observing an instance that is already observed has no effect, not does
+	 * observing an instance of a type that has no subscribers.
+	 * </p>
+	 * 
+	 * @param instance to observe
+	 * @return thunk for removing the instance from all observation queues; may be
+	 *         held to keep the instance active until torn down external, or
+	 *         discarded to allow observation to end naturally when all other
+	 *         references to the instance have been cleared
+	 */
+	Runnable observe(T instance);
+
+	/**
+	 * Subscribes a new instance reference.
+	 * 
+	 * @param instanceReference will accept all {@link #observe(Object) observed}
+	 *                          instances until unsubscribed.
+	 * @return thunk for unsubscribing the reference
+	 */
+	Runnable subscribe(InstanceReference<T> instanceReference);
+
 }

@@ -29,55 +29,26 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type;
+package edu.iu.type;
 
-import java.lang.reflect.Constructor;
-
-import edu.iu.IuException;
-import edu.iu.type.IuConstructor;
+import java.util.function.Consumer;
 
 /**
- * Facade implementation for {@link IuConstructor}.
+ * Refers to instances of a specific type.
  * 
- * @param <C> constructor declaring type
+ * @param <T> type
  */
-final class ConstructorFacade<C> extends ExecutableBase<C, C, Constructor<C>> implements IuConstructor<C> {
+public interface InstanceReference<T> extends Consumer<T> {
 
 	/**
-	 * Facade constructor.
+	 * Clears all references to an instance.
 	 * 
-	 * @param constructor   {@link Constructor}
-	 * @param declaringType {@link TypeTemplate}
+	 * <p>
+	 * Reverses {@link #accept(Object)}.
+	 * </p>
+	 * 
+	 * @param instance instance
 	 */
-	ConstructorFacade(Constructor<C> constructor, TypeTemplate<?, C> declaringType) {
-		super(constructor, declaringType.type, declaringType);
-		annotatedElement.setAccessible(true);
-		declaringType.postInit(this::seal);
-	}
-
-	private boolean hasAroundConstruct() {
-		return hasAnnotation(jakarta.interceptor.Interceptors.class) //
-				|| declaringType().hasAnnotation(jakarta.interceptor.Interceptors.class) //
-				|| declaringType().annotatedMethods(jakarta.interceptor.AroundConstruct.class).iterator().hasNext();
-	}
-
-	@Override
-	public C exec(Object... arguments) throws Exception {
-		if (hasAroundConstruct())
-			throw new UnsupportedOperationException("@AroundConstruct not supported in this version");
-
-		// @AroundConstruct
-
-		final var instance = annotatedElement.getDeclaringClass()
-				.cast(IuException.checkedInvocation(() -> annotatedElement.newInstance(arguments)));
-
-		declaringType.template.observe(instance);
-		
-		// TODO: *after* observing new instances 
-		// @PostConstruct
-//			declaringType.annotatedMethods(PostConstruct.class).forEach(m -> IuException.unchecked(() -> m.exec()));
-
-		return instance;
-	}
+	void clear(T instance);
 
 }

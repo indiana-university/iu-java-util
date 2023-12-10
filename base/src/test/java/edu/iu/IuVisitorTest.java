@@ -81,6 +81,29 @@ public class IuVisitorTest {
 
 	@Test
 	@SuppressWarnings({ "rawtypes", "unchecked" })
+	public void testClear() throws InterruptedException {
+		final var visitor = new IuVisitor();
+		final var one = new Object();
+		final var two = new Object();
+		visitor.accept(one);
+		visitor.accept(two);
+		Function f = mock(Function.class);
+		visitor.visit(f);
+		verify(f).apply(one);
+		verify(f).apply(null);
+		visitor.accept(new Object());
+		System.gc();
+		Thread.sleep(100L);
+		visitor.clear(one);
+		f = mock(Function.class);
+		visitor.visit(f);
+		verify(f).apply(two);
+		verify(f).apply(notNull());
+		verify(f).apply(null);
+	}
+
+	@Test
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	public void testPrunesClearedRefs() throws InterruptedException {
 		final var visitor = new IuVisitor();
 		visitor.accept(new Object());

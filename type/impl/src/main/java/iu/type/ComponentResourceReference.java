@@ -36,6 +36,7 @@ import java.util.Optional;
 import java.util.WeakHashMap;
 
 import edu.iu.IuVisitor;
+import edu.iu.type.InstanceReference;
 import edu.iu.type.IuAttribute;
 import edu.iu.type.IuProperty;
 import edu.iu.type.IuResource;
@@ -49,7 +50,7 @@ import jakarta.annotation.Resource;
  * @param <R> referrer type
  * @param <T> resource type
  */
-class ComponentResourceReference<R, T> implements IuResourceReference<R, T> {
+class ComponentResourceReference<R, T> implements IuResourceReference<R, T>, InstanceReference<R> {
 
 	private final String name;
 	private final TypeTemplate<?, T> type;
@@ -68,7 +69,7 @@ class ComponentResourceReference<R, T> implements IuResourceReference<R, T> {
 	ComponentResourceReference(DeclaredAttribute<R, ? super T> attribute, Resource resource) {
 		this.attribute = attribute;
 
-		attribute.declaringType().template.observeNewInstances(this);
+		attribute.declaringType().template.subscribe(this);
 
 		if (resource == null)
 			throw new IllegalArgumentException("Missing @Resource: " + attribute);
@@ -150,6 +151,17 @@ class ComponentResourceReference<R, T> implements IuResourceReference<R, T> {
 			attribute.set(referrer, boundResource.get());
 
 		visitor.accept(referrer);
+	}
+
+	@Override
+	public synchronized void clear(R referrer) {
+		if (referrer == null)
+			return;
+
+		visitor.clear(referrer);
+
+		if (unboundValues.containsKey(referrer))
+			attribute.set(referrer, unboundValues.remove(referrer).orElse(null));
 	}
 
 	@Override

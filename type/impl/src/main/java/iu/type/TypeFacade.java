@@ -39,6 +39,7 @@ import java.util.Queue;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import edu.iu.type.InstanceReference;
 import edu.iu.type.IuConstructor;
 import edu.iu.type.IuField;
 import edu.iu.type.IuMethod;
@@ -269,6 +270,16 @@ final class TypeFacade<D, T> extends ElementBase implements IuType<D, T>, Parame
 	@Override
 	public Iterable<? extends IuMethod<? super T, ?>> methods() {
 		return template.methods();
+	}
+
+	@Override
+	public Runnable observe(T instance) {
+		return template.observe(instance);
+	}
+
+	@Override
+	public Runnable subscribe(InstanceReference<T> instanceReference) {
+		return template.subscribe(instanceReference);
 	}
 
 	@Override

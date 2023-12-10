@@ -34,9 +34,13 @@ package iu.type.test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.type.InstanceReference;
 import edu.iu.type.IuType;
 import iu.type.IuTypeTestCase;
 
@@ -54,6 +58,37 @@ public class IuTypeTest extends IuTypeTestCase {
 	@Test
 	public void testParityWithClass() {
 		assertSame(IuType.of(Object.class), IuType.of(Object.class));
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	@Test
+	public void testObserveAndSubscribe() {
+		InstanceReference ref = mock(InstanceReference.class);
+		final IuType t = IuType.of(getClass()).referTo(Object.class);
+		t.subscribe(ref);
+		final var o1 = new Object();
+		final var d1 = t.observe(o1);
+		verify(ref).accept(o1);
+		d1.run();
+		verify(ref).clear(o1);
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	@Test
+	public void testObserveAndUnsubscribe() {
+		InstanceReference ref = mock(InstanceReference.class);
+		final IuType t = IuType.of(getClass()).referTo(Object.class);
+		final var u = t.subscribe(ref);
+
+		final var o1 = new Object();
+		t.observe(o1);
+		verify(ref).accept(o1);
+		
+		u.run();
+		
+		final var o2 = new Object();
+		t.observe(o2);
+		verify(ref, never()).accept(o2);
 	}
 
 }
