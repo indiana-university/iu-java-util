@@ -33,8 +33,10 @@ package iu.type;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ModuleLayer.Controller;
 import java.lang.reflect.Type;
 import java.nio.file.Path;
+import java.util.function.BiConsumer;
 
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuType;
@@ -50,27 +52,26 @@ public class TypeSpi implements IuTypeSpi {
 	/**
 	 * Default constructor.
 	 */
-<span class="fc" id="L53">	public TypeSpi() {</span>
-<span class="fc" id="L54">	}</span>
+<span class="fc" id="L55">	public TypeSpi() {</span>
+<span class="fc" id="L56">	}</span>
 
 	@Override
 	public IuType&lt;?, ?&gt; resolveType(Type type) {
-<span class="fc" id="L58">		return TypeFactory.resolveType(type);</span>
+<span class="fc" id="L60">		return TypeFactory.resolveType(type);</span>
 	}
 
-	@SuppressWarnings(&quot;exports&quot;)
 	@Override
-	public IuComponent createComponent(InputStream componentArchiveSource,
+	public IuComponent createComponent(BiConsumer&lt;Module, Controller&gt; controllerCallback, InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException {
-<span class="fc" id="L65">		return ComponentFactory.createComponent(null, componentArchiveSource, providedDependencyArchiveSources);</span>
+<span class="fc" id="L66">		return ComponentFactory.createComponent(null, controllerCallback, componentArchiveSource,</span>
+				providedDependencyArchiveSources);
 	}
 
-	@SuppressWarnings(&quot;exports&quot;)
 	@Override
 	public IuComponent scanComponentEntry(ClassLoader classLoader, Path pathEntry)
 			throws IOException, ClassNotFoundException {
-<span class="fc" id="L72">		return new Component(classLoader, pathEntry);</span>
+<span class="fc" id="L73">		return new Component(classLoader, pathEntry);</span>
 	}
-	
+
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

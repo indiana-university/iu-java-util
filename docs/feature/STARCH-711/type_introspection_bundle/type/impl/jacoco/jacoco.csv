@@ -15,7 +15,7 @@ IU Type Introspection Implementation Module,iu.type,TypeFactory.new Object() {..
 IU Type Introspection Implementation Module,iu.type,DeclaredElementBase,0,46,0,4,0,13,0,5,0,3
 IU Type Introspection Implementation Module,iu.type,ComponentModuleFinder,0,109,0,12,0,23,0,10,0,4
 IU Type Introspection Implementation Module,iu.type,TypeTemplate,0,878,1,107,0,177,1,97,0,44
-IU Type Introspection Implementation Module,iu.type,ComponentFactory,0,424,0,44,0,77,0,33,0,11
+IU Type Introspection Implementation Module,iu.type,ComponentFactory,0,465,0,46,0,85,0,35,0,12
 IU Type Introspection Implementation Module,iu.type,ComponentArchive.ScannedAttributes,0,21,0,0,0,1,0,1,0,1
 IU Type Introspection Implementation Module,iu.type,LegacyClassLoader,0,56,0,8,0,15,0,6,0,2
 IU Type Introspection Implementation Module,iu.type,ComponentModuleFinder.Ref,0,53,0,8,0,17,0,7,0,3
@@ -28,8 +28,8 @@ IU Type Introspection Implementation Module,iu.type,TypeUtils,0,209,0,30,0,54,0,
 IU Type Introspection Implementation Module,iu.type,TypeFactory,0,496,0,60,0,112,0,40,0,10
 IU Type Introspection Implementation Module,iu.type,FieldFacade,0,119,0,10,0,21,0,14,0,9
 IU Type Introspection Implementation Module,iu.type,BackwardsCompatibility,0,48,0,4,0,14,0,4,0,2
-IU Type Introspection Implementation Module,iu.type,Component,0,827,0,80,0,175,0,64,0,24
-IU Type Introspection Implementation Module,iu.type,TypeSpi,0,17,0,0,0,5,0,4,0,4
+IU Type Introspection Implementation Module,iu.type,Component,0,834,0,80,0,176,0,65,0,25
+IU Type Introspection Implementation Module,iu.type,TypeSpi,0,18,0,0,0,5,0,4,0,4
 IU Type Introspection Implementation Module,iu.type,PathEntryScanner,0,180,1,25,0,36,1,16,0,4
 IU Type Introspection Implementation Module,iu.type,TypeFacade.new Runnable() {...},0,96,0,4,0,18,0,6,0,4
 IU Type Introspection Implementation Module,iu.type,TypeReference,0,291,0,32,0,62,0,28,0,12
