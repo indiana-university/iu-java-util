@@ -29,18 +29,30 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.type.bundle;
+package iu.type.bundle;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import java.lang.reflect.Type;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.IuVisitor;
+import edu.iu.type.spi.IuTypeSpi;
+
 @SuppressWarnings("javadoc")
-public class TypeBundleIT {
-	
+public class BundleLoaderTest {
+
 	@Test
-	public void testModule() {
-		assertEquals("iu.util.type.impl", IuTypeBundle.getModule().getName());
+	public void testClassLoadingFilters() throws ClassNotFoundException {
+		final var loader = new BundleClassLoader(getClass().getClassLoader());
+		assertSame(IuTypeSpi.class, loader.loadClass(IuTypeSpi.class.getName()));
+		assertSame(IuVisitor.class, loader.loadClass(IuVisitor.class.getName()));
+		assertSame(Type.class, loader.loadClass(Type.class.getName()));
+		assertThrows(ClassNotFoundException.class, () -> loader.loadClass(jakarta.annotation.Resource.class.getName()));
+		assertThrows(ClassNotFoundException.class, () -> loader.loadClass(javax.annotation.Resource.class.getName()));
+		assertThrows(ClassNotFoundException.class, () -> loader.loadClass(Test.class.getName()));
 	}
 
 }

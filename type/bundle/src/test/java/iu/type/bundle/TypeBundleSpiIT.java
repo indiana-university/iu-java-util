@@ -31,6 +31,7 @@
  */
 package iu.type.bundle;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -48,7 +49,9 @@ public class TypeBundleSpiIT {
 	@Test
 	public void testCloses() throws Exception {
 		final var spi = new TypeBundleSpi();
+		assertEquals("iu.util.type.impl", spi.getImplementationModule().getName());
 		spi.close();
+		assertThrows(IllegalStateException.class, () -> spi.getImplementationModule());
 		assertThrows(IllegalStateException.class, () -> spi.resolveType(null));
 		assertThrows(IllegalStateException.class, () -> spi.createComponent((BiConsumer) null, null));
 		assertThrows(IllegalStateException.class, () -> spi.scanComponentEntry(null, null));

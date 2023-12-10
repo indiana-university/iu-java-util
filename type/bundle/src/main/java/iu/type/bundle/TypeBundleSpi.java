@@ -110,14 +110,13 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 		final var box = new Box();
 
 		try {
-			IuException.checked(IOException.class,
-					() -> IuException.initialize(
-							new ModularClassLoader(false, libs, TYPE_SPI_LAYER, TYPE_SPI_LOADER, null),
-							bundleLoader -> {
-								box.bundleLoader = bundleLoader;
-								box.delegate = ServiceLoader.load(IuTypeSpi.class, bundleLoader).iterator().next();
-								return null;
-							}));
+			IuException.checked(IOException.class, () -> IuException.initialize(
+					new ModularClassLoader(false, libs, TYPE_SPI_LAYER, new BundleClassLoader(TYPE_SPI_LOADER), null),
+					bundleLoader -> {
+						box.bundleLoader = bundleLoader;
+						box.delegate = ServiceLoader.load(IuTypeSpi.class, bundleLoader).iterator().next();
+						return null;
+					}));
 		} catch (Throwable e) {
 			IuException.suppress(e, destroy);
 			throw e;
@@ -128,6 +127,13 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 	}
 
 	@Override
+	public Module getImplementationModule() {
+		if (delegate == null)
+			throw new IllegalStateException("closed");
+		return delegate.getImplementationModule();
+	}
+
+	@Override
 	public IuType<?, ?> resolveType(Type type) {
 		if (delegate == null)
 			throw new IllegalStateException("closed");
@@ -135,8 +141,8 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 	}
 
 	@Override
-	public IuComponent createComponent(BiConsumer<Module, Controller> controllerCallback, InputStream componentArchiveSource,
-			InputStream... providedDependencyArchiveSources) throws IOException {
+	public IuComponent createComponent(BiConsumer<Module, Controller> controllerCallback,
+			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources) throws IOException {
 		if (delegate == null)
 			throw new IllegalStateException("closed");
 		return delegate.createComponent(controllerCallback, componentArchiveSource, providedDependencyArchiveSources);
@@ -157,15 +163,6 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 			this.delegate = null;
 			IuException.checked(() -> IuException.suppress(bundleLoader::close, destroy));
 		}
-	}
-
-	/**
-	 * Gets a reference to the loaded {@code iu.util.type.impl} module.
-	 * 
-	 * @return loaded {@code iu.util.type.impl} module
-	 */
-	public Module getModule() {
-		return this.delegate.getClass().getModule();
 	}
 
 }

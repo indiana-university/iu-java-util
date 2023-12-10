@@ -48,6 +48,23 @@ import edu.iu.type.IuType;
 public interface IuTypeSpi {
 
 	/**
+	 * Gets the {@link #getImplementationModule() implementation module} for the
+	 * provided implementation.
+	 * 
+	 * @return {@link Module}
+	 */
+	static Module getModule() {
+		return TypeImplementation.PROVIDER.getImplementationModule();
+	}
+
+	/**
+	 * Gets the implementation module.
+	 * 
+	 * @return {@link Module}
+	 */
+	Module getImplementationModule();
+
+	/**
 	 * Resolves an {@link IuType} instance for a generic type.
 	 * 
 	 * @param type Type

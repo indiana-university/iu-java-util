@@ -56,6 +56,11 @@ public class TypeSpi implements IuTypeSpi {
 	}
 
 	@Override
+	public Module getImplementationModule() {
+		return getClass().getModule();
+	}
+
+	@Override
 	public IuType<?, ?> resolveType(Type type) {
 		return TypeFactory.resolveType(type);
 	}

@@ -31,6 +31,7 @@
  */
 package iu.type;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
@@ -54,6 +55,11 @@ public class TypeSpiTest extends IuTypeTestCase {
 	@AfterEach
 	public void teardown() {
 		typeSpi = null;
+	}
+
+	@Test
+	public void testImplModuleIsNamed() {
+		assertEquals("iu.util.type.impl", typeSpi.getImplementationModule().getName());
 	}
 
 	@Test

@@ -29,27 +29,34 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.type.bundle;
+package iu.type.bundle;
 
-import edu.iu.type.spi.TypeImplementation;
-import iu.type.bundle.TypeBundleSpi;
+import edu.iu.IuObject;
 
 /**
- * Provides access to runtime meta-information related to the bundled IU Type
- * Introspection Implementation Module.
+ * Filters out classes unrelated to type introspection from the
+ * {@link ClassLoader#getSystemClassLoader() system ClassLoader}.
  */
-public final class IuTypeBundle {
+class BundleClassLoader extends ClassLoader {
 
 	/**
-	 * Gets a reference to the loaded {@code iu.util.type.impl} module.
+	 * Constructor.
 	 * 
-	 * @return loaded {@code iu.util.type.impl} module
+	 * @param parent {@link ClassLoader} for parent delegation
 	 */
-	public static Module getModule() {
-		return ((TypeBundleSpi) TypeImplementation.PROVIDER).getModule();
+	BundleClassLoader(ClassLoader parent) {
+		super(parent);
 	}
 
-	private IuTypeBundle() {
+	@Override
+	protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+		if (name.startsWith("edu.iu.") || //
+				(!name.startsWith("jakarta.") && //
+						!name.startsWith("javax.") && //
+						IuObject.isPlatformName(name)))
+			return super.loadClass(name, resolve);
+		else
+			throw new ClassNotFoundException(name);
 	}
-	
+
 }

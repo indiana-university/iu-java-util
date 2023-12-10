@@ -52,7 +52,6 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.test.IuTest;
 import edu.iu.type.spi.IuTypeSpi;
-import edu.iu.type.spi.TypeImplementation;
 
 @SuppressWarnings("javadoc")
 public class IuTypeSpiTest {
@@ -67,7 +66,8 @@ public class IuTypeSpiTest {
 		try (var mockServiceLoader = mockStatic(ServiceLoader.class)) {
 			mockServiceLoader.when(() -> ServiceLoader.load(IuTypeSpi.class, IuTypeSpi.class.getClassLoader()))
 					.thenReturn(serviceLoader);
-			Class.forName(TypeImplementation.class.getName());
+			IuTypeSpi.getModule();
+			verify(iuTypeSpi).getImplementationModule();
 		}
 	}
 
