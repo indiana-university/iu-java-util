@@ -29,7 +29,7 @@ IU Type Introspection Implementation Module,iu.type,TypeFactory,0,496,0,60,0,112
 IU Type Introspection Implementation Module,iu.type,FieldFacade,0,119,0,10,0,21,0,14,0,9
 IU Type Introspection Implementation Module,iu.type,BackwardsCompatibility,0,48,0,4,0,14,0,4,0,2
 IU Type Introspection Implementation Module,iu.type,Component,0,834,0,80,0,176,0,65,0,25
-IU Type Introspection Implementation Module,iu.type,TypeSpi,0,18,0,0,0,5,0,4,0,4
+IU Type Introspection Implementation Module,iu.type,TypeSpi,0,22,0,0,0,6,0,5,0,5
 IU Type Introspection Implementation Module,iu.type,PathEntryScanner,0,180,1,25,0,36,1,16,0,4
 IU Type Introspection Implementation Module,iu.type,TypeFacade.new Runnable() {...},0,96,0,4,0,18,0,6,0,4
 IU Type Introspection Implementation Module,iu.type,TypeReference,0,291,0,32,0,62,0,28,0,12

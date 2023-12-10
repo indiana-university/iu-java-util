@@ -1,1 +1,1 @@
-typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"edu.iu.type.bundle","l":"IuTypeBundle"}];updateSearchResults();
+typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"iu.type.bundle","l":"BundleClassLoader"},{"p":"iu.type.bundle","l":"TypeBundleSpi"}];updateSearchResults();

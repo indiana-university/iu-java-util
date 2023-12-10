@@ -1,5 +1,6 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
 IU Type Introspection API,edu.iu.type.spi,TypeImplementation,0,9,0,0,0,2,0,1,0,1
+IU Type Introspection API,edu.iu.type.spi,IuTypeSpi,0,3,0,0,0,1,0,1,0,1
 IU Type Introspection API,edu.iu.type,IuParameterizedElement,0,6,0,0,0,1,0,1,0,1
 IU Type Introspection API,edu.iu.type,IuProperty,0,167,1,49,0,36,1,32,0,8
 IU Type Introspection API,edu.iu.type,IuExecutableKey,0,320,0,38,0,72,0,29,0,10
