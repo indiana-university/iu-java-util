@@ -161,20 +161,6 @@ public class ModularClassLoaderTest {
 	}
 
 	@Test
-	public void testPlatformType() {
-		assertFalse(ModularClassLoader.isPlatformType(""));
-		assertTrue(ModularClassLoader.isPlatformType("com.sun."));
-		assertTrue(ModularClassLoader.isPlatformType("java."));
-		assertTrue(ModularClassLoader.isPlatformType("javax."));
-		assertTrue(ModularClassLoader.isPlatformType("jakarta."));
-		assertTrue(ModularClassLoader.isPlatformType("jdk."));
-		assertTrue(ModularClassLoader.isPlatformType("netscape.javascript."));
-		assertTrue(ModularClassLoader.isPlatformType("org.ietf.jgss."));
-		assertTrue(ModularClassLoader.isPlatformType("org.w3c.dom."));
-		assertTrue(ModularClassLoader.isPlatformType("org.xml.sax."));
-	}
-
-	@Test
 	public void testNullModuleIsOpen() throws IOException {
 		final var loader = createModularLoader("testruntime", null);
 		assertTrue(loader.isOpen(null, null));

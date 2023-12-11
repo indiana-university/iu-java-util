@@ -53,32 +53,13 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
 import edu.iu.IuException;
+import edu.iu.IuObject;
 import edu.iu.IuStream;
 
 /**
  * Module-aware {@link ClassLoader} implementation.
  */
 public class ModularClassLoader extends ClassLoader implements AutoCloseable {
-
-	/**
-	 * Repeated from IuType
-	 * 
-	 * @param name class name
-	 * @return true if the named class is part of the delivered JDK or JEE platform;
-	 *         else false
-	 */
-	static boolean isPlatformType(String name) {
-		return name.startsWith("jakarta.") // JEE and related
-				// JDK packages:
-				|| name.startsWith("com.sun.") //
-				|| name.startsWith("java.") //
-				|| name.startsWith("javax.") //
-				|| name.startsWith("jdk.") //
-				|| name.startsWith("netscape.javascript.") //
-				|| name.startsWith("org.ietf.jgss.") //
-				|| name.startsWith("org.w3c.dom.") //
-				|| name.startsWith("org.xml.sax.");
-	}
 
 	private final boolean web;
 	private final CloseableModuleFinder moduleFinder;
@@ -238,7 +219,7 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 
 	@Override
 	protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-		if (!web || isPlatformType(name))
+		if (!web || IuObject.isPlatformName(name))
 			return super.loadClass(name, resolve);
 
 		synchronized (getClassLoadingLock(name)) {
