@@ -45,6 +45,7 @@ import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuStream;
 import edu.iu.UnsafeRunnable;
+import edu.iu.type.base.FilteringClassLoader;
 import edu.iu.type.base.ModularClassLoader;
 import edu.iu.type.base.TemporaryFile;
 
@@ -54,13 +55,13 @@ import edu.iu.type.base.TemporaryFile;
  */
 public class IuComponentLoader implements AutoCloseable {
 
-<span class="fc" id="L57">	private static final URL[] TYPE_BUNDLE_MODULE_PATH = IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L58">		final var loader = IuComponentLoader.class.getClassLoader();</span>
-<span class="fc" id="L59">		return new URL[] { //</span>
-<span class="fc" id="L60">				Objects.requireNonNull(loader.getResource(&quot;iu-java-type.jar&quot;)), //</span>
-<span class="fc" id="L61">				Objects.requireNonNull(loader.getResource(&quot;iu-java-base.jar&quot;)), //</span>
-<span class="fc" id="L62">				Objects.requireNonNull(loader.getResource(&quot;iu-java-type-api.jar&quot;)), //</span>
-<span class="fc" id="L63">				Objects.requireNonNull(loader.getResource(&quot;iu-java-type-base.jar&quot;)), //</span>
+<span class="fc" id="L58">	private static final URL[] TYPE_BUNDLE_MODULE_PATH = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L59">		final var loader = IuComponentLoader.class.getClassLoader();</span>
+<span class="fc" id="L60">		return new URL[] { //</span>
+<span class="fc" id="L61">				Objects.requireNonNull(loader.getResource(&quot;iu-java-type.jar&quot;)), //</span>
+<span class="fc" id="L62">				Objects.requireNonNull(loader.getResource(&quot;iu-java-base.jar&quot;)), //</span>
+<span class="fc" id="L63">				Objects.requireNonNull(loader.getResource(&quot;iu-java-type-api.jar&quot;)), //</span>
+<span class="fc" id="L64">				Objects.requireNonNull(loader.getResource(&quot;iu-java-type-base.jar&quot;)), //</span>
 		};
 	});
 
@@ -74,12 +75,30 @@ public class IuComponentLoader implements AutoCloseable {
 	 * archives&lt;/strong&gt;, loads a &lt;strong&gt;component&lt;/strong&gt;, and returns a
 	 * {@link ClassLoader} for accessing classes managed by the component.
 	 * 
+	 * @param componentArchiveSource           {@link InputStream} for reading the
+	 *                                         &lt;strong&gt;component archive&lt;/strong&gt;.
+	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
+	 *                                         &lt;strong&gt;provided dependency
+	 *                                         archives&lt;/strong&gt;.
+	 * @throws IOException If an IO error occurs initializing the component
+	 */
+	public IuComponentLoader(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
+			throws IOException {
+<span class="fc" id="L87">		this(null, componentArchiveSource, providedDependencyArchiveSources);</span>
+<span class="fc" id="L88">	}</span>
+
+	/**
+	 * Validates a &lt;strong&gt;component archive&lt;/strong&gt;, all &lt;strong&gt;dependency
+	 * archives&lt;/strong&gt;, loads a &lt;strong&gt;component&lt;/strong&gt;, and returns a
+	 * {@link ClassLoader} for accessing classes managed by the component.
+	 * 
 	 * @param controllerCallback               receives a reference to an
 	 *                                         {@link IuComponentController} that
 	 *                                         may be used to set up access rules
 	 *                                         for the component. This reference
 	 *                                         &lt;em&gt;should not&lt;/em&gt; be passed beyond
-	 *                                         the scope of the callback.
+	 *                                         the scope of the callback; see
+	 *                                         {@link ModularClassLoader}
 	 * @param componentArchiveSource           {@link InputStream} for reading the
 	 *                                         &lt;strong&gt;component archive&lt;/strong&gt;.
 	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
@@ -88,84 +107,116 @@ public class IuComponentLoader implements AutoCloseable {
 	 * @throws IOException If an IO error occurs initializing the component
 	 */
 	public IuComponentLoader(Consumer&lt;IuComponentController&gt; controllerCallback, InputStream componentArchiveSource,
-<span class="fc" id="L91">			InputStream... providedDependencyArchiveSources) throws IOException {</span>
-<span class="fc" id="L92">		class Box {</span>
+			InputStream... providedDependencyArchiveSources) throws IOException {
+<span class="fc" id="L111">		this(IuIterable.empty(), null, controllerCallback, componentArchiveSource, providedDependencyArchiveSources);</span>
+<span class="fc" id="L112">	}</span>
+
+	/**
+	 * Validates a &lt;strong&gt;component archive&lt;/strong&gt;, all &lt;strong&gt;dependency
+	 * archives&lt;/strong&gt;, loads a &lt;strong&gt;component&lt;/strong&gt;, and returns a
+	 * {@link ClassLoader} for accessing classes managed by the component.
+	 * 
+	 * @param allowedPackages                  non-platform classes to allow
+	 *                                         delegated access to; see
+	 *                                         {@link FilteringClassLoader}
+	 * @param parent                           parent {@link ClassLoader} for
+	 *                                         delegated access; see
+	 *                                         {@link FilteringClassLoader}
+	 * @param controllerCallback               receives a reference to an
+	 *                                         {@link IuComponentController} that
+	 *                                         may be used to set up access rules
+	 *                                         for the component. This reference
+	 *                                         &lt;em&gt;should not&lt;/em&gt; be passed beyond
+	 *                                         the scope of the callback; see
+	 *                                         {@link ModularClassLoader}
+	 * @param componentArchiveSource           {@link InputStream} for reading the
+	 *                                         &lt;strong&gt;component archive&lt;/strong&gt;.
+	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
+	 *                                         &lt;strong&gt;provided dependency
+	 *                                         archives&lt;/strong&gt;.
+	 * @throws IOException If an IO error occurs initializing the component
+	 */
+	public IuComponentLoader(Iterable&lt;String&gt; allowedPackages, ClassLoader parent,
+			Consumer&lt;IuComponentController&gt; controllerCallback, InputStream componentArchiveSource,
+<span class="fc" id="L141">			InputStream... providedDependencyArchiveSources) throws IOException {</span>
+<span class="fc" id="L142">		class Box {</span>
 			ModularClassLoader typeBundleLoader;
 			AutoCloseable component;
 			ClassLoader loader;
 		}
-<span class="fc" id="L97">		final var box = new Box();</span>
+<span class="fc" id="L147">		final var box = new Box();</span>
 
-<span class="fc" id="L99">		destroy = TemporaryFile.init(() -&gt; {</span>
-<span class="fc" id="L100">			final var typeBundleJars = new Path[TYPE_BUNDLE_MODULE_PATH.length];</span>
+<span class="fc" id="L149">		final var filteredParent = new FilteringClassLoader(allowedPackages, parent);</span>
+<span class="fc" id="L150">		destroy = TemporaryFile.init(() -&gt; {</span>
+<span class="fc" id="L151">			final var typeBundleJars = new Path[TYPE_BUNDLE_MODULE_PATH.length];</span>
 
-<span class="fc bfc" id="L102" title="All 2 branches covered.">			for (var i = 0; i &lt; TYPE_BUNDLE_MODULE_PATH.length; i++) {</span>
-<span class="fc" id="L103">				final var connection = TYPE_BUNDLE_MODULE_PATH[i].openConnection();</span>
-<span class="fc" id="L104">				connection.setUseCaches(false);</span>
-<span class="fc" id="L105">				try (final var in = connection.getInputStream()) {</span>
-<span class="fc" id="L106">					typeBundleJars[i] = TemporaryFile.init(path -&gt; {</span>
-<span class="fc" id="L107">						try (final var out = Files.newOutputStream(path)) {</span>
-<span class="fc" id="L108">							IuStream.copy(in, out);</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">			for (var i = 0; i &lt; TYPE_BUNDLE_MODULE_PATH.length; i++) {</span>
+<span class="fc" id="L154">				final var connection = TYPE_BUNDLE_MODULE_PATH[i].openConnection();</span>
+<span class="fc" id="L155">				connection.setUseCaches(false);</span>
+<span class="fc" id="L156">				try (final var in = connection.getInputStream()) {</span>
+<span class="fc" id="L157">					typeBundleJars[i] = TemporaryFile.init(path -&gt; {</span>
+<span class="fc" id="L158">						try (final var out = Files.newOutputStream(path)) {</span>
+<span class="fc" id="L159">							IuStream.copy(in, out);</span>
 						}
-<span class="fc" id="L110">						return path;</span>
+<span class="fc" id="L161">						return path;</span>
 					});
 				}
 			}
 
-<span class="fc" id="L115">			box.typeBundleLoader = IuException.checked(IOException.class, () -&gt; IuException</span>
-<span class="fc" id="L116">					.initialize(new ModularClassLoader(false, IuIterable.iter(typeBundleJars), controller -&gt; {</span>
-<span class="fc" id="L117">					}), typeBundleLoader -&gt; {</span>
-<span class="fc" id="L118">						final var bundleSpi = typeBundleLoader.loadClass(&quot;edu.iu.type.spi.IuTypeSpi&quot;);</span>
-<span class="fc" id="L119">						final var getModule = bundleSpi.getMethod(&quot;getModule&quot;);</span>
-<span class="fc" id="L120">						getModule.setAccessible(true);</span>
-<span class="fc" id="L121">						final var typeModule = (Module) getModule.invoke(null);</span>
+<span class="fc" id="L166">			box.typeBundleLoader = IuException.checked(IOException.class, () -&gt; IuException.initialize(</span>
+<span class="fc" id="L167">					new ModularClassLoader(false, IuIterable.iter(typeBundleJars), filteredParent, controller -&gt; {</span>
+<span class="fc" id="L168">					}), typeBundleLoader -&gt; {</span>
+<span class="fc" id="L169">						final var bundleSpi = typeBundleLoader.loadClass(&quot;edu.iu.type.spi.IuTypeSpi&quot;);</span>
+<span class="fc" id="L170">						final var getModule = bundleSpi.getMethod(&quot;getModule&quot;);</span>
+<span class="fc" id="L171">						getModule.setAccessible(true);</span>
+<span class="fc" id="L172">						final var typeModule = (Module) getModule.invoke(null);</span>
 
-<span class="fc" id="L123">						final var iuComponent = typeBundleLoader.loadClass(&quot;edu.iu.type.IuComponent&quot;);</span>
-<span class="fc" id="L124">						final var of = iuComponent.getMethod(&quot;of&quot;, BiConsumer.class, InputStream.class,</span>
+<span class="fc" id="L174">						final var iuComponent = typeBundleLoader.loadClass(&quot;edu.iu.type.IuComponent&quot;);</span>
+<span class="fc" id="L175">						final var of = iuComponent.getMethod(&quot;of&quot;, BiConsumer.class, InputStream.class,</span>
 								InputStream[].class);
-<span class="fc" id="L126">						final var classLoader = iuComponent.getMethod(&quot;classLoader&quot;);</span>
+<span class="fc" id="L177">						final var classLoader = iuComponent.getMethod(&quot;classLoader&quot;);</span>
 
 						class ComponentController implements IuComponentController {
 							private final Module componentModule;
 							private final Controller controller;
 
-<span class="fc" id="L132">							ComponentController(Module componentModule, Controller controller) {</span>
-<span class="fc" id="L133">								this.componentModule = componentModule;</span>
-<span class="fc" id="L134">								this.controller = controller;</span>
-<span class="fc" id="L135">							}</span>
+<span class="fc" id="L183">							ComponentController(Module componentModule, Controller controller) {</span>
+<span class="fc" id="L184">								this.componentModule = componentModule;</span>
+<span class="fc" id="L185">								this.controller = controller;</span>
+<span class="fc" id="L186">							}</span>
 
 							@Override
 							public Module getTypeModule() {
-<span class="fc" id="L139">								return typeModule;</span>
+<span class="fc" id="L190">								return typeModule;</span>
 							}
 
 							@Override
 							public Module getComponentModule() {
-<span class="fc" id="L144">								return componentModule;</span>
+<span class="fc" id="L195">								return componentModule;</span>
 							}
 
 							@Override
 							public Controller getController() {
-<span class="fc" id="L149">								return controller;</span>
+<span class="fc" id="L200">								return controller;</span>
 							}
 						}
 
-<span class="fc" id="L153">						return IuException.checkedInvocation(() -&gt; {</span>
-<span class="fc" id="L154">							box.component = (AutoCloseable) of.invoke(null,</span>
+<span class="fc" id="L204">						return IuException.checkedInvocation(() -&gt; {</span>
+<span class="fc" id="L205">							box.component = (AutoCloseable) of.invoke(null,</span>
 									(BiConsumer&lt;Module, Controller&gt;) (module, controller) -&gt; {
-<span class="fc bfc" id="L156" title="All 2 branches covered.">										if (controllerCallback != null)</span>
-<span class="fc" id="L157">											controllerCallback.accept(new ComponentController(module, controller));</span>
-<span class="fc" id="L158">									}, componentArchiveSource, providedDependencyArchiveSources);</span>
-<span class="fc" id="L159">							box.loader = (ClassLoader) classLoader.invoke(box.component);</span>
-<span class="fc" id="L160">							return typeBundleLoader;</span>
+<span class="fc bfc" id="L207" title="All 2 branches covered.">										if (controllerCallback != null)</span>
+<span class="fc" id="L208">											controllerCallback.accept(new ComponentController(module, controller));</span>
+<span class="fc" id="L209">									}, componentArchiveSource, providedDependencyArchiveSources);</span>
+<span class="fc" id="L210">							box.loader = (ClassLoader) classLoader.invoke(box.component);</span>
+<span class="fc" id="L211">							return typeBundleLoader;</span>
 						});
 					}));
-<span class="fc" id="L163">		});</span>
+<span class="fc" id="L214">		});</span>
 
-<span class="fc" id="L165">		typeBundleLoader = box.typeBundleLoader;</span>
-<span class="fc" id="L166">		component = box.component;</span>
-<span class="fc" id="L167">		loader = box.loader;</span>
-<span class="fc" id="L168">	}</span>
+<span class="fc" id="L216">		typeBundleLoader = box.typeBundleLoader;</span>
+<span class="fc" id="L217">		component = box.component;</span>
+<span class="fc" id="L218">		loader = box.loader;</span>
+<span class="fc" id="L219">	}</span>
 
 	/**
 	 * Gets the component's {@link ClassLoader}.
@@ -173,17 +224,17 @@ public class IuComponentLoader implements AutoCloseable {
 	 * @return {@link ClassLoader}
 	 */
 	public ClassLoader getLoader() {
-<span class="fc" id="L176">		return loader;</span>
+<span class="fc" id="L227">		return loader;</span>
 	}
 
 	@Override
 	public void close() throws IOException {
-<span class="fc" id="L181">		var closeError = IuException.suppress(null, component::close);</span>
-<span class="fc" id="L182">		closeError = IuException.suppress(closeError, typeBundleLoader::close);</span>
-<span class="fc" id="L183">		closeError = IuException.suppress(closeError, destroy::run);</span>
-<span class="fc bfc" id="L184" title="All 2 branches covered.">		if (closeError != null)</span>
-<span class="fc" id="L185">			throw IuException.checked(closeError, IOException.class);</span>
-<span class="fc" id="L186">	}</span>
+<span class="fc" id="L232">		var closeError = IuException.suppress(null, component::close);</span>
+<span class="fc" id="L233">		closeError = IuException.suppress(closeError, typeBundleLoader::close);</span>
+<span class="fc" id="L234">		closeError = IuException.suppress(closeError, destroy::run);</span>
+<span class="fc bfc" id="L235" title="All 2 branches covered.">		if (closeError != null)</span>
+<span class="fc" id="L236">			throw IuException.checked(closeError, IOException.class);</span>
+<span class="fc" id="L237">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

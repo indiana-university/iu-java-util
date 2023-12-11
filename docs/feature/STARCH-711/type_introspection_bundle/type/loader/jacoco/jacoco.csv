@@ -1,4 +1,4 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
-IU Type Introspection Module Loader,edu.iu.type.loader,IuComponentLoader,0,287,0,6,0,48,0,15,0,12
+IU Type Introspection Module Loader,edu.iu.type.loader,IuComponentLoader,0,310,0,6,0,53,0,17,0,14
 IU Type Introspection Module Loader,edu.iu.type.loader,IuComponentLoader.new Object() {...},0,6,0,0,0,1,0,1,0,1
 IU Type Introspection Module Loader,edu.iu.type.loader,IuComponentLoader.new IuComponentController() {...},0,24,0,0,0,7,0,4,0,4
