@@ -29,30 +29,39 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type.bundle;
+package edu.iu.type.base;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.lang.reflect.Type;
-
 import org.junit.jupiter.api.Test;
 
-import edu.iu.IuVisitor;
-import edu.iu.type.spi.IuTypeSpi;
+import edu.iu.IuIterable;
+import jakarta.annotation.Resource;
 
 @SuppressWarnings("javadoc")
-public class BundleLoaderTest {
+public class FilteringClassLoaderTest {
 
 	@Test
-	public void testClassLoadingFilters() throws ClassNotFoundException {
-		final var loader = new BundleClassLoader(getClass().getClassLoader());
-		assertSame(IuTypeSpi.class, loader.loadClass(IuTypeSpi.class.getName()));
-		assertSame(IuVisitor.class, loader.loadClass(IuVisitor.class.getName()));
-		assertSame(Type.class, loader.loadClass(Type.class.getName()));
-		assertThrows(ClassNotFoundException.class, () -> loader.loadClass(jakarta.annotation.Resource.class.getName()));
-		assertThrows(ClassNotFoundException.class, () -> loader.loadClass(javax.annotation.Resource.class.getName()));
-		assertThrows(ClassNotFoundException.class, () -> loader.loadClass(Test.class.getName()));
+	public void testPlatform() throws Throwable {
+		final var loader = new FilteringClassLoader(IuIterable.empty(), getClass().getClassLoader());
+		assertThrows(ClassNotFoundException.class, () -> loader.loadClass(getClass().getName()));
+		assertDoesNotThrow(() -> getClass().getClassLoader().loadClass("javax.sql.DataSource"));
+		assertThrows(ClassNotFoundException.class, () -> loader.loadClass("javax.sql.DataSource"));
+		assertThrows(ClassNotFoundException.class, () -> loader.loadClass(Resource.class.getName()));
+		assertSame(Object.class, loader.loadClass(Object.class.getName()));
+	}
+
+	@Test
+	public void testAllowed() throws Throwable {
+		final var loader = new FilteringClassLoader( // full class name isn't a package --v
+				IuIterable.iter("javax.sql", getClass().getPackageName(), Resource.class.getName()),
+				getClass().getClassLoader());
+		assertSame(getClass(), loader.loadClass(getClass().getName()));
+		assertSame(getClass().getClassLoader().loadClass("javax.sql.DataSource"),
+				loader.loadClass("javax.sql.DataSource"));
+		assertThrows(ClassNotFoundException.class, () -> loader.loadClass(Resource.class.getName()));
 	}
 
 }

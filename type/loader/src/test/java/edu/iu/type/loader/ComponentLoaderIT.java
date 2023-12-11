@@ -88,7 +88,7 @@ public class ComponentLoaderIT {
 			return;
 		}
 
-		try (final var componentLoader = new IuComponentLoader(null, getComponentArchive("testruntime"),
+		try (final var componentLoader = new IuComponentLoader(getComponentArchive("testruntime"),
 				getProvidedDependencyArchives("testruntime"))) {
 
 			var contextLoader = Thread.currentThread().getContextClassLoader();

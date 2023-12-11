@@ -45,6 +45,7 @@ import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuStream;
 import edu.iu.UnsafeRunnable;
+import edu.iu.type.base.FilteringClassLoader;
 import edu.iu.type.base.ModularClassLoader;
 import edu.iu.type.base.TemporaryFile;
 
@@ -74,12 +75,30 @@ public class IuComponentLoader implements AutoCloseable {
 	 * archives</strong>, loads a <strong>component</strong>, and returns a
 	 * {@link ClassLoader} for accessing classes managed by the component.
 	 * 
+	 * @param componentArchiveSource           {@link InputStream} for reading the
+	 *                                         <strong>component archive</strong>.
+	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
+	 *                                         <strong>provided dependency
+	 *                                         archives</strong>.
+	 * @throws IOException If an IO error occurs initializing the component
+	 */
+	public IuComponentLoader(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
+			throws IOException {
+		this(null, componentArchiveSource, providedDependencyArchiveSources);
+	}
+
+	/**
+	 * Validates a <strong>component archive</strong>, all <strong>dependency
+	 * archives</strong>, loads a <strong>component</strong>, and returns a
+	 * {@link ClassLoader} for accessing classes managed by the component.
+	 * 
 	 * @param controllerCallback               receives a reference to an
 	 *                                         {@link IuComponentController} that
 	 *                                         may be used to set up access rules
 	 *                                         for the component. This reference
 	 *                                         <em>should not</em> be passed beyond
-	 *                                         the scope of the callback.
+	 *                                         the scope of the callback; see
+	 *                                         {@link ModularClassLoader}
 	 * @param componentArchiveSource           {@link InputStream} for reading the
 	 *                                         <strong>component archive</strong>.
 	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
@@ -89,6 +108,37 @@ public class IuComponentLoader implements AutoCloseable {
 	 */
 	public IuComponentLoader(Consumer<IuComponentController> controllerCallback, InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException {
+		this(IuIterable.empty(), null, controllerCallback, componentArchiveSource, providedDependencyArchiveSources);
+	}
+
+	/**
+	 * Validates a <strong>component archive</strong>, all <strong>dependency
+	 * archives</strong>, loads a <strong>component</strong>, and returns a
+	 * {@link ClassLoader} for accessing classes managed by the component.
+	 * 
+	 * @param allowedPackages                  non-platform classes to allow
+	 *                                         delegated access to; see
+	 *                                         {@link FilteringClassLoader}
+	 * @param parent                           parent {@link ClassLoader} for
+	 *                                         delegated access; see
+	 *                                         {@link FilteringClassLoader}
+	 * @param controllerCallback               receives a reference to an
+	 *                                         {@link IuComponentController} that
+	 *                                         may be used to set up access rules
+	 *                                         for the component. This reference
+	 *                                         <em>should not</em> be passed beyond
+	 *                                         the scope of the callback; see
+	 *                                         {@link ModularClassLoader}
+	 * @param componentArchiveSource           {@link InputStream} for reading the
+	 *                                         <strong>component archive</strong>.
+	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
+	 *                                         <strong>provided dependency
+	 *                                         archives</strong>.
+	 * @throws IOException If an IO error occurs initializing the component
+	 */
+	public IuComponentLoader(Iterable<String> allowedPackages, ClassLoader parent,
+			Consumer<IuComponentController> controllerCallback, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) throws IOException {
 		class Box {
 			ModularClassLoader typeBundleLoader;
 			AutoCloseable component;
@@ -96,6 +146,7 @@ public class IuComponentLoader implements AutoCloseable {
 		}
 		final var box = new Box();
 
+		final var filteredParent = new FilteringClassLoader(allowedPackages, parent);
 		destroy = TemporaryFile.init(() -> {
 			final var typeBundleJars = new Path[TYPE_BUNDLE_MODULE_PATH.length];
 
@@ -112,8 +163,8 @@ public class IuComponentLoader implements AutoCloseable {
 				}
 			}
 
-			box.typeBundleLoader = IuException.checked(IOException.class, () -> IuException
-					.initialize(new ModularClassLoader(false, IuIterable.iter(typeBundleJars), controller -> {
+			box.typeBundleLoader = IuException.checked(IOException.class, () -> IuException.initialize(
+					new ModularClassLoader(false, IuIterable.iter(typeBundleJars), filteredParent, controller -> {
 					}), typeBundleLoader -> {
 						final var bundleSpi = typeBundleLoader.loadClass("edu.iu.type.spi.IuTypeSpi");
 						final var getModule = bundleSpi.getMethod("getModule");
