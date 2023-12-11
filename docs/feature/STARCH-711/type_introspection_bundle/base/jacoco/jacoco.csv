@@ -9,7 +9,7 @@ IU Base Utilities Module,edu.iu,IuVisitor,0,75,0,12,0,26,0,10,0,4
 IU Base Utilities Module,edu.iu,IuStream.Buffers,0,11,0,0,0,3,0,1,0,1
 IU Base Utilities Module,edu.iu,IuStream,0,65,0,4,0,17,0,7,0,5
 IU Base Utilities Module,edu.iu,IuObject,0,591,1,137,0,145,1,81,0,13
-IU Base Utilities Module,edu.iu,IuException,0,548,0,38,0,199,0,62,0,43
+IU Base Utilities Module,edu.iu,IuException,0,547,0,38,0,201,0,63,0,44
 IU Base Utilities Module,edu.iu,IuAsynchronousSubject,0,118,0,12,0,26,0,15,0,9
 IU Base Utilities Module,edu.iu,IdGenerator,0,531,0,58,0,90,0,36,0,7
 IU Base Utilities Module,edu.iu,IuAsynchronousPipe,0,355,0,38,0,88,0,39,0,20

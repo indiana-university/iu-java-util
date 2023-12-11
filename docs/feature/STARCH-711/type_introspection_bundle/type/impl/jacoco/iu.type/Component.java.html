@@ -420,28 +420,11 @@ class Component implements IuComponent {
 <span class="fc" id="L420">		closed = true;</span>
 <span class="fc bfc" id="L421" title="All 2 branches covered.">		if (onClose != null)</span>
 <span class="fc" id="L422">			IuException.checked(onClose::run);</span>
-
-//		if (closeableResources != null)
-//			try {
-//				closeableResources.close();
-//			} catch (Throwable e) {
-//				LOG.log(Level.WARNING, e, () -&gt; &quot;Close component resources failed &quot; + versions);
-//			}
-//
-//		if (archives != null)
-//			while (!archives.isEmpty()) {
-//				var archive = archives.poll();
-//				try {
-//					Files.delete(archive.path());
-//				} catch (Throwable e) {
-//					LOG.log(Level.WARNING, e, () -&gt; &quot;Failed to clean up archive &quot; + archive.path() + &quot;; &quot; + versions);
-//				}
-//			}
-<span class="fc" id="L440">	}</span>
+<span class="fc" id="L423">	}</span>
 
 	@Override
 	public String toString() {
-<span class="fc" id="L444">		return &quot;Component [parent=&quot; + parent + &quot;, kind=&quot; + kind + &quot;, versions=&quot; + versions + &quot;, closed=&quot; + closed + &quot;]&quot;;</span>
+<span class="fc" id="L427">		return &quot;Component [parent=&quot; + parent + &quot;, kind=&quot; + kind + &quot;, versions=&quot; + versions + &quot;, closed=&quot; + closed + &quot;]&quot;;</span>
 	}
 
 }
