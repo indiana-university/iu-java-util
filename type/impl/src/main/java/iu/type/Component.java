@@ -420,23 +420,6 @@ class Component implements IuComponent {
 		closed = true;
 		if (onClose != null)
 			IuException.checked(onClose::run);
-
-//		if (closeableResources != null)
-//			try {
-//				closeableResources.close();
-//			} catch (Throwable e) {
-//				LOG.log(Level.WARNING, e, () -> "Close component resources failed " + versions);
-//			}
-//
-//		if (archives != null)
-//			while (!archives.isEmpty()) {
-//				var archive = archives.poll();
-//				try {
-//					Files.delete(archive.path());
-//				} catch (Throwable e) {
-//					LOG.log(Level.WARNING, e, () -> "Failed to clean up archive " + archive.path() + "; " + versions);
-//				}
-//			}
 	}
 
 	@Override

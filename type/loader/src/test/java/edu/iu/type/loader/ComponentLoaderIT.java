@@ -88,8 +88,12 @@ public class ComponentLoaderIT {
 			return;
 		}
 
-		try (final var componentLoader = new IuComponentLoader(getComponentArchive("testruntime"),
-				getProvidedDependencyArchives("testruntime"))) {
+		try (final var componentLoader = new IuComponentLoader(c -> {
+			assertEquals("iu.util.type.impl", c.getTypeModule().getName());
+			final var module = c.getComponentModule();
+			assertEquals("iu.util.type.testruntime", module.getName());
+			assertSame(module, c.getController().layer().findModule(module.getName()).get());
+		}, getComponentArchive("testruntime"), getProvidedDependencyArchives("testruntime"))) {
 
 			var contextLoader = Thread.currentThread().getContextClassLoader();
 			var loader = componentLoader.getLoader();
@@ -108,7 +112,7 @@ public class ComponentLoaderIT {
 	@Test
 	public void testCloseError() throws Exception {
 		final var e = new IOException();
-		final var componentLoader = new IuComponentLoader(null, getComponentArchive("testruntime"),
+		final var componentLoader = new IuComponentLoader(getComponentArchive("testruntime"),
 				getProvidedDependencyArchives("testruntime"));
 		final var destroyField = componentLoader.getClass().getDeclaredField("destroy");
 		destroyField.setAccessible(true);
