@@ -50,7 +50,7 @@ IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuComponentVersion,
 IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuComponent,0,78,0,2,0,13,0,7,0,6
 IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,FilteringClassLoader,0,66,0,16,0,19,0,10,0,2
 IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,TemporaryFile.new Object() {...},0,3,0,0,0,1,0,1,0,1
-IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,ModularClassLoader,0,738,0,106,0,163,0,74,0,21
+IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,ModularClassLoader,0,698,0,88,0,154,0,64,0,20
 IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,CloseableModuleFinder.Ref,0,53,0,8,0,17,0,7,0,3
 IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,CloseableModuleFinder,0,109,0,12,0,23,0,10,0,4
 IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,ModularClassLoader.new Object() {...},0,6,0,0,0,1,0,1,0,1
@@ -249,7 +249,7 @@ IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,ModularClas
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,FilteringClassLoader,0,66,0,16,0,19,0,10,0,2
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,TemporaryFile,0,110,0,8,0,27,0,10,0,6
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,TemporaryFile.new Object() {...},0,3,0,0,0,1,0,1,0,1
-IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,ModularClassLoader,0,738,0,106,0,163,0,74,0,21
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,ModularClassLoader,0,698,0,88,0,154,0,64,0,20
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,ModularClassLoader.new Object() {...},0,6,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,ModularClassLoader.new BiPredicate() {...},0,14,0,0,0,4,0,2,0,2
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.annotation,Resource.AuthenticationType,0,24,0,0,0,3,0,1,0,1
