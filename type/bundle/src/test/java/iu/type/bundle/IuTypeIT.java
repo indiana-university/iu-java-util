@@ -31,7 +31,9 @@
  */
 package iu.type.bundle;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.logging.Level;
 
@@ -39,6 +41,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuType;
+import edu.iu.type.bundle.IuTypeBundle;
 
 @SuppressWarnings("javadoc")
 public class IuTypeIT {
@@ -47,6 +50,17 @@ public class IuTypeIT {
 	public void testSanity() {
 		IuTestLogger.allow("iu.type.ParameterizedElement", Level.FINEST, "replaced type argument.*");
 		assertSame(String.class, IuType.of(String.class).erasedClass());
+	}
+
+	@Test
+	public void testGetModule() {
+		assertEquals("iu.util.type.impl", IuTypeBundle.getModule().getName());
+	}
+
+	@Test
+	public void testSingleton() {
+		IuType.of(Object.class); // ensure initialized
+		assertThrows(AssertionError.class, () -> new TypeBundleSpi());
 	}
 
 }

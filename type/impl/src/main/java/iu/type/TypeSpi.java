@@ -56,19 +56,14 @@ public class TypeSpi implements IuTypeSpi {
 	}
 
 	@Override
-	public Module getImplementationModule() {
-		return getClass().getModule();
-	}
-
-	@Override
 	public IuType<?, ?> resolveType(Type type) {
 		return TypeFactory.resolveType(type);
 	}
 
 	@Override
-	public IuComponent createComponent(BiConsumer<Module, Controller> controllerCallback, InputStream componentArchiveSource,
-			InputStream... providedDependencyArchiveSources) throws IOException {
-		return ComponentFactory.createComponent(null, controllerCallback, componentArchiveSource,
+	public IuComponent createComponent(ClassLoader parent, BiConsumer<Module, Controller> controllerCallback,
+			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources) throws IOException {
+		return ComponentFactory.createComponent(null, parent, controllerCallback, componentArchiveSource,
 				providedDependencyArchiveSources);
 	}
 

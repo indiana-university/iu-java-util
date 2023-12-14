@@ -29,53 +29,37 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type;
+package edu.iu.type.bundle;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
-import java.io.IOException;
-import java.io.InputStream;
-
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import edu.iu.type.IuType;
+import iu.type.bundle.TypeBundleSpi;
+
 @SuppressWarnings("javadoc")
-public class TypeSpiTest extends IuTypeTestCase {
-
-	private TypeSpi typeSpi;
-
-	@BeforeEach
-	public void setup() {
-		typeSpi = new TypeSpi();
-	}
-
-	@AfterEach
-	public void teardown() {
-		typeSpi = null;
-	}
+public class IuTypeBundleTest {
 
 	@Test
-	public void testImplModuleIsNamed() {
-		assertEquals("iu.util.type.impl", typeSpi.getClass().getModule().getName());
-	}
-
-	@Test
-	public void testTypeIsNotImplemented() {
-		try (var mockTypeFactory = mockStatic(TypeFactory.class)) {
-			typeSpi.resolveType(getClass());
-			mockTypeFactory.verify(() -> TypeFactory.resolveType(getClass()));
+	public void testGetModule() {
+		final var mockModule = mock(Module.class);
+		try (final var mockType = mockStatic(IuType.class);
+				final var mockTypeBundleSpi = mockStatic(TypeBundleSpi.class)) {
+			mockTypeBundleSpi.when(() -> TypeBundleSpi.getModule()).thenReturn(mockModule);
+			assertSame(mockModule, IuTypeBundle.getModule());
+			mockType.verify(() -> IuType.of(Object.class));
 		}
 	}
 
 	@Test
-	public void testComponentIsImplemented() throws IOException {
-		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
-			var in = mock(InputStream.class);
-			typeSpi.createComponent(null, null, in);
-			mockComponentFactory.verify(() -> ComponentFactory.createComponent(null, null, null, in));
+	public void testShutdown() throws Exception {
+		try (final var mockTypeBundleSpi = mockStatic(TypeBundleSpi.class)) {
+			IuTypeBundle.shutdown();
+			mockTypeBundleSpi.verify(() -> TypeBundleSpi.shutdown());
 		}
 	}
+	
 }

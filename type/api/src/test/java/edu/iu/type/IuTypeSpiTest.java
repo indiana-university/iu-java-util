@@ -31,6 +31,7 @@
  */
 package edu.iu.type;
 
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -52,6 +53,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.test.IuTest;
 import edu.iu.type.spi.IuTypeSpi;
+import edu.iu.type.spi.TypeImplementation;
 
 @SuppressWarnings("javadoc")
 public class IuTypeSpiTest {
@@ -66,8 +68,7 @@ public class IuTypeSpiTest {
 		try (var mockServiceLoader = mockStatic(ServiceLoader.class)) {
 			mockServiceLoader.when(() -> ServiceLoader.load(IuTypeSpi.class, IuTypeSpi.class.getClassLoader()))
 					.thenReturn(serviceLoader);
-			IuTypeSpi.getModule();
-			verify(iuTypeSpi).getImplementationModule();
+			assertSame(iuTypeSpi, TypeImplementation.PROVIDER);
 		}
 	}
 
@@ -78,10 +79,26 @@ public class IuTypeSpiTest {
 	}
 
 	@Test
-	public void testNewComponent() throws IOException {
+	public void testNewIsolatedComponent() throws IOException {
 		var in = mock(InputStream.class);
 		IuComponent.of(in);
-		verify(iuTypeSpi).createComponent(null, in);
+		verify(iuTypeSpi).createComponent(null, null, in);
+	}
+
+	@Test
+	public void testNewDelegatingComponent() throws IOException {
+		var in = mock(InputStream.class);
+		IuComponent.of(ClassLoader.getSystemClassLoader(), in);
+		verify(iuTypeSpi).createComponent(ClassLoader.getSystemClassLoader(), null, in);
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testNewControlledIsolatedComponent() throws IOException {
+		var in = mock(InputStream.class);
+		var cb = mock(BiConsumer.class);
+		IuComponent.of(cb, in);
+		verify(iuTypeSpi).createComponent(null, cb, in);
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })

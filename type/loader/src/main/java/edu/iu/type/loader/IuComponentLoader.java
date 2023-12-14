@@ -108,7 +108,7 @@ public class IuComponentLoader implements AutoCloseable {
 	 */
 	public IuComponentLoader(Consumer<IuComponentController> controllerCallback, InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException {
-		this(IuIterable.empty(), null, controllerCallback, componentArchiveSource, providedDependencyArchiveSources);
+		this(IuIterable.empty(), controllerCallback, componentArchiveSource, providedDependencyArchiveSources);
 	}
 
 	/**
@@ -118,9 +118,6 @@ public class IuComponentLoader implements AutoCloseable {
 	 * 
 	 * @param allowedPackages                  non-platform classes to allow
 	 *                                         delegated access to; see
-	 *                                         {@link FilteringClassLoader}
-	 * @param parent                           parent {@link ClassLoader} for
-	 *                                         delegated access; see
 	 *                                         {@link FilteringClassLoader}
 	 * @param controllerCallback               receives a reference to an
 	 *                                         {@link IuComponentController} that
@@ -136,9 +133,8 @@ public class IuComponentLoader implements AutoCloseable {
 	 *                                         archives</strong>.
 	 * @throws IOException If an IO error occurs initializing the component
 	 */
-	public IuComponentLoader(Iterable<String> allowedPackages, ClassLoader parent,
-			Consumer<IuComponentController> controllerCallback, InputStream componentArchiveSource,
-			InputStream... providedDependencyArchiveSources) throws IOException {
+	public IuComponentLoader(Iterable<String> allowedPackages, Consumer<IuComponentController> controllerCallback,
+			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources) throws IOException {
 		class Box {
 			ModularClassLoader typeBundleLoader;
 			AutoCloseable component;
@@ -146,6 +142,7 @@ public class IuComponentLoader implements AutoCloseable {
 		}
 		final var box = new Box();
 
+		final var parent = IuComponentLoader.class.getClassLoader();
 		final var filteredParent = new FilteringClassLoader(allowedPackages, parent);
 		destroy = TemporaryFile.init(() -> {
 			final var typeBundleJars = new Path[TYPE_BUNDLE_MODULE_PATH.length];
@@ -166,14 +163,13 @@ public class IuComponentLoader implements AutoCloseable {
 			box.typeBundleLoader = IuException.checked(IOException.class, () -> IuException.initialize(
 					new ModularClassLoader(false, IuIterable.iter(typeBundleJars), filteredParent, controller -> {
 					}), typeBundleLoader -> {
-						final var bundleSpi = typeBundleLoader.loadClass("edu.iu.type.spi.IuTypeSpi");
-						final var getModule = bundleSpi.getMethod("getModule");
-						getModule.setAccessible(true);
+						final var typeBundle = typeBundleLoader.loadClass("edu.iu.type.bundle.IuTypeBundle"); 
+						final var getModule = typeBundle.getMethod("getModule");
 						final var typeModule = (Module) getModule.invoke(null);
-
+						
 						final var iuComponent = typeBundleLoader.loadClass("edu.iu.type.IuComponent");
-						final var of = iuComponent.getMethod("of", BiConsumer.class, InputStream.class,
-								InputStream[].class);
+						final var of = iuComponent.getMethod("of", ClassLoader.class, BiConsumer.class,
+								InputStream.class, InputStream[].class);
 						final var classLoader = iuComponent.getMethod("classLoader");
 
 						class ComponentController implements IuComponentController {
@@ -202,7 +198,7 @@ public class IuComponentLoader implements AutoCloseable {
 						}
 
 						return IuException.checkedInvocation(() -> {
-							box.component = (AutoCloseable) of.invoke(null,
+							box.component = (AutoCloseable) of.invoke(null, filteredParent,
 									(BiConsumer<Module, Controller>) (module, controller) -> {
 										if (controllerCallback != null)
 											controllerCallback.accept(new ComponentController(module, controller));

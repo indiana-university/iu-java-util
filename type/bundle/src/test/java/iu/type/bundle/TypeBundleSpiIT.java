@@ -31,29 +31,59 @@
  */
 package iu.type.bundle;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 
+import java.lang.reflect.Field;
 import java.util.ServiceLoader;
 import java.util.function.BiConsumer;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import edu.iu.type.bundle.IuTypeBundle;
 
 @SuppressWarnings("javadoc")
 public class TypeBundleSpiIT {
+
+	private Field instanceField;
+	private TypeBundleSpi instanceToRestore;
+
+	@BeforeEach
+	public void setup() throws Exception {
+		instanceField = TypeBundleSpi.class.getDeclaredField("instance");
+		instanceField.setAccessible(true);
+		instanceToRestore = (TypeBundleSpi) instanceField.get(null);
+		instanceField.set(null, null);
+	}
+
+	@AfterEach
+	public void teardown() throws Exception {
+		if (instanceToRestore != null)
+			instanceField.set(null, instanceToRestore);
+	}
+
+	@Test
+	public void testShutdown() throws Exception {
+		IuTypeBundle.shutdown(); // no-op
+		final var spi = mock(TypeBundleSpi.class);
+		instanceField.set(null, spi);
+		IuTypeBundle.shutdown();
+		verify(spi).close();
+	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
 	public void testCloses() throws Exception {
 		final var spi = new TypeBundleSpi();
-		assertEquals("iu.util.type.impl", spi.getImplementationModule().getName());
 		spi.close();
-		assertThrows(IllegalStateException.class, () -> spi.getImplementationModule());
 		assertThrows(IllegalStateException.class, () -> spi.resolveType(null));
-		assertThrows(IllegalStateException.class, () -> spi.createComponent((BiConsumer) null, null));
+		assertThrows(IllegalStateException.class, () -> spi.createComponent(null, (BiConsumer) null, null));
 		assertThrows(IllegalStateException.class, () -> spi.scanComponentEntry(null, null));
 		spi.close(); // second call is no-op
 	}

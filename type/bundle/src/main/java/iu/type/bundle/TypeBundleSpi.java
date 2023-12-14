@@ -53,6 +53,7 @@ import edu.iu.type.base.FilteringClassLoader;
 import edu.iu.type.base.ModularClassLoader;
 import edu.iu.type.base.TemporaryFile;
 import edu.iu.type.base.TemporaryFile.IORunnable;
+import edu.iu.type.bundle.IuTypeBundle;
 import edu.iu.type.spi.IuTypeSpi;
 
 /**
@@ -64,6 +65,26 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 
 	private static final ClassLoader TYPE_SPI_LOADER = IuTypeSpi.class.getClassLoader();
 	private static final ModuleLayer TYPE_SPI_LAYER = IuTypeSpi.class.getModule().getLayer();
+	private static TypeBundleSpi instance;
+
+	/**
+	 * Implementation hook for {@link IuTypeBundle#getModule}.
+	 * 
+	 * @return {@link Module}
+	 */
+	public static Module getModule() {
+		return instance.delegate.getClass().getModule();
+	}
+
+	/**
+	 * Implementation hook for {@link IuTypeBundle#shutdown()}.
+	 * 
+	 * @throws Exception from {@link #close()}
+	 */
+	public static void shutdown() throws Exception {
+		if (instance != null)
+			instance.close();
+	}
 
 	private IuTypeSpi delegate;
 	private final ModularClassLoader bundleLoader;
@@ -76,6 +97,8 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 	 *                     bundle
 	 */
 	public TypeBundleSpi() throws IOException {
+		assert instance == null;
+
 		final Deque<Path> libs = new ArrayDeque<>();
 		destroy = TemporaryFile.init(() -> {
 			final var bundle = TypeBundleSpi.class.getClassLoader().getResource("iu-java-type-impl-bundle.jar");
@@ -130,13 +153,8 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 
 		this.bundleLoader = box.bundleLoader;
 		this.delegate = box.delegate;
-	}
 
-	@Override
-	public Module getImplementationModule() {
-		if (delegate == null)
-			throw new IllegalStateException("closed");
-		return delegate.getImplementationModule();
+		instance = this;
 	}
 
 	@Override
@@ -147,11 +165,12 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 	}
 
 	@Override
-	public IuComponent createComponent(BiConsumer<Module, Controller> controllerCallback,
+	public IuComponent createComponent(ClassLoader parent, BiConsumer<Module, Controller> controllerCallback,
 			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources) throws IOException {
 		if (delegate == null)
 			throw new IllegalStateException("closed");
-		return delegate.createComponent(controllerCallback, componentArchiveSource, providedDependencyArchiveSources);
+		return delegate.createComponent(parent, controllerCallback, componentArchiveSource,
+				providedDependencyArchiveSources);
 	}
 
 	@Override
@@ -164,6 +183,8 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 
 	@Override
 	public synchronized void close() throws Exception {
+		instance = null;
+
 		final var delegate = this.delegate;
 		if (delegate != null) {
 			this.delegate = null;

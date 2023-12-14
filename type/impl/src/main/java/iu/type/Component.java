@@ -338,7 +338,7 @@ class Component implements IuComponent {
 	public Component extend(BiConsumer<Module, Controller> controllerCallback, InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException {
 		checkClosed();
-		return ComponentFactory.createComponent(this, controllerCallback, componentArchiveSource,
+		return ComponentFactory.createComponent(this, classLoader, controllerCallback, componentArchiveSource,
 				providedDependencyArchiveSources);
 	}
 

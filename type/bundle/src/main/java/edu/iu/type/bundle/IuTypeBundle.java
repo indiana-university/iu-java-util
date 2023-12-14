@@ -29,53 +29,44 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type;
+package edu.iu.type.bundle;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
+import edu.iu.type.IuType;
+import iu.type.bundle.TypeBundleSpi;
 
-import java.io.IOException;
-import java.io.InputStream;
+/**
+ * Provides access to runtime metadata related to the bundled Type Introspection
+ * module.
+ */
+public final class IuTypeBundle {
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
-@SuppressWarnings("javadoc")
-public class TypeSpiTest extends IuTypeTestCase {
-
-	private TypeSpi typeSpi;
-
-	@BeforeEach
-	public void setup() {
-		typeSpi = new TypeSpi();
+	/**
+	 * Gets a reference to the Type Introspection implementation module.
+	 * 
+	 * @return {@link Module}
+	 */
+	public static Module getModule() {
+		IuType.of(Object.class); // verifies implementation bootstrap
+		return TypeBundleSpi.getModule();
 	}
 
-	@AfterEach
-	public void teardown() {
-		typeSpi = null;
+	/**
+	 * Shuts down the bundled Type Introspection module.
+	 * 
+	 * <p>
+	 * This method <em>should</em> be called after releasing all application
+	 * resources related to loaded components to close all {@link ClassLoader}
+	 * resources and clean up temp files. If any references are left uncleared,
+	 * shutdown may fail.
+	 * </p>
+	 * 
+	 * @throws Exception if an error occurs shutting down the module
+	 */
+	public static void shutdown() throws Exception {
+		TypeBundleSpi.shutdown();
 	}
 
-	@Test
-	public void testImplModuleIsNamed() {
-		assertEquals("iu.util.type.impl", typeSpi.getClass().getModule().getName());
+	private IuTypeBundle() {
 	}
 
-	@Test
-	public void testTypeIsNotImplemented() {
-		try (var mockTypeFactory = mockStatic(TypeFactory.class)) {
-			typeSpi.resolveType(getClass());
-			mockTypeFactory.verify(() -> TypeFactory.resolveType(getClass()));
-		}
-	}
-
-	@Test
-	public void testComponentIsImplemented() throws IOException {
-		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
-			var in = mock(InputStream.class);
-			typeSpi.createComponent(null, null, in);
-			mockComponentFactory.verify(() -> ComponentFactory.createComponent(null, null, null, in));
-		}
-	}
 }
