@@ -31,10 +31,7 @@
  */
 package iu.logging;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.ServiceLoader;
-import java.util.function.Function;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
@@ -78,15 +75,16 @@ public final class LogEventFactory {
 //		return null;
 //	}
 
-	private static IuLoggingEnvironment getEnvironmentProperties() {
+	static IuLoggingEnvironment getEnvironmentProperties() {
 		if (envProps != null)
 			return envProps;
 		envProps = ServiceLoader.load(IuLoggingEnvironment.class).findFirst().get();
 //		envProps = loadService(IuLoggingEnvironment.class);
-		if (envProps == null)
+		if (envProps == null) {
 			return TODO_ENV_PROPS;
-		else
-			return envProps;
+		}
+
+		return envProps;
 	}
 
 //	private static IuLoggingContext getCallProperties() {
@@ -163,10 +161,10 @@ public final class LogEventFactory {
 	 * @param loader The ClassLoader for which we want to bootstrap logging.
 	 */
 	public static void bootstrap(ClassLoader loader) {
-		System.err.println("LoggingEnvironment.bootstrap(loader)");
 		Thread current = Thread.currentThread();
 		ClassLoader currentLoader = current.getContextClassLoader();
-		StringBuilder sb = new StringBuilder("Logging bootstrap ").append(LogManager.getLogManager());
+		StringBuilder sb = new StringBuilder("Logging bootstrap ").append(LogManager.getLogManager())
+				.append(System.lineSeparator());
 		try {
 			current.setContextClassLoader(loader);
 //			LogManager.getLogManager().getLogger("").addHandler(new IuLogHandler());
@@ -182,34 +180,33 @@ public final class LogEventFactory {
 			sb.append("rootLogger filter: ").append(rootLogger.getFilter()).append(System.lineSeparator());
 			Handler[] logHandlers = rootLogger.getHandlers();
 			if (logHandlers.length > 0) {
-				System.err.println("found existing handlers:");
+				sb.append("found existing handlers:").append(System.lineSeparator());
 				for (Handler h : logHandlers) {
-					System.err.println(h.getClass().getName());
 					sb.append("handler name: ").append(h.getClass().getName()).append(System.lineSeparator());
 					sb.append("handler level: ").append(h.getLevel()).append(System.lineSeparator());
 					rootLogger.removeHandler(h);
 				}
-				Handler iuLogHandler = new IuLogHandler();
-				iuLogHandler.setLevel(TODO_DEFAULT_LEVEL);
-				rootLogger.addHandler(iuLogHandler);
 			}
+			Handler iuLogHandler = new IuLogHandler();
+			iuLogHandler.setLevel(TODO_DEFAULT_LEVEL);
+			rootLogger.addHandler(iuLogHandler);
 
 //			boolean oneChange = false;
 
-			Map<String, Handler> handlers = new HashMap<>();
-			Function<String, Handler> getHandler = hc -> {
-				Handler h = handlers.get(hc);
-				if (h == null)
-//					try {
-					IuException.uncheckedInvocation(
-							() -> handlers.put(hc, (Handler) Class.forName(hc).getConstructor().newInstance()));
-				sb.append("\nRegister handler ").append(hc);
-//					} catch (InstantiationException | IllegalAccessException | InvocationTargetException
-//							| NoSuchMethodException | ClassNotFoundException ex) {
-//						throw new ExceptionInInitializerError(ex);
-//					}
-				return h;
-			};
+//			Map<String, Handler> handlers = new HashMap<>();
+//			Function<String, Handler> getHandler = hc -> {
+//				Handler h = handlers.get(hc);
+//				if (h == null)
+////					try {
+//					IuException.uncheckedInvocation(
+//							() -> handlers.put(hc, (Handler) Class.forName(hc).getConstructor().newInstance()));
+//				sb.append("\nRegister handler ").append(hc);
+////					} catch (InstantiationException | IllegalAccessException | InvocationTargetException
+////							| NoSuchMethodException | ClassNotFoundException ex) {
+////						throw new ExceptionInInitializerError(ex);
+////					}
+//				return h;
+//			};
 //
 //			for (Entry<String, String> e : PROPERTIES.entrySet()) {
 //				String k = e.getKey().trim();
@@ -342,20 +339,20 @@ public final class LogEventFactory {
 //							oneChange = true;
 //						}
 //			}
-//
-			Logger logger = Logger.getGlobal();
-			Level level = logger.getLevel();
-			sb.append("\nGlobal Logger ").append(logger.getName()).append(" ").append(level).append(" ")
-					.append(logger.getUseParentHandlers());
-			Handler[] l = logger.getHandlers();
-			if (l != null)
-				for (Handler h : l)
-					sb.append("\n  ").append(h.getClass().getName());
+
+//			Logger logger = Logger.getGlobal();
+//			Level level = logger.getLevel();
+//			sb.append("\nGlobal Logger ").append(logger.getName()).append(" ").append(level).append(" ")
+//					.append(logger.getUseParentHandlers());
+//			Handler[] l = logger.getHandlers();
+//			if (l != null)
+//				for (Handler h : l)
+//					sb.append("\n  ").append(h.getClass().getName());
 
 //			if (oneChange)
-			Logger.getLogger(LogEventFactory.class.getName()).info(sb::toString);
+//			Logger.getLogger(LogEventFactory.class.getName()).info(sb::toString);
 
-//			System.err.println(sb.toString());
+			System.err.println(sb.toString());
 
 		} finally {
 			current.setContextClassLoader(currentLoader);
@@ -390,7 +387,9 @@ public final class LogEventFactory {
 	 * @return String representing the environment.
 	 */
 	public static String getEnvironment() {
-		return getEnvironmentProperties().getEnvironment();
+		String env = getEnvironmentProperties().getEnvironment();
+		System.err.println("getEnvironment(): " + env);
+		return env;
 	}
 
 	/**
@@ -421,8 +420,8 @@ public final class LogEventFactory {
 	 * @return boolean representing whether this is a development environment.
 	 */
 	public static boolean isDevelopment() {
+		System.err.println("isDevelopment");
 		return RuntimeMode.DEVELOPMENT == getEnvironmentProperties().getMode();
-//		return getEnvironmentProperties().isDevelopment();
 	}
 
 //	public static Level getLogLevel() {
@@ -479,7 +478,7 @@ public final class LogEventFactory {
 	 * @param context IuLoggingContext to which a task will be bound.
 	 * @param task    UnsafeRunnable to run with the given context.
 	 */
-	static void bound(IuLoggingContext context, UnsafeRunnable task) {
+	public static void bound(IuLoggingContext context, UnsafeRunnable task) {
 		IuLoggingContext c = CONTEXT.get();
 		try {
 			CONTEXT.set(context);
@@ -497,7 +496,7 @@ public final class LogEventFactory {
 	 * 
 	 * @return IuLoggingContext representing the current context.
 	 */
-	static IuLoggingContext getCurrentContext() {
+	public static IuLoggingContext getCurrentContext() {
 		IuLoggingContext c = CONTEXT.get();
 		if (c == null) {
 			c = new IuLoggingContext() {

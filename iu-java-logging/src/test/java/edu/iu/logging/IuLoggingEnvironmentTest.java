@@ -17,7 +17,7 @@ public class IuLoggingEnvironmentTest {
 	 * Test default methods.
 	 */
 	@Test
-	public void TestIuLoggingEnvironmentDefaults() {
+	public void testIuLoggingEnvironmentDefaults() {
 		IuLoggingEnvironment environment = new IuLoggingEnvironment() {
 		};
 
@@ -35,7 +35,7 @@ public class IuLoggingEnvironmentTest {
 	 * Test overridden methods.
 	 */
 	@Test
-	public void TestIuLoggingEnvironmentOverridden() {
+	public void testIuLoggingEnvironmentOverridden() {
 		IuLoggingEnvironment environment = new TestIuLoggingEnvironmentImpl();
 
 		assertEquals("Test Application", environment.getApplication(), "Incorrect Overridden Application");
@@ -52,7 +52,7 @@ public class IuLoggingEnvironmentTest {
 	 * Test all RuntimeModes.
 	 */
 	@Test
-	public void TestRuntimeMode() {
+	public void testRuntimeMode() {
 		assertEquals(3, RuntimeMode.values().length);
 		assertEquals(RuntimeMode.DEVELOPMENT, RuntimeMode.valueOf(RuntimeMode.class, "DEVELOPMENT"));
 		assertEquals(RuntimeMode.TEST, RuntimeMode.valueOf(RuntimeMode.class, "TEST"));

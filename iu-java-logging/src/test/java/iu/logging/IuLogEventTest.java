@@ -19,9 +19,9 @@ public class IuLogEventTest {
 	 * Test default methods.
 	 */
 	@Test
-	public void TestIuLogEventDefaults() {
+	public void testIuLogEventDefaults() {
 		IuLogEvent event = new IuLogEvent() {
-			
+
 		};
 		assertNull(event.getApplication());
 		assertNull(event.getAuthenticatedPrincipal());
@@ -41,14 +41,14 @@ public class IuLogEventTest {
 		assertNull(event.getSourceClassName());
 		assertNull(event.getSourceMethodName());
 		assertNull(event.getThrown());
-		assertNull(event.getUserPrincipal());		
+		assertNull(event.getUserPrincipal());
 	}
 
 	/**
 	 * Test overridden methods.
 	 */
 	@Test
-	public void TestIuLogEventOverrides() {
+	public void testIuLogEventOverrides() {
 		IuLogEvent event = new IuLogEvent() {
 			@Override
 			public String getApplication() {
@@ -146,7 +146,8 @@ public class IuLogEventTest {
 			}
 		};
 		assertEquals("Test Application", event.getApplication(), "Incorrect Overridden Application");
-		assertEquals("Test Authenticated Principal", event.getAuthenticatedPrincipal(), "Incorrect Overridden Authenticated Principal");
+		assertEquals("Test Authenticated Principal", event.getAuthenticatedPrincipal(),
+				"Incorrect Overridden Authenticated Principal");
 		assertEquals("Test Called URL", event.getCalledUrl(), "Incorrect Overridden Called Url");
 		assertEquals("Test Component", event.getComponent(), "Incorrect Overridden Component");
 		assertEquals("Test Environment", event.getEnvironment(), "Incorrect Overridden Environment");
@@ -163,6 +164,6 @@ public class IuLogEventTest {
 		assertEquals("Test Source Class Name", event.getSourceClassName(), "Incorrect Overridden Source Class Name");
 		assertEquals("Test Source Method Name", event.getSourceMethodName(), "Incorrect Overridden Source Method Name");
 		assertEquals("Test Thrown", event.getThrown(), "Incorrect Overridden Thrown");
-		assertEquals("Test User Principal", event.getUserPrincipal(), "Incorrect Overridden User Principal");		
+		assertEquals("Test User Principal", event.getUserPrincipal(), "Incorrect Overridden User Principal");
 	}
 }

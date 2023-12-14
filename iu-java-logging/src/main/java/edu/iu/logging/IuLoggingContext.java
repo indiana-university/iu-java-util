@@ -31,6 +31,9 @@
  */
 package edu.iu.logging;
 
+import edu.iu.UnsafeRunnable;
+import iu.logging.LogEventFactory;
+
 /**
  * Logging Context Interface
  */
@@ -88,15 +91,16 @@ public interface IuLoggingContext {
 	 * @param context IuLoggingContext to which a task will be bound.
 	 * @param task    UnsafeRunnable to run with the given context.
 	 */
-//	static void bound(IuLoggingContext context, UnsafeRunnable task) {
-//	}
+	static void bound(IuLoggingContext context, UnsafeRunnable task) {
+		LogEventFactory.bound(context, task);
+	}
 
 	/**
 	 * Get the current context.
 	 * 
 	 * @return IuLoggingContext representing the current context.
 	 */
-//	static IuLoggingContext getCurrentContext() {
-//		return null;
-//	}
+	static IuLoggingContext getCurrentContext() {
+		return LogEventFactory.getCurrentContext();
+	}
 }

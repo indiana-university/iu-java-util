@@ -62,7 +62,7 @@ public class IuLogHandler extends ConsoleHandler {
 	private static int maximumPoolSize = 16;
 	private static long keepAliveTime = 5000L;
 	private static int TODO_EVENT_BUFFER_SIZE = 50;
-
+	
 	private static ThreadGroup threadGroup;
 	private static ThreadPoolExecutor executor;
 
@@ -82,6 +82,7 @@ public class IuLogHandler extends ConsoleHandler {
 				new LinkedBlockingDeque<Runnable>(), tf);
 
 		PURGE_TIMER = new Timer("iu-logging-purge", true);
+		System.err.println("Setting up purge timer");
 		PURGE_TIMER.schedule(new TimerTask() {
 			@Override
 			public void run() {
@@ -95,24 +96,40 @@ public class IuLogHandler extends ConsoleHandler {
 					IuLogEvent e = i.next();
 //					int l = e.level.intValue();
 					int l = e.getLevel().intValue();
+					System.err.println("Purge Timer processing. " + e.getMessage());
 					long ttl;
 					if (l >= Level.SEVERE.intValue())
-						ttl = TimeUnit.DAYS.toMillis(3L);
+						ttl = severePurgeTime();
 					else if (l >= Level.INFO.intValue())
-						ttl = TimeUnit.DAYS.toMillis(1L);
+						ttl = infoPurgeTime();
 					else if (l >= Level.FINE.intValue())
-						ttl = TimeUnit.HOURS.toMillis(2L);
+						ttl = finePurgeTime();
 					else
-						ttl = TimeUnit.MINUTES.toMillis(30L);
+						ttl = defaultPurgeTime();
 
 //					if (now - e.timestamp > ttl || n >= bufferSize)
+					System.err.println("ttl: " + ttl + " removing if this value is greater than ttl: " + (now - e.getInstant().toEpochMilli()));
 					if (now - e.getInstant().toEpochMilli() > ttl || n >= bufferSize)
 						i.remove();
 					else
 						n++;
 				}
 			}
-		}, TimeUnit.SECONDS.toMillis(15L), TimeUnit.SECONDS.toMillis(15L));
+		}, TimeUnit.SECONDS.toMillis(1L), TimeUnit.SECONDS.toMillis(1L));
+	}
+
+	static long severePurgeTime() {
+		System.err.println("called severePurgeTime");
+		return TimeUnit.DAYS.toMillis(3L);
+	}
+	static long infoPurgeTime() {
+		return TimeUnit.DAYS.toMillis(1L);
+	}
+	static long finePurgeTime() {
+		return TimeUnit.HOURS.toMillis(2L);
+	}
+	static long defaultPurgeTime() {
+		return TimeUnit.MINUTES.toMillis(30L);
 	}
 
 	/**
@@ -122,88 +139,50 @@ public class IuLogHandler extends ConsoleHandler {
 	 *         tracked so far.
 	 */
 	public static Iterable<IuLogEvent> getLogEvents() {
-		// System.err.println("IuLogHandler.getLogEvents()");
 //		System.err.println("GETTING LOG_EVENTS");
 		return Collections.unmodifiableCollection(LOG_EVENTS);
 	}
 
-	/**
-	 * Print the stack trace and an error message to System.err
-	 * 
-	 * @param message String providing additional information related to the error
-	 * @param e       Throwable the error that was thrown.
-	 */
-	public static void handleFileWriteError(String message, Throwable e) {
-		StringBuilder sb = new StringBuilder();
-		sb.append(new Date());
-		sb.append(" iu-logging ");
-//		sb.append(LogEventFactory.getEndpoint()); // Endpoint was removed because it is not in the vpp file
-		sb.append("-");
-		sb.append(LogEventFactory.getEnvironment());
-		sb.append(" failure: ");
-		sb.append(message);
-		System.err.println(sb);
-		if (e != null) {
-			e.printStackTrace();
-			System.err.println();
-		}
-	}
-
-	private static void publishAsynchronously(LogRecord record, Handler handler) {
-		// System.err.println("IuLogHandler.publishAsynchronousy(record, handler)");
-//		System.err.println("PUBLISH ASYNCHRONOUSLY");
-//		if (!LoggingFilters.isLocal())
-//			return;
-
-		// System.err.println("IuLogHandler.publishAsynchronousy(record, handler). message: " + record.getMessage());
-		if (record.getMessage() == null)
-			return;
-
-//		String loggerName = record.getLoggerName();
-//		Level level = record.getLevel();
-
-//		boolean sql = LoggingFilters.isSql(loggerName, level);
-		boolean loggable = isLoggable(record, handler);
-//		if (!sql && !loggable)
-//			return;
-		// System.err.println("IuLogHandler.publishAsynchronousy(record, handler). loggable: " + loggable);
-		if (!loggable)
-			return;
-
-		IuLogEvent event = new IuLogEvent() {
-			@Override
-			public String getMessage() {
-				return record.getMessage();
-			}
-		};
-//		if (loggable)
-//			ProcessLogger.trace(() -> event.message);
-		// System.err.println("IuLogHandler.publishAsynchronousy(record, handler). adding event: " + event + " with message: " + event.getMessage() + " to LOG_EVENTS");
-		LOG_EVENTS.push(event);
-	}
+//	/**
+//	 * Print the stack trace and an error message to System.err
+//	 * 
+//	 * @param message String providing additional information related to the error
+//	 * @param e       Throwable the error that was thrown.
+//	 */
+//	public static void handleFileWriteError(String message, Throwable e) {
+//		StringBuilder sb = new StringBuilder();
+//		sb.append(new Date());
+//		sb.append(" iu-logging ");
+////		sb.append(LogEventFactory.getEndpoint()); // Endpoint was removed because it is not in the vpp file
+//		sb.append("-");
+//		sb.append(LogEventFactory.getEnvironment());
+//		sb.append(" failure: ");
+//		sb.append(message);
+//		System.err.println(sb);
+//		if (e != null) {
+//			e.printStackTrace();
+//			System.err.println();
+//		}
+//	}
 
 	/**
 	 * default constructor for IuLogHandler.
 	 */
 	public IuLogHandler() {
-		// System.err.println("IuLogHandler()");
-//		setLevel(LoggingEnvironment.getLogLevel());
-//		System.err.println("PUBLIC IuLogHandler()");
-//		setLevel(Level.ALL);
 	}
 
-	/**
-	 * Determine if a given LogRecord is loggable for a given Handler.
-	 * 
-	 * @param record  LogRecord to be logged.
-	 * @param handler Handler to check for logability of this record.
-	 * @return Boolean representing whether this LogRecord is loggable for the given
-	 *         Handler.
-	 */
-	public static boolean isLoggable(LogRecord record, Handler handler) {
-		// System.err.println("IuLogHandler.isLoggable(record, handler)");
-		return handler.isLoggable(record);
-	}
+//	/**
+//	 * Determine if a given LogRecord is loggable for a given Handler.
+//	 * 
+//	 * @param record  LogRecord to be logged.
+//	 * @param handler Handler to check for logability of this record.
+//	 * @return Boolean representing whether this LogRecord is loggable for the given
+//	 *         Handler.
+//	 */
+//	public static boolean isLoggable(LogRecord record, Handler handler) {
+//		// System.err.println("IuLogHandler.isLoggable(record, handler)");
+//		return handler.isLoggable(record);
+//	}
 
 	/**
 	 * Determine if the given LogRecord is loggable.
@@ -214,16 +193,10 @@ public class IuLogHandler extends ConsoleHandler {
 	 */
 	@Override
 	public boolean isLoggable(LogRecord record) {
-		// System.err.println("IuLogHandler.isLoggable(record)");
 //		System.err.println("RUNNING IuLogHandler.isLoggable(record)");
 //		if (!LoggingFilters.isLocal())
 //			return false;
 
-//		String loggerName = record.getLoggerName();
-//		Level level = record.getLevel();
-//		return LoggingFilters.isSql(loggerName, level) || LoggingFilters.isLoggable(loggerName, level);
-//		return LoggingFilters.isSql(loggerName, level) || super.isLoggable(record);
-		// System.err.println("IuLogHandler.isLoggable(record). super class name: " + super.getClass().getName() + " super level: " + super.getLevel() + "super.isLoggable(record): " + super.isLoggable(record));
 		return super.isLoggable(record);
 	}
 
@@ -234,12 +207,17 @@ public class IuLogHandler extends ConsoleHandler {
 	 */
 	@Override
 	public void publish(LogRecord record) {
-		// System.err.println("IuLogHandler.publish(record)");
 //		System.err.println("IuLogHandler publish(record)");
-		// Should the bound call be part of createEvent?
-		// TODO: LogEvent event = LogEventFactory.bound(LogEventFactory.getCurrentContext(), () -> { return LogEventFactory.createEvent(record); })
-		// then add event to queue.
-		publishAsynchronously(record, this);
+		// TODO: removing loggable check broke the tests. There isn't a handler being
+		// found in getEnvironmentProperties call within createEvent.
+		// Mainly because of the loggable check, it gets past the test error because
+		// there was a FINER log from junit that was trying to be published between when
+		// bootstrap finished and the first test ran.
+		if (LoggingFilters.isLocal() && isLoggable(record)) {
+			LogEvent event = LogEventFactory.createEvent(record);
+			// then add event to queue.
+			LOG_EVENTS.offer(event);
+		}
 		super.publish(record);
 	}
 }

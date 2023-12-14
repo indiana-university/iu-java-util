@@ -16,7 +16,7 @@ public class IuLoggingContextTest {
 	 * Test default methods.
 	 */
 	@Test
-	public void TestIuLoggingContextDefaults() {
+	public void testDefaults() {
 		IuLoggingContext context = new IuLoggingContext() {
 
 		};
@@ -31,7 +31,7 @@ public class IuLoggingContextTest {
 	 * Test default methods overridden.
 	 */
 	@Test
-	public void TestIuLoggingContextOverridden() {
+	public void testOverridden() {
 		IuLoggingContext context = new TestIuLoggingContextImpl();
 		assertEquals("Test Authenticated Principal", context.getAuthenticatedPrincipal(),
 				"Incorrect Overridden Authenticated Princpal");
@@ -39,5 +39,30 @@ public class IuLoggingContextTest {
 		assertEquals("Test Remote Address", context.getRemoteAddr(), "Incorrect Overridden Remote Address");
 		assertEquals("Test Request Number", context.getReqNum(), "Incorrect Overridden Request Number");
 		assertEquals("Test User Principal", context.getUserPrincipal(), "Incorrect Overridden User Principal");
+	}
+
+	/**
+	 * Test getCurrentContext.
+	 */
+	@Test
+	public void testGetCurrentContext() {
+		IuLoggingContext context = IuLoggingContext.getCurrentContext();
+		assertNull(context.getAuthenticatedPrincipal());
+		assertNull(context.getCalledUrl());
+		assertNull(context.getRemoteAddr());
+		assertNull(context.getReqNum());
+		assertNull(context.getUserPrincipal());
+		assertEquals(context, IuLoggingContext.getCurrentContext());
+	}
+
+	/**
+	 * Test bound.
+	 */
+	@Test
+	public void testBound() {
+		IuLoggingContext context = new TestIuLoggingContextImpl();
+		IuLoggingContext.bound(context, () -> {
+			assertEquals(context, IuLoggingContext.getCurrentContext());
+		});
 	}
 }
