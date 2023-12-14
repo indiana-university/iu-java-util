@@ -1,6 +1,5 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
 IU Type Introspection API,edu.iu.type.spi,TypeImplementation,0,9,0,0,0,2,0,1,0,1
-IU Type Introspection API,edu.iu.type.spi,IuTypeSpi,0,3,0,0,0,1,0,1,0,1
 IU Type Introspection API,edu.iu.type,IuParameterizedElement,0,6,0,0,0,1,0,1,0,1
 IU Type Introspection API,edu.iu.type,IuProperty,0,167,1,49,0,36,1,32,0,8
 IU Type Introspection API,edu.iu.type,IuExecutableKey,0,320,0,38,0,72,0,29,0,10
@@ -15,4 +14,4 @@ IU Type Introspection API,edu.iu.type,IuResourceKey,0,152,0,14,0,28,0,18,0,11
 IU Type Introspection API,edu.iu.type,IuComponent.Kind,0,68,0,0,0,13,0,4,0,4
 IU Type Introspection API,edu.iu.type,DefaultInterceptor.Scope,0,21,0,0,0,4,0,1,0,1
 IU Type Introspection API,edu.iu.type,IuComponentVersion,0,157,0,32,0,46,0,20,0,4
-IU Type Introspection API,edu.iu.type,IuComponent,0,78,0,2,0,13,0,7,0,6
+IU Type Introspection API,edu.iu.type,IuComponent,0,92,0,2,0,15,0,9,0,8

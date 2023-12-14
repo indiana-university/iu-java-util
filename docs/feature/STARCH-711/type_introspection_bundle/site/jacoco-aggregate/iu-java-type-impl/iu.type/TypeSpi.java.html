@@ -56,26 +56,21 @@ public class TypeSpi implements IuTypeSpi {
 <span class="fc" id="L56">	}</span>
 
 	@Override
-	public Module getImplementationModule() {
-<span class="fc" id="L60">		return getClass().getModule();</span>
-	}
-
-	@Override
 	public IuType&lt;?, ?&gt; resolveType(Type type) {
-<span class="fc" id="L65">		return TypeFactory.resolveType(type);</span>
+<span class="fc" id="L60">		return TypeFactory.resolveType(type);</span>
 	}
 
 	@Override
-	public IuComponent createComponent(BiConsumer&lt;Module, Controller&gt; controllerCallback, InputStream componentArchiveSource,
-			InputStream... providedDependencyArchiveSources) throws IOException {
-<span class="fc" id="L71">		return ComponentFactory.createComponent(null, controllerCallback, componentArchiveSource,</span>
+	public IuComponent createComponent(ClassLoader parent, BiConsumer&lt;Module, Controller&gt; controllerCallback,
+			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources) throws IOException {
+<span class="fc" id="L66">		return ComponentFactory.createComponent(null, parent, controllerCallback, componentArchiveSource,</span>
 				providedDependencyArchiveSources);
 	}
 
 	@Override
 	public IuComponent scanComponentEntry(ClassLoader classLoader, Path pathEntry)
 			throws IOException, ClassNotFoundException {
-<span class="fc" id="L78">		return new Component(classLoader, pathEntry);</span>
+<span class="fc" id="L73">		return new Component(classLoader, pathEntry);</span>
 	}
 
 }
