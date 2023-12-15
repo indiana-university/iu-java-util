@@ -37,12 +37,15 @@ import java.lang.ModuleLayer.Controller;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import edu.iu.IuException;
 import edu.iu.IuIterable;
+import edu.iu.IuObject;
 import edu.iu.IuStream;
 import edu.iu.UnsafeRunnable;
 import edu.iu.type.base.FilteringClassLoader;
@@ -55,14 +58,21 @@ import edu.iu.type.base.TemporaryFile;
  */
 public class IuComponentLoader implements AutoCloseable {
 
+	private static final Module IU_BASE = IuObject.class.getModule();
+	private static final boolean IU_BASE_IS_NAMED = IU_BASE.isNamed();
+	private static final Module IU_TYPE_BASE = ModularClassLoader.class.getModule();
+	private static final boolean IU_TYPE_BASE_IS_NAMED = IU_TYPE_BASE.isNamed();
+
 	private static final URL[] TYPE_BUNDLE_MODULE_PATH = IuException.unchecked(() -> {
 		final var loader = IuComponentLoader.class.getClassLoader();
-		return new URL[] { //
-				Objects.requireNonNull(loader.getResource("iu-java-type.jar")), //
-				Objects.requireNonNull(loader.getResource("iu-java-base.jar")), //
-				Objects.requireNonNull(loader.getResource("iu-java-type-api.jar")), //
-				Objects.requireNonNull(loader.getResource("iu-java-type-base.jar")), //
-		};
+		final Queue<URL> path = new ArrayDeque<>();
+		if (!IU_BASE_IS_NAMED)
+			path.offer(Objects.requireNonNull(loader.getResource("iu-java-base.jar")));
+		if (!IU_TYPE_BASE_IS_NAMED)
+			path.offer(Objects.requireNonNull(loader.getResource("iu-java-type-base.jar")));
+		path.offer(Objects.requireNonNull(loader.getResource("iu-java-type.jar")));
+		path.offer(Objects.requireNonNull(loader.getResource("iu-java-type-api.jar")));
+		return path.toArray(size -> new URL[size]);
 	});
 
 	private final UnsafeRunnable destroy;
@@ -142,6 +152,16 @@ public class IuComponentLoader implements AutoCloseable {
 		}
 		final var box = new Box();
 
+		if (IU_BASE_IS_NAMED || IU_TYPE_BASE_IS_NAMED) {
+			final Queue<String> allowedPackageQueue = new ArrayDeque<>();
+			if (IU_BASE_IS_NAMED)
+				allowedPackageQueue.add("edu.iu");
+			if (IU_TYPE_BASE_IS_NAMED)
+				allowedPackageQueue.add("edu.iu.type.base");
+			allowedPackages.forEach(allowedPackageQueue::offer);
+			allowedPackages = allowedPackageQueue;
+		}
+
 		final var parent = IuComponentLoader.class.getClassLoader();
 		final var filteredParent = new FilteringClassLoader(allowedPackages, parent);
 		destroy = TemporaryFile.init(() -> {
@@ -162,11 +182,21 @@ public class IuComponentLoader implements AutoCloseable {
 
 			box.typeBundleLoader = IuException.checked(IOException.class, () -> IuException.initialize(
 					new ModularClassLoader(false, IuIterable.iter(typeBundleJars), filteredParent, controller -> {
+						final var typeBundleModule = controller.layer().findModule("iu.util.type.bundle").get();
+						final var typeApiModule = controller.layer().findModule("iu.util.type").get();
+						if (IU_BASE_IS_NAMED) {
+							controller.addReads(typeApiModule, IU_BASE);
+							controller.addReads(typeBundleModule, IU_BASE);
+						}
+						if (IU_TYPE_BASE_IS_NAMED)
+							controller.addReads(typeBundleModule, IU_TYPE_BASE);
 					}), typeBundleLoader -> {
-						final var typeBundle = typeBundleLoader.loadClass("edu.iu.type.bundle.IuTypeBundle"); 
+						final var typeBundle = typeBundleLoader.loadClass("edu.iu.type.bundle.IuTypeBundle");
+						final var typeModule = typeBundleLoader.getModuleLayer().findModule("iu.util.type").get();
+
 						final var getModule = typeBundle.getMethod("getModule");
-						final var typeModule = (Module) getModule.invoke(null);
-						
+						final var typeImplModule = (Module) getModule.invoke(null);
+
 						final var iuComponent = typeBundleLoader.loadClass("edu.iu.type.IuComponent");
 						final var of = iuComponent.getMethod("of", ClassLoader.class, BiConsumer.class,
 								InputStream.class, InputStream[].class);
@@ -187,6 +217,11 @@ public class IuComponentLoader implements AutoCloseable {
 							}
 
 							@Override
+							public Module getTypeImplementationModule() {
+								return typeImplModule;
+							}
+
+							@Override
 							public Module getComponentModule() {
 								return componentModule;
 							}
@@ -198,7 +233,7 @@ public class IuComponentLoader implements AutoCloseable {
 						}
 
 						return IuException.checkedInvocation(() -> {
-							box.component = (AutoCloseable) of.invoke(null, filteredParent,
+							box.component = (AutoCloseable) of.invoke(null, typeBundleLoader,
 									(BiConsumer<Module, Controller>) (module, controller) -> {
 										if (controllerCallback != null)
 											controllerCallback.accept(new ComponentController(module, controller));

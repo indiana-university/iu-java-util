@@ -46,6 +46,7 @@ import java.util.jar.JarInputStream;
 
 import edu.iu.IuException;
 import edu.iu.IuIterable;
+import edu.iu.IuObject;
 import edu.iu.IuStream;
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuType;
@@ -135,17 +136,21 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 		final var box = new Box();
 
 		try {
-			IuException.checked(IOException.class,
-					() -> IuException.initialize(
-							new ModularClassLoader(false, libs, TYPE_SPI_LAYER,
-									new FilteringClassLoader(IuIterable.iter("edu.iu", "edu.iu.type",
-											"edu.iu.type.base", "edu.iu.type.spi"), TYPE_SPI_LOADER),
-									null),
-							bundleLoader -> {
-								box.bundleLoader = bundleLoader;
-								box.delegate = ServiceLoader.load(IuTypeSpi.class, bundleLoader).iterator().next();
-								return null;
-							}));
+			IuException
+					.checked(IOException.class,
+							() -> IuException.initialize(new ModularClassLoader(
+									false, libs, TYPE_SPI_LAYER, new FilteringClassLoader(IuIterable.iter("edu.iu",
+											"edu.iu.type", "edu.iu.type.base", "edu.iu.type.spi"), TYPE_SPI_LOADER),
+									controller -> {
+										final var implModule = controller.layer().findModule("iu.util.type.impl").get();
+										controller.addReads(implModule, IuObject.class.getModule());
+										controller.addReads(implModule, ModularClassLoader.class.getModule());
+									}), bundleLoader -> {
+										box.bundleLoader = bundleLoader;
+										box.delegate = ServiceLoader.load(IuTypeSpi.class, bundleLoader).iterator()
+												.next();
+										return null;
+									}));
 		} catch (Throwable e) {
 			IuException.suppress(e, destroy);
 			throw e;

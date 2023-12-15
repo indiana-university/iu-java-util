@@ -42,11 +42,18 @@ import java.lang.module.ModuleDescriptor;
 public interface IuComponentController {
 
 	/**
-	 * Gets a reference to the loaded {@code iu.util.type.impl} module.
+	 * Gets a reference to the loaded {@code iu.util.type} module.
 	 * 
 	 * @return {@link Module}
 	 */
 	Module getTypeModule();
+
+	/**
+	 * Gets a reference to the loaded {@code iu.util.type.impl} module.
+	 * 
+	 * @return {@link Module}
+	 */
+	Module getTypeImplementationModule();
 
 	/**
 	 * Gets a reference to the module described by the <strong>component

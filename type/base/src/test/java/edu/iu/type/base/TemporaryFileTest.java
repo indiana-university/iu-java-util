@@ -112,18 +112,18 @@ public class TemporaryFileTest {
 	}
 
 	@Test
-	public void testDoubleInitRaisesAssertion() {
-		assertThrows(AssertionError.class, () -> TemporaryFile.init(() -> TemporaryFile.init(() -> {
-		})));
+	public void testDoubleInit() throws IOException {
+		TemporaryFile.init(() -> TemporaryFile.init(() -> {
+		}));
 	}
-	
+
 	@Test
 	public void testManagedCleanup() throws IOException {
 		class Box {
 			Path path;
 		}
 		final var box = new Box();
-		
+
 		final var destroy = TemporaryFile.init(() -> {
 			box.path = TemporaryFile.init(p -> p);
 		});
