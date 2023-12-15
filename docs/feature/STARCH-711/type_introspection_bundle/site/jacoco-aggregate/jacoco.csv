@@ -53,7 +53,7 @@ IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,ModularClassL
 IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,CloseableModuleFinder.Ref,0,53,0,8,0,17,0,7,0,3
 IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,CloseableModuleFinder,0,109,0,12,0,23,0,10,0,4
 IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,ModularClassLoader.new Object() {...},0,6,0,0,0,1,0,1,0,1
-IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,TemporaryFile,0,110,0,8,0,27,0,10,0,6
+IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,TemporaryFile,0,112,0,8,0,29,0,10,0,6
 IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,ModularClassLoader.new BiPredicate() {...},0,14,0,0,0,4,0,2,0,2
 IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,ModularClassLoader.new Enumeration() {...},0,18,0,0,0,3,0,3,0,3
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ArchiveSource,0,252,0,30,0,62,0,24,0,9
@@ -100,7 +100,7 @@ IU Java Utilities API Reference/iu-java-type,jakarta.json.stream,JsonGenerationE
 IU Java Utilities API Reference/iu-java-type,jakarta.json.stream,JsonCollectors,134,0,2,0,25,0,13,0,12,0
 IU Java Utilities API Reference/iu-java-type,jakarta.json.stream,JsonParser,36,0,0,0,9,0,9,0,9,0
 IU Java Utilities API Reference/iu-java-type,iu.type.bundle,TypeBundleSpi.new Object() {...},0,6,0,0,0,1,0,1,0,1
-IU Java Utilities API Reference/iu-java-type,iu.type.bundle,TypeBundleSpi,0,254,0,18,0,59,0,22,0,13
+IU Java Utilities API Reference/iu-java-type,iu.type.bundle,TypeBundleSpi,0,274,0,18,0,65,0,23,0,14
 IU Java Utilities API Reference/iu-java-type,jakarta.annotation,Resource.AuthenticationType,0,24,0,0,0,3,0,1,0,1
 IU Java Utilities API Reference/iu-java-type,edu.iu.type.bundle,IuTypeBundle,0,7,0,0,0,4,0,2,0,2
 IU Java Utilities API Reference/iu-java-type,jakarta.json,EmptyObject,53,0,0,0,15,0,15,0,15,0
@@ -226,7 +226,7 @@ IU Java Utilities API Reference/iu-java-type-loader,jakarta.json.stream,JsonColl
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.json.stream,JsonParser,36,0,0,0,9,0,9,0,9,0
 IU Java Utilities API Reference/iu-java-type-loader,iu,ParallelTaskController,0,329,0,40,0,81,0,38,0,18
 IU Java Utilities API Reference/iu-java-type-loader,iu.type.bundle,TypeBundleSpi.new Object() {...},0,6,0,0,0,1,0,1,0,1
-IU Java Utilities API Reference/iu-java-type-loader,iu.type.bundle,TypeBundleSpi,0,254,0,18,0,59,0,22,0,13
+IU Java Utilities API Reference/iu-java-type-loader,iu.type.bundle,TypeBundleSpi,0,274,0,18,0,65,0,23,0,14
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,DefaultInterceptor.Scope,0,21,0,0,0,4,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuReferenceKind,0,134,0,0,0,21,0,5,0,5
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuResourceKey,0,152,0,14,0,28,0,18,0,11
@@ -246,7 +246,7 @@ IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,CloseableMo
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,CloseableModuleFinder,0,109,0,12,0,23,0,10,0,4
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,ModularClassLoader.new Enumeration() {...},0,18,0,0,0,3,0,3,0,3
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,FilteringClassLoader,0,66,0,16,0,19,0,10,0,2
-IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,TemporaryFile,0,110,0,8,0,27,0,10,0,6
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,TemporaryFile,0,112,0,8,0,29,0,10,0,6
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,TemporaryFile.new Object() {...},0,3,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,ModularClassLoader,0,698,0,88,0,154,0,64,0,20
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.base,ModularClassLoader.new Object() {...},0,6,0,0,0,1,0,1,0,1
@@ -275,8 +275,8 @@ IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuParallelWorkloadCon
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuException,0,547,0,38,0,201,0,63,0,44
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IuParallelWorkloadController,0,726,0,60,0,158,0,57,0,27
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu,IdGenerator.new ThreadLocal() {...},0,27,0,0,0,9,0,2,0,2
-IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.loader,IuComponentLoader.new IuComponentController() {...},0,24,0,0,0,7,0,4,0,4
-IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.loader,IuComponentLoader,0,319,0,6,0,53,0,17,0,14
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.loader,IuComponentLoader.new IuComponentController() {...},0,30,0,0,0,8,0,5,0,5
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.loader,IuComponentLoader,0,414,3,19,0,76,3,23,0,15
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.loader,IuComponentLoader.new Object() {...},0,6,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,EmptyObject,53,0,0,0,15,0,15,0,15,0
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonObjectBuilder,8,0,0,0,2,0,2,0,2,0
