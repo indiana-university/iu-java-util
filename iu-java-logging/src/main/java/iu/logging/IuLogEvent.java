@@ -42,10 +42,6 @@ import edu.iu.logging.IuLoggingEnvironment;
  */
 interface IuLogEvent extends IuLoggingContext, IuLoggingEnvironment {
 
-//	String sourceClassName;
-//	
-//	String sourceMethodName;
-
 	/**
 	 * Get the logger name.
 	 * 

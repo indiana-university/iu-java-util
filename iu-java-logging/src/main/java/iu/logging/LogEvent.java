@@ -1,7 +1,7 @@
 package iu.logging;
 
-import java.io.StringWriter;
 import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.time.Instant;
 import java.util.logging.Formatter;
 import java.util.logging.Level;
@@ -37,7 +37,7 @@ public class LogEvent implements IuLogEvent {
 	private String remoteAddr;
 	private String reqNum;
 	private String userPrincipal;
-	
+
 	// Values from IuLoggingEnvironment
 	private String application;
 	private String component;
@@ -47,18 +47,20 @@ public class LogEvent implements IuLogEvent {
 	private String module;
 	private String nodeId;
 	private String runtime;
-	
+
 	private String thread = Thread.currentThread().getName();
 
 	/**
 	 * Default constructor.
 	 */
 	public LogEvent() {
-		
+
 	}
-	
+
 	/**
-	 * Create a LogEvent from the given LogRecord, IuLoggingContext, and IuLoggingEnvironment.
+	 * Create a LogEvent from the given LogRecord, IuLoggingContext, and
+	 * IuLoggingEnvironment.
+	 * 
 	 * @param record
 	 * @param context
 	 * @param environment
@@ -71,19 +73,19 @@ public class LogEvent implements IuLogEvent {
 		this.sourceClassName = record.getSourceClassName();
 		this.sourceMethodName = record.getSourceMethodName();
 		Throwable thrown = record.getThrown();
-        if (thrown != null) {
-            StringWriter w = new StringWriter();
-            thrown.printStackTrace(new PrintWriter(w));
-            this.thrown = w.toString();
-        } else
-        	this.thrown = null;
-		
+		if (thrown != null) {
+			StringWriter w = new StringWriter();
+			thrown.printStackTrace(new PrintWriter(w));
+			this.thrown = w.toString();
+		} else
+			this.thrown = null;
+
 		this.authenticatedPrincipal = context.getAuthenticatedPrincipal();
 		this.calledUrl = context.getCalledUrl();
 		this.remoteAddr = context.getRemoteAddr();
 		this.reqNum = context.getReqNum();
 		this.userPrincipal = context.getUserPrincipal();
-		
+
 		this.application = environment.getApplication();
 		this.component = environment.getComponent();
 		this.environment = environment.getEnvironment();
@@ -117,7 +119,8 @@ public class LogEvent implements IuLogEvent {
 	}
 
 	/**
-	 * Return the String representation of the Logger name associated with this LogEvent.
+	 * Return the String representation of the Logger name associated with this
+	 * LogEvent.
 	 */
 	public String getLoggerName() {
 		return loggerName;
@@ -128,7 +131,8 @@ public class LogEvent implements IuLogEvent {
 	}
 
 	/**
-	 * Return the String representation of the message associated with this LogEvent.
+	 * Return the String representation of the message associated with this
+	 * LogEvent.
 	 */
 	public String getMessage() {
 		return message;
@@ -139,7 +143,8 @@ public class LogEvent implements IuLogEvent {
 	}
 
 	/**
-	 * Return the String representation of the source class name associated with this LogEvent.
+	 * Return the String representation of the source class name associated with
+	 * this LogEvent.
 	 */
 	public String getSourceClassName() {
 		return sourceClassName;
@@ -150,7 +155,8 @@ public class LogEvent implements IuLogEvent {
 	}
 
 	/**
-	 * Return the String representation of the source method name associated with this LogEvent.
+	 * Return the String representation of the source method name associated with
+	 * this LogEvent.
 	 */
 	public String getSourceMethodName() {
 		return sourceMethodName;
@@ -161,7 +167,8 @@ public class LogEvent implements IuLogEvent {
 	}
 
 	/**
-	 * Return the String representation of the thrown error associated with this LogEvent.
+	 * Return the String representation of the thrown error associated with this
+	 * LogEvent.
 	 */
 	public String getThrown() {
 		return thrown;
@@ -172,7 +179,8 @@ public class LogEvent implements IuLogEvent {
 	}
 
 	/**
-	 * Return the String representation of the authenticated principal associated with this LogEvent.
+	 * Return the String representation of the authenticated principal associated
+	 * with this LogEvent.
 	 */
 	public String getAuthenticatedPrincipal() {
 		return authenticatedPrincipal;
@@ -183,7 +191,8 @@ public class LogEvent implements IuLogEvent {
 	}
 
 	/**
-	 * Return the String representation of the called URL associated with this LogEvent.
+	 * Return the String representation of the called URL associated with this
+	 * LogEvent.
 	 */
 	public String getCalledUrl() {
 		return calledUrl;
@@ -194,7 +203,8 @@ public class LogEvent implements IuLogEvent {
 	}
 
 	/**
-	 * Return the String representation of the remote address associated with this LogEvent.
+	 * Return the String representation of the remote address associated with this
+	 * LogEvent.
 	 */
 	public String getRemoteAddr() {
 		return remoteAddr;
@@ -205,7 +215,8 @@ public class LogEvent implements IuLogEvent {
 	}
 
 	/**
-	 * Return the String representation of the request number associated with this LogEvent.
+	 * Return the String representation of the request number associated with this
+	 * LogEvent.
 	 */
 	public String getReqNum() {
 		return reqNum;
@@ -216,7 +227,8 @@ public class LogEvent implements IuLogEvent {
 	}
 
 	/**
-	 * Return the String representation of the user principal associated with this LogEvent.
+	 * Return the String representation of the user principal associated with this
+	 * LogEvent.
 	 */
 	public String getUserPrincipal() {
 		return userPrincipal;
@@ -227,7 +239,8 @@ public class LogEvent implements IuLogEvent {
 	}
 
 	/**
-	 * Return the String representation of the application associated with this LogEvent.
+	 * Return the String representation of the application associated with this
+	 * LogEvent.
 	 */
 	public String getApplication() {
 		return application;
@@ -238,7 +251,8 @@ public class LogEvent implements IuLogEvent {
 	}
 
 	/**
-	 * Return the String representation of the component associated with this LogEvent.
+	 * Return the String representation of the component associated with this
+	 * LogEvent.
 	 */
 	public String getComponent() {
 		return component;
@@ -249,7 +263,8 @@ public class LogEvent implements IuLogEvent {
 	}
 
 	/**
-	 * Return the String representation of the environment associated with this LogEvent.
+	 * Return the String representation of the environment associated with this
+	 * LogEvent.
 	 */
 	public String getEnvironment() {
 		return environment;
@@ -260,7 +275,8 @@ public class LogEvent implements IuLogEvent {
 	}
 
 	/**
-	 * Return the String representation of the host name associated with this LogEvent.
+	 * Return the String representation of the host name associated with this
+	 * LogEvent.
 	 */
 	public String getHostname() {
 		return hostname;
@@ -293,7 +309,8 @@ public class LogEvent implements IuLogEvent {
 	}
 
 	/**
-	 * Return the String representation of the node id associated with this LogEvent.
+	 * Return the String representation of the node id associated with this
+	 * LogEvent.
 	 */
 	public String getNodeId() {
 		return nodeId;
@@ -304,7 +321,8 @@ public class LogEvent implements IuLogEvent {
 	}
 
 	/**
-	 * Return the String representation of the runtime associated with this LogEvent.
+	 * Return the String representation of the runtime associated with this
+	 * LogEvent.
 	 */
 	public String getRuntime() {
 		return runtime;
@@ -316,6 +334,7 @@ public class LogEvent implements IuLogEvent {
 
 	/**
 	 * Return name of the current thread
+	 * 
 	 * @return String representation of the current thread's name
 	 */
 	public String getThread() {

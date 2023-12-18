@@ -1,19 +1,21 @@
 package iu.logging;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mockStatic;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
-import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
+import edu.iu.IuException;
 import edu.iu.logging.IuLoggingEnvironment;
 
 /**
@@ -37,16 +39,12 @@ public class IuLogHandlerTest {
 	@Test
 	public void testLogLevels() {
 		try (var handler = mockIuLogHandler()) {
-			try (var logEventFactory = mockStatic(LogEventFactory.class)) {
+			try (var logEventFactory = mockStatic(LogEventFactory.class, CALLS_REAL_METHODS)) {
 				logEventFactory.when(() -> LogEventFactory.getEnvironmentProperties())
 						.thenReturn(new IuLoggingEnvironment() {
 						});
-				logEventFactory.when(() -> LogEventFactory.getCurrentContext()).thenCallRealMethod();
-				logEventFactory.when(() -> LogEventFactory.createEvent(any(LogRecord.class))).thenCallRealMethod();
-				logEventFactory.when(() -> LogEventFactory.bootstrap(any(ClassLoader.class))).thenCallRealMethod();
 				LogEventFactory.bootstrap(IuLogHandlerTest.class.getClassLoader());
 				Logger LOG = Logger.getLogger(IuLogHandlerTest.class.getName());
-				System.err.println("before log calls");
 				List<LogMessage> logMessages = Arrays.asList(new LogMessage[] {
 						new LogMessage(Level.FINEST, "Test finest 1"), new LogMessage(Level.FINER, "Test finer 1"),
 						new LogMessage(Level.FINE, "Test fine 1"), new LogMessage(Level.CONFIG, "Test config 1"),
@@ -57,24 +55,11 @@ public class IuLogHandlerTest {
 						new LogMessage(Level.WARNING, "Test warning 2"),
 						new LogMessage(Level.SEVERE, "Test severe 2") });
 				for (LogMessage message : logMessages) {
-					System.err.println("calling LOG.log(" + message.logLevel() + ", " + message.message() + ")");
 					LOG.log(message.logLevel(), message.message());
 				}
-				System.err.println("after log calls");
 
 				Level logLevel = LOG.getParent().getHandlers()[0].getLevel();
-				System.err.println("LOG.getParent.getLevel(): " + logLevel);
-				System.err.println("LOG handler[0] name: " + LOG.getParent().getHandlers()[0].getClass().getName());
-				System.err.println("LOG handler[0] level: " + LOG.getParent().getHandlers()[0].getLevel());
 				Iterable<IuLogEvent> events = IuLogHandler.getLogEvents();
-				if (events != null) {
-					int c = 0;
-					for (IuLogEvent e : events) {
-						c++;
-					}
-					System.err.println("IuLogHandler.getLogEvents() size: " + c);
-				}
-
 				List<String> messageList = new ArrayList<>();
 				events.forEach(v -> messageList.add(v.getMessage()));
 				for (LogMessage message : logMessages) {
@@ -86,12 +71,12 @@ public class IuLogHandlerTest {
 	}
 
 	private MockedStatic<IuLogHandler> mockIuLogHandler() {
-		MockedStatic<IuLogHandler> handler = mockStatic(IuLogHandler.class);
+		MockedStatic<IuLogHandler> handler = mockStatic(IuLogHandler.class, CALLS_REAL_METHODS);
 		handler.when(() -> IuLogHandler.severePurgeTime()).thenReturn(500L);
 		handler.when(() -> IuLogHandler.infoPurgeTime()).thenReturn(100L);
 		handler.when(() -> IuLogHandler.finePurgeTime()).thenReturn(10L);
 		handler.when(() -> IuLogHandler.defaultPurgeTime()).thenReturn(2L);
-		handler.when(() -> IuLogHandler.getLogEvents()).thenCallRealMethod();
+		handler.when(() -> IuLogHandler.defaultEventBufferSize()).thenReturn(5);
 		return handler;
 	}
 
@@ -100,54 +85,59 @@ public class IuLogHandlerTest {
 	 */
 	@Test
 	public void testPurgeTimer() {
-		try (var handler = mockIuLogHandler()) {
-			try (var logEventFactory = mockStatic(LogEventFactory.class)) {
+		try (MockedStatic<IuLogHandler> handler = mockIuLogHandler()) {
+			try (var logEventFactory = mockStatic(LogEventFactory.class, CALLS_REAL_METHODS)) {
 				logEventFactory.when(() -> LogEventFactory.getEnvironmentProperties())
 						.thenReturn(new IuLoggingEnvironment() {
 						});
-				logEventFactory.when(() -> LogEventFactory.getCurrentContext()).thenCallRealMethod();
-				logEventFactory.when(() -> LogEventFactory.createEvent(any(LogRecord.class))).thenCallRealMethod();
-				logEventFactory.when(() -> LogEventFactory.bootstrap(any(ClassLoader.class))).thenCallRealMethod();
+				logEventFactory.when(() -> LogEventFactory.getDefaultLogLevel()).thenReturn(Level.ALL);
 				LogEventFactory.bootstrap(IuLogHandlerTest.class.getClassLoader());
 				Logger LOG = Logger.getLogger(IuLogHandlerTest.class.getName());
-				System.err.println("before log calls");
+				// wait and purge prior to adding more logs in case other tests have run
+				IuException.unchecked(() -> Thread.sleep(IuLogHandler.severePurgeTime()));
+				IuLogHandler.purgeByTime();
 				List<LogMessage> logMessages = Arrays.asList(new LogMessage[] {
 						new LogMessage(Level.FINEST, "Test finest 1"), new LogMessage(Level.FINER, "Test finer 1"),
 						new LogMessage(Level.FINE, "Test fine 1"), new LogMessage(Level.CONFIG, "Test config 1"),
 						new LogMessage(Level.INFO, "Test info 1"), new LogMessage(Level.WARNING, "Test warning 1"),
-						new LogMessage(Level.SEVERE, "Test severe 1"), new LogMessage(Level.FINEST, "Test finest 2"),
-						new LogMessage(Level.FINER, "Test finer 2"), new LogMessage(Level.FINE, "Test fine 2"),
-						new LogMessage(Level.CONFIG, "Test config 2"), new LogMessage(Level.INFO, "Test info 2"),
-						new LogMessage(Level.WARNING, "Test warning 2"),
-						new LogMessage(Level.SEVERE, "Test severe 2") });
+						new LogMessage(Level.SEVERE, "Test severe 1"), new LogMessage(Level.SEVERE, "Test severe 2"),
+						new LogMessage(Level.WARNING, "Test warning 2"), new LogMessage(Level.INFO, "Test info 2"),
+						new LogMessage(Level.CONFIG, "Test config 2"), new LogMessage(Level.FINE, "Test fine 2"),
+						new LogMessage(Level.FINER, "Test finer 2"), new LogMessage(Level.FINEST, "Test finest 2") });
 				for (LogMessage message : logMessages) {
-					System.err.println("calling LOG.log(" + message.logLevel() + ", " + message.message() + ")");
 					LOG.log(message.logLevel(), message.message());
 				}
-				System.err.println("after log calls");
 				try {
-					System.err.println("wait 1s for purge timer to start");
-					Thread.sleep(1000);
-					System.err.println("purge timer should have started");
-					Thread.sleep(150);
-					System.err.println("purge timer should have purged all but severe by now");
+					// fake wait for purge time of FINE to pass
+					Thread.sleep(IuLogHandler.finePurgeTime());
+					IuLogHandler.purgeByTime();
+					// fake wait for purge time of INFO to pass
+					Thread.sleep(IuLogHandler.infoPurgeTime());
+					IuLogHandler.purgeByTime();
+					// purge should have purged all but severe by now
 					Iterable<IuLogEvent> events = IuLogHandler.getLogEvents();
 					if (events != null) {
 						int c = 0;
 						for (IuLogEvent e : events) {
+							assertEquals(Level.SEVERE.intValue(), e.getLevel().intValue());
 							c++;
-							if (e.getLevel().intValue() < Level.SEVERE.intValue()) {
-								System.err.println("a NON-SEVERE log exists. " + e.getMessage());
-							} else {
-								System.err.println("found a SEVERE log. " + e.getMessage());
-							}
 						}
-						System.err.println("IuLogHandler.getLogEvents() size: " + c);
+						assertEquals(2, c, "Incorrect expected number of severe log events.");
 					}
+					// wait for actual purge timer to run
+					Thread.sleep(TimeUnit.SECONDS.toMillis(15L));
 				} catch (InterruptedException e) {
 					System.err.println("testPurgeTimer sleep was interrupted");
 				}
 			}
 		}
+	}
+
+	/**
+	 * Test flush.
+	 */
+	@Test
+	public void testFlush() {
+		new IuLogHandler().flush();
 	}
 }

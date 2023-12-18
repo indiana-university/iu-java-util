@@ -12,7 +12,6 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
-import java.util.ServiceLoader;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
@@ -21,7 +20,6 @@ import java.util.logging.Logger;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Answers;
-import org.mockito.MockedStatic;
 
 import edu.iu.logging.IuLoggingContext;
 import edu.iu.logging.IuLoggingEnvironment;
@@ -173,7 +171,6 @@ public class LogEventFactoryTest {
 			logEventFactory.when(() -> LogEventFactory.getEnvironmentProperties())
 					.thenReturn(new TestIuLoggingEnvironment(false));
 			logEventFactory.when(() -> LogEventFactory.isDevelopment()).thenCallRealMethod();
-			System.err.println("TestLoggingEnvironmentIsDevelopmentTrue");
 			assertTrue(LogEventFactory.isDevelopment());
 		}
 	}
@@ -213,13 +210,10 @@ public class LogEventFactoryTest {
 	@Test
 	public void testBootstrap() {
 		LogEventFactory.bootstrap(LogEventFactoryTest.class.getClassLoader());
-		Logger rootLogger = Logger.getLogger("");
 		Handler[] rootHandlers = Logger.getLogger("").getHandlers();
-		assertNotNull(rootHandlers);
-		System.err.println("rootHandlers.length: " + rootHandlers.length);
-		assertEquals(rootLogger, Logger.getLogger(""));
-		System.err.println("first handler instance of IuLogHandler? " + (rootHandlers[0] instanceof IuLogHandler));
-		assertTrue(rootHandlers[0] instanceof IuLogHandler);
+		assertNotNull(rootHandlers, "There should be a Handler array.");
+		assertEquals(1, rootHandlers.length, "There should be one handler");
+		assertTrue(rootHandlers[0] instanceof IuLogHandler, "The handler should be an IuLogHandler.");
 	}
 
 	/**
@@ -227,14 +221,8 @@ public class LogEventFactoryTest {
 	 */
 	@Test
 	public void testGetEnvironment() {
-		try (MockedStatic<ServiceLoader> serviceLoader = mockStatic(ServiceLoader.class, Answers.RETURNS_DEEP_STUBS)) {
-			serviceLoader.when(() -> ServiceLoader.load(IuLoggingEnvironment.class).findFirst().get()).thenReturn(null)
-					.thenReturn(new IuLoggingEnvironment() {
-					});
-			LogEventFactory.getEnvironment();
-			LogEventFactory.getEnvironment();
-			LogEventFactory.getEnvironment();
-		}
+		LogEventFactory.getEnvironmentProperties();
+		LogEventFactory.getEnvironmentProperties();
 	}
 
 	/**

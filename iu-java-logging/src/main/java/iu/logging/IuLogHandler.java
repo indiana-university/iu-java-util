@@ -32,7 +32,6 @@
 package iu.logging;
 
 import java.util.Collections;
-import java.util.Date;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.Timer;
@@ -42,7 +41,6 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.ConsoleHandler;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
@@ -50,7 +48,7 @@ import java.util.logging.LogRecord;
 /**
  * Main handler for console logs and accessing event queue.
  */
-public class IuLogHandler extends ConsoleHandler {
+public class IuLogHandler extends Handler {
 
 //	private static final Map<String, LogFilePublishers> LOG_FILES = new HashMap<>();
 //	private static final Map<ClassLoader, String> LOG_PATH_PREFIX = new WeakHashMap<>();
@@ -61,8 +59,7 @@ public class IuLogHandler extends ConsoleHandler {
 	private static int corePoolSize = 8;
 	private static int maximumPoolSize = 16;
 	private static long keepAliveTime = 5000L;
-	private static int TODO_EVENT_BUFFER_SIZE = 50;
-	
+
 	private static ThreadGroup threadGroup;
 	private static ThreadPoolExecutor executor;
 
@@ -82,54 +79,57 @@ public class IuLogHandler extends ConsoleHandler {
 				new LinkedBlockingDeque<Runnable>(), tf);
 
 		PURGE_TIMER = new Timer("iu-logging-purge", true);
-		System.err.println("Setting up purge timer");
 		PURGE_TIMER.schedule(new TimerTask() {
 			@Override
 			public void run() {
-				System.err.println("RUNNING PURGE_TIMER");
-//				int bufferSize = LoggingEnvironment.getLogEventBufferSize();
-				int bufferSize = TODO_EVENT_BUFFER_SIZE;
-				long now = System.currentTimeMillis();
-				Iterator<IuLogEvent> i = LOG_EVENTS.iterator();
-				int n = 0;
-				while (i.hasNext()) {
-					IuLogEvent e = i.next();
-//					int l = e.level.intValue();
-					int l = e.getLevel().intValue();
-					System.err.println("Purge Timer processing. " + e.getMessage());
-					long ttl;
-					if (l >= Level.SEVERE.intValue())
-						ttl = severePurgeTime();
-					else if (l >= Level.INFO.intValue())
-						ttl = infoPurgeTime();
-					else if (l >= Level.FINE.intValue())
-						ttl = finePurgeTime();
-					else
-						ttl = defaultPurgeTime();
-
-//					if (now - e.timestamp > ttl || n >= bufferSize)
-					System.err.println("ttl: " + ttl + " removing if this value is greater than ttl: " + (now - e.getInstant().toEpochMilli()));
-					if (now - e.getInstant().toEpochMilli() > ttl || n >= bufferSize)
-						i.remove();
-					else
-						n++;
-				}
+				purgeByTime();
 			}
-		}, TimeUnit.SECONDS.toMillis(1L), TimeUnit.SECONDS.toMillis(1L));
+		}, TimeUnit.SECONDS.toMillis(15L), TimeUnit.SECONDS.toMillis(15L));
+	}
+
+	static void purgeByTime() {
+		int bufferSize = defaultEventBufferSize();
+		long now = System.currentTimeMillis();
+		Iterator<IuLogEvent> i = LOG_EVENTS.iterator();
+		int n = 0;
+		while (i.hasNext()) {
+			IuLogEvent e = i.next();
+			int l = e.getLevel().intValue();
+			long ttl;
+			if (l >= Level.SEVERE.intValue())
+				ttl = severePurgeTime();
+			else if (l >= Level.INFO.intValue())
+				ttl = infoPurgeTime();
+			else if (l >= Level.FINE.intValue())
+				ttl = finePurgeTime();
+			else
+				ttl = defaultPurgeTime();
+
+			if (now - e.getInstant().toEpochMilli() > ttl || n >= bufferSize)
+				i.remove();
+			else
+				n++;
+		}
 	}
 
 	static long severePurgeTime() {
-		System.err.println("called severePurgeTime");
 		return TimeUnit.DAYS.toMillis(3L);
 	}
+
 	static long infoPurgeTime() {
 		return TimeUnit.DAYS.toMillis(1L);
 	}
+
 	static long finePurgeTime() {
 		return TimeUnit.HOURS.toMillis(2L);
 	}
+
 	static long defaultPurgeTime() {
 		return TimeUnit.MINUTES.toMillis(30L);
+	}
+
+	static int defaultEventBufferSize() {
+		return 50;
 	}
 
 	/**
@@ -139,7 +139,6 @@ public class IuLogHandler extends ConsoleHandler {
 	 *         tracked so far.
 	 */
 	public static Iterable<IuLogEvent> getLogEvents() {
-//		System.err.println("GETTING LOG_EVENTS");
 		return Collections.unmodifiableCollection(LOG_EVENTS);
 	}
 
@@ -171,19 +170,6 @@ public class IuLogHandler extends ConsoleHandler {
 	public IuLogHandler() {
 	}
 
-//	/**
-//	 * Determine if a given LogRecord is loggable for a given Handler.
-//	 * 
-//	 * @param record  LogRecord to be logged.
-//	 * @param handler Handler to check for logability of this record.
-//	 * @return Boolean representing whether this LogRecord is loggable for the given
-//	 *         Handler.
-//	 */
-//	public static boolean isLoggable(LogRecord record, Handler handler) {
-//		// System.err.println("IuLogHandler.isLoggable(record, handler)");
-//		return handler.isLoggable(record);
-//	}
-
 	/**
 	 * Determine if the given LogRecord is loggable.
 	 * 
@@ -193,10 +179,6 @@ public class IuLogHandler extends ConsoleHandler {
 	 */
 	@Override
 	public boolean isLoggable(LogRecord record) {
-//		System.err.println("RUNNING IuLogHandler.isLoggable(record)");
-//		if (!LoggingFilters.isLocal())
-//			return false;
-
 		return super.isLoggable(record);
 	}
 
@@ -207,17 +189,20 @@ public class IuLogHandler extends ConsoleHandler {
 	 */
 	@Override
 	public void publish(LogRecord record) {
-//		System.err.println("IuLogHandler publish(record)");
-		// TODO: removing loggable check broke the tests. There isn't a handler being
-		// found in getEnvironmentProperties call within createEvent.
-		// Mainly because of the loggable check, it gets past the test error because
-		// there was a FINER log from junit that was trying to be published between when
-		// bootstrap finished and the first test ran.
 		if (LoggingFilters.isLocal() && isLoggable(record)) {
 			LogEvent event = LogEventFactory.createEvent(record);
-			// then add event to queue.
 			LOG_EVENTS.offer(event);
 		}
-		super.publish(record);
+	}
+
+	@Override
+	public void flush() {
+	}
+
+	@Override
+	public void close() throws SecurityException {
+		// TODO Auto-generated method stub
+		// close subject
+		// set queue to null
 	}
 }

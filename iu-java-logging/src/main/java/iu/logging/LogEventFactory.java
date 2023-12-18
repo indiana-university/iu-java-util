@@ -31,7 +31,6 @@
  */
 package iu.logging;
 
-import java.util.ServiceLoader;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
@@ -48,8 +47,6 @@ import edu.iu.logging.IuLoggingEnvironment.RuntimeMode;
  * Bootstrap logging environment
  */
 public final class LogEventFactory {
-
-	private static final Level TODO_DEFAULT_LEVEL = Level.CONFIG;
 
 	private static final ThreadLocal<IuLoggingContext> CONTEXT = new ThreadLocal<>();
 
@@ -78,15 +75,19 @@ public final class LogEventFactory {
 	static IuLoggingEnvironment getEnvironmentProperties() {
 		if (envProps != null)
 			return envProps;
-		envProps = ServiceLoader.load(IuLoggingEnvironment.class).findFirst().get();
+//		envProps = ServiceLoader.load(IuLoggingEnvironment.class).findFirst().get();
+		// TODO: Use IuJavaRuntime API
 //		envProps = loadService(IuLoggingEnvironment.class);
 		if (envProps == null) {
-			return TODO_ENV_PROPS;
+			envProps = TODO_ENV_PROPS;
 		}
 
 		return envProps;
 	}
 
+	static Level getDefaultLogLevel() {
+		return Level.CONFIG;
+	}
 //	private static IuLoggingContext getCallProperties() {
 //		if (callProps != null)
 //			return callProps;
@@ -188,7 +189,7 @@ public final class LogEventFactory {
 				}
 			}
 			Handler iuLogHandler = new IuLogHandler();
-			iuLogHandler.setLevel(TODO_DEFAULT_LEVEL);
+			iuLogHandler.setLevel(getDefaultLogLevel());
 			rootLogger.addHandler(iuLogHandler);
 
 //			boolean oneChange = false;
@@ -388,7 +389,6 @@ public final class LogEventFactory {
 	 */
 	public static String getEnvironment() {
 		String env = getEnvironmentProperties().getEnvironment();
-		System.err.println("getEnvironment(): " + env);
 		return env;
 	}
 
@@ -420,7 +420,6 @@ public final class LogEventFactory {
 	 * @return boolean representing whether this is a development environment.
 	 */
 	public static boolean isDevelopment() {
-		System.err.println("isDevelopment");
 		return RuntimeMode.DEVELOPMENT == getEnvironmentProperties().getMode();
 	}
 

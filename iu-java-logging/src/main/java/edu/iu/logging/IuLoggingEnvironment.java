@@ -93,7 +93,8 @@ public interface IuLoggingEnvironment {
 	/**
 	 * Get the mode.
 	 * 
-	 * @return RuntimeMode enum with values for DEVELOPMENT, TEST, and PRODUCTION. Defaults to null.
+	 * @return RuntimeMode enum with values for DEVELOPMENT, TEST, and PRODUCTION.
+	 *         Defaults to null.
 	 */
 	default RuntimeMode getMode() {
 		return null;
