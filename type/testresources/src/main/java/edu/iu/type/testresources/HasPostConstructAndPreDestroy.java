@@ -29,50 +29,30 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type;
+package edu.iu.type.testresources;
 
-import java.lang.reflect.Constructor;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 
-import edu.iu.IuException;
-import edu.iu.type.IuConstructor;
+@SuppressWarnings("javadoc")
+public class HasPostConstructAndPreDestroy {
 
-/**
- * Facade implementation for {@link IuConstructor}.
- * 
- * @param <C> constructor declaring type
- */
-final class ConstructorFacade<C> extends ExecutableBase<C, C, Constructor<C>> implements IuConstructor<C> {
+	private boolean initialized;
 
-	/**
-	 * Facade constructor.
-	 * 
-	 * @param constructor   {@link Constructor}
-	 * @param declaringType {@link TypeTemplate}
-	 */
-	ConstructorFacade(Constructor<C> constructor, TypeTemplate<?, C> declaringType) {
-		super(constructor, declaringType.type, declaringType);
-		annotatedElement.setAccessible(true);
-		declaringType.postInit(this::seal);
+	public boolean isInitialized() {
+		return initialized;
 	}
 
-	private boolean hasAroundConstruct() {
-		return hasAnnotation(jakarta.interceptor.Interceptors.class) //
-				|| declaringType().hasAnnotation(jakarta.interceptor.Interceptors.class) //
-				|| declaringType().annotatedMethods(jakarta.interceptor.AroundConstruct.class).iterator().hasNext();
+	@PostConstruct
+	private void init() {
+		initialized = true;
 	}
 
-	@Override
-	public C exec(Object... arguments) throws Exception {
-		if (hasAroundConstruct())
-			// support @AroundConstruct
-			throw new UnsupportedOperationException("@AroundConstruct not supported in this version");
-
-		final var instance = annotatedElement.getDeclaringClass()
-				.cast(IuException.checkedInvocation(() -> annotatedElement.newInstance(arguments)));
-
-		declaringType.observe(instance);
-
-		return instance;
+	@PreDestroy
+	private void destroy() {
+		initialized = false;
 	}
 
+	private HasPostConstructAndPreDestroy() {
+	}
 }

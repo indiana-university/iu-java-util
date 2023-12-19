@@ -496,24 +496,46 @@ public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement 
 	 * </p>
 	 * 
 	 * <p>
-	 * This method is invoked internally for all instances created via
-	 * {@link IuConstructor#exec(Object...)}, directly before return from that
-	 * method, and <em>may</em> used to integrate with an external instance
-	 * lifecycle management framework.
+	 * Once all {@link InstanceReference}s have been notified, all methods annotated
+	 * by {@literal @}PostConstruct will be invoked on the instance.
 	 * </p>
 	 * 
 	 * <p>
-	 * Observing an instance that is already observed has no effect, not does
-	 * observing an instance of a type that has no subscribers.
+	 * Observing an instance that is already observed has no effect, nor does
+	 * observing an instance of a type that has no subscribers. All instances
+	 * provided via {@link IuConstructor#exec(Object...)} are observed
+	 * automatically. This method is a no-op for those instances, however it is up
+	 * to implementors to ensure {@literal @}PostConstruct methods do not result in
+	 * errors or repeat initialization steps when invoked repeatedly.
 	 * </p>
 	 * 
 	 * @param instance to observe
-	 * @return thunk for removing the instance from all observation queues; may be
-	 *         held to keep the instance active until torn down external, or
-	 *         discarded to allow observation to end naturally when all other
-	 *         references to the instance have been cleared
 	 */
-	Runnable observe(T instance);
+	void observe(T instance);
+
+	/**
+	 * Destroys an instance.
+	 * 
+	 * <p>
+	 * Invokes all {@literal @}PreDestroy methods on an instance. If the instance
+	 * was {@link #observe(Object) observed}, its state will be reverted and no
+	 * futures actions will be taken on it.
+	 * </p>
+	 * 
+	 * <p>
+	 * This method may be invoked to close the lifecycle of instances created via
+	 * {@link IuConstructor#exec(Object...)}.
+	 * </p>
+	 * 
+	 * <p>
+	 * Destroying an instance that is already destroyed <em>should</em> have no
+	 * effect, but it is up to implementors to ensure {@literal @}PreDestroy methods
+	 * do not result in errors or other side-effects when invoked repeatedly.
+	 * </p>
+	 * 
+	 * @param instance to destroy
+	 */
+	void destroy(T instance);
 
 	/**
 	 * Subscribes a new instance reference.

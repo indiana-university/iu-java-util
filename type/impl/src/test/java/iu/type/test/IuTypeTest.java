@@ -32,8 +32,11 @@
 package iu.type.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -42,6 +45,8 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.type.InstanceReference;
 import edu.iu.type.IuType;
+import edu.iu.type.testresources.HasBadPreDestroy;
+import edu.iu.type.testresources.HasPostConstructAndPreDestroy;
 import iu.type.IuTypeTestCase;
 
 @SuppressWarnings("javadoc")
@@ -67,9 +72,9 @@ public class IuTypeTest extends IuTypeTestCase {
 		final IuType t = IuType.of(getClass()).referTo(Object.class);
 		t.subscribe(ref);
 		final var o1 = new Object();
-		final var d1 = t.observe(o1);
+		t.observe(o1);
 		verify(ref).accept(o1);
-		d1.run();
+		t.destroy(o1);
 		verify(ref).clear(o1);
 	}
 
@@ -83,12 +88,28 @@ public class IuTypeTest extends IuTypeTestCase {
 		final var o1 = new Object();
 		t.observe(o1);
 		verify(ref).accept(o1);
-		
+
 		u.run();
-		
+
 		final var o2 = new Object();
 		t.observe(o2);
 		verify(ref, never()).accept(o2);
+	}
+
+	@Test
+	public void testPostConstructAndPreDestroy() throws Exception {
+		final var type = IuType.of(HasPostConstructAndPreDestroy.class);
+		final var a = type.constructor().exec();
+		assertTrue(a.isInitialized());
+		type.destroy(a);
+		assertFalse(a.isInitialized());
+	}
+
+	@Test
+	public void testBadPreDestroy() throws Exception {
+		final var type = IuType.of(HasBadPreDestroy.class);
+		final var a = type.constructor().exec();
+		assertThrows(RuntimeException.class, () -> type.destroy(a));
 	}
 
 }

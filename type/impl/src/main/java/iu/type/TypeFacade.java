@@ -273,8 +273,13 @@ final class TypeFacade<D, T> extends ElementBase implements IuType<D, T>, Parame
 	}
 
 	@Override
-	public Runnable observe(T instance) {
-		return template.observe(instance);
+	public void observe(T instance) {
+		template.observe(instance);
+	}
+
+	@Override
+	public void destroy(T instance) {
+		template.destroy(instance);
 	}
 
 	@Override

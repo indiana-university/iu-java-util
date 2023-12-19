@@ -52,6 +52,8 @@ import edu.iu.type.IuConstructor;
 import edu.iu.type.IuReferenceKind;
 import edu.iu.type.IuType;
 import edu.iu.type.IuTypeReference;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 
 /**
  * Represents the internal structure of a {@link TypeFacade}.
@@ -430,17 +432,34 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 	}
 
 	@Override
-	public Runnable observe(T instance) {
+	public void observe(T instance) {
 		instanceReferences.visit(listener -> {
 			if (listener != null)
 				listener.accept(instance);
 			return null;
 		});
-		return () -> instanceReferences.visit(listener -> {
+
+		for (final var method : annotatedMethods(PostConstruct.class))
+			IuException.unchecked(() -> method.exec(instance));
+	}
+
+	@Override
+	public void destroy(T instance) {
+		Throwable e = null;
+		for (final var method : annotatedMethods(PreDestroy.class))
+			e = IuException.suppress(e, () -> IuException.checkedInvocation(() -> {
+				method.exec(instance);
+				return null;
+			}));
+
+		e = IuException.suppress(e, () -> instanceReferences.visit(listener -> {
 			if (listener != null)
 				listener.clear(instance);
 			return null;
-		});
+		}));
+
+		if (e != null)
+			throw IuException.unchecked(e);
 	}
 
 	@Override
