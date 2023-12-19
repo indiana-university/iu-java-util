@@ -30,7 +30,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /**
- * Provides customizable logging through standard java logging implementations.  
+ * Provides customizable logging through standard java logging implementations.
  * @uses edu.iu.logging.IuLoggingEnvironment
  */
 module iu.util.logging {
@@ -38,6 +38,8 @@ module iu.util.logging {
 	requires iu.util.runtime;
 	requires jakarta.json;
 	requires java.logging;
+	
+	exports edu.iu.logging;
 	
 	uses edu.iu.logging.IuLoggingEnvironment;
 }

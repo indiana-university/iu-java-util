@@ -31,6 +31,8 @@
  */
 package edu.iu.logging;
 
+import iu.logging.LogEventFactory;
+
 /**
  * Logging Environment Interface
  */
@@ -52,6 +54,15 @@ public interface IuLoggingEnvironment {
 		 * Production
 		 */
 		PRODUCTION
+	}
+
+	/**
+	 * bootstrap logging with LogEventFactory.bootstrap(ClassLoader loader).
+	 * 
+	 * @param loader The ClassLoader to use in bootstrapping logging.
+	 */
+	public static void bootstrap(ClassLoader loader) {
+		LogEventFactory.bootstrap(loader);
 	}
 
 	/**
