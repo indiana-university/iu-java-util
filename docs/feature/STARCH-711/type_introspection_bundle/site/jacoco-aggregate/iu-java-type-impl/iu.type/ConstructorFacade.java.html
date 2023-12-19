@@ -64,21 +64,15 @@ final class ConstructorFacade&lt;C&gt; extends ExecutableBase&lt;C, C, Construct
 	@Override
 	public C exec(Object... arguments) throws Exception {
 <span class="fc bfc" id="L66" title="All 2 branches covered.">		if (hasAroundConstruct())</span>
-<span class="fc" id="L67">			throw new UnsupportedOperationException(&quot;@AroundConstruct not supported in this version&quot;);</span>
+			// support @AroundConstruct
+<span class="fc" id="L68">			throw new UnsupportedOperationException(&quot;@AroundConstruct not supported in this version&quot;);</span>
 
-		// @AroundConstruct
+<span class="fc" id="L70">		final var instance = annotatedElement.getDeclaringClass()</span>
+<span class="fc" id="L71">				.cast(IuException.checkedInvocation(() -&gt; annotatedElement.newInstance(arguments)));</span>
 
-<span class="fc" id="L71">		final var instance = annotatedElement.getDeclaringClass()</span>
-<span class="fc" id="L72">				.cast(IuException.checkedInvocation(() -&gt; annotatedElement.newInstance(arguments)));</span>
+<span class="fc" id="L73">		declaringType.observe(instance);</span>
 
-<span class="fc" id="L74">		declaringType.template.observe(instance);</span>
-		
-		// TODO: *after* observing new instances 
-		// @PostConstruct
-//			declaringType.annotatedMethods(PostConstruct.class).forEach(m -&gt; IuException.unchecked(() -&gt; m.exec()));
-		// Set up @PreDestroy hook
-
-<span class="fc" id="L81">		return instance;</span>
+<span class="fc" id="L75">		return instance;</span>
 	}
 
 }

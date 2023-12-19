@@ -273,18 +273,23 @@ final class TypeFacade&lt;D, T&gt; extends ElementBase implements IuType&lt;D, T
 	}
 
 	@Override
-	public Runnable observe(T instance) {
-<span class="fc" id="L277">		return template.observe(instance);</span>
-	}
+	public void observe(T instance) {
+<span class="fc" id="L277">		template.observe(instance);</span>
+<span class="fc" id="L278">	}</span>
+
+	@Override
+	public void destroy(T instance) {
+<span class="fc" id="L282">		template.destroy(instance);</span>
+<span class="fc" id="L283">	}</span>
 
 	@Override
 	public Runnable subscribe(InstanceReference&lt;T&gt; instanceReference) {
-<span class="fc" id="L282">		return template.subscribe(instanceReference);</span>
+<span class="fc" id="L287">		return template.subscribe(instanceReference);</span>
 	}
 
 	@Override
 	public String toString() {
-<span class="fc" id="L287">		return &quot;IuType[&quot; + reference + ']';</span>
+<span class="fc" id="L292">		return &quot;IuType[&quot; + reference + ']';</span>
 	}
 
 }
