@@ -61,9 +61,9 @@ public class LogEvent implements IuLogEvent {
 	 * Create a LogEvent from the given LogRecord, IuLoggingContext, and
 	 * IuLoggingEnvironment.
 	 * 
-	 * @param record
-	 * @param context
-	 * @param environment
+	 * @param record      The LogRecord.
+	 * @param context     The IuLoggingContext.
+	 * @param environment The IuLoggingEnvironment.
 	 */
 	public LogEvent(LogRecord record, IuLoggingContext context, IuLoggingEnvironment environment) {
 		this.instant = record.getInstant();
@@ -106,7 +106,7 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the Instant associated with this LogEvent.
 	 * 
-	 * @param instant
+	 * @param instant The Instant to associate with this LogEvent.
 	 */
 	public void setInstant(Instant instant) {
 		this.instant = instant;
@@ -122,7 +122,7 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the Level associated with this LogEvent.
 	 * 
-	 * @param level
+	 * @param level The Level to associate with this LogEvent.
 	 */
 	public void setLevel(Level level) {
 		this.level = level;
@@ -139,7 +139,7 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the Logger name associated with this LogEvent.
 	 * 
-	 * @param loggerName
+	 * @param loggerName The Logger name to associate with this LogEvent.
 	 */
 	public void setLoggerName(String loggerName) {
 		this.loggerName = loggerName;
@@ -156,7 +156,7 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the message associated with this LogEvent.
 	 * 
-	 * @param message
+	 * @param message The String message to associate with this LogEvent.
 	 */
 	public void setMessage(String message) {
 		this.message = message;
@@ -173,7 +173,8 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the source class name associated with this LogEvent.
 	 * 
-	 * @param sourceClassName
+	 * @param sourceClassName The String source class name to associate with this
+	 *                        LogEvent.
 	 */
 	public void setSourceClassName(String sourceClassName) {
 		this.sourceClassName = sourceClassName;
@@ -190,7 +191,8 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the source method name associated with this LogEvent.
 	 * 
-	 * @param sourceMethodName
+	 * @param sourceMethodName The String source method name to associate with this
+	 *                         LogEvent.
 	 */
 	public void setSourceMethodName(String sourceMethodName) {
 		this.sourceMethodName = sourceMethodName;
@@ -208,7 +210,7 @@ public class LogEvent implements IuLogEvent {
 	 * Set the thrown value associated with this LogEvent. The thrown value will be
 	 * the stack trace as a string.
 	 * 
-	 * @param thrown
+	 * @param thrown The String of the stack trace to associate with this LogEvent.
 	 */
 	public void setThrown(String thrown) {
 		this.thrown = thrown;
@@ -226,7 +228,8 @@ public class LogEvent implements IuLogEvent {
 	 * Set the String representation of the authenticated principal associated with
 	 * this LogEvent.
 	 * 
-	 * @param authenticatedPrincipal
+	 * @param authenticatedPrincipal The String of the authenticated principal to
+	 *                               associate with this LogEvent.
 	 */
 	public void setAuthenticatedPrincipal(String authenticatedPrincipal) {
 		this.authenticatedPrincipal = authenticatedPrincipal;
@@ -243,7 +246,8 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the called URL associated with this LogEvent.
 	 * 
-	 * @param calledUrl
+	 * @param calledUrl The String of the called URL to associate with this
+	 *                  LogEvent.
 	 */
 	public void setCalledUrl(String calledUrl) {
 		this.calledUrl = calledUrl;
@@ -260,7 +264,8 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the remote address associated with this LogEvent.
 	 * 
-	 * @param remoteAddr
+	 * @param remoteAddr The String of the remote address to associate with this
+	 *                   LogEvent.
 	 */
 	public void setRemoteAddr(String remoteAddr) {
 		this.remoteAddr = remoteAddr;
@@ -277,7 +282,8 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the request number associated with this LogEvent.
 	 * 
-	 * @param reqNum
+	 * @param reqNum The String of the request number to associate with this
+	 *               LogEvent.
 	 */
 	public void setReqNum(String reqNum) {
 		this.reqNum = reqNum;
@@ -294,7 +300,8 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the user principal associated with this LogEvent.
 	 * 
-	 * @param userPrincipal
+	 * @param userPrincipal The String of the user principal to associate with this
+	 *                      LogEvent.
 	 */
 	public void setUserPrincipal(String userPrincipal) {
 		this.userPrincipal = userPrincipal;
@@ -311,7 +318,8 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the application associated with this LogEvent.
 	 * 
-	 * @param application
+	 * @param application The String of the application to associate with this
+	 *                    LogEvent.
 	 */
 	public void setApplication(String application) {
 		this.application = application;
@@ -328,7 +336,7 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the component associated with this LogEvent.
 	 * 
-	 * @param component
+	 * @param component The String of the component to associate with this LogEvent.
 	 */
 	public void setComponent(String component) {
 		this.component = component;
@@ -345,7 +353,8 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the environment associated with this LogEvent.
 	 * 
-	 * @param environment
+	 * @param environment The String of the environment to associate with this
+	 *                    LogEvent.
 	 */
 	public void setEnvironment(String environment) {
 		this.environment = environment;
@@ -362,7 +371,7 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the hostname associated with this LogEvent.
 	 * 
-	 * @param hostname
+	 * @param hostname The String of the hostname to associate with this LogEvent.
 	 */
 	public void setHostname(String hostname) {
 		this.hostname = hostname;
@@ -378,7 +387,7 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the RuntimeMode associated with this LogEvent.
 	 * 
-	 * @param mode
+	 * @param mode The RuntimeMode to associate with this LogEvent.
 	 */
 	public void setMode(RuntimeMode mode) {
 		this.mode = mode;
@@ -394,7 +403,7 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the module associated with this LogEvent.
 	 * 
-	 * @param module
+	 * @param module The String of the module to associate with this LogEvent.
 	 */
 	public void setModule(String module) {
 		this.module = module;
@@ -411,7 +420,7 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the node Id associated with this LogEvent.
 	 * 
-	 * @param nodeId
+	 * @param nodeId The String of the node Id to associate with this LogEvent.
 	 */
 	public void setNodeId(String nodeId) {
 		this.nodeId = nodeId;
@@ -428,7 +437,7 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the runtime associated with this LogEvent.
 	 * 
-	 * @param runtime
+	 * @param runtime The String of the runtime to associate with this LogEvent.
 	 */
 	public void setRuntime(String runtime) {
 		this.runtime = runtime;
@@ -446,7 +455,7 @@ public class LogEvent implements IuLogEvent {
 	/**
 	 * Set the thread associated with this LogEvent.
 	 * 
-	 * @param thread
+	 * @param thread The String of the thread to associate with this LogEvent.
 	 */
 	public void setThread(String thread) {
 		this.thread = thread;
