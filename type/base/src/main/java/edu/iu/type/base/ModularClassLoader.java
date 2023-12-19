@@ -66,49 +66,7 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 	private final ModuleLayer moduleLayer;
 	private final Map<String, byte[]> classData;
 	private final Map<String, List<URL>> resourceUrls;
-
-	/**
-	 * Constructor.
-	 * 
-	 * @param web                true for <a href=
-	 *                           "https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader">web
-	 *                           classloading semantics</a>; false for normal parent
-	 *                           delegation semantics
-	 * @param path               class/module path
-	 * @param controllerCallback receives a reference to the {@link Controller} for
-	 *                           the module layer created in conjunction with this
-	 *                           loader. API Note from {@link Controller}: <em>Care
-	 *                           should be taken with Controller objects, they
-	 *                           should never be shared with untrusted code.</em>
-	 * @throws IOException if an error occurs reading a class path entry
-	 */
-	public ModularClassLoader(boolean web, Iterable<Path> path, Consumer<Controller> controllerCallback)
-			throws IOException {
-		this(web, path, null, controllerCallback);
-	}
-
-	/**
-	 * Constructor.
-	 * 
-	 * @param web                true for <a href=
-	 *                           "https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader">web
-	 *                           classloading semantics</a>; false for normal parent
-	 *                           delegation semantics
-	 * @param path               class/module path
-	 * @param parent             parent class loader
-	 * @param controllerCallback receives a reference to the {@link Controller} for
-	 *                           the module layer created in conjunction with this
-	 *                           loader. API Note from {@link Controller}: <em>Care
-	 *                           should be taken with Controller objects, they
-	 *                           should never be shared with untrusted code.</em>
-	 * @throws IOException if an error occurs reading a class path entry
-	 */
-	public ModularClassLoader(boolean web, Iterable<Path> path, ClassLoader parent,
-			Consumer<Controller> controllerCallback) throws IOException {
-		this(web, path, (parent instanceof ModularClassLoader modularParent) ? modularParent.getModuleLayer()
-				: ModuleLayer.boot(), parent, controllerCallback);
-	}
-
+	
 	/**
 	 * Constructor.
 	 * 

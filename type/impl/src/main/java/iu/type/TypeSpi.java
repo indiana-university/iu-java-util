@@ -61,9 +61,9 @@ public class TypeSpi implements IuTypeSpi {
 	}
 
 	@Override
-	public IuComponent createComponent(ClassLoader parent, BiConsumer<Module, Controller> controllerCallback,
+	public IuComponent createComponent(ModuleLayer parentLayer, ClassLoader parent, BiConsumer<Module, Controller> controllerCallback,
 			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources) throws IOException {
-		return ComponentFactory.createComponent(null, parent, controllerCallback, componentArchiveSource,
+		return ComponentFactory.createComponent(null, parentLayer, parent, controllerCallback, componentArchiveSource,
 				providedDependencyArchiveSources);
 	}
 

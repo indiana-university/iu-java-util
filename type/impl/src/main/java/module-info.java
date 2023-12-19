@@ -42,7 +42,6 @@ module iu.util.type.impl {
 	requires transitive iu.util.type;
 	requires iu.util.type.base;
 	
-	requires java.logging;
 	requires java.desktop;
 	requires jakarta.annotation;
 	requires jakarta.interceptor;

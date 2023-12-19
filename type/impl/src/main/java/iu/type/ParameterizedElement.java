@@ -39,7 +39,6 @@ import java.lang.reflect.TypeVariable;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.logging.Logger;
 
 import edu.iu.type.IuParameterizedElement;
 import edu.iu.type.IuReferenceKind;
@@ -49,8 +48,6 @@ import edu.iu.type.IuReferenceKind;
  * delegating mix-in.
  */
 final class ParameterizedElement implements ParameterizedFacade {
-
-	private static final Logger LOG = Logger.getLogger(ParameterizedElement.class.getName());
 
 	private Map<String, TypeFacade<?, ?>> typeArguments = new LinkedHashMap<>();
 	private Map<String, TypeFacade<?, ?>> typeParameters;
@@ -77,11 +74,7 @@ final class ParameterizedElement implements ParameterizedFacade {
 		if (this.typeArguments == null)
 			throw new IllegalStateException("sealed");
 
-		typeArguments.forEach((name, value) -> {
-			final var replacedValue = this.typeArguments.put(name, value);
-			if (replacedValue != null)
-				LOG.finest(() -> "replaced type argument " + name + " " + replacedValue + " with " + value);
-		});
+		this.typeArguments.putAll(typeArguments);
 	}
 
 	/**

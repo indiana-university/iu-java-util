@@ -180,68 +180,71 @@ public class IuComponentLoader implements AutoCloseable {
 				}
 			}
 
-			box.typeBundleLoader = IuException.checked(IOException.class, () -> IuException.initialize(
-					new ModularClassLoader(false, IuIterable.iter(typeBundleJars), filteredParent, controller -> {
-						final var typeBundleModule = controller.layer().findModule("iu.util.type.bundle").get();
-						final var typeApiModule = controller.layer().findModule("iu.util.type").get();
-						if (IU_BASE_IS_NAMED) {
-							controller.addReads(typeApiModule, IU_BASE);
-							controller.addReads(typeBundleModule, IU_BASE);
-						}
-						if (IU_TYPE_BASE_IS_NAMED)
-							controller.addReads(typeBundleModule, IU_TYPE_BASE);
-					}), typeBundleLoader -> {
-						final var typeBundle = typeBundleLoader.loadClass("edu.iu.type.bundle.IuTypeBundle");
-						final var typeModule = typeBundleLoader.getModuleLayer().findModule("iu.util.type").get();
+			box.typeBundleLoader = IuException.checked(IOException.class,
+					() -> IuException.initialize(new ModularClassLoader(false, IuIterable.iter(typeBundleJars),
+							ModuleLayer.boot(), filteredParent, controller -> {
+								final var typeBundleModule = controller.layer().findModule("iu.util.type.bundle").get();
+								final var typeApiModule = controller.layer().findModule("iu.util.type").get();
+								if (IU_BASE_IS_NAMED) {
+									controller.addReads(typeApiModule, IU_BASE);
+									controller.addReads(typeBundleModule, IU_BASE);
+								}
+								if (IU_TYPE_BASE_IS_NAMED)
+									controller.addReads(typeBundleModule, IU_TYPE_BASE);
+							}), typeBundleLoader -> {
+								final var typeBundle = typeBundleLoader.loadClass("edu.iu.type.bundle.IuTypeBundle");
+								final var typeModule = typeBundleLoader.getModuleLayer().findModule("iu.util.type")
+										.get();
 
-						final var getModule = typeBundle.getMethod("getModule");
-						final var typeImplModule = (Module) getModule.invoke(null);
+								final var getModule = typeBundle.getMethod("getModule");
+								final var typeImplModule = (Module) getModule.invoke(null);
 
-						final var iuComponent = typeBundleLoader.loadClass("edu.iu.type.IuComponent");
-						final var of = iuComponent.getMethod("of", ClassLoader.class, BiConsumer.class,
-								InputStream.class, InputStream[].class);
-						final var classLoader = iuComponent.getMethod("classLoader");
+								final var iuComponent = typeBundleLoader.loadClass("edu.iu.type.IuComponent");
+								final var of = iuComponent.getMethod("of", ModuleLayer.class, ClassLoader.class,
+										BiConsumer.class, InputStream.class, InputStream[].class);
+								final var classLoader = iuComponent.getMethod("classLoader");
 
-						class ComponentController implements IuComponentController {
-							private final Module componentModule;
-							private final Controller controller;
+								class ComponentController implements IuComponentController {
+									private final Module componentModule;
+									private final Controller controller;
 
-							ComponentController(Module componentModule, Controller controller) {
-								this.componentModule = componentModule;
-								this.controller = controller;
-							}
+									ComponentController(Module componentModule, Controller controller) {
+										this.componentModule = componentModule;
+										this.controller = controller;
+									}
 
-							@Override
-							public Module getTypeModule() {
-								return typeModule;
-							}
+									@Override
+									public Module getTypeModule() {
+										return typeModule;
+									}
 
-							@Override
-							public Module getTypeImplementationModule() {
-								return typeImplModule;
-							}
+									@Override
+									public Module getTypeImplementationModule() {
+										return typeImplModule;
+									}
 
-							@Override
-							public Module getComponentModule() {
-								return componentModule;
-							}
+									@Override
+									public Module getComponentModule() {
+										return componentModule;
+									}
 
-							@Override
-							public Controller getController() {
-								return controller;
-							}
-						}
+									@Override
+									public Controller getController() {
+										return controller;
+									}
+								}
 
-						return IuException.checkedInvocation(() -> {
-							box.component = (AutoCloseable) of.invoke(null, typeBundleLoader,
-									(BiConsumer<Module, Controller>) (module, controller) -> {
-										if (controllerCallback != null)
-											controllerCallback.accept(new ComponentController(module, controller));
-									}, componentArchiveSource, providedDependencyArchiveSources);
-							box.loader = (ClassLoader) classLoader.invoke(box.component);
-							return typeBundleLoader;
-						});
-					}));
+								return IuException.checkedInvocation(() -> {
+									box.component = (AutoCloseable) of.invoke(null, typeBundleLoader.getModuleLayer(),
+											typeBundleLoader, (BiConsumer<Module, Controller>) (module, controller) -> {
+												if (controllerCallback != null)
+													controllerCallback
+															.accept(new ComponentController(module, controller));
+											}, componentArchiveSource, providedDependencyArchiveSources);
+									box.loader = (ClassLoader) classLoader.invoke(box.component);
+									return typeBundleLoader;
+								});
+							}));
 		});
 
 		typeBundleLoader = box.typeBundleLoader;

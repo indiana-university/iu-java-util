@@ -82,14 +82,14 @@ public class IuTypeSpiTest {
 	public void testNewIsolatedComponent() throws IOException {
 		var in = mock(InputStream.class);
 		IuComponent.of(in);
-		verify(iuTypeSpi).createComponent(null, null, in);
+		verify(iuTypeSpi).createComponent(ModuleLayer.boot(), null, null, in);
 	}
 
 	@Test
 	public void testNewDelegatingComponent() throws IOException {
 		var in = mock(InputStream.class);
-		IuComponent.of(ClassLoader.getSystemClassLoader(), in);
-		verify(iuTypeSpi).createComponent(ClassLoader.getSystemClassLoader(), null, in);
+		IuComponent.of(ModuleLayer.boot(), ClassLoader.getSystemClassLoader(), in);
+		verify(iuTypeSpi).createComponent(ModuleLayer.boot(), ClassLoader.getSystemClassLoader(), null, in);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -98,7 +98,7 @@ public class IuTypeSpiTest {
 		var in = mock(InputStream.class);
 		var cb = mock(BiConsumer.class);
 		IuComponent.of(cb, in);
-		verify(iuTypeSpi).createComponent(null, cb, in);
+		verify(iuTypeSpi).createComponent(ModuleLayer.boot(), null, cb, in);
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })

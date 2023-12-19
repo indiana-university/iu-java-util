@@ -135,10 +135,11 @@ public class ModularClassLoaderTest {
 	private ModularClassLoader createModularLoader(String componentName, ClassLoader parent) throws IOException {
 		final ModularClassLoader loader;
 		if (parent == null)
-			loader = new ModularClassLoader("testweb".equals(componentName), getModulePath(componentName), null);
+			loader = new ModularClassLoader("testweb".equals(componentName), getModulePath(componentName),
+					ModuleLayer.boot(), null, null);
 		else
-			loader = new ModularClassLoader("testweb".equals(componentName), getModulePath(componentName), parent,
-					null);
+			loader = new ModularClassLoader("testweb".equals(componentName), getModulePath(componentName),
+					(parent instanceof ModularClassLoader m) ? m.getModuleLayer() : ModuleLayer.boot(), parent, null);
 		onTeardown.push(loader::close);
 		return loader;
 	}
@@ -155,7 +156,8 @@ public class ModularClassLoaderTest {
 			Controller controller;
 		}
 		final var box = new Box();
-		final var loader = new ModularClassLoader(false, getModulePath("testruntime"), c -> box.controller = c);
+		final var loader = new ModularClassLoader(false, getModulePath("testruntime"), ModuleLayer.boot(), null,
+				c -> box.controller = c);
 		onTeardown.push(loader::close);
 		assertInstanceOf(Controller.class, box.controller);
 	}

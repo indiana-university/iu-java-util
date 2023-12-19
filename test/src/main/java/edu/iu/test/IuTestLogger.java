@@ -90,7 +90,8 @@ import edu.iu.IuObject;
  * <li>net.bytebuddy</li>
  * <li>org.objenesis</li>
  * <li>org.opentest4j</li>
- * <li>Any logger name for which {@link IuObject#isPlatformName(String)} returns true</li>
+ * <li>Any logger name for which {@link IuObject#isPlatformName(String)} returns
+ * true</li>
  * <li>Any logger name prefixed by the comma-separated
  * {@link IuTest#getProperty(String) test property value}
  * {@code iu.util.test.platformLoggers}</li>
@@ -226,7 +227,8 @@ public final class IuTestLogger {
 			final var testHandler = DELEGATE.get();
 			try {
 
-				assertTrue(testHandler.activeTest.equals(activeTest));
+				if (testHandler.activeTest != null)
+					assertTrue(testHandler.activeTest.equals(activeTest));
 				testHandler.assertExpectedMessages();
 
 			} finally {
@@ -269,13 +271,13 @@ public final class IuTestLogger {
 	 */
 	static boolean isPlatformLogger(String loggerName) {
 		if (loggerName.startsWith("org.junit.") //
-			 || loggerName.startsWith("org.mockito.") //
-			 || loggerName.startsWith("org.apiguardian.") //
-			 || loggerName.startsWith("net.bytebuddy.") //
-			 || loggerName.startsWith("org.objenesis.") //
-			 || loggerName.startsWith("org.opentest4j."))
+				|| loggerName.startsWith("org.mockito.") //
+				|| loggerName.startsWith("org.apiguardian.") //
+				|| loggerName.startsWith("net.bytebuddy.") //
+				|| loggerName.startsWith("org.objenesis.") //
+				|| loggerName.startsWith("org.opentest4j."))
 			return true;
-		
+
 		if (IuObject.isPlatformName(loggerName))
 			return true;
 

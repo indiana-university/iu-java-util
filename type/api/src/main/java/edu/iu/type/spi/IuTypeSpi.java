@@ -60,6 +60,7 @@ public interface IuTypeSpi {
 	/**
 	 * Implements {@link IuComponent#of(InputStream, InputStream...)}.
 	 * 
+	 * @param parentLayer                      {@link ModuleLayer} to extend
 	 * @param parent                           {@link ClassLoader} for parent
 	 *                                         delegation
 	 * @param controllerCallback               receives a reference to
@@ -80,8 +81,9 @@ public interface IuTypeSpi {
 	 * 
 	 * @see IuComponent
 	 */
-	IuComponent createComponent(ClassLoader parent, BiConsumer<Module, Controller> controllerCallback,
-			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources) throws IOException;
+	IuComponent createComponent(ModuleLayer parentLayer, ClassLoader parent,
+			BiConsumer<Module, Controller> controllerCallback, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) throws IOException;
 
 	/**
 	 * Decorates a path entry in a loaded class environment as a {@link IuComponent

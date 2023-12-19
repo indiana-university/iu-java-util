@@ -170,11 +170,11 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 	}
 
 	@Override
-	public IuComponent createComponent(ClassLoader parent, BiConsumer<Module, Controller> controllerCallback,
+	public IuComponent createComponent(ModuleLayer parentLayer, ClassLoader parent, BiConsumer<Module, Controller> controllerCallback,
 			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources) throws IOException {
 		if (delegate == null)
 			throw new IllegalStateException("closed");
-		return delegate.createComponent(parent, controllerCallback, componentArchiveSource,
+		return delegate.createComponent(parentLayer, parent, controllerCallback, componentArchiveSource,
 				providedDependencyArchiveSources);
 	}
 

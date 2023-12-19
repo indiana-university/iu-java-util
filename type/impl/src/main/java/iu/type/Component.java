@@ -62,6 +62,7 @@ import edu.iu.type.IuProperty;
 import edu.iu.type.IuResource;
 import edu.iu.type.IuResourceReference;
 import edu.iu.type.IuType;
+import edu.iu.type.base.ModularClassLoader;
 import jakarta.annotation.Resource;
 
 /**
@@ -74,16 +75,15 @@ class Component implements IuComponent {
 	private static final Logger LOG = Logger.getLogger(Component.class.getName());
 	private static final Module TYPE_MODULE = Component.class.getModule();
 
-	private static void indexClass(String className, ClassLoader classLoader, ComponentVersion version, Kind kind,
-			Properties properties, Set<IuType<?, ?>> interfaces,
-			Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes,
+	private static void indexClass(String className, ClassLoader classLoader, Kind kind, Properties properties,
+			Set<IuType<?, ?>> interfaces, Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes,
 			Map<Class<?>, List<IuType<?, ?>>> annotatedTypes, List<ComponentResource<?>> resources,
 			List<ComponentResourceReference<?, ?>> resourceReferences) {
 		final Class<?> loadedClass;
 		try {
 			loadedClass = classLoader.loadClass(className);
 		} catch (ClassNotFoundException | Error e) {
-			LOG.log(Level.WARNING, e, () -> "Invalid class " + className + " in component " + version);
+			LOG.log(Level.WARNING, e, () -> "Invalid class " + className + " in component");
 			return;
 		}
 
@@ -176,8 +176,13 @@ class Component implements IuComponent {
 
 		this.classLoader = classLoader;
 
-		final var version = ComponentVersion.of(pathEntry);
-		this.versions = Set.of(version);
+		final Set<ComponentVersion> versions = new LinkedHashSet<>();
+		try {
+			versions.add(ComponentVersion.of(pathEntry));
+		} catch (IllegalArgumentException e) {
+			// not required
+		}
+		this.versions = Collections.unmodifiableSet(versions);
 
 		Set<String> resourceNames = PathEntryScanner.findResources(pathEntry);
 		this.kind = resourceNames.contains("module-info.class") ? Kind.MODULAR_ENTRY : Kind.LEGACY_ENTRY;
@@ -200,7 +205,7 @@ class Component implements IuComponent {
 						&& !resourceName.endsWith("-info.class") //
 						&& resourceName.indexOf('$') == -1)
 					indexClass(resourceName.substring(0, resourceName.length() - 6).replace('/', '.'), classLoader,
-							version, kind, properties, interfaces, annotatedAttributes, annotatedTypes, resources,
+							kind, properties, interfaces, annotatedAttributes, annotatedTypes, resources,
 							resourceReferences);
 		}));
 
@@ -265,8 +270,8 @@ class Component implements IuComponent {
 								"Component must not include a web component as a dependency");
 
 				for (var className : archive.nonEnclosedTypeNames())
-					indexClass(className, classLoader, archive.version(), archive.kind(), archive.properties(),
-							interfaces, annotatedAttributes, annotatedTypes, resources, resourceReferences);
+					indexClass(className, classLoader, archive.kind(), archive.properties(), interfaces,
+							annotatedAttributes, annotatedTypes, resources, resourceReferences);
 			}
 		}));
 
@@ -338,8 +343,9 @@ class Component implements IuComponent {
 	public Component extend(BiConsumer<Module, Controller> controllerCallback, InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException {
 		checkClosed();
-		return ComponentFactory.createComponent(this, classLoader, controllerCallback, componentArchiveSource,
-				providedDependencyArchiveSources);
+		return ComponentFactory.createComponent(this,
+				(classLoader instanceof ModularClassLoader m) ? m.getModuleLayer() : null, classLoader,
+				controllerCallback, componentArchiveSource, providedDependencyArchiveSources);
 	}
 
 	@Override

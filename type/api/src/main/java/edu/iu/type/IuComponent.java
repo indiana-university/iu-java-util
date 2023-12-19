@@ -489,13 +489,14 @@ public interface IuComponent extends AutoCloseable {
 	 */
 	static IuComponent of(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
 			throws IOException, IllegalArgumentException {
-		return of(null, null, componentArchiveSource, providedDependencyArchiveSources);
+		return of(ModuleLayer.boot(), null, null, componentArchiveSource, providedDependencyArchiveSources);
 	}
 
 	/**
 	 * Validates a <strong>component archive</strong>, all <strong>dependency
 	 * archives</strong>, and loads a <strong>component</strong>.
 	 * 
+	 * @param parentLayer                      {@link ModuleLayer} to extend
 	 * @param parent                           {@link ClassLoader} for parent
 	 *                                         delegation; may be null to
 	 *                                         <strong>isolate</strong> the
@@ -515,9 +516,9 @@ public interface IuComponent extends AutoCloseable {
 	 *                                  any <strong>dependency archives</strong>
 	 *                                  invalid.
 	 */
-	static IuComponent of(ClassLoader parent, InputStream componentArchiveSource,
+	static IuComponent of(ModuleLayer parentLayer, ClassLoader parent, InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException {
-		return of(parent, null, componentArchiveSource, providedDependencyArchiveSources);
+		return of(parentLayer, parent, null, componentArchiveSource, providedDependencyArchiveSources);
 	}
 
 	/**
@@ -549,13 +550,15 @@ public interface IuComponent extends AutoCloseable {
 	 */
 	static IuComponent of(BiConsumer<Module, Controller> controllerCallback, InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException {
-		return of(null, controllerCallback, componentArchiveSource, providedDependencyArchiveSources);
+		return of(ModuleLayer.boot(), null, controllerCallback, componentArchiveSource,
+				providedDependencyArchiveSources);
 	}
 
 	/**
 	 * Validates a <strong>component archive</strong>, all <strong>dependency
 	 * archives</strong>, and loads a <strong>component</strong>.
 	 * 
+	 * @param parentLayer                      {@link ModuleLayer} to extend
 	 * @param parent                           {@link ClassLoader} for parent
 	 *                                         delegation; may be null to
 	 *                                         <strong>isolate</strong> the
@@ -585,11 +588,11 @@ public interface IuComponent extends AutoCloseable {
 	 *                                  any <strong>dependency archives</strong>
 	 *                                  invalid.
 	 */
-	static IuComponent of(ClassLoader parent, BiConsumer<Module, Controller> controllerCallback,
-			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
-			throws IOException, IllegalArgumentException {
-		return TypeImplementation.PROVIDER.createComponent(parent, controllerCallback, componentArchiveSource,
-				providedDependencyArchiveSources);
+	static IuComponent of(ModuleLayer parentLayer, ClassLoader parent,
+			BiConsumer<Module, Controller> controllerCallback, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException {
+		return TypeImplementation.PROVIDER.createComponent(parentLayer, parent, controllerCallback,
+				componentArchiveSource, providedDependencyArchiveSources);
 	}
 
 	/**

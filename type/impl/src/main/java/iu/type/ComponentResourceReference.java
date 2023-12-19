@@ -145,7 +145,7 @@ class ComponentResourceReference<R, T> implements IuResourceReference<R, T>, Ins
 
 		if (!(attribute instanceof IuProperty property) //
 				|| property.canRead())
-			unboundValues.put(referrer, Optional.ofNullable(type.erasedClass().cast(attribute.get(referrer))));
+			unboundValues.put(referrer, Optional.ofNullable(type.autoboxClass().cast(attribute.get(referrer))));
 
 		if (boundResource != null)
 			attribute.set(referrer, boundResource.get());

@@ -49,7 +49,7 @@ import edu.iu.type.base.TemporaryFile.IORunnable;
 
 /**
  * Creates instances of {@link Component} for
- * {@link TypeSpi#createComponent(ClassLoader, BiConsumer, InputStream, InputStream...)}.
+ * {@link TypeSpi#createComponent(ModuleLayer, ClassLoader, BiConsumer, InputStream, InputStream...)}.
  */
 final class ComponentFactory {
 
@@ -87,6 +87,7 @@ final class ComponentFactory {
 	 * Creates a modular component.
 	 * 
 	 * @param parent             parent component
+	 * @param parentLayer        {@link ModuleLayer} to extend
 	 * @param parentLoader       {@link ClassLoader} for parent delegation
 	 * @param archives           component path
 	 * @param controllerCallback receives a reference to {@link Module} defined by
@@ -100,8 +101,9 @@ final class ComponentFactory {
 	 * @return module component
 	 * @throws IOException If an I/O error occurs reading from an archive
 	 */
-	static Component createModular(Component parent, ClassLoader parentLoader, Queue<ComponentArchive> archives,
-			BiConsumer<Module, Controller> controllerCallback, IORunnable destroy) throws IOException {
+	static Component createModular(Component parent, ModuleLayer parentLayer, ClassLoader parentLoader,
+			Queue<ComponentArchive> archives, BiConsumer<Module, Controller> controllerCallback, IORunnable destroy)
+			throws IOException {
 		final var firstArchive = archives.iterator().next();
 		final String firstModuleName;
 		try (final var firstModuleFinder = new CloseableModuleFinder(firstArchive.path())) {
@@ -112,8 +114,8 @@ final class ComponentFactory {
 		final Queue<Path> path = new ArrayDeque<>();
 		archives.forEach(a -> path.offer(a.path()));
 
-		return IuException.checked(IOException.class,
-				() -> IuException.initialize(new ModularClassLoader(web, path, parentLoader, controller -> {
+		return IuException.checked(IOException.class, () -> IuException
+				.initialize(new ModularClassLoader(web, path, parentLayer, parentLoader, controller -> {
 					final var firstModule = controller.layer().findModule(firstModuleName).get();
 					if (controllerCallback != null)
 						controllerCallback.accept(firstModule, controller);
@@ -149,6 +151,7 @@ final class ComponentFactory {
 	 * Creates a component from the source queue.
 	 * 
 	 * @param parent             parent component
+	 * @param parentLayer        {@link ModuleLayer} to extend
 	 * @param parentLoader       {@link ClassLoader} for parent delegation
 	 * @param controllerCallback receives a reference to {@link Module} defined by
 	 *                           the <strong>component archive</strong> and the
@@ -163,7 +166,7 @@ final class ComponentFactory {
 	 * @return fully loaded component instance
 	 * @throws IOException If an I/O error occurs reaching from an archive source
 	 */
-	static Component createFromSourceQueue(Component parent, ClassLoader parentLoader,
+	static Component createFromSourceQueue(Component parent, ModuleLayer parentLayer, ClassLoader parentLoader,
 			BiConsumer<Module, Controller> controllerCallback, Queue<ArchiveSource> sources) throws IOException {
 		Queue<ComponentArchive> archives = new ArrayDeque<>();
 		Queue<ComponentVersion> unmetDependencies = new ArrayDeque<>();
@@ -206,7 +209,7 @@ final class ComponentFactory {
 		try {
 			var kind = archives.iterator().next().kind();
 			if (kind.isModular())
-				return createModular(parent, parentLoader, archives, controllerCallback, destroy);
+				return createModular(parent, parentLayer, parentLoader, archives, controllerCallback, destroy);
 			else
 				return createLegacy(parent, parentLoader, archives, destroy);
 		} catch (Throwable e) {
@@ -219,6 +222,7 @@ final class ComponentFactory {
 	 * Creates a component from the source inputs
 	 * 
 	 * @param parent                           parent component
+	 * @param parentLayer                      {@link ModuleLayer} to extend
 	 * @param parentLoader                     {@link ClassLoader} for parent
 	 *                                         delegation
 	 * @param controllerCallback               receives a reference to
@@ -237,7 +241,7 @@ final class ComponentFactory {
 	 * 
 	 * @throws IOException If an I/O error occurs reaching from an archive source
 	 */
-	static Component createComponent(Component parent, ClassLoader parentLoader,
+	static Component createComponent(Component parent, ModuleLayer parentLayer, ClassLoader parentLoader,
 			BiConsumer<Module, Controller> controllerCallback, InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException {
 
@@ -248,7 +252,7 @@ final class ComponentFactory {
 			for (var providedDependencyArchiveSource : providedDependencyArchiveSources)
 				sources.offer(new ArchiveSource(providedDependencyArchiveSource));
 
-			return createFromSourceQueue(parent, parentLoader, controllerCallback, sources);
+			return createFromSourceQueue(parent, parentLayer, parentLoader, controllerCallback, sources);
 
 		} catch (Throwable e) {
 			thrown = e;
