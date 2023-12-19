@@ -145,7 +145,7 @@ class ComponentResourceReference&lt;R, T&gt; implements IuResourceReference&lt;R
 
 <span class="fc bfc" id="L146" title="All 2 branches covered.">		if (!(attribute instanceof IuProperty property) //</span>
 <span class="fc bfc" id="L147" title="All 2 branches covered.">				|| property.canRead())</span>
-<span class="fc" id="L148">			unboundValues.put(referrer, Optional.ofNullable(type.erasedClass().cast(attribute.get(referrer))));</span>
+<span class="fc" id="L148">			unboundValues.put(referrer, Optional.ofNullable(type.autoboxClass().cast(attribute.get(referrer))));</span>
 
 <span class="fc bfc" id="L150" title="All 2 branches covered.">		if (boundResource != null)</span>
 <span class="fc" id="L151">			attribute.set(referrer, boundResource.get());</span>

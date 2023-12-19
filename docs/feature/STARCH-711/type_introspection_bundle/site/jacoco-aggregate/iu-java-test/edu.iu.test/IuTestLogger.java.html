@@ -90,7 +90,8 @@ import edu.iu.IuObject;
  * &lt;li&gt;net.bytebuddy&lt;/li&gt;
  * &lt;li&gt;org.objenesis&lt;/li&gt;
  * &lt;li&gt;org.opentest4j&lt;/li&gt;
- * &lt;li&gt;Any logger name for which {@link IuObject#isPlatformName(String)} returns true&lt;/li&gt;
+ * &lt;li&gt;Any logger name for which {@link IuObject#isPlatformName(String)} returns
+ * true&lt;/li&gt;
  * &lt;li&gt;Any logger name prefixed by the comma-separated
  * {@link IuTest#getProperty(String) test property value}
  * {@code iu.util.test.platformLoggers}&lt;/li&gt;
@@ -106,152 +107,153 @@ public final class IuTestLogger {
 		private final Pattern pattern;
 
 		private LogRecordMatcher(String loggerName, Level level, Class&lt;T&gt; thrownClass, Predicate&lt;T&gt; thrownTest,
-<span class="fc" id="L109">				Pattern pattern) {</span>
-<span class="fc" id="L110">			this.loggerName = loggerName;</span>
-<span class="fc" id="L111">			this.level = level;</span>
-<span class="fc" id="L112">			this.thrownClass = thrownClass;</span>
-<span class="fc" id="L113">			this.thrownTest = thrownTest;</span>
-<span class="fc" id="L114">			this.pattern = pattern;</span>
-<span class="fc" id="L115">		}</span>
+<span class="fc" id="L110">				Pattern pattern) {</span>
+<span class="fc" id="L111">			this.loggerName = loggerName;</span>
+<span class="fc" id="L112">			this.level = level;</span>
+<span class="fc" id="L113">			this.thrownClass = thrownClass;</span>
+<span class="fc" id="L114">			this.thrownTest = thrownTest;</span>
+<span class="fc" id="L115">			this.pattern = pattern;</span>
+<span class="fc" id="L116">		}</span>
 
 		private boolean matches(LogRecord record) {
-<span class="fc bfc" id="L118" title="All 2 branches covered.">			if (!loggerName.equals(record.getLoggerName()))</span>
-<span class="fc" id="L119">				return false;</span>
-<span class="fc bfc" id="L120" title="All 2 branches covered.">			if (level.intValue() &lt; record.getLevel().intValue())</span>
-<span class="fc" id="L121">				return false;</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">			if (!loggerName.equals(record.getLoggerName()))</span>
+<span class="fc" id="L120">				return false;</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">			if (level.intValue() &lt; record.getLevel().intValue())</span>
+<span class="fc" id="L122">				return false;</span>
 
-<span class="fc" id="L123">			var thrown = record.getThrown();</span>
-<span class="fc bfc" id="L124" title="All 2 branches covered.">			if (thrownClass == null) {</span>
-<span class="fc bfc" id="L125" title="All 2 branches covered.">				if (thrown != null)</span>
-<span class="fc" id="L126">					return false;</span>
-<span class="fc bfc" id="L127" title="All 2 branches covered.">			} else if (thrown == null)</span>
-<span class="fc" id="L128">				return false;</span>
+<span class="fc" id="L124">			var thrown = record.getThrown();</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">			if (thrownClass == null) {</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">				if (thrown != null)</span>
+<span class="fc" id="L127">					return false;</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">			} else if (thrown == null)</span>
+<span class="fc" id="L129">				return false;</span>
 			else {
-<span class="fc bfc" id="L130" title="All 2 branches covered.">				if (thrownClass != thrown.getClass())</span>
-<span class="fc" id="L131">					return false;</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">				if (thrownClass != thrown.getClass())</span>
+<span class="fc" id="L132">					return false;</span>
 
-<span class="fc bfc" id="L133" title="All 4 branches covered.">				if (thrownTest != null &amp;&amp; !thrownTest.test(thrownClass.cast(thrown)))</span>
-<span class="fc" id="L134">					return false;</span>
+<span class="fc bfc" id="L134" title="All 4 branches covered.">				if (thrownTest != null &amp;&amp; !thrownTest.test(thrownClass.cast(thrown)))</span>
+<span class="fc" id="L135">					return false;</span>
 			}
 
-<span class="fc" id="L137">			var message = record.getMessage();</span>
-<span class="fc" id="L138">			return pattern.matcher(message).matches();</span>
+<span class="fc" id="L138">			var message = record.getMessage();</span>
+<span class="fc" id="L139">			return pattern.matcher(message).matches();</span>
 		}
 
 		@Override
 		public String toString() {
-<span class="fc" id="L143">			return &quot;LogRecordMatcher [loggerName=&quot; + loggerName + &quot;, level=&quot; + level + &quot;, thrownClass=&quot; + thrownClass</span>
+<span class="fc" id="L144">			return &quot;LogRecordMatcher [loggerName=&quot; + loggerName + &quot;, level=&quot; + level + &quot;, thrownClass=&quot; + thrownClass</span>
 					+ &quot;, pattern=&quot; + pattern + &quot;]&quot;;
 		}
 
 	}
 
-<span class="fc" id="L149">	private static class IuTestLogHandler extends Handler {</span>
+<span class="fc" id="L150">	private static class IuTestLogHandler extends Handler {</span>
 		private String activeTest;
-<span class="fc" id="L151">		private Queue&lt;LogRecordMatcher&lt;?&gt;&gt; expectedMessages = new ArrayDeque&lt;&gt;();</span>
-<span class="fc" id="L152">		private Queue&lt;LogRecordMatcher&lt;?&gt;&gt; allowedMessages = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L152">		private Queue&lt;LogRecordMatcher&lt;?&gt;&gt; expectedMessages = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L153">		private Queue&lt;LogRecordMatcher&lt;?&gt;&gt; allowedMessages = new ArrayDeque&lt;&gt;();</span>
 
 		private void reset(String activeTest) {
-<span class="fc" id="L155">			this.activeTest = activeTest;</span>
-<span class="fc" id="L156">			expectedMessages.clear();</span>
-<span class="fc" id="L157">			allowedMessages.clear();</span>
-<span class="fc" id="L158">		}</span>
+<span class="fc" id="L156">			this.activeTest = activeTest;</span>
+<span class="fc" id="L157">			expectedMessages.clear();</span>
+<span class="fc" id="L158">			allowedMessages.clear();</span>
+<span class="fc" id="L159">		}</span>
 
 		private void assertExpectedMessages() {
-<span class="fc bfc" id="L161" title="All 2 branches covered.">			if (!expectedMessages.isEmpty()) {</span>
-<span class="fc" id="L162">				StringBuilder sb = new StringBuilder();</span>
-<span class="fc" id="L163">				sb.append(&quot;Not all expected log messages were logged\n&quot;);</span>
-<span class="fc bfc" id="L164" title="All 2 branches covered.">				while (!expectedMessages.isEmpty())</span>
-<span class="fc" id="L165">					sb.append(expectedMessages.poll());</span>
-<span class="fc" id="L166">				throw new AssertionFailedError(sb.toString());</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">			if (!expectedMessages.isEmpty()) {</span>
+<span class="fc" id="L163">				StringBuilder sb = new StringBuilder();</span>
+<span class="fc" id="L164">				sb.append(&quot;Not all expected log messages were logged\n&quot;);</span>
+<span class="fc bfc" id="L165" title="All 2 branches covered.">				while (!expectedMessages.isEmpty())</span>
+<span class="fc" id="L166">					sb.append(expectedMessages.poll());</span>
+<span class="fc" id="L167">				throw new AssertionFailedError(sb.toString());</span>
 			}
-<span class="fc" id="L168">		}</span>
+<span class="fc" id="L169">		}</span>
 
 		@Override
 		public void publish(LogRecord record) {
-<span class="fc" id="L172">			var loggerName = record.getLoggerName();</span>
-<span class="fc bfc" id="L173" title="All 2 branches covered.">			if (isPlatformLogger(loggerName)) {</span>
-<span class="fc bfc" id="L174" title="All 2 branches covered.">				for (var handler : originalRootHandlers)</span>
-<span class="fc" id="L175">					handler.publish(record);</span>
-<span class="fc" id="L176">				return;</span>
+<span class="fc" id="L173">			var loggerName = record.getLoggerName();</span>
+<span class="fc bfc" id="L174" title="All 2 branches covered.">			if (isPlatformLogger(loggerName)) {</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">				for (var handler : originalRootHandlers)</span>
+<span class="fc" id="L176">					handler.publish(record);</span>
+<span class="fc" id="L177">				return;</span>
 			}
 
-<span class="fc bfc" id="L179" title="All 2 branches covered.">			for (var allowedMessage : allowedMessages)</span>
-<span class="fc bfc" id="L180" title="All 2 branches covered.">				if (allowedMessage.matches(record))</span>
-<span class="fc" id="L181">					return;</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">			for (var allowedMessage : allowedMessages)</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">				if (allowedMessage.matches(record))</span>
+<span class="fc" id="L182">					return;</span>
 
-<span class="fc" id="L183">			final var expectedIterator = expectedMessages.iterator();</span>
+<span class="fc" id="L184">			final var expectedIterator = expectedMessages.iterator();</span>
 
-<span class="fc bfc" id="L185" title="All 2 branches covered.">			while (expectedIterator.hasNext())</span>
-<span class="pc bpc" id="L186" title="1 of 2 branches missed.">				if (expectedIterator.next().matches(record)) {</span>
-<span class="fc" id="L187">					expectedIterator.remove();</span>
-<span class="fc" id="L188">					return;</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">			while (expectedIterator.hasNext())</span>
+<span class="pc bpc" id="L187" title="1 of 2 branches missed.">				if (expectedIterator.next().matches(record)) {</span>
+<span class="fc" id="L188">					expectedIterator.remove();</span>
+<span class="fc" id="L189">					return;</span>
 				}
 
-<span class="fc" id="L191">			throw new AssertionFailedError(&quot;Unexpected log message &quot; + record.getLevel() + &quot; &quot; + record.getLoggerName()</span>
-<span class="fc" id="L192">					+ &quot; &quot; + record.getMessage(), record.getThrown());</span>
+<span class="fc" id="L192">			throw new AssertionFailedError(&quot;Unexpected log message &quot; + record.getLevel() + &quot; &quot; + record.getLoggerName()</span>
+<span class="fc" id="L193">					+ &quot; &quot; + record.getMessage(), record.getThrown());</span>
 		}
 
 		@Override
 		public void flush() {
-<span class="fc" id="L197">		}</span>
+<span class="fc" id="L198">		}</span>
 
 		@Override
 		public void close() throws SecurityException {
-<span class="fc" id="L201">			reset(null);</span>
-<span class="fc" id="L202">		}</span>
+<span class="fc" id="L202">			reset(null);</span>
+<span class="fc" id="L203">		}</span>
 	}
 
 	private static class StaticLogHandler extends Handler {
 
-<span class="fc" id="L207">		private static final Map&lt;IuTestLogHandler, IuTestLogHandler&gt; ALL_DELEGATES = new WeakHashMap&lt;&gt;();</span>
-<span class="fc" id="L208">		private static final ThreadLocal&lt;IuTestLogHandler&gt; DELEGATE = new ThreadLocal&lt;&gt;() {</span>
+<span class="fc" id="L208">		private static final Map&lt;IuTestLogHandler, IuTestLogHandler&gt; ALL_DELEGATES = new WeakHashMap&lt;&gt;();</span>
+<span class="fc" id="L209">		private static final ThreadLocal&lt;IuTestLogHandler&gt; DELEGATE = new ThreadLocal&lt;&gt;() {</span>
 			@Override
 			protected IuTestLogHandler initialValue() {
-<span class="fc" id="L211">				final var delegate = new IuTestLogHandler();</span>
+<span class="fc" id="L212">				final var delegate = new IuTestLogHandler();</span>
 
-<span class="fc" id="L213">				synchronized (ALL_DELEGATES) {</span>
-<span class="fc" id="L214">					ALL_DELEGATES.put(delegate, delegate);</span>
-<span class="fc" id="L215">				}</span>
+<span class="fc" id="L214">				synchronized (ALL_DELEGATES) {</span>
+<span class="fc" id="L215">					ALL_DELEGATES.put(delegate, delegate);</span>
+<span class="fc" id="L216">				}</span>
 
-<span class="fc" id="L217">				return delegate;</span>
+<span class="fc" id="L218">				return delegate;</span>
 			}
 		};
 
 		private void startTest(String activeTest) {
-<span class="fc" id="L222">			DELEGATE.get().reset(activeTest);</span>
-<span class="fc" id="L223">		}</span>
+<span class="fc" id="L223">			DELEGATE.get().reset(activeTest);</span>
+<span class="fc" id="L224">		}</span>
 
 		private void finishTest(String activeTest) {
-<span class="fc" id="L226">			final var testHandler = DELEGATE.get();</span>
+<span class="fc" id="L227">			final var testHandler = DELEGATE.get();</span>
 			try {
 
-<span class="fc" id="L229">				assertTrue(testHandler.activeTest.equals(activeTest));</span>
-<span class="fc" id="L230">				testHandler.assertExpectedMessages();</span>
+<span class="pc bpc" id="L230" title="1 of 2 branches missed.">				if (testHandler.activeTest != null)</span>
+<span class="fc" id="L231">					assertTrue(testHandler.activeTest.equals(activeTest));</span>
+<span class="fc" id="L232">				testHandler.assertExpectedMessages();</span>
 
 			} finally {
-<span class="fc" id="L233">				testHandler.reset(null);</span>
+<span class="fc" id="L235">				testHandler.reset(null);</span>
 			}
-<span class="fc" id="L235">		}</span>
+<span class="fc" id="L237">		}</span>
 
 		@Override
 		public void publish(LogRecord record) {
-<span class="fc" id="L239">			DELEGATE.get().publish(record);</span>
-<span class="fc" id="L240">		}</span>
+<span class="fc" id="L241">			DELEGATE.get().publish(record);</span>
+<span class="fc" id="L242">		}</span>
 
 		@Override
 		public void flush() {
-<span class="fc" id="L244">			synchronized (ALL_DELEGATES) {</span>
-<span class="fc" id="L245">				ALL_DELEGATES.keySet().forEach(IuTestLogHandler::flush);</span>
-<span class="fc" id="L246">			}</span>
-<span class="fc" id="L247">		}</span>
+<span class="fc" id="L246">			synchronized (ALL_DELEGATES) {</span>
+<span class="fc" id="L247">				ALL_DELEGATES.keySet().forEach(IuTestLogHandler::flush);</span>
+<span class="fc" id="L248">			}</span>
+<span class="fc" id="L249">		}</span>
 
 		@Override
 		public void close() throws SecurityException {
-<span class="fc" id="L251">			synchronized (ALL_DELEGATES) {</span>
-<span class="fc" id="L252">				ALL_DELEGATES.keySet().forEach(IuTestLogHandler::close);</span>
-<span class="fc" id="L253">			}</span>
-<span class="fc" id="L254">		}</span>
+<span class="fc" id="L253">			synchronized (ALL_DELEGATES) {</span>
+<span class="fc" id="L254">				ALL_DELEGATES.keySet().forEach(IuTestLogHandler::close);</span>
+<span class="fc" id="L255">			}</span>
+<span class="fc" id="L256">		}</span>
 	}
 
 	private static Handler[] originalRootHandlers;
@@ -268,59 +270,59 @@ public final class IuTestLogger {
 	 * @return true if name is associated with a platform logger
 	 */
 	static boolean isPlatformLogger(String loggerName) {
-<span class="fc bfc" id="L271" title="All 2 branches covered.">		if (loggerName.startsWith(&quot;org.junit.&quot;) //</span>
-<span class="fc bfc" id="L272" title="All 2 branches covered.">			 || loggerName.startsWith(&quot;org.mockito.&quot;) //</span>
-<span class="fc bfc" id="L273" title="All 2 branches covered.">			 || loggerName.startsWith(&quot;org.apiguardian.&quot;) //</span>
-<span class="fc bfc" id="L274" title="All 2 branches covered.">			 || loggerName.startsWith(&quot;net.bytebuddy.&quot;) //</span>
-<span class="fc bfc" id="L275" title="All 2 branches covered.">			 || loggerName.startsWith(&quot;org.objenesis.&quot;) //</span>
-<span class="fc bfc" id="L276" title="All 2 branches covered.">			 || loggerName.startsWith(&quot;org.opentest4j.&quot;))</span>
-<span class="fc" id="L277">			return true;</span>
-		
-<span class="fc bfc" id="L279" title="All 2 branches covered.">		if (IuObject.isPlatformName(loggerName))</span>
-<span class="fc" id="L280">			return true;</span>
+<span class="fc bfc" id="L273" title="All 2 branches covered.">		if (loggerName.startsWith(&quot;org.junit.&quot;) //</span>
+<span class="fc bfc" id="L274" title="All 2 branches covered.">				|| loggerName.startsWith(&quot;org.mockito.&quot;) //</span>
+<span class="fc bfc" id="L275" title="All 2 branches covered.">				|| loggerName.startsWith(&quot;org.apiguardian.&quot;) //</span>
+<span class="fc bfc" id="L276" title="All 2 branches covered.">				|| loggerName.startsWith(&quot;net.bytebuddy.&quot;) //</span>
+<span class="fc bfc" id="L277" title="All 2 branches covered.">				|| loggerName.startsWith(&quot;org.objenesis.&quot;) //</span>
+<span class="fc bfc" id="L278" title="All 2 branches covered.">				|| loggerName.startsWith(&quot;org.opentest4j.&quot;))</span>
+<span class="fc" id="L279">			return true;</span>
 
-<span class="fc bfc" id="L282" title="All 2 branches covered.">		if (propertyDefinedPlatformLoggers == null) {</span>
-<span class="fc" id="L283">			var propertyDefinedPlatformLoggerNames = IuTest.getProperty(&quot;iu.util.test.platformLoggers&quot;);</span>
-<span class="fc bfc" id="L284" title="All 2 branches covered.">			if (propertyDefinedPlatformLoggerNames == null)</span>
-<span class="fc" id="L285">				propertyDefinedPlatformLoggers = Collections.emptySet();</span>
+<span class="fc bfc" id="L281" title="All 2 branches covered.">		if (IuObject.isPlatformName(loggerName))</span>
+<span class="fc" id="L282">			return true;</span>
+
+<span class="fc bfc" id="L284" title="All 2 branches covered.">		if (propertyDefinedPlatformLoggers == null) {</span>
+<span class="fc" id="L285">			var propertyDefinedPlatformLoggerNames = IuTest.getProperty(&quot;iu.util.test.platformLoggers&quot;);</span>
+<span class="fc bfc" id="L286" title="All 2 branches covered.">			if (propertyDefinedPlatformLoggerNames == null)</span>
+<span class="fc" id="L287">				propertyDefinedPlatformLoggers = Collections.emptySet();</span>
 			else {
-<span class="fc" id="L287">				Set&lt;String&gt; propertyDefinedPlatformLoggers = new HashSet&lt;&gt;();</span>
-<span class="fc bfc" id="L288" title="All 2 branches covered.">				for (var propertyDefinedPlatformLogger : List.of(propertyDefinedPlatformLoggerNames.split(&quot;,&quot;))) {</span>
-<span class="fc bfc" id="L289" title="All 2 branches covered.">					if (propertyDefinedPlatformLogger.charAt(propertyDefinedPlatformLogger.length() - 1) == '.')</span>
-<span class="fc" id="L290">						propertyDefinedPlatformLogger = propertyDefinedPlatformLogger.substring(0,</span>
-<span class="fc" id="L291">								propertyDefinedPlatformLogger.length() - 1);</span>
-<span class="fc" id="L292">					propertyDefinedPlatformLoggers.add(propertyDefinedPlatformLogger);</span>
-<span class="fc" id="L293">				}</span>
-<span class="fc" id="L294">				IuTestLogger.propertyDefinedPlatformLoggers = propertyDefinedPlatformLoggers;</span>
+<span class="fc" id="L289">				Set&lt;String&gt; propertyDefinedPlatformLoggers = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L290" title="All 2 branches covered.">				for (var propertyDefinedPlatformLogger : List.of(propertyDefinedPlatformLoggerNames.split(&quot;,&quot;))) {</span>
+<span class="fc bfc" id="L291" title="All 2 branches covered.">					if (propertyDefinedPlatformLogger.charAt(propertyDefinedPlatformLogger.length() - 1) == '.')</span>
+<span class="fc" id="L292">						propertyDefinedPlatformLogger = propertyDefinedPlatformLogger.substring(0,</span>
+<span class="fc" id="L293">								propertyDefinedPlatformLogger.length() - 1);</span>
+<span class="fc" id="L294">					propertyDefinedPlatformLoggers.add(propertyDefinedPlatformLogger);</span>
+<span class="fc" id="L295">				}</span>
+<span class="fc" id="L296">				IuTestLogger.propertyDefinedPlatformLoggers = propertyDefinedPlatformLoggers;</span>
 			}
 		}
 
-<span class="fc bfc" id="L298" title="All 2 branches covered.">		if (propertyDefinedPlatformLoggers.contains(loggerName))</span>
-<span class="fc" id="L299">			return true;</span>
+<span class="fc bfc" id="L300" title="All 2 branches covered.">		if (propertyDefinedPlatformLoggers.contains(loggerName))</span>
+<span class="fc" id="L301">			return true;</span>
 
-<span class="fc bfc" id="L301" title="All 2 branches covered.">		for (var propertyDefinedPlatformLogger : propertyDefinedPlatformLoggers)</span>
-<span class="fc bfc" id="L302" title="All 2 branches covered.">			if (loggerName.startsWith(propertyDefinedPlatformLogger + '.'))</span>
-<span class="fc" id="L303">				return true;</span>
+<span class="fc bfc" id="L303" title="All 2 branches covered.">		for (var propertyDefinedPlatformLogger : propertyDefinedPlatformLoggers)</span>
+<span class="fc bfc" id="L304" title="All 2 branches covered.">			if (loggerName.startsWith(propertyDefinedPlatformLogger + '.'))</span>
+<span class="fc" id="L305">				return true;</span>
 
-<span class="fc" id="L305">		return false;</span>
+<span class="fc" id="L307">		return false;</span>
 	}
 
 	/**
 	 * Initialization hook.
 	 */
 	static void init() {
-<span class="fc" id="L312">		root = LogManager.getLogManager().getLogger(&quot;&quot;);</span>
-<span class="fc" id="L313">		originalLevel = root.getLevel();</span>
-<span class="fc" id="L314">		originalRootHandlers = root.getHandlers();</span>
+<span class="fc" id="L314">		root = LogManager.getLogManager().getLogger(&quot;&quot;);</span>
+<span class="fc" id="L315">		originalLevel = root.getLevel();</span>
+<span class="fc" id="L316">		originalRootHandlers = root.getHandlers();</span>
 
-<span class="fc bfc" id="L316" title="All 2 branches covered.">		for (var rootHandler : originalRootHandlers)</span>
-<span class="fc" id="L317">			root.removeHandler(rootHandler);</span>
+<span class="fc bfc" id="L318" title="All 2 branches covered.">		for (var rootHandler : originalRootHandlers)</span>
+<span class="fc" id="L319">			root.removeHandler(rootHandler);</span>
 
-<span class="fc" id="L319">		testHandler = new StaticLogHandler();</span>
-<span class="fc" id="L320">		testHandler.setLevel(Level.ALL);</span>
-<span class="fc" id="L321">		root.addHandler(testHandler);</span>
-<span class="fc" id="L322">		root.setLevel(Level.ALL);</span>
-<span class="fc" id="L323">	}</span>
+<span class="fc" id="L321">		testHandler = new StaticLogHandler();</span>
+<span class="fc" id="L322">		testHandler.setLevel(Level.ALL);</span>
+<span class="fc" id="L323">		root.addHandler(testHandler);</span>
+<span class="fc" id="L324">		root.setLevel(Level.ALL);</span>
+<span class="fc" id="L325">	}</span>
 
 	/**
 	 * Test start hook.
@@ -328,8 +330,8 @@ public final class IuTestLogger {
 	 * @param name test name
 	 */
 	static void startTest(String name) {
-<span class="fc" id="L331">		testHandler.startTest(name);</span>
-<span class="fc" id="L332">	}</span>
+<span class="fc" id="L333">		testHandler.startTest(name);</span>
+<span class="fc" id="L334">	}</span>
 
 	/**
 	 * Test finish hook.
@@ -338,25 +340,25 @@ public final class IuTestLogger {
 	 */
 	static void finishTest(String name) {
 		try {
-<span class="fc" id="L341">			testHandler.finishTest(name);</span>
+<span class="fc" id="L343">			testHandler.finishTest(name);</span>
 		} finally {
-<span class="fc" id="L343">			propertyDefinedPlatformLoggers = null;</span>
+<span class="fc" id="L345">			propertyDefinedPlatformLoggers = null;</span>
 		}
-<span class="fc" id="L345">	}</span>
+<span class="fc" id="L347">	}</span>
 
 	/**
 	 * Test destroy hook.
 	 */
 	static void destroy() {
-<span class="fc" id="L351">		testHandler.flush();</span>
-<span class="fc" id="L352">		testHandler.close();</span>
-<span class="fc" id="L353">		root.removeHandler(testHandler);</span>
+<span class="fc" id="L353">		testHandler.flush();</span>
+<span class="fc" id="L354">		testHandler.close();</span>
+<span class="fc" id="L355">		root.removeHandler(testHandler);</span>
 
-<span class="fc bfc" id="L355" title="All 2 branches covered.">		for (var handler : originalRootHandlers)</span>
-<span class="fc" id="L356">			root.addHandler(handler);</span>
+<span class="fc bfc" id="L357" title="All 2 branches covered.">		for (var handler : originalRootHandlers)</span>
+<span class="fc" id="L358">			root.addHandler(handler);</span>
 
-<span class="fc" id="L358">		root.setLevel(originalLevel);</span>
-<span class="fc" id="L359">	}</span>
+<span class="fc" id="L360">		root.setLevel(originalLevel);</span>
+<span class="fc" id="L361">	}</span>
 
 	/**
 	 * Allows a log message with no thrown exception.
@@ -371,11 +373,11 @@ public final class IuTestLogger {
 	 * @param message    regular expression to match against the message
 	 */
 	public static void allow(String loggerName, Level level, String message) {
-<span class="fc" id="L374">		final var testHandler = StaticLogHandler.DELEGATE.get();</span>
-<span class="fc" id="L375">		assertNotNull(testHandler.activeTest);</span>
-<span class="fc" id="L376">		testHandler.allowedMessages</span>
-<span class="fc" id="L377">				.offer(new LogRecordMatcher&lt;&gt;(loggerName, level, null, null, Pattern.compile(message)));</span>
-<span class="fc" id="L378">	}</span>
+<span class="fc" id="L376">		final var testHandler = StaticLogHandler.DELEGATE.get();</span>
+<span class="fc" id="L377">		assertNotNull(testHandler.activeTest);</span>
+<span class="fc" id="L378">		testHandler.allowedMessages</span>
+<span class="fc" id="L379">				.offer(new LogRecordMatcher&lt;&gt;(loggerName, level, null, null, Pattern.compile(message)));</span>
+<span class="fc" id="L380">	}</span>
 
 	/**
 	 * Allows a log message with a thrown exception.
@@ -391,11 +393,11 @@ public final class IuTestLogger {
 	 * @param thrownClass Expected exception class, must match exactly
 	 */
 	public static void allow(String loggerName, Level level, String message, Class&lt;? extends Throwable&gt; thrownClass) {
-<span class="fc" id="L394">		final var testHandler = StaticLogHandler.DELEGATE.get();</span>
-<span class="fc" id="L395">		assertNotNull(testHandler.activeTest);</span>
-<span class="fc" id="L396">		testHandler.allowedMessages.offer(new LogRecordMatcher&lt;&gt;(loggerName, level, Objects.requireNonNull(thrownClass),</span>
-<span class="fc" id="L397">				null, Pattern.compile(message)));</span>
-<span class="fc" id="L398">	}</span>
+<span class="fc" id="L396">		final var testHandler = StaticLogHandler.DELEGATE.get();</span>
+<span class="fc" id="L397">		assertNotNull(testHandler.activeTest);</span>
+<span class="fc" id="L398">		testHandler.allowedMessages.offer(new LogRecordMatcher&lt;&gt;(loggerName, level, Objects.requireNonNull(thrownClass),</span>
+<span class="fc" id="L399">				null, Pattern.compile(message)));</span>
+<span class="fc" id="L400">	}</span>
 
 	/**
 	 * Allows a log message with a thrown exception.
@@ -415,11 +417,11 @@ public final class IuTestLogger {
 	 */
 	public static &lt;T extends Throwable&gt; void allow(String loggerName, Level level, String message, Class&lt;T&gt; thrownClass,
 			Predicate&lt;T&gt; thrownTest) {
-<span class="fc" id="L418">		final var testHandler = StaticLogHandler.DELEGATE.get();</span>
-<span class="fc" id="L419">		assertNotNull(testHandler.activeTest);</span>
-<span class="fc" id="L420">		testHandler.allowedMessages.offer(new LogRecordMatcher&lt;&gt;(loggerName, level, Objects.requireNonNull(thrownClass),</span>
-<span class="fc" id="L421">				thrownTest, Pattern.compile(message)));</span>
-<span class="fc" id="L422">	}</span>
+<span class="fc" id="L420">		final var testHandler = StaticLogHandler.DELEGATE.get();</span>
+<span class="fc" id="L421">		assertNotNull(testHandler.activeTest);</span>
+<span class="fc" id="L422">		testHandler.allowedMessages.offer(new LogRecordMatcher&lt;&gt;(loggerName, level, Objects.requireNonNull(thrownClass),</span>
+<span class="fc" id="L423">				thrownTest, Pattern.compile(message)));</span>
+<span class="fc" id="L424">	}</span>
 
 	/**
 	 * Expects a log message with no thrown exception.
@@ -429,11 +431,11 @@ public final class IuTestLogger {
 	 * @param message    regular expression to match against the message
 	 */
 	public static void expect(String loggerName, Level level, String message) {
-<span class="fc" id="L432">		final var testHandler = StaticLogHandler.DELEGATE.get();</span>
-<span class="fc" id="L433">		assertNotNull(testHandler.activeTest);</span>
-<span class="fc" id="L434">		testHandler.expectedMessages</span>
-<span class="fc" id="L435">				.offer(new LogRecordMatcher&lt;&gt;(loggerName, level, null, null, Pattern.compile(message)));</span>
-<span class="fc" id="L436">	}</span>
+<span class="fc" id="L434">		final var testHandler = StaticLogHandler.DELEGATE.get();</span>
+<span class="fc" id="L435">		assertNotNull(testHandler.activeTest);</span>
+<span class="fc" id="L436">		testHandler.expectedMessages</span>
+<span class="fc" id="L437">				.offer(new LogRecordMatcher&lt;&gt;(loggerName, level, null, null, Pattern.compile(message)));</span>
+<span class="fc" id="L438">	}</span>
 
 	/**
 	 * Expects a log message with a thrown exception.
@@ -444,11 +446,11 @@ public final class IuTestLogger {
 	 * @param thrownClass Expected exception class, must match exactly
 	 */
 	public static void expect(String loggerName, Level level, String message, Class&lt;? extends Throwable&gt; thrownClass) {
-<span class="fc" id="L447">		final var testHandler = StaticLogHandler.DELEGATE.get();</span>
-<span class="fc" id="L448">		assertNotNull(testHandler.activeTest);</span>
-<span class="fc" id="L449">		testHandler.expectedMessages.offer(new LogRecordMatcher&lt;&gt;(loggerName, level,</span>
-<span class="fc" id="L450">				Objects.requireNonNull(thrownClass), null, Pattern.compile(message)));</span>
-<span class="fc" id="L451">	}</span>
+<span class="fc" id="L449">		final var testHandler = StaticLogHandler.DELEGATE.get();</span>
+<span class="fc" id="L450">		assertNotNull(testHandler.activeTest);</span>
+<span class="fc" id="L451">		testHandler.expectedMessages.offer(new LogRecordMatcher&lt;&gt;(loggerName, level,</span>
+<span class="fc" id="L452">				Objects.requireNonNull(thrownClass), null, Pattern.compile(message)));</span>
+<span class="fc" id="L453">	}</span>
 
 	/**
 	 * Expects a log message with a thrown exception.
@@ -463,11 +465,11 @@ public final class IuTestLogger {
 	 */
 	public static &lt;T extends Throwable&gt; void expect(String loggerName, Level level, String message,
 			Class&lt;T&gt; thrownClass, Predicate&lt;T&gt; thrownTest) {
-<span class="fc" id="L466">		final var testHandler = StaticLogHandler.DELEGATE.get();</span>
-<span class="fc" id="L467">		assertNotNull(testHandler.activeTest);</span>
-<span class="fc" id="L468">		testHandler.expectedMessages.offer(new LogRecordMatcher&lt;&gt;(loggerName, level,</span>
-<span class="fc" id="L469">				Objects.requireNonNull(thrownClass), thrownTest, Pattern.compile(message)));</span>
-<span class="fc" id="L470">	}</span>
+<span class="fc" id="L468">		final var testHandler = StaticLogHandler.DELEGATE.get();</span>
+<span class="fc" id="L469">		assertNotNull(testHandler.activeTest);</span>
+<span class="fc" id="L470">		testHandler.expectedMessages.offer(new LogRecordMatcher&lt;&gt;(loggerName, level,</span>
+<span class="fc" id="L471">				Objects.requireNonNull(thrownClass), thrownTest, Pattern.compile(message)));</span>
+<span class="fc" id="L472">	}</span>
 
 	private IuTestLogger() {
 	}

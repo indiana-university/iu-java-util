@@ -76,8 +76,9 @@ final class ConstructorFacade&lt;C&gt; extends ExecutableBase&lt;C, C, Construct
 		// TODO: *after* observing new instances 
 		// @PostConstruct
 //			declaringType.annotatedMethods(PostConstruct.class).forEach(m -&gt; IuException.unchecked(() -&gt; m.exec()));
+		// Set up @PreDestroy hook
 
-<span class="fc" id="L80">		return instance;</span>
+<span class="fc" id="L81">		return instance;</span>
 	}
 
 }
