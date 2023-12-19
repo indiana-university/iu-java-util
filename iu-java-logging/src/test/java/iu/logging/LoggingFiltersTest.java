@@ -42,12 +42,4 @@ public class LoggingFiltersTest {
 		} catch (ClassNotFoundException e) {
 		}
 	}
-
-	/**
-	 * Test isLocal when the current thread's class loader is null.
-	 */
-	@Test
-	public void testConstructor() {
-		new LoggingFilters();
-	}
 }

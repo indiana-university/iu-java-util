@@ -10,6 +10,7 @@ public class LoggingFilters {
 
 	private static final Map<ClassLoader, Class<?>> LOGGABLE_HANDLERS = new WeakHashMap<>();
 
+	private LoggingFilters() {}
 	/**
 	 * Determine whether a log message is local.
 	 * 
@@ -39,14 +40,14 @@ public class LoggingFilters {
 //		return levelValue != Level.OFF.intValue() && logLevel.intValue() >= levelValue;
 //	}
 
-	/**
-	 * Determine whether a given LogRecord is loggable for the given Handler.
-	 * 
-	 * @param record
-	 * @param handler
-	 * @return boolean Indicate whether the LogRecord is loggable for the given
-	 *         Handler.
-	 */
+//	/**
+//	 * Determine whether a given LogRecord is loggable for the given Handler.
+//	 * 
+//	 * @param record
+//	 * @param handler
+//	 * @return boolean Indicate whether the LogRecord is loggable for the given
+//	 *         Handler.
+//	 */
 //	public static boolean isLoggable(LogRecord record, Handler handler) {
 //		return handler.isLoggable(record);
 //	}

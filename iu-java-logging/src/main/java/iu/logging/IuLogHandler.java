@@ -87,6 +87,10 @@ public class IuLogHandler extends Handler {
 		}, TimeUnit.SECONDS.toMillis(15L), TimeUnit.SECONDS.toMillis(15L));
 	}
 
+	/**
+	 * Purge logs based on the time a given log level's logs should be kept around
+	 * and how many log events are in the queue.
+	 */
 	static void purgeByTime() {
 		int bufferSize = defaultEventBufferSize();
 		long now = System.currentTimeMillis();
@@ -112,22 +116,47 @@ public class IuLogHandler extends Handler {
 		}
 	}
 
+	/**
+	 * The default time to live for SEVERE logs.
+	 * 
+	 * @return long The number of milliseconds to keep SEVERE logs.
+	 */
 	static long severePurgeTime() {
 		return TimeUnit.DAYS.toMillis(3L);
 	}
 
+	/**
+	 * The default time to live for INFO logs.
+	 * 
+	 * @return long The number of milliseconds to keep INFO logs.
+	 */
 	static long infoPurgeTime() {
 		return TimeUnit.DAYS.toMillis(1L);
 	}
 
+	/**
+	 * The default time to live for FINE logs.
+	 * 
+	 * @return long The number of milliseconds to keep FINE logs.
+	 */
 	static long finePurgeTime() {
 		return TimeUnit.HOURS.toMillis(2L);
 	}
 
+	/**
+	 * The default time to live for logs lower than FINE.
+	 * 
+	 * @return long The number of milliseconds to keep log lower than FINE.
+	 */
 	static long defaultPurgeTime() {
 		return TimeUnit.MINUTES.toMillis(30L);
 	}
 
+	/**
+	 * The maximum number of log events to buffer before purging the excess.
+	 * 
+	 * @return int The number of log events to buffer before purging the excess.
+	 */
 	static int defaultEventBufferSize() {
 		return 50;
 	}
@@ -195,10 +224,17 @@ public class IuLogHandler extends Handler {
 		}
 	}
 
+	/**
+	 * Flush. No-op.
+	 */
 	@Override
 	public void flush() {
 	}
 
+	/**
+	 * Handle close activities, including closing the subject and setting the queue
+	 * to null.
+	 */
 	@Override
 	public void close() throws SecurityException {
 		// TODO Auto-generated method stub

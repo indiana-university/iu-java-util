@@ -72,6 +72,11 @@ public final class LogEventFactory {
 //		return null;
 //	}
 
+	/**
+	 * Get the properties provided by the environment.
+	 * 
+	 * @return IuLoggingEnvironment An implementation of IuLoggingEnvironment.
+	 */
 	static IuLoggingEnvironment getEnvironmentProperties() {
 		if (envProps != null)
 			return envProps;
@@ -85,6 +90,11 @@ public final class LogEventFactory {
 		return envProps;
 	}
 
+	/**
+	 * Get the default log Level.
+	 * 
+	 * @return Level The default log level if no other configuration changes it.
+	 */
 	static Level getDefaultLogLevel() {
 		return Level.CONFIG;
 	}
@@ -125,12 +135,12 @@ public final class LogEventFactory {
 //		return rv;
 //	}
 
-	/**
-	 * Get current loggers for a given ClassLoader.
-	 * 
-	 * @param loader ClassLoader for which to retrieve Loggers.
-	 * @return Queue&lt;Logger&gt; for the given ClassLoader.
-	 */
+//	/**
+//	 * Get current loggers for a given ClassLoader.
+//	 * 
+//	 * @param loader ClassLoader for which to retrieve Loggers.
+//	 * @return Queue&lt;Logger&gt; for the given ClassLoader.
+//	 */
 //	public static Queue<Logger> getCurrentLoggers(ClassLoader loader) {
 //		// System.err.println("LoggingEnvironment.getCurrentLoggers(loader)");
 //		Thread current = Thread.currentThread();
@@ -508,8 +518,8 @@ public final class LogEventFactory {
 	/**
 	 * Create a LogEvent from a LogRecord
 	 * 
-	 * @param record
-	 * @return LogEvent Returns a LogEvent containing all the data from the
+	 * @param record The LogRecord from which to create a LogEvent.
+	 * @return LogEvent returns a LogEvent containing all the data from the
 	 *         LogRecord, current context, and environment properties
 	 */
 	public static LogEvent createEvent(LogRecord record) {
