@@ -80,7 +80,7 @@ public final class TemporaryFile {
 	 * @throws IOException from {@link IORunnable}
 	 */
 	public static IORunnable init(IORunnable task) throws IOException {
-		assert PENDING.get() == null;
+		final Queue<Path> tempFilesToRestore = PENDING.get();
 		final Queue<Path> tempFiles = new ArrayDeque<>();
 		final IORunnable teardown = () -> {
 			Throwable e = null;
@@ -98,7 +98,10 @@ public final class TemporaryFile {
 			IuException.suppress(e, teardown);
 			throw IuException.checked(e, IOException.class);
 		} finally {
-			PENDING.remove();
+			if (tempFilesToRestore == null)
+				PENDING.remove();
+			else
+				PENDING.set(tempFilesToRestore);
 		}
 	}
 

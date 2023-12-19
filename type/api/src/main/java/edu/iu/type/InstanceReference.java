@@ -29,18 +29,26 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.type.bundle;
+package edu.iu.type;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.function.Consumer;
 
-import org.junit.jupiter.api.Test;
+/**
+ * Refers to instances of a specific type.
+ * 
+ * @param <T> type
+ */
+public interface InstanceReference<T> extends Consumer<T> {
 
-@SuppressWarnings("javadoc")
-public class TypeBundleIT {
-	
-	@Test
-	public void testModule() {
-		assertEquals("iu.util.type.impl", IuTypeBundle.getModule().getName());
-	}
+	/**
+	 * Clears all references to an instance.
+	 * 
+	 * <p>
+	 * Reverses {@link #accept(Object)}.
+	 * </p>
+	 * 
+	 * @param instance instance
+	 */
+	void clear(T instance);
 
 }

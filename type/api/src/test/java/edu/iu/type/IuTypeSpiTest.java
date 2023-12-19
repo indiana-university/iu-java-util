@@ -31,6 +31,7 @@
  */
 package edu.iu.type;
 
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -45,10 +46,12 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.ServiceLoader;
+import java.util.function.BiConsumer;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import edu.iu.test.IuTest;
 import edu.iu.type.spi.IuTypeSpi;
 import edu.iu.type.spi.TypeImplementation;
 
@@ -65,7 +68,7 @@ public class IuTypeSpiTest {
 		try (var mockServiceLoader = mockStatic(ServiceLoader.class)) {
 			mockServiceLoader.when(() -> ServiceLoader.load(IuTypeSpi.class, IuTypeSpi.class.getClassLoader()))
 					.thenReturn(serviceLoader);
-			Class.forName(TypeImplementation.class.getName());
+			assertSame(iuTypeSpi, TypeImplementation.PROVIDER);
 		}
 	}
 
@@ -76,10 +79,35 @@ public class IuTypeSpiTest {
 	}
 
 	@Test
-	public void testNewComponent() throws IOException {
+	public void testNewIsolatedComponent() throws IOException {
 		var in = mock(InputStream.class);
 		IuComponent.of(in);
-		verify(iuTypeSpi).createComponent(in);
+		verify(iuTypeSpi).createComponent(ModuleLayer.boot(), null, null, in);
+	}
+
+	@Test
+	public void testNewDelegatingComponent() throws IOException {
+		var in = mock(InputStream.class);
+		IuComponent.of(ModuleLayer.boot(), ClassLoader.getSystemClassLoader(), in);
+		verify(iuTypeSpi).createComponent(ModuleLayer.boot(), ClassLoader.getSystemClassLoader(), null, in);
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testNewControlledIsolatedComponent() throws IOException {
+		var in = mock(InputStream.class);
+		var cb = mock(BiConsumer.class);
+		IuComponent.of(cb, in);
+		verify(iuTypeSpi).createComponent(ModuleLayer.boot(), null, cb, in);
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	@Test
+	public void testExtendComponent() throws IOException {
+		var in = mock(InputStream.class);
+		var comp = IuTest.mockWithDefaults(IuComponent.class);
+		comp.extend(in);
+		verify(comp).extend((BiConsumer) null, in);
 	}
 
 	@Test

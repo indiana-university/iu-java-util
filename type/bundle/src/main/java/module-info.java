@@ -36,7 +36,7 @@
  * @provides edu.iu.type.spi.IuTypeSpi via bundled implementation bootstrap
  */
 module iu.util.type.bundle {
-	exports edu.iu.type.bundle;
+	opens edu.iu.type.bundle;
 
 	requires iu.util;
 	requires iu.util.type;

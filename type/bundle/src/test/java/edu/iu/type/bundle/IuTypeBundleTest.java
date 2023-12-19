@@ -29,22 +29,37 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Type introspection utilities implementation module.
- *
- * @provides edu.iu.type.spi.IuTypeSpi Implementation service provider.
- */
-module iu.util.type.impl {
-	exports iu.type;
-	opens iu.type to iu.util;
+package edu.iu.type.bundle;
+
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+
+import org.junit.jupiter.api.Test;
+
+import edu.iu.type.IuType;
+import iu.type.bundle.TypeBundleSpi;
+
+@SuppressWarnings("javadoc")
+public class IuTypeBundleTest {
+
+	@Test
+	public void testGetModule() {
+		final var mockModule = mock(Module.class);
+		try (final var mockType = mockStatic(IuType.class);
+				final var mockTypeBundleSpi = mockStatic(TypeBundleSpi.class)) {
+			mockTypeBundleSpi.when(() -> TypeBundleSpi.getModule()).thenReturn(mockModule);
+			assertSame(mockModule, IuTypeBundle.getModule());
+			mockType.verify(() -> IuType.of(Object.class));
+		}
+	}
+
+	@Test
+	public void testShutdown() throws Exception {
+		try (final var mockTypeBundleSpi = mockStatic(TypeBundleSpi.class)) {
+			IuTypeBundle.shutdown();
+			mockTypeBundleSpi.verify(() -> TypeBundleSpi.shutdown());
+		}
+	}
 	
-	requires iu.util;
-	requires transitive iu.util.type;
-	requires iu.util.type.base;
-	
-	requires java.desktop;
-	requires jakarta.annotation;
-	requires jakarta.interceptor;
-	
-	provides edu.iu.type.spi.IuTypeSpi with iu.type.TypeSpi;
 }

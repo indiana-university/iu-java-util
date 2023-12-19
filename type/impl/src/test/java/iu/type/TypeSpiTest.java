@@ -31,6 +31,7 @@
  */
 package iu.type;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
@@ -57,6 +58,11 @@ public class TypeSpiTest extends IuTypeTestCase {
 	}
 
 	@Test
+	public void testImplModuleIsNamed() {
+		assertEquals("iu.util.type.impl", typeSpi.getClass().getModule().getName());
+	}
+
+	@Test
 	public void testTypeIsNotImplemented() {
 		try (var mockTypeFactory = mockStatic(TypeFactory.class)) {
 			typeSpi.resolveType(getClass());
@@ -68,8 +74,8 @@ public class TypeSpiTest extends IuTypeTestCase {
 	public void testComponentIsImplemented() throws IOException {
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
 			var in = mock(InputStream.class);
-			typeSpi.createComponent(in);
-			mockComponentFactory.verify(() -> ComponentFactory.createComponent(null, in));
+			typeSpi.createComponent(null, null, null, in);
+			mockComponentFactory.verify(() -> ComponentFactory.createComponent(null, null, null, null, in));
 		}
 	}
 }

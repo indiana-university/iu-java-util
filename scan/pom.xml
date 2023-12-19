@@ -41,7 +41,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<version>7.0.1-SNAPSHOT</version>
 	</parent>
 
-	<name>IU Java Utilities API Reference</name>
+	<name>IU Java Utilities API Static Scanning Bundle</name>
 	<artifactId>iu-java-scan</artifactId>
 	<packaging>pom</packaging>
 

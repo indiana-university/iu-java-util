@@ -64,18 +64,13 @@ final class ConstructorFacade<C> extends ExecutableBase<C, C, Constructor<C>> im
 	@Override
 	public C exec(Object... arguments) throws Exception {
 		if (hasAroundConstruct())
+			// support @AroundConstruct
 			throw new UnsupportedOperationException("@AroundConstruct not supported in this version");
-
-		// @AroundConstruct
 
 		final var instance = annotatedElement.getDeclaringClass()
 				.cast(IuException.checkedInvocation(() -> annotatedElement.newInstance(arguments)));
 
-		declaringType.template.observeNewInstance(instance);
-		
-		// TODO: *after* observing new instances 
-		// @PostConstruct
-//			declaringType.annotatedMethods(PostConstruct.class).forEach(m -> IuException.unchecked(() -> m.exec()));
+		declaringType.observe(instance);
 
 		return instance;
 	}

@@ -29,22 +29,51 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package edu.iu.type.loader;
+
+import java.lang.ModuleLayer.Controller;
+import java.lang.module.ModuleDescriptor;
+
 /**
- * Type introspection utilities implementation module.
- *
- * @provides edu.iu.type.spi.IuTypeSpi Implementation service provider.
+ * Provides references for setting up {@link Module} access rules after creating
+ * the a <strong>component's</strong> {@link ModuleLayer}, before any of its are
+ * loaded.
  */
-module iu.util.type.impl {
-	exports iu.type;
-	opens iu.type to iu.util;
-	
-	requires iu.util;
-	requires transitive iu.util.type;
-	requires iu.util.type.base;
-	
-	requires java.desktop;
-	requires jakarta.annotation;
-	requires jakarta.interceptor;
-	
-	provides edu.iu.type.spi.IuTypeSpi with iu.type.TypeSpi;
+public interface IuComponentController {
+
+	/**
+	 * Gets a reference to the loaded {@code iu.util.type} module.
+	 * 
+	 * @return {@link Module}
+	 */
+	Module getTypeModule();
+
+	/**
+	 * Gets a reference to the loaded {@code iu.util.type.impl} module.
+	 * 
+	 * @return {@link Module}
+	 */
+	Module getTypeImplementationModule();
+
+	/**
+	 * Gets a reference to the module described by the <strong>component
+	 * archive's</strong> {@link ModuleDescriptor module descriptor}.
+	 * 
+	 * @return {@link Module}
+	 */
+	Module getComponentModule();
+
+	/**
+	 * Gets a reference to the {@link Controller} for the module layer created in
+	 * conjunction with this loader.
+	 * 
+	 * <p>
+	 * API Note from {@link Controller}: <em>Care should be taken with Controller
+	 * objects, they should never be shared with untrusted code.</em>
+	 * </p>
+	 * 
+	 * @return {@link Controller}
+	 */
+	Controller getController();
+
 }

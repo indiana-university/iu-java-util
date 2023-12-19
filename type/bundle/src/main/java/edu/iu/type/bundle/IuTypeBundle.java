@@ -31,25 +31,42 @@
  */
 package edu.iu.type.bundle;
 
-import edu.iu.type.spi.TypeImplementation;
+import edu.iu.type.IuType;
 import iu.type.bundle.TypeBundleSpi;
 
 /**
- * Provides access to runtime meta-information related to the bundled IU Type
- * Introspection Implementation Module.
+ * Provides access to runtime metadata related to the bundled Type Introspection
+ * module.
  */
 public final class IuTypeBundle {
 
 	/**
-	 * Gets a reference to the loaded {@code iu.util.type.impl} module.
+	 * Gets a reference to the Type Introspection implementation module.
 	 * 
-	 * @return loaded {@code iu.util.type.impl} module
+	 * @return {@link Module}
 	 */
 	public static Module getModule() {
-		return ((TypeBundleSpi) TypeImplementation.PROVIDER).getModule();
+		IuType.of(Object.class); // verifies implementation bootstrap
+		return TypeBundleSpi.getModule();
+	}
+
+	/**
+	 * Shuts down the bundled Type Introspection module.
+	 * 
+	 * <p>
+	 * This method <em>should</em> be called after releasing all application
+	 * resources related to loaded components to close all {@link ClassLoader}
+	 * resources and clean up temp files. If any references are left uncleared,
+	 * shutdown may fail.
+	 * </p>
+	 * 
+	 * @throws Exception if an error occurs shutting down the module
+	 */
+	public static void shutdown() throws Exception {
+		TypeBundleSpi.shutdown();
 	}
 
 	private IuTypeBundle() {
 	}
-	
+
 }

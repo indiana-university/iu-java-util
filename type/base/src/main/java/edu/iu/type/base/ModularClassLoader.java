@@ -53,6 +53,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
 import edu.iu.IuException;
+import edu.iu.IuObject;
 import edu.iu.IuStream;
 
 /**
@@ -60,32 +61,12 @@ import edu.iu.IuStream;
  */
 public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 
-	/**
-	 * Repeated from IuType
-	 * 
-	 * @param name class name
-	 * @return true if the named class is part of the delivered JDK or JEE platform;
-	 *         else false
-	 */
-	static boolean isPlatformType(String name) {
-		return name.startsWith("jakarta.") // JEE and related
-				// JDK packages:
-				|| name.startsWith("com.sun.") //
-				|| name.startsWith("java.") //
-				|| name.startsWith("javax.") //
-				|| name.startsWith("jdk.") //
-				|| name.startsWith("netscape.javascript.") //
-				|| name.startsWith("org.ietf.jgss.") //
-				|| name.startsWith("org.w3c.dom.") //
-				|| name.startsWith("org.xml.sax.");
-	}
-
 	private final boolean web;
 	private final CloseableModuleFinder moduleFinder;
 	private final ModuleLayer moduleLayer;
 	private final Map<String, byte[]> classData;
 	private final Map<String, List<URL>> resourceUrls;
-
+	
 	/**
 	 * Constructor.
 	 * 
@@ -94,16 +75,17 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 	 *                           classloading semantics</a>; false for normal parent
 	 *                           delegation semantics
 	 * @param path               class/module path
+	 * @param parentLayer        parent module layer
 	 * @param parent             parent class loader
-	 * @param controllerConsumer receives a reference to the {@link Controller} for
+	 * @param controllerCallback receives a reference to the {@link Controller} for
 	 *                           the module layer created in conjunction with this
 	 *                           loader. API Note from {@link Controller}: <em>Care
 	 *                           should be taken with Controller objects, they
 	 *                           should never be shared with untrusted code.</em>
 	 * @throws IOException if an error occurs reading a class path entry
 	 */
-	public ModularClassLoader(boolean web, Iterable<Path> path, ClassLoader parent,
-			Consumer<Controller> controllerConsumer) throws IOException {
+	public ModularClassLoader(boolean web, Iterable<Path> path, ModuleLayer parentLayer, ClassLoader parent,
+			Consumer<Controller> controllerCallback) throws IOException {
 		super(parent);
 		registerAsParallelCapable();
 
@@ -160,29 +142,32 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 				() -> IuException.initialize(new CloseableModuleFinder(modulepath.toArray(new Path[modulepath.size()])),
 						moduleFinder -> {
 							box.moduleFinder = moduleFinder;
+
 							final Collection<String> moduleNames = new ArrayDeque<>();
 							for (final var moduleRef : moduleFinder.findAll())
 								moduleNames.add(moduleRef.descriptor().name());
 
-							final ModuleLayer parentModuleLayer;
-							if (parent instanceof ModularClassLoader modularParent)
-								parentModuleLayer = modularParent.moduleLayer;
-							else
-								parentModuleLayer = ModuleLayer.boot();
-
 							final var configuration = Configuration.resolveAndBind( //
-									moduleFinder, List.of(parentModuleLayer.configuration()), ModuleFinder.of(),
-									moduleNames);
+									moduleFinder, List.of(parentLayer.configuration()), ModuleFinder.of(), moduleNames);
 
-							final var controller = ModuleLayer.defineModules(configuration, List.of(parentModuleLayer),
+							final var controller = ModuleLayer.defineModules(configuration, List.of(parentLayer),
 									a -> this);
 							box.moduleLayer = controller.layer();
-							if (controllerConsumer != null)
-								controllerConsumer.accept(controller);
+							if (controllerCallback != null)
+								controllerCallback.accept(controller);
 							return null;
 						}));
 		this.moduleFinder = box.moduleFinder;
 		this.moduleLayer = box.moduleLayer;
+	}
+
+	/**
+	 * Gets the module layer associated with this class loader.
+	 * 
+	 * @return {@link ModuleLayer}
+	 */
+	public ModuleLayer getModuleLayer() {
+		return moduleLayer;
 	}
 
 	@Override
@@ -192,7 +177,7 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 
 	@Override
 	protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-		if (!web || isPlatformType(name))
+		if (!web || IuObject.isPlatformName(name))
 			return super.loadClass(name, resolve);
 
 		synchronized (getClassLoadingLock(name)) {

@@ -29,22 +29,30 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Type introspection utilities implementation module.
- *
- * @provides edu.iu.type.spi.IuTypeSpi Implementation service provider.
- */
-module iu.util.type.impl {
-	exports iu.type;
-	opens iu.type to iu.util;
-	
-	requires iu.util;
-	requires transitive iu.util.type;
-	requires iu.util.type.base;
-	
-	requires java.desktop;
-	requires jakarta.annotation;
-	requires jakarta.interceptor;
-	
-	provides edu.iu.type.spi.IuTypeSpi with iu.type.TypeSpi;
+package edu.iu.type.testresources;
+
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+
+@SuppressWarnings("javadoc")
+public class HasPostConstructAndPreDestroy {
+
+	private boolean initialized;
+
+	public boolean isInitialized() {
+		return initialized;
+	}
+
+	@PostConstruct
+	private void init() {
+		initialized = true;
+	}
+
+	@PreDestroy
+	private void destroy() {
+		initialized = false;
+	}
+
+	private HasPostConstructAndPreDestroy() {
+	}
 }

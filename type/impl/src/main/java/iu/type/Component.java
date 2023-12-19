@@ -34,6 +34,7 @@ package iu.type;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ModuleLayer.Controller;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Modifier;
 import java.nio.file.Path;
@@ -46,11 +47,13 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.iu.IuException;
 import edu.iu.IuIterable;
+import edu.iu.IuObject;
 import edu.iu.UnsafeRunnable;
 import edu.iu.type.IuAttribute;
 import edu.iu.type.IuComponent;
@@ -59,6 +62,7 @@ import edu.iu.type.IuProperty;
 import edu.iu.type.IuResource;
 import edu.iu.type.IuResourceReference;
 import edu.iu.type.IuType;
+import edu.iu.type.base.ModularClassLoader;
 import jakarta.annotation.Resource;
 
 /**
@@ -71,21 +75,20 @@ class Component implements IuComponent {
 	private static final Logger LOG = Logger.getLogger(Component.class.getName());
 	private static final Module TYPE_MODULE = Component.class.getModule();
 
-	private static void indexClass(String className, ClassLoader classLoader, ComponentVersion version, Kind kind,
-			Properties properties, Set<IuType<?, ?>> interfaces,
-			Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes,
+	private static void indexClass(String className, ClassLoader classLoader, Kind kind, Properties properties,
+			Set<IuType<?, ?>> interfaces, Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes,
 			Map<Class<?>, List<IuType<?, ?>>> annotatedTypes, List<ComponentResource<?>> resources,
 			List<ComponentResourceReference<?, ?>> resourceReferences) {
 		final Class<?> loadedClass;
 		try {
 			loadedClass = classLoader.loadClass(className);
 		} catch (ClassNotFoundException | Error e) {
-			LOG.log(Level.WARNING, e, () -> "Invalid class " + className + " in component " + version);
+			LOG.log(Level.WARNING, e, () -> "Invalid class " + className + " in component");
 			return;
 		}
 
 		var module = loadedClass.getModule();
-		if (!IuType.isPlatformType(loadedClass.getName()) //
+		if (!IuObject.isPlatformName(loadedClass.getName()) //
 				&& module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) {
 			final var type = TypeFactory.resolveRawClass(loadedClass);
 
@@ -173,8 +176,13 @@ class Component implements IuComponent {
 
 		this.classLoader = classLoader;
 
-		final var version = ComponentVersion.of(pathEntry);
-		this.versions = Set.of(version);
+		final Set<ComponentVersion> versions = new LinkedHashSet<>();
+		try {
+			versions.add(ComponentVersion.of(pathEntry));
+		} catch (IllegalArgumentException e) {
+			// not required
+		}
+		this.versions = Collections.unmodifiableSet(versions);
 
 		Set<String> resourceNames = PathEntryScanner.findResources(pathEntry);
 		this.kind = resourceNames.contains("module-info.class") ? Kind.MODULAR_ENTRY : Kind.LEGACY_ENTRY;
@@ -197,7 +205,7 @@ class Component implements IuComponent {
 						&& !resourceName.endsWith("-info.class") //
 						&& resourceName.indexOf('$') == -1)
 					indexClass(resourceName.substring(0, resourceName.length() - 6).replace('/', '.'), classLoader,
-							version, kind, properties, interfaces, annotatedAttributes, annotatedTypes, resources,
+							kind, properties, interfaces, annotatedAttributes, annotatedTypes, resources,
 							resourceReferences);
 		}));
 
@@ -221,10 +229,10 @@ class Component implements IuComponent {
 	 * @param classLoader component context loader
 	 * @param archives    archives dedicated to this component, to close and delete
 	 *                    when the component is closed
-	 * @param onClose     thunk for tearing down resources after closing the component
+	 * @param onClose     thunk for tearing down resources after closing the
+	 *                    component
 	 */
-	Component(Component parent, ClassLoader classLoader, Queue<ComponentArchive> archives,
-			UnsafeRunnable onClose) {
+	Component(Component parent, ClassLoader classLoader, Queue<ComponentArchive> archives, UnsafeRunnable onClose) {
 		Set<IuType<?, ?>> interfaces = new LinkedHashSet<>();
 		Map<Class<?>, List<IuType<?, ?>>> annotatedTypes = new LinkedHashMap<>();
 		Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes = new LinkedHashMap<>();
@@ -262,8 +270,8 @@ class Component implements IuComponent {
 								"Component must not include a web component as a dependency");
 
 				for (var className : archive.nonEnclosedTypeNames())
-					indexClass(className, classLoader, archive.version(), archive.kind(), archive.properties(),
-							interfaces, annotatedAttributes, annotatedTypes, resources, resourceReferences);
+					indexClass(className, classLoader, archive.kind(), archive.properties(), interfaces,
+							annotatedAttributes, annotatedTypes, resources, resourceReferences);
 			}
 		}));
 
@@ -328,8 +336,16 @@ class Component implements IuComponent {
 	@Override
 	public Component extend(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
 			throws IOException, IllegalArgumentException {
+		return extend(null, componentArchiveSource, providedDependencyArchiveSources);
+	}
+
+	@Override
+	public Component extend(BiConsumer<Module, Controller> controllerCallback, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException {
 		checkClosed();
-		return ComponentFactory.createComponent(this, componentArchiveSource, providedDependencyArchiveSources);
+		return ComponentFactory.createComponent(this,
+				(classLoader instanceof ModularClassLoader m) ? m.getModuleLayer() : null, classLoader,
+				controllerCallback, componentArchiveSource, providedDependencyArchiveSources);
 	}
 
 	@Override
@@ -410,23 +426,6 @@ class Component implements IuComponent {
 		closed = true;
 		if (onClose != null)
 			IuException.checked(onClose::run);
-		
-//		if (closeableResources != null)
-//			try {
-//				closeableResources.close();
-//			} catch (Throwable e) {
-//				LOG.log(Level.WARNING, e, () -> "Close component resources failed " + versions);
-//			}
-//
-//		if (archives != null)
-//			while (!archives.isEmpty()) {
-//				var archive = archives.poll();
-//				try {
-//					Files.delete(archive.path());
-//				} catch (Throwable e) {
-//					LOG.log(Level.WARNING, e, () -> "Failed to clean up archive " + archive.path() + "; " + versions);
-//				}
-//			}
 	}
 
 	@Override

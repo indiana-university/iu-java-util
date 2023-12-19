@@ -62,20 +62,6 @@ public class TypeApiTest {
 	}
 
 	@Test
-	public void testPlatformType() {
-		assertFalse(IuType.isPlatformType(""));
-		assertTrue(IuType.isPlatformType("com.sun."));
-		assertTrue(IuType.isPlatformType("java."));
-		assertTrue(IuType.isPlatformType("javax."));
-		assertTrue(IuType.isPlatformType("jakarta."));
-		assertTrue(IuType.isPlatformType("jdk."));
-		assertTrue(IuType.isPlatformType("netscape.javascript."));
-		assertTrue(IuType.isPlatformType("org.ietf.jgss."));
-		assertTrue(IuType.isPlatformType("org.w3c.dom."));
-		assertTrue(IuType.isPlatformType("org.xml.sax."));
-	}
-
-	@Test
 	public void testReferenceKind() {
 		assertSame(IuType.class, IuReferenceKind.ERASURE.referrerType());
 		assertFalse(IuReferenceKind.ERASURE.named());

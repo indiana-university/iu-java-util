@@ -46,11 +46,15 @@ import java.util.Queue;
 import java.util.function.Consumer;
 
 import edu.iu.IuException;
+import edu.iu.IuObject;
 import edu.iu.IuVisitor;
+import edu.iu.type.InstanceReference;
 import edu.iu.type.IuConstructor;
 import edu.iu.type.IuReferenceKind;
 import edu.iu.type.IuType;
 import edu.iu.type.IuTypeReference;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 
 /**
  * Represents the internal structure of a {@link TypeFacade}.
@@ -151,7 +155,7 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 	private final ParameterizedElement parameterizedElement = new ParameterizedElement();
 
 	// Instance management
-	private final IuVisitor<Consumer<T>> instanceListeners = new IuVisitor<>();
+	private final IuVisitor<InstanceReference<T>> instanceReferences = new IuVisitor<>();
 
 	private TypeTemplate(Class<T> annotatedElement, Consumer<TypeTemplate<?, ?>> preInitHook, Type type,
 			TypeTemplate<D, T> erasedType) {
@@ -198,7 +202,7 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 		final var packageName = annotatedElement.getPackageName();
 		final var targetModule = annotatedElement.getModule();
 		final var typeImplModule = getClass().getModule();
-		return IuType.isPlatformType(name()) //
+		return IuObject.isPlatformName(name()) //
 				|| targetModule == typeImplModule //
 				|| !targetModule.isOpen(packageName, typeImplModule);
 	}
@@ -422,29 +426,41 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 			declaringType.template.postInit(() -> doSealHierarchy(hierarchy));
 	}
 
-	/**
-	 * Subscribes a new instance listener.
-	 * 
-	 * @param instanceListener will be provided a reference to each new instance
-	 *                         created via {@link IuConstructor#exec(Object...)},
-	 *                         directly before return
-	 */
-	void observeNewInstances(Consumer<T> instanceListener) {
-		instanceListeners.accept(instanceListener);
+	@Override
+	public Runnable subscribe(InstanceReference<T> instanceReference) {
+		instanceReferences.accept(instanceReference);
+		return () -> instanceReferences.clear(instanceReference);
 	}
 
-	/**
-	 * Observes a new instance.
-	 * 
-	 * @param instance newly created instance of the decorated type, directly before
-	 *                 return from {@link IuConstructor#exec(Object...)},
-	 */
-	void observeNewInstance(T instance) {
-		instanceListeners.visit(listener -> {
+	@Override
+	public void observe(T instance) {
+		instanceReferences.visit(listener -> {
 			if (listener != null)
 				listener.accept(instance);
 			return null;
 		});
+
+		for (final var method : annotatedMethods(PostConstruct.class))
+			IuException.unchecked(() -> method.exec(instance));
+	}
+
+	@Override
+	public void destroy(T instance) {
+		Throwable e = null;
+		for (final var method : annotatedMethods(PreDestroy.class))
+			e = IuException.suppress(e, () -> IuException.checkedInvocation(() -> {
+				method.exec(instance);
+				return null;
+			}));
+
+		e = IuException.suppress(e, () -> instanceReferences.visit(listener -> {
+			if (listener != null)
+				listener.clear(instance);
+			return null;
+		}));
+
+		if (e != null)
+			throw IuException.unchecked(e);
 	}
 
 	@Override

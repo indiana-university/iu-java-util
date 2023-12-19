@@ -33,6 +33,7 @@ package edu.iu.type;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ModuleLayer.Controller;
 import java.lang.annotation.Annotation;
 import java.lang.module.ModuleDescriptor;
 import java.lang.reflect.AccessibleObject;
@@ -41,6 +42,7 @@ import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.function.BiConsumer;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
@@ -93,13 +95,6 @@ import edu.iu.type.spi.TypeImplementation;
  * module-info.class} in its <strong>archive</strong> <em>must</em> meet all
  * requirements of the <a href="https://openjdk.org/projects/jigsaw/">Java
  * Module System</a>.
- * </p>
- * 
- * <p>
- * A <strong>component archive</strong> that does not include
- * {@link ModuleDescriptor module-info.class} <em>may</em> still be treated as a
- * <strong>modular component</strong> as long as it doesn't have any
- * <strong>legacy dependencies</strong>.
  * </p>
  * 
  * <h2>Legacy Components</h2>
@@ -477,7 +472,7 @@ public interface IuComponent extends AutoCloseable {
 
 	/**
 	 * Validates a <strong>component archive</strong>, all <strong>dependency
-	 * archives</strong>, and loads a <strong>component</strong>.
+	 * archives</strong>, and loads an <strong>isolated component</strong>.
 	 * 
 	 * @param componentArchiveSource           {@link InputStream} for reading the
 	 *                                         <strong>component archive</strong>.
@@ -494,7 +489,110 @@ public interface IuComponent extends AutoCloseable {
 	 */
 	static IuComponent of(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
 			throws IOException, IllegalArgumentException {
-		return TypeImplementation.PROVIDER.createComponent(componentArchiveSource, providedDependencyArchiveSources);
+		return of(ModuleLayer.boot(), null, null, componentArchiveSource, providedDependencyArchiveSources);
+	}
+
+	/**
+	 * Validates a <strong>component archive</strong>, all <strong>dependency
+	 * archives</strong>, and loads a <strong>component</strong>.
+	 * 
+	 * @param parentLayer                      {@link ModuleLayer} to extend
+	 * @param parent                           {@link ClassLoader} for parent
+	 *                                         delegation; may be null to
+	 *                                         <strong>isolate</strong> the
+	 *                                         <strong>component</strong> by
+	 *                                         suppressing delegation to
+	 *                                         non-platform classes
+	 * @param componentArchiveSource           {@link InputStream} for reading the
+	 *                                         <strong>component archive</strong>.
+	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
+	 *                                         <strong>provided dependency
+	 *                                         archives</strong>.
+	 * @return component
+	 * @throws IOException              If the <strong>component archive</strong> or
+	 *                                  any <strong>dependency archives</strong> are
+	 *                                  unreadable.
+	 * @throws IllegalArgumentException If the <strong>component archive</strong> or
+	 *                                  any <strong>dependency archives</strong>
+	 *                                  invalid.
+	 */
+	static IuComponent of(ModuleLayer parentLayer, ClassLoader parent, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException {
+		return of(parentLayer, parent, null, componentArchiveSource, providedDependencyArchiveSources);
+	}
+
+	/**
+	 * Validates a <strong>component archive</strong>, all <strong>dependency
+	 * archives</strong>, and loads an <strong>isolated component</strong>.
+	 * 
+	 * @param controllerCallback               receives a reference to
+	 *                                         {@link Module} defined by the
+	 *                                         <strong>component archive</strong>
+	 *                                         and the {@link Controller} for the
+	 *                                         module layer created in conjunction
+	 *                                         with this loader. API Note from
+	 *                                         {@link Controller}: <em>Care should
+	 *                                         be taken with Controller objects,
+	 *                                         they should never be shared with
+	 *                                         untrusted code.</em>
+	 * @param componentArchiveSource           {@link InputStream} for reading the
+	 *                                         <strong>component archive</strong>.
+	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
+	 *                                         <strong>provided dependency
+	 *                                         archives</strong>.
+	 * @return component
+	 * @throws IOException              If the <strong>component archive</strong> or
+	 *                                  any <strong>dependency archives</strong> are
+	 *                                  unreadable.
+	 * @throws IllegalArgumentException If the <strong>component archive</strong> or
+	 *                                  any <strong>dependency archives</strong>
+	 *                                  invalid.
+	 */
+	static IuComponent of(BiConsumer<Module, Controller> controllerCallback, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException {
+		return of(ModuleLayer.boot(), null, controllerCallback, componentArchiveSource,
+				providedDependencyArchiveSources);
+	}
+
+	/**
+	 * Validates a <strong>component archive</strong>, all <strong>dependency
+	 * archives</strong>, and loads a <strong>component</strong>.
+	 * 
+	 * @param parentLayer                      {@link ModuleLayer} to extend
+	 * @param parent                           {@link ClassLoader} for parent
+	 *                                         delegation; may be null to
+	 *                                         <strong>isolate</strong> the
+	 *                                         <strong>component</strong> by
+	 *                                         suppressing delegation to
+	 *                                         non-platform classes
+	 * @param controllerCallback               receives a reference to
+	 *                                         {@link Module} defined by the
+	 *                                         <strong>component archive</strong>
+	 *                                         and the {@link Controller} for the
+	 *                                         module layer created in conjunction
+	 *                                         with this loader. API Note from
+	 *                                         {@link Controller}: <em>Care should
+	 *                                         be taken with Controller objects,
+	 *                                         they should never be shared with
+	 *                                         untrusted code.</em>
+	 * @param componentArchiveSource           {@link InputStream} for reading the
+	 *                                         <strong>component archive</strong>.
+	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
+	 *                                         <strong>provided dependency
+	 *                                         archives</strong>.
+	 * @return component
+	 * @throws IOException              If the <strong>component archive</strong> or
+	 *                                  any <strong>dependency archives</strong> are
+	 *                                  unreadable.
+	 * @throws IllegalArgumentException If the <strong>component archive</strong> or
+	 *                                  any <strong>dependency archives</strong>
+	 *                                  invalid.
+	 */
+	static IuComponent of(ModuleLayer parentLayer, ClassLoader parent,
+			BiConsumer<Module, Controller> controllerCallback, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException {
+		return TypeImplementation.PROVIDER.createComponent(parentLayer, parent, controllerCallback,
+				componentArchiveSource, providedDependencyArchiveSources);
 	}
 
 	/**
@@ -590,8 +688,41 @@ public interface IuComponent extends AutoCloseable {
 	 *                                  any <strong>dependency archives</strong>
 	 *                                  invalid.
 	 */
-	IuComponent extend(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
-			throws IOException, IllegalArgumentException;
+	default IuComponent extend(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
+			throws IOException, IllegalArgumentException {
+		return extend(null, componentArchiveSource, providedDependencyArchiveSources);
+	}
+
+	/**
+	 * Validates <strong>component archives</strong>, all <strong>dependency
+	 * archives</strong>, and loads a <strong>component</strong> that
+	 * <strong>extends</strong> this <strong>component</strong>.
+	 * 
+	 * @param controllerCallback               receives a reference to
+	 *                                         {@link Module} defined by the
+	 *                                         <strong>component archive</strong>
+	 *                                         and the {@link Controller} for the
+	 *                                         module layer created in conjunction
+	 *                                         with this loader. API Note from
+	 *                                         {@link Controller}: <em>Care should
+	 *                                         be taken with Controller objects,
+	 *                                         they should never be shared with
+	 *                                         untrusted code.</em>
+	 * @param componentArchiveSource           {@link InputStream} for reading the
+	 *                                         <strong>component archive</strong>.
+	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
+	 *                                         <strong>provided dependency
+	 *                                         archive</strong>.
+	 * @return component
+	 * @throws IOException              If the <strong>component archive</strong> or
+	 *                                  any <strong>dependency archives</strong> are
+	 *                                  unreadable.
+	 * @throws IllegalArgumentException If the <strong>component archive</strong> or
+	 *                                  any <strong>dependency archives</strong>
+	 *                                  invalid.
+	 */
+	IuComponent extend(BiConsumer<Module, Controller> controllerCallback, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException;
 
 	/**
 	 * Gets the kind of component.

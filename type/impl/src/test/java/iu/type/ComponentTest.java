@@ -135,7 +135,7 @@ public class ComponentTest extends IuTypeTestCase {
 
 		Queue<Path> path = new ArrayDeque<>();
 		archives.forEach(a -> path.offer(a.path()));
-		final var loader = new ModularClassLoader(false, path, null, controller -> {
+		final var loader = new ModularClassLoader(false, path, ModuleLayer.boot(), null, controller -> {
 			controller.addOpens(controller.layer().findModule("jakarta.json").get(), "jakarta.json",
 					getClass().getModule());
 		});
@@ -207,7 +207,8 @@ public class ComponentTest extends IuTypeTestCase {
 
 	@Test
 	public void testParentAccessor() throws Exception {
-		try (var parent = ComponentFactory.createComponent(null, TestArchives.getComponentArchive("testruntime"),
+		try (var parent = ComponentFactory.createComponent(null, ModuleLayer.boot(), null, null,
+				TestArchives.getComponentArchive("testruntime"),
 				TestArchives.getProvidedDependencyArchives("testruntime"));
 				var component = parent.extend(TestArchives.getComponentArchive("testweb"),
 						TestArchives.getProvidedDependencyArchives("testweb"))) {

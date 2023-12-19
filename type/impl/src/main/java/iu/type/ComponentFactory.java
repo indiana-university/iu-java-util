@@ -33,20 +33,23 @@ package iu.type;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ModuleLayer.Controller;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.function.BiConsumer;
 
 import edu.iu.IuException;
+import edu.iu.type.base.CloseableModuleFinder;
 import edu.iu.type.base.ModularClassLoader;
 import edu.iu.type.base.TemporaryFile;
 import edu.iu.type.base.TemporaryFile.IORunnable;
 
 /**
  * Creates instances of {@link Component} for
- * {@link TypeSpi#createComponent(InputStream, InputStream...)}.
+ * {@link TypeSpi#createComponent(ModuleLayer, ClassLoader, BiConsumer, InputStream, InputStream...)}.
  */
 final class ComponentFactory {
 
@@ -83,53 +86,61 @@ final class ComponentFactory {
 	/**
 	 * Creates a modular component.
 	 * 
-	 * @param parent   parent component
-	 * @param archives component path
-	 * @param destroy  thunk for final cleanup after closing the component
+	 * @param parent             parent component
+	 * @param parentLayer        {@link ModuleLayer} to extend
+	 * @param parentLoader       {@link ClassLoader} for parent delegation
+	 * @param archives           component path
+	 * @param controllerCallback receives a reference to {@link Module} defined by
+	 *                           the <strong>component archive</strong> and the
+	 *                           {@link Controller} for the module layer created in
+	 *                           conjunction with this loader. API Note from
+	 *                           {@link Controller}: <em>Care should be taken with
+	 *                           Controller objects, they should never be shared
+	 *                           with untrusted code.</em>
+	 * @param destroy            thunk for final cleanup after closing the component
 	 * @return module component
 	 * @throws IOException If an I/O error occurs reading from an archive
 	 */
-	static Component createModular(Component parent, Queue<ComponentArchive> archives, IORunnable destroy)
+	static Component createModular(Component parent, ModuleLayer parentLayer, ClassLoader parentLoader,
+			Queue<ComponentArchive> archives, BiConsumer<Module, Controller> controllerCallback, IORunnable destroy)
 			throws IOException {
-		final var web = archives.iterator().next().kind().isWeb();
+		final var firstArchive = archives.iterator().next();
+		final String firstModuleName;
+		try (final var firstModuleFinder = new CloseableModuleFinder(firstArchive.path())) {
+			firstModuleName = firstModuleFinder.findAll().iterator().next().descriptor().name();
+		}
+		final var web = firstArchive.kind().isWeb();
 
 		final Queue<Path> path = new ArrayDeque<>();
 		archives.forEach(a -> path.offer(a.path()));
 
-		final ClassLoader parentLoader;
-		if (parent != null)
-			parentLoader = parent.classLoader();
-		else
-			parentLoader = null;
-
-		return IuException.checked(IOException.class, () -> IuException.initialize(
-				new ModularClassLoader(web, path, parentLoader, null),
-				loader -> new Component(parent, loader, archives, () -> IuException.suppress(loader::close, destroy))));
+		return IuException.checked(IOException.class, () -> IuException
+				.initialize(new ModularClassLoader(web, path, parentLayer, parentLoader, controller -> {
+					final var firstModule = controller.layer().findModule(firstModuleName).get();
+					if (controllerCallback != null)
+						controllerCallback.accept(firstModule, controller);
+				}), loader -> new Component(parent, loader, archives,
+						() -> IuException.suppress(loader::close, destroy))));
 	}
 
 	/**
 	 * Creates a modular component.
 	 * 
-	 * @param parent   parent component
-	 * @param archives component path
-	 * @param destroy  thunk for final cleanup after closing the component
+	 * @param parent       parent component
+	 * @param parentLoader {@link ClassLoader} for parent delegation
+	 * @param archives     component path
+	 * @param destroy      thunk for final cleanup after closing the component
 	 * @return module component
 	 * @throws IOException If an I/O error occurs reading from an archive
 	 */
-	static Component createLegacy(Component parent, Queue<ComponentArchive> archives, IORunnable destroy)
-			throws IOException {
+	static Component createLegacy(Component parent, ClassLoader parentLoader, Queue<ComponentArchive> archives,
+			IORunnable destroy) throws IOException {
 		var path = new URL[archives.size()];
 		{
 			var i = 0;
 			for (var archive : archives)
 				path[i++] = archive.path().toUri().toURL();
 		}
-
-		final ClassLoader parentLoader;
-		if (parent == null)
-			parentLoader = null;
-		else
-			parentLoader = parent.classLoader();
 
 		final var loader = new LegacyClassLoader(archives.iterator().next().kind().isWeb(), path, parentLoader);
 
@@ -139,13 +150,24 @@ final class ComponentFactory {
 	/**
 	 * Creates a component from the source queue.
 	 * 
-	 * @param parent  parent component
-	 * @param sources source queue; will be drained and all entries closed when the
-	 *                component is closed, or if an initialization error occurs.
+	 * @param parent             parent component
+	 * @param parentLayer        {@link ModuleLayer} to extend
+	 * @param parentLoader       {@link ClassLoader} for parent delegation
+	 * @param controllerCallback receives a reference to {@link Module} defined by
+	 *                           the <strong>component archive</strong> and the
+	 *                           {@link Controller} for the module layer created in
+	 *                           conjunction with this loader. API Note from
+	 *                           {@link Controller}: <em>Care should be taken with
+	 *                           Controller objects, they should never be shared
+	 *                           with untrusted code.</em>
+	 * @param sources            source queue; will be drained and all entries
+	 *                           closed when the component is closed, or if an
+	 *                           initialization error occurs.
 	 * @return fully loaded component instance
 	 * @throws IOException If an I/O error occurs reaching from an archive source
 	 */
-	static Component createFromSourceQueue(Component parent, Queue<ArchiveSource> sources) throws IOException {
+	static Component createFromSourceQueue(Component parent, ModuleLayer parentLayer, ClassLoader parentLoader,
+			BiConsumer<Module, Controller> controllerCallback, Queue<ArchiveSource> sources) throws IOException {
 		Queue<ComponentArchive> archives = new ArrayDeque<>();
 		Queue<ComponentVersion> unmetDependencies = new ArrayDeque<>();
 
@@ -187,9 +209,9 @@ final class ComponentFactory {
 		try {
 			var kind = archives.iterator().next().kind();
 			if (kind.isModular())
-				return createModular(parent, archives, destroy);
+				return createModular(parent, parentLayer, parentLoader, archives, controllerCallback, destroy);
 			else
-				return createLegacy(parent, archives, destroy);
+				return createLegacy(parent, parentLoader, archives, destroy);
 		} catch (Throwable e) {
 			IuException.suppress(e, destroy);
 			throw e;
@@ -200,13 +222,27 @@ final class ComponentFactory {
 	 * Creates a component from the source inputs
 	 * 
 	 * @param parent                           parent component
+	 * @param parentLayer                      {@link ModuleLayer} to extend
+	 * @param parentLoader                     {@link ClassLoader} for parent
+	 *                                         delegation
+	 * @param controllerCallback               receives a reference to
+	 *                                         {@link Module} defined by the
+	 *                                         <strong>component archive</strong>
+	 *                                         and the {@link Controller} for the
+	 *                                         module layer created in conjunction
+	 *                                         with this loader. API Note from
+	 *                                         {@link Controller}: <em>Care should
+	 *                                         be taken with Controller objects,
+	 *                                         they should never be shared with
+	 *                                         untrusted code.</em>
 	 * @param componentArchiveSource           component archive source input
 	 * @param providedDependencyArchiveSources dependency source inputs
 	 * @return fully loaded component instance
 	 * 
 	 * @throws IOException If an I/O error occurs reaching from an archive source
 	 */
-	static Component createComponent(Component parent, InputStream componentArchiveSource,
+	static Component createComponent(Component parent, ModuleLayer parentLayer, ClassLoader parentLoader,
+			BiConsumer<Module, Controller> controllerCallback, InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException {
 
 		Queue<ArchiveSource> sources = new ArrayDeque<>();
@@ -216,7 +252,7 @@ final class ComponentFactory {
 			for (var providedDependencyArchiveSource : providedDependencyArchiveSources)
 				sources.offer(new ArchiveSource(providedDependencyArchiveSource));
 
-			return createFromSourceQueue(parent, sources);
+			return createFromSourceQueue(parent, parentLayer, parentLoader, controllerCallback, sources);
 
 		} catch (Throwable e) {
 			thrown = e;

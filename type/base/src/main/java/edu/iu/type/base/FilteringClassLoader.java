@@ -29,58 +29,61 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type;
-
-import java.net.URL;
-import java.net.URLClassLoader;
+package edu.iu.type.base;
 
 import edu.iu.IuObject;
-import edu.iu.type.IuComponent.Kind;
 
 /**
- * Class loader for {@link Kind#isModular() legacy} components.
+ * Prevents delegation to classes unrelated to the base platform.
+ * 
+ * <p>
+ * Always allows delegation for class names for which
+ * {@link IuObject#isPlatformName(String)} returns true, <em>except</em> those
+ * starting with {@code javax.} or {@code jakarta.}. <em>Optionally</em> allows
+ * delegation to additional packages, including {@code javax.} and
+ * {@code jakarta.} packages. Allowed packages are explicit: i.e., allowing
+ * access to {@code edu.iu} doesn't allow access to {@code edu.iu.type}.
+ * </p>
  */
-class LegacyClassLoader extends URLClassLoader {
+public class FilteringClassLoader extends ClassLoader {
 
-	private final boolean web;
+	private final Iterable<String> allowedPackages;
 
 	/**
-	 * Constructor for use by {@link ComponentFactory}
+	 * Constructor.
 	 * 
-	 * @param web       true for <a href=
-	 *                  "https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader">web
-	 *                  classloading semantics</a>; false for normal parent
-	 *                  delegation semantics
-	 * @param classpath class path URLs
-	 * @param parent    parent class loader
+	 * @param allowedPackages list of additional packages visible to the parent
+	 *                        loader to allow delegation to
+	 * @param parent          {@link ClassLoader} for parent delegation
 	 */
-	LegacyClassLoader(boolean web, URL[] classpath, ClassLoader parent) {
-		super(classpath, parent);
-		this.web = web;
+	public FilteringClassLoader(Iterable<String> allowedPackages, ClassLoader parent) {
+		super(parent);
+		this.allowedPackages = allowedPackages;
 	}
 
 	@Override
 	protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-		if (!web || IuObject.isPlatformName(name))
-			return super.loadClass(name, resolve);
+		var match = !name.startsWith("jakarta.") && //
+				!name.startsWith("javax.") && //
+				IuObject.isPlatformName(name);
 
-		synchronized (getClassLoadingLock(name)) {
-			Class<?> rv = this.findLoadedClass(name);
-			if (rv != null)
-				return rv;
+		if (!match)
+			for (final var allowedPackage : allowedPackages) {
+				if (!name.startsWith(allowedPackage))
+					continue;
 
-			try {
-				rv = findClass(name);
-				if (resolve)
-					resolveClass(rv);
-				return rv;
-			} catch (ClassNotFoundException e) {
-				// will attempt throw again when called from
-				// super.loadClass if also not found in parent
+				final var length = allowedPackage.length();
+				final var lastDot = name.lastIndexOf('.');
+				if (length == lastDot) {
+					match = true;
+					break;
+				}
 			}
 
+		if (match)
 			return super.loadClass(name, resolve);
-		}
+		else
+			throw new ClassNotFoundException(name);
 	}
 
 }

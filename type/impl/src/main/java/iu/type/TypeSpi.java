@@ -33,8 +33,10 @@ package iu.type;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ModuleLayer.Controller;
 import java.lang.reflect.Type;
 import java.nio.file.Path;
+import java.util.function.BiConsumer;
 
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuType;
@@ -58,18 +60,17 @@ public class TypeSpi implements IuTypeSpi {
 		return TypeFactory.resolveType(type);
 	}
 
-	@SuppressWarnings("exports")
 	@Override
-	public IuComponent createComponent(InputStream componentArchiveSource,
-			InputStream... providedDependencyArchiveSources) throws IOException {
-		return ComponentFactory.createComponent(null, componentArchiveSource, providedDependencyArchiveSources);
+	public IuComponent createComponent(ModuleLayer parentLayer, ClassLoader parent, BiConsumer<Module, Controller> controllerCallback,
+			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources) throws IOException {
+		return ComponentFactory.createComponent(null, parentLayer, parent, controllerCallback, componentArchiveSource,
+				providedDependencyArchiveSources);
 	}
 
-	@SuppressWarnings("exports")
 	@Override
 	public IuComponent scanComponentEntry(ClassLoader classLoader, Path pathEntry)
 			throws IOException, ClassNotFoundException {
 		return new Component(classLoader, pathEntry);
 	}
-	
+
 }

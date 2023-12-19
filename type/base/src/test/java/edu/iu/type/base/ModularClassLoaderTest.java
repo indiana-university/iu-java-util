@@ -133,8 +133,13 @@ public class ModularClassLoaderTest {
 	}
 
 	private ModularClassLoader createModularLoader(String componentName, ClassLoader parent) throws IOException {
-		final var loader = new ModularClassLoader("testweb".equals(componentName), getModulePath(componentName), parent,
-				null);
+		final ModularClassLoader loader;
+		if (parent == null)
+			loader = new ModularClassLoader("testweb".equals(componentName), getModulePath(componentName),
+					ModuleLayer.boot(), null, null);
+		else
+			loader = new ModularClassLoader("testweb".equals(componentName), getModulePath(componentName),
+					(parent instanceof ModularClassLoader m) ? m.getModuleLayer() : ModuleLayer.boot(), parent, null);
 		onTeardown.push(loader::close);
 		return loader;
 	}
@@ -151,24 +156,10 @@ public class ModularClassLoaderTest {
 			Controller controller;
 		}
 		final var box = new Box();
-		final var loader = new ModularClassLoader(false, getModulePath("testruntime"), null,
+		final var loader = new ModularClassLoader(false, getModulePath("testruntime"), ModuleLayer.boot(), null,
 				c -> box.controller = c);
 		onTeardown.push(loader::close);
 		assertInstanceOf(Controller.class, box.controller);
-	}
-	
-	@Test
-	public void testPlatformType() {
-		assertFalse(ModularClassLoader.isPlatformType(""));
-		assertTrue(ModularClassLoader.isPlatformType("com.sun."));
-		assertTrue(ModularClassLoader.isPlatformType("java."));
-		assertTrue(ModularClassLoader.isPlatformType("javax."));
-		assertTrue(ModularClassLoader.isPlatformType("jakarta."));
-		assertTrue(ModularClassLoader.isPlatformType("jdk."));
-		assertTrue(ModularClassLoader.isPlatformType("netscape.javascript."));
-		assertTrue(ModularClassLoader.isPlatformType("org.ietf.jgss."));
-		assertTrue(ModularClassLoader.isPlatformType("org.w3c.dom."));
-		assertTrue(ModularClassLoader.isPlatformType("org.xml.sax."));
 	}
 
 	@Test

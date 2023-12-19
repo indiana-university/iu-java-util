@@ -57,6 +57,20 @@ import org.junit.jupiter.api.Test;
 public class IuObjectTest {
 
 	@Test
+	public void testPlatformType() {
+		assertFalse(IuObject.isPlatformName(""));
+		assertTrue(IuObject.isPlatformName("com.sun."));
+		assertTrue(IuObject.isPlatformName("java."));
+		assertTrue(IuObject.isPlatformName("javax."));
+		assertTrue(IuObject.isPlatformName("jakarta."));
+		assertTrue(IuObject.isPlatformName("jdk."));
+		assertTrue(IuObject.isPlatformName("netscape.javascript."));
+		assertTrue(IuObject.isPlatformName("org.ietf.jgss."));
+		assertTrue(IuObject.isPlatformName("org.w3c.dom."));
+		assertTrue(IuObject.isPlatformName("org.xml.sax."));
+	}
+
+	@Test
 	public void testCompareNullCheckForSameIsZero() {
 		assertEquals(0, IuObject.compareNullCheck("", ""));
 	}

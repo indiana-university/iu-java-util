@@ -131,6 +131,38 @@ public class ComponentResourceReferenceTest extends IuTypeTestCase {
 
 	@Test
 	@SuppressWarnings({ "unchecked", "rawtypes" })
+	public void testClear() throws Exception {
+		final ComponentResourceReference ref = fieldRef(HasResourceRef.class, "resource");
+		final var value = new Object();
+		final var refer1 = TypeFactory.resolveRawClass(HasResourceRef.class).constructor().exec();
+		assertNull(refer1.resource);
+
+		final var resource = mock(IuResource.class);
+		when(resource.name()).thenReturn("resource");
+		when(resource.type()).thenReturn((IuType) TypeFactory.resolveRawClass(Object.class));
+		when(resource.get()).thenReturn(value);
+		assertFalse(ref.isBound());
+		ref.bind(resource);
+		assertTrue(ref.isBound());
+		assertSame(value, refer1.resource);
+
+		final var refer2 = new HasResourceRef();
+		ref.accept(refer2);
+		assertSame(value, refer2.resource);
+
+		ref.clear(refer2);
+		assertNull(refer2.resource);
+		
+		ref.clear(null); // no-op, no error
+		ref.clear(refer2); // no-op, no error
+		
+		// no other effect on ref or refer1
+		assertTrue(ref.isBound());
+		assertSame(value, refer1.resource);
+	}
+
+	@Test
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public void testBindBySetter() throws Exception {
 		final ComponentResourceReference ref = setterRef(HasResourceRef.class, "propResource");
 		final var value = new Object();
@@ -146,7 +178,7 @@ public class ComponentResourceReferenceTest extends IuTypeTestCase {
 
 		final var refer2 = TypeFactory.resolveRawClass(HasResourceRef.class).constructor().exec();
 		assertSame(value, refer2.propResource);
-		
+
 		// refer2 was already accepted by TypeTemplate, verify not accepted twice
 		final var refer2spy = spy(refer2);
 		ref.accept(refer2);
