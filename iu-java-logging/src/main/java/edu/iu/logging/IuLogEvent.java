@@ -29,7 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.logging;
+package edu.iu.logging;
 
 import java.time.Instant;
 import java.util.logging.Level;
@@ -40,7 +40,7 @@ import edu.iu.logging.IuLoggingEnvironment;
 /**
  * IuLogEvent interface
  */
-interface IuLogEvent extends IuLoggingContext, IuLoggingEnvironment {
+public interface IuLogEvent extends IuLoggingContext, IuLoggingEnvironment {
 
 	/**
 	 * Get the logger name.

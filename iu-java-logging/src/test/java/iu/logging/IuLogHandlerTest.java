@@ -11,11 +11,13 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import edu.iu.IuException;
+import edu.iu.logging.IuLogEvent;
 import edu.iu.logging.IuLoggingEnvironment;
 
 /**
@@ -140,4 +142,42 @@ public class IuLogHandlerTest {
 	public void testFlush() {
 		new IuLogHandler().flush();
 	}
+
+	/**
+	 * Test stream.
+	 */
+	@Test
+	public void testStream() {
+		try (var handler = mockIuLogHandler()) {
+			try (var logEventFactory = mockStatic(LogEventFactory.class, CALLS_REAL_METHODS)) {
+				logEventFactory.when(() -> LogEventFactory.getEnvironmentProperties())
+						.thenReturn(new IuLoggingEnvironment() {
+						});
+				LogEventFactory.bootstrap(IuLogHandlerTest.class.getClassLoader());
+				Logger LOG = Logger.getLogger(IuLogHandlerTest.class.getName());
+				List<LogMessage> logMessages = Arrays.asList(new LogMessage[] {
+						new LogMessage(Level.FINEST, "Test finest 1"), new LogMessage(Level.FINER, "Test finer 1"),
+						new LogMessage(Level.FINE, "Test fine 1"), new LogMessage(Level.CONFIG, "Test config 1"),
+						new LogMessage(Level.INFO, "Test info 1"), new LogMessage(Level.WARNING, "Test warning 1"),
+						new LogMessage(Level.SEVERE, "Test severe 1"), new LogMessage(Level.FINEST, "Test finest 2"),
+						new LogMessage(Level.FINER, "Test finer 2"), new LogMessage(Level.FINE, "Test fine 2"),
+						new LogMessage(Level.CONFIG, "Test config 2"), new LogMessage(Level.INFO, "Test info 2"),
+						new LogMessage(Level.WARNING, "Test warning 2"),
+						new LogMessage(Level.SEVERE, "Test severe 2") });
+				for (LogMessage message : logMessages) {
+					LOG.log(message.logLevel(), message.message());
+				}
+
+				Level logLevel = LOG.getParent().getHandlers()[0].getLevel();
+				Stream<IuLogEvent> events = IuLogHandler.stream();
+				List<String> messageList = new ArrayList<>();
+				events.forEach(v -> messageList.add(v.getMessage()));
+				for (LogMessage message : logMessages) {
+					if (logLevel.intValue() <= message.logLevel().intValue())
+						assertTrue(messageList.contains(message.message()), message.message() + " was not in events");
+				}
+			}
+		}
+	}
+
 }

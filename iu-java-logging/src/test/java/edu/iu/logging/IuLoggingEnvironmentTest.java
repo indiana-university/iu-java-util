@@ -58,4 +58,12 @@ public class IuLoggingEnvironmentTest {
 		assertEquals(RuntimeMode.TEST, RuntimeMode.valueOf(RuntimeMode.class, "TEST"));
 		assertEquals(RuntimeMode.PRODUCTION, RuntimeMode.valueOf(RuntimeMode.class, "PRODUCTION"));
 	}
+	
+	/**
+	 * Test bootstrap. Just a pass-through to LogEventFactory.bootstrap, so not checking boostrap results.
+	 */
+	@Test
+	public void testBootstrap() {
+		IuLoggingEnvironment.bootstrap(Thread.currentThread().getContextClassLoader());
+	}
 }

@@ -37,13 +37,14 @@ import java.util.Iterator;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
+import java.util.stream.Stream;
+
+import edu.iu.IuAsynchronousSubject;
+import edu.iu.logging.IuLogEvent;
 
 /**
  * Main handler for console logs and accessing event queue.
@@ -56,27 +57,27 @@ public class IuLogHandler extends Handler {
 
 	private static final Timer PURGE_TIMER;
 
-	private static int corePoolSize = 8;
-	private static int maximumPoolSize = 16;
-	private static long keepAliveTime = 5000L;
-
-	private static ThreadGroup threadGroup;
-	private static ThreadPoolExecutor executor;
+//	private static int corePoolSize = 8;
+//	private static int maximumPoolSize = 16;
+//	private static long keepAliveTime = 5000L;
+//
+//	private static ThreadGroup threadGroup;
+//	private static ThreadPoolExecutor executor;
 
 	static {
-		threadGroup = new ThreadGroup("iu-logging");
-		ThreadFactory tf = new ThreadFactory() {
-			int tn = 0;
-
-			@Override
-			public Thread newThread(Runnable r) {
-				Thread newThread = new Thread(threadGroup, r, "(iu-logging/" + Integer.toString(++tn) + ')');
-				newThread.setDaemon(true);
-				return newThread;
-			}
-		};
-		executor = new ThreadPoolExecutor(corePoolSize, maximumPoolSize, keepAliveTime, TimeUnit.MILLISECONDS,
-				new LinkedBlockingDeque<Runnable>(), tf);
+//		threadGroup = new ThreadGroup("iu-logging");
+//		ThreadFactory tf = new ThreadFactory() {
+//			int tn = 0;
+//
+//			@Override
+//			public Thread newThread(Runnable r) {
+//				Thread newThread = new Thread(threadGroup, r, "(iu-logging/" + Integer.toString(++tn) + ')');
+//				newThread.setDaemon(true);
+//				return newThread;
+//			}
+//		};
+//		executor = new ThreadPoolExecutor(corePoolSize, maximumPoolSize, keepAliveTime, TimeUnit.MILLISECONDS,
+//				new LinkedBlockingDeque<Runnable>(), tf);
 
 		PURGE_TIMER = new Timer("iu-logging-purge", true);
 		PURGE_TIMER.schedule(new TimerTask() {
@@ -170,6 +171,17 @@ public class IuLogHandler extends Handler {
 	public static Iterable<IuLogEvent> getLogEvents() {
 		return Collections.unmodifiableCollection(LOG_EVENTS);
 	}
+	
+	/**
+	 * Get LogEvents as a Stream.
+	 * 
+	 * @return Stream&lt;IuLogEvent&gt; that will contain any log events from now until the stream is closed.
+	 */
+	public static Stream<IuLogEvent> stream() {
+		try (IuAsynchronousSubject<IuLogEvent> subject = new IuAsynchronousSubject<IuLogEvent>(() -> LOG_EVENTS.spliterator())) {
+			return subject.subscribe();
+		}
+	}
 
 //	/**
 //	 * Print the stack trace and an error message to System.err
@@ -194,7 +206,7 @@ public class IuLogHandler extends Handler {
 //	}
 
 	/**
-	 * default constructor for IuLogHandler.
+	 * constructor for IuLogHandler.
 	 */
 	public IuLogHandler() {
 	}

@@ -7,6 +7,7 @@ import java.util.logging.Formatter;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
 
+import edu.iu.logging.IuLogEvent;
 import edu.iu.logging.IuLoggingContext;
 import edu.iu.logging.IuLoggingEnvironment;
 
