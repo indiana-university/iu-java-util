@@ -53,7 +53,9 @@ public class IuLogHandler extends Handler {
 
 //	private static final Map<String, LogFilePublishers> LOG_FILES = new HashMap<>();
 //	private static final Map<ClassLoader, String> LOG_PATH_PREFIX = new WeakHashMap<>();
-	private static final Deque<IuLogEvent> LOG_EVENTS = new ConcurrentLinkedDeque<>();;
+	private static final Deque<IuLogEvent> LOG_EVENTS = new ConcurrentLinkedDeque<>();
+	private static final IuAsynchronousSubject<IuLogEvent> LOG_EVENT_SUBJECT = new IuAsynchronousSubject<IuLogEvent>(
+			() -> LOG_EVENTS.spliterator());
 
 	private static final Timer PURGE_TIMER;
 
@@ -171,16 +173,15 @@ public class IuLogHandler extends Handler {
 	public static Iterable<IuLogEvent> getLogEvents() {
 		return Collections.unmodifiableCollection(LOG_EVENTS);
 	}
-	
+
 	/**
 	 * Get LogEvents as a Stream.
 	 * 
-	 * @return Stream&lt;IuLogEvent&gt; that will contain any log events from now until the stream is closed.
+	 * @return Stream&lt;IuLogEvent&gt; that will contain any log events from now
+	 *         until the stream is closed.
 	 */
 	public static Stream<IuLogEvent> stream() {
-		try (IuAsynchronousSubject<IuLogEvent> subject = new IuAsynchronousSubject<IuLogEvent>(() -> LOG_EVENTS.spliterator())) {
-			return subject.subscribe();
-		}
+		return LOG_EVENT_SUBJECT.subscribe();
 	}
 
 //	/**
@@ -233,6 +234,7 @@ public class IuLogHandler extends Handler {
 		if (LoggingFilters.isLocal() && isLoggable(record)) {
 			LogEvent event = LogEventFactory.createEvent(record);
 			LOG_EVENTS.offer(event);
+			LOG_EVENT_SUBJECT.accept(event);
 		}
 	}
 
