@@ -133,6 +133,27 @@ import java.util.function.Supplier;
 public final class IuObject {
 
 	/**
+	 * Determines if a name is relative to a package provided by the JDK or JEE
+	 * platform.
+	 * 
+	 * @param name type name
+	 * @return {@code true} if a platform type; else false
+	 */
+	public static boolean isPlatformName(String name) {
+		return name.startsWith("jakarta.") // JEE and related
+				// JDK packages:
+				|| name.startsWith("sun.") //
+				|| name.startsWith("com.sun.") //
+				|| name.startsWith("java.") //
+				|| name.startsWith("javax.") //
+				|| name.startsWith("jdk.") //
+				|| name.startsWith("netscape.javascript.") //
+				|| name.startsWith("org.ietf.jgss.") //
+				|| name.startsWith("org.w3c.dom.") //
+				|| name.startsWith("org.xml.sax.");
+	}
+
+	/**
 	 * Perform identity and and null check on two objects, returning a valid value
 	 * for {@link Comparable#compareTo(Object)} if any of the checks result in a
 	 * conclusive result.

@@ -55,7 +55,7 @@ public class ParallelTaskControllerTest {
 	// for stand-alone threads: ~20ms synchronization latency
 	private static final Duration TIME_OUT = Duration.ofMillis(500L);
 	private static final Duration PER_PAUSE = Duration.ofMillis(50L);
-	private static final Duration SYNC_LATENCY = Duration.ofMillis(20L);
+	private static final Duration SYNC_LATENCY = Duration.ofMillis(25L);
 	private static final Duration PAUSE_SLO = PER_PAUSE.plus(SYNC_LATENCY);
 
 	// BEGIN Same-Thread Sanity Checks

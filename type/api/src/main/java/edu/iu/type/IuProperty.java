@@ -147,6 +147,37 @@ public interface IuProperty<D, T> extends IuAttribute<D, T> {
 		return annotations;
 	}
 
+	@Override
+	default <A extends Annotation> A annotation(Class<A> annotationType) {
+		A annotation = null;
+
+		final var write = write();
+		if (write != null)
+			annotation = write.annotation(annotationType);
+
+		final var read = read();
+		if (read != null) {
+			final var readAnnotation = read.annotation(annotationType);
+			if (annotation == null)
+				annotation = readAnnotation;
+			else if (readAnnotation != null && !readAnnotation.equals(annotation))
+				throw new IllegalArgumentException(
+						this + " defines unequal values for @" + annotationType + " on both read and write methods");
+		}
+
+		return annotation;
+	}
+
+	@Override
+	default boolean hasAnnotation(Class<? extends Annotation> annotationType) {
+		final var write = write();
+		if (write != null && write.hasAnnotation(annotationType))
+			return true;
+
+		final var read = read();
+		return read != null && read.hasAnnotation(annotationType);
+	}
+
 	/**
 	 * {@inheritDoc}
 	 * 

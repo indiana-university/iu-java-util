@@ -36,7 +36,7 @@
  */
 module iu.util.type {
 	exports edu.iu.type;
-	exports edu.iu.type.spi to iu.util.type.impl;
+	exports edu.iu.type.spi;
 	
 	requires iu.util;
 	requires java.logging;

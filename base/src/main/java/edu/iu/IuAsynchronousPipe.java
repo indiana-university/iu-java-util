@@ -118,6 +118,9 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 			synchronized (IuAsynchronousPipe.this) {
 				while ((next = queue.poll()) == null && !closed)
 					IuException.unchecked(() -> IuAsynchronousPipe.this.wait(500L));
+				
+				if (error != null)
+					throw IuException.unchecked(error);
 			}
 
 			if (next != null)
@@ -176,6 +179,7 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 	private volatile Queue<T> queue = new ConcurrentLinkedQueue<>();
 	private volatile int acceptedCount;
 	private volatile int receivedCount;
+	private volatile Throwable error;
 	private volatile boolean completed;
 	private volatile boolean closed;
 
@@ -317,6 +321,9 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 				() -> new TimeoutException("Timed out after receiving " + (this.receivedCount - initialReceivedCount)
 						+ " of " + receivedCount + " values in " + timeout));
 
+		if (error != null)
+			throw IuException.unchecked(error);
+
 		return this.receivedCount - initialReceivedCount;
 	}
 
@@ -379,6 +386,9 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 				} else
 					break;
 			}
+			
+			if (error != null)
+				throw IuException.unchecked(error);
 		}
 		return this.receivedCount - initialReceivedCount;
 	}
@@ -426,6 +436,9 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 				() -> new TimeoutException("Timed out waiting for " + (this.acceptedCount - initialAcceptedCount)
 						+ " of " + acceptedCount + " values in " + timeout));
 
+		if (error != null)
+			throw IuException.unchecked(error);
+
 		return this.acceptedCount - initialAcceptedCount;
 	}
 
@@ -471,6 +484,9 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 				} else
 					break;
 			}
+			
+			if (error != null)
+				throw IuException.unchecked(error);
 		}
 		return this.acceptedCount - initialAcceptedCount;
 	}
@@ -517,6 +533,21 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 			acceptedCount++;
 			this.notifyAll();
 		}
+	}
+
+	/**
+	 * Reports an error that occurred on either end of the pipe.
+	 * 
+	 * <p>
+	 * The error will interrupt all activity and cause the pipe to close.
+	 * </p>
+	 * 
+	 * @param e error
+	 */
+	public synchronized void error(Throwable e) {
+		error = e;
+		completed = true;
+		close();
 	}
 
 	/**

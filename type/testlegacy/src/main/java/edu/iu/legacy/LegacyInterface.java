@@ -31,5 +31,6 @@
  */
 package edu.iu.legacy;
 
+@SuppressWarnings("javadoc")
 interface LegacyInterface {
 }

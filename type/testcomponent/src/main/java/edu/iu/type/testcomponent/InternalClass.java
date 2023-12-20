@@ -33,6 +33,7 @@ package edu.iu.type.testcomponent;
 
 import jakarta.annotation.Resource;
 
+@SuppressWarnings("javadoc")
 class InternalClass {
 
 	@Resource

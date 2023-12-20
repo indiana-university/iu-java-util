@@ -1,6 +1,6 @@
 /*
  * Copyright © 2023 Indiana University
- * All rights reserved.
+* All rights reserved.
  *
  * BSD 3-Clause License
  *
@@ -108,6 +108,42 @@ public class IuVisitor<T> implements Consumer<T> {
 	@Override
 	public void accept(T element) {
 		elements.add(new WeakReference<>(element));
+	}
+
+	/**
+	 * Removes an element from observation queue without waiting for the garbage
+	 * collector to clear it.
+	 * 
+	 * <p>
+	 * This method does not tear down or take any other action on the element, the
+	 * controlling component <em>should</em> handle all tear down logic related to
+	 * this visitor instance prior to clearing the reference, typically invoking
+	 * this method last in a managed instance's lifecycle teardown process.
+	 * </p>
+	 * 
+	 * <p>
+	 * This method has no effect if the element is not in the observation queue.
+	 * </p>
+	 * 
+	 * <p>
+	 * <strong>API Note:</strong> Since elements are {@link WeakReference weakly
+	 * held}, this method is only necessary when hooking in to an external instance
+	 * management mechanism. Typically, instances may simply be discarded rather
+	 * then explicitly cleared.
+	 * </p>
+	 * 
+	 * @param element element to clear
+	 */
+	public void clear(T element) {
+		final var elementIterator = elements.iterator();
+		while (elementIterator.hasNext()) {
+			final var elementReference = elementIterator.next();
+			final var deref = elementReference.get();
+			if (deref == null || element == deref) {
+				elementIterator.remove();
+				continue;
+			}
+		}
 	}
 
 }

@@ -4,4 +4,5 @@ open module iu.util.type.testruntime {
 	requires jakarta.annotation;
 	requires jakarta.interceptor;
 	requires java.net.http;
+	requires java.sql;
 }

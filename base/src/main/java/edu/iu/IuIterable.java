@@ -390,7 +390,7 @@ public final class IuIterable {
 	 * @return A single iterable over all iterables in sequence.
 	 */
 	@SafeVarargs
-	public static <T> Iterable<T> cat(Iterable<T>... iterables) {
+	public static <T> Iterable<? extends T> cat(Iterable<? extends T>... iterables) {
 		switch (iterables.length) {
 		case 0:
 			return empty();
@@ -401,7 +401,7 @@ public final class IuIterable {
 		default:
 			return of(() -> new Iterator<T>() {
 				@SuppressWarnings("unchecked")
-				final Iterator<T>[] i = new Iterator[iterables.length];
+				final Iterator<? extends T>[] i = new Iterator[iterables.length];
 				int n = 0;
 
 				@Override
