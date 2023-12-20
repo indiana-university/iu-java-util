@@ -350,7 +350,7 @@ public class LogEventFactoryTest {
 			assertEquals("Test Source Method Name", event.getSourceMethodName(),
 					"Incorrect Overridden Source Method Name");
 			assertEquals("main", event.getThread());
-			assertEquals("java.lang.Throwable: Test Thrown", event.getThrown().split("\r\n")[0],
+			assertEquals("java.lang.Throwable: Test Thrown", event.getThrown().split(System.lineSeparator(), 2)[0],
 					"Incorrect Overridden Thrown");
 			assertNull(event.getUserPrincipal());
 		}

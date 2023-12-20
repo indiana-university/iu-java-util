@@ -84,7 +84,8 @@ public class LogEventTest {
 		assertEquals("Test Source Class Name", event.getSourceClassName(), "Incorrect Overridden Source Class Name");
 		assertEquals("Test Source Method Name", event.getSourceMethodName(), "Incorrect Overridden Source Method Name");
 		assertEquals("main", event.getThread());
-		assertEquals("java.lang.Throwable: Test Thrown", event.getThrown().split("\r\n")[0],
+		assertEquals("java.lang.Throwable: Test Thrown",
+				event.getThrown().split(System.lineSeparator(), 2)[0],
 				"Incorrect Overridden Thrown");
 		assertEquals("Test User Principal", event.getUserPrincipal(), "Incorrect Overridden User Principal");
 	}
