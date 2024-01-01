@@ -1325,6 +1325,22 @@ public final class IuException {
 	 * @throws Throwable from the first task the fails in error
 	 */
 	public static void suppress(UnsafeRunnable... tasks) throws Throwable {
+		suppress(IuIterable.iter(tasks));
+	}
+
+	/**
+	 * Runs a sequence of tasks with error suppression.
+	 * 
+	 * <p>
+	 * All tasks are guaranteed to run, but not guaranteed to finish. After all
+	 * tasks have run, the first error encountered will be thrown; all additional
+	 * errors will be suppressed.
+	 * </p>
+	 * 
+	 * @param tasks tasks to run
+	 * @throws Throwable from the first task the fails in error
+	 */
+	public static void suppress(Iterable<UnsafeRunnable> tasks) throws Throwable {
 		Throwable e = null;
 		for (final var task : tasks)
 			e = suppress(e, task);

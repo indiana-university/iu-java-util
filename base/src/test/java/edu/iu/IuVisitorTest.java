@@ -31,13 +31,20 @@
  */
 package edu.iu;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 
 import org.junit.jupiter.api.Test;
@@ -81,6 +88,29 @@ public class IuVisitorTest {
 
 	@Test
 	@SuppressWarnings({ "rawtypes", "unchecked" })
+	public void testClear() throws InterruptedException {
+		final var visitor = new IuVisitor();
+		final var one = new Object();
+		final var two = new Object();
+		visitor.accept(one);
+		visitor.accept(two);
+		Function f = mock(Function.class);
+		visitor.visit(f);
+		verify(f).apply(one);
+		verify(f).apply(null);
+		visitor.accept(new Object());
+		System.gc();
+		Thread.sleep(100L);
+		visitor.clear(one);
+		f = mock(Function.class);
+		visitor.visit(f);
+		verify(f).apply(two);
+		verify(f).apply(notNull());
+		verify(f).apply(null);
+	}
+
+	@Test
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	public void testPrunesClearedRefs() throws InterruptedException {
 		final var visitor = new IuVisitor();
 		visitor.accept(new Object());
@@ -90,6 +120,68 @@ public class IuVisitorTest {
 		visitor.visit(f);
 		verify(f, never()).apply(notNull());
 		verify(f).apply(null);
+	}
+
+	@Test
+	public void testSubject() throws Throwable {
+		final var visitor = new IuVisitor<Object>();
+		final var subject = visitor.subject();
+		final var control = Collections.synchronizedList(new ArrayList<Object>());
+		final Runnable thunk = () -> {
+			final var o = new Object();
+			subject.accept(o);
+			visitor.accept(o);
+			control.add(o);
+		};
+
+		class Box {
+			final List<Object> collected = Collections.synchronizedList(new ArrayList<>());
+			volatile boolean done;
+			volatile Throwable error;
+
+			Box(UnsafeConsumer<Box> task) {
+				new Thread(() -> {
+					try {
+						task.accept(this);
+						done = true;
+					} catch (Throwable e) {
+						error = e;
+					} finally {
+						synchronized (this) {
+							this.notifyAll();
+						}
+					}
+				}).start();
+			}
+
+			void join() throws Throwable {
+				IuObject.waitFor(this, () -> done || error != null, Duration.ofSeconds(1L));
+				if (error != null)
+					throw error;
+			}
+		}
+
+		final var generator = new Box(b -> {
+			for (var i = 0; i < 100; i++) {
+				Thread.sleep(0, ThreadLocalRandom.current().nextInt(100_000));
+				thunk.run();
+			}
+			subject.close();
+		});
+		final var sequence = new Box(b -> subject.subscribe().forEach(b.collected::add));
+		final var parallel = new Box(b -> subject.subscribe().parallel().forEach(b.collected::add));
+		Throwable error = null;
+		error = IuException.suppress(error, generator::join);
+		error = IuException.suppress(error, sequence::join);
+		error = IuException.suppress(error, parallel::join);
+		if (error != null)
+			throw error;
+
+		assertEquals(100, control.size());
+//		assertEquals(100, sequence.collected.size());
+		assertEquals(control, sequence.collected);
+		assertEquals(100, parallel.collected.size());
+		assertTrue(parallel.collected.containsAll(control));
 	}
 
 }
