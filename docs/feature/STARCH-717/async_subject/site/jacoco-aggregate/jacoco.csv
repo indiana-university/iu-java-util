@@ -1,27 +1,32 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuParallelWorkloadController,0,726,0,60,0,158,0,57,0,27
-IU Java Utilities API Reference/iu-java-base,edu.iu,IuAsynchronousSubject.Subscriber,0,73,0,10,0,18,0,10,0,5
+IU Java Utilities API Reference/iu-java-base,edu.iu,IuAsynchronousSubject.Subscriber,0,204,0,46,0,63,0,33,0,10
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuRateLimitter,0,408,0,50,0,115,0,44,0,19
+IU Java Utilities API Reference/iu-java-base,edu.iu,IuAsynchronousSubject.DelegatingSource,0,75,1,13,0,23,1,11,0,5
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuAsynchronousPipe.Splitr,0,160,0,26,0,32,0,19,0,6
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuStream.new ThreadLocal() {...},0,7,0,0,0,2,0,2,0,2
 IU Java Utilities API Reference/iu-java-base,edu.iu,IdGenerator.new ThreadLocal() {...},0,27,0,0,0,9,0,2,0,2
-IU Java Utilities API Reference/iu-java-base,edu.iu,IuVisitor,0,51,0,6,0,17,0,6,0,3
+IU Java Utilities API Reference/iu-java-base,edu.iu,IuVisitor,0,88,0,12,0,27,0,12,0,6
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuStream.Buffers,0,11,0,0,0,3,0,1,0,1
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuStream,0,65,0,4,0,17,0,7,0,5
+IU Java Utilities API Reference/iu-java-base,edu.iu,IuAsynchronousSubject.Source,0,94,0,14,0,29,0,14,0,7
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuObject,0,547,0,118,0,135,0,71,0,12
-IU Java Utilities API Reference/iu-java-base,edu.iu,IuException,0,548,0,38,0,199,0,62,0,43
-IU Java Utilities API Reference/iu-java-base,edu.iu,IuAsynchronousSubject,0,118,0,12,0,26,0,15,0,9
+IU Java Utilities API Reference/iu-java-base,edu.iu,IuException,0,547,0,38,0,201,0,63,0,44
+IU Java Utilities API Reference/iu-java-base,edu.iu,IuAsynchronousSubject,0,117,0,12,0,29,0,15,0,9
+IU Java Utilities API Reference/iu-java-base,edu.iu,IuVisitor.ElementSplitter.new Object() {...},0,6,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-base,edu.iu,IdGenerator,0,531,0,58,0,90,0,36,0,7
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuAsynchronousPipe,0,355,0,38,0,88,0,39,0,20
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuIterable.new Iterable() {...},0,19,0,0,0,3,0,3,0,3
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuIterable,0,209,0,39,0,59,0,36,0,16
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuIterable.new Iterator() {...},0,70,0,8,0,13,0,7,0,3
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuIterable.new Iterator() {...},0,45,0,4,0,6,0,5,0,3
+IU Java Utilities API Reference/iu-java-base,edu.iu,IuAsynchronousSubject.SourceSplit,0,52,0,4,0,17,0,9,0,7
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuParallelWorkloadController.CloseTask,0,42,0,2,0,11,0,5,0,4
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuParallelWorkloadController.new Runnable() {...},0,182,0,6,0,32,0,10,0,7
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuIterable.IuIterator,0,81,0,6,0,19,0,9,0,6
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuIterable.new Iterator() {...},0,55,0,6,0,12,0,6,0,3
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuIterable.new Iterator() {...},0,25,0,0,0,4,0,3,0,3
+IU Java Utilities API Reference/iu-java-base,edu.iu,IuVisitor.ElementSplitter,0,59,1,7,0,19,1,9,0,6
 IU Java Utilities API Reference/iu-java-base,iu,ParallelTaskController,0,329,0,40,0,81,0,38,0,18
 IU Java Utilities API Reference/iu-java-test,edu.iu.test,IuTestLogger.StaticLogHandler.new ThreadLocal() {...},0,21,0,0,0,6,0,2,0,2
 IU Java Utilities API Reference/iu-java-test,edu.iu.test,IuTestLogger.StaticLogHandler,0,60,0,0,0,19,0,6,0,6

@@ -1325,12 +1325,28 @@ public final class IuException {
 	 * @throws Throwable from the first task the fails in error
 	 */
 	public static void suppress(UnsafeRunnable... tasks) throws Throwable {
-<span class="fc" id="L1328">		Throwable e = null;</span>
-<span class="fc bfc" id="L1329" title="All 2 branches covered.">		for (final var task : tasks)</span>
-<span class="fc" id="L1330">			e = suppress(e, task);</span>
-<span class="fc bfc" id="L1331" title="All 2 branches covered.">		if (e != null)</span>
-<span class="fc" id="L1332">			throw e;</span>
-<span class="fc" id="L1333">	}</span>
+<span class="fc" id="L1328">		suppress(IuIterable.iter(tasks));</span>
+<span class="fc" id="L1329">	}</span>
+
+	/**
+	 * Runs a sequence of tasks with error suppression.
+	 * 
+	 * &lt;p&gt;
+	 * All tasks are guaranteed to run, but not guaranteed to finish. After all
+	 * tasks have run, the first error encountered will be thrown; all additional
+	 * errors will be suppressed.
+	 * &lt;/p&gt;
+	 * 
+	 * @param tasks tasks to run
+	 * @throws Throwable from the first task the fails in error
+	 */
+	public static void suppress(Iterable&lt;UnsafeRunnable&gt; tasks) throws Throwable {
+<span class="fc" id="L1344">		Throwable e = null;</span>
+<span class="fc bfc" id="L1345" title="All 2 branches covered.">		for (final var task : tasks)</span>
+<span class="fc" id="L1346">			e = suppress(e, task);</span>
+<span class="fc bfc" id="L1347" title="All 2 branches covered.">		if (e != null)</span>
+<span class="fc" id="L1348">			throw e;</span>
+<span class="fc" id="L1349">	}</span>
 
 	private IuException() {
 	}
