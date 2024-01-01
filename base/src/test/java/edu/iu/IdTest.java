@@ -138,5 +138,10 @@ public class IdTest {
 		assertEquals("Invalid checksum", assertThrows(IllegalArgumentException.class,
 				() -> IdGenerator.verifyId("hPTbzx2RQ4sCTn-aWy4zwPyU_TJoM6A3", 0)).getMessage());
 	}
+	
+	@Test
+	public void testIllegalArgumentToEncode() {
+		assertThrows(IllegalArgumentException.class, () -> IdGenerator.encodeId(new byte[1]));
+	}
 
 }

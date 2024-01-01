@@ -35,6 +35,7 @@ import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.Spliterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -56,6 +57,53 @@ import java.util.function.Function;
  * @param <T> element type
  */
 public class IuVisitor<T> implements Consumer<T> {
+
+	private static class ElementSplitter<T> implements Spliterator<T> {
+		private final Spliterator<Reference<T>> elementSpliterator;
+
+		private ElementSplitter(Spliterator<Reference<T>> elementSpliterator) {
+			this.elementSpliterator = elementSpliterator;
+		}
+
+		@Override
+		public boolean tryAdvance(Consumer<? super T> action) {
+			class Box {
+				boolean accepted;
+			}
+			final var box = new Box();
+
+			while (!box.accepted)
+				if (!elementSpliterator.tryAdvance(ref -> {
+					final var element = ref.get();
+					if (element != null) {
+						action.accept(element);
+						box.accepted = true;
+					}
+				}))
+					return false;
+
+			return box.accepted;
+		}
+
+		@Override
+		public Spliterator<T> trySplit() {
+			final var split = elementSpliterator.trySplit();
+			if (split != null)
+				return new ElementSplitter<>(split);
+			else
+				return null;
+		}
+
+		@Override
+		public long estimateSize() {
+			return elementSpliterator.estimateSize();
+		}
+
+		@Override
+		public int characteristics() {
+			return elementSpliterator.characteristics();
+		}
+	}
 
 	private final Queue<Reference<T>> elements = new ConcurrentLinkedQueue<>();
 
@@ -144,6 +192,23 @@ public class IuVisitor<T> implements Consumer<T> {
 				continue;
 			}
 		}
+	}
+
+	/**
+	 * Gets a {@link IuAsynchronousSubject} originated by non-cleared references to
+	 * accepted elements.
+	 * 
+	 * <p>
+	 * Each call to this method returns an independent subject instance. The
+	 * controller responsible for providing elements to the visitor <em>must</em>
+	 * independently provide the same values to, and close its own, subject instance
+	 * to ensure continuity for subscribers.
+	 * </p>
+	 * 
+	 * @return {@link IuAsynchronousSubject}
+	 */
+	public IuAsynchronousSubject<T> subject() {
+		return new IuAsynchronousSubject<>(() -> new ElementSplitter<>(elements.spliterator()));
 	}
 
 }

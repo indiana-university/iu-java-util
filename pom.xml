@@ -61,6 +61,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<jakarta.interceptor-api.version>2.1.0</jakarta.interceptor-api.version>
 		<jakarta.json-api.version>2.1.2</jakarta.json-api.version>
 		<jakarta.json.bind-api.version>3.0.0</jakarta.json.bind-api.version>
+		<jakarta.transaction-api.version>2.0.1</jakarta.transaction-api.version>
+		<jakarta.enterprise.cdi-api.version>4.0.1</jakarta.enterprise.cdi-api.version>
 		
 		<parsson.version>1.1.2</parsson.version>
 
@@ -470,6 +472,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>docfiles</module>
 				<module>base</module>
 				<module>test</module>
+				<module>transaction</module>
 				<module>type</module>
 				<module>runtime</module>
 				<module>site</module>

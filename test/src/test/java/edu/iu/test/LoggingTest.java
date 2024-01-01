@@ -90,6 +90,13 @@ public class LoggingTest {
 	}
 
 	@Test
+	public void testLoggingFailsWithAnUnexpectedLevel() {
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINER, "unexpected");
+		assertThrows(AssertionFailedError.class, () -> LOG.fine(() -> "unexpected"));
+		IuTestExtension.expectFailure();
+	}
+
+	@Test
 	public void testLoggingSucceedsWithAnExpectedMessageAndException() {
 		class ExpectedException extends Exception {
 			private static final long serialVersionUID = 1L;
@@ -179,23 +186,23 @@ public class LoggingTest {
 		assertThrows(AssertionFailedError.class, () -> LOG.log(Level.FINER, new Throwable(), () -> "allowed"));
 	}
 
-//	@Test
-//	public void testAllowedMessages() {
-//		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed");
-//		IuTestLogger.allow("testAllowedMessages", Level.INFO, "allowed info");
-//		IuTestLogger.allow("testAllowedMessages", Level.WARNING, "allowed warning", IllegalStateException.class,
-//				t -> t.getMessage().equals("a"));
-//		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "throw", IllegalArgumentException.class);
-//		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected");
-//		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINER, "threw", UnsupportedOperationException.class);
-//		IuTestLogger.expect("testAllowedMessages", Level.WARNING, "expected warning", IllegalStateException.class,
-//				t -> t.getMessage().equals("b"));
-//		LOG.finer("allowed");
-//		LOG.fine("expected");
-//		LOG.log(Level.FINER, "threw", new UnsupportedOperationException());
-//		log.log(Level.WARNING, new IllegalStateException("b"), () -> "expected warning");
-//		log.log(Level.WARNING, new IllegalStateException("a"), () -> "allowed warning");
-//		LOG.finer("allowed");
-//	}
-//
+	@Test
+	public void testAllowedMessages() {
+		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed");
+		IuTestLogger.allow(LoggingTest.class.getName(), Level.INFO, "allowed info");
+		IuTestLogger.allow(LoggingTest.class.getName(), Level.WARNING, "allowed warning", IllegalStateException.class,
+				t -> t.getMessage().equals("a"));
+		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "throw", IllegalArgumentException.class);
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected");
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINER, "threw", UnsupportedOperationException.class);
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.WARNING, "expected warning", IllegalStateException.class,
+				t -> t.getMessage().equals("b"));
+		LOG.finer("allowed");
+		LOG.fine("expected");
+		LOG.log(Level.FINER, "threw", new UnsupportedOperationException());
+		LOG.log(Level.WARNING, new IllegalStateException("b"), () -> "expected warning");
+		LOG.log(Level.WARNING, new IllegalStateException("a"), () -> "allowed warning");
+		LOG.finer("allowed");
+	}
+
 }
