@@ -129,8 +129,8 @@ public class IuVisitorTest {
 		final var control = Collections.synchronizedList(new ArrayList<Object>());
 		final Runnable thunk = () -> {
 			final var o = new Object();
-			visitor.accept(o);
 			subject.accept(o);
+			visitor.accept(o);
 			control.add(o);
 		};
 
