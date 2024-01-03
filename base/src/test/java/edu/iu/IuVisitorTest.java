@@ -168,8 +168,8 @@ public class IuVisitorTest {
 			}
 			subject.close();
 		});
-		final var sequence = new Box(b -> subject.subscribe().forEach(b.collected::add));
-		final var parallel = new Box(b -> subject.subscribe().parallel().forEach(b.collected::add));
+		final var sequence = new Box(b -> subject.subscribe().stream().forEach(b.collected::add));
+		final var parallel = new Box(b -> subject.subscribe().stream().parallel().forEach(b.collected::add));
 		Throwable error = null;
 		error = IuException.suppress(error, generator::join);
 		error = IuException.suppress(error, sequence::join);

@@ -20,11 +20,13 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Stream;
 
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
 
+import edu.iu.IuAsynchronousSubject;
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuVisitor;
@@ -107,6 +109,7 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 	}
 
 	private static final IuVisitor<IuTransaction> TX_VISITOR = new IuVisitor<>();
+	private static final IuAsynchronousSubject<IuTransaction> TX_SUB = TX_VISITOR.subject();
 
 	/**
 	 * Visit {@link IuTransaction} instances.
@@ -121,11 +124,10 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 	/**
 	 * Subscribes a transaction listener.
 	 * 
-	 * @param transactionVisitor {@link IuVisitor#visit(Function) visitor function}
-	 * @return {@link IuVisitor#visit(Function) visitor result}
+	 * @return {@link Stream} of all known transactions
 	 */
-	public static Stream<IuTransaction> visit(Function<IuTransaction, Optional<V>> transactionVisitor) {
-		return TX_VISITOR.visit(transactionVisitor);
+	public static Stream<IuTransaction> subscribe() {
+		return TX_SUB.subscribe();
 	}
 
 	/**
@@ -252,6 +254,7 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 		xid = new IuXid();
 		expires = Instant.now().plus(timeout);
 		timedRollback = scheduleRollback(this);
+		TX_SUB.accept(this);
 		TX_VISITOR.accept(this);
 		LOG.fine(() -> xid + " begin");
 	}
@@ -269,6 +272,7 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 		expires = parent.expires;
 		timedRollback = scheduleRollback(this);
 		parent.branches.offer(this);
+		TX_SUB.accept(this);
 		TX_VISITOR.accept(this);
 		LOG.fine(() -> xid + " branch " + parent.xid);
 	}

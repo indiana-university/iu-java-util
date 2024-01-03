@@ -46,6 +46,8 @@ import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -75,7 +77,7 @@ public class AsynchronousSubjectTest {
 		try (final var subject = new IuAsynchronousSubject<>(q::spliterator)) {
 			final var subscriber = subject.subscribe();
 
-			final var sp = subscriber.spliterator();
+			final var sp = subscriber.stream().spliterator();
 			final var sp1 = sp.trySplit();
 			assertTrue(sp1.tryAdvance(a -> assertEquals("a", a)));
 			assertFalse(sp1.tryAdvance(a -> fail()));
@@ -116,7 +118,7 @@ public class AsynchronousSubjectTest {
 		try (final var subject = new IuAsynchronousSubject<>(q::spliterator)) {
 			final var subscriber = subject.subscribe();
 
-			final var sp = subscriber.spliterator();
+			final var sp = subscriber.stream().spliterator();
 			new Thread(() -> {
 				try {
 					Thread.sleep(50L);
@@ -146,7 +148,7 @@ public class AsynchronousSubjectTest {
 
 		try (final var subject = new IuAsynchronousSubject<>(q::spliterator)) {
 			final var subscriber = subject.subscribe();
-			final var sp = subscriber.spliterator();
+			final var sp = subscriber.stream().spliterator();
 			assertTrue(sp.tryAdvance(a -> assertEquals("a", a)));
 			new Thread(() -> {
 				try {
@@ -175,7 +177,7 @@ public class AsynchronousSubjectTest {
 	public void testSpliterator() {
 		try (final var subject = new IuAsynchronousSubject<>(Spliterators::emptySpliterator)) {
 			final var subscriber = subject.subscribe();
-			final var subsplit = subscriber.spliterator();
+			final var subsplit = subscriber.stream().spliterator();
 			final var o = new Object();
 			subject.accept(o);
 			assertTrue(subsplit.tryAdvance(a -> assertEquals(a, o)));
@@ -194,7 +196,7 @@ public class AsynchronousSubjectTest {
 	public void testSourceSplit() {
 		try (final var subject = new IuAsynchronousSubject<>(List.of("a", "b", "c")::spliterator)) {
 			final var subscriber = subject.subscribe();
-			final var subsplit = subscriber.spliterator();
+			final var subsplit = subscriber.stream().spliterator();
 
 			final var split1 = subsplit.trySplit();
 			assertEquals(1, split1.estimateSize());
@@ -230,7 +232,7 @@ public class AsynchronousSubjectTest {
 			l.add(new Object());
 		try (final var subject = new IuAsynchronousSubject<>(l::spliterator)) {
 			final var subscriber = subject.subscribe();
-			final var subsplit = subscriber.spliterator();
+			final var subsplit = subscriber.stream().spliterator();
 			final var split1 = subsplit.trySplit();
 			assertEquals(500, split1.estimateSize());
 			assertEquals(Spliterator.ORDERED | Spliterator.SIZED | Spliterator.SUBSIZED, split1.characteristics());
@@ -243,31 +245,34 @@ public class AsynchronousSubjectTest {
 			}
 			final var box = new Box();
 			final var async = new Async(() -> {
-				for (var i = 0; i < 100; i++)
-					subject.accept(new Object());
+				try {
+					for (var i = 0; i < 100; i++)
+						subject.accept(new Object());
 
-				Thread.sleep(100L);
-				while (split2.tryAdvance(a -> box.count++))
-					;
-				Thread.sleep(100L);
-				while (split1.tryAdvance(a -> box.count++))
-					;
-				Thread.sleep(100L);
-				subject.close();
+					Thread.sleep(100L);
+					while (split2.tryAdvance(a -> box.count++))
+						;
+					Thread.sleep(100L);
+					while (split1.tryAdvance(a -> box.count++))
+						;
+					Thread.sleep(100L);
+				} finally {
+					subject.close();
+				}
 			});
 
 			subsplit.forEachRemaining(a -> box.count++);
-			assertEquals(1100, box.count);
-
 			async.await();
+			
+			assertEquals(1100, box.count);
 		}
 	}
 
 	@Test
-	public void testSubscriberSplitStates() {
+	public void testSubscriberSplitStates() throws Exception {
 		try (final var subject = new IuAsynchronousSubject<String>(List.of("a")::spliterator)) {
 			final var subscriber = subject.subscribe();
-			final var subsplit = subscriber.spliterator();
+			final var subsplit = subscriber.stream().spliterator();
 			subject.accept("b");
 			assertNull(subsplit.trySplit()); // not exhausted
 			assertTrue(subsplit.tryAdvance(a -> assertEquals("a", a)));
@@ -282,7 +287,7 @@ public class AsynchronousSubjectTest {
 	public void testAppendsEmpty() {
 		try (final var subject = new IuAsynchronousSubject<String>(Spliterators::emptySpliterator)) {
 			final var subscriber = subject.subscribe();
-			final var i = subscriber.iterator();
+			final var i = subscriber.stream().iterator();
 			subject.accept("foo");
 			assertTrue(i.hasNext());
 			assertEquals("foo", i.next());
@@ -294,7 +299,7 @@ public class AsynchronousSubjectTest {
 		final var subject = new IuAsynchronousSubject<String>(Spliterators::emptySpliterator);
 		final var subscriber = subject.subscribe();
 		subject.close();
-		assertFalse(subscriber.iterator().hasNext());
+		assertFalse(subscriber.stream().iterator().hasNext());
 	}
 
 	@Test
@@ -303,7 +308,7 @@ public class AsynchronousSubjectTest {
 			final var subscriber = subject.subscribe();
 			final var e = new RuntimeException();
 			subject.error(e);
-			assertSame(e, assertThrows(RuntimeException.class, () -> subscriber.iterator().hasNext()));
+			assertSame(e, assertThrows(RuntimeException.class, () -> subscriber.stream().iterator().hasNext()));
 		}
 	}
 
@@ -324,7 +329,7 @@ public class AsynchronousSubjectTest {
 				Thread.sleep(100L);
 				subject.error(e);
 			});
-			assertThrows(RuntimeException.class, () -> subject.subscribe().forEach(a -> fail()));
+			assertThrows(RuntimeException.class, () -> subject.subscribe().stream().forEach(a -> fail()));
 			async.await();
 		}
 	}
@@ -378,10 +383,10 @@ public class AsynchronousSubjectTest {
 			Deque<UnsafeRunnable> toAwait = new ArrayDeque<>();
 			for (var i = 0; i < 100; i++) {
 				final var seqList = Collections.synchronizedList(new ArrayList<>());
-				final var seqSub = subject.subscribe();
+				final var seqSub = subject.subscribe().stream();
 				final var seqTask = new Async(() -> seqSub.forEach(seqList::add));
 				final var parList = Collections.synchronizedList(new ArrayList<>());
-				final var parSub = subject.subscribe().parallel();
+				final var parSub = subject.subscribe().stream().parallel();
 				final var parTask = new Async(() -> parSub.forEach(parList::add));
 				toAwait.push(() -> {
 					seqTask.await();
@@ -408,7 +413,7 @@ public class AsynchronousSubjectTest {
 			l.add(new Object());
 
 		try (final var subject = new IuAsynchronousSubject<>(() -> new Unsized<>(l.spliterator()))) {
-			final var subscriber = subject.subscribe();
+			final var subscriber = subject.subscribe().stream();
 			final var subsplit = subscriber.spliterator();
 			final var split1 = subsplit.trySplit();
 			for (var i = 0; i < 50; i++)
@@ -425,7 +430,7 @@ public class AsynchronousSubjectTest {
 			l.add(new Object());
 
 		try (final var subject = new IuAsynchronousSubject<>(() -> l.spliterator())) {
-			final var subscriber = subject.subscribe();
+			final var subscriber = subject.subscribe().stream();
 			final var subsplit = subscriber.spliterator();
 			final var split1 = subsplit.trySplit();
 			for (var i = 0; i < 50; i++)
@@ -448,7 +453,7 @@ public class AsynchronousSubjectTest {
 		final var box = new Box();
 
 		try (final var subject = new IuAsynchronousSubject<>(() -> new Unsized<>(l.spliterator()))) {
-			final var subscriber = subject.subscribe();
+			final var subscriber = subject.subscribe().stream();
 			final var subsplit = subscriber.spliterator();
 			for (var i = 0; i < 50; i++)
 				subject.accept(new Object());
@@ -484,7 +489,7 @@ public class AsynchronousSubjectTest {
 	@Test
 	public void testClosed() {
 		final var subject = new IuAsynchronousSubject<>(Spliterators::emptySpliterator);
-		final var sub = subject.subscribe().spliterator();
+		final var sub = subject.subscribe().stream().spliterator();
 		subject.close();
 		assertEquals(0, sub.estimateSize());
 		assertEquals(Spliterator.IMMUTABLE | Spliterator.SIZED, sub.characteristics());
@@ -493,18 +498,203 @@ public class AsynchronousSubjectTest {
 	@Test
 	public void testForEachAfterError() {
 		try (final var subject = new IuAsynchronousSubject<>(List.of("a", "b", "c")::spliterator)) {
-			final var sub = subject.subscribe().spliterator();
+			final var sub = subject.subscribe();
+			final var sp = sub.stream().spliterator();
 			subject.accept("d");
 			subject.accept("e");
 
 			final var e = new RuntimeException();
+			assertEquals(Long.MAX_VALUE, sp.estimateSize());
 			subject.error(e);
+			assertEquals(5, sp.estimateSize());
 
 			final Set<String> control = new HashSet<>(Set.of("a", "b", "c", "d", "e"));
 			assertSame(e, assertThrows(RuntimeException.class,
-					() -> sub.forEachRemaining(a -> assertTrue(control.remove(a)))));
+					() -> sp.forEachRemaining(a -> assertTrue(control.remove(a)))));
 			assertTrue(control.isEmpty(), control::toString);
-			assertSame(e, assertThrows(RuntimeException.class, () -> sub.trySplit()));
+			assertSame(e, assertThrows(RuntimeException.class, () -> sp.trySplit()));
 		}
 	}
+
+	@Test
+	public void testAvailable() {
+		try (final var subject = new IuAsynchronousSubject<>(List.of("a", "b", "c")::spliterator)) {
+			final var sub = subject.subscribe();
+			assertEquals(3, sub.available());
+			subject.accept("d");
+			subject.accept("e");
+			assertEquals(5, sub.available());
+
+			final var sp = sub.stream().spliterator();
+			assertEquals(Long.MAX_VALUE, sp.estimateSize());
+			subject.close();
+			assertEquals(5, sp.estimateSize());
+
+			assertTrue(sp.tryAdvance(a -> assertEquals("a", a)));
+			assertTrue(sp.tryAdvance(a -> assertEquals("b", a)));
+			assertTrue(sp.tryAdvance(a -> assertEquals("c", a)));
+			assertTrue(sp.tryAdvance(a -> assertEquals("d", a)));
+			assertEquals(1, sub.available());
+			assertTrue(sp.tryAdvance(a -> assertEquals("e", a)));
+			assertEquals(0, sub.available());
+		}
+	}
+
+	@Test
+	public void testEstimateAddsAcceptedToLastSplit() {
+		try (final var subject = new IuAsynchronousSubject<>(List.of("a", "b", "c")::spliterator)) {
+			final var sub = subject.subscribe();
+			assertEquals(3, sub.available());
+			subject.accept("d");
+			subject.accept("e");
+			assertEquals(5, sub.available());
+
+			final var sp = sub.stream().spliterator();
+			final var sp1 = sp.trySplit();
+			final var sp2 = sp.trySplit();
+			subject.close();
+			assertEquals(1, sub.available());
+			assertEquals(1, sp.estimateSize());
+			assertEquals(1, sp1.estimateSize());
+			assertEquals(1, sp2.estimateSize());
+
+			assertTrue(sp.tryAdvance(a -> assertEquals("c", a)));
+			assertEquals(0, sub.available());
+			assertEquals(1, sp1.estimateSize());
+			assertTrue(sp1.tryAdvance(a -> assertEquals("a", a)));
+			assertEquals(0, sp1.estimateSize());
+			assertEquals(0, sub.available());
+			assertEquals(3, sp2.estimateSize());
+			assertTrue(sp2.tryAdvance(a -> assertEquals("b", a)));
+			assertEquals(2, sp2.estimateSize());
+			assertEquals(2, sp1.estimateSize());
+			assertEquals(2, sp.estimateSize());
+			assertEquals(2, sub.available());
+			assertTrue(sp2.tryAdvance(a -> assertEquals("d", a)));
+			assertEquals(1, sp2.estimateSize());
+			assertEquals(1, sp1.estimateSize());
+			assertEquals(1, sp.estimateSize());
+			assertEquals(1, sub.available());
+			assertTrue(sp1.tryAdvance(a -> assertEquals("e", a)));
+			assertEquals(0, sp2.estimateSize());
+			assertEquals(0, sp1.estimateSize());
+			assertEquals(0, sp.estimateSize());
+			assertEquals(0, sub.available());
+		}
+	}
+
+	@Test
+	public void testAvailableOfUnsized() {
+		try (final var subject = new IuAsynchronousSubject<>(new ConcurrentLinkedQueue<>()::spliterator)) {
+			final var sub = subject.subscribe();
+			assertEquals(0, sub.available());
+			subject.accept("d");
+			subject.accept("e");
+			assertEquals(2, sub.available());
+
+			final var sp = sub.stream().spliterator();
+			assertTrue(sp.tryAdvance(a -> assertEquals("d", a)));
+			assertTrue(sp.tryAdvance(a -> assertEquals("e", a)));
+			assertEquals(0, sub.available());
+
+			subject.accept("f");
+			assertEquals(1, sub.available());
+		}
+	}
+
+	@Test
+	public void testReceiverPauseOnSource() throws Throwable {
+		try (final var subject = new IuAsynchronousSubject<>(List.of("a", "b", "c")::spliterator)) {
+			final var sub = subject.subscribe();
+			final var sp = sub.stream().spliterator();
+			final var async = new Async(() -> {
+				Thread.sleep(100L);
+				subject.accept("d");
+				subject.accept("e");
+				Thread.sleep(100L);
+				assertTrue(sp.tryAdvance(a -> assertEquals("e", a)));
+				Thread.sleep(100L);
+				subject.accept("f");
+				subject.accept("g");
+				subject.close();
+			});
+			assertEquals(0L, sub.pause(0, Duration.ZERO));
+			sub.pause(2, Duration.ofSeconds(1L));
+			assertEquals(5, sub.available());
+			assertTrue(sp.tryAdvance(a -> assertEquals("a", a)));
+			assertTrue(sp.tryAdvance(a -> assertEquals("b", a)));
+			assertTrue(sp.tryAdvance(a -> assertEquals("c", a)));
+			assertTrue(sp.tryAdvance(a -> assertEquals("d", a)));
+			assertEquals(2, sub.pause(Instant.now().plusMillis(1000L)));
+			assertTrue(sp.tryAdvance(a -> assertEquals("f", a)));
+			assertTrue(sp.tryAdvance(a -> assertEquals("g", a)));
+			async.await();
+		}
+	}
+
+	@Test
+	public void testMixedPause() throws Throwable {
+		try (final var subject = new IuAsynchronousSubject<>(List.of("a", "b", "c")::spliterator)) {
+			final var sub = subject.subscribe();
+			final var sp = sub.stream().spliterator();
+			final var async = new Async(() -> {
+				Thread.sleep(100L);
+				subject.accept("d");
+				subject.accept("e");
+				Thread.sleep(100L);
+				assertTrue(sp.tryAdvance(a -> assertEquals("c", a)));
+				assertTrue(sp.tryAdvance(a -> assertEquals("d", a)));
+				assertTrue(sp.tryAdvance(a -> assertEquals("e", a)));
+				Thread.sleep(100L);
+				subject.accept("f");
+				subject.accept("g");
+				Thread.sleep(100L);
+				subject.accept("h");
+				Thread.sleep(100L);
+				subject.accept("i");
+				subject.close();
+			});
+			assertTrue(sp.tryAdvance(a -> assertEquals("a", a)));
+			assertTrue(sp.tryAdvance(a -> assertEquals("b", a)));
+			assertEquals(4, sub.pause(4, Duration.ofSeconds(1L)));
+			assertTrue(sp.tryAdvance(a -> assertEquals("f", a)));
+			assertTrue(sp.tryAdvance(a -> assertEquals("g", a)));
+			assertEquals(1, sub.pause(1, Duration.ofSeconds(1L)));
+			assertTrue(sp.tryAdvance(a -> assertEquals("h", a)));
+			assertEquals(1, sub.pause(Instant.now().plus(Duration.ofSeconds(1L))));
+			assertTrue(sp.tryAdvance(a -> assertEquals("i", a)));
+			async.await();
+		}
+	}
+
+	@Test
+	public void testPauseAndClose() throws Throwable {
+		try (final var subject = new IuAsynchronousSubject<>(List.of("a", "b", "c")::spliterator)) {
+			final var sub = subject.subscribe();
+			final var sp = sub.stream().spliterator();
+			final var async = new Async(() -> {
+				Thread.sleep(100L);
+				sub.close();
+				assertTrue(sp.tryAdvance(a -> assertEquals("c", a)));
+			});
+			assertTrue(sp.tryAdvance(a -> assertEquals("a", a)));
+			assertTrue(sp.tryAdvance(a -> assertEquals("b", a)));
+			assertEquals(0, sub.pause(1, Duration.ofSeconds(1L)));
+			async.await();
+		}
+	}
+
+	@Test
+	public void testPauseAndExpire() throws Throwable {
+		try (final var subject = new IuAsynchronousSubject<>(List.of("a", "b", "c")::spliterator)) {
+			final var sub = subject.subscribe();
+			final var async = new Async(() -> {
+				Thread.sleep(200L);
+				sub.close();
+			});
+			assertEquals(0, sub.pause(Instant.now().plusMillis(100L)));
+			async.await();
+		}
+	}
+
 }
