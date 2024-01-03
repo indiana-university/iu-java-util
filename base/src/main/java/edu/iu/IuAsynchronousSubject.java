@@ -269,6 +269,8 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 				return true;
 			}
 
+			bootstrapPipe();
+
 			if (error != null)
 				throw IuException.unchecked(error);
 			else if (pipedSplit != null)
