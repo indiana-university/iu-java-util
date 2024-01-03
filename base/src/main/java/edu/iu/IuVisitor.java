@@ -58,7 +58,7 @@ import java.util.function.Function;
  */
 public class IuVisitor<T> implements Consumer<T> {
 
-	private static class ElementSplitter<T> implements Spliterator<T> {
+	private class ElementSplitter implements Spliterator<T> {
 		private final Spliterator<Reference<T>> elementSpliterator;
 
 		private ElementSplitter(Spliterator<Reference<T>> elementSpliterator) {
@@ -89,19 +89,22 @@ public class IuVisitor<T> implements Consumer<T> {
 		public Spliterator<T> trySplit() {
 			final var split = elementSpliterator.trySplit();
 			if (split != null)
-				return new ElementSplitter<>(split);
+				return new ElementSplitter(split);
 			else
 				return null;
 		}
 
 		@Override
 		public long estimateSize() {
-			return elementSpliterator.estimateSize();
+			if (elementSpliterator.hasCharacteristics(SIZED))
+				return elementSpliterator.estimateSize();
+			else
+				return elements.size();
 		}
 
 		@Override
 		public int characteristics() {
-			return elementSpliterator.characteristics();
+			return elementSpliterator.characteristics() | SIZED;
 		}
 	}
 
@@ -208,7 +211,7 @@ public class IuVisitor<T> implements Consumer<T> {
 	 * @return {@link IuAsynchronousSubject}
 	 */
 	public IuAsynchronousSubject<T> subject() {
-		return new IuAsynchronousSubject<>(() -> new ElementSplitter<>(elements.spliterator()));
+		return new IuAsynchronousSubject<>(() -> new ElementSplitter(elements.spliterator()));
 	}
 
 }
