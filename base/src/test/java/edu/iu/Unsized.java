@@ -29,4 +29,41 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.type.testweb;
+package edu.iu;
+
+import java.util.Spliterator;
+import java.util.function.Consumer;
+
+@SuppressWarnings("javadoc")
+class Unsized<T> implements Spliterator<T> {
+	private final Spliterator<T> sp;
+
+	Unsized(Spliterator<T> sp) {
+		super();
+		this.sp = sp;
+	}
+
+	@Override
+	public boolean tryAdvance(Consumer<? super T> action) {
+		return sp.tryAdvance(action);
+	}
+
+	@Override
+	public Spliterator<T> trySplit() {
+		final var split = sp.trySplit();
+		if (split == null)
+			return null;
+		else
+			return new Unsized<>(split);
+	}
+
+	@Override
+	public long estimateSize() {
+		return Long.MAX_VALUE;
+	}
+
+	@Override
+	public int characteristics() {
+		return IMMUTABLE;
+	}
+}

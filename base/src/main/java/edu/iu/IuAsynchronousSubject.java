@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -31,9 +31,13 @@
  */
 package edu.iu;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Queue;
 import java.util.Spliterator;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -44,22 +48,49 @@ import java.util.stream.StreamSupport;
  * source <strong>subject</strong>.
  * 
  * <p>
- * <strong>Subjects</strong> are backed externally by a <strong>controlling
- * component</strong>, which is responsible for both appending new values to a
- * <strong>source</strong> capable of supplying a {@link Spliterator}, and
- * independently {@link #accept(Object) supplying} the same values to be
- * distributed to all active subscribers. The <strong>subject</strong> makes no
- * guarantee to the <strong>controlling component</strong> when or if a
- * <strong>subscriber</strong> will transition from non-blocking access to
- * available values to potentially blocking access via
- * {@link IuAsynchronousPipe}. It is, however, guaranteed that all values
- * available from the point in time the <strong>subscriber</strong> begins
- * processing the {@link Stream} until <strong>unsubscribing</strong> will be
- * supplied exactly once.
+ * Each <strong>subject</strong> is backed externally by a <strong>controlling
+ * component</strong> that:
+ * </p>
+ * <ul>
+ * <li>Provides an <strong>initial {@link Spliterator split}</strong> of
+ * available values at the point in time a new {@link #subscribe() subscription}
+ * is created.</li>
+ * <li>{@link #accept(Object) Accepts} new values to be distributed to active
+ * <strong>subscribers</strong>.</li>
+ * </ul>
+ * 
+ * <p>
+ * After the <strong>initial {@link Spliterator split}</strong> is created, but
+ * before the values available at {@link #subscribe() subscription} time have
+ * all been {@link Spliterator#tryAdvance(Consumer) advanced}, newly
+ * {@link #accept(Object) accepted} values are offered to a queue. Values
+ * <em>may</em> be removed from the queue if also advanced from the initial
+ * split. Queued values will be polled and advanced after the last split of the
+ * initial split advances its last value.
  * </p>
  * 
  * <p>
- * For example:
+ * After all queued values have been advanced, the <strong>subscriber</strong>
+ * transitions to a dedicated {@link IuAsynchronousPipe} and passes new values
+ * through to {@link IuAsynchronousPipe#accept(Object)}.
+ * </p>
+ * 
+ * <p>
+ * The <strong>subject</strong> makes no guarantee to the <strong>controlling
+ * component</strong> when or if a <strong>subscriber</strong> will transition
+ * from non-blocking access to available values, to potentially blocking access
+ * via {@link IuAsynchronousPipe}. It is, however, guaranteed that all values
+ * available from the point in time the <strong>subscriber</strong> begins
+ * processing the {@link Stream} until <strong>unsubscribing</strong> will be
+ * supplied exactly once regardless of how the value is actually delivered.
+ * </p>
+ * 
+ * <img src="doc-files/IuAsynchronousSubject.svg" alt="UML Sequence Diagram">
+ * 
+ * <p>
+ * New values <em>should</em> be {@link #accept(Object) accepted} before
+ * appending the external source, to gracefully avoid a potential race condition
+ * between the initial split and an internal appended values queue. For example:
  * </p>
  * 
  * <pre>
@@ -70,8 +101,8 @@ import java.util.stream.StreamSupport;
  * 
  * 	{@literal @}Override
  * 	public void accept(T t) {
- * 		queue.offer(t);
  * 		subject.accept(t);
+ * 		queue.offer(t);
  * 	}
  * }
  * </pre>
@@ -105,62 +136,370 @@ import java.util.stream.StreamSupport;
  */
 public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 
-	private final Supplier<Spliterator<T>> source;
-	private final Queue<Subscriber> subscribers = new ConcurrentLinkedQueue<>();
-	private boolean closed;
+	private class SourceSplit implements Spliterator<T> {
+		private final Subscriber subscriber;
+		private volatile Spliterator<T> delegate;
 
-	private class Subscriber implements Spliterator<T> {
-		private final Spliterator<T> sourceSplit = source.get();
-		private final IuAsynchronousPipe<T> pipe = new IuAsynchronousPipe<T>();
-
-		private volatile Spliterator<T> pipedSplit;
-
-		@Override
-		public synchronized boolean tryAdvance(Consumer<? super T> action) {
-			if (pipedSplit == null)
-				if (sourceSplit.tryAdvance(action))
-					return true;
-				else
-					pipedSplit = pipe.stream().spliterator();
-
-			return pipedSplit.tryAdvance(action);
+		private SourceSplit(Spliterator<T> delegate, Subscriber subscriber) {
+			this.subscriber = subscriber;
+			this.delegate = delegate;
+			subscriber.children.offer(this);
 		}
 
 		@Override
-		public synchronized Spliterator<T> trySplit() {
-			if (pipedSplit == null) {
-				pipedSplit = pipe.stream().spliterator();
-				return sourceSplit;
+		public boolean tryAdvance(Consumer<? super T> action) {
+			if (delegate != null //
+					&& delegate.tryAdvance(subscriber.cancelAcceptedValueAfterAction(action))) {
+
+				if (delegate.estimateSize() == 0)
+					delegate = null;
+
+				return true;
+			} else
+				delegate = null;
+
+			return subscriber.continueAdvance(action);
+		}
+
+		@Override
+		public void forEachRemaining(Consumer<? super T> action) {
+			if (delegate != null) {
+				delegate.forEachRemaining(subscriber.cancelAcceptedValueAfterAction(action));
+				delegate = null;
 			}
 
-			return pipedSplit.trySplit();
+			subscriber.continueForEach(action);
+		}
+
+		@Override
+		public Spliterator<T> trySplit() {
+			if (delegate == null)
+				return null;
+
+			final var split = delegate.trySplit();
+			if (split == null)
+				return null;
+			else
+				return new SourceSplit(split, subscriber);
 		}
 
 		@Override
 		public long estimateSize() {
-			if (pipedSplit == null)
-				return Long.MAX_VALUE;
+			var count = 0L;
+
+			final var delegate = this.delegate;
+			if (delegate != null)
+				count += delegate.estimateSize();
+
+			if (subscriber.isExhausted() //
+					|| (subscriber.children.size() == 1 //
+							&& subscriber.children.contains(this)))
+				count += subscriber.acceptedSize();
+
+			return count;
+		}
+
+		@Override
+		public int characteristics() {
+			final var delegate = this.delegate;
+			if (delegate != null)
+				return delegate.characteristics();
 			else
+				return SIZED;
+		}
+
+	}
+
+	private class Subscriber implements Spliterator<T>, IuAsynchronousSubscription<T> {
+		private final Stream<T> stream;
+//		private volatile Source<T> source;
+		private final Queue<SourceSplit> children = new ConcurrentLinkedDeque<>();
+		private final Queue<T> accepted = new ConcurrentLinkedQueue<>();
+		private volatile Spliterator<T> delegate;
+		private volatile long acceptedCount;
+		private volatile Throwable error;
+		private volatile boolean closed;
+		private volatile IuAsynchronousPipe<T> pipe;
+		private volatile Spliterator<T> pipedSplit;
+
+		private Subscriber() {
+			final var delegate = initialSplitSupplier.get();
+			if (delegate.estimateSize() > 0)
+				this.delegate = delegate;
+
+			subscribers.offer(this);
+			stream = StreamSupport.stream(this, false).onClose(this::close);
+		}
+
+		@Override
+		public Spliterator<T> trySplit() {
+			final var delegate = this.delegate;
+			if (delegate != null) {
+				final var split = delegate.trySplit();
+				if (split != null)
+					return new SourceSplit(split, this);
+			}
+
+			if (error != null)
+				throw IuException.unchecked(error);
+			else if (pipedSplit != null)
+				return pipedSplit.trySplit();
+			else
+				return null;
+		}
+
+		@Override
+		public boolean tryAdvance(Consumer<? super T> action) {
+			final var delegate = this.delegate;
+			if (delegate != null //
+					&& delegate.tryAdvance(cancelAcceptedValueAfterAction(action))) {
+
+				if (delegate.estimateSize() == 0)
+					this.delegate = null;
+
+				return true;
+			} else
+				this.delegate = null;
+
+			if (continueAdvance(action)) {
+				if (isExhausted() //
+						&& acceptedSize() == 0)
+					bootstrapPipe();
+
+				return true;
+			}
+
+			bootstrapPipe();
+
+			if (error != null)
+				throw IuException.unchecked(error);
+			else if (pipedSplit != null)
+				return pipedSplit.tryAdvance(action);
+			else
+				return false;
+		}
+
+		@Override
+		public void forEachRemaining(Consumer<? super T> action) {
+			if (delegate != null) {
+				delegate.forEachRemaining(cancelAcceptedValueAfterAction(action));
+				delegate = null;
+			}
+
+			continueForEach(action);
+
+			bootstrapPipe();
+
+			if (error != null)
+				throw IuException.unchecked(error);
+			else if (pipedSplit != null)
+				pipedSplit.forEachRemaining(action);
+		}
+
+		@Override
+		public synchronized long available() {
+			var count = 0;
+
+			if (delegate != null //
+					&& delegate.hasCharacteristics(SIZED))
+				count += delegate.estimateSize();
+
+			if (areChildrenExhausted())
+				count += acceptedSize();
+
+			if (pipe != null)
+				count += pipe.getPendingCount();
+
+			return count;
+		}
+
+		@Override
+		public synchronized long estimateSize() {
+			if (pipedSplit == null) {
+				if (!closed && error == null)
+					return Long.MAX_VALUE;
+				else
+					return available();
+			} else
 				return pipedSplit.estimateSize();
 		}
 
 		@Override
 		public int characteristics() {
 			if (pipedSplit == null)
-				return CONCURRENT;
+				if (!isClosedOrError())
+					return CONCURRENT;
+				else
+					return IMMUTABLE | SIZED;
 			else
 				return pipedSplit.characteristics();
 		}
+
+		@Override
+		public Stream<T> stream() {
+			return stream;
+		}
+
+		@Override
+		public long pause(long acceptedCount, Duration timeout) throws TimeoutException, InterruptedException {
+			if (acceptedCount <= 0L)
+				return 0L;
+
+			final var now = Instant.now();
+			final var expires = now.plus(timeout);
+
+			final var initCount = this.acceptedCount;
+			final var targetCount = initCount + acceptedCount;
+			IuObject.waitFor(this, //
+					() -> (pipe != null //
+							&& pipe.isClosed()) //
+							|| isClosedOrError() //
+							|| this.acceptedCount >= targetCount //
+					, expires);
+
+			return this.acceptedCount - initCount;
+		}
+
+		@Override
+		public long pause(Instant expires) throws InterruptedException {
+			final var initCount = acceptedCount;
+
+			synchronized (this) {
+				while ((pipe == null || !pipe.isClosed()) && !isClosedOrError()) {
+					final var now = Instant.now();
+					if (now.isBefore(expires)) {
+						final var waitFor = Duration.between(now, expires);
+						this.wait(waitFor.toMillis(), waitFor.toNanosPart() % 1_000_000);
+					} else
+						break;
+				}
+			}
+
+			return acceptedCount - initCount;
+		}
+
+		@Override
+		public synchronized void error(Throwable e) {
+			if (pipe != null)
+				pipe.error(e);
+			else
+				error = e;
+
+			this.notifyAll();
+		}
+
+		@Override
+		public synchronized void close() {
+			subscribers.remove(this);
+
+			if (pipe != null)
+				pipe.close();
+			else
+				closed = true;
+
+			this.notifyAll();
+		}
+
+		private boolean isClosedOrError() {
+			return closed //
+					|| error != null;
+		}
+
+		private Consumer<? super T> cancelAcceptedValueAfterAction(Consumer<? super T> action) {
+			return value -> {
+				action.accept(value);
+
+				synchronized (this) {
+					accepted.remove(value);
+					this.notifyAll();
+				}
+			};
+		}
+
+		private boolean continueAdvance(Consumer<? super T> action) {
+			if (isExhausted()) {
+				final var value = accepted.poll();
+				if (value != null) {
+					action.accept(value);
+					synchronized (this) {
+						this.notifyAll();
+					}
+					return true;
+				}
+			}
+			return false;
+		}
+
+		private void continueForEach(Consumer<? super T> action) {
+			if (isExhausted()) {
+				while (!accepted.isEmpty()) {
+					action.accept(accepted.poll());
+					synchronized (this) {
+						this.notifyAll();
+					}
+				}
+			}
+		}
+
+		private int acceptedSize() {
+			return accepted.size();
+		}
+
+		private boolean areChildrenExhausted() {
+			final var i = children.iterator();
+			while (i.hasNext())
+				if (i.next().delegate == null)
+					i.remove();
+				else
+					return false;
+
+			return true;
+		}
+
+		private boolean isExhausted() {
+			if (delegate != null)
+				return false;
+
+			return areChildrenExhausted();
+		}
+
+		private synchronized void bootstrapPipe() {
+			if (pipe == null //
+					&& error == null //
+					&& !closed) {
+				pipe = new IuAsynchronousPipe<>();
+				pipedSplit = pipe.stream().spliterator();
+			}
+		}
+
+		private void accept(T t) {
+			synchronized (this) {
+				if (delegate != null || !accepted.isEmpty())
+					accepted.offer(t);
+				else {
+					bootstrapPipe();
+					pipe.accept(t);
+				}
+				acceptedCount++;
+				this.notifyAll();
+			}
+
+		}
+
 	}
+
+	private final Supplier<Spliterator<T>> initialSplitSupplier;
+	private final Queue<Subscriber> subscribers = new ConcurrentLinkedQueue<>();
+	private boolean closed;
 
 	/**
 	 * Creates a new <strong>subject</strong>.
 	 * 
-	 * @param source supplies the initial split backing new
-	 *               <strong>subscriber</strong> streams.
+	 * @param initialSplitSupplier supplies the initial split backing new
+	 *                             <strong>subscriber</strong> streams.
 	 */
-	public IuAsynchronousSubject(Supplier<Spliterator<T>> source) {
-		this.source = source;
+	public IuAsynchronousSubject(Supplier<Spliterator<T>> initialSplitSupplier) {
+		this.initialSplitSupplier = initialSplitSupplier;
 	}
 
 	/**
@@ -168,16 +507,13 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 	 * available without blocking then blocks until new values are available or the
 	 * <strong>subject</strong> is {@link #close() closed}.
 	 * 
-	 * @return {@link Stream}
+	 * @return {@link IuAsynchronousSubscription}
 	 */
-	public Stream<T> subscribe() {
+	public IuAsynchronousSubscription<T> subscribe() {
 		if (closed)
 			throw new IllegalStateException("closed");
 
-		final var subscriber = new Subscriber();
-		subscribers.offer(subscriber);
-
-		return StreamSupport.stream(subscriber, false).onClose(() -> subscribers.remove(subscriber));
+		return new Subscriber();
 	}
 
 	/**
@@ -194,11 +530,11 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 	 * @param value value to supply to all <strong>subscribers</strong>
 	 */
 	@Override
-	public void accept(T value) {
+	public synchronized void accept(T value) {
 		if (closed)
 			throw new IllegalStateException("closed");
 
-		subscribers.forEach(subscriber -> subscriber.pipe.accept(value));
+		subscribers.forEach(subscriber -> subscriber.accept(value));
 	}
 
 	/**
@@ -225,7 +561,7 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 
 		Throwable e = null;
 		while (!subscribers.isEmpty())
-			e = IuException.suppress(e, () -> subscribers.poll().pipe.close());
+			e = IuException.suppress(e, () -> subscribers.poll().close());
 
 		if (e != null)
 			throw IuException.unchecked(e);
@@ -239,7 +575,7 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 	 */
 	public synchronized void error(Throwable e) {
 		while (!subscribers.isEmpty())
-			IuException.suppress(e, () -> subscribers.poll().pipe.error(e));
+			IuException.suppress(e, () -> subscribers.poll().error(e));
 
 		closed = true;
 	}
