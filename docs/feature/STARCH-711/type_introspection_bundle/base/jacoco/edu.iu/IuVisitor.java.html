@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuVisitor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Base Utilities Module</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuVisitor.java</span></div><h1>IuVisitor.java</h1><pre class="source lang-java linenums">/*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -35,6 +35,7 @@ import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.Spliterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -57,13 +58,63 @@ import java.util.function.Function;
  */
 public class IuVisitor&lt;T&gt; implements Consumer&lt;T&gt; {
 
-<span class="fc" id="L60">	private final Queue&lt;Reference&lt;T&gt;&gt; elements = new ConcurrentLinkedQueue&lt;&gt;();</span>
+	private class ElementSplitter implements Spliterator&lt;T&gt; {
+		private final Spliterator&lt;Reference&lt;T&gt;&gt; elementSpliterator;
+
+<span class="fc" id="L64">		private ElementSplitter(Spliterator&lt;Reference&lt;T&gt;&gt; elementSpliterator) {</span>
+<span class="fc" id="L65">			this.elementSpliterator = elementSpliterator;</span>
+<span class="fc" id="L66">		}</span>
+
+		@Override
+		public boolean tryAdvance(Consumer&lt;? super T&gt; action) {
+<span class="fc" id="L70">			class Box {</span>
+				boolean accepted;
+			}
+<span class="fc" id="L73">			final var box = new Box();</span>
+
+<span class="fc bfc" id="L75" title="All 2 branches covered.">			while (!box.accepted)</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">				if (!elementSpliterator.tryAdvance(ref -&gt; {</span>
+<span class="fc" id="L77">					final var element = ref.get();</span>
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">					if (element != null) {</span>
+<span class="fc" id="L79">						action.accept(element);</span>
+<span class="fc" id="L80">						box.accepted = true;</span>
+					}
+<span class="fc" id="L82">				}))</span>
+<span class="fc" id="L83">					return false;</span>
+
+<span class="fc" id="L85">			return box.accepted;</span>
+		}
+
+		@Override
+		public Spliterator&lt;T&gt; trySplit() {
+<span class="fc" id="L90">			final var split = elementSpliterator.trySplit();</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">			if (split != null)</span>
+<span class="fc" id="L92">				return new ElementSplitter(split);</span>
+			else
+<span class="fc" id="L94">				return null;</span>
+		}
+
+		@Override
+		public long estimateSize() {
+<span class="fc bfc" id="L99" title="All 2 branches covered.">			if (elementSpliterator.hasCharacteristics(SIZED))</span>
+<span class="fc" id="L100">				return elementSpliterator.estimateSize();</span>
+			else
+<span class="fc" id="L102">				return elements.size();</span>
+		}
+
+		@Override
+		public int characteristics() {
+<span class="fc" id="L107">			return elementSpliterator.characteristics() | SIZED;</span>
+		}
+	}
+
+<span class="fc" id="L111">	private final Queue&lt;Reference&lt;T&gt;&gt; elements = new ConcurrentLinkedQueue&lt;&gt;();</span>
 
 	/**
 	 * Default constructor.
 	 */
-<span class="fc" id="L65">	public IuVisitor() {</span>
-<span class="fc" id="L66">	}</span>
+<span class="fc" id="L116">	public IuVisitor() {</span>
+<span class="fc" id="L117">	}</span>
 
 	/**
 	 * Applies a function to each element until a generic condition is satisfied.
@@ -83,21 +134,21 @@ public class IuVisitor&lt;T&gt; implements Consumer&lt;T&gt; {
 	 *         null if a terminal condition was not met.
 	 */
 	public &lt;V&gt; Optional&lt;V&gt; visit(Function&lt;T, Optional&lt;V&gt;&gt; visitor) {
-<span class="fc" id="L86">		final var elementIterator = elements.iterator();</span>
-<span class="fc bfc" id="L87" title="All 2 branches covered.">		while (elementIterator.hasNext()) {</span>
-<span class="fc" id="L88">			final var elementReference = elementIterator.next();</span>
-<span class="fc" id="L89">			final var element = elementReference.get();</span>
-<span class="fc bfc" id="L90" title="All 2 branches covered.">			if (element == null) {</span>
-<span class="fc" id="L91">				elementIterator.remove();</span>
-<span class="fc" id="L92">				continue;</span>
+<span class="fc" id="L137">		final var elementIterator = elements.iterator();</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">		while (elementIterator.hasNext()) {</span>
+<span class="fc" id="L139">			final var elementReference = elementIterator.next();</span>
+<span class="fc" id="L140">			final var element = elementReference.get();</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">			if (element == null) {</span>
+<span class="fc" id="L142">				elementIterator.remove();</span>
+<span class="fc" id="L143">				continue;</span>
 			}
 
-<span class="fc" id="L95">			final var optionalValue = visitor.apply(element);</span>
-<span class="fc bfc" id="L96" title="All 2 branches covered.">			if (optionalValue != null)</span>
-<span class="fc" id="L97">				return optionalValue;</span>
-<span class="fc" id="L98">		}</span>
+<span class="fc" id="L146">			final var optionalValue = visitor.apply(element);</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">			if (optionalValue != null)</span>
+<span class="fc" id="L148">				return optionalValue;</span>
+<span class="fc" id="L149">		}</span>
 
-<span class="fc" id="L100">		return visitor.apply(null);</span>
+<span class="fc" id="L151">		return visitor.apply(null);</span>
 	}
 
 	/**
@@ -107,8 +158,8 @@ public class IuVisitor&lt;T&gt; implements Consumer&lt;T&gt; {
 	 */
 	@Override
 	public void accept(T element) {
-<span class="fc" id="L110">		elements.add(new WeakReference&lt;&gt;(element));</span>
-<span class="fc" id="L111">	}</span>
+<span class="fc" id="L161">		elements.add(new WeakReference&lt;&gt;(element));</span>
+<span class="fc" id="L162">	}</span>
 
 	/**
 	 * Removes an element from observation queue without waiting for the garbage
@@ -135,16 +186,33 @@ public class IuVisitor&lt;T&gt; implements Consumer&lt;T&gt; {
 	 * @param element element to clear
 	 */
 	public void clear(T element) {
-<span class="fc" id="L138">		final var elementIterator = elements.iterator();</span>
-<span class="fc bfc" id="L139" title="All 2 branches covered.">		while (elementIterator.hasNext()) {</span>
-<span class="fc" id="L140">			final var elementReference = elementIterator.next();</span>
-<span class="fc" id="L141">			final var deref = elementReference.get();</span>
-<span class="fc bfc" id="L142" title="All 4 branches covered.">			if (deref == null || element == deref) {</span>
-<span class="fc" id="L143">				elementIterator.remove();</span>
-<span class="fc" id="L144">				continue;</span>
+<span class="fc" id="L189">		final var elementIterator = elements.iterator();</span>
+<span class="fc bfc" id="L190" title="All 2 branches covered.">		while (elementIterator.hasNext()) {</span>
+<span class="fc" id="L191">			final var elementReference = elementIterator.next();</span>
+<span class="fc" id="L192">			final var deref = elementReference.get();</span>
+<span class="fc bfc" id="L193" title="All 4 branches covered.">			if (deref == null || element == deref) {</span>
+<span class="fc" id="L194">				elementIterator.remove();</span>
+<span class="fc" id="L195">				continue;</span>
 			}
-<span class="fc" id="L146">		}</span>
-<span class="fc" id="L147">	}</span>
+<span class="fc" id="L197">		}</span>
+<span class="fc" id="L198">	}</span>
+
+	/**
+	 * Gets a {@link IuAsynchronousSubject} originated by non-cleared references to
+	 * accepted elements.
+	 * 
+	 * &lt;p&gt;
+	 * Each call to this method returns an independent subject instance. The
+	 * controller responsible for providing elements to the visitor &lt;em&gt;must&lt;/em&gt;
+	 * independently provide the same values to, and close its own, subject instance
+	 * to ensure continuity for subscribers.
+	 * &lt;/p&gt;
+	 * 
+	 * @return {@link IuAsynchronousSubject}
+	 */
+	public IuAsynchronousSubject&lt;T&gt; subject() {
+<span class="fc" id="L214">		return new IuAsynchronousSubject&lt;&gt;(() -&gt; new ElementSplitter(elements.spliterator()));</span>
+	}
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
