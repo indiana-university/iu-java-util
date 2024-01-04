@@ -470,6 +470,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>docfiles</module>
 				<module>base</module>
 				<module>test</module>
+				<module>logging</module>
 				<module>type</module>
 				<module>runtime</module>
 				<module>site</module>
@@ -486,7 +487,4 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		</profile>
 	</profiles>
 
-	<modules>
-		<module>iu-java-logging</module>
-	</modules>
 </project>
