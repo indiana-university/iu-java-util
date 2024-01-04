@@ -8,6 +8,8 @@ import static org.mockito.Mockito.mockStatic;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -16,6 +18,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
+import edu.iu.IuAsynchronousSubscription;
 import edu.iu.IuException;
 import edu.iu.logging.IuLogEvent;
 import edu.iu.logging.IuLoggingEnvironment;
@@ -168,10 +171,16 @@ public class IuLogHandlerTest {
 					LOG.log(message.logLevel(), message.message());
 				}
 
+				IuAsynchronousSubscription<IuLogEvent> events = IuLogHandler.subscribe();
+				new Timer().schedule(new TimerTask() {
+					@Override
+					public void run() {
+						events.close();
+					}}, 1000L);
+				
 				Level logLevel = LOG.getParent().getHandlers()[0].getLevel();
-				Stream<IuLogEvent> events = IuLogHandler.stream();
 				List<String> messageList = new ArrayList<>();
-				events.forEach(v -> messageList.add(v.getMessage()));
+				events.stream().forEach(v -> messageList.add(v.getMessage()));
 				for (LogMessage message : logMessages) {
 					if (logLevel.intValue() <= message.logLevel().intValue())
 						assertTrue(messageList.contains(message.message()), message.message() + " was not in events");

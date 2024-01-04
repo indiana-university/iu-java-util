@@ -44,6 +44,7 @@ import java.util.logging.LogRecord;
 import java.util.stream.Stream;
 
 import edu.iu.IuAsynchronousSubject;
+import edu.iu.IuAsynchronousSubscription;
 import edu.iu.logging.IuLogEvent;
 
 /**
@@ -180,7 +181,7 @@ public class IuLogHandler extends Handler {
 	 * @return Stream&lt;IuLogEvent&gt; that will contain any log events from now
 	 *         until the stream is closed.
 	 */
-	public static Stream<IuLogEvent> stream() {
+	public static IuAsynchronousSubscription<IuLogEvent> subscribe() {
 		return LOG_EVENT_SUBJECT.subscribe();
 	}
 
