@@ -124,10 +124,61 @@ public class LoggingTest {
 	}
 
 	@Test
+	public void testExpectedMessageLoggerNameMismatch() {
+		IuTestLogger.expect("wrong name", Level.FINER, "expected");
+		assertThrows(AssertionFailedError.class, () -> LOG.finer(() -> "expected"));
+		Logger.getLogger("wrong name").finer(() -> "expected");
+	}
+
+	@Test
+	public void testExpectedMessageLevelMismatch() {
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected");
+		assertThrows(AssertionFailedError.class, () -> LOG.finer(() -> "expected"));
+		LOG.fine("expected");
+	}
+
+	@Test
+	public void testExpectedMessageRequiresException() {
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected", Exception.class);
+		assertThrows(AssertionFailedError.class, () -> LOG.fine(() -> "expected"));
+		LOG.log(Level.FINE, new Exception(), () -> "expected");
+	}
+
+	@Test
+	public void testExpectedMessageRequiresNoException() {
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected");
+		assertThrows(AssertionFailedError.class, () -> LOG.log(Level.FINE, new Exception(), () -> "expected"));
+		LOG.fine(() -> "expected");
+	}
+
+	@Test
+	public void testExpectedMessageRequiresSameExceptionClass() {
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected", Exception.class);
+		assertThrows(AssertionFailedError.class, () -> LOG.log(Level.FINE, new RuntimeException(), () -> "expected"));
+		LOG.log(Level.FINE, new Exception(), () -> "expected");
+	}
+
+	@Test
+	public void testExpectedMessageRequiresMatchingException() {
+		final var e = new Exception();
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected", Exception.class, a -> a == e);
+		assertThrows(AssertionFailedError.class, () -> LOG.log(Level.FINE, new Exception(), () -> "expected"));
+		LOG.log(Level.FINE, e, () -> "expected");
+	}
+
+	@Test
 	public void testAllowedMessagesDoesntExpect() {
 		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed");
 	}
-	
+
+	@Test
+	public void testAllowedAllAllowsAll() {
+		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER);
+		LOG.finer("some message");
+		LOG.finest("another message");
+		assertThrows(AssertionFailedError.class, () -> LOG.fine("level too high"));
+	}
+
 	@Test
 	public void testAllowedMessagesAllowsMoreThanOnce() {
 		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed");
@@ -141,7 +192,6 @@ public class LoggingTest {
 		assertThrows(AssertionFailedError.class, () -> LOG.finer(() -> "allowed"));
 	}
 
-
 	@Test
 	public void testAllowedMessagesDoesntAllowsOnlyFinerLevel() {
 		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed");
@@ -152,7 +202,7 @@ public class LoggingTest {
 	@Test
 	public void testAllowedWithoutDoesntAllowsWithThrown() {
 		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed");
-		assertThrows(AssertionFailedError.class, () -> LOG.log(Level.FINER, new Throwable(), () -> "allowed"));
+		LOG.log(Level.FINER, new Throwable(), () -> "allowed");
 	}
 
 	@Test
@@ -185,23 +235,27 @@ public class LoggingTest {
 		assertThrows(AssertionFailedError.class, () -> LOG.log(Level.FINER, new Throwable(), () -> "allowed"));
 	}
 
-//	@Test
-//	public void testAllowedMessages() {
-//		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed");
-//		IuTestLogger.allow("testAllowedMessages", Level.INFO, "allowed info");
-//		IuTestLogger.allow("testAllowedMessages", Level.WARNING, "allowed warning", IllegalStateException.class,
-//				t -> t.getMessage().equals("a"));
-//		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "throw", IllegalArgumentException.class);
-//		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected");
-//		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINER, "threw", UnsupportedOperationException.class);
-//		IuTestLogger.expect("testAllowedMessages", Level.WARNING, "expected warning", IllegalStateException.class,
-//				t -> t.getMessage().equals("b"));
-//		LOG.finer("allowed");
-//		LOG.fine("expected");
-//		LOG.log(Level.FINER, "threw", new UnsupportedOperationException());
-//		log.log(Level.WARNING, new IllegalStateException("b"), () -> "expected warning");
-//		log.log(Level.WARNING, new IllegalStateException("a"), () -> "allowed warning");
-//		LOG.finer("allowed");
-//	}
-//
+	@Test
+	public void testAllowedMessages() {
+		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed");
+		IuTestLogger.allow("testAllowedMessages", Level.INFO, "allowed info");
+		IuTestLogger.allow("testAllowedMessages", Level.WARNING, "allowed warning", IllegalStateException.class,
+				t -> t.getMessage().equals("a"));
+		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "throw", IllegalArgumentException.class);
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected");
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINER, "threw", UnsupportedOperationException.class);
+		IuTestLogger.expect("testAllowedMessages", Level.WARNING, "expected warning", IllegalStateException.class,
+				t -> t.getMessage().equals("b"));
+		LOG.finer("allowed");
+		LOG.fine("expected");
+		LOG.log(Level.FINER, "threw", new UnsupportedOperationException());
+
+		final var log = Logger.getLogger("testAllowedMessages");
+		log.info("allowed info");
+		log.log(Level.WARNING, new IllegalStateException("b"), () -> "expected warning");
+		log.log(Level.WARNING, new IllegalStateException("a"), () -> "allowed warning");
+
+		LOG.finer("allowed");
+	}
+
 }

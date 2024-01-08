@@ -118,10 +118,10 @@ public final class IuTestLogger {
 			this.pattern = pattern;
 		}
 
-		private boolean matches(LogRecord record) {
+		private boolean isExpected(LogRecord record) {
 			if (!loggerName.equals(record.getLoggerName()))
 				return false;
-			if (level.intValue() < record.getLevel().intValue())
+			if (level.intValue() != record.getLevel().intValue())
 				return false;
 
 			var thrown = record.getThrown();
@@ -132,6 +132,26 @@ public final class IuTestLogger {
 				return false;
 			else {
 				if (thrownClass != thrown.getClass())
+					return false;
+
+				if (thrownTest != null && !thrownTest.test(thrownClass.cast(thrown)))
+					return false;
+			}
+
+			var message = record.getMessage();
+			return pattern.matcher(message).matches();
+		}
+
+		private boolean isAllowed(LogRecord record) {
+			if (!record.getLoggerName().startsWith(loggerName))
+				return false;
+			if (level.intValue() < record.getLevel().intValue())
+				return false;
+
+			if (thrownClass != null) {
+				var thrown = record.getThrown();
+				if (thrown == null //
+						|| thrownClass != thrown.getClass())
 					return false;
 
 				if (thrownTest != null && !thrownTest.test(thrownClass.cast(thrown)))
@@ -181,13 +201,13 @@ public final class IuTestLogger {
 			}
 
 			for (var allowedMessage : allowedMessages)
-				if (allowedMessage.matches(record))
+				if (allowedMessage.isAllowed(record))
 					return;
 
 			final var expectedIterator = expectedMessages.iterator();
 
 			while (expectedIterator.hasNext())
-				if (expectedIterator.next().matches(record)) {
+				if (expectedIterator.next().isExpected(record)) {
 					expectedIterator.remove();
 					return;
 				}
@@ -359,16 +379,34 @@ public final class IuTestLogger {
 	}
 
 	/**
-	 * Allows a log message with no thrown exception.
+	 * Allows a log messages from a logger.
+	 * 
+	 * <p>
+	 * Messages <em>may</em> be logged zero or more times, and will be exempt
+	 * from expectation checks.
+	 * </p>
+	 * 
+	 * @param loggerName  Logger name prefix
+	 * @param level       maximum log level to allow
+	 */
+	public static void allow(String loggerName, Level level) {
+		final var testHandler = StaticLogHandler.DELEGATE.get();
+		assertNotNull(testHandler.activeTest);
+		testHandler.allowedMessages
+				.offer(new LogRecordMatcher<>(loggerName, level, null, null, Pattern.compile(".*")));
+	}
+
+	/**
+	 * Allows a log message with or without an exception.
 	 * 
 	 * <p>
 	 * The message <em>may</em> be logged zero or more times, and will be exempt
 	 * from expectation checks.
 	 * </p>
 	 * 
-	 * @param loggerName Logger name, must match exactly
-	 * @param level      level, must match exactly
-	 * @param message    regular expression to match against the message
+	 * @param loggerName  Logger name prefix
+	 * @param level       maximum log level to allow
+	 * @param message     regular expression to match against the message
 	 */
 	public static void allow(String loggerName, Level level, String message) {
 		final var testHandler = StaticLogHandler.DELEGATE.get();
@@ -385,8 +423,8 @@ public final class IuTestLogger {
 	 * from expectation checks.
 	 * </p>
 	 * 
-	 * @param loggerName  Logger name, must match exactly
-	 * @param level       level, must match exactly
+	 * @param loggerName  Logger name prefix
+	 * @param level       maximum log level to allow
 	 * @param message     regular expression to match against the message
 	 * @param thrownClass Expected exception class, must match exactly
 	 */
@@ -407,8 +445,8 @@ public final class IuTestLogger {
 	 * 
 	 * @param <T>         Thrown exception type
 	 * 
-	 * @param loggerName  Logger name, must match exactly
-	 * @param level       level, must match exactly
+	 * @param loggerName  Logger name prefix
+	 * @param level       maximum log level to allow
 	 * @param message     regular expression to match against the message
 	 * @param thrownClass Expected exception class, must match exactly
 	 * @param thrownTest  Expected exception test

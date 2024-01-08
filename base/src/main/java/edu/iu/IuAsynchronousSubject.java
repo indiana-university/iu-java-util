@@ -262,8 +262,7 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 				this.delegate = null;
 
 			if (continueAdvance(action)) {
-				if (isExhausted() //
-						&& acceptedSize() == 0)
+				if (!canAdvance())
 					bootstrapPipe();
 
 				return true;
@@ -327,7 +326,7 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 		@Override
 		public int characteristics() {
 			if (pipedSplit == null)
-				if (!isClosedOrError())
+				if (!isClosed())
 					return CONCURRENT;
 				else
 					return IMMUTABLE | SIZED;
@@ -351,9 +350,7 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 			final var initCount = this.acceptedCount;
 			final var targetCount = initCount + acceptedCount;
 			IuObject.waitFor(this, //
-					() -> (pipe != null //
-							&& pipe.isClosed()) //
-							|| isClosedOrError() //
+					() -> isClosed() //
 							|| this.acceptedCount >= targetCount //
 					, expires);
 
@@ -365,7 +362,7 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 			final var initCount = acceptedCount;
 
 			synchronized (this) {
-				while ((pipe == null || !pipe.isClosed()) && !isClosedOrError()) {
+				while (!isClosed()) {
 					final var now = Instant.now();
 					if (now.isBefore(expires)) {
 						final var waitFor = Duration.between(now, expires);
@@ -376,6 +373,14 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 			}
 
 			return acceptedCount - initCount;
+		}
+
+		@Override
+		public synchronized boolean isClosed() {
+			if (pipe == null)
+				return closed || error != null;
+			else
+				return pipe.isClosed();
 		}
 
 		@Override
@@ -400,9 +405,34 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 			this.notifyAll();
 		}
 
-		private boolean isClosedOrError() {
-			return closed //
-					|| error != null;
+		private boolean isExhausted() {
+			if (delegate != null)
+				return false;
+
+			return areChildrenExhausted();
+		}
+
+		private boolean canAdvance() {
+			return !isExhausted() || !accepted.isEmpty();
+		}
+
+		private boolean canAccept() {
+			return delegate != null || !accepted.isEmpty();
+		}
+
+		private boolean areChildrenExhausted() {
+			final var i = children.iterator();
+			while (i.hasNext())
+				if (i.next().delegate == null)
+					i.remove();
+				else
+					return false;
+
+			return true;
+		}
+
+		private int acceptedSize() {
+			return accepted.size();
 		}
 
 		private Consumer<? super T> cancelAcceptedValueAfterAction(Consumer<? super T> action) {
@@ -441,28 +471,6 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 			}
 		}
 
-		private int acceptedSize() {
-			return accepted.size();
-		}
-
-		private boolean areChildrenExhausted() {
-			final var i = children.iterator();
-			while (i.hasNext())
-				if (i.next().delegate == null)
-					i.remove();
-				else
-					return false;
-
-			return true;
-		}
-
-		private boolean isExhausted() {
-			if (delegate != null)
-				return false;
-
-			return areChildrenExhausted();
-		}
-
 		private synchronized void bootstrapPipe() {
 			if (pipe == null //
 					&& error == null //
@@ -474,7 +482,7 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 
 		private void accept(T t) {
 			synchronized (this) {
-				if (delegate != null || !accepted.isEmpty())
+				if (canAccept())
 					accepted.offer(t);
 				else {
 					bootstrapPipe();

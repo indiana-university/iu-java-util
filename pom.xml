@@ -456,6 +456,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>docfiles</module>
 				<module>base</module>
 				<module>test</module>
+				<module>jdbc</module>
 				<module>type</module>
 				<module>runtime</module>
 				<module>site</module>
