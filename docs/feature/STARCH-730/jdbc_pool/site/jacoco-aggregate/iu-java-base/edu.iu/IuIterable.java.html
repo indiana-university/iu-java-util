@@ -1,0 +1,499 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>IuIterable.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-base</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuIterable.java</span></div><h1>IuIterable.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu;
+
+import java.lang.constant.Constable;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
+
+/**
+ * Lightweight &lt;strong&gt;factory&lt;/strong&gt;, manipulation, and processing utility
+ * for &lt;strong&gt;constantly repeatable&lt;/strong&gt; {@link Iterable} and other
+ * {@link Supplier Supplier&amp;lt;Iterator&amp;gt;} compatible iterator sources.
+ * 
+ * &lt;p&gt;
+ * This utility is useful for low-level optimization routines. Note that:
+ * &lt;/p&gt;
+ * 
+ * &lt;pre&gt;
+ * for (var reduced : IuIterable.map(myList, a::reducer)) {
+ * 	// do something with reduced
+ * }
+ * for (var filtered : IuIterable.filter(myList, a::matches)) {
+ * 	// do something with reduced
+ * }
+ * &lt;/pre&gt;
+ * &lt;p&gt;
+ * ...are equivalent to:
+ * &lt;/p&gt;
+ * 
+ * &lt;pre&gt;
+ * myList.stream().map(a::reducerMethod)...// do something
+ * myList.stream().filter(a::isMatching)...// do something
+ * &lt;/pre&gt;
+ * &lt;p&gt;
+ * ...but with minimal object creation (w/o Stream overhead), and in a form that
+ * may be used directly in a {@code for} loop.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * IuIterable &lt;strong&gt;factory instances&lt;/strong&gt; are &lt;em&gt;recommended&lt;/em&gt; for
+ * all potentially temporary or synchronized complex &lt;strong&gt;constantly
+ * repeatable&lt;/strong&gt; iteration scenarios, as in the examples above. This
+ * consideration improves reachability, i.e., by unit tests and debug
+ * breakpoints, compared to {@link Iterable#forEach(Consumer)}.
+ * &lt;/p&gt;
+ * &lt;p&gt;
+ * &lt;strong&gt;Factory iterables&lt;/strong&gt; are also preferred over {@link Stream}
+ * forms.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * In particular, {@link #cat(Iterable...)} is useful for union joins of like
+ * iterations.:
+ * &lt;/p&gt;
+ * 
+ * &lt;pre&gt;
+ * for (var item : IuIterable.cat(myCollection, iter(myArray), myMap.values())) {
+ * 	// do something with items
+ * }
+ * &lt;/pre&gt;
+ * 
+ * &lt;p&gt;
+ * A common case for &lt;strong&gt;constantly repeatable&lt;/strong&gt; iteration is
+ * returning a value from or passing an argument to a method on a business
+ * interface.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * &lt;strong&gt;Factory iterators&lt;/strong&gt; implement {@link Object#hashCode()} by
+ * returning the number of items already removed from the head of the iterator,
+ * and {@link Object#equals(Object)} for non-destructively comparing the tail
+ * end to that of another &lt;strong&gt;factory iterator&lt;/strong&gt;. These semantics
+ * &lt;em&gt;may&lt;/em&gt; be used reliably for short-term set operations between
+ * concurrent iterators.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * &lt;strong&gt;API Note: Constantly repeatable&lt;/strong&gt; refers to an immutable
+ * {@link Iterator} source factory backed by a fixed number of data elements
+ * strictly composed of primitive values and {@link Constable} instances (i.e.,
+ * {@link java.time}, {@link Collection} and {@link Map} with strictly constable
+ * values, etc). Source &lt;em&gt;must&lt;/em&gt; be immutable—{@link Iterator#remove()}
+ * will not be invoked and &lt;em&gt;should not&lt;/em&gt; be implemented. These conditions
+ * are not verifiable, so results are undefined if not met by the
+ * application.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * All factory {@link Iterable} instances &lt;em&gt;should&lt;/em&gt; be considered
+ * disposable and used only in local variable scope. Take care not to pass
+ * factory instances to lambdas, inline, or anonymous classes. {@link Iterable}s
+ * backing these instances need only remain &lt;strong&gt;constantly
+ * repeatable&lt;/strong&gt; while in use (i.e. backing a {@code for} loop). Once out
+ * of scope, the backing sources may change. Therefore, consumers
+ * &lt;em&gt;should&lt;/em&gt; hold source references, not factory instances.
+ * &lt;/p&gt;
+ * 
+ * @since 5.4
+ */
+public final class IuIterable {
+
+<span class="fc" id="L140">	private static final Iterable&lt;?&gt; EMPTY = Collections::emptyIterator;</span>
+
+	private static class IuIterator&lt;T&gt; implements Iterator&lt;T&gt; {
+		private final Supplier&lt;Iterator&lt;T&gt;&gt; iteratorSupplier;
+		private final Iterator&lt;T&gt; i;
+		private int skip;
+
+<span class="fc" id="L147">		private IuIterator(Supplier&lt;Iterator&lt;T&gt;&gt; iteratorSupplier) {</span>
+<span class="fc" id="L148">			this.iteratorSupplier = iteratorSupplier;</span>
+<span class="fc" id="L149">			this.i = iteratorSupplier.get();</span>
+<span class="fc" id="L150">		}</span>
+
+		@Override
+		public boolean hasNext() {
+<span class="fc" id="L154">			return i.hasNext();</span>
+		}
+
+		@Override
+		public T next() {
+<span class="fc" id="L159">			skip++;</span>
+<span class="fc" id="L160">			return i.next();</span>
+		}
+
+		@Override
+		public int hashCode() {
+<span class="fc" id="L165">			return skip;</span>
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+<span class="fc bfc" id="L170" title="All 2 branches covered.">			if (!IuObject.typeCheck(this, obj))</span>
+<span class="fc" id="L171">				return false;</span>
+
+<span class="fc" id="L173">			IuIterator&lt;?&gt; other = (IuIterator&lt;?&gt;) obj;</span>
+
+<span class="fc" id="L175">			Iterator&lt;?&gt; a = iteratorSupplier.get();</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">			for (var i = 0; i &lt; skip; i++)</span>
+<span class="fc" id="L177">				a.next();</span>
+
+<span class="fc" id="L179">			Iterator&lt;?&gt; b = other.iteratorSupplier.get();</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">			for (var i = 0; i &lt; other.skip; i++)</span>
+<span class="fc" id="L181">				b.next();</span>
+
+<span class="fc" id="L183">			return remaindersAreEqual(a, b);</span>
+		}
+
+		@Override
+		public String toString() {
+<span class="fc" id="L188">			return IuIterable.print(iteratorSupplier.get(), skip);</span>
+		}
+	}
+
+	/**
+	 * Creates an {@link Iterable} instance from a &lt;strong&gt;constantly
+	 * repeatable&lt;/strong&gt; supplier.
+	 * 
+	 * @param &lt;T&gt;      item type
+	 * @param supplier {@link Iterable} {@link Supplier}; &lt;em&gt;must&lt;/em&gt; be
+	 *                 &lt;strong&gt;constantly repeatable&lt;/strong&gt;.
+	 * @return {@link Iterable}
+	 */
+	public static &lt;T&gt; Iterable&lt;T&gt; of(Supplier&lt;Iterator&lt;T&gt;&gt; supplier) {
+<span class="fc" id="L202">		return new Iterable&lt;T&gt;() {</span>
+			@Override
+			public Iterator&lt;T&gt; iterator() {
+<span class="fc" id="L205">				return new IuIterator&lt;&gt;(supplier);</span>
+			}
+
+			@Override
+			public String toString() {
+<span class="fc" id="L210">				return IuIterable.print(supplier.get(), 0);</span>
+			}
+		};
+	}
+
+	/**
+	 * Returns an {@link Iterable} that supplies empty {@link Iterator}s.
+	 * 
+	 * @param &lt;T&gt; item type
+	 * @return empty {@link Iterable}
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	public static &lt;T&gt; Iterable&lt;T&gt; empty() {
+<span class="fc" id="L223">		return (Iterable&lt;T&gt;) EMPTY;</span>
+	}
+
+	/**
+	 * Returns a string representation of an {@link Iterable}.
+	 * 
+	 * @param iterable {@link Iterable}
+	 * @return {@link Object#toString()} if {@code iterable} is a
+	 *         {@link Collection}, otherwise returns {@link #print(Iterator)
+	 *         .toString(iterable.iterator())}
+	 */
+	public static String print(Iterable&lt;?&gt; iterable) {
+<span class="fc bfc" id="L235" title="All 2 branches covered.">		if (iterable instanceof Collection)</span>
+<span class="fc" id="L236">			return iterable.toString();</span>
+<span class="fc bfc" id="L237" title="All 2 branches covered.">		else if (iterable == null)</span>
+<span class="fc" id="L238">			return &quot;null&quot;;</span>
+		else
+<span class="fc" id="L240">			return print(iterable.iterator(), 0);</span>
+	}
+
+	/**
+	 * Returns a string representation of all remaining elements of an
+	 * {@link Iterator}.
+	 * 
+	 * @param iterator {@link Iterator}, will be exhausted
+	 * @return string representation
+	 */
+	public static String print(Iterator&lt;?&gt; iterator) {
+<span class="fc" id="L251">		return print(iterator, 0);</span>
+	}
+
+	/**
+	 * Returns a string representation of remaining elements of an {@link Iterator},
+	 * after skipping a specified number of elements.
+	 * 
+	 * @param iterator {@link Iterator}, will be exhausted
+	 * @param skip     number of steps to skip before recording; may be 0 to skip no
+	 *                 steps. Skipped steps are printed as &quot;...&quot;
+	 * @return string representation
+	 * @throws NoSuchElementException   if skip requests skipping elements no
+	 *                                  present on the source iterable.
+	 * @throws IllegalArgumentException if skip &amp;lt;
+	 *  0
+	 */
+	public static String print(Iterator&lt;?&gt; iterator, int skip) throws NoSuchElementException, IllegalArgumentException {
+<span class="fc bfc" id="L268" title="All 2 branches covered.">		if (skip &lt; 0)</span>
+<span class="fc" id="L269">			throw new IllegalArgumentException();</span>
+
+<span class="fc bfc" id="L271" title="All 2 branches covered.">		if (iterator == null)</span>
+<span class="fc" id="L272">			return &quot;null&quot;;</span>
+
+<span class="fc" id="L274">		final var sb = new StringBuilder(&quot;[&quot;);</span>
+<span class="fc" id="L275">		var first = true;</span>
+
+<span class="fc bfc" id="L277" title="All 2 branches covered.">		while (skip &gt; 0) {</span>
+<span class="fc bfc" id="L278" title="All 2 branches covered.">			if (first) {</span>
+<span class="fc" id="L279">				first = false;</span>
+<span class="fc" id="L280">				sb.append(&quot;...&quot;);</span>
+			}
+
+<span class="fc" id="L283">			iterator.next();</span>
+<span class="fc" id="L284">			skip--;</span>
+		}
+
+<span class="fc bfc" id="L287" title="All 2 branches covered.">		while (iterator.hasNext()) {</span>
+<span class="fc" id="L288">			final var a = iterator.next();</span>
+<span class="fc bfc" id="L289" title="All 2 branches covered.">			if (first)</span>
+<span class="fc" id="L290">				first = false;</span>
+			else
+<span class="fc" id="L292">				sb.append(&quot;, &quot;);</span>
+
+<span class="fc" id="L294">			sb.append(a);</span>
+<span class="fc" id="L295">		}</span>
+
+<span class="fc" id="L297">		sb.append(']');</span>
+
+<span class="fc" id="L299">		return sb.toString();</span>
+	}
+
+	/**
+	 * Steps through two iterators, comparing all remaining items on each until
+	 * either both are exhausted or items mismatch between the two.
+	 * 
+	 * &lt;p&gt;
+	 * This is a destructive operation that renders both arguments unusable.
+	 * &lt;/p&gt;
+	 * 
+	 * @param i1 {@link Iterator}, will either be exhausted or left in an unknown
+	 *           state.
+	 * @param i2 {@link Iterator}, will either be exhausted or left in an unknown
+	 *           state.
+	 * 
+	 * @return true if both iterators contained the same number of items, and all
+	 *         items in both iterators were {@link Object#equals(Object)} in the
+	 *         order iterated.
+	 */
+	public static boolean remaindersAreEqual(Iterator&lt;?&gt; i1, Iterator&lt;?&gt; i2) {
+<span class="fc bfc" id="L320" title="All 2 branches covered.">		if (i1 == i2)</span>
+<span class="fc" id="L321">			return true;</span>
+
+<span class="fc bfc" id="L323" title="All 2 branches covered.">		while (i1.hasNext()) {</span>
+<span class="fc bfc" id="L324" title="All 2 branches covered.">			if (!i2.hasNext())</span>
+<span class="fc" id="L325">				return false;</span>
+
+<span class="fc bfc" id="L327" title="All 2 branches covered.">			if (!IuObject.equals(i1.next(), i2.next()))</span>
+<span class="fc" id="L328">				return false;</span>
+		}
+<span class="fc bfc" id="L330" title="All 2 branches covered.">		return !i2.hasNext();</span>
+	}
+
+	/**
+	 * Wraps an array.
+	 * 
+	 * @param &lt;T&gt; item type
+	 * @param a   array
+	 * @return An iterable over the entire array.
+	 */
+	@SafeVarargs
+	public static &lt;T&gt; Iterable&lt;T&gt; iter(T... a) {
+<span class="fc" id="L342">		return iter(a, 0);</span>
+	}
+
+	/**
+	 * Wraps an array.
+	 * 
+	 * @param &lt;T&gt;  item type
+	 * @param a    array
+	 * @param from starting point
+	 * @return An iterable over the array starting from the point indicated.
+	 */
+	public static &lt;T&gt; Iterable&lt;T&gt; iter(T[] a, int from) {
+<span class="fc bfc" id="L354" title="All 2 branches covered.">		if (from &lt; 0)</span>
+<span class="fc" id="L355">			throw new IndexOutOfBoundsException();</span>
+<span class="fc bfc" id="L356" title="All 2 branches covered.">		else if (a == null)</span>
+<span class="fc bfc" id="L357" title="All 2 branches covered.">			if (from &gt; 0)</span>
+<span class="fc" id="L358">				throw new IndexOutOfBoundsException();</span>
+			else
+<span class="fc" id="L360">				return empty();</span>
+
+<span class="fc" id="L362">		final var length = a.length;</span>
+<span class="fc bfc" id="L363" title="All 2 branches covered.">		if (from &gt; length)</span>
+<span class="fc" id="L364">			throw new IndexOutOfBoundsException();</span>
+<span class="fc bfc" id="L365" title="All 2 branches covered.">		else if (length == 0)</span>
+<span class="fc" id="L366">			return empty();</span>
+		else
+<span class="fc" id="L368">			return of(() -&gt; new Iterator&lt;T&gt;() {</span>
+<span class="fc" id="L369">				int i = from;</span>
+
+				@Override
+				public boolean hasNext() {
+<span class="fc bfc" id="L373" title="All 2 branches covered.">					return i &lt; length;</span>
+				}
+
+				@Override
+				public T next() {
+<span class="fc bfc" id="L378" title="All 2 branches covered.">					if (i &gt;= length)</span>
+<span class="fc" id="L379">						throw new NoSuchElementException();</span>
+<span class="fc" id="L380">					return a[i++];</span>
+				}
+			});
+	}
+
+	/**
+	 * Concatenates one or more iterables.
+	 * 
+	 * @param &lt;T&gt;       item type
+	 * @param iterables iterables
+	 * @return A single iterable over all iterables in sequence.
+	 */
+	@SafeVarargs
+	public static &lt;T&gt; Iterable&lt;? extends T&gt; cat(Iterable&lt;? extends T&gt;... iterables) {
+<span class="fc bfc" id="L394" title="All 3 branches covered.">		switch (iterables.length) {</span>
+		case 0:
+<span class="fc" id="L396">			return empty();</span>
+
+		case 1:
+<span class="fc" id="L399">			return iterables[0];</span>
+
+		default:
+<span class="fc" id="L402">			return of(() -&gt; new Iterator&lt;T&gt;() {</span>
+<span class="fc" id="L403">				@SuppressWarnings(&quot;unchecked&quot;)</span>
+				final Iterator&lt;? extends T&gt;[] i = new Iterator[iterables.length];
+<span class="fc" id="L405">				int n = 0;</span>
+
+				@Override
+				public boolean hasNext() {
+<span class="fc bfc" id="L409" title="All 2 branches covered.">					while (n &lt; i.length) {</span>
+<span class="fc bfc" id="L410" title="All 2 branches covered.">						if (i[n] == null)</span>
+<span class="fc" id="L411">							i[n] = iterables[n].iterator();</span>
+<span class="fc bfc" id="L412" title="All 2 branches covered.">						if (i[n].hasNext())</span>
+<span class="fc" id="L413">							return true;</span>
+						else
+<span class="fc" id="L415">							n++;</span>
+					}
+<span class="fc" id="L417">					return false;</span>
+				}
+
+				@Override
+				public T next() {
+<span class="fc bfc" id="L422" title="All 2 branches covered.">					if (hasNext())</span>
+<span class="fc" id="L423">						return i[n].next();</span>
+					else
+<span class="fc" id="L425">						throw new NoSuchElementException();</span>
+				}
+			});
+		}
+	}
+
+	/**
+	 * Maps an iterable using a transform function.
+	 * 
+	 * @param &lt;T&gt; item type
+	 * @param &lt;U&gt; transformed item type
+	 * @param i   iterable
+	 * @param f   transform function
+	 * @return An iterable over the results of applying the transform function to
+	 *         the items available from the iterable.
+	 */
+	public static &lt;T, U&gt; Iterable&lt;U&gt; map(Iterable&lt;T&gt; i, Function&lt;T, U&gt; f) {
+<span class="fc" id="L442">		Objects.requireNonNull(f);</span>
+<span class="fc" id="L443">		return of(() -&gt; new Iterator&lt;U&gt;() {</span>
+<span class="fc" id="L444">			private Iterator&lt;T&gt; itr = i.iterator();</span>
+
+			@Override
+			public boolean hasNext() {
+<span class="fc" id="L448">				return itr.hasNext();</span>
+			}
+
+			@Override
+			public U next() {
+<span class="fc" id="L453">				return f.apply(itr.next());</span>
+			}
+		});
+	}
+
+	/**
+	 * Filters an interable using predicate.
+	 * 
+	 * @param &lt;T&gt; item type
+	 * @param i   iterable
+	 * @param p   predicate
+	 * @return An iterable over the items for which the predicate returns true.
+	 */
+	public static &lt;T&gt; Iterable&lt;T&gt; filter(Iterable&lt;T&gt; i, Predicate&lt;T&gt; p) {
+<span class="fc" id="L467">		Objects.requireNonNull(p);</span>
+<span class="fc" id="L468">		return of(() -&gt; new Iterator&lt;T&gt;() {</span>
+<span class="fc" id="L469">			private Iterator&lt;T&gt; itr = i.iterator();</span>
+			private boolean hasNext;
+			private T next;
+
+			@Override
+			public boolean hasNext() {
+<span class="fc bfc" id="L475" title="All 4 branches covered.">				while (!hasNext &amp;&amp; itr.hasNext()) {</span>
+<span class="fc" id="L476">					next = itr.next();</span>
+<span class="fc" id="L477">					hasNext = p.test(next);</span>
+				}
+<span class="fc" id="L479">				return hasNext;</span>
+			}
+
+			@Override
+			public T next() {
+<span class="fc bfc" id="L484" title="All 2 branches covered.">				if (!hasNext())</span>
+<span class="fc" id="L485">					throw new NoSuchElementException();</span>
+
+<span class="fc" id="L487">				T rv = next;</span>
+<span class="fc" id="L488">				hasNext = false;</span>
+<span class="fc" id="L489">				next = null;</span>
+<span class="fc" id="L490">				return rv;</span>
+			}
+		});
+	}
+
+	private IuIterable() {
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

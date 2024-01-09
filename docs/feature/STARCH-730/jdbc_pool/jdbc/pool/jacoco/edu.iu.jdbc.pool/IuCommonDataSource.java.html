@@ -1,0 +1,494 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuCommonDataSource.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Database Connection Pools</a> &gt; <a href="index.source.html" class="el_package">edu.iu.jdbc.pool</a> &gt; <span class="el_source">IuCommonDataSource.java</span></div><h1>IuCommonDataSource.java</h1><pre class="source lang-java linenums">package edu.iu.jdbc.pool;
+
+import java.io.PrintWriter;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeoutException;
+import java.util.logging.Level;
+import java.util.logging.LogManager;
+import java.util.logging.Logger;
+
+import javax.sql.CommonDataSource;
+import javax.sql.ConnectionEvent;
+import javax.sql.ConnectionEventListener;
+import javax.sql.DataSource;
+import javax.sql.PooledConnection;
+
+import edu.iu.IuException;
+import edu.iu.IuObject;
+import edu.iu.IuUtilityTaskController;
+import edu.iu.UnsafeFunction;
+import edu.iu.UnsafeSupplier;
+
+/**
+ * Abstract generic database connection pool.
+ */
+public abstract class IuCommonDataSource implements CommonDataSource, ConnectionEventListener {
+
+	static {
+<span class="fc" id="L34">		Logger.getLogger(IuCommonDataSource.class.getPackageName());</span>
+	}
+<span class="fc" id="L36">	private static final Logger LOG = Logger.getLogger(IuCommonDataSource.class.getName());</span>
+
+<span class="fc" id="L38">	private final Queue&lt;IuPooledConnection&gt; openConnections = new ConcurrentLinkedQueue&lt;&gt;();</span>
+<span class="fc" id="L39">	private final Queue&lt;IuPooledConnection&gt; reusableConnections = new ConcurrentLinkedQueue&lt;&gt;();</span>
+	private final UnsafeSupplier&lt;? extends PooledConnection&gt; factory;
+
+<span class="fc" id="L42">	private int loginTimeout = 15;</span>
+	private String url;
+	private String username;
+	private String schema;
+<span class="fc" id="L46">	private int maxSize = 16;</span>
+<span class="fc" id="L47">	private int maxRetry = 1;</span>
+<span class="fc" id="L48">	private long maxConnectionReuseCount = 100;</span>
+<span class="fc" id="L49">	private Duration maxConnectionReuseTime = Duration.ofMinutes(15L);</span>
+<span class="fc" id="L50">	private Duration abandonedConnectionTimeout = Duration.ofMinutes(30L);</span>
+
+	private String validationQuery;
+<span class="fc" id="L53">	private Duration validationInterval = Duration.ofSeconds(15L);</span>
+	private UnsafeFunction&lt;Connection, Connection&gt; connectionInitializer;
+
+	private volatile int pendingConnections;
+
+	/**
+	 * Default constructor.
+	 * 
+	 * @param factory {@link UnsafeSupplier} of downstream {@link PooledConnection}
+	 *                instances; each {@link UnsafeSupplier#get()} invocation
+	 *                &lt;em&gt;must&lt;/em&gt; return a newly established physical database
+	 *                connection.
+	 */
+<span class="fc" id="L66">	protected IuCommonDataSource(UnsafeSupplier&lt;? extends PooledConnection&gt; factory) {</span>
+<span class="fc" id="L67">		this.factory = factory;</span>
+<span class="fc" id="L68">	}</span>
+
+	/**
+	 * Checks out a {@link PooledConnection}.
+	 * 
+	 * &lt;p&gt;
+	 * &lt;strong&gt;Implementation Note:&lt;/strong&gt; The upstream {@link DataSource}
+	 * implementation should discard this instance once the logical
+	 * {@link Connection} view has been obtained. Application code will invoke
+	 * {@link Connection#close()} to return the connection to the pool to be reused
+	 * or retired. Note that invoking {@link PooledConnection#close()} &lt;em&gt;will&lt;/em&gt;
+	 * close the physical connection and remove it from the pool. This facilitates
+	 * ejecting physical connections by an upstream pool manager.
+	 * &lt;/p&gt;
+	 * 
+	 * @return {@link PooledConnection}
+	 * @throws SQLException if the connection fails due to a database error
+	 */
+	public IuPooledConnection getPooledConnection() throws SQLException {
+<span class="fc" id="L87">		IuPooledConnection iuPooledConnection = null;</span>
+<span class="fc" id="L88">		Instant timeout = Instant.now().plusSeconds(loginTimeout);</span>
+
+<span class="fc" id="L90">		var attempt = 0;</span>
+<span class="fc" id="L91">		Throwable error = null;</span>
+<span class="fc bfc" id="L92" title="All 4 branches covered.">		while (attempt &lt;= maxRetry &amp;&amp; timeout.isAfter(Instant.now()))</span>
+			try {
+<span class="fc" id="L94">				synchronized (this) {</span>
+<span class="fc bfc" id="L95" title="All 4 branches covered.">					IuObject.waitFor(this, () -&gt; !reusableConnections.isEmpty() || !this.isExhausted(), timeout);</span>
+<span class="fc" id="L96">					pendingConnections++;</span>
+<span class="fc" id="L97">				}</span>
+
+				try {
+<span class="fc" id="L100">					attempt++;</span>
+
+<span class="fc bfc" id="L102" title="All 2 branches covered.">					while (!reusableConnections.isEmpty()) {</span>
+<span class="fc" id="L103">						final var reusableConnection = reusableConnections.poll();</span>
+
+<span class="fc" id="L105">						final var timeSinceInit = Duration.between(reusableConnection.connectionInitiated(),</span>
+<span class="fc" id="L106">								Instant.now());</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">						if (timeSinceInit.compareTo(maxConnectionReuseTime) &gt;= 0) {</span>
+<span class="fc" id="L108">							reusableConnection.close();</span>
+<span class="fc" id="L109">							LOG.fine(() -&gt; &quot;jdbc-pool-retire-timeout:&quot; + timeSinceInit + &quot; &gt;= &quot; + maxConnectionReuseTime</span>
+									+ &quot; &quot; + reusableConnection);
+<span class="fc" id="L111">							continue;</span>
+						}
+
+<span class="fc" id="L114">						iuPooledConnection = reusableConnection;</span>
+<span class="fc" id="L115">						LOG.finer(() -&gt; &quot;jdbc-pool-reuse; &quot; + reusableConnection + &quot;; &quot; + this);</span>
+<span class="fc" id="L116">						break;</span>
+					}
+
+<span class="fc bfc" id="L119" title="All 2 branches covered.">					if (iuPooledConnection == null)</span>
+<span class="fc" id="L120">						iuPooledConnection = openConnection(timeout);</span>
+
+<span class="fc" id="L122">					final var lastUsed = iuPooledConnection.lastTransactionSegmentEnded();</span>
+<span class="fc bfc" id="L123" title="All 4 branches covered.">					if (validationQuery != null //</span>
+							&amp;&amp; (lastUsed == null //
+<span class="fc bfc" id="L125" title="All 2 branches covered.">									|| Duration.between(lastUsed, Instant.now()).compareTo(validationInterval) &gt;= 0))</span>
+<span class="fc" id="L126">						iuPooledConnection.validate(validationQuery);</span>
+
+<span class="fc bfc" id="L128" title="All 2 branches covered.">					if (error != null)</span>
+<span class="fc" id="L129">						LOG.log(Level.INFO, error, () -&gt; &quot;jdbc-pool-recoverable; &quot; + this);</span>
+
+<span class="fc" id="L131">					return iuPooledConnection;</span>
+
+				} finally {
+<span class="fc" id="L134">					synchronized (this) {</span>
+<span class="fc" id="L135">						pendingConnections--;</span>
+<span class="fc" id="L136">						this.notifyAll();</span>
+<span class="fc" id="L137">					}</span>
+				}
+
+<span class="fc" id="L140">			} catch (Throwable e) {</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">				if (iuPooledConnection != null) {</span>
+<span class="fc" id="L142">					IuException.suppress(e, iuPooledConnection::close);</span>
+<span class="fc" id="L143">					iuPooledConnection = null;</span>
+				}
+
+<span class="fc bfc" id="L146" title="All 2 branches covered.">				if (error == null)</span>
+<span class="fc" id="L147">					error = e;</span>
+				else
+<span class="fc" id="L149">					error.addSuppressed(e);</span>
+<span class="fc" id="L150">			}</span>
+
+<span class="fc" id="L152">		throw new SQLException(&quot;jdbc-pool-fail: attempt=&quot; + attempt + &quot;, timeout=&quot; + timeout + &quot;; &quot; + this, error);</span>
+	}
+
+	@Override
+	public void connectionClosed(ConnectionEvent event) {
+<span class="fc" id="L157">		final var reusableConnection = (IuPooledConnection) event.getSource();</span>
+
+<span class="fc" id="L159">		final var count = reusableConnection.transactionSegmentCount();</span>
+<span class="fc bfc" id="L160" title="All 2 branches covered.">		if (count &gt;= maxConnectionReuseCount) {</span>
+			try {
+<span class="fc" id="L162">				reusableConnection.close();</span>
+<span class="fc" id="L163">				LOG.fine(() -&gt; &quot;jdbc-pool-retire-count:&quot; + count + &quot; &gt;= &quot; + maxConnectionReuseCount + &quot; &quot;</span>
+						+ reusableConnection);
+<span class="fc" id="L165">			} catch (Throwable e) {</span>
+<span class="fc" id="L166">				LOG.log(Level.INFO, e, () -&gt; &quot;jdbc-pool-retire-count:&quot; + count + &quot; &gt;= &quot; + maxConnectionReuseCount + &quot; &quot;</span>
+						+ reusableConnection);
+<span class="fc" id="L168">			}</span>
+<span class="fc" id="L169">			return;</span>
+		}
+
+<span class="fc" id="L172">		LOG.finer(() -&gt; &quot;jdbc-pool-reusable; &quot; + reusableConnection);</span>
+<span class="fc" id="L173">		reusableConnections.offer(reusableConnection);</span>
+<span class="fc" id="L174">		synchronized (this) {</span>
+<span class="fc" id="L175">			this.notifyAll();</span>
+<span class="fc" id="L176">		}</span>
+<span class="fc" id="L177">	}</span>
+
+	@Override
+	public void connectionErrorOccurred(ConnectionEvent event) {
+<span class="fc" id="L181">		reusableConnections.remove((IuPooledConnection) event.getSource());</span>
+<span class="fc" id="L182">	}</span>
+
+	@Override
+	public Logger getParentLogger() {
+<span class="fc" id="L186">		return LogManager.getLogManager().getLogger(IuCommonDataSource.class.getPackageName());</span>
+	}
+
+	@Override
+	public PrintWriter getLogWriter() throws SQLException {
+<span class="fc" id="L191">		return null;</span>
+	}
+
+	@Override
+	public void setLogWriter(PrintWriter out) throws SQLException {
+<span class="fc" id="L196">		throw new SQLFeatureNotSupportedException();</span>
+	}
+
+	@Override
+	public void setLoginTimeout(int seconds) throws SQLException {
+<span class="fc bfc" id="L201" title="All 2 branches covered.">		if (seconds &lt; 0)</span>
+<span class="fc" id="L202">			throw new IllegalArgumentException();</span>
+<span class="fc bfc" id="L203" title="All 2 branches covered.">		else if (seconds == 0)</span>
+<span class="fc" id="L204">			loginTimeout = 15;</span>
+		else
+<span class="fc" id="L206">			loginTimeout = seconds;</span>
+<span class="fc" id="L207">	}</span>
+
+	@Override
+	public int getLoginTimeout() {
+<span class="fc" id="L211">		return loginTimeout;</span>
+	}
+
+	/**
+	 * Gets the URL used to initialize the downstream connection factory.
+	 * 
+	 * @return Full JDBC URL
+	 */
+	public String getUrl() {
+<span class="fc" id="L220">		return url;</span>
+	}
+
+	/**
+	 * Sets the URL used to initialize the downstream connection factory.
+	 * 
+	 * @param url Full JDBC URL
+	 */
+	public void setUrl(String url) {
+<span class="fc" id="L229">		this.url = url;</span>
+<span class="fc" id="L230">	}</span>
+
+	/**
+	 * Gets the database username used to initialize the downstream connection
+	 * factory.
+	 * 
+	 * @return Database username
+	 */
+	public String getUsername() {
+<span class="fc" id="L239">		return username;</span>
+	}
+
+	/**
+	 * Sets the database username used to initialize the downstream connection
+	 * factory.
+	 * 
+	 * @param username Database username
+	 */
+	public void setUsername(String username) {
+<span class="fc" id="L249">		this.username = username;</span>
+<span class="fc" id="L250">	}</span>
+
+	/**
+	 * Gets the database schema used to initialize the downstream connection
+	 * factory.
+	 * 
+	 * @return Database schema
+	 */
+	public String getSchema() {
+<span class="fc" id="L259">		return schema;</span>
+	}
+
+	/**
+	 * Sets the database schema used to initialize the downstream connection
+	 * factory.
+	 * 
+	 * @param schema Database schema
+	 */
+	public void setSchema(String schema) {
+<span class="fc" id="L269">		this.schema = schema;</span>
+<span class="fc" id="L270">	}</span>
+
+	/**
+	 * Gets the maximum number of connections to allow in the pool.
+	 * 
+	 * @return Pool max size
+	 */
+	public int getMaxSize() {
+<span class="fc" id="L278">		return maxSize;</span>
+	}
+
+	/**
+	 * Sets the maximum number of connections to allow in the pool.
+	 * 
+	 * @param maxSize Pool max size
+	 */
+	public void setMaxSize(int maxSize) {
+<span class="fc" id="L287">		this.maxSize = maxSize;</span>
+<span class="fc" id="L288">	}</span>
+
+	/**
+	 * Gets the maximum number of times a connection attempt will be retried before
+	 * resulting in failure.
+	 * 
+	 * @return maximum number of times a connection attempt will be retried before
+	 *         resulting in failure.
+	 */
+	public int getMaxRetry() {
+<span class="fc" id="L298">		return maxRetry;</span>
+	}
+
+	/**
+	 * Gets the maximum number of times a connection attempt will be retried before
+	 * resulting in failure.
+	 * 
+	 * @param maxRetry maximum number of times a connection attempt will be retried
+	 *                 before resulting in failure.
+	 */
+	public void setMaxRetry(int maxRetry) {
+<span class="fc" id="L309">		this.maxRetry = maxRetry;</span>
+<span class="fc" id="L310">	}</span>
+
+	/**
+	 * Gets the maximum number of times a single connection can be used before
+	 * ejecting from the pool.
+	 * 
+	 * @return Per-connection max reuse count
+	 */
+	public long getMaxConnectionReuseCount() {
+<span class="fc" id="L319">		return maxConnectionReuseCount;</span>
+	}
+
+	/**
+	 * Sets the maximum number of times a single connection can be used before
+	 * ejecting from the pool.
+	 * 
+	 * @param maxConnectionReuseCount Per-connection max reuse count
+	 */
+	public void setMaxConnectionReuseCount(long maxConnectionReuseCount) {
+<span class="fc" id="L329">		this.maxConnectionReuseCount = maxConnectionReuseCount;</span>
+<span class="fc" id="L330">	}</span>
+
+	/**
+	 * Gets the maximum length of time a single connection can remain open before
+	 * ejecting from the pool.
+	 * 
+	 * @return Per-connection max reuse time
+	 */
+	public Duration getMaxConnectionReuseTime() {
+<span class="fc" id="L339">		return maxConnectionReuseTime;</span>
+	}
+
+	/**
+	 * Gets the maximum length of time a single connection can remain open before
+	 * ejecting from the pool.
+	 * 
+	 * @param maxConnectionReuseTime Per-connection max reuse time
+	 */
+	public void setMaxConnectionReuseTime(Duration maxConnectionReuseTime) {
+<span class="fc" id="L349">		this.maxConnectionReuseTime = maxConnectionReuseTime;</span>
+<span class="fc" id="L350">	}</span>
+
+	/**
+	 * Gets the maximum length of time a connection can be checked out from the pool
+	 * before attempting to forcibly close and consider it abandoned.
+	 * 
+	 * @return Abandoned connection timeout interval
+	 */
+	public Duration getAbandonedConnectionTimeout() {
+<span class="fc" id="L359">		return abandonedConnectionTimeout;</span>
+	}
+
+	/**
+	 * Sets the maximum length of time a connection can be checked out from the pool
+	 * before attempting to forcibly close and consider it abandoned.
+	 * 
+	 * @param abandonedConnectionTimeout Abandoned connection timeout interval
+	 */
+	public void setAbandonedConnectionTimeout(Duration abandonedConnectionTimeout) {
+<span class="fc" id="L369">		this.abandonedConnectionTimeout = abandonedConnectionTimeout;</span>
+<span class="fc" id="L370">	}</span>
+
+	/**
+	 * Gets the query to use for validating connections on creation, and
+	 * intermittently before checking out from the pool.
+	 * 
+	 * @return SQL select statement, &lt;em&gt;must&lt;/em&gt; return a single row with a single
+	 *         non-null column; may be null to skip query validation
+	 */
+	public String getValidationQuery() {
+<span class="fc" id="L380">		return validationQuery;</span>
+	}
+
+	/**
+	 * Sets the query to use for validating connections on creation, and
+	 * intermittently before checking out from the pool.
+	 * 
+	 * @param validationQuery SQL select statement, &lt;em&gt;must&lt;/em&gt; return a single
+	 *                        row with a single non-null column; may be null to skip
+	 *                        query validation
+	 */
+	public void setValidationQuery(String validationQuery) {
+<span class="fc" id="L392">		this.validationQuery = validationQuery;</span>
+<span class="fc" id="L393">	}</span>
+
+	/**
+	 * Gets the frequency at which to validate connections, when
+	 * {@link #getValidationQuery()} returns a non-null value.
+	 *
+	 * @return Frequency at which to validate connections; may be
+	 */
+	public Duration getValidationInterval() {
+<span class="fc" id="L402">		return validationInterval;</span>
+	}
+
+	/**
+	 * Sets the frequency at which to validate connections, when
+	 * {@link #getValidationQuery()} returns a non-null value.
+	 *
+	 * @param validationInterval Frequency at which to validate connections; may be
+	 */
+	public void setValidationInterval(Duration validationInterval) {
+<span class="fc" id="L412">		this.validationInterval = validationInterval;</span>
+<span class="fc" id="L413">	}</span>
+
+	/**
+	 * Sets an optional transform function to be apply directly before checking out
+	 * a connection from the pool.
+	 * 
+	 * @param connectionInitializer {@link UnsafeFunction}: accepts and returns a
+	 *                              {@link Connection} such that
+	 *                              {@link Connection#unwrap(Class)} invoked on the
+	 *                              return value delegates to the {@link Connection}
+	 *                              passed as an argument; &lt;em&gt;should not&lt;/em&gt; throw
+	 *                              checked exceptions other than
+	 *                              {@link SQLException}; &lt;em&gt;may&lt;/em&gt; throw
+	 *                              {@link TimeoutException} or
+	 *                              {@link InterruptedException}.
+	 */
+	public void setConnectionInitializer(UnsafeFunction&lt;Connection, Connection&gt; connectionInitializer) {
+<span class="fc" id="L430">		this.connectionInitializer = connectionInitializer;</span>
+<span class="fc" id="L431">	}</span>
+
+	@Override
+	public String toString() {
+<span class="fc" id="L435">		return getClass().getSimpleName() + &quot; [&quot; //</span>
+<span class="fc" id="L436">				+ &quot;loginTimeout=&quot; + getLoginTimeout() //</span>
+<span class="fc" id="L437">				+ &quot;, url=&quot; + getUrl() //</span>
+<span class="fc" id="L438">				+ &quot;, username=&quot; + getUsername() //</span>
+<span class="fc" id="L439">				+ &quot;, schema=&quot; + getSchema() //</span>
+<span class="fc" id="L440">				+ &quot;, available=&quot; + reusableConnections.size() //</span>
+<span class="fc" id="L441">				+ &quot;, open=&quot; + openConnections.size() //</span>
+<span class="fc" id="L442">				+ &quot;, maxSize=&quot; + getMaxSize() //</span>
+<span class="fc" id="L443">				+ &quot;, maxRetry=&quot; + getMaxRetry() //</span>
+<span class="fc" id="L444">				+ &quot;, maxConnectionReuseCount=&quot; + getMaxConnectionReuseCount() //</span>
+<span class="fc" id="L445">				+ &quot;, maxConnectionReuseTime=&quot; + getMaxConnectionReuseTime() //</span>
+<span class="fc" id="L446">				+ &quot;, abandonedConnectionTimeout=&quot; + getAbandonedConnectionTimeout() //</span>
+<span class="fc" id="L447">				+ &quot;, validationQuery=&quot; + getValidationQuery() //</span>
+<span class="fc" id="L448">				+ &quot;, validationInterval=&quot; + getValidationInterval() //</span>
+				+ &quot;]&quot;;
+	}
+
+	private synchronized boolean isExhausted() {
+<span class="fc bfc" id="L453" title="All 2 branches covered.">		return openConnections.size() + pendingConnections &gt;= maxSize;</span>
+	}
+
+	private IuPooledConnection openConnection(Instant timeout) throws SQLException {
+<span class="fc" id="L457">		final var initTime = Instant.now();</span>
+<span class="fc" id="L458">		final var pooledConnection = IuException.checked(SQLException.class, () -&gt; {</span>
+			try {
+<span class="fc" id="L460">				return IuUtilityTaskController.getBefore(factory, timeout);</span>
+<span class="fc" id="L461">			} catch (TimeoutException e) {</span>
+<span class="fc" id="L462">				throw new SQLException(e);</span>
+			}
+		});
+
+<span class="fc" id="L466">		final var newConnection = new IuPooledConnection(initTime, pooledConnection, connectionInitializer,</span>
+				abandonedConnectionTimeout, this::handleClose);
+<span class="fc" id="L468">		newConnection.addConnectionEventListener(this);</span>
+
+<span class="fc" id="L470">		openConnections.offer(newConnection);</span>
+<span class="fc" id="L471">		LOG.fine(() -&gt; &quot;jdbc-pool-open:&quot; + Duration.between(initTime, Instant.now()) + &quot;:&quot; + pooledConnection + &quot;; &quot;</span>
+				+ this);
+
+<span class="fc" id="L474">		return newConnection;</span>
+	}
+
+	private void handleClose(IuPooledConnection closedConnection) {
+<span class="fc" id="L478">		openConnections.remove(closedConnection);</span>
+<span class="fc" id="L479">		synchronized (this) {</span>
+<span class="fc" id="L480">			this.notifyAll();</span>
+<span class="fc" id="L481">		}</span>
+
+<span class="fc" id="L483">		final var error = closedConnection.error();</span>
+<span class="fc bfc" id="L484" title="All 2 branches covered.">		if (error == null)</span>
+<span class="fc" id="L485">			LOG.fine(() -&gt; &quot;jdbc-pool-close:&quot; + Duration.between(closedConnection.connectionInitiated(), Instant.now())</span>
+					+ &quot;:&quot; + closedConnection + &quot;; &quot; + this);
+		else
+<span class="fc" id="L488">			LOG.log(Level.WARNING, error,</span>
+<span class="fc" id="L489">					() -&gt; &quot;jdbc-pool-close:&quot; + Duration.between(closedConnection.connectionInitiated(), Instant.now())</span>
+							+ &quot;:&quot; + closedConnection + &quot;; &quot; + this);
+<span class="fc" id="L491">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
