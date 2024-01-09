@@ -1,5 +1,6 @@
 package edu.iu.jdbc.pool;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -40,6 +41,89 @@ public class IuConnectionPoolDataSourceTest {
 
 	@Test
 	public void testGetConnection() throws SQLException {
+		class Box {
+			ConnectionEventListener listener;
+		}
+		final var box = new Box();
+		final var c = mock(Connection.class);
+		final var pc = mock(PooledConnection.class);
+		doAnswer(a -> {
+			box.listener = a.getArgument(0);
+			return null;
+		}).when(pc).addConnectionEventListener(any());
+		when(pc.getConnection()).thenReturn(c);
+
+		final var f = mock(ConnectionPoolDataSource.class);
+		when(f.getPooledConnection()).thenReturn(pc);
+
+		try (final var ds = new IuConnectionPoolDataSource(f::getPooledConnection)) {
+			ds.setShutdownTimeout(Duration.ofMillis(50L));
+
+			assertThrows(SQLFeatureNotSupportedException.class, () -> ds.getPooledConnection(null, null));
+
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-open:PT.*");
+			final var p = ds.getPooledConnection();
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER,
+					"jdbc-pool-logical-open:" + c + "; IuPooledConnection .*");
+			p.getConnection();
+
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER,
+					"jdbc-pool-logical-close:" + c + "; IuPooledConnection .*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reusable; .*");
+			box.listener.connectionClosed(new ConnectionEvent(pc));
+
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-close:PT.*");
+		}
+	}
+
+	@Test
+	public void testWaitForLogicalClose() throws TimeoutException, Throwable {
+		class Box {
+			ConnectionEventListener listener;
+		}
+		final var box = new Box();
+		final var c = mock(Connection.class);
+		final var pc = mock(PooledConnection.class);
+		doAnswer(a -> {
+			box.listener = a.getArgument(0);
+			return null;
+		}).when(pc).addConnectionEventListener(any());
+		when(pc.getConnection()).thenReturn(c);
+
+		final var f = mock(ConnectionPoolDataSource.class);
+		when(f.getPooledConnection()).thenReturn(pc);
+
+		final var closeTask = new IuUtilityTaskController<>(() -> {
+			Thread.sleep(200L);
+			box.listener.connectionClosed(new ConnectionEvent(pc));
+			return null;
+		}, Instant.now().plusSeconds(1L));
+
+		try (final var ds = new IuConnectionPoolDataSource(f::getPooledConnection)) {
+			ds.setShutdownTimeout(Duration.ofSeconds(1L));
+			assertEquals(Duration.ofSeconds(1L), ds.getShutdownTimeout());
+
+			assertThrows(SQLFeatureNotSupportedException.class, () -> ds.getPooledConnection(null, null));
+
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-open:PT.*");
+			final var p = ds.getPooledConnection();
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER,
+					"jdbc-pool-logical-open:" + c + "; IuPooledConnection .*");
+			p.getConnection();
+
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER,
+					"jdbc-pool-logical-close:" + c + "; IuPooledConnection .*");
+
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-close:PT.*");
+			ds.close(); // second close is no-op
+			assertThrows(SQLException.class, ds::getPooledConnection);
+		}
+		
+		closeTask.get();
+	}
+
+	@Test
+	public void testAbandonedConnectionOnClose() throws SQLException {
 		final var c = mock(Connection.class);
 		final var pc = mock(PooledConnection.class);
 		when(pc.getConnection()).thenReturn(c);
@@ -48,6 +132,7 @@ public class IuConnectionPoolDataSourceTest {
 		when(f.getPooledConnection()).thenReturn(pc);
 
 		final var ds = new IuConnectionPoolDataSource(f::getPooledConnection);
+		ds.setShutdownTimeout(Duration.ofMillis(50L));
 		assertThrows(SQLFeatureNotSupportedException.class, () -> ds.getPooledConnection(null, null));
 
 		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-open:PT.*");
@@ -55,6 +140,8 @@ public class IuConnectionPoolDataSourceTest {
 		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER,
 				"jdbc-pool-logical-open:" + c + "; IuPooledConnection .*");
 		p.getConnection();
+		assertEquals("1 connections remaining in the pool after graceful shutdown PT0.05S",
+				assertThrows(SQLException.class, ds::close).getMessage());
 	}
 
 	@Test
@@ -114,7 +201,7 @@ public class IuConnectionPoolDataSourceTest {
 				"jdbc-pool-logical-close:" + c + "; IuPooledConnection .*", SQLException.class);
 		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.WARNING, "jdbc-pool-close:PT.*",
 				SQLException.class);
-		
+
 		final var e = assertThrows(SQLException.class, ds::getPooledConnection);
 		assertInstanceOf(SQLException.class, e.getCause(), () -> {
 			e.printStackTrace();
@@ -274,7 +361,7 @@ public class IuConnectionPoolDataSourceTest {
 
 	@Test
 	public void testWaitForReuse() throws TimeoutException, Throwable {
-		final var ds = new IuConnectionPoolDataSource(() -> {
+		try (final var ds = new IuConnectionPoolDataSource(() -> {
 			class Box {
 				ConnectionEventListener listener;
 			}
@@ -294,41 +381,40 @@ public class IuConnectionPoolDataSourceTest {
 			when(pc.getConnection()).thenReturn(c);
 
 			return pc;
-		});
-		ds.setMaxSize(1);
+		})) {
+			ds.setMaxSize(1);
 
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-open:PT.*");
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open:.*");
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close:.*");
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reusable; .*");
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reuse; .*");
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open:.*");
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close:.*");
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reusable; .*");
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-close:PT.*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-open:PT.*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open:.*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close:.*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reusable; .*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reuse; .*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open:.*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close:.*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reusable; .*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-close:PT.*");
 
-		final var task = new IuUtilityTaskController<>(() -> {
+			final var task = new IuUtilityTaskController<>(() -> {
+				final var p = ds.getPooledConnection();
+				final var c = p.getConnection();
+				Thread.sleep(250L);
+				c.close();
+				return p;
+			}, Instant.now().plusSeconds(5L));
+
 			final var p = ds.getPooledConnection();
 			final var c = p.getConnection();
 			Thread.sleep(250L);
+
 			c.close();
-			return p;
-		}, Instant.now().plusSeconds(5L));
 
-		final var p = ds.getPooledConnection();
-		final var c = p.getConnection();
-		Thread.sleep(250L);
-
-		c.close();
-
-		assertSame(p, task.get());
-
-		p.close();
+			assertSame(p, task.get());
+		}
 	}
 
 	@Test
 	public void testRetireReused() throws TimeoutException, Throwable {
-		final var ds = new IuConnectionPoolDataSource(() -> {
+		try (final var ds = new IuConnectionPoolDataSource(() -> {
 			class Box {
 				ConnectionEventListener listener;
 			}
@@ -348,37 +434,37 @@ public class IuConnectionPoolDataSourceTest {
 			when(pc.getConnection()).thenReturn(c);
 
 			return pc;
-		});
-		ds.setMaxSize(1);
-		ds.setMaxConnectionReuseCount(2);
+		})) {
+			ds.setMaxSize(1);
+			ds.setMaxConnectionReuseCount(2);
 
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-open:PT.*");
-		var p = ds.getPooledConnection();
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open:.*");
-		var c = p.getConnection();
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close:.*");
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reusable; .*");
-		c.close();
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-open:PT.*");
+			var p = ds.getPooledConnection();
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open:.*");
+			var c = p.getConnection();
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close:.*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reusable; .*");
+			c.close();
 
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reuse; .*");
-		p = ds.getPooledConnection();
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open:.*");
-		c = p.getConnection();
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close:.*");
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-retire-count:.*");
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-close:PT.*");
-		c.close();
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reuse; .*");
+			p = ds.getPooledConnection();
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open:.*");
+			c = p.getConnection();
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close:.*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-retire-count:.*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-close:PT.*");
+			c.close();
 
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-open:PT.*");
-		p = ds.getPooledConnection();
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open:.*");
-		c = p.getConnection();
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close:.*");
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reusable; .*");
-		c.close();
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-open:PT.*");
+			p = ds.getPooledConnection();
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open:.*");
+			c = p.getConnection();
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close:.*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reusable; .*");
+			c.close();
 
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-close:PT.*");
-		p.close();
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-close:PT.*");
+		}
 	}
 
 	@Test

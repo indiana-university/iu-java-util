@@ -23,12 +23,13 @@ import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuUtilityTaskController;
 import edu.iu.UnsafeFunction;
+import edu.iu.UnsafeRunnable;
 import edu.iu.UnsafeSupplier;
 
 /**
  * Abstract generic database connection pool.
  */
-public abstract class IuCommonDataSource implements CommonDataSource, ConnectionEventListener {
+public abstract class IuCommonDataSource implements CommonDataSource, ConnectionEventListener, AutoCloseable {
 
 	static {
 		Logger.getLogger(IuCommonDataSource.class.getPackageName());
@@ -48,11 +49,14 @@ public abstract class IuCommonDataSource implements CommonDataSource, Connection
 	private long maxConnectionReuseCount = 100;
 	private Duration maxConnectionReuseTime = Duration.ofMinutes(15L);
 	private Duration abandonedConnectionTimeout = Duration.ofMinutes(30L);
+	private Duration shutdownTimeout = Duration.ofSeconds(30L);
 
 	private String validationQuery;
 	private Duration validationInterval = Duration.ofSeconds(15L);
 	private UnsafeFunction<Connection, Connection> connectionInitializer;
+	private UnsafeRunnable onClose;
 
+	private boolean closed;
 	private volatile int pendingConnections;
 
 	/**
@@ -89,16 +93,22 @@ public abstract class IuCommonDataSource implements CommonDataSource, Connection
 
 		var attempt = 0;
 		Throwable error = null;
-		while (attempt <= maxRetry && timeout.isAfter(Instant.now()))
+		while (!closed //
+				&& attempt <= maxRetry //
+				&& timeout.isAfter(Instant.now()))
 			try {
+				attempt++;
+				
 				synchronized (this) {
-					IuObject.waitFor(this, () -> !reusableConnections.isEmpty() || !this.isExhausted(), timeout);
+					IuObject.waitFor(this, () -> closed //
+							|| !reusableConnections.isEmpty() //
+							|| !this.isExhausted(),
+							timeout);
+
 					pendingConnections++;
 				}
 
 				try {
-					attempt++;
-
 					while (!reusableConnections.isEmpty()) {
 						final var reusableConnection = reusableConnections.poll();
 
@@ -169,10 +179,12 @@ public abstract class IuCommonDataSource implements CommonDataSource, Connection
 			return;
 		}
 
-		LOG.finer(() -> "jdbc-pool-reusable; " + reusableConnection);
-		reusableConnections.offer(reusableConnection);
-		synchronized (this) {
-			this.notifyAll();
+		if (!closed) {
+			LOG.finer(() -> "jdbc-pool-reusable; " + reusableConnection);
+			reusableConnections.offer(reusableConnection);
+			synchronized (this) {
+				this.notifyAll();
+			}
 		}
 	}
 
@@ -370,6 +382,28 @@ public abstract class IuCommonDataSource implements CommonDataSource, Connection
 	}
 
 	/**
+	 * Gets the maximum length of time to wait for all connections to close on
+	 * shutdown.
+	 * 
+	 * @return Maximum length of time to wait for all connections to close
+	 *         gracefully
+	 */
+	public Duration getShutdownTimeout() {
+		return shutdownTimeout;
+	}
+
+	/**
+	 * Sets the maximum length of time to wait for all connections to close on
+	 * shutdown.
+	 * 
+	 * @param shutdownTimeout Maximum length of time to wait for all connections to
+	 *                        close gracefully
+	 */
+	protected void setShutdownTimeout(Duration shutdownTimeout) {
+		this.shutdownTimeout = shutdownTimeout;
+	}
+
+	/**
 	 * Gets the query to use for validating connections on creation, and
 	 * intermittently before checking out from the pool.
 	 * 
@@ -430,10 +464,60 @@ public abstract class IuCommonDataSource implements CommonDataSource, Connection
 		this.connectionInitializer = connectionInitializer;
 	}
 
+	/**
+	 * Sets an optional shutdown hook to be invoked from {@link #close()} after all
+	 * physical connections managed by the pool have been closed.
+	 * 
+	 * @param onClose {@link UnsafeRunnable}
+	 */
+	public void setOnClose(UnsafeRunnable onClose) {
+		this.onClose = onClose;
+	}
+
+	/**
+	 * Waits for completion and closes all open connections.
+	 */
+	@Override
+	public synchronized void close() throws SQLException {
+		if (!closed) {
+			closed = true;
+
+			class CloseStatus {
+				Throwable error = null;
+			}
+			final var closeStatus = new CloseStatus();
+
+			while (!reusableConnections.isEmpty())
+				closeStatus.error = IuException.suppress(closeStatus.error, () -> reusableConnections.poll().close());
+
+			IuException.suppress(closeStatus.error, () -> IuObject.waitFor(this, () -> {
+				for (final var c : openConnections)
+					if (c.logicalConnectionOpened() == null)
+						closeStatus.error = IuException.suppress(closeStatus.error, () -> c.close());
+
+				return openConnections.isEmpty();
+			}, shutdownTimeout));
+
+			if (onClose != null)
+				closeStatus.error = IuException.suppress(closeStatus.error, onClose);
+
+			closeStatus.error = IuException.suppress(closeStatus.error, () -> {
+				final var size = openConnections.size();
+				if (size > 0)
+					throw new SQLException(
+							size + " connections remaining in the pool after graceful shutdown " + shutdownTimeout);
+			});
+
+			if (closeStatus.error != null)
+				throw IuException.checked(closeStatus.error, SQLException.class);
+		}
+	}
+
 	@Override
 	public String toString() {
 		return getClass().getSimpleName() + " [" //
 				+ "loginTimeout=" + getLoginTimeout() //
+				+ ", closed=" + closed //
 				+ ", url=" + getUrl() //
 				+ ", username=" + getUsername() //
 				+ ", schema=" + getSchema() //
@@ -454,6 +538,9 @@ public abstract class IuCommonDataSource implements CommonDataSource, Connection
 	}
 
 	private IuPooledConnection openConnection(Instant timeout) throws SQLException {
+		if (closed)
+			throw new SQLException("closed");
+
 		final var initTime = Instant.now();
 		final var pooledConnection = IuException.checked(SQLException.class, () -> {
 			try {

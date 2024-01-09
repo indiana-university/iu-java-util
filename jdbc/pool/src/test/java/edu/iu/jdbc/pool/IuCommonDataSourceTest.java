@@ -59,7 +59,7 @@ public class IuCommonDataSourceTest {
 		final var ds = new IuCommonDataSource(null) {
 		};
 		assertEquals(
-				" [loginTimeout=15, url=null, username=null, schema=null, available=0, open=0, maxSize=16, maxRetry=1, maxConnectionReuseCount=100, maxConnectionReuseTime=PT15M, abandonedConnectionTimeout=PT30M, validationQuery=null, validationInterval=PT15S]",
+				" [loginTimeout=15, closed=false, url=null, username=null, schema=null, available=0, open=0, maxSize=16, maxRetry=1, maxConnectionReuseCount=100, maxConnectionReuseTime=PT15M, abandonedConnectionTimeout=PT30M, validationQuery=null, validationInterval=PT15S]",
 				ds.toString());
 		ds.setLoginTimeout(12);
 		ds.setAbandonedConnectionTimeout(Duration.ofMillis(34));
@@ -73,7 +73,7 @@ public class IuCommonDataSourceTest {
 		ds.setMaxRetry(45);
 		ds.setMaxSize(67);
 		assertEquals(
-				" [loginTimeout=12, url=jdbc:foo:bar, username=foo, schema=bar, available=0, open=0, maxSize=67, maxRetry=45, maxConnectionReuseCount=56, maxConnectionReuseTime=PT89H, abandonedConnectionTimeout=PT0.034S, validationQuery=select foo from bar, validationInterval=PT0.000000072S]",
+				" [loginTimeout=12, closed=false, url=jdbc:foo:bar, username=foo, schema=bar, available=0, open=0, maxSize=67, maxRetry=45, maxConnectionReuseCount=56, maxConnectionReuseTime=PT89H, abandonedConnectionTimeout=PT0.034S, validationQuery=select foo from bar, validationInterval=PT0.000000072S]",
 				ds.toString());
 	}
 
@@ -110,4 +110,15 @@ public class IuCommonDataSourceTest {
 
 	}
 
+	@Test
+	public void testClose() throws SQLException {
+		final var pc1 = mock(PooledConnection.class);
+		final var c1 = mock(Connection.class);
+		when(c1.unwrap(Connection.class)).thenReturn(c1);
+		when(pc1.getConnection()).thenReturn(c1);
+
+		final var ds = new IuCommonDataSource(() -> pc1) {
+		};
+		ds.close();
+	}
 }
