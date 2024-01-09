@@ -9,12 +9,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.sql.Statement;
 import java.time.Duration;
 import java.util.logging.Level;
 
-import javax.sql.CommonDataSource;
 import javax.sql.PooledConnection;
 
 import org.junit.jupiter.api.Test;
@@ -26,7 +27,7 @@ public class IuCommonDataSourceTest {
 
 	@Test
 	public void testLogMethods() throws SQLException {
-		final var ds = new IuCommonDataSource<CommonDataSource>(null) {
+		final var ds = new IuCommonDataSource(null) {
 		};
 
 		assertEquals(getClass().getPackageName(), ds.getParentLogger().getName());
@@ -42,7 +43,7 @@ public class IuCommonDataSourceTest {
 
 	@Test
 	public void testLoginTimeout() throws SQLException {
-		final var ds = new IuCommonDataSource<CommonDataSource>(null) {
+		final var ds = new IuCommonDataSource(null) {
 		};
 
 		assertEquals(15, ds.getLoginTimeout());
@@ -55,10 +56,10 @@ public class IuCommonDataSourceTest {
 
 	@Test
 	public void testSetAndToStringMethods() throws SQLException {
-		final var ds = new IuCommonDataSource<CommonDataSource>(null) {
+		final var ds = new IuCommonDataSource(null) {
 		};
 		assertEquals(
-				" [loginTimeout=15, url=null, username=null, schema=null, maxSize=16, maxRetry=1, maxConnectionReuseCount=100, maxConnectionReuseTime=PT15M, abandonedConnectionTimeout=PT30M, validationQuery=null, validationInterval=PT15S]",
+				" [loginTimeout=15, url=null, username=null, schema=null, available=0, open=0, maxSize=16, maxRetry=1, maxConnectionReuseCount=100, maxConnectionReuseTime=PT15M, abandonedConnectionTimeout=PT30M, validationQuery=null, validationInterval=PT15S]",
 				ds.toString());
 		ds.setLoginTimeout(12);
 		ds.setAbandonedConnectionTimeout(Duration.ofMillis(34));
@@ -72,7 +73,7 @@ public class IuCommonDataSourceTest {
 		ds.setMaxRetry(45);
 		ds.setMaxSize(67);
 		assertEquals(
-				" [loginTimeout=12, url=jdbc:foo:bar, username=foo, schema=bar, maxSize=67, maxRetry=45, maxConnectionReuseCount=56, maxConnectionReuseTime=PT89H, abandonedConnectionTimeout=PT0.034S, validationQuery=select foo from bar, validationInterval=PT0.000000072S]",
+				" [loginTimeout=12, url=jdbc:foo:bar, username=foo, schema=bar, available=0, open=0, maxSize=67, maxRetry=45, maxConnectionReuseCount=56, maxConnectionReuseTime=PT89H, abandonedConnectionTimeout=PT0.034S, validationQuery=select foo from bar, validationInterval=PT0.000000072S]",
 				ds.toString());
 	}
 
@@ -83,7 +84,7 @@ public class IuCommonDataSourceTest {
 		when(c1.unwrap(Connection.class)).thenReturn(c1);
 		when(pc1.getConnection()).thenReturn(c1);
 
-		final var ds = new IuCommonDataSource<CommonDataSource>(() -> pc1) {
+		final var ds = new IuCommonDataSource(() -> pc1) {
 		};
 		ds.setConnectionInitializer(c -> {
 			final var wc = mock(Connection.class);
@@ -92,7 +93,8 @@ public class IuCommonDataSourceTest {
 		});
 
 		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-open:PT.*");
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open:" + c1 + "; IuPooledConnection .*");
+		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER,
+				"jdbc-pool-logical-open:" + c1 + "; IuPooledConnection .*");
 		final var lc = ds.getPooledConnection().getConnection();
 		assertNotSame(c1, lc);
 		assertSame(c1, lc.unwrap(Connection.class));
@@ -102,7 +104,8 @@ public class IuCommonDataSourceTest {
 			return wc;
 		});
 		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-open:PT.*");
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open:" + c1 + "; IuPooledConnection .*");
+		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER,
+				"jdbc-pool-logical-open:" + c1 + "; IuPooledConnection .*");
 		assertThrows(SQLException.class, () -> ds.getPooledConnection().getConnection());
 
 	}

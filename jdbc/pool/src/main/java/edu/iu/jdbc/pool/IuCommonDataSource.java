@@ -14,20 +14,21 @@ import java.util.logging.LogManager;
 import java.util.logging.Logger;
 
 import javax.sql.CommonDataSource;
+import javax.sql.ConnectionEvent;
+import javax.sql.ConnectionEventListener;
 import javax.sql.DataSource;
 import javax.sql.PooledConnection;
 
 import edu.iu.IuException;
+import edu.iu.IuObject;
 import edu.iu.IuUtilityTaskController;
 import edu.iu.UnsafeFunction;
 import edu.iu.UnsafeSupplier;
 
 /**
  * Abstract generic database connection pool.
- * 
- * @param <F> factory data source type
  */
-public abstract class IuCommonDataSource<F extends CommonDataSource> implements CommonDataSource {
+public abstract class IuCommonDataSource implements CommonDataSource, ConnectionEventListener {
 
 	static {
 		Logger.getLogger(IuCommonDataSource.class.getPackageName());
@@ -51,6 +52,8 @@ public abstract class IuCommonDataSource<F extends CommonDataSource> implements 
 	private String validationQuery;
 	private Duration validationInterval = Duration.ofSeconds(15L);
 	private UnsafeFunction<Connection, Connection> connectionInitializer;
+
+	private volatile int pendingConnections;
 
 	/**
 	 * Default constructor.
@@ -82,43 +85,100 @@ public abstract class IuCommonDataSource<F extends CommonDataSource> implements 
 	 */
 	public IuPooledConnection getPooledConnection() throws SQLException {
 		IuPooledConnection iuPooledConnection = null;
+		Instant timeout = Instant.now().plusSeconds(loginTimeout);
 
-		while (!reusableConnections.isEmpty()) {
-			final var reusableConnection = reusableConnections.poll();
+		var attempt = 0;
+		Throwable error = null;
+		while (attempt <= maxRetry && timeout.isAfter(Instant.now()))
+			try {
+				synchronized (this) {
+					IuObject.waitFor(this, () -> !reusableConnections.isEmpty() || !this.isExhausted(), timeout);
+					pendingConnections++;
+				}
 
-			final var count = reusableConnection.transactionSegmentCount();
-			if (count >= maxConnectionReuseCount) {
+				try {
+					attempt++;
+
+					while (!reusableConnections.isEmpty()) {
+						final var reusableConnection = reusableConnections.poll();
+
+						final var timeSinceInit = Duration.between(reusableConnection.connectionInitiated(),
+								Instant.now());
+						if (timeSinceInit.compareTo(maxConnectionReuseTime) >= 0) {
+							reusableConnection.close();
+							LOG.fine(() -> "jdbc-pool-retire-timeout:" + timeSinceInit + " >= " + maxConnectionReuseTime
+									+ " " + reusableConnection);
+							continue;
+						}
+
+						iuPooledConnection = reusableConnection;
+						LOG.finer(() -> "jdbc-pool-reuse; " + reusableConnection + "; " + this);
+						break;
+					}
+
+					if (iuPooledConnection == null)
+						iuPooledConnection = openConnection(timeout);
+
+					final var lastUsed = iuPooledConnection.lastTransactionSegmentEnded();
+					if (validationQuery != null //
+							&& (lastUsed == null //
+									|| Duration.between(lastUsed, Instant.now()).compareTo(validationInterval) >= 0))
+						iuPooledConnection.validate(validationQuery);
+
+					if (error != null)
+						LOG.log(Level.INFO, error, () -> "jdbc-pool-recoverable; " + this);
+
+					return iuPooledConnection;
+
+				} finally {
+					synchronized (this) {
+						pendingConnections--;
+						this.notifyAll();
+					}
+				}
+
+			} catch (Throwable e) {
+				if (iuPooledConnection != null) {
+					IuException.suppress(e, iuPooledConnection::close);
+					iuPooledConnection = null;
+				}
+
+				if (error == null)
+					error = e;
+				else
+					error.addSuppressed(e);
+			}
+
+		throw new SQLException("jdbc-pool-fail: attempt=" + attempt + ", timeout=" + timeout + "; " + this, error);
+	}
+
+	@Override
+	public void connectionClosed(ConnectionEvent event) {
+		final var reusableConnection = (IuPooledConnection) event.getSource();
+
+		final var count = reusableConnection.transactionSegmentCount();
+		if (count >= maxConnectionReuseCount) {
+			try {
+				reusableConnection.close();
 				LOG.fine(() -> "jdbc-pool-retire-count:" + count + " >= " + maxConnectionReuseCount + " "
 						+ reusableConnection);
-				reusableConnection.close();
-				continue;
-			}
-
-			final var timeSinceInit = Duration.between(reusableConnection.connectionInitiated(), Instant.now());
-			if (timeSinceInit.compareTo(maxConnectionReuseTime) >= 0) {
-				LOG.fine(() -> "jdbc-pool-retire-timeout:" + timeSinceInit + " >= " + maxConnectionReuseTime + " "
+			} catch (Throwable e) {
+				LOG.log(Level.INFO, e, () -> "jdbc-pool-retire-count:" + count + " >= " + maxConnectionReuseCount + " "
 						+ reusableConnection);
-				reusableConnection.close();
-				continue;
 			}
-
-			LOG.fine(() -> "jdbc-pool-reuse:" + count + ':' + timeSinceInit + ":" + reusableConnection + "; " + this);
-			iuPooledConnection = reusableConnection;
+			return;
 		}
 
-		if (iuPooledConnection != null) {
-			// TODO: check for max size
-			// TODO: prune open connections once max size is reached
-
-			final var newConnection = openConnection();
-
-			openConnections.offer(newConnection);
-			iuPooledConnection = newConnection;
+		LOG.finer(() -> "jdbc-pool-reusable; " + reusableConnection);
+		reusableConnections.offer(reusableConnection);
+		synchronized (this) {
+			this.notifyAll();
 		}
+	}
 
-		// TODO: validate connection, if validation timeout is expired
-
-		return iuPooledConnection;
+	@Override
+	public void connectionErrorOccurred(ConnectionEvent event) {
+		reusableConnections.remove((IuPooledConnection) event.getSource());
 	}
 
 	@Override
@@ -231,14 +291,19 @@ public abstract class IuCommonDataSource<F extends CommonDataSource> implements 
 	 * Gets the maximum number of times a connection attempt will be retried before
 	 * resulting in failure.
 	 * 
-	 * @return the maxRetry
+	 * @return maximum number of times a connection attempt will be retried before
+	 *         resulting in failure.
 	 */
 	public int getMaxRetry() {
 		return maxRetry;
 	}
 
 	/**
-	 * @param maxRetry the maxRetry to set
+	 * Gets the maximum number of times a connection attempt will be retried before
+	 * resulting in failure.
+	 * 
+	 * @param maxRetry maximum number of times a connection attempt will be retried
+	 *                 before resulting in failure.
 	 */
 	public void setMaxRetry(int maxRetry) {
 		this.maxRetry = maxRetry;
@@ -372,6 +437,8 @@ public abstract class IuCommonDataSource<F extends CommonDataSource> implements 
 				+ ", url=" + getUrl() //
 				+ ", username=" + getUsername() //
 				+ ", schema=" + getSchema() //
+				+ ", available=" + reusableConnections.size() //
+				+ ", open=" + openConnections.size() //
 				+ ", maxSize=" + getMaxSize() //
 				+ ", maxRetry=" + getMaxRetry() //
 				+ ", maxConnectionReuseCount=" + getMaxConnectionReuseCount() //
@@ -382,27 +449,36 @@ public abstract class IuCommonDataSource<F extends CommonDataSource> implements 
 				+ "]";
 	}
 
-	private IuPooledConnection openConnection() throws SQLException {
+	private synchronized boolean isExhausted() {
+		return openConnections.size() + pendingConnections >= maxSize;
+	}
+
+	private IuPooledConnection openConnection(Instant timeout) throws SQLException {
 		final var initTime = Instant.now();
 		final var pooledConnection = IuException.checked(SQLException.class, () -> {
 			try {
-				return IuUtilityTaskController.getBefore(factory, initTime.plusSeconds(getLoginTimeout()));
+				return IuUtilityTaskController.getBefore(factory, timeout);
 			} catch (TimeoutException e) {
 				throw new SQLException(e);
 			}
 		});
 
-		final var iuPooledConnection = new IuPooledConnection(initTime, pooledConnection, connectionInitializer,
+		final var newConnection = new IuPooledConnection(initTime, pooledConnection, connectionInitializer,
 				abandonedConnectionTimeout, this::handleClose);
+		newConnection.addConnectionEventListener(this);
 
+		openConnections.offer(newConnection);
 		LOG.fine(() -> "jdbc-pool-open:" + Duration.between(initTime, Instant.now()) + ":" + pooledConnection + "; "
 				+ this);
 
-		return iuPooledConnection;
+		return newConnection;
 	}
 
 	private void handleClose(IuPooledConnection closedConnection) {
 		openConnections.remove(closedConnection);
+		synchronized (this) {
+			this.notifyAll();
+		}
 
 		final var error = closedConnection.error();
 		if (error == null)

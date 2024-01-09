@@ -32,7 +32,6 @@
 package edu.iu.test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -85,7 +84,7 @@ public class LoggingTest {
 
 	@Test
 	public void testLoggingFailsWithoutExpectedMessage() {
-		assertThrows(AssertionFailedError.class, () -> LOG.finest(() -> "not expected"));
+		IuTestLogger.clearUnexpected(assertThrows(AssertionFailedError.class, () -> LOG.finest(() -> "not expected")));
 	}
 
 	@Test
@@ -126,35 +125,37 @@ public class LoggingTest {
 	@Test
 	public void testExpectedMessageLoggerNameMismatch() {
 		IuTestLogger.expect("wrong name", Level.FINER, "expected");
-		assertThrows(AssertionFailedError.class, () -> LOG.finer(() -> "expected"));
+		IuTestLogger.clearUnexpected(assertThrows(AssertionFailedError.class, () -> LOG.finer(() -> "expected")));
 		Logger.getLogger("wrong name").finer(() -> "expected");
 	}
 
 	@Test
 	public void testExpectedMessageLevelMismatch() {
 		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected");
-		assertThrows(AssertionFailedError.class, () -> LOG.finer(() -> "expected"));
+		IuTestLogger.clearUnexpected(assertThrows(AssertionFailedError.class, () -> LOG.finer(() -> "expected")));
 		LOG.fine("expected");
 	}
 
 	@Test
 	public void testExpectedMessageRequiresException() {
 		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected", Exception.class);
-		assertThrows(AssertionFailedError.class, () -> LOG.fine(() -> "expected"));
+		IuTestLogger.clearUnexpected(assertThrows(AssertionFailedError.class, () -> LOG.fine(() -> "expected")));
 		LOG.log(Level.FINE, new Exception(), () -> "expected");
 	}
 
 	@Test
 	public void testExpectedMessageRequiresNoException() {
 		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected");
-		assertThrows(AssertionFailedError.class, () -> LOG.log(Level.FINE, new Exception(), () -> "expected"));
+		IuTestLogger.clearUnexpected(
+				assertThrows(AssertionFailedError.class, () -> LOG.log(Level.FINE, new Exception(), () -> "expected")));
 		LOG.fine(() -> "expected");
 	}
 
 	@Test
 	public void testExpectedMessageRequiresSameExceptionClass() {
 		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected", Exception.class);
-		assertThrows(AssertionFailedError.class, () -> LOG.log(Level.FINE, new RuntimeException(), () -> "expected"));
+		IuTestLogger.clearUnexpected(assertThrows(AssertionFailedError.class,
+				() -> LOG.log(Level.FINE, new RuntimeException(), () -> "expected")));
 		LOG.log(Level.FINE, new Exception(), () -> "expected");
 	}
 
@@ -162,7 +163,8 @@ public class LoggingTest {
 	public void testExpectedMessageRequiresMatchingException() {
 		final var e = new Exception();
 		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected", Exception.class, a -> a == e);
-		assertThrows(AssertionFailedError.class, () -> LOG.log(Level.FINE, new Exception(), () -> "expected"));
+		IuTestLogger.clearUnexpected(
+				assertThrows(AssertionFailedError.class, () -> LOG.log(Level.FINE, new Exception(), () -> "expected")));
 		LOG.log(Level.FINE, e, () -> "expected");
 	}
 
@@ -176,7 +178,7 @@ public class LoggingTest {
 		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER);
 		LOG.finer("some message");
 		LOG.finest("another message");
-		assertThrows(AssertionFailedError.class, () -> LOG.fine("level too high"));
+		IuTestLogger.clearUnexpected(assertThrows(AssertionFailedError.class, () -> LOG.fine("level too high")));
 	}
 
 	@Test
@@ -189,14 +191,14 @@ public class LoggingTest {
 	@Test
 	public void testAllowedMessagesDoesntAllowDifferentLogger() {
 		IuTestLogger.allow("wrong logger", Level.FINER, "allowed");
-		assertThrows(AssertionFailedError.class, () -> LOG.finer(() -> "allowed"));
+		IuTestLogger.clearUnexpected(assertThrows(AssertionFailedError.class, () -> LOG.finer(() -> "allowed")));
 	}
 
 	@Test
 	public void testAllowedMessagesDoesntAllowsOnlyFinerLevel() {
 		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed");
 		LOG.finest(() -> "allowed");
-		assertThrows(AssertionFailedError.class, () -> LOG.fine(() -> "allowed"));
+		IuTestLogger.clearUnexpected(assertThrows(AssertionFailedError.class, () -> LOG.fine(() -> "allowed")));
 	}
 
 	@Test
@@ -208,13 +210,14 @@ public class LoggingTest {
 	@Test
 	public void testAllowedWithDoesntAllowsWithoutThrown() {
 		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed", Throwable.class);
-		assertThrows(AssertionFailedError.class, () -> LOG.finer(() -> "allowed"));
+		IuTestLogger.clearUnexpected(assertThrows(AssertionFailedError.class, () -> LOG.finer(() -> "allowed")));
 	}
 
 	@Test
 	public void testAllowedWithDoesntAllowsWrongThrownClass() {
 		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed", Throwable.class);
-		assertThrows(AssertionFailedError.class, () -> LOG.log(Level.FINER, new Error(), () -> "allowed"));
+		IuTestLogger.clearUnexpected(
+				assertThrows(AssertionFailedError.class, () -> LOG.log(Level.FINER, new Error(), () -> "allowed")));
 	}
 
 	@Test
@@ -232,7 +235,8 @@ public class LoggingTest {
 	@Test
 	public void testWithDoesntAllowsWithSameThrownButFailedTest() {
 		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed", Throwable.class, t -> false);
-		assertThrows(AssertionFailedError.class, () -> LOG.log(Level.FINER, new Throwable(), () -> "allowed"));
+		IuTestLogger.clearUnexpected(
+				assertThrows(AssertionFailedError.class, () -> LOG.log(Level.FINER, new Throwable(), () -> "allowed")));
 	}
 
 	@Test
@@ -258,4 +262,16 @@ public class LoggingTest {
 		LOG.finer("allowed");
 	}
 
+	@Test
+	public void testDetectsUnexpected() throws InterruptedException {
+		final var t = new Thread(() -> {
+			try {
+				LOG.info("unexpected");
+			} catch (Throwable e) {
+			}
+		});
+		t.start();
+		t.join();
+		IuTestExtension.expectFailure();
+	}
 }

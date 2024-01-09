@@ -152,7 +152,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	private final Duration abandonedConnectionTimeout;
 	private final Consumer<IuPooledConnection> onClose;
 
-	private volatile Instant reused;
+	private volatile boolean validated;
 	private volatile Connection connection;
 	private volatile Instant logicalConnectionOpened;
 	private volatile ScheduledFuture<?> reaper;
@@ -204,16 +204,21 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 		}
 
 		if (connection != null)
-			throw new IllegalStateException("already connected");
+			if (validated) {
+				validated = false;
+				return connection;
+			} else
+				throw new IllegalStateException("already connected");
 
 		final var newConnection = physicalConnection.getConnection();
 		LOG.finer(() -> "jdbc-pool-logical-open:" + newConnection + "; " + this);
 
+		final var openTrace = new Throwable("opened by");
 		reaper = REAPER_SCHEDULER.schedule(() -> {
 			try {
 				afterLogicalClose();
 				close();
-				LOG.info(() -> "jdbc-pool-reaper-close:" + newConnection);
+				LOG.log(Level.INFO, openTrace, () -> "jdbc-pool-reaper-close:" + newConnection);
 			} catch (Throwable e) {
 				LOG.log(Level.WARNING, e, () -> "jdbc-pool-reaper-fail:" + newConnection);
 			}
@@ -259,7 +264,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 			afterLogicalClose();
 			LOG.log(Level.INFO, error, () -> "jdbc-pool-logical-close:" + connection + "; " + this);
 		}
-		beforePhysicalClose(error);
+		afterPhysicalClose(error);
 
 		final var decoratedEvent = new ConnectionEvent(this, error);
 		connectionEventListeners.parallelStream().forEach(a -> a.connectionErrorOccurred(decoratedEvent));
@@ -323,9 +328,21 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	}
 
 	@Override
-	public void close() throws SQLException {
-		beforePhysicalClose(null);
-		physicalConnection.close();
+	public synchronized void close() throws SQLException {
+		SQLException error = null;
+		if (!closed)
+			try {
+				physicalConnection.close();
+			} catch (SQLException e) {
+				error = e;
+			}
+
+		if (connection != null)
+			afterLogicalClose();
+		afterPhysicalClose(error);
+
+		if (error != null)
+			throw IuException.checked(error, SQLException.class);
 	}
 
 	@Override
@@ -335,7 +352,6 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 				+ ", connectionOpened=" + connectionOpened //
 				+ ", physicalConnection=" + physicalConnection //
 				+ ", connection=" + connection //
-				+ ", reused=" + reused //
 				+ ", logicalConnectionOpened=" + logicalConnectionOpened //
 				+ ", lastTransactionSegmentStarted=" + lastTransactionSegmentStarted //
 				+ ", lastTransactionSegmentEnded=" + lastTransactionSegmentEnded //
@@ -425,23 +441,6 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	}
 
 	/**
-	 * Verifies that this connection can be reused.
-	 * 
-	 * @return return true if the connection can be reused; false if not. Returns
-	 *         true at most once after each logical close event that does not
-	 *         include an error.
-	 */
-	public synchronized boolean reuse() {
-		if (reused == null) {
-			reused = Instant.now();
-			LOG.finer(() -> "jdbc-pool-reuse; " + this);
-			return true;
-		}
-
-		return false;
-	}
-
-	/**
 	 * Gets the error that invalidated this connection, if invalid due to an error.
 	 * 
 	 * @return {@link SQLException}; null if the connection has not experienced a
@@ -449,6 +448,31 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 */
 	SQLException error() {
 		return error;
+	}
+
+	/**
+	 * Pre-emptively establishes and validates the logical connection.
+	 * 
+	 * @param validationQuery SQL to execute on the connection, <em>should</em>
+	 *                        produce at least one row with a non-null value in the
+	 *                        first column
+	 * @throws SQLException if the logical connection cannot be established or the
+	 *                      validation query fails
+	 */
+	synchronized void validate(String validationQuery) throws SQLException {
+		final var c = getConnection();
+
+		try (final var s = c.createStatement(); //
+				final var r = s.executeQuery(validationQuery)) {
+			if (!r.next() || r.getObject(1) == null) {
+				final var error = new SQLException(
+						"Validation query failed to produce a non-null result: " + validationQuery + "; " + this);
+				connectionErrorOccurred(new ConnectionEvent(this, error));
+				throw error;
+			}
+		}
+
+		validated = true;
 	}
 
 	private void handleStatementOpened(PreparedStatement statement) {
@@ -485,7 +509,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 		transactionSegmentCount++;
 	}
 
-	private synchronized void beforePhysicalClose(SQLException error) {
+	private synchronized void afterPhysicalClose(SQLException error) {
 		if (!closed) {
 			this.error = error;
 			onClose.accept(this);

@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -166,6 +167,7 @@ public class IuPooledConnectionTest {
 					"jdbc-pool-statement-reuse:" + c + ":" + s3 + "; IuPooledConnection .*");
 			assertSame(s3, connection.prepareStatement(""));
 		}
+		p.close();
 	}
 
 	@Test
@@ -241,6 +243,7 @@ public class IuPooledConnectionTest {
 		verify(l).statementErrorOccurred(
 				argThat(ev -> ev.getSource() == p && ev.getStatement() == s && ev.getSQLException() == e));
 
+		p.close();
 	}
 
 	@Test
@@ -256,17 +259,7 @@ public class IuPooledConnectionTest {
 				"jdbc-pool-logical-open:" + c + "; IuPooledConnection .*");
 		p.getConnection();
 		assertSame(c, pc.getConnection());
-	}
-
-	@Test
-	public void testReuseConnection() throws SQLException {
-		final var pc = mock(PooledConnection.class);
-		final var p = new IuPooledConnection(null, pc, null, Duration.ofSeconds(1L), a -> {
-		});
-		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER,
-				"jdbc-pool-reuse; IuPooledConnection .*");
-		assertTrue(p.reuse());
-		assertFalse(p.reuse());
+		p.close();
 	}
 
 	@Test
@@ -393,6 +386,43 @@ public class IuPooledConnectionTest {
 		assertThrows(IllegalStateException.class, p::getConnection);
 		p.close();
 		verify(onClose).accept(p); // onClose not called twice
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testReaper() throws SQLException, InterruptedException {
+		final var pc = mock(PooledConnection.class);
+		final var c = mock(Connection.class);
+		when(pc.getConnection()).thenReturn(c);
+		final var onClose = mock(Consumer.class);
+		final var p = new IuPooledConnection(null, pc, null, Duration.ofMillis(100L), onClose);
+
+		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open:.*");
+		final var lc = p.getConnection();
+		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.INFO, "jdbc-pool-reaper-close:.*",
+				Throwable.class, a -> "opened by".equals(a.getMessage()));
+		Thread.sleep(200L);
+		verify(pc).close();
+		lc.close();
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testReaperHandlesError() throws SQLException, InterruptedException {
+		final var pc = mock(PooledConnection.class);
+		doThrow(SQLException.class).when(pc).close();
+		final var c = mock(Connection.class);
+		when(pc.getConnection()).thenReturn(c);
+		final var onClose = mock(Consumer.class);
+		final var p = new IuPooledConnection(null, pc, null, Duration.ofMillis(100L), onClose);
+
+		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open:.*");
+		final var lc = p.getConnection();
+		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.WARNING, "jdbc-pool-reaper-fail:.*",
+				SQLException.class);
+		Thread.sleep(200L);
+		verify(pc).close();
+		lc.close();
 	}
 
 }
