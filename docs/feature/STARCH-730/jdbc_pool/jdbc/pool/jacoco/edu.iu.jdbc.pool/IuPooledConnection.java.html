@@ -156,7 +156,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	private volatile Connection connection;
 	private volatile Instant logicalConnectionOpened;
 	private volatile ScheduledFuture&lt;?&gt; reaper;
-	private volatile SQLException error;
+	private volatile Throwable error;
 	private volatile boolean closed;
 
 	private volatile Instant lastTransactionSegmentStarted;
@@ -329,25 +329,24 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 
 	@Override
 	public synchronized void close() throws SQLException {
-<span class="fc" id="L332">		SQLException error = null;</span>
+		final Throwable closeError;
 <span class="fc bfc" id="L333" title="All 2 branches covered.">		if (!closed)</span>
-			try {
-<span class="fc" id="L335">				physicalConnection.close();</span>
-<span class="fc" id="L336">			} catch (SQLException e) {</span>
-<span class="fc" id="L337">				error = e;</span>
-<span class="fc" id="L338">			}</span>
+<span class="fc" id="L334">			closeError = IuException.suppress(null, physicalConnection::close);</span>
+		else
+<span class="fc" id="L336">			closeError = null;</span>
 
-<span class="fc bfc" id="L340" title="All 2 branches covered.">		if (connection != null)</span>
-<span class="fc" id="L341">			afterLogicalClose();</span>
-<span class="fc" id="L342">		afterPhysicalClose(error);</span>
+<span class="fc" id="L338">		Throwable error = closeError;</span>
+<span class="fc bfc" id="L339" title="All 2 branches covered.">		if (connection != null)</span>
+<span class="fc" id="L340">			error = IuException.suppress(error, () -&gt; afterLogicalClose());</span>
+<span class="fc" id="L341">		error = IuException.suppress(error, () -&gt; afterPhysicalClose(closeError));</span>
 
-<span class="fc bfc" id="L344" title="All 2 branches covered.">		if (error != null)</span>
-<span class="fc" id="L345">			throw IuException.checked(error, SQLException.class);</span>
-<span class="fc" id="L346">	}</span>
+<span class="fc bfc" id="L343" title="All 2 branches covered.">		if (error != null)</span>
+<span class="fc" id="L344">			throw IuException.checked(error, SQLException.class);</span>
+<span class="fc" id="L345">	}</span>
 
 	@Override
 	public String toString() {
-<span class="fc" id="L350">		return &quot;IuPooledConnection [&quot; //</span>
+<span class="fc" id="L349">		return &quot;IuPooledConnection [&quot; //</span>
 				+ &quot;connectionInitiated=&quot; + connectionInitiated //
 				+ &quot;, connectionOpened=&quot; + connectionOpened //
 				+ &quot;, physicalConnection=&quot; + physicalConnection //
@@ -368,7 +367,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 * @return {@link Instant}
 	 */
 	public Instant connectionInitiated() {
-<span class="fc" id="L371">		return connectionInitiated;</span>
+<span class="fc" id="L370">		return connectionInitiated;</span>
 	}
 
 	/**
@@ -378,7 +377,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 * @return {@link Instant}
 	 */
 	public Instant connectionOpened() {
-<span class="fc" id="L381">		return connectionOpened;</span>
+<span class="fc" id="L380">		return connectionOpened;</span>
 	}
 
 	/**
@@ -388,7 +387,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 * @return {@link Instant}
 	 */
 	public Instant logicalConnectionOpened() {
-<span class="fc" id="L391">		return logicalConnectionOpened;</span>
+<span class="fc" id="L390">		return logicalConnectionOpened;</span>
 	}
 
 	/**
@@ -398,7 +397,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 * @return {@link Instant}
 	 */
 	public Instant lastTransactionSegmentStarted() {
-<span class="fc" id="L401">		return lastTransactionSegmentStarted;</span>
+<span class="fc" id="L400">		return lastTransactionSegmentStarted;</span>
 	}
 
 	/**
@@ -408,7 +407,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 * @return {@link Instant}
 	 */
 	public Instant lastTransactionSegmentEnded() {
-<span class="fc" id="L411">		return lastTransactionSegmentEnded;</span>
+<span class="fc" id="L410">		return lastTransactionSegmentEnded;</span>
 	}
 
 	/**
@@ -418,7 +417,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 * @return {@link Duration}
 	 */
 	public Duration averageTransactionSegmentDuration() {
-<span class="fc" id="L421">		return averageTransactionSegmentDuration;</span>
+<span class="fc" id="L420">		return averageTransactionSegmentDuration;</span>
 	}
 
 	/**
@@ -428,7 +427,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 * @return {@link Duration}
 	 */
 	public Duration maxTransactionSegmentDuration() {
-<span class="fc" id="L431">		return maxTransactionSegmentDuration;</span>
+<span class="fc" id="L430">		return maxTransactionSegmentDuration;</span>
 	}
 
 	/**
@@ -437,7 +436,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 * @return {@link long}
 	 */
 	public long transactionSegmentCount() {
-<span class="fc" id="L440">		return transactionSegmentCount;</span>
+<span class="fc" id="L439">		return transactionSegmentCount;</span>
 	}
 
 	/**
@@ -446,8 +445,8 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 * @return {@link SQLException}; null if the connection has not experienced a
 	 *         error
 	 */
-	SQLException error() {
-<span class="fc" id="L450">		return error;</span>
+	Throwable error() {
+<span class="fc" id="L449">		return error;</span>
 	}
 
 	/**
@@ -460,63 +459,63 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 *                      validation query fails
 	 */
 	synchronized void validate(String validationQuery) throws SQLException {
-<span class="fc" id="L463">		final var c = getConnection();</span>
+<span class="fc" id="L462">		final var c = getConnection();</span>
 
-<span class="fc" id="L465">		try (final var s = c.createStatement(); //</span>
-<span class="fc" id="L466">				final var r = s.executeQuery(validationQuery)) {</span>
-<span class="fc bfc" id="L467" title="All 4 branches covered.">			if (!r.next() || r.getObject(1) == null) {</span>
-<span class="fc" id="L468">				final var error = new SQLException(</span>
+<span class="fc" id="L464">		try (final var s = c.createStatement(); //</span>
+<span class="fc" id="L465">				final var r = s.executeQuery(validationQuery)) {</span>
+<span class="fc bfc" id="L466" title="All 4 branches covered.">			if (!r.next() || r.getObject(1) == null) {</span>
+<span class="fc" id="L467">				final var error = new SQLException(</span>
 						&quot;Validation query failed to produce a non-null result: &quot; + validationQuery + &quot;; &quot; + this);
-<span class="fc" id="L470">				connectionErrorOccurred(new ConnectionEvent(this, error));</span>
-<span class="fc" id="L471">				throw error;</span>
+<span class="fc" id="L469">				connectionErrorOccurred(new ConnectionEvent(this, error));</span>
+<span class="fc" id="L470">				throw error;</span>
 			}
 		}
 
-<span class="fc" id="L475">		validated = true;</span>
-<span class="fc" id="L476">	}</span>
+<span class="fc" id="L474">		validated = true;</span>
+<span class="fc" id="L475">	}</span>
 
 	private void handleStatementOpened(PreparedStatement statement) {
-<span class="fc" id="L479">		LOG.finer(() -&gt; &quot;jdbc-pool-statement-open:&quot; + connection + ':' + statement + &quot;; &quot; + this);</span>
-<span class="fc" id="L480">	}</span>
+<span class="fc" id="L478">		LOG.finer(() -&gt; &quot;jdbc-pool-statement-open:&quot; + connection + ':' + statement + &quot;; &quot; + this);</span>
+<span class="fc" id="L479">	}</span>
 
 	private void handleStatementReused(PreparedStatement statement) {
-<span class="fc" id="L483">		LOG.finer(() -&gt; &quot;jdbc-pool-statement-reuse:&quot; + connection + ':' + statement + &quot;; &quot; + this);</span>
-<span class="fc" id="L484">	}</span>
+<span class="fc" id="L482">		LOG.finer(() -&gt; &quot;jdbc-pool-statement-reuse:&quot; + connection + ':' + statement + &quot;; &quot; + this);</span>
+<span class="fc" id="L483">	}</span>
 
 	private synchronized void afterLogicalClose() {
-<span class="fc" id="L487">		Objects.requireNonNull(connection);</span>
-<span class="pc bpc" id="L488" title="1 of 2 branches missed.">		if (reaper != null) {</span>
-<span class="fc" id="L489">			reaper.cancel(false);</span>
-<span class="fc" id="L490">			reaper = null;</span>
+<span class="fc" id="L486">		Objects.requireNonNull(connection);</span>
+<span class="pc bpc" id="L487" title="1 of 2 branches missed.">		if (reaper != null) {</span>
+<span class="fc" id="L488">			reaper.cancel(false);</span>
+<span class="fc" id="L489">			reaper = null;</span>
 		}
 
-<span class="fc" id="L493">		connection = null;</span>
+<span class="fc" id="L492">		connection = null;</span>
 
-<span class="fc" id="L495">		lastTransactionSegmentStarted = Objects.requireNonNull(logicalConnectionOpened);</span>
-<span class="fc" id="L496">		logicalConnectionOpened = null;</span>
+<span class="fc" id="L494">		lastTransactionSegmentStarted = Objects.requireNonNull(logicalConnectionOpened);</span>
+<span class="fc" id="L495">		logicalConnectionOpened = null;</span>
 
-<span class="fc" id="L498">		lastTransactionSegmentEnded = Instant.now();</span>
-<span class="fc" id="L499">		final var transactionTime = Duration.between(lastTransactionSegmentStarted, lastTransactionSegmentEnded);</span>
-<span class="fc bfc" id="L500" title="All 4 branches covered.">		if (maxTransactionSegmentDuration == null || maxTransactionSegmentDuration.compareTo(transactionTime) &lt; 0)</span>
-<span class="fc" id="L501">			maxTransactionSegmentDuration = transactionTime;</span>
+<span class="fc" id="L497">		lastTransactionSegmentEnded = Instant.now();</span>
+<span class="fc" id="L498">		final var transactionTime = Duration.between(lastTransactionSegmentStarted, lastTransactionSegmentEnded);</span>
+<span class="fc bfc" id="L499" title="All 4 branches covered.">		if (maxTransactionSegmentDuration == null || maxTransactionSegmentDuration.compareTo(transactionTime) &lt; 0)</span>
+<span class="fc" id="L500">			maxTransactionSegmentDuration = transactionTime;</span>
 
-<span class="fc bfc" id="L503" title="All 2 branches covered.">		if (averageTransactionSegmentDuration == null)</span>
-<span class="fc" id="L504">			averageTransactionSegmentDuration = transactionTime;</span>
+<span class="fc bfc" id="L502" title="All 2 branches covered.">		if (averageTransactionSegmentDuration == null)</span>
+<span class="fc" id="L503">			averageTransactionSegmentDuration = transactionTime;</span>
 		else
-<span class="fc" id="L506">			averageTransactionSegmentDuration = (averageTransactionSegmentDuration.multipliedBy(transactionSegmentCount)</span>
-<span class="fc" id="L507">					.plus(transactionTime)).dividedBy(transactionSegmentCount + 1);</span>
+<span class="fc" id="L505">			averageTransactionSegmentDuration = (averageTransactionSegmentDuration.multipliedBy(transactionSegmentCount)</span>
+<span class="fc" id="L506">					.plus(transactionTime)).dividedBy(transactionSegmentCount + 1);</span>
 
-<span class="fc" id="L509">		transactionSegmentCount++;</span>
-<span class="fc" id="L510">	}</span>
+<span class="fc" id="L508">		transactionSegmentCount++;</span>
+<span class="fc" id="L509">	}</span>
 
-	private synchronized void afterPhysicalClose(SQLException error) {
-<span class="fc bfc" id="L513" title="All 2 branches covered.">		if (!closed) {</span>
-<span class="fc" id="L514">			this.error = error;</span>
-<span class="fc" id="L515">			onClose.accept(this);</span>
-<span class="fc" id="L516">			closed = true;</span>
+	private synchronized void afterPhysicalClose(Throwable error) {
+<span class="fc bfc" id="L512" title="All 2 branches covered.">		if (!closed) {</span>
+<span class="fc" id="L513">			this.error = error;</span>
+<span class="fc" id="L514">			onClose.accept(this);</span>
+<span class="fc" id="L515">			closed = true;</span>
 		} else
-<span class="fc" id="L518">			return;</span>
-<span class="fc" id="L519">	}</span>
+<span class="fc" id="L517">			return;</span>
+<span class="fc" id="L518">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

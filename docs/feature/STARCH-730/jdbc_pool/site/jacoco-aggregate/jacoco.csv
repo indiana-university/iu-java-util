@@ -36,6 +36,13 @@ IU Java Utilities API Reference/iu-java-test,edu.iu.test,IuTestLogger.IuTestLogH
 IU Java Utilities API Reference/iu-java-test,edu.iu.test,IuTestSessionListener,0,7,0,0,0,6,0,3,0,3
 IU Java Utilities API Reference/iu-java-test,edu.iu.test,IuTestLogger.LogRecordMatcher,0,147,0,30,0,37,0,19,0,4
 IU Java Utilities API Reference/iu-java-test,edu.iu.test,IuTestExtension,6,23,2,2,2,14,2,4,0,4
+IU Java Utilities API Reference/iu-java-jdbc-pool,edu.iu.jdbc.pool,IuConnectionPoolDataSource,0,9,0,0,0,3,0,2,0,2
+IU Java Utilities API Reference/iu-java-jdbc-pool,edu.iu.jdbc.pool,IuPooledConnection.new ThreadFactory() {...},0,26,0,0,0,4,0,2,0,2
+IU Java Utilities API Reference/iu-java-jdbc-pool,edu.iu.jdbc.pool,IuCommonDataSource.new Object() {...},0,9,0,0,0,2,0,1,0,1
+IU Java Utilities API Reference/iu-java-jdbc-pool,edu.iu.jdbc.pool,IuPooledConnection,0,740,1,43,0,162,1,64,0,43
+IU Java Utilities API Reference/iu-java-jdbc-pool,edu.iu.jdbc.pool,IuPooledConnection.ConnectionHandler,0,105,0,8,0,24,0,7,0,3
+IU Java Utilities API Reference/iu-java-jdbc-pool,edu.iu.jdbc.pool,IuPooledConnection.StatementKey,0,47,0,6,0,9,0,6,0,3
+IU Java Utilities API Reference/iu-java-jdbc-pool,edu.iu.jdbc.pool,IuCommonDataSource,0,732,0,58,0,183,0,84,0,55
 IU Java Utilities API Reference/iu-java-type-api,edu.iu.type.spi,TypeImplementation,0,9,0,0,0,2,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuParameterizedElement,0,6,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuProperty,0,101,1,31,0,19,1,21,0,6
