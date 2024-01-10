@@ -156,7 +156,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	private volatile Connection connection;
 	private volatile Instant logicalConnectionOpened;
 	private volatile ScheduledFuture<?> reaper;
-	private volatile SQLException error;
+	private volatile Throwable error;
 	private volatile boolean closed;
 
 	private volatile Instant lastTransactionSegmentStarted;
@@ -329,17 +329,16 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 
 	@Override
 	public synchronized void close() throws SQLException {
-		SQLException error = null;
+		final Throwable closeError;
 		if (!closed)
-			try {
-				physicalConnection.close();
-			} catch (SQLException e) {
-				error = e;
-			}
+			closeError = IuException.suppress(null, physicalConnection::close);
+		else
+			closeError = null;
 
+		Throwable error = closeError;
 		if (connection != null)
-			afterLogicalClose();
-		afterPhysicalClose(error);
+			error = IuException.suppress(error, () -> afterLogicalClose());
+		error = IuException.suppress(error, () -> afterPhysicalClose(closeError));
 
 		if (error != null)
 			throw IuException.checked(error, SQLException.class);
@@ -446,7 +445,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 * @return {@link SQLException}; null if the connection has not experienced a
 	 *         error
 	 */
-	SQLException error() {
+	Throwable error() {
 		return error;
 	}
 
@@ -509,7 +508,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 		transactionSegmentCount++;
 	}
 
-	private synchronized void afterPhysicalClose(SQLException error) {
+	private synchronized void afterPhysicalClose(Throwable error) {
 		if (!closed) {
 			this.error = error;
 			onClose.accept(this);

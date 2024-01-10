@@ -96,6 +96,7 @@ public class IuConnectionPoolDataSourceTest {
 		final var closeTask = new IuUtilityTaskController<>(() -> {
 			Thread.sleep(200L);
 			box.listener.connectionClosed(new ConnectionEvent(pc));
+			Thread.sleep(200L);
 			return null;
 		}, Instant.now().plusSeconds(1L));
 
@@ -118,8 +119,55 @@ public class IuConnectionPoolDataSourceTest {
 			ds.close(); // second close is no-op
 			assertThrows(SQLException.class, ds::getPooledConnection);
 		}
-		
+
 		closeTask.get();
+	}
+
+	@Test
+	public void testCloseWhileWaiting() throws TimeoutException, Throwable {
+		class Box {
+			ConnectionEventListener listener;
+		}
+		final var box = new Box();
+		final var c = mock(Connection.class);
+		final var pc = mock(PooledConnection.class);
+		doAnswer(a -> {
+			box.listener = a.getArgument(0);
+			return null;
+		}).when(pc).addConnectionEventListener(any());
+		when(pc.getConnection()).thenReturn(c);
+
+		final var f = mock(ConnectionPoolDataSource.class);
+		when(f.getPooledConnection()).thenReturn(pc);
+
+		final var ds = new IuConnectionPoolDataSource(f::getPooledConnection);
+		ds.setMaxSize(1);
+		ds.setShutdownTimeout(Duration.ofSeconds(1L));
+		assertEquals(Duration.ofSeconds(1L), ds.getShutdownTimeout());
+
+		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-open:PT.*");
+		final var p = ds.getPooledConnection();
+		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER,
+				"jdbc-pool-logical-open:" + c + "; IuPooledConnection .*");
+		p.getConnection();
+
+		final var connectTask = new IuUtilityTaskController<>(() -> {
+			return ds.getPooledConnection();
+		}, Instant.now().plusSeconds(1L));
+		final var closeTask = new IuUtilityTaskController<>(() -> {
+			Thread.sleep(100L);
+			box.listener.connectionClosed(new ConnectionEvent(pc));
+			return null;
+		}, Instant.now().plusSeconds(1L));
+
+		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER,
+				"jdbc-pool-logical-close:" + c + "; IuPooledConnection .*");
+
+		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-close:PT.*");
+		ds.close();
+
+		closeTask.get();
+		assertEquals("closed", assertThrows(SQLException.class, connectTask::get).getCause().getMessage());
 	}
 
 	@Test
@@ -169,8 +217,14 @@ public class IuConnectionPoolDataSourceTest {
 		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER,
 				"jdbc-pool-logical-open:" + c + "; IuPooledConnection .*");
 		final var p = ds.getPooledConnection();
-
 		p.getConnection();
+		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER,
+				"jdbc-pool-reusable; IuPooledConnection .*");
+
+		ds.connectionClosed(new ConnectionEvent(p));
+		
+		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-close:PT.*");
+		ds.close();
 	}
 
 	@Test
@@ -207,6 +261,8 @@ public class IuConnectionPoolDataSourceTest {
 			e.printStackTrace();
 			return e.toString();
 		});
+
+		ds.close();
 	}
 
 	@Test
@@ -242,6 +298,8 @@ public class IuConnectionPoolDataSourceTest {
 			e.printStackTrace();
 			return e.toString();
 		});
+
+		ds.close();
 	}
 
 	@Test
@@ -277,6 +335,8 @@ public class IuConnectionPoolDataSourceTest {
 
 		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-close:PT.*");
 		p.close();
+
+		ds.close();
 	}
 
 	@Test
@@ -312,6 +372,7 @@ public class IuConnectionPoolDataSourceTest {
 		box.listener.connectionErrorOccurred(new ConnectionEvent(pc, e));
 		// no-op
 		box.listener.connectionErrorOccurred(new ConnectionEvent(pc, e));
+		ds.close();
 	}
 
 	@Test
@@ -321,6 +382,7 @@ public class IuConnectionPoolDataSourceTest {
 
 		final var ds = new IuConnectionPoolDataSource(f::getPooledConnection);
 		assertThrows(SQLException.class, ds::getPooledConnection);
+		ds.close();
 	}
 
 	@Test
@@ -357,6 +419,7 @@ public class IuConnectionPoolDataSourceTest {
 
 		IuObject.waitFor(box, () -> box.done, Duration.ofSeconds(1L));
 		assertTrue(box.interruped);
+		ds.close();
 	}
 
 	@Test
@@ -507,6 +570,9 @@ public class IuConnectionPoolDataSourceTest {
 
 		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-open:PT.*");
 		assertNotSame(p, ds.getPooledConnection());
+		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.WARNING, "jdbc-pool-close:PT.*",
+				SQLException.class);
+		assertThrows(SQLException.class, () -> ds.close());
 	}
 
 	@Test
@@ -565,6 +631,8 @@ public class IuConnectionPoolDataSourceTest {
 
 		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-close:PT.*");
 		p.close();
+
+		ds.close();
 	}
 
 	@Test
@@ -587,6 +655,8 @@ public class IuConnectionPoolDataSourceTest {
 				SQLException.class);
 		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-open:PT.*");
 		ds.getPooledConnection();
+		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-close:PT.*");
+		ds.close();
 	}
 
 	@Test
@@ -652,6 +722,7 @@ public class IuConnectionPoolDataSourceTest {
 
 		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-close:PT.*");
 		p.close();
+		ds.close();
 	}
 
 }
