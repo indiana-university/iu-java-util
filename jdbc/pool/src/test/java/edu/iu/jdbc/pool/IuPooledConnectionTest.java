@@ -9,9 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -28,7 +26,6 @@ import java.time.Instant;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 
-import javax.sql.ConnectionEvent;
 import javax.sql.ConnectionEventListener;
 import javax.sql.PooledConnection;
 import javax.sql.StatementEventListener;
@@ -57,7 +54,7 @@ public class IuPooledConnectionTest {
 		var c = p.getConnection();
 
 		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close; .*");
-		
+
 		c.close();
 		verify(l).connectionClosed(argThat(a -> a.getSource() == p));
 
@@ -148,7 +145,7 @@ public class IuPooledConnectionTest {
 			final var ps3r1 = connection.prepareStatement("");
 			ps3r1.execute();
 			verify(s3, times(2)).execute();
-			
+
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close; .*");
 		}
 		p.close();
@@ -210,7 +207,7 @@ public class IuPooledConnectionTest {
 		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-statement-close; .*");
 		ps.close();
 		verify(l).statementClosed(argThat(ev -> ev.getSource() == p && ev.getStatement() == s));
-		
+
 		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.INFO, "jdbc-pool-statement-error; .*",
 				SQLException.class);
 		assertThrows(SQLException.class, ps::execute);
@@ -291,8 +288,6 @@ public class IuPooledConnectionTest {
 		IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close; .*");
 		lc.close();
 
-		System.out.println(p);
-		assertEquals(logicalOpen, p.getLastTransactionSegmentStarted());
 		logicalClose = p.getLastTransactionSegmentEnded();
 		assertNotNull(logicalClose);
 		segmentDuration = Duration.between(logicalOpen, logicalClose);
