@@ -274,4 +274,17 @@ public class LoggingTest {
 		t.join();
 		IuTestExtension.expectFailure();
 	}
+
+	@Test
+	public void testAssertExpected() {
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected");
+		assertThrows(AssertionFailedError.class, () -> IuTestLogger.assertExpectedMessages());
+		assertThrows(AssertionFailedError.class, () -> LOG.fine("expected"));
+		assertThrows(AssertionFailedError.class, () -> IuTestLogger.assertExpectedMessages());
+
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected");
+		LOG.fine("expected");
+		IuTestLogger.assertExpectedMessages();
+	}
+
 }

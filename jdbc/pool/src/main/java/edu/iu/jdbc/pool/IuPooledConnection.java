@@ -20,6 +20,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -103,39 +104,72 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 
 		@Override
 		public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-			final var returnType = method.getReturnType();
-
-			final StatementKey statementKey;
-			if (PreparedStatement.class.isAssignableFrom(returnType)) {
-				statementKey = new StatementKey(returnType.asSubclass(PreparedStatement.class), args);
-
-				synchronized (reusableStatements) {
-					Queue<PreparedStatement> cachedStatements = reusableStatements.get(statementKey);
-					if (cachedStatements != null) {
-						final var cachedStatement = cachedStatements.poll();
-						if (cachedStatements.isEmpty())
-							reusableStatements.remove(statementKey);
-
-						handleStatementReused(cachedStatement);
-						return cachedStatement;
-					}
-				}
-
-			} else
-				statementKey = null;
-
-			final var rv = IuException.checkedInvocation(() -> method.invoke(delegate, args));
-
-			if (statementKey != null) {
-				final var statement = (PreparedStatement) rv;
-				handleStatementOpened(statement);
-
-				synchronized (statementReverseIndex) {
-					statementReverseIndex.put(statement, statementKey);
-				}
+			if (method.getName().equals("close")) {
+				if (logicalConnectionOpened != null)
+					connectionClosed(new ConnectionEvent(physicalConnection));
+				return null;
 			}
 
-			return rv;
+			try {
+				final var returnType = method.getReturnType();
+
+				final StatementKey statementKey;
+				if (PreparedStatement.class.isAssignableFrom(returnType)) {
+					statementKey = new StatementKey(returnType.asSubclass(PreparedStatement.class), args);
+
+					synchronized (reusableStatements) {
+						Queue<PreparedStatement> cachedStatements = reusableStatements.get(statementKey);
+						if (cachedStatements != null) {
+							final var cachedStatement = cachedStatements.poll();
+							if (cachedStatements.isEmpty())
+								reusableStatements.remove(statementKey);
+
+							handleStatementReused(cachedStatement);
+							return wrap(returnType, (String) args[0], cachedStatement);
+						}
+					}
+
+				} else
+					statementKey = null;
+
+				final var rv = IuException.checkedInvocation(() -> method.invoke(delegate, args));
+
+				if (statementKey != null) {
+					final var statement = (PreparedStatement) rv;
+
+					synchronized (statementReverseIndex) {
+						statementReverseIndex.put(statement, statementKey);
+					}
+
+					handleStatementOpened(statement);
+					return wrap(returnType, (String) args[0], statement);
+				}
+
+				return rv;
+			} catch (Throwable e) {
+				final SQLException error;
+				if (e instanceof SQLException se)
+					error = se;
+				else
+					error = new SQLException("jdbc-pool-logical-error", e);
+				IuException.suppress(e, () -> connectionErrorOccurred(new ConnectionEvent(physicalConnection, error)));
+				throw e;
+			}
+		}
+
+		private PreparedStatement wrap(Class<?> type, String sql, PreparedStatement statement) {
+			final var statementHandler = new IuStatementHandler(sql, statement, (doClose, error) -> {
+				if (error == null)
+					statementClosed(new StatementEvent(physicalConnection, statement));
+				else {
+					IuException.suppress(error, doClose);
+					if (!(error instanceof SQLException))
+						error = new SQLException("jdbc-pool-statement-error", error);
+					statementErrorOccurred(new StatementEvent(physicalConnection, statement, (SQLException) error));
+				}
+			});
+			return (PreparedStatement) Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type },
+					statementHandler);
 		}
 	}
 
@@ -190,8 +224,8 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 		this.abandonedConnectionTimeout = abandonedConnectionTimeout;
 		this.onClose = onClose;
 
-		physicalConnection.addConnectionEventListener(this);
-		physicalConnection.addStatementEventListener(this);
+//		physicalConnection.addConnectionEventListener(this);
+//		physicalConnection.addStatementEventListener(this);
 	}
 
 	@Override
@@ -203,38 +237,40 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 			throw closedError;
 		}
 
-		if (connection != null)
+		if (logicalConnectionOpened != null)
 			if (validated) {
 				validated = false;
-				return connection;
+				return (Connection) Proxy.newProxyInstance(JAVA_SQL_LOADER, CONNECTION_PROXY_INTERFACES,
+						new ConnectionHandler(connection));
 			} else
 				throw new IllegalStateException("already connected");
 
-		final var newConnection = physicalConnection.getConnection();
-		LOG.finer(() -> "jdbc-pool-logical-open:" + newConnection + "; " + this);
+		if (connection == null) {
+			final var newConnection = physicalConnection.getConnection();
+			if (connectionInitializer != null) {
+				final var initializedConnection = IuException.checked(SQLException.class, newConnection,
+						connectionInitializer);
+				if (newConnection != initializedConnection.unwrap(Connection.class))
+					throw new SQLException(
+							"Invalid connection initializer; unwrap(Connection.class) must return original connection");
+				connection = initializedConnection;
+			} else
+				connection = newConnection;
+		}
 
 		final var openTrace = new Throwable("opened by");
 		reaper = REAPER_SCHEDULER.schedule(() -> {
 			try {
 				afterLogicalClose();
 				close();
-				LOG.log(Level.INFO, openTrace, () -> "jdbc-pool-reaper-close:" + newConnection);
+				LOG.log(Level.INFO, openTrace, () -> "jdbc-pool-reaper-close; " + connection);
 			} catch (Throwable e) {
-				LOG.log(Level.WARNING, e, () -> "jdbc-pool-reaper-fail:" + newConnection);
+				LOG.log(Level.WARNING, e, () -> "jdbc-pool-reaper-fail; " + connection);
 			}
 		}, abandonedConnectionTimeout.toMillis(), TimeUnit.MILLISECONDS);
 
-		if (connectionInitializer != null) {
-			final var initializedConnection = IuException.checked(SQLException.class, newConnection,
-					connectionInitializer);
-			if (newConnection != initializedConnection.unwrap(Connection.class))
-				throw new SQLException(
-						"Invalid connection initializer; unwrap(Connection.class) must return original connection");
-			connection = initializedConnection;
-		} else
-			connection = newConnection;
-
 		logicalConnectionOpened = Instant.now();
+		LOG.finer(() -> "jdbc-pool-logical-open; " + connection + " " + this);
 
 		return (Connection) Proxy.newProxyInstance(JAVA_SQL_LOADER, CONNECTION_PROXY_INTERFACES,
 				new ConnectionHandler(connection));
@@ -247,11 +283,10 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 
 	@Override
 	public void connectionClosed(ConnectionEvent event) {
-		Objects.requireNonNull(connection, "not connected");
+		Objects.requireNonNull(logicalConnectionOpened, "not connected");
 
-		final var connection = this.connection;
 		afterLogicalClose();
-		LOG.finer(() -> "jdbc-pool-logical-close:" + connection + "; " + this);
+		LOG.finer(() -> "jdbc-pool-logical-close; " + connection + " " + this);
 
 		connectionEventListeners.parallelStream().forEach(a -> a.connectionClosed(connectionClosedEvent));
 	}
@@ -259,11 +294,10 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	@Override
 	public void connectionErrorOccurred(ConnectionEvent event) {
 		final var error = event.getSQLException();
-		if (connection != null) {
-			final var connection = this.connection;
+		if (logicalConnectionOpened != null)
 			afterLogicalClose();
-			LOG.log(Level.INFO, error, () -> "jdbc-pool-logical-close:" + connection + "; " + this);
-		}
+
+		LOG.log(Level.INFO, error, () -> "jdbc-pool-logical-close; " + connection + " " + this);
 		afterPhysicalClose(error);
 
 		final var decoratedEvent = new ConnectionEvent(this, error);
@@ -283,7 +317,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	@Override
 	public void statementClosed(StatementEvent event) {
 		final var statement = event.getStatement();
-		LOG.finer(() -> "jdbc-pool-statement-close:" + connection + ':' + statement + "; " + this);
+		LOG.finer(() -> "jdbc-pool-statement-close; " + connection + ' ' + statement + ' ' + this);
 
 		final var decoratedEvent = new StatementEvent(this, statement);
 		statementEventListeners.parallelStream().forEach(a -> a.statementClosed(decoratedEvent));
@@ -302,7 +336,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	public void statementErrorOccurred(StatementEvent event) {
 		final var statement = event.getStatement();
 		final var error = event.getSQLException();
-		LOG.log(Level.INFO, error, () -> "jdbc-pool-statement-error:" + connection + ':' + statement + "; " + this);
+		LOG.log(Level.INFO, error, () -> "jdbc-pool-statement-error; " + connection + ' ' + statement + ' ' + this);
 
 		final var decoratedEvent = new StatementEvent(this, statement, error);
 		statementEventListeners.parallelStream().forEach(a -> a.statementErrorOccurred(decoratedEvent));
@@ -336,7 +370,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 			closeError = null;
 
 		Throwable error = closeError;
-		if (connection != null)
+		if (logicalConnectionOpened != null)
 			error = IuException.suppress(error, () -> afterLogicalClose());
 		error = IuException.suppress(error, () -> afterPhysicalClose(closeError));
 
@@ -346,18 +380,31 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 
 	@Override
 	public String toString() {
-		return "IuPooledConnection [" //
-				+ "connectionInitiated=" + connectionInitiated //
-				+ ", connectionOpened=" + connectionOpened //
-				+ ", physicalConnection=" + physicalConnection //
-				+ ", connection=" + connection //
-				+ ", logicalConnectionOpened=" + logicalConnectionOpened //
-				+ ", lastTransactionSegmentStarted=" + lastTransactionSegmentStarted //
-				+ ", lastTransactionSegmentEnded=" + lastTransactionSegmentEnded //
-				+ ", averageTransactionSegmentDuration=" + averageTransactionSegmentDuration //
-				+ ", maxTransactionSegmentDuration=" + maxTransactionSegmentDuration //
-				+ ", transactionSegmentCount=" + transactionSegmentCount //
-				+ ", closed=" + closed + "]";
+		// Not using JSON-P to avoid complex dependency issues with legacy apps
+		final var sb = new StringBuilder("{");
+		final BiConsumer<String, Object> addValue = (n, v) -> {
+			if (sb.length() > 1)
+				sb.append(',');
+			sb.append('\"').append(n).append("\":").append(v);
+		};
+		final BiConsumer<String, Object> addText = (n, t) -> {
+			if (t == null)
+				return;
+			addValue.accept(n, '\"' + t.toString().replace("\\", "\\\\").replace("\"", "\\\"") + '\"');
+		};
+		addText.accept("connectionInitiated", getConnectionInitiated());
+		addText.accept("connectionOpened", getConnectionOpened());
+		addText.accept("logicalConnectionOpened", getLogicalConnectionOpened());
+		addText.accept("lastTransactionSegmentStarted", getLastTransactionSegmentStarted());
+		addText.accept("lastTransactionSegmentEnded", getLastTransactionSegmentEnded());
+		addText.accept("averageTransactionSegmentDuration", getAverageTransactionSegmentDuration());
+		addText.accept("maxTransactionSegmentDuration", getMaxTransactionSegmentDuration());
+		addValue.accept("transactionSegmentCount", getTransactionSegmentCount());
+		addText.accept("abandonedConnectionTimeout", abandonedConnectionTimeout);
+		addText.accept("physicalConnection", physicalConnection);
+		addText.accept("connection", connection);
+		addValue.accept("closed", isClosed());
+		return sb.append('}').toString();
 	}
 
 	/**
@@ -366,7 +413,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 * 
 	 * @return {@link Instant}
 	 */
-	public Instant connectionInitiated() {
+	public Instant getConnectionInitiated() {
 		return connectionInitiated;
 	}
 
@@ -376,7 +423,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 * 
 	 * @return {@link Instant}
 	 */
-	public Instant connectionOpened() {
+	public Instant getConnectionOpened() {
 		return connectionOpened;
 	}
 
@@ -386,7 +433,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 * 
 	 * @return {@link Instant}
 	 */
-	public Instant logicalConnectionOpened() {
+	public Instant getLogicalConnectionOpened() {
 		return logicalConnectionOpened;
 	}
 
@@ -396,7 +443,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 * 
 	 * @return {@link Instant}
 	 */
-	public Instant lastTransactionSegmentStarted() {
+	public Instant getLastTransactionSegmentStarted() {
 		return lastTransactionSegmentStarted;
 	}
 
@@ -406,7 +453,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 * 
 	 * @return {@link Instant}
 	 */
-	public Instant lastTransactionSegmentEnded() {
+	public Instant getLastTransactionSegmentEnded() {
 		return lastTransactionSegmentEnded;
 	}
 
@@ -416,7 +463,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 * 
 	 * @return {@link Duration}
 	 */
-	public Duration averageTransactionSegmentDuration() {
+	public Duration getAverageTransactionSegmentDuration() {
 		return averageTransactionSegmentDuration;
 	}
 
@@ -426,7 +473,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 * 
 	 * @return {@link Duration}
 	 */
-	public Duration maxTransactionSegmentDuration() {
+	public Duration getMaxTransactionSegmentDuration() {
 		return maxTransactionSegmentDuration;
 	}
 
@@ -435,8 +482,17 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 * 
 	 * @return {@link long}
 	 */
-	public long transactionSegmentCount() {
+	public long getTransactionSegmentCount() {
 		return transactionSegmentCount;
+	}
+
+	/**
+	 * Determines whether or not the physical connection is closed.
+	 * 
+	 * @return true if the physical connection is closed; else false
+	 */
+	public boolean isClosed() {
+		return closed;
 	}
 
 	/**
@@ -475,21 +531,18 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	}
 
 	private void handleStatementOpened(PreparedStatement statement) {
-		LOG.finer(() -> "jdbc-pool-statement-open:" + connection + ':' + statement + "; " + this);
+		LOG.finer(() -> "jdbc-pool-statement-open; " + connection + ' ' + statement + " " + this);
 	}
 
 	private void handleStatementReused(PreparedStatement statement) {
-		LOG.finer(() -> "jdbc-pool-statement-reuse:" + connection + ':' + statement + "; " + this);
+		LOG.finer(() -> "jdbc-pool-statement-reuse; " + connection + ' ' + statement + " " + this);
 	}
 
 	private synchronized void afterLogicalClose() {
-		Objects.requireNonNull(connection);
 		if (reaper != null) {
 			reaper.cancel(false);
 			reaper = null;
 		}
-
-		connection = null;
 
 		lastTransactionSegmentStarted = Objects.requireNonNull(logicalConnectionOpened);
 		logicalConnectionOpened = null;

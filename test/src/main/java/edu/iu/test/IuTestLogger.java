@@ -463,6 +463,14 @@ public final class IuTestLogger {
 	}
 
 	/**
+	 * Asserts that all expected messages declared so far have been logged.
+	 */
+	public static void assertExpectedMessages() {
+		assertNotNull(testHandler.activeTest);
+		testHandler.assertExpectedMessages();
+	}
+
+	/**
 	 * Clears an unexpected log message from the pending queue.
 	 * 
 	 * @param unexpected error related to an unexpected log message

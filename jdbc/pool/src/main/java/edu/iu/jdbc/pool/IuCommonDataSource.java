@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
@@ -18,6 +19,7 @@ import javax.sql.ConnectionEvent;
 import javax.sql.ConnectionEventListener;
 import javax.sql.DataSource;
 import javax.sql.PooledConnection;
+import javax.sql.XADataSource;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
@@ -27,7 +29,14 @@ import edu.iu.UnsafeRunnable;
 import edu.iu.UnsafeSupplier;
 
 /**
- * Abstract generic database connection pool.
+ * Abstract common database connection pool implementation.
+ * 
+ * <p>
+ * May be overridden to implement {@link DataSource} or {@link XADataSource} and
+ * integrate with an application runtime environment.
+ * </p>
+ * 
+ * @see #getPooledConnection()
  */
 public abstract class IuCommonDataSource implements CommonDataSource, ConnectionEventListener, AutoCloseable {
 
@@ -74,6 +83,8 @@ public abstract class IuCommonDataSource implements CommonDataSource, Connection
 	/**
 	 * Checks out a {@link PooledConnection}.
 	 * 
+	 * <img src="doc-files/IuCommonDataSource.svg" alt="UML Communication Diagram">
+	 * 
 	 * <p>
 	 * <strong>Implementation Note:</strong> The upstream {@link DataSource}
 	 * implementation should discard this instance once the logical
@@ -98,12 +109,11 @@ public abstract class IuCommonDataSource implements CommonDataSource, Connection
 				&& timeout.isAfter(Instant.now()))
 			try {
 				attempt++;
-				
+
 				synchronized (this) {
 					IuObject.waitFor(this, () -> closed //
 							|| !reusableConnections.isEmpty() //
-							|| !this.isExhausted(),
-							timeout);
+							|| !this.isExhausted(), timeout);
 
 					pendingConnections++;
 				}
@@ -112,24 +122,24 @@ public abstract class IuCommonDataSource implements CommonDataSource, Connection
 					while (!reusableConnections.isEmpty()) {
 						final var reusableConnection = reusableConnections.poll();
 
-						final var timeSinceInit = Duration.between(reusableConnection.connectionInitiated(),
+						final var timeSinceInit = Duration.between(reusableConnection.getConnectionInitiated(),
 								Instant.now());
 						if (timeSinceInit.compareTo(maxConnectionReuseTime) >= 0) {
 							reusableConnection.close();
-							LOG.fine(() -> "jdbc-pool-retire-timeout:" + timeSinceInit + " >= " + maxConnectionReuseTime
-									+ " " + reusableConnection);
+							LOG.fine(() -> "jdbc-pool-retire-timeout:" + timeSinceInit + ' ' + reusableConnection + ' '
+									+ this);
 							continue;
 						}
 
 						iuPooledConnection = reusableConnection;
-						LOG.finer(() -> "jdbc-pool-reuse; " + reusableConnection + "; " + this);
+						LOG.finer(() -> "jdbc-pool-reuse; " + reusableConnection + ' ' + this);
 						break;
 					}
 
 					if (iuPooledConnection == null)
 						iuPooledConnection = openConnection(timeout);
 
-					final var lastUsed = iuPooledConnection.lastTransactionSegmentEnded();
+					final var lastUsed = iuPooledConnection.getLastTransactionSegmentEnded();
 					if (validationQuery != null //
 							&& (lastUsed == null //
 									|| Duration.between(lastUsed, Instant.now()).compareTo(validationInterval) >= 0))
@@ -166,15 +176,13 @@ public abstract class IuCommonDataSource implements CommonDataSource, Connection
 	public void connectionClosed(ConnectionEvent event) {
 		final var reusableConnection = (IuPooledConnection) event.getSource();
 
-		final var count = reusableConnection.transactionSegmentCount();
+		final var count = reusableConnection.getTransactionSegmentCount();
 		if (count >= maxConnectionReuseCount) {
 			try {
 				reusableConnection.close();
-				LOG.fine(() -> "jdbc-pool-retire-count:" + count + " >= " + maxConnectionReuseCount + " "
-						+ reusableConnection);
+				LOG.fine(() -> "jdbc-pool-retire-count:" + count + ' ' + reusableConnection + ' ' + this);
 			} catch (Throwable e) {
-				LOG.log(Level.INFO, e, () -> "jdbc-pool-retire-count:" + count + " >= " + maxConnectionReuseCount + " "
-						+ reusableConnection);
+				LOG.log(Level.INFO, e, () -> "jdbc-pool-retire-count:" + count + ' ' + reusableConnection + ' ' + this);
 			}
 			return;
 		}
@@ -221,6 +229,33 @@ public abstract class IuCommonDataSource implements CommonDataSource, Connection
 	@Override
 	public int getLoginTimeout() {
 		return loginTimeout;
+	}
+
+	/**
+	 * Determines whether or not this database pool is closed.
+	 * 
+	 * @return true if closed; else false
+	 */
+	public boolean isClosed() {
+		return closed;
+	}
+
+	/**
+	 * Gets the number of open connections immediately available for reuse.
+	 * 
+	 * @return number of open connections immediately available for reuse
+	 */
+	public int getAvailable() {
+		return reusableConnections.size();
+	}
+
+	/**
+	 * Gets a count of all open connections in the pool.
+	 * 
+	 * @return count of all open connections
+	 */
+	public int getOpen() {
+		return openConnections.size();
 	}
 
 	/**
@@ -492,7 +527,7 @@ public abstract class IuCommonDataSource implements CommonDataSource, Connection
 
 			IuException.suppress(closeStatus.error, () -> IuObject.waitFor(this, () -> {
 				for (final var c : openConnections)
-					if (c.logicalConnectionOpened() == null)
+					if (c.getLogicalConnectionOpened() == null)
 						closeStatus.error = IuException.suppress(closeStatus.error, () -> c.close());
 
 				return openConnections.isEmpty();
@@ -515,22 +550,34 @@ public abstract class IuCommonDataSource implements CommonDataSource, Connection
 
 	@Override
 	public String toString() {
-		return getClass().getSimpleName() + " [" //
-				+ "loginTimeout=" + getLoginTimeout() //
-				+ ", closed=" + closed //
-				+ ", url=" + getUrl() //
-				+ ", username=" + getUsername() //
-				+ ", schema=" + getSchema() //
-				+ ", available=" + reusableConnections.size() //
-				+ ", open=" + openConnections.size() //
-				+ ", maxSize=" + getMaxSize() //
-				+ ", maxRetry=" + getMaxRetry() //
-				+ ", maxConnectionReuseCount=" + getMaxConnectionReuseCount() //
-				+ ", maxConnectionReuseTime=" + getMaxConnectionReuseTime() //
-				+ ", abandonedConnectionTimeout=" + getAbandonedConnectionTimeout() //
-				+ ", validationQuery=" + getValidationQuery() //
-				+ ", validationInterval=" + getValidationInterval() //
-				+ "]";
+		// Not using JSON-P to avoid complex dependency issues with legacy apps
+		final var sb = new StringBuilder("{");
+		final BiConsumer<String, Object> addValue = (n, v) -> {
+			if (sb.length() > 1)
+				sb.append(',');
+			sb.append('\"').append(n).append("\":").append(v);
+		};
+		final BiConsumer<String, Object> addText = (n, t) -> {
+			if (t == null)
+				return;
+			addValue.accept(n, '\"' + t.toString().replace("\\", "\\\\").replace("\"", "\\\"") + '\"');
+		};
+		addText.accept("type", getClass().getSimpleName());
+		addText.accept("url", getUrl());
+		addText.accept("username", getUsername());
+		addText.accept("schema", getSchema());
+		addValue.accept("available", getAvailable());
+		addValue.accept("open", getOpen());
+		addValue.accept("maxSize", getMaxSize());
+		addValue.accept("maxRetry", getMaxRetry());
+		addValue.accept("closed", isClosed());
+		addValue.accept("maxConnectionReuseCount", getMaxConnectionReuseCount());
+		addText.accept("maxConnectionReuseTime", getMaxConnectionReuseTime());
+		addText.accept("abandonedConnectionTimeout", getAbandonedConnectionTimeout());
+		addText.accept("validationQuery", getValidationQuery());
+		addText.accept("validationInterval", getValidationInterval());
+		addText.accept("shutdownTimeout", getShutdownTimeout());
+		return sb.append('}').toString();
 	}
 
 	private synchronized boolean isExhausted() {
@@ -555,7 +602,7 @@ public abstract class IuCommonDataSource implements CommonDataSource, Connection
 		newConnection.addConnectionEventListener(this);
 
 		openConnections.offer(newConnection);
-		LOG.fine(() -> "jdbc-pool-open:" + Duration.between(initTime, Instant.now()) + ":" + pooledConnection + "; "
+		LOG.fine(() -> "jdbc-pool-open:" + Duration.between(initTime, Instant.now()) + ' ' + pooledConnection + ' '
 				+ this);
 
 		return newConnection;
@@ -569,12 +616,12 @@ public abstract class IuCommonDataSource implements CommonDataSource, Connection
 
 		final var error = closedConnection.error();
 		if (error == null)
-			LOG.fine(() -> "jdbc-pool-close:" + Duration.between(closedConnection.connectionInitiated(), Instant.now())
-					+ ":" + closedConnection + "; " + this);
+			LOG.fine(() -> "jdbc-pool-close:" + Duration.between(closedConnection.getConnectionInitiated(), Instant.now())
+					+ ' ' + closedConnection + ' ' + this);
 		else
 			LOG.log(Level.WARNING, error,
-					() -> "jdbc-pool-close:" + Duration.between(closedConnection.connectionInitiated(), Instant.now())
-							+ ":" + closedConnection + "; " + this);
+					() -> "jdbc-pool-close:" + Duration.between(closedConnection.getConnectionInitiated(), Instant.now())
+							+ ' ' + closedConnection + ' ' + this);
 	}
 
 }
