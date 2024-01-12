@@ -463,13 +463,21 @@ public final class IuTestLogger {
 <span class="fc" id="L463">	}</span>
 
 	/**
+	 * Asserts that all expected messages declared so far have been logged.
+	 */
+	public static void assertExpectedMessages() {
+<span class="fc" id="L469">		assertNotNull(testHandler.activeTest);</span>
+<span class="fc" id="L470">		testHandler.assertExpectedMessages();</span>
+<span class="fc" id="L471">	}</span>
+
+	/**
 	 * Clears an unexpected log message from the pending queue.
 	 * 
 	 * @param unexpected error related to an unexpected log message
 	 */
 	static void clearUnexpected(Throwable unexpected) {
-<span class="fc" id="L471">		testHandler.unexpectedMessages.remove(unexpected);</span>
-<span class="fc" id="L472">	}</span>
+<span class="fc" id="L479">		testHandler.unexpectedMessages.remove(unexpected);</span>
+<span class="fc" id="L480">	}</span>
 
 	private IuTestLogger() {
 	}
