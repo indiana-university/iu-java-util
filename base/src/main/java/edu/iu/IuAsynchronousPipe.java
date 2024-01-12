@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -118,6 +118,9 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 			synchronized (IuAsynchronousPipe.this) {
 				while ((next = queue.poll()) == null && !closed)
 					IuException.unchecked(() -> IuAsynchronousPipe.this.wait(500L));
+				
+				if (error != null)
+					throw IuException.unchecked(error);
 			}
 
 			if (next != null)
@@ -133,7 +136,7 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 
 				IuAsynchronousPipe.this.notifyAll();
 
-				return !completed;
+				return !completed || next != null;
 			}
 		}
 
@@ -174,8 +177,9 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 
 	private volatile Stream<T> stream;
 	private volatile Queue<T> queue = new ConcurrentLinkedQueue<>();
-	private volatile int acceptedCount;
-	private volatile int receivedCount;
+	private volatile long acceptedCount;
+	private volatile long receivedCount;
+	private volatile Throwable error;
 	private volatile boolean completed;
 	private volatile boolean closed;
 
@@ -235,7 +239,7 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 	 * 
 	 * @return count of accepted values
 	 */
-	public int getAcceptedCount() {
+	public long getAcceptedCount() {
 		return acceptedCount;
 	}
 
@@ -244,7 +248,7 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 	 * 
 	 * @return count of received values
 	 */
-	public int getReceivedCount() {
+	public long getReceivedCount() {
 		return receivedCount;
 	}
 
@@ -253,7 +257,7 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 	 * 
 	 * @return count of pending values
 	 */
-	public synchronized int getPendingCount() {
+	public synchronized long getPendingCount() {
 		return acceptedCount - receivedCount;
 	}
 
@@ -305,7 +309,7 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 	 * @throws InterruptedException if the current thread is interrupted while
 	 *                              waiting for values to be received
 	 */
-	public int pauseController(int receivedCount, Duration timeout) throws TimeoutException, InterruptedException {
+	public long pauseController(long receivedCount, Duration timeout) throws TimeoutException, InterruptedException {
 		if (receivedCount <= 0)
 			return 0;
 
@@ -316,6 +320,9 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 				|| this.receivedCount >= targetReceivedCount, timeout,
 				() -> new TimeoutException("Timed out after receiving " + (this.receivedCount - initialReceivedCount)
 						+ " of " + receivedCount + " values in " + timeout));
+
+		if (error != null)
+			throw IuException.unchecked(error);
 
 		return this.receivedCount - initialReceivedCount;
 	}
@@ -365,7 +372,7 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 	 * @throws InterruptedException if the current thread is interrupted while
 	 *                              waiting for values to be received
 	 */
-	public int pauseController(Instant expires) throws InterruptedException {
+	public long pauseController(Instant expires) throws InterruptedException {
 		if (completed)
 			return 0;
 
@@ -379,6 +386,9 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 				} else
 					break;
 			}
+			
+			if (error != null)
+				throw IuException.unchecked(error);
 		}
 		return this.receivedCount - initialReceivedCount;
 	}
@@ -415,7 +425,7 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 	 * @throws InterruptedException if the current thread is interrupted while
 	 *                              waiting for values to be received
 	 */
-	public int pauseReceiver(int acceptedCount, Duration timeout) throws TimeoutException, InterruptedException {
+	public long pauseReceiver(long acceptedCount, Duration timeout) throws TimeoutException, InterruptedException {
 		if (acceptedCount <= 0)
 			return 0;
 
@@ -425,6 +435,9 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 		IuObject.waitFor(this, () -> closed || this.acceptedCount >= targetAcceptedCount, timeout,
 				() -> new TimeoutException("Timed out waiting for " + (this.acceptedCount - initialAcceptedCount)
 						+ " of " + acceptedCount + " values in " + timeout));
+
+		if (error != null)
+			throw IuException.unchecked(error);
 
 		return this.acceptedCount - initialAcceptedCount;
 	}
@@ -457,7 +470,7 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 	 * @throws InterruptedException if the current thread is interrupted while
 	 *                              waiting for the pipe to close
 	 */
-	public int pauseReceiver(Instant expires) throws InterruptedException {
+	public long pauseReceiver(Instant expires) throws InterruptedException {
 		if (closed)
 			return 0;
 
@@ -471,6 +484,9 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 				} else
 					break;
 			}
+			
+			if (error != null)
+				throw IuException.unchecked(error);
 		}
 		return this.acceptedCount - initialAcceptedCount;
 	}
@@ -517,6 +533,21 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 			acceptedCount++;
 			this.notifyAll();
 		}
+	}
+
+	/**
+	 * Reports an error that occurred on either end of the pipe.
+	 * 
+	 * <p>
+	 * The error will interrupt all activity and cause the pipe to close.
+	 * </p>
+	 * 
+	 * @param e error
+	 */
+	public synchronized void error(Throwable e) {
+		error = e;
+		completed = true;
+		close();
 	}
 
 	/**

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -33,6 +33,8 @@ package edu.iu;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -280,6 +282,104 @@ public class IuAsynchronousPipeTest {
 	public void testRejectAfterClose() {
 		pipe.close();
 		assertEquals("closed", assertThrows(IllegalStateException.class, () -> pipe.accept("")).getMessage());
+	}
+
+	@Test
+	public void testPassesErrorFromReceiverWithExpiringPause() throws InterruptedException, TimeoutException {
+		final var e = new RuntimeException();
+		workload.apply(task -> {
+			Thread.sleep(50L);
+			pipe.error(e);
+		});
+		assertSame(e, assertThrows(RuntimeException.class, () -> pipe.pauseController(workload.getExpires())));
+	}
+
+	@Test
+	public void testPassesErrorFromReceiverWithCountPause() throws InterruptedException, TimeoutException {
+		final var e = new RuntimeException();
+		workload.apply(task -> {
+			Thread.sleep(50L);
+			pipe.error(e);
+		});
+		assertSame(e, assertThrows(RuntimeException.class, () -> pipe.pauseController(1, Duration.ofMillis(100L))));
+	}
+
+	@Test
+	public void testPassesErrorFromControllerWithPausedReceiver() throws Throwable {
+		final var e = new RuntimeException();
+
+		class Box {
+			Throwable error;
+		}
+		final var box = new Box();
+
+		workload.apply(task -> {
+			try {
+				box.error = assertThrows(RuntimeException.class, () -> pipe.pauseReceiver(workload.getExpires()));
+			} catch (Throwable e2) {
+				box.error = e2;
+			}
+		});
+		Thread.sleep(50L);
+		pipe.error(e);
+		Thread.sleep(50L);
+		assertNotNull(box.error);
+		if (box.error instanceof RuntimeException)
+			assertSame(e, box.error, box.error::toString);
+		else
+			throw box.error;
+	}
+
+	@Test
+	public void testPassesErrorFromControllerWithReceiverPausedOnCount() throws Throwable {
+		final var e = new RuntimeException();
+
+		class Box {
+			Throwable error;
+		}
+		final var box = new Box();
+
+		workload.apply(task -> {
+			try {
+				box.error = assertThrows(RuntimeException.class, () -> pipe.pauseReceiver(1, Duration.ofMillis(100L)));
+			} catch (Throwable e2) {
+				box.error = e2;
+			}
+		});
+		Thread.sleep(50L);
+		pipe.error(e);
+		Thread.sleep(50L);
+		assertNotNull(box.error);
+		if (box.error instanceof RuntimeException)
+			assertSame(e, box.error, box.error::toString);
+		else
+			throw box.error;
+	}
+
+	@Test
+	public void testPassesErrorFromControllerWithBlockingReceiver() throws Throwable {
+		final var e = new RuntimeException();
+
+		class Box {
+			Throwable error;
+		}
+		final var box = new Box();
+
+		workload.apply(task -> {
+			try {
+				box.error = assertThrows(RuntimeException.class, () -> stream.findAny().get());
+			} catch (Throwable e2) {
+				box.error = e2;
+			}
+		});
+		Thread.sleep(50L);
+		pipe.error(e);
+		Thread.sleep(50L);
+		assertNotNull(box.error);
+		if (box.error instanceof RuntimeException)
+			assertSame(e, box.error, box.error::toString);
+		else
+			throw box.error;
 	}
 
 	@Test

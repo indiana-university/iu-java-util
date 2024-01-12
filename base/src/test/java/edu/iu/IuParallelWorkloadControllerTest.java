@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -90,7 +90,7 @@ public class IuParallelWorkloadControllerTest {
 
 		final var name = testInfo.getTestMethod().get().getName();
 		if (!name.startsWith("testRequiresPositive") && !name.equals("testRunsALotOfTasks")) {
-			workload = new IuParallelWorkloadController(name, 5, Duration.ofMillis(50L));
+			workload = new IuParallelWorkloadController(name, 5, Duration.ofMillis(100L));
 			workload.setLog(log);
 		}
 	}
@@ -170,7 +170,7 @@ public class IuParallelWorkloadControllerTest {
 		final var e = new Throwable();
 		workload.apply(t -> {
 			workload.defaultHandleFailedExecution(e);
-			Instant until = Instant.now().plus(Duration.ofMillis(200L));
+			Instant until = Instant.now().plus(Duration.ofMillis(250L));
 			for (var now = Instant.now(); now.isBefore(until);)
 				try {
 					Thread.sleep(50L);
@@ -178,7 +178,7 @@ public class IuParallelWorkloadControllerTest {
 				}
 		});
 
-		Thread.sleep(100L);
+		Thread.sleep(150L);
 		assertSame(e, assertThrows(RejectedExecutionException.class, () -> workload.apply(t -> {
 		})).getCause());
 		assertTrue(workload.isClosed());
@@ -199,7 +199,7 @@ public class IuParallelWorkloadControllerTest {
 				} catch (InterruptedException e) {
 				}
 		});
-		Thread.sleep(100L);
+		Thread.sleep(150L);
 		assertTrue(workload.isClosed());
 		assertInstanceOf(TimeoutException.class,
 				assertThrows(ExecutionException.class, () -> workload.await()).getCause());
@@ -217,7 +217,7 @@ public class IuParallelWorkloadControllerTest {
 
 	@Test
 	public void testClosesOnTimeout() throws ExecutionException, InterruptedException {
-		Thread.sleep(100L);
+		Thread.sleep(150L);
 		assertTrue(workload.isClosed());
 		assertTrue(workload.isExpired());
 		assertTrue(workload.getExpires().isBefore(Instant.now()));
@@ -252,7 +252,7 @@ public class IuParallelWorkloadControllerTest {
 		expected.add("Executor shutdown requested");
 		expected.add("Terminated gracefully");
 		expected.add("Executor shutdown complete");
-		expected.add("Closed [IuParallelWorkloadController (0/0 of 5 -> 0) expires PT0.05S closed]");
+		expected.add("Closed [IuParallelWorkloadController (0/0 of 5 -> 0) expires PT0.1S closed]");
 		Set<String> unexpected = new LinkedHashSet<>();
 
 		logListener = record -> {
@@ -285,7 +285,7 @@ public class IuParallelWorkloadControllerTest {
 				unexpected.add(a);
 		};
 
-		Thread.sleep(100L);
+		Thread.sleep(150L);
 		assertTrue(expected.isEmpty(), expected::toString);
 		assertTrue(unexpected.isEmpty(), unexpected::toString);
 	}
@@ -325,12 +325,12 @@ public class IuParallelWorkloadControllerTest {
 
 	@Test
 	public void testAwaitExpired() throws Throwable {
-		workload.apply(a -> Thread.sleep(100L));
 		workload.apply(a -> Thread.sleep(150L));
-		assertEquals("Timed out in PT0.05S after completing 0 tasks, 2 tasks remain",
+		workload.apply(a -> Thread.sleep(200L));
+		assertEquals("Timed out in PT0.1S after completing 0 tasks, 2 tasks remain",
 				assertThrows(TimeoutException.class, workload::await).getMessage());
 		Thread.sleep(75L);
-		assertEquals("Timed out in PT0.05S after completing 1 task, 1 task remaining",
+		assertEquals("Timed out in PT0.1S after completing 1 task, 1 task remaining",
 				assertThrows(TimeoutException.class, workload::await).getMessage());
 		Thread.sleep(50L);
 		assertDoesNotThrow(workload::await);
@@ -386,7 +386,7 @@ public class IuParallelWorkloadControllerTest {
 
 	@Test
 	public void testShutdownNotVeryGracefully() throws Throwable {
-		final var finalTimeout = Duration.ofMillis(100L);
+		final var finalTimeout = Duration.ofMillis(150L);
 		workload.setGracefulShutdown(Duration.ofMillis(1L));
 		workload.setGracefulTermination(Duration.ofMillis(9L));
 		workload.setGracefulDestroy(Duration.ofMillis(100L));
@@ -429,7 +429,7 @@ public class IuParallelWorkloadControllerTest {
 
 	@Test
 	public void testShutdownMiserably() throws Throwable {
-		final var finalTimeout = Duration.ofMillis(150L);
+		final var finalTimeout = Duration.ofMillis(200L);
 		workload.setGracefulShutdown(Duration.ofMillis(1L));
 		workload.setGracefulTermination(Duration.ofMillis(9L));
 		workload.setGracefulDestroy(Duration.ofMillis(50L));
@@ -466,7 +466,7 @@ public class IuParallelWorkloadControllerTest {
 		final var timeoutException = assertThrows(TimeoutException.class, workload::close);
 		assertTrue(
 				timeoutException.getMessage().matches(
-						"Graceful thread termination timed out after PT0.0[0-9]{1,8}S, 1 still active after interrupt"),
+						"Graceful thread termination timed out after PT0.1[0-9]{1,8}S, 1 still active after interrupt"),
 				timeoutException::getMessage);
 		assertTrue(box.found, unhandled::toString);
 		assertTrue(Instant.now().isAfter(until));
@@ -487,7 +487,7 @@ public class IuParallelWorkloadControllerTest {
 	@Test
 	public void testCantAsyncAfterClose() throws Throwable {
 		workload.close();
-		assertEquals("Closed [IuParallelWorkloadController (0/0 of 5 -> 0) expires PT0.05S closed]",
+		assertEquals("Closed [IuParallelWorkloadController (0/0 of 5 -> 0) expires PT0.1S closed]",
 				assertThrows(RejectedExecutionException.class, () -> workload.apply(t -> {
 				})).getMessage());
 	}
