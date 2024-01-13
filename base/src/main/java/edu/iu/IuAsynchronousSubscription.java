@@ -54,6 +54,17 @@ public interface IuAsynchronousSubscription<T> extends AutoCloseable {
 	Stream<T> stream();
 
 	/**
+	 * Determines whether or not the subscription is closed.
+	 * 
+	 * <p>
+	 * Once closed, all remaining values can be advanced without blocking.
+	 * </p>
+	 * 
+	 * @return true if close; else false
+	 */
+	boolean isClosed();
+
+	/**
 	 * Gets an estimated number of values that may be advanced by the stream without
 	 * blocking.
 	 * 
