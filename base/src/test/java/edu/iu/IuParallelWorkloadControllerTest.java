@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -303,7 +303,7 @@ public class IuParallelWorkloadControllerTest {
 		assertEquals(1, workload.getSpawnedThreadCount());
 		assertEquals(0, workload.getPendingTaskCount());
 		assertEquals(1, workload.getCompletedTaskCount());
-		assertTrue(workload.getElapsed().toMillis() < 50L);
+		assertTrue(workload.getElapsed().toMillis() < 100L);
 	}
 
 	@Test

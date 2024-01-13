@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -60,6 +60,7 @@ import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import org.junit.jupiter.api.Test;
@@ -104,6 +105,54 @@ public class AsynchronousSubjectTest {
 			assertTrue(sp.tryAdvance(a -> assertEquals("d", a)));
 			assertTrue(sp.tryAdvance(a -> assertEquals("e", a)));
 			assertTrue(sp.tryAdvance(a -> assertEquals("f", a)));
+		}
+	}
+
+	@Test
+	public void testCanAdvanceAndAccept() {
+		try (final var subject = new IuAsynchronousSubject<>(List.of("a")::spliterator)) {
+			final var subscriber = subject.subscribe();
+			final var i = subscriber.stream().iterator();
+			final BooleanSupplier canAdvance = () -> (boolean) IuException.uncheckedInvocation(() -> {
+				final var m = subscriber.getClass().getDeclaredMethod("canAdvance");
+				m.setAccessible(true);
+				return m.invoke(subscriber);
+			});
+			final BooleanSupplier canAccept = () -> (boolean) IuException.uncheckedInvocation(() -> {
+				final var m = subscriber.getClass().getDeclaredMethod("canAccept");
+				m.setAccessible(true);
+				return m.invoke(subscriber);
+			});
+
+			assertTrue(canAdvance.getAsBoolean());
+			assertTrue(canAccept.getAsBoolean());
+			subject.accept("b");
+			assertEquals("a", i.next());
+			assertTrue(canAdvance.getAsBoolean());
+			assertTrue(canAccept.getAsBoolean());
+			assertEquals("b", i.next());
+			assertFalse(canAdvance.getAsBoolean());
+			assertFalse(canAccept.getAsBoolean());
+		}
+	}
+
+	@Test
+	public void testIsClosed() {
+		try (final var subject = new IuAsynchronousSubject<>(List.of("a")::spliterator)) {
+			final var subscriber = subject.subscribe();
+			assertFalse(subscriber.isClosed());
+			subscriber.close();
+			assertTrue(subscriber.isClosed());
+		}
+	}
+
+	@Test
+	public void testIsClosedAfterError() {
+		try (final var subject = new IuAsynchronousSubject<>(List.of("a")::spliterator)) {
+			final var subscriber = subject.subscribe();
+			assertFalse(subscriber.isClosed());
+			subject.error(new Throwable());
+			assertTrue(subscriber.isClosed());
 		}
 	}
 
@@ -263,7 +312,7 @@ public class AsynchronousSubjectTest {
 
 			subsplit.forEachRemaining(a -> box.count++);
 			async.await();
-			
+
 			assertEquals(1100, box.count);
 		}
 	}
