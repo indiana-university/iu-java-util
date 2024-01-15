@@ -27,24 +27,4 @@
 		</dependency>
 	</dependencies>
 
-	<build>
-		<plugins>
-			<plugin>
-				<artifactId>maven-dependency-plugin</artifactId>
-				<executions>
-					<execution>
-						<id>copy-deps</id>
-						<goals>
-							<goal>copy-dependencies</goal>
-						</goals>
-						<phase>generate-test-resources</phase>
-						<configuration>
-							<includeScope>provided</includeScope>
-						</configuration>
-					</execution>
-				</executions>
-			</plugin>
-		</plugins>
-	</build>
-
 </project>

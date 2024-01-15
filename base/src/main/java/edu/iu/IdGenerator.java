@@ -79,9 +79,9 @@ public class IdGenerator {
 		}
 	}
 
-	private static final ThreadLocal<Random> RAND = new ThreadLocal<Random>() {
+	private static final ThreadLocal<SecureRandom> RAND = new ThreadLocal<SecureRandom>() {
 		@Override
-		protected Random initialValue() {
+		protected SecureRandom initialValue() {
 			try {
 				SecureRandom rand = SecureRandom.getInstance("SHA1PRNG");
 				synchronized (SEED) {
@@ -108,7 +108,17 @@ public class IdGenerator {
 			return (char) ('a' + (v - 38));
 	}
 
-	private static String encodeId(byte[] raw) {
+	/**
+	 * Encodes binary data of length 24 as text using a modified base-64 character
+	 * set.
+	 * 
+	 * @param raw raw ID from {@link #generateRawId()}
+	 * @return encoded ID
+	 */
+	public static String encodeId(byte[] raw) {
+		if (raw.length != 24)
+			throw new IllegalArgumentException();
+
 		StringBuilder sb = new StringBuilder();
 		int p = 0;
 		for (int i = 0; i < raw.length; i++) {
@@ -165,9 +175,18 @@ public class IdGenerator {
 	/**
 	 * Generates a new unique identifier.
 	 * 
-	 * @return new unique identifier
+	 * @return new unique identifier, encoded as a portable string
 	 */
 	public static String generateId() {
+		return encodeId(generateRawId());
+	}
+
+	/**
+	 * Generates a new unique identifier.
+	 * 
+	 * @return new unique identifier, raw
+	 */
+	public static byte[] generateRawId() {
 		byte[] rawId = new byte[24];
 		RAND.get().nextBytes(rawId);
 
@@ -187,9 +206,9 @@ public class IdGenerator {
 		rawId[20] = (byte) ((hash >>> 8) & 0xff);
 		rawId[0] = (byte) ((hash >>> 16) & 0xff);
 
-		return encodeId(rawId);
+		return rawId;
 	}
-	
+
 	/**
 	 * Validates that a new unique identifier was created by the same algorithm used
 	 * in this utility, and has not expired.
