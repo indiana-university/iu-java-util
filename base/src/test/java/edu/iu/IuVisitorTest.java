@@ -32,6 +32,7 @@
 package edu.iu;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.Mockito.mock;
@@ -120,6 +121,31 @@ public class IuVisitorTest {
 		visitor.visit(f);
 		verify(f, never()).apply(notNull());
 		verify(f).apply(null);
+	}
+
+	@Test
+	public void testStreamClearsRefs() throws Throwable {
+		final var visitor = new IuVisitor<Object>();
+		final var o = new Object();
+		visitor.accept(o);
+		visitor.accept(new Object());
+		assertEquals(2L, visitor.stream().count());
+		System.gc();
+		Thread.sleep(100L);
+		assertEquals(1L, visitor.stream().count());
+		assertSame(o, visitor.stream().findAny().get());
+	}
+
+	@Test
+	public void testStreamOfOriginalElements() throws Throwable {
+		final var visitor = new IuVisitor<Object>();
+		final var control = Collections.synchronizedList(new ArrayList<Object>());
+		for (var i = 0; i < 1000; i++) {
+			final var o = new Object();
+			visitor.accept(o);
+			control.add(o);
+		}
+		assertEquals(1000L, visitor.stream().parallel().count());
 	}
 
 	@Test

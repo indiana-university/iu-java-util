@@ -11,6 +11,8 @@ import javax.transaction.UserTransaction;
 import edu.iu.IuException;
 import jakarta.annotation.Resource;
 import jakarta.annotation.Resources;
+import jakarta.transaction.RollbackException;
+import jakarta.transaction.SystemException;
 
 /**
  * Invocation handler supporting JTA 1 compliant transaction scenarios.
@@ -25,15 +27,13 @@ public class LegacyTransactionHandler implements InvocationHandler {
 	private final Object delegate;
 
 	// TODO FIXME
-	
+
 	/**
 	 * Constructor.
+	 * 
+	 * @param delegate non-legacy instance to delegate to
 	 */
-	private LegacyTransactionHandler() {
-		this(IuTransactionManager.getInstance());
-	}
-	
-	private LegacyTransactionHandler(Object delegate) {
+	public LegacyTransactionHandler(Object delegate) {
 		this.delegate = delegate;
 	}
 
@@ -47,15 +47,33 @@ public class LegacyTransactionHandler implements InvocationHandler {
 		final Object rv;
 		try {
 			rv = IuException.checkedInvocation(
-	
-				() -> IuTransactionManager.class.getMethod(method.getName(), paramTypes).invoke(delegate, arg));
+					() -> IuTransactionManager.class.getMethod(method.getName(), paramTypes).invoke(delegate, arg));
+		} catch (SystemException e) {
+			final javax.transaction.SystemException legacyError;
+			if (e.errorCode == 0)
+				legacyError = new javax.transaction.SystemException(e.getMessage());
+			else
+				legacyError = new javax.transaction.SystemException(e.errorCode);
+			legacyError.initCause(e);
+			throw e;
+		} catch (RollbackException e) {
+			final var legacyError = new javax.transaction.RollbackException(e.getMessage());
+			legacyError.initCause(e);
+			throw e;
 		} catch (Throwable e) {
 			final var errorClassName = e.getClass().getName();
-			if (errorClassName.startsWith("jakarta.transaction.")) {
-				Class.forName("javax".errorClassName.substring(7))
-			}
+			if (errorClassName.startsWith("jakarta.transaction."))
+				try {
+					final var legacyError = (Throwable) Class.forName("javax" + errorClassName.substring(7))
+							.getConstructor(String.class).newInstance(e.getMessage());
+					legacyError.initCause(e);
+					e = legacyError;
+				} catch (Throwable e2) {
+					e.addSuppressed(e2);
+				}
+			throw e;
 		}
-		
+
 		final var returnType = method.getReturnType();
 		final var name = returnType.getName();
 		if (name.startsWith("javax.transaction.")) {

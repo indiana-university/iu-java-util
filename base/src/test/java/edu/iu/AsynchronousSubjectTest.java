@@ -44,6 +44,8 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.time.Duration;
@@ -399,7 +401,7 @@ public class AsynchronousSubjectTest {
 	@Test
 	public void testCloseStreamUnsubscribes() throws Throwable {
 		final var q = new ConcurrentLinkedQueue<String>();
-		final var f = IuAsynchronousSubject.class.getDeclaredField("subscribers");
+		final var f = IuAsynchronousSubject.class.getDeclaredField("listeners");
 		f.setAccessible(true);
 		try (final var subject = new IuAsynchronousSubject<>(q::spliterator)) {
 			final Queue<?> subscribers = (Queue<?>) f.get(subject);
@@ -447,8 +449,21 @@ public class AsynchronousSubjectTest {
 				});
 			}
 
+			class Counter implements Consumer<Object> {
+				int count;
+
+				@Override
+				public void accept(Object t) {
+					count++;
+				}
+			}
+			final var counter = new Counter();
+			subject.listen(counter);
+
 			generator.await();
 			subject.close();
+
+			assertEquals(1000, counter.count);
 
 			while (!toAwait.isEmpty())
 				toAwait.pop().run();
@@ -743,6 +758,97 @@ public class AsynchronousSubjectTest {
 			});
 			assertEquals(0, sub.pause(Instant.now().plusMillis(100L)));
 			async.await();
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testUnlisten() throws Throwable {
+		try (final var subject = new IuAsynchronousSubject<>(Spliterators::emptySpliterator)) {
+			final var l = mock(Consumer.class);
+			final var c = subject.listen(l);
+			subject.accept(new Object());
+			verify(l).accept(any());
+			c.run();
+			subject.accept(new Object());
+			verify(l).accept(any()); // not twice
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testGCClearsListeners() throws Throwable {
+		final var o = List.of(new Object());
+		final var f = IuAsynchronousSubject.class.getDeclaredField("listeners");
+		f.setAccessible(true);
+		try (final var subject = new IuAsynchronousSubject<>(o::spliterator)) {
+			final Queue<?> listeners = (Queue<?>) f.get(subject);
+			var l = mock(Consumer.class);
+			subject.listen(l);
+			assertEquals(1, listeners.size());
+			subject.accept(new Object());
+			verify(l, times(2)).accept(any());
+			l = null;
+			System.gc();
+			Thread.sleep(100L);
+			subject.accept(new Object());
+			assertEquals(0, listeners.size());
+		}
+	}
+
+	@Test
+	public void testCloseableListener() throws Throwable {
+		class CloseableListener implements Consumer<Object>, AutoCloseable {
+			@Override
+			public void close() throws Exception {
+			}
+
+			@Override
+			public void accept(Object t) {
+			}
+		}
+
+		final var l = spy(new CloseableListener());
+		{
+			final var subject = new IuAsynchronousSubject<>(Spliterators::emptySpliterator);
+			subject.listen(l);
+			subject.close();
+			verify(l).close();
+		}
+
+		try (final var subject = new IuAsynchronousSubject<>(Spliterators::emptySpliterator)) {
+			subject.listen(l);
+			subject.error(new RuntimeException());
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testCloseableListenerErrors() throws Throwable {
+		final var e = new RuntimeException();
+		class CloseableListener implements Consumer<Object>, AutoCloseable {
+			@Override
+			public void close() {
+				throw e;
+			}
+
+			@Override
+			public void accept(Object t) {
+			}
+		}
+		final var l = spy(new CloseableListener());
+
+		{
+			final var subject = new IuAsynchronousSubject<>(Spliterators::emptySpliterator);
+			subject.listen(l);
+			assertSame(e, assertThrows(RuntimeException.class, subject::close));
+		}
+
+		try (final var subject = new IuAsynchronousSubject<>(Spliterators::emptySpliterator)) {
+			subject.listen(l);
+			final var l2 = mock(Consumer.class);
+			subject.listen(l2);
+			assertSame(e, assertThrows(RuntimeException.class, () -> subject.error(new Exception())));
 		}
 	}
 

@@ -6,7 +6,6 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
@@ -16,20 +15,17 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Function;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Stream;
 
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
 
-import edu.iu.IuAsynchronousSubject;
 import edu.iu.IuException;
 import edu.iu.IuObject;
-import edu.iu.IuVisitor;
 import jakarta.transaction.HeuristicCommitException;
 import jakarta.transaction.HeuristicMixedException;
 import jakarta.transaction.HeuristicRollbackException;
@@ -90,6 +86,8 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 				current.setContextClassLoader(loader);
 
 				synchronized (t) {
+//					if (t.status != Status.STATUS_COMMITTED //
+//							&& t.status != Status.STATUS_ROLLEDBACK)
 					try {
 						t.continueRollback(new RollbackContinuation());
 					} catch (Throwable e) {
@@ -106,28 +104,6 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 
 		return ROLLBACK_SCHEDULER.schedule(scheduledRollback, Duration.between(Instant.now(), t.expires).toNanos(),
 				TimeUnit.NANOSECONDS);
-	}
-
-	private static final IuVisitor<IuTransaction> TX_VISITOR = new IuVisitor<>();
-	private static final IuAsynchronousSubject<IuTransaction> TX_SUB = TX_VISITOR.subject();
-
-	/**
-	 * Visit {@link IuTransaction} instances.
-	 * 
-	 * @param transactionVisitor {@link IuVisitor#visit(Function) visitor function}
-	 * @return {@link IuVisitor#visit(Function) visitor result}
-	 */
-	public static <V> Optional<V> visit(Function<IuTransaction, Optional<V>> transactionVisitor) {
-		return TX_VISITOR.visit(transactionVisitor);
-	}
-
-	/**
-	 * Subscribes a transaction listener.
-	 * 
-	 * @return {@link Stream} of all known transactions
-	 */
-	public static Stream<IuTransaction> subscribe() {
-		return TX_SUB.subscribe();
 	}
 
 	/**
@@ -227,6 +203,7 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 	private final IuXid xid;
 	private final Instant expires;
 	private final ScheduledFuture<?> timedRollback;
+	private final Consumer<IuTransaction> onStatusChange;
 
 	private final Queue<IuTransaction> branches = new ConcurrentLinkedQueue<>();
 	private final Deque<Synchronization> synchronizations = new ConcurrentLinkedDeque<>();
@@ -248,14 +225,27 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 	 *                in.
 	 */
 	public IuTransaction(Duration timeout) {
+		this(timeout, null);
+	}
+
+	/**
+	 * Creates a new root transaction.
+	 * 
+	 * @param timeout        transaction timeout; unless completed beforehand, the
+	 *                       transaction will automatically roll back when the
+	 *                       timeout expires, using the same the context transaction
+	 *                       was created in.
+	 * @param onStatusChange {@link Consumer}, will be provided a reference to this
+	 *                       transaction each time its status changes
+	 */
+	public IuTransaction(Duration timeout, Consumer<IuTransaction> onStatusChange) {
 		if (timeout.toSeconds() < 1)
 			throw new IllegalArgumentException();
 
 		xid = new IuXid();
 		expires = Instant.now().plus(timeout);
+		this.onStatusChange = onStatusChange;
 		timedRollback = scheduleRollback(this);
-		TX_SUB.accept(this);
-		TX_VISITOR.accept(this);
 		LOG.fine(() -> xid + " begin");
 	}
 
@@ -270,10 +260,9 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 
 		xid = new IuXid(parent.xid);
 		expires = parent.expires;
+		onStatusChange = parent.onStatusChange;
 		timedRollback = scheduleRollback(this);
 		parent.branches.offer(this);
-		TX_SUB.accept(this);
-		TX_VISITOR.accept(this);
 		LOG.fine(() -> xid + " branch " + parent.xid);
 	}
 
@@ -619,8 +608,21 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 		this.notifyAll();
 	}
 
+	/**
+	 * Determines whether or not the transaction is a completed status.
+	 * 
+	 * @return true if status is {@link Status#STATUS_COMMITTED},
+	 *         {@link Status#STATUS_ROLLEDBACK}, or
+	 *         {@link Status#STATUS_NO_TRANSACTION}; else false
+	 */
+	boolean isCompleted() {
+		return status == Status.STATUS_COMMITTED //
+				|| status == Status.STATUS_ROLLEDBACK //
+				|| status == Status.STATUS_NO_TRANSACTION;
+	}
+
 	private void checkExpired() {
-		if (expires.getEpochSecond() - Instant.now().getEpochSecond() < 1)
+		if (Instant.now().isAfter(expires))
 			throw new IllegalStateException(new TimeoutException(xid + " expired"));
 	}
 
@@ -629,6 +631,9 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 			return false;
 
 		this.status = status;
+
+		if (onStatusChange != null)
+			onStatusChange.accept(this);
 
 		LOG.finer(() -> xid + ":" + describeStatus(status));
 		return true;
@@ -647,9 +652,7 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 	}
 
 	private boolean isIdle() {
-		return status == Status.STATUS_COMMITTED //
-				|| status == Status.STATUS_ROLLEDBACK //
-				|| status == Status.STATUS_NO_TRANSACTION //
+		return isCompleted() //
 				|| status == Status.STATUS_UNKNOWN;
 	}
 
@@ -817,37 +820,31 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 				updateStatus(Status.STATUS_COMMITTING);
 				while (!rollbackContinuation.prepared.isEmpty()) {
 					final var resource = rollbackContinuation.prepared.poll();
-					out: while (Instant.now().isBefore(expires))
-						try {
-							resource.commit(xid, false);
-							traceResource("commit:" + describeXAErrorCode(XAResource.XA_OK), resource);
-							break;
-						} catch (XAException e) {
-							traceResource("commit:" + describeXAErrorCode(e.errorCode), resource);
+					try {
+						resource.commit(xid, false);
+						traceResource("commit:" + describeXAErrorCode(XAResource.XA_OK), resource);
+					} catch (XAException e) {
+						traceResource("commit:" + describeXAErrorCode(e.errorCode), resource);
 
-							switch (e.errorCode) {
-							case XAException.XA_RETRY:
-								wait((Duration.between(Instant.now(), expires).toSeconds() / 2) + 1);
-								continue;
-
-							case XAException.XA_HEURCOM:
-								try {
-									resource.forget(xid);
-								} catch (Throwable e2) {
-									e2.addSuppressed(e);
-									throw e2;
-								}
-								break out;
-
-							case XAException.XA_HEURHAZ:
-							case XAException.XA_HEURMIX:
-							case XAException.XA_HEURRB:
-								IuException.suppress(e, () -> resource.forget(xid));
-
-							default:
+						switch (e.errorCode) {
+						case XAException.XA_HEURCOM:
+							try {
+								resource.forget(xid);
+								break;
+							} catch (Throwable e2) {
+								e.addSuppressed(e2);
 								throw e;
 							}
+
+						case XAException.XA_HEURHAZ:
+						case XAException.XA_HEURMIX:
+						case XAException.XA_HEURRB:
+							IuException.suppress(e, () -> resource.forget(xid));
+
+						default:
+							throw e;
 						}
+					}
 					traceResource("commit", resource);
 				}
 				updateStatus(Status.STATUS_COMMITTED);

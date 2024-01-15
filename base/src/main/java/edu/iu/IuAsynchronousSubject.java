@@ -31,6 +31,8 @@
  */
 package edu.iu;
 
+import java.lang.ref.Reference;
+import java.lang.ref.WeakReference;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Queue;
@@ -210,9 +212,9 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 
 	}
 
-	private class Subscriber implements Spliterator<T>, IuAsynchronousSubscription<T> {
+	private class Subscriber implements Consumer<T>, Spliterator<T>, IuAsynchronousSubscription<T> {
 		private final Stream<T> stream;
-//		private volatile Source<T> source;
+		private final Runnable cancel;
 		private final Queue<SourceSplit> children = new ConcurrentLinkedDeque<>();
 		private final Queue<T> accepted = new ConcurrentLinkedQueue<>();
 		private volatile Spliterator<T> delegate;
@@ -227,8 +229,25 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 			if (delegate.estimateSize() > 0)
 				this.delegate = delegate;
 
-			subscribers.offer(this);
+			final var ref = new WeakReference<Consumer<T>>(this);
+			listeners.add(ref);
+			cancel = () -> listeners.remove(ref);
+
 			stream = StreamSupport.stream(this, false).onClose(this::close);
+		}
+
+		@Override
+		public void accept(T t) {
+			synchronized (this) {
+				if (canAccept())
+					accepted.offer(t);
+				else {
+					bootstrapPipe();
+					pipe.accept(t);
+				}
+				acceptedCount++;
+				this.notifyAll();
+			}
 		}
 
 		@Override
@@ -395,7 +414,7 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 
 		@Override
 		public synchronized void close() {
-			subscribers.remove(this);
+			cancel.run();
 
 			if (pipe != null)
 				pipe.close();
@@ -480,24 +499,11 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 			}
 		}
 
-		private void accept(T t) {
-			synchronized (this) {
-				if (canAccept())
-					accepted.offer(t);
-				else {
-					bootstrapPipe();
-					pipe.accept(t);
-				}
-				acceptedCount++;
-				this.notifyAll();
-			}
-
-		}
-
 	}
 
 	private final Supplier<Spliterator<T>> initialSplitSupplier;
-	private final Queue<Subscriber> subscribers = new ConcurrentLinkedQueue<>();
+	private final Queue<Reference<Consumer<T>>> listeners = new ConcurrentLinkedQueue<>();
+//	private final Queue<Subscriber> subscribers = new ConcurrentLinkedQueue<>();
 	private boolean closed;
 
 	/**
@@ -508,6 +514,27 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 	 */
 	public IuAsynchronousSubject(Supplier<Spliterator<T>> initialSplitSupplier) {
 		this.initialSplitSupplier = initialSplitSupplier;
+	}
+
+	/**
+	 * Registers a <strong>listener</strong>.
+	 * 
+	 * @param listener {@link Consumer}, will be provided all values available on
+	 *                 the subject, in order, before return. After return,
+	 *                 {@link Consumer#accept(Object)} will be invoked inline each
+	 *                 time a new value is {@link #accept(Object) accepted} by the
+	 *                 <strong>subject</strong>.
+	 * @return thunk for canceling future calls to {@link Consumer#accept(Object)}
+	 *         on the listener.
+	 */
+	public Runnable listen(Consumer<T> listener) {
+		final var split = initialSplitSupplier.get();
+		while (split.tryAdvance(listener))
+			;
+
+		final var ref = new WeakReference<>(listener);
+		listeners.add(ref);
+		return () -> listeners.remove(ref);
 	}
 
 	/**
@@ -542,7 +569,15 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 		if (closed)
 			throw new IllegalStateException("closed");
 
-		subscribers.forEach(subscriber -> subscriber.accept(value));
+		final var i = listeners.iterator();
+		while (i.hasNext()) {
+			final var ref = i.next();
+			final var listener = ref.get();
+			if (listener == null)
+				i.remove();
+			else
+				listener.accept(value);
+		}
 	}
 
 	/**
@@ -568,8 +603,13 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 		closed = true;
 
 		Throwable e = null;
-		while (!subscribers.isEmpty())
-			e = IuException.suppress(e, () -> subscribers.poll().close());
+		while (!listeners.isEmpty())
+			e = IuException.suppress(e, () -> {
+				final var ref = listeners.poll();
+				final var listener = ref.get();
+				if (listener instanceof AutoCloseable closeableListener)
+					closeableListener.close();
+			});
 
 		if (e != null)
 			throw IuException.unchecked(e);
@@ -579,13 +619,24 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 	 * Reports a fatal error to all <strong>subscribers</strong> and {@link #close()
 	 * closes} the <strong>subject</strong>.
 	 * 
-	 * @param e fatal error
+	 * @param error fatal error
 	 */
-	public synchronized void error(Throwable e) {
-		while (!subscribers.isEmpty())
-			IuException.suppress(e, () -> subscribers.poll().error(e));
+	public synchronized void error(final Throwable error) {
+		Throwable e = null;
+		while (!listeners.isEmpty())
+			e = IuException.suppress(e, () -> {
+				final var ref = listeners.poll();
+				final var listener = ref.get();
+				if (listener instanceof Subscriber subscriber)
+					subscriber.error(error);
+				else if (listener instanceof AutoCloseable closeableListener)
+					closeableListener.close();
+			});
 
 		closed = true;
+
+		if (e != null)
+			throw IuException.unchecked(e);
 	}
 
 }

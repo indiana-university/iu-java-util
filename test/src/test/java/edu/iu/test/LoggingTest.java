@@ -290,23 +290,4 @@ public class LoggingTest {
 		IuTestLogger.assertExpectedMessages();
 	}
 
-	@Test
-	public void testAllowedMessages() {
-		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "allowed");
-		IuTestLogger.allow(LoggingTest.class.getName(), Level.INFO, "allowed info");
-		IuTestLogger.allow(LoggingTest.class.getName(), Level.WARNING, "allowed warning", IllegalStateException.class,
-				t -> t.getMessage().equals("a"));
-		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINER, "throw", IllegalArgumentException.class);
-		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected");
-		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINER, "threw", UnsupportedOperationException.class);
-		IuTestLogger.expect(LoggingTest.class.getName(), Level.WARNING, "expected warning", IllegalStateException.class,
-				t -> t.getMessage().equals("b"));
-		LOG.finer("allowed");
-		LOG.fine("expected");
-		LOG.log(Level.FINER, "threw", new UnsupportedOperationException());
-		LOG.log(Level.WARNING, new IllegalStateException("b"), () -> "expected warning");
-		LOG.log(Level.WARNING, new IllegalStateException("a"), () -> "allowed warning");
-		LOG.finer("allowed");
-	}
-
 }

@@ -39,6 +39,8 @@ import java.util.Spliterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * Implements a basic visitor pattern for tracking disparate uniform instances
@@ -96,15 +98,12 @@ public class IuVisitor<T> implements Consumer<T> {
 
 		@Override
 		public long estimateSize() {
-			if (elementSpliterator.hasCharacteristics(SIZED))
-				return elementSpliterator.estimateSize();
-			else
-				return elements.size();
+			return elementSpliterator.estimateSize();
 		}
 
 		@Override
 		public int characteristics() {
-			return elementSpliterator.characteristics() | SIZED;
+			return elementSpliterator.characteristics();
 		}
 	}
 
@@ -195,6 +194,15 @@ public class IuVisitor<T> implements Consumer<T> {
 				continue;
 			}
 		}
+	}
+
+	/**
+	 * Gets a {@link Stream} of non-cleared references.
+	 * 
+	 * @return {@link Stream}
+	 */
+	public Stream<T> stream() {
+		return StreamSupport.stream(new ElementSplitter(elements.spliterator()), false);
 	}
 
 	/**

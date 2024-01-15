@@ -4,7 +4,13 @@ import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
+import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
+import edu.iu.IuAsynchronousSubject;
+import edu.iu.IuAsynchronousSubscription;
+import edu.iu.IuVisitor;
 import jakarta.annotation.Resource;
 import jakarta.annotation.Resources;
 import jakarta.transaction.HeuristicMixedException;
@@ -20,12 +26,6 @@ import jakarta.transaction.UserTransaction;
 
 /**
  * Portable virtual transaction manager implementation.
- * 
- * <p>
- * This transaction manager is fully virtual and may be used as a singleton or
- * session-bound manager. Transactions supplied by this implementation are
- * managed as a static visitor via {@link IuTransaction}.
- * </p>
  */
 @Resources({ //
 		@Resource(type = TransactionManager.class), //
@@ -35,23 +35,24 @@ import jakarta.transaction.UserTransaction;
 public final class IuTransactionManager
 		implements TransactionManager, UserTransaction, TransactionSynchronizationRegistry {
 
-	private static final ThreadLocal<Deque<IuTransaction>> ACTIVE = new ThreadLocal<Deque<IuTransaction>>();
+	private final ThreadLocal<Deque<IuTransaction>> activeTransactions = new ThreadLocal<Deque<IuTransaction>>();
+	private final IuVisitor<IuTransaction> visitor = new IuVisitor<>();
+	private final IuAsynchronousSubject<IuTransaction> subject = visitor.subject();
+	private Duration timeout = Duration.ofMinutes(2L);
+
+	/**
+	 * Default constructor.
+	 */
+	public IuTransactionManager() {
+	}
 
 	/**
 	 * Clears the transaction state from the current thread, as a final safeguard,
 	 * to be invoked after all transaction resources <em>should</em> have been
 	 * released, and before returning the thread for reuse.
 	 */
-	public static void clearThreadState() {
-		ACTIVE.remove();
-	}
-
-	private Duration timeout = Duration.ofMinutes(2L);
-
-	/**
-	 * Constructor.
-	 */
-	public IuTransactionManager() {
+	public void clearThreadState() {
+		activeTransactions.remove();
 	}
 
 	/**
@@ -64,25 +65,75 @@ public final class IuTransactionManager
 		this.timeout = timeout;
 	}
 
+	/**
+	 * Visits {@link IuTransaction} managed by this instance.
+	 * 
+	 * @param transactionVisitor {@link IuVisitor#visit(Function) visitor function}
+	 * @return {@link IuVisitor#visit(Function) visitor result}
+	 */
+	public <V> Optional<V> visit(Function<IuTransaction, Optional<V>> transactionVisitor) {
+		return visitor.visit(transactionVisitor);
+	}
+
+	/**
+	 * Subscribes to an internally controlled {@link IuAsynchronousSubject subject}
+	 * of <strong>incomplete</strong> transactions.
+	 * 
+	 * <p>
+	 * After initial traversal, {@link IuTransaction} references will be provided by
+	 * the subject on status change, including change to <strong>completed</strong>
+	 * statuses {@link Status#STATUS_NO_TRANSACTION},
+	 * {@link Status#STATUS_COMMITTED}, and {@link Status#STATUS_ROLLEDBACK}.
+	 * </p>
+	 * 
+	 * @return {@link IuAsynchronousSubscription} of all open transactions
+	 * @see IuAsynchronousSubject#subscribe
+	 */
+	public IuAsynchronousSubscription<IuTransaction> subscribe() {
+		return subject.subscribe();
+	}
+
+	/**
+	 * Listens to an internally controlled {@link IuAsynchronousSubject subject} of
+	 * <strong>incomplete</strong> transactions.
+	 * 
+	 * <p>
+	 * After initial traversal, {@link IuTransaction} references will be provided by
+	 * the subject on status change, including change to <strong>completed</strong>
+	 * statuses {@link Status#STATUS_NO_TRANSACTION},
+	 * {@link Status#STATUS_COMMITTED}, and {@link Status#STATUS_ROLLEDBACK}.
+	 * </p>
+	 * 
+	 * @param listener {@link Consumer Consumer&lt;IuTransaction&gt;}
+	 * @return {@link Runnable} thunk to cancel the listener
+	 * @see IuAsynchronousSubject#listen(Consumer)
+	 */
+	public Runnable listen(Consumer<IuTransaction> listener) {
+		return subject.listen(listener);
+	}
+
 	@Override
 	public void begin() {
-		var active = ACTIVE.get();
+		var active = activeTransactions.get();
 
 		final IuTransaction transaction;
 		if (active == null) {
 			active = new ArrayDeque<>();
-			transaction = new IuTransaction(timeout);
+			transaction = new IuTransaction(timeout, this::handleStatusChange);
 		} else
 			transaction = new IuTransaction(active.peek());
 
+		subject.accept(transaction);
+		visitor.accept(transaction);
+
 		active.push(transaction);
 
-		ACTIVE.set(active);
+		activeTransactions.set(active);
 	}
 
 	@Override
 	public IuTransaction getTransaction() {
-		final var active = ACTIVE.get();
+		final var active = activeTransactions.get();
 		return active == null ? null : active.peek();
 	}
 
@@ -164,13 +215,13 @@ public final class IuTransactionManager
 
 	@Override
 	public IuTransaction suspend() {
-		final var active = ACTIVE.get();
+		final var active = activeTransactions.get();
 		if (active == null)
 			throw new IllegalStateException();
 
 		final var transaction = active.pop();
 		if (active.isEmpty())
-			ACTIVE.remove();
+			activeTransactions.remove();
 
 		transaction.suspend();
 		return transaction;
@@ -181,7 +232,7 @@ public final class IuTransactionManager
 		if (!(transaction instanceof IuTransaction iuTransaction))
 			throw new InvalidTransactionException();
 
-		var active = ACTIVE.get();
+		var active = activeTransactions.get();
 		if (active == null)
 			active = new ArrayDeque<>();
 		else if (!Arrays.equals(active.peek().getTransactionKey().getGlobalTransactionId(),
@@ -190,33 +241,38 @@ public final class IuTransactionManager
 
 		iuTransaction.resume();
 		active.push(iuTransaction);
-		ACTIVE.set(active);
+		activeTransactions.set(active);
 	}
 
 	@Override
 	public void commit() throws RollbackException, HeuristicRollbackException, HeuristicMixedException {
-		var active = ACTIVE.get();
+		var active = activeTransactions.get();
 		if (active == null)
 			throw new IllegalStateException();
 
 		final var transaction = active.pop();
 		if (active.isEmpty())
-			ACTIVE.remove();
+			activeTransactions.remove();
 
 		transaction.commit();
 	}
 
 	@Override
 	public void rollback() {
-		var active = ACTIVE.get();
+		var active = activeTransactions.get();
 		if (active == null)
 			throw new IllegalStateException();
 
 		final var transaction = active.pop();
 		if (active.isEmpty())
-			ACTIVE.remove();
+			activeTransactions.remove();
 
 		transaction.rollback();
 	}
 
+	private void handleStatusChange(IuTransaction transaction) {
+		subject.accept(transaction);
+		if (transaction.isCompleted())
+			visitor.clear(transaction);
+	}
 }

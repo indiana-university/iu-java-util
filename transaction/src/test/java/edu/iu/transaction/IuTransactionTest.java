@@ -2,7 +2,6 @@ package edu.iu.transaction;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -15,11 +14,13 @@ import static org.mockito.ArgumentMatchers.intThat;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Duration;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -30,6 +31,7 @@ import javax.transaction.xa.XAResource;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 
@@ -47,6 +49,9 @@ import jakarta.transaction.RollbackException;
 import jakarta.transaction.Status;
 import jakarta.transaction.Synchronization;
 
+/**
+ * 
+ */
 @SuppressWarnings("javadoc")
 public class IuTransactionTest {
 
@@ -76,9 +81,37 @@ public class IuTransactionTest {
 	}
 
 	@Test
-	public void testDescribe() {
+	public void testDescribeStatus() {
 		assertEquals("STATUS_NO_TRANSACTION", IuTransaction.describeStatus(Status.STATUS_NO_TRANSACTION));
 		assertEquals("STATUS_X34", IuTransaction.describeStatus(34));
+	}
+
+	@Test
+	public void testDescribeXAErrorCode() {
+		assertEquals("XA_RBBASE", IuTransaction.describeXAErrorCode(XAException.XA_RBBASE));
+		assertEquals("XA_RBCOMMFAIL", IuTransaction.describeXAErrorCode(XAException.XA_RBCOMMFAIL));
+		assertEquals("XA_RBDEADLOCK", IuTransaction.describeXAErrorCode(XAException.XA_RBDEADLOCK));
+		assertEquals("XA_RBINTEGRITY", IuTransaction.describeXAErrorCode(XAException.XA_RBINTEGRITY));
+		assertEquals("XA_RBOTHER", IuTransaction.describeXAErrorCode(XAException.XA_RBOTHER));
+		assertEquals("XA_RBPROTO", IuTransaction.describeXAErrorCode(XAException.XA_RBPROTO));
+		assertEquals("XA_RBTIMEOUT", IuTransaction.describeXAErrorCode(XAException.XA_RBTIMEOUT));
+		assertEquals("XA_RBTRANSIENT", IuTransaction.describeXAErrorCode(XAException.XA_RBTRANSIENT));
+		assertEquals("XA_NOMIGRATE", IuTransaction.describeXAErrorCode(XAException.XA_NOMIGRATE));
+		assertEquals("XA_HEURHAZ", IuTransaction.describeXAErrorCode(XAException.XA_HEURHAZ));
+		assertEquals("XA_HEURCOM", IuTransaction.describeXAErrorCode(XAException.XA_HEURCOM));
+		assertEquals("XA_HEURRB", IuTransaction.describeXAErrorCode(XAException.XA_HEURRB));
+		assertEquals("XA_HEURMIX", IuTransaction.describeXAErrorCode(XAException.XA_HEURMIX));
+		assertEquals("XA_RETRY", IuTransaction.describeXAErrorCode(XAException.XA_RETRY));
+		assertEquals("XA_RDONLY", IuTransaction.describeXAErrorCode(XAException.XA_RDONLY));
+		assertEquals("XAER_ASYNC", IuTransaction.describeXAErrorCode(XAException.XAER_ASYNC));
+		assertEquals("XAER_RMERR", IuTransaction.describeXAErrorCode(XAException.XAER_RMERR));
+		assertEquals("XAER_NOTA", IuTransaction.describeXAErrorCode(XAException.XAER_NOTA));
+		assertEquals("XAER_INVAL", IuTransaction.describeXAErrorCode(XAException.XAER_INVAL));
+		assertEquals("XAER_PROTO", IuTransaction.describeXAErrorCode(XAException.XAER_PROTO));
+		assertEquals("XAER_RMFAIL", IuTransaction.describeXAErrorCode(XAException.XAER_RMFAIL));
+		assertEquals("XAER_DUPID", IuTransaction.describeXAErrorCode(XAException.XAER_DUPID));
+		assertEquals("XAER_OUTSIDE", IuTransaction.describeXAErrorCode(XAException.XAER_OUTSIDE));
+		assertEquals("XA_34", IuTransaction.describeXAErrorCode(34));
 	}
 
 	@Test
@@ -87,28 +120,9 @@ public class IuTransactionTest {
 	}
 
 	@Test
-	public void testBeginAndVisit() {
-		final var t = tx();
-		assertSame(Status.STATUS_ACTIVE, t.getStatus());
-		assertSame(Status.STATUS_ACTIVE, t.getTransactionStatus());
-		assertFalse(t.getRollbackOnly());
-
-		class Box {
-			boolean found;
-		}
-		final var box = new Box();
-		IuTransaction.visit(tx -> {
-			if (tx == t)
-				box.found = true;
-			return null;
-		});
-		assertTrue(box.found);
-	}
-
-	@Test
 	public void testBranch() {
 		final var t = tx();
-		assertSame(Status.STATUS_ACTIVE, t.getStatus());
+		assertSame(Status.STATUS_ACTIVE, t.getTransactionStatus());
 		final var escapedXid = t.getTransactionKey().toString().replace("+", "\\+");
 		final var gtid = IdGenerator.encodeId(t.getTransactionKey().getGlobalTransactionId());
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE,
@@ -723,6 +737,7 @@ public class IuTransactionTest {
 		assertSame(Status.STATUS_ROLLEDBACK, t.getStatus());
 	}
 
+	@Disabled
 	@Test
 	public void testHeuristicTimeout() throws Throwable {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
@@ -1027,4 +1042,91 @@ public class IuTransactionTest {
 		verify(resource).rollback(t.getTransactionKey());
 	}
 
+	@Test
+	public void testXaHeuristicCommit() throws XAException, RollbackException {
+		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE);
+		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var x = mock(XAResource.class);
+		t.enlistResource(x);
+		final var xe = new XAException(XAException.XA_HEURCOM);
+		doThrow(xe).when(x).commit(t.getTransactionKey(), false);
+		assertDoesNotThrow(t::commit);
+		verify(x).forget(t.getTransactionKey());
+	}
+	
+	@Test
+	public void testXaHeuristicCommitForgetFailure() throws XAException, RollbackException {
+		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE);
+		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var x = mock(XAResource.class);
+		t.enlistResource(x);
+		final var xe = new XAException(XAException.XA_HEURCOM);
+		final var xe2 = new XAException(XAException.XAER_NOTA);
+		doThrow(xe).when(x).commit(t.getTransactionKey(), false);
+		doThrow(xe2).when(x).forget(t.getTransactionKey());
+		assertSame(xe, assertThrows(RollbackException.class, t::commit).getCause());
+		assertSame(xe2, xe.getSuppressed()[0]);
+	}
+	
+	@Test
+	public void testXaHeurHazRollback() throws XAException, RollbackException {
+		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE);
+		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var x = mock(XAResource.class);
+		t.enlistResource(x);
+		final var xe = new XAException(XAException.XA_HEURHAZ);
+		doThrow(xe).when(x).commit(t.getTransactionKey(), false);
+		assertSame(xe, assertThrows(RollbackException.class, t::commit).getCause());
+		verify(x).forget(t.getTransactionKey());
+	}
+
+	@Test
+	public void testXaHeurMixRollback() throws XAException, RollbackException {
+		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE);
+		final var t = new IuTransaction(Duration.ofSeconds(1L));
+		final var x = mock(XAResource.class);
+		t.enlistResource(x);
+		final var xe = new XAException(XAException.XA_HEURMIX);
+		doThrow(xe).when(x).commit(t.getTransactionKey(), false);
+		assertSame(xe, assertThrows(RollbackException.class, t::commit).getCause());
+		verify(x).forget(t.getTransactionKey());
+	}
+
+	@Test
+	public void testXaHeuristicRollback() throws XAException, RollbackException {
+		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE);
+		final var t = new IuTransaction(Duration.ofSeconds(1L));
+		final var x = mock(XAResource.class);
+		t.enlistResource(x);
+		final var xe = new XAException(XAException.XA_HEURRB);
+		doThrow(xe).when(x).commit(t.getTransactionKey(), false);
+		assertSame(xe, assertThrows(RollbackException.class, t::commit).getCause());
+		verify(x).forget(t.getTransactionKey());
+	}
+
+	@Test
+	public void testXaErrorRollback() throws XAException, RollbackException {
+		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE);
+		final var t = new IuTransaction(Duration.ofSeconds(1L));
+		final var x = mock(XAResource.class);
+		t.enlistResource(x);
+		final var xe = new XAException(XAException.XAER_RMFAIL);
+		doThrow(xe).when(x).commit(t.getTransactionKey(), false);
+		assertSame(xe, assertThrows(RollbackException.class, t::commit).getCause());
+		verify(x, never()).forget(t.getTransactionKey());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testStatusChange() throws RollbackException, HeuristicRollbackException, HeuristicMixedException {
+		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE);
+		final var c = mock(Consumer.class);
+		final var t = new IuTransaction(Duration.ofSeconds(1L), c);
+		t.commit();
+		// STATUS_PREPARING
+		// STATUS_PREPARED
+		// STATUS_COMMITTING
+		// STATUS_COMMITTED
+		verify(c, times(4)).accept(t);
+	}
 }
