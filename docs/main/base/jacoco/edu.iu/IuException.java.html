@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuException.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Base Utilities Module</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuException.java</span></div><h1>IuException.java</h1><pre class="source lang-java linenums">/*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -1278,14 +1278,75 @@ public final class IuException {
 		try {
 <span class="fc" id="L1279">			return initializer.apply(resource);</span>
 <span class="fc" id="L1280">		} catch (Throwable e) {</span>
-			try {
-<span class="fc" id="L1282">				resource.close();</span>
-<span class="fc" id="L1283">			} catch (Throwable e2) {</span>
-<span class="fc" id="L1284">				e.addSuppressed(e2);</span>
-<span class="fc" id="L1285">			}</span>
-<span class="fc" id="L1286">			throw checked(e);</span>
+<span class="fc" id="L1281">			suppress(e, resource::close);</span>
+<span class="fc" id="L1282">			throw checked(e);</span>
 		}
 	}
+
+	/**
+	 * Runs an {@link UnsafeRunnable} and adds any exception thrown as suppressed by
+	 * an another exception.
+	 * 
+	 * &lt;p&gt;
+	 * This is useful for adding clean-up tasks to error handling routines related
+	 * to failed initialization of closeable resources.
+	 * &lt;/p&gt;
+	 * 
+	 * @param throwable Throwable that will
+	 *                  {@link Throwable#addSuppressed(Throwable) suppress}
+	 *                  exceptions thrown from {@code runnable}.
+	 * @param runnable  {@link UnsafeRunnable}; will be run, and any exceptions
+	 *                  thrown will be suppressed by {@code throwable}
+	 * @return throwable if non-null; the exception thrown from runnable or null if
+	 *         no exception was thrown
+	 */
+	public static Throwable suppress(Throwable throwable, UnsafeRunnable runnable) {
+		try {
+<span class="fc" id="L1305">			runnable.run();</span>
+<span class="fc" id="L1306">		} catch (Throwable e) {</span>
+<span class="fc bfc" id="L1307" title="All 2 branches covered.">			if (throwable == null)</span>
+<span class="fc" id="L1308">				throwable = e;</span>
+			else
+<span class="fc" id="L1310">				throwable.addSuppressed(e);</span>
+<span class="fc" id="L1311">		}</span>
+<span class="fc" id="L1312">		return throwable;</span>
+	}
+
+	/**
+	 * Runs a sequence of tasks with error suppression.
+	 * 
+	 * &lt;p&gt;
+	 * All tasks are guaranteed to run, but not guaranteed to finish. After all
+	 * tasks have run, the first error encountered will be thrown; all additional
+	 * errors will be suppressed.
+	 * &lt;/p&gt;
+	 * 
+	 * @param tasks tasks to run
+	 * @throws Throwable from the first task the fails in error
+	 */
+	public static void suppress(UnsafeRunnable... tasks) throws Throwable {
+<span class="fc" id="L1328">		suppress(IuIterable.iter(tasks));</span>
+<span class="fc" id="L1329">	}</span>
+
+	/**
+	 * Runs a sequence of tasks with error suppression.
+	 * 
+	 * &lt;p&gt;
+	 * All tasks are guaranteed to run, but not guaranteed to finish. After all
+	 * tasks have run, the first error encountered will be thrown; all additional
+	 * errors will be suppressed.
+	 * &lt;/p&gt;
+	 * 
+	 * @param tasks tasks to run
+	 * @throws Throwable from the first task the fails in error
+	 */
+	public static void suppress(Iterable&lt;UnsafeRunnable&gt; tasks) throws Throwable {
+<span class="fc" id="L1344">		Throwable e = null;</span>
+<span class="fc bfc" id="L1345" title="All 2 branches covered.">		for (final var task : tasks)</span>
+<span class="fc" id="L1346">			e = suppress(e, task);</span>
+<span class="fc bfc" id="L1347" title="All 2 branches covered.">		if (e != null)</span>
+<span class="fc" id="L1348">			throw e;</span>
+<span class="fc" id="L1349">	}</span>
 
 	private IuException() {
 	}

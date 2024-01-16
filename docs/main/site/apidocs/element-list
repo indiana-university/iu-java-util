@@ -1,5 +1,7 @@
 module:iu.util
 edu.iu
+module:iu.util.jdbc.pool
+edu.iu.jdbc.pool
 module:iu.util.runtime
 edu.iu.runtime
 module:iu.util.test

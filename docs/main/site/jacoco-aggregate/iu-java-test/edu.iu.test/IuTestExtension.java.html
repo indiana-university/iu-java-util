@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>IuTestExtension.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-test</a> &gt; <a href="index.source.html" class="el_package">edu.iu.test</a> &gt; <span class="el_source">IuTestExtension.java</span></div><h1>IuTestExtension.java</h1><pre class="source lang-java linenums">/*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -67,16 +67,20 @@ public class IuTestExtension implements BeforeEachCallback, AfterEachCallback {
 	@Override
 	public void afterEach(ExtensionContext context) throws Exception {
 		try {
-<span class="fc" id="L70">			IuTestLogger.finishTest(context.getDisplayName());</span>
-<span class="pc bpc" id="L71" title="1 of 2 branches missed.">			if (failureExpected)</span>
-<span class="nc" id="L72">				fail();</span>
-<span class="fc" id="L73">		} catch (Throwable e) {</span>
-<span class="pc bpc" id="L74" title="1 of 2 branches missed.">			if (!failureExpected)</span>
-<span class="nc" id="L75">				throw IuException.checked(e);</span>
+			try {
+<span class="fc" id="L71">				IuTestLogger.finishTest(context.getDisplayName());</span>
+<span class="fc" id="L72">			} catch (Throwable e) {</span>
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">				if (!failureExpected)</span>
+<span class="nc" id="L74">					throw IuException.checked(e);</span>
+				else
+<span class="fc" id="L76">					return;</span>
+<span class="fc" id="L77">			}</span>
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">			if (failureExpected)</span>
+<span class="nc" id="L79">				fail(&quot;Expected test logger to report failures after test run&quot;);</span>
 		} finally {
-<span class="fc" id="L77">			failureExpected = false;</span>
+<span class="fc" id="L81">			failureExpected = false;</span>
 		}
-<span class="fc" id="L79">	}</span>
+<span class="fc" id="L83">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
