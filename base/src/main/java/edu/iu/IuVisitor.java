@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -35,6 +35,7 @@ import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.Spliterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -56,6 +57,56 @@ import java.util.function.Function;
  * @param <T> element type
  */
 public class IuVisitor<T> implements Consumer<T> {
+
+	private class ElementSplitter implements Spliterator<T> {
+		private final Spliterator<Reference<T>> elementSpliterator;
+
+		private ElementSplitter(Spliterator<Reference<T>> elementSpliterator) {
+			this.elementSpliterator = elementSpliterator;
+		}
+
+		@Override
+		public boolean tryAdvance(Consumer<? super T> action) {
+			class Box {
+				boolean accepted;
+			}
+			final var box = new Box();
+
+			while (!box.accepted)
+				if (!elementSpliterator.tryAdvance(ref -> {
+					final var element = ref.get();
+					if (element != null) {
+						action.accept(element);
+						box.accepted = true;
+					}
+				}))
+					return false;
+
+			return box.accepted;
+		}
+
+		@Override
+		public Spliterator<T> trySplit() {
+			final var split = elementSpliterator.trySplit();
+			if (split != null)
+				return new ElementSplitter(split);
+			else
+				return null;
+		}
+
+		@Override
+		public long estimateSize() {
+			if (elementSpliterator.hasCharacteristics(SIZED))
+				return elementSpliterator.estimateSize();
+			else
+				return elements.size();
+		}
+
+		@Override
+		public int characteristics() {
+			return elementSpliterator.characteristics() | SIZED;
+		}
+	}
 
 	private final Queue<Reference<T>> elements = new ConcurrentLinkedQueue<>();
 
@@ -108,6 +159,59 @@ public class IuVisitor<T> implements Consumer<T> {
 	@Override
 	public void accept(T element) {
 		elements.add(new WeakReference<>(element));
+	}
+
+	/**
+	 * Removes an element from observation queue without waiting for the garbage
+	 * collector to clear it.
+	 * 
+	 * <p>
+	 * This method does not tear down or take any other action on the element, the
+	 * controlling component <em>should</em> handle all tear down logic related to
+	 * this visitor instance prior to clearing the reference, typically invoking
+	 * this method last in a managed instance's lifecycle teardown process.
+	 * </p>
+	 * 
+	 * <p>
+	 * This method has no effect if the element is not in the observation queue.
+	 * </p>
+	 * 
+	 * <p>
+	 * <strong>API Note:</strong> Since elements are {@link WeakReference weakly
+	 * held}, this method is only necessary when hooking in to an external instance
+	 * management mechanism. Typically, instances may simply be discarded rather
+	 * then explicitly cleared.
+	 * </p>
+	 * 
+	 * @param element element to clear
+	 */
+	public void clear(T element) {
+		final var elementIterator = elements.iterator();
+		while (elementIterator.hasNext()) {
+			final var elementReference = elementIterator.next();
+			final var deref = elementReference.get();
+			if (deref == null || element == deref) {
+				elementIterator.remove();
+				continue;
+			}
+		}
+	}
+
+	/**
+	 * Gets a {@link IuAsynchronousSubject} originated by non-cleared references to
+	 * accepted elements.
+	 * 
+	 * <p>
+	 * Each call to this method returns an independent subject instance. The
+	 * controller responsible for providing elements to the visitor <em>must</em>
+	 * independently provide the same values to, and close its own, subject instance
+	 * to ensure continuity for subscribers.
+	 * </p>
+	 * 
+	 * @return {@link IuAsynchronousSubject}
+	 */
+	public IuAsynchronousSubject<T> subject() {
+		return new IuAsynchronousSubject<>(() -> new ElementSplitter(elements.spliterator()));
 	}
 
 }

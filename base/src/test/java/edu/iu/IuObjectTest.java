@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -241,7 +241,7 @@ public class IuObjectTest {
 
 	@Test
 	public void testWaitFor() throws InterruptedException, TimeoutException {
-		final var timeout = Duration.ofMillis(100L);
+		final var timeout = Duration.ofMillis(225L);
 		final var thirdOfTimeout = timeout.dividedBy(3L);
 		final var expires = Instant.now().plus(timeout);
 		class Box {

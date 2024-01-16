@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -1278,13 +1278,74 @@ public final class IuException {
 		try {
 			return initializer.apply(resource);
 		} catch (Throwable e) {
-			try {
-				resource.close();
-			} catch (Throwable e2) {
-				e.addSuppressed(e2);
-			}
+			suppress(e, resource::close);
 			throw checked(e);
 		}
+	}
+
+	/**
+	 * Runs an {@link UnsafeRunnable} and adds any exception thrown as suppressed by
+	 * an another exception.
+	 * 
+	 * <p>
+	 * This is useful for adding clean-up tasks to error handling routines related
+	 * to failed initialization of closeable resources.
+	 * </p>
+	 * 
+	 * @param throwable Throwable that will
+	 *                  {@link Throwable#addSuppressed(Throwable) suppress}
+	 *                  exceptions thrown from {@code runnable}.
+	 * @param runnable  {@link UnsafeRunnable}; will be run, and any exceptions
+	 *                  thrown will be suppressed by {@code throwable}
+	 * @return throwable if non-null; the exception thrown from runnable or null if
+	 *         no exception was thrown
+	 */
+	public static Throwable suppress(Throwable throwable, UnsafeRunnable runnable) {
+		try {
+			runnable.run();
+		} catch (Throwable e) {
+			if (throwable == null)
+				throwable = e;
+			else
+				throwable.addSuppressed(e);
+		}
+		return throwable;
+	}
+
+	/**
+	 * Runs a sequence of tasks with error suppression.
+	 * 
+	 * <p>
+	 * All tasks are guaranteed to run, but not guaranteed to finish. After all
+	 * tasks have run, the first error encountered will be thrown; all additional
+	 * errors will be suppressed.
+	 * </p>
+	 * 
+	 * @param tasks tasks to run
+	 * @throws Throwable from the first task the fails in error
+	 */
+	public static void suppress(UnsafeRunnable... tasks) throws Throwable {
+		suppress(IuIterable.iter(tasks));
+	}
+
+	/**
+	 * Runs a sequence of tasks with error suppression.
+	 * 
+	 * <p>
+	 * All tasks are guaranteed to run, but not guaranteed to finish. After all
+	 * tasks have run, the first error encountered will be thrown; all additional
+	 * errors will be suppressed.
+	 * </p>
+	 * 
+	 * @param tasks tasks to run
+	 * @throws Throwable from the first task the fails in error
+	 */
+	public static void suppress(Iterable<UnsafeRunnable> tasks) throws Throwable {
+		Throwable e = null;
+		for (final var task : tasks)
+			e = suppress(e, task);
+		if (e != null)
+			throw e;
 	}
 
 	private IuException() {

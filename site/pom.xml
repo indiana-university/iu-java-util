@@ -38,7 +38,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	<parent>
 		<groupId>edu.iu.util</groupId>
 		<artifactId>iu-java-parent</artifactId>
-		<version>7.0.0</version>
+		<version>7.0.1-SNAPSHOT</version>
 	</parent>
 
 	<name>IU Java Utilities API Reference</name>
@@ -59,6 +59,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-test</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-jdbc-pool</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>

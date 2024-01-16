@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -67,12 +67,16 @@ public class IuTestExtension implements BeforeEachCallback, AfterEachCallback {
 	@Override
 	public void afterEach(ExtensionContext context) throws Exception {
 		try {
-			IuTestLogger.finishTest(context.getDisplayName());
+			try {
+				IuTestLogger.finishTest(context.getDisplayName());
+			} catch (Throwable e) {
+				if (!failureExpected)
+					throw IuException.checked(e);
+				else
+					return;
+			}
 			if (failureExpected)
-				fail();
-		} catch (Throwable e) {
-			if (!failureExpected)
-				throw IuException.checked(e);
+				fail("Expected test logger to report failures after test run");
 		} finally {
 			failureExpected = false;
 		}
