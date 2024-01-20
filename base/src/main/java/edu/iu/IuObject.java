@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -32,12 +32,17 @@
 package edu.iu;
 
 import java.lang.reflect.Array;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
+import java.util.concurrent.TimeoutException;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 /**
  * Simplifies building efficient {@link Object#equals(Object)},
@@ -126,6 +131,27 @@ import java.util.SortedSet;
  * @since 4.0
  */
 public final class IuObject {
+
+	/**
+	 * Determines if a name is relative to a package provided by the JDK or JEE
+	 * platform.
+	 * 
+	 * @param name type name
+	 * @return {@code true} if a platform type; else false
+	 */
+	public static boolean isPlatformName(String name) {
+		return name.startsWith("jakarta.") // JEE and related
+				// JDK packages:
+				|| name.startsWith("sun.") //
+				|| name.startsWith("com.sun.") //
+				|| name.startsWith("java.") //
+				|| name.startsWith("javax.") //
+				|| name.startsWith("jdk.") //
+				|| name.startsWith("netscape.javascript.") //
+				|| name.startsWith("org.ietf.jgss.") //
+				|| name.startsWith("org.w3c.dom.") //
+				|| name.startsWith("org.xml.sax.");
+	}
 
 	/**
 	 * Perform identity and and null check on two objects, returning a valid value
@@ -345,6 +371,96 @@ public final class IuObject {
 		}
 
 		return o1.equals(o2);
+	}
+
+	/**
+	 * Waits until a condition is met or a timeout interval expires.
+	 * 
+	 * @param lock      object to synchronize on
+	 * @param condition condition to wait for
+	 * @param timeout   timeout interval
+	 * 
+	 * @throws InterruptedException if the current thread is interrupted while
+	 *                              waiting for the condition to be met
+	 * @throws TimeoutException     if the timeout interval expires before the
+	 *                              condition is met
+	 * 
+	 */
+	public static void waitFor(Object lock, BooleanSupplier condition, Duration timeout)
+			throws InterruptedException, TimeoutException {
+		waitFor(lock, condition, Instant.now().plus(timeout));
+	}
+
+	/**
+	 * Waits until a condition is met or a timeout interval expires.
+	 * 
+	 * @param lock           object to synchronize on
+	 * @param condition      condition to wait for
+	 * @param timeout        timeout interval
+	 * @param timeoutFactory creates a timeout exception to be thrown if the
+	 *                       condition is not met before the expiration time
+	 * 
+	 * @throws InterruptedException if the current thread is interrupted while
+	 *                              waiting for the condition to be met
+	 * @throws TimeoutException     if the timeout interval expires before the
+	 *                              condition is met
+	 * 
+	 */
+	public static void waitFor(Object lock, BooleanSupplier condition, Duration timeout,
+			Supplier<TimeoutException> timeoutFactory) throws InterruptedException, TimeoutException {
+		waitFor(lock, condition, Instant.now().plus(timeout), timeoutFactory);
+	}
+
+	/**
+	 * Waits until a condition is met or a timeout interval expires.
+	 * 
+	 * @param lock      object to synchronize on to receive status change
+	 *                  notifications
+	 * @param condition condition to wait for
+	 * @param expires   timeout interval expiration time
+	 * 
+	 * @throws InterruptedException if the current thread is interrupted while
+	 *                              waiting for the condition to be met
+	 * @throws TimeoutException     if the timeout interval expires before the
+	 *                              condition is met
+	 */
+	public static void waitFor(Object lock, BooleanSupplier condition, Instant expires)
+			throws InterruptedException, TimeoutException {
+		final var init = Instant.now();
+		waitFor(lock, condition, expires, () -> {
+			StringBuilder sb = new StringBuilder("Timed out in ");
+			sb.append(Duration.between(init, expires));
+			return new TimeoutException(sb.toString());
+		});
+	}
+
+	/**
+	 * Waits until a condition is met or a timeout interval expires.
+	 * 
+	 * @param lock           object to synchronize on to receive status change
+	 *                       notifications
+	 * @param condition      condition to wait for
+	 * @param expires        timeout interval expiration time
+	 * @param timeoutFactory creates a timeout exception to be thrown if the
+	 *                       condition is not met before the expiration time
+	 * 
+	 * @throws InterruptedException if the current thread is interrupted while
+	 *                              waiting for the condition to be met
+	 * @throws TimeoutException     if the timeout interval expires before the
+	 *                              condition is met
+	 */
+	public static void waitFor(Object lock, BooleanSupplier condition, Instant expires,
+			Supplier<TimeoutException> timeoutFactory) throws InterruptedException, TimeoutException {
+		synchronized (lock) {
+			while (!condition.getAsBoolean()) {
+				final var now = Instant.now();
+				if (now.isBefore(expires)) {
+					final var waitFor = Duration.between(now, expires);
+					lock.wait(waitFor.toMillis(), waitFor.toNanosPart() % 1_000_000);
+				} else
+					throw timeoutFactory.get();
+			}
+		}
 	}
 
 	private IuObject() {

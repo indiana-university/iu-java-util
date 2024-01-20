@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -36,7 +36,7 @@
  */
 module iu.util.type {
 	exports edu.iu.type;
-	exports edu.iu.type.spi to iu.util.type.impl;
+	exports edu.iu.type.spi;
 	
 	requires iu.util;
 	requires java.logging;

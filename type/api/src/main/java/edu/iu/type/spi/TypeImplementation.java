@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -46,8 +46,8 @@ public class TypeImplementation {
 	/**
 	 * Singleton fully initialized instance of {@link IuTypeSpi}.
 	 */
-	public static final IuTypeSpi PROVIDER = ServiceLoader.load(IuTypeSpi.class, IuType.class.getClassLoader()).iterator()
-			.next();
+	public static final IuTypeSpi PROVIDER = ServiceLoader.load(IuTypeSpi.class, IuTypeSpi.class.getClassLoader())
+			.iterator().next();
 
 	private TypeImplementation() {
 	}

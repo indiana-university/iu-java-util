@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -105,7 +105,7 @@ public class IdTest {
 		assertEquals("Invalid encoding",
 				assertThrows(IllegalArgumentException.class, () -> IdGenerator.verifyId("{||}", 0)).getMessage());
 	}
-	
+
 	@Test
 	public void testVerifyNeedsPowerOf4() {
 		assertEquals("Invalid length",
@@ -120,8 +120,8 @@ public class IdTest {
 
 	@Test
 	public void testVerifyNeedsValidTime() {
-		assertEquals("Invalid time signature",
-				assertThrows(IllegalArgumentException.class, () -> IdGenerator.verifyId("abcdefghijklmnopqrstuvwxyzABCDEF", 0)).getMessage());
+		assertEquals("Invalid time signature", assertThrows(IllegalArgumentException.class,
+				() -> IdGenerator.verifyId("abcdefghijklmnopqrstuvwxyzABCDEF", 0)).getMessage());
 	}
 
 	@Test
@@ -135,8 +135,8 @@ public class IdTest {
 	@Test
 	public void testVerifyNeedsValidChecksum() throws Exception {
 		Thread.sleep(2);
-		assertEquals("Invalid checksum",
-				assertThrows(IllegalArgumentException.class, () -> IdGenerator.verifyId("hPTbzx2RQ4sCTn-aWy4zwPyU_TJoM6A3", 0)).getMessage());
+		assertEquals("Invalid checksum", assertThrows(IllegalArgumentException.class,
+				() -> IdGenerator.verifyId("hPTbzx2RQ4sCTn-aWy4zwPyU_TJoM6A3", 0)).getMessage());
 	}
 
 }

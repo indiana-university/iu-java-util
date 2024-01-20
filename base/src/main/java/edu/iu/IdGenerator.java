@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -79,9 +79,9 @@ public class IdGenerator {
 		}
 	}
 
-	private static final ThreadLocal<Random> RAND = new ThreadLocal<Random>() {
+	private static final ThreadLocal<SecureRandom> RAND = new ThreadLocal<SecureRandom>() {
 		@Override
-		protected Random initialValue() {
+		protected SecureRandom initialValue() {
 			try {
 				SecureRandom rand = SecureRandom.getInstance("SHA1PRNG");
 				synchronized (SEED) {

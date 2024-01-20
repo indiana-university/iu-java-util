@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -818,6 +818,33 @@ public class IuExceptionTest {
 			throw new Error();
 		})).getSuppressed()[0]);
 		verify(closeable, times(1)).close();
+	}
+
+	@Test
+	public void testSuppress() {
+		final var exception = new Exception();
+		assertSame(exception, IuException.suppress(null, () -> {
+			throw exception;
+		}));
+	}
+
+	@Test
+	public void testSuppressMulti() {
+		final var exception = new Exception();
+		final var e2 = new Exception();
+
+		assertSame(exception, Assertions.assertThrows(Exception.class, () -> IuException.suppress(() -> {
+			throw exception;
+		}, () -> {
+			throw e2;
+		})));
+		assertSame(e2, exception.getSuppressed()[0]);
+	}
+
+	@Test
+	public void testNoErrorNoSuppress() throws Throwable {
+		assertDoesNotThrow(() -> IuException.suppress(() -> {
+		}));
 	}
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -77,6 +77,8 @@ public final class IuTest {
 									.unreflectSpecial(method, type).bindTo(proxy).invokeWithArguments(args);
 						} catch (UnsupportedOperationException e) {
 						}
+					else
+						method.setAccessible(true);
 
 					return method.invoke(mock, args);
 				})));

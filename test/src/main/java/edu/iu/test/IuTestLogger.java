@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -31,18 +31,17 @@
  */
 package edu.iu.test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
-import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Predicate;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -52,6 +51,8 @@ import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
 import org.opentest4j.AssertionFailedError;
+
+import edu.iu.IuObject;
 
 /**
  * Asserts that calls to {@link Logger#log(LogRecord)} must be expected by the
@@ -84,23 +85,18 @@ import org.opentest4j.AssertionFailedError;
  * <ul>
  * <li>org.junit</li>
  * <li>org.mockito</li>
- * <li>java</li>
- * <li>javax</li>
- * <li>jakarta</li>
- * <li>jdk</li>
- * <li>com.sun</li>
- * <li>com.oracle.</li>
- * <li>oracle</li>
- * <li>sun</li>
+ * <li>org.apiguardian</li>
+ * <li>net.bytebuddy</li>
+ * <li>org.objenesis</li>
+ * <li>org.opentest4j</li>
+ * <li>Any logger name for which {@link IuObject#isPlatformName(String)} returns
+ * true</li>
  * <li>Any logger name prefixed by the comma-separated
  * {@link IuTest#getProperty(String) test property value}
  * {@code iu.util.test.platformLoggers}</li>
  * </ul>
  */
 public final class IuTestLogger {
-
-	private static final Set<String> STANDARD_PLATFORM_LOGGER_NAMES = Set.of( //
-			"org.junit", "org.mockito", "java", "javax", "jakarta", "jdk", "com.sun", "com.oracle", "oracle", "sun");
 
 	private static class LogRecordMatcher<T extends Throwable> {
 		private final String loggerName;
@@ -118,10 +114,10 @@ public final class IuTestLogger {
 			this.pattern = pattern;
 		}
 
-		private boolean matches(LogRecord record) {
+		private boolean isExpected(LogRecord record) {
 			if (!loggerName.equals(record.getLoggerName()))
 				return false;
-			if (level.intValue() < record.getLevel().intValue())
+			if (level.intValue() != record.getLevel().intValue())
 				return false;
 
 			var thrown = record.getThrown();
@@ -142,6 +138,26 @@ public final class IuTestLogger {
 			return pattern.matcher(message).matches();
 		}
 
+		private boolean isAllowed(LogRecord record) {
+			if (!record.getLoggerName().startsWith(loggerName))
+				return false;
+			if (level.intValue() < record.getLevel().intValue())
+				return false;
+
+			if (thrownClass != null) {
+				var thrown = record.getThrown();
+				if (thrown == null //
+						|| thrownClass != thrown.getClass())
+					return false;
+
+				if (thrownTest != null && !thrownTest.test(thrownClass.cast(thrown)))
+					return false;
+			}
+
+			var message = record.getMessage();
+			return pattern.matcher(message).matches();
+		}
+
 		@Override
 		public String toString() {
 			return "LogRecordMatcher [loggerName=" + loggerName + ", level=" + level + ", thrownClass=" + thrownClass
@@ -152,8 +168,9 @@ public final class IuTestLogger {
 
 	private static class IuTestLogHandler extends Handler {
 		private String activeTest;
-		private Queue<LogRecordMatcher<?>> expectedMessages = new ArrayDeque<>();
-		private Queue<LogRecordMatcher<?>> allowedMessages = new ArrayDeque<>();
+		private Queue<LogRecordMatcher<?>> expectedMessages = new ConcurrentLinkedQueue<>();
+		private Queue<LogRecordMatcher<?>> allowedMessages = new ConcurrentLinkedQueue<>();
+		private Queue<Throwable> unexpectedMessages = new ConcurrentLinkedQueue<>();
 
 		private void reset(String activeTest) {
 			this.activeTest = activeTest;
@@ -162,12 +179,22 @@ public final class IuTestLogger {
 		}
 
 		private void assertExpectedMessages() {
+			StringBuilder sb = new StringBuilder();
+			Queue<Throwable> suppressed = new ArrayDeque<>();
 			if (!expectedMessages.isEmpty()) {
-				StringBuilder sb = new StringBuilder();
 				sb.append("Not all expected log messages were logged\n");
 				while (!expectedMessages.isEmpty())
-					sb.append(expectedMessages.poll());
-				throw new AssertionFailedError(sb.toString());
+					sb.append(expectedMessages.poll()).append('\n');
+			}
+			if (!unexpectedMessages.isEmpty()) {
+				sb.append("Unexpected messages were logged");
+				while (!unexpectedMessages.isEmpty())
+					suppressed.add(unexpectedMessages.poll());
+			}
+			if (!sb.isEmpty()) {
+				final var e = new AssertionFailedError(sb.toString());
+				suppressed.forEach(e::addSuppressed);
+				throw e;
 			}
 		}
 
@@ -181,19 +208,22 @@ public final class IuTestLogger {
 			}
 
 			for (var allowedMessage : allowedMessages)
-				if (allowedMessage.matches(record))
+				if (allowedMessage.isAllowed(record))
 					return;
 
 			final var expectedIterator = expectedMessages.iterator();
 
 			while (expectedIterator.hasNext())
-				if (expectedIterator.next().matches(record)) {
+				if (expectedIterator.next().isExpected(record)) {
 					expectedIterator.remove();
 					return;
 				}
 
-			throw new AssertionFailedError("Unexpected log message " + record.getLevel() + " " + record.getLoggerName()
-					+ " " + record.getMessage(), record.getThrown());
+			final var unexpected = new AssertionFailedError("Unexpected log message " + record.getLevel() + " "
+					+ record.getLoggerName() + " " + record.getMessage(), record.getThrown());
+			unexpectedMessages.add(unexpected);
+
+			throw unexpected;
 		}
 
 		@Override
@@ -206,60 +236,8 @@ public final class IuTestLogger {
 		}
 	}
 
-	private static class StaticLogHandler extends Handler {
-
-		private static final Map<IuTestLogHandler, IuTestLogHandler> ALL_DELEGATES = new WeakHashMap<>();
-		private static final ThreadLocal<IuTestLogHandler> DELEGATE = new ThreadLocal<>() {
-			@Override
-			protected IuTestLogHandler initialValue() {
-				final var delegate = new IuTestLogHandler();
-
-				synchronized (ALL_DELEGATES) {
-					ALL_DELEGATES.put(delegate, delegate);
-				}
-
-				return delegate;
-			}
-		};
-
-		private void startTest(String activeTest) {
-			DELEGATE.get().reset(activeTest);
-		}
-
-		private void finishTest(String activeTest) {
-			final var testHandler = DELEGATE.get();
-			try {
-
-				assertTrue(testHandler.activeTest.equals(activeTest));
-				testHandler.assertExpectedMessages();
-
-			} finally {
-				testHandler.reset(null);
-			}
-		}
-
-		@Override
-		public void publish(LogRecord record) {
-			DELEGATE.get().publish(record);
-		}
-
-		@Override
-		public void flush() {
-			synchronized (ALL_DELEGATES) {
-				ALL_DELEGATES.keySet().forEach(IuTestLogHandler::flush);
-			}
-		}
-
-		@Override
-		public void close() throws SecurityException {
-			synchronized (ALL_DELEGATES) {
-				ALL_DELEGATES.keySet().forEach(IuTestLogHandler::close);
-			}
-		}
-	}
-
 	private static Handler[] originalRootHandlers;
-	private static StaticLogHandler testHandler;
+	private static IuTestLogHandler testHandler;
 	private static Level originalLevel;
 	private static Logger root;
 	private static Set<String> propertyDefinedPlatformLoggers;
@@ -272,12 +250,16 @@ public final class IuTestLogger {
 	 * @return true if name is associated with a platform logger
 	 */
 	static boolean isPlatformLogger(String loggerName) {
-		if (STANDARD_PLATFORM_LOGGER_NAMES.contains(loggerName))
+		if (loggerName.startsWith("org.junit.") //
+				|| loggerName.startsWith("org.mockito.") //
+				|| loggerName.startsWith("org.apiguardian.") //
+				|| loggerName.startsWith("net.bytebuddy.") //
+				|| loggerName.startsWith("org.objenesis.") //
+				|| loggerName.startsWith("org.opentest4j."))
 			return true;
 
-		for (var standardPlatformLoggerName : STANDARD_PLATFORM_LOGGER_NAMES)
-			if (loggerName.startsWith(standardPlatformLoggerName + '.'))
-				return true;
+		if (IuObject.isPlatformName(loggerName))
+			return true;
 
 		if (propertyDefinedPlatformLoggers == null) {
 			var propertyDefinedPlatformLoggerNames = IuTest.getProperty("iu.util.test.platformLoggers");
@@ -316,7 +298,7 @@ public final class IuTestLogger {
 		for (var rootHandler : originalRootHandlers)
 			root.removeHandler(rootHandler);
 
-		testHandler = new StaticLogHandler();
+		testHandler = new IuTestLogHandler();
 		testHandler.setLevel(Level.ALL);
 		root.addHandler(testHandler);
 		root.setLevel(Level.ALL);
@@ -328,7 +310,7 @@ public final class IuTestLogger {
 	 * @param name test name
 	 */
 	static void startTest(String name) {
-		testHandler.startTest(name);
+		testHandler.activeTest = name;
 	}
 
 	/**
@@ -338,8 +320,10 @@ public final class IuTestLogger {
 	 */
 	static void finishTest(String name) {
 		try {
-			testHandler.finishTest(name);
+			assertEquals(testHandler.activeTest, name);
+			testHandler.assertExpectedMessages();
 		} finally {
+			testHandler.reset(null);
 			propertyDefinedPlatformLoggers = null;
 		}
 	}
@@ -359,19 +343,34 @@ public final class IuTestLogger {
 	}
 
 	/**
-	 * Allows a log message with no thrown exception.
+	 * Allows a log messages from a logger.
+	 * 
+	 * <p>
+	 * Messages <em>may</em> be logged zero or more times, and will be exempt from
+	 * expectation checks.
+	 * </p>
+	 * 
+	 * @param loggerName Logger name prefix
+	 * @param level      maximum log level to allow
+	 */
+	public static void allow(String loggerName, Level level) {
+		assertNotNull(testHandler.activeTest);
+		testHandler.allowedMessages.offer(new LogRecordMatcher<>(loggerName, level, null, null, Pattern.compile(".*")));
+	}
+
+	/**
+	 * Allows a log message with or without an exception.
 	 * 
 	 * <p>
 	 * The message <em>may</em> be logged zero or more times, and will be exempt
 	 * from expectation checks.
 	 * </p>
 	 * 
-	 * @param loggerName Logger name, must match exactly
-	 * @param level      level, must match exactly
+	 * @param loggerName Logger name prefix
+	 * @param level      maximum log level to allow
 	 * @param message    regular expression to match against the message
 	 */
 	public static void allow(String loggerName, Level level, String message) {
-		final var testHandler = StaticLogHandler.DELEGATE.get();
 		assertNotNull(testHandler.activeTest);
 		testHandler.allowedMessages
 				.offer(new LogRecordMatcher<>(loggerName, level, null, null, Pattern.compile(message)));
@@ -385,13 +384,12 @@ public final class IuTestLogger {
 	 * from expectation checks.
 	 * </p>
 	 * 
-	 * @param loggerName  Logger name, must match exactly
-	 * @param level       level, must match exactly
+	 * @param loggerName  Logger name prefix
+	 * @param level       maximum log level to allow
 	 * @param message     regular expression to match against the message
 	 * @param thrownClass Expected exception class, must match exactly
 	 */
 	public static void allow(String loggerName, Level level, String message, Class<? extends Throwable> thrownClass) {
-		final var testHandler = StaticLogHandler.DELEGATE.get();
 		assertNotNull(testHandler.activeTest);
 		testHandler.allowedMessages.offer(new LogRecordMatcher<>(loggerName, level, Objects.requireNonNull(thrownClass),
 				null, Pattern.compile(message)));
@@ -407,15 +405,14 @@ public final class IuTestLogger {
 	 * 
 	 * @param <T>         Thrown exception type
 	 * 
-	 * @param loggerName  Logger name, must match exactly
-	 * @param level       level, must match exactly
+	 * @param loggerName  Logger name prefix
+	 * @param level       maximum log level to allow
 	 * @param message     regular expression to match against the message
 	 * @param thrownClass Expected exception class, must match exactly
 	 * @param thrownTest  Expected exception test
 	 */
 	public static <T extends Throwable> void allow(String loggerName, Level level, String message, Class<T> thrownClass,
 			Predicate<T> thrownTest) {
-		final var testHandler = StaticLogHandler.DELEGATE.get();
 		assertNotNull(testHandler.activeTest);
 		testHandler.allowedMessages.offer(new LogRecordMatcher<>(loggerName, level, Objects.requireNonNull(thrownClass),
 				thrownTest, Pattern.compile(message)));
@@ -429,7 +426,6 @@ public final class IuTestLogger {
 	 * @param message    regular expression to match against the message
 	 */
 	public static void expect(String loggerName, Level level, String message) {
-		final var testHandler = StaticLogHandler.DELEGATE.get();
 		assertNotNull(testHandler.activeTest);
 		testHandler.expectedMessages
 				.offer(new LogRecordMatcher<>(loggerName, level, null, null, Pattern.compile(message)));
@@ -444,7 +440,6 @@ public final class IuTestLogger {
 	 * @param thrownClass Expected exception class, must match exactly
 	 */
 	public static void expect(String loggerName, Level level, String message, Class<? extends Throwable> thrownClass) {
-		final var testHandler = StaticLogHandler.DELEGATE.get();
 		assertNotNull(testHandler.activeTest);
 		testHandler.expectedMessages.offer(new LogRecordMatcher<>(loggerName, level,
 				Objects.requireNonNull(thrownClass), null, Pattern.compile(message)));
@@ -463,10 +458,26 @@ public final class IuTestLogger {
 	 */
 	public static <T extends Throwable> void expect(String loggerName, Level level, String message,
 			Class<T> thrownClass, Predicate<T> thrownTest) {
-		final var testHandler = StaticLogHandler.DELEGATE.get();
 		assertNotNull(testHandler.activeTest);
 		testHandler.expectedMessages.offer(new LogRecordMatcher<>(loggerName, level,
 				Objects.requireNonNull(thrownClass), thrownTest, Pattern.compile(message)));
+	}
+
+	/**
+	 * Asserts that all expected messages declared so far have been logged.
+	 */
+	public static void assertExpectedMessages() {
+		assertNotNull(testHandler.activeTest);
+		testHandler.assertExpectedMessages();
+	}
+
+	/**
+	 * Clears an unexpected log message from the pending queue.
+	 * 
+	 * @param unexpected error related to an unexpected log message
+	 */
+	static void clearUnexpected(Throwable unexpected) {
+		testHandler.unexpectedMessages.remove(unexpected);
 	}
 
 	private IuTestLogger() {

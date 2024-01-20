@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -63,12 +63,7 @@ public interface IuAnnotatedElement {
 	 * @param annotationType annotation type
 	 * @return annotation if present, else null
 	 */
-	default <A extends Annotation> A annotation(Class<A> annotationType) {
-		for (var a : annotations())
-			if (annotationType.isInstance(a))
-				return annotationType.cast(a);
-		return null;
-	}
+	<A extends Annotation> A annotation(Class<A> annotationType);
 
 	/**
 	 * Determines if an annotation is present.
@@ -76,12 +71,7 @@ public interface IuAnnotatedElement {
 	 * @param annotationType annotation type
 	 * @return true if the annotation is present, else null
 	 */
-	default boolean hasAnnotation(Class<? extends Annotation> annotationType) {
-		for (var a : annotations())
-			if (annotationType.isInstance(a))
-				return true;
-		return false;
-	}
+	boolean hasAnnotation(Class<? extends Annotation> annotationType);
 
 	/**
 	 * Determines if access to this element is permitted in the current context.

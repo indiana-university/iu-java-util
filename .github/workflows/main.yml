@@ -1,0 +1,72 @@
+# Description
+# -----------
+# This workflow is intended to run to deploy release from main branch. 
+# It must be executed manually.
+
+name: Main Branch
+
+on:
+  workflow_dispatch:
+
+env:
+  TZ: America/Indianapolis
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    name: Verify and Deploy Maven Project
+    runs-on: [ Linux ]
+    container:
+      image: registry.docker.iu.edu/eshr-architecture/ess-build:latest
+      credentials:
+        username: ${{ secrets.ESHR_REGISTRY_USERNAME }}
+        password: ${{ secrets.ESHR_REGISTRY_PASSWORD }}
+      volumes:
+        - /opt/actions/cache/m2/repository:/root/.m2/repository
+
+    steps:
+       - name: Clone GitHub repository
+         uses: actions/checkout@v3
+     
+       - name: Generate build time configuration
+         env:
+          ESSBUILD_VAULT_APPROLE_ROLE_ID_UNT: ${{ secrets.ESSBUILD_VAULT_APPROLE_ROLE_ID_UNT }}
+          ESSBUILD_VAULT_APPROLE_SECRET_ID_UNT: ${{ secrets.ESSBUILD_VAULT_APPROLE_SECRET_ID_UNT }}
+          ESSBUILD_VAULT_APPROLE_ROLE_ID_STG: ${{ secrets.ESSBUILD_VAULT_APPROLE_ROLE_ID_STG }}
+          ESSBUILD_VAULT_APPROLE_SECRET_ID_STG: ${{ secrets.ESSBUILD_VAULT_APPROLE_SECRET_ID_STG }}
+          ESSBUILD_VAULT_APPROLE_ROLE_ID_REG: ${{ secrets.ESSBUILD_VAULT_APPROLE_ROLE_ID_REG }}
+          ESSBUILD_VAULT_APPROLE_SECRET_ID_REG: ${{ secrets.ESSBUILD_VAULT_APPROLE_SECRET_ID_REG }}
+         run: |
+           generate_build_properties
+           generate_deploy_properties
+
+       - name: Compile, Verify, and Build Javadoc
+         id: verify
+         run: |
+          mvn clean verify -U --batch-mode
+          
+       - name: Deploy Artifacts
+         run: |
+          mvn deploy -DskipTests --batch-mode
+
+       - name: Publish Documentation
+         if: steps.verify.outcome == 'success'
+         run: |
+          git config --global --add safe.directory $PWD
+          git fetch origin github_pages
+          git checkout github_pages
+          git pull
+          rm -rf docs/$GITHUB_REF_NAME
+          mkdir -p docs/$GITHUB_REF_NAME
+          for a in $(find -type d -regex '.*/\(apidocs\|jacoco\(-aggregate\)?\)' | cut -b3- | egrep -v '^docs/')
+          do
+            t=docs/$GITHUB_REF_NAME/${a%%target*}
+            mkdir -p $t
+            mv $a $t
+          done
+          git config user.name eshrastg
+          git config user.email ess-dev-l@iu.edu
+          git add docs
+          git commit -m "publish $GITHUB_ACTOR $GITHUB_REF_NAME"
+          git push
+ 

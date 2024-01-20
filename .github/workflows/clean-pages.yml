@@ -1,4 +1,4 @@
-name: clean-pages
+name: Clean Pages
 
 on: delete
 env:
@@ -6,16 +6,24 @@ env:
 
 jobs:
   clean-site:
-    runs-on: ubuntu-latest
+    runs-on: [ Linux ]
+    container:
+      image: registry.docker.iu.edu/eshr-architecture/ess-build:latest
+      credentials:
+        username: ${{ secrets.ESHR_REGISTRY_USERNAME }}
+        password: ${{ secrets.ESHR_REGISTRY_PASSWORD }}
 
     steps:
       - uses: actions/checkout@v3
         with:
           ref: github_pages
 
-      - name: prune-and-push
+      - name: Unpublish Docs
         run: |
           ref=${{ github.event.ref }}
+          pwd
+          ls -ld . docs docs/$ref
+          git config --global --add safe.directory $PWD
           if [ -d docs/$ref ]
           then
             git config user.name eshrastg
@@ -26,4 +34,3 @@ jobs:
           else
             echo "Nothing to do for $ref"
           fi
-

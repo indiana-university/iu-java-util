@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -34,6 +34,7 @@ package edu.iu.type.testcomponent;
 import java.util.List;
 import java.util.Map;
 
+import jakarta.annotation.Resource;
 import jakarta.interceptor.Interceptors;
 
 @SuppressWarnings({ "unused", "javadoc" })
@@ -45,7 +46,12 @@ public class TestBeanImpl implements TestBean {
 
 	private byte[] binary;
 
+	@Resource
 	private List<String> stringList;
+	@Resource(type = String.class)
+	private Object foo = "baz";
+	@Resource(name = "baz")
+	private boolean bar;
 
 	@Override
 	public List<String> getStringList() {

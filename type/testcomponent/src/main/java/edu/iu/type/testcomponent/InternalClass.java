@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -33,6 +33,7 @@ package edu.iu.type.testcomponent;
 
 import jakarta.annotation.Resource;
 
+@SuppressWarnings("javadoc")
 class InternalClass {
 
 	@Resource
