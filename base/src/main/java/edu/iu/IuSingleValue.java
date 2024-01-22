@@ -75,6 +75,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -652,23 +653,7 @@ public final class IuSingleValue {
 			serializeSequence(a, writer);
 
 		else if (sourceValue instanceof Spliterator<?> a)
-			serializeSequence(new Iterator<>() {
-				private volatile Object next;
-
-				@Override
-				public synchronized boolean hasNext() {
-					return next != null || a.tryAdvance(b -> next = b);
-				}
-
-				@Override
-				public synchronized Object next() {
-					if (!hasNext())
-						throw new NoSuchElementException();
-					final var next = this.next;
-					this.next = null;
-					return next;
-				}
-			}, writer);
+			serializeSequence(Spliterators.iterator(a), writer);
 
 		else
 			throw new IllegalArgumentException();
