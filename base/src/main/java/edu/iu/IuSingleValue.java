@@ -31,7 +31,6 @@
  */
 package edu.iu;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,14 +41,14 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.lang.reflect.Array;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.URI;
 import java.net.URL;
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -67,16 +66,19 @@ import java.util.Base64;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
-import java.util.Deque;
+import java.util.Enumeration;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.Set;
 import java.util.SortedSet;
+import java.util.Spliterator;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
+import java.util.stream.BaseStream;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -85,7 +87,7 @@ import java.util.stream.Stream;
 /**
  * Provides consistent <strong>serialization</strong>,
  * <strong>deserialization</strong>, and <strong>conversion</strong> behavior
- * for <strong>single value</strong> types and sequences.
+ * for immutable <strong>single value</strong> types and sequences.
  * 
  * <h2>Identity Conversion</h2>
  * <p>
@@ -97,14 +99,14 @@ import java.util.stream.Stream;
  * 
  * <h2>Strict Reversibility</h2>
  * <p>
- * <strong>Serialization</strong> <em>must</em> result in text that
- * <strong>deserializes</strong> to a value {@link #equals(Object) equal to} the
- * original value.
+ * <strong>Serialization</strong> from a <strong>single value</string>
+ * <em>must</em> result in text that <strong>deserializes</strong> to a value
+ * {@link #equals(Object) equal to} the original value.
  * </p>
  * <p>
- * <strong>Conversion</strong> to any type <em>must</em> result in a value that
- * is {@link #equals(Object) equal to} the original value when
- * <strong>converted</strong> back to the original type.
+ * <strong>Conversion</strong> to <strong>single value</strong> type
+ * <em>must</em> result in a value that is {@link #equals(Object) equal to} the
+ * original value when <strong>converted</strong> back to the original type.
  * </p>
  * <p>
  * Note that <strong>deserialization</strong> <em>may</em> lose precision or
@@ -113,38 +115,19 @@ import java.util.stream.Stream;
  * <strong>serialized form</strong>.
  * </p>
  * 
- * <h2>Character Sequences</h2>
+ * <h2>Strings</h2>
  * <p>
- * {@link CharSequence} uses <a href=
+ * {@link String} uses <a href=
  * "https://docs.oracle.com/javase/specs/jls/se21/html/jls-5.html#jls-5.1.1">identity
  * conversion</a> for both <strong>serialization</strong> and
  * <strong>deserialization</strong>. <strong>Conversion</strong> to
- * {@link CharSequence} is <strong>serialization</strong>;
- * <strong>conversion</strong> from {@link CharSequence} to any other type is
- * <strong>deserialization</strong>.
- * </p>
- * 
- * <h2>Character Streams</h2>
- * <p>
- * {@link Reader} is a viable <strong>deserialization</strong> source and
- * <strong>serialization</strong> or <strong>conversion</strong> source value;
- * it will be read fully when used in these scenarios. When used as a target
- * type for <strong>deserialization</strong> or <strong>conversion</strong>, a
- * {@link StringReader} wrapping all buffered content is returned.
- * </p>
- * <p>
- * {@link Writer} is a viable <strong>serialization</strong> target; all
- * <strong>serialized text</strong> will be {@link Writer#append(char) written},
- * then {@link Writer#flush() flushed}. When used as a target type for
- * <strong>deserialization</strong> or <strong>conversion</strong>, a
- * {@link DetachedWriter} wrapping all buffered content is returned.
- * {@link StringWriter} or {@link DetachedWriter} may be used as source value
- * for <strong>serialization</strong> or <strong>conversion</strong>.
+ * {@link String} is <strong>serialization</strong>; <strong>conversion</strong>
+ * from {@link String} to any other type is <strong>deserialization</strong>.
  * </p>
  * 
  * <h2>Null Values</h2>
  * <p>
- * When <strong>serializing</strong> {@code null} to a {@link CharSequence},
+ * When <strong>serializing</strong> {@code null} to a {@link String},
  * {@code null} is returned. A {@code null} value <em>must not</em> be
  * <strong>serialized</strong> to a {@link Writer}; applications requiring the
  * ability to <strong>serialize</strong> a {@code null} value over a stream
@@ -152,11 +135,9 @@ import java.util.stream.Stream;
  * values enabled).
  * </p>
  * <p>
- * When <strong>converting</strong> or <strong>deserializing</strong>
- * {@code null} from a {@link CharSequence}, {@code null} is returned. When
- * <strong>deserializing</strong> from a {@link Reader}, {@code null} is only
- * returned when the target type is {@link Void Void or void} and reading fully
- * resulted in the {@link String#isEmpty() empty string}.
+ * When <strong>converting</strong> or <strong>deserializing</strong> from a
+ * {@code null} {@link String}, {@code null} is returned. {@code null} will not
+ * be returned <strong>deserializing</strong> from a {@link Reader}.
  * </p>
  *
  * <h2>Primitive Values</h2>
@@ -180,7 +161,6 @@ import java.util.stream.Stream;
  * <li>{@link Byte} ~= {@link Byte#TYPE byte}</li>
  * <li>{@link Double} ~= {@link Double#TYPE double}</li>
  * <li>{@link Float} ~= {@link Float#TYPE float}</li>
- * <li>{@link Void} ~= {@link Void#TYPE void} (null only)</li>
  * </ul>
  * 
  * <p>
@@ -198,14 +178,6 @@ import java.util.stream.Stream;
  * and <strong>deserialized</strong> as described:
  * </p>
  * <ul>
- * <li>{@link String}, with {@link CharSequence#toString()}; used first when
- * {@link String} is needed for parsing <strong>serialized text</strong></li>
- * <li>{@link StringBuilder}, with
- * {@link StringBuilder#StringBuilder(CharSequence)}</li>
- * <li>{@link StringBuffer}, with
- * {@link StringBuffer#StringBuffer(CharSequence)}</li>
- * <li>{@link CharBuffer}, with {@link CharBuffer#wrap(CharSequence)}</li>
- * <li>{@code char[]}, with {@link CharBuffer#wrap(CharSequence)}</li>
  * <li>{@link Character}, with {@link CharSequence#charAt(int)
  * CharSequence.charAt(0)}, after verifying {@link CharSequence#length()} ==
  * 1</li>
@@ -229,7 +201,6 @@ import java.util.stream.Stream;
  * <li>{@link Byte}, with {@link Byte#parseByte(String)}</li>
  * <li>{@link Double}, with {@link Double#parseDouble(String)}</li>
  * <li>{@link Float}, with {@link Float#parseFloat(String)}</li>
- * <li>{@link Void}, by enforcing {@code null}</li>
  * <li>{@link URL}, with {@link URL#URL(String)}</li>
  * <li>{@link URI}, with {@link URI#URI(String)}</li>
  * <li>{@link TimeZone}, with {@link TimeZone#getTimeZone(String)}</li>
@@ -248,35 +219,6 @@ import java.util.stream.Stream;
  * first using {@link String#String(byte[], String)} with {@code "UTF-8"}. Other
  * types are converted to binary by converting to {@link String} then using
  * {@link String#getBytes(String)} with {@code "UTF-8"}.
- * </p>
- * 
- * <p>
- * <strong>Binary types</strong> are:
- * </p>
- * <ul>
- * <li>{@code byte[]}</li>
- * <li>{@link ByteBuffer}</li>
- * <li>
- * </ul>
- * 
- * <h3>Binary Streams</h3>
- * <p>
- * {@link InputStream} is a viable <strong>deserialization</strong> source via
- * {@code UTF-8} {@link InputStreamReader}, and <strong>serialization</strong>
- * or <strong>conversion</strong> source value; it will be read fully when used
- * in these scenarios. When used as a target type for
- * <strong>deserialization</strong> or <strong>conversion</strong>, a
- * {@link ByteArrayInputStream} wrapping all buffered content is returned.
- * </p>
- * <p>
- * {@link OutputStream} is a viable <strong>serialization</strong> target via
- * {@code UTF-8} {@link OutputStreamWriter}; all <strong>serialized
- * data</strong> will be written, then {@link OutputStream#flush() flushed}.
- * When used as a target type for <strong>deserialization</strong> or
- * <strong>conversion</strong>, a {@link DetachedOutputStream} wrapping all
- * buffered data is returned. {@link ByteArrayOutputStream} or
- * {@link DetachedOutputStream} may be used as source values for
- * <strong>serialization</strong> or <strong>conversion</strong>.
  * </p>
  * 
  * <h2>Date/Time Values</h2>
@@ -303,24 +245,18 @@ import java.util.stream.Stream;
  * <li>{@link OffsetDateTime}, with
  * {@link OffsetDateTime#from(TemporalAccessor)}</li>
  * <li>{@link OffsetTime}, with {@link OffsetTime#from(TemporalAccessor)}</li>
+ * <li>{@link Duration}, with {@link Duration#parse(CharSequence)}</li>
  * </ul>
  *
- * <h3>Date, Calendar, and Long</h3>
+ * <h3>Date and Long</h3>
  * <p>
- * {@link Date#toInstant()} and {@link Calendar#toInstant()} are used to
- * <strong>convert</strong> to {@link Instant} before
- * <strong>serializing</strong>.
+ * {@link Date#toInstant()} is used to <strong>convert</strong> to
+ * {@link Instant} before <strong>serializing</strong>.
  * </p>
  * <p>
  * {@link Date#from(Instant)} is used to <strong>convert</strong> to
  * {@link Date} after first <strong>deserializing</strong> as or
  * <strong>converting</strong> to {@link Instant}.
- * </p>
- * <p>
- * {@link Calendar#getInstance()}, then {@link Calendar#setTime(Date)}, is used
- * to <strong>convert</strong> to {@link Calendar} after first
- * <strong>deserializing</strong> as or <strong>converting</strong> to
- * {@link Date}.
  * </p>
  * <p>
  * {@link Long} may be <strong>converted</strong> using {@link Date#Date(long)},
@@ -348,9 +284,13 @@ import java.util.stream.Stream;
  * <strong>Single value sequences</strong> may be
  * </p>
  * <ul>
- * <li><strong>Serialized</strong> to
- * <a href="https://datatracker.ietf.org/doc/html/rfc4180">RFC-4180 CSV
- * Format</a></li>
+ * <li><strong>Serialized</strong> from any of the following types or a subtype
+ * to <a href="https://datatracker.ietf.org/doc/html/rfc4180">RFC-4180 CSV
+ * Format</a>
+ * <ul>
+ * <li>
+ * </ul>
+ * </li>
  * <li><strong>Deserialized</strong> from
  * <a href="https://datatracker.ietf.org/doc/html/rfc4180">RFC-4180 CSV
  * Format</a> by passing one of the following {@link Class} values as target
@@ -358,10 +298,9 @@ import java.util.stream.Stream;
  * <ul>
  * <li>Any {@link Class#isArray() array class} with a <strong>single
  * value</strong> {@link Class#getComponentType() component type}, except for
- * {@code byte[]} and {@code char[]}</li>
- * <li>{@link IntStream}</li>
- * <li>{@link LongStream}</li>
- * <li>{@link DoubleStream}</li>
+ * {@code byte[]} and {@code char[]}. Note that immutability cannot be enforced
+ * for a <strong>single value array</strong>, so care must be taken when sharing
+ * instances.</li>
  * </ul>
  * </li>
  * <li><strong>Deserialized</strong> from
@@ -378,14 +317,52 @@ import java.util.stream.Stream;
  * <li>{@link Set}</li>
  * <li>{@link SortedSet}</li>
  * <li>{@link List}</li>
- * <li>{@link Queue}</li>
- * <li>{@link Deque}</li>
- * <li>{@link Stream}</li>
  * </ul>
  * </li>
  * <li><strong>Converted</strong> between the <strong>single value
  * sequence</strong> types listed above by <strong>converting</strong> each
  * <strong>single value</strong> in the <strong>sequence</strong>.</li>
+ * <li><strong>Converted to</strong> or <strong>deserialized as</strong> a
+ * <strong>single value</strong> as long as the sequence contains
+ * <em>exactly</em> one item.
+ * </ul>
+ * 
+ * <h2>Mutable Values</h2>
+ * <p>
+ * <strong>Single values</strong> and <strong>single value sequences</strong>
+ * are immutable. However, equivalent <strong>mutable</strong> types may be used
+ * as <strong>serialization sources</strong>. In these cases, <strong>strict
+ * reversibility</strong> does not apply: <strong>deserializing</strong> the
+ * serialized form of a mutable value results in a <strong>single value</strong>
+ * or <strong>single value sequence</strong> with a value equivalent to, but not
+ * necessarily {@link #equals(Object) equal to} the original mutable equivalent.
+ * For example, {@link StringBuilder} <strong>serializes</strong> via
+ * {@link StringBuilder#toString()}, then deserializes by identity.
+ * </p>
+ * 
+ * <p>
+ * Potentially mutable serialization sources are:
+ * </p>
+ * <ul>
+ * <li>{@code char[]}</li>
+ * <li>{@code byte[]}</li>
+ * <li>{@link CharSequence}</li>
+ * <li>{@link Reader}</li>
+ * <li>{@link InputStream}</li>
+ * <li>{@link DetachedWriter}</li>
+ * <li>{@link StringWriter}</li>
+ * <li>{@link DetachedOutputStream}</li>
+ * <li>{@link ByteArrayOutputStream}</li>
+ * <li>{@link Date}; note that {@link Date} is also considered a <strong>single
+ * value type</strong> since it mutator methods are largely deprecated in not
+ * commonly used.</li>
+ * <li>{@link Calendar}</li>
+ * <li>Any <strong>single value array</strong> type</li>
+ * <li>{@link BaseStream}</li>
+ * <li>{@link Enumeration}</li>
+ * <li>{@link Iterable}</li>
+ * <li>{@link Iterator}</li>
+ * <li>{@link Spliterator}</li>
  * </ul>
  * 
  * <h2>Standards</h2>
@@ -425,8 +402,11 @@ public final class IuSingleValue {
 	 *         else {@code false}
 	 */
 	public static boolean isSingleValue(Class<?> type) {
-		if (CharSequence.class.isAssignableFrom(type) //
+		return CharSequence.class.isAssignableFrom(type) //
 				|| type.isPrimitive() //
+				|| type.isEnum() //
+				|| type == char[].class //
+				|| type == byte[].class //
 				|| type == Character.class //
 				|| type == Boolean.class //
 				|| type == Integer.class //
@@ -435,11 +415,55 @@ public final class IuSingleValue {
 				|| type == Byte.class //
 				|| type == Double.class //
 				|| type == Float.class //
-		)
-			return true;
+				|| type == BigDecimal.class //
+				|| type == BigInteger.class //
+				|| type == Date.class //
+				|| type == URL.class //
+				|| type == URI.class //
+				|| type == TimeZone.class //
+				|| type == Pattern.class //
+				|| type == Instant.class //
+				|| type == Year.class //
+				|| type == YearMonth.class //
+				|| type == LocalDateTime.class //
+				|| type == LocalDate.class //
+				|| type == LocalTime.class //
+				|| type == ZonedDateTime.class //
+				|| type == OffsetDateTime.class //
+				|| type == OffsetTime.class //
+				|| type == LocalTime.class //
+				|| type == Duration.class //
+		;
+	}
 
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+	/**
+	 * Determines whether or not a type represents a <strong>single value
+	 * sequence</strong>.
+	 * 
+	 * @param type generic type
+	 * @return true if the type represents a single value sequence; else false
+	 */
+	public static boolean isSingleValueSequence(Type type) {
+		if (type instanceof Class<?> c)
+			return (c != byte[].class //
+					&& c != char[].class //
+					&& c.isArray() //
+					&& isSingleValue(c.getComponentType())) //
+					|| type == IntStream.class //
+					|| type == LongStream.class //
+					|| type == DoubleStream.class;
+		else if (type instanceof ParameterizedType pt) {
+			final var raw = pt.getRawType();
+			return (raw == Iterable.class //
+					|| raw == Collection.class //
+					|| raw == Set.class //
+					|| raw == SortedSet.class //
+					|| raw == List.class //
+					|| raw == Stream.class) //
+					&& (pt.getActualTypeArguments()[0] instanceof Class<?> c) //
+					&& isSingleValue(c);
+		} else
+			return false;
 	}
 
 	/**
@@ -517,9 +541,12 @@ public final class IuSingleValue {
 	 * @throws IllegalArgumentException If the value provided is not a
 	 *                                  <strong>single value or sequence</strong>.
 	 */
-	public static CharSequence serialize(Object sourceValue) throws IllegalArgumentException {
+	public static String serialize(Object sourceValue) throws IllegalArgumentException {
 		if (sourceValue == null)
 			return null;
+
+		if (sourceValue instanceof CharSequence a)
+			return a.toString();
 
 		StringWriter w = new StringWriter();
 		IuException.unchecked(() -> serialize(sourceValue, w));
@@ -544,6 +571,21 @@ public final class IuSingleValue {
 	/**
 	 * <strong>Serializes</strong> a source value.
 	 * 
+	 * <p>
+	 * Accepts:
+	 * </p>
+	 * <ul>
+	 * <li>{@link #isSingleValue(Class) single value types}</li>
+	 * <li>{@code char[]}</li>
+	 * <li>{@code byte[]} of UTF-8 encoded character data</li>
+	 * <li>{@link CharSequence}</li>
+	 * <li>{@link Reader}</li>
+	 * <li>{@link InputStream} of UTF-8 encoded character data</li>
+	 * <li>{@link StringWriter}</li>
+	 * <li>{@link DetachedWriter}</li>
+	 * <li>{@link DetachedOutputStream}, of UTF-8 encoded character data</li>
+	 * </ul>
+	 * 
 	 * @param sourceValue source value, <em>must</em> be a
 	 *                    {@link #isSingleValue(Class) single value}, <strong>single
 	 *                    value sequence</strong>, or null.
@@ -555,6 +597,12 @@ public final class IuSingleValue {
 	public static void serialize(Object sourceValue, Writer writer) throws IllegalArgumentException, IOException {
 		Objects.requireNonNull(sourceValue);
 
+		if (sourceValue instanceof char[] a)
+			writer.write(a);
+
+		if (sourceValue instanceof byte[] a)
+			writer.append(new String(a, "UTF-8"));
+
 		if (sourceValue instanceof CharSequence s)
 			writer.append(s);
 
@@ -562,7 +610,7 @@ public final class IuSingleValue {
 			IuStream.copy(r, writer);
 
 		else if (sourceValue instanceof InputStream i)
-			IuStream.copy(new InputStreamReader(i), writer);
+			IuStream.copy(new InputStreamReader(i, "UTF-8"), writer);
 
 		else if (sourceValue instanceof DetachedWriter w)
 			writer.write(w.text().toString());
@@ -570,57 +618,72 @@ public final class IuSingleValue {
 		else if (sourceValue instanceof StringWriter w)
 			writer.write(w.toString());
 
-		// TODO non-parseable above isSingleValue() check
+		else if (sourceValue instanceof Date d)
+			writer.write(d.toInstant().toString());
+
+		else if (sourceValue instanceof Calendar c)
+			writer.write(c.getTime().toInstant().toString());
 
 		else if (isSingleValue(sourceValue.getClass()))
 			writer.write(sourceValue.toString());
 
+		else if (sourceValue.getClass().isArray())
+			serializeSequence(new Iterator<>() {
+				private int i;
+
+				@Override
+				public boolean hasNext() {
+					return i < Array.getLength(sourceValue);
+				}
+
+				@Override
+				public Object next() {
+					return Array.get(sourceValue, i++);
+				}
+			}, writer);
+
+		else if (sourceValue instanceof BaseStream<?, ?> a)
+			serializeSequence(a.iterator(), writer);
+
+		else if (sourceValue instanceof Iterable<?> a)
+			serializeSequence(a.iterator(), writer);
+
+		else if (sourceValue instanceof Iterator<?> a)
+			serializeSequence(a, writer);
+
+		else if (sourceValue instanceof Spliterator<?> a)
+			serializeSequence(new Iterator<>() {
+				private volatile Object next;
+
+				@Override
+				public synchronized boolean hasNext() {
+					return next != null || a.tryAdvance(b -> next = b);
+				}
+
+				@Override
+				public synchronized Object next() {
+					if (!hasNext())
+						throw new NoSuchElementException();
+					final var next = this.next;
+					this.next = null;
+					return next;
+				}
+			}, writer);
+
 		else
-			// TODO Auto-generated method stub
-			throw new UnsupportedOperationException("TODO");
+			throw new IllegalArgumentException();
 
 		writer.flush();
-//		if (value == null || (value instanceof CharSequence))
-//			return (CharSequence) value;
-//
-//		if (value instanceof char[])
-//			return new String((char[]) value);
-//
-//		if ((value instanceof Number) //
-//				|| (value instanceof Character) //
-//				|| (value instanceof Boolean) //
-//				|| (value instanceof Instant) //
-//				|| (value instanceof Year) //
-//				|| (value instanceof YearMonth) //
-//				|| (value instanceof LocalDate) //
-//				|| (value instanceof LocalDateTime) //
-//				|| (value instanceof LocalTime) //
-//				|| (value instanceof ZonedDateTime) //
-//				|| (value instanceof OffsetDateTime) //
-//				|| (value instanceof URL) //
-//				|| (value instanceof URI) //
-//				|| (value instanceof Pattern))
-//			return value.toString();
-//
-//		if (value instanceof Date date)
-//			return date.toInstant().toString();
-//
-//		if (value instanceof Calendar calendar)
-//			return calendar.toInstant().toString();
-//
-//		if (value.getClass().isEnum())
-//			return ((Enum<?>) value).name();
-//
-//		throw new IllegalArgumentException("Invalid single value");
 	}
 
 	/**
-	 * <strong>Deserializes</strong> a single value.
+	 * <strong>Deserializes</strong> a <strong>single value</strong> or
+	 * <strong>single value sequence</strong>.
 	 * 
 	 * @param <T>         target type
 	 * @param text        serialized text
-	 * @param targetClass target class, must represent a <strong>single value type
-	 *                    or sequence</strong>
+	 * @param targetClass target class, must represent a <strong>single
+	 *                    value</strong> or <strong>single value sequence</strong>
 	 * @return <strong>deserialized</strong> single value
 	 * @throws IllegalArgumentException If the value provided is not the
 	 *                                  <strong>serialized form</strong> of a
@@ -631,12 +694,13 @@ public final class IuSingleValue {
 	}
 
 	/**
-	 * <strong>Deserializes</strong> a single value.
+	 * <strong>Deserializes</strong> a <strong>single value</strong> or
+	 * <strong>single value sequence</strong>.
 	 * 
 	 * @param <T>        target type
 	 * @param text       serialized text
-	 * @param targetType target type, must represent a <strong>single value type or
-	 *                   sequence</strong>
+	 * @param targetType target class, must represent a <strong>single
+	 *                   value</strong> or <strong>single value sequence</strong>
 	 * @return <strong>deserialized</strong> single value
 	 * @throws IllegalArgumentException If the value provided is not the
 	 *                                  <strong>serialized form</strong> of a
@@ -645,60 +709,18 @@ public final class IuSingleValue {
 	public static <T> T deserialize(CharSequence text, Type targetType) throws IllegalArgumentException {
 		if (text == null)
 			return null;
-
-		@SuppressWarnings("unchecked")
-		final var targetClass = (Class<T>) getTargetClass(targetType);
-
-		if (targetClass.isInstance(text))
-			return targetClass.cast(text);
-
-		if (targetClass == Reader.class)
-			return targetClass.cast(new StringReader(text.toString()));
-
-		if (targetClass == Writer.class) {
-			final var detachedWriter = new DetachedWriter();
-			IuException.unchecked(() -> detachedWriter.write(text.toString()));
-			return targetClass.cast(detachedWriter);
-		}
-
-		if (targetClass == Character.class)
-			if (text.length() != 1)
-				throw new IllegalArgumentException("Invalid character, expected length == 1");
-			else
-				return targetClass.cast(text.charAt(0));
-
-		if (targetClass == Boolean.class) {
-			final var textString = text.toString();
-			return targetClass.cast(textString.equals("1") //
-					|| textString.equals("-1") //
-					|| textString.equalsIgnoreCase("true") //
-					|| textString.equalsIgnoreCase("Y"));
-		}
-
-		if (targetClass == Integer.class)
-			return targetClass.cast(Integer.parseInt(text.toString()));
-		if (targetClass == Long.class)
-			return targetClass.cast(Long.parseLong(text.toString()));
-		if (targetClass == Short.class)
-			return targetClass.cast(Short.parseShort(text.toString()));
-		if (targetClass == Byte.class)
-			return targetClass.cast(Byte.parseByte(text.toString()));
-		if (targetClass == Double.class)
-			return targetClass.cast(Double.parseDouble(text.toString()));
-		if (targetClass == Float.class)
-			return targetClass.cast(Float.parseFloat(text.toString()));
-		
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+		else
+			return IuException.unchecked(() -> deserialize(new StringReader(text.toString()), targetType));
 	}
 
 	/**
-	 * <strong>Deserializes</strong> a single value.
+	 * <strong>Deserializes</strong> a <strong>single value</strong> or
+	 * <strong>single value sequence</strong>.
 	 * 
 	 * @param <T>         target type
 	 * @param in          {@link InputStream} deserialization source
-	 * @param targetClass target class, must represent a <strong>single value type
-	 *                    or sequence</strong>
+	 * @param targetClass target class, must represent a <strong>single
+	 *                    value</strong> or <strong>single value sequence</strong>
 	 * @return <strong>deserialized</strong> single value
 	 * @throws IllegalArgumentException If the value provided is not the
 	 *                                  <strong>serialized form</strong> of a
@@ -714,8 +736,8 @@ public final class IuSingleValue {
 	 * 
 	 * @param <T>        target type
 	 * @param in         {@link InputStream} deserialization source
-	 * @param targetType target type, must represent a <strong>single value type or
-	 *                   sequence</strong>
+	 * @param targetType target class, must represent a <strong>single
+	 *                   value</strong> or <strong>single value sequence</strong>
 	 * @return <strong>deserialized</strong> single value
 	 * @throws IllegalArgumentException If the value provided is not the
 	 *                                  <strong>serialized form</strong> of a
@@ -723,18 +745,6 @@ public final class IuSingleValue {
 	 * @throws IOException              if a read error occurs
 	 */
 	public static <T> T deserialize(InputStream in, Type targetType) throws IllegalArgumentException, IOException {
-		@SuppressWarnings("unchecked")
-		final var targetClass = (Class<T>) getTargetClass(targetType);
-
-		if (targetClass == Reader.class)
-			return targetClass.cast(new InputStreamReader(in, "UTF-8"));
-
-		if (targetClass == Writer.class) {
-			final var detachedWriter = new DetachedWriter();
-			IuException.unchecked(() -> IuStream.copy(new InputStreamReader(in, "UTF-8"), detachedWriter));
-			return targetClass.cast(detachedWriter);
-		}
-
 		return deserialize(new InputStreamReader(in), targetType);
 	}
 
@@ -743,8 +753,8 @@ public final class IuSingleValue {
 	 * 
 	 * @param <T>         target type
 	 * @param reader      {@link Reader} deserialization source
-	 * @param targetClass target type, must represent a <strong>single value type or
-	 *                    sequence</strong>
+	 * @param targetClass target class, must represent a <strong>single
+	 *                    value</strong> or <strong>single value sequence</strong>
 	 * @return <strong>deserialized</strong> single value
 	 * @throws IllegalArgumentException If the value provided is not the
 	 *                                  <strong>serialized form</strong> of a
@@ -756,7 +766,8 @@ public final class IuSingleValue {
 	}
 
 	/**
-	 * <strong>Deserializes</strong> a single value.
+	 * <strong>Deserializes</strong> a <strong>single value</strong> or
+	 * <strong>single value sequence</strong>.
 	 * 
 	 * @param <T>        target type
 	 * @param reader     {@link Reader} deserialization source
@@ -772,7 +783,7 @@ public final class IuSingleValue {
 		@SuppressWarnings("unchecked")
 		final var targetClass = (Class<T>) getTargetClass(targetType);
 
-		if (targetClass == Reader.class)
+		if (targetClass.isInstance(reader))
 			return targetClass.cast(reader);
 
 		if (targetClass == Writer.class) {
@@ -781,9 +792,58 @@ public final class IuSingleValue {
 			return targetClass.cast(detachedWriter);
 		}
 
-		final var deserializationSource = IuStream.read(reader);
-		if ("".equals(deserializationSource) && getNonPrimitiveClass(targetClass) == Void.class)
-			return null;
+		final var text = IuStream.read(reader);
+
+		//
+//		@SuppressWarnings("unchecked")
+//		final var targetClass = (Class<T>) getTargetClass(targetType);
+//
+//		if (targetClass.isInstance(text))
+//			return targetClass.cast(text);
+//
+//		if (targetClass == Reader.class)
+//			return targetClass.cast(new StringReader(text.toString()));
+//
+//		if (targetClass == Writer.class) {
+//			final var detachedWriter = new DetachedWriter();
+//			IuException.unchecked(() -> detachedWriter.write(text.toString()));
+//			return targetClass.cast(detachedWriter);
+//		}
+//
+//		if (targetClass == Character.class)
+//			if (text.length() != 1)
+//				throw new IllegalArgumentException("Invalid character, expected length == 1");
+//			else
+//				return targetClass.cast(text.charAt(0));
+//
+//		if (targetClass == Boolean.class) {
+//			final var textString = text.toString();
+//			return targetClass.cast(textString.equals("1") //
+//					|| textString.equals("-1") //
+//					|| textString.equalsIgnoreCase("true") //
+//					|| textString.equalsIgnoreCase("Y"));
+//		}
+//
+//		if (targetClass == Integer.class)
+//			return targetClass.cast(Integer.parseInt(text.toString()));
+//		if (targetClass == Long.class)
+//			return targetClass.cast(Long.parseLong(text.toString()));
+//		if (targetClass == Short.class)
+//			return targetClass.cast(Short.parseShort(text.toString()));
+//		if (targetClass == Byte.class)
+//			return targetClass.cast(Byte.parseByte(text.toString()));
+//		if (targetClass == Double.class)
+//			return targetClass.cast(Double.parseDouble(text.toString()));
+//		if (targetClass == Float.class)
+//			return targetClass.cast(Float.parseFloat(text.toString()));
+//
+//		if (targetClass == BigDecimal.class)
+//			return targetClass.cast(new BigDecimal(text.toString()));
+//		if (targetClass == BigInteger.class)
+//			return targetClass.cast(new BigInteger(text.toString()));
+//
+//		// TODO Auto-generated method stub
+//		throw new UnsupportedOperationException("TODO");
 
 		return deserialize(deserializationSource, targetType);
 	}
@@ -852,9 +912,14 @@ public final class IuSingleValue {
 			return targetClass.cast(detachedWriter);
 		}
 
-		if (sourceValue instanceof Number sourceNumber) {
-			// TODO Auto-generated method stub
-			throw new UnsupportedOperationException("TODO");
+		if (Number.class.isAssignableFrom(targetClass) //
+				&& (preProcessedSourceValue instanceof Number sourceNumber)) {
+			final Number converted = convertNumber(sourceNumber, getNonPrimitiveClass(targetClass));
+			final Number reversed = convertNumber(converted, sourceValue.getClass());
+			if (!sourceValue.equals(reversed))
+				throw new ArithmeticException();
+			else
+				return targetClass.cast(converted);
 		}
 
 		final var text = serialize(preProcessedSourceValue).toString();
@@ -870,6 +935,63 @@ public final class IuSingleValue {
 
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
+	}
+
+	private static Number convertNumber(Number sourceNumber, Class<?> targetClass) {
+		if (targetClass == BigDecimal.class)
+			if (sourceNumber instanceof BigInteger a)
+				return new BigDecimal(a);
+			else if (sourceNumber instanceof Double a)
+				return new BigDecimal(a);
+			else if (sourceNumber instanceof Float a)
+				return new BigDecimal(a);
+			else if (sourceNumber instanceof Long a)
+				return new BigDecimal(a);
+			else if (sourceNumber instanceof Integer a)
+				return new BigDecimal(a);
+			else if (sourceNumber instanceof Short a)
+				return new BigDecimal(a);
+			else if (sourceNumber instanceof Byte a)
+				return new BigDecimal(a);
+			else
+				throw new IllegalArgumentException();
+		else if (targetClass == BigInteger.class)
+			if (sourceNumber instanceof BigDecimal b)
+				return b.toBigIntegerExact();
+			else
+				return new BigInteger(Long.toString(sourceNumber.longValue()));
+		else if (targetClass == Double.class)
+			return sourceNumber.doubleValue();
+		else if (targetClass == Float.class)
+			return sourceNumber.floatValue();
+		else if (targetClass == Long.class)
+			return sourceNumber.longValue();
+		else if (targetClass == Integer.class)
+			return sourceNumber.intValue();
+		else if (targetClass == Short.class)
+			return sourceNumber.shortValue();
+		else if (targetClass == Byte.class)
+			return sourceNumber.byteValue();
+		else
+			throw new IllegalArgumentException();
+	}
+
+	private static void serializeSequence(Iterator<?> sequence, Writer writer) throws IOException {
+		boolean first = true;
+		while (sequence.hasNext()) {
+			final var item = sequence.next();
+			if (first)
+				first = false;
+			else
+				writer.append(',');
+
+			var serialized = serialize(item);
+			if (serialized.indexOf('\\') != -1 //
+					|| serialized.indexOf('\"') != -1)
+				serialized = "\"" + serialized.replace("\\", "\\\\").replace("\"", "\\\"") + '\"';
+
+			writer.append(serialized);
+		}
 	}
 
 	private IuSingleValue() {
