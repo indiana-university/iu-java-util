@@ -5,9 +5,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
+import java.net.URI;
+
 import org.junit.jupiter.api.Test;
 
-import edu.iu.auth.oidc.spi.OpenIDConnectSpi;
+import edu.iu.auth.spi.IuOpenIdConnectSpi;
 import iu.auth.IuAuthSpiFactory;
 
 @SuppressWarnings("javadoc")
@@ -16,12 +18,12 @@ public class OpenIDProviderTest {
 	@Test
 	public void testUsesSpiFactory() {
 		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
-			final var mockSpi = mock(OpenIDConnectSpi.class);
-			mockSpiFactory.when(() -> IuAuthSpiFactory.get(OpenIDConnectSpi.class)).thenReturn(mockSpi);
-			final var mockClient = mock(OpenIDClient.class);
-			final var mockProvider = mock(OpenIDProvider.class);
-			when(mockSpi.getOpenIDProvider(mockClient)).thenReturn(mockProvider);
-			assertSame(mockProvider, OpenIDProvider.forClient(mockClient));
+			final var mockSpi = mock(IuOpenIdConnectSpi.class);
+			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuOpenIdConnectSpi.class)).thenReturn(mockSpi);
+			final var configUri = mock(URI.class);
+			final var mockProvider = mock(IuOpenIdProvider.class);
+			when(mockSpi.getOpenIdProvider(configUri)).thenReturn(mockProvider);
+			assertSame(mockProvider, IuOpenIdProvider.from(configUri));
 		}
 	}
 

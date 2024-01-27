@@ -1,4 +1,4 @@
-package iu.auth.oauth;
+package iu.auth.util;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -8,6 +8,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.util.logging.Logger;
 
 import edu.iu.IuException;
 import edu.iu.IuStream;
@@ -19,6 +20,8 @@ import jakarta.json.JsonValue;
  * authorization server interactions.
  */
 public class HttpUtils {
+
+	private static final Logger LOG = Logger.getLogger(HttpUtils.class.getName());
 
 	/**
 	 * Reads a JSON value from a public URI.
@@ -50,6 +53,8 @@ public class HttpUtils {
 		if (status != 200 || error != null)
 			throw new IllegalStateException("Failed to read from " + response.uri() + "; status=" + status + " headers="
 					+ headers.map() + " content=" + content, error);
+
+		LOG.fine(() -> "Read from " + response.uri() + "; status=" + status + " headers=" + headers.map());
 
 		return content;
 	}

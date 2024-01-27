@@ -1,9 +1,22 @@
 package edu.iu.auth.oauth;
 
+import edu.iu.auth.spi.IuOAuthSpi;
+import iu.auth.IuAuthSpiFactory;
+
 /**
  * Manages client-side authorization session state.
  */
 public interface IuAuthorizationSession {
+
+	/**
+	 * Creates a new {@link IuAuthorizationSession} for managing interactions with
+	 * an authorization server.
+	 * 
+	 * @return authorization server
+	 */
+	static IuAuthorizationSession create() {
+		return IuAuthSpiFactory.get(IuOAuthSpi.class).createAuthorizationSession();
+	}
 
 	/**
 	 * Gets an authorization grant based on the client credentials configuration for

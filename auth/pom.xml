@@ -23,6 +23,7 @@
 			</activation>
 			<modules>
 				<module>api</module>
+				<module>util</module>
 				<module>basic</module>
 				<module>oauth</module>
 				<module>oidc</module>

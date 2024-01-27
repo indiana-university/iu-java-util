@@ -4,12 +4,6 @@
  * Authorization Framework</a>.
  */
 module iu.util.auth.oauth {
-	exports iu.auth.oauth to iu.util.auth.oidc;
-
-	requires transitive com.auth0.jwt;
-	requires iu.util;
 	requires iu.util.auth;
-	requires iu.util.auth.basic;
-	requires transitive jakarta.json;
-	requires java.net.http;
+	requires iu.util.auth.util;
 }

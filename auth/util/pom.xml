@@ -10,8 +10,8 @@
 		<version>7.0.2-SNAPSHOT</version>
 	</parent>
 
-	<artifactId>iu-java-auth-oauth</artifactId>
-	<name>IU OAuth Authorization Client</name>
+	<artifactId>iu-java-auth-util</artifactId>
+	<name>IU API Authorization Internal Support Utilities</name>
 
 	<dependencies>
 		<dependency>
@@ -20,19 +20,20 @@
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-auth-basic</artifactId>
-			<version>${project.version}</version>
+			<groupId>com.auth0</groupId>
+			<artifactId>java-jwt</artifactId>
+			<version>${java-jwt.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.json</groupId>
+			<artifactId>jakarta.json-api</artifactId>
+			<version>${jakarta.json-api.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.eclipse.parsson</groupId>
 			<artifactId>parsson</artifactId>
 			<version>${parsson.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>com.auth0</groupId>
-			<artifactId>java-jwt</artifactId>
-			<version>${java-jwt.version}</version>
+			<scope>runtime</scope>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>

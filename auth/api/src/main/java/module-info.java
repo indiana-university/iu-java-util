@@ -1,7 +1,10 @@
 /**
  * API Authentication and Authorization interfaces.
  * 
- * @uses edu.iu.auth.oidc.spi.OpenIDConnectSpi For access to OpenID Connect
+ * @uses edu.iu.auth.spi.IuBasicAuthSpi For access to HTTP basic auth resources
+ * @uses edu.iu.auth.spi.IuOAuthSpi For access to OAuth 2.0 implementation
+ *       resources
+ * @uses edu.iu.auth.spi.IuOpenIdConnectSpi For access to OpenID Connect
  *       implementation resources
  */
 module iu.util.auth {
@@ -9,7 +12,9 @@ module iu.util.auth {
 	exports edu.iu.auth.basic;
 	exports edu.iu.auth.oauth;
 	exports edu.iu.auth.oidc;
-	exports edu.iu.auth.oidc.spi;
+	exports edu.iu.auth.spi;
 
-	uses edu.iu.auth.oidc.spi.OpenIDConnectSpi;
+	uses edu.iu.auth.spi.IuBasicAuthSpi;
+	uses edu.iu.auth.spi.IuOAuthSpi;
+	uses edu.iu.auth.spi.IuOpenIdConnectSpi;
 }

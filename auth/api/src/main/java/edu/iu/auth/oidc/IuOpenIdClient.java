@@ -6,16 +6,17 @@ import edu.iu.auth.IuApiCredentials;
 
 /**
  * Provides client configuration metadata for interacting with an
- * {@link OpenIDProvider OpenID Provider}.
+ * {@link IuOpenIdProvider OpenID Provider}.
  */
-public interface OpenIDClient {
+@Deprecated(forRemoval = true)
+public interface IuOpenIdClient {
 
 	/**
 	 * Gets the well known configuration URL for the OpenID Provider.
 	 * 
 	 * @return {@link URI}
 	 */
-	URI getConfigurationUrl();
+	URI getConfigUri();
 
 	/**
 	 * Gets the client's API credentials.

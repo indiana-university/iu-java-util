@@ -3,16 +3,17 @@ package iu.auth.oidc;
 import java.net.URI;
 import java.util.logging.Logger;
 
-import edu.iu.auth.oidc.OpenIDProviderConfiguration;
-import iu.auth.oauth.HttpUtils;
+import edu.iu.IuException;
+import edu.iu.auth.oidc.IuOpenIdProviderConfiguration;
+import iu.auth.util.HttpUtils;
 import jakarta.json.JsonObject;
 
 /**
- * {@link OpenIDProviderConfiguration} implementation.
+ * {@link IuOpenIdProviderConfiguration} implementation.
  */
-public class OpenIDProviderConfigurationImpl implements OpenIDProviderConfiguration {
+public class OpenIdProviderConfiguration implements IuOpenIdProviderConfiguration {
 
-	private final Logger LOG = Logger.getLogger(OpenIDProviderConfigurationImpl.class.getName());
+	private final Logger LOG = Logger.getLogger(OpenIdProviderConfiguration.class.getName());
 
 	private final URI uri;
 	private JsonObject parsedConfig;
@@ -22,13 +23,18 @@ public class OpenIDProviderConfigurationImpl implements OpenIDProviderConfigurat
 	 * 
 	 * @param uri {@link URI}
 	 */
-	public OpenIDProviderConfigurationImpl(URI uri) {
+	public OpenIdProviderConfiguration(URI uri) {
 		this.uri = uri;
 	}
 
 	@Override
 	public String getIssuer() {
 		return getConfig().getString("issuer");
+	}
+
+	@Override
+	public URI getAuthorizationEndpoint() {
+		return IuException.unchecked(() -> new URI(getConfig().getString("authorization_endpoint")));
 	}
 
 	private JsonObject getConfig() {
