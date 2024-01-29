@@ -2,6 +2,8 @@ package edu.iu.auth.oidc;
 
 import java.net.URI;
 
+import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.spi.IuOpenIdConnectSpi;
 import iu.auth.IuAuthSpiFactory;
 
@@ -22,10 +24,26 @@ public interface IuOpenIdProvider {
 	}
 
 	/**
-	 * Gets the OpenID provider configuration.
+	 * Gets the issue ID for this provider.
 	 * 
-	 * @return {@link IuOpenIdProviderConfiguration}
+	 * @return OpenID Provider issuer ID
 	 */
-	IuOpenIdProviderConfiguration getConfiguration();
+	String getIssuer();
+
+	/**
+	 * Gets the OIDC User Info Endpoint URI
+	 * 
+	 * @return User Info Endpoint {@link URI}
+	 */
+	URI getUserInfoEndpoint();
+
+	/**
+	 * Creates an authorization client for interacting with the OpenID provider.
+	 * 
+	 * @param resourceUri       client resource URI
+	 * @param clientCredentials client credentials
+	 * @return authorization client
+	 */
+	IuAuthorizationClient createAuthorizationClient(URI resourceUri, IuApiCredentials clientCredentials);
 
 }

@@ -1,5 +1,7 @@
 package iu.auth.oauth;
 
+import java.net.http.HttpRequest.Builder;
+
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
 
 /**
@@ -27,6 +29,11 @@ public class BearerAuthCredentials implements IuBearerAuthCredentials {
 	@Override
 	public String getAccessToken() {
 		return accessToken;
+	}
+
+	@Override
+	public void applyTo(Builder httpRequestBuilder) {
+		httpRequestBuilder.header("Authorization", "Bearer " + accessToken);
 	}
 
 }

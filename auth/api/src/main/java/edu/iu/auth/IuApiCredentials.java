@@ -1,5 +1,6 @@
 package edu.iu.auth;
 
+import java.net.http.HttpRequest;
 import java.security.Principal;
 
 import edu.iu.auth.basic.IuBasicAuthCredentials;
@@ -23,5 +24,12 @@ public interface IuApiCredentials extends Principal {
 	static IuBasicAuthCredentials basic(String username, String password) {
 		return IuAuthSpiFactory.get(IuBasicAuthSpi.class).createCredentials(username, password);
 	}
+
+	/**
+	 * Applies the client's API credentials to an HTTP request.
+	 * 
+	 * @param httpRequestBuilder {@link HttpRequest.Builder}
+	 */
+	void applyTo(HttpRequest.Builder httpRequestBuilder);
 
 }

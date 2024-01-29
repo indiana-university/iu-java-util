@@ -22,27 +22,30 @@ public interface IuAuthorizationSession {
 	 * Gets an authorization grant based on the client credentials configuration for
 	 * the application.
 	 * 
+	 * @param realm authorization realm
+	 * @param scope authorization scope
 	 * @return client credentials grant
 	 */
-	IuAuthorizationGrant getClientCredentialsGrant();
+	IuAuthorizationGrant getClientCredentialsGrant(String realm, String scope);
 
 	/**
 	 * Creates a new authorization code grant.
 	 * 
 	 * @param realm authorization realm
+	 * @param scope authorization scope
 	 * @return new authorization code grant
 	 */
-	IuAuthorizationGrant createAuthorizationCodeGrant(String realm);
+	IuAuthorizationCodeGrant createAuthorizationCodeGrant(String realm, String scope);
 
 	/**
 	 * Gets a previously created authorization code grant by state.
 	 * 
 	 * @param state state value generated via
-	 *              {@link #createAuthorizationCodeGrant(String)}
+	 *              {@link #createAuthorizationCodeGrant(String, String)}
 	 * @return authorization code grant
 	 * @throws IuAuthorizationFailedException if the state value cannot be tied to
 	 *                                        an existing grant
 	 */
-	IuAuthorizationGrant getAuthorizationCodeGrant(String state) throws IuAuthorizationFailedException;
+	IuAuthorizationCodeGrant getAuthorizationCodeGrant(String state) throws IuAuthorizationFailedException;
 
 }

@@ -13,6 +13,8 @@ module iu.util.auth {
 	exports edu.iu.auth.oauth;
 	exports edu.iu.auth.oidc;
 	exports edu.iu.auth.spi;
+	
+	requires transitive java.net.http;
 
 	uses edu.iu.auth.spi.IuBasicAuthSpi;
 	uses edu.iu.auth.spi.IuOAuthSpi;

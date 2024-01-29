@@ -30,11 +30,20 @@ public class HttpUtils {
 	 * @return {@link JsonValue}
 	 */
 	public static JsonValue read(URI uri) {
-		return IuException
-				.unchecked(() -> Json
-						.createReader(new StringReader(read(HttpClient.newHttpClient()
-								.send(HttpRequest.newBuilder(uri).build(), BodyHandlers.ofInputStream()))))
-						.readValue());
+		return read(HttpRequest.newBuilder(uri).build());
+	}
+
+	/**
+	 * Reads a JSON value from an HTTP request.
+	 * 
+	 * @param request {@link HttpRequest}
+	 * @return {@link JsonValue}
+	 */
+	public static JsonValue read(HttpRequest request) {
+		return IuException.unchecked(() -> Json
+				.createReader(
+						new StringReader(read(HttpClient.newHttpClient().send(request, BodyHandlers.ofInputStream()))))
+				.readValue());
 	}
 
 	private static String read(HttpResponse<InputStream> response) {

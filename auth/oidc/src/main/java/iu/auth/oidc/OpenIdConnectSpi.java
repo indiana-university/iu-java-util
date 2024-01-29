@@ -14,6 +14,12 @@ public class OpenIdConnectSpi implements IuOpenIdConnectSpi {
 
 	private static Map<URI, OpenIdProvider> PROVIDERS = new HashMap<>();
 
+	/**
+	 * Default constructor.
+	 */
+	public OpenIdConnectSpi() {
+	}
+
 	@Override
 	public synchronized IuOpenIdProvider getOpenIdProvider(URI configUri) {
 		var provider = PROVIDERS.get(configUri);

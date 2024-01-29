@@ -8,11 +8,27 @@ package edu.iu.auth.oauth;
 public interface IuAuthorizationGrant {
 
 	/**
-	 * Authorizes the grant using a code provided by the authorization server.
+	 * Gets the client ID.
 	 * 
-	 * @return response details following successful authorization
+	 * @return client ID.
+	 */
+	String getClientId();
+
+	/**
+	 * Gets the requested scope.
+	 * 
+	 * @return scope
+	 */
+	String getScope();
+
+	/**
+	 * Authorizes the grant using previously established authentication attributes.
+	 * 
+	 * @return response details following successful authorization; null if the
+	 *         grant could not be authorized without first initiating an
+	 *         authorization flow.
 	 * @throws IuAuthorizationFailedException If an authorization failure should be
-	 *                                        reported to the client
+	 *                                        reported to the client.
 	 */
 	IuAuthorizationResponse authorize() throws IuAuthorizationFailedException;
 

@@ -10,32 +10,19 @@ import java.net.URI;
 public interface IuAuthorizationCodeGrant extends IuAuthorizationGrant {
 
 	/**
+	 * Gets the state identifier, used to locate a grant within an
+	 * {@link IuAuthorizationSession authorization session}.
+	 * 
+	 * @return state identifier
+	 */
+	String getState();
+
+	/**
 	 * Gets the redirect URI.
 	 * 
 	 * @return {@link URI}
 	 */
 	URI getRedirectUri();
-
-	/**
-	 * Gets the client ID.
-	 * 
-	 * @return client ID.
-	 */
-	String getClientId();
-
-	/**
-	 * Gets the scope.
-	 * 
-	 * @return scope
-	 */
-	String getScope();
-
-	/**
-	 * Gets the state.
-	 * 
-	 * @return state
-	 */
-	String getState();
 
 	/**
 	 * Authorizes the grant using a code provided by the authorization server.

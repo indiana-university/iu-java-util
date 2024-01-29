@@ -1,5 +1,9 @@
 package iu.auth.basic;
 
+import java.net.http.HttpRequest.Builder;
+import java.util.Base64;
+
+import edu.iu.IuException;
 import edu.iu.auth.basic.IuBasicAuthCredentials;
 
 /**
@@ -29,6 +33,12 @@ public class BasicAuthCredentials implements IuBasicAuthCredentials {
 	@Override
 	public String getPassword() {
 		return password;
+	}
+
+	@Override
+	public void applyTo(Builder httpRequestBuilder) {
+		httpRequestBuilder.header("Authorization", "Basic " + Base64.getUrlEncoder()
+				.encodeToString(IuException.unchecked(() -> (name + ':' + password).getBytes("UTF-8"))));
 	}
 
 }
