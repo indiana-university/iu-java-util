@@ -42,8 +42,8 @@ public class OAuthSpi implements IuOAuthSpi {
 	}
 
 	@Override
-	public AuthorizationSession createAuthorizationSession() {
-		return new AuthorizationSession();
+	public AuthorizationSession createAuthorizationSession(String realm) {
+		return new AuthorizationSession(realm, getClient(realm));
 	}
 
 }

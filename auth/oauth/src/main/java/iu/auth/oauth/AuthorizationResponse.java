@@ -2,6 +2,8 @@ package iu.auth.oauth;
 
 import java.security.Principal;
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import edu.iu.auth.oauth.IuAuthorizationResponse;
 import jakarta.json.JsonNumber;
@@ -46,6 +48,20 @@ class AuthorizationResponse implements IuAuthorizationResponse {
 	@Override
 	public String getAccessToken() {
 		return tokenResponse.getString("access_token");
+	}
+
+	@Override
+	public Map<String, String> getAttributes() {
+		final Map<String, String> attributes = new LinkedHashMap<>();
+		for (final var tokenEntry : tokenResponse.entrySet()) {
+			final var key = tokenEntry.getKey();
+			final var value = tokenEntry.getValue();
+			if (value instanceof JsonString s)
+				attributes.put(key, s.getString());
+			else
+				attributes.put(key, value.toString());
+		}
+		return attributes;
 	}
 
 	/**

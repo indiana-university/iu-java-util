@@ -12,30 +12,29 @@ public interface IuAuthorizationSession {
 	 * Creates a new {@link IuAuthorizationSession} for managing interactions with
 	 * an authorization server.
 	 * 
+	 * @param realm authorization realm
 	 * @return authorization server
 	 */
-	static IuAuthorizationSession create() {
-		return IuAuthSpiFactory.get(IuOAuthSpi.class).createAuthorizationSession();
+	static IuAuthorizationSession create(String realm) {
+		return IuAuthSpiFactory.get(IuOAuthSpi.class).createAuthorizationSession(realm);
 	}
 
 	/**
 	 * Gets an authorization grant based on the client credentials configuration for
 	 * the application.
 	 * 
-	 * @param realm authorization realm
 	 * @param scope authorization scope
 	 * @return client credentials grant
 	 */
-	IuAuthorizationGrant getClientCredentialsGrant(String realm, String scope);
+	IuAuthorizationGrant getClientCredentialsGrant(String scope);
 
 	/**
 	 * Creates a new authorization code grant.
 	 * 
-	 * @param realm authorization realm
 	 * @param scope authorization scope
 	 * @return new authorization code grant
 	 */
-	IuAuthorizationCodeGrant createAuthorizationCodeGrant(String realm, String scope);
+	IuAuthorizationCodeGrant createAuthorizationCodeGrant(String scope);
 
 	/**
 	 * Gets a previously created authorization code grant by state.

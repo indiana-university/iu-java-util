@@ -206,6 +206,9 @@ public final class IuTestLogger {
 					handler.publish(record);
 				return;
 			}
+			
+			if (activeTest == null)
+				return;
 
 			for (var allowedMessage : allowedMessages)
 				if (allowedMessage.isAllowed(record))

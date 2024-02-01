@@ -21,8 +21,9 @@ public interface IuOAuthSpi {
 	 * Creates a new {@link IuAuthorizationSession} for managing OAuth authorization
 	 * server interactions.
 	 * 
+	 * @param realm authentication realm
 	 * @return {@link IuAuthorizationSession}
 	 */
-	IuAuthorizationSession createAuthorizationSession();
+	IuAuthorizationSession createAuthorizationSession(String realm);
 
 }

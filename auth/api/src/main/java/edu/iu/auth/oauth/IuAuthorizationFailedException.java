@@ -21,7 +21,7 @@ public class IuAuthorizationFailedException extends Exception {
 	 * Error code.
 	 */
 	private final String error;
-
+	
 	/**
 	 * Constructor.
 	 * 
