@@ -68,6 +68,8 @@ public class OpenIDConnectIT {
 		final var grant = session.createAuthorizationCodeGrant("openid");
 		assertNull(grant.authorize());
 
+		client.getAuthorizationEndpoint();
+		HttpRequest.newBuilder();
 	}
 
 }
