@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>IuCachedValue.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-base</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuCachedValue.java</span></div><h1>IuCachedValue.java</h1><pre class="source lang-java linenums">package edu.iu;
+
+import java.lang.ref.ReferenceQueue;
+import java.lang.ref.SoftReference;
+import java.time.Duration;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/**
+ * Holds a single value by {@link SoftReference} with timed expiration.
+ * 
+ * &lt;p&gt;
+ * A cached value could be cleared by the garbage collector in order to prevent
+ * {@link OutOfMemoryError} due to insufficient heap space.
+ * &lt;/p&gt;
+ * 
+ * @param &lt;V&gt; value type
+ */
+public class IuCachedValue&lt;V&gt; {
+
+<span class="fc" id="L23">	private static final Logger LOG = Logger.getLogger(IuCachedValue.class.getName());</span>
+
+<span class="fc" id="L25">	private static final Object NULL = new Object();</span>
+<span class="fc" id="L26">	private static final Timer PURGE_TIMER = new Timer(&quot;iu-cache-purge&quot;, true);</span>
+<span class="fc" id="L27">	private static final ReferenceQueue&lt;Object&gt; REFQ = new ReferenceQueue&lt;&gt;();</span>
+
+	private static class Ref extends SoftReference&lt;Object&gt; {
+		private final IuCachedValue&lt;?&gt; cachedValue;
+
+		private Ref(Object referent, IuCachedValue&lt;?&gt; cachedValue) {
+<span class="fc bfc" id="L33" title="All 2 branches covered.">			super(referent == null ? NULL : referent, REFQ);</span>
+<span class="fc" id="L34">			this.cachedValue = cachedValue;</span>
+<span class="fc" id="L35">		}</span>
+	}
+
+	static {
+<span class="fc" id="L39">		PURGE_TIMER.schedule(new TimerTask() {</span>
+			@Override
+			public void run() {
+				Ref ref;
+<span class="fc bfc" id="L43" title="All 2 branches covered.">				while ((ref = (Ref) REFQ.poll()) != null)</span>
+<span class="fc" id="L44">					ref.cachedValue.clear();</span>
+<span class="fc" id="L45">			}</span>
+		}, 500L, 500L);
+<span class="fc" id="L47">	}</span>
+
+	private final long expires;
+	private volatile UnsafeRunnable onExpire;
+	private volatile TimerTask expireTask;
+	private volatile Ref reference;
+	private volatile boolean expired;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param value      value
+	 * @param timeToLive maximum length of time for the cached value to remain valid
+	 * @param onExpire   thunk to invoke when the reference expires; &lt;em&gt;should&lt;/em&gt;
+	 *                   execute quickly, i.e., to remove a map entry relative the
+	 *                   provided key
+	 */
+<span class="fc" id="L64">	public IuCachedValue(V value, Duration timeToLive, UnsafeRunnable onExpire) {</span>
+<span class="fc" id="L65">		final var ttl = timeToLive.toMillis();</span>
+<span class="fc" id="L66">		this.reference = new Ref(value, this);</span>
+<span class="fc" id="L67">		this.expires = System.currentTimeMillis() + ttl;</span>
+<span class="fc" id="L68">		this.onExpire = onExpire;</span>
+
+<span class="fc" id="L70">		PURGE_TIMER.schedule(expireTask = new TimerTask() {</span>
+			@Override
+			public void run() {
+<span class="fc" id="L73">				clear();</span>
+<span class="fc" id="L74">			}</span>
+		}, ttl);
+<span class="fc" id="L76">	}</span>
+
+	/**
+	 * Gets the cached value.
+	 * 
+	 * @return cached value; may be null if the cached value is null, the reference
+	 *         was cleared by the garbage collector, or the expiration time is in
+	 *         the past.
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	public V get() {
+<span class="fc" id="L87">		final var reference = ref();</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">		if (reference == null)</span>
+<span class="fc" id="L89">			return null;</span>
+
+<span class="fc" id="L91">		final var value = reference.get();</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">		if (value == NULL)</span>
+<span class="fc" id="L93">			return null;</span>
+		else
+<span class="fc" id="L95">			return (V) value;</span>
+	}
+
+	/**
+	 * Determines whether or not the cached value is still valid.
+	 * 
+	 * @return true if the reference is still valid; false if it has been cleared by
+	 *         the garbage collection or the expiration time is in the past.
+	 */
+	public boolean isValid() {
+<span class="fc bfc" id="L105" title="All 2 branches covered.">		return ref() != null;</span>
+	}
+
+	/**
+	 * Determines if an object is equal to the referent.
+	 * 
+	 * @param o object
+	 * @return true if the reference is still {@link #isValid() valid} and the
+	 *         referent is equal to the object.
+	 */
+	public boolean has(Object o) {
+<span class="fc" id="L116">		final var reference = ref();</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">		if (reference == null)</span>
+<span class="fc" id="L118">			return false;</span>
+
+<span class="fc" id="L120">		final var value = reference.get();</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">		if (value == NULL)</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">			return o == null;</span>
+		else
+<span class="fc" id="L124">			return IuObject.equals(value, o);</span>
+	}
+
+	/**
+	 * Invalidates the cached value, invokes the onExpire thunk, and clears all
+	 * related references and resource.
+	 * 
+	 * &lt;p&gt;
+	 * This method has no effect if invoked on an invalid reference.
+	 * &lt;/p&gt;
+	 */
+	public synchronized void clear() {
+<span class="fc bfc" id="L136" title="All 2 branches covered.">		if (!expired)</span>
+			try {
+<span class="fc" id="L138">				expireTask.cancel();</span>
+<span class="fc" id="L139">				reference.clear();</span>
+<span class="fc" id="L140">				onExpire.run();</span>
+<span class="fc" id="L141">			} catch (Throwable e) {</span>
+<span class="fc" id="L142">				LOG.log(Level.INFO, e, () -&gt; &quot;Unhandled error in cache reference expiration thunk &quot; + onExpire);</span>
+			} finally {
+<span class="fc" id="L144">				expired = true;</span>
+<span class="fc" id="L145">				expireTask = null;</span>
+<span class="fc" id="L146">				reference = null;</span>
+<span class="fc" id="L147">				onExpire = null;</span>
+			}
+<span class="fc" id="L149">	}</span>
+
+	@Override
+	public int hashCode() {
+<span class="fc" id="L153">		return IuObject.hashCode(get());</span>
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+<span class="fc bfc" id="L158" title="All 2 branches covered.">		if (!IuObject.typeCheck(this, obj))</span>
+<span class="fc" id="L159">			return false;</span>
+
+<span class="fc" id="L161">		final var other = (IuCachedValue&lt;?&gt;) obj;</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">		return isValid() //</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">				&amp;&amp; other.isValid() //</span>
+<span class="fc bfc" id="L164" title="All 2 branches covered.">				&amp;&amp; IuObject.equals(get(), other.get());</span>
+	}
+
+	private Ref ref() {
+<span class="fc bfc" id="L168" title="All 2 branches covered.">		if (expires &lt; System.currentTimeMillis()) {</span>
+<span class="fc" id="L169">			clear();</span>
+<span class="fc" id="L170">			return null;</span>
+		}
+
+<span class="fc" id="L173">		final var reference = this.reference;</span>
+<span class="fc bfc" id="L174" title="All 2 branches covered.">		if (reference == null)</span>
+<span class="fc" id="L175">			return null;</span>
+
+<span class="fc" id="L177">		final var value = reference.get();</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">		if (value == null) {</span>
+<span class="fc" id="L179">			clear();</span>
+<span class="fc" id="L180">			return null;</span>
+		} else
+<span class="fc" id="L182">			return reference;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

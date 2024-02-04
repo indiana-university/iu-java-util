@@ -1,0 +1,13 @@
+module:iu.util
+edu.iu
+module:iu.util.jdbc.pool
+edu.iu.jdbc.pool
+module:iu.util.runtime
+edu.iu.runtime
+module:iu.util.test
+edu.iu.test
+module:iu.util.type
+edu.iu.type
+edu.iu.type.spi
+module:iu.util.type.impl
+iu.type

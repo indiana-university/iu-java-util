@@ -1,0 +1,635 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>IuComponent.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-type-api</a> &gt; <a href="index.source.html" class="el_package">edu.iu.type</a> &gt; <span class="el_source">IuComponent.java</span></div><h1>IuComponent.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu.type;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.annotation.Annotation;
+import java.lang.module.ModuleDescriptor;
+import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Proxy;
+import java.lang.reflect.Type;
+import java.util.jar.Manifest;
+
+import edu.iu.type.spi.TypeImplementation;
+
+/**
+ * Facade interface representing an application component.
+ * 
+ * &lt;p&gt;
+ * A &lt;strong&gt;component&lt;/strong&gt; is defined by one or more &lt;a href=
+ * &quot;https://docs.oracle.com/en/java/javase/21/docs/specs/jar/jar.html&quot;&gt;Java
+ * (jar) Archives&lt;/a&gt;. &lt;strong&gt;Components&lt;/strong&gt; are &lt;strong&gt;named&lt;/strong&gt;,
+ * &lt;strong&gt;&lt;a href=&quot;https://semver.org&quot;&gt;versioned&lt;/a&gt;&lt;/strong&gt;, and
+ * &lt;strong&gt;isolated&lt;/strong&gt; at runtime.
+ * &lt;/p&gt;
+ * 
+ * &lt;h2&gt;Component Archives&lt;/h2&gt;
+ * &lt;p&gt;
+ * A &lt;strong&gt;component archive&lt;/strong&gt; provides the resources and type
+ * definitions for a &lt;strong&gt;component&lt;/strong&gt;. Each &lt;strong&gt;component
+ * archive&lt;/strong&gt; &lt;em&gt;must&lt;/em&gt; be validated before the
+ * &lt;strong&gt;component&lt;/strong&gt; may be loaded.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * All &lt;strong&gt;component archives&lt;/strong&gt; &lt;em&gt;must&lt;/em&gt;:
+ * &lt;/p&gt;
+ * &lt;ul&gt;
+ * &lt;li&gt;Be a &lt;a href=
+ * &quot;https://docs.oracle.com/en/java/javase/21/docs/specs/jar/jar.html&quot;&gt;jar
+ * archive&lt;/a&gt; built using &lt;a href=&quot;https://maven.apache.org/&quot;&gt;Apache
+ * Maven&lt;/a&gt;.&lt;/li&gt;
+ * &lt;li&gt;&lt;em&gt;Not&lt;/em&gt; be directory in a file system, either originally or
+ * unpacked.&lt;/li&gt;
+ * &lt;li&gt;Include a well-formed {@link Manifest manifest} in
+ * {@code META-INF/MANIFEST.MF}.&lt;/li&gt;
+ * &lt;li&gt;&lt;em&gt;Not&lt;/em&gt; include {@code Main-Class} in the
+ * {@link Manifest#getMainAttributes() manifest's main attribute section}.&lt;/li&gt;
+ * &lt;li&gt;Include exactly one &lt;a href=
+ * &quot;https://maven.apache.org/shared/maven-archiver/index.html&quot;&gt;META-INF/maven/.../pom.properties&lt;/a&gt;
+ * entry.&lt;/li&gt;
+ * &lt;/ul&gt;
+ * 
+ * &lt;h2&gt;Modular Components&lt;/h2&gt;
+ * &lt;p&gt;
+ * &lt;strong&gt;Components&lt;/strong&gt; &lt;em&gt;should&lt;/em&gt; be &lt;a href=
+ * &quot;https://docs.oracle.com/en/java/javase/21/docs/specs/jar/jar.html#modular-jar-files&quot;&gt;&lt;strong&gt;modular&lt;/strong&gt;&lt;/a&gt;.
+ * A &lt;strong&gt;Modular component&lt;/strong&gt; that includes {@link ModuleDescriptor
+ * module-info.class} in its &lt;strong&gt;archive&lt;/strong&gt; &lt;em&gt;must&lt;/em&gt; meet all
+ * requirements of the &lt;a href=&quot;https://openjdk.org/projects/jigsaw/&quot;&gt;Java
+ * Module System&lt;/a&gt;.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * A &lt;strong&gt;component archive&lt;/strong&gt; that does not include
+ * {@link ModuleDescriptor module-info.class} &lt;em&gt;may&lt;/em&gt; still be treated as a
+ * &lt;strong&gt;modular component&lt;/strong&gt; as long as it doesn't have any
+ * &lt;strong&gt;legacy dependencies&lt;/strong&gt;.
+ * &lt;/p&gt;
+ * 
+ * &lt;h2&gt;Legacy Components&lt;/h2&gt;
+ * &lt;p&gt;
+ * To preserve compatibility for &lt;strong&gt;components&lt;/strong&gt; that
+ * &lt;strong&gt;depend&lt;/strong&gt; on IU JEE 6, Servlet 4, and EJB 3 &lt;strong&gt;legacy
+ * components&lt;/strong&gt; with such dependencies &lt;em&gt;must&lt;/em&gt; be loaded in an
+ * {@link Module#isNamed() unnamed module} by a {@link ClassLoader class loader}
+ * that does not delegate to the {@link ClassLoader#getSystemClassLoader()
+ * system class loader}.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * A &lt;strong&gt;component&lt;/strong&gt; &lt;em&gt;must&lt;/em&gt; be loaded as a &lt;strong&gt;legacy
+ * components&lt;/strong&gt; if its archive does not include {@link ModuleDescriptor
+ * module-info.class} and meets at least one of the following additional
+ * criteria:
+ * &lt;/p&gt;
+ * &lt;ul&gt;
+ * &lt;li&gt;Does not include {@code Extension-List} in its
+ * {@link Manifest#getMainAttributes() manifest's main attributes section}, or
+ * if {@code Extension-List} includes {@code javax.servlet-api},
+ * {@code javax.ejb-api}, {@code jakarta.servlet-api} with version &amp;lt; 6.0, or
+ * {@code jakarta.ejb-api} with version &amp;lt; 4.0. If both
+ * {@link ModuleDescriptor module-info.class} and a &lt;strong&gt;legacy
+ * dependency&lt;/strong&gt; is named, the &lt;strong&gt;component&lt;/strong&gt; will be loaded
+ * as &lt;strong&gt;modular&lt;/strong&gt;.&lt;/li&gt;
+ * &lt;li&gt;Includes {@code META-INF/iu.properties}. When both
+ * {@code META-INF/iu.properties} and {@link ModuleDescriptor module-info.class}
+ * are present, the &lt;strong&gt;archive&lt;/strong&gt; will be rejected with
+ * {@link IllegalArgumentException}.&lt;/li&gt;
+ * &lt;/ul&gt;
+ * 
+ * &lt;p&gt;
+ * Types defined by &lt;strong&gt;legacy components&lt;/strong&gt; that
+ * &lt;strong&gt;depend&lt;/strong&gt; on packages named {@code javax.*} &lt;em&gt;may&lt;/em&gt; be
+ * converted to access equivalent types named {@code jakarta.*} when an
+ * equivalent package is &lt;strong&gt;inherited&lt;/strong&gt; from a &lt;strong&gt;modular
+ * parent component&lt;/strong&gt;. To facilitate this consideration,
+ * {@link IuType#referTo(Type) type references} and {@link IuAnnotatedElement
+ * annotated elements} &lt;em&gt;may&lt;/em&gt; automatically be converted to
+ * &lt;strong&gt;non-legacy&lt;/strong&gt; equivalents when performing introspection on
+ * &lt;strong&gt;legacy components&lt;/strong&gt;.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * &lt;strong&gt;Legacy components&lt;/strong&gt; &lt;em&gt;may&lt;/em&gt; consider &quot;&lt;em&gt;should&lt;/em&gt;&quot;
+ * requirements outlined below as &lt;em&gt;optional&lt;/em&gt;.
+ * &lt;/p&gt;
+ * 
+ * &lt;h2&gt;Dependencies&lt;/h2&gt;
+ * 
+ * &lt;p&gt;
+ * A &lt;strong&gt;component&lt;/strong&gt; &lt;em&gt;may&lt;/em&gt; &lt;strong&gt;depend&lt;/strong&gt; on other
+ * &lt;strong&gt;components&lt;/strong&gt;. All &lt;strong&gt;dependencies&lt;/strong&gt; &lt;em&gt;must&lt;/em&gt;
+ * be present in the &lt;strong&gt;component's path&lt;/strong&gt;, or as
+ * &lt;strong&gt;dependencies&lt;/strong&gt; of its &lt;strong&gt;parent component&lt;/strong&gt;, when
+ * the &lt;strong&gt;component&lt;/strong&gt; is loaded.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * &lt;strong&gt;Dependencies&lt;/strong&gt; &lt;em&gt;may&lt;/em&gt; be &lt;strong&gt;provided&lt;/strong&gt; to a
+ * &lt;strong&gt;component's path&lt;/strong&gt; by passing additional {@link InputStream}
+ * entries to {@link #of(InputStream, InputStream...)} or
+ * {@link #extend(InputStream, InputStream...)}.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * &lt;strong&gt;Dependencies&lt;/strong&gt; &lt;em&gt;may&lt;/em&gt; be added to a &lt;strong&gt;component's
+ * path&lt;/strong&gt; by &lt;strong&gt;bundling&lt;/strong&gt; &lt;a href=
+ * &quot;https://docs.oracle.com/en/java/javase/21/docs/specs/jar/jar.html&quot;&gt;jars&lt;/a&gt;
+ * in its &lt;strong&gt;archive&lt;/strong&gt;. &lt;strong&gt;Component archives&lt;/strong&gt; with
+ * &lt;strong&gt;bundled dependencies&lt;/strong&gt; &lt;em&gt;should&lt;/em&gt; include a
+ * {@code Class-Path} entry in the {@link Manifest#getMainAttributes()
+ * manifest's main attribute section}. &lt;strong&gt;Bundled dependencies&lt;/strong&gt;
+ * must not also be &lt;strong&gt;provided&lt;/strong&gt;.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * &lt;strong&gt;Dependencies&lt;/strong&gt; &lt;em&gt;may&lt;/em&gt; be &lt;strong&gt;inherited&lt;/strong&gt; from
+ * a &lt;strong&gt;{@link #extend(InputStream, InputStream...) parent
+ * component}&lt;/strong&gt;. &lt;strong&gt;Inherited dependencies&lt;/strong&gt; must not also be
+ * &lt;strong&gt;bundled&lt;/strong&gt; or &lt;strong&gt;provided&lt;/strong&gt;.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * &lt;strong&gt;Components&lt;/strong&gt; &lt;em&gt;should&lt;/em&gt; enumerate dependencies using the
+ * &lt;strong&gt;Extension-List&lt;/strong&gt; manifest attribute. When present, the
+ * &lt;strong&gt;dependencies&lt;/strong&gt; referred to in the extension list will be
+ * enforced using &lt;a href=
+ * &quot;https://maven.apache.org/shared/maven-archiver/index.html&quot;&gt;pom.properties&lt;/a&gt;
+ * {@code artifactId} and {@code version} as present the &lt;strong&gt;component's
+ * path&lt;/strong&gt; or &lt;strong&gt;inherited&lt;/strong&gt; by its &lt;strong&gt;parent
+ * component&lt;/strong&gt;.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * Note that {@code Extension-List} was originally intended for applets, which
+ * are no longer supported by Java SE or related products. However, &lt;a href=
+ * &quot;https://jakarta.ee/specifications/platform/10/jakarta-platform-spec-10.0#installed-libraries&quot;&gt;JEE
+ * 10 Section 8.2.2&lt;/a&gt; &lt;em&gt;requires&lt;/em&gt; this attribute to be supported for all
+ * &lt;strong&gt;component&lt;/strong&gt; types, and clarifies by example that
+ * {@code extension-Specification-Version} may be used to declare that an
+ * installed library meet a minimum specification version as opposed to
+ * declaring a specific {@code extension-Implementation-Version}. This
+ * requirement by JEE 10 supersedes the implied deprecation of
+ * {@code Extension-List} by Java SE.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * &lt;a href=&quot;https://maven.apache.org/shared/maven-archiver/index.html&quot;&gt;Maven
+ * Archiver&lt;/a&gt; includes support for generating the {@code Class-Path} and
+ * {@code Extension-List} attributes from the project's dependency artifacts.
+ * &lt;/p&gt;
+ * &lt;ul&gt;
+ * &lt;li&gt;The {@code addClasspath} configuration parameter may be {@code true} to
+ * enumerate all
+ * &lt;a href=&quot;https://maven.apache.org/pom.html#dependencies&quot;&gt;compile and runtime
+ * scoped dependencies&lt;/a&gt; in the {@code Class-Path} attribute. However, this
+ * does not bundle the related artifacts in the resulting &lt;strong&gt;component
+ * archive&lt;/strong&gt;. When using {@code addClasspath}, a &lt;strong&gt;component
+ * archive's&lt;/strong&gt; Maven project should also configure the &lt;a href=
+ * &quot;https://maven.apache.org/plugins/maven-dependency-plugin/copy-dependencies-mojo.html&quot;&gt;Maven
+ * Dependency Plugin&lt;/a&gt; to copy related artifacts from the local Maven
+ * repository into the archive's output folder. For example:
+ * 
+ * &lt;pre&gt;
+ *   &amp;lt;plugin&amp;gt;
+ *      &amp;lt;artifactId&amp;gt;maven-jar-plugin&amp;lt;/artifactId&amp;gt;
+ *      &amp;lt;executions&amp;gt;
+ *        &amp;lt;execution&amp;gt;
+ *          &amp;lt;id&amp;gt;default-jar&amp;lt;/id&amp;gt;
+ *          &amp;lt;configuration&amp;gt;
+ *            &amp;lt;archive&amp;gt;
+ *              &amp;lt;manifest&amp;gt;
+ *                &amp;lt;addClasspath&amp;gt;true&amp;lt;/addClasspath&amp;gt;
+ *                &amp;lt;classpathPrefix&amp;gt;META-INF/lib&amp;lt;/classpathPrefix&amp;gt;
+ *              &amp;lt;/manifest&amp;gt;
+ *            &amp;lt;/archive&amp;gt;
+ *          &amp;lt;/configuration&amp;gt;
+ *        &amp;lt;/execution&amp;gt;
+ *      &amp;lt;/executions&amp;gt;
+ *    &amp;lt;/plugin&amp;gt;
+ *    &amp;lt;plugin&amp;gt;
+ *      &amp;lt;artifactId&amp;gt;maven-dependency-plugin&amp;lt;/artifactId&amp;gt;
+ *      &amp;lt;executions&amp;gt;
+ *        &amp;lt;execution&amp;gt;
+ *          &amp;lt;id&amp;gt;embed-dependencies&amp;lt;/id&amp;gt;
+ *          &amp;lt;phase&amp;gt;process-resources&amp;lt;/phase&amp;gt;
+ *          &amp;lt;goals&amp;gt;
+ *            &amp;lt;goal&amp;gt;copy-dependencies&amp;lt;/goal&amp;gt;
+ *          &amp;lt;/goals&amp;gt;
+ *          &amp;lt;configuration&amp;gt;
+ *            &amp;lt;outputDirectory&amp;gt;${project.build.outputDirectory}/META-INF/lib&amp;lt;/outputDirectory&amp;gt;
+ *          &amp;lt;/configuration&amp;gt;
+ *        &amp;lt;/execution&amp;gt;
+ *      &amp;lt;/executions&amp;gt;
+ *    &amp;lt;/plugin&amp;gt;
+ * &lt;/pre&gt;
+ * 
+ * &lt;/li&gt;
+ * &lt;li&gt;&lt;a href=&quot;https://maven.apache.org/shared/maven-archiver/index.html&quot;&gt;Maven
+ * Archiver documentation&lt;/a&gt; as well as the &lt;a href=
+ * &quot;https://github.com/apache/maven-archiver/blob/master/src/main/java/org/apache/maven/archiver/MavenArchiver.java#L403&quot;&gt;Maven
+ * Archiver source code related to {@code addExtensions}&lt;/a&gt; reveal only minimal
+ * support for {@code Extension-List} with caveats related to applets indicated
+ * in inline comments. This configuration parameter may be used by a
+ * &lt;strong&gt;component archive's&lt;/strong&gt; Maven project to declare that specific
+ * versions of all
+ * &lt;a href=&quot;https://maven.apache.org/pom.html#dependencies&quot;&gt;compile and runtime
+ * scoped dependencies&lt;/a&gt; be &lt;strong&gt;provided&lt;/strong&gt; to the
+ * &lt;strong&gt;component&lt;/strong&gt;. The {@code addExtensions} archive configuration
+ * parameter &lt;em&gt;should not&lt;/em&gt; be {@code true} when {@code addClasspath} is
+ * also {@code true}.
+ * &lt;/ul&gt;
+ * 
+ * &lt;h2&gt;Class Loading&lt;/h2&gt;
+ * 
+ * &lt;p&gt;
+ * {@link IuComponent} is an &lt;a href=
+ * &quot;https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html&quot;&gt;application&lt;/a&gt;
+ * bootstrap utility that shields loaded &lt;strong&gt;components&lt;/strong&gt; from
+ * {@link ClassLoader class loading} and type introspection details. An &lt;a href=
+ * &quot;https://docs.oracle.com/en/java/javase/21/docs/specs/man/java.html&quot;&gt;application&lt;/a&gt;
+ * that uses the {@code iu.util.type} module to compose
+ * &lt;strong&gt;components&lt;/strong&gt; &lt;em&gt;should&lt;/em&gt; include {@code iu-java-type.jar}
+ * in the JVM module path.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * A &lt;strong&gt;component&lt;/strong&gt; &lt;em&gt;must not&lt;/em&gt; have
+ * {@link AccessibleObject#canAccess(Object) access} to the {@code iu.util.type}
+ * module instance it was loaded from or to any other module instances present
+ * in the same {@link ModuleLayer module layer}.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * A &lt;strong&gt;component&lt;/strong&gt; &lt;em&gt;may&lt;/em&gt; list the {@code iu.util.type}
+ * module as a &lt;strong&gt;dependency&lt;/strong&gt;. When listed as a
+ * &lt;strong&gt;dependency&lt;/strong&gt;, the {@code iu.util.type} module instance
+ * available to the &lt;strong&gt;component&lt;/strong&gt; &lt;em&gt;must&lt;/em&gt; exist in a separate
+ * {@link ModuleLayer layer} from the instance that loaded the
+ * &lt;strong&gt;component&lt;/strong&gt;.
+ * 
+ * &lt;p&gt;
+ * Regardless of which {@code iu.util.type} module instance loaded a
+ * &lt;strong&gt;component&lt;/strong&gt;, Types loaded by the &lt;strong&gt;component&lt;/strong&gt;
+ * &lt;em&gt;must not&lt;/em&gt; have {@link AccessibleObject#canAccess(Object) access} to
+ * types loaded by the {@link ClassLoader#getSystemClassLoader() system class
+ * loader}. Types loaded by the {@link ClassLoader#getSystemClassLoader() system
+ * class loader} must not be visible to types loaded by the
+ * &lt;strong&gt;component&lt;/strong&gt;.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * Conversely, types loaded by the {@link ClassLoader#getSystemClassLoader()
+ * system class loader}, especially all types in the {@code iu.util.type} module
+ * &lt;em&gt;must&lt;/em&gt; have {@link AccessibleObject#canAccess(Object) access} to all
+ * types in all &lt;strong&gt;components&lt;/strong&gt;.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * &lt;strong&gt;Components&lt;/strong&gt; may be
+ * {@link #extend(InputStream, InputStream...) extended}. An &lt;strong&gt;extended
+ * component&lt;/strong&gt; includes all types defined by its &lt;strong&gt;parent
+ * component&lt;/strong&gt; and delegates to its &lt;strong&gt;parent component's&lt;/strong&gt;
+ * {@link ClassLoader class loader}. A &lt;strong&gt;component&lt;/strong&gt; &lt;em&gt;must
+ * not&lt;/em&gt; have {@link AccessibleObject#canAccess(Object) access} to other
+ * &lt;strong&gt;components&lt;/strong&gt; extended from the same &lt;strong&gt;parent&lt;/strong&gt;.
+ * &lt;/p&gt;
+ *
+ * &lt;h2&gt;Web Component&lt;/h2&gt;
+ * &lt;p&gt;
+ * A &lt;strong&gt;component&lt;/strong&gt; &lt;em&gt;may&lt;/em&gt; be defined by a &lt;a href=
+ * &quot;https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-archive-file&quot;&gt;Web
+ * Application Archive&lt;/a&gt;. &lt;strong&gt;Web components&lt;/strong&gt; &lt;em&gt;should&lt;/em&gt;
+ * adhere to the requirements outlined in &lt;a href=
+ * &quot;https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-applications&quot;&gt;Java
+ * Servlet 6.0 Section 10&lt;/a&gt;.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * &lt;strong&gt;Web components&lt;/strong&gt; &lt;em&gt;must&lt;/em&gt; only &lt;strong&gt;bundle&lt;/strong&gt;
+ * dependencies in the &lt;strong&gt;WEB-INF/lib/&lt;/strong&gt; folder, and &lt;em&gt;should
+ * not&lt;/em&gt; include the &lt;strong&gt;Class-Path&lt;/strong&gt; manifest attribute.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * A &lt;strong&gt;web component&lt;/strong&gt; &lt;em&gt;should&lt;/em&gt; include
+ * {@code Extension-List} in its {@link Manifest#getMainAttributes() manifest's
+ * main attributes section} to declare all &lt;strong&gt;provided
+ * dependencies&lt;/strong&gt;.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * A &lt;strong&gt;web component&lt;/strong&gt; &lt;em&gt;must not&lt;/em&gt; be listed as a dependency.
+ * &lt;/p&gt;
+ * 
+ * &lt;h2&gt;Unsupported Component Formats&lt;/h2&gt;
+ * &lt;p&gt;
+ * Support for the formats outlined in this section are out of scope and will
+ * result in {@link IllegalArgumentException} when passed to
+ * {@link #of(InputStream, InputStream...)}.
+ * &lt;/p&gt;
+ * 
+ * &lt;h3&gt;Enterprise Application Archives&lt;/h3&gt;
+ * &lt;p&gt;
+ * An &lt;a href=
+ * &quot;https://jakarta.ee/specifications/platform/10/jakarta-platform-spec-10.0#application-assembly-and-deployment&quot;&gt;Enterprise
+ * Application Archive (ear)&lt;/a&gt; &lt;strong&gt;contains components&lt;/strong&gt;. The IU
+ * JEE 7 Enterprise Archive implementation will consume this interface to
+ * compose &lt;strong&gt;applications&lt;/strong&gt;, but an &lt;a href=
+ * &quot;https://jakarta.ee/specifications/platform/10/jakarta-platform-spec-10.0#application-assembly-and-deployment&quot;&gt;ear&lt;/a&gt;
+ * is not a component and &lt;em&gt;must not&lt;/em&gt; be supplied to the
+ * {@link #of(InputStream, InputStream...)} method.
+ * &lt;/p&gt;
+ * 
+ * &lt;h3&gt;Resource Adapter Archives&lt;/h3&gt;
+ * &lt;p&gt;
+ * An &lt;a href=
+ * &quot;https://jakarta.ee/specifications/connectors/2.1/jakarta-connectors-spec-2.1#resource-adapter-archive&quot;&gt;Resource
+ * Adapter Archive (rar)&lt;/a&gt; &lt;strong&gt;contains&lt;/strong&gt; Java and non-Java shared
+ * library archives. The IU JEE 7 Resource Adapter implementation will consume
+ * this interface to compose resource adapters, but a &lt;a href=
+ * &quot;https://jakarta.ee/specifications/connectors/2.1/jakarta-connectors-spec-2.1#resource-adapter-archive&quot;&gt;rar&lt;/a&gt;
+ * file is not a &lt;strong&gt;component&lt;/strong&gt; and &lt;em&gt;must not&lt;/em&gt; be supplied to
+ * the {@link #of(InputStream, InputStream...)} method.
+ * &lt;/p&gt;
+ * 
+ * &lt;h3&gt;Shaded (Uber-)Jar Archive&lt;/h3&gt;
+ * &lt;p&gt;
+ * Maven provides the
+ * &lt;a href=&quot;https://maven.apache.org/plugins/maven-shade-plugin/&quot;&gt;shade&lt;/a&gt;
+ * plugin for creating &quot;uber-jar&quot; archives that flatten all dependencies into a
+ * single archive. While this format is useful for creating executable jars and
+ * other types of standalone Java applications, it breaks encapsulation and so
+ * is considered an anti-pattern for runtime-composable application components.
+ * An uber-jar &lt;em&gt;must not&lt;/em&gt; be supplied to the
+ * {@link #of(InputStream, InputStream...)} method.
+ * &lt;/p&gt;
+ * 
+ * @see ClassLoader
+ * @see ModuleLayer
+ */
+public interface IuComponent extends AutoCloseable {
+
+	/**
+	 * Enumerates the different kinds of components that may be loaded using this
+	 * interface.
+	 */
+<span class="fc" id="L409">	enum Kind {</span>
+		/**
+		 * Designates &lt;strong&gt;modular&lt;/strong&gt; component defined by one or more Java
+		 * Archive (jar) files.
+		 */
+<span class="fc" id="L414">		MODULAR_JAR(true, false),</span>
+
+		/**
+		 * Designates an &lt;strong&gt;legacy&lt;/strong&gt; component defined by a Java Archive
+		 * (jar) file.
+		 */
+<span class="fc" id="L420">		LEGACY_JAR(false, false),</span>
+
+		/**
+		 * Designates &lt;strong&gt;modular&lt;/strong&gt; component defined by a Web Application
+		 * Archive (war) file.
+		 */
+<span class="fc" id="L426">		MODULAR_WAR(true, true),</span>
+
+		/**
+		 * Designates an &lt;strong&gt;legacy&lt;/strong&gt; component defined by a Web Application
+		 * Archive (war) file.
+		 */
+<span class="fc" id="L432">		LEGACY_WAR(false, true);</span>
+
+		private final boolean modular;
+		private final boolean web;
+
+<span class="fc" id="L437">		private Kind(boolean modular, boolean web) {</span>
+<span class="fc" id="L438">			this.modular = modular;</span>
+<span class="fc" id="L439">			this.web = web;</span>
+<span class="fc" id="L440">		}</span>
+
+		/**
+		 * Determines if the &lt;strong&gt;component&lt;/strong&gt; is &lt;strong&gt;modular&lt;/strong&gt;.
+		 * 
+		 * @return {@code true} if &lt;strong&gt;modular&lt;/strong&gt;; else {@code false}
+		 */
+		public boolean isModular() {
+<span class="fc" id="L448">			return modular;</span>
+		}
+
+		/**
+		 * Determines if the &lt;strong&gt;component&lt;/strong&gt; is a &lt;strong&gt;web
+		 * component&lt;/strong&gt;.
+		 * 
+		 * @return {@code true} if &lt;strong&gt;web component&lt;/strong&gt;; else {@code false}
+		 */
+		public boolean isWeb() {
+<span class="fc" id="L458">			return web;</span>
+		}
+	}
+
+	/**
+	 * Validates a &lt;strong&gt;component archive&lt;/strong&gt;, all &lt;strong&gt;dependency
+	 * archives&lt;/strong&gt;, and loads a &lt;strong&gt;component&lt;/strong&gt;.
+	 * 
+	 * @param componentArchiveSource           {@link InputStream} for reading the
+	 *                                         &lt;strong&gt;component archive&lt;/strong&gt;.
+	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
+	 *                                         &lt;strong&gt;provided dependency
+	 *                                         archives&lt;/strong&gt;.
+	 * @return component
+	 * @throws IOException              If the &lt;strong&gt;component archive&lt;/strong&gt; or
+	 *                                  any &lt;strong&gt;dependency archives&lt;/strong&gt; are
+	 *                                  unreadable.
+	 * @throws IllegalArgumentException If the &lt;strong&gt;component archive&lt;/strong&gt; or
+	 *                                  any &lt;strong&gt;dependency archives&lt;/strong&gt;
+	 *                                  invalid.
+	 */
+	static IuComponent of(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
+			throws IOException, IllegalArgumentException {
+<span class="fc" id="L481">		return TypeImplementation.PROVIDER.createComponent(componentArchiveSource, providedDependencyArchiveSources);</span>
+	}
+
+	/**
+	 * Validates &lt;strong&gt;component archives&lt;/strong&gt;, all &lt;strong&gt;dependency
+	 * archives&lt;/strong&gt;, and loads a &lt;strong&gt;component&lt;/strong&gt; that
+	 * &lt;strong&gt;extends&lt;/strong&gt; this &lt;strong&gt;component&lt;/strong&gt;.
+	 * 
+	 * @param componentArchiveSource           {@link InputStream} for reading the
+	 *                                         &lt;strong&gt;component archive&lt;/strong&gt;.
+	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
+	 *                                         &lt;strong&gt;provided dependency
+	 *                                         archive&lt;/strong&gt;.
+	 * @return component
+	 * @throws IOException              If the &lt;strong&gt;component archive&lt;/strong&gt; or
+	 *                                  any &lt;strong&gt;dependency archives&lt;/strong&gt; are
+	 *                                  unreadable.
+	 * @throws IllegalArgumentException If the &lt;strong&gt;component archive&lt;/strong&gt; or
+	 *                                  any &lt;strong&gt;dependency archives&lt;/strong&gt;
+	 *                                  invalid.
+	 */
+	IuComponent extend(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
+			throws IOException, IllegalArgumentException;
+
+	/**
+	 * Gets the kind of component.
+	 * 
+	 * @return {@link Kind}
+	 */
+	Kind kind();
+
+	/**
+	 * Gets the component version.
+	 * 
+	 * @return {@link IuComponentVersion}
+	 */
+	IuComponentVersion version();
+
+	/**
+	 * Gets the {@link ClassLoader} for this component.
+	 * 
+	 * @return {@link ClassLoader}
+	 */
+	ClassLoader classLoader();
+
+	/**
+	 * Gets all types in the component annotated by a specific type.
+	 * 
+	 * @param annotationType annotation type
+	 * @return annotated type facades
+	 */
+	Iterable&lt;? extends IuType&lt;?, ?&gt;&gt; annotatedTypes(Class&lt;? extends Annotation&gt; annotationType);
+
+	/**
+	 * Gets all of the component's public interfaces.
+	 * 
+	 * &lt;p&gt;
+	 * This method is intended to support resource and service discovery of public
+	 * APIs defined by the applications. A &lt;strong&gt;modular component&lt;/strong&gt;
+	 * &lt;em&gt;Must not&lt;/em&gt; include interfaces from a module that does not
+	 * {@link Module#isOpen(String, Module) open} the package containing the
+	 * interface to the {@code iu.util.type.impl} module. A &lt;strong&gt;legacy
+	 * component&lt;/strong&gt; &lt;em&gt;Must not&lt;/em&gt; include interfaces from any
+	 * &lt;strong&gt;dependencies&lt;/strong&gt; unless the &lt;strong&gt;dependency&lt;/strong&gt; is a
+	 * {@link Kind#LEGACY_JAR} that includes an {@code META-INF/iu.properties}
+	 * resource.
+	 * &lt;/p&gt;
+	 * 
+	 * @return interface facades
+	 */
+	Iterable&lt;? extends IuType&lt;?, ?&gt;&gt; interfaces();
+
+	/**
+	 * Gets component's resources.
+	 *
+	 * &lt;p&gt;
+	 * Includes:
+	 * &lt;/p&gt;
+	 * &lt;ul&gt;
+	 * &lt;li&gt;Static web resources when {@link #kind()}.{@link Kind#isWeb() isWeb()} is
+	 * true, with {@link IuResource#type() type} {@code byte[]}. This includes
+	 * zero-length binary resources for folder entries ({@link IuResource#name()}
+	 * ends with '/').&lt;/li&gt;
+	 * &lt;li&gt;All types in the &lt;strong&gt;component&lt;/strong&gt; and all
+	 * &lt;strong&gt;dependencies&lt;/strong&gt; declared as part of an package open to
+	 * {@code iu.util.type.impl}, or in a &lt;strong&gt;legacy component&lt;/strong&gt; with
+	 * {@code META-INF/iu.properties}, that includes the @Resource or @Resources
+	 * annotation where either the &lt;strong&gt;resource type&lt;/strong&gt; designated by the
+	 * annotation {@link Class#isAssignableFrom(Class) is assignable from} the
+	 * &lt;strong&gt;annotated type&lt;/strong&gt;, or the designated type is an interface and
+	 * the &lt;strong&gt;annotated type&lt;/strong&gt; is an {@link InvocationHandler}.&lt;/li&gt;
+	 * &lt;/ul&gt;
+	 * 
+	 * &lt;p&gt;
+	 * &lt;em&gt;Must not&lt;/em&gt; include resources available from
+	 * {@link ClassLoader#getResources(String)} and related methods. Although the
+	 * name and functionality are similar, the {@code iu.util.type} module is
+	 * intended only to simplify, not duplicate, base platform functionality
+	 * provided by the platform.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * This method discovers resources in a manner that deviates from the behavior
+	 * described in &lt;a href=
+	 * &quot;https://jakarta.ee/specifications/annotations/2.1/annotations-spec-2.1#jakarta-annotation-resource&quot;&gt;Jakarta
+	 * Annotations 2.1 Section 3.3&lt;/a&gt;. This deviation from the standard is an
+	 * important element of IU JEE's self-defining behavior for application
+	 * resources, and eliminates the need for a deployment descriptor that describes
+	 * the &lt;strong&gt;resources&lt;/strong&gt; available to a &lt;strong&gt;component&lt;/strong&gt;.
+	 * &lt;/p&gt;
+	 * &lt;p&gt;
+	 * The standard specification describes the behavior of @Resource on a type as
+	 * declaring a dependency that must be available for lookup via JNDI and
+	 * requires that name() be non-empty. That behavior &lt;em&gt;should&lt;/em&gt; be preserved
+	 * for cases when the &lt;strong&gt;resource type&lt;/strong&gt; is not assignable from the
+	 * &lt;strong&gt;annotated type&lt;/strong&gt;, however when the &lt;strong&gt;resource
+	 * type&lt;/strong&gt; is assignable or is and interface and the &lt;strong&gt;annotated
+	 * type&lt;/strong&gt; implements {@link InvocationHandler}, the &lt;strong&gt;annotated
+	 * type&lt;/strong&gt; itself is considered the &lt;strong&gt;resource implementation
+	 * type&lt;/strong&gt; and the default &lt;strong&gt;resource name&lt;/strong&gt; is the
+	 * {@link Class#getSimpleName() simple name} of &lt;strong&gt;resource type&lt;/strong&gt;.
+	 * When the &lt;strong&gt;annotated type&lt;/strong&gt; is an {@link InvocationHandler},
+	 * then the &lt;strong&gt;resource type&lt;/strong&gt; &lt;em&gt;must&lt;/em&gt; be an {@code interface}
+	 * in order to be discovered, otherwise the default &lt;strong&gt;resource
+	 * type&lt;/strong&gt; is the first non-platform interface implemented by the
+	 * &lt;strong&gt;resource implementation type&lt;/strong&gt;, or the &lt;strong&gt;resource
+	 * implementation type&lt;/strong&gt; itself if no non-platform interfaces are
+	 * implemented.
+	 * &lt;/p&gt;
+	 * &lt;p&gt;
+	 * &lt;strong&gt;Resources&lt;/strong&gt; discovered in this manner use
+	 * {@link IuConstructor#exec(Object...)} with no args to create an instance.
+	 * When shareable(), {@link IuResource#get()} returns a pre-constructed single
+	 * instance; else each invocation returns a new instance. When the
+	 * &lt;strong&gt;annotated type&lt;/strong&gt; is an {@link InvocationHandler}, a
+	 * {@link Proxy} is created with the &lt;strong&gt;resource type&lt;/strong&gt; as its only
+	 * interface.
+	 * &lt;/p&gt;
+	 * &lt;p&gt;
+	 * Note that &lt;strong&gt;resources&lt;/strong&gt; provided by this method do not have
+	 * {@link IuField field} or {@link IuProperty property} bindings applied. That
+	 * binding behavior would require a fully formed JNDI context be available and
+	 * is the responsibility JEE Container, via the {@code iu.jee.resources} module,
+	 * not this base utilities module.
+	 * &lt;/p&gt;
+	 * 
+	 * @return resources
+	 */
+	Iterable&lt;? extends IuResource&lt;?&gt;&gt; resources();
+
+	@Override
+	void close();
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

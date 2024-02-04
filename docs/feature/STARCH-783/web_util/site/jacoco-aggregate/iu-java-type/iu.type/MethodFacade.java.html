@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>MethodFacade.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-type</a> &gt; <a href="index.source.html" class="el_package">iu.type</a> &gt; <span class="el_source">MethodFacade.java</span></div><h1>MethodFacade.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.type;
+
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
+
+import edu.iu.IuException;
+import edu.iu.type.IuMethod;
+import edu.iu.type.IuReferenceKind;
+
+/**
+ * Facade implementation for {@link IuMethod}.
+ * 
+ * @param &lt;D&gt; declaring type
+ * @param &lt;R&gt; method return type
+ */
+final class MethodFacade&lt;D, R&gt; extends ExecutableBase&lt;D, R, Method&gt; implements IuMethod&lt;D, R&gt; {
+
+	private final TypeFacade&lt;?, R&gt; returnType;
+
+	/**
+	 * Facade constructor.
+	 * 
+	 * @param method                {@link Method}
+	 * @param returnTypeTemplate    {@link TypeTemplate} for the return type
+	 * @param declaringTypeTemplate {@link TypeTemplate} for the declaring type
+	 */
+	MethodFacade(Method method, TypeTemplate&lt;?, R&gt; returnTypeTemplate, TypeTemplate&lt;?, D&gt; declaringTypeTemplate) {
+<span class="fc" id="L60">		super(method, returnTypeTemplate.deref(), declaringTypeTemplate);</span>
+<span class="fc" id="L61">		method.setAccessible(true);</span>
+
+<span class="fc" id="L63">		this.returnType = new TypeFacade&lt;&gt;(returnTypeTemplate, this, IuReferenceKind.RETURN_TYPE);</span>
+<span class="fc" id="L64">		declaringTypeTemplate.postInit(() -&gt; returnTypeTemplate.postInit(this::seal));</span>
+<span class="fc" id="L65">	}</span>
+
+	// TODO: STARCH-653 restore to exec() and resolve Javadoc error triggered by importing jakarta.interceptors
+	// or create a static dependency helper utility 
+	private boolean hasAroundInvoke() {
+<span class="fc bfc" id="L70" title="All 2 branches covered.">		return (hasAnnotation(jakarta.interceptor.Interceptors.class)</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">				|| declaringType().hasAnnotation(jakarta.interceptor.Interceptors.class)</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">				|| declaringType().annotatedMethods(jakarta.interceptor.AroundInvoke.class).iterator().hasNext());</span>
+	}
+
+	@Override
+	public String name() {
+<span class="fc" id="L77">		return annotatedElement.getName();</span>
+	}
+
+	@Override
+	public boolean isStatic() {
+<span class="fc" id="L82">		var mod = annotatedElement.getModifiers();</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">		return (mod | Modifier.STATIC) == mod;</span>
+	}
+
+	@Override
+	public TypeFacade&lt;?, R&gt; returnType() {
+<span class="fc" id="L88">		checkSealed();</span>
+<span class="fc" id="L89">		return returnType;</span>
+	}
+
+	@Override
+	public R exec(Object... arguments) throws Exception {
+<span class="fc" id="L94">		checkSealed();</span>
+		
+<span class="fc bfc" id="L96" title="All 2 branches covered.">		if (hasAroundInvoke())</span>
+<span class="fc" id="L97">			throw new UnsupportedOperationException(&quot;@AroundInvoke not supported in this version&quot;);</span>
+
+		Object obj;
+		Object[] args;
+
+<span class="fc bfc" id="L102" title="All 2 branches covered.">		if (isStatic()) {</span>
+<span class="fc" id="L103">			obj = null;</span>
+<span class="fc" id="L104">			args = arguments;</span>
+		} else {
+<span class="fc" id="L106">			obj = arguments[0];</span>
+<span class="fc" id="L107">			args = Arrays.copyOfRange(arguments, 1, arguments.length);</span>
+		}
+
+<span class="fc" id="L110">		return IuException.checkedInvocation(() -&gt; returnType.autoboxClass().cast(annotatedElement.invoke(obj, args)));</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
