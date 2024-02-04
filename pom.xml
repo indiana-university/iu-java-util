@@ -55,7 +55,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-		<argLine>-ea --add-modules ALL-MODULE-PATH -XX:+EnableDynamicAgentLoading</argLine>
+		<argLine>-ea -Xmx1g --add-modules ALL-MODULE-PATH -XX:+EnableDynamicAgentLoading</argLine>
 
 		<iu-java-util.version>7.0.2-SNAPSHOT</iu-java-util.version>
 
