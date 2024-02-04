@@ -1,0 +1,418 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuCacheMap.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Base Utilities Module</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuCacheMap.java</span></div><h1>IuCacheMap.java</h1><pre class="source lang-java linenums">package edu.iu;
+
+import java.time.Duration;
+import java.util.ArrayDeque;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.Set;
+import java.util.Spliterator;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+/**
+ * Caching {@link Map} implementation backed by {@link IuCachedValue}.
+ * 
+ * @param &lt;K&gt; key type
+ * @param &lt;V&gt; value type
+ */
+public class IuCacheMap&lt;K, V&gt; implements Map&lt;K, V&gt; {
+
+<span class="fc" id="L26">	private static final Object[] O0 = new Object[0];</span>
+
+	private static class CacheIterator&lt;K, V, T&gt; implements Iterator&lt;T&gt; {
+		private final Iterator&lt;Entry&lt;K, IuCachedValue&lt;V&gt;&gt;&gt; iterator;
+		private final Function&lt;Entry&lt;K, IuCachedValue&lt;V&gt;&gt;, T&gt; transform;
+		private Entry&lt;K, IuCachedValue&lt;V&gt;&gt; current;
+
+		// ensures GC doesn't clear reference between hasNext() and next()
+		@SuppressWarnings(&quot;unused&quot;)
+		private V hardRef;
+
+		private CacheIterator(Iterator&lt;Entry&lt;K, IuCachedValue&lt;V&gt;&gt;&gt; iterator,
+<span class="fc" id="L38">				Function&lt;Entry&lt;K, IuCachedValue&lt;V&gt;&gt;, T&gt; transform) {</span>
+<span class="fc" id="L39">			this.transform = transform;</span>
+<span class="fc" id="L40">			this.iterator = iterator;</span>
+<span class="fc" id="L41">		}</span>
+
+		@Override
+		public boolean hasNext() {
+<span class="fc bfc" id="L45" title="All 2 branches covered.">			if (current != null)</span>
+<span class="fc" id="L46">				return true;</span>
+
+<span class="fc bfc" id="L48" title="All 2 branches covered.">			while (iterator.hasNext()) {</span>
+<span class="fc" id="L49">				final var current = iterator.next();</span>
+<span class="fc" id="L50">				final var ref = current.getValue();</span>
+<span class="fc" id="L51">				final var hardRef = ref.get();</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">				if (ref.isValid()) {</span>
+<span class="fc" id="L53">					this.current = current;</span>
+<span class="fc" id="L54">					this.hardRef = hardRef;</span>
+<span class="fc" id="L55">					return true;</span>
+				}
+<span class="fc" id="L57">			}</span>
+
+<span class="fc" id="L59">			return false;</span>
+		}
+
+		@Override
+		public T next() {
+<span class="fc bfc" id="L64" title="All 2 branches covered.">			if (hasNext()) {</span>
+<span class="fc" id="L65">				T rv = transform.apply(current);</span>
+<span class="fc" id="L66">				hardRef = null;</span>
+<span class="fc" id="L67">				current = null;</span>
+<span class="fc" id="L68">				return rv;</span>
+			} else
+<span class="fc" id="L70">				throw new NoSuchElementException();</span>
+		}
+
+		@Override
+		public void remove() {
+<span class="fc" id="L75">			iterator.remove();</span>
+<span class="fc" id="L76">		}</span>
+	}
+
+	private static class CacheSpliterator&lt;K, V, T&gt; implements Spliterator&lt;T&gt; {
+		private final Spliterator&lt;Entry&lt;K, IuCachedValue&lt;V&gt;&gt;&gt; split;
+		private final Function&lt;Entry&lt;K, IuCachedValue&lt;V&gt;&gt;, T&gt; transform;
+
+		private CacheSpliterator(Spliterator&lt;Entry&lt;K, IuCachedValue&lt;V&gt;&gt;&gt; split,
+<span class="fc" id="L84">				Function&lt;Entry&lt;K, IuCachedValue&lt;V&gt;&gt;, T&gt; transform) {</span>
+<span class="fc" id="L85">			this.split = split;</span>
+<span class="fc" id="L86">			this.transform = transform;</span>
+<span class="fc" id="L87">		}</span>
+
+		@Override
+		public boolean tryAdvance(Consumer&lt;? super T&gt; action) {
+<span class="fc" id="L91">			class Box {</span>
+				private boolean found;
+			}
+<span class="fc" id="L94">			final var box = new Box();</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">			while (!box.found)</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">				if (!split.tryAdvance(entry -&gt; {</span>
+<span class="fc" id="L97">					final var ref = entry.getValue();</span>
+					@SuppressWarnings(&quot;unused&quot;)
+<span class="fc" id="L99">					final var hardRef = ref.get();</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">					if (box.found = ref.isValid())</span>
+<span class="fc" id="L101">						action.accept(transform.apply(entry));</span>
+<span class="fc" id="L102">				}))</span>
+<span class="fc" id="L103">					return false;</span>
+
+<span class="fc" id="L105">			return true;</span>
+		}
+
+		@Override
+		public Spliterator&lt;T&gt; trySplit() {
+<span class="fc" id="L110">			final var split = this.split.trySplit();</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">			if (split == null)</span>
+<span class="fc" id="L112">				return null;</span>
+			else
+<span class="fc" id="L114">				return new CacheSpliterator&lt;&gt;(split, transform);</span>
+		}
+
+		@Override
+		public long estimateSize() {
+<span class="fc" id="L119">			return split.estimateSize();</span>
+		}
+
+		@Override
+		public int characteristics() {
+<span class="fc" id="L124">			return split.characteristics();</span>
+		}
+	}
+
+<span class="fc" id="L128">	private abstract class CacheCollection&lt;T&gt; implements Collection&lt;T&gt; {</span>
+		protected abstract T transform(Entry&lt;K, IuCachedValue&lt;V&gt;&gt; entry);
+
+		protected abstract Stream&lt;Entry&lt;K, IuCachedValue&lt;V&gt;&gt;&gt; findEntries(Object value);
+
+		@Override
+		public int size() {
+<span class="fc" id="L135">			return IuCacheMap.this.size();</span>
+		}
+
+		@Override
+		public boolean isEmpty() {
+<span class="fc" id="L140">			return IuCacheMap.this.isEmpty();</span>
+		}
+
+		@Override
+		public boolean add(T e) {
+<span class="fc" id="L145">			throw new UnsupportedOperationException();</span>
+		}
+
+		@Override
+		public boolean addAll(Collection&lt;? extends T&gt; c) {
+<span class="fc" id="L150">			throw new UnsupportedOperationException();</span>
+		}
+
+		@Override
+		public Iterator&lt;T&gt; iterator() {
+<span class="fc" id="L155">			return new CacheIterator&lt;&gt;(cache.entrySet().iterator(), this::transform);</span>
+		}
+
+		@Override
+		public Spliterator&lt;T&gt; spliterator() {
+<span class="fc" id="L160">			return new CacheSpliterator&lt;&gt;(cache.entrySet().spliterator(), this::transform);</span>
+		}
+
+		@Override
+		public Object[] toArray() {
+<span class="fc" id="L165">			return toArray(O0);</span>
+		}
+
+		@Override
+		public &lt;U&gt; U[] toArray(U[] a) {
+<span class="fc" id="L170">			final var q = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L171">			final var i = iterator();</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">			while (i.hasNext())</span>
+<span class="fc" id="L173">				q.offer(i.next());</span>
+<span class="fc" id="L174">			return q.toArray(a);</span>
+		}
+
+		@Override
+		public boolean contains(Object o) {
+<span class="fc" id="L179">			return findEntries(o).findAny().isPresent();</span>
+		}
+
+		@Override
+		public boolean remove(Object o) {
+<span class="fc" id="L184">			final var entry = findEntries(o).findAny();</span>
+<span class="fc bfc" id="L185" title="All 2 branches covered.">			if (entry.isEmpty())</span>
+<span class="fc" id="L186">				return false;</span>
+
+<span class="fc" id="L188">			final var removed = entry.get();</span>
+<span class="fc" id="L189">			cache.remove(entry.get().getKey());</span>
+<span class="fc" id="L190">			removed.getValue().clear();</span>
+<span class="fc" id="L191">			return true;</span>
+		}
+
+		@Override
+		public boolean containsAll(Collection&lt;?&gt; c) {
+<span class="fc" id="L196">			return c.parallelStream().allMatch(this::contains);</span>
+		}
+
+		@Override
+		public boolean removeAll(Collection&lt;?&gt; c) {
+<span class="fc" id="L201">			class Box {</span>
+				boolean removed;
+			}
+<span class="fc" id="L204">			final var box = new Box();</span>
+<span class="fc" id="L205">			c.parallelStream().forEach(a -&gt; {</span>
+<span class="fc bfc" id="L206" title="All 2 branches covered.">				if (remove(a))</span>
+<span class="fc" id="L207">					box.removed = true;</span>
+<span class="fc" id="L208">			});</span>
+<span class="fc" id="L209">			return box.removed;</span>
+		}
+
+		@Override
+		public boolean retainAll(Collection&lt;?&gt; c) {
+<span class="fc" id="L214">			return cache.entrySet().retainAll(</span>
+<span class="fc" id="L215">					c.parallelStream().flatMap(this::findEntries).filter(Objects::nonNull).collect(Collectors.toSet()));</span>
+		}
+
+		@Override
+		public void clear() {
+<span class="fc" id="L220">			IuCacheMap.this.clear();</span>
+<span class="fc" id="L221">		}</span>
+	}
+
+	private class CacheEntry implements Entry&lt;K, V&gt; {
+		private final Entry&lt;K, IuCachedValue&lt;V&gt;&gt; entry;
+		private V value;
+
+<span class="fc" id="L228">		private CacheEntry(Entry&lt;K, IuCachedValue&lt;V&gt;&gt; entry) {</span>
+<span class="fc" id="L229">			this.entry = entry;</span>
+<span class="fc" id="L230">			this.value = entry.getValue().get();</span>
+<span class="fc" id="L231">		}</span>
+
+		@Override
+		public K getKey() {
+<span class="fc" id="L235">			return entry.getKey();</span>
+		}
+
+		@Override
+		public V getValue() {
+<span class="fc" id="L240">			return value;</span>
+		}
+
+		@Override
+		public V setValue(V value) {
+<span class="fc" id="L245">			K key = getKey();</span>
+<span class="fc" id="L246">			V oldValue = this.value;</span>
+<span class="fc" id="L247">			entry.setValue(ref(key, value));</span>
+<span class="fc" id="L248">			this.value = value;</span>
+<span class="fc" id="L249">			return oldValue;</span>
+		}
+
+		@Override
+		public int hashCode() {
+			// matches HashMap.Entry#hashCode
+<span class="fc" id="L255">			return Objects.hashCode(getKey()) ^ Objects.hashCode(value);</span>
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+<span class="fc bfc" id="L260" title="All 2 branches covered.">			if (this == obj)</span>
+<span class="fc" id="L261">				return true;</span>
+<span class="fc bfc" id="L262" title="All 2 branches covered.">			if (!(obj instanceof Entry))</span>
+<span class="fc" id="L263">				return false;</span>
+<span class="fc" id="L264">			Entry&lt;?, ?&gt; other = (Entry&lt;?, ?&gt;) obj;</span>
+<span class="fc bfc" id="L265" title="All 4 branches covered.">			return IuObject.equals(getKey(), other.getKey()) &amp;&amp; entry.getValue().has(other.getValue());</span>
+		}
+	}
+
+<span class="fc" id="L269">	private class CacheEntrySet extends CacheCollection&lt;Entry&lt;K, V&gt;&gt; implements Set&lt;Entry&lt;K, V&gt;&gt; {</span>
+		@Override
+		protected Entry&lt;K, V&gt; transform(Entry&lt;K, IuCachedValue&lt;V&gt;&gt; entry) {
+<span class="fc" id="L272">			return new CacheEntry(entry);</span>
+		}
+
+		@Override
+		protected Stream&lt;Entry&lt;K, IuCachedValue&lt;V&gt;&gt;&gt; findEntries(Object value) {
+<span class="fc bfc" id="L277" title="All 2 branches covered.">			if (value instanceof Entry entry)</span>
+<span class="fc" id="L278">				return cache.entrySet().parallelStream().filter(//</span>
+<span class="fc bfc" id="L279" title="All 2 branches covered.">						a -&gt; a.getKey().equals(entry.getKey()) //</span>
+<span class="fc bfc" id="L280" title="All 2 branches covered.">								&amp;&amp; a.getValue().has(entry.getValue()));</span>
+			else
+<span class="fc" id="L282">				return Stream.empty();</span>
+		}
+	}
+
+<span class="fc" id="L286">	private class CacheKeySet extends CacheCollection&lt;K&gt; implements Set&lt;K&gt; {</span>
+		@Override
+		protected K transform(Entry&lt;K, IuCachedValue&lt;V&gt;&gt; entry) {
+<span class="fc" id="L289">			return entry.getKey();</span>
+		}
+
+		@Override
+		protected Stream&lt;Entry&lt;K, IuCachedValue&lt;V&gt;&gt;&gt; findEntries(Object value) {
+<span class="fc" id="L294">			return cache.entrySet().parallelStream().filter(a -&gt; a.getKey().equals(value));</span>
+		}
+	}
+
+<span class="fc" id="L298">	private class CacheValues extends CacheCollection&lt;V&gt; {</span>
+		@Override
+		protected V transform(Entry&lt;K, IuCachedValue&lt;V&gt;&gt; entry) {
+<span class="fc" id="L301">			return entry.getValue().get();</span>
+		}
+
+		@Override
+		protected Stream&lt;Entry&lt;K, IuCachedValue&lt;V&gt;&gt;&gt; findEntries(Object value) {
+<span class="fc" id="L306">			return cache.entrySet().parallelStream().filter(a -&gt; a.getValue().has(value));</span>
+		}
+
+	}
+
+<span class="fc" id="L311">	private final Map&lt;K, IuCachedValue&lt;V&gt;&gt; cache = new ConcurrentHashMap&lt;&gt;();</span>
+	private final Duration cacheTimeToLive;
+	private CacheKeySet keySet;
+	private CacheValues values;
+	private CacheEntrySet entrySet;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param cacheTimeToLive maximum time to live for cache entries
+	 */
+<span class="fc" id="L322">	public IuCacheMap(Duration cacheTimeToLive) {</span>
+<span class="fc" id="L323">		this.cacheTimeToLive = cacheTimeToLive;</span>
+<span class="fc" id="L324">	}</span>
+
+	@Override
+	public int size() {
+<span class="fc" id="L328">		return cache.size();</span>
+	}
+
+	@Override
+	public boolean isEmpty() {
+<span class="fc" id="L333">		return cache.isEmpty();</span>
+	}
+
+	@Override
+	public boolean containsKey(Object key) {
+<span class="fc" id="L338">		return cache.containsKey(key);</span>
+	}
+
+	@Override
+	public boolean containsValue(Object value) {
+<span class="fc" id="L343">		return cache.values().parallelStream().anyMatch(a -&gt; a.has(value));</span>
+	}
+
+	@Override
+	public V get(Object key) {
+<span class="fc" id="L348">		final var ref = cache.get(key);</span>
+<span class="fc bfc" id="L349" title="All 2 branches covered.">		if (ref == null)</span>
+<span class="fc" id="L350">			return null;</span>
+		else
+<span class="fc" id="L352">			return ref.get();</span>
+	}
+
+	@Override
+	public V put(K key, V value) {
+<span class="fc" id="L357">		final var ref = cache.get(key);</span>
+		final V rv;
+<span class="fc bfc" id="L359" title="All 2 branches covered.">		if (ref == null)</span>
+<span class="fc" id="L360">			rv = null;</span>
+		else {
+<span class="fc" id="L362">			rv = ref.get();</span>
+<span class="fc" id="L363">			ref.clear();</span>
+		}
+<span class="fc" id="L365">		cache.put(key, ref(key, value));</span>
+<span class="fc" id="L366">		return rv;</span>
+	}
+
+	@Override
+	public V remove(Object key) {
+<span class="fc" id="L371">		final var ref = cache.remove(key);</span>
+<span class="fc bfc" id="L372" title="All 2 branches covered.">		if (ref == null)</span>
+<span class="fc" id="L373">			return null;</span>
+		else {
+<span class="fc" id="L375">			final var rv = ref.get();</span>
+<span class="fc" id="L376">			ref.clear();</span>
+<span class="fc" id="L377">			return rv;</span>
+		}
+	}
+
+	@Override
+	public void putAll(Map&lt;? extends K, ? extends V&gt; m) {
+<span class="fc" id="L383">		m.forEach((k, v) -&gt; cache.put(k, ref(k, v)));</span>
+<span class="fc" id="L384">	}</span>
+
+	@Override
+	public void clear() {
+<span class="fc" id="L388">		cache.values().forEach(IuCachedValue::clear);</span>
+<span class="fc" id="L389">		cache.clear();</span>
+<span class="fc" id="L390">	}</span>
+
+	@Override
+	public Set&lt;K&gt; keySet() {
+<span class="fc bfc" id="L394" title="All 2 branches covered.">		if (keySet == null)</span>
+<span class="fc" id="L395">			keySet = new CacheKeySet();</span>
+<span class="fc" id="L396">		return keySet;</span>
+	}
+
+	@Override
+	public Collection&lt;V&gt; values() {
+<span class="fc bfc" id="L401" title="All 2 branches covered.">		if (values == null)</span>
+<span class="fc" id="L402">			values = new CacheValues();</span>
+<span class="fc" id="L403">		return values;</span>
+	}
+
+	@Override
+	public Set&lt;Entry&lt;K, V&gt;&gt; entrySet() {
+<span class="fc bfc" id="L408" title="All 2 branches covered.">		if (entrySet == null)</span>
+<span class="fc" id="L409">			entrySet = new CacheEntrySet();</span>
+<span class="fc" id="L410">		return entrySet;</span>
+	}
+
+	private IuCachedValue&lt;V&gt; ref(K key, V value) {
+<span class="fc" id="L414">		return new IuCachedValue&lt;&gt;(value, cacheTimeToLive, () -&gt; cache.remove(key));</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentResource.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Type Introspection Module</a> &gt; <a href="index.source.html" class="el_package">iu.type</a> &gt; <span class="el_source">ComponentResource.java</span></div><h1>ComponentResource.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.type;
+
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Proxy;
+import java.util.ArrayDeque;
+import java.util.Queue;
+import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import edu.iu.IuException;
+import edu.iu.UnsafeSupplier;
+import edu.iu.type.IuResource;
+import edu.iu.type.IuType;
+import jakarta.annotation.Resource;
+import jakarta.annotation.Resource.AuthenticationType;
+import jakarta.annotation.Resources;
+
+/**
+ * Implementation of {@link IuResource};
+ * 
+ * @param &lt;T&gt; resource type
+ */
+class ComponentResource&lt;T&gt; implements IuResource&lt;T&gt; {
+
+<span class="fc" id="L57">	private static final Logger LOG = Logger.getLogger(ComponentResource.class.getName());</span>
+
+	/**
+	 * Creates a static web resource.
+	 * 
+	 * @param name name
+	 * @param data content
+	 * @return static web resource
+	 */
+	static ComponentResource&lt;byte[]&gt; createWebResource(String name, byte[] data) {
+<span class="fc" id="L67">		return new ComponentResource&lt;byte[]&gt;(true, true, name, IuType.of(byte[].class), () -&gt; data);</span>
+	}
+
+	/**
+	 * Determines if a resource annotation indicates an instance of a potential
+	 * implementation class.
+	 * 
+	 * @param resourceReference {@link Resource} annotation
+	 * @param classToCheck      class to check
+	 * @return true if the class satisfies a requirement implied by the
+	 *         {@link Resource}; else false
+	 */
+	static boolean isApplicationResource(Resource resourceReference, Class&lt;?&gt; classToCheck) {
+<span class="fc" id="L80">		Class&lt;?&gt; resourceType = resourceReference.type();</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">		if (InvocationHandler.class.isAssignableFrom(classToCheck))</span>
+<span class="fc" id="L82">			return resourceType.isInterface();</span>
+		else
+<span class="fc" id="L84">			return resourceType.isAssignableFrom(classToCheck);</span>
+	}
+
+	/**
+	 * Gets an instance of the resource.
+	 * 
+	 * @param &lt;T&gt;                   resource type
+	 * @param resourceInterface     resource interface or raw implementation class
+	 * @param implementationFactory supplies a resource implementation or
+	 *                              {@link InvocationHandler} instance
+	 * @return resource instance
+	 */
+	static &lt;T&gt; T createResourceInstance(Class&lt;T&gt; resourceInterface, UnsafeSupplier&lt;?&gt; implementationFactory) {
+<span class="fc" id="L97">		var implementationInstance = IuException.unchecked(implementationFactory);</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">		if (implementationInstance instanceof InvocationHandler)</span>
+<span class="fc" id="L99">			return resourceInterface.cast(Proxy.newProxyInstance(resourceInterface.getClassLoader(),</span>
+					new Class&lt;?&gt;[] { resourceInterface }, (InvocationHandler) implementationInstance));
+		else
+<span class="fc" id="L102">			return resourceInterface.cast(implementationInstance);</span>
+	}
+
+	/**
+	 * Gets an instance of the resource.
+	 * 
+	 * @param resourceReference     resource annotation;
+	 *                              {@link #isApplicationResource(Resource, Class)}
+	 *                              &lt;em&gt;must&lt;/em&gt; return true.
+	 * @param implementationClass   implementation class or
+	 *                              {@link InvocationHandler}
+	 * @param implementationFactory supplies a resource implementation or
+	 *                              {@link InvocationHandler} instance
+	 * @return resource instance
+	 */
+	@SuppressWarnings({ &quot;rawtypes&quot;, &quot;unchecked&quot; })
+	static ComponentResource&lt;?&gt; createResource(Resource resourceReference, Class&lt;?&gt; implementationClass,
+			UnsafeSupplier&lt;?&gt; implementationFactory) {
+		IuType type;
+<span class="fc bfc" id="L121" title="All 2 branches covered.">		if (InvocationHandler.class.isAssignableFrom(implementationClass)) {</span>
+<span class="fc" id="L122">			Class&lt;?&gt; resourceClass = resourceReference.type();</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">			if (!resourceClass.isInterface())</span>
+<span class="fc" id="L124">				throw new IllegalArgumentException(</span>
+						&quot;Application resource defined by InvocationHandler requires resource type to be an interface&quot;);
+			else
+<span class="fc" id="L127">				type = IuType.of(resourceClass);</span>
+<span class="fc" id="L128">		} else {</span>
+<span class="fc" id="L129">			Class&lt;?&gt; resourceClass = resourceReference.type();</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">			if (resourceClass == Object.class) {</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">				for (var i : implementationClass.getInterfaces())</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">					if (!TypeUtils.isPlatformType(i.getName())) {</span>
+<span class="fc" id="L133">						resourceClass = i;</span>
+<span class="fc" id="L134">						break;</span>
+					}
+<span class="fc bfc" id="L136" title="All 2 branches covered.">				if (resourceClass == Object.class)</span>
+<span class="fc" id="L137">					resourceClass = implementationClass;</span>
+			}
+
+<span class="fc bfc" id="L140" title="All 2 branches covered.">			if (!resourceClass.isAssignableFrom(implementationClass))</span>
+<span class="fc" id="L141">				throw new IllegalArgumentException(</span>
+						&quot;Application resource implementation class must be an InvocationHandler or assignable from resource type&quot;);
+			else
+<span class="fc" id="L144">				type = IuType.of(resourceClass);</span>
+		}
+
+<span class="fc" id="L147">		var name = resourceReference.name();</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">		if (name.isEmpty())</span>
+<span class="fc" id="L149">			name = type.erasedClass().getSimpleName();</span>
+
+		Supplier supplier;
+<span class="fc bfc" id="L152" title="All 2 branches covered.">		if (resourceReference.shareable()) {</span>
+<span class="fc" id="L153">			var instance = createResourceInstance(type.erasedClass(), implementationFactory);</span>
+<span class="fc" id="L154">			supplier = () -&gt; instance;</span>
+<span class="fc" id="L155">		} else</span>
+<span class="fc" id="L156">			supplier = () -&gt; createResourceInstance(type.erasedClass(), implementationFactory);</span>
+
+<span class="fc" id="L158">		return new ComponentResource(resourceReference.authenticationType().equals(AuthenticationType.CONTAINER),</span>
+<span class="fc" id="L159">				resourceReference.shareable(), name, type, supplier);</span>
+	}
+
+	/**
+	 * Gets all resources definitions tied to an implementation class
+	 * 
+	 * @param implementationClass   implementation class
+	 * @param implementationFactory supplies resource implementation or
+	 *                              {@link InvocationHandler} instances
+	 * @return resource definitions
+	 */
+	static Iterable&lt;ComponentResource&lt;?&gt;&gt; getResources(Class&lt;?&gt; implementationClass,
+			UnsafeSupplier&lt;?&gt; implementationFactory) {
+<span class="fc" id="L172">		Queue&lt;ComponentResource&lt;?&gt;&gt; resources = new ArrayDeque&lt;&gt;();</span>
+
+<span class="fc" id="L174">		var resourceReferences = AnnotationBridge.getAnnotation(Resources.class, implementationClass);</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">		if (resourceReferences != null)</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">			for (var resourceReference : resourceReferences.value())</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">				if (isApplicationResource(resourceReference, implementationClass))</span>
+<span class="fc" id="L178">					resources.add(createResource(resourceReference, implementationClass, implementationFactory));</span>
+
+<span class="fc" id="L180">		var resourceReference = AnnotationBridge.getAnnotation(Resource.class, implementationClass);</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">		if (resourceReference != null)</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">			if (isApplicationResource(resourceReference, implementationClass))</span>
+				try {
+<span class="fc" id="L184">					resources.add(createResource(resourceReference, implementationClass, implementationFactory));</span>
+<span class="fc" id="L185">				} catch (Throwable e) {</span>
+<span class="fc" id="L186">					LOG.log(Level.CONFIG, e,</span>
+<span class="fc" id="L187">							() -&gt; &quot;Resource initialization failure; &quot; + resourceReference + ' ' + implementationClass);</span>
+<span class="fc" id="L188">				}</span>
+
+<span class="fc" id="L190">		return resources;</span>
+	}
+
+	private final boolean needsAuthentication;
+	private final boolean shared;
+	private final String name;
+	private final IuType&lt;?, T&gt; type;
+	private final Supplier&lt;T&gt; factory;
+
+	private ComponentResource(boolean needsAuthentication, boolean shared, String name, IuType&lt;?, T&gt; type,
+<span class="fc" id="L200">			Supplier&lt;T&gt; factory) {</span>
+<span class="fc" id="L201">		this.needsAuthentication = needsAuthentication;</span>
+<span class="fc" id="L202">		this.shared = shared;</span>
+<span class="fc" id="L203">		this.name = name;</span>
+<span class="fc" id="L204">		this.type = type;</span>
+<span class="fc" id="L205">		this.factory = factory;</span>
+<span class="fc" id="L206">	}</span>
+
+	@Override
+	public boolean needsAuthentication() {
+<span class="fc" id="L210">		return needsAuthentication;</span>
+	}
+
+	@Override
+	public boolean shared() {
+<span class="fc" id="L215">		return shared;</span>
+	}
+
+	@Override
+	public String name() {
+<span class="fc" id="L220">		return name;</span>
+	}
+
+	@Override
+	public IuType&lt;?, T&gt; type() {
+<span class="fc" id="L225">		return type;</span>
+	}
+
+	@Override
+	public T get() {
+<span class="fc" id="L230">		return factory.get();</span>
+	}
+
+	@Override
+	public String toString() {
+<span class="fc" id="L235">		return &quot;ComponentResource [needsAuthentication=&quot; + needsAuthentication + &quot;, shared=&quot; + shared + &quot;, name=&quot; + name</span>
+				+ &quot;, type=&quot; + type + &quot;]&quot;;
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
