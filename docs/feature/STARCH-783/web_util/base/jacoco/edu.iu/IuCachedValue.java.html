@@ -1,4 +1,35 @@
-<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuCachedValue.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Base Utilities Module</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuCachedValue.java</span></div><h1>IuCachedValue.java</h1><pre class="source lang-java linenums">package edu.iu;
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuCachedValue.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Base Utilities Module</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuCachedValue.java</span></div><h1>IuCachedValue.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu;
 
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.SoftReference;
@@ -20,31 +51,31 @@ import java.util.logging.Logger;
  */
 public class IuCachedValue&lt;V&gt; {
 
-<span class="fc" id="L23">	private static final Logger LOG = Logger.getLogger(IuCachedValue.class.getName());</span>
+<span class="fc" id="L54">	private static final Logger LOG = Logger.getLogger(IuCachedValue.class.getName());</span>
 
-<span class="fc" id="L25">	private static final Object NULL = new Object();</span>
-<span class="fc" id="L26">	private static final Timer PURGE_TIMER = new Timer(&quot;iu-cache-purge&quot;, true);</span>
-<span class="fc" id="L27">	private static final ReferenceQueue&lt;Object&gt; REFQ = new ReferenceQueue&lt;&gt;();</span>
+<span class="fc" id="L56">	private static final Object NULL = new Object();</span>
+<span class="fc" id="L57">	private static final Timer PURGE_TIMER = new Timer(&quot;iu-cache-purge&quot;, true);</span>
+<span class="fc" id="L58">	private static final ReferenceQueue&lt;Object&gt; REFQ = new ReferenceQueue&lt;&gt;();</span>
 
 	private static class Ref extends SoftReference&lt;Object&gt; {
 		private final IuCachedValue&lt;?&gt; cachedValue;
 
 		private Ref(Object referent, IuCachedValue&lt;?&gt; cachedValue) {
-<span class="fc bfc" id="L33" title="All 2 branches covered.">			super(referent == null ? NULL : referent, REFQ);</span>
-<span class="fc" id="L34">			this.cachedValue = cachedValue;</span>
-<span class="fc" id="L35">		}</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">			super(referent == null ? NULL : referent, REFQ);</span>
+<span class="fc" id="L65">			this.cachedValue = cachedValue;</span>
+<span class="fc" id="L66">		}</span>
 	}
 
 	static {
-<span class="fc" id="L39">		PURGE_TIMER.schedule(new TimerTask() {</span>
+<span class="fc" id="L70">		PURGE_TIMER.schedule(new TimerTask() {</span>
 			@Override
 			public void run() {
 				Ref ref;
-<span class="fc bfc" id="L43" title="All 2 branches covered.">				while ((ref = (Ref) REFQ.poll()) != null)</span>
-<span class="fc" id="L44">					ref.cachedValue.clear();</span>
-<span class="fc" id="L45">			}</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">				while ((ref = (Ref) REFQ.poll()) != null)</span>
+<span class="fc" id="L75">					ref.cachedValue.clear();</span>
+<span class="fc" id="L76">			}</span>
 		}, 500L, 500L);
-<span class="fc" id="L47">	}</span>
+<span class="fc" id="L78">	}</span>
 
 	private final long expires;
 	private volatile UnsafeRunnable onExpire;
@@ -61,19 +92,19 @@ public class IuCachedValue&lt;V&gt; {
 	 *                   execute quickly, i.e., to remove a map entry relative the
 	 *                   provided key
 	 */
-<span class="fc" id="L64">	public IuCachedValue(V value, Duration timeToLive, UnsafeRunnable onExpire) {</span>
-<span class="fc" id="L65">		final var ttl = timeToLive.toMillis();</span>
-<span class="fc" id="L66">		this.reference = new Ref(value, this);</span>
-<span class="fc" id="L67">		this.expires = System.currentTimeMillis() + ttl;</span>
-<span class="fc" id="L68">		this.onExpire = onExpire;</span>
+<span class="fc" id="L95">	public IuCachedValue(V value, Duration timeToLive, UnsafeRunnable onExpire) {</span>
+<span class="fc" id="L96">		final var ttl = timeToLive.toMillis();</span>
+<span class="fc" id="L97">		this.reference = new Ref(value, this);</span>
+<span class="fc" id="L98">		this.expires = System.currentTimeMillis() + ttl;</span>
+<span class="fc" id="L99">		this.onExpire = onExpire;</span>
 
-<span class="fc" id="L70">		PURGE_TIMER.schedule(expireTask = new TimerTask() {</span>
+<span class="fc" id="L101">		PURGE_TIMER.schedule(expireTask = new TimerTask() {</span>
 			@Override
 			public void run() {
-<span class="fc" id="L73">				clear();</span>
-<span class="fc" id="L74">			}</span>
+<span class="fc" id="L104">				clear();</span>
+<span class="fc" id="L105">			}</span>
 		}, ttl);
-<span class="fc" id="L76">	}</span>
+<span class="fc" id="L107">	}</span>
 
 	/**
 	 * Gets the cached value.
@@ -84,15 +115,15 @@ public class IuCachedValue&lt;V&gt; {
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	public V get() {
-<span class="fc" id="L87">		final var reference = ref();</span>
-<span class="fc bfc" id="L88" title="All 2 branches covered.">		if (reference == null)</span>
-<span class="fc" id="L89">			return null;</span>
+<span class="fc" id="L118">		final var reference = ref();</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">		if (reference == null)</span>
+<span class="fc" id="L120">			return null;</span>
 
-<span class="fc" id="L91">		final var value = reference.get();</span>
-<span class="fc bfc" id="L92" title="All 2 branches covered.">		if (value == NULL)</span>
-<span class="fc" id="L93">			return null;</span>
+<span class="fc" id="L122">		final var value = reference.get();</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">		if (value == NULL)</span>
+<span class="fc" id="L124">			return null;</span>
 		else
-<span class="fc" id="L95">			return (V) value;</span>
+<span class="fc" id="L126">			return (V) value;</span>
 	}
 
 	/**
@@ -102,7 +133,7 @@ public class IuCachedValue&lt;V&gt; {
 	 *         the garbage collection or the expiration time is in the past.
 	 */
 	public boolean isValid() {
-<span class="fc bfc" id="L105" title="All 2 branches covered.">		return ref() != null;</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">		return ref() != null;</span>
 	}
 
 	/**
@@ -113,15 +144,15 @@ public class IuCachedValue&lt;V&gt; {
 	 *         referent is equal to the object.
 	 */
 	public boolean has(Object o) {
-<span class="fc" id="L116">		final var reference = ref();</span>
-<span class="fc bfc" id="L117" title="All 2 branches covered.">		if (reference == null)</span>
-<span class="fc" id="L118">			return false;</span>
+<span class="fc" id="L147">		final var reference = ref();</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">		if (reference == null)</span>
+<span class="fc" id="L149">			return false;</span>
 
-<span class="fc" id="L120">		final var value = reference.get();</span>
-<span class="fc bfc" id="L121" title="All 2 branches covered.">		if (value == NULL)</span>
-<span class="fc bfc" id="L122" title="All 2 branches covered.">			return o == null;</span>
+<span class="fc" id="L151">		final var value = reference.get();</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">		if (value == NULL)</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">			return o == null;</span>
 		else
-<span class="fc" id="L124">			return IuObject.equals(value, o);</span>
+<span class="fc" id="L155">			return IuObject.equals(value, o);</span>
 	}
 
 	/**
@@ -133,53 +164,53 @@ public class IuCachedValue&lt;V&gt; {
 	 * &lt;/p&gt;
 	 */
 	public synchronized void clear() {
-<span class="fc bfc" id="L136" title="All 2 branches covered.">		if (!expired)</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">		if (!expired)</span>
 			try {
-<span class="fc" id="L138">				expireTask.cancel();</span>
-<span class="fc" id="L139">				reference.clear();</span>
-<span class="fc" id="L140">				onExpire.run();</span>
-<span class="fc" id="L141">			} catch (Throwable e) {</span>
-<span class="fc" id="L142">				LOG.log(Level.INFO, e, () -&gt; &quot;Unhandled error in cache reference expiration thunk &quot; + onExpire);</span>
+<span class="fc" id="L169">				expireTask.cancel();</span>
+<span class="fc" id="L170">				reference.clear();</span>
+<span class="fc" id="L171">				onExpire.run();</span>
+<span class="fc" id="L172">			} catch (Throwable e) {</span>
+<span class="fc" id="L173">				LOG.log(Level.INFO, e, () -&gt; &quot;Unhandled error in cache reference expiration thunk &quot; + onExpire);</span>
 			} finally {
-<span class="fc" id="L144">				expired = true;</span>
-<span class="fc" id="L145">				expireTask = null;</span>
-<span class="fc" id="L146">				reference = null;</span>
-<span class="fc" id="L147">				onExpire = null;</span>
+<span class="fc" id="L175">				expired = true;</span>
+<span class="fc" id="L176">				expireTask = null;</span>
+<span class="fc" id="L177">				reference = null;</span>
+<span class="fc" id="L178">				onExpire = null;</span>
 			}
-<span class="fc" id="L149">	}</span>
+<span class="fc" id="L180">	}</span>
 
 	@Override
 	public int hashCode() {
-<span class="fc" id="L153">		return IuObject.hashCode(get());</span>
+<span class="fc" id="L184">		return IuObject.hashCode(get());</span>
 	}
 
 	@Override
 	public boolean equals(Object obj) {
-<span class="fc bfc" id="L158" title="All 2 branches covered.">		if (!IuObject.typeCheck(this, obj))</span>
-<span class="fc" id="L159">			return false;</span>
+<span class="fc bfc" id="L189" title="All 2 branches covered.">		if (!IuObject.typeCheck(this, obj))</span>
+<span class="fc" id="L190">			return false;</span>
 
-<span class="fc" id="L161">		final var other = (IuCachedValue&lt;?&gt;) obj;</span>
-<span class="fc bfc" id="L162" title="All 2 branches covered.">		return isValid() //</span>
-<span class="fc bfc" id="L163" title="All 2 branches covered.">				&amp;&amp; other.isValid() //</span>
-<span class="fc bfc" id="L164" title="All 2 branches covered.">				&amp;&amp; IuObject.equals(get(), other.get());</span>
+<span class="fc" id="L192">		final var other = (IuCachedValue&lt;?&gt;) obj;</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">		return isValid() //</span>
+<span class="fc bfc" id="L194" title="All 2 branches covered.">				&amp;&amp; other.isValid() //</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">				&amp;&amp; IuObject.equals(get(), other.get());</span>
 	}
 
 	private Ref ref() {
-<span class="fc bfc" id="L168" title="All 2 branches covered.">		if (expires &lt; System.currentTimeMillis()) {</span>
-<span class="fc" id="L169">			clear();</span>
-<span class="fc" id="L170">			return null;</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">		if (expires &lt; System.currentTimeMillis()) {</span>
+<span class="fc" id="L200">			clear();</span>
+<span class="fc" id="L201">			return null;</span>
 		}
 
-<span class="fc" id="L173">		final var reference = this.reference;</span>
-<span class="fc bfc" id="L174" title="All 2 branches covered.">		if (reference == null)</span>
-<span class="fc" id="L175">			return null;</span>
+<span class="fc" id="L204">		final var reference = this.reference;</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">		if (reference == null)</span>
+<span class="fc" id="L206">			return null;</span>
 
-<span class="fc" id="L177">		final var value = reference.get();</span>
-<span class="fc bfc" id="L178" title="All 2 branches covered.">		if (value == null) {</span>
-<span class="fc" id="L179">			clear();</span>
-<span class="fc" id="L180">			return null;</span>
+<span class="fc" id="L208">		final var value = reference.get();</span>
+<span class="fc bfc" id="L209" title="All 2 branches covered.">		if (value == null) {</span>
+<span class="fc" id="L210">			clear();</span>
+<span class="fc" id="L211">			return null;</span>
 		} else
-<span class="fc" id="L182">			return reference;</span>
+<span class="fc" id="L213">			return reference;</span>
 	}
 
 }
