@@ -28,8 +28,10 @@ import jakarta.json.JsonObjectBuilder;
  * &lt;dt&gt;vault.endpoint (VAULT_ENDPOINT)&lt;/dt&gt;
  * &lt;dd&gt;Base URL for a Vault K/V store&lt;/dd&gt;
  * &lt;dt&gt;vault.token (VAULT_TOKEN)&lt;/dt&gt;
- * &lt;dd&gt;Access token for use with vault. If not set, vault.loginEndpoint,
- * vault.roleId, and vault.secretId &lt;em&gt;must&lt;/em&gt; be provided.&lt;/dd&gt;
+ * &lt;dd&gt;Access token for use with Vault, i.e., in development. If not set, 
+ * vault.loginEndpoint, vault.roleId, and vault.secretId &lt;em&gt;must&lt;/em&gt; be
+ * provided, i.e., for use by a CI/CD environment. If vault.token is set,
+ * the approle properties will be ignored.&lt;/dd&gt;
  * &lt;dt&gt;vault.loginEndpoint (VAULT_LOGIN_ENDPOINT)&lt;/dt&gt;
  * &lt;dd&gt;URL for the Vault approle login endpoint, for use when vault.token is not
  * set.&lt;/dd&gt;
@@ -46,7 +48,7 @@ import jakarta.json.JsonObjectBuilder;
  */
 public class VaultProperties {
 
-<span class="fc" id="L49">	private static final Map&lt;String, JsonObject&gt; SECRETS = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L51">	private static final Map&lt;String, JsonObject&gt; SECRETS = new HashMap&lt;&gt;();</span>
 
 	/**
 	 * Determines whether or not Vault is configured.
@@ -61,7 +63,7 @@ public class VaultProperties {
 	 * @return true if Vault is configured; else false
 	 */
 	public static boolean isConfigured() {
-<span class="fc bfc" id="L64" title="All 2 branches covered.">		return envOptional(&quot;vault.secrets&quot;, &quot;VAULT_SECRETS&quot;) != null;</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">		return envOptional(&quot;vault.secrets&quot;, &quot;VAULT_SECRETS&quot;) != null;</span>
 	}
 
 	/**
@@ -71,44 +73,44 @@ public class VaultProperties {
 	 * @return property value
 	 */
 	public static String getProperty(String name) {
-<span class="fc" id="L74">		final var secrets = env(&quot;vault.secrets&quot;, &quot;VAULT_SECRETS&quot;).split(&quot;,&quot;);</span>
-<span class="fc bfc" id="L75" title="All 2 branches covered.">		for (String secret : secrets) {</span>
-<span class="fc" id="L76">			final var data = IuException.unchecked(() -&gt; getSecret(secret));</span>
-<span class="fc bfc" id="L77" title="All 2 branches covered.">			if (data.containsKey(name))</span>
-<span class="fc" id="L78">				return data.getString(name);</span>
+<span class="fc" id="L76">		final var secrets = env(&quot;vault.secrets&quot;, &quot;VAULT_SECRETS&quot;).split(&quot;,&quot;);</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">		for (String secret : secrets) {</span>
+<span class="fc" id="L78">			final var data = IuException.unchecked(() -&gt; getSecret(secret));</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">			if (data.containsKey(name))</span>
+<span class="fc" id="L80">				return data.getString(name);</span>
 		}
-<span class="fc" id="L80">		throw new IllegalArgumentException(name + &quot; not found in Vault using &quot; + env(&quot;vault.endpoint&quot;, &quot;VAULT_ENDPOINT&quot;)</span>
-<span class="fc" id="L81">				+ &quot;/data/&quot; + Arrays.toString(secrets));</span>
+<span class="fc" id="L82">		throw new IllegalArgumentException(name + &quot; not found in Vault using &quot; + env(&quot;vault.endpoint&quot;, &quot;VAULT_ENDPOINT&quot;)</span>
+<span class="fc" id="L83">				+ &quot;/data/&quot; + Arrays.toString(secrets));</span>
 	}
 
 	private static JsonObject getSecret(String secret) throws Exception {
-<span class="fc" id="L85">		var cachedSecret = SECRETS.get(secret);</span>
-<span class="fc bfc" id="L86" title="All 2 branches covered.">		if (cachedSecret != null)</span>
-<span class="fc" id="L87">			return cachedSecret;</span>
+<span class="fc" id="L87">		var cachedSecret = SECRETS.get(secret);</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">		if (cachedSecret != null)</span>
+<span class="fc" id="L89">			return cachedSecret;</span>
 
-<span class="fc" id="L89">		final var request = HttpRequest.newBuilder().GET() //</span>
-<span class="fc" id="L90">				.uri(new URI(env(&quot;vault.endpoint&quot;, &quot;VAULT_ENDPOINT&quot;) + &quot;/data/&quot; + secret)) //</span>
-<span class="fc" id="L91">				.header(&quot;Authorization&quot;, &quot;Bearer &quot; + getAccessToken()) //</span>
-<span class="fc" id="L92">				.build();</span>
+<span class="fc" id="L91">		final var request = HttpRequest.newBuilder().GET() //</span>
+<span class="fc" id="L92">				.uri(new URI(env(&quot;vault.endpoint&quot;, &quot;VAULT_ENDPOINT&quot;) + &quot;/data/&quot; + secret)) //</span>
+<span class="fc" id="L93">				.header(&quot;Authorization&quot;, &quot;Bearer &quot; + getAccessToken()) //</span>
+<span class="fc" id="L94">				.build();</span>
 
-<span class="fc" id="L94">		final var response = HttpClient.newHttpClient().send(request, BodyHandlers.ofInputStream());</span>
+<span class="fc" id="L96">		final var response = HttpClient.newHttpClient().send(request, BodyHandlers.ofInputStream());</span>
 
-<span class="fc" id="L96">		final var status = response.statusCode();</span>
-<span class="fc bfc" id="L97" title="All 2 branches covered.">		if (status != 200)</span>
-<span class="fc" id="L98">			throw new IllegalStateException(&quot;Unexpected response from Vault; status=&quot; + status + &quot;; request=&quot; + request</span>
-<span class="fc" id="L99">					+ &quot;; body &quot; + new String(IuStream.read(response.body()), &quot;UTF-8&quot;));</span>
+<span class="fc" id="L98">		final var status = response.statusCode();</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">		if (status != 200)</span>
+<span class="fc" id="L100">			throw new IllegalStateException(&quot;Unexpected response from Vault; status=&quot; + status + &quot;; request=&quot; + request</span>
+<span class="fc" id="L101">					+ &quot;; body &quot; + new String(IuStream.read(response.body()), &quot;UTF-8&quot;));</span>
 
 		JsonObject content;
-<span class="fc" id="L102">		try (final var body = response.body()) {</span>
-<span class="fc" id="L103">			content = Json.createReader(body).readObject();</span>
+<span class="fc" id="L104">		try (final var body = response.body()) {</span>
+<span class="fc" id="L105">			content = Json.createReader(body).readObject();</span>
 		}
 
-<span class="fc" id="L106">		final var data = content.getJsonObject(&quot;data&quot;).getJsonObject(&quot;data&quot;);</span>
-<span class="fc" id="L107">		synchronized (SECRETS) {</span>
-<span class="fc" id="L108">			SECRETS.put(secret, data);</span>
-<span class="fc" id="L109">		}</span>
+<span class="fc" id="L108">		final var data = content.getJsonObject(&quot;data&quot;).getJsonObject(&quot;data&quot;);</span>
+<span class="fc" id="L109">		synchronized (SECRETS) {</span>
+<span class="fc" id="L110">			SECRETS.put(secret, data);</span>
+<span class="fc" id="L111">		}</span>
 
-<span class="fc" id="L111">		return data;</span>
+<span class="fc" id="L113">		return data;</span>
 	}
 
 	/**
@@ -124,38 +126,38 @@ public class VaultProperties {
 	 *         not set
 	 */
 	static String envOptional(String system, String env) {
-<span class="fc" id="L127">		final var value = System.getProperty(system, System.getenv(env));</span>
-<span class="fc bfc" id="L128" title="All 4 branches covered.">		return value == null || value.isBlank() ? null : value;</span>
+<span class="fc" id="L129">		final var value = System.getProperty(system, System.getenv(env));</span>
+<span class="fc bfc" id="L130" title="All 4 branches covered.">		return value == null || value.isBlank() ? null : value;</span>
 	}
 
 	private static String env(String system, String env) {
-<span class="fc" id="L132">		return Objects.requireNonNull(envOptional(system, env),</span>
+<span class="fc" id="L134">		return Objects.requireNonNull(envOptional(system, env),</span>
 				&quot;Missing system property &quot; + system + &quot; or environment variable &quot; + env);
 	}
 
 	private static String getAccessToken() throws Exception {
-<span class="fc" id="L137">		var accessToken = envOptional(&quot;vault.token&quot;, &quot;VAULT_TOKEN&quot;);</span>
-<span class="fc bfc" id="L138" title="All 2 branches covered.">		if (accessToken == null) {</span>
-<span class="fc" id="L139">			final var loginEndpoint = new URI(env(&quot;vault.loginEndpoint&quot;, &quot;VAULT_LOGIN_ENDPOINT&quot;));</span>
+<span class="fc" id="L139">		var accessToken = envOptional(&quot;vault.token&quot;, &quot;VAULT_TOKEN&quot;);</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">		if (accessToken == null) {</span>
+<span class="fc" id="L141">			final var loginEndpoint = new URI(env(&quot;vault.loginEndpoint&quot;, &quot;VAULT_LOGIN_ENDPOINT&quot;));</span>
 
-<span class="fc" id="L141">			JsonObjectBuilder payload = Json.createObjectBuilder();</span>
-<span class="fc" id="L142">			payload.add(&quot;role_id&quot;, env(&quot;vault.roleId&quot;, &quot;VAULT_ROLE_ID&quot;));</span>
-<span class="fc" id="L143">			payload.add(&quot;secret_id&quot;, env(&quot;vault.secretId&quot;, &quot;VAULT_SECRET_ID&quot;));</span>
+<span class="fc" id="L143">			JsonObjectBuilder payload = Json.createObjectBuilder();</span>
+<span class="fc" id="L144">			payload.add(&quot;role_id&quot;, env(&quot;vault.roleId&quot;, &quot;VAULT_ROLE_ID&quot;));</span>
+<span class="fc" id="L145">			payload.add(&quot;secret_id&quot;, env(&quot;vault.secretId&quot;, &quot;VAULT_SECRET_ID&quot;));</span>
 
-<span class="fc" id="L145">			final var requestBuilder = HttpRequest.newBuilder() //</span>
-<span class="fc" id="L146">					.uri(loginEndpoint) //</span>
-<span class="fc" id="L147">					.POST(BodyPublishers.ofString(payload.build().toString())) //</span>
-<span class="fc" id="L148">					.header(&quot;Content-Type&quot;, &quot;application/json; charset=utf-8&quot;);</span>
+<span class="fc" id="L147">			final var requestBuilder = HttpRequest.newBuilder() //</span>
+<span class="fc" id="L148">					.uri(loginEndpoint) //</span>
+<span class="fc" id="L149">					.POST(BodyPublishers.ofString(payload.build().toString())) //</span>
+<span class="fc" id="L150">					.header(&quot;Content-Type&quot;, &quot;application/json; charset=utf-8&quot;);</span>
 
 			JsonObject content;
-<span class="fc" id="L151">			try (final var response = HttpClient.newHttpClient()</span>
-<span class="fc" id="L152">					.send(requestBuilder.build(), BodyHandlers.ofInputStream()).body()) {</span>
-<span class="fc" id="L153">				content = Json.createReader(response).readObject();</span>
+<span class="fc" id="L153">			try (final var response = HttpClient.newHttpClient()</span>
+<span class="fc" id="L154">					.send(requestBuilder.build(), BodyHandlers.ofInputStream()).body()) {</span>
+<span class="fc" id="L155">				content = Json.createReader(response).readObject();</span>
 			}
 
-<span class="fc" id="L156">			accessToken = content.getJsonObject(&quot;auth&quot;).getString(&quot;client_token&quot;);</span>
+<span class="fc" id="L158">			accessToken = content.getJsonObject(&quot;auth&quot;).getString(&quot;client_token&quot;);</span>
 		}
-<span class="fc" id="L158">		return accessToken;</span>
+<span class="fc" id="L160">		return accessToken;</span>
 	}
 
 	private VaultProperties() {
