@@ -56,28 +56,6 @@ import jakarta.annotation.Resource;
  */
 final class BackwardsCompatibility {
 
-//	/**
-//	 * Get the local equivalent for an potentially remote class.
-//	 * 
-//	 * @param potentiallyRemoteClass potentially remote class
-//	 * @return local equivalent
-//	 * @throws ClassNotFoundException If a local equivalent for the remote class
-//	 *                                cannot be found.
-//	 */
-//	static Class&lt;?&gt; getLocalClass(Class&lt;?&gt; potentiallyRemoteClass) throws ClassNotFoundException {
-//		var className = potentiallyRemoteClass.getName();
-//
-//		String localClassName;
-//		if (className.startsWith(&quot;javax.&quot;))
-//			localClassName = &quot;jakarta&quot; + className.substring(5);
-//		else if (className.equals(&quot;edu.iu.spi.DefaultInterceptor&quot;))
-//			localClassName = DefaultInterceptor.class.getName();
-//		else
-//			localClassName = className;
-//
-//		return Thread.currentThread().getContextClassLoader().loadClass(localClassName);
-//	}
-
 	/**
 	 * Gets a &lt;strong&gt;context-compatible&lt;/strong&gt; equivalent of a
 	 * &lt;strong&gt;context-sensitive&lt;/strong&gt; class.
@@ -88,7 +66,7 @@ final class BackwardsCompatibility {
 	 *                                the local class.
 	 */
 	static Class&lt;?&gt; getCompatibleClass(Class&lt;?&gt; contextSensitive) throws ClassNotFoundException {
-<span class="fc" id="L91">		return getCompatibleClass(contextSensitive, Thread.currentThread().getContextClassLoader());</span>
+<span class="fc" id="L69">		return getCompatibleClass(contextSensitive, Thread.currentThread().getContextClassLoader());</span>
 	}
 
 	/**
@@ -103,28 +81,28 @@ final class BackwardsCompatibility {
 	 */
 	static Class&lt;?&gt; getCompatibleClass(Class&lt;?&gt; contextSensitive, ClassLoader contextLoader)
 			throws ClassNotFoundException {
-<span class="fc" id="L106">		var className = contextSensitive.getName();</span>
+<span class="fc" id="L84">		var className = contextSensitive.getName();</span>
 
 		ClassNotFoundException contextClassNameNotFound;
 		try {
-<span class="fc" id="L110">			return contextLoader.loadClass(className);</span>
-<span class="fc" id="L111">		} catch (ClassNotFoundException e) {</span>
-<span class="fc" id="L112">			contextClassNameNotFound = e;</span>
+<span class="fc" id="L88">			return contextLoader.loadClass(className);</span>
+<span class="fc" id="L89">		} catch (ClassNotFoundException e) {</span>
+<span class="fc" id="L90">			contextClassNameNotFound = e;</span>
 		}
 
 		String compatibleClassName;
-<span class="fc bfc" id="L116" title="All 2 branches covered.">		if (className.startsWith(&quot;jakarta.&quot;))</span>
-<span class="fc" id="L117">			compatibleClassName = &quot;javax&quot; + className.substring(7);</span>
-<span class="fc bfc" id="L118" title="All 2 branches covered.">		else if (className.startsWith(&quot;javax.&quot;))</span>
-<span class="fc" id="L119">			compatibleClassName = &quot;jakarta&quot; + className.substring(5);</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">		if (className.startsWith(&quot;jakarta.&quot;))</span>
+<span class="fc" id="L95">			compatibleClassName = &quot;javax&quot; + className.substring(7);</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">		else if (className.startsWith(&quot;javax.&quot;))</span>
+<span class="fc" id="L97">			compatibleClassName = &quot;jakarta&quot; + className.substring(5);</span>
 		else
-<span class="fc" id="L121">			throw contextClassNameNotFound;</span>
+<span class="fc" id="L99">			throw contextClassNameNotFound;</span>
 
 		try {
-<span class="fc" id="L124">			return Thread.currentThread().getContextClassLoader().loadClass(compatibleClassName);</span>
-<span class="fc" id="L125">		} catch (ClassNotFoundException e) {</span>
-<span class="fc" id="L126">			e.addSuppressed(contextClassNameNotFound);</span>
-<span class="fc" id="L127">			throw e;</span>
+<span class="fc" id="L102">			return Thread.currentThread().getContextClassLoader().loadClass(compatibleClassName);</span>
+<span class="fc" id="L103">		} catch (ClassNotFoundException e) {</span>
+<span class="fc" id="L104">			e.addSuppressed(contextClassNameNotFound);</span>
+<span class="fc" id="L105">			throw e;</span>
 		}
 	}
 
