@@ -31,5 +31,7 @@
  */
 /**
  * Type introspection bootstrap loader utilities.
+ *
+ * <img alt="UML Deployment Diagram" src="doc-files/Type Bundle.svg" />
  */
 package edu.iu.type.loader;

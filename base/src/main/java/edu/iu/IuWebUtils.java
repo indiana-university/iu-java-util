@@ -1,18 +1,44 @@
+/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package edu.iu;
 
-import java.io.UnsupportedEncodingException;
-import java.lang.ref.ReferenceQueue;
-import java.lang.ref.SoftReference;
 import java.net.InetAddress;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
-import java.net.UnknownHostException;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Queue;
 
 /**
@@ -21,18 +47,7 @@ import java.util.Queue;
  */
 public final class IuWebUtils {
 
-	private static final Map<String, InetRef> IP_CACHE = new HashMap<>();
-	private static final ReferenceQueue<InetAddress> IP_Q = new ReferenceQueue<>();
-
-	private static class InetRef extends SoftReference<InetAddress> {
-		private final String hostname;
-		private final long expires = System.currentTimeMillis() + 5000L;
-
-		private InetRef(String hostname, InetAddress referent) {
-			super(referent, IP_Q);
-			this.hostname = hostname;
-		}
-	}
+	private static final Map<String, InetAddress> IP_CACHE = new IuCacheMap<>(Duration.ofSeconds(5L));
 
 	/**
 	 * Parses a query string.
@@ -44,6 +59,9 @@ public final class IuWebUtils {
 		final Map<String, Queue<String>> parsedParameterValues = new LinkedHashMap<>();
 
 		var startOfName = queryString.startsWith("?") ? 1 : 0;
+		if (startOfName == queryString.length())
+			return parsedParameterValues;
+
 		var endOfName = queryString.indexOf('=', startOfName);
 		var endOfValue = queryString.indexOf('&', startOfName);
 
@@ -51,12 +69,13 @@ public final class IuWebUtils {
 		if (endOfValue == -1)
 			endOfValue = queryString.length();
 
-		if (endOfName == -1 || endOfName > endOfValue)
+		if (endOfName == -1 //
+				|| endOfName > endOfValue)
 			endOfName = startOfValue = endOfValue;
 		else
 			startOfValue = endOfName + 1;
 
-		while (endOfName >= 0) {
+		while (true) {
 			final var name = queryString.substring(startOfName, endOfName);
 
 			var values = parsedParameterValues.get(name);
@@ -79,7 +98,8 @@ public final class IuWebUtils {
 			if (endOfValue == -1)
 				endOfValue = queryString.length();
 
-			if (endOfName == -1 || endOfName > endOfValue)
+			if (endOfName == -1 //
+					|| endOfName > endOfValue)
 				endOfName = startOfValue = endOfValue;
 			else
 				startOfValue = endOfName + 1;
@@ -96,20 +116,18 @@ public final class IuWebUtils {
 	 */
 	public static String createQueryString(Map<String, ? extends Iterable<String>> params) {
 		final var queryString = new StringBuilder();
-		for (final var paramEntry : params.entrySet()) {
+		for (final var paramEntry : params.entrySet())
 			for (final var paramValue : paramEntry.getValue()) {
 				if (queryString.length() > 0)
 					queryString.append('&');
 				queryString.append(IuException.unchecked(() -> URLEncoder.encode(paramEntry.getKey(), "UTF-8")));
-				if (paramValue != null)
-					queryString.append("=").append(IuException.unchecked(() -> URLEncoder.encode(paramValue, "UTF-8")));
+				queryString.append("=").append(IuException.unchecked(() -> URLEncoder.encode(paramValue, "UTF-8")));
 			}
-		}
 		return queryString.toString();
 	}
 
 	/**
-	 * Parses a header value
+	 * Parses a header value composed of key/value pairs separated by semicolon ';'.
 	 * 
 	 * @param headerValue header value
 	 * @return {@link Map} of header elements
@@ -122,19 +140,19 @@ public final class IuWebUtils {
 		final Map<String, String> parsedHeader = new LinkedHashMap<>();
 		parsedHeader.put("", headerValue.substring(0, semicolon));
 
-		while (semicolon != -1 && semicolon < headerValue.length() - 1) {
+		while (semicolon < headerValue.length()) {
 			final var start = semicolon + 1;
-			semicolon = headerValue.indexOf(';', start + 1);
 			final var eq = headerValue.indexOf('=', start + 1);
-			if (eq == -1)
+
+			semicolon = headerValue.indexOf(';', start + 1);
+			if (semicolon == -1)
+				semicolon = headerValue.length();
+
+			if (eq == -1 || eq > semicolon)
 				parsedHeader.put(headerValue.substring(start, semicolon).trim(), "");
 			else {
 				final var elementName = headerValue.substring(start, eq).trim();
-				final String elementValue;
-				if (semicolon == -1)
-					elementValue = headerValue.substring(eq + 1).trim();
-				else
-					elementValue = headerValue.substring(eq + 1, semicolon).trim();
+				final String elementValue = headerValue.substring(eq + 1, semicolon).trim();
 				parsedHeader.put(elementName, elementValue);
 			}
 		}
@@ -267,36 +285,26 @@ public final class IuWebUtils {
 	 * Resolves and caches the {@link InetAddress IP address} for a host name.
 	 * 
 	 * @param hostname host name
-	 * @return
+	 * @return resolved {@link InetAddress}
 	 */
 	public static InetAddress getInetAddress(String hostname) {
-		InetRef ref;
-		while ((ref = (InetRef) IP_Q.poll()) != null)
-			synchronized (IP_CACHE) {
-				IP_CACHE.remove(ref.hostname);
-				ref = (InetRef) IP_Q.poll();
-			}
+		var addr = IP_CACHE.get(hostname);
+		if (addr != null)
+			return addr;
 
-		ref = IP_CACHE.get(hostname);
-		if (ref != null && ref.expires >= System.currentTimeMillis()) {
-			final var rv = ref.get();
-			if (rv != null)
-				return rv;
-		}
+		addr = IuException.unchecked(() -> InetAddress.getByName(hostname));
+		IP_CACHE.put(hostname, addr);
 
-		try {
-			rv = InetAddress.getByName(hostname);
-		} catch (UnknownHostException e) {
-			throw new IllegalArgumentException("Invalid hostname " + hostname, e);
-		}
-
-		synchronized (IP_CACHE) {
-			IP_CACHE.put(hostname, new InetRef(hostname, rv));
-		}
-
-		return rv;
+		return addr;
 	}
 
+	/**
+	 * Determines whether or not an IP address is included in a CIDR range.
+	 * 
+	 * @param address address
+	 * @param range   CIDR range
+	 * @return true if the range includes the address; else false
+	 */
 	public static boolean isInetAddressInRange(InetAddress address, String range) {
 		byte[] hostaddr = address.getAddress();
 		int lastSlash = range.lastIndexOf('/');
@@ -326,7 +334,7 @@ public final class IuWebUtils {
 		return true;
 	}
 
-	private WebUtil() {
+	private IuWebUtils() {
 	}
 
 }
