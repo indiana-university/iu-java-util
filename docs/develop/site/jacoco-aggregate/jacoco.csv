@@ -34,6 +34,7 @@ IU Java Utilities API Reference/iu-java-base,edu.iu,IuCacheMap.CacheSpliterator.
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuParallelWorkloadController,0,726,0,60,0,158,0,57,0,27
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuAsynchronousSubject.Subscriber,0,542,0,98,0,147,0,74,0,25
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuCacheMap.CacheKeySet,0,24,0,0,0,3,0,4,0,4
+IU Java Utilities API Reference/iu-java-base,edu.iu,IuWebUtils,0,591,0,95,0,133,0,80,0,13
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuCacheMap.CacheValues,0,27,0,0,0,3,0,4,0,4
 IU Java Utilities API Reference/iu-java-base,edu.iu,IdGenerator.new ThreadLocal() {...},0,27,0,0,0,9,0,2,0,2
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuStream,0,65,0,4,0,17,0,7,0,5
