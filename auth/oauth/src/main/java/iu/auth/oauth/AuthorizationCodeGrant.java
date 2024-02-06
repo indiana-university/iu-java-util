@@ -4,6 +4,9 @@ import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
@@ -66,6 +69,15 @@ class AuthorizationCodeGrant implements IuAuthorizationCodeGrant {
 
 	@Override
 	public IuAuthorizationResponse authorize(String code) throws IuAuthorizationFailedException {
+//		grant.authorize(code);
+//		// TODO: move to grant.authorize(code);
+//		final Map<String, Iterable<String>> tokenFormData = new LinkedHashMap<>();
+//		tokenFormData.put("grant_type", List.of("authorization_code"));
+//		tokenFormData.put("code", List.of(code));
+//		tokenFormData.put("scope", List.of("profile email openid"));
+//		tokenFormData.put("client_id", List.of(clientId));
+//		tokenFormData.put("redirect_uri", List.of(redirectUri.toString()));
+
 		final var authRequestBuilder = HttpRequest.newBuilder(client.getTokenEndpoint());
 		authRequestBuilder.POST(BodyPublishers.ofString("grant_type=authorization_code" //
 				+ "&code=" + IuException.unchecked(() -> URLEncoder.encode(code, "UTF-8")) //

@@ -40,7 +40,7 @@ public interface IuAuthorizationSession {
 	 * Gets a previously created authorization code grant by state.
 	 * 
 	 * @param state state value generated via
-	 *              {@link #createAuthorizationCodeGrant(String, String)}
+	 *              {@link #createAuthorizationCodeGrant(String)}
 	 * @return authorization code grant
 	 * @throws IuAuthorizationFailedException if the state value cannot be tied to
 	 *                                        an existing grant
