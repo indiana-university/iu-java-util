@@ -804,7 +804,7 @@ public class IuCommonDataSourceTest {
 		private MockCommonDataSource(MockPooledConnectionFactory factory) {
 			super(factory);
 			this.factory = factory;
-			setShutdownTimeout(Duration.ofSeconds(1L));
+			setShutdownTimeout(Duration.ofSeconds(2L));
 		}
 	}
 

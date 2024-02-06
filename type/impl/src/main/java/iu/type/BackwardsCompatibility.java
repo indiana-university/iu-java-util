@@ -56,28 +56,6 @@ import jakarta.annotation.Resource;
  */
 final class BackwardsCompatibility {
 
-//	/**
-//	 * Get the local equivalent for an potentially remote class.
-//	 * 
-//	 * @param potentiallyRemoteClass potentially remote class
-//	 * @return local equivalent
-//	 * @throws ClassNotFoundException If a local equivalent for the remote class
-//	 *                                cannot be found.
-//	 */
-//	static Class<?> getLocalClass(Class<?> potentiallyRemoteClass) throws ClassNotFoundException {
-//		var className = potentiallyRemoteClass.getName();
-//
-//		String localClassName;
-//		if (className.startsWith("javax."))
-//			localClassName = "jakarta" + className.substring(5);
-//		else if (className.equals("edu.iu.spi.DefaultInterceptor"))
-//			localClassName = DefaultInterceptor.class.getName();
-//		else
-//			localClassName = className;
-//
-//		return Thread.currentThread().getContextClassLoader().loadClass(localClassName);
-//	}
-
 	/**
 	 * Gets a <strong>context-compatible</strong> equivalent of a
 	 * <strong>context-sensitive</strong> class.
