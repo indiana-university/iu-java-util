@@ -39,6 +39,18 @@
 			<artifactId>mockito-core</artifactId>
 			<version>${mockito.version}</version>
 		</dependency>
+		<dependency>
+			<groupId>jakarta.json</groupId>
+			<artifactId>jakarta.json-api</artifactId>
+			<version>${jakarta.json-api.version}</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.eclipse.parsson</groupId>
+			<artifactId>parsson</artifactId>
+			<version>${parsson.version}</version>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
