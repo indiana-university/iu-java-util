@@ -1,10 +1,13 @@
 package iu.auth.oauth;
 
-import java.net.URLEncoder;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.logging.Logger;
 
-import edu.iu.IuException;
+import edu.iu.IuWebUtils;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationFailedException;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
@@ -12,9 +15,11 @@ import edu.iu.auth.oauth.IuAuthorizationResponse;
 import iu.auth.util.HttpUtils;
 
 /**
- * Represents an OAuth client credenitals grant..
+ * Represents an OAuth client credentials grant..
  */
 class ClientCredentialsGrant implements IuAuthorizationGrant {
+
+	private final static Logger LOG = Logger.getLogger(ClientCredentialsGrant.class.getName());
 
 	private final IuAuthorizationClient client;
 	private final String scope;
@@ -44,21 +49,38 @@ class ClientCredentialsGrant implements IuAuthorizationGrant {
 
 	@Override
 	public IuAuthorizationResponse authorize() throws IuAuthorizationFailedException {
-		if (response == null || response.isExpired()) {
-			final var authRequestBuilder = HttpRequest.newBuilder(client.getTokenEndpoint());
-			authRequestBuilder.POST(BodyPublishers.ofString("grant_type=client_credentials" //
-					+ "&scope=" + IuException.unchecked(() -> URLEncoder.encode(scope, "UTF-8")) //
-					+ "&resource="
-					+ IuException.unchecked(() -> URLEncoder.encode(client.getRedirectUri().toString(), "UTF-8")) //
-					+ "&audience="
-					+ IuException.unchecked(() -> URLEncoder.encode(client.getRedirectUri().toString(), "UTF-8")) //
-			));
-			authRequestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
-			client.getCredentials().applyTo(authRequestBuilder);
-			response = new AuthorizationResponse(client.getCredentials(),
-					HttpUtils.read(authRequestBuilder.build()).asJsonObject());
-		}
-		return response;
+		final String message;
+		if (response == null)
+			message = "Authentication required, initiating client credentials flow for " + client.getRealm();
+		else if (response.isExpired())
+			message = "Authenticated session has expired, initiating client credentials flow for " + client.getRealm();
+		else
+			return response;
+
+		LOG.fine(message);
+
+		final Map<String, Iterable<String>> tokenRequestParams = new LinkedHashMap<>();
+		tokenRequestParams.put("grant_type", List.of("client_credentials"));
+		tokenRequestParams.put("scope", List.of(scope));
+
+		final var clientAttributes = client.getClientCredentialsAttributes();
+		if (clientAttributes != null)
+			for (final var clientAttributeEntry : clientAttributes.entrySet()) {
+				final var name = clientAttributeEntry.getKey();
+				if (tokenRequestParams.containsKey(name))
+					throw new IllegalArgumentException(
+							"Illegal attempt to override standard client credentials attribute " + name);
+				else
+					tokenRequestParams.put(name, List.of(clientAttributeEntry.getValue()));
+			}
+
+		final var tokenRequestBuilder = HttpRequest.newBuilder(client.getTokenEndpoint());
+		tokenRequestBuilder.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(tokenRequestParams)));
+		tokenRequestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
+		client.getCredentials().applyTo(tokenRequestBuilder);
+
+		final var tokenResponse = HttpUtils.read(tokenRequestBuilder.build()).asJsonObject();
+		return response = new AuthorizationResponse(this, client, tokenResponse);
 	}
 
 }

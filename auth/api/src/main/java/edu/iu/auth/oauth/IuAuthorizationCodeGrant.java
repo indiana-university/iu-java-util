@@ -2,6 +2,8 @@ package edu.iu.auth.oauth;
 
 import java.net.URI;
 
+import edu.iu.auth.IuAuthenticationChallengeException;
+
 /**
  * Represents an authorization grant, as described by the
  * <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4">OAuth 2.0
@@ -29,9 +31,11 @@ public interface IuAuthorizationCodeGrant extends IuAuthorizationGrant {
 	 * 
 	 * @param code authorization code
 	 * @return response details following successful authorization
-	 * @throws IuAuthorizationFailedException If an authorization failure should be
-	 *                                        reported to the client
+	 * 
+	 * @throws IuAuthenticationChallengeException If authorization could not be
+	 *                                            granted due to missing or expired
+	 *                                            authentication.
 	 */
-	IuAuthorizationResponse authorize(String code) throws IuAuthorizationFailedException;
+	IuAuthorizationResponse authorize(String code) throws IuAuthenticationChallengeException;
 
 }

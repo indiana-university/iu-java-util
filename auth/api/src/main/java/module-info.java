@@ -1,6 +1,8 @@
 /**
  * API Authentication and Authorization interfaces.
  * 
+ * <img src="doc-files/iu.util.auth.svg" alt="UML Class Diagram">
+ * 
  * @uses edu.iu.auth.spi.IuBasicAuthSpi For access to HTTP basic auth resources
  * @uses edu.iu.auth.spi.IuOAuthSpi For access to OAuth 2.0 implementation
  *       resources

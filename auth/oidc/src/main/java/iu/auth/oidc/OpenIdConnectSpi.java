@@ -1,6 +1,7 @@
 package iu.auth.oidc;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -21,10 +22,12 @@ public class OpenIdConnectSpi implements IuOpenIdConnectSpi {
 	}
 
 	@Override
-	public synchronized IuOpenIdProvider getOpenIdProvider(URI configUri) {
+	public synchronized IuOpenIdProvider getOpenIdProvider(URI configUri, Duration trustRefreshInterval,
+			Duration authenticationTimeout) {
 		var provider = PROVIDERS.get(configUri);
 		if (provider == null)
-			PROVIDERS.put(configUri, provider = new OpenIdProvider(configUri));
+			PROVIDERS.put(configUri,
+					provider = new OpenIdProvider(configUri, trustRefreshInterval, authenticationTimeout));
 		return provider;
 	}
 

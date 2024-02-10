@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import java.net.URI;
+import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
 
@@ -13,7 +14,7 @@ import edu.iu.auth.spi.IuOpenIdConnectSpi;
 import iu.auth.IuAuthSpiFactory;
 
 @SuppressWarnings("javadoc")
-public class OpenIDProviderTest {
+public class IuOpenIdProviderTest {
 
 	@Test
 	public void testUsesSpiFactory() {
@@ -22,8 +23,8 @@ public class OpenIDProviderTest {
 			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuOpenIdConnectSpi.class)).thenReturn(mockSpi);
 			final var configUri = mock(URI.class);
 			final var mockProvider = mock(IuOpenIdProvider.class);
-			when(mockSpi.getOpenIdProvider(configUri)).thenReturn(mockProvider);
-			assertSame(mockProvider, IuOpenIdProvider.from(configUri));
+			when(mockSpi.getOpenIdProvider(configUri, Duration.ZERO, Duration.ZERO)).thenReturn(mockProvider);
+			assertSame(mockProvider, IuOpenIdProvider.from(configUri, Duration.ZERO, Duration.ZERO));
 		}
 	}
 

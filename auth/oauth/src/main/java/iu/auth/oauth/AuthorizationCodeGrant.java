@@ -1,18 +1,19 @@
 package iu.auth.oauth;
 
 import java.net.URI;
-import java.net.URLEncoder;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import edu.iu.IdGenerator;
-import edu.iu.IuException;
+import edu.iu.IuWebUtils;
+import edu.iu.auth.IuAuthenticationRedirectException;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationCodeGrant;
-import edu.iu.auth.oauth.IuAuthorizationFailedException;
 import edu.iu.auth.oauth.IuAuthorizationResponse;
 import iu.auth.util.HttpUtils;
 
@@ -20,6 +21,8 @@ import iu.auth.util.HttpUtils;
  * {@link IuAuthorizationCodeGrant} implementation.
  */
 class AuthorizationCodeGrant implements IuAuthorizationCodeGrant {
+
+	private final Logger LOG = Logger.getLogger(AuthorizationCodeGrant.class.getName());
 
 	private final IuAuthorizationClient client;
 	private final String scope;
@@ -59,36 +62,76 @@ class AuthorizationCodeGrant implements IuAuthorizationCodeGrant {
 	}
 
 	@Override
-	public IuAuthorizationResponse authorize() throws IuAuthorizationFailedException {
-		if (response == null || response.isExpired())
-			return null;
+	public IuAuthorizationResponse authorize() {
+		final String message;
+		Throwable refreshFailure = null;
+		if (response == null)
+			message = "Authentication required, initiating authorization code flow for " + client.getRealm();
+		else if (response.isExpired()) {
+			final var refreshToken = response.getRefreshToken();
+			if (refreshToken != null)
+				try {
+					final Map<String, Iterable<String>> tokenRequestParams = new LinkedHashMap<>();
+					tokenRequestParams.put("grant_type", List.of("refresh_token"));
+					tokenRequestParams.put("refresh_token", List.of(refreshToken));
+					tokenRequestParams.put("scope", List.of(scope));
 
-		return response;
+					final var tokenRequestBuilder = HttpRequest.newBuilder(client.getTokenEndpoint());
+					tokenRequestBuilder.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(tokenRequestParams)));
+					tokenRequestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
+					client.getCredentials().applyTo(tokenRequestBuilder);
 
+					final var tokenResponse = HttpUtils.read(tokenRequestBuilder.build()).asJsonObject();
+					return response = new AuthorizationResponse(this, client, tokenResponse);
+
+				} catch (Throwable e) {
+					LOG.log(Level.INFO, e, () -> "Refresh token failed");
+					refreshFailure = e;
+				}
+
+			message = "Authenticated session has expired, initiating authorization code flow for " + client.getRealm();
+		} else
+			return response;
+
+		final var authRequestParams = new LinkedHashMap<String, Iterable<String>>();
+		authRequestParams.put("client_id", List.of(client.getCredentials().getName()));
+		authRequestParams.put("response_type", List.of("code"));
+		authRequestParams.put("redirect_uri", List.of(client.getRedirectUri().toString()));
+		authRequestParams.put("scope", List.of(scope));
+		authRequestParams.put("state", List.of(state));
+
+		final var clientAttributes = client.getAuthorizationCodeAttributes();
+		if (clientAttributes != null)
+			for (final var clientAttributeEntry : clientAttributes.entrySet()) {
+				final var name = clientAttributeEntry.getKey();
+				if (authRequestParams.containsKey(name))
+					throw new IllegalArgumentException("Illegal attempt to override standard auth attribute " + name);
+				else
+					authRequestParams.put(name, List.of(clientAttributeEntry.getValue()));
+			}
+		this.clientAttributes = clientAttributes;
+
+		final var location = client.getAuthorizationEndpoint() + "?" + IuWebUtils.createQueryString(authRequestParams);
+		LOG.fine(() -> message + "; Location: " + location);
+
+		throw new IuAuthenticationRedirectException(location, refreshFailure);
 	}
 
 	@Override
-	public IuAuthorizationResponse authorize(String code) throws IuAuthorizationFailedException {
-//		grant.authorize(code);
-//		// TODO: move to grant.authorize(code);
-//		final Map<String, Iterable<String>> tokenFormData = new LinkedHashMap<>();
-//		tokenFormData.put("grant_type", List.of("authorization_code"));
-//		tokenFormData.put("code", List.of(code));
-//		tokenFormData.put("scope", List.of("profile email openid"));
-//		tokenFormData.put("client_id", List.of(clientId));
-//		tokenFormData.put("redirect_uri", List.of(redirectUri.toString()));
+	public IuAuthorizationResponse authorize(String code) {
+		final Map<String, Iterable<String>> tokenRequestParams = new LinkedHashMap<>();
+		tokenRequestParams.put("grant_type", List.of("authorization_code"));
+		tokenRequestParams.put("code", List.of(code));
+		tokenRequestParams.put("scope", List.of(scope));
+		tokenRequestParams.put("redirect_uri", List.of(client.getRedirectUri().toString().toString()));
 
 		final var authRequestBuilder = HttpRequest.newBuilder(client.getTokenEndpoint());
-		authRequestBuilder.POST(BodyPublishers.ofString("grant_type=authorization_code" //
-				+ "&code=" + IuException.unchecked(() -> URLEncoder.encode(code, "UTF-8")) //
-				+ "&scope=" + IuException.unchecked(() -> URLEncoder.encode(scope, "UTF-8")) //
-				+ "&redirect_uri="
-				+ IuException.unchecked(() -> URLEncoder.encode(client.getRedirectUri().toString(), "UTF-8")) //
-		));
+		authRequestBuilder.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(tokenRequestParams)));
 		authRequestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
 		client.getCredentials().applyTo(authRequestBuilder);
-		return response = new AuthorizationResponse(client.getCredentials(),
-				HttpUtils.read(authRequestBuilder.build()).asJsonObject());
+
+		final var authResponse = HttpUtils.read(authRequestBuilder.build()).asJsonObject();
+		return response = new AuthorizationResponse(this, client, authResponse);
 	}
 
 }

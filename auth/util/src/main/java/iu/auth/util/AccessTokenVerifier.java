@@ -17,6 +17,8 @@ import java.security.spec.RSAPublicKeySpec;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -32,6 +34,12 @@ import jakarta.json.JsonObject;
 public class AccessTokenVerifier {
 
 	private static final Logger LOG = Logger.getLogger(AccessTokenVerifier.class.getName());
+
+	private record AlgorithmKey(String kid, String alg) {
+	}
+
+	private record CachedAlgorithm(Algorithm algorithm, Instant lastUpdated) {
+	}
 
 	/**
 	 * Gets the {@link ECParameterSpec} for decoding an EC JWK.
@@ -102,33 +110,21 @@ public class AccessTokenVerifier {
 	}
 
 	private final URI keysetUri;
-	private final String keyId;
 	private final String issuer;
-	private final String audience;
-	private final String algorithm;
 	private final Duration refreshInterval;
-	private Algorithm jwtAlgorithm;
-	private Instant lastUpdate;
+	private final Map<AlgorithmKey, CachedAlgorithm> algorithmCache = new HashMap<>();
 
 	/**
 	 * Constructor.
 	 * 
 	 * @param keysetUri       JWKS URL
-	 * @param keyId           JWK ID; <em>must</em> refer to a public signing key
-	 *                        included in the key set.
 	 * @param issuer          expected issuer
-	 * @param audience        expected audience
-	 * @param algorithm       algorithm used to sign the JWT
 	 * @param refreshInterval max time to reuse a configured {@link Algorithm}
 	 *                        before refreshing from the JWKS URL.
 	 */
-	public AccessTokenVerifier(URI keysetUri, String keyId, String issuer, String audience, String algorithm,
-			Duration refreshInterval) {
+	public AccessTokenVerifier(URI keysetUri, String issuer, Duration refreshInterval) {
 		this.keysetUri = keysetUri;
-		this.keyId = keyId;
 		this.issuer = issuer;
-		this.audience = audience;
-		this.algorithm = algorithm;
 		this.refreshInterval = refreshInterval;
 	}
 
@@ -142,15 +138,18 @@ public class AccessTokenVerifier {
 	 * <li>The use of a strong signature algorithm: RSA or ECDSA</li>
 	 * <li>The RSA or ECDSA signature is valid</li>
 	 * <li>The iss claim matches the configured issuer</li>
-	 * <li>The aud claim includes the configured audience</li>
-	 * <li>
+	 * <li>The aud claim includes the audience</li>
 	 * </ul>
 	 * 
-	 * @param token JWT access token
+	 * @param audience expected audience claim
+	 * @param token    JWT access token
 	 * @return Parsed JWT, can be used
 	 */
-	public DecodedJWT verify(String token) {
-		final var verifier = JWT.require(getAlgorithm()) //
+	public DecodedJWT verify(String audience, String token) {
+		final var decoded = JWT.decode(token);
+		final var kid = decoded.getKeyId();
+		final var alg = decoded.getAlgorithm();
+		final var verifier = JWT.require(getAlgorithm(kid, alg)) //
 				.withIssuer(issuer).withAudience(audience) //
 				.withClaimPresence("iat") //
 				.withClaimPresence("exp") //
@@ -159,7 +158,7 @@ public class AccessTokenVerifier {
 		return verifier.verify(token);
 	}
 
-	private JsonObject readJwk() {
+	private JsonObject readJwk(String keyId) {
 		final var jwks = HttpUtils.read(keysetUri).asJsonObject();
 		try {
 			for (final var key : jwks.getJsonArray("keys")) {
@@ -174,13 +173,17 @@ public class AccessTokenVerifier {
 		throw new IllegalStateException("Key " + keyId + " not in JWKS: " + jwks);
 	}
 
-	private Algorithm getAlgorithm() {
+	private Algorithm getAlgorithm(String kid, String alg) {
 		final var now = Instant.now();
-		if (lastUpdate == null || lastUpdate.isBefore(now.minus(refreshInterval))) {
+		final var cacheKey = new AlgorithmKey(kid, alg);
+
+		var cachedAlgorithm = algorithmCache.get(cacheKey);
+		if (cachedAlgorithm == null || cachedAlgorithm.lastUpdated.isBefore(now.minus(refreshInterval))) {
 			JsonObject jwk = null;
+			Algorithm jwtAlgorithm;
 			try {
-				jwk = readJwk();
-				switch (algorithm) {
+				jwk = readJwk(kid);
+				switch (alg) {
 				case "ES256":
 					jwtAlgorithm = Algorithm.ECDSA256(toECPublicKey(jwk));
 					break;
@@ -200,19 +203,24 @@ public class AccessTokenVerifier {
 					jwtAlgorithm = Algorithm.RSA512(toRSAPublicKey(jwk), null);
 					break;
 				default:
-					throw new UnsupportedOperationException("Unsupported JWT algorithm " + algorithm);
+					throw new UnsupportedOperationException("Unsupported JWT algorithm " + alg);
 				}
+
+				cachedAlgorithm = new CachedAlgorithm(jwtAlgorithm, now);
+				synchronized (algorithmCache) {
+					algorithmCache.put(cacheKey, cachedAlgorithm);
+				}
+
 			} catch (Throwable e) {
-				final var message = "JWT Algorithm initialization failure; keysetUri=" + keysetUri + " keyId=" + keyId
+				final var message = "JWT Algorithm initialization failure; keysetUri=" + keysetUri + " " + cacheKey
 						+ " jwk=" + jwk;
-				if (jwtAlgorithm == null)
+				if (cachedAlgorithm == null)
 					throw new IllegalStateException(message, e);
 				else
 					LOG.log(Level.INFO, message, e);
 			}
-			lastUpdate = Instant.now();
 		}
-		return jwtAlgorithm;
+		return cachedAlgorithm.algorithm;
 	}
 
 }

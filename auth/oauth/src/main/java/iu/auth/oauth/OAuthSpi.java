@@ -2,6 +2,7 @@ package iu.auth.oauth;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.spi.IuOAuthSpi;
@@ -33,7 +34,8 @@ public class OAuthSpi implements IuOAuthSpi {
 	}
 
 	@Override
-	public void initialize(String realm, IuAuthorizationClient client) {
+	public void initialize(IuAuthorizationClient client) {
+		final var realm = Objects.requireNonNull(client.getRealm(), "Missing realm");
 		synchronized (CLIENTS) {
 			if (CLIENTS.containsKey(realm))
 				throw new IllegalStateException("Already initialized");

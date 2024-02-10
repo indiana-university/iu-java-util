@@ -1,30 +1,33 @@
 package iu.auth.oauth;
 
-import java.util.HashMap;
+import java.net.URI;
+import java.util.ArrayDeque;
+import java.util.Collection;
 import java.util.Map;
 
+import edu.iu.auth.IuAuthenticationChallengeException;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationCodeGrant;
-import edu.iu.auth.oauth.IuAuthorizationFailedException;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
 import edu.iu.auth.oauth.IuAuthorizationSession;
+import iu.auth.util.HttpUtils;
 
 /**
  * OAuth authorization session implementation.
  */
 public class AuthorizationSession implements IuAuthorizationSession {
 
-	private final Map<String, ClientCredentialsGrant> clientGrants = new HashMap<>();
-	private final Map<String, IuAuthorizationCodeGrant> codeGrants = new HashMap<>();
+	private final Collection<IuAuthorizationCodeGrant> grants = new ArrayDeque<>();
 
-	private final String realm;
 	private final IuAuthorizationClient client;
+	private final URI entryPoint;
 
 	/**
 	 * Default constructor.
 	 * 
-	 * @param realm  realm
-	 * @param client {@link IuAuthorizationClient}
+	 * @param client     {@link IuAuthorizationClient}
+	 * @param entryPoint {@link URI} to redirect the user agent to in order restart
+	 *                   the authentication process.
 	 */
 	public AuthorizationSession(String realm, IuAuthorizationClient client) {
 		this.realm = realm;
@@ -54,14 +57,17 @@ public class AuthorizationSession implements IuAuthorizationSession {
 	}
 
 	@Override
-	public IuAuthorizationCodeGrant getAuthorizationCodeGrant(String state) throws IuAuthorizationFailedException {
+	public IuAuthorizationCodeGrant getAuthorizationCodeGrant(String state) {
 		final IuAuthorizationCodeGrant grant;
 		synchronized (codeGrants) {
 			grant = codeGrants.remove(state);
 		}
-		
+//		IuAuthenticationChallengeException - if the state value cannot be tiedto a valid existing grant
+		// IuAuthenticationRedirectException - if the state value is tied to anexpired
+		// grant
+
 		if (grant == null)
-			throw new IuAuthorizationFailedException(401, realm, "invalid_state", state, null);
+			throw new IuAuthenticationChallengeException(HttpUtils.createChallenge("Bearer", Map.of("realm", realm)));
 		else
 			return grant;
 	}

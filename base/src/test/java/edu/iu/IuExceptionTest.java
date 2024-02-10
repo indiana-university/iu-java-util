@@ -33,6 +33,7 @@ package edu.iu;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -845,6 +846,36 @@ public class IuExceptionTest {
 	public void testNoErrorNoSuppress() throws Throwable {
 		assertDoesNotThrow(() -> IuException.suppress(() -> {
 		}));
+	}
+
+	@Test
+	public void testStandardRuntimeExceptions() {
+		assertStandardRuntimeException(IuBadRequestException.class);
+		assertStandardRuntimeException(IuNotFoundException.class);
+		assertStandardRuntimeException(IuAuthorizationFailedException.class);
+		assertStandardRuntimeException(IuOutOfServiceException.class);
+	}
+	
+	private void assertStandardRuntimeException(Class<? extends RuntimeException> exceptionClass) {
+		Assertions.assertThrows(exceptionClass, () -> {
+			throw exceptionClass.getConstructor().newInstance();
+		});
+
+		final var m = IdGenerator.generateId();
+		assertEquals(m, Assertions.assertThrows(exceptionClass, () -> {
+			throw exceptionClass.getConstructor(String.class).newInstance(m);
+		}).getMessage());
+
+		final var c = new Exception();
+		assertEquals(c, Assertions.assertThrows(exceptionClass, () -> {
+			throw exceptionClass.getConstructor(Throwable.class).newInstance(c);
+		}).getCause());
+
+		final var e = Assertions.assertThrows(exceptionClass, () -> {
+			throw exceptionClass.getConstructor(String.class, Throwable.class).newInstance(m, c);
+		});
+		assertEquals(m, e.getMessage());
+		assertEquals(c, e.getCause());
 	}
 
 }

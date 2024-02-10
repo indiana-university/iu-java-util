@@ -8,6 +8,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.util.Map;
 import java.util.logging.Logger;
 
 import edu.iu.IuException;
@@ -44,6 +45,33 @@ public class HttpUtils {
 				.createReader(
 						new StringReader(read(HttpClient.newHttpClient().send(request, BodyHandlers.ofInputStream()))))
 				.readValue());
+	}
+
+	/**
+	 * Creates an authentication challenge sending to a client via the
+	 * <strong>WWW-Authenticate</strong> header.
+	 * 
+	 * @param scheme     authentication scheme to request
+	 * @param attributes challenge attributes for informing the client of how to
+	 *                   authenticate
+	 * @return authentication challenge
+	 */
+	public static String createChallenge(String scheme, Map<String, String> attributes) {
+		final var sb = new StringBuilder();
+		sb.append(scheme);
+		if (attributes != null && !attributes.isEmpty()) {
+			sb.append(' ');
+			var first = true;
+			for (final var attributeEntry : attributes.entrySet()) {
+				if (first)
+					first = false;
+				else
+					sb.append(", ");
+				sb.append(attributeEntry.getKey()).append("=\"")
+						.append(attributeEntry.getValue().replace("\\", "\\\\").replace("\"", "\\\""));
+			}
+		}
+		return sb.toString();
 	}
 
 	private static String read(HttpResponse<InputStream> response) {

@@ -1,7 +1,7 @@
 package edu.iu.auth.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.CookieManager;
@@ -11,9 +11,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.logging.Level;
 
 import org.jsoup.Jsoup;
@@ -22,9 +22,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 
-import edu.iu.IdGenerator;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuAuthenticationRedirectException;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationSession;
 import edu.iu.auth.oidc.IuOpenIdProvider;
@@ -51,9 +51,9 @@ public class OpenIDConnectIT {
 		clientSecret = VaultProperties.getProperty("iu.auth.oidc.clientSecret");
 		redirectUri = new URI(VaultProperties.getProperty("iu.auth.oidc.redirectUri"));
 
-		provider = IuOpenIdProvider.from(configUri);
+		provider = IuOpenIdProvider.from(configUri, Duration.ofSeconds(15L));
 		client = provider.createAuthorizationClient(redirectUri, IuApiCredentials.basic(clientId, clientSecret));
-		IuAuthorizationClient.initialize(provider.getIssuer(), client);
+		IuAuthorizationClient.initialize(client);
 		session = IuAuthorizationSession.create(provider.getIssuer());
 	}
 
@@ -65,6 +65,7 @@ public class OpenIDConnectIT {
 
 	@Test
 	public void testClientCredentials() throws Exception {
+		IuTestLogger.allow("iu.auth.oauth.ClientCredentialsGrant", Level.FINE);
 		final var grant = session.getClientCredentialsGrant("openid");
 		final var authResponse = grant.authorize();
 
@@ -76,27 +77,18 @@ public class OpenIDConnectIT {
 
 	@Test
 	public void testAuthCode() throws Exception {
+		IuTestLogger.allow("iu.auth.oauth.AuthorizationCodeGrant", Level.FINE);
 		final var grant = session.createAuthorizationCodeGrant("openid");
-		assertNull(grant.authorize());
-
-		client.getAuthorizationEndpoint();
-
-		final var nonce = IdGenerator.generateId();
-
-		final var params = new LinkedHashMap<String, Iterable<String>>();
-		params.put("client_id", List.of(clientId));
-		params.put("nonce", List.of(nonce));
-		params.put("response_type", List.of("code"));
-		params.put("redirect_uri", List.of(redirectUri.toString()));
-		params.put("scope", List.of("openid"));
-		params.put("state", List.of(grant.getState()));
-
+		final var location = assertThrows(IuAuthenticationRedirectException.class, grant::authorize).getMessage();
 		final var authEndpoint = client.getAuthorizationEndpoint();
+		assertTrue(location.startsWith(authEndpoint.toString()));
+
+		// Emulates browser interactions with Shibboleth authorization code flow
+		// for a user that doesn't require MFA
 		final var cookieHandler = new CookieManager();
 		final var http = HttpClient.newBuilder().cookieHandler(cookieHandler).build();
 
-		final var initAuthUri = new URI(authEndpoint + "?" + IuWebUtils.createQueryString(params));
-		System.out.println(initAuthUri);
+		final var initAuthUri = new URI(location);
 		final var initAuthCodeRequest = HttpRequest.newBuilder(initAuthUri).build();
 		final var initAuthCodeResponse = http.send(initAuthCodeRequest, BodyHandlers.ofString());
 		assertEquals(302, initAuthCodeResponse.statusCode());
@@ -158,19 +150,20 @@ public class OpenIDConnectIT {
 		final var authCodeParams = IuWebUtils
 				.parseQueryString(finalRedirectLocation.substring(redirectUri.toString().length()));
 
-		assertEquals(grant.getState(), authCodeParams.get("state").iterator().next()); 
+		assertEquals(grant.getState(), authCodeParams.get("state").iterator().next());
 		final var code = authCodeParams.get("code").iterator().next();
 
 		final var authResponse = grant.authorize(code);
+		provider.verifyAuthentication(authResponse);
 		System.out.println(authResponse.getAttributes().keySet());
 		// TODO: implement / test token validation
-		
+
 		final var userInfo = HttpUtils.read(HttpRequest.newBuilder(provider.getUserInfoEndpoint())
 				.header("Authorization", "Bearer " + authResponse.getAccessToken()).build());
 
 		System.out.println(userInfo);
 //		assertEquals(clientId, userInfo.asJsonObject().getString("sub"));
-		
+
 //		System.out.println(loginSuccessResponse.statusCode());
 //		System.out.println(loginSuccessResponse.headers().map());
 //		System.out.println(loginSuccessResponse.body());

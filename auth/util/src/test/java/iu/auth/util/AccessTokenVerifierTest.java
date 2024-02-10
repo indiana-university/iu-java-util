@@ -59,8 +59,9 @@ public class AccessTokenVerifierTest {
 			final var uri = mock(URI.class);
 			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenReturn(jwks);
 
-			final var verifier = new AccessTokenVerifier(uri, "defaultSign", iss, aud, "", Duration.ofMillis(100L));
-			assertThrows(IllegalStateException.class, () -> verifier.verify(""));
+			final var verifier = new AccessTokenVerifier(uri, iss, Duration.ofMillis(100L));
+			assertThrows(IllegalStateException.class,
+					() -> verifier.verify(aud, JWT.create().withKeyId("defaultSign").sign(Algorithm.none())));
 		}
 	}
 
@@ -76,8 +77,9 @@ public class AccessTokenVerifierTest {
 			final var uri = mock(URI.class);
 			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenReturn(jwks);
 
-			final var verifier = new AccessTokenVerifier(uri, "defaultSign", iss, aud, "", Duration.ofMillis(100L));
-			final var e = assertThrows(IllegalStateException.class, () -> verifier.verify(""));
+			final var verifier = new AccessTokenVerifier(uri, iss, Duration.ofMillis(100L));
+			final var e = assertThrows(IllegalStateException.class,
+					() -> verifier.verify(aud, JWT.create().withKeyId("defaultSign").sign(Algorithm.none())));
 			assertInstanceOf(UnsupportedOperationException.class, e.getCause());
 		}
 	}
@@ -94,8 +96,9 @@ public class AccessTokenVerifierTest {
 			final var uri = mock(URI.class);
 			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenReturn(jwks);
 
-			final var verifier = new AccessTokenVerifier(uri, "", iss, aud, "", Duration.ofMillis(100L));
-			assertThrows(IllegalStateException.class, () -> verifier.verify(""));
+			final var verifier = new AccessTokenVerifier(uri, iss, Duration.ofMillis(100L));
+			assertThrows(IllegalStateException.class,
+					() -> verifier.verify(aud, JWT.create().withKeyId("").sign(Algorithm.none())));
 		}
 	}
 
@@ -164,8 +167,8 @@ public class AccessTokenVerifierTest {
 			final var jwtSignAlgorithm = (Algorithm) Algorithm.class
 					.getMethod("RSA" + algorithm.substring(2), RSAPublicKey.class, RSAPrivateKey.class)
 					.invoke(null, pub, keyPair.getPrivate());
-			accessToken = JWT.create().withIssuer(iss).withAudience(aud).withIssuedAt(iat).withExpiresAt(exp)
-					.withClaim("nonce", nonce).sign(jwtSignAlgorithm);
+			accessToken = JWT.create().withKeyId("defaultSign").withIssuer(iss).withAudience(aud).withIssuedAt(iat)
+					.withExpiresAt(exp).withClaim("nonce", nonce).sign(jwtSignAlgorithm);
 		} else if (algorithm.startsWith("ES")) {
 			final var ecKeygen = KeyPairGenerator.getInstance("EC");
 			ecKeygen.initialize(new ECGenParameterSpec("secp256r1"));
@@ -183,8 +186,8 @@ public class AccessTokenVerifierTest {
 			final var jwtSignAlgorithm = (Algorithm) Algorithm.class
 					.getMethod("ECDSA" + algorithm.substring(2), ECPublicKey.class, ECPrivateKey.class)
 					.invoke(null, pub, keyPair.getPrivate());
-			accessToken = JWT.create().withIssuer(iss).withAudience(aud).withIssuedAt(iat).withExpiresAt(exp)
-					.withClaim("nonce", nonce).sign(jwtSignAlgorithm);
+			accessToken = JWT.create().withKeyId("defaultSign").withIssuer(iss).withAudience(aud).withIssuedAt(iat)
+					.withExpiresAt(exp).withClaim("nonce", nonce).sign(jwtSignAlgorithm);
 		} else
 			throw new AssertionFailedError();
 
@@ -192,16 +195,15 @@ public class AccessTokenVerifierTest {
 			final var uri = mock(URI.class);
 			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenReturn(jwks);
 
-			final var verifier = new AccessTokenVerifier(uri, "defaultSign", iss, aud, algorithm,
-					Duration.ofMillis(99L));
+			final var verifier = new AccessTokenVerifier(uri, iss, Duration.ofMillis(99L));
 
-			assertEquals(nonce, verifier.verify(accessToken).getClaim("nonce").asString());
-			assertEquals(nonce, verifier.verify(accessToken).getClaim("nonce").asString());
+			assertEquals(nonce, verifier.verify(aud, accessToken).getClaim("nonce").asString());
+			assertEquals(nonce, verifier.verify(aud, accessToken).getClaim("nonce").asString());
 			// verify 2nd call uses cached keys
 			mockHttpUtils.verify(() -> HttpUtils.read(uri));
 			Thread.sleep(100L);
 
-			assertEquals(nonce, verifier.verify(accessToken).getClaim("nonce").asString());
+			assertEquals(nonce, verifier.verify(aud, accessToken).getClaim("nonce").asString());
 			// verify cache refresh
 			mockHttpUtils.verify(() -> HttpUtils.read(uri), times(2));
 
@@ -210,7 +212,7 @@ public class AccessTokenVerifierTest {
 
 			IuTestLogger.expect("iu.auth.util.AccessTokenVerifier", Level.INFO,
 					"JWT Algorithm initialization failure;.*", RuntimeException.class);
-			assertEquals(nonce, verifier.verify(accessToken).getClaim("nonce").asString());
+			assertEquals(nonce, verifier.verify(aud, accessToken).getClaim("nonce").asString());
 		}
 	}
 
