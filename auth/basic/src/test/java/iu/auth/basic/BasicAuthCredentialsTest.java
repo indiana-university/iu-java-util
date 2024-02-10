@@ -32,6 +32,12 @@
 package iu.auth.basic;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+
+import java.io.UnsupportedEncodingException;
+import java.net.http.HttpRequest;
+import java.util.Base64;
 
 import org.junit.jupiter.api.Test;
 
@@ -39,10 +45,14 @@ import org.junit.jupiter.api.Test;
 public class BasicAuthCredentialsTest {
 
 	@Test
-	public void testBasicAuth() {
+	public void testBasicAuth() throws UnsupportedEncodingException {
 		final var auth = new BasicAuthCredentials("foo", "bar");
 		assertEquals("foo", auth.getName());
 		assertEquals("bar", auth.getPassword());
+
+		final var req = mock(HttpRequest.Builder.class);
+		auth.applyTo(req);
+		verify(req).header("Authorization", "Basic " + Base64.getEncoder().encodeToString("foo:bar".getBytes("UTF-8")));
 	}
 
 }

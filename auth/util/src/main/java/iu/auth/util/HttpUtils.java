@@ -97,9 +97,9 @@ public class HttpUtils {
 				if (first)
 					first = false;
 				else
-					sb.append(", ");
+					sb.append(" ");
 				sb.append(attributeEntry.getKey()).append("=\"")
-						.append(attributeEntry.getValue().replace("\\", "\\\\").replace("\"", "\\\""));
+						.append(attributeEntry.getValue().replace("\\", "\\\\").replace("\"", "\\\"")).append("\"");
 			}
 		}
 		return sb.toString();

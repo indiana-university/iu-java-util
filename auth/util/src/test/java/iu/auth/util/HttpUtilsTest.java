@@ -49,6 +49,8 @@ import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
@@ -140,6 +142,17 @@ public class HttpUtilsTest {
 			final var e = assertThrows(IllegalStateException.class, () -> HttpUtils.read(uri));
 			assertEquals("Failed to read from null; status=401 headers={} content={\"foo\":\"bar\"}", e.getMessage());
 		}
+	}
+
+	@Test
+	public void testChallenge() {
+		assertEquals("Bearer", HttpUtils.createChallenge("Bearer", null));
+		assertEquals("Bearer", HttpUtils.createChallenge("Bearer", Map.of()));
+		assertEquals("Bearer realm=\"example\"", HttpUtils.createChallenge("Bearer", Map.of("realm", "example")));
+		final Map<String, String> a = new LinkedHashMap<>();
+		a.put("realm", "example");
+		a.put("foo", "bar \"baz\"");
+		assertEquals("Bearer realm=\"example\" foo=\"bar \\\"baz\\\"\"", HttpUtils.createChallenge("Bearer", a));
 	}
 
 }
