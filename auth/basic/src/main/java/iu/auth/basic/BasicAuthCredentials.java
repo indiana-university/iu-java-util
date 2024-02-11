@@ -41,7 +41,7 @@ import edu.iu.auth.basic.IuBasicAuthCredentials;
  * Implementation of {@link IuBasicAuthCredentials}.
  */
 public class BasicAuthCredentials implements IuBasicAuthCredentials {
-
+	
 	private final String name;
 	private final String password;
 

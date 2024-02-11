@@ -29,65 +29,39 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.oauth;
+package iu.auth.oauth;
 
-import java.util.Map;
-import java.util.Set;
+import java.io.Serializable;
 
-import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.oauth.IuAuthorizationScope;
 
 /**
- * Represents a successful response to an {@link IuAuthorizationGrant}.
+ * {@link IuAuthorizationScope} implementation.
  */
-public interface IuAuthorizationResponse {
+public class AuthorizedScope implements IuAuthorizationScope, Serializable {
+	private static final long serialVersionUID = 1L;
+
+	private final String scope;
+	private final String realm;
 
 	/**
-	 * Gets the client ID.
+	 * Constructor.
 	 * 
-	 * @return client ID
+	 * @param scope scope
+	 * @param realm realm
 	 */
-	String getClientId();
+	AuthorizedScope(String scope, String realm) {
+		this.scope = scope;
+		this.realm = realm;
+	}
 
-	/**
-	 * Gets the token type.
-	 * 
-	 * @return token type
-	 */
-	String getTokenType();
+	@Override
+	public String getName() {
+		return scope;
+	}
 
-	/**
-	 * Gets the authorized scopes.
-	 * 
-	 * @return authorized scopes
-	 */
-	Set<String> getScope();
-
-	/**
-	 * Gets additional attributes sent with the initial authorization request.
-	 * 
-	 * @return attributes request attributes
-	 */
-	Map<String, ?> getRequestAttributes();
-
-	/**
-	 * Gets additional attributes received with the token response.
-	 * 
-	 * @return attributes token attributes
-	 */
-	Map<String, ?> getTokenAttributes();
-
-	/**
-	 * Gets API credentials established through authorization.
-	 * 
-	 * <p>
-	 * Although the token response providing the credentials <em>must</em> be
-	 * verified before this response is created, the client <em>must</em>
-	 * independently verify the credentials provided as valid for the authentication
-	 * realm.
-	 * </p>
-	 * 
-	 * @return {@link IuApiCredentials}
-	 */
-	IuApiCredentials getCredentials();
-
+	@Override
+	public String getRealm() {
+		return realm;
+	}
 }

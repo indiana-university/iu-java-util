@@ -29,69 +29,27 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.oidc;
+package edu.iu.auth.oauth;
 
+import java.io.Serializable;
 import java.security.Principal;
-import java.time.Instant;
-import java.util.Map;
-
-import javax.security.auth.Subject;
 
 /**
- * Represents verified attributes following successful authentication by an
- * {@link IuOpenIdProvider OIDC Provider}.
+ * Represents a scope authorized by an authentication realm.
+ * 
+ * <p>
+ * Will be included in the {@link IuBearerAuthCredentials#getSubject()}. The
+ * scope is the principal name, and is only valid within a specific
+ * authentication realm.
+ * </p>
  */
-public interface IuOpenIdAuthenticationAttributes {
+public interface IuAuthorizationScope extends Principal, Serializable {
 
 	/**
-	 * Gets the authenticated principal.
+	 * Gets the authentication realm.
 	 * 
-	 * @return authenticated principal
+	 * @return authentication realm
 	 */
-	Principal getPrincipal();
-
-	/**
-	 * Gets the authorized subject.
-	 * 
-	 * @return authorized subject
-	 */
-	Subject getSubject();
-
-	/**
-	 * Gets the point in time when the principal's credentials were verified.
-	 * 
-	 * @return authentication time
-	 */
-	Instant getAuthenticationTime();
-
-	/**
-	 * Gets the point in time when the verified ID token was issued.
-	 * 
-	 * @return authentication time
-	 */
-	Instant getIdTokenIssuedAt();
-
-	/**
-	 * Gets the point in time when verified the ID token expires.
-	 * 
-	 * @return authentication time
-	 */
-	Instant getIdTokenExpires();
-
-	/**
-	 * Gets the authorized scope.
-	 * 
-	 * @return authorized scope
-	 */
-	String getScope();
-
-	/**
-	 * Gets claims included with the verified ID token, excluding those involved in
-	 * the verification process, and attributes released through the OIDC userinfo
-	 * endpoint.
-	 * 
-	 * @return authentication attributes
-	 */
-	Map<String, ?> getAttributes();
+	String getRealm();
 
 }

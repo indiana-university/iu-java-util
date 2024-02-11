@@ -39,7 +39,8 @@ import edu.iu.auth.spi.IuBasicAuthSpi;
 import iu.auth.IuAuthSpiFactory;
 
 /**
- * Parent interface for representing a client's API credentials.
+ * {@link Principal} implementation for an HTTP-authenticated user or client
+ * application.
  */
 public interface IuApiCredentials extends Principal {
 

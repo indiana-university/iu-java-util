@@ -62,47 +62,34 @@ public interface IuAuthorizationSession {
 	}
 
 	/**
-	 * Gets a authorization code grant with default scope and entry point.
+	 * Gets an authorization code grant for the application entry point.
 	 * 
 	 * @return new authorization code grant
 	 * @throws UnsupportedOperationException if an entry point was not defined
 	 */
-	IuAuthorizationCodeGrant grant() throws UnsupportedOperationException;
+	IuAuthorizationGrant grant() throws UnsupportedOperationException;
 
 	/**
-	 * Gets a authorization code grant using the session default entry point.
+	 * Gets an authorization code grant for an application resource URI.
 	 * 
-	 * @param scope requested authorization scope; may be null or empty if a
-	 *              specific scope is not requested, or to accept the default scope
-	 *              as defined by the authorization server
-	 * @return new authorization code grant
-	 * @throws UnsupportedOperationException if an entry point was not defined
-	 */
-	IuAuthorizationCodeGrant grant(Set<String> scope) throws UnsupportedOperationException;
-
-	/**
-	 * Gets a authorization code grant by scope and application URI.
-	 * 
-	 * @param scope          requested authorization scope; may be null or empty if
-	 *                       a specific scope is not requested, or to accept the
-	 *                       default scope as defined by the authorization server
-	 * @param applicationUri URI for the application requiring authorization,
-	 *                       <em>may</em> be null to use the entry point;
-	 *                       <em>required</em> if an entry point was not defined for
-	 *                       the session.
+	 * @param resourceUri
 	 * @return authorization code grant
 	 */
-	IuAuthorizationCodeGrant grant(Set<String> scope, URI applicationUri);
+	IuAuthorizationGrant grant(URI resourceUri);
 
 	/**
-	 * Gets an authorization grant by its state identifier.
+	 * Completes authorization using a code and state value provided by the
+	 * authorization server.
 	 * 
-	 * @param state state value generated from
-	 *              {@link IuAuthorizationCodeGrant#getState()}
-	 * @return authorization code grant
-	 * @throws IuAuthenticationException         if the state value cannot be tied
-	 *                                           to a valid authorization grant
+	 * @param code  authorization code
+	 * @param state opaque value tying the authorization code to a pending request
+	 *
+	 * @return {@link URI} to direct the user agent to after completing
+	 *         authorization
+	 * 
+	 * @throws IuAuthenticationException If authorization could not be granted due
+	 *                                   to missing or expired authentication.
 	 */
-	IuAuthorizationCodeGrant resume(String state) throws IuAuthenticationException;
+	URI authorize(String code, String state) throws IuAuthenticationException;
 
 }

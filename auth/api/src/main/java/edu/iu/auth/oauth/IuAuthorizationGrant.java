@@ -31,8 +31,9 @@
  */
 package edu.iu.auth.oauth;
 
-import java.util.Set;
+import java.net.URI;
 
+import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 
 /**
@@ -43,31 +44,17 @@ import edu.iu.auth.IuAuthenticationException;
 public interface IuAuthorizationGrant {
 
 	/**
-	 * Gets the client ID.
+	 * Authorizes access to an application resource by URI.
 	 * 
-	 * @return client ID.
-	 */
-	String getClientId();
-
-	/**
-	 * Gets the requested scope.
-	 * 
-	 * @return requested scope, may be null to request the default scope as defined
-	 *         by the authorization server
-	 */
-	Set<String> getScope();
-
-	/**
-	 * Authorizes the grant using previously established authentication attributes.
-	 * 
-	 * @return response details following successful authorization.
+	 * @param resourceUri resource to authorize access to
+	 * @return {@IuApiCredentials} authorized to access the resource
 	 * 
 	 * @throws IuAuthenticationException If authorization could not be granted and
 	 *                                   the client <em>must</em> complete
 	 *                                   authentication before attempting
 	 *                                   authorization.
 	 */
-	IuAuthorizationResponse authorize() throws IuAuthenticationException;
+	IuApiCredentials authorize(URI resourceUri) throws IuAuthenticationException;
 
 	/**
 	 * Discards all established credentials, forcing direct interaction with the

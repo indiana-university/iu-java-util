@@ -31,42 +31,54 @@
  */
 package edu.iu.auth.oauth;
 
-import java.net.URI;
-
-import edu.iu.auth.IuAuthenticationException;
+import java.time.Instant;
+import java.util.Map;
 
 /**
- * Represents an authorization grant, as described by the
- * <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4">OAuth 2.0
- * Authorization Framework</a>.
+ * Represents a unverified response to an {@link IuAuthorizationGrant}.
  */
-public interface IuAuthorizationCodeGrant extends IuAuthorizationGrant {
+public interface IuTokenResponse {
 
 	/**
-	 * Gets the state identifier, used to locate a grant within an
-	 * {@link IuAuthorizationSession authorization session}.
+	 * Gets the token type.
 	 * 
-	 * @return state identifier
+	 * @return token type
 	 */
-	String getState();
+	String getTokenType();
 
 	/**
-	 * Gets the redirect URI.
+	 * Gets the access token.
 	 * 
-	 * @return {@link URI}
+	 * @return access token
 	 */
-	URI getRedirectUri();
+	String getAccessToken();
 
 	/**
-	 * Authorizes the grant using a code provided by the authorization server.
+	 * Gets the authorized scopes.
 	 * 
-	 * @param code authorization code
-	 * @return response details following successful authorization
-	 * 
-	 * @throws IuAuthenticationException If authorization could not be
-	 *                                            granted due to missing or expired
-	 *                                            authentication.
+	 * @return authorized scopesO
 	 */
-	IuAuthorizationResponse authorize(String code) throws IuAuthenticationException;
+	Iterable<String> getScope();
 
+	/**
+	 * Gets the expiration time.
+	 * 
+	 * @return expiration time
+	 */
+	Instant getExpires();
+
+	/**
+	 * Gets additional attributes sent with the initial authorization request.
+	 * 
+	 * @return attributes request attributes
+	 */
+	Map<String, ?> getRequestAttributes();
+
+	/**
+	 * Gets additional attributes received with the token response.
+	 * 
+	 * @return attributes token attributes
+	 */
+	Map<String, ?> getTokenAttributes();
+	
 }

@@ -36,7 +36,6 @@ import java.time.Duration;
 
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oauth.IuAuthorizationResponse;
 import edu.iu.auth.spi.IuOpenIdConnectSpi;
 import iu.auth.IuAuthSpiFactory;
 
@@ -83,14 +82,5 @@ public interface IuOpenIdProvider {
 	 * @return authorization client
 	 */
 	IuAuthorizationClient createAuthorizationClient(URI resourceUri, IuApiCredentials clientCredentials);
-
-	/**
-	 * Verifies authentication attributes received via OAuth token response from an
-	 * OIDC provider.
-	 * 
-	 * @param authResponse authorization response
-	 * @return verified authentication attributes
-	 */
-	IuOpenIdAuthenticationAttributes verifyAuthentication(IuAuthorizationResponse authResponse);
 
 }

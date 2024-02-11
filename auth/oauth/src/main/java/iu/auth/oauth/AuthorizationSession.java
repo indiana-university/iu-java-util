@@ -31,14 +31,13 @@
  */
 package iu.auth.oauth;
 
+import java.io.Serializable;
 import java.net.URI;
-import java.util.ArrayDeque;
-import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oauth.IuAuthorizationCodeGrant;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
 import edu.iu.auth.oauth.IuAuthorizationSession;
 import iu.auth.util.HttpUtils;
@@ -46,61 +45,63 @@ import iu.auth.util.HttpUtils;
 /**
  * OAuth authorization session implementation.
  */
-public class AuthorizationSession implements IuAuthorizationSession {
+class AuthorizationSession implements IuAuthorizationSession, Serializable {
 
-	private final Collection<IuAuthorizationCodeGrant> grants = new ArrayDeque<>();
+	private static final long serialVersionUID = 1L;
 
-	private final IuAuthorizationClient client;
+	private final String realm;
 	private final URI entryPoint;
+	private final Map<URI, AuthorizationCodeGrant> grants = new HashMap<>();
 
 	/**
-	 * Default constructor.
+	 * Constructor.
 	 * 
-	 * @param client     {@link IuAuthorizationClient}
+	 * @param realm      authentication realm
 	 * @param entryPoint {@link URI} to redirect the user agent to in order restart
 	 *                   the authentication process.
 	 */
-	public AuthorizationSession(String realm, IuAuthorizationClient client) {
+	public AuthorizationSession(String realm, URI entryPoint) {
 		this.realm = realm;
-		this.client = client;
+		this.entryPoint = entryPoint;
 	}
 
 	@Override
-	public IuAuthorizationGrant getClientCredentialsGrant(String scope) {
-		ClientCredentialsGrant grant;
-		synchronized (clientGrants) {
-			grant = clientGrants.get(scope);
-			if (grant == null)
-				grant = new ClientCredentialsGrant(client, scope);
-			clientGrants.put(scope, grant);
-		}
-
-		return grant;
-	}
-
-	@Override
-	public IuAuthorizationCodeGrant createAuthorizationCodeGrant(String scope) {
-		final var grant = new AuthorizationCodeGrant(client, scope);
-		synchronized (codeGrants) {
-			codeGrants.put(grant.getState(), grant);
-		}
-		return grant;
-	}
-
-	@Override
-	public IuAuthorizationCodeGrant getAuthorizationCodeGrant(String state) {
-		final IuAuthorizationCodeGrant grant;
-		synchronized (codeGrants) {
-			grant = codeGrants.remove(state);
-		}
-//		IuAuthenticationChallengeException - if the state value cannot be tiedto a valid existing grant
-		// IuAuthenticationRedirectException - if the state value is tied to anexpired
-		// grant
-
-		if (grant == null)
-			throw new IuAuthenticationException(HttpUtils.createChallenge("Bearer", Map.of("realm", realm)));
+	public IuAuthorizationGrant grant() throws UnsupportedOperationException {
+		if (entryPoint == null)
+			throw new UnsupportedOperationException();
 		else
-			return grant;
+			return grant(entryPoint);
+	}
+
+	@Override
+	public synchronized IuAuthorizationGrant grant(URI resourceUri) {
+		if (!OAuthSpi.isRoot(OAuthSpi.getClient(realm).getResourceUri(), resourceUri))
+			throw new IllegalArgumentException("Invalid resource URI for this client");
+
+		var grant = grants.get(resourceUri);
+		if (grant == null)
+			grants.put(resourceUri, grant = new AuthorizationCodeGrant(realm, resourceUri));
+		return grant;
+	}
+
+	@Override
+	public URI authorize(String code, String state) throws IuAuthenticationException {
+		synchronized (grants) {
+			for (final var grant : grants.values()) {
+				final var uri = grant.authorize(code, state);
+				if (uri != null)
+					return uri;
+			}
+		}
+
+		final Map<String, String> challengeAttributes = new LinkedHashMap<>();
+		challengeAttributes.put("realm", realm);
+		challengeAttributes.put("error", "invalid_request");
+		challengeAttributes.put("error_description", "invalid state");
+
+		final var challenge = new IuAuthenticationException(HttpUtils.createChallenge("Bearer", challengeAttributes));
+		challenge.setLocation(entryPoint);
+		throw challenge;
 	}
 
 }

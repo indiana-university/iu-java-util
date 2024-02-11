@@ -31,11 +31,14 @@
  */
 package iu.auth.oauth;
 
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import edu.iu.IuObject;
 import edu.iu.auth.oauth.IuAuthorizationClient;
+import edu.iu.auth.oauth.IuAuthorizationSession;
 import edu.iu.auth.spi.IuOAuthSpi;
 
 /**
@@ -52,6 +55,30 @@ public class OAuthSpi implements IuOAuthSpi {
 	}
 
 	/**
+	 * Determines if a root {@link URI} encompasses a resource {@link URI}.
+	 * 
+	 * @param rootUri     root {@link URI}
+	 * @param resourceUri resource {@link URI}
+	 * @return {@link URI}
+	 */
+	static boolean isRoot(URI rootUri, URI resourceUri) {
+		if (rootUri.equals(resourceUri))
+			return true;
+		if (!resourceUri.isAbsolute() //
+				|| resourceUri.isOpaque() //
+				|| IuObject.equals(rootUri.getScheme(), resourceUri.getScheme()) //
+				|| IuObject.equals(rootUri.getAuthority(), resourceUri.getAuthority()))
+			return false;
+
+		final var root = rootUri.getPath();
+		final var resource = resourceUri.getPath();
+		final var l = root.length();
+		return resource.startsWith(root) //
+				&& (root.charAt(l - 1) == '/' //
+						|| resource.charAt(l) == '/');
+	}
+
+	/**
 	 * Gets an initialized authorization client.
 	 * 
 	 * @param realm Authorization realm
@@ -65,18 +92,24 @@ public class OAuthSpi implements IuOAuthSpi {
 	}
 
 	@Override
-	public void initialize(IuAuthorizationClient client) {
+	public ClientCredentialsGrant initialize(IuAuthorizationClient client) {
 		final var realm = Objects.requireNonNull(client.getRealm(), "Missing realm");
+		final var resourceUri = Objects.requireNonNull(client.getResourceUri(), "Missing resourceUri");
+		if (resourceUri.isOpaque() || !resourceUri.isAbsolute())
+			throw new IllegalArgumentException("Invalid resource URI, must be absolute and not opaque");
+
+		final var credentials = new ClientCredentialsGrant(realm);
 		synchronized (CLIENTS) {
 			if (CLIENTS.containsKey(realm))
 				throw new IllegalStateException("Already initialized");
 			CLIENTS.put(realm, client);
 		}
+		return credentials;
 	}
 
 	@Override
-	public AuthorizationSession createAuthorizationSession(String realm) {
-		return new AuthorizationSession(realm, getClient(realm));
+	public IuAuthorizationSession createAuthorizationSession(String realm, URI entryPoint) {
+		return new AuthorizationSession(realm, entryPoint);
 	}
 
 }

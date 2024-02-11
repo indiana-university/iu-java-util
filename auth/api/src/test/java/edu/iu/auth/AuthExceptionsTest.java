@@ -33,6 +33,9 @@ package edu.iu.auth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.mock;
+
+import java.net.URI;
 
 import org.junit.jupiter.api.Test;
 
@@ -58,22 +61,10 @@ public class AuthExceptionsTest {
 
 	@Test
 	public void testChallengeAndLocation() {
-		final var challenge = IdGenerator.generateId();
-		final var location = IdGenerator.generateId();
-		final var e = new IuAuthenticationException(challenge, location);
-		assertEquals(challenge, e.getMessage());
+		final var location = mock(URI.class);
+		final var e = new IuAuthenticationException("");
+		e.setLocation(location);
 		assertEquals(location, e.getLocation());
-	}
-
-	@Test
-	public void testChallengeLocationAndCause() {
-		final var challenge = IdGenerator.generateId();
-		final var cause = new Throwable();
-		final var location = IdGenerator.generateId();
-		final var e = new IuAuthenticationException(challenge, location, cause);
-		assertEquals(challenge, e.getMessage());
-		assertEquals(location, e.getLocation());
-		assertSame(cause, e.getCause());
 	}
 
 }

@@ -34,126 +34,171 @@ package iu.auth.oauth;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
+import java.util.ArrayDeque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuBadRequestException;
+import edu.iu.IuException;
 import edu.iu.IuWebUtils;
-import edu.iu.auth.IuAuthenticationRedirectException;
-import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oauth.IuAuthorizationCodeGrant;
-import edu.iu.auth.oauth.IuAuthorizationResponse;
+import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuAuthenticationException;
 import iu.auth.util.HttpUtils;
 
 /**
  * {@link IuAuthorizationCodeGrant} implementation.
  */
-class AuthorizationCodeGrant implements IuAuthorizationCodeGrant {
+final class AuthorizationCodeGrant extends AbstractGrant {
+	private static final long serialVersionUID = 1L;
 
 	private final Logger LOG = Logger.getLogger(AuthorizationCodeGrant.class.getName());
 
-	private final IuAuthorizationClient client;
-	private final String scope;
-	private final String state = IdGenerator.generateId();
+	private record AuthorizationState(String state, URI resourceUri, Map<String, String> requestAttributes) {
+	}
 
-	private AuthorizationResponse response;
+	private final URI resourceUri;
+	private final Queue<AuthorizationState> pendingAuthorizationState = new ArrayDeque<>();
+	private TokenResponse originalResponse;
+	private String refreshToken;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param client client
-	 * @param scope  scope
+	 * @param realm       authentication realm
+	 * @param resourceUri root resource URI for this grant
 	 */
-	AuthorizationCodeGrant(IuAuthorizationClient client, String scope) {
-		this.client = client;
-		this.scope = scope;
+	AuthorizationCodeGrant(String realm, URI resourceUri) {
+		super(realm);
+		if (!OAuthSpi.isRoot(OAuthSpi.getClient(realm).getResourceUri(), resourceUri))
+			throw new IuBadRequestException("Invalid resource URI for this client");
+		else
+			this.resourceUri = resourceUri;
 	}
 
 	@Override
-	public String getClientId() {
-		return client.getCredentials().getName();
-	}
+	public IuApiCredentials authorize(URI resourceUri) throws IuAuthenticationException {
+		if (!OAuthSpi.isRoot(this.resourceUri, resourceUri))
+			throw new IuBadRequestException("Invalid resource URI for this grant");
 
-	@Override
-	public String getScope() {
-		return scope;
-	}
+		final var activatedCredentials = activate();
+		if (activatedCredentials != null)
+			return activatedCredentials;
 
-	@Override
-	public String getState() {
-		return state;
-	}
-
-	@Override
-	public URI getRedirectUri() {
-		return client.getRedirectUri();
-	}
-
-	@Override
-	public IuAuthorizationResponse authorize() {
-		final String message;
+		final var client = OAuthSpi.getClient(realm);
 		Throwable refreshFailure = null;
-		if (response == null)
-			message = "Authentication required, initiating authorization code flow for " + client.getRealm();
-		else if (response.isExpired()) {
-			final var refreshToken = response.getRefreshToken();
-			if (refreshToken != null)
+		if (isExpired()) {
+			if (originalResponse != null && refreshToken != null)
 				try {
+
 					final Map<String, Iterable<String>> tokenRequestParams = new LinkedHashMap<>();
 					tokenRequestParams.put("grant_type", List.of("refresh_token"));
 					tokenRequestParams.put("refresh_token", List.of(refreshToken));
-					tokenRequestParams.put("scope", List.of(scope));
+					tokenRequestParams.put("scope", List.of(validatedScope));
 
 					final var tokenRequestBuilder = HttpRequest.newBuilder(client.getTokenEndpoint());
 					tokenRequestBuilder.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(tokenRequestParams)));
 					tokenRequestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
 					client.getCredentials().applyTo(tokenRequestBuilder);
 
-					final var tokenResponse = HttpUtils.read(tokenRequestBuilder.build()).asJsonObject();
-					return response = new AuthorizationResponse(this, client, tokenResponse);
+					final var tokenResponse = new TokenResponse(client.getScope(), null,
+							HttpUtils.read(tokenRequestBuilder.build()).asJsonObject());
+
+					final var refreshToken = tokenResponse.getRefreshToken();
+					if (refreshToken != null)
+						this.refreshToken = refreshToken;
+
+					final var credentials = verify(tokenResponse, originalResponse);
+					client.activate(credentials);
+					return credentials;
 
 				} catch (Throwable e) {
 					LOG.log(Level.INFO, e, () -> "Refresh token failed");
 					refreshFailure = e;
 				}
 
-			message = "Authenticated session has expired, initiating authorization code flow for " + client.getRealm();
+			LOG.fine("Authorized session has expired, initiating authorization code flow for " + realm);
 		} else
-			return response;
+			LOG.fine(() -> "Authorization required, initiating authorization code flow for " + realm);
+
+		final Map<String, String> challengeAttributes = new LinkedHashMap<>();
+		challengeAttributes.put("realm", realm);
+		if (isExpired()) {
+			challengeAttributes.put("error", "invalid_token");
+			if (refreshFailure == null)
+				challengeAttributes.put("error_description", "expired access token");
+			else
+				challengeAttributes.put("error_description", "expired access token, refresh attempt failed");
+		}
+		challengeAttributes.put("scope", validatedScope);
+
+		final var state = IdGenerator.generateId();
+		challengeAttributes.put("state", state);
+
+		final var challenge = new IuAuthenticationException( //
+				HttpUtils.createChallenge("Bearer", challengeAttributes), refreshFailure);
 
 		final var authRequestParams = new LinkedHashMap<String, Iterable<String>>();
 		authRequestParams.put("client_id", List.of(client.getCredentials().getName()));
 		authRequestParams.put("response_type", List.of("code"));
 		authRequestParams.put("redirect_uri", List.of(client.getRedirectUri().toString()));
-		authRequestParams.put("scope", List.of(scope));
+		authRequestParams.put("scope", List.of(validatedScope));
 		authRequestParams.put("state", List.of(state));
 
-		final var clientAttributes = client.getAuthorizationCodeAttributes();
-		if (clientAttributes != null)
-			for (final var clientAttributeEntry : clientAttributes.entrySet()) {
+		final var requestAttributes = client.getAuthorizationCodeAttributes();
+		if (requestAttributes != null)
+			for (final var clientAttributeEntry : requestAttributes.entrySet()) {
 				final var name = clientAttributeEntry.getKey();
 				if (authRequestParams.containsKey(name))
 					throw new IllegalArgumentException("Illegal attempt to override standard auth attribute " + name);
 				else
 					authRequestParams.put(name, List.of(clientAttributeEntry.getValue()));
 			}
-		this.clientAttributes = clientAttributes;
 
-		final var location = client.getAuthorizationEndpoint() + "?" + IuWebUtils.createQueryString(authRequestParams);
-		LOG.fine(() -> message + "; Location: " + location);
+		synchronized (pendingAuthorizationState) {
+			pendingAuthorizationState.offer(new AuthorizationState(refreshToken, resourceUri, requestAttributes));
+		}
 
-		throw new IuAuthenticationRedirectException(location, refreshFailure);
+		challenge.setLocation(IuException.unchecked(() -> new URI(
+				client.getAuthorizationEndpoint() + "?" + IuWebUtils.createQueryString(authRequestParams))));
+		throw challenge;
 	}
 
-	@Override
-	public IuAuthorizationResponse authorize(String code) {
+	/**
+	 * Attempts to complete pending authorization.
+	 * 
+	 * @param code  authorization code
+	 * @param state state
+	 * @return resource URI from the {@link #authorize(URI)} invocation that
+	 *         initiated authorization code, if authorization was completed
+	 *         successfully for this grant; null if the state value is invalid for
+	 *         or has already been used by, this grant.
+	 * @throws IuAuthenticationException if state matches a pending authorization
+	 *                                   for this grant, but is no longer valid,
+	 *                                   i.e., because the authentication timeout
+	 *                                   interval has passed so authorization has
+	 *                                   not been completed. In this case, the
+	 *                                   resource URI is provided via
+	 *                                   {@link IuAuthenticationException#getLocation()}.
+	 *                                   In this case, the application is expected
+	 *                                   to start the authorization process over
+	 *                                   again.
+	 */
+	URI authorize(String code, String state) throws IuAuthenticationException {
+		final var client = OAuthSpi.getClient(realm);
+
+		final var authorizationState = getAuthorizationState(state);
+		if (authorizationState == null)
+			return null;
+
 		final Map<String, Iterable<String>> tokenRequestParams = new LinkedHashMap<>();
 		tokenRequestParams.put("grant_type", List.of("authorization_code"));
 		tokenRequestParams.put("code", List.of(code));
-		tokenRequestParams.put("scope", List.of(scope));
+		tokenRequestParams.put("scope", List.of(validatedScope));
 		tokenRequestParams.put("redirect_uri", List.of(client.getRedirectUri().toString().toString()));
 
 		final var authRequestBuilder = HttpRequest.newBuilder(client.getTokenEndpoint());
@@ -162,7 +207,51 @@ class AuthorizationCodeGrant implements IuAuthorizationCodeGrant {
 		client.getCredentials().applyTo(authRequestBuilder);
 
 		final var authResponse = HttpUtils.read(authRequestBuilder.build()).asJsonObject();
-		return response = new AuthorizationResponse(this, client, authResponse);
+		verify(new TokenResponse(client.getScope(), authorizationState.requestAttributes, authResponse));
+
+		return authorizationState.resourceUri;
+	}
+
+	private AuthorizationState getAuthorizationState(String state) throws IuAuthenticationException {
+		final var client = OAuthSpi.getClient(realm);
+
+		AuthorizationState matchingAuthorizationState = null;
+		synchronized (pendingAuthorizationState) {
+			final var i = pendingAuthorizationState.iterator();
+			while (i.hasNext()) {
+				final var pendingAuthorizationState = i.next();
+				if (pendingAuthorizationState.state.equals(state)) {
+					matchingAuthorizationState = pendingAuthorizationState;
+					i.remove();
+					break;
+				} else
+					try {
+						IdGenerator.verifyId(pendingAuthorizationState.state,
+								client.getAuthenticationTimeout().toMillis());
+					} catch (IllegalArgumentException e) {
+						LOG.log(Level.FINER, e, () -> "Pruning invalid/expired state " + pendingAuthorizationState);
+						i.remove();
+					}
+			}
+		}
+
+		if (matchingAuthorizationState == null)
+			return null;
+
+		try {
+			IdGenerator.verifyId(matchingAuthorizationState.state, client.getAuthenticationTimeout().toMillis());
+			return matchingAuthorizationState;
+		} catch (IllegalArgumentException e) {
+			final Map<String, String> challengeAttributes = new LinkedHashMap<>();
+			challengeAttributes.put("realm", client.getRealm());
+			challengeAttributes.put("error", "invalid_request");
+			challengeAttributes.put("error_description", "invalid or expired state");
+
+			final var challenge = new IuAuthenticationException(
+					HttpUtils.createChallenge("Bearer", challengeAttributes));
+			challenge.setLocation(matchingAuthorizationState.resourceUri);
+			throw challenge;
+		}
 	}
 
 }

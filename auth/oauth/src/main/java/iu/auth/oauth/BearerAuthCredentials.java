@@ -33,28 +33,40 @@ package iu.auth.oauth;
 
 import java.net.http.HttpRequest.Builder;
 
+import javax.security.auth.Subject;
+
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
 
 /**
  * {@link IuBearerAuthCredentials} implementation.
  */
 public class BearerAuthCredentials implements IuBearerAuthCredentials {
-
+	private static final long serialVersionUID = 1L;
+	
+	private final String name;
+	private final Subject subject;
 	private final String accessToken;
 
 	/**
 	 * Constructor.
 	 * 
+	 * @param subject     verified subject
 	 * @param accessToken access token
 	 */
-	public BearerAuthCredentials(String accessToken) {
+	public BearerAuthCredentials(Subject subject, String accessToken) {
+		this.name = subject.getPrincipals().iterator().next().getName();
+		this.subject = subject;
 		this.accessToken = accessToken;
 	}
 
 	@Override
 	public String getName() {
-		// TODO parse & validate JWT, return sub claim
-		throw new UnsupportedOperationException("TODO");
+		return name;
+	}
+
+	@Override
+	public Subject getSubject() {
+		return subject;
 	}
 
 	@Override

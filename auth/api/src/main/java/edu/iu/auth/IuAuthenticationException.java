@@ -31,6 +31,8 @@
  */
 package edu.iu.auth;
 
+import java.net.URI;
+
 /**
  * Thrown by an incoming request handler to represent an authentication failure.
  * 
@@ -48,7 +50,7 @@ public class IuAuthenticationException extends Exception {
 	/**
 	 * Location header value.
 	 */
-	private final String location;
+	private URI location;
 
 	/**
 	 * Constructor.
@@ -57,22 +59,7 @@ public class IuAuthenticationException extends Exception {
 	 *                  client of the endpoint authentication requirements.
 	 */
 	public IuAuthenticationException(String challenge) {
-		this(challenge, (String) null);
-	}
-
-	/**
-	 * Constructor.
-	 * 
-	 * @param challenge WWW-Authenticate header value for informing the remote
-	 *                  client of the endpoint authentication requirements.
-	 * @param location  Location header value for redirecting the user-agent to next
-	 *                  step in the authentication process, if appropriate for the
-	 *                  context; may be null if the authorization scenario doesn't
-	 *                  specify user-agent interaction.
-	 */
-	public IuAuthenticationException(String challenge, String location) {
 		super(challenge);
-		this.location = location;
 	}
 
 	/**
@@ -84,24 +71,7 @@ public class IuAuthenticationException extends Exception {
 	 *                  authentication failure.
 	 */
 	public IuAuthenticationException(String challenge, Throwable cause) {
-		this(challenge, (String) null, cause);
-	}
-
-	/**
-	 * Constructor.
-	 * 
-	 * @param challenge WWW-Authenticate header value for informing the remote
-	 *                  client of the endpoint authentication requirements.
-	 * @param location  Location header value for redirecting the user-agent to next
-	 *                  step in the authentication process, if appropriate for the
-	 *                  user's context; may be null if the authorization scenario
-	 *                  doesn't specify user-agent interaction.
-	 * @param cause     <em>Optional</em> exception or error describing the
-	 *                  authentication failure.
-	 */
-	public IuAuthenticationException(String challenge, String location, Throwable cause) {
 		super(challenge, cause);
-		this.location = location;
 	}
 
 	/**
@@ -122,8 +92,19 @@ public class IuAuthenticationException extends Exception {
 	 * 
 	 * @return location
 	 */
-	public String getLocation() {
+	public URI getLocation() {
 		return location;
+	}
+
+	/**
+	 * Sets the Location header value for redirecting the user-agent to next step in
+	 * the authentication process, if appropriate for the context; may be null if
+	 * the authorization scenario doesn't specify user-agent interaction.
+	 * 
+	 * @param location location
+	 */
+	public void setLocation(URI location) {
+		this.location = location;
 	}
 
 }

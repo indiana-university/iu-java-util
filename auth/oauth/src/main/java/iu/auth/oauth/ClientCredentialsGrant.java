@@ -31,6 +31,7 @@
  */
 package iu.auth.oauth;
 
+import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.util.LinkedHashMap;
@@ -38,67 +39,57 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
+import edu.iu.IuBadRequestException;
 import edu.iu.IuWebUtils;
-import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oauth.IuAuthorizationFailedException;
-import edu.iu.auth.oauth.IuAuthorizationGrant;
-import edu.iu.auth.oauth.IuAuthorizationResponse;
+import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuAuthenticationException;
 import iu.auth.util.HttpUtils;
 
 /**
- * Represents an OAuth client credentials grant..
+ * Represents an OAuth client credentials grant.
  */
-class ClientCredentialsGrant implements IuAuthorizationGrant {
+final class ClientCredentialsGrant extends AbstractGrant {
+	private static final long serialVersionUID = 1L;
 
-	private final static Logger LOG = Logger.getLogger(ClientCredentialsGrant.class.getName());
-
-	private final IuAuthorizationClient client;
-	private final String scope;
-
-	private AuthorizationResponse response;
+	private static final Logger LOG = Logger.getLogger(ClientCredentialsGrant.class.getName());
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param client confidential client
-	 * @param scope  authorization scope
+	 * @param realm authentication realm
+	 * @param scope authorization scope
 	 */
-	ClientCredentialsGrant(IuAuthorizationClient client, String scope) {
-		this.client = client;
-		this.scope = scope;
+	ClientCredentialsGrant(String realm) {
+		super(realm);
 	}
 
 	@Override
-	public String getClientId() {
-		return client.getCredentials().getName();
-	}
+	public final IuApiCredentials authorize(URI resourceUri) throws IuAuthenticationException {
+		final var client = OAuthSpi.getClient(realm);
+		if (!OAuthSpi.isRoot(client.getResourceUri(), resourceUri))
+			throw new IuBadRequestException("Invalid resource URI for this client");
 
-	@Override
-	public String getScope() {
-		return scope;
-	}
+		final var activatedCredentials = activate();
+		if (activatedCredentials != null)
+			return activatedCredentials;
 
-	@Override
-	public IuAuthorizationResponse authorize() throws IuAuthorizationFailedException {
-		final String message;
-		if (response == null)
-			message = "Authentication required, initiating client credentials flow for " + client.getRealm();
-		else if (response.isExpired())
-			message = "Authenticated session has expired, initiating client credentials flow for " + client.getRealm();
+		if (isExpired())
+			LOG.fine("Authorized session has expired, initiating client credentials flow for " + client.getRealm());
 		else
-			return response;
-
-		LOG.fine(message);
+			LOG.fine(() -> "Authorization required, initiating client credentials flow for " + client.getRealm());
 
 		final Map<String, Iterable<String>> tokenRequestParams = new LinkedHashMap<>();
 		tokenRequestParams.put("grant_type", List.of("client_credentials"));
-		tokenRequestParams.put("scope", List.of(scope));
+
+		final var scope = client.getScope();
+		if (scope != null)
+			tokenRequestParams.put("scope", List.of(validatedScope));
 
 		final var clientAttributes = client.getClientCredentialsAttributes();
 		if (clientAttributes != null)
 			for (final var clientAttributeEntry : clientAttributes.entrySet()) {
 				final var name = clientAttributeEntry.getKey();
-				if (tokenRequestParams.containsKey(name))
+				if (name.equals("grant_type") || name.equals("scope"))
 					throw new IllegalArgumentException(
 							"Illegal attempt to override standard client credentials attribute " + name);
 				else
@@ -110,8 +101,8 @@ class ClientCredentialsGrant implements IuAuthorizationGrant {
 		tokenRequestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
 		client.getCredentials().applyTo(tokenRequestBuilder);
 
-		final var tokenResponse = HttpUtils.read(tokenRequestBuilder.build()).asJsonObject();
-		return response = new AuthorizationResponse(this, client, tokenResponse);
+		return verify(new TokenResponse(client.getScope(), clientAttributes,
+				HttpUtils.read(tokenRequestBuilder.build()).asJsonObject()));
 	}
 
 }

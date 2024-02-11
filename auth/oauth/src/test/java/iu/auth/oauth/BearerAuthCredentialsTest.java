@@ -32,7 +32,13 @@
 package iu.auth.oauth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import java.security.Principal;
+import java.util.Set;
+
+import javax.security.auth.Subject;
 
 import org.junit.jupiter.api.Test;
 
@@ -43,11 +49,15 @@ public class BearerAuthCredentialsTest {
 
 	@Test
 	public void testAccessToken() {
-		final var nonce = IdGenerator.generateId();
-		// TODO: create JWT with nonce
-		final var auth = new BearerAuthCredentials(nonce);
-		assertEquals(nonce, auth.getAccessToken());
-		assertThrows(UnsupportedOperationException.class, () -> auth.getName());
+		final var accessToken = IdGenerator.generateId();
+		final var subject = mock(Subject.class);
+		final var principal = mock(Principal.class);
+		final var name = IdGenerator.generateId();
+		when(principal.getName()).thenReturn(name);
+		when(subject.getPrincipals()).thenReturn(Set.of(principal));
+		final var auth = new BearerAuthCredentials(subject, accessToken);
+		assertEquals(accessToken, auth.getAccessToken());
+		assertEquals(name, auth.getName());
 	}
 
 }
