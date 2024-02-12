@@ -47,7 +47,7 @@ public interface IuAuthorizationGrant {
 	 * Authorizes access to an application resource by URI.
 	 * 
 	 * @param resourceUri resource to authorize access to
-	 * @return {@IuApiCredentials} authorized to access the resource
+	 * @return {@link IuApiCredentials} authorized to access the resource
 	 * 
 	 * @throws IuAuthenticationException If authorization could not be granted and
 	 *                                   the client <em>must</em> complete

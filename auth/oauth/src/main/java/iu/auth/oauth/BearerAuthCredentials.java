@@ -35,6 +35,7 @@ import java.net.http.HttpRequest.Builder;
 
 import javax.security.auth.Subject;
 
+import edu.iu.IuObject;
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
 
 /**
@@ -42,9 +43,20 @@ import edu.iu.auth.oauth.IuBearerAuthCredentials;
  */
 public class BearerAuthCredentials implements IuBearerAuthCredentials {
 	private static final long serialVersionUID = 1L;
-	
+
+	/**
+	 * Principal name.
+	 */
 	private final String name;
+
+	/**
+	 * Authorized subject.
+	 */
 	private final Subject subject;
+
+	/**
+	 * Access token.
+	 */
 	private final String accessToken;
 
 	/**
@@ -77,6 +89,21 @@ public class BearerAuthCredentials implements IuBearerAuthCredentials {
 	@Override
 	public void applyTo(Builder httpRequestBuilder) {
 		httpRequestBuilder.header("Authorization", "Bearer " + accessToken);
+	}
+
+	@Override
+	public int hashCode() {
+		return IuObject.hashCode(accessToken, name, subject);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (!IuObject.typeCheck(this, obj))
+			return false;
+		BearerAuthCredentials other = (BearerAuthCredentials) obj;
+		return IuObject.equals(accessToken, other.accessToken) //
+				&& IuObject.equals(name, other.name) //
+				&& IuObject.equals(subject, other.subject);
 	}
 
 }

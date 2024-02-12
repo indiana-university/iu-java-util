@@ -260,8 +260,7 @@ public interface IuAuthorizationClient {
 	 * It is <em>not required</em> for repeat invocation to return the same
 	 * attributes. An authorization session will invoke this method once when
 	 * initiating authorization code flow, and retain those attributes throughout
-	 * the flow. To refer to those attributes for post-authorization credentials
-	 * verification, use {@link IuAuthorizationResponse#getRequestAttributes()}.
+	 * the flow.
 	 * </p>
 	 * 
 	 * @return {@link Map} of additional authorization code attributes; <em>may</em>

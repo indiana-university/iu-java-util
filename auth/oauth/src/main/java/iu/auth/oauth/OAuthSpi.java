@@ -38,7 +38,6 @@ import java.util.Objects;
 
 import edu.iu.IuObject;
 import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oauth.IuAuthorizationSession;
 import edu.iu.auth.spi.IuOAuthSpi;
 
 /**
@@ -66,8 +65,8 @@ public class OAuthSpi implements IuOAuthSpi {
 			return true;
 		if (!resourceUri.isAbsolute() //
 				|| resourceUri.isOpaque() //
-				|| IuObject.equals(rootUri.getScheme(), resourceUri.getScheme()) //
-				|| IuObject.equals(rootUri.getAuthority(), resourceUri.getAuthority()))
+				|| !IuObject.equals(rootUri.getScheme(), resourceUri.getScheme()) //
+				|| !IuObject.equals(rootUri.getAuthority(), resourceUri.getAuthority()))
 			return false;
 
 		final var root = rootUri.getPath();
@@ -86,7 +85,7 @@ public class OAuthSpi implements IuOAuthSpi {
 	 */
 	static IuAuthorizationClient getClient(String realm) {
 		final var client = CLIENTS.get(realm);
-		if (realm == null)
+		if (client == null)
 			throw new IllegalStateException("Client metadata not initialzied for " + realm);
 		return client;
 	}
@@ -98,17 +97,16 @@ public class OAuthSpi implements IuOAuthSpi {
 		if (resourceUri.isOpaque() || !resourceUri.isAbsolute())
 			throw new IllegalArgumentException("Invalid resource URI, must be absolute and not opaque");
 
-		final var credentials = new ClientCredentialsGrant(realm);
 		synchronized (CLIENTS) {
 			if (CLIENTS.containsKey(realm))
 				throw new IllegalStateException("Already initialized");
 			CLIENTS.put(realm, client);
 		}
-		return credentials;
+		return new ClientCredentialsGrant(realm);
 	}
 
 	@Override
-	public IuAuthorizationSession createAuthorizationSession(String realm, URI entryPoint) {
+	public AuthorizationSession createAuthorizationSession(String realm, URI entryPoint) {
 		return new AuthorizationSession(realm, entryPoint);
 	}
 

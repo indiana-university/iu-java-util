@@ -33,6 +33,7 @@ package iu.auth.oauth;
 
 import java.io.Serializable;
 
+import edu.iu.IuObject;
 import edu.iu.auth.oauth.IuAuthorizationScope;
 
 /**
@@ -41,14 +42,21 @@ import edu.iu.auth.oauth.IuAuthorizationScope;
 public class AuthorizedScope implements IuAuthorizationScope, Serializable {
 	private static final long serialVersionUID = 1L;
 
+	/**
+	 * Authorized scope.
+	 */
 	private final String scope;
+
+	/**
+	 * Authentication realm the scope is valid for.
+	 */
 	private final String realm;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param scope scope
-	 * @param realm realm
+	 * @param scope Authorized scope
+	 * @param realm Authentication realm the scope is valid for
 	 */
 	AuthorizedScope(String scope, String realm) {
 		this.scope = scope;
@@ -64,4 +72,19 @@ public class AuthorizedScope implements IuAuthorizationScope, Serializable {
 	public String getRealm() {
 		return realm;
 	}
+
+	@Override
+	public int hashCode() {
+		return IuObject.hashCode(realm, scope);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (!IuObject.typeCheck(this, obj))
+			return false;
+		AuthorizedScope other = (AuthorizedScope) obj;
+		return IuObject.equals(realm, other.realm) //
+				&& IuObject.equals(scope, other.scope);
+	}
+
 }

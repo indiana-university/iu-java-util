@@ -32,10 +32,13 @@
 package iu.auth.oauth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.security.Principal;
+import java.net.http.HttpRequest;
 import java.util.Set;
 
 import javax.security.auth.Subject;
@@ -51,13 +54,40 @@ public class BearerAuthCredentialsTest {
 	public void testAccessToken() {
 		final var accessToken = IdGenerator.generateId();
 		final var subject = mock(Subject.class);
-		final var principal = mock(Principal.class);
-		final var name = IdGenerator.generateId();
-		when(principal.getName()).thenReturn(name);
+		final var principal = new MockPrincipal();
 		when(subject.getPrincipals()).thenReturn(Set.of(principal));
+
 		final var auth = new BearerAuthCredentials(subject, accessToken);
 		assertEquals(accessToken, auth.getAccessToken());
-		assertEquals(name, auth.getName());
+		assertSame(subject, auth.getSubject());
+		assertEquals(principal.getName(), auth.getName());
+
+		final var req = mock(HttpRequest.Builder.class);
+		auth.applyTo(req);
+		verify(req).header("Authorization", "Bearer " + accessToken);
+	}
+
+	@Test
+	public void testEquals() {
+		final var accessToken = IdGenerator.generateId();
+		final var principal = new MockPrincipal();
+		final var subject = new Subject(true, Set.of(principal), Set.of(), Set.of());
+		final var auth = new BearerAuthCredentials(subject, accessToken);
+		final var auth2 = new BearerAuthCredentials(subject, accessToken);
+		assertEquals(auth, auth2);
+		assertEquals(auth2, auth);
+		assertNotEquals(auth, new Object());
+
+		final var principal2 = new MockPrincipal();
+		final var subject2 = new Subject(true, Set.of(principal2), Set.of(), Set.of());
+		final var auth3 = new BearerAuthCredentials(subject2, accessToken);
+		assertNotEquals(auth, auth3);
+		assertNotEquals(auth3, auth);
+
+		final var subject3 = new Subject(true, Set.of(principal), Set.of(new Object()), Set.of());
+		final var auth4 = new BearerAuthCredentials(subject3, accessToken);
+		assertNotEquals(auth, auth4);
+		assertNotEquals(auth4, auth);
 	}
 
 }

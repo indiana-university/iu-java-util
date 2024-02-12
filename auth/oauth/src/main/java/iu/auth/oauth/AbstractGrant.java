@@ -40,7 +40,6 @@ import java.util.Set;
 
 import javax.security.auth.Subject;
 
-import edu.iu.IuBadRequestException;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
@@ -57,7 +56,7 @@ sealed abstract class AbstractGrant implements IuAuthorizationGrant, Serializabl
 
 	private record AuthorizedCredentials<A extends IuApiCredentials & Serializable>(A credentials, Instant expires) {
 		private boolean isExpired() {
-			return expires.isBefore(Instant.now());
+			return expires != null && expires.isBefore(Instant.now());
 		}
 	}
 
@@ -82,6 +81,7 @@ sealed abstract class AbstractGrant implements IuAuthorizationGrant, Serializabl
 				if (c < 0x21 || c == 0x22 || c == 0x5c || c > 0x7e)
 					throw new IllegalArgumentException();
 			}
+			sb.append(scopeToken);
 		});
 
 		if (sb.isEmpty())
@@ -110,7 +110,6 @@ sealed abstract class AbstractGrant implements IuAuthorizationGrant, Serializabl
 	 * Constructor.
 	 * 
 	 * @param realm authentication realm
-	 * @param scope authorization scope
 	 */
 	AbstractGrant(String realm) {
 		this.realm = realm;
@@ -135,7 +134,7 @@ sealed abstract class AbstractGrant implements IuAuthorizationGrant, Serializabl
 	 */
 	protected final IuApiCredentials verify(IuTokenResponse tokenResponse) throws IuAuthenticationException {
 		if (!"Bearer".equals(tokenResponse.getTokenType()))
-			throw new IuBadRequestException("Unsupported token type");
+			throw new IllegalStateException("Unsupported token type " + tokenResponse.getTokenType() + " in response");
 
 		return authorizeBearer(OAuthSpi.getClient(realm).verify(tokenResponse), tokenResponse);
 	}
@@ -153,7 +152,7 @@ sealed abstract class AbstractGrant implements IuAuthorizationGrant, Serializabl
 	protected final IuApiCredentials verify(IuTokenResponse refreshTokenResponse, IuTokenResponse originalTokenResponse)
 			throws IuAuthenticationException {
 		if (!"Bearer".equals(refreshTokenResponse.getTokenType()))
-			throw new IuBadRequestException("Unsupported token type");
+			throw new IllegalArgumentException("Unsupported token type");
 
 		return authorizeBearer(OAuthSpi.getClient(realm).verify(refreshTokenResponse, originalTokenResponse),
 				refreshTokenResponse);

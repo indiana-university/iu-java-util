@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
-import edu.iu.IuBadRequestException;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
@@ -57,7 +56,6 @@ final class ClientCredentialsGrant extends AbstractGrant {
 	 * Constructor.
 	 * 
 	 * @param realm authentication realm
-	 * @param scope authorization scope
 	 */
 	ClientCredentialsGrant(String realm) {
 		super(realm);
@@ -67,7 +65,7 @@ final class ClientCredentialsGrant extends AbstractGrant {
 	public final IuApiCredentials authorize(URI resourceUri) throws IuAuthenticationException {
 		final var client = OAuthSpi.getClient(realm);
 		if (!OAuthSpi.isRoot(client.getResourceUri(), resourceUri))
-			throw new IuBadRequestException("Invalid resource URI for this client");
+			throw new IllegalArgumentException("Invalid resource URI for this client");
 
 		final var activatedCredentials = activate();
 		if (activatedCredentials != null)
@@ -81,8 +79,7 @@ final class ClientCredentialsGrant extends AbstractGrant {
 		final Map<String, Iterable<String>> tokenRequestParams = new LinkedHashMap<>();
 		tokenRequestParams.put("grant_type", List.of("client_credentials"));
 
-		final var scope = client.getScope();
-		if (scope != null)
+		if (validatedScope != null)
 			tokenRequestParams.put("scope", List.of(validatedScope));
 
 		final var clientAttributes = client.getClientCredentialsAttributes();

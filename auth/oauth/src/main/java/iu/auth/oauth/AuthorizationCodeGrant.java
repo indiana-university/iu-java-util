@@ -43,15 +43,15 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.iu.IdGenerator;
-import edu.iu.IuBadRequestException;
 import edu.iu.IuException;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.oauth.IuAuthorizationGrant;
 import iu.auth.util.HttpUtils;
 
 /**
- * {@link IuAuthorizationCodeGrant} implementation.
+ * {@link IuAuthorizationGrant} implementation.
  */
 final class AuthorizationCodeGrant extends AbstractGrant {
 	private static final long serialVersionUID = 1L;
@@ -75,7 +75,7 @@ final class AuthorizationCodeGrant extends AbstractGrant {
 	AuthorizationCodeGrant(String realm, URI resourceUri) {
 		super(realm);
 		if (!OAuthSpi.isRoot(OAuthSpi.getClient(realm).getResourceUri(), resourceUri))
-			throw new IuBadRequestException("Invalid resource URI for this client");
+			throw new IllegalArgumentException("Invalid resource URI for this client");
 		else
 			this.resourceUri = resourceUri;
 	}
@@ -83,7 +83,7 @@ final class AuthorizationCodeGrant extends AbstractGrant {
 	@Override
 	public IuApiCredentials authorize(URI resourceUri) throws IuAuthenticationException {
 		if (!OAuthSpi.isRoot(this.resourceUri, resourceUri))
-			throw new IuBadRequestException("Invalid resource URI for this grant");
+			throw new IllegalArgumentException("Invalid resource URI for this grant");
 
 		final var activatedCredentials = activate();
 		if (activatedCredentials != null)
@@ -92,7 +92,7 @@ final class AuthorizationCodeGrant extends AbstractGrant {
 		final var client = OAuthSpi.getClient(realm);
 		Throwable refreshFailure = null;
 		if (isExpired()) {
-			if (originalResponse != null && refreshToken != null)
+			if (refreshToken != null)
 				try {
 
 					final Map<String, Iterable<String>> tokenRequestParams = new LinkedHashMap<>();
@@ -134,19 +134,18 @@ final class AuthorizationCodeGrant extends AbstractGrant {
 			else
 				challengeAttributes.put("error_description", "expired access token, refresh attempt failed");
 		}
-		challengeAttributes.put("scope", validatedScope);
+		if (validatedScope != null)
+			challengeAttributes.put("scope", validatedScope);
 
 		final var state = IdGenerator.generateId();
 		challengeAttributes.put("state", state);
-
-		final var challenge = new IuAuthenticationException( //
-				HttpUtils.createChallenge("Bearer", challengeAttributes), refreshFailure);
 
 		final var authRequestParams = new LinkedHashMap<String, Iterable<String>>();
 		authRequestParams.put("client_id", List.of(client.getCredentials().getName()));
 		authRequestParams.put("response_type", List.of("code"));
 		authRequestParams.put("redirect_uri", List.of(client.getRedirectUri().toString()));
-		authRequestParams.put("scope", List.of(validatedScope));
+		if (validatedScope != null)
+			authRequestParams.put("scope", List.of(validatedScope));
 		authRequestParams.put("state", List.of(state));
 
 		final var requestAttributes = client.getAuthorizationCodeAttributes();
@@ -155,14 +154,19 @@ final class AuthorizationCodeGrant extends AbstractGrant {
 				final var name = clientAttributeEntry.getKey();
 				if (authRequestParams.containsKey(name))
 					throw new IllegalArgumentException("Illegal attempt to override standard auth attribute " + name);
-				else
-					authRequestParams.put(name, List.of(clientAttributeEntry.getValue()));
+				else {
+					final var value = clientAttributeEntry.getValue();
+					challengeAttributes.put(name, value);
+					authRequestParams.put(name, List.of(value));
+				}
 			}
 
 		synchronized (pendingAuthorizationState) {
-			pendingAuthorizationState.offer(new AuthorizationState(refreshToken, resourceUri, requestAttributes));
+			pendingAuthorizationState.offer(new AuthorizationState(state, resourceUri, requestAttributes));
 		}
 
+		final var challenge = new IuAuthenticationException( //
+				HttpUtils.createChallenge("Bearer", challengeAttributes), refreshFailure);
 		challenge.setLocation(IuException.unchecked(() -> new URI(
 				client.getAuthorizationEndpoint() + "?" + IuWebUtils.createQueryString(authRequestParams))));
 		throw challenge;
@@ -207,8 +211,11 @@ final class AuthorizationCodeGrant extends AbstractGrant {
 		client.getCredentials().applyTo(authRequestBuilder);
 
 		final var authResponse = HttpUtils.read(authRequestBuilder.build()).asJsonObject();
-		verify(new TokenResponse(client.getScope(), authorizationState.requestAttributes, authResponse));
-
+		final var codeResponse = new TokenResponse(client.getScope(), authorizationState.requestAttributes,
+				authResponse);
+		verify(codeResponse);
+		originalResponse = codeResponse;
+		refreshToken = codeResponse.getRefreshToken();
 		return authorizationState.resourceUri;
 	}
 

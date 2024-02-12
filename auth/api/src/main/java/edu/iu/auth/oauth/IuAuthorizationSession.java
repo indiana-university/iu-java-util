@@ -32,7 +32,6 @@
 package edu.iu.auth.oauth;
 
 import java.net.URI;
-import java.util.Set;
 
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.spi.IuOAuthSpi;
@@ -53,8 +52,8 @@ public interface IuAuthorizationSession {
 	 * @param entryPoint <em>optional</em> entry point URI for the application
 	 *                   requiring authorization, <em>may</em> be sent to the user
 	 *                   agent as a redirect when authorization expires or used as a
-	 *                   default {@link #grant(Set, URI) applicationUri} value; null
-	 *                   if not defined for the application
+	 *                   default {@link #grant(URI) applicationUri} value; null if
+	 *                   not defined for the application
 	 * @return authorization session
 	 */
 	static IuAuthorizationSession create(String realm, URI entryPoint) {
@@ -72,7 +71,7 @@ public interface IuAuthorizationSession {
 	/**
 	 * Gets an authorization code grant for an application resource URI.
 	 * 
-	 * @param resourceUri
+	 * @param resourceUri resource URI
 	 * @return authorization code grant
 	 */
 	IuAuthorizationGrant grant(URI resourceUri);

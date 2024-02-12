@@ -98,7 +98,7 @@ class TokenResponse implements IuTokenResponse, Serializable {
 		if (!tokenResponse.containsKey("scope"))
 			this.scope = requestedScope;
 		else
-			this.scope = Arrays.asList(tokenResponse.getString("scope"));
+			this.scope = Arrays.asList(tokenResponse.getString("scope").split(" "));
 
 		this.requestAttributes = requestAttributes;
 
@@ -165,7 +165,7 @@ class TokenResponse implements IuTokenResponse, Serializable {
 	 * @return true if expired; else false
 	 */
 	boolean isExpired() {
-		return expires.isBefore(Instant.now());
+		return expires != null && expires.isBefore(Instant.now());
 	}
 
 }
