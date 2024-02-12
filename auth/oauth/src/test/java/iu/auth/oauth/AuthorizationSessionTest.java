@@ -1,16 +1,51 @@
+/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package iu.auth.oauth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.http.HttpRequest;
+import java.net.http.HttpRequest.BodyPublisher;
+import java.net.http.HttpRequest.BodyPublishers;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -27,6 +62,8 @@ import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationSession;
 import edu.iu.test.IuTestLogger;
+import iu.auth.util.HttpUtils;
+import jakarta.json.Json;
 
 @SuppressWarnings("javadoc")
 public class AuthorizationSessionTest {
@@ -49,6 +86,29 @@ public class AuthorizationSessionTest {
 		assertEquals("Bearer realm=\"" + realm + "\" error=\"invalid_request\" error_description=\"invalid state\"",
 				authException.getMessage());
 		assertEquals(entryPointUri, authException.getLocation());
+	}
+
+	@Test
+	public void testResourceUri() throws URISyntaxException {
+		final var realm = IdGenerator.generateId();
+		final var client = mock(IuAuthorizationClient.class);
+		final var resourceUri = new URI("foo:/bar");
+		when(client.getRealm()).thenReturn(realm);
+		when(client.getResourceUri()).thenReturn(resourceUri);
+		IuAuthorizationClient.initialize(client);
+
+		final var session = IuAuthorizationSession.create(realm, null);
+		assertThrows(UnsupportedOperationException.class, session::grant);
+
+		assertThrows(IllegalArgumentException.class, () -> session.grant(new URI("foo:/baz")));
+		final var successUri = new URI("foo:/bar/baz");
+		final var grant = session.grant(successUri);
+		assertSame(grant, session.grant(successUri));
+
+		final var authException = assertThrows(IuAuthenticationException.class, () -> session.authorize("foo", "bar"));
+		assertEquals("Bearer realm=\"" + realm + "\" error=\"invalid_request\" error_description=\"invalid state\"",
+				authException.getMessage());
+		assertNull(authException.getLocation());
 	}
 
 	@Test
@@ -87,6 +147,28 @@ public class AuthorizationSessionTest {
 		assertTrue(matcher.matches(), authException::getMessage);
 		final var state = matcher.group(1);
 		final var code = IdGenerator.generateId();
+
+		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
+				final var mockBodyPublishers = mockStatic(BodyPublishers.class);
+				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
+			final var hr = mock(HttpRequest.class);
+			final var hrb = mock(HttpRequest.Builder.class);
+			final var payload = "grant_type=authorization_code&code=" + code
+					+ "&scope=foo+bar&redirect_uri=foo%3A%2Fbaz";
+			final var bp = mock(BodyPublisher.class);
+			mockBodyPublishers.when(() -> BodyPublishers.ofString(payload)).thenReturn(bp);
+			when(hrb.POST(bp)).thenReturn(hrb);
+			when(hrb.build()).thenReturn(hr);
+			mockHttpRequest.when(() -> HttpRequest.newBuilder(tokenEndpointUri)).thenReturn(hrb);
+
+			final var accessToken = IdGenerator.generateId();
+			final var refreshToken = IdGenerator.generateId();
+			final var tokenResponse = Json.createObjectBuilder().add("token_type", "Bearer")
+					.add("access_token", accessToken).add("refresh_token", refreshToken).add("expires_in", 1).build();
+			mockHttpUtils.when(() -> HttpUtils.read(hr)).thenReturn(tokenResponse);
+
+			assertEquals(entryPointUri, session.authorize(code, state));
+		}
 
 	}
 
