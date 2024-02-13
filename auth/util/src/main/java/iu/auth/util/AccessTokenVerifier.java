@@ -50,6 +50,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -142,7 +143,7 @@ public class AccessTokenVerifier {
 
 	private final URI keysetUri;
 	private final String issuer;
-	private final Duration refreshInterval;
+	private final Supplier<Duration> refreshInterval;
 	private final Map<AlgorithmKey, CachedAlgorithm> algorithmCache = new HashMap<>();
 
 	/**
@@ -153,7 +154,7 @@ public class AccessTokenVerifier {
 	 * @param refreshInterval max time to reuse a configured {@link Algorithm}
 	 *                        before refreshing from the JWKS URL.
 	 */
-	public AccessTokenVerifier(URI keysetUri, String issuer, Duration refreshInterval) {
+	public AccessTokenVerifier(URI keysetUri, String issuer, Supplier<Duration> refreshInterval) {
 		this.keysetUri = keysetUri;
 		this.issuer = issuer;
 		this.refreshInterval = refreshInterval;
@@ -209,7 +210,7 @@ public class AccessTokenVerifier {
 		final var cacheKey = new AlgorithmKey(kid, alg);
 
 		var cachedAlgorithm = algorithmCache.get(cacheKey);
-		if (cachedAlgorithm == null || cachedAlgorithm.lastUpdated.isBefore(now.minus(refreshInterval))) {
+		if (cachedAlgorithm == null || cachedAlgorithm.lastUpdated.isBefore(now.minus(refreshInterval.get()))) {
 			JsonObject jwk = null;
 			Algorithm jwtAlgorithm;
 			try {

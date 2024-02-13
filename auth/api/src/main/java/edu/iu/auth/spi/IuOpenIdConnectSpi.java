@@ -32,8 +32,8 @@
 package edu.iu.auth.spi;
 
 import java.net.URI;
-import java.time.Duration;
 
+import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
 
 /**
@@ -44,13 +44,10 @@ public interface IuOpenIdConnectSpi {
 	/**
 	 * Gets an {@link IuOpenIdProvider} implementation.
 	 * 
-	 * @param configUri             Well-known configuration URI
-	 * @param trustRefreshInterval  Maximum length of time to keep trusted signing
-	 *                              keys in cache
-	 * @param authenticationTimeout Maximum length of time to allow for user
-	 *                              authentication.
+	 * @param configUri provider configuration URI
+	 * @param client    client configuration metadata
 	 * @return {@link IuOpenIdProvider}
 	 */
-	IuOpenIdProvider getOpenIdProvider(URI configUri, Duration trustRefreshInterval, Duration authenticationTimeout);
+	IuOpenIdProvider getOpenIdProvider(URI configUri, IuOpenIdClient client);
 
 }

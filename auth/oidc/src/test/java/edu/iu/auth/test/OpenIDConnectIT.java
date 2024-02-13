@@ -43,8 +43,10 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 
 import org.jsoup.Jsoup;
@@ -55,9 +57,10 @@ import org.junit.jupiter.api.condition.EnabledIf;
 
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuApiCredentials;
-import edu.iu.auth.IuAuthenticationRedirectException;
 import edu.iu.auth.oauth.IuAuthorizationClient;
+import edu.iu.auth.oauth.IuAuthorizationGrant;
 import edu.iu.auth.oauth.IuAuthorizationSession;
+import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
 import edu.iu.test.IuTestLogger;
 import edu.iu.test.VaultProperties;
@@ -71,7 +74,9 @@ public class OpenIDConnectIT {
 	private static String clientId;
 	private static String clientSecret;
 	private static URI redirectUri;
+	private static URI resourceUri;
 	private static IuOpenIdProvider provider;
+	private static IuAuthorizationGrant clientCredentials;
 	private static IuAuthorizationClient client;
 	private static IuAuthorizationSession session;
 
@@ -81,11 +86,45 @@ public class OpenIDConnectIT {
 		clientId = VaultProperties.getProperty("iu.auth.oidc.clientId");
 		clientSecret = VaultProperties.getProperty("iu.auth.oidc.clientSecret");
 		redirectUri = new URI(VaultProperties.getProperty("iu.auth.oidc.redirectUri"));
+		resourceUri = new URI(VaultProperties.getProperty("iu.auth.oidc.resourceUri"));
+		provider = IuOpenIdProvider.from(configUri, new IuOpenIdClient() {
+			@Override
+			public Duration getTrustRefreshInterval() {
+				return Duration.ofSeconds(15L);
+			}
 
-		provider = IuOpenIdProvider.from(configUri, Duration.ofSeconds(15L));
-		client = provider.createAuthorizationClient(redirectUri, IuApiCredentials.basic(clientId, clientSecret));
+			@Override
+			public URI getResourceUri() {
+				return resourceUri;
+			}
+
+			@Override
+			public URI getRedirectUri() {
+				return redirectUri;
+			}
+
+			@Override
+			public IuApiCredentials getCredentials() {
+				return IuApiCredentials.basic(clientId, clientSecret);
+			}
+
+			@Override
+			public Duration getAuthenticationTimeout() {
+				return Duration.ofSeconds(15L);
+			}
+
+			@Override
+			public Map<String, String> getClientCredentialsAttributes() {
+				final Map<String, String> attributes = new LinkedHashMap<>();
+				attributes.put("resource", redirectUri.toString());
+				attributes.put("audience", redirectUri.toString());
+				return Collections.unmodifiableMap(attributes);
+			}
+
+		});
+		client = provider.createAuthorizationClient(redirectUri);
 		IuAuthorizationClient.initialize(client);
-		session = IuAuthorizationSession.create(provider.getIssuer());
+		session = IuAuthorizationSession.create(provider.getIssuer(), resourceUri);
 	}
 
 	@BeforeEach
@@ -97,11 +136,11 @@ public class OpenIDConnectIT {
 	@Test
 	public void testClientCredentials() throws Exception {
 		IuTestLogger.allow("iu.auth.oauth.ClientCredentialsGrant", Level.FINE);
-		final var grant = session.getClientCredentialsGrant("openid");
-		final var authResponse = grant.authorize();
+		final var credneitals = clientCredentials.authorize(resourceUri);
 
-		final var userInfo = HttpUtils.read(HttpRequest.newBuilder(provider.getUserInfoEndpoint())
-				.header("Authorization", "Bearer " + authResponse.getAccessToken()).build());
+		final var req = HttpRequest.newBuilder(provider.getUserInfoEndpoint());
+		credneitals.applyTo(req);
+		final var userInfo = HttpUtils.read(req.build());
 
 		assertEquals(clientId, userInfo.asJsonObject().getString("sub"));
 	}

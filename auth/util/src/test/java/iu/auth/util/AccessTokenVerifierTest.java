@@ -90,7 +90,7 @@ public class AccessTokenVerifierTest {
 			final var uri = mock(URI.class);
 			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenReturn(jwks);
 
-			final var verifier = new AccessTokenVerifier(uri, iss, Duration.ofMillis(100L));
+			final var verifier = new AccessTokenVerifier(uri, iss, () -> Duration.ofMillis(100L));
 			assertThrows(IllegalStateException.class,
 					() -> verifier.verify(aud, JWT.create().withKeyId("defaultSign").sign(Algorithm.none())));
 		}
@@ -108,7 +108,7 @@ public class AccessTokenVerifierTest {
 			final var uri = mock(URI.class);
 			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenReturn(jwks);
 
-			final var verifier = new AccessTokenVerifier(uri, iss, Duration.ofMillis(100L));
+			final var verifier = new AccessTokenVerifier(uri, iss, () -> Duration.ofMillis(100L));
 			final var e = assertThrows(IllegalStateException.class,
 					() -> verifier.verify(aud, JWT.create().withKeyId("defaultSign").sign(Algorithm.none())));
 			assertInstanceOf(UnsupportedOperationException.class, e.getCause());
@@ -127,7 +127,7 @@ public class AccessTokenVerifierTest {
 			final var uri = mock(URI.class);
 			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenReturn(jwks);
 
-			final var verifier = new AccessTokenVerifier(uri, iss, Duration.ofMillis(100L));
+			final var verifier = new AccessTokenVerifier(uri, iss, () -> Duration.ofMillis(100L));
 			assertThrows(IllegalStateException.class,
 					() -> verifier.verify(aud, JWT.create().withKeyId("").sign(Algorithm.none())));
 		}
@@ -226,7 +226,7 @@ public class AccessTokenVerifierTest {
 			final var uri = mock(URI.class);
 			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenReturn(jwks);
 
-			final var verifier = new AccessTokenVerifier(uri, iss, Duration.ofMillis(99L));
+			final var verifier = new AccessTokenVerifier(uri, iss, () -> Duration.ofMillis(99L));
 
 			assertEquals(nonce, verifier.verify(aud, accessToken).getClaim("nonce").asString());
 			assertEquals(nonce, verifier.verify(aud, accessToken).getClaim("nonce").asString());

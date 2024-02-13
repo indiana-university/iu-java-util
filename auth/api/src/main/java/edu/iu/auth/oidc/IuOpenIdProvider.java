@@ -32,9 +32,7 @@
 package edu.iu.auth.oidc;
 
 import java.net.URI;
-import java.time.Duration;
 
-import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.spi.IuOpenIdConnectSpi;
 import iu.auth.IuAuthSpiFactory;
@@ -48,16 +46,18 @@ public interface IuOpenIdProvider {
 	 * Configures the client view of an OpenID provider from a well-known
 	 * configuration URI.
 	 * 
-	 * @param configUri             Well-known configuration URI
-	 * @param trustRefreshInterval  Maximum length of time to keep trusted signing
-	 *                              keys in cache
-	 * @param authenticationTimeout Maximum length of time to allow for user
-	 *                              authentication.
+	 * <p>
+	 * <em>May</em> be called exactly once per provider per module instance,
+	 * enforced by the OAuth implementation module (iu.util.auth.oauth) using the
+	 * issuer declared by the provider configuration URI.
+	 * </p>
+	 * 
+	 * @param configUri provider configuration URI
+	 * @param client    client configuration metadata
 	 * @return Client view of the OpenID provider
 	 */
-	static IuOpenIdProvider from(URI configUri, Duration trustRefreshInterval, Duration authenticationTimeout) {
-		return IuAuthSpiFactory.get(IuOpenIdConnectSpi.class).getOpenIdProvider(configUri, trustRefreshInterval,
-				authenticationTimeout);
+	static IuOpenIdProvider from(URI configUri, IuOpenIdClient client) {
+		return IuAuthSpiFactory.get(IuOpenIdConnectSpi.class).getOpenIdProvider(configUri, client);
 	}
 
 	/**
@@ -77,10 +77,11 @@ public interface IuOpenIdProvider {
 	/**
 	 * Creates an authorization client for interacting with the OpenID provider.
 	 * 
-	 * @param resourceUri       client resource URI
-	 * @param clientCredentials client credentials
+	 * @param resourceUri client resource URI, <em>must</em> encompass all contexts
+	 *                    visible to the {@link IuOpenIdClient} instance provided at
+	 *                    {@link #from(URI, IuOpenIdClient)}.
 	 * @return authorization client
 	 */
-	IuAuthorizationClient createAuthorizationClient(URI resourceUri, IuApiCredentials clientCredentials);
+	IuAuthorizationClient createAuthorizationClient(URI resourceUri);
 
 }

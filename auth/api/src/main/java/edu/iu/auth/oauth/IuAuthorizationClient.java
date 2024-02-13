@@ -85,7 +85,7 @@ public interface IuAuthorizationClient {
 	String getRealm();
 
 	/**
-	 * Gets the maximum length time to allow for authentication, including
+	 * Gets the maximum length of time to allow for authentication, including
 	 * interactions between the user agent and authorization server.
 	 * 
 	 * @return {@link Duration}

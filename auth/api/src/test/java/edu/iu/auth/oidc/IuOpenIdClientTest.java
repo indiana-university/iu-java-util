@@ -31,32 +31,27 @@
  */
 package edu.iu.auth.oidc;
 
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.when;
-
-import java.net.URI;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.auth.spi.IuOpenIdConnectSpi;
-import iu.auth.IuAuthSpiFactory;
+import edu.iu.auth.IuApiCredentials;
+import edu.iu.test.IuTest;
 
 @SuppressWarnings("javadoc")
-public class IuOpenIdProviderTest {
+public class IuOpenIdClientTest {
 
 	@Test
-	public void testUsesSpiFactory() {
-		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
-			final var mockSpi = mock(IuOpenIdConnectSpi.class);
-			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuOpenIdConnectSpi.class)).thenReturn(mockSpi);
-			final var configUri = mock(URI.class);
-			final var mockProvider = mock(IuOpenIdProvider.class);
-			final var mockClient = mock(IuOpenIdClient.class);
-			when(mockSpi.getOpenIdProvider(configUri, mockClient)).thenReturn(mockProvider);
-			assertSame(mockProvider, IuOpenIdProvider.from(configUri, mockClient));
-		}
+	public void testClientDefaults() {
+		final var client = IuTest.mockWithDefaults(IuOpenIdClient.class);
+		assertNull(client.getScope());
+		assertNull(client.getRedirectUri());
+		assertNull(client.getAuthorizationCodeAttributes());
+		assertNull(client.getClientCredentialsAttributes());
+		final var a = mock(IuApiCredentials.class);
+		assertDoesNotThrow(() -> client.revoke(a));
 	}
 
 }

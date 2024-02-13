@@ -32,14 +32,25 @@
 package iu.auth.oidc;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import javax.security.auth.Subject;
+
 import edu.iu.IdGenerator;
+import edu.iu.IuAuthorizationFailedException;
+import edu.iu.IuBadRequestException;
 import edu.iu.IuException;
+import edu.iu.IuIterable;
+import edu.iu.IuOutOfServiceException;
 import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuAuthorizationClient;
+import edu.iu.auth.oauth.IuTokenResponse;
+import edu.iu.auth.oidc.IuOpenIdClient;
+import iu.auth.util.AccessTokenVerifier;
 import jakarta.json.JsonObject;
 
 /**
@@ -47,32 +58,29 @@ import jakarta.json.JsonObject;
  */
 class OidcAuthorizationClient implements IuAuthorizationClient {
 
+	private static final Iterable<String> OIDC_SCOPE = IuIterable.iter("openid");
+
 	private final String realm;
 	private final URI authorizationEndpoint;
 	private final URI tokenEndpoint;
-	private final URI resourceUri;
-	private final IuApiCredentials credentials;
+	private final IuOpenIdClient client;
+	private final AccessTokenVerifier idTokenVerifier;
 
 	private final Set<String> nonces = new HashSet<>();
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param config                parsed OIDC provider well-known configuration
-	 * @param authenticationTimeout Max length of time to allow between initiating
-	 *                              authentication (e.g., redirect to OIDC
-	 *                              authorization endpoint) and completing
-	 *                              authentication (i.e., ID token issued at "iat"
-	 *                              claim value).
-	 * @param resourceUri           client resource URI
-	 * @param credentials           client credentials
+	 * @param config          parsed OIDC provider configuration
+	 * @param client          client configuration metadata
+	 * @param idTokenVerifier ID token verifier
 	 */
-	OidcAuthorizationClient(JsonObject config, URI resourceUri, IuApiCredentials credentials) {
+	OidcAuthorizationClient(JsonObject config, IuOpenIdClient client, AccessTokenVerifier idTokenVerifier) {
 		realm = config.getString("issuer");
 		authorizationEndpoint = IuException.unchecked(() -> new URI(config.getString("authorization_endpoint")));
 		tokenEndpoint = IuException.unchecked(() -> new URI(config.getString("token_endpoint")));
-		this.resourceUri = resourceUri;
-		this.credentials = credentials;
+		this.client = client;
+		this.idTokenVerifier = idTokenVerifier;
 	}
 
 	@Override
@@ -92,7 +100,7 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 
 	@Override
 	public URI getRedirectUri() {
-		return resourceUri;
+		return client.getRedirectUri();
 	}
 
 	@Override
@@ -106,13 +114,56 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 
 	@Override
 	public Map<String, String> getClientCredentialsAttributes() {
-		final var resourceUri = this.resourceUri.toString();
+		final var resourceUri = this.getResourceUri().toString();
 		return Map.of("resource", resourceUri, "audience", resourceUri);
 	}
 
 	@Override
 	public IuApiCredentials getCredentials() {
-		return credentials;
+		return client.getCredentials();
+	}
+
+	@Override
+	public Duration getAuthenticationTimeout() {
+		return client.getAuthenticationTimeout();
+	}
+
+	@Override
+	public URI getResourceUri() {
+		return client.getResourceUri();
+	}
+
+	@SuppressWarnings("unchecked")
+	@Override
+	public Iterable<String> getScope() {
+		final var scope = client.getScope();
+		if (scope == null)
+			return OIDC_SCOPE;
+		else
+			return (Iterable<String>) IuIterable.cat(OIDC_SCOPE, IuIterable.filter(scope, a -> !"openid".equals(a)));
+	}
+
+	@Override
+	public Subject verify(IuTokenResponse tokenResponse) throws IuAuthenticationException, IuBadRequestException,
+			IuAuthorizationFailedException, IuOutOfServiceException, IllegalStateException {
+
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException("TODO");
+	}
+
+	@Override
+	public Subject verify(IuTokenResponse refreshTokenResponse, IuTokenResponse originalTokenResponse)
+			throws IuAuthenticationException, IuBadRequestException, IuAuthorizationFailedException,
+			IuOutOfServiceException, IllegalStateException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public void activate(IuApiCredentials credentials) throws IuAuthenticationException, IuBadRequestException,
+			IuAuthorizationFailedException, IuOutOfServiceException, IllegalStateException {
+		// TODO Auto-generated method stub
+
 	}
 
 }
