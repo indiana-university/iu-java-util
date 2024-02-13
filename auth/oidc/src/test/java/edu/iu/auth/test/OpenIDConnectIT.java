@@ -57,9 +57,11 @@ import org.junit.jupiter.api.condition.EnabledIf;
 
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
 import edu.iu.auth.oauth.IuAuthorizationSession;
+import edu.iu.auth.oauth.IuBearerAuthCredentials;
 import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
 import edu.iu.test.IuTestLogger;
@@ -148,8 +150,9 @@ public class OpenIDConnectIT {
 	@Test
 	public void testAuthCode() throws Exception {
 		IuTestLogger.allow("iu.auth.oauth.AuthorizationCodeGrant", Level.FINE);
-		final var grant = session.createAuthorizationCodeGrant("openid");
-		final var location = assertThrows(IuAuthenticationRedirectException.class, grant::authorize).getMessage();
+		final var grant = session.grant();
+		final var location = assertThrows(IuAuthenticationException.class, () -> grant.authorize(resourceUri))
+				.getMessage();
 		final var authEndpoint = client.getAuthorizationEndpoint();
 		assertTrue(location.startsWith(authEndpoint.toString()));
 
@@ -220,16 +223,16 @@ public class OpenIDConnectIT {
 		final var authCodeParams = IuWebUtils
 				.parseQueryString(finalRedirectLocation.substring(redirectUri.toString().length()));
 
-		assertEquals(grant.getState(), authCodeParams.get("state").iterator().next());
+		final var state = authCodeParams.get("state").iterator().next();
 		final var code = authCodeParams.get("code").iterator().next();
 
-		final var authResponse = grant.authorize(code);
-		provider.verifyAuthentication(authResponse);
-		System.out.println(authResponse.getAttributes().keySet());
-		// TODO: implement / test token validation
+		final var authResponse = session.authorize(code, state);
+		assertEquals(resourceUri, authResponse);
+
+		final var credentials = (IuBearerAuthCredentials) grant.authorize(resourceUri);
 
 		final var userInfo = HttpUtils.read(HttpRequest.newBuilder(provider.getUserInfoEndpoint())
-				.header("Authorization", "Bearer " + authResponse.getAccessToken()).build());
+				.header("Authorization", "Bearer " + credentials.getAccessToken()).build());
 
 		System.out.println(userInfo);
 //		assertEquals(clientId, userInfo.asJsonObject().getString("sub"));
