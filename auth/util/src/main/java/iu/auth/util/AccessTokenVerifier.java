@@ -61,7 +61,8 @@ import com.auth0.jwt.interfaces.DecodedJWT;
 import jakarta.json.JsonObject;
 
 /**
- * Performs basic validate checks on a JWT access token
+ * Verifies JWT access tokens as signed using an RSA or ECDSA public key from a
+ * well-known JWKS key set.
  */
 public class AccessTokenVerifier {
 
@@ -138,7 +139,7 @@ public class AccessTokenVerifier {
 	}
 
 	private static BigInteger decodeKeyComponent(String encoded) {
-		return new BigInteger(Base64.getUrlDecoder().decode(encoded));
+		return new BigInteger(1, Base64.getUrlDecoder().decode(encoded));
 	}
 
 	private final URI keysetUri;
@@ -175,21 +176,29 @@ public class AccessTokenVerifier {
 	 * 
 	 * @param audience expected audience claim
 	 * @param token    JWT access token
-	 * @return Parsed JWT, can be used
+	 * @return Parsed JWT, can be used to perform additional verification
 	 */
 	public DecodedJWT verify(String audience, String token) {
 		final var decoded = JWT.decode(token);
 		final var kid = decoded.getKeyId();
 		final var alg = decoded.getAlgorithm();
-		final var verifier = JWT.require(getAlgorithm(kid, alg)) //
-				.withIssuer(issuer).withAudience(audience) //
+		final var verifier = JWT //
+				.require(getAlgorithm(kid, alg)) //
+				.withIssuer(issuer) //
+				.withAudience(audience) //
 				.withClaimPresence("iat") //
 				.withClaimPresence("exp") //
-				.acceptLeeway(15L).build();
+				.acceptLeeway(15L) //
+				.build();
 
 		return verifier.verify(token);
 	}
 
+//	JWTVerifier verifier = JWT.require(Algorithm.RSA256(keyProvider)).withIssuer(loginUrl.toString()) //
+//	.withAudience(clientId) //
+//	.withClaimPresence("iat") //
+//	.withClaimPresence("exp") //
+//	.build();
 	private JsonObject readJwk(String keyId) {
 		final var jwks = HttpUtils.read(keysetUri).asJsonObject();
 		try {

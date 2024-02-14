@@ -125,7 +125,7 @@ public class OpenIDConnectIT {
 
 		});
 		client = provider.createAuthorizationClient(redirectUri);
-		IuAuthorizationClient.initialize(client);
+		clientCredentials = IuAuthorizationClient.initialize(client);
 		session = IuAuthorizationSession.create(provider.getIssuer(), resourceUri);
 	}
 
@@ -152,17 +152,16 @@ public class OpenIDConnectIT {
 		IuTestLogger.allow("iu.auth.oauth.AuthorizationCodeGrant", Level.FINE);
 		final var grant = session.grant();
 		final var location = assertThrows(IuAuthenticationException.class, () -> grant.authorize(resourceUri))
-				.getMessage();
+				.getLocation();
 		final var authEndpoint = client.getAuthorizationEndpoint();
-		assertTrue(location.startsWith(authEndpoint.toString()));
+		assertTrue(location.toString().startsWith(authEndpoint.toString()), () -> location + " " + authEndpoint);
 
 		// Emulates browser interactions with Shibboleth authorization code flow
 		// for a user that doesn't require MFA
 		final var cookieHandler = new CookieManager();
 		final var http = HttpClient.newBuilder().cookieHandler(cookieHandler).build();
 
-		final var initAuthUri = new URI(location);
-		final var initAuthCodeRequest = HttpRequest.newBuilder(initAuthUri).build();
+		final var initAuthCodeRequest = HttpRequest.newBuilder(location).build();
 		final var initAuthCodeResponse = http.send(initAuthCodeRequest, BodyHandlers.ofString());
 		assertEquals(302, initAuthCodeResponse.statusCode());
 

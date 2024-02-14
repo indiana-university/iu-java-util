@@ -94,8 +94,8 @@ public class OAuthSpi implements IuOAuthSpi {
 	public ClientCredentialsGrant initialize(IuAuthorizationClient client) {
 		final var realm = Objects.requireNonNull(client.getRealm(), "Missing realm");
 		final var resourceUri = Objects.requireNonNull(client.getResourceUri(), "Missing resourceUri");
-		if (resourceUri.isOpaque() || !resourceUri.isAbsolute())
-			throw new IllegalArgumentException("Invalid resource URI, must be absolute and not opaque");
+		if (!resourceUri.isAbsolute())
+			throw new IllegalArgumentException("Invalid resource URI, must be absolute");
 
 		synchronized (CLIENTS) {
 			if (CLIENTS.containsKey(realm))

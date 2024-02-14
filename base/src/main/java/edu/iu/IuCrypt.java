@@ -29,63 +29,45 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.oidc;
+package edu.iu;
 
-import java.net.URI;
-import java.util.logging.Logger;
-
-import edu.iu.IuException;
-import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oidc.IuOpenIdClient;
-import edu.iu.auth.oidc.IuOpenIdProvider;
-import iu.auth.util.AccessTokenVerifier;
-import iu.auth.util.HttpUtils;
-import jakarta.json.JsonObject;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 /**
- * {@link IuOpenIdProvider} implementation.
+ * Low-level crypto utilities.
  */
-public class OpenIdProvider implements IuOpenIdProvider {
+public class IuCrypt {
 
-	private final Logger LOG = Logger.getLogger(OpenIdProvider.class.getName());
+	private static final ThreadLocal<MessageDigest> SHA256 = new ThreadLocal<MessageDigest>() {
+		@Override
+		protected MessageDigest initialValue() {
+			try {
+				return MessageDigest.getInstance("SHA-256");
+			} catch (NoSuchAlgorithmException e) {
+				throw new IllegalStateException(e);
+			}
+		}
+	};
 
-	private final String issuer;
-	private final IuOpenIdClient client;
-	private JsonObject config;
-	private AccessTokenVerifier idTokenVerifier;
+	private static final byte[] EMPTY_PAYLOADHASH = SHA256.get().digest(new byte[0]);
 
 	/**
-	 * Constructor.
+	 * Gets a SHA-256 digest for character data.
+	 * <p>
+	 * The string passed into this method is first converted to UTF-8 binary format,
+	 * then digested.
+	 * </p>
 	 * 
-	 * @param configUri provider configuration URI
-	 * @param client    client configuration metadata
+	 * @param data character data
+	 * @return SHA-256 digest
 	 */
-	public OpenIdProvider(URI configUri, IuOpenIdClient client) {
-		config = HttpUtils.read(configUri).asJsonObject();
-		LOG.info("OIDC Provider configuration:\n" + config.toString());
-
-		this.issuer = config.getString("issuer");
-
-		this.idTokenVerifier = new AccessTokenVerifier(
-				IuException.unchecked(() -> new URI(config.getString("jwks_uri"))), issuer,
-				client::getTrustRefreshInterval);
-
-		this.client = client;
+	public static byte[] sha256(byte[] data) {
+		if (data == null || data.length == 0)
+			return EMPTY_PAYLOADHASH;
+		return SHA256.get().digest(data);
 	}
 
-	@Override
-	public IuAuthorizationClient createAuthorizationClient(URI resourceUri) {
-		return new OidcAuthorizationClient(config, client, idTokenVerifier);
+	private IuCrypt() {
 	}
-
-	@Override
-	public String getIssuer() {
-		return issuer;
-	}
-
-	@Override
-	public URI getUserInfoEndpoint() {
-		return IuException.unchecked(() -> new URI(config.getString("userinfo_endpoint")));
-	}
-
 }

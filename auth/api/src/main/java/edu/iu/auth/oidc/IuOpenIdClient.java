@@ -35,11 +35,17 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
 
+import edu.iu.IuAuthorizationFailedException;
+import edu.iu.IuBadRequestException;
+import edu.iu.IuOutOfServiceException;
 import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.oauth.IuTokenResponse;
 
 /**
- * Provides client application metadata for configuration an OpenID client
- * module. To implementation by an application-level web request handler.
+ * Provides client application metadata for configuring the OpenID client module
+ * {@code iu.util.auth.oidc}. To be implemented by an application-level web
+ * request handler.
  * 
  * <p>
  * Only one OAuth authorization client configuration can be configured per
@@ -52,6 +58,7 @@ public interface IuOpenIdClient {
 	/**
 	 * Gets the maximum time to retain provider trusted keys before attempting to
 	 * refresh.
+	 * 
 	 * <p>
 	 * Once keys have been read successfully at least once, the last known good
 	 * version will be returned in the event of an error.
@@ -73,9 +80,11 @@ public interface IuOpenIdClient {
 	 * Gets the root resource URI covered by this client's protection domain.
 	 * 
 	 * <p>
-	 * All client-side application URIs used with this client <em>must</em> begin
-	 * with this URI. The root resource URI <em>should</em> end with a '/' character
-	 * unless the client is only intended to protect a single URI.
+	 * All client-side application URIs used in this client's context <em>must</em>
+	 * be rooted at this URI. The {@link URI} <em>may</em> be {@link URI#isOpaque()
+	 * opaque} and/or {@link URI#isAbsolute() not absolute} if protecting only a
+	 * single domain. Resource URIs <em>may</em> use the <strong>java:</strong> URI
+	 * scheme for environments that have JNDI configured.
 	 * </p>
 	 * 
 	 * @return {@link URI}
@@ -97,6 +106,34 @@ public interface IuOpenIdClient {
 	 */
 	URI getRedirectUri();
 
+	/**
+	 * Revalidates credentials as having been {@link #verify(IuTokenResponse)
+	 * verified}, not expired, not revoked, and not prohibited by an environment
+	 * restriction specified by the application realm or authentication provider, as
+	 * a condition for session activation.
+	 * 
+	 * @param credentials credentials to revalidate
+	 * @throws IuAuthenticationException      If the credentials are invalid (i.e.,
+	 *                                        expired or revoked) for the
+	 *                                        authentication realm and the user or
+	 *                                        remote client <em>must</em>
+	 *                                        reauthenticate before a session may be
+	 *                                        activated.
+	 * @throws IuBadRequestException          If the credentials are malformed or
+	 *                                        not understood.
+	 * @throws IuAuthorizationFailedException If access has been revoked since since
+	 *                                        initial authorization.
+	 * @throws IuOutOfServiceException        If credentials and authorization are
+	 *                                        still valid but access should be
+	 *                                        denied due to an environment
+	 *                                        restriction.
+	 * @throws IllegalStateException          If an unrecoverable error occurs,
+	 *                                        e.g., communicating with an
+	 *                                        authentication provider
+	 */
+	void activate(IuApiCredentials credentials) throws IuAuthenticationException, IuBadRequestException,
+			IuAuthorizationFailedException, IuOutOfServiceException, IllegalStateException;
+	
 	/**
 	 * Gets the requested authorization scope.
 	 * 

@@ -29,63 +29,30 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.oidc;
+package edu.iu.auth.oidc;
 
-import java.net.URI;
-import java.util.logging.Logger;
-
-import edu.iu.IuException;
-import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oidc.IuOpenIdClient;
-import edu.iu.auth.oidc.IuOpenIdProvider;
-import iu.auth.util.AccessTokenVerifier;
-import iu.auth.util.HttpUtils;
-import jakarta.json.JsonObject;
+import java.io.Serializable;
+import java.security.Principal;
 
 /**
- * {@link IuOpenIdProvider} implementation.
+ * Represents an OpenID claim: from ID token or userinfo endpoint.
+ * 
+ * @param <T> claim value type
  */
-public class OpenIdProvider implements IuOpenIdProvider {
-
-	private final Logger LOG = Logger.getLogger(OpenIdProvider.class.getName());
-
-	private final String issuer;
-	private final IuOpenIdClient client;
-	private JsonObject config;
-	private AccessTokenVerifier idTokenVerifier;
+public interface IuOpenIdClaim<T> extends Principal, Serializable {
 
 	/**
-	 * Constructor.
+	 * Gets the claim name.
 	 * 
-	 * @param configUri provider configuration URI
-	 * @param client    client configuration metadata
+	 * @return claim name
 	 */
-	public OpenIdProvider(URI configUri, IuOpenIdClient client) {
-		config = HttpUtils.read(configUri).asJsonObject();
-		LOG.info("OIDC Provider configuration:\n" + config.toString());
+	String getClaimName();
 
-		this.issuer = config.getString("issuer");
-
-		this.idTokenVerifier = new AccessTokenVerifier(
-				IuException.unchecked(() -> new URI(config.getString("jwks_uri"))), issuer,
-				client::getTrustRefreshInterval);
-
-		this.client = client;
-	}
-
-	@Override
-	public IuAuthorizationClient createAuthorizationClient(URI resourceUri) {
-		return new OidcAuthorizationClient(config, client, idTokenVerifier);
-	}
-
-	@Override
-	public String getIssuer() {
-		return issuer;
-	}
-
-	@Override
-	public URI getUserInfoEndpoint() {
-		return IuException.unchecked(() -> new URI(config.getString("userinfo_endpoint")));
-	}
+	/**
+	 * Gets the claim value.
+	 * 
+	 * @return claim value
+	 */
+	T getClaim();
 
 }

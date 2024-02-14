@@ -72,6 +72,12 @@ public class HttpUtils {
 	 * @return {@link JsonValue}
 	 */
 	public static JsonValue read(HttpRequest request) {
+		final var uri = request.uri();
+		final var scheme = uri.getScheme();
+
+		if (!"https".equals(scheme) && !("http".equals(scheme) && "localhost".equals(uri.getHost())))
+			throw new IllegalArgumentException("insecure URI");
+
 		return IuException.unchecked(() -> Json
 				.createReader(
 						new StringReader(read(HttpClient.newHttpClient().send(request, BodyHandlers.ofInputStream()))))

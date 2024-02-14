@@ -31,61 +31,62 @@
  */
 package iu.auth.oidc;
 
-import java.net.URI;
-import java.util.logging.Logger;
-
-import edu.iu.IuException;
-import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oidc.IuOpenIdClient;
-import edu.iu.auth.oidc.IuOpenIdProvider;
-import iu.auth.util.AccessTokenVerifier;
-import iu.auth.util.HttpUtils;
-import jakarta.json.JsonObject;
+import edu.iu.IuObject;
+import edu.iu.auth.oidc.IuOpenIdClaim;
 
 /**
- * {@link IuOpenIdProvider} implementation.
+ * {@link IuOpenIdClaim} implementation.
+ * 
+ * @param <T> value type
  */
-public class OpenIdProvider implements IuOpenIdProvider {
+class OidcClaim<T> implements IuOpenIdClaim<T> {
+	private static final long serialVersionUID = 1L;
 
-	private final Logger LOG = Logger.getLogger(OpenIdProvider.class.getName());
-
-	private final String issuer;
-	private final IuOpenIdClient client;
-	private JsonObject config;
-	private AccessTokenVerifier idTokenVerifier;
+	private final String name;
+	private final String claimName;
+	private final T claim;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param configUri provider configuration URI
-	 * @param client    client configuration metadata
+	 * @param name      principal name
+	 * @param claimName claim name
+	 * @param claim     claim
 	 */
-	public OpenIdProvider(URI configUri, IuOpenIdClient client) {
-		config = HttpUtils.read(configUri).asJsonObject();
-		LOG.info("OIDC Provider configuration:\n" + config.toString());
-
-		this.issuer = config.getString("issuer");
-
-		this.idTokenVerifier = new AccessTokenVerifier(
-				IuException.unchecked(() -> new URI(config.getString("jwks_uri"))), issuer,
-				client::getTrustRefreshInterval);
-
-		this.client = client;
+	OidcClaim(String name, String claimName, T claim) {
+		this.name = name;
+		this.claimName = claimName;
+		this.claim = claim;
 	}
 
 	@Override
-	public IuAuthorizationClient createAuthorizationClient(URI resourceUri) {
-		return new OidcAuthorizationClient(config, client, idTokenVerifier);
+	public String getName() {
+		return name;
 	}
 
 	@Override
-	public String getIssuer() {
-		return issuer;
+	public String getClaimName() {
+		return claimName;
 	}
 
 	@Override
-	public URI getUserInfoEndpoint() {
-		return IuException.unchecked(() -> new URI(config.getString("userinfo_endpoint")));
+	public T getClaim() {
+		return claim;
+	}
+
+	@Override
+	public int hashCode() {
+		return IuObject.hashCode(name, claimName, claim);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (!IuObject.typeCheck(this, obj))
+			return false;
+		OidcClaim<?> other = (OidcClaim<?>) obj;
+		return IuObject.equals(claim, other.claim) //
+				&& IuObject.equals(claimName, other.claimName) //
+				&& IuObject.equals(name, other.name);
 	}
 
 }

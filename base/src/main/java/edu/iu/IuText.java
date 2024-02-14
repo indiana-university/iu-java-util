@@ -29,63 +29,50 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.oidc;
+package edu.iu;
 
-import java.net.URI;
-import java.util.logging.Logger;
-
-import edu.iu.IuException;
-import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oidc.IuOpenIdClient;
-import edu.iu.auth.oidc.IuOpenIdProvider;
-import iu.auth.util.AccessTokenVerifier;
-import iu.auth.util.HttpUtils;
-import jakarta.json.JsonObject;
+import java.io.UnsupportedEncodingException;
 
 /**
- * {@link IuOpenIdProvider} implementation.
+ * Low-level text processing utilities.
  */
-public class OpenIdProvider implements IuOpenIdProvider {
+public final class IuText {
 
-	private final Logger LOG = Logger.getLogger(OpenIdProvider.class.getName());
-
-	private final String issuer;
-	private final IuOpenIdClient client;
-	private JsonObject config;
-	private AccessTokenVerifier idTokenVerifier;
+	private static final byte[] b0 = new byte[0];
 
 	/**
-	 * Constructor.
+	 * Converts string data to UTF-8 binary.
 	 * 
-	 * @param configUri provider configuration URI
-	 * @param client    client configuration metadata
+	 * @param data string data
+	 * @return UTF-8 binary
 	 */
-	public OpenIdProvider(URI configUri, IuOpenIdClient client) {
-		config = HttpUtils.read(configUri).asJsonObject();
-		LOG.info("OIDC Provider configuration:\n" + config.toString());
-
-		this.issuer = config.getString("issuer");
-
-		this.idTokenVerifier = new AccessTokenVerifier(
-				IuException.unchecked(() -> new URI(config.getString("jwks_uri"))), issuer,
-				client::getTrustRefreshInterval);
-
-		this.client = client;
+	public static byte[] utf8(String data) {
+		if (data == null)
+			return b0;
+		try {
+			return data.getBytes("UTF-8");
+		} catch (UnsupportedEncodingException e) {
+			throw new IllegalStateException(e);
+		}
 	}
 
-	@Override
-	public IuAuthorizationClient createAuthorizationClient(URI resourceUri) {
-		return new OidcAuthorizationClient(config, client, idTokenVerifier);
+	/**
+	 * Gets a string from UTF-8 encoding data.
+	 * 
+	 * @param data UTF-8 encoded data
+	 * @return string data
+	 */
+	public static String utf8(byte[] data) {
+		if (data == null)
+			return null;
+		try {
+			return new String(data, "UTF-8");
+		} catch (UnsupportedEncodingException e) {
+			throw new IllegalStateException(e);
+		}
 	}
 
-	@Override
-	public String getIssuer() {
-		return issuer;
-	}
-
-	@Override
-	public URI getUserInfoEndpoint() {
-		return IuException.unchecked(() -> new URI(config.getString("userinfo_endpoint")));
+	private IuText() {
 	}
 
 }
