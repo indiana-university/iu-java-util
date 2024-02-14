@@ -32,6 +32,7 @@
 package edu.iu.auth.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -50,11 +51,15 @@ import java.util.Map;
 import java.util.logging.Level;
 
 import org.jsoup.Jsoup;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 
+import edu.iu.IuAuthorizationFailedException;
+import edu.iu.IuBadRequestException;
+import edu.iu.IuOutOfServiceException;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
@@ -71,6 +76,8 @@ import iu.auth.util.HttpUtils;
 @EnabledIf("edu.iu.test.VaultProperties#isConfigured")
 @SuppressWarnings("javadoc")
 public class OpenIDConnectIT {
+
+	private static ThreadLocal<IuApiCredentials> ACTIVE = new ThreadLocal<>();
 
 	private static URI configUri;
 	private static String clientId;
@@ -123,6 +130,27 @@ public class OpenIDConnectIT {
 				return Collections.unmodifiableMap(attributes);
 			}
 
+			@Override
+			public Duration getAuthenticatedSessionTimeout() {
+				return Duration.ofSeconds(2L);
+			}
+
+			@Override
+			public Duration getActivationInterval() {
+				return Duration.ofMillis(100L);
+			}
+
+			@Override
+			public void activate(IuApiCredentials credentials) throws IuAuthenticationException, IuBadRequestException,
+					IuAuthorizationFailedException, IuOutOfServiceException, IllegalStateException {
+				ACTIVE.set(credentials);
+			}
+
+			@Override
+			public Iterable<String> getScope() {
+				return List.of("profile", "email", "roles");
+			}
+
 		});
 		client = provider.createAuthorizationClient(redirectUri);
 		clientCredentials = IuAuthorizationClient.initialize(client);
@@ -133,6 +161,11 @@ public class OpenIDConnectIT {
 	public void setup() {
 		IuTestLogger.allow("iu.auth.util.HttpUtils", Level.FINE);
 		IuTestLogger.allow("iu.auth.oidc.OpenIdProvider", Level.INFO);
+	}
+
+	@AfterEach
+	public void teardown() {
+		ACTIVE.remove();
 	}
 
 	@Test
@@ -167,6 +200,7 @@ public class OpenIDConnectIT {
 
 		final var firstRedirectLocation = initAuthCodeResponse.headers().firstValue("Location").get();
 		assertTrue(firstRedirectLocation.startsWith(authEndpoint.getPath() + '?'), () -> firstRedirectLocation);
+		System.out.println("Location: " + firstRedirectLocation);
 
 		final var loginRequestUri = new URI(
 				authEndpoint + firstRedirectLocation.substring(authEndpoint.getPath().length()));
@@ -229,17 +263,12 @@ public class OpenIDConnectIT {
 		assertEquals(resourceUri, authResponse);
 
 		final var credentials = (IuBearerAuthCredentials) grant.authorize(resourceUri);
+		System.out.println(credentials);
 
-		final var userInfo = HttpUtils.read(HttpRequest.newBuilder(provider.getUserInfoEndpoint())
-				.header("Authorization", "Bearer " + credentials.getAccessToken()).build());
-
-		System.out.println(userInfo);
-//		assertEquals(clientId, userInfo.asJsonObject().getString("sub"));
-
-//		System.out.println(loginSuccessResponse.statusCode());
-//		System.out.println(loginSuccessResponse.headers().map());
-//		System.out.println(loginSuccessResponse.body());
-
+		Thread.sleep(125L);
+		IuTestLogger.expect("iu.auth.oidc.OidcAuthorizationClient", Level.FINER, "discarding invalid activation code",
+				IllegalArgumentException.class);
+		assertSame(credentials, (IuBearerAuthCredentials) grant.authorize(resourceUri));
 	}
 
 }

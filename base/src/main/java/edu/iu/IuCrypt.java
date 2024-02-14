@@ -32,7 +32,6 @@
 package edu.iu;
 
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 
 /**
  * Low-level crypto utilities.
@@ -42,11 +41,7 @@ public class IuCrypt {
 	private static final ThreadLocal<MessageDigest> SHA256 = new ThreadLocal<MessageDigest>() {
 		@Override
 		protected MessageDigest initialValue() {
-			try {
-				return MessageDigest.getInstance("SHA-256");
-			} catch (NoSuchAlgorithmException e) {
-				throw new IllegalStateException(e);
-			}
+			return IuException.unchecked(() -> MessageDigest.getInstance("SHA-256"));
 		}
 	};
 

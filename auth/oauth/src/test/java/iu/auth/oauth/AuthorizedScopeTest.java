@@ -44,6 +44,7 @@ public class AuthorizedScopeTest {
 		final var scope = new AuthorizedScope("foo", "bar");
 		assertEquals("foo", scope.getName());
 		assertEquals("bar", scope.getRealm());
+		assertEquals("OAuth Scope foo, for realm bar", scope.toString());
 	}
 
 	@Test

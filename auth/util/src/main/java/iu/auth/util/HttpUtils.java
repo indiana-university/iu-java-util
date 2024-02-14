@@ -75,7 +75,8 @@ public class HttpUtils {
 		final var uri = request.uri();
 		final var scheme = uri.getScheme();
 
-		if (!"https".equals(scheme) && !("http".equals(scheme) && "localhost".equals(uri.getHost())))
+		if (!"https".equals(scheme) //
+				&& !"localhost".equals(uri.getHost()))
 			throw new IllegalArgumentException("insecure URI");
 
 		return IuException.unchecked(() -> Json
@@ -111,14 +112,24 @@ public class HttpUtils {
 		return sb.toString();
 	}
 
-	private static String read(HttpResponse<InputStream> response) {
+	/**
+	 * Reads UTF-8 string content from an {@link HttpResponse} backed by
+	 * {@link InputStream}.
+	 * 
+	 * @param response HTTP response
+	 * @return UTF-8 string content
+	 */
+	public static String read(HttpResponse<InputStream> response) {
 		final var status = response.statusCode();
 		final var headers = response.headers();
+		if (response.request().headers().firstValue("Authorization").isPresent() //
+				&& !response.headers().firstValue("Cache-Control").get().equals("no-store"))
+			throw new IllegalStateException("Must include Cache-Control = no-store response header");
 
 		String content = null;
 		Throwable error = null;
 		try (final var in = response.body(); //
-				final var r = new InputStreamReader(in)) {
+				final var r = new InputStreamReader(in, "UTF-8")) {
 			content = IuStream.read(r);
 		} catch (Throwable e) {
 			error = e;

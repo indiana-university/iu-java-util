@@ -29,67 +29,27 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.oauth;
+package edu.iu;
 
-import java.io.Serializable;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import edu.iu.IuObject;
-import edu.iu.auth.oauth.IuAuthorizationScope;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
-/**
- * {@link IuAuthorizationScope} implementation.
- */
-public class AuthorizedScope implements IuAuthorizationScope, Serializable {
-	private static final long serialVersionUID = 1L;
+import org.junit.jupiter.api.Test;
 
-	/**
-	 * Authorized scope.
-	 */
-	private final String scope;
+@SuppressWarnings("javadoc")
+public class IuCryptTest {
 
-	/**
-	 * Authentication realm the scope is valid for.
-	 */
-	private final String realm;
-
-	/**
-	 * Constructor.
-	 * 
-	 * @param scope Authorized scope
-	 * @param realm Authentication realm the scope is valid for
-	 */
-	AuthorizedScope(String scope, String realm) {
-		this.scope = scope;
-		this.realm = realm;
+	@Test
+	public void testSha256() throws NoSuchAlgorithmException {
+		final var data = IuText.utf8(IdGenerator.generateId());
+		assertEquals(HexFormat.of().formatHex(IuCrypt.sha256(data)),
+				HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(data)));
+		assertEquals(HexFormat.of().formatHex(IuCrypt.sha256(null)),
+				HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(new byte[0])));
+		assertEquals(HexFormat.of().formatHex(IuCrypt.sha256(new byte[0])),
+				HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(new byte[0])));
 	}
-
-	@Override
-	public String getName() {
-		return scope;
-	}
-
-	@Override
-	public String getRealm() {
-		return realm;
-	}
-
-	@Override
-	public int hashCode() {
-		return IuObject.hashCode(realm, scope);
-	}
-
-	@Override
-	public boolean equals(Object obj) {
-		if (!IuObject.typeCheck(this, obj))
-			return false;
-		AuthorizedScope other = (AuthorizedScope) obj;
-		return IuObject.equals(realm, other.realm) //
-				&& IuObject.equals(scope, other.scope);
-	}
-
-	@Override
-	public String toString() {
-		return "OAuth Scope " + scope + ", for realm " + realm;
-	}
-
 }

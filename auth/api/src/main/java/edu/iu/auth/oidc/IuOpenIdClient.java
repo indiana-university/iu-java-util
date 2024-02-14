@@ -77,6 +77,25 @@ public interface IuOpenIdClient {
 	Duration getAuthenticationTimeout();
 
 	/**
+	 * Gets the maximum length of time to allow an authenticated session, as timed
+	 * by the {@code auth_time} OIDC claim, to be remain active before requesting
+	 * the provide re-establish credentials for the principal.
+	 * 
+	 * @return {@link Duration}, will be truncated to seconds
+	 */
+	Duration getAuthenticatedSessionTimeout();
+
+	/**
+	 * Gets the maximum length of time to assume a prior activation to be
+	 * repeatable, typically measured in seconds. Once this interval is passed,
+	 * activation will be confirmed by sending session-bound access tokens to a
+	 * downstream verification API.
+	 * 
+	 * @return {@link Duration}, will be truncated to milliseconds
+	 */
+	Duration getActivationInterval();
+
+	/**
 	 * Gets the root resource URI covered by this client's protection domain.
 	 * 
 	 * <p>
@@ -92,13 +111,6 @@ public interface IuOpenIdClient {
 	URI getResourceUri();
 
 	/**
-	 * Gets the client's API credentials.
-	 * 
-	 * @return {@link IuApiCredentials}
-	 */
-	IuApiCredentials getCredentials();
-
-	/**
 	 * Gets the redirect URI for use with authorization code flow.
 	 * 
 	 * @return redirect URI; null if authorization code is not supported for the
@@ -107,10 +119,16 @@ public interface IuOpenIdClient {
 	URI getRedirectUri();
 
 	/**
-	 * Revalidates credentials as having been {@link #verify(IuTokenResponse)
-	 * verified}, not expired, not revoked, and not prohibited by an environment
-	 * restriction specified by the application realm or authentication provider, as
-	 * a condition for session activation.
+	 * Gets the client's API credentials.
+	 * 
+	 * @return {@link IuApiCredentials}
+	 */
+	IuApiCredentials getCredentials();
+
+	/**
+	 * Revalidates verified credentials as not expired, not revoked, and not
+	 * prohibited by an environment restriction specified by the application realm
+	 * or authentication provider, as a condition for session activation.
 	 * 
 	 * @param credentials credentials to revalidate
 	 * @throws IuAuthenticationException      If the credentials are invalid (i.e.,
@@ -133,7 +151,7 @@ public interface IuOpenIdClient {
 	 */
 	void activate(IuApiCredentials credentials) throws IuAuthenticationException, IuBadRequestException,
 			IuAuthorizationFailedException, IuOutOfServiceException, IllegalStateException;
-	
+
 	/**
 	 * Gets the requested authorization scope.
 	 * 

@@ -106,4 +106,9 @@ public class BearerAuthCredentials implements IuBearerAuthCredentials {
 				&& IuObject.equals(subject, other.subject);
 	}
 
+	@Override
+	public String toString() {
+		return "BearerAuthCredentials [name=" + name + ", subject=" + subject + "]";
+	}
+
 }

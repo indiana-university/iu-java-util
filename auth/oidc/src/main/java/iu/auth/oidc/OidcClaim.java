@@ -89,4 +89,9 @@ class OidcClaim<T> implements IuOpenIdClaim<T> {
 				&& IuObject.equals(name, other.name);
 	}
 
+	@Override
+	public String toString() {
+		return "OIDC Claim of " + name + ": " + claimName + " = " + claim;
+	}
+
 }

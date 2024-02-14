@@ -36,15 +36,20 @@ import java.net.URI;
 import java.net.http.HttpRequest;
 import java.security.Principal;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.security.auth.Subject;
 
@@ -62,7 +67,9 @@ import edu.iu.IuText;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuAuthorizationClient;
+import edu.iu.auth.oauth.IuBearerAuthCredentials;
 import edu.iu.auth.oauth.IuTokenResponse;
+import edu.iu.auth.oidc.IuOpenIdClaim;
 import edu.iu.auth.oidc.IuOpenIdClient;
 import iu.auth.util.AccessTokenVerifier;
 import iu.auth.util.HttpUtils;
@@ -74,6 +81,8 @@ import jakarta.json.JsonString;
  */
 class OidcAuthorizationClient implements IuAuthorizationClient {
 
+	private static final Logger LOG = Logger.getLogger(OidcAuthorizationClient.class.getName());
+
 	private static final Iterable<String> OIDC_SCOPE = IuIterable.iter("openid");
 	private static final Predicate<String> IS_OIDC = "openid"::equals;
 
@@ -81,6 +90,7 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 		private static final long serialVersionUID = 1L;
 
 		private final String name;
+		private String activationCode;
 
 		private Id(String name) {
 			this.name = name;
@@ -102,6 +112,11 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 				return false;
 			Id other = (Id) obj;
 			return IuObject.equals(name, other.name);
+		}
+
+		@Override
+		public String toString() {
+			return "OIDC Principal ID [name=" + name + "]";
 		}
 	}
 
@@ -152,11 +167,18 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 
 	@Override
 	public Map<String, String> getAuthorizationCodeAttributes() {
+		final Map<String, String> attributes = new LinkedHashMap<>();
 		final var nonce = IdGenerator.generateId();
 		synchronized (nonces) {
 			nonces.add(nonce);
 		}
-		return Map.of("nonce", nonce);
+		attributes.put("nonce", nonce);
+
+		final var authenticatedSessionTimeout = client.getAuthenticatedSessionTimeout();
+		if (authenticatedSessionTimeout != null)
+			attributes.put("max_age", Long.toString(authenticatedSessionTimeout.toSeconds()));
+
+		return Collections.unmodifiableMap(attributes);
 	}
 
 	@Override
@@ -228,15 +250,25 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 				.header("Authorization", "Bearer " + accessToken).build()).asJsonObject();
 		final var principal = userinfo.getString("principal");
 		final var sub = userinfo.getString("sub");
-		if (clientId.equals(principal) && clientId.equals(sub))
-			return new Subject(true, Set.of(new Id(principal)), Set.of(), Set.of());
+		final var id = new Id(principal);
+
+		if (clientId.equals(principal) && clientId.equals(sub)) {
+			id.activationCode = IdGenerator.generateId();
+			return new Subject(true, Set.of(id), Set.of(), Set.of());
+		}
 
 		if (idToken == null)
 			throw new IllegalStateException("Token response missing id_token");
 
+		final var authTime = verifiedIdToken.getClaim("auth_time").asInstant();
+		if (authTime.plus(client.getAuthenticatedSessionTimeout()).isBefore(Instant.now()))
+			throw new IllegalStateException("expired auth session");
+
 		final Set<String> seen = new HashSet<>();
 		final var subject = new Subject();
 		final var principals = subject.getPrincipals();
+		principals.add(id);
+
 		final BiConsumer<String, Supplier<?>> claimConsumer = //
 				(claimName, claimSupplier) -> {
 					if (seen.add(claimName))
@@ -249,7 +281,7 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 		claimConsumer.accept("aud", () -> clientId);
 		claimConsumer.accept("iat", verifiedIdToken::getIssuedAtAsInstant);
 		claimConsumer.accept("exp", verifiedIdToken::getExpiresAtAsInstant);
-		claimConsumer.accept("auth_time", verifiedIdToken.getClaim("auth_time")::asInstant);
+		claimConsumer.accept("auth_time", () -> authTime);
 
 		for (final var userinfoClaimEntry : userinfo.entrySet())
 			claimConsumer.accept(userinfoClaimEntry.getKey(), () -> {
@@ -260,6 +292,8 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 					return claimJsonValue.toString();
 			});
 
+		id.activationCode = IdGenerator.generateId();
+
 		return subject;
 	}
 
@@ -267,15 +301,72 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 	public Subject verify(IuTokenResponse refreshTokenResponse, IuTokenResponse originalTokenResponse)
 			throws IuAuthenticationException, IuBadRequestException, IuAuthorizationFailedException,
 			IuOutOfServiceException, IllegalStateException {
-		// TODO Auto-generated method stub
+		// TODO establish and verify refresh token integration test
 		throw new UnsupportedOperationException("TODO");
 	}
 
 	@Override
 	public void activate(IuApiCredentials credentials) throws IuAuthenticationException, IuBadRequestException,
 			IuAuthorizationFailedException, IuOutOfServiceException, IllegalStateException {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+		if (!(credentials instanceof IuBearerAuthCredentials bearer))
+			throw new IllegalArgumentException("Invalid credentials type");
+
+		final var subject = Objects.requireNonNull(bearer.getSubject(), "subject");
+		final var id = subject.getPrincipals(Id.class).iterator().next();
+		if (id.activationCode != null)
+			try {
+				IdGenerator.verifyId(id.activationCode, client.getActivationInterval().toMillis());
+				return;
+			} catch (Throwable e) {
+				LOG.log(Level.FINER, e, () -> "discarding invalid activation code");
+				id.activationCode = null;
+			}
+
+		try {
+			final var accessToken = Objects.requireNonNull(bearer.getAccessToken(), "accessToken");
+			final var userinfo = HttpUtils.read(HttpRequest.newBuilder(userinfoEndpoint) //
+					.header("Authorization", "Bearer " + accessToken).build()).asJsonObject();
+			final var principal = userinfo.getString("principal");
+			final var sub = userinfo.getString("sub");
+
+			final var clientId = client.getCredentials().getName();
+			if (clientId.equals(principal) && clientId.equals(sub)) {
+				id.activationCode = IdGenerator.generateId();
+				return;
+			}
+
+			final Map<String, Object> claims = new LinkedHashMap<>();
+			for (final var claim : subject.getPrincipals(IuOpenIdClaim.class))
+				claims.put(claim.getClaimName(), claim.getClaim());
+
+			if (!clientId.equals(claims.get("aud")))
+				throw new IllegalArgumentException("Invalid aud");
+			if (((Instant) claims.get("auth_time")).plus(client.getAuthenticatedSessionTimeout())
+					.isBefore(Instant.now()))
+				throw new IllegalStateException("expired auth session");
+
+			for (final var userinfoClaimEntry : userinfo.entrySet()) {
+				final var claimJsonValue = userinfoClaimEntry.getValue();
+				final String claim;
+				if (claimJsonValue instanceof JsonString js)
+					claim = js.getString();
+				else
+					claim = claimJsonValue.toString();
+
+				if (!IuObject.equals(claim, claims.get(userinfoClaimEntry.getKey())))
+					throw new IllegalArgumentException(userinfoClaimEntry.getKey());
+			}
+		} catch (Throwable e) {
+			Map<String, String> challengeAttributes = new LinkedHashMap<>();
+			challengeAttributes.put("realm", realm);
+			challengeAttributes.put("error", "invalid_grant");
+			challengeAttributes.put("error_description", "session activation failed, must reauthenticate");
+			throw new IuAuthenticationException(HttpUtils.createChallenge("Bearer", challengeAttributes), e);
+		}
+
+		client.activate(credentials);
+
+		id.activationCode = IdGenerator.generateId();
 	}
 
 }

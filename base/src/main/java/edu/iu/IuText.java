@@ -31,8 +31,6 @@
  */
 package edu.iu;
 
-import java.io.UnsupportedEncodingException;
-
 /**
  * Low-level text processing utilities.
  */
@@ -49,11 +47,8 @@ public final class IuText {
 	public static byte[] utf8(String data) {
 		if (data == null)
 			return b0;
-		try {
-			return data.getBytes("UTF-8");
-		} catch (UnsupportedEncodingException e) {
-			throw new IllegalStateException(e);
-		}
+		else
+			return IuException.unchecked(() -> data.getBytes("UTF-8"));
 	}
 
 	/**
@@ -65,11 +60,8 @@ public final class IuText {
 	public static String utf8(byte[] data) {
 		if (data == null)
 			return null;
-		try {
-			return new String(data, "UTF-8");
-		} catch (UnsupportedEncodingException e) {
-			throw new IllegalStateException(e);
-		}
+		else
+			return IuException.unchecked(() -> new String(data, "UTF-8"));
 	}
 
 	private IuText() {

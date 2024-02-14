@@ -33,6 +33,7 @@ package iu.auth.oauth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -58,6 +59,7 @@ public class BearerAuthCredentialsTest {
 		when(subject.getPrincipals()).thenReturn(Set.of(principal));
 
 		final var auth = new BearerAuthCredentials(subject, accessToken);
+		assertNotNull(auth.toString());
 		assertEquals(accessToken, auth.getAccessToken());
 		assertSame(subject, auth.getSubject());
 		assertEquals(principal.getName(), auth.getName());
