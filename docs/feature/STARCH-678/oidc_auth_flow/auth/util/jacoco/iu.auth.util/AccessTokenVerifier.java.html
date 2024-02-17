@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AccessTokenVerifier.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU API Authorization Internal Support Utilities</a> &gt; <a href="index.source.html" class="el_package">iu.auth.util</a> &gt; <span class="el_source">AccessTokenVerifier.java</span></div><h1>AccessTokenVerifier.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.util;
+
+import java.math.BigInteger;
+import java.net.URI;
+import java.security.AlgorithmParameters;
+import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
+import java.security.interfaces.ECPublicKey;
+import java.security.interfaces.RSAPublicKey;
+import java.security.spec.ECGenParameterSpec;
+import java.security.spec.ECParameterSpec;
+import java.security.spec.ECPoint;
+import java.security.spec.ECPublicKeySpec;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.InvalidParameterSpecException;
+import java.security.spec.RSAPublicKeySpec;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.interfaces.DecodedJWT;
+
+import jakarta.json.JsonObject;
+
+/**
+ * Verifies JWT access tokens as signed using an RSA or ECDSA public key from a
+ * well-known JWKS key set.
+ */
+public class AccessTokenVerifier {
+
+<span class="fc" id="L69">	private static final Logger LOG = Logger.getLogger(AccessTokenVerifier.class.getName());</span>
+
+<span class="fc" id="L71">	private record AlgorithmKey(String kid, String alg) {</span>
+	}
+
+<span class="fc" id="L74">	private record CachedAlgorithm(Algorithm algorithm, Instant lastUpdated) {</span>
+	}
+
+	/**
+	 * Gets the {@link ECParameterSpec} for decoding an EC JWK.
+	 * 
+	 * @param jwk parsed JWK
+	 * @return {@link ECParameterSpec}
+	 * @throws NoSuchAlgorithmException      If the JWK is invalid
+	 * @throws InvalidParameterSpecException If the JWK is invalid
+	 */
+	static ECParameterSpec getECParameterSpec(JsonObject jwk)
+			throws NoSuchAlgorithmException, InvalidParameterSpecException {
+		final String ecParam;
+<span class="fc bfc" id="L88" title="All 4 branches covered.">		switch (jwk.getString(&quot;crv&quot;)) {</span>
+		case &quot;P-256&quot;:
+<span class="fc" id="L90">			ecParam = &quot;secp256r1&quot;;</span>
+<span class="fc" id="L91">			break;</span>
+		case &quot;P-384&quot;:
+<span class="fc" id="L93">			ecParam = &quot;secp384r1&quot;;</span>
+<span class="fc" id="L94">			break;</span>
+		case &quot;P-521&quot;:
+<span class="fc" id="L96">			ecParam = &quot;secp521r1&quot;;</span>
+<span class="fc" id="L97">			break;</span>
+		default:
+<span class="fc" id="L99">			throw new IllegalArgumentException(&quot;Unsupported EC curve: &quot; + jwk);</span>
+		}
+
+<span class="fc" id="L102">		final var algorithmParamters = AlgorithmParameters.getInstance(&quot;EC&quot;);</span>
+<span class="fc" id="L103">		algorithmParamters.init(new ECGenParameterSpec(ecParam));</span>
+<span class="fc" id="L104">		return algorithmParamters.getParameterSpec(ECParameterSpec.class);</span>
+	}
+
+	/**
+	 * Reads an EC public key from
+	 * 
+	 * @param jwk parsed JWK
+	 * @return {@link ECPublicKey}
+	 * @throws InvalidKeySpecException       If the JWK is invalid
+	 * @throws NoSuchAlgorithmException      If the JWK is invalid
+	 * @throws InvalidParameterSpecException If the JWK is invalid
+	 */
+	static ECPublicKey toECPublicKey(JsonObject jwk)
+			throws InvalidKeySpecException, NoSuchAlgorithmException, InvalidParameterSpecException {
+<span class="fc bfc" id="L118" title="All 2 branches covered.">		if (!&quot;EC&quot;.equals(jwk.getString(&quot;kty&quot;)))</span>
+<span class="fc" id="L119">			throw new IllegalArgumentException(&quot;Not an EC key: &quot; + jwk);</span>
+<span class="fc" id="L120">		return (ECPublicKey) KeyFactory.getInstance(&quot;EC&quot;)</span>
+<span class="fc" id="L121">				.generatePublic(new ECPublicKeySpec(</span>
+<span class="fc" id="L122">						new ECPoint(decodeKeyComponent(jwk.getString(&quot;x&quot;)), decodeKeyComponent(jwk.getString(&quot;y&quot;))),</span>
+<span class="fc" id="L123">						getECParameterSpec(jwk)));</span>
+	}
+
+	/**
+	 * Reads an RSA public key from
+	 * 
+	 * @param jwk parsed JWK
+	 * @return {@link ECPublicKey}
+	 * @throws InvalidKeySpecException  If the JWK is invalid
+	 * @throws NoSuchAlgorithmException If the JWK is invalid
+	 */
+	static RSAPublicKey toRSAPublicKey(JsonObject jwk) throws InvalidKeySpecException, NoSuchAlgorithmException {
+<span class="fc bfc" id="L135" title="All 2 branches covered.">		if (!&quot;RSA&quot;.equals(jwk.getString(&quot;kty&quot;)))</span>
+<span class="fc" id="L136">			throw new IllegalArgumentException(&quot;Not an RSA key: &quot; + jwk);</span>
+<span class="fc" id="L137">		return (RSAPublicKey) KeyFactory.getInstance(&quot;RSA&quot;).generatePublic(</span>
+<span class="fc" id="L138">				new RSAPublicKeySpec(decodeKeyComponent(jwk.getString(&quot;n&quot;)), decodeKeyComponent(jwk.getString(&quot;e&quot;))));</span>
+	}
+
+	private static BigInteger decodeKeyComponent(String encoded) {
+<span class="fc" id="L142">		return new BigInteger(1, Base64.getUrlDecoder().decode(encoded));</span>
+	}
+
+	private final URI keysetUri;
+	private final String issuer;
+	private final Supplier&lt;Duration&gt; refreshInterval;
+<span class="fc" id="L148">	private final Map&lt;AlgorithmKey, CachedAlgorithm&gt; algorithmCache = new HashMap&lt;&gt;();</span>
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param keysetUri       JWKS URL
+	 * @param issuer          expected issuer
+	 * @param refreshInterval max time to reuse a configured {@link Algorithm}
+	 *                        before refreshing from the JWKS URL.
+	 */
+<span class="fc" id="L158">	public AccessTokenVerifier(URI keysetUri, String issuer, Supplier&lt;Duration&gt; refreshInterval) {</span>
+<span class="fc" id="L159">		this.keysetUri = keysetUri;</span>
+<span class="fc" id="L160">		this.issuer = issuer;</span>
+<span class="fc" id="L161">		this.refreshInterval = refreshInterval;</span>
+<span class="fc" id="L162">	}</span>
+
+	/**
+	 * Verifies a JWT access token.
+	 * 
+	 * &lt;p&gt;
+	 * Verifies:
+	 * &lt;/p&gt;
+	 * &lt;ul&gt;
+	 * &lt;li&gt;The use of a strong signature algorithm: RSA or ECDSA&lt;/li&gt;
+	 * &lt;li&gt;The RSA or ECDSA signature is valid&lt;/li&gt;
+	 * &lt;li&gt;The iss claim matches the configured issuer&lt;/li&gt;
+	 * &lt;li&gt;The aud claim includes the audience&lt;/li&gt;
+	 * &lt;/ul&gt;
+	 * 
+	 * @param audience expected audience claim
+	 * @param token    JWT access token
+	 * @return Parsed JWT, can be used to perform additional verification
+	 */
+	public DecodedJWT verify(String audience, String token) {
+<span class="fc" id="L182">		final var decoded = JWT.decode(token);</span>
+<span class="fc" id="L183">		final var kid = decoded.getKeyId();</span>
+<span class="fc" id="L184">		final var alg = decoded.getAlgorithm();</span>
+<span class="fc" id="L185">		final var verifier = JWT //</span>
+<span class="fc" id="L186">				.require(getAlgorithm(kid, alg)) //</span>
+<span class="fc" id="L187">				.withIssuer(issuer) //</span>
+<span class="fc" id="L188">				.withAudience(audience) //</span>
+<span class="fc" id="L189">				.withClaimPresence(&quot;iat&quot;) //</span>
+<span class="fc" id="L190">				.withClaimPresence(&quot;exp&quot;) //</span>
+<span class="fc" id="L191">				.acceptLeeway(15L) //</span>
+<span class="fc" id="L192">				.build();</span>
+
+<span class="fc" id="L194">		return verifier.verify(token);</span>
+	}
+
+	private JsonObject readJwk(String keyId) {
+<span class="fc" id="L198">		final var jwks = HttpUtils.read(keysetUri).asJsonObject();</span>
+		try {
+<span class="fc bfc" id="L200" title="All 2 branches covered.">			for (final var key : jwks.getJsonArray(&quot;keys&quot;)) {</span>
+<span class="fc" id="L201">				final var keyAsJsonObject = key.asJsonObject();</span>
+<span class="fc bfc" id="L202" title="All 2 branches covered.">				if (keyId.equals(keyAsJsonObject.getString(&quot;kid&quot;)))</span>
+<span class="fc" id="L203">					return keyAsJsonObject;</span>
+<span class="fc" id="L204">			}</span>
+<span class="fc" id="L205">		} catch (Throwable e) {</span>
+<span class="fc" id="L206">			throw new IllegalStateException(&quot;Invalid JWKS format: &quot; + jwks, e);</span>
+<span class="fc" id="L207">		}</span>
+
+<span class="fc" id="L209">		throw new IllegalStateException(&quot;Key &quot; + keyId + &quot; not in JWKS: &quot; + jwks);</span>
+	}
+
+	private Algorithm getAlgorithm(String kid, String alg) {
+<span class="fc" id="L213">		final var now = Instant.now();</span>
+<span class="fc" id="L214">		final var cacheKey = new AlgorithmKey(kid, alg);</span>
+
+<span class="fc" id="L216">		var cachedAlgorithm = algorithmCache.get(cacheKey);</span>
+<span class="fc bfc" id="L217" title="All 4 branches covered.">		if (cachedAlgorithm == null || cachedAlgorithm.lastUpdated.isBefore(now.minus(refreshInterval.get()))) {</span>
+<span class="fc" id="L218">			JsonObject jwk = null;</span>
+			Algorithm jwtAlgorithm;
+			try {
+<span class="fc" id="L221">				jwk = readJwk(kid);</span>
+<span class="fc bfc" id="L222" title="All 7 branches covered.">				switch (alg) {</span>
+				case &quot;ES256&quot;:
+<span class="fc" id="L224">					jwtAlgorithm = Algorithm.ECDSA256(toECPublicKey(jwk));</span>
+<span class="fc" id="L225">					break;</span>
+				case &quot;ES384&quot;:
+<span class="fc" id="L227">					jwtAlgorithm = Algorithm.ECDSA384(toECPublicKey(jwk));</span>
+<span class="fc" id="L228">					break;</span>
+				case &quot;ES512&quot;:
+<span class="fc" id="L230">					jwtAlgorithm = Algorithm.ECDSA512(toECPublicKey(jwk));</span>
+<span class="fc" id="L231">					break;</span>
+				case &quot;RS256&quot;:
+<span class="fc" id="L233">					jwtAlgorithm = Algorithm.RSA256(toRSAPublicKey(jwk), null);</span>
+<span class="fc" id="L234">					break;</span>
+				case &quot;RS384&quot;:
+<span class="fc" id="L236">					jwtAlgorithm = Algorithm.RSA384(toRSAPublicKey(jwk), null);</span>
+<span class="fc" id="L237">					break;</span>
+				case &quot;RS512&quot;:
+<span class="fc" id="L239">					jwtAlgorithm = Algorithm.RSA512(toRSAPublicKey(jwk), null);</span>
+<span class="fc" id="L240">					break;</span>
+				default:
+<span class="fc" id="L242">					throw new UnsupportedOperationException(&quot;Unsupported JWT algorithm &quot; + alg);</span>
+				}
+
+<span class="fc" id="L245">				cachedAlgorithm = new CachedAlgorithm(jwtAlgorithm, now);</span>
+<span class="fc" id="L246">				synchronized (algorithmCache) {</span>
+<span class="fc" id="L247">					algorithmCache.put(cacheKey, cachedAlgorithm);</span>
+<span class="fc" id="L248">				}</span>
+
+<span class="fc" id="L250">			} catch (Throwable e) {</span>
+<span class="fc" id="L251">				final var message = &quot;JWT Algorithm initialization failure; keysetUri=&quot; + keysetUri + &quot; &quot; + cacheKey</span>
+						+ &quot; jwk=&quot; + jwk;
+<span class="fc bfc" id="L253" title="All 2 branches covered.">				if (cachedAlgorithm == null)</span>
+<span class="fc" id="L254">					throw new IllegalStateException(message, e);</span>
+				else
+<span class="fc" id="L256">					LOG.log(Level.INFO, message, e);</span>
+<span class="fc" id="L257">			}</span>
+		}
+<span class="fc" id="L259">		return cachedAlgorithm.algorithm;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
