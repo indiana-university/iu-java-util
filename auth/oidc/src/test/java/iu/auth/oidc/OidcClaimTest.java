@@ -31,26 +31,32 @@
  */
 package iu.auth.oidc;
 
-import java.net.URI;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
-import edu.iu.auth.oidc.IuOpenIdClient;
-import edu.iu.auth.oidc.IuOpenIdProvider;
-import edu.iu.auth.spi.IuOpenIdConnectSpi;
+import org.junit.jupiter.api.Test;
 
-/**
- * OpenID connect SPI implementation.
- */
-public class OpenIdConnectSpi implements IuOpenIdConnectSpi {
+@SuppressWarnings("javadoc")
+public class OidcClaimTest {
 
-	/**
-	 * Default constructor.
-	 */
-	public OpenIdConnectSpi() {
+	@Test
+	public void testMethods() {
+		final var claim1 = new OidcClaim<>("foo", "bar", "baz");
+		assertEquals("foo", claim1.getName());
+		assertEquals("bar", claim1.getClaimName());
+		assertEquals("baz", claim1.getClaim());
+		assertEquals("OIDC Claim of foo: bar = baz", claim1.toString());
 	}
 
-	@Override
-	public IuOpenIdProvider getOpenIdProvider(URI configUri, IuOpenIdClient client) {
-		return new OpenIdProvider(configUri, client);
+	@Test
+	public void testEquals() {
+		final var claim1 = new OidcClaim<>("foo", "bar", "baz");
+		final var claim2 = new OidcClaim<>("foo", "bar", "baz");
+		assertEquals(claim1.hashCode(), claim2.hashCode());
+		assertEquals(claim1, claim2);
+		final var claim3 = new OidcClaim<>("foo", "baz", "bar");
+		assertNotEquals(claim1.hashCode(), claim3.hashCode());
+		assertNotEquals(claim1, claim3);
+		assertNotEquals(claim3, claim1);
 	}
-
 }

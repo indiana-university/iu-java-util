@@ -31,33 +31,18 @@
  */
 package iu.auth.oidc;
 
-import edu.iu.IuObject;
 import edu.iu.auth.oidc.IuOpenIdClaim;
 
 /**
  * {@link IuOpenIdClaim} implementation.
  * 
- * @param <T> value type
+ * @param name      principal name
+ * @param claimName claim name
+ * @param claim     claim value
+ * 
+ * @param <T>       value type
  */
-class OidcClaim<T> implements IuOpenIdClaim<T> {
-	private static final long serialVersionUID = 1L;
-
-	private final String name;
-	private final String claimName;
-	private final T claim;
-
-	/**
-	 * Constructor.
-	 * 
-	 * @param name      principal name
-	 * @param claimName claim name
-	 * @param claim     claim
-	 */
-	OidcClaim(String name, String claimName, T claim) {
-		this.name = name;
-		this.claimName = claimName;
-		this.claim = claim;
-	}
+record OidcClaim<T>(String name, String claimName, T claim) implements IuOpenIdClaim<T> {
 
 	@Override
 	public String getName() {
@@ -72,21 +57,6 @@ class OidcClaim<T> implements IuOpenIdClaim<T> {
 	@Override
 	public T getClaim() {
 		return claim;
-	}
-
-	@Override
-	public int hashCode() {
-		return IuObject.hashCode(name, claimName, claim);
-	}
-
-	@Override
-	public boolean equals(Object obj) {
-		if (!IuObject.typeCheck(this, obj))
-			return false;
-		OidcClaim<?> other = (OidcClaim<?>) obj;
-		return IuObject.equals(claim, other.claim) //
-				&& IuObject.equals(claimName, other.claimName) //
-				&& IuObject.equals(name, other.name);
 	}
 
 	@Override

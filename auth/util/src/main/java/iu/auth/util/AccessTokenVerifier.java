@@ -194,11 +194,6 @@ public class AccessTokenVerifier {
 		return verifier.verify(token);
 	}
 
-//	JWTVerifier verifier = JWT.require(Algorithm.RSA256(keyProvider)).withIssuer(loginUrl.toString()) //
-//	.withAudience(clientId) //
-//	.withClaimPresence("iat") //
-//	.withClaimPresence("exp") //
-//	.build();
 	private JsonObject readJwk(String keyId) {
 		final var jwks = HttpUtils.read(keysetUri).asJsonObject();
 		try {

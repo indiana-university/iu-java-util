@@ -40,7 +40,6 @@ import edu.iu.IuBadRequestException;
 import edu.iu.IuOutOfServiceException;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.oauth.IuTokenResponse;
 
 /**
  * Provides client application metadata for configuring the OpenID client module
@@ -151,6 +150,15 @@ public interface IuOpenIdClient {
 	 */
 	void activate(IuApiCredentials credentials) throws IuAuthenticationException, IuBadRequestException,
 			IuAuthorizationFailedException, IuOutOfServiceException, IllegalStateException;
+
+	/**
+	 * Gets the expected algorithm for token response signature.
+	 * 
+	 * @return JWT signature algorithm to expect in the {@code alg} claim
+	 */
+	default String getIdTokenSignedResponseAlg() {
+		return "RS256";
+	}
 
 	/**
 	 * Gets the requested authorization scope.

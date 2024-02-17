@@ -90,7 +90,7 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 		private static final long serialVersionUID = 1L;
 
 		private final String name;
-		private String activationCode;
+		private String activationCode = IdGenerator.generateId();
 
 		private Id(String name) {
 			this.name = name;
@@ -168,6 +168,11 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 	@Override
 	public Map<String, String> getAuthorizationCodeAttributes() {
 		final Map<String, String> attributes = new LinkedHashMap<>();
+
+		final var clientAttributes = client.getAuthorizationCodeAttributes();
+		if (clientAttributes != null)
+			attributes.putAll(clientAttributes);
+
 		final var nonce = IdGenerator.generateId();
 		synchronized (nonces) {
 			nonces.add(nonce);
@@ -217,19 +222,20 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 		if (!IuIterable.filter(tokenResponse.getScope(), IS_OIDC).iterator().hasNext())
 			throw new IuAuthorizationFailedException("missing openid scope");
 
-		final var accessToken = tokenResponse.getAccessToken();
+		final var accessToken = Objects.requireNonNull(tokenResponse.getAccessToken(), "access_token");
 
 		// TODO: STARCH-595 resolve String cast
 		final var clientId = client.getCredentials().getName();
 		final var idToken = tokenResponse.getTokenAttributes().get("id_token");
 		final DecodedJWT verifiedIdToken;
 		if (idToken != null) {
+			final var alg = client.getIdTokenSignedResponseAlg();
 			verifiedIdToken = idTokenVerifier.verify(clientId, (String) idToken);
-			if (!"RS256".equals(verifiedIdToken.getAlgorithm()))
-				throw new IllegalArgumentException("RS256 required");
+			if (!alg.equals(verifiedIdToken.getAlgorithm()))
+				throw new IllegalArgumentException(alg + " required");
 
-			final var encodedhash = IuCrypt.sha256(IuText.utf8(accessToken));
-			final var halfOfEncodedHash = Arrays.copyOf(encodedhash, (encodedhash.length / 2));
+			final var encodedHash = IuCrypt.sha256(IuText.utf8(accessToken));
+			final var halfOfEncodedHash = Arrays.copyOf(encodedHash, (encodedHash.length / 2));
 			final var atHashGeneratedfromAccessToken = Base64.getUrlEncoder().withoutPadding()
 					.encodeToString(halfOfEncodedHash);
 
@@ -260,9 +266,17 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 		if (idToken == null)
 			throw new IllegalStateException("Token response missing id_token");
 
+		final var now = Instant.now();
 		final var authTime = verifiedIdToken.getClaim("auth_time").asInstant();
-		if (authTime.plus(client.getAuthenticatedSessionTimeout()).isBefore(Instant.now()))
-			throw new IllegalStateException("expired auth session");
+		final var authExpires = authTime.plus(client.getAuthenticatedSessionTimeout());
+		if (now.isAfter(authExpires)) {
+			final Map<String, String> challengeAttributes = new LinkedHashMap<>();
+			challengeAttributes.put("realm", realm);
+			challengeAttributes.put("scope", String.join(" ", getScope()));
+			challengeAttributes.put("error", "invalid_token");
+			challengeAttributes.put("error_description", "auth session timeout, must reauthenticate");
+			throw new IuAuthenticationException(HttpUtils.createChallenge("Bearer", challengeAttributes));
+		}
 
 		final Set<String> seen = new HashSet<>();
 		final var subject = new Subject();
@@ -292,8 +306,6 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 					return claimJsonValue.toString();
 			});
 
-		id.activationCode = IdGenerator.generateId();
-
 		return subject;
 	}
 
@@ -313,16 +325,19 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 
 		final var subject = Objects.requireNonNull(bearer.getSubject(), "subject");
 		final var id = subject.getPrincipals(Id.class).iterator().next();
-		if (id.activationCode != null)
-			try {
-				IdGenerator.verifyId(id.activationCode, client.getActivationInterval().toMillis());
-				return;
-			} catch (Throwable e) {
-				LOG.log(Level.FINER, e, () -> "discarding invalid activation code");
-				id.activationCode = null;
-			}
+		try {
+			IdGenerator.verifyId(id.activationCode, client.getActivationInterval().toMillis());
+			return;
+		} catch (Throwable e) {
+			LOG.log(Level.FINER, e, () -> "discarding invalid activation code");
+			id.activationCode = null;
+		}
 
 		try {
+			final Map<String, Object> claims = new LinkedHashMap<>();
+			for (final var claim : subject.getPrincipals(IuOpenIdClaim.class))
+				claims.put(claim.getClaimName(), claim.getClaim());
+
 			final var accessToken = Objects.requireNonNull(bearer.getAccessToken(), "accessToken");
 			final var userinfo = HttpUtils.read(HttpRequest.newBuilder(userinfoEndpoint) //
 					.header("Authorization", "Bearer " + accessToken).build()).asJsonObject();
@@ -335,15 +350,20 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 				return;
 			}
 
-			final Map<String, Object> claims = new LinkedHashMap<>();
-			for (final var claim : subject.getPrincipals(IuOpenIdClaim.class))
-				claims.put(claim.getClaimName(), claim.getClaim());
-
 			if (!clientId.equals(claims.get("aud")))
 				throw new IllegalArgumentException("Invalid aud");
-			if (((Instant) claims.get("auth_time")).plus(client.getAuthenticatedSessionTimeout())
-					.isBefore(Instant.now()))
-				throw new IllegalStateException("expired auth session");
+
+			final var now = Instant.now();
+			final var authTime = (Instant) claims.get("auth_time");
+			final var authExpires = authTime.plus(client.getAuthenticatedSessionTimeout());
+			if (now.isAfter(authExpires)) {
+				final Map<String, String> challengeAttributes = new LinkedHashMap<>();
+				challengeAttributes.put("realm", realm);
+				challengeAttributes.put("scope", String.join(" ", getScope()));
+				challengeAttributes.put("error", "invalid_token");
+				challengeAttributes.put("error_description", "auth session timeout, must reauthenticate");
+				throw new IuAuthenticationException(HttpUtils.createChallenge("Bearer", challengeAttributes));
+			}
 
 			for (final var userinfoClaimEntry : userinfo.entrySet()) {
 				final var claimJsonValue = userinfoClaimEntry.getValue();
@@ -359,7 +379,8 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 		} catch (Throwable e) {
 			Map<String, String> challengeAttributes = new LinkedHashMap<>();
 			challengeAttributes.put("realm", realm);
-			challengeAttributes.put("error", "invalid_grant");
+			challengeAttributes.put("scope", String.join(" ", getScope()));
+			challengeAttributes.put("error", "invalid_token");
 			challengeAttributes.put("error_description", "session activation failed, must reauthenticate");
 			throw new IuAuthenticationException(HttpUtils.createChallenge("Bearer", challengeAttributes), e);
 		}
