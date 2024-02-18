@@ -31,18 +31,33 @@
  */
 package iu.auth.oidc;
 
+import edu.iu.IuObject;
 import edu.iu.auth.oidc.IuOpenIdClaim;
 
 /**
  * {@link IuOpenIdClaim} implementation.
  * 
- * @param name      principal name
- * @param claimName claim name
- * @param claim     claim value
- * 
- * @param <T>       value type
+ * @param <T> value type
  */
-record OidcClaim<T>(String name, String claimName, T claim) implements IuOpenIdClaim<T> {
+class OidcClaim<T> implements IuOpenIdClaim<T> {
+	private static final long serialVersionUID = 1L;
+
+	private final String name;
+	private final String claimName;
+	private final T claim;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param name      principal name
+	 * @param claimName claim name
+	 * @param claim     claim value
+	 */
+	OidcClaim(String name, String claimName, T claim) {
+		this.name = name;
+		this.claimName = claimName;
+		this.claim = claim;
+	}
 
 	@Override
 	public String getName() {
@@ -62,6 +77,20 @@ record OidcClaim<T>(String name, String claimName, T claim) implements IuOpenIdC
 	@Override
 	public String toString() {
 		return "OIDC Claim of " + name + ": " + claimName + " = " + claim;
+	}
+
+	@Override
+	public int hashCode() {
+		return IuObject.hashCode(claim, claimName, name);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (!IuObject.typeCheck(this, obj))
+			return false;
+		final var other = (OidcClaim<?>) obj;
+		return IuObject.equals(claim, other.claim) && IuObject.equals(claimName, other.claimName)
+				&& IuObject.equals(name, other.name);
 	}
 
 }

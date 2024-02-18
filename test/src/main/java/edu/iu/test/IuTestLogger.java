@@ -191,7 +191,7 @@ public final class IuTestLogger {
 				while (!unexpectedMessages.isEmpty())
 					suppressed.add(unexpectedMessages.poll());
 			}
-			if (!sb.isEmpty()) {
+			if (sb.length() > 0) {
 				final var e = new AssertionFailedError(sb.toString());
 				suppressed.forEach(e::addSuppressed);
 				throw e;

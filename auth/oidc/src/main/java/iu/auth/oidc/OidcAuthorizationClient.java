@@ -300,8 +300,8 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 		for (final var userinfoClaimEntry : userinfo.entrySet())
 			claimConsumer.accept(userinfoClaimEntry.getKey(), () -> {
 				final var claimJsonValue = userinfoClaimEntry.getValue();
-				if (claimJsonValue instanceof JsonString js)
-					return js.getString();
+				if (claimJsonValue instanceof JsonString)
+					return ((JsonString) claimJsonValue).getString();
 				else
 					return claimJsonValue.toString();
 			});
@@ -320,9 +320,10 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 	@Override
 	public void activate(IuApiCredentials credentials) throws IuAuthenticationException, IuBadRequestException,
 			IuAuthorizationFailedException, IuOutOfServiceException, IllegalStateException {
-		if (!(credentials instanceof IuBearerAuthCredentials bearer))
+		if (!(credentials instanceof IuBearerAuthCredentials))
 			throw new IllegalArgumentException("Invalid credentials type");
 
+		final var bearer = (IuBearerAuthCredentials) credentials;
 		final var subject = Objects.requireNonNull(bearer.getSubject(), "subject");
 		final var id = subject.getPrincipals(Id.class).iterator().next();
 		try {
@@ -368,8 +369,8 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 			for (final var userinfoClaimEntry : userinfo.entrySet()) {
 				final var claimJsonValue = userinfoClaimEntry.getValue();
 				final String claim;
-				if (claimJsonValue instanceof JsonString js)
-					claim = js.getString();
+				if (claimJsonValue instanceof JsonString)
+					claim = ((JsonString) claimJsonValue).getString();
 				else
 					claim = claimJsonValue.toString();
 

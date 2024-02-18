@@ -40,7 +40,12 @@
 					</archive>
 				</configuration>
 			</plugin>
-
+			<plugin>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<release>11</release>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 

@@ -58,7 +58,16 @@ final class AuthorizationCodeGrant extends AbstractGrant {
 
 	private final Logger LOG = Logger.getLogger(AuthorizationCodeGrant.class.getName());
 
-	private record AuthorizationState(String state, URI resourceUri, Map<String, String> requestAttributes) {
+	private static class AuthorizationState {
+		private final String state;
+		private final URI resourceUri;
+		private final Map<String, String> requestAttributes;
+
+		private AuthorizationState(String state, URI resourceUri, Map<String, String> requestAttributes) {
+			this.state = state;
+			this.resourceUri = resourceUri;
+			this.requestAttributes = requestAttributes;
+		}
 	}
 
 	private final URI resourceUri;

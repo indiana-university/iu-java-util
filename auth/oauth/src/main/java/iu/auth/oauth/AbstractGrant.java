@@ -49,12 +49,19 @@ import edu.iu.auth.oauth.IuTokenResponse;
 /**
  * Represents an OAuth client credentials grant..
  */
-sealed abstract class AbstractGrant implements IuAuthorizationGrant, Serializable
-		permits ClientCredentialsGrant, AuthorizationCodeGrant {
+abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 
 	private static final long serialVersionUID = 1L;
 
-	private record AuthorizedCredentials<A extends IuApiCredentials & Serializable>(A credentials, Instant expires) {
+	private final class AuthorizedCredentials<A extends IuApiCredentials & Serializable> {
+		private final A credentials;
+		private final Instant expires;
+
+		private AuthorizedCredentials(A credentials, Instant expires) {
+			this.credentials = credentials;
+			this.expires = expires;
+		}
+
 		private boolean isExpired() {
 			return expires != null && expires.isBefore(Instant.now());
 		}
@@ -84,7 +91,7 @@ sealed abstract class AbstractGrant implements IuAuthorizationGrant, Serializabl
 			sb.append(scopeToken);
 		});
 
-		if (sb.isEmpty())
+		if (sb.length() == 0)
 			return null;
 		else
 			return sb.toString();

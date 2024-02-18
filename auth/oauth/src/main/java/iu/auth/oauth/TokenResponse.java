@@ -82,11 +82,13 @@ class TokenResponse implements IuTokenResponse, Serializable {
 			accessToken = tokenResponse.getString("access_token");
 
 		final var expiresIn = tokenResponse.get("expires_in");
-		if (expiresIn instanceof JsonString a)
+		if (expiresIn instanceof JsonString) {
+			final var a = (JsonString) expiresIn;
 			expires = Instant.now().plusSeconds(Long.parseLong(a.getString()));
-		else if (expiresIn instanceof JsonNumber a)
+		} else if (expiresIn instanceof JsonNumber) {
+			final var a = (JsonNumber) expiresIn;
 			expires = Instant.now().plusSeconds(a.intValue());
-		else
+		} else
 			expires = null;
 
 		if (!tokenResponse.containsKey("refresh_token"))
@@ -111,9 +113,10 @@ class TokenResponse implements IuTokenResponse, Serializable {
 					&& !key.equals("refresh_token") //
 					&& !key.equals("scope")) {
 				final var value = tokenEntry.getValue();
-				if (value instanceof JsonString s)
+				if (value instanceof JsonString) {
+					final var s = (JsonString) value;
 					tokenAttributes.put(key, s.getString());
-				else
+				} else
 					tokenAttributes.put(key, value.toString());
 			}
 		}

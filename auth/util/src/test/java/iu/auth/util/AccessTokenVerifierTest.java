@@ -33,7 +33,9 @@ package iu.auth.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.mockStatic;
@@ -69,6 +71,23 @@ import jakarta.json.JsonObject;
 
 @SuppressWarnings("javadoc")
 public class AccessTokenVerifierTest {
+
+	@Test
+	public void testAlgorithmKey() {
+		final var k1 = new AccessTokenVerifier.AlgorithmKey("foo", "bar");
+		assertTrue(k1.hashCode() != 0);
+		assertNotEquals(k1, new Object());
+		assertEquals(k1, k1);
+		final var k2 = new AccessTokenVerifier.AlgorithmKey("bar", "foo");
+		assertNotEquals(k1, k2);
+		assertNotEquals(k2, k1);
+		final var k3 = new AccessTokenVerifier.AlgorithmKey("bar", "bar");
+		assertNotEquals(k3, k2);
+		assertNotEquals(k2, k3);
+		final var k4 = new AccessTokenVerifier.AlgorithmKey("foo", "foo");
+		assertNotEquals(k4, k2);
+		assertNotEquals(k2, k4);
+	}
 
 	@Test
 	public void testAccessTokens() throws Exception {

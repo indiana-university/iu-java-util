@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
+import java.util.Base64;
 
 import org.junit.jupiter.api.Test;
 
@@ -45,11 +45,11 @@ public class IuCryptTest {
 	@Test
 	public void testSha256() throws NoSuchAlgorithmException {
 		final var data = IuText.utf8(IdGenerator.generateId());
-		assertEquals(HexFormat.of().formatHex(IuCrypt.sha256(data)),
-				HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(data)));
-		assertEquals(HexFormat.of().formatHex(IuCrypt.sha256(null)),
-				HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(new byte[0])));
-		assertEquals(HexFormat.of().formatHex(IuCrypt.sha256(new byte[0])),
-				HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(new byte[0])));
+		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha256(data)),
+				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(data)));
+		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha256(null)),
+				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(new byte[0])));
+		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha256(new byte[0])),
+				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(new byte[0])));
 	}
 }

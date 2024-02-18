@@ -58,6 +58,7 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.interfaces.DecodedJWT;
 
+import edu.iu.IuObject;
 import jakarta.json.JsonObject;
 
 /**
@@ -68,10 +69,48 @@ public class AccessTokenVerifier {
 
 	private static final Logger LOG = Logger.getLogger(AccessTokenVerifier.class.getName());
 
-	private record AlgorithmKey(String kid, String alg) {
+	/**
+	 * Cache key binding for binding initialized JWT verification resources by kid
+	 * and alg claim values.
+	 */
+	static class AlgorithmKey {
+		private final String kid;
+		private final String alg;
+
+		/**
+		 * Constructor.
+		 * 
+		 * @param kid kid claim value
+		 * @param alg alg claim value
+		 */
+		AlgorithmKey(String kid, String alg) {
+			this.kid = kid;
+			this.alg = alg;
+		}
+
+		@Override
+		public int hashCode() {
+			return IuObject.hashCode(alg, kid);
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+			if (!IuObject.typeCheck(this, obj))
+				return false;
+			AlgorithmKey other = (AlgorithmKey) obj;
+			return IuObject.equals(alg, other.alg) //
+					&& IuObject.equals(kid, other.kid);
+		}
 	}
 
-	private record CachedAlgorithm(Algorithm algorithm, Instant lastUpdated) {
+	private static class CachedAlgorithm {
+		private final Algorithm algorithm;
+		private final Instant lastUpdated;
+
+		private CachedAlgorithm(Algorithm algorithm, Instant lastUpdated) {
+			this.algorithm = algorithm;
+			this.lastUpdated = lastUpdated;
+		}
 	}
 
 	/**
