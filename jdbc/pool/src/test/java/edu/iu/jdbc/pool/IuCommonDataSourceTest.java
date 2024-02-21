@@ -167,7 +167,7 @@ public class IuCommonDataSourceTest {
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-close:PT.*");
 		}
 	}
- 
+
 	@Test
 	public void testConnectionInitializer() throws SQLException {
 		try (final var ds = mockCommonDataSource()) {
@@ -222,7 +222,8 @@ public class IuCommonDataSourceTest {
 			@Override
 			public Void get() throws Throwable {
 				synchronized (this) {
-					this.wait();
+					while (connection == null)
+						this.wait(100L);
 				}
 				IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close; .*");
 				connection.close();
@@ -305,7 +306,7 @@ public class IuCommonDataSourceTest {
 		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-close:PT.*");
 		ds.close();
 		IuTestLogger.assertExpectedMessages();
-		
+
 		assertTrue(closeTask.done);
 		closeTaskController.get();
 
@@ -467,7 +468,7 @@ public class IuCommonDataSourceTest {
 					SQLException.class, a -> a == e);
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.WARNING, "jdbc-pool-close:PT.*",
 					SQLException.class, a -> a == e);
-			
+
 			assertSame(e, assertThrows(SQLException.class, c::createStatement));
 		}
 	}
@@ -776,7 +777,7 @@ public class IuCommonDataSourceTest {
 		private MockCommonDataSource(MockPooledConnectionFactory factory) {
 			super(factory);
 			this.factory = factory;
-			setShutdownTimeout(Duration.ofSeconds(5L));
+			setShutdownTimeout(Duration.ofSeconds(1L));
 		}
 	}
 
