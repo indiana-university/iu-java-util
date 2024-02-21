@@ -76,9 +76,11 @@ public final class IuTest {
 <span class="fc" id="L76">							return MethodHandles.privateLookupIn(type, MethodHandles.lookup())</span>
 <span class="fc" id="L77">									.unreflectSpecial(method, type).bindTo(proxy).invokeWithArguments(args);</span>
 <span class="fc" id="L78">						} catch (UnsupportedOperationException e) {</span>
-						}
+<span class="fc" id="L79">						}</span>
+					else
+<span class="fc" id="L81">						method.setAccessible(true);</span>
 
-<span class="fc" id="L81">					return method.invoke(mock, args);</span>
+<span class="fc" id="L83">					return method.invoke(mock, args);</span>
 				})));
 	}
 
@@ -94,17 +96,17 @@ public final class IuTest {
 	 * @return properties
 	 */
 	public static Properties properties() {
-<span class="fc bfc" id="L97" title="All 2 branches covered.">		if (properties == null)</span>
-<span class="fc" id="L98">			IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L99">				var properties = new Properties();</span>
-<span class="fc" id="L100">				Enumeration&lt;URL&gt; sources = getResources(&quot;META-INF/iu-test.properties&quot;);</span>
-<span class="fc bfc" id="L101" title="All 2 branches covered.">				for (var source : (Iterable&lt;URL&gt;) sources::asIterator)</span>
-<span class="fc" id="L102">					try (var in = source.openStream()) {</span>
-<span class="fc" id="L103">						properties.load(in);</span>
-<span class="fc" id="L104">					}</span>
-<span class="fc" id="L105">				IuTest.properties = properties;</span>
-<span class="fc" id="L106">			});</span>
-<span class="fc" id="L107">		return properties;</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">		if (properties == null)</span>
+<span class="fc" id="L100">			IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L101">				var properties = new Properties();</span>
+<span class="fc" id="L102">				Enumeration&lt;URL&gt; sources = getResources(&quot;META-INF/iu-test.properties&quot;);</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">				for (var source : (Iterable&lt;URL&gt;) sources::asIterator)</span>
+<span class="fc" id="L104">					try (var in = source.openStream()) {</span>
+<span class="fc" id="L105">						properties.load(in);</span>
+<span class="fc" id="L106">					}</span>
+<span class="fc" id="L107">				IuTest.properties = properties;</span>
+<span class="fc" id="L108">			});</span>
+<span class="fc" id="L109">		return properties;</span>
 	}
 
 	/**
@@ -114,7 +116,7 @@ public final class IuTest {
 	 * @return property value
 	 */
 	public static String getProperty(String key) {
-<span class="fc" id="L117">		return properties().getProperty(key);</span>
+<span class="fc" id="L119">		return properties().getProperty(key);</span>
 
 	}
 

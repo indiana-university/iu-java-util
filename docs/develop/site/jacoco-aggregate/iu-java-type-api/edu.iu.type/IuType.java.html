@@ -484,5 +484,67 @@ public interface IuType&lt;D, T&gt; extends IuNamedElement&lt;D&gt;, IuParameter
 <span class="fc" id="L484">		return IuIterable.filter(properties(), f -&gt; f.hasAnnotation(annotationType));</span>
 	}
 
+	/**
+	 * Observes a new instance.
+	 * 
+	 * &lt;p&gt;
+	 * Observing an instance registers it with the implementation module as an
+	 * available target for type introspection, for example, for resource binding.
+	 * Implementors of {@link InstanceReference} may use
+	 * {@link #subscribe(InstanceReference)} to be notified when new instances are
+	 * observed.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * Once all {@link InstanceReference}s have been notified, all methods annotated
+	 * by {@literal @}PostConstruct will be invoked on the instance.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * Observing an instance that is already observed has no effect, nor does
+	 * observing an instance of a type that has no subscribers. All instances
+	 * provided via {@link IuConstructor#exec(Object...)} are observed
+	 * automatically. This method is a no-op for those instances, however it is up
+	 * to implementors to ensure {@literal @}PostConstruct methods do not result in
+	 * errors or repeat initialization steps when invoked repeatedly.
+	 * &lt;/p&gt;
+	 * 
+	 * @param instance to observe
+	 */
+	void observe(T instance);
+
+	/**
+	 * Destroys an instance.
+	 * 
+	 * &lt;p&gt;
+	 * Invokes all {@literal @}PreDestroy methods on an instance. If the instance
+	 * was {@link #observe(Object) observed}, its state will be reverted and no
+	 * futures actions will be taken on it.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * This method may be invoked to close the lifecycle of instances created via
+	 * {@link IuConstructor#exec(Object...)}.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * Destroying an instance that is already destroyed &lt;em&gt;should&lt;/em&gt; have no
+	 * effect, but it is up to implementors to ensure {@literal @}PreDestroy methods
+	 * do not result in errors or other side-effects when invoked repeatedly.
+	 * &lt;/p&gt;
+	 * 
+	 * @param instance to destroy
+	 */
+	void destroy(T instance);
+
+	/**
+	 * Subscribes a new instance reference.
+	 * 
+	 * @param instanceReference will accept all {@link #observe(Object) observed}
+	 *                          instances until unsubscribed.
+	 * @return thunk for unsubscribing the reference
+	 */
+	Runnable subscribe(InstanceReference&lt;T&gt; instanceReference);
+
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

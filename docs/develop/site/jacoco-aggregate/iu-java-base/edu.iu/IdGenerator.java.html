@@ -79,9 +79,9 @@ public class IdGenerator {
 <span class="fc" id="L79">		}</span>
 	}
 
-<span class="fc" id="L82">	private static final ThreadLocal&lt;Random&gt; RAND = new ThreadLocal&lt;Random&gt;() {</span>
+<span class="fc" id="L82">	private static final ThreadLocal&lt;SecureRandom&gt; RAND = new ThreadLocal&lt;SecureRandom&gt;() {</span>
 		@Override
-		protected Random initialValue() {
+		protected SecureRandom initialValue() {
 			try {
 <span class="fc" id="L86">				SecureRandom rand = SecureRandom.getInstance(&quot;SHA1PRNG&quot;);</span>
 <span class="fc" id="L87">				synchronized (SEED) {</span>

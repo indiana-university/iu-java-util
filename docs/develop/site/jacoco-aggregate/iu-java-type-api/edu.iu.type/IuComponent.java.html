@@ -33,14 +33,20 @@ package edu.iu.type;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ModuleLayer.Controller;
 import java.lang.annotation.Annotation;
 import java.lang.module.ModuleDescriptor;
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
+import java.net.URI;
+import java.nio.file.Path;
+import java.util.function.BiConsumer;
+import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
+import edu.iu.IuException;
 import edu.iu.type.spi.TypeImplementation;
 
 /**
@@ -89,13 +95,6 @@ import edu.iu.type.spi.TypeImplementation;
  * module-info.class} in its &lt;strong&gt;archive&lt;/strong&gt; &lt;em&gt;must&lt;/em&gt; meet all
  * requirements of the &lt;a href=&quot;https://openjdk.org/projects/jigsaw/&quot;&gt;Java
  * Module System&lt;/a&gt;.
- * &lt;/p&gt;
- * 
- * &lt;p&gt;
- * A &lt;strong&gt;component archive&lt;/strong&gt; that does not include
- * {@link ModuleDescriptor module-info.class} &lt;em&gt;may&lt;/em&gt; still be treated as a
- * &lt;strong&gt;modular component&lt;/strong&gt; as long as it doesn't have any
- * &lt;strong&gt;legacy dependencies&lt;/strong&gt;.
  * &lt;/p&gt;
  * 
  * &lt;h2&gt;Legacy Components&lt;/h2&gt;
@@ -406,38 +405,50 @@ public interface IuComponent extends AutoCloseable {
 	 * Enumerates the different kinds of components that may be loaded using this
 	 * interface.
 	 */
-<span class="fc" id="L409">	enum Kind {</span>
+<span class="fc" id="L408">	enum Kind {</span>
+		/**
+		 * Designates &lt;strong&gt;single entry&lt;/strong&gt; component defined by a single
+		 * resource path in an externally managed {@link ClassLoader}.
+		 */
+<span class="fc" id="L413">		MODULAR_ENTRY(true, false),</span>
+
+		/**
+		 * Designates &lt;strong&gt;single entry&lt;/strong&gt; component defined by a single
+		 * resource path in an externally managed {@link ClassLoader}.
+		 */
+<span class="fc" id="L419">		LEGACY_ENTRY(false, false),</span>
+
 		/**
 		 * Designates &lt;strong&gt;modular&lt;/strong&gt; component defined by one or more Java
 		 * Archive (jar) files.
 		 */
-<span class="fc" id="L414">		MODULAR_JAR(true, false),</span>
+<span class="fc" id="L425">		MODULAR_JAR(true, false),</span>
 
 		/**
 		 * Designates an &lt;strong&gt;legacy&lt;/strong&gt; component defined by a Java Archive
 		 * (jar) file.
 		 */
-<span class="fc" id="L420">		LEGACY_JAR(false, false),</span>
+<span class="fc" id="L431">		LEGACY_JAR(false, false),</span>
 
 		/**
 		 * Designates &lt;strong&gt;modular&lt;/strong&gt; component defined by a Web Application
 		 * Archive (war) file.
 		 */
-<span class="fc" id="L426">		MODULAR_WAR(true, true),</span>
+<span class="fc" id="L437">		MODULAR_WAR(true, true),</span>
 
 		/**
 		 * Designates an &lt;strong&gt;legacy&lt;/strong&gt; component defined by a Web Application
 		 * Archive (war) file.
 		 */
-<span class="fc" id="L432">		LEGACY_WAR(false, true);</span>
+<span class="fc" id="L443">		LEGACY_WAR(false, true);</span>
 
 		private final boolean modular;
 		private final boolean web;
 
-<span class="fc" id="L437">		private Kind(boolean modular, boolean web) {</span>
-<span class="fc" id="L438">			this.modular = modular;</span>
-<span class="fc" id="L439">			this.web = web;</span>
-<span class="fc" id="L440">		}</span>
+<span class="fc" id="L448">		private Kind(boolean modular, boolean web) {</span>
+<span class="fc" id="L449">			this.modular = modular;</span>
+<span class="fc" id="L450">			this.web = web;</span>
+<span class="fc" id="L451">		}</span>
 
 		/**
 		 * Determines if the &lt;strong&gt;component&lt;/strong&gt; is &lt;strong&gt;modular&lt;/strong&gt;.
@@ -445,7 +456,7 @@ public interface IuComponent extends AutoCloseable {
 		 * @return {@code true} if &lt;strong&gt;modular&lt;/strong&gt;; else {@code false}
 		 */
 		public boolean isModular() {
-<span class="fc" id="L448">			return modular;</span>
+<span class="fc" id="L459">			return modular;</span>
 		}
 
 		/**
@@ -455,13 +466,13 @@ public interface IuComponent extends AutoCloseable {
 		 * @return {@code true} if &lt;strong&gt;web component&lt;/strong&gt;; else {@code false}
 		 */
 		public boolean isWeb() {
-<span class="fc" id="L458">			return web;</span>
+<span class="fc" id="L469">			return web;</span>
 		}
 	}
 
 	/**
 	 * Validates a &lt;strong&gt;component archive&lt;/strong&gt;, all &lt;strong&gt;dependency
-	 * archives&lt;/strong&gt;, and loads a &lt;strong&gt;component&lt;/strong&gt;.
+	 * archives&lt;/strong&gt;, and loads an &lt;strong&gt;isolated component&lt;/strong&gt;.
 	 * 
 	 * @param componentArchiveSource           {@link InputStream} for reading the
 	 *                                         &lt;strong&gt;component archive&lt;/strong&gt;.
@@ -478,7 +489,185 @@ public interface IuComponent extends AutoCloseable {
 	 */
 	static IuComponent of(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
 			throws IOException, IllegalArgumentException {
-<span class="fc" id="L481">		return TypeImplementation.PROVIDER.createComponent(componentArchiveSource, providedDependencyArchiveSources);</span>
+<span class="fc" id="L492">		return of(ModuleLayer.boot(), null, null, componentArchiveSource, providedDependencyArchiveSources);</span>
+	}
+
+	/**
+	 * Validates a &lt;strong&gt;component archive&lt;/strong&gt;, all &lt;strong&gt;dependency
+	 * archives&lt;/strong&gt;, and loads a &lt;strong&gt;component&lt;/strong&gt;.
+	 * 
+	 * @param parentLayer                      {@link ModuleLayer} to extend
+	 * @param parent                           {@link ClassLoader} for parent
+	 *                                         delegation; may be null to
+	 *                                         &lt;strong&gt;isolate&lt;/strong&gt; the
+	 *                                         &lt;strong&gt;component&lt;/strong&gt; by
+	 *                                         suppressing delegation to
+	 *                                         non-platform classes
+	 * @param componentArchiveSource           {@link InputStream} for reading the
+	 *                                         &lt;strong&gt;component archive&lt;/strong&gt;.
+	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
+	 *                                         &lt;strong&gt;provided dependency
+	 *                                         archives&lt;/strong&gt;.
+	 * @return component
+	 * @throws IOException              If the &lt;strong&gt;component archive&lt;/strong&gt; or
+	 *                                  any &lt;strong&gt;dependency archives&lt;/strong&gt; are
+	 *                                  unreadable.
+	 * @throws IllegalArgumentException If the &lt;strong&gt;component archive&lt;/strong&gt; or
+	 *                                  any &lt;strong&gt;dependency archives&lt;/strong&gt;
+	 *                                  invalid.
+	 */
+	static IuComponent of(ModuleLayer parentLayer, ClassLoader parent, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException {
+<span class="fc" id="L521">		return of(parentLayer, parent, null, componentArchiveSource, providedDependencyArchiveSources);</span>
+	}
+
+	/**
+	 * Validates a &lt;strong&gt;component archive&lt;/strong&gt;, all &lt;strong&gt;dependency
+	 * archives&lt;/strong&gt;, and loads an &lt;strong&gt;isolated component&lt;/strong&gt;.
+	 * 
+	 * @param controllerCallback               receives a reference to
+	 *                                         {@link Module} defined by the
+	 *                                         &lt;strong&gt;component archive&lt;/strong&gt;
+	 *                                         and the {@link Controller} for the
+	 *                                         module layer created in conjunction
+	 *                                         with this loader. API Note from
+	 *                                         {@link Controller}: &lt;em&gt;Care should
+	 *                                         be taken with Controller objects,
+	 *                                         they should never be shared with
+	 *                                         untrusted code.&lt;/em&gt;
+	 * @param componentArchiveSource           {@link InputStream} for reading the
+	 *                                         &lt;strong&gt;component archive&lt;/strong&gt;.
+	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
+	 *                                         &lt;strong&gt;provided dependency
+	 *                                         archives&lt;/strong&gt;.
+	 * @return component
+	 * @throws IOException              If the &lt;strong&gt;component archive&lt;/strong&gt; or
+	 *                                  any &lt;strong&gt;dependency archives&lt;/strong&gt; are
+	 *                                  unreadable.
+	 * @throws IllegalArgumentException If the &lt;strong&gt;component archive&lt;/strong&gt; or
+	 *                                  any &lt;strong&gt;dependency archives&lt;/strong&gt;
+	 *                                  invalid.
+	 */
+	static IuComponent of(BiConsumer&lt;Module, Controller&gt; controllerCallback, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException {
+<span class="fc" id="L553">		return of(ModuleLayer.boot(), null, controllerCallback, componentArchiveSource,</span>
+				providedDependencyArchiveSources);
+	}
+
+	/**
+	 * Validates a &lt;strong&gt;component archive&lt;/strong&gt;, all &lt;strong&gt;dependency
+	 * archives&lt;/strong&gt;, and loads a &lt;strong&gt;component&lt;/strong&gt;.
+	 * 
+	 * @param parentLayer                      {@link ModuleLayer} to extend
+	 * @param parent                           {@link ClassLoader} for parent
+	 *                                         delegation; may be null to
+	 *                                         &lt;strong&gt;isolate&lt;/strong&gt; the
+	 *                                         &lt;strong&gt;component&lt;/strong&gt; by
+	 *                                         suppressing delegation to
+	 *                                         non-platform classes
+	 * @param controllerCallback               receives a reference to
+	 *                                         {@link Module} defined by the
+	 *                                         &lt;strong&gt;component archive&lt;/strong&gt;
+	 *                                         and the {@link Controller} for the
+	 *                                         module layer created in conjunction
+	 *                                         with this loader. API Note from
+	 *                                         {@link Controller}: &lt;em&gt;Care should
+	 *                                         be taken with Controller objects,
+	 *                                         they should never be shared with
+	 *                                         untrusted code.&lt;/em&gt;
+	 * @param componentArchiveSource           {@link InputStream} for reading the
+	 *                                         &lt;strong&gt;component archive&lt;/strong&gt;.
+	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
+	 *                                         &lt;strong&gt;provided dependency
+	 *                                         archives&lt;/strong&gt;.
+	 * @return component
+	 * @throws IOException              If the &lt;strong&gt;component archive&lt;/strong&gt; or
+	 *                                  any &lt;strong&gt;dependency archives&lt;/strong&gt; are
+	 *                                  unreadable.
+	 * @throws IllegalArgumentException If the &lt;strong&gt;component archive&lt;/strong&gt; or
+	 *                                  any &lt;strong&gt;dependency archives&lt;/strong&gt;
+	 *                                  invalid.
+	 */
+	static IuComponent of(ModuleLayer parentLayer, ClassLoader parent,
+			BiConsumer&lt;Module, Controller&gt; controllerCallback, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException {
+<span class="fc" id="L594">		return TypeImplementation.PROVIDER.createComponent(parentLayer, parent, controllerCallback,</span>
+				componentArchiveSource, providedDependencyArchiveSources);
+	}
+
+	/**
+	 * Decorates a path entry in a previously loaded class environment.
+	 * 
+	 * &lt;p&gt;
+	 * The {@link IuComponent} instance returned by this method represents a view of
+	 * a subset of classes visible from an externally managed {@link ClassLoader}.
+	 * The external {@link ClassLoader} is fully responsible for the lifecycle of
+	 * its resources and embedded components, and any related security
+	 * configuration. The {@code iu.util.type.impl} module &lt;em&gt;must&lt;/em&gt; must have
+	 * &lt;a href=
+	 * &quot;https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/invoke/MethodHandles.Lookup.html#privacc&quot;&gt;private
+	 * access&lt;/a&gt; to all packages encapsulated by the path entry in order to perform
+	 * introspection; likewise all packages &lt;em&gt;must&lt;/em&gt; be open to
+	 * {@code iu.util.type.impl}. {@link #close() Closing} the component view has no
+	 * effect on the external-defined system.
+	 * &lt;/p&gt;
+	 * 
+	 * @param classLoader {@link ClassLoader}; &lt;em&gt;must&lt;/em&gt; include
+	 *                    {@code pathEntry} on its class or module path.
+	 * @param pathEntry   Single {@link Path path entry} representing a
+	 *                    {@link JarFile jar file} or folder containing resources
+	 *                    loaded by {@code classLoader}
+	 * @return {@link IuComponent} decorated view of the path entry relative to the
+	 *         class loader.
+	 * @throws IOException            if an I/O error occurs while scanning the path
+	 *                                for resources.
+	 * @throws ClassNotFoundException if any class discovered on the path could not
+	 *                                be loaded using {@code classLoader}
+	 */
+	static IuComponent scan(ClassLoader classLoader, Path pathEntry) throws IOException, ClassNotFoundException {
+<span class="fc" id="L628">		return TypeImplementation.PROVIDER.scanComponentEntry(classLoader, pathEntry);</span>
+	}
+
+	/**
+	 * Decorates a previously loaded component by target class.
+	 * 
+	 * &lt;p&gt;
+	 * The method is a convenient introspection wrapper for
+	 * {@link #scan(ClassLoader, Path)} that discovers arguments based on the actual
+	 * resource a target class was loaded from. This method scans
+	 * {@link Class#getClassLoader() targetClass.getClassLoader()} for classes
+	 * defined by the path entry that defined {@code targetClass}. Since at least
+	 * one valid class must have been loaded by the loader, from the path entry to
+	 * be scanned, as a platform-enforced precondition for passing a non-null value
+	 * to this method, checked exceptions are thrown as the cause of
+	 * {@link IllegalStateException}.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * Assumes {@code targetClass} was loaded from a {@code jar} file or directory
+	 * entry.
+	 * &lt;/p&gt;
+	 * 
+	 * @param targetClass target class
+	 * 
+	 * @return component view of the path entry that defined {@code targetClass} in
+	 *         its {@link Class#getClassLoader() ClassLoader}.
+	 */
+	static IuComponent scan(Class&lt;?&gt; targetClass) {
+<span class="fc" id="L657">		final var classLoader = targetClass.getClassLoader();</span>
+<span class="fc" id="L658">		final var resourceName = targetClass.getName().replace('.', '/') + &quot;.class&quot;;</span>
+<span class="fc" id="L659">		final var resource = classLoader.getResource(resourceName).toExternalForm();</span>
+
+<span class="fc" id="L661">		return IuException.unchecked(() -&gt; {</span>
+			Path pathEntry;
+<span class="fc bfc" id="L663" title="All 2 branches covered.">			if (resource.startsWith(&quot;jar:&quot;))</span>
+<span class="fc" id="L664">				pathEntry = Path.of(URI.create(resource.substring(4, resource.indexOf(&quot;!/&quot;))));</span>
+			else
+<span class="fc" id="L666">				pathEntry = Path.of(URI.create(resource.substring(0, resource.length() - resourceName.length())));</span>
+<span class="fc" id="L667">			pathEntry = pathEntry.toRealPath();</span>
+
+<span class="fc" id="L669">			return scan(classLoader, pathEntry);</span>
+		});
 	}
 
 	/**
@@ -499,8 +688,41 @@ public interface IuComponent extends AutoCloseable {
 	 *                                  any &lt;strong&gt;dependency archives&lt;/strong&gt;
 	 *                                  invalid.
 	 */
-	IuComponent extend(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
-			throws IOException, IllegalArgumentException;
+	default IuComponent extend(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
+			throws IOException, IllegalArgumentException {
+<span class="fc" id="L693">		return extend(null, componentArchiveSource, providedDependencyArchiveSources);</span>
+	}
+
+	/**
+	 * Validates &lt;strong&gt;component archives&lt;/strong&gt;, all &lt;strong&gt;dependency
+	 * archives&lt;/strong&gt;, and loads a &lt;strong&gt;component&lt;/strong&gt; that
+	 * &lt;strong&gt;extends&lt;/strong&gt; this &lt;strong&gt;component&lt;/strong&gt;.
+	 * 
+	 * @param controllerCallback               receives a reference to
+	 *                                         {@link Module} defined by the
+	 *                                         &lt;strong&gt;component archive&lt;/strong&gt;
+	 *                                         and the {@link Controller} for the
+	 *                                         module layer created in conjunction
+	 *                                         with this loader. API Note from
+	 *                                         {@link Controller}: &lt;em&gt;Care should
+	 *                                         be taken with Controller objects,
+	 *                                         they should never be shared with
+	 *                                         untrusted code.&lt;/em&gt;
+	 * @param componentArchiveSource           {@link InputStream} for reading the
+	 *                                         &lt;strong&gt;component archive&lt;/strong&gt;.
+	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
+	 *                                         &lt;strong&gt;provided dependency
+	 *                                         archive&lt;/strong&gt;.
+	 * @return component
+	 * @throws IOException              If the &lt;strong&gt;component archive&lt;/strong&gt; or
+	 *                                  any &lt;strong&gt;dependency archives&lt;/strong&gt; are
+	 *                                  unreadable.
+	 * @throws IllegalArgumentException If the &lt;strong&gt;component archive&lt;/strong&gt; or
+	 *                                  any &lt;strong&gt;dependency archives&lt;/strong&gt;
+	 *                                  invalid.
+	 */
+	IuComponent extend(BiConsumer&lt;Module, Controller&gt; controllerCallback, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException;
 
 	/**
 	 * Gets the kind of component.
@@ -530,6 +752,14 @@ public interface IuComponent extends AutoCloseable {
 	 * @return annotated type facades
 	 */
 	Iterable&lt;? extends IuType&lt;?, ?&gt;&gt; annotatedTypes(Class&lt;? extends Annotation&gt; annotationType);
+
+	/**
+	 * Gets all types in the component annotated by a specific type.
+	 * 
+	 * @param annotationType annotation type
+	 * @return annotated type facades
+	 */
+	Iterable&lt;? extends IuAttribute&lt;?, ?&gt;&gt; annotatedAttributes(Class&lt;? extends Annotation&gt; annotationType);
 
 	/**
 	 * Gets all of the component's public interfaces.
@@ -628,8 +858,16 @@ public interface IuComponent extends AutoCloseable {
 	 */
 	Iterable&lt;? extends IuResource&lt;?&gt;&gt; resources();
 
+	/**
+	 * Iterates all occurrences of this component's elements referring to a
+	 * resource.
+	 * 
+	 * @return resource references
+	 */
+	Iterable&lt;? extends IuResourceReference&lt;?, ?&gt;&gt; resourceReferences();
+
 	@Override
-	void close();
+	void close() throws Exception;
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
