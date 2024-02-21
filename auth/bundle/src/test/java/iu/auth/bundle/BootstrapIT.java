@@ -39,7 +39,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.auth.IuApiCredentials;
 
 @SuppressWarnings("javadoc")
-public class BootstrapTest {
+public class BootstrapIT {
 
 	@Test
 	public void testShutdown() throws Exception {
