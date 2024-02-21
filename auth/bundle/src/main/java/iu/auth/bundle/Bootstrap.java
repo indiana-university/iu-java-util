@@ -33,6 +33,10 @@ package iu.auth.bundle;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.lang.ref.Reference;
+import java.lang.ref.WeakReference;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -120,14 +124,34 @@ public class Bootstrap {
 	 * @return SPI implementation
 	 */
 	static <T> T load(Class<T> serviceInterface) {
-		final var delegate = ServiceLoader.load(serviceInterface, Objects.requireNonNull(impl).getLoader()).findFirst()
-				.get();
+		class Handler implements InvocationHandler {
+			private Reference<T> delegate;
+
+			@Override
+			public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+				if (impl == null)
+					throw new IllegalStateException("iu.util.auth.impl closed");
+
+				final T delegate;
+				{
+					T d = null;
+					if (this.delegate != null)
+						d = this.delegate.get();
+					
+					if (d == null) {
+						d = ServiceLoader.load(serviceInterface, Objects.requireNonNull(impl).getLoader()).findFirst()
+								.get();
+						this.delegate = new WeakReference<>(d);
+					}
+					
+					delegate = d;
+				}
+
+				return IuException.checkedInvocation(() -> method.invoke(delegate, args));
+			}
+		}
 		return serviceInterface.cast(Proxy.newProxyInstance(serviceInterface.getClassLoader(),
-				new Class<?>[] { serviceInterface }, (proxy, method, args) -> {
-					if (impl == null)
-						throw new IllegalStateException("iu.util.auth.impl closed");
-					return IuException.checkedInvocation(() -> method.invoke(delegate, args));
-				}));
+				new Class<?>[] { serviceInterface }, new Handler()));
 	}
 
 	/**

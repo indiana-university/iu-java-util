@@ -44,7 +44,6 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
-import java.util.Objects;
 import java.util.Queue;
 
 import org.junit.jupiter.api.Assumptions;
@@ -148,6 +147,15 @@ public class ComponentLoaderIT {
 				Thread.currentThread().setContextClassLoader(contextLoader);
 			}
 		}
+	}
+
+	@Test
+	public void testCloseNormally() throws Exception {
+		final var componentLoader = new IuComponentLoader(getComponentArchive("testruntime"),
+				getProvidedDependencyArchives("testruntime"));
+		componentLoader.close();
+		componentLoader.close(); // no-op
+		assertThrows(IllegalStateException.class, componentLoader::getLoader);
 	}
 
 	@Test
