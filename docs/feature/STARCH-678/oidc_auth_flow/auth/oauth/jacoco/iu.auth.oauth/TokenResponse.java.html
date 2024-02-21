@@ -82,72 +82,75 @@ class TokenResponse implements IuTokenResponse, Serializable {
 <span class="fc" id="L82">			accessToken = tokenResponse.getString(&quot;access_token&quot;);</span>
 
 <span class="fc" id="L84">		final var expiresIn = tokenResponse.get(&quot;expires_in&quot;);</span>
-<span class="fc bfc" id="L85" title="All 2 branches covered.">		if (expiresIn instanceof JsonString a)</span>
-<span class="fc" id="L86">			expires = Instant.now().plusSeconds(Long.parseLong(a.getString()));</span>
-<span class="fc bfc" id="L87" title="All 2 branches covered.">		else if (expiresIn instanceof JsonNumber a)</span>
-<span class="fc" id="L88">			expires = Instant.now().plusSeconds(a.intValue());</span>
-		else
-<span class="fc" id="L90">			expires = null;</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">		if (expiresIn instanceof JsonString) {</span>
+<span class="fc" id="L86">			final var a = (JsonString) expiresIn;</span>
+<span class="fc" id="L87">			expires = Instant.now().plusSeconds(Long.parseLong(a.getString()));</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">		} else if (expiresIn instanceof JsonNumber) {</span>
+<span class="fc" id="L89">			final var a = (JsonNumber) expiresIn;</span>
+<span class="fc" id="L90">			expires = Instant.now().plusSeconds(a.intValue());</span>
+<span class="fc" id="L91">		} else</span>
+<span class="fc" id="L92">			expires = null;</span>
 
-<span class="fc bfc" id="L92" title="All 2 branches covered.">		if (!tokenResponse.containsKey(&quot;refresh_token&quot;))</span>
-<span class="fc" id="L93">			refreshToken = null;</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">		if (!tokenResponse.containsKey(&quot;refresh_token&quot;))</span>
+<span class="fc" id="L95">			refreshToken = null;</span>
 		else
-<span class="fc" id="L95">			refreshToken = tokenResponse.getString(&quot;refresh_token&quot;);</span>
+<span class="fc" id="L97">			refreshToken = tokenResponse.getString(&quot;refresh_token&quot;);</span>
 
 		// https://datatracker.ietf.org/doc/html/rfc6749#section-3.3
-<span class="fc bfc" id="L98" title="All 2 branches covered.">		if (!tokenResponse.containsKey(&quot;scope&quot;))</span>
-<span class="fc" id="L99">			this.scope = requestedScope;</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">		if (!tokenResponse.containsKey(&quot;scope&quot;))</span>
+<span class="fc" id="L101">			this.scope = requestedScope;</span>
 		else
-<span class="fc" id="L101">			this.scope = Arrays.asList(tokenResponse.getString(&quot;scope&quot;).split(&quot; &quot;));</span>
+<span class="fc" id="L103">			this.scope = Arrays.asList(tokenResponse.getString(&quot;scope&quot;).split(&quot; &quot;));</span>
 
-<span class="fc" id="L103">		this.requestAttributes = requestAttributes;</span>
+<span class="fc" id="L105">		this.requestAttributes = requestAttributes;</span>
 
-<span class="fc" id="L105">		final Map&lt;String, String&gt; tokenAttributes = new LinkedHashMap&lt;&gt;();</span>
-<span class="fc bfc" id="L106" title="All 2 branches covered.">		for (final var tokenEntry : tokenResponse.entrySet()) {</span>
-<span class="fc" id="L107">			final var key = tokenEntry.getKey();</span>
-<span class="fc bfc" id="L108" title="All 2 branches covered.">			if (!key.equals(&quot;token_type&quot;) //</span>
-<span class="fc bfc" id="L109" title="All 2 branches covered.">					&amp;&amp; !key.equals(&quot;access_token&quot;) //</span>
-<span class="fc bfc" id="L110" title="All 2 branches covered.">					&amp;&amp; !key.equals(&quot;expires_in&quot;) //</span>
-<span class="fc bfc" id="L111" title="All 2 branches covered.">					&amp;&amp; !key.equals(&quot;refresh_token&quot;) //</span>
-<span class="fc bfc" id="L112" title="All 2 branches covered.">					&amp;&amp; !key.equals(&quot;scope&quot;)) {</span>
-<span class="fc" id="L113">				final var value = tokenEntry.getValue();</span>
-<span class="fc bfc" id="L114" title="All 2 branches covered.">				if (value instanceof JsonString s)</span>
-<span class="fc" id="L115">					tokenAttributes.put(key, s.getString());</span>
-				else
-<span class="fc" id="L117">					tokenAttributes.put(key, value.toString());</span>
+<span class="fc" id="L107">		final Map&lt;String, String&gt; tokenAttributes = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">		for (final var tokenEntry : tokenResponse.entrySet()) {</span>
+<span class="fc" id="L109">			final var key = tokenEntry.getKey();</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">			if (!key.equals(&quot;token_type&quot;) //</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">					&amp;&amp; !key.equals(&quot;access_token&quot;) //</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">					&amp;&amp; !key.equals(&quot;expires_in&quot;) //</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">					&amp;&amp; !key.equals(&quot;refresh_token&quot;) //</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">					&amp;&amp; !key.equals(&quot;scope&quot;)) {</span>
+<span class="fc" id="L115">				final var value = tokenEntry.getValue();</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">				if (value instanceof JsonString) {</span>
+<span class="fc" id="L117">					final var s = (JsonString) value;</span>
+<span class="fc" id="L118">					tokenAttributes.put(key, s.getString());</span>
+<span class="fc" id="L119">				} else</span>
+<span class="fc" id="L120">					tokenAttributes.put(key, value.toString());</span>
 			}
-<span class="fc" id="L119">		}</span>
-<span class="fc" id="L120">		this.tokenAttributes = Collections.unmodifiableMap(tokenAttributes);</span>
-<span class="fc" id="L121">	}</span>
+<span class="fc" id="L122">		}</span>
+<span class="fc" id="L123">		this.tokenAttributes = Collections.unmodifiableMap(tokenAttributes);</span>
+<span class="fc" id="L124">	}</span>
 
 	@Override
 	public String getTokenType() {
-<span class="fc" id="L125">		return tokenType;</span>
+<span class="fc" id="L128">		return tokenType;</span>
 	}
 
 	@Override
 	public String getAccessToken() {
-<span class="fc" id="L130">		return accessToken;</span>
+<span class="fc" id="L133">		return accessToken;</span>
 	}
 
 	@Override
 	public Iterable&lt;String&gt; getScope() {
-<span class="fc" id="L135">		return scope;</span>
+<span class="fc" id="L138">		return scope;</span>
 	}
 
 	@Override
 	public Instant getExpires() {
-<span class="fc" id="L140">		return expires;</span>
+<span class="fc" id="L143">		return expires;</span>
 	}
 
 	@Override
 	public Map&lt;String, ?&gt; getRequestAttributes() {
-<span class="fc" id="L145">		return requestAttributes;</span>
+<span class="fc" id="L148">		return requestAttributes;</span>
 	}
 
 	@Override
 	public Map&lt;String, ?&gt; getTokenAttributes() {
-<span class="fc" id="L150">		return tokenAttributes;</span>
+<span class="fc" id="L153">		return tokenAttributes;</span>
 	}
 
 	/**
@@ -156,7 +159,7 @@ class TokenResponse implements IuTokenResponse, Serializable {
 	 * @return refresh token; null if not provided
 	 */
 	String getRefreshToken() {
-<span class="fc" id="L159">		return refreshToken;</span>
+<span class="fc" id="L162">		return refreshToken;</span>
 	}
 
 	/**
@@ -165,7 +168,7 @@ class TokenResponse implements IuTokenResponse, Serializable {
 	 * @return true if expired; else false
 	 */
 	boolean isExpired() {
-<span class="fc bfc" id="L168" title="All 4 branches covered.">		return expires != null &amp;&amp; expires.isBefore(Instant.now());</span>
+<span class="fc bfc" id="L171" title="All 4 branches covered.">		return expires != null &amp;&amp; expires.isBefore(Instant.now());</span>
 	}
 
 }

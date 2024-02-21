@@ -300,8 +300,8 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 <span class="fc bfc" id="L300" title="All 2 branches covered.">		for (final var userinfoClaimEntry : userinfo.entrySet())</span>
 <span class="fc" id="L301">			claimConsumer.accept(userinfoClaimEntry.getKey(), () -&gt; {</span>
 <span class="fc" id="L302">				final var claimJsonValue = userinfoClaimEntry.getValue();</span>
-<span class="fc bfc" id="L303" title="All 2 branches covered.">				if (claimJsonValue instanceof JsonString js)</span>
-<span class="fc" id="L304">					return js.getString();</span>
+<span class="fc bfc" id="L303" title="All 2 branches covered.">				if (claimJsonValue instanceof JsonString)</span>
+<span class="fc" id="L304">					return ((JsonString) claimJsonValue).getString();</span>
 				else
 <span class="fc" id="L306">					return claimJsonValue.toString();</span>
 			});
@@ -320,75 +320,76 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 	@Override
 	public void activate(IuApiCredentials credentials) throws IuAuthenticationException, IuBadRequestException,
 			IuAuthorizationFailedException, IuOutOfServiceException, IllegalStateException {
-<span class="fc bfc" id="L323" title="All 2 branches covered.">		if (!(credentials instanceof IuBearerAuthCredentials bearer))</span>
+<span class="fc bfc" id="L323" title="All 2 branches covered.">		if (!(credentials instanceof IuBearerAuthCredentials))</span>
 <span class="fc" id="L324">			throw new IllegalArgumentException(&quot;Invalid credentials type&quot;);</span>
 
-<span class="fc" id="L326">		final var subject = Objects.requireNonNull(bearer.getSubject(), &quot;subject&quot;);</span>
-<span class="fc" id="L327">		final var id = subject.getPrincipals(Id.class).iterator().next();</span>
+<span class="fc" id="L326">		final var bearer = (IuBearerAuthCredentials) credentials;</span>
+<span class="fc" id="L327">		final var subject = Objects.requireNonNull(bearer.getSubject(), &quot;subject&quot;);</span>
+<span class="fc" id="L328">		final var id = subject.getPrincipals(Id.class).iterator().next();</span>
 		try {
-<span class="fc" id="L329">			IdGenerator.verifyId(id.activationCode, client.getActivationInterval().toMillis());</span>
-<span class="fc" id="L330">			return;</span>
-<span class="fc" id="L331">		} catch (Throwable e) {</span>
-<span class="fc" id="L332">			LOG.log(Level.FINER, e, () -&gt; &quot;discarding invalid activation code&quot;);</span>
-<span class="fc" id="L333">			id.activationCode = null;</span>
+<span class="fc" id="L330">			IdGenerator.verifyId(id.activationCode, client.getActivationInterval().toMillis());</span>
+<span class="fc" id="L331">			return;</span>
+<span class="fc" id="L332">		} catch (Throwable e) {</span>
+<span class="fc" id="L333">			LOG.log(Level.FINER, e, () -&gt; &quot;discarding invalid activation code&quot;);</span>
+<span class="fc" id="L334">			id.activationCode = null;</span>
 		}
 
 		try {
-<span class="fc" id="L337">			final Map&lt;String, Object&gt; claims = new LinkedHashMap&lt;&gt;();</span>
-<span class="fc bfc" id="L338" title="All 2 branches covered.">			for (final var claim : subject.getPrincipals(IuOpenIdClaim.class))</span>
-<span class="fc" id="L339">				claims.put(claim.getClaimName(), claim.getClaim());</span>
+<span class="fc" id="L338">			final Map&lt;String, Object&gt; claims = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L339" title="All 2 branches covered.">			for (final var claim : subject.getPrincipals(IuOpenIdClaim.class))</span>
+<span class="fc" id="L340">				claims.put(claim.getClaimName(), claim.getClaim());</span>
 
-<span class="fc" id="L341">			final var accessToken = Objects.requireNonNull(bearer.getAccessToken(), &quot;accessToken&quot;);</span>
-<span class="fc" id="L342">			final var userinfo = HttpUtils.read(HttpRequest.newBuilder(userinfoEndpoint) //</span>
-<span class="fc" id="L343">					.header(&quot;Authorization&quot;, &quot;Bearer &quot; + accessToken).build()).asJsonObject();</span>
-<span class="fc" id="L344">			final var principal = userinfo.getString(&quot;principal&quot;);</span>
-<span class="fc" id="L345">			final var sub = userinfo.getString(&quot;sub&quot;);</span>
+<span class="fc" id="L342">			final var accessToken = Objects.requireNonNull(bearer.getAccessToken(), &quot;accessToken&quot;);</span>
+<span class="fc" id="L343">			final var userinfo = HttpUtils.read(HttpRequest.newBuilder(userinfoEndpoint) //</span>
+<span class="fc" id="L344">					.header(&quot;Authorization&quot;, &quot;Bearer &quot; + accessToken).build()).asJsonObject();</span>
+<span class="fc" id="L345">			final var principal = userinfo.getString(&quot;principal&quot;);</span>
+<span class="fc" id="L346">			final var sub = userinfo.getString(&quot;sub&quot;);</span>
 
-<span class="fc" id="L347">			final var clientId = client.getCredentials().getName();</span>
-<span class="fc bfc" id="L348" title="All 4 branches covered.">			if (clientId.equals(principal) &amp;&amp; clientId.equals(sub)) {</span>
-<span class="fc" id="L349">				id.activationCode = IdGenerator.generateId();</span>
-<span class="fc" id="L350">				return;</span>
+<span class="fc" id="L348">			final var clientId = client.getCredentials().getName();</span>
+<span class="fc bfc" id="L349" title="All 4 branches covered.">			if (clientId.equals(principal) &amp;&amp; clientId.equals(sub)) {</span>
+<span class="fc" id="L350">				id.activationCode = IdGenerator.generateId();</span>
+<span class="fc" id="L351">				return;</span>
 			}
 
-<span class="fc bfc" id="L353" title="All 2 branches covered.">			if (!clientId.equals(claims.get(&quot;aud&quot;)))</span>
-<span class="fc" id="L354">				throw new IllegalArgumentException(&quot;Invalid aud&quot;);</span>
+<span class="fc bfc" id="L354" title="All 2 branches covered.">			if (!clientId.equals(claims.get(&quot;aud&quot;)))</span>
+<span class="fc" id="L355">				throw new IllegalArgumentException(&quot;Invalid aud&quot;);</span>
 
-<span class="fc" id="L356">			final var now = Instant.now();</span>
-<span class="fc" id="L357">			final var authTime = (Instant) claims.get(&quot;auth_time&quot;);</span>
-<span class="fc" id="L358">			final var authExpires = authTime.plus(client.getAuthenticatedSessionTimeout());</span>
-<span class="fc bfc" id="L359" title="All 2 branches covered.">			if (now.isAfter(authExpires)) {</span>
-<span class="fc" id="L360">				final Map&lt;String, String&gt; challengeAttributes = new LinkedHashMap&lt;&gt;();</span>
-<span class="fc" id="L361">				challengeAttributes.put(&quot;realm&quot;, realm);</span>
-<span class="fc" id="L362">				challengeAttributes.put(&quot;scope&quot;, String.join(&quot; &quot;, getScope()));</span>
-<span class="fc" id="L363">				challengeAttributes.put(&quot;error&quot;, &quot;invalid_token&quot;);</span>
-<span class="fc" id="L364">				challengeAttributes.put(&quot;error_description&quot;, &quot;auth session timeout, must reauthenticate&quot;);</span>
-<span class="fc" id="L365">				throw new IuAuthenticationException(HttpUtils.createChallenge(&quot;Bearer&quot;, challengeAttributes));</span>
+<span class="fc" id="L357">			final var now = Instant.now();</span>
+<span class="fc" id="L358">			final var authTime = (Instant) claims.get(&quot;auth_time&quot;);</span>
+<span class="fc" id="L359">			final var authExpires = authTime.plus(client.getAuthenticatedSessionTimeout());</span>
+<span class="fc bfc" id="L360" title="All 2 branches covered.">			if (now.isAfter(authExpires)) {</span>
+<span class="fc" id="L361">				final Map&lt;String, String&gt; challengeAttributes = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L362">				challengeAttributes.put(&quot;realm&quot;, realm);</span>
+<span class="fc" id="L363">				challengeAttributes.put(&quot;scope&quot;, String.join(&quot; &quot;, getScope()));</span>
+<span class="fc" id="L364">				challengeAttributes.put(&quot;error&quot;, &quot;invalid_token&quot;);</span>
+<span class="fc" id="L365">				challengeAttributes.put(&quot;error_description&quot;, &quot;auth session timeout, must reauthenticate&quot;);</span>
+<span class="fc" id="L366">				throw new IuAuthenticationException(HttpUtils.createChallenge(&quot;Bearer&quot;, challengeAttributes));</span>
 			}
 
-<span class="fc bfc" id="L368" title="All 2 branches covered.">			for (final var userinfoClaimEntry : userinfo.entrySet()) {</span>
-<span class="fc" id="L369">				final var claimJsonValue = userinfoClaimEntry.getValue();</span>
+<span class="fc bfc" id="L369" title="All 2 branches covered.">			for (final var userinfoClaimEntry : userinfo.entrySet()) {</span>
+<span class="fc" id="L370">				final var claimJsonValue = userinfoClaimEntry.getValue();</span>
 				final String claim;
-<span class="fc bfc" id="L371" title="All 2 branches covered.">				if (claimJsonValue instanceof JsonString js)</span>
-<span class="fc" id="L372">					claim = js.getString();</span>
+<span class="fc bfc" id="L372" title="All 2 branches covered.">				if (claimJsonValue instanceof JsonString)</span>
+<span class="fc" id="L373">					claim = ((JsonString) claimJsonValue).getString();</span>
 				else
-<span class="fc" id="L374">					claim = claimJsonValue.toString();</span>
+<span class="fc" id="L375">					claim = claimJsonValue.toString();</span>
 
-<span class="fc bfc" id="L376" title="All 2 branches covered.">				if (!IuObject.equals(claim, claims.get(userinfoClaimEntry.getKey())))</span>
-<span class="fc" id="L377">					throw new IllegalArgumentException(userinfoClaimEntry.getKey());</span>
-<span class="fc" id="L378">			}</span>
-<span class="fc" id="L379">		} catch (Throwable e) {</span>
-<span class="fc" id="L380">			Map&lt;String, String&gt; challengeAttributes = new LinkedHashMap&lt;&gt;();</span>
-<span class="fc" id="L381">			challengeAttributes.put(&quot;realm&quot;, realm);</span>
-<span class="fc" id="L382">			challengeAttributes.put(&quot;scope&quot;, String.join(&quot; &quot;, getScope()));</span>
-<span class="fc" id="L383">			challengeAttributes.put(&quot;error&quot;, &quot;invalid_token&quot;);</span>
-<span class="fc" id="L384">			challengeAttributes.put(&quot;error_description&quot;, &quot;session activation failed, must reauthenticate&quot;);</span>
-<span class="fc" id="L385">			throw new IuAuthenticationException(HttpUtils.createChallenge(&quot;Bearer&quot;, challengeAttributes), e);</span>
-<span class="fc" id="L386">		}</span>
+<span class="fc bfc" id="L377" title="All 2 branches covered.">				if (!IuObject.equals(claim, claims.get(userinfoClaimEntry.getKey())))</span>
+<span class="fc" id="L378">					throw new IllegalArgumentException(userinfoClaimEntry.getKey());</span>
+<span class="fc" id="L379">			}</span>
+<span class="fc" id="L380">		} catch (Throwable e) {</span>
+<span class="fc" id="L381">			Map&lt;String, String&gt; challengeAttributes = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L382">			challengeAttributes.put(&quot;realm&quot;, realm);</span>
+<span class="fc" id="L383">			challengeAttributes.put(&quot;scope&quot;, String.join(&quot; &quot;, getScope()));</span>
+<span class="fc" id="L384">			challengeAttributes.put(&quot;error&quot;, &quot;invalid_token&quot;);</span>
+<span class="fc" id="L385">			challengeAttributes.put(&quot;error_description&quot;, &quot;session activation failed, must reauthenticate&quot;);</span>
+<span class="fc" id="L386">			throw new IuAuthenticationException(HttpUtils.createChallenge(&quot;Bearer&quot;, challengeAttributes), e);</span>
+<span class="fc" id="L387">		}</span>
 
-<span class="fc" id="L388">		client.activate(credentials);</span>
+<span class="fc" id="L389">		client.activate(credentials);</span>
 
-<span class="fc" id="L390">		id.activationCode = IdGenerator.generateId();</span>
-<span class="fc" id="L391">	}</span>
+<span class="fc" id="L391">		id.activationCode = IdGenerator.generateId();</span>
+<span class="fc" id="L392">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

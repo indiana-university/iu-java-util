@@ -305,41 +305,42 @@ public class IuCacheMap&lt;K, V&gt; implements Map&lt;K, V&gt; {
 
 		@Override
 		protected Stream&lt;Entry&lt;K, IuCachedValue&lt;V&gt;&gt;&gt; findEntries(Object value) {
-<span class="fc bfc" id="L308" title="All 2 branches covered.">			if (value instanceof Entry entry)</span>
-<span class="fc" id="L309">				return cache.entrySet().parallelStream().filter(//</span>
-<span class="fc bfc" id="L310" title="All 2 branches covered.">						a -&gt; a.getKey().equals(entry.getKey()) //</span>
-<span class="fc bfc" id="L311" title="All 2 branches covered.">								&amp;&amp; a.getValue().has(entry.getValue()));</span>
-			else
-<span class="fc" id="L313">				return Stream.empty();</span>
+<span class="fc bfc" id="L308" title="All 2 branches covered.">			if (value instanceof Entry) {</span>
+<span class="fc" id="L309">				final var entry = (Entry&lt;?, ?&gt;) value;</span>
+<span class="fc" id="L310">				return cache.entrySet().parallelStream().filter(//</span>
+<span class="fc bfc" id="L311" title="All 2 branches covered.">						a -&gt; a.getKey().equals(entry.getKey()) //</span>
+<span class="fc bfc" id="L312" title="All 2 branches covered.">								&amp;&amp; a.getValue().has(entry.getValue()));</span>
+			} else
+<span class="fc" id="L314">				return Stream.empty();</span>
 		}
 	}
 
-<span class="fc" id="L317">	private class CacheKeySet extends CacheCollection&lt;K&gt; implements Set&lt;K&gt; {</span>
+<span class="fc" id="L318">	private class CacheKeySet extends CacheCollection&lt;K&gt; implements Set&lt;K&gt; {</span>
 		@Override
 		protected K transform(Entry&lt;K, IuCachedValue&lt;V&gt;&gt; entry) {
-<span class="fc" id="L320">			return entry.getKey();</span>
+<span class="fc" id="L321">			return entry.getKey();</span>
 		}
 
 		@Override
 		protected Stream&lt;Entry&lt;K, IuCachedValue&lt;V&gt;&gt;&gt; findEntries(Object value) {
-<span class="fc" id="L325">			return cache.entrySet().parallelStream().filter(a -&gt; a.getKey().equals(value));</span>
+<span class="fc" id="L326">			return cache.entrySet().parallelStream().filter(a -&gt; a.getKey().equals(value));</span>
 		}
 	}
 
-<span class="fc" id="L329">	private class CacheValues extends CacheCollection&lt;V&gt; {</span>
+<span class="fc" id="L330">	private class CacheValues extends CacheCollection&lt;V&gt; {</span>
 		@Override
 		protected V transform(Entry&lt;K, IuCachedValue&lt;V&gt;&gt; entry) {
-<span class="fc" id="L332">			return entry.getValue().get();</span>
+<span class="fc" id="L333">			return entry.getValue().get();</span>
 		}
 
 		@Override
 		protected Stream&lt;Entry&lt;K, IuCachedValue&lt;V&gt;&gt;&gt; findEntries(Object value) {
-<span class="fc" id="L337">			return cache.entrySet().parallelStream().filter(a -&gt; a.getValue().has(value));</span>
+<span class="fc" id="L338">			return cache.entrySet().parallelStream().filter(a -&gt; a.getValue().has(value));</span>
 		}
 
 	}
 
-<span class="fc" id="L342">	private final Map&lt;K, IuCachedValue&lt;V&gt;&gt; cache = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L343">	private final Map&lt;K, IuCachedValue&lt;V&gt;&gt; cache = new ConcurrentHashMap&lt;&gt;();</span>
 	private final Duration cacheTimeToLive;
 	private CacheKeySet keySet;
 	private CacheValues values;
@@ -350,99 +351,99 @@ public class IuCacheMap&lt;K, V&gt; implements Map&lt;K, V&gt; {
 	 * 
 	 * @param cacheTimeToLive maximum time to live for cache entries
 	 */
-<span class="fc" id="L353">	public IuCacheMap(Duration cacheTimeToLive) {</span>
-<span class="fc" id="L354">		this.cacheTimeToLive = cacheTimeToLive;</span>
-<span class="fc" id="L355">	}</span>
+<span class="fc" id="L354">	public IuCacheMap(Duration cacheTimeToLive) {</span>
+<span class="fc" id="L355">		this.cacheTimeToLive = cacheTimeToLive;</span>
+<span class="fc" id="L356">	}</span>
 
 	@Override
 	public int size() {
-<span class="fc" id="L359">		return cache.size();</span>
+<span class="fc" id="L360">		return cache.size();</span>
 	}
 
 	@Override
 	public boolean isEmpty() {
-<span class="fc" id="L364">		return cache.isEmpty();</span>
+<span class="fc" id="L365">		return cache.isEmpty();</span>
 	}
 
 	@Override
 	public boolean containsKey(Object key) {
-<span class="fc" id="L369">		return cache.containsKey(key);</span>
+<span class="fc" id="L370">		return cache.containsKey(key);</span>
 	}
 
 	@Override
 	public boolean containsValue(Object value) {
-<span class="fc" id="L374">		return cache.values().parallelStream().anyMatch(a -&gt; a.has(value));</span>
+<span class="fc" id="L375">		return cache.values().parallelStream().anyMatch(a -&gt; a.has(value));</span>
 	}
 
 	@Override
 	public V get(Object key) {
-<span class="fc" id="L379">		final var ref = cache.get(key);</span>
-<span class="fc bfc" id="L380" title="All 2 branches covered.">		if (ref == null)</span>
-<span class="fc" id="L381">			return null;</span>
+<span class="fc" id="L380">		final var ref = cache.get(key);</span>
+<span class="fc bfc" id="L381" title="All 2 branches covered.">		if (ref == null)</span>
+<span class="fc" id="L382">			return null;</span>
 		else
-<span class="fc" id="L383">			return ref.get();</span>
+<span class="fc" id="L384">			return ref.get();</span>
 	}
 
 	@Override
 	public V put(K key, V value) {
-<span class="fc" id="L388">		final var ref = cache.get(key);</span>
+<span class="fc" id="L389">		final var ref = cache.get(key);</span>
 		final V rv;
-<span class="fc bfc" id="L390" title="All 2 branches covered.">		if (ref == null)</span>
-<span class="fc" id="L391">			rv = null;</span>
+<span class="fc bfc" id="L391" title="All 2 branches covered.">		if (ref == null)</span>
+<span class="fc" id="L392">			rv = null;</span>
 		else {
-<span class="fc" id="L393">			rv = ref.get();</span>
-<span class="fc" id="L394">			ref.clear();</span>
+<span class="fc" id="L394">			rv = ref.get();</span>
+<span class="fc" id="L395">			ref.clear();</span>
 		}
-<span class="fc" id="L396">		cache.put(key, ref(key, value));</span>
-<span class="fc" id="L397">		return rv;</span>
+<span class="fc" id="L397">		cache.put(key, ref(key, value));</span>
+<span class="fc" id="L398">		return rv;</span>
 	}
 
 	@Override
 	public V remove(Object key) {
-<span class="fc" id="L402">		final var ref = cache.remove(key);</span>
-<span class="fc bfc" id="L403" title="All 2 branches covered.">		if (ref == null)</span>
-<span class="fc" id="L404">			return null;</span>
+<span class="fc" id="L403">		final var ref = cache.remove(key);</span>
+<span class="fc bfc" id="L404" title="All 2 branches covered.">		if (ref == null)</span>
+<span class="fc" id="L405">			return null;</span>
 		else {
-<span class="fc" id="L406">			final var rv = ref.get();</span>
-<span class="fc" id="L407">			ref.clear();</span>
-<span class="fc" id="L408">			return rv;</span>
+<span class="fc" id="L407">			final var rv = ref.get();</span>
+<span class="fc" id="L408">			ref.clear();</span>
+<span class="fc" id="L409">			return rv;</span>
 		}
 	}
 
 	@Override
 	public void putAll(Map&lt;? extends K, ? extends V&gt; m) {
-<span class="fc" id="L414">		m.forEach((k, v) -&gt; cache.put(k, ref(k, v)));</span>
-<span class="fc" id="L415">	}</span>
+<span class="fc" id="L415">		m.forEach((k, v) -&gt; cache.put(k, ref(k, v)));</span>
+<span class="fc" id="L416">	}</span>
 
 	@Override
 	public void clear() {
-<span class="fc" id="L419">		cache.values().forEach(IuCachedValue::clear);</span>
-<span class="fc" id="L420">		cache.clear();</span>
-<span class="fc" id="L421">	}</span>
+<span class="fc" id="L420">		cache.values().forEach(IuCachedValue::clear);</span>
+<span class="fc" id="L421">		cache.clear();</span>
+<span class="fc" id="L422">	}</span>
 
 	@Override
 	public Set&lt;K&gt; keySet() {
-<span class="fc bfc" id="L425" title="All 2 branches covered.">		if (keySet == null)</span>
-<span class="fc" id="L426">			keySet = new CacheKeySet();</span>
-<span class="fc" id="L427">		return keySet;</span>
+<span class="fc bfc" id="L426" title="All 2 branches covered.">		if (keySet == null)</span>
+<span class="fc" id="L427">			keySet = new CacheKeySet();</span>
+<span class="fc" id="L428">		return keySet;</span>
 	}
 
 	@Override
 	public Collection&lt;V&gt; values() {
-<span class="fc bfc" id="L432" title="All 2 branches covered.">		if (values == null)</span>
-<span class="fc" id="L433">			values = new CacheValues();</span>
-<span class="fc" id="L434">		return values;</span>
+<span class="fc bfc" id="L433" title="All 2 branches covered.">		if (values == null)</span>
+<span class="fc" id="L434">			values = new CacheValues();</span>
+<span class="fc" id="L435">		return values;</span>
 	}
 
 	@Override
 	public Set&lt;Entry&lt;K, V&gt;&gt; entrySet() {
-<span class="fc bfc" id="L439" title="All 2 branches covered.">		if (entrySet == null)</span>
-<span class="fc" id="L440">			entrySet = new CacheEntrySet();</span>
-<span class="fc" id="L441">		return entrySet;</span>
+<span class="fc bfc" id="L440" title="All 2 branches covered.">		if (entrySet == null)</span>
+<span class="fc" id="L441">			entrySet = new CacheEntrySet();</span>
+<span class="fc" id="L442">		return entrySet;</span>
 	}
 
 	private IuCachedValue&lt;V&gt; ref(K key, V value) {
-<span class="fc" id="L445">		return new IuCachedValue&lt;&gt;(value, cacheTimeToLive, () -&gt; cache.remove(key));</span>
+<span class="fc" id="L446">		return new IuCachedValue&lt;&gt;(value, cacheTimeToLive, () -&gt; cache.remove(key));</span>
 	}
 
 }

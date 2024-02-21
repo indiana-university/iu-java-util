@@ -58,6 +58,7 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.interfaces.DecodedJWT;
 
+import edu.iu.IuObject;
 import jakarta.json.JsonObject;
 
 /**
@@ -66,12 +67,50 @@ import jakarta.json.JsonObject;
  */
 public class AccessTokenVerifier {
 
-<span class="fc" id="L69">	private static final Logger LOG = Logger.getLogger(AccessTokenVerifier.class.getName());</span>
+<span class="fc" id="L70">	private static final Logger LOG = Logger.getLogger(AccessTokenVerifier.class.getName());</span>
 
-<span class="fc" id="L71">	private record AlgorithmKey(String kid, String alg) {</span>
+	/**
+	 * Cache key binding for binding initialized JWT verification resources by kid
+	 * and alg claim values.
+	 */
+	static class AlgorithmKey {
+		private final String kid;
+		private final String alg;
+
+		/**
+		 * Constructor.
+		 * 
+		 * @param kid kid claim value
+		 * @param alg alg claim value
+		 */
+<span class="fc" id="L86">		AlgorithmKey(String kid, String alg) {</span>
+<span class="fc" id="L87">			this.kid = kid;</span>
+<span class="fc" id="L88">			this.alg = alg;</span>
+<span class="fc" id="L89">		}</span>
+
+		@Override
+		public int hashCode() {
+<span class="fc" id="L93">			return IuObject.hashCode(alg, kid);</span>
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+<span class="fc bfc" id="L98" title="All 2 branches covered.">			if (!IuObject.typeCheck(this, obj))</span>
+<span class="fc" id="L99">				return false;</span>
+<span class="fc" id="L100">			AlgorithmKey other = (AlgorithmKey) obj;</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">			return IuObject.equals(alg, other.alg) //</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">					&amp;&amp; IuObject.equals(kid, other.kid);</span>
+		}
 	}
 
-<span class="fc" id="L74">	private record CachedAlgorithm(Algorithm algorithm, Instant lastUpdated) {</span>
+	private static class CachedAlgorithm {
+		private final Algorithm algorithm;
+		private final Instant lastUpdated;
+
+<span class="fc" id="L110">		private CachedAlgorithm(Algorithm algorithm, Instant lastUpdated) {</span>
+<span class="fc" id="L111">			this.algorithm = algorithm;</span>
+<span class="fc" id="L112">			this.lastUpdated = lastUpdated;</span>
+<span class="fc" id="L113">		}</span>
 	}
 
 	/**
@@ -85,23 +124,23 @@ public class AccessTokenVerifier {
 	static ECParameterSpec getECParameterSpec(JsonObject jwk)
 			throws NoSuchAlgorithmException, InvalidParameterSpecException {
 		final String ecParam;
-<span class="fc bfc" id="L88" title="All 4 branches covered.">		switch (jwk.getString(&quot;crv&quot;)) {</span>
+<span class="fc bfc" id="L127" title="All 4 branches covered.">		switch (jwk.getString(&quot;crv&quot;)) {</span>
 		case &quot;P-256&quot;:
-<span class="fc" id="L90">			ecParam = &quot;secp256r1&quot;;</span>
-<span class="fc" id="L91">			break;</span>
+<span class="fc" id="L129">			ecParam = &quot;secp256r1&quot;;</span>
+<span class="fc" id="L130">			break;</span>
 		case &quot;P-384&quot;:
-<span class="fc" id="L93">			ecParam = &quot;secp384r1&quot;;</span>
-<span class="fc" id="L94">			break;</span>
+<span class="fc" id="L132">			ecParam = &quot;secp384r1&quot;;</span>
+<span class="fc" id="L133">			break;</span>
 		case &quot;P-521&quot;:
-<span class="fc" id="L96">			ecParam = &quot;secp521r1&quot;;</span>
-<span class="fc" id="L97">			break;</span>
+<span class="fc" id="L135">			ecParam = &quot;secp521r1&quot;;</span>
+<span class="fc" id="L136">			break;</span>
 		default:
-<span class="fc" id="L99">			throw new IllegalArgumentException(&quot;Unsupported EC curve: &quot; + jwk);</span>
+<span class="fc" id="L138">			throw new IllegalArgumentException(&quot;Unsupported EC curve: &quot; + jwk);</span>
 		}
 
-<span class="fc" id="L102">		final var algorithmParamters = AlgorithmParameters.getInstance(&quot;EC&quot;);</span>
-<span class="fc" id="L103">		algorithmParamters.init(new ECGenParameterSpec(ecParam));</span>
-<span class="fc" id="L104">		return algorithmParamters.getParameterSpec(ECParameterSpec.class);</span>
+<span class="fc" id="L141">		final var algorithmParamters = AlgorithmParameters.getInstance(&quot;EC&quot;);</span>
+<span class="fc" id="L142">		algorithmParamters.init(new ECGenParameterSpec(ecParam));</span>
+<span class="fc" id="L143">		return algorithmParamters.getParameterSpec(ECParameterSpec.class);</span>
 	}
 
 	/**
@@ -115,12 +154,12 @@ public class AccessTokenVerifier {
 	 */
 	static ECPublicKey toECPublicKey(JsonObject jwk)
 			throws InvalidKeySpecException, NoSuchAlgorithmException, InvalidParameterSpecException {
-<span class="fc bfc" id="L118" title="All 2 branches covered.">		if (!&quot;EC&quot;.equals(jwk.getString(&quot;kty&quot;)))</span>
-<span class="fc" id="L119">			throw new IllegalArgumentException(&quot;Not an EC key: &quot; + jwk);</span>
-<span class="fc" id="L120">		return (ECPublicKey) KeyFactory.getInstance(&quot;EC&quot;)</span>
-<span class="fc" id="L121">				.generatePublic(new ECPublicKeySpec(</span>
-<span class="fc" id="L122">						new ECPoint(decodeKeyComponent(jwk.getString(&quot;x&quot;)), decodeKeyComponent(jwk.getString(&quot;y&quot;))),</span>
-<span class="fc" id="L123">						getECParameterSpec(jwk)));</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">		if (!&quot;EC&quot;.equals(jwk.getString(&quot;kty&quot;)))</span>
+<span class="fc" id="L158">			throw new IllegalArgumentException(&quot;Not an EC key: &quot; + jwk);</span>
+<span class="fc" id="L159">		return (ECPublicKey) KeyFactory.getInstance(&quot;EC&quot;)</span>
+<span class="fc" id="L160">				.generatePublic(new ECPublicKeySpec(</span>
+<span class="fc" id="L161">						new ECPoint(decodeKeyComponent(jwk.getString(&quot;x&quot;)), decodeKeyComponent(jwk.getString(&quot;y&quot;))),</span>
+<span class="fc" id="L162">						getECParameterSpec(jwk)));</span>
 	}
 
 	/**
@@ -132,20 +171,20 @@ public class AccessTokenVerifier {
 	 * @throws NoSuchAlgorithmException If the JWK is invalid
 	 */
 	static RSAPublicKey toRSAPublicKey(JsonObject jwk) throws InvalidKeySpecException, NoSuchAlgorithmException {
-<span class="fc bfc" id="L135" title="All 2 branches covered.">		if (!&quot;RSA&quot;.equals(jwk.getString(&quot;kty&quot;)))</span>
-<span class="fc" id="L136">			throw new IllegalArgumentException(&quot;Not an RSA key: &quot; + jwk);</span>
-<span class="fc" id="L137">		return (RSAPublicKey) KeyFactory.getInstance(&quot;RSA&quot;).generatePublic(</span>
-<span class="fc" id="L138">				new RSAPublicKeySpec(decodeKeyComponent(jwk.getString(&quot;n&quot;)), decodeKeyComponent(jwk.getString(&quot;e&quot;))));</span>
+<span class="fc bfc" id="L174" title="All 2 branches covered.">		if (!&quot;RSA&quot;.equals(jwk.getString(&quot;kty&quot;)))</span>
+<span class="fc" id="L175">			throw new IllegalArgumentException(&quot;Not an RSA key: &quot; + jwk);</span>
+<span class="fc" id="L176">		return (RSAPublicKey) KeyFactory.getInstance(&quot;RSA&quot;).generatePublic(</span>
+<span class="fc" id="L177">				new RSAPublicKeySpec(decodeKeyComponent(jwk.getString(&quot;n&quot;)), decodeKeyComponent(jwk.getString(&quot;e&quot;))));</span>
 	}
 
 	private static BigInteger decodeKeyComponent(String encoded) {
-<span class="fc" id="L142">		return new BigInteger(1, Base64.getUrlDecoder().decode(encoded));</span>
+<span class="fc" id="L181">		return new BigInteger(1, Base64.getUrlDecoder().decode(encoded));</span>
 	}
 
 	private final URI keysetUri;
 	private final String issuer;
 	private final Supplier&lt;Duration&gt; refreshInterval;
-<span class="fc" id="L148">	private final Map&lt;AlgorithmKey, CachedAlgorithm&gt; algorithmCache = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L187">	private final Map&lt;AlgorithmKey, CachedAlgorithm&gt; algorithmCache = new HashMap&lt;&gt;();</span>
 
 	/**
 	 * Constructor.
@@ -155,11 +194,11 @@ public class AccessTokenVerifier {
 	 * @param refreshInterval max time to reuse a configured {@link Algorithm}
 	 *                        before refreshing from the JWKS URL.
 	 */
-<span class="fc" id="L158">	public AccessTokenVerifier(URI keysetUri, String issuer, Supplier&lt;Duration&gt; refreshInterval) {</span>
-<span class="fc" id="L159">		this.keysetUri = keysetUri;</span>
-<span class="fc" id="L160">		this.issuer = issuer;</span>
-<span class="fc" id="L161">		this.refreshInterval = refreshInterval;</span>
-<span class="fc" id="L162">	}</span>
+<span class="fc" id="L197">	public AccessTokenVerifier(URI keysetUri, String issuer, Supplier&lt;Duration&gt; refreshInterval) {</span>
+<span class="fc" id="L198">		this.keysetUri = keysetUri;</span>
+<span class="fc" id="L199">		this.issuer = issuer;</span>
+<span class="fc" id="L200">		this.refreshInterval = refreshInterval;</span>
+<span class="fc" id="L201">	}</span>
 
 	/**
 	 * Verifies a JWT access token.
@@ -178,85 +217,86 @@ public class AccessTokenVerifier {
 	 * @param token    JWT access token
 	 * @return Parsed JWT, can be used to perform additional verification
 	 */
+	@SuppressWarnings(&quot;exports&quot;)
 	public DecodedJWT verify(String audience, String token) {
-<span class="fc" id="L182">		final var decoded = JWT.decode(token);</span>
-<span class="fc" id="L183">		final var kid = decoded.getKeyId();</span>
-<span class="fc" id="L184">		final var alg = decoded.getAlgorithm();</span>
-<span class="fc" id="L185">		final var verifier = JWT //</span>
-<span class="fc" id="L186">				.require(getAlgorithm(kid, alg)) //</span>
-<span class="fc" id="L187">				.withIssuer(issuer) //</span>
-<span class="fc" id="L188">				.withAudience(audience) //</span>
-<span class="fc" id="L189">				.withClaimPresence(&quot;iat&quot;) //</span>
-<span class="fc" id="L190">				.withClaimPresence(&quot;exp&quot;) //</span>
-<span class="fc" id="L191">				.acceptLeeway(15L) //</span>
-<span class="fc" id="L192">				.build();</span>
+<span class="fc" id="L222">		final var decoded = JWT.decode(token);</span>
+<span class="fc" id="L223">		final var kid = decoded.getKeyId();</span>
+<span class="fc" id="L224">		final var alg = decoded.getAlgorithm();</span>
+<span class="fc" id="L225">		final var verifier = JWT //</span>
+<span class="fc" id="L226">				.require(getAlgorithm(kid, alg)) //</span>
+<span class="fc" id="L227">				.withIssuer(issuer) //</span>
+<span class="fc" id="L228">				.withAudience(audience) //</span>
+<span class="fc" id="L229">				.withClaimPresence(&quot;iat&quot;) //</span>
+<span class="fc" id="L230">				.withClaimPresence(&quot;exp&quot;) //</span>
+<span class="fc" id="L231">				.acceptLeeway(15L) //</span>
+<span class="fc" id="L232">				.build();</span>
 
-<span class="fc" id="L194">		return verifier.verify(token);</span>
+<span class="fc" id="L234">		return verifier.verify(token);</span>
 	}
 
 	private JsonObject readJwk(String keyId) {
-<span class="fc" id="L198">		final var jwks = HttpUtils.read(keysetUri).asJsonObject();</span>
+<span class="fc" id="L238">		final var jwks = HttpUtils.read(keysetUri).asJsonObject();</span>
 		try {
-<span class="fc bfc" id="L200" title="All 2 branches covered.">			for (final var key : jwks.getJsonArray(&quot;keys&quot;)) {</span>
-<span class="fc" id="L201">				final var keyAsJsonObject = key.asJsonObject();</span>
-<span class="fc bfc" id="L202" title="All 2 branches covered.">				if (keyId.equals(keyAsJsonObject.getString(&quot;kid&quot;)))</span>
-<span class="fc" id="L203">					return keyAsJsonObject;</span>
-<span class="fc" id="L204">			}</span>
-<span class="fc" id="L205">		} catch (Throwable e) {</span>
-<span class="fc" id="L206">			throw new IllegalStateException(&quot;Invalid JWKS format: &quot; + jwks, e);</span>
-<span class="fc" id="L207">		}</span>
+<span class="fc bfc" id="L240" title="All 2 branches covered.">			for (final var key : jwks.getJsonArray(&quot;keys&quot;)) {</span>
+<span class="fc" id="L241">				final var keyAsJsonObject = key.asJsonObject();</span>
+<span class="fc bfc" id="L242" title="All 2 branches covered.">				if (keyId.equals(keyAsJsonObject.getString(&quot;kid&quot;)))</span>
+<span class="fc" id="L243">					return keyAsJsonObject;</span>
+<span class="fc" id="L244">			}</span>
+<span class="fc" id="L245">		} catch (Throwable e) {</span>
+<span class="fc" id="L246">			throw new IllegalStateException(&quot;Invalid JWKS format: &quot; + jwks, e);</span>
+<span class="fc" id="L247">		}</span>
 
-<span class="fc" id="L209">		throw new IllegalStateException(&quot;Key &quot; + keyId + &quot; not in JWKS: &quot; + jwks);</span>
+<span class="fc" id="L249">		throw new IllegalStateException(&quot;Key &quot; + keyId + &quot; not in JWKS: &quot; + jwks);</span>
 	}
 
 	private Algorithm getAlgorithm(String kid, String alg) {
-<span class="fc" id="L213">		final var now = Instant.now();</span>
-<span class="fc" id="L214">		final var cacheKey = new AlgorithmKey(kid, alg);</span>
+<span class="fc" id="L253">		final var now = Instant.now();</span>
+<span class="fc" id="L254">		final var cacheKey = new AlgorithmKey(kid, alg);</span>
 
-<span class="fc" id="L216">		var cachedAlgorithm = algorithmCache.get(cacheKey);</span>
-<span class="fc bfc" id="L217" title="All 4 branches covered.">		if (cachedAlgorithm == null || cachedAlgorithm.lastUpdated.isBefore(now.minus(refreshInterval.get()))) {</span>
-<span class="fc" id="L218">			JsonObject jwk = null;</span>
+<span class="fc" id="L256">		var cachedAlgorithm = algorithmCache.get(cacheKey);</span>
+<span class="fc bfc" id="L257" title="All 4 branches covered.">		if (cachedAlgorithm == null || cachedAlgorithm.lastUpdated.isBefore(now.minus(refreshInterval.get()))) {</span>
+<span class="fc" id="L258">			JsonObject jwk = null;</span>
 			Algorithm jwtAlgorithm;
 			try {
-<span class="fc" id="L221">				jwk = readJwk(kid);</span>
-<span class="fc bfc" id="L222" title="All 7 branches covered.">				switch (alg) {</span>
+<span class="fc" id="L261">				jwk = readJwk(kid);</span>
+<span class="fc bfc" id="L262" title="All 7 branches covered.">				switch (alg) {</span>
 				case &quot;ES256&quot;:
-<span class="fc" id="L224">					jwtAlgorithm = Algorithm.ECDSA256(toECPublicKey(jwk));</span>
-<span class="fc" id="L225">					break;</span>
+<span class="fc" id="L264">					jwtAlgorithm = Algorithm.ECDSA256(toECPublicKey(jwk));</span>
+<span class="fc" id="L265">					break;</span>
 				case &quot;ES384&quot;:
-<span class="fc" id="L227">					jwtAlgorithm = Algorithm.ECDSA384(toECPublicKey(jwk));</span>
-<span class="fc" id="L228">					break;</span>
+<span class="fc" id="L267">					jwtAlgorithm = Algorithm.ECDSA384(toECPublicKey(jwk));</span>
+<span class="fc" id="L268">					break;</span>
 				case &quot;ES512&quot;:
-<span class="fc" id="L230">					jwtAlgorithm = Algorithm.ECDSA512(toECPublicKey(jwk));</span>
-<span class="fc" id="L231">					break;</span>
+<span class="fc" id="L270">					jwtAlgorithm = Algorithm.ECDSA512(toECPublicKey(jwk));</span>
+<span class="fc" id="L271">					break;</span>
 				case &quot;RS256&quot;:
-<span class="fc" id="L233">					jwtAlgorithm = Algorithm.RSA256(toRSAPublicKey(jwk), null);</span>
-<span class="fc" id="L234">					break;</span>
+<span class="fc" id="L273">					jwtAlgorithm = Algorithm.RSA256(toRSAPublicKey(jwk), null);</span>
+<span class="fc" id="L274">					break;</span>
 				case &quot;RS384&quot;:
-<span class="fc" id="L236">					jwtAlgorithm = Algorithm.RSA384(toRSAPublicKey(jwk), null);</span>
-<span class="fc" id="L237">					break;</span>
+<span class="fc" id="L276">					jwtAlgorithm = Algorithm.RSA384(toRSAPublicKey(jwk), null);</span>
+<span class="fc" id="L277">					break;</span>
 				case &quot;RS512&quot;:
-<span class="fc" id="L239">					jwtAlgorithm = Algorithm.RSA512(toRSAPublicKey(jwk), null);</span>
-<span class="fc" id="L240">					break;</span>
+<span class="fc" id="L279">					jwtAlgorithm = Algorithm.RSA512(toRSAPublicKey(jwk), null);</span>
+<span class="fc" id="L280">					break;</span>
 				default:
-<span class="fc" id="L242">					throw new UnsupportedOperationException(&quot;Unsupported JWT algorithm &quot; + alg);</span>
+<span class="fc" id="L282">					throw new UnsupportedOperationException(&quot;Unsupported JWT algorithm &quot; + alg);</span>
 				}
 
-<span class="fc" id="L245">				cachedAlgorithm = new CachedAlgorithm(jwtAlgorithm, now);</span>
-<span class="fc" id="L246">				synchronized (algorithmCache) {</span>
-<span class="fc" id="L247">					algorithmCache.put(cacheKey, cachedAlgorithm);</span>
-<span class="fc" id="L248">				}</span>
+<span class="fc" id="L285">				cachedAlgorithm = new CachedAlgorithm(jwtAlgorithm, now);</span>
+<span class="fc" id="L286">				synchronized (algorithmCache) {</span>
+<span class="fc" id="L287">					algorithmCache.put(cacheKey, cachedAlgorithm);</span>
+<span class="fc" id="L288">				}</span>
 
-<span class="fc" id="L250">			} catch (Throwable e) {</span>
-<span class="fc" id="L251">				final var message = &quot;JWT Algorithm initialization failure; keysetUri=&quot; + keysetUri + &quot; &quot; + cacheKey</span>
+<span class="fc" id="L290">			} catch (Throwable e) {</span>
+<span class="fc" id="L291">				final var message = &quot;JWT Algorithm initialization failure; keysetUri=&quot; + keysetUri + &quot; &quot; + cacheKey</span>
 						+ &quot; jwk=&quot; + jwk;
-<span class="fc bfc" id="L253" title="All 2 branches covered.">				if (cachedAlgorithm == null)</span>
-<span class="fc" id="L254">					throw new IllegalStateException(message, e);</span>
+<span class="fc bfc" id="L293" title="All 2 branches covered.">				if (cachedAlgorithm == null)</span>
+<span class="fc" id="L294">					throw new IllegalStateException(message, e);</span>
 				else
-<span class="fc" id="L256">					LOG.log(Level.INFO, message, e);</span>
-<span class="fc" id="L257">			}</span>
+<span class="fc" id="L296">					LOG.log(Level.INFO, message, e);</span>
+<span class="fc" id="L297">			}</span>
 		}
-<span class="fc" id="L259">		return cachedAlgorithm.algorithm;</span>
+<span class="fc" id="L299">		return cachedAlgorithm.algorithm;</span>
 	}
 
 }

@@ -191,7 +191,7 @@ public final class IuTestLogger {
 <span class="fc bfc" id="L191" title="All 2 branches covered.">				while (!unexpectedMessages.isEmpty())</span>
 <span class="fc" id="L192">					suppressed.add(unexpectedMessages.poll());</span>
 			}
-<span class="fc bfc" id="L194" title="All 2 branches covered.">			if (!sb.isEmpty()) {</span>
+<span class="fc bfc" id="L194" title="All 2 branches covered.">			if (sb.length() &gt; 0) {</span>
 <span class="fc" id="L195">				final var e = new AssertionFailedError(sb.toString());</span>
 <span class="fc" id="L196">				suppressed.forEach(e::addSuppressed);</span>
 <span class="fc" id="L197">				throw e;</span>
