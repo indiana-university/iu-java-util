@@ -44,7 +44,6 @@ import java.util.logging.Logger;
 
 import edu.iu.IuException;
 import edu.iu.IuStream;
-import jakarta.json.Json;
 import jakarta.json.JsonValue;
 
 /**
@@ -79,7 +78,7 @@ public class HttpUtils {
 				&& !"localhost".equals(uri.getHost()))
 			throw new IllegalArgumentException("insecure URI");
 
-		return IuException.unchecked(() -> Json
+		return IuException.unchecked(() -> JsonProviderFactory.JSON
 				.createReader(
 						new StringReader(read(HttpClient.newHttpClient().send(request, BodyHandlers.ofInputStream()))))
 				.readValue());

@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>edu.iu.util</groupId>
+		<artifactId>iu-java-auth-parent</artifactId>
+		<version>7.0.2-SNAPSHOT</version>
+	</parent>
+
+	<artifactId>iu-java-auth-impl</artifactId>
+	<name>IU Authentication and Authorization Implementation</name>
+
+	<dependencies>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-base</artifactId>
+			<version>${project.version}</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-auth-api</artifactId>
+			<version>${project.version}</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-auth-util</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-auth-basic</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-auth-oauth</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-auth-oidc</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-test</artifactId>
+			<version>${project.version}</version>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<artifactId>maven-assembly-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>bundle-distribution</id>
+						<goals>
+							<goal>single</goal>
+						</goals>
+						<phase>package</phase>
+						<configuration>
+							<descriptors>
+								<descriptor>src/assembly/bundle.xml</descriptor>
+							</descriptors>
+							<archive>
+								<manifest>
+									<addClasspath>true</addClasspath>
+									<classpathLayoutType>custom</classpathLayoutType>
+									<customClasspathLayout>${artifact.artifactId}.${artifact.extension}</customClasspathLayout>
+								</manifest>
+								<manifestEntries>
+									<IuComponent>${project.artifactId}.${project.packaging}</IuComponent>
+								</manifestEntries>
+							</archive>
+						</configuration>
+					</execution>
+				</executions>				
+			</plugin>
+		</plugins>	
+	</build>
+	
+</project>

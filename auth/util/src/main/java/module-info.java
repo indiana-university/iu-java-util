@@ -35,7 +35,7 @@
 module iu.util.auth.util {
 	exports iu.auth.util to iu.util.auth.basic, iu.util.auth.oauth, iu.util.auth.oidc;
 
-	requires transitive com.auth0.jwt;
+	requires static com.auth0.jwt;
 	requires transitive iu.util;
 	requires transitive jakarta.json;
 	requires transitive java.net.http;

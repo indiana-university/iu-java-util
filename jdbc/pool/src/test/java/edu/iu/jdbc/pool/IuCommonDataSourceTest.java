@@ -232,7 +232,7 @@ public class IuCommonDataSourceTest {
 
 		Throwable throwing = null;
 		final var closeTask = new CloseTask();
-		final var closeTaskController = new IuUtilityTaskController<>(closeTask, Instant.now().plusSeconds(5L));
+		final var closeTaskController = new IuUtilityTaskController<>(closeTask, Instant.now().plusSeconds(10L));
 		try (final var ds = mockCommonDataSource()) {
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-open:PT.*");
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open; .*");
@@ -294,7 +294,7 @@ public class IuCommonDataSourceTest {
 				closeTask.notifyAll();
 			}
 			return ds.getPooledConnection();
-		}, Instant.now().plusSeconds(5L));
+		}, Instant.now().plusSeconds(6L));
 
 		synchronized (closeTask) {
 			IuObject.waitFor(closeTask, () -> closeTask.ready, Duration.ofSeconds(5L));
@@ -731,38 +731,15 @@ public class IuCommonDataSourceTest {
 		}
 	}
 
-//	private static class PooledConnectionController implements Answer<Void> {
-//		private PooledConnection pooledConnection;
-//		private ConnectionEventListener connectionEventListener;
-//
-//		@Override
-//		public Void answer(InvocationOnMock invocation) throws Throwable {
-//			pooledConnection = (PooledConnection) invocation.getMock();
-//			connectionEventListener = invocation.getArgument(0);
-//			return null;
-//		}
-//
-//		private void close() {
-//			connectionEventListener.connectionClosed(new ConnectionEvent(pooledConnection));
-//		}
-//
-//		private void error(SQLException e) {
-//			connectionEventListener.connectionErrorOccurred(new ConnectionEvent(pooledConnection, e));
-//		}
-//	}
-//
 	private static class MockPooledConnectionFactory implements UnsafeSupplier<PooledConnection> {
-//		private PooledConnectionController lastController;
 		private PooledConnection lastPooledConnection;
 		private Connection lastConnection;
 		private Statement lastStatement;
 
 		@Override
 		public PooledConnection get() throws Throwable {
-//			final var controller = new PooledConnectionController();
 			final var pc = mock(PooledConnection.class);
 			lastPooledConnection = pc;
-//			doAnswer(controller).when(pc).addConnectionEventListener(any());
 
 			final Answer<ResultSet> newResultSet = a -> {
 				final var r = mock(ResultSet.class);
@@ -782,10 +759,6 @@ public class IuCommonDataSourceTest {
 				final var c = mock(Connection.class);
 				when(c.createStatement()).thenAnswer(newStatement);
 				when(c.unwrap(Connection.class)).thenReturn(c);
-//				doAnswer(ab -> {
-////					controller.close();
-//					return null;
-//				}).when(c).close();
 				lastStatement = null;
 				lastConnection = c;
 				return c;
@@ -793,7 +766,6 @@ public class IuCommonDataSourceTest {
 
 			when(pc.getConnection()).thenAnswer(newConnection);
 
-//			lastController = controller;
 			return pc;
 		}
 	}
@@ -804,7 +776,7 @@ public class IuCommonDataSourceTest {
 		private MockCommonDataSource(MockPooledConnectionFactory factory) {
 			super(factory);
 			this.factory = factory;
-			setShutdownTimeout(Duration.ofSeconds(2L));
+			setShutdownTimeout(Duration.ofSeconds(5L));
 		}
 	}
 

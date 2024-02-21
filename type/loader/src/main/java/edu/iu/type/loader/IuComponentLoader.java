@@ -75,10 +75,11 @@ public class IuComponentLoader implements AutoCloseable {
 		return path.toArray(size -> new URL[size]);
 	});
 
-	private final UnsafeRunnable destroy;
-	private final ModularClassLoader typeBundleLoader;
-	private final AutoCloseable component;
-	private final ClassLoader loader;
+	private UnsafeRunnable destroy;
+	private ModularClassLoader typeBundleLoader;
+	private AutoCloseable component;
+	private ClassLoader loader;
+	private volatile boolean closed;
 
 	/**
 	 * Validates a <strong>component archive</strong>, all <strong>dependency
@@ -145,6 +146,36 @@ public class IuComponentLoader implements AutoCloseable {
 	 */
 	public IuComponentLoader(Iterable<String> allowedPackages, Consumer<IuComponentController> controllerCallback,
 			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources) throws IOException {
+		this(IuComponentLoader.class.getClassLoader(), allowedPackages, controllerCallback, componentArchiveSource,
+				providedDependencyArchiveSources);
+	}
+
+	/**
+	 * Validates a <strong>component archive</strong>, all <strong>dependency
+	 * archives</strong>, loads a <strong>component</strong>, and returns a
+	 * {@link ClassLoader} for accessing classes managed by the component.
+	 * 
+	 * @param parent                           parent {@link ClassLoader}
+	 * @param allowedPackages                  non-platform classes to allow
+	 *                                         delegated access to; see
+	 *                                         {@link FilteringClassLoader}
+	 * @param controllerCallback               receives a reference to an
+	 *                                         {@link IuComponentController} that
+	 *                                         may be used to set up access rules
+	 *                                         for the component. This reference
+	 *                                         <em>should not</em> be passed beyond
+	 *                                         the scope of the callback; see
+	 *                                         {@link ModularClassLoader}
+	 * @param componentArchiveSource           {@link InputStream} for reading the
+	 *                                         <strong>component archive</strong>.
+	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
+	 *                                         <strong>provided dependency
+	 *                                         archives</strong>.
+	 * @throws IOException If an IO error occurs initializing the component
+	 */
+	public IuComponentLoader(ClassLoader parent, Iterable<String> allowedPackages,
+			Consumer<IuComponentController> controllerCallback, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) throws IOException {
 		class Box {
 			ModularClassLoader typeBundleLoader;
 			AutoCloseable component;
@@ -162,7 +193,6 @@ public class IuComponentLoader implements AutoCloseable {
 			allowedPackages = allowedPackageQueue;
 		}
 
-		final var parent = IuComponentLoader.class.getClassLoader();
 		final var filteredParent = new FilteringClassLoader(allowedPackages, parent);
 		destroy = TemporaryFile.init(() -> {
 			final var typeBundleJars = new Path[TYPE_BUNDLE_MODULE_PATH.length];
@@ -258,16 +288,29 @@ public class IuComponentLoader implements AutoCloseable {
 	 * @return {@link ClassLoader}
 	 */
 	public ClassLoader getLoader() {
+		if (closed)
+			throw new IllegalStateException("closed");
 		return loader;
 	}
 
 	@Override
-	public void close() throws IOException {
-		var closeError = IuException.suppress(null, component::close);
-		closeError = IuException.suppress(closeError, typeBundleLoader::close);
-		closeError = IuException.suppress(closeError, destroy::run);
-		if (closeError != null)
-			throw IuException.checked(closeError, IOException.class);
+	public synchronized void close() throws IOException {
+		if (!closed) {
+			closed = true;
+			loader = null;
+
+			var closeError = IuException.suppress(null, component::close);
+			component = null;
+
+			closeError = IuException.suppress(closeError, typeBundleLoader::close);
+			typeBundleLoader = null;
+
+			closeError = IuException.suppress(closeError, destroy::run);
+			destroy = null;
+
+			if (closeError != null)
+				throw IuException.checked(closeError, IOException.class);
+		}
 	}
 
 }

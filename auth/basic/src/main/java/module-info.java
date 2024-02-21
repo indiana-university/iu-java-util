@@ -37,7 +37,7 @@
  * @provides edu.iu.auth.spi.IuBasicAuthSpi Service provider implementation
  */
 module iu.util.auth.basic {
-	requires iu.util.auth;
+	requires static iu.util.auth;
 	requires iu.util.auth.util;
 
 	provides edu.iu.auth.spi.IuBasicAuthSpi with iu.auth.basic.BasicAuthSpi;

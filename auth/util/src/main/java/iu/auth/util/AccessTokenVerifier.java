@@ -217,6 +217,7 @@ public class AccessTokenVerifier {
 	 * @param token    JWT access token
 	 * @return Parsed JWT, can be used to perform additional verification
 	 */
+	@SuppressWarnings("exports")
 	public DecodedJWT verify(String audience, String token) {
 		final var decoded = JWT.decode(token);
 		final var kid = decoded.getKeyId();

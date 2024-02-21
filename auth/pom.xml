@@ -27,6 +27,7 @@
 				<module>basic</module>
 				<module>oauth</module>
 				<module>oidc</module>
+				<module>impl</module>
 				<module>bundle</module>
 			</modules>
 		</profile>
@@ -39,6 +40,16 @@
 					<artifactId>maven-compiler-plugin</artifactId>
 					<configuration>
 						<release>11</release>
+					</configuration>
+				</plugin>
+				<plugin>
+					<artifactId>maven-jar-plugin</artifactId>
+					<configuration>
+						<archive>
+							<manifest>
+								<addExtensions>false</addExtensions>
+							</manifest>
+						</archive>
 					</configuration>
 				</plugin>
 			</plugins>

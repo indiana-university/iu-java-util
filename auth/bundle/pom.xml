@@ -1,13 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
-	
+
 	<parent>
 		<groupId>edu.iu.util</groupId>
 		<artifactId>iu-java-auth-parent</artifactId>
 		<version>7.0.2-SNAPSHOT</version>
 	</parent>
-	
+
 	<artifactId>iu-java-auth</artifactId>
 	<name>IU Authentication and Authorization Utilities</name>
 
@@ -19,7 +21,7 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-type</artifactId>
+			<artifactId>iu-java-type-loader</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
@@ -28,10 +30,28 @@
 			<version>${project.version}</version>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>org.eclipse.parsson</groupId>
+			<artifactId>parsson</artifactId>
+			<version>${parsson.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.jsoup</groupId>
+			<artifactId>jsoup</artifactId>
+			<version>${jsoup.version}</version>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
 		<plugins>
+			<plugin>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<release>17</release>
+				</configuration>
+			</plugin>
 			<plugin>
 				<artifactId>maven-dependency-plugin</artifactId>
 				<executions>
@@ -45,23 +65,9 @@
 							<artifactItems>
 								<artifactItem>
 									<groupId>${project.groupId}</groupId>
-									<artifactId>iu-java-auth-util</artifactId>
+									<artifactId>iu-java-auth-impl</artifactId>
 									<version>${project.version}</version>
-								</artifactItem>
-								<artifactItem>
-									<groupId>${project.groupId}</groupId>
-									<artifactId>iu-java-auth-basic</artifactId>
-									<version>${project.version}</version>
-								</artifactItem>
-								<artifactItem>
-									<groupId>${project.groupId}</groupId>
-									<artifactId>iu-java-auth-oauth</artifactId>
-									<version>${project.version}</version>
-								</artifactItem>
-								<artifactItem>
-									<groupId>${project.groupId}</groupId>
-									<artifactId>iu-java-auth-oidc</artifactId>
-									<version>${project.version}</version>
+									<classifier>bundle</classifier>
 								</artifactItem>
 							</artifactItems>
 							<stripVersion>true</stripVersion>
