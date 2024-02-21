@@ -59,8 +59,10 @@ import jakarta.json.JsonObjectBuilder;
  * <dt>vault.endpoint (VAULT_ENDPOINT)</dt>
  * <dd>Base URL for a Vault K/V store</dd>
  * <dt>vault.token (VAULT_TOKEN)</dt>
- * <dd>Access token for use with vault. If not set, vault.loginEndpoint,
- * vault.roleId, and vault.secretId <em>must</em> be provided.</dd>
+ * <dd>Access token for use with Vault, i.e., in development. If not set, 
+ * vault.loginEndpoint, vault.roleId, and vault.secretId <em>must</em> be
+ * provided, i.e., for use by a CI/CD environment. If vault.token is set,
+ * the approle properties will be ignored.</dd>
  * <dt>vault.loginEndpoint (VAULT_LOGIN_ENDPOINT)</dt>
  * <dd>URL for the Vault approle login endpoint, for use when vault.token is not
  * set.</dd>
