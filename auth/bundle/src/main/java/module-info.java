@@ -1,6 +1,8 @@
 /**
  * Provides delegated access to authentication and authorization utilities.
  * 
+ * <img src="doc-files/iu.util.auth.bundle.svg" alt="UML Deployment Diagram">
+ * 
  * @uses edu.iu.auth.spi.IuBasicAuthSpi implementation module
  * @uses edu.iu.auth.spi.IuOAuthSpi implementation module
  * @uses edu.iu.auth.spi.IuOpenIdConnectSpi implementation module
