@@ -50,17 +50,13 @@ public class LoggingTest {
 
 	@Test
 	public void testStandardPlatformLoggers() {
-		assertTrue(IuTestLogger.isPlatformLogger("java"));
+		assertTrue(IuTestLogger.isPlatformLogger("java."));
 		assertTrue(IuTestLogger.isPlatformLogger("org.junit."));
 		assertTrue(IuTestLogger.isPlatformLogger("org.mockito."));
-		assertTrue(IuTestLogger.isPlatformLogger("java."));
-		assertTrue(IuTestLogger.isPlatformLogger("javax."));
-		assertTrue(IuTestLogger.isPlatformLogger("jakarta."));
-		assertTrue(IuTestLogger.isPlatformLogger("jdk."));
-		assertTrue(IuTestLogger.isPlatformLogger("com.sun."));
-		assertTrue(IuTestLogger.isPlatformLogger("com.oracle."));
-		assertTrue(IuTestLogger.isPlatformLogger("oracle."));
-		assertTrue(IuTestLogger.isPlatformLogger("sun."));
+		assertTrue(IuTestLogger.isPlatformLogger("org.apiguardian."));
+		assertTrue(IuTestLogger.isPlatformLogger("org.objenesis."));
+		assertTrue(IuTestLogger.isPlatformLogger("org.opentest4j."));
+		assertTrue(IuTestLogger.isPlatformLogger("net.bytebuddy."));
 		assertFalse(IuTestLogger.isPlatformLogger("edu.iu."));
 		Logger.getLogger("java.test.platformlogger").info("Should be logged on console and not cause the test to fail");
 	}
@@ -70,7 +66,7 @@ public class LoggingTest {
 		try (var mockIuTest = mockStatic(IuTest.class, CALLS_REAL_METHODS)) {
 			mockIuTest.when(() -> IuTest.getProperty("iu.util.test.platformLoggers"))
 					.thenReturn("custom.platform.a,custom.platform.b.");
-			assertTrue(IuTestLogger.isPlatformLogger("java")); // doesn't supersede standard list
+			assertTrue(IuTestLogger.isPlatformLogger("java.")); // doesn't supersede standard list
 			assertFalse(IuTestLogger.isPlatformLogger("edu.iu.")); // still not a platform logger
 			assertTrue(IuTestLogger.isPlatformLogger("custom.platform.a."));
 			assertTrue(IuTestLogger.isPlatformLogger("custom.platform.b."));
