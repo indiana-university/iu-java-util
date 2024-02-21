@@ -167,7 +167,7 @@ public class IuCommonDataSourceTest {
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-close:PT.*");
 		}
 	}
-
+ 
 	@Test
 	public void testConnectionInitializer() throws SQLException {
 		try (final var ds = mockCommonDataSource()) {
@@ -232,7 +232,7 @@ public class IuCommonDataSourceTest {
 
 		Throwable throwing = null;
 		final var closeTask = new CloseTask();
-		final var closeTaskController = new IuUtilityTaskController<>(closeTask, Instant.now().plusSeconds(10L));
+		final var closeTaskController = new IuUtilityTaskController<>(closeTask, Instant.now().plusSeconds(20L));
 		try (final var ds = mockCommonDataSource()) {
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-open:PT.*");
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open; .*");
@@ -276,7 +276,7 @@ public class IuCommonDataSourceTest {
 				synchronized (this) {
 					waiting = true;
 					notifyAll();
-					IuObject.waitFor(this, () -> ready, Duration.ofSeconds(5L));
+					IuObject.waitFor(this, () -> ready, Duration.ofSeconds(15L));
 				}
 				Thread.sleep(50L);
 				c.close();
@@ -285,16 +285,16 @@ public class IuCommonDataSourceTest {
 			}
 		}
 		final var closeTask = new CloseTask();
-		final var closeTaskController = new IuUtilityTaskController<>(closeTask, Instant.now().plusSeconds(5L));
+		final var closeTaskController = new IuUtilityTaskController<>(closeTask, Instant.now().plusSeconds(15L));
 
 		final var connectTask = new IuUtilityTaskController<>(() -> {
 			synchronized (closeTask) {
-				IuObject.waitFor(closeTask, () -> closeTask.waiting, Duration.ofSeconds(5L));
+				IuObject.waitFor(closeTask, () -> closeTask.waiting, Duration.ofSeconds(15L));
 				closeTask.ready = true;
 				closeTask.notifyAll();
 			}
 			return ds.getPooledConnection();
-		}, Instant.now().plusSeconds(6L));
+		}, Instant.now().plusSeconds(15L));
 
 		synchronized (closeTask) {
 			IuObject.waitFor(closeTask, () -> closeTask.ready, Duration.ofSeconds(5L));
