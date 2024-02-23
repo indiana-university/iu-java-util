@@ -59,7 +59,6 @@ public class SpiTest {
 		final var uri = mock(URI.class);
 		final var jwksUri = new URI("test:" + IdGenerator.generateId());
 		final var userinfoUri = new URI("test:" + IdGenerator.generateId());
-		final var resourceUri = new URI("test:" + IdGenerator.generateId());
 		final var tokenEndpointUri = new URI("test:" + IdGenerator.generateId());
 		final var authorizationEndpointUri = new URI("test:" + IdGenerator.generateId());
 		final var client = mock(IuOpenIdClient.class);
@@ -80,7 +79,7 @@ public class SpiTest {
 			IuTestLogger.expect("iu.auth.oidc.OpenIdProvider", Level.INFO, "OIDC Provider configuration.*");
 			assertNotSame(provider, spi.getOpenIdProvider(uri, client));
 
-			assertInstanceOf(OidcAuthorizationClient.class, provider.createAuthorizationClient(resourceUri));
+			assertInstanceOf(OidcAuthorizationClient.class, provider.createAuthorizationClient());
 		}
 	}
 

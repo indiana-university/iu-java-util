@@ -31,8 +31,6 @@
  */
 package iu.auth.bundle;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationHandler;
@@ -41,7 +39,9 @@ import java.lang.reflect.Proxy;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.ServiceLoader;
@@ -52,26 +52,27 @@ import java.util.jar.JarInputStream;
 import edu.iu.IuException;
 import edu.iu.IuStream;
 import edu.iu.UnsafeRunnable;
+import edu.iu.type.base.FilteringClassLoader;
+import edu.iu.type.base.ModularClassLoader;
 import edu.iu.type.base.TemporaryFile;
-import edu.iu.type.loader.IuComponentLoader;
 
 /**
  * Bootstrap SPI instance.
  */
 public class Bootstrap {
 
-	private static IuComponentLoader impl;
+	private static ClassLoader impl;
 	private static UnsafeRunnable shutdown;
 
-	private static IuComponentLoader loadImpl() throws Throwable {
+	private static ClassLoader loadImpl() throws Throwable {
 		final var url = Bootstrap.class.getClassLoader().getResource("iu-java-auth-impl-bundle.jar");
 		final var uc = url.openConnection();
 		uc.setUseCaches(false);
 
 		class Box {
-			InputStream primary = null;
+			Path primary = null;
 			final Queue<URL> utilDeps = new ArrayDeque<>();
-			final Queue<InputStream> moduleDeps = new ArrayDeque<>();
+			final Deque<Path> moduleDeps = new ArrayDeque<>();
 		}
 		final var box = new Box();
 		final var cleanUtils = TemporaryFile.init(() -> {
@@ -79,28 +80,38 @@ public class Bootstrap {
 				JarEntry entry;
 				while ((entry = jar.getNextJarEntry()) != null) {
 					final var name = entry.getName();
-					if ("iu-java-auth-impl.jar".equals(name))
-						box.primary = new ByteArrayInputStream(IuStream.read(jar));
-					else // if (name.endsWith(".jar"))
-					if (name.startsWith("jakarta.") //
-							|| name.startsWith("iu-java-") //
-							|| name.equals("parsson.jar"))
-						box.moduleDeps.add(new ByteArrayInputStream(IuStream.read(jar)));
-					else
-						box.utilDeps.add(TemporaryFile.init(t -> {
-							try (final var out = Files.newOutputStream(t)) {
-								IuStream.copy(jar, out);
-							}
-							return t.toUri().toURL();
-						}));
+					TemporaryFile.init(t -> {
+						try (final var out = Files.newOutputStream(t)) {
+							IuStream.copy(jar, out);
+						}
+
+						if ("iu-java-auth-impl.jar".equals(name))
+							box.primary = t;
+						else // if (name.endsWith(".jar"))
+						if (name.startsWith("jakarta.") //
+								|| name.startsWith("iu-java-") //
+								|| name.equals("parsson.jar"))
+							box.moduleDeps.add(t);
+						else
+							box.utilDeps.add(t.toUri().toURL());
+
+						return null;
+					});
 				}
+
+				box.moduleDeps.addFirst(box.primary);
 			}
 		});
-		final var parent = new URLClassLoader(box.utilDeps.toArray(URL[]::new), Bootstrap.class.getClassLoader());
 
-		final var impl = new IuComponentLoader(parent, Set.of("edu.iu", "edu.iu.auth", "edu.iu.auth.basic",
-				"edu.iu.auth.oauth", "edu.iu.auth.oidc", "edu.iu.auth.spi"), controller -> {
-				}, Objects.requireNonNull(box.primary, "primary"), box.moduleDeps.toArray(a -> new InputStream[a]));
+		final var filter = new FilteringClassLoader( //
+				Set.of("edu.iu", "edu.iu.auth", "edu.iu.auth.basic", //
+						"edu.iu.auth.oauth", "edu.iu.auth.oidc", "edu.iu.auth.spi"),
+				Bootstrap.class.getClassLoader());
+
+		final var parent = new URLClassLoader(box.utilDeps.toArray(URL[]::new), filter);
+		final var impl = new ModularClassLoader(false, box.moduleDeps, Bootstrap.class.getModule().getLayer(), parent,
+				c -> c.layer().modules().forEach(m -> {
+				}));
 
 		shutdown = () -> {
 			impl.close();
@@ -137,13 +148,12 @@ public class Bootstrap {
 					T d = null;
 					if (this.delegate != null)
 						d = this.delegate.get();
-					
+
 					if (d == null) {
-						d = ServiceLoader.load(serviceInterface, Objects.requireNonNull(impl).getLoader()).findFirst()
-								.get();
+						d = ServiceLoader.load(serviceInterface, Objects.requireNonNull(impl)).findFirst().get();
 						this.delegate = new WeakReference<>(d);
 					}
-					
+
 					delegate = d;
 				}
 

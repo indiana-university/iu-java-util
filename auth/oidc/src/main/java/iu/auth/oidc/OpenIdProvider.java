@@ -74,7 +74,7 @@ public class OpenIdProvider implements IuOpenIdProvider {
 	}
 
 	@Override
-	public IuAuthorizationClient createAuthorizationClient(URI resourceUri) {
+	public IuAuthorizationClient createAuthorizationClient() {
 		return new OidcAuthorizationClient(config, client, idTokenVerifier);
 	}
 

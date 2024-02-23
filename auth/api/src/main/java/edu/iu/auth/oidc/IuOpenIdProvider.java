@@ -77,11 +77,8 @@ public interface IuOpenIdProvider {
 	/**
 	 * Creates an authorization client for interacting with the OpenID provider.
 	 * 
-	 * @param resourceUri client resource URI, <em>must</em> encompass all contexts
-	 *                    visible to the {@link IuOpenIdClient} instance provided at
-	 *                    {@link #from(URI, IuOpenIdClient)}.
 	 * @return authorization client
 	 */
-	IuAuthorizationClient createAuthorizationClient(URI resourceUri);
+	IuAuthorizationClient createAuthorizationClient();
 
 }

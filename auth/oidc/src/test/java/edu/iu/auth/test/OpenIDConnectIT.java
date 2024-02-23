@@ -152,7 +152,7 @@ public class OpenIDConnectIT {
 			}
 
 		});
-		client = provider.createAuthorizationClient(redirectUri);
+		client = provider.createAuthorizationClient();
 		clientCredentials = IuAuthorizationClient.initialize(client);
 		session = IuAuthorizationSession.create(provider.getIssuer(), resourceUri);
 	}

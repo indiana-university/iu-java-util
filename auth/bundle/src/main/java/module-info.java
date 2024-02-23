@@ -43,10 +43,8 @@
  *           module
  */
 module iu.util.auth.bundle {
-	requires iu.util;
-	requires iu.util.auth;
+	requires transitive iu.util.auth;
 	requires iu.util.type.base;
-	requires iu.util.type.loader;
 
 	uses edu.iu.auth.spi.IuBasicAuthSpi;
 	uses edu.iu.auth.spi.IuOAuthSpi;
