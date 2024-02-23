@@ -74,7 +74,7 @@ public class OpenIdProvider implements IuOpenIdProvider {
 <span class="fc" id="L74">	}</span>
 
 	@Override
-	public IuAuthorizationClient createAuthorizationClient(URI resourceUri) {
+	public IuAuthorizationClient createAuthorizationClient() {
 <span class="fc" id="L78">		return new OidcAuthorizationClient(config, client, idTokenVerifier);</span>
 	}
 
