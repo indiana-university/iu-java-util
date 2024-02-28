@@ -305,11 +305,12 @@ public class IuCacheMap<K, V> implements Map<K, V> {
 
 		@Override
 		protected Stream<Entry<K, IuCachedValue<V>>> findEntries(Object value) {
-			if (value instanceof Entry entry)
+			if (value instanceof Entry) {
+				final var entry = (Entry<?, ?>) value;
 				return cache.entrySet().parallelStream().filter(//
 						a -> a.getKey().equals(entry.getKey()) //
 								&& a.getValue().has(entry.getValue()));
-			else
+			} else
 				return Stream.empty();
 		}
 	}

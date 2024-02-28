@@ -31,7 +31,6 @@
  */
 package edu.iu;
 
-import java.lang.constant.Constable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -115,12 +114,11 @@ import java.util.stream.Stream;
  * <p>
  * <strong>API Note: Constantly repeatable</strong> refers to an immutable
  * {@link Iterator} source factory backed by a fixed number of data elements
- * strictly composed of primitive values and {@link Constable} instances (i.e.,
+ * strictly composed of primitive values and constable instances (i.e.,
  * {@link java.time}, {@link Collection} and {@link Map} with strictly constable
  * values, etc). Source <em>must</em> be immutable—{@link Iterator#remove()}
  * will not be invoked and <em>should not</em> be implemented. These conditions
- * are not verifiable, so results are undefined if not met by the
- * application.
+ * are not verifiable, so results are undefined if not met by the application.
  * </p>
  * 
  * <p>
@@ -261,8 +259,7 @@ public final class IuIterable {
 	 * @return string representation
 	 * @throws NoSuchElementException   if skip requests skipping elements no
 	 *                                  present on the source iterable.
-	 * @throws IllegalArgumentException if skip &lt;
-	 *  0
+	 * @throws IllegalArgumentException if skip &lt; 0
 	 */
 	public static String print(Iterator<?> iterator, int skip) throws NoSuchElementException, IllegalArgumentException {
 		if (skip < 0)

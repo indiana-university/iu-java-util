@@ -55,7 +55,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-		<argLine>-ea -Xmx1g --add-modules ALL-MODULE-PATH -XX:+EnableDynamicAgentLoading</argLine>
+		<argLine>-ea --add-modules ALL-MODULE-PATH -XX:+EnableDynamicAgentLoading</argLine>
 
 		<iu-java-util.version>7.0.2-SNAPSHOT</iu-java-util.version>
 
@@ -65,6 +65,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<jakarta.json.bind-api.version>3.0.0</jakarta.json.bind-api.version>
 		
 		<parsson.version>1.1.2</parsson.version>
+		<java-jwt.version>4.4.0</java-jwt.version>
+		<jsoup.version>1.17.2</jsoup.version>
 
 		<junit-jupiter.version>5.10.0</junit-jupiter.version>
 		<junit-platform.version>1.10.0</junit-platform.version>
@@ -474,6 +476,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>test</module>
 				<module>jdbc</module>
 				<module>type</module>
+				<module>auth</module>
 				<module>runtime</module>
 				<module>site</module>
 			</modules>

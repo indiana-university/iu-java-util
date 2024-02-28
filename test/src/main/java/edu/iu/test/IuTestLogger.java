@@ -191,7 +191,7 @@ public final class IuTestLogger {
 				while (!unexpectedMessages.isEmpty())
 					suppressed.add(unexpectedMessages.poll());
 			}
-			if (!sb.isEmpty()) {
+			if (sb.length() > 0) {
 				final var e = new AssertionFailedError(sb.toString());
 				suppressed.forEach(e::addSuppressed);
 				throw e;
@@ -206,6 +206,9 @@ public final class IuTestLogger {
 					handler.publish(record);
 				return;
 			}
+			
+			if (activeTest == null)
+				return;
 
 			for (var allowedMessage : allowedMessages)
 				if (allowedMessage.isAllowed(record))
@@ -355,7 +358,8 @@ public final class IuTestLogger {
 	 */
 	public static void allow(String loggerName, Level level) {
 		assertNotNull(testHandler.activeTest);
-		testHandler.allowedMessages.offer(new LogRecordMatcher<>(loggerName, level, null, null, Pattern.compile(".*")));
+		testHandler.allowedMessages.offer(new LogRecordMatcher<>(loggerName, level, null, null,
+				Pattern.compile(".*", Pattern.MULTILINE | Pattern.DOTALL)));
 	}
 
 	/**
@@ -372,8 +376,8 @@ public final class IuTestLogger {
 	 */
 	public static void allow(String loggerName, Level level, String message) {
 		assertNotNull(testHandler.activeTest);
-		testHandler.allowedMessages
-				.offer(new LogRecordMatcher<>(loggerName, level, null, null, Pattern.compile(message)));
+		testHandler.allowedMessages.offer(new LogRecordMatcher<>(loggerName, level, null, null,
+				Pattern.compile(message, Pattern.MULTILINE | Pattern.DOTALL)));
 	}
 
 	/**
@@ -392,7 +396,7 @@ public final class IuTestLogger {
 	public static void allow(String loggerName, Level level, String message, Class<? extends Throwable> thrownClass) {
 		assertNotNull(testHandler.activeTest);
 		testHandler.allowedMessages.offer(new LogRecordMatcher<>(loggerName, level, Objects.requireNonNull(thrownClass),
-				null, Pattern.compile(message)));
+				null, Pattern.compile(message, Pattern.MULTILINE | Pattern.DOTALL)));
 	}
 
 	/**
@@ -415,7 +419,7 @@ public final class IuTestLogger {
 			Predicate<T> thrownTest) {
 		assertNotNull(testHandler.activeTest);
 		testHandler.allowedMessages.offer(new LogRecordMatcher<>(loggerName, level, Objects.requireNonNull(thrownClass),
-				thrownTest, Pattern.compile(message)));
+				thrownTest, Pattern.compile(message, Pattern.MULTILINE | Pattern.DOTALL)));
 	}
 
 	/**
@@ -427,8 +431,8 @@ public final class IuTestLogger {
 	 */
 	public static void expect(String loggerName, Level level, String message) {
 		assertNotNull(testHandler.activeTest);
-		testHandler.expectedMessages
-				.offer(new LogRecordMatcher<>(loggerName, level, null, null, Pattern.compile(message)));
+		testHandler.expectedMessages.offer(new LogRecordMatcher<>(loggerName, level, null, null,
+				Pattern.compile(message, Pattern.MULTILINE | Pattern.DOTALL)));
 	}
 
 	/**
@@ -441,8 +445,9 @@ public final class IuTestLogger {
 	 */
 	public static void expect(String loggerName, Level level, String message, Class<? extends Throwable> thrownClass) {
 		assertNotNull(testHandler.activeTest);
-		testHandler.expectedMessages.offer(new LogRecordMatcher<>(loggerName, level,
-				Objects.requireNonNull(thrownClass), null, Pattern.compile(message)));
+		testHandler.expectedMessages
+				.offer(new LogRecordMatcher<>(loggerName, level, Objects.requireNonNull(thrownClass), null,
+						Pattern.compile(message, Pattern.MULTILINE | Pattern.DOTALL)));
 	}
 
 	/**
@@ -459,8 +464,9 @@ public final class IuTestLogger {
 	public static <T extends Throwable> void expect(String loggerName, Level level, String message,
 			Class<T> thrownClass, Predicate<T> thrownTest) {
 		assertNotNull(testHandler.activeTest);
-		testHandler.expectedMessages.offer(new LogRecordMatcher<>(loggerName, level,
-				Objects.requireNonNull(thrownClass), thrownTest, Pattern.compile(message)));
+		testHandler.expectedMessages
+				.offer(new LogRecordMatcher<>(loggerName, level, Objects.requireNonNull(thrownClass), thrownTest,
+						Pattern.compile(message, Pattern.MULTILINE | Pattern.DOTALL)));
 	}
 
 	/**

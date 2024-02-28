@@ -13,6 +13,10 @@
 	<artifactId>iu-java-base</artifactId>
 	<name>IU Base Utilities Module</name>
 
+	<properties>
+		<argLine>-ea -Xmx1g --add-modules ALL-MODULE-PATH -XX:+EnableDynamicAgentLoading</argLine>
+	</properties>
+
 	<dependencies>
 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
@@ -40,7 +44,12 @@
 					</archive>
 				</configuration>
 			</plugin>
-
+			<plugin>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<release>11</release>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 

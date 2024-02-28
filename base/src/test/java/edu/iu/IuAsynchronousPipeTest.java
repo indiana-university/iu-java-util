@@ -100,9 +100,16 @@ public class IuAsynchronousPipeTest {
 	private Logger log;
 	private Handler logHandler;
 
-	private record LogEntry( //
-			Duration elapsed, Thread thread, //
-			LogRecord record) {
+	private class LogEntry {
+		private final Duration elapsed;
+		private final Thread thread;
+		private final LogRecord record;
+
+		private LogEntry(Duration elapsed, Thread thread, LogRecord record) {
+			this.elapsed = elapsed;
+			this.thread = thread;
+			this.record = record;
+		}
 
 		void commit(PrintWriter logWriter) {
 			logWriter.print(elapsed);

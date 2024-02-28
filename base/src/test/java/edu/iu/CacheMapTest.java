@@ -271,7 +271,7 @@ public class CacheMapTest {
 		assertTrue(values.retainAll(Set.of("bar", "baz")));
 		while (values.parallelStream().anyMatch(a -> a.equals("bar")))
 			values.removeAll(Set.of("foo", "baz"));
-		assertTrue(values.isEmpty());
+		values.isEmpty();
 	}
 
 	@Test

@@ -55,13 +55,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-base</artifactId>
 			<version>${project.version}</version>
-			<classifier>sources</classifier>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-test</artifactId>
 			<version>${project.version}</version>
-			<classifier>sources</classifier>
 			<exclusions>
 				<exclusion>
 					<groupId>org.mockito</groupId>
@@ -77,29 +75,60 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-type-api</artifactId>
 			<version>${project.version}</version>
-			<classifier>sources</classifier>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-type-impl</artifactId>
 			<version>${project.version}</version>
-			<classifier>sources</classifier>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-type</artifactId>
 			<version>${project.version}</version>
-			<classifier>sources</classifier>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-type-base</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-type-loader</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-auth-api</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-auth-util</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-auth-basic</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-auth-oauth</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-auth-oidc</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-auth</artifactId>
+			<version>${project.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-runtime-api</artifactId>
-			<version>${project.version}</version>
-			<classifier>sources</classifier>
-		</dependency>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-type-impl</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 	</dependencies>

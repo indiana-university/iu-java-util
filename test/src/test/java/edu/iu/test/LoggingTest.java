@@ -40,6 +40,7 @@ import static org.mockito.Mockito.mockStatic;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.opentest4j.AssertionFailedError;
 
@@ -47,6 +48,11 @@ import org.opentest4j.AssertionFailedError;
 public class LoggingTest {
 
 	private static final Logger LOG = Logger.getLogger(LoggingTest.class.getName());
+	
+	@BeforeAll
+	public static void setupClass() {
+		LOG.fine("covers logging outside of a test case");
+	}
 
 	@Test
 	public void testStandardPlatformLoggers() {
