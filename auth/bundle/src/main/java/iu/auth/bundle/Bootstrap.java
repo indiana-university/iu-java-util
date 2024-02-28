@@ -105,13 +105,16 @@ public class Bootstrap {
 
 		final var filter = new FilteringClassLoader( //
 				Set.of("edu.iu", "edu.iu.auth", "edu.iu.auth.basic", //
-						"edu.iu.auth.oauth", "edu.iu.auth.oidc", "edu.iu.auth.spi"),
+						"edu.iu.auth.oauth", "edu.iu.auth.oidc", "edu.iu.auth.spi", "javax.security.auth"),
 				Bootstrap.class.getClassLoader());
 
 		final var parent = new URLClassLoader(box.utilDeps.toArray(URL[]::new), filter);
 		final var impl = new ModularClassLoader(false, box.moduleDeps, Bootstrap.class.getModule().getLayer(), parent,
-				c -> c.layer().modules().forEach(m -> {
-				}));
+				c -> {
+					final var jwtSupportModule = parent.getUnnamedModule();
+					c.addReads(c.layer().findModule("iu.util.auth.oidc").get(), jwtSupportModule);
+					c.addReads(c.layer().findModule("iu.util.auth.util").get(), jwtSupportModule);
+				});
 
 		shutdown = () -> {
 			impl.close();
