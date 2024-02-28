@@ -867,7 +867,7 @@ IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.core.type,Res
 IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.core.type,WritableTypeId.Inclusion,64,0,4,0,7,0,4,0,2,0
 IU Java Utilities API Reference/iu-java-auth,iu.auth.bundle,BasicAuthSpiDelegate,0,13,0,0,0,4,0,3,0,3
 IU Java Utilities API Reference/iu-java-auth,iu.auth.bundle,Bootstrap.new Object() {...},0,16,0,0,0,4,0,1,0,1
-IU Java Utilities API Reference/iu-java-auth,iu.auth.bundle,Bootstrap,0,181,0,12,0,43,0,16,0,10
+IU Java Utilities API Reference/iu-java-auth,iu.auth.bundle,Bootstrap,0,200,0,12,0,45,0,15,0,9
 IU Java Utilities API Reference/iu-java-auth,iu.auth.bundle,Bootstrap.new InvocationHandler() {...},0,52,0,6,0,11,0,6,0,3
 IU Java Utilities API Reference/iu-java-auth,iu.auth.bundle,OAuthSpiDelegate,0,17,0,0,0,5,0,4,0,4
 IU Java Utilities API Reference/iu-java-auth,iu.auth.bundle,OidcSpiDelegate,0,13,0,0,0,4,0,3,0,3

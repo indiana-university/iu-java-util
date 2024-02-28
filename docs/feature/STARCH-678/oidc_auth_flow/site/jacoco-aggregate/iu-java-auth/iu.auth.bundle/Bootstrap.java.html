@@ -105,27 +105,30 @@ public class Bootstrap {
 
 <span class="fc" id="L106">		final var filter = new FilteringClassLoader( //</span>
 <span class="fc" id="L107">				Set.of(&quot;edu.iu&quot;, &quot;edu.iu.auth&quot;, &quot;edu.iu.auth.basic&quot;, //</span>
-						&quot;edu.iu.auth.oauth&quot;, &quot;edu.iu.auth.oidc&quot;, &quot;edu.iu.auth.spi&quot;),
+						&quot;edu.iu.auth.oauth&quot;, &quot;edu.iu.auth.oidc&quot;, &quot;edu.iu.auth.spi&quot;, &quot;javax.security.auth&quot;),
 <span class="fc" id="L109">				Bootstrap.class.getClassLoader());</span>
 
 <span class="fc" id="L111">		final var parent = new URLClassLoader(box.utilDeps.toArray(URL[]::new), filter);</span>
 <span class="fc" id="L112">		final var impl = new ModularClassLoader(false, box.moduleDeps, Bootstrap.class.getModule().getLayer(), parent,</span>
-<span class="fc" id="L113">				c -&gt; c.layer().modules().forEach(m -&gt; {</span>
-<span class="fc" id="L114">				}));</span>
+				c -&gt; {
+<span class="fc" id="L114">					final var jwtSupportModule = parent.getUnnamedModule();</span>
+<span class="fc" id="L115">					c.addReads(c.layer().findModule(&quot;iu.util.auth.oidc&quot;).get(), jwtSupportModule);</span>
+<span class="fc" id="L116">					c.addReads(c.layer().findModule(&quot;iu.util.auth.util&quot;).get(), jwtSupportModule);</span>
+<span class="fc" id="L117">				});</span>
 
-<span class="fc" id="L116">		shutdown = () -&gt; {</span>
-<span class="fc" id="L117">			impl.close();</span>
-<span class="fc" id="L118">			parent.close();</span>
-<span class="fc" id="L119">			cleanUtils.run();</span>
-<span class="fc" id="L120">			Bootstrap.impl = null;</span>
-<span class="fc" id="L121">		};</span>
+<span class="fc" id="L119">		shutdown = () -&gt; {</span>
+<span class="fc" id="L120">			impl.close();</span>
+<span class="fc" id="L121">			parent.close();</span>
+<span class="fc" id="L122">			cleanUtils.run();</span>
+<span class="fc" id="L123">			Bootstrap.impl = null;</span>
+<span class="fc" id="L124">		};</span>
 
-<span class="fc" id="L123">		return impl;</span>
+<span class="fc" id="L126">		return impl;</span>
 	}
 
 	static {
-<span class="fc" id="L127">		impl = IuException.unchecked(Bootstrap::loadImpl);</span>
-<span class="fc" id="L128">	}</span>
+<span class="fc" id="L130">		impl = IuException.unchecked(Bootstrap::loadImpl);</span>
+<span class="fc" id="L131">	}</span>
 
 	/**
 	 * Loads a service interface using bootstrapped class loader.
@@ -135,32 +138,32 @@ public class Bootstrap {
 	 * @return SPI implementation
 	 */
 	static &lt;T&gt; T load(Class&lt;T&gt; serviceInterface) {
-<span class="fc" id="L138">		class Handler implements InvocationHandler {</span>
+<span class="fc" id="L141">		class Handler implements InvocationHandler {</span>
 			private Reference&lt;T&gt; delegate;
 
 			@Override
 			public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-<span class="fc bfc" id="L143" title="All 2 branches covered.">				if (impl == null)</span>
-<span class="fc" id="L144">					throw new IllegalStateException(&quot;iu.util.auth.impl closed&quot;);</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">				if (impl == null)</span>
+<span class="fc" id="L147">					throw new IllegalStateException(&quot;iu.util.auth.impl closed&quot;);</span>
 
 				final T delegate;
 				{
-<span class="fc" id="L148">					T d = null;</span>
-<span class="fc bfc" id="L149" title="All 2 branches covered.">					if (this.delegate != null)</span>
-<span class="fc" id="L150">						d = this.delegate.get();</span>
+<span class="fc" id="L151">					T d = null;</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">					if (this.delegate != null)</span>
+<span class="fc" id="L153">						d = this.delegate.get();</span>
 
-<span class="fc bfc" id="L152" title="All 2 branches covered.">					if (d == null) {</span>
-<span class="fc" id="L153">						d = ServiceLoader.load(serviceInterface, Objects.requireNonNull(impl)).findFirst().get();</span>
-<span class="fc" id="L154">						this.delegate = new WeakReference&lt;&gt;(d);</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">					if (d == null) {</span>
+<span class="fc" id="L156">						d = ServiceLoader.load(serviceInterface, Objects.requireNonNull(impl)).findFirst().get();</span>
+<span class="fc" id="L157">						this.delegate = new WeakReference&lt;&gt;(d);</span>
 					}
 
-<span class="fc" id="L157">					delegate = d;</span>
+<span class="fc" id="L160">					delegate = d;</span>
 				}
 
-<span class="fc" id="L160">				return IuException.checkedInvocation(() -&gt; method.invoke(delegate, args));</span>
+<span class="fc" id="L163">				return IuException.checkedInvocation(() -&gt; method.invoke(delegate, args));</span>
 			}
 		}
-<span class="fc" id="L163">		return serviceInterface.cast(Proxy.newProxyInstance(serviceInterface.getClassLoader(),</span>
+<span class="fc" id="L166">		return serviceInterface.cast(Proxy.newProxyInstance(serviceInterface.getClassLoader(),</span>
 				new Class&lt;?&gt;[] { serviceInterface }, new Handler()));
 	}
 
@@ -172,11 +175,11 @@ public class Bootstrap {
 	 * &lt;/p&gt;
 	 */
 	static synchronized void shutdown() {
-<span class="fc bfc" id="L175" title="All 2 branches covered.">		if (shutdown != null) {</span>
-<span class="fc" id="L176">			IuException.unchecked(shutdown);</span>
-<span class="fc" id="L177">			shutdown = null;</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">		if (shutdown != null) {</span>
+<span class="fc" id="L179">			IuException.unchecked(shutdown);</span>
+<span class="fc" id="L180">			shutdown = null;</span>
 		}
-<span class="fc" id="L179">	}</span>
+<span class="fc" id="L182">	}</span>
 
 	private Bootstrap() {
 	}
