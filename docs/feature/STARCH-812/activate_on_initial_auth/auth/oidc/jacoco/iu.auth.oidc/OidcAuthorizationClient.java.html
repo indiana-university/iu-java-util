@@ -1,0 +1,401 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OidcAuthorizationClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU OpenID Connect Client</a> &gt; <a href="index.source.html" class="el_package">iu.auth.oidc</a> &gt; <span class="el_source">OidcAuthorizationClient.java</span></div><h1>OidcAuthorizationClient.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.oidc;
+
+import java.io.Serializable;
+import java.net.URI;
+import java.net.http.HttpRequest;
+import java.security.Principal;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import javax.security.auth.Subject;
+
+import com.auth0.jwt.interfaces.DecodedJWT;
+
+import edu.iu.IdGenerator;
+import edu.iu.IuAuthorizationFailedException;
+import edu.iu.IuBadRequestException;
+import edu.iu.IuCrypt;
+import edu.iu.IuException;
+import edu.iu.IuIterable;
+import edu.iu.IuObject;
+import edu.iu.IuOutOfServiceException;
+import edu.iu.IuText;
+import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.oauth.IuAuthorizationClient;
+import edu.iu.auth.oauth.IuBearerAuthCredentials;
+import edu.iu.auth.oauth.IuTokenResponse;
+import edu.iu.auth.oidc.IuOpenIdClaim;
+import edu.iu.auth.oidc.IuOpenIdClient;
+import iu.auth.util.AccessTokenVerifier;
+import iu.auth.util.HttpUtils;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
+
+/**
+ * OpenID Connect {@link IuAuthorizationClient} implementation.
+ */
+class OidcAuthorizationClient implements IuAuthorizationClient {
+
+<span class="fc" id="L84">	private static final Logger LOG = Logger.getLogger(OidcAuthorizationClient.class.getName());</span>
+
+<span class="fc" id="L86">	private static final Iterable&lt;String&gt; OIDC_SCOPE = IuIterable.iter(&quot;openid&quot;);</span>
+<span class="fc" id="L87">	private static final Predicate&lt;String&gt; IS_OIDC = &quot;openid&quot;::equals;</span>
+
+	private static class Id implements Principal, Serializable {
+		private static final long serialVersionUID = 1L;
+
+		private final String name;
+<span class="fc" id="L93">		private String activationCode = IdGenerator.generateId();</span>
+		private boolean clientActivated;
+
+<span class="fc" id="L96">		private Id(String name) {</span>
+<span class="fc" id="L97">			this.name = name;</span>
+<span class="fc" id="L98">		}</span>
+
+		@Override
+		public String getName() {
+<span class="fc" id="L102">			return name;</span>
+		}
+
+		@Override
+		public int hashCode() {
+<span class="fc" id="L107">			return IuObject.hashCode(name);</span>
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+<span class="fc bfc" id="L112" title="All 2 branches covered.">			if (!IuObject.typeCheck(this, obj))</span>
+<span class="fc" id="L113">				return false;</span>
+<span class="fc" id="L114">			Id other = (Id) obj;</span>
+<span class="fc" id="L115">			return IuObject.equals(name, other.name);</span>
+		}
+
+		@Override
+		public String toString() {
+<span class="fc" id="L120">			return &quot;OIDC Principal ID [name=&quot; + name + &quot;]&quot;;</span>
+		}
+	}
+
+	private final String realm;
+	private final URI authorizationEndpoint;
+	private final URI tokenEndpoint;
+	private final URI userinfoEndpoint;
+	private final IuOpenIdClient client;
+	private final AccessTokenVerifier idTokenVerifier;
+
+<span class="fc" id="L131">	private final Set&lt;String&gt; nonces = new HashSet&lt;&gt;();</span>
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param config          parsed OIDC provider configuration
+	 * @param client          client configuration metadata
+	 * @param idTokenVerifier ID token verifier
+	 */
+<span class="fc" id="L140">	OidcAuthorizationClient(JsonObject config, IuOpenIdClient client, AccessTokenVerifier idTokenVerifier) {</span>
+<span class="fc" id="L141">		realm = config.getString(&quot;issuer&quot;);</span>
+<span class="fc" id="L142">		authorizationEndpoint = IuException.unchecked(() -&gt; new URI(config.getString(&quot;authorization_endpoint&quot;)));</span>
+<span class="fc" id="L143">		tokenEndpoint = IuException.unchecked(() -&gt; new URI(config.getString(&quot;token_endpoint&quot;)));</span>
+<span class="fc" id="L144">		userinfoEndpoint = IuException.unchecked(() -&gt; new URI(config.getString(&quot;userinfo_endpoint&quot;)));</span>
+<span class="fc" id="L145">		this.client = client;</span>
+<span class="fc" id="L146">		this.idTokenVerifier = idTokenVerifier;</span>
+<span class="fc" id="L147">	}</span>
+
+	@Override
+	public String getRealm() {
+<span class="fc" id="L151">		return realm;</span>
+	}
+
+	@Override
+	public URI getAuthorizationEndpoint() {
+<span class="fc" id="L156">		return authorizationEndpoint;</span>
+	}
+
+	@Override
+	public URI getTokenEndpoint() {
+<span class="fc" id="L161">		return tokenEndpoint;</span>
+	}
+
+	@Override
+	public URI getRedirectUri() {
+<span class="fc" id="L166">		return client.getRedirectUri();</span>
+	}
+
+	@Override
+	public Map&lt;String, String&gt; getAuthorizationCodeAttributes() {
+<span class="fc" id="L171">		final Map&lt;String, String&gt; attributes = new LinkedHashMap&lt;&gt;();</span>
+
+<span class="fc" id="L173">		final var clientAttributes = client.getAuthorizationCodeAttributes();</span>
+<span class="fc bfc" id="L174" title="All 2 branches covered.">		if (clientAttributes != null)</span>
+<span class="fc" id="L175">			attributes.putAll(clientAttributes);</span>
+
+<span class="fc" id="L177">		final var nonce = IdGenerator.generateId();</span>
+<span class="fc" id="L178">		synchronized (nonces) {</span>
+<span class="fc" id="L179">			nonces.add(nonce);</span>
+<span class="fc" id="L180">		}</span>
+<span class="fc" id="L181">		attributes.put(&quot;nonce&quot;, nonce);</span>
+
+<span class="fc" id="L183">		final var authenticatedSessionTimeout = client.getAuthenticatedSessionTimeout();</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">		if (authenticatedSessionTimeout != null)</span>
+<span class="fc" id="L185">			attributes.put(&quot;max_age&quot;, Long.toString(authenticatedSessionTimeout.toSeconds()));</span>
+
+<span class="fc" id="L187">		return Collections.unmodifiableMap(attributes);</span>
+	}
+
+	@Override
+	public Map&lt;String, String&gt; getClientCredentialsAttributes() {
+<span class="fc" id="L192">		return client.getClientCredentialsAttributes();</span>
+	}
+
+	@Override
+	public IuApiCredentials getCredentials() {
+<span class="fc" id="L197">		return client.getCredentials();</span>
+	}
+
+	@Override
+	public Duration getAuthenticationTimeout() {
+<span class="fc" id="L202">		return client.getAuthenticationTimeout();</span>
+	}
+
+	@Override
+	public URI getResourceUri() {
+<span class="fc" id="L207">		return client.getResourceUri();</span>
+	}
+
+	@SuppressWarnings(&quot;unchecked&quot;)
+	@Override
+	public Iterable&lt;String&gt; getScope() {
+<span class="fc" id="L213">		final var scope = client.getScope();</span>
+<span class="fc bfc" id="L214" title="All 2 branches covered.">		if (scope == null)</span>
+<span class="fc" id="L215">			return OIDC_SCOPE;</span>
+		else
+<span class="fc bfc" id="L217" title="All 2 branches covered.">			return (Iterable&lt;String&gt;) IuIterable.cat(OIDC_SCOPE, IuIterable.filter(scope, a -&gt; !&quot;openid&quot;.equals(a)));</span>
+	}
+
+	@Override
+	public Subject verify(IuTokenResponse tokenResponse) throws IuAuthenticationException, IuBadRequestException,
+			IuAuthorizationFailedException, IuOutOfServiceException, IllegalStateException {
+<span class="fc bfc" id="L223" title="All 2 branches covered.">		if (!IuIterable.filter(tokenResponse.getScope(), IS_OIDC).iterator().hasNext())</span>
+<span class="fc" id="L224">			throw new IuAuthorizationFailedException(&quot;missing openid scope&quot;);</span>
+
+<span class="fc" id="L226">		final var accessToken = Objects.requireNonNull(tokenResponse.getAccessToken(), &quot;access_token&quot;);</span>
+
+		// TODO: STARCH-595 resolve String cast
+<span class="fc" id="L229">		final var clientId = client.getCredentials().getName();</span>
+<span class="fc" id="L230">		final var idToken = tokenResponse.getTokenAttributes().get(&quot;id_token&quot;);</span>
+		final DecodedJWT verifiedIdToken;
+<span class="fc bfc" id="L232" title="All 2 branches covered.">		if (idToken != null) {</span>
+<span class="fc" id="L233">			final var alg = client.getIdTokenSignedResponseAlg();</span>
+<span class="fc" id="L234">			verifiedIdToken = idTokenVerifier.verify(clientId, (String) idToken);</span>
+<span class="fc bfc" id="L235" title="All 2 branches covered.">			if (!alg.equals(verifiedIdToken.getAlgorithm()))</span>
+<span class="fc" id="L236">				throw new IllegalArgumentException(alg + &quot; required&quot;);</span>
+
+<span class="fc" id="L238">			final var encodedHash = IuCrypt.sha256(IuText.utf8(accessToken));</span>
+<span class="fc" id="L239">			final var halfOfEncodedHash = Arrays.copyOf(encodedHash, (encodedHash.length / 2));</span>
+<span class="fc" id="L240">			final var atHashGeneratedfromAccessToken = Base64.getUrlEncoder().withoutPadding()</span>
+<span class="fc" id="L241">					.encodeToString(halfOfEncodedHash);</span>
+
+<span class="fc" id="L243">			final var atHash = Objects.requireNonNull(verifiedIdToken.getClaim(&quot;at_hash&quot;).asString(), &quot;at_hash&quot;);</span>
+<span class="fc bfc" id="L244" title="All 2 branches covered.">			if (!atHash.equals(atHashGeneratedfromAccessToken))</span>
+<span class="fc" id="L245">				throw new IllegalStateException(&quot;Invalid at_hash&quot;);</span>
+
+<span class="fc" id="L247">			final var nonce = verifiedIdToken.getClaim(&quot;nonce&quot;).asString();</span>
+<span class="fc" id="L248">			IdGenerator.verifyId(nonce, client.getAuthenticationTimeout().toMillis());</span>
+<span class="fc" id="L249">			synchronized (nonces) {</span>
+<span class="fc bfc" id="L250" title="All 2 branches covered.">				if (!nonces.remove(nonce))</span>
+<span class="fc" id="L251">					throw new IllegalArgumentException(&quot;Invalid nonce&quot;);</span>
+<span class="fc" id="L252">			}</span>
+<span class="fc" id="L253">		} else</span>
+<span class="fc" id="L254">			verifiedIdToken = null;</span>
+
+<span class="fc" id="L256">		final var userinfo = HttpUtils.read(HttpRequest.newBuilder(userinfoEndpoint) //</span>
+<span class="fc" id="L257">				.header(&quot;Authorization&quot;, &quot;Bearer &quot; + accessToken).build()).asJsonObject();</span>
+<span class="fc" id="L258">		final var principal = userinfo.getString(&quot;principal&quot;);</span>
+<span class="fc" id="L259">		final var sub = userinfo.getString(&quot;sub&quot;);</span>
+<span class="fc" id="L260">		final var id = new Id(principal);</span>
+
+<span class="fc bfc" id="L262" title="All 4 branches covered.">		if (clientId.equals(principal) &amp;&amp; clientId.equals(sub)) {</span>
+<span class="fc" id="L263">			id.activationCode = IdGenerator.generateId();</span>
+<span class="fc" id="L264">			return new Subject(true, Set.of(id), Set.of(), Set.of());</span>
+		}
+
+<span class="fc bfc" id="L267" title="All 2 branches covered.">		if (idToken == null)</span>
+<span class="fc" id="L268">			throw new IllegalStateException(&quot;Token response missing id_token&quot;);</span>
+
+<span class="fc" id="L270">		final var now = Instant.now();</span>
+<span class="fc" id="L271">		final var authTime = verifiedIdToken.getClaim(&quot;auth_time&quot;).asInstant();</span>
+<span class="fc" id="L272">		final var authExpires = authTime.plus(client.getAuthenticatedSessionTimeout());</span>
+<span class="fc bfc" id="L273" title="All 2 branches covered.">		if (now.isAfter(authExpires)) {</span>
+<span class="fc" id="L274">			final Map&lt;String, String&gt; challengeAttributes = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L275">			challengeAttributes.put(&quot;realm&quot;, realm);</span>
+<span class="fc" id="L276">			challengeAttributes.put(&quot;scope&quot;, String.join(&quot; &quot;, getScope()));</span>
+<span class="fc" id="L277">			challengeAttributes.put(&quot;error&quot;, &quot;invalid_token&quot;);</span>
+<span class="fc" id="L278">			challengeAttributes.put(&quot;error_description&quot;, &quot;auth session timeout, must reauthenticate&quot;);</span>
+<span class="fc" id="L279">			throw new IuAuthenticationException(HttpUtils.createChallenge(&quot;Bearer&quot;, challengeAttributes));</span>
+		}
+
+<span class="fc" id="L282">		final Set&lt;String&gt; seen = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L283">		final var subject = new Subject();</span>
+<span class="fc" id="L284">		final var principals = subject.getPrincipals();</span>
+<span class="fc" id="L285">		principals.add(id);</span>
+
+<span class="fc" id="L287">		final BiConsumer&lt;String, Supplier&lt;?&gt;&gt; claimConsumer = //</span>
+				(claimName, claimSupplier) -&gt; {
+<span class="fc bfc" id="L289" title="All 2 branches covered.">					if (seen.add(claimName))</span>
+<span class="fc" id="L290">						principals.add(new OidcClaim&lt;&gt;(principal, claimName,</span>
+<span class="fc" id="L291">								Objects.requireNonNull(claimSupplier.get(), claimName)));</span>
+<span class="fc" id="L292">				};</span>
+
+<span class="fc" id="L294">		claimConsumer.accept(&quot;principal&quot;, () -&gt; principal);</span>
+<span class="fc" id="L295">		claimConsumer.accept(&quot;sub&quot;, () -&gt; sub);</span>
+<span class="fc" id="L296">		claimConsumer.accept(&quot;aud&quot;, () -&gt; clientId);</span>
+<span class="fc" id="L297">		claimConsumer.accept(&quot;iat&quot;, verifiedIdToken::getIssuedAtAsInstant);</span>
+<span class="fc" id="L298">		claimConsumer.accept(&quot;exp&quot;, verifiedIdToken::getExpiresAtAsInstant);</span>
+<span class="fc" id="L299">		claimConsumer.accept(&quot;auth_time&quot;, () -&gt; authTime);</span>
+
+<span class="fc bfc" id="L301" title="All 2 branches covered.">		for (final var userinfoClaimEntry : userinfo.entrySet())</span>
+<span class="fc" id="L302">			claimConsumer.accept(userinfoClaimEntry.getKey(), () -&gt; {</span>
+<span class="fc" id="L303">				final var claimJsonValue = userinfoClaimEntry.getValue();</span>
+<span class="fc bfc" id="L304" title="All 2 branches covered.">				if (claimJsonValue instanceof JsonString)</span>
+<span class="fc" id="L305">					return ((JsonString) claimJsonValue).getString();</span>
+				else
+<span class="fc" id="L307">					return claimJsonValue.toString();</span>
+			});
+
+<span class="fc" id="L310">		return subject;</span>
+	}
+
+	@Override
+	public Subject verify(IuTokenResponse refreshTokenResponse, IuTokenResponse originalTokenResponse)
+			throws IuAuthenticationException, IuBadRequestException, IuAuthorizationFailedException,
+			IuOutOfServiceException, IllegalStateException {
+		// TODO establish and verify refresh token integration test
+<span class="fc" id="L318">		throw new UnsupportedOperationException(&quot;TODO&quot;);</span>
+	}
+
+	@Override
+	public void activate(IuApiCredentials credentials) throws IuAuthenticationException, IuBadRequestException,
+			IuAuthorizationFailedException, IuOutOfServiceException, IllegalStateException {
+<span class="fc bfc" id="L324" title="All 2 branches covered.">		if (!(credentials instanceof IuBearerAuthCredentials))</span>
+<span class="fc" id="L325">			throw new IllegalArgumentException(&quot;Invalid credentials type&quot;);</span>
+
+<span class="fc" id="L327">		final var bearer = (IuBearerAuthCredentials) credentials;</span>
+<span class="fc" id="L328">		final var subject = Objects.requireNonNull(bearer.getSubject(), &quot;subject&quot;);</span>
+<span class="fc" id="L329">		final var id = subject.getPrincipals(Id.class).iterator().next();</span>
+		try {
+<span class="fc" id="L331">			IdGenerator.verifyId(id.activationCode, client.getActivationInterval().toMillis());</span>
+<span class="fc bfc" id="L332" title="All 2 branches covered.">			if (!id.clientActivated) {</span>
+<span class="fc" id="L333">				client.activate(credentials);</span>
+<span class="fc" id="L334">				id.clientActivated = true;</span>
+			}
+<span class="fc" id="L336">			return;</span>
+<span class="fc" id="L337">		} catch (Throwable e) {</span>
+<span class="fc" id="L338">			LOG.log(Level.FINER, e, () -&gt; &quot;discarding invalid activation code&quot;);</span>
+<span class="fc" id="L339">			id.activationCode = null;</span>
+		}
+
+		try {
+<span class="fc" id="L343">			final Map&lt;String, Object&gt; claims = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L344" title="All 2 branches covered.">			for (final var claim : subject.getPrincipals(IuOpenIdClaim.class))</span>
+<span class="fc" id="L345">				claims.put(claim.getClaimName(), claim.getClaim());</span>
+
+<span class="fc" id="L347">			final var accessToken = Objects.requireNonNull(bearer.getAccessToken(), &quot;accessToken&quot;);</span>
+<span class="fc" id="L348">			final var userinfo = HttpUtils.read(HttpRequest.newBuilder(userinfoEndpoint) //</span>
+<span class="fc" id="L349">					.header(&quot;Authorization&quot;, &quot;Bearer &quot; + accessToken).build()).asJsonObject();</span>
+<span class="fc" id="L350">			final var principal = userinfo.getString(&quot;principal&quot;);</span>
+<span class="fc" id="L351">			final var sub = userinfo.getString(&quot;sub&quot;);</span>
+
+<span class="fc" id="L353">			final var clientId = client.getCredentials().getName();</span>
+<span class="fc bfc" id="L354" title="All 4 branches covered.">			if (clientId.equals(principal) &amp;&amp; clientId.equals(sub)) {</span>
+<span class="fc" id="L355">				id.activationCode = IdGenerator.generateId();</span>
+<span class="fc" id="L356">				return;</span>
+			}
+
+<span class="fc bfc" id="L359" title="All 2 branches covered.">			if (!clientId.equals(claims.get(&quot;aud&quot;)))</span>
+<span class="fc" id="L360">				throw new IllegalArgumentException(&quot;Invalid aud&quot;);</span>
+
+<span class="fc" id="L362">			final var now = Instant.now();</span>
+<span class="fc" id="L363">			final var authTime = (Instant) claims.get(&quot;auth_time&quot;);</span>
+<span class="fc" id="L364">			final var authExpires = authTime.plus(client.getAuthenticatedSessionTimeout());</span>
+<span class="fc bfc" id="L365" title="All 2 branches covered.">			if (now.isAfter(authExpires)) {</span>
+<span class="fc" id="L366">				final Map&lt;String, String&gt; challengeAttributes = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L367">				challengeAttributes.put(&quot;realm&quot;, realm);</span>
+<span class="fc" id="L368">				challengeAttributes.put(&quot;scope&quot;, String.join(&quot; &quot;, getScope()));</span>
+<span class="fc" id="L369">				challengeAttributes.put(&quot;error&quot;, &quot;invalid_token&quot;);</span>
+<span class="fc" id="L370">				challengeAttributes.put(&quot;error_description&quot;, &quot;auth session timeout, must reauthenticate&quot;);</span>
+<span class="fc" id="L371">				throw new IuAuthenticationException(HttpUtils.createChallenge(&quot;Bearer&quot;, challengeAttributes));</span>
+			}
+
+<span class="fc bfc" id="L374" title="All 2 branches covered.">			for (final var userinfoClaimEntry : userinfo.entrySet()) {</span>
+<span class="fc" id="L375">				final var claimJsonValue = userinfoClaimEntry.getValue();</span>
+				final String claim;
+<span class="fc bfc" id="L377" title="All 2 branches covered.">				if (claimJsonValue instanceof JsonString)</span>
+<span class="fc" id="L378">					claim = ((JsonString) claimJsonValue).getString();</span>
+				else
+<span class="fc" id="L380">					claim = claimJsonValue.toString();</span>
+
+<span class="fc" id="L382">				final var key = userinfoClaimEntry.getKey();</span>
+<span class="fc bfc" id="L383" title="All 2 branches covered.">				if (!IuObject.equals(claim, claims.get(key)))</span>
+<span class="fc" id="L384">					throw new IllegalArgumentException(key);</span>
+<span class="fc" id="L385">			}</span>
+<span class="fc" id="L386">		} catch (Throwable e) {</span>
+<span class="fc" id="L387">			Map&lt;String, String&gt; challengeAttributes = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L388">			challengeAttributes.put(&quot;realm&quot;, realm);</span>
+<span class="fc" id="L389">			challengeAttributes.put(&quot;scope&quot;, String.join(&quot; &quot;, getScope()));</span>
+<span class="fc" id="L390">			challengeAttributes.put(&quot;error&quot;, &quot;invalid_token&quot;);</span>
+<span class="fc" id="L391">			challengeAttributes.put(&quot;error_description&quot;, &quot;session activation failed, must reauthenticate&quot;);</span>
+<span class="fc" id="L392">			throw new IuAuthenticationException(HttpUtils.createChallenge(&quot;Bearer&quot;, challengeAttributes), e);</span>
+<span class="fc" id="L393">		}</span>
+
+<span class="fc" id="L395">		client.activate(credentials);</span>
+
+<span class="fc" id="L397">		id.activationCode = IdGenerator.generateId();</span>
+<span class="fc" id="L398">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

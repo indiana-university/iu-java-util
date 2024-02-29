@@ -1,0 +1,11 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+IU OAuth Authorization Client,iu.auth.oauth,BearerAuthCredentials,0,91,0,8,0,18,0,12,0,8
+IU OAuth Authorization Client,iu.auth.oauth,ClientCredentialsGrant,0,142,0,16,0,30,0,12,0,4
+IU OAuth Authorization Client,iu.auth.oauth,AuthorizationCodeGrant,0,531,0,34,0,123,0,25,0,8
+IU OAuth Authorization Client,iu.auth.oauth,OAuthSpi,0,130,0,22,0,31,0,17,0,6
+IU OAuth Authorization Client,iu.auth.oauth,AuthorizationSession,0,126,0,10,0,28,0,9,0,4
+IU OAuth Authorization Client,iu.auth.oauth,AuthorizedScope,0,60,0,6,0,13,0,9,0,6
+IU OAuth Authorization Client,iu.auth.oauth,AuthorizationCodeGrant.AuthorizationState,0,12,0,0,0,5,0,1,0,1
+IU OAuth Authorization Client,iu.auth.oauth,AbstractGrant.AuthorizedCredentials,0,24,0,4,0,5,0,4,0,2
+IU OAuth Authorization Client,iu.auth.oauth,AbstractGrant,0,249,0,36,0,48,0,27,0,9
+IU OAuth Authorization Client,iu.auth.oauth,TokenResponse,0,214,0,32,0,50,0,25,0,9

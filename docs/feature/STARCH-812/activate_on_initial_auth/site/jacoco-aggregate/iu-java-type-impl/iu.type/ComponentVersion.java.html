@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ComponentVersion.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-type-impl</a> &gt; <a href="index.source.html" class="el_package">iu.type</a> &gt; <span class="el_source">ComponentVersion.java</span></div><h1>ComponentVersion.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.type;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Objects;
+import java.util.Properties;
+import java.util.jar.Attributes;
+import java.util.jar.Attributes.Name;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
+import java.util.jar.JarInputStream;
+import java.util.jar.Manifest;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import edu.iu.IuException;
+import edu.iu.UnsafeFunction;
+import edu.iu.type.IuComponentVersion;
+
+/**
+ * Implementation of {@link IuComponentVersion}.
+ */
+class ComponentVersion implements IuComponentVersion {
+
+<span class="fc" id="L58">	private static final Pattern SPEC_VERSION_PATTERN = Pattern.compile(&quot;^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$&quot;);</span>
+<span class="fc" id="L59">	private static final Pattern NAME_PATTERN = Pattern.compile(&quot;^[a-zA-Z][a-zA-Z0-9\\-\\.]*$&quot;);</span>
+
+	/**
+	 * Specification version constant for detecting &lt;a href=
+	 * &quot;https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0&quot;&gt;Jakarta
+	 * Servlet version 6&lt;/a&gt; or higher.
+	 */
+<span class="fc" id="L66">	static final ComponentVersion SERVLET_6 = new ComponentVersion(&quot;jakarta.servlet-api&quot;, 6, 0);</span>
+
+	/**
+	 * Determines the component version for a path entry: class folder or
+	 * {@link JarFile jar file}.
+	 * 
+	 * @param pathEntry path entry
+	 * @return component version
+	 * @throws IOException if an I/O error occurs discovering the component version
+	 */
+	static ComponentVersion of(Path pathEntry) throws IOException {
+<span class="fc" id="L77">		final var properties = new Properties();</span>
+<span class="fc" id="L78">		final UnsafeFunction&lt;InputStream, ComponentVersion&gt; withPomPropertiesInput = in -&gt; {</span>
+<span class="fc" id="L79">			properties.load(in);</span>
+<span class="fc" id="L80">			final var name = Objects.requireNonNull(properties.getProperty(&quot;artifactId&quot;));</span>
+<span class="fc" id="L81">			final var version = Objects.requireNonNull(properties.getProperty(&quot;version&quot;));</span>
+<span class="fc" id="L82">			return new ComponentVersion(name, version);</span>
+		};
+<span class="fc" id="L84">		final UnsafeFunction&lt;Path, ComponentVersion&gt; withPomPropertiesPath = pomPropertiesPath -&gt; {</span>
+<span class="fc" id="L85">			try (final var in = Files.newInputStream(pomPropertiesPath)) {</span>
+<span class="fc" id="L86">				return withPomPropertiesInput.apply(in);</span>
+			}
+		};
+
+<span class="fc bfc" id="L90" title="All 2 branches covered.">		if (Files.isDirectory(pathEntry)) {</span>
+			Path pomPropertiesPath;
+<span class="fc bfc" id="L92" title="All 2 branches covered.">			if (Files.isReadable(pomPropertiesPath = pathEntry.resolveSibling(&quot;maven-archiver/pom.properties&quot;)))</span>
+<span class="fc" id="L93">				return IuException.checked(IOException.class, pomPropertiesPath, withPomPropertiesPath);</span>
+
+<span class="fc" id="L95">			final var metaInfMaven = pathEntry.resolve(&quot;maven&quot;);</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">			if (Files.isDirectory(metaInfMaven)) {</span>
+<span class="fc" id="L97">				final var groupIdIterator = Files.list(metaInfMaven).iterator();</span>
+				final Path groupId;
+<span class="fc bfc" id="L99" title="All 2 branches covered.">				if (groupIdIterator.hasNext() //</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">						&amp;&amp; Files.isDirectory(groupId = groupIdIterator.next()) //</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">						&amp;&amp; !groupIdIterator.hasNext()) {</span>
+<span class="fc" id="L102">					final var artifactIdIterator = Files.list(groupId).iterator();</span>
+					final Path artifactId;
+<span class="fc bfc" id="L104" title="All 2 branches covered.">					if (artifactIdIterator.hasNext() //</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">							&amp;&amp; Files.isDirectory(artifactId = artifactIdIterator.next()) //</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">							&amp;&amp; !artifactIdIterator.hasNext() //</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">							&amp;&amp; Files.isReadable(pomPropertiesPath = artifactId.resolve(&quot;pom.properties&quot;)))</span>
+<span class="fc" id="L108">						return IuException.checked(IOException.class, pomPropertiesPath, withPomPropertiesPath);</span>
+				}
+			}
+
+<span class="fc" id="L112">			throw new IllegalArgumentException(</span>
+					&quot;Missing ../maven-archiver/pom.properties or META-INF/maven/{groupId}/{artifactId}/pom.properties&quot;);
+
+		} else
+<span class="fc" id="L116">			try (final var in = Files.newInputStream(pathEntry); final var jar = new JarInputStream(in)) {</span>
+				JarEntry entry;
+<span class="fc bfc" id="L118" title="All 2 branches covered.">				while ((entry = jar.getNextJarEntry()) != null) {</span>
+<span class="fc" id="L119">					final var entryName = entry.getName();</span>
+<span class="fc bfc" id="L120" title="All 4 branches covered.">					if (entryName.startsWith(&quot;META-INF/maven/&quot;) &amp;&amp; entryName.endsWith(&quot;/pom.properties&quot;))</span>
+<span class="fc" id="L121">						return IuException.checked(IOException.class, jar, withPomPropertiesInput);</span>
+<span class="fc" id="L122">				}</span>
+
+<span class="fc" id="L124">				throw new IllegalArgumentException(&quot;Missing META-INF/maven/{groupId}/{artifactId}/pom.properties&quot;);</span>
+			}
+	}
+
+	private final String name;
+	private final String version;
+	private final int major;
+	private final int minor;
+
+	/**
+	 * Creates a specification version.
+	 * 
+	 * @param name  extension name
+	 * @param major major version number
+	 * @param minor minor version number
+	 */
+<span class="fc" id="L140">	ComponentVersion(String name, int major, int minor) {</span>
+<span class="pc bpc" id="L141" title="1 of 4 branches missed.">		if (name == null || !NAME_PATTERN.matcher(name).matches())</span>
+<span class="fc" id="L142">			throw new IllegalArgumentException(</span>
+					&quot;Component name must be non-null, start with a letter, and contain only letters, numbers, dots '.', and hyphens '-'&quot;);
+<span class="fc bfc" id="L144" title="All 2 branches covered.">		if (major &lt; 0)</span>
+<span class="fc" id="L145">			throw new IllegalArgumentException(&quot;Component major version number must be non-negative&quot;);</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">		if (minor &lt; 0)</span>
+<span class="fc" id="L147">			throw new IllegalArgumentException(&quot;Component minor version number must be non-negative&quot;);</span>
+<span class="fc" id="L148">		this.name = Objects.requireNonNull(name);</span>
+<span class="fc" id="L149">		this.version = null;</span>
+<span class="fc" id="L150">		this.major = major;</span>
+<span class="fc" id="L151">		this.minor = minor;</span>
+<span class="fc" id="L152">	}</span>
+
+	/**
+	 * Creates an implementation version
+	 * 
+	 * @param name    extension name
+	 * @param version implementation version
+	 */
+<span class="fc" id="L160">	ComponentVersion(String name, String version) {</span>
+<span class="pc bpc" id="L161" title="1 of 4 branches missed.">		if (name == null || !NAME_PATTERN.matcher(name).matches())</span>
+<span class="fc" id="L162">			throw new IllegalArgumentException(</span>
+					&quot;Component name must be non-null, start with a letter, and contain only letters, numbers, dots '.', and hyphens '-'&quot;);
+
+<span class="fc bfc" id="L165" title="All 2 branches covered.">		if (version == null)</span>
+<span class="fc" id="L166">			throw new IllegalArgumentException(&quot;Missing version for &quot; + name + &quot;, must be a valid semantic version&quot;);</span>
+
+		Matcher semverMatcher;
+<span class="fc bfc" id="L169" title="All 2 branches covered.">		if (!(semverMatcher = SEMANTIC_VERSION_PATTERN.matcher(version)).matches()</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">				&amp;&amp; !(semverMatcher = SPEC_VERSION_PATTERN.matcher(version)).matches())</span>
+<span class="fc" id="L171">			throw new IllegalArgumentException(&quot;Invalid version for &quot; + name + &quot;, must be a valid semantic version&quot;);</span>
+
+<span class="fc" id="L173">		this.name = name;</span>
+<span class="fc" id="L174">		this.version = version;</span>
+<span class="fc" id="L175">		this.major = Integer.parseInt(semverMatcher.group(1));</span>
+<span class="fc" id="L176">		this.minor = Integer.parseInt(semverMatcher.group(2));</span>
+<span class="fc" id="L177">	}</span>
+
+	/**
+	 * Reads a dependency item from an extension list
+	 * 
+	 * @param extenstionListItem extension list item
+	 * @param mainAttributes     {@link Manifest#getMainAttributes()}
+	 */
+<span class="fc" id="L185">	ComponentVersion(String extenstionListItem, Attributes mainAttributes) {</span>
+<span class="fc" id="L186">		var extensionAttributePrefix = extenstionListItem.replace('.', '_');</span>
+<span class="fc" id="L187">		var extensionNameAttribute = extensionAttributePrefix + '-' + Name.EXTENSION_NAME;</span>
+<span class="fc" id="L188">		name = mainAttributes.getValue(extensionNameAttribute);</span>
+<span class="fc bfc" id="L189" title="All 2 branches covered.">		if (name == null)</span>
+<span class="fc" id="L190">			throw new IllegalArgumentException(</span>
+					&quot;Missing &quot; + extensionNameAttribute + &quot; in META-INF/MANIFEST.MF main attributes&quot;);
+
+<span class="fc" id="L193">		var implementationVersionAttribute = extensionAttributePrefix + '-' + Name.IMPLEMENTATION_VERSION;</span>
+<span class="fc" id="L194">		version = mainAttributes.getValue(implementationVersionAttribute);</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">		if (version != null) {</span>
+			Matcher semverMatcher;
+<span class="fc bfc" id="L197" title="All 2 branches covered.">			if (!(semverMatcher = SEMANTIC_VERSION_PATTERN.matcher(version)).matches()</span>
+<span class="fc bfc" id="L198" title="All 2 branches covered.">					&amp;&amp; !(semverMatcher = SPEC_VERSION_PATTERN.matcher(version)).matches())</span>
+<span class="fc" id="L199">				throw new IllegalArgumentException(&quot;Invalid version for &quot; + implementationVersionAttribute</span>
+						+ &quot; in META-INF/MANIFEST.MF main attributes, must be a valid semantic version&quot;);
+<span class="fc" id="L201">			major = Integer.parseInt(semverMatcher.group(1));</span>
+<span class="fc" id="L202">			minor = Integer.parseInt(semverMatcher.group(2));</span>
+
+<span class="fc" id="L204">		} else {</span>
+<span class="fc" id="L205">			var specificationVersionAttribute = extensionAttributePrefix + '-' + Name.SPECIFICATION_VERSION;</span>
+<span class="fc" id="L206">			var specificationVersion = mainAttributes.getValue(specificationVersionAttribute);</span>
+<span class="fc bfc" id="L207" title="All 2 branches covered.">			if (specificationVersion == null)</span>
+<span class="fc" id="L208">				throw new IllegalArgumentException(&quot;Missing &quot; + implementationVersionAttribute + &quot; or &quot;</span>
+						+ specificationVersionAttribute + &quot; in META-INF/MANIFEST.MF main attributes&quot;);
+
+<span class="fc" id="L211">			var specverMatcher = SPEC_VERSION_PATTERN.matcher(specificationVersion);</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">			if (!specverMatcher.matches())</span>
+<span class="fc" id="L213">				throw new IllegalArgumentException(&quot;Invalid version for &quot; + specificationVersionAttribute</span>
+						+ &quot; in META-INF/MANIFEST.MF main attributes , must be a valid semantic version&quot;);
+<span class="fc" id="L215">			major = Integer.parseInt(specverMatcher.group(1));</span>
+<span class="fc" id="L216">			minor = Integer.parseInt(specverMatcher.group(2));</span>
+		}
+<span class="fc" id="L218">	}</span>
+
+	@Override
+	public String name() {
+<span class="fc" id="L222">		return name;</span>
+	}
+
+	@Override
+	public String implementationVersion() {
+<span class="fc" id="L227">		return version;</span>
+	}
+
+	@Override
+	public int major() {
+<span class="fc" id="L232">		return major;</span>
+	}
+
+	@Override
+	public int minor() {
+<span class="fc" id="L237">		return minor;</span>
+	}
+
+	@Override
+	public ComponentVersion specificationVersion() {
+<span class="fc bfc" id="L242" title="All 2 branches covered.">		if (version == null)</span>
+<span class="fc" id="L243">			return this;</span>
+		else
+<span class="fc" id="L245">			return new ComponentVersion(name, major, minor);</span>
+	}
+
+	@Override
+	public int hashCode() {
+<span class="fc" id="L250">		return Objects.hash(major, minor, name, version);</span>
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+<span class="fc bfc" id="L255" title="All 2 branches covered.">		if (this == obj)</span>
+<span class="fc" id="L256">			return true;</span>
+<span class="fc bfc" id="L257" title="All 2 branches covered.">		if (obj == null)</span>
+<span class="fc" id="L258">			return false;</span>
+<span class="fc bfc" id="L259" title="All 2 branches covered.">		if (!(obj instanceof IuComponentVersion))</span>
+<span class="fc" id="L260">			return false;</span>
+
+<span class="fc" id="L262">		IuComponentVersion other = (IuComponentVersion) obj;</span>
+<span class="fc bfc" id="L263" title="All 6 branches covered.">		return major == other.major() &amp;&amp; minor == other.minor() &amp;&amp; Objects.equals(name, other.name())</span>
+<span class="fc bfc" id="L264" title="All 2 branches covered.">				&amp;&amp; Objects.equals(version, other.implementationVersion());</span>
+	}
+
+	@Override
+	public String toString() {
+<span class="fc" id="L269">		var sb = new StringBuilder();</span>
+<span class="fc" id="L270">		sb.append(name).append('-');</span>
+<span class="fc bfc" id="L271" title="All 2 branches covered.">		if (version == null)</span>
+<span class="fc" id="L272">			sb.append(major).append('.').append(minor).append('+');</span>
+		else
+<span class="fc" id="L274">			sb.append(version);</span>
+<span class="fc" id="L275">		return sb.toString();</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
