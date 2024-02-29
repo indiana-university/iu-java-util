@@ -91,6 +91,7 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 
 		private final String name;
 		private String activationCode = IdGenerator.generateId();
+		private boolean clientActivated;
 
 		private Id(String name) {
 			this.name = name;
@@ -328,6 +329,10 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 		final var id = subject.getPrincipals(Id.class).iterator().next();
 		try {
 			IdGenerator.verifyId(id.activationCode, client.getActivationInterval().toMillis());
+			if (!id.clientActivated) {
+				client.activate(credentials);
+				id.clientActivated = true;
+			}
 			return;
 		} catch (Throwable e) {
 			LOG.log(Level.FINER, e, () -> "discarding invalid activation code");
@@ -374,8 +379,9 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 				else
 					claim = claimJsonValue.toString();
 
-				if (!IuObject.equals(claim, claims.get(userinfoClaimEntry.getKey())))
-					throw new IllegalArgumentException(userinfoClaimEntry.getKey());
+				final var key = userinfoClaimEntry.getKey();
+				if (!IuObject.equals(claim, claims.get(key)))
+					throw new IllegalArgumentException(key);
 			}
 		} catch (Throwable e) {
 			Map<String, String> challengeAttributes = new LinkedHashMap<>();

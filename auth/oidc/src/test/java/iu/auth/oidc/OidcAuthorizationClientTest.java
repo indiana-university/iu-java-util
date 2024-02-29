@@ -297,15 +297,17 @@ public class OidcAuthorizationClientTest {
 					.getDeclaredConstructor(String.class);
 			idcon.setAccessible(true);
 			final var id = (Principal) idcon.newInstance(clientId);
-			Thread.sleep(idClient.getAuthenticatedSessionTimeout().toMillis() + 1L);
 			final var credentials = mock(IuBearerAuthCredentials.class);
 			when(credentials.getName()).thenReturn(clientId);
 			when(credentials.getAccessToken()).thenReturn(accessToken);
 			when(credentials.getSubject()).thenReturn(new Subject(true, Set.of(id, //
 					new OidcClaim<>(clientId, "principal", clientId), //
-					new OidcClaim<>(clientId, "sub", clientId), //
+					new OidcClaim<>(clientId, "sub", sub), //
 					new OidcClaim<>(clientId, "aud", clientId), //
 					new OidcClaim<>(clientId, "auth_time", Instant.now())), Set.of(), Set.of()));
+			client.activate(credentials);
+			Thread.sleep(idClient.getAuthenticatedSessionTimeout().toMillis() + 1L);
+
 			IuTestLogger.expect(OidcAuthorizationClient.class.getName(), Level.FINER,
 					"discarding invalid activation code", IllegalArgumentException.class);
 
@@ -335,19 +337,84 @@ public class OidcAuthorizationClientTest {
 					.getDeclaredConstructor(String.class);
 			idcon.setAccessible(true);
 			final var id = (Principal) idcon.newInstance(clientId);
-			Thread.sleep(idClient.getAuthenticatedSessionTimeout().toMillis() + 1L);
 			final var credentials = mock(IuBearerAuthCredentials.class);
 			when(credentials.getName()).thenReturn(clientId);
 			when(credentials.getAccessToken()).thenReturn(accessToken);
 			when(credentials.getSubject()).thenReturn(new Subject(true, Set.of(id, //
 					new OidcClaim<>(clientId, "principal", clientId), //
-					new OidcClaim<>(clientId, "sub", clientId), //
-					new OidcClaim<>(clientId, "aud", IdGenerator.generateId()), //
+					new OidcClaim<>(clientId, "sub", sub), //
+					new OidcClaim<>(clientId, "aud", clientId), //
 					new OidcClaim<>(clientId, "auth_time", Instant.now())), Set.of(), Set.of()));
+			client.activate(credentials);
+			client.activate(credentials);
+			verify(idClient).activate(credentials);
+
+			Thread.sleep(idClient.getAuthenticatedSessionTimeout().toMillis() + 1L);
 			IuTestLogger.expect(OidcAuthorizationClient.class.getName(), Level.FINER,
 					"discarding invalid activation code", IllegalArgumentException.class);
 
-			assertThrows(IuAuthenticationException.class, () -> client.activate(credentials));
+			final var credentials2 = mock(IuBearerAuthCredentials.class);
+			when(credentials2.getName()).thenReturn(clientId);
+			when(credentials2.getAccessToken()).thenReturn(accessToken);
+			when(credentials2.getSubject()).thenReturn(new Subject(true, Set.of(id, //
+					new OidcClaim<>(clientId, "principal", clientId), //
+					new OidcClaim<>(clientId, "sub", sub), //
+					new OidcClaim<>(clientId, "aud", IdGenerator.generateId()), //
+					new OidcClaim<>(clientId, "auth_time", Instant.now())), Set.of(), Set.of()));
+			assertThrows(IuAuthenticationException.class, () -> client.activate(credentials2));
+		}
+	}
+
+	@Test
+	public void testClaimMismatchInSession() throws Exception {
+		final var accessToken = IdGenerator.generateId();
+		final var tokenResponse = mock(IuTokenResponse.class);
+		when(tokenResponse.getAccessToken()).thenReturn(accessToken);
+		when(tokenResponse.getScope()).thenReturn(List.of("openid"));
+		final var principal = clientId;
+		final var sub = IdGenerator.generateId();
+		final var userinfo = Json.createObjectBuilder().add("principal", principal).add("sub", sub).add("foo", "bar")
+				.build();
+		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
+				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
+			final var rb = mock(HttpRequest.Builder.class);
+			when(rb.header(any(), any())).thenReturn(rb);
+			final var request = mock(HttpRequest.class);
+			when(rb.build()).thenReturn(request);
+			mockHttpRequest.when(() -> HttpRequest.newBuilder(userinfoEndpoint)).thenReturn(rb);
+			mockHttpUtils.when(() -> HttpUtils.read(request)).thenReturn(userinfo);
+
+			final var idcon = Class.forName(OidcAuthorizationClient.class.getName() + "$Id")
+					.getDeclaredConstructor(String.class);
+			idcon.setAccessible(true);
+			final var id = (Principal) idcon.newInstance(clientId);
+			final var credentials = mock(IuBearerAuthCredentials.class);
+			when(credentials.getName()).thenReturn(clientId);
+			when(credentials.getAccessToken()).thenReturn(accessToken);
+			when(credentials.getSubject()).thenReturn(new Subject(true, Set.of(id, //
+					new OidcClaim<>(clientId, "principal", clientId), //
+					new OidcClaim<>(clientId, "sub", sub), //
+					new OidcClaim<>(clientId, "aud", clientId), //
+					new OidcClaim<>(clientId, "auth_time", Instant.now()), //
+					new OidcClaim<>(clientId, "foo", "bar")), Set.of(), Set.of()));
+			client.activate(credentials);
+			client.activate(credentials);
+			verify(idClient).activate(credentials);
+
+			Thread.sleep(idClient.getAuthenticatedSessionTimeout().toMillis() + 1L);
+			IuTestLogger.expect(OidcAuthorizationClient.class.getName(), Level.FINER,
+					"discarding invalid activation code", IllegalArgumentException.class);
+
+			final var credentials2 = mock(IuBearerAuthCredentials.class);
+			when(credentials2.getName()).thenReturn(clientId);
+			when(credentials2.getAccessToken()).thenReturn(accessToken);
+			when(credentials2.getSubject()).thenReturn(new Subject(true, Set.of(id, //
+					new OidcClaim<>(clientId, "principal", clientId), //
+					new OidcClaim<>(clientId, "sub", sub), //
+					new OidcClaim<>(clientId, "aud", clientId), //
+					new OidcClaim<>(clientId, "auth_time", Instant.now()), //
+					new OidcClaim<>(clientId, "foo", "baz")), Set.of(), Set.of()));
+			assertThrows(IuAuthenticationException.class, () -> client.activate(credentials2));
 		}
 	}
 
@@ -475,8 +542,8 @@ public class OidcAuthorizationClientTest {
 		}
 	}
 
-	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	public void testAuthTimeout() throws Exception {
 		final var accessToken = IdGenerator.generateId();
 
@@ -527,6 +594,7 @@ public class OidcAuthorizationClientTest {
 					.getDeclaredConstructor(String.class);
 			idcon.setAccessible(true);
 			final var id = (Principal) idcon.newInstance(clientId);
+			Thread.sleep(101L);
 
 			final var bearer = mock(IuBearerAuthCredentials.class);
 			when(bearer.getName()).thenReturn(clientId);
@@ -535,8 +603,6 @@ public class OidcAuthorizationClientTest {
 					new OidcClaim(clientId, "auth_time", now) //
 			), Set.of(), Set.of()));
 			when(bearer.getAccessToken()).thenReturn(accessToken);
-			client.activate(bearer);
-			Thread.sleep(101L);
 			IuTestLogger.expect("iu.auth.oidc.OidcAuthorizationClient", Level.FINER,
 					"discarding invalid activation code", IllegalArgumentException.class);
 			assertThrows(IuAuthenticationException.class, () -> client.activate(bearer));
