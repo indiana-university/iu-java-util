@@ -27,6 +27,7 @@
 				<module>basic</module>
 				<module>oauth</module>
 				<module>oidc</module>
+				<module>session</module>
 				<module>impl</module>
 				<module>bundle</module>
 			</modules>

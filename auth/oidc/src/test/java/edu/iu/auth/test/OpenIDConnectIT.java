@@ -45,6 +45,7 @@ import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,11 +68,11 @@ import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
 import edu.iu.auth.oauth.IuAuthorizationSession;
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
+import edu.iu.auth.oidc.IuOpenIdClaim;
 import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
 import edu.iu.test.IuTestLogger;
 import edu.iu.test.VaultProperties;
-import iu.auth.util.HttpUtils;
 
 @EnabledIf("edu.iu.test.VaultProperties#isConfigured")
 @SuppressWarnings("javadoc")
@@ -171,13 +172,12 @@ public class OpenIDConnectIT {
 	@Test
 	public void testClientCredentials() throws Exception {
 		IuTestLogger.allow("iu.auth.oauth.ClientCredentialsGrant", Level.FINE);
-		final var credneitals = clientCredentials.authorize(resourceUri);
+		final var credentials = clientCredentials.authorize(resourceUri);
+		System.out.println(credentials);
 
-		final var req = HttpRequest.newBuilder(provider.getUserInfoEndpoint());
-		credneitals.applyTo(req);
-		final var userInfo = HttpUtils.read(req.build());
-
-		assertEquals(clientId, userInfo.asJsonObject().getString("sub"));
+		final var sub = provider.hydrate(((IuBearerAuthCredentials) credentials).getAccessToken());
+		System.out.println(sub);
+		assertEquals(clientId, sub.getPrincipals().iterator().next().getName());
 	}
 
 	@Test
@@ -269,6 +269,20 @@ public class OpenIDConnectIT {
 		IuTestLogger.expect("iu.auth.oidc.OidcAuthorizationClient", Level.FINER, "discarding invalid activation code",
 				IllegalArgumentException.class);
 		assertSame(credentials, (IuBearerAuthCredentials) grant.authorize(resourceUri));
+
+		final var claims = new HashMap<String, Object>();
+		credentials.getSubject().getPrincipals(IuOpenIdClaim.class)
+				.forEach(c -> claims.put(c.getClaimName(), c.getClaim()));
+
+		final var sub = provider.hydrate(credentials.getAccessToken());
+		System.out.println(sub);
+		sub.getPrincipals(IuOpenIdClaim.class)
+				.forEach(c -> assertEquals(c.getClaim(), claims.remove(c.getClaimName())));
+		assertEquals(4, claims.size());
+		assertTrue(claims.containsKey("aud"));
+		assertTrue(claims.containsKey("iat"));
+		assertTrue(claims.containsKey("exp"));
+		assertTrue(claims.containsKey("auth_time"));
 	}
 
 }

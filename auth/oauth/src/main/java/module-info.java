@@ -38,8 +38,10 @@
  */
 module iu.util.auth.oauth {
 	requires iu.util;
-	requires iu.util.auth;
+	requires transitive iu.util.auth;
 	requires iu.util.auth.util;
+
+	exports iu.auth.oauth to iu.util.auth.session;
 
 	provides edu.iu.auth.spi.IuOAuthSpi with iu.auth.oauth.OAuthSpi;
 }

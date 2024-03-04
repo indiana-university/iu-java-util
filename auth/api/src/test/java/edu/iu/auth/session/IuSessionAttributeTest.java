@@ -29,46 +29,28 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.spi;
+package edu.iu.auth.session;
 
-import java.net.URI;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 
-import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oauth.IuAuthorizationGrant;
-import edu.iu.auth.oauth.IuAuthorizationScope;
-import edu.iu.auth.oauth.IuAuthorizationSession;
+import org.junit.jupiter.api.Test;
 
-/**
- * Service provider interface for OAuth.
- */
-public interface IuOAuthSpi {
+import edu.iu.auth.spi.IuSessionSpi;
+import iu.auth.IuAuthSpiFactory;
 
-	/**
-	 * Initializes client metadata.
-	 * 
-	 * @param client client metadata
-	 * @return <em>optional</em> client credentials grant
-	 * @see IuAuthorizationClient#initialize(IuAuthorizationClient)
-	 */
-	IuAuthorizationGrant initialize(IuAuthorizationClient client);
+@SuppressWarnings("javadoc")
+public class IuSessionAttributeTest {
 
-	/**
-	 * Creates a new {@link IuAuthorizationSession} for managing OAuth authorization
-	 * server interactions.
-	 * 
-	 * @param realm      authentication realm
-	 * @param entryPoint entry point URI
-	 * @return {@link IuAuthorizationSession}
-	 */
-	IuAuthorizationSession createAuthorizationSession(String realm, URI entryPoint);
-
-	/**
-	 * Creates an {@link IuAuthorizationScope}.
-	 * 
-	 * @param name  scope
-	 * @param realm realm
-	 * @return {@link IuAuthorizationScope}
-	 */
-	IuAuthorizationScope createAuthorizationScope(String name, String realm);
+	@Test
+	public void testAttribute() {
+		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
+			final var spi = mock(IuSessionSpi.class);
+			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuSessionSpi.class)).thenReturn(spi);
+			IuSessionAttribute.of("foo", "bar", "baz");
+			verify(spi).createAttribute("foo", "bar", "baz");
+		}
+	}
 
 }

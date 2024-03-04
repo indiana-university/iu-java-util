@@ -29,46 +29,17 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.spi;
-
-import java.net.URI;
-
-import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oauth.IuAuthorizationGrant;
-import edu.iu.auth.oauth.IuAuthorizationScope;
-import edu.iu.auth.oauth.IuAuthorizationSession;
-
 /**
- * Service provider interface for OAuth.
+ * Session token implementation module.
+ * 
+ * @provides edu.iu.auth.spi.IuSessionSpi Session token service provider
+ *           implementation
  */
-public interface IuOAuthSpi {
+module iu.util.auth.session {
+	requires iu.util;
+	requires iu.util.auth;
+	requires iu.util.auth.oauth;
+	requires iu.util.auth.util;
 
-	/**
-	 * Initializes client metadata.
-	 * 
-	 * @param client client metadata
-	 * @return <em>optional</em> client credentials grant
-	 * @see IuAuthorizationClient#initialize(IuAuthorizationClient)
-	 */
-	IuAuthorizationGrant initialize(IuAuthorizationClient client);
-
-	/**
-	 * Creates a new {@link IuAuthorizationSession} for managing OAuth authorization
-	 * server interactions.
-	 * 
-	 * @param realm      authentication realm
-	 * @param entryPoint entry point URI
-	 * @return {@link IuAuthorizationSession}
-	 */
-	IuAuthorizationSession createAuthorizationSession(String realm, URI entryPoint);
-
-	/**
-	 * Creates an {@link IuAuthorizationScope}.
-	 * 
-	 * @param name  scope
-	 * @param realm realm
-	 * @return {@link IuAuthorizationScope}
-	 */
-	IuAuthorizationScope createAuthorizationScope(String name, String realm);
-
+	provides edu.iu.auth.spi.IuSessionSpi with iu.auth.session.SessionSpi;
 }

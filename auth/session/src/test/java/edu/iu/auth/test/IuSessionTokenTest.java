@@ -29,46 +29,24 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.spi;
+package edu.iu.auth.test;
 
-import java.net.URI;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
 
-import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oauth.IuAuthorizationGrant;
-import edu.iu.auth.oauth.IuAuthorizationScope;
-import edu.iu.auth.oauth.IuAuthorizationSession;
+import org.junit.jupiter.api.Test;
 
-/**
- * Service provider interface for OAuth.
- */
-public interface IuOAuthSpi {
+import edu.iu.auth.session.IuSessionHeader;
+import edu.iu.auth.session.IuSessionToken;
 
-	/**
-	 * Initializes client metadata.
-	 * 
-	 * @param client client metadata
-	 * @return <em>optional</em> client credentials grant
-	 * @see IuAuthorizationClient#initialize(IuAuthorizationClient)
-	 */
-	IuAuthorizationGrant initialize(IuAuthorizationClient client);
+@SuppressWarnings("javadoc")
+public class IuSessionTokenTest {
 
-	/**
-	 * Creates a new {@link IuAuthorizationSession} for managing OAuth authorization
-	 * server interactions.
-	 * 
-	 * @param realm      authentication realm
-	 * @param entryPoint entry point URI
-	 * @return {@link IuAuthorizationSession}
-	 */
-	IuAuthorizationSession createAuthorizationSession(String realm, URI entryPoint);
-
-	/**
-	 * Creates an {@link IuAuthorizationScope}.
-	 * 
-	 * @param name  scope
-	 * @param realm realm
-	 * @return {@link IuAuthorizationScope}
-	 */
-	IuAuthorizationScope createAuthorizationScope(String name, String realm);
+	@Test
+	public void testSerializesAsAccessToken() {
+		final var header = mock(IuSessionHeader.class);
+		final var token = IuSessionToken.create(header);
+		assertEquals(token, IuSessionToken.authorize(token.getAccessToken()));
+	}
 
 }

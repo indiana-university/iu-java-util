@@ -31,44 +31,51 @@
  */
 package edu.iu.auth.spi;
 
-import java.net.URI;
+import java.security.Principal;
 
-import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oauth.IuAuthorizationGrant;
-import edu.iu.auth.oauth.IuAuthorizationScope;
-import edu.iu.auth.oauth.IuAuthorizationSession;
+import edu.iu.auth.session.IuSessionAttribute;
+import edu.iu.auth.session.IuSessionHeader;
+import edu.iu.auth.session.IuSessionToken;
 
 /**
- * Service provider interface for OAuth.
+ * Session token service provider interface.
  */
-public interface IuOAuthSpi {
+public interface IuSessionSpi {
 
 	/**
-	 * Initializes client metadata.
+	 * Creates a session token.
 	 * 
-	 * @param client client metadata
-	 * @return <em>optional</em> client credentials grant
-	 * @see IuAuthorizationClient#initialize(IuAuthorizationClient)
+	 * @param header {@link IuSessionHeader}
+	 * @return {@link IuSessionToken}
 	 */
-	IuAuthorizationGrant initialize(IuAuthorizationClient client);
+	IuSessionToken create(IuSessionHeader header);
 
 	/**
-	 * Creates a new {@link IuAuthorizationSession} for managing OAuth authorization
-	 * server interactions.
+	 * Refreshes a session token.
 	 * 
-	 * @param realm      authentication realm
-	 * @param entryPoint entry point URI
-	 * @return {@link IuAuthorizationSession}
+	 * @param authorizedPrincipals authorized principals
+	 * @param refreshToken         refresh token
+	 * @return {@link IuSessionToken}
 	 */
-	IuAuthorizationSession createAuthorizationSession(String realm, URI entryPoint);
+	IuSessionToken refresh(Iterable<Principal> authorizedPrincipals, String refreshToken);
 
 	/**
-	 * Creates an {@link IuAuthorizationScope}.
+	 * Authorizes a session token.
 	 * 
-	 * @param name  scope
-	 * @param realm realm
-	 * @return {@link IuAuthorizationScope}
+	 * @param accessToken access token
+	 * @return {@link IuSessionToken}
 	 */
-	IuAuthorizationScope createAuthorizationScope(String name, String realm);
+	IuSessionToken authorize(String accessToken);
+
+	/**
+	 * Creates a session attribute.
+	 * 
+	 * @param <T>            attribute type
+	 * @param name           principal name
+	 * @param attributeName  attribute name
+	 * @param attributeValue attribute value
+	 * @return {@link IuSessionAttribute}
+	 */
+	<T> IuSessionAttribute<T> createAttribute(String name, String attributeName, T attributeValue);
 
 }

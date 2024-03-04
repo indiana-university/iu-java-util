@@ -10,21 +10,19 @@
 		<version>7.0.2-SNAPSHOT</version>
 	</parent>
 
-	<artifactId>iu-java-auth-impl</artifactId>
-	<name>IU Authentication and Authorization Implementation</name>
+	<artifactId>iu-java-auth-session</artifactId>
+	<name>IU Session Token Client</name>
 
 	<dependencies>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-base</artifactId>
 			<version>${project.version}</version>
-			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-auth-api</artifactId>
 			<version>${project.version}</version>
-			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
@@ -33,22 +31,7 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-auth-basic</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-auth-oauth</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-auth-oidc</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-auth-session</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
@@ -59,26 +42,4 @@
 		</dependency>
 	</dependencies>
 
-	<build>
-		<plugins>
-			<plugin>
-				<artifactId>maven-assembly-plugin</artifactId>
-				<executions>
-					<execution>
-						<id>bundle-distribution</id>
-						<goals>
-							<goal>single</goal>
-						</goals>
-						<phase>package</phase>
-						<configuration>
-							<descriptors>
-								<descriptor>src/assembly/bundle.xml</descriptor>
-							</descriptors>
-						</configuration>
-					</execution>
-				</executions>				
-			</plugin>
-		</plugins>	
-	</build>
-	
 </project>

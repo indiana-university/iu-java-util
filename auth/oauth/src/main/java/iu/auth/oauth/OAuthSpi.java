@@ -38,6 +38,9 @@ import java.util.Objects;
 
 import edu.iu.IuObject;
 import edu.iu.auth.oauth.IuAuthorizationClient;
+import edu.iu.auth.oauth.IuAuthorizationGrant;
+import edu.iu.auth.oauth.IuAuthorizationScope;
+import edu.iu.auth.oauth.IuAuthorizationSession;
 import edu.iu.auth.spi.IuOAuthSpi;
 
 /**
@@ -91,7 +94,7 @@ public class OAuthSpi implements IuOAuthSpi {
 	}
 
 	@Override
-	public ClientCredentialsGrant initialize(IuAuthorizationClient client) {
+	public IuAuthorizationGrant initialize(IuAuthorizationClient client) {
 		final var realm = Objects.requireNonNull(client.getRealm(), "Missing realm");
 		final var resourceUri = Objects.requireNonNull(client.getResourceUri(), "Missing resourceUri");
 		if (!resourceUri.isAbsolute())
@@ -106,8 +109,13 @@ public class OAuthSpi implements IuOAuthSpi {
 	}
 
 	@Override
-	public AuthorizationSession createAuthorizationSession(String realm, URI entryPoint) {
+	public IuAuthorizationSession createAuthorizationSession(String realm, URI entryPoint) {
 		return new AuthorizationSession(realm, entryPoint);
+	}
+
+	@Override
+	public IuAuthorizationScope createAuthorizationScope(String name, String realm) {
+		return new AuthorizedScope(name, realm);
 	}
 
 }

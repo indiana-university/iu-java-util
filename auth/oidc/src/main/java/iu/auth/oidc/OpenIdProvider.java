@@ -32,15 +32,27 @@
 package iu.auth.oidc;
 
 import java.net.URI;
+import java.net.http.HttpRequest;
+import java.security.Principal;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import java.util.logging.Logger;
 
+import javax.security.auth.Subject;
+
 import edu.iu.IuException;
+import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
 import iu.auth.util.AccessTokenVerifier;
 import iu.auth.util.HttpUtils;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
 
 /**
  * {@link IuOpenIdProvider} implementation.
@@ -51,8 +63,9 @@ public class OpenIdProvider implements IuOpenIdProvider {
 
 	private final String issuer;
 	private final IuOpenIdClient client;
-	private JsonObject config;
-	private AccessTokenVerifier idTokenVerifier;
+	private final URI userinfoEndpoint;
+	private final JsonObject config;
+	private final AccessTokenVerifier idTokenVerifier;
 
 	/**
 	 * Constructor.
@@ -61,20 +74,28 @@ public class OpenIdProvider implements IuOpenIdProvider {
 	 * @param client    client configuration metadata
 	 */
 	public OpenIdProvider(URI configUri, IuOpenIdClient client) {
-		config = HttpUtils.read(configUri).asJsonObject();
+		this.config = HttpUtils.read(configUri).asJsonObject();
+		this.client = client;
+
 		LOG.info("OIDC Provider configuration:\n" + config.toString());
 
 		this.issuer = config.getString("issuer");
+		this.userinfoEndpoint = IuException.unchecked(() -> new URI(config.getString("userinfo_endpoint")));
 
-		this.idTokenVerifier = new AccessTokenVerifier(
-				IuException.unchecked(() -> new URI(config.getString("jwks_uri"))), issuer,
-				client::getTrustRefreshInterval);
+		if (client != null)
+			this.idTokenVerifier = new AccessTokenVerifier(
+					IuException.unchecked(() -> new URI(config.getString("jwks_uri"))), issuer,
+					client::getTrustRefreshInterval);
+		else
+			this.idTokenVerifier = null;
 
-		this.client = client;
 	}
 
 	@Override
 	public IuAuthorizationClient createAuthorizationClient() {
+		if (client == null)
+			throw new IllegalStateException("Client not configured");
+
 		return new OidcAuthorizationClient(config, client, idTokenVerifier);
 	}
 
@@ -84,8 +105,34 @@ public class OpenIdProvider implements IuOpenIdProvider {
 	}
 
 	@Override
-	public URI getUserInfoEndpoint() {
-		return IuException.unchecked(() -> new URI(config.getString("userinfo_endpoint")));
+	public Subject hydrate(String accessToken) throws IuAuthenticationException {
+		final var userinfo = HttpUtils.read(HttpRequest.newBuilder(userinfoEndpoint) //
+				.header("Authorization", "Bearer " + accessToken).build()).asJsonObject();
+		final var principal = userinfo.getString("principal");
+		final var sub = userinfo.getString("sub");
+
+		final Set<String> seen = new HashSet<>();
+		final Set<Principal> principals = new LinkedHashSet<>();
+		final BiConsumer<String, Supplier<?>> claimConsumer = //
+				(claimName, claimSupplier) -> {
+					if (seen.add(claimName))
+						principals.add(new OidcClaim<>(principal, claimName,
+								Objects.requireNonNull(claimSupplier.get(), claimName)));
+				};
+
+		claimConsumer.accept("principal", () -> principal);
+		claimConsumer.accept("sub", () -> sub);
+
+		for (final var userinfoClaimEntry : userinfo.entrySet())
+			claimConsumer.accept(userinfoClaimEntry.getKey(), () -> {
+				final var claimJsonValue = userinfoClaimEntry.getValue();
+				if (claimJsonValue instanceof JsonString)
+					return ((JsonString) claimJsonValue).getString();
+				else
+					return claimJsonValue.toString();
+			});
+
+		return new Subject(true, principals, Set.of(), Set.of());
 	}
 
 }

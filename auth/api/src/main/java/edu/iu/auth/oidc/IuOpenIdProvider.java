@@ -33,6 +33,9 @@ package edu.iu.auth.oidc;
 
 import java.net.URI;
 
+import javax.security.auth.Subject;
+
+import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.spi.IuOpenIdConnectSpi;
 import iu.auth.IuAuthSpiFactory;
@@ -68,11 +71,17 @@ public interface IuOpenIdProvider {
 	String getIssuer();
 
 	/**
-	 * Gets the OIDC User Info Endpoint URI
+	 * Verifies an OIDC access token, and if valid, retrieves userinfo claims and
+	 * principal name.
 	 * 
-	 * @return User Info Endpoint {@link URI}
+	 * @param accessToken OIDC access token
+	 * @return {@link Subject} of {@link IuOpenIdClaim} principals; The
+	 *         <strong>principal</strong> claim is returned first and its claim
+	 *         value provides the principal name for remaining claims.
+	 * @throws IuAuthenticationException If the access token is invalid for the OIDC
+	 *                                   provider.
 	 */
-	URI getUserInfoEndpoint();
+	Subject hydrate(String accessToken) throws IuAuthenticationException;
 
 	/**
 	 * Creates an authorization client for interacting with the OpenID provider.
