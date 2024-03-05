@@ -2,6 +2,7 @@ package iu.auth.session;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import javax.security.auth.Subject;
 
@@ -33,9 +34,13 @@ public class SessionToken extends BearerAuthCredentials implements IuSessionToke
 	public SessionToken(Subject subject, String accessToken, String refreshToken, Instant tokenExpires,
 			Instant sessionExpires) {
 		super(subject, accessToken);
+		this.tokenExpires = tokenExpires.truncatedTo(ChronoUnit.SECONDS);
+
 		this.refreshToken = refreshToken;
-		this.tokenExpires = tokenExpires;
-		this.sessionExpires = sessionExpires;
+		if (refreshToken == null)
+			this.sessionExpires = null;
+		else
+			this.sessionExpires = sessionExpires.truncatedTo(ChronoUnit.SECONDS);
 	}
 
 	@Override

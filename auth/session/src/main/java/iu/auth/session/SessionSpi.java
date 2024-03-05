@@ -36,6 +36,7 @@ import java.security.Principal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -48,12 +49,14 @@ import javax.security.auth.Subject;
 import com.auth0.jwt.JWT;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuObject;
 import edu.iu.auth.oauth.IuAuthorizationScope;
 import edu.iu.auth.session.IuSessionAttribute;
 import edu.iu.auth.session.IuSessionHeader;
 import edu.iu.auth.session.IuSessionProviderKey;
 import edu.iu.auth.session.IuSessionToken;
 import edu.iu.auth.spi.IuSessionSpi;
+import iu.auth.util.AccessTokenVerifier;
 import iu.auth.util.AlgorithmFactory;
 import iu.auth.util.TokenIssuerKeySet;
 
@@ -62,15 +65,50 @@ import iu.auth.util.TokenIssuerKeySet;
  */
 public class SessionSpi implements IuSessionSpi {
 
-	private static final class Issuer {
-		private final Iterable<String> scopes;
-		private final AlgorithmFactory algorithmFactory;
+	private static final Set<String> STANDARD_CLAIMS = Set.of("kid", "alg", "jti", "iss", "aud", "iat", "exp", "sub",
+			"scope");
 
-		private Issuer(Iterable<String> scopes, AlgorithmFactory algorithmFactory) {
-			this.scopes = scopes;
-			this.algorithmFactory = algorithmFactory;
+	private static final class Id implements Principal {
+		private final String name;
+
+		private Id(String name) {
+			this.name = name;
 		}
 
+		@Override
+		public String getName() {
+			return name;
+		}
+
+		@Override
+		public int hashCode() {
+			return IuObject.hashCode(name);
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+			if (!IuObject.typeCheck(this, obj))
+				return false;
+			final var other = (Id) obj;
+			return IuObject.equals(name, other.name);
+		}
+
+		@Override
+		public String toString() {
+			return "Authenticated Principal [name=" + name + "]";
+		}
+	}
+
+	private static final class Issuer {
+		private final Collection<String> scopes;
+		private final AlgorithmFactory algorithmFactory;
+		private final AccessTokenVerifier verifier;
+
+		private Issuer(String issuer, Collection<String> scopes, AlgorithmFactory algorithmFactory) {
+			this.scopes = scopes;
+			this.algorithmFactory = algorithmFactory;
+			this.verifier = new AccessTokenVerifier(issuer, algorithmFactory);
+		}
 	}
 
 	private Map<String, Issuer> issuers = new HashMap<>();
@@ -107,7 +145,7 @@ public class SessionSpi implements IuSessionSpi {
 
 			final var keyset = new TokenIssuerKeySet(issuerKeys);
 			final var wellKnownJwks = keyset.publish();
-			issuers.put(issuer, new Issuer(scopes, keyset));
+			issuers.put(issuer, new Issuer(issuer, scopes, keyset));
 
 			return wellKnownJwks;
 		}
@@ -128,16 +166,14 @@ public class SessionSpi implements IuSessionSpi {
 		final var algorithm = issuerRegistration.algorithmFactory.getAlgorithm(keyId,
 				Objects.requireNonNull(header.getSignatureAlgorithm(), "signatureAlgorithm"));
 
-//		final var accessToken = JWT.create().withKeyId("defaultSign").withIssuer(iss).withAudience(aud)
-//				.withIssuedAt(iat).withExpiresAt(exp).withClaim("nonce", nonce).sign(jwtAlgorithm);
-
 		final var principals = header.getAuthorizedPrincipals().iterator();
 		final var principal = principals.next();
+		final var sub = principal.getName();
+
 		final var subject = new Subject();
-		subject.getPrincipals().add(principal);
+		subject.getPrincipals().add(new Id(sub));
 
 		final var jti = IdGenerator.generateId();
-		final var nonce = IdGenerator.generateId();
 
 		final var now = Instant.now();
 		final var tokenExpires = now.plus(header.getTokenExpires());
@@ -150,11 +186,9 @@ public class SessionSpi implements IuSessionSpi {
 				.withAudience(audience) //
 				.withIssuedAt(now) //
 				.withExpiresAt(tokenExpires) //
-				.withSubject(principal.getName()) //
-				.withClaim("nonce", nonce);
+				.withSubject(principal.getName());
 
-		final Set<String> claims = new HashSet<>(
-				Set.of("kid", "alg", "jti", "iss", "iat", "exp", "sub", "nonce", "scope"));
+		final Set<String> claims = new HashSet<>(STANDARD_CLAIMS);
 		final Queue<String> scopes = new ArrayDeque<>();
 
 		while (principals.hasNext()) {
@@ -185,10 +219,12 @@ public class SessionSpi implements IuSessionSpi {
 			subject.getPrincipals().add(secondary);
 		}
 
+		final String scope;
 		if (scopes.isEmpty())
 			throw new IllegalArgumentException("must provide at least one scope");
 		else
-			accessTokenBuilder.withClaim("scope", String.join(",", scopes));
+			scope = String.join(",", scopes);
+		accessTokenBuilder.withClaim("scope", scope);
 
 		final var accessToken = accessTokenBuilder.sign(algorithm);
 
@@ -202,7 +238,7 @@ public class SessionSpi implements IuSessionSpi {
 					.withExpiresAt(sessionExpires) //
 					.withSubject(audience) //
 					.withClaim("principal", principal.getName()) //
-					.withClaim("scope", String.join(",", scopes));
+					.withClaim("scope", scope);
 			// TODO: review with refresh() implementation
 
 			refreshToken = refreshTokenBuilder.sign(algorithm);
@@ -220,9 +256,30 @@ public class SessionSpi implements IuSessionSpi {
 	}
 
 	@Override
-	public IuSessionToken authorize(String accessToken) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException();
+	public IuSessionToken authorize(String audience, String accessToken) {
+		final var decoded = JWT.decode(accessToken);
+		final var issuer = Objects.requireNonNull(decoded.getIssuer(), "issuer");
+		final var issuerRegistration = Objects.requireNonNull(issuers.get(issuer), "issuer not registered");
+		final var verifiedAccessToken = issuerRegistration.verifier.verify(audience, accessToken);
+
+		final var subject = new Subject();
+		final var principals = subject.getPrincipals();
+
+		final var sub = Objects.requireNonNull(verifiedAccessToken.getSubject(), "sub");
+		principals.add(new Id(sub));
+
+		for (final var claimEntry : decoded.getClaims().entrySet())
+			if (!STANDARD_CLAIMS.contains(claimEntry.getKey()))
+				principals.add(IuSessionAttribute.of(sub, claimEntry.getKey(), claimEntry.getValue().asString()));
+
+		final var scopes = Objects.requireNonNull(verifiedAccessToken.getClaim("scope").asString()).split(" ");
+		for (final var scope : scopes)
+			if (!issuerRegistration.scopes.contains(scope))
+				throw new IllegalArgumentException("invalid scope for issuer");
+			else
+				principals.add(IuAuthorizationScope.of(scope, issuer));
+
+		return new SessionToken(subject, accessToken, null, decoded.getExpiresAtAsInstant(), null);
 	}
 
 	@Override

@@ -65,6 +65,8 @@ public class AccessTokenVerifier {
 	 * <li>The RSA or ECDSA signature is valid</li>
 	 * <li>The iss claim matches the configured issuer</li>
 	 * <li>The aud claim includes the audience</li>
+	 * <li>The current time is within between not before (iat) and not after (exp)
+	 * claims, with 15 seconds of leeway for clock drift</li>
 	 * </ul>
 	 * 
 	 * @param audience expected audience claim

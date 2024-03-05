@@ -113,7 +113,7 @@ public class IuSessionTokenTest {
 		}, IuAuthorizationScope.of("session", issuer)));
 
 		final var token = IuSessionToken.create(header);
-		assertEquals(token, IuSessionToken.authorize(token.getAccessToken()));
+		assertEquals(token, IuSessionToken.authorize(audience, token.getAccessToken()));
 	}
 
 }

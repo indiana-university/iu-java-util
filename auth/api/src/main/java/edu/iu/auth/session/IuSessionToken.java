@@ -158,11 +158,13 @@ public interface IuSessionToken extends IuBearerAuthCredentials {
 	 * Used by the application service endpoint.
 	 * </p>
 	 * 
+	 * @param audience    expected audience; typically the service endpoint's
+	 *                    external root URI
 	 * @param accessToken access token
 	 * @return {@link IuSessionToken}
 	 */
-	static IuSessionToken authorize(String accessToken) {
-		return IuAuthSpiFactory.get(IuSessionSpi.class).authorize(accessToken);
+	static IuSessionToken authorize(String audience, String accessToken) {
+		return IuAuthSpiFactory.get(IuSessionSpi.class).authorize(audience, accessToken);
 	}
 
 	/**

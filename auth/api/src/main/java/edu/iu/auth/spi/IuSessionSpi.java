@@ -47,6 +47,23 @@ import edu.iu.auth.session.IuSessionToken;
 public interface IuSessionSpi {
 
 	/**
+	 * Registers a session provider's issuer credentials.
+	 * 
+	 * @param provider issue credentials
+	 * @return JWKS key set
+	 */
+	String register(Subject provider);
+
+	/**
+	 * Registers a remote session provider.
+	 * 
+	 * @param realm           authentication realm
+	 * @param jwksUri         well-known JWKS key set URI
+	 * @param refreshInterval JWKS cache time to live
+	 */
+	void register(String realm, URI jwksUri, Duration refreshInterval);
+
+	/**
 	 * Creates a session token.
 	 * 
 	 * @param header {@link IuSessionHeader}
@@ -66,10 +83,11 @@ public interface IuSessionSpi {
 	/**
 	 * Authorizes a session token.
 	 * 
+	 * @param audience    expected audience
 	 * @param accessToken access token
 	 * @return {@link IuSessionToken}
 	 */
-	IuSessionToken authorize(String accessToken);
+	IuSessionToken authorize(String audience, String accessToken);
 
 	/**
 	 * Creates a session attribute.
@@ -81,22 +99,5 @@ public interface IuSessionSpi {
 	 * @return {@link IuSessionAttribute}
 	 */
 	<T> IuSessionAttribute<T> createAttribute(String name, String attributeName, T attributeValue);
-
-	/**
-	 * Registers a session provider's issuer credentials.
-	 * 
-	 * @param provider issue credentials
-	 * @return JWKS key set
-	 */
-	String register(Subject provider);
-
-	/**
-	 * Registers a remote session provider.
-	 * 
-	 * @param realm           authentication realm
-	 * @param jwksUri         well-known JWKS key set URI
-	 * @param refreshInterval JWKS cache time to live
-	 */
-	void register(String realm, URI jwksUri, Duration refreshInterval);
 
 }
