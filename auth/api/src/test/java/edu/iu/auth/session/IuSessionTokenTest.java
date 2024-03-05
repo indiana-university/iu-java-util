@@ -31,9 +31,15 @@
  */
 package edu.iu.auth.session;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
+
+import java.net.URI;
+import java.time.Duration;
+
+import javax.security.auth.Subject;
 
 import org.junit.jupiter.api.Test;
 
@@ -43,6 +49,31 @@ import iu.auth.IuAuthSpiFactory;
 
 @SuppressWarnings("javadoc")
 public class IuSessionTokenTest {
+
+	@Test
+	public void testRegisterProvider() throws ClassNotFoundException {
+		assertNotNull(IuSessionProviderKey.Usage.SIGN);
+		assertNotNull(IuSessionProviderKey.Type.RSA);
+		final var provider = mock(Subject.class);
+		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
+			final var spi = mock(IuSessionSpi.class);
+			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuSessionSpi.class)).thenReturn(spi);
+			IuSessionToken.register(provider);
+			verify(spi).register(provider);
+		}
+	}
+
+	@Test
+	public void testRegisterJwks() {
+		final var realm = IdGenerator.generateId();
+		final var jwksUri = mock(URI.class);
+		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
+			final var spi = mock(IuSessionSpi.class);
+			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuSessionSpi.class)).thenReturn(spi);
+			IuSessionToken.register(realm, jwksUri, Duration.ZERO);
+			verify(spi).register(realm, jwksUri, Duration.ZERO);
+		}
+	}
 
 	@Test
 	public void testCreate() {

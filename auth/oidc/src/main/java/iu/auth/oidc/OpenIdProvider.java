@@ -51,6 +51,7 @@ import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
 import iu.auth.util.AccessTokenVerifier;
 import iu.auth.util.HttpUtils;
+import iu.auth.util.WellKnownKeySet;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
 
@@ -83,9 +84,9 @@ public class OpenIdProvider implements IuOpenIdProvider {
 		this.userinfoEndpoint = IuException.unchecked(() -> new URI(config.getString("userinfo_endpoint")));
 
 		if (client != null)
-			this.idTokenVerifier = new AccessTokenVerifier(
-					IuException.unchecked(() -> new URI(config.getString("jwks_uri"))), issuer,
-					client::getTrustRefreshInterval);
+			this.idTokenVerifier = new AccessTokenVerifier(issuer,
+					new WellKnownKeySet(IuException.unchecked(() -> new URI(config.getString("jwks_uri"))),
+							client::getTrustRefreshInterval));
 		else
 			this.idTokenVerifier = null;
 

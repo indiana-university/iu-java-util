@@ -42,6 +42,22 @@ import edu.iu.auth.oauth.IuAuthorizationScope;
 public interface IuSessionHeader extends Principal {
 
 	/**
+	 * Gets the key ID registered for the {@link #getIssuer() issuer} to use for
+	 * signing the session token.
+	 * 
+	 * @return signing key ID
+	 */
+	String getKeyId();
+
+	/**
+	 * Gets the JWT algorithm for the {@link #getIssuer() issuer} to use for signing
+	 * the session token.
+	 * 
+	 * @return JWT signature algorithm
+	 */
+	String getSignatureAlgorithm();
+
+	/**
 	 * Gets the issuing application's uniform principal name (e.g., root URI).
 	 * 
 	 * @return issuer principal name

@@ -31,9 +31,14 @@
  */
 package edu.iu.auth.session;
 
+import java.net.URI;
 import java.security.Principal;
+import java.time.Duration;
 import java.time.Instant;
 
+import javax.security.auth.Subject;
+
+import edu.iu.auth.oauth.IuAuthorizationScope;
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
 import edu.iu.auth.spi.IuSessionSpi;
 import iu.auth.IuAuthSpiFactory;
@@ -45,8 +50,63 @@ import iu.auth.IuAuthSpiFactory;
 public interface IuSessionToken extends IuBearerAuthCredentials {
 
 	/**
+	 * Registers a session token provider's issuer credentials.
+	 * 
+	 * <p>
+	 * The subject provided must include:
+	 * </p>
+	 * 
+	 * <ul>
+	 * <li>At least one {@link Principal} with a valid URI principal name
+	 * designating the authentication realm supported by the session endpoint. The
+	 * identifying {@link Principal} <em>must</em> be returned first.</li>
+	 * <li>At least one {@link IuAuthorizationScope}, with
+	 * {@link IuAuthorizationScope#getRealm()} matching the principal name of the
+	 * identifying principal, designating the authorization scope.</li>
+	 * <li>At least one {@link IuSessionProviderKey} instance available via
+	 * {@link Subject#getPrivateCredentials(Class)}</li>
+	 * </ul>
+	 * 
+	 * <p>
+	 * A provider can only be registered once, either via this method or using
+	 * {@link #register(Subject)}. Issuer credentials can be use to create and
+	 * authorize a token, and cannot be modified without restarting the application.
+	 * </p>
+	 * 
+	 * @param provider {@link Subject} describes the session token provider.
+	 * @return JWKS representation of the provider's public keys, for publishing to
+	 *         remote clients as a {@link #register(String, URI, Duration)
+	 *         well-known key set}.
+	 */
+	static String register(Subject provider) {
+		return IuAuthSpiFactory.get(IuSessionSpi.class).register(provider);
+	}
+
+	/**
+	 * Registers a remotely hosted session token provider by its well-known public
+	 * key set.
+	 * 
+	 * <p>
+	 * A provider can only be registered once, either via this method or using
+	 * {@link #register(Subject)}.
+	 * </p>
+	 * 
+	 * @param realm           authentication realm
+	 * @param jwksUri         well-known key set URI
+	 * @param refreshInterval cache time to live for parsed JWKS key data
+	 */
+	static void register(String realm, URI jwksUri, Duration refreshInterval) {
+		IuAuthSpiFactory.get(IuSessionSpi.class).register(realm, jwksUri, refreshInterval);
+	}
+
+	/**
 	 * An application's <strong>token endpoint</strong> <em>may</em> create a
 	 * <strong>session token</strong> after <strong>authorizing</strong> the client.
+	 * 
+	 * <p>
+	 * Issuer credentials for {@link IuSessionHeader#getIssuer()} <em>must</em> be
+	 * {@link #register(Subject) registered}.
+	 * </p>
 	 * 
 	 * <p>
 	 * If the <strong>token endpoint</strong> delegates authentication to the
@@ -68,6 +128,11 @@ public interface IuSessionToken extends IuBearerAuthCredentials {
 	 * Refreshes a session token.
 	 * 
 	 * <p>
+	 * Issuer credentials for verifying the refresh token, and signing the new
+	 * access token <em>must</em> be {@link #register(Subject) registered}.
+	 * </p>
+	 * 
+	 * <p>
 	 * Used by the application token endpoint.
 	 * </p>
 	 * 
@@ -82,6 +147,12 @@ public interface IuSessionToken extends IuBearerAuthCredentials {
 
 	/**
 	 * Authorizes a session from its access token.
+	 * 
+	 * <p>
+	 * Either {@link #register(Subject) Issuer credentials} or
+	 * {@link #register(String, URI, Duration) well-known key set} <em>must</em> be
+	 * registered for the token issuer.
+	 * </p>
 	 * 
 	 * <p>
 	 * Used by the application service endpoint.

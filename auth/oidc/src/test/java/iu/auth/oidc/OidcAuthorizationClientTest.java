@@ -82,6 +82,7 @@ import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.test.IuTestLogger;
 import iu.auth.util.AccessTokenVerifier;
 import iu.auth.util.HttpUtils;
+import iu.auth.util.WellKnownKeySet;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 
@@ -137,7 +138,8 @@ public class OidcAuthorizationClientTest {
 		when(credentials.getName()).thenReturn(clientId);
 
 		idClient = mock(IuOpenIdClient.class, CALLS_REAL_METHODS);
-		idTokenVerifier = new AccessTokenVerifier(jwksUri, issuer, idClient::getTrustRefreshInterval);
+		idTokenVerifier = new AccessTokenVerifier(issuer,
+				new WellKnownKeySet(jwksUri, idClient::getTrustRefreshInterval));
 		when(idClient.getCredentials()).thenReturn(credentials);
 		when(idClient.getActivationInterval()).thenReturn(Duration.ofMillis(100L));
 		when(idClient.getAuthenticatedSessionTimeout()).thenReturn(Duration.ofSeconds(2L));
