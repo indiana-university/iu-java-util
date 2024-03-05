@@ -36,10 +36,11 @@
  *           implementation
  */
 module iu.util.auth.session {
+	requires static com.auth0.jwt;
 	requires iu.util;
-	requires iu.util.auth;
-	requires iu.util.auth.oauth;
-	requires iu.util.auth.util;
+	requires transitive iu.util.auth;
+	requires transitive iu.util.auth.oauth;
+	requires transitive iu.util.auth.util;
 
 	provides edu.iu.auth.spi.IuSessionSpi with iu.auth.session.SessionSpi;
 }
