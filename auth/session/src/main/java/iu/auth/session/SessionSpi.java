@@ -50,6 +50,18 @@ public class SessionSpi implements IuSessionSpi {
 	}
 
 	@Override
+	public String register(Subject provider) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public void register(String realm, URI jwksUri, Duration refreshInterval) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
 	public IuSessionToken create(IuSessionHeader header) {
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException();
