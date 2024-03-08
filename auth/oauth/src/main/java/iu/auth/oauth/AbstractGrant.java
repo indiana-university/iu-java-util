@@ -208,7 +208,8 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 		final var bearerSubject = new Subject(true, principals, subject.getPublicCredentials(),
 				subject.getPrivateCredentials());
 
-		final var bearer = new BearerAuthCredentials(bearerSubject, tokenResponse.getAccessToken());
+		final var bearer = new BearerAuthCredentials(realm, bearerSubject, tokenResponse.getAccessToken());
+		
 		OAuthSpi.getClient(realm).activate(bearer);
 
 		authorizedCredentials = new AuthorizedCredentials<>(bearer, tokenResponse.getExpires());

@@ -76,6 +76,7 @@ import edu.iu.IuCrypt;
 import edu.iu.IuText;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
 import edu.iu.auth.oauth.IuTokenResponse;
 import edu.iu.auth.oidc.IuOpenIdClient;
@@ -296,9 +297,9 @@ public class OidcAuthorizationClientTest {
 			assertThrows(IllegalStateException.class, () -> client.verify(tokenResponse));
 
 			final var idcon = Class.forName(OidcAuthorizationClient.class.getName() + "$Id")
-					.getDeclaredConstructor(String.class);
+					.getDeclaredConstructor(OidcAuthorizationClient.class, String.class);
 			idcon.setAccessible(true);
-			final var id = (Principal) idcon.newInstance(clientId);
+			final var id = (Principal) idcon.newInstance(client, clientId);
 			final var credentials = mock(IuBearerAuthCredentials.class);
 			when(credentials.getName()).thenReturn(clientId);
 			when(credentials.getAccessToken()).thenReturn(accessToken);
@@ -336,9 +337,9 @@ public class OidcAuthorizationClientTest {
 			mockHttpUtils.when(() -> HttpUtils.read(request)).thenReturn(userinfo);
 
 			final var idcon = Class.forName(OidcAuthorizationClient.class.getName() + "$Id")
-					.getDeclaredConstructor(String.class);
+					.getDeclaredConstructor(OidcAuthorizationClient.class, String.class);
 			idcon.setAccessible(true);
-			final var id = (Principal) idcon.newInstance(clientId);
+			final var id = (Principal) idcon.newInstance(client, clientId);
 			final var credentials = mock(IuBearerAuthCredentials.class);
 			when(credentials.getName()).thenReturn(clientId);
 			when(credentials.getAccessToken()).thenReturn(accessToken);
@@ -387,9 +388,9 @@ public class OidcAuthorizationClientTest {
 			mockHttpUtils.when(() -> HttpUtils.read(request)).thenReturn(userinfo);
 
 			final var idcon = Class.forName(OidcAuthorizationClient.class.getName() + "$Id")
-					.getDeclaredConstructor(String.class);
+					.getDeclaredConstructor(OidcAuthorizationClient.class, String.class);
 			idcon.setAccessible(true);
-			final var id = (Principal) idcon.newInstance(clientId);
+			final var id = (Principal) idcon.newInstance(client, clientId);
 			final var credentials = mock(IuBearerAuthCredentials.class);
 			when(credentials.getName()).thenReturn(clientId);
 			when(credentials.getAccessToken()).thenReturn(accessToken);
@@ -593,9 +594,9 @@ public class OidcAuthorizationClientTest {
 					assertThrows(IuAuthenticationException.class, () -> client.verify(tokenResponse)).getMessage());
 
 			final var idcon = Class.forName(OidcAuthorizationClient.class.getName() + "$Id")
-					.getDeclaredConstructor(String.class);
+					.getDeclaredConstructor(OidcAuthorizationClient.class, String.class);
 			idcon.setAccessible(true);
-			final var id = (Principal) idcon.newInstance(clientId);
+			final var id = (Principal) idcon.newInstance(client, clientId);
 			Thread.sleep(101L);
 
 			final var bearer = mock(IuBearerAuthCredentials.class);
@@ -661,6 +662,12 @@ public class OidcAuthorizationClientTest {
 
 			final var subject = client.verify(tokenResponse);
 			verify(rb).header("Authorization", "Bearer " + accessToken);
+
+			final var id = subject.getPrincipals(IuPrincipalIdentity.class).iterator().next();
+			assertEquals(principal, id.getName());
+
+			IuPrincipalIdentity.verify(id, client.getRealm());
+
 			final var principals = subject.getPrincipals();
 			assertEquals(9, principals.size());
 			final var principalIter = principals.iterator();
@@ -687,4 +694,24 @@ public class OidcAuthorizationClientTest {
 		}
 	}
 
+	@Test
+	public void testWrongClient() throws Exception {
+		final var issuer = IdGenerator.generateId();
+		final var config = Json.createObjectBuilder() //
+				.add("authorization_endpoint", authorizationEndpoint.toString()) //
+				.add("token_endpoint", tokenEndpoint.toString()) //
+				.add("userinfo_endpoint", userinfoEndpoint.toString()) //
+				.add("jwks_uri", jwksUri.toString()) //
+				.add("issuer", issuer) //
+				.build();
+		final var idTokenVerifier = new AccessTokenVerifier(issuer,
+				new WellKnownKeySet(jwksUri, idClient::getTrustRefreshInterval));
+
+		final var client = new OidcAuthorizationClient(config, idClient, idTokenVerifier);
+		final var idcon = Class.forName(OidcAuthorizationClient.class.getName() + "$Id")
+				.getDeclaredConstructor(OidcAuthorizationClient.class, String.class);
+		idcon.setAccessible(true);
+		final var id = (IuPrincipalIdentity) idcon.newInstance(this.client, clientId);
+		assertThrows(IllegalArgumentException.class, () -> IuPrincipalIdentity.verify(id, client.getRealm()));
+	}
 }

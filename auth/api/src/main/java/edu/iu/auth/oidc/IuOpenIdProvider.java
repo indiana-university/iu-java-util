@@ -56,7 +56,8 @@ public interface IuOpenIdProvider {
 	 * </p>
 	 * 
 	 * @param configUri provider configuration URI
-	 * @param client    client configuration metadata
+	 * @param client    client configuration metadata, <em>may</em> be null if the
+	 *                  client endpoint is not registered with the provider.
 	 * @return Client view of the OpenID provider
 	 */
 	static IuOpenIdProvider from(URI configUri, IuOpenIdClient client) {
@@ -84,7 +85,12 @@ public interface IuOpenIdProvider {
 	Subject hydrate(String accessToken) throws IuAuthenticationException;
 
 	/**
-	 * Creates an authorization client for interacting with the OpenID provider.
+	 * Creates the authorization client for interacting with the endpoint's OpenID
+	 * provider registration.
+	 * 
+	 * <p>
+	 * This method <em>may</em> only be invoked <em>once</em>.
+	 * </p>
 	 * 
 	 * @return authorization client
 	 */

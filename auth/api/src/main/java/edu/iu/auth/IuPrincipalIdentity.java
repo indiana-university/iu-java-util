@@ -29,91 +29,52 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.session;
+package edu.iu.auth;
 
-import java.security.PrivateKey;
-import java.security.PublicKey;
+import java.io.Serializable;
+import java.security.Principal;
+
+import javax.security.auth.Subject;
+
+import edu.iu.auth.spi.IuPrincipalSpi;
+import iu.auth.IuAuthSpiFactory;
 
 /**
- * Describes a trusted session provider key.
+ * Designates an authenticated principal identity.
  */
-public interface IuSessionProviderKey {
+public interface IuPrincipalIdentity extends Principal, Serializable {
 
 	/**
-	 * Designates key type.
+	 * Verifies that a principal identity was issued by a registered identity
+	 * provider for an authentication realm.
+	 * 
+	 * @param id    principal identity
+	 * @param realm authentication realm
 	 */
-	enum Type {
-
-		/**
-		 * RSA key.
-		 */
-		RSA,
-
-		/**
-		 * NIST P-256 Elliptical Curve.
-		 */
-		EC_P256,
-
-		/**
-		 * NIST P-384 Elliptical Curve.
-		 */
-		EC_P384,
-
-		/**
-		 * NIST P-521 Elliptical Curve.
-		 */
-		EC_P521;
+	static void verify(IuPrincipalIdentity id, String realm) {
+		IuAuthSpiFactory.get(IuPrincipalSpi.class).verify(id, realm);
 	}
 
 	/**
-	 * Designates key usage.
+	 * Retrieves and verifies a single {@link IuPrincipalIdentity} from a
+	 * {@link Subject}.
+	 * 
+	 * @param subject {@link Subject}
+	 * @param realm   authentication realm, for verification
+	 * @return verified {@link IuPrincipalIdentity}
 	 */
-	enum Usage {
+	static IuPrincipalIdentity from(Subject subject, String realm) {
+		final var i = subject.getPrincipals(IuPrincipalIdentity.class).iterator();
+		if (!i.hasNext())
+			throw new IllegalArgumentException("expected one IuPrincipalIdentity");
 
-		/**
-		 * Used for signing.
-		 */
-		SIGN,
+		final var principal = i.next();
+		if (i.hasNext())
+			throw new IllegalArgumentException("expected exactly one IuPrincipalIdentity");
 
-		/**
-		 * Use for encryption.
-		 */
-		ENCRYPT;
+		verify(principal, realm);
+
+		return principal;
 	}
-
-	/**
-	 * Gets the key ID.
-	 * 
-	 * @return key ID
-	 */
-	String getId();
-
-	/**
-	 * Gets the key type.
-	 * 
-	 * @return key type
-	 */
-	Type getType();
-
-	/**
-	 * Gets the key usage.
-	 * 
-	 * @return key usage
-	 */
-	Usage getUsage();
-
-	/**
-	 * Gets the public key.
-	 * 
-	 * @return public key
-	 */
-	PublicKey getPublic();
-
-	/**
-	 * Gets the private key.
-	 * 
-	 * @return private key
-	 */
-	PrivateKey getPrivate();
 
 }

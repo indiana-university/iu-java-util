@@ -34,6 +34,9 @@ package edu.iu.auth.session;
 import java.security.Principal;
 import java.time.Duration;
 
+import javax.security.auth.Subject;
+
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuAuthorizationScope;
 
 /**
@@ -58,6 +61,14 @@ public interface IuSessionHeader extends Principal {
 	String getSignatureAlgorithm();
 
 	/**
+	 * Gets the authentication realm to use for verifying the
+	 * {@link IuPrincipalIdentity}.
+	 * 
+	 * @return authentication realm
+	 */
+	String getRealm();
+
+	/**
 	 * Gets the issuing application's uniform principal name (e.g., root URI).
 	 * 
 	 * @return issuer principal name
@@ -73,21 +84,19 @@ public interface IuSessionHeader extends Principal {
 	String getAudience();
 
 	/**
-	 * Gets the authorized principals to include in the session.
+	 * Gets the subject authorized for the session.
 	 * 
 	 * <p>
-	 * <em>Must</em> include at least one identifying principal, as defined by the
-	 * <strong>token endpoint</strong>, as the first principal returned.
-	 * <em>Should</em> include at least one {@link IuAuthorizationScope} and/or
-	 * {@link IuSessionAttribute} instances in addition to the identifying
-	 * principal. When a <strong>session token</strong> is refreshed, authorized
-	 * principals included in the session will be verified as matching those used to
-	 * create the session.
+	 * <em>Must</em> include one {@link IuPrincipalIdentity}. <em>Should</em>
+	 * include at least one {@link IuAuthorizationScope} and/or
+	 * {@link IuSessionAttribute} principal. When a <strong>session token</strong>
+	 * is refreshed, authorized principals included in the session will be verified
+	 * as matching those used to create the session.
 	 * </p>
 	 * 
-	 * @return {@link Iterable} of authorized principals
+	 * @return {@link Subject}
 	 */
-	Iterable<Principal> getAuthorizedPrincipals();
+	Subject getSubject();
 
 	/**
 	 * Determines if a refresh token can be used with the session.

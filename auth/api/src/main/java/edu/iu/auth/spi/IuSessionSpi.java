@@ -32,8 +32,8 @@
 package edu.iu.auth.spi;
 
 import java.net.URI;
-import java.security.Principal;
 import java.time.Duration;
+import java.util.Set;
 
 import javax.security.auth.Subject;
 
@@ -49,19 +49,22 @@ public interface IuSessionSpi {
 	/**
 	 * Registers a session provider's issuer credentials.
 	 * 
+	 * @param realm    authentication realm supported for principal identity
+	 *                 verification
 	 * @param provider issue credentials
 	 * @return JWKS key set
 	 */
-	String register(Subject provider);
+	String register(Set<String> realm, Subject provider);
 
 	/**
 	 * Registers a remote session provider.
 	 * 
-	 * @param realm           authentication realm
+	 * @param issuer          remote session provider root URI
 	 * @param jwksUri         well-known JWKS key set URI
+	 * @param tokenTtl        max token time to live
 	 * @param refreshInterval JWKS cache time to live
 	 */
-	void register(String realm, URI jwksUri, Duration refreshInterval);
+	void register(URI issuer, URI jwksUri, Duration tokenTtl, Duration refreshInterval);
 
 	/**
 	 * Creates a session token.
@@ -74,11 +77,11 @@ public interface IuSessionSpi {
 	/**
 	 * Refreshes a session token.
 	 * 
-	 * @param authorizedPrincipals authorized principals
-	 * @param refreshToken         refresh token
+	 * @param subject      authorized subject
+	 * @param refreshToken refresh token
 	 * @return {@link IuSessionToken}
 	 */
-	IuSessionToken refresh(Iterable<Principal> authorizedPrincipals, String refreshToken);
+	IuSessionToken refresh(Subject subject, String refreshToken);
 
 	/**
 	 * Authorizes a session token.

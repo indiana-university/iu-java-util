@@ -70,6 +70,7 @@ import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
 import edu.iu.test.IuTestLogger;
 import iu.auth.util.HttpUtils;
+import iu.auth.util.PrincipalVerifierRegistry;
 import jakarta.json.Json;
 
 @SuppressWarnings("javadoc")
@@ -119,11 +120,14 @@ public class ClientCredentialsGrantTest {
 	@Test
 	public void testAuthorizeBare() throws URISyntaxException, IuAuthenticationException {
 		final var realm = IdGenerator.generateId();
+		PrincipalVerifierRegistry.registerVerifier(realm,
+				a -> assertEquals(realm, assertInstanceOf(MockPrincipal.class, a).getRealm()), true);
+
 		final var uri = new URI("foo:/bar");
 		final var tokenEndpoint = new URI("foo:/token");
 		final var client = mock(IuAuthorizationClient.class);
 		final var clientCredentials = mock(IuApiCredentials.class);
-		final var principal = new MockPrincipal();
+		final var principal = new MockPrincipal(realm);
 		when(client.getRealm()).thenReturn(realm);
 		when(client.getResourceUri()).thenReturn(uri);
 		when(client.getTokenEndpoint()).thenReturn(tokenEndpoint);
@@ -182,11 +186,14 @@ public class ClientCredentialsGrantTest {
 	public void testAuthorizeWithScopeExpiresAndExtras()
 			throws URISyntaxException, IuAuthenticationException, InterruptedException {
 		final var realm = IdGenerator.generateId();
+		PrincipalVerifierRegistry.registerVerifier(realm,
+				a -> assertEquals(realm, assertInstanceOf(MockPrincipal.class, a).getRealm()), true);
+
 		final var uri = new URI("foo:/bar");
 		final var tokenEndpoint = new URI("foo:/token");
 		final var client = mock(IuAuthorizationClient.class);
 		final var clientCredentials = mock(IuApiCredentials.class);
-		final var principal = new MockPrincipal();
+		final var principal = new MockPrincipal(realm);
 
 		when(client.getRealm()).thenReturn(realm);
 		when(client.getResourceUri()).thenReturn(uri);
@@ -311,16 +318,20 @@ public class ClientCredentialsGrantTest {
 	@Test
 	public void testRequiresSerializablePrincipal() throws URISyntaxException, IuAuthenticationException {
 		final var realm = IdGenerator.generateId();
+		PrincipalVerifierRegistry.registerVerifier(realm,
+				a -> assertEquals(realm, assertInstanceOf(MockPrincipal.class, a).getRealm()), true);
+
 		final var uri = new URI("foo:/bar");
 		final var tokenEndpoint = new URI("foo:/token");
 		final var client = mock(IuAuthorizationClient.class);
 		final var clientCredentials = mock(IuApiCredentials.class);
-		final var principal = mock(Principal.class);
+		final var principal = new MockPrincipal(realm);
 		when(client.getRealm()).thenReturn(realm);
 		when(client.getResourceUri()).thenReturn(uri);
 		when(client.getTokenEndpoint()).thenReturn(tokenEndpoint);
 		when(client.getCredentials()).thenReturn(clientCredentials);
-		when(client.verify(any())).thenReturn(new Subject(true, Set.of(principal), Set.of(), Set.of()));
+		when(client.verify(any()))
+				.thenReturn(new Subject(true, Set.of(principal, mock(Principal.class)), Set.of(), Set.of()));
 		IuAuthorizationClient.initialize(client);
 
 		final var grant = new ClientCredentialsGrant(realm);

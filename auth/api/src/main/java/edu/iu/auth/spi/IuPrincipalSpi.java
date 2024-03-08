@@ -29,91 +29,25 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.session;
+package edu.iu.auth.spi;
 
-import java.security.PrivateKey;
-import java.security.PublicKey;
+import edu.iu.auth.IuPrincipalIdentity;
 
 /**
- * Describes a trusted session provider key.
+ * Service provider interface supporting principal identify verification.
  */
-public interface IuSessionProviderKey {
+public interface IuPrincipalSpi {
 
 	/**
-	 * Designates key type.
-	 */
-	enum Type {
-
-		/**
-		 * RSA key.
-		 */
-		RSA,
-
-		/**
-		 * NIST P-256 Elliptical Curve.
-		 */
-		EC_P256,
-
-		/**
-		 * NIST P-384 Elliptical Curve.
-		 */
-		EC_P384,
-
-		/**
-		 * NIST P-521 Elliptical Curve.
-		 */
-		EC_P521;
-	}
-
-	/**
-	 * Designates key usage.
-	 */
-	enum Usage {
-
-		/**
-		 * Used for signing.
-		 */
-		SIGN,
-
-		/**
-		 * Use for encryption.
-		 */
-		ENCRYPT;
-	}
-
-	/**
-	 * Gets the key ID.
+	 * Verifies that a principal identity was issued by a registered identity
+	 * provider for an authentication realm.
 	 * 
-	 * @return key ID
+	 * @param <T>   principal identity implementation type, typically private,
+	 *              <em>may</em> be unknown, but <em>should</em> be validated by
+	 *              realm.
+	 * @param id    principal identity
+	 * @param realm authentication realm
 	 */
-	String getId();
-
-	/**
-	 * Gets the key type.
-	 * 
-	 * @return key type
-	 */
-	Type getType();
-
-	/**
-	 * Gets the key usage.
-	 * 
-	 * @return key usage
-	 */
-	Usage getUsage();
-
-	/**
-	 * Gets the public key.
-	 * 
-	 * @return public key
-	 */
-	PublicKey getPublic();
-
-	/**
-	 * Gets the private key.
-	 * 
-	 * @return private key
-	 */
-	PrivateKey getPrivate();
+	<T extends IuPrincipalIdentity> void verify(T id, String realm);
 
 }

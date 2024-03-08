@@ -29,91 +29,31 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.session;
+package edu.iu.auth;
 
-import java.security.PrivateKey;
-import java.security.PublicKey;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 
-/**
- * Describes a trusted session provider key.
- */
-public interface IuSessionProviderKey {
+import org.junit.jupiter.api.Test;
 
-	/**
-	 * Designates key type.
-	 */
-	enum Type {
+import edu.iu.IdGenerator;
+import edu.iu.auth.spi.IuPrincipalSpi;
+import iu.auth.IuAuthSpiFactory;
 
-		/**
-		 * RSA key.
-		 */
-		RSA,
+@SuppressWarnings("javadoc")
+public class IuPrincipalIdentityTest {
 
-		/**
-		 * NIST P-256 Elliptical Curve.
-		 */
-		EC_P256,
-
-		/**
-		 * NIST P-384 Elliptical Curve.
-		 */
-		EC_P384,
-
-		/**
-		 * NIST P-521 Elliptical Curve.
-		 */
-		EC_P521;
+	@Test
+	public void testRegister() {
+		final var realm = IdGenerator.generateId();
+		final var principal = mock(IuPrincipalIdentity.class);
+		final var spi = mock(IuPrincipalSpi.class);
+		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
+			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuPrincipalSpi.class)).thenReturn(spi);
+			IuPrincipalIdentity.verify(principal, realm);
+			verify(spi).verify(principal, realm);
+		}
 	}
-
-	/**
-	 * Designates key usage.
-	 */
-	enum Usage {
-
-		/**
-		 * Used for signing.
-		 */
-		SIGN,
-
-		/**
-		 * Use for encryption.
-		 */
-		ENCRYPT;
-	}
-
-	/**
-	 * Gets the key ID.
-	 * 
-	 * @return key ID
-	 */
-	String getId();
-
-	/**
-	 * Gets the key type.
-	 * 
-	 * @return key type
-	 */
-	Type getType();
-
-	/**
-	 * Gets the key usage.
-	 * 
-	 * @return key usage
-	 */
-	Usage getUsage();
-
-	/**
-	 * Gets the public key.
-	 * 
-	 * @return public key
-	 */
-	PublicKey getPublic();
-
-	/**
-	 * Gets the private key.
-	 * 
-	 * @return private key
-	 */
-	PrivateKey getPrivate();
 
 }

@@ -73,6 +73,7 @@ import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
 import edu.iu.test.IuTestLogger;
 import iu.auth.util.HttpUtils;
+import iu.auth.util.PrincipalVerifierRegistry;
 import jakarta.json.Json;
 
 @SuppressWarnings("javadoc")
@@ -199,6 +200,9 @@ public class AuthorizationCodeTest {
 	public void testFullAuthLifecycle() throws URISyntaxException, IuAuthenticationException, InterruptedException,
 			IOException, ClassNotFoundException {
 		final var realm = IdGenerator.generateId();
+		PrincipalVerifierRegistry.registerVerifier(realm,
+				a -> assertEquals(realm, assertInstanceOf(MockPrincipal.class, a).getRealm()), true);
+
 		final var resourceUri = new URI("foo:/bar");
 		final var redirectUri = new URI("foo:/baz");
 		final var authEndpointUri = new URI("foo:/authorize");
@@ -206,7 +210,7 @@ public class AuthorizationCodeTest {
 		final var client = mock(IuAuthorizationClient.class);
 		final var clientCredentials = mock(IuApiCredentials.class);
 		final var clientId = IdGenerator.generateId();
-		final var principal = new MockPrincipal();
+		final var principal = new MockPrincipal(realm);
 		when(clientCredentials.getName()).thenReturn(clientId);
 		when(client.getRealm()).thenReturn(realm);
 		when(client.getResourceUri()).thenReturn(resourceUri);
@@ -303,8 +307,8 @@ public class AuthorizationCodeTest {
 			assertInstanceOf(IuBearerAuthCredentials.class, cred2);
 			assertEquals(principal.getName(), cred2.getName());
 			assertSame(cred2, grant.authorize(resourceUri));
-			assertNotEquals(cred, cred2);
-			assertNotEquals(cred.hashCode(), cred2.hashCode());
+			assertEquals(cred, cred2);
+			assertEquals(cred.hashCode(), cred2.hashCode());
 			assertEquals(accessToken2, ((IuBearerAuthCredentials) cred2).getAccessToken());
 
 			Thread.sleep(1001L);
@@ -334,6 +338,9 @@ public class AuthorizationCodeTest {
 	@Test
 	public void testAuthNoRefresh() throws URISyntaxException, IuAuthenticationException, InterruptedException {
 		final var realm = IdGenerator.generateId();
+		PrincipalVerifierRegistry.registerVerifier(realm,
+				a -> assertEquals(realm, assertInstanceOf(MockPrincipal.class, a).getRealm()), true);
+
 		final var resourceUri = new URI("foo:/bar");
 		final var redirectUri = new URI("foo:/baz");
 		final var authEndpointUri = new URI("foo:/authorize");
@@ -341,7 +348,7 @@ public class AuthorizationCodeTest {
 		final var client = mock(IuAuthorizationClient.class);
 		final var clientCredentials = mock(IuApiCredentials.class);
 		final var clientId = IdGenerator.generateId();
-		final var principal = new MockPrincipal();
+		final var principal = new MockPrincipal(realm);
 		when(clientCredentials.getName()).thenReturn(clientId);
 		when(client.getRealm()).thenReturn(realm);
 		when(client.getResourceUri()).thenReturn(resourceUri);
@@ -422,6 +429,9 @@ public class AuthorizationCodeTest {
 	@Test
 	public void testAuthRefreshFails() throws URISyntaxException, IuAuthenticationException, InterruptedException {
 		final var realm = IdGenerator.generateId();
+		PrincipalVerifierRegistry.registerVerifier(realm,
+				a -> assertEquals(realm, assertInstanceOf(MockPrincipal.class, a).getRealm()), true);
+
 		final var resourceUri = new URI("foo:/bar");
 		final var redirectUri = new URI("foo:/baz");
 		final var authEndpointUri = new URI("foo:/authorize");
@@ -429,7 +439,7 @@ public class AuthorizationCodeTest {
 		final var client = mock(IuAuthorizationClient.class);
 		final var clientCredentials = mock(IuApiCredentials.class);
 		final var clientId = IdGenerator.generateId();
-		final var principal = new MockPrincipal();
+		final var principal = new MockPrincipal(realm);
 		when(clientCredentials.getName()).thenReturn(clientId);
 		when(client.getRealm()).thenReturn(realm);
 		when(client.getResourceUri()).thenReturn(resourceUri);

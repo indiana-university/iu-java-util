@@ -33,6 +33,8 @@ package edu.iu.auth.session;
 
 import java.security.Principal;
 
+import javax.security.auth.Subject;
+
 import edu.iu.auth.spi.IuSessionSpi;
 import iu.auth.IuAuthSpiFactory;
 
@@ -45,8 +47,8 @@ public interface IuSessionAttribute<T> extends Principal {
 
 	/**
 	 * Creates a session attribute to provide with
-	 * {@link IuSessionHeader#getAuthorizedPrincipals()} or
-	 * {@link IuSessionToken#refresh(Iterable, String)}.
+	 * {@link IuSessionHeader#getSubject()} or
+	 * {@link IuSessionToken#refresh(Subject, String)}.
 	 * 
 	 * @param <T>            attribute type
 	 * @param name           principal name

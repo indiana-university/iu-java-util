@@ -38,6 +38,7 @@ import static org.mockito.Mockito.verify;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.Set;
 
 import javax.security.auth.Subject;
 
@@ -52,26 +53,27 @@ public class IuSessionTokenTest {
 
 	@Test
 	public void testRegisterProvider() throws ClassNotFoundException {
+		final var realm = IdGenerator.generateId();
 		assertNotNull(IuSessionProviderKey.Usage.SIGN);
 		assertNotNull(IuSessionProviderKey.Type.RSA);
 		final var provider = mock(Subject.class);
 		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
 			final var spi = mock(IuSessionSpi.class);
 			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuSessionSpi.class)).thenReturn(spi);
-			IuSessionToken.register(provider);
-			verify(spi).register(provider);
+			IuSessionToken.register(Set.of(realm), provider);
+			verify(spi).register(Set.of(realm), provider);
 		}
 	}
 
 	@Test
 	public void testRegisterJwks() {
-		final var realm = IdGenerator.generateId();
+		final var issuer = mock(URI.class);
 		final var jwksUri = mock(URI.class);
 		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
 			final var spi = mock(IuSessionSpi.class);
 			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuSessionSpi.class)).thenReturn(spi);
-			IuSessionToken.register(realm, jwksUri, Duration.ZERO);
-			verify(spi).register(realm, jwksUri, Duration.ZERO);
+			IuSessionToken.register(issuer, jwksUri, Duration.ZERO, Duration.ZERO);
+			verify(spi).register(issuer, jwksUri, Duration.ZERO, Duration.ZERO);
 		}
 	}
 
@@ -86,27 +88,27 @@ public class IuSessionTokenTest {
 		}
 	}
 
-	@SuppressWarnings("unchecked")
 	@Test
 	public void testRefresh() {
-		final var principals = mock(Iterable.class);
+		final var subject = mock(Subject.class);
 		final var token = IdGenerator.generateId();
 		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
 			final var spi = mock(IuSessionSpi.class);
 			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuSessionSpi.class)).thenReturn(spi);
-			IuSessionToken.refresh(principals, token);
-			verify(spi).refresh(principals, token);
+			IuSessionToken.refresh(subject, token);
+			verify(spi).refresh(subject, token);
 		}
 	}
 
 	@Test
 	public void testAuthorize() {
+		final var audience = IdGenerator.generateId();
 		final var token = IdGenerator.generateId();
 		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
 			final var spi = mock(IuSessionSpi.class);
 			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuSessionSpi.class)).thenReturn(spi);
-			IuSessionToken.authorize(token);
-			verify(spi).authorize(token);
+			IuSessionToken.authorize(audience, token);
+			verify(spi).authorize(audience, token);
 		}
 	}
 
