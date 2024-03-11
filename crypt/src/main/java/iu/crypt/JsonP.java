@@ -29,61 +29,36 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu;
+package iu.crypt;
 
-import java.security.MessageDigest;
+import jakarta.json.spi.JsonProvider;
 
 /**
- * Low-level crypto utilities.
+ * Holds an instance of {@link JsonProvider}.
+ * <p>
+ * This class <em>may</em> be intentionally initialized by the authentication
+ * bootstrap with the desired {@link JsonProvider} SPI provided by the current
+ * thread's context.
+ * </p>
  */
-public class IuCrypt {
-
-	private static final ThreadLocal<MessageDigest> SHA1 = new ThreadLocal<MessageDigest>() {
-		@Override
-		protected MessageDigest initialValue() {
-			return IuException.unchecked(() -> MessageDigest.getInstance("SHA-1"));
-		}
-	};
-
-	private static final ThreadLocal<MessageDigest> SHA256 = new ThreadLocal<MessageDigest>() {
-		@Override
-		protected MessageDigest initialValue() {
-			return IuException.unchecked(() -> MessageDigest.getInstance("SHA-256"));
-		}
-	};
-
-	private static final byte[] EMPTY_SHA1 = SHA1.get().digest(new byte[0]);
-	private static final byte[] EMPTY_SHA256 = SHA256.get().digest(new byte[0]);
+class JsonP {
 
 	/**
-	 * Gets a SHA-1 digest.
-	 * 
-	 * @param data character data
-	 * @return SHA-1 digest
+	 * Singleton instance of {@link JsonProvider}.
 	 */
-	public static byte[] sha1(byte[] data) {
-		if (data == null || data.length == 0)
-			return EMPTY_SHA1;
-		return SHA1.get().digest(data);
+	static final JsonProvider PROVIDER;
+
+	static {
+		final var current = Thread.currentThread();
+		final var contextToRestore = current.getContextClassLoader();
+		try {
+			current.setContextClassLoader(JsonProvider.class.getClassLoader());
+			PROVIDER = JsonProvider.provider();
+		} finally {
+			current.setContextClassLoader(contextToRestore);
+		}
 	}
 
-	/**
-	 * Gets a SHA-256 digest for character data.
-	 * <p>
-	 * The string passed into this method is first converted to UTF-8 binary format,
-	 * then digested.
-	 * </p>
-	 * 
-	 * @param data character data
-	 * @return SHA-256 digest
-	 */
-	public static byte[] sha256(byte[] data) {
-		if (data == null || data.length == 0)
-			return EMPTY_SHA256;
-		return SHA256.get().digest(data);
+	private JsonP() {
 	}
-
-	private IuCrypt() {
-	}
-
 }
