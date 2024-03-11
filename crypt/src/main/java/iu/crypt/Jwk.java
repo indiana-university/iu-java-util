@@ -310,10 +310,21 @@ public class Jwk extends BaseWebKey {
 	 * 
 	 * @param parsed {@link JsonObject} with JWK attributes
 	 */
-	private Jwk(JsonObject parsed) {
-		id = parsed.getString("kid");
-		use = Use.from(parsed.getString("use"));
-		type = Type.from(parsed.getString("kty"), parsed.containsKey("crv") ? parsed.getString("crv") : null);
+	Jwk(JsonObject parsed) {
+		if (parsed.containsKey("kid"))
+			id = parsed.getString("kid");
+		else
+			id = null;
+
+		if (parsed.containsKey("use"))
+			use = Use.from(parsed.getString("use"));
+		else
+			use = null;
+
+		if (parsed.containsKey("kty"))
+			type = Type.from(parsed.getString("kty"), parsed.containsKey("crv") ? parsed.getString("crv") : null);
+		else
+			type = null;
 
 		if (parsed.containsKey("key_ops")) {
 			final var keyOps = parsed.getJsonArray("key_ops");

@@ -1,6 +1,7 @@
 package iu.crypt;
 
 import java.io.ByteArrayOutputStream;
+import java.io.StringReader;
 import java.math.BigInteger;
 import java.security.Key;
 import java.security.SecureRandom;
@@ -18,12 +19,14 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import edu.iu.IuException;
+import edu.iu.IuObject;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryptionHeader;
 import edu.iu.crypt.WebEncryptionHeader.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebKey.Use;
+import jakarta.json.JsonObject;
 
 /**
  * JSON Web Encryption (JWE) implementation class.
@@ -84,11 +87,12 @@ public class Jwe implements WebEncryption {
 	/**
 	 * Encrypts data as JWE.
 	 * 
-	 * @param header header data
-	 * @param data   data to encrypt
+	 * @param header         header data
+	 * @param data           data to encrypt
+	 * @param additionalData optional additional data for AEAD authentication
 	 * @return JSON Web Encryption (JWE) encrypted message
 	 */
-	public static WebEncryption encrypt(WebEncryptionHeader header, byte[] data) {
+	public static WebEncryption encrypt(WebEncryptionHeader header, byte[] data, byte[] additionalData) {
 		final var algorithm = header.getAlgorithm();
 		if (!Use.ENCRYPT.equals(algorithm.use))
 			throw new IllegalArgumentException("alg");
@@ -146,16 +150,18 @@ public class Jwe implements WebEncryption {
 			final byte[] encryptedKey;
 			if (recipientKey != null) {
 				final var cipher = Cipher.getInstance(algorithm.auxiliaryAlgorithm);
-				cipher.init(Cipher.WRAP_MODE, recipientKey);
 				if (gcm == null) {
+					cipher.init(Cipher.ENCRYPT_MODE, recipientKey);
 					final byte[] mac = new byte[algorithm.size];
 					new SecureRandom().nextBytes(mac);
 					final byte[] k = new byte[algorithm.size * 2];
 					System.arraycopy(mac, 0, k, 0, algorithm.size);
 					System.arraycopy(cek.getEncoded(), 0, k, algorithm.size, algorithm.size);
 					encryptedKey = cipher.doFinal(k);
-				} else
-					encryptedKey = cipher.doFinal(cek.getEncoded());
+				} else {
+					cipher.init(Cipher.WRAP_MODE, recipientKey);
+					encryptedKey = cipher.wrap(cek);
+				}
 			} else
 				encryptedKey = b0;
 
@@ -171,7 +177,6 @@ public class Jwe implements WebEncryption {
 			final var encodedProtectedHeader = EncodingUtils
 					.base64Url(EncodingUtils.utf8(Jose.getProtected(header).toString()));
 			final byte[] aad;
-			final var additionalData = header.getAdditionalAuthenticatedData();
 			if (additionalData == null)
 				aad = IuException.unchecked(() -> encodedProtectedHeader.getBytes("US-ASCII"));
 			else
@@ -200,7 +205,7 @@ public class Jwe implements WebEncryption {
 				break;
 
 			default:
-				cipher = Cipher.getInstance(encryption.cipherAlgorithm + '/' + encryption.cipherMode + "/PKCS7Padding");
+				cipher = Cipher.getInstance(encryption.cipherAlgorithm + '/' + encryption.cipherMode + "/PKCS5Padding");
 				cipher.init(Cipher.ENCRYPT_MODE, cek, gcm);
 				break;
 			}
@@ -246,8 +251,61 @@ public class Jwe implements WebEncryption {
 	 * @return JSON Web Encryption (JWE) encrypted message
 	 */
 	public static WebEncryption readJwe(String jwe) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+		final WebEncryptionHeader header;
+		final byte[] encryptedKey, initializationVector, cipherText, authenticationTag, additionalData;
+
+		if (jwe.charAt(0) == '{') {
+			final var parsed = JsonP.PROVIDER.createReader(new StringReader(jwe)).readObject();
+
+			final var protectedHeader = JsonP.PROVIDER.createReader(
+					new StringReader(EncodingUtils.utf8(EncodingUtils.base64Url(parsed.getString("protected")))))
+					.readObject();
+
+			final JsonObject sharedHeader;
+			if (parsed.containsKey("unprotected"))
+				sharedHeader = parsed.getJsonObject("unprotected");
+			else
+				sharedHeader = null;
+			final JsonObject perRecipientHeader;
+			if (parsed.containsKey("header"))
+				perRecipientHeader = parsed.getJsonObject("header");
+			else
+				perRecipientHeader = null;
+
+			if (parsed.containsKey("encrypted_key"))
+				encryptedKey = EncodingUtils.base64Url(parsed.getString("encrypted_key"));
+			else
+				encryptedKey = b0;
+
+			if (parsed.containsKey("iv"))
+				initializationVector = EncodingUtils.base64Url(parsed.getString("iv"));
+			else
+				initializationVector = b0;
+
+			cipherText = EncodingUtils.base64Url(parsed.getString("ciphertext"));
+
+			if (parsed.containsKey("tag"))
+				authenticationTag = EncodingUtils.base64Url(parsed.getString("tag"));
+			else
+				authenticationTag = b0;
+
+			if (parsed.containsKey("aad"))
+				additionalData = EncodingUtils.base64Url(parsed.getString("aad"));
+			else
+				additionalData = null;
+
+			header = Jose.from(protectedHeader, sharedHeader, perRecipientHeader);
+		} else {
+			final var i = EncodingUtils.compact(jwe);
+			header = Jose
+					.from(JsonP.PROVIDER.createReader(new StringReader(EncodingUtils.utf8(i.next()))).readObject());
+			encryptedKey = i.next();
+			initializationVector = i.next();
+			cipherText = i.next();
+			authenticationTag = i.next();
+			additionalData = null;
+		}
+		return new Jwe(header, encryptedKey, initializationVector, cipherText, authenticationTag, additionalData);
 	}
 
 	private final WebEncryptionHeader header;
@@ -299,19 +357,183 @@ public class Jwe implements WebEncryption {
 
 	@Override
 	public String compact() {
-		// TODO Auto-generated method stub
-		return null;
+		return EncodingUtils.base64Url(EncodingUtils.utf8(Jose.getProtected(header).toString())) //
+				+ '.' + EncodingUtils.base64Url(encryptedKey) //
+				+ '.' + EncodingUtils.base64Url(initializationVector) //
+				+ '.' + EncodingUtils.base64Url(cipherText) //
+				+ '.' + EncodingUtils.base64Url(authenticationTag);
 	}
 
 	@Override
-	public String serialize() {
-		// TODO Auto-generated method stub
-		return null;
+	public int hashCode() {
+		return IuObject.hashCodeSuper(Jose.hashCode(header), encryptedKey, initializationVector, cipherText,
+				authenticationTag);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (!IuObject.typeCheck(this, obj))
+			return false;
+
+		final var other = (Jwe) obj;
+		return Jose.equals(header, other.header) //
+				&& IuObject.equals(encryptedKey, other.encryptedKey) //
+				&& IuObject.equals(initializationVector, other.initializationVector) //
+				&& IuObject.equals(cipherText, other.cipherText) //
+				&& IuObject.equals(authenticationTag, other.authenticationTag);
+	}
+
+	@Override
+	public String toString() {
+		final var b = JsonP.PROVIDER.createObjectBuilder();
+		b.add("protected", EncodingUtils.base64Url(EncodingUtils.utf8(Jose.getProtected(header).toString())));
+
+		final var shared = Jose.getShared(header);
+		if (!shared.isEmpty())
+			b.add("unprotected", shared);
+
+		final var perRecipient = Jose.getPerRecipient(header);
+		if (!perRecipient.isEmpty())
+			b.add("header", perRecipient);
+
+		if (encryptedKey.length > 0)
+			b.add("encrypted_key", EncodingUtils.base64Url(encryptedKey));
+
+		if (initializationVector.length > 0)
+			b.add("iv", EncodingUtils.base64Url(initializationVector));
+
+		b.add("ciphertext", EncodingUtils.base64Url(cipherText));
+
+		if (authenticationTag.length > 0)
+			b.add("tag", EncodingUtils.base64Url(authenticationTag));
+
+		if (additionalData != null)
+			b.add("aad", EncodingUtils.base64Url(additionalData));
+
+		return b.build().toString();
 	}
 
 	@Override
 	public byte[] decrypt(WebKey key) {
 		// TODO Auto-generated method stub
+
+//		   2.   Base64url decode the encoded representations of the JWE
+//		        Protected Header, the JWE Encrypted Key, the JWE Initialization
+//		        Vector, the JWE Ciphertext, the JWE Authentication Tag, and the
+//		        JWE AAD, following the restriction that no line breaks,
+//		        whitespace, or other additional characters have been used.
+//
+//		   3.   Verify that the octet sequence resulting from decoding the
+//		        encoded JWE Protected Header is a UTF-8-encoded representation
+//		        of a completely valid JSON object conforming to RFC 7159
+//		        [RFC7159]; let the JWE Protected Header be this JSON object.
+//
+//		   4.   If using the JWE Compact Serialization, let the JOSE Header be
+//		        the JWE Protected Header.  Otherwise, when using the JWE JSON
+//		        Serialization, let the JOSE Header be the union of the members
+//		        of the JWE Protected Header, the JWE Shared Unprotected Header
+//		        and the corresponding JWE Per-Recipient Unprotected Header, all
+//		        of which must be completely valid JSON objects.  During this
+//		        step, verify that the resulting JOSE Header does not contain
+//		        duplicate Header Parameter names.  When using the JWE JSON
+//		        Serialization, this restriction includes that the same Header
+//		        Parameter name also MUST NOT occur in distinct JSON object
+//		        values that together comprise the JOSE Header.
+//
+//		   5.   Verify that the implementation understands and can process all
+//		        fields that it is required to support, whether required by this
+//		        specification, by the algorithms being used, or by the "crit"
+//		        Header Parameter value, and that the values of those parameters
+//		        are also understood and supported.
+//
+//		   6.   Determine the Key Management Mode employed by the algorithm
+//		        specified by the "alg" (algorithm) Header Parameter.
+//
+//		   7.   Verify that the JWE uses a key known to the recipient.
+//
+//		   8.   When Direct Key Agreement or Key Agreement with Key Wrapping are
+//		        employed, use the key agreement algorithm to compute the value
+//		        of the agreed upon key.  When Direct Key Agreement is employed,
+//		        let the CEK be the agreed upon key.  When Key Agreement with Key
+//		        Wrapping is employed, the agreed upon key will be used to
+//		        decrypt the JWE Encrypted Key.
+//
+//		   9.   When Key Wrapping, Key Encryption, or Key Agreement with Key
+//		        Wrapping are employed, decrypt the JWE Encrypted Key to produce
+//		        the CEK.  The CEK MUST have a length equal to that required for
+//		        the content encryption algorithm.  Note that when there are
+//		        multiple recipients, each recipient will only be able to decrypt
+//		        JWE Encrypted Key values that were encrypted to a key in that
+//		        recipient's possession.  It is therefore normal to only be able
+//
+//
+//
+//		Jones & Hildebrand           Standards Track                   [Page 18]
+//
+//		RFC 7516                JSON Web Encryption (JWE)               May 2015
+//
+//
+//		        to decrypt one of the per-recipient JWE Encrypted Key values to
+//		        obtain the CEK value.  Also, see Section 11.5 for security
+//		        considerations on mitigating timing attacks.
+//
+//		   10.  When Direct Key Agreement or Direct Encryption are employed,
+//		        verify that the JWE Encrypted Key value is an empty octet
+//		        sequence.
+//
+//		   11.  When Direct Encryption is employed, let the CEK be the shared
+//		        symmetric key.
+//
+//		   12.  Record whether the CEK could be successfully determined for this
+//		        recipient or not.
+//
+//		   13.  If the JWE JSON Serialization is being used, repeat this process
+//		        (steps 4-12) for each recipient contained in the representation.
+//
+//		   14.  Compute the Encoded Protected Header value BASE64URL(UTF8(JWE
+//		        Protected Header)).  If the JWE Protected Header is not present
+//		        (which can only happen when using the JWE JSON Serialization and
+//		        no "protected" member is present), let this value be the empty
+//		        string.
+//
+//		   15.  Let the Additional Authenticated Data encryption parameter be
+//		        ASCII(Encoded Protected Header).  However, if a JWE AAD value is
+//		        present (which can only be the case when using the JWE JSON
+//		        Serialization), instead let the Additional Authenticated Data
+//		        encryption parameter be ASCII(Encoded Protected Header || '.' ||
+//		        BASE64URL(JWE AAD)).
+//
+//		   16.  Decrypt the JWE Ciphertext using the CEK, the JWE Initialization
+//		        Vector, the Additional Authenticated Data value, and the JWE
+//		        Authentication Tag (which is the Authentication Tag input to the
+//		        calculation) using the specified content encryption algorithm,
+//		        returning the decrypted plaintext and validating the JWE
+//		        Authentication Tag in the manner specified for the algorithm,
+//		        rejecting the input without emitting any decrypted output if the
+//		        JWE Authentication Tag is incorrect.
+//
+//		   17.  If a "zip" parameter was included, uncompress the decrypted
+//		        plaintext using the specified compression algorithm.
+//
+//		   18.  If there was no recipient for which all of the decryption steps
+//		        succeeded, then the JWE MUST be considered invalid.  Otherwise,
+//		        output the plaintext.  In the JWE JSON Serialization case, also
+//		        return a result to the application indicating for which of the
+//		        recipients the decryption succeeded and failed.
+//
+//
+//
+//
+//		Jones & Hildebrand           Standards Track                   [Page 19]
+//
+//		RFC 7516                JSON Web Encryption (JWE)               May 2015
+//
+//
+//		   Finally, note that it is an application decision which algorithms may
+//		   be used in a given context.  Even if a JWE can be successfully
+//		   decrypted, unless the algorithms used in the JWE are acceptable to
+//		   the application, it SHOULD consider the JWE to be invalid.
+
 		throw new UnsupportedOperationException("TODO");
 	}
 

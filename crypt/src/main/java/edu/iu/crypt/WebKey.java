@@ -295,17 +295,17 @@ public interface WebKey extends WebCertificateReference {
 		 * RSAES-PKCS1-v1_5.
 		 */
 		@Deprecated
-		RSA1_5("RSA1_5", "RSA", "RSA/None/PKCS1Padding", 0, Type.RSA, Use.ENCRYPT),
+		RSA1_5("RSA1_5", "RSA", "RSA", 0, Type.RSA, Use.ENCRYPT),
 
 		/**
 		 * RSAES OAEP w/ default parameters.
 		 */
-		RSA_OAEP("RSA-OAEP", "RSA", "RSA/None/OAEPPadding", 0, Type.RSA, Use.ENCRYPT),
+		RSA_OAEP("RSA-OAEP", "RSA", "RSA", 0, Type.RSA, Use.ENCRYPT),
 
 		/**
 		 * RSAES OAEP w/ SHA-256 and MGF-1.
 		 */
-		RSA_OAEP_256("RSA-OAEP-256", "RSA", "RSA/None/OAEPwithSHA256andMGF1Padding", 256, Type.RSA, Use.ENCRYPT),
+		RSA_OAEP_256("RSA-OAEP-256", "RSA", "RSA", 256, Type.RSA, Use.ENCRYPT),
 
 		/**
 		 * AES-128 Key Wrap.

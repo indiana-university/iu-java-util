@@ -1,6 +1,8 @@
 package iu.crypt;
 
 import java.util.Base64;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 import edu.iu.IuException;
 
@@ -9,6 +11,39 @@ import edu.iu.IuException;
  * algorithms.
  */
 class EncodingUtils {
+
+	/**
+	 * Iterates over segments in a JSON compact serialized structure.
+	 * 
+	 * @param data compact serialize data
+	 * @return {@link Iterator} over data segments
+	 */
+	static Iterator<byte[]> compact(final String data) {
+		return new Iterator<byte[]>() {
+			private int start;
+			private int end = -1;
+
+			@Override
+			public byte[] next() {
+				if (!hasNext())
+					throw new NoSuchElementException();
+
+				final var next = data.substring(start, end);
+				start = end + 1;
+				return base64Url(next);
+			}
+
+			@Override
+			public boolean hasNext() {
+				if (end < start) {
+					end = data.indexOf('.', start);
+					if (end == -1)
+						end = data.length();
+				}
+				return start < data.length();
+			}
+		};
+	}
 
 	/**
 	 * Removes training padding characters from Base-64 encoded data.

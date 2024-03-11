@@ -16,7 +16,19 @@ public interface WebEncryption {
 	 * @return JSON Web Encryption (JWE) encrypted message
 	 */
 	static WebEncryption encrypt(WebEncryptionHeader header, byte[] data) {
-		return Jwe.encrypt(header, data);
+		return Jwe.encrypt(header, data, null);
+	}
+
+	/**
+	 * Encrypts data as JWE.
+	 * 
+	 * @param header         header data
+	 * @param data           data to encrypt
+	 * @param additionalData additional data for AEAD authentication
+	 * @return JSON Web Encryption (JWE) encrypted message
+	 */
+	static WebEncryption encrypt(WebEncryptionHeader header, byte[] data, byte[] additionalData) {
+		return Jwe.encrypt(header, data, null);
 	}
 
 	/**
@@ -73,6 +85,14 @@ public interface WebEncryption {
 	byte[] getAdditionalData();
 
 	/**
+	 * Decrypts the encrypted content.
+	 * 
+	 * @param key decryption (private or secret) key
+	 * @return decrypted content
+	 */
+	byte[] decrypt(WebKey key);
+
+	/**
 	 * Gets the encrypted message in compact JWE format.
 	 * 
 	 * @return compact JWE
@@ -84,14 +104,7 @@ public interface WebEncryption {
 	 * 
 	 * @return serialized JWE
 	 */
-	String serialize();
-
-	/**
-	 * Decrypts the encrypted content.
-	 * 
-	 * @param key decryption (private or secret) key
-	 * @return decrypted content
-	 */
-	byte[] decrypt(WebKey key);
+	@Override
+	String toString();
 
 }

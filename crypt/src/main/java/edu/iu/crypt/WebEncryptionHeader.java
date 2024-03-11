@@ -1,5 +1,9 @@
 package edu.iu.crypt;
 
+import java.util.EnumSet;
+
+import edu.iu.IuObject;
+
 /**
  * Unifies algorithm support and maps cryptographic header data from JCE to JSON
  * Object Signing and Encryption (JOSE).
@@ -57,6 +61,16 @@ public interface WebEncryptionHeader extends WebSignatureHeader {
 		A256GCM("A256GCM", "AES", 256, "GCM", null);
 
 		/**
+		 * Selects encryption by JOSE enc parameter value.
+		 * 
+		 * @param enc JOSE parameter value
+		 * @return encryption
+		 */
+		public static Encryption from(String enc) {
+			return EnumSet.allOf(Encryption.class).stream().filter(a -> IuObject.equals(enc, a.enc)).findFirst().get();
+		}
+
+		/**
 		 * JOSE enc attribute value.
 		 */
 		public final String enc;
@@ -106,15 +120,6 @@ public interface WebEncryptionHeader extends WebSignatureHeader {
 	 */
 	default boolean isDeflate() {
 		return true;
-	}
-
-	/**
-	 * Gets additional authenticated data, for AEAD encryption.
-	 * 
-	 * @return additional authenticated data
-	 */
-	default byte[] getAdditionalAuthenticatedData() {
-		return null;
 	}
 
 }
