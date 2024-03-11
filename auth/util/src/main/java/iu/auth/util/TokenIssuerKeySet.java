@@ -123,10 +123,10 @@ public class TokenIssuerKeySet implements AlgorithmFactory {
 	 * @return JWKS well-known key set
 	 */
 	public String publish() {
-		final var jwks = Json.createArrayBuilder();
+		final var jwks = JsonProviderFactory.JSON.createArrayBuilder();
 
 		for (final var key : providerKeys) {
-			final var jwkb = Json.createObjectBuilder();
+			final var jwkb = JsonProviderFactory.JSON.createObjectBuilder();
 			jwkb.add("kid", key.getId());
 
 			switch (key.getUsage()) {
@@ -177,7 +177,7 @@ public class TokenIssuerKeySet implements AlgorithmFactory {
 
 			jwks.add(jwkb);
 		}
-		return Json.createObjectBuilder().add("keys", jwks).build().toString();
+		return JsonProviderFactory.JSON.createObjectBuilder().add("keys", jwks).build().toString();
 	}
 
 }

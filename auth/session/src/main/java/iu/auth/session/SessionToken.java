@@ -31,6 +31,7 @@
  */
 package iu.auth.session;
 
+import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -41,7 +42,7 @@ import edu.iu.IuObject;
 import edu.iu.auth.oauth.IuAuthorizationScope;
 import edu.iu.auth.session.IuSessionToken;
 import iu.auth.oauth.BearerAuthCredentials;
-import jakarta.json.Json;
+import iu.auth.util.JsonProviderFactory;
 
 /**
  * {@link IuSessionToken} implementation class;
@@ -49,12 +50,25 @@ import jakarta.json.Json;
 public class SessionToken extends BearerAuthCredentials implements IuSessionToken {
 	private static final long serialVersionUID = 1L;
 
-	private static String getSessionRealm(Subject subject) {
+	private static String getIssuer(Subject subject) {
+		String realm = null;
 		for (final var scope : subject.getPrincipals(IuAuthorizationScope.class))
 			if (scope.getName().equals("session"))
-				return scope.getRealm();
-		throw new IllegalArgumentException("Missing session scope " + subject);
+				if (realm == null)
+					realm = scope.getRealm();
+				else
+					throw new IllegalArgumentException("Expected exactly one session scope " + subject);
+
+		if (realm == null)
+			throw new IllegalArgumentException("Missing session scope " + subject);
+		else
+			return realm;
 	}
+
+	/**
+	 * Issuer resource URI.
+	 */
+	private final URI issuer;
 
 	/**
 	 * Refresh token.
@@ -93,7 +107,8 @@ public class SessionToken extends BearerAuthCredentials implements IuSessionToke
 	 */
 	public SessionToken(Subject subject, String accessToken, Instant tokenExpires, String refreshToken,
 			Instant sessionExpires) {
-		super(getSessionRealm(subject), subject, accessToken);
+		super(getIssuer(subject), subject, accessToken);
+		this.issuer = URI.create(getIssuer(subject));
 		this.tokenExpires = tokenExpires.truncatedTo(ChronoUnit.SECONDS);
 
 		this.refreshToken = refreshToken;
@@ -101,6 +116,11 @@ public class SessionToken extends BearerAuthCredentials implements IuSessionToke
 			this.sessionExpires = null;
 		else
 			this.sessionExpires = sessionExpires.truncatedTo(ChronoUnit.SECONDS);
+	}
+
+	@Override
+	public URI getIssuer() {
+		return issuer;
 	}
 
 	@Override
@@ -131,7 +151,7 @@ public class SessionToken extends BearerAuthCredentials implements IuSessionToke
 			scope.append(authScope.getName());
 		}
 
-		final var responseBuilder = Json.createObjectBuilder();
+		final var responseBuilder = JsonProviderFactory.JSON.createObjectBuilder();
 		responseBuilder.add("token_type", "Bearer");
 		responseBuilder.add("access_token", getAccessToken());
 		responseBuilder.add("expires_in", expiresIn);

@@ -179,6 +179,13 @@ public interface IuSessionToken extends IuBearerAuthCredentials {
 	}
 
 	/**
+	 * Gets the root resource URI for the session issuer.
+	 * 
+	 * @return issuer
+	 */
+	URI getIssuer();
+
+	/**
 	 * Gets the token expiration time.
 	 * 
 	 * @return token expiration time
