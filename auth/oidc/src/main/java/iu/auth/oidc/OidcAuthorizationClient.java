@@ -31,10 +31,8 @@
  */
 package iu.auth.oidc;
 
-import java.io.Serializable;
 import java.net.URI;
 import java.net.http.HttpRequest;
-import java.security.Principal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
@@ -66,6 +64,7 @@ import edu.iu.IuOutOfServiceException;
 import edu.iu.IuText;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
 import edu.iu.auth.oauth.IuTokenResponse;
@@ -73,6 +72,7 @@ import edu.iu.auth.oidc.IuOpenIdClaim;
 import edu.iu.auth.oidc.IuOpenIdClient;
 import iu.auth.util.AccessTokenVerifier;
 import iu.auth.util.HttpUtils;
+import iu.auth.util.PrincipalVerifierRegistry;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
 
@@ -86,11 +86,12 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 	private static final Iterable<String> OIDC_SCOPE = IuIterable.iter("openid");
 	private static final Predicate<String> IS_OIDC = "openid"::equals;
 
-	private static class Id implements Principal, Serializable {
+	private class Id implements IuPrincipalIdentity {
 		private static final long serialVersionUID = 1L;
 
 		private final String name;
 		private String activationCode = IdGenerator.generateId();
+		private boolean clientActivated;
 
 		private Id(String name) {
 			this.name = name;
@@ -118,6 +119,10 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 		public String toString() {
 			return "OIDC Principal ID [name=" + name + "]";
 		}
+
+		private OidcAuthorizationClient client() {
+			return OidcAuthorizationClient.this;
+		}
 	}
 
 	private final String realm;
@@ -138,6 +143,10 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 	 */
 	OidcAuthorizationClient(JsonObject config, IuOpenIdClient client, AccessTokenVerifier idTokenVerifier) {
 		realm = config.getString("issuer");
+		PrincipalVerifierRegistry.registerVerifier(realm, id -> {
+			if (((Id) id).client() != this)
+				throw new IllegalArgumentException();
+		}, true);
 		authorizationEndpoint = IuException.unchecked(() -> new URI(config.getString("authorization_endpoint")));
 		tokenEndpoint = IuException.unchecked(() -> new URI(config.getString("token_endpoint")));
 		userinfoEndpoint = IuException.unchecked(() -> new URI(config.getString("userinfo_endpoint")));
@@ -328,6 +337,10 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 		final var id = subject.getPrincipals(Id.class).iterator().next();
 		try {
 			IdGenerator.verifyId(id.activationCode, client.getActivationInterval().toMillis());
+			if (!id.clientActivated) {
+				client.activate(credentials);
+				id.clientActivated = true;
+			}
 			return;
 		} catch (Throwable e) {
 			LOG.log(Level.FINER, e, () -> "discarding invalid activation code");
@@ -374,8 +387,9 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 				else
 					claim = claimJsonValue.toString();
 
-				if (!IuObject.equals(claim, claims.get(userinfoClaimEntry.getKey())))
-					throw new IllegalArgumentException(userinfoClaimEntry.getKey());
+				final var key = userinfoClaimEntry.getKey();
+				if (!IuObject.equals(claim, claims.get(key)))
+					throw new IllegalArgumentException(key);
 			}
 		} catch (Throwable e) {
 			Map<String, String> challengeAttributes = new LinkedHashMap<>();

@@ -32,6 +32,7 @@
 package iu.auth.oauth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -63,6 +64,7 @@ import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationSession;
 import edu.iu.test.IuTestLogger;
 import iu.auth.util.HttpUtils;
+import iu.auth.util.PrincipalVerifierRegistry;
 import jakarta.json.Json;
 
 @SuppressWarnings("javadoc")
@@ -114,6 +116,8 @@ public class AuthorizationSessionTest {
 	@Test
 	public void testAuthorize() throws URISyntaxException, IuAuthenticationException {
 		final var realm = IdGenerator.generateId();
+		PrincipalVerifierRegistry.registerVerifier(realm,
+				a -> assertEquals(realm, assertInstanceOf(MockPrincipal.class, a).getRealm()), true);
 		final var resourceUri = new URI("foo:/bar");
 		final var redirectUri = new URI("foo:/baz");
 		final var authEndpointUri = new URI("foo:/authorize");
@@ -121,7 +125,7 @@ public class AuthorizationSessionTest {
 		final var client = mock(IuAuthorizationClient.class);
 		final var clientCredentials = mock(IuApiCredentials.class);
 		final var clientId = IdGenerator.generateId();
-		final var principal = new MockPrincipal();
+		final var principal = new MockPrincipal(realm);
 		when(clientCredentials.getName()).thenReturn(clientId);
 		when(client.getRealm()).thenReturn(realm);
 		when(client.getResourceUri()).thenReturn(resourceUri);

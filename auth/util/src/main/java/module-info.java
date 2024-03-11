@@ -31,12 +31,18 @@
  */
 /**
  * Provides common utilities to API authorization implementation modules.
+ * 
+ * @provides edu.iu.auth.spi.IuPrincipalSpi internal tie-in utility for
+ *           principal verification
  */
 module iu.util.auth.util {
-	exports iu.auth.util to iu.util.auth.oauth, iu.util.auth.oidc;
+	exports iu.auth.util to iu.util.auth.oauth, iu.util.auth.oidc, iu.util.auth.session;
 
 	requires static com.auth0.jwt;
-	requires iu.util;
+	requires transitive iu.util;
+	requires transitive iu.util.auth;
 	requires transitive jakarta.json;
 	requires transitive java.net.http;
+
+	provides edu.iu.auth.spi.IuPrincipalSpi with iu.auth.util.PrincipalVerifierRegistry;
 }

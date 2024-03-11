@@ -36,19 +36,14 @@ import java.io.Serializable;
 import javax.security.auth.Subject;
 
 import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuPrincipalIdentity;
 
 /**
  * Represents credentials for use with
  * <a href="https://datatracker.ietf.org/doc/html/rfc6750">OAuth 2.0 Bearer
  * Token Authorization</a>.
  */
-public interface IuBearerAuthCredentials extends IuApiCredentials, Serializable {
-
-	/**
-	 * Returns the name of the first principal implied by the {@link #getSubject()}.
-	 */
-	@Override
-	String getName();
+public interface IuBearerAuthCredentials extends IuApiCredentials, IuPrincipalIdentity, Serializable {
 
 	/**
 	 * Gets the verified subject associated with the access token.

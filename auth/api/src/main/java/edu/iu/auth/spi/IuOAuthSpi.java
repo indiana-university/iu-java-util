@@ -35,6 +35,7 @@ import java.net.URI;
 
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
+import edu.iu.auth.oauth.IuAuthorizationScope;
 import edu.iu.auth.oauth.IuAuthorizationSession;
 
 /**
@@ -60,5 +61,14 @@ public interface IuOAuthSpi {
 	 * @return {@link IuAuthorizationSession}
 	 */
 	IuAuthorizationSession createAuthorizationSession(String realm, URI entryPoint);
+
+	/**
+	 * Creates an {@link IuAuthorizationScope}.
+	 * 
+	 * @param name  scope
+	 * @param realm realm
+	 * @return {@link IuAuthorizationScope}
+	 */
+	IuAuthorizationScope createAuthorizationScope(String name, String realm);
 
 }
