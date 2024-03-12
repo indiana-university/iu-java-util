@@ -46,6 +46,8 @@ import edu.iu.IuStream;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
+import jakarta.json.JsonString;
+import jakarta.json.JsonValue;
 
 /**
  * Provides access to secrets stored in HashiCorp Vault.
@@ -99,6 +101,7 @@ public class VaultProperties {
 
 	/**
 	 * Reads a property value from a Vault secret.
+	 * All value types are returned as String.
 	 * 
 	 * @param name property name
 	 * @return property value
@@ -107,8 +110,13 @@ public class VaultProperties {
 		final var secrets = env("vault.secrets", "VAULT_SECRETS").split(",");
 		for (String secret : secrets) {
 			final var data = IuException.unchecked(() -> getSecret(secret));
-			if (data.containsKey(name))
-				return data.getString(name);
+			if (data.containsKey(name)) {
+				JsonValue value = data.get(name);
+				if (value.getValueType() == JsonValue.ValueType.STRING)
+					return ((JsonString) value).getString();
+				
+				return new String(value.toString());
+			}
 		}
 		throw new IllegalArgumentException(name + " not found in Vault using " + env("vault.endpoint", "VAULT_ENDPOINT")
 				+ "/data/" + Arrays.toString(secrets));
