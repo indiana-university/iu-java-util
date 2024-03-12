@@ -1,0 +1,592 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>IuAsynchronousSubject.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-base</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuAsynchronousSubject.java</span></div><h1>IuAsynchronousSubject.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Queue;
+import java.util.Spliterator;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
+
+/**
+ * Provides &lt;strong&gt;subscriber&lt;/strong&gt; {@link Stream} instances over a shared
+ * source &lt;strong&gt;subject&lt;/strong&gt;.
+ * 
+ * &lt;p&gt;
+ * Each &lt;strong&gt;subject&lt;/strong&gt; is backed externally by a &lt;strong&gt;controlling
+ * component&lt;/strong&gt; that:
+ * &lt;/p&gt;
+ * &lt;ul&gt;
+ * &lt;li&gt;Provides an &lt;strong&gt;initial {@link Spliterator split}&lt;/strong&gt; of
+ * available values at the point in time a new {@link #subscribe() subscription}
+ * is created.&lt;/li&gt;
+ * &lt;li&gt;{@link #accept(Object) Accepts} new values to be distributed to active
+ * &lt;strong&gt;subscribers&lt;/strong&gt;.&lt;/li&gt;
+ * &lt;/ul&gt;
+ * 
+ * &lt;p&gt;
+ * After the &lt;strong&gt;initial {@link Spliterator split}&lt;/strong&gt; is created, but
+ * before the values available at {@link #subscribe() subscription} time have
+ * all been {@link Spliterator#tryAdvance(Consumer) advanced}, newly
+ * {@link #accept(Object) accepted} values are offered to a queue. Values
+ * &lt;em&gt;may&lt;/em&gt; be removed from the queue if also advanced from the initial
+ * split. Queued values will be polled and advanced after the last split of the
+ * initial split advances its last value.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * After all queued values have been advanced, the &lt;strong&gt;subscriber&lt;/strong&gt;
+ * transitions to a dedicated {@link IuAsynchronousPipe} and passes new values
+ * through to {@link IuAsynchronousPipe#accept(Object)}.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * The &lt;strong&gt;subject&lt;/strong&gt; makes no guarantee to the &lt;strong&gt;controlling
+ * component&lt;/strong&gt; when or if a &lt;strong&gt;subscriber&lt;/strong&gt; will transition
+ * from non-blocking access to available values, to potentially blocking access
+ * via {@link IuAsynchronousPipe}. It is, however, guaranteed that all values
+ * available from the point in time the &lt;strong&gt;subscriber&lt;/strong&gt; begins
+ * processing the {@link Stream} until &lt;strong&gt;unsubscribing&lt;/strong&gt; will be
+ * supplied exactly once regardless of how the value is actually delivered.
+ * &lt;/p&gt;
+ * 
+ * &lt;img src=&quot;doc-files/IuAsynchronousSubject.svg&quot; alt=&quot;UML Sequence Diagram&quot;&gt;
+ * 
+ * &lt;p&gt;
+ * New values &lt;em&gt;should&lt;/em&gt; be {@link #accept(Object) accepted} before
+ * appending the external source, to gracefully avoid a potential race condition
+ * between the initial split and an internal appended values queue. For example:
+ * &lt;/p&gt;
+ * 
+ * &lt;pre&gt;
+ * class MyControllingComponent&amp;lt;T&amp;gt; implements Consumer&amp;lt;T&amp;gt; {
+ * 	private final Queue&amp;lt;T&amp;gt; queue = new ConcurrentLinkedQueue&amp;lt;&amp;gt;();
+ * 	private final IuAsynchronousSubject&amp;lt;T&amp;gt; subject =
+ * 		new IuAsynchronousSubject&amp;lt;&amp;gt;(queue::spliterator);
+ * 
+ * 	{@literal @}Override
+ * 	public void accept(T t) {
+ * 		subject.accept(t);
+ * 		queue.offer(t);
+ * 	}
+ * }
+ * &lt;/pre&gt;
+ * 
+ * &lt;p&gt;
+ * When the &lt;strong&gt;source&lt;/strong&gt; is sequential, &lt;strong&gt;subscribers&lt;/strong&gt;
+ * &lt;em&gt;may&lt;/em&gt; expect to receive values in the order supplied.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * Each &lt;strong&gt;subscriber&lt;/strong&gt; {@link Stream} provides all values that may
+ * be retrieved without blocking, then transitions to an
+ * {@link IuAsynchronousPipe} managed by the &lt;strong&gt;subject&lt;/strong&gt; to block
+ * until new values become available.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * A &lt;strong&gt;subscriber's&lt;/strong&gt; {@link Stream} may be {@link Stream#close()
+ * closed} without affecting the status of the &lt;strong&gt;controlling
+ * component&lt;/strong&gt;, or of any other &lt;strong&gt;subscriber&lt;/strong&gt; {@link Stream
+ * streams}.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * This class is thread-safe and intended for use by high-volume
+ * parallel-processing workloads.
+ * &lt;/p&gt;
+ * 
+ * @param &lt;T&gt; value type
+ * @see IuAsynchronousPipe
+ */
+public class IuAsynchronousSubject&lt;T&gt; implements Consumer&lt;T&gt;, AutoCloseable {
+
+	private class SourceSplit implements Spliterator&lt;T&gt; {
+		private final Subscriber subscriber;
+		private volatile Spliterator&lt;T&gt; delegate;
+
+<span class="fc" id="L143">		private SourceSplit(Spliterator&lt;T&gt; delegate, Subscriber subscriber) {</span>
+<span class="fc" id="L144">			this.subscriber = subscriber;</span>
+<span class="fc" id="L145">			this.delegate = delegate;</span>
+<span class="fc" id="L146">			subscriber.children.offer(this);</span>
+<span class="fc" id="L147">		}</span>
+
+		@Override
+		public boolean tryAdvance(Consumer&lt;? super T&gt; action) {
+<span class="fc bfc" id="L151" title="All 2 branches covered.">			if (delegate != null //</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">					&amp;&amp; delegate.tryAdvance(subscriber.cancelAcceptedValueAfterAction(action))) {</span>
+
+<span class="fc bfc" id="L154" title="All 2 branches covered.">				if (delegate.estimateSize() == 0)</span>
+<span class="fc" id="L155">					delegate = null;</span>
+
+<span class="fc" id="L157">				return true;</span>
+			} else
+<span class="fc" id="L159">				delegate = null;</span>
+
+<span class="fc" id="L161">			return subscriber.continueAdvance(action);</span>
+		}
+
+		@Override
+		public void forEachRemaining(Consumer&lt;? super T&gt; action) {
+<span class="fc bfc" id="L166" title="All 2 branches covered.">			if (delegate != null) {</span>
+<span class="fc" id="L167">				delegate.forEachRemaining(subscriber.cancelAcceptedValueAfterAction(action));</span>
+<span class="fc" id="L168">				delegate = null;</span>
+			}
+
+<span class="fc" id="L171">			subscriber.continueForEach(action);</span>
+<span class="fc" id="L172">		}</span>
+
+		@Override
+		public Spliterator&lt;T&gt; trySplit() {
+<span class="fc bfc" id="L176" title="All 2 branches covered.">			if (delegate == null)</span>
+<span class="fc" id="L177">				return null;</span>
+
+<span class="fc" id="L179">			final var split = delegate.trySplit();</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">			if (split == null)</span>
+<span class="fc" id="L181">				return null;</span>
+			else
+<span class="fc" id="L183">				return new SourceSplit(split, subscriber);</span>
+		}
+
+		@Override
+		public long estimateSize() {
+<span class="fc" id="L188">			var count = 0L;</span>
+
+<span class="fc" id="L190">			final var delegate = this.delegate;</span>
+<span class="fc bfc" id="L191" title="All 2 branches covered.">			if (delegate != null)</span>
+<span class="fc" id="L192">				count += delegate.estimateSize();</span>
+
+<span class="fc bfc" id="L194" title="All 2 branches covered.">			if (subscriber.isExhausted() //</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">					|| (subscriber.children.size() == 1 //</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">							&amp;&amp; subscriber.children.contains(this)))</span>
+<span class="fc" id="L197">				count += subscriber.acceptedSize();</span>
+
+<span class="fc" id="L199">			return count;</span>
+		}
+
+		@Override
+		public int characteristics() {
+<span class="fc" id="L204">			final var delegate = this.delegate;</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">			if (delegate != null)</span>
+<span class="fc" id="L206">				return delegate.characteristics();</span>
+			else
+<span class="fc" id="L208">				return SIZED;</span>
+		}
+
+	}
+
+	private class Subscriber implements Spliterator&lt;T&gt;, IuAsynchronousSubscription&lt;T&gt; {
+		private final Stream&lt;T&gt; stream;
+//		private volatile Source&lt;T&gt; source;
+<span class="fc" id="L216">		private final Queue&lt;SourceSplit&gt; children = new ConcurrentLinkedDeque&lt;&gt;();</span>
+<span class="fc" id="L217">		private final Queue&lt;T&gt; accepted = new ConcurrentLinkedQueue&lt;&gt;();</span>
+		private volatile Spliterator&lt;T&gt; delegate;
+		private volatile long acceptedCount;
+		private volatile Throwable error;
+		private volatile boolean closed;
+		private volatile IuAsynchronousPipe&lt;T&gt; pipe;
+		private volatile Spliterator&lt;T&gt; pipedSplit;
+
+<span class="fc" id="L225">		private Subscriber() {</span>
+<span class="fc" id="L226">			final var delegate = initialSplitSupplier.get();</span>
+<span class="fc bfc" id="L227" title="All 2 branches covered.">			if (delegate.estimateSize() &gt; 0)</span>
+<span class="fc" id="L228">				this.delegate = delegate;</span>
+
+<span class="fc" id="L230">			subscribers.offer(this);</span>
+<span class="fc" id="L231">			stream = StreamSupport.stream(this, false).onClose(this::close);</span>
+<span class="fc" id="L232">		}</span>
+
+		@Override
+		public Spliterator&lt;T&gt; trySplit() {
+<span class="fc" id="L236">			final var delegate = this.delegate;</span>
+<span class="fc bfc" id="L237" title="All 2 branches covered.">			if (delegate != null) {</span>
+<span class="fc" id="L238">				final var split = delegate.trySplit();</span>
+<span class="fc bfc" id="L239" title="All 2 branches covered.">				if (split != null)</span>
+<span class="fc" id="L240">					return new SourceSplit(split, this);</span>
+			}
+
+<span class="fc bfc" id="L243" title="All 2 branches covered.">			if (error != null)</span>
+<span class="fc" id="L244">				throw IuException.unchecked(error);</span>
+<span class="fc bfc" id="L245" title="All 2 branches covered.">			else if (pipedSplit != null)</span>
+<span class="fc" id="L246">				return pipedSplit.trySplit();</span>
+			else
+<span class="fc" id="L248">				return null;</span>
+		}
+
+		@Override
+		public boolean tryAdvance(Consumer&lt;? super T&gt; action) {
+<span class="fc" id="L253">			final var delegate = this.delegate;</span>
+<span class="fc bfc" id="L254" title="All 2 branches covered.">			if (delegate != null //</span>
+<span class="fc bfc" id="L255" title="All 2 branches covered.">					&amp;&amp; delegate.tryAdvance(cancelAcceptedValueAfterAction(action))) {</span>
+
+<span class="fc bfc" id="L257" title="All 2 branches covered.">				if (delegate.estimateSize() == 0)</span>
+<span class="fc" id="L258">					this.delegate = null;</span>
+
+<span class="fc" id="L260">				return true;</span>
+			} else
+<span class="fc" id="L262">				this.delegate = null;</span>
+
+<span class="fc bfc" id="L264" title="All 2 branches covered.">			if (continueAdvance(action)) {</span>
+<span class="fc bfc" id="L265" title="All 2 branches covered.">				if (!canAdvance())</span>
+<span class="fc" id="L266">					bootstrapPipe();</span>
+
+<span class="fc" id="L268">				return true;</span>
+			}
+
+<span class="fc" id="L271">			bootstrapPipe();</span>
+
+<span class="fc bfc" id="L273" title="All 2 branches covered.">			if (error != null)</span>
+<span class="fc" id="L274">				throw IuException.unchecked(error);</span>
+<span class="fc bfc" id="L275" title="All 2 branches covered.">			else if (pipedSplit != null)</span>
+<span class="fc" id="L276">				return pipedSplit.tryAdvance(action);</span>
+			else
+<span class="fc" id="L278">				return false;</span>
+		}
+
+		@Override
+		public void forEachRemaining(Consumer&lt;? super T&gt; action) {
+<span class="fc bfc" id="L283" title="All 2 branches covered.">			if (delegate != null) {</span>
+<span class="fc" id="L284">				delegate.forEachRemaining(cancelAcceptedValueAfterAction(action));</span>
+<span class="fc" id="L285">				delegate = null;</span>
+			}
+
+<span class="fc" id="L288">			continueForEach(action);</span>
+
+<span class="fc" id="L290">			bootstrapPipe();</span>
+
+<span class="fc bfc" id="L292" title="All 2 branches covered.">			if (error != null)</span>
+<span class="fc" id="L293">				throw IuException.unchecked(error);</span>
+<span class="fc bfc" id="L294" title="All 2 branches covered.">			else if (pipedSplit != null)</span>
+<span class="fc" id="L295">				pipedSplit.forEachRemaining(action);</span>
+<span class="fc" id="L296">		}</span>
+
+		@Override
+		public synchronized long available() {
+<span class="fc" id="L300">			var count = 0;</span>
+
+<span class="fc bfc" id="L302" title="All 2 branches covered.">			if (delegate != null //</span>
+<span class="fc bfc" id="L303" title="All 2 branches covered.">					&amp;&amp; delegate.hasCharacteristics(SIZED))</span>
+<span class="fc" id="L304">				count += delegate.estimateSize();</span>
+
+<span class="fc bfc" id="L306" title="All 2 branches covered.">			if (areChildrenExhausted())</span>
+<span class="fc" id="L307">				count += acceptedSize();</span>
+
+<span class="fc bfc" id="L309" title="All 2 branches covered.">			if (pipe != null)</span>
+<span class="fc" id="L310">				count += pipe.getPendingCount();</span>
+
+<span class="fc" id="L312">			return count;</span>
+		}
+
+		@Override
+		public synchronized long estimateSize() {
+<span class="fc bfc" id="L317" title="All 2 branches covered.">			if (pipedSplit == null) {</span>
+<span class="fc bfc" id="L318" title="All 4 branches covered.">				if (!closed &amp;&amp; error == null)</span>
+<span class="fc" id="L319">					return Long.MAX_VALUE;</span>
+				else
+<span class="fc" id="L321">					return available();</span>
+			} else
+<span class="fc" id="L323">				return pipedSplit.estimateSize();</span>
+		}
+
+		@Override
+		public int characteristics() {
+<span class="fc bfc" id="L328" title="All 2 branches covered.">			if (pipedSplit == null)</span>
+<span class="fc bfc" id="L329" title="All 2 branches covered.">				if (!isClosed())</span>
+<span class="fc" id="L330">					return CONCURRENT;</span>
+				else
+<span class="fc" id="L332">					return IMMUTABLE | SIZED;</span>
+			else
+<span class="fc" id="L334">				return pipedSplit.characteristics();</span>
+		}
+
+		@Override
+		public Stream&lt;T&gt; stream() {
+<span class="fc" id="L339">			return stream;</span>
+		}
+
+		@Override
+		public long pause(long acceptedCount, Duration timeout) throws TimeoutException, InterruptedException {
+<span class="fc bfc" id="L344" title="All 2 branches covered.">			if (acceptedCount &lt;= 0L)</span>
+<span class="fc" id="L345">				return 0L;</span>
+
+<span class="fc" id="L347">			final var now = Instant.now();</span>
+<span class="fc" id="L348">			final var expires = now.plus(timeout);</span>
+
+<span class="fc" id="L350">			final var initCount = this.acceptedCount;</span>
+<span class="fc" id="L351">			final var targetCount = initCount + acceptedCount;</span>
+<span class="fc" id="L352">			IuObject.waitFor(this, //</span>
+<span class="fc bfc" id="L353" title="All 4 branches covered.">					() -&gt; isClosed() //</span>
+							|| this.acceptedCount &gt;= targetCount //
+					, expires);
+
+<span class="fc" id="L357">			return this.acceptedCount - initCount;</span>
+		}
+
+		@Override
+		public long pause(Instant expires) throws InterruptedException {
+<span class="fc" id="L362">			final var initCount = acceptedCount;</span>
+
+<span class="fc" id="L364">			synchronized (this) {</span>
+<span class="fc bfc" id="L365" title="All 2 branches covered.">				while (!isClosed()) {</span>
+<span class="fc" id="L366">					final var now = Instant.now();</span>
+<span class="fc bfc" id="L367" title="All 2 branches covered.">					if (now.isBefore(expires)) {</span>
+<span class="fc" id="L368">						final var waitFor = Duration.between(now, expires);</span>
+<span class="fc" id="L369">						this.wait(waitFor.toMillis(), waitFor.toNanosPart() % 1_000_000);</span>
+					} else
+						break;
+<span class="fc" id="L372">				}</span>
+<span class="fc" id="L373">			}</span>
+
+<span class="fc" id="L375">			return acceptedCount - initCount;</span>
+		}
+
+		@Override
+		public synchronized boolean isClosed() {
+<span class="fc bfc" id="L380" title="All 2 branches covered.">			if (pipe == null)</span>
+<span class="fc bfc" id="L381" title="All 4 branches covered.">				return closed || error != null;</span>
+			else
+<span class="fc" id="L383">				return pipe.isClosed();</span>
+		}
+
+		@Override
+		public synchronized void error(Throwable e) {
+<span class="fc bfc" id="L388" title="All 2 branches covered.">			if (pipe != null)</span>
+<span class="fc" id="L389">				pipe.error(e);</span>
+			else
+<span class="fc" id="L391">				error = e;</span>
+
+<span class="fc" id="L393">			this.notifyAll();</span>
+<span class="fc" id="L394">		}</span>
+
+		@Override
+		public synchronized void close() {
+<span class="fc" id="L398">			subscribers.remove(this);</span>
+
+<span class="fc bfc" id="L400" title="All 2 branches covered.">			if (pipe != null)</span>
+<span class="fc" id="L401">				pipe.close();</span>
+			else
+<span class="fc" id="L403">				closed = true;</span>
+
+<span class="fc" id="L405">			this.notifyAll();</span>
+<span class="fc" id="L406">		}</span>
+
+		private boolean isExhausted() {
+<span class="fc bfc" id="L409" title="All 2 branches covered.">			if (delegate != null)</span>
+<span class="fc" id="L410">				return false;</span>
+
+<span class="fc" id="L412">			return areChildrenExhausted();</span>
+		}
+
+		private boolean canAdvance() {
+<span class="fc bfc" id="L416" title="All 4 branches covered.">			return !isExhausted() || !accepted.isEmpty();</span>
+		}
+
+		private boolean canAccept() {
+<span class="fc bfc" id="L420" title="All 4 branches covered.">			return delegate != null || !accepted.isEmpty();</span>
+		}
+
+		private boolean areChildrenExhausted() {
+<span class="fc" id="L424">			final var i = children.iterator();</span>
+<span class="fc bfc" id="L425" title="All 2 branches covered.">			while (i.hasNext())</span>
+<span class="fc bfc" id="L426" title="All 2 branches covered.">				if (i.next().delegate == null)</span>
+<span class="fc" id="L427">					i.remove();</span>
+				else
+<span class="fc" id="L429">					return false;</span>
+
+<span class="fc" id="L431">			return true;</span>
+		}
+
+		private int acceptedSize() {
+<span class="fc" id="L435">			return accepted.size();</span>
+		}
+
+		private Consumer&lt;? super T&gt; cancelAcceptedValueAfterAction(Consumer&lt;? super T&gt; action) {
+<span class="fc" id="L439">			return value -&gt; {</span>
+<span class="fc" id="L440">				action.accept(value);</span>
+
+<span class="fc" id="L442">				synchronized (this) {</span>
+<span class="fc" id="L443">					accepted.remove(value);</span>
+<span class="fc" id="L444">					this.notifyAll();</span>
+<span class="fc" id="L445">				}</span>
+<span class="fc" id="L446">			};</span>
+		}
+
+		private boolean continueAdvance(Consumer&lt;? super T&gt; action) {
+<span class="fc bfc" id="L450" title="All 2 branches covered.">			if (isExhausted()) {</span>
+<span class="fc" id="L451">				final var value = accepted.poll();</span>
+<span class="fc bfc" id="L452" title="All 2 branches covered.">				if (value != null) {</span>
+<span class="fc" id="L453">					action.accept(value);</span>
+<span class="fc" id="L454">					synchronized (this) {</span>
+<span class="fc" id="L455">						this.notifyAll();</span>
+<span class="fc" id="L456">					}</span>
+<span class="fc" id="L457">					return true;</span>
+				}
+			}
+<span class="fc" id="L460">			return false;</span>
+		}
+
+		private void continueForEach(Consumer&lt;? super T&gt; action) {
+<span class="fc bfc" id="L464" title="All 2 branches covered.">			if (isExhausted()) {</span>
+<span class="fc bfc" id="L465" title="All 2 branches covered.">				while (!accepted.isEmpty()) {</span>
+<span class="fc" id="L466">					action.accept(accepted.poll());</span>
+<span class="fc" id="L467">					synchronized (this) {</span>
+<span class="fc" id="L468">						this.notifyAll();</span>
+<span class="fc" id="L469">					}</span>
+				}
+			}
+<span class="fc" id="L472">		}</span>
+
+		private synchronized void bootstrapPipe() {
+<span class="fc bfc" id="L475" title="All 6 branches covered.">			if (pipe == null //</span>
+					&amp;&amp; error == null //
+					&amp;&amp; !closed) {
+<span class="fc" id="L478">				pipe = new IuAsynchronousPipe&lt;&gt;();</span>
+<span class="fc" id="L479">				pipedSplit = pipe.stream().spliterator();</span>
+			}
+<span class="fc" id="L481">		}</span>
+
+		private void accept(T t) {
+<span class="fc" id="L484">			synchronized (this) {</span>
+<span class="fc bfc" id="L485" title="All 2 branches covered.">				if (canAccept())</span>
+<span class="fc" id="L486">					accepted.offer(t);</span>
+				else {
+<span class="fc" id="L488">					bootstrapPipe();</span>
+<span class="fc" id="L489">					pipe.accept(t);</span>
+				}
+<span class="fc" id="L491">				acceptedCount++;</span>
+<span class="fc" id="L492">				this.notifyAll();</span>
+<span class="fc" id="L493">			}</span>
+
+<span class="fc" id="L495">		}</span>
+
+	}
+
+	private final Supplier&lt;Spliterator&lt;T&gt;&gt; initialSplitSupplier;
+<span class="fc" id="L500">	private final Queue&lt;Subscriber&gt; subscribers = new ConcurrentLinkedQueue&lt;&gt;();</span>
+	private boolean closed;
+
+	/**
+	 * Creates a new &lt;strong&gt;subject&lt;/strong&gt;.
+	 * 
+	 * @param initialSplitSupplier supplies the initial split backing new
+	 *                             &lt;strong&gt;subscriber&lt;/strong&gt; streams.
+	 */
+<span class="fc" id="L509">	public IuAsynchronousSubject(Supplier&lt;Spliterator&lt;T&gt;&gt; initialSplitSupplier) {</span>
+<span class="fc" id="L510">		this.initialSplitSupplier = initialSplitSupplier;</span>
+<span class="fc" id="L511">	}</span>
+
+	/**
+	 * &lt;strong&gt;Subscribes&lt;/strong&gt; to a {@link Stream} that supplies all values
+	 * available without blocking then blocks until new values are available or the
+	 * &lt;strong&gt;subject&lt;/strong&gt; is {@link #close() closed}.
+	 * 
+	 * @return {@link IuAsynchronousSubscription}
+	 */
+	public IuAsynchronousSubscription&lt;T&gt; subscribe() {
+<span class="fc bfc" id="L521" title="All 2 branches covered.">		if (closed)</span>
+<span class="fc" id="L522">			throw new IllegalStateException(&quot;closed&quot;);</span>
+
+<span class="fc" id="L524">		return new Subscriber();</span>
+	}
+
+	/**
+	 * Distributes a value to all potentially blocking &lt;strong&gt;subscribers&lt;/strong&gt;
+	 * that have completed the transition to an {@link IuAsynchronousPipe}.
+	 * 
+	 * &lt;p&gt;
+	 * This method does not supply values to &lt;strong&gt;subscribers&lt;/strong&gt; that
+	 * haven't yet completed the transition. The &lt;strong&gt;controlling
+	 * component&lt;/strong&gt; is responsible for independently supplying those values to
+	 * it's {@link Spliterator}-supplying backing &lt;strong&gt;source&lt;/strong&gt;.
+	 * &lt;/p&gt;
+	 * 
+	 * @param value value to supply to all &lt;strong&gt;subscribers&lt;/strong&gt;
+	 */
+	@Override
+	public synchronized void accept(T value) {
+<span class="fc bfc" id="L542" title="All 2 branches covered.">		if (closed)</span>
+<span class="fc" id="L543">			throw new IllegalStateException(&quot;closed&quot;);</span>
+
+<span class="fc" id="L545">		subscribers.forEach(subscriber -&gt; subscriber.accept(value));</span>
+<span class="fc" id="L546">	}</span>
+
+	/**
+	 * Closes the &lt;strong&gt;subject&lt;/strong&gt;.
+	 * 
+	 * &lt;p&gt;
+	 * Once closed:
+	 * &lt;/p&gt;
+	 * &lt;ul&gt;
+	 * &lt;li&gt;Existing &lt;strong&gt;subscribers&lt;/strong&gt; may finish retrieving all values
+	 * already supplied&lt;/li&gt;
+	 * &lt;li&gt;Blocking &lt;strong&gt;subscriber&lt;/strong&gt; {@link Stream}s will be terminated
+	 * gracefully&lt;/li&gt;
+	 * &lt;li&gt;No new &lt;strong&gt;subscribers&lt;/strong&gt; may be created&lt;/li&gt;
+	 * &lt;li&gt;No new &lt;strong&gt;values&lt;/strong&gt; may be supplied&lt;/li&gt;
+	 * &lt;/ul&gt;
+	 */
+	@Override
+	public synchronized void close() {
+<span class="fc bfc" id="L565" title="All 2 branches covered.">		if (closed)</span>
+<span class="fc" id="L566">			return;</span>
+
+<span class="fc" id="L568">		closed = true;</span>
+
+<span class="fc" id="L570">		Throwable e = null;</span>
+<span class="fc bfc" id="L571" title="All 2 branches covered.">		while (!subscribers.isEmpty())</span>
+<span class="fc" id="L572">			e = IuException.suppress(e, () -&gt; subscribers.poll().close());</span>
+
+<span class="fc bfc" id="L574" title="All 2 branches covered.">		if (e != null)</span>
+<span class="fc" id="L575">			throw IuException.unchecked(e);</span>
+<span class="fc" id="L576">	}</span>
+
+	/**
+	 * Reports a fatal error to all &lt;strong&gt;subscribers&lt;/strong&gt; and {@link #close()
+	 * closes} the &lt;strong&gt;subject&lt;/strong&gt;.
+	 * 
+	 * @param e fatal error
+	 */
+	public synchronized void error(Throwable e) {
+<span class="fc bfc" id="L585" title="All 2 branches covered.">		while (!subscribers.isEmpty())</span>
+<span class="fc" id="L586">			IuException.suppress(e, () -&gt; subscribers.poll().error(e));</span>
+
+<span class="fc" id="L588">		closed = true;</span>
+<span class="fc" id="L589">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

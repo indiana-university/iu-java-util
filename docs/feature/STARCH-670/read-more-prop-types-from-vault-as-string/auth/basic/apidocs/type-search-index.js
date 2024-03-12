@@ -1,0 +1,1 @@
+typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"iu.auth.basic","l":"BasicAuthCredentials"},{"p":"iu.auth.basic","l":"BasicAuthSpi"}];updateSearchResults();
