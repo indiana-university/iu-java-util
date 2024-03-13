@@ -82,6 +82,26 @@ class EncodingUtils {
 	}
 
 	/**
+	 * Encodes binary data as Base-64, for handling certificates.
+	 * 
+	 * @param data binary data
+	 * @return encoded {@link String}
+	 */
+	static String base64(byte[] data) {
+		return Base64.getEncoder().encodeToString(data);
+	}
+
+	/**
+	 * Decodes binary data from Base-64, for handling certificates.
+	 * 
+	 * @param data encoded {@link String}
+	 * @return binary data
+	 */
+	static byte[] base64(String data) {
+		return Base64.getDecoder().decode(data);
+	}
+
+	/**
 	 * Encodes binary data as Base-64 with URL encoding scheme and padding chars
 	 * stripped.
 	 * 
@@ -89,7 +109,10 @@ class EncodingUtils {
 	 * @return encoded {@link String}
 	 */
 	static String base64Url(byte[] data) {
-		return unpad(Base64.getUrlEncoder().encodeToString(data));
+		if (data == null || data.length == 0)
+			return "";
+		else
+			return unpad(Base64.getUrlEncoder().encodeToString(data));
 	}
 
 	/**
@@ -100,7 +123,10 @@ class EncodingUtils {
 	 * @return binary data
 	 */
 	static byte[] base64Url(String data) {
-		return Base64.getUrlDecoder().decode(pad(data));
+		if (data == null || data.isBlank())
+			return null;
+		else
+			return Base64.getUrlDecoder().decode(pad(data));
 	}
 
 	/**

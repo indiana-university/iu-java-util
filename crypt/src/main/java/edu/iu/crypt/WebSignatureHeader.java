@@ -1,10 +1,12 @@
 package edu.iu.crypt;
 
 import java.net.URI;
-import java.util.LinkedHashSet;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
+import edu.iu.IuObject;
 import edu.iu.crypt.WebKey.Algorithm;
 
 /**
@@ -17,35 +19,136 @@ import edu.iu.crypt.WebKey.Algorithm;
 public interface WebSignatureHeader extends WebCertificateReference {
 
 	/**
+	 * Enumerates standard header parameters.
+	 */
+	enum Param {
+		/**
+		 * Encryption/signature algorithm.
+		 */
+		ALGORITHM("alg", WebSignatureHeader::getAlgorithm),
+
+		/**
+		 * Well-known key identifier.
+		 */
+		KEY_ID("kid", WebSignatureHeader::getKeyId),
+
+		/**
+		 * Well-known key set URI.
+		 */
+		KEY_SET_URI("jku", WebSignatureHeader::getKeySetUri),
+
+		/**
+		 * Well-known public key.
+		 */
+		KEY("jwk", WebSignatureHeader::getKey),
+
+		/**
+		 * Certificate chain URI.
+		 */
+		CERTIFICATE_URI("x5u", WebSignatureHeader::getCertificateUri),
+
+		/**
+		 * Certificate chain.
+		 */
+		CERTIFICATE_CHAIN("x5c", WebSignatureHeader::getCertificateChain),
+
+		/**
+		 * Certificate SHA-1 thumb print.
+		 */
+		CERTIFICATE_THUMBPRINT("x5t", WebSignatureHeader::getCertificateThumbprint),
+
+		/**
+		 * Certificate SHA-1 thumb print.
+		 */
+		CERTIFICATE_SHA256_THUMBPRINT("x5t#S256", WebSignatureHeader::getCertificateSha256Thumbprint),
+
+		/**
+		 * Signature/encryption media type.
+		 */
+		TYPE("typ", WebSignatureHeader::getType),
+
+		/**
+		 * Content media type.
+		 */
+		CONTENT_TYPE("cty", WebSignatureHeader::getContentType),
+
+		/**
+		 * Encryption type.
+		 */
+		ENCRYPTION("enc", h -> {
+			if (h instanceof WebEncryptionHeader)
+				return ((WebEncryptionHeader) h).getEncryption();
+			else
+				return null;
+		}),
+
+		/**
+		 * Encrypted payload compression type.
+		 */
+		DEFALATE("zip", h -> {
+			if ((h instanceof WebEncryptionHeader) //
+					&& ((WebEncryptionHeader) h).isDeflate())
+				return "DEF";
+			else
+				return null;
+		}),
+
+		/**
+		 * Extended parameter names that <em>must</em> be included in the protected
+		 * header.
+		 */
+		CRITICAL_PARAMS("crit", WebSignatureHeader::getCriticalExtendedParameters);
+
+		/**
+		 * Gets a parameter by JOSE standard parameter name.
+		 * 
+		 * @param name JOSE standard name
+		 * @return {@link Param}
+		 */
+		public static Param from(String name) {
+			return EnumSet.allOf(Param.class).stream().filter(a -> IuObject.equals(name, a.name)).findFirst()
+					.orElse(null);
+		}
+
+		/**
+		 * JOSE standard parameter name.
+		 */
+		public final String name;
+
+		private final Function<WebSignatureHeader, ?> get;
+
+		private Param(String name, Function<WebSignatureHeader, ?> get) {
+			this.name = name;
+			this.get = get;
+		}
+
+		/**
+		 * Verifies that the header contains a non-null value.
+		 * 
+		 * @param header header
+		 * @return true if the value is present; else false
+		 */
+		public boolean isPresent(WebSignatureHeader header) {
+			return get.apply(header) != null;
+		}
+
+		/**
+		 * Gets the header value.
+		 * 
+		 * @param header header
+		 * @return header value
+		 */
+		public Object get(WebSignatureHeader header) {
+			return get.apply(header);
+		}
+	}
+
+	/**
 	 * Gets the cryptographic algorithm.
 	 * 
 	 * @return {@link Algorithm}
 	 */
 	Algorithm getAlgorithm();
-
-	/**
-	 * Gets the protected header parameter names.
-	 * 
-	 * @return protected header names
-	 */
-	default Set<String> getProtectedParameters() {
-		final Set<String> p = new LinkedHashSet<>();
-		p.add("alg");
-		if (WebSignatureHeader.this instanceof WebEncryptionHeader)
-			p.add("enc");
-		if (getKeyId() != null)
-			p.add("kid");
-		if (getType() != null)
-			p.add("typ");
-		if (getContentType() != null)
-			p.add("cty");
-
-		final var crit = getCriticalExtendedParameters();
-		if (crit != null)
-			p.addAll(crit);
-
-		return p;
-	}
 
 	/**
 	 * Gets the key ID relative to {@link #getKeySetUri()} corresponding to a JWKS

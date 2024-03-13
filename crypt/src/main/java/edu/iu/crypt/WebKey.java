@@ -19,6 +19,7 @@ import javax.crypto.SecretKey;
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import iu.crypt.BaseWebKey;
+import iu.crypt.Jose;
 import iu.crypt.Jwk;
 
 /**
@@ -431,13 +432,41 @@ public interface WebKey extends WebCertificateReference {
 	}
 
 	/**
+	 * Resolves a {@link WebKey} from a {@link WebSignatureHeader}.
+	 * 
+	 * <ol>
+	 * <li>Direct attachment {@link WebSignatureHeader#getKey}, <em>may</em> be
+	 * validated against {@link WebSignatureHeader#getKeyId}.</li>
+	 * <li>By GET request to {@link WebSignatureHeader#getKeySetUri()},
+	 * <em>must</em> be selected by {@link WebSignatureHeader#getKeyId()}.</li>
+	 * <li>Derived from the first certificate in
+	 * {@link WebSignatureHeader#getCertificateChain()}</li>
+	 * <li>Derived from the first certificate in
+	 * {@link WebSignatureHeader#getCertificateChain()}</li>
+	 * <li>If used, the certificate will be further identified by
+	 * {@link WebSignatureHeader#getKeyId()} and
+	 * {@link WebSignatureHeader#getAlgorithm()}, and matched against
+	 * {@link WebSignatureHeader#getCertificateThumbprint()} and/or
+	 * {@link WebSignatureHeader#getCertificateSha256Thumbprint}.</li>
+	 * </ol>
+	 * 
+	 * @param header encryption or signature header
+	 * @return well-known public key defined by the header
+	 */
+	static WebKey from(WebSignatureHeader header) {
+		return Jose.getKey(header);
+	}
+
+	/**
 	 * Gets the well-known {public-only) version of a web key.
 	 * 
 	 * @param webKey full web key
 	 * @return key for which {@link #getPrivateKey()} always returns null.
 	 */
 	static WebKey wellKnown(WebKey webKey) {
-		if (webKey.getPrivateKey() == null)
+		if (webKey == null)
+			return null;
+		else if (webKey.getPrivateKey() == null)
 			return webKey;
 		else
 			return (WebKey) Proxy.newProxyInstance(WebKey.class.getClassLoader(), new Class<?>[] { WebKey.class },

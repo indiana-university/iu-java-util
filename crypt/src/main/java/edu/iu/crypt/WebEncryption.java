@@ -1,5 +1,8 @@
 package edu.iu.crypt;
 
+import java.util.Set;
+
+import edu.iu.crypt.WebSignatureHeader.Param;
 import iu.crypt.Jwe;
 
 /**
@@ -11,24 +14,70 @@ public interface WebEncryption {
 	/**
 	 * Encrypts data as JWE.
 	 * 
-	 * @param header header data
-	 * @param data   data to encrypt
+	 * <p>
+	 * Includes standard algorithm (alg, enc) and key identification (jku, kid, x5u,
+	 * x5t, x5t#S256) parameters if provided, and all
+	 * {@link WebSignatureHeader#getCriticalExtendedParameters() critical
+	 * parameters}, as protected parameters.
+	 * </p>
+	 * 
+	 * @param recipientHeaders header data for each recipient
+	 * @param data             data to encrypt
+	 * @param additionalData   optional additional data for AEAD authentication
 	 * @return JSON Web Encryption (JWE) encrypted message
 	 */
-	static WebEncryption encrypt(WebEncryptionHeader header, byte[] data) {
-		return Jwe.encrypt(header, data, null);
+	public static WebEncryption encrypt(Iterable<WebEncryptionHeader> recipientHeaders, byte[] data) {
+		return Jwe.encrypt(recipientHeaders, null, data, null);
 	}
 
 	/**
 	 * Encrypts data as JWE.
 	 * 
-	 * @param header         header data
-	 * @param data           data to encrypt
-	 * @param additionalData additional data for AEAD authentication
+	 * @param recipientHeaders    header data for each recipient
+	 * @param protectedParameters set of parameters to include in the protected
+	 *                            header
+	 * @param data                data to encrypt
+	 * @param additionalData      optional additional data for AEAD authentication
 	 * @return JSON Web Encryption (JWE) encrypted message
 	 */
-	static WebEncryption encrypt(WebEncryptionHeader header, byte[] data, byte[] additionalData) {
-		return Jwe.encrypt(header, data, null);
+	public static WebEncryption encrypt(Iterable<WebEncryptionHeader> recipientHeaders, Set<Param> protectedParameters,
+			byte[] data) {
+		return Jwe.encrypt(recipientHeaders, protectedParameters, data, null);
+	}
+
+	/**
+	 * Encrypts data as JWE.
+	 * 
+	 * <p>
+	 * Includes standard algorithm (alg, enc) and key identification (jku, kid, x5u,
+	 * x5t, x5t#S256) parameters if provided, and all
+	 * {@link WebSignatureHeader#getCriticalExtendedParameters() critical
+	 * parameters}, as protected parameters.
+	 * </p>
+	 * 
+	 * @param recipientHeaders header data for each recipient
+	 * @param data             data to encrypt
+	 * @param additionalData   optional additional data for AEAD authentication
+	 * @return JSON Web Encryption (JWE) encrypted message
+	 */
+	public static WebEncryption encrypt(Iterable<WebEncryptionHeader> recipientHeaders, byte[] data,
+			byte[] additionalData) {
+		return Jwe.encrypt(recipientHeaders, null, data, additionalData);
+	}
+
+	/**
+	 * Encrypts data as JWE.
+	 * 
+	 * @param recipientHeaders    header data for each recipient
+	 * @param protectedParameters set of parameters to include in the protected
+	 *                            header
+	 * @param data                data to encrypt
+	 * @param additionalData      optional additional data for AEAD authentication
+	 * @return JSON Web Encryption (JWE) encrypted message
+	 */
+	public static WebEncryption encrypt(Iterable<WebEncryptionHeader> recipientHeaders, Set<Param> protectedParameters,
+			byte[] data, byte[] additionalData) {
+		return Jwe.encrypt(recipientHeaders, protectedParameters, data, additionalData);
 	}
 
 	/**
@@ -43,18 +92,11 @@ public interface WebEncryption {
 	}
 
 	/**
-	 * Gets the JOSE header.
+	 * Gets the recipients.
 	 * 
-	 * @return {@link WebEncryptionHeader}
+	 * @return recipients
 	 */
-	WebEncryptionHeader getHeader();
-
-	/**
-	 * Gets the encrypted_key JWE attribute
-	 * 
-	 * @return encrypted_key JWE attribute
-	 */
-	byte[] getEncryptedKey();
+	Iterable<WebEncryptionRecipient> getRecipients();
 
 	/**
 	 * Gets the iv JWE attribute
@@ -87,17 +129,12 @@ public interface WebEncryption {
 	/**
 	 * Decrypts the encrypted content.
 	 * 
-	 * @param key decryption (private or secret) key
+	 * @param key decryption (private or secret) key; <em>should</em> be verified by
+	 *            the application as correct for the encryption scenario before
+	 *            calling i.e., using {@link #getHeader()}.
 	 * @return decrypted content
 	 */
 	byte[] decrypt(WebKey key);
-
-	/**
-	 * Gets the encrypted message in compact JWE format.
-	 * 
-	 * @return compact JWE
-	 */
-	String compact();
 
 	/**
 	 * Gets the encrypted message in serialized JWE format.

@@ -1,37 +1,40 @@
 package iu.crypt;
 
-import java.io.ByteArrayInputStream;
+import static iu.crypt.JsonP.array;
+import static iu.crypt.JsonP.object;
+import static iu.crypt.JsonP.string;
+
 import java.net.URI;
-import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.HashSet;
+import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
+import edu.iu.IuCrypt;
 import edu.iu.IuException;
+import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.crypt.WebEncryptionHeader;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.WebSignatureHeader;
 import jakarta.json.JsonObject;
-import jakarta.json.JsonString;
 
 /**
  * Provides {@link WebSignatureHeader} and {@link WebEncryptionHeader}
  * processing utilities.
  */
-final class Jose implements WebEncryptionHeader {
+public final class Jose implements WebEncryptionHeader {
 
-	private static final Set<String> STANDARD_PARAMS = Set.of( //
-			"alg", "enc", "zip", "typ", "cty", "kid", "jku", "jwk", "x5u", "x5c", "x5t", "x5t#S256");
+	private static final Set<String> STANDARD_PARAMS = EnumSet.allOf(Param.class).stream().map(a -> a.name)
+			.collect(Collectors.toSet());
 
 	/**
 	 * Gets the key to use for signing or encryption.
@@ -39,7 +42,7 @@ final class Jose implements WebEncryptionHeader {
 	 * @param jose header
 	 * @return encryption or signing key
 	 */
-	static WebKey getKey(WebSignatureHeader jose) {
+	public static WebKey getKey(WebSignatureHeader jose) {
 		final var kid = jose.getKeyId();
 
 		var key = jose.getKey();
@@ -49,270 +52,31 @@ final class Jose implements WebEncryptionHeader {
 			else
 				return key;
 
-		return WebKey.readJwk(jose.getKeySetUri(), kid);
-	}
-
-	/**
-	 * Gets the JOSE shared unprotected header as JSON.
-	 * 
-	 * @param header header
-	 * @return {@link JsonObject}
-	 */
-	static JsonObject getShared(WebSignatureHeader header) {
-		final var p = header.getProtectedParameters();
-		final var b = JsonP.PROVIDER.createObjectBuilder();
-
-		if (!p.contains("alg"))
-			b.add("alg", header.getAlgorithm().alg);
-
-		if ((header instanceof WebEncryptionHeader) && !p.contains("enc"))
-			b.add("enc", ((WebEncryptionHeader) header).getEncryption().enc);
-
-		if (!p.contains("typ")) {
-			final var typ = header.getType();
-			if (typ != null)
-				b.add("typ", typ);
-		}
-		if (!p.contains("cty")) {
-			final var cty = header.getContentType();
-			if (cty != null)
-				b.add("cty", cty);
+		if (kid != null) {
+			final var jwks = jose.getKeySetUri();
+			if (jwks != null)
+				return WebKey.readJwk(jose.getKeySetUri(), kid);
 		}
 
-		if (!p.contains("kid")) {
-			final var kid = header.getKeyId();
-			if (kid != null)
-				b.add("kid", kid);
+		var cert = jose.getCertificateChain();
+		if (cert == null) {
+			final var certUri = jose.getCertificateUri();
+			if (certUri != null)
+				cert = WebKey.getCertificateChain(certUri);
 		}
-		if (!p.contains("jku")) {
-			final var jku = header.getKeySetUri();
-			if (jku != null)
-				b.add("jku", jku.toString());
-		}
-		if (!p.contains("jwk")) {
-			final var jwk = header.getKey();
-			if (jwk != null) {
-				final var jwkb = JsonP.PROVIDER.createObjectBuilder();
-				Jwk.writeJwk(jwkb, WebKey.wellKnown(jwk));
-				b.add("jwk", jwkb);
-			}
-		}
+		if (cert != null) {
+			final var t = jose.getCertificateThumbprint();
+			if (t != null && !Arrays.equals(t, IuCrypt.sha1(IuException.unchecked(cert[0]::getEncoded))))
+				throw new IllegalArgumentException();
 
-		if (!p.contains("x5u")) {
-			final var x5u = header.getCertificateUri();
-			if (x5u != null)
-				b.add("x5u", x5u.toString());
-		}
-		if (!p.contains("x5c")) {
-			final var x5c = header.getCertificateChain();
-			if (x5c != null) {
-				final var x5cb = JsonP.PROVIDER.createArrayBuilder();
-				for (final var cert : x5c) {
-					// RFC-7517 JWK 4.7: Base64 _not_ URL encoder, with padding
-					x5cb.add(Base64.getEncoder().encodeToString(IuException.unchecked(cert::getEncoded)));
-				}
-				b.add("x5c", x5cb);
-			}
-		}
-		if (!p.contains("x5t")) {
-			final var x5t = header.getCertificateThumbprint();
-			if (x5t != null)
-				b.add("x5t", EncodingUtils.base64Url(x5t));
-		}
-		if (!p.contains("x5t#S256")) {
-			final var x5t = header.getCertificateSha256Thumbprint();
-			if (x5t != null)
-				b.add("x5t#S256", EncodingUtils.base64Url(x5t));
+			final var t2 = jose.getCertificateSha256Thumbprint();
+			if (t2 != null && !Arrays.equals(t2, IuCrypt.sha256(IuException.unchecked(cert[0]::getEncoded))))
+				throw new IllegalArgumentException();
+
+			return WebKey.from(kid, jose.getAlgorithm(), cert);
 		}
 
-		return b.build();
-	}
-
-	/**
-	 * Gets the JOSE per-recipient unprotected header as JSON.
-	 * 
-	 * @param header header
-	 * @return {@link JsonObject}
-	 */
-	static JsonObject getPerRecipient(WebSignatureHeader header) {
-		final var p = header.getProtectedParameters();
-		final var c = header.getCriticalExtendedParameters();
-
-		final var b = JsonP.PROVIDER.createObjectBuilder();
-		final var x = header.getExtendedParameters();
-		if (x != null)
-			for (final var e : x.entrySet())
-				if (!p.contains(e.getKey()) && (c == null || c.contains(e.getKey())))
-					// TODO: single-value conversion
-					b.add(e.getKey(), (String) e.getValue());
-
-		return b.build();
-	}
-
-	/**
-	 * Gets the JOSE protected header as JSON.
-	 * 
-	 * @param header header
-	 * @return {@link JsonObject}
-	 */
-	static JsonObject getProtected(WebSignatureHeader header) {
-		final var b = JsonP.PROVIDER.createObjectBuilder();
-		for (final var name : header.getProtectedParameters())
-			switch (name) {
-			case "alg":
-				b.add("alg", header.getAlgorithm().alg);
-				break;
-			case "enc":
-				b.add("enc", ((WebEncryptionHeader) header).getEncryption().enc);
-				break;
-			case "typ":
-				b.add("typ", header.getType());
-				break;
-			case "cty":
-				b.add("cty", header.getContentType());
-				break;
-
-			case "kid":
-				b.add("kid", header.getKeyId());
-				break;
-			case "jku":
-				b.add("jku", header.getKeySetUri().toString());
-				break;
-			case "jwk": {
-				final var jwkb = JsonP.PROVIDER.createObjectBuilder();
-				Jwk.writeJwk(jwkb, WebKey.wellKnown(header.getKey()));
-				b.add("jwk", jwkb);
-				break;
-			}
-
-			case "x5u":
-				b.add("x5u", header.getCertificateUri().toString());
-				break;
-			case "x5c": {
-				final var x5cb = JsonP.PROVIDER.createArrayBuilder();
-				for (final var cert : header.getCertificateChain())
-					// RFC-7517 JWK 4.7: Base64 _not_ URL encoder, with padding
-					x5cb.add(Base64.getEncoder().encodeToString(IuException.unchecked(cert::getEncoded)));
-				b.add("x5c", x5cb);
-				break;
-			}
-			case "x5t":
-				b.add("x5t", EncodingUtils.base64Url(header.getCertificateThumbprint()));
-				break;
-			case "x5t#S256":
-				b.add("x5t#S256", EncodingUtils.base64Url(header.getCertificateSha256Thumbprint()));
-				break;
-
-			case "crit": {
-				final var critb = JsonP.PROVIDER.createArrayBuilder();
-				header.getCriticalExtendedParameters().forEach(critb::add);
-				b.add("crit", critb);
-				break;
-			}
-
-			default: // TODO: single-value conversion
-				b.add(name, (String) Objects.requireNonNull(header.getExtendedParameters().get(name)));
-				break;
-			}
-
-		return b.build();
-	}
-
-	/**
-	 * Calculates a hash code over protected header values.
-	 * 
-	 * @param h header
-	 * @return hash code
-	 */
-	static int hashCode(WebSignatureHeader h) {
-		final var l = new ArrayList<>();
-		final var p = h.getProtectedParameters();
-		l.add(p);
-
-		final var ps = new HashSet<>(p);
-		if (ps.remove("alg"))
-			l.add(h.getAlgorithm());
-		if (ps.remove("enc"))
-			l.add(((WebEncryptionHeader) h).getEncryption());
-		if (ps.remove("zip"))
-			l.add(((WebEncryptionHeader) h).isDeflate());
-		if (ps.remove("cty"))
-			l.add(h.getContentType());
-		if (ps.remove("kid"))
-			l.add(h.getKeyId());
-		if (ps.remove("typ"))
-			l.add(h.getType());
-		if (ps.remove("x5c"))
-			l.add(h.getCertificateChain());
-		if (ps.remove("x5t#S256"))
-			l.add(h.getCertificateSha256Thumbprint());
-		if (ps.remove("x5t"))
-			l.add(h.getCertificateThumbprint());
-		if (ps.remove("x5u"))
-			l.add(h.getCertificateUri());
-		if (ps.remove("crit"))
-			l.add(h.getCriticalExtendedParameters());
-		if (ps.remove("jwk"))
-			l.add(h.getKey());
-		if (ps.remove("jku"))
-			l.add(h.getKeySetUri());
-
-		final var ext = h.getExtendedParameters();
-		for (final var a : ps)
-			l.add(ext.get(a));
-
-		return IuObject.hashCode(l.toArray(new Object[l.size()]));
-	}
-
-	/**
-	 * Determines whether or not two JOSE headers include the same protected header
-	 * values.
-	 * 
-	 * @param h1 header
-	 * @param h2 header
-	 * @return true if all protected headers values match; else false
-	 */
-	static boolean equals(WebSignatureHeader h1, WebSignatureHeader h2) {
-		if (h1 == h2)
-			return true;
-		if (h1 == null || h2 == null)
-			return false;
-
-		final var p = new HashSet<>(h1.getProtectedParameters());
-		if (!IuObject.equals(p, h2.getProtectedParameters()))
-			return false;
-
-		if ((p.remove("alg") && !IuObject.equals(h1.getAlgorithm(), h2.getAlgorithm())) //
-				|| (p.remove("enc") && !IuObject.equals(((WebEncryptionHeader) h1).getEncryption(),
-						((WebEncryptionHeader) h2).getEncryption())) //
-				|| (p.remove("zip") && !IuObject.equals(((WebEncryptionHeader) h1).isDeflate(),
-						((WebEncryptionHeader) h2).isDeflate())) //
-				|| (p.remove("cty") && !IuObject.equals(h1.getContentType(), h2.getContentType())) //
-				|| (p.remove("kid") && !IuObject.equals(h1.getKeyId(), h2.getKeyId())) //
-				|| (p.remove("typ") && !IuObject.equals(h1.getType(), h2.getType())) //
-				|| (p.remove("x5c") && !IuObject.equals(h1.getCertificateChain(), h2.getCertificateChain())) //
-				|| (p.remove("x5t#S256")
-						&& !IuObject.equals(h1.getCertificateSha256Thumbprint(), h2.getCertificateSha256Thumbprint())) //
-				|| (p.remove("x5t") && !IuObject.equals(h1.getCertificateThumbprint(), h2.getCertificateThumbprint())) //
-				|| (p.remove("x5u") && !IuObject.equals(h1.getCertificateUri(), h2.getCertificateUri())) //
-				|| (p.remove("crit")
-						&& !IuObject.equals(h1.getCriticalExtendedParameters(), h2.getCriticalExtendedParameters())) //
-				|| (p.remove("jwk") && !IuObject.equals(h1.getKey(), h2.getKey())) //
-				|| (p.remove("jku") && !IuObject.equals(h1.getKeySetUri(), h2.getKeySetUri())))
-			return false;
-
-		if (p.isEmpty())
-			return true;
-
-		final var ext = h1.getExtendedParameters();
-		final var otherExt = h2.getExtendedParameters();
-		if (ext == null || otherExt == null)
-			return false;
-		for (final var param : p)
-			if (!IuObject.equals(ext.get(param), otherExt.get(param)))
-				return false;
-
-		return true;
+		return null;
 	}
 
 	/**
@@ -335,7 +99,7 @@ final class Jose implements WebEncryptionHeader {
 	 */
 	static Jose from(JsonObject protectedHeader, JsonObject sharedHeader, JsonObject perRecipientHeader) {
 		if (sharedHeader == null && perRecipientHeader == null)
-			return new Jose(protectedHeader, protectedHeader.keySet());
+			return new Jose(protectedHeader);
 
 		final var b = JsonP.PROVIDER.createObjectBuilder(protectedHeader);
 		if (sharedHeader != null)
@@ -352,165 +116,290 @@ final class Jose implements WebEncryptionHeader {
 				b.add(n, v);
 			});
 
-		return new Jose(b.build(), protectedHeader.keySet());
+		return new Jose(b.build());
 	}
 
-	private final JsonObject jose;
-	private final Set<String> protectionParameters;
+	private final Algorithm algorithm;
+	private final Encryption encryption;
+	private final boolean deflate;
 
-	private Jose(JsonObject jose, Set<String> protectionParameters) {
-		this.jose = jose;
-		this.protectionParameters = protectionParameters;
+	private final String keyId;
+	private final WebKey key;
+	private final URI keySetUri;
+
+	private final String type;
+	private final String contentType;
+
+	private final URI certificateUri;
+	private final X509Certificate[] certificateChain;
+	private final byte[] certificateThumbprint;
+	private final byte[] certificateSha256Thumbprint;
+
+	private final Set<String> criticalExtendedParameters;
+	private final Map<String, ?> extendedParameters;
+
+	/**
+	 * Copy/validate constructor.
+	 * 
+	 * @param header header to copy
+	 */
+	Jose(WebSignatureHeader header) {
+		algorithm = header.getAlgorithm();
+		if (header instanceof WebEncryptionHeader) {
+			final var enc = (WebEncryptionHeader) header;
+			encryption = enc.getEncryption();
+			deflate = enc.isDeflate();
+		} else {
+			encryption = null;
+			deflate = false;
+		}
+
+		keyId = header.getKeyId();
+		key = WebKey.wellKnown(header.getKey());
+		keySetUri = header.getKeySetUri();
+
+		type = header.getType();
+		contentType = header.getContentType();
+
+		certificateUri = header.getCertificateUri();
+		certificateChain = header.getCertificateChain();
+		certificateThumbprint = header.getCertificateThumbprint();
+		certificateSha256Thumbprint = header.getCertificateSha256Thumbprint();
+
+		extendedParameters = new LinkedHashMap<>(header.getExtendedParameters());
+		criticalExtendedParameters = new LinkedHashSet<>(header.getCriticalExtendedParameters());
+
+		validate();
+	}
+
+	private Jose(JsonObject jose) {
+		algorithm = Objects.requireNonNull(string(jose, "alg", Algorithm::from));
+		encryption = string(jose, "enc", Encryption::from);
+		deflate = "DEF".equals(string(jose, "zip"));
+
+		keyId = string(jose, "kid");
+		keySetUri = string(jose, "jku", URI::create);
+		key = WebKey.wellKnown(object(jose, "jwk", Jwk::new));
+
+		type = string(jose, "typ");
+		contentType = string(jose, "cty");
+
+		certificateUri = string(jose, "x5u", URI::create);
+		certificateThumbprint = string(jose, "x5t", EncodingUtils::base64Url);
+		certificateSha256Thumbprint = string(jose, "x5t#S256", EncodingUtils::base64Url);
+		certificateChain = array(jose, "x5c", CertUtils::decodeCertificateChain);
+
+		final Map<String, Object> params = new LinkedHashMap<>();
+		for (final var e : jose.entrySet())
+			if (!STANDARD_PARAMS.contains(e.getKey()))
+				params.put(e.getKey(), JsonP.toJava(e.getValue()));
+		extendedParameters = params;
+		criticalExtendedParameters = array(jose, "crit", JsonP::toStringSet);
+
+		validate();
+	}
+
+	private void validate() {
+		if ((encryption != null || deflate) && algorithm.use.equals(Use.SIGN))
+			throw new IllegalArgumentException();
+
+		if (keyId != null && key != null && !keyId.equals(key.getId()))
+			throw new IllegalArgumentException();
+
+		if (certificateChain != null) {
+			final var cert = certificateChain[0];
+			if (key != null && !key.getPublicKey().equals(cert.getPublicKey()))
+				throw new IllegalArgumentException();
+			if (certificateThumbprint != null && !Arrays.equals(certificateThumbprint,
+					IuException.unchecked(() -> IuCrypt.sha1(cert.getEncoded()))))
+				throw new IllegalArgumentException();
+			if (certificateSha256Thumbprint != null && !Arrays.equals(certificateSha256Thumbprint,
+					IuException.unchecked(() -> IuCrypt.sha256(cert.getEncoded()))))
+				throw new IllegalArgumentException();
+		}
+
+		if (criticalExtendedParameters != null)
+			// TODO: implement ECDH, PBES2, JWT
+			throw new IllegalArgumentException();
 	}
 
 	@Override
 	public Algorithm getAlgorithm() {
-		return Algorithm.from(jose.getString("alg"));
-	}
-
-	@Override
-	public Set<String> getProtectedParameters() {
-		if (protectionParameters == null)
-			return WebEncryptionHeader.super.getProtectedParameters();
-		else
-			return protectionParameters;
+		return algorithm;
 	}
 
 	@Override
 	public String getKeyId() {
-		if (!jose.containsKey("kid"))
-			return null;
-		else
-			return jose.getString("kid");
+		return keyId;
 	}
 
 	@Override
 	public URI getKeySetUri() {
-		if (!jose.containsKey("jku"))
-			return null;
-		else
-			return URI.create(jose.getString("jku"));
+		return keySetUri;
 	}
 
 	@Override
 	public WebKey getKey() {
-		if (!jose.containsKey("jwk"))
-			return null;
-		else
-			return new Jwk(jose.getJsonObject("jwk"));
+		return key;
 	}
 
 	@Override
 	public String getType() {
-		if (!jose.containsKey("typ"))
-			return null;
-		else
-			return jose.getString("typ");
+		return type;
 	}
 
 	@Override
 	public String getContentType() {
-		if (!jose.containsKey("cty"))
-			return null;
-		else
-			return jose.getString("cty");
+		return contentType;
 	}
 
 	@Override
 	public Set<String> getCriticalExtendedParameters() {
-		if (!jose.containsKey("crit"))
-			return null;
-		else {
-			final var crit = jose.getJsonArray("crit");
-			final Set<String> s = new LinkedHashSet<>();
-			for (var i = 0; i < crit.size(); i++)
-				s.add(crit.getString(i));
-			return s;
-		}
+		return criticalExtendedParameters;
 	}
 
 	@Override
 	public Map<String, ?> getExtendedParameters() {
-		final Map<String, String> params = new LinkedHashMap<>();
-		for (final var e : jose.entrySet())
-			if (!STANDARD_PARAMS.contains(e.getKey()))
-				params.put(e.getKey(), ((JsonString) e.getValue()).getString());
-		return params;
+		return extendedParameters;
 	}
 
 	@Override
 	public URI getCertificateUri() {
-		if (!jose.containsKey("x5u"))
-			return null;
-		else
-			return URI.create(jose.getString("x5u"));
+		return certificateUri;
 	}
 
 	@Override
 	public X509Certificate[] getCertificateChain() {
-		if (jose.containsKey("x5c"))
-			return IuException.unchecked(() -> {
-				final var x5c = jose.getJsonArray("x5c");
-				final var certFactory = CertificateFactory.getInstance("X.509");
-				final Queue<X509Certificate> certs = new ArrayDeque<>(x5c.size());
-				for (var i = 0; i < x5c.size(); i++)
-					certs.offer((X509Certificate) certFactory.generateCertificate(
-							new ByteArrayInputStream(Base64.getDecoder().decode(x5c.getString(i)))));
-				return certs.toArray(new X509Certificate[certs.size()]);
-			});
-		else
-			return null;
+		return certificateChain;
 	}
 
 	@Override
 	public byte[] getCertificateThumbprint() {
-		if (!jose.containsKey("x5t"))
-			return null;
-		else
-			return EncodingUtils.base64Url(jose.getString("x5t"));
+		return certificateThumbprint;
 	}
 
 	@Override
 	public byte[] getCertificateSha256Thumbprint() {
-		if (!jose.containsKey("x5t#S256"))
-			return null;
-		else
-			return EncodingUtils.base64Url(jose.getString("x5t#S256"));
+		return certificateSha256Thumbprint;
 	}
 
 	@Override
 	public Encryption getEncryption() {
-		if (!jose.containsKey("enc"))
-			return null;
-		else
-			return Encryption.from(jose.getString("enc"));
+		return encryption;
 	}
 
 	@Override
 	public boolean isDeflate() {
-		return jose.containsKey("zip") && jose.getString("zip").equals("DEF");
+		return deflate;
 	}
 
 	@Override
 	public int hashCode() {
-		return hashCode(this);
+		return IuObject.hashCode(algorithm, encryption, deflate, keyId, keySetUri, key, type, contentType,
+				certificateUri, certificateChain, certificateThumbprint, certificateSha256Thumbprint,
+				criticalExtendedParameters, extendedParameters);
 	}
 
 	@Override
 	public boolean equals(Object obj) {
-		if (!(obj instanceof WebSignatureHeader))
+		if (!IuObject.typeCheck(this, obj))
 			return false;
-		else
-			return equals(this, (WebSignatureHeader) obj);
+
+		Jose other = (Jose) obj;
+		return IuObject.equals(algorithm, other.algorithm) //
+				&& IuObject.equals(encryption, other.encryption) //
+				&& IuObject.equals(deflate, other.deflate) //
+				&& IuObject.equals(keyId, other.keyId) //
+				&& IuObject.equals(keySetUri, other.keySetUri) //
+				&& IuObject.equals(key, other.key) //
+				&& IuObject.equals(type, other.type) //
+				&& IuObject.equals(contentType, other.contentType) //
+				&& IuObject.equals(certificateUri, other.certificateUri) //
+				&& IuObject.equals(certificateChain, other.certificateChain) //
+				&& IuObject.equals(certificateThumbprint, other.certificateThumbprint) //
+				&& IuObject.equals(certificateSha256Thumbprint, other.certificateSha256Thumbprint) //
+				&& IuObject.equals(criticalExtendedParameters, other.criticalExtendedParameters) //
+				&& IuObject.equals(extendedParameters, other.extendedParameters);
 	}
 
 	@Override
 	public String toString() {
+		return toJson(null).toString();
+	}
+
+	/**
+	 * Gets the JOSE header as JSON.
+	 * 
+	 * @param p accepts standard param name and returns true to include the
+	 *          parameter; else false
+	 * @return {@link JsonObject}
+	 */
+	JsonObject toJson(Predicate<String> p) {
 		final var b = JsonP.PROVIDER.createObjectBuilder();
-		b.add("protected", getProtected(this));
-		b.add("unprotected", getShared(this));
-		b.add("header", getPerRecipient(this));
-		return b.build().toString();
+		for (final var param : IuIterable.iter(Param.values()))
+			if ((p == null || p.test(param.name)) && param.isPresent(this))
+				switch (param) {
+				case ALGORITHM:
+					b.add(param.name, algorithm.alg);
+					break;
+				case ENCRYPTION:
+					b.add(param.name, encryption.enc);
+					break;
+				case DEFALATE:
+					b.add(param.name, "DEF");
+					break;
+
+				case TYPE:
+					b.add(param.name, type);
+					break;
+				case CONTENT_TYPE:
+					b.add(param.name, contentType);
+					break;
+
+				case KEY_ID:
+					b.add(param.name, keyId);
+					break;
+				case KEY_SET_URI:
+					b.add(param.name, keySetUri.toString());
+					break;
+				case KEY: {
+					final var jwkb = JsonP.PROVIDER.createObjectBuilder();
+					Jwk.writeJwk(jwkb, key);
+					b.add(param.name, jwkb);
+					break;
+				}
+
+				case CERTIFICATE_URI:
+					b.add(param.name, certificateUri.toString());
+					break;
+				case CERTIFICATE_CHAIN: {
+					final var x5cb = JsonP.PROVIDER.createArrayBuilder();
+					for (final var cert : certificateChain)
+						x5cb.add(EncodingUtils.base64(IuException.unchecked(cert::getEncoded)));
+					b.add(param.name, x5cb);
+					break;
+				}
+				case CERTIFICATE_THUMBPRINT:
+					b.add(param.name, EncodingUtils.base64Url(certificateThumbprint));
+					break;
+				case CERTIFICATE_SHA256_THUMBPRINT:
+					b.add(param.name, EncodingUtils.base64Url(certificateSha256Thumbprint));
+					break;
+
+				case CRITICAL_PARAMS: {
+					final var critb = JsonP.PROVIDER.createArrayBuilder();
+					criticalExtendedParameters.forEach(critb::add);
+					b.add(param.name, critb);
+					break;
+				}
+				}
+
+		if (extendedParameters != null)
+			for (final var e : extendedParameters.entrySet())
+				if (p == null || p.test(e.getKey()))
+					b.add(e.getKey(), JsonP.toJson(e.getValue()));
+
+		return b.build();
 	}
 
 }
