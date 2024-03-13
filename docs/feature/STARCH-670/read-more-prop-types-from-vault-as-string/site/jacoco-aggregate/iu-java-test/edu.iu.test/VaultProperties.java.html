@@ -115,7 +115,7 @@ public class VaultProperties {
 <span class="fc bfc" id="L115" title="All 2 branches covered.">				if (value.getValueType() == JsonValue.ValueType.STRING)</span>
 <span class="fc" id="L116">					return ((JsonString) value).getString();</span>
 				
-<span class="fc" id="L118">				return new String(value.toString());</span>
+<span class="fc" id="L118">				return value.toString();</span>
 			}
 		}
 <span class="fc" id="L121">		throw new IllegalArgumentException(name + &quot; not found in Vault using &quot; + env(&quot;vault.endpoint&quot;, &quot;VAULT_ENDPOINT&quot;)</span>
