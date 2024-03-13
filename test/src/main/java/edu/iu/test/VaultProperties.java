@@ -115,7 +115,7 @@ public class VaultProperties {
 				if (value.getValueType() == JsonValue.ValueType.STRING)
 					return ((JsonString) value).getString();
 				
-				return new String(value.toString());
+				return value.toString();
 			}
 		}
 		throw new IllegalArgumentException(name + " not found in Vault using " + env("vault.endpoint", "VAULT_ENDPOINT")
