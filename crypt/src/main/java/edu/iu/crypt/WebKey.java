@@ -461,17 +461,20 @@ public interface WebKey extends WebCertificateReference {
 	 * Gets the well-known {public-only) version of a web key.
 	 * 
 	 * @param webKey full web key
-	 * @return key for which {@link #getPrivateKey()} always returns null.
+	 * @return key for which {@link #getPrivateKey()} and {@link #getKey()} always
+	 *         return null, otherwise equal.
 	 */
 	static WebKey wellKnown(WebKey webKey) {
 		if (webKey == null)
 			return null;
-		else if (webKey.getPrivateKey() == null)
+		else if (webKey.getPrivateKey() == null && webKey.getKey() == null)
 			return webKey;
 		else
 			return (WebKey) Proxy.newProxyInstance(WebKey.class.getClassLoader(), new Class<?>[] { WebKey.class },
 					(proxy, method, args) -> {
 						switch (method.getName()) {
+						case "getKey":
+							return null;
 						case "getPrivateKey":
 							return null;
 						case "hashCode":

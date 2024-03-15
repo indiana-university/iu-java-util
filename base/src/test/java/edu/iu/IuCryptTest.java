@@ -43,6 +43,17 @@ import org.junit.jupiter.api.Test;
 public class IuCryptTest {
 
 	@Test
+	public void testSha1() throws NoSuchAlgorithmException {
+		final var data = IuText.utf8(IdGenerator.generateId());
+		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha1(data)),
+				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-1").digest(data)));
+		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha1(null)),
+				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-1").digest(new byte[0])));
+		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha1(new byte[0])),
+				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-1").digest(new byte[0])));
+	}
+
+	@Test
 	public void testSha256() throws NoSuchAlgorithmException {
 		final var data = IuText.utf8(IdGenerator.generateId());
 		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha256(data)),
@@ -52,4 +63,5 @@ public class IuCryptTest {
 		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha256(new byte[0])),
 				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(new byte[0])));
 	}
+	
 }

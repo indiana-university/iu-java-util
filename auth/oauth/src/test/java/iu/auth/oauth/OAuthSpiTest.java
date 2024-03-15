@@ -52,15 +52,15 @@ public class OAuthSpiTest {
 
 	@Test
 	public void testIsRoot() throws URISyntaxException {
-		assertTrue(OAuthSpi.isRoot(new URI("foo:bar"), new URI("foo:bar")));
-		assertFalse(OAuthSpi.isRoot(new URI("foo:bar"), new URI("foo:baz")));
-		assertFalse(OAuthSpi.isRoot(new URI("foo:/bar"), new URI("foo:/baz")));
-		assertFalse(OAuthSpi.isRoot(new URI("foo:/bar"), new URI("/baz")));
-		assertFalse(OAuthSpi.isRoot(new URI("bar:/foo"), new URI("foo:/bar")));
-		assertFalse(OAuthSpi.isRoot(new URI("foo://bar/baz"), new URI("foo://baz/bar")));
-		assertTrue(OAuthSpi.isRoot(new URI("foo://bar/baz"), new URI("foo://bar/baz/foo")));
-		assertTrue(OAuthSpi.isRoot(new URI("foo://bar/baz/"), new URI("foo://bar/baz/foo")));
-		assertFalse(OAuthSpi.isRoot(new URI("foo://bar/baz"), new URI("foo://bar/bazfoo")));
+		assertTrue(OAuthSpi.isRootOf(new URI("foo:bar"), new URI("foo:bar")));
+		assertFalse(OAuthSpi.isRootOf(new URI("foo:bar"), new URI("foo:baz")));
+		assertFalse(OAuthSpi.isRootOf(new URI("foo:/bar"), new URI("foo:/baz")));
+		assertFalse(OAuthSpi.isRootOf(new URI("foo:/bar"), new URI("/baz")));
+		assertFalse(OAuthSpi.isRootOf(new URI("bar:/foo"), new URI("foo:/bar")));
+		assertFalse(OAuthSpi.isRootOf(new URI("foo://bar/baz"), new URI("foo://baz/bar")));
+		assertTrue(OAuthSpi.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/baz/foo")));
+		assertTrue(OAuthSpi.isRootOf(new URI("foo://bar/baz/"), new URI("foo://bar/baz/foo")));
+		assertFalse(OAuthSpi.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/bazfoo")));
 	}
 
 	@Test

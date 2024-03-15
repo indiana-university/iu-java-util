@@ -131,7 +131,7 @@ public interface WebEncryption {
 	 * 
 	 * @param key decryption (private or secret) key; <em>should</em> be verified by
 	 *            the application as correct for the encryption scenario before
-	 *            calling i.e., using {@link #getHeader()}.
+	 *            calling i.e., by inspecting {@link #getRecipients()}.
 	 * @return decrypted content
 	 */
 	byte[] decrypt(WebKey key);

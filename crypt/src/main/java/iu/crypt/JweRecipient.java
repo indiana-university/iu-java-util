@@ -1,7 +1,6 @@
 package iu.crypt;
 
 import edu.iu.IuObject;
-import edu.iu.crypt.WebEncryptionHeader;
 import edu.iu.crypt.WebEncryptionRecipient;
 
 /**
@@ -27,7 +26,7 @@ class JweRecipient implements WebEncryptionRecipient {
 	}
 
 	@Override
-	public WebEncryptionHeader getHeader() {
+	public Jose getHeader() {
 		return header;
 	}
 
@@ -60,7 +59,13 @@ class JweRecipient implements WebEncryptionRecipient {
 				&& IuObject.equals(encryptedKey, other.encryptedKey);
 	}
 
-	private boolean isProtected(String name) {
+	/**
+	 * Determines which if a JOSE parameter is protected for this recipient.
+	 * 
+	 * @param name parameter name
+	 * @return true if protected; else false
+	 */
+	boolean isProtected(String name) {
 		if (encryption.isProtected(name))
 			return true;
 

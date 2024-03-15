@@ -155,7 +155,7 @@ public final class Jose implements WebEncryptionHeader {
 		}
 
 		keyId = header.getKeyId();
-		key = WebKey.wellKnown(header.getKey());
+		key = header.getKey();
 		keySetUri = header.getKeySetUri();
 
 		type = header.getType();
@@ -179,7 +179,7 @@ public final class Jose implements WebEncryptionHeader {
 
 		keyId = string(jose, "kid");
 		keySetUri = string(jose, "jku", URI::create);
-		key = WebKey.wellKnown(object(jose, "jwk", Jwk::new));
+		key = object(jose, "jwk", Jwk::new);
 
 		type = string(jose, "typ");
 		contentType = string(jose, "cty");
@@ -364,7 +364,7 @@ public final class Jose implements WebEncryptionHeader {
 					break;
 				case KEY: {
 					final var jwkb = JsonP.PROVIDER.createObjectBuilder();
-					Jwk.writeJwk(jwkb, key);
+					Jwk.writeJwk(jwkb, WebKey.wellKnown(key));
 					b.add(param.name, jwkb);
 					break;
 				}

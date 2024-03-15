@@ -64,7 +64,7 @@ final class ClientCredentialsGrant extends AbstractGrant {
 	@Override
 	public final IuApiCredentials authorize(URI resourceUri) throws IuAuthenticationException {
 		final var client = OAuthSpi.getClient(realm);
-		if (!OAuthSpi.isRoot(client.getResourceUri(), resourceUri))
+		if (!OAuthSpi.isRootOf(client.getResourceUri(), resourceUri))
 			throw new IllegalArgumentException("Invalid resource URI for this client");
 
 		final var activatedCredentials = activate();

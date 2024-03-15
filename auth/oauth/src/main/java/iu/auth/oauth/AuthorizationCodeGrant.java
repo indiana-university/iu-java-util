@@ -83,7 +83,7 @@ final class AuthorizationCodeGrant extends AbstractGrant {
 	 */
 	AuthorizationCodeGrant(String realm, URI resourceUri) {
 		super(realm);
-		if (!OAuthSpi.isRoot(OAuthSpi.getClient(realm).getResourceUri(), resourceUri))
+		if (!IuWebUtils.isRootOf(OAuthSpi.getClient(realm).getResourceUri(), resourceUri))
 			throw new IllegalArgumentException("Invalid resource URI for this client");
 		else
 			this.resourceUri = resourceUri;
@@ -91,7 +91,7 @@ final class AuthorizationCodeGrant extends AbstractGrant {
 
 	@Override
 	public IuApiCredentials authorize(URI resourceUri) throws IuAuthenticationException {
-		if (!OAuthSpi.isRoot(this.resourceUri, resourceUri))
+		if (!IuWebUtils.isRootOf(this.resourceUri, resourceUri))
 			throw new IllegalArgumentException("Invalid resource URI for this grant");
 
 		final var activatedCredentials = activate();

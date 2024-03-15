@@ -24,6 +24,7 @@ import java.security.spec.RSAPublicKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.time.Duration;
 import java.util.ArrayDeque;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Queue;
 
@@ -32,6 +33,7 @@ import edu.iu.IuCrypt;
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuStream;
+import edu.iu.IuWebUtils;
 import edu.iu.UnsafeFunction;
 import edu.iu.crypt.WebKey;
 
@@ -42,29 +44,6 @@ public class BaseWebKey implements WebKey {
 
 	private static Map<URI, Iterable<WebKey>> JWKS_CACHE = new IuCacheMap<>(Duration.ofMinutes(15L));
 	private static Map<URI, X509Certificate[]> CERT_CACHE = new IuCacheMap<>(Duration.ofMinutes(15L));
-
-	/**
-	 * Reads data from a public URI.
-	 * 
-	 * @param uri  public URI
-	 * @param with receives a {@link Reader} of the response body and returns the
-	 *             result
-	 * @return read result
-	 */
-	static <T> T read(URI uri, UnsafeFunction<Reader, T> with) {
-		return IuException.unchecked(() -> {
-			final var response = HttpClient.newHttpClient().send(HttpRequest.newBuilder(uri).build(),
-					BodyHandlers.ofInputStream());
-			final var status = response.statusCode();
-			final var headers = response.headers();
-			if (response.statusCode() != 200)
-				throw new IllegalStateException(response.uri() + "; status=" + status + " headers=" + headers.map());
-
-			try (final var in = response.body(); final var r = new InputStreamReader(in)) {
-				return with.apply(r);
-			}
-		});
-	}
 
 	/**
 	 * Gets well known key set by URI.

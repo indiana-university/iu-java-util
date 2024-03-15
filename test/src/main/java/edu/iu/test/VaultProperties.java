@@ -39,9 +39,9 @@ import java.net.http.HttpResponse.BodyHandlers;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 import edu.iu.IuException;
+import edu.iu.IuRuntimeEnvironment;
 import edu.iu.IuStream;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
@@ -61,10 +61,10 @@ import jakarta.json.JsonValue;
  * <dt>vault.endpoint (VAULT_ENDPOINT)</dt>
  * <dd>Base URL for a Vault K/V store</dd>
  * <dt>vault.token (VAULT_TOKEN)</dt>
- * <dd>Access token for use with Vault, i.e., in development. If not set, 
+ * <dd>Access token for use with Vault, i.e., in development. If not set,
  * vault.loginEndpoint, vault.roleId, and vault.secretId <em>must</em> be
- * provided, i.e., for use by a CI/CD environment. If vault.token is set,
- * the approle properties will be ignored.</dd>
+ * provided, i.e., for use by a CI/CD environment. If vault.token is set, the
+ * approle properties will be ignored.</dd>
  * <dt>vault.loginEndpoint (VAULT_LOGIN_ENDPOINT)</dt>
  * <dd>URL for the Vault approle login endpoint, for use when vault.token is not
  * set.</dd>
@@ -96,30 +96,30 @@ public class VaultProperties {
 	 * @return true if Vault is configured; else false
 	 */
 	public static boolean isConfigured() {
-		return envOptional("vault.secrets", "VAULT_SECRETS") != null;
+		return IuRuntimeEnvironment.envOptional("vault.secrets") != null;
 	}
 
 	/**
-	 * Reads a property value from a Vault secret.
-	 * All value types are returned as String.
+	 * Reads a property value from a Vault secret. All value types are returned as
+	 * String.
 	 * 
 	 * @param name property name
 	 * @return property value
 	 */
 	public static String getProperty(String name) {
-		final var secrets = env("vault.secrets", "VAULT_SECRETS").split(",");
+		final var secrets = IuRuntimeEnvironment.env("vault.secrets").split(",");
 		for (String secret : secrets) {
 			final var data = IuException.unchecked(() -> getSecret(secret));
 			if (data.containsKey(name)) {
 				JsonValue value = data.get(name);
 				if (value.getValueType() == JsonValue.ValueType.STRING)
 					return ((JsonString) value).getString();
-				
+
 				return value.toString();
 			}
 		}
-		throw new IllegalArgumentException(name + " not found in Vault using " + env("vault.endpoint", "VAULT_ENDPOINT")
-				+ "/data/" + Arrays.toString(secrets));
+		throw new IllegalArgumentException(name + " not found in Vault using "
+				+ IuRuntimeEnvironment.env("vault.endpoint") + "/data/" + Arrays.toString(secrets));
 	}
 
 	private static JsonObject getSecret(String secret) throws Exception {
@@ -128,7 +128,7 @@ public class VaultProperties {
 			return cachedSecret;
 
 		final var request = HttpRequest.newBuilder().GET() //
-				.uri(new URI(env("vault.endpoint", "VAULT_ENDPOINT") + "/data/" + secret)) //
+				.uri(new URI(IuRuntimeEnvironment.env("vault.endpoint") + "/data/" + secret)) //
 				.header("Authorization", "Bearer " + getAccessToken()) //
 				.build();
 
@@ -152,36 +152,14 @@ public class VaultProperties {
 		return data;
 	}
 
-	/**
-	 * Checks for the presence of a system property, then defaults to an environment
-	 * variable if not set.
-	 * <p>
-	 * If the system property is set, but blank, returns null.
-	 * </p>
-	 * 
-	 * @param system System property name
-	 * @param env    Environment variable name
-	 * @return system property value if set, null if blank, environment variable if
-	 *         not set
-	 */
-	static String envOptional(String system, String env) {
-		final var value = System.getProperty(system, System.getenv(env));
-		return value == null || value.isBlank() ? null : value;
-	}
-
-	private static String env(String system, String env) {
-		return Objects.requireNonNull(envOptional(system, env),
-				"Missing system property " + system + " or environment variable " + env);
-	}
-
 	private static String getAccessToken() throws Exception {
-		var accessToken = envOptional("vault.token", "VAULT_TOKEN");
+		var accessToken = IuRuntimeEnvironment.envOptional("vault.token");
 		if (accessToken == null) {
-			final var loginEndpoint = new URI(env("vault.loginEndpoint", "VAULT_LOGIN_ENDPOINT"));
+			final var loginEndpoint = new URI(IuRuntimeEnvironment.env("vault.loginEndpoint"));
 
 			JsonObjectBuilder payload = Json.createObjectBuilder();
-			payload.add("role_id", env("vault.roleId", "VAULT_ROLE_ID"));
-			payload.add("secret_id", env("vault.secretId", "VAULT_SECRET_ID"));
+			payload.add("role_id", IuRuntimeEnvironment.env("vault.roleId"));
+			payload.add("secret_id", IuRuntimeEnvironment.env("vault.secretId"));
 
 			final var requestBuilder = HttpRequest.newBuilder() //
 					.uri(loginEndpoint) //

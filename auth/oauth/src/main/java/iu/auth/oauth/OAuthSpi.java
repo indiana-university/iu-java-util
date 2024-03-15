@@ -36,7 +36,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import edu.iu.IuObject;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
 import edu.iu.auth.oauth.IuAuthorizationScope;
@@ -54,30 +53,6 @@ public class OAuthSpi implements IuOAuthSpi {
 	 * Default constructor.
 	 */
 	public OAuthSpi() {
-	}
-
-	/**
-	 * Determines if a root {@link URI} encompasses a resource {@link URI}.
-	 * 
-	 * @param rootUri     root {@link URI}
-	 * @param resourceUri resource {@link URI}
-	 * @return {@link URI}
-	 */
-	static boolean isRoot(URI rootUri, URI resourceUri) {
-		if (rootUri.equals(resourceUri))
-			return true;
-		if (!resourceUri.isAbsolute() //
-				|| resourceUri.isOpaque() //
-				|| !IuObject.equals(rootUri.getScheme(), resourceUri.getScheme()) //
-				|| !IuObject.equals(rootUri.getAuthority(), resourceUri.getAuthority()))
-			return false;
-
-		final var root = rootUri.getPath();
-		final var resource = resourceUri.getPath();
-		final var l = root.length();
-		return resource.startsWith(root) //
-				&& (root.charAt(l - 1) == '/' //
-						|| resource.charAt(l) == '/');
 	}
 
 	/**

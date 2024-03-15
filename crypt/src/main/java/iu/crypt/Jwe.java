@@ -5,14 +5,13 @@ import static iu.crypt.JsonP.parse;
 import static iu.crypt.JsonP.string;
 
 import java.io.ByteArrayOutputStream;
-import java.io.StringReader;
 import java.math.BigInteger;
 import java.security.Key;
 import java.security.SecureRandom;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
@@ -469,18 +468,69 @@ public class Jwe implements WebEncryption {
 	@Override
 	public String toString() {
 		final var b = JsonP.PROVIDER.createObjectBuilder();
-		b.add("protected", EncodingUtils.base64Url(EncodingUtils.utf8(Jose.getProtected(header).toString())));
 
-		final var shared = Jose.getShared(header);
-		if (!shared.isEmpty())
-			b.add("unprotected", shared);
+		final var recipients = this.recipients.iterator();
+		final var recipient = (JweRecipient) recipients.next();
 
-		final var perRecipient = Jose.getPerRecipient(header);
-		if (!perRecipient.isEmpty())
-			b.add("header", perRecipient);
+		final var header = recipient.getHeader();
+		final var protectedHeader = header.toJson(recipient::isProtected);
+		final Map<String, Object> sharedParams = new HashMap<>();
+		for (final var p : Param.values())
+			if (!protectedParameters.contains(p))
+				sharedParams.put(p.name, p.get(header));
 
-		if (encryptedKey.length > 0)
-			b.add("encrypted_key", EncodingUtils.base64Url(encryptedKey));
+		final var crit = header.getCriticalExtendedParameters();
+		final var ext = header.getExtendedParameters();
+		if (ext != null)
+			for (final var e : ext.entrySet())
+				if (!crit.contains(e.getKey()))
+					sharedParams.put(e.getKey(), e.getValue());
+
+		b.add("protected", EncodingUtils.base64Url(EncodingUtils.utf8(protectedHeader.toString())));
+		if (recipients.hasNext()) {
+			while (recipients.hasNext()) {
+				final var additionalRecipient = (JweRecipient) recipients.next();
+				final var additionalHeader = additionalRecipient.getHeader();
+				final var sharedEntries = sharedParams.entrySet().iterator();
+				final var additionalExt = additionalHeader.getExtendedParameters();
+				while (sharedEntries.hasNext()) {
+					final var e = sharedEntries.next();
+					final var p = Param.from(e.getKey());
+					if (p != null) {
+						if (!IuObject.equals(p.get(additionalHeader), e.getValue()))
+							sharedEntries.remove();
+					} else if (additionalExt == null || !IuObject.equals(additionalExt.get(e.getKey()), e.getValue()))
+						sharedEntries.remove();
+				}
+				for (final var p : Param.values())
+					if (!protectedParameters.contains(p)) {
+						if (!IuObject.equals(p.get(header), sharedParams.get(p.name)))
+							sharedParams.remove(p.name);
+					}
+			}
+
+			if (!sharedParams.isEmpty()) {
+				final var unprotectedHeader = header.toJson(sharedParams::containsKey);
+				b.add("unprotected", unprotectedHeader);
+			}
+
+			final var serializedRecipients = JsonP.PROVIDER.createArrayBuilder();
+			for (final var additionalRecipient : this.recipients) {
+				final var recipientBuilder = JsonP.PROVIDER.createObjectBuilder();
+				final var perRecipientHeader = ((JweRecipient) additionalRecipient).getHeader()
+						.toJson(a -> !sharedParams.containsKey(a));
+				if (!perRecipientHeader.isEmpty())
+					recipientBuilder.add("header", perRecipientHeader);
+				JsonP.add(recipientBuilder, a -> true, "encrypted_key", recipient::getEncryptedKey,
+						EncodingUtils::base64Url);
+				serializedRecipients.add(recipientBuilder);
+			}
+		} else {
+			final var perRecipientHeader = header.toJson(sharedParams::containsKey);
+			if (!perRecipientHeader.isEmpty())
+				b.add("header", perRecipientHeader);
+			JsonP.add(b, a -> true, "encrypted_key", recipient::getEncryptedKey, EncodingUtils::base64Url);
+		}
 
 		if (initializationVector.length > 0)
 			b.add("iv", EncodingUtils.base64Url(initializationVector));
@@ -499,30 +549,39 @@ public class Jwe implements WebEncryption {
 	@Override
 	public byte[] decrypt(WebKey key) {
 		final var algorithm = header.getAlgorithm();
-
-		if (algorithm.algorithm.equals("ECDH")) {
-
+		
+		JweRecipient recipient = null;
+		for (final var r : recipients) {
+			final var header = r.getHeader();
+			if (header.getKey() != null) {
+				final var pub = Jose.getKey(header);
+			}
 		}
-
-		final var algorithm = header.getAlgorithm();
-		final var encryption = header.getEncryption();
-		encryptedKey = string(recipient, "encrypted_key", EncodingUtils::base64Url);
-
-		final SecretKey cek;
-		final byte[] cekmac;
-		if (Type.RAW.equals(algorithm.type)) {
-			if (encryptedKey != null)
-				throw new IllegalArgumentException("shared key must be known by recipient");
-			cek = null;
-			cekmac = null;
-		} else if ("GCM".equals(encryption.cipherMode)) {
-			cek = new SecretKeySpec(Objects.requireNonNull(encryptedKey, "encrypted_key required for GCM keywrap"),
-					"AES");
-			cekmac = null;
-		} else {
-			cekmac = Objects.requireNonNull(encryptedKey, "encrypted_key required for CBC/HMAC");
-			cek = new SecretKeySpec(cekmac, encryption.size, cekmac.length, "AES");
-		}
+		
+//
+//		if (algorithm.algorithm.equals("ECDH")) {
+//
+//		}
+//
+//		final var algorithm = header.getAlgorithm();
+//		final var encryption = header.getEncryption();
+//		encryptedKey = string(recipient, "encrypted_key", EncodingUtils::base64Url);
+//
+//		final SecretKey cek;
+//		final byte[] cekmac;
+//		if (Type.RAW.equals(algorithm.type)) {
+//			if (encryptedKey != null)
+//				throw new IllegalArgumentException("shared key must be known by recipient");
+//			cek = null;
+//			cekmac = null;
+//		} else if ("GCM".equals(encryption.cipherMode)) {
+//			cek = new SecretKeySpec(Objects.requireNonNull(encryptedKey, "encrypted_key required for GCM keywrap"),
+//					"AES");
+//			cekmac = null;
+//		} else {
+//			cekmac = Objects.requireNonNull(encryptedKey, "encrypted_key required for CBC/HMAC");
+//			cek = new SecretKeySpec(cekmac, encryption.size, cekmac.length, "AES");
+//		}
 
 //		   8.   When Direct Key Agreement or Key Agreement with Key Wrapping are
 //		        employed, use the key agreement algorithm to compute the value
