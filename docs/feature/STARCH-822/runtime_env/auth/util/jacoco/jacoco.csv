@@ -1,0 +1,6 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+IU API Authorization Internal Support Utilities,iu.auth.util,HttpUtils,0,194,0,20,0,42,0,17,0,7
+IU API Authorization Internal Support Utilities,iu.auth.util,AccessTokenVerifier.AlgorithmKey,0,48,0,6,0,10,0,6,0,3
+IU API Authorization Internal Support Utilities,iu.auth.util,AccessTokenVerifier.CachedAlgorithm,0,9,0,0,0,4,0,1,0,1
+IU API Authorization Internal Support Utilities,iu.auth.util,AccessTokenVerifier,0,342,0,25,0,82,0,25,0,9
+IU API Authorization Internal Support Utilities,iu.auth.util,JsonProviderFactory,0,15,0,0,0,6,0,1,0,1

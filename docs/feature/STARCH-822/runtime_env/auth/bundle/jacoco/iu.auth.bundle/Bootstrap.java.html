@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Bootstrap.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Authentication and Authorization Utilities</a> &gt; <a href="index.source.html" class="el_package">iu.auth.bundle</a> &gt; <span class="el_source">Bootstrap.java</span></div><h1>Bootstrap.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.bundle;
+
+import java.lang.ref.Reference;
+import java.lang.ref.WeakReference;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.ServiceLoader;
+import java.util.Set;
+import java.util.jar.JarEntry;
+import java.util.jar.JarInputStream;
+
+import edu.iu.IuException;
+import edu.iu.IuStream;
+import edu.iu.UnsafeRunnable;
+import edu.iu.type.base.FilteringClassLoader;
+import edu.iu.type.base.ModularClassLoader;
+import edu.iu.type.base.TemporaryFile;
+
+/**
+ * Bootstrap SPI instance.
+ */
+public class Bootstrap {
+
+	private static ClassLoader impl;
+	private static UnsafeRunnable shutdown;
+
+	private static ClassLoader loadImpl() throws Throwable {
+<span class="fc" id="L68">		final var url = Bootstrap.class.getClassLoader().getResource(&quot;iu-java-auth-impl-bundle.jar&quot;);</span>
+<span class="fc" id="L69">		final var uc = url.openConnection();</span>
+<span class="fc" id="L70">		uc.setUseCaches(false);</span>
+
+<span class="fc" id="L72">		class Box {</span>
+<span class="fc" id="L73">			Path primary = null;</span>
+<span class="fc" id="L74">			final Queue&lt;URL&gt; utilDeps = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L75">			final Deque&lt;Path&gt; moduleDeps = new ArrayDeque&lt;&gt;();</span>
+		}
+<span class="fc" id="L77">		final var box = new Box();</span>
+<span class="fc" id="L78">		final var cleanUtils = TemporaryFile.init(() -&gt; {</span>
+<span class="fc" id="L79">			try (final var in = uc.getInputStream(); final var jar = new JarInputStream(in)) {</span>
+				JarEntry entry;
+<span class="fc bfc" id="L81" title="All 2 branches covered.">				while ((entry = jar.getNextJarEntry()) != null) {</span>
+<span class="fc" id="L82">					final var name = entry.getName();</span>
+<span class="fc" id="L83">					TemporaryFile.init(t -&gt; {</span>
+<span class="fc" id="L84">						try (final var out = Files.newOutputStream(t)) {</span>
+<span class="fc" id="L85">							IuStream.copy(jar, out);</span>
+						}
+
+<span class="fc bfc" id="L88" title="All 2 branches covered.">						if (&quot;iu-java-auth-impl.jar&quot;.equals(name))</span>
+<span class="fc" id="L89">							box.primary = t;</span>
+						else // if (name.endsWith(&quot;.jar&quot;))
+<span class="fc bfc" id="L91" title="All 2 branches covered.">						if (name.startsWith(&quot;jakarta.&quot;) //</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">								|| name.startsWith(&quot;iu-java-&quot;) //</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">								|| name.equals(&quot;parsson.jar&quot;))</span>
+<span class="fc" id="L94">							box.moduleDeps.add(t);</span>
+						else
+<span class="fc" id="L96">							box.utilDeps.add(t.toUri().toURL());</span>
+
+<span class="fc" id="L98">						return null;</span>
+					});
+<span class="fc" id="L100">				}</span>
+
+<span class="fc" id="L102">				box.moduleDeps.addFirst(box.primary);</span>
+			}
+<span class="fc" id="L104">		});</span>
+
+<span class="fc" id="L106">		final var filter = new FilteringClassLoader( //</span>
+<span class="fc" id="L107">				Set.of(&quot;edu.iu&quot;, &quot;edu.iu.auth&quot;, &quot;edu.iu.auth.basic&quot;, //</span>
+						&quot;edu.iu.auth.oauth&quot;, &quot;edu.iu.auth.oidc&quot;, &quot;edu.iu.auth.spi&quot;, &quot;javax.security.auth&quot;),
+<span class="fc" id="L109">				Bootstrap.class.getClassLoader());</span>
+
+<span class="fc" id="L111">		final var parent = new URLClassLoader(box.utilDeps.toArray(URL[]::new), filter);</span>
+<span class="fc" id="L112">		final var impl = new ModularClassLoader(false, box.moduleDeps, Bootstrap.class.getModule().getLayer(), parent,</span>
+				c -&gt; {
+<span class="fc" id="L114">					final var jwtSupportModule = parent.getUnnamedModule();</span>
+<span class="fc" id="L115">					c.addReads(c.layer().findModule(&quot;iu.util.auth.oidc&quot;).get(), jwtSupportModule);</span>
+<span class="fc" id="L116">					c.addReads(c.layer().findModule(&quot;iu.util.auth.util&quot;).get(), jwtSupportModule);</span>
+<span class="fc" id="L117">				});</span>
+
+<span class="fc" id="L119">		shutdown = () -&gt; {</span>
+<span class="fc" id="L120">			impl.close();</span>
+<span class="fc" id="L121">			parent.close();</span>
+<span class="fc" id="L122">			cleanUtils.run();</span>
+<span class="fc" id="L123">			Bootstrap.impl = null;</span>
+<span class="fc" id="L124">		};</span>
+
+<span class="fc" id="L126">		return impl;</span>
+	}
+
+	static {
+<span class="fc" id="L130">		impl = IuException.unchecked(Bootstrap::loadImpl);</span>
+<span class="fc" id="L131">	}</span>
+
+	/**
+	 * Loads a service interface using bootstrapped class loader.
+	 * 
+	 * @param &lt;T&gt;              service type
+	 * @param serviceInterface service interface
+	 * @return SPI implementation
+	 */
+	static &lt;T&gt; T load(Class&lt;T&gt; serviceInterface) {
+<span class="fc" id="L141">		class Handler implements InvocationHandler {</span>
+			private Reference&lt;T&gt; delegate;
+
+			@Override
+			public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+<span class="fc bfc" id="L146" title="All 2 branches covered.">				if (impl == null)</span>
+<span class="fc" id="L147">					throw new IllegalStateException(&quot;iu.util.auth.impl closed&quot;);</span>
+
+				final T delegate;
+				{
+<span class="fc" id="L151">					T d = null;</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">					if (this.delegate != null)</span>
+<span class="fc" id="L153">						d = this.delegate.get();</span>
+
+<span class="fc bfc" id="L155" title="All 2 branches covered.">					if (d == null) {</span>
+<span class="fc" id="L156">						d = ServiceLoader.load(serviceInterface, Objects.requireNonNull(impl)).findFirst().get();</span>
+<span class="fc" id="L157">						this.delegate = new WeakReference&lt;&gt;(d);</span>
+					}
+
+<span class="fc" id="L160">					delegate = d;</span>
+				}
+
+<span class="fc" id="L163">				return IuException.checkedInvocation(() -&gt; method.invoke(delegate, args));</span>
+			}
+		}
+<span class="fc" id="L166">		return serviceInterface.cast(Proxy.newProxyInstance(serviceInterface.getClassLoader(),</span>
+				new Class&lt;?&gt;[] { serviceInterface }, new Handler()));
+	}
+
+	/**
+	 * Tears down the auth implementation module.
+	 * &lt;p&gt;
+	 * &lt;em&gt;May&lt;/em&gt; only be accessed programmatically or by JVM args, by the
+	 * component in control of bootstrapping authentication.
+	 * &lt;/p&gt;
+	 */
+	static synchronized void shutdown() {
+<span class="fc bfc" id="L178" title="All 2 branches covered.">		if (shutdown != null) {</span>
+<span class="fc" id="L179">			IuException.unchecked(shutdown);</span>
+<span class="fc" id="L180">			shutdown = null;</span>
+		}
+<span class="fc" id="L182">	}</span>
+
+	private Bootstrap() {
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
