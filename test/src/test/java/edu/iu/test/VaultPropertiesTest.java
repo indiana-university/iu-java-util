@@ -93,7 +93,7 @@ public class VaultPropertiesTest {
 		final var token = IdGenerator.generateId();
 		System.setProperty("vault.token", token);
 		System.setProperty("vault.endpoint", "test:vault.endpoint");
-		System.setProperty("vault.secrets", "a/b,a/c");
+		System.setProperty("vault.secrets", "a/b,a/c,a/d,a/e");
 		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
 				final var mockHttpClient = mockStatic(HttpClient.class)) {
 
@@ -115,17 +115,29 @@ public class VaultPropertiesTest {
 			when(responsec.statusCode()).thenReturn(200);
 			when(responsec.body())
 					.thenReturn(new ByteArrayInputStream("{\"data\":{\"data\":{\"bar\":\"baz\"}}}".getBytes()));
-			when(client.send(mockRequest, BodyHandlers.ofInputStream())).thenReturn(responseb, responsec);
+			final var responsed = mock(HttpResponse.class);
+			when(responsed.statusCode()).thenReturn(200);
+			when(responsed.body())
+					.thenReturn(new ByteArrayInputStream("{\"data\":{\"data\":{\"num\":42}}}".getBytes()));
+			final var responsee = mock(HttpResponse.class);
+			when(responsee.statusCode()).thenReturn(200);
+			when(responsee.body())
+					.thenReturn(new ByteArrayInputStream("{\"data\":{\"data\":{\"bool\":true}}}".getBytes()));
+			when(client.send(mockRequest, BodyHandlers.ofInputStream())).thenReturn(responseb, responsec, responsed, responsee);
 			mockHttpClient.when(() -> HttpClient.newHttpClient()).thenReturn(client);
 
 			assertEquals("bar", VaultProperties.getProperty("foo"));
 			assertEquals("baz", VaultProperties.getProperty("bar"));
+			assertEquals("42", VaultProperties.getProperty("num"));
+			assertEquals("true", VaultProperties.getProperty("bool"));
 			assertThrows(IllegalArgumentException.class, () -> VaultProperties.getProperty("baz"));
 
-			verify(mockHttpRequestBuilder, times(2)).GET();
+			verify(mockHttpRequestBuilder, times(4)).GET();
 			verify(mockHttpRequestBuilder).uri(new URI("test:vault.endpoint/data/a/b"));
 			verify(mockHttpRequestBuilder).uri(new URI("test:vault.endpoint/data/a/c"));
-			verify(mockHttpRequestBuilder, times(2)).header("Authorization", "Bearer " + token);
+			verify(mockHttpRequestBuilder).uri(new URI("test:vault.endpoint/data/a/d"));
+			verify(mockHttpRequestBuilder).uri(new URI("test:vault.endpoint/data/a/e"));
+			verify(mockHttpRequestBuilder, times(4)).header("Authorization", "Bearer " + token);
 		} finally {
 			System.getProperties().remove("vault.token");
 			System.getProperties().remove("vault.endpoint");
@@ -178,7 +190,7 @@ public class VaultPropertiesTest {
 			final var response = mock(HttpResponse.class);
 			when(response.statusCode()).thenReturn(200);
 			when(response.body()).thenReturn(
-					new ByteArrayInputStream("{\"data\":{\"data\":{\"foo\":\"bar\",\"bar\":\"baz\"}}}".getBytes()));
+					new ByteArrayInputStream("{\"data\":{\"data\":{\"foo\":\"bar\",\"bar\":\"baz\",\"num\":42,\"bool\":true}}}".getBytes()));
 			when(client.send(mockRequest, BodyHandlers.ofInputStream())).thenReturn(response);
 
 			mockHttpClient.when(() -> HttpClient.newHttpClient()).thenReturn(loginClient, client);
@@ -187,6 +199,8 @@ public class VaultPropertiesTest {
 
 			assertEquals("bar", VaultProperties.getProperty("foo"));
 			assertEquals("baz", VaultProperties.getProperty("bar"));
+			assertEquals("42", VaultProperties.getProperty("num"));
+			assertEquals("true", VaultProperties.getProperty("bool"));
 			assertThrows(IllegalArgumentException.class, () -> VaultProperties.getProperty("baz"));
 
 			verify(mockLoginHttpRequestBuilder).uri(new URI("test:vault.loginEndpoint"));
