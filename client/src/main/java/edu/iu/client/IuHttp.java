@@ -37,15 +37,17 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
-import java.util.ArrayDeque;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Queue;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import edu.iu.IuException;
+import edu.iu.IuObject;
 import edu.iu.IuRuntimeEnvironment;
 import edu.iu.IuWebUtils;
 
@@ -62,20 +64,13 @@ public class IuHttp {
 
 	private static final Logger LOG = Logger.getLogger(IuHttp.class.getName());
 
-	private static final Collection<URI> ALLOWED_URI;
-	private static final HttpClient HTTP = HttpClient.newHttpClient();
-
 	static {
-		final var module = IuHttp.class.getModule();
-		if (module.isOpen(IuHttp.class.getPackageName()))
-			throw new IllegalStateException("Must be in a named module and not open");
-
-		final Queue<URI> allowedUri = new ArrayDeque<>();
-		for (final var uri : IuRuntimeEnvironment.env("iu-client.allowedUri").split(","))
-			allowedUri.add(URI.create(uri));
-
-		ALLOWED_URI = Collections.unmodifiableCollection(allowedUri);
+		IuObject.assertNotOpen(IuHttp.class);
 	}
+
+	private static final Collection<URI> ALLOWED_URI = IuRuntimeEnvironment.env("iu.http.allowedUri",
+			a -> Stream.of(a.split(",")).map(URI::create).collect(Collectors.toUnmodifiableList()));
+	private static final HttpClient HTTP = HttpClient.newHttpClient();
 
 	/**
 	 * Sends an HTTP GET request to a public URI.
@@ -90,7 +85,23 @@ public class IuHttp {
 	}
 
 	/**
-	 * Sends an HTTP request.
+	 * Sends an HTTP GET request to a public URI.
+	 * 
+	 * @param <T>             response type
+	 * 
+	 * @param uri             public URI
+	 * @param responseHandler function that converts HTTP response data to the
+	 *                        response type.
+	 * 
+	 * @return response value
+	 * @throws HttpException If the response has error status code.
+	 */
+	public static <T> T get(URI uri, Function<HttpResponse<InputStream>, T> responseHandler) throws HttpException {
+		return responseHandler.apply(get(uri));
+	}
+
+	/**
+	 * Sends a synchronous HTTP request.
 	 * 
 	 * @param uri             request URI
 	 * @param requestConsumer receives the {@link HttpRequest.Builder} before
@@ -104,7 +115,7 @@ public class IuHttp {
 		if (!ALLOWED_URI.stream().anyMatch(allowedUri -> IuWebUtils.isRootOf(allowedUri, uri)))
 			throw new IllegalArgumentException();
 
-		return IuException.unchecked(() -> {
+		return IuException.checked(HttpException.class, () -> {
 			final var requestBuilder = HttpRequest.newBuilder(uri);
 			if (requestConsumer != null)
 				requestConsumer.accept(requestBuilder);
@@ -114,11 +125,10 @@ public class IuHttp {
 			sb.append(request.method());
 			sb.append(' ').append(request.uri());
 			final var requestHeaders = request.headers();
-			if (requestHeaders != null) {
-				final var map = requestHeaders.map();
-				if (!map.isEmpty())
-					sb.append(' ').append(map.keySet());
-			}
+			final var requestHeaderMap = requestHeaders.map();
+			if (!requestHeaderMap.isEmpty())
+				// TODO: apply security filter
+				sb.append(' ').append(requestHeaderMap.keySet());
 
 			final HttpResponse<InputStream> response;
 			try {
@@ -133,19 +143,80 @@ public class IuHttp {
 			sb.append(" ").append(IuWebUtils.describeStatus(status));
 
 			final var responseHeaders = response.headers();
-			if (responseHeaders != null)
-				sb.append(' ').append(responseHeaders);
+			final var responseHeaderMap = responseHeaders.map();
+			if (!responseHeaderMap.isEmpty())
+				// TODO: apply security filter
+				sb.append(' ').append(responseHeaderMap.keySet());
 
-			if (response.statusCode() >= 400)
-				throw new HttpException(response, sb.toString());
-			else
+			if (response.statusCode() >= 400) {
+				final var m = sb.toString();
+				final var e = new HttpException(response, m);
+				LOG.log(Level.INFO, m, e);
+				throw e;
+			} else
 				LOG.fine(sb::toString);
 
 			return response;
 		});
 	}
 
-	private IuHttp() {
+	/**
+	 * Sends a synchronous HTTP request expecting 200 OK and accepting all response
+	 * headers.
+	 * 
+	 * @param <T>             response type
+	 * 
+	 * @param uri             request URI
+	 * @param requestConsumer receives the {@link HttpRequest.Builder} before
+	 *                        sending to the server.
+	 * @param responseHandler function that converts HTTP response data to the
+	 *                        response type.
+	 * 
+	 * @return response value
+	 * @throws HttpException If the response has error status code.
+	 */
+	public static <T> T send(URI uri, Consumer<HttpRequest.Builder> requestConsumer,
+			Function<HttpResponse<InputStream>, T> responseHandler) throws HttpException {
+		return send(uri, requestConsumer, 200, (a, b) -> true, responseHandler);
 	}
 
+	/**
+	 * Sends a synchronous HTTP request.
+	 * 
+	 * @param <T>                     response type
+	 * 
+	 * @param uri                     request URI
+	 * @param requestConsumer         receives the {@link HttpRequest.Builder}
+	 *                                before sending to the server.
+	 * @param expectedStatusCode      expected status code
+	 * @param responseHeaderValidator receives each response header name/value pair;
+	 *                                returns true if the header is valid for the
+	 *                                response, false if invalid
+	 * @param responseHandler         function that converts HTTP response data to
+	 *                                the response type.
+	 * 
+	 * @return response value
+	 * @throws HttpException If the response has error status code.
+	 */
+	public static <T> T send(URI uri, Consumer<HttpRequest.Builder> requestConsumer, int expectedStatusCode,
+			BiPredicate<String, String> responseHeaderValidator, Function<HttpResponse<InputStream>, T> responseHandler)
+			throws HttpException {
+		final var response = send(uri, requestConsumer);
+
+		if (response.statusCode() != expectedStatusCode)
+			throw new HttpException(response, "Expected " + IuWebUtils.describeStatus(expectedStatusCode) + ", found "
+					+ IuWebUtils.describeStatus(response.statusCode()));
+
+		for (final var headerEntry : response.headers().map().entrySet()) {
+			final var name = headerEntry.getKey();
+			for (final var value : headerEntry.getValue())
+				if (!responseHeaderValidator.test(name, value))
+					throw new HttpException(response, "Invalid header " + name);
+		}
+
+		return responseHandler.apply(response);
+	}
+
+	private IuHttp() {
+	}
 }

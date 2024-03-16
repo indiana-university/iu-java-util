@@ -71,8 +71,8 @@ import edu.iu.auth.oauth.IuBearerAuthCredentials;
 import edu.iu.auth.oidc.IuOpenIdClaim;
 import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
+import edu.iu.client.IuVault;
 import edu.iu.test.IuTestLogger;
-import edu.iu.test.VaultProperties;
 
 @EnabledIf("edu.iu.test.VaultProperties#isConfigured")
 @SuppressWarnings("javadoc")
@@ -92,11 +92,11 @@ public class OpenIDConnectIT {
 
 	@BeforeAll
 	public static void setupClass() throws URISyntaxException {
-		configUri = new URI(VaultProperties.getProperty("iu.auth.oidc.configUrl"));
-		clientId = VaultProperties.getProperty("iu.auth.oidc.clientId");
-		clientSecret = VaultProperties.getProperty("iu.auth.oidc.clientSecret");
-		redirectUri = new URI(VaultProperties.getProperty("iu.auth.oidc.redirectUri"));
-		resourceUri = new URI(VaultProperties.getProperty("iu.auth.oidc.resourceUri"));
+		configUri = new URI(IuVault.getProperty("iu.auth.oidc.configUrl"));
+		clientId = IuVault.getProperty("iu.auth.oidc.clientId");
+		clientSecret = IuVault.getProperty("iu.auth.oidc.clientSecret");
+		redirectUri = new URI(IuVault.getProperty("iu.auth.oidc.redirectUri"));
+		resourceUri = new URI(IuVault.getProperty("iu.auth.oidc.resourceUri"));
 		provider = IuOpenIdProvider.from(configUri, new IuOpenIdClient() {
 			@Override
 			public Duration getTrustRefreshInterval() {
@@ -240,8 +240,8 @@ public class OpenIDConnectIT {
 		assertEquals("POST", parsedLoginForm.attr("method").toUpperCase());
 
 		final var loginFormParams = new LinkedHashMap<String, Iterable<String>>();
-		loginFormParams.put("j_username", List.of(VaultProperties.getProperty("test.username")));
-		loginFormParams.put("j_password", List.of(VaultProperties.getProperty("test.password")));
+		loginFormParams.put("j_username", List.of(IuVault.getProperty("test.username")));
+		loginFormParams.put("j_password", List.of(IuVault.getProperty("test.password")));
 		loginFormParams.put("_eventId_proceed", List.of(""));
 		final var loginFormQuery = IuWebUtils.createQueryString(loginFormParams);
 

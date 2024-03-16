@@ -29,32 +29,31 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.test;
+package edu.iu.client;
 
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
-import java.net.http.HttpResponse.BodyHandlers;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
 
 import edu.iu.IuException;
+import edu.iu.IuObject;
 import edu.iu.IuRuntimeEnvironment;
-import edu.iu.IuStream;
-import jakarta.json.Json;
 import jakarta.json.JsonObject;
-import jakarta.json.JsonObjectBuilder;
-import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
 /**
  * Provides access to secrets stored in HashiCorp Vault.
+ * 
  * <p>
  * Expects {@link System#getProperty(String) system properties} (or
  * {@link System#getenv(String)}) variables if missing:
  * </p>
+ * 
  * <dl>
  * <dt>vault.secrets (VAULT_SECRETS)</dt>
  * <dd>Comma-separated list of secrets to read from the Vault K/V store</dd>
@@ -79,9 +78,20 @@ import jakarta.json.JsonValue;
  * {@code VAULT_TOKEN} are populated, then approle properties will be skipped
  * </p>
  */
-public class VaultProperties {
+public class IuVault {
+
+	static {
+		IuObject.assertNotOpen(IuVault.class);
+	}
 
 	private static final Map<String, JsonObject> SECRETS = new HashMap<>();
+	private static final URI ENDPOINT = IuRuntimeEnvironment.envOptional("iu.vault.endpoint", URI::create);
+	private static final String[] SECRET_NAMES = IuRuntimeEnvironment.envOptional("iu.vault.secrets",
+			a -> a.split(","));
+	private static final String TOKEN = IuRuntimeEnvironment.envOptional("iu.vault.token");
+	private static final URI LOGINENDPOINT = IuRuntimeEnvironment.envOptional("iu.vault.loginEndpoint", URI::create);
+	private static final String ROLEID = IuRuntimeEnvironment.envOptional("iu.vault.roleId");
+	private static final String SECRETID = IuRuntimeEnvironment.envOptional("iu.vault.secretId");
 
 	/**
 	 * Determines whether or not Vault is configured.
@@ -96,55 +106,49 @@ public class VaultProperties {
 	 * @return true if Vault is configured; else false
 	 */
 	public static boolean isConfigured() {
-		return IuRuntimeEnvironment.envOptional("vault.secrets") != null;
+		return SECRET_NAMES != null;
 	}
 
 	/**
-	 * Reads a property value from a Vault secret. All value types are returned as
-	 * String.
+	 * Reads a property value from a Vault secret.
+	 * 
+	 * @param <T>                 value type
+	 * @param name                property name
+	 * @param jsonToValueFunction converts the property value to the value type
+	 * @return property value
+	 */
+	public static <T> T get(String name, Function<JsonValue, T> jsonToValueFunction) {
+		return jsonToValueFunction.apply(get(name));
+	}
+
+	/**
+	 * Reads a property value from a Vault secret.
 	 * 
 	 * @param name property name
 	 * @return property value
 	 */
-	public static String getProperty(String name) {
-		final var secrets = IuRuntimeEnvironment.env("vault.secrets").split(",");
-		for (String secret : secrets) {
-			final var data = IuException.unchecked(() -> getSecret(secret));
-			if (data.containsKey(name)) {
-				JsonValue value = data.get(name);
-				if (value.getValueType() == JsonValue.ValueType.STRING)
-					return ((JsonString) value).getString();
-
-				return value.toString();
+	public static JsonValue get(String name) {
+		if (SECRET_NAMES != null)
+			for (String secret : SECRET_NAMES) {
+				final var data = getSecret(secret);
+				if (data.containsKey(name))
+					return data.get(name);
 			}
-		}
-		throw new IllegalArgumentException(name + " not found in Vault using "
-				+ IuRuntimeEnvironment.env("vault.endpoint") + "/data/" + Arrays.toString(secrets));
+
+		throw new IllegalArgumentException(
+				name + " not found in Vault using " + ENDPOINT + "/data/" + Arrays.toString(SECRET_NAMES));
 	}
 
-	private static JsonObject getSecret(String secret) throws Exception {
+	private static JsonObject getSecret(String secret) {
 		var cachedSecret = SECRETS.get(secret);
 		if (cachedSecret != null)
 			return cachedSecret;
 
-		final var request = HttpRequest.newBuilder().GET() //
-				.uri(new URI(IuRuntimeEnvironment.env("vault.endpoint") + "/data/" + secret)) //
-				.header("Authorization", "Bearer " + getAccessToken()) //
-				.build();
+		final var data = IuException
+				.unchecked(
+						() -> IuHttp.send(URI.create(ENDPOINT + "/data/" + secret), IuVault::authorize, IuJson::parse))
+				.asJsonObject().getJsonObject("data").getJsonObject("data");
 
-		final var response = HttpClient.newHttpClient().send(request, BodyHandlers.ofInputStream());
-
-		final var status = response.statusCode();
-		if (status != 200)
-			throw new IllegalStateException("Unexpected response from Vault; status=" + status + "; request=" + request
-					+ "; body " + new String(IuStream.read(response.body()), "UTF-8"));
-
-		JsonObject content;
-		try (final var body = response.body()) {
-			content = Json.createReader(body).readObject();
-		}
-
-		final var data = content.getJsonObject("data").getJsonObject("data");
 		synchronized (SECRETS) {
 			SECRETS.put(secret, data);
 		}
@@ -152,32 +156,28 @@ public class VaultProperties {
 		return data;
 	}
 
-	private static String getAccessToken() throws Exception {
-		var accessToken = IuRuntimeEnvironment.envOptional("vault.token");
-		if (accessToken == null) {
-			final var loginEndpoint = new URI(IuRuntimeEnvironment.env("vault.loginEndpoint"));
-
-			JsonObjectBuilder payload = Json.createObjectBuilder();
-			payload.add("role_id", IuRuntimeEnvironment.env("vault.roleId"));
-			payload.add("secret_id", IuRuntimeEnvironment.env("vault.secretId"));
-
-			final var requestBuilder = HttpRequest.newBuilder() //
-					.uri(loginEndpoint) //
-					.POST(BodyPublishers.ofString(payload.build().toString())) //
-					.header("Content-Type", "application/json; charset=utf-8");
-
-			JsonObject content;
-			try (final var response = HttpClient.newHttpClient()
-					.send(requestBuilder.build(), BodyHandlers.ofInputStream()).body()) {
-				content = Json.createReader(response).readObject();
-			}
-
-			accessToken = content.getJsonObject("auth").getString("client_token");
-		}
-		return accessToken;
+	private static void approle(HttpRequest.Builder dataRequestBuilder) {
+		final var payload = IuJson.PROVIDER.createObjectBuilder();
+		payload.add("role_id", Objects.requireNonNull(ROLEID, "Missing vault.roleId"));
+		payload.add("secret_id", Objects.requireNonNull(SECRETID, "Missing vault.loginEndpoint"));
+		dataRequestBuilder.POST(BodyPublishers.ofString(payload.build().toString()));
+		dataRequestBuilder.header("Content-Type", "application/json; charset=utf-8");
 	}
 
-	private VaultProperties() {
+	private static void authorize(HttpRequest.Builder dataRequestBuilder) {
+		var accessToken = TOKEN;
+
+		if (accessToken == null)
+			accessToken = IuException
+					.unchecked(() -> IuHttp
+							.send(Objects.requireNonNull(LOGINENDPOINT, "Missing vault.loginEndpoint"),
+									IuVault::approle, IuJson::parse)
+							.asJsonObject().getJsonObject("auth").getString("client_token"));
+
+		dataRequestBuilder.header("Authorization", "Bearer " + accessToken);
+	}
+
+	private IuVault() {
 	}
 
 }

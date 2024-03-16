@@ -60,6 +60,7 @@ public final class IuWebUtils {
 	public static boolean isRootOf(URI rootUri, URI resourceUri) {
 		if (rootUri.equals(resourceUri))
 			return true;
+
 		if (!resourceUri.isAbsolute() //
 				|| resourceUri.isOpaque() //
 				|| !IuObject.equals(rootUri.getScheme(), resourceUri.getScheme()) //
@@ -70,7 +71,8 @@ public final class IuWebUtils {
 		final var resource = resourceUri.getPath();
 		final var l = root.length();
 		return resource.startsWith(root) //
-				&& (root.charAt(l - 1) == '/' //
+				&& (!root.isEmpty() && //
+						root.charAt(l - 1) == '/' //
 						|| resource.charAt(l) == '/');
 	}
 
