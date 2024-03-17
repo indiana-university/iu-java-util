@@ -234,6 +234,7 @@ public class IuJson {
 	/**
 	 * Adds a value to an object builder.
 	 * 
+	 * @param <T>                 value type
 	 * @param builder             {@link JsonObjectBuilder}
 	 * @param nameFilter          filter predicate, builder will only be modified if
 	 *                            nameFilter.test(name) returns true
@@ -275,6 +276,7 @@ public class IuJson {
 	/**
 	 * Adds a string value to an object builder.
 	 * 
+	 * @param <T>                 value type
 	 * @param builder             JSON object builder
 	 * @param valueSupplier       value supplier
 	 * @param valueToJsonFunction function that converts the supplied value to

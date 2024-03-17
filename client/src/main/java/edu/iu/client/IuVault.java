@@ -145,8 +145,8 @@ public class IuVault {
 			return cachedSecret;
 
 		final var data = IuException
-				.unchecked(
-						() -> IuHttp.send(URI.create(ENDPOINT + "/data/" + secret), IuVault::authorize, IuJson::parse))
+				.unchecked(() -> IuHttp.send(URI.create(ENDPOINT + "/data/" + secret), IuVault::authorize,
+						IuHttp.validate(IuJson::parse, IuHttp.OK)))
 				.asJsonObject().getJsonObject("data").getJsonObject("data");
 
 		synchronized (SECRETS) {

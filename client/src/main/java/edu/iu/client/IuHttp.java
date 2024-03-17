@@ -40,7 +40,6 @@ import java.net.http.HttpResponse.BodyHandlers;
 import java.util.Collection;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -70,7 +69,63 @@ public class IuHttp {
 
 	private static final Collection<URI> ALLOWED_URI = IuRuntimeEnvironment.env("iu.http.allowedUri",
 			a -> Stream.of(a.split(",")).map(URI::create).collect(Collectors.toUnmodifiableList()));
+
 	private static final HttpClient HTTP = HttpClient.newHttpClient();
+
+	/**
+	 * Validates a 200 OK response.
+	 */
+	public static final HttpResponseValidator OK = expectStatus(200);
+
+	/**
+	 * Prepends validation logic to an HTTP response handler.
+	 * 
+	 * @param <T>                value type
+	 * @param responseHandler    response handler
+	 * @param responseValidators one or more verification checks to apply to the
+	 *                           response before passing to the handler
+	 * @return decorated response handler
+	 */
+	public static <T> HttpResponseHandler<T> validate(HttpResponseHandler<T> responseHandler,
+			HttpResponseValidator... responseValidators) {
+		return response -> {
+			for (final var responseValidator : responseValidators)
+				responseValidator.accept(response);
+			return responseHandler.apply(response);
+		};
+	}
+
+	/**
+	 * Gets a {@link HttpResponseValidator} that verifies an expected status code.
+	 * 
+	 * @param expectedStatusCode status code
+	 * @return {@link HttpResponseValidator}
+	 */
+	public static HttpResponseValidator expectStatus(int expectedStatusCode) {
+		return response -> {
+			final var statusCode = response.statusCode();
+			if (statusCode != expectedStatusCode)
+				throw new HttpException(response, "Expected " + IuWebUtils.describeStatus(expectedStatusCode)
+						+ ", found " + IuWebUtils.describeStatus(statusCode));
+		};
+	}
+
+	/**
+	 * Gets a {@link HttpResponseValidator} that tests response headers.
+	 * 
+	 * @param headerValidator test response headers
+	 * @return {@link HttpResponseValidator}
+	 */
+	public static HttpResponseValidator checkHeaders(BiPredicate<String, String> headerValidator) {
+		return response -> {
+			for (final var headerEntry : response.headers().map().entrySet()) {
+				final var name = headerEntry.getKey();
+				for (final var value : headerEntry.getValue())
+					if (!headerValidator.test(name, value))
+						throw new HttpException(response, "Invalid header " + name);
+			}
+		};
+	}
 
 	/**
 	 * Sends an HTTP GET request to a public URI.
@@ -96,8 +151,8 @@ public class IuHttp {
 	 * @return response value
 	 * @throws HttpException If the response has error status code.
 	 */
-	public static <T> T get(URI uri, Function<HttpResponse<InputStream>, T> responseHandler) throws HttpException {
-		return responseHandler.apply(get(uri));
+	public static <T> T get(URI uri, HttpResponseHandler<T> responseHandler) throws HttpException {
+		return responseHandler.apply(send(uri, null));
 	}
 
 	/**
@@ -176,45 +231,8 @@ public class IuHttp {
 	 * @throws HttpException If the response has error status code.
 	 */
 	public static <T> T send(URI uri, Consumer<HttpRequest.Builder> requestConsumer,
-			Function<HttpResponse<InputStream>, T> responseHandler) throws HttpException {
-		return send(uri, requestConsumer, 200, (a, b) -> true, responseHandler);
-	}
-
-	/**
-	 * Sends a synchronous HTTP request.
-	 * 
-	 * @param <T>                     response type
-	 * 
-	 * @param uri                     request URI
-	 * @param requestConsumer         receives the {@link HttpRequest.Builder}
-	 *                                before sending to the server.
-	 * @param expectedStatusCode      expected status code
-	 * @param responseHeaderValidator receives each response header name/value pair;
-	 *                                returns true if the header is valid for the
-	 *                                response, false if invalid
-	 * @param responseHandler         function that converts HTTP response data to
-	 *                                the response type.
-	 * 
-	 * @return response value
-	 * @throws HttpException If the response has error status code.
-	 */
-	public static <T> T send(URI uri, Consumer<HttpRequest.Builder> requestConsumer, int expectedStatusCode,
-			BiPredicate<String, String> responseHeaderValidator, Function<HttpResponse<InputStream>, T> responseHandler)
-			throws HttpException {
-		final var response = send(uri, requestConsumer);
-
-		if (response.statusCode() != expectedStatusCode)
-			throw new HttpException(response, "Expected " + IuWebUtils.describeStatus(expectedStatusCode) + ", found "
-					+ IuWebUtils.describeStatus(response.statusCode()));
-
-		for (final var headerEntry : response.headers().map().entrySet()) {
-			final var name = headerEntry.getKey();
-			for (final var value : headerEntry.getValue())
-				if (!responseHeaderValidator.test(name, value))
-					throw new HttpException(response, "Invalid header " + name);
-		}
-
-		return responseHandler.apply(response);
+			HttpResponseHandler<T> responseHandler) throws HttpException {
+		return responseHandler.apply(send(uri, requestConsumer));
 	}
 
 	private IuHttp() {

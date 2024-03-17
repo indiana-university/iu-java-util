@@ -1,5 +1,6 @@
 package edu.iu.client;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -78,6 +79,35 @@ public class IuHttpTest {
 		logHandler = null;
 	}
 
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testOk() {
+		final var response = mock(HttpResponse.class);
+		when(response.statusCode()).thenReturn(200, 201);
+		assertDoesNotThrow(() -> IuHttp.OK.accept(response));
+		assertThrows(HttpException.class, () -> IuHttp.OK.accept(response));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testCheckHeaders() {
+		final var response = mock(HttpResponse.class);
+		when(response.headers()).thenReturn(HttpHeaders.of(Map.of("foo", List.of("bar", "baz")), (a, b) -> true));
+		assertDoesNotThrow(() -> IuHttp.checkHeaders((n, v) -> n.equals("foo")).accept(response));
+		assertThrows(HttpException.class, () -> IuHttp.checkHeaders((n, v) -> v.equals("bar")).accept(response));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testValidate() {
+		final var response = mock(HttpResponse.class);
+		final var validator = mock(HttpResponseValidator.class);
+		final var handler = mock(HttpResponseHandler.class);
+		assertDoesNotThrow(() -> IuHttp.validate(handler, validator).apply(response));
+		assertDoesNotThrow(() -> verify(validator).accept(response));
+		assertDoesNotThrow(() -> verify(handler).apply(response));
+	}
+
 	@Test
 	public void testGetCallsSend() throws Exception {
 		try (final var mockHttp = mockStatic(IuHttp.class)) {
@@ -110,7 +140,10 @@ public class IuHttpTest {
 			when(response.headers()).thenReturn(HttpHeaders.of(Map.of(), (a, b) -> true));
 			when(http.send(eq(request), any(BodyHandler.class))).thenReturn(response);
 
-			assertSame(response, IuHttp.get(TEST_URI));
+			final var body = new Object();
+			final var handler = mock(HttpResponseHandler.class);
+			when(handler.apply(response)).thenReturn(body);
+			assertSame(body, IuHttp.get(TEST_URI, handler));
 			verify(logHandler).publish(argThat(r -> {
 				assertEquals(Level.FINE, r.getLevel());
 				assertEquals("GET " + TEST_URI + " 200 OK", r.getMessage());
@@ -146,7 +179,10 @@ public class IuHttpTest {
 
 			when(http.send(eq(request), any(BodyHandler.class))).thenReturn(response);
 
-			assertSame(response, IuHttp.send(TEST_URI, mockConsumer));
+			final var body = new Object();
+			final var handler = mock(HttpResponseHandler.class);
+			when(handler.apply(response)).thenReturn(body);
+			assertSame(body, IuHttp.send(TEST_URI, mockConsumer, handler));
 
 			verify(mockConsumer).accept(mockBuilder);
 			verify(logHandler).publish(argThat(r -> {

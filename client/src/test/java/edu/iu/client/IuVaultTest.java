@@ -41,22 +41,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublisher;
 import java.net.http.HttpRequest.BodyPublishers;
-import java.net.http.HttpResponse;
-import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -66,7 +59,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
@@ -139,6 +131,8 @@ public class IuVaultTest {
 		final var props = new Properties();
 		props.setProperty("iu.vault.secrets", "a");
 		assertEquals(with(props), IuVault.isConfigured());
+		if (!IuVault.isConfigured())
+			assertThrows(IllegalArgumentException.class, () -> IuVault.get("foo"));
 	}
 
 	@Test
@@ -215,48 +209,6 @@ public class IuVaultTest {
 			verify(loginBuilder).header("Content-Type", "application/json; charset=utf-8");
 
 			verify(dataBuilder).header("Authorization", "Bearer " + token);
-		}
-	}
-
-	@SuppressWarnings("unchecked")
-	@Test
-	@Disabled
-	public void testGetPropertiesFailure() throws IOException, InterruptedException, URISyntaxException {
-		final var token = IdGenerator.generateId();
-		System.setProperty("vault.token", token);
-		System.setProperty("vault.endpoint", "test:vault.endpoint");
-		System.setProperty("vault.secrets", "a/b");
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockHttpClient = mockStatic(HttpClient.class)) {
-
-			final var mockRequest = mock(HttpRequest.class);
-			final var mockHttpRequestBuilder = mock(HttpRequest.Builder.class, a -> {
-				if (a.getMethod().getName().equals("build"))
-					return mockRequest;
-				else
-					return a.getMock();
-			});
-			mockHttpRequest.when(() -> HttpRequest.newBuilder()).thenReturn(mockHttpRequestBuilder);
-
-			final var client = mock(HttpClient.class);
-			final var response = mock(HttpResponse.class);
-			when(response.statusCode()).thenReturn(401);
-			when(response.body()).thenReturn(new ByteArrayInputStream("{\"error\":\"unauthorized\"}".getBytes()));
-			when(client.send(mockRequest, BodyHandlers.ofInputStream())).thenReturn(response);
-			mockHttpClient.when(() -> HttpClient.newHttpClient()).thenReturn(client);
-
-			assertEquals(
-					"Unexpected response from Vault; status=401; request=" + mockRequest
-							+ "; body {\"error\":\"unauthorized\"}",
-					assertThrows(IllegalStateException.class, () -> IuVault.get("baz")).getMessage());
-
-			verify(mockHttpRequestBuilder).GET();
-			verify(mockHttpRequestBuilder).uri(new URI("test:vault.endpoint/data/a/b"));
-			verify(mockHttpRequestBuilder).header("Authorization", "Bearer " + token);
-		} finally {
-			System.getProperties().remove("vault.token");
-			System.getProperties().remove("vault.endpoint");
-			System.getProperties().remove("vault.secrets");
 		}
 	}
 
