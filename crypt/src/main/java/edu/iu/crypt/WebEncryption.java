@@ -15,8 +15,7 @@ public interface WebEncryption {
 	 * Encrypts data as JWE.
 	 * 
 	 * <p>
-	 * Includes standard algorithm (alg, enc) and key identification (jku, kid, x5u,
-	 * x5t, x5t#S256) parameters if provided, and all
+	 * Includes standard algorithm (alg, enc) parameters if provided, and all
 	 * {@link WebSignatureHeader#getCriticalExtendedParameters() critical
 	 * parameters}, as protected parameters.
 	 * </p>

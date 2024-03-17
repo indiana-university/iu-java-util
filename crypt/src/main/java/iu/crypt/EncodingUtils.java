@@ -5,12 +5,24 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 import edu.iu.IuException;
+import edu.iu.client.IuJson;
+import jakarta.json.JsonObject;
 
 /**
  * Provides basic internal binary encoding behavior for JSON web crypto
  * algorithms.
  */
 class EncodingUtils {
+
+	/**
+	 * Parses a JSON object from compact encoded form
+	 * 
+	 * @param data compact encoded JSON
+	 * @return {@link JsonObject}
+	 */
+	static JsonObject compactJson(String data) {
+		return IuJson.parse(utf8(base64Url(data))).asJsonObject();
+	}
 
 	/**
 	 * Iterates over segments in a JSON compact serialized structure.

@@ -1,7 +1,11 @@
 package iu.crypt;
 
+import java.io.InputStream;
 import java.util.Base64;
 import java.util.Iterator;
+
+import edu.iu.IuException;
+import edu.iu.IuStream;
 
 /**
  * Reads PEM-encoded key and/or certificate data.
@@ -26,6 +30,20 @@ final class PemEncoded {
 		 * X509 certificate.
 		 */
 		CERTIFICATE;
+	}
+
+	/**
+	 * Reads PEM-encoded key and/or certificate data.
+	 * 
+	 * @param in input stream of PEM-encoded key and/or certificate data, multiple
+	 *           entries may be concatenated
+	 * @return Parsed PEM-encoded data
+	 * @see <a href=
+	 *      "https://datatracker.ietf.org/doc/html/rfc4945#section-6.1">RFC-4945
+	 *      Section 6.1</a>
+	 */
+	static Iterator<PemEncoded> parse(InputStream in) {
+		return IuException.unchecked(() -> parse(EncodingUtils.utf8(IuStream.read(in))));
 	}
 
 	/**

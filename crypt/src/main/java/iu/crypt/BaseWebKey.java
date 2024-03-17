@@ -1,12 +1,7 @@
 package iu.crypt;
 
 import java.io.ByteArrayInputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse.BodyHandlers;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.PrivateKey;
@@ -24,17 +19,13 @@ import java.security.spec.RSAPublicKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.time.Duration;
 import java.util.ArrayDeque;
-import java.util.Collection;
 import java.util.Map;
 import java.util.Queue;
 
 import edu.iu.IuCacheMap;
 import edu.iu.IuCrypt;
 import edu.iu.IuException;
-import edu.iu.IuObject;
-import edu.iu.IuStream;
-import edu.iu.IuWebUtils;
-import edu.iu.UnsafeFunction;
+import edu.iu.client.IuHttp;
 import edu.iu.crypt.WebKey;
 
 /**
@@ -53,7 +44,7 @@ public class BaseWebKey implements WebKey {
 	 * @return {@link WebKey}
 	 */
 	public static Iterable<WebKey> readJwks(URI jwks) {
-		return read(jwks, Jwk::readJwks);
+		return IuException.unchecked(() -> IuHttp.get(jwks, IuHttp.validate(Jwk::readJwks, IuHttp.OK)));
 	}
 
 	/**
@@ -87,7 +78,7 @@ public class BaseWebKey implements WebKey {
 			CERT_CACHE.put(uri, chain = IuException.unchecked(() -> {
 				final var certFactory = CertificateFactory.getInstance("X.509");
 				final Queue<X509Certificate> c = new ArrayDeque<>();
-				final var pem = PemEncoded.parse(read(uri, IuStream::read));
+				final var pem = IuHttp.get(uri, IuHttp.validate(PemEncoded::parse, IuHttp.OK));
 				while (pem.hasNext()) {
 					final var n = pem.next();
 					if (!PemEncoded.KeyType.CERTIFICATE.equals(n.keyType))
@@ -345,56 +336,6 @@ public class BaseWebKey implements WebKey {
 				}
 			};
 		});
-	}
-
-	/**
-	 * Gets a consistent calculated hash code for a web key.
-	 * 
-	 * @param key web key
-	 * @return calculated hash code
-	 */
-	public static int hashCode(WebKey key) {
-		return IuObject.hashCode(key.getType(), key.getUse(), key.getKey(), key.getPrivateKey(), key.getPublicKey(),
-				key.getOps(), key.getAlgorithm(), key.getId(), key.getCertificateUri(), key.getCertificateChain(),
-				key.getCertificateThumbprint(), key.getCertificateSha256Thumbprint());
-	}
-
-	/**
-	 * Determines if two web keys are equal.
-	 * 
-	 * @param key   web key
-	 * @param other another web key
-	 * @return true if both are null or represent the same key data; else false
-	 */
-	public static boolean equals(WebKey key, WebKey other) {
-		if (key == other)
-			return true;
-		if (key == null || other == null)
-			return false;
-		return IuObject.equals(key.getType(), other.getType()) //
-				&& IuObject.equals(key.getUse(), other.getUse()) //
-				&& IuObject.equals(key.getKey(), other.getKey()) //
-				&& IuObject.equals(key.getPrivateKey(), other.getPrivateKey()) //
-				&& IuObject.equals(key.getPublicKey(), other.getPublicKey()) //
-				&& IuObject.equals(key.getOps(), other.getOps()) //
-				&& IuObject.equals(key.getAlgorithm(), other.getAlgorithm()) //
-				&& IuObject.equals(key.getId(), other.getId()) //
-				&& IuObject.equals(key.getCertificateUri(), other.getCertificateUri()) //
-				&& IuObject.equals(key.getCertificateChain(), other.getCertificateChain()) //
-				&& IuObject.equals(key.getCertificateThumbprint(), other.getCertificateThumbprint()) //
-				&& IuObject.equals(key.getCertificateSha256Thumbprint(), other.getCertificateSha256Thumbprint());
-	}
-
-	@Override
-	public int hashCode() {
-		return hashCode(this);
-	}
-
-	@Override
-	public boolean equals(Object obj) {
-		if (!(obj instanceof WebKey))
-			return false;
-		return equals(this, (WebKey) obj);
 	}
 
 	@Override

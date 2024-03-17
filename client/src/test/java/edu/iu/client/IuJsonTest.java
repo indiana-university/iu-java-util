@@ -11,15 +11,22 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpResponse;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import jakarta.json.JsonArray;
+import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
@@ -44,6 +51,9 @@ public class IuJsonTest {
 		assertFalse(IuJson.<Boolean>toJava(JsonValue.FALSE));
 		assertNull(IuJson.toJava(JsonValue.NULL));
 		assertThrows(IllegalArgumentException.class, () -> IuJson.toJava(null));
+
+		assertEquals(id, IuJson.<Map<String, ?>>toJava(IuJson.object().add("id", id).build()).get("id"));
+		assertEquals(id, IuJson.<List<?>>toJava(IuJson.array().add(id).build()).get(0));
 	}
 
 	@Test
@@ -55,6 +65,7 @@ public class IuJsonTest {
 		assertEquals("false", IuJson.asText(JsonValue.FALSE));
 		assertNull(IuJson.asText(JsonValue.NULL));
 		assertThrows(IllegalArgumentException.class, () -> IuJson.asText(null));
+		assertEquals("a,1,true", IuJson.asText(IuJson.array().add("a").add(1).add(true).build()));
 	}
 
 	@Test
@@ -69,6 +80,10 @@ public class IuJsonTest {
 		assertSame(JsonValue.NULL, IuJson.toJson(JsonValue.NULL));
 		assertInstanceOf(JsonArray.class, IuJson.toJson(IuJson.PROVIDER.createArrayBuilder()));
 		assertInstanceOf(JsonObject.class, IuJson.toJson(IuJson.PROVIDER.createObjectBuilder()));
+		assertEquals(id, IuJson.toJson(Map.of("id", id)).asJsonObject().getString("id"));
+		assertEquals(id, IuJson.toJson(List.of(id)).asJsonArray().getString(0));
+		assertEquals(id, IuJson.toJson(Stream.of(id)).asJsonArray().getString(0));
+		assertEquals(id, IuJson.toJson(new String[] { id }).asJsonArray().getString(0));
 	}
 
 	@Test
@@ -161,4 +176,30 @@ public class IuJsonTest {
 		assertEquals("baz", IuJson.get(o, "bar", "baz"));
 	}
 
+	@Test
+	public void testSerialize() throws UnsupportedEncodingException {
+		final var out = new ByteArrayOutputStream();
+		IuJson.serialize(JsonValue.NULL, out);
+		assertEquals("null", new String(out.toByteArray(), "UTF-8"));
+	}
+
+	@Test
+	public void testArrayFactory() {
+		final var a = IuJson.array();
+		assertInstanceOf(JsonArrayBuilder.class, a);
+		a.add(1);
+		final var a2 = IuJson.array(a.build());
+		assertInstanceOf(JsonArrayBuilder.class, a);
+		assertEquals(1, a2.build().getInt(0));
+	}
+
+	@Test
+	public void testObjectFactory() {
+		final var o = IuJson.object();
+		assertInstanceOf(JsonObjectBuilder.class, o);
+		o.add("a", 1);
+		final var o2 = IuJson.object(o.build());
+		assertInstanceOf(JsonObjectBuilder.class, o);
+		assertEquals(1, o2.build().getInt("a"));
+	}
 }

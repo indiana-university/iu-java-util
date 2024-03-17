@@ -40,6 +40,7 @@ import java.net.http.HttpResponse.BodyHandlers;
 import java.util.Collection;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -78,20 +79,20 @@ public class IuHttp {
 	public static final HttpResponseValidator OK = expectStatus(200);
 
 	/**
-	 * Prepends validation logic to an HTTP response handler.
+	 * Creates an HTTP response handler.
 	 * 
 	 * @param <T>                value type
-	 * @param responseHandler    response handler
+	 * @param bodyDeserializer   function that deserializes the response body
 	 * @param responseValidators one or more verification checks to apply to the
 	 *                           response before passing to the handler
 	 * @return decorated response handler
 	 */
-	public static <T> HttpResponseHandler<T> validate(HttpResponseHandler<T> responseHandler,
+	public static <T> HttpResponseHandler<T> validate(Function<InputStream, T> bodyDeserializer,
 			HttpResponseValidator... responseValidators) {
 		return response -> {
 			for (final var responseValidator : responseValidators)
 				responseValidator.accept(response);
-			return responseHandler.apply(response);
+			return bodyDeserializer.apply(response.body());
 		};
 	}
 

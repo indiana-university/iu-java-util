@@ -32,13 +32,23 @@
 package edu.iu.client;
 
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.StringReader;
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.net.http.HttpResponse;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import edu.iu.IuIterable;
+import jakarta.json.JsonArray;
 import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonNumber;
 import jakarta.json.JsonObject;
@@ -101,13 +111,60 @@ public class IuJson {
 	}
 
 	/**
-	 * Converts a non-structural JSON value to its Java equivalent.
+	 * Serializes a JSON value to an {@link OutputStream}.
+	 * 
+	 * @param value {@link JsonValue}
+	 * @param out   {@link OutputStream}
+	 */
+	public static void serialize(JsonValue value, OutputStream out) {
+		PROVIDER.createWriter(out).write(value);
+	}
+
+	/**
+	 * Shorthand for {@link JsonProvider#createArrayBuilder()}
+	 * 
+	 * @return {@link JsonArrayBuilder}
+	 */
+	public static JsonArrayBuilder array() {
+		return PROVIDER.createArrayBuilder();
+	}
+
+	/**
+	 * Shorthand for {@link JsonProvider#createArrayBuilder(JsonArray)}
+	 * 
+	 * @param array array to copy
+	 * @return {@link JsonArrayBuilder}
+	 */
+	public static JsonArrayBuilder array(JsonArray array) {
+		return PROVIDER.createArrayBuilder(array);
+	}
+
+	/**
+	 * Shorthand for {@link JsonProvider#createObjectBuilder()}
+	 * 
+	 * @return {@link JsonObjectBuilder}
+	 */
+	public static JsonObjectBuilder object() {
+		return PROVIDER.createObjectBuilder();
+	}
+
+	/**
+	 * Shorthand for {@link JsonProvider#createObjectBuilder(JsonObject)}
+	 *
+	 * @param object object to copy
+	 * @return {@link JsonObjectBuilder}
+	 */
+	public static JsonObjectBuilder object(JsonObject object) {
+		return PROVIDER.createObjectBuilder(object);
+	}
+
+	/**
+	 * Converts a JSON value to its Java equivalent.
 	 * 
 	 * @param <T>   Java type; <em>must</em> be assignable from {@link String},
-	 *              {@link BigDecimal}, or {@link Boolean} if known and a non-null
-	 *              value is expected
-	 * @param value {@link JsonValue}; <em>must</em> be non-null and not assignable
-	 *              to {@link JsonStructure}
+	 *              {@link BigDecimal}, {@link Boolean}, {@link Map}, or
+	 *              {@link List} if known and a non-null value is expected
+	 * @param value {@link JsonValue}
 	 * @return Java equivalent
 	 * @throws IllegalArgumentException If the JSON value is null or assignable to
 	 *                                  {@link JsonStructure}.
@@ -117,7 +174,13 @@ public class IuJson {
 	 */
 	@SuppressWarnings("unchecked")
 	public static <T> T toJava(JsonValue value) throws IllegalArgumentException, ClassCastException {
-		if (value instanceof JsonString)
+		if (value instanceof JsonObject) {
+			final Map<String, Object> m = new LinkedHashMap<>();
+			((JsonObject) value).forEach((k, v) -> m.put(k, toJava(v)));
+			return (T) Collections.unmodifiableMap(m);
+		} else if (value instanceof JsonArray)
+			return (T) ((JsonArray) value).stream().map(IuJson::toJava).collect(Collectors.toUnmodifiableList());
+		else if (value instanceof JsonString)
 			return (T) ((JsonString) value).getString();
 		else if (value instanceof JsonNumber)
 			return (T) ((JsonNumber) value).bigDecimalValue();
@@ -157,6 +220,8 @@ public class IuJson {
 				|| JsonValue.TRUE.equals(value) //
 				|| JsonValue.FALSE.equals(value))
 			return value.toString();
+		else if (value instanceof JsonArray)
+			return String.join(",", IuIterable.map(((JsonArray) value), IuJson::asText));
 		else if (JsonValue.NULL.equals(value))
 			return null;
 		else
@@ -166,22 +231,41 @@ public class IuJson {
 	/**
 	 * Converts a Java value to its JSON equivalent.
 	 * 
-	 * @param value {@link String}, {@link Number}, {@link Boolean}, primitive,
-	 *              null, {@link JsonValue}, {@link JsonObjectBuilder}, or
-	 *              {@link JsonArrayBuilder}.
+	 * @param value {@link String}, {@link Number}, {@link Boolean}, {@link Map},
+	 *              {@link List}, primitive, null, {@link JsonValue},
+	 *              {@link JsonObjectBuilder}, or {@link JsonArrayBuilder}.
 	 * @return {@link JsonValue}
 	 * @throws IllegalArgumentException If value cannot be converted JSON without
 	 *                                  first externally applying serialization
 	 *                                  logic.
 	 */
 	public static JsonValue toJson(Object value) throws IllegalArgumentException {
-		if (value instanceof JsonValue)
+		if (value == null)
+			return JsonValue.NULL;
+		else if (value instanceof JsonValue)
 			return (JsonValue) value;
 		else if (value instanceof JsonObjectBuilder)
 			return ((JsonObjectBuilder) value).build();
 		else if (value instanceof JsonArrayBuilder)
 			return ((JsonArrayBuilder) value).build();
-		else if (value instanceof String)
+		else if (value instanceof Map) {
+			final var b = object();
+			((Map<?, ?>) value).forEach((k, v) -> b.add((String) k, toJson(v)));
+			return b.build();
+		} else if (value.getClass().isArray()) {
+			final var b = array();
+			for (int i = 0; i < Array.getLength(value); i++)
+				b.add(toJson(Array.get(value, i)));
+			return b.build();
+		} else if (value instanceof Stream) {
+			final var b = array();
+			((Stream<?>) value).forEach((v) -> b.add(toJson(v)));
+			return b.build();
+		} else if (value instanceof Iterable) {
+			final var b = array();
+			((Iterable<?>) value).forEach((v) -> b.add(toJson(v)));
+			return b.build();
+		} else if (value instanceof String)
 			return PROVIDER.createValue((String) value);
 		else if (value instanceof Number)
 			return PROVIDER.createValue((Number) value);
@@ -189,8 +273,6 @@ public class IuJson {
 			return JsonValue.TRUE;
 		else if (Boolean.FALSE.equals(value))
 			return JsonValue.FALSE;
-		else if (value == null)
-			return JsonValue.NULL;
 		else
 			throw new IllegalArgumentException();
 	}

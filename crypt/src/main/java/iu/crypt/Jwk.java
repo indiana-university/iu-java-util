@@ -1,8 +1,8 @@
 package iu.crypt;
 
 import java.io.ByteArrayInputStream;
-import java.io.Reader;
-import java.io.Writer;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.math.BigInteger;
 import java.net.URI;
 import java.security.AlgorithmParameters;
@@ -35,6 +35,7 @@ import java.util.Queue;
 import java.util.Set;
 
 import edu.iu.IuException;
+import edu.iu.client.IuJson;
 import edu.iu.crypt.WebKey;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
@@ -182,7 +183,7 @@ public class Jwk extends BaseWebKey {
 
 		final var ops = webKey.getOps();
 		if (ops != null) {
-			final var keyOps = JsonP.PROVIDER.createArrayBuilder();
+			final var keyOps = IuJson.PROVIDER.createArrayBuilder();
 			ops.forEach(keyOp -> keyOps.add(keyOp.keyOp));
 			jwkBuilder.add("key_ops", keyOps);
 		}
@@ -197,7 +198,7 @@ public class Jwk extends BaseWebKey {
 
 		final var certificateChain = webKey.getCertificateChain();
 		if (certificateChain != null) {
-			final var x5c = JsonP.PROVIDER.createArrayBuilder();
+			final var x5c = IuJson.PROVIDER.createArrayBuilder();
 			for (final var cert : certificateChain)
 				// RFC-7517 JWK 4.7: Base64 _not_ URL encoder, with padding
 				x5c.add(Base64.getEncoder().encodeToString(IuException.unchecked(cert::getEncoded)));
@@ -229,8 +230,21 @@ public class Jwk extends BaseWebKey {
 	 * @param jwks serialized JWKS
 	 * @return {@link Map} of {@link WebKey} by Key ID (kid)
 	 */
-	public static Iterable<WebKey> readJwks(Reader jwks) {
-		final var parsed = JsonP.PROVIDER.createReader(jwks).readObject();
+	public static Iterable<WebKey> readJwks(InputStream jwks) {
+		return readJwks(IuJson.parse(jwks).asJsonObject());
+	}
+
+	/**
+	 * Reads a JSON Web Key Set (JWKS).
+	 * 
+	 * @param jwks serialized JWKS
+	 * @return {@link WebKey}
+	 */
+	public static Iterable<WebKey> readJwks(String jwks) {
+		return readJwks(IuJson.parse(jwks).asJsonObject());
+	}
+
+	private static Iterable<WebKey> readJwks(JsonObject parsed) {
 		final Queue<WebKey> keys = new ArrayDeque<>();
 		for (final var parsedKey : parsed.getJsonArray("keys"))
 			keys.offer(new Jwk(parsedKey.asJsonObject()));
@@ -238,30 +252,53 @@ public class Jwk extends BaseWebKey {
 	}
 
 	/**
-	 * Serializes {@link WebKey} as a JSON Web Key.
+	 * Serializes {@link WebKey}s as a JSON Web Key Set.
 	 * 
-	 * @param webKey {@link WebKey}
-	 * @param writer JWK serialization target writer
+	 * @param webKeys {@link WebKey}s
+	 * @return serialized JWKS
 	 */
-	public static void writeJwks(Iterable<WebKey> webKey, Writer writer) {
-		final var keysBuilder = JsonP.PROVIDER.createArrayBuilder();
-		for (final var key : webKey) {
-			final var jwkBuilder = JsonP.PROVIDER.createObjectBuilder();
+	public static String asJwks(Iterable<WebKey> webKeys) {
+		return writeAsJwks(webKeys).toString();
+	}
+
+	/**
+	 * Writes {@link WebKey} as a JSON Web Key.
+	 * 
+	 * @param webKeys {@link WebKey}s
+	 * @param out     {@link OutputStream}
+	 */
+	public static void writeJwks(Iterable<WebKey> webKeys, OutputStream out) {
+		IuJson.serialize(writeAsJwks(webKeys), out);
+	}
+
+	private static JsonObject writeAsJwks(Iterable<WebKey> webKeys) {
+		final var keysBuilder = IuJson.array();
+		for (final var key : webKeys) {
+			final var jwkBuilder = IuJson.object();
 			writeJwk(jwkBuilder, key);
 			keysBuilder.add(jwkBuilder);
 		}
-		JsonP.PROVIDER.createWriter(writer)
-				.write(JsonP.PROVIDER.createObjectBuilder().add("keys", keysBuilder).build());
+		return IuJson.object().add("keys", keysBuilder).build();
 	}
 
 	/**
 	 * Deserializes a JSON Web Key.
 	 * 
-	 * @param jwk serialized JWK
+	 * @param in {@link InputStream}
 	 * @return {@link WebKey}
 	 */
-	public static WebKey readJwk(Reader jwk) {
-		return new Jwk(JsonP.PROVIDER.createReader(jwk).readObject());
+	public static WebKey readJwk(InputStream in) {
+		return new Jwk(IuJson.parse(in).asJsonObject());
+	}
+
+	/**
+	 * Creates a JSON Web Key (JWK).
+	 * 
+	 * @param jwk JWK serialized form
+	 * @return {@link WebKey}
+	 */
+	public static WebKey readJwk(String jwk) {
+		return new Jwk(IuJson.parse(jwk).asJsonObject());
 	}
 
 	/**
@@ -271,7 +308,7 @@ public class Jwk extends BaseWebKey {
 	 * @return serialized JWK
 	 */
 	public static String asJwk(WebKey webKey) {
-		final var b = JsonP.PROVIDER.createObjectBuilder();
+		final var b = IuJson.object();
 		writeJwk(b, webKey);
 		return b.build().toString();
 	}

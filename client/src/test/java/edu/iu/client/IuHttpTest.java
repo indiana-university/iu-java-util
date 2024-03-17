@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
@@ -22,6 +23,7 @@ import java.net.http.HttpResponse.BodyHandler;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
@@ -101,11 +103,13 @@ public class IuHttpTest {
 	@Test
 	public void testValidate() {
 		final var response = mock(HttpResponse.class);
+		final var body = mock(InputStream.class);
+		when(response.body()).thenReturn(body);
 		final var validator = mock(HttpResponseValidator.class);
-		final var handler = mock(HttpResponseHandler.class);
+		final var handler = mock(Function.class);
 		assertDoesNotThrow(() -> IuHttp.validate(handler, validator).apply(response));
 		assertDoesNotThrow(() -> verify(validator).accept(response));
-		assertDoesNotThrow(() -> verify(handler).apply(response));
+		assertDoesNotThrow(() -> verify(handler).apply(body));
 	}
 
 	@Test

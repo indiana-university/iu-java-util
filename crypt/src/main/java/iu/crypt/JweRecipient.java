@@ -1,6 +1,5 @@
 package iu.crypt;
 
-import edu.iu.IuObject;
 import edu.iu.crypt.WebEncryptionRecipient;
 
 /**
@@ -42,21 +41,6 @@ class JweRecipient implements WebEncryptionRecipient {
 				+ '.' + EncodingUtils.base64Url(encryption.getInitializationVector()) //
 				+ '.' + EncodingUtils.base64Url(encryption.getCipherText()) //
 				+ '.' + EncodingUtils.base64Url(encryption.getAuthenticationTag());
-	}
-
-	@Override
-	public int hashCode() {
-		return IuObject.hashCode(header, encryptedKey);
-	}
-
-	@Override
-	public boolean equals(Object obj) {
-		if (!IuObject.typeCheck(this, obj))
-			return false;
-
-		final var other = (JweRecipient) obj;
-		return IuObject.equals(header, other.header) //
-				&& IuObject.equals(encryptedKey, other.encryptedKey);
 	}
 
 	/**

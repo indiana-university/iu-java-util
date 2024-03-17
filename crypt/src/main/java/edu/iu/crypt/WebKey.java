@@ -1,7 +1,5 @@
 package edu.iu.crypt;
 
-import java.io.StringReader;
-import java.io.StringWriter;
 import java.lang.reflect.Proxy;
 import java.net.URI;
 import java.security.KeyPair;
@@ -295,7 +293,6 @@ public interface WebKey extends WebCertificateReference {
 		/**
 		 * RSAES-PKCS1-v1_5.
 		 */
-		@Deprecated
 		RSA1_5("RSA1_5", "RSA", "RSA", 0, Type.RSA, Use.ENCRYPT),
 
 		/**
@@ -478,9 +475,9 @@ public interface WebKey extends WebCertificateReference {
 						case "getPrivateKey":
 							return null;
 						case "hashCode":
-							return BaseWebKey.hashCode((WebKey) proxy);
+							return System.identityHashCode(proxy);
 						case "equals":
-							return BaseWebKey.equals((WebKey) proxy, (WebKey) args[0]);
+							return proxy == args[0];
 						case "toString":
 							return Jwk.asJwk((WebKey) proxy);
 
@@ -652,7 +649,7 @@ public interface WebKey extends WebCertificateReference {
 	 * @return {@link WebKey}
 	 */
 	static WebKey readJwk(String jwk) {
-		return Jwk.readJwk(new StringReader(jwk));
+		return Jwk.readJwk(jwk);
 	}
 
 	/**
@@ -672,7 +669,7 @@ public interface WebKey extends WebCertificateReference {
 	 * @return {@link WebKey}
 	 */
 	static Iterable<WebKey> readJwks(String jwks) {
-		return Jwk.readJwks(new StringReader(jwks));
+		return Jwk.readJwks(jwks);
 	}
 
 	/**
@@ -703,9 +700,7 @@ public interface WebKey extends WebCertificateReference {
 	 * @return serialized JWKS
 	 */
 	static String asJwks(Iterable<WebKey> webKeys) {
-		final var w = new StringWriter();
-		Jwk.writeJwks(webKeys, w);
-		return w.toString();
+		return Jwk.asJwks(webKeys);
 	}
 
 	/**

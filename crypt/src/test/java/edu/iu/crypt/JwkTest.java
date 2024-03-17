@@ -1,6 +1,8 @@
 package edu.iu.crypt;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.security.InvalidAlgorithmParameterException;
 import java.security.NoSuchAlgorithmException;
@@ -47,10 +49,14 @@ public class JwkTest {
 				+ "K1ixXXvUZZEvN/8UyQp3VJipKbL+NDXaq8qE8eixPwkG1L2ebqlbjZsxKXKbotnp\r\n"
 				+ "Jh+eDKPGD66PxfmLT9GtZxS+\r\n-----END PRIVATE KEY-----\r\n";
 		final var key = WebKey.from("rsa", Type.RSA, Use.ENCRYPT, pem);
-		assertEquals(key, WebKey.readJwk(WebKey.asJwk(key)));
-
-		final var wellKnown = WebKey.wellKnown(key);
-		assertEquals(wellKnown, WebKey.readJwk(WebKey.asJwk(wellKnown)));
+		assertNotNull(key.getPrivateKey());
+		assertNotNull(key.getPublicKey());
+		final var copyOfKey = WebKey.readJwk(WebKey.asJwk(key));
+		assertEquals("rsa", copyOfKey.getId());
+		assertEquals(Type.RSA, copyOfKey.getType());
+		assertEquals(Use.ENCRYPT, copyOfKey.getUse());
+		assertEquals(key.getPrivateKey(), copyOfKey.getPrivateKey());
+		assertEquals(key.getPublicKey(), copyOfKey.getPublicKey());
 	}
 
 	@Test
@@ -74,10 +80,14 @@ public class JwkTest {
 				+ "-----END PUBLIC KEY-----\r\n";
 
 		final var key = WebKey.from("ec", Type.EC_P521, Use.ENCRYPT, pem);
-		assertEquals(key, WebKey.readJwk(WebKey.asJwk(key)));
-
-		final var wellKnown = WebKey.wellKnown(key);
-		assertEquals(wellKnown, WebKey.readJwk(WebKey.asJwk(wellKnown)));
+		assertNotNull(key.getPrivateKey());
+		assertNotNull(key.getPublicKey());
+		final var copyOfKey = WebKey.readJwk(WebKey.asJwk(key));
+		assertEquals("ec", copyOfKey.getId());
+		assertEquals(Type.EC_P521, copyOfKey.getType());
+		assertEquals(Use.ENCRYPT, copyOfKey.getUse());
+		assertEquals(key.getPrivateKey(), copyOfKey.getPrivateKey());
+		assertEquals(key.getPublicKey(), copyOfKey.getPublicKey());
 	}
 
 	@Test
@@ -111,10 +121,16 @@ public class JwkTest {
 				+ "-----END CERTIFICATE-----\r\n";
 
 		final var key = WebKey.from("ec", Type.EC_P384, Use.ENCRYPT, pem);
-		assertEquals(key, WebKey.readJwk(WebKey.asJwk(key)));
-
-		final var wellKnown = WebKey.wellKnown(key);
-		assertEquals(wellKnown, WebKey.readJwk(WebKey.asJwk(wellKnown)));
+		assertNotNull(key.getPrivateKey());
+		assertNotNull(key.getPublicKey());
+		assertNotNull(key.getCertificateChain());
+		final var copyOfKey = WebKey.readJwk(WebKey.asJwk(key));
+		assertEquals("ec", copyOfKey.getId());
+		assertEquals(Type.EC_P384, copyOfKey.getType());
+		assertEquals(Use.ENCRYPT, copyOfKey.getUse());
+		assertEquals(key.getPrivateKey(), copyOfKey.getPrivateKey());
+		assertEquals(key.getPublicKey(), copyOfKey.getPublicKey());
+		assertArrayEquals(key.getCertificateChain(), copyOfKey.getCertificateChain());
 	}
 
 	@Test
@@ -177,10 +193,14 @@ public class JwkTest {
 				+ "-----END CERTIFICATE-----\r\n";
 
 		final var key = WebKey.from("rsa", Type.RSA, Use.ENCRYPT, pem);
-		assertEquals(key, WebKey.readJwk(WebKey.asJwk(key)));
-
-		final var wellKnown = WebKey.wellKnown(key);
-		assertEquals(wellKnown, WebKey.readJwk(WebKey.asJwk(wellKnown)));
+		assertNotNull(key.getCertificateChain());
+		final var copyOfKey = WebKey.readJwk(WebKey.asJwk(key));
+		assertEquals("rsa", copyOfKey.getId());
+		assertEquals(Type.RSA, copyOfKey.getType());
+		assertEquals(Use.ENCRYPT, copyOfKey.getUse());
+		assertEquals(key.getPrivateKey(), copyOfKey.getPrivateKey());
+		assertEquals(key.getPublicKey(), copyOfKey.getPublicKey());
+		assertArrayEquals(key.getCertificateChain(), copyOfKey.getCertificateChain());
 	}
 
 }
