@@ -66,7 +66,8 @@ public class OidcIT {
 	public void testClient() throws URISyntaxException, IOException, InterruptedException {
 		final var issuer = IdGenerator.generateId();
 		final var jwksUri = new URI("test://localhost/" + IdGenerator.generateId());
-		
+		final var userinfoEndpoint = new URI("test://localhost/" + IdGenerator.generateId());
+
 		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
 				final var mockHttpClient = mockStatic(HttpClient.class)) {
 			final var configUri = new URI("test://localhost/" + IdGenerator.generateId());
@@ -87,6 +88,7 @@ public class OidcIT {
 			when(resp.statusCode()).thenReturn(200);
 			when(resp.body()).thenReturn(new ByteArrayInputStream(Json.createObjectBuilder() //
 					.add("issuer", issuer) //
+					.add("userinfo_endpoint", userinfoEndpoint.toString()) //
 					.add("jwks_uri", jwksUri.toString()) //
 					.build().toString().getBytes("UTF-8")));
 

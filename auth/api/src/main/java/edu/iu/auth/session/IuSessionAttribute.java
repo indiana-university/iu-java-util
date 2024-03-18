@@ -29,25 +29,47 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.basic;
+package edu.iu.auth.session;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.mockConstruction;
+import java.security.Principal;
 
-import java.util.List;
+import edu.iu.auth.spi.IuSessionSpi;
+import iu.auth.IuAuthSpiFactory;
 
-import org.junit.jupiter.api.Test;
+/**
+ * Represents an attribute bound to a session.
+ * 
+ * @param <T> attribute value type; <em>must</em> be embeddable JWT claim.
+ */
+public interface IuSessionAttribute<T> extends Principal {
 
-@SuppressWarnings("javadoc")
-public class BaseicAuthSpiTest {
-
-	@Test
-	public void testSpi() {
-		final var basicSpi = new BasicAuthSpi();
-		try (final var mockBasic = mockConstruction(BasicAuthCredentials.class)) {
-			final var basic = basicSpi.createCredentials("foo", "bar");
-			assertEquals(List.of(basic), mockBasic.constructed());
-		}
+	/**
+	 * Creates a session attribute to provide with
+	 * {@link IuSessionHeader#getAuthorizedPrincipals()} or
+	 * {@link IuSessionToken#refresh(Iterable, String)}.
+	 * 
+	 * @param <T>            attribute type
+	 * @param name           principal name
+	 * @param attributeName  attribute name
+	 * @param attributeValue attribute value
+	 * @return {@link IuSessionAttribute}
+	 */
+	static <T> IuSessionAttribute<T> of(String name, String attributeName, T attributeValue) {
+		return IuAuthSpiFactory.get(IuSessionSpi.class).createAttribute(name, attributeName, attributeValue);
 	}
+
+	/**
+	 * Gets the attribute name.
+	 * 
+	 * @return attribute name
+	 */
+	String getAttributeName();
+
+	/**
+	 * Gets the attribute value.
+	 * 
+	 * @return attribute value
+	 */
+	T getAttributeValue();
 
 }

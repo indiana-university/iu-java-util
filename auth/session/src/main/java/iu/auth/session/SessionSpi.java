@@ -29,42 +29,63 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.bundle;
+package iu.auth.session;
 
 import java.net.URI;
+import java.security.Principal;
+import java.time.Duration;
+import javax.security.auth.Subject;
 
-import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oauth.IuAuthorizationGrant;
-import edu.iu.auth.oauth.IuAuthorizationScope;
-import edu.iu.auth.oauth.IuAuthorizationSession;
-import edu.iu.auth.spi.IuOAuthSpi;
+import edu.iu.auth.session.IuSessionAttribute;
+import edu.iu.auth.session.IuSessionHeader;
+import edu.iu.auth.session.IuSessionToken;
+import edu.iu.auth.spi.IuSessionSpi;
 
 /**
- * Delegating SPI implementation.
+ * Service provider implementation bootstrap.
  */
-public class OAuthSpiDelegate implements IuOAuthSpi {
-
-	private static final IuOAuthSpi DELEGATE = Bootstrap.load(IuOAuthSpi.class);
+public class SessionSpi implements IuSessionSpi {
 
 	/**
 	 * Default constructor.
 	 */
-	public OAuthSpiDelegate() {
+	public SessionSpi() {
 	}
 
 	@Override
-	public IuAuthorizationGrant initialize(IuAuthorizationClient client) {
-		return DELEGATE.initialize(client);
+	public String register(Subject provider) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException();
 	}
 
 	@Override
-	public IuAuthorizationSession createAuthorizationSession(String realm, URI entryPoint) {
-		return DELEGATE.createAuthorizationSession(realm, entryPoint);
+	public void register(String realm, URI jwksUri, Duration refreshInterval) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException();
 	}
 
 	@Override
-	public IuAuthorizationScope createAuthorizationScope(String name, String realm) {
-		return DELEGATE.createAuthorizationScope(name, realm);
+	public IuSessionToken create(IuSessionHeader header) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public IuSessionToken refresh(Iterable<Principal> authorizedPrincipals, String refreshToken) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public IuSessionToken authorize(String accessToken) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	public <T> IuSessionAttribute<T> createAttribute(String name, String attributeName, T attributeValue) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException();
 	}
 
 }

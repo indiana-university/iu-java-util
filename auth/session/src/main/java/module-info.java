@@ -29,42 +29,17 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.bundle;
-
-import java.net.URI;
-
-import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oauth.IuAuthorizationGrant;
-import edu.iu.auth.oauth.IuAuthorizationScope;
-import edu.iu.auth.oauth.IuAuthorizationSession;
-import edu.iu.auth.spi.IuOAuthSpi;
-
 /**
- * Delegating SPI implementation.
+ * Session token implementation module.
+ * 
+ * @provides edu.iu.auth.spi.IuSessionSpi Session token service provider
+ *           implementation
  */
-public class OAuthSpiDelegate implements IuOAuthSpi {
+module iu.util.auth.session {
+	requires iu.util;
+	requires iu.util.auth;
+	requires iu.util.auth.oauth;
+	requires iu.util.auth.util;
 
-	private static final IuOAuthSpi DELEGATE = Bootstrap.load(IuOAuthSpi.class);
-
-	/**
-	 * Default constructor.
-	 */
-	public OAuthSpiDelegate() {
-	}
-
-	@Override
-	public IuAuthorizationGrant initialize(IuAuthorizationClient client) {
-		return DELEGATE.initialize(client);
-	}
-
-	@Override
-	public IuAuthorizationSession createAuthorizationSession(String realm, URI entryPoint) {
-		return DELEGATE.createAuthorizationSession(realm, entryPoint);
-	}
-
-	@Override
-	public IuAuthorizationScope createAuthorizationScope(String name, String realm) {
-		return DELEGATE.createAuthorizationScope(name, realm);
-	}
-
+	provides edu.iu.auth.spi.IuSessionSpi with iu.auth.session.SessionSpi;
 }

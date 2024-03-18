@@ -29,42 +29,32 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.bundle;
+package iu.auth.util;
 
-import java.net.URI;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oauth.IuAuthorizationGrant;
-import edu.iu.auth.oauth.IuAuthorizationScope;
-import edu.iu.auth.oauth.IuAuthorizationSession;
-import edu.iu.auth.spi.IuOAuthSpi;
+import org.junit.jupiter.api.Test;
 
-/**
- * Delegating SPI implementation.
- */
-public class OAuthSpiDelegate implements IuOAuthSpi {
+@SuppressWarnings("javadoc")
+public class AlgorithmKeyTest {
 
-	private static final IuOAuthSpi DELEGATE = Bootstrap.load(IuOAuthSpi.class);
-
-	/**
-	 * Default constructor.
-	 */
-	public OAuthSpiDelegate() {
-	}
-
-	@Override
-	public IuAuthorizationGrant initialize(IuAuthorizationClient client) {
-		return DELEGATE.initialize(client);
-	}
-
-	@Override
-	public IuAuthorizationSession createAuthorizationSession(String realm, URI entryPoint) {
-		return DELEGATE.createAuthorizationSession(realm, entryPoint);
-	}
-
-	@Override
-	public IuAuthorizationScope createAuthorizationScope(String name, String realm) {
-		return DELEGATE.createAuthorizationScope(name, realm);
+	@Test
+	public void testAlgorithmKey() {
+		final var k1 = new AlgorithmKey("foo", "bar");
+		assertTrue(k1.hashCode() != 0);
+		assertNotEquals(k1, new Object());
+		assertEquals(k1, k1);
+		final var k2 = new AlgorithmKey("bar", "foo");
+		assertNotEquals(k1, k2);
+		assertNotEquals(k2, k1);
+		final var k3 = new AlgorithmKey("bar", "bar");
+		assertNotEquals(k3, k2);
+		assertNotEquals(k2, k3);
+		final var k4 = new AlgorithmKey("foo", "foo");
+		assertNotEquals(k4, k2);
+		assertNotEquals(k2, k4);
 	}
 
 }

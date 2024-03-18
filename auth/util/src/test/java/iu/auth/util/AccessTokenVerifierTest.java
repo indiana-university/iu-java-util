@@ -33,29 +33,21 @@ package iu.auth.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
+import java.io.StringReader;
 import java.net.URI;
-import java.security.AlgorithmParameters;
+import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.NoSuchAlgorithmException;
-import java.security.interfaces.ECPrivateKey;
-import java.security.interfaces.ECPublicKey;
-import java.security.interfaces.RSAPrivateKey;
-import java.security.interfaces.RSAPublicKey;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.spec.ECGenParameterSpec;
-import java.security.spec.ECParameterSpec;
-import java.security.spec.InvalidParameterSpecException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Base64;
+import java.util.List;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
@@ -65,29 +57,13 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 
 import edu.iu.IdGenerator;
+import edu.iu.auth.session.IuSessionProviderKey;
+import edu.iu.auth.session.IuSessionProviderKey.Type;
 import edu.iu.test.IuTestLogger;
 import jakarta.json.Json;
-import jakarta.json.JsonObject;
 
 @SuppressWarnings("javadoc")
 public class AccessTokenVerifierTest {
-
-	@Test
-	public void testAlgorithmKey() {
-		final var k1 = new AccessTokenVerifier.AlgorithmKey("foo", "bar");
-		assertTrue(k1.hashCode() != 0);
-		assertNotEquals(k1, new Object());
-		assertEquals(k1, k1);
-		final var k2 = new AccessTokenVerifier.AlgorithmKey("bar", "foo");
-		assertNotEquals(k1, k2);
-		assertNotEquals(k2, k1);
-		final var k3 = new AccessTokenVerifier.AlgorithmKey("bar", "bar");
-		assertNotEquals(k3, k2);
-		assertNotEquals(k2, k3);
-		final var k4 = new AccessTokenVerifier.AlgorithmKey("foo", "foo");
-		assertNotEquals(k4, k2);
-		assertNotEquals(k2, k4);
-	}
 
 	@Test
 	public void testAccessTokens() throws Exception {
@@ -109,7 +85,7 @@ public class AccessTokenVerifierTest {
 			final var uri = mock(URI.class);
 			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenReturn(jwks);
 
-			final var verifier = new AccessTokenVerifier(uri, iss, () -> Duration.ofMillis(100L));
+			final var verifier = new AccessTokenVerifier(iss, new WellKnownKeySet(uri, () -> Duration.ofMillis(100L)));
 			assertThrows(IllegalStateException.class,
 					() -> verifier.verify(aud, JWT.create().withKeyId("defaultSign").sign(Algorithm.none())));
 		}
@@ -127,7 +103,7 @@ public class AccessTokenVerifierTest {
 			final var uri = mock(URI.class);
 			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenReturn(jwks);
 
-			final var verifier = new AccessTokenVerifier(uri, iss, () -> Duration.ofMillis(100L));
+			final var verifier = new AccessTokenVerifier(iss, new WellKnownKeySet(uri, () -> Duration.ofMillis(100L)));
 			final var e = assertThrows(IllegalStateException.class,
 					() -> verifier.verify(aud, JWT.create().withKeyId("defaultSign").sign(Algorithm.none())));
 			assertInstanceOf(UnsupportedOperationException.class, e.getCause());
@@ -146,50 +122,9 @@ public class AccessTokenVerifierTest {
 			final var uri = mock(URI.class);
 			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenReturn(jwks);
 
-			final var verifier = new AccessTokenVerifier(uri, iss, () -> Duration.ofMillis(100L));
+			final var verifier = new AccessTokenVerifier(iss, new WellKnownKeySet(uri, () -> Duration.ofMillis(100L)));
 			assertThrows(IllegalStateException.class,
 					() -> verifier.verify(aud, JWT.create().withKeyId("").sign(Algorithm.none())));
-		}
-	}
-
-	@Test
-	public void testInvalidECJWK() {
-		assertThrows(IllegalArgumentException.class,
-				() -> AccessTokenVerifier.toECPublicKey(Json.createObjectBuilder().add("kty", "").build()));
-	}
-
-	@Test
-	public void testInvalidRSAJWK() {
-		assertThrows(IllegalArgumentException.class,
-				() -> AccessTokenVerifier.toRSAPublicKey(Json.createObjectBuilder().add("kty", "").build()));
-	}
-
-	@Test
-	public void testECParameterSpec() throws NoSuchAlgorithmException, InvalidParameterSpecException {
-		assertECParameterSpec("P-256", "secp256r1");
-		assertECParameterSpec("P-384", "secp384r1");
-		assertECParameterSpec("P-521", "secp521r1");
-		assertThrows(IllegalArgumentException.class,
-				() -> AccessTokenVerifier.getECParameterSpec(Json.createObjectBuilder().add("crv", "").build()));
-	}
-
-	private void assertECParameterSpec(String crv, String stdName)
-			throws NoSuchAlgorithmException, InvalidParameterSpecException {
-		class Box {
-			ECGenParameterSpec spec;
-		}
-		final var box = new Box();
-		try (final var mockAlgorithmParameters = mockStatic(AlgorithmParameters.class); //
-				final var a = mockConstruction(ECGenParameterSpec.class, (spec, ctx) -> {
-					assertEquals(stdName, ctx.arguments().get(0));
-					box.spec = spec;
-				})) {
-			final var algParams = mock(AlgorithmParameters.class);
-			mockAlgorithmParameters.when(() -> AlgorithmParameters.getInstance("EC")).thenReturn(algParams);
-
-			AccessTokenVerifier.getECParameterSpec(Json.createObjectBuilder().add("crv", crv).build());
-			verify(algParams).init(box.spec);
-			verify(algParams).getParameterSpec(ECParameterSpec.class);
 		}
 	}
 
@@ -199,53 +134,60 @@ public class AccessTokenVerifierTest {
 		final var nonce = IdGenerator.generateId();
 		final var iat = Instant.now();
 		final var exp = iat.plus(Duration.ofSeconds(5l));
-		final JsonObject jwks;
-		final String accessToken;
+
+		final Type type;
+		final KeyPair keyPair;
 		if (algorithm.startsWith("RS")) {
 			final var rsaKeygen = KeyPairGenerator.getInstance("RSA");
 			rsaKeygen.initialize(1024);
-			final var keyPair = rsaKeygen.generateKeyPair();
-			final var pub = (RSAPublicKey) keyPair.getPublic();
-			final var jwkb = Json.createObjectBuilder();
-			jwkb.add("kty", "RSA");
-			jwkb.add("use", "sig");
-			jwkb.add("kid", "defaultSign");
-			jwkb.add("e", Base64.getUrlEncoder().encodeToString(pub.getPublicExponent().toByteArray()));
-			jwkb.add("n", Base64.getUrlEncoder().encodeToString(pub.getModulus().toByteArray()));
-			jwks = Json.createObjectBuilder().add("keys", Json.createArrayBuilder().add(jwkb)).build();
-
-			final var jwtSignAlgorithm = (Algorithm) Algorithm.class
-					.getMethod("RSA" + algorithm.substring(2), RSAPublicKey.class, RSAPrivateKey.class)
-					.invoke(null, pub, keyPair.getPrivate());
-			accessToken = JWT.create().withKeyId("defaultSign").withIssuer(iss).withAudience(aud).withIssuedAt(iat)
-					.withExpiresAt(exp).withClaim("nonce", nonce).sign(jwtSignAlgorithm);
+			keyPair = rsaKeygen.generateKeyPair();
+			type = Type.RSA;
 		} else if (algorithm.startsWith("ES")) {
 			final var ecKeygen = KeyPairGenerator.getInstance("EC");
 			ecKeygen.initialize(new ECGenParameterSpec("secp256r1"));
-			final var keyPair = ecKeygen.generateKeyPair();
-			final var pub = (ECPublicKey) keyPair.getPublic();
-			final var jwkb = Json.createObjectBuilder();
-			jwkb.add("kty", "EC");
-			jwkb.add("use", "sig");
-			jwkb.add("kid", "defaultSign");
-			jwkb.add("crv", "P-256");
-			jwkb.add("x", Base64.getUrlEncoder().encodeToString(pub.getW().getAffineX().toByteArray()));
-			jwkb.add("y", Base64.getUrlEncoder().encodeToString(pub.getW().getAffineY().toByteArray()));
-			jwks = Json.createObjectBuilder().add("keys", Json.createArrayBuilder().add(jwkb)).build();
-
-			final var jwtSignAlgorithm = (Algorithm) Algorithm.class
-					.getMethod("ECDSA" + algorithm.substring(2), ECPublicKey.class, ECPrivateKey.class)
-					.invoke(null, pub, keyPair.getPrivate());
-			accessToken = JWT.create().withKeyId("defaultSign").withIssuer(iss).withAudience(aud).withIssuedAt(iat)
-					.withExpiresAt(exp).withClaim("nonce", nonce).sign(jwtSignAlgorithm);
+			keyPair = ecKeygen.generateKeyPair();
+			type = Type.EC_P256;
 		} else
 			throw new AssertionFailedError();
 
+		final var issuerKey = new IuSessionProviderKey() {
+			@Override
+			public String getId() {
+				return "defaultSign";
+			}
+
+			@Override
+			public Usage getUsage() {
+				return Usage.SIGN;
+			}
+
+			@Override
+			public Type getType() {
+				return type;
+			}
+
+			@Override
+			public PublicKey getPublic() {
+				return keyPair.getPublic();
+			}
+
+			@Override
+			public PrivateKey getPrivate() {
+				return keyPair.getPrivate();
+			}
+		};
+
+		final var issuerKeySet = new TokenIssuerKeySet(List.of(issuerKey));
+		final var jwtAlgorithm = issuerKeySet.getAlgorithm("defaultSign", algorithm);
+		final var accessToken = JWT.create().withKeyId("defaultSign").withIssuer(iss).withAudience(aud)
+				.withIssuedAt(iat).withExpiresAt(exp).withClaim("nonce", nonce).sign(jwtAlgorithm);
+
 		try (final var mockHttpUtils = mockStatic(HttpUtils.class)) {
 			final var uri = mock(URI.class);
-			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenReturn(jwks);
+			mockHttpUtils.when(() -> HttpUtils.read(uri))
+					.thenReturn(Json.createReader(new StringReader(issuerKeySet.publish())).readObject());
 
-			final var verifier = new AccessTokenVerifier(uri, iss, () -> Duration.ofMillis(99L));
+			final var verifier = new AccessTokenVerifier(iss, new WellKnownKeySet(uri, () -> Duration.ofMillis(99L)));
 
 			assertEquals(nonce, verifier.verify(aud, accessToken).getClaim("nonce").asString());
 			assertEquals(nonce, verifier.verify(aud, accessToken).getClaim("nonce").asString());
@@ -260,8 +202,8 @@ public class AccessTokenVerifierTest {
 			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenThrow(RuntimeException.class);
 			Thread.sleep(100L);
 
-			IuTestLogger.expect("iu.auth.util.AccessTokenVerifier", Level.INFO,
-					"JWT Algorithm initialization failure;.*", RuntimeException.class);
+			IuTestLogger.expect("iu.auth.util.WellKnownKeySet", Level.INFO, "JWT Algorithm initialization failure;.*",
+					RuntimeException.class);
 			assertEquals(nonce, verifier.verify(aud, accessToken).getClaim("nonce").asString());
 		}
 	}

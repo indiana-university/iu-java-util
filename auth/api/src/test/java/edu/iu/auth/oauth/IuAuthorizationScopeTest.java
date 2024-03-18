@@ -29,42 +29,28 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.bundle;
+package edu.iu.auth.oauth;
 
-import java.net.URI;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 
-import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oauth.IuAuthorizationGrant;
-import edu.iu.auth.oauth.IuAuthorizationScope;
-import edu.iu.auth.oauth.IuAuthorizationSession;
+import org.junit.jupiter.api.Test;
+
 import edu.iu.auth.spi.IuOAuthSpi;
+import iu.auth.IuAuthSpiFactory;
 
-/**
- * Delegating SPI implementation.
- */
-public class OAuthSpiDelegate implements IuOAuthSpi {
+@SuppressWarnings("javadoc")
+public class IuAuthorizationScopeTest {
 
-	private static final IuOAuthSpi DELEGATE = Bootstrap.load(IuOAuthSpi.class);
-
-	/**
-	 * Default constructor.
-	 */
-	public OAuthSpiDelegate() {
-	}
-
-	@Override
-	public IuAuthorizationGrant initialize(IuAuthorizationClient client) {
-		return DELEGATE.initialize(client);
-	}
-
-	@Override
-	public IuAuthorizationSession createAuthorizationSession(String realm, URI entryPoint) {
-		return DELEGATE.createAuthorizationSession(realm, entryPoint);
-	}
-
-	@Override
-	public IuAuthorizationScope createAuthorizationScope(String name, String realm) {
-		return DELEGATE.createAuthorizationScope(name, realm);
+	@Test
+	public void testAuthScope() {
+		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
+			final var spi = mock(IuOAuthSpi.class);
+			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuOAuthSpi.class)).thenReturn(spi);
+			IuAuthorizationScope.of("foo", "bar");
+			verify(spi).createAuthorizationScope("foo", "bar");
+		}
 	}
 
 }
