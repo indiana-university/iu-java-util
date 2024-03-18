@@ -14,7 +14,7 @@ import jakarta.json.JsonString;
 /**
  * Utilities for working with X.509 certificates.
  */
-public class CertUtils {
+class CertUtils {
 
 	/**
 	 * Decodes a certificate chain from raw encoded data.
@@ -22,7 +22,7 @@ public class CertUtils {
 	 * @param x5c JSON array of Base-64 encoded certificates
 	 * @return parsed certificate chain
 	 */
-	static X509Certificate[] decodeCertificateChain(JsonArray x5c) {
+	private static X509Certificate[] decodeCertificateChain(JsonArray x5c) {
 		return decodeCertificateChain(IuIterable.map(x5c, i -> EncodingUtils.base64(((JsonString) i).getString())));
 	}
 
@@ -32,7 +32,7 @@ public class CertUtils {
 	 * @param encodedCerts encoded certificates
 	 * @return parsed certificate chain
 	 */
-	static X509Certificate[] decodeCertificateChain(Iterable<byte[]> encodedCerts) {
+	private static X509Certificate[] decodeCertificateChain(Iterable<byte[]> encodedCerts) {
 		return IuException.unchecked(() -> {
 			final var certFactory = CertificateFactory.getInstance("X.509");
 			final Queue<X509Certificate> certs = new ArrayDeque<>();

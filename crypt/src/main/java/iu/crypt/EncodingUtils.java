@@ -1,5 +1,7 @@
 package iu.crypt;
 
+import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -7,6 +9,7 @@ import java.util.NoSuchElementException;
 import edu.iu.IuException;
 import edu.iu.client.IuJson;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonObjectBuilder;
 
 /**
  * Provides basic internal binary encoding behavior for JSON web crypto
@@ -36,16 +39,6 @@ class EncodingUtils {
 			private int end = -1;
 
 			@Override
-			public byte[] next() {
-				if (!hasNext())
-					throw new NoSuchElementException();
-
-				final var next = data.substring(start, end);
-				start = end + 1;
-				return base64Url(next);
-			}
-
-			@Override
 			public boolean hasNext() {
 				if (end < start) {
 					end = data.indexOf('.', start);
@@ -53,6 +46,16 @@ class EncodingUtils {
 						end = data.length();
 				}
 				return start < data.length();
+			}
+
+			@Override
+			public byte[] next() {
+				if (!hasNext())
+					throw new NoSuchElementException();
+
+				final var next = data.substring(start, end);
+				start = end + 1;
+				return base64Url(next);
 			}
 		};
 	}
@@ -161,4 +164,83 @@ class EncodingUtils {
 		return IuException.unchecked(() -> data.getBytes("UTF-8"));
 	}
 
+	/**
+	 * Gets binary data from a JSON object.
+	 * 
+	 * @param object {@link JsonObject}
+	 * @param name   name of a string property containing unpadded Base-64
+	 *               URL-encoded data.
+	 * @return binary data
+	 */
+	static byte[] getBytes(JsonObject object, String name) {
+		return IuJson.text(object, name, EncodingUtils::base64Url);
+	}
+
+	/**
+	 * Adds binary data to a JSON object builder.
+	 * 
+	 * @param objectBuilder {@link JsonObjectBuilder}
+	 * @param name          property name
+	 * @param binaryData    data to add as an unpadded Base-64 URL-encoded string.
+	 */
+	static void setBytes(JsonObjectBuilder objectBuilder, String name, byte[] binaryData) {
+		IuJson.add(objectBuilder, name, () -> binaryData, a -> IuJson.toJson(EncodingUtils.base64Url(a)));
+	}
+
+	/**
+	 * Gets a {@link BigInteger} value from a JSON object.
+	 * 
+	 * @param object
+	 * @param name   name of string property containing the unpadded positive
+	 *               big-endian Base-64 URL-encoded representation of the
+	 *               {@link BigInteger}
+	 * @return {@link BigInteger}
+	 */
+	static BigInteger getBigInt(JsonObject object, String name) {
+		return toBigInteger(getBytes(object, name));
+	}
+
+	/**
+	 * Gets a {@link BigInteger} value from a JSON object.
+	 * 
+	 * @param objectBuilder {@link JsonObjectBuilder}
+	 * @param name          property name
+	 * @param bigInteger    {@link BigInteger} to add as an unpadded positive
+	 *                      big-endian Base-64 URL-encoded string.
+	 */
+	static void setBigInt(JsonObjectBuilder objectBuilder, String name, BigInteger bigInteger) {
+		setBytes(objectBuilder, name, toByteArray(bigInteger));
+	}
+
+	/**
+	 * Converts a positive big-endian {@link BigInteger} to binary, omitting the
+	 * sign bit if necessary.
+	 * 
+	 * @param bigInteger positive big-endian {@link BigInteger}
+	 * @return binary
+	 */
+	static byte[] toByteArray(BigInteger bigInteger) {
+		final var bytes = bigInteger.toByteArray();
+
+		final var bitlen = // ceil(bigInteger.bitLength()/8)
+				(bigInteger.bitLength() + 7) / 8;
+		final var bytelen = bytes.length;
+		if (bytelen > bitlen)
+			return Arrays.copyOfRange(bytes, bytelen - bitlen, bytelen);
+		else
+			return bytes;
+	}
+
+	/**
+	 * Converts binary w/o sign bit to positive big-endian {@link BigInteger}.
+	 * 
+	 * @param binary binary
+	 * @return positive big-endian {@link BigInteger}
+	 */
+	static BigInteger toBigInteger(byte[] binary) {
+		return new BigInteger(1, binary);
+	}
+
+	private EncodingUtils() {
+	}
 }

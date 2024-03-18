@@ -291,6 +291,21 @@ public class IuJson {
 	/**
 	 * Adds a value to an object builder.
 	 * 
+	 * @param <T>                 value type
+	 * @param builder             {@link JsonObjectBuilder}
+	 * @param name                property name
+	 * @param valueSupplier       value supplier
+	 * @param valueToJsonFunction function that converts the supplied value to
+	 *                            {@link JsonValue}
+	 */
+	public static <T> void add(JsonObjectBuilder builder, String name,
+			Supplier<T> valueSupplier, Function<T, JsonValue> valueToJsonFunction) {
+		add(builder, a -> true, name, valueSupplier, valueToJsonFunction);
+	}
+	
+	/**
+	 * Adds a value to an object builder.
+	 * 
 	 * @param builder       {@link JsonObjectBuilder}
 	 * @param name          name
 	 * @param valueSupplier value supplier

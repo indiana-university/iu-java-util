@@ -1,16 +1,34 @@
 package iu.crypt;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.net.URI;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.time.Duration;
+import java.util.ArrayDeque;
 import java.util.Base64;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Queue;
 
+import edu.iu.IuCacheMap;
 import edu.iu.IuException;
 import edu.iu.IuStream;
+import edu.iu.client.IuHttp;
+import edu.iu.crypt.WebKey.Type;
 
 /**
  * Reads PEM-encoded key and/or certificate data.
  */
 final class PemEncoded {
+
+	private static Map<URI, X509Certificate[]> CERT_CACHE = new IuCacheMap<>(Duration.ofMinutes(15L));
 
 	/**
 	 * Enumerates encoded key type.
@@ -71,65 +89,85 @@ final class PemEncoded {
 					// => 27 chars
 					if (start + 27 > length)
 						return false;
-
-					if (!"-----BEGIN ".equals(pemEncoded.substring(start, start + 11))) {
-						if (start > 0)
-							return false;
-
+					else if (!"-----BEGIN ".equals(pemEncoded.substring(start, start + 11)))
 						end = pemEncoded.length();
-						return true;
+					else {
+						start += 11;
+						final var endOfKeyType = pemEncoded.indexOf("-----", start);
+						final var keyType = pemEncoded.substring(start, endOfKeyType);
+						start += keyType.length() + 5;
+
+						int endOfKey = pemEncoded.indexOf("-----END " + keyType + "-----", start);
+						if (endOfKey == -1)
+							end = length;
+						else
+							end = endOfKey;
 					}
-
-					final var startOfKeyType = start += 11;
-					final var endOfKeyType = pemEncoded.indexOf("-----", startOfKeyType);
-					switch (pemEncoded.substring(start, endOfKeyType)) {
-					case "PUBLIC KEY":
-						start += 15;
-						break;
-
-					case "PRIVATE KEY":
-					case "CERTIFICATE":
-						start += 16;
-						break;
-
-					default:
-						return false;
-					}
-
-					int endOfKey = pemEncoded
-							.indexOf("-----END " + pemEncoded.substring(startOfKeyType, endOfKeyType) + "-----", start);
-					if (endOfKey == -1)
-						return false;
-
-					end = endOfKey;
 				}
 
-				return end > start;
+				return true;
 			}
 
 			@Override
 			public PemEncoded next() {
+				if (!hasNext())
+					throw new NoSuchElementException();
+
 				final var sb = new StringBuilder(pemEncoded.substring(start, end));
 				for (var i = 0; i < sb.length(); i++)
 					if (Character.isWhitespace(sb.charAt(i)))
 						sb.deleteCharAt(i--);
 
 				final KeyType keyType;
-				if (start < 26)
-					keyType = KeyType.CERTIFICATE;
-				else
-					keyType = KeyType.valueOf(pemEncoded
-							.substring(pemEncoded.lastIndexOf("-----BEGIN ", start) + 11, start - 5).replace(' ', '_'));
-
-				final var nextStart = pemEncoded.indexOf("-----BEGIN ", end);
-				if (nextStart == -1)
-					start = length + 1;
-				else
-					start = nextStart;
+				try {
+					if (start < 26)
+						keyType = KeyType.CERTIFICATE;
+					else {
+						keyType = KeyType.valueOf(
+								pemEncoded.substring(pemEncoded.lastIndexOf("-----BEGIN ", start) + 11, start - 5)
+										.replace(' ', '_'));
+						if (end >= length)
+							throw new IllegalArgumentException(
+									"Missing -----END " + keyType.name().replace('_', ' ') + "-----");
+					}
+				} finally {
+					final var nextStart = pemEncoded.indexOf("-----BEGIN ", end);
+					if (nextStart == -1)
+						start = length + 1;
+					else
+						start = nextStart;
+				}
 
 				return new PemEncoded(keyType, Base64.getDecoder().decode(sb.toString()));
 			}
 		};
+	}
+
+	/**
+	 * Reads a certificate chain from a URI.
+	 * 
+	 * @param uri {@link URI}
+	 * @return certificate chain
+	 * @see <a href=
+	 *      "https://datatracker.ietf.org/doc/html/rfc4945#section-6.1">RFC-4945 PKI
+	 *      Section 6.1</a>
+	 */
+	static X509Certificate[] getCertificateChain(URI uri) {
+		var chain = CERT_CACHE.get(uri);
+		if (chain == null)
+			CERT_CACHE.put(uri, chain = IuException.unchecked(() -> {
+				final var certFactory = CertificateFactory.getInstance("X.509");
+				final Queue<X509Certificate> c = new ArrayDeque<>();
+				final var pem = IuHttp.get(uri, IuHttp.validate(PemEncoded::parse, IuHttp.OK));
+				while (pem.hasNext()) {
+					final var n = pem.next();
+					if (!PemEncoded.KeyType.CERTIFICATE.equals(n.keyType))
+						throw new IllegalArgumentException();
+					c.offer((X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(n.encoded)));
+				}
+				return c.toArray(new X509Certificate[c.size()]);
+			}));
+		return chain;
 	}
 
 	/**
@@ -141,6 +179,47 @@ final class PemEncoded {
 	 * Encoded key data.
 	 */
 	final byte[] encoded;
+
+	/**
+	 * Gets the key as a public key when {@link #keyType} is
+	 * {@link KeyType#PUBLIC_KEY}.
+	 * 
+	 * @param type JWK key type
+	 * @return public key
+	 */
+	PublicKey asPublic(Type type) {
+		if (!keyType.equals(KeyType.PUBLIC_KEY))
+			throw new IllegalStateException();
+		return IuException
+				.unchecked(() -> JwkBuilder.getKeyFactory(type).generatePublic(new X509EncodedKeySpec(encoded)));
+	}
+
+	/**
+	 * Gets the key as a private key when {@link #keyType} is
+	 * {@link KeyType#PRIVATE_KEY}.
+	 * 
+	 * @param type JWK key type
+	 * @return private key
+	 */
+	PrivateKey asPrivate(Type type) {
+		if (!keyType.equals(KeyType.PRIVATE_KEY))
+			throw new IllegalStateException();
+		return IuException
+				.unchecked(() -> JwkBuilder.getKeyFactory(type).generatePrivate(new PKCS8EncodedKeySpec(encoded)));
+	}
+
+	/**
+	 * Gets the certificate when {@link #keyType} is {@link KeyType#CERTIFICATE}.
+	 * 
+	 * @param type JWK key type
+	 * @return private key
+	 */
+	X509Certificate asCertificate() {
+		if (!keyType.equals(KeyType.CERTIFICATE))
+			throw new IllegalStateException();
+		return IuException.unchecked(() -> (X509Certificate) CertificateFactory.getInstance("X.509")
+				.generateCertificate(new ByteArrayInputStream(encoded)));
+	}
 
 	private PemEncoded(KeyType keyType, byte[] encoded) {
 		this.keyType = keyType;

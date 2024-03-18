@@ -26,4 +26,13 @@ public interface WebEncryptionRecipient {
 	 */
 	String compact();
 
+	/**
+	 * Decrypts the encrypted content.
+	 * 
+	 * @param key private or secret key; <em>should</em> be verified by the
+	 *            application as correct for the recipient before calling.
+	 * @return decrypted content
+	 */
+	byte[] decrypt(WebKey key);
+
 }

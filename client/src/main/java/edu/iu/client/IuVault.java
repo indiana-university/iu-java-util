@@ -157,7 +157,7 @@ public class IuVault {
 	}
 
 	private static void approle(HttpRequest.Builder dataRequestBuilder) {
-		final var payload = IuJson.PROVIDER.createObjectBuilder();
+		final var payload = IuJson.object();
 		payload.add("role_id", Objects.requireNonNull(ROLEID, "Missing vault.roleId"));
 		payload.add("secret_id", Objects.requireNonNull(SECRETID, "Missing vault.loginEndpoint"));
 		dataRequestBuilder.POST(BodyPublishers.ofString(payload.build().toString()));
@@ -171,7 +171,7 @@ public class IuVault {
 			accessToken = IuException
 					.unchecked(() -> IuHttp
 							.send(Objects.requireNonNull(LOGINENDPOINT, "Missing vault.loginEndpoint"),
-									IuVault::approle, IuJson::parse)
+									IuVault::approle, IuHttp.validate(IuJson::parse, IuHttp.OK))
 							.asJsonObject().getJsonObject("auth").getString("client_token"));
 
 		dataRequestBuilder.header("Authorization", "Bearer " + accessToken);

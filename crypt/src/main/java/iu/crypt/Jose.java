@@ -28,7 +28,7 @@ import jakarta.json.JsonObject;
  * Provides {@link WebSignatureHeader} and {@link WebEncryptionHeader}
  * processing utilities.
  */
-public final class Jose implements WebEncryptionHeader {
+final class Jose implements WebEncryptionHeader {
 
 	private static final Set<String> STANDARD_PARAMS = EnumSet.allOf(Param.class).stream().map(a -> a.name)
 			.collect(Collectors.toSet());
@@ -39,7 +39,7 @@ public final class Jose implements WebEncryptionHeader {
 	 * @param jose header
 	 * @return encryption or signing key
 	 */
-	public static WebKey getKey(WebSignatureHeader jose) {
+	static Jwk getKey(WebSignatureHeader jose) {
 		final var kid = jose.getKeyId();
 
 		var key = jose.getKey();
@@ -52,14 +52,14 @@ public final class Jose implements WebEncryptionHeader {
 		if (kid != null) {
 			final var jwks = jose.getKeySetUri();
 			if (jwks != null)
-				return WebKey.readJwk(jose.getKeySetUri(), kid);
+				return JwkBuilder.readJwks(jose.getKeySetUri()).filter(a -> kid.equals(a.getId())).findFirst().get();
 		}
 
 		var cert = jose.getCertificateChain();
 		if (cert == null) {
 			final var certUri = jose.getCertificateUri();
 			if (certUri != null)
-				cert = WebKey.getCertificateChain(certUri);
+				cert = PemEncoded.getCertificateChain(certUri);
 		}
 		if (cert != null) {
 			final var t = jose.getCertificateThumbprint();

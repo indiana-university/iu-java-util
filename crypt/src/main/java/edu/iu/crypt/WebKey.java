@@ -1,6 +1,6 @@
 package edu.iu.crypt;
 
-import java.lang.reflect.Proxy;
+import java.io.InputStream;
 import java.net.URI;
 import java.security.KeyPair;
 import java.security.PrivateKey;
@@ -11,14 +11,12 @@ import java.security.interfaces.RSAPublicKey;
 import java.security.spec.ECParameterSpec;
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import javax.crypto.SecretKey;
 
-import edu.iu.IuException;
 import edu.iu.IuObject;
-import iu.crypt.BaseWebKey;
-import iu.crypt.Jose;
-import iu.crypt.Jwk;
+import iu.crypt.JwkBuilder;
 
 /**
  * Unifies algorithm support and maps a cryptographic key from JCE to JSON Web
@@ -293,42 +291,43 @@ public interface WebKey extends WebCertificateReference {
 		/**
 		 * RSAES-PKCS1-v1_5.
 		 */
-		RSA1_5("RSA1_5", "RSA", "RSA", 0, Type.RSA, Use.ENCRYPT),
+		@Deprecated
+		RSA1_5("RSA1_5", null, "RSA/ECB/PKCS1Padding", 2048, Type.RSA, Use.ENCRYPT),
 
 		/**
 		 * RSAES OAEP w/ default parameters.
 		 */
-		RSA_OAEP("RSA-OAEP", "RSA", "RSA", 0, Type.RSA, Use.ENCRYPT),
+		RSA_OAEP("RSA-OAEP", null, "RSA/ECB/OAEPWithSHA-1AndMGF1Padding", 2048, Type.RSA, Use.ENCRYPT),
 
 		/**
 		 * RSAES OAEP w/ SHA-256 and MGF-1.
 		 */
-		RSA_OAEP_256("RSA-OAEP-256", "RSA", "RSA", 256, Type.RSA, Use.ENCRYPT),
+		RSA_OAEP_256("RSA-OAEP-256", null, "RSA/ECB/OAEPWithSHA-256AndMGF1Padding", 2048, Type.RSA, Use.ENCRYPT),
 
 		/**
 		 * AES-128 Key Wrap.
 		 */
-		A128KW("A128KW", "AESWrap", null, 128, Type.RAW, Use.ENCRYPT),
+		A128KW("A128KW", null, "AESWrap", 128, Type.RAW, Use.ENCRYPT),
 
 		/**
 		 * AES-192 Key Wrap.
 		 */
-		A192KW("A192KW", "AESWrap", null, 192, Type.RAW, Use.ENCRYPT),
+		A192KW("A192KW", null, "AESWrap", 192, Type.RAW, Use.ENCRYPT),
 
 		/**
 		 * AES-256 Key Wrap.
 		 */
-		A256KW("A256KW", "AESWrap", null, 256, Type.RAW, Use.ENCRYPT),
+		A256KW("A256KW", null, "AESWrap", 256, Type.RAW, Use.ENCRYPT),
 
 		/**
 		 * Direct use (as CEK).
 		 */
-		DIRECT("dir", "AES/GCM/NoPadding", "GCM", 0, Type.RAW, Use.ENCRYPT),
+		DIRECT("dir", null, null, 0, Type.RAW, Use.ENCRYPT),
 
 		/**
 		 * Elliptic Curve Diffie-Hellman Ephemeral Static key agreement w/ defaults.
 		 */
-		ECDH_ES("ECDH-ES", "ECDH", "AESWrap", 128, Type.EC_P256, Use.ENCRYPT),
+		ECDH_ES("ECDH-ES", "ECDH", null, 0, Type.EC_P256, Use.ENCRYPT),
 
 		/**
 		 * Elliptic Curve Diffie-Hellman Ephemeral Static key agreement w/ AES-128 Key
@@ -351,17 +350,17 @@ public interface WebKey extends WebCertificateReference {
 		/**
 		 * AES-128 GCM Key Wrap.
 		 */
-		A128GCMKW("A128GCMKW", "AES/GCM/NoPadding", null, 128, Type.RAW, Use.ENCRYPT),
+		A128GCMKW("A128GCMKW", null, "AES/GCM/NoPadding", 128, Type.RAW, Use.ENCRYPT),
 
 		/**
 		 * AES-192 GCM Key Wrap.
 		 */
-		A192GCMKW("A192GCMKW", "AES/GCM/NoPadding", null, 192, Type.RAW, Use.ENCRYPT),
+		A192GCMKW("A192GCMKW", null, "AES/GCM/NoPadding", 192, Type.RAW, Use.ENCRYPT),
 
 		/**
 		 * AES-256 GCM Key Wrap.
 		 */
-		A256GCMKW("A256GCMKW", "AES/GCM/NoPadding", null, 256, Type.RAW, Use.ENCRYPT),
+		A256GCMKW("A256GCMKW", null, "AES/GCM/NoPadding", 256, Type.RAW, Use.ENCRYPT),
 
 		/**
 		 * PBES2 with HMAC SHA-256 and "A128KW" wrapping.
@@ -394,14 +393,14 @@ public interface WebKey extends WebCertificateReference {
 		public final String alg;
 
 		/**
-		 * JCE algorithm name.
+		 * JCE signature or key agreement algorithm name.
 		 */
 		public final String algorithm;
 
 		/**
-		 * JCE auxiliary algorithm name.
+		 * JCE key encryption algorithm name.
 		 */
-		public final String auxiliaryAlgorithm;
+		public final String keyAlgorithm;
 
 		/**
 		 * Encryption key or signature hash size.
@@ -421,7 +420,7 @@ public interface WebKey extends WebCertificateReference {
 		private Algorithm(String alg, String algorithm, String auxiliaryAlgorithm, int size, Type type, Use use) {
 			this.alg = alg;
 			this.algorithm = algorithm;
-			this.auxiliaryAlgorithm = auxiliaryAlgorithm;
+			this.keyAlgorithm = auxiliaryAlgorithm;
 			this.size = size;
 			this.type = type;
 			this.use = use;
@@ -429,376 +428,251 @@ public interface WebKey extends WebCertificateReference {
 	}
 
 	/**
-	 * Resolves a {@link WebKey} from a {@link WebSignatureHeader}.
-	 * 
-	 * <ol>
-	 * <li>Direct attachment {@link WebSignatureHeader#getKey}, <em>may</em> be
-	 * validated against {@link WebSignatureHeader#getKeyId}.</li>
-	 * <li>By GET request to {@link WebSignatureHeader#getKeySetUri()},
-	 * <em>must</em> be selected by {@link WebSignatureHeader#getKeyId()}.</li>
-	 * <li>Derived from the first certificate in
-	 * {@link WebSignatureHeader#getCertificateChain()}</li>
-	 * <li>Derived from the first certificate in
-	 * {@link WebSignatureHeader#getCertificateChain()}</li>
-	 * <li>If used, the certificate will be further identified by
-	 * {@link WebSignatureHeader#getKeyId()} and
-	 * {@link WebSignatureHeader#getAlgorithm()}, and matched against
-	 * {@link WebSignatureHeader#getCertificateThumbprint()} and/or
-	 * {@link WebSignatureHeader#getCertificateSha256Thumbprint}.</li>
-	 * </ol>
-	 * 
-	 * @param header encryption or signature header
-	 * @return well-known public key defined by the header
+	 * Builder interface for creating {@link WebKey} instances.
 	 */
-	static WebKey from(WebSignatureHeader header) {
-		return Jose.getKey(header);
+	interface Builder {
+		/**
+		 * Sets the Key ID.
+		 * 
+		 * @param id key ID
+		 * @return this;
+		 */
+		Builder id(String id);
+
+		/**
+		 * Sets the key type.
+		 * 
+		 * @param type key type
+		 * @return this
+		 */
+		Builder type(Type type);
+
+		/**
+		 * Sets the public key use.
+		 *
+		 * @param use public key use
+		 * @return this
+		 */
+		Builder use(Use use);
+
+		/**
+		 * Sets the algorithm.
+		 * 
+		 * @param algorithm algorithm
+		 * @return this
+		 */
+		Builder algorithm(Algorithm algorithm);
+
+		/**
+		 * Sets the key operations.
+		 * 
+		 * @param ops key operations
+		 * @return this
+		 */
+		Builder ops(Op... ops);
+
+		/**
+		 * Sets the raw key data.
+		 * 
+		 * @param key raw key data
+		 * @return this
+		 */
+		Builder key(byte[] key);
+
+		/**
+		 * Sets secret key.
+		 * 
+		 * @param secretKey secret key
+		 * @return this
+		 */
+		Builder key(SecretKey secretKey);
+
+		/**
+		 * Sets public key only.
+		 * 
+		 * @param publicKey public key
+		 * @return this
+		 */
+		Builder pub(PublicKey publicKey);
+
+		/**
+		 * Sets both public and private keys from a {@link KeyPair}.
+		 * 
+		 * @param keyPair key pair;
+		 * @return this
+		 */
+		Builder pair(KeyPair keyPair);
+
+		/**
+		 * Sets the URI where X.509 certificate associated with this key can be
+		 * retrieved.
+		 * 
+		 * <p>
+		 * The URI will be validated and resolved when this method is invoked. To ensure
+		 * dependency on a remote URI won't impact application startup, always store
+		 * certificates locally and use {@link #cert(X509Certificate...)} instead of
+		 * this method for critical initialization in production environments.
+		 * </p>
+		 * 
+		 * @param uri {@link URI}
+		 * @return this
+		 */
+		Builder cert(URI uri);
+
+		/**
+		 * Sets the URI where X.509 certificate associated with this key can be
+		 * retrieved.
+		 * 
+		 * @param chain one or more {@link X509Certificate}s
+		 * @return this
+		 */
+		Builder cert(X509Certificate... chain);
+
+		/**
+		 * Sets the URI where X.509 certificate associated with this key can be
+		 * retrieved.
+		 * 
+		 * @param privateKey private key associated with the first certificate in the
+		 *                   chain
+		 * @param chain      one or more {@link X509Certificate}s
+		 * @return this
+		 */
+		Builder cert(PrivateKey privateKey, X509Certificate... chain);
+
+		/**
+		 * Sets the certificate thumbprint.
+		 * 
+		 * @param certificateThumbprint JSON x5t attribute value
+		 * @return this
+		 */
+		Builder x5t(byte[] certificateThumbprint);
+
+		/**
+		 * Sets the certificate SHA-256 thumbprint.
+		 * 
+		 * @param certificateSha256Thumbprint JSON x5t attribute value
+		 * @return this
+		 */
+		Builder x5t256(byte[] certificateSha256Thumbprint);
+
+		/**
+		 * Sets key data from potentially concatenated PEM-encoded input.
+		 * 
+		 * @param pemEncoded {@link InputStream} of PEM encoded key data, potentially
+		 *                   concatenated
+		 * @return this
+		 */
+		Builder pem(InputStream pemEncoded);
+
+		/**
+		 * Sets key data from potentially concatenated PEM-encoded input.
+		 * 
+		 * @param pemEncoded potentially concatenated PEM encoded key data
+		 * @return this
+		 */
+		Builder pem(String pemEncoded);
+
+		/**
+		 * Builds the web key.
+		 * 
+		 * @return {@link WebKey}
+		 */
+		WebKey build();
 	}
 
 	/**
-	 * Gets the well-known {public-only) version of a web key.
+	 * Creates a new {@link Builder}.
 	 * 
-	 * @param webKey full web key
-	 * @return key for which {@link #getPrivateKey()} and {@link #getKey()} always
-	 *         return null, otherwise equal.
+	 * @return {@link Builder}
 	 */
-	static WebKey wellKnown(WebKey webKey) {
-		if (webKey == null)
-			return null;
-		else if (webKey.getPrivateKey() == null && webKey.getKey() == null)
-			return webKey;
-		else
-			return (WebKey) Proxy.newProxyInstance(WebKey.class.getClassLoader(), new Class<?>[] { WebKey.class },
-					(proxy, method, args) -> {
-						switch (method.getName()) {
-						case "getKey":
-							return null;
-						case "getPrivateKey":
-							return null;
-						case "hashCode":
-							return System.identityHashCode(proxy);
-						case "equals":
-							return proxy == args[0];
-						case "toString":
-							return Jwk.asJwk((WebKey) proxy);
-
-						default:
-							return IuException.checkedInvocation(() -> method.invoke(webKey, args));
-						}
-					});
+	static Builder builder() {
+		return new JwkBuilder();
 	}
 
 	/**
-	 * Creates a web key for a well-known certificate chain.
+	 * Parses a JSON Web Key (JWK).
 	 * 
-	 * @param id        key ID
-	 * @param certChain certificate chain, must include at least one certificate
-	 * 
+	 * @param jwk JSON Web Key
 	 * @return {@link WebKey}
 	 */
-	static WebKey from(String id, X509Certificate... certChain) {
-		return BaseWebKey.from(id, null, Type.of(certChain[0].getPublicKey()), null, null, certChain);
+	static WebKey parse(String jwk) {
+		return JwkBuilder.parse(jwk);
 	}
 
 	/**
-	 * Creates a web key for a well-known certificate chain.
+	 * Parses a JSON Web Key Set (JWKS).
 	 * 
-	 * @param id        key ID
-	 * @param use       public key use
-	 * @param certChain certificate chain, must include at least one certificate
-	 * 
-	 * @return {@link WebKey}
+	 * @param jwks serialized JWKS
+	 * @return parsed key set
 	 */
-	static WebKey from(String id, Use use, X509Certificate... certChain) {
-		return BaseWebKey.from(id, null, Type.of(certChain[0].getPublicKey()), use, null, certChain);
-	}
-
-	/**
-	 * Creates a web key for a well-known certificate chain.
-	 * 
-	 * @param id        key ID
-	 * @param algorithm algorithm
-	 * @param certChain certificate chain, must include at least one certificate
-	 * @return {@link WebKey}
-	 */
-	static WebKey from(String id, Algorithm algorithm, X509Certificate... certChain) {
-		return BaseWebKey.from(id, algorithm, algorithm.type, algorithm.use, null, certChain);
-	}
-
-	/**
-	 * Creates a web key for a locally managed certificate.
-	 * 
-	 * @param id         key ID
-	 * @param privateKey private key
-	 * @param certChain  certificate chain, must include at least one certificate
-	 *                   with public key related to the given private key
-	 * 
-	 * @return {@link WebKey}
-	 */
-	static WebKey from(String id, PrivateKey privateKey, X509Certificate... certChain) {
-		return BaseWebKey.from(id, null, Type.of(certChain[0].getPublicKey()), null, privateKey, certChain);
-	}
-
-	/**
-	 * Creates a web key for a locally managed certificate.
-	 * 
-	 * @param id         key ID
-	 * @param use        public key use
-	 * @param privateKey private key
-	 * @param certChain  certificate chain, must include at least one certificate
-	 *                   with public key related to the given private key
-	 * 
-	 * @return {@link WebKey}
-	 */
-	static WebKey from(String id, Use use, PrivateKey privateKey, X509Certificate... certChain) {
-		return BaseWebKey.from(id, null, Type.of(certChain[0].getPublicKey()), use, privateKey, certChain);
-	}
-
-	/**
-	 * Creates a web key for a locally managed certificate.
-	 * 
-	 * @param id         key ID
-	 * @param algorithm  algorithm
-	 * @param privateKey private key
-	 * @param certChain  certificate chain, must include at least one certificate
-	 *                   with public key related to the given private key
-	 * @return {@link WebKey}
-	 */
-	static WebKey from(String id, Algorithm algorithm, PrivateKey privateKey, X509Certificate... certChain) {
-		return BaseWebKey.from(id, algorithm, algorithm.type, algorithm.use, privateKey, certChain);
-	}
-
-	/**
-	 * Creates a web key from a public/private key pair.
-	 * 
-	 * @param id      key ID
-	 * @param keyPair public/private key pair
-	 * @return {@link WebKey}
-	 */
-	static WebKey from(String id, KeyPair keyPair) {
-		return BaseWebKey.from(id, null, Type.of(keyPair.getPublic()), null, keyPair);
-	}
-
-	/**
-	 * Creates a web key from a public/private key pair.
-	 * 
-	 * @param id      key ID
-	 * @param use     public key use
-	 * @param keyPair public/private key pair
-	 * @return {@link WebKey}
-	 */
-	static WebKey from(String id, Use use, KeyPair keyPair) {
-		return BaseWebKey.from(id, null, Type.of(keyPair.getPublic()), use, keyPair);
-	}
-
-	/**
-	 * Creates a web key from a public/private key pair.
-	 * 
-	 * @param id        key ID
-	 * @param algorithm algorithm
-	 * @param keyPair   public/private key pair
-	 * @return {@link WebKey}
-	 */
-	static WebKey from(String id, Algorithm algorithm, KeyPair keyPair) {
-		return BaseWebKey.from(id, algorithm, algorithm.type, algorithm.use, keyPair);
-	}
-
-	/**
-	 * Creates a web key from PEM-encoded key and/or certificate data.
-	 * 
-	 * @param id         key ID
-	 * @param type       key type
-	 * @param pemEncoded PEM-encoded key and/or certificate data, may be
-	 *                   concatenated
-	 * @return {@link WebKey}
-	 */
-	static WebKey from(String id, Type type, String pemEncoded) {
-		return BaseWebKey.from(id, null, type, null, pemEncoded);
-	}
-
-	/**
-	 * Creates a web key from PEM-encoded key and/or certificate data.
-	 * 
-	 * @param id         key ID
-	 * @param type       key type
-	 * @param use        public key use
-	 * @param pemEncoded PEM-encoded key and/or certificate data, may be
-	 *                   concatenated
-	 * @return {@link WebKey}
-	 */
-	static WebKey from(String id, Type type, Use use, String pemEncoded) {
-		return BaseWebKey.from(id, null, type, use, pemEncoded);
-	}
-
-	/**
-	 * Reads a web key from PEM-encoded data.
-	 * 
-	 * @param id         key ID
-	 * @param algorithm  algorithm
-	 * @param pemEncoded PEM-encoded key and/or certificate data, may be
-	 *                   concatenated
-	 * @return {@link WebKey}
-	 */
-	static WebKey from(String id, Algorithm algorithm, String pemEncoded) {
-		return BaseWebKey.from(id, algorithm, algorithm.type, algorithm.use, pemEncoded);
-	}
-
-	/**
-	 * Creates a JSON Web Key (JWK).
-	 * 
-	 * @param jwk JWK serialized form
-	 * @return {@link WebKey}
-	 */
-	static WebKey readJwk(String jwk) {
-		return Jwk.readJwk(jwk);
-	}
-
-	/**
-	 * Serializes a {@link WebKey} as JWK.
-	 * 
-	 * @param webKey web key
-	 * @return serialized JWK
-	 */
-	static String asJwk(WebKey webKey) {
-		return Jwk.asJwk(webKey);
+	static Stream<? extends WebKey> parseJwks(String jwks) {
+		return JwkBuilder.parseJwks(jwks);
 	}
 
 	/**
 	 * Reads a JSON Web Key Set (JWKS).
 	 * 
 	 * @param jwks serialized JWKS
-	 * @return {@link WebKey}
+	 * @return parsed key set
 	 */
-	static Iterable<WebKey> readJwks(String jwks) {
-		return Jwk.readJwks(jwks);
+	static Stream<? extends WebKey> readJwks(URI jwks) {
+		return JwkBuilder.readJwks(jwks);
 	}
 
 	/**
-	 * Reads a JSON Web Key Set (JWKS).
+	 * Gets the Key ID.
 	 * 
-	 * @param jwks serialized JWKS
-	 * @return {@link WebKey}
+	 * @return key ID
 	 */
-	static Iterable<WebKey> readJwks(URI jwks) {
-		return BaseWebKey.readJwks(jwks);
-	}
-
-	/**
-	 * Gets web key from a well known key set by URI and id.
-	 * 
-	 * @param uri   Well-known key set URI
-	 * @param keyId Key ID
-	 * @return {@link WebKey}
-	 */
-	static WebKey readJwk(URI uri, String keyId) {
-		return BaseWebKey.readJwk(uri, keyId);
-	}
-
-	/**
-	 * Serializes {@link WebKey}s as a JWKS.
-	 * 
-	 * @param webKeys web keys
-	 * @return serialized JWKS
-	 */
-	static String asJwks(Iterable<WebKey> webKeys) {
-		return Jwk.asJwks(webKeys);
-	}
-
-	/**
-	 * Gets a certificate chain by URI.
-	 * 
-	 * @param uri Well-known certificate chain URI.
-	 * @return certificate chain
-	 */
-	static X509Certificate[] getCertificateChain(URI uri) {
-		return BaseWebKey.getCertificateChain(uri);
-	}
+	String getId();
 
 	/**
 	 * Gets the key type.
 	 * 
 	 * @return key type
 	 */
-	default Type getType() {
-		final var alg = getAlgorithm();
-		if (alg != null)
-			return alg.type;
-
-		return Type.of(getPublicKey());
-	}
+	Type getType();
 
 	/**
 	 * Gets the public key use.
 	 * 
 	 * @return public key use.
 	 */
-	default Use getUse() {
-		final var alg = getAlgorithm();
-		if (alg != null)
-			return alg.use;
-
-		return null;
-	}
-
-	/**
-	 * Gets the raw key data for use when {@link Type#RAW}.
-	 * 
-	 * @return {@link SecretKey}; null if {@link #getType()} is not {@link Type#RAW}
-	 */
-	default byte[] getKey() {
-		return null;
-	}
-
-	/**
-	 * Gets the JCE private key implementation.
-	 * 
-	 * @return {@link PrivateKey}; null if not known or {@link #getType()} is
-	 *         {@link Type#RAW}
-	 */
-	default PrivateKey getPrivateKey() {
-		return null;
-	}
-
-	/**
-	 * Gets the JCE public key implementation.
-	 * 
-	 * @return {@link PublicKey}; null if {@link #getType()} is {@link Type#RAW},
-	 *         defaults to the public key of the first {@link #getCertificateChain()
-	 *         chained certificate}.
-	 */
-	default PublicKey getPublicKey() {
-		final var cert = getCertificateChain();
-		if (cert != null && cert.length > 0)
-			return cert[0].getPublicKey();
-		else
-			return null;
-	}
-
-	/**
-	 * Gets the key operations.
-	 * 
-	 * @return ops; <em>should</em> be validated, <em>may</em> be null (default) to
-	 *         expect validation to be skipped
-	 */
-	default Set<Op> getOps() {
-		return null;
-	}
+	Use getUse();
 
 	/**
 	 * Gets the algorithm.
 	 * 
 	 * @return algorithm
 	 */
-	default Algorithm getAlgorithm() {
-		return null;
-	}
+	Algorithm getAlgorithm();
 
 	/**
-	 * Gets the Key ID.
+	 * Gets the key operations.
 	 * 
-	 * @return JSON kid attribute value
+	 * @return key operations
 	 */
-	default String getId() {
-		return "default";
-	}
+	Set<Op> getOps();
+
+	/**
+	 * Gets the raw key data for use when {@link Type#RAW}.
+	 * 
+	 * @return raw key data
+	 */
+	byte[] getKey();
+
+	/**
+	 * Gets the JCE private key implementation.
+	 * 
+	 * @return {@link PrivateKey}
+	 */
+	PrivateKey getPrivateKey();
+
+	/**
+	 * Gets the JCE public key implementation.
+	 * 
+	 * @return {@link PublicKey}
+	 */
+	PublicKey getPublicKey();
 
 }

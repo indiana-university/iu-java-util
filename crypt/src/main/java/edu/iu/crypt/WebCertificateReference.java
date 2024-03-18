@@ -22,35 +22,27 @@ public interface WebCertificateReference {
 	 * 
 	 * @return {@link URI}
 	 */
-	default URI getCertificateUri() {
-		return null;
-	}
+	URI getCertificateUri();
 
 	/**
 	 * Gets the certificate chain.
 	 * 
 	 * @return parsed JSON x5c attribute value
 	 */
-	default X509Certificate[] getCertificateChain() {
-		return null;
-	}
+	X509Certificate[] getCertificateChain();
 
 	/**
 	 * Gets the certificate thumbprint.
 	 * 
 	 * @return JSON x5t attribute value
 	 */
-	default byte[] getCertificateThumbprint() {
-		return null;
-	}
+	byte[] getCertificateThumbprint();
 
 	/**
 	 * Gets the certificate SHA-256 thumbprint.
 	 * 
 	 * @return JSON x5t#S256 attribute value
 	 */
-	default byte[] getCertificateSha256Thumbprint() {
-		return null;
-	}
+	byte[] getCertificateSha256Thumbprint();
 
 }
