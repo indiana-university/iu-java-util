@@ -1,5 +1,5 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
-IU Unit Test Support Module,edu.iu.test,VaultProperties,0,227,0,16,0,46,0,16,0,8
+IU Unit Test Support Module,edu.iu.test,VaultProperties,0,239,0,18,0,49,0,17,0,8
 IU Unit Test Support Module,edu.iu.test,IuTest,0,96,0,6,0,25,0,9,0,6
 IU Unit Test Support Module,edu.iu.test,IuTestLogger,0,342,0,32,0,86,0,30,0,14
 IU Unit Test Support Module,edu.iu.test,IuTestLogger.IuTestLogHandler,0,185,0,24,0,45,0,18,0,6
