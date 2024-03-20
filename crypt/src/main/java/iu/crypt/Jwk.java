@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import edu.iu.IuException;
+import edu.iu.IuObject;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebKey;
 import jakarta.json.JsonObject;
@@ -75,7 +76,7 @@ class Jwk implements WebKey {
 	 * @param webKeys {@link WebKey}s
 	 * @return serialized JWKS
 	 */
-	public static String asJwks(Stream<? extends WebKey> webKeys) {
+	static String asJwks(Stream<? extends WebKey> webKeys) {
 		return writeAsJwks(webKeys).toString();
 	}
 
@@ -85,7 +86,7 @@ class Jwk implements WebKey {
 	 * @param webKeys {@link WebKey}s
 	 * @param out     {@link OutputStream}
 	 */
-	public static void writeJwks(Stream<? extends WebKey> webKeys, OutputStream out) {
+	static void writeJwks(Stream<? extends WebKey> webKeys, OutputStream out) {
 		IuJson.serialize(writeAsJwks(webKeys), out);
 	}
 
@@ -210,13 +211,51 @@ class Jwk implements WebKey {
 	}
 
 	@Override
+	public Jwk wellKnown() {
+		if (privateKey == null && key == null)
+			return this;
+		else
+			return new Jwk(id, type, use, null, publicKey, null, ops, algorithm, certificateUri, certificateChain,
+					certificateThumbprint, certificateSha256Thumbprint);
+	}
+
+	@Override
+	public int hashCode() {
+		return IuObject.hashCode(id, type, use, key, publicKey, privateKey, ops, algorithm, certificateUri,
+				certificateChain, certificateThumbprint, certificateSha256Thumbprint);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (!IuObject.typeCheck(this, obj))
+			return false;
+		Jwk other = (Jwk) obj;
+		return algorithm == other.algorithm //
+				&& IuObject.equals(certificateChain, other.certificateChain)
+				&& IuObject.equals(certificateSha256Thumbprint, other.certificateSha256Thumbprint)
+				&& IuObject.equals(certificateThumbprint, other.certificateThumbprint)
+				&& IuObject.equals(certificateUri, other.certificateUri) //
+				&& IuObject.equals(id, other.id) //
+				&& IuObject.equals(key, other.key) //
+				&& IuObject.equals(ops, other.ops) //
+				&& IuObject.equals(privateKey, other.privateKey) //
+				&& IuObject.equals(publicKey, other.publicKey) //
+				&& type == other.type && use == other.use;
+	}
+
+	@Override
 	public String toString() {
 		final var jwkBuilder = IuJson.object();
 		serializeTo(jwkBuilder);
 		return jwkBuilder.build().toString();
 	}
 
-	private void serializeTo(JsonObjectBuilder jwkBuilder) {
+	/**
+	 * Adds serialized JWK attributes to a JSON object builder.
+	 * 
+	 * @param jwkBuilder {@link JsonObjectBuilder}
+	 */
+	void serializeTo(JsonObjectBuilder jwkBuilder) {
 		IuJson.add(jwkBuilder, "kid", id);
 		IuJson.add(jwkBuilder, "use", () -> use, a -> IuJson.toJson(a.use));
 		IuJson.add(jwkBuilder, "kty", () -> type, a -> IuJson.toJson(a.kty));

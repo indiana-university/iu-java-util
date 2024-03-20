@@ -1,12 +1,13 @@
 package iu.crypt;
 
+import java.io.ByteArrayInputStream;
 import java.net.URI;
+import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -18,11 +19,11 @@ import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebEncryptionHeader;
-import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.WebSignatureHeader;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
 
 /**
  * Provides {@link WebSignatureHeader} and {@link WebEncryptionHeader}
@@ -32,49 +33,6 @@ final class Jose implements WebEncryptionHeader {
 
 	private static final Set<String> STANDARD_PARAMS = EnumSet.allOf(Param.class).stream().map(a -> a.name)
 			.collect(Collectors.toSet());
-
-	/**
-	 * Gets the key to use for signing or encryption.
-	 * 
-	 * @param jose header
-	 * @return encryption or signing key
-	 */
-	static Jwk getKey(WebSignatureHeader jose) {
-		final var kid = jose.getKeyId();
-
-		var key = jose.getKey();
-		if (key != null)
-			if (kid != null && !kid.equals(key.getId()))
-				throw new IllegalArgumentException("kid");
-			else
-				return key;
-
-		if (kid != null) {
-			final var jwks = jose.getKeySetUri();
-			if (jwks != null)
-				return JwkBuilder.readJwks(jose.getKeySetUri()).filter(a -> kid.equals(a.getId())).findFirst().get();
-		}
-
-		var cert = jose.getCertificateChain();
-		if (cert == null) {
-			final var certUri = jose.getCertificateUri();
-			if (certUri != null)
-				cert = PemEncoded.getCertificateChain(certUri);
-		}
-		if (cert != null) {
-			final var t = jose.getCertificateThumbprint();
-			if (t != null && !Arrays.equals(t, IuCrypt.sha1(IuException.unchecked(cert[0]::getEncoded))))
-				throw new IllegalArgumentException();
-
-			final var t2 = jose.getCertificateSha256Thumbprint();
-			if (t2 != null && !Arrays.equals(t2, IuCrypt.sha256(IuException.unchecked(cert[0]::getEncoded))))
-				throw new IllegalArgumentException();
-
-			return WebKey.from(kid, jose.getAlgorithm(), cert);
-		}
-
-		return null;
-	}
 
 	/**
 	 * Creates a JOSE header from a serialized protected header.
@@ -116,12 +74,21 @@ final class Jose implements WebEncryptionHeader {
 		return new Jose(b.build());
 	}
 
+	private static X509Certificate[] decodeCertificateChain(JsonValue x5c) {
+		final var certFactory = IuException.unchecked(() -> CertificateFactory.getInstance("X.509"));
+		return x5c.asJsonArray().stream().map(IuJson::asText).map(EncodingUtils::base64)
+				.map(a -> IuException.unchecked(
+						() -> (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(a))))
+				.toArray(X509Certificate[]::new);
+	}
+
 	private final Algorithm algorithm;
 	private final Encryption encryption;
 	private final boolean deflate;
 
 	private final String keyId;
-	private final WebKey key;
+	private final Jwk key;
+	private final boolean silent;
 	private final URI keySetUri;
 
 	private final String type;
@@ -136,44 +103,26 @@ final class Jose implements WebEncryptionHeader {
 	private final Map<String, ?> extendedParameters;
 
 	/**
-	 * Copy/validate constructor.
+	 * Constructor.
 	 * 
-	 * @param header header to copy
+	 * @param builder provides source values
 	 */
-	Jose(WebSignatureHeader header) {
-		algorithm = header.getAlgorithm();
-		if (header instanceof WebEncryptionHeader) {
-			final var enc = (WebEncryptionHeader) header;
-			encryption = enc.getEncryption();
-			deflate = enc.isDeflate();
-		} else {
-			encryption = null;
-			deflate = false;
-		}
-
-		keyId = header.getKeyId();
-		key = header.getKey();
-		keySetUri = header.getKeySetUri();
-
-		type = header.getType();
-		contentType = header.getContentType();
-
-		certificateUri = header.getCertificateUri();
-		certificateChain = header.getCertificateChain();
-		certificateThumbprint = header.getCertificateThumbprint();
-		certificateSha256Thumbprint = header.getCertificateSha256Thumbprint();
-
-		final var ext = header.getExtendedParameters();
-		if (ext != null)
-			extendedParameters = Collections.unmodifiableMap(new LinkedHashMap<>(ext));
-		else
-			extendedParameters = Collections.emptyMap();
-
-		final var crit = header.getCriticalExtendedParameters();
-		if (crit != null)
-			criticalExtendedParameters = Collections.unmodifiableSet(new LinkedHashSet<>(crit));
-		else
-			criticalExtendedParameters = Collections.emptySet();
+	Jose(JoseBuilder<?> builder) {
+		algorithm = builder.algorithm();
+		encryption = builder.encryption();
+		deflate = builder.deflate();
+		keyId = builder.id();
+		silent = builder.silent();
+		key = builder.key();
+		keySetUri = builder.keySetUri();
+		type = builder.type();
+		contentType = builder.contentType();
+		certificateUri = builder.certificateUri();
+		certificateChain = builder.certificateChain();
+		certificateThumbprint = builder.certificateThumbprint();
+		certificateSha256Thumbprint = builder.certificateSha256Thumbprint();
+		criticalExtendedParameters = Collections.unmodifiableSet(builder.crit());
+		extendedParameters = Collections.unmodifiableMap(builder.ext());
 
 		validate();
 	}
@@ -185,7 +134,8 @@ final class Jose implements WebEncryptionHeader {
 
 		keyId = IuJson.text(jose, "kid");
 		keySetUri = IuJson.text(jose, "jku", URI::create);
-		key = IuJson.get(jose, "jwk", v -> new Jwk(v.asJsonObject()));
+		key = IuJson.get(jose, "jwk", JwkBuilder::parse);
+		silent = false;
 
 		type = IuJson.text(jose, "typ");
 		contentType = IuJson.text(jose, "cty");
@@ -193,7 +143,7 @@ final class Jose implements WebEncryptionHeader {
 		certificateUri = IuJson.text(jose, "x5u", URI::create);
 		certificateThumbprint = IuJson.text(jose, "x5t", EncodingUtils::base64Url);
 		certificateSha256Thumbprint = IuJson.text(jose, "x5t#S256", EncodingUtils::base64Url);
-		certificateChain = IuJson.get(jose, "x5c", v -> CertUtils.decodeCertificateChain(v.asJsonArray()));
+		certificateChain = IuJson.get(jose, "x5c", v -> decodeCertificateChain(v.asJsonArray()));
 
 		final Map<String, Object> params = new LinkedHashMap<>();
 		for (final var e : jose.entrySet())
@@ -246,7 +196,7 @@ final class Jose implements WebEncryptionHeader {
 	}
 
 	@Override
-	public WebKey getKey() {
+	public Jwk getKey() {
 		return key;
 	}
 
@@ -340,12 +290,13 @@ final class Jose implements WebEncryptionHeader {
 				case KEY_SET_URI:
 					b.add(param.name, keySetUri.toString());
 					break;
-				case KEY: {
-					final var jwkb = IuJson.object();
-					Jwk.writeJwk(jwkb, WebKey.wellKnown(key));
-					b.add(param.name, jwkb);
+				case KEY:
+					if (!silent) {
+						final var jwkb = IuJson.object();
+						key.wellKnown().serializeTo(jwkb);
+						b.add(param.name, jwkb);
+					}
 					break;
-				}
 
 				case CERTIFICATE_URI:
 					b.add(param.name, certificateUri.toString());

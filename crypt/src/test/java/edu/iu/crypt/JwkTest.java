@@ -1,7 +1,9 @@
 package edu.iu.crypt;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.security.InvalidAlgorithmParameterException;
@@ -49,6 +51,7 @@ public class JwkTest {
 				+ "       ]\n" //
 				+ "     }\n";
 		final var jwks = WebKey.parseJwks(text).collect(Collectors.toMap(WebKey::getId, a -> a));
+		assertEquals(jwks, WebKey.parseJwks(text).collect(Collectors.toMap(WebKey::getId, a -> a)));
 
 		final var rsa = jwks.get("2011-04-29");
 		assertEquals(Algorithm.RS256, rsa.getAlgorithm());
@@ -56,6 +59,9 @@ public class JwkTest {
 		assertNull(rsa.getPrivateKey());
 
 		final var ec = jwks.get("1");
+		assertNotEquals(rsa, ec);
+		assertNotEquals(ec, rsa);
+		assertNotEquals(rsa.hashCode(), ec.hashCode());
 		assertEquals(Type.EC_P256, ec.getType());
 		assertEquals(Use.ENCRYPT, ec.getUse());
 		final var pub = assertInstanceOf(ECPublicKey.class, ec.getPublicKey());
@@ -115,6 +121,7 @@ public class JwkTest {
 				+ "       ]\n" //
 				+ "     }";
 		final var jwks = WebKey.parseJwks(text).collect(Collectors.toMap(WebKey::getId, a -> a));
+		assertEquals(jwks, WebKey.parseJwks(text).collect(Collectors.toMap(WebKey::getId, a -> a)));
 
 		final var rsa = jwks.get("2011-04-29");
 		assertEquals(Algorithm.RS256, rsa.getAlgorithm());
@@ -124,6 +131,9 @@ public class JwkTest {
 		assertEquals(pub.getPublicExponent(), priv.getPublicExponent());
 
 		final var ec = jwks.get("1");
+		assertNotEquals(rsa, ec);
+		assertNotEquals(ec, rsa);
+		assertNotEquals(rsa.hashCode(), ec.hashCode());
 		assertEquals(Type.EC_P256, ec.getType());
 		assertEquals(Use.ENCRYPT, ec.getUse());
 		final var epub = assertInstanceOf(ECPublicKey.class, ec.getPublicKey());
@@ -151,6 +161,8 @@ public class JwkTest {
 				+ "       ]\n" //
 				+ "     }";
 		final var jwks = WebKey.parseJwks(text).toArray(WebKey[]::new);
+		assertArrayEquals(jwks, WebKey.parseJwks(text).toArray(WebKey[]::new));
+
 		assertEquals(Type.RAW, jwks[0].getType());
 		assertEquals(Algorithm.A128KW, jwks[0].getAlgorithm());
 		assertEquals(16, jwks[0].getKey().length);
@@ -198,6 +210,8 @@ public class JwkTest {
 				+ "gawR+N5MDtdPTEQ0XfIBc2cJEUyMTY5MPvACWpkA6SdS4xSvdXK3IVfOWA==\"]\n" //
 				+ "     }";
 		final var jwk = WebKey.parse(text);
+		assertEquals(jwk, WebKey.parse(text));
+		assertEquals(jwk.hashCode(), WebKey.parse(text).hashCode());
 		assertEquals("1b94c", jwk.getId());
 		assertEquals(Type.RSA, jwk.getType());
 		assertEquals(Use.SIGN, jwk.getUse());
@@ -240,7 +254,8 @@ public class JwkTest {
 						+ "V541cJqy1gKCob3w9wfhbCTM8ynVREZyUpljcnDBQ9H+gkaoHtPy000FlbUHNyBf\r\n"
 						+ "K1ixXXvUZZEvN/8UyQp3VJipKbL+NDXaq8qE8eixPwkG1L2ebqlbjZsxKXKbotnp\r\n"
 						+ "Jh+eDKPGD66PxfmLT9GtZxS+\r\n" //
-						+ "-----END PRIVATE KEY-----\r\n").build();
+						+ "-----END PRIVATE KEY-----\r\n")
+				.build();
 
 		final var pub = assertInstanceOf(RSAPublicKey.class, rsa.getPublicKey());
 		final var priv = assertInstanceOf(RSAPrivateCrtKey.class, rsa.getPrivateKey());

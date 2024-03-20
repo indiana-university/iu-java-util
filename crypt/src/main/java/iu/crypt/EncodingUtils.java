@@ -241,6 +241,69 @@ class EncodingUtils {
 		return new BigInteger(1, binary);
 	}
 
+	/**
+	 * Copies an integer into a byte array as a 32-bit big-endian.
+	 * 
+	 * @param value integer to encode
+	 * @param buf   buffer
+	 * @param pos   start position
+	 */
+	static void bigEndian(int value, byte[] buf, int pos) {
+		buf[pos] = (byte) ((value >>> 24) & 0xff);
+		buf[pos + 1] = (byte) ((value >>> 16) & 0xff);
+		buf[pos + 2] = (byte) ((value >>> 8) & 0xff);
+		buf[pos + 3] = (byte) value;
+	}
+
+	/**
+	 * Encodes ASCII text in NIST.800-56A Concatenated Key Derivation Format (KDF).
+	 * 
+	 * @param text ASCII text
+	 * @param buf  buffer
+	 * @param pos  start position
+	 */
+	static void concatKdfFragment(String text, byte[] buf, int pos) {
+		final var data = IuException.unchecked(() -> text.getBytes("US-ASCII"));
+		final var datalen = data.length;
+		bigEndian(datalen, buf, pos);
+		System.arraycopy(data, 0, buf, pos + 4, datalen);
+	}
+
+	/**
+	 * Performs NIST.800-56A Concatenated Key Derivation Format (KDF) from
+	 * components
+	 * 
+	 * @param round   round number
+	 * @param z       key derivation output
+	 * @param algid   algorithm ID
+	 * @param uinfo   party UInfo value
+	 * @param vinfo   party VInfo value
+	 * @param datalen data length
+	 * @return Concat KDF data
+	 */
+	static byte[] concatKdf(int round, byte[] z, String algid, String uinfo, String vinfo, int datalen) {
+		var buf = new byte[20 + z.length + algid.length() + uinfo.length() + vinfo.length()];
+		var pos = 0;
+
+		EncodingUtils.bigEndian(round, buf, pos);
+		pos += 4;
+		
+		System.arraycopy(z, 0, buf, pos, z.length);
+		pos += z.length;
+		
+		EncodingUtils.concatKdfFragment(algid, buf, pos);
+		pos += 4 + algid.length();
+		
+		EncodingUtils.concatKdfFragment(uinfo, buf, pos);
+		pos += 4 + uinfo.length();
+		
+		EncodingUtils.concatKdfFragment(vinfo, buf, pos);
+		pos += 4 + vinfo.length();
+		
+		EncodingUtils.bigEndian(datalen, buf, pos);
+		return buf;
+	}
+
 	private EncodingUtils() {
 	}
 }

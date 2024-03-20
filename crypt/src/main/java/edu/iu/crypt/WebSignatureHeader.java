@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import edu.iu.IuObject;
+import edu.iu.client.IuJson;
 import edu.iu.crypt.WebKey.Algorithm;
 
 /**
@@ -144,6 +145,107 @@ public interface WebSignatureHeader extends WebCertificateReference {
 	}
 
 	/**
+	 * Builder interface for creating {@link WebSignatureHeader} instances.
+	 * @param <B> builder type
+	 */
+	interface Builder<B extends Builder<B>> {
+
+		/**
+		 * Sets the cryptographic algorithm.
+		 * 
+		 * @param algorithm {@link Algorithm}
+		 * @return this
+		 */
+		B algorithm(Algorithm algorithm);
+
+		/**
+		 * Sets the key ID relative to {@link #getKeySetUri()} corresponding to a JWKS
+		 * key entry.
+		 *
+		 * @param keyId key ID
+		 * @return this
+		 */
+		B id(String keyId);
+
+		/**
+		 * Sets the URI where JWKS well-known key data can be retrieved.
+		 * 
+		 * @param uri JWKS {@link URI}
+		 * @return this
+		 */
+		B jwks(URI uri);
+
+		/**
+		 * Sets a key to use for creating the signature or encryption.
+		 * 
+		 * <p>
+		 * This key will not be included in the serialized output. This is the same as
+		 * calling {@link #jwk(WebKey, boolean) jwk(key, false)}.
+		 * </p>
+		 * 
+		 * @param key
+		 * @return this
+		 */
+		default B jwk(WebKey key) {
+			return jwk(key, false);
+		}
+
+		/**
+		 * Sets the key data for this header.
+		 * 
+		 * <p>
+		 * This key may contain private and/or symmetric key data to be used for
+		 * creating digital signatures or facilitating key agreement for encryption.
+		 * However, only public keys and certificate data will be included in the
+		 * serialized headers.
+		 * </p>
+		 * 
+		 * @param key    {@link WebKey}, provided by the same module as this builder.
+		 * @param silent true to omit all key data from the serialized header; false to
+		 *               include public keys and/or certificates only.
+		 * @return this
+		 */
+		B jwk(WebKey key, boolean silent);
+
+		/**
+		 * Sets the header type parameter value.
+		 * 
+		 * @param type header type parameter value.
+		 * @return this
+		 */
+		B type(String type);
+
+		/**
+		 * Sets the header type parameter value.
+		 * 
+		 * @param contentType header type parameter value.
+		 * @return this
+		 */
+		B contentType(String contentType);
+
+		/**
+		 * Sets a critical extended parameter, to be required as understood by the
+		 * recipient and included in the protected header.
+		 * 
+		 * @param name  parameter name
+		 * @param value parameter value, must be convertible to JSON without type
+		 *              introspection (see {@link IuJson#toJson(Object)}.
+		 * @return this
+		 */
+		B crit(String name, Object value);
+
+		/**
+		 * Sets an optional extended parameter.
+		 * 
+		 * @param name  parameter name
+		 * @param value parameter value, must be convertible to JSON without type
+		 *              introspection (see {@link IuJson#toJson(Object)}.
+		 * @return this
+		 */
+		B ext(String name, Object value);
+	}
+
+	/**
 	 * Gets the cryptographic algorithm.
 	 * 
 	 * @return {@link Algorithm}
@@ -156,25 +258,14 @@ public interface WebSignatureHeader extends WebCertificateReference {
 	 * 
 	 * @return key ID
 	 */
-	default String getKeyId() {
-		return null;
-	}
+	String getKeyId();
 
 	/**
 	 * Gets the URI where JWKS well-known key data can be retrieved.
 	 * 
-	 * <p>
-	 * The protocol used to acquire the resource MUST provide integrity protection;
-	 * an HTTP GET request to retrieve the certificate MUST use TLS [RFC2818]
-	 * [RFC5246]; the identity of the server MUST be validated, as per Section 6 of
-	 * RFC 6125 [RFC6125].
-	 * </p>
-	 * 
 	 * @return {@link URI}
 	 */
-	default URI getKeySetUri() {
-		return null;
-	}
+	URI getKeySetUri();
 
 	/**
 	 * Gets the well-known key data.
@@ -182,27 +273,21 @@ public interface WebSignatureHeader extends WebCertificateReference {
 	 * @return {@link WebKey}, <em>should</em> be {@link WebKey#wellKnown(WebKey)}
 	 *         if provided.
 	 */
-	default WebKey getKey() {
-		return null;
-	}
+	WebKey getKey();
 
 	/**
 	 * Gets the header type parameter value.
 	 * 
 	 * @return header type parameter value.
 	 */
-	default String getType() {
-		return null;
-	}
+	String getType();
 
 	/**
 	 * Gets the header type parameter value.
 	 * 
 	 * @return header type parameter value.
 	 */
-	default String getContentType() {
-		return null;
-	}
+	String getContentType();
 
 	/**
 	 * Gets the set of critical extended parameter names.
@@ -210,17 +295,13 @@ public interface WebSignatureHeader extends WebCertificateReference {
 	 * @return critical extended parameter names; <em>may</em> be null if no
 	 *         extended parameters are critical, <em>must not</em> be empty.
 	 */
-	default Set<String> getCriticalExtendedParameters() {
-		return null;
-	}
+	Set<String> getCriticalExtendedParameters();
 
 	/**
 	 * Gets extended parameters.
 	 * 
-	 * @return extended parameter names
+	 * @return extended parameters
 	 */
-	default Map<String, ?> getExtendedParameters() {
-		return null;
-	}
+	Map<String, ?> getExtendedParameters();
 
 }

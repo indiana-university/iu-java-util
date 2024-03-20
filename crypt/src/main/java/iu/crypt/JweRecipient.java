@@ -1,12 +1,9 @@
 package iu.crypt;
 
-import java.security.Key;
-import java.security.PrivateKey;
+import java.io.OutputStream;
+import java.util.Arrays;
 
-import javax.crypto.Cipher;
-import javax.crypto.KeyAgreement;
-import javax.crypto.SecretKey;
-
+import edu.iu.IuCrypt;
 import edu.iu.IuException;
 import edu.iu.crypt.WebEncryptionRecipient;
 import edu.iu.crypt.WebKey;
@@ -24,7 +21,7 @@ class JweRecipient implements WebEncryptionRecipient {
 	 * Constructor.
 	 * 
 	 * @param encryption   encrypted message
-	 * @param header       recipient header
+	 * @param header       header
 	 * @param encryptedKey encrypted key
 	 */
 	JweRecipient(Jwe encryption, Jose header, byte[] encryptedKey) {
@@ -52,43 +49,91 @@ class JweRecipient implements WebEncryptionRecipient {
 				+ '.' + EncodingUtils.base64Url(encryption.getAuthenticationTag());
 	}
 
-	@Override
-	public byte[] decrypt(WebKey key) {
-		final var algorithm = header.getAlgorithm();
-		final var encryption = header.getEncryption();
-		final var privateKey = key.getPrivateKey();
+	/**
+	 * Gets the key to use for signing or encryption.
+	 * 
+	 * @param jose header
+	 * @return encryption or signing key
+	 */
+	private static Jwk getKey(Jose jose) { // TODO: remove
+		final var kid = jose.getKeyId();
 
-		final SecretKey cek;
-		final byte[] cekmac;
-		final Key recipientKey;
-		switch (algorithm.algorithm) {
-		case "ECDH":
-			recipientKey = IuException
-					.unchecked(() -> KeyAgreement.getInstance(algorithm.algorithm).doPhase(privateKey, true));
-			break;
+		var key = jose.getKey();
+		if (key != null)
+			if (kid != null && !kid.equals(key.getId()))
+				throw new IllegalArgumentException("kid");
+			else
+				return key;
 
-		case "RSA":
-			recipientKey = Jose.getKey(header).getPublicKey();
-			break;
-
-		default:
-			recipientKey = null;
+		if (kid != null) {
+			final var jwks = jose.getKeySetUri();
+			if (jwks != null)
+				return JwkBuilder.readJwks(jose.getKeySetUri()).filter(a -> kid.equals(a.getId())).findFirst().get();
 		}
 
-		if (cek != null)
-			encryptedKey = IuException.unchecked(() -> {
-				final var cipher = Cipher.getInstance(algorithm.keyAlgorithm);
-				if (cekmac != null) {
-					cipher.init(Cipher.ENCRYPT_MODE, recipientKey);
-					return cipher.doFinal(cekmac);
-				} else {
-					cipher.init(Cipher.WRAP_MODE, recipientKey);
-					return cipher.wrap(cek);
-				}
-			});
-		else
-			encryptedKey = null;
-		
+		var cert = jose.getCertificateChain();
+		if (cert == null) {
+			final var certUri = jose.getCertificateUri();
+			if (certUri != null)
+				cert = PemEncoded.getCertificateChain(certUri);
+		}
+		if (cert != null) {
+			final var t = jose.getCertificateThumbprint();
+			if (t != null && !Arrays.equals(t, IuCrypt.sha1(IuException.unchecked(cert[0]::getEncoded))))
+				throw new IllegalArgumentException();
+
+			final var t2 = jose.getCertificateSha256Thumbprint();
+			if (t2 != null && !Arrays.equals(t2, IuCrypt.sha256(IuException.unchecked(cert[0]::getEncoded))))
+				throw new IllegalArgumentException();
+
+			final var jwkb = new JwkBuilder();
+			if (kid != null)
+				jwkb.id(kid);
+			return jwkb.algorithm(jose.getAlgorithm()).cert(cert).build();
+		}
+
+		return null;
+	}
+
+	@Override
+	public void decrypt(WebKey key, OutputStream out) {
+		throw new UnsupportedOperationException("TODO");
+		// TODO: REVIEW LINE
+//		final var algorithm = header.getAlgorithm();
+//		final var encryption = header.getEncryption();
+//		final var privateKey = key.getPrivateKey();
+//
+//		final SecretKey cek;
+//		final byte[] cekmac;
+//		final Key recipientKey;
+//		switch (algorithm.algorithm) {
+//		case "ECDH":
+//			recipientKey = IuException
+//					.unchecked(() -> KeyAgreement.getInstance(algorithm.algorithm).doPhase(privateKey, true));
+//			break;
+//
+//		case "RSA":
+//			recipientKey = getKey(header).getPublicKey();
+//			break;
+//
+//		default:
+//			recipientKey = null;
+//		}
+
+//		if (cek != null)
+//			encryptedKey = IuException.unchecked(() -> {
+//				final var cipher = Cipher.getInstance(algorithm.keyAlgorithm);
+//				if (cekmac != null) {
+//					cipher.init(Cipher.ENCRYPT_MODE, recipientKey);
+//					return cipher.doFinal(cekmac);
+//				} else {
+//					cipher.init(Cipher.WRAP_MODE, recipientKey);
+//					return cipher.wrap(cek);
+//				}
+//			});
+//		else
+//			encryptedKey = null;
+
 //		if (Type.RAW.equals(algorithm.type)) {
 //			if (encryptedKey != null)
 //				throw new IllegalArgumentException("shared key must be known by recipient");
@@ -179,8 +224,6 @@ class JweRecipient implements WebEncryptionRecipient {
 //		   be used in a given context.  Even if a JWE can be successfully
 //		   decrypted, unless the algorithms used in the JWE are acceptable to
 //		   the application, it SHOULD consider the JWE to be invalid.
-
-		throw new UnsupportedOperationException("TODO");
 	}
 
 	/**

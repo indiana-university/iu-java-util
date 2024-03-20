@@ -6,6 +6,7 @@ import java.net.URI;
 import java.security.AlgorithmParameters;
 import java.security.KeyFactory;
 import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.cert.X509Certificate;
@@ -33,11 +34,12 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 
 import edu.iu.IuCacheMap;
-import edu.iu.IuCrypt;
 import edu.iu.IuException;
+import edu.iu.IuObject;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebKey;
@@ -52,7 +54,10 @@ import jakarta.json.JsonValue;
 /**
  * JWK {@link Builder} implementation.
  */
-public class JwkBuilder implements Builder {
+public class JwkBuilder extends WebKeyReferenceBuilder<JwkBuilder> implements Builder<JwkBuilder> {
+	static {
+		IuObject.assertNotOpen(JweBuilder.class);
+	}
 
 	private static Map<URI, Jwk[]> JWKS_CACHE = new IuCacheMap<>(Duration.ofMinutes(15L));
 
@@ -90,7 +95,17 @@ public class JwkBuilder implements Builder {
 	 * @return {@link WebKey}
 	 */
 	public static Jwk parse(String jwk) {
-		return new JwkBuilder().jwk(IuJson.parse(jwk)).build();
+		return parse(IuJson.parse(jwk));
+	}
+
+	/**
+	 * Converts a JSON value to a JSON Web Key (JWK).
+	 * 
+	 * @param jwk JSON Web Key
+	 * @return {@link WebKey}
+	 */
+	static Jwk parse(JsonValue jwk) {
+		return new JwkBuilder().jwk(jwk).build();
 	}
 
 	/**
@@ -197,35 +212,18 @@ public class JwkBuilder implements Builder {
 				.toArray(Jwk[]::new);
 	}
 
-	private String id;
 	private Type type;
 	private Use use;
-	private Algorithm algorithm;
 	private Set<Op> ops;
 	private byte[] key;
 	private PrivateKey privateKey;
 	private PublicKey publicKey;
-	private URI certificateUri;
-	private X509Certificate[] certificateChain;
-	private byte[] certificateThumbprint;
-	private byte[] certificateSha256Thumbprint;
-
-	@Override
-	public JwkBuilder id(String id) {
-		Objects.requireNonNull(id);
-
-		if (this.id == null)
-			this.id = id;
-		else if (!id.equals(this.id))
-			throw new IllegalStateException("ID already set");
-
-		return this;
-	}
 
 	@Override
 	public JwkBuilder type(Type type) {
 		Objects.requireNonNull(type);
 
+		final var algorithm = algorithm();
 		if (algorithm != null //
 				&& !type.equals(algorithm.type))
 			throw new IllegalArgumentException("Incorrect type " + type + " for algorithm " + algorithm);
@@ -242,6 +240,7 @@ public class JwkBuilder implements Builder {
 	public JwkBuilder use(Use use) {
 		Objects.requireNonNull(use);
 
+		final var algorithm = algorithm();
 		if (algorithm != null //
 				&& !use.equals(algorithm.use))
 			throw new IllegalArgumentException("Incorrect use " + use + " for algorithm " + algorithm);
@@ -256,7 +255,7 @@ public class JwkBuilder implements Builder {
 
 	@Override
 	public JwkBuilder algorithm(Algorithm algorithm) {
-		Objects.requireNonNull(algorithm);
+		super.algorithm(algorithm);
 
 		if (type != null //
 				&& !type.equals(algorithm.type))
@@ -265,11 +264,6 @@ public class JwkBuilder implements Builder {
 		if (use != null //
 				&& !use.equals(algorithm.use))
 			throw new IllegalArgumentException("Incorrect use " + use + " for algorithm " + algorithm);
-
-		if (this.algorithm == null)
-			this.algorithm = algorithm;
-		else if (!algorithm.equals(this.algorithm))
-			throw new IllegalStateException("Algorithm already set to " + this.use);
 
 		return this;
 	}
@@ -281,9 +275,70 @@ public class JwkBuilder implements Builder {
 		final var opSet = Set.of(ops);
 		if (this.ops == null)
 			this.ops = opSet;
-		else if (!ops.equals(this.ops))
+		else if (!opSet.equals(this.ops))
 			throw new IllegalStateException("Ops already set to " + this.ops);
 
+		return this;
+	}
+
+	@SuppressWarnings("deprecation")
+	@Override
+	public JwkBuilder ephemeral() {
+		final var algorithm = Objects.requireNonNull(algorithm(), "Missing algorithm");
+		switch (algorithm) {
+		case A128GCMKW:
+		case A128KW:
+		case A192GCMKW:
+		case A192KW:
+		case A256GCMKW:
+		case A256KW:
+		case HS256:
+		case HS384:
+		case HS512:
+		case DIRECT:
+			IuException.unchecked(() -> {
+				final var keygen = IuException.unchecked(() -> KeyGenerator.getInstance(algorithm.algorithm));
+				keygen.init(algorithm.size);
+				key(keygen.generateKey().getEncoded());
+			});
+			break;
+
+		case ECDH_ES:
+		case ECDH_ES_A128KW:
+		case ECDH_ES_A192KW:
+		case ECDH_ES_A256KW:
+		case ES256:
+		case ES384:
+		case ES512:
+			IuException.unchecked(() -> {
+				final var gen = KeyPairGenerator.getInstance("EC");
+				gen.initialize(new ECGenParameterSpec(algorithm.type.ecParam));
+				pair(gen.generateKeyPair());
+			});
+			break;
+
+		case PS256:
+		case PS384:
+		case PS512:
+		case RS256:
+		case RS384:
+		case RS512:
+		case RSA1_5:
+		case RSA_OAEP:
+		case RSA_OAEP_256:
+			IuException.unchecked(() -> {
+				final var gen = KeyPairGenerator.getInstance(algorithm.algorithm);
+				gen.initialize(algorithm.size);
+				pair(gen.generateKeyPair());
+			});
+			break;
+
+		case PBES2_HS256_A128KW:
+		case PBES2_HS384_A192KW:
+		case PBES2_HS512_A256KW:
+		default:
+			throw new UnsupportedOperationException();
+		}
 		return this;
 	}
 
@@ -361,50 +416,10 @@ public class JwkBuilder implements Builder {
 	}
 
 	@Override
-	public JwkBuilder cert(URI uri) {
-		acceptCertChain(PemEncoded.getCertificateChain(uri));
-		this.certificateUri = uri;
-		return this;
-	}
-
-	@Override
-	public JwkBuilder cert(X509Certificate... chain) {
-		acceptCertChain(chain);
-		this.certificateChain = chain;
-		return this;
-	}
-
-	@Override
 	public JwkBuilder cert(PrivateKey privateKey, X509Certificate... chain) {
 		cert(chain);
 		acceptPrivate(privateKey);
 		return this;
-	}
-
-	@Override
-	public JwkBuilder x5t(byte[] certificateThumbprint) {
-		Objects.requireNonNull(certificateThumbprint);
-
-		final var cert = getCert();
-		if (cert != null //
-				&& !Arrays.equals(certificateThumbprint, IuCrypt.sha1(IuException.unchecked(cert::getEncoded))))
-			throw new IllegalArgumentException("SHA-1 thumbprint mismatch");
-
-		this.certificateThumbprint = certificateThumbprint;
-		return null;
-	}
-
-	@Override
-	public JwkBuilder x5t256(byte[] certificateSha256Thumbprint) {
-		Objects.requireNonNull(certificateSha256Thumbprint);
-
-		final var cert = getCert();
-		if (cert != null //
-				&& !Arrays.equals(certificateSha256Thumbprint, IuCrypt.sha256(IuException.unchecked(cert::getEncoded))))
-			throw new IllegalArgumentException("SHA-256 thumbprint mismatch");
-
-		this.certificateSha256Thumbprint = certificateSha256Thumbprint;
-		return null;
 	}
 
 	@Override
@@ -497,8 +512,8 @@ public class JwkBuilder implements Builder {
 
 	@Override
 	public Jwk build() {
-		return new Jwk(id, type, use, key, publicKey, privateKey, ops, algorithm, certificateUri, certificateChain,
-				certificateThumbprint, certificateSha256Thumbprint);
+		return new Jwk(id(), type, use, key, publicKey, privateKey, ops, algorithm(), certificateUri(),
+				certificateChain(), certificateThumbprint(), certificateSha256Thumbprint());
 	}
 
 	private void acceptPrivate(PrivateKey privateKey) {
@@ -519,33 +534,50 @@ public class JwkBuilder implements Builder {
 		this.privateKey = privateKey;
 	}
 
-	private void acceptCertChain(X509Certificate[] certChain) {
-		if (this.certificateChain != null //
-				&& !Arrays.equals(certChain, this.certificateChain))
-			throw new IllegalStateException("Certificate chain mismatch");
+	@Override
+	protected void acceptCertChain(X509Certificate[] certChain) {
+		super.acceptCertChain(certChain);
 
-		final var cert = certChain[0];
-		if (certificateThumbprint != null //
-				&& !Arrays.equals(certificateThumbprint, IuCrypt.sha1(IuException.unchecked(cert::getEncoded))))
-			throw new IllegalArgumentException("SHA-1 thumbprint mismatch");
-		if (certificateSha256Thumbprint != null //
-				&& !Arrays.equals(certificateSha256Thumbprint, IuCrypt.sha256(IuException.unchecked(cert::getEncoded))))
-			throw new IllegalArgumentException("SHA-256 thumbprint mismatch");
-
-		final var pub = cert.getPublicKey();
+		final var pub = certChain[0].getPublicKey();
 		if (this.publicKey == null)
 			pub(pub);
 		else if (!pub.equals(this.publicKey))
 			throw new IllegalStateException("Public key mismatch");
 	}
 
-	private X509Certificate getCert() {
-		if (this.certificateChain != null)
-			return certificateChain[0];
-		else if (this.certificateUri != null)
-			return PemEncoded.getCertificateChain(certificateUri)[0];
-		else
-			return null;
+	@Override
+	public JwkBuilder id(String id) {
+		super.id(id);
+		return this;
+	}
+
+	@Override
+	public JwkBuilder cert(URI uri) {
+		super.cert(uri);
+		return this;
+	}
+
+	@Override
+	public JwkBuilder cert(X509Certificate... chain) {
+		super.cert(chain);
+		return this;
+	}
+
+	@Override
+	public JwkBuilder x5t(byte[] certificateThumbprint) {
+		super.x5t(certificateThumbprint);
+		return this;
+	}
+
+	@Override
+	public JwkBuilder x5t256(byte[] certificateSha256Thumbprint) {
+		super.x5t256(certificateSha256Thumbprint);
+		return this;
+	}
+
+	@Override
+	protected JwkBuilder next() {
+		return this;
 	}
 
 	// TODO: REVIEW LINE

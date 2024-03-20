@@ -276,53 +276,53 @@ public interface WebKey extends WebCertificateReference {
 		/**
 		 * RSASSA-PSS using SHA-256 and MGF1 with SHA-256.
 		 */
-		PS256("PS256", "RSASSA-PSS", "SHA256withRSAandMGF1", 256, Type.RSASSA_PSS, Use.SIGN),
+		PS256("PS256", "RSASSA-PSS", "SHA256withRSAandMGF1", 2048, Type.RSASSA_PSS, Use.SIGN),
 
 		/**
 		 * RSASSA-PSS using SHA-384 and MGF1 with SHA-384.
 		 */
-		PS384("PS384", "RSASSA-PSS", "SHA384withRSAandMGF1", 384, Type.RSASSA_PSS, Use.SIGN),
+		PS384("PS384", "RSASSA-PSS", "SHA384withRSAandMGF1", 2048, Type.RSASSA_PSS, Use.SIGN),
 
 		/**
 		 * RSASSA-PSS using SHA-512 and MGF1 with SHA-512.
 		 */
-		PS512("PS512", "RSASSA-PSS", "SHA512withRSAandMGF1", 512, Type.RSASSA_PSS, Use.SIGN),
+		PS512("PS512", "RSASSA-PSS", "SHA512withRSAandMGF1", 2048, Type.RSASSA_PSS, Use.SIGN),
 
 		/**
 		 * RSAES-PKCS1-v1_5.
 		 */
 		@Deprecated
-		RSA1_5("RSA1_5", null, "RSA/ECB/PKCS1Padding", 2048, Type.RSA, Use.ENCRYPT),
+		RSA1_5("RSA1_5", "RSA", "RSA/ECB/PKCS1Padding", 2048, Type.RSA, Use.ENCRYPT),
 
 		/**
 		 * RSAES OAEP w/ default parameters.
 		 */
-		RSA_OAEP("RSA-OAEP", null, "RSA/ECB/OAEPWithSHA-1AndMGF1Padding", 2048, Type.RSA, Use.ENCRYPT),
+		RSA_OAEP("RSA-OAEP", "RSA", "RSA/ECB/OAEPWithSHA-1AndMGF1Padding", 2048, Type.RSA, Use.ENCRYPT),
 
 		/**
 		 * RSAES OAEP w/ SHA-256 and MGF-1.
 		 */
-		RSA_OAEP_256("RSA-OAEP-256", null, "RSA/ECB/OAEPWithSHA-256AndMGF1Padding", 2048, Type.RSA, Use.ENCRYPT),
+		RSA_OAEP_256("RSA-OAEP-256", "RSA", "RSA/ECB/OAEPWithSHA-256AndMGF1Padding", 2048, Type.RSA, Use.ENCRYPT),
 
 		/**
 		 * AES-128 Key Wrap.
 		 */
-		A128KW("A128KW", null, "AESWrap", 128, Type.RAW, Use.ENCRYPT),
+		A128KW("A128KW", "AES", "AESWrap", 128, Type.RAW, Use.ENCRYPT),
 
 		/**
 		 * AES-192 Key Wrap.
 		 */
-		A192KW("A192KW", null, "AESWrap", 192, Type.RAW, Use.ENCRYPT),
+		A192KW("A192KW", "AES", "AESWrap", 192, Type.RAW, Use.ENCRYPT),
 
 		/**
 		 * AES-256 Key Wrap.
 		 */
-		A256KW("A256KW", null, "AESWrap", 256, Type.RAW, Use.ENCRYPT),
+		A256KW("A256KW", "AES", "AESWrap", 256, Type.RAW, Use.ENCRYPT),
 
 		/**
 		 * Direct use (as CEK).
 		 */
-		DIRECT("dir", null, null, 0, Type.RAW, Use.ENCRYPT),
+		DIRECT("dir", "AES", null, 256, Type.RAW, Use.ENCRYPT),
 
 		/**
 		 * Elliptic Curve Diffie-Hellman Ephemeral Static key agreement w/ defaults.
@@ -350,17 +350,17 @@ public interface WebKey extends WebCertificateReference {
 		/**
 		 * AES-128 GCM Key Wrap.
 		 */
-		A128GCMKW("A128GCMKW", null, "AES/GCM/NoPadding", 128, Type.RAW, Use.ENCRYPT),
+		A128GCMKW("A128GCMKW", "AES", "AES/GCM/NoPadding", 128, Type.RAW, Use.ENCRYPT),
 
 		/**
 		 * AES-192 GCM Key Wrap.
 		 */
-		A192GCMKW("A192GCMKW", null, "AES/GCM/NoPadding", 192, Type.RAW, Use.ENCRYPT),
+		A192GCMKW("A192GCMKW", "AES", "AES/GCM/NoPadding", 192, Type.RAW, Use.ENCRYPT),
 
 		/**
 		 * AES-256 GCM Key Wrap.
 		 */
-		A256GCMKW("A256GCMKW", null, "AES/GCM/NoPadding", 256, Type.RAW, Use.ENCRYPT),
+		A256GCMKW("A256GCMKW", "AES", "AES/GCM/NoPadding", 256, Type.RAW, Use.ENCRYPT),
 
 		/**
 		 * PBES2 with HMAC SHA-256 and "A128KW" wrapping.
@@ -429,15 +429,17 @@ public interface WebKey extends WebCertificateReference {
 
 	/**
 	 * Builder interface for creating {@link WebKey} instances.
+	 * 
+	 * @param <B> builder type
 	 */
-	interface Builder {
+	interface Builder<B extends Builder<B>> {
 		/**
 		 * Sets the Key ID.
 		 * 
 		 * @param id key ID
 		 * @return this;
 		 */
-		Builder id(String id);
+		B id(String id);
 
 		/**
 		 * Sets the key type.
@@ -445,7 +447,7 @@ public interface WebKey extends WebCertificateReference {
 		 * @param type key type
 		 * @return this
 		 */
-		Builder type(Type type);
+		B type(Type type);
 
 		/**
 		 * Sets the public key use.
@@ -453,7 +455,7 @@ public interface WebKey extends WebCertificateReference {
 		 * @param use public key use
 		 * @return this
 		 */
-		Builder use(Use use);
+		B use(Use use);
 
 		/**
 		 * Sets the algorithm.
@@ -461,7 +463,7 @@ public interface WebKey extends WebCertificateReference {
 		 * @param algorithm algorithm
 		 * @return this
 		 */
-		Builder algorithm(Algorithm algorithm);
+		B algorithm(Algorithm algorithm);
 
 		/**
 		 * Sets the key operations.
@@ -469,7 +471,15 @@ public interface WebKey extends WebCertificateReference {
 		 * @param ops key operations
 		 * @return this
 		 */
-		Builder ops(Op... ops);
+		B ops(Op... ops);
+
+		/**
+		 * Generates a public/private key pair or secret key appropriate for the
+		 * configured {@link #algorithm(Algorithm)}.
+		 * 
+		 * @return this
+		 */
+		B ephemeral();
 
 		/**
 		 * Sets the raw key data.
@@ -477,7 +487,7 @@ public interface WebKey extends WebCertificateReference {
 		 * @param key raw key data
 		 * @return this
 		 */
-		Builder key(byte[] key);
+		B key(byte[] key);
 
 		/**
 		 * Sets secret key.
@@ -485,7 +495,7 @@ public interface WebKey extends WebCertificateReference {
 		 * @param secretKey secret key
 		 * @return this
 		 */
-		Builder key(SecretKey secretKey);
+		B key(SecretKey secretKey);
 
 		/**
 		 * Sets public key only.
@@ -493,7 +503,7 @@ public interface WebKey extends WebCertificateReference {
 		 * @param publicKey public key
 		 * @return this
 		 */
-		Builder pub(PublicKey publicKey);
+		B pub(PublicKey publicKey);
 
 		/**
 		 * Sets both public and private keys from a {@link KeyPair}.
@@ -501,7 +511,7 @@ public interface WebKey extends WebCertificateReference {
 		 * @param keyPair key pair;
 		 * @return this
 		 */
-		Builder pair(KeyPair keyPair);
+		B pair(KeyPair keyPair);
 
 		/**
 		 * Sets the URI where X.509 certificate associated with this key can be
@@ -517,7 +527,7 @@ public interface WebKey extends WebCertificateReference {
 		 * @param uri {@link URI}
 		 * @return this
 		 */
-		Builder cert(URI uri);
+		B cert(URI uri);
 
 		/**
 		 * Sets the URI where X.509 certificate associated with this key can be
@@ -526,7 +536,7 @@ public interface WebKey extends WebCertificateReference {
 		 * @param chain one or more {@link X509Certificate}s
 		 * @return this
 		 */
-		Builder cert(X509Certificate... chain);
+		B cert(X509Certificate... chain);
 
 		/**
 		 * Sets the URI where X.509 certificate associated with this key can be
@@ -537,7 +547,7 @@ public interface WebKey extends WebCertificateReference {
 		 * @param chain      one or more {@link X509Certificate}s
 		 * @return this
 		 */
-		Builder cert(PrivateKey privateKey, X509Certificate... chain);
+		B cert(PrivateKey privateKey, X509Certificate... chain);
 
 		/**
 		 * Sets the certificate thumbprint.
@@ -545,7 +555,7 @@ public interface WebKey extends WebCertificateReference {
 		 * @param certificateThumbprint JSON x5t attribute value
 		 * @return this
 		 */
-		Builder x5t(byte[] certificateThumbprint);
+		B x5t(byte[] certificateThumbprint);
 
 		/**
 		 * Sets the certificate SHA-256 thumbprint.
@@ -553,7 +563,7 @@ public interface WebKey extends WebCertificateReference {
 		 * @param certificateSha256Thumbprint JSON x5t attribute value
 		 * @return this
 		 */
-		Builder x5t256(byte[] certificateSha256Thumbprint);
+		B x5t256(byte[] certificateSha256Thumbprint);
 
 		/**
 		 * Sets key data from potentially concatenated PEM-encoded input.
@@ -562,7 +572,7 @@ public interface WebKey extends WebCertificateReference {
 		 *                   concatenated
 		 * @return this
 		 */
-		Builder pem(InputStream pemEncoded);
+		B pem(InputStream pemEncoded);
 
 		/**
 		 * Sets key data from potentially concatenated PEM-encoded input.
@@ -570,7 +580,7 @@ public interface WebKey extends WebCertificateReference {
 		 * @param pemEncoded potentially concatenated PEM encoded key data
 		 * @return this
 		 */
-		Builder pem(String pemEncoded);
+		B pem(String pemEncoded);
 
 		/**
 		 * Builds the web key.
@@ -585,7 +595,7 @@ public interface WebKey extends WebCertificateReference {
 	 * 
 	 * @return {@link Builder}
 	 */
-	static Builder builder() {
+	static Builder<?> builder() {
 		return new JwkBuilder();
 	}
 
@@ -618,6 +628,19 @@ public interface WebKey extends WebCertificateReference {
 	static Stream<? extends WebKey> readJwks(URI jwks) {
 		return JwkBuilder.readJwks(jwks);
 	}
+
+	/**
+	 * Returns a copy of this key for which {@link #getPrivateKey()} and
+	 * {@link #getKey()} always return null, and for which the source data backing
+	 * these methods is not populated.
+	 * 
+	 * <p>
+	 * If these methods would already return, this key is returned as-is.
+	 * </p>
+	 * 
+	 * @return this key, or a copy that omits secret and private key data
+	 */
+	WebKey wellKnown();
 
 	/**
 	 * Gets the Key ID.

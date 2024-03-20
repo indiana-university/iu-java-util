@@ -109,17 +109,13 @@ public interface WebEncryptionHeader extends WebSignatureHeader {
 	 * 
 	 * @return encryption algorithm
 	 */
-	default Encryption getEncryption() {
-		return null;
-	}
+	Encryption getEncryption();
 
 	/**
 	 * Determines whether or not to compress content before encryption.
 	 * 
 	 * @return true to compress content before encrypting; false to encrypt as-is
 	 */
-	default boolean isDeflate() {
-		return true;
-	}
+	boolean isDeflate();
 
 }
