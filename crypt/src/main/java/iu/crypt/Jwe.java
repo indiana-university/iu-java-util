@@ -1,9 +1,26 @@
 package iu.crypt;
 
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.security.SecureRandom;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+import java.util.zip.Deflater;
+import java.util.zip.DeflaterOutputStream;
 
+import javax.crypto.Cipher;
+import javax.crypto.Mac;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+
+import edu.iu.IuException;
+import edu.iu.IuObject;
+import edu.iu.IuStream;
+import edu.iu.client.IuJson;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebSignatureHeader.Param;
 
@@ -26,21 +43,101 @@ class Jwe implements WebEncryption {
 	 * @param in      stream that provides the encrypted message
 	 */
 	Jwe(JweBuilder builder, InputStream in) {
-		this.protectedParameters = builder.protectedParameters();
+		final var protectedParameters = builder.protectedParameters();
+		if (protectedParameters == null)
+			this.protectedParameters = Set.of(Param.ALGORITHM, Param.ENCRYPTION);
+		else
+			this.protectedParameters = protectedParameters;
 
-		// 5.1#1 determine key management mode
-		final var algorithm = builder.algorithm();
+		final var cek = builder.cek();
 
-		// 5.1#2 generate CEK if ephermeral
-		final var ecek = builder.cek();
+		this.recipients = builder.recipients().map(r -> r.build(this, cek)).toArray(JweRecipient[]::new);
+		final var recipient = recipients[0];
+		final var jose = recipient.getHeader();
 
-		// TODO: pass CEK to recipient
-		this.recipients = builder.recipients().map(r -> r.build(ecek)).toArray(JweRecipient[]::new);
+		// 5.1#11 compress content if requested
+		final var content = IuException.unchecked(() -> {
+			if (builder.deflate()) {
+				final var deflatedContent = new ByteArrayOutputStream();
+				try (final var d = new DeflaterOutputStream(deflatedContent,
+						new Deflater(Deflater.DEFAULT_COMPRESSION, true /* <= RFC-1951 compliant */))) {
+					IuStream.copy(in, deflatedContent);
+				}
+				return deflatedContent.toByteArray();
+			} else
+				return IuStream.read(in);
+		});
 
-		this.initializationVector = null; // TODO
-		this.cipherText = null;
-		this.authenticationTag = null;
-		this.additionalData = null;
+		// 5.1#13 encode protected header
+		final var protectedHeader = EncodingUtils
+				.base64Url(EncodingUtils.utf8(jose.toJson(recipient::isProtected).toString()));
+
+		// 5.1#14 encode protected header
+		this.additionalData = builder.additionalData();
+		final var aad = IuException.unchecked(() -> {
+			if (additionalData != null)
+				return (protectedHeader + '.' + EncodingUtils.base64Url(additionalData)).getBytes("US-ASCII");
+			else
+				return protectedHeader.getBytes("US-ASCII");
+		});
+
+		// 5.1#15 encrypt content
+		final var enc = jose.getEncryption();
+		if (enc.mac != null) {
+			// AES_CBC_HMAC
+			final var macKey = Arrays.copyOf(cek, enc.size / 8);
+			final var encKey = Arrays.copyOfRange(cek, enc.size / 8, enc.size / 4);
+
+			initializationVector = new byte[16];
+			new SecureRandom().nextBytes(initializationVector);
+
+			cipherText = IuException.unchecked(() -> {
+				final var messageCipher = Cipher.getInstance(enc.cipherAlgorithm);
+				messageCipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(encKey, enc.keyAlgorithm),
+						new IvParameterSpec(initializationVector));
+				return messageCipher.doFinal(content);
+			});
+
+			// MAC input = aad || initializationVector || cipherText ||
+			// big_endian_u64(bitlen(cipherText))
+			final byte[] macInput = new byte[aad.length + initializationVector.length + cipherText.length + 8];
+			var pos = 0;
+
+			System.arraycopy(aad, 0, macInput, pos, aad.length);
+			pos += aad.length;
+
+			System.arraycopy(initializationVector, 0, macInput, pos, initializationVector.length);
+			pos += initializationVector.length;
+
+			System.arraycopy(cipherText, 0, macInput, pos, cipherText.length);
+			pos += cipherText.length;
+
+			EncodingUtils.bigEndian((long) aad.length * 8L, macInput, pos);
+
+			authenticationTag = IuException.unchecked(() -> {
+				final var mac = Mac.getInstance(enc.mac);
+				mac.init(new SecretKeySpec(macKey, enc.mac));
+				final var hash = mac.doFinal(macInput);
+				return Arrays.copyOf(hash, enc.size / 8);
+			});
+		} else {
+			// GCM w/ 96-bit initialization vector
+			initializationVector = new byte[12]; // 96 bits = 12 bytes
+			new SecureRandom().nextBytes(initializationVector);
+
+			final var encryptedData = IuException.unchecked(() -> {
+				final var gcmSpec = new GCMParameterSpec(128, initializationVector);
+				final var messageCipher = Cipher.getInstance(enc.cipherAlgorithm);
+				messageCipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(cek, enc.keyAlgorithm), gcmSpec);
+				messageCipher.updateAAD(aad);
+				return messageCipher.doFinal(content);
+			});
+
+			// GCM Cipher.doFinal() returns (cipherText || authenticationTag)
+			// 16 = 128-bit authenticationTag (from GCMParameterSpec), in bytes
+			cipherText = Arrays.copyOf(encryptedData, encryptedData.length - 16);
+			authenticationTag = Arrays.copyOfRange(encryptedData, encryptedData.length - 16, encryptedData.length);
+		}
 	}
 
 	@Override
@@ -79,8 +176,6 @@ class Jwe implements WebEncryption {
 		final var p = Param.from(param);
 		if (p == null)
 			return false;
-		else if (protectedParameters == null)
-			return p.equals(Param.ALGORITHM) || p.equals(Param.ENCRYPTION);
 		else
 			return protectedParameters.contains(p);
 	}
@@ -487,96 +582,88 @@ class Jwe implements WebEncryption {
 //		return additionalData;
 //	}
 //
-//	@Override
-//	public String toString() {
-//		final var b = IuJson.object();
-//
-//		final var recipients = this.recipients.iterator();
-//		final var recipient = (JweRecipient) recipients.next();
-//
-//		final var header = recipient.getHeader();
-//		final var protectedHeader = header.toJson(recipient::isProtected);
-//		final Map<String, Object> sharedParams = new HashMap<>();
-//		for (final var p : Param.values()) {
-//			if (protectedParameters == null) {
-//				if (p.equals(Param.ALGORITHM) //
-//						|| p.equals(Param.ENCRYPTION))
-//					continue;
-//			} else if (protectedParameters.contains(p))
-//				continue;
-//
-//			final var v = p.get(header);
-//			if (v != null)
-//				sharedParams.put(p.name, v);
-//		}
-//
-//		final var crit = header.getCriticalExtendedParameters();
-//		final var ext = header.getExtendedParameters();
-//		if (ext != null)
-//			for (final var e : ext.entrySet())
-//				if (!crit.contains(e.getKey()))
-//					sharedParams.put(e.getKey(), e.getValue());
-//
-//		b.add("protected", EncodingUtils.base64Url(EncodingUtils.utf8(protectedHeader.toString())));
-//		if (recipients.hasNext()) {
-//			while (recipients.hasNext()) {
-//				final var additionalRecipient = (JweRecipient) recipients.next();
-//				final var additionalHeader = additionalRecipient.getHeader();
-//				final var sharedEntries = sharedParams.entrySet().iterator();
-//				final var additionalExt = additionalHeader.getExtendedParameters();
-//				while (sharedEntries.hasNext()) {
-//					final var e = sharedEntries.next();
-//					final var p = Param.from(e.getKey());
-//					if (p != null) {
-//						if (!IuObject.equals(p.get(additionalHeader), e.getValue()))
-//							sharedEntries.remove();
-//					} else if (additionalExt == null || !IuObject.equals(additionalExt.get(e.getKey()), e.getValue()))
-//						sharedEntries.remove();
-//				}
-//				for (final var p : Param.values())
-//					if (!protectedParameters.contains(p)) {
-//						if (!IuObject.equals(p.get(header), sharedParams.get(p.name)))
-//							sharedParams.remove(p.name);
-//					}
-//			}
-//
-//			if (!sharedParams.isEmpty()) {
-//				final var unprotectedHeader = header.toJson(sharedParams::containsKey);
-//				b.add("unprotected", unprotectedHeader);
-//			}
-//
-//			final var serializedRecipients = IuJson.array();
-//			for (final var additionalRecipient : this.recipients) {
-//				final var recipientBuilder = IuJson.object();
-//				final var perRecipientHeader = ((JweRecipient) additionalRecipient).getHeader()
-//						.toJson(a -> !sharedParams.containsKey(a));
-//				if (!perRecipientHeader.isEmpty())
-//					recipientBuilder.add("header", perRecipientHeader);
-//				IuJson.add(recipientBuilder, a -> true, "encrypted_key",
-//						() -> EncodingUtils.base64Url(additionalRecipient.getEncryptedKey()));
-//				serializedRecipients.add(recipientBuilder);
-//			}
-//		} else {
-//			final var perRecipientHeader = header.toJson(sharedParams::containsKey);
-//			if (!perRecipientHeader.isEmpty())
-//				b.add("header", perRecipientHeader);
-//			IuJson.add(b, a -> true, "encrypted_key", () -> EncodingUtils.base64Url(recipient.getEncryptedKey()));
-//
-//		}
-//
-//		if (initializationVector.length > 0)
-//			b.add("iv", EncodingUtils.base64Url(initializationVector));
-//
-//		b.add("ciphertext", EncodingUtils.base64Url(cipherText));
-//
-//		if (authenticationTag.length > 0)
-//			b.add("tag", EncodingUtils.base64Url(authenticationTag));
-//
-//		if (additionalData != null)
-//			b.add("aad", EncodingUtils.base64Url(additionalData));
-//
-//		return b.build().toString();
-//	}
-//
+	@Override
+	public String toString() {
+		final var b = IuJson.object();
+
+		final var header = recipients[0].getHeader();
+		final var protectedHeader = header.toJson(recipients[0]::isProtected);
+
+		final Map<String, Object> sharedParams = new LinkedHashMap<>();
+		for (final var p : Param.values()) {
+			if (protectedParameters.contains(p))
+				continue;
+
+			final var v = p.get(header);
+			if (v != null)
+				sharedParams.put(p.name, v);
+		}
+
+		final var crit = header.getCriticalExtendedParameters();
+		for (final var e : header.getExtendedParameters().entrySet()) {
+			final var paramName = e.getKey();
+			if (!crit.contains(paramName))
+				sharedParams.put(paramName, e.getValue());
+		}
+
+		// 5.1#13 encode protected header
+		b.add("protected", EncodingUtils.base64Url(EncodingUtils.utf8(protectedHeader.toString())));
+
+		if (recipients.length > 1) {
+			for (int i = 1; i < recipients.length; i++) {
+				final var additionalRecipient = recipients[i];
+				final var additionalHeader = additionalRecipient.getHeader();
+
+				final var sharedEntries = sharedParams.entrySet().iterator();
+				final var additionalExt = additionalHeader.getExtendedParameters();
+				while (sharedEntries.hasNext()) {
+					final var sharedEntry = sharedEntries.next();
+					final var paramName = sharedEntry.getKey();
+					final var param = Param.from(paramName);
+					final var value = sharedEntry.getValue();
+					if (param != null) {
+						if (!IuObject.equals(param.get(additionalHeader), value))
+							sharedEntries.remove();
+					} else if (!IuObject.equals(additionalExt.get(paramName), value))
+						sharedEntries.remove();
+				}
+
+				for (final var p : Param.values())
+					if (!protectedParameters.contains(p) //
+							&& !IuObject.equals(p.get(header), sharedParams.get(p.name)))
+						sharedParams.remove(p.name);
+			}
+
+			if (!sharedParams.isEmpty()) {
+				final var unprotectedHeader = header.toJson(sharedParams::containsKey);
+				b.add("unprotected", unprotectedHeader);
+			}
+
+			final var serializedRecipients = IuJson.array();
+			for (final var additionalRecipient : this.recipients) {
+				final var recipientBuilder = IuJson.object();
+				final var perRecipientHeader = additionalRecipient.getHeader()
+						.toJson(a -> !sharedParams.containsKey(a));
+				if (!perRecipientHeader.isEmpty())
+					recipientBuilder.add("header", perRecipientHeader);
+				IuJson.add(recipientBuilder, a -> true, "encrypted_key",
+						() -> EncodingUtils.base64Url(additionalRecipient.getEncryptedKey()));
+				serializedRecipients.add(recipientBuilder);
+			}
+		} else {
+			final var perRecipientHeader = header.toJson(sharedParams::containsKey);
+			if (!perRecipientHeader.isEmpty())
+				b.add("header", perRecipientHeader);
+			IuJson.add(b, a -> true, "encrypted_key", () -> EncodingUtils.base64Url(recipients[0].getEncryptedKey()));
+		}
+
+		IuJson.add(b, "iv", () -> EncodingUtils.base64Url(initializationVector));
+		IuJson.add(b, "ciphertext", () -> EncodingUtils.base64Url(cipherText));
+		IuJson.add(b, "tag", () -> EncodingUtils.base64Url(authenticationTag));
+		if (additionalData != null)
+			IuJson.add(b, "aad", () -> EncodingUtils.base64Url(additionalData));
+
+		return b.build().toString();
+	}
 
 }

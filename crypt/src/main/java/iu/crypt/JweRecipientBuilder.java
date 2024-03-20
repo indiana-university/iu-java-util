@@ -1,11 +1,14 @@
 package iu.crypt;
 
+import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Objects;
 
+import javax.crypto.Cipher;
 import javax.crypto.KeyAgreement;
-import javax.crypto.KeyGenerator;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
-import edu.iu.IdGenerator;
 import edu.iu.IuCrypt;
 import edu.iu.IuException;
 import edu.iu.client.IuJson;
@@ -43,16 +46,21 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 		return this;
 	}
 
+	/**
+	 * Computes the agreed-upon key for the Elliptic Curve Diffie-Hellman algorithm.
+	 * 
+	 * @return agreed-upon key
+	 * @see <a href=
+	 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
+	 *      Section 4.6</a>
+	 * @see <a href=
+	 *      "https://datatracker.ietf.org/doc/html/rfc7516#section-5.1">RFC-7516 JWE
+	 *      Section 5.1 #3</a>
+	 */
 	byte[] agreedUponKey() {
-//		3.   When Direct Key Agreement or Key Agreement with Key Wrapping are
-//      employed, use the key agreement algorithm to compute the value
-//      of the agreed upon key.  When Direct Key Agreement is employed,
-//      let the CEK be the agreed upon key.  When Key Agreement with Key
-//      Wrapping is employed, the agreed upon key will be used to wrap
-//      the CEK.
 		final var algorithm = algorithm();
 		final var encryption = encryption();
-		
+
 		final var epk = new JwkBuilder().algorithm(algorithm).ephemeral().build();
 		final var serializedEpk = IuJson.object();
 		epk.wellKnown().serializeTo(serializedEpk);
@@ -76,109 +84,122 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 		final String algId;
 		if (algorithm.equals(Algorithm.ECDH_ES)) {
 			keyDataLen = encryption.size;
-			algId = encryption.size + encryption.enc;
+			algId = encryption.enc;
 		} else {
-			keyDataLen = encryption.size;
-			algId = algorithm.size + algorithm.alg;
+			keyDataLen = algorithm.size;
+			algId = algorithm.alg;
 		}
 
-//		Key derivation is performed using the Concat KDF, as defined in
-//		   Section 5.8.1 of [NIST.800-56A], where the Digest Method is SHA-256.
-//		   The Concat KDF parameters are set as follows:
-//
-//		   Z
-//		      This is set to the representation of the shared secret Z as an
-//		      octet sequence.
-//
-//		   keydatalen
-//		      This is set to the number of bits in the desired output key.  For
-//		      "ECDH-ES", this is length of the key used by the "enc" algorithm.
-//		      For "ECDH-ES+A128KW", "ECDH-ES+A192KW", and "ECDH-ES+A256KW", this
-//		      is 128, 192, and 256, respectively.
-//
-//		   AlgorithmID
-//		      The AlgorithmID value is of the form Datalen || Data, where Data
-//		      is a variable-length string of zero or more octets, and Datalen is
-//		      a fixed-length, big-endian 32-bit counter that indicates the
-//		      length (in octets) of Data.  In the Direct Key Agreement case,
-//		      Data is set to the octets of the ASCII representation of the "enc"
-//		      Header Parameter value.  In the Key Agreement with Key Wrapping
-//		      case, Data is set to the octets of the ASCII representation of the
-//		      "alg" (algorithm) Header Parameter value.
-//
-//		   PartyUInfo
-//		      The PartyUInfo value is of the form Datalen || Data, where Data is
-//		      a variable-length string of zero or more octets, and Datalen is a
-//		      fixed-length, big-endian 32-bit counter that indicates the length
-//		      (in octets) of Data.  If an "apu" (agreement PartyUInfo) Header
-//		      Parameter is present, Data is set to the result of base64url
-//		      decoding the "apu" value and Datalen is set to the number of
-//		      octets in Data.  Otherwise, Datalen is set to 0 and Data is set to
-//		      the empty octet sequence.
-//
-//		   PartyVInfo
-//		      The PartyVInfo value is of the form Datalen || Data, where Data is
-//		      a variable-length string of zero or more octets, and Datalen is a
-//		      fixed-length, big-endian 32-bit counter that indicates the length
-//		      (in octets) of Data.  If an "apv" (agreement PartyVInfo) Header
-//		      Parameter is present, Data is set to the result of base64url
-//		      decoding the "apv" value and Datalen is set to the number of
-//		      octets in Data.  Otherwise, Datalen is set to 0 and Data is set to
-//		      the empty octet sequence.
-//
-//		   SuppPubInfo
-//		      This is set to the keydatalen represented as a 32-bit big-endian
-//		      integer.
-//
-//		   SuppPrivInfo
-//		      This is set to the empty octet sequence.
-//
-//		   Applications need to specify how the "apu" and "apv" Header
-//		   Parameters are used for that application.  The "apu" and "apv" values
-//		   MUST be distinct, when used.  Applications wishing to conform to
-//		   [NIST.800-56A] need to provide values that meet the requirements of
-//		   that document, e.g., by using values that identify the producer and
-//		   consumer.  Alternatively, applications MAY conduct key derivation in
-//		   a manner similar to "Diffie-Hellman Key Agreement Method" [RFC2631]:
-//		   in that case, the "apu" parameter MAY either be omitted or represent
-//		   a random 512-bit value (analogous to PartyAInfo in Ephemeral-Static
-//		   mode in RFC 2631) and the "apv" parameter SHOULD NOT be present.
-//
-//		   See Appendix C for an example key agreement computation using this
-//		   method.
+		return EncodingUtils.concatKdf(1, z, algId, uinfo, vinfo, keyDataLen);
 	}
+
+//	private static class AesGcm {
+//		private final SecretKey cek;
+//		private final SecureRandom rand = new SecureRandom();
+//		private final byte[] fixed = new byte[4];
+//		private final byte[] iv = new byte[12];
+//		private int c;
+//
+//		private AesGcm(SecretKey cek) {
+//			this.cek = cek;
+//			rand.nextBytes(fixed);
+//		}
+//
+//		private GCMParameterSpec spec() {
+//			if (c == -1)
+//				throw new IllegalStateException();
+//			else
+//				c++;
+//
+//			// NIST 800-38D 8.2.1 Deterministic Construction
+//			rand.nextBytes(iv);
+//			System.arraycopy(fixed, 0, iv, 0, 4);
+//			iv[4] = (byte) c;
+//			iv[6] = (byte) ((c >>> 8) & 0xff);
+//			iv[8] = (byte) ((c >>> 16) & 0xff);
+//			iv[10] = (byte) ((c >>> 24) & 0xff);
+//			return new GCMParameterSpec(128, iv);
+//		}
+//	}
 
 	/**
 	 * Generates the encrypted key and creates the recipient.
 	 * 
-	 * @param cek        ephemeral content encryption key, null if not ephemeral
+	 * @param jwe partially initialized JWE
+	 * @param cek ephemeral content encryption key, null if not ephemeral
 	 * 
-	 * @param encryption partially initialized JWE
 	 * @return recipient
 	 */
-	JweRecipient build(byte[] cek) {
-//
-//   4.   When Key Wrapping, Key Encryption, or Key Agreement with Key
-//        Wrapping are employed, encrypt the CEK to the recipient and let
-//        the result be the JWE Encrypted Key.
-//
-//   5.   When Direct Key Agreement or Direct Encryption are employed, let
-//        the JWE Encrypted Key be the empty octet sequence.
-//
-//
-//
-//
-//Jones & Hildebrand           Standards Track                   [Page 15]
-//
-//RFC 7516                JSON Web Encryption (JWE)               May 2015
-//
-//
-//   6.   When Direct Encryption is employed, let the CEK be the shared
-//        symmetric key.
-//
-//   7.   Compute the encoded key value BASE64URL(JWE Encrypted Key).
-		throw new UnsupportedOperationException("TODO: encryptedKey");
-//		return new JweRecipient(encryption, new Jose(this), encryptedKey);
+	@SuppressWarnings("deprecation")
+	JweRecipient build(Jwe jwe, byte[] cek) {
+		final var algorithm = algorithm();
+
+		// 5.1#4 encrypt CEK to the recipient
+		final byte[] encryptedKey;
+		switch (algorithm) {
+		case A128KW:
+		case A192KW:
+		case A256KW:
+			// key wrapping
+			encryptedKey = IuException.unchecked(() -> {
+				final var key = new SecretKeySpec(key().getKey(), "AES");
+				final var cipher = Cipher.getInstance(algorithm.keyAlgorithm);
+				cipher.init(Cipher.WRAP_MODE, key);
+				return cipher.wrap(new SecretKeySpec(cek, "AES"));
+			});
+			break;
+
+		case A128GCMKW:
+		case A192GCMKW:
+		case A256GCMKW:
+			// key wrapping w/ GCM
+			encryptedKey = IuException.unchecked(() -> {
+				final var key = new SecretKeySpec(key().getKey(), "AES");
+				final var iv = new byte[12];
+				new SecureRandom().nextBytes(iv);
+				crit("iv", EncodingUtils.base64Url(iv));
+
+				final var cipher = Cipher.getInstance(algorithm.keyAlgorithm);
+				cipher.init(Cipher.WRAP_MODE, key, new GCMParameterSpec(128, iv));
+				final var wrappedKey = cipher.wrap(new SecretKeySpec(cek, "AES"));
+
+				crit("tag", EncodingUtils
+						.base64Url(Arrays.copyOfRange(wrappedKey, wrappedKey.length - 16, wrappedKey.length)));
+
+				return Arrays.copyOf(wrappedKey, wrappedKey.length - 16);
+			});
+			break;
+
+		case RSA1_5:
+		case RSA_OAEP:
+		case RSA_OAEP_256:
+			// key encryption
+			encryptedKey = IuException.unchecked(() -> {
+				final var keyCipher = Cipher.getInstance(algorithm.keyAlgorithm);
+				keyCipher.init(Cipher.ENCRYPT_MODE, key().getPublicKey());
+				return keyCipher.doFinal(cek);
+			});
+			break;
+
+		case ECDH_ES_A128KW:
+		case ECDH_ES_A192KW:
+		case ECDH_ES_A256KW:
+			// key agreement with key wrapping
+			encryptedKey = IuException.unchecked(() -> {
+				final var key = new SecretKeySpec(agreedUponKey(), "AES");
+				final var cipher = Cipher.getInstance(algorithm.keyAlgorithm);
+				cipher.init(Cipher.WRAP_MODE, key);
+				return cipher.wrap(new SecretKeySpec(cek, "AES"));
+			});
+			break;
+
+		default:
+			// 5.1#5 don't populate encrypted key for direct key agreement or encryption
+			encryptedKey = null;
+			break;
+		}
+
+		return new JweRecipient(jwe, new Jose(this), encryptedKey);
 	}
 
 }

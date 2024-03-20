@@ -25,7 +25,7 @@ public interface WebEncryptionHeader extends WebSignatureHeader {
 		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-5.2.3">RFC-7518
 		 *      Section 5.2.3</a>
 		 */
-		AES_128_CBC_HMAC_SHA_256("A128CBC-HS256", "AES", 128, "CBC", "HmacSHA256"),
+		AES_128_CBC_HMAC_SHA_256("A128CBC-HS256", "AES", 128, "AES/CBC/PKCS5Padding", "HmacSHA256"),
 
 		/**
 		 * AES_192_CBC_HMAC_SHA_384 authenticated encryption algorithm.
@@ -34,7 +34,7 @@ public interface WebEncryptionHeader extends WebSignatureHeader {
 		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-5.2.3">RFC-7518
 		 *      Section 5.2.3</a>
 		 */
-		AES_192_CBC_HMAC_SHA_384("A192CBC-HS384", "AES", 192, "CBC", "HmacSHA384"),
+		AES_192_CBC_HMAC_SHA_384("A192CBC-HS384", "AES", 192, "AES/CBC/PKCS5Padding", "HmacSHA384"),
 
 		/**
 		 * AES_256_CBC_HMAC_SHA_512 authenticated encryption algorithm.
@@ -43,22 +43,22 @@ public interface WebEncryptionHeader extends WebSignatureHeader {
 		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-5.2.3">RFC-7518
 		 *      Section 5.2.3</a>
 		 */
-		AES_256_CBC_HMAC_SHA_512("A192CBC-HS384", "AES", 256, "CBC", "HmacSHA512"),
+		AES_256_CBC_HMAC_SHA_512("A192CBC-HS384", "AES", 256, "AES/CBC/PKCS5Padding", "HmacSHA512"),
 
 		/**
 		 * AES-128 GCM.
 		 */
-		A128GCM("A128GCM", "AES", 128, "GCM", null),
+		A128GCM("A128GCM", "AES", 128, "AES/GCM/NoPadding", null),
 
 		/**
 		 * AES-192 GCM.
 		 */
-		A192GCM("A192GCM", "AES", 192, "GCM", null),
+		A192GCM("A192GCM", "AES", 192, "AES/GCM/NoPadding", null),
 
 		/**
 		 * AES-256 GCM.
 		 */
-		A256GCM("A256GCM", "AES", 256, "GCM", null);
+		A256GCM("A256GCM", "AES", 256, "AES/GCM/NoPadding", null);
 
 		/**
 		 * Selects encryption by JOSE enc parameter value.
@@ -76,9 +76,9 @@ public interface WebEncryptionHeader extends WebSignatureHeader {
 		public final String enc;
 
 		/**
-		 * JCE Cipher algorithm name.
+		 * JCE secret key algorithm;
 		 */
-		public final String cipherAlgorithm;
+		public final String keyAlgorithm;
 
 		/**
 		 * CEK size, in bits.
@@ -86,9 +86,9 @@ public interface WebEncryptionHeader extends WebSignatureHeader {
 		public final int size;
 
 		/**
-		 * JCE Cipher mode.
+		 * JCE Cipher algorithm.
 		 */
-		public final String cipherMode;
+		public final String cipherAlgorithm;
 
 		/**
 		 * JCE MAC algorithm.
@@ -97,9 +97,9 @@ public interface WebEncryptionHeader extends WebSignatureHeader {
 
 		private Encryption(String enc, String cipherAlgorithm, int size, String cipherMode, String mac) {
 			this.enc = enc;
-			this.cipherAlgorithm = cipherAlgorithm;
+			this.keyAlgorithm = cipherAlgorithm;
 			this.size = size;
-			this.cipherMode = cipherMode;
+			this.cipherAlgorithm = cipherMode;
 			this.mac = mac;
 		}
 	}

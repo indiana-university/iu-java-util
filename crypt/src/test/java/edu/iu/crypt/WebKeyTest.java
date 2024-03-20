@@ -23,7 +23,7 @@ import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebKey.Use;
 
 @SuppressWarnings("javadoc")
-public class JwkTest {
+public class WebKeyTest {
 	// Includes test cases from RFC-7517 appendices A and B
 
 	@SuppressWarnings("deprecation")

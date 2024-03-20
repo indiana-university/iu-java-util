@@ -256,15 +256,8 @@ public class JwkBuilder extends WebKeyReferenceBuilder<JwkBuilder> implements Bu
 	@Override
 	public JwkBuilder algorithm(Algorithm algorithm) {
 		super.algorithm(algorithm);
-
-		if (type != null //
-				&& !type.equals(algorithm.type))
-			throw new IllegalArgumentException("Incorrect type " + type + " for algorithm " + algorithm);
-
-		if (use != null //
-				&& !use.equals(algorithm.use))
-			throw new IllegalArgumentException("Incorrect use " + use + " for algorithm " + algorithm);
-
+		type(algorithm.type);
+		use(algorithm.use);
 		return this;
 	}
 

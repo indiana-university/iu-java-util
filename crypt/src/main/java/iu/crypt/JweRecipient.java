@@ -237,7 +237,7 @@ class JweRecipient implements WebEncryptionRecipient {
 			return true;
 
 		final var crit = header.getCriticalExtendedParameters();
-		return crit != null && crit.contains(name);
+		return crit.contains(name);
 	}
 
 }

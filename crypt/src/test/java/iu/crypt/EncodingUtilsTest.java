@@ -150,4 +150,12 @@ public class EncodingUtilsTest {
 		final var k = Arrays.copyOf(h, 16);
 		assertEquals("VqqN6vgjbSBcIijNcacQGg", EncodingUtils.base64Url(k));
 	}
+
+	@Test
+	public void testBigEndianLong() {
+		final byte[] buf = new byte[8];
+		EncodingUtils.bigEndian(408L, buf, 0);
+		assertArrayEquals(new byte[] { 0, 0, 0, 0, 0, 0, 1, (byte) 152 }, buf);
+	}
+
 }

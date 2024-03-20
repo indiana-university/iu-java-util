@@ -44,11 +44,19 @@ public interface WebEncryption {
 		Builder protect(Param... params);
 
 		/**
+		 * Provides additional authentication data for protecting the encrypted content.
+		 * 
+		 * @param additionalData additional authentication data
+		 * @return this
+		 */
+		Builder aad(byte[] additionalData);
+
+		/**
 		 * Adds a new recipient.
 		 * 
 		 * @return {@link WebEncryptionRecipient.Builder}
 		 */
-		WebEncryptionRecipient.Builder<?> add();
+		WebEncryptionRecipient.Builder<?> addRecipient();
 
 		/**
 		 * Encrypts data for sending to all recipients.
@@ -77,17 +85,6 @@ public interface WebEncryption {
 		 * @return encrypted message
 		 */
 		WebEncryption encrypt(InputStream in);
-	}
-
-	/**
-	 * Starts a new encrypted message with direct key agreement.
-	 * 
-	 * @param algorithm Any algorithm with {@link Algorithm#use} equal to
-	 *                  {@link Use#ENCRYPT} and null {@link Algorithm#keyAlgorithm}
-	 * @return {@link Builder}
-	 */
-	static Builder with(Algorithm algorithm) {
-		return new JweBuilder(algorithm, null);
 	}
 
 	/**

@@ -175,9 +175,29 @@ final class Jose implements WebEncryptionHeader {
 				throw new IllegalArgumentException();
 		}
 
-		if (!criticalExtendedParameters.isEmpty())
-			// TODO: implement ECDH, PBES2, JWT
-			throw new IllegalArgumentException("not understood " + criticalExtendedParameters);
+		if (!criticalExtendedParameters.isEmpty()) {
+			switch (algorithm) {
+			case A128GCMKW:
+			case A192GCMKW:
+			case A256GCMKW:
+				if (!criticalExtendedParameters.equals(Set.of("iv", "tag")))
+					throw new IllegalArgumentException("not understood " + criticalExtendedParameters);
+				break;
+
+			case ECDH_ES:
+			case ECDH_ES_A128KW:
+			case ECDH_ES_A192KW:
+			case ECDH_ES_A256KW:
+				if (!criticalExtendedParameters.equals(Set.of("epk")) //
+						&& !criticalExtendedParameters.equals(Set.of("epk", "apu", "apv")))
+					throw new IllegalArgumentException("not understood " + criticalExtendedParameters);
+				break;
+
+			default:
+				throw new IllegalArgumentException("not understood " + criticalExtendedParameters);
+			}
+			// TODO: implement PBES2, JWT
+		}
 	}
 
 	@Override
@@ -265,7 +285,8 @@ final class Jose implements WebEncryptionHeader {
 	JsonObject toJson(Predicate<String> p) {
 		final var b = IuJson.object();
 		for (final var param : IuIterable.iter(Param.values()))
-			if ((p == null || p.test(param.name)) && param.isPresent(this))
+			if ((p == null //
+					|| p.test(param.name)) && param.isPresent(this))
 				switch (param) {
 				case ALGORITHM:
 					b.add(param.name, algorithm.alg);
@@ -315,12 +336,13 @@ final class Jose implements WebEncryptionHeader {
 					b.add(param.name, EncodingUtils.base64Url(certificateSha256Thumbprint));
 					break;
 
-				case CRITICAL_PARAMS: {
-					final var critb = IuJson.array();
-					criticalExtendedParameters.forEach(critb::add);
-					b.add(param.name, critb);
-					break;
-				}
+				case CRITICAL_PARAMS:
+					if (!criticalExtendedParameters.isEmpty()) {
+						final var critb = IuJson.array();
+						criticalExtendedParameters.forEach(critb::add);
+						b.add(param.name, critb);
+						break;
+					}
 				}
 
 		if (extendedParameters != null)

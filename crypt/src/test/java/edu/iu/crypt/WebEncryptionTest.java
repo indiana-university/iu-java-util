@@ -13,7 +13,7 @@ import edu.iu.crypt.WebEncryptionHeader.Encryption;
 import edu.iu.crypt.WebKey.Algorithm;
 
 @SuppressWarnings("javadoc")
-public class JweTest {
+public class WebEncryptionTest {
 
 	@Test
 	@SuppressWarnings("deprecation")
@@ -21,8 +21,9 @@ public class JweTest {
 		final var key = WebKey.builder().algorithm(Algorithm.RSA1_5).ephemeral().build();
 		final var message = IdGenerator.generateId();
 
-		final var jwe = WebEncryption.of(Algorithm.RSA1_5, Encryption.AES_128_CBC_HMAC_SHA_256).add().jwk(key).then()
-				.encrypt(message);
+		final var jwe = WebEncryption.of(Algorithm.RSA1_5, Encryption.AES_128_CBC_HMAC_SHA_256).addRecipient().jwk(key)
+				.then().encrypt(message);
+		assertNull(jwe.getAdditionalData());
 
 		final var fromCompact = WebEncryption.parse(jwe.getRecipients().findFirst().get().compact());
 

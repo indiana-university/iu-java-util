@@ -2,12 +2,12 @@ package iu.crypt;
 
 import java.io.InputStream;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import javax.crypto.KeyAgreement;
 import javax.crypto.KeyGenerator;
 
 import edu.iu.IuException;
@@ -16,6 +16,7 @@ import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Builder;
 import edu.iu.crypt.WebEncryptionHeader.Encryption;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.WebSignatureHeader.Param;
 
@@ -43,6 +44,7 @@ public class JweBuilder implements Builder {
 	private final Queue<JweRecipientBuilder> recipients = new ArrayDeque<>();
 	private Set<Param> protectedParameters;
 	private boolean deflate = true;
+	private byte[] additionalData;
 
 	/**
 	 * Constructor.
@@ -51,18 +53,11 @@ public class JweBuilder implements Builder {
 	 * @param encryption key encryption algorithm
 	 */
 	public JweBuilder(Algorithm algorithm, Encryption encryption) {
-		if (!Use.ENCRYPT.equals(Objects.requireNonNull(algorithm, "Message encryption algorithm is required").use))
+		this.algorithm = Objects.requireNonNull(algorithm, "Encryption algorithm is required");
+		if (!Use.ENCRYPT.equals(algorithm.use))
 			throw new IllegalArgumentException("Not an encryption algorithm " + algorithm);
 
-		if (!algorithm.equals(Algorithm.DIRECT))
-			Objects.requireNonNull(encryption,
-					"Message encryption algorithm " + algorithm + " requires key encryption");
-		else if (encryption != null)
-			throw new IllegalArgumentException(
-					"Direct agreement algorithm " + algorithm + " doesn't perform key encryption");
-
-		this.algorithm = algorithm;
-		this.encryption = encryption;
+		this.encryption = Objects.requireNonNull(encryption, "Content encryption algorithm is required");
 	}
 
 	@Override
@@ -72,14 +67,25 @@ public class JweBuilder implements Builder {
 	}
 
 	@Override
+	public Builder aad(byte[] additionalData) {
+		Objects.requireNonNull(additionalData);
+
+		if (this.additionalData == null)
+			this.additionalData = additionalData;
+		else if (!Arrays.equals(additionalData, this.additionalData))
+			throw new IllegalStateException("additionalData already set");
+
+		return this;
+	}
+
+	@Override
 	public Builder protect(Param... params) {
 		Objects.requireNonNull(params);
 
 		final var paramSet = Set.of(params);
-		if (!paramSet.contains(Param.ALGORITHM))
-			throw new IllegalArgumentException("alg must be protected");
-		if (encryption != null && !paramSet.contains(Param.ENCRYPTION))
-			throw new IllegalArgumentException("enc must be protected");
+		if (!paramSet.contains(Param.ALGORITHM) //
+				|| !paramSet.contains(Param.ENCRYPTION))
+			throw new IllegalArgumentException("alg and enc must be protected");
 
 		if (this.protectedParameters == null)
 			this.protectedParameters = paramSet;
@@ -90,7 +96,7 @@ public class JweBuilder implements Builder {
 	}
 
 	@Override
-	public JweRecipientBuilder add() {
+	public JweRecipientBuilder addRecipient() {
 		final var recipient = new JweRecipientBuilder(algorithm, encryption, deflate, this);
 		recipients.add(recipient);
 		return recipient;
@@ -147,6 +153,14 @@ public class JweBuilder implements Builder {
 	}
 
 	/**
+	 * Get additionalData
+	 * @return additionalData
+	 */
+	byte[] additionalData() {
+		return additionalData;
+	}
+
+	/**
 	 * Generates content encryption key (CEK)
 	 * 
 	 * @return content encryption key
@@ -155,20 +169,33 @@ public class JweBuilder implements Builder {
 		final var recipient = Objects.requireNonNull(recipients.peek(), "requires at least one recipient");
 		final var jwk = Objects.requireNonNull(recipient.key(), "recipient must provide a key");
 
-		switch (algorithm) {
-		case DIRECT:
-			return Objects.requireNonNull(jwk.getKey(), "DIRECT requires a secret key");
-
-		case ECDH_ES:
-			return recipient.agreedUponKey();
-
-		default:
-			return IuException.unchecked(() -> {
-				final var keygen = KeyGenerator.getInstance(encryption.cipherAlgorithm);
+		final byte[] cek;
+		if (algorithm.equals(Algorithm.DIRECT))
+			// 5.1#6 use shared key as CEK for direct encryption
+			cek = Objects.requireNonNull(jwk.getKey(), "DIRECT requires a secret key");
+		else if (algorithm.equals(Algorithm.ECDH_ES))
+			cek = recipient.agreedUponKey();
+		else
+			cek = IuException.unchecked(() -> {
+				// 5.1#2 generate CEK if ephemeral
+				final var keygen = KeyGenerator.getInstance(encryption.keyAlgorithm);
 				keygen.init(encryption.size);
 				return keygen.generateKey().getEncoded();
 			});
-		}
+
+		final var encryption = encryption();
+		if (encryption == null || encryption.mac == null)
+			return cek;
+		else
+			return IuException.unchecked(() -> {
+				final var keygen = KeyGenerator.getInstance(encryption.mac);
+				keygen.init(encryption.size);
+				final var mac = keygen.generateKey().getEncoded();
+				final var maccek = new byte[mac.length + cek.length];
+				System.arraycopy(mac, 0, maccek, 0, mac.length);
+				System.arraycopy(cek, 0, maccek, mac.length, cek.length);
+				return maccek;
+			});
 	}
 
 }

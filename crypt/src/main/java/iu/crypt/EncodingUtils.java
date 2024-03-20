@@ -256,6 +256,24 @@ class EncodingUtils {
 	}
 
 	/**
+	 * Copies an integer into a byte array as a 32-bit big-endian.
+	 * 
+	 * @param value integer to encode
+	 * @param buf   buffer
+	 * @param pos   start position
+	 */
+	static void bigEndian(long value, byte[] buf, int pos) {
+		buf[pos] = (byte) ((value >>> 56) & 0xff);
+		buf[pos + 1] = (byte) ((value >>> 48) & 0xff);
+		buf[pos + 2] = (byte) ((value >>> 40) & 0xff);
+		buf[pos + 3] = (byte) ((value >>> 32) & 0xff);
+		buf[pos + 4] = (byte) ((value >>> 24) & 0xff);
+		buf[pos + 5] = (byte) ((value >>> 16) & 0xff);
+		buf[pos + 6] = (byte) ((value >>> 8) & 0xff);
+		buf[pos + 7] = (byte) value;
+	}
+
+	/**
 	 * Encodes ASCII text in NIST.800-56A Concatenated Key Derivation Format (KDF).
 	 * 
 	 * @param text ASCII text
@@ -270,8 +288,10 @@ class EncodingUtils {
 	}
 
 	/**
-	 * Performs NIST.800-56A Concatenated Key Derivation Format (KDF) from
-	 * components
+	 * Performs one round of the <a href=
+	 * "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-56Ar3.pdf">NIST.800-56A
+	 * Section 5.8.1 Concatenated Key Derivation Format (KDF)</a> using SHA-256 as
+	 * the hash function.
 	 * 
 	 * @param round   round number
 	 * @param z       key derivation output
@@ -287,19 +307,19 @@ class EncodingUtils {
 
 		EncodingUtils.bigEndian(round, buf, pos);
 		pos += 4;
-		
+
 		System.arraycopy(z, 0, buf, pos, z.length);
 		pos += z.length;
-		
+
 		EncodingUtils.concatKdfFragment(algid, buf, pos);
 		pos += 4 + algid.length();
-		
+
 		EncodingUtils.concatKdfFragment(uinfo, buf, pos);
 		pos += 4 + uinfo.length();
-		
+
 		EncodingUtils.concatKdfFragment(vinfo, buf, pos);
 		pos += 4 + vinfo.length();
-		
+
 		EncodingUtils.bigEndian(datalen, buf, pos);
 		return buf;
 	}
