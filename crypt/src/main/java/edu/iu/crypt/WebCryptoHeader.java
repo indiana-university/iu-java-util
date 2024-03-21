@@ -1,6 +1,7 @@
 package edu.iu.crypt;
 
 import java.net.URI;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
@@ -9,6 +10,7 @@ import java.util.function.Function;
 import edu.iu.IuObject;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Use;
 
 /**
  * Unifies algorithm support and maps cryptographic header data from JCE to JSON
@@ -17,7 +19,7 @@ import edu.iu.crypt.WebKey.Algorithm;
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc7517">JSON Web Key
  *      (JWK) RFC-7517</a>
  */
-public interface WebSignatureHeader extends WebCertificateReference {
+public interface WebCryptoHeader extends WebCertificateReference {
 
 	/**
 	 * Enumerates standard header parameters.
@@ -26,79 +28,69 @@ public interface WebSignatureHeader extends WebCertificateReference {
 		/**
 		 * Encryption/signature algorithm.
 		 */
-		ALGORITHM("alg", WebSignatureHeader::getAlgorithm),
+		ALGORITHM("alg", EnumSet.allOf(Use.class), WebCryptoHeader::getAlgorithm),
+
+		/**
+		 * Content encryption algorithm.
+		 */
+		ENCRYPTION("enc", EnumSet.of(Use.ENCRYPT), a -> a.getExtendedParameters().get("enc")),
+
+		/**
+		 * Plain-text compression algorithm for encryption.
+		 */
+		ZIP("zip", EnumSet.of(Use.ENCRYPT), a -> a.getExtendedParameters().get("zip")),
 
 		/**
 		 * Well-known key identifier.
 		 */
-		KEY_ID("kid", WebSignatureHeader::getKeyId),
+		KEY_ID("kid", EnumSet.allOf(Use.class), WebCryptoHeader::getKeyId),
 
 		/**
 		 * Well-known key set URI.
 		 */
-		KEY_SET_URI("jku", WebSignatureHeader::getKeySetUri),
+		KEY_SET_URI("jku", EnumSet.allOf(Use.class), WebCryptoHeader::getKeySetUri),
 
 		/**
 		 * Well-known public key.
 		 */
-		KEY("jwk", WebSignatureHeader::getKey),
+		KEY("jwk", EnumSet.allOf(Use.class), WebCryptoHeader::getKey),
 
 		/**
 		 * Certificate chain URI.
 		 */
-		CERTIFICATE_URI("x5u", WebSignatureHeader::getCertificateUri),
+		CERTIFICATE_URI("x5u", EnumSet.allOf(Use.class), WebCryptoHeader::getCertificateUri),
 
 		/**
 		 * Certificate chain.
 		 */
-		CERTIFICATE_CHAIN("x5c", WebSignatureHeader::getCertificateChain),
+		CERTIFICATE_CHAIN("x5c", EnumSet.allOf(Use.class), WebCryptoHeader::getCertificateChain),
 
 		/**
 		 * Certificate SHA-1 thumb print.
 		 */
-		CERTIFICATE_THUMBPRINT("x5t", WebSignatureHeader::getCertificateThumbprint),
+		CERTIFICATE_THUMBPRINT("x5t", EnumSet.allOf(Use.class), WebCryptoHeader::getCertificateThumbprint),
 
 		/**
 		 * Certificate SHA-1 thumb print.
 		 */
-		CERTIFICATE_SHA256_THUMBPRINT("x5t#S256", WebSignatureHeader::getCertificateSha256Thumbprint),
+		CERTIFICATE_SHA256_THUMBPRINT("x5t#S256", EnumSet.allOf(Use.class),
+				WebCryptoHeader::getCertificateSha256Thumbprint),
 
 		/**
 		 * Signature/encryption media type.
 		 */
-		TYPE("typ", WebSignatureHeader::getType),
+		TYPE("typ", EnumSet.allOf(Use.class), WebCryptoHeader::getType),
 
 		/**
 		 * Content media type.
 		 */
-		CONTENT_TYPE("cty", WebSignatureHeader::getContentType),
-
-		/**
-		 * Encryption type.
-		 */
-		ENCRYPTION("enc", h -> {
-			if (h instanceof WebEncryptionHeader)
-				return ((WebEncryptionHeader) h).getEncryption();
-			else
-				return null;
-		}),
-
-		/**
-		 * Encrypted payload compression type.
-		 */
-		DEFALATE("zip", h -> {
-			if ((h instanceof WebEncryptionHeader) //
-					&& ((WebEncryptionHeader) h).isDeflate())
-				return "DEF";
-			else
-				return null;
-		}),
+		CONTENT_TYPE("cty", EnumSet.allOf(Use.class), WebCryptoHeader::getContentType),
 
 		/**
 		 * Extended parameter names that <em>must</em> be included in the protected
 		 * header.
 		 */
-		CRITICAL_PARAMS("crit", WebSignatureHeader::getCriticalExtendedParameters);
+		CRITICAL_PARAMS("crit", EnumSet.allOf(Use.class), WebCryptoHeader::getCriticalExtendedParameters);
 
 		/**
 		 * Gets a parameter by JOSE standard parameter name.
@@ -116,11 +108,20 @@ public interface WebSignatureHeader extends WebCertificateReference {
 		 */
 		public final String name;
 
-		private final Function<WebSignatureHeader, ?> get;
+		/**
+		 * Determines if the parameter name is registered for use with <a href=
+		 * "https://datatracker.ietf.org/doc/html/rfc7515#section-4.1">signature</a>
+		 * and/or <a href=
+		 * "https://datatracker.ietf.org/doc/html/rfc7515#section-4.1">encryption</a>.
+		 */
+		private final Set<Use> use;
 
-		private Param(String name, Function<WebSignatureHeader, ?> get) {
+		private final Function<WebCryptoHeader, ?> get;
+
+		private Param(String name, Set<Use> use, Function<WebCryptoHeader, ?> get) {
 			this.name = name;
 			this.get = get;
+			this.use = Collections.unmodifiableSet(use);
 		}
 
 		/**
@@ -129,8 +130,19 @@ public interface WebSignatureHeader extends WebCertificateReference {
 		 * @param header header
 		 * @return true if the value is present; else false
 		 */
-		public boolean isPresent(WebSignatureHeader header) {
+		public boolean isPresent(WebCryptoHeader header) {
 			return get.apply(header) != null;
+		}
+
+		/**
+		 * Determines if a header applies to a public JWK use case.
+		 * 
+		 * @param use public key use
+		 * @return true if the header parameter is registered for the public JWK use
+		 *         case.
+		 */
+		public boolean isUsedFor(Use use) {
+			return this.use.contains(use);
 		}
 
 		/**
@@ -139,13 +151,14 @@ public interface WebSignatureHeader extends WebCertificateReference {
 		 * @param header header
 		 * @return header value
 		 */
-		public Object get(WebSignatureHeader header) {
+		public Object get(WebCryptoHeader header) {
 			return get.apply(header);
 		}
 	}
 
 	/**
-	 * Builder interface for creating {@link WebSignatureHeader} instances.
+	 * Builder interface for creating {@link WebCryptoHeader} instances.
+	 * 
 	 * @param <B> builder type
 	 */
 	interface Builder<B extends Builder<B>> {

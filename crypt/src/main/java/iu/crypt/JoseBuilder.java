@@ -8,10 +8,9 @@ import java.util.Objects;
 import java.util.Set;
 
 import edu.iu.client.IuJson;
-import edu.iu.crypt.WebEncryptionHeader.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
-import edu.iu.crypt.WebSignatureHeader.Builder;
+import edu.iu.crypt.WebCryptoHeader.Builder;
 
 /**
  * Builds a web signature or encryption header.
@@ -20,8 +19,6 @@ import edu.iu.crypt.WebSignatureHeader.Builder;
  */
 abstract class JoseBuilder<B extends JoseBuilder<B>> extends WebKeyReferenceBuilder<B> implements Builder<B> {
 
-	private final Encryption encryption;
-	private final boolean deflate;
 	private URI keySetUri;
 	private boolean silent;
 	private Jwk key;
@@ -31,16 +28,9 @@ abstract class JoseBuilder<B extends JoseBuilder<B>> extends WebKeyReferenceBuil
 	private Map<String, Object> ext = new LinkedHashMap<>();
 
 	/**
-	 * Constructor.
-	 * 
-	 * @param algorithm  algorithm
-	 * @param encryption encryption
-	 * @param deflate    deflate
+	 * Default constructor.
 	 */
-	JoseBuilder(Algorithm algorithm, Encryption encryption, boolean deflate) {
-		algorithm(algorithm);
-		this.encryption = encryption;
-		this.deflate = deflate;
+	protected JoseBuilder() {
 	}
 
 	@Override
@@ -129,24 +119,6 @@ abstract class JoseBuilder<B extends JoseBuilder<B>> extends WebKeyReferenceBuil
 	}
 
 	/**
-	 * Gets encryption
-	 * 
-	 * @return encryption
-	 */
-	Encryption encryption() {
-		return encryption;
-	}
-
-	/**
-	 * Gets deflate
-	 * 
-	 * @return deflate
-	 */
-	boolean deflate() {
-		return deflate;
-	}
-
-	/**
 	 * Gets silent
 	 * 
 	 * @return silent
@@ -208,5 +180,5 @@ abstract class JoseBuilder<B extends JoseBuilder<B>> extends WebKeyReferenceBuil
 	Map<String, ?> ext() {
 		return ext;
 	}
-	
+
 }

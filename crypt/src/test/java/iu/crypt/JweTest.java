@@ -13,11 +13,19 @@ import javax.crypto.spec.SecretKeySpec;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.crypt.WebEncryptionHeader.Encryption;
+import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Type;
 
 @SuppressWarnings("javadoc")
 public class JweTest {
+	
+	private static class Builder extends JoseBuilder<Builder> {
+		@Override
+		protected Builder next() {
+			return this;
+		}
+	}
 
 	@Test
 	public void testRFC7516_A_1() throws Exception {
@@ -30,17 +38,7 @@ public class JweTest {
 
 		final var alg = Algorithm.RSA_OAEP;
 		final var enc = Encryption.A256GCM;
-		class B extends JoseBuilder<B> {
-			B(Algorithm algorithm, Encryption encryption, boolean deflate) {
-				super(algorithm, encryption, deflate);
-			}
-
-			@Override
-			protected B next() {
-				return this;
-			}
-		}
-		final var jose = new Jose(new B(alg, enc, false)).toJson(a -> true);
+		final var jose = new Jose(new Builder().algorithm(alg).ext("enc", enc.enc)).toJson(a -> true);
 		final var protectedHeader = EncodingUtils.base64Url(EncodingUtils.utf8(jose.toString()));
 		assertEquals("eyJhbGciOiJSU0EtT0FFUCIsImVuYyI6IkEyNTZHQ00ifQ", protectedHeader, jose::toString);
 
@@ -129,17 +127,7 @@ public class JweTest {
 
 		final var alg = Algorithm.A128KW;
 		final var enc = Encryption.AES_128_CBC_HMAC_SHA_256;
-		class B extends JoseBuilder<B> {
-			B(Algorithm algorithm, Encryption encryption, boolean deflate) {
-				super(algorithm, encryption, deflate);
-			}
-
-			@Override
-			protected B next() {
-				return this;
-			}
-		}
-		final var jose = new Jose(new B(alg, enc, false)).toJson(a -> true);
+		final var jose = new Jose(new Builder().algorithm(alg).ext("enc", enc.enc)).toJson(a -> true);
 		final var protectedHeader = EncodingUtils.base64Url(EncodingUtils.utf8(jose.toString()));
 		assertEquals("eyJhbGciOiJBMTI4S1ciLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0", protectedHeader, jose::toString);
 

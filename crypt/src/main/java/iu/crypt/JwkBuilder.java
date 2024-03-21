@@ -256,8 +256,14 @@ public class JwkBuilder extends WebKeyReferenceBuilder<JwkBuilder> implements Bu
 	@Override
 	public JwkBuilder algorithm(Algorithm algorithm) {
 		super.algorithm(algorithm);
-		type(algorithm.type);
-		use(algorithm.use);
+
+		if (type != null //
+				&& !type.equals(algorithm.type))
+			throw new IllegalArgumentException("Incorrect type " + type + " for algorithm " + algorithm);
+		if (use != null //
+				&& !use.equals(algorithm.use))
+			throw new IllegalArgumentException("Incorrect use " + use + " for algorithm " + algorithm);
+
 		return this;
 	}
 
@@ -466,15 +472,22 @@ public class JwkBuilder extends WebKeyReferenceBuilder<JwkBuilder> implements Bu
 	private JwkBuilder jwk(JsonValue json) {
 		final var jwk = json.asJsonObject();
 
-		final var kty = jwk.getString("kty");
+		final var kty = IuJson.text(jwk, "kty");
 		final var crv = IuJson.text(jwk, "crv");
-		type(Type.from(kty, crv));
+		if (kty != null)
+			type(type = Type.from(kty, crv));
 
 		IuJson.text(jwk, "kid", this::id);
 		IuJson.text(jwk, "use", a -> use(Use.from(a)));
 		IuJson.text(jwk, "alg", a -> algorithm(Algorithm.from(a)));
 		IuJson.get(jwk, "key_ops",
 				a -> ops(a.asJsonArray().stream().map(IuJson::asText).map(Op::from).toArray(Op[]::new)));
+
+		final Type type;
+		if (algorithm() == null)
+			type = Objects.requireNonNull(this.type, "Either kty or alg is required");
+		else
+			type = algorithm().type;
 
 		switch (type) {
 		case EC_P256:

@@ -6,7 +6,6 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -18,21 +17,17 @@ import edu.iu.IuCrypt;
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.client.IuJson;
-import edu.iu.crypt.WebEncryptionHeader;
+import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
-import edu.iu.crypt.WebSignatureHeader;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonValue;
 
 /**
- * Provides {@link WebSignatureHeader} and {@link WebEncryptionHeader}
- * processing utilities.
+ * Provides {@link WebCryptoHeader} and {@link WebEncryptionHeader} processing
+ * utilities.
  */
-final class Jose implements WebEncryptionHeader {
-
-	private static final Set<String> STANDARD_PARAMS = EnumSet.allOf(Param.class).stream().map(a -> a.name)
-			.collect(Collectors.toSet());
+final class Jose implements WebCryptoHeader {
 
 	/**
 	 * Creates a JOSE header from a serialized protected header.
@@ -41,11 +36,11 @@ final class Jose implements WebEncryptionHeader {
 	 * @return JOSE header
 	 */
 	static Jose from(JsonObject protectedHeader) {
-		return from(protectedHeader, null, null);
+		return new Jose(protectedHeader);
 	}
 
 	/**
-	 * Creates a JOSE header from a serialized protected header.
+	 * Creates a JOSE header from serialized headers.
 	 * 
 	 * @param protectedHeader    protected header data
 	 * @param sharedHeader       unprotected shared header data
@@ -60,7 +55,7 @@ final class Jose implements WebEncryptionHeader {
 		if (sharedHeader != null)
 			sharedHeader.forEach((n, v) -> {
 				if (protectedHeader.containsKey(n))
-					throw new IllegalArgumentException();
+					throw new IllegalArgumentException(n);
 				b.add(n, v);
 			});
 		if (perRecipientHeader != null)
@@ -83,8 +78,6 @@ final class Jose implements WebEncryptionHeader {
 	}
 
 	private final Algorithm algorithm;
-	private final Encryption encryption;
-	private final boolean deflate;
 
 	private final String keyId;
 	private final Jwk key;
@@ -109,8 +102,6 @@ final class Jose implements WebEncryptionHeader {
 	 */
 	Jose(JoseBuilder<?> builder) {
 		algorithm = builder.algorithm();
-		encryption = builder.encryption();
-		deflate = builder.deflate();
 		keyId = builder.id();
 		silent = builder.silent();
 		key = builder.key();
@@ -129,8 +120,6 @@ final class Jose implements WebEncryptionHeader {
 
 	private Jose(JsonObject jose) {
 		algorithm = Objects.requireNonNull(IuJson.text(jose, "alg", Algorithm::from));
-		encryption = IuJson.text(jose, "enc", Encryption::from);
-		deflate = "DEF".equals(IuJson.text(jose, "zip"));
 
 		keyId = IuJson.text(jose, "kid");
 		keySetUri = IuJson.text(jose, "jku", URI::create);
@@ -146,9 +135,14 @@ final class Jose implements WebEncryptionHeader {
 		certificateChain = IuJson.get(jose, "x5c", v -> decodeCertificateChain(v.asJsonArray()));
 
 		final Map<String, Object> params = new LinkedHashMap<>();
-		for (final var e : jose.entrySet())
-			if (!STANDARD_PARAMS.contains(e.getKey()))
+		for (final var e : jose.entrySet()) {
+			final var paramName = e.getKey();
+			final var param = Param.from(paramName);
+			if (param == null || !param.isUsedFor(Use.SIGN))
+				// Encryption-only parameters not used for JWS signature are treated as
+				// extended parameters
 				params.put(e.getKey(), IuJson.toJava(e.getValue()));
+		}
 		extendedParameters = Collections.unmodifiableMap(params);
 		criticalExtendedParameters = IuJson.get(jose, "crit", Collections.emptySet(),
 				v -> v.asJsonArray().stream().map(IuJson::asText).collect(Collectors.toUnmodifiableSet()));
@@ -157,9 +151,6 @@ final class Jose implements WebEncryptionHeader {
 	}
 
 	private void validate() {
-		if ((encryption != null || deflate) && algorithm.use.equals(Use.SIGN))
-			throw new IllegalArgumentException();
-
 		if (keyId != null && key != null && !keyId.equals(key.getId()))
 			throw new IllegalArgumentException();
 
@@ -261,16 +252,6 @@ final class Jose implements WebEncryptionHeader {
 	}
 
 	@Override
-	public Encryption getEncryption() {
-		return encryption;
-	}
-
-	@Override
-	public boolean isDeflate() {
-		return deflate;
-	}
-
-	@Override
 	public String toString() {
 		return toJson(null).toString();
 	}
@@ -286,16 +267,11 @@ final class Jose implements WebEncryptionHeader {
 		final var b = IuJson.object();
 		for (final var param : IuIterable.iter(Param.values()))
 			if ((p == null //
-					|| p.test(param.name)) && param.isPresent(this))
+					|| p.test(param.name)) //
+					&& param.isPresent(this))
 				switch (param) {
 				case ALGORITHM:
 					b.add(param.name, algorithm.alg);
-					break;
-				case ENCRYPTION:
-					b.add(param.name, encryption.enc);
-					break;
-				case DEFALATE:
-					b.add(param.name, "DEF");
 					break;
 
 				case TYPE:
@@ -343,6 +319,10 @@ final class Jose implements WebEncryptionHeader {
 						b.add(param.name, critb);
 						break;
 					}
+
+				default:
+					// non-JWS params handled as extended
+					break;
 				}
 
 		if (extendedParameters != null)

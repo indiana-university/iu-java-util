@@ -33,8 +33,8 @@ class EncodingUtils {
 	 * @param data compact serialize data
 	 * @return {@link Iterator} over data segments
 	 */
-	static Iterator<byte[]> compact(final String data) {
-		return new Iterator<byte[]>() {
+	static Iterator<String> compact(final String data) {
+		return new Iterator<String>() {
 			private int start;
 			private int end = -1;
 
@@ -49,13 +49,13 @@ class EncodingUtils {
 			}
 
 			@Override
-			public byte[] next() {
+			public String next() {
 				if (!hasNext())
 					throw new NoSuchElementException();
 
 				final var next = data.substring(start, end);
 				start = end + 1;
-				return base64Url(next);
+				return next;
 			}
 		};
 	}

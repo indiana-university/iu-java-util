@@ -15,7 +15,7 @@ public interface WebEncryptionRecipient {
 	 * 
 	 * @param <B> builder type
 	 */
-	interface Builder<B extends Builder<B>> extends WebEncryptionHeader.Builder<B> {
+	interface Builder<B extends Builder<B>> extends WebCryptoHeader.Builder<B> {
 		/**
 		 * Returns the {@link WebEncryption.Builder} that spawned this builder instance.
 		 * 
@@ -29,7 +29,7 @@ public interface WebEncryptionRecipient {
 	 * 
 	 * @return {@link WebEncryptionHeader}
 	 */
-	WebEncryptionHeader getHeader();
+	WebCryptoHeader getHeader();
 
 	/**
 	 * Gets the encrypted_key JWE attribute

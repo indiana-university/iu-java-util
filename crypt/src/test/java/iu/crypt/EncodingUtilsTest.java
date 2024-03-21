@@ -36,11 +36,11 @@ public class EncodingUtilsTest {
 		final var f2 = EncodingUtils.base64Url(EncodingUtils.utf8(IdGenerator.generateId()));
 		final var i = EncodingUtils.compact(f1 + ".." + f2);
 		assertTrue(i.hasNext());
-		assertArrayEquals(EncodingUtils.base64(f1), i.next());
+		assertEquals(f1, i.next());
 		assertTrue(i.hasNext());
-		assertNull(i.next());
+		assertEquals("", i.next());
 		assertTrue(i.hasNext());
-		assertArrayEquals(EncodingUtils.base64(f2), i.next());
+		assertEquals(f2, i.next());
 		assertFalse(i.hasNext());
 		assertThrows(NoSuchElementException.class, i::next);
 		assertFalse(i.hasNext());

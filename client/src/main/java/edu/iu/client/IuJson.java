@@ -342,7 +342,7 @@ public class IuJson {
 	 */
 	public static <T> void add(JsonObjectBuilder builder, Predicate<String> nameFilter, String name,
 			Supplier<T> valueSupplier, Function<T, JsonValue> valueToJsonFunction) {
-		if (!nameFilter.test(name))
+		if (nameFilter != null && !nameFilter.test(name))
 			return;
 
 		final var a = valueSupplier.get();

@@ -9,7 +9,7 @@ import java.security.NoSuchAlgorithmException;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.crypt.WebEncryptionHeader.Encryption;
+import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey.Algorithm;
 
 @SuppressWarnings("javadoc")
@@ -21,21 +21,21 @@ public class WebEncryptionTest {
 		final var key = WebKey.builder().algorithm(Algorithm.RSA1_5).ephemeral().build();
 		final var message = IdGenerator.generateId();
 
-		final var jwe = WebEncryption.of(Algorithm.RSA1_5, Encryption.AES_128_CBC_HMAC_SHA_256).addRecipient().jwk(key)
-				.then().encrypt(message);
+		final var jwe = WebEncryption.builder().enc(Encryption.AES_128_CBC_HMAC_SHA_256).addRecipient()
+				.algorithm(Algorithm.RSA1_5).jwk(key, false).then().encrypt(message);
 		assertNull(jwe.getAdditionalData());
 
 		final var fromCompact = WebEncryption.parse(jwe.getRecipients().findFirst().get().compact());
 
 		final var compactHeader = fromCompact.getRecipients().iterator().next().getHeader();
 		assertEquals(Algorithm.RSA1_5, compactHeader.getAlgorithm());
-		assertEquals(Encryption.AES_128_CBC_HMAC_SHA_256, compactHeader.getEncryption());
+		assertEquals(Encryption.AES_128_CBC_HMAC_SHA_256, fromCompact.getEncryption());
 		assertNull(compactHeader.getKey());
 
-		final var fromSerial = WebEncryption.parse(jwe.getRecipients().findFirst().get().compact());
+		final var fromSerial = WebEncryption.parse(jwe.toString());
 		final var serialHeader = fromSerial.getRecipients().iterator().next().getHeader();
 		assertEquals(Algorithm.RSA1_5, serialHeader.getAlgorithm());
-		assertEquals(Encryption.AES_128_CBC_HMAC_SHA_256, serialHeader.getEncryption());
+		assertEquals(Encryption.AES_128_CBC_HMAC_SHA_256, fromSerial.getEncryption());
 		assertNotNull(serialHeader.getKey());
 		assertNull(serialHeader.getKey().getPrivateKey());
 

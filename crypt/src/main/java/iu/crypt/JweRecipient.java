@@ -5,8 +5,11 @@ import java.util.Arrays;
 
 import edu.iu.IuCrypt;
 import edu.iu.IuException;
+import edu.iu.client.IuJson;
 import edu.iu.crypt.WebEncryptionRecipient;
 import edu.iu.crypt.WebKey;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
 
 /**
  * Represents a recipient of a {@link Jwe} encrypted message.
@@ -28,6 +31,20 @@ class JweRecipient implements WebEncryptionRecipient {
 		this.encryption = encryption;
 		this.header = header;
 		this.encryptedKey = encryptedKey;
+	}
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param encryption      encrypted message
+	 * @param protectedHeader protected header parameters
+	 * @param sharedHeader    shared header parameters
+	 * @param recipient       recipient parameters
+	 */
+	JweRecipient(Jwe encryption, JsonObject protectedHeader, JsonObject sharedHeader, JsonObject recipient) {
+		this(encryption,
+				Jose.from(protectedHeader, sharedHeader, IuJson.get(recipient, "header", JsonValue::asJsonObject)),
+				IuJson.text(recipient, "encrypted_key", EncodingUtils::base64Url));
 	}
 
 	@Override

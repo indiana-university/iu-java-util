@@ -12,13 +12,11 @@ import javax.crypto.KeyGenerator;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
+import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Builder;
-import edu.iu.crypt.WebEncryptionHeader.Encryption;
+import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey.Algorithm;
-import edu.iu.crypt.WebKey.Type;
-import edu.iu.crypt.WebKey.Use;
-import edu.iu.crypt.WebSignatureHeader.Param;
 
 /**
  * Collects inputs for {@link Jwe} encrypted messages.
@@ -28,36 +26,28 @@ public class JweBuilder implements Builder {
 		IuObject.assertNotOpen(JweBuilder.class);
 	}
 
-	/**
-	 * Parses a compact or serialized JWE.
-	 * 
-	 * @param jwe compact or serialized JWE
-	 * @return {@link WebEncryption}
-	 */
-	public static WebEncryption parse(String jwe) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
-	}
-
-	private final Algorithm algorithm;
-	private final Encryption encryption;
 	private final Queue<JweRecipientBuilder> recipients = new ArrayDeque<>();
 	private Set<Param> protectedParameters;
+	private Encryption encryption;
 	private boolean deflate = true;
 	private byte[] additionalData;
 
 	/**
 	 * Constructor.
-	 * 
-	 * @param algorithm  message encryption algorithm
-	 * @param encryption key encryption algorithm
 	 */
-	public JweBuilder(Algorithm algorithm, Encryption encryption) {
-		this.algorithm = Objects.requireNonNull(algorithm, "Encryption algorithm is required");
-		if (!Use.ENCRYPT.equals(algorithm.use))
-			throw new IllegalArgumentException("Not an encryption algorithm " + algorithm);
+	public JweBuilder() {
+	}
 
-		this.encryption = Objects.requireNonNull(encryption, "Content encryption algorithm is required");
+	@Override
+	public Builder enc(Encryption encryption) {
+		Objects.requireNonNull(encryption);
+
+		if (this.encryption == null)
+			this.encryption = encryption;
+		else if (!encryption.equals(this.encryption))
+			throw new IllegalStateException("encryption already set to " + encryption);
+
+		return this;
 	}
 
 	@Override
@@ -83,10 +73,6 @@ public class JweBuilder implements Builder {
 		Objects.requireNonNull(params);
 
 		final var paramSet = Set.of(params);
-		if (!paramSet.contains(Param.ALGORITHM) //
-				|| !paramSet.contains(Param.ENCRYPTION))
-			throw new IllegalArgumentException("alg and enc must be protected");
-
 		if (this.protectedParameters == null)
 			this.protectedParameters = paramSet;
 		else if (!paramSet.equals(this.protectedParameters))
@@ -97,7 +83,13 @@ public class JweBuilder implements Builder {
 
 	@Override
 	public JweRecipientBuilder addRecipient() {
-		final var recipient = new JweRecipientBuilder(algorithm, encryption, deflate, this);
+		this.encryption = Objects.requireNonNull(encryption, "Content encryption algorithm is required");
+
+		final var recipient = new JweRecipientBuilder(this);
+		recipient.ext("enc", encryption.enc);
+		if (deflate)
+			recipient.ext("zip", "DEF");
+
 		recipients.add(recipient);
 		return recipient;
 	}
@@ -105,15 +97,6 @@ public class JweBuilder implements Builder {
 	@Override
 	public WebEncryption encrypt(InputStream in) {
 		return new Jwe(this, in);
-	}
-
-	/**
-	 * Gets the algorithm.
-	 * 
-	 * @return algorithm
-	 */
-	Algorithm algorithm() {
-		return algorithm;
 	}
 
 	/**
@@ -154,6 +137,7 @@ public class JweBuilder implements Builder {
 
 	/**
 	 * Get additionalData
+	 * 
 	 * @return additionalData
 	 */
 	byte[] additionalData() {
@@ -163,18 +147,19 @@ public class JweBuilder implements Builder {
 	/**
 	 * Generates content encryption key (CEK)
 	 * 
+	 * @param recipient in-progress recipient builder
 	 * @return content encryption key
 	 */
-	byte[] cek() {
-		final var recipient = Objects.requireNonNull(recipients.peek(), "requires at least one recipient");
-		final var jwk = Objects.requireNonNull(recipient.key(), "recipient must provide a key");
+	byte[] cek(JweRecipientBuilder recipient) {
+		final var algorithm = recipient.algorithm();
 
 		final byte[] cek;
-		if (algorithm.equals(Algorithm.DIRECT))
+		if (algorithm.equals(Algorithm.DIRECT)) {
 			// 5.1#6 use shared key as CEK for direct encryption
+			final var jwk = Objects.requireNonNull(recipient.key(), "recipient must provide a key");
 			cek = Objects.requireNonNull(jwk.getKey(), "DIRECT requires a secret key");
-		else if (algorithm.equals(Algorithm.ECDH_ES))
-			cek = recipient.agreedUponKey();
+		} else if (algorithm.equals(Algorithm.ECDH_ES))
+			cek = recipient.agreedUponKey(encryption);
 		else
 			cek = IuException.unchecked(() -> {
 				// 5.1#2 generate CEK if ephemeral
@@ -183,7 +168,6 @@ public class JweBuilder implements Builder {
 				return keygen.generateKey().getEncoded();
 			});
 
-		final var encryption = encryption();
 		if (encryption == null || encryption.mac == null)
 			return cek;
 		else

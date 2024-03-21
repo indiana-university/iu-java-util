@@ -2,7 +2,6 @@ package iu.crypt;
 
 import java.security.SecureRandom;
 import java.util.Arrays;
-import java.util.Objects;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyAgreement;
@@ -12,7 +11,7 @@ import javax.crypto.spec.SecretKeySpec;
 import edu.iu.IuCrypt;
 import edu.iu.IuException;
 import edu.iu.client.IuJson;
-import edu.iu.crypt.WebEncryptionHeader.Encryption;
+import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebEncryptionRecipient.Builder;
 import edu.iu.crypt.WebKey.Algorithm;
 
@@ -26,13 +25,9 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 	/**
 	 * Constructor
 	 * 
-	 * @param algorithm  algorithm
-	 * @param encryption encryption
-	 * @param deflate    deflate
 	 * @param jweBuilder JWE builder
 	 */
-	JweRecipientBuilder(Algorithm algorithm, Encryption encryption, boolean deflate, JweBuilder jweBuilder) {
-		super(algorithm, encryption, deflate);
+	JweRecipientBuilder(JweBuilder jweBuilder) {
 		this.jweBuilder = jweBuilder;
 	}
 
@@ -49,6 +44,8 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 	/**
 	 * Computes the agreed-upon key for the Elliptic Curve Diffie-Hellman algorithm.
 	 * 
+	 * @param encryption encryption algorithm
+	 * 
 	 * @return agreed-upon key
 	 * @see <a href=
 	 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
@@ -57,9 +54,8 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 	 *      "https://datatracker.ietf.org/doc/html/rfc7516#section-5.1">RFC-7516 JWE
 	 *      Section 5.1 #3</a>
 	 */
-	byte[] agreedUponKey() {
+	byte[] agreedUponKey(Encryption encryption) {
 		final var algorithm = algorithm();
-		final var encryption = encryption();
 
 		final var epk = new JwkBuilder().algorithm(algorithm).ephemeral().build();
 		final var serializedEpk = IuJson.object();
@@ -93,40 +89,11 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 		return EncodingUtils.concatKdf(1, z, algId, uinfo, vinfo, keyDataLen);
 	}
 
-//	private static class AesGcm {
-//		private final SecretKey cek;
-//		private final SecureRandom rand = new SecureRandom();
-//		private final byte[] fixed = new byte[4];
-//		private final byte[] iv = new byte[12];
-//		private int c;
-//
-//		private AesGcm(SecretKey cek) {
-//			this.cek = cek;
-//			rand.nextBytes(fixed);
-//		}
-//
-//		private GCMParameterSpec spec() {
-//			if (c == -1)
-//				throw new IllegalStateException();
-//			else
-//				c++;
-//
-//			// NIST 800-38D 8.2.1 Deterministic Construction
-//			rand.nextBytes(iv);
-//			System.arraycopy(fixed, 0, iv, 0, 4);
-//			iv[4] = (byte) c;
-//			iv[6] = (byte) ((c >>> 8) & 0xff);
-//			iv[8] = (byte) ((c >>> 16) & 0xff);
-//			iv[10] = (byte) ((c >>> 24) & 0xff);
-//			return new GCMParameterSpec(128, iv);
-//		}
-//	}
-
 	/**
 	 * Generates the encrypted key and creates the recipient.
 	 * 
 	 * @param jwe partially initialized JWE
-	 * @param cek ephemeral content encryption key, null if not ephemeral
+	 * @param cek supplies an ephemeral content encryption key if needed
 	 * 
 	 * @return recipient
 	 */
@@ -186,7 +153,7 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 		case ECDH_ES_A256KW:
 			// key agreement with key wrapping
 			encryptedKey = IuException.unchecked(() -> {
-				final var key = new SecretKeySpec(agreedUponKey(), "AES");
+				final var key = new SecretKeySpec(agreedUponKey(jwe.getEncryption()), "AES");
 				final var cipher = Cipher.getInstance(algorithm.keyAlgorithm);
 				cipher.init(Cipher.WRAP_MODE, key);
 				return cipher.wrap(new SecretKeySpec(cek, "AES"));
