@@ -39,9 +39,9 @@ public class WebEncryptionTest {
 		assertNotNull(serialHeader.getKey());
 		assertNull(serialHeader.getKey().getPrivateKey());
 
-		assertEquals(message, new String(jwe.getRecipients().findFirst().get().decrypt(key)));
-		assertEquals(fromCompact, new String(jwe.getRecipients().findFirst().get().decrypt(key)));
-		assertEquals(fromSerial, new String(jwe.getRecipients().findFirst().get().decrypt(key)));
+		assertEquals(message, new String(jwe.decrypt(key)));
+		assertEquals(fromCompact, new String(jwe.decrypt(key)));
+		assertEquals(fromSerial, new String(jwe.decrypt(key)));
 	}
 
 }

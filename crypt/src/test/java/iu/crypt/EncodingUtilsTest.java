@@ -131,6 +131,15 @@ public class EncodingUtilsTest {
 				(byte) 128, 106, 72, (byte) 246, (byte) 218, (byte) 167, 121, (byte) 140, (byte) 254, (byte) 144,
 				(byte) 196 }, z);
 
+		final var ka2 = KeyAgreement.getInstance("ECDH");
+		ka2.init(bob.getPrivateKey());
+		ka2.doPhase(alice.getPublicKey(), true);
+		final var z2 = ka2.generateSecret();
+		assertArrayEquals(new byte[] { (byte) 158, 86, (byte) 217, 29, (byte) 129, 113, 53, (byte) 211, 114, (byte) 131,
+				66, (byte) 131, (byte) 191, (byte) 132, 38, (byte) 156, (byte) 251, 49, 110, (byte) 163, (byte) 218,
+				(byte) 128, 106, 72, (byte) 246, (byte) 218, (byte) 167, 121, (byte) 140, (byte) 254, (byte) 144,
+				(byte) 196 }, z2);
+
 		final var round = 1;
 		final var algid = "A128GCM";
 		final var u = "Alice";

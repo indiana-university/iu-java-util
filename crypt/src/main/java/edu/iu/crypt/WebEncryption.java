@@ -1,7 +1,9 @@
 package edu.iu.crypt;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.EnumSet;
 import java.util.stream.Stream;
 
@@ -29,7 +31,7 @@ public interface WebEncryption {
 		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-5.2.3">RFC-7518
 		 *      Section 5.2.3</a>
 		 */
-		AES_128_CBC_HMAC_SHA_256("A128CBC-HS256", "AES", 128, "AES/CBC/PKCS5Padding", "HmacSHA256"),
+		AES_128_CBC_HMAC_SHA_256("A128CBC-HS256", "AES", 256, "AES/CBC/PKCS5Padding", "HmacSHA256"),
 
 		/**
 		 * AES_192_CBC_HMAC_SHA_384 authenticated encryption algorithm.
@@ -38,7 +40,7 @@ public interface WebEncryption {
 		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-5.2.3">RFC-7518
 		 *      Section 5.2.3</a>
 		 */
-		AES_192_CBC_HMAC_SHA_384("A192CBC-HS384", "AES", 192, "AES/CBC/PKCS5Padding", "HmacSHA384"),
+		AES_192_CBC_HMAC_SHA_384("A192CBC-HS384", "AES", 384, "AES/CBC/PKCS5Padding", "HmacSHA384"),
 
 		/**
 		 * AES_256_CBC_HMAC_SHA_512 authenticated encryption algorithm.
@@ -47,7 +49,7 @@ public interface WebEncryption {
 		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-5.2.3">RFC-7518
 		 *      Section 5.2.3</a>
 		 */
-		AES_256_CBC_HMAC_SHA_512("A192CBC-HS384", "AES", 256, "AES/CBC/PKCS5Padding", "HmacSHA512"),
+		AES_256_CBC_HMAC_SHA_512("A192CBC-HS384", "AES", 512, "AES/CBC/PKCS5Padding", "HmacSHA512"),
 
 		/**
 		 * AES-128 GCM.
@@ -249,6 +251,40 @@ public interface WebEncryption {
 	 * @return aad JWE attribute
 	 */
 	byte[] getAdditionalData();
+
+
+	/**
+	 * Decrypts UTF-8 encoded encrypted content.
+	 * 
+	 * @param key private or secret key; <em>should</em> be verified by the
+	 *            application as correct for the recipient before calling.
+	 * @return decrypted content
+	 */
+	default String decryptText(WebKey key) {
+		return IuException.unchecked(() -> new String(decrypt(key), "UTF-8"));
+	}
+
+	/**
+	 * Decrypts the encrypted content.
+	 * 
+	 * @param key private or secret key; <em>should</em> be verified by the
+	 *            application as correct for the recipient before calling.
+	 * @return decrypted content
+	 */
+	default byte[] decrypt(WebKey key) {
+		final var out = new ByteArrayOutputStream();
+		decrypt(key, out);
+		return out.toByteArray();
+	}
+
+	/**
+	 * Decrypts the encrypted content.
+	 * 
+	 * @param key private or secret key; <em>should</em> be verified by the
+	 *            application as correct for the recipient before calling.
+	 * @param out {@link OutputStream} to write the decrypted content to
+	 */
+	void decrypt(WebKey key, OutputStream out);
 
 	/**
 	 * Gets the encrypted message in serialized JWE format.

@@ -1,13 +1,21 @@
 package iu.crypt;
 
-import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.Objects;
+import java.util.logging.Logger;
+
+import javax.crypto.Cipher;
+import javax.crypto.KeyAgreement;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 import edu.iu.IuCrypt;
 import edu.iu.IuException;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebEncryptionRecipient;
 import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonValue;
 
@@ -15,6 +23,8 @@ import jakarta.json.JsonValue;
  * Represents a recipient of a {@link Jwe} encrypted message.
  */
 class JweRecipient implements WebEncryptionRecipient {
+
+	private final Logger LOG = Logger.getLogger(Jwe.class.getName());
 
 	private final Jwe encryption;
 	private final Jose header;
@@ -72,7 +82,7 @@ class JweRecipient implements WebEncryptionRecipient {
 	 * @param jose header
 	 * @return encryption or signing key
 	 */
-	private static Jwk getKey(Jose jose) { // TODO: remove
+	private static Jwk getKey(Jose jose) {
 		final var kid = jose.getKeyId();
 
 		var key = jose.getKey();
@@ -112,135 +122,149 @@ class JweRecipient implements WebEncryptionRecipient {
 		return null;
 	}
 
-	@Override
-	public void decrypt(WebKey key, OutputStream out) {
-		throw new UnsupportedOperationException("TODO");
-		// TODO: REVIEW LINE
-//		final var algorithm = header.getAlgorithm();
-//		final var encryption = header.getEncryption();
-//		final var privateKey = key.getPrivateKey();
-//
-//		final SecretKey cek;
-//		final byte[] cekmac;
-//		final Key recipientKey;
-//		switch (algorithm.algorithm) {
-//		case "ECDH":
-//			recipientKey = IuException
-//					.unchecked(() -> KeyAgreement.getInstance(algorithm.algorithm).doPhase(privateKey, true));
-//			break;
-//
-//		case "RSA":
-//			recipientKey = getKey(header).getPublicKey();
-//			break;
-//
-//		default:
-//			recipientKey = null;
-//		}
+	/**
+	 * Computes the agreed-upon key for the Elliptic Curve Diffie-Hellman algorithm.
+	 * 
+	 * @param recipientPrivateKey recipient's private key
+	 * 
+	 * @return agreed-upon key
+	 * @see <a href=
+	 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
+	 *      Section 4.6</a>
+	 * @see <a href=
+	 *      "https://datatracker.ietf.org/doc/html/rfc7516#section-5.1">RFC-7516 JWE
+	 *      Section 5.1 #3</a>
+	 */
+	byte[] agreedUponKey(WebKey recipientPrivateKey) {
+		final var ext = header.getExtendedParameters();
+		final var epk = JwkBuilder.parse(IuJson.toJson(ext.get("epk")));
+		final var uinfo = (String) ext.get("apu");
+		final var vinfo = (String) ext.get("apv");
+		final var algorithm = header.getAlgorithm();
+		final var z = IuException.unchecked(() -> {
+			final var ka = KeyAgreement.getInstance(header.getAlgorithm().algorithm);
+			ka.init(recipientPrivateKey.getPrivateKey());
+			ka.doPhase(epk.getPublicKey(), true);
+			return ka.generateSecret();
+		});
 
-//		if (cek != null)
-//			encryptedKey = IuException.unchecked(() -> {
-//				final var cipher = Cipher.getInstance(algorithm.keyAlgorithm);
-//				if (cekmac != null) {
-//					cipher.init(Cipher.ENCRYPT_MODE, recipientKey);
-//					return cipher.doFinal(cekmac);
-//				} else {
-//					cipher.init(Cipher.WRAP_MODE, recipientKey);
-//					return cipher.wrap(cek);
-//				}
-//			});
-//		else
-//			encryptedKey = null;
+		final int keyDataLen;
+		final String algId;
+		if (algorithm.equals(Algorithm.ECDH_ES)) {
+			final var encryption = this.encryption.getEncryption();
+			keyDataLen = encryption.size;
+			algId = encryption.enc;
+		} else {
+			keyDataLen = algorithm.size;
+			algId = algorithm.alg;
+		}
 
-//		if (Type.RAW.equals(algorithm.type)) {
-//			if (encryptedKey != null)
-//				throw new IllegalArgumentException("shared key must be known by recipient");
-//			cek = null;
-//			cekmac = null;
-//		} else if ("GCM".equals(encryption.cipherMode)) {
-//			cek = new SecretKeySpec(Objects.requireNonNull(encryptedKey, "encrypted_key required for GCM keywrap"),
-//					"AES");
-//			cekmac = null;
-//		} else {
-//			cekmac = Objects.requireNonNull(encryptedKey, "encrypted_key required for CBC/HMAC");
-//			if (cekmac.length != encryption.size / 4)
-//				throw new IllegalArgumentException("Incorrect encrypted_key length for " + encryption.enc);
-//			cek = new SecretKeySpec(cekmac, encryption.size / 8, cekmac.length, "AES");
-//		}
+		return EncodingUtils.concatKdf(1, z, algId, uinfo, vinfo, keyDataLen);
+	}
 
-//		   8.   When Direct Key Agreement or Key Agreement with Key Wrapping are
-//		        employed, use the key agreement algorithm to compute the value
-//		        of the agreed upon key.  When Direct Key Agreement is employed,
-//		        let the CEK be the agreed upon key.  When Key Agreement with Key
-//		        Wrapping is employed, the agreed upon key will be used to
-//		        decrypt the JWE Encrypted Key.
-//
-//		   9.   When Key Wrapping, Key Encryption, or Key Agreement with Key
-//		        Wrapping are employed, decrypt the JWE Encrypted Key to produce
-//		        the CEK.  The CEK MUST have a length equal to that required for
-//		        the content encryption algorithm.  Note that when there are
-//		        multiple recipients, each recipient will only be able to decrypt
-//		        JWE Encrypted Key values that were encrypted to a key in that
-//		        recipient's possession.  It is therefore normal to only be able
-//		        to decrypt one of the per-recipient JWE Encrypted Key values to
-//		        obtain the CEK value.  Also, see Section 11.5 for security
-//		        considerations on mitigating timing attacks.
-//
-//		   10.  When Direct Key Agreement or Direct Encryption are employed,
-//		        verify that the JWE Encrypted Key value is an empty octet
-//		        sequence.
-//
-//		   11.  When Direct Encryption is employed, let the CEK be the shared
-//		        symmetric key.
-//
-//		   12.  Record whether the CEK could be successfully determined for this
-//		        recipient or not.
-//
-//		   13.  If the JWE JSON Serialization is being used, repeat this process
-//		        (steps 4-12) for each recipient contained in the representation.
-//
-//		   14.  Compute the Encoded Protected Header value BASE64URL(UTF8(JWE
-//		        Protected Header)).  If the JWE Protected Header is not present
-//		        (which can only happen when using the JWE JSON Serialization and
-//		        no "protected" member is present), let this value be the empty
-//		        string.
-//
-//		   15.  Let the Additional Authenticated Data encryption parameter be
-//		        ASCII(Encoded Protected Header).  However, if a JWE AAD value is
-//		        present (which can only be the case when using the JWE JSON
-//		        Serialization), instead let the Additional Authenticated Data
-//		        encryption parameter be ASCII(Encoded Protected Header || '.' ||
-//		        BASE64URL(JWE AAD)).
-//
-//		   16.  Decrypt the JWE Ciphertext using the CEK, the JWE Initialization
-//		        Vector, the Additional Authenticated Data value, and the JWE
-//		        Authentication Tag (which is the Authentication Tag input to the
-//		        calculation) using the specified content encryption algorithm,
-//		        returning the decrypted plaintext and validating the JWE
-//		        Authentication Tag in the manner specified for the algorithm,
-//		        rejecting the input without emitting any decrypted output if the
-//		        JWE Authentication Tag is incorrect.
-//
-//		   17.  If a "zip" parameter was included, uncompress the decrypted
-//		        plaintext using the specified compression algorithm.
-//
-//		   18.  If there was no recipient for which all of the decryption steps
-//		        succeeded, then the JWE MUST be considered invalid.  Otherwise,
-//		        output the plaintext.  In the JWE JSON Serialization case, also
-//		        return a result to the application indicating for which of the
-//		        recipients the decryption succeeded and failed.
-//
-//
-//
-//
-//		Jones & Hildebrand           Standards Track                   [Page 19]
-//
-//		RFC 7516                JSON Web Encryption (JWE)               May 2015
-//
-//
-//		   Finally, note that it is an application decision which algorithms may
-//		   be used in a given context.  Even if a JWE can be successfully
-//		   decrypted, unless the algorithms used in the JWE are acceptable to
-//		   the application, it SHOULD consider the JWE to be invalid.
+	/**
+	 * Decrypts the content encryption key (CEK)
+	 * 
+	 * @param recipient  in-progress recipient builder
+	 * @param privateKey private key
+	 * @return content encryption key
+	 */
+	@SuppressWarnings("deprecation")
+	byte[] decryptCek(Jwk privateKey) {
+		// 5.2#7 Verify that the JWE uses a key known to the recipient.
+		final var wellKnown = getKey(header);
+		if (wellKnown != null && !wellKnown.represents(privateKey))
+			throw new IllegalArgumentException("Key is not valid for recipient");
+
+		final var algorithm = header.getAlgorithm();
+		if (algorithm.equals(Algorithm.DIRECT)) {
+			if (encryptedKey != null)
+				// 5.2#10 verify that the JWE Encrypted Key value is an empty
+				throw new IllegalArgumentException("encrypted key must be empty for " + algorithm);
+
+			// 5.2#11 use shared key as CEK for direct encryption
+			final var cek = Objects.requireNonNull(privateKey.getKey(), "DIRECT requires a secret key");
+			final var enc = encryption.getEncryption();
+			if (cek.length != enc.size / 8)
+				throw new IllegalArgumentException("Invalid key size for " + enc);
+		} else if (algorithm.equals(Algorithm.ECDH_ES))
+			// 5.2#10 verify that the JWE Encrypted Key value is an empty
+			if (encryptedKey != null)
+				throw new IllegalArgumentException("encrypted key must be empty for " + algorithm);
+			else
+				// 5.2#8 use agreed upon key as CEK for direct encryption
+				return agreedUponKey(privateKey);
+
+		// 5.2#9 encrypt CEK to the recipient
+		Objects.requireNonNull(encryptedKey, "encrypted key required for " + algorithm);
+
+		final byte[] cek;
+		switch (algorithm) {
+		case A128KW:
+		case A192KW:
+		case A256KW:
+			// key wrapping
+			cek = IuException.unchecked(() -> {
+				final var key = new SecretKeySpec(privateKey.getKey(), "AES");
+				final var cipher = Cipher.getInstance(algorithm.keyAlgorithm);
+				cipher.init(Cipher.UNWRAP_MODE, key);
+				return ((SecretKey) cipher.unwrap(encryptedKey, "AES", Cipher.SECRET_KEY)).getEncoded();
+			});
+			break;
+
+		case A128GCMKW:
+		case A192GCMKW:
+		case A256GCMKW:
+			// key wrapping w/ GCM
+			cek = IuException.unchecked(() -> {
+				final var key = new SecretKeySpec(privateKey.getKey(), "AES");
+
+				final var ext = header.getExtendedParameters();
+				final var iv = EncodingUtils
+						.base64((String) Objects.requireNonNull(ext.get("iv"), "Missing iv header parameter"));
+				final var tag = EncodingUtils
+						.base64((String) Objects.requireNonNull(ext.get("tag"), "Missing tag header parameter"));
+
+				final var wrappedKey = Arrays.copyOf(encryptedKey, encryptedKey.length + 16);
+				System.arraycopy(tag, 0, wrappedKey, encryptedKey.length, 16);
+
+				final var cipher = Cipher.getInstance(algorithm.keyAlgorithm);
+				cipher.init(Cipher.UNWRAP_MODE, key, new GCMParameterSpec(128, iv));
+
+				return ((SecretKey) cipher.unwrap(encryptedKey, "AES", Cipher.SECRET_KEY)).getEncoded();
+			});
+			break;
+
+		case RSA1_5:
+		case RSA_OAEP:
+		case RSA_OAEP_256:
+			// key encryption
+			cek = IuException.unchecked(() -> {
+				final var keyCipher = Cipher.getInstance(algorithm.keyAlgorithm);
+				keyCipher.init(Cipher.DECRYPT_MODE, privateKey.getPrivateKey());
+				return keyCipher.doFinal(encryptedKey);
+			});
+			break;
+
+		case ECDH_ES_A128KW:
+		case ECDH_ES_A192KW:
+		case ECDH_ES_A256KW:
+			// key agreement with key wrapping
+			cek = IuException.unchecked(() -> {
+				final var key = new SecretKeySpec(agreedUponKey(privateKey), "AES");
+				final var cipher = Cipher.getInstance(algorithm.keyAlgorithm);
+				cipher.init(Cipher.UNWRAP_MODE, key);
+				return ((SecretKey) cipher.unwrap(encryptedKey, "AES", Cipher.SECRET_KEY)).getEncoded();
+			});
+			break;
+
+		default:
+			throw new UnsupportedOperationException();
+		}
+
+		// 5.2#12 record CEK decryption success
+		LOG.fine("CEK decryption successful for " + wellKnown);
+		return cek;
 	}
 
 	/**

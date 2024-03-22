@@ -275,4 +275,33 @@ class Jwk implements WebKey {
 			EncodingUtils.setBytes(jwkBuilder, "k", key);
 	}
 
+	private static boolean eitherNullOrBothEquals(Object a, Object b) {
+		return a == null || b == null || IuObject.equals(a, b);
+	}
+
+	/**
+	 * Determines whether or not the known components of this key match the known
+	 * components of another key.
+	 * 
+	 * @param key {@link WebKey}
+	 * @return true if all non-null components of both keys match
+	 */
+	boolean represents(Jwk key) {
+		return eitherNullOrBothEquals(algorithm, key.algorithm) //
+				&& eitherNullOrBothEquals(certificateChain, key.certificateChain)
+				&& eitherNullOrBothEquals(certificateSha256Thumbprint, key.certificateSha256Thumbprint)
+				&& eitherNullOrBothEquals(certificateThumbprint, key.certificateThumbprint)
+				&& eitherNullOrBothEquals(certificateUri, key.certificateUri) //
+				&& eitherNullOrBothEquals(id, key.id) //
+				&& eitherNullOrBothEquals(key, key.key) //
+				&& eitherNullOrBothEquals(ops, key.ops) //
+				&& eitherNullOrBothEquals(privateKey, key.privateKey) //
+				&& eitherNullOrBothEquals(publicKey, key.publicKey) //
+				&& eitherNullOrBothEquals(type, key.type) //
+				&& (algorithm == null || key.type == null || algorithm.type == key.type) //
+				&& eitherNullOrBothEquals(use, key.use) //
+				&& (algorithm == null || key.use == null || algorithm.use == key.use);
+
+	}
+
 }

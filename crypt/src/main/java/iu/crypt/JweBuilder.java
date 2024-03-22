@@ -153,31 +153,33 @@ public class JweBuilder implements Builder {
 	byte[] cek(JweRecipientBuilder recipient) {
 		final var algorithm = recipient.algorithm();
 
-		final byte[] cek;
 		if (algorithm.equals(Algorithm.DIRECT)) {
 			// 5.1#6 use shared key as CEK for direct encryption
 			final var jwk = Objects.requireNonNull(recipient.key(), "recipient must provide a key");
-			cek = Objects.requireNonNull(jwk.getKey(), "DIRECT requires a secret key");
+			final var cek = Objects.requireNonNull(jwk.getKey(), "DIRECT requires a secret key");
+			if (cek.length != encryption.size / 8)
+				throw new IllegalArgumentException("Invalid key size for " + encryption);
+
 		} else if (algorithm.equals(Algorithm.ECDH_ES))
-			cek = recipient.agreedUponKey(encryption);
-		else
-			cek = IuException.unchecked(() -> {
-				// 5.1#2 generate CEK if ephemeral
-				final var keygen = KeyGenerator.getInstance(encryption.keyAlgorithm);
-				keygen.init(encryption.size);
-				return keygen.generateKey().getEncoded();
-			});
+			return recipient.agreedUponKey(encryption);
+
+		final byte[] key = IuException.unchecked(() -> {
+			// 5.1#2 generate CEK if ephemeral
+			final var keygen = KeyGenerator.getInstance(encryption.keyAlgorithm);
+			keygen.init(encryption.size);
+			return keygen.generateKey().getEncoded();
+		});
 
 		if (encryption == null || encryption.mac == null)
-			return cek;
+			return key;
 		else
 			return IuException.unchecked(() -> {
 				final var keygen = KeyGenerator.getInstance(encryption.mac);
 				keygen.init(encryption.size);
 				final var mac = keygen.generateKey().getEncoded();
-				final var maccek = new byte[mac.length + cek.length];
+				final var maccek = new byte[mac.length + key.length];
 				System.arraycopy(mac, 0, maccek, 0, mac.length);
-				System.arraycopy(cek, 0, maccek, mac.length, cek.length);
+				System.arraycopy(key, 0, maccek, mac.length, key.length);
 				return maccek;
 			});
 	}
