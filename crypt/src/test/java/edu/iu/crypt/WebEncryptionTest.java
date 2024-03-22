@@ -43,12 +43,44 @@ public class WebEncryptionTest {
 
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
 		assertEquals(message, new String(jwe.decrypt(key)));
-		
+
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
+		assertEquals(message, new String(fromCompact.decrypt(key)));
+
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
+		assertEquals(message, new String(fromSerial.decrypt(key)));
+	}
+
+	@Test
+	public void testEcdhGcm() throws NoSuchAlgorithmException {
+		final var key = WebKey.builder().algorithm(Algorithm.ECDH_ES).id("a").ephemeral().build();
+		final var message = IdGenerator.generateId();
+
+		final var jwe = WebEncryption.builder().enc(Encryption.A128GCM).addRecipient().algorithm(Algorithm.ECDH_ES)
+				.jwk(key, false).then().encrypt(message);
+		assertNull(jwe.getAdditionalData());
+
+		final var fromCompact = WebEncryption.parse(jwe.getRecipients().findFirst().get().compact());
+
+		final var compactHeader = fromCompact.getRecipients().iterator().next().getHeader();
+		assertEquals(Algorithm.ECDH_ES, compactHeader.getAlgorithm());
+		assertEquals(Encryption.A128GCM, fromCompact.getEncryption());
+		assertNull(compactHeader.getKey());
+
+		final var fromSerial = WebEncryption.parse(jwe.toString());
+		final var serialHeader = fromSerial.getRecipients().iterator().next().getHeader();
+		assertEquals(Algorithm.ECDH_ES, serialHeader.getAlgorithm());
+		assertEquals(Encryption.A128GCM, fromSerial.getEncryption());
+		assertNotNull(serialHeader.getKey());
+		assertNull(serialHeader.getKey().getPrivateKey());
+
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
 		assertEquals(message, new String(jwe.decrypt(key)));
-		
+
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
+		assertEquals(message, new String(jwe.decrypt(key)));
+
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
 		assertEquals(message, new String(jwe.decrypt(key)));
 	}
-
 }

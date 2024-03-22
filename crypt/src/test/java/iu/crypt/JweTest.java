@@ -195,7 +195,7 @@ public class JweTest {
 						(byte) 135, 44, (byte) 252, (byte) 145, 102, (byte) 179, (byte) 140, 105, 86, (byte) 229, 116 },
 				hash);
 
-		final var tag = Arrays.copyOf(hash, enc.size / 8);
+		final var tag = Arrays.copyOf(hash, enc.size / 16);
 		assertArrayEquals(new byte[] { 83, 73, (byte) 191, 98, 104, (byte) 205, (byte) 211, (byte) 128, (byte) 201,
 				(byte) 189, (byte) 199, (byte) 133, 32, 38, (byte) 194, 85 }, tag);
 

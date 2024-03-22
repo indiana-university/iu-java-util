@@ -110,7 +110,7 @@ final class Jose implements WebCryptoHeader {
 			this.key = null;
 		else // __never__ include private/secret key in JOSE header
 			this.key = key.wellKnown();
-		
+
 		keySetUri = builder.keySetUri();
 		type = builder.type();
 		contentType = builder.contentType();
@@ -260,6 +260,43 @@ final class Jose implements WebCryptoHeader {
 	@Override
 	public String toString() {
 		return toJson(null).toString();
+	}
+
+	/**
+	 * Gets a well-known public key from minimum data in a JOSE header.
+	 * 
+	 * @param jose JOSE header
+	 * @return well-known public key, null if a key could not be determined from the
+	 *         header
+	 */
+	Jwk wellKnown() {
+		if (key != null)
+			return key;
+
+		if (keyId != null && keySetUri != null)
+			return JwkBuilder.readJwks(keySetUri).filter(a -> keyId.equals(a.getId())).findFirst().get();
+
+		final X509Certificate cert;
+		if (certificateChain == null && certificateUri != null)
+			cert = PemEncoded.getCertificateChain(certificateUri)[0];
+		else
+			cert = null;
+
+		if (cert != null) {
+			if (certificateThumbprint != null && !Arrays.equals(certificateThumbprint,
+					IuException.unchecked(() -> IuCrypt.sha1(cert.getEncoded()))))
+				throw new IllegalArgumentException();
+			if (certificateSha256Thumbprint != null && !Arrays.equals(certificateSha256Thumbprint,
+					IuException.unchecked(() -> IuCrypt.sha256(cert.getEncoded()))))
+				throw new IllegalArgumentException();
+			
+			final var jwkb = new JwkBuilder();
+			if (keyId != null)
+				jwkb.id(keyId);
+			return jwkb.algorithm(algorithm).cert(cert).build();
+		}
+
+		return null;
 	}
 
 	/**

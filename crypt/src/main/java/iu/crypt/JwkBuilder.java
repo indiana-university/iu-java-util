@@ -142,7 +142,12 @@ public class JwkBuilder extends WebKeyReferenceBuilder<JwkBuilder> implements Bu
 	 */
 	static KeyPair readEC(JsonObject parsedJwk) {
 		return IuException.unchecked(() -> {
-			final var type = Type.from(parsedJwk.getString("kty"), parsedJwk.getString("crv"));
+			final var kty = IuJson.text(parsedJwk, "kty");
+			final Type type;
+			if (kty == null)
+				type = Algorithm.from(parsedJwk.getString("alg")).type;
+			else
+				type = Type.from(kty, parsedJwk.getString("crv"));
 
 			final var algorithmParamters = AlgorithmParameters.getInstance("EC");
 			algorithmParamters.init(new ECGenParameterSpec(type.ecParam));

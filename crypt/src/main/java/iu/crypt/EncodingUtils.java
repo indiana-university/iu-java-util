@@ -288,10 +288,9 @@ class EncodingUtils {
 	}
 
 	/**
-	 * Performs one round of the <a href=
+	 * Gets the hash input data for one round of the <a href=
 	 * "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-56Ar3.pdf">NIST.800-56A
-	 * Section 5.8.1 Concatenated Key Derivation Format (KDF)</a> using SHA-256 as
-	 * the hash function.
+	 * Section 5.8.1 Concatenated Key Derivation Format (KDF)</a>
 	 * 
 	 * @param round   round number
 	 * @param z       key derivation output
@@ -299,7 +298,7 @@ class EncodingUtils {
 	 * @param uinfo   party UInfo value
 	 * @param vinfo   party VInfo value
 	 * @param datalen data length
-	 * @return Concat KDF data
+	 * @return Concat KDF hash input
 	 */
 	static byte[] concatKdf(int round, byte[] z, String algid, String uinfo, String vinfo, int datalen) {
 		var buf = new byte[20 + z.length + algid.length() + uinfo.length() + vinfo.length()];

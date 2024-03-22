@@ -267,9 +267,14 @@ class Jwk implements WebKey {
 		EncodingUtils.setBytes(jwkBuilder, "x5t", certificateThumbprint);
 		EncodingUtils.setBytes(jwkBuilder, "x5t#S256", certificateSha256Thumbprint);
 
-		if (publicKey instanceof ECPublicKey)
+		if (publicKey instanceof ECPublicKey) {
+			final Type type;
+			if (this.type != null)
+				type = this.type;
+			else
+				type = algorithm.type;
 			writeEC(jwkBuilder, type, (ECPublicKey) publicKey, (ECPrivateKey) privateKey);
-		else if (publicKey instanceof RSAPublicKey)
+		} else if (publicKey instanceof RSAPublicKey)
 			writeRSA(jwkBuilder, (RSAPublicKey) publicKey, (RSAPrivateKey) privateKey);
 		else
 			EncodingUtils.setBytes(jwkBuilder, "k", key);

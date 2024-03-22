@@ -148,6 +148,7 @@ public class JweBuilder implements Builder {
 	 * Generates content encryption key (CEK)
 	 * 
 	 * @param recipient in-progress recipient builder
+	 * @param from      message originator private key
 	 * @return content encryption key
 	 */
 	byte[] cek(JweRecipientBuilder recipient) {

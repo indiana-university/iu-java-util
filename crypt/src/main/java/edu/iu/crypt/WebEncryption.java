@@ -49,7 +49,7 @@ public interface WebEncryption {
 		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-5.2.3">RFC-7518
 		 *      Section 5.2.3</a>
 		 */
-		AES_256_CBC_HMAC_SHA_512("A192CBC-HS384", "AES", 512, "AES/CBC/PKCS5Padding", "HmacSHA512"),
+		AES_256_CBC_HMAC_SHA_512("A256CBC-HS512", "AES", 512, "AES/CBC/PKCS5Padding", "HmacSHA512"),
 
 		/**
 		 * AES-128 GCM.
@@ -114,7 +114,6 @@ public interface WebEncryption {
 	 * Prepares a new encrypted message.
 	 */
 	interface Builder {
-
 		/**
 		 * Sets encryption algorithm.
 		 * 
@@ -251,7 +250,6 @@ public interface WebEncryption {
 	 * @return aad JWE attribute
 	 */
 	byte[] getAdditionalData();
-
 
 	/**
 	 * Decrypts UTF-8 encoded encrypted content.

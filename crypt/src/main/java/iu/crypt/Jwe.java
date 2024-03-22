@@ -66,7 +66,10 @@ public class Jwe implements WebEncryption {
 
 		final var protectedParameters = builder.protectedParameters();
 		if (protectedParameters == null)
-			this.protectedParameters = Set.of(Param.ALGORITHM, Param.ENCRYPTION);
+			if (deflate)
+				this.protectedParameters = Set.of(Param.ALGORITHM, Param.ENCRYPTION, Param.ZIP);
+			else
+				this.protectedParameters = Set.of(Param.ALGORITHM, Param.ENCRYPTION);
 		else
 			this.protectedParameters = protectedParameters;
 
@@ -258,9 +261,14 @@ public class Jwe implements WebEncryption {
 	public void decrypt(WebKey key, OutputStream out) {
 		byte[] cek = null;
 
+		final var jwk = (Jwk) key;
+		final var wellKnown = jwk.wellKnown();
 		for (var i = 0; cek == null && i < recipients.length; i++)
 			try {
-				cek = recipients[i].decryptCek((Jwk) key);
+				cek = recipients[i].decryptCek(jwk);
+
+				// 5.2#12 record CEK decryption success
+				LOG.fine("CEK decryption successful for " + wellKnown);
 			} catch (Throwable e) {
 				// 5.2#12 record CEK decryption failure
 				LOG.log(Level.FINE, e, () -> "CEK decryption failed");
@@ -323,8 +331,12 @@ public class Jwe implements WebEncryption {
 			});
 
 		} else {
-			final var encryptedData = Arrays.copyOf(cipherText, cipherText.length + 16);
-			System.arraycopy(authenticationTag, 0, encryptedData, authenticationTag.length, 16);
+			// GCM Cipher.doFinal() returns (cipherText || authenticationTag)
+			// 16 = 128-bit authenticationTag (from GCMParameterSpec), in bytes
+			final var startOfTag = cipherText.length;
+			final var endOfTag = cipherText.length + authenticationTag.length;
+			final var encryptedData = Arrays.copyOf(cipherText, endOfTag);
+			System.arraycopy(authenticationTag, 0, encryptedData, startOfTag, authenticationTag.length);
 
 			final var secretKey = new SecretKeySpec(cek, encryption.keyAlgorithm);
 			content = IuException.unchecked(() -> {
@@ -336,7 +348,7 @@ public class Jwe implements WebEncryption {
 			});
 		}
 
-		// 5.1#11 compress content if requested
+		// 5.2#16 decompress content if requested
 		final var plaintext = IuException.unchecked(() -> {
 			if (deflate) {
 				final var inflatedContent = new ByteArrayOutputStream();

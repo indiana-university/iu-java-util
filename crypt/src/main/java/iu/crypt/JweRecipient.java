@@ -1,16 +1,15 @@
 package iu.crypt;
 
+import java.security.interfaces.ECPrivateKey;
+import java.security.interfaces.ECPublicKey;
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.logging.Logger;
 
 import javax.crypto.Cipher;
-import javax.crypto.KeyAgreement;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
-import edu.iu.IuCrypt;
 import edu.iu.IuException;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebEncryptionRecipient;
@@ -23,8 +22,6 @@ import jakarta.json.JsonValue;
  * Represents a recipient of a {@link Jwe} encrypted message.
  */
 class JweRecipient implements WebEncryptionRecipient {
-
-	private final Logger LOG = Logger.getLogger(Jwe.class.getName());
 
 	private final Jwe encryption;
 	private final Jose header;
@@ -77,52 +74,6 @@ class JweRecipient implements WebEncryptionRecipient {
 	}
 
 	/**
-	 * Gets the key to use for signing or encryption.
-	 * 
-	 * @param jose header
-	 * @return encryption or signing key
-	 */
-	private static Jwk getKey(Jose jose) {
-		final var kid = jose.getKeyId();
-
-		var key = jose.getKey();
-		if (key != null)
-			if (kid != null && !kid.equals(key.getId()))
-				throw new IllegalArgumentException("kid");
-			else
-				return key;
-
-		if (kid != null) {
-			final var jwks = jose.getKeySetUri();
-			if (jwks != null)
-				return JwkBuilder.readJwks(jose.getKeySetUri()).filter(a -> kid.equals(a.getId())).findFirst().get();
-		}
-
-		var cert = jose.getCertificateChain();
-		if (cert == null) {
-			final var certUri = jose.getCertificateUri();
-			if (certUri != null)
-				cert = PemEncoded.getCertificateChain(certUri);
-		}
-		if (cert != null) {
-			final var t = jose.getCertificateThumbprint();
-			if (t != null && !Arrays.equals(t, IuCrypt.sha1(IuException.unchecked(cert[0]::getEncoded))))
-				throw new IllegalArgumentException();
-
-			final var t2 = jose.getCertificateSha256Thumbprint();
-			if (t2 != null && !Arrays.equals(t2, IuCrypt.sha256(IuException.unchecked(cert[0]::getEncoded))))
-				throw new IllegalArgumentException();
-
-			final var jwkb = new JwkBuilder();
-			if (kid != null)
-				jwkb.id(kid);
-			return jwkb.algorithm(jose.getAlgorithm()).cert(cert).build();
-		}
-
-		return null;
-	}
-
-	/**
 	 * Computes the agreed-upon key for the Elliptic Curve Diffie-Hellman algorithm.
 	 * 
 	 * @param recipientPrivateKey recipient's private key
@@ -137,16 +88,10 @@ class JweRecipient implements WebEncryptionRecipient {
 	 */
 	byte[] agreedUponKey(WebKey recipientPrivateKey) {
 		final var ext = header.getExtendedParameters();
-		final var epk = JwkBuilder.parse(IuJson.toJson(ext.get("epk")));
-		final var uinfo = (String) ext.get("apu");
-		final var vinfo = (String) ext.get("apv");
+		final var epk = JwkBuilder.parse(IuJson.toJson(Objects.requireNonNull(ext.get("epk"), "Missing epk")));
+		final var uinfo = (String) Objects.requireNonNull(ext.get("apu"), "Missing apu");
+		final var vinfo = (String) Objects.requireNonNull(ext.get("apv"), "Missing apv");
 		final var algorithm = header.getAlgorithm();
-		final var z = IuException.unchecked(() -> {
-			final var ka = KeyAgreement.getInstance(header.getAlgorithm().algorithm);
-			ka.init(recipientPrivateKey.getPrivateKey());
-			ka.doPhase(epk.getPublicKey(), true);
-			return ka.generateSecret();
-		});
 
 		final int keyDataLen;
 		final String algId;
@@ -159,7 +104,8 @@ class JweRecipient implements WebEncryptionRecipient {
 			algId = algorithm.alg;
 		}
 
-		return EncodingUtils.concatKdf(1, z, algId, uinfo, vinfo, keyDataLen);
+		return JweRecipientBuilder.agreedUponKey((ECPrivateKey) recipientPrivateKey.getPrivateKey(),
+				(ECPublicKey) epk.getPublicKey(), algorithm.algorithm, algId, uinfo, vinfo, keyDataLen);
 	}
 
 	/**
@@ -172,14 +118,14 @@ class JweRecipient implements WebEncryptionRecipient {
 	@SuppressWarnings("deprecation")
 	byte[] decryptCek(Jwk privateKey) {
 		// 5.2#7 Verify that the JWE uses a key known to the recipient.
-		final var wellKnown = getKey(header).wellKnown();
-		if (wellKnown != null && !wellKnown.represents(privateKey))
+		final var recipientPublicKey = header.wellKnown();
+		if (recipientPublicKey != null && !recipientPublicKey.represents(privateKey))
 			throw new IllegalArgumentException("Key is not valid for recipient");
 
 		final var algorithm = header.getAlgorithm();
 		if (algorithm.equals(Algorithm.DIRECT)) {
 			if (encryptedKey != null)
-				// 5.2#10 verify that the JWE Encrypted Key value is an empty
+				// 5.2#10 verify that the JWE Encrypted Key value is empty
 				throw new IllegalArgumentException("encrypted key must be empty for " + algorithm);
 
 			// 5.2#11 use shared key as CEK for direct encryption
@@ -262,8 +208,6 @@ class JweRecipient implements WebEncryptionRecipient {
 			throw new UnsupportedOperationException();
 		}
 
-		// 5.2#12 record CEK decryption success
-		LOG.fine("CEK decryption successful for " + wellKnown);
 		return cek;
 	}
 
