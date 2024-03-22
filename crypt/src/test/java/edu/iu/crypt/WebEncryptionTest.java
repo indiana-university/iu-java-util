@@ -5,12 +5,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.security.NoSuchAlgorithmException;
+import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
 public class WebEncryptionTest {
@@ -39,9 +41,14 @@ public class WebEncryptionTest {
 		assertNotNull(serialHeader.getKey());
 		assertNull(serialHeader.getKey().getPrivateKey());
 
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
 		assertEquals(message, new String(jwe.decrypt(key)));
-		assertEquals(fromCompact, new String(jwe.decrypt(key)));
-		assertEquals(fromSerial, new String(jwe.decrypt(key)));
+		
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
+		assertEquals(message, new String(jwe.decrypt(key)));
+		
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
+		assertEquals(message, new String(jwe.decrypt(key)));
 	}
 
 }

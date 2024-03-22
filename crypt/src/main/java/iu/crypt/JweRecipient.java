@@ -172,7 +172,7 @@ class JweRecipient implements WebEncryptionRecipient {
 	@SuppressWarnings("deprecation")
 	byte[] decryptCek(Jwk privateKey) {
 		// 5.2#7 Verify that the JWE uses a key known to the recipient.
-		final var wellKnown = getKey(header);
+		final var wellKnown = getKey(header).wellKnown();
 		if (wellKnown != null && !wellKnown.represents(privateKey))
 			throw new IllegalArgumentException("Key is not valid for recipient");
 

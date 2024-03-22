@@ -104,7 +104,13 @@ final class Jose implements WebCryptoHeader {
 		algorithm = builder.algorithm();
 		keyId = builder.id();
 		silent = builder.silent();
-		key = builder.key();
+
+		final var key = builder.key();
+		if (key == null)
+			this.key = null;
+		else // __never__ include private/secret key in JOSE header
+			this.key = key.wellKnown();
+		
 		keySetUri = builder.keySetUri();
 		type = builder.type();
 		contentType = builder.contentType();
