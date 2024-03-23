@@ -32,7 +32,6 @@
 package iu.auth.oidc;
 
 import java.net.URI;
-import java.net.http.HttpRequest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
@@ -70,6 +69,7 @@ import edu.iu.auth.oauth.IuBearerAuthCredentials;
 import edu.iu.auth.oauth.IuTokenResponse;
 import edu.iu.auth.oidc.IuOpenIdClaim;
 import edu.iu.auth.oidc.IuOpenIdClient;
+import edu.iu.client.IuHttp;
 import iu.auth.util.AccessTokenVerifier;
 import iu.auth.util.HttpUtils;
 import iu.auth.util.PrincipalVerifierRegistry;
@@ -261,8 +261,8 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 		} else
 			verifiedIdToken = null;
 
-		final var userinfo = HttpUtils.read(HttpRequest.newBuilder(userinfoEndpoint) //
-				.header("Authorization", "Bearer " + accessToken).build()).asJsonObject();
+		final var userinfo = IuException.unchecked(() -> IuHttp.send(userinfoEndpoint,
+				b -> b.header("Authorization", "Bearer " + accessToken), IuHttp.READ_JSON_OBJECT));
 		final var principal = userinfo.getString("principal");
 		final var sub = userinfo.getString("sub");
 		final var id = new Id(principal);
@@ -353,8 +353,8 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 				claims.put(claim.getClaimName(), claim.getClaim());
 
 			final var accessToken = Objects.requireNonNull(bearer.getAccessToken(), "accessToken");
-			final var userinfo = HttpUtils.read(HttpRequest.newBuilder(userinfoEndpoint) //
-					.header("Authorization", "Bearer " + accessToken).build()).asJsonObject();
+			final var userinfo = IuException.unchecked(() -> IuHttp.send(userinfoEndpoint,
+					b -> b.header("Authorization", "Bearer " + accessToken), IuHttp.READ_JSON_OBJECT));
 			final var principal = userinfo.getString("principal");
 			final var sub = userinfo.getString("sub");
 

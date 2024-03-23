@@ -31,16 +31,13 @@
  */
 package iu.auth.oauth;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.when;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 
 import org.junit.jupiter.api.Test;
 
@@ -49,19 +46,6 @@ import edu.iu.auth.oauth.IuAuthorizationClient;
 
 @SuppressWarnings("javadoc")
 public class OAuthSpiTest {
-
-	@Test
-	public void testIsRoot() throws URISyntaxException {
-		assertTrue(OAuthSpi.isRootOf(new URI("foo:bar"), new URI("foo:bar")));
-		assertFalse(OAuthSpi.isRootOf(new URI("foo:bar"), new URI("foo:baz")));
-		assertFalse(OAuthSpi.isRootOf(new URI("foo:/bar"), new URI("foo:/baz")));
-		assertFalse(OAuthSpi.isRootOf(new URI("foo:/bar"), new URI("/baz")));
-		assertFalse(OAuthSpi.isRootOf(new URI("bar:/foo"), new URI("foo:/bar")));
-		assertFalse(OAuthSpi.isRootOf(new URI("foo://bar/baz"), new URI("foo://baz/bar")));
-		assertTrue(OAuthSpi.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/baz/foo")));
-		assertTrue(OAuthSpi.isRootOf(new URI("foo://bar/baz/"), new URI("foo://bar/baz/foo")));
-		assertFalse(OAuthSpi.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/bazfoo")));
-	}
 
 	@Test
 	public void testInitClient() {
@@ -95,7 +79,7 @@ public class OAuthSpiTest {
 			assertSame(authSession, mockAuthSession.constructed().get(0));
 		}
 	}
-	
+
 	@Test
 	public void testCreateAuthorizedScope() {
 		final var spi = new OAuthSpi();

@@ -74,7 +74,7 @@ import edu.iu.auth.oidc.IuOpenIdProvider;
 import edu.iu.client.IuVault;
 import edu.iu.test.IuTestLogger;
 
-@EnabledIf("edu.iu.test.VaultProperties#isConfigured")
+@EnabledIf("edu.iu.client.IuVault#isConfigured")
 @SuppressWarnings("javadoc")
 public class OpenIDConnectIT {
 
@@ -92,11 +92,11 @@ public class OpenIDConnectIT {
 
 	@BeforeAll
 	public static void setupClass() throws URISyntaxException {
-		configUri = new URI(IuVault.getProperty("iu.auth.oidc.configUrl"));
-		clientId = IuVault.getProperty("iu.auth.oidc.clientId");
-		clientSecret = IuVault.getProperty("iu.auth.oidc.clientSecret");
-		redirectUri = new URI(IuVault.getProperty("iu.auth.oidc.redirectUri"));
-		resourceUri = new URI(IuVault.getProperty("iu.auth.oidc.resourceUri"));
+		configUri = URI.create(IuVault.get("iu.auth.oidc.configUrl"));
+		clientId = IuVault.get("iu.auth.oidc.clientId");
+		clientSecret = IuVault.get("iu.auth.oidc.clientSecret");
+		redirectUri = new URI(IuVault.get("iu.auth.oidc.redirectUri"));
+		resourceUri = new URI(IuVault.get("iu.auth.oidc.resourceUri"));
 		provider = IuOpenIdProvider.from(configUri, new IuOpenIdClient() {
 			@Override
 			public Duration getTrustRefreshInterval() {
@@ -172,6 +172,7 @@ public class OpenIDConnectIT {
 	@Test
 	public void testClientCredentials() throws Exception {
 		IuTestLogger.allow("iu.auth.oauth.ClientCredentialsGrant", Level.FINE);
+		IuTestLogger.allow("edu.iu.client.IuHttp", Level.FINE);
 		final var credentials = clientCredentials.authorize(resourceUri);
 		System.out.println(credentials);
 
@@ -183,6 +184,7 @@ public class OpenIDConnectIT {
 	@Test
 	public void testAuthCode() throws Exception {
 		IuTestLogger.allow("iu.auth.oauth.AuthorizationCodeGrant", Level.FINE);
+		IuTestLogger.allow("edu.iu.client.IuHttp", Level.FINE);
 		final var grant = session.grant();
 		final var location = assertThrows(IuAuthenticationException.class, () -> grant.authorize(resourceUri))
 				.getLocation();
@@ -240,8 +242,8 @@ public class OpenIDConnectIT {
 		assertEquals("POST", parsedLoginForm.attr("method").toUpperCase());
 
 		final var loginFormParams = new LinkedHashMap<String, Iterable<String>>();
-		loginFormParams.put("j_username", List.of(IuVault.getProperty("test.username")));
-		loginFormParams.put("j_password", List.of(IuVault.getProperty("test.password")));
+		loginFormParams.put("j_username", List.of(IuVault.get("test.username")));
+		loginFormParams.put("j_password", List.of(IuVault.get("test.password")));
 		loginFormParams.put("_eventId_proceed", List.of(""));
 		final var loginFormQuery = IuWebUtils.createQueryString(loginFormParams);
 

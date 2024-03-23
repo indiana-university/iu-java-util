@@ -62,7 +62,7 @@ import jakarta.json.spi.JsonProvider;
  * JSON-P processing utilities.
  */
 public class IuJson {
-
+	
 	/**
 	 * Singleton {@link JsonProvider}.
 	 */

@@ -196,7 +196,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * calling {@link #jwk(WebKey, boolean) jwk(key, false)}.
 		 * </p>
 		 * 
-		 * @param key
+		 * @param key key to use for creating the signature or encryption
 		 * @return this
 		 */
 		default B jwk(WebKey key) {
@@ -283,8 +283,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 	/**
 	 * Gets the well-known key data.
 	 * 
-	 * @return {@link WebKey}, <em>should</em> be {@link WebKey#wellKnown(WebKey)}
-	 *         if provided.
+	 * @return {@link WebKey}
 	 */
 	WebKey getKey();
 

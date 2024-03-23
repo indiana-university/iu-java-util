@@ -41,6 +41,8 @@ module iu.util.auth.util {
 	requires static com.auth0.jwt;
 	requires transitive iu.util;
 	requires transitive iu.util.auth;
+	requires transitive iu.util.client;
+	requires transitive iu.util.crypt;
 	requires transitive jakarta.json;
 	requires transitive java.net.http;
 

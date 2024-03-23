@@ -35,31 +35,28 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.when;
 
 import java.net.URI;
-import java.net.http.HttpRequest;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.client.IuHttp;
 import edu.iu.test.IuTestLogger;
-import iu.auth.util.HttpUtils;
 import jakarta.json.Json;
 
 @SuppressWarnings("javadoc")
-public class OpenIdProviderTest {
+public class OpenIdProviderTest extends IuOidcTestCase {
 
 	@Test
 	public void testHydrate() throws Exception {
 		final var issuer = IdGenerator.generateId();
 		final var configUri = new URI("test:" + IdGenerator.generateId());
 		final var userinfoEndpoint = new URI("test:" + IdGenerator.generateId());
-		try (final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			mockHttpUtils.when(() -> HttpUtils.read(configUri)).thenReturn(Json.createObjectBuilder()
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			mockHttp.when(() -> IuHttp.get(configUri, IuHttp.READ_JSON_OBJECT)).thenReturn(Json.createObjectBuilder()
 					.add("issuer", issuer).add("userinfo_endpoint", userinfoEndpoint.toString()).build());
 
 			IuTestLogger.expect("iu.auth.oidc.OpenIdProvider", Level.INFO, "OIDC Provider configuration:.*");
@@ -69,17 +66,11 @@ public class OpenIdProviderTest {
 			final var accessToken = IdGenerator.generateId();
 			final var principal = IdGenerator.generateId();
 
-			try (final var mockHttpRequest = mockStatic(HttpRequest.class)) {
-				final var uireqb = mock(HttpRequest.Builder.class);
-				when(uireqb.header(any(), any())).thenReturn(uireqb);
-				final var uireq = mock(HttpRequest.class);
-				mockHttpUtils.when(() -> HttpUtils.read(uireq)).thenReturn(Json.createObjectBuilder()
-						.add("principal", principal).add("sub", principal).add("foo", "bar").add("abc", 123).build());
-				when(uireqb.build()).thenReturn(uireq);
-				mockHttpRequest.when(() -> HttpRequest.newBuilder(eq(userinfoEndpoint))).thenReturn(uireqb);
-				final var subject = provider.hydrate(accessToken);
-				assertEquals(principal, subject.getPrincipals().iterator().next().getName());
-			}
+			mockHttp.when(() -> IuHttp.send(eq(userinfoEndpoint), any(), eq(IuHttp.READ_JSON_OBJECT)))
+					.thenReturn(Json.createObjectBuilder().add("principal", principal).add("sub", principal)
+							.add("foo", "bar").add("abc", 123).build());
+			final var subject = provider.hydrate(accessToken);
+			assertEquals(principal, subject.getPrincipals().iterator().next().getName());
 		}
 	}
 

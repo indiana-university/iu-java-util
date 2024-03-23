@@ -50,6 +50,8 @@ import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuRuntimeEnvironment;
 import edu.iu.IuWebUtils;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
 
 /**
  * Provides common base-level whitelisting, logging, and exception handling
@@ -77,6 +79,17 @@ public class IuHttp {
 	 * Validates a 200 OK response.
 	 */
 	public static final HttpResponseValidator OK = expectStatus(200);
+
+	/**
+	 * Validates 200 OK then parses the response as a JSON object.
+	 */
+	public static final HttpResponseHandler<JsonValue> READ_JSON = validate(IuJson::parse, IuHttp.OK);
+
+	/**
+	 * Validates 200 OK then parses the response as a JSON object.
+	 */
+	public static final HttpResponseHandler<JsonObject> READ_JSON_OBJECT = validate(a -> IuJson.parse(a).asJsonObject(),
+			IuHttp.OK);
 
 	/**
 	 * Creates an HTTP response handler.
@@ -169,7 +182,7 @@ public class IuHttp {
 	public static HttpResponse<InputStream> send(URI uri, Consumer<HttpRequest.Builder> requestConsumer)
 			throws HttpException {
 		if (!ALLOWED_URI.stream().anyMatch(allowedUri -> IuWebUtils.isRootOf(allowedUri, uri)))
-			throw new IllegalArgumentException();
+			throw new IllegalArgumentException("URI not allowed, must be relative to " + ALLOWED_URI);
 
 		return IuException.checked(HttpException.class, () -> {
 			final var requestBuilder = HttpRequest.newBuilder(uri);

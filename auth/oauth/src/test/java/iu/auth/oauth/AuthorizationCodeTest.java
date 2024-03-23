@@ -40,6 +40,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
@@ -71,13 +73,14 @@ import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
+import edu.iu.client.IuHttp;
 import edu.iu.test.IuTestLogger;
 import iu.auth.util.HttpUtils;
 import iu.auth.util.PrincipalVerifierRegistry;
 import jakarta.json.Json;
 
 @SuppressWarnings("javadoc")
-public class AuthorizationCodeTest {
+public class AuthorizationCodeTest extends IuOAuthTestCase {
 
 	@Test
 	public void testRequiresValidClientAndResourceUri() throws URISyntaxException {
@@ -244,10 +247,9 @@ public class AuthorizationCodeTest {
 				authException.getLocation());
 
 		final var code = IdGenerator.generateId();
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockBodyPublishers = mockStatic(BodyPublishers.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var hr = mock(HttpRequest.class);
+		try (final var mockBodyPublishers = mockStatic(BodyPublishers.class);
+				final var mockHttp = mockStatic(IuHttp.class)) {
+
 			final var hrb = mock(HttpRequest.Builder.class);
 			final var hrb2 = mock(HttpRequest.Builder.class);
 			final var hrb3 = mock(HttpRequest.Builder.class);
@@ -256,14 +258,15 @@ public class AuthorizationCodeTest {
 			final var bp = mock(BodyPublisher.class);
 			mockBodyPublishers.when(() -> BodyPublishers.ofString(payload)).thenReturn(bp);
 			when(hrb.POST(bp)).thenReturn(hrb);
-			when(hrb.build()).thenReturn(hr);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(tokenEndpointUri)).thenReturn(hrb, hrb2, hrb3);
 
 			final var accessToken = IdGenerator.generateId();
 			final var refreshToken = IdGenerator.generateId();
 			final var tokenResponse = Json.createObjectBuilder().add("token_type", "Bearer")
 					.add("access_token", accessToken).add("refresh_token", refreshToken).add("expires_in", 1).build();
-			mockHttpUtils.when(() -> HttpUtils.read(hr)).thenReturn(tokenResponse);
+			mockHttp.when(() -> IuHttp.send(eq(tokenEndpointUri), argThat(a -> {
+				a.accept(hrb);
+				return true;
+			}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(tokenResponse);
 
 			assertEquals(resourceUri, grant.authorize(code, state));
 
@@ -297,7 +300,10 @@ public class AuthorizationCodeTest {
 			final var refreshToken2 = IdGenerator.generateId();
 			final var tokenResponse2 = Json.createObjectBuilder().add("token_type", "Bearer")
 					.add("access_token", accessToken2).add("refresh_token", refreshToken2).add("expires_in", 1).build();
-			mockHttpUtils.when(() -> HttpUtils.read(hr2)).thenReturn(tokenResponse2);
+			mockHttp.when(() -> IuHttp.send(eq(tokenEndpointUri), argThat(a -> {
+				a.accept(hrb2);
+				return true;
+			}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(tokenResponse2);
 
 			final var cred2 = grant.authorize(resourceUri);
 			mockBodyPublishers.verify(() -> BodyPublishers.ofString(payload2));
@@ -321,7 +327,10 @@ public class AuthorizationCodeTest {
 			final var accessToken3 = IdGenerator.generateId();
 			final var tokenResponse3 = Json.createObjectBuilder().add("token_type", "Bearer")
 					.add("access_token", accessToken3).add("expires_in", 1).build();
-			mockHttpUtils.when(() -> HttpUtils.read(hr3)).thenReturn(tokenResponse3);
+			mockHttp.when(() -> IuHttp.send(eq(tokenEndpointUri), argThat(a -> {
+				a.accept(hrb3);
+				return true;
+			}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(tokenResponse3);
 
 			final var cred3 = grant.authorize(resourceUri);
 			mockBodyPublishers.verify(() -> BodyPublishers.ofString(payload3));
@@ -376,24 +385,23 @@ public class AuthorizationCodeTest {
 				authException.getLocation());
 
 		final var code = IdGenerator.generateId();
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockBodyPublishers = mockStatic(BodyPublishers.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var hr = mock(HttpRequest.class);
+		try (final var mockBodyPublishers = mockStatic(BodyPublishers.class);
+				final var mockHttp = mockStatic(IuHttp.class)) {
 			final var hrb = mock(HttpRequest.Builder.class);
 			final var payload = "grant_type=authorization_code&code=" + code
 					+ "&scope=foo+bar&redirect_uri=foo%3A%2Fbaz";
 			final var bp = mock(BodyPublisher.class);
 			mockBodyPublishers.when(() -> BodyPublishers.ofString(payload)).thenReturn(bp);
 			when(hrb.POST(bp)).thenReturn(hrb);
-			when(hrb.build()).thenReturn(hr);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(tokenEndpointUri)).thenReturn(hrb);
 
 			final var accessToken = IdGenerator.generateId();
 			final var refreshToken = IdGenerator.generateId();
 			final var tokenResponse = Json.createObjectBuilder().add("token_type", "Bearer")
 					.add("access_token", accessToken).add("refresh_token", refreshToken).add("expires_in", 1).build();
-			mockHttpUtils.when(() -> HttpUtils.read(hr)).thenReturn(tokenResponse);
+			mockHttp.when(() -> IuHttp.send(eq(tokenEndpointUri), argThat(a -> {
+				a.accept(hrb);
+				return true;
+			}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(tokenResponse);
 
 			assertEquals(resourceUri, grant.authorize(code, state));
 
@@ -467,24 +475,23 @@ public class AuthorizationCodeTest {
 				authException.getLocation());
 
 		final var code = IdGenerator.generateId();
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockBodyPublishers = mockStatic(BodyPublishers.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var hr = mock(HttpRequest.class);
+		try (final var mockBodyPublishers = mockStatic(BodyPublishers.class);
+				final var mockHttp = mockStatic(IuHttp.class)) {
 			final var hrb = mock(HttpRequest.Builder.class);
 			final var payload = "grant_type=authorization_code&code=" + code
 					+ "&scope=foo+bar&redirect_uri=foo%3A%2Fbaz";
 			final var bp = mock(BodyPublisher.class);
 			mockBodyPublishers.when(() -> BodyPublishers.ofString(payload)).thenReturn(bp);
 			when(hrb.POST(bp)).thenReturn(hrb);
-			when(hrb.build()).thenReturn(hr);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(tokenEndpointUri)).thenReturn(hrb);
 
 			final var accessToken = IdGenerator.generateId();
 			final var tokenResponse = Json.createObjectBuilder().add("token_type", "Bearer")
 					.add("access_token", accessToken).add("expires_in", 1).build();
-			mockHttpUtils.when(() -> HttpUtils.read(hr)).thenReturn(tokenResponse);
-
+			mockHttp.when(() -> IuHttp.send(eq(tokenEndpointUri), argThat(a -> {
+				a.accept(hrb);
+				return true;
+			}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(tokenResponse);
+			
 			assertEquals(resourceUri, grant.authorize(code, state));
 
 			final var cred = grant.authorize(resourceUri);

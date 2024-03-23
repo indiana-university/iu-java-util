@@ -45,12 +45,12 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.auth.oidc.IuOpenIdClient;
+import edu.iu.client.IuHttp;
 import edu.iu.test.IuTestLogger;
-import iu.auth.util.HttpUtils;
 import jakarta.json.Json;
 
 @SuppressWarnings("javadoc")
-public class SpiTest {
+public class SpiTest extends IuOidcTestCase {
 
 	@Test
 	public void testOidcSpi() throws URISyntaxException {
@@ -68,8 +68,8 @@ public class SpiTest {
 		configBuilder.add("userinfo_endpoint", userinfoUri.toString());
 		configBuilder.add("token_endpoint", tokenEndpointUri.toString());
 		configBuilder.add("authorization_endpoint", authorizationEndpointUri.toString());
-		try (final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenReturn(configBuilder.build());
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			mockHttp.when(() -> IuHttp.get(uri, IuHttp.READ_JSON_OBJECT)).thenReturn(configBuilder.build());
 
 			IuTestLogger.expect("iu.auth.oidc.OpenIdProvider", Level.INFO, "OIDC Provider configuration.*");
 			final var provider = spi.getOpenIdProvider(uri, client);

@@ -2,6 +2,7 @@ package iu.crypt;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 import java.security.AlgorithmParameters;
 import java.security.KeyFactory;
@@ -71,7 +72,8 @@ public class JwkBuilder extends WebKeyReferenceBuilder<JwkBuilder> implements Bu
 	public static Stream<Jwk> readJwks(URI uri) {
 		var jwks = JWKS_CACHE.get(uri);
 		if (jwks == null) {
-			jwks = IuException.unchecked(() -> IuHttp.get(uri, IuHttp.validate(JwkBuilder::readJwks, IuHttp.OK)));
+			jwks = IuException.unchecked(
+					() -> IuHttp.get(uri, IuHttp.validate(JwkBuilder::readJwks, IuHttp.OK)).toArray(Jwk[]::new));
 			JWKS_CACHE.put(uri, jwks);
 		}
 		return Stream.of(jwks);
@@ -96,6 +98,26 @@ public class JwkBuilder extends WebKeyReferenceBuilder<JwkBuilder> implements Bu
 	 */
 	public static Jwk parse(String jwk) {
 		return parse(IuJson.parse(jwk));
+	}
+
+	/**
+	 * Serializes {@link WebKey}s as a JSON Web Key Set.
+	 * 
+	 * @param webKeys {@link WebKey}s
+	 * @return serialized JWKS
+	 */
+	public static String asJwks(Stream<? extends WebKey> webKeys) {
+		return writeAsJwks(webKeys).toString();
+	}
+
+	/**
+	 * Writes {@link WebKey} as a JSON Web Key.
+	 * 
+	 * @param webKeys {@link WebKey}s
+	 * @param out     {@link OutputStream}
+	 */
+	public static void writeJwks(Stream<? extends WebKey> webKeys, OutputStream out) {
+		IuJson.serialize(writeAsJwks(webKeys), out);
 	}
 
 	/**
@@ -212,9 +234,19 @@ public class JwkBuilder extends WebKeyReferenceBuilder<JwkBuilder> implements Bu
 		});
 	}
 
-	private static Jwk[] readJwks(InputStream jwks) {
-		return IuJson.parse(jwks).asJsonObject().getJsonArray("keys").stream().map(a -> new JwkBuilder().jwk(a).build())
-				.toArray(Jwk[]::new);
+	private static Stream<Jwk> readJwks(InputStream jwks) {
+		return IuJson.parse(jwks).asJsonObject().getJsonArray("keys").stream()
+				.map(a -> new JwkBuilder().jwk(a).build());
+	}
+
+	private static JsonObject writeAsJwks(Stream<? extends WebKey> webKeys) {
+		final var keysBuilder = IuJson.array();
+		webKeys.map(key -> (Jwk) key).forEach(key -> {
+			final var jwkBuilder = IuJson.object();
+			key.serializeTo(jwkBuilder);
+			keysBuilder.add(jwkBuilder);
+		});
+		return IuJson.object().add("keys", keysBuilder).build();
 	}
 
 	private Type type;

@@ -65,9 +65,9 @@ import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuAuthorizationScope;
 import edu.iu.auth.session.IuSessionAttribute;
 import edu.iu.auth.session.IuSessionHeader;
-import edu.iu.auth.session.IuSessionProviderKey;
 import edu.iu.auth.session.IuSessionToken;
 import edu.iu.auth.spi.IuSessionSpi;
+import edu.iu.crypt.WebKey;
 import iu.auth.util.AccessTokenVerifier;
 import iu.auth.util.AlgorithmFactory;
 import iu.auth.util.PrincipalVerifierRegistry;
@@ -192,7 +192,7 @@ public class SessionSpi implements IuSessionSpi {
 			if (scopes.isEmpty())
 				throw new IllegalArgumentException("Issuer must define at least one scope");
 
-			final var issuerKeys = provider.getPrivateCredentials(IuSessionProviderKey.class);
+			final var issuerKeys = provider.getPrivateCredentials(WebKey.class);
 			if (issuerKeys.isEmpty())
 				throw new IllegalArgumentException("Issuer must define at least one session provider key");
 
@@ -340,11 +340,11 @@ public class SessionSpi implements IuSessionSpi {
 
 		final var realm = Objects.requireNonNull(verifiedRefreshToken.getClaim("realm").asString(), "realm");
 		if (!issuerRegistration.realm.get().contains(realm))
-			throw new IllegalArgumentException();
+			throw new IllegalArgumentException("Issuer " + issuer + " was not registered with realm " + realm);
+		if (!PrincipalVerifierRegistry.isAuthoritative(realm))
+			throw new IllegalArgumentException("Not authoritative for " + realm);
 
 		final var audience = Objects.requireNonNull(verifiedRefreshToken.getSubject(), "audience");
-		if (!PrincipalVerifierRegistry.isAuthoritative(audience))
-			throw new IllegalArgumentException();
 
 		final var keyId = verifiedRefreshToken.getKeyId();
 		final var algorithm = issuerRegistration.algorithmFactory.getAlgorithm(keyId,

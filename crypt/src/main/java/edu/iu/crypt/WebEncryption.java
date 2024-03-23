@@ -101,11 +101,11 @@ public interface WebEncryption {
 		 */
 		public final String mac;
 
-		private Encryption(String enc, String cipherAlgorithm, int size, String cipherMode, String mac) {
+		private Encryption(String enc, String keyAlgorithm, int size, String cipherAlgorithm, String mac) {
 			this.enc = enc;
-			this.keyAlgorithm = cipherAlgorithm;
+			this.keyAlgorithm = keyAlgorithm;
 			this.size = size;
-			this.cipherAlgorithm = cipherMode;
+			this.cipherAlgorithm = cipherAlgorithm;
 			this.mac = mac;
 		}
 	}

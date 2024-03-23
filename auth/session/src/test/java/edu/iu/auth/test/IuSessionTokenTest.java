@@ -37,13 +37,12 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.security.KeyPairGenerator;
-import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.time.Duration;
 import java.time.Instant;
@@ -59,8 +58,10 @@ import edu.iu.IdGenerator;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuAuthorizationScope;
 import edu.iu.auth.session.IuSessionHeader;
-import edu.iu.auth.session.IuSessionProviderKey;
 import edu.iu.auth.session.IuSessionToken;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Type;
+import edu.iu.crypt.WebKey.Use;
 import iu.auth.util.PrincipalVerifierRegistry;
 
 @SuppressWarnings("javadoc")
@@ -99,32 +100,8 @@ public class IuSessionTokenTest {
 			}
 		});
 		subject.getPrincipals().add(IuAuthorizationScope.of("session", issuer));
-		subject.getPrivateCredentials().add(new IuSessionProviderKey() {
-			@Override
-			public String getId() {
-				return "default";
-			}
-
-			@Override
-			public Usage getUsage() {
-				return Usage.SIGN;
-			}
-
-			@Override
-			public Type getType() {
-				return Type.EC_P256;
-			}
-
-			@Override
-			public PublicKey getPublic() {
-				return keyPair.getPublic();
-			}
-
-			@Override
-			public PrivateKey getPrivate() {
-				return keyPair.getPrivate();
-			}
-		});
+		subject.getPrivateCredentials()
+				.add(WebKey.builder().id("default").use(Use.SIGN).type(Type.EC_P256).pair(keyPair).build());
 		IuSessionToken.register(Set.of(realm), subject);
 	}
 
@@ -170,9 +147,10 @@ public class IuSessionTokenTest {
 				new Subject(true, Set.of(id, IuAuthorizationScope.of("session", issuer)), Set.of(), Set.of()));
 		when(header.isRefresh()).thenReturn(true);
 
+		final var now = Instant.now();
 		final var token = IuSessionToken.create(header);
-		assertFalse(token.getTokenExpires().isAfter(Instant.now().plus(header.getTokenExpires())));
-		assertFalse(token.getSessionExpires().isAfter(Instant.now().plus(header.getSessionExpires())));
+		assertTrue(token.getTokenExpires().isAfter(now.plus(header.getTokenExpires())));
+		assertTrue(token.getSessionExpires().isAfter(now.plus(header.getSessionExpires())));
 		assertNotNull(token.getRefreshToken());
 		assertEquals(
 				"{\"token_type\":\"Bearer\",\"access_token\":\"" + token.getAccessToken() + "\",\"expires_in\":"

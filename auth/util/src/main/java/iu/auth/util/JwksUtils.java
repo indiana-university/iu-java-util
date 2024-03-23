@@ -61,7 +61,7 @@ final class JwksUtils {
 	 * @throws NoSuchAlgorithmException      If the JWK is invalid
 	 * @throws InvalidParameterSpecException If the JWK is invalid
 	 */
-	static ECParameterSpec getECParameterSpec(JsonObject jwk)
+	private static ECParameterSpec getECParameterSpec(JsonObject jwk)
 			throws NoSuchAlgorithmException, InvalidParameterSpecException {
 		final String ecParam;
 		switch (jwk.getString("crv")) {
@@ -92,7 +92,7 @@ final class JwksUtils {
 	 * @throws NoSuchAlgorithmException      If the JWK is invalid
 	 * @throws InvalidParameterSpecException If the JWK is invalid
 	 */
-	static ECPublicKey toECPublicKey(JsonObject jwk)
+	private static ECPublicKey toECPublicKey(JsonObject jwk)
 			throws InvalidKeySpecException, NoSuchAlgorithmException, InvalidParameterSpecException {
 		if (!"EC".equals(jwk.getString("kty")))
 			throw new IllegalArgumentException("Not an EC key: " + jwk);
@@ -110,7 +110,7 @@ final class JwksUtils {
 	 * @throws InvalidKeySpecException  If the JWK is invalid
 	 * @throws NoSuchAlgorithmException If the JWK is invalid
 	 */
-	static RSAPublicKey toRSAPublicKey(JsonObject jwk) throws InvalidKeySpecException, NoSuchAlgorithmException {
+	private static RSAPublicKey toRSAPublicKey(JsonObject jwk) throws InvalidKeySpecException, NoSuchAlgorithmException {
 		if (!"RSA".equals(jwk.getString("kty")))
 			throw new IllegalArgumentException("Not an RSA key: " + jwk);
 		return (RSAPublicKey) KeyFactory.getInstance("RSA").generatePublic(

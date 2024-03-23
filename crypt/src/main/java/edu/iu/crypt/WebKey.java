@@ -1,6 +1,7 @@
 package edu.iu.crypt;
 
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 import java.security.KeyPair;
 import java.security.PrivateKey;
@@ -627,6 +628,26 @@ public interface WebKey extends WebCertificateReference {
 	 */
 	static Stream<? extends WebKey> readJwks(URI jwks) {
 		return JwkBuilder.readJwks(jwks);
+	}
+
+	/**
+	 * Serializes {@link WebKey}s as a JSON Web Key Set.
+	 * 
+	 * @param webKeys {@link WebKey}s
+	 * @return serialized JWKS
+	 */
+	static String asJwks(Stream<? extends WebKey> webKeys) {
+		return JwkBuilder.asJwks(webKeys);
+	}
+
+	/**
+	 * Writes {@link WebKey} as a JSON Web Key.
+	 * 
+	 * @param webKeys {@link WebKey}s
+	 * @param out     {@link OutputStream}
+	 */
+	static void writeJwks(Stream<? extends WebKey> webKeys, OutputStream out) {
+		JwkBuilder.writeJwks(webKeys, out);
 	}
 
 	/**

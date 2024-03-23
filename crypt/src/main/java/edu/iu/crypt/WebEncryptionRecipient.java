@@ -22,7 +22,7 @@ public interface WebEncryptionRecipient {
 	/**
 	 * Gets the JOSE header.
 	 * 
-	 * @return {@link WebEncryptionHeader}
+	 * @return {@link WebCryptoHeader}
 	 */
 	WebCryptoHeader getHeader();
 

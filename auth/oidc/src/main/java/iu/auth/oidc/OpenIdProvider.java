@@ -32,7 +32,6 @@
 package iu.auth.oidc;
 
 import java.net.URI;
-import java.net.http.HttpRequest;
 import java.security.Principal;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -49,8 +48,8 @@ import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
+import edu.iu.client.IuHttp;
 import iu.auth.util.AccessTokenVerifier;
-import iu.auth.util.HttpUtils;
 import iu.auth.util.WellKnownKeySet;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
@@ -75,7 +74,7 @@ public class OpenIdProvider implements IuOpenIdProvider {
 	 * @param client    client configuration metadata
 	 */
 	public OpenIdProvider(URI configUri, IuOpenIdClient client) {
-		this.config = HttpUtils.read(configUri).asJsonObject();
+		this.config = IuException.unchecked(() -> IuHttp.get(configUri, IuHttp.READ_JSON_OBJECT));
 		this.client = client;
 
 		LOG.info("OIDC Provider configuration:\n" + config.toString());
@@ -107,8 +106,8 @@ public class OpenIdProvider implements IuOpenIdProvider {
 
 	@Override
 	public Subject hydrate(String accessToken) throws IuAuthenticationException {
-		final var userinfo = HttpUtils.read(HttpRequest.newBuilder(userinfoEndpoint) //
-				.header("Authorization", "Bearer " + accessToken).build()).asJsonObject();
+		final var userinfo = IuException.unchecked(() -> IuHttp.send(userinfoEndpoint,
+				b -> b.header("Authorization", "Bearer " + accessToken), IuHttp.READ_JSON_OBJECT));
 		final var principal = userinfo.getString("principal");
 		final var sub = userinfo.getString("sub");
 

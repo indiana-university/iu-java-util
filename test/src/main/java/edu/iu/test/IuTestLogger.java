@@ -49,6 +49,7 @@ import java.util.logging.LogManager;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import org.opentest4j.AssertionFailedError;
 
@@ -136,7 +137,7 @@ public final class IuTestLogger {
 
 			var message = record.getMessage();
 			return pattern.equals(message)
-					|| Pattern.compile(message, Pattern.MULTILINE | Pattern.DOTALL).matcher(message).matches();
+					|| Pattern.compile(pattern, Pattern.MULTILINE | Pattern.DOTALL).matcher(message).matches();
 		}
 
 		private boolean isAllowed(LogRecord record) {
@@ -157,7 +158,7 @@ public final class IuTestLogger {
 
 			var message = record.getMessage();
 			return pattern.equals(message)
-					|| Pattern.compile(message, Pattern.MULTILINE | Pattern.DOTALL).matcher(message).matches();
+					|| Pattern.compile(pattern, Pattern.MULTILINE | Pattern.DOTALL).matcher(message).matches();
 		}
 
 		@Override
@@ -212,20 +213,30 @@ public final class IuTestLogger {
 			if (activeTest == null)
 				return;
 
+			final Queue<PatternSyntaxException> regexErrors = new ArrayDeque<>();
 			for (var allowedMessage : allowedMessages)
-				if (allowedMessage.isAllowed(record))
-					return;
+				try {
+					if (allowedMessage.isAllowed(record))
+						return;
+				} catch (PatternSyntaxException e) {
+					regexErrors.add(e);
+				}
 
 			final var expectedIterator = expectedMessages.iterator();
 
 			while (expectedIterator.hasNext())
-				if (expectedIterator.next().isExpected(record)) {
-					expectedIterator.remove();
-					return;
+				try {
+					if (expectedIterator.next().isExpected(record)) {
+						expectedIterator.remove();
+						return;
+					}
+				} catch (PatternSyntaxException e) {
+					regexErrors.add(e);
 				}
 
 			final var unexpected = new AssertionFailedError("Unexpected log message " + record.getLevel() + " "
 					+ record.getLoggerName() + " " + record.getMessage(), record.getThrown());
+			regexErrors.forEach(unexpected::addSuppressed);
 			unexpectedMessages.add(unexpected);
 
 			throw unexpected;

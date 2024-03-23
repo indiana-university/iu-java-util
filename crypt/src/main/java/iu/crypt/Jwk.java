@@ -1,6 +1,5 @@
 package iu.crypt;
 
-import java.io.OutputStream;
 import java.net.URI;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -18,7 +17,6 @@ import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebKey;
-import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 
 /**
@@ -68,36 +66,6 @@ class Jwk implements WebKey {
 
 		if (priv != null)
 			EncodingUtils.setBigInt(jwkBuilder, "d", priv.getS());
-	}
-
-	/**
-	 * Serializes {@link WebKey}s as a JSON Web Key Set.
-	 * 
-	 * @param webKeys {@link WebKey}s
-	 * @return serialized JWKS
-	 */
-	static String asJwks(Stream<? extends WebKey> webKeys) {
-		return writeAsJwks(webKeys).toString();
-	}
-
-	/**
-	 * Writes {@link WebKey} as a JSON Web Key.
-	 * 
-	 * @param webKeys {@link WebKey}s
-	 * @param out     {@link OutputStream}
-	 */
-	static void writeJwks(Stream<? extends WebKey> webKeys, OutputStream out) {
-		IuJson.serialize(writeAsJwks(webKeys), out);
-	}
-
-	private static JsonObject writeAsJwks(Stream<? extends WebKey> webKeys) {
-		final var keysBuilder = IuJson.array();
-		webKeys.map(key -> (Jwk) key).forEach(key -> {
-			final var jwkBuilder = IuJson.object();
-			key.serializeTo(jwkBuilder);
-			keysBuilder.add(jwkBuilder);
-		});
-		return IuJson.object().add("keys", keysBuilder).build();
 	}
 
 	private final String id;

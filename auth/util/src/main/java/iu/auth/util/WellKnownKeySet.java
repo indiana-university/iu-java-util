@@ -31,10 +31,9 @@
  */
 package iu.auth.util;
 
-import static iu.auth.util.JwksUtils.toECPublicKey;
-import static iu.auth.util.JwksUtils.toRSAPublicKey;
-
 import java.net.URI;
+import java.security.interfaces.ECPublicKey;
+import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
@@ -45,7 +44,7 @@ import java.util.logging.Logger;
 
 import com.auth0.jwt.algorithms.Algorithm;
 
-import jakarta.json.JsonObject;
+import edu.iu.crypt.WebKey;
 
 /**
  * Provides cached algorithm configurations from a well-known JWKS key set.
@@ -87,28 +86,28 @@ public class WellKnownKeySet implements AlgorithmFactory {
 
 		var cachedAlgorithm = algorithmCache.get(cacheKey);
 		if (cachedAlgorithm == null || cachedAlgorithm.lastUpdated.isBefore(now.minus(refreshInterval.get()))) {
-			JsonObject jwk = null;
+			WebKey jwk = null;
 			Algorithm jwtAlgorithm;
 			try {
-				jwk = readJwk(kid);
+				jwk = WebKey.readJwks(keysetUri).filter(a -> a.getId().equals(kid)).findFirst().get();
 				switch (alg) {
 				case "ES256":
-					jwtAlgorithm = Algorithm.ECDSA256(toECPublicKey(jwk));
+					jwtAlgorithm = Algorithm.ECDSA256((ECPublicKey) jwk.getPublicKey());
 					break;
 				case "ES384":
-					jwtAlgorithm = Algorithm.ECDSA384(toECPublicKey(jwk));
+					jwtAlgorithm = Algorithm.ECDSA384((ECPublicKey) jwk.getPublicKey());
 					break;
 				case "ES512":
-					jwtAlgorithm = Algorithm.ECDSA512(toECPublicKey(jwk));
+					jwtAlgorithm = Algorithm.ECDSA512((ECPublicKey) jwk.getPublicKey());
 					break;
 				case "RS256":
-					jwtAlgorithm = Algorithm.RSA256(toRSAPublicKey(jwk), null);
+					jwtAlgorithm = Algorithm.RSA256((RSAPublicKey) jwk.getPublicKey());
 					break;
 				case "RS384":
-					jwtAlgorithm = Algorithm.RSA384(toRSAPublicKey(jwk), null);
+					jwtAlgorithm = Algorithm.RSA384((RSAPublicKey) jwk.getPublicKey());
 					break;
 				case "RS512":
-					jwtAlgorithm = Algorithm.RSA512(toRSAPublicKey(jwk), null);
+					jwtAlgorithm = Algorithm.RSA512((RSAPublicKey) jwk.getPublicKey());
 					break;
 				default:
 					throw new UnsupportedOperationException("Unsupported JWT algorithm " + alg);
@@ -131,19 +130,19 @@ public class WellKnownKeySet implements AlgorithmFactory {
 		return cachedAlgorithm.algorithm;
 	}
 
-	private JsonObject readJwk(String keyId) {
-		final var jwks = HttpUtils.read(keysetUri).asJsonObject();
-		try {
-			for (final var key : jwks.getJsonArray("keys")) {
-				final var keyAsJsonObject = key.asJsonObject();
-				if (keyId.equals(keyAsJsonObject.getString("kid")))
-					return keyAsJsonObject;
-			}
-		} catch (Throwable e) {
-			throw new IllegalStateException("Invalid JWKS format: " + jwks, e);
-		}
-
-		throw new IllegalStateException("Key " + keyId + " not in JWKS: " + jwks);
-	}
+//	private JsonObject readJwk(String keyId) {
+//		final var jwks = HttpUtils.read(keysetUri).asJsonObject();
+//		try {
+//			for (final var key : jwks.getJsonArray("keys")) {
+//				final var keyAsJsonObject = key.asJsonObject();
+//				if (keyId.equals(keyAsJsonObject.getString("kid")))
+//					return keyAsJsonObject;
+//			}
+//		} catch (Throwable e) {
+//			throw new IllegalStateException("Invalid JWKS format: " + jwks, e);
+//		}
+//
+//		throw new IllegalStateException("Key " + keyId + " not in JWKS: " + jwks);
+//	}
 
 }

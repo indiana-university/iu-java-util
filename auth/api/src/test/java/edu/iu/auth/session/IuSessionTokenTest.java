@@ -31,7 +31,6 @@
  */
 package edu.iu.auth.session;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
@@ -54,8 +53,6 @@ public class IuSessionTokenTest {
 	@Test
 	public void testRegisterProvider() throws ClassNotFoundException {
 		final var realm = IdGenerator.generateId();
-		assertNotNull(IuSessionProviderKey.Usage.SIGN);
-		assertNotNull(IuSessionProviderKey.Type.RSA);
 		final var provider = mock(Subject.class);
 		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
 			final var spi = mock(IuSessionSpi.class);

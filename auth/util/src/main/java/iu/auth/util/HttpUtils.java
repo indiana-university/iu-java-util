@@ -60,7 +60,7 @@ public class HttpUtils {
 	 * @param uri {@link URI}
 	 * @return {@link JsonValue}
 	 */
-	public static JsonValue read(URI uri) {
+	private static JsonValue read(URI uri) {
 		return read(HttpRequest.newBuilder(uri).build());
 	}
 
@@ -70,7 +70,7 @@ public class HttpUtils {
 	 * @param request {@link HttpRequest}
 	 * @return {@link JsonValue}
 	 */
-	public static JsonValue read(HttpRequest request) {
+	private static JsonValue read(HttpRequest request) {
 		final var uri = request.uri();
 		final var scheme = uri.getScheme();
 
@@ -118,7 +118,7 @@ public class HttpUtils {
 	 * @param response HTTP response
 	 * @return UTF-8 string content
 	 */
-	public static String read(HttpResponse<InputStream> response) {
+	private static String read(HttpResponse<InputStream> response) {
 		final var status = response.statusCode();
 		final var headers = response.headers();
 		if (response.request().headers().firstValue("Authorization").isPresent() //

@@ -79,7 +79,6 @@ import jakarta.json.JsonValue;
  * </p>
  */
 public class IuVault {
-
 	static {
 		IuObject.assertNotOpen(IuVault.class);
 	}
@@ -118,7 +117,15 @@ public class IuVault {
 	 * @return property value
 	 */
 	public static <T> T get(String name, Function<JsonValue, T> jsonToValueFunction) {
-		return jsonToValueFunction.apply(get(name));
+		if (SECRET_NAMES != null)
+			for (String secret : SECRET_NAMES) {
+				final var data = getSecret(secret);
+				if (data.containsKey(name))
+					return jsonToValueFunction.apply(data.get(name));
+			}
+
+		throw new IllegalArgumentException(
+				name + " not found in Vault using " + ENDPOINT + "/data/" + Arrays.toString(SECRET_NAMES));
 	}
 
 	/**
@@ -127,16 +134,8 @@ public class IuVault {
 	 * @param name property name
 	 * @return property value
 	 */
-	public static JsonValue get(String name) {
-		if (SECRET_NAMES != null)
-			for (String secret : SECRET_NAMES) {
-				final var data = getSecret(secret);
-				if (data.containsKey(name))
-					return data.get(name);
-			}
-
-		throw new IllegalArgumentException(
-				name + " not found in Vault using " + ENDPOINT + "/data/" + Arrays.toString(SECRET_NAMES));
+	public static String get(String name) {
+		return get(name, IuJson::asText);
 	}
 
 	private static JsonObject getSecret(String secret) {
@@ -168,11 +167,10 @@ public class IuVault {
 		var accessToken = TOKEN;
 
 		if (accessToken == null)
-			accessToken = IuException
-					.unchecked(() -> IuHttp
-							.send(Objects.requireNonNull(LOGINENDPOINT, "Missing vault.loginEndpoint"),
-									IuVault::approle, IuHttp.validate(IuJson::parse, IuHttp.OK))
-							.asJsonObject().getJsonObject("auth").getString("client_token"));
+			accessToken = IuException.unchecked(() -> IuHttp
+					.send(Objects.requireNonNull(LOGINENDPOINT, "Missing vault.loginEndpoint"), IuVault::approle,
+							IuHttp.validate(IuJson::parse, IuHttp.OK))
+					.asJsonObject().getJsonObject("auth").getString("client_token"));
 
 		dataRequestBuilder.header("Authorization", "Bearer " + accessToken);
 	}
