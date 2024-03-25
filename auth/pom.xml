@@ -56,4 +56,7 @@
 		</pluginManagement>
 	</build>
 
+	<modules>
+		<module>iu-java-auth-saml</module>
+	</modules>
 </project>
