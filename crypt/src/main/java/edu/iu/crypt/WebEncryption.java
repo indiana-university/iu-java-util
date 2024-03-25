@@ -16,6 +16,8 @@ import iu.crypt.JweBuilder;
 /**
  * Unifies algorithm support and maps from JCE encryption to JSON Web Encryption
  * (JWE).
+ * 
+ * @see <a href="https://datatracker.ietf.org/doc/html/rfc7516">RFC 7516</a>
  */
 public interface WebEncryption {
 
@@ -31,7 +33,7 @@ public interface WebEncryption {
 		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-5.2.3">RFC-7518
 		 *      Section 5.2.3</a>
 		 */
-		AES_128_CBC_HMAC_SHA_256("A128CBC-HS256", "AES", 256, "AES/CBC/PKCS5Padding", "HmacSHA256"),
+		AES_128_CBC_HMAC_SHA_256("A128CBC-HS256", 256, "AES/CBC/PKCS5Padding", "HmacSHA256"),
 
 		/**
 		 * AES_192_CBC_HMAC_SHA_384 authenticated encryption algorithm.
@@ -40,7 +42,7 @@ public interface WebEncryption {
 		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-5.2.3">RFC-7518
 		 *      Section 5.2.3</a>
 		 */
-		AES_192_CBC_HMAC_SHA_384("A192CBC-HS384", "AES", 384, "AES/CBC/PKCS5Padding", "HmacSHA384"),
+		AES_192_CBC_HMAC_SHA_384("A192CBC-HS384", 384, "AES/CBC/PKCS5Padding", "HmacSHA384"),
 
 		/**
 		 * AES_256_CBC_HMAC_SHA_512 authenticated encryption algorithm.
@@ -49,22 +51,22 @@ public interface WebEncryption {
 		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-5.2.3">RFC-7518
 		 *      Section 5.2.3</a>
 		 */
-		AES_256_CBC_HMAC_SHA_512("A256CBC-HS512", "AES", 512, "AES/CBC/PKCS5Padding", "HmacSHA512"),
+		AES_256_CBC_HMAC_SHA_512("A256CBC-HS512", 512, "AES/CBC/PKCS5Padding", "HmacSHA512"),
 
 		/**
 		 * AES-128 GCM.
 		 */
-		A128GCM("A128GCM", "AES", 128, "AES/GCM/NoPadding", null),
+		A128GCM("A128GCM", 128, "AES/GCM/NoPadding", null),
 
 		/**
 		 * AES-192 GCM.
 		 */
-		A192GCM("A192GCM", "AES", 192, "AES/GCM/NoPadding", null),
+		A192GCM("A192GCM", 192, "AES/GCM/NoPadding", null),
 
 		/**
 		 * AES-256 GCM.
 		 */
-		A256GCM("A256GCM", "AES", 256, "AES/GCM/NoPadding", null);
+		A256GCM("A256GCM", 256, "AES/GCM/NoPadding", null);
 
 		/**
 		 * Selects encryption by JOSE enc parameter value.
@@ -82,11 +84,6 @@ public interface WebEncryption {
 		public final String enc;
 
 		/**
-		 * JCE secret key algorithm;
-		 */
-		public final String keyAlgorithm;
-
-		/**
 		 * CEK size, in bits.
 		 */
 		public final int size;
@@ -94,18 +91,17 @@ public interface WebEncryption {
 		/**
 		 * JCE Cipher algorithm.
 		 */
-		public final String cipherAlgorithm;
+		public final String algorithm;
 
 		/**
 		 * JCE MAC algorithm.
 		 */
 		public final String mac;
 
-		private Encryption(String enc, String keyAlgorithm, int size, String cipherAlgorithm, String mac) {
+		private Encryption(String enc, int size, String algorithm, String mac) {
 			this.enc = enc;
-			this.keyAlgorithm = keyAlgorithm;
 			this.size = size;
-			this.cipherAlgorithm = cipherAlgorithm;
+			this.algorithm = algorithm;
 			this.mac = mac;
 		}
 	}
@@ -138,6 +134,14 @@ public interface WebEncryption {
 		 * @return this
 		 */
 		Builder protect(Param... params);
+
+		/**
+		 * Defines extended protected header parameters.
+		 * 
+		 * @param params protected header parameter names
+		 * @return this
+		 */
+		Builder protect(String... params);
 
 		/**
 		 * Provides additional authentication data for protecting the encrypted content.
@@ -283,6 +287,13 @@ public interface WebEncryption {
 	 * @param out {@link OutputStream} to write the decrypted content to
 	 */
 	void decrypt(WebKey key, OutputStream out);
+
+	/**
+	 * Gets the message encrypted for only this recipient in compact JWE format.
+	 * 
+	 * @return compact JWE
+	 */
+	String compact();
 
 	/**
 	 * Gets the encrypted message in serialized JWE format.

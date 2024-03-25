@@ -31,12 +31,112 @@
  */
 package edu.iu;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
 /**
  * Low-level text processing utilities.
  */
 public final class IuText {
 
-	private static final byte[] b0 = new byte[0];
+	/**
+	 * Removes training padding characters from Base-64 encoded data.
+	 * 
+	 * @param b64 Base-64 encoded
+	 * @return encoded data with padding chars removed
+	 */
+	public static String unpad(String b64) {
+		if (b64 == null || b64.isEmpty())
+			return b64;
+		var i = b64.length() - 1;
+		while (i > 0 && b64.charAt(i) == '=')
+			i--;
+		return b64.substring(0, i + 1);
+	}
+
+	/**
+	 * Restores padding characters to Base-64 encoded data.
+	 * 
+	 * @param b64 Base-64 encoded
+	 * @return encoded data with padding chars restored
+	 */
+	public static String pad(String b64) {
+		if (b64 == null || b64.isEmpty())
+			return b64;
+		switch (b64.length() % 4) {
+		case 1:
+			return b64 + "===";
+		case 2:
+			return b64 + "==";
+		case 3:
+			return b64 + "=";
+		default:
+			return b64;
+		}
+	}
+
+	/**
+	 * Encodes binary data as basic Base64.
+	 * 
+	 * @param data binary data
+	 * @return encoded {@link String}
+	 */
+	public static String base64(byte[] data) {
+		if (data == null)
+			return null;
+		else
+			return Base64.getEncoder().encodeToString(data);
+	}
+
+	/**
+	 * Decodes binary data from basic Base64.
+	 * 
+	 * @param data encoded {@link String}
+	 * @return binary data
+	 */
+	public static byte[] base64(String data) {
+		if (data == null)
+			return null;
+		else
+			return Base64.getDecoder().decode(data);
+	}
+
+	/**
+	 * Encodes binary data as Base64 with URL encoding and padding chars stripped.
+	 * 
+	 * <p>
+	 * This method implements specific padding and null-handling semantics to
+	 * support JWS and JWE serialization methods in the iu.util.crypt module.
+	 * </p>
+	 * 
+	 * @param data binary data
+	 * @return encoded {@link String}; empty string if data is null
+	 */
+	public static String base64Url(byte[] data) {
+		if (data == null || data.length == 0)
+			return "";
+		else
+			return unpad(Base64.getUrlEncoder().encodeToString(data));
+	}
+
+	/**
+	 * Decodes binary data from Base64 with URL encoding scheme and padding chars
+	 * stripped.
+	 * 
+	 * <p>
+	 * This method implements specific padding and null-handling semantics to
+	 * support JWS and JWE serialization methods in the iu.util.crypt module.
+	 * </p>
+	 * 
+	 * @param data encoded {@link String}
+	 * @return binary data; null if data is empty or null
+	 */
+	public static byte[] base64Url(String data) {
+		if (data == null || data.isBlank())
+			return null;
+		else
+			return Base64.getUrlDecoder().decode(pad(data));
+	}
 
 	/**
 	 * Converts string data to UTF-8 binary.
@@ -46,9 +146,9 @@ public final class IuText {
 	 */
 	public static byte[] utf8(String data) {
 		if (data == null)
-			return b0;
+			return null;
 		else
-			return IuException.unchecked(() -> data.getBytes("UTF-8"));
+			return data.getBytes(StandardCharsets.UTF_8);
 	}
 
 	/**
@@ -61,7 +161,33 @@ public final class IuText {
 		if (data == null)
 			return null;
 		else
-			return IuException.unchecked(() -> new String(data, "UTF-8"));
+			return new String(data, StandardCharsets.UTF_8);
+	}
+
+	/**
+	 * Converts string data to ASCII binary.
+	 * 
+	 * @param data string data
+	 * @return ASCII binary
+	 */
+	public static byte[] ascii(String data) {
+		if (data == null)
+			return null;
+		else
+			return data.getBytes(StandardCharsets.US_ASCII);
+	}
+
+	/**
+	 * Gets a string from ASCII encoding data.
+	 * 
+	 * @param data ASCII encoded data
+	 * @return string data
+	 */
+	public static String ascii(byte[] data) {
+		if (data == null)
+			return null;
+		else
+			return new String(data, StandardCharsets.US_ASCII);
 	}
 
 	private IuText() {

@@ -34,27 +34,20 @@ package edu.iu.client;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.StringReader;
-import java.lang.reflect.Array;
-import java.math.BigDecimal;
 import java.net.http.HttpResponse;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.function.Predicate;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import edu.iu.IuIterable;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonArrayBuilder;
+import jakarta.json.JsonBuilderFactory;
+import jakarta.json.JsonConfig;
+import jakarta.json.JsonConfig.KeyStrategy;
 import jakarta.json.JsonNumber;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonString;
-import jakarta.json.JsonStructure;
 import jakarta.json.JsonValue;
 import jakarta.json.spi.JsonProvider;
 
@@ -62,7 +55,7 @@ import jakarta.json.spi.JsonProvider;
  * JSON-P processing utilities.
  */
 public class IuJson {
-	
+
 	/**
 	 * Singleton {@link JsonProvider}.
 	 */
@@ -78,6 +71,9 @@ public class IuJson {
 			current.setContextClassLoader(contextToRestore);
 		}
 	}
+
+	private static final JsonBuilderFactory FACTORY = PROVIDER
+			.createBuilderFactory(Map.of(JsonConfig.KEY_STRATEGY, KeyStrategy.NONE));
 
 	/**
 	 * Parses a JSON value from an HTTP response.
@@ -111,6 +107,36 @@ public class IuJson {
 	}
 
 	/**
+	 * Creates a JSON value from a {@link Boolean#TYPE boolean}.
+	 * 
+	 * @param value {@link Boolean#TYPE boolean}
+	 * @return {@link JsonValue}
+	 */
+	public static JsonValue bool(boolean value) {
+		return value ? JsonValue.TRUE : JsonValue.FALSE;
+	}
+
+	/**
+	 * Creates a JSON value from a {@link Number}.
+	 * 
+	 * @param value {@link Number}
+	 * @return {@link JsonNumber}
+	 */
+	public static JsonNumber number(Number value) {
+		return PROVIDER.createValue(value);
+	}
+
+	/**
+	 * Creates a JSON value from a {@link String}.
+	 * 
+	 * @param value {@link String}
+	 * @return {@link JsonString}
+	 */
+	public static JsonString string(String value) {
+		return PROVIDER.createValue(value);
+	}
+
+	/**
 	 * Serializes a JSON value to an {@link OutputStream}.
 	 * 
 	 * @param value {@link JsonValue}
@@ -121,16 +147,16 @@ public class IuJson {
 	}
 
 	/**
-	 * Shorthand for {@link JsonProvider#createArrayBuilder()}
+	 * Creates an array builder that rejects duplicate values.
 	 * 
 	 * @return {@link JsonArrayBuilder}
 	 */
 	public static JsonArrayBuilder array() {
-		return PROVIDER.createArrayBuilder();
+		return FACTORY.createArrayBuilder();
 	}
 
 	/**
-	 * Shorthand for {@link JsonProvider#createArrayBuilder(JsonArray)}
+	 * Creates a builder for modifying an array.
 	 * 
 	 * @param array array to copy
 	 * @return {@link JsonArrayBuilder}
@@ -140,16 +166,16 @@ public class IuJson {
 	}
 
 	/**
-	 * Shorthand for {@link JsonProvider#createObjectBuilder()}
+	 * Creates an object builder that rejects duplicate values.
 	 * 
 	 * @return {@link JsonObjectBuilder}
 	 */
 	public static JsonObjectBuilder object() {
-		return PROVIDER.createObjectBuilder();
+		return FACTORY.createObjectBuilder();
 	}
 
 	/**
-	 * Shorthand for {@link JsonProvider#createObjectBuilder(JsonObject)}
+	 * Creates a builder for modifying an object.
 	 *
 	 * @param object object to copy
 	 * @return {@link JsonObjectBuilder}
@@ -159,358 +185,164 @@ public class IuJson {
 	}
 
 	/**
-	 * Converts a JSON value to its Java equivalent.
-	 * 
-	 * @param <T>   Java type; <em>must</em> be assignable from {@link String},
-	 *              {@link BigDecimal}, {@link Boolean}, {@link Map}, or
-	 *              {@link List} if known and a non-null value is expected
-	 * @param value {@link JsonValue}
-	 * @return Java equivalent
-	 * @throws IllegalArgumentException If the JSON value is null or assignable to
-	 *                                  {@link JsonStructure}.
-	 * @throws ClassCastException       If the type argument bounds don't permit
-	 *                                  direct conversion to the equivalent Java
-	 *                                  value.
-	 */
-	@SuppressWarnings("unchecked")
-	public static <T> T toJava(JsonValue value) throws IllegalArgumentException, ClassCastException {
-		if (value instanceof JsonObject) {
-			final Map<String, Object> m = new LinkedHashMap<>();
-			((JsonObject) value).forEach((k, v) -> m.put(k, toJava(v)));
-			return (T) Collections.unmodifiableMap(m);
-		} else if (value instanceof JsonArray)
-			return (T) ((JsonArray) value).stream().map(IuJson::toJava).collect(Collectors.toUnmodifiableList());
-		else if (value instanceof JsonString)
-			return (T) ((JsonString) value).getString();
-		else if (value instanceof JsonNumber)
-			return (T) ((JsonNumber) value).bigDecimalValue();
-		else if (JsonValue.TRUE.equals(value))
-			return (T) Boolean.TRUE;
-		else if (JsonValue.FALSE.equals(value))
-			return (T) Boolean.FALSE;
-		else if (JsonValue.NULL.equals(value))
-			return null;
-		else
-			throw new IllegalArgumentException();
-	}
-
-	/**
-	 * Converts a non-structural JSON value to text.
-	 * 
-	 * <p>
-	 * This method can be useful when the JSON type is not known or not reliable
-	 * (i.e. Some OAuth servers return expires_in as string instead of number).
-	 * </p>
-	 * 
-	 * <p>
-	 * The value returned from this method is not reversible. Use
-	 * {@link JsonValue#toString()} to serialize the JSON value.
-	 * </p>
-	 * 
-	 * @param value {@link JsonValue}; <em>must</em> be non-null and not assignable
-	 *              to {@link JsonStructure}
-	 * @return text representation of the JSON value
-	 * @throws IllegalArgumentException If the JSON value is null or assignable to
-	 *                                  {@link JsonStructure}.
-	 */
-	public static String asText(JsonValue value) {
-		if (value instanceof JsonString)
-			return ((JsonString) value).getString();
-		else if ((value instanceof JsonNumber) //
-				|| JsonValue.TRUE.equals(value) //
-				|| JsonValue.FALSE.equals(value))
-			return value.toString();
-		else if (value instanceof JsonArray)
-			return String.join(",", IuIterable.map(((JsonArray) value), IuJson::asText));
-		else if (JsonValue.NULL.equals(value))
-			return null;
-		else
-			throw new IllegalArgumentException();
-	}
-
-	/**
-	 * Converts a Java value to its JSON equivalent.
-	 * 
-	 * @param value {@link String}, {@link Number}, {@link Boolean}, {@link Map},
-	 *              {@link List}, primitive, null, {@link JsonValue},
-	 *              {@link JsonObjectBuilder}, or {@link JsonArrayBuilder}.
-	 * @return {@link JsonValue}
-	 * @throws IllegalArgumentException If value cannot be converted JSON without
-	 *                                  first externally applying serialization
-	 *                                  logic.
-	 */
-	public static JsonValue toJson(Object value) throws IllegalArgumentException {
-		if (value == null)
-			return JsonValue.NULL;
-		else if (value instanceof JsonValue)
-			return (JsonValue) value;
-		else if (value instanceof JsonObjectBuilder)
-			return ((JsonObjectBuilder) value).build();
-		else if (value instanceof JsonArrayBuilder)
-			return ((JsonArrayBuilder) value).build();
-		else if (value instanceof Map) {
-			final var b = object();
-			((Map<?, ?>) value).forEach((k, v) -> b.add((String) k, toJson(v)));
-			return b.build();
-		} else if (value.getClass().isArray()) {
-			final var b = array();
-			for (int i = 0; i < Array.getLength(value); i++)
-				b.add(toJson(Array.get(value, i)));
-			return b.build();
-		} else if (value instanceof Stream) {
-			final var b = array();
-			((Stream<?>) value).forEach((v) -> b.add(toJson(v)));
-			return b.build();
-		} else if (value instanceof Iterable) {
-			final var b = array();
-			((Iterable<?>) value).forEach((v) -> b.add(toJson(v)));
-			return b.build();
-		} else if (value instanceof String)
-			return PROVIDER.createValue((String) value);
-		else if (value instanceof Number)
-			return PROVIDER.createValue((Number) value);
-		else if (Boolean.TRUE.equals(value))
-			return JsonValue.TRUE;
-		else if (Boolean.FALSE.equals(value))
-			return JsonValue.FALSE;
-		else
-			throw new IllegalArgumentException();
-	}
-
-	/**
 	 * Adds a value to an object builder.
 	 * 
+	 * @param <T>     value type
 	 * @param builder {@link JsonObjectBuilder}
 	 * @param name    name
 	 * @param value   value
 	 */
-	public static void add(JsonObjectBuilder builder, String name, Object value) {
-		add(builder, a -> true, name, () -> value, IuJson::toJson);
+	public static <T> void add(JsonObjectBuilder builder, String name, T value) {
+		add(builder, name, () -> value, () -> true, IuJsonAdapter.of(value));
 	}
 
 	/**
 	 * Adds a value to an object builder.
 	 * 
-	 * @param <T>                 value type
-	 * @param builder             {@link JsonObjectBuilder}
-	 * @param name                property name
-	 * @param valueSupplier       value supplier
-	 * @param valueToJsonFunction function that converts the supplied value to
-	 *                            {@link JsonValue}
-	 */
-	public static <T> void add(JsonObjectBuilder builder, String name,
-			Supplier<T> valueSupplier, Function<T, JsonValue> valueToJsonFunction) {
-		add(builder, a -> true, name, valueSupplier, valueToJsonFunction);
-	}
-	
-	/**
-	 * Adds a value to an object builder.
-	 * 
+	 * @param <T>           value type
 	 * @param builder       {@link JsonObjectBuilder}
-	 * @param name          name
+	 * @param name          property name
 	 * @param valueSupplier value supplier
+	 * @param adapter       JSON type adapter for handling non-null values
 	 */
-	public static void add(JsonObjectBuilder builder, String name, Supplier<?> valueSupplier) {
-		add(builder, a -> true, name, valueSupplier, IuJson::toJson);
+	public static <T> void add(JsonObjectBuilder builder, String name, Supplier<T> valueSupplier,
+			IuJsonAdapter<T> adapter) {
+		add(builder, name, valueSupplier, () -> true, adapter);
 	}
 
 	/**
 	 * Adds a value to an object builder.
 	 * 
+	 * @param <T>       value type
+	 * @param builder   {@link JsonObjectBuilder}
+	 * @param name      property name
+	 * @param value     value
+	 * @param condition supplies true if the value should be added; false to do
+	 *                  nothing
+	 */
+	public static <T> void add(JsonObjectBuilder builder, String name, T value, BooleanSupplier condition) {
+		add(builder, name, () -> value, condition, IuJsonAdapter.of(value));
+	}
+
+	/**
+	 * Adds a value to an object builder.
+	 * 
+	 * @param <T>           value type
 	 * @param builder       {@link JsonObjectBuilder}
-	 * @param nameFilter    filter predicate, builder will only be modified if
-	 *                      nameFilter.test(name) returns true
-	 * @param name          name
+	 * @param name          property name
 	 * @param valueSupplier value supplier
+	 * @param condition     supplies true if the value should be added; false to do
+	 *                      nothing
+	 * @param adapter       JSON type adapter for handling non-null values
 	 */
-	public static void add(JsonObjectBuilder builder, Predicate<String> nameFilter, String name,
-			Supplier<?> valueSupplier) {
-		add(builder, nameFilter, name, valueSupplier, IuJson::toJson);
-	}
-
-	/**
-	 * Adds a value to an object builder.
-	 * 
-	 * @param <T>                 value type
-	 * @param builder             {@link JsonObjectBuilder}
-	 * @param nameFilter          filter predicate, builder will only be modified if
-	 *                            nameFilter.test(name) returns true
-	 * @param name                property name
-	 * @param valueSupplier       value supplier
-	 * @param valueToJsonFunction function that converts the supplied value to
-	 *                            {@link JsonValue}
-	 */
-	public static <T> void add(JsonObjectBuilder builder, Predicate<String> nameFilter, String name,
-			Supplier<T> valueSupplier, Function<T, JsonValue> valueToJsonFunction) {
-		if (nameFilter != null && !nameFilter.test(name))
+	public static <T> void add(JsonObjectBuilder builder, String name, Supplier<T> valueSupplier,
+			BooleanSupplier condition, IuJsonAdapter<T> adapter) {
+		if (!condition.getAsBoolean())
 			return;
 
 		final var a = valueSupplier.get();
 		if (a != null)
-			builder.add(name, valueToJsonFunction.apply(a));
+			builder.add(name, adapter.toJson(a));
 	}
 
 	/**
 	 * Adds a value to an array builder.
 	 * 
-	 * @param builder JSON array builder
+	 * @param <T>     value type
+	 * @param builder {@link JsonArrayBuilder}
 	 * @param value   value
 	 */
-	public static void add(JsonArrayBuilder builder, Object value) {
-		add(builder, () -> value, IuJson::toJson);
+	public static <T> void add(JsonArrayBuilder builder, T value) {
+		add(builder, () -> value, () -> true, IuJsonAdapter.of(value));
 	}
 
 	/**
 	 * Adds a value to an array builder.
 	 * 
-	 * @param builder       JSON array builder
+	 * @param <T>           value type
+	 * @param builder       {@link JsonArrayBuilder}
 	 * @param valueSupplier value supplier
+	 * @param adapter       JSON type adapter for handling non-null values
 	 */
-	public static void add(JsonArrayBuilder builder, Supplier<?> valueSupplier) {
-		add(builder, valueSupplier, IuJson::toJson);
+	public static <T> void add(JsonArrayBuilder builder, Supplier<T> valueSupplier, IuJsonAdapter<T> adapter) {
+		add(builder, valueSupplier, () -> true, adapter);
 	}
 
 	/**
-	 * Adds a string value to an object builder.
+	 * Adds a value to an array builder.
 	 * 
-	 * @param <T>                 value type
-	 * @param builder             JSON object builder
-	 * @param valueSupplier       value supplier
-	 * @param valueToJsonFunction function that converts the supplied value to
-	 *                            {@link JsonValue}
+	 * @param <T>       value type
+	 * @param builder   {@link JsonArrayBuilder}
+	 * @param value     value
+	 * @param condition supplies true if the value should be added; false to do
+	 *                  nothing
 	 */
-	public static <T> void add(JsonArrayBuilder builder, Supplier<T> valueSupplier,
-			Function<T, JsonValue> valueToJsonFunction) {
+	public static <T> void add(JsonArrayBuilder builder, T value, BooleanSupplier condition) {
+		add(builder, () -> value, condition, IuJsonAdapter.of(value));
+	}
+
+	/**
+	 * Adds a value to an array builder.
+	 * 
+	 * @param <T>           value type
+	 * @param builder       {@link JsonArrayBuilder}
+	 * @param valueSupplier value supplier
+	 * @param condition     supplies true if the value should be added; false to do
+	 *                      nothing
+	 * @param adapter       JSON type adapter for handling non-null values
+	 */
+	public static <T> void add(JsonArrayBuilder builder, Supplier<T> valueSupplier, BooleanSupplier condition,
+			IuJsonAdapter<T> adapter) {
+		if (!condition.getAsBoolean())
+			return;
+
 		final var a = valueSupplier.get();
 		if (a != null)
-			builder.add(valueToJsonFunction.apply(a));
-	}
-
-	/**
-	 * Gets text property value from a JSON object.
-	 * 
-	 * @param object {@link JsonObject}
-	 * @param name   property name
-	 * @return text value
-	 * @see #asText(JsonValue)
-	 */
-	public static String text(JsonObject object, String name) {
-		return get(object, name, null, IuJson::asText);
-	}
-
-	/**
-	 * Gets text property value from a JSON object.
-	 * 
-	 * @param object       {@link JsonObject}
-	 * @param name         property name
-	 * @param defaultValue value to return if the property is missing
-	 * @return text value
-	 * @see #asText(JsonValue)
-	 */
-	public static String text(JsonObject object, String name, String defaultValue) {
-		return get(object, name, defaultValue, IuJson::asText);
-	}
-
-	/**
-	 * Gets a text property value from a JSON object.
-	 * 
-	 * @param <T>                 result type
-	 * 
-	 * @param object              {@link JsonObject}
-	 * @param name                property name
-	 * @param textToValueFunction converts a non-null text to the result type
-	 * @return result of applying a test property value to textToValueFunction;
-	 *         defaultValue if the property is missing
-	 */
-	public static <T> T text(JsonObject object, String name, Function<String, T> textToValueFunction) {
-		return text(object, name, null, textToValueFunction);
-	}
-
-	/**
-	 * Gets a text property value from a JSON object.
-	 * 
-	 * @param <T>                 result type
-	 * 
-	 * @param object              {@link JsonObject}
-	 * @param name                property name
-	 * @param defaultValue        value to return if the property is missing
-	 * @param textToValueFunction converts a non-null text to the result type
-	 * @return result of applying a test property value to textToValueFunction;
-	 *         defaultValue if the property is missing
-	 */
-	public static <T> T text(JsonObject object, String name, T defaultValue, Function<String, T> textToValueFunction) {
-		return get(object, name, defaultValue, v -> {
-			final var textValue = asText(v);
-			if (textValue == null)
-				return defaultValue;
-			else
-				return textToValueFunction.apply(textValue);
-		});
+			builder.add(adapter.toJson(a));
 	}
 
 	/**
 	 * Gets a property value from a JSON object.
 	 * 
 	 * @param <T>    result type
-	 * 
 	 * @param object {@link JsonObject}
 	 * @param name   property name
 	 * @return property value
-	 * @see #toJava(JsonValue)
 	 */
+	@SuppressWarnings("unchecked")
 	public static <T> T get(JsonObject object, String name) {
-		return get(object, name, null, IuJson::toJava);
+		return (T) get(object, name, null, IuJsonAdapter.of(Object.class));
+	}
+
+	/**
+	 * Gets a property value from a JSON object.
+	 * 
+	 * @param <T>     result type
+	 * @param object  {@link JsonObject}
+	 * @param name    property name
+	 * @param adapter adapter for converting non-null values to Java
+	 * @return property value
+	 */
+	public static <T> T get(JsonObject object, String name, IuJsonAdapter<T> adapter) {
+		return get(object, name, null, adapter);
 	}
 
 	/**
 	 * Gets a property value from a JSON object.
 	 * 
 	 * @param <T>          result type
-	 * 
 	 * @param object       {@link JsonObject}
 	 * @param name         property name
 	 * @param defaultValue value to return if the property is missing
-	 * @return property value
-	 * @see #toJava(JsonValue)
+	 * @param adapter      adapter for converting non-null values to Java
+	 * @return property value, or defaultValue if the property is missing
 	 */
-	public static <T> T get(JsonObject object, String name, T defaultValue) {
-		return get(object, name, defaultValue, IuJson::toJava);
-	}
-
-	/**
-	 * Gets a property value from a JSON object.
-	 * 
-	 * @param <T>                 result type
-	 * 
-	 * @param object              {@link JsonObject}
-	 * @param name                property name
-	 * @param jsonToValueFunction converts a non-null JSON value to the result type
-	 * @return result of applying a non-null JSON value to jsonToValueFunction;
-	 *         defaultValue if the property is missing
-	 */
-	public static <T> T get(JsonObject object, String name, Function<JsonValue, T> jsonToValueFunction) {
-		return get(object, name, null, jsonToValueFunction);
-	}
-
-	/**
-	 * Gets a property value from a JSON object.
-	 * 
-	 * @param <T>                 result type
-	 * 
-	 * @param object              {@link JsonObject}
-	 * @param name                property name
-	 * @param defaultValue        value to return if the property is missing
-	 * @param jsonToValueFunction converts a non-null JSON value to the result type
-	 * @return result of applying a non-null JSON value to jsonToValueFunction;
-	 *         defaultValue if the property is missing
-	 */
-	public static <T> T get(JsonObject object, String name, T defaultValue,
-			Function<JsonValue, T> jsonToValueFunction) {
+	public static <T> T get(JsonObject object, String name, T defaultValue, IuJsonAdapter<T> adapter) {
 		final var v = object.get(name);
 		if (v == null)
 			return defaultValue;
 		else
-			return jsonToValueFunction.apply(v);
+			return adapter.fromJson(v);
 	}
 
 	private IuJson() {

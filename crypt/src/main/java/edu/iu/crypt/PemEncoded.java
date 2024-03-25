@@ -1,8 +1,9 @@
-package iu.crypt;
+package edu.iu.crypt;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.URI;
+import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.cert.CertificateFactory;
@@ -20,20 +21,21 @@ import java.util.Queue;
 import edu.iu.IuCacheMap;
 import edu.iu.IuException;
 import edu.iu.IuStream;
+import edu.iu.IuText;
 import edu.iu.client.IuHttp;
 import edu.iu.crypt.WebKey.Type;
 
 /**
  * Reads PEM-encoded key and/or certificate data.
  */
-final class PemEncoded {
+public final class PemEncoded {
 
 	private static Map<URI, X509Certificate[]> CERT_CACHE = new IuCacheMap<>(Duration.ofMinutes(15L));
 
 	/**
 	 * Enumerates encoded key type.
 	 */
-	enum KeyType {
+	public enum KeyType {
 		/**
 		 * Private key.
 		 */
@@ -60,8 +62,8 @@ final class PemEncoded {
 	 *      "https://datatracker.ietf.org/doc/html/rfc4945#section-6.1">RFC-4945
 	 *      Section 6.1</a>
 	 */
-	static Iterator<PemEncoded> parse(InputStream in) {
-		return IuException.unchecked(() -> parse(EncodingUtils.utf8(IuStream.read(in))));
+	public static Iterator<PemEncoded> parse(InputStream in) {
+		return IuException.unchecked(() -> parse(IuText.utf8(IuStream.read(in))));
 	}
 
 	/**
@@ -74,7 +76,7 @@ final class PemEncoded {
 	 *      "https://datatracker.ietf.org/doc/html/rfc4945#section-6.1">RFC-4945
 	 *      Section 6.1</a>
 	 */
-	static Iterator<PemEncoded> parse(String pemEncoded) {
+	public static Iterator<PemEncoded> parse(String pemEncoded) {
 		final var length = pemEncoded.length();
 		return new Iterator<PemEncoded>() {
 			private int start = 0;
@@ -152,33 +154,55 @@ final class PemEncoded {
 	 *      "https://datatracker.ietf.org/doc/html/rfc4945#section-6.1">RFC-4945 PKI
 	 *      Section 6.1</a>
 	 */
-	static X509Certificate[] getCertificateChain(URI uri) {
+	public static X509Certificate[] getCertificateChain(URI uri) {
 		var chain = CERT_CACHE.get(uri);
 		if (chain == null)
-			CERT_CACHE.put(uri, chain = IuException.unchecked(() -> {
-				final var certFactory = CertificateFactory.getInstance("X.509");
-				final Queue<X509Certificate> c = new ArrayDeque<>();
-				final var pem = IuHttp.get(uri, IuHttp.validate(PemEncoded::parse, IuHttp.OK));
-				while (pem.hasNext()) {
-					final var n = pem.next();
-					if (!PemEncoded.KeyType.CERTIFICATE.equals(n.keyType))
-						throw new IllegalArgumentException();
-					c.offer((X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(n.encoded)));
-				}
-				return c.toArray(new X509Certificate[c.size()]);
-			}));
+			CERT_CACHE.put(uri, chain = getCertificateChain(
+					IuException.unchecked(() -> IuHttp.get(uri, IuHttp.validate(PemEncoded::parse, IuHttp.OK)))));
 		return chain;
 	}
 
 	/**
-	 * Key type.
+	 * Converts parsed PEM data to a certificate chain.
+	 * 
+	 * @param json array of PEM-encoded 
+	 * @return certificate chain
 	 */
-	final KeyType keyType;
+	public static X509Certificate[] certChainFromJson(JsonValue json) {
+
+	}
 
 	/**
-	 * Encoded key data.
+	 * Converts parsed PEM data to a certificate chain.
+	 * 
+	 * @param pem PEM encoded certificate chain
+	 * @return certificate chain
 	 */
-	final byte[] encoded;
+	public static X509Certificate[] getCertificateChain(Iterator<PemEncoded> pem) {
+		return IuException.unchecked(() -> {
+			final var certFactory = CertificateFactory.getInstance("X.509");
+			final Queue<X509Certificate> c = new ArrayDeque<>();
+			while (pem.hasNext()) {
+				final var n = pem.next();
+				if (!PemEncoded.KeyType.CERTIFICATE.equals(n.keyType))
+					throw new IllegalArgumentException();
+				c.offer((X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(n.encoded)));
+			}
+			return c.toArray(new X509Certificate[c.size()]);
+		});
+	}
+
+	private final KeyType keyType;
+	private final byte[] encoded;
+
+	/**
+	 * Gets the key type.
+	 * 
+	 * @return {@link KeyType}
+	 */
+	public KeyType getKeyType() {
+		return keyType;
+	}
 
 	/**
 	 * Gets the key as a public key when {@link #keyType} is
@@ -187,11 +211,11 @@ final class PemEncoded {
 	 * @param type JWK key type
 	 * @return public key
 	 */
-	PublicKey asPublic(Type type) {
+	public PublicKey asPublic(Type type) {
 		if (!keyType.equals(KeyType.PUBLIC_KEY))
 			throw new IllegalStateException();
 		return IuException
-				.unchecked(() -> JwkBuilder.getKeyFactory(type).generatePublic(new X509EncodedKeySpec(encoded)));
+				.unchecked(() -> KeyFactory.getInstance(type.kty).generatePublic(new X509EncodedKeySpec(encoded)));
 	}
 
 	/**
@@ -201,11 +225,11 @@ final class PemEncoded {
 	 * @param type JWK key type
 	 * @return private key
 	 */
-	PrivateKey asPrivate(Type type) {
+	public PrivateKey asPrivate(Type type) {
 		if (!keyType.equals(KeyType.PRIVATE_KEY))
 			throw new IllegalStateException();
 		return IuException
-				.unchecked(() -> JwkBuilder.getKeyFactory(type).generatePrivate(new PKCS8EncodedKeySpec(encoded)));
+				.unchecked(() -> KeyFactory.getInstance(type.kty).generatePrivate(new PKCS8EncodedKeySpec(encoded)));
 	}
 
 	/**
@@ -214,7 +238,7 @@ final class PemEncoded {
 	 * @param type JWK key type
 	 * @return private key
 	 */
-	X509Certificate asCertificate() {
+	public X509Certificate asCertificate() {
 		if (!keyType.equals(KeyType.CERTIFICATE))
 			throw new IllegalStateException();
 		return IuException.unchecked(() -> (X509Certificate) CertificateFactory.getInstance("X.509")

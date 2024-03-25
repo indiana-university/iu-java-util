@@ -27,7 +27,7 @@ public class WebEncryptionTest {
 				.algorithm(Algorithm.RSA1_5).jwk(key, false).then().encrypt(message);
 		assertNull(jwe.getAdditionalData());
 
-		final var fromCompact = WebEncryption.parse(jwe.getRecipients().findFirst().get().compact());
+		final var fromCompact = WebEncryption.parse(jwe.compact());
 
 		final var compactHeader = fromCompact.getRecipients().iterator().next().getHeader();
 		assertEquals(Algorithm.RSA1_5, compactHeader.getAlgorithm());
@@ -60,7 +60,7 @@ public class WebEncryptionTest {
 				.jwk(key, false).then().encrypt(message);
 		assertNull(jwe.getAdditionalData());
 
-		final var fromCompact = WebEncryption.parse(jwe.getRecipients().findFirst().get().compact());
+		final var fromCompact = WebEncryption.parse(jwe.compact());
 
 		final var compactHeader = fromCompact.getRecipients().iterator().next().getHeader();
 		assertEquals(Algorithm.ECDH_ES, compactHeader.getAlgorithm());

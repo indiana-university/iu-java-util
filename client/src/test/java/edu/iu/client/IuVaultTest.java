@@ -83,7 +83,7 @@ public class IuVaultTest {
 
 			@Override
 			public Class<?> loadClass(String name) throws ClassNotFoundException {
-				if (!name.startsWith("edu.iu.client."))
+				if (!name.startsWith("edu.iu.client.") && !name.startsWith("iu.client."))
 					return super.loadClass(name);
 				else
 					return findClass(name);
@@ -157,10 +157,10 @@ public class IuVaultTest {
 			mockHttp.when(() -> IuHttp.send(eq(URI.create("vault://kv/data/a/e")), watch(mockRequestBuilder), any()))
 					.thenReturn(IuJson.parse("{\"data\":{\"data\":{\"bool\":true}}}"));
 
-			assertEquals("bar", IuVault.get("foo", IuJson::toJava));
-			assertEquals("baz", IuVault.get("bar", IuJson::toJava));
-			assertEquals(42, IuVault.<Number>get("num", IuJson::toJava).intValue());
-			assertTrue(IuVault.<Boolean>get("bool", IuJson::toJava));
+			assertEquals("bar", IuVault.get("foo"));
+			assertEquals("baz", IuVault.get("bar"));
+			assertEquals(42, IuVault.get("num", IuJsonAdapter.<Number>basic()).intValue());
+			assertTrue(IuVault.get("bool", IuJsonAdapter.<Boolean>basic()));
 			assertThrows(IllegalArgumentException.class, () -> IuVault.get("baz"));
 			verify(mockRequestBuilder, times(4)).header("Authorization", "Bearer " + token);
 		}
@@ -199,10 +199,10 @@ public class IuVaultTest {
 					.thenReturn(IuJson
 							.parse("{\"data\":{\"data\":{\"foo\":\"bar\",\"bar\":\"baz\",\"num\":42,\"bool\":true}}}"));
 
-			assertEquals("bar", IuVault.get("foo", IuJson::toJava));
-			assertEquals("baz", IuVault.get("bar", IuJson::toJava));
-			assertEquals(42, IuVault.<Number>get("num", IuJson::toJava).intValue());
-			assertTrue(IuVault.<Boolean>get("bool", IuJson::toJava));
+			assertEquals("bar", IuVault.get("foo"));
+			assertEquals("baz", IuVault.get("bar"));
+			assertEquals(42, IuVault.get("num", IuJsonAdapter.<Number>basic()).intValue());
+			assertTrue(IuVault.get("bool", IuJsonAdapter.<Boolean>basic()));
 			assertThrows(IllegalArgumentException.class, () -> IuVault.get("baz"));
 
 			verify(loginBuilder).POST(loginRequestPayload);

@@ -15,8 +15,10 @@ import java.util.stream.Stream;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
+import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebKey;
+import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 
 /**
@@ -37,7 +39,7 @@ class Jwk implements WebKey {
 		if (priv == null)
 			return;
 
-		jwkBuilder.add("d", EncodingUtils.base64Url(priv.getPrivateExponent().toByteArray()));
+		jwkBuilder.add("d", IuText.base64Url(priv.getPrivateExponent().toByteArray()));
 		if (priv instanceof RSAPrivateCrtKey) {
 			final var crt = (RSAPrivateCrtKey) priv;
 			EncodingUtils.setBigInt(jwkBuilder, "p", crt.getPrimeP());

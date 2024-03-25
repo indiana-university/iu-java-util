@@ -5,7 +5,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.security.SecureRandom;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -27,6 +29,7 @@ import javax.crypto.spec.SecretKeySpec;
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuStream;
+import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption;
@@ -48,7 +51,7 @@ public class Jwe implements WebEncryption {
 	private final Encryption encryption;
 	private final boolean deflate;
 	private final JweRecipient[] recipients;
-	private final Set<Param> protectedParameters;
+	private final Set<String> protectedParameters;
 	private final byte[] initializationVector;
 	private final byte[] cipherText;
 	private final byte[] authenticationTag;
@@ -58,20 +61,11 @@ public class Jwe implements WebEncryption {
 	 * Encrypts an outbound message.
 	 * 
 	 * @param builder {@link JweBuilder}
-	 * @param in      provides the plaintext data to be encrypted
+	 * @param in      provides the plain text data to be encrypted
 	 */
 	Jwe(JweBuilder builder, InputStream in) {
 		encryption = Objects.requireNonNull(builder.encryption(), "Content encryption algorithm is required");
 		deflate = builder.deflate();
-
-		final var protectedParameters = builder.protectedParameters();
-		if (protectedParameters == null)
-			if (deflate)
-				this.protectedParameters = Set.of(Param.ALGORITHM, Param.ENCRYPTION, Param.ZIP);
-			else
-				this.protectedParameters = Set.of(Param.ALGORITHM, Param.ENCRYPTION);
-		else
-			this.protectedParameters = protectedParameters;
 
 		final var cek = builder
 				.cek(Objects.requireNonNull(builder.recipients().findFirst().get(), "requires at least one recipient"));
@@ -79,6 +73,16 @@ public class Jwe implements WebEncryption {
 		this.recipients = builder.recipients().map(r -> r.build(this, cek)).toArray(JweRecipient[]::new);
 		final var recipient = recipients[0];
 		final var jose = recipient.getHeader();
+
+		var protectedParameters = builder.protectedParameters();
+		if (protectedParameters == null) {
+			protectedParameters = new LinkedHashSet<>();
+			protectedParameters.add("alg");
+			for (final var param : jose.getAlgorithm().encryptionParams)
+				if (param.isPresent(jose))
+					protectedParameters.add(param.name);
+		}
+		this.protectedParameters = Collections.unmodifiableSet(protectedParameters);
 
 		// 5.1#11 compress content if requested
 		final var content = IuException.unchecked(() -> {
@@ -94,13 +98,13 @@ public class Jwe implements WebEncryption {
 		});
 
 		// 5.1#13 encode protected header
-		protectedHeader = EncodingUtils.base64Url(EncodingUtils.utf8(jose.toJson(recipient::isProtected).toString()));
+		protectedHeader = IuText.base64Url(IuText.utf8(jose.toJson(this::isProtected).toString()));
 
 		// 5.1#14 encode protected header
 		this.additionalData = builder.additionalData();
 		final var aad = IuException.unchecked(() -> {
 			if (additionalData != null)
-				return (protectedHeader + '.' + EncodingUtils.base64Url(additionalData)).getBytes("US-ASCII");
+				return (protectedHeader + '.' + IuText.base64Url(additionalData)).getBytes("US-ASCII");
 			else
 				return protectedHeader.getBytes("US-ASCII");
 		});
@@ -118,8 +122,8 @@ public class Jwe implements WebEncryption {
 			new SecureRandom().nextBytes(initializationVector);
 
 			cipherText = IuException.unchecked(() -> {
-				final var messageCipher = Cipher.getInstance(encryption.cipherAlgorithm);
-				messageCipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(encKey, encryption.keyAlgorithm),
+				final var messageCipher = Cipher.getInstance(encryption.algorithm);
+				messageCipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(encKey, "AES"),
 						new IvParameterSpec(initializationVector));
 				return messageCipher.doFinal(content);
 			});
@@ -153,8 +157,8 @@ public class Jwe implements WebEncryption {
 
 			final var encryptedData = IuException.unchecked(() -> {
 				final var gcmSpec = new GCMParameterSpec(128, initializationVector);
-				final var messageCipher = Cipher.getInstance(encryption.cipherAlgorithm);
-				messageCipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(cek, encryption.keyAlgorithm), gcmSpec);
+				final var messageCipher = Cipher.getInstance(encryption.algorithm);
+				messageCipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(cek, "AES"), gcmSpec);
 				messageCipher.updateAAD(aad);
 				return messageCipher.doFinal(content);
 			});
@@ -193,33 +197,31 @@ public class Jwe implements WebEncryption {
 				recipients = new JweRecipient[] {
 						new JweRecipient(this, parsedProtectedHeader, unprotectedHeader, parsed) };
 
-			initializationVector = IuJson.text(parsed, "iv", EncodingUtils::base64Url);
-			cipherText = EncodingUtils.base64Url(parsed.getString("ciphertext"));
-			authenticationTag = IuJson.text(parsed, "tag", EncodingUtils::base64Url);
-			additionalData = IuJson.text(parsed, "aad", EncodingUtils::base64Url);
+			initializationVector = IuJson.text(parsed, "iv", IuText::base64Url);
+			cipherText = IuText.base64Url(parsed.getString("ciphertext"));
+			authenticationTag = IuJson.text(parsed, "tag", IuText::base64Url);
+			additionalData = IuJson.text(parsed, "aad", IuText::base64Url);
 
 		} else {
 			final var i = EncodingUtils.compact(jwe);
 			protectedHeader = i.next();
 			parsedProtectedHeader = EncodingUtils.compactJson(protectedHeader);
 			recipients = new JweRecipient[] {
-					new JweRecipient(this, Jose.from(parsedProtectedHeader), EncodingUtils.base64Url(i.next())) };
-			initializationVector = EncodingUtils.base64Url(i.next());
-			cipherText = EncodingUtils.base64Url(i.next());
-			authenticationTag = EncodingUtils.base64Url(i.next());
+					new JweRecipient(this, Jose.from(parsedProtectedHeader), IuText.base64Url(i.next())) };
+			initializationVector = IuText.base64Url(i.next());
+			cipherText = IuText.base64Url(i.next());
+			authenticationTag = IuText.base64Url(i.next());
 
 			if (i.hasNext())
 				throw new IllegalArgumentException();
 			additionalData = null;
 		}
 
-		final var ext = recipients[0].getHeader().getExtendedParameters();
-		encryption = Encryption.from(Objects.requireNonNull((String) ext.get("enc"), "Missing enc header parameter"));
-		deflate = "DEF".equals(ext.get("zip"));
+		final var header = recipients[0].getHeader();
+		encryption = Objects.requireNonNull(header.getExtendedParameter("enc"), "Missing enc header parameter");
+		deflate = "DEF".equals(header.getExtendedParameter("zip"));
 
-		protectedParameters = parsedProtectedHeader.keySet().stream() //
-				.map(Param::from).filter(Objects::nonNull) //
-				.collect(Collectors.toUnmodifiableSet());
+		protectedParameters = parsedProtectedHeader.keySet();
 	}
 
 	@Override
@@ -265,7 +267,7 @@ public class Jwe implements WebEncryption {
 		final var wellKnown = jwk.wellKnown();
 		for (var i = 0; cek == null && i < recipients.length; i++)
 			try {
-				cek = recipients[i].decryptCek(jwk);
+				cek = recipients[i].decryptCek(encryption, jwk);
 
 				// 5.2#12 record CEK decryption success
 				LOG.fine("CEK decryption successful for " + wellKnown);
@@ -284,7 +286,7 @@ public class Jwe implements WebEncryption {
 		// 5.2#15 encode protected header
 		final var aad = IuException.unchecked(() -> {
 			if (additionalData != null)
-				return (protectedHeader + '.' + EncodingUtils.base64Url(additionalData)).getBytes("US-ASCII");
+				return (protectedHeader + '.' + IuText.base64Url(additionalData)).getBytes("US-ASCII");
 			else
 				return protectedHeader.getBytes("US-ASCII");
 		});
@@ -324,8 +326,8 @@ public class Jwe implements WebEncryption {
 				throw new IllegalStateException(encryption + " failure");
 
 			content = IuException.unchecked(() -> {
-				final var messageCipher = Cipher.getInstance(encryption.cipherAlgorithm);
-				messageCipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(encKey, encryption.keyAlgorithm),
+				final var messageCipher = Cipher.getInstance(encryption.algorithm);
+				messageCipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(encKey, "AES"),
 						new IvParameterSpec(initializationVector));
 				return messageCipher.doFinal(cipherText);
 			});
@@ -338,10 +340,10 @@ public class Jwe implements WebEncryption {
 			final var encryptedData = Arrays.copyOf(cipherText, endOfTag);
 			System.arraycopy(authenticationTag, 0, encryptedData, startOfTag, authenticationTag.length);
 
-			final var secretKey = new SecretKeySpec(cek, encryption.keyAlgorithm);
+			final var secretKey = new SecretKeySpec(cek, "AES");
 			content = IuException.unchecked(() -> {
 				final var gcmSpec = new GCMParameterSpec(128, initializationVector);
-				final var messageCipher = Cipher.getInstance(encryption.cipherAlgorithm);
+				final var messageCipher = Cipher.getInstance(encryption.algorithm);
 				messageCipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec);
 				messageCipher.updateAAD(aad);
 				return messageCipher.doFinal(encryptedData);
@@ -367,45 +369,51 @@ public class Jwe implements WebEncryption {
 	/**
 	 * Determines if a header parameter should be included in the protected header.
 	 * 
+	 * @param recipient recipient
 	 * @param paramName parameter name
 	 * @return true if the parameter should be included in the protected header;
 	 *         else false
 	 */
 	boolean isProtected(String paramName) {
-		final var param = Param.from(paramName);
-		if (param == null)
-			return false;
-		else
-			return protectedParameters.contains(param);
+		return protectedParameters.contains(paramName);
+	}
+
+	@Override
+	public String compact() {
+		if (recipients.length > 0 || additionalData != null)
+			throw new IllegalStateException(
+					"Must have exactly one recipient and no additional authentication data to use JWE compact serialization");
+		final var recipient = recipients[0];
+		return IuText.base64Url(IuText.utf8(recipient.getHeader().toJson(this::isProtected).toString())) //
+				+ '.' + IuText.base64Url(recipient.getEncryptedKey()) //
+				+ '.' + IuText.base64Url(initializationVector) //
+				+ '.' + IuText.base64Url(cipherText) //
+				+ '.' + IuText.base64Url(authenticationTag);
 	}
 
 	@Override
 	public String toString() {
 		final var b = IuJson.object();
 
-		final var recipient = recipients[0];
 		final var header = recipients[0].getHeader();
-		final var protectedHeader = header.toJson(recipients[0]::isProtected);
+		final var protectedHeader = header.toJson(this::isProtected);
 
-		final Map<String, Object> sharedParams = new LinkedHashMap<>();
-		for (final var p : Param.values()) {
-			if (protectedParameters.contains(p))
-				continue;
-
-			final var v = p.get(header);
-			if (v != null)
-				sharedParams.put(p.name, v);
+		final Map<String, JsonValue> sharedParams = new LinkedHashMap<>();
+		for (final var extendedParameterEntry : header.extendedParameters().entrySet()) {
+			final var paramName = extendedParameterEntry.getKey();
+			if (!protectedParameters.contains(paramName))
+				sharedParams.put(paramName, extendedParameterEntry.getValue());
 		}
 
 		for (final var e : header.getExtendedParameters().entrySet()) {
 			final var paramName = e.getKey();
-			if (!recipient.isProtected(paramName))
+			if (!isProtected(paramName))
 				sharedParams.put(paramName, e.getValue());
 		}
 
 		// 5.1#13 encode protected header
 		if (!protectedHeader.isEmpty())
-			b.add("protected", EncodingUtils.base64Url(EncodingUtils.utf8(protectedHeader.toString())));
+			b.add("protected", IuText.base64Url(IuText.utf8(protectedHeader.toString())));
 
 		if (recipients.length > 1) {
 			for (int i = 1; i < recipients.length; i++) {
@@ -445,21 +453,21 @@ public class Jwe implements WebEncryption {
 				if (!perRecipientHeader.isEmpty())
 					recipientBuilder.add("header", perRecipientHeader);
 				IuJson.add(recipientBuilder, a -> true, "encrypted_key",
-						() -> EncodingUtils.base64Url(additionalRecipient.getEncryptedKey()));
+						() -> IuText.base64Url(additionalRecipient.getEncryptedKey()));
 				serializedRecipients.add(recipientBuilder);
 			}
 		} else {
 			final var perRecipientHeader = header.toJson(sharedParams::containsKey);
 			if (!perRecipientHeader.isEmpty())
 				b.add("header", perRecipientHeader);
-			IuJson.add(b, a -> true, "encrypted_key", () -> EncodingUtils.base64Url(recipients[0].getEncryptedKey()));
+			IuJson.add(b, a -> true, "encrypted_key", () -> IuText.base64Url(recipients[0].getEncryptedKey()));
 		}
 
-		IuJson.add(b, "iv", () -> EncodingUtils.base64Url(initializationVector));
-		IuJson.add(b, "ciphertext", () -> EncodingUtils.base64Url(cipherText));
-		IuJson.add(b, "tag", () -> EncodingUtils.base64Url(authenticationTag));
+		IuJson.add(b, "iv", () -> IuText.base64Url(initializationVector));
+		IuJson.add(b, "ciphertext", () -> IuText.base64Url(cipherText));
+		IuJson.add(b, "tag", () -> IuText.base64Url(authenticationTag));
 		if (additionalData != null)
-			IuJson.add(b, "aad", () -> EncodingUtils.base64Url(additionalData));
+			IuJson.add(b, "aad", () -> IuText.base64Url(additionalData));
 
 		return b.build().toString();
 	}

@@ -7,6 +7,7 @@ import java.util.Objects;
 
 import edu.iu.IuCrypt;
 import edu.iu.IuException;
+import edu.iu.crypt.PemEncoded;
 
 /**
  * Common base class for JSON web security object builders.

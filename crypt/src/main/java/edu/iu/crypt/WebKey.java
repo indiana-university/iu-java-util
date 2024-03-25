@@ -3,12 +3,11 @@ package edu.iu.crypt;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.cert.X509Certificate;
-import java.security.interfaces.ECPublicKey;
-import java.security.interfaces.RSAPublicKey;
 import java.security.spec.ECParameterSpec;
 import java.util.EnumSet;
 import java.util.Set;
@@ -16,8 +15,13 @@ import java.util.stream.Stream;
 
 import javax.crypto.SecretKey;
 
+import edu.iu.IuException;
 import edu.iu.IuObject;
+import edu.iu.client.IuJson;
+import edu.iu.crypt.WebCryptoHeader.Param;
 import iu.crypt.JwkBuilder;
+import jakarta.json.JsonString;
+import jakarta.json.JsonValue;
 
 /**
  * Unifies algorithm support and maps a cryptographic key from JCE to JSON Web
@@ -78,31 +82,6 @@ public interface WebKey extends WebCertificateReference {
 		}
 
 		/**
-		 * Gets the type of a JCE public key.
-		 * 
-		 * @param publicKey public key
-		 * @return key type
-		 */
-		public static Type of(PublicKey publicKey) {
-			if (publicKey instanceof RSAPublicKey)
-				if (publicKey.getAlgorithm().equals("RSASSA-PSS"))
-					return Type.RSASSA_PSS;
-				else
-					return Type.RSA;
-			else if (publicKey instanceof ECPublicKey) {
-				final var ec = (ECPublicKey) publicKey;
-				final var curveDescr = ec.getParams().getCurve().toString();
-				if (curveDescr.contains("P-521"))
-					return Type.EC_P521;
-				else if (curveDescr.contains("P-384"))
-					return Type.EC_P384;
-				else
-					return Type.EC_P256;
-			} else
-				return Type.RAW;
-		}
-
-		/**
 		 * JSON kty attribute value.
 		 */
 		public final String kty;
@@ -122,6 +101,33 @@ public interface WebKey extends WebCertificateReference {
 			this.crv = crv;
 			this.ecParam = ecParam;
 		}
+
+		/**
+		 * Gets a {@link KeyFactory} suitable for decoding a key by type.
+		 * 
+		 * @param type key type
+		 * @return {@link KeyFactory}
+		 */
+		static KeyFactory getKeyFactory(Type type) {
+			return IuException.unchecked(() -> {
+				switch (type) {
+				case EC_P256:
+				case EC_P384:
+				case EC_P521:
+					return KeyFactory.getInstance("EC");
+
+				case RSA:
+					return KeyFactory.getInstance("RSA");
+
+				case RSASSA_PSS:
+					return KeyFactory.getInstance("RSASSA-PSS");
+
+				default:
+					throw new IllegalArgumentException("Cannot read PEM encoded key data for " + type);
+				}
+			});
+		}
+
 	}
 
 	/**
@@ -229,154 +235,194 @@ public interface WebKey extends WebCertificateReference {
 		/**
 		 * HMAC symmetric key signature w/ SHA-256.
 		 */
-		HS256("HS256", "HmacSHA256", null, 256, Type.RAW, Use.SIGN),
+		HS256("HS256", "HmacSHA256", null, 256, Type.RAW, Use.SIGN, Set.of()),
 
 		/**
 		 * HMAC symmetric key signature w/ SHA-384.
 		 */
-		HS384("HS384", "HmacSHA384", null, 384, Type.RAW, Use.SIGN),
+		HS384("HS384", "HmacSHA384", null, 384, Type.RAW, Use.SIGN, Set.of()),
 
 		/**
 		 * HMAC symmetric key signature w/ SHA-512.
 		 */
-		HS512("HS512", "HmacSHA512", null, 512, Type.RAW, Use.SIGN),
+		HS512("HS512", "HmacSHA512", null, 512, Type.RAW, Use.SIGN, Set.of()),
 
 		/**
 		 * RSASSA-PKCS1-v1_5 using SHA-256.
 		 */
 		@Deprecated
-		RS256("RS256", "SHA256withRSA", null, 256, Type.RSA, Use.SIGN),
+		RS256("RS256", "SHA256withRSA", null, 256, Type.RSA, Use.SIGN, Set.of()),
 
 		/**
 		 * RSASSA-PKCS1-v1_5 using SHA-384.
 		 */
 		@Deprecated
-		RS384("RS384", "SHA384withRSA", null, 384, Type.RSA, Use.SIGN),
+		RS384("RS384", "SHA384withRSA", null, 384, Type.RSA, Use.SIGN, Set.of()),
 
 		/**
 		 * RSASSA-PKCS1-v1_5 using SHA-512.
 		 */
 		@Deprecated
-		RS512("RS512", "SHA512withRSA", null, 512, Type.RSA, Use.SIGN),
+		RS512("RS512", "SHA512withRSA", null, 512, Type.RSA, Use.SIGN, Set.of()),
 
 		/**
 		 * Elliptic Curve signature w/ SHA-256.
 		 */
-		ES256("ES256", "SHA256withECDSA", null, 256, Type.EC_P256, Use.SIGN),
+		ES256("ES256", "SHA256withECDSA", null, 256, Type.EC_P256, Use.SIGN, Set.of()),
 
 		/**
 		 * Elliptic Curve signature w/ SHA-384.
 		 */
-		ES384("ES384", "SHA384withECDSA", null, 384, Type.EC_P384, Use.SIGN),
+		ES384("ES384", "SHA384withECDSA", null, 384, Type.EC_P384, Use.SIGN, Set.of()),
 
 		/**
 		 * Elliptic Curve signature w/ SHA-512.
 		 */
-		ES512("ES512", "SHA512withECDSA", null, 512, Type.EC_P521, Use.SIGN),
+		ES512("ES512", "SHA512withECDSA", null, 512, Type.EC_P521, Use.SIGN, Set.of()),
 
 		/**
 		 * RSASSA-PSS using SHA-256 and MGF1 with SHA-256.
 		 */
-		PS256("PS256", "RSASSA-PSS", "SHA256withRSAandMGF1", 2048, Type.RSASSA_PSS, Use.SIGN),
+		PS256("PS256", "RSASSA-PSS", "SHA256withRSAandMGF1", 2048, Type.RSASSA_PSS, Use.SIGN, Set.of()),
 
 		/**
 		 * RSASSA-PSS using SHA-384 and MGF1 with SHA-384.
 		 */
-		PS384("PS384", "RSASSA-PSS", "SHA384withRSAandMGF1", 2048, Type.RSASSA_PSS, Use.SIGN),
+		PS384("PS384", "RSASSA-PSS", "SHA384withRSAandMGF1", 2048, Type.RSASSA_PSS, Use.SIGN, Set.of()),
 
 		/**
 		 * RSASSA-PSS using SHA-512 and MGF1 with SHA-512.
 		 */
-		PS512("PS512", "RSASSA-PSS", "SHA512withRSAandMGF1", 2048, Type.RSASSA_PSS, Use.SIGN),
+		PS512("PS512", "RSASSA-PSS", "SHA512withRSAandMGF1", 2048, Type.RSASSA_PSS, Use.SIGN, Set.of()),
 
 		/**
 		 * RSAES-PKCS1-v1_5.
 		 */
 		@Deprecated
-		RSA1_5("RSA1_5", "RSA", "RSA/ECB/PKCS1Padding", 2048, Type.RSA, Use.ENCRYPT),
+		RSA1_5("RSA1_5", "RSA", "RSA/ECB/PKCS1Padding", 2048, Type.RSA, Use.ENCRYPT,
+				Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * RSAES OAEP w/ default parameters.
 		 */
-		RSA_OAEP("RSA-OAEP", "RSA", "RSA/ECB/OAEPWithSHA-1AndMGF1Padding", 2048, Type.RSA, Use.ENCRYPT),
+		RSA_OAEP("RSA-OAEP", "RSA", "RSA/ECB/OAEPWithSHA-1AndMGF1Padding", 2048, Type.RSA, Use.ENCRYPT,
+				Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * RSAES OAEP w/ SHA-256 and MGF-1.
 		 */
-		RSA_OAEP_256("RSA-OAEP-256", "RSA", "RSA/ECB/OAEPWithSHA-256AndMGF1Padding", 2048, Type.RSA, Use.ENCRYPT),
+		RSA_OAEP_256("RSA-OAEP-256", "RSA", "RSA/ECB/OAEPWithSHA-256AndMGF1Padding", 2048, Type.RSA, Use.ENCRYPT,
+				Set.of(Param.ENCRYPTION, Param.ZIP)),
+
+		/**
+		 * AES-128 GCM Key Wrap.
+		 * 
+		 * @see <a href=
+		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
+		 *      Section 4.6</a>
+		 */
+		A128GCMKW("A128GCMKW", "AES", "AES/GCM/NoPadding", 128, Type.RAW, Use.ENCRYPT,
+				Set.of(Param.ENCRYPTION, Param.ZIP, Param.INITIALIZATION_VECTOR, Param.TAG)),
+
+		/**
+		 * AES-192 GCM Key Wrap.
+		 * 
+		 * @see <a href=
+		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
+		 *      Section 4.6</a>
+		 */
+		A192GCMKW("A192GCMKW", "AES", "AES/GCM/NoPadding", 192, Type.RAW, Use.ENCRYPT,
+				Set.of(Param.ENCRYPTION, Param.ZIP, Param.INITIALIZATION_VECTOR, Param.TAG)),
+		/**
+		 * AES-256 GCM Key Wrap.
+		 * 
+		 * @see <a href=
+		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
+		 *      Section 4.6</a>
+		 */
+		A256GCMKW("A256GCMKW", "AES", "AES/GCM/NoPadding", 256, Type.RAW, Use.ENCRYPT,
+				Set.of(Param.ENCRYPTION, Param.ZIP, Param.INITIALIZATION_VECTOR, Param.TAG)),
 
 		/**
 		 * AES-128 Key Wrap.
 		 */
-		A128KW("A128KW", "AES", "AESWrap", 128, Type.RAW, Use.ENCRYPT),
+		A128KW("A128KW", "AES", "AESWrap", 128, Type.RAW, Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * AES-192 Key Wrap.
 		 */
-		A192KW("A192KW", "AES", "AESWrap", 192, Type.RAW, Use.ENCRYPT),
+		A192KW("A192KW", "AES", "AESWrap", 192, Type.RAW, Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * AES-256 Key Wrap.
 		 */
-		A256KW("A256KW", "AES", "AESWrap", 256, Type.RAW, Use.ENCRYPT),
+		A256KW("A256KW", "AES", "AESWrap", 256, Type.RAW, Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * Direct use (as CEK).
 		 */
-		DIRECT("dir", "AES", null, 256, Type.RAW, Use.ENCRYPT),
+		DIRECT("dir", "AES", null, 256, Type.RAW, Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
-		 * Elliptic Curve Diffie-Hellman Ephemeral Static key agreement w/ defaults.
+		 * Elliptic Curve Diffie-Hellman Ephemeral Static key agreement.
+		 * 
+		 * @see <a href=
+		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
+		 *      Section 4.6</a>
 		 */
-		ECDH_ES("ECDH-ES", "ECDH", null, 0, Type.EC_P256, Use.ENCRYPT),
+		ECDH_ES("ECDH-ES", "ECDH", null, 0, Type.EC_P256, Use.ENCRYPT,
+				Set.of(Param.ENCRYPTION, Param.ZIP, Param.EPHEMERAL_PUBLIC_KEY, Param.PARTY_UINFO, Param.PARTY_VINFO)),
 
 		/**
 		 * Elliptic Curve Diffie-Hellman Ephemeral Static key agreement w/ AES-128 Key
 		 * Wrap.
+		 * 
+		 * @see <a href=
+		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
+		 *      Section 4.6</a>
 		 */
-		ECDH_ES_A128KW("ECDH-ES+A128KW", "ECDH", "AESWrap", 128, Type.EC_P256, Use.ENCRYPT),
+		ECDH_ES_A128KW("ECDH-ES+A128KW", "ECDH", "AESWrap", 128, Type.EC_P256, Use.ENCRYPT,
+				Set.of(Param.ENCRYPTION, Param.ZIP, Param.EPHEMERAL_PUBLIC_KEY, Param.PARTY_UINFO, Param.PARTY_VINFO)),
 
 		/**
 		 * Elliptic Curve Diffie-Hellman Ephemeral Static key agreement w/ AES-192 Key
 		 * Wrap.
+		 * 
+		 * @see <a href=
+		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
+		 *      Section 4.6</a>
 		 */
-		ECDH_ES_A192KW("ECDH-ES+A192KW", "ECDH", "AESWrap", 192, Type.EC_P384, Use.ENCRYPT),
+		ECDH_ES_A192KW("ECDH-ES+A192KW", "ECDH", "AESWrap", 192, Type.EC_P384, Use.ENCRYPT,
+				Set.of(Param.ENCRYPTION, Param.ZIP, Param.EPHEMERAL_PUBLIC_KEY, Param.PARTY_UINFO, Param.PARTY_VINFO)),
 
 		/**
 		 * Elliptic Curve Diffie-Hellman Ephemeral Static key agreement w/ AES-256 Key
 		 * Wrap.
+		 * 
+		 * @see <a href=
+		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
+		 *      Section 4.6</a>
 		 */
-		ECDH_ES_A256KW("ECDH-ES+A256KW", "ECDH", "AESWrap", 256, Type.EC_P521, Use.ENCRYPT),
-
-		/**
-		 * AES-128 GCM Key Wrap.
-		 */
-		A128GCMKW("A128GCMKW", "AES", "AES/GCM/NoPadding", 128, Type.RAW, Use.ENCRYPT),
-
-		/**
-		 * AES-192 GCM Key Wrap.
-		 */
-		A192GCMKW("A192GCMKW", "AES", "AES/GCM/NoPadding", 192, Type.RAW, Use.ENCRYPT),
-
-		/**
-		 * AES-256 GCM Key Wrap.
-		 */
-		A256GCMKW("A256GCMKW", "AES", "AES/GCM/NoPadding", 256, Type.RAW, Use.ENCRYPT),
+		ECDH_ES_A256KW("ECDH-ES+A256KW", "ECDH", "AESWrap", 256, Type.EC_P521, Use.ENCRYPT,
+				Set.of(Param.ENCRYPTION, Param.ZIP, Param.EPHEMERAL_PUBLIC_KEY, Param.PARTY_UINFO, Param.PARTY_VINFO)),
 
 		/**
 		 * PBES2 with HMAC SHA-256 and "A128KW" wrapping.
 		 */
-		PBES2_HS256_A128KW("PBES2-HS256+A128KW", "PBEWithHmacSHA256AndAES_128", null, 128, Type.RAW, Use.ENCRYPT),
+		PBES2_HS256_A128KW("PBES2-HS256+A128KW", "PBEWithHmacSHA256AndAES_128", null, 128, Type.RAW, Use.ENCRYPT,
+				Set.of(Param.ENCRYPTION, Param.ZIP /* , TODO: p2s, p2c */)),
 
 		/**
 		 * PBES2 with HMAC SHA-384 and "A192KW" wrapping.
 		 */
-		PBES2_HS384_A192KW("PBES2-HS384+A192KW", "PBEWithHmacSHA384AndAES_192", null, 192, Type.RAW, Use.ENCRYPT),
+		PBES2_HS384_A192KW("PBES2-HS384+A192KW", "PBEWithHmacSHA384AndAES_192", null, 192, Type.RAW, Use.ENCRYPT,
+				Set.of(Param.ENCRYPTION, Param.ZIP /* , TODO: p2s, p2c */)),
 
 		/**
 		 * PBES2 with HMAC SHA-512 and "A256KW" wrapping.
 		 */
-		PBES2_HS512_A256KW("PBES2-HS512+A256KW", "PBEWithHmacSHA512AndAES_256", null, 256, Type.RAW, Use.ENCRYPT);
+		PBES2_HS512_A256KW("PBES2-HS512+A256KW", "PBEWithHmacSHA512AndAES_256", null, 256, Type.RAW, Use.ENCRYPT,
+				Set.of(Param.ENCRYPTION, Param.ZIP /* , TODO: p2s, p2c */));
 
 		/**
 		 * Gets the value equivalent to the JWK alg attribute.
@@ -386,6 +432,29 @@ public interface WebKey extends WebCertificateReference {
 		 */
 		public static Algorithm from(String alg) {
 			return EnumSet.allOf(Algorithm.class).stream().filter(a -> IuObject.equals(alg, a.alg)).findFirst().get();
+		}
+
+		/**
+		 * Gets the value equivalent to the JWK alg attribute.
+		 * 
+		 * @param alg alg attribute value
+		 * @return {@link Algorithm}
+		 */
+		public static Algorithm toJava(JsonValue alg) {
+			return from(((JsonString) alg).getString());
+		}
+
+		/**
+		 * Gets the JWK alg attribute value.
+		 * 
+		 * @param alg alg attribute
+		 * @return {@link JsonValue}
+		 */
+		public static JsonValue toJson(Object alg) {
+			if (alg == null)
+				return null;
+			else
+				return IuJson.toJson(((Algorithm) alg).alg);
 		}
 
 		/**
@@ -418,13 +487,20 @@ public interface WebKey extends WebCertificateReference {
 		 */
 		public final Use use;
 
-		private Algorithm(String alg, String algorithm, String auxiliaryAlgorithm, int size, Type type, Use use) {
+		/**
+		 * Set of encryption parameters used by this algorithm.
+		 */
+		public final Set<Param> encryptionParams;
+
+		private Algorithm(String alg, String algorithm, String auxiliaryAlgorithm, int size, Type type, Use use,
+				Set<Param> encryptionParams) {
 			this.alg = alg;
 			this.algorithm = algorithm;
 			this.keyAlgorithm = auxiliaryAlgorithm;
 			this.size = size;
 			this.type = type;
 			this.use = use;
+			this.encryptionParams = encryptionParams;
 		}
 	}
 
@@ -475,12 +551,22 @@ public interface WebKey extends WebCertificateReference {
 		B ops(Op... ops);
 
 		/**
-		 * Generates a public/private key pair or secret key appropriate for the
-		 * configured {@link #algorithm(Algorithm)}.
+		 * Generates a public/private key pair for the algorithm specified by
+		 * {@link #algorithm(Algorithm)}.
 		 * 
 		 * @return this
 		 */
 		B ephemeral();
+
+		/**
+		 * Generates a public/private key pair or secret key without setting
+		 * {@link #algorithm}.
+		 * 
+		 * @param algorithm
+		 * @param size      key size in bits
+		 * @return this
+		 */
+		B ephemeral(Algorithm algorithm);
 
 		/**
 		 * Sets the raw key data.

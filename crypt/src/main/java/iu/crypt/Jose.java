@@ -6,8 +6,6 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -16,7 +14,9 @@ import java.util.stream.Collectors;
 import edu.iu.IuCrypt;
 import edu.iu.IuException;
 import edu.iu.IuIterable;
+import edu.iu.IuText;
 import edu.iu.client.IuJson;
+import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
@@ -71,7 +71,7 @@ final class Jose implements WebCryptoHeader {
 
 	private static X509Certificate[] decodeCertificateChain(JsonValue x5c) {
 		final var certFactory = IuException.unchecked(() -> CertificateFactory.getInstance("X.509"));
-		return x5c.asJsonArray().stream().map(IuJson::asText).map(EncodingUtils::base64)
+		return x5c.asJsonArray().stream().map(IuJson::asText).map(IuText::base64)
 				.map(a -> IuException.unchecked(
 						() -> (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(a))))
 				.toArray(X509Certificate[]::new);
@@ -92,8 +92,8 @@ final class Jose implements WebCryptoHeader {
 	private final byte[] certificateThumbprint;
 	private final byte[] certificateSha256Thumbprint;
 
-	private final Set<String> criticalExtendedParameters;
-	private final Map<String, ?> extendedParameters;
+	private final Set<String> criticalParameters;
+	private final JsonObject extendedParameters;
 
 	/**
 	 * Constructor.
@@ -118,10 +118,10 @@ final class Jose implements WebCryptoHeader {
 		certificateChain = builder.certificateChain();
 		certificateThumbprint = builder.certificateThumbprint();
 		certificateSha256Thumbprint = builder.certificateSha256Thumbprint();
-		criticalExtendedParameters = Collections.unmodifiableSet(builder.crit());
-		extendedParameters = Collections.unmodifiableMap(builder.ext());
+		criticalParameters = Collections.unmodifiableSet(builder.crit());
+		extendedParameters = builder.ext().build();
 
-		validate();
+		verify();
 	}
 
 	private Jose(JsonObject jose) {
@@ -136,64 +136,67 @@ final class Jose implements WebCryptoHeader {
 		contentType = IuJson.text(jose, "cty");
 
 		certificateUri = IuJson.text(jose, "x5u", URI::create);
-		certificateThumbprint = IuJson.text(jose, "x5t", EncodingUtils::base64Url);
-		certificateSha256Thumbprint = IuJson.text(jose, "x5t#S256", EncodingUtils::base64Url);
+		certificateThumbprint = IuJson.text(jose, "x5t", IuText::base64Url);
+		certificateSha256Thumbprint = IuJson.text(jose, "x5t#S256", IuText::base64Url);
 		certificateChain = IuJson.get(jose, "x5c", v -> decodeCertificateChain(v.asJsonArray()));
 
-		final Map<String, Object> params = new LinkedHashMap<>();
-		for (final var e : jose.entrySet()) {
-			final var paramName = e.getKey();
-			final var param = Param.from(paramName);
-			if (param == null || !param.isUsedFor(Use.SIGN))
-				// Encryption-only parameters not used for JWS signature are treated as
-				// extended parameters
-				params.put(e.getKey(), IuJson.toJava(e.getValue()));
-		}
-		extendedParameters = Collections.unmodifiableMap(params);
-		criticalExtendedParameters = IuJson.get(jose, "crit", Collections.emptySet(),
+		criticalParameters = IuJson.get(jose, "crit", Set.of(),
 				v -> v.asJsonArray().stream().map(IuJson::asText).collect(Collectors.toUnmodifiableSet()));
 
-		validate();
+		final var extendedParameters = IuJson.object();
+		for (final var parameterEntry : jose.entrySet()) {
+			final var paramName = parameterEntry.getKey();
+			final var param = Param.from(paramName);
+			if (param == null || !param.isUsedFor(Use.SIGN))
+				// encryption params handled same as extended
+				extendedParameters.add(paramName, parameterEntry.getValue());
+		}
+		this.extendedParameters = extendedParameters.build();
+
+		verify();
 	}
 
-	private void validate() {
+	private void verify() {
 		if (keyId != null && key != null && !keyId.equals(key.getId()))
-			throw new IllegalArgumentException();
+			throw new IllegalStateException("Key ID " + keyId + " doesn't match key");
 
 		if (certificateChain != null) {
 			final var cert = certificateChain[0];
 			if (key != null && !key.getPublicKey().equals(cert.getPublicKey()))
-				throw new IllegalArgumentException();
+				throw new IllegalStateException();
 			if (certificateThumbprint != null && !Arrays.equals(certificateThumbprint,
 					IuException.unchecked(() -> IuCrypt.sha1(cert.getEncoded()))))
-				throw new IllegalArgumentException();
+				throw new IllegalStateException("Certificate SHA-1 thumbprint mismatch");
 			if (certificateSha256Thumbprint != null && !Arrays.equals(certificateSha256Thumbprint,
 					IuException.unchecked(() -> IuCrypt.sha256(cert.getEncoded()))))
-				throw new IllegalArgumentException();
+				throw new IllegalStateException("Certificate SHA-256 thumbprint mismatch");
 		}
 
-		if (!criticalExtendedParameters.isEmpty()) {
-			switch (algorithm) {
-			case A128GCMKW:
-			case A192GCMKW:
-			case A256GCMKW:
-				if (!criticalExtendedParameters.equals(Set.of("iv", "tag")))
-					throw new IllegalArgumentException("not understood " + criticalExtendedParameters);
-				break;
+		for (final var paramName : criticalParameters) {
+			final var param = Param.from(paramName);
+			if (param == null) {
+				if (!extendedParameters.containsKey(paramName))
+					throw new IllegalStateException("Critical parameter " + paramName + " must be present");
+			} else if (!param.isPresent(this))
+				throw new IllegalStateException("Critical parameter " + paramName + " must be present");
+		}
 
-			case ECDH_ES:
-			case ECDH_ES_A128KW:
-			case ECDH_ES_A192KW:
-			case ECDH_ES_A256KW:
-				if (!criticalExtendedParameters.equals(Set.of("epk")) //
-						&& !criticalExtendedParameters.equals(Set.of("epk", "apu", "apv")))
-					throw new IllegalArgumentException("not understood " + criticalExtendedParameters);
-				break;
+		final var encryptionParams = algorithm.encryptionParams;
+		if (encryptionParams != null)
+			for (final var param : encryptionParams)
+				if (param.required && !param.isPresent(this))
+					throw new IllegalStateException("Parameter " + param.name + " must be present for " + algorithm);
 
-			default:
-				throw new IllegalArgumentException("not understood " + criticalExtendedParameters);
-			}
-			// TODO: implement PBES2, JWT
+		for (final var paramEntry : extendedParameters.entrySet()) {
+			final var paramName = paramEntry.getKey();
+			final var param = Param.from(paramName);
+			if (param == null) {
+				final var extension = JoseBuilder.getExtension(paramName);
+				if (extension != null)
+					extension.verify(this);
+			} else if (encryptionParams == null //
+					|| !encryptionParams.contains(param))
+				throw new IllegalStateException("Parameter " + param.name + " not understood for " + algorithm);
 		}
 	}
 
@@ -228,13 +231,21 @@ final class Jose implements WebCryptoHeader {
 	}
 
 	@Override
-	public Set<String> getCriticalExtendedParameters() {
-		return criticalExtendedParameters;
+	public Set<String> getCriticalParameters() {
+		return criticalParameters;
 	}
 
 	@Override
-	public Map<String, ?> getExtendedParameters() {
-		return extendedParameters;
+	public <T> T getExtendedParameter(String name) {
+		final var value = extendedParameters.get(name);
+		if (value == null)
+			return null;
+
+		final var param = Param.from(name);
+		if (param != null)
+			return param.toJava(value);
+		else
+			return JoseBuilder.<T>getExtension(name).toJava(value);
 	}
 
 	@Override
@@ -259,7 +270,16 @@ final class Jose implements WebCryptoHeader {
 
 	@Override
 	public String toString() {
-		return toJson(null).toString();
+		return toJson(a -> true).toString();
+	}
+
+	/**
+	 * Gets extended parameters as a JSON object.
+	 * 
+	 * @return {@link JsonObject}
+	 */
+	JsonObject extendedParameters() {
+		return extendedParameters;
 	}
 
 	/**
@@ -289,7 +309,7 @@ final class Jose implements WebCryptoHeader {
 			if (certificateSha256Thumbprint != null && !Arrays.equals(certificateSha256Thumbprint,
 					IuException.unchecked(() -> IuCrypt.sha256(cert.getEncoded()))))
 				throw new IllegalArgumentException();
-			
+
 			final var jwkb = new JwkBuilder();
 			if (keyId != null)
 				jwkb.id(keyId);
@@ -308,69 +328,14 @@ final class Jose implements WebCryptoHeader {
 	 */
 	JsonObject toJson(Predicate<String> p) {
 		final var b = IuJson.object();
+
 		for (final var param : IuIterable.iter(Param.values()))
-			if ((p == null //
-					|| p.test(param.name)) //
-					&& param.isPresent(this))
-				switch (param) {
-				case ALGORITHM:
-					b.add(param.name, algorithm.alg);
-					break;
+			if (param.isUsedFor(Use.SIGN) //
+					&& !(silent && Param.KEY.equals(param)))
+				IuJson.add(b, p, param.name, () -> param.get(this), param::toJson);
 
-				case TYPE:
-					b.add(param.name, type);
-					break;
-				case CONTENT_TYPE:
-					b.add(param.name, contentType);
-					break;
-
-				case KEY_ID:
-					b.add(param.name, keyId);
-					break;
-				case KEY_SET_URI:
-					b.add(param.name, keySetUri.toString());
-					break;
-				case KEY:
-					if (!silent) {
-						final var jwkb = IuJson.object();
-						key.wellKnown().serializeTo(jwkb);
-						b.add(param.name, jwkb);
-					}
-					break;
-
-				case CERTIFICATE_URI:
-					b.add(param.name, certificateUri.toString());
-					break;
-				case CERTIFICATE_CHAIN: {
-					final var x5cb = IuJson.array();
-					for (final var cert : certificateChain)
-						x5cb.add(EncodingUtils.base64(IuException.unchecked(cert::getEncoded)));
-					b.add(param.name, x5cb);
-					break;
-				}
-				case CERTIFICATE_THUMBPRINT:
-					b.add(param.name, EncodingUtils.base64Url(certificateThumbprint));
-					break;
-				case CERTIFICATE_SHA256_THUMBPRINT:
-					b.add(param.name, EncodingUtils.base64Url(certificateSha256Thumbprint));
-					break;
-
-				case CRITICAL_PARAMS:
-					if (!criticalExtendedParameters.isEmpty()) {
-						final var critb = IuJson.array();
-						criticalExtendedParameters.forEach(critb::add);
-						b.add(param.name, critb);
-						break;
-					}
-
-				default:
-					// non-JWS params handled as extended
-					break;
-				}
-
-		if (extendedParameters != null)
-			for (final var e : extendedParameters.entrySet())
-				IuJson.add(b, p, e.getKey(), e::getValue);
+		for (final var e : extendedParameters.entrySet())
+			IuJson.add(b, p, e.getKey(), e::getValue);
 
 		return b.build();
 	}

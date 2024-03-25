@@ -1,4 +1,4 @@
-package iu.crypt;
+package edu.iu.crypt;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;

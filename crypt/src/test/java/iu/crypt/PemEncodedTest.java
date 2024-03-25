@@ -20,8 +20,9 @@ import java.util.NoSuchElementException;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.crypt.PemEncoded;
+import edu.iu.crypt.PemEncoded.KeyType;
 import edu.iu.crypt.WebKey.Type;
-import iu.crypt.PemEncoded.KeyType;
 
 @SuppressWarnings("javadoc")
 public class PemEncodedTest {

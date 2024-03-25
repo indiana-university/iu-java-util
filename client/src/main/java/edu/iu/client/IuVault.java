@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+- * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -38,13 +38,11 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuRuntimeEnvironment;
 import jakarta.json.JsonObject;
-import jakarta.json.JsonValue;
 
 /**
  * Provides access to secrets stored in HashiCorp Vault.
@@ -113,15 +111,15 @@ public class IuVault {
 	 * 
 	 * @param <T>                 value type
 	 * @param name                property name
-	 * @param jsonToValueFunction converts the property value to the value type
+	 * @param adapter converts the property value to the value type
 	 * @return property value
 	 */
-	public static <T> T get(String name, Function<JsonValue, T> jsonToValueFunction) {
+	public static <T> T get(String name, IuJsonAdapter<T> adapter) {
 		if (SECRET_NAMES != null)
 			for (String secret : SECRET_NAMES) {
 				final var data = getSecret(secret);
 				if (data.containsKey(name))
-					return jsonToValueFunction.apply(data.get(name));
+					return adapter.fromJson(data.get(name));
 			}
 
 		throw new IllegalArgumentException(
@@ -135,7 +133,7 @@ public class IuVault {
 	 * @return property value
 	 */
 	public static String get(String name) {
-		return get(name, IuJson::asText);
+		return get(name, IuJsonAdapter.of(String.class));
 	}
 
 	private static JsonObject getSecret(String secret) {

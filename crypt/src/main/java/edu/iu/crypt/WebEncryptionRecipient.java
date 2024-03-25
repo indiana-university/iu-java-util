@@ -33,11 +33,4 @@ public interface WebEncryptionRecipient {
 	 */
 	byte[] getEncryptedKey();
 
-	/**
-	 * Gets the message encrypted for only this recipient in compact JWE format.
-	 * 
-	 * @return compact JWE
-	 */
-	String compact();
-
 }

@@ -4,7 +4,6 @@ import java.security.SecureRandom;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.util.Arrays;
-import java.util.Objects;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyAgreement;
@@ -13,6 +12,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import edu.iu.IuCrypt;
 import edu.iu.IuException;
+import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebEncryptionRecipient.Builder;
@@ -44,11 +44,9 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 	 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6.2">RFC-7518
 	 *      JSON Web Algorithms (JWA) 4.6.2</a>
 	 */
-	static byte[] agreedUponKey(ECPrivateKey privateKey, ECPublicKey publicKey, String algorithm, String algId,
-			String uinfo, String vinfo, int keyDataLen) {
-		// NIST.SP.800-56Ar3 C.3: bitlen(z) = 2^bits(ceil(log2 q))
-		// . q = bitlen(epk.encoded); P-256 => 65, P-521 => 133
-		// . log2(q) in [7..8] => 2^8 = 256 => len(z) = 32
+	static byte[] agreedUponKey(ECPrivateKey privateKey, ECPublicKey publicKey, String algorithm, byte[] algId,
+			byte[] uinfo, byte[] vinfo, int keyDataLen) {
+
 		final var z = IuException.unchecked(() -> {
 			final var ka = KeyAgreement.getInstance(algorithm);
 			ka.init(privateKey);
@@ -124,27 +122,28 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 		final var epk = new JwkBuilder().algorithm(algorithm).ephemeral().build();
 		final var serializedEpk = IuJson.object();
 		epk.wellKnown().serializeTo(serializedEpk);
-		crit("epk", serializedEpk.build());
+		enc("epk", serializedEpk.build());
 
-		final var uinfo = EncodingUtils.base64Url(IuCrypt.sha256(((ECPublicKey) epk.getPublicKey()).getEncoded()));
-		crit("apu", uinfo);
+		final var uinfo = partyUInfo();
+		if (uinfo != null && uinfo.length > 0)
+			enc("apu", IuJson.toJson(IuText.base64Url(uinfo)));
 
-		final var publicKey = Objects.requireNonNull((ECPublicKey) key().getPublicKey());
-		final var vinfo = EncodingUtils.base64Url(IuCrypt.sha256(publicKey.getEncoded()));
-		crit("apv", vinfo);
+		final var vinfo = partyVInfo();
+		if (uinfo != null && vinfo.length > 0)
+			enc("apv", IuJson.toJson(IuText.base64Url(vinfo)));
 
 		final int keyDataLen;
-		final String algId;
+		final byte[] algId;
 		if (algorithm.equals(Algorithm.ECDH_ES)) {
 			keyDataLen = encryption.size;
-			algId = encryption.enc;
+			algId = IuText.ascii(encryption.enc);
 		} else {
 			keyDataLen = algorithm.size;
-			algId = algorithm.alg;
+			algId = IuText.ascii(algorithm.alg);
 		}
 
-		return agreedUponKey((ECPrivateKey) epk.getPrivateKey(), publicKey, algorithm().algorithm, algId, uinfo, vinfo,
-				keyDataLen);
+		return agreedUponKey((ECPrivateKey) epk.getPrivateKey(), ((ECPublicKey) key().getPublicKey()),
+				algorithm().algorithm, algId, uinfo, vinfo, keyDataLen);
 	}
 
 	/**
@@ -183,14 +182,14 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 				final var key = new SecretKeySpec(key().getKey(), "AES");
 				final var iv = new byte[12];
 				new SecureRandom().nextBytes(iv);
-				crit("iv", EncodingUtils.base64Url(iv));
+				crit("iv", IuText.base64Url(iv));
 
 				final var cipher = Cipher.getInstance(algorithm.keyAlgorithm);
 				cipher.init(Cipher.WRAP_MODE, key, new GCMParameterSpec(128, iv));
 				final var wrappedKey = cipher.wrap(new SecretKeySpec(cek, "AES"));
 
-				crit("tag", EncodingUtils
-						.base64Url(Arrays.copyOfRange(wrappedKey, wrappedKey.length - 16, wrappedKey.length)));
+				crit("tag",
+						IuText.base64Url(Arrays.copyOfRange(wrappedKey, wrappedKey.length - 16, wrappedKey.length)));
 
 				return Arrays.copyOf(wrappedKey, wrappedKey.length - 16);
 			});

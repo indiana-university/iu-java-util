@@ -3,6 +3,7 @@ package iu.crypt;
 import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
@@ -12,6 +13,7 @@ import javax.crypto.KeyGenerator;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
+import edu.iu.client.IuJson;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Builder;
@@ -27,7 +29,7 @@ public class JweBuilder implements Builder {
 	}
 
 	private final Queue<JweRecipientBuilder> recipients = new ArrayDeque<>();
-	private Set<Param> protectedParameters;
+	private Set<String> protectedParameters = new LinkedHashSet<>();
 	private Encryption encryption;
 	private boolean deflate = true;
 	private byte[] additionalData;
@@ -70,15 +72,16 @@ public class JweBuilder implements Builder {
 
 	@Override
 	public Builder protect(Param... params) {
-		Objects.requireNonNull(params);
-
-		final var paramSet = Set.of(params);
-		if (this.protectedParameters == null)
-			this.protectedParameters = paramSet;
-		else if (!paramSet.equals(this.protectedParameters))
-			throw new IllegalStateException("Protected parameters already set to " + this.protectedParameters);
-
+		for (final var param : params)
+			protectedParameters.add(param.name);
 		return this;
+	}
+
+	@Override
+	public Builder protect(String... params) {
+		for (final var param : params)
+			protectedParameters.add(param);
+		return null;
 	}
 
 	@Override
@@ -86,9 +89,9 @@ public class JweBuilder implements Builder {
 		this.encryption = Objects.requireNonNull(encryption, "Content encryption algorithm is required");
 
 		final var recipient = new JweRecipientBuilder(this);
-		recipient.ext("enc", encryption.enc);
+		recipient.enc("enc", IuJson.toJson(encryption.enc));
 		if (deflate)
-			recipient.ext("zip", "DEF");
+			recipient.ext("zip", IuJson.toJson("DEF"));
 
 		recipients.add(recipient);
 		return recipient;
@@ -122,7 +125,7 @@ public class JweBuilder implements Builder {
 	 * 
 	 * @return protected parameters
 	 */
-	Set<Param> protectedParameters() {
+	Set<String> protectedParameters() {
 		return protectedParameters;
 	}
 
@@ -166,7 +169,7 @@ public class JweBuilder implements Builder {
 
 		final byte[] key = IuException.unchecked(() -> {
 			// 5.1#2 generate CEK if ephemeral
-			final var keygen = KeyGenerator.getInstance(encryption.keyAlgorithm);
+			final var keygen = KeyGenerator.getInstance("AES");
 			keygen.init(encryption.size);
 			return keygen.generateKey().getEncoded();
 		});

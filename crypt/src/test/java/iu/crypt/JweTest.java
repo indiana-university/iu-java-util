@@ -94,7 +94,7 @@ public class JweTest {
 				105, 102, 81 }, aad);
 
 		final var gcmSpec = new GCMParameterSpec(128, iv);
-		final var messageCipher = Cipher.getInstance(enc.cipherAlgorithm);
+		final var messageCipher = Cipher.getInstance(enc.algorithm);
 		messageCipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(cek, enc.keyAlgorithm), gcmSpec);
 		messageCipher.updateAAD(aad);
 		final var encryptedData = messageCipher.doFinal(plaintext);
@@ -164,7 +164,7 @@ public class JweTest {
 		assertArrayEquals(new byte[] { 107, 124, (byte) 212, 45, 111, 107, 9, (byte) 219, (byte) 200, (byte) 177, 0,
 				(byte) 240, (byte) 143, (byte) 156, 44, (byte) 207 }, encKey);
 
-		final var messageCipher = Cipher.getInstance(enc.cipherAlgorithm);
+		final var messageCipher = Cipher.getInstance(enc.algorithm);
 		messageCipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(encKey, enc.keyAlgorithm), new IvParameterSpec(iv));
 		final var cipherText = messageCipher.doFinal(plaintext);
 		assertArrayEquals(

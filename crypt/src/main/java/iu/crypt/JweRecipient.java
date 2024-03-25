@@ -11,7 +11,9 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import edu.iu.IuException;
+import edu.iu.IuText;
 import edu.iu.client.IuJson;
+import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebEncryptionRecipient;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
@@ -23,7 +25,6 @@ import jakarta.json.JsonValue;
  */
 class JweRecipient implements WebEncryptionRecipient {
 
-	private final Jwe encryption;
 	private final Jose header;
 	private final byte[] encryptedKey;
 
@@ -35,7 +36,6 @@ class JweRecipient implements WebEncryptionRecipient {
 	 * @param encryptedKey encrypted key
 	 */
 	JweRecipient(Jwe encryption, Jose header, byte[] encryptedKey) {
-		this.encryption = encryption;
 		this.header = header;
 		this.encryptedKey = encryptedKey;
 	}
@@ -51,7 +51,7 @@ class JweRecipient implements WebEncryptionRecipient {
 	JweRecipient(Jwe encryption, JsonObject protectedHeader, JsonObject sharedHeader, JsonObject recipient) {
 		this(encryption,
 				Jose.from(protectedHeader, sharedHeader, IuJson.get(recipient, "header", JsonValue::asJsonObject)),
-				IuJson.text(recipient, "encrypted_key", EncodingUtils::base64Url));
+				IuJson.text(recipient, "encrypted_key", IuText::base64Url));
 	}
 
 	@Override
@@ -64,18 +64,10 @@ class JweRecipient implements WebEncryptionRecipient {
 		return encryptedKey;
 	}
 
-	@Override
-	public String compact() {
-		return EncodingUtils.base64Url(EncodingUtils.utf8(header.toJson(this::isProtected).toString())) //
-				+ '.' + EncodingUtils.base64Url(encryptedKey) //
-				+ '.' + EncodingUtils.base64Url(encryption.getInitializationVector()) //
-				+ '.' + EncodingUtils.base64Url(encryption.getCipherText()) //
-				+ '.' + EncodingUtils.base64Url(encryption.getAuthenticationTag());
-	}
-
 	/**
 	 * Computes the agreed-upon key for the Elliptic Curve Diffie-Hellman algorithm.
 	 * 
+	 * @param encryption          content encryption algorithm
 	 * @param recipientPrivateKey recipient's private key
 	 * 
 	 * @return agreed-upon key
@@ -86,22 +78,21 @@ class JweRecipient implements WebEncryptionRecipient {
 	 *      "https://datatracker.ietf.org/doc/html/rfc7516#section-5.1">RFC-7516 JWE
 	 *      Section 5.1 #3</a>
 	 */
-	byte[] agreedUponKey(WebKey recipientPrivateKey) {
-		final var ext = header.getExtendedParameters();
-		final var epk = JwkBuilder.parse(IuJson.toJson(Objects.requireNonNull(ext.get("epk"), "Missing epk")));
-		final var uinfo = (String) Objects.requireNonNull(ext.get("apu"), "Missing apu");
-		final var vinfo = (String) Objects.requireNonNull(ext.get("apv"), "Missing apv");
+	byte[] agreedUponKey(Encryption encryption, WebKey recipientPrivateKey) {
+		final var epk = Objects.requireNonNull(header.<Jwk>getExtendedParameter("epk"),
+				"epk required for " + header.getAlgorithm());
+		final var uinfo = header.<byte[]>getExtendedParameter("apu");
+		final var vinfo = header.<byte[]>getExtendedParameter("apv");
 		final var algorithm = header.getAlgorithm();
 
 		final int keyDataLen;
-		final String algId;
+		final byte[] algId;
 		if (algorithm.equals(Algorithm.ECDH_ES)) {
-			final var encryption = this.encryption.getEncryption();
 			keyDataLen = encryption.size;
-			algId = encryption.enc;
+			algId = IuText.ascii(encryption.enc);
 		} else {
 			keyDataLen = algorithm.size;
-			algId = algorithm.alg;
+			algId = IuText.ascii(algorithm.alg);
 		}
 
 		return JweRecipientBuilder.agreedUponKey((ECPrivateKey) recipientPrivateKey.getPrivateKey(),
@@ -111,12 +102,13 @@ class JweRecipient implements WebEncryptionRecipient {
 	/**
 	 * Decrypts the content encryption key (CEK)
 	 * 
+	 * @param encryption content encryption algorithm
 	 * @param recipient  in-progress recipient builder
 	 * @param privateKey private key
 	 * @return content encryption key
 	 */
 	@SuppressWarnings("deprecation")
-	byte[] decryptCek(Jwk privateKey) {
+	byte[] decryptCek(Encryption encryption, Jwk privateKey) {
 		// 5.2#7 Verify that the JWE uses a key known to the recipient.
 		final var recipientPublicKey = header.wellKnown();
 		if (recipientPublicKey != null && !recipientPublicKey.represents(privateKey))
@@ -130,16 +122,15 @@ class JweRecipient implements WebEncryptionRecipient {
 
 			// 5.2#11 use shared key as CEK for direct encryption
 			final var cek = Objects.requireNonNull(privateKey.getKey(), "DIRECT requires a secret key");
-			final var enc = encryption.getEncryption();
-			if (cek.length != enc.size / 8)
-				throw new IllegalArgumentException("Invalid key size for " + enc);
+			if (cek.length != encryption.size / 8)
+				throw new IllegalArgumentException("Invalid key size for " + encryption);
 		} else if (algorithm.equals(Algorithm.ECDH_ES))
 			// 5.2#10 verify that the JWE Encrypted Key value is an empty
 			if (encryptedKey != null)
 				throw new IllegalArgumentException("encrypted key must be empty for " + algorithm);
 			else
 				// 5.2#8 use agreed upon key as CEK for direct encryption
-				return agreedUponKey(privateKey);
+				return agreedUponKey(encryption, privateKey);
 
 		// 5.2#9 encrypt CEK to the recipient
 		Objects.requireNonNull(encryptedKey, "encrypted key required for " + algorithm);
@@ -165,11 +156,15 @@ class JweRecipient implements WebEncryptionRecipient {
 			cek = IuException.unchecked(() -> {
 				final var key = new SecretKeySpec(privateKey.getKey(), "AES");
 
-				final var ext = header.getExtendedParameters();
-				final var iv = EncodingUtils
-						.base64((String) Objects.requireNonNull(ext.get("iv"), "Missing iv header parameter"));
-				final var tag = EncodingUtils
-						.base64((String) Objects.requireNonNull(ext.get("tag"), "Missing tag header parameter"));
+				final var iv = Objects.requireNonNull(header.<byte[]>getExtendedParameter("iv"),
+						"iv required for " + algorithm);
+				if (iv.length != 12)
+					throw new IllegalStateException("iv must be 96 bits");
+
+				final var tag = Objects.requireNonNull(header.<byte[]>getExtendedParameter("tag"),
+						"tag required for " + algorithm);
+				if (tag.length != 16)
+					throw new IllegalStateException("iv must be 128 bits");
 
 				final var wrappedKey = Arrays.copyOf(encryptedKey, encryptedKey.length + 16);
 				System.arraycopy(tag, 0, wrappedKey, encryptedKey.length, 16);
@@ -197,7 +192,7 @@ class JweRecipient implements WebEncryptionRecipient {
 		case ECDH_ES_A256KW:
 			// key agreement with key wrapping
 			cek = IuException.unchecked(() -> {
-				final var key = new SecretKeySpec(agreedUponKey(privateKey), "AES");
+				final var key = new SecretKeySpec(agreedUponKey(encryption, privateKey), "AES");
 				final var cipher = Cipher.getInstance(algorithm.keyAlgorithm);
 				cipher.init(Cipher.UNWRAP_MODE, key);
 				return ((SecretKey) cipher.unwrap(encryptedKey, "AES", Cipher.SECRET_KEY)).getEncoded();
@@ -209,20 +204,6 @@ class JweRecipient implements WebEncryptionRecipient {
 		}
 
 		return cek;
-	}
-
-	/**
-	 * Determines which if a JOSE parameter is protected for this recipient.
-	 * 
-	 * @param name parameter name
-	 * @return true if protected; else false
-	 */
-	boolean isProtected(String name) {
-		if (encryption.isProtected(name))
-			return true;
-
-		final var crit = header.getCriticalExtendedParameters();
-		return crit.contains(name);
 	}
 
 }
