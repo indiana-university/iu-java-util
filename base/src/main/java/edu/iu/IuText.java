@@ -40,42 +40,6 @@ import java.util.Base64;
 public final class IuText {
 
 	/**
-	 * Removes training padding characters from Base-64 encoded data.
-	 * 
-	 * @param b64 Base-64 encoded
-	 * @return encoded data with padding chars removed
-	 */
-	public static String unpad(String b64) {
-		if (b64 == null || b64.isEmpty())
-			return b64;
-		var i = b64.length() - 1;
-		while (i > 0 && b64.charAt(i) == '=')
-			i--;
-		return b64.substring(0, i + 1);
-	}
-
-	/**
-	 * Restores padding characters to Base-64 encoded data.
-	 * 
-	 * @param b64 Base-64 encoded
-	 * @return encoded data with padding chars restored
-	 */
-	public static String pad(String b64) {
-		if (b64 == null || b64.isEmpty())
-			return b64;
-		switch (b64.length() % 4) {
-		case 1:
-			return b64 + "===";
-		case 2:
-			return b64 + "==";
-		case 3:
-			return b64 + "=";
-		default:
-			return b64;
-		}
-	}
-
-	/**
 	 * Encodes binary data as basic Base64.
 	 * 
 	 * @param data binary data
@@ -99,43 +63,6 @@ public final class IuText {
 			return null;
 		else
 			return Base64.getDecoder().decode(data);
-	}
-
-	/**
-	 * Encodes binary data as Base64 with URL encoding and padding chars stripped.
-	 * 
-	 * <p>
-	 * This method implements specific padding and null-handling semantics to
-	 * support JWS and JWE serialization methods in the iu.util.crypt module.
-	 * </p>
-	 * 
-	 * @param data binary data
-	 * @return encoded {@link String}; empty string if data is null
-	 */
-	public static String base64Url(byte[] data) {
-		if (data == null || data.length == 0)
-			return "";
-		else
-			return unpad(Base64.getUrlEncoder().encodeToString(data));
-	}
-
-	/**
-	 * Decodes binary data from Base64 with URL encoding scheme and padding chars
-	 * stripped.
-	 * 
-	 * <p>
-	 * This method implements specific padding and null-handling semantics to
-	 * support JWS and JWE serialization methods in the iu.util.crypt module.
-	 * </p>
-	 * 
-	 * @param data encoded {@link String}
-	 * @return binary data; null if data is empty or null
-	 */
-	public static byte[] base64Url(String data) {
-		if (data == null || data.isBlank())
-			return null;
-		else
-			return Base64.getUrlDecoder().decode(pad(data));
 	}
 
 	/**

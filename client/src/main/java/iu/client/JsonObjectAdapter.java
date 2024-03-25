@@ -31,46 +31,61 @@
  */
 package iu.client;
 
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.Date;
-import java.util.SimpleTimeZone;
-import java.util.TimeZone;
+import java.util.Map;
+import java.util.function.Supplier;
 
+import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonObject;
 import jakarta.json.JsonValue;
 
 /**
- * Implements {@link IuJsonAdapter} for {@link Date}
+ * Adapts to/from {@link JsonObject} values.
+ * 
+ * @param <T> target type
+ * @param <V> value type
  */
-class TimeZoneJsonAdapter implements IuJsonAdapter<TimeZone> {
+class JsonObjectAdapter<T extends Map<String, V>, V> implements IuJsonAdapter<T> {
+
+	private final IuJsonAdapter<V> valueAdapter;
+	private final Supplier<T> factory;
 
 	/**
-	 * Singleton instance.
+	 * Constructor
+	 * 
+	 * @param itemAdapter item adapter
+	 * @param factory     supplies a new map instance
 	 */
-	static final TimeZoneJsonAdapter INSTANCE = new TimeZoneJsonAdapter();
-
-	private TimeZoneJsonAdapter() {
+	protected JsonObjectAdapter(IuJsonAdapter<V> itemAdapter, Supplier<T> factory) {
+		this.valueAdapter = itemAdapter;
+		this.factory = factory;
 	}
 
 	@Override
-	public TimeZone fromJson(JsonValue value) {
-		final var text = TextJsonAdapter.INSTANCE.fromJson(value);
-		if (text == null)
+	public T fromJson(JsonValue jsonValue) {
+		if (jsonValue == null //
+				|| JsonValue.NULL.equals(jsonValue))
 			return null;
-		else {
-			final var id = ZoneId.of(text);
-			final var now = LocalDateTime.now().atZone(id);
-			return new SimpleTimeZone(now.getOffset().getTotalSeconds() * 1000, id.getId());
-		}
+
+		final var valueAdapter = this.valueAdapter == null ? IuJsonAdapter.<V>basic() : this.valueAdapter;
+		final var map = factory.get();
+		for (final var e : jsonValue.asJsonObject().entrySet())
+			map.put(e.getKey(), valueAdapter.fromJson(e.getValue()));
+		return map;
 	}
 
 	@Override
-	public JsonValue toJson(TimeZone value) {
-		if (value == null)
+	public JsonValue toJson(T javaValue) {
+		if (javaValue == null)
 			return JsonValue.NULL;
-		else
-			return TextJsonAdapter.INSTANCE.toJson(value.getID());
+
+		final var a = IuJson.object();
+		for (final var e : javaValue.entrySet()) {
+			final var v = e.getValue();
+			final var valueAdapter = this.valueAdapter == null ? IuJsonAdapter.of(v) : this.valueAdapter;
+			a.add(e.getKey(), valueAdapter.toJson(v));
+		}
+		return a.build();
 	}
 
 }

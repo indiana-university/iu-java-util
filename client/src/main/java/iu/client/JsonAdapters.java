@@ -1,3 +1,34 @@
+/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package iu.client;
 
 import java.lang.reflect.Array;
@@ -28,30 +59,39 @@ import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Deque;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.NavigableSet;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.Queue;
 import java.util.Set;
 import java.util.SimpleTimeZone;
+import java.util.SortedMap;
+import java.util.SortedSet;
 import java.util.TimeZone;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.WeakHashMap;
 import java.util.function.IntFunction;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import edu.iu.IuException;
 import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonValue;
 
 /**
  * Provides standard {@link IuJsonAdapter} instances.
  */
 public final class JsonAdapters {
 
-	private static final Set<Class<?>> BASIC_TYPES = Set.of(Object.class, Boolean.class, BigDecimal.class,
-			Number.class);
 	private static final Map<Class<?>, Class<?>> ARRAY_TYPES = new WeakHashMap<>();
 
 	/**
@@ -65,36 +105,43 @@ public final class JsonAdapters {
 	public static IuJsonAdapter adapt(Type type, IuJsonAdapter valueAdapter) {
 		Class erased = erase(type);
 
-		if (BASIC_TYPES.contains(erased))
+		if (erased == Object.class)
 			return BasicJsonAdapter.INSTANCE;
 
+		if (erased == Boolean.class)
+			return BooleanJsonAdapter.INSTANCE;
 		if (erased == boolean.class)
-			return PrimitiveJsonAdapter.of(erased, BasicJsonAdapter.INSTANCE);
+			return BooleanJsonAdapter.PRIMITIVE;
 
+		if (erased == BigDecimal.class //
+				|| erased == Number.class)
+			return NumberAdapter.BIG_DECIMAL;
+		if (erased == BigInteger.class)
+			return NumberAdapter.BIG_INTEGER;
 		if (erased == Byte.class)
-			return ByteJsonAdapter.INSTANCE;
+			return NumberAdapter.BYTE;
 		if (erased == byte.class)
-			return PrimitiveJsonAdapter.of(erased, ByteJsonAdapter.INSTANCE);
+			return NumberAdapter.BYTE_PRIMITIVE;
 		if (erased == Double.class)
-			return DoubleJsonAdapter.INSTANCE;
+			return NumberAdapter.DOUBLE;
 		if (erased == double.class)
-			return PrimitiveJsonAdapter.of(erased, DoubleJsonAdapter.INSTANCE);
+			return NumberAdapter.DOUBLE_PRIMITIVE;
 		if (erased == Float.class)
-			return FloatJsonAdapter.INSTANCE;
+			return NumberAdapter.FLOAT;
 		if (erased == float.class)
-			return PrimitiveJsonAdapter.of(erased, FloatJsonAdapter.INSTANCE);
+			return NumberAdapter.FLOAT_PRIMITIVE;
 		if (erased == Long.class)
-			return LongJsonAdapter.INSTANCE;
+			return NumberAdapter.LONG;
 		if (erased == long.class)
-			return PrimitiveJsonAdapter.of(erased, LongJsonAdapter.INSTANCE);
+			return NumberAdapter.LONG_PRIMITIVE;
 		if (erased == Integer.class)
-			return IntJsonAdapter.INSTANCE;
+			return NumberAdapter.INT;
 		if (erased == int.class)
-			return PrimitiveJsonAdapter.of(erased, IntJsonAdapter.INSTANCE);
+			return NumberAdapter.INT_PRIMITIVE;
 		if (erased == Short.class)
-			return ShortJsonAdapter.INSTANCE;
+			return NumberAdapter.SHORT;
 		if (erased == short.class)
-			return PrimitiveJsonAdapter.of(erased, ShortJsonAdapter.INSTANCE);
+			return NumberAdapter.SHORT_PRIMITIVE;
 
 		if (erased == CharSequence.class //
 				|| erased == String.class)
@@ -102,8 +149,6 @@ public final class JsonAdapters {
 
 		if (erased == byte[].class)
 			return BinaryJsonAdapter.INSTANCE;
-		if (erased == BigInteger.class)
-			return BigIntegerJsonAdapter.INSTANCE;
 		if (erased == ByteBuffer.class)
 			return ByteBufferJsonAdapter.INSTANCE;
 
@@ -161,29 +206,75 @@ public final class JsonAdapters {
 			return new ArrayAdapter(IuJsonAdapter.of(item), factory);
 		}
 
-		if (erased == List.class //
-				|| erased == ArrayList.class)
+		if (Iterable.class.isAssignableFrom(erased) //
+				|| erased == Enumeration.class //
+				|| erased == Iterator.class //
+				|| erased == Stream.class) {
+			final IuJsonAdapter itemAdapter;
 			if (valueAdapter != null)
-				return new ListAdapter(valueAdapter);
+				itemAdapter = valueAdapter;
 			else if (type instanceof ParameterizedType)
-				return new ListAdapter(IuJsonAdapter.of(item(type)));
+				itemAdapter = IuJsonAdapter.of(item(type));
 			else
-				return ListAdapter.INSTANCE;
+				itemAdapter = null;
 
-		if (erased == Iterable.class //
-				|| erased == Collection.class //
-				|| erased == Queue.class //
-				|| erased == Deque.class //
-				|| erased == ArrayDeque.class)
-			if (valueAdapter != null)
-				return new DequeAdapter(valueAdapter);
-			else if (type instanceof ParameterizedType)
-				return new DequeAdapter(IuJsonAdapter.of(item(type)));
-			else
-				return DequeAdapter.INSTANCE;
+			if (erased == Iterable.class)
+				return new IterableAdapter(itemAdapter);
 
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+			if (erased == Collection.class //
+					|| erased == Queue.class //
+					|| erased == Deque.class //
+					|| erased == ArrayDeque.class)
+				return new CollectionAdapter(itemAdapter, ArrayDeque::new);
+
+			if (erased == List.class //
+					|| erased == ArrayList.class)
+				return new CollectionAdapter(itemAdapter, ArrayList::new);
+
+			if (erased == Set.class //
+					|| erased == LinkedHashSet.class)
+				return new CollectionAdapter(itemAdapter, LinkedHashSet::new);
+
+			if (erased == SortedSet.class //
+					|| erased == NavigableSet.class //
+					|| erased == TreeSet.class)
+				return new CollectionAdapter(itemAdapter, TreeSet::new);
+
+			if (erased == HashSet.class)
+				return new CollectionAdapter(itemAdapter, HashSet::new);
+
+			if (erased == Enumeration.class)
+				return new EnumerationAdapter(itemAdapter);
+			if (erased == Iterator.class)
+				return new IteratorAdapter(itemAdapter);
+			if (erased == Stream.class)
+				return new StreamAdapter(itemAdapter);
+		}
+
+		if (Map.class.isAssignableFrom(erased)) {
+			if (valueAdapter == null)
+				if (type instanceof ParameterizedType)
+					valueAdapter = IuJsonAdapter.of(item(type));
+				else
+					valueAdapter = null;
+
+			if (erased == Map.class //
+					|| erased == LinkedHashMap.class)
+				return new JsonObjectAdapter(valueAdapter, LinkedHashMap::new);
+
+			if (erased == HashMap.class)
+				return new JsonObjectAdapter(valueAdapter, HashMap::new);
+
+			if (erased == SortedMap.class //
+					|| erased == NavigableMap.class //
+					|| erased == TreeMap.class)
+				return new JsonObjectAdapter(valueAdapter, TreeMap::new);
+
+			if (erased == Properties.class)
+				return new JsonObjectAdapter(valueAdapter, Properties::new);
+		}
+
+		throw new UnsupportedOperationException("Unsupported for JSON conversion: " + type);
 	}
 
 	private static Class<?> erase(Type type) {
@@ -203,24 +294,16 @@ public final class JsonAdapters {
 			return erase(((ParameterizedType) type).getRawType());
 		else if (type instanceof TypeVariable)
 			return erase(((TypeVariable<?>) type).getBounds()[0]);
-		else if (type instanceof WildcardType)
+		else // if (type instanceof WildcardType)
 			return erase(((WildcardType) type).getUpperBounds()[0]);
-		else
-			throw new UnsupportedOperationException();
 	}
 
 	private static Class<?> item(Type type) {
-		if (type == JsonObject.class || type == JsonArray.class)
-			return JsonValue.class;
-		else if (type instanceof Class) {
-			final var c = (Class<?>) type;
-			if (c.isArray())
-				return c.getComponentType();
-			else
-				return Object.class;
+		if (type instanceof Class) {
+			return ((Class<?>) type).getComponentType();
 		} else if (type instanceof GenericArrayType)
 			return erase(((GenericArrayType) type).getGenericComponentType());
-		else if (type instanceof ParameterizedType) {
+		else {
 			// assumes erase() was invoked and returned a supported type first
 			final var p = (ParameterizedType) type;
 			final var raw = erase(p);
@@ -228,8 +311,7 @@ public final class JsonAdapters {
 				return erase(p.getActualTypeArguments()[1]);
 			else
 				return erase(p.getActualTypeArguments()[0]);
-		} else
-			return Object.class;
+		}
 	}
 
 	private JsonAdapters() {

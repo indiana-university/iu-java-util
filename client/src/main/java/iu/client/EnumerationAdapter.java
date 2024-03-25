@@ -31,46 +31,46 @@
  */
 package iu.client;
 
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.Date;
-import java.util.SimpleTimeZone;
-import java.util.TimeZone;
+import java.util.Enumeration;
+import java.util.Iterator;
 
 import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonValue;
 
 /**
- * Implements {@link IuJsonAdapter} for {@link Date}
+ * Adapts {@link Enumeration} values.
+ * 
+ * @param <E> element type
  */
-class TimeZoneJsonAdapter implements IuJsonAdapter<TimeZone> {
+class EnumerationAdapter<E> extends JsonArrayAdapter<Enumeration<E>, E> {
 
 	/**
-	 * Singleton instance.
+	 * Constructor
+	 * 
+	 * @param itemAdapter item adapter
+	 * @param factory     creates a new collection
 	 */
-	static final TimeZoneJsonAdapter INSTANCE = new TimeZoneJsonAdapter();
-
-	private TimeZoneJsonAdapter() {
+	protected EnumerationAdapter(IuJsonAdapter<E> itemAdapter) {
+		super(itemAdapter);
 	}
 
 	@Override
-	public TimeZone fromJson(JsonValue value) {
-		final var text = TextJsonAdapter.INSTANCE.fromJson(value);
-		if (text == null)
-			return null;
-		else {
-			final var id = ZoneId.of(text);
-			final var now = LocalDateTime.now().atZone(id);
-			return new SimpleTimeZone(now.getOffset().getTotalSeconds() * 1000, id.getId());
-		}
+	protected Iterator<E> iterator(Enumeration<E> value) {
+		return value.asIterator();
 	}
 
 	@Override
-	public JsonValue toJson(TimeZone value) {
-		if (value == null)
-			return JsonValue.NULL;
-		else
-			return TextJsonAdapter.INSTANCE.toJson(value.getID());
+	protected Enumeration<E> collect(Iterator<E> items) {
+		return new Enumeration<>() {
+			@Override
+			public boolean hasMoreElements() {
+				return items.hasNext();
+			}
+
+			@Override
+			public E nextElement() {
+				return items.next();
+			}
+		};
 	}
 
 }

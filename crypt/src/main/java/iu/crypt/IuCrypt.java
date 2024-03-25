@@ -29,14 +29,16 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu;
+package iu.crypt;
 
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.util.Arrays;
 
+import edu.iu.IuException;
+
 /**
- * Low-level crypto utilities.
+ * Provides low-level cryptography and binary encoding functions.
  */
 public class IuCrypt {
 

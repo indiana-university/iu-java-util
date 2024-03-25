@@ -29,44 +29,43 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu;
+package iu.crypt;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.IdGenerator;
+import edu.iu.IuText;
+import iu.crypt.IuCrypt;
+
 @SuppressWarnings("javadoc")
-public class IuTextTest {
+public class IuCryptTest {
 
 	@Test
-	public void testUtf8() {
-		assertEquals("foobar", IuText.utf8(IuText.utf8("foobar")));
-		assertNull(IuText.utf8((byte[]) null));
-		assertNull(IuText.utf8((String) null));
-		assertEquals("", IuText.utf8(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.utf8(""));
+	public void testSha1() throws NoSuchAlgorithmException {
+		final var data = IuText.utf8(IdGenerator.generateId());
+		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha1(data)),
+				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-1").digest(data)));
+		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha1(null)),
+				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-1").digest(new byte[0])));
+		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha1(new byte[0])),
+				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-1").digest(new byte[0])));
 	}
 
 	@Test
-	public void testAscii() {
-		assertEquals("foobar", IuText.ascii(IuText.ascii("foobar")));
-		assertNull(IuText.ascii((byte[]) null));
-		assertNull(IuText.ascii((String) null));
-		assertEquals("", IuText.ascii(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.ascii(""));
+	public void testSha256() throws NoSuchAlgorithmException {
+		final var data = IuText.utf8(IdGenerator.generateId());
+		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha256(data)),
+				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(data)));
+		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha256(null)),
+				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(new byte[0])));
+		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha256(new byte[0])),
+				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(new byte[0])));
 	}
-
-	@Test
-	public void testBase64() {
-		assertEquals("Zm9vYmFy", IuText.base64(IuText.utf8("foobar")));
-		assertEquals("foobar", IuText.utf8(IuText.base64("Zm9vYmFy")));
-		assertNull(IuText.base64((byte[]) null));
-		assertNull(IuText.base64((String) null));
-		assertEquals("", IuText.base64(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.base64(""));
-	}
-
-
+	
 }

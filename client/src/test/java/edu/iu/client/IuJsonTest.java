@@ -1,3 +1,34 @@
+/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package edu.iu.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -119,4 +150,25 @@ public class IuJsonTest {
 		assertInstanceOf(JsonObjectBuilder.class, o);
 		assertEquals(1, o2.build().getInt("a"));
 	}
+
+	@Test
+	public void testBoolean() {
+		assertEquals(JsonValue.TRUE, IuJson.bool(true));
+		assertEquals(JsonValue.FALSE, IuJson.bool(false));
+	}
+
+	@Test
+	public void testConditionalArray() {
+		final var a = IuJson.array();
+		IuJson.add(a, "foo", () -> true);
+		IuJson.add(a, "bar", () -> false);
+		assertEquals("[\"foo\"]", a.build().toString());
+	}
+
+	@Test
+	public void testAdaptedGet() {
+		final var o = IuJson.object().add("url", "http://localhost").build();
+		assertEquals(URI.create("http://localhost"), IuJson.get(o, "url", IuJsonAdapter.of(URI.class)));
+	}
+
 }

@@ -31,46 +31,41 @@
  */
 package iu.client;
 
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.Date;
-import java.util.SimpleTimeZone;
-import java.util.TimeZone;
+import java.util.ArrayDeque;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Queue;
 
 import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonValue;
 
 /**
- * Implements {@link IuJsonAdapter} for {@link Date}
+ * Adapts {@link Collection} values.
+ * 
+ * @param <E> element type
  */
-class TimeZoneJsonAdapter implements IuJsonAdapter<TimeZone> {
+class IterableAdapter<E> extends JsonArrayAdapter<Iterable<E>, E> {
 
 	/**
-	 * Singleton instance.
+	 * Constructor
+	 * 
+	 * @param itemAdapter item adapter
+	 * @param factory     creates a new collection
 	 */
-	static final TimeZoneJsonAdapter INSTANCE = new TimeZoneJsonAdapter();
-
-	private TimeZoneJsonAdapter() {
+	protected IterableAdapter(IuJsonAdapter<E> itemAdapter) {
+		super(itemAdapter);
 	}
 
 	@Override
-	public TimeZone fromJson(JsonValue value) {
-		final var text = TextJsonAdapter.INSTANCE.fromJson(value);
-		if (text == null)
-			return null;
-		else {
-			final var id = ZoneId.of(text);
-			final var now = LocalDateTime.now().atZone(id);
-			return new SimpleTimeZone(now.getOffset().getTotalSeconds() * 1000, id.getId());
-		}
+	protected Iterator<E> iterator(Iterable<E> value) {
+		return value.iterator();
 	}
 
 	@Override
-	public JsonValue toJson(TimeZone value) {
-		if (value == null)
-			return JsonValue.NULL;
-		else
-			return TextJsonAdapter.INSTANCE.toJson(value.getID());
+	protected Iterable<E> collect(Iterator<E> items) {
+		final Queue<E> list = new ArrayDeque<>();
+		while (items.hasNext())
+			list.offer(items.next());
+		return list;
 	}
 
 }

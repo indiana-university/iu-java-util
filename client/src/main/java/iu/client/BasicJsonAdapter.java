@@ -1,12 +1,44 @@
+/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package iu.client;
 
-import java.lang.reflect.Array;
-import java.util.Collections;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import edu.iu.client.IuJson;
@@ -29,14 +61,27 @@ class BasicJsonAdapter implements IuJsonAdapter<Object> {
 	 */
 	static BasicJsonAdapter INSTANCE = new BasicJsonAdapter();
 
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private final IuJsonAdapter<List<?>> listAdapter = new CollectionAdapter(null, ArrayList::new);
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private final IuJsonAdapter<Iterable<?>> iterableAdapter = new IterableAdapter(null);
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private final IuJsonAdapter<Iterable<?>> collectionAdapter = new CollectionAdapter(null, ArrayDeque::new);
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private final IuJsonAdapter<Iterator<?>> iteratorAdapter = new IteratorAdapter(null);
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private final IuJsonAdapter<Enumeration<?>> enumerationAdapter = new EnumerationAdapter(null);
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private final IuJsonAdapter<Stream<?>> streamAdapter = new StreamAdapter(null);
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private final IuJsonAdapter<Map<?, ?>> mapAdapter = new JsonObjectAdapter(null, LinkedHashMap::new);
+
 	@Override
 	public Object fromJson(JsonValue value) {
-		if (value instanceof JsonObject) {
-			final Map<String, Object> m = new LinkedHashMap<>();
-			((JsonObject) value).forEach((k, v) -> m.put(k, fromJson(v)));
-			return Collections.unmodifiableMap(m);
-		} else if (value instanceof JsonArray)
-			return ((JsonArray) value).stream().map(this::fromJson).collect(Collectors.toUnmodifiableList());
+		if (value instanceof JsonArray)
+			return listAdapter.fromJson(value);
+		else if (value instanceof JsonObject)
+			return mapAdapter.fromJson(value);
 		else if (value instanceof JsonString)
 			return ((JsonString) value).getString();
 		else if (value instanceof JsonNumber)
@@ -45,13 +90,12 @@ class BasicJsonAdapter implements IuJsonAdapter<Object> {
 			return Boolean.TRUE;
 		else if (JsonValue.FALSE.equals(value))
 			return Boolean.FALSE;
-		else if (JsonValue.NULL.equals(value) || value == null)
+		else // (JsonValue.NULL.equals(value) || value == null)
 			return null;
-		else
-			throw new IllegalArgumentException();
 	}
 
 	@Override
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public JsonValue toJson(Object value) {
 		if (value == null)
 			return JsonValue.NULL;
@@ -62,17 +106,21 @@ class BasicJsonAdapter implements IuJsonAdapter<Object> {
 		else if (value instanceof JsonArrayBuilder)
 			return ((JsonArrayBuilder) value).build();
 		else if (value instanceof Map)
-			return convertMap((Map<?, ?>) value);
+			return mapAdapter.toJson((Map<?, ?>) value);
 		else if (value.getClass().isArray())
-			return convertArray(value);
-		else if (value instanceof Stream)
-			return convertIterator(((Stream<?>) value).iterator());
+			return new ArrayAdapter(null, null).toJson(value);
+		else if (value instanceof List)
+			return listAdapter.toJson((List<?>) value);
+		else if (value instanceof Collection)
+			return collectionAdapter.toJson((Iterable<?>) value);
 		else if (value instanceof Iterable)
-			return convertIterator(((Iterable<?>) value).iterator());
+			return iterableAdapter.toJson((Iterable<?>) value);
 		else if (value instanceof Iterator)
-			return convertIterator((Iterator<?>) value);
+			return iteratorAdapter.toJson((Iterator<?>) value);
 		else if (value instanceof Enumeration)
-			return convertIterator(((Enumeration<?>) value).asIterator());
+			return enumerationAdapter.toJson((Enumeration<?>) value);
+		else if (value instanceof Stream)
+			return streamAdapter.toJson((Stream<?>) value);
 		else if (value instanceof String)
 			return IuJson.PROVIDER.createValue((String) value);
 		else if (value instanceof Number)
@@ -83,37 +131,6 @@ class BasicJsonAdapter implements IuJsonAdapter<Object> {
 			return JsonValue.FALSE;
 		else
 			throw new IllegalArgumentException();
-	}
-
-	private static JsonValue convertMap(Map<?, ?> map) {
-		final var builder = IuJson.object();
-		for (final var entry : map.entrySet()) {
-			final var name = (String) entry.getKey();
-			final var value = entry.getValue();
-			final var valueAdapter = IuJsonAdapter.of(value);
-			builder.add(name, valueAdapter.toJson(value));
-		}
-		return builder.build();
-	}
-
-	private static JsonValue convertArray(Object array) {
-		final var builder = IuJson.array();
-		for (int i = 0; i < Array.getLength(array); i++) {
-			final var item = Array.get(array, i);
-			final var itemAdapter = IuJsonAdapter.of(item);
-			builder.add(itemAdapter.toJson(item));
-		}
-		return builder.build();
-	}
-
-	private static JsonValue convertIterator(Iterator<?> iterator) {
-		final var builder = IuJson.array();
-		while (iterator.hasNext()) {
-			final var item = iterator.next();
-			final var itemAdapter = IuJsonAdapter.of(item);
-			builder.add(itemAdapter.toJson(item));
-		}
-		return builder.build();
 	}
 
 	private BasicJsonAdapter() {

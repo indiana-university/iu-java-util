@@ -29,39 +29,38 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu;
+package iu.client;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.Iterator;
+import java.util.stream.Stream;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Base64;
+import edu.iu.client.IuJsonAdapter;
 
-import org.junit.jupiter.api.Test;
+/**
+ * Adapts {@link Stream} values.
+ * 
+ * @param <E> element type
+ */
+class IteratorAdapter<E> extends JsonArrayAdapter<Iterator<E>, E> {
 
-@SuppressWarnings("javadoc")
-public class IuCryptTest {
-
-	@Test
-	public void testSha1() throws NoSuchAlgorithmException {
-		final var data = IuText.utf8(IdGenerator.generateId());
-		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha1(data)),
-				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-1").digest(data)));
-		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha1(null)),
-				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-1").digest(new byte[0])));
-		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha1(new byte[0])),
-				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-1").digest(new byte[0])));
+	/**
+	 * Constructor
+	 * 
+	 * @param itemAdapter item adapter
+	 * @param factory     creates a new collection
+	 */
+	protected IteratorAdapter(IuJsonAdapter<E> itemAdapter) {
+		super(itemAdapter);
 	}
 
-	@Test
-	public void testSha256() throws NoSuchAlgorithmException {
-		final var data = IuText.utf8(IdGenerator.generateId());
-		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha256(data)),
-				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(data)));
-		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha256(null)),
-				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(new byte[0])));
-		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha256(new byte[0])),
-				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(new byte[0])));
+	@Override
+	protected Iterator<E> iterator(Iterator<E> value) {
+		return value;
 	}
-	
+
+	@Override
+	protected Iterator<E> collect(Iterator<E> items) {
+		return items;
+	}
+
 }

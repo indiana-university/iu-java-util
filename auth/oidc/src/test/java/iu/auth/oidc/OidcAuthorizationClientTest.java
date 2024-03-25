@@ -74,7 +74,6 @@ import com.auth0.jwt.algorithms.Algorithm;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuAuthorizationFailedException;
-import edu.iu.IuCrypt;
 import edu.iu.IuText;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
@@ -87,6 +86,7 @@ import edu.iu.crypt.WebKey;
 import edu.iu.test.IuTestLogger;
 import iu.auth.util.AccessTokenVerifier;
 import iu.auth.util.WellKnownKeySet;
+import iu.crypt.IuCrypt;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 

@@ -55,7 +55,6 @@ import com.auth0.jwt.interfaces.DecodedJWT;
 import edu.iu.IdGenerator;
 import edu.iu.IuAuthorizationFailedException;
 import edu.iu.IuBadRequestException;
-import edu.iu.IuCrypt;
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
@@ -73,6 +72,7 @@ import edu.iu.client.IuHttp;
 import iu.auth.util.AccessTokenVerifier;
 import iu.auth.util.HttpUtils;
 import iu.auth.util.PrincipalVerifierRegistry;
+import iu.crypt.IuCrypt;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
 

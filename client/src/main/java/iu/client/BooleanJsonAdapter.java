@@ -31,46 +31,52 @@
  */
 package iu.client;
 
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.Date;
-import java.util.SimpleTimeZone;
-import java.util.TimeZone;
-
 import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonNumber;
+import jakarta.json.JsonString;
+import jakarta.json.JsonStructure;
 import jakarta.json.JsonValue;
 
 /**
- * Implements {@link IuJsonAdapter} for {@link Date}
+ * Implements {@link IuJsonAdapter} for {@link Long}
  */
-class TimeZoneJsonAdapter implements IuJsonAdapter<TimeZone> {
+class BooleanJsonAdapter implements IuJsonAdapter<Boolean> {
 
 	/**
-	 * Singleton instance.
+	 * Adapts {@link Boolean}
 	 */
-	static final TimeZoneJsonAdapter INSTANCE = new TimeZoneJsonAdapter();
-
-	private TimeZoneJsonAdapter() {
+	static BooleanJsonAdapter INSTANCE = new BooleanJsonAdapter(null);
+	
+	/**
+	 * Adapts {@link Boolean#TYPE}
+	 */
+	static BooleanJsonAdapter PRIMITIVE = new BooleanJsonAdapter(false);
+	
+	private final Boolean nullValue;
+	
+	private BooleanJsonAdapter(Boolean nullValue) {
+		this.nullValue = nullValue;
 	}
 
 	@Override
-	public TimeZone fromJson(JsonValue value) {
-		final var text = TextJsonAdapter.INSTANCE.fromJson(value);
-		if (text == null)
-			return null;
-		else {
-			final var id = ZoneId.of(text);
-			final var now = LocalDateTime.now().atZone(id);
-			return new SimpleTimeZone(now.getOffset().getTotalSeconds() * 1000, id.getId());
-		}
+	public Boolean fromJson(JsonValue value) {
+		if (JsonValue.NULL.equals(value) //
+				|| value == null)
+			return nullValue;
+		else if (value instanceof JsonString)
+			return Boolean.valueOf(TextJsonAdapter.INSTANCE.fromJson(value));
+		else if (value instanceof JsonNumber)
+			return ((JsonNumber) value).intValue() != 0;
+		else
+			return (value instanceof JsonStructure) || JsonValue.TRUE.equals(value);
 	}
 
 	@Override
-	public JsonValue toJson(TimeZone value) {
+	public JsonValue toJson(Boolean value) {
 		if (value == null)
 			return JsonValue.NULL;
 		else
-			return TextJsonAdapter.INSTANCE.toJson(value.getID());
+			return value ? JsonValue.TRUE : JsonValue.FALSE;
 	}
 
 }
