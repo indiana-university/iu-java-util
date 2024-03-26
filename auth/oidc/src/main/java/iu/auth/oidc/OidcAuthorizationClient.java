@@ -72,7 +72,7 @@ import edu.iu.client.IuHttp;
 import iu.auth.util.AccessTokenVerifier;
 import iu.auth.util.HttpUtils;
 import iu.auth.util.PrincipalVerifierRegistry;
-import iu.crypt.IuCrypt;
+import iu.crypt.DigestUtils;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
 
@@ -243,7 +243,7 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 			if (!alg.equals(verifiedIdToken.getAlgorithm()))
 				throw new IllegalArgumentException(alg + " required");
 
-			final var encodedHash = IuCrypt.sha256(IuText.utf8(accessToken));
+			final var encodedHash = DigestUtils.sha256(IuText.utf8(accessToken));
 			final var halfOfEncodedHash = Arrays.copyOf(encodedHash, (encodedHash.length / 2));
 			final var atHashGeneratedfromAccessToken = Base64.getUrlEncoder().withoutPadding()
 					.encodeToString(halfOfEncodedHash);

@@ -86,7 +86,7 @@ import edu.iu.crypt.WebKey;
 import edu.iu.test.IuTestLogger;
 import iu.auth.util.AccessTokenVerifier;
 import iu.auth.util.WellKnownKeySet;
-import iu.crypt.IuCrypt;
+import iu.crypt.DigestUtils;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 
@@ -442,7 +442,7 @@ public class OidcAuthorizationClientTest extends IuOidcTestCase {
 		final var nonce = authCodeAttributes.get("nonce");
 		assertNotNull(nonce);
 
-		final var encodedHash = IuCrypt.sha256(IuText.utf8(accessToken));
+		final var encodedHash = DigestUtils.sha256(IuText.utf8(accessToken));
 		final var wrongAtHash = Base64.getUrlEncoder().withoutPadding().encodeToString(encodedHash);
 
 		final var tokenResponse = mock(IuTokenResponse.class);
@@ -479,7 +479,7 @@ public class OidcAuthorizationClientTest extends IuOidcTestCase {
 		final var nonce = authCodeAttributes.get("nonce");
 		assertNotNull(nonce);
 
-		final var encodedHash = IuCrypt.sha256(IuText.utf8(accessToken));
+		final var encodedHash = DigestUtils.sha256(IuText.utf8(accessToken));
 		final var halfOfEncodedHash = Arrays.copyOf(encodedHash, (encodedHash.length / 2));
 		final var atHash = Base64.getUrlEncoder().withoutPadding().encodeToString(halfOfEncodedHash);
 
@@ -522,7 +522,7 @@ public class OidcAuthorizationClientTest extends IuOidcTestCase {
 		final var nonce = authCodeAttributes.get("nonce");
 		assertNotNull(nonce);
 
-		final var encodedhash = IuCrypt.sha256(IuText.utf8(accessToken));
+		final var encodedhash = DigestUtils.sha256(IuText.utf8(accessToken));
 		final var halfOfEncodedHash = Arrays.copyOf(encodedhash, (encodedhash.length / 2));
 		final var atHash = Base64.getUrlEncoder().withoutPadding().encodeToString(halfOfEncodedHash);
 
@@ -585,7 +585,7 @@ public class OidcAuthorizationClientTest extends IuOidcTestCase {
 		final var nonce = authCodeAttributes.get("nonce");
 		assertNotNull(nonce);
 
-		final var encodedhash = IuCrypt.sha256(IuText.utf8(accessToken));
+		final var encodedhash = DigestUtils.sha256(IuText.utf8(accessToken));
 		final var halfOfEncodedHash = Arrays.copyOf(encodedhash, (encodedhash.length / 2));
 		final var atHash = Base64.getUrlEncoder().withoutPadding().encodeToString(halfOfEncodedHash);
 

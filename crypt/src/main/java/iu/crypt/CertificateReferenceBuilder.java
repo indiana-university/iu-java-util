@@ -93,7 +93,7 @@ abstract class CertificateReferenceBuilder<B extends CertificateReferenceBuilder
 
 		final var cert = getCert();
 		if (cert != null //
-				&& !Arrays.equals(certificateThumbprint, IuCrypt.sha1(IuException.unchecked(cert::getEncoded))))
+				&& !Arrays.equals(certificateThumbprint, DigestUtils.sha1(IuException.unchecked(cert::getEncoded))))
 			throw new IllegalArgumentException("SHA-1 thumbprint mismatch");
 
 		this.certificateThumbprint = certificateThumbprint;
@@ -111,7 +111,7 @@ abstract class CertificateReferenceBuilder<B extends CertificateReferenceBuilder
 
 		final var cert = getCert();
 		if (cert != null //
-				&& !Arrays.equals(certificateSha256Thumbprint, IuCrypt.sha256(IuException.unchecked(cert::getEncoded))))
+				&& !Arrays.equals(certificateSha256Thumbprint, DigestUtils.sha256(IuException.unchecked(cert::getEncoded))))
 			throw new IllegalArgumentException("SHA-256 thumbprint mismatch");
 
 		this.certificateSha256Thumbprint = certificateSha256Thumbprint;
@@ -134,10 +134,10 @@ abstract class CertificateReferenceBuilder<B extends CertificateReferenceBuilder
 
 		final var cert = certChain[0];
 		if (certificateThumbprint != null //
-				&& !Arrays.equals(certificateThumbprint, IuCrypt.sha1(IuException.unchecked(cert::getEncoded))))
+				&& !Arrays.equals(certificateThumbprint, DigestUtils.sha1(IuException.unchecked(cert::getEncoded))))
 			throw new IllegalArgumentException("SHA-1 thumbprint mismatch");
 		if (certificateSha256Thumbprint != null //
-				&& !Arrays.equals(certificateSha256Thumbprint, IuCrypt.sha256(IuException.unchecked(cert::getEncoded))))
+				&& !Arrays.equals(certificateSha256Thumbprint, DigestUtils.sha256(IuException.unchecked(cert::getEncoded))))
 			throw new IllegalArgumentException("SHA-256 thumbprint mismatch");
 	}
 

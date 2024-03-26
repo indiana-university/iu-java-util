@@ -195,10 +195,10 @@ final class Jose implements WebCryptoHeader {
 			if (key != null && !key.getPublicKey().equals(cert.getPublicKey()))
 				throw new IllegalStateException();
 			if (certificateThumbprint != null && !Arrays.equals(certificateThumbprint,
-					IuException.unchecked(() -> IuCrypt.sha1(cert.getEncoded()))))
+					IuException.unchecked(() -> DigestUtils.sha1(cert.getEncoded()))))
 				throw new IllegalStateException("Certificate SHA-1 thumbprint mismatch");
 			if (certificateSha256Thumbprint != null && !Arrays.equals(certificateSha256Thumbprint,
-					IuException.unchecked(() -> IuCrypt.sha256(cert.getEncoded()))))
+					IuException.unchecked(() -> DigestUtils.sha256(cert.getEncoded()))))
 				throw new IllegalStateException("Certificate SHA-256 thumbprint mismatch");
 		}
 
@@ -334,10 +334,10 @@ final class Jose implements WebCryptoHeader {
 
 		if (cert != null) {
 			if (certificateThumbprint != null && !Arrays.equals(certificateThumbprint,
-					IuException.unchecked(() -> IuCrypt.sha1(cert.getEncoded()))))
+					IuException.unchecked(() -> DigestUtils.sha1(cert.getEncoded()))))
 				throw new IllegalArgumentException();
 			if (certificateSha256Thumbprint != null && !Arrays.equals(certificateSha256Thumbprint,
-					IuException.unchecked(() -> IuCrypt.sha256(cert.getEncoded()))))
+					IuException.unchecked(() -> DigestUtils.sha256(cert.getEncoded()))))
 				throw new IllegalArgumentException();
 
 			final var jwkb = new JwkBuilder();

@@ -31,8 +31,6 @@
  */
 package iu.crypt;
 
-import java.math.BigInteger;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -40,7 +38,6 @@ import java.util.NoSuchElementException;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import jakarta.json.JsonObject;
-import jakarta.json.JsonObjectBuilder;
 
 /**
  * Provides basic internal binary encoding behavior for JSON web crypto
@@ -57,7 +54,7 @@ class EncodingUtils {
 	 * @return {@link JsonObject}
 	 */
 	static JsonObject compactJson(String data) {
-		return IuJson.parse(IuText.utf8(IuText.base64Url(data))).asJsonObject();
+		return IuJson.parse(IuText.utf8(base64Url(data))).asJsonObject();
 	}
 
 	/**
@@ -142,7 +139,7 @@ class EncodingUtils {
 	 */
 	public static String base64Url(byte[] data) {
 		if (data == null || data.length == 0)
-			return "";
+			return null;
 		else
 			return unpad(Base64.getUrlEncoder().encodeToString(data));
 	}
@@ -166,55 +163,37 @@ class EncodingUtils {
 			return Base64.getUrlDecoder().decode(pad(data));
 	}
 
+	/**
+	 * Copies an integer into a byte array as 32-bit big-endian.
+	 * 
+	 * @param value integer to encode
+	 * @param buf   buffer
+	 * @param pos   start position
+	 */
+	public static void bigEndian(int value, byte[] buf, int pos) {
+		buf[pos] = (byte) ((value >>> 24) & 0xff);
+		buf[pos + 1] = (byte) ((value >>> 16) & 0xff);
+		buf[pos + 2] = (byte) ((value >>> 8) & 0xff);
+		buf[pos + 3] = (byte) value;
+	}
 
-//	/**
-//	 * Gets binary data from a JSON object.
-//	 * 
-//	 * @param object {@link JsonObject}
-//	 * @param name   name of a string property containing unpadded Base-64
-//	 *               URL-encoded data.
-//	 * @return binary data
-//	 */
-//	static byte[] getBytes(JsonObject object, String name) {
-//		return IuJson.text(object, name, IuText::base64Url);
-//	}
-//
-//	/**
-//	 * Adds binary data to a JSON object builder.
-//	 * 
-//	 * @param objectBuilder {@link JsonObjectBuilder}
-//	 * @param name          property name
-//	 * @param binaryData    data to add as an unpadded Base-64 URL-encoded string.
-//	 */
-//	static void setBytes(JsonObjectBuilder objectBuilder, String name, byte[] binaryData) {
-//		IuJson.add(objectBuilder, name, () -> binaryData, a -> IuJson.toJson(IuText.base64Url(a)));
-//	}
-//
-//	/**
-//	 * Gets a {@link BigInteger} value from a JSON object.
-//	 * 
-//	 * @param object
-//	 * @param name   name of string property containing the unpadded positive
-//	 *               big-endian Base-64 URL-encoded representation of the
-//	 *               {@link BigInteger}
-//	 * @return {@link BigInteger}
-//	 */
-//	static BigInteger getBigInt(JsonObject object, String name) {
-//		return toBigInteger(getBytes(object, name));
-//	}
-//
-//	/**
-//	 * Gets a {@link BigInteger} value from a JSON object.
-//	 * 
-//	 * @param objectBuilder {@link JsonObjectBuilder}
-//	 * @param name          property name
-//	 * @param bigInteger    {@link BigInteger} to add as an unpadded positive
-//	 *                      big-endian Base-64 URL-encoded string.
-//	 */
-//	static void setBigInt(JsonObjectBuilder objectBuilder, String name, BigInteger bigInteger) {
-//		setBytes(objectBuilder, name, (bigInteger));
-//	}
-//
+	/**
+	 * Copies an integer into a byte array as 64-bit big-endian.
+	 * 
+	 * @param value integer to encode
+	 * @param buf   buffer
+	 * @param pos   start position
+	 */
+	public static void bigEndian(long value, byte[] buf, int pos) {
+		buf[pos] = (byte) ((value >>> 56) & 0xff);
+		buf[pos + 1] = (byte) ((value >>> 48) & 0xff);
+		buf[pos + 2] = (byte) ((value >>> 40) & 0xff);
+		buf[pos + 3] = (byte) ((value >>> 32) & 0xff);
+		buf[pos + 4] = (byte) ((value >>> 24) & 0xff);
+		buf[pos + 5] = (byte) ((value >>> 16) & 0xff);
+		buf[pos + 6] = (byte) ((value >>> 8) & 0xff);
+		buf[pos + 7] = (byte) value;
+	}
 
 	/**
 	 * Encodes data in NIST.800-56A Concatenated Key Derivation Format (KDF).
@@ -247,7 +226,7 @@ class EncodingUtils {
 			uinfo = b0;
 		if (uinfo == null)
 			vinfo = b0;
-		
+
 		var buf = new byte[20 + z.length + algid.length + uinfo.length + vinfo.length];
 		var pos = 0;
 

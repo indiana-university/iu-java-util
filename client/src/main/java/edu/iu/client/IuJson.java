@@ -37,6 +37,7 @@ import java.io.StringReader;
 import java.net.http.HttpResponse;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import jakarta.json.JsonArray;
@@ -324,6 +325,33 @@ public class IuJson {
 	 */
 	public static <T> T get(JsonObject object, String name, IuJsonAdapter<T> adapter) {
 		return get(object, name, null, adapter);
+	}
+
+	/**
+	 * Gets a property value from a JSON object, accepting if non-null..
+	 * 
+	 * @param <T>      result type
+	 * @param object   {@link JsonObject}
+	 * @param name     property name
+	 * @param consumer accepts the property value if non-null; else skipped
+	 */
+	public static <T> void get(JsonObject object, String name, Consumer<T> consumer) {
+		get(object, name, IuJsonAdapter.basic(), consumer);
+	}
+
+	/**
+	 * Gets a property value from a JSON object, accepting if non-null..
+	 * 
+	 * @param <T>      result type
+	 * @param object   {@link JsonObject}
+	 * @param name     property name
+	 * @param adapter  JSON type adapter
+	 * @param consumer accepts the property value if non-null; else skipped
+	 */
+	public static <T> void get(JsonObject object, String name, IuJsonAdapter<T> adapter, Consumer<T> consumer) {
+		final var value = get(object, name, null, adapter);
+		if (value != null)
+			consumer.accept(value);
 	}
 
 	/**

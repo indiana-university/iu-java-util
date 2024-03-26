@@ -200,7 +200,13 @@ public final class JsonAdapters {
 		if (erased.isArray()) {
 			final var item = item(type);
 			final IntFunction factory = n -> Array.newInstance(item, n);
-			return new ArrayAdapter(IuJsonAdapter.of(item), factory);
+			final IuJsonAdapter itemAdapter;
+			if (valueAdapter != null)
+				itemAdapter = valueAdapter;
+			else
+				itemAdapter = IuJsonAdapter.of(item);
+
+			return new ArrayAdapter(itemAdapter, factory);
 		}
 
 		if (Iterable.class.isAssignableFrom(erased) //

@@ -31,16 +31,14 @@
  */
 package iu.crypt;
 
-import java.math.BigInteger;
 import java.security.MessageDigest;
-import java.util.Arrays;
 
 import edu.iu.IuException;
 
 /**
- * Provides low-level cryptography and binary encoding functions.
+ * Provides message digest and authentication utilities.
  */
-public class IuCrypt {
+public class DigestUtils {
 
 	private static final ThreadLocal<MessageDigest> SHA1 = new ThreadLocal<MessageDigest>() {
 		@Override
@@ -87,68 +85,6 @@ public class IuCrypt {
 		return SHA256.get().digest(data);
 	}
 
-	/**
-	 * Converts an unsigned big-endian {@link BigInteger} to binary, omitting the
-	 * sign bit if necessary.
-	 * 
-	 * @param bigInteger unsigned big-endian {@link BigInteger}
-	 * @return binary
-	 */
-	public static byte[] bigInt(BigInteger bigInteger) {
-		final var bytes = bigInteger.toByteArray();
-
-		final var bitlen = // ceil(bigInteger.bitLength()/8)
-				(bigInteger.bitLength() + 7) / 8;
-		final var bytelen = bytes.length;
-		if (bytelen > bitlen)
-			return Arrays.copyOfRange(bytes, bytelen - bitlen, bytelen);
-		else
-			return bytes;
+	private DigestUtils() {
 	}
-
-	/**
-	 * Converts binary to unsigned big-endian {@link BigInteger}.
-	 * 
-	 * @param binary binary
-	 * @return unsigned big-endian {@link BigInteger}
-	 */
-	public static BigInteger bigInt(byte[] binary) {
-		return new BigInteger(1, binary);
-	}
-
-	/**
-	 * Copies an integer into a byte array as 32-bit big-endian.
-	 * 
-	 * @param value integer to encode
-	 * @param buf   buffer
-	 * @param pos   start position
-	 */
-	public static void bigEndian(int value, byte[] buf, int pos) {
-		buf[pos] = (byte) ((value >>> 24) & 0xff);
-		buf[pos + 1] = (byte) ((value >>> 16) & 0xff);
-		buf[pos + 2] = (byte) ((value >>> 8) & 0xff);
-		buf[pos + 3] = (byte) value;
-	}
-
-	/**
-	 * Copies an integer into a byte array as 64-bit big-endian.
-	 * 
-	 * @param value integer to encode
-	 * @param buf   buffer
-	 * @param pos   start position
-	 */
-	public static void bigEndian(long value, byte[] buf, int pos) {
-		buf[pos] = (byte) ((value >>> 56) & 0xff);
-		buf[pos + 1] = (byte) ((value >>> 48) & 0xff);
-		buf[pos + 2] = (byte) ((value >>> 40) & 0xff);
-		buf[pos + 3] = (byte) ((value >>> 32) & 0xff);
-		buf[pos + 4] = (byte) ((value >>> 24) & 0xff);
-		buf[pos + 5] = (byte) ((value >>> 16) & 0xff);
-		buf[pos + 6] = (byte) ((value >>> 8) & 0xff);
-		buf[pos + 7] = (byte) value;
-	}
-
-	private IuCrypt() {
-	}
-
 }

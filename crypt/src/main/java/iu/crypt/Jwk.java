@@ -40,16 +40,13 @@ import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
-import java.util.Base64;
 import java.util.Set;
-import java.util.stream.Stream;
 
-import edu.iu.IuException;
 import edu.iu.IuObject;
-import edu.iu.IuText;
 import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
-import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 
 /**
@@ -65,19 +62,19 @@ class Jwk implements WebKey {
 	 * @param priv       private key
 	 */
 	static void writeRSA(JsonObjectBuilder jwkBuilder, RSAPublicKey pub, RSAPrivateKey priv) {
-		EncodingUtils.setBigInt(jwkBuilder, "n", pub.getModulus());
-		EncodingUtils.setBigInt(jwkBuilder, "e", pub.getPublicExponent());
+		IuJson.add(jwkBuilder, "n", pub::getModulus, UnsignedBigInteger.JSON);
+		IuJson.add(jwkBuilder, "e", pub::getPublicExponent, UnsignedBigInteger.JSON);
 		if (priv == null)
 			return;
 
-		jwkBuilder.add("d", IuText.base64Url(priv.getPrivateExponent().toByteArray()));
+		IuJson.add(jwkBuilder, "d", priv::getPrivateExponent, UnsignedBigInteger.JSON);
 		if (priv instanceof RSAPrivateCrtKey) {
 			final var crt = (RSAPrivateCrtKey) priv;
-			EncodingUtils.setBigInt(jwkBuilder, "p", crt.getPrimeP());
-			EncodingUtils.setBigInt(jwkBuilder, "q", crt.getPrimeQ());
-			EncodingUtils.setBigInt(jwkBuilder, "dp", crt.getPrimeExponentP());
-			EncodingUtils.setBigInt(jwkBuilder, "dq", crt.getPrimeExponentQ());
-			EncodingUtils.setBigInt(jwkBuilder, "qi", crt.getCrtCoefficient());
+			IuJson.add(jwkBuilder, "p", crt::getPrimeP, UnsignedBigInteger.JSON);
+			IuJson.add(jwkBuilder, "q", crt::getPrimeQ, UnsignedBigInteger.JSON);
+			IuJson.add(jwkBuilder, "dp", crt::getPrimeExponentP, UnsignedBigInteger.JSON);
+			IuJson.add(jwkBuilder, "dq", crt::getPrimeExponentQ, UnsignedBigInteger.JSON);
+			IuJson.add(jwkBuilder, "qi", crt::getCrtCoefficient, UnsignedBigInteger.JSON);
 			return;
 		}
 	}
@@ -94,11 +91,11 @@ class Jwk implements WebKey {
 		jwkBuilder.add("crv", type.crv);
 
 		final var w = pub.getW();
-		EncodingUtils.setBigInt(jwkBuilder, "x", w.getAffineX());
-		EncodingUtils.setBigInt(jwkBuilder, "y", w.getAffineY());
+		IuJson.add(jwkBuilder, "x", w::getAffineX, UnsignedBigInteger.JSON);
+		IuJson.add(jwkBuilder, "y", w::getAffineY, UnsignedBigInteger.JSON);
 
 		if (priv != null)
-			EncodingUtils.setBigInt(jwkBuilder, "d", priv.getS());
+			IuJson.add(jwkBuilder, "d", priv::getS, UnsignedBigInteger.JSON);
 	}
 
 	private final String id;
@@ -258,15 +255,15 @@ class Jwk implements WebKey {
 	 */
 	void serializeTo(JsonObjectBuilder jwkBuilder) {
 		IuJson.add(jwkBuilder, "kid", id);
-		IuJson.add(jwkBuilder, "use", () -> use, a -> IuJson.toJson(a.use));
-		IuJson.add(jwkBuilder, "kty", () -> type, a -> IuJson.toJson(a.kty));
-		IuJson.add(jwkBuilder, "alg", () -> algorithm, a -> IuJson.toJson(a.alg));
-		IuJson.add(jwkBuilder, "key_ops", () -> ops, a -> IuJson.toJson(a.stream().map(op -> op.keyOp)));
-		IuJson.add(jwkBuilder, "x5u", () -> certificateUri, a -> IuJson.toJson(a.toString()));
-		IuJson.add(jwkBuilder, "x5c", () -> certificateChain, a -> IuJson.toJson(
-				Stream.of(a).map(cert -> Base64.getEncoder().encodeToString(IuException.unchecked(cert::getEncoded)))));
-		EncodingUtils.setBytes(jwkBuilder, "x5t", certificateThumbprint);
-		EncodingUtils.setBytes(jwkBuilder, "x5t#S256", certificateSha256Thumbprint);
+		IuJson.add(jwkBuilder, "use", () -> use, Use.JSON);
+		IuJson.add(jwkBuilder, "kty", () -> type, IuJsonAdapter.to(a -> IuJson.string(a.kty)));
+		IuJson.add(jwkBuilder, "alg", () -> algorithm, Algorithm.JSON);
+		IuJson.add(jwkBuilder, "key_ops", () -> ops, IuJsonAdapter.of(Set.class, Op.JSON));
+		IuJson.add(jwkBuilder, "x5u", () -> certificateUri, IuJsonAdapter.of(URI.class));
+		IuJson.add(jwkBuilder, "x5c", () -> certificateChain,
+				IuJsonAdapter.of(X509Certificate[].class, PemEncoded.CERT_JSON));
+		IuJson.add(jwkBuilder, "x5t", () -> certificateThumbprint, UnpaddedBinary.JSON);
+		IuJson.add(jwkBuilder, "x5t#S256", () -> certificateSha256Thumbprint, UnpaddedBinary.JSON);
 
 		if (publicKey instanceof ECPublicKey) {
 			final Type type;
@@ -278,7 +275,7 @@ class Jwk implements WebKey {
 		} else if (publicKey instanceof RSAPublicKey)
 			writeRSA(jwkBuilder, (RSAPublicKey) publicKey, (RSAPrivateKey) privateKey);
 		else
-			EncodingUtils.setBytes(jwkBuilder, "k", key);
+			IuJson.add(jwkBuilder, "k", () -> key, UnpaddedBinary.JSON);
 	}
 
 	private static boolean eitherNullOrBothEquals(Object a, Object b) {

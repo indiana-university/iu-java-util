@@ -98,18 +98,86 @@ import jakarta.json.JsonValue;
 public interface IuJsonAdapter<T> {
 
 	/**
+	 * Always converts to a null value, useful for operations with no return type.
+	 */
+	static final IuJsonAdapter<Void> NULL = IuJsonAdapter.from(a -> null, a -> JsonValue.NULL);
+
+	/**
 	 * Creates a functional JSON type adapter.
 	 * 
-	 * @param toJava function that converts from JSON to the target type
+	 * @param fromJson function that converts from JSON to the target type
+	 * @param <T>      target type
+	 * @return functional adapter
+	 */
+	static <T> IuJsonAdapter<T> from(Function<JsonValue, T> fromJson) {
+		return new IuJsonAdapter<T>() {
+			@Override
+			public T fromJson(JsonValue jsonValue) {
+				return fromJson.apply(jsonValue);
+			}
+
+			@Override
+			public JsonValue toJson(T javaValue) {
+				throw new UnsupportedOperationException();
+			}
+		};
+	}
+
+	/**
+	 * Creates a functional JSON type adapter.
+	 * 
+	 * @param fromJson function that converts from JSON to the target type
+	 * @param <T>      target type
+	 * @return functional adapter
+	 */
+	static <T> IuJsonAdapter<T> fromText(Function<String, T> fromJson) {
+		return new IuJsonAdapter<T>() {
+			@Override
+			public T fromJson(JsonValue jsonValue) {
+				return fromJson.apply(((JsonString) jsonValue).getString());
+			}
+
+			@Override
+			public JsonValue toJson(T javaValue) {
+				throw new UnsupportedOperationException();
+			}
+		};
+	}
+
+	/**
+	 * Creates a functional JSON type adapter.
+	 * 
 	 * @param toJson function that converts from the target type to JSON
 	 * @param <T>    target type
 	 * @return functional adapter
 	 */
-	static <T> IuJsonAdapter<T> from(Function<JsonValue, T> toJava, Function<T, JsonValue> toJson) {
+	static <T> IuJsonAdapter<T> to(Function<T, JsonValue> toJson) {
 		return new IuJsonAdapter<T>() {
 			@Override
 			public T fromJson(JsonValue jsonValue) {
-				return toJava.apply(jsonValue);
+				throw new UnsupportedOperationException();
+			}
+
+			@Override
+			public JsonValue toJson(T javaValue) {
+				return toJson.apply(javaValue);
+			}
+		};
+	}
+
+	/**
+	 * Creates a functional JSON type adapter.
+	 * 
+	 * @param fromJson function that converts from JSON to the target type
+	 * @param toJson   function that converts from the target type to JSON
+	 * @param <T>      target type
+	 * @return functional adapter
+	 */
+	static <T> IuJsonAdapter<T> from(Function<JsonValue, T> fromJson, Function<T, JsonValue> toJson) {
+		return new IuJsonAdapter<T>() {
+			@Override
+			public T fromJson(JsonValue jsonValue) {
+				return fromJson.apply(jsonValue);
 			}
 
 			@Override

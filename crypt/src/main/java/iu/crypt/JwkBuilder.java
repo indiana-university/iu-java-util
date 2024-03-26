@@ -67,7 +67,6 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
 
 import edu.iu.IuCacheMap;
 import edu.iu.IuException;
@@ -75,6 +74,7 @@ import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
@@ -183,7 +183,7 @@ public class JwkBuilder extends WebKeyReferenceBuilder<JwkBuilder> implements Bu
 	 */
 	static KeyPair readEC(JsonObject parsedJwk) {
 		return IuException.unchecked(() -> {
-			final var kty = IuJson.text(parsedJwk, "kty");
+			final var kty = IuJson.<String>get(parsedJwk, "kty");
 			final Type type;
 			if (kty == null)
 				type = Algorithm.from(parsedJwk.getString("alg")).type;
@@ -195,12 +195,14 @@ public class JwkBuilder extends WebKeyReferenceBuilder<JwkBuilder> implements Bu
 			final var spec = algorithmParamters.getParameterSpec(ECParameterSpec.class);
 
 			final var keyFactory = KeyFactory.getInstance("EC");
-			final var w = new ECPoint(EncodingUtils.getBigInt(parsedJwk, "x"), EncodingUtils.getBigInt(parsedJwk, "y"));
+			final var w = new ECPoint(Objects.requireNonNull(IuJson.get(parsedJwk, "x", UnsignedBigInteger.JSON), "x"),
+					Objects.requireNonNull(IuJson.get(parsedJwk, "y", UnsignedBigInteger.JSON), "y"));
 			final var pub = keyFactory.generatePublic(new ECPublicKeySpec(w, spec));
 
 			final PrivateKey priv;
 			if (parsedJwk.containsKey("d"))
-				priv = keyFactory.generatePrivate(new ECPrivateKeySpec(EncodingUtils.getBigInt(parsedJwk, "d"), spec));
+				priv = keyFactory.generatePrivate(new ECPrivateKeySpec(
+						Objects.requireNonNull(IuJson.get(parsedJwk, "d", UnsignedBigInteger.JSON), "d"), spec));
 			else
 				priv = null;
 
@@ -218,20 +220,24 @@ public class JwkBuilder extends WebKeyReferenceBuilder<JwkBuilder> implements Bu
 		return IuException.unchecked(() -> {
 			final var keyFactory = KeyFactory.getInstance("RSA");
 
-			final var modulus = EncodingUtils.getBigInt(parsedJwk, "n");
-			final var exponent = EncodingUtils.getBigInt(parsedJwk, "e");
+			final var modulus = Objects.requireNonNull(IuJson.get(parsedJwk, "n", UnsignedBigInteger.JSON), "n");
+			final var exponent = Objects.requireNonNull(IuJson.get(parsedJwk, "e", UnsignedBigInteger.JSON), "e");
 			final var pub = keyFactory.generatePublic(new RSAPublicKeySpec(modulus, exponent));
 
 			final PrivateKey priv;
 			if (parsedJwk.containsKey("d")) {
 				final KeySpec keySpec;
-				final var privateExponent = EncodingUtils.getBigInt(parsedJwk, "d");
+				final var privateExponent = Objects.requireNonNull(IuJson.get(parsedJwk, "d", UnsignedBigInteger.JSON),
+						"d");
 				if (parsedJwk.containsKey("p")) {
-					final var primeP = EncodingUtils.getBigInt(parsedJwk, "p");
-					final var primeQ = EncodingUtils.getBigInt(parsedJwk, "q");
-					final var primeExponentP = EncodingUtils.getBigInt(parsedJwk, "dp");
-					final var primeExponentQ = EncodingUtils.getBigInt(parsedJwk, "dq");
-					final var crtCoefficient = EncodingUtils.getBigInt(parsedJwk, "qi");
+					final var primeP = Objects.requireNonNull(IuJson.get(parsedJwk, "p", UnsignedBigInteger.JSON), "p");
+					final var primeQ = Objects.requireNonNull(IuJson.get(parsedJwk, "q", UnsignedBigInteger.JSON), "q");
+					final var primeExponentP = Objects
+							.requireNonNull(IuJson.get(parsedJwk, "dp", UnsignedBigInteger.JSON), "dp");
+					final var primeExponentQ = Objects
+							.requireNonNull(IuJson.get(parsedJwk, "dq", UnsignedBigInteger.JSON), "dq");
+					final var crtCoefficient = Objects
+							.requireNonNull(IuJson.get(parsedJwk, "qi", UnsignedBigInteger.JSON), "qi");
 
 					if (parsedJwk.containsKey("oth"))
 						// TODO: identify a multi-prime test case
@@ -416,11 +422,6 @@ public class JwkBuilder extends WebKeyReferenceBuilder<JwkBuilder> implements Bu
 	}
 
 	@Override
-	public JwkBuilder key(SecretKey secretKey) {
-		return key(secretKey.getEncoded());
-	}
-
-	@Override
 	public JwkBuilder pub(PublicKey publicKey) {
 		if (type != null)
 			switch (type) {
@@ -533,16 +534,15 @@ public class JwkBuilder extends WebKeyReferenceBuilder<JwkBuilder> implements Bu
 	private JwkBuilder jwk(JsonValue json) {
 		final var jwk = json.asJsonObject();
 
-		final var kty = IuJson.text(jwk, "kty");
-		final var crv = IuJson.text(jwk, "crv");
+		final var kty = IuJson.<String>get(jwk, "kty");
+		final var crv = IuJson.<String>get(jwk, "crv");
 		if (kty != null)
 			type(type = Type.from(kty, crv));
 
-		IuJson.text(jwk, "kid", this::id);
-		IuJson.text(jwk, "use", a -> use(Use.from(a)));
-		IuJson.text(jwk, "alg", a -> algorithm(Algorithm.from(a)));
-		IuJson.get(jwk, "key_ops",
-				a -> ops(a.asJsonArray().stream().map(IuJson::asText).map(Op::from).toArray(Op[]::new)));
+		IuJson.<String>get(jwk, "kid", a -> this.id(a));
+		IuJson.get(jwk, "use", Use.JSON, a -> use(a));
+		IuJson.get(jwk, "alg", Algorithm.JSON, a -> algorithm(a));
+		IuJson.get(jwk, "key_ops", IuJsonAdapter.of(Op[].class, Op.JSON), a -> ops(a));
 
 		final Type type;
 		if (algorithm() == null)
@@ -564,15 +564,14 @@ public class JwkBuilder extends WebKeyReferenceBuilder<JwkBuilder> implements Bu
 			break;
 		}
 		default:
-			key(EncodingUtils.getBytes(jwk, "k"));
+			key(IuJson.get(jwk, "k", UnpaddedBinary.JSON));
 			break;
 		}
 
-		IuJson.text(jwk, "x5u", a -> cert(URI.create(a)));
-		IuJson.get(jwk, "x5c", a -> cert(a.asJsonArray().stream().map(IuJson::asText).map(PemEncoded::parse)
-				.map(i -> i.next()).map(PemEncoded::asCertificate).toArray(X509Certificate[]::new)));
-		IuJson.text(jwk, "x5t", a -> x5t(IuText.base64(a)));
-		IuJson.text(jwk, "x5t#S256", a -> x5t256(IuText.base64(a)));
+		IuJson.get(jwk, "x5u", IuJsonAdapter.of(URI.class), a -> cert(a));
+		IuJson.get(jwk, "x5c", IuJsonAdapter.of(X509Certificate[].class, PemEncoded.CERT_JSON), a -> cert(a));
+		IuJson.get(jwk, "x5t", UnpaddedBinary.JSON, a -> x5t(a));
+		IuJson.get(jwk, "x5t#S256", UnpaddedBinary.JSON, a -> x5t256(a));
 
 		return this;
 	}

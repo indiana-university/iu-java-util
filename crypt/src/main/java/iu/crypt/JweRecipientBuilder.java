@@ -97,7 +97,7 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 			final var n = i + 1;
 			// R(n) = H(n || Z || FixedInfo)
 			System.arraycopy(
-					IuCrypt.sha256(EncodingUtils.concatKdf(n, z, /* FixedInfo = */ algId, uinfo, vinfo, keyDataLen)), 0,
+					DigestUtils.sha256(EncodingUtils.concatKdf(n, z, /* FixedInfo = */ algId, uinfo, vinfo, keyDataLen)), 0,
 					keyData, i * 32, 32);
 		}
 

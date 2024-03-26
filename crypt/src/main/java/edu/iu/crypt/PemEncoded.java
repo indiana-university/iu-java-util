@@ -54,7 +54,10 @@ import edu.iu.IuException;
 import edu.iu.IuStream;
 import edu.iu.IuText;
 import edu.iu.client.IuHttp;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebKey.Type;
+import jakarta.json.JsonString;
 
 /**
  * Reads PEM-encoded key and/or certificate data.
@@ -62,6 +65,13 @@ import edu.iu.crypt.WebKey.Type;
 public final class PemEncoded {
 
 	private static Map<URI, X509Certificate[]> CERT_CACHE = new IuCacheMap<>(Duration.ofMinutes(15L));
+
+	/**
+	 * JSON type adapter for {@link X509Certificate}.
+	 */
+	public static final IuJsonAdapter<X509Certificate> CERT_JSON = IuJsonAdapter.from(
+			a -> asCertificate(IuText.base64(((JsonString) a).getString())),
+			a -> IuJson.string(IuText.base64(IuException.unchecked(a::getEncoded))));
 
 	/**
 	 * Enumerates encoded key type.
@@ -213,6 +223,11 @@ public final class PemEncoded {
 		});
 	}
 
+	private static X509Certificate asCertificate(byte[] encoded) {
+		return IuException.unchecked(() -> (X509Certificate) CertificateFactory.getInstance("X.509")
+				.generateCertificate(new ByteArrayInputStream(encoded)));
+	}
+
 	private final KeyType keyType;
 	private final byte[] encoded;
 
@@ -262,8 +277,7 @@ public final class PemEncoded {
 	public X509Certificate asCertificate() {
 		if (!keyType.equals(KeyType.CERTIFICATE))
 			throw new IllegalStateException();
-		return IuException.unchecked(() -> (X509Certificate) CertificateFactory.getInstance("X.509")
-				.generateCertificate(new ByteArrayInputStream(encoded)));
+		return asCertificate(encoded);
 	}
 
 	private PemEncoded(KeyType keyType, byte[] encoded) {

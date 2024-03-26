@@ -46,8 +46,11 @@ import java.util.stream.Stream;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import iu.crypt.JwkBuilder;
+import jakarta.json.JsonString;
 
 /**
  * Unifies algorithm support and maps a cryptographic key from JCE to JSON Web
@@ -181,6 +184,12 @@ public interface WebKey extends WebCertificateReference {
 		}
 
 		/**
+		 * JSON type adapter
+		 */
+		public static IuJsonAdapter<Use> JSON = IuJsonAdapter.from(v -> from(((JsonString) v).getString()),
+				u -> IuJson.string(u.use));
+
+		/**
 		 * JSON use attribute value.
 		 */
 		public final String use;
@@ -233,6 +242,12 @@ public interface WebKey extends WebCertificateReference {
 		 * Derive bits not to be used as a key.
 		 */
 		DERIVE_BITS("deriveBits");
+
+		/**
+		 * JSON type adapter.
+		 */
+		public static IuJsonAdapter<Op> JSON = IuJsonAdapter.from(a -> from(((JsonString) a).getString()),
+				a -> IuJson.string(a.keyOp));
 
 		/**
 		 * Gets an item value equivalent to the JWK key_ops attribute.
@@ -449,6 +464,12 @@ public interface WebKey extends WebCertificateReference {
 		 */
 		PBES2_HS512_A256KW("PBES2-HS512+A256KW", "PBEWithHmacSHA512AndAES_256", null, 256, Type.RAW, Use.ENCRYPT,
 				Set.of(Param.ENCRYPTION, Param.ZIP /* , TODO: p2s, p2c */));
+
+		/**
+		 * JSON type adapter.
+		 */
+		public static IuJsonAdapter<Algorithm> JSON = IuJsonAdapter.from(a -> from(((JsonString) a).getString()),
+				a -> IuJson.string(a.alg));
 
 		/**
 		 * Gets the value equivalent to the JWK alg attribute.

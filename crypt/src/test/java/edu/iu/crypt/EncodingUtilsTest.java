@@ -50,7 +50,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.client.IuJson;
-import iu.crypt.IuCrypt;
+import iu.crypt.DigestUtils;
 
 @SuppressWarnings("javadoc")
 public class EncodingUtilsTest {
@@ -186,7 +186,7 @@ public class EncodingUtilsTest {
 						(byte) 140, (byte) 254, (byte) 144, (byte) 196, 0, 0, 0, 7, 65, 49, 50, 56, 71, 67, 77, 0, 0, 0,
 						5, 65, 108, 105, 99, 101, 0, 0, 0, 3, 66, 111, 98, 0, 0, 0, (byte) 128 });
 
-		final var h = IuCrypt.sha256(buf);
+		final var h = DigestUtils.sha256(buf);
 		final var k = Arrays.copyOf(h, 16);
 		assertEquals("VqqN6vgjbSBcIijNcacQGg", EncodingUtils.base64Url(k));
 	}
