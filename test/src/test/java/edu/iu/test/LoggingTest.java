@@ -288,5 +288,19 @@ public class LoggingTest {
 		LOG.fine("expected");
 		IuTestLogger.assertExpectedMessages();
 	}
+	
+	@Test
+	public void testPatternMatch() {
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "ex.e.te.");
+		LOG.fine("expected");
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "ex{e.te.");
+		assertThrows(AssertionFailedError.class, () -> LOG.fine("expected"));
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "excepted");
+		assertThrows(AssertionFailedError.class, () -> LOG.fine("expected"));
+		assertThrows(AssertionFailedError.class, () -> IuTestLogger.assertExpectedMessages());
+		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINE, "ex{e.te.");
+		assertThrows(AssertionFailedError.class, () -> LOG.fine("expected"));
+		assertThrows(AssertionFailedError.class, () -> IuTestLogger.assertExpectedMessages());
+	}
 
 }

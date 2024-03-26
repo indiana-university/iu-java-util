@@ -35,22 +35,21 @@ import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import com.auth0.jwt.algorithms.Algorithm;
 
-import edu.iu.auth.session.IuSessionProviderKey;
-import jakarta.json.Json;
+import edu.iu.crypt.WebKey;
 
 /**
  * Encapsulates a token issuer's key set.
  */
 public class TokenIssuerKeySet implements AlgorithmFactory {
 
-	private final Iterable<IuSessionProviderKey> providerKeys;
+	private final Set<WebKey> providerKeys;
 	private final Map<AlgorithmKey, Algorithm> algorithms = new HashMap<>();
 
 	/**
@@ -58,14 +57,14 @@ public class TokenIssuerKeySet implements AlgorithmFactory {
 	 * 
 	 * @param providerKeys provider key set
 	 */
-	public TokenIssuerKeySet(Iterable<IuSessionProviderKey> providerKeys) {
+	public TokenIssuerKeySet(Set<WebKey> providerKeys) {
 		this.providerKeys = providerKeys;
 		for (final var providerKey : providerKeys) {
 			Objects.requireNonNull(providerKey.getId(), "id");
 			Objects.requireNonNull(providerKey.getType(), "type");
-			Objects.requireNonNull(providerKey.getUsage(), "usage");
-			Objects.requireNonNull(providerKey.getPublic(), "public");
-			Objects.requireNonNull(providerKey.getPrivate(), "private");
+			Objects.requireNonNull(providerKey.getUse(), "usage");
+			Objects.requireNonNull(providerKey.getPublicKey(), "public");
+			Objects.requireNonNull(providerKey.getPrivateKey(), "private");
 		}
 	}
 
@@ -76,14 +75,14 @@ public class TokenIssuerKeySet implements AlgorithmFactory {
 
 		var cachedAlgorithm = algorithms.get(cacheKey);
 		if (cachedAlgorithm == null) {
-			IuSessionProviderKey providerKey = null;
+			WebKey providerKey = null;
 			for (final var k : providerKeys)
 				if (kid.equals(k.getId()))
 					providerKey = k;
 
 			Objects.requireNonNull(providerKey, "Invalid key id");
-			final var pub = Objects.requireNonNull(providerKey.getPublic(), "public");
-			final var priv = Objects.requireNonNull(providerKey.getPrivate(), "private");
+			final var pub = Objects.requireNonNull(providerKey.getPublicKey(), "public");
+			final var priv = Objects.requireNonNull(providerKey.getPrivateKey(), "private");
 
 			switch (alg) {
 			case "ES256":
@@ -123,61 +122,7 @@ public class TokenIssuerKeySet implements AlgorithmFactory {
 	 * @return JWKS well-known key set
 	 */
 	public String publish() {
-		final var jwks = JsonProviderFactory.JSON.createArrayBuilder();
-
-		for (final var key : providerKeys) {
-			final var jwkb = JsonProviderFactory.JSON.createObjectBuilder();
-			jwkb.add("kid", key.getId());
-
-			switch (key.getUsage()) {
-			case ENCRYPT:
-				jwkb.add("use", "enc");
-				break;
-			case SIGN:
-				jwkb.add("use", "sig");
-				break;
-			}
-
-			switch (key.getType()) {
-			case RSA: {
-				final var rsa = (RSAPublicKey) key.getPublic();
-				jwkb.add("kty", "RSA");
-				jwkb.add("e", Base64.getUrlEncoder().encodeToString(rsa.getPublicExponent().toByteArray()));
-				jwkb.add("n", Base64.getUrlEncoder().encodeToString(rsa.getModulus().toByteArray()));
-				break;
-			}
-
-			case EC_P256: {
-				final var w = ((ECPublicKey) key.getPublic()).getW();
-				jwkb.add("kty", "EC");
-				jwkb.add("crv", "P-256");
-				jwkb.add("x", Base64.getUrlEncoder().encodeToString(w.getAffineX().toByteArray()));
-				jwkb.add("y", Base64.getUrlEncoder().encodeToString(w.getAffineY().toByteArray()));
-				break;
-			}
-
-			case EC_P384: {
-				final var w = ((ECPublicKey) key.getPublic()).getW();
-				jwkb.add("kty", "EC");
-				jwkb.add("crv", "P-384");
-				jwkb.add("x", Base64.getUrlEncoder().encodeToString(w.getAffineX().toByteArray()));
-				jwkb.add("y", Base64.getUrlEncoder().encodeToString(w.getAffineY().toByteArray()));
-				break;
-			}
-
-			case EC_P521: {
-				final var w = ((ECPublicKey) key.getPublic()).getW();
-				jwkb.add("kty", "EC");
-				jwkb.add("crv", "P-521");
-				jwkb.add("x", Base64.getUrlEncoder().encodeToString(w.getAffineX().toByteArray()));
-				jwkb.add("y", Base64.getUrlEncoder().encodeToString(w.getAffineY().toByteArray()));
-				break;
-			}
-			}
-
-			jwks.add(jwkb);
-		}
-		return JsonProviderFactory.JSON.createObjectBuilder().add("keys", jwks).build().toString();
+		return WebKey.asJwks(providerKeys.stream());
 	}
 
 }

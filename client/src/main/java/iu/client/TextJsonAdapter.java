@@ -29,40 +29,48 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu;
+package iu.client;
 
-import java.security.MessageDigest;
+import edu.iu.IuIterable;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonArray;
+import jakarta.json.JsonNumber;
+import jakarta.json.JsonString;
+import jakarta.json.JsonValue;
 
 /**
- * Low-level crypto utilities.
+ * Implements {@link IuJsonAdapter} for {@link CharSequence}
  */
-public class IuCrypt {
-
-	private static final ThreadLocal<MessageDigest> SHA256 = new ThreadLocal<MessageDigest>() {
-		@Override
-		protected MessageDigest initialValue() {
-			return IuException.unchecked(() -> MessageDigest.getInstance("SHA-256"));
-		}
-	};
-
-	private static final byte[] EMPTY_PAYLOADHASH = SHA256.get().digest(new byte[0]);
+class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
 
 	/**
-	 * Gets a SHA-256 digest for character data.
-	 * <p>
-	 * The string passed into this method is first converted to UTF-8 binary format,
-	 * then digested.
-	 * </p>
-	 * 
-	 * @param data character data
-	 * @return SHA-256 digest
+	 * Singleton instance.
 	 */
-	public static byte[] sha256(byte[] data) {
-		if (data == null || data.length == 0)
-			return EMPTY_PAYLOADHASH;
-		return SHA256.get().digest(data);
+	static TextJsonAdapter INSTANCE = new TextJsonAdapter();
+
+	@Override
+	public String fromJson(JsonValue value) {
+		if (value instanceof JsonString)
+			return ((JsonString) value).getString();
+		else if ((value instanceof JsonNumber) //
+				|| JsonValue.TRUE.equals(value) //
+				|| JsonValue.FALSE.equals(value))
+			return value.toString();
+		else if (value instanceof JsonArray)
+			return String.join(",", IuIterable.map(((JsonArray) value), this::fromJson));
+		else if (JsonValue.NULL.equals(value))
+			return null;
+		else
+			throw new IllegalArgumentException();
 	}
 
-	private IuCrypt() {
+	@Override
+	public JsonValue toJson(CharSequence value) {
+		if (value == null)
+			return JsonValue.NULL;
+		else
+			return IuJson.PROVIDER.createValue(value.toString());
 	}
+
 }

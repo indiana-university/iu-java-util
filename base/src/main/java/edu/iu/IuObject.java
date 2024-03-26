@@ -154,6 +154,20 @@ public final class IuObject {
 	}
 
 	/**
+	 * Asserts that a class is in a module that is named and part of a package that
+	 * is not open.
+	 * 
+	 * @param classToCheck {@link Class}
+	 * @throws IllegalStateException if the class is in an open module and/or
+	 *                               package
+	 */
+	public static void assertNotOpen(Class<?> classToCheck) throws IllegalStateException {
+		final var module = classToCheck.getModule();
+		if (module.isOpen(classToCheck.getPackageName()))
+			throw new IllegalStateException("Must be in a named module and not open");
+	}
+
+	/**
 	 * Perform identity and and null check on two objects, returning a valid value
 	 * for {@link Comparable#compareTo(Object)} if any of the checks result in a
 	 * conclusive result.

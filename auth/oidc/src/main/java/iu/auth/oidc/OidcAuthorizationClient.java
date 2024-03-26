@@ -32,7 +32,6 @@
 package iu.auth.oidc;
 
 import java.net.URI;
-import java.net.http.HttpRequest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
@@ -56,7 +55,6 @@ import com.auth0.jwt.interfaces.DecodedJWT;
 import edu.iu.IdGenerator;
 import edu.iu.IuAuthorizationFailedException;
 import edu.iu.IuBadRequestException;
-import edu.iu.IuCrypt;
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
@@ -70,9 +68,11 @@ import edu.iu.auth.oauth.IuBearerAuthCredentials;
 import edu.iu.auth.oauth.IuTokenResponse;
 import edu.iu.auth.oidc.IuOpenIdClaim;
 import edu.iu.auth.oidc.IuOpenIdClient;
+import edu.iu.client.IuHttp;
 import iu.auth.util.AccessTokenVerifier;
 import iu.auth.util.HttpUtils;
 import iu.auth.util.PrincipalVerifierRegistry;
+import iu.crypt.DigestUtils;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
 
@@ -243,7 +243,7 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 			if (!alg.equals(verifiedIdToken.getAlgorithm()))
 				throw new IllegalArgumentException(alg + " required");
 
-			final var encodedHash = IuCrypt.sha256(IuText.utf8(accessToken));
+			final var encodedHash = DigestUtils.sha256(IuText.utf8(accessToken));
 			final var halfOfEncodedHash = Arrays.copyOf(encodedHash, (encodedHash.length / 2));
 			final var atHashGeneratedfromAccessToken = Base64.getUrlEncoder().withoutPadding()
 					.encodeToString(halfOfEncodedHash);
@@ -261,8 +261,8 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 		} else
 			verifiedIdToken = null;
 
-		final var userinfo = HttpUtils.read(HttpRequest.newBuilder(userinfoEndpoint) //
-				.header("Authorization", "Bearer " + accessToken).build()).asJsonObject();
+		final var userinfo = IuException.unchecked(() -> IuHttp.send(userinfoEndpoint,
+				b -> b.header("Authorization", "Bearer " + accessToken), IuHttp.READ_JSON_OBJECT));
 		final var principal = userinfo.getString("principal");
 		final var sub = userinfo.getString("sub");
 		final var id = new Id(principal);
@@ -353,8 +353,8 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 				claims.put(claim.getClaimName(), claim.getClaim());
 
 			final var accessToken = Objects.requireNonNull(bearer.getAccessToken(), "accessToken");
-			final var userinfo = HttpUtils.read(HttpRequest.newBuilder(userinfoEndpoint) //
-					.header("Authorization", "Bearer " + accessToken).build()).asJsonObject();
+			final var userinfo = IuException.unchecked(() -> IuHttp.send(userinfoEndpoint,
+					b -> b.header("Authorization", "Bearer " + accessToken), IuHttp.READ_JSON_OBJECT));
 			final var principal = userinfo.getString("principal");
 			final var sub = userinfo.getString("sub");
 

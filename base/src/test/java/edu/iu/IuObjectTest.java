@@ -31,13 +31,24 @@
  */
 package edu.iu;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import java.lang.module.Configuration;
+import java.lang.module.ModuleDescriptor;
+import java.lang.module.ModuleFinder;
+import java.lang.module.ModuleReference;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
@@ -47,6 +58,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeoutException;
@@ -55,6 +67,66 @@ import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("javadoc")
 public class IuObjectTest {
+
+	@Test
+	public void testRequiresModule() throws Exception {
+		// asserts that this test is running in a module
+		assertDoesNotThrow(() -> IuObject.assertNotOpen(IuObject.class));
+
+		try (final var c = new URLClassLoader(new URL[] { Path.of("target", "classes").toRealPath().toUri().toURL() }) {
+			@Override
+			public Class<?> loadClass(String name) throws ClassNotFoundException {
+				if (IuObject.isPlatformName(name))
+					return super.loadClass(name);
+				else
+					return findClass(name);
+			}
+
+		}) {
+			final var uc = c.loadClass(IuObject.class.getName());
+			assertNotSame(IuObject.class, uc);
+			final var e = assertThrows(IllegalStateException.class, () -> IuObject.assertNotOpen(uc));
+			assertEquals("Must be in a named module and not open", e.getMessage());
+		}
+	}
+
+	@Test
+	public void testRequiresNonOpenModule() throws Exception {
+		final var path = Path.of("target", "classes").toRealPath();
+		try (final var c = new URLClassLoader(new URL[] { path.toUri().toURL() }) {
+			{
+				registerAsParallelCapable();
+			}
+
+			@Override
+			public Class<?> loadClass(String name) throws ClassNotFoundException {
+				if (!name.startsWith("edu.iu."))
+					return super.loadClass(name);
+				else
+					return findClass(name);
+			}
+		}) {
+			final var desc = ModuleDescriptor //
+					.newOpenModule("iu.util") //
+					.exports("edu.iu") //
+					.build();
+			final var ref = mock(ModuleReference.class);
+			when(ref.descriptor()).thenReturn(desc);
+
+			final var finder = mock(ModuleFinder.class);
+			when(finder.find("iu.util")).thenReturn(Optional.of(ref));
+
+			ModuleLayer.defineModules(Configuration.resolve(finder, List.of(ModuleLayer.boot().configuration()),
+					ModuleFinder.of(), Set.of("iu.util")), List.of(ModuleLayer.boot()), a -> c);
+
+			final var uc = c.loadClass(IuObject.class.getName());
+			assertNotSame(IuObject.class, uc);
+			assertEquals("iu.util", uc.getModule().getName());
+			assertTrue(uc.getModule().isOpen("edu.iu"));
+			final var e = assertThrows(IllegalStateException.class, () -> IuObject.assertNotOpen(uc));
+			assertEquals("Must be in a named module and not open", e.getMessage());
+		}
+	}
 
 	@Test
 	public void testPlatformType() {

@@ -38,17 +38,16 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.StringReader;
 import java.security.KeyPairGenerator;
-import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.util.EnumSet;
-import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.auth.session.IuSessionProviderKey;
-import edu.iu.auth.session.IuSessionProviderKey.Type;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Type;
+import edu.iu.crypt.WebKey.Use;
 import jakarta.json.Json;
 
 @SuppressWarnings("javadoc")
@@ -60,34 +59,9 @@ public class TokenIssuerKeySetTest {
 		final var rsaKeygen = KeyPairGenerator.getInstance("RSA");
 		rsaKeygen.initialize(1024);
 		final var keyPair = rsaKeygen.generateKeyPair();
-		final var issuerKey = new IuSessionProviderKey() {
-			@Override
-			public String getId() {
-				return id;
-			}
+		final var issuerKey = WebKey.builder().id(id).use(Use.ENCRYPT).type(Type.RSA).pair(keyPair).build();
 
-			@Override
-			public Usage getUsage() {
-				return Usage.ENCRYPT;
-			}
-
-			@Override
-			public Type getType() {
-				return Type.RSA;
-			}
-
-			@Override
-			public PublicKey getPublic() {
-				return keyPair.getPublic();
-			}
-
-			@Override
-			public PrivateKey getPrivate() {
-				return keyPair.getPrivate();
-			}
-		};
-
-		final var issuerKeySet = new TokenIssuerKeySet(List.of(issuerKey));
+		final var issuerKeySet = new TokenIssuerKeySet(Set.of(issuerKey));
 		assertThrows(NullPointerException.class, () -> issuerKeySet.getAlgorithm("foo", "bar"));
 		assertThrows(UnsupportedOperationException.class, () -> issuerKeySet.getAlgorithm(id, "bar"));
 		assertThrows(ClassCastException.class, () -> issuerKeySet.getAlgorithm(id, "ES256"));
@@ -105,34 +79,9 @@ public class TokenIssuerKeySetTest {
 			final var ecKeygen = KeyPairGenerator.getInstance("EC");
 			ecKeygen.initialize(new ECGenParameterSpec("secp256r1"));
 			final var keyPair = ecKeygen.generateKeyPair();
-			final var issuerKey = new IuSessionProviderKey() {
-				@Override
-				public String getId() {
-					return id;
-				}
+			final var issuerKey = WebKey.builder().id(id).use(Use.SIGN).type(type).pair(keyPair).build();
 
-				@Override
-				public Usage getUsage() {
-					return Usage.SIGN;
-				}
-
-				@Override
-				public Type getType() {
-					return type;
-				}
-
-				@Override
-				public PublicKey getPublic() {
-					return keyPair.getPublic();
-				}
-
-				@Override
-				public PrivateKey getPrivate() {
-					return keyPair.getPrivate();
-				}
-			};
-
-			final var issuerKeySet = new TokenIssuerKeySet(List.of(issuerKey));
+			final var issuerKeySet = new TokenIssuerKeySet(Set.of(issuerKey));
 			assertThrows(NullPointerException.class, () -> issuerKeySet.getAlgorithm("foo", "bar"));
 			assertThrows(UnsupportedOperationException.class, () -> issuerKeySet.getAlgorithm(id, "bar"));
 			assertThrows(ClassCastException.class, () -> issuerKeySet.getAlgorithm(id, "RS256"));

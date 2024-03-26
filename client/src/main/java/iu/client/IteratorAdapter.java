@@ -29,91 +29,38 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.session;
+package iu.client;
 
-import java.security.PrivateKey;
-import java.security.PublicKey;
+import java.util.Iterator;
+import java.util.stream.Stream;
+
+import edu.iu.client.IuJsonAdapter;
 
 /**
- * Describes a trusted session provider key.
+ * Adapts {@link Stream} values.
+ * 
+ * @param <E> element type
  */
-public interface IuSessionProviderKey {
+class IteratorAdapter<E> extends JsonArrayAdapter<Iterator<E>, E> {
 
 	/**
-	 * Designates key type.
+	 * Constructor
+	 * 
+	 * @param itemAdapter item adapter
+	 * @param factory     creates a new collection
 	 */
-	enum Type {
-
-		/**
-		 * RSA key.
-		 */
-		RSA,
-
-		/**
-		 * NIST P-256 Elliptical Curve.
-		 */
-		EC_P256,
-
-		/**
-		 * NIST P-384 Elliptical Curve.
-		 */
-		EC_P384,
-
-		/**
-		 * NIST P-521 Elliptical Curve.
-		 */
-		EC_P521;
+	protected IteratorAdapter(IuJsonAdapter<E> itemAdapter) {
+		super(itemAdapter);
 	}
 
-	/**
-	 * Designates key usage.
-	 */
-	enum Usage {
-
-		/**
-		 * Used for signing.
-		 */
-		SIGN,
-
-		/**
-		 * Use for encryption.
-		 */
-		ENCRYPT;
+	@Override
+	protected Iterator<E> iterator(Iterator<E> value) {
+		return value;
 	}
 
-	/**
-	 * Gets the key ID.
-	 * 
-	 * @return key ID
-	 */
-	String getId();
-
-	/**
-	 * Gets the key type.
-	 * 
-	 * @return key type
-	 */
-	Type getType();
-
-	/**
-	 * Gets the key usage.
-	 * 
-	 * @return key usage
-	 */
-	Usage getUsage();
-
-	/**
-	 * Gets the public key.
-	 * 
-	 * @return public key
-	 */
-	PublicKey getPublic();
-
-	/**
-	 * Gets the private key.
-	 * 
-	 * @return private key
-	 */
-	PrivateKey getPrivate();
+	@Override
+	protected Iterator<E> collect(Iterator<E> items) {
+		return items;
+	}
 
 }

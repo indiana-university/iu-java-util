@@ -16,7 +16,7 @@
 	<dependencies>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-base</artifactId>
+			<artifactId>iu-java-client</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
