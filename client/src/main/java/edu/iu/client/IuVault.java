@@ -47,51 +47,70 @@ import jakarta.json.JsonObject;
 /**
  * Provides access to secrets stored in HashiCorp Vault.
  * 
- * <p>
- * Expects {@link System#getProperty(String) system properties} (or
- * {@link System#getenv(String)}) variables if missing:
- * </p>
- * 
- * <dl>
- * <dt>vault.secrets (VAULT_SECRETS)</dt>
- * <dd>Comma-separated list of secrets to read from the Vault K/V store</dd>
- * <dt>vault.endpoint (VAULT_ENDPOINT)</dt>
- * <dd>Base URL for a Vault K/V store</dd>
- * <dt>vault.token (VAULT_TOKEN)</dt>
- * <dd>Access token for use with Vault, i.e., in development. If not set,
- * vault.loginEndpoint, vault.roleId, and vault.secretId <em>must</em> be
- * provided, i.e., for use by a CI/CD environment. If vault.token is set, the
- * approle properties will be ignored.</dd>
- * <dt>vault.loginEndpoint (VAULT_LOGIN_ENDPOINT)</dt>
- * <dd>URL for the Vault approle login endpoint, for use when vault.token is not
- * set.</dd>
- * <dt>vault.roleId (VAULT_ROLE_ID)</dt>
- * <dd>Vault approle Role ID, for use when vault.token is not set.</dd>
- * <dt>vault.secretId (VAULT_SECRET_ID)</dt>
- * <dd>Vault approle Secret ID, for use when vault.token is not set.</dd>
- * </dl>
- * 
- * <p>
- * If the system property {@code vault.token} or environment variable
- * {@code VAULT_TOKEN} are populated, then approle properties will be skipped
- * </p>
  */
 public class IuVault {
 	static {
 		IuObject.assertNotOpen(IuVault.class);
 	}
 
-	private static final Map<String, JsonObject> SECRETS = new HashMap<>();
-	private static final URI ENDPOINT = IuRuntimeEnvironment.envOptional("iu.vault.endpoint", URI::create);
-	private static final String[] SECRET_NAMES = IuRuntimeEnvironment.envOptional("iu.vault.secrets",
-			a -> a.split(","));
-	private static final String TOKEN = IuRuntimeEnvironment.envOptional("iu.vault.token");
-	private static final URI LOGINENDPOINT = IuRuntimeEnvironment.envOptional("iu.vault.loginEndpoint", URI::create);
-	private static final String ROLEID = IuRuntimeEnvironment.envOptional("iu.vault.roleId");
-	private static final String SECRETID = IuRuntimeEnvironment.envOptional("iu.vault.secretId");
+	/**
+	 * Singleton instance configured at class initialization time.
+	 * 
+	 * <p>
+	 * Expects {@link System#getProperty(String) system properties} (or
+	 * {@link System#getenv(String)}) variables if missing.
+	 * </p>
+	 * 
+	 * <p>
+	 * Will be null if vault.secrets is not populated.
+	 * </p>
+	 * 
+	 * <dl>
+	 * <dt>vault.secrets (VAULT_SECRETS)</dt>
+	 * <dd>Comma-separated list of secrets to read from the Vault K/V store</dd>
+	 * <dt>vault.endpoint (VAULT_ENDPOINT)</dt>
+	 * <dd>Base URL for a Vault K/V store</dd>
+	 * <dt>vault.token (VAULT_TOKEN)</dt>
+	 * <dd>Access token for use with Vault, i.e., in development. If not set,
+	 * vault.loginEndpoint, vault.roleId, and vault.secretId <em>must</em> be
+	 * provided, i.e., for use by a CI/CD environment. If vault.token is set, the
+	 * approle properties will be ignored.</dd>
+	 * <dt>vault.loginEndpoint (VAULT_LOGIN_ENDPOINT)</dt>
+	 * <dd>URL for the Vault approle login endpoint, for use when vault.token is not
+	 * set.</dd>
+	 * <dt>vault.roleId (VAULT_ROLE_ID)</dt>
+	 * <dd>Vault approle Role ID, for use when vault.token is not set.</dd>
+	 * <dt>vault.secretId (VAULT_SECRET_ID)</dt>
+	 * <dd>Vault approle Secret ID, for use when vault.token is not set.</dd>
+	 * </dl>
+	 * 
+	 * <p>
+	 * If the system property {@code vault.token} or environment variable
+	 * {@code VAULT_TOKEN} are populated, then approle properties will be skipped
+	 * </p>
+	 */
+	public static IuVault RUNTIME;
+
+	static {
+		final var secrets = IuRuntimeEnvironment.envOptional("iu.vault.secrets", a -> a.split(","));
+		if (secrets == null)
+			RUNTIME = null;
+		else {
+			final var endpoint = IuRuntimeEnvironment.env("iu.vault.endpoint", URI::create);
+			final var token = IuRuntimeEnvironment.envOptional("iu.vault.token");
+			if (token != null)
+				RUNTIME = new IuVault(endpoint, secrets, token);
+			else {
+				final var loginEndpoint = IuRuntimeEnvironment.env("iu.vault.loginEndpoint", URI::create);
+				final var roleId = IuRuntimeEnvironment.env("iu.vault.roleId");
+				final var secretId = IuRuntimeEnvironment.env("iu.vault.secretId");
+				RUNTIME = new IuVault(endpoint, secrets, loginEndpoint, roleId, secretId);
+			}
+		}
+	}
 
 	/**
-	 * Determines whether or not Vault is configured.
+	 * Determines whether or not the RUNTIME Vault is configured.
 	 * <p>
 	 * May be used to selectively disable unit tests. For example:
 	 * </p>
@@ -103,27 +122,68 @@ public class IuVault {
 	 * @return true if Vault is configured; else false
 	 */
 	public static boolean isConfigured() {
-		return SECRET_NAMES != null;
+		return RUNTIME != null;
+	}
+
+	private final Map<String, JsonObject> secrets = new HashMap<>();
+	private final URI endpoint;
+	private final String[] secretNames;
+	private final String token;
+	private final URI loginEndpoint;
+	private final String roleId;
+	private final String secretId;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param endpoint    Vault K/V endpoint
+	 * @param secretNames Secret names to load, collisions prefer first found
+	 * @param token       Bearer token
+	 */
+	public IuVault(URI endpoint, String[] secretNames, String token) {
+		this.endpoint = endpoint;
+		this.secretNames = secretNames;
+		this.token = token;
+		this.loginEndpoint = null;
+		this.roleId = null;
+		this.secretId = null;
+	}
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param endpoint      Vault K/V endpoint
+	 * @param secretNames   Secret names to load, collisions prefer first found
+	 * @param loginEndpoint Vault approle login endpoint
+	 * @param roleId        Role ID
+	 * @param secretId      Secret ID
+	 */
+	public IuVault(URI endpoint, String[] secretNames, URI loginEndpoint, String roleId, String secretId) {
+		this.endpoint = endpoint;
+		this.secretNames = secretNames;
+		this.token = null;
+		this.loginEndpoint = loginEndpoint;
+		this.roleId = roleId;
+		this.secretId = secretId;
 	}
 
 	/**
 	 * Reads a property value from a Vault secret.
 	 * 
-	 * @param <T>                 value type
-	 * @param name                property name
+	 * @param <T>     value type
+	 * @param name    property name
 	 * @param adapter converts the property value to the value type
 	 * @return property value
 	 */
-	public static <T> T get(String name, IuJsonAdapter<T> adapter) {
-		if (SECRET_NAMES != null)
-			for (String secret : SECRET_NAMES) {
-				final var data = getSecret(secret);
-				if (data.containsKey(name))
-					return adapter.fromJson(data.get(name));
-			}
+	public <T> T get(String name, IuJsonAdapter<T> adapter) {
+		for (String secret : secretNames) {
+			final var data = getSecret(secret);
+			if (data.containsKey(name))
+				return adapter.fromJson(data.get(name));
+		}
 
 		throw new IllegalArgumentException(
-				name + " not found in Vault using " + ENDPOINT + "/data/" + Arrays.toString(SECRET_NAMES));
+				name + " not found in Vault using " + endpoint + "/data/" + Arrays.toString(secretNames));
 	}
 
 	/**
@@ -132,48 +192,46 @@ public class IuVault {
 	 * @param name property name
 	 * @return property value
 	 */
-	public static String get(String name) {
+	public String get(String name) {
 		return get(name, IuJsonAdapter.of(String.class));
 	}
 
-	private static JsonObject getSecret(String secret) {
-		var cachedSecret = SECRETS.get(secret);
+	private JsonObject getSecret(String secret) {
+		var cachedSecret = secrets.get(secret);
 		if (cachedSecret != null)
 			return cachedSecret;
 
-		final var data = IuException
-				.unchecked(() -> IuHttp.send(URI.create(ENDPOINT + "/data/" + secret), IuVault::authorize,
-						IuHttp.validate(IuJson::parse, IuHttp.OK)))
-				.asJsonObject().getJsonObject("data").getJsonObject("data");
+		final var data = IuException.unchecked(
+				() -> IuHttp.send(URI.create(endpoint + "/data/" + secret), this::authorize, IuHttp.READ_JSON_OBJECT))
+				.getJsonObject("data").getJsonObject("data");
 
-		synchronized (SECRETS) {
-			SECRETS.put(secret, data);
+		synchronized (secrets) {
+			secrets.put(secret, data);
 		}
 
 		return data;
 	}
 
-	private static void approle(HttpRequest.Builder dataRequestBuilder) {
+	private void approle(HttpRequest.Builder dataRequestBuilder) {
 		final var payload = IuJson.object();
-		payload.add("role_id", Objects.requireNonNull(ROLEID, "Missing vault.roleId"));
-		payload.add("secret_id", Objects.requireNonNull(SECRETID, "Missing vault.loginEndpoint"));
+		payload.add("role_id", Objects.requireNonNull(roleId, "Missing vault.roleId"));
+		payload.add("secret_id", Objects.requireNonNull(secretId, "Missing vault.loginEndpoint"));
 		dataRequestBuilder.POST(BodyPublishers.ofString(payload.build().toString()));
 		dataRequestBuilder.header("Content-Type", "application/json; charset=utf-8");
 	}
 
-	private static void authorize(HttpRequest.Builder dataRequestBuilder) {
-		var accessToken = TOKEN;
+	private void authorize(HttpRequest.Builder dataRequestBuilder) {
+		var accessToken = token;
 
 		if (accessToken == null)
-			accessToken = IuException.unchecked(() -> IuHttp
-					.send(Objects.requireNonNull(LOGINENDPOINT, "Missing vault.loginEndpoint"), IuVault::approle,
-							IuHttp.validate(IuJson::parse, IuHttp.OK))
-					.asJsonObject().getJsonObject("auth").getString("client_token"));
+			accessToken = IuException
+					.unchecked(
+							() -> IuHttp
+									.send(Objects.requireNonNull(loginEndpoint, "Missing vault.loginEndpoint"),
+											this::approle, IuHttp.READ_JSON_OBJECT)
+									.getJsonObject("auth").getString("client_token"));
 
 		dataRequestBuilder.header("Authorization", "Bearer " + accessToken);
-	}
-
-	private IuVault() {
 	}
 
 }

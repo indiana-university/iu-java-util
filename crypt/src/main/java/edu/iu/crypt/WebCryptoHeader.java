@@ -32,24 +32,16 @@
 package edu.iu.crypt;
 
 import java.net.URI;
-import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
-import edu.iu.IuException;
 import edu.iu.IuObject;
-import edu.iu.IuText;
 import edu.iu.client.IuJson;
-import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
 import iu.crypt.JoseBuilder;
-import iu.crypt.JwkBuilder;
-import jakarta.json.JsonString;
-import jakarta.json.JsonValue;
 
 /**
  * Unifies algorithm support and maps cryptographic header data from JCE to JSON
@@ -67,89 +59,69 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		/**
 		 * Encryption/signature algorithm.
 		 */
-		ALGORITHM("alg", EnumSet.allOf(Use.class), true, WebCryptoHeader::getAlgorithm, Algorithm::toJson,
-				Algorithm::toJava),
+		ALGORITHM("alg", EnumSet.allOf(Use.class), true, WebCryptoHeader::getAlgorithm),
 
 		/**
 		 * Well-known key identifier.
 		 */
-		KEY_ID("kid", EnumSet.allOf(Use.class), false, WebCryptoHeader::getKeyId, IuJson::toJson, IuJson::fromJson),
+		KEY_ID("kid", EnumSet.allOf(Use.class), false, WebCryptoHeader::getKeyId),
 
 		/**
 		 * Well-known key set URI.
 		 */
-		KEY_SET_URI("jku", EnumSet.allOf(Use.class), false, WebCryptoHeader::getKeySetUri, IuJson::toJson,
-				IuJson::toURI),
+		KEY_SET_URI("jku", EnumSet.allOf(Use.class), false, WebCryptoHeader::getKeySetUri),
 
 		/**
 		 * Well-known public key.
 		 */
-		KEY("jwk", EnumSet.allOf(Use.class), false, WebCryptoHeader::getKey, JwkBuilder::toJson, JwkBuilder::parse),
+		KEY("jwk", EnumSet.allOf(Use.class), false, WebCryptoHeader::getKey),
 
 		/**
 		 * Certificate chain URI.
 		 */
-		CERTIFICATE_URI("x5u", EnumSet.allOf(Use.class), false, WebCryptoHeader::getCertificateUri, IuJson::toJson,
-				IuJson::toURI),
+		CERTIFICATE_URI("x5u", EnumSet.allOf(Use.class), false, WebCryptoHeader::getCertificateUri),
 
 		/**
 		 * Certificate chain.
 		 */
-		CERTIFICATE_CHAIN("x5c", EnumSet.allOf(Use.class), false, WebCryptoHeader::getCertificateChain, v -> {
-			final var x5cb = IuJson.array();
-			for (final var cert : (X509Certificate[]) v)
-				x5cb.add(IuText.base64(IuException.unchecked(cert::getEncoded)));
-			return x5cb.build();
-		}, v -> PemEncoded.getCertificateChain(PemEncoded.parse(IuJson.<String>fromJson(v)))),
+		CERTIFICATE_CHAIN("x5c", EnumSet.allOf(Use.class), false, WebCryptoHeader::getCertificateChain),
 
 		/**
 		 * Certificate SHA-1 thumb print.
 		 */
-		CERTIFICATE_THUMBPRINT("x5t", EnumSet.allOf(Use.class), false, WebCryptoHeader::getCertificateThumbprint,
-				v -> IuJson.toJson(IuText.base64Url((byte[]) v)), v -> IuText.base64Url(IuJson.<String>fromJson(v))),
+		CERTIFICATE_THUMBPRINT("x5t", EnumSet.allOf(Use.class), false, WebCryptoHeader::getCertificateThumbprint),
 
 		/**
 		 * Certificate SHA-1 thumb print.
 		 */
 		CERTIFICATE_SHA256_THUMBPRINT("x5t#S256", EnumSet.allOf(Use.class), false,
-				WebCryptoHeader::getCertificateSha256Thumbprint, v -> IuJson.toJson(IuText.base64Url((byte[]) v)),
-				v -> IuText.base64Url(IuJson.<String>fromJson(v))),
+				WebCryptoHeader::getCertificateSha256Thumbprint),
 
 		/**
 		 * Signature/encryption media type.
 		 */
-		TYPE("typ", EnumSet.allOf(Use.class), false, WebCryptoHeader::getType,
-				v -> IuJson.toJson(IuText.base64Url((byte[]) v)), v -> IuText.base64Url(IuJson.<String>fromJson(v))),
+		TYPE("typ", EnumSet.allOf(Use.class), false, WebCryptoHeader::getType),
 
 		/**
 		 * Content media type.
 		 */
-		CONTENT_TYPE("cty", EnumSet.allOf(Use.class), false, WebCryptoHeader::getContentType,
-				v -> IuJson.toJson(IuText.base64Url((byte[]) v)), v -> IuText.base64Url(IuJson.<String>fromJson(v))),
+		CONTENT_TYPE("cty", EnumSet.allOf(Use.class), false, WebCryptoHeader::getContentType),
 
 		/**
 		 * Extended parameter names that <em>must</em> be included in the protected
 		 * header.
 		 */
-		@SuppressWarnings("unchecked")
-		CRITICAL_PARAMS("crit", EnumSet.allOf(Use.class), false, WebCryptoHeader::getCriticalParameters, v -> {
-			final var critb = IuJson.array();
-			((Set<String>) v).forEach(critb::add);
-			return critb.build();
-		}, v -> v.asJsonArray().stream().map(s -> ((JsonString) s).getString())
-				.collect(Collectors.toUnmodifiableSet())),
+		CRITICAL_PARAMS("crit", EnumSet.allOf(Use.class), false, WebCryptoHeader::getCriticalParameters),
 
 		/**
 		 * Content encryption algorithm.
 		 */
-		ENCRYPTION("enc", EnumSet.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("enc"),
-				v -> IuJson.toJson(((Encryption) v).enc), v -> Encryption.from(IuJson.fromJson(v))),
+		ENCRYPTION("enc", EnumSet.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("enc")),
 
 		/**
 		 * Plain-text compression algorithm for encryption.
 		 */
-		ZIP("zip", EnumSet.of(Use.ENCRYPT), false, a -> a.getExtendedParameter("zip"), v -> IuJson.toJson(v),
-				v -> IuJson.fromJson(v)),
+		ZIP("zip", EnumSet.of(Use.ENCRYPT), false, a -> a.getExtendedParameter("zip")),
 
 		/**
 		 * Ephemeral public key for key agreement algorithms.
@@ -159,8 +131,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @see {@link Algorithm#ECDH_ES_A192KW}
 		 * @see {@link Algorithm#ECDH_ES_A256KW}
 		 */
-		EPHEMERAL_PUBLIC_KEY("epk", EnumSet.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("epk"),
-				v -> ((WebKey) v).toJson(), JwkBuilder::parse),
+		EPHEMERAL_PUBLIC_KEY("epk", EnumSet.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("epk")),
 
 		/**
 		 * Public originator identifier (PartyUInfo) for key derivation.
@@ -170,8 +141,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @see {@link Algorithm#ECDH_ES_A192KW}
 		 * @see {@link Algorithm#ECDH_ES_A256KW}
 		 */
-		PARTY_UINFO("apu", EnumSet.of(Use.ENCRYPT), false, a -> a.getExtendedParameter("apu"),
-				v -> IuJson.toJson(IuText.base64Url((byte[]) v)), v -> IuText.base64(IuJson.<String>fromJson(v))),
+		PARTY_UINFO("apu", EnumSet.of(Use.ENCRYPT), false, a -> a.getExtendedParameter("apu")),
 
 		/**
 		 * Public recipient identifier (PartyVInfo) for key derivation.
@@ -181,8 +151,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @see {@link Algorithm#ECDH_ES_A192KW}
 		 * @see {@link Algorithm#ECDH_ES_A256KW}
 		 */
-		PARTY_VINFO("apv", EnumSet.of(Use.ENCRYPT), false, a -> a.getExtendedParameter("apv"),
-				v -> IuJson.toJson(IuText.base64Url((byte[]) v)), v -> IuText.base64(IuJson.<String>fromJson(v))),
+		PARTY_VINFO("apv", EnumSet.of(Use.ENCRYPT), false, a -> a.getExtendedParameter("apv")),
 
 		/**
 		 * Initialization vector for GCM key wrap.
@@ -191,8 +160,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @see {@link Algorithm#A192GCMKW}
 		 * @see {@link Algorithm#A256GCMKW}
 		 */
-		INITIALIZATION_VECTOR("iv", EnumSet.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("iv"),
-				v -> IuJson.toJson(IuText.base64Url((byte[]) v)), v -> IuText.base64(IuJson.<String>fromJson(v))),
+		INITIALIZATION_VECTOR("iv", EnumSet.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("iv")),
 
 		/**
 		 * Authentication tag for GCM key wrap.
@@ -201,8 +169,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @see {@link Algorithm#A192GCMKW}
 		 * @see {@link Algorithm#A256GCMKW}
 		 */
-		TAG("tag", Set.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("tag"),
-				v -> IuJson.toJson(IuText.base64Url((byte[]) v)), v -> IuText.base64(IuJson.<String>fromJson(v)));
+		TAG("tag", Set.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("tag"));
 
 		/**
 		 * Gets a parameter by JOSE standard parameter name.
@@ -271,30 +238,6 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 */
 		public Object get(WebCryptoHeader header) {
 			return get.apply(header);
-		}
-
-		/**
-		 * Converts a JSON value to its Java equivalent.
-		 * 
-		 * @param <T>   Java type
-		 * @param value JSON value
-		 * @return Java value
-		 */
-		@SuppressWarnings("unchecked")
-		public <T> T toJava(JsonValue value) {
-			return (T) toJava.apply(value);
-		}
-
-		/**
-		 * Converts a parameter value to JSON.
-		 * 
-		 * @param <T>   Java type
-		 * @param value Java value
-		 * @return {@link JsonValue}
-		 */
-		@SuppressWarnings("unchecked")
-		public <T> JsonValue toJson(T value) {
-			return ((Function<T, JsonValue>) toJson).apply(value);
 		}
 	}
 
@@ -460,26 +403,6 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @throws IllegalStateException if the verification fails
 		 */
 		default void verify(WebEncryption encryption, WebEncryptionRecipient recipient) throws IllegalStateException {
-		}
-
-		/**
-		 * Converts a JSON parameter value to its Java equivalent.
-		 * 
-		 * @param jsonValue JSON value
-		 * @return Java equivalent
-		 */
-		default T toJava(JsonValue jsonValue) {
-			return IuJson.fromJson(jsonValue);
-		}
-
-		/**
-		 * Converts a Java parameter value to its JSON equivalent.
-		 * 
-		 * @param javaValue JSON value
-		 * @return Java equivalent
-		 */
-		default JsonValue toJson(T javaValue) {
-			return IuJson.toJson(javaValue);
 		}
 	}
 

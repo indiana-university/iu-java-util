@@ -47,7 +47,7 @@ class OptionalJsonAdapter<T> implements IuJsonAdapter<Optional<T>> {
 	/**
 	 * Singleton instance.
 	 */
-	static final OptionalJsonAdapter<?> INSTANCE = new OptionalJsonAdapter<>(null);
+	static final OptionalJsonAdapter<?> INSTANCE = new OptionalJsonAdapter<>(BasicJsonAdapter.INSTANCE);
 
 	private final IuJsonAdapter<T> adapter;
 
@@ -61,26 +61,16 @@ class OptionalJsonAdapter<T> implements IuJsonAdapter<Optional<T>> {
 	}
 
 	@Override
-	@SuppressWarnings("unchecked")
 	public Optional<T> fromJson(JsonValue value) {
-		final T converted;
-		if (adapter == null)
-			converted = (T) BasicJsonAdapter.INSTANCE.fromJson(value);
-		else
-			converted = adapter.fromJson(value);
-		return Optional.ofNullable(converted);
+		return Optional.ofNullable(adapter.fromJson(value));
 	}
 
 	@Override
 	public JsonValue toJson(Optional<T> value) {
 		if (value == null)
 			return JsonValue.NULL;
-
-		final var unwrapped = value.orElse(null);
-		if (adapter == null)
-			return IuJsonAdapter.of(unwrapped).toJson(unwrapped);
 		else
-			return adapter.toJson(unwrapped);
+			return adapter.toJson(value.orElse(null));
 	}
 
 }

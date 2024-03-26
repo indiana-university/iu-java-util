@@ -38,7 +38,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.URI;
 import java.net.URL;
-import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -138,41 +137,27 @@ public interface IuJsonAdapter<T> {
 	 * <li>Converts between {@link Number} and {@link JsonNumber},
 	 * {@link #fromJson(JsonValue)} returns {@link BigDecimal}</li>
 	 * <li>Converts between {@link List List&lt;?&gt;} and {@link JsonArray}, with
-	 * recursive conversion of items via {@link #of(Object)}</li>
+	 * recursive item conversion</li>
 	 * <li>Converts between {@link Map Map&lt;String, ?&gt;} and {@link JsonObject},
-	 * with recursive conversion of properties via {@link #of(Object)}</li>
-	 * <li>Irreversible conversion to {@link JsonValue} for the types listed in
-	 * {@link #of(Class)}; must use {@link #of(Class)} for two-way conversion.</li>
-	 * </li>
+	 * with recursive conversion</li>
+	 * <li>Converts irreversibly to {@link JsonValue} for other types listed in
+	 * {@link #of(Class)}.</li>
 	 * </ul>
 	 * 
 	 * <p>
 	 * Equivalent to {@link #of(Class) of(Object.class)}
 	 * </p>
 	 * 
-	 * @param <T>   target type, may be coerced to {@link Object} or one of the base
-	 *              types outlined above, unchecked
-	 * @param value Java value
-	 * @return {@link JsonAdapter}
+	 * @param <T> target type, <em>may</em> be used for unchecked cast to a one of
+	 *            the types listed above. For full generic type support and two-way
+	 *            conversion use {@link #of(Class)}
+	 * @return {@link IuJsonAdapter}
+	 * @throws ClassCastException (potentially upstream) If the target type doesn't
+	 *                            match the return type
 	 */
 	@SuppressWarnings("unchecked")
 	static <T> IuJsonAdapter<T> basic() {
 		return JsonAdapters.adapt(Object.class, null);
-	}
-
-	/**
-	 * Provides a JSON type adapter for a Java value.
-	 * 
-	 * @param <T>   target type
-	 * @param value value
-	 * @return {@link JsonAdapter}
-	 */
-	@SuppressWarnings("unchecked")
-	static <T> IuJsonAdapter<T> of(T value) {
-		if (value == null)
-			return basic();
-		else
-			return JsonAdapters.adapt(value.getClass(), null);
 	}
 
 	/**
@@ -206,10 +191,9 @@ public interface IuJsonAdapter<T> {
 	 * </li>
 	 * <li>{@link #toJson(Object)} returns {@link JsonString}
 	 * <ul>
-	 * <li>byte[], via {@link IuText#base64Url(String)} and
-	 * {@link IuText#base64Url(byte[])}</li>
-	 * <li>{@link BigInteger}, via unsigned big-endian byte[]</li>
-	 * <li>{@link ByteBuffer}, via byte[]</li>
+	 * <li>byte[], via {@link IuText#base64(String)} and
+	 * {@link IuText#base64(byte[])}</li>
+	 * <li>{@link BigInteger}</li>
 	 * <li>{@link CharSequence}</li>
 	 * <li>{@link Calendar}, as {@link Date}</li>
 	 * <li>{@link CharSequence}, as {@link String}</li>
@@ -268,9 +252,9 @@ public interface IuJsonAdapter<T> {
 	 * </li>
 	 * </ul>
 	 * 
-	 * @param <T>  Java type
-	 * @param type Java type
-	 * @return {@link JsonAdapter}
+	 * @param <T>  target type
+	 * @param type target type
+	 * @return {@link IuJsonAdapter}
 	 */
 	@SuppressWarnings("unchecked")
 	static <T> IuJsonAdapter<T> of(Type type) {
@@ -280,9 +264,9 @@ public interface IuJsonAdapter<T> {
 	/**
 	 * Provides a standard JSON type adapter for a Java value.
 	 * 
-	 * @param <T>  Java type
-	 * @param type Java type
-	 * @return {@link JsonAdapter}
+	 * @param <T>  target type
+	 * @param type target type
+	 * @return {@link IuJsonAdapter}
 	 * @see #of(Type)
 	 */
 	@SuppressWarnings("unchecked")
@@ -294,13 +278,12 @@ public interface IuJsonAdapter<T> {
 	 * Provides a JSON type adapter that delegates to another adapter for
 	 * parameterized values.
 	 * 
-	 * @param <T>          Java type
-	 * @param <V>          Value type
-	 * @param type         Java type
+	 * @param <T>          target type
+	 * @param type         target type
 	 * @param valueAdapter Value type adapter for {@link JsonStructure} conversion,
 	 *                     may be null if the Java type doesn't declare parameters,
 	 *                     or to use a standard value adapter
-	 * @return {@link JsonAdapter}
+	 * @return {@link IuJsonAdapter}
 	 * @see #of(Type)
 	 */
 	@SuppressWarnings("unchecked")

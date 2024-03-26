@@ -79,10 +79,8 @@ abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
 		if (jsonValue == null //
 				|| JsonValue.NULL.equals(jsonValue))
 			return null;
-		else if (itemAdapter != null)
-			return collect(IuIterable.map(jsonValue.asJsonArray(), itemAdapter::fromJson).iterator());
 		else
-			return collect(IuIterable.map(jsonValue.asJsonArray(), IuJsonAdapter.<E>basic()::fromJson).iterator());
+			return collect(IuIterable.map(jsonValue.asJsonArray(), itemAdapter::fromJson).iterator());
 	}
 
 	@Override
@@ -91,12 +89,7 @@ abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
 			return JsonValue.NULL;
 
 		final var a = IuJson.array();
-		iterator(javaValue).forEachRemaining(i -> {
-			if (itemAdapter == null)
-				a.add(IuJsonAdapter.of(i).toJson(i));
-			else
-				a.add(itemAdapter.toJson(i));
-		});
+		iterator(javaValue).forEachRemaining(i -> a.add(itemAdapter.toJson(i)));
 		return a.build();
 	}
 

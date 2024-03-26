@@ -187,13 +187,12 @@ public class IuJson {
 	/**
 	 * Adds a value to an object builder.
 	 * 
-	 * @param <T>     value type
 	 * @param builder {@link JsonObjectBuilder}
 	 * @param name    name
 	 * @param value   value
 	 */
-	public static <T> void add(JsonObjectBuilder builder, String name, T value) {
-		add(builder, name, () -> value, () -> true, IuJsonAdapter.of(value));
+	public static void add(JsonObjectBuilder builder, String name, Object value) {
+		add(builder, name, () -> value, () -> true, IuJsonAdapter.basic());
 	}
 
 	/**
@@ -221,7 +220,7 @@ public class IuJson {
 	 *                  nothing
 	 */
 	public static <T> void add(JsonObjectBuilder builder, String name, T value, BooleanSupplier condition) {
-		add(builder, name, () -> value, condition, IuJsonAdapter.of(value));
+		add(builder, name, () -> value, condition, IuJsonAdapter.basic());
 	}
 
 	/**
@@ -253,7 +252,7 @@ public class IuJson {
 	 * @param value   value
 	 */
 	public static <T> void add(JsonArrayBuilder builder, T value) {
-		add(builder, () -> value, () -> true, IuJsonAdapter.of(value));
+		add(builder, () -> value, () -> true, IuJsonAdapter.basic());
 	}
 
 	/**
@@ -278,7 +277,7 @@ public class IuJson {
 	 *                  nothing
 	 */
 	public static <T> void add(JsonArrayBuilder builder, T value, BooleanSupplier condition) {
-		add(builder, () -> value, condition, IuJsonAdapter.of(value));
+		add(builder, () -> value, condition, IuJsonAdapter.basic());
 	}
 
 	/**

@@ -44,15 +44,10 @@ import java.util.EnumSet;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import javax.crypto.SecretKey;
-
 import edu.iu.IuException;
 import edu.iu.IuObject;
-import edu.iu.client.IuJson;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import iu.crypt.JwkBuilder;
-import jakarta.json.JsonString;
-import jakarta.json.JsonValue;
 
 /**
  * Unifies algorithm support and maps a cryptographic key from JCE to JSON Web
@@ -466,29 +461,6 @@ public interface WebKey extends WebCertificateReference {
 		}
 
 		/**
-		 * Gets the value equivalent to the JWK alg attribute.
-		 * 
-		 * @param alg alg attribute value
-		 * @return {@link Algorithm}
-		 */
-		public static Algorithm toJava(JsonValue alg) {
-			return from(((JsonString) alg).getString());
-		}
-
-		/**
-		 * Gets the JWK alg attribute value.
-		 * 
-		 * @param alg alg attribute
-		 * @return {@link JsonValue}
-		 */
-		public static JsonValue toJson(Object alg) {
-			if (alg == null)
-				return null;
-			else
-				return IuJson.toJson(((Algorithm) alg).alg);
-		}
-
-		/**
 		 * JSON alg attribute value.
 		 */
 		public final String alg;
@@ -606,14 +578,6 @@ public interface WebKey extends WebCertificateReference {
 		 * @return this
 		 */
 		B key(byte[] key);
-
-		/**
-		 * Sets secret key.
-		 * 
-		 * @param secretKey secret key
-		 * @return this
-		 */
-		B key(SecretKey secretKey);
 
 		/**
 		 * Sets public key only.

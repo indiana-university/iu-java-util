@@ -62,19 +62,19 @@ class BasicJsonAdapter implements IuJsonAdapter<Object> {
 	static BasicJsonAdapter INSTANCE = new BasicJsonAdapter();
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private final IuJsonAdapter<List<?>> listAdapter = new CollectionAdapter(null, ArrayList::new);
+	private final IuJsonAdapter<List<?>> listAdapter = new CollectionAdapter(this, ArrayList::new);
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private final IuJsonAdapter<Iterable<?>> iterableAdapter = new IterableAdapter(null);
+	private final IuJsonAdapter<Iterable<?>> iterableAdapter = new IterableAdapter(this);
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private final IuJsonAdapter<Iterable<?>> collectionAdapter = new CollectionAdapter(null, ArrayDeque::new);
+	private final IuJsonAdapter<Iterable<?>> collectionAdapter = new CollectionAdapter(this, ArrayDeque::new);
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private final IuJsonAdapter<Iterator<?>> iteratorAdapter = new IteratorAdapter(null);
+	private final IuJsonAdapter<Iterator<?>> iteratorAdapter = new IteratorAdapter(this);
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private final IuJsonAdapter<Enumeration<?>> enumerationAdapter = new EnumerationAdapter(null);
+	private final IuJsonAdapter<Enumeration<?>> enumerationAdapter = new EnumerationAdapter(this);
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private final IuJsonAdapter<Stream<?>> streamAdapter = new StreamAdapter(null);
+	private final IuJsonAdapter<Stream<?>> streamAdapter = new StreamAdapter(this);
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private final IuJsonAdapter<Map<?, ?>> mapAdapter = new JsonObjectAdapter(null, LinkedHashMap::new);
+	private final IuJsonAdapter<Map<?, ?>> mapAdapter = new JsonObjectAdapter(this, LinkedHashMap::new);
 
 	@Override
 	public Object fromJson(JsonValue value) {
@@ -108,11 +108,11 @@ class BasicJsonAdapter implements IuJsonAdapter<Object> {
 		else if (value instanceof Map)
 			return mapAdapter.toJson((Map<?, ?>) value);
 		else if (value.getClass().isArray())
-			return new ArrayAdapter(null, null).toJson(value);
+			return new ArrayAdapter(this, null).toJson(value);
 		else if (value instanceof List)
 			return listAdapter.toJson((List<?>) value);
 		else if (value instanceof Collection)
-			return collectionAdapter.toJson((Iterable<?>) value);
+			return collectionAdapter.toJson((Collection<?>) value);
 		else if (value instanceof Iterable)
 			return iterableAdapter.toJson((Iterable<?>) value);
 		else if (value instanceof Iterator)

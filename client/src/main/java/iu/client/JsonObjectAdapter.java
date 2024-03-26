@@ -67,7 +67,6 @@ class JsonObjectAdapter<T extends Map<String, V>, V> implements IuJsonAdapter<T>
 				|| JsonValue.NULL.equals(jsonValue))
 			return null;
 
-		final var valueAdapter = this.valueAdapter == null ? IuJsonAdapter.<V>basic() : this.valueAdapter;
 		final var map = factory.get();
 		for (final var e : jsonValue.asJsonObject().entrySet())
 			map.put(e.getKey(), valueAdapter.fromJson(e.getValue()));
@@ -80,11 +79,8 @@ class JsonObjectAdapter<T extends Map<String, V>, V> implements IuJsonAdapter<T>
 			return JsonValue.NULL;
 
 		final var a = IuJson.object();
-		for (final var e : javaValue.entrySet()) {
-			final var v = e.getValue();
-			final var valueAdapter = this.valueAdapter == null ? IuJsonAdapter.of(v) : this.valueAdapter;
-			a.add(e.getKey(), valueAdapter.toJson(v));
-		}
+		for (final var e : javaValue.entrySet())
+			a.add(e.getKey(), valueAdapter.toJson(e.getValue()));
 		return a.build();
 	}
 

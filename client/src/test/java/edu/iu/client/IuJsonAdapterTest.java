@@ -39,8 +39,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -51,7 +49,6 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
 import java.net.http.HttpResponse;
-import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -99,7 +96,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
-import org.mockito.stubbing.Answer;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
@@ -118,11 +114,6 @@ public class IuJsonAdapterTest {
 		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(getClass()));
 		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(ConcurrentHashMap.class));
 		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(ConcurrentLinkedQueue.class));
-	}
-
-	@Test
-	public void testNullIsBasic() {
-		assertSame(IuJsonAdapter.of((Object) null), IuJsonAdapter.basic());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -336,49 +327,6 @@ public class IuJsonAdapterTest {
 		final var data = IuText.utf8(text);
 		assertEquals(IuJson.string(text), adapter.toJson(data));
 		assertArrayEquals(data, adapter.fromJson(IuJson.string(text)));
-	}
-
-	@Test
-	public void testByteBuffer() {
-		final var adapter = IuJsonAdapter.of(ByteBuffer.class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertEquals(JsonValue.NULL, adapter.toJson(ByteBuffer.allocate(0)));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var data = new byte[Math.abs(ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE + 1, Short.MAX_VALUE))];
-		ThreadLocalRandom.current().nextBytes(data);
-
-		final var arraybuf = ByteBuffer.wrap(data);
-		final var text = IuText.base64(data);
-		assertEquals(IuJson.string(text), adapter.toJson(arraybuf));
-		assertEquals(JsonValue.NULL, adapter.toJson(arraybuf));
-		assertArrayEquals(data, adapter.fromJson(IuJson.string(text)).array());
-
-		final Answer<?> copy = a -> {
-			System.arraycopy(data, 0, a.getArgument(0), 0, data.length);
-			return null;
-		};
-		final var nonarray = mock(ByteBuffer.class);
-		doAnswer(copy).when(nonarray).get(any(byte[].class));
-		when(nonarray.hasRemaining()).thenReturn(true);
-		when(nonarray.remaining()).thenReturn(data.length);
-		assertEquals(IuJson.string(text), adapter.toJson(nonarray));
-
-		final var offset = mock(ByteBuffer.class);
-		doAnswer(copy).when(offset).get(any(byte[].class));
-		when(offset.hasArray()).thenReturn(true);
-		when(offset.arrayOffset()).thenReturn(1);
-		when(offset.hasRemaining()).thenReturn(true);
-		when(offset.remaining()).thenReturn(data.length);
-		assertEquals(IuJson.string(text), adapter.toJson(offset));
-
-		final var capped = mock(ByteBuffer.class);
-		doAnswer(copy).when(capped).get(any(byte[].class));
-		when(capped.hasArray()).thenReturn(true);
-		when(capped.limit()).thenReturn(1);
-		when(capped.hasRemaining()).thenReturn(true);
-		when(capped.remaining()).thenReturn(data.length);
-		assertEquals(IuJson.string(text), adapter.toJson(capped));
 	}
 
 	@Test

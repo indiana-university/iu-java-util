@@ -32,6 +32,7 @@
 package edu.iu.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -121,18 +122,26 @@ public class IuVaultTest {
 
 	@BeforeEach
 	public void setup() throws Exception {
-		final var f = IuVault.class.getDeclaredField("SECRETS");
-		f.setAccessible(true);
-		((Map<?, ?>) f.get(null)).clear();
+		final var runtime = IuVault.class.getDeclaredField("RUNTIME");
+		runtime.setAccessible(true);
+
+		final var secrets = IuVault.class.getDeclaredField("secrets");
+		secrets.setAccessible(true);
+
+		final var vault = runtime.get(null);
+		if (vault != null)
+			((Map<?, ?>) secrets.get(vault)).clear();
 	}
 
 	@Test
 	public void testIsConfigured() throws Exception {
 		final var props = new Properties();
+		props.setProperty("iu.vault.endpoint", "vault://kv");
 		props.setProperty("iu.vault.secrets", "a");
+		props.setProperty("iu.vault.token", IdGenerator.generateId());
 		assertEquals(with(props), IuVault.isConfigured());
 		if (!IuVault.isConfigured())
-			assertThrows(IllegalArgumentException.class, () -> IuVault.get("foo"));
+			assertNull(IuVault.RUNTIME);
 	}
 
 	@Test
@@ -157,11 +166,11 @@ public class IuVaultTest {
 			mockHttp.when(() -> IuHttp.send(eq(URI.create("vault://kv/data/a/e")), watch(mockRequestBuilder), any()))
 					.thenReturn(IuJson.parse("{\"data\":{\"data\":{\"bool\":true}}}"));
 
-			assertEquals("bar", IuVault.get("foo"));
-			assertEquals("baz", IuVault.get("bar"));
-			assertEquals(42, IuVault.get("num", IuJsonAdapter.<Number>basic()).intValue());
-			assertTrue(IuVault.get("bool", IuJsonAdapter.<Boolean>basic()));
-			assertThrows(IllegalArgumentException.class, () -> IuVault.get("baz"));
+			assertEquals("bar", IuVault.RUNTIME.get("foo"));
+			assertEquals("baz", IuVault.RUNTIME.get("bar"));
+			assertEquals(42, IuVault.RUNTIME.get("num", IuJsonAdapter.<Number>basic()).intValue());
+			assertTrue(IuVault.RUNTIME.get("bool", IuJsonAdapter.<Boolean>basic()));
+			assertThrows(IllegalArgumentException.class, () -> IuVault.RUNTIME.get("baz"));
 			verify(mockRequestBuilder, times(4)).header("Authorization", "Bearer " + token);
 		}
 	}
@@ -199,11 +208,11 @@ public class IuVaultTest {
 					.thenReturn(IuJson
 							.parse("{\"data\":{\"data\":{\"foo\":\"bar\",\"bar\":\"baz\",\"num\":42,\"bool\":true}}}"));
 
-			assertEquals("bar", IuVault.get("foo"));
-			assertEquals("baz", IuVault.get("bar"));
-			assertEquals(42, IuVault.get("num", IuJsonAdapter.<Number>basic()).intValue());
-			assertTrue(IuVault.get("bool", IuJsonAdapter.<Boolean>basic()));
-			assertThrows(IllegalArgumentException.class, () -> IuVault.get("baz"));
+			assertEquals("bar", IuVault.RUNTIME.get("foo"));
+			assertEquals("baz", IuVault.RUNTIME.get("bar"));
+			assertEquals(42, IuVault.RUNTIME.get("num", IuJsonAdapter.<Number>basic()).intValue());
+			assertTrue(IuVault.RUNTIME.get("bool", IuJsonAdapter.<Boolean>basic()));
+			assertThrows(IllegalArgumentException.class, () -> IuVault.RUNTIME.get("baz"));
 
 			verify(loginBuilder).POST(loginRequestPayload);
 			verify(loginBuilder).header("Content-Type", "application/json; charset=utf-8");

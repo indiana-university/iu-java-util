@@ -41,7 +41,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.URI;
 import java.net.URL;
-import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -149,8 +148,6 @@ public final class JsonAdapters {
 
 		if (erased == byte[].class)
 			return BinaryJsonAdapter.INSTANCE;
-		if (erased == ByteBuffer.class)
-			return ByteBufferJsonAdapter.INSTANCE;
 
 		if (erased == Calendar.class)
 			return CalendarJsonAdapter.INSTANCE;
@@ -216,7 +213,7 @@ public final class JsonAdapters {
 			else if (type instanceof ParameterizedType)
 				itemAdapter = IuJsonAdapter.of(item(type));
 			else
-				itemAdapter = null;
+				itemAdapter = BasicJsonAdapter.INSTANCE;
 
 			if (erased == Iterable.class)
 				return new IterableAdapter(itemAdapter);
@@ -256,7 +253,7 @@ public final class JsonAdapters {
 				if (type instanceof ParameterizedType)
 					valueAdapter = IuJsonAdapter.of(item(type));
 				else
-					valueAdapter = null;
+					valueAdapter = BasicJsonAdapter.INSTANCE;
 
 			if (erased == Map.class //
 					|| erased == LinkedHashMap.class)
