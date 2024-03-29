@@ -34,6 +34,9 @@ package edu.iu.auth.oauth;
 import java.io.Serializable;
 import java.security.Principal;
 
+import edu.iu.auth.spi.IuOAuthSpi;
+import iu.auth.IuAuthSpiFactory;
+
 /**
  * Represents a scope authorized by an authentication realm.
  * 
@@ -44,6 +47,17 @@ import java.security.Principal;
  * </p>
  */
 public interface IuAuthorizationScope extends Principal, Serializable {
+
+	/**
+	 * Creates an authorization scope principal.
+	 * 
+	 * @param name  authorization scope
+	 * @param realm authentication realm
+	 * @return {@link IuAuthorizationScope}
+	 */
+	static IuAuthorizationScope of(String name, String realm) {
+		return IuAuthSpiFactory.get(IuOAuthSpi.class).createAuthorizationScope(name, realm);
+	}
 
 	/**
 	 * Gets the authentication realm.

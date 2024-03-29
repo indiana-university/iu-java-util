@@ -76,12 +76,14 @@ import edu.iu.IuCrypt;
 import edu.iu.IuText;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
 import edu.iu.auth.oauth.IuTokenResponse;
 import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.test.IuTestLogger;
 import iu.auth.util.AccessTokenVerifier;
 import iu.auth.util.HttpUtils;
+import iu.auth.util.WellKnownKeySet;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 
@@ -137,7 +139,8 @@ public class OidcAuthorizationClientTest {
 		when(credentials.getName()).thenReturn(clientId);
 
 		idClient = mock(IuOpenIdClient.class, CALLS_REAL_METHODS);
-		idTokenVerifier = new AccessTokenVerifier(jwksUri, issuer, idClient::getTrustRefreshInterval);
+		idTokenVerifier = new AccessTokenVerifier(issuer,
+				new WellKnownKeySet(jwksUri, idClient::getTrustRefreshInterval));
 		when(idClient.getCredentials()).thenReturn(credentials);
 		when(idClient.getActivationInterval()).thenReturn(Duration.ofMillis(100L));
 		when(idClient.getAuthenticatedSessionTimeout()).thenReturn(Duration.ofSeconds(2L));
@@ -294,18 +297,20 @@ public class OidcAuthorizationClientTest {
 			assertThrows(IllegalStateException.class, () -> client.verify(tokenResponse));
 
 			final var idcon = Class.forName(OidcAuthorizationClient.class.getName() + "$Id")
-					.getDeclaredConstructor(String.class);
+					.getDeclaredConstructor(OidcAuthorizationClient.class, String.class);
 			idcon.setAccessible(true);
-			final var id = (Principal) idcon.newInstance(clientId);
-			Thread.sleep(idClient.getAuthenticatedSessionTimeout().toMillis() + 1L);
+			final var id = (Principal) idcon.newInstance(client, clientId);
 			final var credentials = mock(IuBearerAuthCredentials.class);
 			when(credentials.getName()).thenReturn(clientId);
 			when(credentials.getAccessToken()).thenReturn(accessToken);
 			when(credentials.getSubject()).thenReturn(new Subject(true, Set.of(id, //
 					new OidcClaim<>(clientId, "principal", clientId), //
-					new OidcClaim<>(clientId, "sub", clientId), //
+					new OidcClaim<>(clientId, "sub", sub), //
 					new OidcClaim<>(clientId, "aud", clientId), //
 					new OidcClaim<>(clientId, "auth_time", Instant.now())), Set.of(), Set.of()));
+			client.activate(credentials);
+			Thread.sleep(idClient.getAuthenticatedSessionTimeout().toMillis() + 1L);
+
 			IuTestLogger.expect(OidcAuthorizationClient.class.getName(), Level.FINER,
 					"discarding invalid activation code", IllegalArgumentException.class);
 
@@ -332,22 +337,87 @@ public class OidcAuthorizationClientTest {
 			mockHttpUtils.when(() -> HttpUtils.read(request)).thenReturn(userinfo);
 
 			final var idcon = Class.forName(OidcAuthorizationClient.class.getName() + "$Id")
-					.getDeclaredConstructor(String.class);
+					.getDeclaredConstructor(OidcAuthorizationClient.class, String.class);
 			idcon.setAccessible(true);
-			final var id = (Principal) idcon.newInstance(clientId);
-			Thread.sleep(idClient.getAuthenticatedSessionTimeout().toMillis() + 1L);
+			final var id = (Principal) idcon.newInstance(client, clientId);
 			final var credentials = mock(IuBearerAuthCredentials.class);
 			when(credentials.getName()).thenReturn(clientId);
 			when(credentials.getAccessToken()).thenReturn(accessToken);
 			when(credentials.getSubject()).thenReturn(new Subject(true, Set.of(id, //
 					new OidcClaim<>(clientId, "principal", clientId), //
-					new OidcClaim<>(clientId, "sub", clientId), //
-					new OidcClaim<>(clientId, "aud", IdGenerator.generateId()), //
+					new OidcClaim<>(clientId, "sub", sub), //
+					new OidcClaim<>(clientId, "aud", clientId), //
 					new OidcClaim<>(clientId, "auth_time", Instant.now())), Set.of(), Set.of()));
+			client.activate(credentials);
+			client.activate(credentials);
+			verify(idClient).activate(credentials);
+
+			Thread.sleep(idClient.getAuthenticatedSessionTimeout().toMillis() + 1L);
 			IuTestLogger.expect(OidcAuthorizationClient.class.getName(), Level.FINER,
 					"discarding invalid activation code", IllegalArgumentException.class);
 
-			assertThrows(IuAuthenticationException.class, () -> client.activate(credentials));
+			final var credentials2 = mock(IuBearerAuthCredentials.class);
+			when(credentials2.getName()).thenReturn(clientId);
+			when(credentials2.getAccessToken()).thenReturn(accessToken);
+			when(credentials2.getSubject()).thenReturn(new Subject(true, Set.of(id, //
+					new OidcClaim<>(clientId, "principal", clientId), //
+					new OidcClaim<>(clientId, "sub", sub), //
+					new OidcClaim<>(clientId, "aud", IdGenerator.generateId()), //
+					new OidcClaim<>(clientId, "auth_time", Instant.now())), Set.of(), Set.of()));
+			assertThrows(IuAuthenticationException.class, () -> client.activate(credentials2));
+		}
+	}
+
+	@Test
+	public void testClaimMismatchInSession() throws Exception {
+		final var accessToken = IdGenerator.generateId();
+		final var tokenResponse = mock(IuTokenResponse.class);
+		when(tokenResponse.getAccessToken()).thenReturn(accessToken);
+		when(tokenResponse.getScope()).thenReturn(List.of("openid"));
+		final var principal = clientId;
+		final var sub = IdGenerator.generateId();
+		final var userinfo = Json.createObjectBuilder().add("principal", principal).add("sub", sub).add("foo", "bar")
+				.build();
+		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
+				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
+			final var rb = mock(HttpRequest.Builder.class);
+			when(rb.header(any(), any())).thenReturn(rb);
+			final var request = mock(HttpRequest.class);
+			when(rb.build()).thenReturn(request);
+			mockHttpRequest.when(() -> HttpRequest.newBuilder(userinfoEndpoint)).thenReturn(rb);
+			mockHttpUtils.when(() -> HttpUtils.read(request)).thenReturn(userinfo);
+
+			final var idcon = Class.forName(OidcAuthorizationClient.class.getName() + "$Id")
+					.getDeclaredConstructor(OidcAuthorizationClient.class, String.class);
+			idcon.setAccessible(true);
+			final var id = (Principal) idcon.newInstance(client, clientId);
+			final var credentials = mock(IuBearerAuthCredentials.class);
+			when(credentials.getName()).thenReturn(clientId);
+			when(credentials.getAccessToken()).thenReturn(accessToken);
+			when(credentials.getSubject()).thenReturn(new Subject(true, Set.of(id, //
+					new OidcClaim<>(clientId, "principal", clientId), //
+					new OidcClaim<>(clientId, "sub", sub), //
+					new OidcClaim<>(clientId, "aud", clientId), //
+					new OidcClaim<>(clientId, "auth_time", Instant.now()), //
+					new OidcClaim<>(clientId, "foo", "bar")), Set.of(), Set.of()));
+			client.activate(credentials);
+			client.activate(credentials);
+			verify(idClient).activate(credentials);
+
+			Thread.sleep(idClient.getAuthenticatedSessionTimeout().toMillis() + 1L);
+			IuTestLogger.expect(OidcAuthorizationClient.class.getName(), Level.FINER,
+					"discarding invalid activation code", IllegalArgumentException.class);
+
+			final var credentials2 = mock(IuBearerAuthCredentials.class);
+			when(credentials2.getName()).thenReturn(clientId);
+			when(credentials2.getAccessToken()).thenReturn(accessToken);
+			when(credentials2.getSubject()).thenReturn(new Subject(true, Set.of(id, //
+					new OidcClaim<>(clientId, "principal", clientId), //
+					new OidcClaim<>(clientId, "sub", sub), //
+					new OidcClaim<>(clientId, "aud", clientId), //
+					new OidcClaim<>(clientId, "auth_time", Instant.now()), //
+					new OidcClaim<>(clientId, "foo", "baz")), Set.of(), Set.of()));
+			assertThrows(IuAuthenticationException.class, () -> client.activate(credentials2));
 		}
 	}
 
@@ -475,8 +545,8 @@ public class OidcAuthorizationClientTest {
 		}
 	}
 
-	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	public void testAuthTimeout() throws Exception {
 		final var accessToken = IdGenerator.generateId();
 
@@ -524,9 +594,10 @@ public class OidcAuthorizationClientTest {
 					assertThrows(IuAuthenticationException.class, () -> client.verify(tokenResponse)).getMessage());
 
 			final var idcon = Class.forName(OidcAuthorizationClient.class.getName() + "$Id")
-					.getDeclaredConstructor(String.class);
+					.getDeclaredConstructor(OidcAuthorizationClient.class, String.class);
 			idcon.setAccessible(true);
-			final var id = (Principal) idcon.newInstance(clientId);
+			final var id = (Principal) idcon.newInstance(client, clientId);
+			Thread.sleep(101L);
 
 			final var bearer = mock(IuBearerAuthCredentials.class);
 			when(bearer.getName()).thenReturn(clientId);
@@ -535,8 +606,6 @@ public class OidcAuthorizationClientTest {
 					new OidcClaim(clientId, "auth_time", now) //
 			), Set.of(), Set.of()));
 			when(bearer.getAccessToken()).thenReturn(accessToken);
-			client.activate(bearer);
-			Thread.sleep(101L);
 			IuTestLogger.expect("iu.auth.oidc.OidcAuthorizationClient", Level.FINER,
 					"discarding invalid activation code", IllegalArgumentException.class);
 			assertThrows(IuAuthenticationException.class, () -> client.activate(bearer));
@@ -593,6 +662,12 @@ public class OidcAuthorizationClientTest {
 
 			final var subject = client.verify(tokenResponse);
 			verify(rb).header("Authorization", "Bearer " + accessToken);
+
+			final var id = subject.getPrincipals(IuPrincipalIdentity.class).iterator().next();
+			assertEquals(principal, id.getName());
+
+			IuPrincipalIdentity.verify(id, client.getRealm());
+
 			final var principals = subject.getPrincipals();
 			assertEquals(9, principals.size());
 			final var principalIter = principals.iterator();
@@ -619,4 +694,24 @@ public class OidcAuthorizationClientTest {
 		}
 	}
 
+	@Test
+	public void testWrongClient() throws Exception {
+		final var issuer = IdGenerator.generateId();
+		final var config = Json.createObjectBuilder() //
+				.add("authorization_endpoint", authorizationEndpoint.toString()) //
+				.add("token_endpoint", tokenEndpoint.toString()) //
+				.add("userinfo_endpoint", userinfoEndpoint.toString()) //
+				.add("jwks_uri", jwksUri.toString()) //
+				.add("issuer", issuer) //
+				.build();
+		final var idTokenVerifier = new AccessTokenVerifier(issuer,
+				new WellKnownKeySet(jwksUri, idClient::getTrustRefreshInterval));
+
+		final var client = new OidcAuthorizationClient(config, idClient, idTokenVerifier);
+		final var idcon = Class.forName(OidcAuthorizationClient.class.getName() + "$Id")
+				.getDeclaredConstructor(OidcAuthorizationClient.class, String.class);
+		idcon.setAccessible(true);
+		final var id = (IuPrincipalIdentity) idcon.newInstance(this.client, clientId);
+		assertThrows(IllegalArgumentException.class, () -> IuPrincipalIdentity.verify(id, client.getRealm()));
+	}
 }

@@ -39,12 +39,17 @@
  *       resources
  * @uses edu.iu.auth.spi.IuOpenIdConnectSpi For access to OpenID Connect
  *       implementation resources
+ * @uses edu.iu.auth.spi.IuPrincipalSpi For access to identity provider
+ *       verification resources
+ * @uses edu.iu.auth.spi.IuSessionSpi for access to session token implementation
+ *       resources
  */
 module iu.util.auth {
 	exports edu.iu.auth;
 	exports edu.iu.auth.basic;
 	exports edu.iu.auth.oauth;
 	exports edu.iu.auth.oidc;
+	exports edu.iu.auth.session;
 	exports edu.iu.auth.spi;
 
 	requires iu.util;
@@ -53,4 +58,6 @@ module iu.util.auth {
 	uses edu.iu.auth.spi.IuBasicAuthSpi;
 	uses edu.iu.auth.spi.IuOAuthSpi;
 	uses edu.iu.auth.spi.IuOpenIdConnectSpi;
+	uses edu.iu.auth.spi.IuPrincipalSpi;
+	uses edu.iu.auth.spi.IuSessionSpi;
 }

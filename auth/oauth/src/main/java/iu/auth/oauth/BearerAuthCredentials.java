@@ -36,7 +36,9 @@ import java.net.http.HttpRequest.Builder;
 import javax.security.auth.Subject;
 
 import edu.iu.IuObject;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
+import iu.auth.util.PrincipalVerifierRegistry;
 
 /**
  * {@link IuBearerAuthCredentials} implementation.
@@ -44,10 +46,14 @@ import edu.iu.auth.oauth.IuBearerAuthCredentials;
 public class BearerAuthCredentials implements IuBearerAuthCredentials {
 	private static final long serialVersionUID = 1L;
 
+	static {
+		PrincipalVerifierRegistry.registerDelegate(BearerAuthCredentials.class, bearer -> bearer.id);
+	}
+
 	/**
-	 * Principal name.
+	 * Identifying principal.
 	 */
-	private final String name;
+	private final IuPrincipalIdentity id;
 
 	/**
 	 * Authorized subject.
@@ -62,18 +68,20 @@ public class BearerAuthCredentials implements IuBearerAuthCredentials {
 	/**
 	 * Constructor.
 	 * 
+	 * @param realm       authentication realm
 	 * @param subject     verified subject
 	 * @param accessToken access token
 	 */
-	public BearerAuthCredentials(Subject subject, String accessToken) {
-		this.name = subject.getPrincipals().iterator().next().getName();
+	protected BearerAuthCredentials(String realm, Subject subject, String accessToken) {
+		this.id = IuPrincipalIdentity.from(subject, realm);
+		subject.getPrincipals(IuPrincipalIdentity.class).iterator().next();
 		this.subject = subject;
 		this.accessToken = accessToken;
 	}
 
 	@Override
 	public String getName() {
-		return name;
+		return id.getName();
 	}
 
 	@Override
@@ -93,7 +101,7 @@ public class BearerAuthCredentials implements IuBearerAuthCredentials {
 
 	@Override
 	public int hashCode() {
-		return IuObject.hashCode(accessToken, name, subject);
+		return IuObject.hashCode(subject);
 	}
 
 	@Override
@@ -101,14 +109,12 @@ public class BearerAuthCredentials implements IuBearerAuthCredentials {
 		if (!IuObject.typeCheck(this, obj))
 			return false;
 		BearerAuthCredentials other = (BearerAuthCredentials) obj;
-		return IuObject.equals(accessToken, other.accessToken) //
-				&& IuObject.equals(name, other.name) //
-				&& IuObject.equals(subject, other.subject);
+		return IuObject.equals(subject, other.subject);
 	}
 
 	@Override
 	public String toString() {
-		return "BearerAuthCredentials [name=" + name + ", subject=" + subject + "]";
+		return "BearerAuthCredentials [" + subject + "]";
 	}
 
 }

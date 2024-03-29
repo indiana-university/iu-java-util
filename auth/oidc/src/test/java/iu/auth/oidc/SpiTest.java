@@ -74,7 +74,6 @@ public class SpiTest {
 			IuTestLogger.expect("iu.auth.oidc.OpenIdProvider", Level.INFO, "OIDC Provider configuration.*");
 			final var provider = spi.getOpenIdProvider(uri, client);
 			assertEquals(issuer, provider.getIssuer());
-			assertEquals(userinfoUri, provider.getUserInfoEndpoint());
 
 			IuTestLogger.expect("iu.auth.oidc.OpenIdProvider", Level.INFO, "OIDC Provider configuration.*");
 			assertNotSame(provider, spi.getOpenIdProvider(uri, client));

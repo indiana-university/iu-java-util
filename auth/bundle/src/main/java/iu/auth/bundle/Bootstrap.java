@@ -105,7 +105,8 @@ public class Bootstrap {
 
 		final var filter = new FilteringClassLoader( //
 				Set.of("edu.iu", "edu.iu.auth", "edu.iu.auth.basic", //
-						"edu.iu.auth.oauth", "edu.iu.auth.oidc", "edu.iu.auth.spi", "javax.security.auth"),
+						"edu.iu.auth.oauth", "edu.iu.auth.oidc", "edu.iu.auth.session", "edu.iu.auth.spi",
+						"javax.security.auth"),
 				Bootstrap.class.getClassLoader());
 
 		final var parent = new URLClassLoader(box.utilDeps.toArray(URL[]::new), filter);

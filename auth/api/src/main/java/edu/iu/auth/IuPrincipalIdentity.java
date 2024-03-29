@@ -29,25 +29,52 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.basic;
+package edu.iu.auth;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.mockConstruction;
+import java.io.Serializable;
+import java.security.Principal;
 
-import java.util.List;
+import javax.security.auth.Subject;
 
-import org.junit.jupiter.api.Test;
+import edu.iu.auth.spi.IuPrincipalSpi;
+import iu.auth.IuAuthSpiFactory;
 
-@SuppressWarnings("javadoc")
-public class BaseicAuthSpiTest {
+/**
+ * Designates an authenticated principal identity.
+ */
+public interface IuPrincipalIdentity extends Principal, Serializable {
 
-	@Test
-	public void testSpi() {
-		final var basicSpi = new BasicAuthSpi();
-		try (final var mockBasic = mockConstruction(BasicAuthCredentials.class)) {
-			final var basic = basicSpi.createCredentials("foo", "bar");
-			assertEquals(List.of(basic), mockBasic.constructed());
-		}
+	/**
+	 * Verifies that a principal identity was issued by a registered identity
+	 * provider for an authentication realm.
+	 * 
+	 * @param id    principal identity
+	 * @param realm authentication realm
+	 */
+	static void verify(IuPrincipalIdentity id, String realm) {
+		IuAuthSpiFactory.get(IuPrincipalSpi.class).verify(id, realm);
+	}
+
+	/**
+	 * Retrieves and verifies a single {@link IuPrincipalIdentity} from a
+	 * {@link Subject}.
+	 * 
+	 * @param subject {@link Subject}
+	 * @param realm   authentication realm, for verification
+	 * @return verified {@link IuPrincipalIdentity}
+	 */
+	static IuPrincipalIdentity from(Subject subject, String realm) {
+		final var i = subject.getPrincipals(IuPrincipalIdentity.class).iterator();
+		if (!i.hasNext())
+			throw new IllegalArgumentException("expected one IuPrincipalIdentity");
+
+		final var principal = i.next();
+		if (i.hasNext())
+			throw new IllegalArgumentException("expected exactly one IuPrincipalIdentity");
+
+		verify(principal, realm);
+
+		return principal;
 	}
 
 }

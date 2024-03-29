@@ -95,4 +95,15 @@ public class OAuthSpiTest {
 			assertSame(authSession, mockAuthSession.constructed().get(0));
 		}
 	}
+	
+	@Test
+	public void testCreateAuthorizedScope() {
+		final var spi = new OAuthSpi();
+		final var name = IdGenerator.generateId();
+		final var realm = IdGenerator.generateId();
+		try (final var mockAuthScope = mockConstruction(AuthorizedScope.class)) {
+			final var authSession = spi.createAuthorizationScope(name, realm);
+			assertSame(authSession, mockAuthScope.constructed().get(0));
+		}
+	}
 }
