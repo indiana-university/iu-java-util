@@ -1,7 +1,9 @@
 package edu.iu.auth.saml;
 
 import java.net.URI;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.List;
 
 /**
  * Provides client configuration metadata for interacting with an SAML authorization
@@ -32,9 +34,7 @@ public interface IuSamlClient {
 	//	private boolean failOnAddressMismatch;
 
 	// id
-	
-	
-	void authorize();
+
 
 
 	/**
@@ -54,7 +54,7 @@ public interface IuSamlClient {
      * into the SAML provider by administrator 
      * @return metadata URL
      */
-	default String[] getMetaDataUrls() {
+	default List<URI> getMetaDataUrls() {
 		return null;
 	}
 	
@@ -82,4 +82,18 @@ public interface IuSamlClient {
 	default String getIssuer() {
 		return null;
 	}
+
+
+	List<URI> getAcsUrls();
+
+    /**
+     * Gets the unique service provider id that register with identity provider
+     * @return unique service provide id
+     */
+	String getServiceProviderEntityId();
+
+
+	X509Certificate getCertificate();
+
+	String getPrivateKey();
 }

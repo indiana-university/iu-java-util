@@ -3,6 +3,8 @@ package iu.auth.util;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.text.DateFormat;
 import java.text.ParseException;
@@ -11,6 +13,10 @@ import java.util.List;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 
 import org.w3c.dom.DOMImplementation;
 import org.w3c.dom.Document;
@@ -60,6 +66,29 @@ public class XmlDomUtil {
 			throw new IllegalStateException(e);
 		} catch (ParserConfigurationException e) {
 			throw new IllegalStateException(e);
+		}
+	}
+	
+	public static String xmlToString(InputStream inputStream) {
+		try {
+			DocumentBuilderFactory builder = DocumentBuilderFactory.newInstance();
+			
+			// CWE-611 mitigation: Prevent XXE in XML Parse4
+			// See https://cwe.mitre.org/data/definitions/611.html
+			// See https://blog.shiftleft.io/preventing-xxe-in-java-applications-d557b6092db1
+			builder.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+			builder.setFeature("http://xml.org/sax/features/external-general-entities", false);
+			builder.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+			builder.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+			builder.setXIncludeAware(false);
+			builder.setExpandEntityReferences(false);
+			Document doc = builder.newDocumentBuilder().parse(inputStream);
+			StringWriter stw = new StringWriter();
+			Transformer serializer = TransformerFactory.newInstance().newTransformer();
+			serializer.transform(new DOMSource(doc), new StreamResult(stw));
+			return stw.toString();
+		} catch (Exception e) {
+			throw new RuntimeException(e);
 		}
 	}
 

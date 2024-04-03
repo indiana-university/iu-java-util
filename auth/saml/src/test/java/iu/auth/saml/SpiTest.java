@@ -9,13 +9,15 @@ import java.util.HashMap;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.auth.saml.IuSamlClient;
+
 @SuppressWarnings("javadoc")
 public class SpiTest {
 
 	@Test
 	public void testSamlSpi() {
 		final var spi = new SamlConnectSpi();
-		final var client = mock(SamlClient.class);
+		final var client = mock(IuSamlClient.class);
 
 		assertThrows(UnsupportedOperationException.class, () -> spi.getSamlProvider(client));
 	}

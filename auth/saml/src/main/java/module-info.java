@@ -9,6 +9,9 @@ module iu.util.auth.saml {
 	requires static org.opensaml.xmlsec;
 	requires static net.shibboleth.shared.support;
 	requires org.opensaml.saml.impl;
+	requires org.opensaml.security;
+	requires org.opensaml.security.impl;
+	requires jakarta.json;
 
 	provides edu.iu.auth.spi.IuSamlSpi with iu.auth.saml.SamlConnectSpi;
 }

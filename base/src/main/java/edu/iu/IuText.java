@@ -31,6 +31,8 @@
  */
 package edu.iu;
 
+import java.util.Base64;
+
 /**
  * Low-level text processing utilities.
  */
@@ -63,6 +65,33 @@ public final class IuText {
 		else
 			return IuException.unchecked(() -> new String(data, "UTF-8"));
 	}
+	
+	/**
+	 * Encodes binary data as basic Base64.
+	 * 
+	 * @param data binary data
+	 * @return encoded {@link String}
+	 */
+	public static String base64(byte[] data) {
+		if (data == null)
+			return null;
+		else
+			return Base64.getEncoder().encodeToString(data);
+	}
+
+	/**
+	 * Decodes binary data from basic Base64.
+	 * 
+	 * @param data encoded {@link String}
+	 * @return binary data
+	 */
+	public static byte[] base64(String data) {
+		if (data == null)
+			return null;
+		else
+			return Base64.getDecoder().decode(data);
+	}
+
 
 	private IuText() {
 	}

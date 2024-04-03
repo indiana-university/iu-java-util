@@ -1,5 +1,9 @@
 package edu.iu.auth.saml;
 
+import java.net.URI;
+import java.util.Map;
+
+import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.spi.IuSamlSpi;
 import iu.auth.IuAuthSpiFactory;
 
@@ -11,12 +15,25 @@ public interface IuSamlProvider {
 	/**
 	 * Gets an {@link IuSamlProvider} implementation.
 	 * 
-	 * @param client    client configuration metadata
+	 * @param client configuration metadata
 	 * @return {@link IuSamlProvider}
 	 */
 	static IuSamlProvider from(IuSamlClient client) {
 		return IuAuthSpiFactory.get(IuSamlSpi.class).getSamlProvider(client);
 	}
+
+	/**
+	 * Authorizes access to an application resource by URI.
+	 * 
+	 * @param samlEntityId base identity provider URI to authorize access to
+	 * @return redirect Url
+	 * 
+	 * @throws IuAuthenticationException If authorization could not be granted and
+	 *                                   the client <em>must</em> complete
+	 *                                   authentication before attempting
+	 *                                   authorization.
+	 */
+	URI authorize(URI samlEntityId, URI postURI);
 	
 	
 }

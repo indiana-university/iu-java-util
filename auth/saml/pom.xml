@@ -53,16 +53,19 @@
 					<artifactId>bcprov-jdk18on</artifactId>
 				</exclusion>
 			</exclusions>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.opensaml</groupId>
 			<artifactId>opensaml-xacml-impl</artifactId>
 			<version>${opensaml.version}</version>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.opensaml</groupId>
 			<artifactId>opensaml-xacml-saml-impl</artifactId>
 			<version>${opensaml.version}</version>
+			<scope>provided</scope>
 		</dependency>
 	</dependencies>
 	<repositories>
@@ -71,4 +74,15 @@
 			<url>https://build.shibboleth.net/nexus/content/repositories/releases</url>
 		</repository>
 	</repositories>
+	
+	<build>
+		<plugins>
+				<plugin>
+					<artifactId>maven-compiler-plugin</artifactId>
+					<configuration>
+						<release>17</release>
+					</configuration>
+				</plugin>
+		</plugins>
+	</build>
 </project>
