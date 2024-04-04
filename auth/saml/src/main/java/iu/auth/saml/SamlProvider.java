@@ -268,6 +268,7 @@ public class SamlProvider implements IuSamlProvider {
 		// validate entityId against metadataUrl configuration
 		var matchAcs = false;
 		// TODO create new session and maintain it
+		// activate
 		var sessionId = IdGenerator.generateId();
 		var  destinationLocation = getSingleSignOnLocation(samlEntityId.toString());
 		for (URI acsUrl : client.getAcsUrls()) {
@@ -281,7 +282,6 @@ public class SamlProvider implements IuSamlProvider {
 		AuthnRequest authnRequest = (AuthnRequest) XMLObjectProviderRegistrySupport.getBuilderFactory()
 				.getBuilder(AuthnRequest.DEFAULT_ELEMENT_NAME).buildObject(AuthnRequest.DEFAULT_ELEMENT_NAME);
 		authnRequest.setAssertionConsumerServiceURL(postURI.toString());
-		// TODO set ldp url
 		authnRequest.setDestination(destinationLocation);
 		authnRequest.setID(sessionId);
 		authnRequest.setIssueInstant(Instant.now());
@@ -330,7 +330,7 @@ public class SamlProvider implements IuSamlProvider {
 		// replace this with IuJson
 		JsonObjectBuilder j = Json.createObjectBuilder();
 		j.add("sessionId", sessionId);
-		j.add("ReturnUrl", postURI.toString());
+		j.add("returnUrl", postURI.toString());
 		idpParams.put("RelayState", Collections.singleton(encrypt(j.toString())));
 		
 		URI redirectUrl = IuException.unchecked(() -> new URI (destinationLocation + '?' + IuWebUtils.createQueryString(idpParams)));
