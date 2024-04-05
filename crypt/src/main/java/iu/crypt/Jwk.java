@@ -84,18 +84,8 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 
 	private static Map<URI, Jwk[]> JWKS_CACHE = new IuCacheMap<>(Duration.ofMinutes(15L));
 
-	/**
-	 * Converts a JSON value to a JSON Web Key (JWK).
-	 * 
-	 * @param jwk JSON Web Key
-	 * @return {@link WebKey}
-	 */
-	public static Jwk parse(JsonObject jwk) {
-		return new Jwk(jwk);
-	}
-
 	private static JsonObject writeAsJwks(Iterable<? extends WebKey> webKeys) {
-		return IuJson.object().add("keys", IuJsonAdapter.of(Iterable.class, Jwk.JSON).toJson(webKeys)).build();
+		return IuJson.object().add("keys", IuJsonAdapter.of(Iterable.class, JSON).toJson(webKeys)).build();
 	}
 
 	/**
@@ -159,12 +149,19 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 		return IuException.unchecked(() -> {
 			final var keyFactory = KeyFactory.getInstance(type.kty);
 
-			final var modulus = IuJson.nonNull(parsedJwk, "n", UnsignedBigInteger.JSON);
-			final var exponent = Objects.requireNonNull(IuJson.get(parsedJwk, "e", UnsignedBigInteger.JSON), "e");
-			final var pub = keyFactory.generatePublic(new RSAPublicKeySpec(modulus, exponent));
+			final var modulus = IuJson.get(parsedJwk, "n", UnsignedBigInteger.JSON);
+			final var exponent = IuJson.get(parsedJwk, "e", UnsignedBigInteger.JSON);
+
+			final PublicKey pub;
+			if (exponent != null)
+				pub = keyFactory.generatePublic(new RSAPublicKeySpec(Objects.requireNonNull(modulus, "n"), exponent));
+			else
+				pub = null;
 
 			final PrivateKey priv;
 			if (parsedJwk.containsKey("d")) {
+				Objects.requireNonNull(modulus, "n");
+
 				final KeySpec keySpec;
 				final var privateExponent = Objects.requireNonNull(IuJson.get(parsedJwk, "d", UnsignedBigInteger.JSON),
 						"d");
@@ -205,9 +202,14 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 			final var spec = algorithmParamters.getParameterSpec(ECParameterSpec.class);
 
 			final var keyFactory = KeyFactory.getInstance("EC");
-			final var w = new ECPoint(Objects.requireNonNull(IuJson.get(parsedJwk, "x", UnsignedBigInteger.JSON), "x"),
-					Objects.requireNonNull(IuJson.get(parsedJwk, "y", UnsignedBigInteger.JSON), "y"));
-			final var pub = keyFactory.generatePublic(new ECPublicKeySpec(w, spec));
+			final var x = IuJson.get(parsedJwk, "x", UnsignedBigInteger.JSON);
+			final PublicKey pub;
+			if (x != null) {
+				final var w = new ECPoint(x,
+						Objects.requireNonNull(IuJson.get(parsedJwk, "y", UnsignedBigInteger.JSON), "y"));
+				pub = keyFactory.generatePublic(new ECPublicKeySpec(w, spec));
+			} else
+				pub = null;
 
 			final PrivateKey priv;
 			if (parsedJwk.containsKey("d"))
@@ -269,6 +271,25 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 		verifiedPublicKey = WebKey.verify(this);
 	}
 
+	/**
+	 * Well-known key constructor, strips private/secret key data and copies
+	 * verified public key data.
+	 * 
+	 * @param certParams  contains certificate parameters and id+algorithm
+	 * @param internalKey internal representation of the key, including
+	 *                    private/secret key data
+	 */
+	private Jwk(JsonObject certParams, Jwk internalKey) {
+		super(certParams);
+		this.type = internalKey.type;
+		this.use = internalKey.use;
+		this.ops = internalKey.ops;
+		this.key = null;
+		this.privateKey = null;
+		this.publicKey = internalKey.verifiedPublicKey;
+		this.verifiedPublicKey = internalKey.verifiedPublicKey;
+	}
+
 	@Override
 	public Type getType() {
 		return type;
@@ -301,20 +322,19 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 
 	@Override
 	public Jwk wellKnown() {
-		if (privateKey == null && key == null)
+		if (privateKey == null && key == null && publicKey != null)
 			return this;
 
-		final var jwkBuilder = IuJson.object();
-		super.serializeTo(jwkBuilder);
-		IuJson.add(jwkBuilder, "use", () -> use, Use.JSON);
-		IuJson.add(jwkBuilder, "key_ops", () -> ops, IuJsonAdapter.of(Set.class, Operation.JSON));
-
-		final var builder = new JwkBuilder(type);
-		IuObject.convert(publicKey, builder::key);
-		IuObject.convert(verifiedPublicKey, builder::key);
-		IuObject.convert(verifiedCertificateChain(), builder::cert);
-		builder.build(jwkBuilder);
-		return new Jwk(jwkBuilder.build());
+		final var jwkBuilder = new JwkBuilder(type);
+		IuObject.convert(getCertificateUri(), jwkBuilder::cert);
+		IuObject.convert(verifiedCertificateChain(), jwkBuilder::cert);
+		IuObject.convert(getCertificateThumbprint(), jwkBuilder::x5t);
+		IuObject.convert(getCertificateSha256Thumbprint(), jwkBuilder::x5t256);
+		IuObject.convert(getAlgorithm(), jwkBuilder::algorithm);
+		IuObject.convert(getKeyId(), jwkBuilder::id);
+		final var initBuilder = IuJson.object();
+		jwkBuilder.build(initBuilder);
+		return new Jwk(initBuilder.build(), this);
 	}
 
 	@Override
@@ -327,11 +347,12 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 		if (!super.equals(obj))
 			return false;
 		Jwk other = (Jwk) obj;
-		return IuObject.equals(key, other.key) //
+		return IuObject.equals(type, other.type) //
+				&& IuObject.equals(use, other.use) //
 				&& IuObject.equals(ops, other.ops) //
+				&& IuObject.equals(key, other.key) //
 				&& IuObject.equals(privateKey, other.privateKey) //
-				&& IuObject.equals(publicKey, other.publicKey) //
-				&& type == other.type && use == other.use;
+				&& IuObject.equals(publicKey, other.publicKey);
 	}
 
 	@Override
@@ -370,13 +391,12 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 	 */
 	boolean represents(Jwk key) {
 		return super.represents(key) //
-				&& IuObject.represents(key, key.key) //
-				&& IuObject.represents(ops, key.ops) //
-				&& IuObject.represents(privateKey, key.privateKey) //
-				&& IuObject.represents(publicKey, key.publicKey) //
 				&& IuObject.represents(type, key.type) //
-				&& IuObject.represents(use, key.use);
+				&& IuObject.represents(use, key.use) //
+				&& IuObject.represents(ops, key.ops) //
+				&& IuObject.represents(this.key, key.key) //
+				&& IuObject.represents(publicKey, key.publicKey) //
+				&& IuObject.represents(privateKey, key.privateKey);
 	}
 
-	
 }

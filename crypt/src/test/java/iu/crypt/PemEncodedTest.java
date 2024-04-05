@@ -109,8 +109,9 @@ public class PemEncodedTest extends IuCryptTestCase {
 
 	@Test
 	public void testSerializeRequiresMatch() throws InvalidKeySpecException, NoSuchAlgorithmException {
-		final var kp1 = WebKey.builder().algorithm(Algorithm.RSA_OAEP).ephemeral().build();
-		final var kp2 = WebKey.builder().algorithm(Algorithm.RSA_OAEP).ephemeral().build();
+
+		final var kp1 = WebKey.builder(Type.RSA).algorithm(Algorithm.RSA_OAEP).ephemeral().build();
+		final var kp2 = WebKey.builder(Type.RSA).algorithm(Algorithm.RSA_OAEP).ephemeral().build();
 		assertThrows(IllegalArgumentException.class,
 				() -> PemEncoded.serialize(new KeyPair(kp1.getPublicKey(), kp2.getPrivateKey())));
 
@@ -218,32 +219,7 @@ public class PemEncodedTest extends IuCryptTestCase {
 	@Test
 	public void testECFromPEMWithCert()
 			throws NoSuchAlgorithmException, InvalidKeySpecException, InvalidAlgorithmParameterException {
-		// This is a sample key for testing and demonstration purpose only.
-		// ---- NOT FOR PRODUCTION USE -----
-		// $ openssl ecparam -genkey -name secp384r1 | \
-		// openssl pkcs8 -topk8 -nocrypt > /tmp/k
-		// $ openssl ec -no_public < /tmp/k | openssl pkcs8 -topk8 -nocrypt
-		// $ openssl req -days 410 -x509 -key /tmp/k
-		final var text = "-----BEGIN PRIVATE KEY-----\r\n" //
-				+ "ME4CAQAwEAYHKoZIzj0CAQYFK4EEACIENzA1AgEBBDDrK9MiCo6waL7wOKbfvrsq\r\n" //
-				+ "IMldpggDYj9UyDWEiapLgXG/IKS0tFs68srJBzHGSqc=\r\n" //
-				+ "-----END PRIVATE KEY-----\r\n" //
-				+ "-----BEGIN CERTIFICATE-----\r\n" //
-				+ "MIIClzCCAhygAwIBAgIURBnmOnYrSqsKrszgC751/Iat0uEwCgYIKoZIzj0EAwIw\r\n" //
-				+ "gYAxCzAJBgNVBAYTAlVTMRAwDgYDVQQIDAdJbmRpYW5hMRQwEgYDVQQHDAtCbG9v\r\n" //
-				+ "bWluZ3RvbjEbMBkGA1UECgwSSW5kaWFuYSBVbml2ZXJzaXR5MQ8wDQYDVQQLDAZT\r\n" //
-				+ "VEFSQ0gxGzAZBgNVBAMMEml1LWphdmEtY3J5cHQtdGVzdDAgFw0yNDAzMTAxOTE2\r\n" //
-				+ "MjRaGA8yMTI0MDMxMTE5MTYyNFowgYAxCzAJBgNVBAYTAlVTMRAwDgYDVQQIDAdJ\r\n" //
-				+ "bmRpYW5hMRQwEgYDVQQHDAtCbG9vbWluZ3RvbjEbMBkGA1UECgwSSW5kaWFuYSBV\r\n" //
-				+ "bml2ZXJzaXR5MQ8wDQYDVQQLDAZTVEFSQ0gxGzAZBgNVBAMMEml1LWphdmEtY3J5\r\n" //
-				+ "cHQtdGVzdDB2MBAGByqGSM49AgEGBSuBBAAiA2IABB21Lelr9GqaBwPWN9aNn+ms\r\n" //
-				+ "rjbWINECr3iEkqnCKMta7Zii6Gg8cjmUiLgVIpPfAXGUIo8Jr6SPH+Vb6845xRVj\r\n" //
-				+ "ls4Gd/mhzbs1UeBKORACUCwt2PKWiIJFPXMgTpEY+aNTMFEwHQYDVR0OBBYEFIol\r\n" //
-				+ "C3PH9md71NuPiuJQXhDl888QMB8GA1UdIwQYMBaAFIolC3PH9md71NuPiuJQXhDl\r\n" //
-				+ "888QMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwIDaQAwZgIxAKHtm01BrBpO\r\n" //
-				+ "+uNkzwxfsk8o5/Y3V31T53VN0N22+IMc2Fo0fX6EiRj7JUINzTJN/QIxAOKD0Dab\r\n" //
-				+ "ieNBfzWg9IDvuGnDWNEzN0l6IrnHdnEwVDQUpzFNw8UjGz8ohdztRSVKlQ==\r\n" //
-				+ "-----END CERTIFICATE-----\r\n";
+		final var text = EC_PRIVATE_KEY + ANOTHER_CERT_TEXT;
 		final var pem = PemEncoded.parse(text);
 
 		assertTrue(pem.hasNext());
@@ -268,6 +244,12 @@ public class PemEncodedTest extends IuCryptTestCase {
 		final var confirmNoPub = new StringBuilder();
 		PemEncoded.serialize(new KeyPair(null, priv), cert).forEachRemaining(confirmNoPub::append);
 		assertEquals(text, confirmNoPub.toString().replace("\n", "\r\n"));
+	}
+
+	@Test
+	public void testInvalidCurve() {
+		assertThrows(IllegalArgumentException.class,
+				() -> PemEncoded.parse(EC_PRIVATE_KEY).next().asPrivate(Type.EC_P256));
 	}
 
 	@Test

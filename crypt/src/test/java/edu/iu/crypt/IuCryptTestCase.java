@@ -59,8 +59,9 @@ public class IuCryptTestCase {
 
 	private static final String AUTH = IdGenerator.generateId();
 
-	// Sample certificates for demonstration and testing purposes.
-	// NOT FOR PRODUCTION USE
+	// Sample keys are for testing and demonstration purpose only.
+	// ---- NOT FOR PRODUCTION USE -----
+
 	protected static final String CERT_TEXT = "-----BEGIN CERTIFICATE-----\r\n" //
 			+ "MIID5TCCAs2gAwIBAgIUDSy2fR7Mli1vvbswCfNcW8crSZYwDQYJKoZIhvcNAQEL\r\n"
 			+ "BQAwgYAxCzAJBgNVBAYTAlVTMRAwDgYDVQQIDAdJbmRpYW5hMRQwEgYDVQQHDAtC\r\n"
@@ -85,6 +86,15 @@ public class IuCryptTestCase {
 			+ "U++EQOj4ZKOR2YyYTXuYGLNZZiJZs9U6GmI32qLnxQIlhl6wxDKvjMs=\r\n" //
 			+ "-----END CERTIFICATE-----\r\n";
 
+	// $ openssl ecparam -genkey -name secp384r1 | \
+	// openssl pkcs8 -topk8 -nocrypt > /tmp/k
+	// $ openssl ec -no_public < /tmp/k | openssl pkcs8 -topk8 -nocrypt
+	protected static String EC_PRIVATE_KEY = "-----BEGIN PRIVATE KEY-----\r\n" //
+			+ "ME4CAQAwEAYHKoZIzj0CAQYFK4EEACIENzA1AgEBBDDrK9MiCo6waL7wOKbfvrsq\r\n" //
+			+ "IMldpggDYj9UyDWEiapLgXG/IKS0tFs68srJBzHGSqc=\r\n" //
+			+ "-----END PRIVATE KEY-----\r\n";
+
+	// $ openssl req -days 410 -x509 -key /tmp/k
 	protected static final String ANOTHER_CERT_TEXT = "-----BEGIN CERTIFICATE-----\r\n" //
 			+ "MIIClzCCAhygAwIBAgIURBnmOnYrSqsKrszgC751/Iat0uEwCgYIKoZIzj0EAwIw\r\n" //
 			+ "gYAxCzAJBgNVBAYTAlVTMRAwDgYDVQQIDAdJbmRpYW5hMRQwEgYDVQQHDAtCbG9v\r\n" //
@@ -102,14 +112,15 @@ public class IuCryptTestCase {
 			+ "ieNBfzWg9IDvuGnDWNEzN0l6IrnHdnEwVDQUpzFNw8UjGz8ohdztRSVKlQ==\r\n" //
 			+ "-----END CERTIFICATE-----\r\n";
 
-
 	protected static final X509Certificate CERT = PemEncoded.parse(CERT_TEXT).next().asCertificate();
 	protected static final byte[] CERT_S1 = IuException.unchecked(() -> DigestUtils.sha1(CERT.getEncoded()));
 	protected static final byte[] CERT_S256 = IuException.unchecked(() -> DigestUtils.sha256(CERT.getEncoded()));
 
 	protected static final X509Certificate ANOTHER_CERT = PemEncoded.parse(ANOTHER_CERT_TEXT).next().asCertificate();
-	protected static final byte[] ANOTHER_CERT_S1 = IuException.unchecked(() -> DigestUtils.sha1(ANOTHER_CERT.getEncoded()));
-	protected static final byte[] ANOTHER_CERT_S256 = IuException.unchecked(() -> DigestUtils.sha256(ANOTHER_CERT.getEncoded()));
+	protected static final byte[] ANOTHER_CERT_S1 = IuException
+			.unchecked(() -> DigestUtils.sha1(ANOTHER_CERT.getEncoded()));
+	protected static final byte[] ANOTHER_CERT_S256 = IuException
+			.unchecked(() -> DigestUtils.sha256(ANOTHER_CERT.getEncoded()));
 
 	private MockedStatic<IuHttp> mockHttp;
 

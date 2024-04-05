@@ -624,7 +624,7 @@ public interface WebKey extends WebKeyReference {
 			return null;
 		}
 
-		var publicKey = IuObject.once(webKey.getPublicKey(), //
+		var publicKey = IuObject.first(webKey.getPublicKey(), //
 				IuObject.convert(cert, X509Certificate::getPublicKey), //
 				() -> "public key doesn't match X.509 certificate");
 

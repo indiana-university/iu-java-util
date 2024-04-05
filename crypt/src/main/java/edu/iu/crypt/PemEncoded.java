@@ -40,6 +40,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
@@ -319,8 +320,14 @@ public final class PemEncoded {
 	public PrivateKey asPrivate(Type type) {
 		if (!keyType.equals(KeyType.PRIVATE_KEY))
 			throw new IllegalStateException();
-		return IuException
-				.unchecked(() -> KeyFactory.getInstance(type.kty).generatePrivate(new PKCS8EncodedKeySpec(encoded)));
+		return IuException.unchecked(() -> {
+			final var key = KeyFactory.getInstance(type.kty).generatePrivate(new PKCS8EncodedKeySpec(encoded));
+			if (key instanceof ECPrivateKey) {
+				if (!((ECPrivateKey) key).getParams().toString().contains(type.ecParam))
+					throw new IllegalArgumentException("Invalid EC curve, expected " + type.ecParam);
+			}
+			return key;
+		});
 	}
 
 	/**
