@@ -68,7 +68,6 @@ import edu.iu.IuIterable;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.saml.IuSamlClient;
 import edu.iu.auth.saml.IuSamlProvider;
-import edu.iu.auth.saml.IuSamlResponse;
 import iu.auth.util.XmlDomUtil;
 import jakarta.json.Json;
 import jakarta.json.JsonObjectBuilder;

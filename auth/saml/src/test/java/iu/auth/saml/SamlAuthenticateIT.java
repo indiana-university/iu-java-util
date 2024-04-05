@@ -108,7 +108,6 @@ public class SamlAuthenticateIT {
 		assertTrue(firstRedirectLocation.startsWith(location.getPath() + '?'), () -> firstRedirectLocation);
 		System.out.println("Location: " + firstRedirectLocation);
 
-		//"https://idp-stg.login.iu.edu/idp/profile/SAML2/Redirect/SSO?execution=e1s1"
 		final var loginRequestUri = new URI(location.getScheme()+ "://" +
 				location.getHost() + firstRedirectLocation);
 		final var firstLoginRequest = HttpRequest.newBuilder(loginRequestUri).build();

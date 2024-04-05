@@ -44,29 +44,19 @@ public interface IuSamlClient {
 	 * 
 	 * return metadaaTtl {@link Duration}
 	 */
-    default Duration getMetadataTtl() {
-		return null;
-    	
-    }
-    
-    /**
-     * Gets the SAML metadata URL to retrieve configure metadata file that is configured directly 
-     * into the SAML provider by administrator 
-     * @return metadata URL
-     */
+	default Duration getMetadataTtl() {
+		return Duration.ofMillis(300000L);
+	}
+
+	/**
+	 * Gets the SAML metadata URL to retrieve configure metadata file that is configured directly 
+	 * into the SAML provider by administrator 
+	 * @return metadata URL
+	 */
 	default List<URI> getMetaDataUrls() {
 		return null;
 	}
-	
-	/**
-	 * Gets the application {@link URI} to configure post SAML URI.
-	 * 
-	 * @return application URL {@link URI}
-	 */
-	default URI getApplicationUrl() {
-		return null;
-	}
-	
+
 	/**
 	 * Gets the SAML identity provider {@link URI} to configure Metadata resolver
 	 * @return SAML identity provider URL
@@ -74,26 +64,30 @@ public interface IuSamlClient {
 	default URI getIdentityProviderURL() {
 		return null;
 	}
-	
+
 	/**
-	 * Gets the issuer globally-unique identifier register with identity provider
-	 * @return issuer
+	 * Gets the list of assertion Consumer urls 
+	 * @return allowed list of assertion consumer urls
 	 */
-	default String getIssuer() {
-		return null;
-	}
-
-
 	List<URI> getAcsUrls();
 
-    /**
-     * Gets the unique service provider id that register with identity provider
-     * @return unique service provide id
-     */
+	/**
+	 * Gets the unique service provider id that register with identity provider
+	 * @return unique service provide id
+	 */
 	String getServiceProviderEntityId();
 
 
+	/**
+	 * 
+	 * @return
+	 */
 	X509Certificate getCertificate();
+
+	/**
+	 * 
+	 * @return
+	 */
 
 	String getPrivateKey();
 }
