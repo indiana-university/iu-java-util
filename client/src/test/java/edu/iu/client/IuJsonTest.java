@@ -34,7 +34,10 @@ package edu.iu.client;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
@@ -42,6 +45,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.http.HttpResponse;
+import java.util.function.Consumer;
 
 import org.junit.jupiter.api.Test;
 
@@ -60,6 +64,7 @@ public class IuJsonTest {
 		when(response.body()).thenReturn(new ByteArrayInputStream("null".getBytes()));
 		assertEquals(JsonValue.NULL, IuJson.parse(response));
 		assertEquals(JsonValue.NULL, IuJson.parse("null"));
+		assertNull(IuJson.parse((String) null));
 	}
 
 	@Test
@@ -169,6 +174,23 @@ public class IuJsonTest {
 	public void testAdaptedGet() {
 		final var o = IuJson.object().add("url", "http://localhost").build();
 		assertEquals(URI.create("http://localhost"), IuJson.get(o, "url", IuJsonAdapter.of(URI.class)));
+	}
+
+	@Test
+	public void testNonNull() {
+		assertEquals("foo", assertThrows(NullPointerException.class,
+				() -> IuJson.nonNull(IuJson.object().build(), "foo", IuJsonAdapter.basic())).getMessage());
+		assertEquals("bar", IuJson.nonNull(IuJson.object().add("foo", "bar").build(), "foo", IuJsonAdapter.basic()));
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testGetWith() {
+		final var c = mock(Consumer.class);
+		IuJson.get(IuJson.object().build(), "foo", c);
+		verify(c, never()).accept("bar");
+		IuJson.get(IuJson.object().add("foo", "bar").build(), "foo", c);
+		verify(c).accept("bar");
 	}
 
 }

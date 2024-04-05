@@ -36,7 +36,7 @@ import java.io.InputStream;
 import java.lang.ModuleLayer.Controller;
 import java.lang.reflect.Type;
 import java.nio.file.Path;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.jar.JarFile;
 
 import edu.iu.type.IuComponent;
@@ -60,19 +60,12 @@ public interface IuTypeSpi {
 	/**
 	 * Implements {@link IuComponent#of(InputStream, InputStream...)}.
 	 * 
-	 * @param parentLayer                      {@link ModuleLayer} to extend
 	 * @param parent                           {@link ClassLoader} for parent
 	 *                                         delegation
-	 * @param controllerCallback               receives a reference to
-	 *                                         {@link Module} defined by the
-	 *                                         <strong>component archive</strong>
-	 *                                         and the {@link Controller} for the
-	 *                                         module layer created in conjunction
-	 *                                         with this loader. API Note from
-	 *                                         {@link Controller}: <em>Care should
-	 *                                         be taken with Controller objects,
-	 *                                         they should never be shared with
-	 *                                         untrusted code.</em>
+	 * @param parentLayer                      {@link ModuleLayer} to extend
+	 * @param controllerCallback               receives a reference to the
+	 *                                         {@link Controller} for the
+	 *                                         components's module layer
 	 * @param componentArchiveSource           component archive
 	 * @param providedDependencyArchiveSources provided dependency archives
 	 * @return {@link IuComponent} instance
@@ -81,9 +74,8 @@ public interface IuTypeSpi {
 	 * 
 	 * @see IuComponent
 	 */
-	IuComponent createComponent(ModuleLayer parentLayer, ClassLoader parent,
-			BiConsumer<Module, Controller> controllerCallback, InputStream componentArchiveSource,
-			InputStream... providedDependencyArchiveSources) throws IOException;
+	IuComponent createComponent(ClassLoader parent, ModuleLayer parentLayer, Consumer<Controller> controllerCallback,
+			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources);
 
 	/**
 	 * Decorates a path entry in a loaded class environment as a {@link IuComponent
@@ -91,6 +83,7 @@ public interface IuTypeSpi {
 	 * 
 	 * @param classLoader {@link ClassLoader}; <em>must</em> include
 	 *                    {@code pathEntry} on its class or module path.
+	 * @param moduleLayer {@link ModuleLayer}
 	 * @param pathEntry   Single {@link Path path entry} representing a
 	 *                    {@link JarFile jar file} or folder containing resources
 	 *                    loaded by {@code classLoader}
@@ -101,6 +94,7 @@ public interface IuTypeSpi {
 	 * @throws ClassNotFoundException if any class discovered on the path could not
 	 *                                be loaded using {@code classLoader}
 	 */
-	IuComponent scanComponentEntry(ClassLoader classLoader, Path pathEntry) throws IOException, ClassNotFoundException;
+	IuComponent scanComponentEntry(ClassLoader classLoader, ModuleLayer moduleLayer, Path pathEntry)
+			throws IOException, ClassNotFoundException;
 
 }

@@ -41,7 +41,6 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuText;
-import iu.crypt.DigestUtils;
 
 @SuppressWarnings("javadoc")
 public class IuCryptTest {
@@ -67,5 +66,5 @@ public class IuCryptTest {
 		assertEquals(Base64.getEncoder().encodeToString(DigestUtils.sha256(new byte[0])),
 				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(new byte[0])));
 	}
-	
+
 }

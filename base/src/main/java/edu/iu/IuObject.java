@@ -38,10 +38,13 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -165,6 +168,155 @@ public final class IuObject {
 		final var module = classToCheck.getModule();
 		if (module.isOpen(classToCheck.getPackageName()))
 			throw new IllegalStateException("Must be in a named module and not open");
+	}
+
+	/**
+	 * Enforces that either a current or new value is non-null, and that both
+	 * non-null values are equal.
+	 * 
+	 * @param <T>     value type
+	 * @param current current value
+	 * @param value   value to set or enforce as already set
+	 * @return value
+	 * @throws IllegalArgumentException if already set to the same value
+	 */
+	public static <T> T once(T current, T value) {
+		return once(current, value, () -> "requires a single non-null value");
+	}
+
+	/**
+	 * Enforces that either a current or new value is non-null, and that both
+	 * non-null values are equal.
+	 * 
+	 * @param <T>             value type
+	 * @param current         current value
+	 * @param value           value to set or enforce as already set
+	 * @param messageSupplier provides a message for
+	 *                        {@link IllegalArgumentException} if current was
+	 *                        already set to a different value
+	 * @return value
+	 * @throws IllegalArgumentException if already set to the same value
+	 */
+	public static <T> T once(T current, T value, Supplier<String> messageSupplier) {
+		return Objects.requireNonNull(first(current, value), messageSupplier);
+	}
+
+	/**
+	 * Enforces that a value is either not already set or is already set to the same
+	 * value.
+	 * 
+	 * @param <T>     value type
+	 * @param current current value
+	 * @param value   value to set or enforce as already set
+	 * @return value
+	 * @throws IllegalArgumentException if already set to the same value
+	 */
+	public static <T> T first(T current, T value) {
+		return first(current, value, () -> "already set to a different value");
+	}
+
+	/**
+	 * Enforces that a value is either not already set or is already set to the same
+	 * value.
+	 * 
+	 * @param <T>             value type
+	 * @param current         current value
+	 * @param value           value to set or enforce as already set
+	 * @param messageSupplier provides a message for
+	 *                        {@link IllegalArgumentException} if current was
+	 *                        already set to a different value
+	 * @return value
+	 * @throws IllegalArgumentException if already set to the same value
+	 */
+	public static <T> T first(T current, T value, Supplier<String> messageSupplier) {
+		if (current == null)
+			return value;
+		else if (value == null)
+			return current;
+		else if (!current.equals(value))
+			throw new IllegalArgumentException(messageSupplier.get());
+		else
+			return value;
+	}
+
+	/**
+	 * Determines if either or both objects are null, then if both non-null if both
+	 * are {@link #equals(Object, Object)}.
+	 * 
+	 * <p>
+	 * This method is the boolean equivalent of {@link #first(Object, Object)}
+	 * </p>
+	 * 
+	 * @param a an object
+	 * @param b another object
+	 * @return true if either object is null or if both are equal; else false
+	 */
+	public static boolean represents(Object a, Object b) {
+		return a == null || b == null || IuObject.equals(a, b);
+	}
+
+	/**
+	 * Require value to be an instance of a specific type or null.
+	 * 
+	 * @param <T>   required type
+	 * @param type  required type
+	 * @param value value
+	 * @return typed value
+	 * @throws IllegalArgumentException if the types don't match
+	 */
+	public static <T> T requireType(Class<T> type, Object value) {
+		try {
+			return convert(value, type::cast);
+		} catch (ClassCastException e) {
+			throw new IllegalArgumentException("expected " + type, e);
+		}
+	}
+
+	/**
+	 * Require a condition to be true for a value.
+	 * 
+	 * @param <T>       value type
+	 * @param value     value
+	 * @param condition condition to verify
+	 * @return value
+	 * @throws IllegalArgumentException if the types don't match
+	 */
+	public static <T> T require(T value, Predicate<T> condition) {
+		return require(value, condition, () -> null);
+	}
+
+	/**
+	 * Require a condition to be true for a value if non-null.
+	 * 
+	 * @param <T>             value type
+	 * @param value           value
+	 * @param condition       condition to verify
+	 * @param messageSupplier provides a message for
+	 *                        {@link IllegalArgumentException}
+	 * @return value
+	 * @throws IllegalArgumentException if the types don't match
+	 */
+	public static <T> T require(T value, Predicate<T> condition, Supplier<String> messageSupplier) {
+		if (value != null //
+				&& !condition.test(value))
+			throw new IllegalArgumentException(messageSupplier.get());
+		return value;
+	}
+
+	/**
+	 * Passes a value through a conversion function if non-null.
+	 * 
+	 * @param <S>                source type
+	 * @param <T>                result type
+	 * @param value              value
+	 * @param conversionFunction conversion function
+	 * @return converted value
+	 */
+	public static <S, T> T convert(S value, Function<S, T> conversionFunction) {
+		if (value == null)
+			return null;
+		else
+			return conversionFunction.apply(value);
 	}
 
 	/**

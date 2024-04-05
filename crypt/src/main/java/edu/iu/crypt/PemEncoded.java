@@ -35,10 +35,13 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.URI;
 import java.security.KeyFactory;
+import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.security.interfaces.RSAPrivateCrtKey;
+import java.security.interfaces.RSAPublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.time.Duration;
@@ -51,6 +54,7 @@ import java.util.Queue;
 
 import edu.iu.IuCacheMap;
 import edu.iu.IuException;
+import edu.iu.IuIterable;
 import edu.iu.IuStream;
 import edu.iu.IuText;
 import edu.iu.client.IuHttp;
@@ -187,6 +191,57 @@ public final class PemEncoded {
 	}
 
 	/**
+	 * Serializes an X509 certificate chain as PEM encoded.
+	 * 
+	 * @param cert certificate chain
+	 * @return PEM encoded certificate data
+	 */
+	public static Iterator<PemEncoded> serialize(X509Certificate... cert) {
+		return IuIterable
+				.map(IuIterable.iter(cert),
+						c -> IuException.unchecked(() -> new PemEncoded(KeyType.CERTIFICATE, c.getEncoded())))
+				.iterator();
+	}
+
+	/**
+	 * Checks that public and private key, and certificate chain, are related and
+	 * converts to PEM encoded form.
+	 * 
+	 * <p>
+	 * Public key will be omitted if it matches the first certificate in the chain,
+	 * or if it is fully encoded as a subset of the private key.
+	 * </p>
+	 * 
+	 * @param keyPair public and optional private key to export
+	 * @param cert    certificate chain
+	 * @return PEM encoded key data
+	 */
+	public static Iterator<PemEncoded> serialize(KeyPair keyPair, X509Certificate... cert) {
+		final Queue<PemEncoded> q = new ArrayDeque<>();
+		var pub = keyPair.getPublic();
+		if (cert.length > 0)
+			if (pub == null)
+				pub = cert[0].getPublicKey();
+			else if (!pub.equals(cert[0].getPublicKey()))
+				throw new IllegalArgumentException("Public key doesn't match certificate");
+
+		final var priv = keyPair.getPrivate();
+		if (priv != null)
+			q.add(new PemEncoded(KeyType.PRIVATE_KEY, priv.getEncoded()));
+
+		if (priv instanceof RSAPrivateCrtKey) {
+			final var rsa = (RSAPrivateCrtKey) priv;
+			final var rsapub = (RSAPublicKey) pub;
+			if (!rsa.getModulus().equals(rsapub.getModulus())
+					|| !rsa.getPublicExponent().equals(rsapub.getPublicExponent()))
+				throw new IllegalArgumentException("RSA Public key doesn't match private");
+		} else if (cert.length == 0)
+			q.add(new PemEncoded(KeyType.PUBLIC_KEY, pub.getEncoded()));
+
+		return IuIterable.cat(q, IuIterable.of(() -> serialize(cert))).iterator();
+	}
+
+	/**
 	 * Reads a certificate chain from a URI.
 	 * 
 	 * @param uri {@link URI}
@@ -198,8 +253,8 @@ public final class PemEncoded {
 	public static X509Certificate[] getCertificateChain(URI uri) {
 		var chain = CERT_CACHE.get(uri);
 		if (chain == null)
-			CERT_CACHE.put(uri, chain = getCertificateChain(
-					IuException.unchecked(() -> IuHttp.get(uri, IuHttp.validate(PemEncoded::parse, IuHttp.OK)))));
+			CERT_CACHE.put(uri, chain = getCertificateChain((Iterator<PemEncoded>) IuException
+					.unchecked(() -> IuHttp.get(uri, IuHttp.validate(PemEncoded::parse, IuHttp.OK)))));
 		return chain;
 	}
 
@@ -278,6 +333,25 @@ public final class PemEncoded {
 		if (!keyType.equals(KeyType.CERTIFICATE))
 			throw new IllegalStateException();
 		return asCertificate(encoded);
+	}
+
+	@Override
+	public String toString() {
+		final var headerType = keyType.name().replace('_', ' ');
+		final var sb = new StringBuilder();
+		sb.append("-----BEGIN ");
+		sb.append(headerType);
+		sb.append("-----");
+
+		var pos = sb.length();
+		sb.append(IuText.base64(encoded));
+		for (; pos < sb.length() - 1; pos += 65)
+			sb.insert(pos, '\n');
+
+		sb.append("\n-----END ");
+		sb.append(headerType);
+		sb.append("-----\n");
+		return sb.toString();
 	}
 
 	private PemEncoded(KeyType keyType, byte[] encoded) {

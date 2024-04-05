@@ -50,7 +50,7 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import edu.iu.type.base.TemporaryFile.PathFunction;
+import edu.iu.UnsafeFunction;
 
 @SuppressWarnings("javadoc")
 public class TemporaryFileTest {
@@ -64,7 +64,7 @@ public class TemporaryFileTest {
 	public void testCantCreateTempFile() {
 		try (var mockFiles = mockStatic(Files.class, CALLS_REAL_METHODS)) {
 			mockFiles.when(() -> Files.createTempFile("iu-type-", ".jar")).thenThrow(IOException.class);
-			assertThrows(IOException.class, () -> TemporaryFile.init((PathFunction<?>) null));
+			assertThrows(IOException.class, () -> TemporaryFile.init((UnsafeFunction<Path, ?>) null));
 		}
 	}
 
@@ -72,7 +72,7 @@ public class TemporaryFileTest {
 	@SuppressWarnings("unchecked")
 	public void testThrowsDeletesOnError() throws Throwable {
 		var temp = mock(Path.class);
-		var initializer = mock(PathFunction.class);
+		var initializer = mock(UnsafeFunction.class);
 		when(initializer.apply(temp)).thenThrow(IOException.class);
 		try (var mockFiles = mockStatic(Files.class, CALLS_REAL_METHODS)) {
 			mockFiles.when(() -> Files.createTempFile("iu-type-", ".jar")).thenReturn(temp);
@@ -88,7 +88,7 @@ public class TemporaryFileTest {
 	public void testSuppressesDeleteError() throws Throwable {
 		var temp = mock(Path.class);
 		var deleteError = new IOException();
-		var initializer = mock(PathFunction.class);
+		var initializer = mock(UnsafeFunction.class);
 		when(initializer.apply(temp)).thenThrow(new IOException());
 		try (var mockFiles = mockStatic(Files.class, CALLS_REAL_METHODS)) {
 			mockFiles.when(() -> Files.createTempFile("iu-type-", ".jar")).thenReturn(temp);
@@ -102,7 +102,7 @@ public class TemporaryFileTest {
 	@SuppressWarnings("unchecked")
 	public void testWorks() throws Throwable {
 		var temp = mock(Path.class);
-		var initializer = mock(PathFunction.class);
+		var initializer = mock(UnsafeFunction.class);
 		when(initializer.apply(temp)).thenReturn(temp);
 		try (var mockFiles = mockStatic(Files.class, CALLS_REAL_METHODS)) {
 			mockFiles.when(() -> Files.createTempFile("iu-type-", ".jar")).thenReturn(temp);
@@ -118,7 +118,7 @@ public class TemporaryFileTest {
 	}
 
 	@Test
-	public void testManagedCleanup() throws IOException {
+	public void testManagedCleanup() throws Throwable {
 		class Box {
 			Path path;
 		}

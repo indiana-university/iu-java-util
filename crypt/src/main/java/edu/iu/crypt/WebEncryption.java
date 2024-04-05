@@ -35,12 +35,12 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.EnumSet;
 import java.util.stream.Stream;
 
 import edu.iu.IuException;
-import edu.iu.IuObject;
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebCryptoHeader.Param;
+import edu.iu.crypt.WebKey.Algorithm;
 import iu.crypt.Jwe;
 import iu.crypt.JweBuilder;
 
@@ -100,13 +100,18 @@ public interface WebEncryption {
 		A256GCM("A256GCM", 256, "AES/GCM/NoPadding", null);
 
 		/**
+		 * JSON type adapter
+		 */
+		public static final IuJsonAdapter<Encryption> JSON = IuJsonAdapter.text(Encryption::from, e -> e.enc);
+
+		/**
 		 * Selects encryption by JOSE enc parameter value.
 		 * 
 		 * @param enc JOSE parameter value
 		 * @return encryption
 		 */
 		public static Encryption from(String enc) {
-			return EnumSet.allOf(Encryption.class).stream().filter(a -> IuObject.equals(enc, a.enc)).findFirst().get();
+			return Stream.of(Encryption.values()).filter(a -> a.enc.equals(enc)).findFirst().get();
 		}
 
 		/**
@@ -142,21 +147,12 @@ public interface WebEncryption {
 	 */
 	interface Builder {
 		/**
-		 * Sets encryption algorithm.
+		 * Protects all header parameters and verifies inputs are valid for JWE compact
+		 * serialization.
 		 * 
-		 * @param encryption encryption algorithm
 		 * @return this
 		 */
-		Builder enc(Encryption encryption);
-
-		/**
-		 * Determines whether or not to compress content before encryption.
-		 * 
-		 * @param deflate false to encrypt as-is; true (default) to compress content
-		 *                before encrypting
-		 * @return this
-		 */
-		Builder deflate(boolean deflate);
+		Builder compact();
 
 		/**
 		 * Defines standard protected header parameters.
@@ -185,9 +181,10 @@ public interface WebEncryption {
 		/**
 		 * Adds a new recipient.
 		 * 
+		 * @param algorithm key encryption algorithm
 		 * @return {@link WebEncryptionRecipient.Builder}
 		 */
-		WebEncryptionRecipient.Builder<?> addRecipient();
+		WebEncryptionRecipient.Builder<?> addRecipient(Algorithm algorithm);
 
 		/**
 		 * Encrypts data for sending to all recipients.
@@ -219,12 +216,40 @@ public interface WebEncryption {
 	}
 
 	/**
-	 * Starts a new encrypted message.
+	 * Starts a new encrypted message for a single recipient with
+	 * {@link Builder#compact() compact semantics} and compression enabled.
+	 * 
+	 * @param encryption {@link Encryption content encryption algorithm}
+	 * @param algorithm  {@link Algorithm key encryption algorithm}
+	 * 
+	 * @return {@link WebEncryptionRecipient.Builder}
+	 */
+	static WebEncryptionRecipient.Builder<?> to(Encryption encryption, Algorithm algorithm) {
+		return builder(encryption, true).compact().addRecipient(algorithm);
+	}
+
+	/**
+	 * Starts a new encrypted message with compression enabled.
+	 * 
+	 * @param encryption {@link Encryption encryption algorithm}
 	 * 
 	 * @return {@link Builder}
 	 */
-	static Builder builder() {
-		return new JweBuilder();
+	static Builder builder(Encryption encryption) {
+		return builder(encryption, true);
+	}
+
+	/**
+	 * Starts a new encrypted message.
+	 * 
+	 * @param encryption {@link Encryption encryption algorithm}
+	 * @param deflate    true to compress content; false to encrypt without
+	 *                   compression
+	 * 
+	 * @return {@link Builder}
+	 */
+	static Builder builder(Encryption encryption, boolean deflate) {
+		return new JweBuilder(encryption, deflate);
 	}
 
 	/**

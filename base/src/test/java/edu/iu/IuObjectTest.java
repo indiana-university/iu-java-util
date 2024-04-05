@@ -34,6 +34,7 @@ package edu.iu;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -58,6 +59,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
@@ -140,6 +142,39 @@ public class IuObjectTest {
 		assertTrue(IuObject.isPlatformName("org.ietf.jgss."));
 		assertTrue(IuObject.isPlatformName("org.w3c.dom."));
 		assertTrue(IuObject.isPlatformName("org.xml.sax."));
+	}
+
+	@Test
+	public void testOnce() {
+		assertThrows(NullPointerException.class, () -> IuObject.once(null, null));
+		assertSame("foo", IuObject.once(null, "foo"));
+		assertSame("foo", IuObject.once("foo", "foo"));
+		assertSame("foo", IuObject.once("foo", null));
+		assertThrows(IllegalArgumentException.class, () -> IuObject.once("bar", "foo"));
+	}
+
+	@Test
+	public void testIs() {
+		assertNull(IuObject.requireType(String.class, null));
+		assertSame("foo", IuObject.requireType(String.class, "foo"));
+		assertThrows(IllegalArgumentException.class, () -> IuObject.requireType(String.class, new Object()));
+	}
+
+	@Test
+	public void testRequire() {
+		assertNull(IuObject.require(null, Objects::isNull));
+		assertNull(IuObject.require(null, Objects::nonNull));
+		assertNotNull(IuObject.require(new Object(), Objects::nonNull));
+		assertThrows(IllegalArgumentException.class, () -> IuObject.require(new Object(), Objects::isNull));
+	}
+
+	@Test
+	public void testRepresents() {
+		assertTrue(IuObject.represents(null, null));
+		assertTrue(IuObject.represents(null, "foo"));
+		assertTrue(IuObject.represents("foo", null));
+		assertTrue(IuObject.represents("foo", "foo"));
+		assertFalse(IuObject.represents("foo", "bar"));
 	}
 
 	@Test

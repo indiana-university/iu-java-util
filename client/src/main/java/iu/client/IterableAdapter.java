@@ -31,10 +31,8 @@
  */
 package iu.client;
 
-import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.Queue;
 
 import edu.iu.client.IuJsonAdapter;
 
@@ -61,11 +59,8 @@ class IterableAdapter<E> extends JsonArrayAdapter<Iterable<E>, E> {
 	}
 
 	@Override
-	protected Iterable<E> collect(Iterator<E> items) {
-		final Queue<E> list = new ArrayDeque<>();
-		while (items.hasNext())
-			list.offer(items.next());
-		return list;
+	protected Iterable<E> collect(Iterable<E> items) {
+		return items;
 	}
 
 }

@@ -29,71 +29,44 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.crypt;
+package iu.type.loader;
 
-import java.util.Objects;
+import java.lang.ModuleLayer.Controller;
 
-import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.type.loader.IuComponentController;
 
 /**
- * Common base class for JSON web security object builders.
+ * Simple record implementation of {@link IuComponentController}.
  * 
- * @param <B> builder type
+ * @param typeModule               Type API module
+ * @param typeImplementationModule Type implementation module
+ * @param componentModule          Loaded component module
+ * @param controller               Module controller for the {@link ModuleLayer
+ *                                 layer} that includes typeModule and
+ *                                 componentModule
+ * 
  */
-abstract class WebKeyReferenceBuilder<B extends WebKeyReferenceBuilder<B>> extends CertificateReferenceBuilder<B> {
+public record ComponentController(Module typeModule, Module typeImplementationModule, Module componentModule,
+		Controller controller) implements IuComponentController {
 
-	private String id;
-	private Algorithm algorithm;
-
-	/**
-	 * Sets key ID
-	 * 
-	 * @param id key ID
-	 * @return this
-	 */
-	public B id(String id) {
-		Objects.requireNonNull(id);
-
-		if (this.id == null)
-			this.id = id;
-		else if (!id.equals(this.id))
-			throw new IllegalStateException("ID already set");
-
-		return next();
+	@Override
+	public Module getTypeModule() {
+		return typeModule;
 	}
 
-	/**
-	 * Sets algorithm
-	 * 
-	 * @param algorithm
-	 * @return this
-	 */
-	public B algorithm(Algorithm algorithm) {
-		Objects.requireNonNull(algorithm);
-
-		if (this.algorithm == null)
-			this.algorithm = algorithm;
-		else if (!algorithm.equals(this.algorithm))
-			throw new IllegalStateException("Algorithm already set to " + this.algorithm);
-
-		return next();
+	@Override
+	public Module getTypeImplementationModule() {
+		return typeImplementationModule;
 	}
 
-	/**
-	 * Gets the key ID
-	 * 
-	 * @return key ID
-	 */
-	String id() {
-		return id;
+	@Override
+	public Module getComponentModule() {
+		return componentModule;
 	}
 
-	/**
-	 * Gets the algorithm
-	 * 
-	 * @return algorithm
-	 */
-	Algorithm algorithm() {
-		return algorithm;
+	@Override
+	public Controller getController() {
+		return controller;
 	}
+
 }

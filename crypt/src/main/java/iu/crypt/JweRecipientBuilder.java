@@ -31,6 +31,7 @@
  */
 package iu.crypt;
 
+import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
@@ -38,7 +39,9 @@ import java.util.Arrays;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyAgreement;
+import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import edu.iu.IuException;
@@ -93,12 +96,12 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 		// NIST.SP.800-56Cr2 5.8.2.1.1:
 		// R(0) = []
 		// K = for n in [1..r]: R(n-1) || R(n)
+		final var keyBuffer = ByteBuffer.wrap(keyData);
 		for (var i = 0; i < reps; i++) {
 			final var n = i + 1;
 			// R(n) = H(n || Z || FixedInfo)
-			System.arraycopy(
-					DigestUtils.sha256(EncodingUtils.concatKdf(n, z, /* FixedInfo = */ algId, uinfo, vinfo, keyDataLen)), 0,
-					keyData, i * 32, 32);
+			keyBuffer.put(DigestUtils
+					.sha256(EncodingUtils.concatKdf(n, z, /* FixedInfo = */ algId, uinfo, vinfo, keyDataLen)));
 		}
 
 		final var keylen = keyDataLen / 8;
@@ -114,8 +117,10 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 	 * Constructor
 	 * 
 	 * @param jweBuilder JWE builder
+	 * @param algorithm  key encryption algorithm
 	 */
-	JweRecipientBuilder(JweBuilder jweBuilder) {
+	JweRecipientBuilder(JweBuilder jweBuilder, Algorithm algorithm) {
+		algorithm(algorithm);
 		this.jweBuilder = jweBuilder;
 	}
 
@@ -154,13 +159,8 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 		epk.wellKnown().serializeTo(serializedEpk);
 		enc("epk", serializedEpk.build());
 
-		final var uinfo = partyUInfo();
-		if (uinfo != null && uinfo.length > 0)
-			enc("apu", IuJson.toJson(IuText.base64Url(uinfo)));
-
-		final var vinfo = partyVInfo();
-		if (uinfo != null && vinfo.length > 0)
-			enc("apv", IuJson.toJson(IuText.base64Url(vinfo)));
+		final var uinfo = UnpaddedBinary.JSON.fromJson(ext().get("apu"));
+		final var vinfo = UnpaddedBinary.JSON.fromJson(ext().get("apv"));
 
 		final int keyDataLen;
 		final byte[] algId;
@@ -177,84 +177,117 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 	}
 
 	/**
+	 * Gets the passphrase-derived key to use with PBKDF2 key derivation defined by
+	 * <a href="https://datatracker.ietf.org/doc/html/rfc8018">PKCS#5</a>.
+	 * 
+	 * @return 128-bit derived key data suitable for use with AESWrap
+	 */
+	byte[] passphraseDerivedKey() {
+		final var algorithm = algorithm();
+
+		final var alg = IuText.utf8(algorithm.alg);
+		final byte[] p2s = new byte[algorithm.size / 8];
+		new SecureRandom().nextBytes(p2s);
+		enc("p2s", UnpaddedBinary.JSON.toJson(p2s));
+
+		// 128 -> 2048, 192 -> 3072, 256 -> 4096
+		final var p2c = algorithm.size * 16;
+		enc("p2c", IuJson.number(p2c));
+
+		final var saltValue = ByteBuffer.wrap(new byte[alg.length + 1 + p2s.length]);
+		saltValue.put(alg);
+		saltValue.put((byte) 0);
+		saltValue.put(p2s);
+
+		return IuException
+				.unchecked(() -> SecretKeyFactory.getInstance(algorithm.algorithm).generateSecret(
+						new PBEKeySpec(IuText.utf8(key().getKey()).toCharArray(), saltValue.array(), p2c, 128)))
+				.getEncoded();
+	}
+
+	/**
 	 * Generates the encrypted key and creates the recipient.
 	 * 
-	 * @param jwe  partially initialized JWE
-	 * @param cek  supplies an ephemeral content encryption key if needed
-	 * @param from message originator key, if known
+	 * @param encryption           content encryption algorithm
+	 * @param contentEncryptionKey supplies an ephemeral content encryption key if
+	 *                             needed
+	 * @param from                 message originator key, if known
 	 * 
 	 * @return recipient
 	 */
 	@SuppressWarnings("deprecation")
-	JweRecipient build(Jwe jwe, byte[] cek) {
+	byte[] encrypt(Encryption encryption, byte[] contentEncryptionKey) {
 		final var algorithm = algorithm();
 
 		// 5.1#4 encrypt CEK to the recipient
-		final byte[] encryptedKey;
 		switch (algorithm) {
 		case A128KW:
 		case A192KW:
 		case A256KW:
 			// key wrapping
-			encryptedKey = IuException.unchecked(() -> {
+			return IuException.unchecked(() -> {
 				final var key = new SecretKeySpec(key().getKey(), "AES");
-				final var cipher = Cipher.getInstance(algorithm.keyAlgorithm);
+				final var cipher = Cipher.getInstance(algorithm.algorithm);
 				cipher.init(Cipher.WRAP_MODE, key);
-				return cipher.wrap(new SecretKeySpec(cek, "AES"));
+				return cipher.wrap(new SecretKeySpec(contentEncryptionKey, "AES"));
 			});
-			break;
 
 		case A128GCMKW:
 		case A192GCMKW:
 		case A256GCMKW:
 			// key wrapping w/ GCM
-			encryptedKey = IuException.unchecked(() -> {
+			return IuException.unchecked(() -> {
 				final var key = new SecretKeySpec(key().getKey(), "AES");
 				final var iv = new byte[12];
 				new SecureRandom().nextBytes(iv);
-				crit("iv", IuText.base64Url(iv));
+				enc("iv", UnpaddedBinary.JSON.toJson(iv));
 
-				final var cipher = Cipher.getInstance(algorithm.keyAlgorithm);
+				final var cipher = Cipher.getInstance(algorithm.algorithm);
 				cipher.init(Cipher.WRAP_MODE, key, new GCMParameterSpec(128, iv));
-				final var wrappedKey = cipher.wrap(new SecretKeySpec(cek, "AES"));
+				final var wrappedKey = cipher.wrap(new SecretKeySpec(contentEncryptionKey, "AES"));
 
-				crit("tag",
-						IuText.base64Url(Arrays.copyOfRange(wrappedKey, wrappedKey.length - 16, wrappedKey.length)));
+				enc("tag", UnpaddedBinary.JSON
+						.toJson(Arrays.copyOfRange(wrappedKey, wrappedKey.length - 16, wrappedKey.length)));
 
 				return Arrays.copyOf(wrappedKey, wrappedKey.length - 16);
 			});
-			break;
 
 		case RSA1_5:
 		case RSA_OAEP:
 		case RSA_OAEP_256:
 			// key encryption
-			encryptedKey = IuException.unchecked(() -> {
-				final var keyCipher = Cipher.getInstance(algorithm.keyAlgorithm);
+			return IuException.unchecked(() -> {
+				final var keyCipher = Cipher.getInstance(algorithm.algorithm);
 				keyCipher.init(Cipher.ENCRYPT_MODE, key().getPublicKey());
-				return keyCipher.doFinal(cek);
+				return keyCipher.doFinal(contentEncryptionKey);
 			});
-			break;
 
 		case ECDH_ES_A128KW:
 		case ECDH_ES_A192KW:
 		case ECDH_ES_A256KW:
 			// key agreement with key wrapping
-			encryptedKey = IuException.unchecked(() -> {
-				final var key = new SecretKeySpec(agreedUponKey(jwe.getEncryption()), "AES");
-				final var cipher = Cipher.getInstance(algorithm.keyAlgorithm);
+			return IuException.unchecked(() -> {
+				final var key = new SecretKeySpec(agreedUponKey(encryption), "AES");
+				final var cipher = Cipher.getInstance("AESWrap");
 				cipher.init(Cipher.WRAP_MODE, key);
-				return cipher.wrap(new SecretKeySpec(cek, "AES"));
+				return cipher.wrap(new SecretKeySpec(contentEncryptionKey, "AES"));
 			});
-			break;
+
+		case PBES2_HS256_A128KW:
+		case PBES2_HS384_A192KW:
+		case PBES2_HS512_A256KW:
+			// passphrase-derived key with key wrapping
+			return IuException.unchecked(() -> {
+				final var key = new SecretKeySpec(passphraseDerivedKey(), "AES");
+				final var cipher = Cipher.getInstance("AESWrap");
+				cipher.init(Cipher.WRAP_MODE, key);
+				return cipher.wrap(new SecretKeySpec(contentEncryptionKey, "AES"));
+			});
 
 		default:
 			// 5.1#5 don't populate encrypted key for direct key agreement or encryption
-			encryptedKey = null;
-			break;
+			return null;
 		}
-
-		return new JweRecipient(jwe, new Jose(this), encryptedKey);
 	}
 
 }

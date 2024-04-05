@@ -31,126 +31,242 @@
  */
 package iu.crypt;
 
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
+import java.security.AlgorithmParameters;
+import java.security.KeyFactory;
+import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.security.cert.X509Certificate;
-import java.security.interfaces.ECPrivateKey;
-import java.security.interfaces.ECPublicKey;
-import java.security.interfaces.RSAPrivateCrtKey;
-import java.security.interfaces.RSAPrivateKey;
-import java.security.interfaces.RSAPublicKey;
+import java.security.spec.ECGenParameterSpec;
+import java.security.spec.ECParameterSpec;
+import java.security.spec.ECPoint;
+import java.security.spec.ECPrivateKeySpec;
+import java.security.spec.ECPublicKeySpec;
+import java.security.spec.KeySpec;
+import java.security.spec.RSAPrivateCrtKeySpec;
+import java.security.spec.RSAPrivateKeySpec;
+import java.security.spec.RSAPublicKeySpec;
+import java.time.Duration;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
+import edu.iu.IuCacheMap;
+import edu.iu.IuException;
+import edu.iu.IuIterable;
 import edu.iu.IuObject;
+import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
-import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
+import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 
 /**
  * JSON Web Key (JWK) implementation.
  */
-class Jwk implements WebKey {
-
-	/**
-	 * Adds RSA key pair attributes to an in-progress JWK builder.
-	 * 
-	 * @param jwkBuilder JWK builder
-	 * @param pub        public key
-	 * @param priv       private key
-	 */
-	static void writeRSA(JsonObjectBuilder jwkBuilder, RSAPublicKey pub, RSAPrivateKey priv) {
-		IuJson.add(jwkBuilder, "n", pub::getModulus, UnsignedBigInteger.JSON);
-		IuJson.add(jwkBuilder, "e", pub::getPublicExponent, UnsignedBigInteger.JSON);
-		if (priv == null)
-			return;
-
-		IuJson.add(jwkBuilder, "d", priv::getPrivateExponent, UnsignedBigInteger.JSON);
-		if (priv instanceof RSAPrivateCrtKey) {
-			final var crt = (RSAPrivateCrtKey) priv;
-			IuJson.add(jwkBuilder, "p", crt::getPrimeP, UnsignedBigInteger.JSON);
-			IuJson.add(jwkBuilder, "q", crt::getPrimeQ, UnsignedBigInteger.JSON);
-			IuJson.add(jwkBuilder, "dp", crt::getPrimeExponentP, UnsignedBigInteger.JSON);
-			IuJson.add(jwkBuilder, "dq", crt::getPrimeExponentQ, UnsignedBigInteger.JSON);
-			IuJson.add(jwkBuilder, "qi", crt::getCrtCoefficient, UnsignedBigInteger.JSON);
-			return;
-		}
+public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
+	static {
+		IuObject.assertNotOpen(JweBuilder.class);
 	}
 
 	/**
-	 * Adds Elliptic Curve key pair attributes to an in-progress JWK builder.
-	 * 
-	 * @param jwkBuilder JWK builder
-	 * @param type       key type
-	 * @param pub        public key
-	 * @param priv       private key
+	 * JSON type adapter.
 	 */
-	static void writeEC(JsonObjectBuilder jwkBuilder, Type type, ECPublicKey pub, ECPrivateKey priv) {
-		jwkBuilder.add("crv", type.crv);
+	public static final IuJsonAdapter<Jwk> JSON = IuJsonAdapter.from(v -> new Jwk(v.asJsonObject()), v -> {
+		final var o = IuJson.object();
+		v.serializeTo(o);
+		return o.build();
+	});
 
-		final var w = pub.getW();
-		IuJson.add(jwkBuilder, "x", w::getAffineX, UnsignedBigInteger.JSON);
-		IuJson.add(jwkBuilder, "y", w::getAffineY, UnsignedBigInteger.JSON);
+	private static Map<URI, Jwk[]> JWKS_CACHE = new IuCacheMap<>(Duration.ofMinutes(15L));
 
-		if (priv != null)
-			IuJson.add(jwkBuilder, "d", priv::getS, UnsignedBigInteger.JSON);
+	/**
+	 * Converts a JSON value to a JSON Web Key (JWK).
+	 * 
+	 * @param jwk JSON Web Key
+	 * @return {@link WebKey}
+	 */
+	public static Jwk parse(JsonObject jwk) {
+		return new Jwk(jwk);
 	}
 
-	private final String id;
+	private static JsonObject writeAsJwks(Iterable<? extends WebKey> webKeys) {
+		return IuJson.object().add("keys", IuJsonAdapter.of(Iterable.class, Jwk.JSON).toJson(webKeys)).build();
+	}
+
+	/**
+	 * Gets key set by URI.
+	 * 
+	 * @param uri Key set URI
+	 * @return key set
+	 */
+	public static Iterable<Jwk> readJwks(URI uri) {
+		var jwks = JWKS_CACHE.get(uri);
+		if (jwks == null)
+			JWKS_CACHE.put(uri, jwks = IuException.unchecked(() -> IuJsonAdapter.<Stream<Jwk>>of(Stream.class, JSON)
+					.fromJson(IuHttp.get(uri, IuHttp.READ_JSON_OBJECT).getJsonArray("keys")).toArray(Jwk[]::new)));
+		return IuIterable.iter(jwks);
+	}
+
+	/**
+	 * Reads a key set from an input stream.
+	 * 
+	 * @param in input stream
+	 * @return {@link WebKey}
+	 */
+	public static Iterable<Jwk> readJwks(InputStream in) {
+		return IuException.unchecked(() -> {
+			return IuJsonAdapter.<Iterable<Jwk>>of(Iterable.class, JSON)
+					.fromJson(IuJson.parse(in).asJsonObject().getJsonArray("keys"));
+		});
+	}
+
+	/**
+	 * Parses a JSON Web Key Set (JWKS).
+	 * 
+	 * @param jwks serialized JWKS
+	 * @return parsed key set
+	 */
+	public static Iterable<Jwk> parseJwks(JsonObject jwks) {
+		return IuJsonAdapter.<Iterable<Jwk>>of(Iterable.class, JSON).fromJson(jwks.getJsonArray("keys"));
+	}
+
+	/**
+	 * Serializes {@link WebKey}s as a JSON Web Key Set.
+	 * 
+	 * @param webKeys {@link WebKey}s
+	 * @return serialized JWKS
+	 */
+	public static JsonObject asJwks(Iterable<? extends WebKey> webKeys) {
+		return writeAsJwks(webKeys);
+	}
+
+	/**
+	 * Writes {@link WebKey} as a JSON Web Key.
+	 * 
+	 * @param webKeys {@link WebKey}s
+	 * @param out     {@link OutputStream}
+	 */
+	public static void writeJwks(Iterable<? extends WebKey> webKeys, OutputStream out) {
+		IuJson.serialize(writeAsJwks(webKeys), out);
+	}
+
+	private static KeyPair readRSA(Type type, JsonObject parsedJwk) {
+		return IuException.unchecked(() -> {
+			final var keyFactory = KeyFactory.getInstance(type.kty);
+
+			final var modulus = IuJson.nonNull(parsedJwk, "n", UnsignedBigInteger.JSON);
+			final var exponent = Objects.requireNonNull(IuJson.get(parsedJwk, "e", UnsignedBigInteger.JSON), "e");
+			final var pub = keyFactory.generatePublic(new RSAPublicKeySpec(modulus, exponent));
+
+			final PrivateKey priv;
+			if (parsedJwk.containsKey("d")) {
+				final KeySpec keySpec;
+				final var privateExponent = Objects.requireNonNull(IuJson.get(parsedJwk, "d", UnsignedBigInteger.JSON),
+						"d");
+				if (parsedJwk.containsKey("p")) {
+					final var primeP = Objects.requireNonNull(IuJson.get(parsedJwk, "p", UnsignedBigInteger.JSON), "p");
+					final var primeQ = Objects.requireNonNull(IuJson.get(parsedJwk, "q", UnsignedBigInteger.JSON), "q");
+					final var primeExponentP = Objects
+							.requireNonNull(IuJson.get(parsedJwk, "dp", UnsignedBigInteger.JSON), "dp");
+					final var primeExponentQ = Objects
+							.requireNonNull(IuJson.get(parsedJwk, "dq", UnsignedBigInteger.JSON), "dq");
+					final var crtCoefficient = Objects
+							.requireNonNull(IuJson.get(parsedJwk, "qi", UnsignedBigInteger.JSON), "qi");
+
+					if (parsedJwk.containsKey("oth"))
+						// TODO: identify a multi-prime test case
+						// * JCE doesn't generate multi-prime RSA keys
+						// * JCE can't read multi-prime key exported from OpenSSL as PKCS8
+						// * OpenSSL doesn't export as JWK
+						throw new UnsupportedOperationException();
+
+					keySpec = new RSAPrivateCrtKeySpec(modulus, exponent, privateExponent, primeP, primeQ,
+							primeExponentP, primeExponentQ, crtCoefficient);
+				} else
+					keySpec = new RSAPrivateKeySpec(modulus, privateExponent);
+
+				priv = keyFactory.generatePrivate(keySpec);
+			} else
+				priv = null;
+
+			return new KeyPair(pub, priv);
+		});
+	}
+
+	private static KeyPair readEC(Type type, JsonObject parsedJwk) {
+		return IuException.unchecked(() -> {
+			final var algorithmParamters = AlgorithmParameters.getInstance("EC");
+			algorithmParamters.init(new ECGenParameterSpec(type.ecParam));
+			final var spec = algorithmParamters.getParameterSpec(ECParameterSpec.class);
+
+			final var keyFactory = KeyFactory.getInstance("EC");
+			final var w = new ECPoint(Objects.requireNonNull(IuJson.get(parsedJwk, "x", UnsignedBigInteger.JSON), "x"),
+					Objects.requireNonNull(IuJson.get(parsedJwk, "y", UnsignedBigInteger.JSON), "y"));
+			final var pub = keyFactory.generatePublic(new ECPublicKeySpec(w, spec));
+
+			final PrivateKey priv;
+			if (parsedJwk.containsKey("d"))
+				priv = keyFactory.generatePrivate(new ECPrivateKeySpec(
+						Objects.requireNonNull(IuJson.get(parsedJwk, "d", UnsignedBigInteger.JSON), "d"), spec));
+			else
+				priv = null;
+
+			return new KeyPair(pub, priv);
+		});
+	}
+
 	private final Type type;
 	private final Use use;
+	private final Set<Operation> ops;
 	private final byte[] key;
 	private final PublicKey publicKey;
 	private final PrivateKey privateKey;
-	private final Set<Op> ops;
-	private final Algorithm algorithm;
-	private final URI certificateUri;
-	private final X509Certificate[] certificateChain;
-	private final byte[] certificateThumbprint;
-	private final byte[] certificateSha256Thumbprint;
+	private final PublicKey verifiedPublicKey;
 
 	/**
 	 * Constructor.
 	 * 
-	 * <p>
-	 * Only for use by {@link JwkBuilder}.
-	 * </p>
-	 * 
-	 * @param id                          key ID
-	 * @param type                        key type
-	 * @param use                         public key use
-	 * @param key                         raw encoded key
-	 * @param publicKey                   public key
-	 * @param privateKey                  private key
-	 * @param ops                         key operations
-	 * @param algorithm                   algorithm
-	 * @param certificateUri              certificate URI
-	 * @param certificateChain            certificate chain
-	 * @param certificateThumbprint       certificate thumbprint
-	 * @param certificateSha256Thumbprint certificate SHA-256 thumbprint
+	 * @param jwk parsed JWK parameters
 	 */
-	Jwk(String id, Type type, Use use, byte[] key, PublicKey publicKey, PrivateKey privateKey, Set<Op> ops,
-			Algorithm algorithm, URI certificateUri, X509Certificate[] certificateChain, byte[] certificateThumbprint,
-			byte[] certificateSha256Thumbprint) {
-		this.id = id;
-		this.type = type;
-		this.use = use;
-		this.key = key;
-		this.publicKey = publicKey;
-		this.privateKey = privateKey;
-		this.ops = ops;
-		this.algorithm = algorithm;
-		this.certificateUri = certificateUri;
-		this.certificateChain = certificateChain;
-		this.certificateThumbprint = certificateThumbprint;
-		this.certificateSha256Thumbprint = certificateSha256Thumbprint;
-	}
+	public Jwk(JsonObject jwk) {
+		super(jwk);
+		this.type = Objects.requireNonNull(Type.from(IuJson.get(jwk, "kty"), IuJson.get(jwk, "crv")),
+				"Key type is required");
 
-	@Override
-	public String getId() {
-		return id;
+		this.use = IuJson.get(jwk, "use", Use.JSON);
+		this.ops = IuJson.get(jwk, "key_ops", IuJsonAdapter.of(Set.class, Operation.JSON));
+		this.key = IuJson.get(jwk, "k", UnpaddedBinary.JSON);
+
+		switch (type) {
+		case EC_P256:
+		case EC_P384:
+		case EC_P521: {
+			final var keyPair = readEC(type, jwk);
+			this.publicKey = keyPair.getPublic();
+			this.privateKey = keyPair.getPrivate();
+			break;
+		}
+
+		case RSA:
+		case RSASSA_PSS: {
+			final var keyPair = readRSA(type, jwk);
+			this.publicKey = keyPair.getPublic();
+			this.privateKey = keyPair.getPrivate();
+			break;
+		}
+
+		default:
+			this.publicKey = null;
+			this.privateKey = null;
+			break;
+		}
+
+		verifiedPublicKey = WebKey.verify(this);
 	}
 
 	@Override
@@ -179,62 +295,39 @@ class Jwk implements WebKey {
 	}
 
 	@Override
-	public Set<Op> getOps() {
+	public Set<Operation> getOps() {
 		return ops;
-	}
-
-	@Override
-	public Algorithm getAlgorithm() {
-		return algorithm;
-	}
-
-	@Override
-	public URI getCertificateUri() {
-		return certificateUri;
-	}
-
-	@Override
-	public X509Certificate[] getCertificateChain() {
-		return certificateChain;
-	}
-
-	@Override
-	public byte[] getCertificateThumbprint() {
-		return certificateThumbprint;
-	}
-
-	@Override
-	public byte[] getCertificateSha256Thumbprint() {
-		return certificateSha256Thumbprint;
 	}
 
 	@Override
 	public Jwk wellKnown() {
 		if (privateKey == null && key == null)
 			return this;
-		else
-			return new Jwk(id, type, use, null, publicKey, null, ops, algorithm, certificateUri, certificateChain,
-					certificateThumbprint, certificateSha256Thumbprint);
+
+		final var jwkBuilder = IuJson.object();
+		super.serializeTo(jwkBuilder);
+		IuJson.add(jwkBuilder, "use", () -> use, Use.JSON);
+		IuJson.add(jwkBuilder, "key_ops", () -> ops, IuJsonAdapter.of(Set.class, Operation.JSON));
+
+		final var builder = new JwkBuilder(type);
+		IuObject.convert(publicKey, builder::key);
+		IuObject.convert(verifiedPublicKey, builder::key);
+		IuObject.convert(verifiedCertificateChain(), builder::cert);
+		builder.build(jwkBuilder);
+		return new Jwk(jwkBuilder.build());
 	}
 
 	@Override
 	public int hashCode() {
-		return IuObject.hashCode(id, type, use, key, publicKey, privateKey, ops, algorithm, certificateUri,
-				certificateChain, certificateThumbprint, certificateSha256Thumbprint);
+		return IuObject.hashCodeSuper(super.hashCode(), type, use, key, publicKey, privateKey, ops);
 	}
 
 	@Override
 	public boolean equals(Object obj) {
-		if (!IuObject.typeCheck(this, obj))
+		if (!super.equals(obj))
 			return false;
 		Jwk other = (Jwk) obj;
-		return algorithm == other.algorithm //
-				&& IuObject.equals(certificateChain, other.certificateChain)
-				&& IuObject.equals(certificateSha256Thumbprint, other.certificateSha256Thumbprint)
-				&& IuObject.equals(certificateThumbprint, other.certificateThumbprint)
-				&& IuObject.equals(certificateUri, other.certificateUri) //
-				&& IuObject.equals(id, other.id) //
-				&& IuObject.equals(key, other.key) //
+		return IuObject.equals(key, other.key) //
 				&& IuObject.equals(ops, other.ops) //
 				&& IuObject.equals(privateKey, other.privateKey) //
 				&& IuObject.equals(publicKey, other.publicKey) //
@@ -252,34 +345,20 @@ class Jwk implements WebKey {
 	 * Adds serialized JWK attributes to a JSON object builder.
 	 * 
 	 * @param jwkBuilder {@link JsonObjectBuilder}
+	 * @return jwkBuilder
 	 */
-	void serializeTo(JsonObjectBuilder jwkBuilder) {
-		IuJson.add(jwkBuilder, "kid", id);
+	JsonObjectBuilder serializeTo(JsonObjectBuilder jwkBuilder) {
+		super.serializeTo(jwkBuilder);
 		IuJson.add(jwkBuilder, "use", () -> use, Use.JSON);
-		IuJson.add(jwkBuilder, "kty", () -> type, IuJsonAdapter.to(a -> IuJson.string(a.kty)));
-		IuJson.add(jwkBuilder, "alg", () -> algorithm, Algorithm.JSON);
-		IuJson.add(jwkBuilder, "key_ops", () -> ops, IuJsonAdapter.of(Set.class, Op.JSON));
-		IuJson.add(jwkBuilder, "x5u", () -> certificateUri, IuJsonAdapter.of(URI.class));
-		IuJson.add(jwkBuilder, "x5c", () -> certificateChain,
-				IuJsonAdapter.of(X509Certificate[].class, PemEncoded.CERT_JSON));
-		IuJson.add(jwkBuilder, "x5t", () -> certificateThumbprint, UnpaddedBinary.JSON);
-		IuJson.add(jwkBuilder, "x5t#S256", () -> certificateSha256Thumbprint, UnpaddedBinary.JSON);
+		IuJson.add(jwkBuilder, "key_ops", () -> ops, IuJsonAdapter.of(Set.class, Operation.JSON));
 
-		if (publicKey instanceof ECPublicKey) {
-			final Type type;
-			if (this.type != null)
-				type = this.type;
-			else
-				type = algorithm.type;
-			writeEC(jwkBuilder, type, (ECPublicKey) publicKey, (ECPrivateKey) privateKey);
-		} else if (publicKey instanceof RSAPublicKey)
-			writeRSA(jwkBuilder, (RSAPublicKey) publicKey, (RSAPrivateKey) privateKey);
-		else
-			IuJson.add(jwkBuilder, "k", () -> key, UnpaddedBinary.JSON);
-	}
+		final var builder = new JwkBuilder(type);
+		IuObject.convert(key, builder::key);
+		IuObject.convert(publicKey, builder::key);
+		IuObject.convert(privateKey, builder::key);
+		builder.build(jwkBuilder);
 
-	private static boolean eitherNullOrBothEquals(Object a, Object b) {
-		return a == null || b == null || IuObject.equals(a, b);
+		return jwkBuilder;
 	}
 
 	/**
@@ -290,21 +369,14 @@ class Jwk implements WebKey {
 	 * @return true if all non-null components of both keys match
 	 */
 	boolean represents(Jwk key) {
-		return eitherNullOrBothEquals(algorithm, key.algorithm) //
-				&& eitherNullOrBothEquals(certificateChain, key.certificateChain)
-				&& eitherNullOrBothEquals(certificateSha256Thumbprint, key.certificateSha256Thumbprint)
-				&& eitherNullOrBothEquals(certificateThumbprint, key.certificateThumbprint)
-				&& eitherNullOrBothEquals(certificateUri, key.certificateUri) //
-				&& eitherNullOrBothEquals(id, key.id) //
-				&& eitherNullOrBothEquals(key, key.key) //
-				&& eitherNullOrBothEquals(ops, key.ops) //
-				&& eitherNullOrBothEquals(privateKey, key.privateKey) //
-				&& eitherNullOrBothEquals(publicKey, key.publicKey) //
-				&& eitherNullOrBothEquals(type, key.type) //
-				&& (algorithm == null || key.type == null || algorithm.type == key.type) //
-				&& eitherNullOrBothEquals(use, key.use) //
-				&& (algorithm == null || key.use == null || algorithm.use == key.use);
-
+		return super.represents(key) //
+				&& IuObject.represents(key, key.key) //
+				&& IuObject.represents(ops, key.ops) //
+				&& IuObject.represents(privateKey, key.privateKey) //
+				&& IuObject.represents(publicKey, key.publicKey) //
+				&& IuObject.represents(type, key.type) //
+				&& IuObject.represents(use, key.use);
 	}
 
+	
 }

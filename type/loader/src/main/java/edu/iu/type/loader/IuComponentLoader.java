@@ -35,22 +35,19 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ModuleLayer.Controller;
 import java.net.URL;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Objects;
 import java.util.Queue;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
-import edu.iu.IuStream;
-import edu.iu.UnsafeRunnable;
-import edu.iu.type.base.FilteringClassLoader;
 import edu.iu.type.base.ModularClassLoader;
 import edu.iu.type.base.TemporaryFile;
+import iu.type.loader.LoadedComponent;
 
 /**
  * Loads components via IU type introspection into an isolated modular
@@ -75,211 +72,67 @@ public class IuComponentLoader implements AutoCloseable {
 		return path.toArray(size -> new URL[size]);
 	});
 
-	private UnsafeRunnable destroy;
-	private ModularClassLoader typeBundleLoader;
-	private AutoCloseable component;
-	private ClassLoader loader;
-	private volatile boolean closed;
+	private static Iterable<Supplier<Path>> toModulePath(Iterable<InputStream> modules) {
+		return IuIterable.cat( //
+				IuIterable.map(IuIterable.iter(TYPE_BUNDLE_MODULE_PATH), a -> () -> TemporaryFile.of(a)),
+				IuIterable.map(modules, a -> () -> TemporaryFile.of(a)));
+	}
+
+	private volatile ModularClassLoader loader;
+	private volatile Module typeImplModule;
 
 	/**
-	 * Validates a <strong>component archive</strong>, all <strong>dependency
-	 * archives</strong>, loads a <strong>component</strong>, and returns a
-	 * {@link ClassLoader} for accessing classes managed by the component.
+	 * Constructor.
 	 * 
-	 * @param componentArchiveSource           {@link InputStream} for reading the
-	 *                                         <strong>component archive</strong>.
-	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
-	 *                                         <strong>provided dependency
-	 *                                         archives</strong>.
+	 * @param typeConsumerModules Iterates modules that <em>may</em> require
+	 *                            iu.util.type to extend type introspection
 	 * @throws IOException If an IO error occurs initializing the component
 	 */
-	public IuComponentLoader(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
-			throws IOException {
-		this(null, componentArchiveSource, providedDependencyArchiveSources);
+	public IuComponentLoader(Iterable<InputStream> typeConsumerModules) {
+		this(IuObject.class.getClassLoader(),
+				Objects.requireNonNullElseGet(IuObject.class.getModule().getLayer(), ModuleLayer::boot),
+				typeConsumerModules, c -> {
+				});
 	}
 
 	/**
-	 * Validates a <strong>component archive</strong>, all <strong>dependency
-	 * archives</strong>, loads a <strong>component</strong>, and returns a
-	 * {@link ClassLoader} for accessing classes managed by the component.
+	 * Constructor.
 	 * 
-	 * @param controllerCallback               receives a reference to an
-	 *                                         {@link IuComponentController} that
-	 *                                         may be used to set up access rules
-	 *                                         for the component. This reference
-	 *                                         <em>should not</em> be passed beyond
-	 *                                         the scope of the callback; see
-	 *                                         {@link ModularClassLoader}
-	 * @param componentArchiveSource           {@link InputStream} for reading the
-	 *                                         <strong>component archive</strong>.
-	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
-	 *                                         <strong>provided dependency
-	 *                                         archives</strong>.
+	 * @param parent              parent {@link ClassLoader}
+	 * @param parentLayer         parent {@link ModuleLayer}; <em>should<em> contain
+	 *                            the iu.util and iu.util.type.loader modules
+	 * @param typeConsumerModules Iterates modules that <em>may</em> require
+	 *                            iu.util.type to extend type introspection
+	 * @param controllerCallback  accepts a {@link Controller} for the
+	 *                            {@link ModuleLayer} that includes iu.util.type and
+	 *                            all modules defined by typeConsumerModules
 	 * @throws IOException If an IO error occurs initializing the component
 	 */
-	public IuComponentLoader(Consumer<IuComponentController> controllerCallback, InputStream componentArchiveSource,
-			InputStream... providedDependencyArchiveSources) throws IOException {
-		this(IuIterable.empty(), controllerCallback, componentArchiveSource, providedDependencyArchiveSources);
-	}
+	public IuComponentLoader(ClassLoader parent, ModuleLayer parentLayer, Iterable<InputStream> typeConsumerModules,
+			Consumer<Controller> controllerCallback) {
+		loader = ModularClassLoader.of(parent, parentLayer, () -> toModulePath(typeConsumerModules),
+				controllerCallback);
 
-	/**
-	 * Validates a <strong>component archive</strong>, all <strong>dependency
-	 * archives</strong>, loads a <strong>component</strong>, and returns a
-	 * {@link ClassLoader} for accessing classes managed by the component.
-	 * 
-	 * @param allowedPackages                  non-platform classes to allow
-	 *                                         delegated access to; see
-	 *                                         {@link FilteringClassLoader}
-	 * @param controllerCallback               receives a reference to an
-	 *                                         {@link IuComponentController} that
-	 *                                         may be used to set up access rules
-	 *                                         for the component. This reference
-	 *                                         <em>should not</em> be passed beyond
-	 *                                         the scope of the callback; see
-	 *                                         {@link ModularClassLoader}
-	 * @param componentArchiveSource           {@link InputStream} for reading the
-	 *                                         <strong>component archive</strong>.
-	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
-	 *                                         <strong>provided dependency
-	 *                                         archives</strong>.
-	 * @throws IOException If an IO error occurs initializing the component
-	 */
-	public IuComponentLoader(Iterable<String> allowedPackages, Consumer<IuComponentController> controllerCallback,
-			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources) throws IOException {
-		this(IuComponentLoader.class.getClassLoader(), allowedPackages, controllerCallback, componentArchiveSource,
-				providedDependencyArchiveSources);
-	}
-
-	/**
-	 * Validates a <strong>component archive</strong>, all <strong>dependency
-	 * archives</strong>, loads a <strong>component</strong>, and returns a
-	 * {@link ClassLoader} for accessing classes managed by the component.
-	 * 
-	 * @param parent                           parent {@link ClassLoader}
-	 * @param allowedPackages                  non-platform classes to allow
-	 *                                         delegated access to; see
-	 *                                         {@link FilteringClassLoader}
-	 * @param controllerCallback               receives a reference to an
-	 *                                         {@link IuComponentController} that
-	 *                                         may be used to set up access rules
-	 *                                         for the component. This reference
-	 *                                         <em>should not</em> be passed beyond
-	 *                                         the scope of the callback; see
-	 *                                         {@link ModularClassLoader}
-	 * @param componentArchiveSource           {@link InputStream} for reading the
-	 *                                         <strong>component archive</strong>.
-	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
-	 *                                         <strong>provided dependency
-	 *                                         archives</strong>.
-	 * @throws IOException If an IO error occurs initializing the component
-	 */
-	public IuComponentLoader(ClassLoader parent, Iterable<String> allowedPackages,
-			Consumer<IuComponentController> controllerCallback, InputStream componentArchiveSource,
-			InputStream... providedDependencyArchiveSources) throws IOException {
-		class Box {
-			ModularClassLoader typeBundleLoader;
-			AutoCloseable component;
-			ClassLoader loader;
-		}
-		final var box = new Box();
-
-		if (IU_BASE_IS_NAMED || IU_TYPE_BASE_IS_NAMED) {
-			final Queue<String> allowedPackageQueue = new ArrayDeque<>();
-			if (IU_BASE_IS_NAMED)
-				allowedPackageQueue.add("edu.iu");
-			if (IU_TYPE_BASE_IS_NAMED)
-				allowedPackageQueue.add("edu.iu.type.base");
-			allowedPackages.forEach(allowedPackageQueue::offer);
-			allowedPackages = allowedPackageQueue;
-		}
-
-		final var filteredParent = new FilteringClassLoader(allowedPackages, parent);
-		destroy = TemporaryFile.init(() -> {
-			final var typeBundleJars = new Path[TYPE_BUNDLE_MODULE_PATH.length];
-
-			for (var i = 0; i < TYPE_BUNDLE_MODULE_PATH.length; i++) {
-				final var connection = TYPE_BUNDLE_MODULE_PATH[i].openConnection();
-				connection.setUseCaches(false);
-				try (final var in = connection.getInputStream()) {
-					typeBundleJars[i] = TemporaryFile.init(path -> {
-						try (final var out = Files.newOutputStream(path)) {
-							IuStream.copy(in, out);
-						}
-						return path;
-					});
-				}
-			}
-
-			box.typeBundleLoader = IuException.checked(IOException.class,
-					() -> IuException.initialize(new ModularClassLoader(false, IuIterable.iter(typeBundleJars),
-							ModuleLayer.boot(), filteredParent, controller -> {
-								final var typeBundleModule = controller.layer().findModule("iu.util.type.bundle").get();
-								final var typeApiModule = controller.layer().findModule("iu.util.type").get();
-								if (IU_BASE_IS_NAMED) {
-									controller.addReads(typeApiModule, IU_BASE);
-									controller.addReads(typeBundleModule, IU_BASE);
-								}
-								if (IU_TYPE_BASE_IS_NAMED)
-									controller.addReads(typeBundleModule, IU_TYPE_BASE);
-							}), typeBundleLoader -> {
-								final var typeBundle = typeBundleLoader.loadClass("edu.iu.type.bundle.IuTypeBundle");
-								final var typeModule = typeBundleLoader.getModuleLayer().findModule("iu.util.type")
-										.get();
-
-								final var getModule = typeBundle.getMethod("getModule");
-								final var typeImplModule = (Module) getModule.invoke(null);
-
-								final var iuComponent = typeBundleLoader.loadClass("edu.iu.type.IuComponent");
-								final var of = iuComponent.getMethod("of", ModuleLayer.class, ClassLoader.class,
-										BiConsumer.class, InputStream.class, InputStream[].class);
-								final var classLoader = iuComponent.getMethod("classLoader");
-
-								class ComponentController implements IuComponentController {
-									private final Module componentModule;
-									private final Controller controller;
-
-									ComponentController(Module componentModule, Controller controller) {
-										this.componentModule = componentModule;
-										this.controller = controller;
-									}
-
-									@Override
-									public Module getTypeModule() {
-										return typeModule;
-									}
-
-									@Override
-									public Module getTypeImplementationModule() {
-										return typeImplModule;
-									}
-
-									@Override
-									public Module getComponentModule() {
-										return componentModule;
-									}
-
-									@Override
-									public Controller getController() {
-										return controller;
-									}
-								}
-
-								return IuException.checkedInvocation(() -> {
-									box.component = (AutoCloseable) of.invoke(null, typeBundleLoader.getModuleLayer(),
-											typeBundleLoader, (BiConsumer<Module, Controller>) (module, controller) -> {
-												if (controllerCallback != null)
-													controllerCallback
-															.accept(new ComponentController(module, controller));
-											}, componentArchiveSource, providedDependencyArchiveSources);
-									box.loader = (ClassLoader) classLoader.invoke(box.component);
-									return typeBundleLoader;
-								});
-							}));
+		typeImplModule = IuException.unchecked(() -> {
+			final var typeBundle = loader.loadClass("edu.iu.type.bundle.IuTypeBundle");
+			final var getModule = typeBundle.getMethod("getModule");
+			return (Module) getModule.invoke(null);
 		});
+	}
 
-		typeBundleLoader = box.typeBundleLoader;
-		component = box.component;
-		loader = box.loader;
+	public IuLoadedComponent load() {
+		final var loadedComponent = new LoadedComponent();
+		return loadedComponent;
+//			
+//			box.component = (AutoCloseable) of.invoke(null, typeBundleLoader.getModuleLayer(),
+//					typeBundleLoader, (BiConsumer<Module, Controller>) (module, controller) -> {
+//		box.component = (AutoCloseable) of.invoke(null, typeBundleLoader.getModuleLayer(),
+//				typeBundleLoader, (BiConsumer<Module, Controller>) (module, controller) -> {
+//					if (controllerCallback != null)
+//						controllerCallback.accept(new ComponentController(module, controller));
+//				}, componentArchiveSource, providedDependencyArchiveSources);
+//		box.loader = (ClassLoader) classLoader.invoke(box.component);
+
 	}
 
 	/**
@@ -287,29 +140,21 @@ public class IuComponentLoader implements AutoCloseable {
 	 * 
 	 * @return {@link ClassLoader}
 	 */
-	public ClassLoader getLoader() {
-		if (closed)
+	public ModularClassLoader getLoader() {
+		if (loader == null)
 			throw new IllegalStateException("closed");
-		return loader;
+		else
+			return loader;
 	}
 
 	@Override
-	public synchronized void close() throws IOException {
-		if (!closed) {
-			closed = true;
+	public synchronized void close() throws Exception {
+		if (typeImplModule != null)
+			typeImplModule = null;
+
+		if (loader != null) {
+			loader.close();
 			loader = null;
-
-			var closeError = IuException.suppress(null, component::close);
-			component = null;
-
-			closeError = IuException.suppress(closeError, typeBundleLoader::close);
-			typeBundleLoader = null;
-
-			closeError = IuException.suppress(closeError, destroy::run);
-			destroy = null;
-
-			if (closeError != null)
-				throw IuException.checked(closeError, IOException.class);
 		}
 	}
 

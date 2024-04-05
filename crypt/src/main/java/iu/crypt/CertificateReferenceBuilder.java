@@ -31,159 +31,51 @@
  */
 package iu.crypt;
 
+import java.io.InputStream;
 import java.net.URI;
 import java.security.cert.X509Certificate;
-import java.util.Arrays;
-import java.util.Objects;
 
-import edu.iu.IuException;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonBuilder;
 import edu.iu.crypt.PemEncoded;
+import edu.iu.crypt.WebCertificateReference;
 
 /**
  * Common base class for JSON web security object builders.
  * 
  * @param <B> builder type
  */
-abstract class CertificateReferenceBuilder<B extends CertificateReferenceBuilder<B>> {
+class CertificateReferenceBuilder<B extends CertificateReferenceBuilder<B>> extends IuJsonBuilder<B>
+		implements WebCertificateReference.Builder<B> {
 
-	private URI certificateUri;
-	private X509Certificate[] certificateChain;
-	private byte[] certificateThumbprint;
-	private byte[] certificateSha256Thumbprint;
-
-	/**
-	 * Next builder reference.
-	 * 
-	 * @return this
-	 */
-	abstract protected B next();
-
-	/**
-	 * Sets certificate URI
-	 * 
-	 * @param uri certificate URI
-	 * @return this
-	 */
+	@Override
 	public B cert(URI uri) {
-		acceptCertChain(PemEncoded.getCertificateChain(uri));
-		this.certificateUri = uri;
-		return next();
+		return param("x5u", uri, IuJsonAdapter.of(URI.class));
 	}
 
-	/**
-	 * Sets certificate chain
-	 * 
-	 * @param chain certificate chain
-	 * @return this
-	 */
+	@Override
 	public B cert(X509Certificate... chain) {
-		acceptCertChain(chain);
-		this.certificateChain = chain;
-		return next();
+		return param("x5c", chain, IuJsonAdapter.of(X509Certificate[].class, PemEncoded.CERT_JSON));
 	}
 
-	/**
-	 * Sets certificate thumbprint
-	 * 
-	 * @param certificateThumbprint cetiticate thumbprint
-	 * @return certificate thumbprint
-	 */
+	@Override
 	public B x5t(byte[] certificateThumbprint) {
-		Objects.requireNonNull(certificateThumbprint);
-
-		final var cert = getCert();
-		if (cert != null //
-				&& !Arrays.equals(certificateThumbprint, DigestUtils.sha1(IuException.unchecked(cert::getEncoded))))
-			throw new IllegalArgumentException("SHA-1 thumbprint mismatch");
-
-		this.certificateThumbprint = certificateThumbprint;
-		return next();
+		return param("x5t", certificateThumbprint, UnpaddedBinary.JSON);
 	}
 
-	/**
-	 * Sets certificate SHA-256 thumbprint
-	 * 
-	 * @param certificateSha256Thumbprint certificate SHA-256 thumbprint
-	 * @return this
-	 */
+	@Override
 	public B x5t256(byte[] certificateSha256Thumbprint) {
-		Objects.requireNonNull(certificateSha256Thumbprint);
-
-		final var cert = getCert();
-		if (cert != null //
-				&& !Arrays.equals(certificateSha256Thumbprint, DigestUtils.sha256(IuException.unchecked(cert::getEncoded))))
-			throw new IllegalArgumentException("SHA-256 thumbprint mismatch");
-
-		this.certificateSha256Thumbprint = certificateSha256Thumbprint;
-		return next();
+		return param("x5t#S256", certificateSha256Thumbprint, UnpaddedBinary.JSON);
 	}
 
-	/**
-	 * Verifies set-once behavior and matches thumbprints against encoded checksums.
-	 * 
-	 * <p>
-	 * Does not set the certificate chain.
-	 * </p>
-	 * 
-	 * @param certChain certificate chain
-	 */
-	protected void acceptCertChain(X509Certificate[] certChain) {
-		if (this.certificateChain != null //
-				&& !Arrays.equals(certChain, this.certificateChain))
-			throw new IllegalStateException("Certificate chain mismatch");
-
-		final var cert = certChain[0];
-		if (certificateThumbprint != null //
-				&& !Arrays.equals(certificateThumbprint, DigestUtils.sha1(IuException.unchecked(cert::getEncoded))))
-			throw new IllegalArgumentException("SHA-1 thumbprint mismatch");
-		if (certificateSha256Thumbprint != null //
-				&& !Arrays.equals(certificateSha256Thumbprint, DigestUtils.sha256(IuException.unchecked(cert::getEncoded))))
-			throw new IllegalArgumentException("SHA-256 thumbprint mismatch");
+	@Override
+	public B pem(InputStream pemEncoded) {
+		return cert(PemEncoded.getCertificateChain(PemEncoded.parse(pemEncoded)));
 	}
 
-	/**
-	 * Gets certificate URI
-	 * 
-	 * @return certificate URI
-	 */
-	URI certificateUri() {
-		return certificateUri;
-	}
-
-	/**
-	 * Gets certificate chain
-	 * 
-	 * @return certificate chain
-	 */
-	X509Certificate[] certificateChain() {
-		return certificateChain;
-	}
-
-	/**
-	 * Gets certificate thumbprint
-	 * 
-	 * @return certificate thumbprint
-	 */
-	byte[] certificateThumbprint() {
-		return certificateThumbprint;
-	}
-
-	/**
-	 * Gets certificate SHA-256 thumbprint
-	 * 
-	 * @return certificate SHA-256 thumbprint
-	 */
-	byte[] certificateSha256Thumbprint() {
-		return certificateSha256Thumbprint;
-	}
-
-	private X509Certificate getCert() {
-		if (this.certificateChain != null)
-			return certificateChain[0];
-		else if (this.certificateUri != null)
-			return PemEncoded.getCertificateChain(certificateUri)[0];
-		else
-			return null;
+	@Override
+	public B pem(String pemEncoded) {
+		return cert(PemEncoded.getCertificateChain(PemEncoded.parse(pemEncoded)));
 	}
 
 }

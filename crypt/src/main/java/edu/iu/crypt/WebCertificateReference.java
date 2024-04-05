@@ -31,14 +31,136 @@
  */
 package edu.iu.crypt;
 
+import java.io.InputStream;
 import java.net.URI;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
+
+import javax.net.ssl.X509TrustManager;
+
+import edu.iu.IuException;
+import iu.crypt.DigestUtils;
 
 /**
  * Common super-interface for components that hold a reference to a web
  * certificate and/or chain.
  */
 public interface WebCertificateReference {
+
+	/**
+	 * Defines basic verification rules for objects that define a certificate
+	 * reference.
+	 * 
+	 * <ul>
+	 * <li>Hard reference to cert chain is used if provided; URI is ignored</li>
+	 * <li>URI is referenced and parsed if provided, and hard reference is not</li>
+	 * <li>SHA-1 and SHA-256 are verified against the first cert found either by
+	 * hard reference or URI</li>
+	 * </ul>
+	 * 
+	 * <p>
+	 * Further verification, i.e., via {@link X509TrustManager}, is not handled by
+	 * this library and <em>should</em> be handled according to the application's
+	 * trust configuration.
+	 * </p>
+	 * 
+	 * @param reference certificate reference
+	 * @return resolved and verified {@link X509Certificate} chain, null if not
+	 *         populated
+	 */
+	static X509Certificate[] verify(WebCertificateReference reference) {
+		var certificateChain = reference.getCertificateChain();
+		if (certificateChain == null) {
+			final var certificateUri = reference.getCertificateUri();
+			if (certificateUri != null)
+				certificateChain = PemEncoded.getCertificateChain(certificateUri);
+		}
+
+		if (certificateChain != null) {
+			if (certificateChain.length < 1)
+				throw new IllegalArgumentException("At least one certificate is required");
+			final var cert = certificateChain[0];
+
+			final var certificateThumbprint = reference.getCertificateThumbprint();
+			if (certificateThumbprint != null //
+					&& !Arrays.equals(certificateThumbprint,
+							IuException.unchecked(() -> DigestUtils.sha1(cert.getEncoded()))))
+				throw new IllegalArgumentException("Certificate SHA-1 thumbprint mismatch");
+
+			final var certificateSha256Thumbprint = reference.getCertificateSha256Thumbprint();
+			if (certificateSha256Thumbprint != null //
+					&& !Arrays.equals(certificateSha256Thumbprint,
+							IuException.unchecked(() -> DigestUtils.sha256(cert.getEncoded()))))
+				throw new IllegalArgumentException("Certificate SHA-256 thumbprint mismatch");
+		}
+
+		return certificateChain;
+	}
+
+	/**
+	 * Builder interface for creating {@link WebCertificate} instances.
+	 * 
+	 * @param <B> builder type
+	 */
+	interface Builder<B extends Builder<B>> {
+		/**
+		 * Sets the URI where X.509 certificate associated with this key can be
+		 * retrieved.
+		 * 
+		 * <p>
+		 * The URI will be validated and resolved when this method is invoked. To ensure
+		 * dependency on a remote URI won't impact application startup, always store
+		 * certificates locally and use {@link #cert(X509Certificate...)} instead of
+		 * this method for critical initialization in production environments.
+		 * </p>
+		 * 
+		 * @param uri {@link URI}
+		 * @return this
+		 */
+		B cert(URI uri);
+
+		/**
+		 * Sets the URI where X.509 certificate associated with this key can be
+		 * retrieved.
+		 * 
+		 * @param chain one or more {@link X509Certificate}s
+		 * @return this
+		 */
+		B cert(X509Certificate... chain);
+
+		/**
+		 * Sets the certificate thumbprint.
+		 * 
+		 * @param certificateThumbprint JSON x5t attribute value
+		 * @return this
+		 */
+		B x5t(byte[] certificateThumbprint);
+
+		/**
+		 * Sets the certificate SHA-256 thumbprint.
+		 * 
+		 * @param certificateSha256Thumbprint JSON x5t attribute value
+		 * @return this
+		 */
+		B x5t256(byte[] certificateSha256Thumbprint);
+
+		/**
+		 * Sets key data from potentially concatenated PEM-encoded input.
+		 * 
+		 * @param pemEncoded {@link InputStream} of PEM encoded key data, potentially
+		 *                   concatenated
+		 * @return this
+		 */
+		B pem(InputStream pemEncoded);
+
+		/**
+		 * Sets key data from potentially concatenated PEM-encoded input.
+		 * 
+		 * @param pemEncoded potentially concatenated PEM encoded key data
+		 * @return this
+		 */
+		B pem(String pemEncoded);
+	}
 
 	/**
 	 * Gets the URI where X.509 certificate associated with this key can be
@@ -53,27 +175,35 @@ public interface WebCertificateReference {
 	 * 
 	 * @return {@link URI}
 	 */
-	URI getCertificateUri();
+	default URI getCertificateUri() {
+		return null;
+	}
 
 	/**
 	 * Gets the certificate chain.
 	 * 
 	 * @return parsed JSON x5c attribute value
 	 */
-	X509Certificate[] getCertificateChain();
+	default X509Certificate[] getCertificateChain() {
+		return null;
+	}
 
 	/**
 	 * Gets the certificate thumbprint.
 	 * 
 	 * @return JSON x5t attribute value
 	 */
-	byte[] getCertificateThumbprint();
+	default byte[] getCertificateThumbprint() {
+		return null;
+	}
 
 	/**
 	 * Gets the certificate SHA-256 thumbprint.
 	 * 
 	 * @return JSON x5t#S256 attribute value
 	 */
-	byte[] getCertificateSha256Thumbprint();
+	default byte[] getCertificateSha256Thumbprint() {
+		return null;
+	}
 
 }

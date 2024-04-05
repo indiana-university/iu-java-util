@@ -34,84 +34,183 @@ package edu.iu.crypt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuIterable;
+import edu.iu.IuText;
+import edu.iu.client.IuJson;
+import edu.iu.crypt.WebCryptoHeader.Extension;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Use;
 import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
 public class WebEncryptionTest {
 
 	@Test
-	@SuppressWarnings("deprecation")
-	public void testRsaLegacy() throws NoSuchAlgorithmException {
-		final var key = WebKey.builder().algorithm(Algorithm.RSA1_5).ephemeral().build();
-		final var message = IdGenerator.generateId();
-
-		final var jwe = WebEncryption.builder().enc(Encryption.AES_128_CBC_HMAC_SHA_256).addRecipient()
-				.algorithm(Algorithm.RSA1_5).jwk(key, false).then().encrypt(message);
-		assertNull(jwe.getAdditionalData());
-
-		final var fromCompact = WebEncryption.parse(jwe.compact());
-
-		final var compactHeader = fromCompact.getRecipients().iterator().next().getHeader();
-		assertEquals(Algorithm.RSA1_5, compactHeader.getAlgorithm());
-		assertEquals(Encryption.AES_128_CBC_HMAC_SHA_256, fromCompact.getEncryption());
-		assertNull(compactHeader.getKey());
-
-		final var fromSerial = WebEncryption.parse(jwe.toString());
-		final var serialHeader = fromSerial.getRecipients().iterator().next().getHeader();
-		assertEquals(Algorithm.RSA1_5, serialHeader.getAlgorithm());
-		assertEquals(Encryption.AES_128_CBC_HMAC_SHA_256, fromSerial.getEncryption());
-		assertNotNull(serialHeader.getKey());
-		assertNull(serialHeader.getKey().getPrivateKey());
-
-		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
-		assertEquals(message, new String(jwe.decrypt(key)));
-
-		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
-		assertEquals(message, new String(fromCompact.decrypt(key)));
-
-		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
-		assertEquals(message, new String(fromSerial.decrypt(key)));
+	public void testEncryption() {
+		for (final var algorithm : IuIterable.filter(IuIterable.iter(Algorithm.values()),
+				a -> a.use.equals(Use.ENCRYPT)))
+			for (final var encryption : Encryption.values())
+				assertEncryption(algorithm, encryption);
 	}
 
 	@Test
-	public void testEcdhGcm() throws NoSuchAlgorithmException {
-		final var key = WebKey.builder().algorithm(Algorithm.ECDH_ES).id("a").ephemeral().build();
-		final var message = IdGenerator.generateId();
+	public void testInvalidAesCbcHmacTag() {
+		final var key = WebKey.builder().ephemeral(Encryption.AES_128_CBC_HMAC_SHA_256).build();
+		final var id = IdGenerator.generateId();
+		final var jwe = WebEncryption.builder(Encryption.AES_128_CBC_HMAC_SHA_256).addRecipient(Algorithm.DIRECT)
+				.jwk(key).then().encrypt(id);
+		final var json = IuJson.object(IuJson.parse(jwe.toString()).asJsonObject());
+		json.add("tag", "");
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
+		assertThrows(IllegalArgumentException.class, () -> WebEncryption.parse(json.build().toString()).decrypt(key));
+	}
 
-		final var jwe = WebEncryption.builder().enc(Encryption.A128GCM).addRecipient().algorithm(Algorithm.ECDH_ES)
-				.jwk(key, false).then().encrypt(message);
+	@Test
+	public void testNotDeflated() {
+		final var key = WebKey.builder().ephemeral(Encryption.A128GCM).build();
+		final var id = IdGenerator.generateId();
+		final var jwe = WebEncryption.builder(Encryption.A128GCM, false).addRecipient(Algorithm.DIRECT).jwk(key).then()
+				.encrypt(id);
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
+		assertEquals(id, jwe.decryptText(key));
+	}
+
+	@Test
+	public void testNoHeader() {
+		final var key = WebKey.builder().ephemeral(Encryption.A192GCM).build();
+		final var id = IdGenerator.generateId();
+		final var jwe = WebEncryption.builder(Encryption.A192GCM).protect(new String[0]).addRecipient(Algorithm.DIRECT)
+				.jwk(key, true).then().encrypt(id);
+		
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
+		assertEquals(id, WebEncryption.parse(jwe.toString()).decryptText(key));
+	}
+
+	@Test
+	public void testMultipleRecipients() {
+		final var key1 = WebKey.builder().ephemeral(Algorithm.A256GCMKW).build();
+		final var key2 = WebKey.builder().ephemeral(Algorithm.RSA_OAEP_256).build();
+		final var key3 = WebKey.builder().ephemeral(Algorithm.ECDH_ES_A192KW).build();
+		final var id = IdGenerator.generateId();
+		final var original = WebEncryption.builder(Encryption.A256GCM, false) //
+				.addRecipient(Algorithm.A256GCMKW).jwk(key1).then() //
+				.addRecipient(Algorithm.RSA_OAEP_256).jwk(key2).then() //
+				.addRecipient(Algorithm.ECDH_ES_A192KW).jwk(key3).then() //
+				.encrypt(id);
+		final var jwe = WebEncryption.parse(original.toString());
+
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for {\"kty\":\"oct\"}");
+		assertEquals(id, jwe.decryptText(key1));
+		IuTestLogger.assertExpectedMessages();
+
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalArgumentException.class);
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key2.wellKnown());
+		assertEquals(id, jwe.decryptText(key2));
+		IuTestLogger.assertExpectedMessages();
+
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalStateException.class);
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalArgumentException.class);
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key3.wellKnown());
+		assertEquals(id, jwe.decryptText(key3));
+		IuTestLogger.assertExpectedMessages();
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testExtension() {
+		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE, "CEK decryption successful.*");
+
+		final var ext = mock(Extension.class, CALLS_REAL_METHODS);
+		final var id = IdGenerator.generateId();
+		when(ext.toJson(id)).thenReturn(IuJson.string(id));
+		when(ext.fromJson(IuJson.string(id))).thenReturn(id);
+
+		WebCryptoHeader.register("urn:example:iu:id", ext);
+
+		final var key = WebKey.ephemeral(Encryption.A128GCM);
+		final var jwe = WebEncryption.to(Encryption.A128GCM, Algorithm.DIRECT).jwk(key).ext("urn:example:iu:id", id)
+				.encrypt(id);
+		verify(ext).validate(eq(id), any());
+		verify(ext).verify(any(), argThat(a -> {
+			assertEquals(id, a.getHeader().getExtendedParameter("urn:example:iu:id"));
+			return true;
+		}));
+		assertEquals(id, jwe.decryptText(key));
+
+		assertThrows(IllegalArgumentException.class,
+				() -> WebEncryption.to(Encryption.AES_128_CBC_HMAC_SHA_256, Algorithm.DIRECT)
+						.crit("urn:example:iu:unsupported").jwk(key).encrypt(id));
+	}
+
+	private void assertEncryption(Algorithm algorithm, Encryption encryption) {
+		final var keyBuilder = WebKey.builder().algorithm(algorithm);
+		if (algorithm.equals(Algorithm.DIRECT))
+			keyBuilder.ephemeral(encryption);
+		else
+			keyBuilder.ephemeral();
+		final var key = keyBuilder.build();
+
+		final var length = 16384;
+		final var data = new byte[length];
+		for (int i = 0; i < length; i++)
+			data[i] = (byte) ThreadLocalRandom.current().nextInt(32, 127);
+		final var message = IuText.ascii(data);
+
+		final var jwe = WebEncryption.to(encryption, algorithm).jwk(key).encrypt(message);
 		assertNull(jwe.getAdditionalData());
+
+		final var aad = new byte[32];
+		ThreadLocalRandom.current().nextBytes(aad);
+		final var slientJwe = WebEncryption.builder(encryption).addRecipient(algorithm).jwk(key, false).then().aad(aad)
+				.encrypt(message);
+		assertNotNull(slientJwe.getAdditionalData());
 
 		final var fromCompact = WebEncryption.parse(jwe.compact());
 
 		final var compactHeader = fromCompact.getRecipients().iterator().next().getHeader();
-		assertEquals(Algorithm.ECDH_ES, compactHeader.getAlgorithm());
-		assertEquals(Encryption.A128GCM, fromCompact.getEncryption());
+		assertEquals(algorithm, compactHeader.getAlgorithm());
+		assertEquals(encryption, fromCompact.getEncryption());
 		assertNull(compactHeader.getKey());
 
 		final var fromSerial = WebEncryption.parse(jwe.toString());
 		final var serialHeader = fromSerial.getRecipients().iterator().next().getHeader();
-		assertEquals(Algorithm.ECDH_ES, serialHeader.getAlgorithm());
-		assertEquals(Encryption.A128GCM, fromSerial.getEncryption());
-		assertNotNull(serialHeader.getKey());
-		assertNull(serialHeader.getKey().getPrivateKey());
+		assertEquals(algorithm, serialHeader.getAlgorithm());
+		assertEquals(encryption, fromSerial.getEncryption());
+		assertNull(serialHeader.getKey());
+
+		final var fromSilent = WebEncryption.parse(jwe.toString());
+		final var silentHeader = fromSilent.getRecipients().iterator().next().getHeader();
+		assertEquals(algorithm, silentHeader.getAlgorithm());
+		assertEquals(encryption, fromSilent.getEncryption());
+		assertNull(silentHeader.getKey());
 
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
-		assertEquals(message, new String(jwe.decrypt(key)));
+		assertEquals(message, jwe.decryptText(key));
 
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
-		assertEquals(message, new String(jwe.decrypt(key)));
+		assertEquals(message, fromCompact.decryptText(key));
 
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
-		assertEquals(message, new String(jwe.decrypt(key)));
+		assertEquals(message, fromSerial.decryptText(key));
+
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
+		assertEquals(message, fromSilent.decryptText(key));
 	}
+
 }

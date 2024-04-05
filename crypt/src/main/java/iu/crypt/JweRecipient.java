@@ -31,6 +31,7 @@
  */
 package iu.crypt;
 
+import java.nio.ByteBuffer;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.util.Arrays;
@@ -38,12 +39,15 @@ import java.util.Objects;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import edu.iu.IuException;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebEncryptionRecipient;
 import edu.iu.crypt.WebKey;
@@ -62,11 +66,10 @@ class JweRecipient implements WebEncryptionRecipient {
 	/**
 	 * Constructor.
 	 * 
-	 * @param encryption   encrypted message
 	 * @param header       header
 	 * @param encryptedKey encrypted key
 	 */
-	JweRecipient(Jwe encryption, Jose header, byte[] encryptedKey) {
+	JweRecipient(Jose header, byte[] encryptedKey) {
 		this.header = header;
 		this.encryptedKey = encryptedKey;
 	}
@@ -79,10 +82,10 @@ class JweRecipient implements WebEncryptionRecipient {
 	 * @param sharedHeader    shared header parameters
 	 * @param recipient       recipient parameters
 	 */
-	JweRecipient(Jwe encryption, JsonObject protectedHeader, JsonObject sharedHeader, JsonObject recipient) {
-		this(encryption,
-				Jose.from(protectedHeader, sharedHeader, IuJson.get(recipient, "header", JsonValue::asJsonObject)),
-				IuJson.text(recipient, "encrypted_key", IuText::base64Url));
+	JweRecipient(JsonObject protectedHeader, JsonObject sharedHeader, JsonObject recipient) {
+		this(Jose.from(protectedHeader, sharedHeader,
+				IuJson.get(recipient, "header", IuJsonAdapter.from(JsonValue::asJsonObject))),
+				IuJson.get(recipient, "encrypted_key", UnpaddedBinary.JSON));
 	}
 
 	@Override
@@ -110,10 +113,10 @@ class JweRecipient implements WebEncryptionRecipient {
 	 *      Section 5.1 #3</a>
 	 */
 	byte[] agreedUponKey(Encryption encryption, WebKey recipientPrivateKey) {
-		final var epk = Objects.requireNonNull(header.<Jwk>getExtendedParameter("epk"),
+		final Jwk epk = Objects.requireNonNull(header.getExtendedParameter("epk"),
 				"epk required for " + header.getAlgorithm());
-		final var uinfo = header.<byte[]>getExtendedParameter("apu");
-		final var vinfo = header.<byte[]>getExtendedParameter("apv");
+		final byte[] uinfo = header.getExtendedParameter("apu");
+		final byte[] vinfo = header.getExtendedParameter("apv");
 		final var algorithm = header.getAlgorithm();
 
 		final int keyDataLen;
@@ -131,6 +134,31 @@ class JweRecipient implements WebEncryptionRecipient {
 	}
 
 	/**
+	 * Gets the passphrase-derived key to use with PBKDF2 key derivation defined by
+	 * <a href="https://datatracker.ietf.org/doc/html/rfc8018">PKCS#5</a>.
+	 * 
+	 * @param passphrase passphrase
+	 * @return 128-bit derived key data suitable for use with AESWrap
+	 */
+	byte[] passphraseDerivedKey(String passphrase) {
+		final var algorithm = header.getAlgorithm();
+
+		final var alg = IuText.utf8(algorithm.alg);
+		final byte[] p2s = Objects.requireNonNull(header.getExtendedParameter("p2s"), "p2s required for " + algorithm);
+		final int p2c = Objects.requireNonNull(header.getExtendedParameter("p2c"), "p2c required for " + algorithm);
+
+		final var saltValue = ByteBuffer.wrap(new byte[alg.length + 1 + p2s.length]);
+		saltValue.put(alg);
+		saltValue.put((byte) 0);
+		saltValue.put(p2s);
+
+		return IuException
+				.unchecked(() -> SecretKeyFactory.getInstance(algorithm.algorithm)
+						.generateSecret(new PBEKeySpec(passphrase.toCharArray(), saltValue.array(), p2c, 128)))
+				.getEncoded();
+	}
+
+	/**
 	 * Decrypts the content encryption key (CEK)
 	 * 
 	 * @param encryption content encryption algorithm
@@ -142,7 +170,9 @@ class JweRecipient implements WebEncryptionRecipient {
 	byte[] decryptCek(Encryption encryption, Jwk privateKey) {
 		// 5.2#7 Verify that the JWE uses a key known to the recipient.
 		final var recipientPublicKey = header.wellKnown();
-		if (recipientPublicKey != null && !recipientPublicKey.represents(privateKey))
+		if (recipientPublicKey != null //
+				&& recipientPublicKey.getPublicKey() != null //
+				&& !recipientPublicKey.represents(privateKey))
 			throw new IllegalArgumentException("Key is not valid for recipient");
 
 		final var algorithm = header.getAlgorithm();
@@ -155,7 +185,10 @@ class JweRecipient implements WebEncryptionRecipient {
 			final var cek = Objects.requireNonNull(privateKey.getKey(), "DIRECT requires a secret key");
 			if (cek.length != encryption.size / 8)
 				throw new IllegalArgumentException("Invalid key size for " + encryption);
-		} else if (algorithm.equals(Algorithm.ECDH_ES))
+			return cek;
+		}
+
+		if (algorithm.equals(Algorithm.ECDH_ES))
 			// 5.2#10 verify that the JWE Encrypted Key value is an empty
 			if (encryptedKey != null)
 				throw new IllegalArgumentException("encrypted key must be empty for " + algorithm);
@@ -174,7 +207,7 @@ class JweRecipient implements WebEncryptionRecipient {
 			// key wrapping
 			cek = IuException.unchecked(() -> {
 				final var key = new SecretKeySpec(privateKey.getKey(), "AES");
-				final var cipher = Cipher.getInstance(algorithm.keyAlgorithm);
+				final var cipher = Cipher.getInstance(algorithm.algorithm);
 				cipher.init(Cipher.UNWRAP_MODE, key);
 				return ((SecretKey) cipher.unwrap(encryptedKey, "AES", Cipher.SECRET_KEY)).getEncoded();
 			});
@@ -187,23 +220,23 @@ class JweRecipient implements WebEncryptionRecipient {
 			cek = IuException.unchecked(() -> {
 				final var key = new SecretKeySpec(privateKey.getKey(), "AES");
 
-				final var iv = Objects.requireNonNull(header.<byte[]>getExtendedParameter("iv"),
+				final byte[] iv = Objects.requireNonNull(header.getExtendedParameter("iv"),
 						"iv required for " + algorithm);
 				if (iv.length != 12)
 					throw new IllegalStateException("iv must be 96 bits");
 
-				final var tag = Objects.requireNonNull(header.<byte[]>getExtendedParameter("tag"),
+				final byte[] tag = Objects.requireNonNull(header.getExtendedParameter("tag"),
 						"tag required for " + algorithm);
 				if (tag.length != 16)
-					throw new IllegalStateException("iv must be 128 bits");
+					throw new IllegalStateException("tag must be 128 bits");
 
 				final var wrappedKey = Arrays.copyOf(encryptedKey, encryptedKey.length + 16);
 				System.arraycopy(tag, 0, wrappedKey, encryptedKey.length, 16);
 
-				final var cipher = Cipher.getInstance(algorithm.keyAlgorithm);
+				final var cipher = Cipher.getInstance(algorithm.algorithm);
 				cipher.init(Cipher.UNWRAP_MODE, key, new GCMParameterSpec(128, iv));
 
-				return ((SecretKey) cipher.unwrap(encryptedKey, "AES", Cipher.SECRET_KEY)).getEncoded();
+				return ((SecretKey) cipher.unwrap(wrappedKey, "AES", Cipher.SECRET_KEY)).getEncoded();
 			});
 			break;
 
@@ -212,7 +245,7 @@ class JweRecipient implements WebEncryptionRecipient {
 		case RSA_OAEP_256:
 			// key encryption
 			cek = IuException.unchecked(() -> {
-				final var keyCipher = Cipher.getInstance(algorithm.keyAlgorithm);
+				final var keyCipher = Cipher.getInstance(algorithm.algorithm);
 				keyCipher.init(Cipher.DECRYPT_MODE, privateKey.getPrivateKey());
 				return keyCipher.doFinal(encryptedKey);
 			});
@@ -224,14 +257,26 @@ class JweRecipient implements WebEncryptionRecipient {
 			// key agreement with key wrapping
 			cek = IuException.unchecked(() -> {
 				final var key = new SecretKeySpec(agreedUponKey(encryption, privateKey), "AES");
-				final var cipher = Cipher.getInstance(algorithm.keyAlgorithm);
+				final var cipher = Cipher.getInstance("AESWrap");
+				cipher.init(Cipher.UNWRAP_MODE, key);
+				return ((SecretKey) cipher.unwrap(encryptedKey, "AES", Cipher.SECRET_KEY)).getEncoded();
+			});
+			break;
+
+		case PBES2_HS256_A128KW:
+		case PBES2_HS384_A192KW:
+		case PBES2_HS512_A256KW:
+			// password-based key derivation with key wrapping
+			cek = IuException.unchecked(() -> {
+				final var key = new SecretKeySpec(passphraseDerivedKey(IuText.utf8(privateKey.getKey())), "AES");
+				final var cipher = Cipher.getInstance("AESWrap");
 				cipher.init(Cipher.UNWRAP_MODE, key);
 				return ((SecretKey) cipher.unwrap(encryptedKey, "AES", Cipher.SECRET_KEY)).getEncoded();
 			});
 			break;
 
 		default:
-			throw new UnsupportedOperationException();
+			throw new UnsupportedOperationException(algorithm.toString());
 		}
 
 		return cek;

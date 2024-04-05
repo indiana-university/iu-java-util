@@ -37,11 +37,13 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Spliterator;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * Lightweight <strong>factory</strong>, manipulation, and processing utility
@@ -387,7 +389,7 @@ public final class IuIterable {
 	 * @return A single iterable over all iterables in sequence.
 	 */
 	@SafeVarargs
-	public static <T> Iterable<? extends T> cat(Iterable<? extends T>... iterables) {
+	public static <T> Iterable<T> cat(Iterable<T>... iterables) {
 		switch (iterables.length) {
 		case 0:
 			return empty();
@@ -487,6 +489,18 @@ public final class IuIterable {
 				return rv;
 			}
 		});
+	}
+
+	/**
+	 * Gets a {@link Stream} of the elements in an constantly repeatable
+	 * {@link Iterable}.
+	 * 
+	 * @param <T> element type
+	 * @param i   {@link Iterable} of elements
+	 * @return {@link Stream}
+	 */
+	public static <T> Stream<T> stream(Iterable<T> i) {
+		return StreamSupport.stream(() -> i.spliterator(), Spliterator.IMMUTABLE, false);
 	}
 
 	private IuIterable() {

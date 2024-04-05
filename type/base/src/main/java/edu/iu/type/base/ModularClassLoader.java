@@ -49,24 +49,74 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
 import edu.iu.IuException;
+import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.IuStream;
+import edu.iu.UnsafeRunnable;
 
 /**
- * Module-aware {@link ClassLoader} implementation.
+ * {@link AutoCloseable Closeable} {@link ClassLoader} implementation that
+ * manages an application-defined {@link ModuleLayer}.
  */
 public class ModularClassLoader extends ClassLoader implements AutoCloseable {
+
+	/**
+	 * Creates a modular class loader from raw input.
+	 * 
+	 * @param parent             parent {@link ClassLoader}
+	 * @param parentLayer        parent {@link ModuleLayer}
+	 * @param modulePath         supplies module path entries on demand within a
+	 *                           {@link TemporaryFile#init(edu.iu.type.base.TemporaryFile.IORunnable)}
+	 *                           context.
+	 * @param controllerCallback receives a {@link Controller} handle that
+	 *                           <em>should</em> be used and discarded by the
+	 *                           application before any classes are loaded
+	 * @return {@link modulePath}
+	 */
+	public static final ModularClassLoader of(ClassLoader parent, ModuleLayer parentLayer,
+			Supplier<Iterable<Supplier<Path>>> modulePath, Consumer<Controller> controllerCallback) {
+		class Box implements AutoCloseable {
+			private ModularClassLoader loader;
+			private volatile UnsafeRunnable destroy;
+
+			@Override
+			public synchronized void close() throws IOException {
+				if (destroy != null) {
+					IuException.checked(IOException.class, destroy);
+					destroy = null;
+				}
+			}
+		}
+
+		final var box = new Box();
+		box.destroy = IuException.unchecked(() -> TemporaryFile.init(() -> {
+			box.loader = new ModularClassLoader(false, IuIterable.map(modulePath.get(), Supplier::get), parentLayer, parent,
+					controllerCallback) {
+				@Override
+				public void close() throws IOException {
+					Throwable e = null;
+					e = IuException.suppress(e, super::close);
+					e = IuException.suppress(e, box::close);
+					if (e != null)
+						throw IuException.checked(e, IOException.class);
+				}
+			};
+		}));
+
+		return box.loader;
+	}
 
 	private final boolean web;
 	private final CloseableModuleFinder moduleFinder;
 	private final ModuleLayer moduleLayer;
 	private final Map<String, byte[]> classData;
 	private final Map<String, List<URL>> resourceUrls;
-	
+
 	/**
 	 * Constructor.
 	 * 
@@ -86,12 +136,12 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 	 */
 	public ModularClassLoader(boolean web, Iterable<Path> path, ModuleLayer parentLayer, ClassLoader parent,
 			Consumer<Controller> controllerCallback) throws IOException {
-		super(parent);
-		registerAsParallelCapable();
+		this(web, IuIterable.filter(path, p -> !hasModuleInfo(p)),
+				IuIterable.filter(path, ModularClassLoader::hasModuleInfo), parentLayer, parent, controllerCallback);
+	}
 
-		final Queue<Path> classpath = new ArrayDeque<>();
-		final Queue<Path> modulepath = new ArrayDeque<>();
-		for (final var pathEntry : path) {
+	private static boolean hasModuleInfo(Path pathEntry) {
+		return IuException.unchecked(() -> {
 			boolean hasModuleInfo = false;
 			try (final var in = Files.newInputStream(pathEntry); //
 					final var jar = new JarInputStream(in)) {
@@ -102,11 +152,32 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 						break;
 					}
 			}
-			if (hasModuleInfo)
-				modulepath.offer(pathEntry);
-			else
-				classpath.offer(pathEntry);
-		}
+			return hasModuleInfo;
+		});
+	}
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param web                true for <a href=
+	 *                           "https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader">web
+	 *                           classloading semantics</a>; false for normal parent
+	 *                           delegation semantics
+	 * @param classpath          class path
+	 * @param modulepath         module path
+	 * @param parentLayer        parent module layer
+	 * @param parent             parent class loader
+	 * @param controllerCallback receives a reference to the {@link Controller} for
+	 *                           the module layer created in conjunction with this
+	 *                           loader. API Note from {@link Controller}: <em>Care
+	 *                           should be taken with Controller objects, they
+	 *                           should never be shared with untrusted code.</em>
+	 * @throws IOException if an error occurs reading a class path entry
+	 */
+	public ModularClassLoader(boolean web, Iterable<Path> classpath, Iterable<Path> modulepath, ModuleLayer parentLayer,
+			ClassLoader parent, Consumer<Controller> controllerCallback) throws IOException {
+		super(parent);
+		registerAsParallelCapable();
 
 		this.web = web;
 		classData = new LinkedHashMap<>();
@@ -138,25 +209,27 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 			ModuleLayer moduleLayer;
 		}
 		final var box = new Box();
-		IuException.checked(IOException.class,
-				() -> IuException.initialize(new CloseableModuleFinder(modulepath.toArray(new Path[modulepath.size()])),
-						moduleFinder -> {
-							box.moduleFinder = moduleFinder;
 
-							final Collection<String> moduleNames = new ArrayDeque<>();
-							for (final var moduleRef : moduleFinder.findAll())
-								moduleNames.add(moduleRef.descriptor().name());
+		final Queue<Path> path = new ArrayDeque<>();
+		modulepath.forEach(path::offer);
 
-							final var configuration = Configuration.resolveAndBind( //
-									moduleFinder, List.of(parentLayer.configuration()), ModuleFinder.of(), moduleNames);
+		IuException.checked(IOException.class, () -> IuException
+				.initialize(new CloseableModuleFinder(path.toArray(new Path[path.size()])), moduleFinder -> {
+					box.moduleFinder = moduleFinder;
 
-							final var controller = ModuleLayer.defineModules(configuration, List.of(parentLayer),
-									a -> this);
-							box.moduleLayer = controller.layer();
-							if (controllerCallback != null)
-								controllerCallback.accept(controller);
-							return null;
-						}));
+					final Collection<String> moduleNames = new ArrayDeque<>();
+					for (final var moduleRef : moduleFinder.findAll())
+						moduleNames.add(moduleRef.descriptor().name());
+
+					final var configuration = Configuration.resolveAndBind( //
+							moduleFinder, List.of(parentLayer.configuration()), ModuleFinder.of(), moduleNames);
+
+					final var controller = ModuleLayer.defineModules(configuration, List.of(parentLayer), a -> this);
+					box.moduleLayer = controller.layer();
+					if (controllerCallback != null)
+						controllerCallback.accept(controller);
+					return null;
+				}));
 		this.moduleFinder = box.moduleFinder;
 		this.moduleLayer = box.moduleLayer;
 	}

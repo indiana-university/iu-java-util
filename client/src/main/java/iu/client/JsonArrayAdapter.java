@@ -61,7 +61,7 @@ abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
 	 * @param items items
 	 * @return target value
 	 */
-	abstract protected T collect(Iterator<E> items);
+	abstract protected T collect(Iterable<E> items);
 
 	private final IuJsonAdapter<E> itemAdapter;
 
@@ -80,7 +80,7 @@ abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
 				|| JsonValue.NULL.equals(jsonValue))
 			return null;
 		else
-			return collect(IuIterable.map(jsonValue.asJsonArray(), itemAdapter::fromJson).iterator());
+			return collect(IuIterable.map(jsonValue.asJsonArray(), itemAdapter::fromJson));
 	}
 
 	@Override

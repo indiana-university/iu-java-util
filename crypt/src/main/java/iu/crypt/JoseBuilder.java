@@ -32,8 +32,8 @@
 package iu.crypt;
 
 import java.net.URI;
-import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -41,13 +41,11 @@ import java.util.Set;
 
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
-import edu.iu.client.IuJson;
 import edu.iu.crypt.WebCryptoHeader.Builder;
 import edu.iu.crypt.WebCryptoHeader.Extension;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
-import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonValue;
 
 /**
@@ -55,7 +53,7 @@ import jakarta.json.JsonValue;
  * 
  * @param <B> builder type
  */
-public abstract class JoseBuilder<B extends JoseBuilder<B>> extends WebKeyReferenceBuilder<B> implements Builder<B> {
+public abstract class JoseBuilder<B extends JoseBuilder<B>> extends KeyReferenceBuilder<B> implements Builder<B> {
 	static {
 		IuObject.assertNotOpen(JoseBuilder.class);
 	}
@@ -86,7 +84,8 @@ public abstract class JoseBuilder<B extends JoseBuilder<B>> extends WebKeyRefere
 	 */
 	@SuppressWarnings("unchecked")
 	static <T> Extension<T> getExtension(String parameterName) {
-		return (Extension<T>) EXTENSIONS.get(parameterName);
+		return Objects.requireNonNull((Extension<T>) EXTENSIONS.get(parameterName),
+				"must understand extension " + parameterName);
 	}
 
 	private URI keySetUri;
@@ -95,9 +94,7 @@ public abstract class JoseBuilder<B extends JoseBuilder<B>> extends WebKeyRefere
 	private String type;
 	private String contentType;
 	private Set<String> crit = new LinkedHashSet<>();
-	private byte[] partyUInfo;
-	private byte[] partyVInfo;
-	private JsonObjectBuilder ext = IuJson.object();
+	private Map<String, JsonValue> ext = new LinkedHashMap<>();
 
 	/**
 	 * Default constructor.
@@ -132,6 +129,7 @@ public abstract class JoseBuilder<B extends JoseBuilder<B>> extends WebKeyRefere
 			this.key = (Jwk) key;
 		else if (!key.equals(this.key))
 			throw new IllegalStateException("Key already set");
+		this.silent = silent;
 
 		return next();
 	}
@@ -150,7 +148,7 @@ public abstract class JoseBuilder<B extends JoseBuilder<B>> extends WebKeyRefere
 
 	@Override
 	public B contentType(String contentType) {
-		Objects.requireNonNull(type);
+		Objects.requireNonNull(contentType);
 
 		if (this.contentType == null)
 			this.contentType = contentType;
@@ -162,31 +160,20 @@ public abstract class JoseBuilder<B extends JoseBuilder<B>> extends WebKeyRefere
 
 	@Override
 	public B apu(byte[] apu) {
-		if (!Objects.requireNonNull(algorithm(), "algorithm required before apu").encryptionParams
-				.contains(Param.PARTY_UINFO))
+		Objects.requireNonNull(apu, "apu");
+		if (!Objects.requireNonNull(algorithm(), "missing algorithm").encryptionParams.contains(Param.PARTY_UINFO))
 			throw new IllegalArgumentException("apu not understood for " + algorithm());
-
-		if (partyUInfo == null)
-			partyUInfo = apu;
-		else if (!Arrays.equals(partyUInfo, apu))
-			throw new IllegalStateException("agreement PartyUInfo already set to a different value");
-
-		return next();
+		else
+			return enc("apu", UnpaddedBinary.JSON.toJson(apu));
 	}
 
 	@Override
 	public B apv(byte[] apv) {
-		Objects.requireNonNull(apv);
-		if (!Objects.requireNonNull(algorithm(), "algorithm required before apv").encryptionParams
-				.contains(Param.PARTY_VINFO))
+		Objects.requireNonNull(apv, "apv");
+		if (!Objects.requireNonNull(algorithm(), "missing algorithm").encryptionParams.contains(Param.PARTY_VINFO))
 			throw new IllegalArgumentException("apu not understood for " + algorithm());
-
-		if (partyVInfo == null)
-			partyVInfo = apv;
-		else if (!Arrays.equals(partyVInfo, apv))
-			throw new IllegalStateException("agreement PartyVInfo already set to a different value");
-
-		return next();
+		else
+			return enc("apv", UnpaddedBinary.JSON.toJson(apv));
 	}
 
 	@Override
@@ -203,8 +190,9 @@ public abstract class JoseBuilder<B extends JoseBuilder<B>> extends WebKeyRefere
 		final var extension = Objects.requireNonNull(getExtension(parameterName),
 				"extension not registered for " + parameterName);
 
-		ext.add(parameterName, extension.toJson(value));
-		return next();
+		extension.validate(value, this);
+
+		return enc(parameterName, extension.toJson(value));
 	}
 
 	/**
@@ -220,7 +208,15 @@ public abstract class JoseBuilder<B extends JoseBuilder<B>> extends WebKeyRefere
 	 * @return this
 	 */
 	B enc(String name, JsonValue value) {
-		ext.add(name, value);
+		Objects.requireNonNull(value, name);
+		ext.compute(name, (key, existing) -> {
+			if (existing == null)
+				return value;
+			else if (existing.equals(value))
+				return existing;
+			else
+				throw new IllegalStateException(key + " already set to a different value");
+		});
 		return next();
 	}
 
@@ -279,29 +275,11 @@ public abstract class JoseBuilder<B extends JoseBuilder<B>> extends WebKeyRefere
 	}
 
 	/**
-	 * Gets agreement PartyUInfo data
-	 * 
-	 * @return agreement PartyUInfo data
-	 */
-	byte[] partyUInfo() {
-		return partyUInfo;
-	}
-
-	/**
-	 * Gets agreement PartyVInfo data
-	 * 
-	 * @return agreement PartyVInfo data
-	 */
-	byte[] partyVInfo() {
-		return partyVInfo;
-	}
-
-	/**
 	 * Gets ext
 	 * 
 	 * @return ext
 	 */
-	JsonObjectBuilder ext() {
+	Map<String, JsonValue> ext() {
 		return ext;
 	}
 

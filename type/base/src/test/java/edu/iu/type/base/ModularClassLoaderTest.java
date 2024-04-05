@@ -139,7 +139,9 @@ public class ModularClassLoaderTest {
 					ModuleLayer.boot(), null, null);
 		else
 			loader = new ModularClassLoader("testweb".equals(componentName), getModulePath(componentName),
-					(parent instanceof ModularClassLoader m) ? m.getModuleLayer() : ModuleLayer.boot(), parent, null);
+					(parent instanceof ModularClassLoader) ? ((ModularClassLoader) parent).getModuleLayer()
+							: ModuleLayer.boot(),
+					parent, null);
 		onTeardown.push(loader::close);
 		return loader;
 	}

@@ -33,7 +33,6 @@ package iu.client;
 
 import java.util.Iterator;
 import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -62,9 +61,8 @@ class StreamAdapter<E> extends JsonArrayAdapter<Stream<E>, E> {
 	}
 
 	@Override
-	protected Stream<E> collect(Iterator<E> items) {
-		return StreamSupport.stream(
-				Spliterators.spliterator(items, Long.MAX_VALUE, Spliterator.ORDERED | Spliterator.IMMUTABLE), false);
+	protected Stream<E> collect(Iterable<E> items) {
+		return StreamSupport.stream(items::spliterator, Spliterator.ORDERED | Spliterator.IMMUTABLE, false);
 	}
 
 }

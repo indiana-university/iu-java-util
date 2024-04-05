@@ -44,7 +44,7 @@ import jakarta.json.JsonValue;
  * 
  * @param <T> Java type
  */
-class ParsingJsonAdapter<T> implements IuJsonAdapter<T> {
+public class ParsingJsonAdapter<T> implements IuJsonAdapter<T> {
 
 	private static final Map<Class<?>, ParsingJsonAdapter<?>> INSTANCES = new WeakHashMap<>();
 
@@ -60,7 +60,7 @@ class ParsingJsonAdapter<T> implements IuJsonAdapter<T> {
 	static <T> ParsingJsonAdapter<T> of(Class<T> type, Function<String, T> parser) {
 		var instance = INSTANCES.get(type);
 		if (instance == null) {
-			instance = new ParsingJsonAdapter<T>(parser);
+			instance = new ParsingJsonAdapter<T>(parser, T::toString);
 			synchronized (INSTANCES) {
 				INSTANCES.put(type, instance);
 			}
@@ -69,9 +69,17 @@ class ParsingJsonAdapter<T> implements IuJsonAdapter<T> {
 	}
 
 	private final Function<String, T> parser;
+	private final Function<T, String> print;
 
-	private ParsingJsonAdapter(Function<String, T> parser) {
+	/**
+	 * Constructor.
+	 * 
+	 * @param parser parsing function
+	 * @param print  printing function
+	 */
+	public ParsingJsonAdapter(Function<String, T> parser, Function<T, String> print) {
 		this.parser = parser;
+		this.print = print;
 	}
 
 	@Override
@@ -88,7 +96,7 @@ class ParsingJsonAdapter<T> implements IuJsonAdapter<T> {
 		if (value == null)
 			return JsonValue.NULL;
 		else
-			return TextJsonAdapter.INSTANCE.toJson(value.toString());
+			return TextJsonAdapter.INSTANCE.toJson(print.apply(value));
 	}
 
 }

@@ -31,6 +31,8 @@
  */
 package edu.iu.crypt;
 
+import java.io.InputStream;
+
 /**
  * Represents the recipient of a {@link WebEncryption} JWE encrpted message.
  */
@@ -48,6 +50,39 @@ public interface WebEncryptionRecipient {
 		 * @return {@link WebEncryption.Builder}
 		 */
 		WebEncryption.Builder then();
+
+		/**
+		 * Shorthand for {@link #then()}{@link WebEncryption.Builder#encrypt(String)
+		 * .encrypt(text)}
+		 * 
+		 * @param text data to encrypt
+		 * @return encrypted message
+		 */
+		default WebEncryption encrypt(String text) {
+			return then().encrypt(text);
+		}
+
+		/**
+		 * Shorthand for {@link #then()}{@link WebEncryption.Builder#encrypt(String)
+		 * .encrypt(data)}
+		 * 
+		 * @param data data to encrypt
+		 * @return encrypted message
+		 */
+		default WebEncryption encrypt(byte[] data) {
+			return then().encrypt(data);
+		}
+
+		/**
+		 * Shorthand for {@link #then()}{@link WebEncryption.Builder#encrypt(String)
+		 * .encrypt(in)}
+		 * 
+		 * @param in stream of data to encrypt
+		 * @return encrypted message
+		 */
+		default WebEncryption encrypt(InputStream in) {
+			return then().encrypt(in);
+		}
 	}
 
 	/**

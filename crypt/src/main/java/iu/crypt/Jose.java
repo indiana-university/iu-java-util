@@ -31,27 +31,24 @@
  */
 package iu.crypt;
 
-import java.io.ByteArrayInputStream;
 import java.net.URI;
-import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import edu.iu.IuException;
 import edu.iu.IuIterable;
-import edu.iu.IuText;
 import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
 import jakarta.json.JsonObject;
-import jakarta.json.JsonValue;
 
 /**
  * Provides {@link WebCryptoHeader} and {@link WebEncryptionHeader} processing
@@ -81,30 +78,32 @@ final class Jose implements WebCryptoHeader {
 		if (sharedHeader == null && perRecipientHeader == null)
 			return new Jose(protectedHeader);
 
-		final var b = IuJson.object(protectedHeader);
-		if (sharedHeader != null)
-			sharedHeader.forEach((n, v) -> {
-				if (protectedHeader.containsKey(n))
-					throw new IllegalArgumentException(n);
-				b.add(n, v);
-			});
-		if (perRecipientHeader != null)
-			perRecipientHeader.forEach((n, v) -> {
-				if (protectedHeader.containsKey(n) //
-						|| (sharedHeader != null && sharedHeader.containsKey(n)))
-					throw new IllegalArgumentException();
-				b.add(n, v);
-			});
+		final var b = IuJson.object();
+		for (final var header : IuIterable.iter(protectedHeader, sharedHeader, perRecipientHeader))
+			if (header != null)
+				header.forEach(b::add);
 
 		return new Jose(b.build());
 	}
 
-	private static X509Certificate[] decodeCertificateChain(JsonValue x5c) {
-		final var certFactory = IuException.unchecked(() -> CertificateFactory.getInstance("X.509"));
-		return x5c.asJsonArray().stream().map(IuJson::asText).map(IuText::base64)
-				.map(a -> IuException.unchecked(
-						() -> (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(a))))
-				.toArray(X509Certificate[]::new);
+	/**
+	 * Determines if a parameter name not registered for use with JWS is understood.
+	 * 
+	 * @param paramName parameter name
+	 * @return true if the parameter name is not registered for JWS and understood
+	 *         by this implementation.
+	 */
+	static boolean isUnderstood(String paramName) {
+		final var param = Param.from(paramName);
+		if (param == null)
+			try {
+				JoseBuilder.getExtension(paramName);
+				return true;
+			} catch (NullPointerException e) {
+				return false;
+			}
+		else
+			return !param.isUsedFor(Use.SIGN);
 	}
 
 	private final Algorithm algorithm;
@@ -136,7 +135,8 @@ final class Jose implements WebCryptoHeader {
 		silent = builder.silent();
 
 		final var key = builder.key();
-		if (key == null)
+		if (key == null //
+				|| builder.silent())
 			this.key = null;
 		else // __never__ include private/secret key in JOSE header
 			this.key = key.wellKnown();
@@ -148,70 +148,78 @@ final class Jose implements WebCryptoHeader {
 		certificateChain = builder.certificateChain();
 		certificateThumbprint = builder.certificateThumbprint();
 		certificateSha256Thumbprint = builder.certificateSha256Thumbprint();
-		criticalParameters = Collections.unmodifiableSet(builder.crit());
-		extendedParameters = builder.ext().build();
+		if (builder.crit().isEmpty())
+			criticalParameters = null;
+		else
+			criticalParameters = Collections.unmodifiableSet(builder.crit());
+
+		extendedParameters = IuJsonAdapter.of(Map.class).toJson(builder.ext()).asJsonObject();
 
 		verify();
 	}
 
 	private Jose(JsonObject jose) {
-		algorithm = Objects.requireNonNull(IuJson.text(jose, "alg", Algorithm::from));
-
-		keyId = IuJson.text(jose, "kid");
-		keySetUri = IuJson.text(jose, "jku", URI::create);
-		key = IuJson.get(jose, "jwk", JwkBuilder::parse);
+		algorithm = IuJson.nonNull(jose, "alg", Algorithm.JSON);
+		keyId = IuJson.get(jose, "kid", IuJsonAdapter.of(String.class));
+		keySetUri = IuJson.get(jose, "jku", IuJsonAdapter.of(URI.class));
+		key = IuJson.get(jose, "jwk", JwkBuilder.JSON);
 		silent = false;
 
-		type = IuJson.text(jose, "typ");
-		contentType = IuJson.text(jose, "cty");
+		type = IuJson.get(jose, "typ");
+		contentType = IuJson.get(jose, "cty");
 
-		certificateUri = IuJson.text(jose, "x5u", URI::create);
-		certificateThumbprint = IuJson.text(jose, "x5t", IuText::base64Url);
-		certificateSha256Thumbprint = IuJson.text(jose, "x5t#S256", IuText::base64Url);
-		certificateChain = IuJson.get(jose, "x5c", v -> decodeCertificateChain(v.asJsonArray()));
+		certificateUri = IuJson.get(jose, "x5u", IuJsonAdapter.of(URI.class));
+		certificateChain = IuJson.get(jose, "x5c", IuJsonAdapter.of(X509Certificate[].class, PemEncoded.CERT_JSON));
+		certificateThumbprint = IuJson.get(jose, "x5t", UnpaddedBinary.JSON);
+		certificateSha256Thumbprint = IuJson.get(jose, "x5t#S256", UnpaddedBinary.JSON);
 
-		criticalParameters = IuJson.get(jose, "crit", Set.of(),
-				v -> v.asJsonArray().stream().map(IuJson::asText).collect(Collectors.toUnmodifiableSet()));
+		criticalParameters = IuJson.get(jose, "crit", IuJsonAdapter.of(Set.class, IuJsonAdapter.of(String.class)));
 
-		final var extendedParameters = IuJson.object();
+		final var extendedParametersBuilder = IuJson.object();
 		for (final var parameterEntry : jose.entrySet()) {
 			final var paramName = parameterEntry.getKey();
-			final var param = Param.from(paramName);
-			if (param == null || !param.isUsedFor(Use.SIGN))
-				// encryption params handled same as extended
-				extendedParameters.add(paramName, parameterEntry.getValue());
+			IuJson.add(extendedParametersBuilder, paramName, parameterEntry.getValue(), //
+					() -> isUnderstood(paramName));
 		}
-		this.extendedParameters = extendedParameters.build();
+		this.extendedParameters = extendedParametersBuilder.build();
 
 		verify();
 	}
 
 	private void verify() {
-		if (keyId != null && key != null && !keyId.equals(key.getId()))
+		if (keyId != null //
+				&& key != null //
+				&& !keyId.equals(key.getId()))
 			throw new IllegalStateException("Key ID " + keyId + " doesn't match key");
 
 		if (certificateChain != null) {
 			final var cert = certificateChain[0];
-			if (key != null && !key.getPublicKey().equals(cert.getPublicKey()))
-				throw new IllegalStateException();
-			if (certificateThumbprint != null && !Arrays.equals(certificateThumbprint,
-					IuException.unchecked(() -> DigestUtils.sha1(cert.getEncoded()))))
+			if (key != null //
+					&& !key.matches(cert))
+				throw new IllegalStateException("Certificate mismatch");
+
+			if (certificateThumbprint != null //
+					&& !Arrays.equals(certificateThumbprint,
+							IuException.unchecked(() -> DigestUtils.sha1(cert.getEncoded()))))
 				throw new IllegalStateException("Certificate SHA-1 thumbprint mismatch");
-			if (certificateSha256Thumbprint != null && !Arrays.equals(certificateSha256Thumbprint,
-					IuException.unchecked(() -> DigestUtils.sha256(cert.getEncoded()))))
+
+			if (certificateSha256Thumbprint != null //
+					&& !Arrays.equals(certificateSha256Thumbprint,
+							IuException.unchecked(() -> DigestUtils.sha256(cert.getEncoded()))))
 				throw new IllegalStateException("Certificate SHA-256 thumbprint mismatch");
 		}
 
-		for (final var paramName : criticalParameters) {
-			final var param = Param.from(paramName);
-			if (param == null) {
-				if (!extendedParameters.containsKey(paramName))
+		if (criticalParameters != null)
+			for (final var paramName : criticalParameters) {
+				final var param = Param.from(paramName);
+				if (param == null) {
+					if (!extendedParameters.containsKey(paramName))
+						throw new IllegalStateException("Critical parameter " + paramName + " must be present");
+				} else if (!param.isPresent(this))
 					throw new IllegalStateException("Critical parameter " + paramName + " must be present");
-			} else if (!param.isPresent(this))
-				throw new IllegalStateException("Critical parameter " + paramName + " must be present");
-		}
+			}
 
-		final var encryptionParams = algorithm.encryptionParams;
+		final var encryptionParams = Objects.requireNonNull(algorithm, "algorithm is required").encryptionParams;
 		if (encryptionParams != null)
 			for (final var param : encryptionParams)
 				if (param.required && !param.isPresent(this))
@@ -267,15 +275,14 @@ final class Jose implements WebCryptoHeader {
 
 	@Override
 	public <T> T getExtendedParameter(String name) {
-		final var value = extendedParameters.get(name);
-		if (value == null)
-			return null;
-
 		final var param = Param.from(name);
+		final IuJsonAdapter<T> adapter;
 		if (param != null)
-			return param.toJava(value);
-		else
-			return JoseBuilder.<T>getExtension(name).toJava(value);
+			adapter = param.json();
+		else // unreachable as null by input validation
+			adapter = JoseBuilder.getExtension(name);
+
+		return IuJson.get(extendedParameters, name, adapter);
 	}
 
 	@Override
@@ -324,7 +331,7 @@ final class Jose implements WebCryptoHeader {
 			return key;
 
 		if (keyId != null && keySetUri != null)
-			return JwkBuilder.readJwks(keySetUri).filter(a -> keyId.equals(a.getId())).findFirst().get();
+			return IuIterable.filter(JwkBuilder.readJwks(keySetUri), a -> keyId.equals(a.getId())).iterator().next();
 
 		final X509Certificate cert;
 		if (certificateChain == null && certificateUri != null)
@@ -352,22 +359,32 @@ final class Jose implements WebCryptoHeader {
 	/**
 	 * Gets the JOSE header as JSON.
 	 * 
-	 * @param p accepts standard param name and returns true to include the
-	 *          parameter; else false
-	 * @return {@link JsonObject}
+	 * @param nameFilter accepts standard or extended param name and returns true to
+	 *                   include the parameter; else false
+	 * @return {@link JsonObject}; null if no parameters match the filter
 	 */
-	JsonObject toJson(Predicate<String> p) {
-		final var b = IuJson.object();
+	JsonObject toJson(Predicate<String> nameFilter) {
+		final var headerBuilder = IuJson.object();
 
 		for (final var param : IuIterable.iter(Param.values()))
-			if (param.isUsedFor(Use.SIGN) //
-					&& !(silent && Param.KEY.equals(param)))
-				IuJson.add(b, p, param.name, () -> param.get(this), param::toJson);
+			IuJson.add(headerBuilder, param.name, //
+					() -> param.get(this), //
+					() -> nameFilter.test(param.name) //
+							&& param.isUsedFor(Use.SIGN) //
+							&& !(silent //
+									&& Param.KEY.equals(param)),
+					param.json());
 
-		for (final var e : extendedParameters.entrySet())
-			IuJson.add(b, p, e.getKey(), e::getValue);
+		for (final var extendedParameterEntry : extendedParameters.entrySet()) {
+			final var name = extendedParameterEntry.getKey();
+			IuJson.add(headerBuilder, name, extendedParameterEntry.getValue(), () -> nameFilter.test(name));
+		}
 
-		return b.build();
+		final var header = headerBuilder.build();
+		if (header.isEmpty())
+			return null;
+		else
+			return header;
 	}
 
 }
