@@ -194,7 +194,12 @@ public final class PemEncoded {
 			return c.toArray(new X509Certificate[c.size()]);
 		});
 	}
-	
+
+	/**
+	 * Get encoded string
+	 * @param certificate X509 certificate
+	 * @return encoded string
+	 */
 	public static String getEncoded(X509Certificate certificate) {
 		return IuText.base64((IuException.unchecked(certificate::getEncoded)));
 
@@ -220,8 +225,7 @@ public final class PemEncoded {
 	/**
 	 * Gets the key as a public key when {@link #keyType} is
 	 * {@link KeyType#PUBLIC_KEY}.
-	 * 
-	 * @param type JWK key type
+	 *  
 	 * @return public key
 	 */
 	public PublicKey asPublic() {
@@ -234,8 +238,7 @@ public final class PemEncoded {
 	/**
 	 * Gets the key as a private key when {@link #keyType} is
 	 * {@link KeyType#PRIVATE_KEY}.
-	 * 
-	 * @param type JWK key type
+	 *
 	 * @return private key
 	 */
 	public PrivateKey asPrivate() {
@@ -248,7 +251,6 @@ public final class PemEncoded {
 	/**
 	 * Gets the certificate when {@link #keyType} is {@link KeyType#CERTIFICATE}.
 	 * 
-	 * @param type JWK key type
 	 * @return private key
 	 */
 	public X509Certificate asCertificate() {
@@ -263,4 +265,3 @@ public final class PemEncoded {
 	}
 
 }
-

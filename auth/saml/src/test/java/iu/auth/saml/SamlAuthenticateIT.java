@@ -96,7 +96,7 @@ public class SamlAuthenticateIT {
 	public void testSamlAuthenication() throws Exception{
 		URI entityId = IuException.unchecked(() -> new URI(ldpMetaDataUrl));
 		URI postURL = IuException.unchecked(() -> new URI(postUrl));
-		URI location = provider.authorize(entityId, postURL);
+		URI location = provider.authRequest(entityId, postURL);
 		System.out.println("Location: " + location);
 		final var cookieHandler = new CookieManager();
 		final var http = HttpClient.newBuilder().cookieHandler(cookieHandler).build();

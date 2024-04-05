@@ -1,13 +1,10 @@
 package iu.auth.saml;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
-import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URL;
-import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
@@ -30,9 +27,7 @@ import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 
 import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyGenerator;
-import javax.crypto.NoSuchPaddingException;
 
 import org.opensaml.core.config.ConfigurationService;
 import org.opensaml.core.criterion.EntityIdCriterion;
@@ -76,6 +71,9 @@ import net.shibboleth.shared.resolver.CriteriaSet;
 import net.shibboleth.shared.resolver.ResolverException;
 import net.shibboleth.shared.xml.ParserPool;
 
+/**
+ * {@link IuSamlProvider implementation}
+ */
 public class SamlProvider implements IuSamlProvider {
 	private final Logger LOG = Logger.getLogger(SamlProvider.class.getName());
 
@@ -103,7 +101,6 @@ public class SamlProvider implements IuSamlProvider {
 			ConfigurationService.register(XMLObjectProviderRegistry.class, new XMLObjectProviderRegistry());
 			ConfigurationService.register(SAMLConfiguration.class, new SAMLConfiguration());
 			ConfigurationService.register(DecryptionParserPool.class, new DecryptionParserPool(new SamlParserPool()));
-
 
 			XMLConfigurator config = new XMLConfigurator();
 			config.load(scl.getResourceAsStream("default-config.xml"));
@@ -138,7 +135,6 @@ public class SamlProvider implements IuSamlProvider {
 		}
 	}
 
-
 	private class Id implements Principal, Serializable {
 		private static final long serialVersionUID = 1L;
 
@@ -157,25 +153,30 @@ public class SamlProvider implements IuSamlProvider {
 		// TODO verification
 	}
 
+	/**
+	 * Initialize SAML provider
+	 * 
+	 * @param client {@link IuSamlClient}
+	 */
 	public SamlProvider(IuSamlClient client) {
 
 		// We could add a logic here to check for service provider entity id that
-		// is register to avoid initialization for same 
+		// is register to avoid initialization for same
 		// client
 
 		Objects.requireNonNull(client.getAcsUrls(), "Missing activation consumer urls");
 		Objects.requireNonNull(client.getMetaDataUrls(), "Missing metadat urls");
 		Objects.requireNonNull(client.getServiceProviderEntityId(), "Missing service provider entity Id");
-		//Objects.requireNonNull(client.getCertificate(), "Missing certificate");
+		// Objects.requireNonNull(client.getCertificate(), "Missing certificate");
 
-		LOG.info("SAML Provider configuration:\n" + client.getServiceProviderEntityId());
+		// LOG.info("SAML Provider configuration:\n" +
+		// client.getServiceProviderEntityId());
 
 		this.client = client;
 		this.metadataResolver = getMetadata(client.getMetaDataUrls(), client.getMetadataTtl());
-		//this.spMetaData = setSpMetadata();
+		// this.spMetaData = setSpMetadata();
 
 	}
-
 
 	private String getSingleSignOnLocation(String entityId) {
 		EntityDescriptor entity = getEntity(entityId);
@@ -199,9 +200,15 @@ public class SamlProvider implements IuSamlProvider {
 		}
 	}
 
+	/**
+	 * Get metadata resolver
+	 * 
+	 * @param metadataUrls metadata url configured with identity provider
+	 * @param metadataTtl metadata maximum live time
+	 * @return {@link MetadataResolver}
+	 */
 	synchronized MetadataResolver getMetadata(List<URI> metadataUrls, Duration metadataTtl) {
-		if (metadataResolver != null && lastMetadataUpdate >=
-				(System.currentTimeMillis() - metadataTtl.toMillis()))
+		if (metadataResolver != null && lastMetadataUpdate >= (System.currentTimeMillis() - metadataTtl.toMillis()))
 			return metadataResolver;
 
 		Queue<Throwable> failures = new ArrayDeque<>();
@@ -216,8 +223,8 @@ public class SamlProvider implements IuSamlProvider {
 				}
 
 				DOMMetadataResolver mdr = new DOMMetadataResolver(md);
-				//TODO pass from client configuration
-				// verify without setting it 
+				// TODO pass from client configuration
+				// verify without setting it
 				mdr.setId("iu-metadata");
 				mdr.setRequireValidMetadata(true);
 				mdr.initialize();
@@ -239,7 +246,7 @@ public class SamlProvider implements IuSamlProvider {
 		}
 
 		ChainingMetadataResolver cmdr = new ChainingMetadataResolver();
-		//TODO pass from client configuration
+		// TODO pass from client configuration
 		// verify without setting it.
 		cmdr.setId("iu-endpoint-SAMLMetadata");
 		try {
@@ -258,24 +265,22 @@ public class SamlProvider implements IuSamlProvider {
 		return metadataResolver;
 	}
 
-
-
-
 	@Override
-	public URI authorize(URI samlEntityId, URI postURI) {
+	public URI authRequest(URI samlEntityId, URI postURI) {
 
 		// validate entityId against metadataUrl configuration
 		var matchAcs = false;
 		// TODO create new session and maintain it
 		// activate
 		var sessionId = IdGenerator.generateId();
-		var  destinationLocation = getSingleSignOnLocation(samlEntityId.toString());
+		var destinationLocation = getSingleSignOnLocation(samlEntityId.toString());
 		for (URI acsUrl : client.getAcsUrls()) {
-			if(acsUrl.getPath().compareTo(postURI.getPath()) == 0)
+			if (acsUrl.getPath().compareTo(postURI.getPath()) == 0)
 				matchAcs = true;
 		}
 		if (!matchAcs) {
-			throw new IllegalArgumentException("Post URI doesn't match with allowed list of Assestion Consumer Service URLs" + postURI);
+			throw new IllegalArgumentException(
+					"Post URI doesn't match with allowed list of Assestion Consumer Service URLs" + postURI);
 		}
 
 		AuthnRequest authnRequest = (AuthnRequest) XMLObjectProviderRegistrySupport.getBuilderFactory()
@@ -298,9 +303,8 @@ public class SamlProvider implements IuSamlProvider {
 		nameIdPolicy.setAllowCreate(true);
 		authnRequest.setNameIDPolicy(nameIdPolicy);
 
-
-		String s = IuException.unchecked(() -> XmlDomUtil.getContent(XMLObjectProviderRegistrySupport.getMarshallerFactory()
-				.getMarshaller(authnRequest).marshall(authnRequest)));
+		String s = IuException.unchecked(() -> XmlDomUtil.getContent(XMLObjectProviderRegistrySupport
+				.getMarshallerFactory().getMarshaller(authnRequest).marshall(authnRequest)));
 		if (s.startsWith("<?xml")) {
 			StringBuilder sb = new StringBuilder(s);
 			int i = sb.indexOf("?>\n", 4);
@@ -309,34 +313,34 @@ public class SamlProvider implements IuSamlProvider {
 			s = sb.toString();
 		}
 
-
+		final var ms = s;
 		Deflater deflater = new Deflater(Deflater.DEFLATED, true);
 		ByteArrayOutputStream samlRequestBuffer = new ByteArrayOutputStream();
-		try (DeflaterOutputStream d = new DeflaterOutputStream(samlRequestBuffer, deflater)) {
-			d.write(s.getBytes("UTF-8"));
-		} catch (UnsupportedEncodingException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		DeflaterOutputStream d = new DeflaterOutputStream(samlRequestBuffer, deflater);
+		IuException.unchecked(() -> d.write(ms.getBytes("UTF-8")));
 
 		Map<String, Iterable<String>> idpParams = new LinkedHashMap<>();
 		idpParams.put("SAMLRequest",
 				Collections.singleton(Base64.getEncoder().encodeToString(samlRequestBuffer.toByteArray())));
-		
+
 		// replace this with IuJson
 		JsonObjectBuilder j = Json.createObjectBuilder();
 		j.add("sessionId", sessionId);
 		j.add("returnUrl", postURI.toString());
 		idpParams.put("RelayState", Collections.singleton(encrypt(j.toString())));
-		
-		URI redirectUrl = IuException.unchecked(() -> new URI (destinationLocation + '?' + IuWebUtils.createQueryString(idpParams)));
-		return redirectUrl;	
+
+		URI redirectUrl = IuException
+				.unchecked(() -> new URI(destinationLocation + '?' + IuWebUtils.createQueryString(idpParams)));
+		return redirectUrl;
 
 	}
 
+	/**
+	 * encrypt data
+	 * 
+	 * @param s string to encrypt
+	 * @return encrypted string
+	 */
 	static String encrypt(String s) {
 		try {
 			byte[] dataToEncrypt = s.trim().getBytes("UTF-8");
@@ -346,56 +350,46 @@ public class SamlProvider implements IuSamlProvider {
 			Cipher cipher = Cipher.getInstance("AES/ECB/NoPadding");
 			cipher.init(Cipher.ENCRYPT_MODE, CRYPT_KEY);
 			return Base64.getEncoder().encodeToString(cipher.doFinal(dataToEncrypt));
-		}catch (Exception e) {
+		} catch (Exception e) {
 			throw new IllegalArgumentException("Unable to encrypt", e);
 		}
 	}
 
-
-
+	/**
+	 * decrypt data
+	 * 
+	 * @param d string to decrypt
+	 * @return decrypted string
+	 */
 	static String decrypt(String d) {
 		try {
 			Cipher cipher = Cipher.getInstance("AES/ECB/NoPadding");
 			cipher.init(Cipher.DECRYPT_MODE, CRYPT_KEY);
 			return new String(cipher.doFinal(Base64.getDecoder().decode(d)), "UTF-8").trim();
-		}catch (Exception e) {
+		} catch (Exception e) {
 			throw new IllegalArgumentException("Unable to decrpty", e);
 		}
 	}
 
-
-
-	/*private java.security.cert.X509Certificate getCertificate() {
-		if (parsedCertificate == null)
-			parsedCertificate = parseCertificate(client.getCertificate());
-		return parsedCertificate;
-	}
-
-	private java.security.cert.X509Certificate parseCertificate(String x509) {
-		StringBuilder xc = new StringBuilder(x509);
-		int i = xc.indexOf("-----BEGIN CERTIFICATE-----");
-		if (i != -1)
-			xc.delete(0, i + 28);
-		i = xc.indexOf("-----END CERTIFICATE-----");
-		if (i != -1)
-			xc.setLength(i);
-		for (i = 0; i < xc.length(); i++)
-			if (Character.isWhitespace(xc.charAt(i)))
-				xc.deleteCharAt(i--);
-
-		CertificateFactory certFactory;
-		try {
-			certFactory = CertificateFactory.getInstance("X.509");
-		} catch (CertificateException e) {
-			throw new IllegalStateException(e);
-		}
-		try {
-			return (java.security.cert.X509Certificate) certFactory
-					.generateCertificate(new ByteArrayInputStream(Base64.getDecoder().decode(xc.toString())));
-		} catch (CertificateException e) {
-			throw new SecurityException(e);
-		}
-	}*/
+	/*
+	 * private java.security.cert.X509Certificate getCertificate() { if
+	 * (parsedCertificate == null) parsedCertificate =
+	 * parseCertificate(client.getCertificate()); return parsedCertificate; }
+	 * 
+	 * private java.security.cert.X509Certificate parseCertificate(String x509) {
+	 * StringBuilder xc = new StringBuilder(x509); int i =
+	 * xc.indexOf("-----BEGIN CERTIFICATE-----"); if (i != -1) xc.delete(0, i + 28);
+	 * i = xc.indexOf("-----END CERTIFICATE-----"); if (i != -1) xc.setLength(i);
+	 * for (i = 0; i < xc.length(); i++) if (Character.isWhitespace(xc.charAt(i)))
+	 * xc.deleteCharAt(i--);
+	 * 
+	 * CertificateFactory certFactory; try { certFactory =
+	 * CertificateFactory.getInstance("X.509"); } catch (CertificateException e) {
+	 * throw new IllegalStateException(e); } try { return
+	 * (java.security.cert.X509Certificate) certFactory .generateCertificate(new
+	 * ByteArrayInputStream(Base64.getDecoder().decode(xc.toString()))); } catch
+	 * (CertificateException e) { throw new SecurityException(e); } }
+	 */
 
 	private String setSpMetadata() {
 		Thread current = Thread.currentThread();
@@ -404,7 +398,7 @@ public class SamlProvider implements IuSamlProvider {
 		try {
 			current.setContextClassLoader(samlProvider);
 
-			//init();
+			// init();
 
 			X509Certificate spX509Cert = (X509Certificate) XMLObjectProviderRegistrySupport.getBuilderFactory()
 					.getBuilder(X509Certificate.DEFAULT_ELEMENT_NAME).buildObject(X509Certificate.DEFAULT_ELEMENT_NAME);
@@ -485,8 +479,6 @@ public class SamlProvider implements IuSamlProvider {
 		} finally {
 			current.setContextClassLoader(currentLoader);
 		}
-	}	
-
-
+	}
 
 }

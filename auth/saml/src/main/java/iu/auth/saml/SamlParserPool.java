@@ -24,6 +24,9 @@ public class SamlParserPool implements ParserPool {
 
 	private final DocumentBuilderFactory builderFactory;
 
+	/**
+	 * Initialize the pool.
+	 */
 	public SamlParserPool() {
 		DocumentBuilderFactory newFactory = DocumentBuilderFactory.newInstance();
 		try {

@@ -22,17 +22,14 @@ public interface IuSamlProvider {
 	}
 
 	/**
-	 * Authenticate access to an application resource by URI.
+	 * Get SAML authentication Request to request application resource access by entity Id and post URI.
 	 * 
-	 * @param samlEntityId base identity provider URI to authorize access to
+	 * @param entityId base identity provider URI to authorize access to
+	 * @param postURI Post back URI
 	 * @return redirect URI
 	 * 
-	 * @throws IuAuthenticationException If authorization could not be granted and
-	 *                                   the client <em>must</em> complete
-	 *                                   authentication before attempting
-	 *                                   authorization.
 	 */
-	URI authorize(URI samlEntityId, URI postURI);
+	URI authRequest(URI entityId, URI postURI);
 	
 	
 }

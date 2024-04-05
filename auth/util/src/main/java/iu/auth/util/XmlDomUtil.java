@@ -38,6 +38,13 @@ public class XmlDomUtil {
 	 * The standard XML date format.
 	 */
 	public static final String DATE_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSZ";
+	
+	/**
+	 *  default constructor
+	 */
+	public XmlDomUtil() {
+		// TODO Auto-generated constructor stub
+	}
 
 	/**
 	 * Parse an XML document from a string.
@@ -69,6 +76,11 @@ public class XmlDomUtil {
 		}
 	}
 	
+	/**
+	 * Parse XML input stream to string
+	 * @param inputStream xml input stream
+	 * @return string representation of XML 
+	 */
 	public static String xmlToString(InputStream inputStream) {
 		try {
 			DocumentBuilderFactory builder = DocumentBuilderFactory.newInstance();

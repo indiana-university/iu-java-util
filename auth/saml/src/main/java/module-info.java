@@ -1,4 +1,8 @@
-
+/**
+ * Provides client-side resources
+ * 
+ * @provides edu.iu.auth.spi.IuSamlSpi
+ */
 module iu.util.auth.saml {
 	requires iu.util;
 	requires iu.util.auth;

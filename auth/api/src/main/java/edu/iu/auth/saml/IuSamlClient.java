@@ -42,7 +42,7 @@ public interface IuSamlClient {
 	 * typically measured in seconds. Once this interval is passed,
 	 * metadata resolver will be re-established using metadata URLs.
 	 * 
-	 * return metadaaTtl {@link Duration}
+	 * @return metadaaTtl {@link Duration}
 	 */
 	default Duration getMetadataTtl() {
 		return Duration.ofMillis(300000L);
@@ -53,10 +53,8 @@ public interface IuSamlClient {
 	 * into the SAML provider by administrator 
 	 * @return metadata URL
 	 */
-	default List<URI> getMetaDataUrls() {
-		return null;
-	}
-
+	List<URI> getMetaDataUrls();
+	
 	/**
 	 * Gets the SAML identity provider {@link URI} to configure Metadata resolver
 	 * @return SAML identity provider URL
@@ -79,14 +77,18 @@ public interface IuSamlClient {
 
 
 	/**
-	 * 
-	 * @return
+	 * Gets the X.509 certificate to validate SAML response
+	 * that came from identity provider by decrypt the signature,
+	 * using the public key on the X.509 certificate, and checking if the values match.
+	 * @return certificate
 	 */
 	X509Certificate getCertificate();
 
 	/**
+	 * Gets the private key to validate SAML response that came from identity provider by decrypt the
+	 * X.509 certificate using private key and match the values
 	 * 
-	 * @return
+	 * @return private key
 	 */
 
 	String getPrivateKey();
