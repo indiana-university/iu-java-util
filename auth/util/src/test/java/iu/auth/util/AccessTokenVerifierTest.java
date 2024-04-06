@@ -152,7 +152,7 @@ public class AccessTokenVerifierTest extends IuAuthUtilTestCase {
 		} else
 			throw new AssertionFailedError();
 
-		final var issuerKey = WebKey.builder().id("defaultSign").use(Use.SIGN).type(type).pair(keyPair).build();
+		final var issuerKey = WebKey.builder().keyId("defaultSign").use(Use.SIGN).type(type).pair(keyPair).build();
 
 		final var issuerKeySet = new TokenIssuerKeySet(Set.of(issuerKey));
 		final var jwtAlgorithm = issuerKeySet.getAlgorithm("defaultSign", algorithm);

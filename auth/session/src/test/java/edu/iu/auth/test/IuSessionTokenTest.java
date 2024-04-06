@@ -101,7 +101,7 @@ public class IuSessionTokenTest {
 		});
 		subject.getPrincipals().add(IuAuthorizationScope.of("session", issuer));
 		subject.getPrivateCredentials()
-				.add(WebKey.builder().id("default").use(Use.SIGN).type(Type.EC_P256).pair(keyPair).build());
+				.add(WebKey.builder().keyId("default").use(Use.SIGN).type(Type.EC_P256).pair(keyPair).build());
 		IuSessionToken.register(Set.of(realm), subject);
 	}
 

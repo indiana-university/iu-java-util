@@ -76,9 +76,9 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 	/**
 	 * JSON type adapter.
 	 */
-	public static final IuJsonAdapter<Jwk> JSON = IuJsonAdapter.from(v -> new Jwk(v.asJsonObject()), v -> {
+	public static final IuJsonAdapter<WebKey> JSON = IuJsonAdapter.from(v -> new Jwk(v.asJsonObject()), v -> {
 		final var o = IuJson.object();
-		v.serializeTo(o);
+		((Jwk) v).serializeTo(o);
 		return o.build();
 	});
 
@@ -331,7 +331,7 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 		IuObject.convert(getCertificateThumbprint(), jwkBuilder::x5t);
 		IuObject.convert(getCertificateSha256Thumbprint(), jwkBuilder::x5t256);
 		IuObject.convert(getAlgorithm(), jwkBuilder::algorithm);
-		IuObject.convert(getKeyId(), jwkBuilder::id);
+		IuObject.convert(getKeyId(), jwkBuilder::keyId);
 		final var initBuilder = IuJson.object();
 		jwkBuilder.build(initBuilder);
 		return new Jwk(initBuilder.build(), this);

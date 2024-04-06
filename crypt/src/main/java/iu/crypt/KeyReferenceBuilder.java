@@ -43,13 +43,13 @@ class KeyReferenceBuilder<B extends KeyReferenceBuilder<B>> extends CertificateR
 		implements WebKeyReference.Builder<B> {
 
 	@Override
-	public B id(String id) {
-		return param("kid", id);
+	public B keyId(String id) {
+		return super.param("kid", id);
 	}
 
 	@Override
 	public B algorithm(Algorithm algorithm) {
-		return param("alg", algorithm, Algorithm.JSON);
+		return super.param("alg", algorithm, Algorithm.JSON);
 	}
 
 }

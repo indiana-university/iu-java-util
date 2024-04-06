@@ -202,17 +202,27 @@ public final class IuObject {
 	}
 
 	/**
-	 * Enforces that a value is either not already set or is already set to the same
-	 * value.
+	 * Gets the first non-null, after enforces that all remaining values are either
+	 * null or equal to the first value.
 	 * 
-	 * @param <T>     value type
-	 * @param current current value
-	 * @param value   value to set or enforce as already set
-	 * @return value
-	 * @throws IllegalArgumentException if already set to the same value
+	 * @param <T>    value type
+	 * @param values values to set or enforce as already set
+	 * @return first non-null value
+	 * @throws IllegalArgumentException if any values are non-null and not equal to
+	 *                                  the returned value
 	 */
-	public static <T> T first(T current, T value) {
-		return first(current, value, () -> "already set to a different value");
+	@SafeVarargs
+	public static <T> T first(T... values) {
+		T first = null;
+		for (final var value : values)
+			if (first == null)
+				first = value;
+			else if (value == null)
+				continue;
+			else if (!first.equals(value))
+				throw new IllegalArgumentException("already set to another value");
+
+		return first;
 	}
 
 	/**

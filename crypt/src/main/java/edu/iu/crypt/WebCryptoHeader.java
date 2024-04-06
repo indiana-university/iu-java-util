@@ -35,16 +35,18 @@ import java.net.URI;
 import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
-import iu.crypt.JoseBuilder;
+import iu.crypt.Jose;
 import iu.crypt.Jwk;
 import iu.crypt.UnpaddedBinary;
 
@@ -143,8 +145,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @see {@link Algorithm#ECDH_ES_A192KW}
 		 * @see {@link Algorithm#ECDH_ES_A256KW}
 		 */
-		EPHEMERAL_PUBLIC_KEY("epk", EnumSet.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("epk"),
-				() -> Jwk.JSON),
+		EPHEMERAL_PUBLIC_KEY("epk", EnumSet.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("epk"), () -> Jwk.JSON),
 
 		/**
 		 * Public originator identifier (PartyUInfo) for key derivation.
@@ -256,7 +257,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @return true if the value is present; else false
 		 */
 		public boolean isPresent(WebCryptoHeader header) {
-			return get.apply(header) != null;
+			return get(header) != null;
 		}
 
 		/**
@@ -305,7 +306,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @param keyId key ID
 		 * @return this
 		 */
-		B id(String keyId);
+		B keyId(String keyId);
 
 		/**
 		 * Sets the URI where JWKS well-known key data can be retrieved.
@@ -313,39 +314,15 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @param uri JWKS {@link URI}
 		 * @return this
 		 */
-		B jwks(URI uri);
+		B wellKnown(URI uri);
 
 		/**
-		 * Sets a key to use for creating the signature or encryption.
+		 * Sets a key to include in the signature or encryption header.
 		 * 
-		 * <p>
-		 * This key will not be included in the serialized output. This is the same as
-		 * calling {@link #jwk(WebKey, boolean) jwk(key, true)}.
-		 * </p>
-		 * 
-		 * @param key key to use for creating the signature or encryption
+		 * @param key key to include in the signature or encryption header
 		 * @return this
 		 */
-		default B jwk(WebKey key) {
-			return jwk(key, true);
-		}
-
-		/**
-		 * Sets the key data for this header.
-		 * 
-		 * <p>
-		 * This key may contain private and/or symmetric key data to be used for
-		 * creating digital signatures or facilitating key agreement for encryption.
-		 * However, only public keys and certificate data will be included in the
-		 * serialized headers.
-		 * </p>
-		 * 
-		 * @param key    {@link WebKey}, provided by the same module as this builder.
-		 * @param silent true to omit all key data from the serialized header; false to
-		 *               include public keys and/or certificates only.
-		 * @return this
-		 */
-		B jwk(WebKey key, boolean silent);
+		B key(WebKey key);
 
 		/**
 		 * Sets the header type parameter value.
@@ -372,31 +349,24 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		B crit(String... parameterNames);
 
 		/**
-		 * Sets the agreement PartyUInfo parameter for key derivation.
+		 * Sets a registered parameter value
 		 * 
-		 * @param apu PartyUInfo value
+		 * @param <T>   value type
+		 * @param param parameter
+		 * @param value parameter value
 		 * @return this
-		 * @see {@link Param#PARTY_UINFO}
 		 */
-		B apu(byte[] apu);
+		<T> B param(Param param, T value);
 
 		/**
-		 * Sets the agreement PartyVInfo parameter for key derivation.
+		 * Sets an extended parameter value
 		 * 
-		 * @param apv PartyVInfo value
-		 * @return this
-		 * @see {@link Param#PARTY_VINFO}
-		 */
-		B apv(byte[] apv);
-
-		/**
-		 * Sets an optional extended parameter.
-		 * 
+		 * @param <T>   value type
 		 * @param name  parameter name
 		 * @param value parameter value
 		 * @return this
 		 */
-		<T> B ext(String name, T value);
+		<T> B param(String name, T value);
 	}
 
 	/**
@@ -466,7 +436,57 @@ public interface WebCryptoHeader extends WebCertificateReference {
 	 *      Section 4.2</a>
 	 */
 	static <T> void register(String parameterName, Extension<T> extension) {
-		JoseBuilder.register(parameterName, extension);
+		Jose.register(parameterName, extension);
+	}
+
+	/**
+	 * Verifies all parameters in a {@link WebCryptoHeader}.
+	 * 
+	 * @param header {@link WebCryptoHeader}
+	 * @return Well-known key referred to by the header; null if not known
+	 */
+	static WebKey verify(WebCryptoHeader header) {
+		final var algorithm = Objects.requireNonNull(header.getAlgorithm(),
+				() -> "Signature or key protected algorithm is required");
+
+		if (algorithm.use.equals(Use.ENCRYPT)) {
+			Objects.requireNonNull(header.getExtendedParameter(Param.ENCRYPTION.name),
+					() -> "Content encryption algorithm is required");
+			for (final var param : algorithm.encryptionParams)
+				if (param.required && !param.isPresent(header))
+					throw new IllegalArgumentException("Missing required encryption parameter " + param.name);
+		}
+
+		final var criticalParameters = header.getCriticalParameters();
+		if (criticalParameters != null)
+			for (final var paramName : criticalParameters) {
+				final var param = Param.from(paramName);
+				if (param == null) {
+					if (header.getExtendedParameter(paramName) == null)
+						throw new IllegalArgumentException("Missing critical extended parameter " + paramName);
+				} else if (!param.isPresent(header))
+					throw new IllegalArgumentException("Missing critical registered parameter " + paramName);
+			}
+
+		final var key = header.getKey();
+		final var keyId = IuObject.first(header.getKeyId(), IuObject.convert(key, WebKey::getKeyId));
+		final var certChain = WebCertificateReference.verify(header);
+
+		var wellKnown = IuObject.convert(key, WebKey::wellKnown);
+		if (wellKnown == null //
+				&& keyId != null)
+			wellKnown = IuObject.convert(header.getKeySetUri(), //
+					uri -> IuIterable.filter(Jwk.readJwks(uri), //
+							k -> keyId.equals(k.getKeyId())).iterator().next());
+		if (wellKnown == null //
+				&& certChain != null)
+			wellKnown = WebKey.builder(algorithm.type).cert(certChain).build().wellKnown();
+
+		IuObject.first( //
+				IuObject.convert(wellKnown, WebKey::getPublicKey), //
+				IuObject.convert(certChain, c -> c[0].getPublicKey()));
+
+		return wellKnown;
 	}
 
 	/**

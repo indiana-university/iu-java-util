@@ -48,10 +48,10 @@ public interface WebKeyReference extends WebCertificateReference {
 		/**
 		 * Sets the Key ID.
 		 * 
-		 * @param id key ID
+		 * @param keyId key ID
 		 * @return this;
 		 */
-		B id(String id);
+		B keyId(String keyId);
 
 		/**
 		 * Sets the algorithm.

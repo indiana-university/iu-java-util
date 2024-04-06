@@ -32,255 +32,72 @@
 package iu.crypt;
 
 import java.net.URI;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
-import edu.iu.IuIterable;
-import edu.iu.IuObject;
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebCryptoHeader.Builder;
-import edu.iu.crypt.WebCryptoHeader.Extension;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
-import jakarta.json.JsonValue;
 
 /**
  * Builds a web signature or encryption header.
  * 
  * @param <B> builder type
  */
-public abstract class JoseBuilder<B extends JoseBuilder<B>> extends KeyReferenceBuilder<B> implements Builder<B> {
-	static {
-		IuObject.assertNotOpen(JoseBuilder.class);
-	}
-
-	private static final Map<String, Extension<?>> EXTENSIONS = new HashMap<>();
+class JoseBuilder<B extends JoseBuilder<B>> extends KeyReferenceBuilder<B> implements Builder<B> {
 
 	/**
-	 * Registers an extension.
+	 * Constructor.
 	 * 
-	 * @param parameterName parameter name
-	 * @param extension     extension
+	 * @param algorithm algorithm
 	 */
-	public static synchronized <T> void register(String parameterName, Extension<T> extension) {
-		if (Param.from(parameterName) != null)
-			throw new IllegalArgumentException("Must not be a standard regsitered parameter name");
-		if (EXTENSIONS.containsKey(parameterName))
-			throw new IllegalArgumentException("Already registered");
-
-		EXTENSIONS.put(parameterName, extension);
-	}
-
-	/**
-	 * Gets a registered extension.
-	 * 
-	 * @param <T>           parameter type
-	 * @param parameterName parameter name
-	 * @return extension registered for the named parameter
-	 */
-	@SuppressWarnings("unchecked")
-	static <T> Extension<T> getExtension(String parameterName) {
-		return Objects.requireNonNull((Extension<T>) EXTENSIONS.get(parameterName),
-				"must understand extension " + parameterName);
-	}
-
-	private URI keySetUri;
-	private boolean silent;
-	private Jwk key;
-	private String type;
-	private String contentType;
-	private Set<String> crit = new LinkedHashSet<>();
-	private Map<String, JsonValue> ext = new LinkedHashMap<>();
-
-	/**
-	 * Default constructor.
-	 */
-	protected JoseBuilder() {
+	protected JoseBuilder(Algorithm algorithm) {
+		algorithm(algorithm);
 	}
 
 	@Override
-	public B algorithm(Algorithm algorithm) {
-		super.algorithm(algorithm);
-		return next();
+	public B wellKnown(URI uri) {
+		return param(Param.KEY_SET_URI, uri);
 	}
 
 	@Override
-	public B jwks(URI uri) {
-		Objects.requireNonNull(uri);
-
-		if (this.keySetUri == null)
-			this.keySetUri = uri;
-		else if (!uri.equals(this.keySetUri))
-			throw new IllegalStateException("Key set URI already set");
-
-		return next();
-	}
-
-	@Override
-	public B jwk(WebKey key, boolean silent) {
-		Objects.requireNonNull(key);
-
-		if (this.key == null)
-			// cast enforces that key was not implemented externally
-			this.key = (Jwk) key;
-		else if (!key.equals(this.key))
-			throw new IllegalStateException("Key already set");
-		this.silent = silent;
-
-		return next();
+	public B key(WebKey key) {
+		return param(Param.KEY, key);
 	}
 
 	@Override
 	public B type(String type) {
-		Objects.requireNonNull(type);
-
-		if (this.type == null)
-			this.type = type;
-		else if (!type.equals(this.type))
-			throw new IllegalStateException("Header type already set");
-
-		return next();
+		return param(Param.TYPE, type);
 	}
 
 	@Override
 	public B contentType(String contentType) {
-		Objects.requireNonNull(contentType);
-
-		if (this.contentType == null)
-			this.contentType = contentType;
-		else if (!contentType.equals(this.contentType))
-			throw new IllegalStateException("Content type already set");
-
-		return next();
-	}
-
-	@Override
-	public B apu(byte[] apu) {
-		Objects.requireNonNull(apu, "apu");
-		if (!Objects.requireNonNull(algorithm(), "missing algorithm").encryptionParams.contains(Param.PARTY_UINFO))
-			throw new IllegalArgumentException("apu not understood for " + algorithm());
-		else
-			return enc("apu", UnpaddedBinary.JSON.toJson(apu));
-	}
-
-	@Override
-	public B apv(byte[] apv) {
-		Objects.requireNonNull(apv, "apv");
-		if (!Objects.requireNonNull(algorithm(), "missing algorithm").encryptionParams.contains(Param.PARTY_VINFO))
-			throw new IllegalArgumentException("apu not understood for " + algorithm());
-		else
-			return enc("apv", UnpaddedBinary.JSON.toJson(apv));
+		return param(Param.CONTENT_TYPE, contentType);
 	}
 
 	@Override
 	public B crit(String... name) {
-		IuIterable.iter(name).forEach(crit::add);
-		return next();
+		for (final var paramName : name)
+			if (Param.from(paramName) == null)
+				Jose.getExtension(paramName);
+		return param(Param.CRITICAL_PARAMS, Set.of(name));
 	}
 
 	@Override
-	public <T> B ext(String parameterName, T value) {
-		if (Param.from(parameterName) != null)
-			throw new IllegalArgumentException("Must not be a standard registered parameter name");
-
-		final var extension = Objects.requireNonNull(getExtension(parameterName),
-				"extension not registered for " + parameterName);
-
-		extension.validate(value, this);
-
-		return enc(parameterName, extension.toJson(value));
+	public <T> B param(Param param, T value) {
+		return super.param(param.name, value, param.json());
 	}
 
-	/**
-	 * Adds an encryption parameter.
-	 * 
-	 * <p>
-	 * For use only during {@link JweRecipientBuilder#build(Jwe, byte[])}
-	 * invocation.
-	 * </p>
-	 * 
-	 * @param name  parameter name
-	 * @param value parameter value
-	 * @return this
-	 */
-	B enc(String name, JsonValue value) {
-		Objects.requireNonNull(value, name);
-		ext.compute(name, (key, existing) -> {
-			if (existing == null)
-				return value;
-			else if (existing.equals(value))
-				return existing;
-			else
-				throw new IllegalStateException(key + " already set to a different value");
-		});
-		return next();
+	@Override
+	public <T> B param(String paramName, T value) {
+		final var ext = Jose.getExtension(paramName);
+		ext.validate(value, this);
+		return super.param(paramName, value, ext);
 	}
 
-	/**
-	 * Gets silent
-	 * 
-	 * @return silent
-	 */
-	boolean silent() {
-		return silent;
+	@Override
+	protected <T> B param(String name, T value, IuJsonAdapter<T> adapter) {
+		throw new UnsupportedOperationException();
 	}
-
-	/**
-	 * Gets keySetUri
-	 * 
-	 * @return keySetUri
-	 */
-	URI keySetUri() {
-		return keySetUri;
-	}
-
-	/**
-	 * Gets key
-	 * 
-	 * @return key
-	 */
-	Jwk key() {
-		return key;
-	}
-
-	/**
-	 * Gets type
-	 * 
-	 * @return type
-	 */
-	String type() {
-		return type;
-	}
-
-	/**
-	 * Gets contentType
-	 * 
-	 * @return contentType
-	 */
-	String contentType() {
-		return contentType;
-	}
-
-	/**
-	 * Gets crit
-	 * 
-	 * @return crit
-	 */
-	Set<String> crit() {
-		return crit;
-	}
-
-	/**
-	 * Gets ext
-	 * 
-	 * @return ext
-	 */
-	Map<String, JsonValue> ext() {
-		return ext;
-	}
-
 }

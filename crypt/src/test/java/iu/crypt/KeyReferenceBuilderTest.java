@@ -52,7 +52,7 @@ public class KeyReferenceBuilderTest {
 	public void testValues() {
 		final var id = IdGenerator.generateId();
 		final var alg = IuTest.rand(Algorithm.class);
-		final var keyRef = new Builder().id(id).algorithm(alg).build();
+		final var keyRef = new Builder().keyId(id).algorithm(alg).build();
 		assertEquals(id, keyRef.getKeyId());
 		assertEquals(alg, keyRef.getAlgorithm());
 	}

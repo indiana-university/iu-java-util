@@ -50,22 +50,22 @@ class CertificateReferenceBuilder<B extends CertificateReferenceBuilder<B>> exte
 
 	@Override
 	public B cert(URI uri) {
-		return param("x5u", uri, IuJsonAdapter.of(URI.class));
+		return super.param("x5u", uri, IuJsonAdapter.of(URI.class));
 	}
 
 	@Override
 	public B cert(X509Certificate... chain) {
-		return param("x5c", chain, IuJsonAdapter.of(X509Certificate[].class, PemEncoded.CERT_JSON));
+		return super.param("x5c", chain, IuJsonAdapter.of(X509Certificate[].class, PemEncoded.CERT_JSON));
 	}
 
 	@Override
 	public B x5t(byte[] certificateThumbprint) {
-		return param("x5t", certificateThumbprint, UnpaddedBinary.JSON);
+		return super.param("x5t", certificateThumbprint, UnpaddedBinary.JSON);
 	}
 
 	@Override
 	public B x5t256(byte[] certificateSha256Thumbprint) {
-		return param("x5t#S256", certificateSha256Thumbprint, UnpaddedBinary.JSON);
+		return super.param("x5t#S256", certificateSha256Thumbprint, UnpaddedBinary.JSON);
 	}
 
 	@Override

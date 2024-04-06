@@ -52,6 +52,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
+import edu.iu.crypt.WebKey;
 
 @SuppressWarnings("javadoc")
 public class EncodingUtilsTest {
@@ -139,14 +140,14 @@ public class EncodingUtilsTest {
 
 	@Test
 	public void testConcatKdf_RFC_7818_C() throws NoSuchAlgorithmException, InvalidKeyException {
-		final var alice = JwkBuilder.parse("{\"kty\":\"EC\",\r\n" //
+		final var alice = WebKey.parse("{\"kty\":\"EC\",\r\n" //
 				+ "      \"crv\":\"P-256\",\r\n" //
 				+ "      \"x\":\"gI0GAILBdu7T53akrFmMyGcsF3n5dO7MmwNBHKW5SV0\",\r\n" //
 				+ "      \"y\":\"SLW_xSffzlPWrHEVI30DHM_4egVwt3NQqeUD7nMFpps\",\r\n" //
 				+ "      \"d\":\"0_NxaRPUMQoAJt50Gz8YiTr8gRTwyEaCumd-MToTmIo\"\r\n" //
 				+ "     }");
 
-		final var bob = JwkBuilder.parse("{\"kty\":\"EC\",\r\n" //
+		final var bob = WebKey.parse("{\"kty\":\"EC\",\r\n" //
 				+ "      \"crv\":\"P-256\",\r\n" //
 				+ "      \"x\":\"weNJy2HscCSM6AEDTDg04biOvhFhyyWvOHQfeF_PxMQ\",\r\n" //
 				+ "      \"y\":\"e8lnCO-AlStT-NJVX-crhB7QRYhiix03illJOVAOyck\",\r\n" //

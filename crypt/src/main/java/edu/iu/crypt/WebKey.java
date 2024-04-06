@@ -678,6 +678,23 @@ public interface WebKey extends WebKeyReference {
 	}
 
 	/**
+	 * Creates an ephemeral key for use as JWE recipient or JWS issuer.
+	 * 
+	 * <p>
+	 * Ephemeral keys are generated using JDK 11 compliant <a href=
+	 * "https://docs.oracle.com/en/java/javase/11/docs/specs/security/standard-names.html">
+	 * standard algorithms</a> with {@link Security#getProviders() registered JCE
+	 * providers}
+	 * </p>
+	 * 
+	 * @param algorithm key algorithm
+	 * @return JWE recipient or JWS issuer key
+	 */
+	static Builder<?> builder(Algorithm algorithm) {
+		return builder(algorithm.type).algorithm(algorithm);
+	}
+
+	/**
 	 * Creates an ephemeral content encryption key, for use with
 	 * {@link Algorithm#DIRECT}.
 	 * 

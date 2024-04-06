@@ -34,6 +34,8 @@ package edu.iu.crypt;
 import java.nio.ByteBuffer;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.SecureRandom;
+import java.security.Security;
 import java.security.spec.ECGenParameterSpec;
 
 import javax.crypto.KeyGenerator;
@@ -41,9 +43,28 @@ import javax.crypto.KeyGenerator;
 import edu.iu.IuException;
 
 /**
- * Generates ephemeral keys using the system default JCE provider.
+ * Generates ephemeral keys.
+ * 
+ * <p>
+ * Ephemeral keys are generated using JDK 11 compliant <a href=
+ * "https://docs.oracle.com/en/java/javase/11/docs/specs/security/standard-names.html">
+ * standard algorithms</a> with {@link Security#getProviders() registered JCE
+ * providers}
+ * </p>
  */
 public class EphemeralKeys {
+
+	/**
+	 * Securely generates pseudorandom data.
+	 * 
+	 * @param bytes number of bytes to generate
+	 * @return securely generated pseudorandom data.
+	 */
+	public static final byte[] rand(int bytes) {
+		final var data = new byte[bytes];
+		IuException.unchecked(SecureRandom::getInstanceStrong).nextBytes(data);
+		return data;
+	}
 
 	/**
 	 * Generates a random secret key.

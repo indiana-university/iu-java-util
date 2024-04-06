@@ -59,7 +59,7 @@ public class TokenIssuerKeySetTest {
 		final var rsaKeygen = KeyPairGenerator.getInstance("RSA");
 		rsaKeygen.initialize(1024);
 		final var keyPair = rsaKeygen.generateKeyPair();
-		final var issuerKey = WebKey.builder().id(id).use(Use.ENCRYPT).type(Type.RSA).pair(keyPair).build();
+		final var issuerKey = WebKey.builder().keyId(id).use(Use.ENCRYPT).type(Type.RSA).pair(keyPair).build();
 
 		final var issuerKeySet = new TokenIssuerKeySet(Set.of(issuerKey));
 		assertThrows(NullPointerException.class, () -> issuerKeySet.getAlgorithm("foo", "bar"));
@@ -79,7 +79,7 @@ public class TokenIssuerKeySetTest {
 			final var ecKeygen = KeyPairGenerator.getInstance("EC");
 			ecKeygen.initialize(new ECGenParameterSpec("secp256r1"));
 			final var keyPair = ecKeygen.generateKeyPair();
-			final var issuerKey = WebKey.builder().id(id).use(Use.SIGN).type(type).pair(keyPair).build();
+			final var issuerKey = WebKey.builder().keyId(id).use(Use.SIGN).type(type).pair(keyPair).build();
 
 			final var issuerKeySet = new TokenIssuerKeySet(Set.of(issuerKey));
 			assertThrows(NullPointerException.class, () -> issuerKeySet.getAlgorithm("foo", "bar"));

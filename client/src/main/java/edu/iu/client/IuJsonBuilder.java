@@ -121,8 +121,10 @@ public class IuJsonBuilder<B extends IuJsonBuilder<B>> {
 	 * @param adapter JSON type adapter
 	 * @return this
 	 */
+	@SuppressWarnings("unchecked")
 	protected <T> B param(String name, T value) {
-		return param(name, value, IuJsonAdapter.basic());
+		pendingParameters.compute(name, (key, current) -> IuObject.once(current, IuJsonAdapter.basic().toJson(value)));
+		return (B) this;
 	}
 
 	/**
