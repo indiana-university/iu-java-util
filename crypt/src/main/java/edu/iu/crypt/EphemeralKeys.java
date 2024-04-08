@@ -39,7 +39,6 @@ import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECParameterSpec;
 import java.security.spec.NamedParameterSpec;
-import java.util.Objects;
 
 import javax.crypto.KeyGenerator;
 

@@ -147,8 +147,8 @@ public interface WebEncryption {
 	 */
 	interface Builder {
 		/**
-		 * Protects all header parameters and verifies inputs are valid for JWE compact
-		 * serialization.
+		 * Protects all header parameters except jwk and verifies inputs are valid for
+		 * JWE compact serialization.
 		 * 
 		 * @return this
 		 */

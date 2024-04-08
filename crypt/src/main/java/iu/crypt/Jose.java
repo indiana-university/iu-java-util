@@ -43,6 +43,7 @@ import edu.iu.IuObject;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebCryptoHeader;
+import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Use;
 import jakarta.json.JsonObject;
 
@@ -136,7 +137,7 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 	Jose(JsonObject jose) {
 		super(jose);
 		keySetUri = IuJson.get(jose, "jku", IuJsonAdapter.of(URI.class));
-		key = (Jwk) IuJson.get(jose, "jwk", Jwk.JSON);
+		key = (Jwk) IuObject.convert(IuJson.get(jose, "jwk", Jwk.JSON), WebKey::wellKnown);
 		type = IuJson.get(jose, "typ");
 		contentType = IuJson.get(jose, "cty");
 		criticalParameters = IuJson.get(jose, "crit", IuJsonAdapter.of(Set.class, IuJsonAdapter.of(String.class)));

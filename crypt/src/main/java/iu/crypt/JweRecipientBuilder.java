@@ -46,7 +46,6 @@ import javax.crypto.spec.SecretKeySpec;
 
 import edu.iu.IuException;
 import edu.iu.IuText;
-import edu.iu.client.IuJson;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebEncryptionRecipient.Builder;

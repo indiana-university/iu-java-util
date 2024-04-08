@@ -32,8 +32,6 @@
 package iu.crypt;
 
 import java.nio.ByteBuffer;
-import java.security.interfaces.ECPrivateKey;
-import java.security.interfaces.ECPublicKey;
 import java.util.Arrays;
 import java.util.Objects;
 

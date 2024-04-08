@@ -395,20 +395,25 @@ public interface WebKey extends WebKeyReference {
 		/**
 		 * Elliptic Curve signature w/ SHA-256.
 		 */
-		ES256("ES256", "SHA256withECDSA", 256,
-				new Type[] { Type.ED25519, Type.ED448, Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.SIGN, Set.of()),
+		ES256("ES256", "SHA256withECDSA", 256, new Type[] { Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.SIGN,
+				Set.of()),
 
 		/**
 		 * Elliptic Curve signature w/ SHA-384.
 		 */
-		ES384("ES384", "SHA384withECDSA", 384,
-				new Type[] { Type.ED25519, Type.ED448, Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.SIGN, Set.of()),
+		ES384("ES384", "SHA384withECDSA", 384, new Type[] { Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.SIGN,
+				Set.of()),
 
 		/**
 		 * Elliptic Curve signature w/ SHA-512.
 		 */
-		ES512("ES512", "SHA512withECDSA", 512,
-				new Type[] { Type.ED25519, Type.ED448, Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.SIGN, Set.of()),
+		ES512("ES512", "SHA512withECDSA", 512, new Type[] { Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.SIGN,
+				Set.of()),
+
+		/**
+		 * Edwards Elliptic Curve Digital Signature Algorithm.
+		 */
+		EDDSA("EdDSA", "EdDSA", 0, new Type[] { Type.ED25519, Type.ED448 }, Use.SIGN, Set.of()),
 
 		/**
 		 * RSASSA-PSS using SHA-256 and MGF1 with SHA-256.

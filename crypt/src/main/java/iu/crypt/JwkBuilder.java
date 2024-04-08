@@ -137,7 +137,7 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 		case ES384:
 		case ES512:
 			key(EphemeralKeys.ec(Objects.requireNonNull(WebKey.algorithmParams(type().algorithmParams),
-					() -> type() + " not supported; jdk = " + System.getProperty("java.version"))));
+					() -> type() + " not supported")));
 			break;
 
 		case PS256:

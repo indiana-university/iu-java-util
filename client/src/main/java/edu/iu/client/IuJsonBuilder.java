@@ -31,8 +31,10 @@
  */
 package edu.iu.client;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import edu.iu.IuObject;
 import jakarta.json.JsonObject;
@@ -142,4 +144,12 @@ public class IuJsonBuilder<B extends IuJsonBuilder<B>> {
 		return (B) this;
 	}
 
+	/**
+	 * Gets a set of pending parameter names.
+	 * 
+	 * @return pending parameter names
+	 */
+	protected Set<String> paramNames() {
+		return Collections.unmodifiableSet(pendingParameters.keySet());
+	}
 }
