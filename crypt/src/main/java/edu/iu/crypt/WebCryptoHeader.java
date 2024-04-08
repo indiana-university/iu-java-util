@@ -480,7 +480,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 							k -> keyId.equals(k.getKeyId())).iterator().next());
 		if (wellKnown == null //
 				&& certChain != null)
-			wellKnown = WebKey.builder(algorithm.type).cert(certChain).build().wellKnown();
+			wellKnown = WebKey.builder(algorithm.type[0]).cert(certChain).build().wellKnown();
 
 		IuObject.first( //
 				IuObject.convert(wellKnown, WebKey::getPublicKey), //

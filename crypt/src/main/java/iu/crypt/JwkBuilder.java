@@ -32,6 +32,8 @@
 package iu.crypt;
 
 import java.io.InputStream;
+import java.math.BigInteger;
+import java.security.Key;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -41,12 +43,17 @@ import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.security.interfaces.XECPrivateKey;
+import java.security.spec.NamedParameterSpec;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Queue;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.client.IuJsonAdapter;
@@ -70,15 +77,22 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 		IuObject.assertNotOpen(JweBuilder.class);
 	}
 
+	private static final BigInteger X25519_P = BigInteger.TWO.pow(255).add(BigInteger.valueOf(-19L));
+	private static final BigInteger X448_P = BigInteger.TWO.pow(448)
+			.add(BigInteger.TWO.pow(224).multiply(BigInteger.valueOf(-1L))).add(BigInteger.valueOf(-1L));
+
 	/**
 	 * Constructor.
-	 * 
-	 * @param type {@link WebKey.Type}
 	 */
-	public JwkBuilder(Type type) {
+	public JwkBuilder() {
+	}
+
+	@Override
+	public JwkBuilder type(Type type) {
 		param("kty", type.kty);
 		if (type.crv != null)
 			param("crv", type.crv);
+		return this;
 	}
 
 	@Override
@@ -122,7 +136,7 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 		case ES256:
 		case ES384:
 		case ES512:
-			key(EphemeralKeys.ec(algorithm.type.ecParam));
+			key(EphemeralKeys.ec(WebKey.algorithmParams(type().algorithmParams)));
 			break;
 
 		case PS256:
@@ -134,7 +148,7 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 		case RSA1_5:
 		case RSA_OAEP:
 		case RSA_OAEP_256:
-			key(EphemeralKeys.rsa(algorithm.type.kty, 2048));
+			key(EphemeralKeys.rsa(algorithm.type[0].kty, 2048));
 			break;
 
 		case PBES2_HS256_A128KW:
@@ -156,25 +170,72 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 
 	@Override
 	public JwkBuilder key(byte[] key) {
+		type(Type.RAW);
 		return param("k", key, UnpaddedBinary.JSON);
 	}
 
 	@Override
-	public JwkBuilder key(PublicKey publicKey) {
-		if (publicKey instanceof RSAPublicKey) {
-			final var rsa = (RSAPublicKey) publicKey;
+	public JwkBuilder key(PublicKey key) {
+		type(key);
+		if (key instanceof RSAPublicKey) {
+			final var rsa = (RSAPublicKey) key;
 			return param("n", rsa.getModulus(), UnsignedBigInteger.JSON) //
 					.param("e", rsa.getPublicExponent(), UnsignedBigInteger.JSON);
-		} else if (publicKey instanceof ECPublicKey) {
-			final var w = ((ECPublicKey) publicKey).getW();
+		} else if (key instanceof ECPublicKey) {
+			final var w = ((ECPublicKey) key).getW();
 			return param("x", w.getAffineX(), UnsignedBigInteger.JSON) //
 					.param("y", w.getAffineY(), UnsignedBigInteger.JSON);
 		} else
-			throw new UnsupportedOperationException();
+			return IuException.unchecked(() -> {
+				// TODO: convert to compiled code for source level 17+
+				// EdDSA support was introduced in JDK 15
+				// XDH was experimental in JDK 11
+
+				final var xkeyClass = ClassLoader.getPlatformClassLoader()
+						.loadClass("java.security.interfaces.XECPublicKey");
+				if (xkeyClass.isInstance(key)) {
+					final var spec = (NamedParameterSpec) xkeyClass.getMethod("getParams").invoke(key);
+					final var u = (BigInteger) xkeyClass.getMethod("getU").invoke(key);
+					final int l;
+					final BigInteger p;
+					if (spec.getName().equals(Type.X25519.algorithmParams)) {
+						l = 32;
+						p = X25519_P;
+					} else {
+						l = 57;
+						p = X448_P;
+					}
+					return param("x", Arrays.copyOf(EncodingUtils.reverse(UnsignedBigInteger.bigInt(u.mod(p))), l),
+							UnpaddedBinary.JSON);
+				} else {
+					final var keyClass = ClassLoader.getPlatformClassLoader()
+							.loadClass("java.security.interfaces.EdECPublicKey");
+					final var spec = (NamedParameterSpec) keyClass.getMethod("getParams").invoke(key);
+					final var l = spec.getName().equals(Type.ED25519.algorithmParams) ? 32 : 57;
+
+					final var pointClass = ClassLoader.getPlatformClassLoader()
+							.loadClass("java.security.spec.EdECPoint");
+					final var point = keyClass.getMethod("getPoint").invoke(key);
+					final var yint = (BigInteger) pointClass.getMethod("getY").invoke(point);
+					final var xodd = (boolean) pointClass.getMethod("isXOdd").invoke(point);
+
+					// Convert from JCE EdECPoint to RFC-8032 encoded format
+					// https://datatracker.ietf.org/doc/html/rfc8032#section-5.1.2
+					// https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/security/spec/EdECPoint.html
+					final var a = UnsignedBigInteger.bigInt(yint);
+					final var y = Arrays.copyOf(EncodingUtils.reverse(a), l);
+					if (xodd)
+						y[l - 1] |= 0x80;
+
+					// convert from big- to little-endian
+					return param("x", y, UnpaddedBinary.JSON);
+				}
+			});
 	}
 
 	@Override
 	public JwkBuilder key(PrivateKey key) {
+		type(key);
 		if (key instanceof RSAPrivateKey) {
 			final var rsa = (RSAPrivateKey) key;
 			param("n", rsa.getModulus(), UnsignedBigInteger.JSON);
@@ -191,8 +252,21 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 			return this;
 		} else if (key instanceof ECPrivateKey)
 			return param("d", ((ECPrivateKey) key).getS(), UnsignedBigInteger.JSON);
+		else if (key instanceof XECPrivateKey)
+			return param("d", ((XECPrivateKey) key).getScalar().get(), UnpaddedBinary.JSON);
 		else
-			throw new UnsupportedOperationException();
+			return IuException.unchecked(() -> {
+				// EdDSA support was introduced in JDK 15, not supported by JDK 11
+				// TODO: convert to compiled code for source level 17+
+				final var keyClass = ClassLoader.getPlatformClassLoader()
+						.loadClass("java.security.interfaces.EdECPrivateKey");
+				@SuppressWarnings("unchecked")
+				final var bytes = (Optional<byte[]>) keyClass.getMethod("getBytes").invoke(key);
+				if (bytes.isEmpty())
+					return this;
+				else
+					return param("d", bytes.get(), UnpaddedBinary.JSON);
+			});
 	}
 
 	@Override
@@ -215,6 +289,13 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 
 	@Override
 	public Jwk build() {
+		final var kty = param("kty");
+		if (kty == null) {
+			final var alg = param("alg");
+			if (alg == null)
+				throw new IllegalStateException("key type is required");
+			type(Algorithm.from(((JsonString) alg).getString()).type[0]);
+		}
 		return new Jwk(toJson());
 	}
 
@@ -223,8 +304,18 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 		return super.build(builder);
 	}
 
+	private void type(Key key) {
+		final var params = WebKey.algorithmParams(key);
+		if (params == null)
+			type(Type.from(key.getAlgorithm(), null));
+		else
+			type(Objects.requireNonNull(Type.from(params), () -> {
+				return params + " " + key;
+			}));
+	}
+
 	private Type type() {
-		return Type.from(((JsonString) param("kty")).getString(),
+		return Type.from(Objects.requireNonNull((JsonString) param("kty"), "Missing key type").getString(),
 				IuObject.convert((JsonString) param("crv"), JsonString::getString));
 	}
 

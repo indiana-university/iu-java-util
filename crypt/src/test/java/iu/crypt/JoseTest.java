@@ -33,12 +33,12 @@ package iu.crypt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-
-import java.security.interfaces.ECPublicKey;
 
 import org.junit.jupiter.api.Test;
 
@@ -94,12 +94,12 @@ public class JoseTest extends IuCryptTestCase {
 	}
 
 	@Test
-	public void testAlgorithmValidation() {
+	public void testAlgorithmValidation() throws ClassNotFoundException {
 		assertThrows(NullPointerException.class, () -> jose(Algorithm.A192KW).build());
 		assertThrows(IllegalArgumentException.class, () -> jose(Algorithm.ECDH_ES) //
 				.param(Param.ENCRYPTION, Encryption.A128GCM) //
 				.build());
-		assertInstanceOf(ECPublicKey.class, jose(Algorithm.ECDH_ES) //
+		assertInstanceOf(Class.forName("java.security.interfaces.XECPublicKey"), jose(Algorithm.ECDH_ES) //
 				.param(Param.ENCRYPTION, Encryption.A128GCM) //
 				.param(Param.EPHEMERAL_PUBLIC_KEY, WebKey.ephemeral(Algorithm.ECDH_ES)) //
 				.build().<WebKey>getExtendedParameter("epk").getPublicKey());
@@ -137,7 +137,32 @@ public class JoseTest extends IuCryptTestCase {
 	@Test
 	public void testContentType() {
 		final var contentType = IdGenerator.generateId();
-		assertEquals(contentType, jose(Algorithm.HS512).type(contentType).build().getType());
+		assertEquals(contentType, jose(Algorithm.HS512).contentType(contentType).build().getContentType());
+	}
+
+	@Test
+	public void testToString() {
+		final var jose = jose(Algorithm.HS512).key(WebKey.ephemeral(Algorithm.HS512)).build();
+		final var fromJose = jose.toString();
+		assertNotNull(jose.getKey().getKey());
+		assertNull(new Jose(IuJson.parse(fromJose).asJsonObject()).getKey().getKey());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testToJson() {
+		final var extName = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var ext = mock(Extension.class);
+		when(ext.toJson(value)).thenReturn(IuJson.string(value));
+		when(ext.fromJson(IuJson.string(value))).thenReturn(value);
+		Jose.register(extName, ext);
+
+		final var key = WebKey.ephemeral(Algorithm.ES512);
+		final var jose = jose(Algorithm.ES512).key(key).param(extName, value).build();
+		final var fromJose = jose.toString();
+		assertNotNull(jose.getKey().getPrivateKey());
+		assertNull(new Jose(IuJson.parse(fromJose).asJsonObject()).getKey().getKey());
 	}
 
 //	@SuppressWarnings("unchecked")

@@ -35,6 +35,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.security.AlgorithmParameters;
+import java.security.Key;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.PrivateKey;
@@ -42,13 +43,14 @@ import java.security.PublicKey;
 import java.security.Security;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.ECKey;
-import java.security.interfaces.ECPrivateKey;
-import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.security.interfaces.XECKey;
+import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
+import java.security.spec.NamedParameterSpec;
 import java.security.spec.RSAPublicKeySpec;
 import java.util.EnumSet;
 import java.util.Objects;
@@ -76,6 +78,49 @@ import jakarta.json.JsonString;
 public interface WebKey extends WebKeyReference {
 
 	/**
+	 * Gets the {@link ECParameterSpec} for a standard parameter name.
+	 * 
+	 * @param name standard parameter name
+	 * @return Elliptic Curve parameters
+	 */
+	static AlgorithmParameterSpec algorithmParams(String name) {
+		return IuObject.convert(name, a -> IuException.unchecked(() -> {
+			if (a.startsWith("sec")) {
+				final var algorithmParamters = AlgorithmParameters.getInstance("EC");
+				algorithmParamters.init(new ECGenParameterSpec(a));
+				return algorithmParamters.getParameterSpec(ECParameterSpec.class);
+			} else
+				try {
+					return (AlgorithmParameterSpec) NamedParameterSpec.class.getField(a.toUpperCase()).get(null);
+				} catch (NoSuchFieldException e) {
+					return null;
+				}
+		}));
+	}
+
+	/**
+	 * Gets the {@link AlgorithmParameterSpec} from a key.
+	 * 
+	 * @param key key
+	 * @return {@link AlgorithmParameterSpec}
+	 */
+	static AlgorithmParameterSpec algorithmParams(Key key) {
+		if (key == null //
+				|| key.getAlgorithm() == null //
+				|| key.getAlgorithm().startsWith("RSA"))
+			return null;
+
+		if (key instanceof ECKey)
+			return ((ECKey) key).getParams();
+		if (key instanceof XECKey)
+			return ((XECKey) key).getParams();
+		else // EdEC is the last supported type; throws IllegalStateException on JDK 11
+				// TODO switch from reflection to compiled cast for source level to 17+
+			return (NamedParameterSpec) IuException.uncheckedInvocation(() -> ClassLoader.getPlatformClassLoader()
+					.loadClass("java.security.interfaces.EdECKey").getMethod("getParams").invoke(key));
+	}
+
+	/**
 	 * Enumerates key type.
 	 * 
 	 * @see <a href="https://datatracker.ietf.org/doc/html/rfc7518#section-6.1">RFC
@@ -96,6 +141,34 @@ public interface WebKey extends WebKeyReference {
 		 * NIST P-521 Elliptic Curve.
 		 */
 		EC_P521("EC", "P-521", "secp521r1"),
+
+		/**
+		 * Edwards 25519 Elliptic Curve, for {@link Use#SIGN}.
+		 * 
+		 * @see <a href="https://www.rfc-editor.org/rfc/rfc8037.html">RFC-8037</a>
+		 */
+		ED25519("OKP", "Ed25519", "Ed25519"),
+
+		/**
+		 * Edwards 448 Elliptic Curve, for {@link Use#SIGN}.
+		 * 
+		 * @see <a href="https://www.rfc-editor.org/rfc/rfc8037.html">RFC-8037</a>
+		 */
+		ED448("OKP", "Ed448", "Ed448"),
+
+		/**
+		 * ECDH X25519 Elliptic Curve, for {@link Use#ENCRYPT}.
+		 * 
+		 * @see <a href="https://www.rfc-editor.org/rfc/rfc8037.html">RFC-8037</a>
+		 */
+		X25519("OKP", "X25519", "X25519"),
+
+		/**
+		 * ECDH X448 Elliptic Curve, for {@link Use#ENCRYPT}.
+		 * 
+		 * @see <a href="https://www.rfc-editor.org/rfc/rfc8037.html">RFC-8037</a>
+		 */
+		X448("OKP", "X448", "X448"),
 
 		/**
 		 * RSA encryption or RSASSA-PKCS1-v1_5 signing, minimum 2048 bit.
@@ -121,7 +194,32 @@ public interface WebKey extends WebKeyReference {
 		 */
 		public static Type from(String kty, String crv) {
 			return Stream.of(Type.values()).filter(a -> IuObject.equals(kty, a.kty) //
-					&& IuObject.equals(crv, a.crv)).findFirst().get();
+					&& IuObject.equals(crv, a.crv)).findFirst().orElse(null);
+		}
+
+		/**
+		 * Gets the value equivalent to the JWK kty attribute.
+		 * 
+		 * @param kty             JWK kty attribute value
+		 * @param algorithmParams Standard algorithm parameters name
+		 * @return {@link Type}
+		 */
+		public static Type from(AlgorithmParameterSpec algorithmParams) {
+			if (algorithmParams == null)
+				return null;
+
+			final Predicate<Type> specMatch;
+			if (algorithmParams instanceof NamedParameterSpec) {
+				final var namedSpec = (NamedParameterSpec) algorithmParams;
+				specMatch = type -> {
+					final var typeSpec = algorithmParams(type.algorithmParams);
+					return (typeSpec instanceof NamedParameterSpec)
+							&& ((NamedParameterSpec) typeSpec).getName().equals(namedSpec.getName());
+				};
+			} else
+				specMatch = type -> algorithmParams.equals(algorithmParams(type.algorithmParams));
+
+			return Stream.of(Type.values()).filter(specMatch).findFirst().orElse(null);
 		}
 
 		/**
@@ -135,14 +233,14 @@ public interface WebKey extends WebKeyReference {
 		public final String crv;
 
 		/**
-		 * {@link ECParameterSpec JCE Elliptic Curve parameter} standard curve name.
+		 * Standard algorithm parameter specification name.
 		 */
-		public final String ecParam;
+		public final String algorithmParams;
 
-		private Type(String kty, String crv, String ecParam) {
+		private Type(String kty, String crv, String algorithmParams) {
 			this.kty = kty;
 			this.crv = crv;
-			this.ecParam = ecParam;
+			this.algorithmParams = algorithmParams;
 		}
 	}
 
@@ -264,83 +362,87 @@ public interface WebKey extends WebKeyReference {
 		/**
 		 * HMAC symmetric key signature w/ SHA-256.
 		 */
-		HS256("HS256", "HmacSHA256", 256, Type.RAW, Use.SIGN, Set.of()),
+		HS256("HS256", "HmacSHA256", 256, new Type[] { Type.RAW }, Use.SIGN, Set.of()),
 
 		/**
 		 * HMAC symmetric key signature w/ SHA-384.
 		 */
-		HS384("HS384", "HmacSHA384", 384, Type.RAW, Use.SIGN, Set.of()),
+		HS384("HS384", "HmacSHA384", 384, new Type[] { Type.RAW }, Use.SIGN, Set.of()),
 
 		/**
 		 * HMAC symmetric key signature w/ SHA-512.
 		 */
-		HS512("HS512", "HmacSHA512", 512, Type.RAW, Use.SIGN, Set.of()),
+		HS512("HS512", "HmacSHA512", 512, new Type[] { Type.RAW }, Use.SIGN, Set.of()),
 
 		/**
 		 * RSASSA-PKCS1-v1_5 using SHA-256.
 		 */
 		@Deprecated
-		RS256("RS256", "SHA256withRSA", 256, Type.RSA, Use.SIGN, Set.of()),
+		RS256("RS256", "SHA256withRSA", 256, new Type[] { Type.RSA }, Use.SIGN, Set.of()),
 
 		/**
 		 * RSASSA-PKCS1-v1_5 using SHA-384.
 		 */
 		@Deprecated
-		RS384("RS384", "SHA384withRSA", 384, Type.RSA, Use.SIGN, Set.of()),
+		RS384("RS384", "SHA384withRSA", 384, new Type[] { Type.RSA }, Use.SIGN, Set.of()),
 
 		/**
 		 * RSASSA-PKCS1-v1_5 using SHA-512.
 		 */
 		@Deprecated
-		RS512("RS512", "SHA512withRSA", 512, Type.RSA, Use.SIGN, Set.of()),
+		RS512("RS512", "SHA512withRSA", 512, new Type[] { Type.RSA }, Use.SIGN, Set.of()),
 
 		/**
 		 * Elliptic Curve signature w/ SHA-256.
 		 */
-		ES256("ES256", "SHA256withECDSA", 256, Type.EC_P256, Use.SIGN, Set.of()),
+		ES256("ES256", "SHA256withECDSA", 256,
+				new Type[] { Type.ED25519, Type.ED448, Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.SIGN, Set.of()),
 
 		/**
 		 * Elliptic Curve signature w/ SHA-384.
 		 */
-		ES384("ES384", "SHA384withECDSA", 384, Type.EC_P384, Use.SIGN, Set.of()),
+		ES384("ES384", "SHA384withECDSA", 384,
+				new Type[] { Type.ED25519, Type.ED448, Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.SIGN, Set.of()),
 
 		/**
 		 * Elliptic Curve signature w/ SHA-512.
 		 */
-		ES512("ES512", "SHA512withECDSA", 512, Type.EC_P521, Use.SIGN, Set.of()),
+		ES512("ES512", "SHA512withECDSA", 512,
+				new Type[] { Type.ED25519, Type.ED448, Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.SIGN, Set.of()),
 
 		/**
 		 * RSASSA-PSS using SHA-256 and MGF1 with SHA-256.
 		 */
-		PS256("PS256", "SHA256withRSAandMGF1", 256, Type.RSASSA_PSS, Use.SIGN, Set.of()),
+		PS256("PS256", "SHA256withRSAandMGF1", 256, new Type[] { Type.RSASSA_PSS }, Use.SIGN, Set.of()),
 
 		/**
 		 * RSASSA-PSS using SHA-384 and MGF1 with SHA-384.
 		 */
-		PS384("PS384", "SHA384withRSAandMGF1", 384, Type.RSASSA_PSS, Use.SIGN, Set.of()),
+		PS384("PS384", "SHA384withRSAandMGF1", 384, new Type[] { Type.RSASSA_PSS }, Use.SIGN, Set.of()),
 
 		/**
 		 * RSASSA-PSS using SHA-512 and MGF1 with SHA-512.
 		 */
-		PS512("PS512", "SHA512withRSAandMGF1", 512, Type.RSASSA_PSS, Use.SIGN, Set.of()),
+		PS512("PS512", "SHA512withRSAandMGF1", 512, new Type[] { Type.RSASSA_PSS }, Use.SIGN, Set.of()),
 
 		/**
 		 * RSAES-PKCS1-v1_5.
 		 */
 		@Deprecated
-		RSA1_5("RSA1_5", "RSA/ECB/PKCS1Padding", 2048, Type.RSA, Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
+		RSA1_5("RSA1_5", "RSA/ECB/PKCS1Padding", 2048, new Type[] { Type.RSA }, Use.ENCRYPT,
+				Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * RSAES OAEP w/ default parameters.
 		 */
-		RSA_OAEP("RSA-OAEP", "RSA/ECB/OAEPWithSHA-1AndMGF1Padding", 2048, Type.RSA, Use.ENCRYPT,
+		RSA_OAEP("RSA-OAEP", "RSA/ECB/OAEPWithSHA-1AndMGF1Padding", 2048, new Type[] { Type.RSA }, Use.ENCRYPT,
 				Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * RSAES OAEP w/ SHA-256 and MGF-1.
 		 */
-		RSA_OAEP_256("RSA-OAEP-256", "RSA/ECB/OAEPWithSHA-256AndMGF1Padding", 2048, Type.RSA, Use.ENCRYPT,
-				Set.of(Param.ENCRYPTION, Param.ZIP)),
+		RSA_OAEP_256("RSA-OAEP-256", "RSA/ECB/OAEPWithSHA-256AndMGF1Padding", 2048, new Type[] { Type.RSA },
+				Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * AES-128 GCM Key Wrap.
@@ -349,7 +451,7 @@ public interface WebKey extends WebKeyReference {
 		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
 		 *      Section 4.6</a>
 		 */
-		A128GCMKW("A128GCMKW", "AES/GCM/NoPadding", 128, Type.RAW, Use.ENCRYPT,
+		A128GCMKW("A128GCMKW", "AES/GCM/NoPadding", 128, new Type[] { Type.RAW }, Use.ENCRYPT,
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.INITIALIZATION_VECTOR, Param.TAG)),
 
 		/**
@@ -359,7 +461,7 @@ public interface WebKey extends WebKeyReference {
 		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
 		 *      Section 4.6</a>
 		 */
-		A192GCMKW("A192GCMKW", "AES/GCM/NoPadding", 192, Type.RAW, Use.ENCRYPT,
+		A192GCMKW("A192GCMKW", "AES/GCM/NoPadding", 192, new Type[] { Type.RAW }, Use.ENCRYPT,
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.INITIALIZATION_VECTOR, Param.TAG)),
 		/**
 		 * AES-256 GCM Key Wrap.
@@ -368,28 +470,28 @@ public interface WebKey extends WebKeyReference {
 		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
 		 *      Section 4.6</a>
 		 */
-		A256GCMKW("A256GCMKW", "AES/GCM/NoPadding", 256, Type.RAW, Use.ENCRYPT,
+		A256GCMKW("A256GCMKW", "AES/GCM/NoPadding", 256, new Type[] { Type.RAW }, Use.ENCRYPT,
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.INITIALIZATION_VECTOR, Param.TAG)),
 
 		/**
 		 * AES-128 Key Wrap.
 		 */
-		A128KW("A128KW", "AESWrap", 128, Type.RAW, Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
+		A128KW("A128KW", "AESWrap", 128, new Type[] { Type.RAW }, Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * AES-192 Key Wrap.
 		 */
-		A192KW("A192KW", "AESWrap", 192, Type.RAW, Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
+		A192KW("A192KW", "AESWrap", 192, new Type[] { Type.RAW }, Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * AES-256 Key Wrap.
 		 */
-		A256KW("A256KW", "AESWrap", 256, Type.RAW, Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
+		A256KW("A256KW", "AESWrap", 256, new Type[] { Type.RAW }, Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * Direct use (as CEK).
 		 */
-		DIRECT("dir", null, 256, Type.RAW, Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
+		DIRECT("dir", null, 256, new Type[] { Type.RAW }, Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * Elliptic Curve Diffie-Hellman Ephemeral Static key agreement.
@@ -398,7 +500,8 @@ public interface WebKey extends WebKeyReference {
 		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
 		 *      Section 4.6</a>
 		 */
-		ECDH_ES("ECDH-ES", "ECDH", 0, Type.EC_P256, Use.ENCRYPT,
+		ECDH_ES("ECDH-ES", "ECDH", 0, new Type[] { Type.X25519, Type.X448, Type.EC_P256, Type.EC_P384, Type.EC_P521 },
+				Use.ENCRYPT,
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.EPHEMERAL_PUBLIC_KEY, Param.PARTY_UINFO, Param.PARTY_VINFO)),
 
 		/**
@@ -409,7 +512,8 @@ public interface WebKey extends WebKeyReference {
 		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
 		 *      Section 4.6</a>
 		 */
-		ECDH_ES_A128KW("ECDH-ES+A128KW", "ECDH", 128, Type.EC_P256, Use.ENCRYPT,
+		ECDH_ES_A128KW("ECDH-ES+A128KW", "ECDH", 128,
+				new Type[] { Type.X25519, Type.X448, Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.ENCRYPT,
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.EPHEMERAL_PUBLIC_KEY, Param.PARTY_UINFO, Param.PARTY_VINFO)),
 
 		/**
@@ -420,7 +524,8 @@ public interface WebKey extends WebKeyReference {
 		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
 		 *      Section 4.6</a>
 		 */
-		ECDH_ES_A192KW("ECDH-ES+A192KW", "ECDH", 192, Type.EC_P384, Use.ENCRYPT,
+		ECDH_ES_A192KW("ECDH-ES+A192KW", "ECDH", 192,
+				new Type[] { Type.X25519, Type.X448, Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.ENCRYPT,
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.EPHEMERAL_PUBLIC_KEY, Param.PARTY_UINFO, Param.PARTY_VINFO)),
 
 		/**
@@ -431,25 +536,26 @@ public interface WebKey extends WebKeyReference {
 		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
 		 *      Section 4.6</a>
 		 */
-		ECDH_ES_A256KW("ECDH-ES+A256KW", "ECDH", 256, Type.EC_P521, Use.ENCRYPT,
+		ECDH_ES_A256KW("ECDH-ES+A256KW", "ECDH", 256, new Type[] { Type.EC_P521, Type.EC_P256, Type.EC_P384 },
+				Use.ENCRYPT,
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.EPHEMERAL_PUBLIC_KEY, Param.PARTY_UINFO, Param.PARTY_VINFO)),
 
 		/**
 		 * PBKDF2 with HMAC SHA-256 and AES128 key wrap.
 		 */
-		PBES2_HS256_A128KW("PBES2-HS256+A128KW", "PBKDF2WithHmacSHA256", 128, Type.RAW, Use.ENCRYPT,
+		PBES2_HS256_A128KW("PBES2-HS256+A128KW", "PBKDF2WithHmacSHA256", 128, new Type[] { Type.RAW }, Use.ENCRYPT,
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.PASSWORD_SALT, Param.PASSWORD_COUNT)),
 
 		/**
 		 * PBKDF2 with HMAC SHA-384 and AES192 key wrap.
 		 */
-		PBES2_HS384_A192KW("PBES2-HS384+A192KW", "PBKDF2WithHmacSHA384", 192, Type.RAW, Use.ENCRYPT,
+		PBES2_HS384_A192KW("PBES2-HS384+A192KW", "PBKDF2WithHmacSHA384", 192, new Type[] { Type.RAW }, Use.ENCRYPT,
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.PASSWORD_SALT, Param.PASSWORD_COUNT)),
 
 		/**
 		 * PBKDF2 with HMAC SHA-512 and AES192 key wrap.
 		 */
-		PBES2_HS512_A256KW("PBES2-HS512+A256KW", "PBKDF2WithHmacSHA512", 256, Type.RAW, Use.ENCRYPT,
+		PBES2_HS512_A256KW("PBES2-HS512+A256KW", "PBKDF2WithHmacSHA512", 256, new Type[] { Type.RAW }, Use.ENCRYPT,
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.PASSWORD_SALT, Param.PASSWORD_COUNT));
 
 		/**
@@ -486,7 +592,7 @@ public interface WebKey extends WebKeyReference {
 		/**
 		 * Key type associated with this algorithm.
 		 */
-		public final Type type;
+		public final Type[] type;
 
 		/**
 		 * Key usage associated with this algorithm.
@@ -498,7 +604,7 @@ public interface WebKey extends WebKeyReference {
 		 */
 		public final Set<Param> encryptionParams;
 
-		private Algorithm(String alg, String algorithm, int size, Type type, Use use, Set<Param> encryptionParams) {
+		private Algorithm(String alg, String algorithm, int size, Type[] type, Use use, Set<Param> encryptionParams) {
 			this.alg = alg;
 			this.algorithm = algorithm;
 			this.size = size;
@@ -514,6 +620,14 @@ public interface WebKey extends WebKeyReference {
 	 * @param <B> builder type
 	 */
 	interface Builder<B extends Builder<B>> extends WebKeyReference.Builder<B> {
+		/**
+		 * Sets the key type.
+		 * 
+		 * @param type key type
+		 * @return this
+		 */
+		B type(Type type);
+
 		/**
 		 * Sets the public key use.
 		 *
@@ -612,7 +726,7 @@ public interface WebKey extends WebKeyReference {
 
 		final var algorithm = webKey.getAlgorithm();
 		if (algorithm != null //
-				&& !type.equals(algorithm.type))
+				&& !Stream.of(algorithm.type).anyMatch(type::equals))
 			throw new IllegalArgumentException("Incorrect type " + type + " for algorithm " + algorithm);
 
 		final var cert = IuObject.convert(WebCertificateReference.verify(webKey), a -> a[0]);
@@ -624,30 +738,28 @@ public interface WebKey extends WebKeyReference {
 			return null;
 		}
 
+		if (key != null)
+			throw new IllegalArgumentException("Unexpected raw key data for " + type);
+
 		var publicKey = IuObject.first(webKey.getPublicKey(), //
 				IuObject.convert(cert, X509Certificate::getPublicKey), //
 				() -> "public key doesn't match X.509 certificate");
+		var params = algorithmParams(publicKey);
 
 		final var privateKey = webKey.getPrivateKey();
-		if (type.kty.equals("EC")) {
-			if (key != null)
-				throw new IllegalArgumentException("Unexpected raw key data for " + type);
+		final var privateParams = algorithmParams(privateKey);
+		if (params == null)
+			params = privateParams;
+		else if (params instanceof NamedParameterSpec) {
+			final var namedSpec = (NamedParameterSpec) params;
+			if (privateParams != null && //
+					!namedSpec.getName().equals(((NamedParameterSpec) privateParams).getName()))
+				throw new IllegalArgumentException("parameter spec mismatch");
+		} else if (privateParams != null && //
+				!params.equals(privateParams))
+			throw new IllegalArgumentException("parameter spec mismatch");
 
-			final Predicate<ECKey> checkECParam = IuException.unchecked(() -> {
-				final var algorithmParamters = AlgorithmParameters.getInstance("EC");
-				algorithmParamters.init(new ECGenParameterSpec(type.ecParam));
-				final var spec = algorithmParamters.getParameterSpec(ECParameterSpec.class);
-				return a -> spec.equals(a.getParams());
-			});
-
-			IuObject.require(IuObject.requireType(ECPrivateKey.class, privateKey), checkECParam,
-					() -> "Unexpected private EC key parameters for " + type);
-			IuObject.require(IuObject.requireType(ECPublicKey.class, publicKey), checkECParam,
-					() -> "Unexpected public EC key parameters for " + type);
-		} else {
-			if (key != null)
-				throw new IllegalArgumentException("Unexpected raw key data for " + type);
-
+		if ((publicKey instanceof RSAPublicKey) || (privateKey instanceof RSAPrivateKey)) {
 			final var rsaPrivate = IuObject.requireType(RSAPrivateKey.class, privateKey);
 			final var rsaPublic = IuObject.requireType(RSAPublicKey.class, publicKey);
 			if (rsaPrivate != null)
@@ -662,7 +774,8 @@ public interface WebKey extends WebKeyReference {
 					publicKey = IuException.unchecked(
 							() -> (RSAPublicKey) KeyFactory.getInstance(type.kty).generatePublic(new RSAPublicKeySpec(
 									rsaPrivate.getModulus(), ((RSAPrivateCrtKey) rsaPrivate).getPublicExponent())));
-		}
+		} else if ((publicKey != null || privateKey != null) && params == null)
+			throw new IllegalArgumentException("Missing algorithm parameters");
 
 		return publicKey;
 	}
@@ -674,7 +787,7 @@ public interface WebKey extends WebKeyReference {
 	 * @return {@link Builder}
 	 */
 	static Builder<?> builder(Type type) {
-		return new JwkBuilder(type);
+		return new JwkBuilder().type(type);
 	}
 
 	/**
@@ -691,7 +804,7 @@ public interface WebKey extends WebKeyReference {
 	 * @return JWE recipient or JWS issuer key
 	 */
 	static Builder<?> builder(Algorithm algorithm) {
-		return builder(algorithm.type).algorithm(algorithm);
+		return builder(algorithm.type[0]).algorithm(algorithm);
 	}
 
 	/**
@@ -726,7 +839,7 @@ public interface WebKey extends WebKeyReference {
 	 * @return JWE recipient or JWS issuer key
 	 */
 	static WebKey ephemeral(Algorithm algorithm) {
-		return builder(algorithm.type).ephemeral(algorithm).build();
+		return builder(algorithm.type[0]).ephemeral(algorithm).build();
 	}
 
 	/**

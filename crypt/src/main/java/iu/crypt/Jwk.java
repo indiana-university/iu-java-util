@@ -33,21 +33,23 @@ package iu.crypt;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.math.BigInteger;
 import java.net.URI;
-import java.security.AlgorithmParameters;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
 import java.security.spec.ECPoint;
 import java.security.spec.ECPrivateKeySpec;
 import java.security.spec.ECPublicKeySpec;
 import java.security.spec.KeySpec;
+import java.security.spec.NamedParameterSpec;
 import java.security.spec.RSAPrivateCrtKeySpec;
 import java.security.spec.RSAPrivateKeySpec;
 import java.security.spec.RSAPublicKeySpec;
+import java.security.spec.XECPrivateKeySpec;
+import java.security.spec.XECPublicKeySpec;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
@@ -195,30 +197,67 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 		});
 	}
 
+	private static KeyPair readXEC(byte[] x, byte[] d, NamedParameterSpec namedSpec) {
+		final var keyFactory = IuException.unchecked(() -> KeyFactory.getInstance(namedSpec.getName()));
+		return new KeyPair(IuObject.convert(x, u -> IuException.unchecked(() -> {
+			final var a = EncodingUtils.reverse(u);
+			if (namedSpec.getName().equals(Type.X25519.algorithmParams))
+				a[0] &= 0x7f;
+			return keyFactory.generatePublic(new XECPublicKeySpec(namedSpec, UnsignedBigInteger.bigInt(a)));
+		})), IuObject.convert(d,
+				s -> IuException.unchecked(() -> keyFactory.generatePrivate(new XECPrivateKeySpec(namedSpec, s)))));
+	}
+
+	private static KeyPair readEdEC(byte[] x, byte[] d, NamedParameterSpec namedSpec) {
+		final var keyFactory = IuException.unchecked(() -> KeyFactory.getInstance(namedSpec.getName()));
+		return new KeyPair(IuObject.convert(x, a -> IuException.unchecked(() -> {
+			// Convert from RFC-8032 encoded format to JCE EdECPublicKeySpec
+			// https://datatracker.ietf.org/doc/html/rfc8032#section-5.1.2
+			// https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/security/spec/EdECPoint.html
+			final var y = EncodingUtils.reverse(a); // convert from little- to big-endian
+			final var xodd = (y[0] & 0x80) != 0; // checks least-significant (odd) x bit
+			y[0] &= 0x7f; // clear x-odd from unsigned big-endian integer encoding
+			final var yint = UnsignedBigInteger.bigInt(y); // decode y-axis value
+
+			// EdDSA support was introduced in JDK 15, not supported by JDK 11
+			// TODO: convert to compiled code for source level 17+
+			final var pointClass = ClassLoader.getPlatformClassLoader().loadClass("java.security.spec.EdECPoint");
+			return keyFactory.generatePublic(
+					(KeySpec) ClassLoader.getPlatformClassLoader().loadClass("java.security.spec.EdECPublicKeySpec")
+							.getConstructor(NamedParameterSpec.class, pointClass).newInstance(namedSpec,
+									pointClass.getConstructor(Boolean.TYPE, BigInteger.class).newInstance(xodd, yint)));
+		})), IuObject.convert(d,
+				s -> IuException.unchecked(() -> keyFactory.generatePrivate((KeySpec) ClassLoader
+						.getPlatformClassLoader().loadClass("java.security.spec.EdECPrivateKeySpec")
+						.getConstructor(NamedParameterSpec.class, byte[].class).newInstance(namedSpec, s)))));
+	}
+
 	private static KeyPair readEC(Type type, JsonObject parsedJwk) {
 		return IuException.unchecked(() -> {
-			final var algorithmParamters = AlgorithmParameters.getInstance("EC");
-			algorithmParamters.init(new ECGenParameterSpec(type.ecParam));
-			final var spec = algorithmParamters.getParameterSpec(ECParameterSpec.class);
+			final var x = IuJson.get(parsedJwk, "x", UnpaddedBinary.JSON);
+			final var d = IuJson.get(parsedJwk, "d", UnpaddedBinary.JSON);
 
-			final var keyFactory = KeyFactory.getInstance("EC");
-			final var x = IuJson.get(parsedJwk, "x", UnsignedBigInteger.JSON);
-			final PublicKey pub;
-			if (x != null) {
-				final var w = new ECPoint(x,
-						Objects.requireNonNull(IuJson.get(parsedJwk, "y", UnsignedBigInteger.JSON), "y"));
-				pub = keyFactory.generatePublic(new ECPublicKeySpec(w, spec));
+			final var spec = WebKey.algorithmParams(type.algorithmParams);
+			if (spec instanceof NamedParameterSpec)
+				if (type.algorithmParams.startsWith("X"))
+					return readXEC(x, d, (NamedParameterSpec) spec);
+				else
+					return readEdEC(x, d, (NamedParameterSpec) spec);
+			else if (spec instanceof ECParameterSpec) {
+				final var keyFactory = IuException.unchecked(() -> KeyFactory.getInstance("EC"));
+				return new KeyPair(
+						IuObject.convert(x,
+								a -> IuException
+										.unchecked(
+												() -> keyFactory.generatePublic(new ECPublicKeySpec(
+														new ECPoint(UnsignedBigInteger.bigInt(a),
+																Objects.requireNonNull(IuJson.get(parsedJwk, "y",
+																		UnsignedBigInteger.JSON), "y")),
+														(ECParameterSpec) spec)))),
+						IuObject.convert(d, a -> IuException.unchecked(() -> keyFactory.generatePrivate(
+								new ECPrivateKeySpec(UnsignedBigInteger.bigInt(a), (ECParameterSpec) spec)))));
 			} else
-				pub = null;
-
-			final PrivateKey priv;
-			if (parsedJwk.containsKey("d"))
-				priv = keyFactory.generatePrivate(new ECPrivateKeySpec(
-						Objects.requireNonNull(IuJson.get(parsedJwk, "d", UnsignedBigInteger.JSON), "d"), spec));
-			else
-				priv = null;
-
-			return new KeyPair(pub, priv);
+				throw new IllegalArgumentException("Not an EC type " + type);
 		});
 	}
 
@@ -241,13 +280,17 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 				"Key type is required");
 
 		this.use = IuJson.get(jwk, "use", Use.JSON);
-		this.ops = IuJson.get(jwk, "key_ops", IuJsonAdapter.of(Set.class, Operation.JSON));
+		this.ops = IuJson.get(jwk, "key_ops", IuJsonAdapter.<Set<Operation>>of(Set.class, Operation.JSON));
 		this.key = IuJson.get(jwk, "k", UnpaddedBinary.JSON);
 
 		switch (type) {
 		case EC_P256:
 		case EC_P384:
-		case EC_P521: {
+		case EC_P521:
+		case ED25519:
+		case ED448:
+		case X25519:
+		case X448: {
 			final var keyPair = readEC(type, jwk);
 			this.publicKey = keyPair.getPublic();
 			this.privateKey = keyPair.getPrivate();
@@ -325,7 +368,7 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 		if (privateKey == null && key == null && publicKey != null)
 			return this;
 
-		final var jwkBuilder = new JwkBuilder(type);
+		final var jwkBuilder = new JwkBuilder().type(type);
 		IuObject.convert(getCertificateUri(), jwkBuilder::cert);
 		IuObject.convert(verifiedCertificateChain(), jwkBuilder::cert);
 		IuObject.convert(getCertificateThumbprint(), jwkBuilder::x5t);
@@ -373,7 +416,7 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 		IuJson.add(jwkBuilder, "use", () -> use, Use.JSON);
 		IuJson.add(jwkBuilder, "key_ops", () -> ops, IuJsonAdapter.of(Set.class, Operation.JSON));
 
-		final var builder = new JwkBuilder(type);
+		final var builder = new JwkBuilder().type(type);
 		IuObject.convert(key, builder::key);
 		IuObject.convert(publicKey, builder::key);
 		IuObject.convert(privateKey, builder::key);

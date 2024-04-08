@@ -90,9 +90,9 @@ public class JwkTest extends IuCryptTestCase {
 	@Test
 	public void testBadKeys() {
 		final var pub = mock(PublicKey.class);
-		assertThrows(UnsupportedOperationException.class, () -> new JwkBuilder(Type.RAW).key(pub));
+		assertThrows(NullPointerException.class, () -> new JwkBuilder().key(pub));
 		final var priv = mock(PrivateKey.class);
-		assertThrows(UnsupportedOperationException.class, () -> new JwkBuilder(Type.RAW).key(priv));
+		assertThrows(NullPointerException.class, () -> new JwkBuilder().key(priv));
 	}
 
 	@Test
@@ -100,13 +100,13 @@ public class JwkTest extends IuCryptTestCase {
 		final var rsa = (RSAPrivateCrtKey) EphemeralKeys.rsa("RSA", 2048).getPrivate();
 		final var noCrt = KeyFactory.getInstance("RSA")
 				.generatePrivate(new RSAPrivateKeySpec(rsa.getModulus(), rsa.getPrivateExponent()));
-		assertEquals(noCrt, new JwkBuilder(Type.RSA).key(noCrt).build().getPrivateKey());
+		assertEquals(noCrt, new JwkBuilder().key(noCrt).build().getPrivateKey());
 	}
 
 	@Test
 	public void testRsaNoPrivate() throws InvalidKeySpecException, NoSuchAlgorithmException {
 		final var rsa = EphemeralKeys.rsa("RSA", 2048).getPublic();
-		assertEquals(rsa, new JwkBuilder(Type.RSA).key(rsa).build().getPublicKey());
+		assertEquals(rsa, new JwkBuilder().key(rsa).build().getPublicKey());
 	}
 
 	@Test
@@ -119,8 +119,8 @@ public class JwkTest extends IuCryptTestCase {
 
 	@Test
 	public void testECNoPub() throws InvalidKeySpecException, NoSuchAlgorithmException {
-		final var key = EphemeralKeys.ec(Type.EC_P256.ecParam).getPrivate();
-		assertEquals(key, new JwkBuilder(Type.EC_P256).key(key).build().getPrivateKey());
+		final var key = EphemeralKeys.ec(WebKey.algorithmParams(Type.EC_P256.algorithmParams)).getPrivate();
+		assertEquals(key, new JwkBuilder().key(key).build().getPrivateKey());
 	}
 
 	@Test
@@ -138,21 +138,21 @@ public class JwkTest extends IuCryptTestCase {
 		final var pub = cert.getPublicKey();
 		final var text = new StringBuilder();
 		PemEncoded.serialize(new KeyPair(pub, null)).forEachRemaining(text::append);
-		assertEquals(pub, WebKey.verify(new JwkBuilder(Type.EC_P384).pem(text.toString()).build()));
+		assertEquals(pub, WebKey.verify(new JwkBuilder().type(Type.EC_P384).pem(text.toString()).build()));
 
 		PemEncoded.serialize(new KeyPair(pub, priv), cert).forEachRemaining(text::append);
-		final var jwk = new JwkBuilder(Type.EC_P384).pem(text.toString()).build();
-		assertEquals(jwk,
-				new JwkBuilder(Type.EC_P384).pem(new ByteArrayInputStream(IuText.utf8(text.toString()))).build());
+		final var jwk = new JwkBuilder().type(Type.EC_P384).pem(text.toString()).build();
+		assertEquals(jwk, new JwkBuilder().type(Type.EC_P384)
+				.pem(new ByteArrayInputStream(IuText.utf8(text.toString()))).build());
 	}
 
 	@Test
 	public void testEqualsHashCode() {
 		for (final var alg : Set.of(Algorithm.DIRECT, Algorithm.RSA_OAEP_256, Algorithm.ECDH_ES_A192KW)) {
 			final var ao = (Jwk) (alg.equals(Algorithm.DIRECT)
-					? WebKey.builder(alg.type).ephemeral(IuTest.rand(Encryption.class)).use(Use.ENCRYPT)
+					? WebKey.builder(alg).ephemeral(IuTest.rand(Encryption.class)).use(Use.ENCRYPT)
 							.ops(Operation.ENCRYPT)
-					: WebKey.builder(alg.type).ephemeral(alg).use(alg.use).ops(IuTest.rand(Operation.class),
+					: WebKey.builder(alg).ephemeral(alg).use(alg.use).ops(IuTest.rand(Operation.class),
 							IuTest.rand(Operation.class)))
 					.build();
 			final var type = ao.getType();
@@ -162,9 +162,9 @@ public class JwkTest extends IuCryptTestCase {
 			final var a = ab.build();
 
 			final var bo = (Jwk) (alg.equals(Algorithm.DIRECT)
-					? WebKey.builder(alg.type).ephemeral(IuTest.rand(Encryption.class)).use(Use.ENCRYPT)
+					? WebKey.builder(alg).ephemeral(IuTest.rand(Encryption.class)).use(Use.ENCRYPT)
 							.ops(Operation.ENCRYPT)
-					: WebKey.builder(alg.type).ephemeral(alg).use(alg.use).ops(IuTest.rand(Operation.class),
+					: WebKey.builder(alg).ephemeral(alg).use(alg.use).ops(IuTest.rand(Operation.class),
 							IuTest.rand(Operation.class)))
 					.build();
 
@@ -176,9 +176,9 @@ public class JwkTest extends IuCryptTestCase {
 			assertNotEquals(ao.hashCode(), bo.hashCode());
 
 			assertFalse(ao.represents(
-					(Jwk) WebKey.builder(alg.type).use(alg.use == Use.ENCRYPT ? Use.SIGN : Use.ENCRYPT).build()));
-			assertFalse(((Jwk) WebKey.builder(alg.type).keyId(IdGenerator.generateId()).build())
-					.represents((Jwk) WebKey.builder(alg.type).keyId(IdGenerator.generateId()).build()));
+					(Jwk) WebKey.builder(alg).use(alg.use == Use.ENCRYPT ? Use.SIGN : Use.ENCRYPT).build()));
+			assertFalse(((Jwk) WebKey.builder(alg).keyId(IdGenerator.generateId()).build())
+					.represents((Jwk) WebKey.builder(alg).keyId(IdGenerator.generateId()).build()));
 
 			final var altRsa = (Jwk) WebKey.ephemeral(Algorithm.RSA_OAEP);
 			final var altEc = (Jwk) WebKey.ephemeral(Algorithm.ES384);
@@ -282,16 +282,17 @@ public class JwkTest extends IuCryptTestCase {
 
 	@Test
 	public void testEphemerals() {
-		assertThrows(UnsupportedOperationException.class, () -> new JwkBuilder(Type.RAW).ephemeral(Algorithm.DIRECT));
-		for (Algorithm algorithm : Algorithm.values()) {
-			if (algorithm.equals(Algorithm.DIRECT))
-				for (Encryption encryption : Encryption.values())
-					assertEphemeral(
-							new JwkBuilder(algorithm.type).keyId(IdGenerator.generateId()).ephemeral(encryption).build());
-			else
-				assertEphemeral(
-						new JwkBuilder(algorithm.type).keyId(IdGenerator.generateId()).ephemeral(algorithm).build());
-		}
+		assertThrows(UnsupportedOperationException.class, () -> new JwkBuilder().ephemeral(Algorithm.DIRECT));
+		for (int i = 0; i < 4; i++)
+			for (Algorithm algorithm : Algorithm.values()) {
+				if (algorithm.equals(Algorithm.DIRECT))
+					for (Encryption encryption : Encryption.values())
+						assertEphemeral(new JwkBuilder().keyId(IdGenerator.generateId()).ephemeral(encryption).build());
+				else
+					for (Type type : algorithm.type)
+						assertEphemeral(new JwkBuilder().type(type).keyId(IdGenerator.generateId()).ephemeral(algorithm)
+								.build());
+			}
 	}
 
 	private void assertEphemeral(Jwk jwk) {

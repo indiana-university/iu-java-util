@@ -204,15 +204,6 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 	}
 
 	/**
-	 * Gets extended parameters as a JSON object.
-	 * 
-	 * @return {@link JsonObject}
-	 */
-	JsonObject extendedParameters() {
-		return extendedParameters;
-	}
-
-	/**
 	 * Gets the JOSE header as JSON.
 	 * 
 	 * @param nameFilter accepts standard or extended param name and returns true to

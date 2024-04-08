@@ -111,6 +111,23 @@ class EncodingUtils {
 		return buffer.array();
 	}
 
+	/**
+	 * Reverses byte order
+	 * 
+	 * @param bytes big-endian data (or vice-versa)
+	 * @return little-endian data (or vice-versa)
+	 */
+	static byte[] reverse(byte[] bytes) {
+		final int l;
+		if (bytes == null || (l = bytes.length) <= 1)
+			return bytes;
+
+		final var b = new byte[l];
+		for (var i = 0; i < l; i++)
+			b[i] = bytes[l - i - 1];
+		return b;
+	}
+
 	private EncodingUtils() {
 	}
 }

@@ -36,7 +36,9 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
 import java.security.Security;
-import java.security.spec.ECGenParameterSpec;
+import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.ECParameterSpec;
+import java.security.spec.NamedParameterSpec;
 
 import javax.crypto.KeyGenerator;
 
@@ -84,15 +86,20 @@ public class EphemeralKeys {
 	/**
 	 * Generates a random Elliptic Curve (EC) key.
 	 * 
-	 * @param param EC paramter spec name
+	 * @param param EC parameter spec
 	 * @return {@link KeyPair}
 	 */
-	public static final KeyPair ec(String param) {
+	public static final KeyPair ec(AlgorithmParameterSpec param) {
 		return IuException.unchecked(() -> {
-			final var gen = KeyPairGenerator.getInstance("EC");
-			gen.initialize(new ECGenParameterSpec(param));
-			return gen.generateKeyPair();
-		});
+			if (param instanceof NamedParameterSpec)
+				return KeyPairGenerator.getInstance(((NamedParameterSpec) param).getName());
+			else if (param instanceof ECParameterSpec) {
+				final var gen = KeyPairGenerator.getInstance("EC");
+				gen.initialize(param);
+				return gen;
+			} else
+				throw new IllegalArgumentException();
+		}).generateKeyPair();
 	}
 
 	/**
