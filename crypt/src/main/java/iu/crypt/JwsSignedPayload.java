@@ -33,6 +33,7 @@ package iu.crypt;
 
 import java.util.Iterator;
 
+import edu.iu.client.IuJson;
 import edu.iu.crypt.WebSignedPayload;
 
 /**
@@ -72,6 +73,33 @@ class JwsSignedPayload implements WebSignedPayload {
 			throw new IllegalStateException("Must have only one signature to use compact serialization");
 
 		return signature.getSignatureInput(payload) + '.' + UnpaddedBinary.base64Url(signature.getSignature());
+	}
+
+	@Override
+	public String toString() {
+		final var json = IuJson.object();
+		IuJson.add(json, "payload", () -> payload, UnpaddedBinary.JSON);
+
+		final var signatureIterator = signatures.iterator();
+		var signature = signatureIterator.next();
+		if (signatureIterator.hasNext()) {
+			final var signatures = IuJson.array();
+			var first = true;
+			do {
+				if (first)
+					first = false;
+				else
+					signature = signatureIterator.next();
+
+				final var s = IuJson.object();
+				signature.serializeTo(s);
+				signatures.add(s);
+			} while (signatureIterator.hasNext());
+			json.add("signatures", signatures);
+		} else
+			signature.serializeTo(json);
+
+		return json.build().toString();
 	}
 
 }

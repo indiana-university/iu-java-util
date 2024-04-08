@@ -136,6 +136,7 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 		case ES256:
 		case ES384:
 		case ES512:
+		case EDDSA:
 			key(EphemeralKeys.ec(Objects.requireNonNull(WebKey.algorithmParams(type().algorithmParams),
 					() -> type() + " not supported")));
 			break;
@@ -325,16 +326,19 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 	}
 
 	private void pem(Iterator<PemEncoded> pem) {
+		final var type = type();
+		final var keyAlg = type.kty.equals("OKP") ? type.algorithmParams : type.kty;
 		final Queue<X509Certificate> certChain = new ArrayDeque<>();
 		while (pem.hasNext()) {
 			final var next = pem.next();
+
 			switch (next.getKeyType()) {
 			case PRIVATE_KEY:
-				key(next.asPrivate(type()));
+				key(next.asPrivate(keyAlg));
 				break;
 
 			case PUBLIC_KEY:
-				key(next.asPublic(type()));
+				key(next.asPublic(keyAlg));
 				break;
 
 			case CERTIFICATE:

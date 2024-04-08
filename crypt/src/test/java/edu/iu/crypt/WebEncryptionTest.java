@@ -54,6 +54,7 @@ import edu.iu.IuIterable;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebCryptoHeader.Extension;
+import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
@@ -112,9 +113,10 @@ public class WebEncryptionTest {
 		final var original = WebEncryption.builder(Encryption.A256GCM, false) //
 				.addRecipient(Algorithm.A256GCMKW).key(key1).then() //
 				.addRecipient(Algorithm.RSA_OAEP_256).key(key2).then() //
-				.addRecipient(Algorithm.ECDH_ES_A192KW).key(key3).then() //
-				.encrypt(id);
-		final var jwe = WebEncryption.parse(original.toString());
+				.addRecipient(Algorithm.ECDH_ES_A192KW).key(key3).then();
+		assertThrows(IllegalStateException.class, () -> original.compact());
+		assertThrows(IllegalStateException.class, () -> original.protect(Param.ALGORITHM));
+		final var jwe = WebEncryption.parse(original.encrypt(id).toString());
 
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for {\"kty\":\"oct\"}");
 		assertEquals(id, jwe.decryptText(key1));

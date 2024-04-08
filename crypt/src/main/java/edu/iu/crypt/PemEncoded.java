@@ -40,8 +40,6 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.security.interfaces.ECPrivateKey;
-import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
@@ -62,7 +60,6 @@ import edu.iu.IuText;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
-import edu.iu.crypt.WebKey.Type;
 import jakarta.json.JsonString;
 
 /**
@@ -301,40 +298,28 @@ public final class PemEncoded {
 	 * Gets the key as a public key when {@link #keyType} is
 	 * {@link KeyType#PUBLIC_KEY}.
 	 * 
-	 * @param type JWK key type
+	 * @param algorithm {@link KeyFactory} algorithm
 	 * @return public key
 	 */
-	public PublicKey asPublic(Type type) {
+	public PublicKey asPublic(String algorithm) {
 		if (!keyType.equals(KeyType.PUBLIC_KEY))
 			throw new IllegalStateException();
-		return IuException.unchecked(() -> {
-			final var key = KeyFactory.getInstance(type.kty.equals("OKP") ? type.algorithmParams : type.kty)
-					.generatePublic(new X509EncodedKeySpec(encoded));
-			if ((key instanceof ECPublicKey)
-					&& !((ECPublicKey) key).getParams().equals(WebKey.algorithmParams(type.algorithmParams)))
-				throw new IllegalArgumentException("Invalid EC curve, expected " + type.algorithmParams);
-			return key;
-		});
+		return IuException
+				.unchecked(() -> KeyFactory.getInstance(algorithm).generatePublic(new X509EncodedKeySpec(encoded)));
 	}
 
 	/**
 	 * Gets the key as a private key when {@link #keyType} is
 	 * {@link KeyType#PRIVATE_KEY}.
 	 * 
-	 * @param type JWK key type
+	 * @param algorithm {@link KeyFactory} algorithm
 	 * @return private key
 	 */
-	public PrivateKey asPrivate(Type type) {
+	public PrivateKey asPrivate(String algorithm) {
 		if (!keyType.equals(KeyType.PRIVATE_KEY))
 			throw new IllegalStateException();
-		return IuException.unchecked(() -> {
-			final var key = KeyFactory.getInstance(type.kty.equals("OKP") ? type.algorithmParams : type.kty)
-					.generatePrivate(new PKCS8EncodedKeySpec(encoded));
-			if ((key instanceof ECPrivateKey)
-					&& !((ECPrivateKey) key).getParams().equals(WebKey.algorithmParams(type.algorithmParams)))
-				throw new IllegalArgumentException("Invalid EC curve, expected " + type.algorithmParams);
-			return key;
-		});
+		return IuException
+				.unchecked(() -> KeyFactory.getInstance(algorithm).generatePrivate(new PKCS8EncodedKeySpec(encoded)));
 	}
 
 	/**

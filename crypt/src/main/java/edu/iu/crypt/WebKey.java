@@ -418,17 +418,17 @@ public interface WebKey extends WebKeyReference {
 		/**
 		 * RSASSA-PSS using SHA-256 and MGF1 with SHA-256.
 		 */
-		PS256("PS256", "SHA256withRSAandMGF1", 256, new Type[] { Type.RSASSA_PSS }, Use.SIGN, Set.of()),
+		PS256("PS256", "RSASSA-PSS", 256, new Type[] { Type.RSASSA_PSS }, Use.SIGN, Set.of()),
 
 		/**
 		 * RSASSA-PSS using SHA-384 and MGF1 with SHA-384.
 		 */
-		PS384("PS384", "SHA384withRSAandMGF1", 384, new Type[] { Type.RSASSA_PSS }, Use.SIGN, Set.of()),
+		PS384("PS384", "RSASSA-PSS", 384, new Type[] { Type.RSASSA_PSS }, Use.SIGN, Set.of()),
 
 		/**
 		 * RSASSA-PSS using SHA-512 and MGF1 with SHA-512.
 		 */
-		PS512("PS512", "SHA512withRSAandMGF1", 512, new Type[] { Type.RSASSA_PSS }, Use.SIGN, Set.of()),
+		PS512("PS512", "RSASSA-PSS", 512, new Type[] { Type.RSASSA_PSS }, Use.SIGN, Set.of()),
 
 		/**
 		 * RSAES-PKCS1-v1_5.

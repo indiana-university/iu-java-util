@@ -136,7 +136,7 @@ public class JwkTest extends IuCryptTestCase {
 
 	@Test
 	public void testPem() {
-		final var priv = PemEncoded.parse(EC_PRIVATE_KEY).next().asPrivate(Type.EC_P384);
+		final var priv = PemEncoded.parse(EC_PRIVATE_KEY).next().asPrivate("EC");
 		final var cert = PemEncoded.parse(ANOTHER_CERT_TEXT).next().asCertificate();
 		final var pub = cert.getPublicKey();
 		final var text = new StringBuilder();

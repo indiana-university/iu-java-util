@@ -33,7 +33,6 @@ package iu.crypt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -144,7 +143,7 @@ public class JoseTest extends IuCryptTestCase {
 	public void testToString() {
 		final var jose = jose(Algorithm.HS512).key(WebKey.ephemeral(Algorithm.HS512)).build();
 		final var fromJose = jose.toString();
-		assertNotNull(jose.getKey().getKey());
+		assertNull(jose.getKey().getKey());
 		assertNull(new Jose(IuJson.parse(fromJose).asJsonObject()).getKey().getKey());
 	}
 
@@ -161,183 +160,8 @@ public class JoseTest extends IuCryptTestCase {
 		final var key = WebKey.ephemeral(Algorithm.ES512);
 		final var jose = jose(Algorithm.ES512).key(key).param(extName, value).build();
 		final var fromJose = jose.toString();
-		assertNotNull(jose.getKey().getPrivateKey());
+		assertNull(jose.getKey().getPrivateKey()); // JOSE never holds secret/private keys
 		assertNull(new Jose(IuJson.parse(fromJose).asJsonObject()).getKey().getKey());
 	}
-
-//	@SuppressWarnings("unchecked")
-//	@Test
-//	public void testUnderstood() {
-//		final var id = IdGenerator.generateId();
-//		final var ext = mock(Extension.class);
-//		JoseBuilder.register(id, ext);
-//		assertFalse(Jose.isUnderstood("alg"));
-//		assertTrue(Jose.isUnderstood("p2s"));
-//		assertFalse(Jose.isUnderstood("foo"));
-//		assertTrue(Jose.isUnderstood(id));
-//	}
-//
-//
-//	@Test
-//	public void testJwkUri() {
-//		final var builder = new Builder();
-//		builder.algorithm(Algorithm.ES256);
-//		assertThrows(NullPointerException.class, () -> builder.wellKnown(null));
-//
-//		final var id = IdGenerator.generateId();
-//		builder.keyId(id);
-//
-//		final var key = WebKey.builder(Type.EC_P256).keyId(id).ephemeral(Algorithm.ES256).build().wellKnown();
-//		final var uri = uri(
-//				IuJson.object().add("keys", IuJson.array().add(IuJson.parse(key.toString()))).build().toString());
-//		builder.wellKnown(uri);
-//		builder.wellKnown(uri);
-//		assertEquals(key, new Jose(builder.toJson()).wellKnown());
-//
-//		assertThrows(IllegalStateException.class, () -> builder.jwks(uri("")));
-//	}
-//
-//	@Test
-//	public void testJwk() {
-//		final var builder = new Builder();
-//		builder.algorithm(Algorithm.PS384);
-//		assertThrows(NullPointerException.class, () -> builder.jwk(null));
-//		assertThrows(NullPointerException.class, () -> builder.jwk(null, false));
-//
-//		final var key = WebKey.ephemeral(Algorithm.PS384);
-//		builder.jwk(key);
-//		builder.jwk(key);
-//		assertNull(new Jose(builder).getKey());
-//		assertEquals(key.wellKnown(), new Jose(new Builder().algorithm(Algorithm.PS384).jwk(key, false)).getKey());
-//
-//		assertThrows(IllegalStateException.class, () -> builder.jwk(WebKey.ephemeral(Algorithm.PS384)));
-//	}
-//
-//	@Test
-//	public void testType() {
-//		final var builder = new Builder();
-//		builder.algorithm(Algorithm.HS512);
-//		final var type = IdGenerator.generateId();
-//		builder.type(type);
-//		assertThrows(IllegalStateException.class, () -> builder.type(""));
-//		builder.type(type);
-//		assertEquals(type, new Jose(builder).getType());
-//	}
-//
-//	@Test
-//	public void testContentType() {
-//		final var builder = new Builder();
-//		builder.algorithm(Algorithm.HS256);
-//		final var contentType = IdGenerator.generateId();
-//		builder.contentType(contentType);
-//		assertThrows(IllegalStateException.class, () -> builder.contentType(""));
-//		builder.contentType(contentType);
-//		assertEquals(contentType, new Jose(builder).getContentType());
-//	}
-//
-//	@Test
-//	public void testPartyUInfo() {
-//		final var builder = new Builder();
-//		builder.algorithm(Algorithm.ECDH_ES);
-//
-//		final var uinfo = new byte[12];
-//		ThreadLocalRandom.current().nextBytes(uinfo);
-//
-//		builder.apu(uinfo);
-//		assertThrows(IllegalStateException.class, () -> builder.apu(new byte[0]));
-//		builder.apu(uinfo);
-//		assertArrayEquals(uinfo, UnpaddedBinary.JSON.fromJson(builder.ext().get("apu")));
-//
-//		assertThrows(IllegalArgumentException.class, () -> new Builder().algorithm(Algorithm.DIRECT).apu(uinfo));
-//	}
-//
-//	@Test
-//	public void testPartyVInfo() {
-//		final var builder = new Builder();
-//		builder.algorithm(Algorithm.ECDH_ES);
-//
-//		final var vinfo = new byte[12];
-//		ThreadLocalRandom.current().nextBytes(vinfo);
-//
-//		builder.apv(vinfo);
-//		assertThrows(IllegalStateException.class, () -> builder.apv(new byte[0]));
-//		builder.apv(vinfo);
-//		assertArrayEquals(vinfo, UnpaddedBinary.JSON.fromJson(builder.ext().get("apv")));
-//
-//		assertThrows(IllegalArgumentException.class, () -> new Builder().algorithm(Algorithm.DIRECT).apv(vinfo));
-//	}
-//
-//	@Test
-//	public void testInvalidExtension() {
-//		assertThrows(IllegalArgumentException.class, () -> new Builder().ext("enc", Encryption.A256GCM));
-//	}
-//
-//	@Test
-//	public void testCrit() {
-//		final var builder = new Builder();
-//		builder.algorithm(Algorithm.PBES2_HS384_A192KW);
-//		builder.enc("enc", IuJson.string(Encryption.A128GCM.enc));
-//		builder.enc("p2c", IuJson.number(3072));
-//		builder.enc("p2s", IuJson.string(UnpaddedBinary.base64Url(IdGenerator.generateId().getBytes())));
-//		builder.crit("kid");
-//		assertThrows(IllegalStateException.class, () -> new Jose(builder));
-//		final var id = IdGenerator.generateId();
-//		assertEquals(id, new Jose(builder.keyId(id)).getKeyId());
-//	}
-//
-//	@Test
-//	public void testKidMatch() {
-//		final var id = IdGenerator.generateId();
-//		final var builder = new Builder();
-//		builder.algorithm(Algorithm.DIRECT);
-//		builder.enc("enc", IuJson.string(Encryption.A128GCM.enc));
-//		builder.keyId(id);
-//		builder.jwk(WebKey.builder().keyId(id).ephemeral(Encryption.A128GCM).build(), false);
-//		assertEquals(id, new Jose(builder).getKeyId());
-//		assertEquals(id, new Jose(builder).getKey().getId());
-//	}
-//
-//	@Test
-//	public void testKidMismatch() {
-//		final var builder = new Builder();
-//		builder.algorithm(Algorithm.DIRECT);
-//		builder.keyId("foo");
-//		builder.jwk(WebKey.builder().keyId("bar").ephemeral(Encryption.A128GCM).build(), false);
-//		assertThrows(IllegalStateException.class, () -> new Jose(builder));
-//	}
-//
-//	@Test
-//	public void testCertAlone() {
-//		final var builder = new Builder();
-//		builder.algorithm(Algorithm.RSA_OAEP_256);
-//		builder.enc("enc", IuJson.string(Encryption.A128GCM.enc));
-//		builder.cert(CERT);
-//		assertEquals(CERT, new Jose(builder).getCertificateChain()[0]);
-//	}
-//
-//	@Test
-//	public void testCertChainMatch() {
-//		final var builder = new Builder();
-//		builder.algorithm(Algorithm.RSA_OAEP_256);
-//		builder.enc("enc", IuJson.string(Encryption.A128GCM.enc));
-//		builder.cert(CERT);
-//		builder.x5t(CERT_S1);
-//		builder.x5t256(CERT_S256);
-//		builder.jwk(WebKey.builder().pem(CERT_TEXT).build(), false);
-//		assertEquals(CERT, new Jose(builder).getCertificateChain()[0]);
-//	}
-//
-//	@Test
-//	public void testCertChainMismatch() {
-//		final var builder = new Builder();
-//		builder.algorithm(Algorithm.RSA_OAEP_256);
-//		builder.enc("enc", IuJson.string(Encryption.A128GCM.enc));
-//		builder.cert(CERT);
-//		assertThrows(IllegalArgumentException.class, () -> builder.x5t(CERT_S256));
-//		assertThrows(IllegalArgumentException.class, () -> builder.x5t256(CERT_S1));
-//		builder.jwk(WebKey.ephemeral(Algorithm.RSA_OAEP_256), false);
-//		assertThrows(IllegalStateException.class, () -> new Jose(builder));
-//	}
-//
 
 }

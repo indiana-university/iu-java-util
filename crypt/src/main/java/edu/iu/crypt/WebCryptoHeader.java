@@ -467,7 +467,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 				} else if (!param.isPresent(header))
 					throw new IllegalArgumentException("Missing critical registered parameter " + paramName);
 			}
-
+		
 		final var key = header.getKey();
 		final var keyId = IuObject.first(header.getKeyId(), IuObject.convert(key, WebKey::getKeyId));
 		final var certChain = WebCertificateReference.verify(header);

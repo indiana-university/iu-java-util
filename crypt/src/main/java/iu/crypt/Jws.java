@@ -32,6 +32,8 @@
 package iu.crypt;
 
 import java.security.Signature;
+import java.security.spec.MGF1ParameterSpec;
+import java.security.spec.PSSParameterSpec;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -39,13 +41,16 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import edu.iu.IuException;
-import edu.iu.IuObject;
 import edu.iu.IuText;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebSignature;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonObjectBuilder;
+import jakarta.json.JsonValue;
 
 /**
  * JSON implementation of {@link WebSignature}.
@@ -64,24 +69,25 @@ class Jws implements WebSignature {
 	 * @param signature       signature
 	 */
 	Jws(JsonObject protectedHeader, Jose header, byte[] signature) {
-		this.protectedHeader = protectedHeader;
+		this.protectedHeader = Objects.requireNonNull(protectedHeader, "missing protected header");
 		this.header = header;
 		this.signature = signature;
-		verify();
-	}
 
-	private void verify() {
 		for (final var protectedEntry : protectedHeader.entrySet()) {
 			final var name = protectedEntry.getKey();
+			final var value = protectedEntry.getValue();
 			final var param = Param.from(name);
 
 			if (param == null) {
 				final var ext = Jose.getExtension(name);
-				IuObject.once(ext.fromJson(protectedHeader.get(name)), header.getExtendedParameter(name));
-			}
+				if (!ext.fromJson(value).equals(header.getExtendedParameter(name)))
+					throw new IllegalArgumentException(name + " must match protected header");
+			} else if (!param.json().fromJson(value).equals(param.get(header)))
+				throw new IllegalArgumentException(name + " must match protected header");
 		}
-		if (!header.getAlgorithm().equals(Param.ALGORITHM.json().fromJson(protectedHeader.get(Param.ALGORITHM.name))))
-			throw new IllegalArgumentException("Algorithm must be present match protected header");
+
+		for (final var name : header.extendedParameters().keySet())
+			Jose.getExtension(name).verify(this);
 	}
 
 	@Override
@@ -92,6 +98,13 @@ class Jws implements WebSignature {
 	@Override
 	public byte[] getSignature() {
 		return signature;
+	}
+
+	@Override
+	public String toString() {
+		final var json = IuJson.object();
+		serializeTo(json);
+		return json.build().toString();
 	}
 
 	@Override
@@ -110,11 +123,62 @@ class Jws implements WebSignature {
 		} else
 			IuException.unchecked(() -> {
 				final var sig = Signature.getInstance(algorithm.algorithm);
+				switch (algorithm) {
+				case PS256:
+					sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA256.getDigestAlgorithm(), "MGF1",
+							MGF1ParameterSpec.SHA256, algorithm.size / 8, 1));
+					break;
+				case PS384:
+					sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA384.getDigestAlgorithm(), "MGF1",
+							MGF1ParameterSpec.SHA384, algorithm.size / 8, 1));
+					break;
+				case PS512:
+					sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA512.getDigestAlgorithm(), "MGF1",
+							MGF1ParameterSpec.SHA512, algorithm.size / 8, 1));
+					break;
+				default:
+					break;
+				}
 				sig.initVerify(key.getPublicKey());
 				sig.update(dataToSign);
 				if (!sig.verify(signature))
 					throw new IllegalArgumentException(algorithm.algorithm + " verification failed");
 			});
+	}
+
+	/**
+	 * Parses per-signature JWS parameters from raw JSON.
+	 * 
+	 * @param json raw JSON
+	 * @return parsed JWS parameters
+	 */
+	static Jws parse(String json) {
+		return parse(IuJson.parse(json).asJsonObject());
+	}
+
+	/**
+	 * Parses per-signature JWS parameters from raw JSON.
+	 * 
+	 * @param parsed JSON
+	 * @return parsed JWS parameters
+	 */
+	static Jws parse(JsonValue parsed) {
+		final var protectedHeader = parsed.asJsonObject().getJsonObject("protected");
+		final var header = IuJson.get(parsed.asJsonObject(), "header",
+				IuJsonAdapter.from(v -> Jose.from(protectedHeader, null, v.asJsonObject())));
+		final var signature = IuJson.get(parsed.asJsonObject(), "signature", UnpaddedBinary.JSON);
+		return new Jws(protectedHeader, header, signature);
+	}
+
+	/**
+	 * Adds JWS per-signature parameters to a {@link JsonObjectBuilder}.
+	 * 
+	 * @param json {@link JsonObjectBuilder}
+	 */
+	void serializeTo(JsonObjectBuilder json) {
+		IuJson.add(json, "protected", protectedHeader);
+		IuJson.add(json, "header", header.toJson(n -> !protectedHeader.containsKey(n)));
+		IuJson.add(json, "signature", () -> signature, UnpaddedBinary.JSON);
 	}
 
 	/**

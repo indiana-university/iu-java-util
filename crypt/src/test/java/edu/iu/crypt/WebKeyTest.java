@@ -38,21 +38,30 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.cert.X509Certificate;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
+import java.security.interfaces.RSAKey;
 import java.security.interfaces.RSAPrivateCrtKey;
+import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.InvalidKeySpecException;
+import java.security.spec.RSAPrivateKeySpec;
+import java.security.spec.RSAPublicKeySpec;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
@@ -81,9 +90,15 @@ public class WebKeyTest extends IuCryptTestCase {
 	// Includes test cases from RFC-7517 appendices A and B
 
 	@Test
+	public void testBadAlgorithmParams() {
+		assertNull(WebKey.algorithmParams("foo"));
+	}
+
+	@Test
 	public void testType() {
 		IuIterable.iter(Type.values()).forEach(t -> assertSame(t, Type.from(t.kty, t.crv)));
 		assertNull(Type.from("foo", "bar"));
+		assertNull(Type.from(null));
 	}
 
 	@Test
@@ -105,7 +120,123 @@ public class WebKeyTest extends IuCryptTestCase {
 	}
 
 	@Test
-	public void testAllTypes() {
+	public void testBadAlgorithm() {
+		assertThrows(IllegalArgumentException.class,
+				() -> WebKey.builder(Type.EC_P256).algorithm(Algorithm.A128GCMKW).build());
+	}
+
+	@Test
+	public void testRaw() {
+		final var k1 = mock(WebKey.class);
+		when(k1.getType()).thenReturn(Type.RAW);
+		final var priv = mock(PrivateKey.class);
+		when(k1.getPrivateKey()).thenReturn(priv);
+		assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k1));
+
+		final var k2 = mock(WebKey.class);
+		when(k2.getType()).thenReturn(Type.RAW);
+		final var pub = mock(PublicKey.class);
+		when(k2.getPublicKey()).thenReturn(pub);
+		assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k2));
+
+		final var k3 = mock(WebKey.class);
+		when(k3.getType()).thenReturn(Type.RAW);
+		final var cert = mock(X509Certificate.class);
+		when(k3.getCertificateChain()).thenReturn(new X509Certificate[] { cert });
+		assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k3));
+
+		final var k4 = mock(WebKey.class);
+		when(k4.getType()).thenReturn(Type.RSA);
+		when(k4.getKey()).thenReturn(new byte[0]);
+		assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k4));
+	}
+
+	@Test
+	public void testMissingParams() {
+		final var k = mock(WebKey.class);
+		when(k.getType()).thenReturn(Type.RSA);
+		final var pub = mock(PublicKey.class);
+		when(k.getPublicKey()).thenReturn(pub);
+		assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k));
+		final var priv = mock(PrivateKey.class);
+		when(k.getPrivateKey()).thenReturn(priv);
+		assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k));
+	}
+
+	@Test
+	public void testPubCertMismatch() {
+		final var k = mock(WebKey.class);
+		when(k.getType()).thenReturn(Type.RSA);
+		when(k.getPublicKey()).thenReturn(EphemeralKeys.rsa("RSA", 1024).getPublic());
+		when(k.getCertificateChain()).thenReturn(new X509Certificate[] { CERT });
+		assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k));
+	}
+
+	@Test
+	public void testAlgorithmMismatch() {
+		final var k = mock(WebKey.class);
+		when(k.getType()).thenReturn(Type.RSA);
+		when(k.getPublicKey())
+				.thenReturn(EphemeralKeys.ec(WebKey.algorithmParams(Type.ED25519.algorithmParams)).getPublic());
+		when(k.getPrivateKey())
+				.thenReturn(EphemeralKeys.ec(WebKey.algorithmParams(Type.ED448.algorithmParams)).getPrivate());
+		assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k));
+	}
+
+	@Test
+	public void testEcAlgorithmMismatch() {
+		final var k = mock(WebKey.class);
+		when(k.getType()).thenReturn(Type.RSA);
+		when(k.getPublicKey())
+				.thenReturn(EphemeralKeys.ec(WebKey.algorithmParams(Type.EC_P256.algorithmParams)).getPublic());
+		when(k.getPrivateKey())
+				.thenReturn(EphemeralKeys.ec(WebKey.algorithmParams(Type.ED448.algorithmParams)).getPrivate());
+		assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k));
+	}
+
+	@Test
+	public void testRSAModulusMismatch() {
+		final var k = mock(WebKey.class);
+		when(k.getType()).thenReturn(Type.RSA);
+		when(k.getPublicKey()).thenReturn(EphemeralKeys.rsa("RSA", 1024).getPublic());
+		when(k.getPrivateKey()).thenReturn(EphemeralKeys.rsa("RSA", 1024).getPrivate());
+		assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k));
+	}
+
+	@Test
+	public void testRSADerivesPublicKey() {
+		final var k = mock(WebKey.class);
+		when(k.getType()).thenReturn(Type.RSA);
+
+		final var rsa = EphemeralKeys.rsa("RSA", 1024);
+		when(k.getPrivateKey()).thenReturn(rsa.getPrivate());
+		assertEquals(rsa.getPublic(), WebKey.verify(k));
+	}
+
+	@Test
+	public void testRSANoCrt() throws InvalidKeySpecException, NoSuchAlgorithmException {
+		final var k = mock(WebKey.class);
+		when(k.getType()).thenReturn(Type.RSA);
+
+		final var rsa = EphemeralKeys.rsa("RSA", 1024);
+		final var priv = KeyFactory.getInstance("RSA").generatePrivate(new RSAPrivateKeySpec(
+				((RSAKey) rsa.getPrivate()).getModulus(), ((RSAPrivateKey) rsa.getPrivate()).getPrivateExponent()));
+		when(k.getPrivateKey()).thenReturn(priv);
+		when(k.getPublicKey()).thenReturn(rsa.getPublic());
+		assertEquals(rsa.getPublic(), WebKey.verify(k));
+	}
+
+	@Test
+	public void testRSAExponentMismatch() throws InvalidKeySpecException, NoSuchAlgorithmException {
+		final var k = mock(WebKey.class);
+		when(k.getType()).thenReturn(Type.RSA);
+
+		final var rsa = EphemeralKeys.rsa("RSA", 1024);
+		final var pub = KeyFactory.getInstance("RSA")
+				.generatePublic(new RSAPublicKeySpec(((RSAKey) rsa.getPublic()).getModulus(), BigInteger.TEN));
+		when(k.getPublicKey()).thenReturn(pub);
+		when(k.getPrivateKey()).thenReturn(rsa.getPrivate());
+		assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k));
 	}
 
 	@Test
@@ -131,6 +262,7 @@ public class WebKeyTest extends IuCryptTestCase {
 			}
 		}));
 		assertEquals(jwks, WebKey.asJwks(WebKey.readJwks(uri(jwks))));
+		assertEquals(jwks, WebKey.asJwks(WebKey.readJwks(new ByteArrayInputStream(jwks.getBytes()))));
 		final var out = new ByteArrayOutputStream();
 		WebKey.writeJwks(WebKey.parseJwks(jwks), out);
 		assertEquals(jwks, IuText.utf8(out.toByteArray()));

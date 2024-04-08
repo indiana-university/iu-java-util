@@ -146,4 +146,6 @@ public class EphemeralKeys {
 		return buffer.array();
 	}
 
+	private EphemeralKeys() {
+	}
 }

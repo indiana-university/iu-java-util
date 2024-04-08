@@ -66,7 +66,7 @@ public class JsonKeyReferenceTest extends IuCryptTestCase {
 	@Test
 	public void testEqualsHashCodeRepresents() {
 		final var ref = new JsonKeyReference(IuJson.object().add("x5u", uri(CERT_TEXT).toString()).build());
-		assertTrue(ref.hashCode() > 0);
+		assertTrue(ref.hashCode() != 0);
 		for (var i = 0; i < 4; i++)
 			for (final var algorithm : Algorithm.values()) {
 				final var id = IdGenerator.generateId();

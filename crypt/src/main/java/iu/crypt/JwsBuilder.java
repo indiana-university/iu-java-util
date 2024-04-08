@@ -34,6 +34,8 @@ package iu.crypt;
 import java.io.InputStream;
 import java.net.URI;
 import java.security.Signature;
+import java.security.spec.MGF1ParameterSpec;
+import java.security.spec.PSSParameterSpec;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
@@ -51,6 +53,7 @@ import edu.iu.IuObject;
 import edu.iu.IuStream;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
@@ -76,7 +79,15 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 	 */
 	public static JwsSignedPayload parse(String jws) {
 		if (jws.startsWith("{")) {
-			throw new UnsupportedOperationException("TODO");
+			final var json = IuJson.parse(jws).asJsonObject();
+			final var payload = IuJson.get(json, "payload", UnpaddedBinary.JSON);
+
+			var signatures = IuJson.get(json, "signatures",
+					IuJsonAdapter.<Iterable<Jws>>of(Iterable.class, IuJsonAdapter.from(Jws::parse)));
+			if (signatures == null)
+				signatures = Collections.singleton(Jws.parse(json));
+
+			return new JwsSignedPayload(payload, signatures);
 		} else {
 			final var compact = UnpaddedBinary.compact(jws);
 			final var protectedHeader = UnpaddedBinary.compactJson(compact.next()).asJsonObject();
@@ -135,6 +146,7 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 	 * @param algorithm {@link Algorithm}
 	 */
 	public JwsBuilder(Algorithm algorithm) {
+		protectedParameters.add(Param.ALGORITHM.name);
 		next(algorithm);
 	}
 
@@ -239,6 +251,22 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 			} else
 				signature = IuException.unchecked(() -> {
 					final var sig = Signature.getInstance(algorithm.algorithm);
+					switch (algorithm) {
+					case PS256:
+						sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA256.getDigestAlgorithm(), "MGF1",
+								MGF1ParameterSpec.SHA256, algorithm.size / 8, 1));
+						break;
+					case PS384:
+						sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA384.getDigestAlgorithm(), "MGF1",
+								MGF1ParameterSpec.SHA384, algorithm.size / 8, 1));
+						break;
+					case PS512:
+						sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA512.getDigestAlgorithm(), "MGF1",
+								MGF1ParameterSpec.SHA512, algorithm.size / 8, 1));
+						break;
+					default:
+						break;
+					}
 					sig.initSign(key.getPrivateKey());
 					sig.update(dataToSign);
 					return sig.sign();

@@ -33,16 +33,31 @@ package iu.crypt;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayDeque;
+import java.util.Queue;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.IdGenerator;
+import edu.iu.IuIterable;
+import edu.iu.client.IuJson;
 import edu.iu.crypt.IuCryptTestCase;
+import edu.iu.crypt.WebCryptoHeader.Extension;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.WebSignature;
 import edu.iu.crypt.WebSignedPayload;
+import jakarta.json.JsonString;
 
 @SuppressWarnings("javadoc")
 public class JwsTest extends IuCryptTestCase {
@@ -64,6 +79,64 @@ public class JwsTest extends IuCryptTestCase {
 		final var fromCompact = WebSignedPayload.parse(compact);
 		assertEquals("{\"alg\":\"EdDSA\"}", fromCompact.getSignatures().iterator().next().getHeader().toString());
 		assertDoesNotThrow(() -> fromCompact.verify(jwk));
+
+		final var wrongKey = WebKey.ephemeral(Algorithm.EDDSA);
+		assertThrows(IllegalArgumentException.class, () -> fromCompact.verify(wrongKey));
 	}
 
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testAllTheSignatures() {
+		final var extName = IdGenerator.generateId();
+		final var ext = mock(Extension.class, CALLS_REAL_METHODS);
+		when(ext.toJson(any())).thenAnswer(a -> IuJson.string((String) a.getArgument(0)));
+		when(ext.fromJson(any())).thenAnswer(a -> ((JsonString) a.getArgument(0)).getString());
+		Jose.register(extName, ext);
+
+		final Queue<Jwk> keys = new ArrayDeque<>();
+		final var algorithmIterator = IuIterable
+				.filter(IuIterable.iter(Algorithm.values()), a -> a.use.equals(Use.SIGN)).iterator();
+
+		var algorithm = algorithmIterator.next();
+		final var jwsBuilder = WebSignature.builder(algorithm);
+
+		var first = true;
+		do {
+			if (first)
+				first = false;
+			else
+				jwsBuilder.next(algorithm = algorithmIterator.next());
+			final var key = (Jwk) WebKey.ephemeral(algorithm);
+			keys.add(key);
+			jwsBuilder.key(key);
+			jwsBuilder.param(extName, IdGenerator.generateId());
+		} while (algorithmIterator.hasNext());
+
+		final var data = new byte[16384];
+		ThreadLocalRandom.current().nextBytes(data);
+		final var jws = jwsBuilder.sign(data);
+		final var serial = jws.toString();
+		final var fromSerial = WebSignedPayload.parse(serial);
+		keys.forEach(fromSerial::verify);
+		fromSerial.getSignatures().forEach(a -> verify(ext).verify(a));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testHeaderVerification() {
+		final var p = IuJson.object().add("alg", "HS256").build();
+		final var jose = new Jose(IuJson.object().add("alg", "HS384").build());
+		assertThrows(IllegalArgumentException.class, () -> new Jws(p, jose, null));
+
+		final var extName = IdGenerator.generateId();
+		final var ext = mock(Extension.class);
+		when(ext.toJson(any())).thenAnswer(a -> IuJson.string((String) a.getArgument(0)));
+		when(ext.fromJson(any())).thenAnswer(a -> ((JsonString) a.getArgument(0)).getString());
+		Jose.register(extName, ext);
+
+		final var p2 = IuJson.object().add("alg", "HS256").add(extName, IdGenerator.generateId()).build();
+		final var jose2 = new Jose(IuJson.object().add("alg", "HS256").add(extName, IdGenerator.generateId()).build());
+		assertThrows(IllegalArgumentException.class, () -> new Jws(p2, jose2, null));
+		assertDoesNotThrow(() -> new Jws(p2, new Jose(p2), null));
+	}
 }

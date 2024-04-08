@@ -166,9 +166,9 @@ public class PemEncodedTest extends IuCryptTestCase {
 		assertTrue(pem.hasNext());
 		final var key = pem.next();
 		assertEquals(KeyType.PRIVATE_KEY, key.getKeyType());
-		assertInstanceOf(RSAPrivateCrtKey.class, key.asPrivate(Type.RSA));
+		assertInstanceOf(RSAPrivateCrtKey.class, key.asPrivate("RSA"));
 
-		assertThrows(IllegalStateException.class, () -> key.asPublic(Type.RSA));
+		assertThrows(IllegalStateException.class, () -> key.asPublic("RSA"));
 		assertThrows(IllegalStateException.class, () -> key.asCertificate());
 
 		assertFalse(pem.hasNext());
@@ -200,13 +200,13 @@ public class PemEncodedTest extends IuCryptTestCase {
 		assertTrue(pem.hasNext());
 		var key = pem.next();
 		assertEquals(KeyType.PRIVATE_KEY, key.getKeyType());
-		final var priv = assertInstanceOf(ECPrivateKey.class, key.asPrivate(Type.EC_P521));
+		final var priv = assertInstanceOf(ECPrivateKey.class, key.asPrivate("EC"));
 		assertEquals("secp521r1 [NIST P-521] (1.3.132.0.35)", priv.getParams().toString());
 
 		assertTrue(pem.hasNext());
 		key = pem.next();
 		assertEquals(KeyType.PUBLIC_KEY, key.getKeyType());
-		final var pub = assertInstanceOf(ECPublicKey.class, key.asPublic(Type.EC_P521));
+		final var pub = assertInstanceOf(ECPublicKey.class, key.asPublic("EC"));
 		assertEquals(priv.getParams(), pub.getParams());
 
 		assertFalse(pem.hasNext());
@@ -225,7 +225,7 @@ public class PemEncodedTest extends IuCryptTestCase {
 		assertTrue(pem.hasNext());
 		var key = pem.next();
 		assertEquals(KeyType.PRIVATE_KEY, key.getKeyType());
-		final var priv = assertInstanceOf(ECPrivateKey.class, key.asPrivate(Type.EC_P384));
+		final var priv = assertInstanceOf(ECPrivateKey.class, key.asPrivate("EC"));
 		assertEquals("secp384r1 [NIST P-384] (1.3.132.0.34)", priv.getParams().toString());
 
 		assertTrue(pem.hasNext());
@@ -244,12 +244,6 @@ public class PemEncodedTest extends IuCryptTestCase {
 		final var confirmNoPub = new StringBuilder();
 		PemEncoded.serialize(new KeyPair(null, priv), cert).forEachRemaining(confirmNoPub::append);
 		assertEquals(text, confirmNoPub.toString().replace("\n", "\r\n"));
-	}
-
-	@Test
-	public void testInvalidCurve() {
-		assertThrows(IllegalArgumentException.class,
-				() -> PemEncoded.parse(EC_PRIVATE_KEY).next().asPrivate(Type.EC_P256));
 	}
 
 	@Test
@@ -316,7 +310,7 @@ public class PemEncodedTest extends IuCryptTestCase {
 		assertTrue(pem.hasNext());
 		var key = pem.next();
 		assertEquals(KeyType.PRIVATE_KEY, key.getKeyType());
-		final var priv = assertInstanceOf(RSAPrivateKey.class, key.asPrivate(Type.RSA));
+		final var priv = assertInstanceOf(RSAPrivateKey.class, key.asPrivate("RSA"));
 
 		assertTrue(pem.hasNext());
 		key = pem.next();
@@ -372,7 +366,7 @@ public class PemEncodedTest extends IuCryptTestCase {
 		assertEquals(KeyType.CERTIFICATE, key.getKeyType());
 		assertInstanceOf(ECPublicKey.class, key.asCertificate().getPublicKey());
 
-		assertThrows(IllegalStateException.class, () -> key.asPrivate(Type.EC_P384));
+		assertThrows(IllegalStateException.class, () -> key.asPrivate("EC"));
 
 		assertFalse(pem.hasNext());
 	}

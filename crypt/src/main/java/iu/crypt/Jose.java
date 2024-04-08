@@ -150,6 +150,10 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 		this.extendedParameters = extendedParametersBuilder.build();
 
 		wellKnownKey = (Jwk) WebCryptoHeader.verify(this);
+		
+		for (final var paramName : extendedParameters.keySet())
+			if (Param.from(paramName) == null)
+				getExtension(paramName).verify(this);
 	}
 
 	@Override
