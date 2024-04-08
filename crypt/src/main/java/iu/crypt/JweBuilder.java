@@ -283,7 +283,11 @@ public class JweBuilder implements Builder {
 		Objects.requireNonNull(sharedHeader, "at least one recipient required");
 		final var protectedHeaderBuilder = IuJson.object();
 		if (compact)
-			sharedHeader.forEach(protectedHeaderBuilder::add);
+			for (final var sharedHeaderEntry : sharedHeader.entrySet()) {
+				final var name = sharedHeaderEntry.getKey();
+				if (!name.equals(Param.KEY.name))
+					protectedHeaderBuilder.add(name, sharedHeaderEntry.getValue());
+			}
 		else if (protectedParameters.isEmpty())
 			return null;
 		else

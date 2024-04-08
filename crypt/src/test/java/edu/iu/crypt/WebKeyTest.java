@@ -80,7 +80,7 @@ public class WebKeyTest extends IuCryptTestCase {
 	@Test
 	public void testType() {
 		IuIterable.iter(Type.values()).forEach(t -> assertSame(t, Type.from(t.kty, t.crv)));
-		assertThrows(NoSuchElementException.class, () -> Type.from("foo", "bar"));
+		assertNull(Type.from("foo", "bar"));
 	}
 
 	@Test
@@ -408,7 +408,7 @@ public class WebKeyTest extends IuCryptTestCase {
 				+ "-----END CERTIFICATE-----\r\n").build();
 
 		assertEquals(Type.EC_P384, ec.getType());
-		final var epub = assertInstanceOf(ECPublicKey.class, ec.getPublicKey());
+		final var epub = assertInstanceOf(ECPublicKey.class, ec.wellKnown().getPublicKey());
 		final var epriv = assertInstanceOf(ECPrivateKey.class, ec.getPrivateKey());
 		assertEquals("secp384r1 [NIST P-384] (1.3.132.0.34)", epub.getParams().toString());
 		assertEquals(epub.getParams(), epriv.getParams());
@@ -604,7 +604,7 @@ public class WebKeyTest extends IuCryptTestCase {
 				+ "IHsrdZ_CCAiTc0HVkMbyq1M6qEhM-q5P6y1QCIrwg.0HFmhOzsQ98nNWJjIHkR7A");
 
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE,
-				"CEK decryption successful for {\"kty\":\"oct\",\"alg\":\"PBES2-HS256+A128KW\"}");
+				"CEK decryption successful for {\"alg\":\"PBES2-HS256+A128KW\",\"kty\":\"oct\"}");
 		assertEquals(jwk, WebKey.parse(jwe.decryptText(
 				WebKey.builder(Type.RAW).algorithm(Algorithm.PBES2_HS256_A128KW).key(IuText.utf8(pass)).build())));
 	}

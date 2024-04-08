@@ -39,6 +39,7 @@ import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECParameterSpec;
 import java.security.spec.NamedParameterSpec;
+import java.util.Objects;
 
 import javax.crypto.KeyGenerator;
 
@@ -98,7 +99,7 @@ public class EphemeralKeys {
 				gen.initialize(param);
 				return gen;
 			} else
-				throw new IllegalArgumentException();
+				throw new IllegalArgumentException(param.toString());
 		}).generateKeyPair();
 	}
 

@@ -207,11 +207,12 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 		final var alg = IuText.utf8(algorithm.alg);
 		final byte[] p2s = new byte[algorithm.size / 8];
 		new SecureRandom().nextBytes(p2s);
-		param("p2s", UnpaddedBinary.JSON.toJson(p2s));
+		param(Param.PASSWORD_SALT, p2s);
 
 		// 128 -> 2048, 192 -> 3072, 256 -> 4096
 		final var p2c = algorithm.size * 16;
-		param("p2c", IuJson.number(p2c));
+		param(Param.PASSWORD_COUNT, p2c);
+
 
 		final var saltValue = ByteBuffer.wrap(new byte[alg.length + 1 + p2s.length]);
 		saltValue.put(alg);

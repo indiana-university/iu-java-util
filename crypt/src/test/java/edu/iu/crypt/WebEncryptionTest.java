@@ -31,6 +31,7 @@
  */
 package edu.iu.crypt;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -192,13 +193,14 @@ public class WebEncryptionTest {
 		final var serialHeader = fromSerial.getRecipients().iterator().next().getHeader();
 		assertEquals(algorithm, serialHeader.getAlgorithm());
 		assertEquals(encryption, fromSerial.getEncryption());
-		assertNull(serialHeader.getKey());
+		assertEquals(key.wellKnown(), serialHeader.getKey());
 
-		final var fromSilent = WebEncryption.parse(jwe.toString());
+		final var fromSilent = WebEncryption.parse(slientJwe.toString());
 		final var silentHeader = fromSilent.getRecipients().iterator().next().getHeader();
 		assertEquals(algorithm, silentHeader.getAlgorithm());
 		assertEquals(encryption, fromSilent.getEncryption());
-		assertNull(silentHeader.getKey());
+		assertEquals(key.wellKnown(), silentHeader.getKey());
+		assertArrayEquals(aad, fromSilent.getAdditionalData());
 
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
 		assertEquals(message, jwe.decryptText(key));
