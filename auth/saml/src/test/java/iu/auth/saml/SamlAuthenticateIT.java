@@ -7,7 +7,9 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.InputStream;
+import java.io.StringReader;
 import java.net.CookieManager;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -15,6 +17,7 @@ import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 
@@ -30,6 +33,11 @@ import edu.iu.auth.saml.IuSamlClient;
 import edu.iu.auth.saml.IuSamlProvider;
 import edu.iu.test.VaultProperties;
 import iu.auth.util.XmlDomUtil;
+import jakarta.json.Json;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonReader;
+import jakarta.json.JsonString;
+import jakarta.json.JsonValue;
 
 @EnabledIf("edu.iu.test.VaultProperties#isConfigured")
 public class SamlAuthenticateIT {
@@ -44,6 +52,7 @@ public class SamlAuthenticateIT {
 	@BeforeAll
 	public static void setupClass() {
 		String samlCertificate = VaultProperties.getProperty("iu-endpoint.saml.certificate");
+		String privateKey = VaultProperties.getProperty("iu-endpoint.saml.privateKey");
 		ldpMetaDataUrl = VaultProperties.getProperty("iu.ldp.stg.metadata.url");
 		HttpRequest request = IuException.unchecked(() -> HttpRequest.newBuilder().GET() //
 				.uri(new URI(ldpMetaDataUrl)) //
@@ -59,7 +68,7 @@ public class SamlAuthenticateIT {
 			IuException.unchecked(() -> bw.write(xml));
 			IuException.unchecked(()-> bw.close());
 		}
-		
+
 		provider = IuSamlProvider.from(new IuSamlClient() {
 
 			@Override
@@ -68,26 +77,29 @@ public class SamlAuthenticateIT {
 			}
 
 			@Override
-			public List<URI> getMetaDataUrls() {
+			public List<URI> getMetaDataUris() {
 				return Arrays.asList(metaData.toURI());
 			}
 
 			@Override
 			public X509Certificate getCertificate() {
-				PemEncoded.parse(samlCertificate).next().asCertificate();
-				return null;
+				return PemEncoded.parse(samlCertificate).next().asCertificate();
 			}
 
 			@Override
-			public List<URI> getAcsUrls() {
+			public List<URI> getAcsUris() {
 				return IuException.unchecked(()-> Arrays.asList(new URI(postUrl)));
 			}
 
 			@Override
 			public String getPrivateKey() {
-				return IdGenerator.generateId();
+				return privateKey;
 			}
 
+			@Override
+			public List<InetAddress> getAllowedRange() {
+				return IuException.unchecked(() -> Arrays.asList(InetAddress.getByName("http://localhost:8080")));
+			}
 
 		}) ;
 	}
@@ -96,7 +108,9 @@ public class SamlAuthenticateIT {
 	public void testSamlAuthenication() throws Exception{
 		URI entityId = IuException.unchecked(() -> new URI(ldpMetaDataUrl));
 		URI postURL = IuException.unchecked(() -> new URI(postUrl));
-		URI location = provider.authRequest(entityId, postURL);
+		var sessionId = IdGenerator.generateId();
+
+		URI location = provider.authRequest(entityId, postURL, sessionId);
 		System.out.println("Location: " + location);
 		final var cookieHandler = new CookieManager();
 		final var http = HttpClient.newBuilder().cookieHandler(cookieHandler).build();
@@ -169,7 +183,20 @@ public class SamlAuthenticateIT {
 		//TODO verify relay state and saml response values
 		String relayState = loginSuccessParams.get("RelayState");
 		String samlResponse = loginSuccessParams.get("SAMLResponse");
+		System.out.println(relayState);
+		//JsonValue jsonValue =Json.createReader(new StringReader(SamlUtil.decrypt(relayState))).readValue();
+		//System.out.println("relay state :: " + jsonValue.toString() );
+		//provider.validate(null, acsurl, samlResponse);
+		String jsonString = SamlUtil.decrypt(relayState);
+		System.out.println(jsonString);
 
+		JsonReader jsonReader = Json.createReader(new StringReader(jsonString));
+		JsonObject relayStatejsonObject = jsonReader.readObject();
+		String relayStateSessionId = relayStatejsonObject.getJsonString("sessionId").getString();
+		String relayStatePostUrl = relayStatejsonObject.getJsonString("returnUrl").getString();
+
+		assertEquals(sessionId,relayStateSessionId);
+		assertEquals(postURL.toString(), relayStatePostUrl);
 		metaData.delete();
 
 	}

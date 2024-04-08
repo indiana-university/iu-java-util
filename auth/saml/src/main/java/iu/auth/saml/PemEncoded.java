@@ -197,6 +197,7 @@ public final class PemEncoded {
 
 	/**
 	 * Get encoded string
+	 * 
 	 * @param certificate X509 certificate
 	 * @return encoded string
 	 */
@@ -225,7 +226,7 @@ public final class PemEncoded {
 	/**
 	 * Gets the key as a public key when {@link #keyType} is
 	 * {@link KeyType#PUBLIC_KEY}.
-	 *  
+	 * 
 	 * @return public key
 	 */
 	public PublicKey asPublic() {

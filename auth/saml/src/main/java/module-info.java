@@ -16,6 +16,7 @@ module iu.util.auth.saml {
 	requires org.opensaml.security;
 	requires org.opensaml.security.impl;
 	requires jakarta.json;
+	requires org.opensaml.xmlsec.impl;
 
 	provides edu.iu.auth.spi.IuSamlSpi with iu.auth.saml.SamlConnectSpi;
 }

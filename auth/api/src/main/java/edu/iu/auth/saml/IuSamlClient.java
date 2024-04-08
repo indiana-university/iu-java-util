@@ -1,5 +1,6 @@
 package edu.iu.auth.saml;
 
+import java.net.InetAddress;
 import java.net.URI;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
@@ -35,7 +36,17 @@ public interface IuSamlClient {
 
 	// id
 
-
+	/**
+	 * 
+	 */
+	default boolean failOnAddressMismatch() {
+		return false;
+	}
+	/**
+	 * Gets allowed list of IP addresses to validate against SAML response
+	 * @return allowed ranged of IP addresses
+	 */
+	List<InetAddress> getAllowedRange();
 
 	/**
 	 * Gets the maximum time interval to re-established metadata resolver 
@@ -49,25 +60,25 @@ public interface IuSamlClient {
 	}
 
 	/**
-	 * Gets the SAML metadata URL to retrieve configure metadata file that is configured directly 
+	 * Gets the SAML metadata {@link URI} to retrieve configure metadata file that is configured directly 
 	 * into the SAML provider by administrator 
 	 * @return metadata URL
 	 */
-	List<URI> getMetaDataUrls();
+	List<URI> getMetaDataUris();
 	
 	/**
 	 * Gets the SAML identity provider {@link URI} to configure Metadata resolver
 	 * @return SAML identity provider URL
 	 */
-	default URI getIdentityProviderURL() {
+	default URI getIdentityProviderUri() {
 		return null;
 	}
 
 	/**
-	 * Gets the list of assertion Consumer urls 
-	 * @return allowed list of assertion consumer urls
+	 * Gets the list of assertion Consumer {@link URI} 
+	 * @return allowed list of assertion consumer {@link URI}
 	 */
-	List<URI> getAcsUrls();
+	List<URI> getAcsUris();
 
 	/**
 	 * Gets the unique service provider id that register with identity provider

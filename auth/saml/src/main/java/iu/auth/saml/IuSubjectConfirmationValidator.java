@@ -7,8 +7,8 @@ import java.util.logging.Logger;
 import org.opensaml.saml.saml2.assertion.impl.BearerSubjectConfirmationValidator;
 
 /**
- * Validates a bearer subject confirmation.
- * Support to validate subject details return as SAML response as successful authentication
+ * Validates a bearer subject confirmation. Support to validate subject details
+ * return as SAML response as successful authentication
  */
 public class IuSubjectConfirmationValidator extends BearerSubjectConfirmationValidator {
 
@@ -19,8 +19,10 @@ public class IuSubjectConfirmationValidator extends BearerSubjectConfirmationVal
 
 	/**
 	 * constructor
-	 * @param allowedRanges allowed IP address list
-	 * @param failOnAddressMismatch determine whether to fail on address mismatch or not, true if required, false if not
+	 * 
+	 * @param allowedRanges         allowed IP address list
+	 * @param failOnAddressMismatch determine whether to fail on address mismatch or
+	 *                              not, true if required, false if not
 	 */
 	public IuSubjectConfirmationValidator(List<InetAddress> allowedRanges, boolean failOnAddressMismatch) {
 		this.allowedRanges = allowedRanges;
