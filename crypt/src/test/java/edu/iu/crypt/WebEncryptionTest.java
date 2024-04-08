@@ -71,10 +71,10 @@ public class WebEncryptionTest {
 
 	@Test
 	public void testInvalidAesCbcHmacTag() {
-		final var key = WebKey.builder().ephemeral(Encryption.AES_128_CBC_HMAC_SHA_256).build();
+		final var key = WebKey.ephemeral(Encryption.AES_128_CBC_HMAC_SHA_256);
 		final var id = IdGenerator.generateId();
 		final var jwe = WebEncryption.builder(Encryption.AES_128_CBC_HMAC_SHA_256).addRecipient(Algorithm.DIRECT)
-				.jwk(key).then().encrypt(id);
+				.key(key).then().encrypt(id);
 		final var json = IuJson.object(IuJson.parse(jwe.toString()).asJsonObject());
 		json.add("tag", "");
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
@@ -83,9 +83,9 @@ public class WebEncryptionTest {
 
 	@Test
 	public void testNotDeflated() {
-		final var key = WebKey.builder().ephemeral(Encryption.A128GCM).build();
+		final var key = WebKey.ephemeral(Encryption.A128GCM);
 		final var id = IdGenerator.generateId();
-		final var jwe = WebEncryption.builder(Encryption.A128GCM, false).addRecipient(Algorithm.DIRECT).jwk(key).then()
+		final var jwe = WebEncryption.builder(Encryption.A128GCM, false).addRecipient(Algorithm.DIRECT).key(key).then()
 				.encrypt(id);
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
 		assertEquals(id, jwe.decryptText(key));
@@ -93,25 +93,25 @@ public class WebEncryptionTest {
 
 	@Test
 	public void testNoHeader() {
-		final var key = WebKey.builder().ephemeral(Encryption.A192GCM).build();
+		final var key = WebKey.ephemeral(Encryption.A192GCM);
 		final var id = IdGenerator.generateId();
 		final var jwe = WebEncryption.builder(Encryption.A192GCM).protect(new String[0]).addRecipient(Algorithm.DIRECT)
-				.jwk(key, true).then().encrypt(id);
-		
+				.key(key).then().encrypt(id);
+
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
 		assertEquals(id, WebEncryption.parse(jwe.toString()).decryptText(key));
 	}
 
 	@Test
 	public void testMultipleRecipients() {
-		final var key1 = WebKey.builder().ephemeral(Algorithm.A256GCMKW).build();
-		final var key2 = WebKey.builder().ephemeral(Algorithm.RSA_OAEP_256).build();
-		final var key3 = WebKey.builder().ephemeral(Algorithm.ECDH_ES_A192KW).build();
+		final var key1 = WebKey.ephemeral(Algorithm.A256GCMKW);
+		final var key2 = WebKey.ephemeral(Algorithm.RSA_OAEP_256);
+		final var key3 = WebKey.ephemeral(Algorithm.ECDH_ES_A192KW);
 		final var id = IdGenerator.generateId();
 		final var original = WebEncryption.builder(Encryption.A256GCM, false) //
-				.addRecipient(Algorithm.A256GCMKW).jwk(key1).then() //
-				.addRecipient(Algorithm.RSA_OAEP_256).jwk(key2).then() //
-				.addRecipient(Algorithm.ECDH_ES_A192KW).jwk(key3).then() //
+				.addRecipient(Algorithm.A256GCMKW).key(key1).then() //
+				.addRecipient(Algorithm.RSA_OAEP_256).key(key2).then() //
+				.addRecipient(Algorithm.ECDH_ES_A192KW).key(key3).then() //
 				.encrypt(id);
 		final var jwe = WebEncryption.parse(original.toString());
 
@@ -124,7 +124,7 @@ public class WebEncryptionTest {
 		assertEquals(id, jwe.decryptText(key2));
 		IuTestLogger.assertExpectedMessages();
 
-		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalStateException.class);
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalArgumentException.class);
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalArgumentException.class);
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key3.wellKnown());
 		assertEquals(id, jwe.decryptText(key3));
@@ -144,7 +144,7 @@ public class WebEncryptionTest {
 		WebCryptoHeader.register("urn:example:iu:id", ext);
 
 		final var key = WebKey.ephemeral(Encryption.A128GCM);
-		final var jwe = WebEncryption.to(Encryption.A128GCM, Algorithm.DIRECT).jwk(key).ext("urn:example:iu:id", id)
+		final var jwe = WebEncryption.to(Encryption.A128GCM, Algorithm.DIRECT).key(key).param("urn:example:iu:id", id)
 				.encrypt(id);
 		verify(ext).validate(eq(id), any());
 		verify(ext).verify(any(), argThat(a -> {
@@ -153,13 +153,13 @@ public class WebEncryptionTest {
 		}));
 		assertEquals(id, jwe.decryptText(key));
 
-		assertThrows(IllegalArgumentException.class,
+		assertThrows(NullPointerException.class,
 				() -> WebEncryption.to(Encryption.AES_128_CBC_HMAC_SHA_256, Algorithm.DIRECT)
-						.crit("urn:example:iu:unsupported").jwk(key).encrypt(id));
+						.crit("urn:example:iu:unsupported").key(key).encrypt(id));
 	}
 
 	private void assertEncryption(Algorithm algorithm, Encryption encryption) {
-		final var keyBuilder = WebKey.builder().algorithm(algorithm);
+		final var keyBuilder = WebKey.builder(algorithm);
 		if (algorithm.equals(Algorithm.DIRECT))
 			keyBuilder.ephemeral(encryption);
 		else
@@ -172,12 +172,12 @@ public class WebEncryptionTest {
 			data[i] = (byte) ThreadLocalRandom.current().nextInt(32, 127);
 		final var message = IuText.ascii(data);
 
-		final var jwe = WebEncryption.to(encryption, algorithm).jwk(key).encrypt(message);
+		final var jwe = WebEncryption.to(encryption, algorithm).key(key).then().compact().encrypt(message);
 		assertNull(jwe.getAdditionalData());
 
 		final var aad = new byte[32];
 		ThreadLocalRandom.current().nextBytes(aad);
-		final var slientJwe = WebEncryption.builder(encryption).addRecipient(algorithm).jwk(key, false).then().aad(aad)
+		final var slientJwe = WebEncryption.builder(encryption).addRecipient(algorithm).key(key).then().aad(aad)
 				.encrypt(message);
 		assertNotNull(slientJwe.getAdditionalData());
 

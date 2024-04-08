@@ -80,7 +80,7 @@ public class JweBuilder implements Builder {
 	 *                   compression
 	 */
 	public JweBuilder(Encryption encryption, boolean deflate) {
-		this.encryption = Objects.requireNonNull(encryption, "encryption");
+		this.encryption = encryption;
 		this.deflate = deflate;
 	}
 
@@ -94,13 +94,7 @@ public class JweBuilder implements Builder {
 
 	@Override
 	public Builder aad(byte[] additionalData) {
-		Objects.requireNonNull(additionalData);
-
-		if (this.additionalData == null)
-			this.additionalData = additionalData;
-		else if (!Arrays.equals(additionalData, this.additionalData))
-			throw new IllegalStateException("additionalData already set");
-
+		this.additionalData = IuObject.once(this.additionalData, additionalData);
 		return this;
 	}
 
@@ -128,10 +122,11 @@ public class JweBuilder implements Builder {
 	public JweRecipientBuilder addRecipient(Algorithm algorithm) {
 		if (compact && recipients.size() + pendingRecipients.size() > 0)
 			throw new IllegalStateException("Compact only allows one receipient");
+
 		final var builder = new JweRecipientBuilder(this, algorithm);
-		builder.enc("enc", IuJson.string(encryption.enc));
+		builder.param(Param.ENCRYPTION, encryption());
 		if (deflate)
-			builder.enc("zip", IuJson.string("DEF"));
+			builder.param(Param.ZIP, "DEF");
 		this.pendingRecipients.offer(builder);
 		return builder;
 	}
@@ -202,12 +197,12 @@ public class JweBuilder implements Builder {
 						"Cannot specify different content encryption keys for multiple recipients");
 			contentEncryptionKey = cek;
 		} else if (contentEncryptionKey == null)
-			contentEncryptionKey = WebKey.builder().ephemeral(encryption).build().getKey();
+			contentEncryptionKey = WebKey.ephemeral(encryption).getKey();
 
 		// encrypt before processing header to ensure all headers are populated
 		final var encryptedKey = builder.encrypt(encryption, contentEncryptionKey);
 
-		final var header = new Jose(builder);
+		final var header = builder.header();
 		final var serializedHeader = header.toJson(a -> true);
 
 		if (!compact && !serializedHeader.keySet().containsAll(protectedParameters))

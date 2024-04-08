@@ -129,8 +129,15 @@ class JweRecipient implements WebEncryptionRecipient {
 			algId = IuText.ascii(algorithm.alg);
 		}
 
-		return JweRecipientBuilder.agreedUponKey((ECPrivateKey) recipientPrivateKey.getPrivateKey(),
-				(ECPublicKey) epk.getPublicKey(), algorithm.algorithm, algId, uinfo, vinfo, keyDataLen);
+		final String keyAlg;
+		final var type = recipientPrivateKey.getType();
+		if (type.kty.equals("EC"))
+			keyAlg = "ECDH";
+		else
+			keyAlg = type.algorithmParams;
+
+		return JweRecipientBuilder.agreedUponKey(recipientPrivateKey.getPrivateKey(), epk.getPublicKey(), keyAlg, algId,
+				uinfo, vinfo, keyDataLen);
 	}
 
 	/**

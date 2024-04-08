@@ -78,7 +78,9 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 	/**
 	 * JSON type adapter.
 	 */
-	public static final IuJsonAdapter<WebKey> JSON = IuJsonAdapter.from(v -> new Jwk(v.asJsonObject()), v -> {
+	public static final IuJsonAdapter<WebKey> JSON = IuJsonAdapter.from(v -> {
+		return new Jwk(v.asJsonObject());
+	}, v -> {
 		final var o = IuJson.object();
 		((Jwk) v).serializeTo(o);
 		return o.build();

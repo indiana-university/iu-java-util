@@ -46,20 +46,22 @@ import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IuText;
+import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 
 @SuppressWarnings("javadoc")
 public class JweTest {
 
 	private static class Builder extends JoseBuilder<Builder> {
-		private Builder(Encryption encryption) {
-			enc("enc", Encryption.JSON.toJson(encryption));
+		private Builder(Algorithm algorithm, Encryption encryption) {
+			super(algorithm);
+			param(Param.ENCRYPTION, encryption);
 		}
-		
-		@Override
-		protected Builder next() {
-			return this;
+
+		private Jose build() {
+			return new Jose(toJson());
 		}
 	}
 
@@ -74,7 +76,7 @@ public class JweTest {
 
 		final var alg = Algorithm.RSA_OAEP;
 		final var enc = Encryption.A256GCM;
-		final var jose = new Jose(new Builder(enc).algorithm(alg)).toJson(a -> true);
+		final var jose = new Builder(alg, enc).algorithm(alg).build().toJson(a -> true);
 		final var protectedHeader = UnpaddedBinary.base64Url(IuText.utf8(jose.toString()));
 		assertEquals("eyJhbGciOiJSU0EtT0FFUCIsImVuYyI6IkEyNTZHQ00ifQ", protectedHeader, jose::toString);
 
@@ -82,7 +84,7 @@ public class JweTest {
 				63, (byte) 180, 3, (byte) 255, 107, (byte) 154, (byte) 212, (byte) 246, (byte) 138, 7, 110, 91, 112, 46,
 				34, 105, 47, (byte) 130, (byte) 203, 46, 122, (byte) 234, 64, (byte) 252 };
 
-		final var rsa = JwkBuilder.parse("{\"kty\":\"RSA\",\n" //
+		final var rsa = WebKey.parse("{\"kty\":\"RSA\",\n" //
 				+ "      \"n\":\"oahUIoWw0K0usKNuOR6H4wkf4oBUXHTxRvgb48E-BVvxkeDNjbC4he8rUW" //
 				+ "cJoZmds2h7M70imEVhRU5djINXtqllXI4DFqcI1DgjT9LewND8MW2Krf3S" //
 				+ "psk_ZkoFnilakGygTwpZ3uesH-PFABNIUYpOiN15dsQRkgr0vEhxN92i2a" //
@@ -163,7 +165,7 @@ public class JweTest {
 
 		final var alg = Algorithm.A128KW;
 		final var enc = Encryption.AES_128_CBC_HMAC_SHA_256;
-		final var jose = new Jose(new Builder(enc).algorithm(alg)).toJson(a -> true);
+		final var jose = new Builder(alg, enc).build().toJson(a -> true);
 		final var protectedHeader = UnpaddedBinary.base64Url(IuText.utf8(jose.toString()));
 		assertEquals("eyJhbGciOiJBMTI4S1ciLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0", protectedHeader, jose::toString);
 
@@ -171,7 +173,7 @@ public class JweTest {
 				(byte) 157, (byte) 250, 63, (byte) 170, 106, (byte) 206, 107, 124, (byte) 212, 45, 111, 107, 9,
 				(byte) 219, (byte) 200, (byte) 177, 0, (byte) 240, (byte) 143, (byte) 156, 44, (byte) 207 };
 
-		final var secretKey = JwkBuilder.parse("{\"kty\":\"oct\",\r\n" //
+		final var secretKey = WebKey.parse("{\"kty\":\"oct\",\r\n" //
 				+ "      \"k\":\"GawgguFyGrWKav7AX4VKUg\"\r\n" //
 				+ "     }");
 
@@ -219,7 +221,8 @@ public class JweTest {
 				84, 77, 106, 85, 50, 73, 110, 48, 3, 22, 60, 12, 43, 67, 104, 105, 108, 108, 105, 99, 111, 116, 104,
 				101, 40, 57, 83, (byte) 181, 119, 33, (byte) 133, (byte) 148, (byte) 198, (byte) 185, (byte) 243, 24,
 				(byte) 152, (byte) 230, 6, 75, (byte) 129, (byte) 223, 127, 19, (byte) 210, 82, (byte) 183, (byte) 230,
-				(byte) 168, 33, (byte) 215, 104, (byte) 143, 112, 56, 102, 0, 0, 0, 0, 0, 0, 1, (byte) 152 }, cat.array());
+				(byte) 168, 33, (byte) 215, 104, (byte) 143, 112, 56, 102, 0, 0, 0, 0, 0, 0, 1, (byte) 152 },
+				cat.array());
 
 		final var mac = Mac.getInstance(enc.mac);
 		mac.init(new SecretKeySpec(macKey, enc.mac));

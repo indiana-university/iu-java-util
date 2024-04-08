@@ -262,7 +262,7 @@ public class Jwe implements WebEncryption {
 			protectedHeader = (JsonObject) UnpaddedBinary.compactJson(i.next());
 			unprotected = null;
 			recipients = new JweRecipient[] {
-					new JweRecipient(Jose.from(protectedHeader), UnpaddedBinary.base64Url(i.next())) };
+					new JweRecipient(new Jose(protectedHeader), UnpaddedBinary.base64Url(i.next())) };
 			initializationVector = UnpaddedBinary.base64Url(i.next());
 			cipherText = UnpaddedBinary.base64Url(i.next());
 			authenticationTag = UnpaddedBinary.base64Url(i.next());
@@ -283,7 +283,7 @@ public class Jwe implements WebEncryption {
 		for (final var recipient : recipients)
 			for (final var paramName : recipient.getHeader().extendedParameters().keySet())
 				if (Param.from(paramName) == null)
-					JoseBuilder.getExtension(paramName).verify(this, recipient);
+					Jose.getExtension(paramName).verify(this, recipient);
 	}
 
 	@Override
@@ -341,7 +341,7 @@ public class Jwe implements WebEncryption {
 		if (cek == null) {
 			// see: https://datatracker.ietf.org/doc/html/rfc7516#section-11.5
 			// -> proceed with a random key that will not work
-			cek = new byte[encryption.size];
+			cek = new byte[encryption.size / 8];
 			new SecureRandom().nextBytes(cek);
 		}
 
