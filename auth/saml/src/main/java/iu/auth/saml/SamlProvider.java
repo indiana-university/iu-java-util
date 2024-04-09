@@ -586,7 +586,7 @@ public class SamlProvider implements IuSamlProvider {
 		return new Decrypter(null, keyInfoResolver, new InlineEncryptedKeyResolver());
 	}
 
-	public PrivateKey getPrivateKey() {
+	private PrivateKey getPrivateKey() {
 		PrivateKey parsedPrivateKey = null;
 		StringBuilder pk = new StringBuilder(client.getPrivateKey());
 		int i = pk.indexOf("-----BEGIN PRIVATE KEY-----");

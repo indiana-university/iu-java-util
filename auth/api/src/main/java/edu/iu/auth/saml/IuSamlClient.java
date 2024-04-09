@@ -16,28 +16,11 @@ import java.util.List;
  * </p>
  */
 public interface IuSamlClient {
-	//	@Resource
-	// idp url env basis
-	//	private String[] metadataUrls = new String[0];
-	//	@Resource
-	//	private long metadataTtl = 300000L;
-	//	@Resource
-	//	private String entityId;
-	//	@Resource
-	//	private String[] acsUrls;
-	//	@Resource
-	//	private String privateKey;
-	//	@Resource
-	//	private String certificate;
-	//	@Resource
-	//	private String oldCertificate = "";
-	//	@Resource
-	//	private boolean failOnAddressMismatch;
-
-	// id
+	
 
 	/**
-	 * 
+	 * Gets whether to fail on address mismatch or not, true if required, false if not
+	 * @return failed on address mismatch 
 	 */
 	default boolean failOnAddressMismatch() {
 		return false;
@@ -51,7 +34,7 @@ public interface IuSamlClient {
 	/**
 	 * Gets the maximum time interval to re-established metadata resolver 
 	 * typically measured in seconds. Once this interval is passed,
-	 * metadata resolver will be re-established using metadata URLs.
+	 * metadata resolver will be re-established using metadata URIs.
 	 * 
 	 * @return metadaaTtl {@link Duration}
 	 */

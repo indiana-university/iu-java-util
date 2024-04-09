@@ -22,6 +22,12 @@ public class SamlUtil {
 			throw new SecurityException(e);
 		}
 	}
+	
+	/**
+	 * default constructor 
+	 */
+	public SamlUtil() {
+	}
 
 	/**
 	 * decrypt data

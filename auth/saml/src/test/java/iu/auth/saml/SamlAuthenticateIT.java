@@ -197,6 +197,8 @@ public class SamlAuthenticateIT {
 
 		assertEquals(sessionId,relayStateSessionId);
 		assertEquals(postURL.toString(), relayStatePostUrl);
+		
+		provider.validate(InetAddress.getByName("http://localhost:8080"), postURL.toString(), samlResponse);
 		metaData.delete();
 
 	}
