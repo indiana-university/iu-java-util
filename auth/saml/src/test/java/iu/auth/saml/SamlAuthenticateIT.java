@@ -98,7 +98,12 @@ public class SamlAuthenticateIT {
 
 			@Override
 			public List<InetAddress> getAllowedRange() {
-				return IuException.unchecked(() -> Arrays.asList(InetAddress.getByName("http://localhost:8080")));
+				return IuException.unchecked(() -> Arrays.asList(InetAddress.getLocalHost()));
+			}
+			
+			@Override
+			public String getMetaDataResolverUniqueId() {
+				return "iu-saml-metadata";
 			}
 
 		}) ;
@@ -109,7 +114,7 @@ public class SamlAuthenticateIT {
 		URI entityId = IuException.unchecked(() -> new URI(ldpMetaDataUrl));
 		URI postURL = IuException.unchecked(() -> new URI(postUrl));
 		var sessionId = IdGenerator.generateId();
-
+		System.out.println("sessionId " + sessionId);
 		URI location = provider.authRequest(entityId, postURL, sessionId);
 		System.out.println("Location: " + location);
 		final var cookieHandler = new CookieManager();
@@ -198,7 +203,7 @@ public class SamlAuthenticateIT {
 		assertEquals(sessionId,relayStateSessionId);
 		assertEquals(postURL.toString(), relayStatePostUrl);
 		
-		provider.validate(InetAddress.getByName("http://localhost:8080"), postURL.toString(), samlResponse);
+		provider.validate(InetAddress.getLocalHost(), postURL.toString(), samlResponse, sessionId);
 		metaData.delete();
 
 	}

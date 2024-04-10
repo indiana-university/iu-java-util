@@ -27,7 +27,7 @@ public interface IuSamlProvider {
 	 * 
 	 * @param entityId base identity provider URI to authorize access to
 	 * @param postURI Post back URI
-	 * @param sessionId  sessionId maintain by client that set in the RelayState parameter in the SAML request. 
+	 * @param sessionId  session maintain by client that set in RelayState parameter and also pass as unique id to SAML authentication Request . 
 	 * @return redirect URI
 	 * 
 	 */
@@ -44,8 +44,11 @@ public interface IuSamlProvider {
 	 * @param address IP address to validate against allowed list 
 	 * @param acsUrl assertion consumption service post url
 	 * @param samlResponse SAML response that received back from identity provider after user has been authenticate
+	 * @param sessionId session maintain by client to match with InResponseTo assertion. 
+	 *  
 	 */
-	void validate(InetAddress address, String acsUrl, String samlResponse);
+	void validate(InetAddress address, String acsUrl, String samlResponse, String sessionId);
 
+	
 	
 }

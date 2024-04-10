@@ -96,6 +96,11 @@ public class SpiTest {
 				return anyList();
 				
 			}
+			
+			@Override
+			public String getMetaDataResolverUniqueId() {
+				return "iu-saml-metadata";
+			}
 		};
 
 		IuSamlProvider provider = spi.getSamlProvider(client);

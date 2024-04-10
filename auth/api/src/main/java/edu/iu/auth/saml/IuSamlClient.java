@@ -86,4 +86,11 @@ public interface IuSamlClient {
 	 */
 
 	String getPrivateKey();
+	
+	/**
+	 * Gets metadata resolver unique id to initialize metadata resolver component.
+	 * @return metadata resolver uniqueId 
+	 */
+	String getMetaDataResolverUniqueId();
+
 }

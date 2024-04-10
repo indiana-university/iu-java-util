@@ -22,8 +22,9 @@ public class SamlConnectSpi implements IuSamlSpi {
 
 	@Override
 	public IuSamlProvider getSamlProvider(IuSamlClient client) {
-		Objects.requireNonNull(client.getAcsUris(), "Missing activation consumer urls");
-		Objects.requireNonNull(client.getMetaDataUris(), "Missing metadat urls");
+		Objects.requireNonNull(client.getAcsUris(), "Missing activation consumer uris");
+		Objects.requireNonNull(client.getMetaDataUris(), "Missing metadata uris");
+		Objects.requireNonNull(client.getMetaDataResolverUniqueId(), "Missing metadata resolver uniqueId");
 		final var serviceProviderEntityId = Objects.requireNonNull(client.getServiceProviderEntityId(),
 				"Missing service provider entity Id");
 

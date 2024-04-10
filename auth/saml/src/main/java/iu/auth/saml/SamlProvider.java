@@ -182,7 +182,7 @@ public class SamlProvider implements IuSamlProvider {
 	public SamlProvider(IuSamlClient client) {
 		this.client = client;
 
-		this.metadataResolver = getMetadata(client.getMetaDataUris(), client.getMetadataTtl());
+		this.metadataResolver = setMetadata(client.getMetaDataUris(), client.getMetadataTtl());
 		this.spMetaData = setSpMetadata();
 
 	}
@@ -216,7 +216,7 @@ public class SamlProvider implements IuSamlProvider {
 	 * @param metadataTtl  metadata maximum life time
 	 * @return {@link MetadataResolver}
 	 */
-	synchronized MetadataResolver getMetadata(List<URI> metadataUrls, Duration metadataTtl) {
+	synchronized MetadataResolver setMetadata(List<URI> metadataUrls, Duration metadataTtl) {
 		if (metadataResolver != null && lastMetadataUpdate >= (System.currentTimeMillis() - metadataTtl.toMillis()))
 			return metadataResolver;
 
@@ -232,9 +232,7 @@ public class SamlProvider implements IuSamlProvider {
 				}
 
 				DOMMetadataResolver mdr = new DOMMetadataResolver(md);
-				// TODO pass from client configuration
-				// verify without setting it
-				mdr.setId("iu-metadata");
+				mdr.setId(client.getMetaDataResolverUniqueId());
 				mdr.setRequireValidMetadata(true);
 				mdr.initialize();
 
@@ -255,9 +253,7 @@ public class SamlProvider implements IuSamlProvider {
 		}
 
 		ChainingMetadataResolver cmdr = new ChainingMetadataResolver();
-		// TODO pass from client configuration
-		// verify without setting it.
-		cmdr.setId("iu-endpoint-SAMLMetadata");
+		cmdr.setId(client.getMetaDataResolverUniqueId());
 		try {
 			cmdr.setResolvers(resolvers);
 			cmdr.initialize();
@@ -279,9 +275,6 @@ public class SamlProvider implements IuSamlProvider {
 
 		// validate entityId against metadataUrl configuration
 		var matchAcs = false;
-		// TODO create new session and maintain it
-		// activate
-		// var sessionId = IdGenerator.generateId();
 		var destinationLocation = getSingleSignOnLocation(samlEntityId.toString());
 		for (URI acsUrl : client.getAcsUris()) {
 			if (acsUrl.getPath().compareTo(postURI.getPath()) == 0)
@@ -339,7 +332,7 @@ public class SamlProvider implements IuSamlProvider {
 		// j.add("sessionId", sessionId);
 		// j.add("returnUrl", postURI.toString());
 		String jsonString = "{\"sessionId\":\"" + sessionId + "\"" + "," + "\"returnUrl\":\"" + postURI.toString()
-				+ "\"" + "}";
+		+ "\"" + "}";
 		idpParams.put("RelayState", Collections.singleton(SamlUtil.encrypt(jsonString)));
 
 		URI redirectUrl = IuException
@@ -436,7 +429,7 @@ public class SamlProvider implements IuSamlProvider {
 	}
 
 	@Override
-	public void validate(InetAddress address, String acsUrl, String samlResponse) {
+	public void validate(InetAddress address, String acsUrl, String samlResponse, String sessionId) {
 		Thread current = Thread.currentThread();
 		ClassLoader currentLoader = current.getContextClassLoader();
 		ClassLoader endpointLoader = SamlProvider.class.getClassLoader();
@@ -458,18 +451,17 @@ public class SamlProvider implements IuSamlProvider {
 			SignatureTrustEngine newTrustEngine = new ExplicitKeySignatureTrustEngine(credentialResolver,
 					getKeyInfoCredentialResolver(response));
 			SignaturePrevalidator newSignaturePrevalidator = new SAMLSignatureProfileValidator();
-			try {
+
+			IuException.unchecked(() -> {
 				SignatureValidationParameters vparam = new SignatureValidationParameters();
 				vparam.setSignatureTrustEngine(newTrustEngine);
 				newSignaturePrevalidator.validate(response.getSignature());
 				if (!newTrustEngine.validate(response.getSignature(),
 						new CriteriaSet(new SignatureValidationParametersCriterion(vparam))))
 					throw new SecurityException("SAML signature verification failed");
-			} catch (SignatureException | org.opensaml.security.SecurityException e) {
-				throw new SecurityException(e);
-			}
+			});
 
-			IuSubjectConfirmationValidator subjectValidator = new IuSubjectConfirmationValidator(null, false);
+			IuSubjectConfirmationValidator subjectValidator = new IuSubjectConfirmationValidator(client.getAllowedRange(), client.failOnAddressMismatch());
 
 			SAML20AssertionValidator validator = new SAML20AssertionValidator(
 					Arrays.asList(new AudienceRestrictionConditionValidator()), Arrays.asList(subjectValidator),
@@ -494,12 +486,13 @@ public class SamlProvider implements IuSamlProvider {
 
 			staticParams.put(SAML2AssertionValidationParameters.SC_VALID_RECIPIENTS, Collections.singleton(acsUrl));
 			staticParams.put(SAML2AssertionValidationParameters.SIGNATURE_REQUIRED, false);
+			staticParams.put(SAML2AssertionValidationParameters.SC_VALID_IN_RESPONSE_TO,sessionId );
 			ValidationContext ctx = new ValidationContext(staticParams);
 
 			if (LOG.isLoggable(Level.FINE))
 				LOG.fine("SAML2 authentication response\nEntity ID: " + client.getServiceProviderEntityId()
-						+ "\nACS URL: " + acsUrl + "\nAllow IP Range: " + client.getAllowedRange() + "\n"
-						+ XmlDomUtil.getContent(response.getDOM()) + "\nStatic Params: " + staticParams);
+				+ "\nACS URL: " + acsUrl + "\nAllow IP Range: " + client.getAllowedRange() + "\n"
+				+ XmlDomUtil.getContent(response.getDOM()) + "\nStatic Params: " + staticParams);
 
 			// SamlAttributes samlAttributes = new SamlAttributes();
 			// samlAttributes.setEntityId(entityId);
@@ -565,7 +558,7 @@ public class SamlProvider implements IuSamlProvider {
 					.get(SAML2AssertionValidationParameters.CONFIRMED_SUBJECT_CONFIRMATION);
 			if (confirmation == null)
 				throw new IuBadRequestException("Missing subject confirmation: " + ctx.getValidationFailureMessages()
-						+ "\n" + ctx.getDynamicParameters());
+				+ "\n" + ctx.getDynamicParameters());
 
 			LOG.fine("SAML2 subject confirmation " + XmlDomUtil.getContent(confirmation.getDOM()));
 
