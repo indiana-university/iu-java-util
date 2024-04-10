@@ -114,10 +114,6 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 			return new Jose(toJson());
 		}
 
-		private Jwk key() {
-			return (Jwk) Jwk.JSON.fromJson(Objects.requireNonNull(param(Param.KEY.name), "Must provide signing key"));
-		}
-
 		private JsonObject protectedHeader() {
 			final var protectedHeaderBuilder = IuJson.object();
 			if (compact)
@@ -185,6 +181,12 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 	@Override
 	public JwsBuilder wellKnown(URI uri) {
 		pendingSignatures.peekLast().wellKnown(uri);
+		return this;
+	}
+
+	@Override
+	public JwsBuilder wellKnown(WebKey key) {
+		pendingSignatures.peekLast().wellKnown(key);
 		return this;
 	}
 

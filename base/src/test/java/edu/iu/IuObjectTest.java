@@ -150,7 +150,17 @@ public class IuObjectTest {
 		assertSame("foo", IuObject.once(null, "foo"));
 		assertSame("foo", IuObject.once("foo", "foo"));
 		assertSame("foo", IuObject.once("foo", null));
-		assertThrows(IllegalArgumentException.class, () -> IuObject.once("bar", "foo"));
+		assertEquals("baz",
+				assertThrows(IllegalArgumentException.class, () -> IuObject.once("bar", "foo", "baz")).getMessage());
+	}
+
+	@Test
+	public void testFirst() {
+		assertNull(IuObject.first(null, null, null));
+		assertSame("foo", IuObject.first(null, null, "foo"));
+		assertSame("foo", IuObject.first("foo", null, "foo"));
+		assertSame("foo", IuObject.first("foo", "foo", null));
+		assertThrows(IllegalArgumentException.class, () -> IuObject.first("foo", "bar", "foo"));
 	}
 
 	@Test

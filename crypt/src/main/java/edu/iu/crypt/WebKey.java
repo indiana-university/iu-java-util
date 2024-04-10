@@ -792,7 +792,7 @@ public interface WebKey extends WebKeyReference {
 	 * @return {@link Builder}
 	 */
 	static Builder<?> builder(Type type) {
-		return new JwkBuilder().type(type);
+		return JwkBuilder.of(type);
 	}
 
 	/**

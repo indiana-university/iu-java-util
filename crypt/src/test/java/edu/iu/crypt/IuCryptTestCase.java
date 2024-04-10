@@ -52,7 +52,11 @@ import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.IuText;
 import edu.iu.client.IuHttp;
+import edu.iu.client.IuJson;
+import edu.iu.crypt.WebCryptoHeader.Extension;
 import iu.crypt.DigestUtils;
+import iu.crypt.Jose;
+import jakarta.json.JsonString;
 
 @SuppressWarnings("javadoc")
 public class IuCryptTestCase {
@@ -132,6 +136,16 @@ public class IuCryptTestCase {
 		final var uri = URI.create("test://" + AUTH + '/' + IdGenerator.generateId());
 		mockHttp.when(() -> IuHttp.send(eq(uri), any())).thenReturn(response);
 		return uri;
+	}
+
+	@SuppressWarnings("unchecked")
+	protected String ext() {
+		final var extName = IdGenerator.generateId();
+		final var ext = mock(Extension.class);
+		when(ext.toJson(any())).thenAnswer(a -> IuJson.string((String) a.getArgument(0)));
+		when(ext.fromJson(any())).thenAnswer(a -> ((JsonString) a.getArgument(0)).getString());
+		Jose.register(extName, ext);
+		return extName;
 	}
 
 	@BeforeAll

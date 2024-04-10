@@ -33,6 +33,7 @@ package edu.iu.crypt;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -47,6 +48,8 @@ import static org.mockito.Mockito.when;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Level;
 
+import javax.crypto.AEADBadTagException;
+
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
@@ -57,11 +60,13 @@ import edu.iu.crypt.WebCryptoHeader.Extension;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.test.IuTestLogger;
+import iu.crypt.UnpaddedBinary;
 
 @SuppressWarnings("javadoc")
-public class WebEncryptionTest {
+public class WebEncryptionTest extends IuCryptTestCase {
 
 	@Test
 	public void testEncryption() {
@@ -80,7 +85,8 @@ public class WebEncryptionTest {
 		final var json = IuJson.object(IuJson.parse(jwe.toString()).asJsonObject());
 		json.add("tag", "");
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
-		assertThrows(IllegalArgumentException.class, () -> WebEncryption.parse(json.build().toString()).decrypt(key));
+		assertInstanceOf(AEADBadTagException.class, assertThrows(IllegalStateException.class,
+				() -> WebEncryption.parse(json.build().toString()).decrypt(key)).getCause());
 	}
 
 	@Test
@@ -110,13 +116,19 @@ public class WebEncryptionTest {
 		final var key2 = WebKey.ephemeral(Algorithm.RSA_OAEP_256);
 		final var key3 = WebKey.ephemeral(Algorithm.ECDH_ES_A192KW);
 		final var id = IdGenerator.generateId();
+		final var protext = ext();
+		final var pertext = ext();
 		final var original = WebEncryption.builder(Encryption.A256GCM, false) //
-				.addRecipient(Algorithm.A256GCMKW).key(key1).then() //
-				.addRecipient(Algorithm.RSA_OAEP_256).key(key2).then() //
-				.addRecipient(Algorithm.ECDH_ES_A192KW).key(key3).then();
-		assertThrows(IllegalStateException.class, () -> original.compact());
-		assertThrows(IllegalStateException.class, () -> original.protect(Param.ALGORITHM));
+				.addRecipient(Algorithm.A256GCMKW).key(key1).type("example").param(protext, "foo")
+				.param(pertext, IdGenerator.generateId()).then() //
+				.addRecipient(Algorithm.RSA_OAEP_256).key(key2).type("example").param(protext, "foo")
+				.param(pertext, IdGenerator.generateId()).then() //
+				.addRecipient(Algorithm.ECDH_ES_A192KW).key(key3).type("example").param(protext, "foo")
+				.param(pertext, IdGenerator.generateId()).then();
+		original.protect(Param.TYPE);
+		original.protect(protext);
 		final var jwe = WebEncryption.parse(original.encrypt(id).toString());
+		assertThrows(IllegalStateException.class, () -> jwe.compact());
 
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for {\"kty\":\"oct\"}");
 		assertEquals(id, jwe.decryptText(key1));
@@ -127,7 +139,7 @@ public class WebEncryptionTest {
 		assertEquals(id, jwe.decryptText(key2));
 		IuTestLogger.assertExpectedMessages();
 
-		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalArgumentException.class);
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", ClassCastException.class);
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalArgumentException.class);
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key3.wellKnown());
 		assertEquals(id, jwe.decryptText(key3));
@@ -175,46 +187,166 @@ public class WebEncryptionTest {
 			data[i] = (byte) ThreadLocalRandom.current().nextInt(32, 127);
 		final var message = IuText.ascii(data);
 
-		final var jwe = WebEncryption.to(encryption, algorithm).key(key).then().compact().encrypt(message);
-		assertNull(jwe.getAdditionalData());
+		{
+			final var compactJwe = WebEncryption.to(encryption, algorithm).key(key).then().compact().encrypt(message);
+			IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
+			assertEquals(message, compactJwe.decryptText(key));
+			assertNull(compactJwe.getAdditionalData());
+
+			final var fromCompact = WebEncryption.parse(compactJwe.compact());
+			final var compactHeader = fromCompact.getRecipients().iterator().next().getHeader();
+			assertEquals(algorithm, compactHeader.getAlgorithm());
+			assertEquals(encryption, fromCompact.getEncryption());
+			assertNull(compactHeader.getKey());
+
+			IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
+			assertEquals(message, fromCompact.decryptText(key));
+		}
 
 		final var aad = new byte[32];
 		ThreadLocalRandom.current().nextBytes(aad);
-		final var slientJwe = WebEncryption.builder(encryption).addRecipient(algorithm).key(key).then().aad(aad)
-				.encrypt(message);
-		assertNotNull(slientJwe.getAdditionalData());
 
-		final var fromCompact = WebEncryption.parse(jwe.compact());
+		{
+			final var serialJwe = WebEncryption.to(encryption, algorithm).wellKnown(key).then().encrypt(message);
+			assertNull(serialJwe.getAdditionalData());
 
-		final var compactHeader = fromCompact.getRecipients().iterator().next().getHeader();
-		assertEquals(algorithm, compactHeader.getAlgorithm());
-		assertEquals(encryption, fromCompact.getEncryption());
-		assertNull(compactHeader.getKey());
+			final var fromSerial = WebEncryption.parse(serialJwe.toString());
+			final var serialHeader = fromSerial.getRecipients().iterator().next().getHeader();
+			assertEquals(algorithm, serialHeader.getAlgorithm());
+			assertEquals(encryption, fromSerial.getEncryption());
+			assertEquals(key.wellKnown(), serialHeader.getKey());
 
-		final var fromSerial = WebEncryption.parse(jwe.toString());
-		final var serialHeader = fromSerial.getRecipients().iterator().next().getHeader();
-		assertEquals(algorithm, serialHeader.getAlgorithm());
-		assertEquals(encryption, fromSerial.getEncryption());
-		assertEquals(key.wellKnown(), serialHeader.getKey());
+			IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
+			assertEquals(message, fromSerial.decryptText(key));
+		}
 
-		final var fromSilent = WebEncryption.parse(slientJwe.toString());
-		final var silentHeader = fromSilent.getRecipients().iterator().next().getHeader();
-		assertEquals(algorithm, silentHeader.getAlgorithm());
-		assertEquals(encryption, fromSilent.getEncryption());
-		assertEquals(key.wellKnown(), silentHeader.getKey());
-		assertArrayEquals(aad, fromSilent.getAdditionalData());
+		{
+			final var slientJwe = WebEncryption.builder(encryption).addRecipient(algorithm).key(key).then().aad(aad)
+					.encrypt(message);
+			assertNotNull(slientJwe.getAdditionalData());
 
-		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
-		assertEquals(message, jwe.decryptText(key));
+			final var fromSilent = WebEncryption.parse(slientJwe.toString());
+			final var silentHeader = fromSilent.getRecipients().iterator().next().getHeader();
+			assertEquals(algorithm, silentHeader.getAlgorithm());
+			assertEquals(encryption, fromSilent.getEncryption());
+			assertNull(silentHeader.getKey());
+			assertArrayEquals(aad, fromSilent.getAdditionalData());
 
-		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
-		assertEquals(message, fromCompact.decryptText(key));
+			IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
+			assertEquals(message, fromSilent.decryptText(key));
+		}
+	}
 
-		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
-		assertEquals(message, fromSerial.decryptText(key));
+	@Test
+	public void testSimpleExample() {
+		IuTestLogger.allow("iu.crypt", Level.FINE);
+		String jsonString = IuJson.object().add("sessionId", IdGenerator.generateId())
+				.add("returnUrl", uri("foo").toString()).build().toString();
 
-		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
-		assertEquals(message, fromSilent.decryptText(key));
+		final var key = WebKey.ephemeral(Encryption.A128GCM);
+		final var enc = WebEncryption.builder(Encryption.A128GCM).compact().addRecipient(Algorithm.DIRECT).key(key)
+				.encrypt(jsonString).compact();
+		final var dec = WebEncryption.parse(enc);
+		assertEquals(jsonString, dec.decryptText(key));
+	}
+
+	@Test
+	public void testProtected() {
+		final var key = WebKey.ephemeral(Encryption.A128GCM);
+		assertThrows(IllegalArgumentException.class, () -> WebEncryption.builder(Encryption.A128GCM)
+				.protect(Param.CONTENT_TYPE).addRecipient(Algorithm.DIRECT).key(key).encrypt("foo"));
+		assertThrows(IllegalArgumentException.class, () -> WebEncryption.builder(Encryption.A128GCM).compact()
+				.protect(Param.CONTENT_TYPE).addRecipient(Algorithm.DIRECT).key(key).encrypt("foo"));
+	}
+
+	@Test
+	public void testBadECDGKeys() {
+		final var key = WebKey.ephemeral(Algorithm.ECDH_ES);
+		assertThrows(IllegalArgumentException.class,
+				() -> WebEncryption.builder(Encryption.A128GCM).addRecipient(Algorithm.ES256).key(key).encrypt("foo"));
+		final var enc = WebEncryption.builder(Encryption.A128GCM).addRecipient(Algorithm.ECDH_ES).key(key)
+				.encrypt("foo");
+
+		// Decrypt only logs key failure details at FINE level
+		// thrown ISE always implies successful decryption w/ rejected AEAD
+		// authentication tag
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalArgumentException.class,
+				e -> "Private key type doesn't match epk".equals(e.getMessage()));
+		assertInstanceOf(AEADBadTagException.class,
+				assertThrows(IllegalStateException.class,
+						() -> enc.decrypt(WebKey.builder(Type.EC_P384).ephemeral(Algorithm.ECDH_ES).build()))
+						.getCause());
+
+		final var encw = WebEncryption.builder(Encryption.A128GCM).addRecipient(Algorithm.ECDH_ES).wellKnown(key)
+				.encrypt("foo");
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalArgumentException.class,
+				e -> "Key is not valid for recipient".equals(e.getMessage()));
+		assertInstanceOf(AEADBadTagException.class,
+				assertThrows(IllegalStateException.class,
+						() -> encw.decrypt(WebKey.builder(Type.EC_P384).ephemeral(Algorithm.ECDH_ES).build()))
+						.getCause());
+
+		final var encb = WebEncryption.builder(Encryption.A128GCM).addRecipient(Algorithm.ECDH_ES).wellKnown(key);
+		final var enco = IuJson.parse(encb.encrypt("foo").toString()).asJsonObject();
+		final var ence = WebEncryption.parse(IuJson.object(enco)
+				.add("encrypted_key", UnpaddedBinary.base64Url(WebKey.ephemeral(Encryption.A128GCM).getKey())).build()
+				.toString());
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalArgumentException.class,
+				e -> "encrypted key must be empty for ECDH_ES".equals(e.getMessage()));
+		assertInstanceOf(AEADBadTagException.class,
+				assertThrows(IllegalStateException.class, () -> ence.decrypt(key)).getCause());
+	}
+
+	@Test
+	public void testBadDirectKeys() {
+		final var key = WebKey.ephemeral(Encryption.AES_128_CBC_HMAC_SHA_256);
+		final var enc = WebEncryption.builder(Encryption.AES_128_CBC_HMAC_SHA_256).addRecipient(Algorithm.DIRECT)
+				.key(key).encrypt("foo");
+
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", NullPointerException.class,
+				e -> "DIRECT requires a secret key".equals(e.getMessage()));
+		assertInstanceOf(AEADBadTagException.class,
+				assertThrows(IllegalStateException.class,
+						() -> enc.decrypt(WebKey.builder(Type.EC_P384).ephemeral(Algorithm.ECDH_ES).build()))
+						.getCause());
+
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalArgumentException.class,
+				e -> "Invalid key size for AES_128_CBC_HMAC_SHA_256".equals(e.getMessage()));
+		assertInstanceOf(AEADBadTagException.class, assertThrows(IllegalStateException.class,
+				() -> enc.decrypt(WebKey.ephemeral(Encryption.AES_192_CBC_HMAC_SHA_384))).getCause());
+
+		final var encb = WebEncryption.builder(Encryption.AES_128_CBC_HMAC_SHA_256).addRecipient(Algorithm.DIRECT)
+				.wellKnown(key);
+		final var enco = IuJson.parse(encb.encrypt("foo").toString()).asJsonObject();
+		final var ence = WebEncryption.parse(IuJson.object(enco)
+				.add("encrypted_key", UnpaddedBinary.base64Url(WebKey.ephemeral(Encryption.A128GCM).getKey())).build()
+				.toString());
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalArgumentException.class,
+				e -> "encrypted key must be empty for DIRECT".equals(e.getMessage()));
+		assertInstanceOf(AEADBadTagException.class,
+				assertThrows(IllegalStateException.class, () -> ence.decrypt(key)).getCause());
+	}
+
+	@Test
+	public void testBadGCMKWKeys() {
+		final var key = WebKey.ephemeral(Algorithm.A192GCMKW);
+		final var enc = WebEncryption.builder(Encryption.A192GCM).addRecipient(Algorithm.A192GCMKW).key(key);
+		final var enco = IuJson.parse(enc.encrypt("foo").toString()).asJsonObject();
+		final var ench = IuJson.object(enco.getJsonObject("header"))
+				.add("iv", UnpaddedBinary.base64Url(new byte[] { 1, 2, 3, 4, 5 })).build();
+		final var ence = WebEncryption.parse(IuJson.object(enco).add("header", ench).build().toString());
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalArgumentException.class,
+				e -> "iv must be 96 bits".equals(e.getMessage()));
+		assertInstanceOf(AEADBadTagException.class,
+				assertThrows(IllegalStateException.class, () -> ence.decrypt(key)).getCause());
+		
+		final var encth = IuJson.object(enco.getJsonObject("header"))
+				.add("tag", UnpaddedBinary.base64Url(new byte[] { 1, 2, 3, 4, 5 })).build();
+		final var enct = WebEncryption.parse(IuJson.object(enco).add("header", encth).build().toString());
+		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalArgumentException.class,
+				e -> "tag must be 128 bits".equals(e.getMessage()));
+		assertInstanceOf(AEADBadTagException.class,
+				assertThrows(IllegalStateException.class, () -> enct.decrypt(key)).getCause());
 	}
 
 }

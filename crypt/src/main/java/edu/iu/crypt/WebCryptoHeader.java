@@ -71,7 +71,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		/**
 		 * Well-known key identifier.
 		 */
-		KEY_ID("kid", EnumSet.allOf(Use.class), false, WebCryptoHeader::getKeyId, () -> Use.JSON),
+		KEY_ID("kid", EnumSet.allOf(Use.class), false, WebCryptoHeader::getKeyId, () -> IuJsonAdapter.of(String.class)),
 
 		/**
 		 * Well-known key set URI.
@@ -317,9 +317,21 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		B wellKnown(URI uri);
 
 		/**
-		 * Sets a key to include in the signature or encryption header.
+		 * Sets the key to include with the header.
 		 * 
-		 * @param key key to include in the signature or encryption header
+		 * @param key <em>may</em> include private/secret key data to use for
+		 *            encryption/signing; only {@link WebKey#wellKnown()} will be
+		 *            included in the header.
+		 * @return this
+		 */
+		B wellKnown(WebKey key);
+
+		/**
+		 * The key to use for encrypting or signing.
+		 * 
+		 * @param key key to use for encryption or signing; will not be included in the
+		 *            header. Use {@link #wellKnown(WebKey)} to set the key and include
+		 *            well-known component in the header.
 		 * @return this
 		 */
 		B key(WebKey key);
@@ -467,7 +479,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 				} else if (!param.isPresent(header))
 					throw new IllegalArgumentException("Missing critical registered parameter " + paramName);
 			}
-		
+
 		final var key = header.getKey();
 		final var keyId = IuObject.first(header.getKeyId(), IuObject.convert(key, WebKey::getKeyId));
 		final var certChain = WebCertificateReference.verify(header);

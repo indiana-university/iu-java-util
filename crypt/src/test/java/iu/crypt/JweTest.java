@@ -33,9 +33,14 @@ package iu.crypt;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.logging.Level;
 
 import javax.crypto.Cipher;
 import javax.crypto.Mac;
@@ -45,11 +50,15 @@ import javax.crypto.spec.SecretKeySpec;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.IdGenerator;
 import edu.iu.IuText;
+import edu.iu.client.IuJson;
 import edu.iu.crypt.WebCryptoHeader.Param;
+import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
 public class JweTest {
@@ -242,4 +251,65 @@ public class JweTest {
 		assertEquals("U0m_YmjN04DJvceFICbCVQ", UnpaddedBinary.base64Url(tag));
 	}
 
+	@Test
+	public void testFlattenedAndNotFlattened() {
+		assertThrows(IllegalArgumentException.class, () -> new Jwe(
+				IuJson.object().add("header", IuJson.object()).add("recipients", IuJson.array()).build().toString()));
+	}
+
+	@Test
+	public void testExcessCompact() {
+		assertThrows(IllegalArgumentException.class,
+				() -> new Jwe(WebEncryption.builder(Encryption.A128GCM).compact().addRecipient(Algorithm.DIRECT)
+						.key(WebKey.ephemeral(Encryption.A128GCM)).encrypt("foo").compact() + ".foo"));
+	}
+
+	@Test
+	public void testCompactNoAdditional() {
+		assertThrows(IllegalStateException.class,
+				() -> WebEncryption.builder(Encryption.A128GCM).aad(new byte[] { 1, 2, 3 })
+						.addRecipient(Algorithm.DIRECT).key(WebKey.ephemeral(Encryption.A128GCM)).encrypt("foo")
+						.compact());
+	}
+
+	@Test
+	public void testWrongKey() {
+		final var k1 = WebKey.ephemeral(Algorithm.A128KW);
+		final var k2 = WebKey.ephemeral(Algorithm.A128KW);
+		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
+		assertThrows(IllegalStateException.class, () -> WebEncryption.builder(Encryption.A128GCM)
+				.addRecipient(Algorithm.A128KW).key(k1).encrypt("foo").decryptText(k2));
+	}
+
+	@Test
+	public void testPerRecipient() {
+		final var key = WebKey.ephemeral(Encryption.A128GCM);
+		final var jwe = WebEncryption.builder(Encryption.A128GCM).addRecipient(Algorithm.DIRECT).key(key).then()
+				.addRecipient(Algorithm.DIRECT).key(key).encrypt("foo");
+		assertEquals(IuJson.array().add(IuJson.object()).add(IuJson.object()).build(),
+				IuJson.parse(jwe.toString()).asJsonObject().getJsonArray("recipients"));
+
+		final var jwe2 = WebEncryption.builder(Encryption.A128GCM).compact().addRecipient(Algorithm.DIRECT).key(key)
+				.encrypt("foo");
+		assertTrue(jwe.isDeflate());
+		assertNotNull(jwe.getInitializationVector());
+		assertNotNull(jwe.getCipherText());
+		assertNotNull(jwe.getAuthenticationTag());
+		assertNull(jwe.getAdditionalData());
+		assertNull(IuJson.parse(jwe2.toString()).asJsonObject().getJsonArray("recipients"));
+		assertNull(IuJson.parse(jwe2.toString()).asJsonObject().getJsonObject("header"));
+
+		final var jwe3 = WebEncryption.builder(Encryption.A128GCM).protect(Param.ENCRYPTION, Param.ZIP, Param.ALGORITHM)
+				.addRecipient(Algorithm.DIRECT).keyId(IdGenerator.generateId()).key(key).then()
+				.addRecipient(Algorithm.DIRECT).keyId(IdGenerator.generateId()).key(key).encrypt("foo");
+		assertNotNull(IuJson.parse(jwe3.toString()).asJsonObject().getJsonArray("recipients"));
+		assertNull(IuJson.parse(jwe3.toString()).asJsonObject().getJsonObject("unprotected"));
+	}
+
+	@Test
+	public void testValidRecipients() {
+		final var key = WebKey.ephemeral(Encryption.A192GCM);
+		assertThrows(IllegalArgumentException.class,
+				() -> WebEncryption.builder(Encryption.A128GCM).addRecipient(Algorithm.DIRECT).key(key).encrypt("foo"));
+	}
 }

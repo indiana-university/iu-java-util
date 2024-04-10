@@ -37,7 +37,10 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
@@ -46,6 +49,7 @@ import java.util.zip.DeflaterOutputStream;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterOutputStream;
 
+import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
 import javax.crypto.Mac;
 import javax.crypto.spec.GCMParameterSpec;
@@ -108,7 +112,8 @@ public class Jwe implements WebEncryption {
 				mac.init(new SecretKeySpec(macKey, encryption.mac));
 				return mac.doFinal(macInput.array());
 			}), 0, cek.length / 2))
-				throw new IllegalArgumentException("Invalid authentication tag");
+				throw new IllegalStateException("Invalid authentication tag",
+						new AEADBadTagException("AES/CBC/HMAC verification failure"));
 
 			this.initializationVector = initializationVector;
 			this.cipherText = cipherText;
@@ -153,6 +158,20 @@ public class Jwe implements WebEncryption {
 		}
 	}
 
+	private static Map<String, JsonValue> createSharedHeader(Iterable<JweRecipient> recipients) {
+		Map<String, JsonValue> sharedHeader = null;
+		for (final var recipient : recipients) {
+			final var serializedHeader = recipient.getHeader().toJson(a -> true);
+			if (sharedHeader == null)
+				sharedHeader = new LinkedHashMap<>(serializedHeader);
+			else
+				for (final var paramEntry : serializedHeader.entrySet())
+					sharedHeader.computeIfPresent(paramEntry.getKey(),
+							(a, value) -> IuObject.equals(value, paramEntry.getValue()) ? value : null);
+		}
+		return sharedHeader;
+	}
+
 	private final Encryption encryption;
 	private final boolean deflate;
 	private final JsonObject protectedHeader;
@@ -166,21 +185,66 @@ public class Jwe implements WebEncryption {
 	/**
 	 * Encrypts an outbound message.
 	 * 
-	 * @param builder {@link JweBuilder}
-	 * @param in      provides the plain text data to be encrypted
+	 * @param encryption           content encryption algorithm
+	 * @param deflate              true to compress content before encryption; false
+	 *                             to encrypt uncompressed
+	 * @param compact              true to verify as compact serializable
+	 * @param protectedParameters  parameter names to enforce as shared and include
+	 *                             in the protected header, ignored when compact =
+	 *                             true
+	 * @param recipients           message recipients
+	 * @param contentEncryptionKey content encryption key
+	 * @param additionalData       AEAD additional authentication data
+	 * @param in                   provides the plain text data to be encrypted
 	 */
-	Jwe(JweBuilder builder, InputStream in) {
-		encryption = builder.encryption();
-		deflate = builder.deflate();
-		protectedHeader = builder.protectedHeader();
-		unprotected = builder.unprotected();
-		recipients = IuIterable.stream(builder.recipients()).toArray(JweRecipient[]::new);
+	Jwe(Encryption encryption, boolean deflate, boolean compact, Set<String> protectedParameters,
+			Iterable<JweRecipient> recipients, byte[] contentEncryptionKey, byte[] additionalData, InputStream in) {
+		this.encryption = encryption;
+		this.deflate = deflate;
+		this.additionalData = additionalData;
 
-		final var cek = builder.contentEncryptionKey();
+		final var sharedHeader = Objects.requireNonNull(createSharedHeader(recipients),
+				"at least one recipient required");
+
+		if (compact) {
+			final var recipientIterator = recipients.iterator();
+			recipientIterator.next();
+			if (recipientIterator.hasNext())
+				throw new IllegalArgumentException("cannot specifiy compact for more than one recipient");
+			IuObject.require(additionalData, Objects::isNull, () -> "cannot specify compact with additionalData");
+
+			if (!sharedHeader.keySet().containsAll(protectedParameters))
+				throw new IllegalArgumentException("protected parameters " + protectedParameters + " are required");
+
+			final var protectedHeaderBuilder = IuJson.object();
+			sharedHeader.forEach(protectedHeaderBuilder::add);
+			protectedHeader = protectedHeaderBuilder.build();
+			unprotected = null;
+
+		} else {
+			if (!protectedParameters.isEmpty()) {
+				final var protectedHeaderBuilder = IuJson.object();
+				for (final var paramName : protectedParameters)
+					protectedHeaderBuilder.add(paramName,
+							Objects.requireNonNull(sharedHeader.remove(paramName), paramName));
+				protectedHeader = protectedHeaderBuilder.build();
+			} else
+				protectedHeader = null;
+
+			if (sharedHeader.isEmpty())
+				unprotected = null;
+			else {
+				final var unprotectedBuilder = IuJson.object();
+				sharedHeader.forEach(unprotectedBuilder::add);
+				unprotected = unprotectedBuilder.build();
+			}
+		}
+
+		this.recipients = IuIterable.stream(recipients).toArray(JweRecipient[]::new);
 
 		// 5.1#11 compress content if requested
 		final var content = IuException.unchecked(() -> {
-			if (builder.deflate()) {
+			if (deflate) {
 				final var deflatedContent = new ByteArrayOutputStream();
 				try (final var d = new DeflaterOutputStream(deflatedContent,
 						new Deflater(Deflater.DEFAULT_COMPRESSION, true /* <= RFC-1951 compliant */))) {
@@ -197,14 +261,13 @@ public class Jwe implements WebEncryption {
 			aadBuilder.append(UnpaddedBinary.base64Url(IuText.utf8(protectedHeader.toString())));
 
 		// 5.1#14 calculate additional data for AEAD
-		additionalData = builder.additionalData();
 		if (additionalData != null)
 			aadBuilder.append('.').append(UnpaddedBinary.base64Url(additionalData));
 		final var aad = IuText.ascii(aadBuilder.toString());
 
 		// 5.1#15 encrypt content
 		if (encryption.mac != null) {
-			final var aesCbcHmac = new AesCbcHmac(encryption, content, cek, aad);
+			final var aesCbcHmac = new AesCbcHmac(encryption, content, contentEncryptionKey, aad);
 			initializationVector = aesCbcHmac.initializationVector;
 			cipherText = aesCbcHmac.cipherText;
 			authenticationTag = aesCbcHmac.authenticationTag;
@@ -216,7 +279,7 @@ public class Jwe implements WebEncryption {
 			final var encryptedData = IuException.unchecked(() -> {
 				final var gcmSpec = new GCMParameterSpec(128, initializationVector);
 				final var messageCipher = Cipher.getInstance(encryption.algorithm);
-				messageCipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(cek, "AES"), gcmSpec);
+				messageCipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(contentEncryptionKey, "AES"), gcmSpec);
 				messageCipher.updateAAD(aad);
 				return messageCipher.doFinal(content);
 			});
@@ -261,8 +324,8 @@ public class Jwe implements WebEncryption {
 			final var i = UnpaddedBinary.compact(jwe);
 			protectedHeader = (JsonObject) UnpaddedBinary.compactJson(i.next());
 			unprotected = null;
-			recipients = new JweRecipient[] {
-					new JweRecipient(new Jose(protectedHeader), UnpaddedBinary.base64Url(i.next())) };
+			recipients = new JweRecipient[] { new JweRecipient(IuObject.convert(protectedHeader, Jose::new),
+					UnpaddedBinary.base64Url(i.next())) };
 			initializationVector = UnpaddedBinary.base64Url(i.next());
 			cipherText = UnpaddedBinary.base64Url(i.next());
 			authenticationTag = UnpaddedBinary.base64Url(i.next());
@@ -338,12 +401,10 @@ public class Jwe implements WebEncryption {
 				LOG.log(Level.FINE, e, () -> "CEK decryption failed");
 			}
 
-		if (cek == null) {
+		if (cek == null)
 			// see: https://datatracker.ietf.org/doc/html/rfc7516#section-11.5
 			// -> proceed with a random key that will not work
-			cek = new byte[encryption.size / 8];
-			new SecureRandom().nextBytes(cek);
-		}
+			cek = WebKey.ephemeral(encryption).getKey();
 
 		StringBuilder aadBuilder = new StringBuilder();
 		if (protectedHeader != null)
@@ -395,9 +456,10 @@ public class Jwe implements WebEncryption {
 
 	@Override
 	public String compact() {
-		if (recipients.length != 1 || unprotected != null || additionalData != null)
+		if (recipients.length != 1 //
+				|| additionalData != null)
 			throw new IllegalStateException(
-					"Must have exactly one recipient with no unprotected header parameters, and no additional authentication data to use JWE compact serialization");
+					"Must have exactly one recipient with no additional authentication data to use JWE compact serialization");
 		final var recipient = recipients[0];
 		return UnpaddedBinary.base64Url(IuText.utf8(Objects.requireNonNullElse(protectedHeader, "").toString())) //
 				+ '.' + Objects.requireNonNullElse(UnpaddedBinary.base64Url(recipient.getEncryptedKey()), "") //
@@ -413,14 +475,15 @@ public class Jwe implements WebEncryption {
 		// 5.1#13 encode protected header
 		IuJson.add(serializedHeaderBuilder, "protected", () -> protectedHeader,
 				IuJsonAdapter.to(v -> IuJson.string(UnpaddedBinary.base64Url(IuText.utf8(v.toString())))));
-		IuJson.add(serializedHeaderBuilder, "unprotected", unprotected);
 
 		if (recipients.length > 1) {
+			IuJson.add(serializedHeaderBuilder, "unprotected", unprotected);
+
 			final var serializedRecipients = IuJson.array();
 			for (final var additionalRecipient : this.recipients) {
 				final var recipientBuilder = IuJson.object();
 				final var perRecipientHeader = additionalRecipient.getHeader().toJson(a -> isPerRecipient(a));
-				if (!perRecipientHeader.isEmpty())
+				if (perRecipientHeader != null)
 					recipientBuilder.add("header", perRecipientHeader);
 				IuJson.add(recipientBuilder, "encrypted_key", additionalRecipient::getEncryptedKey,
 						UnpaddedBinary.JSON);
@@ -429,13 +492,8 @@ public class Jwe implements WebEncryption {
 
 			IuJson.add(serializedHeaderBuilder, "recipients", serializedRecipients);
 		} else {
-			final var recipient = recipients[0];
-			final var header = recipient.getHeader();
-			if (header != null) {
-				final var perRecipient = header.toJson(this::isUnprotected);
-				if (perRecipient != null)
-					serializedHeaderBuilder.add("header", perRecipient);
-			}
+			if (unprotected != null)
+				serializedHeaderBuilder.add("header", unprotected);
 			IuJson.add(serializedHeaderBuilder, "encrypted_key", recipients[0]::getEncryptedKey, UnpaddedBinary.JSON);
 		}
 
@@ -447,28 +505,12 @@ public class Jwe implements WebEncryption {
 		return serializedHeaderBuilder.build().toString();
 	}
 
-	/**
-	 * Returns true a parameter name is not present in the protected or unprotected
-	 * shared header.
-	 * 
-	 * @param paramName parameter name
-	 * @return false if present in the protected or unprotected shared header; else
-	 *         true
-	 */
-	boolean isUnprotected(String paramName) {
+	private boolean isUnprotected(String paramName) {
 		return protectedHeader == null //
 				|| !protectedHeader.containsKey(paramName);
 	}
 
-	/**
-	 * Returns true a parameter name is not present in the protected or unprotected
-	 * shared header.
-	 * 
-	 * @param paramName parameter name
-	 * @return false if present in the protected or unprotected shared header; else
-	 *         true
-	 */
-	boolean isPerRecipient(String paramName) {
+	private boolean isPerRecipient(String paramName) {
 		return isUnprotected(paramName) //
 				&& (unprotected == null //
 						|| !unprotected.containsKey(paramName));

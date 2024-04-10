@@ -47,7 +47,7 @@ class EncodingUtils {
 	 * @param value  integer to encode
 	 * @param buffer {@link ByteBuffer}
 	 */
-	public static void bigEndian(int value, ByteBuffer buffer) {
+	static void bigEndian(int value, ByteBuffer buffer) {
 		buffer.put((byte) ((value >>> 24) & 0xff));
 		buffer.put((byte) ((value >>> 16) & 0xff));
 		buffer.put((byte) ((value >>> 8) & 0xff));
@@ -60,7 +60,7 @@ class EncodingUtils {
 	 * @param value  integer to encode
 	 * @param buffer {@link ByteBuffer}
 	 */
-	public static void bigEndian(long value, ByteBuffer buffer) {
+	static void bigEndian(long value, ByteBuffer buffer) {
 		buffer.put((byte) ((value >>> 56) & 0xff));
 		buffer.put((byte) ((value >>> 48) & 0xff));
 		buffer.put((byte) ((value >>> 40) & 0xff));

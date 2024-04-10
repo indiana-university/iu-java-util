@@ -37,7 +37,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.stream.Stream;
 
-import edu.iu.IuException;
+import edu.iu.IuText;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey.Algorithm;
@@ -193,7 +193,7 @@ public interface WebEncryption {
 		 * @return encrypted message
 		 */
 		default WebEncryption encrypt(String text) {
-			return encrypt(IuException.unchecked(() -> text.getBytes("UTF-8")));
+			return encrypt(IuText.utf8(text));
 		}
 
 		/**
@@ -319,7 +319,7 @@ public interface WebEncryption {
 	 * @return decrypted content
 	 */
 	default String decryptText(WebKey key) {
-		return IuException.unchecked(() -> new String(decrypt(key), "UTF-8"));
+		return IuText.utf8(decrypt(key));
 	}
 
 	/**

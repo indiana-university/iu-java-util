@@ -82,9 +82,16 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 			.add(BigInteger.TWO.pow(224).multiply(BigInteger.valueOf(-1L))).add(BigInteger.valueOf(-1L));
 
 	/**
-	 * Constructor.
+	 * Creates a new {@link Builder}.
+	 * 
+	 * @param type key type
+	 * @return {@link Builder}
 	 */
-	public JwkBuilder() {
+	public static Builder<?> of(Type type) {
+		return new JwkBuilder().type(type);
+	}
+
+	private JwkBuilder() {
 	}
 
 	@Override
@@ -137,8 +144,8 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 		case ES384:
 		case ES512:
 		case EDDSA:
-			key(EphemeralKeys.ec(Objects.requireNonNull(WebKey.algorithmParams(type().algorithmParams),
-					() -> type() + " not supported")));
+			key(EphemeralKeys.ec(
+					Objects.requireNonNull(WebKey.algorithmParams(type().algorithmParams), type() + " not supported")));
 			break;
 
 		case PS256:
@@ -264,10 +271,7 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 						.loadClass("java.security.interfaces.EdECPrivateKey");
 				@SuppressWarnings("unchecked")
 				final var bytes = (Optional<byte[]>) keyClass.getMethod("getBytes").invoke(key);
-				if (bytes.isEmpty())
-					return this;
-				else
-					return param("d", bytes.get(), UnpaddedBinary.JSON);
+				return param("d", bytes.get(), UnpaddedBinary.JSON);
 			});
 	}
 
@@ -291,13 +295,6 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 
 	@Override
 	public Jwk build() {
-		final var kty = param("kty");
-		if (kty == null) {
-			final var alg = param("alg");
-			if (alg == null)
-				throw new IllegalStateException("key type is required");
-			type(Algorithm.from(((JsonString) alg).getString()).type[0]);
-		}
 		return new Jwk(toJson());
 	}
 
@@ -311,9 +308,7 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 		if (params == null)
 			type(Type.from(key.getAlgorithm(), null));
 		else
-			type(Objects.requireNonNull(Type.from(params), () -> {
-				return params + " " + key;
-			}));
+			type(Objects.requireNonNull(Type.from(params), params + " " + key));
 	}
 
 	private Type type() {

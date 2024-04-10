@@ -199,4 +199,12 @@ public class EncodingUtilsTest {
 		assertArrayEquals(new byte[] { 0, 0, 0, 0, 0, 0, 1, (byte) 152 }, buf.array());
 	}
 
+	@Test
+	public void testReverse() {
+		assertNull(EncodingUtils.reverse(null));
+		assertArrayEquals(new byte[0], EncodingUtils.reverse(new byte[0]));
+		assertArrayEquals(new byte[] { 1 }, EncodingUtils.reverse(new byte[] { 1 }));
+		assertArrayEquals(new byte[] { 1, 2 }, EncodingUtils.reverse(new byte[] { 2, 1 }));
+		assertArrayEquals(new byte[] { 1, 2, 3 }, EncodingUtils.reverse(new byte[] { 3, 2, 1 }));
+	}
 }

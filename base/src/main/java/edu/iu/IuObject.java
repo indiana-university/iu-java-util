@@ -188,6 +188,22 @@ public final class IuObject {
 	 * Enforces that either a current or new value is non-null, and that both
 	 * non-null values are equal.
 	 * 
+	 * @param <T>     value type
+	 * @param current current value
+	 * @param value   value to set or enforce as already set
+	 * @param message message for {@link IllegalArgumentException} if current was
+	 *                already set to a different value
+	 * @return value
+	 * @throws IllegalArgumentException if already set to the same value
+	 */
+	public static <T> T once(T current, T value, String message) {
+		return once(current, value, () -> message);
+	}
+
+	/**
+	 * Enforces that either a current or new value is non-null, and that both
+	 * non-null values are equal.
+	 * 
 	 * @param <T>             value type
 	 * @param current         current value
 	 * @param value           value to set or enforce as already set
@@ -198,7 +214,7 @@ public final class IuObject {
 	 * @throws IllegalArgumentException if already set to the same value
 	 */
 	public static <T> T once(T current, T value, Supplier<String> messageSupplier) {
-		return Objects.requireNonNull(first(current, value), messageSupplier);
+		return Objects.requireNonNull(first(current, value, messageSupplier), messageSupplier);
 	}
 
 	/**
@@ -254,7 +270,7 @@ public final class IuObject {
 	 * are {@link #equals(Object, Object)}.
 	 * 
 	 * <p>
-	 * This method is the boolean equivalent of {@link #first(Object, Object)}
+	 * This method is the boolean equivalent of {@link #first(Object...)}
 	 * </p>
 	 * 
 	 * @param a an object

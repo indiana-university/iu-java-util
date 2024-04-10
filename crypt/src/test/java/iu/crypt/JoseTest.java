@@ -88,7 +88,7 @@ public class JoseTest extends IuCryptTestCase {
 		final var jwk = WebKey.builder(Algorithm.ES256).keyId(id).ephemeral().build();
 		assertEquals(jwk.wellKnown(), jose(Algorithm.ES256).keyId(id)
 				.wellKnown(uri(WebKey.asJwks(IuIterable.iter(jwk.wellKnown())))).build().wellKnown());
-		assertEquals(jwk.wellKnown(), jose(Algorithm.ES256).keyId(id).key(jwk).build().wellKnown());
+		assertEquals(jwk.wellKnown(), jose(Algorithm.ES256).keyId(id).wellKnown(jwk).build().wellKnown());
 		assertEquals(CERT.getPublicKey(), jose(Algorithm.RS256).cert(CERT).build().wellKnown().getPublicKey());
 	}
 
@@ -141,7 +141,7 @@ public class JoseTest extends IuCryptTestCase {
 
 	@Test
 	public void testToString() {
-		final var jose = jose(Algorithm.HS512).key(WebKey.ephemeral(Algorithm.HS512)).build();
+		final var jose = jose(Algorithm.HS512).wellKnown(WebKey.ephemeral(Algorithm.HS512)).build();
 		final var fromJose = jose.toString();
 		assertNull(jose.getKey().getKey());
 		assertNull(new Jose(IuJson.parse(fromJose).asJsonObject()).getKey().getKey());
@@ -158,10 +158,17 @@ public class JoseTest extends IuCryptTestCase {
 		Jose.register(extName, ext);
 
 		final var key = WebKey.ephemeral(Algorithm.ES512);
-		final var jose = jose(Algorithm.ES512).key(key).param(extName, value).build();
+		final var jose = jose(Algorithm.ES512).wellKnown(key).param(extName, value).build();
 		final var fromJose = jose.toString();
 		assertNull(jose.getKey().getPrivateKey()); // JOSE never holds secret/private keys
 		assertNull(new Jose(IuJson.parse(fromJose).asJsonObject()).getKey().getKey());
+	}
+
+	@Test
+	public void testJustProtected() {
+		final var j = IuJson.object().add("alg", Algorithm.ES384.alg).build();
+		assertEquals(new Jose(j), Jose.from(j, null, null));
+		assertNull(new Jose(j).toJson(a -> false));
 	}
 
 }

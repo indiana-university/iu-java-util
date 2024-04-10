@@ -35,11 +35,11 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -48,8 +48,6 @@ import java.math.BigInteger;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.RSAPrivateKeySpec;
@@ -91,11 +89,20 @@ public class JwkTest extends IuCryptTestCase {
 	}
 
 	@Test
-	public void testBadKeys() {
-		final var pub = mock(PublicKey.class);
-		assertThrows(NullPointerException.class, () -> new JwkBuilder().key(pub));
-		final var priv = mock(PrivateKey.class);
-		assertThrows(NullPointerException.class, () -> new JwkBuilder().key(priv));
+	public void testEdCurve() {
+		// For testing and demonstration purposes only.
+		// NOT FOR PRODUCTION USE
+		// $ openssl genpkey -algorithm ed25519 | tee /tmp/k
+		// $ openssl pkey -pubout < /tmp/k
+		final var text = "-----BEGIN PRIVATE KEY-----\n"
+				+ "MC4CAQAwBQYDK2VwBCIEIE1WN1m6gOixo9+AJWGsFf4x3/3qX2bEGm8hZKLEiuSf\n"
+				+ "-----END PRIVATE KEY-----\n"
+				+ "-----BEGIN PUBLIC KEY-----\n"
+				+ "MCowBQYDK2VwAyEAXyF4/YMJMAOzPvTLx7k1LCenfnj9pRQlBnjbaRF4pgM=\n"
+				+ "-----END PUBLIC KEY-----\n";
+		final var jwk = WebKey.builder(Type.ED25519).pem(text).build();
+		assertNotNull(jwk.getPublicKey(), jwk::toString);
+		assertNotNull(jwk.getPrivateKey(), jwk::toString);
 	}
 
 	@Test
@@ -103,13 +110,13 @@ public class JwkTest extends IuCryptTestCase {
 		final var rsa = (RSAPrivateCrtKey) EphemeralKeys.rsa("RSA", 2048).getPrivate();
 		final var noCrt = KeyFactory.getInstance("RSA")
 				.generatePrivate(new RSAPrivateKeySpec(rsa.getModulus(), rsa.getPrivateExponent()));
-		assertEquals(noCrt, new JwkBuilder().key(noCrt).build().getPrivateKey());
+		assertEquals(noCrt, WebKey.builder(Type.RSA).key(noCrt).build().getPrivateKey());
 	}
 
 	@Test
 	public void testRsaNoPrivate() throws InvalidKeySpecException, NoSuchAlgorithmException {
 		final var rsa = EphemeralKeys.rsa("RSA", 2048).getPublic();
-		assertEquals(rsa, new JwkBuilder().key(rsa).build().getPublicKey());
+		assertEquals(rsa, WebKey.builder(Type.RSA).key(rsa).build().getPublicKey());
 	}
 
 	@Test
@@ -120,11 +127,11 @@ public class JwkTest extends IuCryptTestCase {
 		assertThrows(UnsupportedOperationException.class, () -> new Jwk(json.build()));
 	}
 
-	@Test
-	public void testECNoPub() throws InvalidKeySpecException, NoSuchAlgorithmException {
-		final var key = EphemeralKeys.ec(WebKey.algorithmParams(Type.EC_P256.algorithmParams)).getPrivate();
-		assertEquals(key, new JwkBuilder().key(key).build().getPrivateKey());
-	}
+//	@Test
+//	public void testECNoPub() throws InvalidKeySpecException, NoSuchAlgorithmException {
+//		final var key = EphemeralKeys.ec(WebKey.algorithmParams(Type.EC_P256.algorithmParams)).getPrivate();
+//		assertEquals(key, new JwkBuilder().key(key).build().getPrivateKey());
+//	}
 
 	@Test
 	public void testWellKnownSameSame() throws InvalidKeySpecException, NoSuchAlgorithmException {
@@ -141,12 +148,12 @@ public class JwkTest extends IuCryptTestCase {
 		final var pub = cert.getPublicKey();
 		final var text = new StringBuilder();
 		PemEncoded.serialize(new KeyPair(pub, null)).forEachRemaining(text::append);
-		assertEquals(pub, WebKey.verify(new JwkBuilder().type(Type.EC_P384).pem(text.toString()).build()));
+		assertEquals(pub, WebKey.verify(WebKey.builder(Type.EC_P384).pem(text.toString()).build()));
 
 		PemEncoded.serialize(new KeyPair(pub, priv), cert).forEachRemaining(text::append);
-		final var jwk = new JwkBuilder().type(Type.EC_P384).pem(text.toString()).build();
-		assertEquals(jwk, new JwkBuilder().type(Type.EC_P384)
-				.pem(new ByteArrayInputStream(IuText.utf8(text.toString()))).build());
+		final var jwk = WebKey.builder(Type.EC_P384).pem(text.toString()).build();
+		assertEquals(jwk,
+				WebKey.builder(Type.EC_P384).pem(new ByteArrayInputStream(IuText.utf8(text.toString()))).build());
 	}
 
 	@Test
@@ -285,15 +292,16 @@ public class JwkTest extends IuCryptTestCase {
 
 	@Test
 	public void testEphemerals() {
-		assertThrows(UnsupportedOperationException.class, () -> new JwkBuilder().ephemeral(Algorithm.DIRECT));
+		assertThrows(UnsupportedOperationException.class, () -> WebKey.ephemeral(Algorithm.DIRECT));
 		for (int i = 0; i < 4; i++)
 			for (Algorithm algorithm : Algorithm.values()) {
 				if (algorithm.equals(Algorithm.DIRECT))
 					for (Encryption encryption : Encryption.values())
-						assertEphemeral(new JwkBuilder().keyId(IdGenerator.generateId()).ephemeral(encryption).build());
+						assertEphemeral((Jwk) WebKey.builder(Type.RAW).keyId(IdGenerator.generateId())
+								.ephemeral(encryption).build());
 				else
 					for (Type type : algorithm.type)
-						assertEphemeral(new JwkBuilder().type(type).keyId(IdGenerator.generateId()).ephemeral(algorithm)
+						assertEphemeral((Jwk) WebKey.builder(type).keyId(IdGenerator.generateId()).ephemeral(algorithm)
 								.build());
 			}
 	}

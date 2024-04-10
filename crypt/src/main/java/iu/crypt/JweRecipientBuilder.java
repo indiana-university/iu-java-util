@@ -45,11 +45,14 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import edu.iu.IuException;
+import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebEncryptionRecipient.Builder;
+import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Use;
 
 /**
  * Builds JWE recipients for {@link JweBuilder}
@@ -111,6 +114,201 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 			return Arrays.copyOf(keyData, keylen);
 	}
 
+	/**
+	 * Handles ephemeral key-protection parameters.
+	 */
+	class EncryptedKeyBuilder extends JoseBuilder<EncryptedKeyBuilder> {
+
+		private EncryptedKeyBuilder() {
+			super(Algorithm.JSON.fromJson(JweRecipientBuilder.this.param("alg")));
+			copy(JweRecipientBuilder.this);
+		}
+
+		/**
+		 * Gets the algorithm
+		 * 
+		 * @return algorithm
+		 */
+		Algorithm algorithm() {
+			return Algorithm.JSON.fromJson(param("alg"));
+		}
+
+		/**
+		 * Computes the agreed-upon key for the Elliptic Curve Diffie-Hellman algorithm.
+		 * 
+		 * @param encryption encryption algorithm
+		 * @param epk        key to use as the ephemeral public key; <em>must</em>
+		 *                   contain an EC public/private key, when serialized with only
+		 *                   kid, or jwk (if kid is null); <em>may</em> be null to
+		 *                   generate an epk
+		 * 
+		 * @return agreed-upon key
+		 * @see <a href=
+		 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
+		 *      Section 4.6</a>
+		 * @see <a href=
+		 *      "https://datatracker.ietf.org/doc/html/rfc7516#section-5.1">RFC-7516 JWE
+		 *      Section 5.1 #3</a>
+		 */
+		byte[] agreedUponKey(Encryption encryption) {
+			final var algorithm = this.algorithm();
+
+			final var key = key();
+			final var type = key.getType();
+			final String keyAlg;
+			if (type.kty.equals("EC"))
+				keyAlg = "ECDH";
+			else
+				keyAlg = type.algorithmParams;
+
+			final var epk = WebKey.builder(type).algorithm(algorithm).ephemeral().build();
+			param(Param.EPHEMERAL_PUBLIC_KEY, epk.wellKnown());
+
+			final var uinfo = UnpaddedBinary.JSON.fromJson(param("apu"));
+			final var vinfo = UnpaddedBinary.JSON.fromJson(param("apv"));
+
+			final int keyDataLen;
+			final byte[] algId;
+			if (algorithm.equals(Algorithm.ECDH_ES)) {
+				keyDataLen = encryption.size;
+				algId = IuText.ascii(encryption.enc);
+			} else {
+				keyDataLen = algorithm.size;
+				algId = IuText.ascii(algorithm.alg);
+			}
+
+			return JweRecipientBuilder.agreedUponKey(epk.getPrivateKey(), key().getPublicKey(), keyAlg, algId, uinfo,
+					vinfo, keyDataLen);
+		}
+
+		/**
+		 * Gets the passphrase-derived key to use with PBKDF2 key derivation defined by
+		 * <a href="https://datatracker.ietf.org/doc/html/rfc8018">PKCS#5</a>.
+		 * 
+		 * @return 128-bit derived key data suitable for use with AESWrap
+		 */
+		byte[] passphraseDerivedKey() {
+			final var algorithm = this.algorithm();
+
+			final var alg = IuText.utf8(algorithm.alg);
+			final byte[] p2s = new byte[algorithm.size / 8];
+			new SecureRandom().nextBytes(p2s);
+			param(Param.PASSWORD_SALT, p2s);
+
+			// 128 -> 2048, 192 -> 3072, 256 -> 4096
+			final var p2c = algorithm.size * 16;
+			param(Param.PASSWORD_COUNT, p2c);
+
+			final var saltValue = ByteBuffer.wrap(new byte[alg.length + 1 + p2s.length]);
+			saltValue.put(alg);
+			saltValue.put((byte) 0);
+			saltValue.put(p2s);
+
+			return IuException
+					.unchecked(() -> SecretKeyFactory.getInstance(algorithm.algorithm).generateSecret(
+							new PBEKeySpec(IuText.utf8(key().getKey()).toCharArray(), saltValue.array(), p2c, 128)))
+					.getEncoded();
+		}
+
+		/**
+		 * Generates the encrypted key and creates the recipient.
+		 * 
+		 * @param encryption           content encryption algorithm
+		 * @param contentEncryptionKey supplies an ephemeral content encryption key if
+		 *                             needed
+		 * @param from                 message originator key, if known
+		 * 
+		 * @return recipient
+		 */
+		@SuppressWarnings({ "deprecation" })
+		JweRecipient encrypt(Encryption encryption, byte[] contentEncryptionKey) {
+			final var algorithm = this.algorithm();
+
+			byte[] encryptedKey = null;
+			// 5.1#4 encrypt CEK to the recipient
+			switch (algorithm) {
+			case A128KW:
+			case A192KW:
+			case A256KW:
+				// key wrapping
+				encryptedKey = IuException.unchecked(() -> {
+					final var key = new SecretKeySpec(key().getKey(), "AES");
+					final var cipher = Cipher.getInstance(algorithm.algorithm);
+					cipher.init(Cipher.WRAP_MODE, key);
+					return cipher.wrap(new SecretKeySpec(contentEncryptionKey, "AES"));
+				});
+				break;
+
+			case A128GCMKW:
+			case A192GCMKW:
+			case A256GCMKW:
+				// key wrapping w/ GCM
+				encryptedKey = IuException.unchecked(() -> {
+					final var key = new SecretKeySpec(key().getKey(), "AES");
+					final var iv = new byte[12];
+					new SecureRandom().nextBytes(iv);
+					param(Param.INITIALIZATION_VECTOR, iv);
+
+					final var cipher = Cipher.getInstance(algorithm.algorithm);
+					cipher.init(Cipher.WRAP_MODE, key, new GCMParameterSpec(128, iv));
+					final var wrappedKey = cipher.wrap(new SecretKeySpec(contentEncryptionKey, "AES"));
+
+					param(Param.TAG, Arrays.copyOfRange(wrappedKey, wrappedKey.length - 16, wrappedKey.length));
+
+					return Arrays.copyOf(wrappedKey, wrappedKey.length - 16);
+				});
+				break;
+
+			case RSA1_5:
+			case RSA_OAEP:
+			case RSA_OAEP_256:
+				// key encryption
+				encryptedKey = IuException.unchecked(() -> {
+					final var keyCipher = Cipher.getInstance(algorithm.algorithm);
+					keyCipher.init(Cipher.ENCRYPT_MODE, key().getPublicKey());
+					return keyCipher.doFinal(contentEncryptionKey);
+				});
+				break;
+
+			case ECDH_ES_A128KW:
+			case ECDH_ES_A192KW:
+			case ECDH_ES_A256KW:
+				// key agreement with key wrapping
+				encryptedKey = IuException.unchecked(() -> {
+					final var key = new SecretKeySpec(agreedUponKey(encryption), "AES");
+					final var cipher = Cipher.getInstance("AESWrap");
+					cipher.init(Cipher.WRAP_MODE, key);
+					return cipher.wrap(new SecretKeySpec(contentEncryptionKey, "AES"));
+				});
+				break;
+
+			case PBES2_HS256_A128KW:
+			case PBES2_HS384_A192KW:
+			case PBES2_HS512_A256KW:
+				// passphrase-derived key with key wrapping
+				encryptedKey = IuException.unchecked(() -> {
+					final var key = new SecretKeySpec(passphraseDerivedKey(), "AES");
+					final var cipher = Cipher.getInstance("AESWrap");
+					cipher.init(Cipher.WRAP_MODE, key);
+					return cipher.wrap(new SecretKeySpec(contentEncryptionKey, "AES"));
+				});
+				break;
+
+			case ECDH_ES:
+			case EDDSA:
+			case DIRECT:
+			default:
+				IuObject.once(algorithm.use, Use.ENCRYPT, "encryption algorithm required");
+				// 5.1#5 don't populate encrypted key for direct key agreement or encryption
+				encryptedKey = null;
+				break;
+			}
+
+			final var header = new Jose(toJson());
+			return new JweRecipient(header, encryptedKey);
+		}
+	}
+
 	private final JweBuilder jweBuilder;
 
 	/**
@@ -130,191 +328,12 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 	}
 
 	/**
-	 * Gets the algorithm
+	 * Gets a builder for completing key protection.
 	 * 
-	 * @return algorithm
+	 * @return encrypted key builder
 	 */
-	Algorithm algorithm() {
-		return Algorithm.JSON.fromJson(param("alg"));
-	}
-
-	/**
-	 * Gets the key
-	 * 
-	 * @return key
-	 */
-	Jwk key() {
-		return (Jwk) Jwk.JSON.fromJson(param("jwk"));
-	}
-
-	/**
-	 * Computes the agreed-upon key for the Elliptic Curve Diffie-Hellman algorithm.
-	 * 
-	 * @param encryption encryption algorithm
-	 * @param epk        key to use as the ephemeral public key; <em>must</em>
-	 *                   contain an EC public/private key, when serialized with only
-	 *                   kid, or jwk (if kid is null); <em>may</em> be null to
-	 *                   generate an epk
-	 * 
-	 * @return agreed-upon key
-	 * @see <a href=
-	 *      "https://datatracker.ietf.org/doc/html/rfc7518#section-4.6">RFC-7518 JWA
-	 *      Section 4.6</a>
-	 * @see <a href=
-	 *      "https://datatracker.ietf.org/doc/html/rfc7516#section-5.1">RFC-7516 JWE
-	 *      Section 5.1 #3</a>
-	 */
-	byte[] agreedUponKey(Encryption encryption) {
-		final var algorithm = algorithm();
-
-		final var key = key();
-		final var type = key.getType();
-		final String keyAlg;
-		if (type.kty.equals("EC"))
-			keyAlg = "ECDH";
-		else
-			keyAlg = type.algorithmParams;
-
-		final var epk = new JwkBuilder().type(type).algorithm(algorithm).ephemeral().build();
-		param(Param.EPHEMERAL_PUBLIC_KEY, epk);
-
-		final var uinfo = UnpaddedBinary.JSON.fromJson(param("apu"));
-		final var vinfo = UnpaddedBinary.JSON.fromJson(param("apv"));
-
-		final int keyDataLen;
-		final byte[] algId;
-		if (algorithm.equals(Algorithm.ECDH_ES)) {
-			keyDataLen = encryption.size;
-			algId = IuText.ascii(encryption.enc);
-		} else {
-			keyDataLen = algorithm.size;
-			algId = IuText.ascii(algorithm.alg);
-		}
-
-		return agreedUponKey(epk.getPrivateKey(), key().getPublicKey(), keyAlg, algId, uinfo, vinfo, keyDataLen);
-	}
-
-	/**
-	 * Gets the passphrase-derived key to use with PBKDF2 key derivation defined by
-	 * <a href="https://datatracker.ietf.org/doc/html/rfc8018">PKCS#5</a>.
-	 * 
-	 * @return 128-bit derived key data suitable for use with AESWrap
-	 */
-	byte[] passphraseDerivedKey() {
-		final var algorithm = algorithm();
-
-		final var alg = IuText.utf8(algorithm.alg);
-		final byte[] p2s = new byte[algorithm.size / 8];
-		new SecureRandom().nextBytes(p2s);
-		param(Param.PASSWORD_SALT, p2s);
-
-		// 128 -> 2048, 192 -> 3072, 256 -> 4096
-		final var p2c = algorithm.size * 16;
-		param(Param.PASSWORD_COUNT, p2c);
-
-
-		final var saltValue = ByteBuffer.wrap(new byte[alg.length + 1 + p2s.length]);
-		saltValue.put(alg);
-		saltValue.put((byte) 0);
-		saltValue.put(p2s);
-
-		return IuException
-				.unchecked(() -> SecretKeyFactory.getInstance(algorithm.algorithm).generateSecret(
-						new PBEKeySpec(IuText.utf8(key().getKey()).toCharArray(), saltValue.array(), p2c, 128)))
-				.getEncoded();
-	}
-
-	/**
-	 * Generates the encrypted key and creates the recipient.
-	 * 
-	 * @param encryption           content encryption algorithm
-	 * @param contentEncryptionKey supplies an ephemeral content encryption key if
-	 *                             needed
-	 * @param from                 message originator key, if known
-	 * 
-	 * @return recipient
-	 */
-	@SuppressWarnings("deprecation")
-	byte[] encrypt(Encryption encryption, byte[] contentEncryptionKey) {
-		final var algorithm = algorithm();
-
-		// 5.1#4 encrypt CEK to the recipient
-		switch (algorithm) {
-		case A128KW:
-		case A192KW:
-		case A256KW:
-			// key wrapping
-			return IuException.unchecked(() -> {
-				final var key = new SecretKeySpec(key().getKey(), "AES");
-				final var cipher = Cipher.getInstance(algorithm.algorithm);
-				cipher.init(Cipher.WRAP_MODE, key);
-				return cipher.wrap(new SecretKeySpec(contentEncryptionKey, "AES"));
-			});
-
-		case A128GCMKW:
-		case A192GCMKW:
-		case A256GCMKW:
-			// key wrapping w/ GCM
-			return IuException.unchecked(() -> {
-				final var key = new SecretKeySpec(key().getKey(), "AES");
-				final var iv = new byte[12];
-				new SecureRandom().nextBytes(iv);
-				param(Param.INITIALIZATION_VECTOR, iv);
-
-				final var cipher = Cipher.getInstance(algorithm.algorithm);
-				cipher.init(Cipher.WRAP_MODE, key, new GCMParameterSpec(128, iv));
-				final var wrappedKey = cipher.wrap(new SecretKeySpec(contentEncryptionKey, "AES"));
-
-				param(Param.TAG, Arrays.copyOfRange(wrappedKey, wrappedKey.length - 16, wrappedKey.length));
-
-				return Arrays.copyOf(wrappedKey, wrappedKey.length - 16);
-			});
-
-		case RSA1_5:
-		case RSA_OAEP:
-		case RSA_OAEP_256:
-			// key encryption
-			return IuException.unchecked(() -> {
-				final var keyCipher = Cipher.getInstance(algorithm.algorithm);
-				keyCipher.init(Cipher.ENCRYPT_MODE, key().getPublicKey());
-				return keyCipher.doFinal(contentEncryptionKey);
-			});
-
-		case ECDH_ES_A128KW:
-		case ECDH_ES_A192KW:
-		case ECDH_ES_A256KW:
-			// key agreement with key wrapping
-			return IuException.unchecked(() -> {
-				final var key = new SecretKeySpec(agreedUponKey(encryption), "AES");
-				final var cipher = Cipher.getInstance("AESWrap");
-				cipher.init(Cipher.WRAP_MODE, key);
-				return cipher.wrap(new SecretKeySpec(contentEncryptionKey, "AES"));
-			});
-
-		case PBES2_HS256_A128KW:
-		case PBES2_HS384_A192KW:
-		case PBES2_HS512_A256KW:
-			// passphrase-derived key with key wrapping
-			return IuException.unchecked(() -> {
-				final var key = new SecretKeySpec(passphraseDerivedKey(), "AES");
-				final var cipher = Cipher.getInstance("AESWrap");
-				cipher.init(Cipher.WRAP_MODE, key);
-				return cipher.wrap(new SecretKeySpec(contentEncryptionKey, "AES"));
-			});
-
-		default:
-			// 5.1#5 don't populate encrypted key for direct key agreement or encryption
-			return null;
-		}
-	}
-
-	/**
-	 * Creates the JOSE for this recipient.
-	 * 
-	 * @return {@link Jose}
-	 */
-	Jose header() {
-		return new Jose(toJson());
+	EncryptedKeyBuilder encryptedKeyBuilder() {
+		return new EncryptedKeyBuilder();
 	}
 
 }

@@ -185,25 +185,6 @@ public class UnpaddedBinary implements IuJsonAdapter<byte[]> {
 		};
 	}
 
-	/**
-	 * Concatenates binary data segments as '.' separated Base64 URL encoded
-	 * unpadded strings.
-	 * 
-	 * @param segments JWS or JWE compact serialization segments
-	 * @return encoded sequence
-	 */
-	static String compact(byte[]... segments) {
-		final var sb = new StringBuilder();
-		for (final var segment : segments) {
-			if (sb.length() > 0)
-				sb.append('.');
-			if (segment != null)
-				sb.append(UnpaddedBinary.base64Url(segment));
-		}
-
-		return sb.toString();
-	}
-
 	private UnpaddedBinary() {
 	}
 

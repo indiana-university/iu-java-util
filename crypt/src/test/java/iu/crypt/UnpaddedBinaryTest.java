@@ -29,74 +29,18 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.crypt;
+package iu.crypt;
 
-import java.io.InputStream;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
-/**
- * Represents the recipient of a {@link WebEncryption} JWE encrpted message.
- */
-public interface WebEncryptionRecipient {
+import org.junit.jupiter.api.Test;
 
-	/**
-	 * Builder interface for defining {@link WebEncryptionRecipient} instances.
-	 * 
-	 * @param <B> builder type
-	 */
-	interface Builder<B extends Builder<B>> extends WebCryptoHeader.Builder<B> {
-		/**
-		 * Returns the {@link WebEncryption.Builder} that spawned this builder instance.
-		 * 
-		 * @return {@link WebEncryption.Builder}
-		 */
-		WebEncryption.Builder then();
+@SuppressWarnings("javadoc")
+public class UnpaddedBinaryTest {
 
-		/**
-		 * Shorthand for {@link #then()}{@link WebEncryption.Builder#encrypt(String)
-		 * .encrypt(text)}
-		 * 
-		 * @param text data to encrypt
-		 * @return encrypted message
-		 */
-		default WebEncryption encrypt(String text) {
- 			return then().encrypt(text);
-		}
-
-		/**
-		 * Shorthand for {@link #then()}{@link WebEncryption.Builder#encrypt(String)
-		 * .encrypt(data)}
-		 * 
-		 * @param data data to encrypt
-		 * @return encrypted message
-		 */
-		default WebEncryption encrypt(byte[] data) {
-			return then().encrypt(data);
-		}
-
-		/**
-		 * Shorthand for {@link #then()}{@link WebEncryption.Builder#encrypt(String)
-		 * .encrypt(in)}
-		 * 
-		 * @param in stream of data to encrypt
-		 * @return encrypted message
-		 */
-		default WebEncryption encrypt(InputStream in) {
-			return then().encrypt(in);
-		}
+	@Test
+	public void testNullCompact() {
+		assertNull(UnpaddedBinary.compactJson(null));
+		assertNull(UnpaddedBinary.compactJson(""));
 	}
-
-	/**
-	 * Gets the JOSE header.
-	 * 
-	 * @return {@link WebCryptoHeader}
-	 */
-	WebCryptoHeader getHeader();
-
-	/**
-	 * Gets the encrypted_key JWE attribute
-	 * 
-	 * @return encrypted_key JWE attribute
-	 */
-	byte[] getEncryptedKey();
-
 }

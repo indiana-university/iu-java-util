@@ -34,7 +34,9 @@ package iu.crypt;
 import java.net.URI;
 import java.util.Set;
 
+import edu.iu.IuObject;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonBuilder;
 import edu.iu.crypt.WebCryptoHeader.Builder;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey;
@@ -47,6 +49,8 @@ import edu.iu.crypt.WebKey.Algorithm;
  */
 class JoseBuilder<B extends JoseBuilder<B>> extends KeyReferenceBuilder<B> implements Builder<B> {
 
+	private Jwk key;
+
 	/**
 	 * Constructor.
 	 * 
@@ -57,13 +61,27 @@ class JoseBuilder<B extends JoseBuilder<B>> extends KeyReferenceBuilder<B> imple
 	}
 
 	@Override
+	protected <S extends IuJsonBuilder<S>> B copy(S builder) {
+		key(((JoseBuilder<?>) builder).key());
+		return super.copy(builder);
+	}
+
+	@Override
 	public B wellKnown(URI uri) {
 		return param(Param.KEY_SET_URI, uri);
 	}
 
 	@Override
+	public B wellKnown(WebKey key) {
+		key(key);
+		return param(Param.KEY, key.wellKnown());
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
 	public B key(WebKey key) {
-		return param(Param.KEY, key);
+		this.key = IuObject.once(this.key, (Jwk) key);
+		return (B) this;
 	}
 
 	@Override
@@ -99,5 +117,14 @@ class JoseBuilder<B extends JoseBuilder<B>> extends KeyReferenceBuilder<B> imple
 	@Override
 	protected <T> B param(String name, T value, IuJsonAdapter<T> adapter) {
 		throw new UnsupportedOperationException();
+	}
+
+	/**
+	 * Returns the key to use for signing or encryption.
+	 * 
+	 * @return signing/encryption key
+	 */
+	protected Jwk key() {
+		return key;
 	}
 }

@@ -121,19 +121,13 @@ public class JwsTest extends IuCryptTestCase {
 		fromSerial.getSignatures().forEach(a -> verify(ext).verify(a));
 	}
 
-	@SuppressWarnings("unchecked")
 	@Test
 	public void testHeaderVerification() {
 		final var p = IuJson.object().add("alg", "HS256").build();
 		final var jose = new Jose(IuJson.object().add("alg", "HS384").build());
 		assertThrows(IllegalArgumentException.class, () -> new Jws(p, jose, null));
 
-		final var extName = IdGenerator.generateId();
-		final var ext = mock(Extension.class);
-		when(ext.toJson(any())).thenAnswer(a -> IuJson.string((String) a.getArgument(0)));
-		when(ext.fromJson(any())).thenAnswer(a -> ((JsonString) a.getArgument(0)).getString());
-		Jose.register(extName, ext);
-
+		final var extName = ext();
 		final var p2 = IuJson.object().add("alg", "HS256").add(extName, IdGenerator.generateId()).build();
 		final var jose2 = new Jose(IuJson.object().add("alg", "HS256").add(extName, IdGenerator.generateId()).build());
 		assertThrows(IllegalArgumentException.class, () -> new Jws(p2, jose2, null));

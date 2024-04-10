@@ -245,7 +245,7 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 					return readXEC(x, d, (NamedParameterSpec) spec);
 				else
 					return readEdEC(x, d, (NamedParameterSpec) spec);
-			else if (spec instanceof ECParameterSpec) {
+			else {
 				final var keyFactory = IuException.unchecked(() -> KeyFactory.getInstance("EC"));
 				return new KeyPair(
 						IuObject.convert(x,
@@ -258,8 +258,7 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 														(ECParameterSpec) spec)))),
 						IuObject.convert(d, a -> IuException.unchecked(() -> keyFactory.generatePrivate(
 								new ECPrivateKeySpec(UnsignedBigInteger.bigInt(a), (ECParameterSpec) spec)))));
-			} else
-				throw new IllegalArgumentException("Not an EC type " + type);
+			}
 		});
 	}
 
@@ -370,7 +369,7 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 		if (privateKey == null && key == null && publicKey != null)
 			return this;
 
-		final var jwkBuilder = new JwkBuilder().type(type);
+		final var jwkBuilder = (JwkBuilder) WebKey.builder(type);
 		IuObject.convert(getCertificateUri(), jwkBuilder::cert);
 		IuObject.convert(verifiedCertificateChain(), jwkBuilder::cert);
 		IuObject.convert(getCertificateThumbprint(), jwkBuilder::x5t);
@@ -418,7 +417,7 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 		IuJson.add(jwkBuilder, "use", () -> use, Use.JSON);
 		IuJson.add(jwkBuilder, "key_ops", () -> ops, IuJsonAdapter.of(Set.class, Operation.JSON));
 
-		final var builder = new JwkBuilder().type(type);
+		final var builder = (JwkBuilder) WebKey.builder(type);
 		IuObject.convert(key, builder::key);
 		IuObject.convert(publicKey, builder::key);
 		IuObject.convert(privateKey, builder::key);

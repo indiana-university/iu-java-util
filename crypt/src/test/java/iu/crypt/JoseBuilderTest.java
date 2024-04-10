@@ -84,7 +84,7 @@ public class JoseBuilderTest extends IuCryptTestCase {
 	@Test
 	public void testKey() {
 		final var key = WebKey.ephemeral(Algorithm.RSA_OAEP);
-		assertEquals(key.toString(), jose().key(key).toJson().getJsonObject("jwk").toString());
+		assertEquals(key.wellKnown().toString(), jose().wellKnown(key).toJson().getJsonObject("jwk").toString());
 	}
 
 	@Test

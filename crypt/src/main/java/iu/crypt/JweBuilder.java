@@ -33,26 +33,19 @@ package iu.crypt;
 
 import java.io.InputStream;
 import java.util.ArrayDeque;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 
 import edu.iu.IuObject;
-import edu.iu.client.IuJson;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Builder;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonValue;
+import edu.iu.crypt.WebKey.Use;
 
 /**
  * Collects inputs for {@link Jwe} encrypted messages.
@@ -65,11 +58,8 @@ public class JweBuilder implements Builder {
 	private final Encryption encryption;
 	private final boolean deflate;
 	private final Queue<JweRecipientBuilder> pendingRecipients = new ArrayDeque<>();
-	private final Queue<JweRecipient> recipients = new ArrayDeque<>();
 	private final Set<String> protectedParameters = new LinkedHashSet<>();
-	private Map<String, JsonValue> sharedHeader;
 	private boolean compact;
-	private byte[] contentEncryptionKey;
 	private byte[] additionalData;
 
 	/**
@@ -86,8 +76,6 @@ public class JweBuilder implements Builder {
 
 	@Override
 	public Builder compact() {
-		if (pendingRecipients.size() + recipients.size() > 1)
-			throw new IllegalStateException("Compact only allows one receipient");
 		compact = true;
 		return this;
 	}
@@ -101,28 +89,19 @@ public class JweBuilder implements Builder {
 	@Override
 	public Builder protect(Param... params) {
 		for (final var param : params)
-			if (isPerRecipient(param.name))
-				throw new IllegalArgumentException("Cannot protect per-recipient " + param);
-			else
-				protectedParameters.add(param.name);
+			protectedParameters.add(param.name);
 		return this;
 	}
 
 	@Override
 	public Builder protect(String... params) {
 		for (final var param : params)
-			if (isPerRecipient(param))
-				throw new IllegalArgumentException("Cannot protect per-recipient " + param);
-			else
-				protectedParameters.add(param);
+			protectedParameters.add(param);
 		return this;
 	}
 
 	@Override
 	public JweRecipientBuilder addRecipient(Algorithm algorithm) {
-		if (compact && recipients.size() + pendingRecipients.size() > 0)
-			throw new IllegalStateException("Compact only allows one receipient");
-
 		final var builder = new JweRecipientBuilder(this, algorithm);
 		builder.param(Param.ENCRYPTION, encryption());
 		if (deflate)
@@ -133,99 +112,42 @@ public class JweBuilder implements Builder {
 
 	@Override
 	public WebEncryption encrypt(InputStream in) {
-		while (!pendingRecipients.isEmpty())
-			addRecipient(pendingRecipients.poll());
-		return new Jwe(this, in);
-	}
+		byte[] contentEncryptionKey = null;
+		final Queue<JweRecipient> recipients = new ArrayDeque<>();
+		for (final var pendingRecipient : pendingRecipients) {
+			final var builder = pendingRecipient.encryptedKeyBuilder();
+			final var algorithm = Objects.requireNonNull(builder.algorithm(), "Missing algorithm");
+			if (algorithm.equals(Algorithm.DIRECT)) {
+				// 5.1#6 use shared key as CEK for direct encryption
+				final var jwk = Objects.requireNonNull(builder.key(), "recipient must provide a key");
+				final var cek = Objects.requireNonNull(jwk.getKey(), "DIRECT requires a secret key");
+				if (cek.length != encryption.size / 8)
+					throw new IllegalArgumentException("Invalid key size for " + encryption + " " + cek.length);
+				contentEncryptionKey = IuObject.once(contentEncryptionKey, cek, "cek already set");
+			} else if (algorithm.equals(Algorithm.ECDH_ES))
+				contentEncryptionKey = IuObject.once(contentEncryptionKey, builder.agreedUponKey(encryption),
+						"cek already set");
+			else if (!algorithm.use.equals(Use.ENCRYPT))
+				throw new IllegalArgumentException("Not an encryption algorithm " + algorithm);
+			else if (contentEncryptionKey == null)
+				contentEncryptionKey = WebKey.ephemeral(encryption).getKey();
 
-	/**
-	 * Returns true if at least 2 recipients have different header parameter values.
-	 * 
-	 * @param paramName parameter name
-	 * @return true if at least 2 recipients have values in the header parameter;
-	 *         else false
-	 */
-	boolean isPerRecipient(String paramName) {
-		if (protectedParameters.contains(paramName) //
-				|| recipients.size() < 2)
-			return false;
+			// encrypt before processing header to ensure all headers are populated
+			final var recipient = builder.encrypt(encryption, contentEncryptionKey);
 
-		final var param = Param.from(paramName);
-		Optional<Object> value = null;
-		for (final var recipient : recipients) {
 			final var header = recipient.getHeader();
-			final Object recipientValue;
-			if (param == null)
-				recipientValue = header.getExtendedParameter(paramName);
-			else
-				recipientValue = param.get(header);
+			final var serializedHeader = header.toJson(a -> true);
 
-			if (value == null)
-				value = Optional.ofNullable(recipientValue);
-			else
-				return !IuObject.equals(recipientValue, value.orElse(null));
+			if (!compact //
+					&& !serializedHeader.keySet().containsAll(protectedParameters))
+				throw new IllegalArgumentException(
+						"Protected parameters " + protectedParameters + " are required " + serializedHeader.keySet());
+
+			recipients.add(recipient);
 		}
 
-		return false;
-	}
-
-	/**
-	 * Verifies protected header values, computes shared headers, and enqueues a
-	 * message recipient.
-	 * 
-	 * @param builder completed recipient builder
-	 */
-	void addRecipient(JweRecipientBuilder builder) {
-		pendingRecipients.remove(builder);
-		assert !compact || recipients.isEmpty(); // TODO: prove unreachable
-
-		final var algorithm = Objects.requireNonNull(builder.algorithm(), "Missing algorithm");
-		if (algorithm.equals(Algorithm.DIRECT)) {
-			// 5.1#6 use shared key as CEK for direct encryption
-			final var jwk = Objects.requireNonNull(builder.key(), "recipient must provide a key");
-			final var cek = Objects.requireNonNull(jwk.getKey(), "DIRECT requires a secret key");
-			if (cek.length != encryption.size / 8)
-				throw new IllegalArgumentException("Invalid key size for " + encryption + " " + cek.length);
-			if (contentEncryptionKey != null && !Arrays.equals(contentEncryptionKey, cek))
-				throw new IllegalArgumentException(
-						"Cannot specify different content encryption keys for multiple recipients");
-			contentEncryptionKey = cek;
-		} else if (algorithm.equals(Algorithm.ECDH_ES)) {
-			final var cek = builder.agreedUponKey(encryption);
-			if (contentEncryptionKey != null && !Arrays.equals(contentEncryptionKey, cek))
-				throw new IllegalArgumentException(
-						"Cannot specify different content encryption keys for multiple recipients");
-			contentEncryptionKey = cek;
-		} else if (contentEncryptionKey == null)
-			contentEncryptionKey = WebKey.ephemeral(encryption).getKey();
-
-		// encrypt before processing header to ensure all headers are populated
-		final var encryptedKey = builder.encrypt(encryption, contentEncryptionKey);
-
-		final var header = builder.header();
-		final var serializedHeader = header.toJson(a -> true);
-
-		if (!compact && !serializedHeader.keySet().containsAll(protectedParameters))
-			throw new IllegalStateException(
-					"Protected parameters " + protectedParameters + " are required " + serializedHeader.keySet());
-
-		if (sharedHeader == null)
-			sharedHeader = new LinkedHashMap<>(serializedHeader);
-		else {
-			final var sharedParamIterator = sharedHeader.entrySet().iterator();
-			while (sharedParamIterator.hasNext()) {
-				final var sharedParamEntry = sharedParamIterator.next();
-				final var paramName = sharedParamEntry.getKey();
-				if (!serializedHeader.containsKey(paramName)
-						|| !sharedParamEntry.getValue().equals(serializedHeader.get(paramName)))
-					sharedParamIterator.remove();
-			}
-		}
-		for (final var paramEntry : serializedHeader.entrySet())
-			sharedHeader.computeIfPresent(paramEntry.getKey(),
-					(a, value) -> IuObject.equals(value, paramEntry.getValue()) ? value : null);
-
-		recipients.add(new JweRecipient(header, encryptedKey));
+		return new Jwe(encryption, deflate, compact, protectedParameters, recipients, contentEncryptionKey,
+				additionalData, in);
 	}
 
 	/**
@@ -235,97 +157,6 @@ public class JweBuilder implements Builder {
 	 */
 	Encryption encryption() {
 		return encryption;
-	}
-
-	/**
-	 * Gets recipients.
-	 * 
-	 * @return recipients
-	 */
-	Iterable<JweRecipient> recipients() {
-		return recipients;
-	}
-
-	/**
-	 * Gets protected parameters.
-	 * 
-	 * @return protected parameters
-	 */
-	Set<String> protectedParameters() {
-		return protectedParameters;
-	}
-
-	/**
-	 * Gets the deflate flag
-	 * 
-	 * @return deflate flag
-	 */
-	boolean deflate() {
-		return deflate;
-	}
-
-	/**
-	 * Get additionalData
-	 * 
-	 * @return additionalData
-	 */
-	byte[] additionalData() {
-		return additionalData;
-	}
-
-	/**
-	 * Creates the protected header from shared header and parameter protection
-	 * rules.
-	 * 
-	 * @return {@link JsonObject} of serialized protected header values
-	 */
-	JsonObject protectedHeader() {
-		Objects.requireNonNull(sharedHeader, "at least one recipient required");
-		final var protectedHeaderBuilder = IuJson.object();
-		if (compact)
-			for (final var sharedHeaderEntry : sharedHeader.entrySet()) {
-				final var name = sharedHeaderEntry.getKey();
-				if (!name.equals(Param.KEY.name))
-					protectedHeaderBuilder.add(name, sharedHeaderEntry.getValue());
-			}
-		else if (protectedParameters.isEmpty())
-			return null;
-		else
-			for (final var paramName : protectedParameters)
-				protectedHeaderBuilder.add(paramName, Objects.requireNonNull(sharedHeader.get(paramName), paramName));
-		return protectedHeaderBuilder.build();
-	}
-
-	/**
-	 * Creates the unprotected header from shared header and parameter protection
-	 * rules.
-	 * 
-	 * @return {@link JsonObject} of serialized protected header values
-	 */
-	JsonObject unprotected() {
-		Objects.requireNonNull(sharedHeader, "at least one recipient required");
-		if (compact || recipients.size() == 1)
-			return null;
-
-		final var params = new HashSet<>(sharedHeader.keySet());
-		params.removeAll(protectedParameters);
-		if (params.isEmpty())
-			return null;
-
-		final var unprotectedBuilder = IuJson.object();
-		for (final var paramName : params)
-			unprotectedBuilder.add(paramName, sharedHeader.get(paramName));
-		return unprotectedBuilder.build();
-	}
-
-	/**
-	 * Gets the content encryption key, calculated/verified by
-	 * {@link #addRecipient(JweRecipientBuilder)}.
-	 * 
-	 * @return content encryption key
-	 */
-	byte[] contentEncryptionKey() {
-		return Objects.requireNonNull(contentEncryptionKey, "at least one recipient required");
 	}
 
 }
