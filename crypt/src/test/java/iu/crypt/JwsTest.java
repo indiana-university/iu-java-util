@@ -33,6 +33,8 @@ package iu.crypt;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -49,9 +51,11 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
+import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.IuCryptTestCase;
 import edu.iu.crypt.WebCryptoHeader.Extension;
+import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
@@ -110,11 +114,22 @@ public class JwsTest extends IuCryptTestCase {
 			keys.add(key);
 			jwsBuilder.key(key);
 			jwsBuilder.param(extName, IdGenerator.generateId());
+
+			final var id = IdGenerator.generateId();
+			final var compactJws = WebSignature.builder(algorithm).key(key).compact().sign(id);
+			final var fromCompact = WebSignedPayload.parse(compactJws.compact());
+			assertEquals(id, IuText.utf8(fromCompact.getPayload()));
+			fromCompact.verify(key);
+
+			final var fromSerial = WebSignedPayload.parse(compactJws.toString());
+			assertEquals(id, IuText.utf8(fromSerial.getPayload()));
+			fromSerial.verify(key);
 		} while (algorithmIterator.hasNext());
 
 		final var data = new byte[16384];
 		ThreadLocalRandom.current().nextBytes(data);
 		final var jws = jwsBuilder.sign(data);
+		assertThrows(IllegalStateException.class, () -> jws.compact());
 		final var serial = jws.toString();
 		final var fromSerial = WebSignedPayload.parse(serial);
 		keys.forEach(fromSerial::verify);
@@ -132,5 +147,54 @@ public class JwsTest extends IuCryptTestCase {
 		final var jose2 = new Jose(IuJson.object().add("alg", "HS256").add(extName, IdGenerator.generateId()).build());
 		assertThrows(IllegalArgumentException.class, () -> new Jws(p2, jose2, null));
 		assertDoesNotThrow(() -> new Jws(p2, new Jose(p2), null));
+	}
+
+	@Test
+	public void testInvalidCompact() {
+		final var key = WebKey.ephemeral(Algorithm.HS256);
+		final var jws = WebSignature.builder(Algorithm.HS256).key(key).compact().sign("foo");
+		assertThrows(IllegalArgumentException.class, () -> WebSignedPayload.parse(jws.compact() + ".blah"));
+	}
+
+	@Test
+	public void testInvalidAlgorithm() {
+		assertThrows(IllegalArgumentException.class, () -> WebSignature.builder(Algorithm.ECDH_ES));
+	}
+
+	@Test
+	public void testUnprotected() {
+		final var key = WebKey.ephemeral(Algorithm.HS256);
+		final var jws = WebSignature.builder(Algorithm.HS256).key(key).sign("foo");
+		assertNull(IuJson.parse(jws.toString()).asJsonObject().get("protected"));
+		assertThrows(NullPointerException.class, () -> WebSignedPayload.parse(jws.compact()));
+	}
+
+	@Test
+	public void testProtected() {
+		final var key = WebKey.ephemeral(Algorithm.HS256);
+		final var jws = WebSignature.builder(Algorithm.HS256).key(key).protect(Param.ALGORITHM).sign("foo");
+		assertNotNull(IuJson.parse(jws.toString()).asJsonObject().get("protected"));
+		assertDoesNotThrow(() -> WebSignedPayload.parse(jws.compact()));
+	}
+	
+	@Test
+	public void testTheWorks() {
+		final var id = IdGenerator.generateId();
+		final var key = WebKey.builder(Algorithm.EDDSA).keyId(id).ephemeral().build();
+		final var jwsBuilder = WebSignature.builder(Algorithm.EDDSA).wellKnown(key);
+		final var ext = ext();
+		jwsBuilder.protect(Param.ALGORITHM, Param.CONTENT_TYPE);
+		jwsBuilder.protect(ext);
+		jwsBuilder.crit(Param.ALGORITHM.name, ext);
+		jwsBuilder.keyId(id);
+		jwsBuilder.wellKnown(uri(WebKey.asJwks(IuIterable.iter(key.wellKnown()))));
+		jwsBuilder.param(Param.TYPE, "baz");
+		jwsBuilder.type("baz");
+		
+		jwsBuilder.contentType("foo").param(ext, "bar");
+		final var jws = jwsBuilder.sign("foo");
+		
+		assertDoesNotThrow(() -> WebSignedPayload.parse(jws.compact()).verify(key));
+		assertDoesNotThrow(() -> WebSignedPayload.parse(jws.toString()).verify(key));
 	}
 }

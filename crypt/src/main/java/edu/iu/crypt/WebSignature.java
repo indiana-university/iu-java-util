@@ -146,12 +146,4 @@ public interface WebSignature {
 	 */
 	void verify(byte[] payload, WebKey key);
 
-	/**
-	 * Gets the signature in JSON serialized form.
-	 * 
-	 * @return JSON serialized form
-	 */
-	@Override
-	String toString();
-
 }

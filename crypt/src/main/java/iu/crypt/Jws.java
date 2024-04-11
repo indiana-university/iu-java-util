@@ -69,22 +69,23 @@ class Jws implements WebSignature {
 	 * @param signature       signature
 	 */
 	Jws(JsonObject protectedHeader, Jose header, byte[] signature) {
-		this.protectedHeader = Objects.requireNonNull(protectedHeader, "missing protected header");
+		this.protectedHeader = protectedHeader;
 		this.header = header;
 		this.signature = signature;
 
-		for (final var protectedEntry : protectedHeader.entrySet()) {
-			final var name = protectedEntry.getKey();
-			final var value = protectedEntry.getValue();
-			final var param = Param.from(name);
+		if (protectedHeader != null)
+			for (final var protectedEntry : protectedHeader.entrySet()) {
+				final var name = protectedEntry.getKey();
+				final var value = protectedEntry.getValue();
+				final var param = Param.from(name);
 
-			if (param == null) {
-				final var ext = Jose.getExtension(name);
-				if (!ext.fromJson(value).equals(header.getExtendedParameter(name)))
+				if (param == null) {
+					final var ext = Jose.getExtension(name);
+					if (!ext.fromJson(value).equals(header.getExtendedParameter(name)))
+						throw new IllegalArgumentException(name + " must match protected header");
+				} else if (!param.json().fromJson(value).equals(param.get(header)))
 					throw new IllegalArgumentException(name + " must match protected header");
-			} else if (!param.json().fromJson(value).equals(param.get(header)))
-				throw new IllegalArgumentException(name + " must match protected header");
-		}
+			}
 
 		for (final var name : header.extendedParameters().keySet())
 			Jose.getExtension(name).verify(this);
@@ -98,13 +99,6 @@ class Jws implements WebSignature {
 	@Override
 	public byte[] getSignature() {
 		return signature;
-	}
-
-	@Override
-	public String toString() {
-		final var json = IuJson.object();
-		serializeTo(json);
-		return json.build().toString();
 	}
 
 	@Override
@@ -149,25 +143,16 @@ class Jws implements WebSignature {
 	/**
 	 * Parses per-signature JWS parameters from raw JSON.
 	 * 
-	 * @param json raw JSON
+	 * @param jwsSignature JSON
 	 * @return parsed JWS parameters
 	 */
-	static Jws parse(String json) {
-		return parse(IuJson.parse(json).asJsonObject());
-	}
-
-	/**
-	 * Parses per-signature JWS parameters from raw JSON.
-	 * 
-	 * @param parsed JSON
-	 * @return parsed JWS parameters
-	 */
-	static Jws parse(JsonValue parsed) {
-		final var protectedHeader = parsed.asJsonObject().getJsonObject("protected");
-		final var header = IuJson.get(parsed.asJsonObject(), "header",
-				IuJsonAdapter.from(v -> Jose.from(protectedHeader, null, v.asJsonObject())));
-		final var signature = IuJson.get(parsed.asJsonObject(), "signature", UnpaddedBinary.JSON);
-		return new Jws(protectedHeader, header, signature);
+	static Jws parse(JsonValue jwsSignature) {
+		final var parsed = jwsSignature.asJsonObject();
+		final var protectedHeader = IuJson.get(parsed, "protected",
+				IuJsonAdapter.from(v -> IuJson.parse(IuText.utf8(UnpaddedBinary.JSON.fromJson(v))).asJsonObject()));
+		final var header = IuJson.get(parsed, "header", IuJsonAdapter.from(JsonValue::asJsonObject));
+		final var signature = IuJson.get(parsed, "signature", UnpaddedBinary.JSON);
+		return new Jws(protectedHeader, Jose.from(protectedHeader, null, header), signature);
 	}
 
 	/**
@@ -176,8 +161,9 @@ class Jws implements WebSignature {
 	 * @param json {@link JsonObjectBuilder}
 	 */
 	void serializeTo(JsonObjectBuilder json) {
-		IuJson.add(json, "protected", protectedHeader);
-		IuJson.add(json, "header", header.toJson(n -> !protectedHeader.containsKey(n)));
+		IuJson.add(json, "protected", () -> protectedHeader,
+				IuJsonAdapter.to(h -> UnpaddedBinary.JSON.toJson(IuText.utf8(h.toString()))));
+		IuJson.add(json, "header", header.toJson(n -> protectedHeader == null || !protectedHeader.containsKey(n)));
 		IuJson.add(json, "signature", () -> signature, UnpaddedBinary.JSON);
 	}
 

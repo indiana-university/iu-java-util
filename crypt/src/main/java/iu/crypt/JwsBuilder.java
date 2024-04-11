@@ -90,9 +90,14 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 			return new JwsSignedPayload(payload, signatures);
 		} else {
 			final var compact = UnpaddedBinary.compact(jws);
-			final var protectedHeader = UnpaddedBinary.compactJson(compact.next()).asJsonObject();
+			final var protectedHeader = Objects
+					.requireNonNull(UnpaddedBinary.compactJson(compact.next()), "protected header required")
+					.asJsonObject();
 			final var payload = UnpaddedBinary.base64Url(compact.next());
 			final var signature = UnpaddedBinary.base64Url(compact.next());
+			if (compact.hasNext())
+				throw new IllegalArgumentException("Unexpected content after JWS signature");
+
 			return new JwsSignedPayload(payload,
 					IuIterable.iter(new Jws(protectedHeader, new Jose(protectedHeader), signature)));
 		}
@@ -117,10 +122,8 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 		private JsonObject protectedHeader() {
 			final var protectedHeaderBuilder = IuJson.object();
 			if (compact)
-				for (final var paramName : paramNames()) {
-					if (!paramName.equals(Param.KEY.name))
-						protectedHeaderBuilder.add(paramName, param(paramName));
-				}
+				for (final var paramName : paramNames())
+					protectedHeaderBuilder.add(paramName, param(paramName));
 			else if (protectedParameters.isEmpty())
 				return null;
 			else
@@ -142,7 +145,6 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 	 * @param algorithm {@link Algorithm}
 	 */
 	public JwsBuilder(Algorithm algorithm) {
-		protectedParameters.add(Param.ALGORITHM.name);
 		next(algorithm);
 	}
 
