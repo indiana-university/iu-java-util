@@ -11,6 +11,7 @@ import java.text.ParseException;
 import java.util.Date;
 import java.util.List;
 
+import javax.xml.namespace.QName;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.Transformer;
@@ -45,6 +46,7 @@ public class XmlDomUtil {
 	public XmlDomUtil() {
 		// TODO Auto-generated constructor stub
 	}
+	
 
 	/**
 	 * Parse an XML document from a string.

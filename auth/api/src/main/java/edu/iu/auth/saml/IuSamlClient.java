@@ -29,7 +29,7 @@ public interface IuSamlClient {
 	 * Gets allowed list of IP addresses to validate against SAML response
 	 * @return allowed ranged of IP addresses
 	 */
-	List<InetAddress> getAllowedRange();
+	List<String> getAllowedRange();
 
 	/**
 	 * Gets the maximum time interval to re-established metadata resolver 
@@ -87,10 +87,5 @@ public interface IuSamlClient {
 
 	String getPrivateKey();
 	
-	/**
-	 * Gets metadata resolver unique id to initialize metadata resolver component.
-	 * @return metadata resolver uniqueId 
-	 */
-	String getMetaDataResolverUniqueId();
 
 }

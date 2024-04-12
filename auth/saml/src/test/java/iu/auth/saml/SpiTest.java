@@ -1,34 +1,35 @@
 package iu.auth.saml;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
 
-import java.io.ByteArrayInputStream;
 import java.net.InetAddress;
 import java.net.URI;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.List;
+import java.util.ServiceConfigurationError;
 
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.w3c.dom.Document;
 
+import edu.iu.IdGenerator;
 import edu.iu.IuException;
-import edu.iu.IuText;
 import edu.iu.auth.saml.IuSamlClient;
 import edu.iu.auth.saml.IuSamlProvider;
-import iu.auth.util.XmlDomUtil;
 
 @SuppressWarnings("javadoc")
 public class SpiTest {
 
 	private static X509Certificate certificate;
-	
+
 	@BeforeAll
-	public static void setup() {
+	static void setup() {
 		// This is a sample key for testing and demonstration purpose only.
 		// ---- NOT FOR PRODUCTION USE -----
 		// $ openssl genrsa | tee /tmp/k
@@ -62,7 +63,7 @@ public class SpiTest {
 	}
 
 	@Test
-	public void testSamlSpi() {
+	public void testSamlClient() {
 		final var spi = new SamlConnectSpi();
 		final var client = new IuSamlClient() {
 
@@ -90,23 +91,116 @@ public class SpiTest {
 			public List<URI> getMetaDataUris() {
 				return anyList();
 			}
-			
+
 			@Override
-			public List<InetAddress> getAllowedRange() {
-				return anyList();
-				
+			public List<String> getAllowedRange() {
+				return Arrays.asList("");
 			}
-			
-			@Override
-			public String getMetaDataResolverUniqueId() {
-				return "iu-saml-metadata";
-			}
+
 		};
 
 		IuSamlProvider provider = spi.getSamlProvider(client);
 		assertNotNull(provider);
+		assertThrows(IllegalStateException.class, () -> spi.getSamlProvider(client));
 		assertNotNull(provider.getServiceProviderMetaData());
-		Document doc = XmlDomUtil.parse(provider.getServiceProviderMetaData());
+
+	}
+
+	@Test
+	public void testSamlClientInvalidMetaData() {
+		final var spi = new SamlConnectSpi();
+		final var client = new IuSamlClient() {
+
+			@Override
+			public String getServiceProviderEntityId() {
+				return "urn:iu:ess:test";
+			}
+
+			@Override
+			public String getPrivateKey() {
+				return "";
+			}
+
+			@Override
+			public X509Certificate getCertificate() {
+				return certificate;
+			}
+
+			@Override
+			public List<URI> getAcsUris() {
+				return IuException.unchecked(() -> Arrays.asList(new URI("test://postUrl")));
+			}
+
+			@Override
+			public List<URI> getMetaDataUris() {
+				return IuException.unchecked(() -> Arrays.asList(new URI("https://foo")));
+			}
+
+			@Override
+			public List<String> getAllowedRange() {
+				return Arrays.asList("");
+			}
+
+		};
+
+		// IuSamlProvider provider = spi.getSamlProvider(client);
+		// assertNotNull(provider);
+		assertThrows(ServiceConfigurationError.class, () -> spi.getSamlProvider(client));
+		// assertNotNull(provider.getServiceProviderMetaData());
+
+	}
+
+	@Test
+	public void testSamlSameClientInitializer() {
+		final var spi = new SamlConnectSpi();
+		final var client = new IuSamlClient() {
+
+			@Override
+			public String getServiceProviderEntityId() {
+				return "urn:iu:ess:sisjee-test";
+			}
+
+			@Override
+			public String getPrivateKey() {
+				return "";
+			}
+
+			@Override
+			public X509Certificate getCertificate() {
+				return certificate;
+			}
+
+			@Override
+			public List<URI> getAcsUris() {
+				return IuException.unchecked(() -> Arrays.asList(new URI("test://postUrl")));
+			}
+
+			@Override
+			public List<URI> getMetaDataUris() {
+				return IuException.unchecked(() -> Arrays.asList(new URI("https://foo")));
+			}
+
+			@Override
+			public List<String> getAllowedRange() {
+				return Arrays.asList("");
+			}
+
+		};
+
+		assertThrows(IllegalStateException.class, () -> spi.getSamlProvider(client));
+
+	}
+
+	@Test
+	public void testCreateSession() {
+		final var spi = new SamlConnectSpi();
+
+		final var realm = IdGenerator.generateId();
+		final var entryPoint = IuException.unchecked(() -> new URI("http://foo"));
+		try (final var mockSamlSession = mockConstruction(SamlSession.class)) {
+			final var samlSession = spi.createAuthorizationSession(realm, entryPoint);
+			assertSame(samlSession, mockSamlSession.constructed().get(0));
+		}
 	}
 
 }

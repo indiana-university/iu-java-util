@@ -3,19 +3,10 @@ package iu.auth.saml;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.io.Serializable;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URL;
-import java.security.KeyFactory;
-import java.security.NoSuchAlgorithmException;
-import java.security.Principal;
 import java.security.PrivateKey;
-import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
-import java.security.spec.InvalidKeySpecException;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -40,7 +31,6 @@ import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.core.xml.config.XMLConfigurator;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistry;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
-import org.opensaml.core.xml.io.MarshallingException;
 import org.opensaml.core.xml.util.XMLObjectSupport;
 import org.opensaml.saml.common.SAMLVersion;
 import org.opensaml.saml.common.assertion.AssertionValidationException;
@@ -71,7 +61,6 @@ import org.opensaml.saml.saml2.metadata.SingleSignOnService;
 import org.opensaml.saml.security.impl.SAMLSignatureProfileValidator;
 import org.opensaml.security.credential.Credential;
 import org.opensaml.security.credential.CredentialResolver;
-import org.opensaml.security.credential.impl.StaticCredentialResolver;
 import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.xmlsec.SignatureValidationParameters;
 import org.opensaml.xmlsec.config.DecryptionParserPool;
@@ -82,13 +71,13 @@ import org.opensaml.xmlsec.keyinfo.impl.StaticKeyInfoCredentialResolver;
 import org.opensaml.xmlsec.signature.KeyInfo;
 import org.opensaml.xmlsec.signature.X509Certificate;
 import org.opensaml.xmlsec.signature.X509Data;
-import org.opensaml.xmlsec.signature.support.SignatureException;
 import org.opensaml.xmlsec.signature.support.SignaturePrevalidator;
 import org.opensaml.xmlsec.signature.support.SignatureTrustEngine;
 import org.opensaml.xmlsec.signature.support.SignatureValidationParametersCriterion;
 import org.opensaml.xmlsec.signature.support.impl.ExplicitKeySignatureTrustEngine;
 import org.w3c.dom.Element;
 
+import edu.iu.IdGenerator;
 import edu.iu.IuBadRequestException;
 import edu.iu.IuException;
 import edu.iu.IuIterable;
@@ -96,7 +85,6 @@ import edu.iu.IuWebUtils;
 import edu.iu.auth.saml.IuSamlClient;
 import edu.iu.auth.saml.IuSamlProvider;
 import iu.auth.util.XmlDomUtil;
-import net.shibboleth.shared.component.ComponentInitializationException;
 import net.shibboleth.shared.resolver.CriteriaSet;
 import net.shibboleth.shared.resolver.ResolverException;
 import net.shibboleth.shared.xml.ParserPool;
@@ -156,24 +144,6 @@ public class SamlProvider implements IuSamlProvider {
 		}
 	}
 
-	private class Id implements Principal, Serializable {
-		private static final long serialVersionUID = 1L;
-
-		private final String name;
-
-		private Id(String name) {
-			this.name = name;
-		}
-
-		@Override
-		public String getName() {
-			// TODO Auto-generated method stub
-			return null;
-		}
-
-		// TODO verification
-	}
-
 	/**
 	 * Initialize SAML provider
 	 * 
@@ -181,11 +151,24 @@ public class SamlProvider implements IuSamlProvider {
 	 */
 	public SamlProvider(IuSamlClient client) {
 		this.client = client;
-
-		this.metadataResolver = setMetadata(client.getMetaDataUris(), client.getMetadataTtl());
+		this.metadataResolver = setMetadata(client.getMetaDataUris());
 		this.spMetaData = setSpMetadata();
 
 	}
+
+	/*
+	 * private class Id implements Principal, Serializable { private static final
+	 * long serialVersionUID = 1L;
+	 * 
+	 * private final String name;
+	 * 
+	 * private Id(String name) { this.name = name; }
+	 * 
+	 * @Override public String getName() { // TODO Auto-generated method stub return
+	 * null; }
+	 * 
+	 * // TODO verification }
+	 */
 
 	private String getSingleSignOnLocation(String entityId) {
 		EntityDescriptor entity = getEntity(entityId);
@@ -209,22 +192,27 @@ public class SamlProvider implements IuSamlProvider {
 		}
 	}
 
+	private Decrypter getDecrypter() {
+		PrivateKey privateKey = SamlUtil.getPrivateKey(client.getPrivateKey());
+		List<Credential> certs = new ArrayList<>();
+		certs.add(new BasicX509Credential(client.getCertificate(), privateKey));
+		KeyInfoCredentialResolver keyInfoResolver = new StaticKeyInfoCredentialResolver(certs);
+
+		return new Decrypter(null, keyInfoResolver, new InlineEncryptedKeyResolver());
+	}
+
 	/**
 	 * Get metadata resolver
 	 * 
-	 * @param metadataUrls metadata url configured with identity provider
-	 * @param metadataTtl  metadata maximum life time
+	 * @param metadataUris metadata uris configured with identity provider
 	 * @return {@link MetadataResolver}
 	 */
-	synchronized MetadataResolver setMetadata(List<URI> metadataUrls, Duration metadataTtl) {
-		if (metadataResolver != null && lastMetadataUpdate >= (System.currentTimeMillis() - metadataTtl.toMillis()))
-			return metadataResolver;
-
+	synchronized MetadataResolver setMetadata(List<URI> metadataUris) {
 		Queue<Throwable> failures = new ArrayDeque<>();
 		List<MetadataResolver> resolvers = new ArrayList<>();
 
 		ParserPool pp = XMLObjectProviderRegistrySupport.getParserPool();
-		for (URI metadataUrl : metadataUrls)
+		for (URI metadataUrl : metadataUris)
 			try {
 				Element md;
 				try (InputStream in = new URL(metadataUrl.toString()).openStream()) {
@@ -232,7 +220,7 @@ public class SamlProvider implements IuSamlProvider {
 				}
 
 				DOMMetadataResolver mdr = new DOMMetadataResolver(md);
-				mdr.setId(client.getMetaDataResolverUniqueId());
+				mdr.setId(IdGenerator.generateId());
 				mdr.setRequireValidMetadata(true);
 				mdr.initialize();
 
@@ -253,13 +241,11 @@ public class SamlProvider implements IuSamlProvider {
 		}
 
 		ChainingMetadataResolver cmdr = new ChainingMetadataResolver();
-		cmdr.setId(client.getMetaDataResolverUniqueId());
-		try {
+		cmdr.setId(IdGenerator.generateId());
+		IuException.unchecked(() -> {
 			cmdr.setResolvers(resolvers);
 			cmdr.initialize();
-		} catch (ComponentInitializationException | ResolverException e) {
-			throw new IllegalStateException(e);
-		}
+		});
 
 		if (!failures.isEmpty())
 			return cmdr;
@@ -268,6 +254,86 @@ public class SamlProvider implements IuSamlProvider {
 		lastMetadataUpdate = System.currentTimeMillis();
 
 		return metadataResolver;
+	}
+
+	private String setSpMetadata() {
+		Thread current = Thread.currentThread();
+		ClassLoader currentLoader = current.getContextClassLoader();
+		ClassLoader samlProvider = SamlProvider.class.getClassLoader();
+		current.setContextClassLoader(samlProvider);
+		X509Certificate spX509Cert = (X509Certificate) XMLObjectProviderRegistrySupport.getBuilderFactory()
+				.getBuilder(X509Certificate.DEFAULT_ELEMENT_NAME).buildObject(X509Certificate.DEFAULT_ELEMENT_NAME);
+		spX509Cert.setValue(PemEncoded.getEncoded(client.getCertificate()));
+
+		X509Data spX509data = (X509Data) XMLObjectProviderRegistrySupport.getBuilderFactory()
+				.getBuilder(X509Data.DEFAULT_ELEMENT_NAME).buildObject(X509Data.DEFAULT_ELEMENT_NAME);
+		spX509data.getX509Certificates().add(spX509Cert);
+
+		KeyInfo spKeyInfo = (KeyInfo) XMLObjectProviderRegistrySupport.getBuilderFactory()
+				.getBuilder(KeyInfo.DEFAULT_ELEMENT_NAME).buildObject(KeyInfo.DEFAULT_ELEMENT_NAME);
+		spKeyInfo.getX509Datas().add(spX509data);
+
+		KeyDescriptor spKeyDescriptor = (KeyDescriptor) XMLObjectProviderRegistrySupport.getBuilderFactory()
+				.getBuilder(KeyDescriptor.DEFAULT_ELEMENT_NAME).buildObject(KeyDescriptor.DEFAULT_ELEMENT_NAME);
+		spKeyDescriptor.setKeyInfo(spKeyInfo);
+
+		EntityDescriptor spEntityDescriptor = (EntityDescriptor) XMLObjectProviderRegistrySupport.getBuilderFactory()
+				.getBuilder(EntityDescriptor.ELEMENT_QNAME).buildObject(EntityDescriptor.ELEMENT_QNAME);
+		spEntityDescriptor.setEntityID(client.getServiceProviderEntityId());
+
+		AttributeConsumingService spAttrConsumingService = (AttributeConsumingService) XMLObjectProviderRegistrySupport
+				.getBuilderFactory().getBuilder(AttributeConsumingService.DEFAULT_ELEMENT_NAME)
+				.buildObject(AttributeConsumingService.DEFAULT_ELEMENT_NAME);
+
+		RequestedAttribute spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()
+				.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)
+				.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);
+		spAttrEPPN.setFriendlyName("mail");
+		spAttrEPPN.setName("urn:oid:0.9.2342.19200300.100.1.3");
+		spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);
+		spAttrEPPN.setIsRequired(true);
+		spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);
+
+		spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()
+				.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)
+				.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);
+		spAttrEPPN.setFriendlyName("displayName");
+		spAttrEPPN.setName("urn:oid:2.16.840.1.113730.3.1.241");
+		spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);
+		spAttrEPPN.setIsRequired(true);
+		spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);
+
+		spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()
+				.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)
+				.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);
+		spAttrEPPN.setFriendlyName("eduPersonPrincipalName");
+		spAttrEPPN.setName("urn:oid:1.3.6.1.4.1.5923.1.1.1.6");
+		spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);
+		spAttrEPPN.setIsRequired(true);
+		spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);
+
+		SPSSODescriptor spsso = (SPSSODescriptor) XMLObjectProviderRegistrySupport.getBuilderFactory()
+				.getBuilder(SPSSODescriptor.DEFAULT_ELEMENT_NAME).buildObject(SPSSODescriptor.DEFAULT_ELEMENT_NAME);
+		spsso.getKeyDescriptors().add(spKeyDescriptor);
+		spsso.getAttributeConsumingServices().add(spAttrConsumingService);
+		spsso.addSupportedProtocol("urn:oasis:names:tc:SAML:2.0:protocol");
+
+		spEntityDescriptor.getRoleDescriptors().add(spsso);
+
+		int i = 0;
+		for (String acsUrl : IuIterable.map(client.getAcsUris(), URI::toString)) {
+			AssertionConsumerService acs = (AssertionConsumerService) XMLObjectProviderRegistrySupport
+					.getBuilderFactory().getBuilder(AssertionConsumerService.DEFAULT_ELEMENT_NAME)
+					.buildObject(AssertionConsumerService.DEFAULT_ELEMENT_NAME);
+			acs.setBinding("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST");
+			acs.setLocation(acsUrl);
+			acs.setIndex(i++);
+			spsso.getAssertionConsumerServices().add(acs);
+		}
+
+		return IuException.unchecked(() -> XmlDomUtil.getContent(XMLObjectProviderRegistrySupport.getMarshallerFactory()
+				.getMarshaller(spEntityDescriptor).marshall(spEntityDescriptor)));
+
 	}
 
 	@Override
@@ -332,100 +398,13 @@ public class SamlProvider implements IuSamlProvider {
 		// j.add("sessionId", sessionId);
 		// j.add("returnUrl", postURI.toString());
 		String jsonString = "{\"sessionId\":\"" + sessionId + "\"" + "," + "\"returnUrl\":\"" + postURI.toString()
-		+ "\"" + "}";
+				+ "\"" + "}";
 		idpParams.put("RelayState", Collections.singleton(SamlUtil.encrypt(jsonString)));
 
 		URI redirectUrl = IuException
 				.unchecked(() -> new URI(destinationLocation + '?' + IuWebUtils.createQueryString(idpParams)));
 		return redirectUrl;
 
-	}
-
-	private String setSpMetadata() {
-		Thread current = Thread.currentThread();
-		ClassLoader currentLoader = current.getContextClassLoader();
-		ClassLoader samlProvider = SamlProvider.class.getClassLoader();
-		try {
-			current.setContextClassLoader(samlProvider);
-			X509Certificate spX509Cert = (X509Certificate) XMLObjectProviderRegistrySupport.getBuilderFactory()
-					.getBuilder(X509Certificate.DEFAULT_ELEMENT_NAME).buildObject(X509Certificate.DEFAULT_ELEMENT_NAME);
-			spX509Cert.setValue(PemEncoded.getEncoded(client.getCertificate()));
-
-			X509Data spX509data = (X509Data) XMLObjectProviderRegistrySupport.getBuilderFactory()
-					.getBuilder(X509Data.DEFAULT_ELEMENT_NAME).buildObject(X509Data.DEFAULT_ELEMENT_NAME);
-			spX509data.getX509Certificates().add(spX509Cert);
-
-			KeyInfo spKeyInfo = (KeyInfo) XMLObjectProviderRegistrySupport.getBuilderFactory()
-					.getBuilder(KeyInfo.DEFAULT_ELEMENT_NAME).buildObject(KeyInfo.DEFAULT_ELEMENT_NAME);
-			spKeyInfo.getX509Datas().add(spX509data);
-
-			KeyDescriptor spKeyDescriptor = (KeyDescriptor) XMLObjectProviderRegistrySupport.getBuilderFactory()
-					.getBuilder(KeyDescriptor.DEFAULT_ELEMENT_NAME).buildObject(KeyDescriptor.DEFAULT_ELEMENT_NAME);
-			spKeyDescriptor.setKeyInfo(spKeyInfo);
-
-			EntityDescriptor spEntityDescriptor = (EntityDescriptor) XMLObjectProviderRegistrySupport
-					.getBuilderFactory().getBuilder(EntityDescriptor.ELEMENT_QNAME)
-					.buildObject(EntityDescriptor.ELEMENT_QNAME);
-			spEntityDescriptor.setEntityID(client.getServiceProviderEntityId());
-
-			AttributeConsumingService spAttrConsumingService = (AttributeConsumingService) XMLObjectProviderRegistrySupport
-					.getBuilderFactory().getBuilder(AttributeConsumingService.DEFAULT_ELEMENT_NAME)
-					.buildObject(AttributeConsumingService.DEFAULT_ELEMENT_NAME);
-
-			RequestedAttribute spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()
-					.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)
-					.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);
-			spAttrEPPN.setFriendlyName("mail");
-			spAttrEPPN.setName("urn:oid:0.9.2342.19200300.100.1.3");
-			spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);
-			spAttrEPPN.setIsRequired(true);
-			spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);
-
-			spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()
-					.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)
-					.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);
-			spAttrEPPN.setFriendlyName("displayName");
-			spAttrEPPN.setName("urn:oid:2.16.840.1.113730.3.1.241");
-			spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);
-			spAttrEPPN.setIsRequired(true);
-			spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);
-
-			spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()
-					.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)
-					.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);
-			spAttrEPPN.setFriendlyName("eduPersonPrincipalName");
-			spAttrEPPN.setName("urn:oid:1.3.6.1.4.1.5923.1.1.1.6");
-			spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);
-			spAttrEPPN.setIsRequired(true);
-			spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);
-
-			SPSSODescriptor spsso = (SPSSODescriptor) XMLObjectProviderRegistrySupport.getBuilderFactory()
-					.getBuilder(SPSSODescriptor.DEFAULT_ELEMENT_NAME).buildObject(SPSSODescriptor.DEFAULT_ELEMENT_NAME);
-			spsso.getKeyDescriptors().add(spKeyDescriptor);
-			spsso.getAttributeConsumingServices().add(spAttrConsumingService);
-			spsso.addSupportedProtocol("urn:oasis:names:tc:SAML:2.0:protocol");
-
-			spEntityDescriptor.getRoleDescriptors().add(spsso);
-
-			int i = 0;
-			for (String acsUrl : IuIterable.map(client.getAcsUris(), URI::toString)) {
-				AssertionConsumerService acs = (AssertionConsumerService) XMLObjectProviderRegistrySupport
-						.getBuilderFactory().getBuilder(AssertionConsumerService.DEFAULT_ELEMENT_NAME)
-						.buildObject(AssertionConsumerService.DEFAULT_ELEMENT_NAME);
-				acs.setBinding("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST");
-				acs.setLocation(acsUrl);
-				acs.setIndex(i++);
-				spsso.getAssertionConsumerServices().add(acs);
-			}
-
-			return XmlDomUtil.getContent(XMLObjectProviderRegistrySupport.getMarshallerFactory()
-					.getMarshaller(spEntityDescriptor).marshall(spEntityDescriptor));
-
-		} catch (MarshallingException e) {
-			throw new IllegalStateException(e);
-		} finally {
-			current.setContextClassLoader(currentLoader);
-		}
 	}
 
 	@Override
@@ -447,9 +426,9 @@ public class SamlProvider implements IuSamlProvider {
 			LOG.fine(() -> "SAML2 authentication response\nEntity ID: " + entityId + "\nACS URL: " + acsUrl + "\n"
 					+ XmlDomUtil.getContent(response.getDOM()));
 
-			CredentialResolver credentialResolver = getCredentialResolver(entityId);
+			CredentialResolver credentialResolver = SamlUtil.getCredentialResolver(getEntity(entityId));
 			SignatureTrustEngine newTrustEngine = new ExplicitKeySignatureTrustEngine(credentialResolver,
-					getKeyInfoCredentialResolver(response));
+					SamlUtil.getKeyInfoCredentialResolver(response));
 			SignaturePrevalidator newSignaturePrevalidator = new SAMLSignatureProfileValidator();
 
 			IuException.unchecked(() -> {
@@ -461,7 +440,8 @@ public class SamlProvider implements IuSamlProvider {
 					throw new SecurityException("SAML signature verification failed");
 			});
 
-			IuSubjectConfirmationValidator subjectValidator = new IuSubjectConfirmationValidator(client.getAllowedRange(), client.failOnAddressMismatch());
+			IuSubjectConfirmationValidator subjectValidator = new IuSubjectConfirmationValidator(
+					client.getAllowedRange(), client.failOnAddressMismatch());
 
 			SAML20AssertionValidator validator = new SAML20AssertionValidator(
 					Arrays.asList(new AudienceRestrictionConditionValidator()), Arrays.asList(subjectValidator),
@@ -486,13 +466,13 @@ public class SamlProvider implements IuSamlProvider {
 
 			staticParams.put(SAML2AssertionValidationParameters.SC_VALID_RECIPIENTS, Collections.singleton(acsUrl));
 			staticParams.put(SAML2AssertionValidationParameters.SIGNATURE_REQUIRED, false);
-			staticParams.put(SAML2AssertionValidationParameters.SC_VALID_IN_RESPONSE_TO,sessionId );
+			staticParams.put(SAML2AssertionValidationParameters.SC_VALID_IN_RESPONSE_TO, sessionId);
 			ValidationContext ctx = new ValidationContext(staticParams);
 
 			if (LOG.isLoggable(Level.FINE))
 				LOG.fine("SAML2 authentication response\nEntity ID: " + client.getServiceProviderEntityId()
-				+ "\nACS URL: " + acsUrl + "\nAllow IP Range: " + client.getAllowedRange() + "\n"
-				+ XmlDomUtil.getContent(response.getDOM()) + "\nStatic Params: " + staticParams);
+						+ "\nACS URL: " + acsUrl + "\nAllow IP Range: " + client.getAllowedRange() + "\n"
+						+ XmlDomUtil.getContent(response.getDOM()) + "\nStatic Params: " + staticParams);
 
 			// SamlAttributes samlAttributes = new SamlAttributes();
 			// samlAttributes.setEntityId(entityId);
@@ -558,7 +538,7 @@ public class SamlProvider implements IuSamlProvider {
 					.get(SAML2AssertionValidationParameters.CONFIRMED_SUBJECT_CONFIRMATION);
 			if (confirmation == null)
 				throw new IuBadRequestException("Missing subject confirmation: " + ctx.getValidationFailureMessages()
-				+ "\n" + ctx.getDynamicParameters());
+						+ "\n" + ctx.getDynamicParameters());
 
 			LOG.fine("SAML2 subject confirmation " + XmlDomUtil.getContent(confirmation.getDOM()));
 
@@ -568,111 +548,6 @@ public class SamlProvider implements IuSamlProvider {
 		} finally {
 			current.setContextClassLoader(currentLoader);
 		}
-	}
-
-	private Decrypter getDecrypter() {
-		PrivateKey privateKey = getPrivateKey();
-		List<Credential> certs = new ArrayList<>();
-		certs.add(new BasicX509Credential(client.getCertificate(), privateKey));
-		KeyInfoCredentialResolver keyInfoResolver = new StaticKeyInfoCredentialResolver(certs);
-
-		return new Decrypter(null, keyInfoResolver, new InlineEncryptedKeyResolver());
-	}
-
-	private PrivateKey getPrivateKey() {
-		PrivateKey parsedPrivateKey = null;
-		StringBuilder pk = new StringBuilder(client.getPrivateKey());
-		int i = pk.indexOf("-----BEGIN PRIVATE KEY-----");
-		if (i != -1)
-			pk.delete(0, i + 28);
-		i = pk.indexOf("-----END PRIVATE KEY-----");
-		if (i != -1)
-			pk.setLength(i);
-		for (i = 0; i < pk.length(); i++)
-			if (Character.isWhitespace(pk.charAt(i)))
-				pk.deleteCharAt(i--);
-
-		PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(Base64.getDecoder().decode(pk.toString()));
-		KeyFactory kf;
-		try {
-			kf = KeyFactory.getInstance("RSA");
-		} catch (NoSuchAlgorithmException e) {
-			throw new IllegalStateException(e);
-		}
-		try {
-			parsedPrivateKey = kf.generatePrivate(spec);
-		} catch (InvalidKeySpecException e) {
-			throw new SecurityException(e);
-		}
-
-		return parsedPrivateKey;
-	}
-
-	private CredentialResolver getCredentialResolver(String entityId) {
-		EntityDescriptor entity = getEntity(entityId);
-		IDPSSODescriptor idp = entity.getIDPSSODescriptor("urn:oasis:names:tc:SAML:2.0:protocol");
-		CertificateFactory certFactory;
-		try {
-			certFactory = CertificateFactory.getInstance("X.509");
-		} catch (CertificateException e) {
-			throw new IllegalArgumentException(e);
-		}
-
-		List<Credential> certs = new ArrayList<>();
-		for (KeyDescriptor kds : idp.getKeyDescriptors())
-			if (kds.getKeyInfo() != null)
-				for (X509Data x509data : kds.getKeyInfo().getX509Datas())
-					for (org.opensaml.xmlsec.signature.X509Certificate x509cert : x509data.getX509Certificates())
-						try {
-							StringBuilder keyData = new StringBuilder(x509cert.getValue());
-							for (int i = 0; i < keyData.length();)
-								if (Character.isWhitespace(keyData.charAt(i)))
-									keyData.deleteCharAt(i);
-								else
-									i++;
-
-							certs.add(new BasicX509Credential(
-									(java.security.cert.X509Certificate) certFactory.generateCertificate(
-											new ByteArrayInputStream(Base64.getDecoder().decode(keyData.toString())))));
-
-						} catch (CertificateException e) {
-							LOG.log(Level.WARNING, e, () -> "Invalid cert in key data for " + entityId);
-						}
-
-		return new StaticCredentialResolver(certs);
-	}
-
-	private KeyInfoCredentialResolver getKeyInfoCredentialResolver(Response response) {
-		CertificateFactory certFactory;
-		try {
-			certFactory = CertificateFactory.getInstance("X.509");
-		} catch (CertificateException e) {
-			throw new IllegalArgumentException(e);
-		}
-
-		List<Credential> certs = new ArrayList<>();
-		for (Assertion assertion : response.getAssertions())
-			if (assertion.getSignature() != null && assertion.getSignature().getKeyInfo() != null)
-				for (X509Data x509data : assertion.getSignature().getKeyInfo().getX509Datas())
-					for (X509Certificate x509cert : x509data.getX509Certificates())
-						try {
-							StringBuilder keyData = new StringBuilder(x509cert.getValue());
-							for (int i = 0; i < keyData.length();)
-								if (Character.isWhitespace(keyData.charAt(i)))
-									keyData.deleteCharAt(i);
-								else
-									i++;
-
-							certs.add(new BasicX509Credential(
-									(java.security.cert.X509Certificate) certFactory.generateCertificate(
-											new ByteArrayInputStream(Base64.getDecoder().decode(keyData.toString())))));
-
-						} catch (CertificateException e) {
-							LOG.log(Level.WARNING, e,
-									() -> "Invalid cert in response data for " + response.getDestination());
-						}
-
-		return new StaticKeyInfoCredentialResolver(certs);
 	}
 
 	@Override
