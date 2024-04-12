@@ -67,18 +67,6 @@ public class IuJsonBuilder<B extends IuJsonBuilder<B>> {
 	}
 
 	/**
-	 * Merges all parameters defined for another builder into this builder.
-	 * 
-	 * @param builder builder to merge parameters from
-	 * @see IuObject#once(Object, Object)
-	 */
-	protected void merge(IuJsonBuilder<?> builder) {
-		for (final var parameterEntry : builder.pendingParameters.entrySet())
-			pendingParameters.compute(parameterEntry.getKey(),
-					(name, value) -> IuObject.once(value, parameterEntry.getValue()));
-	}
-
-	/**
 	 * Adds all pending parameters to a {@link JsonObjectBuilder}.
 	 * 
 	 * @param builder {@link JsonObjectBuilder}
@@ -120,7 +108,6 @@ public class IuJsonBuilder<B extends IuJsonBuilder<B>> {
 	 * @param <T>     value type
 	 * @param name    parameter name
 	 * @param value   parameter value
-	 * @param adapter JSON type adapter
 	 * @return this
 	 */
 	@SuppressWarnings("unchecked")

@@ -69,7 +69,7 @@ import edu.iu.auth.session.IuSessionToken;
 import edu.iu.auth.spi.IuSessionSpi;
 import edu.iu.crypt.WebKey;
 import iu.auth.util.AccessTokenVerifier;
-import iu.auth.util.AlgorithmFactory;
+import iu.auth.util.WebKeyFactory;
 import iu.auth.util.PrincipalVerifierRegistry;
 import iu.auth.util.TokenIssuerKeySet;
 import iu.auth.util.WellKnownKeySet;
@@ -143,11 +143,11 @@ public class SessionSpi implements IuSessionSpi {
 		private final URI uri;
 		private final Supplier<Set<String>> realm;
 		private final Supplier<Collection<String>> scopes;
-		private final AlgorithmFactory algorithmFactory;
+		private final WebKeyFactory algorithmFactory;
 		private final AccessTokenVerifier verifier;
 
 		private Issuer(URI uri, Supplier<Set<String>> realm, Supplier<Collection<String>> scopes,
-				AlgorithmFactory algorithmFactory) {
+				WebKeyFactory algorithmFactory) {
 			this.uri = uri;
 			this.realm = realm;
 			this.scopes = scopes;

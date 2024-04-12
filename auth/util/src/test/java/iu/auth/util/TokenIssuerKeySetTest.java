@@ -33,13 +33,13 @@ package iu.auth.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.StringReader;
 import java.security.KeyPairGenerator;
 import java.security.spec.ECGenParameterSpec;
 import java.util.EnumSet;
+import java.util.NoSuchElementException;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
@@ -59,17 +59,13 @@ public class TokenIssuerKeySetTest {
 		final var rsaKeygen = KeyPairGenerator.getInstance("RSA");
 		rsaKeygen.initialize(1024);
 		final var keyPair = rsaKeygen.generateKeyPair();
-		final var issuerKey = WebKey.builder().keyId(id).use(Use.ENCRYPT).type(Type.RSA).pair(keyPair).build();
+		final var issuerKey = WebKey.builder(Type.RSA).keyId(id).use(Use.ENCRYPT).key(keyPair).build();
 
 		final var issuerKeySet = new TokenIssuerKeySet(Set.of(issuerKey));
-		assertThrows(NullPointerException.class, () -> issuerKeySet.getAlgorithm("foo", "bar"));
-		assertThrows(UnsupportedOperationException.class, () -> issuerKeySet.getAlgorithm(id, "bar"));
-		assertThrows(ClassCastException.class, () -> issuerKeySet.getAlgorithm(id, "ES256"));
-		assertNotNull(issuerKeySet.getAlgorithm(id, "RS256"));
-		assertNotNull(issuerKeySet.getAlgorithm(id, "RS384"));
-		assertSame(issuerKeySet.getAlgorithm(id, "RS512"), issuerKeySet.getAlgorithm(id, "RS512"));
-		assertEquals(id, Json.createReader(new StringReader(issuerKeySet.publish())).readObject().getJsonArray("keys")
-				.getJsonObject(0).getString("kid"));
+		assertThrows(NoSuchElementException.class, () -> issuerKeySet.getKey("bar"));
+		assertNotNull(issuerKeySet.getKey(id));
+		assertEquals(id, Json.createReader(new StringReader(WebKey.asJwks(Set.of(issuerKey)))).readObject()
+				.getJsonArray("keys").getJsonObject(0).getString("kid"));
 	}
 
 	@Test
@@ -77,18 +73,14 @@ public class TokenIssuerKeySetTest {
 		for (final var type : EnumSet.of(Type.EC_P256, Type.EC_P384, Type.EC_P521)) {
 			final var id = IdGenerator.generateId();
 			final var ecKeygen = KeyPairGenerator.getInstance("EC");
-			ecKeygen.initialize(new ECGenParameterSpec("secp256r1"));
+			ecKeygen.initialize(new ECGenParameterSpec(type.algorithmParams));
 			final var keyPair = ecKeygen.generateKeyPair();
-			final var issuerKey = WebKey.builder().keyId(id).use(Use.SIGN).type(type).pair(keyPair).build();
+			final var issuerKey = WebKey.builder(type).keyId(id).use(Use.SIGN).key(keyPair).build();
 
 			final var issuerKeySet = new TokenIssuerKeySet(Set.of(issuerKey));
-			assertThrows(NullPointerException.class, () -> issuerKeySet.getAlgorithm("foo", "bar"));
-			assertThrows(UnsupportedOperationException.class, () -> issuerKeySet.getAlgorithm(id, "bar"));
-			assertThrows(ClassCastException.class, () -> issuerKeySet.getAlgorithm(id, "RS256"));
-			assertNotNull(issuerKeySet.getAlgorithm(id, "ES256"));
-			assertNotNull(issuerKeySet.getAlgorithm(id, "ES384"));
-			assertSame(issuerKeySet.getAlgorithm(id, "ES512"), issuerKeySet.getAlgorithm(id, "ES512"));
-			assertEquals(id, Json.createReader(new StringReader(issuerKeySet.publish())).readObject()
+			assertThrows(NoSuchElementException.class, () -> issuerKeySet.getKey("bar"));
+			assertNotNull(issuerKeySet.getKey(id));
+			assertEquals(id, Json.createReader(new StringReader(WebKey.asJwks(Set.of(issuerKey)))).readObject()
 					.getJsonArray("keys").getJsonObject(0).getString("kid"));
 		}
 	}

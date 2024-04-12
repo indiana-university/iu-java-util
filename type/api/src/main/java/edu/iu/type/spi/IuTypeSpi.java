@@ -69,8 +69,6 @@ public interface IuTypeSpi {
 	 * @param componentArchiveSource           component archive
 	 * @param providedDependencyArchiveSources provided dependency archives
 	 * @return {@link IuComponent} instance
-	 * @throws IOException If the <strong>component archive</strong> or any
-	 *                     <strong>dependency archives</strong> are unreadable.
 	 * 
 	 * @see IuComponent
 	 */

@@ -637,8 +637,8 @@ public interface IuComponent extends AutoCloseable {
 	 * 
 	 * <p>
 	 * The method is a convenient introspection wrapper for
-	 * {@link #scan(ClassLoader, Path)} that discovers arguments based on the actual
-	 * resource a target class was loaded from. This method scans
+	 * {@link #scan(ClassLoader, ModuleLayer, Path)} that discovers arguments based
+	 * on the actual resource a target class was loaded from. This method scans
 	 * {@link Class#getClassLoader() targetClass.getClassLoader()} for classes
 	 * defined by the path entry that defined {@code targetClass}. Since at least
 	 * one valid class must have been loaded by the loader, from the path entry to
@@ -679,14 +679,6 @@ public interface IuComponent extends AutoCloseable {
 	 * archives</strong>, and loads a <strong>component</strong> that
 	 * <strong>extends</strong> this <strong>component</strong>.
 	 * 
-	 * @param controllerCallback               receives a reference to the
-	 *                                         {@link Controller} for the
-	 *                                         component's module layer. This
-	 *                                         reference <em>may</em> be used to
-	 *                                         adjust module access rules then
-	 *                                         discarded; The {@link Controller}
-	 *                                         <em>should not</em> be passed outside
-	 *                                         the callback invocation boundary.
 	 * @param componentArchiveSource           {@link InputStream} for reading the
 	 *                                         <strong>component archive</strong>.
 	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
@@ -754,6 +746,13 @@ public interface IuComponent extends AutoCloseable {
 	 * @return {@link ClassLoader}
 	 */
 	ClassLoader classLoader();
+
+	/**
+	 * Gets the component's {@link ModuleLayer}
+	 * 
+	 * @return {@link ModuleLayer}
+	 */
+	ModuleLayer moduleLayer();
 
 	/**
 	 * Gets all types in the component annotated by a specific type.

@@ -29,51 +29,54 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.type.loader;
+package edu.iu.auth;
 
-import java.lang.ModuleLayer.Controller;
-import java.lang.module.ModuleDescriptor;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 
-/**
- * Provides references for setting up {@link Module} access rules after creating
- * the a <strong>component's</strong> {@link ModuleLayer}, before any of its are
- * loaded.
- */
-public interface IuComponentController {
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
-	/**
-	 * Gets a reference to the loaded {@code iu.util.type} module.
-	 * 
-	 * @return {@link Module}
-	 */
-	Module getTypeModule();
+import edu.iu.IdGenerator;
+import edu.iu.auth.jwt.IuWebToken;
+import edu.iu.auth.spi.IuJwtSpi;
+import iu.auth.IuAuthSpiFactory;
 
-	/**
-	 * Gets a reference to the loaded {@code iu.util.type.impl} module.
-	 * 
-	 * @return {@link Module}
-	 */
-	Module getTypeImplementationModule();
+@SuppressWarnings("javadoc")
+public class IuWebTokenTest {
 
-	/**
-	 * Gets a reference to the module described by the <strong>component
-	 * archive's</strong> {@link ModuleDescriptor module descriptor}.
-	 * 
-	 * @return {@link Module}
-	 */
-	Module getComponentModule();
+	private MockedStatic<IuAuthSpiFactory> mockSpiFactory;
+	private IuJwtSpi spi;
 
-	/**
-	 * Gets a reference to the {@link Controller} for the module layer created in
-	 * conjunction with this loader.
-	 * 
-	 * <p>
-	 * API Note from {@link Controller}: <em>Care should be taken with Controller
-	 * objects, they should never be shared with untrusted code.</em>
-	 * </p>
-	 * 
-	 * @return {@link Controller}
-	 */
-	Controller getController();
+	@BeforeEach
+	public void setup() {
+		spi = mock(IuJwtSpi.class);
+		mockSpiFactory = mockStatic(IuAuthSpiFactory.class);
+		mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuJwtSpi.class)).thenReturn(spi);
+	}
+
+	@AfterEach
+	public void tearDown() {
+		mockSpiFactory.close();
+		mockSpiFactory = null;
+		spi = null;
+	}
+
+	@Test
+	public void testParse() {
+		final var id = IdGenerator.generateId();
+		IuWebToken.parse(id);
+		verify(spi).parse(id);
+	}
+
+	@Test
+	public void testIssue() {
+		final var id = IdGenerator.generateId();
+		IuWebToken.issue(id);
+		verify(spi).issue(id);
+	}
 
 }

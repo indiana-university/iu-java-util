@@ -56,17 +56,17 @@ import iu.type.loader.LoadedComponent;
 public class IuComponentLoader implements AutoCloseable {
 
 	private static final Module IU_BASE = IuObject.class.getModule();
-	private static final boolean IU_BASE_IS_NAMED = IU_BASE.isNamed();
+//	private static final boolean IU_BASE_IS_NAMED = IU_BASE.isNamed();
 	private static final Module IU_TYPE_BASE = ModularClassLoader.class.getModule();
-	private static final boolean IU_TYPE_BASE_IS_NAMED = IU_TYPE_BASE.isNamed();
+//	private static final boolean IU_TYPE_BASE_IS_NAMED = IU_TYPE_BASE.isNamed();
 
 	private static final URL[] TYPE_BUNDLE_MODULE_PATH = IuException.unchecked(() -> {
 		final var loader = IuComponentLoader.class.getClassLoader();
 		final Queue<URL> path = new ArrayDeque<>();
-		if (!IU_BASE_IS_NAMED)
-			path.offer(Objects.requireNonNull(loader.getResource("iu-java-base.jar")));
-		if (!IU_TYPE_BASE_IS_NAMED)
-			path.offer(Objects.requireNonNull(loader.getResource("iu-java-type-base.jar")));
+//		if (!IU_BASE_IS_NAMED)
+		path.offer(Objects.requireNonNull(loader.getResource("iu-java-base.jar")));
+//		if (!IU_TYPE_BASE_IS_NAMED)
+		path.offer(Objects.requireNonNull(loader.getResource("iu-java-type-base.jar")));
 		path.offer(Objects.requireNonNull(loader.getResource("iu-java-type.jar")));
 		path.offer(Objects.requireNonNull(loader.getResource("iu-java-type-api.jar")));
 		return path.toArray(size -> new URL[size]);
@@ -112,7 +112,6 @@ public class IuComponentLoader implements AutoCloseable {
 			Consumer<Controller> controllerCallback) {
 		loader = ModularClassLoader.of(parent, parentLayer, () -> toModulePath(typeConsumerModules),
 				controllerCallback);
-
 		typeImplModule = IuException.unchecked(() -> {
 			final var typeBundle = loader.loadClass("edu.iu.type.bundle.IuTypeBundle");
 			final var getModule = typeBundle.getMethod("getModule");
@@ -120,19 +119,28 @@ public class IuComponentLoader implements AutoCloseable {
 		});
 	}
 
-	public IuLoadedComponent load() {
-		final var loadedComponent = new LoadedComponent();
+	/**
+	 * Loads a component
+	 * 
+	 * @param controllerCallback               receives a reference to an
+	 *                                         {@link Controller} that may be used
+	 *                                         to set up access rules for the
+	 *                                         component. This reference <em>should
+	 *                                         not</em> be passed beyond the scope
+	 *                                         of the callback; see
+	 *                                         {@link ModularClassLoader}
+	 * @param componentArchiveSource           {@link InputStream} for reading the
+	 *                                         <strong>component archive</strong>.
+	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
+	 *                                         <strong>provided dependency
+	 *                                         archives</strong>.
+	 * @return {@link IuLoadedComponent}
+	 */
+	public IuLoadedComponent load(Consumer<Controller> controllerCallback, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) {
+		final var loadedComponent = new LoadedComponent(loader, loader.getModuleLayer(), controllerCallback,
+				componentArchiveSource, providedDependencyArchiveSources);
 		return loadedComponent;
-//			
-//			box.component = (AutoCloseable) of.invoke(null, typeBundleLoader.getModuleLayer(),
-//					typeBundleLoader, (BiConsumer<Module, Controller>) (module, controller) -> {
-//		box.component = (AutoCloseable) of.invoke(null, typeBundleLoader.getModuleLayer(),
-//				typeBundleLoader, (BiConsumer<Module, Controller>) (module, controller) -> {
-//					if (controllerCallback != null)
-//						controllerCallback.accept(new ComponentController(module, controller));
-//				}, componentArchiveSource, providedDependencyArchiveSources);
-//		box.loader = (ClassLoader) classLoader.invoke(box.component);
-
 	}
 
 	/**

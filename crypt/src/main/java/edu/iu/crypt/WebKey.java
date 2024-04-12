@@ -200,7 +200,6 @@ public interface WebKey extends WebKeyReference {
 		/**
 		 * Gets the value equivalent to the JWK kty attribute.
 		 * 
-		 * @param kty             JWK kty attribute value
 		 * @param algorithmParams Standard algorithm parameters name
 		 * @return {@link Type}
 		 */

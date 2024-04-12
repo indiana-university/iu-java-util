@@ -29,23 +29,30 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.util;
+package edu.iu.auth.jwt;
 
-import com.auth0.jwt.algorithms.Algorithm;
+import java.io.Serializable;
+import java.security.Principal;
 
 /**
- * Encapsulates deferred initialization of a JWT algorithm factory.
+ * Represents an informational claim associated with an {@link IuWebToken}.
+ * 
+ * @param <T> claim type
  */
-public interface AlgorithmFactory {
+public interface IuWebClaim<T> extends Principal, Serializable {
 
 	/**
-	 * Gets an initialized JWT algorithm.
+	 * Gets the claim name.
 	 * 
-	 * @param kid JWT kid claim value
-	 * @param alg JWT alg claim value
-	 * @return algorithm
+	 * @return claim name
 	 */
-	@SuppressWarnings("exports")
-	Algorithm getAlgorithm(String kid, String alg);
+	String getClaimName();
+
+	/**
+	 * Gets the claim value.
+	 * 
+	 * @return claim value
+	 */
+	T getClaim();
 
 }

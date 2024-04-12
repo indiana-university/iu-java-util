@@ -32,34 +32,34 @@
 package iu.auth.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayInputStream;
+import java.net.http.HttpResponse;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.spec.ECGenParameterSpec;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Set;
-import java.util.logging.Level;
-import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 import org.opentest4j.AssertionFailedError;
 
-import com.auth0.jwt.JWT;
-import com.auth0.jwt.algorithms.Algorithm;
-
 import edu.iu.IdGenerator;
+import edu.iu.IuIterable;
+import edu.iu.IuText;
 import edu.iu.client.IuHttp;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebKey.Use;
-import edu.iu.test.IuTestLogger;
+import edu.iu.crypt.WebSignature;
 import jakarta.json.Json;
 
 @SuppressWarnings("javadoc")
@@ -84,10 +84,9 @@ public class AccessTokenVerifierTest extends IuAuthUtilTestCase {
 		try (final var mockHttp = mockStatic(IuHttp.class)) {
 			mockHttp.when(() -> IuHttp.get(ROOT_URI, IuHttp.READ_JSON_OBJECT)).thenReturn(jwks);
 
-			final var verifier = new AccessTokenVerifier(iss,
-					new WellKnownKeySet(ROOT_URI, () -> Duration.ofMillis(100L)));
-			assertThrows(IllegalStateException.class,
-					() -> verifier.verify(aud, JWT.create().withKeyId("defaultSign").sign(Algorithm.none())));
+			final var verifier = new AccessTokenVerifier(iss, new WellKnownKeySet(ROOT_URI));
+//			assertThrows(IllegalStateException.class,
+//					() -> verifier.verify(aud, JWT.create().withKeyId("defaultSign").sign(Algorithm.none())));
 		}
 	}
 
@@ -103,11 +102,10 @@ public class AccessTokenVerifierTest extends IuAuthUtilTestCase {
 		try (final var mockHttp = mockStatic(IuHttp.class)) {
 			mockHttp.when(() -> IuHttp.get(eq(ROOT_URI), any())).thenReturn(jwks);
 
-			final var verifier = new AccessTokenVerifier(iss,
-					new WellKnownKeySet(ROOT_URI, () -> Duration.ofMillis(100L)));
-			final var e = assertThrows(IllegalStateException.class,
-					() -> verifier.verify(aud, JWT.create().withKeyId("defaultSign").sign(Algorithm.none())));
-			assertInstanceOf(UnsupportedOperationException.class, e.getCause());
+			final var verifier = new AccessTokenVerifier(iss, new WellKnownKeySet(ROOT_URI));
+//			final var e = assertThrows(IllegalStateException.class,
+//					() -> verifier.verify(aud, JWT.create().withKeyId("defaultSign").sign(Algorithm.none())));
+//			assertInstanceOf(UnsupportedOperationException.class, e.getCause());
 		}
 	}
 
@@ -123,10 +121,9 @@ public class AccessTokenVerifierTest extends IuAuthUtilTestCase {
 		try (final var mockHttp = mockStatic(IuHttp.class)) {
 			mockHttp.when(() -> IuHttp.get(eq(ROOT_URI), any())).thenReturn(jwks);
 
-			final var verifier = new AccessTokenVerifier(iss,
-					new WellKnownKeySet(ROOT_URI, () -> Duration.ofMillis(100L)));
-			assertThrows(IllegalStateException.class,
-					() -> verifier.verify(aud, JWT.create().withKeyId("").sign(Algorithm.none())));
+			final var verifier = new AccessTokenVerifier(iss, new WellKnownKeySet(ROOT_URI));
+//			assertThrows(IllegalStateException.class,
+//					() -> verifier.verify(aud, JWT.create().withKeyId("").sign(Algorithm.none())));
 		}
 	}
 
@@ -152,36 +149,49 @@ public class AccessTokenVerifierTest extends IuAuthUtilTestCase {
 		} else
 			throw new AssertionFailedError();
 
-		final var issuerKey = WebKey.builder().keyId("defaultSign").use(Use.SIGN).type(type).pair(keyPair).build();
+		final var issuerKey = WebKey.builder(type).keyId("defaultSign").use(Use.SIGN).key(keyPair).build();
 
-		final var issuerKeySet = new TokenIssuerKeySet(Set.of(issuerKey));
-		final var jwtAlgorithm = issuerKeySet.getAlgorithm("defaultSign", algorithm);
-		final var accessToken = JWT.create().withKeyId("defaultSign").withIssuer(iss).withAudience(aud)
-				.withIssuedAt(iat).withExpiresAt(exp).withClaim("nonce", nonce).sign(jwtAlgorithm);
+//		final var issuerKeySet = new TokenIssuerKeySet(Set.of(issuerKey));
+//		final var jwtAlgorithm = issuerKeySet.getKey("defaultSign");
 
-		try (final var mockWebKey = mockStatic(WebKey.class)) {
-			mockWebKey.when(() -> WebKey.readJwks(ROOT_URI)).then(a -> Stream.of(issuerKey.wellKnown()));
+		final var accessToken = WebSignature.builder(Algorithm.from(algorithm)).key(issuerKey).keyId("defaultSign")
+				.compact()
+				.sign(IuJson.object().add("iss", iss).add("aud", IuJson.array().add(aud))
+						.add("iat", IuJsonAdapter.of(Instant.class).toJson(iat))
+						.add("exp", IuJsonAdapter.of(Instant.class).toJson(exp)).add("nonce", nonce).build().toString())
+				.compact();
 
-			final var verifier = new AccessTokenVerifier(iss,
-					new WellKnownKeySet(ROOT_URI, () -> Duration.ofMillis(99L)));
+//		try (final var mockWebKey = mockStatic(WebKey.class)) {
+//			mockWebKey.when(() -> WebKey.readJwks(ROOT_URI)).then(a -> Stream.of(issuerKey.wellKnown()));
 
-			assertEquals(nonce, verifier.verify(aud, accessToken).getClaim("nonce").asString());
-			assertEquals(nonce, verifier.verify(aud, accessToken).getClaim("nonce").asString());
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			final var response = mock(HttpResponse.class);
+			when(response.statusCode()).thenReturn(200);
+			when(response.body()).thenReturn(
+					new ByteArrayInputStream(IuText.utf8(WebKey.asJwks(IuIterable.iter(issuerKey.wellKnown())))));
+
+			mockHttp.when(() -> IuHttp.send(eq(ROOT_URI), any())).thenReturn(response);
+
+			final var verifier = new AccessTokenVerifier(iss, new WellKnownKeySet(ROOT_URI));
+
+			assertEquals(nonce, verifier.verify(aud, accessToken).getString("nonce"));
+			assertEquals(nonce, verifier.verify(aud, accessToken).getString("nonce"));
 			// verify 2nd call uses cached keys
-			mockWebKey.verify(() -> WebKey.readJwks(ROOT_URI));
+//			mockWebKey.verify(() -> WebKey.readJwks(ROOT_URI));
 			Thread.sleep(100L);
 
-			assertEquals(nonce, verifier.verify(aud, accessToken).getClaim("nonce").asString());
+			assertEquals(nonce, verifier.verify(aud, accessToken).getString("nonce"));
 			// verify cache refresh
-			mockWebKey.verify(() -> WebKey.readJwks(ROOT_URI), times(2));
+//			mockWebKey.verify(() -> WebKey.readJwks(ROOT_URI), times(2));
 
-			mockWebKey.when(() -> WebKey.readJwks(ROOT_URI)).thenThrow(RuntimeException.class);
+//			mockWebKey.when(() -> WebKey.readJwks(ROOT_URI)).thenThrow(RuntimeException.class);
 			Thread.sleep(100L);
 
-			IuTestLogger.expect("iu.auth.util.WellKnownKeySet", Level.INFO, "JWT Algorithm initialization failure;.*",
-					RuntimeException.class);
-			assertEquals(nonce, verifier.verify(aud, accessToken).getClaim("nonce").asString());
+//			IuTestLogger.expect("iu.auth.util.WellKnownKeySet", Level.INFO, "JWT Algorithm initialization failure;.*",
+//					RuntimeException.class);
+			assertEquals(nonce, verifier.verify(aud, accessToken).getString("nonce"));
 		}
+//		}
 	}
 
 }

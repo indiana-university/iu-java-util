@@ -325,7 +325,6 @@ public final class PemEncoded {
 	/**
 	 * Gets the certificate when {@link #keyType} is {@link KeyType#CERTIFICATE}.
 	 * 
-	 * @param type JWK key type
 	 * @return private key
 	 */
 	public X509Certificate asCertificate() {

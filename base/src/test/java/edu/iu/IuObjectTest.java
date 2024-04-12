@@ -148,10 +148,10 @@ public class IuObjectTest {
 	public void testOnce() {
 		assertThrows(NullPointerException.class, () -> IuObject.once(null, null));
 		assertSame("foo", IuObject.once(null, "foo"));
-		assertSame("foo", IuObject.once("foo", "foo"));
+		assertSame("foo", IuObject.once("foo", "foo", "bar"));
 		assertSame("foo", IuObject.once("foo", null));
-		assertEquals("baz",
-				assertThrows(IllegalArgumentException.class, () -> IuObject.once("bar", "foo", "baz")).getMessage());
+		assertEquals("baz", assertThrows(IllegalArgumentException.class, () -> IuObject.once("bar", "foo", "baz"))
+				.getMessage());
 	}
 
 	@Test

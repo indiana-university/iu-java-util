@@ -95,10 +95,8 @@ public class JwkTest extends IuCryptTestCase {
 		// $ openssl genpkey -algorithm ed25519 | tee /tmp/k
 		// $ openssl pkey -pubout < /tmp/k
 		final var text = "-----BEGIN PRIVATE KEY-----\n"
-				+ "MC4CAQAwBQYDK2VwBCIEIE1WN1m6gOixo9+AJWGsFf4x3/3qX2bEGm8hZKLEiuSf\n"
-				+ "-----END PRIVATE KEY-----\n"
-				+ "-----BEGIN PUBLIC KEY-----\n"
-				+ "MCowBQYDK2VwAyEAXyF4/YMJMAOzPvTLx7k1LCenfnj9pRQlBnjbaRF4pgM=\n"
+				+ "MC4CAQAwBQYDK2VwBCIEIE1WN1m6gOixo9+AJWGsFf4x3/3qX2bEGm8hZKLEiuSf\n" + "-----END PRIVATE KEY-----\n"
+				+ "-----BEGIN PUBLIC KEY-----\n" + "MCowBQYDK2VwAyEAXyF4/YMJMAOzPvTLx7k1LCenfnj9pRQlBnjbaRF4pgM=\n"
 				+ "-----END PUBLIC KEY-----\n";
 		final var jwk = WebKey.builder(Type.ED25519).pem(text).build();
 		assertNotNull(jwk.getPublicKey(), jwk::toString);
@@ -127,11 +125,11 @@ public class JwkTest extends IuCryptTestCase {
 		assertThrows(UnsupportedOperationException.class, () -> new Jwk(json.build()));
 	}
 
-//	@Test
-//	public void testECNoPub() throws InvalidKeySpecException, NoSuchAlgorithmException {
-//		final var key = EphemeralKeys.ec(WebKey.algorithmParams(Type.EC_P256.algorithmParams)).getPrivate();
-//		assertEquals(key, new JwkBuilder().key(key).build().getPrivateKey());
-//	}
+	@Test
+	public void testPKIKey() {
+		assertEquals("", WebKey.builder(Type.EC_P384).keyId(ANOTHER_CERT.getSubjectX500Principal().getName()).cert(ANOTHER_CERT)
+				.key(ANOTHER_CERT.getPublicKey()).pem(EC_PRIVATE_KEY).build().toString());
+	}
 
 	@Test
 	public void testWellKnownSameSame() throws InvalidKeySpecException, NoSuchAlgorithmException {

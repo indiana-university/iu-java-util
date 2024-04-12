@@ -34,13 +34,10 @@ package iu.type.loader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ModuleLayer.Controller;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import edu.iu.IuException;
-import edu.iu.UnsafeRunnable;
 import edu.iu.type.base.ModularClassLoader;
-import edu.iu.type.loader.IuComponentController;
 import edu.iu.type.loader.IuLoadedComponent;
 
 /**
@@ -48,9 +45,9 @@ import edu.iu.type.loader.IuLoadedComponent;
  */
 public class LoadedComponent implements IuLoadedComponent {
 
-	private ClassLoader loader;
-	private ModuleLayer layer;
-	private AutoCloseable component;
+	private volatile ClassLoader loader;
+	private volatile ModuleLayer layer;
+	private volatile AutoCloseable component;
 
 	/**
 	 * Constructor.
@@ -72,26 +69,16 @@ public class LoadedComponent implements IuLoadedComponent {
 	 *                                         archives</strong>.
 	 * @throws IOException If an IO error occurs initializing the component
 	 */
-	public LoadedComponent(ClassLoader parent, ModuleLayer parentLayer,
-			Consumer<IuComponentController> controllerCallback, InputStream componentArchiveSource,
-			InputStream... providedDependencyArchiveSources) {
-
-		final var iuComponent = parent.loadClass("edu.iu.type.IuComponent");
-		final var of = iuComponent.getMethod("of", ClassLoader.class, ModuleLayer.class, BiConsumer.class,
-				InputStream.class, InputStream[].class);
-		component = of.invoke(null, parent, parentLayer, ); 
-				
-		final var classLoader = iuComponent.getMethod("classLoader");
-		final var moduleLayer = iuComponent.getMethod("moduleLayer");
-
-		return IuException.checkedInvocation(() -> {
-			box.component = (AutoCloseable) of.invoke(null, typeBundleLoader.getModuleLayer(), typeBundleLoader,
-					(BiConsumer<Module, Controller>) (module, controller) -> {
-						if (controllerCallback != null)
-							controllerCallback.accept(new ComponentController(module, controller));
-					}, componentArchiveSource, providedDependencyArchiveSources);
-			box.loader = (ClassLoader) classLoader.invoke(box.component);
-			return typeBundleLoader;
+	public LoadedComponent(ClassLoader parent, ModuleLayer parentLayer, Consumer<Controller> controllerCallback,
+			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources) {
+		IuException.unchecked(() -> {
+			final var iuComponent = parent.loadClass("edu.iu.type.IuComponent");
+			final var of = iuComponent.getMethod("of", ClassLoader.class, ModuleLayer.class, Consumer.class,
+					InputStream.class, InputStream[].class);
+			component = (AutoCloseable) of.invoke(null, parent, parentLayer, controllerCallback, componentArchiveSource,
+					providedDependencyArchiveSources);
+			loader = (ClassLoader) iuComponent.getMethod("classLoader").invoke(component);
+			layer = (ModuleLayer) iuComponent.getMethod("moduleLayer").invoke(component);
 		});
 	}
 
@@ -106,7 +93,7 @@ public class LoadedComponent implements IuLoadedComponent {
 	}
 
 	@Override
-	public synchronized void close() throws IOException {
+	public synchronized void close() throws Exception {
 		if (component != null) {
 			component.close();
 			component = null;

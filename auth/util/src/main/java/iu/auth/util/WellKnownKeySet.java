@@ -32,117 +32,29 @@
 package iu.auth.util;
 
 import java.net.URI;
-import java.security.interfaces.ECPublicKey;
-import java.security.interfaces.RSAPublicKey;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Supplier;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
-import com.auth0.jwt.algorithms.Algorithm;
-
+import edu.iu.IuIterable;
 import edu.iu.crypt.WebKey;
 
 /**
  * Provides cached algorithm configurations from a well-known JWKS key set.
  */
-public class WellKnownKeySet implements AlgorithmFactory {
+public class WellKnownKeySet implements WebKeyFactory {
 
-	private static final Logger LOG = Logger.getLogger(WellKnownKeySet.class.getName());
-
-	private static class CachedAlgorithm {
-		private final Algorithm algorithm;
-		private final Instant lastUpdated;
-
-		private CachedAlgorithm(Algorithm algorithm, Instant lastUpdated) {
-			this.algorithm = algorithm;
-			this.lastUpdated = lastUpdated;
-		}
-	}
-
-	private final URI keysetUri;
-	private final Supplier<Duration> refreshInterval;
-	private final Map<AlgorithmKey, CachedAlgorithm> algorithmCache = new HashMap<>();
+	private final URI uri;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param keysetUri       well-known keyset URI
-	 * @param refreshInterval cache time to live
+	 * @param uri well-known keyset URI
 	 */
-	public WellKnownKeySet(URI keysetUri, Supplier<Duration> refreshInterval) {
-		this.keysetUri = keysetUri;
-		this.refreshInterval = refreshInterval;
+	public WellKnownKeySet(URI uri) {
+		this.uri = uri;
 	}
 
 	@Override
-	@SuppressWarnings("exports")
-	public Algorithm getAlgorithm(String kid, String alg) {
-		final var now = Instant.now();
-		final var cacheKey = new AlgorithmKey(kid, alg);
-
-		var cachedAlgorithm = algorithmCache.get(cacheKey);
-		if (cachedAlgorithm == null || cachedAlgorithm.lastUpdated.isBefore(now.minus(refreshInterval.get()))) {
-			WebKey jwk = null;
-			Algorithm jwtAlgorithm;
-			try {
-				jwk = WebKey.readJwks(keysetUri).filter(a -> a.getId().equals(kid)).findFirst().get();
-				switch (alg) {
-				case "ES256":
-					jwtAlgorithm = Algorithm.ECDSA256((ECPublicKey) jwk.getPublicKey());
-					break;
-				case "ES384":
-					jwtAlgorithm = Algorithm.ECDSA384((ECPublicKey) jwk.getPublicKey());
-					break;
-				case "ES512":
-					jwtAlgorithm = Algorithm.ECDSA512((ECPublicKey) jwk.getPublicKey());
-					break;
-				case "RS256":
-					jwtAlgorithm = Algorithm.RSA256((RSAPublicKey) jwk.getPublicKey());
-					break;
-				case "RS384":
-					jwtAlgorithm = Algorithm.RSA384((RSAPublicKey) jwk.getPublicKey());
-					break;
-				case "RS512":
-					jwtAlgorithm = Algorithm.RSA512((RSAPublicKey) jwk.getPublicKey());
-					break;
-				default:
-					throw new UnsupportedOperationException("Unsupported JWT algorithm " + alg);
-				}
-
-				cachedAlgorithm = new CachedAlgorithm(jwtAlgorithm, now);
-				synchronized (algorithmCache) {
-					algorithmCache.put(cacheKey, cachedAlgorithm);
-				}
-
-			} catch (Throwable e) {
-				final var message = "JWT Algorithm initialization failure; keysetUri=" + keysetUri + " " + cacheKey
-						+ " jwk=" + jwk;
-				if (cachedAlgorithm == null)
-					throw new IllegalStateException(message, e);
-				else
-					LOG.log(Level.INFO, message, e);
-			}
-		}
-		return cachedAlgorithm.algorithm;
+	public WebKey getKey(String keyId) {
+		return IuIterable.filter(WebKey.readJwks(uri), k -> keyId.equals(k.getKeyId())).iterator().next();
 	}
-
-//	private JsonObject readJwk(String keyId) {
-//		final var jwks = HttpUtils.read(keysetUri).asJsonObject();
-//		try {
-//			for (final var key : jwks.getJsonArray("keys")) {
-//				final var keyAsJsonObject = key.asJsonObject();
-//				if (keyId.equals(keyAsJsonObject.getString("kid")))
-//					return keyAsJsonObject;
-//			}
-//		} catch (Throwable e) {
-//			throw new IllegalStateException("Invalid JWKS format: " + jwks, e);
-//		}
-//
-//		throw new IllegalStateException("Key " + keyId + " not in JWKS: " + jwks);
-//	}
 
 }

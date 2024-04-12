@@ -59,7 +59,7 @@ public interface WebSignedPayload {
 	/**
 	 * Gets one or more signatures for verifying the payload.
 	 * 
-	 * @return {@WebSignature}s
+	 * @return {@link WebSignature}s
 	 */
 	Iterable<? extends WebSignature> getSignatures();
 

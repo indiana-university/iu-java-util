@@ -140,20 +140,20 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		/**
 		 * Ephemeral public key for key agreement algorithms.
 		 * 
-		 * @see {@link Algorithm#ECDH_ES}
-		 * @see {@link Algorithm#ECDH_ES_A128KW}
-		 * @see {@link Algorithm#ECDH_ES_A192KW}
-		 * @see {@link Algorithm#ECDH_ES_A256KW}
+		 * @see Algorithm#ECDH_ES
+		 * @see Algorithm#ECDH_ES_A128KW
+		 * @see Algorithm#ECDH_ES_A192KW
+		 * @see Algorithm#ECDH_ES_A256KW
 		 */
 		EPHEMERAL_PUBLIC_KEY("epk", EnumSet.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("epk"), () -> Jwk.JSON),
 
 		/**
 		 * Public originator identifier (PartyUInfo) for key derivation.
 		 * 
-		 * @see {@link Algorithm#ECDH_ES}
-		 * @see {@link Algorithm#ECDH_ES_A128KW}
-		 * @see {@link Algorithm#ECDH_ES_A192KW}
-		 * @see {@link Algorithm#ECDH_ES_A256KW}
+		 * @see Algorithm#ECDH_ES
+		 * @see Algorithm#ECDH_ES_A128KW
+		 * @see Algorithm#ECDH_ES_A192KW
+		 * @see Algorithm#ECDH_ES_A256KW
 		 */
 		PARTY_UINFO("apu", EnumSet.of(Use.ENCRYPT), false, a -> a.getExtendedParameter("apu"),
 				() -> UnpaddedBinary.JSON),
@@ -161,10 +161,10 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		/**
 		 * Public recipient identifier (PartyVInfo) for key derivation.
 		 * 
-		 * @see {@link Algorithm#ECDH_ES}
-		 * @see {@link Algorithm#ECDH_ES_A128KW}
-		 * @see {@link Algorithm#ECDH_ES_A192KW}
-		 * @see {@link Algorithm#ECDH_ES_A256KW}
+		 * @see Algorithm#ECDH_ES
+		 * @see Algorithm#ECDH_ES_A128KW
+		 * @see Algorithm#ECDH_ES_A192KW
+		 * @see Algorithm#ECDH_ES_A256KW
 		 */
 		PARTY_VINFO("apv", EnumSet.of(Use.ENCRYPT), false, a -> a.getExtendedParameter("apv"),
 				() -> UnpaddedBinary.JSON),
@@ -172,9 +172,9 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		/**
 		 * Initialization vector for GCM key wrap.
 		 * 
-		 * @see {@link Algorithm#A128GCMKW}
-		 * @see {@link Algorithm#A192GCMKW}
-		 * @see {@link Algorithm#A256GCMKW}
+		 * @see Algorithm#A128GCMKW
+		 * @see Algorithm#A192GCMKW
+		 * @see Algorithm#A256GCMKW
 		 */
 		INITIALIZATION_VECTOR("iv", EnumSet.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("iv"),
 				() -> UnpaddedBinary.JSON),
@@ -182,28 +182,27 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		/**
 		 * Authentication tag for GCM key wrap.
 		 * 
-		 * @see {@link Algorithm#A128GCMKW}
-		 * @see {@link Algorithm#A192GCMKW}
-		 * @see {@link Algorithm#A256GCMKW}
+		 * @see Algorithm#A128GCMKW
+		 * @see Algorithm#A192GCMKW
+		 * @see Algorithm#A256GCMKW
 		 */
 		TAG("tag", Set.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("tag"), () -> UnpaddedBinary.JSON),
 
 		/**
 		 * Password salt for use with PBES2.
 		 * 
-		 * @see {@link Algorithm#PBES2_HS256_A128KW}
-		 * @see {@link Algorithm#PBES2_HS384_A192KW}
-		 * @see {@link Algorithm#PBES2_HS512_A256KW}
-		 * @see {@link Algorithm#PBES}
+		 * @see Algorithm#PBES2_HS256_A128KW
+		 * @see Algorithm#PBES2_HS384_A192KW
+		 * @see Algorithm#PBES2_HS512_A256KW
 		 */
 		PASSWORD_SALT("p2s", Set.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("p2s"), () -> UnpaddedBinary.JSON),
 
 		/**
 		 * PBKDF2 iteration count for use with PBES2.
 		 * 
-		 * @see {@link Algorithm#PBES2_HS256_A128KW}
-		 * @see {@link Algorithm#PBES2_HS384_A192KW}
-		 * @see {@link Algorithm#PBES2_HS512_A256KW}
+		 * @see Algorithm#PBES2_HS256_A128KW
+		 * @see Algorithm#PBES2_HS384_A192KW
+		 * @see Algorithm#PBES2_HS512_A256KW
 		 */
 		PASSWORD_COUNT("p2c", Set.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("p2c"),
 				() -> IuJsonAdapter.of(Integer.class));
@@ -430,7 +429,8 @@ public interface WebCryptoHeader extends WebCertificateReference {
 
 	/**
 	 * Registers an extension.
-	 * 
+	 *
+	 * @param <T>           parameter type
 	 * @param parameterName parameter name; <em>must not</em> be a registered
 	 *                      parameter name enumerated by {@link Param},
 	 *                      <em>should</em> be collision-resistant. Take care when

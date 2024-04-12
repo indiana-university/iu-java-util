@@ -29,21 +29,21 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package iu.auth.util;
+
+import edu.iu.crypt.WebKey;
+
 /**
- * Provides common utilities to API authorization implementation modules.
- * 
- * @provides edu.iu.auth.spi.IuPrincipalSpi internal tie-in utility for
- *           principal verification
+ * Looks up a {@link WebKey} by ID.
  */
-module iu.util.auth.util {
-	exports iu.auth.util to iu.util.auth.oauth, iu.util.auth.oidc, iu.util.auth.session;
+public interface WebKeyFactory {
 
-	requires transitive iu.util;
-	requires transitive iu.util.auth;
-	requires transitive iu.util.client;
-	requires transitive iu.util.crypt;
-	requires transitive jakarta.json;
-	requires transitive java.net.http;
+	/**
+	 * Gets a key by ID.
+	 * 
+	 * @param kid key ID
+	 * @return {@link WebKey}
+	 */
+	WebKey getKey(String kid);
 
-	provides edu.iu.auth.spi.IuPrincipalSpi with iu.auth.util.PrincipalVerifierRegistry;
 }

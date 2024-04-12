@@ -31,8 +31,21 @@
  */
 package iu.auth.util;
 
-import com.auth0.jwt.JWT;
-import com.auth0.jwt.interfaces.DecodedJWT;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+import edu.iu.IuObject;
+import edu.iu.IuText;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.WebCryptoHeader;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebSignedPayload;
+import jakarta.json.JsonObject;
 
 /**
  * Verifies JWT access tokens as signed using an RSA or ECDSA public key from a
@@ -41,17 +54,17 @@ import com.auth0.jwt.interfaces.DecodedJWT;
 public class AccessTokenVerifier {
 
 	private final String issuer;
-	private final AlgorithmFactory algorithmFactory;
+	private final Function<WebCryptoHeader, WebKey> keyFactory;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param issuer           expected issuer
-	 * @param algorithmFactory JWT algorithm factory
+	 * @param issuer     expected issuer
+	 * @param keyFactory provides a web key for verifying JWT signatures
 	 */
-	public AccessTokenVerifier(String issuer, AlgorithmFactory algorithmFactory) {
+	public AccessTokenVerifier(String issuer, Function<WebCryptoHeader, WebKey> keyFactory) {
 		this.issuer = issuer;
-		this.algorithmFactory = algorithmFactory;
+		this.keyFactory = keyFactory;
 	}
 
 	/**
@@ -73,21 +86,37 @@ public class AccessTokenVerifier {
 	 * @param token    JWT access token
 	 * @return Parsed JWT, can be used to perform additional verification
 	 */
-	@SuppressWarnings("exports")
-	public DecodedJWT verify(String audience, String token) {
-		final var decoded = JWT.decode(token);
-		final var kid = decoded.getKeyId();
-		final var alg = decoded.getAlgorithm();
-		final var verifier = JWT //
-				.require(algorithmFactory.getAlgorithm(kid, alg)) //
-				.withIssuer(issuer) //
-				.withAudience(audience) //
-				.withClaimPresence("iat") //
-				.withClaimPresence("exp") //
-				.acceptLeeway(15L) //
-				.build();
+	public JsonObject verify(String audience, String token) {
+		final var jws = WebSignedPayload.parse(token);
 
-		return verifier.verify(token);
+		// Token must be a valid compact JWS signature
+		// Extract header and verify format
+		final var sigIter = jws.getSignatures().iterator();
+		final var sig = sigIter.next();
+		if (sigIter.hasNext())
+			throw new IllegalStateException("Invalid JWT");
+
+		final var header = sig.getHeader();
+
+		var key = Objects.requireNonNull(keyFactory.apply(header), "no matching key");
+		jws.verify(key);
+
+		final var jwt = IuJson.parse(IuText.utf8(jws.getPayload())).asJsonObject();
+		IuObject.once(issuer, IuJson.get(jwt, "iss"));
+
+		if (!IuJson.get(jwt, "aud", IuJsonAdapter.of(Set.class)).contains(audience))
+			throw new IllegalArgumentException("audience mismatch");
+
+		final var now = Instant.now().plus(Duration.ofSeconds(15L));
+		final var iat = Objects.requireNonNull(IuJson.get(jwt, "iat", IuJsonAdapter.of(Instant.class)));
+		if (now.isBefore(iat))
+			throw new IllegalArgumentException("iat must not be more than 15 seconds from now");
+
+		final var exp = Objects.requireNonNull(IuJson.get(jwt, "exp", IuJsonAdapter.of(Instant.class)));
+		if (now.isAfter(exp))
+			throw new IllegalArgumentException("exp must be after now");
+
+		return jwt;
 	}
 
 }

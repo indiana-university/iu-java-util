@@ -33,6 +33,7 @@ package edu.iu.type.base;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -43,13 +44,18 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import edu.iu.IdGenerator;
+import edu.iu.IuStream;
+import edu.iu.IuText;
 import edu.iu.UnsafeFunction;
 
 @SuppressWarnings("javadoc")
@@ -130,6 +136,57 @@ public class TemporaryFileTest {
 		assertTrue(Files.exists(box.path));
 		destroy.run();
 		assertFalse(Files.exists(box.path));
+	}
+
+	@Test
+	public void testInputStream() throws Throwable {
+		final var id = IdGenerator.generateId();
+		TemporaryFile.init(() -> {
+			final var p = TemporaryFile.of(new ByteArrayInputStream(IuText.utf8(id)));
+			try (final var r = Files.newBufferedReader(p)) {
+				assertEquals(id, IuStream.read(r));
+			}
+		}).run();
+	}
+
+	@Test
+	public void testRejectsNonFileURL() throws Throwable {
+		assertThrows(IllegalArgumentException.class, () -> TemporaryFile.of(new URL("http://localhost/")));
+	}
+
+	@Test
+	public void testRejectsNonFileJarURL() throws Throwable {
+		assertThrows(IllegalArgumentException.class, () -> TemporaryFile.of(new URL("jar:http://localhost/!/foo")));
+	}
+
+	@Test
+	public void testBundle() throws Throwable {
+		TemporaryFile.init(() -> {
+			final var bundleUrl = getClass().getClassLoader().getResource("iu-java-type-testruntime-bundle.jar");
+			final var bundle = TemporaryFile.of(bundleUrl);
+			assertNotNull(bundle);
+			assertThrows(IllegalArgumentException.class, () -> TemporaryFile.of(new URL("jar:" + bundleUrl + "!/foo")));
+			final var readBundle = TemporaryFile.readBundle(bundleUrl);
+			int c = 0;
+			for (final var p : readBundle) {
+				c++;
+				assertTrue(p.toString().endsWith(".jar"), p::toString);
+			}
+			assertEquals(7, c);
+
+			final var bundleWithinBundleUrl = new URL(
+					"jar:" + bundleUrl.toExternalForm() + "!/iu-java-type-testruntime.jar");
+			final var bundleWithinBundle = TemporaryFile.of(bundleWithinBundleUrl);
+			assertNotNull(bundleWithinBundle);
+
+			final var readBundleJar = TemporaryFile.readBundle(bundleWithinBundleUrl);
+			c = 0;
+			for (final var p : readBundleJar) {
+				c++;
+				assertTrue(p.toString().endsWith(".jar"), p::toString);
+			}
+			assertEquals(6, c);
+		}).run();
 	}
 
 }

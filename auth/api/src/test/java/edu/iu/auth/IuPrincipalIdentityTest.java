@@ -31,11 +31,18 @@
  */
 package edu.iu.auth;
 
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 
+import javax.security.auth.Subject;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 import edu.iu.IdGenerator;
 import edu.iu.auth.spi.IuPrincipalSpi;
@@ -44,16 +51,44 @@ import iu.auth.IuAuthSpiFactory;
 @SuppressWarnings("javadoc")
 public class IuPrincipalIdentityTest {
 
+	private MockedStatic<IuAuthSpiFactory> mockSpiFactory;
+	private IuPrincipalSpi spi;
+
+	@BeforeEach
+	public void setup() {
+		spi = mock(IuPrincipalSpi.class);
+		mockSpiFactory = mockStatic(IuAuthSpiFactory.class);
+		mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuPrincipalSpi.class)).thenReturn(spi);
+	}
+
+	@AfterEach
+	public void tearDown() {
+		mockSpiFactory.close();
+		mockSpiFactory = null;
+		spi = null;
+	}
+
 	@Test
 	public void testRegister() {
 		final var realm = IdGenerator.generateId();
 		final var principal = mock(IuPrincipalIdentity.class);
-		final var spi = mock(IuPrincipalSpi.class);
-		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
-			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuPrincipalSpi.class)).thenReturn(spi);
-			IuPrincipalIdentity.verify(principal, realm);
-			verify(spi).verify(principal, realm);
-		}
+		IuPrincipalIdentity.verify(principal, realm);
+		verify(spi).verify(principal, realm);
+	}
+
+	@Test
+	public void testFrom() {
+		final var realm = IdGenerator.generateId();
+		final var subject = new Subject();
+		assertThrows(IllegalArgumentException.class, () -> IuPrincipalIdentity.from(subject, realm));
+
+		final var principal = mock(IuPrincipalIdentity.class);
+		subject.getPrincipals().add(principal);
+		assertSame(principal, IuPrincipalIdentity.from(subject, realm));
+
+		final var principal2 = mock(IuPrincipalIdentity.class);
+		subject.getPrincipals().add(principal2);
+		assertThrows(IllegalArgumentException.class, () -> IuPrincipalIdentity.from(subject, realm));
 	}
 
 }

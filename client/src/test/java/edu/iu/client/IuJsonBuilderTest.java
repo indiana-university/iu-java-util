@@ -29,44 +29,44 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type.loader;
+package edu.iu.client;
 
-import java.lang.ModuleLayer.Controller;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import edu.iu.type.loader.IuComponentController;
+import java.net.URI;
+import java.util.Set;
 
-/**
- * Simple record implementation of {@link IuComponentController}.
- * 
- * @param typeModule               Type API module
- * @param typeImplementationModule Type implementation module
- * @param componentModule          Loaded component module
- * @param controller               Module controller for the {@link ModuleLayer
- *                                 layer} that includes typeModule and
- *                                 componentModule
- * 
- */
-public record ComponentController(Module typeModule, Module typeImplementationModule, Module componentModule,
-		Controller controller) implements IuComponentController {
+import org.junit.jupiter.api.Test;
 
-	@Override
-	public Module getTypeModule() {
-		return typeModule;
+@SuppressWarnings("javadoc")
+public class IuJsonBuilderTest {
+
+	private static class Builder extends IuJsonBuilder<Builder> {
+
 	}
 
-	@Override
-	public Module getTypeImplementationModule() {
-		return typeImplementationModule;
+	@Test
+	public void testToJson() {
+		assertEquals(IuJson.object().build(), new Builder().toJson());
 	}
 
-	@Override
-	public Module getComponentModule() {
-		return componentModule;
+	@Test
+	public void testMerge() {
+		final var a = new Builder();
+		a.param("foo", "bar");
+		final var b = new Builder();
+		b.param("bar", "baz");
+		b.copy(a);
+		assertEquals(IuJson.object().add("foo", "bar").add("bar", "baz").build(), b.toJson());
+		assertEquals(Set.of("foo", "bar"), b.paramNames());
 	}
 
-	@Override
-	public Controller getController() {
-		return controller;
+	@Test
+	public void testParam() {
+		final var a = new Builder();
+		a.param("foo", "bar");
+		a.param("bar", URI.create("baz://foo"), IuJsonAdapter.of(URI.class));
+		assertEquals(IuJson.string("bar"), a.param("foo"));
 	}
 
 }

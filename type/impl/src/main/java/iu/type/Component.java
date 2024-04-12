@@ -91,8 +91,8 @@ class Component implements IuComponent {
 				&& module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) {
 			final var type = TypeFactory.resolveRawClass(loadedClass);
 
-			for (final var attribute : IuIterable.<DeclaredAttribute<?, ?>>cat((Iterable) type.fields(),
-					(Iterable) type.properties())) {
+			for (final var o : IuIterable.cat((Iterable) type.fields(), (Iterable) type.properties())) {
+				final var attribute = (DeclaredAttribute<?, ?>) o;
 				for (var annotation : attribute.annotations()) {
 					var annotationType = annotation.annotationType();
 
@@ -369,6 +369,12 @@ class Component implements IuComponent {
 	public ClassLoader classLoader() {
 		checkClosed();
 		return classLoader;
+	}
+
+	@Override
+	public ModuleLayer moduleLayer() {
+		checkClosed();
+		return moduleLayer;
 	}
 
 	@Override

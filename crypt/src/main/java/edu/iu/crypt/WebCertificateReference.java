@@ -98,7 +98,7 @@ public interface WebCertificateReference {
 	}
 
 	/**
-	 * Builder interface for creating {@link WebCertificate} instances.
+	 * Builder interface for creating {@link WebCertificateReference} instances.
 	 * 
 	 * @param <B> builder type
 	 */

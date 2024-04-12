@@ -124,21 +124,21 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 	}
 
 	@Override
+	public IuComponent scanComponentEntry(ClassLoader classLoader, ModuleLayer moduleLayer, Path pathEntry)
+			throws IOException, ClassNotFoundException {
+		if (delegate == null)
+			throw new IllegalStateException("closed");
+		return delegate.scanComponentEntry(classLoader, moduleLayer, pathEntry);
+	}
+
+	@Override
 	public IuComponent createComponent(ClassLoader parent, ModuleLayer parentLayer,
 			Consumer<Controller> controllerCallback, InputStream componentArchiveSource,
-			InputStream[] providedDependencyArchiveSources) {
+			InputStream... providedDependencyArchiveSources) {
 		if (delegate == null)
 			throw new IllegalStateException("closed");
 		return delegate.createComponent(parent, parentLayer, controllerCallback, componentArchiveSource,
 				providedDependencyArchiveSources);
-	}
-
-	@Override
-	public IuComponent scanComponentEntry(ClassLoader classLoader, Path pathEntry)
-			throws IOException, ClassNotFoundException {
-		if (delegate == null)
-			throw new IllegalStateException("closed");
-		return delegate.scanComponentEntry(classLoader, pathEntry);
 	}
 
 	@Override
@@ -154,8 +154,6 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 			this.bundleLoader = null;
 			bundleLoader.close();
 		}
-
-		IuException.checked(() -> IuException.suppress(bundleLoader::close));
 	}
 
 }

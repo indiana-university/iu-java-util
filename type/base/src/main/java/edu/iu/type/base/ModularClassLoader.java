@@ -76,7 +76,7 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 	 * @param controllerCallback receives a {@link Controller} handle that
 	 *                           <em>should</em> be used and discarded by the
 	 *                           application before any classes are loaded
-	 * @return {@link modulePath}
+	 * @return {@link ModularClassLoader}
 	 */
 	public static final ModularClassLoader of(ClassLoader parent, ModuleLayer parentLayer,
 			Supplier<Iterable<Supplier<Path>>> modulePath, Consumer<Controller> controllerCallback) {
@@ -95,15 +95,11 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 
 		final var box = new Box();
 		box.destroy = IuException.unchecked(() -> TemporaryFile.init(() -> {
-			box.loader = new ModularClassLoader(false, IuIterable.map(modulePath.get(), Supplier::get), parentLayer, parent,
-					controllerCallback) {
+			box.loader = new ModularClassLoader(false, IuIterable.map(modulePath.get(), Supplier::get), parentLayer,
+					parent, controllerCallback) {
 				@Override
 				public void close() throws IOException {
-					Throwable e = null;
-					e = IuException.suppress(e, super::close);
-					e = IuException.suppress(e, box::close);
-					if (e != null)
-						throw IuException.checked(e, IOException.class);
+					IuException.checked(IOException.class, () -> IuException.suppress(super::close, box::close));
 				}
 			};
 		}));

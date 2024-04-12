@@ -62,7 +62,7 @@ public final class TemporaryFile {
 	 * 
 	 * @param task initialization task
 	 * @return destroy thunk
-	 * @throws IOException from {@link IORunnable}
+	 * @throws IOException from {@link UnsafeRunnable}
 	 */
 	public static UnsafeRunnable init(UnsafeRunnable task) throws IOException {
 		final Queue<Path> tempFilesToRestore = PENDING.get();
@@ -170,7 +170,7 @@ public final class TemporaryFile {
 	 * final var path = TemporaryFile.of(getClass().getClassLoader().getResource("META-INF/client/my-bundle.jar");
 	 * </pre>
 	 * 
-	 * <h2>bundle pom</h2>
+	 * <h4>bundle pom</h4>
 	 * 
 	 * <pre>
 	&lt;build&gt;
@@ -194,9 +194,7 @@ public final class TemporaryFile {
 		&lt;/plugin&gt;
 	 * </pre>
 	 * 
-	 * <h2>
-	 * src/assembly/bundle.xml
-	 * </h2>
+	 * <h4>src/assembly/bundle.xml</h4>
 	 * 
 	 * <pre>
 	&lt;assembly xmlns="http://maven.apache.org/ASSEMBLY/2.2.0"
@@ -229,7 +227,7 @@ public final class TemporaryFile {
 	&lt;/assembly&gt;
 	 * </pre>
 	 * 
-	 * <h2>embedding pom</h2>
+	 * <h4>embedding pom</h4>
 	 * 
 	 * <pre>
 	&lt;build&gt;
@@ -274,7 +272,9 @@ public final class TemporaryFile {
 	public static Iterable<Path> readBundle(URL bundleResource) {
 		final Deque<Path> libs = new ArrayDeque<>();
 		with(bundleResource, o -> {
-			try (final var in = (o instanceof Path) ? Files.newInputStream((Path) o) : (InputStream) o;
+			try (final var in = (o instanceof Path) //
+					? Files.newInputStream((Path) o) //
+					: (InputStream) o; //
 					final var bundleJar = new JarInputStream(in)) {
 				JarEntry entry;
 				while ((entry = bundleJar.getNextJarEntry()) != null) {
@@ -313,10 +313,8 @@ public final class TemporaryFile {
 
 			final var jarSpec = uri.getSchemeSpecificPart();
 			final var bangSlash = jarSpec.indexOf("!/");
-			if (bangSlash == -1)
-				throw new IllegalArgumentException();
 
-			final var jarUri = URI.create(jarSpec.substring(4, bangSlash));
+			final var jarUri = URI.create(jarSpec.substring(0, bangSlash));
 			if (!"file".equals(jarUri.getScheme()))
 				throw new IllegalArgumentException();
 

@@ -31,26 +31,17 @@
  */
 package iu.auth.util;
 
-import java.security.interfaces.ECPrivateKey;
-import java.security.interfaces.ECPublicKey;
-import java.security.interfaces.RSAPrivateKey;
-import java.security.interfaces.RSAPublicKey;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-
-import com.auth0.jwt.algorithms.Algorithm;
 
 import edu.iu.crypt.WebKey;
 
 /**
  * Encapsulates a token issuer's key set.
  */
-public class TokenIssuerKeySet implements AlgorithmFactory {
+public class TokenIssuerKeySet implements WebKeyFactory {
 
 	private final Set<WebKey> providerKeys;
-	private final Map<AlgorithmKey, Algorithm> algorithms = new HashMap<>();
 
 	/**
 	 * Constructor.
@@ -60,7 +51,7 @@ public class TokenIssuerKeySet implements AlgorithmFactory {
 	public TokenIssuerKeySet(Set<WebKey> providerKeys) {
 		this.providerKeys = providerKeys;
 		for (final var providerKey : providerKeys) {
-			Objects.requireNonNull(providerKey.getId(), "id");
+			Objects.requireNonNull(providerKey.getKeyId(), "id");
 			Objects.requireNonNull(providerKey.getType(), "type");
 			Objects.requireNonNull(providerKey.getUse(), "usage");
 			Objects.requireNonNull(providerKey.getPublicKey(), "public");
@@ -69,60 +60,7 @@ public class TokenIssuerKeySet implements AlgorithmFactory {
 	}
 
 	@Override
-	@SuppressWarnings("exports")
-	public Algorithm getAlgorithm(String kid, String alg) {
-		final var cacheKey = new AlgorithmKey(kid, alg);
-
-		var cachedAlgorithm = algorithms.get(cacheKey);
-		if (cachedAlgorithm == null) {
-			WebKey providerKey = null;
-			for (final var k : providerKeys)
-				if (kid.equals(k.getId()))
-					providerKey = k;
-
-			Objects.requireNonNull(providerKey, "Invalid key id");
-			final var pub = Objects.requireNonNull(providerKey.getPublicKey(), "public");
-			final var priv = Objects.requireNonNull(providerKey.getPrivateKey(), "private");
-
-			switch (alg) {
-			case "ES256":
-				cachedAlgorithm = Algorithm.ECDSA256((ECPublicKey) pub, (ECPrivateKey) priv);
-				break;
-			case "ES384":
-				cachedAlgorithm = Algorithm.ECDSA384((ECPublicKey) pub, (ECPrivateKey) priv);
-				break;
-			case "ES512":
-				cachedAlgorithm = Algorithm.ECDSA512((ECPublicKey) pub, (ECPrivateKey) priv);
-				break;
-			case "RS256":
-				cachedAlgorithm = Algorithm.RSA256((RSAPublicKey) pub, (RSAPrivateKey) priv);
-				break;
-			case "RS384":
-				cachedAlgorithm = Algorithm.RSA384((RSAPublicKey) pub, (RSAPrivateKey) priv);
-				break;
-			case "RS512":
-				cachedAlgorithm = Algorithm.RSA512((RSAPublicKey) pub, (RSAPrivateKey) priv);
-				break;
-			default:
-				throw new UnsupportedOperationException("Unsupported JWT algorithm " + alg);
-			}
-
-			synchronized (algorithms) {
-				algorithms.put(cacheKey, cachedAlgorithm);
-			}
-
-		}
-		return cachedAlgorithm;
+	public WebKey getKey(String keyId) {
+		return providerKeys.stream().filter(k -> keyId.equals(k.getKeyId())).findFirst().get();
 	}
-
-	/**
-	 * Gets this issuer's public keys as an well-known key set for publishing
-	 * externally.
-	 * 
-	 * @return JWKS well-known key set
-	 */
-	public String publish() {
-		return WebKey.asJwks(providerKeys.stream());
-	}
-
 }
