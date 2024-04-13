@@ -30,37 +30,15 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /**
- * API Authentication and Authorization interfaces.
+ * JWT implementation module.
  * 
- * <img src="doc-files/iu.util.auth.svg" alt="UML Class Diagram">
- * 
- * @uses edu.iu.auth.spi.IuBasicAuthSpi For access to HTTP basic auth resources
- * @uses edu.iu.auth.spi.IuJwtSpi For access to JWT resources
- * @uses edu.iu.auth.spi.IuOAuthSpi For access to OAuth 2.0 implementation
- *       resources
- * @uses edu.iu.auth.spi.IuOpenIdConnectSpi For access to OpenID Connect
- *       implementation resources
- * @uses edu.iu.auth.spi.IuPrincipalSpi For access to identity provider
- *       verification resources
- * @uses edu.iu.auth.spi.IuSessionSpi for access to session token implementation
- *       resources
+ * @provides edu.iu.auth.spi.IuJwtSpi service provider implementation
  */
-module iu.util.auth {
-	exports edu.iu.auth;
-	exports edu.iu.auth.basic;
-	exports edu.iu.auth.jwt;
-	exports edu.iu.auth.oauth;
-	exports edu.iu.auth.oidc;
-	exports edu.iu.auth.session;
-	exports edu.iu.auth.spi;
-
+module iu.util.auth.jwt {
 	requires iu.util;
-	requires transitive java.net.http;
+	requires iu.util.auth;
+	requires iu.util.client;
+	requires iu.util.crypt;
 
-	uses edu.iu.auth.spi.IuBasicAuthSpi;
-	uses edu.iu.auth.spi.IuJwtSpi;
-	uses edu.iu.auth.spi.IuOAuthSpi;
-	uses edu.iu.auth.spi.IuOpenIdConnectSpi;
-	uses edu.iu.auth.spi.IuPrincipalSpi;
-	uses edu.iu.auth.spi.IuSessionSpi;
+	provides edu.iu.auth.spi.IuJwtSpi with iu.auth.jwt.JwtSpi;
 }

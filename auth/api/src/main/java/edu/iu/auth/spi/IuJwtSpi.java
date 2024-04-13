@@ -48,21 +48,6 @@ import edu.iu.auth.jwt.IuWebTokenIssuer.ClaimDefinition;
  */
 public interface IuJwtSpi {
 
-//	   The contents of the JOSE Header describe the cryptographic operations
-//	   applied to the JWT Claims Set.  If the JOSE Header is for a JWS, the
-//	   JWT is represented as a JWS and the claims are digitally signed or
-//	   MACed, with the JWT Claims Set being the JWS Payload.  If the JOSE
-//	   Header is for a JWE, the JWT is represented as a JWE and the claims
-//	   are encrypted, with the JWT Claims Set being the plaintext encrypted
-//	   by the JWE.  A JWT may be enclosed in another JWE or JWS structure to
-//	   create a Nested JWT, enabling nested signing and encryption to be
-//	   performed.
-//
-//	   A JWT is represented as a sequence of URL-safe parts separated by
-//	   period ('.') characters.  Each part contains a base64url-encoded
-//	   value.  The number of parts in the JWT is dependent upon the
-//	   representation of the resulting JWS using the JWS Compact
-//	   Serialization or JWE using the JWE Compact Serialization.
 	/**
 	 * Parses a JSON Web Token.
 	 * 
