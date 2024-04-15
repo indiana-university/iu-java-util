@@ -31,9 +31,6 @@
  */
 package iu.auth.pki;
 
-import java.security.cert.CertPath;
-import java.security.cert.X509Certificate;
-
 import javax.security.auth.Subject;
 
 import edu.iu.IuObject;
@@ -49,7 +46,6 @@ class PkiPrincipal implements IuPkiPrincipal {
 	private transient WebKey key;
 	private transient WebKey wellKnown;
 	private final String serializedWellKnownKey;
-	private final CertPath certPath;
 
 	/**
 	 * Constructor.
@@ -58,41 +54,46 @@ class PkiPrincipal implements IuPkiPrincipal {
 	 * @param wellKnwon
 	 * @param certPath
 	 */
-	PkiPrincipal(WebKey webKey, CertPath certPath) {
+	PkiPrincipal(WebKey webKey) {
 		this.wellKnown = webKey.wellKnown();
 		this.key = wellKnown.equals(key) ? null : webKey;
 		this.serializedWellKnownKey = wellKnown.toString();
-		this.certPath = certPath;
 	}
 
 	@Override
 	public String getName() {
-		return X500Utils.getCommonName(((X509Certificate) certPath.getCertificates().get(0)).getSubjectX500Principal());
-	}
-
-	@Override
-	public CertPath getCertPath() {
-		return certPath;
+		return X500Utils.getCommonName(wellKnown().getCertificateChain()[0].getSubjectX500Principal());
 	}
 
 	@Override
 	public Subject getSubject() {
-		final var cert = ((X509Certificate) certPath.getCertificates().get(0));
 		final var subject = new Subject();
 		subject.getPrincipals().add(this);
-		subject.getPrincipals().add(cert.getSubjectX500Principal());
-		IuObject.convert(key, k -> {
-			final var credentials = subject.getPrivateCredentials();
-			credentials.add(k);
-			credentials.add(k.getPrivateKey());
-			return credentials;
-		});
+		if (key != null)
+			IuObject.convert(key.getPrivateKey(), a -> subject.getPrivateCredentials().add(key));
 		subject.getPublicCredentials().add(wellKnown());
-		subject.getPublicCredentials().add(certPath);
-		subject.getPublicCredentials().add(cert);
-		subject.getPublicCredentials().add(cert.getPublicKey());
 		subject.setReadOnly();
 		return subject;
+	}
+
+	@Override
+	public String toString() {
+		final var sb = new StringBuilder();
+		if (key == null || key.getPrivateKey() == null)
+			sb.append("Well-Known");
+		else
+			sb.append("Authoritative");
+		sb.append(" PKI Principal ").append(getName());
+
+		final var certChain = wellKnown().getCertificateChain();
+		if (certChain.length == 1
+				&& certChain[0].getSubjectX500Principal().equals(certChain[0].getIssuerX500Principal()))
+			sb.append(", self issued");
+		else
+			sb.append(", issued by ")
+					.append(X500Utils.getCommonName(certChain[certChain.length - 1].getIssuerX500Principal()));
+
+		return sb.toString();
 	}
 
 	private WebKey wellKnown() {

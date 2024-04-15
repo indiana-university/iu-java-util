@@ -31,7 +31,6 @@
  */
 package edu.iu.auth.pki;
 
-import java.security.cert.CertPath;
 import java.security.cert.CertPathParameters;
 import java.security.cert.X509Certificate;
 
@@ -57,8 +56,8 @@ public interface IuPkiPrincipal extends IuPrincipalIdentity {
 	 * <li>An {@link X509Certificate} with
 	 * <ul>
 	 * <li>{@link X509Certificate#getBasicConstraints() V3 basic constraints}</li>
-	 * <li>{@link X509Certificate#getKeyUsage() Key usage} describing a single
-	 * scenario</li>
+	 * <li>{@link X509Certificate#getKeyUsage() Key usage} describing at least one
+	 * compatible scenario</li>
 	 * <li>X500 subject with an RDN containing one of
 	 * <ul>
 	 * <li>CN attribute containing a system principal URI with fragment
@@ -69,7 +68,8 @@ public interface IuPkiPrincipal extends IuPrincipalIdentity {
 	 * with DC attribute values</li>
 	 * </ul>
 	 * </ul>
-	 * <li>A private key matching the certificate's public key</li>
+	 * <li>A private key matching the certificate's public key if the cert will be
+	 * used to sign or decrypt data; <em>not required</em> to verify or encrypt</li>
 	 * <li>Additional certificates as needed to form a chain to a certificate issued
 	 * by {@link #trust(String, CertPathParameters) trusted} signing
 	 * certificate.</li>
@@ -101,12 +101,5 @@ public interface IuPkiPrincipal extends IuPrincipalIdentity {
 	static void trust(CertPathParameters store) {
 		IuAuthSpiFactory.get(IuPkiSpi.class).trust(store);
 	}
-
-	/**
-	 * Gets the certificate path.
-	 * 
-	 * @return {@link CertPath}
-	 */
-	CertPath getCertPath();
 
 }

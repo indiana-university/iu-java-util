@@ -36,13 +36,13 @@ import java.security.PrivateKey;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathParameters;
 import java.security.cert.CertPathValidator;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.PKIXParameters;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -70,6 +70,42 @@ public class PkiSpi implements IuPkiSpi {
 
 	private static final Map<String, CertPathParameters> TRUST = new HashMap<>();
 
+	private static class IdVerifier implements Consumer<IuPrincipalIdentity> {
+		private final boolean authoritative;
+		private final String issuer;
+		private final PKIXParameters pkix;
+
+		private IdVerifier(boolean authoritative, String issuer, PKIXParameters pkix) {
+			this.authoritative = authoritative;
+			this.issuer = issuer;
+			this.pkix = pkix;
+		}
+
+		@Override
+		public void accept(IuPrincipalIdentity principalIdentity) {
+			final var pki = (PkiPrincipal) principalIdentity;
+			final var sub = pki.getSubject();
+			final var wellKnown = sub.getPublicCredentials(WebKey.class).iterator().next();
+
+			IuException.unchecked(() -> {
+				final var certPath = CertificateFactory.getInstance("X.509")
+						.generateCertPath(List.of(wellKnown.getCertificateChain()));
+				CertPathValidator.getInstance("PKIX").validate(certPath, pkix);
+			});
+
+			if (authoritative) {
+				IuObject.once(issuer, pki.getName(), "principal name mismatch");
+				final var privIter = sub.getPrivateCredentials(WebKey.class).iterator();
+				if (!privIter.hasNext())
+					throw new IllegalStateException("missing private key");
+
+				final var key = privIter.next();
+				Objects.requireNonNull(key.getPrivateKey());
+				IuObject.once(wellKnown, key.wellKnown());
+			}
+		}
+	}
+
 	@Override
 	public PkiPrincipal readPkiPrincipal(String serialized) {
 		final PrivateKey privateKey;
@@ -77,7 +113,7 @@ public class PkiSpi implements IuPkiSpi {
 		final WebKey partialKey;
 		if (serialized.startsWith("{")) {
 			partialKey = WebKey.parse(serialized);
-			privateKey = Objects.requireNonNull(partialKey.getPrivateKey(), "missing private key");
+			privateKey = partialKey.getPrivateKey();
 
 			final var certChain = WebCertificateReference.verify(partialKey);
 			certPath = IuException
@@ -103,8 +139,8 @@ public class PkiSpi implements IuPkiSpi {
 			if (certChain.isEmpty())
 				throw new IllegalArgumentException("at least one CERTIFICATE is required");
 
-			privateKey = Objects.requireNonNull(encodedPrivateKey, "missing private key")
-					.asPrivate(certChain.get(0).getPublicKey().getAlgorithm());
+			privateKey = IuObject.convert(encodedPrivateKey,
+					a -> a.asPrivate(certChain.get(0).getPublicKey().getAlgorithm()));
 
 			certPath = IuException.unchecked(() -> CertificateFactory.getInstance("X.509").generateCertPath(certChain));
 		} else
@@ -126,7 +162,8 @@ public class PkiSpi implements IuPkiSpi {
 		else
 			jwkBuilder = WebKey.builder(Objects.requireNonNull(Type.from(params), params.toString()));
 
-		jwkBuilder.key(privateKey).key(publicKey);
+		IuObject.convert(privateKey, jwkBuilder::key);
+		jwkBuilder.key(publicKey);
 
 		final var commonName = Objects.requireNonNull(X500Utils.getCommonName(idCert.getSubjectX500Principal()),
 				"missing common name");
@@ -141,20 +178,41 @@ public class PkiSpi implements IuPkiSpi {
 			jwkBuilder.keyId(IuObject.once(IuObject.convert(partialKey, WebKey::getKeyId), commonName));
 
 		final var keyUsage = idCert.getKeyUsage();
-		if (keyUsage[0]) // digitalSignature
-			jwkBuilder.use(Use.SIGN).ops(Operation.SIGN, Operation.VERIFY);
-		if (keyUsage[1]) // nonRepudiation
-			jwkBuilder.use(Use.SIGN).ops(Operation.VERIFY);
-		if (keyUsage[2]) // keyEncipherment
-			jwkBuilder.use(Use.ENCRYPT).ops(Operation.WRAP, Operation.UNWRAP);
-		if (keyUsage[3]) // dataEncipherment
-			jwkBuilder.use(Use.ENCRYPT).ops(Operation.ENCRYPT, Operation.DECRYPT);
-		if (keyUsage[4]) // keyAgreement
-			jwkBuilder.use(Use.ENCRYPT).ops(Operation.DERIVE_KEY);
-		if (keyUsage[5] || keyUsage[6]) // keyCertSign || cRLSign
-			jwkBuilder.use(Use.SIGN).ops(Operation.SIGN);
+		var use = IuObject.convert(partialKey, WebKey::getUse);
+		if (!Use.ENCRYPT.equals(use))
+			if (keyUsage[0]) { // digitalSignature
+				jwkBuilder.use(use = Use.SIGN);
+				if (privateKey == null)
+					jwkBuilder.ops(Operation.VERIFY);
+				else
+					jwkBuilder.ops(Operation.VERIFY, Operation.SIGN);
+			} else if (keyUsage[1]) { // nonRepudiation
+				jwkBuilder.use(use = Use.SIGN);
+				if (privateKey == null)
+					jwkBuilder.ops(Operation.VERIFY);
+			}
+
+		if (!Use.SIGN.equals(use)) {
+			if (keyUsage[2]) { // keyEncipherment
+				jwkBuilder.use(use = Use.ENCRYPT);
+				if (privateKey == null)
+					jwkBuilder.ops(Operation.WRAP);
+				else
+					jwkBuilder.ops(Operation.WRAP, Operation.UNWRAP);
+			}
+			if (keyUsage[3]) { // dataEncipherment
+				jwkBuilder.use(use = Use.ENCRYPT);
+				if (privateKey == null)
+					jwkBuilder.ops(Operation.ENCRYPT);
+				else
+					jwkBuilder.ops(Operation.ENCRYPT, Operation.DECRYPT);
+			}
+			if (keyUsage[4]) // keyAgreement
+				jwkBuilder.use(use = Use.ENCRYPT).ops(Operation.DERIVE_KEY);
+		}
 
 		final CertPathParameters trust;
+		final List<Certificate> pathToAnchor = new ArrayList<>();
 		synchronized (TRUST) {
 			final var selfSigned = idCert.getSubjectX500Principal().equals(idCert.getIssuerX500Principal());
 			if (selfSigned)
@@ -166,18 +224,26 @@ public class PkiSpi implements IuPkiSpi {
 					TRUST.put(commonName, selfSignedParams);
 				});
 
-			final var caIssuedCert = (X509Certificate) certList.get(certList.size() - 1);
-			final var caCommonName = Objects.requireNonNull(
-					X500Utils.getCommonName(caIssuedCert.getIssuerX500Principal()), "issuer is missing CN or UID");
-			trust = Objects.requireNonNull(TRUST.get(caCommonName), "issuer is not registered as trusted");
+			CertPathParameters matchedTrust = null;
+			for (final var cert : certList) {
+				pathToAnchor.add(cert);
+
+				final var caIssuerCert = (X509Certificate) cert;
+				final var caTrust = IuObject.convert(X500Utils.getCommonName(caIssuerCert.getIssuerX500Principal()),
+						TRUST::get);
+				if (caTrust != null) {
+					matchedTrust = caTrust;
+					break;
+				}
+			}
+			trust = Objects.requireNonNull(matchedTrust, "issuer is not registered as trusted");
 		}
 
-		IuException.unchecked(() -> CertPathValidator.getInstance("PKIX").validate(certPath, trust));
+		IuException.unchecked(() -> CertPathValidator.getInstance("PKIX")
+				.validate(CertificateFactory.getInstance("X.509").generateCertPath(pathToAnchor), trust));
 
-		if (partialKey == null)
-			jwkBuilder.cert(certList.toArray(X509Certificate[]::new));
-		else {
-			IuObject.convert(partialKey.getCertificateChain(), jwkBuilder::cert);
+		jwkBuilder.cert(pathToAnchor.toArray(X509Certificate[]::new));
+		if (partialKey != null) {
 			IuObject.convert(partialKey.getCertificateUri(), jwkBuilder::cert);
 			IuObject.convert(partialKey.getCertificateThumbprint(), jwkBuilder::x5t);
 			IuObject.convert(partialKey.getCertificateSha256Thumbprint(), jwkBuilder::x5t256);
@@ -192,33 +258,7 @@ public class PkiSpi implements IuPkiSpi {
 			jwkBuilder.x5t256(DigestUtils.sha256(encoded));
 		});
 
-		return new PkiPrincipal(jwkBuilder.build(), certPath);
-	}
-
-	private class IdVerifier implements Consumer<IuPrincipalIdentity> {
-
-		private final boolean authoritative;
-		private final String issuer;
-		private final PKIXParameters pkix;
-
-		private IdVerifier(boolean authoritative, String issuer, PKIXParameters pkix) {
-			this.authoritative = authoritative;
-			this.issuer = issuer;
-			this.pkix = pkix;
-		}
-
-		@Override
-		public void accept(IuPrincipalIdentity principalIdentity) {
-			final var pki = (PkiPrincipal) principalIdentity;
-			IuException.unchecked(() -> CertPathValidator.getInstance("PKIX").validate(pki.getCertPath(), pkix));
-
-			if (authoritative) {
-				IuObject.once(issuer, pki.getName(), "principal name mismatch");
-				IuObject.require(pki.getSubject().getPrivateCredentials(WebKey.class).iterator(), Iterator::hasNext,
-						() -> "missing private key");
-			}
-		}
-
+		return new PkiPrincipal(jwkBuilder.build());
 	}
 
 	@Override

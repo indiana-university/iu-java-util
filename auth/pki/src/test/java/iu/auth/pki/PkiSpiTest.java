@@ -33,20 +33,30 @@ package iu.auth.pki;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpRequest.BodyPublishers;
+import java.net.http.HttpResponse.BodyHandlers;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathValidator;
+import java.security.cert.CertStore;
+import java.security.cert.CertificateFactory;
+import java.security.cert.CollectionCertStoreParameters;
 import java.security.cert.PKIXParameters;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
+import java.util.List;
 import java.util.Set;
 
 import javax.security.auth.x500.X500Principal;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.auth.IuPrincipalIdentity;
@@ -110,25 +120,60 @@ public class PkiSpiTest {
 	@Test
 	public void testSelfSignedEE() throws InvalidAlgorithmParameterException, NoSuchAlgorithmException {
 		final var pki = IuPkiPrincipal.from(SELF_SIGNED_PK + SELF_SIGNED_EE);
-		final var cert = ((X509Certificate) pki.getCertPath().getCertificates().get(0));
-		IuPrincipalIdentity.verify(pki, X500Utils.getCommonName(cert.getIssuerX500Principal()));
-
+		IuPrincipalIdentity.verify(pki, pki.getName());
+		
 		final var sub = pki.getSubject();
-		assertEquals(Set.of(pki), sub.getPrincipals(IuPkiPrincipal.class));
-		assertEquals(Set.of(cert.getSubjectX500Principal()), sub.getPrincipals(X500Principal.class));
-		assertEquals(Set.of(cert), sub.getPublicCredentials(X509Certificate.class));
-		assertEquals(Set.of(pki.getCertPath()), sub.getPublicCredentials(CertPath.class));
-		assertEquals(cert, sub.getPublicCredentials(WebKey.class).iterator().next().getCertificateChain()[0]);
-		final var priv = sub.getPrivateCredentials(PrivateKey.class);
-		assertEquals(priv, Set.of(sub.getPrivateCredentials(WebKey.class).iterator().next().getPrivateKey()));
+		assertEquals(Set.of(pki), sub.getPrincipals());
+		
+		final var pub = sub.getPublicCredentials();
+		assertEquals(1, pub.size());
+		final var wellKnown = (WebKey) pub.iterator().next();
+		final var cert = wellKnown.getCertificateChain()[0];
+		assertEquals(pki.getName(), X500Utils.getCommonName(cert.getSubjectX500Principal()));
 
-		assertDoesNotThrow(() -> {
-			final var params = new PKIXParameters(
-					Set.of(new TrustAnchor(PemEncoded.parse(SELF_SIGNED_EE).next().asCertificate(), null)));
-			params.setRevocationEnabled(false);
-			CertPathValidator.getInstance("PKIX").validate(pki.getCertPath(), params);
-		});
+		assertNotNull(sub.getPrivateCredentials(WebKey.class).iterator().next().getPrivateKey());
+	}
 
+	@Test
+	public void testPublicCA() throws InvalidAlgorithmParameterException {
+		final CertPath iuEdu;
+		final X509Certificate inCommon;
+		final CertStore crl;
+		try {
+			final var http = HttpClient.newHttpClient();
+			final var resp = http.send(HttpRequest.newBuilder(URI.create("https://www.iu.edu/index.html"))
+					.method("HEAD", BodyPublishers.noBody()).build(), BodyHandlers.discarding());
+
+			final var x509 = CertificateFactory.getInstance("X.509");
+			iuEdu = x509.generateCertPath(List.of(resp.sslSession().get().getPeerCertificates()));
+			inCommon = (X509Certificate) x509.generateCertificate(http.send(
+					HttpRequest.newBuilder(URI.create("http://crt.usertrust.com/USERTrustRSAAddTrustCA.crt")).build(),
+					BodyHandlers.ofInputStream()).body());
+
+			crl = CertStore.getInstance("Collection", new CollectionCertStoreParameters(Set.of(
+					x509.generateCRL(http.send(HttpRequest
+							.newBuilder(URI.create("http://crl.incommon-rsa.org/InCommonRSAServerCA.crl")).build(),
+							BodyHandlers.ofInputStream()).body()),
+					x509.generateCRL(http.send(HttpRequest
+							.newBuilder(URI.create("http://crl.usertrust.com/USERTrustRSACertificationAuthority.crl"))
+							.build(), BodyHandlers.ofInputStream()).body()))));
+		} catch (Throwable e) {
+			e.printStackTrace();
+			Assumptions.abort("unable to read public key data for verifying iu.edu " + e);
+			return;
+		}
+
+		final var anchor = new TrustAnchor(inCommon, null);
+		final var pkix = new PKIXParameters(Set.of(anchor));
+		pkix.addCertStore(crl);
+		IuPkiPrincipal.trust(pkix);
+
+		final var iuEduPem = new StringBuilder();
+		PemEncoded.serialize(iuEdu.getCertificates().toArray(X509Certificate[]::new))
+				.forEachRemaining(iuEduPem::append);
+		final var iuEduId = IuPkiPrincipal.from(iuEduPem.toString());
+
+		System.out.println(iuEduId.getSubject());
 	}
 
 }
