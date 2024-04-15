@@ -40,8 +40,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathValidator;
-import java.security.cert.CertStore;
-import java.security.cert.CollectionCertStoreParameters;
 import java.security.cert.PKIXParameters;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
@@ -51,7 +49,6 @@ import javax.security.auth.x500.X500Principal;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.IdGenerator;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.pki.IuPkiPrincipal;
 import edu.iu.crypt.PemEncoded;
@@ -114,11 +111,8 @@ public class PkiSpiTest {
 	public void testSelfSignedEE() throws InvalidAlgorithmParameterException, NoSuchAlgorithmException {
 		final var pki = IuPkiPrincipal.from(SELF_SIGNED_PK + SELF_SIGNED_EE);
 		final var cert = ((X509Certificate) pki.getCertPath().getCertificates().get(0));
-		
-		final var realm = IdGenerator.generateId();
-		IuPkiPrincipal.trust(realm, CertStore.getInstance("Collection", new CollectionCertStoreParameters(Set.of(cert))));
-		IuPrincipalIdentity.verify(pki, realm);
-		
+		IuPrincipalIdentity.verify(pki, X500Utils.getCommonName(cert.getIssuerX500Principal()));
+
 		final var sub = pki.getSubject();
 		assertEquals(Set.of(pki), sub.getPrincipals(IuPkiPrincipal.class));
 		assertEquals(Set.of(cert.getSubjectX500Principal()), sub.getPrincipals(X500Principal.class));

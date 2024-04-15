@@ -98,6 +98,15 @@ class X500Utils {
 	 * Parses an X.500 Distinguished Name (DN)
 	 * 
 	 * <p>
+	 * The purpose of this method is to facilitate inspection of specific standard
+	 * attributes used with principal system and user identifying certificates.
+	 * Certificates that provide {@link X500Principal} instances <em>should</em> be
+	 * verified as trusted using the delivered JCE provider prior to passing a raw
+	 * DN to this method. Use {@link X500Principal#getName()} to validate the input
+	 * value for this method if retrieved from a user-provided certificate.
+	 * </p>
+	 * 
+	 * <p>
 	 * The response iterates Relative Distinguished Names mappings as defined for
 	 * X.500 by <a href="https://datatracker.ietf.org/doc/html/rfc4514">RFC-4514
 	 * LDAP</a>.
@@ -110,13 +119,7 @@ class X500Utils {
 	 * Section 4</a>; it is not intended as part of larger implementation. Since JCE
 	 * X500 functionality is implemented in non-exported packages of java.base,
 	 * access to the security layer's parser is not allowed in a modular
-	 * environment. The purpose of this method is to facilitate inspection of
-	 * specific standard attributes used with principal system and user identifying
-	 * certificates verified as trusted by the delivered JCE provider prior
-	 * interacting with this method. Users <em>should</em> use
-	 * {@link X500Principal#getName(String) X500Principal.getName(CANONICAL)} to
-	 * validate the input value for this method if retrieved from a user-provided
-	 * certificate.
+	 * environment. The LDAP parser in javax.naming is not appropriate for this use.
 	 * </p>
 	 * 
 	 * @param name serialized X.500 DN

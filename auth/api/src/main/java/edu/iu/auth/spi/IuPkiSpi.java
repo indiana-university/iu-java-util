@@ -52,9 +52,8 @@ public interface IuPkiSpi {
 	/**
 	 * Registers a non-authoritative trust verifier.
 	 * 
-	 * @param realm           authentication realm
 	 * @param validatorParams {@link CertPathValidator} parameters
 	 */
-	void trust(String realm, CertPathParameters validatorParams);
+	void trust(CertPathParameters validatorParams);
 
 }

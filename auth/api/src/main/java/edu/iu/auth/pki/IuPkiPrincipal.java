@@ -98,8 +98,8 @@ public interface IuPkiPrincipal extends IuPrincipalIdentity {
 	 * @param realm authentication realm
 	 * @param store trusted certificate store
 	 */
-	static void trust(String realm, CertPathParameters store) {
-		IuAuthSpiFactory.get(IuPkiSpi.class).trust(realm, store);
+	static void trust(CertPathParameters store) {
+		IuAuthSpiFactory.get(IuPkiSpi.class).trust(store);
 	}
 
 	/**

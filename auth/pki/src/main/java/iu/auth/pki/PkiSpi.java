@@ -36,21 +36,23 @@ import java.security.PrivateKey;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathParameters;
 import java.security.cert.CertPathValidator;
-import java.security.cert.CertStore;
 import java.security.cert.CertificateFactory;
 import java.security.cert.PKIXParameters;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.spi.IuPkiSpi;
 import edu.iu.crypt.DigestUtils;
 import edu.iu.crypt.PemEncoded;
@@ -59,23 +61,14 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Operation;
 import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebKey.Use;
+import iu.auth.util.PrincipalVerifierRegistry;
 
 /**
  * {@link IuPkiSpi} service provider implementation.
  */
 public class PkiSpi implements IuPkiSpi {
 
-	private static final Map<String, Trust> TRUST = new HashMap<>();
-
-	private static class Trust {
-		private final boolean authoritative;
-		private final CertPathValidator validator;
-
-		private Trust(boolean authoritative, CertPathValidator validator) {
-			this.authoritative = authoritative;
-			this.validator = validator;
-		}
-	}
+	private static final Map<String, CertPathParameters> TRUST = new HashMap<>();
 
 	@Override
 	public PkiPrincipal readPkiPrincipal(String serialized) {
@@ -85,8 +78,11 @@ public class PkiSpi implements IuPkiSpi {
 		if (serialized.startsWith("{")) {
 			partialKey = WebKey.parse(serialized);
 			privateKey = Objects.requireNonNull(partialKey.getPrivateKey(), "missing private key");
-			certPath = IuException.unchecked(() -> CertificateFactory.getInstance("X.509")
-					.generateCertPath(List.of(WebCertificateReference.verify(partialKey))));
+
+			final var certChain = WebCertificateReference.verify(partialKey);
+			certPath = IuException
+					.unchecked(() -> CertificateFactory.getInstance("X.509").generateCertPath(List.of(certChain)));
+
 		} else if (serialized.startsWith("-----BEGIN ")) {
 			partialKey = null;
 			final List<X509Certificate> certChain = new ArrayList<>();
@@ -116,21 +112,10 @@ public class PkiSpi implements IuPkiSpi {
 
 		final var certList = certPath.getCertificates();
 		final var idCert = (X509Certificate) certList.get(0);
-		
-		final var selfSigned = idCert.getSubjectX500Principal().equals(idCert.getIssuerX500Principal());
-		final var basic = idCert.getBasicConstraints();
-		
-		if (selfSigned && basic != -1)
-			throw new IllegalArgumentException("Self-signed ID must be end-entity certs");
 
-		IuException.unchecked(() -> {
-			// verifies the cert chain as valid
-			// _assuming_ the rightmost cert is trusted and no certs are revoked
-			final var anchor = new TrustAnchor((X509Certificate) certList.get(certList.size() - 1), null);
-			final var params = new PKIXParameters(Set.of(anchor));
-			params.setRevocationEnabled(false);
-			CertPathValidator.getInstance("PKIX").validate(certPath, params);
-		});
+		final var pathLen = idCert.getBasicConstraints();
+		if (pathLen != -1)
+			throw new IllegalArgumentException("ID certificate must be an end-entity");
 
 		final var publicKey = IuObject.once(IuObject.convert(partialKey, WebKey::getPublicKey), idCert.getPublicKey());
 
@@ -141,7 +126,7 @@ public class PkiSpi implements IuPkiSpi {
 		else
 			jwkBuilder = WebKey.builder(Objects.requireNonNull(Type.from(params), params.toString()));
 
-		jwkBuilder.key(publicKey);
+		jwkBuilder.key(privateKey).key(publicKey);
 
 		final var commonName = Objects.requireNonNull(X500Utils.getCommonName(idCert.getSubjectX500Principal()),
 				"missing common name");
@@ -169,6 +154,26 @@ public class PkiSpi implements IuPkiSpi {
 		if (keyUsage[5] || keyUsage[6]) // keyCertSign || cRLSign
 			jwkBuilder.use(Use.SIGN).ops(Operation.SIGN);
 
+		final CertPathParameters trust;
+		synchronized (TRUST) {
+			final var selfSigned = idCert.getSubjectX500Principal().equals(idCert.getIssuerX500Principal());
+			if (selfSigned)
+				IuException.unchecked(() -> {
+					final var selfSignedParams = new PKIXParameters(Set.of(new TrustAnchor(idCert, null)));
+					selfSignedParams.setRevocationEnabled(false);
+					PrincipalVerifierRegistry.registerVerifier(commonName,
+							new IdVerifier(true, commonName, selfSignedParams), true);
+					TRUST.put(commonName, selfSignedParams);
+				});
+
+			final var caIssuedCert = (X509Certificate) certList.get(certList.size() - 1);
+			final var caCommonName = Objects.requireNonNull(
+					X500Utils.getCommonName(caIssuedCert.getIssuerX500Principal()), "issuer is missing CN or UID");
+			trust = Objects.requireNonNull(TRUST.get(caCommonName), "issuer is not registered as trusted");
+		}
+
+		IuException.unchecked(() -> CertPathValidator.getInstance("PKIX").validate(certPath, trust));
+
 		if (partialKey == null)
 			jwkBuilder.cert(certList.toArray(X509Certificate[]::new));
 		else {
@@ -181,14 +186,6 @@ public class PkiSpi implements IuPkiSpi {
 			IuObject.convert(partialKey.getKey(), jwkBuilder::key);
 		}
 
-		if (privateKey != null) {
-			final var trust = TRUST.get(commonName);
-			if (trust != null)
-				throw new IllegalStateException("Trusted PKI identity already created for " + privateKey);
-
-			jwkBuilder.key(privateKey);
-		}
-
 		IuException.unchecked(() -> {
 			final var encoded = idCert.getEncoded();
 			jwkBuilder.x5t(DigestUtils.sha1(encoded));
@@ -198,10 +195,47 @@ public class PkiSpi implements IuPkiSpi {
 		return new PkiPrincipal(jwkBuilder.build(), certPath);
 	}
 
+	private class IdVerifier implements Consumer<IuPrincipalIdentity> {
+
+		private final boolean authoritative;
+		private final String issuer;
+		private final PKIXParameters pkix;
+
+		private IdVerifier(boolean authoritative, String issuer, PKIXParameters pkix) {
+			this.authoritative = authoritative;
+			this.issuer = issuer;
+			this.pkix = pkix;
+		}
+
+		@Override
+		public void accept(IuPrincipalIdentity principalIdentity) {
+			final var pki = (PkiPrincipal) principalIdentity;
+			IuException.unchecked(() -> CertPathValidator.getInstance("PKIX").validate(pki.getCertPath(), pkix));
+
+			if (authoritative) {
+				IuObject.once(issuer, pki.getName(), "principal name mismatch");
+				IuObject.require(pki.getSubject().getPrivateCredentials(WebKey.class).iterator(), Iterator::hasNext,
+						() -> "missing private key");
+			}
+		}
+
+	}
+
 	@Override
-	public void trust(String realm, CertPathParameters validatorParams) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+	public void trust(CertPathParameters validatorParams) {
+		final var pkix = (PKIXParameters) validatorParams;
+		final var issuer = Objects.requireNonNull(
+				X500Utils.getCommonName(
+						pkix.getTrustAnchors().iterator().next().getTrustedCert().getSubjectX500Principal()),
+				"first trust anchor's root certificate must name authentication realm");
+
+		synchronized (TRUST) {
+			if (TRUST.containsKey(issuer))
+				throw new IllegalArgumentException("another issuer is already configured for " + issuer);
+
+			PrincipalVerifierRegistry.registerVerifier(issuer, new IdVerifier(false, issuer, pkix), false);
+			TRUST.put(issuer, validatorParams);
+		}
 	}
 
 }
