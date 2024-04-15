@@ -23,6 +23,7 @@
 			</activation>
 			<modules>
 				<module>api</module>
+				<module>pki</module>
 				<module>jwt</module>
 				<module>util</module>
 				<module>basic</module>

@@ -32,6 +32,7 @@
 package edu.iu.crypt;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -62,6 +63,7 @@ import java.security.spec.RSAPrivateKeySpec;
 import java.security.spec.RSAPublicKeySpec;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
@@ -742,6 +744,108 @@ public class WebKeyTest extends IuCryptTestCase {
 				"CEK decryption successful for {\"alg\":\"PBES2-HS256+A128KW\",\"kty\":\"oct\"}");
 		assertEquals(jwk, WebKey.parse(jwe.decryptText(
 				WebKey.builder(Type.RAW).algorithm(Algorithm.PBES2_HS256_A128KW).key(IuText.utf8(pass)).build())));
+	}
+
+	@Test
+	public void testBadUseForAlg() {
+		final var k = mock(WebKey.class);
+		when(k.getType()).thenReturn(Type.EC_P256);
+		when(k.getAlgorithm()).thenReturn(Algorithm.ECDH_ES);
+		when(k.getUse()).thenReturn(Use.SIGN);
+		assertEquals("Illegal use SIGN for algorithm ECDH_ES",
+				assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k)).getMessage());
+	}
+
+	@Test
+	public void testBadOpForAlg() {
+		final var k = mock(WebKey.class);
+		when(k.getType()).thenReturn(Type.EC_P256);
+		when(k.getAlgorithm()).thenReturn(Algorithm.ES256);
+		when(k.getOps()).thenReturn(Set.of(Operation.WRAP));
+		assertEquals("Illegal ops [WRAP] for algorithm ES256",
+				assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k)).getMessage());
+	}
+
+	@Test
+	public void testBadOpForSign() {
+		final var k = mock(WebKey.class);
+		when(k.getType()).thenReturn(Type.EC_P256);
+		when(k.getUse()).thenReturn(Use.SIGN);
+		when(k.getOps()).thenReturn(Set.of(Operation.WRAP));
+		assertEquals("Illegal ops [WRAP] for use SIGN",
+				assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k)).getMessage());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testOpForUse() {
+		final var k = mock(WebKey.class);
+		when(k.getType()).thenReturn(Type.EC_P256);
+		when(k.getUse()).thenReturn(Use.ENCRYPT, Use.ENCRYPT, Use.SIGN);
+		when(k.getOps()).thenReturn(Set.of(Operation.VERIFY), Set.of(Operation.SIGN));
+		assertEquals("Illegal ops [VERIFY] for use ENCRYPT",
+				assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k)).getMessage());
+		assertEquals("Illegal ops [SIGN] for use ENCRYPT",
+				assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k)).getMessage());
+		assertEquals("Private key required by ops [SIGN]",
+				assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k)).getMessage());
+	}
+
+	@Test
+	public void testBadOpsLong() {
+		final var k = mock(WebKey.class);
+		when(k.getType()).thenReturn(Type.EC_P256);
+		final var ops = Set.of(Operation.WRAP, Operation.DERIVE_BITS, Operation.VERIFY);
+		when(k.getOps()).thenReturn(ops);
+		assertEquals("Illegal ops " + ops,
+				assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k)).getMessage());
+	}
+
+	@Test
+	public void testBadOpsTwo() {
+		final var k = mock(WebKey.class);
+		when(k.getType()).thenReturn(Type.EC_P256);
+		final var ops = Set.of(Operation.WRAP, Operation.DERIVE_BITS);
+		when(k.getOps()).thenReturn(ops);
+		assertEquals("Illegal ops " + ops,
+				assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k)).getMessage());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testBadOpsEncrypt() {
+		final var k = mock(WebKey.class);
+		when(k.getType()).thenReturn(Type.EC_P256);
+		when(k.getOps()).thenReturn(Set.of(Operation.ENCRYPT), Set.of(Operation.DECRYPT));
+		assertEquals("Secret key required by ops [ENCRYPT]",
+				assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k)).getMessage());
+		assertEquals("Secret key required by ops [DECRYPT]",
+				assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k)).getMessage());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testBadOpsPki() {
+		final var k = mock(WebKey.class);
+		when(k.getType()).thenReturn(Type.EC_P256);
+		when(k.getOps()).thenReturn(Set.of(Operation.VERIFY), Set.of(Operation.DERIVE_KEY), Set.of(Operation.VERIFY));
+		when(k.getPublicKey()).thenReturn(null, null,
+				EphemeralKeys.ec(WebKey.algorithmParams(Type.EC_P256.algorithmParams)).getPublic());
+		assertEquals("Public key required by ops [VERIFY]",
+				assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k)).getMessage());
+		assertEquals("Public or private key required by ops [DERIVE_KEY]",
+				assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k)).getMessage());
+		assertDoesNotThrow(() -> WebKey.verify(k));
+	}
+
+	@Test
+	public void testWellKnownWithOps() {
+		assertEquals(Set.of(Operation.DERIVE_KEY), WebKey.builder(Algorithm.ECDH_ES).ephemeral()
+				.ops(Algorithm.ECDH_ES.keyOps).build().wellKnown().getOps());
+		assertNull(WebKey.builder(Algorithm.A128GCMKW).ephemeral()
+				.ops(Algorithm.A128GCMKW.keyOps).build().wellKnown().getOps());
+		assertEquals(Set.of(Operation.WRAP), WebKey.builder(Algorithm.RSA_OAEP).ephemeral()
+				.ops(Algorithm.RSA_OAEP.keyOps).build().wellKnown().getOps());
 	}
 
 }

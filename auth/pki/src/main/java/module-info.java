@@ -29,32 +29,16 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.util;
-
-import java.net.URI;
-
-import edu.iu.IuIterable;
-import edu.iu.crypt.WebKey;
-
 /**
- * Provides cached algorithm configurations from a well-known JWKS key set.
+ * Public Key Infrastructure service provider module.
+ * 
+ * @provides edu.iu.auth.spi.IuPkiSpi service provider implementation
  */
-public class WellKnownKeySet implements WebKeyFactory {
+module iu.util.auth.pki {
+	requires iu.util;
+	requires iu.util.auth;
+	requires iu.util.auth.util;
+	requires iu.util.crypt;
 
-	private final URI uri;
-
-	/**
-	 * Constructor.
-	 * 
-	 * @param uri well-known keyset URI
-	 */
-	public WellKnownKeySet(URI uri) {
-		this.uri = uri;
-	}
-
-	@Override
-	public WebKey getKey(String keyId) {
-		return IuIterable.filter(WebKey.readJwks(uri), k -> keyId.equals(k.getKeyId())).iterator().next();
-	}
-
+	provides edu.iu.auth.spi.IuPkiSpi with iu.auth.pki.PkiSpi;
 }

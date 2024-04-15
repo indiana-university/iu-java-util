@@ -29,19 +29,32 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.util;
+package edu.iu.auth.spi;
 
-import java.net.URI;
+import java.security.cert.CertPathParameters;
+import java.security.cert.CertPathValidator;
 
-import edu.iu.IdGenerator;
+import edu.iu.auth.pki.IuPkiPrincipal;
 
-@SuppressWarnings("javadoc")
-public class IuAuthUtilTestCase {
+/**
+ * Service provider interface supporting {@link IuPkiPrincipal}.
+ */
+public interface IuPkiSpi {
 
-	protected static final URI ROOT_URI = URI.create("test://" + IdGenerator.generateId());
+	/**
+	 * Reads a serialized PKI principal.
+	 * 
+	 * @param serialized serialized form
+	 * @return {@link IuPkiPrincipal}
+	 */
+	IuPkiPrincipal readPkiPrincipal(String serialized);
 
-	static {
-		System.setProperty("iu.http.allowedUri", ROOT_URI.toString());
-	}
+	/**
+	 * Registers a non-authoritative trust verifier.
+	 * 
+	 * @param realm           authentication realm
+	 * @param validatorParams {@link CertPathValidator} parameters
+	 */
+	void trust(String realm, CertPathParameters validatorParams);
 
 }

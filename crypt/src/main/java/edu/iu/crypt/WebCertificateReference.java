@@ -39,7 +39,6 @@ import java.util.Arrays;
 import javax.net.ssl.X509TrustManager;
 
 import edu.iu.IuException;
-import iu.crypt.DigestUtils;
 
 /**
  * Common super-interface for components that hold a reference to a web

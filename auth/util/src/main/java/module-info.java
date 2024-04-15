@@ -36,14 +36,12 @@
  *           principal verification
  */
 module iu.util.auth.util {
-	exports iu.auth.util to iu.util.auth.oauth, iu.util.auth.oidc, iu.util.auth.session;
+	exports iu.auth.util to iu.util.auth.pki, iu.util.auth.oauth, iu.util.auth.oidc, iu.util.auth.session;
 
-	requires transitive iu.util;
+	requires iu.util;
 	requires transitive iu.util.auth;
-	requires transitive iu.util.client;
-	requires transitive iu.util.crypt;
-	requires transitive jakarta.json;
-	requires transitive java.net.http;
+	requires iu.util.client;
+	requires iu.util.crypt;
 
 	provides edu.iu.auth.spi.IuPrincipalSpi with iu.auth.util.PrincipalVerifierRegistry;
 }

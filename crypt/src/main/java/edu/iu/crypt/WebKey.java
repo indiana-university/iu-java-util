@@ -55,6 +55,7 @@ import java.security.spec.RSAPublicKeySpec;
 import java.util.EnumSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -361,92 +362,102 @@ public interface WebKey extends WebKeyReference {
 		/**
 		 * HMAC symmetric key signature w/ SHA-256.
 		 */
-		HS256("HS256", "HmacSHA256", 256, new Type[] { Type.RAW }, Use.SIGN, Set.of()),
+		HS256("HS256", "HmacSHA256", 256, new Type[] { Type.RAW }, Use.SIGN,
+				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),
 
 		/**
 		 * HMAC symmetric key signature w/ SHA-384.
 		 */
-		HS384("HS384", "HmacSHA384", 384, new Type[] { Type.RAW }, Use.SIGN, Set.of()),
+		HS384("HS384", "HmacSHA384", 384, new Type[] { Type.RAW }, Use.SIGN,
+				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),
 
 		/**
 		 * HMAC symmetric key signature w/ SHA-512.
 		 */
-		HS512("HS512", "HmacSHA512", 512, new Type[] { Type.RAW }, Use.SIGN, Set.of()),
+		HS512("HS512", "HmacSHA512", 512, new Type[] { Type.RAW }, Use.SIGN,
+				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),
 
 		/**
 		 * RSASSA-PKCS1-v1_5 using SHA-256.
 		 */
 		@Deprecated
-		RS256("RS256", "SHA256withRSA", 256, new Type[] { Type.RSA }, Use.SIGN, Set.of()),
+		RS256("RS256", "SHA256withRSA", 256, new Type[] { Type.RSA }, Use.SIGN,
+				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),
 
 		/**
 		 * RSASSA-PKCS1-v1_5 using SHA-384.
 		 */
 		@Deprecated
-		RS384("RS384", "SHA384withRSA", 384, new Type[] { Type.RSA }, Use.SIGN, Set.of()),
+		RS384("RS384", "SHA384withRSA", 384, new Type[] { Type.RSA }, Use.SIGN,
+				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),
 
 		/**
 		 * RSASSA-PKCS1-v1_5 using SHA-512.
 		 */
 		@Deprecated
-		RS512("RS512", "SHA512withRSA", 512, new Type[] { Type.RSA }, Use.SIGN, Set.of()),
+		RS512("RS512", "SHA512withRSA", 512, new Type[] { Type.RSA }, Use.SIGN,
+				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),
 
 		/**
 		 * Elliptic Curve signature w/ SHA-256.
 		 */
 		ES256("ES256", "SHA256withECDSA", 256, new Type[] { Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.SIGN,
-				Set.of()),
+				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),
 
 		/**
 		 * Elliptic Curve signature w/ SHA-384.
 		 */
 		ES384("ES384", "SHA384withECDSA", 384, new Type[] { Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.SIGN,
-				Set.of()),
+				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),
 
 		/**
 		 * Elliptic Curve signature w/ SHA-512.
 		 */
 		ES512("ES512", "SHA512withECDSA", 512, new Type[] { Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.SIGN,
-				Set.of()),
+				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),
 
 		/**
 		 * Edwards Elliptic Curve Digital Signature Algorithm.
 		 */
-		EDDSA("EdDSA", "EdDSA", 0, new Type[] { Type.ED25519, Type.ED448 }, Use.SIGN, Set.of()),
+		EDDSA("EdDSA", "EdDSA", 0, new Type[] { Type.ED25519, Type.ED448 }, Use.SIGN,
+				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),
 
 		/**
 		 * RSASSA-PSS using SHA-256 and MGF1 with SHA-256.
 		 */
-		PS256("PS256", "RSASSA-PSS", 256, new Type[] { Type.RSASSA_PSS }, Use.SIGN, Set.of()),
+		PS256("PS256", "RSASSA-PSS", 256, new Type[] { Type.RSASSA_PSS }, Use.SIGN,
+				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),
 
 		/**
 		 * RSASSA-PSS using SHA-384 and MGF1 with SHA-384.
 		 */
-		PS384("PS384", "RSASSA-PSS", 384, new Type[] { Type.RSASSA_PSS }, Use.SIGN, Set.of()),
+		PS384("PS384", "RSASSA-PSS", 384, new Type[] { Type.RSASSA_PSS }, Use.SIGN,
+				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),
 
 		/**
 		 * RSASSA-PSS using SHA-512 and MGF1 with SHA-512.
 		 */
-		PS512("PS512", "RSASSA-PSS", 512, new Type[] { Type.RSASSA_PSS }, Use.SIGN, Set.of()),
+		PS512("PS512", "RSASSA-PSS", 512, new Type[] { Type.RSASSA_PSS }, Use.SIGN,
+				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),
 
 		/**
 		 * RSAES-PKCS1-v1_5.
 		 */
 		@Deprecated
 		RSA1_5("RSA1_5", "RSA/ECB/PKCS1Padding", 2048, new Type[] { Type.RSA }, Use.ENCRYPT,
-				Set.of(Param.ENCRYPTION, Param.ZIP)),
+				new Operation[] { Operation.WRAP, Operation.UNWRAP }, Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * RSAES OAEP w/ default parameters.
 		 */
 		RSA_OAEP("RSA-OAEP", "RSA/ECB/OAEPWithSHA-1AndMGF1Padding", 2048, new Type[] { Type.RSA }, Use.ENCRYPT,
-				Set.of(Param.ENCRYPTION, Param.ZIP)),
+				new Operation[] { Operation.WRAP, Operation.UNWRAP }, Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * RSAES OAEP w/ SHA-256 and MGF-1.
 		 */
 		RSA_OAEP_256("RSA-OAEP-256", "RSA/ECB/OAEPWithSHA-256AndMGF1Padding", 2048, new Type[] { Type.RSA },
-				Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
+				Use.ENCRYPT, new Operation[] { Operation.WRAP, Operation.UNWRAP }, Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * AES-128 GCM Key Wrap.
@@ -456,6 +467,7 @@ public interface WebKey extends WebKeyReference {
 		 *      Section 4.6</a>
 		 */
 		A128GCMKW("A128GCMKW", "AES/GCM/NoPadding", 128, new Type[] { Type.RAW }, Use.ENCRYPT,
+				new Operation[] { Operation.WRAP, Operation.UNWRAP },
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.INITIALIZATION_VECTOR, Param.TAG)),
 
 		/**
@@ -466,6 +478,7 @@ public interface WebKey extends WebKeyReference {
 		 *      Section 4.6</a>
 		 */
 		A192GCMKW("A192GCMKW", "AES/GCM/NoPadding", 192, new Type[] { Type.RAW }, Use.ENCRYPT,
+				new Operation[] { Operation.WRAP, Operation.UNWRAP },
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.INITIALIZATION_VECTOR, Param.TAG)),
 		/**
 		 * AES-256 GCM Key Wrap.
@@ -475,27 +488,32 @@ public interface WebKey extends WebKeyReference {
 		 *      Section 4.6</a>
 		 */
 		A256GCMKW("A256GCMKW", "AES/GCM/NoPadding", 256, new Type[] { Type.RAW }, Use.ENCRYPT,
+				new Operation[] { Operation.WRAP, Operation.UNWRAP },
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.INITIALIZATION_VECTOR, Param.TAG)),
 
 		/**
 		 * AES-128 Key Wrap.
 		 */
-		A128KW("A128KW", "AESWrap", 128, new Type[] { Type.RAW }, Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
+		A128KW("A128KW", "AESWrap", 128, new Type[] { Type.RAW }, Use.ENCRYPT,
+				new Operation[] { Operation.WRAP, Operation.UNWRAP }, Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * AES-192 Key Wrap.
 		 */
-		A192KW("A192KW", "AESWrap", 192, new Type[] { Type.RAW }, Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
+		A192KW("A192KW", "AESWrap", 192, new Type[] { Type.RAW }, Use.ENCRYPT,
+				new Operation[] { Operation.WRAP, Operation.UNWRAP }, Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * AES-256 Key Wrap.
 		 */
-		A256KW("A256KW", "AESWrap", 256, new Type[] { Type.RAW }, Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
+		A256KW("A256KW", "AESWrap", 256, new Type[] { Type.RAW }, Use.ENCRYPT,
+				new Operation[] { Operation.WRAP, Operation.UNWRAP }, Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * Direct use (as CEK).
 		 */
-		DIRECT("dir", null, 256, new Type[] { Type.RAW }, Use.ENCRYPT, Set.of(Param.ENCRYPTION, Param.ZIP)),
+		DIRECT("dir", null, 256, new Type[] { Type.RAW }, Use.ENCRYPT,
+				new Operation[] { Operation.ENCRYPT, Operation.DECRYPT }, Set.of(Param.ENCRYPTION, Param.ZIP)),
 
 		/**
 		 * Elliptic Curve Diffie-Hellman Ephemeral Static key agreement.
@@ -505,7 +523,7 @@ public interface WebKey extends WebKeyReference {
 		 *      Section 4.6</a>
 		 */
 		ECDH_ES("ECDH-ES", "ECDH", 0, new Type[] { Type.X25519, Type.X448, Type.EC_P256, Type.EC_P384, Type.EC_P521 },
-				Use.ENCRYPT,
+				Use.ENCRYPT, new Operation[] { Operation.DERIVE_KEY },
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.EPHEMERAL_PUBLIC_KEY, Param.PARTY_UINFO, Param.PARTY_VINFO)),
 
 		/**
@@ -518,6 +536,7 @@ public interface WebKey extends WebKeyReference {
 		 */
 		ECDH_ES_A128KW("ECDH-ES+A128KW", "ECDH", 128,
 				new Type[] { Type.X25519, Type.X448, Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.ENCRYPT,
+				new Operation[] { Operation.DERIVE_KEY },
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.EPHEMERAL_PUBLIC_KEY, Param.PARTY_UINFO, Param.PARTY_VINFO)),
 
 		/**
@@ -530,6 +549,7 @@ public interface WebKey extends WebKeyReference {
 		 */
 		ECDH_ES_A192KW("ECDH-ES+A192KW", "ECDH", 192,
 				new Type[] { Type.X25519, Type.X448, Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.ENCRYPT,
+				new Operation[] { Operation.DERIVE_KEY },
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.EPHEMERAL_PUBLIC_KEY, Param.PARTY_UINFO, Param.PARTY_VINFO)),
 
 		/**
@@ -541,25 +561,28 @@ public interface WebKey extends WebKeyReference {
 		 *      Section 4.6</a>
 		 */
 		ECDH_ES_A256KW("ECDH-ES+A256KW", "ECDH", 256, new Type[] { Type.EC_P521, Type.EC_P256, Type.EC_P384 },
-				Use.ENCRYPT,
+				Use.ENCRYPT, new Operation[] { Operation.DERIVE_KEY },
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.EPHEMERAL_PUBLIC_KEY, Param.PARTY_UINFO, Param.PARTY_VINFO)),
 
 		/**
 		 * PBKDF2 with HMAC SHA-256 and AES128 key wrap.
 		 */
 		PBES2_HS256_A128KW("PBES2-HS256+A128KW", "PBKDF2WithHmacSHA256", 128, new Type[] { Type.RAW }, Use.ENCRYPT,
+				new Operation[] { Operation.WRAP, Operation.UNWRAP },
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.PASSWORD_SALT, Param.PASSWORD_COUNT)),
 
 		/**
 		 * PBKDF2 with HMAC SHA-384 and AES192 key wrap.
 		 */
 		PBES2_HS384_A192KW("PBES2-HS384+A192KW", "PBKDF2WithHmacSHA384", 192, new Type[] { Type.RAW }, Use.ENCRYPT,
+				new Operation[] { Operation.WRAP, Operation.UNWRAP },
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.PASSWORD_SALT, Param.PASSWORD_COUNT)),
 
 		/**
 		 * PBKDF2 with HMAC SHA-512 and AES192 key wrap.
 		 */
 		PBES2_HS512_A256KW("PBES2-HS512+A256KW", "PBKDF2WithHmacSHA512", 256, new Type[] { Type.RAW }, Use.ENCRYPT,
+				new Operation[] { Operation.WRAP, Operation.UNWRAP },
 				Set.of(Param.ENCRYPTION, Param.ZIP, Param.PASSWORD_SALT, Param.PASSWORD_COUNT));
 
 		/**
@@ -604,16 +627,23 @@ public interface WebKey extends WebKeyReference {
 		public final Use use;
 
 		/**
+		 * Key usage associated with this algorithm.
+		 */
+		public final Operation[] keyOps;
+
+		/**
 		 * Set of encryption parameters used by this algorithm.
 		 */
 		public final Set<Param> encryptionParams;
 
-		private Algorithm(String alg, String algorithm, int size, Type[] type, Use use, Set<Param> encryptionParams) {
+		private Algorithm(String alg, String algorithm, int size, Type[] type, Use use, Operation[] keyOps,
+				Set<Param> encryptionParams) {
 			this.alg = alg;
 			this.algorithm = algorithm;
 			this.size = size;
 			this.type = type;
 			this.use = use;
+			this.keyOps = keyOps;
 			this.encryptionParams = encryptionParams;
 		}
 	}
@@ -731,7 +761,38 @@ public interface WebKey extends WebKeyReference {
 		final var algorithm = webKey.getAlgorithm();
 		if (algorithm != null //
 				&& !Stream.of(algorithm.type).anyMatch(type::equals))
-			throw new IllegalArgumentException("Incorrect type " + type + " for algorithm " + algorithm);
+			throw new IllegalArgumentException("Illegal type " + type + " for algorithm " + algorithm);
+
+		final var use = webKey.getUse();
+		if (use != null && algorithm != null && !use.equals(algorithm.use))
+			throw new IllegalArgumentException("Illegal use " + use + " for algorithm " + algorithm);
+
+		final var ops = webKey.getOps();
+		if (ops != null) {
+			if (ops.size() > 2)
+				throw new IllegalArgumentException("Illegal ops " + ops);
+			else if (ops.size() == 2) {
+				BiConsumer<Operation, Operation> checkPair = (a, b) -> {
+					if (ops.contains(a) != (b != null && ops.contains(b)))
+						throw new IllegalArgumentException("Illegal ops " + ops);
+				};
+				checkPair.accept(Operation.SIGN, Operation.VERIFY);
+				checkPair.accept(Operation.ENCRYPT, Operation.DECRYPT);
+				checkPair.accept(Operation.WRAP, Operation.UNWRAP);
+				checkPair.accept(Operation.DERIVE_BITS, null);
+				checkPair.accept(Operation.DERIVE_KEY, null);
+			}
+
+			if (algorithm != null && !Set.of(algorithm.keyOps).containsAll(ops))
+				throw new IllegalArgumentException("Illegal ops " + ops + " for algorithm " + algorithm);
+
+			if (use != null)
+				if (ops.contains(Operation.SIGN) || ops.contains(Operation.VERIFY)) {
+					if (use.equals(Use.ENCRYPT))
+						throw new IllegalArgumentException("Illegal ops " + ops + " for use " + use);
+				} else if (use.equals(Use.SIGN))
+					throw new IllegalArgumentException("Illegal ops " + ops + " for use " + use);
+		}
 
 		final var cert = IuObject.convert(WebCertificateReference.verify(webKey), a -> a[0]);
 
@@ -780,6 +841,19 @@ public interface WebKey extends WebKeyReference {
 									rsaPrivate.getModulus(), ((RSAPrivateCrtKey) rsaPrivate).getPublicExponent())));
 		} else if ((publicKey != null || privateKey != null) && params == null)
 			throw new IllegalArgumentException("Missing algorithm parameters");
+
+		if (ops != null) {
+			if (ops.contains(Operation.ENCRYPT) || ops.contains(Operation.DECRYPT))
+				throw new IllegalArgumentException("Secret key required by ops " + ops);
+			if (publicKey == null && (ops.contains(Operation.WRAP) //
+					|| ops.contains(Operation.VERIFY)))
+				throw new IllegalArgumentException("Public key required by ops " + ops);
+			if (privateKey == null && (ops.contains(Operation.UNWRAP) //
+					|| ops.contains(Operation.SIGN)))
+				throw new IllegalArgumentException("Private key required by ops " + ops);
+			if (ops.contains(Operation.DERIVE_KEY) && privateKey == null && publicKey == null)
+				throw new IllegalArgumentException("Public or private key required by ops " + ops);
+		}
 
 		return publicKey;
 	}

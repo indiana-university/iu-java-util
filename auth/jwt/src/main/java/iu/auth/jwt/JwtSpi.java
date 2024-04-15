@@ -32,17 +32,23 @@
 package iu.auth.jwt;
 
 import java.lang.reflect.Type;
-import java.security.Principal;
+import java.security.cert.CertPathValidator;
+import java.security.cert.CertificateFactory;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import javax.security.auth.x500.X500Principal;
 
+import edu.iu.IuException;
+import edu.iu.IuObject;
+import edu.iu.IuText;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.jwt.IuWebToken;
@@ -50,13 +56,17 @@ import edu.iu.auth.jwt.IuWebToken.Builder;
 import edu.iu.auth.jwt.IuWebTokenIssuer;
 import edu.iu.auth.jwt.IuWebTokenIssuer.ClaimDefinition;
 import edu.iu.auth.spi.IuJwtSpi;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.WebSignedPayload;
+import jakarta.json.JsonObject;
 
 /**
  * {@link IuJwtSpi} service provider implementation
  */
 public class JwtSpi implements IuJwtSpi {
 
-	private final Map<String, IuWebTokenIssuer> ISSUERS = new HashMap<>();
+	private final Map<String, JwtIssuer> ISSUERS = new HashMap<>();
 
 	@Override
 	public IuWebToken parse(String jwt) {
@@ -68,12 +78,41 @@ public class JwtSpi implements IuJwtSpi {
 	public synchronized void register(IuWebTokenIssuer issuer) {
 		final var subject = Objects.requireNonNull(issuer.getIssuer());
 
+		final Set<IuApiCredentials> credentials = subject.getPrincipals(IuApiCredentials.class);
+		final Set<X500Principal> cert = subject.getPrincipals(X500Principal.class);
+		
 		final var principal = subject.getPrincipals().stream() //
 				.filter(p -> (p instanceof IuPrincipalIdentity) //
-						|| (p instanceof IuApiCredentials) //
 						|| (p instanceof X500Principal))
-				.findFirst();
-		final var name = getCommonName(principal);
+				.findFirst().orElseThrow(() -> new IllegalArgumentException("Missing principal"));
+
+		final var name = Objects.requireNonNull(principal.getName(), "missing principal name");
+		if (ISSUERS.containsKey(name))
+			throw new IllegalStateException("JWT issuer already registered for " + name);
+
+//		final var certChain = subject.getPublicCredentials(X509Certificate.class).toArray(X509Certificate[]::new);
+//
+		if (principal instanceof IuPrincipalIdentity) {
+			final var principalId = (IuPrincipalIdentity) principal;
+			IuPrincipalIdentity.verify(principalId, issuer.getRealm());
+		} else {
+			final var x500 = (X500Principal) principal;
+			final var certPathParams = Objects.requireNonNull(issuer.getCertPathParameters(),
+					"Missing cert path parameters");
+//			if (certChain.length < 1)
+//				throw new IllegalArgumentException("Missing certificate chain for X500Principal");
+//			if (!x500.equals(certChain[0].getSubjectX500Principal()))
+//				throw new IllegalArgumentException("Certificate subject principal mismatch");
+
+			IuException.unchecked(() -> {
+				final var validator = CertPathValidator.getInstance("PKIX");
+				final var certPath = CertificateFactory.getInstance("X.509").generateCertPath(Arrays.asList(certChain));
+				validator.validate(certPath, certPathParams);
+			});
+
+		}
+
+//			credentials.authorize()
 
 		// TODO Auto-generated method stub
 		throw new UnsupportedOperationException("TODO");
@@ -106,3 +145,56 @@ public class JwtSpi implements IuJwtSpi {
 	}
 
 }
+
+// TODO REVIEW LINE
+///**
+// * Verifies a JWT access token.
+// * 
+// * <p>
+// * Verifies:
+// * </p>
+// * <ul>
+// * <li>The use of a strong signature algorithm: RSA or ECDSA</li>
+// * <li>The RSA or ECDSA signature is valid</li>
+// * <li>The iss claim matches the configured issuer</li>
+// * <li>The aud claim includes the audience</li>
+// * <li>The current time is within between not before (iat) and not after (exp)
+// * claims, with 15 seconds of leeway for clock drift</li>
+// * </ul>
+// * 
+// * @param audience expected audience claim
+// * @param token    JWT access token
+// * @return Parsed JWT, can be used to perform additional verification
+// */
+//public JsonObject verify(String audience, String token) {
+//	final var jws = WebSignedPayload.parse(token);
+//
+//	// Token must be a valid compact JWS signature
+//	// Extract header and verify format
+//	final var sigIter = jws.getSignatures().iterator();
+//	final var sig = sigIter.next();
+//	if (sigIter.hasNext())
+//		throw new IllegalStateException("Invalid JWT");
+//
+//	final var header = sig.getHeader();
+//
+//	var key = Objects.requireNonNull(keyFactory.apply(header), "no matching key");
+//	jws.verify(key);
+//
+//	final var jwt = IuJson.parse(IuText.utf8(jws.getPayload())).asJsonObject();
+//	IuObject.once(issuer, IuJson.get(jwt, "iss"));
+//
+//	if (!IuJson.get(jwt, "aud", IuJsonAdapter.of(Set.class)).contains(audience))
+//		throw new IllegalArgumentException("audience mismatch");
+//
+//	final var now = Instant.now().plus(Duration.ofSeconds(15L));
+//	final var iat = Objects.requireNonNull(IuJson.get(jwt, "iat", IuJsonAdapter.of(Instant.class)));
+//	if (now.isBefore(iat))
+//		throw new IllegalArgumentException("iat must not be more than 15 seconds from now");
+//
+//	final var exp = Objects.requireNonNull(IuJson.get(jwt, "exp", IuJsonAdapter.of(Instant.class)));
+//	if (now.isAfter(exp))
+//		throw new IllegalArgumentException("exp must be after now");
+//
+//	return jwt;
+//}

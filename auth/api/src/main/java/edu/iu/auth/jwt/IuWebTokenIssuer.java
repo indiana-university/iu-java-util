@@ -169,6 +169,13 @@ public interface IuWebTokenIssuer {
 	}
 
 	/**
+	 * Gets the authentication realm to use for verifying issuer credentials.
+	 * 
+	 * @return authentication realm
+	 */
+	String getRealm();
+
+	/**
 	 * Gets issuer principal name and credentials.
 	 * 
 	 * @return {@link Subject}

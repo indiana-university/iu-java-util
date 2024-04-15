@@ -54,7 +54,6 @@ import edu.iu.IuText;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebCryptoHeader.Extension;
-import iu.crypt.DigestUtils;
 import iu.crypt.Jose;
 import jakarta.json.JsonString;
 

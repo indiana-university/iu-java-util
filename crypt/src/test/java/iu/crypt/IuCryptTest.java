@@ -41,6 +41,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuText;
+import edu.iu.crypt.DigestUtils;
 
 @SuppressWarnings("javadoc")
 public class IuCryptTest {

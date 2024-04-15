@@ -29,38 +29,29 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.util;
+package iu.auth.jwt;
 
-import java.util.Objects;
-import java.util.Set;
+import java.security.Principal;
 
 import edu.iu.crypt.WebKey;
 
 /**
- * Encapsulates a token issuer's key set.
+ * Holds processed JWT issuer parameters.
  */
-public class TokenIssuerKeySet implements WebKeyFactory {
+class JwtIssuer {
 
-	private final Set<WebKey> providerKeys;
+	private final Principal principal;
+	private final WebKey privateKey;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param providerKeys provider key set
+	 * @param principal  verified identity principal
+	 * @param privateKey verified private key w/ certificate chain
 	 */
-	public TokenIssuerKeySet(Set<WebKey> providerKeys) {
-		this.providerKeys = providerKeys;
-		for (final var providerKey : providerKeys) {
-			Objects.requireNonNull(providerKey.getKeyId(), "id");
-			Objects.requireNonNull(providerKey.getType(), "type");
-			Objects.requireNonNull(providerKey.getUse(), "usage");
-			Objects.requireNonNull(providerKey.getPublicKey(), "public");
-			Objects.requireNonNull(providerKey.getPrivateKey(), "private");
-		}
+	JwtIssuer(Principal principal, WebKey privateKey) {
+		this.principal = principal;
+		this.privateKey = privateKey;
 	}
 
-	@Override
-	public WebKey getKey(String keyId) {
-		return providerKeys.stream().filter(k -> keyId.equals(k.getKeyId())).findFirst().get();
-	}
 }

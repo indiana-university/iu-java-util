@@ -39,13 +39,6 @@ import java.util.Map;
  */
 public class HttpUtils {
 
-//	private static final Logger LOG = Logger.getLogger(HttpUtils.class.getName());
-
-// TODO:
-//		if (!"https".equals(scheme) //
-//				&& !"localhost".equals(uri.getHost()))
-//			throw new IllegalArgumentException("insecure URI");
-
 	/**
 	 * Creates an authentication challenge sending to a client via the
 	 * <strong>WWW-Authenticate</strong> header.

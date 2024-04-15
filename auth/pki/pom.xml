@@ -10,8 +10,8 @@
 		<version>7.0.2-SNAPSHOT</version>
 	</parent>
 
-	<artifactId>iu-java-auth-util</artifactId>
-	<name>IU API Authorization Internal Support Utilities</name>
+	<artifactId>iu-java-auth-pki</artifactId>
+	<name>IU Public Key Infrastructure Authorization Utilities</name>
 
 	<dependencies>
 		<dependency>
@@ -28,7 +28,7 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-crypt</artifactId>
+			<artifactId>iu-java-auth-util</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>

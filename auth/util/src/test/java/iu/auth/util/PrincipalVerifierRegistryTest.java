@@ -31,9 +31,15 @@
  */
 package iu.auth.util;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+
+import java.util.Set;
+
+import javax.security.auth.Subject;
 
 import org.junit.jupiter.api.Test;
 import org.opentest4j.AssertionFailedError;
@@ -47,6 +53,8 @@ public class PrincipalVerifierRegistryTest {
 	@Test
 	public void testRegisterVerfier() {
 		final var realm = IdGenerator.generateId();
+		assertFalse(PrincipalVerifierRegistry.isAuthoritative(realm));
+
 		final var id = mock(IuPrincipalIdentity.class);
 		assertThrows(NullPointerException.class, () -> IuPrincipalIdentity.verify(id, realm));
 
@@ -54,6 +62,7 @@ public class PrincipalVerifierRegistryTest {
 		assertThrows(IllegalStateException.class, () -> PrincipalVerifierRegistry.registerVerifier(realm, a -> {
 		}, true));
 		IuPrincipalIdentity.verify(id, realm);
+		assertTrue(PrincipalVerifierRegistry.isAuthoritative(realm));
 
 		assertThrows(AssertionFailedError.class,
 				() -> IuPrincipalIdentity.verify(mock(IuPrincipalIdentity.class), realm));
@@ -72,14 +81,19 @@ public class PrincipalVerifierRegistryTest {
 			public String getName() {
 				return id.getName();
 			}
+
+			@Override
+			public Subject getSubject() {
+				return new Subject(true, Set.of(this), Set.of(), Set.of());
+			}
 		}
 
-		PrincipalVerifierRegistry.registerVerifier(realm, a -> assertSame(a, id), true);
+		PrincipalVerifierRegistry.registerVerifier(realm, a -> assertSame(a, id), false);
 		PrincipalVerifierRegistry.registerDelegate(TestId.class, a -> id);
 		assertThrows(IllegalStateException.class,
 				() -> PrincipalVerifierRegistry.registerDelegate(TestId.class, a -> id));
 		IuPrincipalIdentity.verify(new TestId(), realm);
-
+		assertFalse(PrincipalVerifierRegistry.isAuthoritative(realm));
 	}
 
 }

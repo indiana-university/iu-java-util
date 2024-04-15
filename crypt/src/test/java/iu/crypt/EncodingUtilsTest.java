@@ -52,6 +52,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
+import edu.iu.crypt.DigestUtils;
 import edu.iu.crypt.WebKey;
 
 @SuppressWarnings("javadoc")

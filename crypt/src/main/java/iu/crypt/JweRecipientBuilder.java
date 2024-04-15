@@ -50,6 +50,7 @@ import edu.iu.IuText;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebEncryptionRecipient.Builder;
+import edu.iu.crypt.DigestUtils;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;

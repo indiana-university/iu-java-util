@@ -54,6 +54,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import edu.iu.IuCacheMap;
@@ -327,11 +328,14 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 		super(certParams);
 		this.type = internalKey.type;
 		this.use = internalKey.use;
-		this.ops = internalKey.ops;
+		this.ops = internalKey.verifiedPublicKey == null ? null
+				: IuObject.convert(internalKey.ops,
+						ops -> ops.stream().filter(op -> !Set.of(Operation.UNWRAP, Operation.SIGN).contains(op))
+								.collect(Collectors.toUnmodifiableSet()));
 		this.key = null;
 		this.privateKey = null;
 		this.publicKey = internalKey.verifiedPublicKey;
-		this.verifiedPublicKey = internalKey.verifiedPublicKey;
+		this.verifiedPublicKey = WebKey.verify(this);
 	}
 
 	@Override

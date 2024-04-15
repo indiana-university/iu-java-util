@@ -41,6 +41,7 @@ import java.security.cert.CertificateEncodingException;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.crypt.DigestUtils;
 import edu.iu.crypt.IuCryptTestCase;
 import edu.iu.crypt.PemEncoded;
 
