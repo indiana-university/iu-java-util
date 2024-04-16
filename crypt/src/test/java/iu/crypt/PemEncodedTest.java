@@ -44,6 +44,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
+import java.security.cert.X509CRL;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateCrtKey;
@@ -364,9 +365,33 @@ public class PemEncodedTest extends IuCryptTestCase {
 		assertTrue(pem.hasNext());
 		var key = pem.next();
 		assertEquals(KeyType.CERTIFICATE, key.getKeyType());
+		assertThrows(IllegalStateException.class, key::asCRL);
 		assertInstanceOf(ECPublicKey.class, key.asCertificate().getPublicKey());
 
 		assertThrows(IllegalStateException.class, () -> key.asPrivate("EC"));
+
+		assertFalse(pem.hasNext());
+	}
+
+	@Test
+	void testCrl() {
+		// This is a sample key for testing and demonstration purpose only.
+		// ---- NOT FOR PRODUCTION USE -----
+		final var pem = PemEncoded.parse( //
+				"-----BEGIN X509 CRL-----\n" //
+						+ "MIIBQTCBwjAFBgMrZXEwgZgxCzAJBgNVBAYTAlVTMRAwDgYDVQQIDAdJbmRpYW5h\n" //
+						+ "MRQwEgYDVQQHDAtCbG9vbWluZ3RvbjEbMBkGA1UECgwSSW5kaWFuYSBVbml2ZXJz\n" //
+						+ "aXR5MQ8wDQYDVQQLDAZTVEFSQ0gxMzAxBgNVBAMMKnVybjpleGFtcGxlOml1LWph\n" //
+						+ "dmEtYXV0aC1wa2kjUGtpU3BpVGVzdF9DQRcNMjQwNDE2MTA0NTM5WhgPMjEyNDA0\n" //
+						+ "MTcxMDQ1MzlaMAUGAytlcQNzAC1rkeM6SUWX0un6apmCNwisvs6Hxsy0e4K6D7ou\n" //
+						+ "+AXr0kWbeWzdisGRs7Zy0RUY0WXu5KiZ7kbwABDkGfOn0NFdnbA02hu5/V6xvfOa\n" //
+						+ "jeDhXM+cmPQ/VFMuJf2tOy+n4TC+DvRMJg5bd8xqgU8Vm04lAA==\n" //
+						+ "-----END X509 CRL-----\n");
+
+		assertTrue(pem.hasNext());
+		var key = pem.next();
+		assertEquals(KeyType.X509_CRL, key.getKeyType());
+		assertInstanceOf(X509CRL.class, key.asCRL());
 
 		assertFalse(pem.hasNext());
 	}

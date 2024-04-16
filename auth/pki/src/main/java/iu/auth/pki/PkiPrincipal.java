@@ -50,13 +50,13 @@ class PkiPrincipal implements IuPkiPrincipal {
 	/**
 	 * Constructor.
 	 * 
-	 * @param webKey    fully populated JWK including private/secret key data
+	 * @param key       fully populated JWK including private/secret key data
 	 * @param wellKnwon
 	 * @param certPath
 	 */
-	PkiPrincipal(WebKey webKey) {
-		this.wellKnown = webKey.wellKnown();
-		this.key = wellKnown.equals(key) ? null : webKey;
+	PkiPrincipal(WebKey key) {
+		this.wellKnown = key.wellKnown();
+		this.key = key;
 		this.serializedWellKnownKey = wellKnown.toString();
 	}
 
@@ -88,9 +88,9 @@ class PkiPrincipal implements IuPkiPrincipal {
 		final var certChain = wellKnown().getCertificateChain();
 		if (certChain.length == 1
 				&& certChain[0].getSubjectX500Principal().equals(certChain[0].getIssuerX500Principal()))
-			sb.append(", self issued");
+			sb.append(", Self-Issued");
 		else
-			sb.append(", issued by ")
+			sb.append(", Issued by ")
 					.append(X500Utils.getCommonName(certChain[certChain.length - 1].getIssuerX500Principal()));
 
 		return sb.toString();

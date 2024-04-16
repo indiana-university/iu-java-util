@@ -141,7 +141,7 @@ public interface IuWebToken extends IuPrincipalIdentity {
 	/**
 	 * Issues a new JWT
 	 * 
-	 * @param issuer token issuer common or full principal name
+	 * @param issuer token issuer name
 	 * @return {@link Builder}
 	 */
 	static Builder issue(String issuer) {

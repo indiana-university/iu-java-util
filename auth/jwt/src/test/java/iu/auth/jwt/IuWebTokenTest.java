@@ -36,20 +36,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.security.InvalidAlgorithmParameterException;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.CertPathBuilder;
-import java.security.cert.CertPathBuilderException;
-import java.security.cert.CertStore;
-import java.security.cert.CertStoreParameters;
-import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
-import java.security.cert.CollectionCertStoreParameters;
-import java.security.cert.PKIXBuilderParameters;
+import java.net.URI;
 import java.security.cert.PKIXParameters;
 import java.security.cert.TrustAnchor;
-import java.security.cert.X509CertSelector;
-import java.util.Arrays;
 import java.util.Set;
 
 import javax.security.auth.Subject;
@@ -59,6 +48,8 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.auth.jwt.IuWebToken;
 import edu.iu.auth.jwt.IuWebTokenIssuer;
+import edu.iu.auth.pki.IuPkiPrincipal;
+import edu.iu.client.IuHttp;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Operation;
@@ -140,6 +131,16 @@ public class IuWebTokenTest {
 
 		final var token = IuWebToken.issue(iss).build();
 		assertEquals("", token.toString());
+
+		IuPkiPrincipal.trust(null);
+
+		final var jwks = WebKey.readJwks(URI.create("https://sisjee-stage.iu.edu/essweb-reg/web/sis/api/trust.jwks"))
+				.iterator().next();
+		final var jwt = IuWebToken.parse("<<Access Token>>");
+		URI verificationEndpoiont = null;
+		IuHttp.send(verificationEndpoiont, b -> b.header("Authorization", "Bearer " + jwt),
+				IuHttp.validate(a -> a, IuHttp.expectStatus(201)));
+
 	}
 
 }

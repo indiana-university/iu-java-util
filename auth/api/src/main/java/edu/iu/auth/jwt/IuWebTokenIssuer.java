@@ -33,7 +33,6 @@ package edu.iu.auth.jwt;
 
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-import java.security.cert.CertPathParameters;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
@@ -42,6 +41,7 @@ import java.util.function.Consumer;
 
 import javax.security.auth.Subject;
 
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.spi.IuJwtSpi;
 import iu.auth.IuAuthSpiFactory;
 
@@ -169,25 +169,11 @@ public interface IuWebTokenIssuer {
 	}
 
 	/**
-	 * Gets the authentication realm to use for verifying issuer credentials.
-	 * 
-	 * @return authentication realm
-	 */
-	String getRealm();
-
-	/**
 	 * Gets issuer principal name and credentials.
 	 * 
 	 * @return {@link Subject}
 	 */
-	Subject getIssuer();
-
-	/**
-	 * Gets {@link CertPathParameters} for verifying audience and subject claims.
-	 * 
-	 * @return {@link CertPathParameters}
-	 */
-	CertPathParameters getCertPathParameters();
+	IuPrincipalIdentity getIssuer();
 
 	/**
 	 * Gets extended JWT claim definitions.

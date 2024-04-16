@@ -68,7 +68,7 @@ public class X500UtilsTest {
 		assertEquals(Map.of("DC", "example"), i.next());
 		assertEquals(Map.of("DC", "net"), i.next());
 		assertFalse(i.hasNext());
-		assertEquals("j. smith@example.net", X500Utils.getCommonName(x500));
+		assertEquals("J.  Smith@example.net", X500Utils.getCommonName(x500));
 	}
 
 	@Test
@@ -80,7 +80,7 @@ public class X500UtilsTest {
 		assertEquals(Map.of("DC", "example"), i.next());
 		assertEquals(Map.of("DC", "net"), i.next());
 		assertFalse(i.hasNext());
-		assertEquals("james \"jim\" smith, iii@example.net", X500Utils.getCommonName(x500));
+		assertEquals("James \"Jim\" Smith, III@example.net", X500Utils.getCommonName(x500));
 	}
 
 	@Test
@@ -92,7 +92,7 @@ public class X500UtilsTest {
 		assertEquals(Map.of("DC", "example"), i.next());
 		assertEquals(Map.of("DC", "net"), i.next());
 		assertFalse(i.hasNext());
-		assertEquals("before\rafter@example.net", X500Utils.getCommonName(x500));
+		assertEquals("Before\rAfter@example.net", X500Utils.getCommonName(x500));
 	}
 
 	@Test
@@ -110,12 +110,12 @@ public class X500UtilsTest {
 		final var i = parsed.iterator();
 		assertEquals(Map.of("CN", "Lučić"), i.next());
 		assertFalse(i.hasNext());
-		assertEquals("lučić", X500Utils.getCommonName(new X500Principal("CN=Lu\\C4\\8Di\\C4\\87")));
+		assertEquals("Lučić", X500Utils.getCommonName(new X500Principal("CN=Lu\\C4\\8Di\\C4\\87")));
 	}
 
 	@Test
 	public void testCanonicalUid() {
-		assertEquals("foo", X500Utils.getCommonName(new X500Principal("0.9.2342.19200300.100.1.1=FOO")));
+		assertEquals("FOO", X500Utils.getCommonName(new X500Principal("0.9.2342.19200300.100.1.1=FOO")));
 	}
 
 	@Test

@@ -39,6 +39,7 @@ import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.cert.CertificateFactory;
+import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.interfaces.RSAPublicKey;
@@ -93,7 +94,12 @@ public final class PemEncoded {
 		/**
 		 * X509 certificate.
 		 */
-		CERTIFICATE;
+		CERTIFICATE,
+
+		/**
+		 * X509 certificate revocation list.
+		 */
+		X509_CRL;
 	}
 
 	/**
@@ -166,7 +172,7 @@ public final class PemEncoded {
 
 				final KeyType keyType;
 				try {
-					if (start < 26)
+					if (start < 24)
 						keyType = KeyType.CERTIFICATE;
 					else {
 						keyType = KeyType.valueOf(
@@ -282,6 +288,11 @@ public final class PemEncoded {
 				.generateCertificate(new ByteArrayInputStream(encoded)));
 	}
 
+	private static X509CRL asCRL(byte[] encoded) {
+		return IuException.unchecked(
+				() -> (X509CRL) CertificateFactory.getInstance("X.509").generateCRL(new ByteArrayInputStream(encoded)));
+	}
+
 	private final KeyType keyType;
 	private final byte[] encoded;
 
@@ -331,6 +342,17 @@ public final class PemEncoded {
 		if (!keyType.equals(KeyType.CERTIFICATE))
 			throw new IllegalStateException();
 		return asCertificate(encoded);
+	}
+
+	/**
+	 * Gets the certificate when {@link #keyType} is {@link KeyType#CERTIFICATE}.
+	 * 
+	 * @return private key
+	 */
+	public X509CRL asCRL() {
+		if (!keyType.equals(KeyType.X509_CRL))
+			throw new IllegalStateException();
+		return asCRL(encoded);
 	}
 
 	@Override

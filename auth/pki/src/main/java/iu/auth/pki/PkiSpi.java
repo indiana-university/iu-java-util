@@ -215,7 +215,7 @@ public class PkiSpi implements IuPkiSpi {
 		final List<Certificate> pathToAnchor = new ArrayList<>();
 		synchronized (TRUST) {
 			final var selfSigned = idCert.getSubjectX500Principal().equals(idCert.getIssuerX500Principal());
-			if (selfSigned)
+			if (selfSigned && privateKey != null)
 				IuException.unchecked(() -> {
 					final var selfSignedParams = new PKIXParameters(Set.of(new TrustAnchor(idCert, null)));
 					selfSignedParams.setRevocationEnabled(false);
@@ -236,7 +236,7 @@ public class PkiSpi implements IuPkiSpi {
 					break;
 				}
 			}
-			trust = Objects.requireNonNull(matchedTrust, "issuer is not registered as trusted");
+			trust = Objects.requireNonNull(matchedTrust, "Issuer is not registered as trusted");
 		}
 
 		IuException.unchecked(() -> CertPathValidator.getInstance("PKIX")
@@ -267,11 +267,11 @@ public class PkiSpi implements IuPkiSpi {
 		final var issuer = Objects.requireNonNull(
 				X500Utils.getCommonName(
 						pkix.getTrustAnchors().iterator().next().getTrustedCert().getSubjectX500Principal()),
-				"first trust anchor's root certificate must name authentication realm");
+				"First trust anchor's root certificate must name authentication realm");
 
 		synchronized (TRUST) {
 			if (TRUST.containsKey(issuer))
-				throw new IllegalArgumentException("another issuer is already configured for " + issuer);
+				throw new IllegalArgumentException("Another issuer is already configured for " + issuer);
 
 			PrincipalVerifierRegistry.registerVerifier(issuer, new IdVerifier(false, issuer, pkix), false);
 			TRUST.put(issuer, validatorParams);
