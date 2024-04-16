@@ -35,25 +35,19 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ModuleLayer.Controller;
 import java.lang.reflect.Type;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.Objects;
 import java.util.ServiceLoader;
-import java.util.function.BiConsumer;
-import java.util.jar.JarEntry;
-import java.util.jar.JarInputStream;
+import java.util.function.Consumer;
 
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
-import edu.iu.IuStream;
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuType;
 import edu.iu.type.base.FilteringClassLoader;
 import edu.iu.type.base.ModularClassLoader;
 import edu.iu.type.base.TemporaryFile;
-import edu.iu.type.base.TemporaryFile.IORunnable;
 import edu.iu.type.bundle.IuTypeBundle;
 import edu.iu.type.spi.IuTypeSpi;
 
@@ -63,9 +57,12 @@ import edu.iu.type.spi.IuTypeSpi;
  * @see IuTypeSpi
  */
 public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
+	static {
+		IuObject.assertNotOpen(TypeBundleSpi.class);
+	}
 
 	private static final ClassLoader TYPE_SPI_LOADER = IuTypeSpi.class.getClassLoader();
-	private static final ModuleLayer TYPE_SPI_LAYER = IuTypeSpi.class.getModule().getLayer();
+	private static final ModuleLayer TYPE_SPI_LAYER = Objects.requireNonNull(IuTypeSpi.class.getModule().getLayer());
 	private static TypeBundleSpi instance;
 
 	/**
@@ -87,9 +84,8 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 			instance.close();
 	}
 
-	private IuTypeSpi delegate;
-	private final ModularClassLoader bundleLoader;
-	private final IORunnable destroy;
+	private volatile ModularClassLoader bundleLoader;
+	private volatile IuTypeSpi delegate;
 
 	/**
 	 * Target constructor for {@link ServiceLoader}.
@@ -100,64 +96,22 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 	public TypeBundleSpi() throws IOException {
 		assert instance == null;
 
-		final Deque<Path> libs = new ArrayDeque<>();
-		destroy = TemporaryFile.init(() -> {
-			final var bundle = TypeBundleSpi.class.getClassLoader().getResource("iu-java-type-impl-bundle.jar");
-			final var bundleConnection = bundle.openConnection();
-			bundleConnection.setUseCaches(false);
-			try (final var in = bundleConnection.getInputStream(); //
-					final var bundleJar = new JarInputStream(in)) {
-				JarEntry entry;
-				while ((entry = bundleJar.getNextJarEntry()) != null) {
-					final var name = entry.getName();
-					if (name.endsWith(".jar")) {
-						final var lib = name.startsWith("lib/");
-						final var bundledLib = TemporaryFile.init(path -> {
-							try (final var out = Files.newOutputStream(path)) {
-								IuStream.copy(bundleJar, out);
-							}
-							return path;
-						});
-						if (lib)
-							libs.offer(bundledLib);
-						else
-							libs.offerFirst(bundledLib);
-					}
+		bundleLoader = ModularClassLoader.of(
+				new FilteringClassLoader(IuIterable
+						.iter("edu.iu", "edu.iu.type", "edu.iu.type.base", "edu.iu.type.spi"), TYPE_SPI_LOADER),
+				TYPE_SPI_LAYER,
+				() -> IuIterable.map(TemporaryFile.readBundle(Objects.requireNonNull(
+						TypeBundleSpi.class.getClassLoader().getResource("iu-java-type-impl-bundle.jar"),
+						"Missing iu-java-type-impl-bundle.jar classpath entry")), a -> () -> a),
+				c -> {
+					// TODO: REMOVE
+//					final var implModule = c.layer().findModule("iu.util.type.impl").get();
+//					c.addReads(implModule, IuObject.class.getModule());
+//					c.addReads(implModule, ModularClassLoader.class.getModule());
+				});
 
-					bundleJar.closeEntry();
-				}
-			}
-		});
-
-		class Box {
-			ModularClassLoader bundleLoader;
-			IuTypeSpi delegate;
-		}
-		final var box = new Box();
-
-		try {
-			IuException
-					.checked(IOException.class,
-							() -> IuException.initialize(new ModularClassLoader(
-									false, libs, TYPE_SPI_LAYER, new FilteringClassLoader(IuIterable.iter("edu.iu",
-											"edu.iu.type", "edu.iu.type.base", "edu.iu.type.spi"), TYPE_SPI_LOADER),
-									controller -> {
-										final var implModule = controller.layer().findModule("iu.util.type.impl").get();
-										controller.addReads(implModule, IuObject.class.getModule());
-										controller.addReads(implModule, ModularClassLoader.class.getModule());
-									}), bundleLoader -> {
-										box.bundleLoader = bundleLoader;
-										box.delegate = ServiceLoader.load(IuTypeSpi.class, bundleLoader).iterator()
-												.next();
-										return null;
-									}));
-		} catch (Throwable e) {
-			IuException.suppress(e, destroy);
-			throw e;
-		}
-
-		this.bundleLoader = box.bundleLoader;
-		this.delegate = box.delegate;
+		delegate = IuException.checked(IOException.class, () -> IuException.initialize(bundleLoader,
+				a -> ServiceLoader.load(IuTypeSpi.class, a).findFirst().get()));
 
 		instance = this;
 	}
@@ -170,20 +124,21 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 	}
 
 	@Override
-	public IuComponent createComponent(ModuleLayer parentLayer, ClassLoader parent, BiConsumer<Module, Controller> controllerCallback,
-			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources) throws IOException {
-		if (delegate == null)
-			throw new IllegalStateException("closed");
-		return delegate.createComponent(parentLayer, parent, controllerCallback, componentArchiveSource,
-				providedDependencyArchiveSources);
-	}
-
-	@Override
-	public IuComponent scanComponentEntry(ClassLoader classLoader, Path pathEntry)
+	public IuComponent scanComponentEntry(ClassLoader classLoader, ModuleLayer moduleLayer, Path pathEntry)
 			throws IOException, ClassNotFoundException {
 		if (delegate == null)
 			throw new IllegalStateException("closed");
-		return delegate.scanComponentEntry(classLoader, pathEntry);
+		return delegate.scanComponentEntry(classLoader, moduleLayer, pathEntry);
+	}
+
+	@Override
+	public IuComponent createComponent(ClassLoader parent, ModuleLayer parentLayer,
+			Consumer<Controller> controllerCallback, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) {
+		if (delegate == null)
+			throw new IllegalStateException("closed");
+		return delegate.createComponent(parent, parentLayer, controllerCallback, componentArchiveSource,
+				providedDependencyArchiveSources);
 	}
 
 	@Override
@@ -191,9 +146,13 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 		instance = null;
 
 		final var delegate = this.delegate;
-		if (delegate != null) {
+		if (delegate != null)
 			this.delegate = null;
-			IuException.checked(() -> IuException.suppress(bundleLoader::close, destroy));
+
+		if (bundleLoader != null) {
+			final var bundleLoader = this.bundleLoader;
+			this.bundleLoader = null;
+			bundleLoader.close();
 		}
 	}
 

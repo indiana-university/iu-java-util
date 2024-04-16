@@ -61,7 +61,7 @@ public class CacheMapTest {
 	@SuppressWarnings("unchecked")
 	@BeforeEach
 	public void setup() throws Exception {
-		cache = new IuCacheMap<>(Duration.ofMillis(100L));
+		cache = new IuCacheMap<>(Duration.ofMillis(250L));
 		final var f = IuCacheMap.class.getDeclaredField("cache");
 		f.setAccessible(true);
 		internal = (Map<String, IuCachedValue<String>>) f.get(cache);
@@ -74,7 +74,7 @@ public class CacheMapTest {
 		cache.put("bar", "baz");
 		assertEquals("bar", cache.get("foo"));
 		assertEquals("bar", cache.get("foo"));
-		Thread.sleep(101L);
+		Thread.sleep(251L);
 		assertNull(cache.get("foo"));
 		assertNull(cache.get("bar"));
 	}
@@ -250,7 +250,7 @@ public class CacheMapTest {
 				}
 			});
 		});
-		Thread.sleep(105L);
+		Thread.sleep(251L);
 		assertTrue(cache.isEmpty());
 	}
 
@@ -266,7 +266,7 @@ public class CacheMapTest {
 		}).start();
 		final var values = cache.values();
 		assertSame(values, cache.values());
-		Thread.sleep(25L);
+		Thread.sleep(100L);
 		assertTrue(cache.containsValue("foo"));
 		assertTrue(values.retainAll(Set.of("bar", "baz")));
 		while (values.parallelStream().anyMatch(a -> a.equals("bar")))

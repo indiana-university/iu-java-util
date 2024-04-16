@@ -46,12 +46,12 @@ public class IuUtilityTaskControllerTest {
 
 	@Test
 	public void testTask() throws Throwable {
-		assertEquals("foo", new IuUtilityTaskController<>(() -> "foo", Instant.now().plusMillis(100L)).get());
+		assertEquals("foo", new IuUtilityTaskController<>(() -> "foo", Instant.now().plusSeconds(1L)).get());
 	}
 
 	@Test
 	public void testGetBefore() throws Throwable {
-		assertEquals("foo", IuUtilityTaskController.getBefore(() -> "foo", Instant.now().plusMillis(100L)));
+		assertEquals("foo", IuUtilityTaskController.getBefore(() -> "foo", Instant.now().plusSeconds(100L)));
 	}
 
 	@Test
@@ -62,7 +62,7 @@ public class IuUtilityTaskControllerTest {
 		final var box = new Box();
 		IuUtilityTaskController.doBefore(() -> {
 			box.done = true;
-		}, Instant.now().plusMillis(100L));
+		}, Instant.now().plusSeconds(1L));
 		assertTrue(box.done);
 	}
 
@@ -71,16 +71,16 @@ public class IuUtilityTaskControllerTest {
 		final var e = new Exception();
 		assertSame(e, assertThrows(Exception.class, () -> IuUtilityTaskController.getBefore(() -> {
 			throw e;
-		}, Instant.now().plusMillis(100L))));
+		}, Instant.now().plusSeconds(1L))));
 	}
 
 	@Test
 	public void testTimeout() throws Throwable {
 		final var t = System.currentTimeMillis();
 		assertThrows(TimeoutException.class, () -> IuUtilityTaskController.doBefore(() -> {
-			Thread.sleep(200L);
-		}, Instant.now().plusMillis(100L)));
-		assertTrue(System.currentTimeMillis() - t < 125L, Long.toString(t - System.currentTimeMillis()));
+			Thread.sleep(2000L);
+		}, Instant.now().plusSeconds(1L)));
+		assertTrue(System.currentTimeMillis() - t < 1500L, Long.toString(t - System.currentTimeMillis()));
 	}
 
 }

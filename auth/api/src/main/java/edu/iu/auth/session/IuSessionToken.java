@@ -32,11 +32,13 @@
 package edu.iu.auth.session;
 
 import java.net.URI;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
 
 import javax.security.auth.Subject;
+import javax.security.auth.x500.X500Principal;
 
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuAuthorizationScope;
@@ -58,20 +60,27 @@ public interface IuSessionToken extends IuBearerAuthCredentials {
 	 * </p>
 	 * 
 	 * <ul>
-	 * <li>One {@link IuPrincipalIdentity} with a valid URI principal name
-	 * designating the authentication realm supported by the session endpoint.</li>
+	 * <li>One {@link X500Principal} with a valid URI principal name designating the
+	 * authentication realm supported by the session endpoint.</li>
 	 * <li>At least one {@link IuAuthorizationScope}, with
 	 * {@link IuAuthorizationScope#getRealm()} matching the principal name of the
 	 * identifying principal, designating the authorization scope(s) supported by
 	 * the provider.</li>
-	 * <li>At least one {@link IuSessionProviderKey} instance available via
+	 * <li>At least one {@link PrivateKey} via
 	 * {@link Subject#getPrivateCredentials(Class)}</li>
+	 * <li>One or more {@link X509Certificate} instances via
+	 * {@link Subject#getPublicCredentials(Class)}; the first <em>must</em> include
+	 * {@link X509Certificate#getSubjectX500Principal()} matching the first entry of
+	 * {@link Subject#getPrincipals(Class)}. All subsequent certificates
+	 * <em>must</em> include the previous certificate's
+	 * {@link X509Certificate#getIssuerX500Principal()} as its
+	 * {@link X509Certificate#getSubjectX500Principal()}</li>
 	 * </ul>
 	 * 
 	 * <p>
 	 * A provider can only be registered once, either via this method or using
 	 * {@link #register(URI, URI, Duration, Duration)}. Issuer credentials can be
-	 * use to create and authorize a token, and cannot be modified without
+	 * used to create and authorize a token, and cannot be modified without
 	 * restarting the application.
 	 * </p>
 	 * 

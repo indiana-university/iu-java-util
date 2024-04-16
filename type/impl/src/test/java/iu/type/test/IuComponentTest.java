@@ -110,8 +110,8 @@ public class IuComponentTest extends IuTypeTestCase {
 			return;
 		}
 
-		try (var component = IuComponent.of((module, controller) -> {
-			assertEquals("iu.util.type.testruntime", module.getName());
+		try (var component = IuComponent.of((controller) -> {
+			assertTrue(controller.layer().findModule("iu.util.type.testruntime").isPresent());
 		}, TestArchives.getComponentArchive("testruntime"),
 				TestArchives.getProvidedDependencyArchives("testruntime"))) {
 
@@ -344,7 +344,7 @@ public class IuComponentTest extends IuTypeTestCase {
 						""");
 			}
 
-			IuComponent.scan(ClassLoader.getSystemClassLoader(), root);
+			IuComponent.scan(ClassLoader.getSystemClassLoader(), ModuleLayer.boot(), root);
 
 		} finally {
 			while (!toDelete.isEmpty())
@@ -388,7 +388,7 @@ public class IuComponentTest extends IuTypeTestCase {
 						""");
 			}
 
-			IuComponent.scan(ClassLoader.getSystemClassLoader(), root);
+			IuComponent.scan(ClassLoader.getSystemClassLoader(), ModuleLayer.boot(), root);
 
 		} finally {
 			while (!toDelete.isEmpty())
@@ -399,7 +399,7 @@ public class IuComponentTest extends IuTypeTestCase {
 
 	@Test
 	public void testJunkFolder() throws Exception {
-		final Consumer<Executable> assertMissing = Assertions::assertDoesNotThrow;	
+		final Consumer<Executable> assertMissing = Assertions::assertDoesNotThrow;
 //		assertEquals(
 //				"Missing ../maven-archiver/pom.properties or META-INF/maven/{groupId}/{artifactId}/pom.properties",
 //				assertThrows(IllegalArgumentException.class, exec).getMessage());
@@ -407,41 +407,41 @@ public class IuComponentTest extends IuTypeTestCase {
 		try {
 			final var root = Files.createTempDirectory("iu-java-type-testJunkFolder");
 			toDelete.push(root);
-			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
+			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), ModuleLayer.boot(), root));
 
 			final var maven = root.resolve("maven");
 			toDelete.push(maven);
 			Files.createDirectory(maven);
-			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
+			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), ModuleLayer.boot(), root));
 
 			final var groupId = maven.resolve("fake.group.id");
 			toDelete.push(groupId);
 			Files.createFile(groupId);
-			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
+			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), ModuleLayer.boot(), root));
 			Files.delete(groupId);
 
 			Files.createDirectory(groupId);
-			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
+			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), ModuleLayer.boot(), root));
 
 			final var badGroup = maven.resolve("bad.group.id");
 			toDelete.push(badGroup);
 			Files.createDirectory(badGroup);
-			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
+			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), ModuleLayer.boot(), root));
 			Files.delete(badGroup);
 
 			final var artifactId = groupId.resolve("iu-fake-artifact");
 			toDelete.push(artifactId);
 			Files.createFile(artifactId);
-			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
+			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), ModuleLayer.boot(), root));
 			Files.delete(artifactId);
 
 			Files.createDirectory(artifactId);
-			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
+			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), ModuleLayer.boot(), root));
 
 			final var badArtifact = groupId.resolve("iu-bad-artifact");
 			toDelete.push(badArtifact);
 			Files.createDirectory(badArtifact);
-			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), root));
+			assertMissing.accept(() -> IuComponent.scan(ClassLoader.getSystemClassLoader(), ModuleLayer.boot(), root));
 			Files.delete(badArtifact);
 
 			final var pomProperties = artifactId.resolve("pom.properties");
@@ -453,7 +453,7 @@ public class IuComponentTest extends IuTypeTestCase {
 						""");
 			}
 
-			IuComponent.scan(ClassLoader.getSystemClassLoader(), root);
+			IuComponent.scan(ClassLoader.getSystemClassLoader(), ModuleLayer.boot(), root);
 
 		} finally {
 			while (!toDelete.isEmpty())

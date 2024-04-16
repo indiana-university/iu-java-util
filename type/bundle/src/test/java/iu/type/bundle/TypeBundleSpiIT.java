@@ -40,7 +40,7 @@ import static org.mockito.Mockito.verify;
 
 import java.lang.reflect.Field;
 import java.util.ServiceLoader;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -84,8 +84,8 @@ public class TypeBundleSpiIT {
 		spi.close();
 		assertThrows(IllegalStateException.class, () -> spi.resolveType(null));
 		assertThrows(IllegalStateException.class,
-				() -> spi.createComponent(ModuleLayer.boot(), null, (BiConsumer) null, null));
-		assertThrows(IllegalStateException.class, () -> spi.scanComponentEntry(null, null));
+				() -> spi.createComponent(null, ModuleLayer.boot(), (Consumer) null, null));
+		assertThrows(IllegalStateException.class, () -> spi.scanComponentEntry(null, null, null));
 		spi.close(); // second call is no-op
 	}
 

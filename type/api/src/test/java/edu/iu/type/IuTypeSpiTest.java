@@ -46,7 +46,7 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.ServiceLoader;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -82,23 +82,23 @@ public class IuTypeSpiTest {
 	public void testNewIsolatedComponent() throws IOException {
 		var in = mock(InputStream.class);
 		IuComponent.of(in);
-		verify(iuTypeSpi).createComponent(ModuleLayer.boot(), null, null, in);
+		verify(iuTypeSpi).createComponent(null, ModuleLayer.boot(), null, in);
 	}
 
 	@Test
 	public void testNewDelegatingComponent() throws IOException {
 		var in = mock(InputStream.class);
-		IuComponent.of(ModuleLayer.boot(), ClassLoader.getSystemClassLoader(), in);
-		verify(iuTypeSpi).createComponent(ModuleLayer.boot(), ClassLoader.getSystemClassLoader(), null, in);
+		IuComponent.of(ClassLoader.getSystemClassLoader(), ModuleLayer.boot(), in);
+		verify(iuTypeSpi).createComponent(ClassLoader.getSystemClassLoader(), ModuleLayer.boot(), null, in);
 	}
 
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testNewControlledIsolatedComponent() throws IOException {
 		var in = mock(InputStream.class);
-		var cb = mock(BiConsumer.class);
+		var cb = mock(Consumer.class);
 		IuComponent.of(cb, in);
-		verify(iuTypeSpi).createComponent(ModuleLayer.boot(), null, cb, in);
+		verify(iuTypeSpi).createComponent(null, ModuleLayer.boot(), cb, in);
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
@@ -107,14 +107,14 @@ public class IuTypeSpiTest {
 		var in = mock(InputStream.class);
 		var comp = IuTest.mockWithDefaults(IuComponent.class);
 		comp.extend(in);
-		verify(comp).extend((BiConsumer) null, in);
+		verify(comp).extend((Consumer) null, in);
 	}
 
 	@Test
 	public void testScanComponent() throws IOException, ClassNotFoundException {
 		var path = mock(Path.class);
-		IuComponent.scan(ClassLoader.getSystemClassLoader(), path);
-		verify(iuTypeSpi).scanComponentEntry(ClassLoader.getSystemClassLoader(), path);
+		IuComponent.scan(ClassLoader.getSystemClassLoader(), ModuleLayer.boot(), path);
+		verify(iuTypeSpi).scanComponentEntry(ClassLoader.getSystemClassLoader(), ModuleLayer.boot(), path);
 	}
 
 	@Test
@@ -130,7 +130,7 @@ public class IuTypeSpiTest {
 
 		IuComponent.scan(getClass());
 
-		verify(iuTypeSpi, atLeastOnce()).scanComponentEntry(loader, pathEntry);
+		verify(iuTypeSpi, atLeastOnce()).scanComponentEntry(loader, ModuleLayer.boot(), pathEntry);
 	}
 
 	@Test
@@ -141,7 +141,7 @@ public class IuTypeSpiTest {
 		assertTrue(resource.startsWith("jar:"), () -> resource);
 		final var pathEntry = Path.of(URI.create(resource.substring(4, resource.indexOf("!/")))).toRealPath();
 		IuComponent.scan(Test.class);
-		verify(iuTypeSpi).scanComponentEntry(loader, pathEntry);
+		verify(iuTypeSpi).scanComponentEntry(loader, target.getModule().getLayer(), pathEntry);
 	}
 
 }

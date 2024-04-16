@@ -77,7 +77,7 @@ public class ComponentTest extends IuTypeTestCase {
 
 		var loader = new URLClassLoader(new URL[0]);
 		var onClose = mock(UnsafeRunnable.class);
-		var component = new Component(null, loader, new ArrayDeque<>(List.of(archive)), onClose);
+		var component = new Component(null, loader, ModuleLayer.boot(), new ArrayDeque<>(List.of(archive)), onClose);
 		component.close();
 
 		final var beforeExtraClose = System.nanoTime();
@@ -111,7 +111,7 @@ public class ComponentTest extends IuTypeTestCase {
 		doThrow(error).when(loader).close();
 
 		final var temp = Files.createTempDirectory(Path.of("target"), "iu-type-ComponentTest");
-		try (final var component = new Component(loader, temp)) {
+		try (final var component = new Component(loader, ModuleLayer.boot(), temp)) {
 			assertFalse(component.annotatedAttributes(Resource.class).iterator().hasNext());
 			assertFalse(component.annotatedTypes(Resource.class).iterator().hasNext());
 			assertFalse(component.annotatedTypes(Documented.class).iterator().hasNext());
@@ -140,7 +140,7 @@ public class ComponentTest extends IuTypeTestCase {
 					getClass().getModule());
 		});
 
-		try (var component = new Component(null, loader, archives, () -> {
+		try (var component = new Component(null, loader, ModuleLayer.boot(), archives, () -> {
 			loader.close();
 			onClose.run();
 		})) {
@@ -171,7 +171,7 @@ public class ComponentTest extends IuTypeTestCase {
 		}
 
 		final var loader = new LegacyClassLoader(false, path, ClassLoader.getSystemClassLoader());
-		try (var component = new Component(null, loader, archives, () -> {
+		try (var component = new Component(null, loader, ModuleLayer.boot(), archives, () -> {
 			loader.close();
 			destroy.run();
 		})) {
@@ -207,7 +207,7 @@ public class ComponentTest extends IuTypeTestCase {
 
 	@Test
 	public void testParentAccessor() throws Exception {
-		try (var parent = ComponentFactory.createComponent(null, ModuleLayer.boot(), null, null,
+		try (var parent = ComponentFactory.createComponent(null, null, ModuleLayer.boot(), null,
 				TestArchives.getComponentArchive("testruntime"),
 				TestArchives.getProvidedDependencyArchives("testruntime"));
 				var component = parent.extend(TestArchives.getComponentArchive("testweb"),

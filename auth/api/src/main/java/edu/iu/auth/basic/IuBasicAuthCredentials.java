@@ -32,13 +32,14 @@
 package edu.iu.auth.basic;
 
 import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuPrincipalIdentity;
 
 /**
  * Represents credentials for use with
  * <a href="https://datatracker.ietf.org/doc/html/rfc7617">HTTP Basic
  * Authentication</a>.
  */
-public interface IuBasicAuthCredentials extends IuApiCredentials {
+public interface IuBasicAuthCredentials extends IuApiCredentials, IuPrincipalIdentity {
 
 	/**
 	 * Gets the password.

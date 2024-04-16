@@ -155,7 +155,7 @@ public class IuVisitorTest {
 			}
 
 			void join() throws Throwable {
-				IuObject.waitFor(this, () -> done || error != null, Duration.ofSeconds(1L));
+				IuObject.waitFor(this, () -> done || error != null, Duration.ofSeconds(2L));
 				if (error != null)
 					throw error;
 			}

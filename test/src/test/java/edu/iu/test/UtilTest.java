@@ -33,6 +33,7 @@ package edu.iu.test;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -41,7 +42,7 @@ import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
 
-@SuppressWarnings("javadoc")
+@SuppressWarnings({ "javadoc", "deprecation" })
 public class UtilTest {
 
 	@Test
@@ -70,6 +71,15 @@ public class UtilTest {
 		var hasDefaults = IuTest.mockWithDefaults(InterfaceWithDefaults.class);
 		when(hasDefaults.getAbstractString()).thenThrow(IllegalStateException.class);
 		assertThrows(IllegalStateException.class, () -> hasDefaults.getAbstractString());
+	}
+
+	enum A {
+		B, C, D
+	}
+
+	@Test
+	public void testRand() {
+		assertInstanceOf(A.class, IuTest.rand(A.class));
 	}
 
 }

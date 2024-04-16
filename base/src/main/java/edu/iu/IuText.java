@@ -31,12 +31,39 @@
  */
 package edu.iu;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
 /**
  * Low-level text processing utilities.
  */
 public final class IuText {
 
-	private static final byte[] b0 = new byte[0];
+	/**
+	 * Encodes binary data as basic Base64.
+	 * 
+	 * @param data binary data
+	 * @return encoded {@link String}
+	 */
+	public static String base64(byte[] data) {
+		if (data == null)
+			return null;
+		else
+			return Base64.getEncoder().encodeToString(data);
+	}
+
+	/**
+	 * Decodes binary data from basic Base64.
+	 * 
+	 * @param data encoded {@link String}
+	 * @return binary data
+	 */
+	public static byte[] base64(String data) {
+		if (data == null)
+			return null;
+		else
+			return Base64.getDecoder().decode(data);
+	}
 
 	/**
 	 * Converts string data to UTF-8 binary.
@@ -46,9 +73,9 @@ public final class IuText {
 	 */
 	public static byte[] utf8(String data) {
 		if (data == null)
-			return b0;
+			return null;
 		else
-			return IuException.unchecked(() -> data.getBytes("UTF-8"));
+			return data.getBytes(StandardCharsets.UTF_8);
 	}
 
 	/**
@@ -61,7 +88,33 @@ public final class IuText {
 		if (data == null)
 			return null;
 		else
-			return IuException.unchecked(() -> new String(data, "UTF-8"));
+			return new String(data, StandardCharsets.UTF_8);
+	}
+
+	/**
+	 * Converts string data to ASCII binary.
+	 * 
+	 * @param data string data
+	 * @return ASCII binary
+	 */
+	public static byte[] ascii(String data) {
+		if (data == null)
+			return null;
+		else
+			return data.getBytes(StandardCharsets.US_ASCII);
+	}
+
+	/**
+	 * Gets a string from ASCII encoding data.
+	 * 
+	 * @param data ASCII encoded data
+	 * @return string data
+	 */
+	public static String ascii(byte[] data) {
+		if (data == null)
+			return null;
+		else
+			return new String(data, StandardCharsets.US_ASCII);
 	}
 
 	private IuText() {

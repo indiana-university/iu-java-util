@@ -40,12 +40,27 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
 import java.net.InetAddress;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("javadoc")
 public class IuWebUtilsTest {
+
+	@Test
+	public void testIsRoot() throws URISyntaxException {
+		assertTrue(IuWebUtils.isRootOf(new URI("foo:bar"), new URI("foo:bar")));
+		assertFalse(IuWebUtils.isRootOf(new URI("foo:bar"), new URI("foo:baz")));
+		assertFalse(IuWebUtils.isRootOf(new URI("foo:/bar"), new URI("foo:/baz")));
+		assertFalse(IuWebUtils.isRootOf(new URI("foo:/bar"), new URI("/baz")));
+		assertFalse(IuWebUtils.isRootOf(new URI("bar:/foo"), new URI("foo:/bar")));
+		assertFalse(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://baz/bar")));
+		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/baz/foo")));
+		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar/baz/"), new URI("foo://bar/baz/foo")));
+		assertFalse(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/bazfoo")));
+	}
 
 	@Test
 	public void testEmptyString() {

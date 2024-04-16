@@ -36,5 +36,5 @@ module iu.util.type.loader {
 	exports edu.iu.type.loader;
 	
 	requires iu.util;
-	requires iu.util.type.base;
+	requires transitive iu.util.type.base;
 }

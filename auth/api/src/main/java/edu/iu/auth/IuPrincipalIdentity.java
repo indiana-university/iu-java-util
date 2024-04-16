@@ -77,4 +77,17 @@ public interface IuPrincipalIdentity extends Principal, Serializable {
 		return principal;
 	}
 
+	/**
+	 * Gets a subject including this principal, related principals, and implied
+	 * credentials.
+	 * 
+	 * @return {@link Subject}
+	 */
+	Subject getSubject();
+
+	@Override
+	default boolean implies(Subject subject) {
+		return subject == getSubject() || Principal.super.implies(subject);
+	}
+
 }

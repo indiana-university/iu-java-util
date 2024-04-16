@@ -32,6 +32,7 @@
 package iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -69,8 +70,8 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
 			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, null, null, null, in))
 					.thenCallRealMethod();
-			assertSame(ioException,
-					assertThrows(IOException.class, () -> ComponentFactory.createComponent(null, null, null, null, in)));
+			assertSame(ioException, assertThrows(IllegalStateException.class,
+					() -> ComponentFactory.createComponent(null, null, null, null, in)).getCause());
 		}
 	}
 
@@ -86,8 +87,8 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
 			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, null, null, null, in))
 					.thenCallRealMethod();
-			assertSame(ioException,
-					assertThrows(IOException.class, () -> ComponentFactory.createComponent(null, null, null, null, in)));
+			assertSame(ioException, assertThrows(IllegalStateException.class,
+					() -> ComponentFactory.createComponent(null, null, null, null, in)).getCause());
 		}
 	}
 
@@ -104,11 +105,13 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
 			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, null, null, null, dep, in))
 					.thenCallRealMethod();
-			mockComponentFactory.when(() -> ComponentFactory.createFromSourceQueue(isNull(), isNull(), isNull(), isNull(), any()))
+			mockComponentFactory
+					.when(() -> ComponentFactory.createFromSourceQueue(isNull(), isNull(), isNull(), isNull(), any()))
 					.thenThrow(new IOException());
 			assertSame(ioException,
-					assertThrows(IOException.class, () -> ComponentFactory.createComponent(null, null, null, null, dep, in))
-							.getSuppressed()[0]);
+					assertThrows(IllegalStateException.class,
+							() -> ComponentFactory.createComponent(null, null, null, null, dep, in))
+							.getCause().getSuppressed()[0]);
 		}
 	}
 
@@ -141,7 +144,8 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 		try (var mockComponentFactory = mockStatic(ComponentFactory.class)) {
 			mockComponentFactory.when(() -> ComponentFactory.createComponent(null, null, null, null, in))
 					.thenCallRealMethod();
-			assertSame(error, assertThrows(Error.class, () -> ComponentFactory.createComponent(null, null, null, null, in)));
+			assertSame(error,
+					assertThrows(Error.class, () -> ComponentFactory.createComponent(null, null, null, null, in)));
 		}
 	}
 
@@ -197,6 +201,8 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 
 			var contextLoader = Thread.currentThread().getContextClassLoader();
 			var loader = component.classLoader();
+			var layer = component.moduleLayer();
+			assertNotNull(layer);
 			try {
 				Thread.currentThread().setContextClassLoader(loader);
 				var urlReader = loader.loadClass("edu.iu.type.testruntime.UrlReader");

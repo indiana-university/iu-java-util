@@ -42,6 +42,7 @@ module iu.util.auth.oidc {
 	requires iu.util;
 	requires iu.util.auth;
 	requires iu.util.auth.util;
+	requires iu.util.client;
 
 	provides edu.iu.auth.spi.IuOpenIdConnectSpi with iu.auth.oidc.OpenIdConnectSpi;
 }

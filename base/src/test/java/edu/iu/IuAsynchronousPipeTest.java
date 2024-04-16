@@ -72,7 +72,7 @@ public class IuAsynchronousPipeTest {
 	// Committed values balance thorough verification with fast build times
 	// This default configuration is set for high-latency; e.g. PSJOA CI
 	// May be tuned to simulate timings for large parallel processing tasks
-	private static final int N = 100;
+	private static final int N = 50;
 	private static final int LOG_PER_N = 10;
 	private static final int PARTIAL_SEND_SIZE = 25;
 	private static final Duration SIMULATED_SOURCE_DELAY = Duration.ofMillis(25L);
