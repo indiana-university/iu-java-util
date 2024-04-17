@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>IuOpenIdClient.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-auth-api</a> &gt; <a href="index.source.html" class="el_package">edu.iu.auth.oidc</a> &gt; <span class="el_source">IuOpenIdClient.java</span></div><h1>IuOpenIdClient.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu.auth.oidc;
+
+import java.net.URI;
+import java.time.Duration;
+import java.util.Map;
+
+import edu.iu.IuAuthorizationFailedException;
+import edu.iu.IuBadRequestException;
+import edu.iu.IuOutOfServiceException;
+import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuAuthenticationException;
+
+/**
+ * Provides client application metadata for configuring the OpenID client module
+ * {@code iu.util.auth.oidc}. To be implemented by an application-level web
+ * request handler.
+ * 
+ * &lt;p&gt;
+ * Only one OAuth authorization client configuration can be configured per
+ * OpenID provider. It is expected but &lt;em&gt;optional&lt;/em&gt; for implementations to
+ * be context-senstive.
+ * &lt;/p&gt;
+ */
+public interface IuOpenIdClient {
+
+	/**
+	 * Gets the maximum time to retain provider trusted keys before attempting to
+	 * refresh.
+	 * 
+	 * &lt;p&gt;
+	 * Once keys have been read successfully at least once, the last known good
+	 * version will be returned in the event of an error.
+	 * &lt;/p&gt;
+	 * 
+	 * @return {@link Duration}
+	 */
+	Duration getTrustRefreshInterval();
+
+	/**
+	 * Gets the maximum length of time to allow for authentication, including
+	 * interactions between the user agent and authorization server.
+	 * 
+	 * @return {@link Duration}
+	 */
+	Duration getAuthenticationTimeout();
+
+	/**
+	 * Gets the maximum length of time to allow an authenticated session, as timed
+	 * by the {@code auth_time} OIDC claim, to be remain active before requesting
+	 * the provide re-establish credentials for the principal.
+	 * 
+	 * @return {@link Duration}, will be truncated to seconds
+	 */
+	Duration getAuthenticatedSessionTimeout();
+
+	/**
+	 * Gets the maximum length of time to assume a prior activation to be
+	 * repeatable, typically measured in seconds. Once this interval is passed,
+	 * activation will be confirmed by sending session-bound access tokens to a
+	 * downstream verification API.
+	 * 
+	 * @return {@link Duration}, will be truncated to milliseconds
+	 */
+	Duration getActivationInterval();
+
+	/**
+	 * Gets the root resource URI covered by this client's protection domain.
+	 * 
+	 * &lt;p&gt;
+	 * All client-side application URIs used in this client's context &lt;em&gt;must&lt;/em&gt;
+	 * be rooted at this URI. The {@link URI} &lt;em&gt;may&lt;/em&gt; be {@link URI#isOpaque()
+	 * opaque} and/or {@link URI#isAbsolute() not absolute} if protecting only a
+	 * single domain. Resource URIs &lt;em&gt;may&lt;/em&gt; use the &lt;strong&gt;java:&lt;/strong&gt; URI
+	 * scheme for environments that have JNDI configured.
+	 * &lt;/p&gt;
+	 * 
+	 * @return {@link URI}
+	 */
+	URI getResourceUri();
+
+	/**
+	 * Gets the redirect URI for use with authorization code flow.
+	 * 
+	 * @return redirect URI; null if authorization code is not supported for the
+	 *         authentication realm.
+	 */
+	URI getRedirectUri();
+
+	/**
+	 * Gets the client's API credentials.
+	 * 
+	 * @return {@link IuApiCredentials}
+	 */
+	IuApiCredentials getCredentials();
+
+	/**
+	 * Revalidates verified credentials as not expired, not revoked, and not
+	 * prohibited by an environment restriction specified by the application realm
+	 * or authentication provider, as a condition for session activation.
+	 * 
+	 * @param credentials credentials to revalidate
+	 * @throws IuAuthenticationException      If the credentials are invalid (i.e.,
+	 *                                        expired or revoked) for the
+	 *                                        authentication realm and the user or
+	 *                                        remote client &lt;em&gt;must&lt;/em&gt;
+	 *                                        reauthenticate before a session may be
+	 *                                        activated.
+	 * @throws IuBadRequestException          If the credentials are malformed or
+	 *                                        not understood.
+	 * @throws IuAuthorizationFailedException If access has been revoked since since
+	 *                                        initial authorization.
+	 * @throws IuOutOfServiceException        If credentials and authorization are
+	 *                                        still valid but access should be
+	 *                                        denied due to an environment
+	 *                                        restriction.
+	 * @throws IllegalStateException          If an unrecoverable error occurs,
+	 *                                        e.g., communicating with an
+	 *                                        authentication provider
+	 */
+	void activate(IuApiCredentials credentials) throws IuAuthenticationException, IuBadRequestException,
+			IuAuthorizationFailedException, IuOutOfServiceException, IllegalStateException;
+
+	/**
+	 * Gets the expected algorithm for token response signature.
+	 * 
+	 * @return JWT signature algorithm to expect in the {@code alg} claim
+	 */
+	default String getIdTokenSignedResponseAlg() {
+<span class="fc" id="L160">		return &quot;RS256&quot;;</span>
+	}
+
+	/**
+	 * Gets the requested authorization scope.
+	 * 
+	 * &lt;p&gt;
+	 * &lt;em&gt;Should not&lt;/em&gt; include &lt;strong&gt;openid&lt;/strong&gt;.
+	 * &lt;/p&gt;
+	 * 
+	 * @return request authorization scope
+	 */
+	default Iterable&lt;String&gt; getScope() {
+<span class="fc" id="L173">		return null;</span>
+	}
+
+	/**
+	 * Get additional attributes to pass to the authorization endpoint when
+	 * initiating authorization code flow.
+	 * 
+	 * &lt;p&gt;
+	 * It is &lt;em&gt;not required&lt;/em&gt; for repeat invocation to return the same
+	 * attributes. An authorization session will invoke this method once when
+	 * initiating authorization code flow, and retain those attributes throughout
+	 * the flow.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * &lt;em&gt;Must&lt;/em&gt; not include any standard attributes defined by OAuth 2.0 or
+	 * OIDC Core 1.0 for authorization code flow.
+	 * &lt;/p&gt;
+	 * 
+	 * @return {@link Map} of additional authorization code attributes; &lt;em&gt;may&lt;/em&gt;
+	 *         be null or empty if authorization code flow is not supported or
+	 *         additional attributes are not required for token verification.
+	 */
+	default Map&lt;String, String&gt; getAuthorizationCodeAttributes() {
+<span class="fc" id="L197">		return null;</span>
+	}
+
+	/**
+	 * Get additional attributes to pass to the token endpoint when initiating
+	 * client credentials code flow.
+	 * 
+	 * &lt;p&gt;
+	 * &lt;em&gt;Must&lt;/em&gt; not include any standard attributes defined by OAuth 2.0 or
+	 * OIDC Core 1.0 for authorization code flow.
+	 * &lt;/p&gt;
+	 * 
+	 * @return {@link Map} of additional client credentials attributes; &lt;em&gt;may&lt;/em&gt;
+	 *         be null or empty if not required for establishing client credentials.
+	 */
+	default Map&lt;String, String&gt; getClientCredentialsAttributes() {
+<span class="fc" id="L213">		return null;</span>
+	}
+
+	/**
+	 * Revokes credentials established for use with the client's authentication
+	 * realm, if supported.
+	 * 
+	 * @param credentials credentials to revoke
+	 */
+	default void revoke(IuApiCredentials credentials) {
+<span class="fc" id="L223">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
