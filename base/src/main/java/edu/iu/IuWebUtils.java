@@ -71,8 +71,7 @@ public final class IuWebUtils {
 		final var resource = resourceUri.getPath();
 		final var l = root.length();
 		return resource.startsWith(root) //
-				&& (!root.isEmpty() && //
-						root.charAt(l - 1) == '/' //
+				&& (root.charAt(l - 1) == '/' //
 						|| resource.charAt(l) == '/');
 	}
 

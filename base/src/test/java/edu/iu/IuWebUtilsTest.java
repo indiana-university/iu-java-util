@@ -60,6 +60,7 @@ public class IuWebUtilsTest {
 		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/baz/foo")));
 		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar/baz/"), new URI("foo://bar/baz/foo")));
 		assertFalse(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/bazfoo")));
+		assertFalse(IuWebUtils.isRootOf(new URI("bar:foo"), new URI("foo:/bar")));
 	}
 
 	@Test

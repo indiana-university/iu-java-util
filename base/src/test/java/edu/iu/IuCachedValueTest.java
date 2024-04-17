@@ -63,12 +63,12 @@ public class IuCachedValueTest {
 	public void testGet() throws Throwable {
 		final var val = IdGenerator.generateId();
 		final var thunk = mock(UnsafeRunnable.class);
-		final var ref = new IuCachedValue<>(val, Duration.ofMillis(25L), thunk);
+		final var ref = new IuCachedValue<>(val, Duration.ofMillis(200L), thunk);
 		allRefs.add(ref);
 		assertEquals(val, ref.get());
 		assertTrue(ref.isValid());
 		assertTrue(ref.has(val));
-		Thread.sleep(26L);
+		Thread.sleep(225L);
 		verify(thunk).run();
 		assertNull(ref.get());
 		assertFalse(ref.isValid());

@@ -45,17 +45,7 @@
 							<artifactItems>
 								<artifactItem>
 									<groupId>${project.groupId}</groupId>
-									<artifactId>iu-java-base</artifactId>
-									<version>${project.version}</version>
-								</artifactItem>
-								<artifactItem>
-									<groupId>${project.groupId}</groupId>
 									<artifactId>iu-java-type-api</artifactId>
-									<version>${project.version}</version>
-								</artifactItem>
-								<artifactItem>
-									<groupId>${project.groupId}</groupId>
-									<artifactId>iu-java-type-base</artifactId>
 									<version>${project.version}</version>
 								</artifactItem>
 								<artifactItem>

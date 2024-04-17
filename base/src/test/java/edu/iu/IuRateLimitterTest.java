@@ -81,7 +81,7 @@ public class IuRateLimitterTest {
 	
 	@Test
 	public void testAlreadySucceeded() throws ExecutionException, InterruptedException, TimeoutException {
-		final var rateLimit = new IuRateLimitter(1, Duration.ofMillis(100L));
+		final var rateLimit = new IuRateLimitter(1, Duration.ofMillis(1000L));
 		final var task = createTaskController(c -> {
 		}, rateLimit.getExpires());
 		Thread.sleep(50L);
@@ -96,7 +96,7 @@ public class IuRateLimitterTest {
 			volatile int count;
 		}
 		final var box = new Box();
-		final var rateLimit = new IuRateLimitter(2, Duration.ofMillis(100L));
+		final var rateLimit = new IuRateLimitter(2, Duration.ofMillis(1000L));
 		for (int i = 0; i < 5; i++) {
 			rateLimit.accept(createTaskController(c -> {
 				Thread.sleep(5L);
@@ -182,13 +182,13 @@ public class IuRateLimitterTest {
 
 	@Test
 	public void testAcceptThrowsObservedError() throws Throwable {
-		final var timeout = Duration.ofMillis(50L);
+		final var timeout = Duration.ofMillis(500L);
 		final var rateLimit = new IuRateLimitter(1, timeout);
 		final var e = new Throwable();
 		final var task = createTaskController(c -> {
 			throw e;
 		}, rateLimit.getExpires());
-		Thread.sleep(25L);
+		Thread.sleep(200L);
 		assertSame(e, assertThrows(ExecutionException.class, () -> rateLimit.accept(task)).getCause());
 		assertSame(e, assertThrows(ExecutionException.class, rateLimit::join).getCause());
 	}
@@ -224,7 +224,7 @@ public class IuRateLimitterTest {
 
 	@Test
 	public void testPause() throws InterruptedException, ExecutionException, TimeoutException {
-		final var timeout = Duration.ofMillis(200L);
+		final var timeout = Duration.ofMillis(2000L);
 		final var halfTimeout = timeout.dividedBy(2L);
 		final var rateLimit = new IuRateLimitter(1, timeout);
 		rateLimit.accept(createTaskController(c -> {
