@@ -29,44 +29,48 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu;
+package iu.client;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import java.util.Date;
+import java.util.Optional;
 
-import org.junit.jupiter.api.Test;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonValue;
 
-@SuppressWarnings("javadoc")
-public class IuTextTest {
+/**
+ * Implements {@link IuJsonAdapter} for {@link Date}
+ * 
+ * @param <T> value type
+ */
+class OptionalJsonAdapter<T> implements IuJsonAdapter<Optional<T>> {
 
-	@Test
-	public void testUtf8() {
-		assertEquals("foobar", IuText.utf8(IuText.utf8("foobar")));
-		assertNull(IuText.utf8((byte[]) null));
-		assertNull(IuText.utf8((String) null));
-		assertEquals("", IuText.utf8(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.utf8(""));
+	/**
+	 * Singleton instance.
+	 */
+	static final OptionalJsonAdapter<?> INSTANCE = new OptionalJsonAdapter<>(BasicJsonAdapter.INSTANCE);
+
+	private final IuJsonAdapter<T> adapter;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param adapter value adapter
+	 */
+	OptionalJsonAdapter(IuJsonAdapter<T> adapter) {
+		this.adapter = adapter;
 	}
 
-	@Test
-	public void testAscii() {
-		assertEquals("foobar", IuText.ascii(IuText.ascii("foobar")));
-		assertNull(IuText.ascii((byte[]) null));
-		assertNull(IuText.ascii((String) null));
-		assertEquals("", IuText.ascii(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.ascii(""));
+	@Override
+	public Optional<T> fromJson(JsonValue value) {
+		return Optional.ofNullable(adapter.fromJson(value));
 	}
 
-	@Test
-	public void testBase64() {
-		assertEquals("Zm9vYmFy", IuText.base64(IuText.utf8("foobar")));
-		assertEquals("foobar", IuText.utf8(IuText.base64("Zm9vYmFy")));
-		assertNull(IuText.base64((byte[]) null));
-		assertNull(IuText.base64((String) null));
-		assertEquals("", IuText.base64(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.base64(""));
+	@Override
+	public JsonValue toJson(Optional<T> value) {
+		if (value == null)
+			return JsonValue.NULL;
+		else
+			return adapter.toJson(value.orElse(null));
 	}
-
 
 }

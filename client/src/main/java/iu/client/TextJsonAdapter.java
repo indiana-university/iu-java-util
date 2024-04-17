@@ -29,44 +29,48 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu;
+package iu.client;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import edu.iu.IuIterable;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonArray;
+import jakarta.json.JsonNumber;
+import jakarta.json.JsonString;
+import jakarta.json.JsonValue;
 
-import org.junit.jupiter.api.Test;
+/**
+ * Implements {@link IuJsonAdapter} for {@link CharSequence}
+ */
+class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
 
-@SuppressWarnings("javadoc")
-public class IuTextTest {
+	/**
+	 * Singleton instance.
+	 */
+	static TextJsonAdapter INSTANCE = new TextJsonAdapter();
 
-	@Test
-	public void testUtf8() {
-		assertEquals("foobar", IuText.utf8(IuText.utf8("foobar")));
-		assertNull(IuText.utf8((byte[]) null));
-		assertNull(IuText.utf8((String) null));
-		assertEquals("", IuText.utf8(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.utf8(""));
+	@Override
+	public String fromJson(JsonValue value) {
+		if (value instanceof JsonString)
+			return ((JsonString) value).getString();
+		else if ((value instanceof JsonNumber) //
+				|| JsonValue.TRUE.equals(value) //
+				|| JsonValue.FALSE.equals(value))
+			return value.toString();
+		else if (value instanceof JsonArray)
+			return String.join(",", IuIterable.map(((JsonArray) value), this::fromJson));
+		else if (JsonValue.NULL.equals(value))
+			return null;
+		else
+			throw new IllegalArgumentException();
 	}
 
-	@Test
-	public void testAscii() {
-		assertEquals("foobar", IuText.ascii(IuText.ascii("foobar")));
-		assertNull(IuText.ascii((byte[]) null));
-		assertNull(IuText.ascii((String) null));
-		assertEquals("", IuText.ascii(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.ascii(""));
+	@Override
+	public JsonValue toJson(CharSequence value) {
+		if (value == null)
+			return JsonValue.NULL;
+		else
+			return IuJson.PROVIDER.createValue(value.toString());
 	}
-
-	@Test
-	public void testBase64() {
-		assertEquals("Zm9vYmFy", IuText.base64(IuText.utf8("foobar")));
-		assertEquals("foobar", IuText.utf8(IuText.base64("Zm9vYmFy")));
-		assertNull(IuText.base64((byte[]) null));
-		assertNull(IuText.base64((String) null));
-		assertEquals("", IuText.base64(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.base64(""));
-	}
-
 
 }

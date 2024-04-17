@@ -29,40 +29,38 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu;
+package iu.client;
 
-import java.security.MessageDigest;
+import java.util.Iterator;
+import java.util.stream.Stream;
+
+import edu.iu.client.IuJsonAdapter;
 
 /**
- * Low-level crypto utilities.
+ * Adapts {@link Stream} values.
+ * 
+ * @param <E> element type
  */
-public class IuCrypt {
-
-	private static final ThreadLocal<MessageDigest> SHA256 = new ThreadLocal<MessageDigest>() {
-		@Override
-		protected MessageDigest initialValue() {
-			return IuException.unchecked(() -> MessageDigest.getInstance("SHA-256"));
-		}
-	};
-
-	private static final byte[] EMPTY_PAYLOADHASH = SHA256.get().digest(new byte[0]);
+class IteratorAdapter<E> extends JsonArrayAdapter<Iterator<E>, E> {
 
 	/**
-	 * Gets a SHA-256 digest for character data.
-	 * <p>
-	 * The string passed into this method is first converted to UTF-8 binary format,
-	 * then digested.
-	 * </p>
+	 * Constructor
 	 * 
-	 * @param data character data
-	 * @return SHA-256 digest
+	 * @param itemAdapter item adapter
+	 * @param factory     creates a new collection
 	 */
-	public static byte[] sha256(byte[] data) {
-		if (data == null || data.length == 0)
-			return EMPTY_PAYLOADHASH;
-		return SHA256.get().digest(data);
+	protected IteratorAdapter(IuJsonAdapter<E> itemAdapter) {
+		super(itemAdapter);
 	}
 
-	private IuCrypt() {
+	@Override
+	protected Iterator<E> iterator(Iterator<E> value) {
+		return value;
 	}
+
+	@Override
+	protected Iterator<E> collect(Iterator<E> items) {
+		return items;
+	}
+
 }

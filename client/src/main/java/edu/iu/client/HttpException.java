@@ -29,44 +29,38 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu;
+package edu.iu.client;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import java.io.InputStream;
+import java.net.http.HttpResponse;
 
-import org.junit.jupiter.api.Test;
+/**
+ * Thrown by {@link IuHttp} when an error response is received from an HTTP
+ * request.
+ */
+public class HttpException extends Exception {
+	private static final long serialVersionUID = 1L;
 
-@SuppressWarnings("javadoc")
-public class IuTextTest {
+	private final transient HttpResponse<InputStream> response;
 
-	@Test
-	public void testUtf8() {
-		assertEquals("foobar", IuText.utf8(IuText.utf8("foobar")));
-		assertNull(IuText.utf8((byte[]) null));
-		assertNull(IuText.utf8((String) null));
-		assertEquals("", IuText.utf8(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.utf8(""));
+	/**
+	 * Constructor.
+	 * 
+	 * @param response error response, status code >= 400
+	 * @param message detailed error message
+	 */
+	HttpException(HttpResponse<InputStream> response, String message) {
+		super(message);
+		this.response = response;
 	}
 
-	@Test
-	public void testAscii() {
-		assertEquals("foobar", IuText.ascii(IuText.ascii("foobar")));
-		assertNull(IuText.ascii((byte[]) null));
-		assertNull(IuText.ascii((String) null));
-		assertEquals("", IuText.ascii(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.ascii(""));
+	/**
+	 * Gets the HTTP response that failed.
+	 * 
+	 * @return {@link HttpResponse}
+	 */
+	public HttpResponse<InputStream> getResponse() {
+		return response;
 	}
-
-	@Test
-	public void testBase64() {
-		assertEquals("Zm9vYmFy", IuText.base64(IuText.utf8("foobar")));
-		assertEquals("foobar", IuText.utf8(IuText.base64("Zm9vYmFy")));
-		assertNull(IuText.base64((byte[]) null));
-		assertNull(IuText.base64((String) null));
-		assertEquals("", IuText.base64(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.base64(""));
-	}
-
 
 }

@@ -29,44 +29,59 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu;
+package iu.client;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import java.util.Map;
+import java.util.function.Supplier;
 
-import org.junit.jupiter.api.Test;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
 
-@SuppressWarnings("javadoc")
-public class IuTextTest {
+/**
+ * Adapts to/from {@link JsonObject} values.
+ * 
+ * @param <T> target type
+ * @param <V> value type
+ */
+class JsonObjectAdapter<T extends Map<String, V>, V> implements IuJsonAdapter<T> {
 
-	@Test
-	public void testUtf8() {
-		assertEquals("foobar", IuText.utf8(IuText.utf8("foobar")));
-		assertNull(IuText.utf8((byte[]) null));
-		assertNull(IuText.utf8((String) null));
-		assertEquals("", IuText.utf8(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.utf8(""));
+	private final IuJsonAdapter<V> valueAdapter;
+	private final Supplier<T> factory;
+
+	/**
+	 * Constructor
+	 * 
+	 * @param itemAdapter item adapter
+	 * @param factory     supplies a new map instance
+	 */
+	protected JsonObjectAdapter(IuJsonAdapter<V> itemAdapter, Supplier<T> factory) {
+		this.valueAdapter = itemAdapter;
+		this.factory = factory;
 	}
 
-	@Test
-	public void testAscii() {
-		assertEquals("foobar", IuText.ascii(IuText.ascii("foobar")));
-		assertNull(IuText.ascii((byte[]) null));
-		assertNull(IuText.ascii((String) null));
-		assertEquals("", IuText.ascii(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.ascii(""));
+	@Override
+	public T fromJson(JsonValue jsonValue) {
+		if (jsonValue == null //
+				|| JsonValue.NULL.equals(jsonValue))
+			return null;
+
+		final var map = factory.get();
+		for (final var e : jsonValue.asJsonObject().entrySet())
+			map.put(e.getKey(), valueAdapter.fromJson(e.getValue()));
+		return map;
 	}
 
-	@Test
-	public void testBase64() {
-		assertEquals("Zm9vYmFy", IuText.base64(IuText.utf8("foobar")));
-		assertEquals("foobar", IuText.utf8(IuText.base64("Zm9vYmFy")));
-		assertNull(IuText.base64((byte[]) null));
-		assertNull(IuText.base64((String) null));
-		assertEquals("", IuText.base64(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.base64(""));
-	}
+	@Override
+	public JsonValue toJson(T javaValue) {
+		if (javaValue == null)
+			return JsonValue.NULL;
 
+		final var a = IuJson.object();
+		for (final var e : javaValue.entrySet())
+			a.add(e.getKey(), valueAdapter.toJson(e.getValue()));
+		return a.build();
+	}
 
 }

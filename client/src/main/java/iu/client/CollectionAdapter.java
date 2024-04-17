@@ -29,44 +29,46 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu;
+package iu.client;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.function.Supplier;
 
-import org.junit.jupiter.api.Test;
+import edu.iu.client.IuJsonAdapter;
 
-@SuppressWarnings("javadoc")
-public class IuTextTest {
+/**
+ * Adapts {@link Collection} values.
+ * 
+ * @param <E> element type
+ * @param <C> collection type
+ */
+class CollectionAdapter<E, C extends Collection<E>> extends JsonArrayAdapter<C, E> {
 
-	@Test
-	public void testUtf8() {
-		assertEquals("foobar", IuText.utf8(IuText.utf8("foobar")));
-		assertNull(IuText.utf8((byte[]) null));
-		assertNull(IuText.utf8((String) null));
-		assertEquals("", IuText.utf8(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.utf8(""));
+	private final Supplier<C> factory;
+
+	/**
+	 * Constructor
+	 * 
+	 * @param itemAdapter item adapter
+	 * @param factory     creates a new collection
+	 */
+	protected CollectionAdapter(IuJsonAdapter<E> itemAdapter, Supplier<C> factory) {
+		super(itemAdapter);
+		this.factory = factory;
 	}
 
-	@Test
-	public void testAscii() {
-		assertEquals("foobar", IuText.ascii(IuText.ascii("foobar")));
-		assertNull(IuText.ascii((byte[]) null));
-		assertNull(IuText.ascii((String) null));
-		assertEquals("", IuText.ascii(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.ascii(""));
+	@Override
+	protected Iterator<E> iterator(C value) {
+		return value.iterator();
 	}
 
-	@Test
-	public void testBase64() {
-		assertEquals("Zm9vYmFy", IuText.base64(IuText.utf8("foobar")));
-		assertEquals("foobar", IuText.utf8(IuText.base64("Zm9vYmFy")));
-		assertNull(IuText.base64((byte[]) null));
-		assertNull(IuText.base64((String) null));
-		assertEquals("", IuText.base64(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.base64(""));
+	@Override
+	protected C collect(Iterator<E> items) {
+		final var list = factory.get();
+		while (items.hasNext())
+			list.add(items.next());
+		return list;
 	}
-
 
 }

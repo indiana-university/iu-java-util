@@ -29,44 +29,45 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu;
+package iu.client;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import java.util.Calendar;
+import java.util.Date;
 
-import org.junit.jupiter.api.Test;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonValue;
 
-@SuppressWarnings("javadoc")
-public class IuTextTest {
+/**
+ * Implements {@link IuJsonAdapter} for {@link Calendar}
+ */
+public class CalendarJsonAdapter implements IuJsonAdapter<Calendar> {
 
-	@Test
-	public void testUtf8() {
-		assertEquals("foobar", IuText.utf8(IuText.utf8("foobar")));
-		assertNull(IuText.utf8((byte[]) null));
-		assertNull(IuText.utf8((String) null));
-		assertEquals("", IuText.utf8(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.utf8(""));
+	/**
+	 * Singleton instance.
+	 */
+	static final CalendarJsonAdapter INSTANCE = new CalendarJsonAdapter();
+
+	private CalendarJsonAdapter() {
 	}
 
-	@Test
-	public void testAscii() {
-		assertEquals("foobar", IuText.ascii(IuText.ascii("foobar")));
-		assertNull(IuText.ascii((byte[]) null));
-		assertNull(IuText.ascii((String) null));
-		assertEquals("", IuText.ascii(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.ascii(""));
+	@Override
+	public Calendar fromJson(JsonValue value) {
+		final var date = IuJsonAdapter.of(Date.class).fromJson(value);
+		if (date == null)
+			return null;
+		else {
+			final var cal = Calendar.getInstance();
+			cal.setTime(date);
+			return cal;
+		}
 	}
 
-	@Test
-	public void testBase64() {
-		assertEquals("Zm9vYmFy", IuText.base64(IuText.utf8("foobar")));
-		assertEquals("foobar", IuText.utf8(IuText.base64("Zm9vYmFy")));
-		assertNull(IuText.base64((byte[]) null));
-		assertNull(IuText.base64((String) null));
-		assertEquals("", IuText.base64(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.base64(""));
+	@Override
+	public JsonValue toJson(Calendar value) {
+		if (value == null)
+			return JsonValue.NULL;
+		else
+			return IuJsonAdapter.of(Date.class).toJson(value.getTime());
 	}
-
 
 }

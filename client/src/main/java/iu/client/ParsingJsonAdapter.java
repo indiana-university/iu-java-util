@@ -29,44 +29,66 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu;
+package iu.client;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import java.util.Map;
+import java.util.WeakHashMap;
+import java.util.function.Function;
 
-import org.junit.jupiter.api.Test;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonValue;
 
-@SuppressWarnings("javadoc")
-public class IuTextTest {
+/**
+ * Implements {@link IuJsonAdapter} for types that provide a mechanism for
+ * parsing the value returned by {@link Object#toString()}
+ * 
+ * @param <T> Java type
+ */
+class ParsingJsonAdapter<T> implements IuJsonAdapter<T> {
 
-	@Test
-	public void testUtf8() {
-		assertEquals("foobar", IuText.utf8(IuText.utf8("foobar")));
-		assertNull(IuText.utf8((byte[]) null));
-		assertNull(IuText.utf8((String) null));
-		assertEquals("", IuText.utf8(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.utf8(""));
+	private static final Map<Class<?>, ParsingJsonAdapter<?>> INSTANCES = new WeakHashMap<>();
+
+	/**
+	 * Gets a singleton instance by target type.
+	 * 
+	 * @param <T>    target type
+	 * @param type   target type
+	 * @param parser parsing function
+	 * @return {@link ParsingJsonAdapter}
+	 */
+	@SuppressWarnings("unchecked")
+	static <T> ParsingJsonAdapter<T> of(Class<T> type, Function<String, T> parser) {
+		var instance = INSTANCES.get(type);
+		if (instance == null) {
+			instance = new ParsingJsonAdapter<T>(parser);
+			synchronized (INSTANCES) {
+				INSTANCES.put(type, instance);
+			}
+		}
+		return (ParsingJsonAdapter<T>) instance;
 	}
 
-	@Test
-	public void testAscii() {
-		assertEquals("foobar", IuText.ascii(IuText.ascii("foobar")));
-		assertNull(IuText.ascii((byte[]) null));
-		assertNull(IuText.ascii((String) null));
-		assertEquals("", IuText.ascii(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.ascii(""));
+	private final Function<String, T> parser;
+
+	private ParsingJsonAdapter(Function<String, T> parser) {
+		this.parser = parser;
 	}
 
-	@Test
-	public void testBase64() {
-		assertEquals("Zm9vYmFy", IuText.base64(IuText.utf8("foobar")));
-		assertEquals("foobar", IuText.utf8(IuText.base64("Zm9vYmFy")));
-		assertNull(IuText.base64((byte[]) null));
-		assertNull(IuText.base64((String) null));
-		assertEquals("", IuText.base64(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.base64(""));
+	@Override
+	public T fromJson(JsonValue value) {
+		final var text = TextJsonAdapter.INSTANCE.fromJson(value);
+		if (text == null)
+			return null;
+		else
+			return parser.apply(text);
 	}
 
+	@Override
+	public JsonValue toJson(T value) {
+		if (value == null)
+			return JsonValue.NULL;
+		else
+			return TextJsonAdapter.INSTANCE.toJson(value.toString());
+	}
 
 }

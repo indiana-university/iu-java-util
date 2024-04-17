@@ -29,95 +29,68 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu;
+package iu.client;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
+import java.util.Iterator;
+
+import edu.iu.IuIterable;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonArray;
+import jakarta.json.JsonValue;
 
 /**
- * Low-level text processing utilities.
+ * Adapts to/from {@link JsonArray} values.
+ * 
+ * @param <T> target type
+ * @param <E> element type
  */
-public final class IuText {
+abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
 
 	/**
-	 * Encodes binary data as basic Base64.
+	 * Extracts an iterator from a Java value.
 	 * 
-	 * @param data binary data
-	 * @return encoded {@link String}
+	 * @param value value
+	 * @return iterator
 	 */
-	public static String base64(byte[] data) {
-		if (data == null)
-			return null;
-		else
-			return Base64.getEncoder().encodeToString(data);
-	}
+	abstract protected Iterator<E> iterator(T value);
 
 	/**
-	 * Decodes binary data from basic Base64.
+	 * Collects items into the target type.
 	 * 
-	 * @param data encoded {@link String}
-	 * @return binary data
+	 * @param items items
+	 * @return target value
 	 */
-	public static byte[] base64(String data) {
-		if (data == null)
-			return null;
-		else
-			return Base64.getDecoder().decode(data);
-	}
+	abstract protected T collect(Iterator<E> items);
+
+	private final IuJsonAdapter<E> itemAdapter;
 
 	/**
-	 * Converts string data to UTF-8 binary.
+	 * Constructor
 	 * 
-	 * @param data string data
-	 * @return UTF-8 binary
+	 * @param itemAdapter item adapter
 	 */
-	public static byte[] utf8(String data) {
-		if (data == null)
-			return null;
-		else
-			return data.getBytes(StandardCharsets.UTF_8);
+	protected JsonArrayAdapter(IuJsonAdapter<E> itemAdapter) {
+		this.itemAdapter = itemAdapter;
 	}
 
-	/**
-	 * Gets a string from UTF-8 encoding data.
-	 * 
-	 * @param data UTF-8 encoded data
-	 * @return string data
-	 */
-	public static String utf8(byte[] data) {
-		if (data == null)
+	@Override
+	public T fromJson(JsonValue jsonValue) {
+		if (jsonValue == null //
+				|| JsonValue.NULL.equals(jsonValue))
 			return null;
 		else
-			return new String(data, StandardCharsets.UTF_8);
+			return collect(IuIterable.map(jsonValue.asJsonArray(), itemAdapter::fromJson).iterator());
 	}
 
-	/**
-	 * Converts string data to ASCII binary.
-	 * 
-	 * @param data string data
-	 * @return ASCII binary
-	 */
-	public static byte[] ascii(String data) {
-		if (data == null)
-			return null;
-		else
-			return data.getBytes(StandardCharsets.US_ASCII);
-	}
+	@Override
+	public JsonValue toJson(T javaValue) {
+		if (javaValue == null)
+			return JsonValue.NULL;
 
-	/**
-	 * Gets a string from ASCII encoding data.
-	 * 
-	 * @param data ASCII encoded data
-	 * @return string data
-	 */
-	public static String ascii(byte[] data) {
-		if (data == null)
-			return null;
-		else
-			return new String(data, StandardCharsets.US_ASCII);
-	}
-
-	private IuText() {
+		final var a = IuJson.array();
+		iterator(javaValue).forEachRemaining(i -> a.add(itemAdapter.toJson(i)));
+		return a.build();
 	}
 
 }

@@ -31,42 +31,53 @@
  */
 package edu.iu;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("javadoc")
-public class IuTextTest {
+public class IuRuntimeEnvironmentTest {
 
 	@Test
-	public void testUtf8() {
-		assertEquals("foobar", IuText.utf8(IuText.utf8("foobar")));
-		assertNull(IuText.utf8((byte[]) null));
-		assertNull(IuText.utf8((String) null));
-		assertEquals("", IuText.utf8(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.utf8(""));
+	public void testInvalidPropertyName() {
+		assertThrows(IllegalArgumentException.class, () -> IuRuntimeEnvironment.env("@!#$%"));
 	}
 
 	@Test
-	public void testAscii() {
-		assertEquals("foobar", IuText.ascii(IuText.ascii("foobar")));
-		assertNull(IuText.ascii((byte[]) null));
-		assertNull(IuText.ascii((String) null));
-		assertEquals("", IuText.ascii(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.ascii(""));
+	public void testMissing() {
+		final var id = id();
+		assertNull(IuRuntimeEnvironment.envOptional(id));
+		final var e = assertThrows(NullPointerException.class, () -> IuRuntimeEnvironment.env(id));
+		assertEquals("Missing system property " + id + " or environment variable "
+				+ id.toUpperCase().replace('.', '_').replace('-', '_'), e.getMessage());
 	}
 
 	@Test
-	public void testBase64() {
-		assertEquals("Zm9vYmFy", IuText.base64(IuText.utf8("foobar")));
-		assertEquals("foobar", IuText.utf8(IuText.base64("Zm9vYmFy")));
-		assertNull(IuText.base64((byte[]) null));
-		assertNull(IuText.base64((String) null));
-		assertEquals("", IuText.base64(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.base64(""));
+	public void testBlank() {
+		final var id = id();
+		System.setProperty(id, "");
+		assertNull(IuRuntimeEnvironment.envOptional(id));
+		final var e = assertThrows(NullPointerException.class, () -> IuRuntimeEnvironment.env(id));
+		assertEquals("Missing system property " + id + " or environment variable "
+				+ id.toUpperCase().replace('.', '_').replace('-', '_'), e.getMessage());
 	}
 
+	@Test
+	public void testSet() {
+		final var id = id();
+		final var val = id();
+		System.setProperty(id, val);
+		assertEquals(val, IuRuntimeEnvironment.envOptional(id));
+		assertEquals(val, IuRuntimeEnvironment.env(id));
+	}
 
+	private String id() {
+		String id;
+		do
+			id = IdGenerator.generateId();
+		while (!Character.isLetter(id.charAt(0)));
+		return id;
+	}
 }

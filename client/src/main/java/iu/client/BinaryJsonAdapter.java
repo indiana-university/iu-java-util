@@ -29,44 +29,41 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu;
+package iu.client;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import edu.iu.IuText;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonValue;
 
-import org.junit.jupiter.api.Test;
+/**
+ * Implements {@link IuJsonAdapter} for byte[]
+ */
+class BinaryJsonAdapter implements IuJsonAdapter<byte[]> {
 
-@SuppressWarnings("javadoc")
-public class IuTextTest {
+	/**
+	 * Singleton instance.
+	 */
+	static final BinaryJsonAdapter INSTANCE = new BinaryJsonAdapter();
 
-	@Test
-	public void testUtf8() {
-		assertEquals("foobar", IuText.utf8(IuText.utf8("foobar")));
-		assertNull(IuText.utf8((byte[]) null));
-		assertNull(IuText.utf8((String) null));
-		assertEquals("", IuText.utf8(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.utf8(""));
+	private BinaryJsonAdapter() {
 	}
 
-	@Test
-	public void testAscii() {
-		assertEquals("foobar", IuText.ascii(IuText.ascii("foobar")));
-		assertNull(IuText.ascii((byte[]) null));
-		assertNull(IuText.ascii((String) null));
-		assertEquals("", IuText.ascii(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.ascii(""));
+	@Override
+	public byte[] fromJson(JsonValue value) {
+		final var text = TextJsonAdapter.INSTANCE.fromJson(value);
+		if (text == null)
+			return null;
+		else
+			return IuText.base64(text);
 	}
 
-	@Test
-	public void testBase64() {
-		assertEquals("Zm9vYmFy", IuText.base64(IuText.utf8("foobar")));
-		assertEquals("foobar", IuText.utf8(IuText.base64("Zm9vYmFy")));
-		assertNull(IuText.base64((byte[]) null));
-		assertNull(IuText.base64((String) null));
-		assertEquals("", IuText.base64(new byte[0]));
-		assertArrayEquals(new byte[0], IuText.base64(""));
+	@Override
+	public JsonValue toJson(byte[] data) {
+		final var text = IuText.base64(data);
+		if (text == null)
+			return JsonValue.NULL;
+		else
+			return TextJsonAdapter.INSTANCE.toJson(text);
 	}
-
 
 }
