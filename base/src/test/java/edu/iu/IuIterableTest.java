@@ -39,6 +39,7 @@ import static edu.iu.IuIterable.map;
 import static edu.iu.IuIterable.of;
 import static edu.iu.IuIterable.print;
 import static edu.iu.IuIterable.remaindersAreEqual;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -241,10 +242,12 @@ public class IuIterableTest {
 		assertThrows(NoSuchElementException.class,
 				() -> filter(iter("one", "two", "three"), a -> false).iterator().next());
 	}
-	
+
 	@Test
 	public void testStream() {
-		assertEquals("[one, two, three]", of(Stream.of("one","two","three")::iterator).toString());
+		assertEquals("[one, two, three]", of(Stream.of("one", "two", "three")::iterator).toString());
+		assertArrayEquals(new String[] { "one", "two", "three" },
+				IuIterable.stream(IuIterable.iter("one", "two", "three")).toArray(String[]::new));
 	}
 
 }

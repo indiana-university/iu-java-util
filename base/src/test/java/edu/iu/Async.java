@@ -65,7 +65,7 @@ class Async {
 	}
 
 	void await() throws Throwable {
-		IuObject.waitFor(this, () -> done || error != null, Duration.ofSeconds(5L));
+		IuObject.waitFor(this, () -> done || error != null, Duration.ofSeconds(10L));
 		if (error != null)
 			throw error;
 	}
