@@ -30,16 +30,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /**
- * Functional programming adapters for the
- * <a href="https://jakarta.ee/specifications/jsonp/2.1/apidocs/">Jakarta JSON
- * Processing</a> and <a href=
- * "https://docs.oracle.com/en/java/javase/21/docs/api/java.net.http/module-summary.html">Java
- * HTTP Client</a> modules.
+ * Web cryptography public interfaces.
  */
-module iu.util.client {
-	exports edu.iu.client;
-
-	requires iu.util;
-	requires transitive jakarta.json;
-	requires transitive java.net.http;
-}
+package edu.iu.crypt;

@@ -36,10 +36,4 @@
  * "https://docs.oracle.com/en/java/javase/21/docs/api/java.net.http/module-summary.html">Java
  * HTTP Client</a> modules.
  */
-module iu.util.client {
-	exports edu.iu.client;
-
-	requires iu.util;
-	requires transitive jakarta.json;
-	requires transitive java.net.http;
-}
+package edu.iu.client;

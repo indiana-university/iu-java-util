@@ -57,6 +57,14 @@
 					<release>11</release>
 				</configuration>
 			</plugin>
+			<plugin>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<configuration>
+					<links>
+						<link>https://jakarta.ee/specifications/jsonp/2.1/apidocs/</link>
+					</links>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 
