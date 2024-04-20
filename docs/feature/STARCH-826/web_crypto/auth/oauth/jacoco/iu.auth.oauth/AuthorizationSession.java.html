@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthorizationSession.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU OAuth Authorization Client</a> &gt; <a href="index.source.html" class="el_package">iu.auth.oauth</a> &gt; <span class="el_source">AuthorizationSession.java</span></div><h1>AuthorizationSession.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.oauth;
+
+import java.io.Serializable;
+import java.net.URI;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.oauth.IuAuthorizationGrant;
+import edu.iu.auth.oauth.IuAuthorizationSession;
+import iu.auth.util.HttpUtils;
+
+/**
+ * OAuth authorization session implementation.
+ */
+class AuthorizationSession implements IuAuthorizationSession, Serializable {
+
+	private static final long serialVersionUID = 1L;
+
+	private final String realm;
+	private final URI entryPoint;
+<span class="fc" id="L54">	private final Map&lt;URI, AuthorizationCodeGrant&gt; grants = new HashMap&lt;&gt;();</span>
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param realm      authentication realm
+	 * @param entryPoint {@link URI} to redirect the user agent to in order restart
+	 *                   the authentication process.
+	 */
+<span class="fc" id="L63">	public AuthorizationSession(String realm, URI entryPoint) {</span>
+<span class="fc" id="L64">		this.realm = realm;</span>
+<span class="fc" id="L65">		this.entryPoint = entryPoint;</span>
+<span class="fc" id="L66">	}</span>
+
+	@Override
+	public IuAuthorizationGrant grant() throws UnsupportedOperationException {
+<span class="fc bfc" id="L70" title="All 2 branches covered.">		if (entryPoint == null)</span>
+<span class="fc" id="L71">			throw new UnsupportedOperationException();</span>
+		else
+<span class="fc" id="L73">			return grant(entryPoint);</span>
+	}
+
+	@Override
+	public synchronized IuAuthorizationGrant grant(URI resourceUri) {
+<span class="fc bfc" id="L78" title="All 2 branches covered.">		if (!OAuthSpi.isRoot(OAuthSpi.getClient(realm).getResourceUri(), resourceUri))</span>
+<span class="fc" id="L79">			throw new IllegalArgumentException(&quot;Invalid resource URI for this client&quot;);</span>
+
+<span class="fc" id="L81">		var grant = grants.get(resourceUri);</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">		if (grant == null)</span>
+<span class="fc" id="L83">			grants.put(resourceUri, grant = new AuthorizationCodeGrant(realm, resourceUri));</span>
+<span class="fc" id="L84">		return grant;</span>
+	}
+
+	@Override
+	public URI authorize(String code, String state) throws IuAuthenticationException {
+<span class="fc" id="L89">		synchronized (grants) {</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">			for (final var grant : grants.values()) {</span>
+<span class="fc" id="L91">				final var uri = grant.authorize(code, state);</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">				if (uri != null)</span>
+<span class="fc" id="L93">					return uri;</span>
+<span class="fc" id="L94">			}</span>
+<span class="fc" id="L95">		}</span>
+
+<span class="fc" id="L97">		final Map&lt;String, String&gt; challengeAttributes = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L98">		challengeAttributes.put(&quot;realm&quot;, realm);</span>
+<span class="fc" id="L99">		challengeAttributes.put(&quot;error&quot;, &quot;invalid_request&quot;);</span>
+<span class="fc" id="L100">		challengeAttributes.put(&quot;error_description&quot;, &quot;invalid state&quot;);</span>
+
+<span class="fc" id="L102">		final var challenge = new IuAuthenticationException(HttpUtils.createChallenge(&quot;Bearer&quot;, challengeAttributes));</span>
+<span class="fc" id="L103">		challenge.setLocation(entryPoint);</span>
+<span class="fc" id="L104">		throw challenge;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>JsonArrayAdapter.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-client</a> &gt; <a href="index.source.html" class="el_package">iu.client</a> &gt; <span class="el_source">JsonArrayAdapter.java</span></div><h1>JsonArrayAdapter.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.client;
+
+import java.util.Iterator;
+
+import edu.iu.IuIterable;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonArray;
+import jakarta.json.JsonValue;
+
+/**
+ * Adapts to/from {@link JsonArray} values.
+ * 
+ * @param &lt;T&gt; target type
+ * @param &lt;E&gt; element type
+ */
+abstract class JsonArrayAdapter&lt;T, E&gt; implements IuJsonAdapter&lt;T&gt; {
+
+	/**
+	 * Extracts an iterator from a Java value.
+	 * 
+	 * @param value value
+	 * @return iterator
+	 */
+	abstract protected Iterator&lt;E&gt; iterator(T value);
+
+	/**
+	 * Collects items into the target type.
+	 * 
+	 * @param items items
+	 * @return target value
+	 */
+	abstract protected T collect(Iterable&lt;E&gt; items);
+
+	private final IuJsonAdapter&lt;E&gt; itemAdapter;
+
+	/**
+	 * Constructor
+	 * 
+	 * @param itemAdapter item adapter
+	 */
+<span class="fc" id="L73">	protected JsonArrayAdapter(IuJsonAdapter&lt;E&gt; itemAdapter) {</span>
+<span class="fc" id="L74">		this.itemAdapter = itemAdapter;</span>
+<span class="fc" id="L75">	}</span>
+
+	@Override
+	public T fromJson(JsonValue jsonValue) {
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">		if (jsonValue == null //</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">				|| JsonValue.NULL.equals(jsonValue))</span>
+<span class="fc" id="L81">			return null;</span>
+		else
+<span class="fc" id="L83">			return collect(IuIterable.map(jsonValue.asJsonArray(), itemAdapter::fromJson));</span>
+	}
+
+	@Override
+	public JsonValue toJson(T javaValue) {
+<span class="fc bfc" id="L88" title="All 2 branches covered.">		if (javaValue == null)</span>
+<span class="fc" id="L89">			return JsonValue.NULL;</span>
+
+<span class="fc" id="L91">		final var a = IuJson.array();</span>
+<span class="fc" id="L92">		iterator(javaValue).forEachRemaining(i -&gt; a.add(itemAdapter.toJson(i)));</span>
+<span class="fc" id="L93">		return a.build();</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>WebCertificateReference.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-crypt</a> &gt; <a href="index.source.html" class="el_package">edu.iu.crypt</a> &gt; <span class="el_source">WebCertificateReference.java</span></div><h1>WebCertificateReference.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu.crypt;
+
+import java.io.InputStream;
+import java.net.URI;
+import java.security.cert.X509Certificate;
+import java.util.Arrays;
+
+import javax.net.ssl.X509TrustManager;
+
+import edu.iu.IuException;
+
+/**
+ * Common super-interface for components that hold a reference to a web
+ * certificate and/or chain.
+ */
+public interface WebCertificateReference {
+
+	/**
+	 * Defines basic verification rules for objects that define a certificate
+	 * reference.
+	 * 
+	 * &lt;ul&gt;
+	 * &lt;li&gt;Hard reference to cert chain is used if provided; URI is ignored&lt;/li&gt;
+	 * &lt;li&gt;URI is referenced and parsed if provided, and hard reference is not&lt;/li&gt;
+	 * &lt;li&gt;SHA-1 and SHA-256 are verified against the first cert found either by
+	 * hard reference or URI&lt;/li&gt;
+	 * &lt;/ul&gt;
+	 * 
+	 * &lt;p&gt;
+	 * Further verification, i.e., via {@link X509TrustManager}, is not handled by
+	 * this library and &lt;em&gt;should&lt;/em&gt; be handled according to the application's
+	 * trust configuration.
+	 * &lt;/p&gt;
+	 * 
+	 * @param reference certificate reference
+	 * @return resolved and verified {@link X509Certificate} chain, null if not
+	 *         populated
+	 */
+	static X509Certificate[] verify(WebCertificateReference reference) {
+<span class="fc" id="L71">		var certificateChain = reference.getCertificateChain();</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">		if (certificateChain == null) {</span>
+<span class="fc" id="L73">			final var certificateUri = reference.getCertificateUri();</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">			if (certificateUri != null)</span>
+<span class="fc" id="L75">				certificateChain = PemEncoded.getCertificateChain(certificateUri);</span>
+		}
+
+<span class="fc bfc" id="L78" title="All 2 branches covered.">		if (certificateChain != null) {</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">			if (certificateChain.length &lt; 1)</span>
+<span class="fc" id="L80">				throw new IllegalArgumentException(&quot;At least one certificate is required&quot;);</span>
+<span class="fc" id="L81">			final var cert = certificateChain[0];</span>
+
+<span class="fc" id="L83">			final var certificateThumbprint = reference.getCertificateThumbprint();</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">			if (certificateThumbprint != null //</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">					&amp;&amp; !Arrays.equals(certificateThumbprint,</span>
+<span class="fc" id="L86">							IuException.unchecked(() -&gt; DigestUtils.sha1(cert.getEncoded()))))</span>
+<span class="fc" id="L87">				throw new IllegalArgumentException(&quot;Certificate SHA-1 thumbprint mismatch&quot;);</span>
+
+<span class="fc" id="L89">			final var certificateSha256Thumbprint = reference.getCertificateSha256Thumbprint();</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">			if (certificateSha256Thumbprint != null //</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">					&amp;&amp; !Arrays.equals(certificateSha256Thumbprint,</span>
+<span class="fc" id="L92">							IuException.unchecked(() -&gt; DigestUtils.sha256(cert.getEncoded()))))</span>
+<span class="fc" id="L93">				throw new IllegalArgumentException(&quot;Certificate SHA-256 thumbprint mismatch&quot;);</span>
+		}
+
+<span class="fc" id="L96">		return certificateChain;</span>
+	}
+
+	/**
+	 * Builder interface for creating {@link WebCertificateReference} instances.
+	 * 
+	 * @param &lt;B&gt; builder type
+	 */
+	interface Builder&lt;B extends Builder&lt;B&gt;&gt; {
+		/**
+		 * Sets the URI where X.509 certificate associated with this key can be
+		 * retrieved.
+		 * 
+		 * &lt;p&gt;
+		 * The URI will be validated and resolved when this method is invoked. To ensure
+		 * dependency on a remote URI won't impact application startup, always store
+		 * certificates locally and use {@link #cert(X509Certificate...)} instead of
+		 * this method for critical initialization in production environments.
+		 * &lt;/p&gt;
+		 * 
+		 * @param uri {@link URI}
+		 * @return this
+		 */
+		B cert(URI uri);
+
+		/**
+		 * Sets the URI where X.509 certificate associated with this key can be
+		 * retrieved.
+		 * 
+		 * @param chain one or more {@link X509Certificate}s
+		 * @return this
+		 */
+		B cert(X509Certificate... chain);
+
+		/**
+		 * Sets the certificate thumbprint.
+		 * 
+		 * @param certificateThumbprint JSON x5t attribute value
+		 * @return this
+		 */
+		B x5t(byte[] certificateThumbprint);
+
+		/**
+		 * Sets the certificate SHA-256 thumbprint.
+		 * 
+		 * @param certificateSha256Thumbprint JSON x5t attribute value
+		 * @return this
+		 */
+		B x5t256(byte[] certificateSha256Thumbprint);
+
+		/**
+		 * Sets key data from potentially concatenated PEM-encoded input.
+		 * 
+		 * @param pemEncoded {@link InputStream} of PEM encoded key data, potentially
+		 *                   concatenated
+		 * @return this
+		 */
+		B pem(InputStream pemEncoded);
+
+		/**
+		 * Sets key data from potentially concatenated PEM-encoded input.
+		 * 
+		 * @param pemEncoded potentially concatenated PEM encoded key data
+		 * @return this
+		 */
+		B pem(String pemEncoded);
+	}
+
+	/**
+	 * Gets the URI where X.509 certificate associated with this key can be
+	 * retrieved.
+	 * 
+	 * &lt;p&gt;
+	 * The protocol used to acquire the resource MUST provide integrity protection;
+	 * an HTTP GET request to retrieve the certificate MUST use TLS [RFC2818]
+	 * [RFC5246]; the identity of the server MUST be validated, as per Section 6 of
+	 * RFC 6125 [RFC6125].
+	 * &lt;/p&gt;
+	 * 
+	 * @return {@link URI}
+	 */
+	default URI getCertificateUri() {
+<span class="fc" id="L178">		return null;</span>
+	}
+
+	/**
+	 * Gets the certificate chain.
+	 * 
+	 * @return parsed JSON x5c attribute value
+	 */
+	default X509Certificate[] getCertificateChain() {
+<span class="fc" id="L187">		return null;</span>
+	}
+
+	/**
+	 * Gets the certificate thumbprint.
+	 * 
+	 * @return JSON x5t attribute value
+	 */
+	default byte[] getCertificateThumbprint() {
+<span class="fc" id="L196">		return null;</span>
+	}
+
+	/**
+	 * Gets the certificate SHA-256 thumbprint.
+	 * 
+	 * @return JSON x5t#S256 attribute value
+	 */
+	default byte[] getCertificateSha256Thumbprint() {
+<span class="fc" id="L205">		return null;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

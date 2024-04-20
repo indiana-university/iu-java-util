@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Jws.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Crypto and PKI Utilities</a> &gt; <a href="index.source.html" class="el_package">iu.crypt</a> &gt; <span class="el_source">Jws.java</span></div><h1>Jws.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.crypt;
+
+import java.security.Signature;
+import java.security.spec.MGF1ParameterSpec;
+import java.security.spec.PSSParameterSpec;
+import java.util.Arrays;
+import java.util.Objects;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+
+import edu.iu.IuException;
+import edu.iu.IuText;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.WebCryptoHeader;
+import edu.iu.crypt.WebCryptoHeader.Param;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebSignature;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonObjectBuilder;
+import jakarta.json.JsonValue;
+
+/**
+ * JSON implementation of {@link WebSignature}.
+ */
+class Jws implements WebSignature {
+
+	private final JsonObject protectedHeader;
+	private final Jose header;
+	private final byte[] signature;
+
+	/**
+	 * Creates a new signed message;
+	 * 
+	 * @param protectedHeader JWS protected header
+	 * @param header          JWS unprotected header
+	 * @param signature       signature
+	 */
+<span class="fc" id="L71">	Jws(JsonObject protectedHeader, Jose header, byte[] signature) {</span>
+<span class="fc" id="L72">		this.protectedHeader = protectedHeader;</span>
+<span class="fc" id="L73">		this.header = header;</span>
+<span class="fc" id="L74">		this.signature = signature;</span>
+
+<span class="fc bfc" id="L76" title="All 2 branches covered.">		if (protectedHeader != null)</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">			for (final var protectedEntry : protectedHeader.entrySet()) {</span>
+<span class="fc" id="L78">				final var name = protectedEntry.getKey();</span>
+<span class="fc" id="L79">				final var value = protectedEntry.getValue();</span>
+<span class="fc" id="L80">				final var param = Param.from(name);</span>
+
+<span class="fc bfc" id="L82" title="All 2 branches covered.">				if (param == null) {</span>
+<span class="fc" id="L83">					final var ext = Jose.getExtension(name);</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">					if (!ext.fromJson(value).equals(header.getExtendedParameter(name)))</span>
+<span class="fc" id="L85">						throw new IllegalArgumentException(name + &quot; must match protected header&quot;);</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">				} else if (!param.json().fromJson(value).equals(param.get(header)))</span>
+<span class="fc" id="L87">					throw new IllegalArgumentException(name + &quot; must match protected header&quot;);</span>
+<span class="fc" id="L88">			}</span>
+
+<span class="fc bfc" id="L90" title="All 2 branches covered.">		for (final var name : header.extendedParameters().keySet())</span>
+<span class="fc" id="L91">			Jose.getExtension(name).verify(this);</span>
+<span class="fc" id="L92">	}</span>
+
+	@Override
+	public WebCryptoHeader getHeader() {
+<span class="fc" id="L96">		return header;</span>
+	}
+
+	@Override
+	public byte[] getSignature() {
+<span class="fc" id="L101">		return signature;</span>
+	}
+
+	@Override
+	public void verify(byte[] payload, WebKey key) {
+<span class="fc" id="L106">		final var algorithm = header.getAlgorithm();</span>
+<span class="fc" id="L107">		final var signingInput = getSignatureInput(payload);</span>
+<span class="fc" id="L108">		final var dataToSign = IuText.utf8(signingInput);</span>
+
+<span class="fc bfc" id="L110" title="All 2 branches covered.">		if (algorithm.algorithm.startsWith(&quot;Hmac&quot;)) {</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">			if (!Arrays.equals(signature, IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L112">				final var mac = Mac.getInstance(algorithm.algorithm);</span>
+<span class="fc" id="L113">				mac.init(new SecretKeySpec(key.getKey(), &quot;Hmac&quot;));</span>
+<span class="fc" id="L114">				return mac.doFinal(dataToSign);</span>
+			})))
+<span class="fc" id="L116">				throw new IllegalArgumentException(algorithm.algorithm + &quot; verification failed&quot;);</span>
+		} else
+<span class="fc" id="L118">			IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L119">				final var sig = Signature.getInstance(algorithm.algorithm);</span>
+<span class="fc bfc" id="L120" title="All 4 branches covered.">				switch (algorithm) {</span>
+				case PS256:
+<span class="fc" id="L122">					sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA256.getDigestAlgorithm(), &quot;MGF1&quot;,</span>
+							MGF1ParameterSpec.SHA256, algorithm.size / 8, 1));
+<span class="fc" id="L124">					break;</span>
+				case PS384:
+<span class="fc" id="L126">					sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA384.getDigestAlgorithm(), &quot;MGF1&quot;,</span>
+							MGF1ParameterSpec.SHA384, algorithm.size / 8, 1));
+<span class="fc" id="L128">					break;</span>
+				case PS512:
+<span class="fc" id="L130">					sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA512.getDigestAlgorithm(), &quot;MGF1&quot;,</span>
+							MGF1ParameterSpec.SHA512, algorithm.size / 8, 1));
+<span class="fc" id="L132">					break;</span>
+				default:
+					break;
+				}
+<span class="fc" id="L136">				sig.initVerify(key.getPublicKey());</span>
+<span class="fc" id="L137">				sig.update(dataToSign);</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">				if (!sig.verify(signature))</span>
+<span class="fc" id="L139">					throw new IllegalArgumentException(algorithm.algorithm + &quot; verification failed&quot;);</span>
+<span class="fc" id="L140">			});</span>
+<span class="fc" id="L141">	}</span>
+
+	/**
+	 * Parses per-signature JWS parameters from raw JSON.
+	 * 
+	 * @param jwsSignature JSON
+	 * @return parsed JWS parameters
+	 */
+	static Jws parse(JsonValue jwsSignature) {
+<span class="fc" id="L150">		final var parsed = jwsSignature.asJsonObject();</span>
+<span class="fc" id="L151">		final var protectedHeader = IuJson.get(parsed, &quot;protected&quot;,</span>
+<span class="fc" id="L152">				IuJsonAdapter.from(v -&gt; IuJson.parse(IuText.utf8(UnpaddedBinary.JSON.fromJson(v))).asJsonObject()));</span>
+<span class="fc" id="L153">		final var header = IuJson.get(parsed, &quot;header&quot;, IuJsonAdapter.from(JsonValue::asJsonObject));</span>
+<span class="fc" id="L154">		final var signature = IuJson.get(parsed, &quot;signature&quot;, UnpaddedBinary.JSON);</span>
+<span class="fc" id="L155">		return new Jws(protectedHeader, Jose.from(protectedHeader, null, header), signature);</span>
+	}
+
+	/**
+	 * Adds JWS per-signature parameters to a {@link JsonObjectBuilder}.
+	 * 
+	 * @param json {@link JsonObjectBuilder}
+	 */
+	void serializeTo(JsonObjectBuilder json) {
+<span class="fc" id="L164">		IuJson.add(json, &quot;protected&quot;, () -&gt; protectedHeader,</span>
+<span class="fc" id="L165">				IuJsonAdapter.to(h -&gt; UnpaddedBinary.JSON.toJson(IuText.utf8(h.toString()))));</span>
+<span class="fc bfc" id="L166" title="All 4 branches covered.">		IuJson.add(json, &quot;header&quot;, header.toJson(n -&gt; protectedHeader == null || !protectedHeader.containsKey(n)));</span>
+<span class="fc" id="L167">		IuJson.add(json, &quot;signature&quot;, () -&gt; signature, UnpaddedBinary.JSON);</span>
+<span class="fc" id="L168">	}</span>
+
+	/**
+	 * Gets the signature input.
+	 * 
+	 * @param payload payload
+	 * @return signature input
+	 */
+	String getSignatureInput(byte[] payload) {
+<span class="fc" id="L177">		return UnpaddedBinary.base64Url(IuText.utf8(Objects.requireNonNullElse(protectedHeader, &quot;&quot;).toString())) + '.'</span>
+<span class="fc" id="L178">				+ UnpaddedBinary.base64Url(payload);</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

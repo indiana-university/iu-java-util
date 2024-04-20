@@ -1,0 +1,1039 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebKey.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Crypto and PKI Utilities</a> &gt; <a href="index.source.html" class="el_package">edu.iu.crypt</a> &gt; <span class="el_source">WebKey.java</span></div><h1>WebKey.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu.crypt;
+
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.URI;
+import java.security.AlgorithmParameters;
+import java.security.Key;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.Security;
+import java.security.cert.X509Certificate;
+import java.security.interfaces.ECKey;
+import java.security.interfaces.RSAPrivateCrtKey;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
+import java.security.interfaces.XECKey;
+import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.ECGenParameterSpec;
+import java.security.spec.ECParameterSpec;
+import java.security.spec.NamedParameterSpec;
+import java.security.spec.RSAPublicKeySpec;
+import java.util.EnumSet;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
+
+import edu.iu.IuException;
+import edu.iu.IuObject;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.WebCryptoHeader.Param;
+import edu.iu.crypt.WebEncryption.Encryption;
+import iu.crypt.Jwk;
+import iu.crypt.JwkBuilder;
+import jakarta.json.JsonString;
+
+/**
+ * Unifies algorithm support and maps a cryptographic key from JCE to JSON Web
+ * Key.
+ * 
+ * @see &lt;a href=&quot;https://datatracker.ietf.org/doc/html/rfc7517&quot;&gt;JSON Web Key
+ *      (JWK) RFC-7517&lt;/a&gt;
+ */
+public interface WebKey extends WebKeyReference {
+
+	/**
+	 * Gets the {@link ECParameterSpec} for a standard parameter name.
+	 * 
+	 * @param name standard parameter name
+	 * @return Elliptic Curve parameters
+	 */
+	static AlgorithmParameterSpec algorithmParams(String name) {
+<span class="fc" id="L88">		return IuObject.convert(name, a -&gt; IuException.unchecked(() -&gt; {</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">			if (a.startsWith(&quot;sec&quot;)) {</span>
+<span class="fc" id="L90">				final var algorithmParamters = AlgorithmParameters.getInstance(&quot;EC&quot;);</span>
+<span class="fc" id="L91">				algorithmParamters.init(new ECGenParameterSpec(a));</span>
+<span class="fc" id="L92">				return algorithmParamters.getParameterSpec(ECParameterSpec.class);</span>
+			} else
+				try {
+<span class="fc" id="L95">					return (AlgorithmParameterSpec) NamedParameterSpec.class.getField(a.toUpperCase()).get(null);</span>
+<span class="fc" id="L96">				} catch (NoSuchFieldException e) {</span>
+<span class="fc" id="L97">					return null;</span>
+				}
+		}));
+	}
+
+	/**
+	 * Gets the {@link AlgorithmParameterSpec} from a key.
+	 * 
+	 * @param key key
+	 * @return {@link AlgorithmParameterSpec}
+	 */
+	static AlgorithmParameterSpec algorithmParams(Key key) {
+<span class="fc bfc" id="L109" title="All 2 branches covered.">		if (key == null //</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">				|| key.getAlgorithm() == null //</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">				|| key.getAlgorithm().startsWith(&quot;RSA&quot;))</span>
+<span class="fc" id="L112">			return null;</span>
+
+<span class="fc bfc" id="L114" title="All 2 branches covered.">		if (key instanceof ECKey)</span>
+<span class="fc" id="L115">			return ((ECKey) key).getParams();</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">		if (key instanceof XECKey)</span>
+<span class="fc" id="L117">			return ((XECKey) key).getParams();</span>
+		else // EdEC is the last supported type; throws IllegalStateException on JDK 11
+				// TODO switch from reflection to compiled cast for source level to 17+
+<span class="fc" id="L120">			return (NamedParameterSpec) IuException.uncheckedInvocation(() -&gt; ClassLoader.getPlatformClassLoader()</span>
+<span class="fc" id="L121">					.loadClass(&quot;java.security.interfaces.EdECKey&quot;).getMethod(&quot;getParams&quot;).invoke(key));</span>
+	}
+
+	/**
+	 * Enumerates key type.
+	 * 
+	 * @see &lt;a href=&quot;https://datatracker.ietf.org/doc/html/rfc7518#section-6.1&quot;&gt;RFC
+	 *      7518 JWA Section 6.1&lt;/a&gt;
+	 */
+<span class="fc" id="L130">	enum Type {</span>
+		/**
+		 * NIST P-256 Elliptic Curve.
+		 */
+<span class="fc" id="L134">		EC_P256(&quot;EC&quot;, &quot;P-256&quot;, &quot;secp256r1&quot;),</span>
+
+		/**
+		 * NIST P-384 Elliptic Curve.
+		 */
+<span class="fc" id="L139">		EC_P384(&quot;EC&quot;, &quot;P-384&quot;, &quot;secp384r1&quot;),</span>
+
+		/**
+		 * NIST P-521 Elliptic Curve.
+		 */
+<span class="fc" id="L144">		EC_P521(&quot;EC&quot;, &quot;P-521&quot;, &quot;secp521r1&quot;),</span>
+
+		/**
+		 * Edwards 25519 Elliptic Curve, for {@link Use#SIGN}.
+		 * 
+		 * @see &lt;a href=&quot;https://www.rfc-editor.org/rfc/rfc8037.html&quot;&gt;RFC-8037&lt;/a&gt;
+		 */
+<span class="fc" id="L151">		ED25519(&quot;OKP&quot;, &quot;Ed25519&quot;, &quot;Ed25519&quot;),</span>
+
+		/**
+		 * Edwards 448 Elliptic Curve, for {@link Use#SIGN}.
+		 * 
+		 * @see &lt;a href=&quot;https://www.rfc-editor.org/rfc/rfc8037.html&quot;&gt;RFC-8037&lt;/a&gt;
+		 */
+<span class="fc" id="L158">		ED448(&quot;OKP&quot;, &quot;Ed448&quot;, &quot;Ed448&quot;),</span>
+
+		/**
+		 * ECDH X25519 Elliptic Curve, for {@link Use#ENCRYPT}.
+		 * 
+		 * @see &lt;a href=&quot;https://www.rfc-editor.org/rfc/rfc8037.html&quot;&gt;RFC-8037&lt;/a&gt;
+		 */
+<span class="fc" id="L165">		X25519(&quot;OKP&quot;, &quot;X25519&quot;, &quot;X25519&quot;),</span>
+
+		/**
+		 * ECDH X448 Elliptic Curve, for {@link Use#ENCRYPT}.
+		 * 
+		 * @see &lt;a href=&quot;https://www.rfc-editor.org/rfc/rfc8037.html&quot;&gt;RFC-8037&lt;/a&gt;
+		 */
+<span class="fc" id="L172">		X448(&quot;OKP&quot;, &quot;X448&quot;, &quot;X448&quot;),</span>
+
+		/**
+		 * RSA encryption or RSASSA-PKCS1-v1_5 signing, minimum 2048 bit.
+		 */
+<span class="fc" id="L177">		RSA(&quot;RSA&quot;, null, null),</span>
+
+		/**
+		 * RSASSA-PSS signing, minimum 2048 bit.
+		 */
+<span class="fc" id="L182">		RSASSA_PSS(&quot;RSASSA-PSS&quot;, null, null),</span>
+
+		/**
+		 * Raw symmetric key data (octet sequence).
+		 */
+<span class="fc" id="L187">		RAW(&quot;oct&quot;, null, null);</span>
+
+		/**
+		 * Gets the value equivalent to the JWK kty attribute.
+		 * 
+		 * @param kty JWK kty attribute value
+		 * @param crv JWK crv attribute value
+		 * @return {@link Type}
+		 */
+		public static Type from(String kty, String crv) {
+<span class="fc bfc" id="L197" title="All 2 branches covered.">			return Stream.of(Type.values()).filter(a -&gt; IuObject.equals(kty, a.kty) //</span>
+<span class="fc bfc" id="L198" title="All 2 branches covered.">					&amp;&amp; IuObject.equals(crv, a.crv)).findFirst().orElse(null);</span>
+		}
+
+		/**
+		 * Gets the value equivalent to the JWK kty attribute.
+		 * 
+		 * @param algorithmParams Standard algorithm parameters name
+		 * @return {@link Type}
+		 */
+		public static Type from(AlgorithmParameterSpec algorithmParams) {
+<span class="fc bfc" id="L208" title="All 2 branches covered.">			if (algorithmParams == null)</span>
+<span class="fc" id="L209">				return null;</span>
+
+			final Predicate&lt;Type&gt; specMatch;
+<span class="fc bfc" id="L212" title="All 2 branches covered.">			if (algorithmParams instanceof NamedParameterSpec) {</span>
+<span class="fc" id="L213">				final var namedSpec = (NamedParameterSpec) algorithmParams;</span>
+<span class="fc" id="L214">				specMatch = type -&gt; {</span>
+<span class="fc" id="L215">					final var typeSpec = algorithmParams(type.algorithmParams);</span>
+<span class="fc bfc" id="L216" title="All 2 branches covered.">					return (typeSpec instanceof NamedParameterSpec)</span>
+<span class="fc bfc" id="L217" title="All 2 branches covered.">							&amp;&amp; ((NamedParameterSpec) typeSpec).getName().equals(namedSpec.getName());</span>
+				};
+<span class="fc" id="L219">			} else</span>
+<span class="fc" id="L220">				specMatch = type -&gt; algorithmParams.equals(algorithmParams(type.algorithmParams));</span>
+
+<span class="fc" id="L222">			return Stream.of(Type.values()).filter(specMatch).findFirst().orElse(null);</span>
+		}
+
+		/**
+		 * JSON kty attribute value.
+		 */
+		public final String kty;
+
+		/**
+		 * JSON crv attribute value.
+		 */
+		public final String crv;
+
+		/**
+		 * Standard algorithm parameter specification name.
+		 */
+		public final String algorithmParams;
+
+<span class="fc" id="L240">		private Type(String kty, String crv, String algorithmParams) {</span>
+<span class="fc" id="L241">			this.kty = kty;</span>
+<span class="fc" id="L242">			this.crv = crv;</span>
+<span class="fc" id="L243">			this.algorithmParams = algorithmParams;</span>
+<span class="fc" id="L244">		}</span>
+	}
+
+	/**
+	 * Enumerates public key use.
+	 */
+<span class="fc" id="L250">	enum Use {</span>
+		/**
+		 * Used for digital signing.
+		 */
+<span class="fc" id="L254">		SIGN(&quot;sig&quot;),</span>
+
+		/**
+		 * Used for encryption.
+		 */
+<span class="fc" id="L259">		ENCRYPT(&quot;enc&quot;);</span>
+
+		/**
+		 * Gets the value equivalent to the JWK use attribute.
+		 * 
+		 * @param use JWK use attribute value
+		 * @return {@link Use}
+		 */
+		public static Use from(String use) {
+<span class="fc" id="L268">			return EnumSet.allOf(Use.class).stream().filter(a -&gt; use.equals(a.use)).findFirst().get();</span>
+		}
+
+		/**
+		 * JSON type adapter
+		 */
+<span class="fc" id="L274">		public static IuJsonAdapter&lt;Use&gt; JSON = IuJsonAdapter.from(v -&gt; from(((JsonString) v).getString()),</span>
+<span class="fc" id="L275">				u -&gt; IuJson.string(u.use));</span>
+
+		/**
+		 * JSON use attribute value.
+		 */
+		public final String use;
+
+<span class="fc" id="L282">		private Use(String use) {</span>
+<span class="fc" id="L283">			this.use = use;</span>
+<span class="fc" id="L284">		}</span>
+	}
+
+	/**
+	 * Enumerates key operations.
+	 */
+<span class="fc" id="L290">	enum Operation {</span>
+		/**
+		 * Compute digital signature or MAC.
+		 */
+<span class="fc" id="L294">		SIGN(&quot;sign&quot;),</span>
+
+		/**
+		 * Verify digital signature or MAC.
+		 */
+<span class="fc" id="L299">		VERIFY(&quot;verify&quot;),</span>
+
+		/**
+		 * Encrypt content.
+		 */
+<span class="fc" id="L304">		ENCRYPT(&quot;encrypt&quot;),</span>
+
+		/**
+		 * Decrypt content and validate decryption.
+		 */
+<span class="fc" id="L309">		DECRYPT(&quot;decrypt&quot;),</span>
+
+		/**
+		 * Encrypt key.
+		 */
+<span class="fc" id="L314">		WRAP(&quot;wrapKey&quot;),</span>
+
+		/**
+		 * Decrypt key and validate decryption.
+		 */
+<span class="fc" id="L319">		UNWRAP(&quot;unwrapKey&quot;),</span>
+
+		/**
+		 * Derive key.
+		 */
+<span class="fc" id="L324">		DERIVE_KEY(&quot;deriveKey&quot;),</span>
+
+		/**
+		 * Derive bits not to be used as a key.
+		 */
+<span class="fc" id="L329">		DERIVE_BITS(&quot;deriveBits&quot;);</span>
+
+		/**
+		 * JSON type adapter.
+		 */
+<span class="fc" id="L334">		public static IuJsonAdapter&lt;Operation&gt; JSON = IuJsonAdapter.from(a -&gt; from(((JsonString) a).getString()),</span>
+<span class="fc" id="L335">				a -&gt; IuJson.string(a.keyOp));</span>
+
+		/**
+		 * Gets an item value equivalent to the JWK key_ops attribute.
+		 * 
+		 * @param keyOp key_ops item value
+		 * @return {@link Operation}
+		 */
+		public static Operation from(String keyOp) {
+<span class="fc" id="L344">			return EnumSet.allOf(Operation.class).stream().filter(a -&gt; IuObject.equals(keyOp, a.keyOp)).findFirst()</span>
+<span class="fc" id="L345">					.get();</span>
+		}
+
+		/**
+		 * JSON key_ops item value
+		 */
+		public final String keyOp;
+
+<span class="fc" id="L353">		private Operation(String keyOp) {</span>
+<span class="fc" id="L354">			this.keyOp = keyOp;</span>
+<span class="fc" id="L355">		}</span>
+	}
+
+	/**
+	 * Enumerates supported signature and encryption algorithms.
+	 */
+<span class="fc" id="L361">	enum Algorithm {</span>
+		/**
+		 * HMAC symmetric key signature w/ SHA-256.
+		 */
+<span class="fc" id="L365">		HS256(&quot;HS256&quot;, &quot;HmacSHA256&quot;, 256, new Type[] { Type.RAW }, Use.SIGN,</span>
+<span class="fc" id="L366">				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),</span>
+
+		/**
+		 * HMAC symmetric key signature w/ SHA-384.
+		 */
+<span class="fc" id="L371">		HS384(&quot;HS384&quot;, &quot;HmacSHA384&quot;, 384, new Type[] { Type.RAW }, Use.SIGN,</span>
+<span class="fc" id="L372">				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),</span>
+
+		/**
+		 * HMAC symmetric key signature w/ SHA-512.
+		 */
+<span class="fc" id="L377">		HS512(&quot;HS512&quot;, &quot;HmacSHA512&quot;, 512, new Type[] { Type.RAW }, Use.SIGN,</span>
+<span class="fc" id="L378">				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),</span>
+
+		/**
+		 * RSASSA-PKCS1-v1_5 using SHA-256.
+		 */
+<span class="fc" id="L383">		@Deprecated</span>
+		RS256(&quot;RS256&quot;, &quot;SHA256withRSA&quot;, 256, new Type[] { Type.RSA }, Use.SIGN,
+<span class="fc" id="L385">				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),</span>
+
+		/**
+		 * RSASSA-PKCS1-v1_5 using SHA-384.
+		 */
+<span class="fc" id="L390">		@Deprecated</span>
+		RS384(&quot;RS384&quot;, &quot;SHA384withRSA&quot;, 384, new Type[] { Type.RSA }, Use.SIGN,
+<span class="fc" id="L392">				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),</span>
+
+		/**
+		 * RSASSA-PKCS1-v1_5 using SHA-512.
+		 */
+<span class="fc" id="L397">		@Deprecated</span>
+		RS512(&quot;RS512&quot;, &quot;SHA512withRSA&quot;, 512, new Type[] { Type.RSA }, Use.SIGN,
+<span class="fc" id="L399">				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),</span>
+
+		/**
+		 * Elliptic Curve signature w/ SHA-256.
+		 */
+<span class="fc" id="L404">		ES256(&quot;ES256&quot;, &quot;SHA256withECDSA&quot;, 256, new Type[] { Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.SIGN,</span>
+<span class="fc" id="L405">				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),</span>
+
+		/**
+		 * Elliptic Curve signature w/ SHA-384.
+		 */
+<span class="fc" id="L410">		ES384(&quot;ES384&quot;, &quot;SHA384withECDSA&quot;, 384, new Type[] { Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.SIGN,</span>
+<span class="fc" id="L411">				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),</span>
+
+		/**
+		 * Elliptic Curve signature w/ SHA-512.
+		 */
+<span class="fc" id="L416">		ES512(&quot;ES512&quot;, &quot;SHA512withECDSA&quot;, 512, new Type[] { Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.SIGN,</span>
+<span class="fc" id="L417">				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),</span>
+
+		/**
+		 * Edwards Elliptic Curve Digital Signature Algorithm.
+		 */
+<span class="fc" id="L422">		EDDSA(&quot;EdDSA&quot;, &quot;EdDSA&quot;, 0, new Type[] { Type.ED25519, Type.ED448 }, Use.SIGN,</span>
+<span class="fc" id="L423">				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),</span>
+
+		/**
+		 * RSASSA-PSS using SHA-256 and MGF1 with SHA-256.
+		 */
+<span class="fc" id="L428">		PS256(&quot;PS256&quot;, &quot;RSASSA-PSS&quot;, 256, new Type[] { Type.RSASSA_PSS }, Use.SIGN,</span>
+<span class="fc" id="L429">				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),</span>
+
+		/**
+		 * RSASSA-PSS using SHA-384 and MGF1 with SHA-384.
+		 */
+<span class="fc" id="L434">		PS384(&quot;PS384&quot;, &quot;RSASSA-PSS&quot;, 384, new Type[] { Type.RSASSA_PSS }, Use.SIGN,</span>
+<span class="fc" id="L435">				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),</span>
+
+		/**
+		 * RSASSA-PSS using SHA-512 and MGF1 with SHA-512.
+		 */
+<span class="fc" id="L440">		PS512(&quot;PS512&quot;, &quot;RSASSA-PSS&quot;, 512, new Type[] { Type.RSASSA_PSS }, Use.SIGN,</span>
+<span class="fc" id="L441">				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),</span>
+
+		/**
+		 * RSAES-PKCS1-v1_5.
+		 */
+<span class="fc" id="L446">		@Deprecated</span>
+		RSA1_5(&quot;RSA1_5&quot;, &quot;RSA/ECB/PKCS1Padding&quot;, 2048, new Type[] { Type.RSA }, Use.ENCRYPT,
+<span class="fc" id="L448">				new Operation[] { Operation.WRAP, Operation.UNWRAP }, Set.of(Param.ENCRYPTION, Param.ZIP)),</span>
+
+		/**
+		 * RSAES OAEP w/ default parameters.
+		 */
+<span class="fc" id="L453">		RSA_OAEP(&quot;RSA-OAEP&quot;, &quot;RSA/ECB/OAEPWithSHA-1AndMGF1Padding&quot;, 2048, new Type[] { Type.RSA }, Use.ENCRYPT,</span>
+<span class="fc" id="L454">				new Operation[] { Operation.WRAP, Operation.UNWRAP }, Set.of(Param.ENCRYPTION, Param.ZIP)),</span>
+
+		/**
+		 * RSAES OAEP w/ SHA-256 and MGF-1.
+		 */
+<span class="fc" id="L459">		RSA_OAEP_256(&quot;RSA-OAEP-256&quot;, &quot;RSA/ECB/OAEPWithSHA-256AndMGF1Padding&quot;, 2048, new Type[] { Type.RSA },</span>
+<span class="fc" id="L460">				Use.ENCRYPT, new Operation[] { Operation.WRAP, Operation.UNWRAP }, Set.of(Param.ENCRYPTION, Param.ZIP)),</span>
+
+		/**
+		 * AES-128 GCM Key Wrap.
+		 * 
+		 * @see &lt;a href=
+		 *      &quot;https://datatracker.ietf.org/doc/html/rfc7518#section-4.6&quot;&gt;RFC-7518 JWA
+		 *      Section 4.6&lt;/a&gt;
+		 */
+<span class="fc" id="L469">		A128GCMKW(&quot;A128GCMKW&quot;, &quot;AES/GCM/NoPadding&quot;, 128, new Type[] { Type.RAW }, Use.ENCRYPT,</span>
+				new Operation[] { Operation.WRAP, Operation.UNWRAP },
+<span class="fc" id="L471">				Set.of(Param.ENCRYPTION, Param.ZIP, Param.INITIALIZATION_VECTOR, Param.TAG)),</span>
+
+		/**
+		 * AES-192 GCM Key Wrap.
+		 * 
+		 * @see &lt;a href=
+		 *      &quot;https://datatracker.ietf.org/doc/html/rfc7518#section-4.6&quot;&gt;RFC-7518 JWA
+		 *      Section 4.6&lt;/a&gt;
+		 */
+<span class="fc" id="L480">		A192GCMKW(&quot;A192GCMKW&quot;, &quot;AES/GCM/NoPadding&quot;, 192, new Type[] { Type.RAW }, Use.ENCRYPT,</span>
+				new Operation[] { Operation.WRAP, Operation.UNWRAP },
+<span class="fc" id="L482">				Set.of(Param.ENCRYPTION, Param.ZIP, Param.INITIALIZATION_VECTOR, Param.TAG)),</span>
+		/**
+		 * AES-256 GCM Key Wrap.
+		 * 
+		 * @see &lt;a href=
+		 *      &quot;https://datatracker.ietf.org/doc/html/rfc7518#section-4.6&quot;&gt;RFC-7518 JWA
+		 *      Section 4.6&lt;/a&gt;
+		 */
+<span class="fc" id="L490">		A256GCMKW(&quot;A256GCMKW&quot;, &quot;AES/GCM/NoPadding&quot;, 256, new Type[] { Type.RAW }, Use.ENCRYPT,</span>
+				new Operation[] { Operation.WRAP, Operation.UNWRAP },
+<span class="fc" id="L492">				Set.of(Param.ENCRYPTION, Param.ZIP, Param.INITIALIZATION_VECTOR, Param.TAG)),</span>
+
+		/**
+		 * AES-128 Key Wrap.
+		 */
+<span class="fc" id="L497">		A128KW(&quot;A128KW&quot;, &quot;AESWrap&quot;, 128, new Type[] { Type.RAW }, Use.ENCRYPT,</span>
+<span class="fc" id="L498">				new Operation[] { Operation.WRAP, Operation.UNWRAP }, Set.of(Param.ENCRYPTION, Param.ZIP)),</span>
+
+		/**
+		 * AES-192 Key Wrap.
+		 */
+<span class="fc" id="L503">		A192KW(&quot;A192KW&quot;, &quot;AESWrap&quot;, 192, new Type[] { Type.RAW }, Use.ENCRYPT,</span>
+<span class="fc" id="L504">				new Operation[] { Operation.WRAP, Operation.UNWRAP }, Set.of(Param.ENCRYPTION, Param.ZIP)),</span>
+
+		/**
+		 * AES-256 Key Wrap.
+		 */
+<span class="fc" id="L509">		A256KW(&quot;A256KW&quot;, &quot;AESWrap&quot;, 256, new Type[] { Type.RAW }, Use.ENCRYPT,</span>
+<span class="fc" id="L510">				new Operation[] { Operation.WRAP, Operation.UNWRAP }, Set.of(Param.ENCRYPTION, Param.ZIP)),</span>
+
+		/**
+		 * Direct use (as CEK).
+		 */
+<span class="fc" id="L515">		DIRECT(&quot;dir&quot;, null, 256, new Type[] { Type.RAW }, Use.ENCRYPT,</span>
+<span class="fc" id="L516">				new Operation[] { Operation.ENCRYPT, Operation.DECRYPT }, Set.of(Param.ENCRYPTION, Param.ZIP)),</span>
+
+		/**
+		 * Elliptic Curve Diffie-Hellman Ephemeral Static key agreement.
+		 * 
+		 * @see &lt;a href=
+		 *      &quot;https://datatracker.ietf.org/doc/html/rfc7518#section-4.6&quot;&gt;RFC-7518 JWA
+		 *      Section 4.6&lt;/a&gt;
+		 */
+<span class="fc" id="L525">		ECDH_ES(&quot;ECDH-ES&quot;, &quot;ECDH&quot;, 0, new Type[] { Type.X25519, Type.X448, Type.EC_P256, Type.EC_P384, Type.EC_P521 },</span>
+				Use.ENCRYPT, new Operation[] { Operation.DERIVE_KEY },
+<span class="fc" id="L527">				Set.of(Param.ENCRYPTION, Param.ZIP, Param.EPHEMERAL_PUBLIC_KEY, Param.PARTY_UINFO, Param.PARTY_VINFO)),</span>
+
+		/**
+		 * Elliptic Curve Diffie-Hellman Ephemeral Static key agreement w/ AES-128 Key
+		 * Wrap.
+		 * 
+		 * @see &lt;a href=
+		 *      &quot;https://datatracker.ietf.org/doc/html/rfc7518#section-4.6&quot;&gt;RFC-7518 JWA
+		 *      Section 4.6&lt;/a&gt;
+		 */
+<span class="fc" id="L537">		ECDH_ES_A128KW(&quot;ECDH-ES+A128KW&quot;, &quot;ECDH&quot;, 128,</span>
+				new Type[] { Type.X25519, Type.X448, Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.ENCRYPT,
+				new Operation[] { Operation.DERIVE_KEY },
+<span class="fc" id="L540">				Set.of(Param.ENCRYPTION, Param.ZIP, Param.EPHEMERAL_PUBLIC_KEY, Param.PARTY_UINFO, Param.PARTY_VINFO)),</span>
+
+		/**
+		 * Elliptic Curve Diffie-Hellman Ephemeral Static key agreement w/ AES-192 Key
+		 * Wrap.
+		 * 
+		 * @see &lt;a href=
+		 *      &quot;https://datatracker.ietf.org/doc/html/rfc7518#section-4.6&quot;&gt;RFC-7518 JWA
+		 *      Section 4.6&lt;/a&gt;
+		 */
+<span class="fc" id="L550">		ECDH_ES_A192KW(&quot;ECDH-ES+A192KW&quot;, &quot;ECDH&quot;, 192,</span>
+				new Type[] { Type.X25519, Type.X448, Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.ENCRYPT,
+				new Operation[] { Operation.DERIVE_KEY },
+<span class="fc" id="L553">				Set.of(Param.ENCRYPTION, Param.ZIP, Param.EPHEMERAL_PUBLIC_KEY, Param.PARTY_UINFO, Param.PARTY_VINFO)),</span>
+
+		/**
+		 * Elliptic Curve Diffie-Hellman Ephemeral Static key agreement w/ AES-256 Key
+		 * Wrap.
+		 * 
+		 * @see &lt;a href=
+		 *      &quot;https://datatracker.ietf.org/doc/html/rfc7518#section-4.6&quot;&gt;RFC-7518 JWA
+		 *      Section 4.6&lt;/a&gt;
+		 */
+<span class="fc" id="L563">		ECDH_ES_A256KW(&quot;ECDH-ES+A256KW&quot;, &quot;ECDH&quot;, 256, new Type[] { Type.EC_P521, Type.EC_P256, Type.EC_P384 },</span>
+				Use.ENCRYPT, new Operation[] { Operation.DERIVE_KEY },
+<span class="fc" id="L565">				Set.of(Param.ENCRYPTION, Param.ZIP, Param.EPHEMERAL_PUBLIC_KEY, Param.PARTY_UINFO, Param.PARTY_VINFO)),</span>
+
+		/**
+		 * PBKDF2 with HMAC SHA-256 and AES128 key wrap.
+		 */
+<span class="fc" id="L570">		PBES2_HS256_A128KW(&quot;PBES2-HS256+A128KW&quot;, &quot;PBKDF2WithHmacSHA256&quot;, 128, new Type[] { Type.RAW }, Use.ENCRYPT,</span>
+				new Operation[] { Operation.WRAP, Operation.UNWRAP },
+<span class="fc" id="L572">				Set.of(Param.ENCRYPTION, Param.ZIP, Param.PASSWORD_SALT, Param.PASSWORD_COUNT)),</span>
+
+		/**
+		 * PBKDF2 with HMAC SHA-384 and AES192 key wrap.
+		 */
+<span class="fc" id="L577">		PBES2_HS384_A192KW(&quot;PBES2-HS384+A192KW&quot;, &quot;PBKDF2WithHmacSHA384&quot;, 192, new Type[] { Type.RAW }, Use.ENCRYPT,</span>
+				new Operation[] { Operation.WRAP, Operation.UNWRAP },
+<span class="fc" id="L579">				Set.of(Param.ENCRYPTION, Param.ZIP, Param.PASSWORD_SALT, Param.PASSWORD_COUNT)),</span>
+
+		/**
+		 * PBKDF2 with HMAC SHA-512 and AES192 key wrap.
+		 */
+<span class="fc" id="L584">		PBES2_HS512_A256KW(&quot;PBES2-HS512+A256KW&quot;, &quot;PBKDF2WithHmacSHA512&quot;, 256, new Type[] { Type.RAW }, Use.ENCRYPT,</span>
+				new Operation[] { Operation.WRAP, Operation.UNWRAP },
+<span class="fc" id="L586">				Set.of(Param.ENCRYPTION, Param.ZIP, Param.PASSWORD_SALT, Param.PASSWORD_COUNT));</span>
+
+		/**
+		 * JSON type adapter.
+		 */
+<span class="fc" id="L591">		public static IuJsonAdapter&lt;Algorithm&gt; JSON = IuJsonAdapter.from(a -&gt; from(((JsonString) a).getString()),</span>
+<span class="fc" id="L592">				a -&gt; IuJson.string(a.alg));</span>
+
+		/**
+		 * Gets the value equivalent to the JWK alg attribute.
+		 * 
+		 * @param alg alg attribute value
+		 * @return {@link Operation}
+		 */
+		public static Algorithm from(String alg) {
+<span class="fc" id="L601">			return EnumSet.allOf(Algorithm.class).stream().filter(a -&gt; IuObject.equals(alg, a.alg)).findFirst().get();</span>
+		}
+
+		/**
+		 * JSON alg attribute value.
+		 */
+		public final String alg;
+
+		/**
+		 * JCE signature or key agreement algorithm name.
+		 */
+		public final String algorithm;
+
+		/**
+		 * Encryption key or signature hash size.
+		 */
+		public final int size;
+
+		/**
+		 * Key type associated with this algorithm.
+		 */
+		public final Type[] type;
+
+		/**
+		 * Key usage associated with this algorithm.
+		 */
+		public final Use use;
+
+		/**
+		 * Key usage associated with this algorithm.
+		 */
+		public final Operation[] keyOps;
+
+		/**
+		 * Set of encryption parameters used by this algorithm.
+		 */
+		public final Set&lt;Param&gt; encryptionParams;
+
+		private Algorithm(String alg, String algorithm, int size, Type[] type, Use use, Operation[] keyOps,
+<span class="fc" id="L640">				Set&lt;Param&gt; encryptionParams) {</span>
+<span class="fc" id="L641">			this.alg = alg;</span>
+<span class="fc" id="L642">			this.algorithm = algorithm;</span>
+<span class="fc" id="L643">			this.size = size;</span>
+<span class="fc" id="L644">			this.type = type;</span>
+<span class="fc" id="L645">			this.use = use;</span>
+<span class="fc" id="L646">			this.keyOps = keyOps;</span>
+<span class="fc" id="L647">			this.encryptionParams = encryptionParams;</span>
+<span class="fc" id="L648">		}</span>
+	}
+
+	/**
+	 * Builder interface for creating {@link WebKey} instances.
+	 * 
+	 * @param &lt;B&gt; builder type
+	 */
+	interface Builder&lt;B extends Builder&lt;B&gt;&gt; extends WebKeyReference.Builder&lt;B&gt; {
+		/**
+		 * Sets the key type.
+		 * 
+		 * @param type key type
+		 * @return this
+		 */
+		B type(Type type);
+
+		/**
+		 * Sets the public key use.
+		 *
+		 * @param use public key use
+		 * @return this
+		 */
+		B use(Use use);
+
+		/**
+		 * Sets the key operations.
+		 * 
+		 * @param ops key operations
+		 * @return this
+		 */
+		B ops(Operation... ops);
+
+		/**
+		 * Generates a public/private key pair for the algorithm specified by
+		 * {@link #algorithm(Algorithm)} using the default size.
+		 * 
+		 * @return this
+		 */
+		B ephemeral();
+
+		/**
+		 * Generates a public/private key pair or secret key without setting
+		 * {@link #algorithm}.
+		 * 
+		 * @param algorithm algorithm the key will be used with
+		 * @return this
+		 */
+		B ephemeral(Algorithm algorithm);
+
+		/**
+		 * Generates an ephemeral content encryption key.
+		 * 
+		 * @param encryption content encryption algorithm
+		 * @return this
+		 */
+		B ephemeral(Encryption encryption);
+
+		/**
+		 * Adds raw key data.
+		 * 
+		 * @param key raw key data
+		 * @return this
+		 */
+		B key(byte[] key);
+
+		/**
+		 * Adds public key parameters.
+		 * 
+		 * @param publicKey public key
+		 * @return this
+		 */
+		B key(PublicKey publicKey);
+
+		/**
+		 * Adds private key parameters.
+		 * 
+		 * @param privateKey private key
+		 * @return this
+		 */
+		B key(PrivateKey privateKey);
+
+		/**
+		 * Sets both public and private keys from a {@link KeyPair}.
+		 * 
+		 * @param keyPair key pair;
+		 * @return this
+		 */
+		B key(KeyPair keyPair);
+
+		/**
+		 * Builds the web key.
+		 * 
+		 * @return {@link WebKey}
+		 */
+		WebKey build();
+	}
+
+	/**
+	 * Verifies encoded key data is correct for the key type, use, algorithm, and
+	 * X.509 certificate chain.
+	 * 
+	 * @param webKey {@link WebKey}
+	 * @return {@link PublicKey} resolved from the web key, or null if no public key
+	 *         was resolved; private and raw key values will be verified as valid
+	 *         for the key type and/or public key, and &lt;em&gt;may&lt;/em&gt; continue to be
+	 *         accessed from the original web key as needed.
+	 * @throws IllegalArgumentException if the key is invalid
+	 */
+	static PublicKey verify(WebKey webKey) {
+<span class="fc" id="L758">		final var key = webKey.getKey();</span>
+<span class="fc" id="L759">		final var type = Objects.requireNonNull(webKey.getType(), &quot;Key type is required&quot;);</span>
+
+<span class="fc" id="L761">		final var algorithm = webKey.getAlgorithm();</span>
+<span class="fc bfc" id="L762" title="All 2 branches covered.">		if (algorithm != null //</span>
+<span class="fc bfc" id="L763" title="All 2 branches covered.">				&amp;&amp; !Stream.of(algorithm.type).anyMatch(type::equals))</span>
+<span class="fc" id="L764">			throw new IllegalArgumentException(&quot;Illegal type &quot; + type + &quot; for algorithm &quot; + algorithm);</span>
+
+<span class="fc" id="L766">		final var use = webKey.getUse();</span>
+<span class="fc bfc" id="L767" title="All 6 branches covered.">		if (use != null &amp;&amp; algorithm != null &amp;&amp; !use.equals(algorithm.use))</span>
+<span class="fc" id="L768">			throw new IllegalArgumentException(&quot;Illegal use &quot; + use + &quot; for algorithm &quot; + algorithm);</span>
+
+<span class="fc" id="L770">		final var ops = webKey.getOps();</span>
+<span class="fc bfc" id="L771" title="All 2 branches covered.">		if (ops != null) {</span>
+<span class="fc bfc" id="L772" title="All 2 branches covered.">			if (ops.size() &gt; 2)</span>
+<span class="fc" id="L773">				throw new IllegalArgumentException(&quot;Illegal ops &quot; + ops);</span>
+<span class="fc bfc" id="L774" title="All 2 branches covered.">			else if (ops.size() == 2) {</span>
+<span class="fc" id="L775">				BiConsumer&lt;Operation, Operation&gt; checkPair = (a, b) -&gt; {</span>
+<span class="fc bfc" id="L776" title="All 6 branches covered.">					if (ops.contains(a) != (b != null &amp;&amp; ops.contains(b)))</span>
+<span class="fc" id="L777">						throw new IllegalArgumentException(&quot;Illegal ops &quot; + ops);</span>
+<span class="fc" id="L778">				};</span>
+<span class="fc" id="L779">				checkPair.accept(Operation.SIGN, Operation.VERIFY);</span>
+<span class="fc" id="L780">				checkPair.accept(Operation.ENCRYPT, Operation.DECRYPT);</span>
+<span class="fc" id="L781">				checkPair.accept(Operation.WRAP, Operation.UNWRAP);</span>
+<span class="fc" id="L782">				checkPair.accept(Operation.DERIVE_BITS, null);</span>
+<span class="fc" id="L783">				checkPair.accept(Operation.DERIVE_KEY, null);</span>
+			}
+
+<span class="fc bfc" id="L786" title="All 4 branches covered.">			if (algorithm != null &amp;&amp; !Set.of(algorithm.keyOps).containsAll(ops))</span>
+<span class="fc" id="L787">				throw new IllegalArgumentException(&quot;Illegal ops &quot; + ops + &quot; for algorithm &quot; + algorithm);</span>
+
+<span class="fc bfc" id="L789" title="All 2 branches covered.">			if (use != null)</span>
+<span class="fc bfc" id="L790" title="All 4 branches covered.">				if (ops.contains(Operation.SIGN) || ops.contains(Operation.VERIFY)) {</span>
+<span class="fc bfc" id="L791" title="All 2 branches covered.">					if (use.equals(Use.ENCRYPT))</span>
+<span class="fc" id="L792">						throw new IllegalArgumentException(&quot;Illegal ops &quot; + ops + &quot; for use &quot; + use);</span>
+<span class="fc bfc" id="L793" title="All 2 branches covered.">				} else if (use.equals(Use.SIGN))</span>
+<span class="fc" id="L794">					throw new IllegalArgumentException(&quot;Illegal ops &quot; + ops + &quot; for use &quot; + use);</span>
+		}
+
+<span class="fc" id="L797">		final var cert = IuObject.convert(WebCertificateReference.verify(webKey), a -&gt; a[0]);</span>
+
+<span class="fc bfc" id="L799" title="All 2 branches covered.">		if (type.equals(Type.RAW)) {</span>
+<span class="fc" id="L800">			IuObject.require(webKey.getPrivateKey(), Objects::isNull, () -&gt; &quot;Unexpected private key&quot;);</span>
+<span class="fc" id="L801">			IuObject.require(webKey.getPublicKey(), Objects::isNull, () -&gt; &quot;Unexpected public key&quot;);</span>
+<span class="fc" id="L802">			IuObject.require(cert, Objects::isNull, () -&gt; &quot;Unexpected certificate&quot;);</span>
+<span class="fc" id="L803">			return null;</span>
+		}
+
+<span class="fc bfc" id="L806" title="All 2 branches covered.">		if (key != null)</span>
+<span class="fc" id="L807">			throw new IllegalArgumentException(&quot;Unexpected raw key data for &quot; + type);</span>
+
+<span class="fc" id="L809">		var publicKey = IuObject.first(webKey.getPublicKey(), //</span>
+<span class="fc" id="L810">				IuObject.convert(cert, X509Certificate::getPublicKey), //</span>
+<span class="fc" id="L811">				() -&gt; &quot;public key doesn't match X.509 certificate&quot;);</span>
+<span class="fc" id="L812">		var params = algorithmParams(publicKey);</span>
+
+<span class="fc" id="L814">		final var privateKey = webKey.getPrivateKey();</span>
+<span class="fc" id="L815">		final var privateParams = algorithmParams(privateKey);</span>
+<span class="fc bfc" id="L816" title="All 2 branches covered.">		if (params == null)</span>
+<span class="fc" id="L817">			params = privateParams;</span>
+<span class="fc bfc" id="L818" title="All 2 branches covered.">		else if (params instanceof NamedParameterSpec) {</span>
+<span class="fc" id="L819">			final var namedSpec = (NamedParameterSpec) params;</span>
+<span class="fc bfc" id="L820" title="All 2 branches covered.">			if (privateParams != null &amp;&amp; //</span>
+<span class="fc bfc" id="L821" title="All 2 branches covered.">					!namedSpec.getName().equals(((NamedParameterSpec) privateParams).getName()))</span>
+<span class="fc" id="L822">				throw new IllegalArgumentException(&quot;parameter spec mismatch&quot;);</span>
+<span class="fc bfc" id="L823" title="All 2 branches covered.">		} else if (privateParams != null &amp;&amp; //</span>
+<span class="fc bfc" id="L824" title="All 2 branches covered.">				!params.equals(privateParams))</span>
+<span class="fc" id="L825">			throw new IllegalArgumentException(&quot;parameter spec mismatch&quot;);</span>
+
+<span class="fc bfc" id="L827" title="All 4 branches covered.">		if ((publicKey instanceof RSAPublicKey) || (privateKey instanceof RSAPrivateKey)) {</span>
+<span class="fc" id="L828">			final var rsaPrivate = IuObject.requireType(RSAPrivateKey.class, privateKey);</span>
+<span class="fc" id="L829">			final var rsaPublic = IuObject.requireType(RSAPublicKey.class, publicKey);</span>
+<span class="fc bfc" id="L830" title="All 2 branches covered.">			if (rsaPrivate != null)</span>
+<span class="fc bfc" id="L831" title="All 2 branches covered.">				if (rsaPublic != null) {</span>
+<span class="fc bfc" id="L832" title="All 2 branches covered.">					if (!rsaPrivate.getModulus().equals(rsaPublic.getModulus()))</span>
+<span class="fc" id="L833">						throw new IllegalArgumentException(&quot;RSA public key modulus doesn't match private key&quot;);</span>
+<span class="fc bfc" id="L834" title="All 2 branches covered.">					else if ((rsaPrivate instanceof RSAPrivateCrtKey) //</span>
+<span class="fc" id="L835">							&amp;&amp; !((RSAPrivateCrtKey) rsaPrivate).getPublicExponent()</span>
+<span class="fc bfc" id="L836" title="All 2 branches covered.">									.equals(rsaPublic.getPublicExponent()))</span>
+<span class="fc" id="L837">						throw new IllegalArgumentException(&quot;RSA public key exponent doesn't match private key&quot;);</span>
+<span class="fc bfc" id="L838" title="All 2 branches covered.">				} else if (rsaPrivate instanceof RSAPrivateCrtKey)</span>
+<span class="fc" id="L839">					publicKey = IuException.unchecked(</span>
+<span class="fc" id="L840">							() -&gt; (RSAPublicKey) KeyFactory.getInstance(type.kty).generatePublic(new RSAPublicKeySpec(</span>
+<span class="fc" id="L841">									rsaPrivate.getModulus(), ((RSAPrivateCrtKey) rsaPrivate).getPublicExponent())));</span>
+<span class="fc bfc" id="L842" title="All 6 branches covered.">		} else if ((publicKey != null || privateKey != null) &amp;&amp; params == null)</span>
+<span class="fc" id="L843">			throw new IllegalArgumentException(&quot;Missing algorithm parameters&quot;);</span>
+
+<span class="fc bfc" id="L845" title="All 2 branches covered.">		if (ops != null) {</span>
+<span class="fc bfc" id="L846" title="All 4 branches covered.">			if (ops.contains(Operation.ENCRYPT) || ops.contains(Operation.DECRYPT))</span>
+<span class="fc" id="L847">				throw new IllegalArgumentException(&quot;Secret key required by ops &quot; + ops);</span>
+<span class="fc bfc" id="L848" title="All 4 branches covered.">			if (publicKey == null &amp;&amp; (ops.contains(Operation.WRAP) //</span>
+<span class="fc bfc" id="L849" title="All 2 branches covered.">					|| ops.contains(Operation.VERIFY)))</span>
+<span class="fc" id="L850">				throw new IllegalArgumentException(&quot;Public key required by ops &quot; + ops);</span>
+<span class="fc bfc" id="L851" title="All 4 branches covered.">			if (privateKey == null &amp;&amp; (ops.contains(Operation.UNWRAP) //</span>
+<span class="fc bfc" id="L852" title="All 2 branches covered.">					|| ops.contains(Operation.SIGN)))</span>
+<span class="fc" id="L853">				throw new IllegalArgumentException(&quot;Private key required by ops &quot; + ops);</span>
+<span class="fc bfc" id="L854" title="All 6 branches covered.">			if (ops.contains(Operation.DERIVE_KEY) &amp;&amp; privateKey == null &amp;&amp; publicKey == null)</span>
+<span class="fc" id="L855">				throw new IllegalArgumentException(&quot;Public or private key required by ops &quot; + ops);</span>
+		}
+
+<span class="fc" id="L858">		return publicKey;</span>
+	}
+
+	/**
+	 * Creates a new {@link Builder}.
+	 * 
+	 * @param type key type
+	 * @return {@link Builder}
+	 */
+	static Builder&lt;?&gt; builder(Type type) {
+<span class="fc" id="L868">		return JwkBuilder.of(type);</span>
+	}
+
+	/**
+	 * Creates an ephemeral key for use as JWE recipient or JWS issuer.
+	 * 
+	 * &lt;p&gt;
+	 * Ephemeral keys are generated using JDK 11 compliant &lt;a href=
+	 * &quot;https://docs.oracle.com/en/java/javase/11/docs/specs/security/standard-names.html&quot;&gt;
+	 * standard algorithms&lt;/a&gt; with {@link Security#getProviders() registered JCE
+	 * providers}
+	 * &lt;/p&gt;
+	 * 
+	 * @param algorithm key algorithm
+	 * @return JWE recipient or JWS issuer key
+	 */
+	static Builder&lt;?&gt; builder(Algorithm algorithm) {
+<span class="fc" id="L885">		return builder(algorithm.type[0]).algorithm(algorithm);</span>
+	}
+
+	/**
+	 * Creates an ephemeral content encryption key, for use with
+	 * {@link Algorithm#DIRECT}.
+	 * 
+	 * &lt;p&gt;
+	 * Ephemeral keys are generated using JDK 11 compliant &lt;a href=
+	 * &quot;https://docs.oracle.com/en/java/javase/11/docs/specs/security/standard-names.html&quot;&gt;
+	 * standard algorithms&lt;/a&gt; with {@link Security#getProviders() registered JCE
+	 * providers}
+	 * &lt;/p&gt;
+	 * 
+	 * @param encryption encryption algorithm
+	 * @return content encryption key
+	 */
+	static WebKey ephemeral(Encryption encryption) {
+<span class="fc" id="L903">		return builder(Type.RAW).ephemeral(encryption).build();</span>
+	}
+
+	/**
+	 * Creates an ephemeral key for use as JWE recipient or JWS issuer.
+	 * 
+	 * &lt;p&gt;
+	 * Ephemeral keys are generated using JDK 11 compliant &lt;a href=
+	 * &quot;https://docs.oracle.com/en/java/javase/11/docs/specs/security/standard-names.html&quot;&gt;
+	 * standard algorithms&lt;/a&gt; with {@link Security#getProviders() registered JCE
+	 * providers}
+	 * &lt;/p&gt;
+	 * 
+	 * @param algorithm key algorithm
+	 * @return JWE recipient or JWS issuer key
+	 */
+	static WebKey ephemeral(Algorithm algorithm) {
+<span class="fc" id="L920">		return builder(algorithm.type[0]).ephemeral(algorithm).build();</span>
+	}
+
+	/**
+	 * Parses a JSON Web Key (JWK).
+	 * 
+	 * @param jwk JSON Web Key
+	 * @return {@link WebKey}
+	 */
+	static WebKey parse(String jwk) {
+<span class="fc" id="L930">		return new Jwk(IuJson.parse(jwk).asJsonObject());</span>
+	}
+
+	/**
+	 * Parses a JSON Web Key Set (JWKS).
+	 * 
+	 * @param jwks serialized JWKS
+	 * @return parsed key set
+	 */
+	static Iterable&lt;? extends WebKey&gt; parseJwks(String jwks) {
+<span class="fc" id="L940">		return Jwk.parseJwks(IuJson.parse(jwks).asJsonObject());</span>
+	}
+
+	/**
+	 * Reads a JSON Web Key Set (JWKS).
+	 * 
+	 * @param jwks serialized JWKS
+	 * @return parsed key set
+	 */
+	static Iterable&lt;? extends WebKey&gt; readJwks(URI jwks) {
+<span class="fc" id="L950">		return Jwk.readJwks(jwks);</span>
+	}
+
+	/**
+	 * Reads a JSON Web Key Set (JWKS).
+	 * 
+	 * @param jwks serialized JWKS
+	 * @return parsed key set
+	 */
+	static Iterable&lt;? extends WebKey&gt; readJwks(InputStream jwks) {
+<span class="fc" id="L960">		return Jwk.readJwks(jwks);</span>
+	}
+
+	/**
+	 * Serializes {@link WebKey}s as a JSON Web Key Set.
+	 * 
+	 * @param webKeys {@link WebKey}s
+	 * @return serialized JWKS
+	 */
+	static String asJwks(Iterable&lt;? extends WebKey&gt; webKeys) {
+<span class="fc" id="L970">		return Jwk.asJwks(webKeys).toString();</span>
+	}
+
+	/**
+	 * Writes {@link WebKey} as a JSON Web Key.
+	 * 
+	 * @param webKeys {@link WebKey}s
+	 * @param out     {@link OutputStream}
+	 */
+	static void writeJwks(Iterable&lt;? extends WebKey&gt; webKeys, OutputStream out) {
+<span class="fc" id="L980">		Jwk.writeJwks(webKeys, out);</span>
+<span class="fc" id="L981">	}</span>
+
+	/**
+	 * Returns a copy of this key for which {@link #getPrivateKey()} and
+	 * {@link #getKey()} always return null, and for which the source data backing
+	 * these methods is not populated.
+	 * 
+	 * &lt;p&gt;
+	 * If these methods would already return null, this key is returned as-is.
+	 * &lt;/p&gt;
+	 * 
+	 * @return this key, or a copy that omits secret and private key data
+	 */
+	WebKey wellKnown();
+
+	/**
+	 * Gets the key type.
+	 * 
+	 * @return key type
+	 */
+	Type getType();
+
+	/**
+	 * Gets the public key use.
+	 * 
+	 * @return public key use.
+	 */
+	Use getUse();
+
+	/**
+	 * Gets the key operations.
+	 * 
+	 * @return key operations
+	 */
+	Set&lt;Operation&gt; getOps();
+
+	/**
+	 * Gets the raw key data for use when {@link Type#RAW}.
+	 * 
+	 * @return raw key data
+	 */
+	byte[] getKey();
+
+	/**
+	 * Gets the JCE private key implementation.
+	 * 
+	 * @return {@link PrivateKey}
+	 */
+	PrivateKey getPrivateKey();
+
+	/**
+	 * Gets the JCE public key implementation.
+	 * 
+	 * @return {@link PublicKey}
+	 */
+	PublicKey getPublicKey();
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
