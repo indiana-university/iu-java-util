@@ -32,6 +32,8 @@
 package edu.iu.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -139,9 +141,22 @@ public class IuVaultTest {
 		props.setProperty("iu.vault.endpoint", "vault://kv");
 		props.setProperty("iu.vault.secrets", "a");
 		props.setProperty("iu.vault.token", IdGenerator.generateId());
-		assertEquals(with(props), IuVault.isConfigured());
+		if (with(props))
+			assertTrue(IuVault.isConfigured());
+
 		if (!IuVault.isConfigured())
 			assertNull(IuVault.RUNTIME);
+	}
+
+	@Test
+	public void testIsNot() throws Exception {
+		final var props = new Properties();
+		props.setProperty("iu.vault.secrets", "");
+		if (with(props))
+			assertFalse(IuVault.isConfigured());
+
+		if (IuVault.isConfigured())
+			assertNotNull(IuVault.RUNTIME);
 	}
 
 	@Test

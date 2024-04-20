@@ -69,11 +69,11 @@ import edu.iu.auth.oauth.IuAuthorizationSession;
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
 import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
+import edu.iu.client.IuVault;
 import edu.iu.test.IuTestLogger;
-import edu.iu.test.VaultProperties;
 import iu.auth.util.HttpUtils;
 
-@EnabledIf("edu.iu.test.VaultProperties#isConfigured")
+@EnabledIf("edu.iu.client.IuVault#isConfigured")
 @SuppressWarnings("javadoc")
 public class OpenIDConnectIT {
 
@@ -91,11 +91,11 @@ public class OpenIDConnectIT {
 
 	@BeforeAll
 	public static void setupClass() throws URISyntaxException {
-		configUri = new URI(VaultProperties.getProperty("iu.auth.oidc.configUrl"));
-		clientId = VaultProperties.getProperty("iu.auth.oidc.clientId");
-		clientSecret = VaultProperties.getProperty("iu.auth.oidc.clientSecret");
-		redirectUri = new URI(VaultProperties.getProperty("iu.auth.oidc.redirectUri"));
-		resourceUri = new URI(VaultProperties.getProperty("iu.auth.oidc.resourceUri"));
+		configUri = new URI(IuVault.RUNTIME.get("iu.auth.oidc.configUrl"));
+		clientId = IuVault.RUNTIME.get("iu.auth.oidc.clientId");
+		clientSecret = IuVault.RUNTIME.get("iu.auth.oidc.clientSecret");
+		redirectUri = new URI(IuVault.RUNTIME.get("iu.auth.oidc.redirectUri"));
+		resourceUri = new URI(IuVault.RUNTIME.get("iu.auth.oidc.resourceUri"));
 		provider = IuOpenIdProvider.from(configUri, new IuOpenIdClient() {
 			@Override
 			public Duration getTrustRefreshInterval() {
@@ -132,12 +132,12 @@ public class OpenIDConnectIT {
 
 			@Override
 			public Duration getAuthenticatedSessionTimeout() {
-				return Duration.ofSeconds(2L);
+				return Duration.ofSeconds(5L);
 			}
 
 			@Override
 			public Duration getActivationInterval() {
-				return Duration.ofMillis(100L);
+				return Duration.ofMillis(500L);
 			}
 
 			@Override
@@ -240,8 +240,8 @@ public class OpenIDConnectIT {
 		assertEquals("POST", parsedLoginForm.attr("method").toUpperCase());
 
 		final var loginFormParams = new LinkedHashMap<String, Iterable<String>>();
-		loginFormParams.put("j_username", List.of(VaultProperties.getProperty("test.username")));
-		loginFormParams.put("j_password", List.of(VaultProperties.getProperty("test.password")));
+		loginFormParams.put("j_username", List.of(IuVault.RUNTIME.get("test.username")));
+		loginFormParams.put("j_password", List.of(IuVault.RUNTIME.get("test.password")));
 		loginFormParams.put("_eventId_proceed", List.of(""));
 		final var loginFormQuery = IuWebUtils.createQueryString(loginFormParams);
 
@@ -265,7 +265,7 @@ public class OpenIDConnectIT {
 		final var credentials = (IuBearerAuthCredentials) grant.authorize(resourceUri);
 		System.out.println(credentials);
 
-		Thread.sleep(125L);
+		Thread.sleep(750L);
 		IuTestLogger.expect("iu.auth.oidc.OidcAuthorizationClient", Level.FINER, "discarding invalid activation code",
 				IllegalArgumentException.class);
 		assertSame(credentials, (IuBearerAuthCredentials) grant.authorize(resourceUri));

@@ -68,6 +68,9 @@ public final class IuWebUtils {
 			return false;
 
 		final var root = rootUri.getPath();
+		if (root.isEmpty())
+			return true;
+		
 		final var resource = resourceUri.getPath();
 		final var l = root.length();
 		return resource.startsWith(root) //

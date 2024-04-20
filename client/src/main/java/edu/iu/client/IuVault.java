@@ -66,21 +66,21 @@ public class IuVault {
 	 * </p>
 	 * 
 	 * <dl>
-	 * <dt>vault.secrets (VAULT_SECRETS)</dt>
+	 * <dt>iu.vault.secrets (IU_VAULT_SECRETS)</dt>
 	 * <dd>Comma-separated list of secrets to read from the Vault K/V store</dd>
-	 * <dt>vault.endpoint (VAULT_ENDPOINT)</dt>
+	 * <dt>iu.vault.endpoint (IU_VAULT_ENDPOINT)</dt>
 	 * <dd>Base URL for a Vault K/V store</dd>
-	 * <dt>vault.token (VAULT_TOKEN)</dt>
+	 * <dt>iu.vault.token (IU_VAULT_TOKEN)</dt>
 	 * <dd>Access token for use with Vault, i.e., in development. If not set,
 	 * vault.loginEndpoint, vault.roleId, and vault.secretId <em>must</em> be
 	 * provided, i.e., for use by a CI/CD environment. If vault.token is set, the
 	 * approle properties will be ignored.</dd>
-	 * <dt>vault.loginEndpoint (VAULT_LOGIN_ENDPOINT)</dt>
+	 * <dt>iu.vault.loginEndpoint (IU_VAULT_LOGIN_ENDPOINT)</dt>
 	 * <dd>URL for the Vault approle login endpoint, for use when vault.token is not
 	 * set.</dd>
-	 * <dt>vault.roleId (VAULT_ROLE_ID)</dt>
+	 * <dt>iu.vault.roleId (IU_VAULT_ROLE_ID)</dt>
 	 * <dd>Vault approle Role ID, for use when vault.token is not set.</dd>
-	 * <dt>vault.secretId (VAULT_SECRET_ID)</dt>
+	 * <dt>iu.vault.secretId (IU_VAULT_SECRET_ID)</dt>
 	 * <dd>Vault approle Secret ID, for use when vault.token is not set.</dd>
 	 * </dl>
 	 * 
@@ -116,7 +116,7 @@ public class IuVault {
 	 * </p>
 	 * 
 	 * <pre>
-	 * &#64;EnabledIf("edu.iu.test.VaultProperties#isConfigured")
+	 * &#64;EnabledIf("edu.iu.client.IuVault#isConfigured")
 	 * </pre>
 	 * 
 	 * @return true if Vault is configured; else false
