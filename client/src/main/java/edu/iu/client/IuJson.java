@@ -36,6 +36,7 @@ import java.io.OutputStream;
 import java.io.StringReader;
 import java.net.http.HttpResponse;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -104,7 +105,10 @@ public class IuJson {
 	 * @return {@link JsonValue}
 	 */
 	public static JsonValue parse(String serialized) {
-		return PROVIDER.createReader(new StringReader(serialized)).readValue();
+		if (serialized == null)
+			return null;
+		else
+			return PROVIDER.createReader(new StringReader(serialized)).readValue();
 	}
 
 	/**
@@ -320,7 +324,7 @@ public class IuJson {
 	 * @param <T>     result type
 	 * @param object  {@link JsonObject}
 	 * @param name    property name
-	 * @param adapter adapter for converting non-null values to Java
+	 * @param adapter adapter for converting non-null values
 	 * @return property value
 	 */
 	public static <T> T get(JsonObject object, String name, IuJsonAdapter<T> adapter) {
@@ -328,7 +332,21 @@ public class IuJson {
 	}
 
 	/**
-	 * Gets a property value from a JSON object, accepting if non-null..
+	 * Gets a non-null property value from a JSON object.
+	 * 
+	 * @param <T>     result type
+	 * @param object  {@link JsonObject}
+	 * @param name    property name
+	 * @param adapter adapter for converting non-null values
+	 * @return property value
+	 * @throws NullPointerException if the property value is {@link JsonValue#NULL}
+	 */
+	public static <T> T nonNull(JsonObject object, String name, IuJsonAdapter<T> adapter) {
+		return Objects.requireNonNull(get(object, name, null, adapter), name);
+	}
+
+	/**
+	 * Gets a property value from a JSON object, accepting if non-null.
 	 * 
 	 * @param <T>      result type
 	 * @param object   {@link JsonObject}

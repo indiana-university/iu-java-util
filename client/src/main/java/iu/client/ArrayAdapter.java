@@ -31,10 +31,9 @@
  */
 package iu.client;
 
-import java.util.ArrayDeque;
 import java.util.Iterator;
-import java.util.Queue;
 import java.util.function.IntFunction;
+import java.util.stream.StreamSupport;
 
 import edu.iu.IuIterable;
 import edu.iu.client.IuJsonAdapter;
@@ -65,11 +64,8 @@ public class ArrayAdapter<C> extends JsonArrayAdapter<C[], C> {
 	}
 
 	@Override
-	protected C[] collect(Iterator<C> items) {
-		final Queue<C> q = new ArrayDeque<>();
-		while (items.hasNext())
-			q.add(items.next());
-		return q.toArray(factory);
+	protected C[] collect(Iterable<C> items) {
+		return StreamSupport.stream(items.spliterator(), false).toArray(factory);
 	}
 
 }

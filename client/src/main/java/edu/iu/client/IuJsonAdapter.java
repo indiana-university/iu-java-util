@@ -81,6 +81,7 @@ import java.util.stream.Stream;
 
 import edu.iu.IuText;
 import iu.client.JsonAdapters;
+import iu.client.ParsingJsonAdapter;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonNumber;
@@ -96,11 +97,6 @@ import jakarta.json.JsonValue;
  * @param <T> target type, <em>may</em> be unchecked
  */
 public interface IuJsonAdapter<T> {
-
-	/**
-	 * Always converts to a null value, useful for operations with no return type.
-	 */
-	static final IuJsonAdapter<Void> NULL = IuJsonAdapter.from(a -> null, a -> JsonValue.NULL);
 
 	/**
 	 * Creates a functional JSON type adapter.
@@ -124,24 +120,26 @@ public interface IuJsonAdapter<T> {
 	}
 
 	/**
-	 * Creates a functional JSON type adapter.
+	 * Creates a functional JSON type adapter for text conversion.
 	 * 
-	 * @param fromJson function that converts from JSON to the target type
-	 * @param <T>      target type
+	 * @param parser parsing function
+	 * @param <T>    target type
 	 * @return functional adapter
 	 */
-	static <T> IuJsonAdapter<T> fromText(Function<String, T> fromJson) {
-		return new IuJsonAdapter<T>() {
-			@Override
-			public T fromJson(JsonValue jsonValue) {
-				return fromJson.apply(((JsonString) jsonValue).getString());
-			}
+	static <T> IuJsonAdapter<T> text(Function<String, T> parser) {
+		return text(parser, T::toString);
+	}
 
-			@Override
-			public JsonValue toJson(T javaValue) {
-				throw new UnsupportedOperationException();
-			}
-		};
+	/**
+	 * Creates a functional JSON type adapter.
+	 * 
+	 * @param parser parsing function
+	 * @param print  printing function
+	 * @param <T>    target type
+	 * @return functional adapter
+	 */
+	static <T> IuJsonAdapter<T> text(Function<String, T> parser, Function<T, String> print) {
+		return new ParsingJsonAdapter<>(parser, print);
 	}
 
 	/**
@@ -355,7 +353,7 @@ public interface IuJsonAdapter<T> {
 	 * @see #of(Type)
 	 */
 	@SuppressWarnings("unchecked")
-	static <T> IuJsonAdapter<T> of(Class<T> type, IuJsonAdapter<?> valueAdapter) {
+	static <T> IuJsonAdapter<T> of(Class<? super T> type, IuJsonAdapter<?> valueAdapter) {
 		return JsonAdapters.adapt(type, valueAdapter);
 	}
 
@@ -368,11 +366,11 @@ public interface IuJsonAdapter<T> {
 	T fromJson(JsonValue jsonValue);
 
 	/**
-	 * Converts a Java parameter value to its JSON equivalent.
+	 * Converts a value to its JSON equivalent.
 	 * 
-	 * @param javaValue JSON value
-	 * @return Java equivalent
+	 * @param value value
+	 * @return JSON equivalent
 	 */
-	JsonValue toJson(T javaValue);
+	JsonValue toJson(T value);
 
 }

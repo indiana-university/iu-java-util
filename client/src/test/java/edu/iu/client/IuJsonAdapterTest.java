@@ -39,7 +39,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
@@ -77,6 +80,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.NavigableSet;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Queue;
@@ -84,6 +88,8 @@ import java.util.Set;
 import java.util.SimpleTimeZone;
 import java.util.SortedMap;
 import java.util.SortedSet;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -98,7 +104,10 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuEnumerableQueue;
+import edu.iu.IuException;
 import edu.iu.IuIterable;
+import edu.iu.IuObject;
 import edu.iu.IuText;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonNumber;
@@ -114,6 +123,53 @@ public class IuJsonAdapterTest {
 		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(getClass()));
 		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(ConcurrentHashMap.class));
 		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(ConcurrentLinkedQueue.class));
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testFrom() {
+		final var from = mock(Function.class);
+		final var adapter = IuJsonAdapter.from(from);
+		assertThrows(UnsupportedOperationException.class, () -> adapter.toJson(null));
+		adapter.fromJson(null);
+		verify(from).apply(null);
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testTo() {
+		final var to = mock(Function.class);
+		final var adapter = IuJsonAdapter.to(to);
+		assertThrows(UnsupportedOperationException.class, () -> adapter.fromJson(null));
+		adapter.toJson(null);
+		verify(to).apply(null);
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testFromTo() {
+		final var from = mock(Function.class);
+		final var to = mock(Function.class);
+		final var adapter = IuJsonAdapter.from(from, to);
+		adapter.fromJson(null);
+		verify(from).apply(null);
+		adapter.toJson(null);
+		verify(to).apply(null);
+	}
+	
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testText() {
+		final var p = mock(Function.class);
+		final var adapter = IuJsonAdapter.text(p);
+		adapter.fromJson(JsonValue.NULL);
+		verify(p, never()).apply(any());
+		assertEquals(JsonValue.NULL, adapter.toJson(null));
+		
+		final var id = IdGenerator.generateId();
+		adapter.fromJson(IuJson.string(id));
+		verify(p).apply(id);
+		assertEquals(IuJson.string(id), adapter.toJson(id));
 	}
 
 	@SuppressWarnings("unchecked")
@@ -229,21 +285,14 @@ public class IuJsonAdapterTest {
 
 	@Test
 	public void testBigDecimal() {
-		assertAdaptNumber(BigDecimal.class, null,
-				() -> new BigDecimal(Long.toString(ThreadLocalRandom.current().nextLong())
-						+ Long.toString(Math.abs(ThreadLocalRandom.current().nextLong())) + '.'
-						+ Long.toString(Math.abs(ThreadLocalRandom.current().nextLong()))),
-				a -> a.bigDecimalValue(), BigDecimal::toString, BigDecimal.ZERO);
+		assertAdaptNumber(BigDecimal.class, null, this::randomBigDecimal, a -> a.bigDecimalValue(),
+				BigDecimal::toString, BigDecimal.ZERO);
 	}
 
 	@Test
 	public void testBigInteger() {
-		assertAdaptNumber(BigInteger.class, null, () -> {
-			final var data = new byte[Math
-					.abs(ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE + 1, Short.MAX_VALUE))];
-			ThreadLocalRandom.current().nextBytes(data);
-			return new BigInteger(1, data);
-		}, a -> a.bigIntegerValue(), BigInteger::toString, BigInteger.ZERO);
+		assertAdaptNumber(BigInteger.class, null, this::randomBigInteger, a -> a.bigIntegerValue(),
+				BigInteger::toString, BigInteger.ZERO);
 	}
 
 	@Test
@@ -282,28 +331,6 @@ public class IuJsonAdapterTest {
 				JsonNumber::doubleValue, a -> Double.toString(a), 0.0);
 	}
 
-	private <T extends Number> void assertAdaptNumber(Class<T> c, Class<?> pc, Supplier<T> rand,
-			Function<JsonNumber, T> fromJson, Function<T, String> toString, T def) {
-		final var adapter = IuJsonAdapter.of(c);
-		assertNull(adapter.fromJson(JsonValue.NULL));
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-
-		final var n = rand.get();
-		assertEquals(n, adapter.fromJson(IuJson.number(n)));
-		assertEquals(n, adapter.fromJson(IuJson.string(toString.apply(n))));
-		assertEquals(n, fromJson.apply((JsonNumber) adapter.toJson(n)));
-
-		if (pc == null)
-			return;
-
-		final var primitive = IuJsonAdapter.<T>of(pc);
-		assertEquals(def, primitive.fromJson(JsonValue.NULL));
-		assertEquals(def, primitive.fromJson(null));
-		assertEquals(n, primitive.fromJson(IuJson.number(n)));
-		assertEquals(n, primitive.fromJson(IuJson.string(toString.apply(n))));
-		assertEquals(n, fromJson.apply((JsonNumber) primitive.toJson(n)));
-	}
-
 	@Test
 	public void testBinary() {
 		final var adapter = IuJsonAdapter.of(byte[].class);
@@ -319,7 +346,7 @@ public class IuJsonAdapterTest {
 	}
 
 	@Test
-	public void testRFC7517BigIntAdapter() {
+	public void testUtf8Binary() {
 		final var adapter = IuJsonAdapter.from(v -> IuText.utf8(((JsonString) v).getString()),
 				b -> IuJson.string(IuText.utf8(b)));
 
@@ -573,7 +600,7 @@ public class IuJsonAdapterTest {
 		assertEquals(JsonValue.NULL, adapter.toJson(null));
 		assertTrue(adapter.fromJson(JsonValue.NULL).isEmpty());
 
-		final var value = Optional.of(URI.create("test://" + IdGenerator.generateId()));
+		final var value = Optional.of(randomUri());
 		final var text = IuJson.string(value.get().toString());
 		assertEquals(text, adapter.toJson(value));
 		assertEquals(value, adapter.fromJson(text));
@@ -609,7 +636,7 @@ public class IuJsonAdapterTest {
 		assertEquals(JsonValue.NULL, adapter.toJson(null));
 		assertNull(adapter.fromJson(JsonValue.NULL));
 
-		final var value = new URL("http://localhost");
+		final var value = randomUrl();
 		final var text = IuJson.string(value.toString());
 		assertEquals(text, adapter.toJson(value));
 		assertEquals(value, adapter.fromJson(text));
@@ -617,14 +644,50 @@ public class IuJsonAdapterTest {
 
 	@Test
 	public void testArray() throws MalformedURLException {
-		final var adapter = IuJsonAdapter.of(URL[].class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
+		assertArray(IuJsonAdapter.of(URL[].class), IuJsonAdapter.of(URL.class), a -> a.toArray(URL[]::new),
+				this::randomUrl);
+	}
 
-		final var value = new URL[] { new URL("http://localhost/a"), new URL("http://localhost/b") };
-		final var array = IuJson.array().add("http://localhost/a").add("http://localhost/b").build();
-		assertEquals(array, adapter.toJson(value));
-		assertArrayEquals(value, adapter.fromJson(array));
+	@Test
+	public void testAdaptedArray() throws MalformedURLException {
+		class Name implements CharSequence {
+			final String name;
+
+			private Name(String name) {
+				this.name = name;
+			}
+
+			@Override
+			public int length() {
+				return name.length();
+			}
+
+			@Override
+			public char charAt(int index) {
+				return name.charAt(index);
+			}
+
+			@Override
+			public CharSequence subSequence(int start, int end) {
+				return name.subSequence(start, end);
+			}
+
+			@Override
+			public int hashCode() {
+				return IuObject.hashCode(name);
+			}
+
+			@Override
+			public boolean equals(Object obj) {
+				if (!IuObject.typeCheck(this, obj))
+					return false;
+				Name other = (Name) obj;
+				return Objects.equals(name, other.name);
+			}
+		}
+		final var json = IuJsonAdapter.from(a -> new Name(((JsonString) a).getString()), a -> IuJson.string(a.name));
+		assertArray(IuJsonAdapter.of(Name[].class, json), json, a -> a.toArray(Name[]::new),
+				() -> new Name(IdGenerator.generateId()));
 	}
 
 	@Test
@@ -636,14 +699,7 @@ public class IuJsonAdapterTest {
 		final var type = A.class.getDeclaredField("c").getGenericType();
 		final var adapter = IuJsonAdapter.<Number[]>of(type);
 		IuJsonAdapter.<Number[]>of(type); // covers generic array type cache
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var value = new Number[] { 1, 2.0, new BigDecimal("3") };
-		final var array = IuJson.array().add(1).add(2.0).add(new BigDecimal("3")).build();
-		assertEquals(array, adapter.toJson(value));
-		assertArrayEquals(new Number[] { new BigDecimal("1"), new BigDecimal("2.0"), new BigDecimal("3") },
-				adapter.fromJson(array));
+		assertArray(adapter, IuJsonAdapter.of(Number.class), a -> a.toArray(Number[]::new), this::randomBigDecimal);
 	}
 
 	@Test
@@ -652,38 +708,19 @@ public class IuJsonAdapterTest {
 			@SuppressWarnings("unused")
 			List<URI> c;
 		}
-		final var adapter = IuJsonAdapter.<List<URI>>of(A.class.getDeclaredField("c").getGenericType());
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var value = List.of(URI.create("http://localhost/a"), URI.create("http://localhost/b"));
-		final var array = IuJson.array().add("http://localhost/a").add("http://localhost/b").build();
-		assertEquals(array, adapter.toJson(value));
-		assertEquals(value, adapter.fromJson(array));
+		assertArray(IuJsonAdapter.<List<URI>>of(A.class.getDeclaredField("c").getGenericType()),
+				IuJsonAdapter.of(URI.class), ArrayList::new, this::randomUri);
 	}
 
 	@Test
 	public void testAdaptedList() {
-		final var adapter = IuJsonAdapter.of(List.class, IuJsonAdapter.of(URI.class));
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var value = List.of(URI.create("http://localhost/a"), URI.create("http://localhost/b"));
-		final var array = IuJson.array().add("http://localhost/a").add("http://localhost/b").build();
-		assertEquals(array, adapter.toJson(value));
-		assertEquals(value, adapter.fromJson(array));
+		assertArray(IuJsonAdapter.of(List.class, IuJsonAdapter.of(URI.class)), IuJsonAdapter.of(URI.class),
+				ArrayList::new, this::randomUri);
 	}
 
 	@Test
 	public void testList() {
-		final var adapter = IuJsonAdapter.of(ArrayList.class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var value = new ArrayList<>(List.of("http://localhost/a", "http://localhost/b"));
-		final var array = IuJson.array().add("http://localhost/a").add("http://localhost/b").build();
-		assertEquals(array, adapter.toJson(value));
-		assertEquals(value, adapter.fromJson(array));
+		assertStringArray(IuJsonAdapter.<ArrayList<String>>of(ArrayList.class), ArrayList::new);
 	}
 
 	@Test
@@ -692,22 +729,8 @@ public class IuJsonAdapterTest {
 			@SuppressWarnings("unused")
 			Collection<URI> c;
 		}
-		final var adapter = IuJsonAdapter.<Collection<URI>>of(A.class.getDeclaredField("c").getGenericType());
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var a = IuJson.array();
-		final var q = new ArrayDeque<URI>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var u = URI.create("test://" + IdGenerator.generateId());
-			q.offer(u);
-			a.add(u.toString());
-		}
-		final var array = a.build();
-
-		assertEquals(array, adapter.toJson(q));
-		assertArrayEquals(q.toArray(), adapter.fromJson(array).toArray());
+		assertArray(IuJsonAdapter.<Collection<URI>>of(A.class.getDeclaredField("c").getGenericType()),
+				IuJsonAdapter.of(URI.class), a -> a, this::randomUri);
 	}
 
 	@Test
@@ -716,316 +739,74 @@ public class IuJsonAdapterTest {
 			@SuppressWarnings("unused")
 			Collection<? extends Number> c;
 		}
-		final var adapter = IuJsonAdapter
-				.<Collection<? extends Number>>of(A.class.getDeclaredField("c").getGenericType());
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var a = IuJson.array();
-		final var q = new ArrayDeque<BigDecimal>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var u = new BigDecimal(Long.toString(ThreadLocalRandom.current().nextLong())
-					+ Long.toString(Math.abs(ThreadLocalRandom.current().nextLong())) + '.'
-					+ Long.toString(Math.abs(ThreadLocalRandom.current().nextLong())));
-			q.offer(u);
-			a.add(u);
-		}
-		final var array = a.build();
-
-		assertEquals(array, adapter.toJson(q));
-		assertArrayEquals(q.toArray(), adapter.fromJson(array).toArray());
+		assertArray(IuJsonAdapter.<Collection<? extends Number>>of(A.class.getDeclaredField("c").getGenericType()),
+				IuJsonAdapter.of(Number.class), a -> a, this::randomBigDecimal);
 	}
 
 	@Test
 	public void testAdaptedQueue() {
-		final var adapter = IuJsonAdapter.of(Queue.class, IuJsonAdapter.of(URI.class));
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var a = IuJson.array();
-		final var q = new ArrayDeque<URI>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var u = URI.create("test://" + IdGenerator.generateId());
-			q.offer(u);
-			a.add(u.toString());
-		}
-		final var array = a.build();
-		assertEquals(array, adapter.toJson(q));
-		assertArrayEquals(q.toArray(), adapter.fromJson(array).toArray());
+		assertArray(IuJsonAdapter.<Queue<URI>>of(Queue.class, IuJsonAdapter.of(URI.class)), IuJsonAdapter.of(URI.class),
+				a -> a, this::randomUri);
 	}
 
 	@Test
 	public void testDeque() {
-		final var adapter = IuJsonAdapter.of(Deque.class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var a = IuJson.array();
-		final var q = new ArrayDeque<>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var s = IdGenerator.generateId();
-			q.offer(s);
-			a.add(s);
-		}
-		final var array = a.build();
-		assertEquals(array, adapter.toJson(q));
-		assertArrayEquals(q.toArray(), adapter.fromJson(array).toArray());
+		assertStringArray(IuJsonAdapter.<Deque<String>>of(Deque.class), a -> a);
 	}
 
 	@Test
 	public void testArrayDeque() {
-		final var adapter = IuJsonAdapter.of(ArrayDeque.class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var a = IuJson.array();
-		final var q = new ArrayDeque<>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var s = IdGenerator.generateId();
-			q.offer(s);
-			a.add(s);
-		}
-		final var array = a.build();
-		assertEquals(array, adapter.toJson(q));
-		assertArrayEquals(q.toArray(), adapter.fromJson(array).toArray());
+		assertStringArray(IuJsonAdapter.<ArrayDeque<String>>of(ArrayDeque.class), a -> a);
 	}
 
 	@Test
 	public void testIterable() {
-		final var adapter = IuJsonAdapter.of(Iterable.class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var a = IuJson.array();
-		final var q = new ArrayDeque<>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var s = IdGenerator.generateId();
-			q.offer(s);
-			a.add(s);
-		}
-		final var array = a.build();
-		assertEquals(array, adapter.toJson(q));
-		final var qi = q.iterator();
-		for (final var b : adapter.fromJson(array)) {
-			assertTrue(qi.hasNext());
-			assertEquals(b, qi.next());
-		}
-		assertFalse(qi.hasNext());
+		assertStringArray(IuJsonAdapter.<Iterable<String>>of(Iterable.class), a -> a);
 	}
 
 	@Test
 	public void testSet() {
-		final var adapter = IuJsonAdapter.of(Set.class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var a = IuJson.array();
-		final var c = new LinkedHashSet<>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var s = IdGenerator.generateId();
-			c.add(s);
-			a.add(s);
-		}
-		final var array = a.build();
-		assertEquals(array, adapter.toJson(c));
-		final var qi = c.iterator();
-		for (final var b : adapter.fromJson(array)) {
-			assertTrue(qi.hasNext());
-			assertEquals(b, qi.next());
-		}
-		assertFalse(qi.hasNext());
+		assertStringArray(IuJsonAdapter.<Set<String>>of(Set.class), HashSet::new);
 	}
 
 	@Test
 	public void testLinkedHashSet() {
-		final var adapter = IuJsonAdapter.of(LinkedHashSet.class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var a = IuJson.array();
-		final var c = new LinkedHashSet<>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var s = IdGenerator.generateId();
-			c.add(s);
-			a.add(s);
-		}
-		final var array = a.build();
-		assertEquals(array, adapter.toJson(c));
-		final var qi = c.iterator();
-		for (final var b : adapter.fromJson(array)) {
-			assertTrue(qi.hasNext());
-			assertEquals(b, qi.next());
-		}
-		assertFalse(qi.hasNext());
+		assertStringArray(IuJsonAdapter.<LinkedHashSet<String>>of(LinkedHashSet.class), LinkedHashSet::new);
 	}
 
 	@Test
 	public void testHashSet() {
-		final var adapter = IuJsonAdapter.of(HashSet.class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var a = IuJson.array();
-		final var c = new LinkedHashSet<>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var s = IdGenerator.generateId();
-			c.add(s);
-			a.add(s);
-		}
-		final var array = a.build();
-		assertEquals(array, adapter.toJson(c));
-		assertEquals(c, adapter.fromJson(array));
+		assertStringArray(IuJsonAdapter.<HashSet<String>>of(HashSet.class), HashSet::new);
 	}
 
 	@Test
 	public void testSortedSet() {
-		final var adapter = IuJsonAdapter.of(SortedSet.class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var c = new TreeSet<String>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var s = IdGenerator.generateId();
-			c.add(s);
-		}
-		final var a = IuJson.array();
-		c.forEach(a::add);
-		final var array = a.build();
-		assertEquals(array, adapter.toJson(c));
-		assertEquals(c, adapter.fromJson(array));
+		assertStringArray(IuJsonAdapter.<SortedSet<String>>of(SortedSet.class), TreeSet::new);
 	}
 
 	@Test
 	public void testNavigableSet() {
-		final var adapter = IuJsonAdapter.of(NavigableSet.class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var c = new TreeSet<String>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var s = IdGenerator.generateId();
-			c.add(s);
-		}
-		final var a = IuJson.array();
-		c.forEach(a::add);
-		final var array = a.build();
-		assertEquals(array, adapter.toJson(c));
-		assertEquals(c, adapter.fromJson(array));
+		assertStringArray(IuJsonAdapter.<NavigableSet<String>>of(NavigableSet.class), TreeSet::new);
 	}
 
 	@Test
 	public void testTreeSet() {
-		final var adapter = IuJsonAdapter.of(TreeSet.class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var c = new TreeSet<String>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var s = IdGenerator.generateId();
-			c.add(s);
-		}
-		final var a = IuJson.array();
-		c.forEach(a::add);
-		final var array = a.build();
-		assertEquals(array, adapter.toJson(c));
-		assertEquals(c, adapter.fromJson(array));
+		assertStringArray(IuJsonAdapter.<TreeSet<String>>of(TreeSet.class), TreeSet::new);
 	}
 
 	@Test
 	public void testStream() {
-		final var adapter = IuJsonAdapter.<Stream<String>>of(Stream.class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var a = IuJson.array();
-		final var q = new ArrayDeque<String>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var s = IdGenerator.generateId();
-			q.add(s);
-			a.add(s);
-		}
-		final var array = a.build();
-		assertEquals(array, adapter.toJson(q.stream()));
-		final var qi = q.iterator();
-		adapter.fromJson(array).forEach(b -> {
-			assertTrue(qi.hasNext());
-			assertEquals(b, qi.next());
-		});
-		assertFalse(qi.hasNext());
+		assertStringArray(IuJsonAdapter.<Stream<String>>of(Stream.class), ArrayDeque::stream);
 	}
 
 	@Test
 	public void testIterator() {
-		final var adapter = IuJsonAdapter.<Iterator<String>>of(Iterator.class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var a = IuJson.array();
-		final var q = new ArrayDeque<String>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var s = IdGenerator.generateId();
-			q.add(s);
-			a.add(s);
-		}
-		final var array = a.build();
-		assertEquals(array, adapter.toJson(q.iterator()));
-		final var qi = q.iterator();
-		final var ai = adapter.fromJson(array);
-		while (ai.hasNext()) {
-			assertTrue(qi.hasNext());
-			assertEquals(ai.next(), qi.next());
-		}
-		assertFalse(qi.hasNext());
+		assertStringArray(IuJsonAdapter.<Iterator<String>>of(Iterator.class), ArrayDeque::iterator);
 	}
 
 	@Test
 	public void testEnumeration() {
-		final var adapter = IuJsonAdapter.<Enumeration<String>>of(Enumeration.class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var a = IuJson.array();
-		final var q = new ArrayDeque<String>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var s = IdGenerator.generateId();
-			q.add(s);
-			a.add(s);
-		}
-		final var array = a.build();
-		final var qe = q.iterator();
-		assertEquals(array, adapter.toJson(new Enumeration<>() {
-			@Override
-			public boolean hasMoreElements() {
-				return qe.hasNext();
-			}
-
-			@Override
-			public String nextElement() {
-				return qe.next();
-			}
-		}));
-
-		final var qi = q.iterator();
-		final var ai = adapter.fromJson(array);
-		while (ai.hasMoreElements()) {
-			assertTrue(qi.hasNext());
-			assertEquals(ai.nextElement(), qi.next());
-		}
-		assertFalse(qi.hasNext());
+		assertStringArray(IuJsonAdapter.<Enumeration<String>>of(Enumeration.class), q -> new IuEnumerableQueue<>(q));
 	}
 
 	@Test
@@ -1034,153 +815,151 @@ public class IuJsonAdapterTest {
 			@SuppressWarnings("unused")
 			Map<String, URI> m;
 		}
-		final var adapter = IuJsonAdapter.<Map<String, URI>>of(A.class.getDeclaredField("m").getGenericType());
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var a = IuJson.object();
-		final var m = new LinkedHashMap<String, URI>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var k = IdGenerator.generateId();
-			final var u = URI.create("test://" + IdGenerator.generateId());
-			m.put(k, u);
-			a.add(k, u.toString());
-		}
-		final var object = a.build();
-
-		assertEquals(object, adapter.toJson(m));
-		assertEquals(m, adapter.fromJson(object));
+		assertMap(IuJsonAdapter.of(A.class.getDeclaredField("m").getGenericType()), LinkedHashMap::new,
+				this::randomUri);
 	}
 
 	@Test
 	public void testAdaptedMap() {
-		final var adapter = IuJsonAdapter.of(LinkedHashMap.class, IuJsonAdapter.of(URI.class));
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var a = IuJson.object();
-		final var m = new LinkedHashMap<String, URI>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var k = IdGenerator.generateId();
-			final var u = URI.create("test://" + IdGenerator.generateId());
-			m.put(k, u);
-			a.add(k, u.toString());
-		}
-		final var object = a.build();
-
-		assertEquals(object, adapter.toJson(m));
-		assertEquals(m, adapter.fromJson(object));
+		assertMap(IuJsonAdapter.of(LinkedHashMap.class, IuJsonAdapter.of(URI.class)), LinkedHashMap::new,
+				this::randomUri);
 	}
 
 	@Test
 	public void testHashMap() {
-		final var adapter = IuJsonAdapter.of(HashMap.class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var a = IuJson.object();
-		final var m = new LinkedHashMap<String, String>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var k = IdGenerator.generateId();
-			final var s = IdGenerator.generateId();
-			m.put(k, s);
-			a.add(k, s);
-		}
-		final var object = a.build();
-
-		assertEquals(object, adapter.toJson(m));
-		assertEquals(m, adapter.fromJson(object));
+		assertStringMap(HashMap.class, HashMap::new);
 	}
 
 	@Test
 	public void testSortedMap() {
-		final var adapter = IuJsonAdapter.of(SortedMap.class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var a = IuJson.object();
-		final var m = new TreeMap<String, String>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var k = IdGenerator.generateId();
-			final var s = IdGenerator.generateId();
-			m.put(k, s);
-			a.add(k, s);
-		}
-		final var object = a.build();
-
-		assertEquals(object, adapter.toJson(m));
-		assertEquals(m, adapter.fromJson(object));
+		assertStringMap(SortedMap.class, TreeMap::new);
 	}
 
 	@Test
 	public void testNavigableMap() {
-		final var adapter = IuJsonAdapter.of(NavigableMap.class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var a = IuJson.object();
-		final var m = new TreeMap<String, String>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var k = IdGenerator.generateId();
-			final var s = IdGenerator.generateId();
-			m.put(k, s);
-			a.add(k, s);
-		}
-		final var object = a.build();
-
-		assertEquals(object, adapter.toJson(m));
-		assertEquals(m, adapter.fromJson(object));
+		assertStringMap(NavigableMap.class, TreeMap::new);
 	}
 
 	@Test
 	public void testTreeMap() {
-		final var adapter = IuJsonAdapter.of(TreeMap.class);
-		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertNull(adapter.fromJson(null));
-		assertNull(adapter.fromJson(JsonValue.NULL));
-
-		final var a = IuJson.object();
-		final var m = new TreeMap<String, String>();
-		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
-		for (var i = 0; i < l; i++) {
-			final var k = IdGenerator.generateId();
-			final var s = IdGenerator.generateId();
-			m.put(k, s);
-			a.add(k, s);
-		}
-		final var object = a.build();
-
-		assertEquals(object, adapter.toJson(m));
-		assertEquals(m, adapter.fromJson(object));
+		assertStringMap(TreeMap.class, TreeMap::new);
 	}
 
 	@Test
 	public void testProperties() {
-		final var adapter = IuJsonAdapter.of(Properties.class);
+		assertStringMap(Properties.class, Properties::new);
+	}
+
+	private <T extends Number> void assertAdaptNumber(Class<T> c, Class<?> pc, Supplier<T> rand,
+			Function<JsonNumber, T> fromJson, Function<T, String> toString, T def) {
+		final var adapter = IuJsonAdapter.of(c);
+		assertNull(adapter.fromJson(JsonValue.NULL));
+		assertEquals(JsonValue.NULL, adapter.toJson(null));
+
+		final var n = rand.get();
+		assertEquals(n, adapter.fromJson(IuJson.number(n)));
+		assertEquals(n, adapter.fromJson(IuJson.string(toString.apply(n))));
+		assertEquals(n, fromJson.apply((JsonNumber) adapter.toJson(n)));
+
+		if (pc == null)
+			return;
+
+		final var primitive = IuJsonAdapter.<T>of(pc);
+		assertEquals(def, primitive.fromJson(JsonValue.NULL));
+		assertEquals(def, primitive.fromJson(null));
+		assertEquals(n, primitive.fromJson(IuJson.number(n)));
+		assertEquals(n, primitive.fromJson(IuJson.string(toString.apply(n))));
+		assertEquals(n, fromJson.apply((JsonNumber) primitive.toJson(n)));
+	}
+
+	private URI randomUri() {
+		return URI.create("test://" + IdGenerator.generateId());
+	}
+
+	private URL randomUrl() {
+		return IuException.unchecked(() -> new URL("http://localhost/" + IdGenerator.generateId()));
+	}
+
+	private int randomLength() {
+		return Math.abs(ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE + 1, Short.MAX_VALUE));
+	}
+
+	private BigInteger randomBigInteger() {
+		final var data = new byte[randomLength()];
+		ThreadLocalRandom.current().nextBytes(data);
+		return new BigInteger(1, data);
+	}
+
+	private BigDecimal randomBigDecimal() {
+		return new BigDecimal(randomBigInteger(), ThreadLocalRandom.current().nextInt());
+	}
+
+	private <A> void assertStringArray(IuJsonAdapter<A> adapter, Function<ArrayDeque<String>, A> factory) {
+		assertArray(adapter, IuJsonAdapter.of(String.class), factory, IdGenerator::generateId);
+	}
+
+	private <A, I> void assertArray(IuJsonAdapter<A> adapter, IuJsonAdapter<I> itemAdapter,
+			Function<ArrayDeque<I>, A> factory, Supplier<I> itemFactory) {
+		assertEquals(JsonValue.NULL, adapter.toJson(null));
+		assertNull(adapter.fromJson(JsonValue.NULL));
+
+		final var controlArrayBuilder = IuJson.array();
+		final var controlElements = new HashSet<JsonValue>();
+		final var controlValues = new ArrayDeque<I>();
+		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
+		for (var i = 0; i < l; i++) {
+			final var item = itemFactory.get();
+			controlValues.offer(item);
+
+			final var jsonItem = itemAdapter.toJson(item);
+			controlArrayBuilder.add(jsonItem);
+			controlElements.add(jsonItem);
+		}
+
+		final var controlArray = controlArrayBuilder.build();
+		final var arrayToCheck = adapter.toJson(factory.apply(controlValues)).asJsonArray();
+		assertEquals(controlArray.size(), arrayToCheck.size());
+		assertTrue(controlElements.containsAll(arrayToCheck));
+
+		final var a = factory.apply(controlValues);
+		final var b = adapter.fromJson(controlArray);
+		if (b instanceof Iterator)
+			assertTrue(IuIterable.remaindersAreEqual((Iterator<?>) a, (Iterator<?>) b));
+		else if (b instanceof Enumeration)
+			assertTrue(IuIterable.remaindersAreEqual(((Enumeration<?>) a).asIterator(),
+					((Enumeration<?>) b).asIterator()));
+		else if (b instanceof Stream)
+			assertTrue(IuIterable.remaindersAreEqual(((Stream<?>) a).iterator(), ((Stream<?>) b).iterator()));
+		else if (b instanceof Spliterator)
+			assertTrue(IuIterable.remaindersAreEqual(Spliterators.iterator((Spliterator<?>) a),
+					Spliterators.iterator((Spliterator<?>) a)));
+		else if (b instanceof Queue)
+			assertTrue(IuIterable.remaindersAreEqual(((Queue<?>) a).iterator(), ((Queue<?>) b).iterator()));
+		else
+			assertTrue(IuObject.equals(a, b));
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	private void assertStringMap(Class c, Supplier s) {
+		assertMap(IuJsonAdapter.of(c, IuJsonAdapter.of(String.class)), s, IdGenerator::generateId);
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	private void assertMap(IuJsonAdapter adapter, Supplier s, Supplier f) {
 		assertEquals(JsonValue.NULL, adapter.toJson(null));
 		assertNull(adapter.fromJson(null));
 		assertNull(adapter.fromJson(JsonValue.NULL));
 
-		final var a = IuJson.object();
-		final var m = new Properties();
+		final var o = IuJson.object();
+		final var m = (Map) s.get();
 		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
 		for (var i = 0; i < l; i++) {
 			final var k = IdGenerator.generateId();
-			final var s = IdGenerator.generateId();
-			m.put(k, s);
-			a.add(k, s);
+			final var u = f.get();
+			m.put(k, u);
+			o.add(k, u.toString());
 		}
-		final var object = a.build();
+		final var object = o.build();
 
 		assertEquals(object, adapter.toJson(m));
 		assertEquals(m, adapter.fromJson(object));

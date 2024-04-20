@@ -29,68 +29,44 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package edu.iu.client;
 
-import java.util.Iterator;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import edu.iu.IuIterable;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonValue;
+import java.net.URI;
+import java.util.Set;
 
-/**
- * Adapts to/from {@link JsonArray} values.
- * 
- * @param <T> target type
- * @param <E> element type
- */
-abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
+import org.junit.jupiter.api.Test;
 
-	/**
-	 * Extracts an iterator from a Java value.
-	 * 
-	 * @param value value
-	 * @return iterator
-	 */
-	abstract protected Iterator<E> iterator(T value);
+@SuppressWarnings("javadoc")
+public class IuJsonBuilderTest {
 
-	/**
-	 * Collects items into the target type.
-	 * 
-	 * @param items items
-	 * @return target value
-	 */
-	abstract protected T collect(Iterable<E> items);
+	private static class Builder extends IuJsonBuilder<Builder> {
 
-	private final IuJsonAdapter<E> itemAdapter;
-
-	/**
-	 * Constructor
-	 * 
-	 * @param itemAdapter item adapter
-	 */
-	protected JsonArrayAdapter(IuJsonAdapter<E> itemAdapter) {
-		this.itemAdapter = itemAdapter;
 	}
 
-	@Override
-	public T fromJson(JsonValue jsonValue) {
-		if (jsonValue == null //
-				|| JsonValue.NULL.equals(jsonValue))
-			return null;
-		else
-			return collect(IuIterable.map(jsonValue.asJsonArray(), itemAdapter::fromJson));
+	@Test
+	public void testToJson() {
+		assertEquals(IuJson.object().build(), new Builder().toJson());
 	}
 
-	@Override
-	public JsonValue toJson(T javaValue) {
-		if (javaValue == null)
-			return JsonValue.NULL;
+	@Test
+	public void testMerge() {
+		final var a = new Builder();
+		a.param("foo", "bar");
+		final var b = new Builder();
+		b.param("bar", "baz");
+		b.copy(a);
+		assertEquals(IuJson.object().add("foo", "bar").add("bar", "baz").build(), b.toJson());
+		assertEquals(Set.of("foo", "bar"), b.paramNames());
+	}
 
-		final var a = IuJson.array();
-		iterator(javaValue).forEachRemaining(i -> a.add(itemAdapter.toJson(i)));
-		return a.build();
+	@Test
+	public void testParam() {
+		final var a = new Builder();
+		a.param("foo", "bar");
+		a.param("bar", URI.create("baz://foo"), IuJsonAdapter.of(URI.class));
+		assertEquals(IuJson.string("bar"), a.param("foo"));
 	}
 
 }
