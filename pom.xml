@@ -475,6 +475,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>base</module>
 				<module>client</module>
 				<module>test</module>
+				<module>crypt</module>
 				<module>jdbc</module>
 				<module>type</module>
 				<module>auth</module>

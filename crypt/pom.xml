@@ -10,41 +10,24 @@
 		<version>7.0.2-SNAPSHOT</version>
 	</parent>
 
-	<artifactId>iu-java-client</artifactId>
-	<name>IU HTTP Client Utilities</name>
-
-	<properties>
-		<argLine>-ea --add-modules ALL-MODULE-PATH -XX:+EnableDynamicAgentLoading</argLine>
-	</properties>
+	<artifactId>iu-java-crypt</artifactId>
+	<name>IU Crypto and PKI Utilities</name>
 
 	<dependencies>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-base</artifactId>
 			<version>${project.version}</version>
-			<scope>provided</scope>
 		</dependency>
 		<dependency>
-			<groupId>jakarta.json</groupId>
-			<artifactId>jakarta.json-api</artifactId>
-			<version>${jakarta.json-api.version}</version>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-client</artifactId>
+			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.eclipse.parsson</groupId>
-			<artifactId>parsson</artifactId>
-			<version>${parsson.version}</version>
-			<scope>runtime</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.junit.jupiter</groupId>
-			<artifactId>junit-jupiter-engine</artifactId>
-			<version>${junit-jupiter.version}</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.mockito</groupId>
-			<artifactId>mockito-core</artifactId>
-			<version>${mockito.version}</version>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-test</artifactId>
+			<version>${project.version}</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
@@ -59,5 +42,5 @@
 			</plugin>
 		</plugins>
 	</build>
-
+		
 </project>
