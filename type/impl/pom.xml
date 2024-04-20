@@ -41,6 +41,12 @@
 			<version>${jakarta.interceptor-api.version}</version>
 		</dependency>
 		<dependency>
+			<groupId>jakarta.json.bind</groupId>
+			<artifactId>jakarta.json.bind-api</artifactId>
+			<version>${jakarta.json.bind-api.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-type-testresources</artifactId>
 			<version>${project.version}</version>
