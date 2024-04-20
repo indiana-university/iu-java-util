@@ -216,15 +216,15 @@ public class ArchiveSourceTest extends IuTypeTestCase {
 		var testcomponent = TestArchives.getComponentArchive("testruntime");
 		try (var source = new ArchiveSource(testcomponent)) {
 			assertEquals(
-					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.1.0.jar, META-INF/lib/jakarta.annotation-api-2.1.1.jar, META-INF/lib/jakarta.json-api-2.1.2.jar, META-INF/lib/commons-lang-2.6.jar, META-INF/lib/jakarta.ejb-api-4.0.0.jar, META-INF/lib/jakarta.transaction-api-2.0.0.jar], dependencies=[parsson-1.1+], closed=false]",
+					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.2.0.jar, META-INF/lib/jakarta.annotation-api-3.0.0.jar, META-INF/lib/jakarta.json-api-2.1.2.jar, META-INF/lib/commons-lang-2.6.jar, META-INF/lib/jakarta.ejb-api-4.0.0.jar, META-INF/lib/jakarta.transaction-api-2.0.0.jar], dependencies=[parsson-1.1+], closed=false]",
 					source.toString());
 			source.hasNext();
 			assertTrue(source.toString().startsWith(
-					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.1.0.jar, META-INF/lib/jakarta.annotation-api-2.1.1.jar, META-INF/lib/jakarta.json-api-2.1.2.jar, META-INF/lib/commons-lang-2.6.jar, META-INF/lib/jakarta.ejb-api-4.0.0.jar, META-INF/lib/jakarta.transaction-api-2.0.0.jar], dependencies=[parsson-1.1+], next=Optional[ComponentEntry [name="),
+					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.2.0.jar, META-INF/lib/jakarta.annotation-api-3.0.0.jar, META-INF/lib/jakarta.json-api-2.1.2.jar, META-INF/lib/commons-lang-2.6.jar, META-INF/lib/jakarta.ejb-api-4.0.0.jar, META-INF/lib/jakarta.transaction-api-2.0.0.jar], dependencies=[parsson-1.1+], next=Optional[ComponentEntry [name="),
 					source::toString);
 			source.next();
 			assertTrue(source.toString().startsWith(
-					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.1.0.jar, META-INF/lib/jakarta.annotation-api-2.1.1.jar, META-INF/lib/jakarta.json-api-2.1.2.jar, META-INF/lib/commons-lang-2.6.jar, META-INF/lib/jakarta.ejb-api-4.0.0.jar, META-INF/lib/jakarta.transaction-api-2.0.0.jar], dependencies=[parsson-1.1+], last=ComponentEntry [name="),
+					"ArchiveSource [sealed=true, classPath=[META-INF/lib/jakarta.interceptor-api-2.2.0.jar, META-INF/lib/jakarta.annotation-api-3.0.0.jar, META-INF/lib/jakarta.json-api-2.1.2.jar, META-INF/lib/commons-lang-2.6.jar, META-INF/lib/jakarta.ejb-api-4.0.0.jar, META-INF/lib/jakarta.transaction-api-2.0.0.jar], dependencies=[parsson-1.1+], last=ComponentEntry [name="),
 					source::toString);
 		}
 	}
