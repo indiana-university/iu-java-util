@@ -32,11 +32,22 @@
 package iu.auth.basic;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mockConstruction;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+
+import edu.iu.IdGenerator;
+import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuExpiredCredentialsException;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.basic.IuBasicAuthCredentials;
 
 @SuppressWarnings("javadoc")
 public class BasicAuthSpiTest {
@@ -45,9 +56,30 @@ public class BasicAuthSpiTest {
 	public void testSpi() {
 		final var basicSpi = new BasicAuthSpi();
 		try (final var mockBasic = mockConstruction(BasicAuthCredentials.class)) {
-			final var basic = basicSpi.createCredentials("foo", "bar");
+			final var basic = basicSpi.createCredentials("foo", "bar", "UTF-8");
 			assertEquals(List.of(basic), mockBasic.constructed());
 		}
+	}
+
+	@Test
+	public void testRegistration() throws IuAuthenticationException, InterruptedException {
+		final var realm = IdGenerator.generateId();
+		final var id = IdGenerator.generateId();
+		final var secret = IdGenerator.generateId();
+		final var now = Instant.now();
+		final var expires = now.plus(Duration.ofMinutes(2L));
+		final var client = new BasicAuthCredentials(id, secret, "US-ASCII", now, expires);
+		final var credentials = new ArrayDeque<BasicAuthCredentials>();
+		credentials.offer(client);
+		IuBasicAuthCredentials.registerClientCredentials(credentials, realm, Duration.ofMillis(500L));
+		assertThrows(IllegalArgumentException.class,
+				() -> IuBasicAuthCredentials.registerClientCredentials(credentials, realm, Duration.ofMillis(500L)));
+		IuPrincipalIdentity.verify(IuApiCredentials.basic(id, secret), realm);
+		assertThrows(IuAuthenticationException.class,
+				() -> IuPrincipalIdentity.verify(IuApiCredentials.basic(id, "wrong password"), realm));
+		Thread.sleep(500L);
+		assertThrows(IuExpiredCredentialsException.class,
+				() -> IuPrincipalIdentity.verify(IuApiCredentials.basic(id, secret), realm));
 	}
 
 }

@@ -54,7 +54,22 @@ public interface IuApiCredentials extends IuPrincipalIdentity {
 	 * @return credentials for use with HTTP basic auth
 	 */
 	static IuBasicAuthCredentials basic(String username, String password) {
-		return IuAuthSpiFactory.get(IuBasicAuthSpi.class).createCredentials(username, password);
+		return basic(username, password, "US-ASCII");
+	}
+
+	/**
+	 * Gets credentials for use with
+	 * <a href="https://datatracker.ietf.org/doc/html/rfc7617">HTTP Basic
+	 * Authentication</a>.
+	 * 
+	 * @param username username
+	 * @param password password
+	 * @param charset  charset to use with
+	 *                 {@link #applyTo(java.net.http.HttpRequest.Builder)}
+	 * @return credentials for use with HTTP basic auth
+	 */
+	static IuBasicAuthCredentials basic(String username, String password, String charset) {
+		return IuAuthSpiFactory.get(IuBasicAuthSpi.class).createCredentials(username, password, charset);
 	}
 
 	/**

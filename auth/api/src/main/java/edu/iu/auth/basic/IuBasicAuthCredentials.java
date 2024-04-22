@@ -31,7 +31,6 @@
  */
 package edu.iu.auth.basic;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.TemporalAmount;
 
@@ -64,6 +63,11 @@ public interface IuBasicAuthCredentials extends IuApiCredentials, IuPrincipalIde
 	/**
 	 * Registers Basic authentication principals for verifying external OAuth 2
 	 * client credentials.
+	 * 
+	 * <p>
+	 * Client ID values provided via {@link #getName()} <em>must</em> be printable
+	 * ASCII with no whitespace, and start with a letter.
+	 * </p>
 	 * 
 	 * <p>
 	 * Client secret values provided via {@link #getPassword()} <em>must</em> be
@@ -103,6 +107,16 @@ public interface IuBasicAuthCredentials extends IuApiCredentials, IuPrincipalIde
 	static void registerClientCredentials(Iterable<? extends IuBasicAuthCredentials> clientCredentials, String realm,
 			TemporalAmount expirationPolicy) {
 		IuAuthSpiFactory.get(IuBasicAuthSpi.class).register(clientCredentials, realm, expirationPolicy);
+	}
+
+	/**
+	 * Gets the encoding to use with
+	 * {@link #applyTo(java.net.http.HttpRequest.Builder)}.
+	 * 
+	 * @return encoding
+	 */
+	default String getCharset() {
+		return "US-ASCII";
 	}
 
 	/**

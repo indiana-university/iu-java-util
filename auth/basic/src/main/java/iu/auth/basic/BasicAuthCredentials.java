@@ -49,6 +49,7 @@ public class BasicAuthCredentials implements IuBasicAuthCredentials {
 
 	private final String name;
 	private final String password;
+	private final String charset;
 	private final Instant notBefore;
 	private final Instant expires;
 	private transient Subject subject;
@@ -58,12 +59,14 @@ public class BasicAuthCredentials implements IuBasicAuthCredentials {
 	 * 
 	 * @param name      username
 	 * @param password  password
+	 * @param charset   character set
 	 * @param notBefore not before time
-	 * @param expires expiration time
+	 * @param expires   expiration time
 	 */
-	public BasicAuthCredentials(String name, String password, Instant notBefore, Instant expires) {
+	public BasicAuthCredentials(String name, String password, String charset, Instant notBefore, Instant expires) {
 		this.name = name;
 		this.password = password;
+		this.charset = charset;
 		this.notBefore = notBefore;
 		this.expires = expires;
 	}
@@ -79,6 +82,11 @@ public class BasicAuthCredentials implements IuBasicAuthCredentials {
 	}
 
 	@Override
+	public String getCharset() {
+		return charset;
+	}
+
+	@Override
 	public Instant getNotBefore() {
 		return notBefore;
 	}
@@ -91,7 +99,7 @@ public class BasicAuthCredentials implements IuBasicAuthCredentials {
 	@Override
 	public void applyTo(Builder httpRequestBuilder) {
 		httpRequestBuilder.header("Authorization", "Basic " + Base64.getUrlEncoder()
-				.encodeToString(IuException.unchecked(() -> (name + ':' + password).getBytes("UTF-8"))));
+				.encodeToString(IuException.unchecked(() -> (name + ':' + password).getBytes(getCharset()))));
 	}
 
 	@Override

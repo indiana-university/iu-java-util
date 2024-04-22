@@ -67,4 +67,20 @@ public class AuthExceptionsTest {
 		assertEquals(location, e.getLocation());
 	}
 
+	@Test
+	public void testExpiredOnly() {
+		final var challenge = IdGenerator.generateId();
+		assertEquals(challenge, new IuExpiredCredentialsException(challenge).getMessage());
+	}
+
+	@Test
+	public void testExpiredAndCause() {
+		final var challenge = IdGenerator.generateId();
+		final var cause = new Throwable();
+		final var e = new IuExpiredCredentialsException(challenge, cause);
+		assertEquals(challenge, e.getMessage());
+		assertSame(cause, e.getCause());
+	}
+
+
 }

@@ -31,25 +31,27 @@
  */
 package iu.auth.basic;
 
+import java.nio.charset.Charset;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.TemporalAmount;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
+import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuExpiredCredentialsException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.basic.IuBasicAuthCredentials;
-import edu.iu.auth.basic.IuExpiredCredentialsException;
 
 /**
  * Handle to a
  * {@link IuBasicAuthCredentials#registerClientCredentials(Iterable, String, TemporalAmount)
  * client credential authentication realm}.
  */
-class ClientCredentialSource implements Iterable<BasicAuthCredentials> {
+class ClientCredentialSource {
 
 	private final String realm;
 	private final Iterable<BasicAuthCredentials> clientCredentials;
@@ -81,14 +83,29 @@ class ClientCredentialSource implements Iterable<BasicAuthCredentials> {
 	 * @return validated credentials
 	 */
 	BasicAuthCredentials validate(IuBasicAuthCredentials clientCredentials) {
+		final var charset = clientCredentials.getCharset();
+		Charset.forName(charset);
+
 		final var name = Objects.requireNonNull(clientCredentials.getName(), "Missing client ID");
+		if (!name.equals(IuException.unchecked(() -> new String(name.getBytes(charset), charset))))
+			throw new IllegalArgumentException("Client ID must use " + charset);
+		if (name.length() < 1)
+			throw new IllegalArgumentException("Client ID must not be empty");
+		else
+			for (final var c : name.toCharArray())
+				if (c < 0x20 || c > 0x7e)
+					// RFC 6749 Appendix A.2 client_secret Syntax
+					throw new IllegalArgumentException("Client ID must contain only printable ASCII characters");
 
 		final var password = Objects.requireNonNull(clientCredentials.getPassword(), "Missing client secret");
+		if (!password.equals(IuException.unchecked(() -> new String(password.getBytes(charset), charset))))
+			throw new IllegalArgumentException("Client secret must use " + charset);
+
 		if (password.length() < 12) // ASVS4 2.1
 			throw new IllegalArgumentException("Client secret must contain at least 12 characters");
 		else
 			for (final var c : password.toCharArray())
-				if (c < 0x20 || c > 0x7c)
+				if (c < 0x20 || c > 0x7e)
 					// RFC 6749 Appendix A.2 client_secret Syntax
 					throw new IllegalArgumentException("Client secret must contain only printable ASCII characters");
 
@@ -96,11 +113,14 @@ class ClientCredentialSource implements Iterable<BasicAuthCredentials> {
 		if (notBefore == null)
 			notBefore = Instant.EPOCH;
 
-		var expires = clientCredentials.getExpires();
-		if (expires == null)
-			expires = notBefore.plus(expirationPolicy);
+		final var maxExpires = notBefore.plus(expirationPolicy);
 
-		return new BasicAuthCredentials(name, password, notBefore, expires);
+		var expires = clientCredentials.getExpires();
+		if (expires == null //
+				|| expires.isAfter(maxExpires))
+			expires = maxExpires;
+
+		return new BasicAuthCredentials(name, password, charset, notBefore, expires);
 	}
 
 	/**
@@ -114,38 +134,23 @@ class ClientCredentialSource implements Iterable<BasicAuthCredentials> {
 		final var basic = (BasicAuthCredentials) principalIdentity;
 
 		final var name = Objects.requireNonNull(basic.getName(), "missing client id");
-		final var password = Objects.requireNonNull(basic.getName(), "missing client secret");
-		final var notBefore = basic.getNotBefore();
-		final var expires = basic.getExpires();
+		final var password = Objects.requireNonNull(basic.getPassword(), "missing client secret");
 		final var now = Instant.now();
 
 		BasicAuthCredentials expired = null;
-		for (final var registered : IuIterable.filter(clientCredentials,
-				p -> p.getName().equals(name) && p.getPassword().equals(password))) {
-			final var checkNotBefore = registered.getNotBefore();
-			if (now.isBefore(checkNotBefore) //
-					|| (notBefore != null //
-							&& !notBefore.equals(checkNotBefore)))
-				continue;
-
-			final var checkExpires = registered.getExpires();
-			if (expires != null && !expires.equals(checkExpires))
-				continue;
-			if (!now.isBefore(checkExpires))
-				expired = registered;
-			else
+		for (final var registered : IuIterable.filter(clientCredentials, //
+				p -> p.getName().equals(name) //
+						&& p.getPassword().equals(password) //
+						&& !now.isBefore(p.getNotBefore())))
+			if (now.isBefore(registered.getExpires()))
 				return;
-		}
+			else
+				expired = registered;
 
 		if (expired != null)
 			throw new IuExpiredCredentialsException(IuWebUtils.createChallenge("Basic", Map.of("realm", realm)));
 		else
 			throw new IuAuthenticationException(IuWebUtils.createChallenge("Basic", Map.of("realm", realm)));
-	}
-
-	@Override
-	public Iterator<BasicAuthCredentials> iterator() {
-		return clientCredentials.iterator();
 	}
 
 }

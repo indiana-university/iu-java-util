@@ -29,10 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.basic;
-
-import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.IuPrincipalIdentity;
+package edu.iu.auth;
 
 /**
  * Thrown when authentication credentials are found to be expired during

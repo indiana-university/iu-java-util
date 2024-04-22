@@ -45,9 +45,10 @@ public interface IuBasicAuthSpi {
 	 * 
 	 * @param username username
 	 * @param password password
+	 * @param charSet  character set
 	 * @return {@link IuBasicAuthCredentials}
 	 */
-	IuBasicAuthCredentials createCredentials(String username, String password);
+	IuBasicAuthCredentials createCredentials(String username, String password, String charSet);
 
 	/**
 	 * Registers a Basic authentication verification source.

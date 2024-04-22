@@ -37,10 +37,14 @@
  * @uses edu.iu.auth.spi.IuBasicAuthSpi implementation module
  * @uses edu.iu.auth.spi.IuOAuthSpi implementation module
  * @uses edu.iu.auth.spi.IuOpenIdConnectSpi implementation module
+ * @uses edu.iu.auth.spi.IuPkiSpi implementation module
+ * @uses edu.iu.auth.spi.IuPrincipalSpi implementation module
  * @provides edu.iu.auth.spi.IuBasicAuthSpi delegates to implementation module
  * @provides edu.iu.auth.spi.IuOAuthSpi delegates to implementation module
  * @provides edu.iu.auth.spi.IuOpenIdConnectSpi delegates to implementation
  *           module
+ * @provides edu.iu.auth.spi.IuPkiSpi delegates to implementation
+ * @provides edu.iu.auth.spi.IuPrincipalSpi delegates to implementation
  */
 module iu.util.auth.bundle {
 	requires transitive iu.util.auth;
@@ -49,8 +53,12 @@ module iu.util.auth.bundle {
 	uses edu.iu.auth.spi.IuBasicAuthSpi;
 	uses edu.iu.auth.spi.IuOAuthSpi;
 	uses edu.iu.auth.spi.IuOpenIdConnectSpi;
+	uses edu.iu.auth.spi.IuPkiSpi;
+	uses edu.iu.auth.spi.IuPrincipalSpi;
 
 	provides edu.iu.auth.spi.IuBasicAuthSpi with iu.auth.bundle.BasicAuthSpiDelegate;
 	provides edu.iu.auth.spi.IuOAuthSpi with iu.auth.bundle.OAuthSpiDelegate;
 	provides edu.iu.auth.spi.IuOpenIdConnectSpi with iu.auth.bundle.OidcSpiDelegate;
+	provides edu.iu.auth.spi.IuPkiSpi with iu.auth.bundle.PkiSpiDelegate;
+	provides edu.iu.auth.spi.IuPrincipalSpi with iu.auth.bundle.PrincipalSpiDelegate;
 }

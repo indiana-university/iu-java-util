@@ -31,6 +31,7 @@
  */
 package iu.auth.bundle;
 
+import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.spi.IuPrincipalSpi;
 
@@ -48,7 +49,7 @@ public class PrincipalSpiDelegate implements IuPrincipalSpi {
 	}
 
 	@Override
-	public <T extends IuPrincipalIdentity> void verify(T id, String realm) {
+	public <T extends IuPrincipalIdentity> void verify(T id, String realm) throws IuAuthenticationException {
 		DELEGATE.verify(id, realm);
 	}
 

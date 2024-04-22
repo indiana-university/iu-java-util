@@ -49,7 +49,7 @@ public class IuApiCredentialsTest {
 		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
 			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuBasicAuthSpi.class)).thenReturn(basicAuthSpi);
 			IuApiCredentials.basic("foo", "bar");
-			verify(basicAuthSpi).createCredentials("foo", "bar");
+			verify(basicAuthSpi).createCredentials("foo", "bar", "US-ASCII");
 		}
 	}
 

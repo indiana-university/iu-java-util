@@ -29,44 +29,60 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.basic;
+package edu.iu.auth;
 
-import java.time.temporal.TemporalAmount;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 
+import java.time.Duration;
+import java.util.Set;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+
+import edu.iu.IdGenerator;
 import edu.iu.auth.basic.IuBasicAuthCredentials;
 import edu.iu.auth.spi.IuBasicAuthSpi;
-import iu.auth.principal.PrincipalVerifierRegistry;
+import iu.auth.IuAuthSpiFactory;
 
-/**
- * {@link IuBasicAuthSpi} service provider implementation.
- */
-public class BasicAuthSpi implements IuBasicAuthSpi {
+@SuppressWarnings("javadoc")
+public class IuBasicAuthTest {
 
-	private static final Map<String, ClientCredentialSource> CLIENT_CREDENTIALS = new HashMap<>();
+	private MockedStatic<IuAuthSpiFactory> mockSpiFactory;
+	private IuBasicAuthSpi spi;
 
-	/**
-	 * Default constructor.
-	 */
-	public BasicAuthSpi() {
+	@BeforeEach
+	public void setup() {
+		spi = mock(IuBasicAuthSpi.class);
+		mockSpiFactory = mockStatic(IuAuthSpiFactory.class);
+		mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuBasicAuthSpi.class)).thenReturn(spi);
 	}
 
-	@Override
-	public IuBasicAuthCredentials createCredentials(String username, String password, String charset) {
-		return new BasicAuthCredentials(username, password, charset, null, null);
+	@AfterEach
+	public void tearDown() {
+		mockSpiFactory.close();
+		mockSpiFactory = null;
+		spi = null;
 	}
 
-	@Override
-	public synchronized void register(Iterable<? extends IuBasicAuthCredentials> basicAuthPrincipals, String realm,
-			TemporalAmount expirationPolicy) {
-		if (CLIENT_CREDENTIALS.containsKey(Objects.requireNonNull(realm, "realm is required")))
-			throw new IllegalArgumentException("Client credentials realm is already registerd");
-
-		final var clientCredentials = new ClientCredentialSource(realm, basicAuthPrincipals, expirationPolicy);
-		PrincipalVerifierRegistry.registerVerifier(realm, clientCredentials::verify, true);
-		CLIENT_CREDENTIALS.put(realm, clientCredentials);
+	@Test
+	public void testVerify() throws IuAuthenticationException {
+		final var realm = IdGenerator.generateId();
+		final var principal = mock(IuBasicAuthCredentials.class);
+		final var credentials = Set.of(principal);
+		IuBasicAuthCredentials.registerClientCredentials(credentials, realm, Duration.ZERO);
+		verify(spi).register(credentials, realm, Duration.ZERO);
+	}
+	
+	@Test
+	public void testDefaultCharset() {
+		final var principal = mock(IuBasicAuthCredentials.class, CALLS_REAL_METHODS);
+		assertEquals("US-ASCII", principal.getCharset());
 	}
 
 }

@@ -50,8 +50,8 @@ public class BasicAuthSpiDelegate implements IuBasicAuthSpi {
 	}
 
 	@Override
-	public IuBasicAuthCredentials createCredentials(String username, String password) {
-		return DELEGATE.createCredentials(username, password);
+	public IuBasicAuthCredentials createCredentials(String username, String password, String charset) {
+		return DELEGATE.createCredentials(username, password, charset);
 	}
 
 	@Override
