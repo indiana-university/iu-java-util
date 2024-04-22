@@ -36,12 +36,14 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.auth.oauth.IuAuthorizationScope;
+
 @SuppressWarnings("javadoc")
 public class AuthorizedScopeTest {
 
 	@Test
 	public void testProps() {
-		final var scope = new AuthorizationScope("foo", "bar");
+		final var scope = IuAuthorizationScope.of("foo", "bar");
 		assertEquals("foo", scope.getName());
 		assertEquals("bar", scope.getRealm());
 		assertEquals("OAuth Scope foo, for realm bar", scope.toString());
@@ -49,10 +51,10 @@ public class AuthorizedScopeTest {
 
 	@Test
 	public void testEquals() {
-		final var scope1 = new AuthorizationScope("foo", "bar");
-		final var scope2 = new AuthorizationScope("foo", "baz");
-		final var scope3 = new AuthorizationScope("bar", "baz");
-		final var scope4 = new AuthorizationScope("foo", "baz");
+		final var scope1 = IuAuthorizationScope.of("foo", "bar");
+		final var scope2 = IuAuthorizationScope.of("foo", "baz");
+		final var scope3 = IuAuthorizationScope.of("bar", "baz");
+		final var scope4 = IuAuthorizationScope.of("foo", "baz");
 		assertNotEquals(scope1, new Object());
 		assertNotEquals(scope1, scope2);
 		assertNotEquals(scope2, scope1);

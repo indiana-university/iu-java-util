@@ -71,7 +71,7 @@ class X500Utils {
 	 * Determines the common name of a principal.
 	 * 
 	 * @param principal principal
-	 * @return parsed CN value from {@link X500Prinipcal}; else
+	 * @return parsed CN value from {@link X500Principal}; else
 	 *         {@link Principal#getName()}
 	 */
 	static String getCommonName(X500Principal principal) {
@@ -124,7 +124,7 @@ class X500Utils {
 	 * 
 	 * @param name serialized X.500 DN
 	 * @return parsed DN
-	 * @see #getCommonName(Principal)
+	 * @see #getCommonName(X500Principal)
 	 */
 	static Iterable<Map<String, String>> parse(String name) {
 		if (name.isEmpty())

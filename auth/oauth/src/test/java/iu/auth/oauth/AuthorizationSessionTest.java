@@ -32,11 +32,14 @@
 package iu.auth.oauth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
@@ -61,12 +64,13 @@ import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationSession;
+import edu.iu.client.IuHttp;
 import edu.iu.test.IuTestLogger;
-import iu.auth.util.HttpUtils;
+import iu.auth.principal.PrincipalVerifierRegistry;
 import jakarta.json.Json;
 
 @SuppressWarnings("javadoc")
-public class AuthorizationSessionTest {
+public class AuthorizationSessionTest extends IuOAuthTestCase {
 
 	@Test
 	public void testEntryPoint() throws URISyntaxException, IuAuthenticationException {
@@ -114,6 +118,8 @@ public class AuthorizationSessionTest {
 	@Test
 	public void testAuthorize() throws URISyntaxException, IuAuthenticationException {
 		final var realm = IdGenerator.generateId();
+		PrincipalVerifierRegistry.registerVerifier(realm,
+				a -> assertEquals(realm, assertInstanceOf(MockPrincipal.class, a).getRealm()), true);
 		final var resourceUri = new URI("foo:/bar");
 		final var redirectUri = new URI("foo:/baz");
 		final var authEndpointUri = new URI("foo:/authorize");
@@ -121,7 +127,7 @@ public class AuthorizationSessionTest {
 		final var client = mock(IuAuthorizationClient.class);
 		final var clientCredentials = mock(IuApiCredentials.class);
 		final var clientId = IdGenerator.generateId();
-		final var principal = new MockPrincipal();
+		final var principal = new MockPrincipal(realm);
 		when(clientCredentials.getName()).thenReturn(clientId);
 		when(client.getRealm()).thenReturn(realm);
 		when(client.getResourceUri()).thenReturn(resourceUri);
@@ -148,24 +154,23 @@ public class AuthorizationSessionTest {
 		final var state = matcher.group(1);
 		final var code = IdGenerator.generateId();
 
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockBodyPublishers = mockStatic(BodyPublishers.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var hr = mock(HttpRequest.class);
+		try (final var mockBodyPublishers = mockStatic(BodyPublishers.class);
+				final var mockHttp = mockStatic(IuHttp.class)) {
 			final var hrb = mock(HttpRequest.Builder.class);
 			final var payload = "grant_type=authorization_code&code=" + code
 					+ "&scope=foo+bar&redirect_uri=foo%3A%2Fbaz";
 			final var bp = mock(BodyPublisher.class);
 			mockBodyPublishers.when(() -> BodyPublishers.ofString(payload)).thenReturn(bp);
 			when(hrb.POST(bp)).thenReturn(hrb);
-			when(hrb.build()).thenReturn(hr);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(tokenEndpointUri)).thenReturn(hrb);
 
 			final var accessToken = IdGenerator.generateId();
 			final var refreshToken = IdGenerator.generateId();
 			final var tokenResponse = Json.createObjectBuilder().add("token_type", "Bearer")
 					.add("access_token", accessToken).add("refresh_token", refreshToken).add("expires_in", 1).build();
-			mockHttpUtils.when(() -> HttpUtils.read(hr)).thenReturn(tokenResponse);
+			mockHttp.when(() -> IuHttp.send(eq(tokenEndpointUri), argThat(a -> {
+				a.accept(hrb);
+				return true;
+			}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(tokenResponse);
 
 			assertEquals(entryPointUri, session.authorize(code, state));
 		}

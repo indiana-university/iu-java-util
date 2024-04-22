@@ -32,17 +32,17 @@
 package iu.auth.oauth;
 
 import java.net.URI;
-import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
+import edu.iu.IuException;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
-import iu.auth.util.HttpUtils;
+import edu.iu.client.IuHttp;
 
 /**
  * Represents an OAuth client credentials grant.
@@ -93,13 +93,12 @@ final class ClientCredentialsGrant extends AbstractGrant {
 					tokenRequestParams.put(name, List.of(clientAttributeEntry.getValue()));
 			}
 
-		final var tokenRequestBuilder = HttpRequest.newBuilder(client.getTokenEndpoint());
-		tokenRequestBuilder.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(tokenRequestParams)));
-		tokenRequestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
-		client.getCredentials().applyTo(tokenRequestBuilder);
-
 		return verify(new TokenResponse(client.getScope(), clientAttributes,
-				HttpUtils.read(tokenRequestBuilder.build()).asJsonObject()));
+				IuException.unchecked(() -> IuHttp.send(client.getTokenEndpoint(), tokenRequestBuilder -> {
+					tokenRequestBuilder.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(tokenRequestParams)));
+					tokenRequestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
+					client.getCredentials().applyTo(tokenRequestBuilder);
+				}, IuHttp.READ_JSON_OBJECT))));
 	}
 
 }

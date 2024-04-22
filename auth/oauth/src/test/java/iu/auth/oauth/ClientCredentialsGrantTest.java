@@ -41,6 +41,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
@@ -68,12 +70,13 @@ import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
+import edu.iu.client.IuHttp;
 import edu.iu.test.IuTestLogger;
-import iu.auth.util.HttpUtils;
+import iu.auth.principal.PrincipalVerifierRegistry;
 import jakarta.json.Json;
 
 @SuppressWarnings("javadoc")
-public class ClientCredentialsGrantTest {
+public class ClientCredentialsGrantTest extends IuOAuthTestCase {
 
 	@Test
 	public void testRequiresClient() {
@@ -119,11 +122,14 @@ public class ClientCredentialsGrantTest {
 	@Test
 	public void testAuthorizeBare() throws URISyntaxException, IuAuthenticationException {
 		final var realm = IdGenerator.generateId();
-		final var uri = new URI("foo:/bar");
-		final var tokenEndpoint = new URI("foo:/token");
+		PrincipalVerifierRegistry.registerVerifier(realm,
+				a -> assertEquals(realm, assertInstanceOf(MockPrincipal.class, a).getRealm()), true);
+
+		final var uri = new URI(ROOT_URI + "/bar");
+		final var tokenEndpoint = new URI(ROOT_URI + "/token");
 		final var client = mock(IuAuthorizationClient.class);
 		final var clientCredentials = mock(IuApiCredentials.class);
-		final var principal = new MockPrincipal();
+		final var principal = new MockPrincipal(realm);
 		when(client.getRealm()).thenReturn(realm);
 		when(client.getResourceUri()).thenReturn(uri);
 		when(client.getTokenEndpoint()).thenReturn(tokenEndpoint);
@@ -133,22 +139,19 @@ public class ClientCredentialsGrantTest {
 		IuAuthorizationClient.initialize(client);
 
 		final var grant = new ClientCredentialsGrant(realm);
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockBodyPublishers = mockStatic(BodyPublishers.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var hr = mock(HttpRequest.class);
+		try (final var mockBodyPublishers = mockStatic(BodyPublishers.class);
+				final var mockHttp = mockStatic(IuHttp.class)) {
+			final var accessToken = IdGenerator.generateId();
+			final var tokenResponse = Json.createObjectBuilder().add("token_type", "Bearer")
+					.add("access_token", accessToken).build();
 			final var hrb = mock(HttpRequest.Builder.class);
 			final var payload = "grant_type=client_credentials";
 			final var bp = mock(BodyPublisher.class);
 			mockBodyPublishers.when(() -> BodyPublishers.ofString(payload)).thenReturn(bp);
-			when(hrb.POST(bp)).thenReturn(hrb);
-			when(hrb.build()).thenReturn(hr);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(tokenEndpoint)).thenReturn(hrb);
-
-			final var accessToken = IdGenerator.generateId();
-			final var tokenResponse = Json.createObjectBuilder().add("token_type", "Bearer")
-					.add("access_token", accessToken).build();
-			mockHttpUtils.when(() -> HttpUtils.read(hr)).thenReturn(tokenResponse);
+			mockHttp.when(() -> IuHttp.send(eq(tokenEndpoint), argThat(a -> {
+				a.accept(hrb);
+				return true;
+			}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(tokenResponse);
 
 			IuTestLogger.expect("iu.auth.oauth.ClientCredentialsGrant", Level.FINE,
 					"Authorization required, initiating client credentials flow for " + realm);
@@ -182,11 +185,14 @@ public class ClientCredentialsGrantTest {
 	public void testAuthorizeWithScopeExpiresAndExtras()
 			throws URISyntaxException, IuAuthenticationException, InterruptedException {
 		final var realm = IdGenerator.generateId();
+		PrincipalVerifierRegistry.registerVerifier(realm,
+				a -> assertEquals(realm, assertInstanceOf(MockPrincipal.class, a).getRealm()), true);
+
 		final var uri = new URI("foo:/bar");
 		final var tokenEndpoint = new URI("foo:/token");
 		final var client = mock(IuAuthorizationClient.class);
 		final var clientCredentials = mock(IuApiCredentials.class);
-		final var principal = new MockPrincipal();
+		final var principal = new MockPrincipal(realm);
 
 		when(client.getRealm()).thenReturn(realm);
 		when(client.getResourceUri()).thenReturn(uri);
@@ -199,22 +205,21 @@ public class ClientCredentialsGrantTest {
 
 		final var grant = new ClientCredentialsGrant(realm);
 		assertFalse(grant.isExpired());
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockBodyPublishers = mockStatic(BodyPublishers.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var hr = mock(HttpRequest.class);
+		try (final var mockBodyPublishers = mockStatic(BodyPublishers.class);
+				final var mockHttp = mockStatic(IuHttp.class)) {
 			final var hrb = mock(HttpRequest.Builder.class);
 			final var payload = "grant_type=client_credentials&scope=foobar&foo=bar";
 			final var bp = mock(BodyPublisher.class);
 			mockBodyPublishers.when(() -> BodyPublishers.ofString(payload)).thenReturn(bp);
 			when(hrb.POST(bp)).thenReturn(hrb);
-			when(hrb.build()).thenReturn(hr);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(tokenEndpoint)).thenReturn(hrb);
 
 			final var accessToken = IdGenerator.generateId();
 			final var tokenResponse = Json.createObjectBuilder().add("token_type", "Bearer")
 					.add("access_token", accessToken).add("expires_in", 1).build();
-			mockHttpUtils.when(() -> HttpUtils.read(hr)).thenReturn(tokenResponse);
+			mockHttp.when(() -> IuHttp.send(eq(tokenEndpoint), argThat(a -> {
+				a.accept(hrb);
+				return true;
+			}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(tokenResponse);
 
 			IuTestLogger.expect("iu.auth.oauth.ClientCredentialsGrant", Level.FINE,
 					"Authorization required, initiating client credentials flow for " + realm);
@@ -284,22 +289,12 @@ public class ClientCredentialsGrantTest {
 		IuAuthorizationClient.initialize(client);
 
 		final var grant = new ClientCredentialsGrant(realm);
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockBodyPublishers = mockStatic(BodyPublishers.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var hr = mock(HttpRequest.class);
-			final var hrb = mock(HttpRequest.Builder.class);
-			final var payload = "grant_type=client_credentials";
-			final var bp = mock(BodyPublisher.class);
-			mockBodyPublishers.when(() -> BodyPublishers.ofString(payload)).thenReturn(bp);
-			when(hrb.POST(bp)).thenReturn(hrb);
-			when(hrb.build()).thenReturn(hr);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(tokenEndpoint)).thenReturn(hrb);
-
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
 			final var accessToken = IdGenerator.generateId();
 			final var tokenResponse = Json.createObjectBuilder().add("token_type", "Foo")
 					.add("access_token", accessToken).build();
-			mockHttpUtils.when(() -> HttpUtils.read(hr)).thenReturn(tokenResponse);
+			mockHttp.when(() -> IuHttp.send(eq(tokenEndpoint), any(), eq(IuHttp.READ_JSON_OBJECT)))
+					.thenReturn(tokenResponse);
 
 			IuTestLogger.expect("iu.auth.oauth.ClientCredentialsGrant", Level.FINE,
 					"Authorization required, initiating client credentials flow for " + realm);
@@ -311,35 +306,29 @@ public class ClientCredentialsGrantTest {
 	@Test
 	public void testRequiresSerializablePrincipal() throws URISyntaxException, IuAuthenticationException {
 		final var realm = IdGenerator.generateId();
+		PrincipalVerifierRegistry.registerVerifier(realm,
+				a -> assertEquals(realm, assertInstanceOf(MockPrincipal.class, a).getRealm()), true);
+
 		final var uri = new URI("foo:/bar");
 		final var tokenEndpoint = new URI("foo:/token");
 		final var client = mock(IuAuthorizationClient.class);
 		final var clientCredentials = mock(IuApiCredentials.class);
-		final var principal = mock(Principal.class);
+		final var principal = new MockPrincipal(realm);
 		when(client.getRealm()).thenReturn(realm);
 		when(client.getResourceUri()).thenReturn(uri);
 		when(client.getTokenEndpoint()).thenReturn(tokenEndpoint);
 		when(client.getCredentials()).thenReturn(clientCredentials);
-		when(client.verify(any())).thenReturn(new Subject(true, Set.of(principal), Set.of(), Set.of()));
+		when(client.verify(any()))
+				.thenReturn(new Subject(true, Set.of(principal, mock(Principal.class)), Set.of(), Set.of()));
 		IuAuthorizationClient.initialize(client);
 
 		final var grant = new ClientCredentialsGrant(realm);
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockBodyPublishers = mockStatic(BodyPublishers.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var hr = mock(HttpRequest.class);
-			final var hrb = mock(HttpRequest.Builder.class);
-			final var payload = "grant_type=client_credentials";
-			final var bp = mock(BodyPublisher.class);
-			mockBodyPublishers.when(() -> BodyPublishers.ofString(payload)).thenReturn(bp);
-			when(hrb.POST(bp)).thenReturn(hrb);
-			when(hrb.build()).thenReturn(hr);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(tokenEndpoint)).thenReturn(hrb);
-
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
 			final var accessToken = IdGenerator.generateId();
 			final var tokenResponse = Json.createObjectBuilder().add("token_type", "Bearer")
 					.add("access_token", accessToken).build();
-			mockHttpUtils.when(() -> HttpUtils.read(hr)).thenReturn(tokenResponse);
+			mockHttp.when(() -> IuHttp.send(eq(tokenEndpoint), any(), eq(IuHttp.READ_JSON_OBJECT)))
+					.thenReturn(tokenResponse);
 
 			IuTestLogger.expect("iu.auth.oauth.ClientCredentialsGrant", Level.FINE,
 					"Authorization required, initiating client credentials flow for " + realm);

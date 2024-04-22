@@ -192,7 +192,8 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 		return authorizedCredentials != null && authorizedCredentials.isExpired();
 	}
 
-	private IuBearerAuthCredentials authorizeBearer(Subject subject, IuTokenResponse tokenResponse) {
+	private IuBearerAuthCredentials authorizeBearer(Subject subject, IuTokenResponse tokenResponse)
+			throws IuAuthenticationException {
 		final Set<Principal> principals = new LinkedHashSet<>();
 
 		for (final var principal : subject.getPrincipals())
@@ -207,7 +208,7 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 		final var bearerSubject = new Subject(true, principals, subject.getPublicCredentials(),
 				subject.getPrivateCredentials());
 
-		final var bearer = new BearerAuthCredentials(bearerSubject, tokenResponse.getAccessToken());
+		final var bearer = new BearerAuthCredentials(realm, bearerSubject, tokenResponse.getAccessToken());
 		authorizedCredentials = new AuthorizedCredentials<>(bearer, tokenResponse.getExpires());
 		return bearer;
 	}

@@ -36,7 +36,10 @@ import java.net.http.HttpRequest.Builder;
 import javax.security.auth.Subject;
 
 import edu.iu.IuObject;
+import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
+import iu.auth.principal.PrincipalVerifierRegistry;
 
 /**
  * {@link IuBearerAuthCredentials} implementation.
@@ -44,10 +47,37 @@ import edu.iu.auth.oauth.IuBearerAuthCredentials;
 public class BearerAuthCredentials implements IuBearerAuthCredentials {
 	private static final long serialVersionUID = 1L;
 
+	static {
+		PrincipalVerifierRegistry.registerDelegate(BearerAuthCredentials.class, bearer -> bearer.id);
+	}
+
 	/**
-	 * Principal name.
+	 * Retrieves and verifies a single {@link IuPrincipalIdentity} from a
+	 * {@link Subject}.
+	 * 
+	 * @param subject {@link Subject}
+	 * @param realm   authentication realm, for verification
+	 * @return verified {@link IuPrincipalIdentity}
+	 * @throws IuAuthenticationException If verification fails
 	 */
-	private final String name;
+	static IuPrincipalIdentity getIdPrincipal(Subject subject, String realm) throws IuAuthenticationException {
+		final var i = subject.getPrincipals(IuPrincipalIdentity.class).iterator();
+		if (!i.hasNext())
+			throw new IllegalArgumentException("expected one IuPrincipalIdentity");
+
+		final var principal = i.next();
+		if (i.hasNext())
+			throw new IllegalArgumentException("expected exactly one IuPrincipalIdentity");
+
+		IuPrincipalIdentity.verify(principal, realm);
+
+		return principal;
+	}
+
+	/**
+	 * Identifying principal.
+	 */
+	private final IuPrincipalIdentity id;
 
 	/**
 	 * Authorized subject.
@@ -62,18 +92,23 @@ public class BearerAuthCredentials implements IuBearerAuthCredentials {
 	/**
 	 * Constructor.
 	 * 
+	 * @param realm       authentication realm
 	 * @param subject     verified subject
 	 * @param accessToken access token
+	 * @throws IuAuthenticationException If the subject's identifying principal
+	 *                                   could not be verified
 	 */
-	public BearerAuthCredentials(Subject subject, String accessToken) {
-		this.name = subject.getPrincipals().iterator().next().getName();
+	protected BearerAuthCredentials(String realm, Subject subject, String accessToken)
+			throws IuAuthenticationException {
+		this.id = getIdPrincipal(subject, realm);
+		subject.getPrincipals(IuPrincipalIdentity.class).iterator().next();
 		this.subject = subject;
 		this.accessToken = accessToken;
 	}
 
 	@Override
 	public String getName() {
-		return name;
+		return id.getName();
 	}
 
 	@Override
@@ -93,7 +128,7 @@ public class BearerAuthCredentials implements IuBearerAuthCredentials {
 
 	@Override
 	public int hashCode() {
-		return IuObject.hashCode(accessToken, name, subject);
+		return IuObject.hashCode(subject);
 	}
 
 	@Override
@@ -101,14 +136,12 @@ public class BearerAuthCredentials implements IuBearerAuthCredentials {
 		if (!IuObject.typeCheck(this, obj))
 			return false;
 		BearerAuthCredentials other = (BearerAuthCredentials) obj;
-		return IuObject.equals(accessToken, other.accessToken) //
-				&& IuObject.equals(name, other.name) //
-				&& IuObject.equals(subject, other.subject);
+		return IuObject.equals(subject, other.subject);
 	}
 
 	@Override
 	public String toString() {
-		return "BearerAuthCredentials [name=" + name + ", subject=" + subject + "]";
+		return "BearerAuthCredentials [" + subject + "]";
 	}
 
 }

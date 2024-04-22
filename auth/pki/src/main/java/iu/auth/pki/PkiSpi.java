@@ -106,6 +106,12 @@ public class PkiSpi implements IuPkiSpi {
 		}
 	}
 
+	/**
+	 * Default constructor.
+	 */
+	public PkiSpi() {
+	}
+
 	@Override
 	public PkiPrincipal readPkiPrincipal(String serialized) {
 		final PrivateKey privateKey;

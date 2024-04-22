@@ -51,8 +51,6 @@ class PkiPrincipal implements IuPkiPrincipal {
 	 * Constructor.
 	 * 
 	 * @param key       fully populated JWK including private/secret key data
-	 * @param wellKnwon
-	 * @param certPath
 	 */
 	PkiPrincipal(WebKey key) {
 		this.wellKnown = key.wellKnown();

@@ -31,55 +31,17 @@
  */
 package iu.auth.oauth;
 
-import java.util.Set;
-
-import javax.security.auth.Subject;
+import java.net.URI;
 
 import edu.iu.IdGenerator;
-import edu.iu.IuObject;
-import edu.iu.auth.IuPrincipalIdentity;
 
 @SuppressWarnings("javadoc")
-class MockPrincipal implements IuPrincipalIdentity {
-	private static final long serialVersionUID = 1L;
+public class IuOAuthTestCase {
 
-	private final String realm;
-	private final String name = IdGenerator.generateId();
+	protected static final URI ROOT_URI = URI.create("test://" + IdGenerator.generateId());
 
-	public MockPrincipal(String realm) {
-		this.realm = realm;
-	}
-
-	@Override
-	public String getName() {
-		return name;
-	}
-
-	@Override
-	public int hashCode() {
-		return IuObject.hashCode(name);
-	}
-
-	@Override
-	public boolean equals(Object obj) {
-		if (!IuObject.typeCheck(this, obj))
-			return false;
-		MockPrincipal other = (MockPrincipal) obj;
-		return IuObject.equals(name, other.name);
-	}
-
-	@Override
-	public String toString() {
-		return "MockPrincipal [realm=" + realm + ", name=" + name + "]";
-	}
-
-	@Override
-	public Subject getSubject() {
-		return new Subject(true, Set.of(this), Set.of(), Set.of());
-	}
-
-	String getRealm() {
-		return realm;
+	static {
+		System.setProperty("iu.http.allowedUri", ROOT_URI.toString());
 	}
 
 }
