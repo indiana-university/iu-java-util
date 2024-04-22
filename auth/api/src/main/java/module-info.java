@@ -41,9 +41,7 @@
  *       implementation resources
  * @uses edu.iu.auth.spi.IuPkiSpi For access to PKI resources
  * @uses edu.iu.auth.spi.IuPrincipalSpi For access to identity provider
- *       verification resources
- * @uses edu.iu.auth.spi.IuSessionSpi for access to session token implementation
- *       resources
+ *       verification resource
  */
 module iu.util.auth {
 	exports edu.iu.auth;

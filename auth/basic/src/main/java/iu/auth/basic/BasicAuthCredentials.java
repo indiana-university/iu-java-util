@@ -47,11 +47,31 @@ import edu.iu.auth.basic.IuBasicAuthCredentials;
 public class BasicAuthCredentials implements IuBasicAuthCredentials {
 	private static final long serialVersionUID = 1L;
 
+	/**
+	 * Principal name.
+	 */
 	private final String name;
+
+	/**
+	 * Password.
+	 */
 	private final String password;
+
+	/**
+	 * Character set.
+	 */
 	private final String charset;
+
+	/**
+	 * Time before which credentials are not valid.
+	 */
 	private final Instant notBefore;
+
+	/**
+	 * Time at which credentials expire.
+	 */
 	private final Instant expires;
+
 	private transient Subject subject;
 
 	/**

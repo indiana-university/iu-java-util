@@ -32,6 +32,7 @@
 package edu.iu.auth.pki;
 
 import java.security.cert.CertPathParameters;
+import java.security.cert.CertPathValidator;
 import java.security.cert.X509Certificate;
 
 import edu.iu.auth.IuPrincipalIdentity;
@@ -71,8 +72,7 @@ public interface IuPkiPrincipal extends IuPrincipalIdentity {
 	 * <li>A private key matching the certificate's public key if the cert will be
 	 * used to sign or decrypt data; <em>not required</em> to verify or encrypt</li>
 	 * <li>Additional certificates as needed to form a chain to a certificate issued
-	 * by {@link #trust(String, CertPathParameters) trusted} signing
-	 * certificate.</li>
+	 * by {@link #trust(CertPathParameters) trusted} signing certificate.</li>
 	 * </ul>
 	 * 
 	 * <p>
@@ -95,11 +95,11 @@ public interface IuPkiPrincipal extends IuPrincipalIdentity {
 	 * <em>May</em> only be called once per authentication realm.
 	 * </p>
 	 * 
-	 * @param realm authentication realm
-	 * @param store trusted certificate store
+	 * @param validationParams PKIX validation parameters for
+	 *                         {@link CertPathValidator}.
 	 */
-	static void trust(CertPathParameters store) {
-		IuAuthSpiFactory.get(IuPkiSpi.class).trust(store);
+	static void trust(CertPathParameters validationParams) {
+		IuAuthSpiFactory.get(IuPkiSpi.class).trust(validationParams);
 	}
 
 }

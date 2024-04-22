@@ -37,7 +37,7 @@
 module iu.util.auth.pki {
 	requires iu.util;
 	requires iu.util.auth;
-	requires iu.util.auth.util;
+	requires iu.util.auth.principal;
 	requires iu.util.crypt;
 
 	provides edu.iu.auth.spi.IuPkiSpi with iu.auth.pki.PkiSpi;

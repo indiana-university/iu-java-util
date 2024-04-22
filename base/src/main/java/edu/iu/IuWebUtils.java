@@ -148,8 +148,8 @@ public final class IuWebUtils {
 	}
 
 	/**
-	 * tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_"
-	 * / "`" / "|" / "~" / DIGIT / ALPHA
+	 * tchar = "!" / "#" / "$" / "%" / "&amp;" / "'" / "*" / "+" / "-" / "." / "^" /
+	 * "_" / "`" / "|" / "~" / DIGIT / ALPHA
 	 * 
 	 * @param c character
 	 * @return true if c matches obs-text ABNF rule; else false

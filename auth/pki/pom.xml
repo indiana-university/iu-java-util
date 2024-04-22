@@ -28,7 +28,12 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-auth-util</artifactId>
+			<artifactId>iu-java-auth-principal</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-crypt</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>

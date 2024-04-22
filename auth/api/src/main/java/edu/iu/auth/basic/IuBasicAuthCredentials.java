@@ -55,8 +55,8 @@ import iu.auth.IuAuthSpiFactory;
  * 
  * <p>
  * Basic authentication <em>must not</em> be used to verify a <strong>user
- * principal<strong>.
- * <p>
+ * principal</strong>.
+ * </p>
  */
 public interface IuBasicAuthCredentials extends IuApiCredentials, IuPrincipalIdentity {
 
@@ -73,7 +73,7 @@ public interface IuBasicAuthCredentials extends IuApiCredentials, IuPrincipalIde
 	 * Client secret values provided via {@link #getPassword()} <em>must</em> be
 	 * printable ASCII, at least 12 characters in length. Implementations
 	 * <em>should</em> use {@link IdGenerator#generateId()} to create passwords.
-	 * <p>
+	 * </p>
 	 * 
 	 * <p>
 	 * {@link IuBasicAuthCredentials#getNotBefore()} and {@link #getExpires()}

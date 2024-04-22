@@ -47,11 +47,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
 
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
+import edu.iu.UnsafeConsumer;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.spi.IuPkiSpi;
 import edu.iu.crypt.DigestUtils;
@@ -61,7 +61,7 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Operation;
 import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebKey.Use;
-import iu.auth.util.PrincipalVerifierRegistry;
+import iu.auth.principal.PrincipalVerifierRegistry;
 
 /**
  * {@link IuPkiSpi} service provider implementation.
@@ -70,7 +70,7 @@ public class PkiSpi implements IuPkiSpi {
 
 	private static final Map<String, CertPathParameters> TRUST = new HashMap<>();
 
-	private static class IdVerifier implements Consumer<IuPrincipalIdentity> {
+	private static class IdVerifier implements UnsafeConsumer<IuPrincipalIdentity> {
 		private final boolean authoritative;
 		private final String issuer;
 		private final PKIXParameters pkix;
@@ -97,7 +97,7 @@ public class PkiSpi implements IuPkiSpi {
 				IuObject.once(issuer, pki.getName(), "principal name mismatch");
 				final var privIter = sub.getPrivateCredentials(WebKey.class).iterator();
 				if (!privIter.hasNext())
-					throw new IllegalStateException("missing private key");
+					throw new IllegalArgumentException("missing private key");
 
 				final var key = privIter.next();
 				Objects.requireNonNull(key.getPrivateKey());
@@ -188,8 +188,7 @@ public class PkiSpi implements IuPkiSpi {
 					jwkBuilder.ops(Operation.VERIFY, Operation.SIGN);
 			} else if (keyUsage[1]) { // nonRepudiation
 				jwkBuilder.use(use = Use.SIGN);
-				if (privateKey == null)
-					jwkBuilder.ops(Operation.VERIFY);
+				jwkBuilder.ops(Operation.VERIFY);
 			}
 
 		if (!Use.SIGN.equals(use)) {
