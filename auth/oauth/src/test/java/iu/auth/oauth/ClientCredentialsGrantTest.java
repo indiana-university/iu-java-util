@@ -225,7 +225,7 @@ public class ClientCredentialsGrantTest {
 			verify(clientCredentials).applyTo(hrb);
 			assertInstanceOf(IuBearerAuthCredentials.class, cred);
 			assertEquals(principal.getName(), cred.getName());
-			assertTrue(new AuthorizedScope("foobar", realm).implies(((IuBearerAuthCredentials) cred).getSubject()));
+			assertTrue(new AuthorizationScope("foobar", realm).implies(((IuBearerAuthCredentials) cred).getSubject()));
 
 			assertSame(cred, grant.authorize(uri));
 			assertFalse(grant.isExpired());

@@ -49,6 +49,7 @@ import jakarta.json.JsonValue;
 /**
  * Provides minimal utilities for internal HTTP-based interactions specific to
  * authorization server interactions.
+ * @deprecated TODO
  */
 public class HttpUtils {
 

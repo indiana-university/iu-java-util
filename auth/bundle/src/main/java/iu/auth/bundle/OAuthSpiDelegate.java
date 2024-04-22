@@ -35,6 +35,7 @@ import java.net.URI;
 
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
+import edu.iu.auth.oauth.IuAuthorizationScope;
 import edu.iu.auth.oauth.IuAuthorizationSession;
 import edu.iu.auth.spi.IuOAuthSpi;
 
@@ -59,6 +60,12 @@ public class OAuthSpiDelegate implements IuOAuthSpi {
 	@Override
 	public IuAuthorizationSession createAuthorizationSession(String realm, URI entryPoint) {
 		return DELEGATE.createAuthorizationSession(realm, entryPoint);
+	}
+
+	@Override
+	public IuAuthorizationScope createAuthorizationScope(String name, String realm) {
+		return DELEGATE.createAuthorizationScope(name, realm);
+
 	}
 
 }

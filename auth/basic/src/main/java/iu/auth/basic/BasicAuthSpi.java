@@ -31,13 +31,21 @@
  */
 package iu.auth.basic;
 
+import java.time.temporal.TemporalAmount;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+
 import edu.iu.auth.basic.IuBasicAuthCredentials;
 import edu.iu.auth.spi.IuBasicAuthSpi;
+import iu.auth.principal.PrincipalVerifierRegistry;
 
 /**
  * {@link IuBasicAuthSpi} service provider implementation.
  */
 public class BasicAuthSpi implements IuBasicAuthSpi {
+
+	private static final Map<String, ClientCredentialSource> CLIENT_CREDENTIALS = new HashMap<>();
 
 	/**
 	 * Default constructor.
@@ -47,7 +55,18 @@ public class BasicAuthSpi implements IuBasicAuthSpi {
 
 	@Override
 	public IuBasicAuthCredentials createCredentials(String username, String password) {
-		return new BasicAuthCredentials(username, password);
+		return new BasicAuthCredentials(username, password, null, null);
+	}
+
+	@Override
+	public synchronized void register(Iterable<? extends IuBasicAuthCredentials> basicAuthPrincipals, String realm,
+			TemporalAmount expirationPolicy) {
+		if (CLIENT_CREDENTIALS.containsKey(Objects.requireNonNull(realm, "realm is required")))
+			throw new IllegalArgumentException("Client credentials realm is already registerd");
+
+		final var clientCredentials = new ClientCredentialSource(realm, basicAuthPrincipals, expirationPolicy);
+		PrincipalVerifierRegistry.registerVerifier(realm, clientCredentials::verify, true);
+		CLIENT_CREDENTIALS.put(realm, clientCredentials);
 	}
 
 }

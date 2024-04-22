@@ -202,7 +202,7 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 				throw new IllegalStateException(new NotSerializableException(principal.getClass().getName()));
 
 		for (final var scope : tokenResponse.getScope())
-			principals.add(new AuthorizedScope(scope, OAuthSpi.getClient(realm).getRealm()));
+			principals.add(new AuthorizationScope(scope, OAuthSpi.getClient(realm).getRealm()));
 
 		final var bearerSubject = new Subject(true, principals, subject.getPublicCredentials(),
 				subject.getPrivateCredentials());

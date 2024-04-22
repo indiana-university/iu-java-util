@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>iu-java-crypt</artifactId>
-	<name>IU Crypto and PKI Utilities</name>
+	<name>IU Web Cryptography Utilities</name>
 
 	<dependencies>
 		<dependency>

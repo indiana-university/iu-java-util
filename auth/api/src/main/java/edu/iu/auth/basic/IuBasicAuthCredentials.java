@@ -31,14 +31,95 @@
  */
 package edu.iu.auth.basic;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.TemporalAmount;
+
+import edu.iu.IdGenerator;
 import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.spi.IuBasicAuthSpi;
+import iu.auth.IuAuthSpiFactory;
 
 /**
  * Represents credentials for use with
  * <a href="https://datatracker.ietf.org/doc/html/rfc7617">HTTP Basic
  * Authentication</a>.
+ * 
+ * <p>
+ * <strong>Basic authentication is not secure</strong> and <em>should not</em>
+ * be used when secure options are available for establishing a principal
+ * identity. When using {@link IuBasicAuthCredentials} to authenticate remote
+ * clients, an expiration policy of no more than 45 days <em>should</em> be
+ * used.
+ * </p>
+ * 
+ * <p>
+ * Basic authentication <em>must not</em> be used to verify a <strong>user
+ * principal<strong>.
+ * <p>
  */
-public interface IuBasicAuthCredentials extends IuApiCredentials {
+public interface IuBasicAuthCredentials extends IuApiCredentials, IuPrincipalIdentity {
+
+	/**
+	 * Registers Basic authentication principals for verifying external OAuth 2
+	 * client credentials.
+	 * 
+	 * <p>
+	 * Client secret values provided via {@link #getPassword()} <em>must</em> be
+	 * printable ASCII, at least 12 characters in length. Implementations
+	 * <em>should</em> use {@link IdGenerator#generateId()} to create passwords.
+	 * <p>
+	 * 
+	 * <p>
+	 * {@link IuBasicAuthCredentials#getNotBefore()} and {@link #getExpires()}
+	 * <em>must</em> be non-null for all entries. Entries <em>may</em> be expired;
+	 * expired entries <em>may</em> be changed. <em>May</em> include multiple
+	 * entries with the same name but different passwords and expiration times.
+	 * </p>
+	 * 
+	 * <p>
+	 * This method <em>may</em> be called no more than once per realm.
+	 * </p>
+	 * 
+	 * <p>
+	 * <em>Implementation Note:</em> The {@link Iterable} provided to this method is
+	 * controlled externally. {@link Iterable#iterator()} is invoked each time an
+	 * {@link IuBasicAuthCredentials} principal is verified to discover externally
+	 * controlled metadata
+	 * </p>
+	 * 
+	 * @param clientCredentials Basic authentication client credential principals
+	 * @param realm             Authentication realm
+	 * @param expirationPolicy  Maximum length of time to allow passwords to remain
+	 *                          valid
+	 * @see <a href=
+	 *      "https://datatracker.ietf.org/doc/html/rfc6749#section-2.3.1">OAuth 2.0
+	 *      Client Password</a>
+	 * @see <a href=
+	 *      "https://github.com/OWASP/ASVS/raw/v4.0.3/4.0/OWASP%20Application%20Security%20Verification%20Standard%204.0.3-en.pdf">ASVS
+	 *      4.0: 2.1 and 2.4</a>
+	 */
+	static void registerClientCredentials(Iterable<? extends IuBasicAuthCredentials> clientCredentials, String realm,
+			TemporalAmount expirationPolicy) {
+		IuAuthSpiFactory.get(IuBasicAuthSpi.class).register(clientCredentials, realm, expirationPolicy);
+	}
+
+	/**
+	 * <em>Optional</em> time before which the password <em>should</em> be
+	 * considered invalid.
+	 * 
+	 * @return expiration time
+	 */
+	Instant getNotBefore();
+
+	/**
+	 * <em>Optional</em> time after which the password <em>should</em> be considered
+	 * invalid.
+	 * 
+	 * @return expiration time
+	 */
+	Instant getExpires();
 
 	/**
 	 * Gets the password.

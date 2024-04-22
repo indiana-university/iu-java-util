@@ -42,7 +42,7 @@ import iu.auth.IuAuthSpiFactory;
  * {@link Principal} implementation for an HTTP-authenticated user or client
  * application.
  */
-public interface IuApiCredentials extends Principal {
+public interface IuApiCredentials extends IuPrincipalIdentity {
 
 	/**
 	 * Gets credentials for use with

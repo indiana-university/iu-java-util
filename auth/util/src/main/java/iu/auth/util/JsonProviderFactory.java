@@ -40,6 +40,7 @@ import jakarta.json.spi.JsonProvider;
  * bootstrap with the desired {@link JsonProvider} SPI provided by the current
  * thread's context.
  * </p>
+ * @deprecated TODO
  */
 public class JsonProviderFactory {
 

@@ -41,7 +41,7 @@ public class AuthorizedScopeTest {
 
 	@Test
 	public void testProps() {
-		final var scope = new AuthorizedScope("foo", "bar");
+		final var scope = new AuthorizationScope("foo", "bar");
 		assertEquals("foo", scope.getName());
 		assertEquals("bar", scope.getRealm());
 		assertEquals("OAuth Scope foo, for realm bar", scope.toString());
@@ -49,10 +49,10 @@ public class AuthorizedScopeTest {
 
 	@Test
 	public void testEquals() {
-		final var scope1 = new AuthorizedScope("foo", "bar");
-		final var scope2 = new AuthorizedScope("foo", "baz");
-		final var scope3 = new AuthorizedScope("bar", "baz");
-		final var scope4 = new AuthorizedScope("foo", "baz");
+		final var scope1 = new AuthorizationScope("foo", "bar");
+		final var scope2 = new AuthorizationScope("foo", "baz");
+		final var scope3 = new AuthorizationScope("bar", "baz");
+		final var scope4 = new AuthorizationScope("foo", "baz");
 		assertNotEquals(scope1, new Object());
 		assertNotEquals(scope1, scope2);
 		assertNotEquals(scope2, scope1);

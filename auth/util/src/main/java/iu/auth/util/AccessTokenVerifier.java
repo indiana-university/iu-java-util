@@ -64,6 +64,7 @@ import jakarta.json.JsonObject;
 /**
  * Verifies JWT access tokens as signed using an RSA or ECDSA public key from a
  * well-known JWKS key set.
+ * @deprecated TODO
  */
 public class AccessTokenVerifier {
 

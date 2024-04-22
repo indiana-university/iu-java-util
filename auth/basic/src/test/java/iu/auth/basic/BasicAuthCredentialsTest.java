@@ -46,7 +46,7 @@ public class BasicAuthCredentialsTest {
 
 	@Test
 	public void testBasicAuth() throws UnsupportedEncodingException {
-		final var auth = new BasicAuthCredentials("foo", "bar");
+		final var auth = new BasicAuthCredentials("foo", "bar", null, null);
 		assertEquals("foo", auth.getName());
 		assertEquals("bar", auth.getPassword());
 

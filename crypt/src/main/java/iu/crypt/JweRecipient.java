@@ -269,14 +269,6 @@ class JweRecipient implements WebEncryptionRecipient {
 			});
 
 		return cek;
-
-//		case :
-//		case :
-//		case :
-//			break;
-//
-//		default:
-//		}
 	}
 
 }

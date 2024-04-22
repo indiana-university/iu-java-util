@@ -29,67 +29,77 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.oauth;
+package iu.auth.pki;
 
-import java.io.Serializable;
+import javax.security.auth.Subject;
 
 import edu.iu.IuObject;
-import edu.iu.auth.oauth.IuAuthorizationScope;
+import edu.iu.auth.pki.IuPkiPrincipal;
+import edu.iu.crypt.WebKey;
 
 /**
- * {@link IuAuthorizationScope} implementation.
+ * {@link IuPkiPrincipal} implementation class.
  */
-public class AuthorizedScope implements IuAuthorizationScope, Serializable {
+class PkiPrincipal implements IuPkiPrincipal {
 	private static final long serialVersionUID = 1L;
 
-	/**
-	 * Authorized scope.
-	 */
-	private final String scope;
-
-	/**
-	 * Authentication realm the scope is valid for.
-	 */
-	private final String realm;
+	private transient WebKey key;
+	private transient WebKey wellKnown;
+	private final String serializedWellKnownKey;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param scope Authorized scope
-	 * @param realm Authentication realm the scope is valid for
+	 * @param key       fully populated JWK including private/secret key data
+	 * @param wellKnwon
+	 * @param certPath
 	 */
-	AuthorizedScope(String scope, String realm) {
-		this.scope = scope;
-		this.realm = realm;
+	PkiPrincipal(WebKey key) {
+		this.wellKnown = key.wellKnown();
+		this.key = key;
+		this.serializedWellKnownKey = wellKnown.toString();
 	}
 
 	@Override
 	public String getName() {
-		return scope;
+		return X500Utils.getCommonName(wellKnown().getCertificateChain()[0].getSubjectX500Principal());
 	}
 
 	@Override
-	public String getRealm() {
-		return realm;
-	}
-
-	@Override
-	public int hashCode() {
-		return IuObject.hashCode(realm, scope);
-	}
-
-	@Override
-	public boolean equals(Object obj) {
-		if (!IuObject.typeCheck(this, obj))
-			return false;
-		AuthorizedScope other = (AuthorizedScope) obj;
-		return IuObject.equals(realm, other.realm) //
-				&& IuObject.equals(scope, other.scope);
+	public Subject getSubject() {
+		final var subject = new Subject();
+		subject.getPrincipals().add(this);
+		if (key != null)
+			IuObject.convert(key.getPrivateKey(), a -> subject.getPrivateCredentials().add(key));
+		subject.getPublicCredentials().add(wellKnown());
+		subject.setReadOnly();
+		return subject;
 	}
 
 	@Override
 	public String toString() {
-		return "OAuth Scope " + scope + ", for realm " + realm;
+		final var sb = new StringBuilder();
+		if (key == null || key.getPrivateKey() == null)
+			sb.append("Well-Known");
+		else
+			sb.append("Authoritative");
+		sb.append(" PKI Principal ").append(getName());
+
+		final var certChain = wellKnown().getCertificateChain();
+		if (certChain.length == 1
+				&& certChain[0].getSubjectX500Principal().equals(certChain[0].getIssuerX500Principal()))
+			sb.append(", Self-Issued");
+		else
+			sb.append(", Issued by ")
+					.append(X500Utils.getCommonName(certChain[certChain.length - 1].getIssuerX500Principal()));
+
+		return sb.toString();
+	}
+
+	private WebKey wellKnown() {
+		if (wellKnown == null)
+			wellKnown = WebKey.parse(serializedWellKnownKey);
+		return wellKnown;
 	}
 
 }

@@ -34,19 +34,19 @@ package edu.iu.auth.oidc;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.auth.IuApiCredentials;
-import edu.iu.test.IuTest;
 
 @SuppressWarnings("javadoc")
 public class IuOpenIdClientTest {
 
 	@Test
 	public void testClientDefaults() {
-		final var client = IuTest.mockWithDefaults(IuOpenIdClient.class);
+		final var client = mock(IuOpenIdClient.class, CALLS_REAL_METHODS);
 		assertNull(client.getScope());
 		assertNull(client.getRedirectUri());
 		assertNull(client.getAuthorizationCodeAttributes());
