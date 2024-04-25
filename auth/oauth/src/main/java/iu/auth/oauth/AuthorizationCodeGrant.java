@@ -1,4 +1,5 @@
 /*
+
  * Copyright © 2024 Indiana University
  * All rights reserved.
  *
@@ -93,7 +94,7 @@ final class AuthorizationCodeGrant extends AbstractGrant {
 		if (!OAuthSpi.isRoot(this.resourceUri, resourceUri))
 			throw new IllegalArgumentException("Invalid resource URI for this grant");
 
-		final var activatedCredentials = activate();
+		final var activatedCredentials = getAuthorizedCredentials();
 		if (activatedCredentials != null)
 			return activatedCredentials;
 
@@ -108,21 +109,19 @@ final class AuthorizationCodeGrant extends AbstractGrant {
 					tokenRequestParams.put("refresh_token", List.of(refreshToken));
 					tokenRequestParams.put("scope", List.of(validatedScope));
 
-					final var tokenResponse = new TokenResponse(client.getScope(), null,
-							IuHttp.send(client.getTokenEndpoint(), tokenRequestBuilder -> {
+					final var tokenResponse = new TokenResponse(client.getScope(), null, IuHttp
+							.send(IuAuthenticationException.class, client.getTokenEndpoint(), tokenRequestBuilder -> {
 								tokenRequestBuilder.POST(
 										BodyPublishers.ofString(IuWebUtils.createQueryString(tokenRequestParams)));
 								tokenRequestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
 								client.getCredentials().applyTo(tokenRequestBuilder);
-							}, IuHttp.READ_JSON_OBJECT));
+							}, JSON_OBJECT_NOCACHE));
 
 					final var refreshToken = tokenResponse.getRefreshToken();
 					if (refreshToken != null)
 						this.refreshToken = refreshToken;
 
-					final var credentials = verify(tokenResponse, originalResponse);
-					client.activate(credentials);
-					return credentials;
+					return authorize(tokenResponse, originalResponse);
 
 				} catch (Throwable e) {
 					LOG.log(Level.INFO, e, () -> "Refresh token failed");
@@ -213,16 +212,16 @@ final class AuthorizationCodeGrant extends AbstractGrant {
 		tokenRequestParams.put("scope", List.of(validatedScope));
 		tokenRequestParams.put("redirect_uri", List.of(client.getRedirectUri().toString().toString()));
 
-		final var authResponse = IuException
-				.unchecked(() -> IuHttp.send(client.getTokenEndpoint(), authRequestBuilder -> {
+		final var authResponse = IuException.checked(IuAuthenticationException.class,
+				() -> IuHttp.send(IuAuthenticationException.class, client.getTokenEndpoint(), authRequestBuilder -> {
 					authRequestBuilder.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(tokenRequestParams)));
 					authRequestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
 					client.getCredentials().applyTo(authRequestBuilder);
-				}, IuHttp.READ_JSON_OBJECT));
+				}, JSON_OBJECT_NOCACHE));
 
 		final var codeResponse = new TokenResponse(client.getScope(), authorizationState.requestAttributes,
 				authResponse);
-		verify(codeResponse);
+		authorize(codeResponse);
 		originalResponse = codeResponse;
 		refreshToken = codeResponse.getRefreshToken();
 		return authorizationState.resourceUri;

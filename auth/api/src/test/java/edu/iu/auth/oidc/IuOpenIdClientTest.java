@@ -31,7 +31,6 @@
  */
 package edu.iu.auth.oidc;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -39,21 +38,16 @@ import static org.mockito.Mockito.mock;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.auth.IuApiCredentials;
-
 @SuppressWarnings("javadoc")
 public class IuOpenIdClientTest {
 
 	@Test
 	public void testClientDefaults() {
-		final var client = mock(IuOpenIdClient.class, CALLS_REAL_METHODS);
+		final var client = mock(IuAuthoritativeOpenIdClient.class, CALLS_REAL_METHODS);
 		assertNull(client.getScope());
-		assertNull(client.getRedirectUri());
 		assertNull(client.getAuthorizationCodeAttributes());
 		assertNull(client.getClientCredentialsAttributes());
-		assertEquals("RS256", client.getIdTokenSignedResponseAlg());
-		final var a = mock(IuApiCredentials.class);
-		assertDoesNotThrow(() -> client.revoke(a));
+		assertEquals("RS256", client.getIdTokenAlgorithm());
 	}
 
 }

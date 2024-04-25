@@ -62,12 +62,12 @@ final class ClientCredentialsGrant extends AbstractGrant {
 	}
 
 	@Override
-	public final IuApiCredentials authorize(URI resourceUri) throws IuAuthenticationException {
+	public final IuApiCredentials authorize(URI resourceUri) {
 		final var client = OAuthSpi.getClient(realm);
 		if (!OAuthSpi.isRoot(client.getResourceUri(), resourceUri))
 			throw new IllegalArgumentException("Invalid resource URI for this client");
 
-		final var activatedCredentials = activate();
+		final var activatedCredentials = getAuthorizedCredentials();
 		if (activatedCredentials != null)
 			return activatedCredentials;
 
@@ -93,12 +93,12 @@ final class ClientCredentialsGrant extends AbstractGrant {
 					tokenRequestParams.put(name, List.of(clientAttributeEntry.getValue()));
 			}
 
-		return verify(new TokenResponse(client.getScope(), clientAttributes,
-				IuException.unchecked(() -> IuHttp.send(client.getTokenEndpoint(), tokenRequestBuilder -> {
+		return IuException.unchecked(() -> authorize(new TokenResponse(client.getScope(), clientAttributes,
+				IuHttp.send(IuAuthenticationException.class, client.getTokenEndpoint(), tokenRequestBuilder -> {
 					tokenRequestBuilder.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(tokenRequestParams)));
 					tokenRequestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
 					client.getCredentials().applyTo(tokenRequestBuilder);
-				}, IuHttp.READ_JSON_OBJECT))));
+				}, JSON_OBJECT_NOCACHE))));
 	}
 
 }

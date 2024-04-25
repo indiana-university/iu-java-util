@@ -29,67 +29,19 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.oauth;
+package iu.auth.oidc;
 
-import java.io.Serializable;
+import java.net.URI;
 
-import edu.iu.IuObject;
-import edu.iu.auth.oauth.IuAuthorizationScope;
+import edu.iu.IdGenerator;
 
-/**
- * {@link IuAuthorizationScope} implementation.
- */
-public class AuthorizationScope implements IuAuthorizationScope, Serializable {
-	private static final long serialVersionUID = 1L;
+@SuppressWarnings("javadoc")
+public class IuOidcTestCase {
 
-	/**
-	 * Authorized scope.
-	 */
-	private final String scope;
+	protected static final URI ROOT_URI = URI.create("test://" + IdGenerator.generateId());
 
-	/**
-	 * Authentication realm the scope is valid for.
-	 */
-	private final String realm;
-
-	/**
-	 * Constructor.
-	 * 
-	 * @param scope Authorized scope
-	 * @param realm Authentication realm the scope is valid for
-	 */
-	AuthorizationScope(String scope, String realm) {
-		this.scope = scope;
-		this.realm = realm;
-	}
-
-	@Override
-	public String getName() {
-		return scope;
-	}
-
-	@Override
-	public String getRealm() {
-		return realm;
-	}
-
-	@Override
-	public int hashCode() {
-		return IuObject.hashCode(realm, scope);
-	}
-
-	@Override
-	public boolean equals(Object obj) {
-		if (!IuObject.typeCheck(this, obj))
-			return false;
-		AuthorizationScope other = (AuthorizationScope) obj;
-		return IuObject.equals(realm, other.realm) //
-				&& IuObject.equals(scope, other.scope);
-	}
-
-	@Override
-	public String toString() {
-		return "OAuth Scope " + scope + ", for realm " + realm;
+	static {
+		System.setProperty("iu.http.allowedUri", ROOT_URI.toString());
 	}
 
 }

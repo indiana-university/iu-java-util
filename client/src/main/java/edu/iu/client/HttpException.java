@@ -44,10 +44,31 @@ public class HttpException extends Exception {
 	private final transient HttpResponse<InputStream> response;
 
 	/**
+	 * Pre-response constructor.
+	 * 
+	 * @param message message
+	 */
+	public HttpException(String message) {
+		super(message);
+		response = null;
+	}
+
+	/**
+	 * Pre-response constructor.
+	 * 
+	 * @param message message
+	 * @param cause cause
+	 */
+	public HttpException(String message, Throwable cause) {
+		super(message, cause);
+		response = null;
+	}
+
+	/**
 	 * Constructor.
 	 * 
 	 * @param response error response, status code >= 400
-	 * @param message detailed error message
+	 * @param message  detailed error message
 	 */
 	HttpException(HttpResponse<InputStream> response, String message) {
 		super(message);

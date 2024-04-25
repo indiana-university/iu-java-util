@@ -32,13 +32,13 @@
 package iu.auth.oauth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -59,11 +59,10 @@ public class TokenResponseTest {
 		assertEquals("foo", tokenResponse.getScope().iterator().next());
 		assertEquals("bar", tokenResponse.getTokenType());
 		assertEquals("baz", tokenResponse.getAccessToken());
-		assertNull(tokenResponse.getExpires());
+		assertNull(tokenResponse.getExpiresIn());
 		assertSame(attr, tokenResponse.getRequestAttributes());
 		assertNull(tokenResponse.getRefreshToken());
 		assertTrue(tokenResponse.getTokenAttributes().isEmpty());
-		assertFalse(tokenResponse.isExpired());
 	}
 
 	@Test
@@ -83,9 +82,7 @@ public class TokenResponseTest {
 		final var tr = Json.createObjectBuilder().add("token_type", "bar").add("access_token", "baz")
 				.add("expires_in", 1).build();
 		final var tokenResponse = new TokenResponse(List.of("foo"), null, tr);
-		assertFalse(tokenResponse.isExpired());
-		Thread.sleep(1001L);
-		assertTrue(tokenResponse.isExpired());
+		assertEquals(Duration.ofSeconds(1L), tokenResponse.getExpiresIn());
 	}
 
 	@Test
@@ -93,9 +90,7 @@ public class TokenResponseTest {
 		final var tr = Json.createObjectBuilder().add("token_type", "bar").add("access_token", "baz")
 				.add("expires_in", "1").build();
 		final var tokenResponse = new TokenResponse(List.of("foo"), null, tr);
-		assertFalse(tokenResponse.isExpired());
-		Thread.sleep(1001L);
-		assertTrue(tokenResponse.isExpired());
+		assertEquals(Duration.ofSeconds(1L), tokenResponse.getExpiresIn());
 	}
 
 	@Test
@@ -131,8 +126,7 @@ public class TokenResponseTest {
 
 	@Test
 	public void testExtraValue() {
-		final var tr = Json.createObjectBuilder().add("token_type", "").add("access_token", "").addNull("foo")
-				.build();
+		final var tr = Json.createObjectBuilder().add("token_type", "").add("access_token", "").addNull("foo").build();
 		final var tokenResponse = new TokenResponse(List.of("foo"), null, tr);
 		assertEquals("null", tokenResponse.getTokenAttributes().get("foo"));
 	}

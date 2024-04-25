@@ -31,6 +31,8 @@
  */
 package edu.iu.auth.oauth;
 
+import java.util.Set;
+
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuPrincipalIdentity;
 
@@ -47,5 +49,12 @@ public interface IuBearerAuthCredentials extends IuApiCredentials, IuPrincipalId
 	 * @return access token
 	 */
 	String getAccessToken();
+
+	/**
+	 * Gets the scope of access authorized for the token.
+	 * 
+	 * @return scope
+	 */
+	Set<String> getScope();
 
 }

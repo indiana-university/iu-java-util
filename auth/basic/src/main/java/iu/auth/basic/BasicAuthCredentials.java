@@ -34,7 +34,6 @@ package iu.auth.basic;
 import java.net.http.HttpRequest.Builder;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.Set;
 
 import javax.security.auth.Subject;
 
@@ -71,6 +70,11 @@ public class BasicAuthCredentials implements IuBasicAuthCredentials {
 	 * Time at which credentials expire.
 	 */
 	private final Instant expires;
+
+	/**
+	 * Revoked flag.
+	 */
+	boolean revoked;
 
 	private transient Subject subject;
 
@@ -117,6 +121,11 @@ public class BasicAuthCredentials implements IuBasicAuthCredentials {
 	}
 
 	@Override
+	public void revoke() {
+		revoked = true;
+	}
+
+	@Override
 	public void applyTo(Builder httpRequestBuilder) {
 		httpRequestBuilder.header("Authorization", "Basic " + Base64.getUrlEncoder()
 				.encodeToString(IuException.unchecked(() -> (name + ':' + password).getBytes(getCharset()))));
@@ -124,8 +133,12 @@ public class BasicAuthCredentials implements IuBasicAuthCredentials {
 
 	@Override
 	public Subject getSubject() {
-		if (subject == null)
-			subject = new Subject(true, Set.of(this), Set.of(), Set.of());
+		if (subject == null) {
+			final var subject = new Subject();
+			subject.getPrincipals().add(this);
+			subject.setReadOnly();
+			this.subject = subject;
+		}
 		return subject;
 	}
 

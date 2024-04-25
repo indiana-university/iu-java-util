@@ -51,15 +51,13 @@ import java.net.http.HttpRequest.BodyPublisher;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
-
-import javax.security.auth.Subject;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuException;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuAuthorizationClient;
@@ -137,8 +135,8 @@ public class AuthorizationSessionTest extends IuOAuthTestCase {
 		when(client.getAuthorizationCodeAttributes()).thenReturn(Map.of("foo", "bar"));
 		when(client.getScope()).thenReturn(List.of("foo", "bar"));
 		when(client.getCredentials()).thenReturn(clientCredentials);
-		when(client.verify(any())).thenReturn(new Subject(true, Set.of(principal), Set.of(), Set.of()));
-		when(client.verify(any(), any())).thenReturn(new Subject(true, Set.of(principal), Set.of(), Set.of()));
+		when(client.verify(any())).thenReturn(principal);
+		when(client.verify(any(), any())).thenReturn(principal);
 		IuAuthorizationClient.initialize(client);
 
 		final var entryPointUri = new URI("foo:/bar/baz");
@@ -167,10 +165,10 @@ public class AuthorizationSessionTest extends IuOAuthTestCase {
 			final var refreshToken = IdGenerator.generateId();
 			final var tokenResponse = Json.createObjectBuilder().add("token_type", "Bearer")
 					.add("access_token", accessToken).add("refresh_token", refreshToken).add("expires_in", 1).build();
-			mockHttp.when(() -> IuHttp.send(eq(tokenEndpointUri), argThat(a -> {
-				a.accept(hrb);
+			mockHttp.when(() -> IuHttp.send(eq(IuAuthenticationException.class), eq(tokenEndpointUri), argThat(a -> {
+				IuException.unchecked(() -> a.accept(hrb));
 				return true;
-			}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(tokenResponse);
+			}), eq(AbstractGrant.JSON_OBJECT_NOCACHE))).thenReturn(tokenResponse);
 
 			assertEquals(entryPointUri, session.authorize(code, state));
 		}

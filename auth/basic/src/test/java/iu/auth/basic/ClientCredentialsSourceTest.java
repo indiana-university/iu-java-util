@@ -146,6 +146,11 @@ public class ClientCredentialsSourceTest {
 						.getMessage());
 		assertEquals("Basic realm=\"" + realm + "\"", assertThrows(IuExpiredCredentialsException.class,
 				() -> cc.verify(IuApiCredentials.basic(expiredId, secret))).getMessage());
+
+		final var basic = IuApiCredentials.basic(id, secret);
+		basic.revoke();
+		assertEquals("Basic realm=\"" + realm + "\"",
+				assertThrows(IuAuthenticationException.class, () -> cc.verify(basic)).getMessage());
 	}
 
 }

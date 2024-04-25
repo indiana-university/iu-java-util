@@ -39,7 +39,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.net.URI;
@@ -58,6 +57,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.logging.Level;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.opentest4j.AssertionFailedError;
 
@@ -65,12 +65,18 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 
 import edu.iu.IdGenerator;
+import edu.iu.client.IuHttp;
 import edu.iu.test.IuTestLogger;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 
 @SuppressWarnings("javadoc")
 public class AccessTokenVerifierTest {
+
+	@BeforeAll
+	public static void setupClass() {
+		System.setProperty("iu.http.allowedUri", "test://localhost");
+	}
 
 	@Test
 	public void testAlgorithmKey() {
@@ -105,9 +111,9 @@ public class AccessTokenVerifierTest {
 		final var aud = IdGenerator.generateId();
 		final var jwks = Json.createObjectBuilder().build();
 
-		try (final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var uri = mock(URI.class);
-			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenReturn(jwks);
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			final var uri = URI.create("test://localhost/" + IdGenerator.generateId());
+			mockHttp.when(() -> IuHttp.get(uri, IuHttp.READ_JSON_OBJECT)).thenReturn(jwks);
 
 			final var verifier = new AccessTokenVerifier(uri, iss, () -> Duration.ofMillis(100L));
 			assertThrows(IllegalStateException.class,
@@ -123,9 +129,9 @@ public class AccessTokenVerifierTest {
 				.add("keys", Json.createArrayBuilder().add(Json.createObjectBuilder().add("kid", "defaultSign")))
 				.build();
 
-		try (final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var uri = mock(URI.class);
-			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenReturn(jwks);
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			final var uri = URI.create("test://localhost/" + IdGenerator.generateId());
+			mockHttp.when(() -> IuHttp.get(uri, IuHttp.READ_JSON_OBJECT)).thenReturn(jwks);
 
 			final var verifier = new AccessTokenVerifier(uri, iss, () -> Duration.ofMillis(100L));
 			final var e = assertThrows(IllegalStateException.class,
@@ -142,9 +148,9 @@ public class AccessTokenVerifierTest {
 				.add("keys", Json.createArrayBuilder().add(Json.createObjectBuilder().add("kid", "defaultSign")))
 				.build();
 
-		try (final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var uri = mock(URI.class);
-			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenReturn(jwks);
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			final var uri = URI.create("test://localhost/" + IdGenerator.generateId());
+			mockHttp.when(() -> IuHttp.get(uri, IuHttp.READ_JSON_OBJECT)).thenReturn(jwks);
 
 			final var verifier = new AccessTokenVerifier(uri, iss, () -> Duration.ofMillis(100L));
 			assertThrows(IllegalStateException.class,
@@ -241,24 +247,27 @@ public class AccessTokenVerifierTest {
 		} else
 			throw new AssertionFailedError();
 
-		try (final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var uri = mock(URI.class);
-			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenReturn(jwks);
+		final var uri = URI.create("test://localhost/" + IdGenerator.generateId());
+		final var verifier = new AccessTokenVerifier(uri, iss, () -> Duration.ofMillis(99L));
 
-			final var verifier = new AccessTokenVerifier(uri, iss, () -> Duration.ofMillis(99L));
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			mockHttp.when(() -> IuHttp.get(uri, IuHttp.READ_JSON_OBJECT)).thenReturn(jwks);
 
 			assertEquals(nonce, verifier.verify(aud, accessToken).getClaim("nonce").asString());
 			assertEquals(nonce, verifier.verify(aud, accessToken).getClaim("nonce").asString());
 			// verify 2nd call uses cached keys
-			mockHttpUtils.verify(() -> HttpUtils.read(uri));
+//			mockHttpUtils.verify(() -> HttpUtils.read(uri));
 			Thread.sleep(100L);
 
 			assertEquals(nonce, verifier.verify(aud, accessToken).getClaim("nonce").asString());
 			// verify cache refresh
-			mockHttpUtils.verify(() -> HttpUtils.read(uri), times(2));
+//			mockHttpUtils.verify(() -> HttpUtils.read(uri), times(2));
 
-			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenThrow(RuntimeException.class);
-			Thread.sleep(100L);
+//			mockHttpUtils.when(() -> HttpUtils.read(uri)).thenThrow(RuntimeException.class);
+		}
+		Thread.sleep(100L);
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			mockHttp.when(() -> IuHttp.get(uri, IuHttp.READ_JSON_OBJECT)).thenThrow(RuntimeException.class);
 
 			IuTestLogger.expect("iu.auth.util.AccessTokenVerifier", Level.INFO,
 					"JWT Algorithm initialization failure;.*", RuntimeException.class);

@@ -32,11 +32,8 @@
 package edu.iu.auth.oauth;
 
 import java.net.URI;
-import java.security.Principal;
 import java.time.Duration;
 import java.util.Map;
-
-import javax.security.auth.Subject;
 
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
@@ -91,6 +88,20 @@ public interface IuAuthorizationClient {
 	Duration getAuthenticationTimeout();
 
 	/**
+	 * Gets the maximum length of time to allow for an access token to be
+	 * authorized.
+	 * 
+	 * <p>
+	 * This value will be used to determine the token expiration time if expires_in
+	 * is not sent. It will also be compared to the expires_in value and used
+	 * instead if smaller.
+	 * </p>
+	 * 
+	 * @return {@link Duration}
+	 */
+	Duration getAuthorizationTimeToLive();
+
+	/**
 	 * Gets the root resource URI covered by this client's protection domain.
 	 * 
 	 * <p>
@@ -136,17 +147,14 @@ public interface IuAuthorizationClient {
 	 * </p>
 	 * 
 	 * @param tokenResponse unverified token response
-	 * @return {@link Subject} implied the token response, contains one
-	 *         {@link IuPrincipalIdentity}, typically one or more
-	 *         {@link IuAuthorizationScope}s and provider-specific principal
-	 *         identity attributes implied by the token response.
+	 * @return {@link IuPrincipalIdentity}
 	 * @throws IuAuthenticationException If the token response is invalid (i.e.,
 	 *                                   expired or revoked) for the authentication
 	 *                                   realm and the user or remote client
 	 *                                   <em>must</em> authenticate before access
 	 *                                   can be authorized.
 	 */
-	Subject verify(IuTokenResponse tokenResponse) throws IuAuthenticationException;
+	IuPrincipalIdentity verify(IuTokenResponse tokenResponse) throws IuAuthenticationException;
 
 	/**
 	 * Verifies a refresh response as valid within the client's authentication
@@ -164,33 +172,15 @@ public interface IuAuthorizationClient {
 	 * @param originalTokenResponse {@link #verify(IuTokenResponse) verified} token
 	 *                              response previously
 	 * 
-	 * @return {@link Subject} implied the token response, <em>must</em> contain at
-	 *         least one {@link Principal}. The first principal <em>should</em>
-	 *         contain the the primary authenticated principal name (i.e., username)
-	 *         to associate with the authorization session.
+	 * @return {@link IuPrincipalIdentity}
 	 * @throws IuAuthenticationException If the token response is invalid (i.e.,
 	 *                                   expired or revoked) for the authentication
 	 *                                   realm and the user or remote client
 	 *                                   <em>must</em> authenticate before access
 	 *                                   can be authorized.
 	 */
-	Subject verify(IuTokenResponse refreshTokenResponse, IuTokenResponse originalTokenResponse)
+	IuPrincipalIdentity verify(IuTokenResponse refreshTokenResponse, IuTokenResponse originalTokenResponse)
 			throws IuAuthenticationException;
-
-	/**
-	 * Revalidates credentials as having been {@link #verify(IuTokenResponse)
-	 * verified}, not expired, not revoked, and not prohibited by an environment
-	 * restriction specified by the application realm or authentication provider, as
-	 * a condition for session activation.
-	 * 
-	 * @param credentials credentials to revalidate
-	 * @throws IuAuthenticationException If the credentials are invalid (i.e.,
-	 *                                   expired or revoked) for the authentication
-	 *                                   realm and the user or remote client
-	 *                                   <em>must</em> reauthenticate before a
-	 *                                   session may be activated.
-	 */
-	void activate(IuApiCredentials credentials) throws IuAuthenticationException;
 
 	/**
 	 * Gets the endpoint {@link URI} for the authorization server.

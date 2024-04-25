@@ -60,17 +60,16 @@ import java.net.http.HttpRequest.BodyPublishers;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
-
-import javax.security.auth.Subject;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuException;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
 import edu.iu.client.IuHttp;
@@ -108,7 +107,7 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 
 		final var grant = new AuthorizationCodeGrant(realm, resourceUri);
 		assertThrows(IllegalArgumentException.class,
-				() -> grant.verify(
+				() -> grant.authorize(
 						new TokenResponse(null, null,
 								Json.createObjectBuilder().add("token_type", "Foo").add("access_token", "bar").build()),
 						null));
@@ -222,8 +221,9 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 		when(client.getAuthorizationCodeAttributes()).thenReturn(Map.of("foo", "bar"));
 		when(client.getScope()).thenReturn(List.of("foo", "bar"));
 		when(client.getCredentials()).thenReturn(clientCredentials);
-		when(client.verify(any())).thenReturn(new Subject(true, Set.of(principal), Set.of(), Set.of()));
-		when(client.verify(any(), any())).thenReturn(new Subject(true, Set.of(principal), Set.of(), Set.of()));
+		when(client.verify(any())).thenReturn(principal);
+		when(client.verify(any(), any())).thenReturn(principal);
+		when(client.getAuthorizationTimeToLive()).thenReturn(Duration.ofSeconds(15L));
 		IuAuthorizationClient.initialize(client);
 
 		final var grant = new AuthorizationCodeGrant(realm, resourceUri);
@@ -262,14 +262,16 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 			final var refreshToken = IdGenerator.generateId();
 			final var tokenResponse = Json.createObjectBuilder().add("token_type", "Bearer")
 					.add("access_token", accessToken).add("refresh_token", refreshToken).add("expires_in", 1).build();
-			mockHttp.when(() -> IuHttp.send(eq(tokenEndpointUri), argThat(a -> {
-				a.accept(hrb);
+			mockHttp.when(() -> IuHttp.send(eq(IuAuthenticationException.class), eq(tokenEndpointUri), argThat(a -> {
+				IuException.unchecked(() -> a.accept(hrb));
 				return true;
-			}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(tokenResponse);
+			}), eq(AbstractGrant.JSON_OBJECT_NOCACHE))).thenReturn(tokenResponse);
 
 			assertEquals(resourceUri, grant.authorize(code, state));
 
-			final var cred = grant.authorize(resourceUri);
+			final var cred = assertInstanceOf(BearerAuthCredentials.class, grant.authorize(resourceUri));
+			IuPrincipalIdentity.verify(cred, realm);
+
 			mockBodyPublishers.verify(() -> BodyPublishers.ofString(payload));
 			verify(hrb).header("Content-Type", "application/x-www-form-urlencoded");
 			verify(hrb).POST(bp);
@@ -299,21 +301,23 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 			final var refreshToken2 = IdGenerator.generateId();
 			final var tokenResponse2 = Json.createObjectBuilder().add("token_type", "Bearer")
 					.add("access_token", accessToken2).add("refresh_token", refreshToken2).add("expires_in", 1).build();
-			mockHttp.when(() -> IuHttp.send(eq(tokenEndpointUri), argThat(a -> {
-				a.accept(hrb2);
+			mockHttp.when(() -> IuHttp.send(eq(IuAuthenticationException.class), eq(tokenEndpointUri), argThat(a -> {
+				IuException.unchecked(() -> a.accept(hrb2));
 				return true;
-			}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(tokenResponse2);
+			}), eq(AbstractGrant.JSON_OBJECT_NOCACHE))).thenReturn(tokenResponse2);
 
-			final var cred2 = grant.authorize(resourceUri);
+			final var cred2 = assertInstanceOf(IuBearerAuthCredentials.class, grant.authorize(resourceUri));
+			IuPrincipalIdentity.verify(cred2, realm);
+
 			mockBodyPublishers.verify(() -> BodyPublishers.ofString(payload2));
 			verify(hrb2).header("Content-Type", "application/x-www-form-urlencoded");
 			verify(hrb2).POST(bp2);
 			verify(clientCredentials).applyTo(hrb2);
-			assertInstanceOf(IuBearerAuthCredentials.class, cred2);
-			assertEquals(principal.getName(), cred2.getName());
 			assertSame(cred2, grant.authorize(resourceUri));
-			assertEquals(cred, cred2);
-			assertEquals(cred.hashCode(), cred2.hashCode());
+			assertEquals(principal.getName(), cred2.getName());
+			assertEquals(cred.getName(), cred2.getName());
+			assertEquals(cred.getSubject(), cred2.getSubject());
+			assertEquals(cred.getScope(), cred2.getScope());
 			assertEquals(accessToken2, ((IuBearerAuthCredentials) cred2).getAccessToken());
 
 			Thread.sleep(1001L);
@@ -325,11 +329,11 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 			when(hrb3.build()).thenReturn(hr3);
 			final var accessToken3 = IdGenerator.generateId();
 			final var tokenResponse3 = Json.createObjectBuilder().add("token_type", "Bearer")
-					.add("access_token", accessToken3).add("expires_in", 1).build();
-			mockHttp.when(() -> IuHttp.send(eq(tokenEndpointUri), argThat(a -> {
-				a.accept(hrb3);
+					.add("access_token", accessToken3).add("expires_in", 0).build();
+			mockHttp.when(() -> IuHttp.send(eq(IuAuthenticationException.class), eq(tokenEndpointUri), argThat(a -> {
+				IuException.unchecked(() -> a.accept(hrb3));
 				return true;
-			}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(tokenResponse3);
+			}), eq(AbstractGrant.JSON_OBJECT_NOCACHE))).thenReturn(tokenResponse3);
 
 			final var cred3 = grant.authorize(resourceUri);
 			mockBodyPublishers.verify(() -> BodyPublishers.ofString(payload3));
@@ -366,7 +370,8 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 		when(client.getAuthorizationCodeAttributes()).thenReturn(Map.of("foo", "bar"));
 		when(client.getScope()).thenReturn(List.of("foo", "bar"));
 		when(client.getCredentials()).thenReturn(clientCredentials);
-		when(client.verify(any())).thenReturn(new Subject(true, Set.of(principal), Set.of(), Set.of()));
+		when(client.verify(any())).thenReturn(principal);
+		when(client.getAuthorizationTimeToLive()).thenReturn(Duration.ofSeconds(15L));
 		IuAuthorizationClient.initialize(client);
 
 		final var grant = new AuthorizationCodeGrant(realm, resourceUri);
@@ -397,10 +402,10 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 			final var refreshToken = IdGenerator.generateId();
 			final var tokenResponse = Json.createObjectBuilder().add("token_type", "Bearer")
 					.add("access_token", accessToken).add("refresh_token", refreshToken).add("expires_in", 1).build();
-			mockHttp.when(() -> IuHttp.send(eq(tokenEndpointUri), argThat(a -> {
-				a.accept(hrb);
+			mockHttp.when(() -> IuHttp.send(eq(IuAuthenticationException.class), eq(tokenEndpointUri), argThat(a -> {
+				IuException.unchecked(() -> a.accept(hrb));
 				return true;
-			}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(tokenResponse);
+			}), eq(AbstractGrant.JSON_OBJECT_NOCACHE))).thenReturn(tokenResponse);
 
 			assertEquals(resourceUri, grant.authorize(code, state));
 
@@ -456,7 +461,8 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 		when(client.getAuthorizationCodeAttributes()).thenReturn(Map.of("foo", "bar"));
 		when(client.getScope()).thenReturn(List.of("foo", "bar"));
 		when(client.getCredentials()).thenReturn(clientCredentials);
-		when(client.verify(any())).thenReturn(new Subject(true, Set.of(principal), Set.of(), Set.of()));
+		when(client.verify(any())).thenReturn(principal);
+		when(client.getAuthorizationTimeToLive()).thenReturn(Duration.ofSeconds(15L));
 		IuAuthorizationClient.initialize(client);
 
 		final var grant = new AuthorizationCodeGrant(realm, resourceUri);
@@ -486,11 +492,11 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 			final var accessToken = IdGenerator.generateId();
 			final var tokenResponse = Json.createObjectBuilder().add("token_type", "Bearer")
 					.add("access_token", accessToken).add("expires_in", 1).build();
-			mockHttp.when(() -> IuHttp.send(eq(tokenEndpointUri), argThat(a -> {
-				a.accept(hrb);
+			mockHttp.when(() -> IuHttp.send(eq(IuAuthenticationException.class), eq(tokenEndpointUri), argThat(a -> {
+				IuException.unchecked(() -> a.accept(hrb));
 				return true;
-			}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(tokenResponse);
-			
+			}), eq(AbstractGrant.JSON_OBJECT_NOCACHE))).thenReturn(tokenResponse);
+
 			assertEquals(resourceUri, grant.authorize(code, state));
 
 			final var cred = grant.authorize(resourceUri);

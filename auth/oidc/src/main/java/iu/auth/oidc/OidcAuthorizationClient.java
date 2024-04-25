@@ -31,13 +31,11 @@
  */
 package iu.auth.oidc;
 
-import java.io.Serializable;
 import java.net.URI;
-import java.net.http.HttpRequest;
 import java.security.MessageDigest;
-import java.security.Principal;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
@@ -45,6 +43,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
@@ -64,15 +63,18 @@ import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.IuOutOfServiceException;
 import edu.iu.IuText;
+import edu.iu.IuWebUtils;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
 import edu.iu.auth.oauth.IuTokenResponse;
 import edu.iu.auth.oidc.IuOpenIdClaim;
 import edu.iu.auth.oidc.IuOpenIdClient;
+import edu.iu.client.IuHttp;
+import iu.auth.principal.PrincipalVerifierRegistry;
 import iu.auth.util.AccessTokenVerifier;
-import iu.auth.util.HttpUtils;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
 
@@ -86,19 +88,31 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 	private static final Iterable<String> OIDC_SCOPE = IuIterable.iter("openid");
 	private static final Predicate<String> IS_OIDC = "openid"::equals;
 
-	private static class Id implements Principal, Serializable {
+	private class Id implements IuPrincipalIdentity {
 		private static final long serialVersionUID = 1L;
 
 		private final String name;
+		private final OidcClaim<?>[] claims;
 		private String activationCode = IdGenerator.generateId();
 
-		private Id(String name) {
+		private Id(String name, OidcClaim<?>[] claims) {
 			this.name = name;
+			this.claims = claims;
 		}
 
 		@Override
 		public String getName() {
 			return name;
+		}
+
+		@Override
+		public Subject getSubject() {
+			final var subject = new Subject();
+			subject.getPrincipals().add(this);
+			for (final var claim : claims)
+				subject.getPrincipals().add(claim);
+			subject.setReadOnly();
+			return subject;
 		}
 
 		@Override
@@ -118,6 +132,22 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 		public String toString() {
 			return "OIDC Principal ID [name=" + name + "]";
 		}
+
+		private OidcAuthorizationClient client() {
+			return OidcAuthorizationClient.this;
+		}
+	}
+
+	/**
+	 * Sends an authorized request to the OIDC userinfo service.
+	 * 
+	 * @param accessToken access token form OIDC Token response
+	 * @return {@link JsonObject} userinfo claims
+	 */
+	JsonObject getUserinfo(String accessToken) {
+		return IuException.unchecked(() -> IuHttp.send(userinfoEndpoint, b -> {
+			b.header("Authorization", "Bearer " + accessToken);
+		}, IuHttp.READ_JSON_OBJECT));
 	}
 
 	private final String realm;
@@ -138,6 +168,10 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 	 */
 	OidcAuthorizationClient(JsonObject config, IuOpenIdClient client, AccessTokenVerifier idTokenVerifier) {
 		realm = config.getString("issuer");
+		PrincipalVerifierRegistry.registerVerifier(realm, id -> {
+			if (((Id) id).client() != this)
+				throw new IllegalArgumentException();
+		}, true);
 		authorizationEndpoint = IuException.unchecked(() -> new URI(config.getString("authorization_endpoint")));
 		tokenEndpoint = IuException.unchecked(() -> new URI(config.getString("token_endpoint")));
 		userinfoEndpoint = IuException.unchecked(() -> new URI(config.getString("userinfo_endpoint")));
@@ -216,8 +250,7 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 	}
 
 	@Override
-	public Subject verify(IuTokenResponse tokenResponse) throws IuAuthenticationException, IuBadRequestException,
-			IuAuthorizationFailedException, IuOutOfServiceException, IllegalStateException {
+	public Subject verify(IuTokenResponse tokenResponse) throws IuAuthenticationException {
 		if (!IuIterable.filter(tokenResponse.getScope(), IS_OIDC).iterator().hasNext())
 			throw new IuAuthorizationFailedException("missing openid scope");
 
@@ -228,7 +261,7 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 		final var idToken = tokenResponse.getTokenAttributes().get("id_token");
 		final DecodedJWT verifiedIdToken;
 		if (idToken != null) {
-			final var alg = client.getIdTokenSignedResponseAlg();
+			final var alg = client.getIdTokenAlgorithm();
 			verifiedIdToken = idTokenVerifier.verify(clientId, (String) idToken);
 			if (!alg.equals(verifiedIdToken.getAlgorithm()))
 				throw new IllegalArgumentException(alg + " required");
@@ -252,15 +285,14 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 		} else
 			verifiedIdToken = null;
 
-		final var userinfo = HttpUtils.read(HttpRequest.newBuilder(userinfoEndpoint) //
-				.header("Authorization", "Bearer " + accessToken).build()).asJsonObject();
+		final var userinfo = getUserinfo(accessToken);
 		final var principal = userinfo.getString("principal");
 		final var sub = userinfo.getString("sub");
-		final var id = new Id(principal);
 
 		if (clientId.equals(principal) && clientId.equals(sub)) {
+			final var id = new Id(principal, new OidcClaim<?>[0]);
 			id.activationCode = IdGenerator.generateId();
-			return new Subject(true, Set.of(id), Set.of(), Set.of());
+			return id.getSubject();
 		}
 
 		if (idToken == null)
@@ -275,18 +307,16 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 			challengeAttributes.put("scope", String.join(" ", getScope()));
 			challengeAttributes.put("error", "invalid_token");
 			challengeAttributes.put("error_description", "auth session timeout, must reauthenticate");
-			throw new IuAuthenticationException(HttpUtils.createChallenge("Bearer", challengeAttributes));
+			throw new IuAuthenticationException(IuWebUtils.createChallenge("Bearer", challengeAttributes));
 		}
 
 		final Set<String> seen = new HashSet<>();
-		final var subject = new Subject();
-		final var principals = subject.getPrincipals();
-		principals.add(id);
+		final Queue<OidcClaim<?>> claims = new ArrayDeque<>();
 
 		final BiConsumer<String, Supplier<?>> claimConsumer = //
 				(claimName, claimSupplier) -> {
 					if (seen.add(claimName))
-						principals.add(new OidcClaim<>(principal, claimName,
+						claims.add(new OidcClaim<>(principal, claimName,
 								Objects.requireNonNull(claimSupplier.get(), claimName)));
 				};
 
@@ -306,7 +336,9 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 					return claimJsonValue.toString();
 			});
 
-		return subject;
+		final var id = new Id(principal, claims.toArray(OidcClaim<?>[]::new));
+//		id.activationCode = IdGenerator.generateId();
+		return id.getSubject();
 	}
 
 	@Override
@@ -340,8 +372,9 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 				claims.put(claim.getClaimName(), claim.getClaim());
 
 			final var accessToken = Objects.requireNonNull(bearer.getAccessToken(), "accessToken");
-			final var userinfo = HttpUtils.read(HttpRequest.newBuilder(userinfoEndpoint) //
-					.header("Authorization", "Bearer " + accessToken).build()).asJsonObject();
+			final var userinfo = IuException.unchecked(() -> IuHttp.send(userinfoEndpoint, b -> {
+				b.header("Authorization", "Bearer " + accessToken);
+			}, IuHttp.READ_JSON_OBJECT));
 			final var principal = userinfo.getString("principal");
 			final var sub = userinfo.getString("sub");
 
@@ -363,7 +396,7 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 				challengeAttributes.put("scope", String.join(" ", getScope()));
 				challengeAttributes.put("error", "invalid_token");
 				challengeAttributes.put("error_description", "auth session timeout, must reauthenticate");
-				throw new IuAuthenticationException(HttpUtils.createChallenge("Bearer", challengeAttributes));
+				throw new IuAuthenticationException(IuWebUtils.createChallenge("Bearer", challengeAttributes));
 			}
 
 			for (final var userinfoClaimEntry : userinfo.entrySet()) {
@@ -383,7 +416,7 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 			challengeAttributes.put("scope", String.join(" ", getScope()));
 			challengeAttributes.put("error", "invalid_token");
 			challengeAttributes.put("error_description", "session activation failed, must reauthenticate");
-			throw new IuAuthenticationException(HttpUtils.createChallenge("Bearer", challengeAttributes), e);
+			throw new IuAuthenticationException(IuWebUtils.createChallenge("Bearer", challengeAttributes), e);
 		}
 
 		client.activate(credentials);

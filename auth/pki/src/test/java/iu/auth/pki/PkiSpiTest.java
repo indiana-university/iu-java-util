@@ -32,6 +32,7 @@
 package iu.auth.pki;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -46,7 +47,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.security.cert.CertPath;
+import java.security.cert.CertPathValidatorException;
 import java.security.cert.CertStore;
+import java.security.cert.CertificateExpiredException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.CollectionCertStoreParameters;
 import java.security.cert.PKIXParameters;
@@ -185,9 +188,8 @@ public class PkiSpiTest {
 			+ "Eu/f+DAfBgNVHSMEGDAWgBRqDb4aD1ROQ5uPS/LG7njvEu/f+DAJBgNVHRMEAjAA\n"
 			+ "MAsGA1UdDwQEAwIFIDAFBgMrZXEDcwDlj87FyC+xVzPClrMGQZqT9GGgTE6Du4+N\n"
 			+ "vSfksPtRKMgO8KSTWhMgrgQ+BDTJ2wvlBU4LeOtP/AB81c5/qZQoTBZ1POgokhyP\n"
-			+ "YEP1yOMcXcVyP3/6geBTGNuWBELol2TPdNvRTrq96IKMUHwvZ78OCQA=\n"
-			+ "-----END CERTIFICATE-----";
-	
+			+ "YEP1yOMcXcVyP3/6geBTGNuWBELol2TPdNvRTrq96IKMUHwvZ78OCQA=\n" + "-----END CERTIFICATE-----";
+
 	/**
 	 * For verification and demonstration purposes only. NOT FOR PRODUCTION USE.
 	 */
@@ -207,7 +209,7 @@ public class PkiSpiTest {
 			+ "IbXa6h6i80jcF/boR2weaEJ717oGhXExGMAul1QXWq2RDY2A5e6PhEIHorFeOhxP\n"
 			+ "Gwk7a00JaJj//CtHMARLbjvGJ/itJUq+DI/F0h4Yx8EVotvwkbRq7/1FHw4A\n" //
 			+ "-----END CERTIFICATE-----\n";
-	
+
 	/**
 	 * <p>
 	 * For verification and demonstration purposes only. NOT FOR PRODUCTION USE.
@@ -321,6 +323,10 @@ public class PkiSpiTest {
 
 		assertNotNull(sub.getPrivateCredentials(WebKey.class).iterator().next().getPrivateKey());
 		assertSerializable(pki);
+
+		pki.revoke();
+		assertThrows(IllegalArgumentException.class, () -> IuPrincipalIdentity.verify(pki, pki.getName()));
+		assertTrue(pki.toString().startsWith("Well-Known"));
 	}
 
 	@Test
@@ -333,8 +339,9 @@ public class PkiSpiTest {
 		final var key = pki.getSubject().getPrivateCredentials(WebKey.class).iterator().next();
 		assertEquals(Use.ENCRYPT, key.getUse());
 		assertEquals(Set.of(Operation.WRAP, Operation.UNWRAP), key.getOps());
-		
-		final var pubkey = IuPkiPrincipal.from(KEYENC_EE).getSubject().getPublicCredentials(WebKey.class).iterator().next();
+
+		final var pubkey = IuPkiPrincipal.from(KEYENC_EE).getSubject().getPublicCredentials(WebKey.class).iterator()
+				.next();
 		assertEquals(Use.ENCRYPT, pubkey.getUse());
 		assertEquals(Set.of(Operation.WRAP), pubkey.getOps());
 	}
@@ -351,21 +358,10 @@ public class PkiSpiTest {
 
 	@Test
 	public void testExpiredEE() throws Exception {
-		final var pki = IuPkiPrincipal.from(SELF_SIGNED_PK + EXPIRED_EE);
-		IuPrincipalIdentity.verify(pki, pki.getName());
-
-		final var sub = pki.getSubject();
-		assertEquals(Set.of(pki), sub.getPrincipals());
-
-		final var pub = sub.getPublicCredentials();
-		assertEquals(1, pub.size());
-		final var wellKnown = (WebKey) pub.iterator().next();
-		final var cert = wellKnown.getCertificateChain()[0];
-		assertEquals(pki.getName(), X500Utils.getCommonName(cert.getSubjectX500Principal()));
-		assertEquals(URI.create(pki.getName()).getFragment(), wellKnown.getKeyId());
-
-		assertNotNull(sub.getPrivateCredentials(WebKey.class).iterator().next().getPrivateKey());
-		assertSerializable(pki);
+		assertInstanceOf(CertificateExpiredException.class, assertInstanceOf(CertPathValidatorException.class,
+				assertThrows(IllegalStateException.class, () -> IuPkiPrincipal.from(SELF_SIGNED_PK + EXPIRED_EE))
+						.getCause())
+				.getCause());
 	}
 
 	@Test

@@ -131,6 +131,8 @@ class ClientCredentialSource {
 	 */
 	void verify(IuPrincipalIdentity principalIdentity) throws IuAuthenticationException {
 		final var basic = (BasicAuthCredentials) principalIdentity;
+		if (basic.revoked)
+			throw new IuAuthenticationException(IuWebUtils.createChallenge("Basic", Map.of("realm", realm)));
 
 		final var name = Objects.requireNonNull(basic.getName(), "missing client id");
 		final var password = Objects.requireNonNull(basic.getPassword(), "missing client secret");

@@ -33,18 +33,21 @@ package iu.auth.oauth;
 
 import java.io.NotSerializableException;
 import java.io.Serializable;
-import java.security.Principal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import javax.security.auth.Subject;
-
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
 import edu.iu.auth.oauth.IuTokenResponse;
+import edu.iu.client.HttpResponseHandler;
+import edu.iu.client.IuHttp;
+import edu.iu.client.IuJson;
+import jakarta.json.JsonObject;
 
 /**
  * Represents an OAuth client credentials grant..
@@ -53,17 +56,33 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 
 	private static final long serialVersionUID = 1L;
 
-	private final class AuthorizedCredentials<A extends IuApiCredentials & Serializable> {
-		private final A credentials;
+	/**
+	 * Expects a 200 OK response with a valid JSON object.
+	 * 
+	 * <p>
+	 * {@code Cache-Control: no-store} and {@code Pragma: cache} <em>must</em> be
+	 * included in the response headers.
+	 * </p>
+	 */
+	static final HttpResponseHandler<JsonObject> JSON_OBJECT_NOCACHE = IuHttp
+			.validate(a -> IuJson.parse(a).asJsonObject(), IuHttp.OK, response -> {
+				if (response.request().headers().firstValue("Authorization").isPresent() //
+						&& !(response.headers().firstValue("Pragma").orElse("").equals("no-cache") //
+								&& response.headers().firstValue("Cache-Control").orElse("").equals("no-store")))
+					throw new IllegalStateException("Expected response to include Cache-Control = no-store header");
+			});
+
+	private final class AuthorizedCredentials {
+		private final IuApiCredentials credentials;
 		private final Instant expires;
 
-		private AuthorizedCredentials(A credentials, Instant expires) {
+		private AuthorizedCredentials(IuApiCredentials credentials, Duration timeToLive) {
 			this.credentials = credentials;
-			this.expires = expires;
+			this.expires = Instant.now().plus(timeToLive);
 		}
 
 		private boolean isExpired() {
-			return expires != null && expires.isBefore(Instant.now());
+			return Instant.now().isAfter(expires);
 		}
 	}
 
@@ -111,7 +130,7 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 	 */
 	protected final String realm;
 
-	private AuthorizedCredentials<?> authorizedCredentials;
+	private AuthorizedCredentials authorizedCredentials;
 
 	/**
 	 * Constructor.
@@ -132,6 +151,18 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 	}
 
 	/**
+	 * Gets previously established API credentials.
+	 * 
+	 * @return {@link IuApiCredentials}
+	 */
+	protected IuApiCredentials getAuthorizedCredentials() {
+		if (authorizedCredentials == null //
+				|| authorizedCredentials.isExpired())
+			return null;
+		return authorizedCredentials.credentials;
+	}
+
+	/**
 	 * Verifies a token response.
 	 * 
 	 * @param tokenResponse token response
@@ -139,7 +170,7 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 	 *         time implied by the token response has passed.
 	 * @throws IuAuthenticationException if the token response cannot be verified
 	 */
-	protected final IuApiCredentials verify(IuTokenResponse tokenResponse) throws IuAuthenticationException {
+	protected final IuApiCredentials authorize(IuTokenResponse tokenResponse) throws IuAuthenticationException {
 		if (!"Bearer".equals(tokenResponse.getTokenType()))
 			throw new IllegalStateException("Unsupported token type " + tokenResponse.getTokenType() + " in response");
 
@@ -156,30 +187,13 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 	 *         time implied by the token response has passed.
 	 * @throws IuAuthenticationException if the token response cannot be verified
 	 */
-	protected final IuApiCredentials verify(IuTokenResponse refreshTokenResponse, IuTokenResponse originalTokenResponse)
-			throws IuAuthenticationException {
+	protected final IuApiCredentials authorize(IuTokenResponse refreshTokenResponse,
+			IuTokenResponse originalTokenResponse) throws IuAuthenticationException {
 		if (!"Bearer".equals(refreshTokenResponse.getTokenType()))
 			throw new IllegalArgumentException("Unsupported token type");
 
 		return authorizeBearer(OAuthSpi.getClient(realm).verify(refreshTokenResponse, originalTokenResponse),
 				refreshTokenResponse);
-	}
-
-	/**
-	 * Activated and returns the credentials authorized by this grant.
-	 * 
-	 * @return {@link IuApiCredentials}; null if credential have not been authorized
-	 *         or are expired
-	 * @throws IuAuthenticationException if activation failed to validate the
-	 *                                   credentials and as valid
-	 */
-	protected final IuApiCredentials activate() throws IuAuthenticationException {
-		if (authorizedCredentials == null || authorizedCredentials.isExpired())
-			return null;
-
-		OAuthSpi.getClient(realm).activate(authorizedCredentials.credentials);
-
-		return authorizedCredentials.credentials;
 	}
 
 	/**
@@ -192,24 +206,31 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 		return authorizedCredentials != null && authorizedCredentials.isExpired();
 	}
 
-	private IuBearerAuthCredentials authorizeBearer(Subject subject, IuTokenResponse tokenResponse)
+	private IuBearerAuthCredentials authorizeBearer(IuPrincipalIdentity principal, IuTokenResponse tokenResponse)
 			throws IuAuthenticationException {
-		final Set<Principal> principals = new LinkedHashSet<>();
 
-		for (final var principal : subject.getPrincipals())
-			if (principal instanceof Serializable)
-				principals.add(principal);
-			else
-				throw new IllegalStateException(new NotSerializableException(principal.getClass().getName()));
+		IuPrincipalIdentity.verify(principal, realm);
 
-		for (final var scope : tokenResponse.getScope())
-			principals.add(new AuthorizationScope(scope, OAuthSpi.getClient(realm).getRealm()));
+		final Set<String> scope = new LinkedHashSet<>();
+		tokenResponse.getScope().forEach(scope::add);
 
-		final var bearerSubject = new Subject(true, principals, subject.getPublicCredentials(),
-				subject.getPrivateCredentials());
+		final var subject = principal.getSubject();
+		subject.setReadOnly();
+		for (final var p : subject.getPrincipals())
+			if (!(p instanceof Serializable))
+				throw new IllegalArgumentException("Principal must is not serializable",
+						new NotSerializableException(principal.getClass().getName()));
 
-		final var bearer = new BearerAuthCredentials(realm, bearerSubject, tokenResponse.getAccessToken());
-		authorizedCredentials = new AuthorizedCredentials<>(bearer, tokenResponse.getExpires());
+		final var bearer = new BearerAuthCredentials(realm, principal, scope, tokenResponse.getAccessToken());
+
+		final var authTtl = OAuthSpi.getClient(realm).getAuthorizationTimeToLive();
+		var expires = tokenResponse.getExpiresIn();
+		if (expires == null //
+				|| expires.compareTo(Duration.ZERO) <= 0 //
+				|| expires.compareTo(authTtl) > 0)
+			expires = authTtl;
+
+		authorizedCredentials = new AuthorizedCredentials(bearer, expires);
 		return bearer;
 	}
 

@@ -38,6 +38,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -73,20 +75,24 @@ import com.auth0.jwt.algorithms.Algorithm;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuAuthorizationFailedException;
+import edu.iu.IuException;
 import edu.iu.IuText;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuBearerAuthCredentials;
 import edu.iu.auth.oauth.IuTokenResponse;
 import edu.iu.auth.oidc.IuOpenIdClient;
+import edu.iu.client.IuHttp;
+import edu.iu.crypt.DigestUtils;
+import edu.iu.crypt.WebKey;
 import edu.iu.test.IuTestLogger;
 import iu.auth.util.AccessTokenVerifier;
-import iu.auth.util.HttpUtils;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 
 @SuppressWarnings("javadoc")
-public class OidcAuthorizationClientTest {
+public class OidcAuthorizationClientTest extends IuOidcTestCase {
 
 	private JsonObject jwks;
 	private Algorithm jwtSignAlgorithm;
@@ -119,10 +125,10 @@ public class OidcAuthorizationClientTest {
 		jwtSignAlgorithm = Algorithm.RSA256(pub, (RSAPrivateKey) keyPair.getPrivate());
 
 		issuer = IdGenerator.generateId();
-		jwksUri = new URI("test:" + IdGenerator.generateId());
-		authorizationEndpoint = new URI("test:" + IdGenerator.generateId());
-		tokenEndpoint = new URI("test:" + IdGenerator.generateId());
-		userinfoEndpoint = new URI("test:" + IdGenerator.generateId());
+		jwksUri = new URI("test://localhost/" + IdGenerator.generateId());
+		authorizationEndpoint = new URI("test://localhost/" + IdGenerator.generateId());
+		tokenEndpoint = new URI("test://localhost/" + IdGenerator.generateId());
+		userinfoEndpoint = new URI("test://localhost/" + IdGenerator.generateId());
 
 		config = Json.createObjectBuilder() //
 				.add("authorization_endpoint", authorizationEndpoint.toString()) //
@@ -137,9 +143,11 @@ public class OidcAuthorizationClientTest {
 		when(credentials.getName()).thenReturn(clientId);
 
 		idClient = mock(IuOpenIdClient.class, CALLS_REAL_METHODS);
-		idTokenVerifier = new AccessTokenVerifier(jwksUri, issuer, idClient::getTrustRefreshInterval);
+		idTokenVerifier = new AccessTokenVerifier(IuException.unchecked(() -> new URI(config.getString("jwks_uri"))),
+				issuer, idClient::getTrustRefreshInterval);
+
 		when(idClient.getCredentials()).thenReturn(credentials);
-		when(idClient.getActivationInterval()).thenReturn(Duration.ofMillis(100L));
+		when(idClient.getActivationInterval()).thenReturn(Duration.ofMillis(200L));
 		when(idClient.getAuthenticatedSessionTimeout()).thenReturn(Duration.ofSeconds(2L));
 
 		client = new OidcAuthorizationClient(config, idClient, idTokenVerifier);
@@ -222,14 +230,12 @@ public class OidcAuthorizationClientTest {
 		when(tokenResponse.getAccessToken()).thenReturn(accessToken);
 		when(tokenResponse.getScope()).thenReturn(List.of("openid"));
 		final var userinfo = Json.createObjectBuilder().add("principal", clientId).add("sub", clientId).build();
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
 			final var rb = mock(HttpRequest.Builder.class);
-			when(rb.header(any(), any())).thenReturn(rb);
-			final var request = mock(HttpRequest.class);
-			when(rb.build()).thenReturn(request);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(userinfoEndpoint)).thenReturn(rb);
-			mockHttpUtils.when(() -> HttpUtils.read(request)).thenReturn(userinfo);
+			mockHttp.when(() -> IuHttp.send(eq(userinfoEndpoint), argThat(a -> {
+				a.accept(rb);
+				return true;
+			}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(userinfo);
 			final var subject = client.verify(tokenResponse);
 			verify(rb).header("Authorization", "Bearer " + accessToken);
 			assertEquals(1, subject.getPrincipals().size());
@@ -246,7 +252,7 @@ public class OidcAuthorizationClientTest {
 			when(bearer.getSubject()).thenReturn(subject);
 			when(bearer.getAccessToken()).thenReturn(accessToken);
 			client.activate(bearer);
-			Thread.sleep(101L);
+			Thread.sleep(201L);
 			IuTestLogger.expect("iu.auth.oidc.OidcAuthorizationClient", Level.FINER,
 					"discarding invalid activation code", IllegalArgumentException.class);
 			client.activate(bearer);
@@ -262,14 +268,9 @@ public class OidcAuthorizationClientTest {
 		final var principal = IdGenerator.generateId();
 		final var sub = IdGenerator.generateId();
 		final var userinfo = Json.createObjectBuilder().add("principal", principal).add("sub", sub).build();
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var rb = mock(HttpRequest.Builder.class);
-			when(rb.header(any(), any())).thenReturn(rb);
-			final var request = mock(HttpRequest.class);
-			when(rb.build()).thenReturn(request);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(userinfoEndpoint)).thenReturn(rb);
-			mockHttpUtils.when(() -> HttpUtils.read(request)).thenReturn(userinfo);
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			mockHttp.when(() -> IuHttp.send(eq(userinfoEndpoint), any(), eq(IuHttp.READ_JSON_OBJECT)))
+					.thenReturn(userinfo);
 			assertThrows(IllegalStateException.class, () -> client.verify(tokenResponse));
 		}
 	}
@@ -283,29 +284,26 @@ public class OidcAuthorizationClientTest {
 		final var principal = clientId;
 		final var sub = IdGenerator.generateId();
 		final var userinfo = Json.createObjectBuilder().add("principal", principal).add("sub", sub).build();
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var rb = mock(HttpRequest.Builder.class);
-			when(rb.header(any(), any())).thenReturn(rb);
-			final var request = mock(HttpRequest.class);
-			when(rb.build()).thenReturn(request);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(userinfoEndpoint)).thenReturn(rb);
-			mockHttpUtils.when(() -> HttpUtils.read(request)).thenReturn(userinfo);
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			mockHttp.when(() -> IuHttp.send(eq(userinfoEndpoint), any(), eq(IuHttp.READ_JSON_OBJECT)))
+					.thenReturn(userinfo);
 			assertThrows(IllegalStateException.class, () -> client.verify(tokenResponse));
 
 			final var idcon = Class.forName(OidcAuthorizationClient.class.getName() + "$Id")
-					.getDeclaredConstructor(String.class);
+					.getDeclaredConstructor(OidcAuthorizationClient.class, String.class, OidcClaim[].class);
 			idcon.setAccessible(true);
-			final var id = (Principal) idcon.newInstance(clientId);
-			Thread.sleep(idClient.getAuthenticatedSessionTimeout().toMillis() + 1L);
+			final var id = (Principal) idcon.newInstance(client, clientId, new OidcClaim<?>[0]);
 			final var credentials = mock(IuBearerAuthCredentials.class);
 			when(credentials.getName()).thenReturn(clientId);
 			when(credentials.getAccessToken()).thenReturn(accessToken);
 			when(credentials.getSubject()).thenReturn(new Subject(true, Set.of(id, //
 					new OidcClaim<>(clientId, "principal", clientId), //
-					new OidcClaim<>(clientId, "sub", clientId), //
+					new OidcClaim<>(clientId, "sub", sub), //
 					new OidcClaim<>(clientId, "aud", clientId), //
 					new OidcClaim<>(clientId, "auth_time", Instant.now())), Set.of(), Set.of()));
+			client.activate(credentials);
+			Thread.sleep(idClient.getAuthenticatedSessionTimeout().toMillis() + 1L);
+
 			IuTestLogger.expect(OidcAuthorizationClient.class.getName(), Level.FINER,
 					"discarding invalid activation code", IllegalArgumentException.class);
 
@@ -322,32 +320,87 @@ public class OidcAuthorizationClientTest {
 		final var principal = clientId;
 		final var sub = IdGenerator.generateId();
 		final var userinfo = Json.createObjectBuilder().add("principal", principal).add("sub", sub).build();
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var rb = mock(HttpRequest.Builder.class);
-			when(rb.header(any(), any())).thenReturn(rb);
-			final var request = mock(HttpRequest.class);
-			when(rb.build()).thenReturn(request);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(userinfoEndpoint)).thenReturn(rb);
-			mockHttpUtils.when(() -> HttpUtils.read(request)).thenReturn(userinfo);
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			mockHttp.when(() -> IuHttp.send(eq(userinfoEndpoint), any(), eq(IuHttp.READ_JSON_OBJECT)))
+					.thenReturn(userinfo);
 
 			final var idcon = Class.forName(OidcAuthorizationClient.class.getName() + "$Id")
-					.getDeclaredConstructor(String.class);
+					.getDeclaredConstructor(OidcAuthorizationClient.class, String.class, OidcClaim[].class);
 			idcon.setAccessible(true);
-			final var id = (Principal) idcon.newInstance(clientId);
-			Thread.sleep(idClient.getAuthenticatedSessionTimeout().toMillis() + 1L);
+			final var id = (Principal) idcon.newInstance(client, clientId, new OidcClaim<?>[0]);
 			final var credentials = mock(IuBearerAuthCredentials.class);
 			when(credentials.getName()).thenReturn(clientId);
 			when(credentials.getAccessToken()).thenReturn(accessToken);
 			when(credentials.getSubject()).thenReturn(new Subject(true, Set.of(id, //
 					new OidcClaim<>(clientId, "principal", clientId), //
-					new OidcClaim<>(clientId, "sub", clientId), //
-					new OidcClaim<>(clientId, "aud", IdGenerator.generateId()), //
+					new OidcClaim<>(clientId, "sub", sub), //
+					new OidcClaim<>(clientId, "aud", clientId), //
 					new OidcClaim<>(clientId, "auth_time", Instant.now())), Set.of(), Set.of()));
+			client.activate(credentials);
+			client.activate(credentials);
+//			verify(idClient).activate(credentials);
+
+			Thread.sleep(idClient.getAuthenticatedSessionTimeout().toMillis() + 1L);
 			IuTestLogger.expect(OidcAuthorizationClient.class.getName(), Level.FINER,
 					"discarding invalid activation code", IllegalArgumentException.class);
 
-			assertThrows(IuAuthenticationException.class, () -> client.activate(credentials));
+			final var credentials2 = mock(IuBearerAuthCredentials.class);
+			when(credentials2.getName()).thenReturn(clientId);
+			when(credentials2.getAccessToken()).thenReturn(accessToken);
+			when(credentials2.getSubject()).thenReturn(new Subject(true, Set.of(id, //
+					new OidcClaim<>(clientId, "principal", clientId), //
+					new OidcClaim<>(clientId, "sub", sub), //
+					new OidcClaim<>(clientId, "aud", IdGenerator.generateId()), //
+					new OidcClaim<>(clientId, "auth_time", Instant.now())), Set.of(), Set.of()));
+			assertThrows(IuAuthenticationException.class, () -> client.activate(credentials2));
+		}
+	}
+
+	@Test
+	public void testClaimMismatchInSession() throws Exception {
+		final var accessToken = IdGenerator.generateId();
+		final var tokenResponse = mock(IuTokenResponse.class);
+		when(tokenResponse.getAccessToken()).thenReturn(accessToken);
+		when(tokenResponse.getScope()).thenReturn(List.of("openid"));
+		final var principal = clientId;
+		final var sub = IdGenerator.generateId();
+		final var userinfo = Json.createObjectBuilder().add("principal", principal).add("sub", sub).add("foo", "bar")
+				.build();
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			mockHttp.when(() -> IuHttp.send(eq(userinfoEndpoint), any(), eq(IuHttp.READ_JSON_OBJECT)))
+					.thenReturn(userinfo);
+
+			final var idcon = Class.forName(OidcAuthorizationClient.class.getName() + "$Id")
+					.getDeclaredConstructor(OidcAuthorizationClient.class, String.class, OidcClaim[].class);
+			idcon.setAccessible(true);
+			final var id = (Principal) idcon.newInstance(client, clientId, new OidcClaim<?>[0]);
+			final var credentials = mock(IuBearerAuthCredentials.class);
+			when(credentials.getName()).thenReturn(clientId);
+			when(credentials.getAccessToken()).thenReturn(accessToken);
+			when(credentials.getSubject()).thenReturn(new Subject(true, Set.of(id, //
+					new OidcClaim<>(clientId, "principal", clientId), //
+					new OidcClaim<>(clientId, "sub", sub), //
+					new OidcClaim<>(clientId, "aud", clientId), //
+					new OidcClaim<>(clientId, "auth_time", Instant.now()), //
+					new OidcClaim<>(clientId, "foo", "bar")), Set.of(), Set.of()));
+			client.activate(credentials);
+			client.activate(credentials);
+//			verify(idClient).activate(credentials);
+
+			Thread.sleep(idClient.getAuthenticatedSessionTimeout().toMillis() + 1L);
+			IuTestLogger.expect(OidcAuthorizationClient.class.getName(), Level.FINER,
+					"discarding invalid activation code", IllegalArgumentException.class);
+
+			final var credentials2 = mock(IuBearerAuthCredentials.class);
+			when(credentials2.getName()).thenReturn(clientId);
+			when(credentials2.getAccessToken()).thenReturn(accessToken);
+			when(credentials2.getSubject()).thenReturn(new Subject(true, Set.of(id, //
+					new OidcClaim<>(clientId, "principal", clientId), //
+					new OidcClaim<>(clientId, "sub", sub), //
+					new OidcClaim<>(clientId, "aud", clientId), //
+					new OidcClaim<>(clientId, "auth_time", Instant.now()), //
+					new OidcClaim<>(clientId, "foo", "baz")), Set.of(), Set.of()));
+			assertThrows(IuAuthenticationException.class, () -> client.activate(credentials2));
 		}
 	}
 
@@ -375,9 +428,8 @@ public class OidcAuthorizationClientTest {
 		when(tokenResponse.getAccessToken()).thenReturn(accessToken);
 		when(tokenResponse.getScope()).thenReturn(List.of("openid"));
 		when(tokenResponse.getTokenAttributes()).thenReturn((Map) Map.of("id_token", idToken));
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			mockHttpUtils.when(() -> HttpUtils.read(jwksUri)).thenReturn(jwks);
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			mockHttp.when(() -> IuHttp.get(jwksUri, IuHttp.READ_JSON_OBJECT)).thenReturn(jwks);
 			assertThrows(IllegalArgumentException.class, () -> client.verify(tokenResponse));
 		}
 	}
@@ -396,7 +448,6 @@ public class OidcAuthorizationClientTest {
 
 		final var tokenResponse = mock(IuTokenResponse.class);
 		final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-		final var principal = IdGenerator.generateId();
 		final var sub = IdGenerator.generateId();
 		final var idToken = JWT.create() //
 				.withKeyId("defaultSign") //
@@ -412,17 +463,8 @@ public class OidcAuthorizationClientTest {
 		when(tokenResponse.getAccessToken()).thenReturn(accessToken);
 		when(tokenResponse.getScope()).thenReturn(List.of("openid"));
 		when(tokenResponse.getTokenAttributes()).thenReturn((Map) Map.of("id_token", idToken));
-		final var userinfo = Json.createObjectBuilder().add("principal", principal).add("sub", sub).build();
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			mockHttpUtils.when(() -> HttpUtils.read(jwksUri)).thenReturn(jwks);
-
-			final var rb = mock(HttpRequest.Builder.class);
-			when(rb.header(any(), any())).thenReturn(rb);
-			final var request = mock(HttpRequest.class);
-			when(rb.build()).thenReturn(request);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(userinfoEndpoint)).thenReturn(rb);
-			mockHttpUtils.when(() -> HttpUtils.read(request)).thenReturn(userinfo);
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			mockHttp.when(() -> IuHttp.get(jwksUri, IuHttp.READ_JSON_OBJECT)).thenReturn(jwks);
 
 			assertThrows(IllegalStateException.class, () -> client.verify(tokenResponse));
 		}
@@ -437,7 +479,7 @@ public class OidcAuthorizationClientTest {
 		final var nonce = authCodeAttributes.get("nonce");
 		assertNotNull(nonce);
 
-		final var encodedHash = MessageDigest.getInstance("SHA-256").digest(IuText.utf8(accessToken));
+		final var encodedHash = DigestUtils.sha256(IuText.utf8(accessToken));
 		final var halfOfEncodedHash = Arrays.copyOf(encodedHash, (encodedHash.length / 2));
 		final var atHash = Base64.getUrlEncoder().withoutPadding().encodeToString(halfOfEncodedHash);
 
@@ -460,23 +502,17 @@ public class OidcAuthorizationClientTest {
 		when(tokenResponse.getScope()).thenReturn(List.of("openid"));
 		when(tokenResponse.getTokenAttributes()).thenReturn((Map) Map.of("id_token", idToken));
 		final var userinfo = Json.createObjectBuilder().add("principal", principal).add("sub", sub).build();
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			mockHttpUtils.when(() -> HttpUtils.read(jwksUri)).thenReturn(jwks);
-
-			final var rb = mock(HttpRequest.Builder.class);
-			when(rb.header(any(), any())).thenReturn(rb);
-			final var request = mock(HttpRequest.class);
-			when(rb.build()).thenReturn(request);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(userinfoEndpoint)).thenReturn(rb);
-			mockHttpUtils.when(() -> HttpUtils.read(request)).thenReturn(userinfo);
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			mockHttp.when(() -> IuHttp.get(jwksUri, IuHttp.READ_JSON_OBJECT)).thenReturn(jwks);
+			mockHttp.when(() -> IuHttp.send(eq(userinfoEndpoint), any(), eq(IuHttp.READ_JSON_OBJECT)))
+					.thenReturn(userinfo);
 
 			assertThrows(IllegalArgumentException.class, () -> client.verify(tokenResponse));
 		}
 	}
 
-	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	public void testAuthTimeout() throws Exception {
 		final var accessToken = IdGenerator.generateId();
 
@@ -484,7 +520,7 @@ public class OidcAuthorizationClientTest {
 		final var nonce = authCodeAttributes.get("nonce");
 		assertNotNull(nonce);
 
-		final var encodedhash = MessageDigest.getInstance("SHA-256").digest(IuText.utf8(accessToken));
+		final var encodedhash = DigestUtils.sha256(IuText.utf8(accessToken));
 		final var halfOfEncodedHash = Arrays.copyOf(encodedhash, (encodedhash.length / 2));
 		final var atHash = Base64.getUrlEncoder().withoutPadding().encodeToString(halfOfEncodedHash);
 
@@ -507,26 +543,21 @@ public class OidcAuthorizationClientTest {
 		when(tokenResponse.getScope()).thenReturn(List.of("openid"));
 		when(tokenResponse.getTokenAttributes()).thenReturn((Map) Map.of("id_token", idToken));
 		final var userinfo = Json.createObjectBuilder().add("principal", principal).add("sub", sub).build();
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			mockHttpUtils.when(() -> HttpUtils.createChallenge(any(), any())).thenCallRealMethod();
-			mockHttpUtils.when(() -> HttpUtils.read(jwksUri)).thenReturn(jwks);
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			mockHttp.when(() -> IuHttp.get(jwksUri, IuHttp.READ_JSON_OBJECT)).thenReturn(jwks);
+			mockHttp.when(() -> IuHttp.send(eq(userinfoEndpoint), any(), eq(IuHttp.READ_JSON_OBJECT)))
+					.thenReturn(userinfo);
 
-			final var rb = mock(HttpRequest.Builder.class);
-			when(rb.header(any(), any())).thenReturn(rb);
-			final var request = mock(HttpRequest.class);
-			when(rb.build()).thenReturn(request);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(userinfoEndpoint)).thenReturn(rb);
-			mockHttpUtils.when(() -> HttpUtils.read(request)).thenReturn(userinfo);
 			Thread.sleep(2001L);
 			assertEquals("Bearer realm=\"" + issuer
 					+ "\" scope=\"openid\" error=\"invalid_token\" error_description=\"auth session timeout, must reauthenticate\"",
 					assertThrows(IuAuthenticationException.class, () -> client.verify(tokenResponse)).getMessage());
 
 			final var idcon = Class.forName(OidcAuthorizationClient.class.getName() + "$Id")
-					.getDeclaredConstructor(String.class);
+					.getDeclaredConstructor(OidcAuthorizationClient.class, String.class, OidcClaim[].class);
 			idcon.setAccessible(true);
-			final var id = (Principal) idcon.newInstance(clientId);
+			final var id = (Principal) idcon.newInstance(client, clientId, new OidcClaim<?>[0]);
+			Thread.sleep(201L);
 
 			final var bearer = mock(IuBearerAuthCredentials.class);
 			when(bearer.getName()).thenReturn(clientId);
@@ -535,8 +566,6 @@ public class OidcAuthorizationClientTest {
 					new OidcClaim(clientId, "auth_time", now) //
 			), Set.of(), Set.of()));
 			when(bearer.getAccessToken()).thenReturn(accessToken);
-			client.activate(bearer);
-			Thread.sleep(101L);
 			IuTestLogger.expect("iu.auth.oidc.OidcAuthorizationClient", Level.FINER,
 					"discarding invalid activation code", IllegalArgumentException.class);
 			assertThrows(IuAuthenticationException.class, () -> client.activate(bearer));
@@ -552,7 +581,7 @@ public class OidcAuthorizationClientTest {
 		final var nonce = authCodeAttributes.get("nonce");
 		assertNotNull(nonce);
 
-		final var encodedhash = MessageDigest.getInstance("SHA-256").digest(IuText.utf8(accessToken));
+		final var encodedhash = DigestUtils.sha256(IuText.utf8(accessToken));
 		final var halfOfEncodedHash = Arrays.copyOf(encodedhash, (encodedhash.length / 2));
 		final var atHash = Base64.getUrlEncoder().withoutPadding().encodeToString(halfOfEncodedHash);
 
@@ -580,19 +609,22 @@ public class OidcAuthorizationClientTest {
 				.add("foo", "bar") //
 				.add("bar", 34) //
 				.build();
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			mockHttpUtils.when(() -> HttpUtils.read(jwksUri)).thenReturn(jwks);
-
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			mockHttp.when(() -> IuHttp.get(jwksUri, IuHttp.READ_JSON_OBJECT)).thenReturn(jwks);
 			final var rb = mock(HttpRequest.Builder.class);
-			when(rb.header(any(), any())).thenReturn(rb);
-			final var request = mock(HttpRequest.class);
-			when(rb.build()).thenReturn(request);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(userinfoEndpoint)).thenReturn(rb);
-			mockHttpUtils.when(() -> HttpUtils.read(request)).thenReturn(userinfo);
+			mockHttp.when(() -> IuHttp.send(eq(userinfoEndpoint), argThat(a -> {
+				a.accept(rb);
+				return true;
+			}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(userinfo);
 
 			final var subject = client.verify(tokenResponse);
 			verify(rb).header("Authorization", "Bearer " + accessToken);
+
+			final var id = subject.getPrincipals(IuPrincipalIdentity.class).iterator().next();
+			assertEquals(principal, id.getName());
+
+			IuPrincipalIdentity.verify(id, client.getRealm());
+
 			final var principals = subject.getPrincipals();
 			assertEquals(9, principals.size());
 			final var principalIter = principals.iterator();
@@ -612,11 +644,31 @@ public class OidcAuthorizationClientTest {
 			when(bearer.getSubject()).thenReturn(subject);
 			when(bearer.getAccessToken()).thenReturn(accessToken);
 			client.activate(bearer);
-			Thread.sleep(101L);
+			Thread.sleep(201L);
 			IuTestLogger.expect("iu.auth.oidc.OidcAuthorizationClient", Level.FINER,
 					"discarding invalid activation code", IllegalArgumentException.class);
 			client.activate(bearer);
 		}
 	}
 
+	@Test
+	public void testWrongClient() throws Exception {
+		final var issuer = IdGenerator.generateId();
+		final var config = Json.createObjectBuilder() //
+				.add("authorization_endpoint", authorizationEndpoint.toString()) //
+				.add("token_endpoint", tokenEndpoint.toString()) //
+				.add("userinfo_endpoint", userinfoEndpoint.toString()) //
+				.add("jwks_uri", jwksUri.toString()) //
+				.add("issuer", issuer) //
+				.build();
+		idTokenVerifier = new AccessTokenVerifier(IuException.unchecked(() -> new URI(config.getString("jwks_uri"))),
+				issuer, idClient::getTrustRefreshInterval);
+
+		final var client = new OidcAuthorizationClient(config, idClient, idTokenVerifier);
+		final var idcon = Class.forName(OidcAuthorizationClient.class.getName() + "$Id")
+				.getDeclaredConstructor(OidcAuthorizationClient.class, String.class, OidcClaim[].class);
+		idcon.setAccessible(true);
+		final var id = (IuPrincipalIdentity) idcon.newInstance(this.client, clientId, new OidcClaim<?>[0]);
+		assertThrows(IllegalArgumentException.class, () -> IuPrincipalIdentity.verify(id, client.getRealm()));
+	}
 }

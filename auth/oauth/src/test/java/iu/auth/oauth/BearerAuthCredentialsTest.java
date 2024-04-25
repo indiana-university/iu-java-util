@@ -32,88 +32,71 @@
 package iu.auth.oauth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import java.net.http.HttpRequest;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
-
-import javax.security.auth.Subject;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.IuPrincipalIdentity;
-import iu.auth.principal.PrincipalVerifierRegistry;
 
 @SuppressWarnings("javadoc")
 public class BearerAuthCredentialsTest {
 
 	@Test
-	public void testFrom() throws IuAuthenticationException {
-		final var realm = IdGenerator.generateId();
-		assertThrows(IllegalArgumentException.class,
-				() -> BearerAuthCredentials.getIdPrincipal(new Subject(true, Set.of(), Set.of(), Set.of()), realm));
-		final var principal = new MockPrincipal(realm);
-		PrincipalVerifierRegistry.registerVerifier(realm, id -> assertInstanceOf(MockPrincipal.class, id), false);
-		
-		final var bearer = new BearerAuthCredentials(realm, new Subject(true, Set.of(principal), Set.of(), Set.of()), null);
-		IuPrincipalIdentity.verify(bearer, realm);
-		
-		final var principal2 = new MockPrincipal(realm);
-		assertThrows(IllegalArgumentException.class, () -> BearerAuthCredentials
-				.getIdPrincipal(new Subject(true, Set.of(principal, principal2), Set.of(), Set.of()), realm));
-	}
-
-	@Test
 	public void testAccessToken() throws IuAuthenticationException {
 		final var realm = IdGenerator.generateId();
-		PrincipalVerifierRegistry.registerVerifier(realm, id -> assertInstanceOf(MockPrincipal.class, id), false);
+		MockPrincipal.registerVerifier(realm);
 		final var accessToken = IdGenerator.generateId();
-		final var subject = new Subject();
 		final var principal = new MockPrincipal(realm);
-		subject.getPrincipals().add(principal);
 
-		final var auth = new BearerAuthCredentials(realm, subject, accessToken);
+		final var auth = new BearerAuthCredentials(realm, principal, Set.of(), accessToken);
 		assertNotNull(auth.toString());
 		assertEquals(accessToken, auth.getAccessToken());
-		assertSame(subject, auth.getSubject());
+		assertSame(principal, auth.getSubject().getPrincipals().iterator().next());
 		assertEquals(principal.getName(), auth.getName());
+		assertEquals(Set.of(), auth.getScope());
 
 		final var req = mock(HttpRequest.Builder.class);
 		auth.applyTo(req);
 		verify(req).header("Authorization", "Bearer " + accessToken);
+
+		auth.revoke();
+		assertTrue(principal.revoked);
+		assertThrows(IuAuthenticationException.class, () -> auth.applyTo(req));
 	}
 
 	@Test
 	public void testEquals() throws IuAuthenticationException {
 		final var realm = IdGenerator.generateId();
-		PrincipalVerifierRegistry.registerVerifier(realm, id -> assertInstanceOf(MockPrincipal.class, id), false);
-		final var accessToken = IdGenerator.generateId();
-		final var principal = new MockPrincipal(realm);
-		final var subject = new Subject(true, Set.of(principal), Set.of(), Set.of());
-		final var auth = new BearerAuthCredentials(realm, subject, accessToken);
-		final var auth2 = new BearerAuthCredentials(realm, subject, accessToken);
-		assertEquals(auth, auth2);
-		assertEquals(auth2, auth);
-		assertNotEquals(auth, new Object());
-
-		final var principal2 = new MockPrincipal(realm);
-		final var subject2 = new Subject(true, Set.of(principal2), Set.of(), Set.of());
-		final var auth3 = new BearerAuthCredentials(realm, subject2, accessToken);
-		assertNotEquals(auth, auth3);
-		assertNotEquals(auth3, auth);
-
-		final var subject3 = new Subject(true, Set.of(principal), Set.of(new Object()), Set.of());
-		final var auth4 = new BearerAuthCredentials(realm, subject3, accessToken);
-		assertNotEquals(auth, auth4);
-		assertNotEquals(auth4, auth);
+		final List<BearerAuthCredentials> creds = new ArrayList<>();
+		for (final var t : List.of(IdGenerator.generateId(), IdGenerator.generateId()))
+			for (final var p : List.of(new MockPrincipal(realm), new MockPrincipal(realm)))
+				for (final var s : List.of(Set.of("foo"), Set.of("bar")))
+					creds.add(new BearerAuthCredentials(realm, p, s, t));
+		for (int i = 0; i < creds.size(); i++)
+			for (int j = 0; j < creds.size(); j++) {
+				final var ai = creds.get(i);
+				final var aj = creds.get(j);
+				if (i == j) {
+					assertEquals(ai, aj);
+					assertNotEquals(ai, new Object());
+				} else {
+					assertNotEquals(ai, aj);
+					assertNotEquals(aj, ai);
+					assertNotEquals(ai.hashCode(), aj.hashCode());
+				}
+			}
 	}
 
 }

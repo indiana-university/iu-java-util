@@ -45,12 +45,13 @@ class PkiPrincipal implements IuPkiPrincipal {
 
 	private transient WebKey key;
 	private transient WebKey wellKnown;
+
 	private final String serializedWellKnownKey;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param key       fully populated JWK including private/secret key data
+	 * @param key fully populated JWK including private/secret key data
 	 */
 	PkiPrincipal(WebKey key) {
 		this.wellKnown = key.wellKnown();
@@ -75,9 +76,15 @@ class PkiPrincipal implements IuPkiPrincipal {
 	}
 
 	@Override
+	public void revoke() {
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
 	public String toString() {
 		final var sb = new StringBuilder();
-		if (key == null || key.getPrivateKey() == null)
+		if (key == null //
+				|| key.getPrivateKey() == null)
 			sb.append("Well-Known");
 		else
 			sb.append("Authoritative");

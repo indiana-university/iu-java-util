@@ -76,7 +76,9 @@ public interface IuApiCredentials extends IuPrincipalIdentity {
 	 * Applies the client's API credentials to an HTTP request.
 	 * 
 	 * @param httpRequestBuilder {@link HttpRequest.Builder}
+	 * @throws IuAuthenticationException If authenticated credentials have expired
+	 *                                   or been revoked since initial authorization
 	 */
-	void applyTo(HttpRequest.Builder httpRequestBuilder);
+	void applyTo(HttpRequest.Builder httpRequestBuilder) throws IuAuthenticationException;
 
 }

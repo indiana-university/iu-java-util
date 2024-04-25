@@ -48,10 +48,12 @@ public interface IuPrincipalSpi {
 	 *              realm.
 	 * @param id    principal identity
 	 * @param realm authentication realm
+	 * @return true true if the authorization module is considered authoritative for
+	 *         the realm
 	 * @throws IuAuthenticationException with an authentication challenge if the id
 	 *                                   was well-formed for the realm but
 	 *                                   credentials were invalid
 	 */
-	<T extends IuPrincipalIdentity> void verify(T id, String realm) throws IuAuthenticationException;
+	<T extends IuPrincipalIdentity> boolean verify(T id, String realm) throws IuAuthenticationException;
 
 }

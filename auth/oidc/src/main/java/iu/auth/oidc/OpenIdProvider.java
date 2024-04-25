@@ -32,24 +32,25 @@
 package iu.auth.oidc;
 
 import java.net.URI;
-import java.util.logging.Logger;
+import java.time.Duration;
+import java.util.Map;
 
 import edu.iu.IuException;
-import edu.iu.auth.oauth.IuAuthorizationClient;
+import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
+import edu.iu.client.IuHttp;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import iu.auth.util.AccessTokenVerifier;
-import iu.auth.util.HttpUtils;
 import jakarta.json.JsonObject;
 
 /**
  * {@link IuOpenIdProvider} implementation.
  */
+@SuppressWarnings("deprecation") // TODO: iu-java-auth-jwt
 public class OpenIdProvider implements IuOpenIdProvider {
 
-	private final Logger LOG = Logger.getLogger(OpenIdProvider.class.getName());
-
-	private final String issuer;
 	private final IuOpenIdClient client;
 	private JsonObject config;
 	private AccessTokenVerifier idTokenVerifier;
@@ -60,32 +61,59 @@ public class OpenIdProvider implements IuOpenIdProvider {
 	 * @param configUri provider configuration URI
 	 * @param client    client configuration metadata
 	 */
-	public OpenIdProvider(URI configUri, IuOpenIdClient client) {
-		config = HttpUtils.read(configUri).asJsonObject();
-		LOG.info("OIDC Provider configuration:\n" + config.toString());
-
-		this.issuer = config.getString("issuer");
-
-		this.idTokenVerifier = new AccessTokenVerifier(
-				IuException.unchecked(() -> new URI(config.getString("jwks_uri"))), issuer,
-				client::getTrustRefreshInterval);
-
+	public OpenIdProvider(IuOpenIdClient client) {
 		this.client = client;
 	}
 
 	@Override
-	public IuAuthorizationClient createAuthorizationClient() {
-		return new OidcAuthorizationClient(config, client, idTokenVerifier);
+	public OidcPrincipal hydrate(String accessToken) throws IuAuthenticationException {
+		return new OidcPrincipal(null, accessToken);
 	}
 
-	@Override
-	public String getIssuer() {
-		return issuer;
+	/**
+	 * Gets the client configuration.
+	 * 
+	 * @return client configuration
+	 */
+	IuOpenIdClient client() {
+		return client;
 	}
 
-	@Override
-	public URI getUserInfoEndpoint() {
-		return IuException.unchecked(() -> new URI(config.getString("userinfo_endpoint")));
+	/**
+	 * Gets the OpenID Provider configuration, parsed as a JSON object.
+	 * 
+	 * @return {@link JsonObject} OP configuration
+	 */
+	JsonObject config() {
+		if (config == null)
+			config = IuException.unchecked(() -> IuHttp.get(client.getProviderConfigUri(), IuHttp.READ_JSON_OBJECT));
+		return config;
+	}
+
+	/**
+	 * Gets claims from the OP userinfo endpoint.
+	 * 
+	 * @param accessToken OIDC access token
+	 * @return {@link JsonObject} parsed userinfo claims
+	 */
+	Map<String, ?> userinfo(String accessToken) {
+		return IuJsonAdapter.<Map<String, ?>>basic()
+				.fromJson(IuException.unchecked(
+						() -> IuHttp.send(IuJson.get(config(), "userinfo_endpoint", IuJsonAdapter.of(URI.class)),
+								b -> b.header("Authorization", "Bearer " + accessToken), IuHttp.READ_JSON_OBJECT)));
+	}
+
+	/**
+	 * Gets a JWT validator for verifying an ID token.
+	 * 
+	 * @return ID token verifier
+	 */
+	AccessTokenVerifier idTokenVerifier() {
+		if (idTokenVerifier == null)
+			idTokenVerifier = new AccessTokenVerifier(
+					IuException.unchecked(() -> new URI(config.getString("jwks_uri"))), config().getString("issuer"),
+					() -> Duration.ofHours(2L));
+		return idTokenVerifier;
 	}
 
 }

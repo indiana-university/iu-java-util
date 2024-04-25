@@ -39,6 +39,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import edu.iu.IuException;
+import edu.iu.UnsafeBiConsumer;
 import edu.iu.UnsafeConsumer;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
@@ -48,16 +49,6 @@ import edu.iu.auth.spi.IuPrincipalSpi;
  * Provides identity verification support for internal implementation modules.
  */
 public class PrincipalVerifierRegistry implements IuPrincipalSpi {
-
-	private static final class Verifier {
-		private final UnsafeConsumer<IuPrincipalIdentity> idConsumer;
-		private final boolean authoritative;
-
-		private Verifier(UnsafeConsumer<IuPrincipalIdentity> idConsumer, boolean authoritative) {
-			this.idConsumer = idConsumer;
-			this.authoritative = authoritative;
-		}
-	}
 
 	private static final class Delegate<T extends IuPrincipalIdentity> {
 		private final Class<T> type;

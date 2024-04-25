@@ -31,20 +31,35 @@
  */
 package iu.auth.oauth;
 
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+
+import java.security.Principal;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 import javax.security.auth.Subject;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuObject;
+import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
+import iu.auth.principal.PrincipalVerifierRegistry;
 
 @SuppressWarnings("javadoc")
 class MockPrincipal implements IuPrincipalIdentity {
 	private static final long serialVersionUID = 1L;
 
+	static void registerVerifier(String realm) {
+		PrincipalVerifierRegistry.registerVerifier(realm, id -> {
+			if (assertInstanceOf(MockPrincipal.class, id).revoked)
+				throw new IuAuthenticationException("Bearer realm=\"" + realm + "\"");
+		}, false);
+	}
+
 	private final String realm;
 	private final String name = IdGenerator.generateId();
+	private final Set<Principal> additionalPrincipals = new LinkedHashSet<>();
+	boolean revoked;
 
 	public MockPrincipal(String realm) {
 		this.realm = realm;
@@ -58,6 +73,11 @@ class MockPrincipal implements IuPrincipalIdentity {
 	@Override
 	public int hashCode() {
 		return IuObject.hashCode(name);
+	}
+
+	@Override
+	public void revoke() {
+		revoked = true;
 	}
 
 	@Override
@@ -75,11 +95,19 @@ class MockPrincipal implements IuPrincipalIdentity {
 
 	@Override
 	public Subject getSubject() {
-		return new Subject(true, Set.of(this), Set.of(), Set.of());
+		final var subject = new Subject();
+		subject.getPrincipals().add(this);
+		subject.getPrincipals().addAll(additionalPrincipals);
+		subject.setReadOnly();
+		return subject;
 	}
 
 	String getRealm() {
 		return realm;
+	}
+
+	void addPrincipal(Principal p) {
+		additionalPrincipals.add(p);
 	}
 
 }

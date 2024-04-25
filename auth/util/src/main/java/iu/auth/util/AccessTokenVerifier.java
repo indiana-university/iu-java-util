@@ -58,12 +58,15 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.interfaces.DecodedJWT;
 
+import edu.iu.IuException;
 import edu.iu.IuObject;
+import edu.iu.client.IuHttp;
 import jakarta.json.JsonObject;
 
 /**
  * Verifies JWT access tokens as signed using an RSA or ECDSA public key from a
  * well-known JWKS key set.
+ * 
  * @deprecated TODO
  */
 public class AccessTokenVerifier {
@@ -236,7 +239,7 @@ public class AccessTokenVerifier {
 	}
 
 	private JsonObject readJwk(String keyId) {
-		final var jwks = HttpUtils.read(keysetUri).asJsonObject();
+		final var jwks = IuException.unchecked(() -> IuHttp.get(keysetUri, IuHttp.READ_JSON_OBJECT));
 		try {
 			for (final var key : jwks.getJsonArray("keys")) {
 				final var keyAsJsonObject = key.asJsonObject();

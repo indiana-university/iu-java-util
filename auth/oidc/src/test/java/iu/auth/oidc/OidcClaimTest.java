@@ -54,9 +54,17 @@ public class OidcClaimTest {
 		final var claim2 = new OidcClaim<>("foo", "bar", "baz");
 		assertEquals(claim1.hashCode(), claim2.hashCode());
 		assertEquals(claim1, claim2);
+		assertEquals(claim2, claim1);
 		final var claim3 = new OidcClaim<>("foo", "baz", "bar");
 		assertNotEquals(claim1.hashCode(), claim3.hashCode());
 		assertNotEquals(claim1, claim3);
 		assertNotEquals(claim3, claim1);
+		assertNotEquals(claim3, new Object());
+		final var claim4 = new OidcClaim<>("baz", "foo", "bar");
+		assertNotEquals(claim3, claim4);
+		assertNotEquals(claim4, claim3);
+		final var claim5 = new OidcClaim<>("bar", "foo", "bar");
+		assertNotEquals(claim5, claim4);
+		assertNotEquals(claim4, claim5);
 	}
 }

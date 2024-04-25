@@ -31,12 +31,8 @@
  */
 package edu.iu.auth.oidc;
 
-import java.net.URI;
-
-import javax.security.auth.Subject;
-
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.oauth.IuAuthorizationClient;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.spi.IuOpenIdConnectSpi;
 import iu.auth.IuAuthSpiFactory;
 
@@ -46,54 +42,28 @@ import iu.auth.IuAuthSpiFactory;
 public interface IuOpenIdProvider {
 
 	/**
-	 * Configures the client view of an OpenID provider from a well-known
-	 * configuration URI.
+	 * Configures the client view of an OpenID provider.
 	 * 
 	 * <p>
-	 * <em>May</em> be called exactly once per provider per module instance,
-	 * enforced by the OAuth implementation module (iu.util.auth.oauth) using the
-	 * issuer declared by the provider configuration URI.
+	 * <em>May</em> be called exactly once per authentication realm.
 	 * </p>
 	 * 
-	 * @param configUri provider configuration URI
-	 * @param client    client configuration metadata, <em>may</em> be null if the
-	 *                  client endpoint is not registered with the provider.
+	 * @param client client configuration metadata
 	 * @return Client view of the OpenID provider
 	 */
-	static IuOpenIdProvider from(URI configUri, IuOpenIdClient client) {
-		return IuAuthSpiFactory.get(IuOpenIdConnectSpi.class).getOpenIdProvider(configUri, client);
+	static IuOpenIdProvider from(IuOpenIdClient client) {
+		return IuAuthSpiFactory.get(IuOpenIdConnectSpi.class).getOpenIdProvider(client);
 	}
-
-	/**
-	 * Gets the issue ID for this provider.
-	 * 
-	 * @return OpenID Provider issuer ID
-	 */
-	String getIssuer();
 
 	/**
 	 * Verifies an OIDC access token, and if valid, retrieves userinfo claims and
 	 * principal name.
 	 * 
 	 * @param accessToken OIDC access token
-	 * @return {@link Subject} of {@link IuOpenIdClaim} principals; The
-	 *         <strong>principal</strong> claim is returned first and its claim
-	 *         value provides the principal name for remaining claims.
+	 * @return OIDC principal identity implied by the access token
 	 * @throws IuAuthenticationException If the access token is invalid for the OIDC
 	 *                                   provider.
 	 */
-	Subject hydrate(String accessToken) throws IuAuthenticationException;
-
-	/**
-	 * Creates the authorization client for interacting with the endpoint's OpenID
-	 * provider registration.
-	 * 
-	 * <p>
-	 * This method <em>may</em> only be invoked <em>once</em>.
-	 * </p>
-	 * 
-	 * @return authorization client
-	 */
-	IuAuthorizationClient createAuthorizationClient();
+	IuPrincipalIdentity hydrate(String accessToken) throws IuAuthenticationException;
 
 }

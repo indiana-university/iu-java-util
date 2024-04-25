@@ -29,33 +29,56 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.bundle;
+package iu.auth.oidc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 
-import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
+import java.net.http.HttpRequest;
+import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.auth.oidc.IuOpenIdClient;
-import edu.iu.auth.oidc.IuOpenIdProvider;
+import edu.iu.client.IuHttp;
+import edu.iu.test.IuTestLogger;
+import jakarta.json.Json;
 
 @SuppressWarnings("javadoc")
-public class OidcIT {
+public class OpenIdProviderTest extends IuOidcTestCase {
 
 	@Test
-	public void testClient() throws URISyntaxException, IOException, InterruptedException {
-		final var configUri = new URI("test://localhost/" + IdGenerator.generateId());
-		final var idClient = mock(IuOpenIdClient.class);
-		assertEquals("Missing system property iu.http.allowedUri or environment variable IU_HTTP_ALLOWEDURI",
-				assertInstanceOf(NullPointerException.class, assertThrows(ExceptionInInitializerError.class,
-						() -> IuOpenIdProvider.from(configUri, idClient)).getCause()).getMessage());
+	public void testHydrate() throws Exception {
+		final var issuer = IdGenerator.generateId();
+		final var configUri = new URI("test:" + IdGenerator.generateId());
+		final var userinfoEndpoint = new URI("test:" + IdGenerator.generateId());
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			mockHttp.when(() -> IuHttp.get(configUri, IuHttp.READ_JSON_OBJECT)).thenReturn(Json.createObjectBuilder()
+					.add("issuer", issuer).add("userinfo_endpoint", userinfoEndpoint.toString()).build());
+
+			IuTestLogger.expect("iu.auth.oidc.OpenIdProvider", Level.INFO, "OIDC Provider configuration:.*");
+			final var provider = new OpenIdProvider(configUri, null);
+			assertThrows(IllegalStateException.class, provider::createAuthorizationClient);
+
+			final var accessToken = IdGenerator.generateId();
+			final var principal = IdGenerator.generateId();
+
+			mockHttp.when(() -> IuHttp.send(eq(userinfoEndpoint), argThat(a -> {
+				final var b = mock(HttpRequest.Builder.class);
+				a.accept(b);
+				verify(b).header("Authorization", "Bearer " + accessToken);
+				return true;
+			}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(Json.createObjectBuilder().add("principal", principal)
+					.add("sub", principal).add("foo", "bar").add("abc", 123).build());
+			final var subject = provider.hydrate(accessToken);
+			assertEquals(principal, subject.getPrincipals().iterator().next().getName());
+		}
 	}
 
 }

@@ -63,6 +63,7 @@ import edu.iu.IuOutOfServiceException;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
 import edu.iu.auth.oauth.IuAuthorizationSession;
@@ -71,7 +72,6 @@ import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
 import edu.iu.client.IuVault;
 import edu.iu.test.IuTestLogger;
-import iu.auth.util.HttpUtils;
 
 @EnabledIf("edu.iu.client.IuVault#isConfigured")
 @SuppressWarnings("javadoc")
@@ -159,7 +159,7 @@ public class OpenIDConnectIT {
 
 	@BeforeEach
 	public void setup() {
-		IuTestLogger.allow("iu.auth.util.HttpUtils", Level.FINE);
+		IuTestLogger.allow("edu.iu.client.IuHttp", Level.FINE);
 		IuTestLogger.allow("iu.auth.oidc.OpenIdProvider", Level.INFO);
 	}
 
@@ -171,13 +171,10 @@ public class OpenIDConnectIT {
 	@Test
 	public void testClientCredentials() throws Exception {
 		IuTestLogger.allow("iu.auth.oauth.ClientCredentialsGrant", Level.FINE);
-		final var credneitals = clientCredentials.authorize(resourceUri);
-
-		final var req = HttpRequest.newBuilder(provider.getUserInfoEndpoint());
-		credneitals.applyTo(req);
-		final var userInfo = HttpUtils.read(req.build());
-
-		assertEquals(clientId, userInfo.asJsonObject().getString("sub"));
+		final var credentials = (IuBearerAuthCredentials) clientCredentials.authorize(resourceUri);
+		IuPrincipalIdentity.verify(credentials, provider.getIssuer());
+		final var sub = provider.hydrate(credentials.getAccessToken());
+		assertEquals(clientId, sub.getPrincipals().iterator().next().getName());
 	}
 
 	@Test
