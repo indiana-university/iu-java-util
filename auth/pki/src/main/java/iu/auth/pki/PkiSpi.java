@@ -51,8 +51,6 @@ import java.util.Set;
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
-import edu.iu.UnsafeConsumer;
-import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.spi.IuPkiSpi;
 import edu.iu.crypt.DigestUtils;
 import edu.iu.crypt.PemEncoded;
@@ -67,43 +65,20 @@ import iu.auth.principal.PrincipalVerifierRegistry;
  * {@link IuPkiSpi} service provider implementation.
  */
 public class PkiSpi implements IuPkiSpi {
+	static {
+		IuObject.assertNotOpen(PkiSpi.class);
+	}
 
-	private static final Map<String, CertPathParameters> TRUST = new HashMap<>();
+	private static final Map<String, PKIXParameters> TRUST = new HashMap<>();
 
-	private static class IdVerifier implements UnsafeConsumer<IuPrincipalIdentity> {
-		private final boolean authoritative;
-		private final String issuer;
-		private final PKIXParameters pkix;
-
-		private IdVerifier(boolean authoritative, String issuer, PKIXParameters pkix) {
-			this.authoritative = authoritative;
-			this.issuer = issuer;
-			this.pkix = pkix;
-		}
-
-		@Override
-		public void accept(IuPrincipalIdentity principalIdentity) {
-			final var pki = (PkiPrincipal) principalIdentity;
-			final var sub = pki.getSubject();
-			final var wellKnown = sub.getPublicCredentials(WebKey.class).iterator().next();
-
-			IuException.unchecked(() -> {
-				final var certPath = CertificateFactory.getInstance("X.509")
-						.generateCertPath(List.of(wellKnown.getCertificateChain()));
-				CertPathValidator.getInstance("PKIX").validate(certPath, pkix);
-			});
-
-			if (authoritative) {
-				IuObject.once(issuer, pki.getName(), "principal name mismatch");
-				final var privIter = sub.getPrivateCredentials(WebKey.class).iterator();
-				if (!privIter.hasNext())
-					throw new IllegalArgumentException("missing private key");
-
-				final var key = privIter.next();
-				Objects.requireNonNull(key.getPrivateKey());
-				IuObject.once(wellKnown, key.wellKnown());
-			}
-		}
+	/**
+	 * Gets PKIX certificate path validator parameters for an authentication realm.
+	 * 
+	 * @param realm authentication realm
+	 * @return {@link PKIXParameters}
+	 */
+	static PKIXParameters getPKIXParameters(String realm) {
+		return Objects.requireNonNull(TRUST.get(realm));
 	}
 
 	/**
@@ -117,15 +92,16 @@ public class PkiSpi implements IuPkiSpi {
 		final PrivateKey privateKey;
 		final CertPath certPath;
 		final WebKey partialKey;
-		if (serialized.startsWith("{")) {
+		if (serialized.startsWith("{")) { // JWK
 			partialKey = WebKey.parse(serialized);
 			privateKey = partialKey.getPrivateKey();
 
-			final var certChain = WebCertificateReference.verify(partialKey);
+			final var certChain = Objects.requireNonNull(WebCertificateReference.verify(partialKey),
+					"Missing X.509 certificate chain");
 			certPath = IuException
 					.unchecked(() -> CertificateFactory.getInstance("X.509").generateCertPath(List.of(certChain)));
 
-		} else if (serialized.startsWith("-----BEGIN ")) {
+		} else if (serialized.startsWith("-----BEGIN ")) { // PEM
 			partialKey = null;
 			final List<X509Certificate> certChain = new ArrayList<>();
 			PemEncoded encodedPrivateKey = null;
@@ -144,7 +120,6 @@ public class PkiSpi implements IuPkiSpi {
 
 			if (certChain.isEmpty())
 				throw new IllegalArgumentException("at least one CERTIFICATE is required");
-
 			privateKey = IuObject.convert(encodedPrivateKey,
 					a -> a.asPrivate(certChain.get(0).getPublicKey().getAlgorithm()));
 
@@ -152,15 +127,19 @@ public class PkiSpi implements IuPkiSpi {
 		} else
 			throw new UnsupportedOperationException("only PEM and JWK encoded identity certs are supported");
 
+		// extract principal identifying certificate
 		final var certList = certPath.getCertificates();
 		final var idCert = (X509Certificate) certList.get(0);
 
+		// verify end-entity certificate
 		final var pathLen = idCert.getBasicConstraints();
 		if (pathLen != -1)
 			throw new IllegalArgumentException("ID certificate must be an end-entity");
 
+		// extract and verify matching public key
 		final var publicKey = IuObject.once(IuObject.convert(partialKey, WebKey::getPublicKey), idCert.getPublicKey());
 
+		// build principal JWK
 		final WebKey.Builder<?> jwkBuilder;
 		final var params = WebKey.algorithmParams(publicKey);
 		if (params == null)
@@ -168,9 +147,11 @@ public class PkiSpi implements IuPkiSpi {
 		else
 			jwkBuilder = WebKey.builder(Objects.requireNonNull(Type.from(params), params.toString()));
 
+		// populate private and public keys
 		IuObject.convert(privateKey, jwkBuilder::key);
 		jwkBuilder.key(publicKey);
 
+		// extract key ID from X.500 subject common name
 		final var commonName = Objects.requireNonNull(X500Utils.getCommonName(idCert.getSubjectX500Principal()),
 				"missing common name");
 		if (commonName.indexOf(':') != -1) {
@@ -183,6 +164,7 @@ public class PkiSpi implements IuPkiSpi {
 		} else
 			jwkBuilder.keyId(IuObject.once(IuObject.convert(partialKey, WebKey::getKeyId), commonName));
 
+		// extract public key use and key operations from X.509 extensions
 		final var keyUsage = idCert.getKeyUsage();
 		var use = IuObject.convert(partialKey, WebKey::getUse);
 		if (!Use.ENCRYPT.equals(use))
@@ -216,32 +198,35 @@ public class PkiSpi implements IuPkiSpi {
 				jwkBuilder.use(use = Use.ENCRYPT).ops(Operation.DERIVE_KEY);
 		}
 
+		// establish and verify trust of signing key
 		final CertPathParameters trust;
 		final List<Certificate> pathToAnchor = new ArrayList<>();
 		synchronized (TRUST) {
+			PKIXParameters matchedTrust = null;
+
 			final var selfSigned = idCert.getSubjectX500Principal().equals(idCert.getIssuerX500Principal());
-			if (selfSigned && privateKey != null)
-				IuException.unchecked(() -> {
-					final var selfSignedParams = new PKIXParameters(Set.of(new TrustAnchor(idCert, null)));
-					selfSignedParams.setRevocationEnabled(false);
-					PrincipalVerifierRegistry.registerVerifier(commonName,
-							new IdVerifier(true, commonName, selfSignedParams), true);
-					TRUST.put(commonName, selfSignedParams);
-				});
+			if (selfSigned && privateKey != null) {
+				pathToAnchor.add(idCert);
+				matchedTrust = IuException.unchecked(() -> new PKIXParameters(Set.of(new TrustAnchor(idCert, null))));
+				matchedTrust.setRevocationEnabled(false);
+			} else
+				for (final var cert : certList) {
+					pathToAnchor.add(cert);
 
-			CertPathParameters matchedTrust = null;
-			for (final var cert : certList) {
-				pathToAnchor.add(cert);
-
-				final var caIssuerCert = (X509Certificate) cert;
-				final var caTrust = IuObject.convert(X500Utils.getCommonName(caIssuerCert.getIssuerX500Principal()),
-						TRUST::get);
-				if (caTrust != null) {
-					matchedTrust = caTrust;
-					break;
+					final var caIssuerCert = (X509Certificate) cert;
+					final var caTrust = IuObject.convert(X500Utils.getCommonName(caIssuerCert.getIssuerX500Principal()),
+							TRUST::get);
+					if (caTrust != null) {
+						matchedTrust = caTrust;
+						break;
+					}
 				}
-			}
 			trust = Objects.requireNonNull(matchedTrust, "Issuer is not registered as trusted");
+
+			if (privateKey != null) { // register authoritative trust for private key holder
+				PrincipalVerifierRegistry.registerVerifier(new PkiVerifier(true, commonName));
+				TRUST.put(commonName, matchedTrust);
+			}
 		}
 
 		IuException.unchecked(() -> CertPathValidator.getInstance("PKIX")
@@ -276,10 +261,10 @@ public class PkiSpi implements IuPkiSpi {
 
 		synchronized (TRUST) {
 			if (TRUST.containsKey(issuer))
-				throw new IllegalArgumentException("Another issuer is already configured for " + issuer);
+				throw new IllegalArgumentException("Another trust anchor is already configured for " + issuer);
 
-			PrincipalVerifierRegistry.registerVerifier(issuer, new IdVerifier(false, issuer, pkix), false);
-			TRUST.put(issuer, validatorParams);
+			PrincipalVerifierRegistry.registerVerifier(new PkiVerifier(false, issuer));
+			TRUST.put(issuer, pkix);
 		}
 	}
 

@@ -65,7 +65,7 @@ public class BasicAuthSpi implements IuBasicAuthSpi {
 			throw new IllegalArgumentException("Client credentials realm is already registerd");
 
 		final var clientCredentials = new ClientCredentialSource(realm, basicAuthPrincipals, expirationPolicy);
-		PrincipalVerifierRegistry.registerVerifier(realm, clientCredentials::verify, true);
+		PrincipalVerifierRegistry.registerVerifier(clientCredentials);
 		CLIENT_CREDENTIALS.put(realm, clientCredentials);
 	}
 

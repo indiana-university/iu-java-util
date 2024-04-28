@@ -31,16 +31,11 @@
  */
 package iu.auth.principal;
 
+import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.WeakHashMap;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
-import edu.iu.IuException;
-import edu.iu.UnsafeBiConsumer;
-import edu.iu.UnsafeConsumer;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.spi.IuPrincipalSpi;
@@ -50,18 +45,20 @@ import edu.iu.auth.spi.IuPrincipalSpi;
  */
 public class PrincipalVerifierRegistry implements IuPrincipalSpi {
 
-	private static final class Delegate<T extends IuPrincipalIdentity> {
-		private final Class<T> type;
-		private final Function<T, IuPrincipalIdentity> unwrap;
+	private static Map<String, PrincipalVerifier<?>> VERIFIERS = new HashMap<>();
 
-		private Delegate(Class<T> type, Function<T, IuPrincipalIdentity> unwrap) {
-			this.type = type;
-			this.unwrap = unwrap;
-		}
+	/**
+	 * Determines if a class is a final implementation class.
+	 * 
+	 * @param type type
+	 * @return true if the class is not an interface and includes the final modifier
+	 */
+	static Class<?> requireFinalImpl(Class<?> type) {
+		if (type.isInterface() //
+				|| (type.getModifiers() & Modifier.FINAL) == 0)
+			throw new IllegalArgumentException("must be a final implementation class: " + type);
+		return type;
 	}
-
-	private static Map<Class<?>, Delegate<?>> DELEGATES = new WeakHashMap<>();
-	private static Map<String, Verifier> VERIFIERS = new HashMap<>();
 
 	/**
 	 * Determines if the indicated realm has been registered as authoritative for
@@ -71,39 +68,28 @@ public class PrincipalVerifierRegistry implements IuPrincipalSpi {
 	 * @return true of the local node registered as authoritative for the realm
 	 */
 	public static boolean isAuthoritative(String realm) {
-		return VERIFIERS.containsKey(realm) && VERIFIERS.get(realm).authoritative;
+		return VERIFIERS.containsKey(realm) //
+				&& VERIFIERS.get(realm).isAuthoritative();
 	}
 
 	/**
 	 * Registers a principal identity verifier for an authentication realm.
 	 * 
-	 * @param realm         authentication realm
-	 * @param idConsumer    {@link Consumer}, accepts {@link IuPrincipalIdentity}
-	 *                      and throws a runtime exception (i.e.,
-	 *                      {@link IllegalArgumentException}) if verification fails.
-	 * @param authoritative true if the verifier provides authoritative confirmation
-	 *                      of the principal identity; false if confirmation
-	 *                      delegates trust to a remote provider
-	 */
-	public static synchronized void registerVerifier(String realm, UnsafeConsumer<IuPrincipalIdentity> idConsumer,
-			boolean authoritative) {
-		if (VERIFIERS.containsKey(realm))
-			throw new IllegalStateException("verifier already registered for realm");
-		VERIFIERS.put(realm, new Verifier(idConsumer, authoritative));
-	}
-
-	/**
-	 * Registers a implementation class capable of unwrapping a delegated identity.
+	 * <p>
+	 * Only one verifier may be registered per realm
+	 * </p>
 	 * 
-	 * @param <T>      delegate type
-	 * @param delegate delegate class
-	 * @param unwrap   function for unwrapping the delegated identity
+	 * @param verifier principal identity verifier
 	 */
-	public static synchronized <T extends IuPrincipalIdentity> void registerDelegate(Class<T> delegate,
-			Function<T, IuPrincipalIdentity> unwrap) {
-		if (DELEGATES.containsKey(delegate))
-			throw new IllegalStateException("delegate already registered");
-		DELEGATES.put(delegate, new Delegate<>(delegate, unwrap));
+	public static synchronized void registerVerifier(PrincipalVerifier<?> verifier) {
+		requireFinalImpl(verifier.getClass());
+		requireFinalImpl(verifier.getType());
+
+		final var realm = verifier.getRealm();
+		if (VERIFIERS.containsKey(realm))
+			throw new IllegalStateException("verifier already registered for " + realm);
+
+		VERIFIERS.put(realm, verifier);
 	}
 
 	/**
@@ -112,21 +98,12 @@ public class PrincipalVerifierRegistry implements IuPrincipalSpi {
 	public PrincipalVerifierRegistry() {
 	}
 
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
-	public <T extends IuPrincipalIdentity> void verify(T id, String realm) throws IuAuthenticationException {
-		final var verifier = Objects.requireNonNull(VERIFIERS.get(realm), "missing verifier for realm");
-
-		IuPrincipalIdentity resolvedId = id;
-		Class<?> type = resolvedId.getClass();
-		while (DELEGATES.containsKey(type)) {
-			@SuppressWarnings("unchecked")
-			final var delegate = (Delegate<T>) DELEGATES.get(type);
-			resolvedId = delegate.unwrap.apply(delegate.type.cast(resolvedId));
-			type = resolvedId.getClass();
-		}
-
-		final var principal = resolvedId;
-		IuException.checked(IuAuthenticationException.class, () -> verifier.idConsumer.accept(principal));
+	public boolean verify(IuPrincipalIdentity id, String realm) throws IuAuthenticationException {
+		final PrincipalVerifier verifier = Objects.requireNonNull(VERIFIERS.get(realm), "missing verifier for realm");
+		verifier.verify(id, realm);
+		return verifier.isAuthoritative();
 	}
 
 }

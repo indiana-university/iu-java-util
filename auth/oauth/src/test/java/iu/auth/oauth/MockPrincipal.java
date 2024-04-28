@@ -31,8 +31,6 @@
  */
 package iu.auth.oauth;
 
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-
 import java.security.Principal;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -43,17 +41,44 @@ import edu.iu.IdGenerator;
 import edu.iu.IuObject;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
+import iu.auth.principal.PrincipalVerifier;
 import iu.auth.principal.PrincipalVerifierRegistry;
 
 @SuppressWarnings("javadoc")
-class MockPrincipal implements IuPrincipalIdentity {
+final class MockPrincipal implements IuPrincipalIdentity {
 	private static final long serialVersionUID = 1L;
 
-	static void registerVerifier(String realm) {
-		PrincipalVerifierRegistry.registerVerifier(realm, id -> {
-			if (assertInstanceOf(MockPrincipal.class, id).revoked)
+	private static final class Verifier implements PrincipalVerifier<MockPrincipal> {
+		private final String realm;
+
+		private Verifier(String realm) {
+			this.realm = realm;
+		}
+
+		@Override
+		public Class<MockPrincipal> getType() {
+			return MockPrincipal.class;
+		}
+
+		@Override
+		public String getRealm() {
+			return realm;
+		}
+
+		@Override
+		public boolean isAuthoritative() {
+			return false;
+		}
+
+		@Override
+		public void verify(MockPrincipal id, String realm) throws IuAuthenticationException {
+			if (id.revoked || !this.realm.equals(realm))
 				throw new IuAuthenticationException("Bearer realm=\"" + realm + "\"");
-		}, false);
+		}
+	}
+
+	static void registerVerifier(String realm) {
+		PrincipalVerifierRegistry.registerVerifier(new Verifier(realm));
 	}
 
 	private final String realm;

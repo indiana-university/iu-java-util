@@ -68,10 +68,9 @@ import edu.iu.IuException;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oauth.IuBearerAuthCredentials;
+import edu.iu.auth.oauth.IuBearerToken;
 import edu.iu.client.IuHttp;
 import edu.iu.test.IuTestLogger;
-import iu.auth.principal.PrincipalVerifierRegistry;
 import jakarta.json.Json;
 
 @SuppressWarnings("javadoc")
@@ -121,8 +120,7 @@ public class ClientCredentialsGrantTest extends IuOAuthTestCase {
 	@Test
 	public void testAuthorizeBare() throws URISyntaxException, IuAuthenticationException {
 		final var realm = IdGenerator.generateId();
-		PrincipalVerifierRegistry.registerVerifier(realm,
-				a -> assertEquals(realm, assertInstanceOf(MockPrincipal.class, a).getRealm()), true);
+		MockPrincipal.registerVerifier(realm);
 
 		final var uri = new URI(ROOT_URI + "/bar");
 		final var tokenEndpoint = new URI(ROOT_URI + "/token");
@@ -160,13 +158,13 @@ public class ClientCredentialsGrantTest extends IuOAuthTestCase {
 			verify(hrb).header("Content-Type", "application/x-www-form-urlencoded");
 			verify(hrb).POST(bp);
 			verify(clientCredentials).applyTo(hrb);
-			assertInstanceOf(IuBearerAuthCredentials.class, cred);
+			assertInstanceOf(IuBearerToken.class, cred);
 			assertEquals(principal.getName(), cred.getName());
 			assertSame(cred, grant.authorize(uri));
 
 			grant.revoke();
 			grant.revoke(); // verify no-op
-			verify(client).revoke(cred);
+			assertTrue(principal.revoked);
 
 			IuTestLogger.expect("iu.auth.oauth.ClientCredentialsGrant", Level.FINE,
 					"Authorization required, initiating client credentials flow for " + realm);
@@ -175,7 +173,7 @@ public class ClientCredentialsGrantTest extends IuOAuthTestCase {
 			verify(hrb, times(2)).header("Content-Type", "application/x-www-form-urlencoded");
 			verify(hrb, times(2)).POST(bp);
 			verify(clientCredentials, times(2)).applyTo(hrb);
-			assertInstanceOf(IuBearerAuthCredentials.class, cred2);
+			assertInstanceOf(IuBearerToken.class, cred2);
 			assertNotSame(cred, cred2);
 			assertEquals(principal.getName(), cred2.getName());
 		}
@@ -185,8 +183,7 @@ public class ClientCredentialsGrantTest extends IuOAuthTestCase {
 	public void testAuthorizeWithScopeExpiresAndExtras()
 			throws URISyntaxException, IuAuthenticationException, InterruptedException {
 		final var realm = IdGenerator.generateId();
-		PrincipalVerifierRegistry.registerVerifier(realm,
-				a -> assertEquals(realm, assertInstanceOf(MockPrincipal.class, a).getRealm()), true);
+		MockPrincipal.registerVerifier(realm);
 
 		final var uri = new URI("foo:/bar");
 		final var tokenEndpoint = new URI("foo:/token");
@@ -224,7 +221,7 @@ public class ClientCredentialsGrantTest extends IuOAuthTestCase {
 
 			IuTestLogger.expect("iu.auth.oauth.ClientCredentialsGrant", Level.FINE,
 					"Authorization required, initiating client credentials flow for " + realm);
-			final var cred = assertInstanceOf(IuBearerAuthCredentials.class, grant.authorize(uri));
+			final var cred = assertInstanceOf(IuBearerToken.class, grant.authorize(uri));
 			mockBodyPublishers.verify(() -> BodyPublishers.ofString(payload));
 			verify(hrb).header("Content-Type", "application/x-www-form-urlencoded");
 			verify(hrb).POST(bp);
@@ -243,7 +240,7 @@ public class ClientCredentialsGrantTest extends IuOAuthTestCase {
 			mockBodyPublishers.verify(() -> BodyPublishers.ofString(payload), times(2));
 			verify(hrb, times(2)).header("Content-Type", "application/x-www-form-urlencoded");
 			verify(hrb, times(2)).POST(bp);
-			assertInstanceOf(IuBearerAuthCredentials.class, cred2);
+			assertInstanceOf(IuBearerToken.class, cred2);
 			assertNotSame(cred, cred2);
 			assertEquals(principal.getName(), cred2.getName());
 		}
@@ -307,8 +304,7 @@ public class ClientCredentialsGrantTest extends IuOAuthTestCase {
 	@Test
 	public void testRequiresSerializablePrincipal() throws URISyntaxException, IuAuthenticationException {
 		final var realm = IdGenerator.generateId();
-		PrincipalVerifierRegistry.registerVerifier(realm,
-				a -> assertEquals(realm, assertInstanceOf(MockPrincipal.class, a).getRealm()), true);
+		MockPrincipal.registerVerifier(realm);
 
 		final var uri = new URI("foo:/bar");
 		final var tokenEndpoint = new URI("foo:/token");

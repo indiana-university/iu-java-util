@@ -42,7 +42,7 @@ import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
-import edu.iu.auth.oauth.IuBearerAuthCredentials;
+import edu.iu.auth.oauth.IuBearerToken;
 import edu.iu.auth.oauth.IuTokenResponse;
 import edu.iu.client.HttpResponseHandler;
 import edu.iu.client.IuHttp;
@@ -147,7 +147,7 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 		final var authorizedCredentials = this.authorizedCredentials;
 		this.authorizedCredentials = null;
 		if (authorizedCredentials != null)
-			OAuthSpi.getClient(realm).revoke(authorizedCredentials.credentials);
+			authorizedCredentials.credentials.revoke();
 	}
 
 	/**
@@ -206,7 +206,7 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 		return authorizedCredentials != null && authorizedCredentials.isExpired();
 	}
 
-	private IuBearerAuthCredentials authorizeBearer(IuPrincipalIdentity principal, IuTokenResponse tokenResponse)
+	private IuBearerToken authorizeBearer(IuPrincipalIdentity principal, IuTokenResponse tokenResponse)
 			throws IuAuthenticationException {
 
 		IuPrincipalIdentity.verify(principal, realm);
@@ -221,7 +221,7 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 				throw new IllegalArgumentException("Principal must is not serializable",
 						new NotSerializableException(principal.getClass().getName()));
 
-		final var bearer = new BearerAuthCredentials(realm, principal, scope, tokenResponse.getAccessToken());
+		final var bearer = new BearerToken(realm, principal, scope, tokenResponse.getAccessToken());
 
 		final var authTtl = OAuthSpi.getClient(realm).getAuthorizationTimeToLive();
 		var expires = tokenResponse.getExpiresIn();

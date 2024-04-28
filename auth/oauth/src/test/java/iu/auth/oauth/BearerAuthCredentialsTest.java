@@ -60,7 +60,7 @@ public class BearerAuthCredentialsTest {
 		final var accessToken = IdGenerator.generateId();
 		final var principal = new MockPrincipal(realm);
 
-		final var auth = new BearerAuthCredentials(realm, principal, Set.of(), accessToken);
+		final var auth = new BearerToken(realm, principal, Set.of(), accessToken);
 		assertNotNull(auth.toString());
 		assertEquals(accessToken, auth.getAccessToken());
 		assertSame(principal, auth.getSubject().getPrincipals().iterator().next());
@@ -79,11 +79,11 @@ public class BearerAuthCredentialsTest {
 	@Test
 	public void testEquals() throws IuAuthenticationException {
 		final var realm = IdGenerator.generateId();
-		final List<BearerAuthCredentials> creds = new ArrayList<>();
+		final List<BearerToken> creds = new ArrayList<>();
 		for (final var t : List.of(IdGenerator.generateId(), IdGenerator.generateId()))
 			for (final var p : List.of(new MockPrincipal(realm), new MockPrincipal(realm)))
 				for (final var s : List.of(Set.of("foo"), Set.of("bar")))
-					creds.add(new BearerAuthCredentials(realm, p, s, t));
+					creds.add(new BearerToken(realm, p, s, t));
 		for (int i = 0; i < creds.size(); i++)
 			for (int j = 0; j < creds.size(); j++) {
 				final var ai = creds.get(i);

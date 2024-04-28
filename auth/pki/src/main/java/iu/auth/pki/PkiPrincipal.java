@@ -40,7 +40,7 @@ import edu.iu.crypt.WebKey;
 /**
  * {@link IuPkiPrincipal} implementation class.
  */
-class PkiPrincipal implements IuPkiPrincipal {
+final class PkiPrincipal implements IuPkiPrincipal {
 	private static final long serialVersionUID = 1L;
 
 	private transient WebKey key;
@@ -77,7 +77,7 @@ class PkiPrincipal implements IuPkiPrincipal {
 
 	@Override
 	public void revoke() {
-		throw new UnsupportedOperationException();
+		key = null;
 	}
 
 	@Override

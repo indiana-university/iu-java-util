@@ -56,7 +56,9 @@ public class BasicAuthSpiTest {
 	public void testSpi() {
 		final var basicSpi = new BasicAuthSpi();
 		try (final var mockBasic = mockConstruction(BasicAuthCredentials.class)) {
-			final var basic = basicSpi.createCredentials("foo", "bar", "UTF-8");
+			final var name = IdGenerator.generateId();
+			final var password = IdGenerator.generateId();
+			final var basic = basicSpi.createCredentials(name, password, "UTF-8");
 			assertEquals(List.of(basic), mockBasic.constructed());
 		}
 	}

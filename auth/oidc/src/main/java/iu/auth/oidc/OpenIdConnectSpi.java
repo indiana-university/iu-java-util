@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import edu.iu.IuObject;
 import edu.iu.auth.oidc.IuAuthoritativeOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
@@ -45,6 +46,9 @@ import iu.auth.principal.PrincipalVerifierRegistry;
  * OpenID connect SPI implementation.
  */
 public class OpenIdConnectSpi implements IuOpenIdConnectSpi {
+	static {
+		IuObject.assertNotOpen(OpenIdConnectSpi.class);
+	}
 
 	private static final Map<String, OpenIdProvider> PROVIDERS = new HashMap<>();
 
@@ -71,8 +75,8 @@ public class OpenIdConnectSpi implements IuOpenIdConnectSpi {
 		if (PROVIDERS.containsKey(realm))
 			throw new IllegalArgumentException("OpenID Provider already configured for " + realm);
 
-		PrincipalVerifierRegistry.registerVerifier(realm, OidcPrincipal::verify,
-				client instanceof IuAuthoritativeOpenIdClient);
+		PrincipalVerifierRegistry
+				.registerVerifier(new OidcPrincipalVerifier(client instanceof IuAuthoritativeOpenIdClient, realm));
 
 		final var provider = new OpenIdProvider(client);
 		PROVIDERS.put(realm, provider);

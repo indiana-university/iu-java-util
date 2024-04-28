@@ -71,7 +71,7 @@ public interface IuApiCredentials extends IuPrincipalIdentity {
 	static IuBasicAuthCredentials basic(String username, String password, String charset) {
 		return IuAuthSpiFactory.get(IuBasicAuthSpi.class).createCredentials(username, password, charset);
 	}
-
+	
 	/**
 	 * Applies the client's API credentials to an HTTP request.
 	 * 

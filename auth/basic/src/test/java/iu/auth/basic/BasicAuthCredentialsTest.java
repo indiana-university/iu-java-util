@@ -33,7 +33,6 @@ package iu.auth.basic;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -54,24 +53,30 @@ public class BasicAuthCredentialsTest {
 
 	@Test
 	public void testBasicAuth() throws UnsupportedEncodingException {
-		final var auth = new BasicAuthCredentials("foo", "bar", "US-ASCII", null, null);
-		assertEquals("foo", auth.getName());
-		assertEquals("bar", auth.getPassword());
+		final var name = IdGenerator.generateId();
+		final var password = IdGenerator.generateId();
+		final var auth = new BasicAuthCredentials(name, password, "US-ASCII", null, null);
+		assertEquals(name, auth.getName());
+		assertEquals(password, auth.getPassword());
 
 		final var req = mock(HttpRequest.Builder.class);
 		auth.applyTo(req);
-		verify(req).header("Authorization", "Basic " + Base64.getEncoder().encodeToString(IuText.ascii("foo:bar")));
-		
-		assertFalse(auth.revoked);
+		verify(req).header("Authorization",
+				"Basic " + Base64.getEncoder().encodeToString(IuText.ascii(name + ":" + password)));
+
+		assertFalse(auth.revoked());
 		auth.revoke();
-		assertTrue(auth.revoked);
+		assertTrue(auth.revoked());
 	}
 
 	@Test
 	public void testSubject() throws UnsupportedEncodingException {
-		final var auth = IuApiCredentials.basic(IdGenerator.generateId(), IdGenerator.generateId());
+		final var realm = IdGenerator.generateId();
+		final var name = IdGenerator.generateId();
+		final var password = IdGenerator.generateId();
+		final var auth = IuApiCredentials.basic(realm, name, password);
 		final var sub = auth.getSubject();
-		assertSame(sub, auth.getSubject());
+		assertEquals(sub, auth.getSubject());
 		assertEquals(Set.of(auth), sub.getPrincipals());
 	}
 

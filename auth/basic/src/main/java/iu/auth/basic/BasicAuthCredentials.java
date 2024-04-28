@@ -34,6 +34,7 @@ package iu.auth.basic;
 import java.net.http.HttpRequest.Builder;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Set;
 
 import javax.security.auth.Subject;
 
@@ -43,11 +44,11 @@ import edu.iu.auth.basic.IuBasicAuthCredentials;
 /**
  * Implementation of {@link IuBasicAuthCredentials}.
  */
-public class BasicAuthCredentials implements IuBasicAuthCredentials {
+final class BasicAuthCredentials implements IuBasicAuthCredentials {
 	private static final long serialVersionUID = 1L;
 
 	/**
-	 * Principal name.
+	 * Name.
 	 */
 	private final String name;
 
@@ -74,9 +75,7 @@ public class BasicAuthCredentials implements IuBasicAuthCredentials {
 	/**
 	 * Revoked flag.
 	 */
-	boolean revoked;
-
-	private transient Subject subject;
+	private boolean revoked;
 
 	/**
 	 * Constructor.
@@ -87,7 +86,7 @@ public class BasicAuthCredentials implements IuBasicAuthCredentials {
 	 * @param notBefore not before time
 	 * @param expires   expiration time
 	 */
-	public BasicAuthCredentials(String name, String password, String charset, Instant notBefore, Instant expires) {
+	BasicAuthCredentials(String name, String password, String charset, Instant notBefore, Instant expires) {
 		this.name = name;
 		this.password = password;
 		this.charset = charset;
@@ -121,6 +120,11 @@ public class BasicAuthCredentials implements IuBasicAuthCredentials {
 	}
 
 	@Override
+	public Subject getSubject() {
+		return new Subject(true, Set.of(this), Set.of(), Set.of());
+	}
+
+	@Override
 	public void revoke() {
 		revoked = true;
 	}
@@ -128,18 +132,16 @@ public class BasicAuthCredentials implements IuBasicAuthCredentials {
 	@Override
 	public void applyTo(Builder httpRequestBuilder) {
 		httpRequestBuilder.header("Authorization", "Basic " + Base64.getUrlEncoder()
-				.encodeToString(IuException.unchecked(() -> (name + ':' + password).getBytes(getCharset()))));
+				.encodeToString(IuException.unchecked(() -> (getName() + ':' + password).getBytes(charset))));
 	}
 
-	@Override
-	public Subject getSubject() {
-		if (subject == null) {
-			final var subject = new Subject();
-			subject.getPrincipals().add(this);
-			subject.setReadOnly();
-			this.subject = subject;
-		}
-		return subject;
+	/**
+	 * Gets the revoked flag.
+	 * 
+	 * @return revoked flag
+	 */
+	boolean revoked() {
+		return revoked;
 	}
 
 }

@@ -34,6 +34,7 @@ package iu.auth.basic;
 import java.nio.charset.Charset;
 import java.time.Instant;
 import java.time.temporal.TemporalAmount;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -42,15 +43,15 @@ import edu.iu.IuIterable;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuExpiredCredentialsException;
-import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.basic.IuBasicAuthCredentials;
+import iu.auth.principal.PrincipalVerifier;
 
 /**
  * Handle to a
  * {@link IuBasicAuthCredentials#registerClientCredentials(Iterable, String, TemporalAmount)
  * client credential authentication realm}.
  */
-class ClientCredentialSource {
+final class ClientCredentialSource implements PrincipalVerifier<BasicAuthCredentials> {
 
 	private final String realm;
 	private final Iterable<BasicAuthCredentials> clientCredentials;
@@ -73,6 +74,46 @@ class ClientCredentialSource {
 		for (final var unit : expirationPolicy.getUnits())
 			if (expirationPolicy.get(unit) < 0)
 				throw new IllegalArgumentException("Expiration policy must be non-negative");
+	}
+
+	@Override
+	public Class<BasicAuthCredentials> getType() {
+		return BasicAuthCredentials.class;
+	}
+
+	@Override
+	public String getRealm() {
+		return realm;
+	}
+
+	@Override
+	public boolean isAuthoritative() {
+		return true;
+	}
+
+	@Override
+	public void verify(BasicAuthCredentials basic, String realm) throws IuAuthenticationException {
+		if (basic.revoked())
+			throw new IuAuthenticationException(challenge());
+		
+		final var name = Objects.requireNonNull(basic.getName(), "missing client id");
+		final var password = Objects.requireNonNull(basic.getPassword(), "missing client secret");
+		final var now = Instant.now();
+
+		BasicAuthCredentials expired = null;
+		for (final var credential : IuIterable.filter(clientCredentials, //
+				p -> p.getName().equals(name) //
+						&& p.getPassword().equals(password) //
+						&& !now.isBefore(p.getNotBefore())))
+			if (now.isBefore(credential.getExpires()))
+				return;
+			else
+				expired = credential;
+
+		if (expired != null)
+			throw new IuExpiredCredentialsException(challenge());
+		else
+			throw new IuAuthenticationException(challenge());
 	}
 
 	/**
@@ -123,35 +164,15 @@ class ClientCredentialSource {
 	}
 
 	/**
-	 * Verifies that a principal is an instance of {@link BasicAuthCredentials} and
-	 * matches a non-expired registered client credentials entry.
+	 * Creates a WWW-Authenticate challenge string for this realm.
 	 * 
-	 * @param principalIdentity ID principal to verify
-	 * @throws IuAuthenticationException If credentials are well-formed but invalid
+	 * @return authentication challenge
 	 */
-	void verify(IuPrincipalIdentity principalIdentity) throws IuAuthenticationException {
-		final var basic = (BasicAuthCredentials) principalIdentity;
-		if (basic.revoked)
-			throw new IuAuthenticationException(IuWebUtils.createChallenge("Basic", Map.of("realm", realm)));
-
-		final var name = Objects.requireNonNull(basic.getName(), "missing client id");
-		final var password = Objects.requireNonNull(basic.getPassword(), "missing client secret");
-		final var now = Instant.now();
-
-		BasicAuthCredentials expired = null;
-		for (final var registered : IuIterable.filter(clientCredentials, //
-				p -> p.getName().equals(name) //
-						&& p.getPassword().equals(password) //
-						&& !now.isBefore(p.getNotBefore())))
-			if (now.isBefore(registered.getExpires()))
-				return;
-			else
-				expired = registered;
-
-		if (expired != null)
-			throw new IuExpiredCredentialsException(IuWebUtils.createChallenge("Basic", Map.of("realm", realm)));
-		else
-			throw new IuAuthenticationException(IuWebUtils.createChallenge("Basic", Map.of("realm", realm)));
+	String challenge() {
+		final Map<String, String> params = new LinkedHashMap<>();
+		params.put("realm", realm);
+		params.put("charset", "US-ASCII");
+		return IuWebUtils.createChallenge("Basic", params);
 	}
 
 }

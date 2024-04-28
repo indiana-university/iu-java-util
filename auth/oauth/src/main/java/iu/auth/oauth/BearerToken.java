@@ -39,17 +39,32 @@ import javax.security.auth.Subject;
 import edu.iu.IuObject;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.oauth.IuBearerAuthCredentials;
+import edu.iu.auth.oauth.IuBearerToken;
+import iu.auth.principal.PrincipalDelegate;
 import iu.auth.principal.PrincipalVerifierRegistry;
 
 /**
- * {@link IuBearerAuthCredentials} implementation.
+ * {@link IuBearerToken} implementation.
  */
-public class BearerAuthCredentials implements IuBearerAuthCredentials {
+final class BearerToken implements IuBearerToken {
+
 	private static final long serialVersionUID = 1L;
 
+	private final static class Delegate implements PrincipalDelegate<BearerToken> {
+		@Override
+		public Class<BearerToken> getType() {
+			return BearerToken.class;
+		}
+
+		@Override
+		public IuPrincipalIdentity unwrap(BearerToken bearer) throws IuAuthenticationException {
+			return bearer.id;
+		}
+	}
+
 	static {
-		PrincipalVerifierRegistry.registerDelegate(BearerAuthCredentials.class, bearer -> bearer.id);
+		IuObject.assertNotOpen(BearerToken.class);
+		PrincipalVerifierRegistry.registerDelegate(new Delegate());
 	}
 
 	/**
@@ -82,7 +97,7 @@ public class BearerAuthCredentials implements IuBearerAuthCredentials {
 	 * @throws IuAuthenticationException If the subject's identifying principal
 	 *                                   could not be verified
 	 */
-	protected BearerAuthCredentials(String realm, IuPrincipalIdentity id, Set<String> scope, String accessToken)
+	BearerToken(String realm, IuPrincipalIdentity id, Set<String> scope, String accessToken)
 			throws IuAuthenticationException {
 		this.realm = realm;
 		this.id = id;
@@ -123,7 +138,7 @@ public class BearerAuthCredentials implements IuBearerAuthCredentials {
 
 	@Override
 	public String toString() {
-		return "BearerAuthCredentials [" + id + "]; scope " + scope;
+		return "BearerToken [" + id + "]; scope " + scope;
 	}
 
 	@Override
@@ -135,7 +150,7 @@ public class BearerAuthCredentials implements IuBearerAuthCredentials {
 	public boolean equals(Object obj) {
 		if (!IuObject.typeCheck(this, obj))
 			return false;
-		BearerAuthCredentials other = (BearerAuthCredentials) obj;
+		BearerToken other = (BearerToken) obj;
 		return IuObject.equals(accessToken, other.accessToken) //
 				&& IuObject.equals(id, other.id) //
 				&& IuObject.equals(scope, other.scope);

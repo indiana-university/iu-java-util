@@ -1,13 +1,28 @@
 package iu.auth.principal;
 
-import edu.iu.UnsafeBiConsumer;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 
 /**
  * Verifies a principal as valid for a realm.
+ * 
+ * @param <I> principal identity type
  */
-public interface PrincipalVerifier extends UnsafeBiConsumer<IuPrincipalIdentity, String> {
+public interface PrincipalVerifier<I extends IuPrincipalIdentity> {
+
+	/**
+	 * Gets the identity type.
+	 * 
+	 * @return identity type; must be a final implementation class
+	 */
+	Class<I> getType();
+
+	/**
+	 * Gets the authentication realm.
+	 * 
+	 * @return authentication realm
+	 */
+	String getRealm();
 
 	/**
 	 * Determines if this verifier is authoritative for the realm.
@@ -25,10 +40,8 @@ public interface PrincipalVerifier extends UnsafeBiConsumer<IuPrincipalIdentity,
 	 * 
 	 * @param id    principal identity
 	 * @param realm authentication realm
-	 * @throws IuAuthenticationException If the principal is well formed, but
-	 *                                   invalid for the authentication realm.
+	 * @throws IuAuthenticationException If the principal could not be verified
 	 */
-	@Override
-	void accept(IuPrincipalIdentity id, String realm) throws IuAuthenticationException;
+	void verify(I id, String realm) throws IuAuthenticationException;
 
 }

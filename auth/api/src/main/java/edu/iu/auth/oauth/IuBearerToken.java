@@ -29,42 +29,32 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.oidc;
+package edu.iu.auth.oauth;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import java.util.Set;
 
-import org.junit.jupiter.api.Test;
+import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuPrincipalIdentity;
 
-@SuppressWarnings("javadoc")
-public class OidcClaimTest {
+/**
+ * Represents credentials for use with
+ * <a href="https://datatracker.ietf.org/doc/html/rfc6750">OAuth 2.0 Bearer
+ * Token Authorization</a>.
+ */
+public interface IuBearerToken extends IuApiCredentials, IuPrincipalIdentity {
 
-	@Test
-	public void testMethods() {
-		final var claim1 = new OidcClaim<>("foo", "bar", "baz");
-		assertEquals("foo", claim1.getName());
-		assertEquals("bar", claim1.getClaimName());
-		assertEquals("baz", claim1.getClaim());
-		assertEquals("OIDC Claim of foo: bar = baz", claim1.toString());
-	}
+	/**
+	 * Gets the access token.
+	 * 
+	 * @return access token
+	 */
+	String getAccessToken();
 
-	@Test
-	public void testEquals() {
-		final var claim1 = new OidcClaim<>("foo", "bar", "baz");
-		final var claim2 = new OidcClaim<>("foo", "bar", "baz");
-		assertEquals(claim1.hashCode(), claim2.hashCode());
-		assertEquals(claim1, claim2);
-		assertEquals(claim2, claim1);
-		final var claim3 = new OidcClaim<>("foo", "baz", "bar");
-		assertNotEquals(claim1.hashCode(), claim3.hashCode());
-		assertNotEquals(claim1, claim3);
-		assertNotEquals(claim3, claim1);
-		assertNotEquals(claim3, new Object());
-		final var claim4 = new OidcClaim<>("baz", "foo", "bar");
-		assertNotEquals(claim3, claim4);
-		assertNotEquals(claim4, claim3);
-		final var claim5 = new OidcClaim<>("bar", "foo", "bar");
-		assertNotEquals(claim5, claim4);
-		assertNotEquals(claim4, claim5);
-	}
+	/**
+	 * Gets the scope of access authorized for the token.
+	 * 
+	 * @return scope
+	 */
+	Set<String> getScope();
+
 }

@@ -231,13 +231,4 @@ public interface IuAuthorizationClient {
 		return null;
 	}
 
-	/**
-	 * Revokes credentials established for use with the client's authentication
-	 * realm, if supported.
-	 * 
-	 * @param credentials credentials to revoke
-	 */
-	default void revoke(IuApiCredentials credentials) {
-	}
-
 }

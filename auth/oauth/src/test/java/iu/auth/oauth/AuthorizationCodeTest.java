@@ -71,10 +71,9 @@ import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oauth.IuBearerAuthCredentials;
+import edu.iu.auth.oauth.IuBearerToken;
 import edu.iu.client.IuHttp;
 import edu.iu.test.IuTestLogger;
-import iu.auth.principal.PrincipalVerifierRegistry;
 import jakarta.json.Json;
 
 @SuppressWarnings("javadoc")
@@ -201,8 +200,7 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 	public void testFullAuthLifecycle() throws URISyntaxException, IuAuthenticationException, InterruptedException,
 			IOException, ClassNotFoundException {
 		final var realm = IdGenerator.generateId();
-		PrincipalVerifierRegistry.registerVerifier(realm,
-				a -> assertEquals(realm, assertInstanceOf(MockPrincipal.class, a).getRealm()), true);
+		MockPrincipal.registerVerifier(realm);
 
 		final var resourceUri = new URI("foo:/bar");
 		final var redirectUri = new URI("foo:/baz");
@@ -269,17 +267,17 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 
 			assertEquals(resourceUri, grant.authorize(code, state));
 
-			final var cred = assertInstanceOf(BearerAuthCredentials.class, grant.authorize(resourceUri));
+			final var cred = assertInstanceOf(BearerToken.class, grant.authorize(resourceUri));
 			IuPrincipalIdentity.verify(cred, realm);
 
 			mockBodyPublishers.verify(() -> BodyPublishers.ofString(payload));
 			verify(hrb).header("Content-Type", "application/x-www-form-urlencoded");
 			verify(hrb).POST(bp);
 			verify(clientCredentials).applyTo(hrb);
-			assertInstanceOf(IuBearerAuthCredentials.class, cred);
+			assertInstanceOf(IuBearerToken.class, cred);
 			assertEquals(principal.getName(), cred.getName());
 			assertSame(cred, grant.authorize(resourceUri));
-			assertEquals(accessToken, ((IuBearerAuthCredentials) cred).getAccessToken());
+			assertEquals(accessToken, ((IuBearerToken) cred).getAccessToken());
 
 			// emulate session storage
 			final var serialized = new ByteArrayOutputStream();
@@ -306,7 +304,7 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 				return true;
 			}), eq(AbstractGrant.JSON_OBJECT_NOCACHE))).thenReturn(tokenResponse2);
 
-			final var cred2 = assertInstanceOf(IuBearerAuthCredentials.class, grant.authorize(resourceUri));
+			final var cred2 = assertInstanceOf(IuBearerToken.class, grant.authorize(resourceUri));
 			IuPrincipalIdentity.verify(cred2, realm);
 
 			mockBodyPublishers.verify(() -> BodyPublishers.ofString(payload2));
@@ -318,7 +316,7 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 			assertEquals(cred.getName(), cred2.getName());
 			assertEquals(cred.getSubject(), cred2.getSubject());
 			assertEquals(cred.getScope(), cred2.getScope());
-			assertEquals(accessToken2, ((IuBearerAuthCredentials) cred2).getAccessToken());
+			assertEquals(accessToken2, ((IuBearerToken) cred2).getAccessToken());
 
 			Thread.sleep(1001L);
 			final var hr3 = mock(HttpRequest.class);
@@ -340,18 +338,17 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 			verify(hrb3).header("Content-Type", "application/x-www-form-urlencoded");
 			verify(hrb3).POST(bp3);
 			verify(clientCredentials).applyTo(hrb3);
-			assertInstanceOf(IuBearerAuthCredentials.class, cred3);
+			assertInstanceOf(IuBearerToken.class, cred3);
 			assertEquals(principal.getName(), cred3.getName());
 			assertSame(cred3, grant.authorize(resourceUri));
-			assertEquals(accessToken3, ((IuBearerAuthCredentials) cred3).getAccessToken());
+			assertEquals(accessToken3, ((IuBearerToken) cred3).getAccessToken());
 		}
 	}
 
 	@Test
 	public void testAuthNoRefresh() throws URISyntaxException, IuAuthenticationException, InterruptedException {
 		final var realm = IdGenerator.generateId();
-		PrincipalVerifierRegistry.registerVerifier(realm,
-				a -> assertEquals(realm, assertInstanceOf(MockPrincipal.class, a).getRealm()), true);
+		MockPrincipal.registerVerifier(realm);
 
 		final var resourceUri = new URI("foo:/bar");
 		final var redirectUri = new URI("foo:/baz");
@@ -414,7 +411,7 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 			verify(hrb).header("Content-Type", "application/x-www-form-urlencoded");
 			verify(hrb).POST(bp);
 			verify(clientCredentials).applyTo(hrb);
-			assertInstanceOf(IuBearerAuthCredentials.class, cred);
+			assertInstanceOf(IuBearerToken.class, cred);
 			assertEquals(principal.getName(), cred.getName());
 			assertSame(cred, grant.authorize(resourceUri));
 		}
@@ -441,8 +438,7 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 	@Test
 	public void testAuthRefreshFails() throws URISyntaxException, IuAuthenticationException, InterruptedException {
 		final var realm = IdGenerator.generateId();
-		PrincipalVerifierRegistry.registerVerifier(realm,
-				a -> assertEquals(realm, assertInstanceOf(MockPrincipal.class, a).getRealm()), true);
+		MockPrincipal.registerVerifier(realm);
 
 		final var resourceUri = new URI("foo:/bar");
 		final var redirectUri = new URI("foo:/baz");
@@ -504,7 +500,7 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 			verify(hrb).header("Content-Type", "application/x-www-form-urlencoded");
 			verify(hrb).POST(bp);
 			verify(clientCredentials).applyTo(hrb);
-			assertInstanceOf(IuBearerAuthCredentials.class, cred);
+			assertInstanceOf(IuBearerToken.class, cred);
 			assertEquals(principal.getName(), cred.getName());
 			assertSame(cred, grant.authorize(resourceUri));
 		}

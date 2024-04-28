@@ -43,9 +43,6 @@ public interface IuPrincipalSpi {
 	 * Verifies that a principal identity was issued by a registered identity
 	 * provider for an authentication realm.
 	 * 
-	 * @param <T>   principal identity implementation type, typically private,
-	 *              <em>may</em> be unknown, but <em>should</em> be validated by
-	 *              realm.
 	 * @param id    principal identity
 	 * @param realm authentication realm
 	 * @return true true if the authorization module is considered authoritative for
@@ -54,6 +51,6 @@ public interface IuPrincipalSpi {
 	 *                                   was well-formed for the realm but
 	 *                                   credentials were invalid
 	 */
-	<T extends IuPrincipalIdentity> boolean verify(T id, String realm) throws IuAuthenticationException;
+	boolean verify(IuPrincipalIdentity id, String realm) throws IuAuthenticationException;
 
 }

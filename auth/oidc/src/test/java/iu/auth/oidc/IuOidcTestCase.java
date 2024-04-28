@@ -31,17 +31,64 @@
  */
 package iu.auth.oidc;
 
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+
 import java.net.URI;
+import java.net.http.HttpRequest;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.mockito.MockedStatic;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuException;
+import edu.iu.UnsafeConsumer;
+import edu.iu.client.IuHttp;
+import jakarta.json.JsonObject;
 
 @SuppressWarnings("javadoc")
 public class IuOidcTestCase {
 
-	protected static final URI ROOT_URI = URI.create("test://" + IdGenerator.generateId());
+	protected static final URI ROOT_URI = URI.create("test://localhost/" + IdGenerator.generateId());
 
-	static {
+	private MockedStatic<IuHttp> mockHttp;
+
+	protected URI uri(JsonObject content) {
+		final var uri = URI.create(ROOT_URI.toString() + '/' + IdGenerator.generateId());
+		mockHttp.when(() -> IuHttp.get(uri, IuHttp.READ_JSON_OBJECT)).thenReturn(content);
+		return uri;
+	}
+
+	protected URI uri(JsonObject content, UnsafeConsumer<HttpRequest.Builder> requestVerifier) {
+		final var uri = URI.create(ROOT_URI.toString() + '/' + IdGenerator.generateId());
+		mockHttp.when(() -> IuHttp.send(eq(uri), argThat(a -> {
+			IuException.unchecked(() -> {
+				final var req = mock(HttpRequest.Builder.class);
+				a.accept(req);
+				requestVerifier.accept(req);
+			});
+			return true;
+		}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(content);
+		return uri;
+	}
+
+	@BeforeAll
+	public static void setupClass() {
 		System.setProperty("iu.http.allowedUri", ROOT_URI.toString());
+	}
+
+	@BeforeEach
+	public void setup() {
+		mockHttp = mockStatic(IuHttp.class);
+	}
+
+	@AfterEach
+	public void teardown() {
+		mockHttp.close();
 	}
 
 }

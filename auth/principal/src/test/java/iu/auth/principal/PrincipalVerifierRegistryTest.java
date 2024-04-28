@@ -29,10 +29,10 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.util;
+package iu.auth.principal;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -42,65 +42,89 @@ import java.util.Set;
 import javax.security.auth.Subject;
 
 import org.junit.jupiter.api.Test;
-import org.opentest4j.AssertionFailedError;
 
 import edu.iu.IdGenerator;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
-import iu.auth.principal.PrincipalVerifierRegistry;
 
 @SuppressWarnings("javadoc")
 public class PrincipalVerifierRegistryTest {
+
+	private static final class TestId implements IuPrincipalIdentity {
+		private static final long serialVersionUID = 1L;
+
+		private final String realm;
+		private final String name = IdGenerator.generateId();
+
+		private TestId(String realm) {
+			this.realm = realm;
+		}
+
+		@Override
+		public String getName() {
+			return name;
+		}
+
+		@Override
+		public Subject getSubject() {
+			return new Subject(true, Set.of(this), Set.of(), Set.of());
+		}
+
+		@Override
+		public void revoke() {
+		}
+	}
+
+	private static final class Verifier implements PrincipalVerifier<TestId> {
+		private final String realm;
+		private final boolean authoritative;
+
+		private Verifier(String realm, boolean authoritative) {
+			this.realm = realm;
+			this.authoritative = authoritative;
+		}
+
+		@Override
+		public Class<TestId> getType() {
+			return TestId.class;
+		}
+
+		@Override
+		public String getRealm() {
+			return realm;
+		}
+
+		@Override
+		public boolean isAuthoritative() {
+			return authoritative;
+		}
+
+		@Override
+		public void verify(TestId id, String realm) {
+			assertEquals(realm, id.realm);
+		}
+	}
+
+	@Test
+	public void testFinalImpl() {
+		assertThrows(IllegalArgumentException.class,
+				() -> PrincipalVerifierRegistry.requireFinalImpl(IuPrincipalIdentity.class));
+	}
 
 	@Test
 	public void testRegisterVerfier() throws IuAuthenticationException {
 		final var realm = IdGenerator.generateId();
 		assertFalse(PrincipalVerifierRegistry.isAuthoritative(realm));
 
-		final var id = mock(IuPrincipalIdentity.class);
-		assertThrows(NullPointerException.class, () -> IuPrincipalIdentity.verify(id, realm));
-
-		PrincipalVerifierRegistry.registerVerifier(realm, a -> assertSame(a, id), true);
-		assertThrows(IllegalStateException.class, () -> PrincipalVerifierRegistry.registerVerifier(realm, a -> {
-		}, true));
-		IuPrincipalIdentity.verify(id, realm);
+		PrincipalVerifierRegistry.registerVerifier(new Verifier(realm, true));
 		assertTrue(PrincipalVerifierRegistry.isAuthoritative(realm));
 
-		assertThrows(AssertionFailedError.class,
-				() -> IuPrincipalIdentity.verify(mock(IuPrincipalIdentity.class), realm));
-	}
-
-	@Test
-	public void testRegisterDelegate() throws IuAuthenticationException {
-		final var realm = IdGenerator.generateId();
-		final var id = mock(IuPrincipalIdentity.class);
-		assertThrows(NullPointerException.class, () -> IuPrincipalIdentity.verify(id, realm));
-
-		class TestId implements IuPrincipalIdentity {
-			private static final long serialVersionUID = 1L;
-
-			@Override
-			public String getName() {
-				return id.getName();
-			}
-
-			@Override
-			public Subject getSubject() {
-				return new Subject(true, Set.of(this), Set.of(), Set.of());
-			}
-
-			@Override
-			public void revoke() {
-
-			}
-		}
-
-		PrincipalVerifierRegistry.registerVerifier(realm, a -> assertSame(a, id), false);
-		PrincipalVerifierRegistry.registerDelegate(TestId.class, a -> id);
 		assertThrows(IllegalStateException.class,
-				() -> PrincipalVerifierRegistry.registerDelegate(TestId.class, a -> id));
-		IuPrincipalIdentity.verify(new TestId(), realm);
-		assertFalse(PrincipalVerifierRegistry.isAuthoritative(realm));
+				() -> PrincipalVerifierRegistry.registerVerifier(new Verifier(realm, false)));
+		assertTrue(IuPrincipalIdentity.verify(new TestId(realm), realm));
+
+		assertThrows(ClassCastException.class,
+				() -> IuPrincipalIdentity.verify(mock(IuPrincipalIdentity.class), realm));
 	}
 
 }

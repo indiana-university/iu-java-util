@@ -31,7 +31,6 @@
  */
 package edu.iu.auth.oauth;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -43,7 +42,6 @@ import java.net.URI;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.spi.IuOAuthSpi;
 import iu.auth.IuAuthSpiFactory;
 
@@ -75,8 +73,6 @@ public class IuAuthorizationClientTest {
 		assertNull(client.getRedirectUri());
 		assertNull(client.getAuthorizationCodeAttributes());
 		assertNull(client.getClientCredentialsAttributes());
-		final var a = mock(IuApiCredentials.class);
-		assertDoesNotThrow(() -> client.revoke(a));
 	}
 
 }
