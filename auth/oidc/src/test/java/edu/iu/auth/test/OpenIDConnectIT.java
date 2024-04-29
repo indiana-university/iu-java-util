@@ -128,7 +128,7 @@ public class OpenIDConnectIT {
 
 			@Override
 			public Iterable<String> getScope() {
-				return List.of("profile", "email", "roles");
+				return List.of("profile", "email", "roles", "offline_access");
 			}
 
 			@Override

@@ -76,11 +76,6 @@ final class PkiPrincipal implements IuPkiPrincipal {
 	}
 
 	@Override
-	public void revoke() {
-		key = null;
-	}
-
-	@Override
 	public String toString() {
 		final var sb = new StringBuilder();
 		if (key == null //

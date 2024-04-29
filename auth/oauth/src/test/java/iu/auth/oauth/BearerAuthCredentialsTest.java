@@ -35,12 +35,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import java.net.http.HttpRequest;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -60,7 +59,7 @@ public class BearerAuthCredentialsTest {
 		final var accessToken = IdGenerator.generateId();
 		final var principal = new MockPrincipal(realm);
 
-		final var auth = new BearerToken(realm, principal, Set.of(), accessToken);
+		final var auth = new BearerToken(realm, principal, Set.of(), accessToken, Instant.now().plusSeconds(1L));
 		assertNotNull(auth.toString());
 		assertEquals(accessToken, auth.getAccessToken());
 		assertSame(principal, auth.getSubject().getPrincipals().iterator().next());
@@ -70,10 +69,6 @@ public class BearerAuthCredentialsTest {
 		final var req = mock(HttpRequest.Builder.class);
 		auth.applyTo(req);
 		verify(req).header("Authorization", "Bearer " + accessToken);
-
-		auth.revoke();
-		assertTrue(principal.revoked);
-		assertThrows(IuAuthenticationException.class, () -> auth.applyTo(req));
 	}
 
 	@Test
@@ -83,7 +78,7 @@ public class BearerAuthCredentialsTest {
 		for (final var t : List.of(IdGenerator.generateId(), IdGenerator.generateId()))
 			for (final var p : List.of(new MockPrincipal(realm), new MockPrincipal(realm)))
 				for (final var s : List.of(Set.of("foo"), Set.of("bar")))
-					creds.add(new BearerToken(realm, p, s, t));
+					creds.add(new BearerToken(realm, p, s, t, Instant.now().plusSeconds(1L)));
 		for (int i = 0; i < creds.size(); i++)
 			for (int j = 0; j < creds.size(); j++) {
 				final var ai = creds.get(i);

@@ -72,7 +72,7 @@ final class MockPrincipal implements IuPrincipalIdentity {
 
 		@Override
 		public void verify(MockPrincipal id, String realm) throws IuAuthenticationException {
-			if (id.revoked || !this.realm.equals(realm))
+			if (!this.realm.equals(realm))
 				throw new IuAuthenticationException("Bearer realm=\"" + realm + "\"");
 		}
 	}
@@ -84,7 +84,6 @@ final class MockPrincipal implements IuPrincipalIdentity {
 	private final String realm;
 	private final String name = IdGenerator.generateId();
 	private final Set<Principal> additionalPrincipals = new LinkedHashSet<>();
-	boolean revoked;
 
 	public MockPrincipal(String realm) {
 		this.realm = realm;
@@ -98,11 +97,6 @@ final class MockPrincipal implements IuPrincipalIdentity {
 	@Override
 	public int hashCode() {
 		return IuObject.hashCode(name);
-	}
-
-	@Override
-	public void revoke() {
-		revoked = true;
 	}
 
 	@Override

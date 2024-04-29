@@ -73,11 +73,6 @@ final class BasicAuthCredentials implements IuBasicAuthCredentials {
 	private final Instant expires;
 
 	/**
-	 * Revoked flag.
-	 */
-	private boolean revoked;
-
-	/**
 	 * Constructor.
 	 * 
 	 * @param name      username
@@ -125,23 +120,9 @@ final class BasicAuthCredentials implements IuBasicAuthCredentials {
 	}
 
 	@Override
-	public void revoke() {
-		revoked = true;
-	}
-
-	@Override
 	public void applyTo(Builder httpRequestBuilder) {
 		httpRequestBuilder.header("Authorization", "Basic " + Base64.getUrlEncoder()
 				.encodeToString(IuException.unchecked(() -> (getName() + ':' + password).getBytes(charset))));
-	}
-
-	/**
-	 * Gets the revoked flag.
-	 * 
-	 * @return revoked flag
-	 */
-	boolean revoked() {
-		return revoked;
 	}
 
 }

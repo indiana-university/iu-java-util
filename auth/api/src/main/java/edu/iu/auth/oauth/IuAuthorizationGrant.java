@@ -56,15 +56,4 @@ public interface IuAuthorizationGrant {
 	 */
 	IuApiCredentials authorize(URI resourceUri) throws IuAuthenticationException;
 
-	/**
-	 * Revokes all established credentials, forcing direct interaction with the
-	 * authorization server on the next use.
-	 * 
-	 * <p>
-	 * Implementations <em>should</em> delegate credentials revocation to the
-	 * authorization server, if support.
-	 * </p>
-	 */
-	void revoke();
-
 }

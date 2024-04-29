@@ -48,8 +48,10 @@ import java.net.URISyntaxException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublisher;
 import java.net.http.HttpRequest.BodyPublishers;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
 
@@ -113,8 +115,10 @@ public class AuthorizationSessionTest extends IuOAuthTestCase {
 
 	@Test
 	public void testAuthorize() throws URISyntaxException, IuAuthenticationException {
+		final var idRealm = IdGenerator.generateId();
+		MockPrincipal.registerVerifier(idRealm);
+
 		final var realm = IdGenerator.generateId();
-		MockPrincipal.registerVerifier(realm);
 		final var resourceUri = new URI("foo:/bar");
 		final var redirectUri = new URI("foo:/baz");
 		final var authEndpointUri = new URI("foo:/authorize");
@@ -125,6 +129,7 @@ public class AuthorizationSessionTest extends IuOAuthTestCase {
 		final var principal = new MockPrincipal(realm);
 		when(clientCredentials.getName()).thenReturn(clientId);
 		when(client.getRealm()).thenReturn(realm);
+		when(client.getPrincipalRealms()).thenReturn(Set.of(idRealm));
 		when(client.getResourceUri()).thenReturn(resourceUri);
 		when(client.getRedirectUri()).thenReturn(redirectUri);
 		when(client.getAuthorizationEndpoint()).thenReturn(authEndpointUri);
@@ -132,6 +137,7 @@ public class AuthorizationSessionTest extends IuOAuthTestCase {
 		when(client.getAuthorizationCodeAttributes()).thenReturn(Map.of("foo", "bar"));
 		when(client.getScope()).thenReturn(List.of("foo", "bar"));
 		when(client.getCredentials()).thenReturn(clientCredentials);
+		when(client.getAuthorizationTimeToLive()).thenReturn(Duration.ofSeconds(5L));
 		when(client.verify(any())).thenReturn(principal);
 		when(client.verify(any(), any())).thenReturn(principal);
 		IuAuthorizationClient.initialize(client);

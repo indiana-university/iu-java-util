@@ -75,7 +75,7 @@ class AuthorizationSession implements IuAuthorizationSession, Serializable {
 
 	@Override
 	public synchronized IuAuthorizationGrant grant(URI resourceUri) {
-		if (!OAuthSpi.isRoot(OAuthSpi.getClient(realm).getResourceUri(), resourceUri))
+		if (!IuWebUtils.isRootOf(OAuthSpi.getClient(realm).getResourceUri(), resourceUri))
 			throw new IllegalArgumentException("Invalid resource URI for this client");
 
 		var grant = grants.get(resourceUri);

@@ -73,11 +73,29 @@ public interface IuAuthorizationClient {
 	}
 
 	/**
-	 * Gets the authentication realm.
+	 * Gets the bearer authentication realm.
+	 * 
+	 * <p>
+	 * The bearer authentication realm typically refers the client application's
+	 * resource URI or session authorization endpoint.
+	 * </p>
 	 * 
 	 * @return authentication realm
 	 */
 	String getRealm();
+
+	/**
+	 * Gets supported token principal authentication realms.
+	 * 
+	 * <p>
+	 * To allow client credentials flow, include {@link #getRealm() the bearer
+	 * authentication realm}. For authorization code flow, indicate the delegated
+	 * authentication realm, typically the authorization server's resource URI or
+	 * authorization endpoint.
+	 * 
+	 * @return token principal authentication realms
+	 */
+	Iterable<String> getPrincipalRealms();
 
 	/**
 	 * Gets the maximum length of time to allow for authentication, including
@@ -147,7 +165,11 @@ public interface IuAuthorizationClient {
 	 * </p>
 	 * 
 	 * @param tokenResponse unverified token response
-	 * @return {@link IuPrincipalIdentity}
+	 * @return {@link IuPrincipalIdentity} valid for a {@link #getPrincipalRealms()
+	 *         principal authentication realm} other than the bearer authentication
+	 *         realm if the response to an authorization code request; null or equal
+	 *         to {@link #getCredentials()} if in response to a client credentials
+	 *         request.
 	 * @throws IuAuthenticationException If the token response is invalid (i.e.,
 	 *                                   expired or revoked) for the authentication
 	 *                                   realm and the user or remote client
@@ -171,8 +193,8 @@ public interface IuAuthorizationClient {
 	 * @param refreshTokenResponse  refresh token response
 	 * @param originalTokenResponse {@link #verify(IuTokenResponse) verified} token
 	 *                              response previously
-	 * 
-	 * @return {@link IuPrincipalIdentity}
+	 * @return {@link IuPrincipalIdentity} valid for a {@link #getPrincipalRealms()
+	 *         principal authentication realm}
 	 * @throws IuAuthenticationException If the token response is invalid (i.e.,
 	 *                                   expired or revoked) for the authentication
 	 *                                   realm and the user or remote client

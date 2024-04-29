@@ -47,7 +47,6 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.IuExpiredCredentialsException;
 import edu.iu.auth.basic.IuBasicAuthCredentials;
 
 @SuppressWarnings("javadoc")
@@ -137,31 +136,19 @@ public class ClientCredentialsSourceTest {
 		credentials.offer(new BasicAuthCredentials(futureId, secret, "US-ASCII", now.plus(Period.ofDays(1)), expires));
 		final var cc = new ClientCredentialSource(realm, credentials, Duration.ofSeconds(5L));
 		assertDoesNotThrow(() -> cc.verify((BasicAuthCredentials) IuApiCredentials.basic(id, secret), realm));
-		assertEquals("Basic realm=\"" + realm + "\" charset=\"US-ASCII\"",
-				assertThrows(IuAuthenticationException.class,
-						() -> cc.verify(
-								(BasicAuthCredentials) IuApiCredentials.basic(IdGenerator.generateId(), secret),
-								realm))
-						.getMessage());
-		assertEquals("Basic realm=\"" + realm + "\" charset=\"US-ASCII\"",
-				assertThrows(IuAuthenticationException.class,
-						() -> cc.verify(
-								(BasicAuthCredentials) IuApiCredentials.basic(id, IdGenerator.generateId()),
-								realm))
-						.getMessage());
+		assertEquals("Basic realm=\"" + realm + "\" charset=\"US-ASCII\"", assertThrows(IuAuthenticationException.class,
+				() -> cc.verify((BasicAuthCredentials) IuApiCredentials.basic(IdGenerator.generateId(), secret), realm))
+				.getMessage());
+		assertEquals("Basic realm=\"" + realm + "\" charset=\"US-ASCII\"", assertThrows(IuAuthenticationException.class,
+				() -> cc.verify((BasicAuthCredentials) IuApiCredentials.basic(id, IdGenerator.generateId()), realm))
+				.getMessage());
 		assertEquals("Basic realm=\"" + realm + "\" charset=\"US-ASCII\"",
 				assertThrows(IuAuthenticationException.class,
 						() -> cc.verify((BasicAuthCredentials) IuApiCredentials.basic(futureId, secret), realm))
 						.getMessage());
 		assertEquals("Basic realm=\"" + realm + "\" charset=\"US-ASCII\"",
-				assertThrows(IuExpiredCredentialsException.class,
+				assertThrows(IuAuthenticationException.class,
 						() -> cc.verify((BasicAuthCredentials) IuApiCredentials.basic(expiredId, secret), realm))
-						.getMessage());
-
-		final var basic = IuApiCredentials.basic(realm, id, secret);
-		basic.revoke();
-		assertEquals("Basic realm=\"" + realm + "\" charset=\"US-ASCII\"",
-				assertThrows(IuAuthenticationException.class, () -> cc.verify((BasicAuthCredentials) basic, realm))
 						.getMessage());
 	}
 

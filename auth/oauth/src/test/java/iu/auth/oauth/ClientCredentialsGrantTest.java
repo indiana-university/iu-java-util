@@ -162,20 +162,6 @@ public class ClientCredentialsGrantTest extends IuOAuthTestCase {
 			assertEquals(principal.getName(), cred.getName());
 			assertSame(cred, grant.authorize(uri));
 
-			grant.revoke();
-			grant.revoke(); // verify no-op
-			assertTrue(principal.revoked);
-
-			IuTestLogger.expect("iu.auth.oauth.ClientCredentialsGrant", Level.FINE,
-					"Authorization required, initiating client credentials flow for " + realm);
-			final var cred2 = grant.authorize(uri);
-			mockBodyPublishers.verify(() -> BodyPublishers.ofString(payload), times(2));
-			verify(hrb, times(2)).header("Content-Type", "application/x-www-form-urlencoded");
-			verify(hrb, times(2)).POST(bp);
-			verify(clientCredentials, times(2)).applyTo(hrb);
-			assertInstanceOf(IuBearerToken.class, cred2);
-			assertNotSame(cred, cred2);
-			assertEquals(principal.getName(), cred2.getName());
 		}
 	}
 
@@ -183,13 +169,10 @@ public class ClientCredentialsGrantTest extends IuOAuthTestCase {
 	public void testAuthorizeWithScopeExpiresAndExtras()
 			throws URISyntaxException, IuAuthenticationException, InterruptedException {
 		final var realm = IdGenerator.generateId();
-		MockPrincipal.registerVerifier(realm);
-
 		final var uri = new URI("foo:/bar");
 		final var tokenEndpoint = new URI("foo:/token");
 		final var client = mock(IuAuthorizationClient.class);
-		final var clientCredentials = mock(IuApiCredentials.class);
-		final var principal = new MockPrincipal(realm);
+		final var clientCredentials = new MockClientCredentials();
 
 		when(client.getRealm()).thenReturn(realm);
 		when(client.getResourceUri()).thenReturn(uri);
@@ -197,7 +180,6 @@ public class ClientCredentialsGrantTest extends IuOAuthTestCase {
 		when(client.getCredentials()).thenReturn(clientCredentials);
 		when(client.getScope()).thenReturn(List.of("foobar"));
 		when(client.getClientCredentialsAttributes()).thenReturn(Map.of("foo", "bar"));
-		when(client.verify(any())).thenReturn(principal);
 		when(client.getAuthorizationTimeToLive()).thenReturn(Duration.ofSeconds(15L));
 		IuAuthorizationClient.initialize(client);
 
@@ -227,7 +209,7 @@ public class ClientCredentialsGrantTest extends IuOAuthTestCase {
 			verify(hrb).POST(bp);
 			verify(clientCredentials).applyTo(hrb);
 
-			assertEquals(principal.getName(), cred.getName());
+			assertEquals(clientCredentials.getName(), cred.getName());
 			assertTrue(cred.getScope().contains("foobar"));
 
 			assertSame(cred, grant.authorize(uri));
@@ -242,7 +224,7 @@ public class ClientCredentialsGrantTest extends IuOAuthTestCase {
 			verify(hrb, times(2)).POST(bp);
 			assertInstanceOf(IuBearerToken.class, cred2);
 			assertNotSame(cred, cred2);
-			assertEquals(principal.getName(), cred2.getName());
+			assertEquals(clientCredentials.getName(), cred2.getName());
 		}
 	}
 

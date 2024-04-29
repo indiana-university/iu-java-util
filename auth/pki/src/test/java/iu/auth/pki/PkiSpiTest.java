@@ -323,10 +323,6 @@ public class PkiSpiTest {
 
 		assertNotNull(sub.getPrivateCredentials(WebKey.class).iterator().next().getPrivateKey());
 		assertSerializable(pki);
-
-		pki.revoke();
-		assertThrows(IllegalArgumentException.class, () -> IuPrincipalIdentity.verify(pki, pki.getName()));
-		assertTrue(pki.toString().startsWith("Well-Known"));
 	}
 
 	@Test

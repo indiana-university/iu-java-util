@@ -42,7 +42,6 @@ import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.IuExpiredCredentialsException;
 import edu.iu.auth.basic.IuBasicAuthCredentials;
 import iu.auth.principal.PrincipalVerifier;
 
@@ -93,27 +92,18 @@ final class ClientCredentialSource implements PrincipalVerifier<BasicAuthCredent
 
 	@Override
 	public void verify(BasicAuthCredentials basic, String realm) throws IuAuthenticationException {
-		if (basic.revoked())
-			throw new IuAuthenticationException(challenge());
-		
 		final var name = Objects.requireNonNull(basic.getName(), "missing client id");
 		final var password = Objects.requireNonNull(basic.getPassword(), "missing client secret");
 		final var now = Instant.now();
 
-		BasicAuthCredentials expired = null;
-		for (final var credential : IuIterable.filter(clientCredentials, //
-				p -> p.getName().equals(name) //
-						&& p.getPassword().equals(password) //
-						&& !now.isBefore(p.getNotBefore())))
-			if (now.isBefore(credential.getExpires()))
+		for (final var credentials : clientCredentials) //
+			if (credentials.getName().equals(name) //
+					&& credentials.getPassword().equals(password) //
+					&& !now.isBefore(credentials.getNotBefore()) //
+					&& now.isBefore(credentials.getExpires()))
 				return;
-			else
-				expired = credential;
 
-		if (expired != null)
-			throw new IuExpiredCredentialsException(challenge());
-		else
-			throw new IuAuthenticationException(challenge());
+		throw new IuAuthenticationException(challenge());
 	}
 
 	/**

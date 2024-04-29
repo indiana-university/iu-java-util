@@ -32,6 +32,7 @@
 package iu.auth.oauth;
 
 import java.net.http.HttpRequest.Builder;
+import java.time.Instant;
 import java.util.Set;
 
 import javax.security.auth.Subject;
@@ -40,8 +41,6 @@ import edu.iu.IuObject;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuBearerToken;
-import iu.auth.principal.PrincipalDelegate;
-import iu.auth.principal.PrincipalVerifierRegistry;
 
 /**
  * {@link IuBearerToken} implementation.
@@ -49,23 +48,6 @@ import iu.auth.principal.PrincipalVerifierRegistry;
 final class BearerToken implements IuBearerToken {
 
 	private static final long serialVersionUID = 1L;
-
-	private final static class Delegate implements PrincipalDelegate<BearerToken> {
-		@Override
-		public Class<BearerToken> getType() {
-			return BearerToken.class;
-		}
-
-		@Override
-		public IuPrincipalIdentity unwrap(BearerToken bearer) throws IuAuthenticationException {
-			return bearer.id;
-		}
-	}
-
-	static {
-		IuObject.assertNotOpen(BearerToken.class);
-		PrincipalVerifierRegistry.registerDelegate(new Delegate());
-	}
 
 	/**
 	 * Principal authentication realm.
@@ -88,31 +70,44 @@ final class BearerToken implements IuBearerToken {
 	private final String accessToken;
 
 	/**
+	 * Expiration time.
+	 */
+	private final Instant expires;
+
+	/**
 	 * Constructor.
 	 * 
-	 * @param realm       authentication realm
+	 * @param realm       principal authentication realm
 	 * @param id          verified principal identity
 	 * @param scope       authorized scope
 	 * @param accessToken access token
+	 * @param expires     point in time the token expires
 	 * @throws IuAuthenticationException If the subject's identifying principal
 	 *                                   could not be verified
 	 */
-	BearerToken(String realm, IuPrincipalIdentity id, Set<String> scope, String accessToken)
+	BearerToken(String realm, IuPrincipalIdentity id, Set<String> scope, String accessToken, Instant expires)
 			throws IuAuthenticationException {
 		this.realm = realm;
 		this.id = id;
 		this.scope = scope;
 		this.accessToken = accessToken;
+		this.expires = expires;
 	}
 
 	@Override
 	public String getName() {
-		return id.getName();
+		if (id == null)
+			return OAuthSpi.getClient(realm).getCredentials().getName();
+		else
+			return id.getName();
 	}
 
 	@Override
 	public Subject getSubject() {
-		return id.getSubject();
+		if (id == null)
+			return new Subject(true, Set.of(this), Set.of(), Set.of());
+		else
+			return id.getSubject();
 	}
 
 	@Override
@@ -123,11 +118,6 @@ final class BearerToken implements IuBearerToken {
 	@Override
 	public String getAccessToken() {
 		return accessToken;
-	}
-
-	@Override
-	public void revoke() {
-		id.revoke();
 	}
 
 	@Override
@@ -154,6 +144,33 @@ final class BearerToken implements IuBearerToken {
 		return IuObject.equals(accessToken, other.accessToken) //
 				&& IuObject.equals(id, other.id) //
 				&& IuObject.equals(scope, other.scope);
+	}
+
+	/**
+	 * Gets the principal authentication realm.
+	 * 
+	 * @return principal authentication realm
+	 */
+	String realm() {
+		return realm;
+	}
+
+	/**
+	 * Determines if this bearer token has expired.
+	 * 
+	 * @return true if expired; else false
+	 */
+	boolean expired() {
+		return !Instant.now().isBefore(expires);
+	}
+
+	/**
+	 * Verifies the principal identify this bearer token refers to.
+	 * 
+	 * @throws IuAuthenticationException If principal verification fails
+	 */
+	void verifyPrincipal() throws IuAuthenticationException {
+		IuPrincipalIdentity.verify(id, realm);
 	}
 
 }

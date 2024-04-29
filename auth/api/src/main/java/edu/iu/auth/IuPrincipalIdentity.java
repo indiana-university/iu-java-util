@@ -51,9 +51,9 @@ public interface IuPrincipalIdentity extends Principal, Serializable {
 	 * @param id    principal identity
 	 * @param realm authentication realm
 	 * @return true if verification was successful <em>and</em> the authorization
-	 *          module is considered authoritative for the authentication realm;
-	 *          false if verification was successful <em>but</em> based solely on
-	 *          well-known information about the authentication provider.
+	 *         module is considered authoritative for the authentication realm;
+	 *         false if verification was successful <em>but</em> based solely on
+	 *         well-known information about the authentication provider.
 	 * @throws IuAuthenticationException If credentials could not be verified
 	 */
 	static boolean verify(IuPrincipalIdentity id, String realm) throws IuAuthenticationException {
@@ -67,16 +67,6 @@ public interface IuPrincipalIdentity extends Principal, Serializable {
 	 * @return {@link Subject}
 	 */
 	Subject getSubject();
-
-	/**
-	 * Revokes (logs out) an authoritative principal from the application.
-	 * 
-	 * <p>
-	 * This method has no effect if the principal was not established from an
-	 * authoritative source.
-	 * </p>
-	 */
-	void revoke();
 
 	@Override
 	default boolean implies(Subject subject) {

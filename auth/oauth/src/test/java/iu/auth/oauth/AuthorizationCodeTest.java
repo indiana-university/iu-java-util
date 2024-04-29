@@ -74,6 +74,7 @@ import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuBearerToken;
 import edu.iu.client.IuHttp;
 import edu.iu.test.IuTestLogger;
+import iu.auth.principal.PrincipalVerifierRegistry;
 import jakarta.json.Json;
 
 @SuppressWarnings("javadoc")
@@ -199,8 +200,11 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 	@Test
 	public void testFullAuthLifecycle() throws URISyntaxException, IuAuthenticationException, InterruptedException,
 			IOException, ClassNotFoundException {
+		final var idrealm = IdGenerator.generateId();
+		MockPrincipal.registerVerifier(idrealm);
+
 		final var realm = IdGenerator.generateId();
-		MockPrincipal.registerVerifier(realm);
+		PrincipalVerifierRegistry.registerVerifier(new BearerTokenVerifier(realm, null));
 
 		final var resourceUri = new URI("foo:/bar");
 		final var redirectUri = new URI("foo:/baz");

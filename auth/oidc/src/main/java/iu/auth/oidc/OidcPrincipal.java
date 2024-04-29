@@ -68,11 +68,6 @@ final class OidcPrincipal implements IuOpenIdPrincipal {
 	}
 
 	@Override
-	public void revoke() {
-		revoked = true;
-	}
-
-	@Override
 	public int hashCode() {
 		return IuObject.hashCode(name, realm);
 	}

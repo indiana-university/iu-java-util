@@ -32,8 +32,6 @@
 package iu.auth.basic;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -63,10 +61,6 @@ public class BasicAuthCredentialsTest {
 		auth.applyTo(req);
 		verify(req).header("Authorization",
 				"Basic " + Base64.getEncoder().encodeToString(IuText.ascii(name + ":" + password)));
-
-		assertFalse(auth.revoked());
-		auth.revoke();
-		assertTrue(auth.revoked());
 	}
 
 	@Test

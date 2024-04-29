@@ -32,6 +32,7 @@
 package iu.auth.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mockStatic;
 
 import java.net.URI;
@@ -58,7 +59,7 @@ public class AccessTokenVerifierTest {
 		assertAccessToken("ES256");
 		assertAccessToken("ES384");
 		assertAccessToken("ES512");
-		assertAccessToken("PS256");
+		assertThrows(UnsupportedOperationException.class, () -> assertAccessToken("PS256"));
 	}
 
 	private void assertAccessToken(String algorithm) throws Exception {
@@ -72,24 +73,9 @@ public class AccessTokenVerifierTest {
 				.build();
 		final Iterable<? extends WebKey> jwks = Set.of(jwk);
 
-		final String accessToken;
-//
-//		if (algorithm.startsWith("RS")) {
-//			final var jwtSignAlgorithm = (Algorithm) Algorithm.class
-//					.getMethod("RSA" + algorithm.substring(2), RSAPublicKey.class, RSAPrivateKey.class)
-//					.invoke(null, jwk.getPublicKey(), jwk.getPrivateKey());
-//			accessToken = JWT.create().withKeyId("defaultSign").withIssuer(iss).withAudience(aud).withIssuedAt(iat)
-//					.withExpiresAt(exp).withClaim("nonce", nonce).sign(jwtSignAlgorithm);
-//		} else if (algorithm.startsWith("ES")) {
-//			final var jwtSignAlgorithm = (Algorithm) Algorithm.class
-//					.getMethod("ECDSA" + algorithm.substring(2), ECPublicKey.class, ECPrivateKey.class)
-//					.invoke(null, jwk.getPublicKey(), jwk.getPrivateKey());
-//			accessToken = JWT.create().withKeyId("defaultSign").withIssuer(iss).withAudience(aud).withIssuedAt(iat)
-//					.withExpiresAt(exp).withClaim("nonce", nonce).sign(jwtSignAlgorithm);
-//		} else
-		accessToken = WebSignature.builder(jwk.getAlgorithm()).key(jwk).keyId("defaultSign").compact()
+		final String accessToken = WebSignature.builder(jwk.getAlgorithm()).key(jwk).keyId("defaultSign").compact()
 				.sign(IuJson.object().add("iss", iss).add("aud", IuJson.array().add(aud))
-						.add("iat", iat.getEpochSecond()).add("exp", iat.getEpochSecond()).add("nonce", nonce).build()
+						.add("iat", iat.getEpochSecond()).add("exp", exp.getEpochSecond()).add("nonce", nonce).build()
 						.toString())
 				.compact();
 

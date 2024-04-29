@@ -72,20 +72,6 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 					throw new IllegalStateException("Expected response to include Cache-Control = no-store header");
 			});
 
-	private final class AuthorizedCredentials {
-		private final IuApiCredentials credentials;
-		private final Instant expires;
-
-		private AuthorizedCredentials(IuApiCredentials credentials, Duration timeToLive) {
-			this.credentials = credentials;
-			this.expires = Instant.now().plus(timeToLive);
-		}
-
-		private boolean isExpired() {
-			return Instant.now().isAfter(expires);
-		}
-	}
-
 	/**
 	 * Validates and converts a configured scope
 	 *
@@ -130,7 +116,7 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 	 */
 	protected final String realm;
 
-	private AuthorizedCredentials authorizedCredentials;
+	private BearerToken authorizedCredentials;
 
 	/**
 	 * Constructor.
@@ -142,24 +128,16 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 		this.validatedScope = validateScope(OAuthSpi.getClient(realm).getScope());
 	}
 
-	@Override
-	public final void revoke() {
-		final var authorizedCredentials = this.authorizedCredentials;
-		this.authorizedCredentials = null;
-		if (authorizedCredentials != null)
-			authorizedCredentials.credentials.revoke();
-	}
-
 	/**
 	 * Gets previously established API credentials.
 	 * 
 	 * @return {@link IuApiCredentials}
 	 */
-	protected IuApiCredentials getAuthorizedCredentials() {
+	protected BearerToken getAuthorizedCredentials() {
 		if (authorizedCredentials == null //
-				|| authorizedCredentials.isExpired())
+				|| authorizedCredentials.expired())
 			return null;
-		return authorizedCredentials.credentials;
+		return authorizedCredentials;
 	}
 
 	/**
@@ -203,25 +181,23 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 	 *         else false
 	 */
 	protected boolean isExpired() {
-		return authorizedCredentials != null && authorizedCredentials.isExpired();
+		return authorizedCredentials != null && authorizedCredentials.expired();
 	}
 
 	private IuBearerToken authorizeBearer(IuPrincipalIdentity principal, IuTokenResponse tokenResponse)
 			throws IuAuthenticationException {
 
-		IuPrincipalIdentity.verify(principal, realm);
-
 		final Set<String> scope = new LinkedHashSet<>();
 		tokenResponse.getScope().forEach(scope::add);
 
-		final var subject = principal.getSubject();
-		subject.setReadOnly();
-		for (final var p : subject.getPrincipals())
-			if (!(p instanceof Serializable))
-				throw new IllegalArgumentException("Principal must is not serializable",
-						new NotSerializableException(principal.getClass().getName()));
-
-		final var bearer = new BearerToken(realm, principal, scope, tokenResponse.getAccessToken());
+		if (principal != null) {
+			final var subject = principal.getSubject();
+			subject.setReadOnly();
+			for (final var p : subject.getPrincipals())
+				if (!(p instanceof Serializable))
+					throw new IllegalArgumentException("Principal must is not serializable",
+							new NotSerializableException(principal.getClass().getName()));
+		}
 
 		final var authTtl = OAuthSpi.getClient(realm).getAuthorizationTimeToLive();
 		var expires = tokenResponse.getExpiresIn();
@@ -230,8 +206,12 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 				|| expires.compareTo(authTtl) > 0)
 			expires = authTtl;
 
-		authorizedCredentials = new AuthorizedCredentials(bearer, expires);
-		return bearer;
+		final var bearer = new BearerToken(realm, principal, scope, tokenResponse.getAccessToken(),
+				Instant.now().plus(expires));
+		
+		IuPrincipalIdentity.verify(bearer, realm);
+		
+		return authorizedCredentials = bearer;
 	}
 
 }

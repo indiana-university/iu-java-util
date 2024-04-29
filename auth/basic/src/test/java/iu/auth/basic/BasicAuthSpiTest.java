@@ -45,7 +45,6 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.IuExpiredCredentialsException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.basic.IuBasicAuthCredentials;
 
@@ -80,7 +79,7 @@ public class BasicAuthSpiTest {
 		assertThrows(IuAuthenticationException.class,
 				() -> IuPrincipalIdentity.verify(IuApiCredentials.basic(id, "wrong password"), realm));
 		Thread.sleep(500L);
-		assertThrows(IuExpiredCredentialsException.class,
+		assertThrows(IuAuthenticationException.class,
 				() -> IuPrincipalIdentity.verify(IuApiCredentials.basic(id, secret), realm));
 	}
 

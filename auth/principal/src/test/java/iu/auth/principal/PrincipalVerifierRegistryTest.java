@@ -69,10 +69,6 @@ public class PrincipalVerifierRegistryTest {
 		public Subject getSubject() {
 			return new Subject(true, Set.of(this), Set.of(), Set.of());
 		}
-
-		@Override
-		public void revoke() {
-		}
 	}
 
 	private static final class Verifier implements PrincipalVerifier<TestId> {
