@@ -35,8 +35,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.net.http.HttpRequest;
 import java.time.Instant;
@@ -48,12 +51,40 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.oauth.IuAuthorizationClient;
 
 @SuppressWarnings("javadoc")
-public class BearerAuthCredentialsTest {
+public class BearerTokenTest {
 
 	@Test
-	public void testAccessToken() throws IuAuthenticationException {
+	public void testAccessTokenOnly() throws IuAuthenticationException, InterruptedException {
+		final var realm = IdGenerator.generateId();
+		final var accessToken = IdGenerator.generateId();
+		final var clientCredentials = new MockClientCredentials();
+
+		final var client = mock(IuAuthorizationClient.class);
+		when(client.getCredentials()).thenReturn(clientCredentials);
+
+		try (final var mockSpi = mockStatic(OAuthSpi.class)) {
+			mockSpi.when(() -> OAuthSpi.getClient(realm)).thenReturn(client);
+			final var auth = new BearerToken(realm, null, Set.of(), accessToken, Instant.now().plusSeconds(1L));
+			assertNotNull(auth.toString());
+			assertEquals(accessToken, auth.getAccessToken());
+			assertSame(auth, auth.getSubject().getPrincipals().iterator().next());
+			assertEquals(clientCredentials.getName(), auth.getName());
+			assertEquals(Set.of(), auth.getScope());
+
+			final var req = mock(HttpRequest.Builder.class);
+			auth.applyTo(req);
+			verify(req).header("Authorization", "Bearer " + accessToken);
+
+			Thread.sleep(1000L);
+			assertThrows(IllegalStateException.class, () -> auth.applyTo(req));
+		}
+	}
+
+	@Test
+	public void testAccessToken() throws IuAuthenticationException, InterruptedException {
 		final var realm = IdGenerator.generateId();
 		MockPrincipal.registerVerifier(realm);
 		final var accessToken = IdGenerator.generateId();
@@ -69,13 +100,16 @@ public class BearerAuthCredentialsTest {
 		final var req = mock(HttpRequest.Builder.class);
 		auth.applyTo(req);
 		verify(req).header("Authorization", "Bearer " + accessToken);
+
+		Thread.sleep(1000L);
+		assertThrows(IllegalStateException.class, () -> auth.applyTo(req));
 	}
 
 	@Test
 	public void testEquals() throws IuAuthenticationException {
-		final var realm = IdGenerator.generateId();
+		final var t = IdGenerator.generateId();
 		final List<BearerToken> creds = new ArrayList<>();
-		for (final var t : List.of(IdGenerator.generateId(), IdGenerator.generateId()))
+		for (final var realm : List.of(IdGenerator.generateId(), IdGenerator.generateId()))
 			for (final var p : List.of(new MockPrincipal(realm), new MockPrincipal(realm)))
 				for (final var s : List.of(Set.of("foo"), Set.of("bar")))
 					creds.add(new BearerToken(realm, p, s, t, Instant.now().plusSeconds(1L)));

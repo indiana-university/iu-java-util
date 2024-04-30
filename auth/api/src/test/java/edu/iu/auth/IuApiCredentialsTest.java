@@ -46,7 +46,6 @@ public class IuApiCredentialsTest {
 
 	@Test
 	public void testBasicAuth() {
-		final var realm = IdGenerator.generateId();
 		final var name = IdGenerator.generateId();
 		final var password = IdGenerator.generateId();
 		final var basicAuthSpi = mock(IuBasicAuthSpi.class);

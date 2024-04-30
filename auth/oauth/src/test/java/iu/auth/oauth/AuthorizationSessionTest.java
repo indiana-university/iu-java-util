@@ -63,6 +63,7 @@ import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationSession;
+import edu.iu.auth.oauth.IuAuthorizedPrincipal;
 import edu.iu.client.IuHttp;
 import edu.iu.test.IuTestLogger;
 import jakarta.json.Json;
@@ -126,7 +127,6 @@ public class AuthorizationSessionTest extends IuOAuthTestCase {
 		final var client = mock(IuAuthorizationClient.class);
 		final var clientCredentials = mock(IuApiCredentials.class);
 		final var clientId = IdGenerator.generateId();
-		final var principal = new MockPrincipal(realm);
 		when(clientCredentials.getName()).thenReturn(clientId);
 		when(client.getRealm()).thenReturn(realm);
 		when(client.getPrincipalRealms()).thenReturn(Set.of(idRealm));
@@ -138,8 +138,14 @@ public class AuthorizationSessionTest extends IuOAuthTestCase {
 		when(client.getScope()).thenReturn(List.of("foo", "bar"));
 		when(client.getCredentials()).thenReturn(clientCredentials);
 		when(client.getAuthorizationTimeToLive()).thenReturn(Duration.ofSeconds(5L));
-		when(client.verify(any())).thenReturn(principal);
-		when(client.verify(any(), any())).thenReturn(principal);
+
+		final var principal = new MockPrincipal(realm);
+		final var authPrincipal = mock(IuAuthorizedPrincipal.class);
+		when(authPrincipal.getRealm()).thenReturn(idRealm);
+		when(authPrincipal.getPrincipal()).thenReturn(principal);
+
+		when(client.verify(any())).thenReturn(authPrincipal);
+		when(client.verify(any(), any())).thenReturn(authPrincipal);
 		IuAuthorizationClient.initialize(client);
 
 		final var entryPointUri = new URI("foo:/bar/baz");

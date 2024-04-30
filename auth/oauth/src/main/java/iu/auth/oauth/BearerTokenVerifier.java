@@ -57,21 +57,24 @@ final class BearerTokenVerifier implements PrincipalVerifier<BearerToken> {
 
 		for (final var idRealm : client.getPrincipalRealms())
 			if (id.realm().equals(idRealm))
-				if (id == id.getSubject().getPrincipals().iterator().next())
+				if (id == id.getSubject().getPrincipals().iterator().next()) {
 					if (realm.equals(idRealm))
 						return; // authoritative bearer token
 					else
-						throw challenge("invalid_token", "Invalid token for principal realm");
-				else {
+						break;
+				} else {
 					if (Boolean.TRUE.equals(loop.get()))
 						throw new IllegalStateException("illegal principal reference");
 					try {
 						loop.set(true);
 						id.verifyPrincipal();
+						return;
 					} finally {
 						loop.remove();
 					}
 				}
+
+		throw challenge("invalid_token", "Invalid token for principal realm");
 	}
 
 	private IuAuthenticationException challenge(String error, String errorDescription) {

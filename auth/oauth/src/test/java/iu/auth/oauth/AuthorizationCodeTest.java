@@ -60,6 +60,7 @@ import java.net.http.HttpRequest.BodyPublishers;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
 
@@ -71,10 +72,10 @@ import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuAuthorizationClient;
+import edu.iu.auth.oauth.IuAuthorizedPrincipal;
 import edu.iu.auth.oauth.IuBearerToken;
 import edu.iu.client.IuHttp;
 import edu.iu.test.IuTestLogger;
-import iu.auth.principal.PrincipalVerifierRegistry;
 import jakarta.json.Json;
 
 @SuppressWarnings("javadoc")
@@ -204,8 +205,6 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 		MockPrincipal.registerVerifier(idrealm);
 
 		final var realm = IdGenerator.generateId();
-		PrincipalVerifierRegistry.registerVerifier(new BearerTokenVerifier(realm, null));
-
 		final var resourceUri = new URI("foo:/bar");
 		final var redirectUri = new URI("foo:/baz");
 		final var authEndpointUri = new URI("foo:/authorize");
@@ -216,6 +215,7 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 		final var principal = new MockPrincipal(realm);
 		when(clientCredentials.getName()).thenReturn(clientId);
 		when(client.getRealm()).thenReturn(realm);
+		when(client.getPrincipalRealms()).thenReturn(Set.of(idrealm));
 		when(client.getResourceUri()).thenReturn(resourceUri);
 		when(client.getRedirectUri()).thenReturn(redirectUri);
 		when(client.getAuthorizationEndpoint()).thenReturn(authEndpointUri);
@@ -223,8 +223,12 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 		when(client.getAuthorizationCodeAttributes()).thenReturn(Map.of("foo", "bar"));
 		when(client.getScope()).thenReturn(List.of("foo", "bar"));
 		when(client.getCredentials()).thenReturn(clientCredentials);
-		when(client.verify(any())).thenReturn(principal);
-		when(client.verify(any(), any())).thenReturn(principal);
+		
+		final var authPrincipal = mock(IuAuthorizedPrincipal.class);
+		when(authPrincipal.getPrincipal()).thenReturn(principal);
+		when(authPrincipal.getRealm()).thenReturn(idrealm);
+		when(client.verify(any())).thenReturn(authPrincipal);
+		when(client.verify(any(), any())).thenReturn(authPrincipal);
 		when(client.getAuthorizationTimeToLive()).thenReturn(Duration.ofSeconds(15L));
 		IuAuthorizationClient.initialize(client);
 
@@ -352,17 +356,12 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 	@Test
 	public void testAuthNoRefresh() throws URISyntaxException, IuAuthenticationException, InterruptedException {
 		final var realm = IdGenerator.generateId();
-		MockPrincipal.registerVerifier(realm);
-
 		final var resourceUri = new URI("foo:/bar");
 		final var redirectUri = new URI("foo:/baz");
 		final var authEndpointUri = new URI("foo:/authorize");
 		final var tokenEndpointUri = new URI("foo:/token");
 		final var client = mock(IuAuthorizationClient.class);
-		final var clientCredentials = mock(IuApiCredentials.class);
-		final var clientId = IdGenerator.generateId();
-		final var principal = new MockPrincipal(realm);
-		when(clientCredentials.getName()).thenReturn(clientId);
+		final var clientCredentials = new MockClientCredentials();
 		when(client.getRealm()).thenReturn(realm);
 		when(client.getResourceUri()).thenReturn(resourceUri);
 		when(client.getRedirectUri()).thenReturn(redirectUri);
@@ -371,7 +370,16 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 		when(client.getAuthorizationCodeAttributes()).thenReturn(Map.of("foo", "bar"));
 		when(client.getScope()).thenReturn(List.of("foo", "bar"));
 		when(client.getCredentials()).thenReturn(clientCredentials);
-		when(client.verify(any())).thenReturn(principal);
+		
+		final var idrealm = IdGenerator.generateId();
+		when(client.getPrincipalRealms()).thenReturn(Set.of(idrealm));
+		MockPrincipal.registerVerifier(idrealm);
+		final var principal = new MockPrincipal(idrealm);
+		final var authPrincipal = mock(IuAuthorizedPrincipal.class);
+		when(authPrincipal.getPrincipal()).thenReturn(principal);
+		when(authPrincipal.getRealm()).thenReturn(idrealm);
+
+		when(client.verify(any())).thenReturn(authPrincipal);
 		when(client.getAuthorizationTimeToLive()).thenReturn(Duration.ofSeconds(15L));
 		IuAuthorizationClient.initialize(client);
 
@@ -385,7 +393,7 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 		assertTrue(matcher.matches(), authException::getMessage);
 		final var state = matcher.group(1);
 		assertEquals(
-				new URI("foo:/authorize?client_id=" + clientId
+				new URI("foo:/authorize?client_id=" + clientCredentials.getName()
 						+ "&response_type=code&redirect_uri=foo%3A%2Fbaz&scope=foo+bar&state=" + state + "&foo=bar"),
 				authException.getLocation());
 
@@ -413,8 +421,8 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 			final var cred = grant.authorize(resourceUri);
 			mockBodyPublishers.verify(() -> BodyPublishers.ofString(payload));
 			verify(hrb).header("Content-Type", "application/x-www-form-urlencoded");
+			verify(hrb).header("Authorization", "Mock " + clientCredentials.getName());
 			verify(hrb).POST(bp);
-			verify(clientCredentials).applyTo(hrb);
 			assertInstanceOf(IuBearerToken.class, cred);
 			assertEquals(principal.getName(), cred.getName());
 			assertSame(cred, grant.authorize(resourceUri));
@@ -433,7 +441,7 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 		final var state2 = matcher2.group(1);
 		assertNotEquals(state, state2);
 		assertEquals(
-				new URI("foo:/authorize?client_id=" + clientId
+				new URI("foo:/authorize?client_id=" + clientCredentials.getName()
 						+ "&response_type=code&redirect_uri=foo%3A%2Fbaz&scope=foo+bar&state=" + state2 + "&foo=bar"),
 				authException2.getLocation());
 
@@ -442,17 +450,12 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 	@Test
 	public void testAuthRefreshFails() throws URISyntaxException, IuAuthenticationException, InterruptedException {
 		final var realm = IdGenerator.generateId();
-		MockPrincipal.registerVerifier(realm);
-
 		final var resourceUri = new URI("foo:/bar");
 		final var redirectUri = new URI("foo:/baz");
 		final var authEndpointUri = new URI("foo:/authorize");
 		final var tokenEndpointUri = new URI("foo:/token");
 		final var client = mock(IuAuthorizationClient.class);
-		final var clientCredentials = mock(IuApiCredentials.class);
-		final var clientId = IdGenerator.generateId();
-		final var principal = new MockPrincipal(realm);
-		when(clientCredentials.getName()).thenReturn(clientId);
+		final var clientCredentials = new MockClientCredentials();
 		when(client.getRealm()).thenReturn(realm);
 		when(client.getResourceUri()).thenReturn(resourceUri);
 		when(client.getRedirectUri()).thenReturn(redirectUri);
@@ -461,7 +464,16 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 		when(client.getAuthorizationCodeAttributes()).thenReturn(Map.of("foo", "bar"));
 		when(client.getScope()).thenReturn(List.of("foo", "bar"));
 		when(client.getCredentials()).thenReturn(clientCredentials);
-		when(client.verify(any())).thenReturn(principal);
+		
+		final var idrealm = IdGenerator.generateId();
+		when(client.getPrincipalRealms()).thenReturn(Set.of(idrealm));
+		MockPrincipal.registerVerifier(idrealm);
+		final var principal = new MockPrincipal(idrealm);
+		final var authPrincipal = mock(IuAuthorizedPrincipal.class);
+		when(authPrincipal.getPrincipal()).thenReturn(principal);
+		when(authPrincipal.getRealm()).thenReturn(idrealm);
+
+		when(client.verify(any())).thenReturn(authPrincipal);
 		when(client.getAuthorizationTimeToLive()).thenReturn(Duration.ofSeconds(15L));
 		IuAuthorizationClient.initialize(client);
 
@@ -475,7 +487,7 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 		assertTrue(matcher.matches(), authException::getMessage);
 		final var state = matcher.group(1);
 		assertEquals(
-				new URI("foo:/authorize?client_id=" + clientId
+				new URI("foo:/authorize?client_id=" + clientCredentials.getName()
 						+ "&response_type=code&redirect_uri=foo%3A%2Fbaz&scope=foo+bar&state=" + state + "&foo=bar"),
 				authException.getLocation());
 
@@ -502,8 +514,8 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 			final var cred = grant.authorize(resourceUri);
 			mockBodyPublishers.verify(() -> BodyPublishers.ofString(payload));
 			verify(hrb).header("Content-Type", "application/x-www-form-urlencoded");
+			verify(hrb).header("Authorization", "Mock " + clientCredentials.getName());
 			verify(hrb).POST(bp);
-			verify(clientCredentials).applyTo(hrb);
 			assertInstanceOf(IuBearerToken.class, cred);
 			assertEquals(principal.getName(), cred.getName());
 			assertSame(cred, grant.authorize(resourceUri));
@@ -520,7 +532,7 @@ public class AuthorizationCodeTest extends IuOAuthTestCase {
 		final var state2 = matcher2.group(1);
 		assertNotEquals(state, state2);
 		assertEquals(
-				new URI("foo:/authorize?client_id=" + clientId
+				new URI("foo:/authorize?client_id=" + clientCredentials.getName()
 						+ "&response_type=code&redirect_uri=foo%3A%2Fbaz&scope=foo+bar&state=" + state2 + "&foo=bar"),
 				authException2.getLocation());
 

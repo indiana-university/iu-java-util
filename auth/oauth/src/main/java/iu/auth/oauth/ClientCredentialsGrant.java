@@ -93,20 +93,12 @@ final class ClientCredentialsGrant extends AbstractGrant {
 					tokenRequestParams.put(name, List.of(clientAttributeEntry.getValue()));
 			}
 
-		final var clientPrincipal = IuException
-				.unchecked(() -> authorize(new TokenResponse(client.getScope(), clientAttributes,
-						IuHttp.send(IuAuthenticationException.class, client.getTokenEndpoint(), tokenRequestBuilder -> {
-							tokenRequestBuilder
-									.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(tokenRequestParams)));
-							tokenRequestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
-							client.getCredentials().applyTo(tokenRequestBuilder);
-						}, JSON_OBJECT_NOCACHE))));
-
-		if (clientPrincipal != null //
-				&& !clientPrincipal.equals(client.getCredentials()))
-			throw new IllegalStateException("client credentials principal mismatch");
-
-		return null;
+		return IuException.unchecked(() -> authorize(new TokenResponse(client.getScope(), clientAttributes,
+				IuHttp.send(IuAuthenticationException.class, client.getTokenEndpoint(), tokenRequestBuilder -> {
+					tokenRequestBuilder.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(tokenRequestParams)));
+					tokenRequestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
+					client.getCredentials().applyTo(tokenRequestBuilder);
+				}, JSON_OBJECT_NOCACHE))));
 	}
 
 }

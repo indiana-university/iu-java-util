@@ -37,7 +37,6 @@ import java.util.Map;
 
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.spi.IuOAuthSpi;
 import iu.auth.IuAuthSpiFactory;
 
@@ -165,18 +164,17 @@ public interface IuAuthorizationClient {
 	 * </p>
 	 * 
 	 * @param tokenResponse unverified token response
-	 * @return {@link IuPrincipalIdentity} valid for a {@link #getPrincipalRealms()
-	 *         principal authentication realm} other than the bearer authentication
-	 *         realm if the response to an authorization code request; null or equal
-	 *         to {@link #getCredentials()} if in response to a client credentials
-	 *         request.
+	 * @return {@link IuAuthorizedPrincipal}, must refer to a valid principal
+	 *         identity for a configured {@link #getPrincipalRealms() principal
+	 *         authentication realm} if in response to the authorization code flow,
+	 *         or null if in response to client credentials flow
 	 * @throws IuAuthenticationException If the token response is invalid (i.e.,
 	 *                                   expired or revoked) for the authentication
 	 *                                   realm and the user or remote client
 	 *                                   <em>must</em> authenticate before access
 	 *                                   can be authorized.
 	 */
-	IuPrincipalIdentity verify(IuTokenResponse tokenResponse) throws IuAuthenticationException;
+	IuAuthorizedPrincipal verify(IuTokenResponse tokenResponse) throws IuAuthenticationException;
 
 	/**
 	 * Verifies a refresh response as valid within the client's authentication
@@ -193,15 +191,16 @@ public interface IuAuthorizationClient {
 	 * @param refreshTokenResponse  refresh token response
 	 * @param originalTokenResponse {@link #verify(IuTokenResponse) verified} token
 	 *                              response previously
-	 * @return {@link IuPrincipalIdentity} valid for a {@link #getPrincipalRealms()
-	 *         principal authentication realm}
+	 * @return {@link IuAuthorizedPrincipal}, must refer to a valid principal
+	 *         identity for a configured {@link #getPrincipalRealms() principal
+	 *         authentication realm}
 	 * @throws IuAuthenticationException If the token response is invalid (i.e.,
 	 *                                   expired or revoked) for the authentication
 	 *                                   realm and the user or remote client
 	 *                                   <em>must</em> authenticate before access
 	 *                                   can be authorized.
 	 */
-	IuPrincipalIdentity verify(IuTokenResponse refreshTokenResponse, IuTokenResponse originalTokenResponse)
+	IuAuthorizedPrincipal verify(IuTokenResponse refreshTokenResponse, IuTokenResponse originalTokenResponse)
 			throws IuAuthenticationException;
 
 	/**

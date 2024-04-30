@@ -42,6 +42,7 @@ import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
+import edu.iu.auth.oauth.IuAuthorizedPrincipal;
 import edu.iu.auth.oauth.IuBearerToken;
 import edu.iu.auth.oauth.IuTokenResponse;
 import edu.iu.client.HttpResponseHandler;
@@ -184,33 +185,50 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 		return authorizedCredentials != null && authorizedCredentials.expired();
 	}
 
-	private IuBearerToken authorizeBearer(IuPrincipalIdentity principal, IuTokenResponse tokenResponse)
+	private IuBearerToken authorizeBearer(IuAuthorizedPrincipal authPrincipal, IuTokenResponse tokenResponse)
 			throws IuAuthenticationException {
 
 		final Set<String> scope = new LinkedHashSet<>();
 		tokenResponse.getScope().forEach(scope::add);
 
-		if (principal != null) {
+		final String authorizedRealm;
+		final IuPrincipalIdentity principal;
+		if (authPrincipal == null) {
+			authorizedRealm = realm;
+			principal = null;
+		} else {
+			authorizedRealm = authPrincipal.getRealm();
+			principal = authPrincipal.getPrincipal();
 			final var subject = principal.getSubject();
 			subject.setReadOnly();
 			for (final var p : subject.getPrincipals())
 				if (!(p instanceof Serializable))
-					throw new IllegalArgumentException("Principal must is not serializable",
+					throw new IllegalArgumentException("Principal must be serializable",
 							new NotSerializableException(principal.getClass().getName()));
 		}
 
-		final var authTtl = OAuthSpi.getClient(realm).getAuthorizationTimeToLive();
+		final var client = OAuthSpi.getClient(realm);
+		var matched = false;
+		for (final var principalRealm : client.getPrincipalRealms())
+			if (principalRealm.equals(authorizedRealm)) {
+				matched = true;
+				break;
+			}
+		if (!matched)
+			throw new IllegalArgumentException("Invalid principal realm");
+
+		final var authTtl = client.getAuthorizationTimeToLive();
 		var expires = tokenResponse.getExpiresIn();
 		if (expires == null //
 				|| expires.compareTo(Duration.ZERO) <= 0 //
 				|| expires.compareTo(authTtl) > 0)
 			expires = authTtl;
 
-		final var bearer = new BearerToken(realm, principal, scope, tokenResponse.getAccessToken(),
+		final var bearer = new BearerToken(authorizedRealm, principal, scope, tokenResponse.getAccessToken(),
 				Instant.now().plus(expires));
-		
-		IuPrincipalIdentity.verify(bearer, realm);
-		
+
+		IuPrincipalIdentity.verify(bearer, this.realm);
+
 		return authorizedCredentials = bearer;
 	}
 

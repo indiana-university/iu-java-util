@@ -122,7 +122,12 @@ final class BearerToken implements IuBearerToken {
 
 	@Override
 	public void applyTo(Builder httpRequestBuilder) throws IuAuthenticationException {
-		IuPrincipalIdentity.verify(id, realm);
+		if (expired())
+			throw new IllegalStateException("expired");
+
+		if (id != null)
+			IuPrincipalIdentity.verify(id, realm);
+
 		httpRequestBuilder.header("Authorization", "Bearer " + accessToken);
 	}
 
@@ -133,7 +138,7 @@ final class BearerToken implements IuBearerToken {
 
 	@Override
 	public int hashCode() {
-		return IuObject.hashCode(accessToken, id, scope);
+		return IuObject.hashCode(realm, id, scope);
 	}
 
 	@Override
@@ -141,7 +146,7 @@ final class BearerToken implements IuBearerToken {
 		if (!IuObject.typeCheck(this, obj))
 			return false;
 		BearerToken other = (BearerToken) obj;
-		return IuObject.equals(accessToken, other.accessToken) //
+		return IuObject.equals(realm, other.realm) //
 				&& IuObject.equals(id, other.id) //
 				&& IuObject.equals(scope, other.scope);
 	}
