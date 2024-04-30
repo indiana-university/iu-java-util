@@ -1,6 +1,5 @@
 package edu.iu.auth.saml;
 
-import java.net.InetAddress;
 import java.net.URI;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
@@ -18,6 +17,19 @@ import java.util.List;
 public interface IuSamlClient {
 	
 
+	/**
+	 * Gets the root resource URI covered by this client's protection domain.
+	 * 
+	 * <p>
+	 * All client-side application URIs used with this client <em>must</em> begin
+	 * with this URI. The root resource URI <em>should</em> end with a '/' character
+	 * unless the client is only intended to protect a single URI.
+	 * </p>
+	 * 
+	 * @return {@link URI}
+	 */
+	URI getApplicationUri();
+	
 	/**
 	 * Gets whether to fail on address mismatch or not, true if required, false if not
 	 * @return failed on address mismatch 
@@ -86,6 +98,17 @@ public interface IuSamlClient {
 	 */
 
 	String getPrivateKey();
+	
+	/**
+	 * Gets the maximum length of time to allow an authenticated session
+	 * to be remain active before requesting 
+	 * the provide re-establish credentials for the principal.
+	 * 
+	 * @return {@link Duration}, will be truncated to seconds
+	 * 
+	 *TODO set default as 12 hours, client allow to configure but can't set more than 12 hours
+	 */
+	Duration getAuthenticatedSessionTimeout();
 	
 
 }

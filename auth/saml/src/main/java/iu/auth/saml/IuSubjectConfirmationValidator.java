@@ -46,7 +46,7 @@ public class IuSubjectConfirmationValidator extends BearerSubjectConfirmationVal
 		if (address == null) {
 			if (required) {
 				context.getValidationFailureMessages()
-				.add("SubjectConfirmationData/@Address was missing and was required");
+						.add("SubjectConfirmationData/@Address was missing and was required");
 				return ValidationResult.INVALID;
 			}
 			return ValidationResult.VALID;
@@ -66,13 +66,14 @@ public class IuSubjectConfirmationValidator extends BearerSubjectConfirmationVal
 		// the subject is calling from, this assumption will have to be good enough.
 		for (InetAddress confirmingAddress : confirmingAddresses) {
 			if (confirmingAddress.isSiteLocalAddress()) {
-				//	LOG.fine("Allowing private IP " + confirmingAddress);
+				// LOG.fine("Allowing private IP " + confirmingAddress);
 				return ValidationResult.VALID;
 			}
 			if (allowedRanges != null)
 				for (String range : allowedRanges)
 					if (IuWebUtils.isInetAddressInRange(confirmingAddress, range.toString())) {
-						//LOG.fine("Allowing whitelisted IP " + confirmingAddress + "; range = " + range);
+						// LOG.fine("Allowing whitelisted IP " + confirmingAddress + "; range = " +
+						// range);
 						return ValidationResult.VALID;
 					}
 		}
@@ -80,16 +81,16 @@ public class IuSubjectConfirmationValidator extends BearerSubjectConfirmationVal
 		ValidationResult result = super.validateAddress(confirmationData, assertion, context, required);
 
 		if (!ValidationResult.VALID.equals(result)) {
-			/*LOG.info(() -> "IP address mismatch in SAML subject confirmation; remote address = " + address
-					+ "; allowed ranges = " + allowedRanges);*/
+			/*
+			 * LOG.info(() ->
+			 * "IP address mismatch in SAML subject confirmation; remote address = " +
+			 * address + "; allowed ranges = " + allowedRanges);
+			 */
 			if (!failOnAddressMismatch)
 				return ValidationResult.VALID;
 		}
 
 		return result;
 	}
-	
+
 }
-
-
-

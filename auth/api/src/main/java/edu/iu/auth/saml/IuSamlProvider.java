@@ -1,8 +1,5 @@
 package edu.iu.auth.saml;
 
-import java.net.InetAddress;
-import java.net.URI;
-
 import edu.iu.auth.spi.IuSamlSpi;
 import iu.auth.IuAuthSpiFactory;
 
@@ -22,16 +19,7 @@ public interface IuSamlProvider {
 		return IuAuthSpiFactory.get(IuSamlSpi.class).getSamlProvider(client);
 	}
 
-	/**
-	 * Get SAML authentication Request to request application resource access by entity Id and post URI.
-	 * 
-	 * @param entityId base identity provider URI to authorize access to
-	 * @param postURI Post back URI
-	 * @param sessionId  session maintain by client that set in RelayState parameter and also pass as unique id to SAML authentication Request . 
-	 * @return redirect URI
-	 * 
-	 */
-	URI authRequest(URI entityId, URI postURI, String sessionId);
+	
 	
 	/**
 	 * Get service provider metadata for registered client
@@ -39,16 +27,5 @@ public interface IuSamlProvider {
 	 */
 	String getServiceProviderMetaData();
 
-	/**
-	 * A support method to validate SAML response received back from identity provider
-	 * @param address IP address to validate against allowed list 
-	 * @param acsUrl assertion consumption service post url
-	 * @param samlResponse SAML response that received back from identity provider after user has been authenticate
-	 * @param sessionId session maintain by client to match with InResponseTo assertion. 
-	 *  
-	 */
-	void validate(InetAddress address, String acsUrl, String samlResponse, String sessionId);
-
-	
 	
 }

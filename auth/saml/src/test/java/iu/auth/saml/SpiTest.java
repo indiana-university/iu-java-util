@@ -10,6 +10,7 @@ import static org.mockito.Mockito.mockConstruction;
 import java.net.InetAddress;
 import java.net.URI;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.ServiceConfigurationError;
@@ -96,6 +97,11 @@ public class SpiTest {
 			public List<String> getAllowedRange() {
 				return Arrays.asList("");
 			}
+			
+			@Override
+			public Duration getAuthenticatedSessionTimeout() {
+				return Duration.ofMinutes(2L);
+			}
 
 		};
 
@@ -140,6 +146,11 @@ public class SpiTest {
 			public List<String> getAllowedRange() {
 				return Arrays.asList("");
 			}
+			
+			@Override
+			public Duration getAuthenticatedSessionTimeout() {
+				return Duration.ofMinutes(2L);
+			}
 
 		};
 
@@ -151,7 +162,7 @@ public class SpiTest {
 	}
 
 	@Test
-	public void testSamlSameClientInitializer() {
+	public void testSamlDuplicateClientInitializer() {
 		final var spi = new SamlConnectSpi();
 		final var client = new IuSamlClient() {
 
@@ -183,6 +194,11 @@ public class SpiTest {
 			@Override
 			public List<String> getAllowedRange() {
 				return Arrays.asList("");
+			}
+			
+			@Override
+			public Duration getAuthenticatedSessionTimeout() {
+				return Duration.ofMinutes(2L);
 			}
 
 		};

@@ -32,6 +32,7 @@
 package edu.iu;
 
 import java.net.InetAddress;
+import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.time.Duration;
@@ -332,6 +333,34 @@ public final class IuWebUtils {
 		}
 
 		return true;
+	}
+	
+	/**
+	 * Determines if a root {@link URI} encompasses a resource {@link URI}.
+	 * 
+	 * @param rootUri     root {@link URI}
+	 * @param resourceUri resource {@link URI}
+	 * @return {@link URI}
+	 */
+	public static boolean isRootOf(URI rootUri, URI resourceUri) {
+		if (rootUri.equals(resourceUri))
+			return true;
+
+		if (!resourceUri.isAbsolute() //
+				|| resourceUri.isOpaque() //
+				|| !IuObject.equals(rootUri.getScheme(), resourceUri.getScheme()) //
+				|| !IuObject.equals(rootUri.getAuthority(), resourceUri.getAuthority()))
+			return false;
+
+		final var root = rootUri.getPath();
+		if (root.isEmpty())
+			return true;
+
+		final var resource = resourceUri.getPath();
+		final var l = root.length();
+		return resource.startsWith(root) //
+				&& (root.charAt(l - 1) == '/' //
+						|| resource.charAt(l) == '/');
 	}
 
 	private IuWebUtils() {

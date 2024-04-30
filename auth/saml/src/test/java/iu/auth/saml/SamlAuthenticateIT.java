@@ -16,6 +16,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -96,6 +97,16 @@ public class SamlAuthenticateIT {
 			@Override
 			public List<String> getAllowedRange() {
 				return IuException.unchecked(() -> Arrays.asList("127.0.0.0"));
+			}
+			
+			@Override
+			public Duration getAuthenticatedSessionTimeout() {
+				return Duration.ofMinutes(2L);
+			}
+
+			@Override
+			public URI getApplicationUri() {
+					return null;
 			}
 
 		});

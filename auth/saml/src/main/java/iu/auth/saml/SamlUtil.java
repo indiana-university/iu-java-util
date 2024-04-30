@@ -1,6 +1,7 @@
 package iu.auth.saml;
 
 import java.io.ByteArrayInputStream;
+import java.net.URI;
 import java.security.Key;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
@@ -32,6 +33,10 @@ import org.opensaml.xmlsec.keyinfo.KeyInfoCredentialResolver;
 import org.opensaml.xmlsec.keyinfo.impl.StaticKeyInfoCredentialResolver;
 import org.opensaml.xmlsec.signature.X509Certificate;
 import org.opensaml.xmlsec.signature.X509Data;
+
+import edu.iu.IuObject;
+
+
 
 /**
  * Utility class to support SAML implementation. TODO review this class and move
@@ -95,6 +100,7 @@ public class SamlUtil {
 
 	/**
 	 * Get credential resolver for SAML response
+	 * 
 	 * @param response SAML response
 	 * @return credential resolver
 	 */
@@ -133,6 +139,7 @@ public class SamlUtil {
 
 	/**
 	 * Get private key
+	 * 
 	 * @param privateKey key to convert to private key
 	 * @return private key
 	 */
@@ -167,6 +174,7 @@ public class SamlUtil {
 
 	/**
 	 * CredentialResolver
+	 * 
 	 * @param entity {@link EntityDescriptor}
 	 * @return {@link CredentialResolver}
 	 */
@@ -203,5 +211,5 @@ public class SamlUtil {
 
 		return new StaticCredentialResolver(certs);
 	}
-
+	
 }
