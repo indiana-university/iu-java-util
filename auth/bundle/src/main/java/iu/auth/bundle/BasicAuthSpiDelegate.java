@@ -34,6 +34,7 @@ package iu.auth.bundle;
 import java.time.temporal.TemporalAmount;
 
 import edu.iu.auth.basic.IuBasicAuthCredentials;
+import edu.iu.auth.basic.IuClientCredentials;
 import edu.iu.auth.spi.IuBasicAuthSpi;
 
 /**
@@ -55,7 +56,7 @@ public class BasicAuthSpiDelegate implements IuBasicAuthSpi {
 	}
 
 	@Override
-	public void register(Iterable<? extends IuBasicAuthCredentials> basicAuthPrincipals, String realm,
+	public void register(Iterable<? extends IuClientCredentials> basicAuthPrincipals, String realm,
 			TemporalAmount expirationPolicy) {
 		DELEGATE.register(basicAuthPrincipals, realm, expirationPolicy);
 	}

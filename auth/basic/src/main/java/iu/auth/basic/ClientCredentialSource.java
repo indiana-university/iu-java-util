@@ -31,29 +31,30 @@
  */
 package iu.auth.basic;
 
-import java.nio.charset.Charset;
 import java.time.Instant;
 import java.time.temporal.TemporalAmount;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
-import edu.iu.IuException;
-import edu.iu.IuIterable;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.basic.IuBasicAuthCredentials;
+import edu.iu.auth.basic.IuClientCredentials;
 import iu.auth.principal.PrincipalVerifier;
 
 /**
- * Handle to a
- * {@link IuBasicAuthCredentials#registerClientCredentials(Iterable, String, TemporalAmount)
- * client credential authentication realm}.
+ * Manages an externally sourced
+ * {@link IuClientCredentials#register(Iterable, String, TemporalAmount) client
+ * credential authentication realm}.
  */
 final class ClientCredentialSource implements PrincipalVerifier<BasicAuthCredentials> {
 
+	private final Logger LOG = Logger.getLogger(ClientCredentialSource.class.getName());
+
 	private final String realm;
-	private final Iterable<BasicAuthCredentials> clientCredentials;
+	private final Iterable<? extends IuClientCredentials> clientCredentials;
 	private final TemporalAmount expirationPolicy;
 
 	/**
@@ -64,10 +65,10 @@ final class ClientCredentialSource implements PrincipalVerifier<BasicAuthCredent
 	 * @param expirationPolicy  maximum length of time to allow secrets to remain
 	 *                          valid
 	 */
-	ClientCredentialSource(String realm, Iterable<? extends IuBasicAuthCredentials> clientCredentials,
+	ClientCredentialSource(String realm, Iterable<? extends IuClientCredentials> clientCredentials,
 			TemporalAmount expirationPolicy) {
 		this.realm = realm;
-		this.clientCredentials = IuIterable.map(clientCredentials, this::validate);
+		this.clientCredentials = clientCredentials;
 		this.expirationPolicy = Objects.requireNonNull(expirationPolicy, "Expiration policy is required");
 
 		for (final var unit : expirationPolicy.getUnits())
@@ -94,14 +95,18 @@ final class ClientCredentialSource implements PrincipalVerifier<BasicAuthCredent
 	public void verify(BasicAuthCredentials basic, String realm) throws IuAuthenticationException {
 		final var name = Objects.requireNonNull(basic.getName(), "missing client id");
 		final var password = Objects.requireNonNull(basic.getPassword(), "missing client secret");
-		final var now = Instant.now();
 
-		for (final var credentials : clientCredentials) //
-			if (credentials.getName().equals(name) //
-					&& credentials.getPassword().equals(password) //
-					&& !now.isBefore(credentials.getNotBefore()) //
-					&& now.isBefore(credentials.getExpires()))
-				return;
+		for (final var credentials : clientCredentials)
+			try {
+				validate(credentials);
+
+				if (credentials.getId().equals(name) //
+						&& credentials.getSecret().equals(password))
+					return;
+
+			} catch (Throwable e) {
+				LOG.log(Level.CONFIG, "Invalid client credentials entry for realm " + realm, e);
+			}
 
 		throw new IuAuthenticationException(challenge());
 	}
@@ -110,38 +115,34 @@ final class ClientCredentialSource implements PrincipalVerifier<BasicAuthCredent
 	 * Validates externally controlled client credentials as well-formed.
 	 * 
 	 * @param clientCredentials client credentials to validate
-	 * @return validated credentials
 	 */
-	BasicAuthCredentials validate(IuBasicAuthCredentials clientCredentials) {
-		final var charset = clientCredentials.getCharset();
-		Charset.forName(charset);
-
-		final var name = Objects.requireNonNull(clientCredentials.getName(), "Missing client ID");
-		if (!name.equals(IuException.unchecked(() -> new String(name.getBytes(charset), charset))))
-			throw new IllegalArgumentException("Client ID must use " + charset);
-		if (name.length() < 1)
+	void validate(IuClientCredentials clientCredentials) {
+		final var clientId = Objects.requireNonNull(clientCredentials.getId(), "Missing client ID");
+		if (clientId.length() < 1)
 			throw new IllegalArgumentException("Client ID must not be empty");
 		else
-			for (final var c : name.toCharArray())
+			for (final var c : clientId.toCharArray())
 				if (c < 0x20 || c > 0x7e)
-					// RFC 6749 Appendix A.2 client_secret Syntax
+					// RFC 6749 Appendix A.2 client_id Syntax
 					throw new IllegalArgumentException("Client ID must contain only printable ASCII characters");
 
-		final var password = Objects.requireNonNull(clientCredentials.getPassword(), "Missing client secret");
-		if (!password.equals(IuException.unchecked(() -> new String(password.getBytes(charset), charset))))
-			throw new IllegalArgumentException("Client secret must use " + charset);
-
-		if (password.length() < 12) // ASVS4 2.1
+		final var clientSecret = Objects.requireNonNull(clientCredentials.getSecret(), "Missing client secret");
+		if (clientSecret.length() < 12) // ASVS4 2.1
 			throw new IllegalArgumentException("Client secret must contain at least 12 characters");
 		else
-			for (final var c : password.toCharArray())
+			for (final var c : clientSecret.toCharArray())
 				if (c < 0x20 || c > 0x7e)
 					// RFC 6749 Appendix A.2 client_secret Syntax
 					throw new IllegalArgumentException("Client secret must contain only printable ASCII characters");
 
+		final var now = Instant.now();
+
 		var notBefore = clientCredentials.getNotBefore();
 		if (notBefore == null)
 			notBefore = Instant.EPOCH;
+
+		if (now.isBefore(notBefore))
+			throw new IllegalArgumentException("Client credentials are not valid until " + notBefore);
 
 		final var maxExpires = notBefore.plus(expirationPolicy);
 
@@ -150,7 +151,8 @@ final class ClientCredentialSource implements PrincipalVerifier<BasicAuthCredent
 				|| expires.isAfter(maxExpires))
 			expires = maxExpires;
 
-		return new BasicAuthCredentials(name, password, charset, notBefore, expires);
+		if (!now.isBefore(expires))
+			throw new IllegalArgumentException("Client credentials expired at " + expires);
 	}
 
 	/**

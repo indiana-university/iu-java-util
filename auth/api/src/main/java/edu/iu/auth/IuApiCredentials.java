@@ -34,44 +34,12 @@ package edu.iu.auth;
 import java.net.http.HttpRequest;
 import java.security.Principal;
 
-import edu.iu.auth.basic.IuBasicAuthCredentials;
-import edu.iu.auth.spi.IuBasicAuthSpi;
-import iu.auth.IuAuthSpiFactory;
-
 /**
  * {@link Principal} implementation for an HTTP-authenticated user or client
  * application.
  */
 public interface IuApiCredentials extends IuPrincipalIdentity {
 
-	/**
-	 * Gets credentials for use with
-	 * <a href="https://datatracker.ietf.org/doc/html/rfc7617">HTTP Basic
-	 * Authentication</a>.
-	 * 
-	 * @param username username
-	 * @param password password
-	 * @return credentials for use with HTTP basic auth
-	 */
-	static IuBasicAuthCredentials basic(String username, String password) {
-		return basic(username, password, "US-ASCII");
-	}
-
-	/**
-	 * Gets credentials for use with
-	 * <a href="https://datatracker.ietf.org/doc/html/rfc7617">HTTP Basic
-	 * Authentication</a>.
-	 * 
-	 * @param username username
-	 * @param password password
-	 * @param charset  charset to use with
-	 *                 {@link #applyTo(java.net.http.HttpRequest.Builder)}
-	 * @return credentials for use with HTTP basic auth
-	 */
-	static IuBasicAuthCredentials basic(String username, String password, String charset) {
-		return IuAuthSpiFactory.get(IuBasicAuthSpi.class).createCredentials(username, password, charset);
-	}
-	
 	/**
 	 * Applies the client's API credentials to an HTTP request.
 	 * 

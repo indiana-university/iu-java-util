@@ -39,14 +39,16 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.List;
+import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.basic.IuBasicAuthCredentials;
+import edu.iu.auth.basic.IuClientCredentials;
+import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
 public class BasicAuthSpiTest {
@@ -69,18 +71,41 @@ public class BasicAuthSpiTest {
 		final var secret = IdGenerator.generateId();
 		final var now = Instant.now();
 		final var expires = now.plus(Duration.ofMinutes(2L));
-		final var client = new BasicAuthCredentials(id, secret, "US-ASCII", now, expires);
-		final var credentials = new ArrayDeque<BasicAuthCredentials>();
+		final var client = new IuClientCredentials() {
+			@Override
+			public String getId() {
+				return id;
+			}
+
+			@Override
+			public String getSecret() {
+				return secret;
+			}
+
+			@Override
+			public Instant getNotBefore() {
+				return now;
+			}
+
+			@Override
+			public Instant getExpires() {
+				return expires;
+			}
+		};
+		final var credentials = new ArrayDeque<IuClientCredentials>();
 		credentials.offer(client);
-		IuBasicAuthCredentials.registerClientCredentials(credentials, realm, Duration.ofMillis(500L));
+		IuClientCredentials.register(credentials, realm, Duration.ofMillis(500L));
 		assertThrows(IllegalArgumentException.class,
-				() -> IuBasicAuthCredentials.registerClientCredentials(credentials, realm, Duration.ofMillis(500L)));
-		IuPrincipalIdentity.verify(IuApiCredentials.basic(id, secret), realm);
+				() -> IuClientCredentials.register(credentials, realm, Duration.ofMillis(500L)));
+		IuPrincipalIdentity.verify(IuBasicAuthCredentials.of(id, secret), realm);
 		assertThrows(IuAuthenticationException.class,
-				() -> IuPrincipalIdentity.verify(IuApiCredentials.basic(id, "wrong password"), realm));
+				() -> IuPrincipalIdentity.verify(IuBasicAuthCredentials.of(id, "wrong password"), realm));
 		Thread.sleep(500L);
+		IuTestLogger.expect("iu.auth.basic.ClientCredentialSource", Level.CONFIG,
+				"Invalid client credentials entry for realm " + realm, IllegalArgumentException.class,
+				e -> e.getMessage().startsWith("Client credentials expired at"));
 		assertThrows(IuAuthenticationException.class,
-				() -> IuPrincipalIdentity.verify(IuApiCredentials.basic(id, secret), realm));
+				() -> IuPrincipalIdentity.verify(IuBasicAuthCredentials.of(id, secret), realm));
 	}
 
 }

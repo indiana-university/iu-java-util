@@ -17,7 +17,7 @@ final class OidcPrincipalVerifier implements PrincipalVerifier<OidcPrincipal> {
 	 * @param authoritative authoritative flag: requires ID token or client ID to
 	 *                      match principal claim when true; relies on userinfo
 	 *                      access token for verification
-	 * @param realm
+	 * @param realm         authentication realm
 	 */
 	OidcPrincipalVerifier(boolean authoritative, String realm) {
 		this.authoritative = authoritative;
@@ -41,8 +41,6 @@ final class OidcPrincipalVerifier implements PrincipalVerifier<OidcPrincipal> {
 
 	@Override
 	public void verify(OidcPrincipal id, String realm) throws IuAuthenticationException {
-		if (id.revoked())
-			throw new IllegalStateException("Authentication has been revoked");
 		if (!id.realm().equals(realm))
 			throw new IllegalArgumentException("Principal is invalid for the authenticaiton realm");
 

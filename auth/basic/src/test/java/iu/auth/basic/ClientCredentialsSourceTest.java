@@ -40,25 +40,52 @@ import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.logging.Level;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.basic.IuBasicAuthCredentials;
+import edu.iu.auth.basic.IuClientCredentials;
+import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
 public class ClientCredentialsSourceTest {
+
+	private static IuClientCredentials clientCredentials(String name, String secret, Instant notBefore,
+			Instant expires) {
+		return new IuClientCredentials() {
+			@Override
+			public String getId() {
+				return name;
+			}
+
+			@Override
+			public String getSecret() {
+				return secret;
+			}
+
+			@Override
+			public Instant getNotBefore() {
+				return notBefore;
+			}
+
+			@Override
+			public Instant getExpires() {
+				return expires;
+			}
+		};
+	}
 
 	private String realm;
 	private String id;
 	private String secret;
 	private Instant now;
 	private Instant expires;
-	private BasicAuthCredentials client;
-	private Queue<IuBasicAuthCredentials> credentials;
+	private IuClientCredentials client;
+	private Queue<IuClientCredentials> credentials;
 
 	@BeforeEach
 	public void setup() {
@@ -67,7 +94,7 @@ public class ClientCredentialsSourceTest {
 		secret = IdGenerator.generateId();
 		now = Instant.now();
 		expires = now.plus(Duration.ofMinutes(2L));
-		client = new BasicAuthCredentials(id, secret, "US-ASCII", now, expires);
+		client = clientCredentials(id, secret, now, expires);
 		credentials = new ArrayDeque<>();
 		credentials.offer(client);
 	}
@@ -81,74 +108,91 @@ public class ClientCredentialsSourceTest {
 	@Test
 	public void testBasicAuth() throws IuAuthenticationException {
 		final var cc = new ClientCredentialSource(realm, credentials, Duration.ofSeconds(5L));
-		cc.verify(cc.validate(client), realm);
+		cc.verify(new BasicAuthCredentials(id, secret, "US-ASCII"), realm);
 	}
 
 	@Test
 	public void testValidate() throws IuAuthenticationException {
 		final var cc = new ClientCredentialSource(realm, credentials, Duration.ofSeconds(5L));
-		assertEquals("Client ID must use US-ASCII",
-				assertThrows(IllegalArgumentException.class,
-						() -> cc.validate(new BasicAuthCredentials("테스트 클라이언트", secret, "US-ASCII", now, expires)))
-						.getMessage());
 		assertEquals("Client ID must contain only printable ASCII characters",
 				assertThrows(IllegalArgumentException.class,
-						() -> cc.validate(new BasicAuthCredentials("테스트 클라이언트", secret, "EUC-KR", now, expires)))
-						.getMessage());
+						() -> cc.validate(clientCredentials("테스트 클라이언트", secret, now, expires))).getMessage());
 		assertEquals("Client ID must contain only printable ASCII characters",
 				assertThrows(IllegalArgumentException.class,
-						() -> cc.validate(new BasicAuthCredentials("\f", secret, "US-ASCII", now, expires)))
+						() -> cc.validate(clientCredentials("\f", secret, now, expires))).getMessage());
+		assertEquals("Client ID must not be empty", assertThrows(IllegalArgumentException.class,
+				() -> cc.validate(clientCredentials("", secret, now, expires))).getMessage());
+		assertEquals("Missing client secret",
+				assertThrows(NullPointerException.class, () -> cc.validate(clientCredentials(id, null, now, expires)))
 						.getMessage());
-		assertEquals("Client ID must not be empty",
-				assertThrows(IllegalArgumentException.class,
-						() -> cc.validate(new BasicAuthCredentials("", secret, "US-ASCII", now, expires)))
-						.getMessage());
-		assertEquals("Missing client secret", assertThrows(NullPointerException.class,
-				() -> cc.validate(new BasicAuthCredentials(id, null, "US-ASCII", now, expires))).getMessage());
-		assertEquals("Client secret must contain at least 12 characters", assertThrows(IllegalArgumentException.class,
-				() -> cc.validate(new BasicAuthCredentials(id, "", "US-ASCII", now, expires))).getMessage());
-		assertEquals("Client secret must use US-ASCII",
-				assertThrows(IllegalArgumentException.class,
-						() -> cc.validate(new BasicAuthCredentials(id, "테스트 클라이언트", "US-ASCII", now, expires)))
+		assertEquals("Client secret must contain at least 12 characters",
+				assertThrows(IllegalArgumentException.class, () -> cc.validate(clientCredentials(id, "", now, expires)))
 						.getMessage());
 		assertEquals("Client secret must contain only printable ASCII characters",
 				assertThrows(IllegalArgumentException.class,
-						() -> cc.validate(new BasicAuthCredentials(id, secret + "테스트 클라이언트", "EUC-KR", now, expires)))
-						.getMessage());
+						() -> cc.validate(clientCredentials(id, secret + "테스트 클라이언트", now, expires))).getMessage());
 		assertEquals("Client secret must contain only printable ASCII characters",
 				assertThrows(IllegalArgumentException.class,
-						() -> cc.validate(new BasicAuthCredentials(id, secret + "\f", "US-ASCII", now, expires)))
-						.getMessage());
+						() -> cc.validate(clientCredentials(id, secret + "\f", now, expires))).getMessage());
 
-		final var valid = cc.validate(IuApiCredentials.basic(id, secret));
-		assertEquals(id, valid.getName());
-		assertEquals(secret, valid.getPassword());
-		assertEquals("US-ASCII", valid.getCharset());
-		assertEquals(Instant.EPOCH, valid.getNotBefore());
-		assertEquals(Instant.EPOCH.plus(Duration.ofSeconds(5L)), valid.getExpires());
+		cc.validate(clientCredentials(id, secret, now, expires));
 	}
 
 	@Test
 	public void testVerify() {
 		final var expiredId = IdGenerator.generateId();
-		credentials.offer(IuApiCredentials.basic(expiredId, secret));
+		credentials.offer(clientCredentials(expiredId, secret, null, null));
 		final var futureId = IdGenerator.generateId();
-		credentials.offer(new BasicAuthCredentials(futureId, secret, "US-ASCII", now.plus(Period.ofDays(1)), expires));
+		credentials.offer(clientCredentials(futureId, secret, now.plus(Period.ofDays(1)), expires));
 		final var cc = new ClientCredentialSource(realm, credentials, Duration.ofSeconds(5L));
-		assertDoesNotThrow(() -> cc.verify((BasicAuthCredentials) IuApiCredentials.basic(id, secret), realm));
-		assertEquals("Basic realm=\"" + realm + "\" charset=\"US-ASCII\"", assertThrows(IuAuthenticationException.class,
-				() -> cc.verify((BasicAuthCredentials) IuApiCredentials.basic(IdGenerator.generateId(), secret), realm))
-				.getMessage());
-		assertEquals("Basic realm=\"" + realm + "\" charset=\"US-ASCII\"", assertThrows(IuAuthenticationException.class,
-				() -> cc.verify((BasicAuthCredentials) IuApiCredentials.basic(id, IdGenerator.generateId()), realm))
-				.getMessage());
+		assertDoesNotThrow(() -> cc.verify((BasicAuthCredentials) IuBasicAuthCredentials.of(id, secret), realm));
+
+		IuTestLogger.expect("iu.auth.basic.ClientCredentialSource", Level.CONFIG,
+				"Invalid client credentials entry for realm " + realm, IllegalArgumentException.class,
+				e -> e.getMessage().startsWith("Client credentials are not valid until"));
+		IuTestLogger.expect("iu.auth.basic.ClientCredentialSource", Level.CONFIG,
+				"Invalid client credentials entry for realm " + realm, IllegalArgumentException.class,
+				e -> e.getMessage().startsWith("Client credentials expired at"));
 		assertEquals("Basic realm=\"" + realm + "\" charset=\"US-ASCII\"",
 				assertThrows(IuAuthenticationException.class,
-						() -> cc.verify((BasicAuthCredentials) IuApiCredentials.basic(futureId, secret), realm))
+						() -> cc.verify(
+								(BasicAuthCredentials) IuBasicAuthCredentials.of(IdGenerator.generateId(), secret),
+								realm))
 						.getMessage());
+		IuTestLogger.assertExpectedMessages();
+
+		IuTestLogger.expect("iu.auth.basic.ClientCredentialSource", Level.CONFIG,
+				"Invalid client credentials entry for realm " + realm, IllegalArgumentException.class,
+				e -> e.getMessage().startsWith("Client credentials are not valid until"));
+		IuTestLogger.expect("iu.auth.basic.ClientCredentialSource", Level.CONFIG,
+				"Invalid client credentials entry for realm " + realm, IllegalArgumentException.class,
+				e -> e.getMessage().startsWith("Client credentials expired at"));
+		assertEquals("Basic realm=\"" + realm + "\" charset=\"US-ASCII\"", assertThrows(IuAuthenticationException.class,
+				() -> cc.verify((BasicAuthCredentials) IuBasicAuthCredentials.of(id, IdGenerator.generateId()), realm))
+				.getMessage());
+		IuTestLogger.assertExpectedMessages();
+
+		IuTestLogger.expect("iu.auth.basic.ClientCredentialSource", Level.CONFIG,
+				"Invalid client credentials entry for realm " + realm, IllegalArgumentException.class,
+				e -> e.getMessage().startsWith("Client credentials are not valid until"));
+		IuTestLogger.expect("iu.auth.basic.ClientCredentialSource", Level.CONFIG,
+				"Invalid client credentials entry for realm " + realm, IllegalArgumentException.class,
+				e -> e.getMessage().startsWith("Client credentials expired at"));
 		assertEquals("Basic realm=\"" + realm + "\" charset=\"US-ASCII\"",
 				assertThrows(IuAuthenticationException.class,
-						() -> cc.verify((BasicAuthCredentials) IuApiCredentials.basic(expiredId, secret), realm))
+						() -> cc.verify((BasicAuthCredentials) IuBasicAuthCredentials.of(futureId, secret), realm))
+						.getMessage());
+		IuTestLogger.assertExpectedMessages();
+
+		IuTestLogger.expect("iu.auth.basic.ClientCredentialSource", Level.CONFIG,
+				"Invalid client credentials entry for realm " + realm, IllegalArgumentException.class,
+				e -> e.getMessage().startsWith("Client credentials are not valid until"));
+		IuTestLogger.expect("iu.auth.basic.ClientCredentialSource", Level.CONFIG,
+				"Invalid client credentials entry for realm " + realm, IllegalArgumentException.class,
+				e -> e.getMessage().startsWith("Client credentials expired at"));
+		assertEquals("Basic realm=\"" + realm + "\" charset=\"US-ASCII\"",
+				assertThrows(IuAuthenticationException.class,
+						() -> cc.verify((BasicAuthCredentials) IuBasicAuthCredentials.of(expiredId, secret), realm))
 						.getMessage());
 	}
 

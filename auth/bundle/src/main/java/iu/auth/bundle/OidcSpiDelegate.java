@@ -31,8 +31,6 @@
  */
 package iu.auth.bundle;
 
-import java.net.URI;
-
 import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
 import edu.iu.auth.spi.IuOpenIdConnectSpi;
@@ -51,8 +49,8 @@ public class OidcSpiDelegate implements IuOpenIdConnectSpi {
 	}
 
 	@Override
-	public IuOpenIdProvider getOpenIdProvider(URI configUri, IuOpenIdClient client) {
-		return DELEGATE.getOpenIdProvider(configUri, client);
+	public IuOpenIdProvider getOpenIdProvider(IuOpenIdClient client) {
+		return DELEGATE.getOpenIdProvider(client);
 	}
 
 }

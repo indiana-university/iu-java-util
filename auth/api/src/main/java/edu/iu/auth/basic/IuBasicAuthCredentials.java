@@ -31,10 +31,6 @@
  */
 package edu.iu.auth.basic;
 
-import java.time.Instant;
-import java.time.temporal.TemporalAmount;
-
-import edu.iu.IdGenerator;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.spi.IuBasicAuthSpi;
@@ -61,53 +57,39 @@ import iu.auth.IuAuthSpiFactory;
 public interface IuBasicAuthCredentials extends IuApiCredentials, IuPrincipalIdentity {
 
 	/**
-	 * Registers Basic authentication principals for verifying external OAuth 2
-	 * client credentials.
+	 * Gets credentials for use with
+	 * <a href="https://datatracker.ietf.org/doc/html/rfc7617">HTTP Basic
+	 * Authentication</a>.
 	 * 
-	 * <p>
-	 * Client ID values provided via {@link #getName()} <em>must</em> be printable
-	 * ASCII with no whitespace, and start with a letter.
-	 * </p>
-	 * 
-	 * <p>
-	 * Client secret values provided via {@link #getPassword()} <em>must</em> be
-	 * printable ASCII, at least 12 characters in length. Implementations
-	 * <em>should</em> use {@link IdGenerator#generateId()} to create passwords.
-	 * </p>
-	 * 
-	 * <p>
-	 * {@link IuBasicAuthCredentials#getNotBefore()} and {@link #getExpires()}
-	 * <em>must</em> be non-null for all entries. Entries <em>may</em> be expired;
-	 * expired entries <em>may</em> be changed. <em>May</em> include multiple
-	 * entries with the same name but different passwords and expiration times.
-	 * </p>
-	 * 
-	 * <p>
-	 * This method <em>may</em> be called no more than once per realm.
-	 * </p>
-	 * 
-	 * <p>
-	 * <em>Implementation Note:</em> The {@link Iterable} provided to this method is
-	 * controlled externally. {@link Iterable#iterator()} is invoked each time an
-	 * {@link IuBasicAuthCredentials} principal is verified to discover externally
-	 * controlled metadata
-	 * </p>
-	 * 
-	 * @param clientCredentials Basic authentication client credential principals
-	 * @param realm             Authentication realm
-	 * @param expirationPolicy  Maximum length of time to allow passwords to remain
-	 *                          valid
-	 * @see <a href=
-	 *      "https://datatracker.ietf.org/doc/html/rfc6749#section-2.3.1">OAuth 2.0
-	 *      Client Password</a>
-	 * @see <a href=
-	 *      "https://github.com/OWASP/ASVS/raw/v4.0.3/4.0/OWASP%20Application%20Security%20Verification%20Standard%204.0.3-en.pdf">ASVS
-	 *      4.0: 2.1 and 2.4</a>
+	 * @param username username
+	 * @param password password
+	 * @return credentials for use with HTTP basic auth
 	 */
-	static void registerClientCredentials(Iterable<? extends IuBasicAuthCredentials> clientCredentials, String realm,
-			TemporalAmount expirationPolicy) {
-		IuAuthSpiFactory.get(IuBasicAuthSpi.class).register(clientCredentials, realm, expirationPolicy);
+	static IuBasicAuthCredentials of(String username, String password) {
+		return basic(username, password, "US-ASCII");
 	}
+
+	/**
+	 * Gets credentials for use with
+	 * <a href="https://datatracker.ietf.org/doc/html/rfc7617">HTTP Basic
+	 * Authentication</a>.
+	 * 
+	 * @param username username
+	 * @param password password
+	 * @param charset  charset to use with
+	 *                 {@link #applyTo(java.net.http.HttpRequest.Builder)}
+	 * @return credentials for use with HTTP basic auth
+	 */
+	static IuBasicAuthCredentials basic(String username, String password, String charset) {
+		return IuAuthSpiFactory.get(IuBasicAuthSpi.class).createCredentials(username, password, charset);
+	}
+
+	/**
+	 * Gets the password.
+	 * 
+	 * @return password
+	 */
+	String getPassword();
 
 	/**
 	 * Gets the encoding to use with
@@ -118,28 +100,5 @@ public interface IuBasicAuthCredentials extends IuApiCredentials, IuPrincipalIde
 	default String getCharset() {
 		return "US-ASCII";
 	}
-
-	/**
-	 * <em>Optional</em> time before which the password <em>should</em> be
-	 * considered invalid.
-	 * 
-	 * @return expiration time
-	 */
-	Instant getNotBefore();
-
-	/**
-	 * <em>Optional</em> time after which the password <em>should</em> be considered
-	 * invalid.
-	 * 
-	 * @return expiration time
-	 */
-	Instant getExpires();
-
-	/**
-	 * Gets the password.
-	 * 
-	 * @return password
-	 */
-	String getPassword();
 
 }

@@ -63,6 +63,7 @@ import edu.iu.IuWebUtils;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.basic.IuBasicAuthCredentials;
 import edu.iu.auth.oauth.IuAuthorizationSession;
 import edu.iu.auth.oauth.IuBearerToken;
 import edu.iu.auth.oidc.IuAuthoritativeOpenIdClient;
@@ -86,12 +87,12 @@ public class OpenIDConnectIT {
 
 	@BeforeAll
 	public static void setupClass() throws URISyntaxException {
-		realm = IdGenerator.generateId();
 		configUri = new URI(IuVault.RUNTIME.get("iu.auth.oidc.configUrl"));
 		clientId = IuVault.RUNTIME.get("iu.auth.oidc.clientId");
 		clientSecret = IuVault.RUNTIME.get("iu.auth.oidc.clientSecret");
 		redirectUri = new URI(IuVault.RUNTIME.get("iu.auth.oidc.redirectUri"));
 		resourceUri = new URI(IuVault.RUNTIME.get("iu.auth.oidc.resourceUri"));
+		realm = configUri + "#" + clientId;
 		provider = IuOpenIdProvider.from(new IuAuthoritativeOpenIdClient() {
 			@Override
 			public URI getResourceUri() {
@@ -105,7 +106,7 @@ public class OpenIDConnectIT {
 
 			@Override
 			public IuApiCredentials getCredentials() {
-				return IuApiCredentials.basic(clientId, clientSecret);
+				return IuBasicAuthCredentials.of(clientId, clientSecret);
 			}
 
 			@Override
@@ -159,7 +160,7 @@ public class OpenIDConnectIT {
 					throw new IllegalArgumentException();
 			}
 		});
-		session = IuAuthorizationSession.create(realm, resourceUri);
+		session = IuAuthorizationSession.create(redirectUri.toString(), resourceUri);
 		nonces = new HashSet<>();
 	}
 
@@ -177,8 +178,9 @@ public class OpenIDConnectIT {
 	public void testClientCredentials() throws Exception {
 		IuTestLogger.allow("iu.auth.oauth.ClientCredentialsGrant", Level.FINE);
 		final var credentials = (IuBearerToken) provider.clientCredentials().authorize(resourceUri);
-		IuPrincipalIdentity.verify(credentials, realm);
+		IuPrincipalIdentity.verify(credentials, redirectUri.toString());
 		final var id = provider.hydrate(credentials.getAccessToken());
+		IuPrincipalIdentity.verify(id, realm);
 		assertEquals(clientId, id.getName());
 		System.out.println(id);
 	}

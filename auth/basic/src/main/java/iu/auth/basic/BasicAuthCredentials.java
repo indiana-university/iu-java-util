@@ -32,7 +32,6 @@
 package iu.auth.basic;
 
 import java.net.http.HttpRequest.Builder;
-import java.time.Instant;
 import java.util.Base64;
 import java.util.Set;
 
@@ -63,30 +62,16 @@ final class BasicAuthCredentials implements IuBasicAuthCredentials {
 	private final String charset;
 
 	/**
-	 * Time before which credentials are not valid.
-	 */
-	private final Instant notBefore;
-
-	/**
-	 * Time at which credentials expire.
-	 */
-	private final Instant expires;
-
-	/**
 	 * Constructor.
 	 * 
-	 * @param name      username
-	 * @param password  password
-	 * @param charset   character set
-	 * @param notBefore not before time
-	 * @param expires   expiration time
+	 * @param name     username
+	 * @param password password
+	 * @param charset  character set
 	 */
-	BasicAuthCredentials(String name, String password, String charset, Instant notBefore, Instant expires) {
+	BasicAuthCredentials(String name, String password, String charset) {
 		this.name = name;
 		this.password = password;
 		this.charset = charset;
-		this.notBefore = notBefore;
-		this.expires = expires;
 	}
 
 	@Override
@@ -105,16 +90,6 @@ final class BasicAuthCredentials implements IuBasicAuthCredentials {
 	}
 
 	@Override
-	public Instant getNotBefore() {
-		return notBefore;
-	}
-
-	@Override
-	public Instant getExpires() {
-		return expires;
-	}
-
-	@Override
 	public Subject getSubject() {
 		return new Subject(true, Set.of(this), Set.of(), Set.of());
 	}
@@ -123,6 +98,11 @@ final class BasicAuthCredentials implements IuBasicAuthCredentials {
 	public void applyTo(Builder httpRequestBuilder) {
 		httpRequestBuilder.header("Authorization", "Basic " + Base64.getUrlEncoder()
 				.encodeToString(IuException.unchecked(() -> (getName() + ':' + password).getBytes(charset))));
+	}
+
+	@Override
+	public String toString() {
+		return "BasicAuthCredentials [" + name + "]";
 	}
 
 }

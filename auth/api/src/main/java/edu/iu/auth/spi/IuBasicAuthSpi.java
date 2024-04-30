@@ -34,6 +34,7 @@ package edu.iu.auth.spi;
 import java.time.temporal.TemporalAmount;
 
 import edu.iu.auth.basic.IuBasicAuthCredentials;
+import edu.iu.auth.basic.IuClientCredentials;
 
 /**
  * Service provider interface for HTTP basic auth.
@@ -55,7 +56,7 @@ public interface IuBasicAuthSpi {
 	 * 
 	 * <p>
 	 * Support for
-	 * {@link IuBasicAuthCredentials#registerClientCredentials(Iterable, String, TemporalAmount)}
+	 * {@link IuClientCredentials#register(Iterable, String, TemporalAmount)}
 	 * is <em>required</em>.
 	 * </p>
 	 * 
@@ -64,7 +65,7 @@ public interface IuBasicAuthSpi {
 	 * @param expirationPolicy    Default/maximum length of time for credentials to
 	 *                            remain valid
 	 */
-	void register(Iterable<? extends IuBasicAuthCredentials> basicAuthPrincipals, String realm,
+	void register(Iterable<? extends IuClientCredentials> basicAuthPrincipals, String realm,
 			TemporalAmount expirationPolicy);
 
 }

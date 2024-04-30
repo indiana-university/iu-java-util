@@ -49,8 +49,8 @@ public class PrincipalSpiDelegate implements IuPrincipalSpi {
 	}
 
 	@Override
-	public <T extends IuPrincipalIdentity> void verify(T id, String realm) throws IuAuthenticationException {
-		DELEGATE.verify(id, realm);
+	public boolean verify(IuPrincipalIdentity id, String realm) throws IuAuthenticationException {
+		return DELEGATE.verify(id, realm);
 	}
 
 }

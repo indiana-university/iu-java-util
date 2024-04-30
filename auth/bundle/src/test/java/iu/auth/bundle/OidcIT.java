@@ -31,13 +31,11 @@
  */
 package iu.auth.bundle;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.net.URI;
 import java.net.URISyntaxException;
 
 import org.junit.jupiter.api.Test;
@@ -51,11 +49,10 @@ public class OidcIT {
 
 	@Test
 	public void testClient() throws URISyntaxException, IOException, InterruptedException {
-		final var configUri = new URI("test://localhost/" + IdGenerator.generateId());
+		final var realm = IdGenerator.generateId();
 		final var idClient = mock(IuOpenIdClient.class);
-		assertEquals("Missing system property iu.http.allowedUri or environment variable IU_HTTP_ALLOWEDURI",
-				assertInstanceOf(NullPointerException.class, assertThrows(ExceptionInInitializerError.class,
-						() -> IuOpenIdProvider.from(configUri, idClient)).getCause()).getMessage());
+		when(idClient.getRealm()).thenReturn(realm);
+		assertInstanceOf(IuOpenIdProvider.class, IuOpenIdProvider.from(idClient));
 	}
 
 }

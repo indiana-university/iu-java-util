@@ -1,6 +1,8 @@
 package iu.auth.oidc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuTokenResponse;
 import edu.iu.auth.oidc.IuAuthoritativeOpenIdClient;
 import edu.iu.client.IuJson;
@@ -42,17 +45,21 @@ public class OidcAuthorizationClientTest extends IuOidcTestCase {
 
 		final var authClient = new OidcAuthorizationClient(provider);
 
+		final var redirectUri = URI.create("test:" + IdGenerator.generateId());
+		when(client.getRedirectUri()).thenReturn(redirectUri);
+		assertEquals(redirectUri, authClient.getRedirectUri());
+		assertEquals(redirectUri.toString(), authClient.getRealm());
+
 		final var realm = IdGenerator.generateId();
 		when(client.getRealm()).thenReturn(realm);
-		assertEquals(realm, authClient.getRealm());
+		final var principalRealms = authClient.getPrincipalRealms().iterator();
+		assertTrue(principalRealms.hasNext());
+		assertEquals(realm, principalRealms.next());
+		assertFalse(principalRealms.hasNext());
 
 		final var resourceUri = URI.create("test:" + IdGenerator.generateId());
 		when(client.getResourceUri()).thenReturn(resourceUri);
 		assertEquals(resourceUri, authClient.getResourceUri());
-
-		final var redirectUri = URI.create("test:" + IdGenerator.generateId());
-		when(client.getRedirectUri()).thenReturn(redirectUri);
-		assertEquals(redirectUri, authClient.getRedirectUri());
 
 		final var credentials = mock(IuApiCredentials.class);
 		when(client.getCredentials()).thenReturn(credentials);
@@ -101,8 +108,10 @@ public class OidcAuthorizationClientTest extends IuOidcTestCase {
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Test
-	public void testVerify() {
+	public void testVerify() throws IuAuthenticationException {
 		final var client = mock(IuAuthoritativeOpenIdClient.class);
+		final var realm = IdGenerator.generateId();
+		when(client.getRealm()).thenReturn(realm);
 		final var provider = mock(OpenIdProvider.class);
 		when(provider.client()).thenReturn(client);
 		when(provider.authClient()).thenReturn(client);
@@ -123,7 +132,10 @@ public class OidcAuthorizationClientTest extends IuOidcTestCase {
 		when(provider.getClaims(idToken, accessToken)).thenReturn((Map) Map.of("principal", principal));
 		when(tokenResponse.getTokenAttributes()).thenReturn((Map) Map.of("id_token", idToken));
 		when(tokenResponse.getAccessToken()).thenReturn(accessToken);
-		authClient.verify(tokenResponse);
+		final var authPrincipal = authClient.verify(tokenResponse);
+		assertEquals(realm, authPrincipal.getRealm());
+		final var id = assertInstanceOf(OidcPrincipal.class, authPrincipal.getPrincipal());
+		assertEquals(principal, id.getName());
 
 		assertThrows(UnsupportedOperationException.class, () -> authClient.verify(null, null));
 	}

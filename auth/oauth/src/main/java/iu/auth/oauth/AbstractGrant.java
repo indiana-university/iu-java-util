@@ -160,8 +160,8 @@ abstract class AbstractGrant implements IuAuthorizationGrant, Serializable {
 	 * Verifies a refresh token response.
 	 * 
 	 * @param refreshTokenResponse  refresh token response
-	 * @param originalTokenResponse {@link #verify(IuTokenResponse) verified} token
-	 *                              response previously
+	 * @param originalTokenResponse previously {@link #authorize(IuTokenResponse)
+	 *                              authorized} token response
 	 * @return verified credentials, will be held internally until the expiration
 	 *         time implied by the token response has passed.
 	 * @throws IuAuthenticationException if the token response cannot be verified

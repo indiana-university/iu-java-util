@@ -46,7 +46,7 @@ import edu.iu.crypt.WebKey;
  * Verifies JWT access tokens as signed using an RSA or ECDSA public key from a
  * well-known JWKS key set.
  * 
- * @deprecated TODO
+ * @deprecated TODO iu-java-auth-jwt
  */
 public class AccessTokenVerifier {
 
@@ -56,10 +56,9 @@ public class AccessTokenVerifier {
 	/**
 	 * Constructor.
 	 * 
-	 * @param keysetUri       JWKS URL
-	 * @param issuer          expected issuer
-	 * @param refreshInterval max time to reuse a configured {@link Algorithm}
-	 *                        before refreshing from the JWKS URL.
+	 * @param keysetUri JWKS URL
+	 * @param issuer    expected issuer
+	 * 
 	 */
 	public AccessTokenVerifier(URI keysetUri, String issuer) {
 		this.keysetUri = keysetUri;

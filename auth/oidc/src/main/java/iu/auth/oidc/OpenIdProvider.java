@@ -70,7 +70,6 @@ class OpenIdProvider implements IuOpenIdProvider {
 	/**
 	 * Constructor.
 	 * 
-	 * @param configUri provider configuration URI
 	 * @param client    client configuration metadata
 	 */
 	OpenIdProvider(IuOpenIdClient client) {
@@ -155,7 +154,6 @@ class OpenIdProvider implements IuOpenIdProvider {
 	 * @param idToken     OIDC ID token
 	 * @param accessToken OIDC Access token
 	 * @return consolidated claims
-	 * @throws IuAuthenticationException if verification fails
 	 */
 	Map<String, ?> getClaims(String idToken, String accessToken) {
 		if (!(client instanceof IuAuthoritativeOpenIdClient))

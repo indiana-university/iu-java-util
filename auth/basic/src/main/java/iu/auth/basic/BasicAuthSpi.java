@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import edu.iu.auth.basic.IuBasicAuthCredentials;
+import edu.iu.auth.basic.IuClientCredentials;
 import edu.iu.auth.spi.IuBasicAuthSpi;
 import iu.auth.principal.PrincipalVerifierRegistry;
 
@@ -55,11 +56,11 @@ public class BasicAuthSpi implements IuBasicAuthSpi {
 
 	@Override
 	public IuBasicAuthCredentials createCredentials(String username, String password, String charset) {
-		return new BasicAuthCredentials(username, password, charset, null, null);
+		return new BasicAuthCredentials(username, password, charset);
 	}
 
 	@Override
-	public synchronized void register(Iterable<? extends IuBasicAuthCredentials> basicAuthPrincipals, String realm,
+	public synchronized void register(Iterable<? extends IuClientCredentials> basicAuthPrincipals, String realm,
 			TemporalAmount expirationPolicy) {
 		if (CLIENT_CREDENTIALS.containsKey(Objects.requireNonNull(realm, "realm is required")))
 			throw new IllegalArgumentException("Client credentials realm is already registerd");

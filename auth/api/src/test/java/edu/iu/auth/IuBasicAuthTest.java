@@ -47,6 +47,7 @@ import org.mockito.MockedStatic;
 
 import edu.iu.IdGenerator;
 import edu.iu.auth.basic.IuBasicAuthCredentials;
+import edu.iu.auth.basic.IuClientCredentials;
 import edu.iu.auth.spi.IuBasicAuthSpi;
 import iu.auth.IuAuthSpiFactory;
 
@@ -73,12 +74,12 @@ public class IuBasicAuthTest {
 	@Test
 	public void testVerify() throws IuAuthenticationException {
 		final var realm = IdGenerator.generateId();
-		final var principal = mock(IuBasicAuthCredentials.class);
+		final var principal = mock(IuClientCredentials.class);
 		final var credentials = Set.of(principal);
-		IuBasicAuthCredentials.registerClientCredentials(credentials, realm, Duration.ZERO);
+		IuClientCredentials.register(credentials, realm, Duration.ZERO);
 		verify(spi).register(credentials, realm, Duration.ZERO);
 	}
-	
+
 	@Test
 	public void testDefaultCharset() {
 		final var principal = mock(IuBasicAuthCredentials.class, CALLS_REAL_METHODS);

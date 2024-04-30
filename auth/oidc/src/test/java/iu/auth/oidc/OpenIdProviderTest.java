@@ -226,12 +226,14 @@ public class OpenIdProviderTest extends IuOidcTestCase {
 			JsonObject idTokenPayload, Instant now) throws Exception {
 		final var realm = IdGenerator.generateId();
 		final var resourceUri = URI.create("test:" + IdGenerator.generateId());
+		final var redirectUri = URI.create("test:" + IdGenerator.generateId());
 		final var credentials = mock(IuApiCredentials.class);
 		when(credentials.getName()).thenReturn(clientId);
 
 		final var client = mock(IuAuthoritativeOpenIdClient.class);
 		when(client.getRealm()).thenReturn(realm);
 		when(client.getResourceUri()).thenReturn(resourceUri);
+		when(client.getRedirectUri()).thenReturn(redirectUri);
 		when(client.getCredentials()).thenReturn(credentials);
 		when(client.getIdTokenAlgorithm()).thenReturn(alg);
 		when(client.getAuthenticatedSessionTimeout()).thenReturn(Duration.ofSeconds(5L));

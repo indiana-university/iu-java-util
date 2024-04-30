@@ -44,7 +44,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuText;
-import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.basic.IuBasicAuthCredentials;
 
 @SuppressWarnings("javadoc")
 public class BasicAuthCredentialsTest {
@@ -53,9 +53,10 @@ public class BasicAuthCredentialsTest {
 	public void testBasicAuth() throws UnsupportedEncodingException {
 		final var name = IdGenerator.generateId();
 		final var password = IdGenerator.generateId();
-		final var auth = new BasicAuthCredentials(name, password, "US-ASCII", null, null);
+		final var auth = new BasicAuthCredentials(name, password, "US-ASCII");
 		assertEquals(name, auth.getName());
 		assertEquals(password, auth.getPassword());
+		assertEquals("US-ASCII", auth.getCharset());
 
 		final var req = mock(HttpRequest.Builder.class);
 		auth.applyTo(req);
@@ -65,13 +66,13 @@ public class BasicAuthCredentialsTest {
 
 	@Test
 	public void testSubject() throws UnsupportedEncodingException {
-		final var realm = IdGenerator.generateId();
 		final var name = IdGenerator.generateId();
 		final var password = IdGenerator.generateId();
-		final var auth = IuApiCredentials.basic(realm, name, password);
+		final var auth = IuBasicAuthCredentials.of(name, password);
 		final var sub = auth.getSubject();
 		assertEquals(sub, auth.getSubject());
 		assertEquals(Set.of(auth), sub.getPrincipals());
+		assertEquals("BasicAuthCredentials [" + name + "]", auth.toString());
 	}
 
 }

@@ -38,6 +38,7 @@ import static org.mockito.Mockito.verify;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.auth.basic.IuBasicAuthCredentials;
 import edu.iu.auth.spi.IuBasicAuthSpi;
 import iu.auth.IuAuthSpiFactory;
 
@@ -51,7 +52,7 @@ public class IuApiCredentialsTest {
 		final var basicAuthSpi = mock(IuBasicAuthSpi.class);
 		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
 			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuBasicAuthSpi.class)).thenReturn(basicAuthSpi);
-			IuApiCredentials.basic(name, password);
+			IuBasicAuthCredentials.of(name, password);
 			verify(basicAuthSpi).createCredentials(name, password, "US-ASCII");
 		}
 	}

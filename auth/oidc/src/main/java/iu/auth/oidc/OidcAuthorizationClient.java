@@ -42,6 +42,7 @@ import edu.iu.IuIterable;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuAuthorizationClient;
+import edu.iu.auth.oauth.IuAuthorizedPrincipal;
 import edu.iu.auth.oauth.IuTokenResponse;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
@@ -67,7 +68,12 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 
 	@Override
 	public String getRealm() {
-		return provider.client().getRealm();
+		return getRedirectUri().toString();
+	}
+
+	@Override
+	public Iterable<String> getPrincipalRealms() {
+		return IuIterable.iter(provider.client().getRealm());
 	}
 
 	@Override
@@ -139,17 +145,29 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 	}
 
 	@Override
-	public IuPrincipalIdentity verify(IuTokenResponse tokenResponse) {
+	public IuAuthorizedPrincipal verify(IuTokenResponse tokenResponse) {
 		if (!IuIterable.filter(tokenResponse.getScope(), "openid"::equals).iterator().hasNext())
 			throw new IllegalArgumentException("missing openid scope");
 
 		final var accessToken = Objects.requireNonNull(tokenResponse.getAccessToken(), "access_token");
 		final var idToken = (String) tokenResponse.getTokenAttributes().get("id_token");
-		return new OidcPrincipal(idToken, accessToken, provider);
+		final var principal = new OidcPrincipal(idToken, accessToken, provider);
+
+		return new IuAuthorizedPrincipal() {
+			@Override
+			public String getRealm() {
+				return provider.client().getRealm();
+			}
+
+			@Override
+			public IuPrincipalIdentity getPrincipal() {
+				return principal;
+			}
+		};
 	}
 
 	@Override
-	public IuPrincipalIdentity verify(IuTokenResponse refreshTokenResponse, IuTokenResponse originalTokenResponse) {
+	public IuAuthorizedPrincipal verify(IuTokenResponse refreshTokenResponse, IuTokenResponse originalTokenResponse) {
 		// TODO establish and verify refresh token integration test
 		throw new UnsupportedOperationException("TODO");
 	}

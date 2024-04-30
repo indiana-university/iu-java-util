@@ -1,7 +1,6 @@
 package iu.auth.oidc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -101,27 +100,25 @@ public class OidcPrincipalTest extends IuOidcTestCase {
 			}
 	}
 
-	@SuppressWarnings({ "rawtypes", "unchecked" })
-	@Test
-	public void testRevoke() throws InterruptedException {
-		final var provider = mock(OpenIdProvider.class);
-
-		final var client = mock(IuOpenIdClient.class);
-		final var realm = IdGenerator.generateId();
-		when(client.getRealm()).thenReturn(realm);
-		when(client.getVerificationInterval()).thenReturn(Duration.ofMillis(250L));
-		when(provider.client()).thenReturn(client);
-
-		final var idToken = IdGenerator.generateId();
-		final var accessToken = IdGenerator.generateId();
-		final var name = IdGenerator.generateId();
-		final Map claims = Map.of("principal", name);
-		when(provider.getClaims(idToken, accessToken)).thenReturn(claims);
-
-		final var principal = new OidcPrincipal(idToken, accessToken, provider);
-		assertFalse(principal.revoked());
-		principal.revoke();
-		assertTrue(principal.revoked());
-	}
-
+//	@SuppressWarnings({ "rawtypes", "unchecked" })
+//	@Test
+//	public void testRevoke() throws InterruptedException {
+//		final var provider = mock(OpenIdProvider.class);
+//
+//		final var client = mock(IuOpenIdClient.class);
+//		final var realm = IdGenerator.generateId();
+//		when(client.getRealm()).thenReturn(realm);
+//		when(client.getVerificationInterval()).thenReturn(Duration.ofMillis(250L));
+//		when(provider.client()).thenReturn(client);
+//
+//		final var idToken = IdGenerator.generateId();
+//		final var accessToken = IdGenerator.generateId();
+//		final var name = IdGenerator.generateId();
+//		final Map claims = Map.of("principal", name);
+//		when(provider.getClaims(idToken, accessToken)).thenReturn(claims);
+//
+//		final var principal = new OidcPrincipal(idToken, accessToken, provider);
+//
+//	}
+//
 }
