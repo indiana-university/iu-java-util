@@ -79,7 +79,7 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 	 * @return {@link ModularClassLoader}
 	 */
 	public static final ModularClassLoader of(ClassLoader parent, ModuleLayer parentLayer,
-			Supplier<Iterable<Supplier<Path>>> modulePath, Consumer<Controller> controllerCallback) {
+			Supplier<Iterable<Path>> modulePath, Consumer<Controller> controllerCallback) {
 		class Box implements AutoCloseable {
 			private ModularClassLoader loader;
 			private volatile UnsafeRunnable destroy;
@@ -95,7 +95,7 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 
 		final var box = new Box();
 		box.destroy = IuException.unchecked(() -> TemporaryFile.init(() -> {
-			box.loader = new ModularClassLoader(false, IuIterable.map(modulePath.get(), Supplier::get), parentLayer,
+			box.loader = new ModularClassLoader(false, modulePath.get(), parentLayer,
 					parent, controllerCallback) {
 				@Override
 				public void close() throws IOException {
