@@ -49,6 +49,7 @@ module iu.util.auth {
 	exports edu.iu.auth.oauth;
 	exports edu.iu.auth.oidc;
 	exports edu.iu.auth.pki;
+	exports edu.iu.auth.saml;
 	exports edu.iu.auth.spi;
 
 	requires iu.util;
@@ -59,4 +60,5 @@ module iu.util.auth {
 	uses edu.iu.auth.spi.IuOAuthSpi;
 	uses edu.iu.auth.spi.IuOpenIdConnectSpi;
 	uses edu.iu.auth.spi.IuPrincipalSpi;
+	uses edu.iu.auth.spi.IuSamlSpi;
 }
