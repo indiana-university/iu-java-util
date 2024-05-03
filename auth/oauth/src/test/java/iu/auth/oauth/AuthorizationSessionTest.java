@@ -37,6 +37,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
@@ -46,27 +48,28 @@ import java.net.URISyntaxException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublisher;
 import java.net.http.HttpRequest.BodyPublishers;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
 
-import javax.security.auth.Subject;
-
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuException;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationSession;
+import edu.iu.auth.oauth.IuAuthorizedPrincipal;
+import edu.iu.client.IuHttp;
 import edu.iu.test.IuTestLogger;
-import iu.auth.util.HttpUtils;
 import jakarta.json.Json;
 
 @SuppressWarnings("javadoc")
-public class AuthorizationSessionTest {
+public class AuthorizationSessionTest extends IuOAuthTestCase {
 
 	@Test
 	public void testEntryPoint() throws URISyntaxException, IuAuthenticationException {
@@ -113,6 +116,9 @@ public class AuthorizationSessionTest {
 
 	@Test
 	public void testAuthorize() throws URISyntaxException, IuAuthenticationException {
+		final var idRealm = IdGenerator.generateId();
+		MockPrincipal.registerVerifier(idRealm);
+
 		final var realm = IdGenerator.generateId();
 		final var resourceUri = new URI("foo:/bar");
 		final var redirectUri = new URI("foo:/baz");
@@ -121,9 +127,9 @@ public class AuthorizationSessionTest {
 		final var client = mock(IuAuthorizationClient.class);
 		final var clientCredentials = mock(IuApiCredentials.class);
 		final var clientId = IdGenerator.generateId();
-		final var principal = new MockPrincipal();
 		when(clientCredentials.getName()).thenReturn(clientId);
 		when(client.getRealm()).thenReturn(realm);
+		when(client.getPrincipalRealms()).thenReturn(Set.of(idRealm));
 		when(client.getResourceUri()).thenReturn(resourceUri);
 		when(client.getRedirectUri()).thenReturn(redirectUri);
 		when(client.getAuthorizationEndpoint()).thenReturn(authEndpointUri);
@@ -131,8 +137,15 @@ public class AuthorizationSessionTest {
 		when(client.getAuthorizationCodeAttributes()).thenReturn(Map.of("foo", "bar"));
 		when(client.getScope()).thenReturn(List.of("foo", "bar"));
 		when(client.getCredentials()).thenReturn(clientCredentials);
-		when(client.verify(any())).thenReturn(new Subject(true, Set.of(principal), Set.of(), Set.of()));
-		when(client.verify(any(), any())).thenReturn(new Subject(true, Set.of(principal), Set.of(), Set.of()));
+		when(client.getAuthorizationTimeToLive()).thenReturn(Duration.ofSeconds(5L));
+
+		final var principal = new MockPrincipal(realm);
+		final var authPrincipal = mock(IuAuthorizedPrincipal.class);
+		when(authPrincipal.getRealm()).thenReturn(idRealm);
+		when(authPrincipal.getPrincipal()).thenReturn(principal);
+
+		when(client.verify(any())).thenReturn(authPrincipal);
+		when(client.verify(any(), any())).thenReturn(authPrincipal);
 		IuAuthorizationClient.initialize(client);
 
 		final var entryPointUri = new URI("foo:/bar/baz");
@@ -148,24 +161,23 @@ public class AuthorizationSessionTest {
 		final var state = matcher.group(1);
 		final var code = IdGenerator.generateId();
 
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockBodyPublishers = mockStatic(BodyPublishers.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var hr = mock(HttpRequest.class);
+		try (final var mockBodyPublishers = mockStatic(BodyPublishers.class);
+				final var mockHttp = mockStatic(IuHttp.class)) {
 			final var hrb = mock(HttpRequest.Builder.class);
 			final var payload = "grant_type=authorization_code&code=" + code
 					+ "&scope=foo+bar&redirect_uri=foo%3A%2Fbaz";
 			final var bp = mock(BodyPublisher.class);
 			mockBodyPublishers.when(() -> BodyPublishers.ofString(payload)).thenReturn(bp);
 			when(hrb.POST(bp)).thenReturn(hrb);
-			when(hrb.build()).thenReturn(hr);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(tokenEndpointUri)).thenReturn(hrb);
 
 			final var accessToken = IdGenerator.generateId();
 			final var refreshToken = IdGenerator.generateId();
 			final var tokenResponse = Json.createObjectBuilder().add("token_type", "Bearer")
 					.add("access_token", accessToken).add("refresh_token", refreshToken).add("expires_in", 1).build();
-			mockHttpUtils.when(() -> HttpUtils.read(hr)).thenReturn(tokenResponse);
+			mockHttp.when(() -> IuHttp.send(eq(IuAuthenticationException.class), eq(tokenEndpointUri), argThat(a -> {
+				IuException.unchecked(() -> a.accept(hrb));
+				return true;
+			}), eq(AbstractGrant.JSON_OBJECT_NOCACHE))).thenReturn(tokenResponse);
 
 			assertEquals(entryPointUri, session.authorize(code, state));
 		}

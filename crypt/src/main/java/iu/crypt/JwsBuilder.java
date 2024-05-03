@@ -268,12 +268,13 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 						sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA512.getDigestAlgorithm(), "MGF1",
 								MGF1ParameterSpec.SHA512, algorithm.size / 8, 1));
 						break;
+
 					default:
 						break;
 					}
 					sig.initSign(key.getPrivateKey());
 					sig.update(dataToSign);
-					return sig.sign();
+					return Jws.fromJce(key.getType(), algorithm, sig.sign());
 				});
 
 			signatures.add(new Jws(protectedHeader, header, signature));

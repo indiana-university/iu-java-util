@@ -54,7 +54,6 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandler;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -66,11 +65,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.UnsafeConsumer;
 
 @SuppressWarnings("javadoc")
 public class IuHttpTest {
 
-	private static final URI TEST_URI = URI.create("test:" + IdGenerator.generateId());
+	private static final URI TEST_URI = URI.create("test://localhost/" + IdGenerator.generateId());
 	private static HttpClient http;
 
 	@BeforeAll
@@ -166,7 +166,13 @@ public class IuHttpTest {
 
 	@Test
 	public void testDenyByDefault() {
-		assertThrows(IllegalArgumentException.class, () -> IuHttp.get(mock(URI.class)));
+		assertEquals("insecure URI",
+				assertThrows(IllegalArgumentException.class, () -> IuHttp.get(mock(URI.class))).getMessage());
+		assertEquals("insecure URI",
+				assertThrows(IllegalArgumentException.class, () -> IuHttp.get(URI.create("test:foobar"))).getMessage());
+		assertEquals("URI not allowed, must be relative to [" + TEST_URI + "]",
+				assertThrows(IllegalArgumentException.class, () -> IuHttp.get(URI.create("https://www.iu.edu/")))
+						.getMessage());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -201,7 +207,7 @@ public class IuHttpTest {
 
 	@SuppressWarnings("unchecked")
 	@Test
-	public void testModifiedRequest() throws Exception {
+	public void testModifiedRequest() throws Throwable {
 		try (final var mockRequest = mockStatic(HttpRequest.class)) {
 			final var request = mock(HttpRequest.class);
 			when(request.method()).thenReturn("POST");
@@ -215,7 +221,7 @@ public class IuHttpTest {
 			when(mockBuilder.build()).thenReturn(request);
 			mockRequest.when(() -> HttpRequest.newBuilder(TEST_URI)).thenReturn(mockBuilder);
 
-			final var mockConsumer = mock(Consumer.class);
+			final var mockConsumer = mock(UnsafeConsumer.class);
 			final var response = mock(HttpResponse.class);
 			when(response.statusCode()).thenReturn(202);
 
@@ -301,4 +307,9 @@ public class IuHttpTest {
 		}
 	}
 
+	@Test
+	public void testExceptions() {
+		new HttpException("foo");
+		new HttpException("foo", null);
+	}
 }

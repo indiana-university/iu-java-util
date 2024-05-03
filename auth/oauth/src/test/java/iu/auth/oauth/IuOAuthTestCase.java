@@ -29,36 +29,19 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.util;
+package iu.auth.oauth;
 
-import jakarta.json.spi.JsonProvider;
+import java.net.URI;
 
-/**
- * Holds an instance of {@link JsonProvider}.
- * <p>
- * This class <em>may</em> be intentionally initialized by the authentication
- * bootstrap with the desired {@link JsonProvider} SPI provided by the current
- * thread's context.
- * </p>
- */
-public class JsonProviderFactory {
+import edu.iu.IdGenerator;
 
-	/**
-	 * Singleton instance of {@link JsonProvider}.
-	 */
-	public static final JsonProvider JSON;
+@SuppressWarnings("javadoc")
+public class IuOAuthTestCase {
+
+	protected static final URI ROOT_URI = URI.create("test://" + IdGenerator.generateId());
 
 	static {
-		final var current = Thread.currentThread();
-		final var contextToRestore = current.getContextClassLoader();
-		try {
-			current.setContextClassLoader(JsonProvider.class.getClassLoader());
-			JSON = JsonProvider.provider();
-		} finally {
-			current.setContextClassLoader(contextToRestore);
-		}
+		System.setProperty("iu.http.allowedUri", ROOT_URI.toString());
 	}
 
-	private JsonProviderFactory() {
-	}
 }

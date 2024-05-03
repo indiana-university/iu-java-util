@@ -407,13 +407,13 @@ public interface WebKey extends WebKeyReference {
 		/**
 		 * Elliptic Curve signature w/ SHA-384.
 		 */
-		ES384("ES384", "SHA384withECDSA", 384, new Type[] { Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.SIGN,
+		ES384("ES384", "SHA384withECDSA", 384, new Type[] { Type.EC_P384, Type.EC_P521, Type.EC_P256 }, Use.SIGN,
 				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),
 
 		/**
 		 * Elliptic Curve signature w/ SHA-512.
 		 */
-		ES512("ES512", "SHA512withECDSA", 512, new Type[] { Type.EC_P256, Type.EC_P384, Type.EC_P521 }, Use.SIGN,
+		ES512("ES512", "SHA512withECDSA", 512, new Type[] { Type.EC_P521, Type.EC_P256, Type.EC_P384 }, Use.SIGN,
 				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),
 
 		/**

@@ -29,30 +29,28 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.oidc;
+package iu.auth.bundle;
 
-import java.io.Serializable;
-import java.security.Principal;
+import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.spi.IuPrincipalSpi;
 
 /**
- * Represents an OpenID claim: from ID token or userinfo endpoint.
- * 
- * @param <T> claim value type
+ * Delegating SPI implementation.
  */
-public interface IuOpenIdClaim<T> extends Principal, Serializable {
+public class PrincipalSpiDelegate implements IuPrincipalSpi {
+
+	private static final IuPrincipalSpi DELEGATE = Bootstrap.load(IuPrincipalSpi.class);
 
 	/**
-	 * Gets the claim name.
-	 * 
-	 * @return claim name
+	 * Default constructor.
 	 */
-	String getClaimName();
+	public PrincipalSpiDelegate() {
+	}
 
-	/**
-	 * Gets the claim value.
-	 * 
-	 * @return claim value
-	 */
-	T getClaim();
+	@Override
+	public boolean verify(IuPrincipalIdentity id, String realm) throws IuAuthenticationException {
+		return DELEGATE.verify(id, realm);
+	}
 
 }

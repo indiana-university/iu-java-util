@@ -29,86 +29,48 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.oauth;
+package edu.iu.auth;
 
-import java.net.http.HttpRequest.Builder;
+import java.io.Serializable;
+import java.security.Principal;
 
 import javax.security.auth.Subject;
 
-import edu.iu.IuObject;
-import edu.iu.auth.oauth.IuBearerAuthCredentials;
+import edu.iu.auth.spi.IuPrincipalSpi;
+import iu.auth.IuAuthSpiFactory;
 
 /**
- * {@link IuBearerAuthCredentials} implementation.
+ * Designates an authenticated principal identity.
  */
-public class BearerAuthCredentials implements IuBearerAuthCredentials {
-	private static final long serialVersionUID = 1L;
+public interface IuPrincipalIdentity extends Principal, Serializable {
 
 	/**
-	 * Principal name.
-	 */
-	private final String name;
-
-	/**
-	 * Authorized subject.
-	 */
-	private final Subject subject;
-
-	/**
-	 * Access token.
-	 */
-	private final String accessToken;
-
-	/**
-	 * Constructor.
+	 * Verifies that a principal identity was issued by a registered identity
+	 * provider for an authentication realm.
 	 * 
-	 * @param subject     verified subject
-	 * @param accessToken access token
+	 * @param id    principal identity
+	 * @param realm authentication realm
+	 * @return true if verification was successful <em>and</em> the authorization
+	 *         module is considered authoritative for the authentication realm;
+	 *         false if verification was successful <em>but</em> based solely on
+	 *         well-known information about the authentication provider.
+	 * @throws IuAuthenticationException If credentials could not be verified
 	 */
-	public BearerAuthCredentials(Subject subject, String accessToken) {
-		this.name = subject.getPrincipals().iterator().next().getName();
-		this.subject = subject;
-		this.accessToken = accessToken;
+	static boolean verify(IuPrincipalIdentity id, String realm) throws IuAuthenticationException {
+		return IuAuthSpiFactory.get(IuPrincipalSpi.class).verify(id, realm);
 	}
 
-	@Override
-	public String getName() {
-		return name;
-	}
+	/**
+	 * Gets a subject including this principal, related principals, and implied
+	 * credentials.
+	 * 
+	 * @return {@link Subject}
+	 */
+	Subject getSubject();
 
 	@Override
-	public Subject getSubject() {
-		return subject;
-	}
-
-	@Override
-	public String getAccessToken() {
-		return accessToken;
-	}
-
-	@Override
-	public void applyTo(Builder httpRequestBuilder) {
-		httpRequestBuilder.header("Authorization", "Bearer " + accessToken);
-	}
-
-	@Override
-	public int hashCode() {
-		return IuObject.hashCode(accessToken, name, subject);
-	}
-
-	@Override
-	public boolean equals(Object obj) {
-		if (!IuObject.typeCheck(this, obj))
-			return false;
-		BearerAuthCredentials other = (BearerAuthCredentials) obj;
-		return IuObject.equals(accessToken, other.accessToken) //
-				&& IuObject.equals(name, other.name) //
-				&& IuObject.equals(subject, other.subject);
-	}
-
-	@Override
-	public String toString() {
-		return "BearerAuthCredentials [name=" + name + ", subject=" + subject + "]";
+	default boolean implies(Subject subject) {
+		return subject == getSubject() || Principal.super.implies(subject);
 	}
 
 }

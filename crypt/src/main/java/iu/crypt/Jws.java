@@ -31,6 +31,8 @@
  */
 package iu.crypt;
 
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.security.Signature;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
@@ -47,6 +49,8 @@ import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebSignature;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
@@ -135,9 +139,139 @@ class Jws implements WebSignature {
 				}
 				sig.initVerify(key.getPublicKey());
 				sig.update(dataToSign);
-				if (!sig.verify(signature))
+				if (!sig.verify(toJce(key.getType(), algorithm, signature)))
 					throw new IllegalArgumentException(algorithm.algorithm + " verification failed");
 			});
+	}
+
+	/**
+	 * Gets the expected signature component length by key type.
+	 * 
+	 * @param type key type
+	 * @return expected signature component length
+	 */
+	static int componentLength(Type type) {
+		switch (type) {
+		case EC_P256:
+			return 32;
+		case EC_P384:
+			return 48;
+		case EC_P521:
+			return 66;
+		default:
+			throw new IllegalArgumentException();
+		}
+	}
+
+	/**
+	 * Converts a signature from JWA format to JCE
+	 * 
+	 * @param type         key type
+	 * @param algorithm    algorithm
+	 * @param jwaSignature JWA formatted signature
+	 * @return JCE formatted signature
+	 */
+	static byte[] toJce(Type type, Algorithm algorithm, byte[] jwaSignature) {
+		switch (algorithm) {
+		case ES256:
+		case ES384:
+		case ES512: {
+			// Validate expected length of R || S
+			final int alen = componentLength(type);
+			if (jwaSignature.length != alen * 2)
+				throw new IllegalArgumentException();
+
+			// Convert R and S to Java encoded BigInteger (w/ signum)
+			final var ri = UnsignedBigInteger.bigInt(Arrays.copyOf(jwaSignature, alen));
+			if (ri.compareTo(BigInteger.ZERO) <= 0)
+				throw new IllegalArgumentException();
+			final var r = ri.toByteArray();
+
+			final var si = UnsignedBigInteger.bigInt(Arrays.copyOfRange(jwaSignature, alen, alen * 2));
+			if (si.compareTo(BigInteger.ZERO) <= 0)
+				throw new IllegalArgumentException();
+			final var s = si.toByteArray();
+
+			final var tlen = r.length + s.length + 4;
+			final var sequenceEncodingBytes = type.equals(Type.EC_P521) ? 3 : 2;
+
+			// converted length = includes 6 bytes for DER encoding
+			final var converted = ByteBuffer.wrap(new byte[tlen + sequenceEncodingBytes]);
+			converted.put((byte) 0x30); // DER constructed sequence
+			if (type.equals(Type.EC_P521)) // DER single octet extended length (> 127)
+				converted.put((byte) 0x81);
+			converted.put((byte) tlen); // Sequence length
+			converted.put((byte) 0x02); // DER integer
+			converted.put((byte) r.length);
+			converted.put(r);
+			converted.put((byte) 0x02); // DER integer
+			converted.put((byte) s.length);
+			converted.put(s);
+			return converted.array();
+		}
+
+		default:
+			return jwaSignature;
+		}
+	}
+
+	/**
+	 * Converts a signature from JCE format to JWA
+	 * 
+	 * @param type         key type
+	 * @param algorithm    algorithm
+	 * @param jceSignature JCE calculated signature
+	 * @return JWA formatted signature
+	 */
+	static byte[] fromJce(Type type, Algorithm algorithm, byte[] jceSignature) {
+		switch (algorithm) {
+		case ES256:
+		case ES384:
+		case ES512: {
+			final var alen = componentLength(type); // expected length of R and S values
+			if (jceSignature.length < 8) // at least one non-zero byte per component value
+				throw new IllegalArgumentException();
+
+			final var original = ByteBuffer.wrap(jceSignature);
+			final var converted = ByteBuffer.wrap(new byte[alen * 2]);
+
+			// Assert DER constructed sequence
+			if (original.get() != 0x30)
+				throw new IllegalArgumentException();
+
+			// Assert constructed sequence length matches remaining count
+			if (alen >= 62 && original.get() != (byte) 0x81) // DER 1-octet extended
+				throw new IllegalArgumentException();
+			if (original.get() != (byte) original.remaining())
+				throw new IllegalArgumentException();
+
+			for (var i = 0; i < 2; i++) {
+				if (original.get() != 2) // Assert DER integer
+					throw new IllegalArgumentException();
+				int ilen = original.get(); // Integer length
+				if (ilen < 0) // Convert to unsigned int
+					ilen += 0x100;
+				// Assert encoded BigInteger length
+				if (ilen > alen + 1)
+					throw new IllegalArgumentException();
+
+				final var ibuf = new byte[ilen];
+				original.get(ibuf); // Convert Java BigInteger to JWA format
+				final var ib = UnsignedBigInteger.bigInt(new BigInteger(ibuf));
+				for (var j = ib.length; j < alen; j++)
+					converted.put((byte) 0); // pad left side
+				converted.put(ib);
+			}
+
+			if (original.hasRemaining())
+				throw new IllegalArgumentException();
+
+			return converted.array();
+		}
+
+		default:
+			return jceSignature;
+		}
 	}
 
 	/**

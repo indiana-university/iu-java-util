@@ -31,11 +31,8 @@
  */
 package iu.type;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
@@ -45,15 +42,10 @@ import static org.mockito.Mockito.when;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
-
-import edu.iu.type.IuComponent;
-import edu.iu.type.IuComponent.Kind;
 
 @SuppressWarnings("javadoc")
 public class ComponentFactoryTest extends IuTypeTestCase {
@@ -168,50 +160,6 @@ public class ComponentFactoryTest extends IuTypeTestCase {
 					assertThrows(IllegalArgumentException.class,
 							() -> ComponentFactory.checkIfAlreadyProvided(alreadyProvidedArchive, archive))
 							.getSuppressed()[0]);
-
-		}
-	}
-
-	@Test
-	public void testLoadsRuntimeIfSwitchedWithDeps() throws Exception {
-		var publicUrlThatWorksAndReturnsJson = "https://idp-stg.login.iu.edu/.well-known/openid-configuration";
-		String expected;
-		try (InputStream in = new URL(publicUrlThatWorksAndReturnsJson).openStream()) {
-			expected = new String(in.readAllBytes());
-		} catch (Throwable e) {
-			e.printStackTrace();
-			Assumptions.abort(
-					"Expected this to be a public URL that works and returns JSON " + publicUrlThatWorksAndReturnsJson);
-			return;
-		}
-
-		try (var component = IuComponent.of(TestArchives.getProvidedDependencyArchives("testruntime")[0],
-				TestArchives.getComponentArchive("testruntime"))) {
-			assertTrue(
-					component.toString()
-							.matches("Component \\[parent=null, kind=MODULAR_JAR, versions=\\[.*\\], closed=false\\]"),
-					component::toString);
-
-			assertEquals(Kind.MODULAR_JAR, component.kind());
-			assertEquals("parsson", component.version().name());
-
-			var interfaces = component.interfaces().iterator();
-			assertTrue(interfaces.hasNext());
-			assertEquals("edu.iu.type.testruntime.TestRuntime", interfaces.next().name());
-
-			var contextLoader = Thread.currentThread().getContextClassLoader();
-			var loader = component.classLoader();
-			var layer = component.moduleLayer();
-			assertNotNull(layer);
-			try {
-				Thread.currentThread().setContextClassLoader(loader);
-				var urlReader = loader.loadClass("edu.iu.type.testruntime.UrlReader");
-				var urlReader$ = urlReader.getConstructor().newInstance();
-				assertEquals(urlReader.getMethod("parseJson", String.class).invoke(urlReader$, expected),
-						urlReader.getMethod("get", String.class).invoke(urlReader$, publicUrlThatWorksAndReturnsJson));
-			} finally {
-				Thread.currentThread().setContextClassLoader(contextLoader);
-			}
 		}
 	}
 

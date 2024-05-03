@@ -38,6 +38,7 @@ import java.net.URLEncoder;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Queue;
@@ -49,6 +50,275 @@ import java.util.Queue;
 public final class IuWebUtils {
 
 	private static final Map<String, InetAddress> IP_CACHE = new IuCacheMap<>(Duration.ofSeconds(5L));
+
+	private static char DQUOTE = 0x22;
+	private static char HTAB = 0x09;
+	private static char SP = 0x20;
+
+	/**
+	 * VCHAR = %x21-7E
+	 * 
+	 * @param c character
+	 * @return true if c matches VCHAR ABNF rule; else false
+	 * @see <a href=
+	 *      "https://datatracker.ietf.org/doc/html/rfc5234#appendix-B">RFC-5234 Core
+	 *      ABNF</a>
+	 */
+	static boolean vchar(char c) {
+		return c >= 0x21 //
+				&& c <= 0x7e;
+	}
+
+	/**
+	 * ALPHA = %x41-5A / %x61-7A
+	 * 
+	 * @param c character
+	 * @return true if c matches ALHPA ABNF rule; else false
+	 * @see <a href=
+	 *      "https://datatracker.ietf.org/doc/html/rfc5234#appendix-B">RFC-5234 Core
+	 *      ABNF</a>
+	 */
+	static boolean alpha(char c) {
+		return (c >= 0x41 //
+				&& c <= 0x5a) //
+				|| (c >= 0x61 //
+						&& c <= 0x7a);
+	}
+
+	/**
+	 * DIGIT = %x30-39
+	 * 
+	 * @param c character
+	 * @return true if c matches DIGIT ABNF rule; else false
+	 * @see <a href=
+	 *      "https://datatracker.ietf.org/doc/html/rfc5234#appendix-B">RFC-5234 Core
+	 *      ABNF</a>
+	 */
+	static boolean digit(char c) {
+		return c >= 0x30 //
+				&& c <= 0x39;
+	}
+
+	/**
+	 * obs-text = %x80-FF
+	 * 
+	 * @param c character
+	 * @return true if c matches obs-text ABNF rule; else false
+	 * @see <a href=
+	 *      "https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf">RFC-9110
+	 *      HTTP Semantics Collected ABNF</a>
+	 */
+	static boolean obsText(char c) {
+		return c >= 0x80 //
+				&& c <= 0xff;
+	}
+
+	/**
+	 * token68 = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
+	 * 
+	 * @param s   input string
+	 * @param pos position at start of token68 character
+	 * @return end position after matching token68 ABNF rule; returns pos if token68
+	 *         was not matched
+	 * @see <a href=
+	 *      "https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf">RFC-9110
+	 *      HTTP Semantics Collected ABNF</a>
+	 */
+	static int token68(String s, int pos) {
+		if (pos >= s.length())
+			return pos;
+
+		char c;
+		do {
+			if (pos == s.length())
+				return pos;
+			c = s.charAt(pos++);
+		} while (alpha(c) //
+				|| digit(c) //
+				|| "-._~+/".indexOf(c) != -1);
+		pos--;
+
+		do {
+			if (pos == s.length())
+				return pos;
+			c = s.charAt(pos++);
+		} while (c == '=');
+
+		return pos - 1;
+	}
+
+	/**
+	 * tchar = "!" / "#" / "$" / "%" / "&amp;" / "'" / "*" / "+" / "-" / "." / "^" /
+	 * "_" / "`" / "|" / "~" / DIGIT / ALPHA
+	 * 
+	 * @param c character
+	 * @return true if c matches obs-text ABNF rule; else false
+	 * @see <a href=
+	 *      "https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf">RFC-9110
+	 *      HTTP Semantics Collected ABNF</a>
+	 */
+	static boolean tchar(char c) {
+		return alpha(c) //
+				|| digit(c) //
+				|| "!#$%&'*+-.^_`!~".indexOf(c) != -1;
+	}
+
+	/**
+	 * token = 1*tchar
+	 * 
+	 * @param s   input string
+	 * @param pos position at start of token character
+	 * @return end position of a matching token ABNF rule; returns pos if token68
+	 *         was not matched
+	 * @see <a href=
+	 *      "https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf">RFC-9110
+	 *      HTTP Semantics Collected ABNF</a>
+	 */
+	static int token(String s, int pos) {
+		if (pos >= s.length())
+			return pos;
+
+		char c;
+		do {
+			c = s.charAt(pos++);
+			if (pos == s.length() //
+					&& tchar(c))
+				return pos;
+		} while (tchar(c));
+
+		return pos - 1;
+	}
+
+	/**
+	 * BWS = OWS
+	 * 
+	 * <p>
+	 * OWS = *( SP / HTAB )
+	 * </p>
+	 * 
+	 * @param s   input string
+	 * @param pos position at start of token character
+	 * @return end position of a matching BWS ABNF rule
+	 * @see <a href=
+	 *      "https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf">RFC-9110
+	 *      HTTP Semantics Collected ABNF</a>
+	 */
+	static int bws(String s, int pos) {
+		if (pos >= s.length())
+			return pos;
+
+		char c;
+		do {
+			c = s.charAt(pos++);
+			if (pos == s.length() //
+					&& (c == SP //
+							|| c == HTAB))
+				return pos;
+		} while (c == SP //
+				|| c == HTAB);
+
+		return pos - 1;
+	}
+
+	/**
+	 * 1*SP
+	 * 
+	 * @param s   input string
+	 * @param pos position at start of token character
+	 * @return end position of a matching BWS ABNF rule
+	 * @see <a href=
+	 *      "https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf">RFC-9110
+	 *      HTTP Semantics Collected ABNF</a>
+	 */
+	static int sp(String s, int pos) {
+		if (pos >= s.length())
+			return pos;
+
+		char c;
+		do {
+			c = s.charAt(pos++);
+			if (pos == s.length() //
+					&& (c == SP))
+				return pos;
+		} while (c == SP);
+
+		return pos - 1;
+	}
+
+	/**
+	 * qdtext = HTAB / SP / "!" / %x23-5B / %x5D-7E / obs-text
+	 * 
+	 * @param c character
+	 * @return true if c matches qdtext ABNF rule; else false
+	 * @see <a href=
+	 *      "https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf">RFC-9110
+	 *      HTTP Semantics Collected ABNF</a>
+	 */
+	static boolean qdtext(char c) {
+		return c == HTAB //
+				|| c == SP //
+				|| c == '!' //
+				|| (c >= 0x23 //
+						&& c <= 0x5b) //
+				|| (c >= 0x5d //
+						&& c <= 0x7e) //
+				|| obsText(c);
+	}
+
+	/**
+	 * quoted-pair = "\" ( HTAB / SP / VCHAR / obs-text )
+	 * 
+	 * @param s   input string
+	 * @param pos position at start of token character
+	 * @return end position of a matching quoted-pair ABNF rule; pos if the rule was
+	 *         not matched
+	 * @see <a href=
+	 *      "https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf">RFC-9110
+	 *      HTTP Semantics Collected ABNF</a>
+	 */
+	static int quotedPair(String s, int pos) {
+		char c;
+		if (pos < s.length() - 1 //
+				&& s.charAt(pos) == '\\' //
+				&& ((c = s.charAt(pos + 1)) == HTAB //
+						|| c == SP //
+						|| vchar(c) //
+						|| obsText(c)))
+			pos += 2;
+		return pos;
+	}
+
+	/**
+	 * quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE
+	 * 
+	 * @param s     input string
+	 * @param start position at start of token character
+	 * @return end position of a matching BWS ABNF rule
+	 * @see <a href=
+	 *      "https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf">RFC-9110
+	 *      HTTP Semantics Collected ABNF</a>
+	 */
+	static int quotedString(String s, int start) {
+		if (start >= s.length() - 1 //
+				|| s.charAt(start) != DQUOTE)
+			return start;
+
+		var pos = start + 1;
+		do {
+			final var qp = quotedPair(s, pos);
+			if (qp != pos)
+				pos = qp;
+
+			if (pos >= s.length())
+				return start;
+
+		} while (qdtext(s.charAt(pos++)));
+
+		if (s.charAt(pos - 1) != DQUOTE)
+			return start;
+		else
+			return pos;
+	}
 
 	/**
 	 * Determines if a root {@link URI} encompasses a resource {@link URI}.
@@ -70,12 +340,162 @@ public final class IuWebUtils {
 		final var root = rootUri.getPath();
 		if (root.isEmpty())
 			return true;
-		
+
 		final var resource = resourceUri.getPath();
 		final var l = root.length();
 		return resource.startsWith(root) //
 				&& (root.charAt(l - 1) == '/' //
 						|| resource.charAt(l) == '/');
+	}
+
+	/**
+	 * Creates an authentication challenge sending to a client via the
+	 * <strong>WWW-Authenticate</strong> header.
+	 * 
+	 * @param scheme authentication scheme to request
+	 * @param params challenge attributes for informing the client of how to
+	 *               authenticate
+	 * @return authentication challenge
+	 * @see <a href="https://datatracker.ietf.org/doc/html/rfc9110">RFC-9110 Section
+	 *      11.1</a>
+	 */
+	public static String createChallenge(String scheme, Map<String, String> params) {
+		if (!params.containsKey("realm"))
+			throw new IllegalArgumentException("missing realm");
+
+		final var sb = new StringBuilder();
+		// auth-scheme = token
+		if (token(scheme, 0) != scheme.length())
+			throw new IllegalArgumentException("invalid auth scheme");
+		sb.append(scheme);
+
+		sb.append(' ');
+		var first = true;
+		for (final var paramEntry : params.entrySet()) {
+			// auth-param = token BWS "=" BWS ( token / quoted-string )
+			final var key = paramEntry.getKey();
+			final var value = paramEntry.getValue();
+
+			if (token(key, 0) == key.length()) {
+				for (int i = 0; i < value.length(); i++) {
+					final var c = value.charAt(i);
+					if (c < SP //
+							&& c != HTAB)
+						throw new IllegalArgumentException("invalid parameter value");
+				}
+			} else if (token68(key, 0) == key.length()) {
+				if (!value.isEmpty())
+					throw new IllegalArgumentException("invalid encoded parameter");
+			} else
+				throw new IllegalArgumentException("invalid auth param");
+
+			if (first)
+				first = false;
+			else
+				sb.append(" ");
+
+			sb.append(key);
+			if (!value.isEmpty())
+				sb.append("=\"") //
+						.append(paramEntry.getValue() //
+								.replace("\\", "\\\\") //
+								.replace("\"", "\\\"")) //
+						.append("\"");
+		}
+		return sb.toString();
+	}
+
+	/**
+	 * Parses challenge parameters from a <strong>WWW-Authenticate</strong> header.
+	 * 
+	 * @param wwwAuthenticate WWW-Authenticate header challenge value
+	 * @return Parsed authentication challenge parameters
+	 */
+	public static Iterator<IuWebAuthenticationChallenge> parseAuthenticateHeader(String wwwAuthenticate) {
+		// WWW-Authenticate = [ challenge *( OWS "," OWS challenge ) ]
+		return new Iterator<IuWebAuthenticationChallenge>() {
+			private int pos = 0;
+
+			@Override
+			public boolean hasNext() {
+				return pos < wwwAuthenticate.length();
+			}
+
+			@Override
+			public IuWebAuthenticationChallenge next() {
+				// challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]
+				// auth-scheme = token
+				final var endOfAuthScheme = token(wwwAuthenticate, pos);
+				if (endOfAuthScheme == pos)
+					throw new IllegalArgumentException("invalid auth-scheme at " + pos);
+
+				final var authScheme = wwwAuthenticate.substring(pos, endOfAuthScheme);
+				pos = sp(wwwAuthenticate, endOfAuthScheme);
+
+				final Map<String, String> params = new LinkedHashMap<>();
+				while (hasNext() && wwwAuthenticate.charAt(pos) != ',') {
+					// auth-param = token BWS "=" BWS ( token / quoted-string )
+					var endOfToken = token(wwwAuthenticate, pos);
+					var eqOrStartOfNextToken = bws(wwwAuthenticate, endOfToken);
+					if (endOfToken > pos //
+							&& endOfToken < wwwAuthenticate.length() //
+							&& eqOrStartOfNextToken < wwwAuthenticate.length() //
+							&& wwwAuthenticate.charAt(eqOrStartOfNextToken) == '=') {
+						final var name = wwwAuthenticate.substring(pos, endOfToken);
+						pos = bws(wwwAuthenticate, eqOrStartOfNextToken + 1);
+
+						var endOfValue = quotedString(wwwAuthenticate, pos);
+						if (endOfValue == pos) {
+							endOfValue = token(wwwAuthenticate, pos);
+							if (endOfValue == pos)
+								throw new IllegalArgumentException("expected quoted-string at " + pos);
+							else
+								params.put(name, wwwAuthenticate.substring(pos, endOfValue));
+						} else
+							params.put(name, wwwAuthenticate.substring(pos + 1, endOfValue - 1) //
+									.replace("\\\\", "\\") //
+									.replace("\\\"", "\""));
+
+						pos = sp(wwwAuthenticate, endOfValue);
+
+					} else {
+						endOfToken = token68(wwwAuthenticate, pos);
+						if (endOfToken == pos)
+							throw new IllegalArgumentException("invalid auth-param at " + pos);
+						else if (endOfToken < wwwAuthenticate.length())
+							throw new IllegalArgumentException("expected SP at " + pos);
+						params.put(wwwAuthenticate.substring(pos, endOfToken), "");
+						pos = sp(wwwAuthenticate, endOfToken);
+					}
+
+					final var bws = bws(wwwAuthenticate, pos);
+					if (bws < wwwAuthenticate.length() //
+							&& wwwAuthenticate.charAt(bws) == ',')
+						pos = bws;
+				}
+
+				final var realm = params.remove("realm");
+				if (hasNext())
+					pos = bws(wwwAuthenticate, pos + 1);
+
+				return new IuWebAuthenticationChallenge() {
+					@Override
+					public String getAuthScheme() {
+						return authScheme;
+					}
+
+					@Override
+					public String getRealm() {
+						return realm;
+					}
+
+					@Override
+					public Map<String, String> getParameters() {
+						return params;
+					}
+				};
+			}
+		};
 	}
 
 	/**

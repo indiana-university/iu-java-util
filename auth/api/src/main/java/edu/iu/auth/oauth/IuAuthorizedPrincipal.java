@@ -31,25 +31,28 @@
  */
 package edu.iu.auth.oauth;
 
-import java.io.Serializable;
-import java.security.Principal;
+import edu.iu.auth.IuPrincipalIdentity;
 
 /**
- * Represents a scope authorized by an authentication realm.
- * 
- * <p>
- * Will be included in the {@link IuBearerAuthCredentials#getSubject()}. The
- * scope is the principal name, and is only valid within a specific
- * authentication realm.
- * </p>
+ * Returned by {@link IuAuthorizationClient#verify(IuTokenResponse)} and
+ * {@link IuAuthorizationClient#verify(IuTokenResponse, IuTokenResponse)} to
+ * pass the verified principal identity and delegated authentication realm as a
+ * final response to authorization code and/or refresh token flow.
  */
-public interface IuAuthorizationScope extends Principal, Serializable {
+public interface IuAuthorizedPrincipal {
 
 	/**
 	 * Gets the authentication realm.
 	 * 
-	 * @return authentication realm
+	 * @return realm
 	 */
 	String getRealm();
+
+	/**
+	 * Gets the principal identity.
+	 * 
+	 * @return {@link IuPrincipalIdentity}
+	 */
+	IuPrincipalIdentity getPrincipal();
 
 }

@@ -32,7 +32,7 @@
 package iu.auth.oauth;
 
 import java.io.Serializable;
-import java.time.Instant;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -53,7 +53,7 @@ class TokenResponse implements IuTokenResponse, Serializable {
 	private final String accessToken;
 	private final String refreshToken;
 	private final Iterable<String> scope;
-	private final Instant expires;
+	private final Duration expiresIn;
 	private final Map<String, String> requestAttributes;
 	private final Map<String, String> tokenAttributes;
 
@@ -84,12 +84,12 @@ class TokenResponse implements IuTokenResponse, Serializable {
 		final var expiresIn = tokenResponse.get("expires_in");
 		if (expiresIn instanceof JsonString) {
 			final var a = (JsonString) expiresIn;
-			expires = Instant.now().plusSeconds(Long.parseLong(a.getString()));
+			this.expiresIn = Duration.ofSeconds(Long.parseLong(a.getString()));
 		} else if (expiresIn instanceof JsonNumber) {
 			final var a = (JsonNumber) expiresIn;
-			expires = Instant.now().plusSeconds(a.intValue());
+			this.expiresIn = Duration.ofSeconds(a.intValue());
 		} else
-			expires = null;
+			this.expiresIn = null;
 
 		if (!tokenResponse.containsKey("refresh_token"))
 			refreshToken = null;
@@ -139,8 +139,8 @@ class TokenResponse implements IuTokenResponse, Serializable {
 	}
 
 	@Override
-	public Instant getExpires() {
-		return expires;
+	public Duration getExpiresIn() {
+		return expiresIn;
 	}
 
 	@Override
@@ -160,15 +160,6 @@ class TokenResponse implements IuTokenResponse, Serializable {
 	 */
 	String getRefreshToken() {
 		return refreshToken;
-	}
-
-	/**
-	 * Determines if this grant has expired.
-	 * 
-	 * @return true if expired; else false
-	 */
-	boolean isExpired() {
-		return expires != null && expires.isBefore(Instant.now());
 	}
 
 }

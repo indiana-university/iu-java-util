@@ -32,12 +32,12 @@
 package iu.auth.oauth;
 
 import java.net.URI;
-import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.util.ArrayDeque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -48,7 +48,7 @@ import edu.iu.IuWebUtils;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
-import iu.auth.util.HttpUtils;
+import edu.iu.client.IuHttp;
 
 /**
  * {@link IuAuthorizationGrant} implementation.
@@ -83,7 +83,7 @@ final class AuthorizationCodeGrant extends AbstractGrant {
 	 */
 	AuthorizationCodeGrant(String realm, URI resourceUri) {
 		super(realm);
-		if (!OAuthSpi.isRoot(OAuthSpi.getClient(realm).getResourceUri(), resourceUri))
+		if (!IuWebUtils.isRootOf(OAuthSpi.getClient(realm).getResourceUri(), resourceUri))
 			throw new IllegalArgumentException("Invalid resource URI for this client");
 		else
 			this.resourceUri = resourceUri;
@@ -91,10 +91,10 @@ final class AuthorizationCodeGrant extends AbstractGrant {
 
 	@Override
 	public IuApiCredentials authorize(URI resourceUri) throws IuAuthenticationException {
-		if (!OAuthSpi.isRoot(this.resourceUri, resourceUri))
+		if (!IuWebUtils.isRootOf(this.resourceUri, resourceUri))
 			throw new IllegalArgumentException("Invalid resource URI for this grant");
 
-		final var activatedCredentials = activate();
+		final var activatedCredentials = getAuthorizedCredentials();
 		if (activatedCredentials != null)
 			return activatedCredentials;
 
@@ -109,21 +109,19 @@ final class AuthorizationCodeGrant extends AbstractGrant {
 					tokenRequestParams.put("refresh_token", List.of(refreshToken));
 					tokenRequestParams.put("scope", List.of(validatedScope));
 
-					final var tokenRequestBuilder = HttpRequest.newBuilder(client.getTokenEndpoint());
-					tokenRequestBuilder.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(tokenRequestParams)));
-					tokenRequestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
-					client.getCredentials().applyTo(tokenRequestBuilder);
-
-					final var tokenResponse = new TokenResponse(client.getScope(), null,
-							HttpUtils.read(tokenRequestBuilder.build()).asJsonObject());
+					final var tokenResponse = new TokenResponse(client.getScope(), null, IuHttp
+							.send(IuAuthenticationException.class, client.getTokenEndpoint(), tokenRequestBuilder -> {
+								tokenRequestBuilder.POST(
+										BodyPublishers.ofString(IuWebUtils.createQueryString(tokenRequestParams)));
+								tokenRequestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
+								client.getCredentials().applyTo(tokenRequestBuilder);
+							}, JSON_OBJECT_NOCACHE));
 
 					final var refreshToken = tokenResponse.getRefreshToken();
 					if (refreshToken != null)
 						this.refreshToken = refreshToken;
 
-					final var credentials = verify(tokenResponse, originalResponse);
-					client.activate(credentials);
-					return credentials;
+					return authorize(tokenResponse, originalResponse);
 
 				} catch (Throwable e) {
 					LOG.log(Level.INFO, e, () -> "Refresh token failed");
@@ -175,7 +173,7 @@ final class AuthorizationCodeGrant extends AbstractGrant {
 		}
 
 		final var challenge = new IuAuthenticationException( //
-				HttpUtils.createChallenge("Bearer", challengeAttributes), refreshFailure);
+				IuWebUtils.createChallenge("Bearer", challengeAttributes), refreshFailure);
 		challenge.setLocation(IuException.unchecked(() -> new URI(
 				client.getAuthorizationEndpoint() + "?" + IuWebUtils.createQueryString(authRequestParams))));
 		throw challenge;
@@ -214,15 +212,17 @@ final class AuthorizationCodeGrant extends AbstractGrant {
 		tokenRequestParams.put("scope", List.of(validatedScope));
 		tokenRequestParams.put("redirect_uri", List.of(client.getRedirectUri().toString().toString()));
 
-		final var authRequestBuilder = HttpRequest.newBuilder(client.getTokenEndpoint());
-		authRequestBuilder.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(tokenRequestParams)));
-		authRequestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
-		client.getCredentials().applyTo(authRequestBuilder);
+		final var authResponse = IuException.checked(IuAuthenticationException.class,
+				() -> IuHttp.send(IuAuthenticationException.class, client.getTokenEndpoint(), authRequestBuilder -> {
+					authRequestBuilder.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(tokenRequestParams)));
+					authRequestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
+					client.getCredentials().applyTo(authRequestBuilder);
+				}, JSON_OBJECT_NOCACHE));
 
-		final var authResponse = HttpUtils.read(authRequestBuilder.build()).asJsonObject();
 		final var codeResponse = new TokenResponse(client.getScope(), authorizationState.requestAttributes,
 				authResponse);
-		verify(codeResponse);
+		Objects.requireNonNull(authorize(codeResponse),
+				"A valid principal identity is required for authorization code");
 		originalResponse = codeResponse;
 		refreshToken = codeResponse.getRefreshToken();
 		return authorizationState.resourceUri;
@@ -264,7 +264,7 @@ final class AuthorizationCodeGrant extends AbstractGrant {
 			challengeAttributes.put("error_description", "invalid or expired state");
 
 			final var challenge = new IuAuthenticationException(
-					HttpUtils.createChallenge("Bearer", challengeAttributes));
+					IuWebUtils.createChallenge("Bearer", challengeAttributes));
 			challenge.setLocation(matchingAuthorizationState.resourceUri);
 			throw challenge;
 		}

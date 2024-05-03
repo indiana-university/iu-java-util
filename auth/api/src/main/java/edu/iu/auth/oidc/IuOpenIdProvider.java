@@ -31,9 +31,11 @@
  */
 package edu.iu.auth.oidc;
 
-import java.net.URI;
-
+import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuAuthorizationClient;
+import edu.iu.auth.oauth.IuAuthorizationGrant;
+import edu.iu.auth.oauth.IuAuthorizationSession;
 import edu.iu.auth.spi.IuOpenIdConnectSpi;
 import iu.auth.IuAuthSpiFactory;
 
@@ -43,42 +45,51 @@ import iu.auth.IuAuthSpiFactory;
 public interface IuOpenIdProvider {
 
 	/**
-	 * Configures the client view of an OpenID provider from a well-known
-	 * configuration URI.
+	 * Configures the client view of an OpenID provider.
 	 * 
 	 * <p>
-	 * <em>May</em> be called exactly once per provider per module instance,
-	 * enforced by the OAuth implementation module (iu.util.auth.oauth) using the
-	 * issuer declared by the provider configuration URI.
+	 * <em>May</em> be called exactly once per authentication realm.
 	 * </p>
 	 * 
-	 * @param configUri provider configuration URI
-	 * @param client    client configuration metadata
+	 * <p>
+	 * When initialized using {@link IuAuthoritativeOpenIdClient}, an
+	 * {@link IuAuthorizationClient} view of that configuration will be
+	 * {@link IuAuthorizationClient#initialize(IuAuthorizationClient) initialized}
+	 * for interacting with the OP as an authorization service. Use
+	 * {@link IuAuthorizationSession#create(String, java.net.URI)} with a protected
+	 * resource URI to use authorization code flow, or use
+	 * {@link #clientCredentials()} for a grant based on the
+	 * {@link IuAuthoritativeOpenIdClient#getCredentials() OIDC client's
+	 * credentials}.
+	 * </p>
+	 * 
+	 * @param client client configuration metadata
 	 * @return Client view of the OpenID provider
 	 */
-	static IuOpenIdProvider from(URI configUri, IuOpenIdClient client) {
-		return IuAuthSpiFactory.get(IuOpenIdConnectSpi.class).getOpenIdProvider(configUri, client);
+	static IuOpenIdProvider from(IuOpenIdClient client) {
+		return IuAuthSpiFactory.get(IuOpenIdConnectSpi.class).getOpenIdProvider(client);
 	}
 
 	/**
-	 * Gets the issue ID for this provider.
+	 * Gets a client credentials grant for authorizing APIs using the client's
+	 * principal identity.
 	 * 
-	 * @return OpenID Provider issuer ID
+	 * @return client credentials grant
+	 * @throws UnsupportedOperationException If the provider wasn't initialized
+	 *                                       using
+	 *                                       {@link IuAuthoritativeOpenIdClient}.
 	 */
-	String getIssuer();
+	IuAuthorizationGrant clientCredentials();
 
 	/**
-	 * Gets the OIDC User Info Endpoint URI
+	 * Verifies an OIDC access token, and if valid, retrieves userinfo claims and
+	 * principal name.
 	 * 
-	 * @return User Info Endpoint {@link URI}
+	 * @param accessToken OIDC access token
+	 * @return OIDC principal identity implied by the access token
+	 * @throws IuAuthenticationException If the access token is invalid for the OIDC
+	 *                                   provider.
 	 */
-	URI getUserInfoEndpoint();
-
-	/**
-	 * Creates an authorization client for interacting with the OpenID provider.
-	 * 
-	 * @return authorization client
-	 */
-	IuAuthorizationClient createAuthorizationClient();
+	IuPrincipalIdentity hydrate(String accessToken) throws IuAuthenticationException;
 
 }

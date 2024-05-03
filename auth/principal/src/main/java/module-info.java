@@ -29,40 +29,17 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.oauth;
+/**
+ * Provides internal support for modules that define and verify authenticated
+ * principals.
+ * 
+ * @provides edu.iu.auth.spi.IuPrincipalSpi service provider implementation
+ */
+module iu.util.auth.principal {
+	exports iu.auth.principal;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
+	requires iu.util;
+	requires transitive iu.util.auth;
 
-import org.junit.jupiter.api.Test;
-
-@SuppressWarnings("javadoc")
-public class AuthorizedScopeTest {
-
-	@Test
-	public void testProps() {
-		final var scope = new AuthorizedScope("foo", "bar");
-		assertEquals("foo", scope.getName());
-		assertEquals("bar", scope.getRealm());
-		assertEquals("OAuth Scope foo, for realm bar", scope.toString());
-	}
-
-	@Test
-	public void testEquals() {
-		final var scope1 = new AuthorizedScope("foo", "bar");
-		final var scope2 = new AuthorizedScope("foo", "baz");
-		final var scope3 = new AuthorizedScope("bar", "baz");
-		final var scope4 = new AuthorizedScope("foo", "baz");
-		assertNotEquals(scope1, new Object());
-		assertNotEquals(scope1, scope2);
-		assertNotEquals(scope2, scope1);
-		assertNotEquals(scope1, scope3);
-		assertNotEquals(scope3, scope1);
-		assertNotEquals(scope2, scope3);
-		assertNotEquals(scope3, scope2);
-		assertEquals(scope2, scope4);
-		assertEquals(scope4, scope2);
-		assertEquals(scope2.hashCode(), scope4.hashCode());
-	}
-
+	provides edu.iu.auth.spi.IuPrincipalSpi with iu.auth.principal.PrincipalVerifierRegistry;
 }

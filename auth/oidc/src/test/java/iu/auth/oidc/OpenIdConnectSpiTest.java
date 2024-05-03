@@ -29,67 +29,30 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.oauth;
+package iu.auth.oidc;
 
-import java.io.Serializable;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-import edu.iu.IuObject;
-import edu.iu.auth.oauth.IuAuthorizationScope;
+import org.junit.jupiter.api.Test;
 
-/**
- * {@link IuAuthorizationScope} implementation.
- */
-public class AuthorizedScope implements IuAuthorizationScope, Serializable {
-	private static final long serialVersionUID = 1L;
+import edu.iu.IdGenerator;
+import edu.iu.auth.oidc.IuOpenIdClient;
 
-	/**
-	 * Authorized scope.
-	 */
-	private final String scope;
+@SuppressWarnings("javadoc")
+public class OpenIdConnectSpiTest extends IuOidcTestCase {
 
-	/**
-	 * Authentication realm the scope is valid for.
-	 */
-	private final String realm;
-
-	/**
-	 * Constructor.
-	 * 
-	 * @param scope Authorized scope
-	 * @param realm Authentication realm the scope is valid for
-	 */
-	AuthorizedScope(String scope, String realm) {
-		this.scope = scope;
-		this.realm = realm;
-	}
-
-	@Override
-	public String getName() {
-		return scope;
-	}
-
-	@Override
-	public String getRealm() {
-		return realm;
-	}
-
-	@Override
-	public int hashCode() {
-		return IuObject.hashCode(realm, scope);
-	}
-
-	@Override
-	public boolean equals(Object obj) {
-		if (!IuObject.typeCheck(this, obj))
-			return false;
-		AuthorizedScope other = (AuthorizedScope) obj;
-		return IuObject.equals(realm, other.realm) //
-				&& IuObject.equals(scope, other.scope);
-	}
-
-	@Override
-	public String toString() {
-		return "OAuth Scope " + scope + ", for realm " + realm;
+	@Test
+	public void testProviderRegistration() {
+		final var spi = new OpenIdConnectSpi();
+		final var client = mock(IuOpenIdClient.class);
+		final var realm = IdGenerator.generateId();
+		when(client.getRealm()).thenReturn(realm);
+		final var provider = spi.getOpenIdProvider(client);
+		assertSame(provider, OpenIdConnectSpi.getProvider(realm));
+		assertThrows(IllegalArgumentException.class, () -> spi.getOpenIdProvider(client));
 	}
 
 }

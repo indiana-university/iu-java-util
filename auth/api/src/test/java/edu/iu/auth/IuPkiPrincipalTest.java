@@ -29,25 +29,55 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.basic;
+package edu.iu.auth;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 
-import java.util.List;
+import java.security.cert.CertPathParameters;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+
+import edu.iu.IdGenerator;
+import edu.iu.auth.pki.IuPkiPrincipal;
+import edu.iu.auth.spi.IuPkiSpi;
+import iu.auth.IuAuthSpiFactory;
 
 @SuppressWarnings("javadoc")
-public class BaseicAuthSpiTest {
+public class IuPkiPrincipalTest {
 
-	@Test
-	public void testSpi() {
-		final var basicSpi = new BasicAuthSpi();
-		try (final var mockBasic = mockConstruction(BasicAuthCredentials.class)) {
-			final var basic = basicSpi.createCredentials("foo", "bar");
-			assertEquals(List.of(basic), mockBasic.constructed());
-		}
+	private MockedStatic<IuAuthSpiFactory> mockSpiFactory;
+	private IuPkiSpi spi;
+
+	@BeforeEach
+	public void setup() {
+		spi = mock(IuPkiSpi.class);
+		mockSpiFactory = mockStatic(IuAuthSpiFactory.class);
+		mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuPkiSpi.class)).thenReturn(spi);
 	}
 
+	@AfterEach
+	public void tearDown() {
+		mockSpiFactory.close();
+		mockSpiFactory = null;
+		spi = null;
+	}
+
+	@Test
+	public void testFrom() {
+		final var serialized = IdGenerator.generateId();
+		IuPkiPrincipal.from(serialized);
+		verify(spi).readPkiPrincipal(serialized);
+	}
+
+	@Test
+	public void testTrust() {
+		final var params = mock(CertPathParameters.class);
+		IuPkiPrincipal.trust(params);
+		verify(spi).trust(params);
+	}
 }

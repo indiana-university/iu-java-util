@@ -31,16 +31,36 @@
  */
 package iu.auth.oidc;
 
-import java.net.URI;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 
+import edu.iu.IuObject;
+import edu.iu.auth.oidc.IuAuthoritativeOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
 import edu.iu.auth.spi.IuOpenIdConnectSpi;
+import iu.auth.principal.PrincipalVerifierRegistry;
 
 /**
  * OpenID connect SPI implementation.
  */
 public class OpenIdConnectSpi implements IuOpenIdConnectSpi {
+	static {
+		IuObject.assertNotOpen(OpenIdConnectSpi.class);
+	}
+
+	private static final Map<String, OpenIdProvider> PROVIDERS = new HashMap<>();
+
+	/**
+	 * Gets the OpenID provider registered for an authentication realm.
+	 * 
+	 * @param realm authentication realm
+	 * @return {@link OpenIdProvider}
+	 */
+	static OpenIdProvider getProvider(String realm) {
+		return Objects.requireNonNull(PROVIDERS.get(realm), "Invalid OIDC realm");
+	}
 
 	/**
 	 * Default constructor.
@@ -49,8 +69,18 @@ public class OpenIdConnectSpi implements IuOpenIdConnectSpi {
 	}
 
 	@Override
-	public IuOpenIdProvider getOpenIdProvider(URI configUri, IuOpenIdClient client) {
-		return new OpenIdProvider(configUri, client);
+	public synchronized IuOpenIdProvider getOpenIdProvider(IuOpenIdClient client) {
+		final var realm = Objects.requireNonNull(client.getRealm(), "Missing realm");
+
+		if (PROVIDERS.containsKey(realm))
+			throw new IllegalArgumentException("OpenID Provider already configured for " + realm);
+
+		PrincipalVerifierRegistry
+				.registerVerifier(new OidcPrincipalVerifier(client instanceof IuAuthoritativeOpenIdClient, realm));
+
+		final var provider = new OpenIdProvider(client);
+		PROVIDERS.put(realm, provider);
+		return provider;
 	}
 
 }

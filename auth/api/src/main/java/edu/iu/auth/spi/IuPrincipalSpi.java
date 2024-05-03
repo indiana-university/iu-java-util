@@ -29,68 +29,28 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.oidc;
+package edu.iu.auth.spi;
 
-import edu.iu.IuObject;
-import edu.iu.auth.oidc.IuOpenIdClaim;
+import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
 
 /**
- * {@link IuOpenIdClaim} implementation.
- * 
- * @param <T> value type
+ * Service provider interface supporting principal identify verification.
  */
-class OidcClaim<T> implements IuOpenIdClaim<T> {
-	private static final long serialVersionUID = 1L;
-
-	private final String name;
-	private final String claimName;
-	private final T claim;
+public interface IuPrincipalSpi {
 
 	/**
-	 * Constructor.
+	 * Verifies that a principal identity was issued by a registered identity
+	 * provider for an authentication realm.
 	 * 
-	 * @param name      principal name
-	 * @param claimName claim name
-	 * @param claim     claim value
+	 * @param id    principal identity
+	 * @param realm authentication realm
+	 * @return true true if the authorization module is considered authoritative for
+	 *         the realm
+	 * @throws IuAuthenticationException with an authentication challenge if the id
+	 *                                   was well-formed for the realm but
+	 *                                   credentials were invalid
 	 */
-	OidcClaim(String name, String claimName, T claim) {
-		this.name = name;
-		this.claimName = claimName;
-		this.claim = claim;
-	}
-
-	@Override
-	public String getName() {
-		return name;
-	}
-
-	@Override
-	public String getClaimName() {
-		return claimName;
-	}
-
-	@Override
-	public T getClaim() {
-		return claim;
-	}
-
-	@Override
-	public String toString() {
-		return "OIDC Claim of " + name + ": " + claimName + " = " + claim;
-	}
-
-	@Override
-	public int hashCode() {
-		return IuObject.hashCode(claim, claimName, name);
-	}
-
-	@Override
-	public boolean equals(Object obj) {
-		if (!IuObject.typeCheck(this, obj))
-			return false;
-		final var other = (OidcClaim<?>) obj;
-		return IuObject.equals(claim, other.claim) && IuObject.equals(claimName, other.claimName)
-				&& IuObject.equals(name, other.name);
-	}
+	boolean verify(IuPrincipalIdentity id, String realm) throws IuAuthenticationException;
 
 }

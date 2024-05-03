@@ -37,10 +37,10 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import edu.iu.IuWebUtils;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
 import edu.iu.auth.oauth.IuAuthorizationSession;
-import iu.auth.util.HttpUtils;
 
 /**
  * OAuth authorization session implementation.
@@ -75,7 +75,7 @@ class AuthorizationSession implements IuAuthorizationSession, Serializable {
 
 	@Override
 	public synchronized IuAuthorizationGrant grant(URI resourceUri) {
-		if (!OAuthSpi.isRoot(OAuthSpi.getClient(realm).getResourceUri(), resourceUri))
+		if (!IuWebUtils.isRootOf(OAuthSpi.getClient(realm).getResourceUri(), resourceUri))
 			throw new IllegalArgumentException("Invalid resource URI for this client");
 
 		var grant = grants.get(resourceUri);
@@ -99,7 +99,7 @@ class AuthorizationSession implements IuAuthorizationSession, Serializable {
 		challengeAttributes.put("error", "invalid_request");
 		challengeAttributes.put("error_description", "invalid state");
 
-		final var challenge = new IuAuthenticationException(HttpUtils.createChallenge("Bearer", challengeAttributes));
+		final var challenge = new IuAuthenticationException(IuWebUtils.createChallenge("Bearer", challengeAttributes));
 		challenge.setLocation(entryPoint);
 		throw challenge;
 	}

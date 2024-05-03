@@ -59,13 +59,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
-import java.util.function.Consumer;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
+import edu.iu.UnsafeConsumer;
 
 @SuppressWarnings("javadoc")
 public class IuVaultTest {
@@ -236,9 +236,9 @@ public class IuVaultTest {
 		}
 	}
 
-	private Consumer<HttpRequest.Builder> watch(HttpRequest.Builder requestBuilder) {
+	private UnsafeConsumer<HttpRequest.Builder> watch(HttpRequest.Builder requestBuilder) {
 		return argThat(c -> {
-			c.accept(requestBuilder);
+			IuException.unchecked(() -> c.accept(requestBuilder));
 			return true;
 		});
 	}

@@ -33,6 +33,7 @@ package edu.iu;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -42,6 +43,7 @@ import static org.mockito.Mockito.mockStatic;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -184,6 +186,221 @@ public class IuWebUtilsTest {
 		assertTrue(IuWebUtils.isInetAddressInRange(IuWebUtils.getInetAddress("10.0.0.0"), "10.0.0.0"));
 		assertTrue(IuWebUtils.isInetAddressInRange(IuWebUtils.getInetAddress("10.0.128.64"), "10.0.0.0/16"));
 		assertFalse(IuWebUtils.isInetAddressInRange(IuWebUtils.getInetAddress("10.1.128.64"), "10.0.0.0/16"));
+	}
+
+	@Test
+	public void testVchar() {
+		assertFalse(IuWebUtils.vchar(' '));
+		assertTrue(IuWebUtils.vchar('!'));
+		assertTrue(IuWebUtils.vchar('~'));
+		assertFalse(IuWebUtils.vchar((char) 127));
+	}
+
+	@Test
+	public void testAlpha() {
+		assertFalse(IuWebUtils.alpha('@'));
+		assertTrue(IuWebUtils.alpha('A'));
+		assertTrue(IuWebUtils.alpha('Z'));
+		assertFalse(IuWebUtils.alpha('['));
+		assertFalse(IuWebUtils.alpha('`'));
+		assertTrue(IuWebUtils.alpha('a'));
+		assertTrue(IuWebUtils.alpha('z'));
+		assertFalse(IuWebUtils.alpha('{'));
+	}
+
+	@Test
+	public void testDigit() {
+		assertFalse(IuWebUtils.digit('/'));
+		assertTrue(IuWebUtils.digit('0'));
+		assertTrue(IuWebUtils.digit('9'));
+		assertFalse(IuWebUtils.digit(':'));
+	}
+
+	@Test
+	public void testObsText() {
+		assertFalse(IuWebUtils.obsText((char) 0x7f));
+		assertTrue(IuWebUtils.obsText((char) 0x80));
+		assertTrue(IuWebUtils.obsText((char) 0xff));
+		assertFalse(IuWebUtils.obsText((char) 0x100));
+	}
+
+	@Test
+	public void testToken68() {
+		assertEquals(0, IuWebUtils.token68("", 0));
+		assertEquals(6, IuWebUtils.token68("foobar", 0));
+		assertEquals(6, IuWebUtils.token68("f00b~r", 0));
+		assertEquals(4, IuWebUtils.token68("f00b@r", 0));
+		assertEquals(5, IuWebUtils.token68("f00b=r", 0));
+		assertEquals(8, IuWebUtils.token68("f00b~r==", 0));
+	}
+
+	@Test
+	public void testTchar() {
+		assertTrue(IuWebUtils.tchar('A'));
+		assertTrue(IuWebUtils.tchar('0'));
+		assertTrue(IuWebUtils.tchar('-'));
+		assertFalse(IuWebUtils.tchar('='));
+	}
+
+	@Test
+	public void testToken() {
+		assertEquals(0, IuWebUtils.token("", 0));
+		assertEquals(6, IuWebUtils.token("foobar", 0));
+		assertEquals(6, IuWebUtils.token("f00b~r", 0));
+		assertEquals(4, IuWebUtils.token("f00b@r", 0));
+		assertEquals(4, IuWebUtils.token("f00b=r", 0));
+		assertEquals(5, IuWebUtils.token("f00ba=", 0));
+		assertEquals(6, IuWebUtils.token("f00b~r==", 0));
+	}
+
+	@Test
+	public void testBws() {
+		assertEquals(0, IuWebUtils.bws("", 0));
+		assertEquals(2, IuWebUtils.bws("  ", 0));
+		assertEquals(1, IuWebUtils.bws("\t", 0));
+		assertEquals(1, IuWebUtils.bws("\ta", 0));
+		assertEquals(0, IuWebUtils.bws("foobar", 0));
+		assertEquals(2, IuWebUtils.bws("  foobar", 0));
+		assertEquals(1, IuWebUtils.bws("\tfoobar", 0));
+	}
+
+	@Test
+	public void testSp() {
+		assertEquals(0, IuWebUtils.sp("", 0));
+		assertEquals(2, IuWebUtils.sp("  ", 0));
+		assertEquals(1, IuWebUtils.sp(" ", 0));
+		assertEquals(1, IuWebUtils.sp(" a", 0));
+		assertEquals(0, IuWebUtils.sp("foobar", 0));
+		assertEquals(2, IuWebUtils.sp("  foobar", 0));
+		assertEquals(1, IuWebUtils.sp(" foobar", 0));
+	}
+
+	@Test
+	public void testQdtext() {
+		assertTrue(IuWebUtils.qdtext('\t'));
+		assertTrue(IuWebUtils.qdtext(' '));
+		assertTrue(IuWebUtils.qdtext('!'));
+		assertFalse(IuWebUtils.qdtext('\"'));
+		assertTrue(IuWebUtils.qdtext('#'));
+		assertTrue(IuWebUtils.qdtext('['));
+		assertFalse(IuWebUtils.qdtext('\\'));
+		assertFalse(IuWebUtils.qdtext('\"'));
+		assertTrue(IuWebUtils.qdtext(']'));
+		assertTrue(IuWebUtils.qdtext('~'));
+		assertFalse(IuWebUtils.qdtext((char) 0x7f));
+		assertTrue(IuWebUtils.qdtext('\200'));
+	}
+
+	@Test
+	public void testQuotedPair() {
+		assertEquals(0, IuWebUtils.quotedPair("", 0));
+		assertEquals(0, IuWebUtils.quotedPair("\\", 0));
+		assertEquals(0, IuWebUtils.quotedPair("ab", 0));
+		assertEquals(0, IuWebUtils.quotedPair("\\\f", 0));
+		assertEquals(2, IuWebUtils.quotedPair("\\\t", 0));
+		assertEquals(2, IuWebUtils.quotedPair("\\ ", 0));
+		assertEquals(2, IuWebUtils.quotedPair("\\\"", 0));
+		assertEquals(2, IuWebUtils.quotedPair("\\\200", 0));
+	}
+
+	@Test
+	public void testQuotedString() {
+		assertEquals(0, IuWebUtils.quotedString("", 0));
+		assertEquals(0, IuWebUtils.quotedString("foobar", 0));
+		assertEquals(0, IuWebUtils.quotedString("\"foobar", 0));
+		assertEquals(0, IuWebUtils.quotedString("\"foobar\\", 0));
+		assertEquals(0, IuWebUtils.quotedString("\"foobar\\\"", 0));
+		assertEquals(8, IuWebUtils.quotedString("\"foobar\"", 0));
+		assertEquals(10, IuWebUtils.quotedString("\"foo\\\"bar\"", 0));
+	}
+
+	@Test
+	public void testCreateChallenge() {
+		final var realm = IdGenerator.generateId();
+		assertThrows(IllegalArgumentException.class, () -> IuWebUtils.createChallenge("Basic", Map.of()));
+		assertThrows(IllegalArgumentException.class,
+				() -> IuWebUtils.createChallenge("Basic\0", Map.of("realm", realm)));
+		assertThrows(IllegalArgumentException.class,
+				() -> IuWebUtils.createChallenge("Basic", Map.of("realm", realm + "\f")));
+		assertEquals("Basic realm=\"" + realm + " \t\"",
+				IuWebUtils.createChallenge("Basic", Map.of("realm", realm + " \t")));
+
+		final Map<String, String> params = new LinkedHashMap<>();
+		params.put("realm", realm);
+		assertEquals("Basic realm=\"" + realm + "\"", IuWebUtils.createChallenge("Basic", params));
+
+		params.put("foo/bar", "");
+		assertEquals("Basic realm=\"" + realm + "\" foo/bar", IuWebUtils.createChallenge("Basic", params));
+		params.put("foo/bar", " ");
+		assertThrows(IllegalArgumentException.class, () -> IuWebUtils.createChallenge("Basic", params));
+		params.remove("foo/bar");
+
+		params.put("foo\fbar", "");
+		assertThrows(IllegalArgumentException.class, () -> IuWebUtils.createChallenge("Basic", params));
+		params.remove("foo\fbar");
+
+		params.put("foobar", "");
+		assertEquals("Basic realm=\"" + realm + "\" foobar", IuWebUtils.createChallenge("Basic", params));
+	}
+
+	@Test
+	public void testParseChallenge() {
+		final var realm = IdGenerator.generateId();
+		var wwwAuth = IuWebUtils.parseAuthenticateHeader("Basic realm=\"" + realm + "\"");
+		var challenge = wwwAuth.next();
+		assertEquals("Basic", challenge.getAuthScheme());
+		assertEquals(realm, challenge.getRealm());
+		assertTrue(challenge.getParameters().isEmpty());
+		assertFalse(wwwAuth.hasNext());
+
+		final var realm2 = IdGenerator.generateId();
+		wwwAuth = IuWebUtils.parseAuthenticateHeader(
+				"Basic realm=\"" + realm + "\"\t, Bearer realm=\"" + realm2 + "\" scope=\"foobar\"");
+		challenge = wwwAuth.next();
+		assertEquals("Basic", challenge.getAuthScheme());
+		assertEquals(realm, challenge.getRealm());
+		assertTrue(challenge.getParameters().isEmpty());
+		assertTrue(wwwAuth.hasNext());
+		challenge = wwwAuth.next();
+		assertEquals("Bearer", challenge.getAuthScheme());
+		assertEquals(realm2, challenge.getRealm());
+		assertEquals(Map.of("scope", "foobar"), challenge.getParameters());
+		assertFalse(wwwAuth.hasNext());
+
+		wwwAuth = IuWebUtils.parseAuthenticateHeader("Basic realm=\"" + realm + "\" foo/bar");
+		challenge = wwwAuth.next();
+		assertEquals("Basic", challenge.getAuthScheme());
+		assertEquals(realm, challenge.getRealm());
+		assertEquals(Map.of("foo/bar", ""), challenge.getParameters());
+		assertFalse(wwwAuth.hasNext());
+
+		wwwAuth = IuWebUtils.parseAuthenticateHeader("Basic realm=" + realm);
+		challenge = wwwAuth.next();
+		assertEquals("Basic", challenge.getAuthScheme());
+		assertEquals(realm, challenge.getRealm());
+		assertTrue(challenge.getParameters().isEmpty());
+		assertFalse(wwwAuth.hasNext());
+
+		wwwAuth = IuWebUtils.parseAuthenticateHeader("Basic");
+		challenge = wwwAuth.next();
+		assertEquals("Basic", challenge.getAuthScheme());
+		assertNull(challenge.getRealm());
+		assertTrue(challenge.getParameters().isEmpty());
+		assertFalse(wwwAuth.hasNext());
+
+		wwwAuth = IuWebUtils.parseAuthenticateHeader("Basic realm");
+		challenge = wwwAuth.next();
+		assertEquals("Basic", challenge.getAuthScheme());
+		assertEquals("", challenge.getRealm());
+		assertTrue(challenge.getParameters().isEmpty());
+		assertFalse(wwwAuth.hasNext());
+
+		assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseAuthenticateHeader("/").next());
+		assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseAuthenticateHeader("Basic realm ").next());
+		assertEquals("expected quoted-string at 12", assertThrows(IllegalArgumentException.class,
+				() -> IuWebUtils.parseAuthenticateHeader("Basic realm=\"foobar").next()).getMessage());
+		assertEquals("invalid auth-param at 47", assertThrows(IllegalArgumentException.class,
+				() -> IuWebUtils.parseAuthenticateHeader("Basic realm=\"" + realm + "\" \f").next()).getMessage());
 	}
 
 	private Map<String, ? extends Iterable<String>> assertQueryString(String qs) {

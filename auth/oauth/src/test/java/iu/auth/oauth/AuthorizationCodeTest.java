@@ -40,6 +40,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
@@ -62,21 +64,22 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.regex.Pattern;
 
-import javax.security.auth.Subject;
-
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuException;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oauth.IuBearerAuthCredentials;
+import edu.iu.auth.oauth.IuAuthorizedPrincipal;
+import edu.iu.auth.oauth.IuBearerToken;
+import edu.iu.client.IuHttp;
 import edu.iu.test.IuTestLogger;
-import iu.auth.util.HttpUtils;
 import jakarta.json.Json;
 
 @SuppressWarnings("javadoc")
-public class AuthorizationCodeTest {
+public class AuthorizationCodeTest extends IuOAuthTestCase {
 
 	@Test
 	public void testRequiresValidClientAndResourceUri() throws URISyntaxException {
@@ -105,7 +108,7 @@ public class AuthorizationCodeTest {
 
 		final var grant = new AuthorizationCodeGrant(realm, resourceUri);
 		assertThrows(IllegalArgumentException.class,
-				() -> grant.verify(
+				() -> grant.authorize(
 						new TokenResponse(null, null,
 								Json.createObjectBuilder().add("token_type", "Foo").add("access_token", "bar").build()),
 						null));
@@ -198,6 +201,9 @@ public class AuthorizationCodeTest {
 	@Test
 	public void testFullAuthLifecycle() throws URISyntaxException, IuAuthenticationException, InterruptedException,
 			IOException, ClassNotFoundException {
+		final var idrealm = IdGenerator.generateId();
+		MockPrincipal.registerVerifier(idrealm);
+
 		final var realm = IdGenerator.generateId();
 		final var resourceUri = new URI("foo:/bar");
 		final var redirectUri = new URI("foo:/baz");
@@ -206,9 +212,10 @@ public class AuthorizationCodeTest {
 		final var client = mock(IuAuthorizationClient.class);
 		final var clientCredentials = mock(IuApiCredentials.class);
 		final var clientId = IdGenerator.generateId();
-		final var principal = new MockPrincipal();
+		final var principal = new MockPrincipal(realm);
 		when(clientCredentials.getName()).thenReturn(clientId);
 		when(client.getRealm()).thenReturn(realm);
+		when(client.getPrincipalRealms()).thenReturn(Set.of(idrealm));
 		when(client.getResourceUri()).thenReturn(resourceUri);
 		when(client.getRedirectUri()).thenReturn(redirectUri);
 		when(client.getAuthorizationEndpoint()).thenReturn(authEndpointUri);
@@ -216,8 +223,13 @@ public class AuthorizationCodeTest {
 		when(client.getAuthorizationCodeAttributes()).thenReturn(Map.of("foo", "bar"));
 		when(client.getScope()).thenReturn(List.of("foo", "bar"));
 		when(client.getCredentials()).thenReturn(clientCredentials);
-		when(client.verify(any())).thenReturn(new Subject(true, Set.of(principal), Set.of(), Set.of()));
-		when(client.verify(any(), any())).thenReturn(new Subject(true, Set.of(principal), Set.of(), Set.of()));
+		
+		final var authPrincipal = mock(IuAuthorizedPrincipal.class);
+		when(authPrincipal.getPrincipal()).thenReturn(principal);
+		when(authPrincipal.getRealm()).thenReturn(idrealm);
+		when(client.verify(any())).thenReturn(authPrincipal);
+		when(client.verify(any(), any())).thenReturn(authPrincipal);
+		when(client.getAuthorizationTimeToLive()).thenReturn(Duration.ofSeconds(15L));
 		IuAuthorizationClient.initialize(client);
 
 		final var grant = new AuthorizationCodeGrant(realm, resourceUri);
@@ -240,10 +252,9 @@ public class AuthorizationCodeTest {
 				authException.getLocation());
 
 		final var code = IdGenerator.generateId();
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockBodyPublishers = mockStatic(BodyPublishers.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var hr = mock(HttpRequest.class);
+		try (final var mockBodyPublishers = mockStatic(BodyPublishers.class);
+				final var mockHttp = mockStatic(IuHttp.class)) {
+
 			final var hrb = mock(HttpRequest.Builder.class);
 			final var hrb2 = mock(HttpRequest.Builder.class);
 			final var hrb3 = mock(HttpRequest.Builder.class);
@@ -252,26 +263,29 @@ public class AuthorizationCodeTest {
 			final var bp = mock(BodyPublisher.class);
 			mockBodyPublishers.when(() -> BodyPublishers.ofString(payload)).thenReturn(bp);
 			when(hrb.POST(bp)).thenReturn(hrb);
-			when(hrb.build()).thenReturn(hr);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(tokenEndpointUri)).thenReturn(hrb, hrb2, hrb3);
 
 			final var accessToken = IdGenerator.generateId();
 			final var refreshToken = IdGenerator.generateId();
 			final var tokenResponse = Json.createObjectBuilder().add("token_type", "Bearer")
 					.add("access_token", accessToken).add("refresh_token", refreshToken).add("expires_in", 1).build();
-			mockHttpUtils.when(() -> HttpUtils.read(hr)).thenReturn(tokenResponse);
+			mockHttp.when(() -> IuHttp.send(eq(IuAuthenticationException.class), eq(tokenEndpointUri), argThat(a -> {
+				IuException.unchecked(() -> a.accept(hrb));
+				return true;
+			}), eq(AbstractGrant.JSON_OBJECT_NOCACHE))).thenReturn(tokenResponse);
 
 			assertEquals(resourceUri, grant.authorize(code, state));
 
-			final var cred = grant.authorize(resourceUri);
+			final var cred = assertInstanceOf(BearerToken.class, grant.authorize(resourceUri));
+			IuPrincipalIdentity.verify(cred, realm);
+
 			mockBodyPublishers.verify(() -> BodyPublishers.ofString(payload));
 			verify(hrb).header("Content-Type", "application/x-www-form-urlencoded");
 			verify(hrb).POST(bp);
 			verify(clientCredentials).applyTo(hrb);
-			assertInstanceOf(IuBearerAuthCredentials.class, cred);
+			assertInstanceOf(IuBearerToken.class, cred);
 			assertEquals(principal.getName(), cred.getName());
 			assertSame(cred, grant.authorize(resourceUri));
-			assertEquals(accessToken, ((IuBearerAuthCredentials) cred).getAccessToken());
+			assertEquals(accessToken, ((IuBearerToken) cred).getAccessToken());
 
 			// emulate session storage
 			final var serialized = new ByteArrayOutputStream();
@@ -293,19 +307,24 @@ public class AuthorizationCodeTest {
 			final var refreshToken2 = IdGenerator.generateId();
 			final var tokenResponse2 = Json.createObjectBuilder().add("token_type", "Bearer")
 					.add("access_token", accessToken2).add("refresh_token", refreshToken2).add("expires_in", 1).build();
-			mockHttpUtils.when(() -> HttpUtils.read(hr2)).thenReturn(tokenResponse2);
+			mockHttp.when(() -> IuHttp.send(eq(IuAuthenticationException.class), eq(tokenEndpointUri), argThat(a -> {
+				IuException.unchecked(() -> a.accept(hrb2));
+				return true;
+			}), eq(AbstractGrant.JSON_OBJECT_NOCACHE))).thenReturn(tokenResponse2);
 
-			final var cred2 = grant.authorize(resourceUri);
+			final var cred2 = assertInstanceOf(IuBearerToken.class, grant.authorize(resourceUri));
+			IuPrincipalIdentity.verify(cred2, realm);
+
 			mockBodyPublishers.verify(() -> BodyPublishers.ofString(payload2));
 			verify(hrb2).header("Content-Type", "application/x-www-form-urlencoded");
 			verify(hrb2).POST(bp2);
 			verify(clientCredentials).applyTo(hrb2);
-			assertInstanceOf(IuBearerAuthCredentials.class, cred2);
-			assertEquals(principal.getName(), cred2.getName());
 			assertSame(cred2, grant.authorize(resourceUri));
-			assertNotEquals(cred, cred2);
-			assertNotEquals(cred.hashCode(), cred2.hashCode());
-			assertEquals(accessToken2, ((IuBearerAuthCredentials) cred2).getAccessToken());
+			assertEquals(principal.getName(), cred2.getName());
+			assertEquals(cred.getName(), cred2.getName());
+			assertEquals(cred.getSubject(), cred2.getSubject());
+			assertEquals(cred.getScope(), cred2.getScope());
+			assertEquals(accessToken2, ((IuBearerToken) cred2).getAccessToken());
 
 			Thread.sleep(1001L);
 			final var hr3 = mock(HttpRequest.class);
@@ -316,18 +335,21 @@ public class AuthorizationCodeTest {
 			when(hrb3.build()).thenReturn(hr3);
 			final var accessToken3 = IdGenerator.generateId();
 			final var tokenResponse3 = Json.createObjectBuilder().add("token_type", "Bearer")
-					.add("access_token", accessToken3).add("expires_in", 1).build();
-			mockHttpUtils.when(() -> HttpUtils.read(hr3)).thenReturn(tokenResponse3);
+					.add("access_token", accessToken3).add("expires_in", 0).build();
+			mockHttp.when(() -> IuHttp.send(eq(IuAuthenticationException.class), eq(tokenEndpointUri), argThat(a -> {
+				IuException.unchecked(() -> a.accept(hrb3));
+				return true;
+			}), eq(AbstractGrant.JSON_OBJECT_NOCACHE))).thenReturn(tokenResponse3);
 
 			final var cred3 = grant.authorize(resourceUri);
 			mockBodyPublishers.verify(() -> BodyPublishers.ofString(payload3));
 			verify(hrb3).header("Content-Type", "application/x-www-form-urlencoded");
 			verify(hrb3).POST(bp3);
 			verify(clientCredentials).applyTo(hrb3);
-			assertInstanceOf(IuBearerAuthCredentials.class, cred3);
+			assertInstanceOf(IuBearerToken.class, cred3);
 			assertEquals(principal.getName(), cred3.getName());
 			assertSame(cred3, grant.authorize(resourceUri));
-			assertEquals(accessToken3, ((IuBearerAuthCredentials) cred3).getAccessToken());
+			assertEquals(accessToken3, ((IuBearerToken) cred3).getAccessToken());
 		}
 	}
 
@@ -339,10 +361,7 @@ public class AuthorizationCodeTest {
 		final var authEndpointUri = new URI("foo:/authorize");
 		final var tokenEndpointUri = new URI("foo:/token");
 		final var client = mock(IuAuthorizationClient.class);
-		final var clientCredentials = mock(IuApiCredentials.class);
-		final var clientId = IdGenerator.generateId();
-		final var principal = new MockPrincipal();
-		when(clientCredentials.getName()).thenReturn(clientId);
+		final var clientCredentials = new MockClientCredentials();
 		when(client.getRealm()).thenReturn(realm);
 		when(client.getResourceUri()).thenReturn(resourceUri);
 		when(client.getRedirectUri()).thenReturn(redirectUri);
@@ -351,7 +370,17 @@ public class AuthorizationCodeTest {
 		when(client.getAuthorizationCodeAttributes()).thenReturn(Map.of("foo", "bar"));
 		when(client.getScope()).thenReturn(List.of("foo", "bar"));
 		when(client.getCredentials()).thenReturn(clientCredentials);
-		when(client.verify(any())).thenReturn(new Subject(true, Set.of(principal), Set.of(), Set.of()));
+		
+		final var idrealm = IdGenerator.generateId();
+		when(client.getPrincipalRealms()).thenReturn(Set.of(idrealm));
+		MockPrincipal.registerVerifier(idrealm);
+		final var principal = new MockPrincipal(idrealm);
+		final var authPrincipal = mock(IuAuthorizedPrincipal.class);
+		when(authPrincipal.getPrincipal()).thenReturn(principal);
+		when(authPrincipal.getRealm()).thenReturn(idrealm);
+
+		when(client.verify(any())).thenReturn(authPrincipal);
+		when(client.getAuthorizationTimeToLive()).thenReturn(Duration.ofSeconds(15L));
 		IuAuthorizationClient.initialize(client);
 
 		final var grant = new AuthorizationCodeGrant(realm, resourceUri);
@@ -364,38 +393,37 @@ public class AuthorizationCodeTest {
 		assertTrue(matcher.matches(), authException::getMessage);
 		final var state = matcher.group(1);
 		assertEquals(
-				new URI("foo:/authorize?client_id=" + clientId
+				new URI("foo:/authorize?client_id=" + clientCredentials.getName()
 						+ "&response_type=code&redirect_uri=foo%3A%2Fbaz&scope=foo+bar&state=" + state + "&foo=bar"),
 				authException.getLocation());
 
 		final var code = IdGenerator.generateId();
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockBodyPublishers = mockStatic(BodyPublishers.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var hr = mock(HttpRequest.class);
+		try (final var mockBodyPublishers = mockStatic(BodyPublishers.class);
+				final var mockHttp = mockStatic(IuHttp.class)) {
 			final var hrb = mock(HttpRequest.Builder.class);
 			final var payload = "grant_type=authorization_code&code=" + code
 					+ "&scope=foo+bar&redirect_uri=foo%3A%2Fbaz";
 			final var bp = mock(BodyPublisher.class);
 			mockBodyPublishers.when(() -> BodyPublishers.ofString(payload)).thenReturn(bp);
 			when(hrb.POST(bp)).thenReturn(hrb);
-			when(hrb.build()).thenReturn(hr);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(tokenEndpointUri)).thenReturn(hrb);
 
 			final var accessToken = IdGenerator.generateId();
 			final var refreshToken = IdGenerator.generateId();
 			final var tokenResponse = Json.createObjectBuilder().add("token_type", "Bearer")
 					.add("access_token", accessToken).add("refresh_token", refreshToken).add("expires_in", 1).build();
-			mockHttpUtils.when(() -> HttpUtils.read(hr)).thenReturn(tokenResponse);
+			mockHttp.when(() -> IuHttp.send(eq(IuAuthenticationException.class), eq(tokenEndpointUri), argThat(a -> {
+				IuException.unchecked(() -> a.accept(hrb));
+				return true;
+			}), eq(AbstractGrant.JSON_OBJECT_NOCACHE))).thenReturn(tokenResponse);
 
 			assertEquals(resourceUri, grant.authorize(code, state));
 
 			final var cred = grant.authorize(resourceUri);
 			mockBodyPublishers.verify(() -> BodyPublishers.ofString(payload));
 			verify(hrb).header("Content-Type", "application/x-www-form-urlencoded");
+			verify(hrb).header("Authorization", "Mock " + clientCredentials.getName());
 			verify(hrb).POST(bp);
-			verify(clientCredentials).applyTo(hrb);
-			assertInstanceOf(IuBearerAuthCredentials.class, cred);
+			assertInstanceOf(IuBearerToken.class, cred);
 			assertEquals(principal.getName(), cred.getName());
 			assertSame(cred, grant.authorize(resourceUri));
 		}
@@ -413,7 +441,7 @@ public class AuthorizationCodeTest {
 		final var state2 = matcher2.group(1);
 		assertNotEquals(state, state2);
 		assertEquals(
-				new URI("foo:/authorize?client_id=" + clientId
+				new URI("foo:/authorize?client_id=" + clientCredentials.getName()
 						+ "&response_type=code&redirect_uri=foo%3A%2Fbaz&scope=foo+bar&state=" + state2 + "&foo=bar"),
 				authException2.getLocation());
 
@@ -427,10 +455,7 @@ public class AuthorizationCodeTest {
 		final var authEndpointUri = new URI("foo:/authorize");
 		final var tokenEndpointUri = new URI("foo:/token");
 		final var client = mock(IuAuthorizationClient.class);
-		final var clientCredentials = mock(IuApiCredentials.class);
-		final var clientId = IdGenerator.generateId();
-		final var principal = new MockPrincipal();
-		when(clientCredentials.getName()).thenReturn(clientId);
+		final var clientCredentials = new MockClientCredentials();
 		when(client.getRealm()).thenReturn(realm);
 		when(client.getResourceUri()).thenReturn(resourceUri);
 		when(client.getRedirectUri()).thenReturn(redirectUri);
@@ -439,7 +464,17 @@ public class AuthorizationCodeTest {
 		when(client.getAuthorizationCodeAttributes()).thenReturn(Map.of("foo", "bar"));
 		when(client.getScope()).thenReturn(List.of("foo", "bar"));
 		when(client.getCredentials()).thenReturn(clientCredentials);
-		when(client.verify(any())).thenReturn(new Subject(true, Set.of(principal), Set.of(), Set.of()));
+		
+		final var idrealm = IdGenerator.generateId();
+		when(client.getPrincipalRealms()).thenReturn(Set.of(idrealm));
+		MockPrincipal.registerVerifier(idrealm);
+		final var principal = new MockPrincipal(idrealm);
+		final var authPrincipal = mock(IuAuthorizedPrincipal.class);
+		when(authPrincipal.getPrincipal()).thenReturn(principal);
+		when(authPrincipal.getRealm()).thenReturn(idrealm);
+
+		when(client.verify(any())).thenReturn(authPrincipal);
+		when(client.getAuthorizationTimeToLive()).thenReturn(Duration.ofSeconds(15L));
 		IuAuthorizationClient.initialize(client);
 
 		final var grant = new AuthorizationCodeGrant(realm, resourceUri);
@@ -452,37 +487,36 @@ public class AuthorizationCodeTest {
 		assertTrue(matcher.matches(), authException::getMessage);
 		final var state = matcher.group(1);
 		assertEquals(
-				new URI("foo:/authorize?client_id=" + clientId
+				new URI("foo:/authorize?client_id=" + clientCredentials.getName()
 						+ "&response_type=code&redirect_uri=foo%3A%2Fbaz&scope=foo+bar&state=" + state + "&foo=bar"),
 				authException.getLocation());
 
 		final var code = IdGenerator.generateId();
-		try (final var mockHttpRequest = mockStatic(HttpRequest.class);
-				final var mockBodyPublishers = mockStatic(BodyPublishers.class);
-				final var mockHttpUtils = mockStatic(HttpUtils.class)) {
-			final var hr = mock(HttpRequest.class);
+		try (final var mockBodyPublishers = mockStatic(BodyPublishers.class);
+				final var mockHttp = mockStatic(IuHttp.class)) {
 			final var hrb = mock(HttpRequest.Builder.class);
 			final var payload = "grant_type=authorization_code&code=" + code
 					+ "&scope=foo+bar&redirect_uri=foo%3A%2Fbaz";
 			final var bp = mock(BodyPublisher.class);
 			mockBodyPublishers.when(() -> BodyPublishers.ofString(payload)).thenReturn(bp);
 			when(hrb.POST(bp)).thenReturn(hrb);
-			when(hrb.build()).thenReturn(hr);
-			mockHttpRequest.when(() -> HttpRequest.newBuilder(tokenEndpointUri)).thenReturn(hrb);
 
 			final var accessToken = IdGenerator.generateId();
 			final var tokenResponse = Json.createObjectBuilder().add("token_type", "Bearer")
 					.add("access_token", accessToken).add("expires_in", 1).build();
-			mockHttpUtils.when(() -> HttpUtils.read(hr)).thenReturn(tokenResponse);
+			mockHttp.when(() -> IuHttp.send(eq(IuAuthenticationException.class), eq(tokenEndpointUri), argThat(a -> {
+				IuException.unchecked(() -> a.accept(hrb));
+				return true;
+			}), eq(AbstractGrant.JSON_OBJECT_NOCACHE))).thenReturn(tokenResponse);
 
 			assertEquals(resourceUri, grant.authorize(code, state));
 
 			final var cred = grant.authorize(resourceUri);
 			mockBodyPublishers.verify(() -> BodyPublishers.ofString(payload));
 			verify(hrb).header("Content-Type", "application/x-www-form-urlencoded");
+			verify(hrb).header("Authorization", "Mock " + clientCredentials.getName());
 			verify(hrb).POST(bp);
-			verify(clientCredentials).applyTo(hrb);
-			assertInstanceOf(IuBearerAuthCredentials.class, cred);
+			assertInstanceOf(IuBearerToken.class, cred);
 			assertEquals(principal.getName(), cred.getName());
 			assertSame(cred, grant.authorize(resourceUri));
 		}
@@ -498,7 +532,7 @@ public class AuthorizationCodeTest {
 		final var state2 = matcher2.group(1);
 		assertNotEquals(state, state2);
 		assertEquals(
-				new URI("foo:/authorize?client_id=" + clientId
+				new URI("foo:/authorize?client_id=" + clientCredentials.getName()
 						+ "&response_type=code&redirect_uri=foo%3A%2Fbaz&scope=foo+bar&state=" + state2 + "&foo=bar"),
 				authException2.getLocation());
 

@@ -29,34 +29,69 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.oidc;
+package iu.auth.oauth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
-import org.junit.jupiter.api.Test;
+import java.net.http.HttpRequest.Builder;
+import java.util.Set;
+
+import javax.security.auth.Subject;
+
+import edu.iu.IdGenerator;
+import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuAuthenticationException;
+import iu.auth.principal.PrincipalVerifier;
+import iu.auth.principal.PrincipalVerifierRegistry;
 
 @SuppressWarnings("javadoc")
-public class OidcClaimTest {
+final class MockClientCredentials implements IuApiCredentials {
 
-	@Test
-	public void testMethods() {
-		final var claim1 = new OidcClaim<>("foo", "bar", "baz");
-		assertEquals("foo", claim1.getName());
-		assertEquals("bar", claim1.getClaimName());
-		assertEquals("baz", claim1.getClaim());
-		assertEquals("OIDC Claim of foo: bar = baz", claim1.toString());
+	private static final long serialVersionUID = 1L;
+
+	private final class Verifier implements PrincipalVerifier<MockClientCredentials> {
+		@Override
+		public Class<MockClientCredentials> getType() {
+			return MockClientCredentials.class;
+		}
+
+		@Override
+		public String getRealm() {
+			return clientId;
+		}
+
+		@Override
+		public boolean isAuthoritative() {
+			return true;
+		}
+
+		@Override
+		public void verify(MockClientCredentials id, String realm) throws IuAuthenticationException {
+			assertEquals(realm, clientId);
+			assertSame(MockClientCredentials.this, id);
+		}
 	}
 
-	@Test
-	public void testEquals() {
-		final var claim1 = new OidcClaim<>("foo", "bar", "baz");
-		final var claim2 = new OidcClaim<>("foo", "bar", "baz");
-		assertEquals(claim1.hashCode(), claim2.hashCode());
-		assertEquals(claim1, claim2);
-		final var claim3 = new OidcClaim<>("foo", "baz", "bar");
-		assertNotEquals(claim1.hashCode(), claim3.hashCode());
-		assertNotEquals(claim1, claim3);
-		assertNotEquals(claim3, claim1);
+	private final String clientId = IdGenerator.generateId();
+
+	MockClientCredentials() {
+		PrincipalVerifierRegistry.registerVerifier(new Verifier());
 	}
+
+	@Override
+	public String getName() {
+		return clientId;
+	}
+
+	@Override
+	public Subject getSubject() {
+		return new Subject(true, Set.of(this), Set.of(), Set.of());
+	}
+
+	@Override
+	public void applyTo(Builder httpRequestBuilder) throws IuAuthenticationException {
+		httpRequestBuilder.header("Authorization", "Mock " + clientId);
+	}
+
 }

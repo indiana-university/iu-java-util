@@ -29,44 +29,31 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.oauth;
+package edu.iu.auth.spi;
 
-import java.io.Serializable;
+import java.security.cert.CertPathParameters;
+import java.security.cert.CertPathValidator;
 
-import javax.security.auth.Subject;
-
-import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.pki.IuPkiPrincipal;
 
 /**
- * Represents credentials for use with
- * <a href="https://datatracker.ietf.org/doc/html/rfc6750">OAuth 2.0 Bearer
- * Token Authorization</a>.
+ * Service provider interface supporting {@link IuPkiPrincipal}.
  */
-public interface IuBearerAuthCredentials extends IuApiCredentials, Serializable {
+public interface IuPkiSpi {
 
 	/**
-	 * Returns the name of the first principal implied by the {@link #getSubject()}.
-	 */
-	@Override
-	String getName();
-
-	/**
-	 * Gets the verified subject associated with the access token.
+	 * Reads a serialized PKI principal.
 	 * 
-	 * @return verified subject
+	 * @param serialized serialized form
+	 * @return {@link IuPkiPrincipal}
 	 */
-	Subject getSubject();
+	IuPkiPrincipal readPkiPrincipal(String serialized);
 
 	/**
-	 * Gets the access token.
+	 * Registers a non-authoritative trust verifier.
 	 * 
-	 * @return access token
+	 * @param validatorParams {@link CertPathValidator} parameters
 	 */
-	String getAccessToken();
-
-	@Override
-	default boolean implies(Subject subject) {
-		return subject == getSubject() || IuApiCredentials.super.implies(subject);
-	}
+	void trust(CertPathParameters validatorParams);
 
 }

@@ -33,18 +33,60 @@ package iu.auth.bundle;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Set;
+
 import org.junit.jupiter.api.Test;
 
-import edu.iu.auth.IuApiCredentials;
+import edu.iu.IdGenerator;
+import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.basic.IuBasicAuthCredentials;
+import edu.iu.auth.basic.IuClientCredentials;
 
 @SuppressWarnings("javadoc")
 public class BasicAuthIT {
 
 	@Test
 	public void testBasic() {
-		final var basic = IuApiCredentials.basic("foo", "bar");
-		assertEquals("foo", basic.getName());
-		assertEquals("bar", basic.getPassword());
+		final var name = IdGenerator.generateId();
+		final var password = IdGenerator.generateId();
+		final var basic = IuBasicAuthCredentials.of(name, password);
+		assertEquals(name, basic.getName());
+		assertEquals(password, basic.getPassword());
+	}
+
+	@Test
+	public void testRegister() throws IuAuthenticationException {
+		final var name = IdGenerator.generateId();
+		final var password = IdGenerator.generateId();
+		final var now = Instant.now();
+		final var client = new IuClientCredentials() {
+			@Override
+			public String getId() {
+				return name;
+			}
+
+			@Override
+			public String getSecret() {
+				return password;
+			}
+
+			@Override
+			public Instant getNotBefore() {
+				return now;
+			}
+
+			@Override
+			public Instant getExpires() {
+				return now.plusSeconds(5L);
+			}
+		};
+		final var clientCredentials = Set.of(client);
+		final var realm = IdGenerator.generateId();
+		IuClientCredentials.register(clientCredentials, realm, Duration.ofSeconds(5L));
+		IuPrincipalIdentity.verify(IuBasicAuthCredentials.of(name, password), realm);
 	}
 
 }

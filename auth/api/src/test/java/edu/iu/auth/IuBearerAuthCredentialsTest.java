@@ -43,14 +43,14 @@ import javax.security.auth.Subject;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.auth.oauth.IuBearerAuthCredentials;
+import edu.iu.auth.oauth.IuBearerToken;
 
 @SuppressWarnings("javadoc")
 public class IuBearerAuthCredentialsTest {
 
 	@Test
 	public void testImpliesSubject() {
-		final var bearer = mock(IuBearerAuthCredentials.class, CALLS_REAL_METHODS);
+		final var bearer = mock(IuBearerToken.class, CALLS_REAL_METHODS);
 		final var subject = mock(Subject.class);
 		assertFalse(bearer.implies(subject));
 		

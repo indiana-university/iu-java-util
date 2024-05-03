@@ -114,6 +114,9 @@ public class IuComponentTest extends IuTypeTestCase {
 			assertTrue(controller.layer().findModule("iu.util.type.testruntime").isPresent());
 		}, TestArchives.getComponentArchive("testruntime"),
 				TestArchives.getProvidedDependencyArchives("testruntime"))) {
+			assertEquals(
+					"Component [parent=null, kind=MODULAR_JAR, versions=[iu-java-type-testruntime-7.0.2-SNAPSHOT, parsson-1.1.2, commons-lang-2.6, jakarta.annotation-api-3.0.0, jakarta.ejb-api-4.0.0, jakarta.interceptor-api-2.2.0, jakarta.json-api-2.1.2, jakarta.transaction-api-2.0.0], closed=false]",
+					component.toString());
 
 			assertEquals(Kind.MODULAR_JAR, component.kind());
 			assertEquals("iu-java-type-testruntime", component.version().name());
@@ -125,9 +128,11 @@ public class IuComponentTest extends IuTypeTestCase {
 
 			var contextLoader = Thread.currentThread().getContextClassLoader();
 			var loader = component.classLoader();
+			var layer = component.moduleLayer();
 			try {
 				Thread.currentThread().setContextClassLoader(loader);
 				var urlReader = loader.loadClass("edu.iu.type.testruntime.UrlReader");
+				assertSame(layer, urlReader.getModule().getLayer());
 				assertSame(urlReader, loader.loadClass("edu.iu.type.testruntime.UrlReader"));
 				var ejb = loader.loadClass("jakarta.ejb.EJB");
 				assertSame(ejb, loader.loadClass("jakarta.ejb.EJB"));
