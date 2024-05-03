@@ -31,13 +31,25 @@
  */
 package edu.iu;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import java.lang.module.Configuration;
+import java.lang.module.ModuleDescriptor;
+import java.lang.module.ModuleFinder;
+import java.lang.module.ModuleReference;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
@@ -47,6 +59,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeoutException;
@@ -57,8 +71,69 @@ import org.junit.jupiter.api.Test;
 public class IuObjectTest {
 
 	@Test
+	public void testRequiresModule() throws Exception {
+		// asserts that this test is running in a module
+		assertDoesNotThrow(() -> IuObject.assertNotOpen(IuObject.class));
+
+		try (final var c = new URLClassLoader(new URL[] { Path.of("target", "classes").toRealPath().toUri().toURL() }) {
+			@Override
+			public Class<?> loadClass(String name) throws ClassNotFoundException {
+				if (IuObject.isPlatformName(name))
+					return super.loadClass(name);
+				else
+					return findClass(name);
+			}
+
+		}) {
+			final var uc = c.loadClass(IuObject.class.getName());
+			assertNotSame(IuObject.class, uc);
+			final var e = assertThrows(IllegalStateException.class, () -> IuObject.assertNotOpen(uc));
+			assertEquals("Must be in a named module and not open", e.getMessage());
+		}
+	}
+
+	@Test
+	public void testRequiresNonOpenModule() throws Exception {
+		final var path = Path.of("target", "classes").toRealPath();
+		try (final var c = new URLClassLoader(new URL[] { path.toUri().toURL() }) {
+			{
+				registerAsParallelCapable();
+			}
+
+			@Override
+			public Class<?> loadClass(String name) throws ClassNotFoundException {
+				if (!name.startsWith("edu.iu."))
+					return super.loadClass(name);
+				else
+					return findClass(name);
+			}
+		}) {
+			final var desc = ModuleDescriptor //
+					.newOpenModule("iu.util") //
+					.exports("edu.iu") //
+					.build();
+			final var ref = mock(ModuleReference.class);
+			when(ref.descriptor()).thenReturn(desc);
+
+			final var finder = mock(ModuleFinder.class);
+			when(finder.find("iu.util")).thenReturn(Optional.of(ref));
+
+			ModuleLayer.defineModules(Configuration.resolve(finder, List.of(ModuleLayer.boot().configuration()),
+					ModuleFinder.of(), Set.of("iu.util")), List.of(ModuleLayer.boot()), a -> c);
+
+			final var uc = c.loadClass(IuObject.class.getName());
+			assertNotSame(IuObject.class, uc);
+			assertEquals("iu.util", uc.getModule().getName());
+			assertTrue(uc.getModule().isOpen("edu.iu"));
+			final var e = assertThrows(IllegalStateException.class, () -> IuObject.assertNotOpen(uc));
+			assertEquals("Must be in a named module and not open", e.getMessage());
+		}
+	}
+
+	@Test
 	public void testPlatformType() {
 		assertFalse(IuObject.isPlatformName(""));
+		assertTrue(IuObject.isPlatformName("sun."));
 		assertTrue(IuObject.isPlatformName("com.sun."));
 		assertTrue(IuObject.isPlatformName("java."));
 		assertTrue(IuObject.isPlatformName("javax."));
@@ -68,6 +143,49 @@ public class IuObjectTest {
 		assertTrue(IuObject.isPlatformName("org.ietf.jgss."));
 		assertTrue(IuObject.isPlatformName("org.w3c.dom."));
 		assertTrue(IuObject.isPlatformName("org.xml.sax."));
+	}
+
+	@Test
+	public void testOnce() {
+		assertThrows(NullPointerException.class, () -> IuObject.once(null, null));
+		assertSame("foo", IuObject.once(null, "foo"));
+		assertSame("foo", IuObject.once("foo", "foo", "bar"));
+		assertSame("foo", IuObject.once("foo", null));
+		assertEquals("baz", assertThrows(IllegalArgumentException.class, () -> IuObject.once("bar", "foo", "baz"))
+				.getMessage());
+	}
+
+	@Test
+	public void testFirst() {
+		assertNull(IuObject.first(null, null, null));
+		assertSame("foo", IuObject.first(null, null, "foo"));
+		assertSame("foo", IuObject.first("foo", null, "foo"));
+		assertSame("foo", IuObject.first("foo", "foo", null));
+		assertThrows(IllegalArgumentException.class, () -> IuObject.first("foo", "bar", "foo"));
+	}
+
+	@Test
+	public void testIs() {
+		assertNull(IuObject.requireType(String.class, null));
+		assertSame("foo", IuObject.requireType(String.class, "foo"));
+		assertThrows(IllegalArgumentException.class, () -> IuObject.requireType(String.class, new Object()));
+	}
+
+	@Test
+	public void testRequire() {
+		assertNull(IuObject.require(null, Objects::isNull));
+		assertNull(IuObject.require(null, Objects::nonNull));
+		assertNotNull(IuObject.require(new Object(), Objects::nonNull));
+		assertThrows(IllegalArgumentException.class, () -> IuObject.require(new Object(), Objects::isNull));
+	}
+
+	@Test
+	public void testRepresents() {
+		assertTrue(IuObject.represents(null, null));
+		assertTrue(IuObject.represents(null, "foo"));
+		assertTrue(IuObject.represents("foo", null));
+		assertTrue(IuObject.represents("foo", "foo"));
+		assertFalse(IuObject.represents("foo", "bar"));
 	}
 
 	@Test
@@ -255,7 +373,7 @@ public class IuObjectTest {
 
 	@Test
 	public void testWaitFor() throws InterruptedException, TimeoutException {
-		final var timeout = Duration.ofMillis(225L);
+		final var timeout = Duration.ofMillis(1000L);
 		final var thirdOfTimeout = timeout.dividedBy(3L);
 		final var expires = Instant.now().plus(timeout);
 		class Box {

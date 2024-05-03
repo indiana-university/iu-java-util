@@ -45,9 +45,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Queue;
 import java.util.Set;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -62,7 +61,6 @@ import edu.iu.type.IuProperty;
 import edu.iu.type.IuResource;
 import edu.iu.type.IuResourceReference;
 import edu.iu.type.IuType;
-import edu.iu.type.base.ModularClassLoader;
 import jakarta.annotation.Resource;
 
 /**
@@ -75,6 +73,7 @@ class Component implements IuComponent {
 	private static final Logger LOG = Logger.getLogger(Component.class.getName());
 	private static final Module TYPE_MODULE = Component.class.getModule();
 
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private static void indexClass(String className, ClassLoader classLoader, Kind kind, Properties properties,
 			Set<IuType<?, ?>> interfaces, Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes,
 			Map<Class<?>, List<IuType<?, ?>>> annotatedTypes, List<ComponentResource<?>> resources,
@@ -92,7 +91,8 @@ class Component implements IuComponent {
 				&& module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) {
 			final var type = TypeFactory.resolveRawClass(loadedClass);
 
-			for (final var attribute : IuIterable.<DeclaredAttribute<?, ?>>cat(type.fields(), type.properties())) {
+			for (final var o : IuIterable.cat((Iterable) type.fields(), (Iterable) type.properties())) {
+				final var attribute = (DeclaredAttribute<?, ?>) o;
 				for (var annotation : attribute.annotations()) {
 					var annotationType = annotation.annotationType();
 
@@ -142,6 +142,7 @@ class Component implements IuComponent {
 
 	private final Component parent;
 	private final ClassLoader classLoader;
+	private final ModuleLayer moduleLayer;
 
 	private final Kind kind;
 	private final Set<ComponentVersion> versions;
@@ -161,11 +162,12 @@ class Component implements IuComponent {
 	 * Single entry constructor.
 	 * 
 	 * @param classLoader class loader
+	 * @param moduleLayer module layer
 	 * @param pathEntry   resource root
 	 * @throws IOException if an I/O error occurs scanning the path provided for
 	 *                     resources
 	 */
-	Component(ClassLoader classLoader, Path pathEntry) throws IOException {
+	Component(ClassLoader classLoader, ModuleLayer moduleLayer, Path pathEntry) throws IOException {
 		Set<IuType<?, ?>> interfaces = new LinkedHashSet<>();
 		Map<Class<?>, List<IuType<?, ?>>> annotatedTypes = new LinkedHashMap<>();
 		Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes = new LinkedHashMap<>();
@@ -175,6 +177,7 @@ class Component implements IuComponent {
 		this.parent = null;
 
 		this.classLoader = classLoader;
+		this.moduleLayer = moduleLayer;
 
 		final Set<ComponentVersion> versions = new LinkedHashSet<>();
 		try {
@@ -227,12 +230,14 @@ class Component implements IuComponent {
 	 * @param parent      parent component, see
 	 *                    {@link #extend(InputStream, InputStream...)}
 	 * @param classLoader component context loader
+	 * @param moduleLayer module layer
 	 * @param archives    archives dedicated to this component, to close and delete
 	 *                    when the component is closed
 	 * @param onClose     thunk for tearing down resources after closing the
 	 *                    component
 	 */
-	Component(Component parent, ClassLoader classLoader, Queue<ComponentArchive> archives, UnsafeRunnable onClose) {
+	Component(Component parent, ClassLoader classLoader, ModuleLayer moduleLayer, Iterable<ComponentArchive> archives,
+			UnsafeRunnable onClose) {
 		Set<IuType<?, ?>> interfaces = new LinkedHashSet<>();
 		Map<Class<?>, List<IuType<?, ?>>> annotatedTypes = new LinkedHashMap<>();
 		Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes = new LinkedHashMap<>();
@@ -251,6 +256,7 @@ class Component implements IuComponent {
 
 		this.parent = parent;
 		this.classLoader = classLoader;
+		this.moduleLayer = moduleLayer;
 
 		var firstArchive = archives.iterator().next();
 		kind = firstArchive.kind();
@@ -340,12 +346,11 @@ class Component implements IuComponent {
 	}
 
 	@Override
-	public Component extend(BiConsumer<Module, Controller> controllerCallback, InputStream componentArchiveSource,
+	public Component extend(Consumer<Controller> controllerCallback, InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException {
 		checkClosed();
-		return ComponentFactory.createComponent(this,
-				(classLoader instanceof ModularClassLoader m) ? m.getModuleLayer() : null, classLoader,
-				controllerCallback, componentArchiveSource, providedDependencyArchiveSources);
+		return ComponentFactory.createComponent(this, classLoader, moduleLayer, controllerCallback,
+				componentArchiveSource, providedDependencyArchiveSources);
 	}
 
 	@Override
@@ -364,6 +369,12 @@ class Component implements IuComponent {
 	public ClassLoader classLoader() {
 		checkClosed();
 		return classLoader;
+	}
+
+	@Override
+	public ModuleLayer moduleLayer() {
+		checkClosed();
+		return moduleLayer;
 	}
 
 	@Override

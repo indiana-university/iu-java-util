@@ -32,55 +32,52 @@
 package edu.iu;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import java.time.Instant;
-import java.util.concurrent.TimeoutException;
 
 import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("javadoc")
-public class IuUtilityTaskControllerTest {
+public class IuRuntimeEnvironmentTest {
 
 	@Test
-	public void testTask() throws Throwable {
-		assertEquals("foo", new IuUtilityTaskController<>(() -> "foo", Instant.now().plusSeconds(1L)).get());
+	public void testInvalidPropertyName() {
+		assertThrows(IllegalArgumentException.class, () -> IuRuntimeEnvironment.env("@!#$%"));
 	}
 
 	@Test
-	public void testGetBefore() throws Throwable {
-		assertEquals("foo", IuUtilityTaskController.getBefore(() -> "foo", Instant.now().plusSeconds(100L)));
+	public void testMissing() {
+		final var id = id();
+		assertNull(IuRuntimeEnvironment.envOptional(id));
+		final var e = assertThrows(NullPointerException.class, () -> IuRuntimeEnvironment.env(id));
+		assertEquals("Missing system property " + id + " or environment variable "
+				+ id.toUpperCase().replace('.', '_').replace('-', '_'), e.getMessage());
 	}
 
 	@Test
-	public void testDoBefore() throws Throwable {
-		class Box {
-			boolean done;
-		}
-		final var box = new Box();
-		IuUtilityTaskController.doBefore(() -> {
-			box.done = true;
-		}, Instant.now().plusSeconds(1L));
-		assertTrue(box.done);
+	public void testBlank() {
+		final var id = id();
+		System.setProperty(id, "");
+		assertNull(IuRuntimeEnvironment.envOptional(id));
+		final var e = assertThrows(NullPointerException.class, () -> IuRuntimeEnvironment.env(id));
+		assertEquals("Missing system property " + id + " or environment variable "
+				+ id.toUpperCase().replace('.', '_').replace('-', '_'), e.getMessage());
 	}
 
 	@Test
-	public void testError() throws Throwable {
-		final var e = new Exception();
-		assertSame(e, assertThrows(Exception.class, () -> IuUtilityTaskController.getBefore(() -> {
-			throw e;
-		}, Instant.now().plusSeconds(1L))));
+	public void testSet() {
+		final var id = id();
+		final var val = id();
+		System.setProperty(id, val);
+		assertEquals(val, IuRuntimeEnvironment.envOptional(id));
+		assertEquals(val, IuRuntimeEnvironment.env(id));
 	}
 
-	@Test
-	public void testTimeout() throws Throwable {
-		final var t = System.currentTimeMillis();
-		assertThrows(TimeoutException.class, () -> IuUtilityTaskController.doBefore(() -> {
-			Thread.sleep(2000L);
-		}, Instant.now().plusSeconds(1L)));
-		assertTrue(System.currentTimeMillis() - t < 1500L, Long.toString(t - System.currentTimeMillis()));
+	private String id() {
+		String id;
+		do
+			id = IdGenerator.generateId();
+		while (!Character.isLetter(id.charAt(0)));
+		return id;
 	}
-
 }

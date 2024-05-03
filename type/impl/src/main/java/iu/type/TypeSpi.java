@@ -36,7 +36,7 @@ import java.io.InputStream;
 import java.lang.ModuleLayer.Controller;
 import java.lang.reflect.Type;
 import java.nio.file.Path;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuType;
@@ -61,16 +61,17 @@ public class TypeSpi implements IuTypeSpi {
 	}
 
 	@Override
-	public IuComponent createComponent(ModuleLayer parentLayer, ClassLoader parent, BiConsumer<Module, Controller> controllerCallback,
-			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources) throws IOException {
-		return ComponentFactory.createComponent(null, parentLayer, parent, controllerCallback, componentArchiveSource,
+	public IuComponent createComponent(ClassLoader parent, ModuleLayer parentLayer,
+			Consumer<Controller> controllerCallback, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) {
+		return ComponentFactory.createComponent(null, parent, parentLayer, controllerCallback, componentArchiveSource,
 				providedDependencyArchiveSources);
 	}
 
 	@Override
-	public IuComponent scanComponentEntry(ClassLoader classLoader, Path pathEntry)
+	public IuComponent scanComponentEntry(ClassLoader classLoader, ModuleLayer moduleLayer, Path pathEntry)
 			throws IOException, ClassNotFoundException {
-		return new Component(classLoader, pathEntry);
+		return new Component(classLoader, moduleLayer, pathEntry);
 	}
 
 }
