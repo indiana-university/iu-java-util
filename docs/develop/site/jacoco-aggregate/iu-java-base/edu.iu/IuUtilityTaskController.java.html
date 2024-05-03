@@ -157,7 +157,7 @@ public class IuUtilityTaskController&lt;T&gt; implements UnsafeSupplier&lt;T&gt;
 		};
 
 <span class="fc" id="L159">		final var callerStackTrace = new Throwable(&quot;caller stack trace&quot;);</span>
-<span class="fc" id="L160">		TIMER.schedule(interrupt, Date.from(expires.plusMillis(5L)));</span>
+<span class="fc" id="L160">		TIMER.schedule(interrupt, Date.from(expires.plusMillis(250L)));</span>
 <span class="fc" id="L161">		EXEC.submit(new Runnable() {</span>
 			@Override
 			public void run() {

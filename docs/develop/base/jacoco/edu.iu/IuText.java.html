@@ -31,12 +31,39 @@
  */
 package edu.iu;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
 /**
  * Low-level text processing utilities.
  */
 public final class IuText {
 
-<span class="fc" id="L39">	private static final byte[] b0 = new byte[0];</span>
+	/**
+	 * Encodes binary data as basic Base64.
+	 * 
+	 * @param data binary data
+	 * @return encoded {@link String}
+	 */
+	public static String base64(byte[] data) {
+<span class="fc bfc" id="L49" title="All 2 branches covered.">		if (data == null)</span>
+<span class="fc" id="L50">			return null;</span>
+		else
+<span class="fc" id="L52">			return Base64.getEncoder().encodeToString(data);</span>
+	}
+
+	/**
+	 * Decodes binary data from basic Base64.
+	 * 
+	 * @param data encoded {@link String}
+	 * @return binary data
+	 */
+	public static byte[] base64(String data) {
+<span class="fc bfc" id="L62" title="All 2 branches covered.">		if (data == null)</span>
+<span class="fc" id="L63">			return null;</span>
+		else
+<span class="fc" id="L65">			return Base64.getDecoder().decode(data);</span>
+	}
 
 	/**
 	 * Converts string data to UTF-8 binary.
@@ -45,10 +72,10 @@ public final class IuText {
 	 * @return UTF-8 binary
 	 */
 	public static byte[] utf8(String data) {
-<span class="fc bfc" id="L48" title="All 2 branches covered.">		if (data == null)</span>
-<span class="fc" id="L49">			return b0;</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">		if (data == null)</span>
+<span class="fc" id="L76">			return null;</span>
 		else
-<span class="fc" id="L51">			return IuException.unchecked(() -&gt; data.getBytes(&quot;UTF-8&quot;));</span>
+<span class="fc" id="L78">			return data.getBytes(StandardCharsets.UTF_8);</span>
 	}
 
 	/**
@@ -58,10 +85,36 @@ public final class IuText {
 	 * @return string data
 	 */
 	public static String utf8(byte[] data) {
-<span class="fc bfc" id="L61" title="All 2 branches covered.">		if (data == null)</span>
-<span class="fc" id="L62">			return null;</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">		if (data == null)</span>
+<span class="fc" id="L89">			return null;</span>
 		else
-<span class="fc" id="L64">			return IuException.unchecked(() -&gt; new String(data, &quot;UTF-8&quot;));</span>
+<span class="fc" id="L91">			return new String(data, StandardCharsets.UTF_8);</span>
+	}
+
+	/**
+	 * Converts string data to ASCII binary.
+	 * 
+	 * @param data string data
+	 * @return ASCII binary
+	 */
+	public static byte[] ascii(String data) {
+<span class="fc bfc" id="L101" title="All 2 branches covered.">		if (data == null)</span>
+<span class="fc" id="L102">			return null;</span>
+		else
+<span class="fc" id="L104">			return data.getBytes(StandardCharsets.US_ASCII);</span>
+	}
+
+	/**
+	 * Gets a string from ASCII encoding data.
+	 * 
+	 * @param data ASCII encoded data
+	 * @return string data
+	 */
+	public static String ascii(byte[] data) {
+<span class="fc bfc" id="L114" title="All 2 branches covered.">		if (data == null)</span>
+<span class="fc" id="L115">			return null;</span>
+		else
+<span class="fc" id="L117">			return new String(data, StandardCharsets.US_ASCII);</span>
 	}
 
 	private IuText() {

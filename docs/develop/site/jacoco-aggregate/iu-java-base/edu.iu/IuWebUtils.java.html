@@ -32,6 +32,7 @@
 package edu.iu;
 
 import java.net.InetAddress;
+import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.time.Duration;
@@ -47,7 +48,32 @@ import java.util.Queue;
  */
 public final class IuWebUtils {
 
-<span class="fc" id="L50">	private static final Map&lt;String, InetAddress&gt; IP_CACHE = new IuCacheMap&lt;&gt;(Duration.ofSeconds(5L));</span>
+<span class="fc" id="L51">	private static final Map&lt;String, InetAddress&gt; IP_CACHE = new IuCacheMap&lt;&gt;(Duration.ofSeconds(5L));</span>
+
+	/**
+	 * Determines if a root {@link URI} encompasses a resource {@link URI}.
+	 * 
+	 * @param rootUri     root {@link URI}
+	 * @param resourceUri resource {@link URI}
+	 * @return {@link URI}
+	 */
+	public static boolean isRootOf(URI rootUri, URI resourceUri) {
+<span class="fc bfc" id="L61" title="All 2 branches covered.">		if (rootUri.equals(resourceUri))</span>
+<span class="fc" id="L62">			return true;</span>
+
+<span class="fc bfc" id="L64" title="All 2 branches covered.">		if (!resourceUri.isAbsolute() //</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">				|| resourceUri.isOpaque() //</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">				|| !IuObject.equals(rootUri.getScheme(), resourceUri.getScheme()) //</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">				|| !IuObject.equals(rootUri.getAuthority(), resourceUri.getAuthority()))</span>
+<span class="fc" id="L68">			return false;</span>
+
+<span class="fc" id="L70">		final var root = rootUri.getPath();</span>
+<span class="fc" id="L71">		final var resource = resourceUri.getPath();</span>
+<span class="fc" id="L72">		final var l = root.length();</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">		return resource.startsWith(root) //</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">				&amp;&amp; (root.charAt(l - 1) == '/' //</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">						|| resource.charAt(l) == '/');</span>
+	}
 
 	/**
 	 * Parses a query string.
@@ -56,56 +82,56 @@ public final class IuWebUtils {
 	 * @return {@link Map}
 	 */
 	public static Map&lt;String, ? extends Iterable&lt;String&gt;&gt; parseQueryString(String queryString) {
-<span class="fc" id="L59">		final Map&lt;String, Queue&lt;String&gt;&gt; parsedParameterValues = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L85">		final Map&lt;String, Queue&lt;String&gt;&gt; parsedParameterValues = new LinkedHashMap&lt;&gt;();</span>
 
-<span class="fc bfc" id="L61" title="All 2 branches covered.">		var startOfName = queryString.startsWith(&quot;?&quot;) ? 1 : 0;</span>
-<span class="fc bfc" id="L62" title="All 2 branches covered.">		if (startOfName == queryString.length())</span>
-<span class="fc" id="L63">			return parsedParameterValues;</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">		var startOfName = queryString.startsWith(&quot;?&quot;) ? 1 : 0;</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">		if (startOfName == queryString.length())</span>
+<span class="fc" id="L89">			return parsedParameterValues;</span>
 
-<span class="fc" id="L65">		var endOfName = queryString.indexOf('=', startOfName);</span>
-<span class="fc" id="L66">		var endOfValue = queryString.indexOf('&amp;', startOfName);</span>
+<span class="fc" id="L91">		var endOfName = queryString.indexOf('=', startOfName);</span>
+<span class="fc" id="L92">		var endOfValue = queryString.indexOf('&amp;', startOfName);</span>
 
 		int startOfValue;
-<span class="fc bfc" id="L69" title="All 2 branches covered.">		if (endOfValue == -1)</span>
-<span class="fc" id="L70">			endOfValue = queryString.length();</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">		if (endOfValue == -1)</span>
+<span class="fc" id="L96">			endOfValue = queryString.length();</span>
 
-<span class="fc bfc" id="L72" title="All 4 branches covered.">		if (endOfName == -1 //</span>
+<span class="fc bfc" id="L98" title="All 4 branches covered.">		if (endOfName == -1 //</span>
 				|| endOfName &gt; endOfValue)
-<span class="fc" id="L74">			endOfName = startOfValue = endOfValue;</span>
+<span class="fc" id="L100">			endOfName = startOfValue = endOfValue;</span>
 		else
-<span class="fc" id="L76">			startOfValue = endOfName + 1;</span>
+<span class="fc" id="L102">			startOfValue = endOfName + 1;</span>
 
 		while (true) {
-<span class="fc" id="L79">			final var name = queryString.substring(startOfName, endOfName);</span>
+<span class="fc" id="L105">			final var name = queryString.substring(startOfName, endOfName);</span>
 
-<span class="fc" id="L81">			var values = parsedParameterValues.get(name);</span>
-<span class="fc bfc" id="L82" title="All 2 branches covered.">			if (values == null)</span>
-<span class="fc" id="L83">				parsedParameterValues.put(name, values = new ArrayDeque&lt;&gt;());</span>
+<span class="fc" id="L107">			var values = parsedParameterValues.get(name);</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">			if (values == null)</span>
+<span class="fc" id="L109">				parsedParameterValues.put(name, values = new ArrayDeque&lt;&gt;());</span>
 
-<span class="fc bfc" id="L85" title="All 2 branches covered.">			if (endOfValue == queryString.length()) {</span>
-<span class="fc" id="L86">				final var value = queryString.substring(startOfValue);</span>
-<span class="fc" id="L87">				values.offer(IuException.unchecked(() -&gt; URLDecoder.decode(value, &quot;UTF-8&quot;)));</span>
-<span class="fc" id="L88">				endOfName = -1;</span>
-<span class="fc" id="L89">				break;</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">			if (endOfValue == queryString.length()) {</span>
+<span class="fc" id="L112">				final var value = queryString.substring(startOfValue);</span>
+<span class="fc" id="L113">				values.offer(IuException.unchecked(() -&gt; URLDecoder.decode(value, &quot;UTF-8&quot;)));</span>
+<span class="fc" id="L114">				endOfName = -1;</span>
+<span class="fc" id="L115">				break;</span>
 			}
 
-<span class="fc" id="L92">			final var value = queryString.substring(startOfValue, endOfValue);</span>
-<span class="fc" id="L93">			values.offer(IuException.unchecked(() -&gt; URLDecoder.decode(value, &quot;UTF-8&quot;)));</span>
+<span class="fc" id="L118">			final var value = queryString.substring(startOfValue, endOfValue);</span>
+<span class="fc" id="L119">			values.offer(IuException.unchecked(() -&gt; URLDecoder.decode(value, &quot;UTF-8&quot;)));</span>
 
-<span class="fc" id="L95">			startOfName = endOfValue + 1;</span>
-<span class="fc" id="L96">			endOfName = queryString.indexOf('=', startOfName);</span>
-<span class="fc" id="L97">			endOfValue = queryString.indexOf('&amp;', startOfName);</span>
-<span class="fc bfc" id="L98" title="All 2 branches covered.">			if (endOfValue == -1)</span>
-<span class="fc" id="L99">				endOfValue = queryString.length();</span>
+<span class="fc" id="L121">			startOfName = endOfValue + 1;</span>
+<span class="fc" id="L122">			endOfName = queryString.indexOf('=', startOfName);</span>
+<span class="fc" id="L123">			endOfValue = queryString.indexOf('&amp;', startOfName);</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">			if (endOfValue == -1)</span>
+<span class="fc" id="L125">				endOfValue = queryString.length();</span>
 
-<span class="fc bfc" id="L101" title="All 4 branches covered.">			if (endOfName == -1 //</span>
+<span class="fc bfc" id="L127" title="All 4 branches covered.">			if (endOfName == -1 //</span>
 					|| endOfName &gt; endOfValue)
-<span class="fc" id="L103">				endOfName = startOfValue = endOfValue;</span>
+<span class="fc" id="L129">				endOfName = startOfValue = endOfValue;</span>
 			else
-<span class="fc" id="L105">				startOfValue = endOfName + 1;</span>
-<span class="fc" id="L106">		}</span>
+<span class="fc" id="L131">				startOfValue = endOfName + 1;</span>
+<span class="fc" id="L132">		}</span>
 
-<span class="fc" id="L108">		return parsedParameterValues;</span>
+<span class="fc" id="L134">		return parsedParameterValues;</span>
 	}
 
 	/**
@@ -115,15 +141,15 @@ public final class IuWebUtils {
 	 * @return query string
 	 */
 	public static String createQueryString(Map&lt;String, ? extends Iterable&lt;String&gt;&gt; params) {
-<span class="fc" id="L118">		final var queryString = new StringBuilder();</span>
-<span class="fc bfc" id="L119" title="All 2 branches covered.">		for (final var paramEntry : params.entrySet())</span>
-<span class="fc bfc" id="L120" title="All 2 branches covered.">			for (final var paramValue : paramEntry.getValue()) {</span>
-<span class="fc bfc" id="L121" title="All 2 branches covered.">				if (queryString.length() &gt; 0)</span>
-<span class="fc" id="L122">					queryString.append('&amp;');</span>
-<span class="fc" id="L123">				queryString.append(IuException.unchecked(() -&gt; URLEncoder.encode(paramEntry.getKey(), &quot;UTF-8&quot;)));</span>
-<span class="fc" id="L124">				queryString.append(&quot;=&quot;).append(IuException.unchecked(() -&gt; URLEncoder.encode(paramValue, &quot;UTF-8&quot;)));</span>
-<span class="fc" id="L125">			}</span>
-<span class="fc" id="L126">		return queryString.toString();</span>
+<span class="fc" id="L144">		final var queryString = new StringBuilder();</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">		for (final var paramEntry : params.entrySet())</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">			for (final var paramValue : paramEntry.getValue()) {</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">				if (queryString.length() &gt; 0)</span>
+<span class="fc" id="L148">					queryString.append('&amp;');</span>
+<span class="fc" id="L149">				queryString.append(IuException.unchecked(() -&gt; URLEncoder.encode(paramEntry.getKey(), &quot;UTF-8&quot;)));</span>
+<span class="fc" id="L150">				queryString.append(&quot;=&quot;).append(IuException.unchecked(() -&gt; URLEncoder.encode(paramValue, &quot;UTF-8&quot;)));</span>
+<span class="fc" id="L151">			}</span>
+<span class="fc" id="L152">		return queryString.toString();</span>
 	}
 
 	/**
@@ -133,31 +159,31 @@ public final class IuWebUtils {
 	 * @return {@link Map} of header elements
 	 */
 	public static Map&lt;String, String&gt; parseHeader(String headerValue) {
-<span class="fc" id="L136">		int semicolon = headerValue.indexOf(';');</span>
-<span class="fc bfc" id="L137" title="All 2 branches covered.">		if (semicolon == -1)</span>
-<span class="fc" id="L138">			return Collections.singletonMap(&quot;&quot;, headerValue);</span>
+<span class="fc" id="L162">		int semicolon = headerValue.indexOf(';');</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">		if (semicolon == -1)</span>
+<span class="fc" id="L164">			return Collections.singletonMap(&quot;&quot;, headerValue);</span>
 
-<span class="fc" id="L140">		final Map&lt;String, String&gt; parsedHeader = new LinkedHashMap&lt;&gt;();</span>
-<span class="fc" id="L141">		parsedHeader.put(&quot;&quot;, headerValue.substring(0, semicolon));</span>
+<span class="fc" id="L166">		final Map&lt;String, String&gt; parsedHeader = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L167">		parsedHeader.put(&quot;&quot;, headerValue.substring(0, semicolon));</span>
 
-<span class="fc bfc" id="L143" title="All 2 branches covered.">		while (semicolon &lt; headerValue.length()) {</span>
-<span class="fc" id="L144">			final var start = semicolon + 1;</span>
-<span class="fc" id="L145">			final var eq = headerValue.indexOf('=', start + 1);</span>
+<span class="fc bfc" id="L169" title="All 2 branches covered.">		while (semicolon &lt; headerValue.length()) {</span>
+<span class="fc" id="L170">			final var start = semicolon + 1;</span>
+<span class="fc" id="L171">			final var eq = headerValue.indexOf('=', start + 1);</span>
 
-<span class="fc" id="L147">			semicolon = headerValue.indexOf(';', start + 1);</span>
-<span class="fc bfc" id="L148" title="All 2 branches covered.">			if (semicolon == -1)</span>
-<span class="fc" id="L149">				semicolon = headerValue.length();</span>
+<span class="fc" id="L173">			semicolon = headerValue.indexOf(';', start + 1);</span>
+<span class="fc bfc" id="L174" title="All 2 branches covered.">			if (semicolon == -1)</span>
+<span class="fc" id="L175">				semicolon = headerValue.length();</span>
 
-<span class="fc bfc" id="L151" title="All 4 branches covered.">			if (eq == -1 || eq &gt; semicolon)</span>
-<span class="fc" id="L152">				parsedHeader.put(headerValue.substring(start, semicolon).trim(), &quot;&quot;);</span>
+<span class="fc bfc" id="L177" title="All 4 branches covered.">			if (eq == -1 || eq &gt; semicolon)</span>
+<span class="fc" id="L178">				parsedHeader.put(headerValue.substring(start, semicolon).trim(), &quot;&quot;);</span>
 			else {
-<span class="fc" id="L154">				final var elementName = headerValue.substring(start, eq).trim();</span>
-<span class="fc" id="L155">				final String elementValue = headerValue.substring(eq + 1, semicolon).trim();</span>
-<span class="fc" id="L156">				parsedHeader.put(elementName, elementValue);</span>
+<span class="fc" id="L180">				final var elementName = headerValue.substring(start, eq).trim();</span>
+<span class="fc" id="L181">				final String elementValue = headerValue.substring(eq + 1, semicolon).trim();</span>
+<span class="fc" id="L182">				parsedHeader.put(elementName, elementValue);</span>
 			}
-<span class="fc" id="L158">		}</span>
+<span class="fc" id="L184">		}</span>
 
-<span class="fc" id="L160">		return parsedHeader;</span>
+<span class="fc" id="L186">		return parsedHeader;</span>
 	}
 
 	/**
@@ -175,17 +201,17 @@ public final class IuWebUtils {
 	 *                                  name begins or ends with a hyphen.
 	 */
 	public static String normalizeHeaderName(String headerName) throws IllegalArgumentException {
-<span class="fc bfc" id="L178" title="All 2 branches covered.">		if (!headerName.matches(&quot;\\p{Alpha}+(\\-\\p{Alpha}+?)*&quot;))</span>
-<span class="fc" id="L179">			throw new IllegalArgumentException(&quot;Invalid header name &quot; + headerName);</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">		if (!headerName.matches(&quot;\\p{Alpha}+(\\-\\p{Alpha}+?)*&quot;))</span>
+<span class="fc" id="L205">			throw new IllegalArgumentException(&quot;Invalid header name &quot; + headerName);</span>
 
-<span class="fc" id="L181">		final var sb = new StringBuilder(headerName.toLowerCase());</span>
-<span class="fc" id="L182">		sb.setCharAt(0, Character.toUpperCase(sb.charAt(0)));</span>
-<span class="fc" id="L183">		for (int i = headerName.indexOf('-') + 1; //</span>
-<span class="fc bfc" id="L184" title="All 2 branches covered.">				i != 0; //</span>
-<span class="fc" id="L185">				i = headerName.indexOf('-', i + 1) + 1)</span>
-<span class="fc" id="L186">			sb.setCharAt(i, Character.toUpperCase(sb.charAt(i)));</span>
+<span class="fc" id="L207">		final var sb = new StringBuilder(headerName.toLowerCase());</span>
+<span class="fc" id="L208">		sb.setCharAt(0, Character.toUpperCase(sb.charAt(0)));</span>
+<span class="fc" id="L209">		for (int i = headerName.indexOf('-') + 1; //</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">				i != 0; //</span>
+<span class="fc" id="L211">				i = headerName.indexOf('-', i + 1) + 1)</span>
+<span class="fc" id="L212">			sb.setCharAt(i, Character.toUpperCase(sb.charAt(i)));</span>
 
-<span class="fc" id="L188">		return sb.toString();</span>
+<span class="fc" id="L214">		return sb.toString();</span>
 	}
 
 	/**
@@ -195,89 +221,89 @@ public final class IuWebUtils {
 	 * @return {@link String}
 	 */
 	public static String describeStatus(int statusCode) {
-<span class="fc bfc" id="L198" title="All 41 branches covered.">		switch (statusCode) {</span>
+<span class="fc bfc" id="L224" title="All 41 branches covered.">		switch (statusCode) {</span>
 		case 100:
-<span class="fc" id="L200">			return statusCode + &quot; CONTINUE&quot;;</span>
+<span class="fc" id="L226">			return statusCode + &quot; CONTINUE&quot;;</span>
 		case 101:
-<span class="fc" id="L202">			return statusCode + &quot; SWITCHING PROTOCOLS&quot;;</span>
+<span class="fc" id="L228">			return statusCode + &quot; SWITCHING PROTOCOLS&quot;;</span>
 		case 200:
-<span class="fc" id="L204">			return statusCode + &quot; OK&quot;;</span>
+<span class="fc" id="L230">			return statusCode + &quot; OK&quot;;</span>
 		case 201:
-<span class="fc" id="L206">			return statusCode + &quot; CREATED&quot;;</span>
+<span class="fc" id="L232">			return statusCode + &quot; CREATED&quot;;</span>
 		case 202:
-<span class="fc" id="L208">			return statusCode + &quot; ACCEPTED&quot;;</span>
+<span class="fc" id="L234">			return statusCode + &quot; ACCEPTED&quot;;</span>
 		case 203:
-<span class="fc" id="L210">			return statusCode + &quot; NON AUTHORITATIVE INFORMATION&quot;;</span>
+<span class="fc" id="L236">			return statusCode + &quot; NON AUTHORITATIVE INFORMATION&quot;;</span>
 		case 204:
-<span class="fc" id="L212">			return statusCode + &quot; NO CONTENT&quot;;</span>
+<span class="fc" id="L238">			return statusCode + &quot; NO CONTENT&quot;;</span>
 		case 205:
-<span class="fc" id="L214">			return statusCode + &quot; RESET CONTENT&quot;;</span>
+<span class="fc" id="L240">			return statusCode + &quot; RESET CONTENT&quot;;</span>
 		case 206:
-<span class="fc" id="L216">			return statusCode + &quot; PARTIAL CONTENT&quot;;</span>
+<span class="fc" id="L242">			return statusCode + &quot; PARTIAL CONTENT&quot;;</span>
 		case 300:
-<span class="fc" id="L218">			return statusCode + &quot; MULTIPLE CHOICES&quot;;</span>
+<span class="fc" id="L244">			return statusCode + &quot; MULTIPLE CHOICES&quot;;</span>
 		case 301:
-<span class="fc" id="L220">			return statusCode + &quot; MOVED PERMANENTLY&quot;;</span>
+<span class="fc" id="L246">			return statusCode + &quot; MOVED PERMANENTLY&quot;;</span>
 		case 302:
-<span class="fc" id="L222">			return statusCode + &quot; FOUND&quot;;</span>
+<span class="fc" id="L248">			return statusCode + &quot; FOUND&quot;;</span>
 		case 303:
-<span class="fc" id="L224">			return statusCode + &quot; SEE OTHER&quot;;</span>
+<span class="fc" id="L250">			return statusCode + &quot; SEE OTHER&quot;;</span>
 		case 304:
-<span class="fc" id="L226">			return statusCode + &quot; NOT MODIFIED&quot;;</span>
+<span class="fc" id="L252">			return statusCode + &quot; NOT MODIFIED&quot;;</span>
 		case 305:
-<span class="fc" id="L228">			return statusCode + &quot; USE PROXY&quot;;</span>
+<span class="fc" id="L254">			return statusCode + &quot; USE PROXY&quot;;</span>
 		case 307:
-<span class="fc" id="L230">			return statusCode + &quot; TEMPORARY REDIRECT&quot;;</span>
+<span class="fc" id="L256">			return statusCode + &quot; TEMPORARY REDIRECT&quot;;</span>
 		case 400:
-<span class="fc" id="L232">			return statusCode + &quot; BAD REQUEST&quot;;</span>
+<span class="fc" id="L258">			return statusCode + &quot; BAD REQUEST&quot;;</span>
 		case 401:
-<span class="fc" id="L234">			return statusCode + &quot; UNAUTHORIZED&quot;;</span>
+<span class="fc" id="L260">			return statusCode + &quot; UNAUTHORIZED&quot;;</span>
 		case 402:
-<span class="fc" id="L236">			return statusCode + &quot; PAYMENT REQUIRED&quot;;</span>
+<span class="fc" id="L262">			return statusCode + &quot; PAYMENT REQUIRED&quot;;</span>
 		case 403:
-<span class="fc" id="L238">			return statusCode + &quot; FORBIDDEN&quot;;</span>
+<span class="fc" id="L264">			return statusCode + &quot; FORBIDDEN&quot;;</span>
 		case 404:
-<span class="fc" id="L240">			return statusCode + &quot; NOT FOUND&quot;;</span>
+<span class="fc" id="L266">			return statusCode + &quot; NOT FOUND&quot;;</span>
 		case 405:
-<span class="fc" id="L242">			return statusCode + &quot; METHOD NOT ALLOWED&quot;;</span>
+<span class="fc" id="L268">			return statusCode + &quot; METHOD NOT ALLOWED&quot;;</span>
 		case 406:
-<span class="fc" id="L244">			return statusCode + &quot; NOT ACCEPTABLE&quot;;</span>
+<span class="fc" id="L270">			return statusCode + &quot; NOT ACCEPTABLE&quot;;</span>
 		case 407:
-<span class="fc" id="L246">			return statusCode + &quot; PROXY AUTHENTICATION REQUIRED&quot;;</span>
+<span class="fc" id="L272">			return statusCode + &quot; PROXY AUTHENTICATION REQUIRED&quot;;</span>
 		case 408:
-<span class="fc" id="L248">			return statusCode + &quot; REQUEST TIMEOUT&quot;;</span>
+<span class="fc" id="L274">			return statusCode + &quot; REQUEST TIMEOUT&quot;;</span>
 		case 409:
-<span class="fc" id="L250">			return statusCode + &quot; CONFLICT&quot;;</span>
+<span class="fc" id="L276">			return statusCode + &quot; CONFLICT&quot;;</span>
 		case 410:
-<span class="fc" id="L252">			return statusCode + &quot; GONE&quot;;</span>
+<span class="fc" id="L278">			return statusCode + &quot; GONE&quot;;</span>
 		case 411:
-<span class="fc" id="L254">			return statusCode + &quot; LENGTH REQUIRED&quot;;</span>
+<span class="fc" id="L280">			return statusCode + &quot; LENGTH REQUIRED&quot;;</span>
 		case 412:
-<span class="fc" id="L256">			return statusCode + &quot; PRECONDITION FAILED&quot;;</span>
+<span class="fc" id="L282">			return statusCode + &quot; PRECONDITION FAILED&quot;;</span>
 		case 413:
-<span class="fc" id="L258">			return statusCode + &quot; REQUEST ENTITY TOO LARGE&quot;;</span>
+<span class="fc" id="L284">			return statusCode + &quot; REQUEST ENTITY TOO LARGE&quot;;</span>
 		case 414:
-<span class="fc" id="L260">			return statusCode + &quot; REQUEST URI TOO LONG&quot;;</span>
+<span class="fc" id="L286">			return statusCode + &quot; REQUEST URI TOO LONG&quot;;</span>
 		case 415:
-<span class="fc" id="L262">			return statusCode + &quot; UNSUPPORTED MEDIA TYPE&quot;;</span>
+<span class="fc" id="L288">			return statusCode + &quot; UNSUPPORTED MEDIA TYPE&quot;;</span>
 		case 416:
-<span class="fc" id="L264">			return statusCode + &quot; REQUESTED RANGE NOT SATISFIABLE&quot;;</span>
+<span class="fc" id="L290">			return statusCode + &quot; REQUESTED RANGE NOT SATISFIABLE&quot;;</span>
 		case 417:
-<span class="fc" id="L266">			return statusCode + &quot; EXPECTATION FAILED&quot;;</span>
+<span class="fc" id="L292">			return statusCode + &quot; EXPECTATION FAILED&quot;;</span>
 		case 500:
-<span class="fc" id="L268">			return statusCode + &quot; INTERNAL SERVER ERROR&quot;;</span>
+<span class="fc" id="L294">			return statusCode + &quot; INTERNAL SERVER ERROR&quot;;</span>
 		case 501:
-<span class="fc" id="L270">			return statusCode + &quot; NOT IMPLEMENTED&quot;;</span>
+<span class="fc" id="L296">			return statusCode + &quot; NOT IMPLEMENTED&quot;;</span>
 		case 502:
-<span class="fc" id="L272">			return statusCode + &quot; BAD GATEWAY&quot;;</span>
+<span class="fc" id="L298">			return statusCode + &quot; BAD GATEWAY&quot;;</span>
 		case 503:
-<span class="fc" id="L274">			return statusCode + &quot; SERVICE UNAVAILABLE&quot;;</span>
+<span class="fc" id="L300">			return statusCode + &quot; SERVICE UNAVAILABLE&quot;;</span>
 		case 504:
-<span class="fc" id="L276">			return statusCode + &quot; GATEWAY TIMEOUT&quot;;</span>
+<span class="fc" id="L302">			return statusCode + &quot; GATEWAY TIMEOUT&quot;;</span>
 		case 505:
-<span class="fc" id="L278">			return statusCode + &quot; HTTP VERSION NOT SUPPORTED&quot;;</span>
+<span class="fc" id="L304">			return statusCode + &quot; HTTP VERSION NOT SUPPORTED&quot;;</span>
 		default:
-<span class="fc" id="L280">			return statusCode + &quot; UNKNOWN&quot;;</span>
+<span class="fc" id="L306">			return statusCode + &quot; UNKNOWN&quot;;</span>
 		}
 	}
 
@@ -288,14 +314,14 @@ public final class IuWebUtils {
 	 * @return resolved {@link InetAddress}
 	 */
 	public static InetAddress getInetAddress(String hostname) {
-<span class="fc" id="L291">		var addr = IP_CACHE.get(hostname);</span>
-<span class="fc bfc" id="L292" title="All 2 branches covered.">		if (addr != null)</span>
-<span class="fc" id="L293">			return addr;</span>
+<span class="fc" id="L317">		var addr = IP_CACHE.get(hostname);</span>
+<span class="fc bfc" id="L318" title="All 2 branches covered.">		if (addr != null)</span>
+<span class="fc" id="L319">			return addr;</span>
 
-<span class="fc" id="L295">		addr = IuException.unchecked(() -&gt; InetAddress.getByName(hostname));</span>
-<span class="fc" id="L296">		IP_CACHE.put(hostname, addr);</span>
+<span class="fc" id="L321">		addr = IuException.unchecked(() -&gt; InetAddress.getByName(hostname));</span>
+<span class="fc" id="L322">		IP_CACHE.put(hostname, addr);</span>
 
-<span class="fc" id="L298">		return addr;</span>
+<span class="fc" id="L324">		return addr;</span>
 	}
 
 	/**
@@ -306,32 +332,32 @@ public final class IuWebUtils {
 	 * @return true if the range includes the address; else false
 	 */
 	public static boolean isInetAddressInRange(InetAddress address, String range) {
-<span class="fc" id="L309">		byte[] hostaddr = address.getAddress();</span>
-<span class="fc" id="L310">		int lastSlash = range.lastIndexOf('/');</span>
+<span class="fc" id="L335">		byte[] hostaddr = address.getAddress();</span>
+<span class="fc" id="L336">		int lastSlash = range.lastIndexOf('/');</span>
 
 		byte[] rangeaddr;
 		int maskbits;
-<span class="fc bfc" id="L314" title="All 2 branches covered.">		if (lastSlash == -1) {</span>
-<span class="fc" id="L315">			rangeaddr = getInetAddress(range).getAddress();</span>
-<span class="fc" id="L316">			maskbits = rangeaddr.length * 8;</span>
+<span class="fc bfc" id="L340" title="All 2 branches covered.">		if (lastSlash == -1) {</span>
+<span class="fc" id="L341">			rangeaddr = getInetAddress(range).getAddress();</span>
+<span class="fc" id="L342">			maskbits = rangeaddr.length * 8;</span>
 		} else {
-<span class="fc" id="L318">			rangeaddr = getInetAddress(range.substring(0, lastSlash)).getAddress();</span>
-<span class="fc" id="L319">			maskbits = Integer.parseInt(range.substring(lastSlash + 1));</span>
+<span class="fc" id="L344">			rangeaddr = getInetAddress(range.substring(0, lastSlash)).getAddress();</span>
+<span class="fc" id="L345">			maskbits = Integer.parseInt(range.substring(lastSlash + 1));</span>
 		}
 
-<span class="fc bfc" id="L322" title="All 2 branches covered.">		for (int i = 0; i &lt; rangeaddr.length; i++) {</span>
-<span class="fc bfc" id="L323" title="All 2 branches covered.">			if (maskbits &gt;= 8) {</span>
-<span class="fc" id="L324">				maskbits -= 8;</span>
-<span class="fc bfc" id="L325" title="All 2 branches covered.">				if (hostaddr[i] != rangeaddr[i])</span>
-<span class="fc" id="L326">					return false;</span>
-<span class="fc bfc" id="L327" title="All 2 branches covered.">			} else if (maskbits &gt; 0) {</span>
-<span class="fc" id="L328">				int mask = ~((1 &lt;&lt; (8 - maskbits)) - 1);</span>
-<span class="fc bfc" id="L329" title="All 2 branches covered.">				return (hostaddr[i] &amp; mask) == (rangeaddr[i] &amp; mask);</span>
+<span class="fc bfc" id="L348" title="All 2 branches covered.">		for (int i = 0; i &lt; rangeaddr.length; i++) {</span>
+<span class="fc bfc" id="L349" title="All 2 branches covered.">			if (maskbits &gt;= 8) {</span>
+<span class="fc" id="L350">				maskbits -= 8;</span>
+<span class="fc bfc" id="L351" title="All 2 branches covered.">				if (hostaddr[i] != rangeaddr[i])</span>
+<span class="fc" id="L352">					return false;</span>
+<span class="fc bfc" id="L353" title="All 2 branches covered.">			} else if (maskbits &gt; 0) {</span>
+<span class="fc" id="L354">				int mask = ~((1 &lt;&lt; (8 - maskbits)) - 1);</span>
+<span class="fc bfc" id="L355" title="All 2 branches covered.">				return (hostaddr[i] &amp; mask) == (rangeaddr[i] &amp; mask);</span>
 			} else
 				break;
 		}
 
-<span class="fc" id="L334">		return true;</span>
+<span class="fc" id="L360">		return true;</span>
 	}
 
 	private IuWebUtils() {
