@@ -10,8 +10,8 @@
 		<version>7.0.2-SNAPSHOT</version>
 	</parent>
 
-	<artifactId>iu-java-auth-oidc</artifactId>
-	<name>IU OpenID Connect Client</name>
+	<artifactId>iu-java-auth-jwt</artifactId>
+	<name>IU JSON Web Token Support</name>
 
 	<dependencies>
 		<dependency>
@@ -38,32 +38,8 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-auth-jwt</artifactId>
-			<version>${project.version}</version>
-			<scope>runtime</scope>
-		</dependency>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-auth-oauth</artifactId>
-			<version>${project.version}</version>
-			<scope>runtime</scope>
-		</dependency>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-test</artifactId>
 			<version>${project.version}</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-auth-basic</artifactId>
-			<version>${project.version}</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.jsoup</groupId>
-			<artifactId>jsoup</artifactId>
-			<version>${jsoup.version}</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>

@@ -29,74 +29,52 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package iu.auth.jwt;
 
-import java.util.Iterator;
+import java.net.http.HttpRequest.BodyPublishers;
+import java.net.http.HttpRequest.Builder;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
 
 import edu.iu.IuIterable;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonValue;
+import edu.iu.IuWebUtils;
+import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.oauth.IuBearerToken;
 
 /**
- * Adapts to/from {@link JsonArray} values.
- * 
- * @param <T> target type
- * @param <E> element type
+ * {@link IuBearerToken} view of a JWT.
  */
-abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
+final class JwtAuthorizationGrant extends JwtAssertion {
+	private static final long serialVersionUID = 1L;
 
 	/**
-	 * Extracts an iterator from a Java value.
-	 * 
-	 * @param value value
-	 * @return iterator
+	 * Requested scope.
 	 */
-	abstract protected Iterator<E> iterator(T value);
+	private final Set<String> scope;
 
 	/**
-	 * Collects items into the target type.
+	 * Constructor.
 	 * 
-	 * @param items items
-	 * @return target value
+	 * @param jwt   JWT
+	 * @param scope requested scope
 	 */
-	abstract protected T collect(Iterable<E> items);
-
-	private final IuJsonAdapter<E> itemAdapter;
-
-	/**
-	 * Constructor
-	 * 
-	 * @param itemAdapter item adapter
-	 */
-	protected JsonArrayAdapter(IuJsonAdapter<E> itemAdapter) {
-		this.itemAdapter = itemAdapter;
+	JwtAuthorizationGrant(Jwt jwt, Set<String> scope) {
+		super(jwt);
+		this.scope = scope;
 	}
 
 	@Override
-	public T fromJson(JsonValue jsonValue) {
-		if (jsonValue == null //
-				|| JsonValue.NULL.equals(jsonValue))
-			return null;
-		else {
-			final JsonArray array;
-			if (jsonValue instanceof JsonArray)
-				array = jsonValue.asJsonArray();
-			else
-				array = IuJson.array().add(jsonValue).build();
-			return collect(IuIterable.map(array, itemAdapter::fromJson));
-		}
-	}
-
-	@Override
-	public JsonValue toJson(T javaValue) {
-		if (javaValue == null)
-			return JsonValue.NULL;
-
-		final var a = IuJson.array();
-		iterator(javaValue).forEachRemaining(i -> a.add(itemAdapter.toJson(i)));
-		return a.build();
+	public void applyTo(Builder httpRequestBuilder) throws IuAuthenticationException {
+		IuPrincipalIdentity.verify(jwt, jwt.realm());
+		final Map<String, Iterable<String>> params = new LinkedHashMap<>();
+		params.put("grant_type", IuIterable.iter("urn:ietf:params:oauth:grant-type:jwt-bearer"));
+		params.put("assertion", IuIterable.iter(jwt.token()));
+		if (scope != null)
+			params.put("scope", IuIterable.iter(String.join(" ", scope)));
+		httpRequestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
+		httpRequestBuilder.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(params)));
 	}
 
 }

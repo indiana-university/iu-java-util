@@ -29,74 +29,42 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package iu.auth.jwt;
 
-import java.util.Iterator;
+import javax.security.auth.Subject;
 
-import edu.iu.IuIterable;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonValue;
+import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.oauth.IuBearerToken;
 
 /**
- * Adapts to/from {@link JsonArray} values.
- * 
- * @param <T> target type
- * @param <E> element type
+ * {@link IuBearerToken} view of a JWT.
  */
-abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
+abstract class JwtAssertion implements IuApiCredentials {
+	private static final long serialVersionUID = 1L;
 
 	/**
-	 * Extracts an iterator from a Java value.
-	 * 
-	 * @param value value
-	 * @return iterator
+	 * Materialized JSON Web Token.
 	 */
-	abstract protected Iterator<E> iterator(T value);
+	protected final Jwt jwt;
 
 	/**
-	 * Collects items into the target type.
+	 * Constructor.
 	 * 
-	 * @param items items
-	 * @return target value
+	 * @param jwt   JWT
+	 * @param scope scope
 	 */
-	abstract protected T collect(Iterable<E> items);
-
-	private final IuJsonAdapter<E> itemAdapter;
-
-	/**
-	 * Constructor
-	 * 
-	 * @param itemAdapter item adapter
-	 */
-	protected JsonArrayAdapter(IuJsonAdapter<E> itemAdapter) {
-		this.itemAdapter = itemAdapter;
+	JwtAssertion(Jwt jwt) {
+		this.jwt = jwt;
 	}
 
 	@Override
-	public T fromJson(JsonValue jsonValue) {
-		if (jsonValue == null //
-				|| JsonValue.NULL.equals(jsonValue))
-			return null;
-		else {
-			final JsonArray array;
-			if (jsonValue instanceof JsonArray)
-				array = jsonValue.asJsonArray();
-			else
-				array = IuJson.array().add(jsonValue).build();
-			return collect(IuIterable.map(array, itemAdapter::fromJson));
-		}
+	public String getName() {
+		return jwt.getName();
 	}
 
 	@Override
-	public JsonValue toJson(T javaValue) {
-		if (javaValue == null)
-			return JsonValue.NULL;
-
-		final var a = IuJson.array();
-		iterator(javaValue).forEachRemaining(i -> a.add(itemAdapter.toJson(i)));
-		return a.build();
+	public Subject getSubject() {
+		return jwt.getSubject();
 	}
 
 }

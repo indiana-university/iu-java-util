@@ -141,9 +141,7 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 	public synchronized void close() throws Exception {
 		instance = null;
 
-		final var delegate = this.delegate;
-		if (delegate != null)
-			this.delegate = null;
+		this.delegate = null;
 
 		if (bundleLoader != null) {
 			final var bundleLoader = this.bundleLoader;

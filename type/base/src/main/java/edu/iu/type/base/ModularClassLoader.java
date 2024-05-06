@@ -71,7 +71,7 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 	 * @param parent             parent {@link ClassLoader}
 	 * @param parentLayer        parent {@link ModuleLayer}
 	 * @param modulePath         supplies module path entries on demand within a
-	 *                           {@link TemporaryFile#init(edu.iu.type.base.TemporaryFile.IORunnable)}
+	 *                           {@link TemporaryFile#init(UnsafeRunnable)}
 	 *                           context.
 	 * @param controllerCallback receives a {@link Controller} handle that
 	 *                           <em>should</em> be used and discarded by the

@@ -29,74 +29,43 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package edu.iu.auth.jwt;
 
-import java.util.Iterator;
+import java.net.URI;
 
-import edu.iu.IuIterable;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonValue;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.pki.IuPkiPrincipal;
+import edu.iu.auth.spi.IuJwtSpi;
+import iu.auth.IuAuthSpiFactory;
 
 /**
- * Adapts to/from {@link JsonArray} values.
+ * Represents a publicly hosted JSON Web Key (JWK) principal.
  * 
- * @param <T> target type
- * @param <E> element type
+ * <p>
+ * {@link IuPkiPrincipal} is preferred over this principal type when available.
+ * JWK principals are not authoritative, but are available for cases where a
+ * trusted issuer provides a JWKS URI and key ID, but does not include a valid
+ * PKI certificate in the key set.
+ * </p>
+ * 
+ * <p>
+ * The {@link #toString() JWK serialized form} may be passed to
+ * {@link IuPkiPrincipal#from(String)} if the key contains a trusted
+ * certificate, or directly to {@link IuWebToken#register(IuPrincipalIdentity)}
+ * if the key doesn't include a trusted PKI certificate.
+ * </p>
  */
-abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
+public interface IuWebKey extends IuPrincipalIdentity {
 
 	/**
-	 * Extracts an iterator from a Java value.
+	 * Registers a trusted JSON Web Key Set (JWKS).
 	 * 
-	 * @param value value
-	 * @return iterator
+	 * @param jwksUri Public JWKS {@link URI}
+	 * @param keyId   Key identifier (kid JOSE parameter)
+	 * @return {@link IuWebKey}
 	 */
-	abstract protected Iterator<E> iterator(T value);
-
-	/**
-	 * Collects items into the target type.
-	 * 
-	 * @param items items
-	 * @return target value
-	 */
-	abstract protected T collect(Iterable<E> items);
-
-	private final IuJsonAdapter<E> itemAdapter;
-
-	/**
-	 * Constructor
-	 * 
-	 * @param itemAdapter item adapter
-	 */
-	protected JsonArrayAdapter(IuJsonAdapter<E> itemAdapter) {
-		this.itemAdapter = itemAdapter;
-	}
-
-	@Override
-	public T fromJson(JsonValue jsonValue) {
-		if (jsonValue == null //
-				|| JsonValue.NULL.equals(jsonValue))
-			return null;
-		else {
-			final JsonArray array;
-			if (jsonValue instanceof JsonArray)
-				array = jsonValue.asJsonArray();
-			else
-				array = IuJson.array().add(jsonValue).build();
-			return collect(IuIterable.map(array, itemAdapter::fromJson));
-		}
-	}
-
-	@Override
-	public JsonValue toJson(T javaValue) {
-		if (javaValue == null)
-			return JsonValue.NULL;
-
-		final var a = IuJson.array();
-		iterator(javaValue).forEachRemaining(i -> a.add(itemAdapter.toJson(i)));
-		return a.build();
+	static IuWebKey from(URI jwksUri, String keyId) {
+		return IuAuthSpiFactory.get(IuJwtSpi.class).getWebKey(jwksUri, keyId);
 	}
 
 }

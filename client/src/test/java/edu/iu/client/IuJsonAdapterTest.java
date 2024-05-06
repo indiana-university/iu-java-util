@@ -588,7 +588,7 @@ public class IuJsonAdapterTest {
 		assertEquals(JsonValue.NULL, adapter.toJson(null));
 		assertTrue(adapter.fromJson(JsonValue.NULL).isEmpty());
 
-		final var value = Optional.of(URI.create("test://" + IdGenerator.generateId()));
+		final var value = Optional.of(randomUri());
 		final var text = IuJson.string(value.get().toString());
 		assertEquals(text, adapter.toJson(value));
 		assertEquals(value, adapter.fromJson(text));
@@ -877,7 +877,7 @@ public class IuJsonAdapterTest {
 	}
 
 	private URL randomUrl() {
-		return IuException.unchecked(() -> new URL("http://localhost/" + IdGenerator.generateId()));
+		return IuException.unchecked(() -> URI.create("http://localhost/" + IdGenerator.generateId()).toURL());
 	}
 
 	private int randomLength() {

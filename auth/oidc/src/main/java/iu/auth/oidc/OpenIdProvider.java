@@ -45,6 +45,7 @@ import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.jwt.IuWebToken;
 import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
 import edu.iu.auth.oidc.IuAuthoritativeOpenIdClient;
@@ -53,24 +54,21 @@ import edu.iu.auth.oidc.IuOpenIdProvider;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
-import iu.auth.util.AccessTokenVerifier;
 import jakarta.json.JsonObject;
 
 /**
  * {@link IuOpenIdProvider} implementation.
  */
-@SuppressWarnings("deprecation") // TODO: iu-java-auth-jwt
 class OpenIdProvider implements IuOpenIdProvider {
 
 	private final IuOpenIdClient client;
 	private final IuAuthorizationGrant clientCredentials;
 	private JsonObject config;
-	private AccessTokenVerifier idTokenVerifier;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param client    client configuration metadata
+	 * @param client client configuration metadata
 	 */
 	OpenIdProvider(IuOpenIdClient client) {
 		this.client = client;
@@ -136,18 +134,6 @@ class OpenIdProvider implements IuOpenIdProvider {
 	}
 
 	/**
-	 * Gets a JWT validator for verifying an ID token.
-	 * 
-	 * @return ID token verifier
-	 */
-	AccessTokenVerifier idTokenVerifier() {
-		if (idTokenVerifier == null)
-			idTokenVerifier = new AccessTokenVerifier(
-					IuException.unchecked(() -> new URI(config().getString("jwks_uri"))), config().getString("issuer"));
-		return idTokenVerifier;
-	}
-
-	/**
 	 * Verifies tokens and returns consolidated claims from both ID token and
 	 * userinfo endpoint.
 	 * 
@@ -174,7 +160,7 @@ class OpenIdProvider implements IuOpenIdProvider {
 		}
 
 		final var idTokenAlgorithm = authClient.getIdTokenAlgorithm();
-		final var verifiedIdToken = idTokenVerifier().verify(clientId, idToken);
+		final var verifiedIdToken = IuWebToken.from(idToken);
 		if (!idTokenAlgorithm.equals(verifiedIdToken.getAlgorithm()))
 			throw new IllegalArgumentException(idTokenAlgorithm + " required");
 
@@ -184,15 +170,15 @@ class OpenIdProvider implements IuOpenIdProvider {
 		final var atHashGeneratedfromAccessToken = Base64.getUrlEncoder().withoutPadding()
 				.encodeToString(halfOfEncodedHash);
 
-		final var atHash = Objects.requireNonNull(verifiedIdToken.getClaim("at_hash").asString(), "at_hash");
+		final var atHash = Objects.requireNonNull(verifiedIdToken.getClaim("at_hash"), "at_hash");
 		if (!atHash.equals(atHashGeneratedfromAccessToken))
 			throw new IllegalArgumentException("Invalid at_hash");
 
-		final var nonce = verifiedIdToken.getClaim("nonce").asString();
+		final String nonce = verifiedIdToken.getClaim("nonce");
 		authClient.verifyNonce(nonce);
 
 		final var now = Instant.now();
-		final var authTime = verifiedIdToken.getClaim("auth_time").asInstant();
+		final Instant authTime = verifiedIdToken.getClaim("auth_time");
 		final var authExpires = authTime.plus(authClient.getAuthenticatedSessionTimeout());
 		if (now.isAfter(authExpires))
 			throw new IllegalArgumentException("OIDC authenticated session is expired");
@@ -201,8 +187,8 @@ class OpenIdProvider implements IuOpenIdProvider {
 		final Map<String, Object> claims = new LinkedHashMap<>();
 		claims.put("sub", verifiedIdToken.getSubject());
 		claims.put("aud", verifiedIdToken.getAudience().iterator().next());
-		claims.put("iat", verifiedIdToken.getIssuedAtAsInstant());
-		claims.put("exp", verifiedIdToken.getExpiresAtAsInstant());
+		claims.put("iat", verifiedIdToken.getIssuedAt());
+		claims.put("exp", verifiedIdToken.getExpires());
 		claims.put("auth_time", authTime);
 
 		for (final var userinfoClaimEntry : userinfo(accessToken).entrySet())

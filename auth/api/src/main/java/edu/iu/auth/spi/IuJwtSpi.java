@@ -29,74 +29,64 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package edu.iu.auth.spi;
 
-import java.util.Iterator;
+import java.net.URI;
 
-import edu.iu.IuIterable;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonValue;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.jwt.IuWebKey;
+import edu.iu.auth.jwt.IuWebToken;
+import edu.iu.auth.jwt.IuWebToken.Builder;
 
 /**
- * Adapts to/from {@link JsonArray} values.
- * 
- * @param <T> target type
- * @param <E> element type
+ * JWT service provider interface.
  */
-abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
+public interface IuJwtSpi {
 
 	/**
-	 * Extracts an iterator from a Java value.
+	 * Creates JWK principal.
 	 * 
-	 * @param value value
-	 * @return iterator
+	 * @param jwksUri Public {@link URI} hosting a JSON Web Key Set.
+	 * @param keyId   Key identifier
+	 * @return {@link IuWebKey}
 	 */
-	abstract protected Iterator<E> iterator(T value);
+	IuWebKey getWebKey(URI jwksUri, String keyId);
 
 	/**
-	 * Collects items into the target type.
+	 * Registers a JWT issuer.
 	 * 
-	 * @param items items
-	 * @return target value
+	 * @param issuer Issuer principal
 	 */
-	abstract protected T collect(Iterable<E> items);
-
-	private final IuJsonAdapter<E> itemAdapter;
+	void register(IuPrincipalIdentity issuer);
 
 	/**
-	 * Constructor
+	 * Registers a JWT authentication realm.
 	 * 
-	 * @param itemAdapter item adapter
+	 * @param jwtRealm JWT authentication realm
+	 * @param audience Audience principal
+	 * @param realm    principal authentication realm
 	 */
-	protected JsonArrayAdapter(IuJsonAdapter<E> itemAdapter) {
-		this.itemAdapter = itemAdapter;
-	}
+	void register(String jwtRealm, IuPrincipalIdentity audience, String realm);
 
-	@Override
-	public T fromJson(JsonValue jsonValue) {
-		if (jsonValue == null //
-				|| JsonValue.NULL.equals(jsonValue))
-			return null;
-		else {
-			final JsonArray array;
-			if (jsonValue instanceof JsonArray)
-				array = jsonValue.asJsonArray();
-			else
-				array = IuJson.array().add(jsonValue).build();
-			return collect(IuIterable.map(array, itemAdapter::fromJson));
-		}
-	}
+	/**
+	 * Seals the trusted identity registry.
+	 */
+	void seal();
 
-	@Override
-	public JsonValue toJson(T javaValue) {
-		if (javaValue == null)
-			return JsonValue.NULL;
+	/**
+	 * Parses a JWT.
+	 * 
+	 * @param jwt serialized JWT
+	 * @return Parsed JWT
+	 */
+	IuWebToken parse(String jwt);
 
-		final var a = IuJson.array();
-		iterator(javaValue).forEachRemaining(i -> a.add(itemAdapter.toJson(i)));
-		return a.build();
-	}
+	/**
+	 * Issues a new JWT.
+	 * 
+	 * @param issuer issuer
+	 * @return {@link Builder}
+	 */
+	Builder issue(String issuer);
 
 }

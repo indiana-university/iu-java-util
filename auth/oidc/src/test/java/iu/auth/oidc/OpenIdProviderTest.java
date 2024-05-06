@@ -313,7 +313,6 @@ public class OpenIdProviderTest extends IuOidcTestCase {
 			assertEquals(clientId, claims.get("principal"));
 			assertEquals(clientId, claims.get("sub"));
 		} else {
-			assertSame(provider.idTokenVerifier(), provider.idTokenVerifier());
 			assertEquals(now, claims.get("iat"), claims::toString);
 			assertEquals(now.plusSeconds(5L), claims.get("exp"), claims::toString);
 			assertEquals(now, claims.get("auth_time"), claims::toString);
