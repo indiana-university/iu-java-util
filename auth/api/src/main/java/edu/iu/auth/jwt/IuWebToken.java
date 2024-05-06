@@ -84,7 +84,7 @@ public interface IuWebToken extends IuPrincipalIdentity {
 		 *              encrypted.
 		 * @param realm authentication realm
 		 * @return this
-		 * @see #encrypt(String)
+		 * @see #encrypt(String, String)
 		 */
 		Builder audience(IuPrincipalIdentity aud, String realm);
 
@@ -202,7 +202,7 @@ public interface IuWebToken extends IuPrincipalIdentity {
 	 * 
 	 * <p>
 	 * If the issuer principal includes a private key matching its certificate, its
-	 * principal name <em>may<em> be used with {@link #issue(String)} to create new
+	 * principal name <em>may</em> be used with {@link #issue(String)} to create new
 	 * JWTs.
 	 * </p>
 	 * 
@@ -236,7 +236,7 @@ public interface IuWebToken extends IuPrincipalIdentity {
 	 * <p>
 	 * Once this method has been invoked, further calls to register
 	 * {@link #register(IuPrincipalIdentity) issuer} or
-	 * {@link #register(String, IuPrincipalIdentity) audience} identifying
+	 * {@link #register(String, IuPrincipalIdentity, String) audience} identifying
 	 * principals will be rejected.
 	 * </p>
 	 */
@@ -318,6 +318,7 @@ public interface IuWebToken extends IuPrincipalIdentity {
 	 * Gets an extended claim for a basic type. See see IuJsonAdapter#basic() in the
 	 * iu.util.client module for a list of supported types
 	 * 
+	 * @param <T>  claim value type
 	 * @param name claim name
 	 * @return extended claim value
 	 * @see <a href="https://www.iana.org/assignments/jwt/jwt.xhtml">IANA JWT
@@ -328,6 +329,7 @@ public interface IuWebToken extends IuPrincipalIdentity {
 	/**
 	 * Gets an extended claim.
 	 * 
+	 * @param <T>  claim value type
 	 * @param name claim name
 	 * @param type claim type; see IuJsonAdapter#of(Type) in the iu.util.client
 	 *             module for a list of supported types

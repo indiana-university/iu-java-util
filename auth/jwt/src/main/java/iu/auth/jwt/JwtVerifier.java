@@ -110,4 +110,21 @@ final class JwtVerifier implements PrincipalVerifier<Jwt> {
 			IdGenerator.verifyId(id.getTokenId(), Duration.between(iat, exp).toMillis() + 15000L);
 	}
 
+	/**
+	 * Gets the audience.
+	 * 
+	 * @return {@link IuPrincipalIdentity}
+	 */
+	IuPrincipalIdentity audience() {
+		return audience;
+	}
+
+	/**
+	 * Gets the audience principal verification realm.
+	 * 
+	 * @return audience principal verification realm
+	 */
+	String realm() {
+		return realm;
+	}
 }

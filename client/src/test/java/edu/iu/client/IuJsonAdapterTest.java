@@ -156,7 +156,7 @@ public class IuJsonAdapterTest {
 		adapter.toJson(null);
 		verify(to).apply(null);
 	}
-	
+
 	@Test
 	@SuppressWarnings("unchecked")
 	public void testText() {
@@ -165,7 +165,7 @@ public class IuJsonAdapterTest {
 		adapter.fromJson(JsonValue.NULL);
 		verify(p, never()).apply(any());
 		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		
+
 		final var id = IdGenerator.generateId();
 		adapter.fromJson(IuJson.string(id));
 		verify(p).apply(id);
@@ -848,6 +848,17 @@ public class IuJsonAdapterTest {
 	@Test
 	public void testProperties() {
 		assertStringMap(Properties.class, Properties::new);
+	}
+
+	@Test
+	public void testSingleAsArray() {
+		final var s = IuJson.string(IdGenerator.generateId());
+		assertEquals(Set.of(s.getString()), IuJsonAdapter.of(Set.class).fromJson(s));
+	}
+
+	@Test
+	public void testNullAsArray() {
+		assertNull(IuJsonAdapter.of(Set.class).fromJson(null));
 	}
 
 	private <T extends Number> void assertAdaptNumber(Class<T> c, Class<?> pc, Supplier<T> rand,

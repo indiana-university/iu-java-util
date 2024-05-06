@@ -66,7 +66,7 @@ public class JwtSpi implements IuJwtSpi {
 	}
 
 	private final static Map<String, IuPrincipalIdentity> ISSUER = new HashMap<>();
-	private final static Map<String, IuPrincipalIdentity> AUDIENCE = new HashMap<>();
+	private final static Map<String, JwtVerifier> AUDIENCE = new HashMap<>();
 	private static volatile boolean sealed;
 
 	/**
@@ -209,9 +209,10 @@ public class JwtSpi implements IuJwtSpi {
 		if (AUDIENCE.containsKey(realm) || sealed)
 			throw new IllegalStateException("audience already registered");
 
-		PrincipalVerifierRegistry.registerVerifier(new JwtVerifier(jwtRealm, audience, realm));
+		final var verifier = new JwtVerifier(jwtRealm, audience, realm);
+		PrincipalVerifierRegistry.registerVerifier(verifier);
 
-		AUDIENCE.put(realm, audience);
+		AUDIENCE.put(jwtRealm, verifier);
 	}
 
 	@Override
@@ -237,6 +238,10 @@ public class JwtSpi implements IuJwtSpi {
 	 */
 	@Override
 	public IuWebToken parse(String jwt) {
+		return parse(jwt, null);
+	}
+
+	private IuWebToken parse(String jwt, String realm) {
 		if (!sealed)
 			throw new IllegalStateException("not sealed");
 
@@ -283,15 +288,22 @@ public class JwtSpi implements IuJwtSpi {
 			final var claims = IuJson.parse(IuText.utf8(jws.getPayload())).asJsonObject();
 			jws.verify(getVerifyKey(getIssuer(claims.getString("iss"))));
 
-			final var audience = IuJson.get(claims, "aud", IuJsonAdapter.of(Set.class));
-			final var realm = IuIterable.filter(AUDIENCE.entrySet(), e -> audience.contains(e.getValue().getName()))
-					.iterator().next().getKey();
+			final Set<String> audience = Objects.requireNonNull(
+					IuJson.get(claims, "aud", IuJsonAdapter.of(Set.class, Jwt.STRING_OR_URI)), "missing audience");
+			realm = IuObject.once(realm,
+					IuIterable.filter(AUDIENCE.entrySet(), e -> audience.contains(e.getValue().audience().getName()))
+							.iterator().next().getKey(),
+					() -> "audience mismatch");
 
 			final var webToken = new Jwt(realm, jwt);
-			IuException.unchecked(() -> IuPrincipalIdentity.verify(webToken, realm));
+			IuException.unchecked(() -> IuPrincipalIdentity.verify(webToken, webToken.realm()));
 			return webToken;
 
 		} else { // Decrypt
+			// Only signed then encrypted is allowed
+			// decryption calls recursively with non-null realm
+			IuObject.require(realm, Objects::isNull, () -> "invalid nesting");
+
 			// 5. Verify that the resulting JOSE Header includes only parameters and values
 			// whose syntax and semantics are both understood and supported or that are
 			// specified as being ignored when not understood.
@@ -306,14 +318,20 @@ public class JwtSpi implements IuJwtSpi {
 			IuObject.require(jose.getString("cty"), "JWT"::equals);
 
 			class Box {
+				String realm;
 				String decryptedToken;
 			}
 			final var box = new Box();
 			Throwable decryptionFailure = null;
 			for (final var audienceEntry : AUDIENCE.entrySet()) {
-				decryptionFailure = IuException.suppress(decryptionFailure, //
-						() -> box.decryptedToken = WebEncryption.parse(jwt)
-								.decryptText(getDecryptKey(audienceEntry.getValue())));
+				decryptionFailure = IuException.suppress(decryptionFailure, () -> {
+					final var key = audienceEntry.getKey();
+					final var verifier = audienceEntry.getValue();
+					final var audience = verifier.audience();
+					IuException.unchecked(() -> IuPrincipalIdentity.verify(audience, verifier.realm()));
+					box.decryptedToken = WebEncryption.parse(jwt).decryptText(getDecryptKey(audience));
+					box.realm = key;
+				});
 				if (box.decryptedToken != null)
 					break;
 			}
@@ -321,7 +339,7 @@ public class JwtSpi implements IuJwtSpi {
 			if (box.decryptedToken == null)
 				throw new IllegalArgumentException("invalid encryption", decryptionFailure);
 			else
-				return parse(box.decryptedToken);
+				return parse(box.decryptedToken, box.realm);
 		}
 	}
 

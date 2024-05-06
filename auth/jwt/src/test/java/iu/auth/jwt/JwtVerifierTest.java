@@ -78,7 +78,7 @@ public class JwtVerifierTest {
 
 			final var verifier = new JwtVerifier(jwtRealm, audience, audience.getName());
 			assertEquals(Jwt.class, verifier.getType());
-			assertEquals(audience.getName(), verifier.getRealm());
+			assertEquals(audience.getName(), verifier.realm());
 			assertFalse(verifier.isAuthoritative());
 			assertDoesNotThrow(() -> verifier.verify(jwt, jwtRealm));
 		}
@@ -116,7 +116,7 @@ public class JwtVerifierTest {
 
 			final var verifier = new JwtVerifier(jwtRealm, audience, audience.getName());
 			assertEquals(Jwt.class, verifier.getType());
-			assertEquals(audience.getName(), verifier.getRealm());
+			assertEquals(audience.getName(), verifier.realm());
 			assertTrue(verifier.isAuthoritative());
 			assertDoesNotThrow(() -> verifier.verify(jwt, jwtRealm));
 		}

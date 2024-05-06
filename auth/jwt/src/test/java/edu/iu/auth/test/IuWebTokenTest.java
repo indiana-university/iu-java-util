@@ -33,6 +33,7 @@ package edu.iu.auth.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.security.interfaces.RSAPrivateKey;
@@ -42,15 +43,20 @@ import java.util.logging.Level;
 
 import javax.security.auth.Subject;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuText;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.jwt.IuWebToken;
 import edu.iu.client.IuJson;
+import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebSignedPayload;
 import edu.iu.test.IuTestLogger;
+import iu.auth.jwt.JwtSpi;
 import iu.auth.principal.PrincipalVerifier;
 import iu.auth.principal.PrincipalVerifierRegistry;
 
@@ -111,12 +117,15 @@ public class IuWebTokenTest {
 		}
 	}
 
+	@AfterEach
+	public void teardown() throws Exception {
+		final var f = JwtSpi.class.getDeclaredField("sealed");
+		f.setAccessible(true);
+		f.set(null, false);
+	}
+
 	@Test
 	public void testRFC7519_A_2() {
-		final var realm = IdGenerator.generateId();
-		PrincipalVerifierRegistry.registerVerifier(new SampleVerifier(realm));
-		PrincipalVerifierRegistry.registerVerifier(new SampleVerifier("joe"));
-		
 		final var vkey = WebKey.parse("{\"kty\":\"RSA\"," //
 				+ "      \"use\":\"sig\"," //
 				+ "      \"n\":\"ofgWCuLjybRlzo0tZWJjNiuSfb4p4fAkd_wWJcyQoTbji9k0l8W26mPddx" //
@@ -148,8 +157,6 @@ public class IuWebTokenTest {
 				+ "y26F0EmpScGLq2MowX7fhd_QJQ3ydy5cY7YIBi87w93IKLEdfnbJtoOPLU" //
 				+ "W0ITrJReOgo1cq9SbsxYawBgfp_gh6A5603k2-ZQwVK0JKSHuLFkuQ3U\"" //
 				+ "     }");
-		final var issuer = new SampleId("joe", vkey);
-		IuWebToken.register(issuer);
 
 		final var dkey = WebKey.parse("{\"kty\":\"RSA\"," //
 				+ "      \"use\":\"enc\"," //
@@ -183,11 +190,6 @@ public class IuWebTokenTest {
 				+ "B9nNTwMVvH3VRRSLWACvPnSiwP8N5Usy-WRXS-V7TbpxIhvepTfE0NNo\"" //
 				+ "     }");
 
-		final var jwtRealm = IdGenerator.generateId();
-		final var audience = new SampleId(realm, dkey);
-		IuWebToken.register(jwtRealm, audience, realm);
-		IuWebToken.seal();
-
 		final var token = "eyJhbGciOiJSU0ExXzUiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2IiwiY3R5IjoiSldU" //
 				+ "In0." //
 				+ "g_hEwksO1Ax8Qn7HoN-BVeBoa8FXe0kpyk_XdcSmxvcM5_P296JXXtoHISr_DD_M" //
@@ -210,8 +212,29 @@ public class IuWebTokenTest {
 				+ "AVO9iT5AV4CzvDJCdhSFlQ";
 
 		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
-		final var jwt = IuWebToken.from(token);
-		assertTrue(jwt.getClaim("http://example.com/is_root"));
+		final var jwe = WebEncryption.parse(token);
+		final var jws = WebSignedPayload.parse(jwe.decryptText(dkey));
+		jws.getSignatures().iterator().next().verify(jws.getPayload(), vkey);
+		final var claims = IuJson.parse(IuText.utf8(jws.getPayload())).asJsonObject();
+		assertTrue(claims.getBoolean("http://example.com/is_root"));
+
+		final var issuer = new SampleId("joe", vkey);
+		PrincipalVerifierRegistry.registerVerifier(new SampleVerifier("joe"));
+
+		final var jwtRealm = IdGenerator.generateId();
+		final var realm = IdGenerator.generateId();
+		final var audience = new SampleId(realm, dkey);
+		PrincipalVerifierRegistry.registerVerifier(new SampleVerifier(realm));
+
+		IuWebToken.register(issuer);
+		IuWebToken.register(jwtRealm, audience, realm);
+		IuWebToken.seal();
+
+		// the example from RFC-7519 is a valid JWT, but invalid as a JWT assertion
+		// because it is missing sub, aud, and exp claims; of these aud is checked first
+		// so ensure verification fails at the audience check
+		assertEquals("missing audience",
+				assertThrows(NullPointerException.class, () -> IuWebToken.from(token)).getMessage());
 	}
 
 }

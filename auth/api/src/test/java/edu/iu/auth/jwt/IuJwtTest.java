@@ -104,4 +104,11 @@ public class IuJwtTest {
 		IuWebToken.register(jwtRealm, audience, realm);
 		verify(spi).register(jwtRealm, audience, realm);
 	}
+	
+	@Test
+	public void testSeal() {
+		IuWebToken.seal();
+		verify(spi).seal();
+	}
+
 }

@@ -31,6 +31,7 @@
  */
 package iu.auth.jwt;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -136,6 +137,7 @@ public class JwtTest {
 			assertEquals(Set.of(serialCopy), serialCopy.getSubject().getPrincipals());
 			assertEquals(nonce, serialCopy.getClaim("nonce"));
 			assertEquals(jku, serialCopy.getClaim("jku", URI.class));
+			assertArrayEquals(jwt.payload(), serialCopy.payload());
 		}
 	}
 

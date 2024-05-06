@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>iu-java-auth-jwt</artifactId>
-	<name>IU JSON Web Token Support</name>
+	<name>IU JSON Web Token Assertion Utilities</name>
 
 	<dependencies>
 		<dependency>
