@@ -182,6 +182,13 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 		for (final var classpathEntry : classpath) {
 			final var resourceRootUrl = "jar:" + classpathEntry.toUri() + "!/";
 
+			{
+				var resourceList = resourceUrls.get("");
+				if (resourceList == null)
+					resourceUrls.put("", resourceList = new ArrayList<>());
+				resourceList.add(new URL(resourceRootUrl));
+			}
+			
 			try (final var in = Files.newInputStream(classpathEntry); //
 					final var jar = new JarInputStream(in)) {
 				JarEntry entry;
