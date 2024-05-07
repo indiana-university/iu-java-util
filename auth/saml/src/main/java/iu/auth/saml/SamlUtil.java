@@ -33,8 +33,6 @@ import org.opensaml.xmlsec.keyinfo.impl.StaticKeyInfoCredentialResolver;
 import org.opensaml.xmlsec.signature.X509Certificate;
 import org.opensaml.xmlsec.signature.X509Data;
 
-
-
 /**
  * Utility class to support SAML implementation. TODO review this class and move
  * code to crypt package as needed
@@ -208,5 +206,5 @@ public class SamlUtil {
 
 		return new StaticCredentialResolver(certs);
 	}
-	
+
 }

@@ -7,6 +7,7 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.net.URL;
 import java.security.PrivateKey;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -94,7 +95,7 @@ import net.shibboleth.shared.xml.ParserPool;
 /**
  * {@link IuSamlProvider implementation}
  */
-public class SamlProvider implements IuSamlProvider{
+public class SamlProvider implements IuSamlProvider {
 	private final Logger LOG = Logger.getLogger(SamlProvider.class.getName());
 
 	private static IuSamlClient client;
@@ -105,7 +106,6 @@ public class SamlProvider implements IuSamlProvider{
 	private static final String MAIL_OID = "urn:oid:0.9.2342.19200300.100.1.3";
 	private static final String DISPLAY_NAME_OID = "urn:oid:2.16.840.1.113730.3.1.241";
 	private static final String EDU_PERSON_PRINCIPAL_NAME_OID = "urn:oid:1.3.6.1.4.1.5923.1.1.1.6";
-
 
 	static {
 
@@ -178,9 +178,10 @@ public class SamlProvider implements IuSamlProvider{
 	 */
 
 	/**
-	 * Gets idp location 
+	 * Gets idp location
+	 * 
 	 * @param entityId service provider entity id
-	 * @return idp location 
+	 * @return idp location
 	 */
 	String getSingleSignOnLocation(String entityId) {
 		EntityDescriptor entity = getEntity(entityId);
@@ -350,11 +351,12 @@ public class SamlProvider implements IuSamlProvider{
 
 	/**
 	 * Generate SAML authentication request
-	 * @param samlEntityId SAML entity id
-	 * @param postURI send back URI
-	 * @param sessionId session id associated with authentication request
+	 * 
+	 * @param samlEntityId        SAML entity id
+	 * @param postURI             send back URI
+	 * @param sessionId           session id associated with authentication request
 	 * @param destinationLocation destination location
-	 * @return SAML XML authentication request 
+	 * @return SAML XML authentication request
 	 */
 	ByteArrayOutputStream authRequest(URI samlEntityId, URI postURI, String sessionId, String destinationLocation) {
 
@@ -414,14 +416,14 @@ public class SamlProvider implements IuSamlProvider{
 
 	/**
 	 * Authorize SAML response return back from IDP
-	 * @param address IP address of login user 
-	 * @param acsUrl assertion Consumer URL
+	 * 
+	 * @param address      IP address of login user
+	 * @param postUri      recipients URI to validate
 	 * @param samlResponse SAML response return from IDP
-	 * @param sessionId session id 
-	 * @return SAML attributes 
+	 * @param sessionId    session id
+	 * @return SAML attributes
 	 */
-	SamlAttributes authorize(InetAddress address, String acsUrl, String samlResponse,
-			String sessionId) { 
+	SamlPrincipal authorize(InetAddress address, URI postUri, String samlResponse, String sessionId) {
 		Thread current = Thread.currentThread();
 		ClassLoader currentLoader = current.getContextClassLoader();
 		ClassLoader endpointLoader = SamlProvider.class.getClassLoader();
@@ -435,7 +437,7 @@ public class SamlProvider implements IuSamlProvider{
 			throw new IuBadRequestException("Invalid SAMLResponse", e);
 		}
 		String entityId = response.getIssuer().getValue();
-		LOG.fine(() -> "SAML2 authentication response\nEntity ID: " + entityId + "\nACS URL: " + acsUrl + "\n"
+		LOG.fine("SAML2 authentication response\nEntity ID: " + entityId + "\nPOST URL: " + postUri.toString() + "\n"
 				+ XmlDomUtil.getContent(response.getDOM()));
 
 		CredentialResolver credentialResolver = SamlUtil.getCredentialResolver(getEntity(entityId));
@@ -452,13 +454,12 @@ public class SamlProvider implements IuSamlProvider{
 				throw new SecurityException("SAML signature verification failed");
 		});
 
-		IuSubjectConfirmationValidator subjectValidator = new IuSubjectConfirmationValidator(
-				client.getAllowedRange(), client.failOnAddressMismatch());
+		IuSubjectConfirmationValidator subjectValidator = new IuSubjectConfirmationValidator(client.getAllowedRange(),
+				client.failOnAddressMismatch());
 
-		SAML20AssertionValidator validator  = new SAML20AssertionValidator(Arrays.asList(new AudienceRestrictionConditionValidator()),
-				Arrays.asList(subjectValidator), 
+		SAML20AssertionValidator validator = new SAML20AssertionValidator(
+				Arrays.asList(new AudienceRestrictionConditionValidator()), Arrays.asList(subjectValidator),
 				Collections.emptySet(), null, newTrustEngine, newSignaturePrevalidator);
-
 
 		Map<String, Object> staticParams = new HashMap<>();
 		staticParams.put(SAML2AssertionValidationParameters.COND_VALID_AUDIENCES,
@@ -477,34 +478,41 @@ public class SamlProvider implements IuSamlProvider{
 		 */
 		staticParams.put(SAML2AssertionValidationParameters.SC_VALID_ADDRESSES, addresses);
 
-		staticParams.put(SAML2AssertionValidationParameters.SC_VALID_RECIPIENTS, Collections.singleton(acsUrl));
+		staticParams.put(SAML2AssertionValidationParameters.SC_VALID_RECIPIENTS,
+				Collections.singleton(postUri.toString()));
 		staticParams.put(SAML2AssertionValidationParameters.SIGNATURE_REQUIRED, false);
 		staticParams.put(SAML2AssertionValidationParameters.SC_VALID_IN_RESPONSE_TO, sessionId);
+		staticParams.put(SAML2AssertionValidationParameters.STMT_AUTHN_MAX_TIME, Duration.ofHours(12));
 		ValidationContext ctx = new ValidationContext(staticParams);
 
 		if (LOG.isLoggable(Level.FINE))
-			LOG.fine("SAML2 authentication response\nEntity ID: " + client.getServiceProviderEntityId()
-			+ "\nACS URL: " + acsUrl + "\nAllow IP Range: " + client.getAllowedRange() + "\n"
-			+ XmlDomUtil.getContent(response.getDOM()) + "\nStatic Params: " + staticParams);
+			LOG.fine("SAML2 authentication response\nEntity ID: " + client.getServiceProviderEntityId() + "\nACS URL: "
+					+ postUri.toString() + "\nAllow IP Range: " + client.getAllowedRange() + "\n"
+					+ XmlDomUtil.getContent(response.getDOM()) + "\nStatic Params: " + staticParams);
 
 		SamlAttributes samlAttributes = new SamlAttributes();
 		samlAttributes.setEntityId(entityId);
+		String principalName = "";
+		String emailAddress = "";
+		String displayName = "";
 
 		try {
 			for (Assertion assertion : response.getAssertions()) {
 				validator.validate(assertion, ctx);
 
-				for (AttributeStatement attributeStatement : assertion.getAttributeStatements()) 
-					for (Attribute	attribute : attributeStatement.getAttributes()) 
-						if	("eduPersonPrincipalName".equals(attribute.getFriendlyName()) ||
-								EDU_PERSON_PRINCIPAL_NAME_OID.equals(attribute.getName()))
-							samlAttributes.setEduPersonPrincipalName(readStringAttribute(attribute));
-						else if ("displayName".equals(attribute.getFriendlyName()) ||
-								DISPLAY_NAME_OID.equals(attribute.getName()))
-							samlAttributes.setDisplayName(readStringAttribute(attribute)); 
-						else if ("mail".equals(attribute.getFriendlyName()) ||
-								MAIL_OID.equals(attribute.getName()))
-							samlAttributes.setMail(readStringAttribute(attribute));
+				for (AttributeStatement attributeStatement : assertion.getAttributeStatements())
+					for (Attribute attribute : attributeStatement.getAttributes())
+						if ("eduPersonPrincipalName".equals(attribute.getFriendlyName())
+								|| EDU_PERSON_PRINCIPAL_NAME_OID.equals(attribute.getName()))
+							// samlAttributes.setEduPersonPrincipalName(readStringAttribute(attribute));
+							principalName = readStringAttribute(attribute);
+						else if ("displayName".equals(attribute.getFriendlyName())
+								|| DISPLAY_NAME_OID.equals(attribute.getName()))
+							// samlAttributes.setDisplayName(readStringAttribute(attribute));
+							displayName = readStringAttribute(attribute);
+						else if ("mail".equals(attribute.getFriendlyName()) || MAIL_OID.equals(attribute.getName()))
+							// samlAttributes.setEmailAddress(readStringAttribute(attribute));
+							emailAddress = readStringAttribute(attribute);
 			}
 
 			for (EncryptedAssertion encryptedAssertion : response.getEncryptedAssertions()) {
@@ -526,41 +534,42 @@ public class SamlProvider implements IuSamlProvider{
 				}
 				LOG.fine("SAML2 assertion " + XmlDomUtil.getContent(assertion.getDOM()));
 
-				for (AttributeStatement attributeStatement :
-					assertion.getAttributeStatements()) for (Attribute attribute :
-						attributeStatement.getAttributes()) if
-				("eduPersonPrincipalName".equals(attribute.getFriendlyName()) ||
-						EDU_PERSON_PRINCIPAL_NAME_OID.equals(attribute.getName()))
-							samlAttributes.setEduPersonPrincipalName(readStringAttribute(attribute));
-						else if ("displayName".equals(attribute.getFriendlyName()) ||
-								DISPLAY_NAME_OID.equals(attribute.getName()))
-							samlAttributes.setDisplayName(readStringAttribute(attribute)); else if
-							("mail".equals(attribute.getFriendlyName()) ||
-									MAIL_OID.equals(attribute.getName()))
-								samlAttributes.setMail(readStringAttribute(attribute));
+				for (AttributeStatement attributeStatement : assertion.getAttributeStatements())
+					for (Attribute attribute : attributeStatement.getAttributes())
+						if ("eduPersonPrincipalName".equals(attribute.getFriendlyName())
+								|| EDU_PERSON_PRINCIPAL_NAME_OID.equals(attribute.getName()))
+							// samlAttributes.setEduPersonPrincipalName(readStringAttribute(attribute));
+							principalName = readStringAttribute(attribute);
+						else if ("displayName".equals(attribute.getFriendlyName())
+								|| DISPLAY_NAME_OID.equals(attribute.getName()))
+							displayName = readStringAttribute(attribute);
+						// samlAttributes.setDisplayName(readStringAttribute(attribute));
+						else if ("mail".equals(attribute.getFriendlyName()) || MAIL_OID.equals(attribute.getName()))
+							// samlAttributes.setEmailAddress(readStringAttribute(attribute));
+							emailAddress = readStringAttribute(attribute);
 
 			}
-			if (samlAttributes.getEduPersonPrincipalName() == null) 
-				throw new IuBadRequestException("SAML2 must have at least one assertion with eduPersonPrincipalName attribute");
-
+			if (samlAttributes.getEduPersonPrincipalName() == null)
+				throw new IuBadRequestException(
+						"SAML2 must have at least one assertion with eduPersonPrincipalName attribute");
 
 			SubjectConfirmation confirmation = (SubjectConfirmation) ctx.getDynamicParameters()
 					.get(SAML2AssertionValidationParameters.CONFIRMED_SUBJECT_CONFIRMATION);
 			if (confirmation == null)
 				throw new IuBadRequestException("Missing subject confirmation: " + ctx.getValidationFailureMessages()
-				+ "\n" + ctx.getDynamicParameters());
+						+ "\n" + ctx.getDynamicParameters());
 
 			LOG.fine("SAML2 subject confirmation " + XmlDomUtil.getContent(confirmation.getDOM()));
 
 			samlAttributes.setInResponseTo(confirmation.getSubjectConfirmationData().getInResponseTo());
-		}catch (AssertionValidationException e) {
+		} catch (AssertionValidationException e) {
 			throw new IuBadRequestException(ctx.toString(), e);
-		}
-		finally {
+		} finally {
 			current.setContextClassLoader(currentLoader);
 		}
 
-		return samlAttributes;
+		SamlPrincipal principal = new SamlPrincipal(principalName, displayName, emailAddress);
+		return principal;
 
 	}
 
@@ -581,8 +590,6 @@ public class SamlProvider implements IuSamlProvider{
 			return ((XSAny) attrval).getTextContent();
 	}
 
-
-
 	@Override
 	public String getServiceProviderMetaData() {
 		return this.spMetaData;
@@ -590,6 +597,7 @@ public class SamlProvider implements IuSamlProvider{
 
 	/**
 	 * {@link IuSamlClient}
+	 * 
 	 * @return client configuration
 	 */
 	IuSamlClient getClient() {

@@ -19,7 +19,6 @@ module iu.util.auth.saml {
 	requires org.opensaml.xmlsec.impl;
 	requires iu.util.client;
 
-
 	provides edu.iu.auth.spi.IuSamlSpi with iu.auth.saml.SamlConnectSpi;
 
 }

@@ -5,7 +5,7 @@ import java.net.URI;
 import edu.iu.IdGenerator;
 
 /**
- *  Relay state to support session and SAML authentication
+ * Relay state to support session and SAML authentication
  */
 public class RelayState {
 	private final String session;
@@ -13,16 +13,18 @@ public class RelayState {
 
 	/**
 	 * constructor
-	 * @param applicationUri  The root resource URI.
+	 * 
+	 * @param applicationUri The root resource URI.
 	 * 
 	 */
 	public RelayState(URI applicationUri) {
 		this.session = IdGenerator.generateId();
 		this.applicationUri = applicationUri;
 	}
-	
+
 	/**
 	 * return session value
+	 * 
 	 * @return session
 	 */
 	public String getSession() {

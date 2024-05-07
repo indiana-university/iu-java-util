@@ -8,6 +8,7 @@ import edu.iu.auth.oauth.IuAuthorizationSession;
 import edu.iu.auth.spi.IuSamlSpi;
 import iu.auth.IuAuthSpiFactory;
 
+
 /**
  * Manages client-side session state.
  * TODO implement session support mechanism for SAML 
@@ -33,26 +34,35 @@ public interface IuSamlSession {
 	
 	
 	/**
-	 * Get SAML authentication Request to request application resource access by entity Id and post URI.
+	 * Gets SAML authentication Request to request application resource access by entity Id and post URI.
 	 * 
-	 * @param samlEntityId base identity provider URI to authorize access to
+	 * @param samlEntityId identity provider root URI to authorize access to
 	 * @param postUri Post back URI
 	 * @param resourceUri resource to authorize access to 
 	 * @return redirect URI
 	 * 
 	 */
-	URI authRequest(URI samlEntityId, URI postUri, URI resourceUri);
+	URI getAuthenticationRequest(URI samlEntityId, URI postUri, URI resourceUri);
 
 
 	/**
 	 * Authorize SAML response received back from identity provider
 	 * @param address IP address to validate against allowed list 
-	 * @param acsUrl assertion consumption service post url
+	 * @param postUri Post Uri to validate against response
 	 * @param samlResponse SAML response that received back from identity provider after user has been authenticate
-	 * @param relayState state value that received back from identity provider after successful authentication. 
-	 * @throws IuAuthenticationException when relay state is invalid
+	 * @param relayState state value that received back from identity provider after successful authentication.
+	 * @return {@link IuSamlPrincipal} authorized SAML principal 
+	 * @throws IuAuthenticationException when relay state is invalid or authorization failed
 	 *  
 	 */
-	void authorize(InetAddress address, String acsUrl, String samlResponse, String relayState) throws IuAuthenticationException;
+	IuSamlPrincipal authorize(InetAddress address, URI postUri, String samlResponse, String relayState) throws IuAuthenticationException;
+
+
+	/**
+	 * Gets authorized SAML principal 
+	 * @return authorized SAML principal 
+	 * @throws IuAuthenticationException If authorization session is expired
+	 */
+	IuSamlPrincipal getPrincipalIdentity() throws IuAuthenticationException;
 	
 }

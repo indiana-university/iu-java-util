@@ -1,13 +1,13 @@
 package iu.auth.saml;
 
 /**
- * SAML attributes return from SAML response 
+ * SAML attributes return from SAML response
  */
 public class SamlAttributes {
 	private String entityId;
 	private String eduPersonPrincipalName;
 	private String displayName;
-	private String mail;
+	private String emailAddress;
 	private String inResponseTo;
 
 	/**
@@ -16,18 +16,20 @@ public class SamlAttributes {
 	public SamlAttributes() {
 		// TODO Auto-generated constructor stub
 	}
+
 	/**
-	 * Gets service provider entity id
-	 * Return service provider entity id
-	 * @return entity id 
+	 * Gets identity provider entity id Return identity provider entity id
+	 * 
+	 * @return entity id
 	 */
 	public String getEntityId() {
 		return entityId;
 	}
-	
+
 	/**
-	 * Set the service provider entity id
-	 * @param entityId SP entity id
+	 * Set the identity provider id
+	 * 
+	 * @param entityId identity provider entity id
 	 */
 
 	public void setEntityId(String entityId) {
@@ -36,7 +38,8 @@ public class SamlAttributes {
 
 	/**
 	 * Gets principal primary name
-	 * @return  principal primary name
+	 * 
+	 * @return principal primary name
 	 */
 	public String getEduPersonPrincipalName() {
 		return eduPersonPrincipalName;
@@ -44,6 +47,7 @@ public class SamlAttributes {
 
 	/**
 	 * Set principal primary name
+	 * 
 	 * @param eduPersonPrincipalName principal name
 	 */
 	public void setEduPersonPrincipalName(String eduPersonPrincipalName) {
@@ -52,6 +56,7 @@ public class SamlAttributes {
 
 	/**
 	 * Gets principal display name
+	 * 
 	 * @return principal display name
 	 */
 	public String getDisplayName() {
@@ -60,6 +65,7 @@ public class SamlAttributes {
 
 	/**
 	 * Set principal display name
+	 * 
 	 * @param displayName principal display name
 	 */
 	public void setDisplayName(String displayName) {
@@ -68,22 +74,25 @@ public class SamlAttributes {
 
 	/**
 	 * Gets the principal email address
-	 * @return principal mail
+	 * 
+	 * @return principal email address
 	 */
-	public String getMail() {
-		return mail;
+	public String getEmailAddress() {
+		return emailAddress;
 	}
 
 	/**
 	 * Set principal email address
-	 * @param mail principal email address
+	 * 
+	 * @param emailAddress principal email address
 	 */
-	public void setMail(String mail) {
-		this.mail = mail;
+	public void setEmailAddress(String emailAddress) {
+		this.emailAddress = emailAddress;
 	}
 
 	/**
-	 * Gets session id 
+	 * Gets session id
+	 * 
 	 * @return session id
 	 */
 	public String getInResponseTo() {
@@ -92,6 +101,7 @@ public class SamlAttributes {
 
 	/**
 	 * Set the session id from SAML response
+	 * 
 	 * @param inResponseTo session id
 	 */
 	public void setInResponseTo(String inResponseTo) {

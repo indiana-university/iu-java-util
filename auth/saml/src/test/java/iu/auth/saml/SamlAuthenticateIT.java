@@ -7,7 +7,6 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.InputStream;
-import java.io.StringReader;
 import java.net.CookieManager;
 import java.net.InetAddress;
 import java.net.URI;
@@ -20,9 +19,11 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.logging.Level;
 
 import org.jsoup.Jsoup;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 
@@ -31,13 +32,12 @@ import edu.iu.IuException;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.saml.IuSamlClient;
 import edu.iu.auth.saml.IuSamlProvider;
+import edu.iu.auth.saml.IuSamlSession;
 import edu.iu.client.IuVault;
+import edu.iu.test.IuTestLogger;
 import iu.auth.util.XmlDomUtil;
-import jakarta.json.Json;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonReader;
 
-@EnabledIf("edu.iu.test.VaultProperties#isConfigured")
+@EnabledIf("edu.iu.client.IuVault#isConfigured")
 public class SamlAuthenticateIT {
 
 	private static IuSamlProvider provider;
@@ -45,6 +45,7 @@ public class SamlAuthenticateIT {
 	private static String ldpMetaDataUrl;
 	private static String providerEntityId = System.getenv("SERVICE_PROVIDER_ENTITY_ID");
 	private static String postUrl = System.getenv("POST_URL");
+	private static String applicationUrl = System.getenv("APPLICATION_URL");
 
 	@BeforeAll
 	public static void setupClass() {
@@ -106,19 +107,28 @@ public class SamlAuthenticateIT {
 
 			@Override
 			public URI getApplicationUri() {
-				return null;
+				return IuException.unchecked(() -> new URI(applicationUrl));
 			}
 
 		});
 	}
 
-	/*@Test
+	@BeforeEach
+	public void setup() {
+		IuTestLogger.allow("iu.auth.saml.SamlProvider", Level.FINE);
+	}
+
+	@Test
 	public void testSamlAuthenication() throws Exception {
 		URI entityId = IuException.unchecked(() -> new URI(ldpMetaDataUrl));
-		URI postURL = IuException.unchecked(() -> new URI(postUrl));
+		URI postUri = IuException.unchecked(() -> new URI(postUrl));
+		URI applicationUri = IuException.unchecked(() -> new URI(applicationUrl));
 		var sessionId = IdGenerator.generateId();
 		System.out.println("sessionId " + sessionId);
-		URI location = provider.authRequest(entityId, postURL, sessionId);
+
+		IuSamlSession samlSession = IuSamlSession.create(providerEntityId, applicationUri);
+
+		URI location = samlSession.getAuthenticationRequest(entityId, postUri, applicationUri);
 		System.out.println("Location: " + location);
 		final var cookieHandler = new CookieManager();
 		final var http = HttpClient.newBuilder().cookieHandler(cookieHandler).build();
@@ -166,8 +176,8 @@ public class SamlAuthenticateIT {
 		assertEquals("POST", parsedLoginForm.attr("method").toUpperCase());
 
 		final var loginFormParams = new LinkedHashMap<String, Iterable<String>>();
-		loginFormParams.put("j_username", List.of(VaultProperties.getProperty("test.username")));
-		loginFormParams.put("j_password", List.of(VaultProperties.getProperty("test.password")));
+		loginFormParams.put("j_username", List.of(IuVault.RUNTIME.get("test.username")));
+		loginFormParams.put("j_password", List.of(IuVault.RUNTIME.get("test.password")));
 		loginFormParams.put("_eventId_proceed", List.of(""));
 		final var loginFormQuery = IuWebUtils.createQueryString(loginFormParams);
 
@@ -177,7 +187,7 @@ public class SamlAuthenticateIT {
 		final var loginSuccessResponse = http.send(loginFormPost, BodyHandlers.ofString());
 		assertEquals(200, loginSuccessResponse.statusCode());
 		final var parsedLoginSuccessForm = Jsoup.parse(loginSuccessResponse.body()).selectFirst("form");
-		assertEquals(postURL.toString(), parsedLoginSuccessForm.attr("action"));
+		assertEquals(postUri.toString(), parsedLoginSuccessForm.attr("action"));
 		assertEquals("POST", parsedSecondLoginRedirectForm.attr("method").toUpperCase());
 
 		final var loginSuccessParams = new LinkedHashMap<String, String>();
@@ -192,19 +202,23 @@ public class SamlAuthenticateIT {
 		// StringReader(SamlUtil.decrypt(relayState))).readValue();
 		// System.out.println("relay state :: " + jsonValue.toString() );
 		// provider.validate(null, acsurl, samlResponse);
-		String jsonString = SamlUtil.decrypt(relayState);
-		System.out.println(jsonString);
+		// String jsonString = SamlUtil.decrypt(relayState);
+		// System.out.println(jsonString);
 
-		JsonReader jsonReader = Json.createReader(new StringReader(jsonString));
-		JsonObject relayStatejsonObject = jsonReader.readObject();
-		String relayStateSessionId = relayStatejsonObject.getJsonString("sessionId").getString();
-		String relayStatePostUrl = relayStatejsonObject.getJsonString("returnUrl").getString();
+		/*
+		 * JsonReader jsonReader = Json.createReader(new StringReader(jsonString));
+		 * JsonObject relayStatejsonObject = jsonReader.readObject(); String
+		 * relayStateSessionId =
+		 * relayStatejsonObject.getJsonString("sessionId").getString(); String
+		 * relayStatePostUrl =
+		 * relayStatejsonObject.getJsonString("returnUrl").getString();
+		 */
 
-		assertEquals(sessionId, relayStateSessionId);
-		assertEquals(postURL.toString(), relayStatePostUrl);
+		// assertEquals(sessionId, relayStateSessionId);
+		// assertEquals(postUri.toString(), relayStatePostUrl);
 
-		provider.validate(InetAddress.getLocalHost(), postURL.toString(), samlResponse, sessionId);
+		samlSession.authorize(InetAddress.getLocalHost(), postUri, samlResponse, relayState);
 		metaData.delete();
 
 	}
-*/}
+}

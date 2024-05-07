@@ -100,7 +100,6 @@ public class SpiTest {
 				return Duration.ofMinutes(2L);
 			}
 
-
 			@Override
 			public URI getApplicationUri() {
 				return IuException.unchecked(() -> new URI("test://"));
@@ -163,10 +162,8 @@ public class SpiTest {
 		};
 
 		assertThrows(ServiceConfigurationError.class, () -> spi.getSamlProvider(client));
-		
 
 	}
-
 
 	@Test
 	public void testCreateSession() {

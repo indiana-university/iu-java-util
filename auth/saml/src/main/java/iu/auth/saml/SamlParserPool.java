@@ -16,8 +16,6 @@ import org.xml.sax.SAXException;
 import net.shibboleth.shared.xml.ParserPool;
 import net.shibboleth.shared.xml.XMLParserException;
 
-
-
 /**
  * Implemented custom parser pool to support SAML Parser pool
  *

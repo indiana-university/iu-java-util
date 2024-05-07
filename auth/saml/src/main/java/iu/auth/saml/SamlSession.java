@@ -4,26 +4,21 @@ import java.io.ByteArrayOutputStream;
 import java.io.Serializable;
 import java.net.InetAddress;
 import java.net.URI;
-import java.security.Principal;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.logging.Logger;
-
-import javax.security.auth.Subject;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
-import edu.iu.IuObject;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.saml.IuSamlClient;
+import edu.iu.auth.saml.IuSamlPrincipal;
 import edu.iu.auth.saml.IuSamlSession;
-
-
 
 /**
  * SAML session implementation to support session management
@@ -50,48 +45,7 @@ public class SamlSession implements IuSamlSession, Serializable {
 	/**
 	 * TODO
 	 */
-	private IuPrincipalId id;
-
-	// TODO implement IuPrincipalId instead of principal
-	private static class IuPrincipalId implements IuPrincipalIdentity, Serializable {
-		private static final long serialVersionUID = 1L;
-
-		private final String name;
-		// private String activationCode = IdGenerator.generateId();
-
-		private IuPrincipalId(String name) {
-			this.name = name;
-		}
-
-		@Override
-		public String getName() {
-			return name;
-		}
-
-		@Override
-		public int hashCode() {
-			return IuObject.hashCode(name);
-		}
-
-		@Override
-		public boolean equals(Object obj) {
-			if (!IuObject.typeCheck(this, obj))
-				return false;
-			IuPrincipalId other = (IuPrincipalId) obj;
-			return IuObject.equals(name, other.name);
-		}
-
-		@Override
-		public String toString() {
-			return "SAML Principal ID [name=" + name + "]";
-		}
-
-		@Override
-		public Subject getSubject() {
-			// TODO Auto-generated method stub
-			return null;
-		}
-	}
+	private SamlPrincipal id;
 
 	/**
 	 * Constructor.
@@ -107,7 +61,7 @@ public class SamlSession implements IuSamlSession, Serializable {
 	}
 
 	@Override
-	public URI authRequest(URI samlEntityId, URI postURI, URI resourceUri) {
+	public URI getAuthenticationRequest(URI samlEntityId, URI postUri, URI resourceUri) {
 		SamlProvider provider = SamlConnectSpi.getProvider(serviceProviderIdentityId);
 		IuSamlClient client = provider.getClient();
 
@@ -115,89 +69,81 @@ public class SamlSession implements IuSamlSession, Serializable {
 
 		var destinationLocation = provider.getSingleSignOnLocation(samlEntityId.toString());
 
-
 		RelayState relayState = new RelayState(client.getApplicationUri());
 		String state = IdGenerator.generateId();
 		grants.put(state, relayState);
 
-		ByteArrayOutputStream samlRequestBuffer = provider.authRequest(samlEntityId, postURI, relayState.getSession(),
+		ByteArrayOutputStream samlRequestBuffer = provider.authRequest(samlEntityId, postUri, relayState.getSession(),
 				destinationLocation);
 
 		Map<String, Iterable<String>> idpParams = new LinkedHashMap<>();
 		idpParams.put("SAMLRequest",
 				Collections.singleton(Base64.getEncoder().encodeToString(samlRequestBuffer.toByteArray())));
 
-
 		idpParams.put("RelayState", Collections.singleton(state));
 
 		URI redirectUri = IuException
 				.unchecked(() -> new URI(destinationLocation + '?' + IuWebUtils.createQueryString(idpParams)));
-
-
-		/*
-		 * final Map<String, String> challengeAttributes = new LinkedHashMap<>();
-		 * challengeAttributes.put("relaySatate", relayState);
-		 * 
-		 * final var challenge = new IuAuthenticationException( //
-		 * HttpUtils.createChallenge("Bearer", challengeAttributes), refreshFailure);
-		 * challenge.setLocation(IuException.unchecked(() -> new URI(
-		 * client.getApplicationUri() + "?" +
-		 * IuWebUtils.createQueryString(authRequestParams)))); throw challenge;
-		 */
 		return redirectUri;
-
 	}
 
-	/*
-	 * TODO need IuPrincipalIdentity to support this method
-	 * 
-	 */
-	/*public //IuPrincipalIdentitty  getPrincipalIdentity() throws IuAuthenticationException {
+	@Override
+	public SamlPrincipal getPrincipalIdentity() throws IuAuthenticationException {
+		SamlProvider provider = SamlConnectSpi.getProvider(serviceProviderIdentityId);
 
-		/*
-	 * SamlProvider provider =
-	 * SamlConnectSpi.getProvider(serviceProviderIdentityId);
-	 * 
-	 * if (!IuWebUtils.isRoot(provider.getClient().getApplicationUri(),
-	 * resourceUri)) { throw new
-	 * IllegalArgumentException("Invalid resource URI for this grant"); }
-	 */
+		IuSamlClient client = provider.getClient();
+		Duration duration = client.getAuthenticatedSessionTimeout();
+		LocalDateTime currentTime = LocalDateTime.now();
+		LocalDateTime totalSessiontime = currentTime.minus(duration);
+		if(currentTime.isAfter(totalSessiontime))
+        
 
-	//if (id != null) {
-	//	return id;
-	//}
-
-	//throw new IuAuthenticationException(ch);
-	//}
+        if (currentTime.isAfter(totalSessiontime)) {
+        	final Map<String, String> challengeAttributes = new LinkedHashMap<>();
+			challengeAttributes.put("error_description", "Authorized session has expired");
+			final var challenge = new IuAuthenticationException( //
+					IuWebUtils.createChallenge("saml", challengeAttributes), null);
+			challenge.setLocation(client.getApplicationUri());
+			throw challenge;
+        }
+		
+		return id;
+		
+	}
 
 	@Override
-	public void authorize(InetAddress address, String acsUrl, String samlResponse, String relayState) throws IuAuthenticationException {
+	public IuSamlPrincipal authorize(InetAddress address, URI postUri, String samlResponse, String relayState)
+			throws IuAuthenticationException {
 		SamlProvider provider = SamlConnectSpi.getProvider(serviceProviderIdentityId);
 
 		IuSamlClient client = provider.getClient();
 
 		var grant = grants.get(relayState);
-		if (grant != null && id == null ) {
-			SamlAttributes attributes = provider.authorize(address, acsUrl, samlResponse, grant.getSession());
-			id = new IuPrincipalId(attributes.getEduPersonPrincipalName());
-			// TODO
-			//handle partial authorization logic 
-			// remove state value from grant
-		}
-		else {
-
-			final Map<String, String> challengeAttributes = new LinkedHashMap<>();
+		if (grant != null && id == null) {
+			id = provider.authorize(address, postUri, samlResponse, grant.getSession());
+		} else {
+		final Map<String, String> challengeAttributes = new LinkedHashMap<>();
 			challengeAttributes.put("relaySatate", relayState);
 			challengeAttributes.put("error_description", "invalid relay state");
 			final var challenge = new IuAuthenticationException( //
 					IuWebUtils.createChallenge("saml", challengeAttributes), null);
-			challenge.setLocation(client.getApplicationUri()); 
-
+			challenge.setLocation(client.getApplicationUri());
 			throw challenge;
 
 		}
-
+		
+		if (id != null ) {
+			grants.remove(relayState);
+			return id;
+		}
+		
+		final Map<String, String> challengeAttributes = new LinkedHashMap<>();
+		challengeAttributes.put("error_description", "authorization failed");
+		final var challenge = new IuAuthenticationException( //
+				IuWebUtils.createChallenge("saml", challengeAttributes), null);
+		challenge.setLocation(client.getApplicationUri());
+		throw challenge;
+	
 	}
-
 
 }

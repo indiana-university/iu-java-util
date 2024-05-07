@@ -57,6 +57,4 @@ public class SamlConnectSpi implements IuSamlSpi {
 		return new SamlSession(realm, entryPoint);
 	}
 
-	
-
 }
