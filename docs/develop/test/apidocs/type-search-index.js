@@ -1,1 +1,1 @@
-typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"edu.iu.test","l":"IuTest"},{"p":"edu.iu.test","l":"IuTestExtension"},{"p":"edu.iu.test","l":"IuTestLogger"},{"p":"edu.iu.test","l":"IuTestSessionListener"},{"p":"edu.iu.test","l":"VaultProperties"}];updateSearchResults();
+typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"edu.iu.test","l":"IuTest"},{"p":"edu.iu.test","l":"IuTestExtension"},{"p":"edu.iu.test","l":"IuTestLogger"},{"p":"edu.iu.test","l":"IuTestSessionListener"}];updateSearchResults();

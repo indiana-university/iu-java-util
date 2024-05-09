@@ -34,6 +34,7 @@ package iu.auth.oidc;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.http.HttpRequest;
+import java.security.MessageDigest;
 import java.security.Principal;
 import java.time.Duration;
 import java.time.Instant;
@@ -58,7 +59,6 @@ import com.auth0.jwt.interfaces.DecodedJWT;
 import edu.iu.IdGenerator;
 import edu.iu.IuAuthorizationFailedException;
 import edu.iu.IuBadRequestException;
-import edu.iu.IuCrypt;
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
@@ -206,35 +206,35 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 <span class="fc" id="L206">		return client.getResourceUri();</span>
 	}
 
-	@SuppressWarnings(&quot;unchecked&quot;)
 	@Override
 	public Iterable&lt;String&gt; getScope() {
-<span class="fc" id="L212">		final var scope = client.getScope();</span>
-<span class="fc bfc" id="L213" title="All 2 branches covered.">		if (scope == null)</span>
-<span class="fc" id="L214">			return OIDC_SCOPE;</span>
+<span class="fc" id="L211">		final var scope = client.getScope();</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">		if (scope == null)</span>
+<span class="fc" id="L213">			return OIDC_SCOPE;</span>
 		else
-<span class="fc bfc" id="L216" title="All 2 branches covered.">			return (Iterable&lt;String&gt;) IuIterable.cat(OIDC_SCOPE, IuIterable.filter(scope, a -&gt; !&quot;openid&quot;.equals(a)));</span>
+<span class="fc bfc" id="L215" title="All 2 branches covered.">			return (Iterable&lt;String&gt;) IuIterable.cat(OIDC_SCOPE, IuIterable.filter(scope, a -&gt; !&quot;openid&quot;.equals(a)));</span>
 	}
 
 	@Override
 	public Subject verify(IuTokenResponse tokenResponse) throws IuAuthenticationException, IuBadRequestException,
 			IuAuthorizationFailedException, IuOutOfServiceException, IllegalStateException {
-<span class="fc bfc" id="L222" title="All 2 branches covered.">		if (!IuIterable.filter(tokenResponse.getScope(), IS_OIDC).iterator().hasNext())</span>
-<span class="fc" id="L223">			throw new IuAuthorizationFailedException(&quot;missing openid scope&quot;);</span>
+<span class="fc bfc" id="L221" title="All 2 branches covered.">		if (!IuIterable.filter(tokenResponse.getScope(), IS_OIDC).iterator().hasNext())</span>
+<span class="fc" id="L222">			throw new IuAuthorizationFailedException(&quot;missing openid scope&quot;);</span>
 
-<span class="fc" id="L225">		final var accessToken = Objects.requireNonNull(tokenResponse.getAccessToken(), &quot;access_token&quot;);</span>
+<span class="fc" id="L224">		final var accessToken = Objects.requireNonNull(tokenResponse.getAccessToken(), &quot;access_token&quot;);</span>
 
 		// TODO: STARCH-595 resolve String cast
-<span class="fc" id="L228">		final var clientId = client.getCredentials().getName();</span>
-<span class="fc" id="L229">		final var idToken = tokenResponse.getTokenAttributes().get(&quot;id_token&quot;);</span>
+<span class="fc" id="L227">		final var clientId = client.getCredentials().getName();</span>
+<span class="fc" id="L228">		final var idToken = tokenResponse.getTokenAttributes().get(&quot;id_token&quot;);</span>
 		final DecodedJWT verifiedIdToken;
-<span class="fc bfc" id="L231" title="All 2 branches covered.">		if (idToken != null) {</span>
-<span class="fc" id="L232">			final var alg = client.getIdTokenSignedResponseAlg();</span>
-<span class="fc" id="L233">			verifiedIdToken = idTokenVerifier.verify(clientId, (String) idToken);</span>
-<span class="fc bfc" id="L234" title="All 2 branches covered.">			if (!alg.equals(verifiedIdToken.getAlgorithm()))</span>
-<span class="fc" id="L235">				throw new IllegalArgumentException(alg + &quot; required&quot;);</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">		if (idToken != null) {</span>
+<span class="fc" id="L231">			final var alg = client.getIdTokenSignedResponseAlg();</span>
+<span class="fc" id="L232">			verifiedIdToken = idTokenVerifier.verify(clientId, (String) idToken);</span>
+<span class="fc bfc" id="L233" title="All 2 branches covered.">			if (!alg.equals(verifiedIdToken.getAlgorithm()))</span>
+<span class="fc" id="L234">				throw new IllegalArgumentException(alg + &quot; required&quot;);</span>
 
-<span class="fc" id="L237">			final var encodedHash = IuCrypt.sha256(IuText.utf8(accessToken));</span>
+<span class="fc" id="L236">			final var encodedHash = IuException</span>
+<span class="fc" id="L237">					.unchecked(() -&gt; MessageDigest.getInstance(&quot;SHA-256&quot;).digest(IuText.utf8(accessToken)));</span>
 <span class="fc" id="L238">			final var halfOfEncodedHash = Arrays.copyOf(encodedHash, (encodedHash.length / 2));</span>
 <span class="fc" id="L239">			final var atHashGeneratedfromAccessToken = Base64.getUrlEncoder().withoutPadding()</span>
 <span class="fc" id="L240">					.encodeToString(halfOfEncodedHash);</span>

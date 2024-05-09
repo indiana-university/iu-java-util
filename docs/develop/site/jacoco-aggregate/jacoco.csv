@@ -1,5 +1,4 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
-IU Java Utilities API Reference/iu-java-base,edu.iu,IuCrypt.new ThreadLocal() {...},0,10,0,0,0,2,0,3,0,3
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuOutOfServiceException,0,16,0,0,0,8,0,4,0,4
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuRateLimitter,0,408,0,50,0,115,0,44,0,19
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuBadRequestException,0,16,0,0,0,8,0,4,0,4
@@ -41,10 +40,9 @@ IU Java Utilities API Reference/iu-java-base,edu.iu,IuParallelWorkloadController
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuAsynchronousSubject.Subscriber,0,542,0,98,0,147,0,74,0,25
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuAuthorizationFailedException,0,16,0,0,0,8,0,4,0,4
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuCacheMap.CacheKeySet,0,24,0,0,0,3,0,4,0,4
-IU Java Utilities API Reference/iu-java-base,edu.iu,IuWebUtils,0,646,0,111,0,146,0,89,0,14
+IU Java Utilities API Reference/iu-java-base,edu.iu,IuWebUtils,0,651,0,113,0,148,0,90,0,14
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuCacheMap.CacheValues,0,27,0,0,0,3,0,4,0,4
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuRuntimeEnvironment,0,64,0,6,0,11,0,11,0,8
-IU Java Utilities API Reference/iu-java-base,edu.iu,IuCrypt,0,25,0,4,0,5,0,4,0,2
 IU Java Utilities API Reference/iu-java-base,edu.iu,IdGenerator.new ThreadLocal() {...},0,27,0,0,0,9,0,2,0,2
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuStream,0,65,0,4,0,17,0,7,0,5
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuIterable,0,218,0,39,0,60,0,38,0,18
@@ -54,12 +52,40 @@ IU Java Utilities API Reference/iu-java-base,edu.iu,IuCacheMap.CacheEntrySet,0,4
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuIterable.IuIterator,0,81,0,6,0,19,0,9,0,6
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuVisitor.ElementSplitter,0,77,1,9,0,21,1,10,0,6
 IU Java Utilities API Reference/iu-java-base,iu,ParallelTaskController,0,329,0,40,0,81,0,38,0,18
-IU Java Utilities API Reference/iu-java-test,edu.iu.test,VaultProperties,0,239,0,18,0,49,0,17,0,8
-IU Java Utilities API Reference/iu-java-test,edu.iu.test,IuTest,0,96,0,6,0,25,0,9,0,6
-IU Java Utilities API Reference/iu-java-test,edu.iu.test,IuTestLogger,0,342,0,32,0,86,0,30,0,14
-IU Java Utilities API Reference/iu-java-test,edu.iu.test,IuTestLogger.IuTestLogHandler,0,185,0,24,0,45,0,18,0,6
+IU Java Utilities API Reference/iu-java-client,iu.client,JsonAdapters,0,594,0,170,0,154,0,93,0,8
+IU Java Utilities API Reference/iu-java-client,iu.client,DateJsonAdapter,0,83,0,8,0,21,0,8,0,4
+IU Java Utilities API Reference/iu-java-client,iu.client,TextJsonAdapter,0,59,0,14,0,16,0,11,0,4
+IU Java Utilities API Reference/iu-java-client,iu.client,TimeZoneJsonAdapter,0,40,0,4,0,10,0,5,0,3
+IU Java Utilities API Reference/iu-java-client,iu.client,CollectionAdapter,0,24,0,0,0,7,0,3,0,3
+IU Java Utilities API Reference/iu-java-client,iu.client,BasicJsonAdapter,0,228,0,44,0,56,0,26,0,4
+IU Java Utilities API Reference/iu-java-client,iu.client,EnumerationAdapter,0,13,0,0,0,4,0,3,0,3
+IU Java Utilities API Reference/iu-java-client,iu.client,OptionalJsonAdapter,0,29,0,2,0,8,0,5,0,4
+IU Java Utilities API Reference/iu-java-client,iu.client,EnumerationAdapter.new Enumeration() {...},0,22,0,0,0,4,0,3,0,3
+IU Java Utilities API Reference/iu-java-client,iu.client,NumberAdapter,0,182,0,8,0,27,0,14,0,10
+IU Java Utilities API Reference/iu-java-client,iu.client,ParsingJsonAdapter,0,66,0,6,0,19,0,8,0,5
+IU Java Utilities API Reference/iu-java-client,iu.client,StreamAdapter,0,16,0,0,0,4,0,3,0,3
+IU Java Utilities API Reference/iu-java-client,iu.client,JsonObjectAdapter,0,81,0,10,0,17,0,8,0,3
+IU Java Utilities API Reference/iu-java-client,iu.client,ArrayAdapter,0,19,0,0,0,5,0,3,0,3
+IU Java Utilities API Reference/iu-java-client,iu.client,IteratorAdapter,0,9,0,0,0,4,0,3,0,3
+IU Java Utilities API Reference/iu-java-client,iu.client,BooleanJsonAdapter,0,70,0,18,0,15,0,13,0,4
+IU Java Utilities API Reference/iu-java-client,iu.client,JsonArrayAdapter,0,50,1,5,0,12,1,6,0,4
+IU Java Utilities API Reference/iu-java-client,iu.client,BinaryJsonAdapter,0,27,0,4,0,9,0,5,0,3
+IU Java Utilities API Reference/iu-java-client,iu.client,IterableAdapter,0,9,0,0,0,4,0,3,0,3
+IU Java Utilities API Reference/iu-java-client,iu.client,CalendarJsonAdapter,0,32,0,4,0,10,0,5,0,3
+IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuJsonAdapter.new IuJsonAdapter() {...},0,20,0,0,0,3,0,3,0,3
+IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuJsonAdapter.new IuJsonAdapter() {...},0,15,0,0,0,3,0,3,0,3
+IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuJsonAdapter.new IuJsonAdapter() {...},0,16,0,0,0,3,0,3,0,3
+IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuHttp,0,308,0,20,0,62,0,26,0,16
+IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuJsonAdapter,0,42,0,0,0,9,0,9,0,9
+IU Java Utilities API Reference/iu-java-client,edu.iu.client,HttpException,0,10,0,0,0,4,0,2,0,2
+IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuVault,0,277,0,14,0,62,0,19,0,12
+IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuJsonBuilder,0,98,0,2,0,16,0,12,0,11
+IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuJson,0,221,0,16,0,58,0,42,0,34
+IU Java Utilities API Reference/iu-java-test,edu.iu.test,IuTest,0,109,0,6,0,28,0,10,0,7
+IU Java Utilities API Reference/iu-java-test,edu.iu.test,IuTestLogger,0,328,0,32,0,81,0,30,0,14
+IU Java Utilities API Reference/iu-java-test,edu.iu.test,IuTestLogger.IuTestLogHandler,0,209,0,24,0,53,0,18,0,6
 IU Java Utilities API Reference/iu-java-test,edu.iu.test,IuTestSessionListener,0,7,0,0,0,6,0,3,0,3
-IU Java Utilities API Reference/iu-java-test,edu.iu.test,IuTestLogger.LogRecordMatcher,0,147,0,30,0,37,0,19,0,4
+IU Java Utilities API Reference/iu-java-test,edu.iu.test,IuTestLogger.LogRecordMatcher,0,168,0,38,0,39,0,23,0,4
 IU Java Utilities API Reference/iu-java-test,edu.iu.test,IuTestExtension,6,23,2,2,2,14,2,4,0,4
 IU Java Utilities API Reference/iu-java-jdbc-pool,edu.iu.jdbc.pool,IuPooledConnection.new ThreadFactory() {...},0,26,0,0,0,4,0,2,0,2
 IU Java Utilities API Reference/iu-java-jdbc-pool,edu.iu.jdbc.pool,IuCommonDataSource.new Object() {...},0,9,0,0,0,2,0,1,0,1
@@ -148,9 +174,9 @@ IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonWriter,4,0,0,0,1,0
 IU Java Utilities API Reference/iu-java-type,jakarta.json,EmptyArray,74,3,4,0,16,1,18,1,16,1
 IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonConfig.KeyStrategy,0,34,0,0,0,4,0,1,0,1
 IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonValue.ValueType,0,74,0,0,0,8,0,1,0,1
-IU Java Utilities API Reference/iu-java-type,jakarta.json,Json,136,11,0,0,32,3,32,3,32,3
+IU Java Utilities API Reference/iu-java-type,jakarta.json,Json,140,7,0,0,33,2,33,2,33,2
 IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonPatch.Operation,116,0,4,0,15,0,6,0,4,0
-IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonValueImpl,21,14,4,0,6,5,4,3,2,3
+IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonValueImpl,4,31,0,4,1,10,1,6,1,4
 IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonArrayBuilder,98,0,0,0,24,0,24,0,24,0
 IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonReader,4,0,0,0,1,0,1,0,1,0
 IU Java Utilities API Reference/iu-java-type,jakarta.json,JsonException,9,0,0,0,4,0,2,0,2,0
@@ -162,62 +188,62 @@ IU Java Utilities API Reference/iu-java-type,jakarta.json.bind,JsonbException,9,
 IU Java Utilities API Reference/iu-java-type,jakarta.json.bind,JsonbBuilder,20,0,0,0,5,0,5,0,5,0
 IU Java Utilities API Reference/iu-java-type,jakarta.json.bind,JsonbConfig,162,0,4,0,35,0,22,0,20,0
 IU Java Utilities API Reference/iu-java-type,jakarta.json.spi,JsonProvider,294,46,23,3,67,15,36,3,23,3
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonNumberImpl.JsonNumberNumber,27,0,2,0,8,0,4,0,3,0
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonNumberImpl.JsonLongNumber,51,0,2,0,15,0,11,0,10,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonNumberImpl.JsonNumberNumber,3,24,1,1,1,7,2,2,1,2
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonNumberImpl.JsonLongNumber,38,13,2,0,10,5,8,3,7,3
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonReaderFactoryImpl,32,0,0,0,7,0,5,0,5,0
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonStructureParser.ObjectScope,37,0,0,0,10,0,5,0,5,0
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserImpl,373,198,49,21,88,41,48,18,17,11
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserImpl,371,200,48,22,87,42,47,19,17,11
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonWriterFactoryImpl,32,0,0,0,7,0,5,0,5,0
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonBuilderFactoryImpl,50,0,0,0,10,0,8,0,8,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonBuilderFactoryImpl,32,18,0,0,5,5,5,3,5,3
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonStructureParser.Scope,24,0,4,0,5,0,3,0,1,0
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,NodeReference.ArrayReference,153,0,18,0,24,0,15,0,6,0
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonArrayBuilderImpl,534,0,38,0,138,0,64,0,45,0
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},10,7,2,0,3,1,2,1,1,1
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonArrayBuilderImpl,441,93,32,6,110,28,53,11,36,9
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},6,11,1,1,1,3,1,2,0,2
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},0,9,0,0,0,2,0,2,0,2
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},6,7,2,0,3,1,2,1,1,1
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonPointerImpl,379,0,51,0,74,0,39,0,13,0
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonTokenizer,824,480,152,64,163,106,111,34,11,17
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonTokenizer,801,503,148,68,154,115,109,36,10,18
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonPatchImpl,258,0,33,0,53,0,30,0,11,0
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserFactoryImpl,42,0,0,0,9,0,7,0,7,0
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonStructureParser.ArrayScope,28,0,0,0,8,0,5,0,5,0
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonObjectBuilderImpl.JsonObjectImpl,81,80,13,3,25,21,17,11,9,11
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonObjectBuilderImpl.JsonObjectImpl,73,88,13,3,22,24,14,14,6,14
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserImpl.Stack,7,28,1,3,2,8,2,4,1,3
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonGeneratorImpl.Context,0,9,0,0,0,4,0,1,0,1
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonNumberImpl.JsonIntNumber,37,14,2,0,10,5,8,3,7,3
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonNumberImpl.JsonIntNumber,18,33,1,1,5,10,6,5,5,5
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonGeneratorImpl.Scope,0,44,0,0,0,5,0,1,0,1
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonNumberImpl.JsonBigDecimalNumber,13,0,0,0,5,0,3,0,3,0
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonWriterImpl,141,74,19,6,37,21,16,5,4,4
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonNumberImpl.JsonBigDecimalNumber,3,10,0,0,1,4,1,2,1,2
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonWriterImpl,45,170,10,15,11,47,10,11,0,8
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonPatchImpl.DiffGenerator,478,0,38,0,62,0,27,0,8,0
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonReaderImpl,167,38,18,2,41,11,15,3,5,3
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonReaderImpl,149,56,16,4,36,16,14,4,4,4
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonMergePatchImpl,191,0,26,0,48,0,24,0,11,0
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonArrayBuilderImpl.JsonArrayImpl,134,0,6,0,38,0,22,0,19,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonArrayBuilderImpl.JsonArrayImpl,72,62,6,0,22,16,12,10,9,10
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonTokenizer.JsonToken,0,165,0,0,0,19,0,4,0,4
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserImpl.ArrayContext,147,0,23,0,34,0,15,0,3,0
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonPrettyGeneratorImpl,113,0,6,0,36,0,15,0,12,0
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserImpl.NoneContext,35,34,5,1,8,6,4,2,1,2
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserImpl.NoneContext,26,43,2,4,5,9,3,3,1,2
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonPatchBuilderImpl,354,0,0,0,85,0,20,0,20,0
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonProviderImpl,317,36,10,0,40,6,35,4,30,4
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonProviderImpl,253,100,9,1,32,14,28,11,23,11
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserImpl.new Spliterators.AbstractSpliterator() {...},33,0,4,0,9,0,5,0,3,0
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonGeneratorImpl,1024,1227,122,33,262,89,114,21,33,16
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonGeneratorImpl,909,1342,113,42,228,123,104,31,25,24
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserImpl.new Spliterators.AbstractSpliterator() {...},36,0,6,0,10,0,6,0,3,0
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserImpl.new Spliterators.AbstractSpliterator() {...},69,0,10,0,18,0,8,0,3,0
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonStringImpl,146,15,21,0,30,6,16,4,3,4
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonContext,236,103,37,12,44,29,33,13,8,13
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonWriterImpl.NoFlushOutputStream,12,0,0,0,5,0,3,0,3,0
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonStringImpl,127,34,19,2,25,11,14,6,1,6
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonContext,109,230,21,28,22,51,22,24,4,17
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonWriterImpl.NoFlushOutputStream,0,12,0,0,0,5,0,3,0,3
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonStructureParser,391,0,76,0,92,0,58,0,15,0
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonNumberImpl,219,14,28,0,49,5,30,3,16,3
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonNumberImpl,86,147,11,17,17,37,13,20,4,15
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,UnicodeDetectingInputStream,207,188,53,21,35,43,37,7,1,6
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonLocationImpl,51,0,0,0,10,0,6,0,6,0
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonObjectBuilderImpl,244,90,17,5,62,26,25,8,15,7
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonObjectBuilderImpl,216,118,16,6,54,34,22,11,13,9
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,MapUtil,132,0,28,0,31,0,15,0,1,0
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonParserImpl.ObjectContext,92,91,17,13,20,22,13,6,1,2
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,NodeReference,22,0,0,0,4,0,4,0,4,0
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,NodeReference.RootReference,44,0,4,0,12,0,8,0,6,0
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonMessages,500,0,6,0,72,0,61,0,58,0
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy,25,51,6,2,4,10,4,3,0,3
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy,4,72,3,5,1,13,3,4,0,3
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,NodeReference.ObjectReference,91,0,10,0,16,0,11,0,6,0
 IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,JsonGeneratorFactoryImpl,66,0,6,0,13,0,8,0,5,0
-IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,BufferPoolImpl,2,44,2,4,1,14,2,5,0,4
+IU Java Utilities API Reference/iu-java-type,org.eclipse.parsson,BufferPoolImpl,0,46,0,6,0,15,0,7,0,4
 IU Java Utilities API Reference/iu-java-type,iu.type,TypeFacade,0,189,0,0,0,42,0,33,0,33
 IU Java Utilities API Reference/iu-java-type,iu.type,ComponentFactory,0,404,0,40,0,72,0,30,0,10
 IU Java Utilities API Reference/iu-java-type,iu.type,LegacyClassLoader,0,56,0,8,0,15,0,6,0,2
@@ -284,7 +310,7 @@ IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.loader,IuCompone
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,EmptyObject,50,3,0,0,14,1,14,1,14,1
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonObjectBuilder,8,0,0,0,2,0,2,0,2,0
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonConfig.KeyStrategy,0,34,0,0,0,4,0,1,0,1
-IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,Json,136,11,0,0,32,3,32,3,32,3
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,Json,140,7,0,0,33,2,33,2,33,2
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonArrayBuilder,98,0,0,0,24,0,24,0,24,0
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonReader,4,0,0,0,1,0,1,0,1,0
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonException,9,0,0,0,4,0,2,0,2,0
@@ -294,7 +320,7 @@ IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonWriter,4,0,
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,EmptyArray,74,3,4,0,16,1,18,1,16,1
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonValue.ValueType,0,74,0,0,0,8,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonPatch.Operation,116,0,4,0,15,0,6,0,4,0
-IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonValueImpl,21,14,4,0,6,5,4,3,2,3
+IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonValueImpl,4,31,0,4,1,10,1,6,1,4
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonArray,10,0,0,0,2,0,1,0,1,0
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonValue,10,24,0,0,2,5,2,1,2,1
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.json,JsonBuilderFactory,16,0,0,0,4,0,4,0,4,0
@@ -303,40 +329,40 @@ IU Java Utilities API Reference/iu-java-type-loader,jakarta.json.bind,JsonbConfi
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.json.bind,JsonbBuilder,20,0,0,0,5,0,5,0,5,0
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.bundle,IuTypeBundle,0,7,0,0,0,4,0,2,0,2
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.json.spi,JsonProvider,294,46,23,3,67,15,36,3,23,3
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonNumberImpl.JsonLongNumber,51,0,2,0,15,0,11,0,10,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonNumberImpl.JsonLongNumber,38,13,2,0,10,5,8,3,7,3
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonReaderFactoryImpl,32,0,0,0,7,0,5,0,5,0
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonWriterFactoryImpl,32,0,0,0,7,0,5,0,5,0
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonBuilderFactoryImpl,50,0,0,0,10,0,8,0,8,0
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonArrayBuilderImpl,534,0,38,0,138,0,64,0,45,0
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},10,7,2,0,3,1,2,1,1,1
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonBuilderFactoryImpl,32,18,0,0,5,5,5,3,5,3
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonArrayBuilderImpl,441,93,32,6,110,28,53,11,36,9
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},6,11,1,1,1,3,1,2,0,2
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},0,9,0,0,0,2,0,2,0,2
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},6,7,2,0,3,1,2,1,1,1
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonTokenizer,824,480,152,64,163,106,111,34,11,17
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonTokenizer,801,503,148,68,154,115,109,36,10,18
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonStructureParser.ArrayScope,28,0,0,0,8,0,5,0,5,0
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonObjectBuilderImpl.JsonObjectImpl,81,80,13,3,25,21,17,11,9,11
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonNumberImpl.JsonIntNumber,37,14,2,0,10,5,8,3,7,3
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonObjectBuilderImpl.JsonObjectImpl,73,88,13,3,22,24,14,14,6,14
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonNumberImpl.JsonIntNumber,18,33,1,1,5,10,6,5,5,5
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonGeneratorImpl.Scope,0,44,0,0,0,5,0,1,0,1
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonNumberImpl.JsonBigDecimalNumber,13,0,0,0,5,0,3,0,3,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonNumberImpl.JsonBigDecimalNumber,3,10,0,0,1,4,1,2,1,2
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonPatchImpl.DiffGenerator,478,0,38,0,62,0,27,0,8,0
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonReaderImpl,167,38,18,2,41,11,15,3,5,3
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonArrayBuilderImpl.JsonArrayImpl,134,0,6,0,38,0,22,0,19,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonReaderImpl,149,56,16,4,36,16,14,4,4,4
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonArrayBuilderImpl.JsonArrayImpl,72,62,6,0,22,16,12,10,9,10
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonTokenizer.JsonToken,0,165,0,0,0,19,0,4,0,4
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonStringImpl,146,15,21,0,30,6,16,4,3,4
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonContext,236,103,37,12,44,29,33,13,8,13
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonWriterImpl.NoFlushOutputStream,12,0,0,0,5,0,3,0,3,0
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonNumberImpl,219,14,28,0,49,5,30,3,16,3
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonStringImpl,127,34,19,2,25,11,14,6,1,6
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonContext,109,230,21,28,22,51,22,24,4,17
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonWriterImpl.NoFlushOutputStream,0,12,0,0,0,5,0,3,0,3
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonNumberImpl,86,147,11,17,17,37,13,20,4,15
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonLocationImpl,51,0,0,0,10,0,6,0,6,0
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonObjectBuilderImpl,244,90,17,5,62,26,25,8,15,7
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonObjectBuilderImpl,216,118,16,6,54,34,22,11,13,9
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,MapUtil,132,0,28,0,31,0,15,0,1,0
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserImpl.ObjectContext,92,91,17,13,20,22,13,6,1,2
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,NodeReference,22,0,0,0,4,0,4,0,4,0
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonMessages,500,0,6,0,72,0,61,0,58,0
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy,25,51,6,2,4,10,4,3,0,3
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy,4,72,3,5,1,13,3,4,0,3
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonGeneratorFactoryImpl,66,0,6,0,13,0,8,0,5,0
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,BufferPoolImpl,2,44,2,4,1,14,2,5,0,4
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonNumberImpl.JsonNumberNumber,27,0,2,0,8,0,4,0,3,0
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,BufferPoolImpl,0,46,0,6,0,15,0,7,0,4
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonNumberImpl.JsonNumberNumber,3,24,1,1,1,7,2,2,1,2
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonStructureParser.ObjectScope,37,0,0,0,10,0,5,0,5,0
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserImpl,373,198,49,21,88,41,48,18,17,11
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserImpl,371,200,48,22,87,42,47,19,17,11
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonStructureParser.Scope,24,0,4,0,5,0,3,0,1,0
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,NodeReference.ArrayReference,153,0,18,0,24,0,15,0,6,0
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonPointerImpl,379,0,51,0,74,0,39,0,13,0
@@ -344,15 +370,15 @@ IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonPatc
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserFactoryImpl,42,0,0,0,9,0,7,0,7,0
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserImpl.Stack,7,28,1,3,2,8,2,4,1,3
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonGeneratorImpl.Context,0,9,0,0,0,4,0,1,0,1
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonWriterImpl,141,74,19,6,37,21,16,5,4,4
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonWriterImpl,45,170,10,15,11,47,10,11,0,8
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonMergePatchImpl,191,0,26,0,48,0,24,0,11,0
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserImpl.ArrayContext,147,0,23,0,34,0,15,0,3,0
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonPrettyGeneratorImpl,113,0,6,0,36,0,15,0,12,0
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserImpl.NoneContext,35,34,5,1,8,6,4,2,1,2
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserImpl.NoneContext,26,43,2,4,5,9,3,3,1,2
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonPatchBuilderImpl,354,0,0,0,85,0,20,0,20,0
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonProviderImpl,317,36,10,0,40,6,35,4,30,4
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonProviderImpl,253,100,9,1,32,14,28,11,23,11
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserImpl.new Spliterators.AbstractSpliterator() {...},33,0,4,0,9,0,5,0,3,0
-IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonGeneratorImpl,1024,1227,122,33,262,89,114,21,33,16
+IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonGeneratorImpl,909,1342,113,42,228,123,104,31,25,24
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserImpl.new Spliterators.AbstractSpliterator() {...},36,0,6,0,10,0,6,0,3,0
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonParserImpl.new Spliterators.AbstractSpliterator() {...},69,0,10,0,18,0,8,0,3,0
 IU Java Utilities API Reference/iu-java-type-loader,org.eclipse.parsson,JsonStructureParser,391,0,76,0,92,0,58,0,15,0
@@ -627,6 +653,15 @@ IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.databind.dese
 IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.databind.deser,DataFormatReaders.AccessorForReader,32,0,0,0,7,0,4,0,4,0
 IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.databind.deser,SettableBeanProperty.Delegating,139,0,2,0,35,0,28,0,27,0
 IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.databind.deser,SettableAnyProperty,291,0,20,0,66,0,26,0,16,0
+IU Java Utilities API Reference/iu-java-auth,edu.iu.client,IuHttp,0,308,0,20,0,62,0,26,0,16
+IU Java Utilities API Reference/iu-java-auth,edu.iu.client,IuVault,0,277,0,14,0,62,0,19,0,12
+IU Java Utilities API Reference/iu-java-auth,edu.iu.client,IuJsonBuilder,0,98,0,2,0,16,0,12,0,11
+IU Java Utilities API Reference/iu-java-auth,edu.iu.client,IuJson,0,221,0,16,0,58,0,42,0,34
+IU Java Utilities API Reference/iu-java-auth,edu.iu.client,HttpException,0,10,0,0,0,4,0,2,0,2
+IU Java Utilities API Reference/iu-java-auth,edu.iu.client,IuJsonAdapter.new IuJsonAdapter() {...},0,20,0,0,0,3,0,3,0,3
+IU Java Utilities API Reference/iu-java-auth,edu.iu.client,IuJsonAdapter.new IuJsonAdapter() {...},0,15,0,0,0,3,0,3,0,3
+IU Java Utilities API Reference/iu-java-auth,edu.iu.client,IuJsonAdapter.new IuJsonAdapter() {...},0,16,0,0,0,3,0,3,0,3
+IU Java Utilities API Reference/iu-java-auth,edu.iu.client,IuJsonAdapter,0,42,0,0,0,9,0,9,0,9
 IU Java Utilities API Reference/iu-java-auth,iu.auth.oauth,OAuthSpi,130,0,22,0,31,0,17,0,6,0
 IU Java Utilities API Reference/iu-java-auth,iu.auth.oauth,TokenResponse,214,0,32,0,50,0,25,0,9,0
 IU Java Utilities API Reference/iu-java-auth,iu.auth.oauth,AuthorizationSession,126,0,10,0,28,0,9,0,4,0
@@ -1025,10 +1060,10 @@ IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.core.base,Par
 IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.core.base,GeneratorBase,604,0,74,0,156,0,72,0,35,0
 IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.core.base,ParserMinimalBase,896,0,143,0,218,0,135,0,56,0
 IU Java Utilities API Reference/iu-java-auth,jakarta.json,JsonObjectBuilder,8,0,0,0,2,0,2,0,2,0
-IU Java Utilities API Reference/iu-java-auth,jakarta.json,Json,136,11,0,0,32,3,32,3,32,3
+IU Java Utilities API Reference/iu-java-auth,jakarta.json,Json,140,7,0,0,33,2,33,2,33,2
 IU Java Utilities API Reference/iu-java-auth,jakarta.json,JsonReader,4,0,0,0,1,0,1,0,1,0
 IU Java Utilities API Reference/iu-java-auth,jakarta.json,JsonStructure,5,0,0,0,1,0,1,0,1,0
-IU Java Utilities API Reference/iu-java-auth,jakarta.json,JsonValueImpl,21,14,4,0,6,5,4,3,2,3
+IU Java Utilities API Reference/iu-java-auth,jakarta.json,JsonValueImpl,4,31,0,4,1,10,1,6,1,4
 IU Java Utilities API Reference/iu-java-auth,jakarta.json,JsonBuilderFactory,16,0,0,0,4,0,4,0,4,0
 IU Java Utilities API Reference/iu-java-auth,jakarta.json,JsonConfig.KeyStrategy,0,34,0,0,0,4,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth,jakarta.json,EmptyArray,74,3,4,0,16,1,18,1,16,1
@@ -1074,6 +1109,26 @@ IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.core.json.asy
 IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.core.json.async,NonBlockingJsonParserBase,1120,0,115,0,271,0,104,0,44,0
 IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.core.json.async,NonBlockingJsonParser,122,0,8,0,25,0,11,0,7,0
 IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.core.json.async,NonBlockingUtf8JsonParserBase,6321,0,1031,0,1556,0,654,0,70,0
+IU Java Utilities API Reference/iu-java-auth,iu.client,BasicJsonAdapter,0,228,0,44,0,56,0,26,0,4
+IU Java Utilities API Reference/iu-java-auth,iu.client,DateJsonAdapter,0,83,0,8,0,21,0,8,0,4
+IU Java Utilities API Reference/iu-java-auth,iu.client,EnumerationAdapter.new Enumeration() {...},0,22,0,0,0,4,0,3,0,3
+IU Java Utilities API Reference/iu-java-auth,iu.client,CalendarJsonAdapter,0,32,0,4,0,10,0,5,0,3
+IU Java Utilities API Reference/iu-java-auth,iu.client,IterableAdapter,0,9,0,0,0,4,0,3,0,3
+IU Java Utilities API Reference/iu-java-auth,iu.client,CollectionAdapter,0,24,0,0,0,7,0,3,0,3
+IU Java Utilities API Reference/iu-java-auth,iu.client,IteratorAdapter,0,9,0,0,0,4,0,3,0,3
+IU Java Utilities API Reference/iu-java-auth,iu.client,TextJsonAdapter,0,59,0,14,0,16,0,11,0,4
+IU Java Utilities API Reference/iu-java-auth,iu.client,JsonObjectAdapter,0,81,0,10,0,17,0,8,0,3
+IU Java Utilities API Reference/iu-java-auth,iu.client,OptionalJsonAdapter,0,29,0,2,0,8,0,5,0,4
+IU Java Utilities API Reference/iu-java-auth,iu.client,StreamAdapter,0,16,0,0,0,4,0,3,0,3
+IU Java Utilities API Reference/iu-java-auth,iu.client,JsonArrayAdapter,0,50,1,5,0,12,1,6,0,4
+IU Java Utilities API Reference/iu-java-auth,iu.client,EnumerationAdapter,0,13,0,0,0,4,0,3,0,3
+IU Java Utilities API Reference/iu-java-auth,iu.client,NumberAdapter,0,182,0,8,0,27,0,14,0,10
+IU Java Utilities API Reference/iu-java-auth,iu.client,JsonAdapters,0,594,0,170,0,154,0,93,0,8
+IU Java Utilities API Reference/iu-java-auth,iu.client,ArrayAdapter,0,19,0,0,0,5,0,3,0,3
+IU Java Utilities API Reference/iu-java-auth,iu.client,BooleanJsonAdapter,0,70,0,18,0,15,0,13,0,4
+IU Java Utilities API Reference/iu-java-auth,iu.client,TimeZoneJsonAdapter,0,40,0,4,0,10,0,5,0,3
+IU Java Utilities API Reference/iu-java-auth,iu.client,BinaryJsonAdapter,0,27,0,4,0,9,0,5,0,3
+IU Java Utilities API Reference/iu-java-auth,iu.client,ParsingJsonAdapter,0,66,0,6,0,19,0,8,0,5
 IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.databind.cfg,ContextAttributes.Impl,183,0,26,0,50,0,24,0,11,0
 IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.databind.cfg,CoercionConfig,39,0,0,0,11,0,5,0,5,0
 IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.databind.cfg,ContextAttributes,5,0,0,0,2,0,2,0,2,0
@@ -1299,16 +1354,16 @@ IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.databind.modu
 IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.databind.module,SimpleValueInstantiators,35,0,2,0,7,0,4,0,3,0
 IU Java Utilities API Reference/iu-java-auth,com.fasterxml.jackson.databind.module,SimpleSerializers,301,0,50,0,75,0,38,0,13,0
 IU Java Utilities API Reference/iu-java-auth,iu.auth.oidc,OidcClaim,80,0,8,0,15,0,11,0,7,0
-IU Java Utilities API Reference/iu-java-auth,iu.auth.oidc,OidcAuthorizationClient,782,0,50,0,158,0,51,0,26,0
+IU Java Utilities API Reference/iu-java-auth,iu.auth.oidc,OidcAuthorizationClient,789,0,50,0,159,0,52,0,27,0
 IU Java Utilities API Reference/iu-java-auth,iu.auth.oidc,OpenIdConnectSpi,9,0,0,0,3,0,2,0,2,0
 IU Java Utilities API Reference/iu-java-auth,iu.auth.oidc,OidcAuthorizationClient.Id,40,0,2,0,11,0,6,0,5,0
 IU Java Utilities API Reference/iu-java-auth,iu.auth.oidc,OpenIdProvider,79,0,0,0,13,0,6,0,6,0
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonReaderFactoryImpl,32,0,0,0,7,0,5,0,5,0
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonObjectBuilderImpl.JsonObjectImpl,81,80,13,3,25,21,17,11,9,11
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonNumberImpl.JsonBigDecimalNumber,13,0,0,0,5,0,3,0,3,0
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonArrayBuilderImpl.JsonArrayImpl,134,0,6,0,38,0,22,0,19,0
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonStringImpl,146,15,21,0,30,6,16,4,3,4
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonObjectBuilderImpl,244,90,17,5,62,26,25,8,15,7
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonObjectBuilderImpl.JsonObjectImpl,73,88,13,3,22,24,14,14,6,14
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonNumberImpl.JsonBigDecimalNumber,3,10,0,0,1,4,1,2,1,2
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonArrayBuilderImpl.JsonArrayImpl,72,62,6,0,22,16,12,10,9,10
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonStringImpl,127,34,19,2,25,11,14,6,1,6
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonObjectBuilderImpl,216,118,16,6,54,34,22,11,13,9
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,MapUtil,132,0,28,0,31,0,15,0,1,0
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonParserImpl.ObjectContext,92,91,17,13,20,22,13,6,1,2
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonMessages,500,0,6,0,72,0,61,0,58,0
@@ -1319,40 +1374,40 @@ IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonParserImpl.
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonParserImpl.new Spliterators.AbstractSpliterator() {...},36,0,6,0,10,0,6,0,3,0
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonParserImpl.new Spliterators.AbstractSpliterator() {...},69,0,10,0,18,0,8,0,3,0
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonWriterFactoryImpl,32,0,0,0,7,0,5,0,5,0
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonBuilderFactoryImpl,50,0,0,0,10,0,8,0,8,0
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonArrayBuilderImpl,534,0,38,0,138,0,64,0,45,0
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},10,7,2,0,3,1,2,1,1,1
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonBuilderFactoryImpl,32,18,0,0,5,5,5,3,5,3
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonArrayBuilderImpl,441,93,32,6,110,28,53,11,36,9
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},6,11,1,1,1,3,1,2,0,2
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},0,9,0,0,0,2,0,2,0,2
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},6,7,2,0,3,1,2,1,1,1
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonReaderImpl,167,38,18,2,41,11,15,3,5,3
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonReaderImpl,149,56,16,4,36,16,14,4,4,4
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonTokenizer.JsonToken,0,165,0,0,0,19,0,4,0,4
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonNumberImpl,219,14,28,0,49,5,30,3,16,3
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonNumberImpl,86,147,11,17,17,37,13,20,4,15
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonGeneratorFactoryImpl,66,0,6,0,13,0,8,0,5,0
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,BufferPoolImpl,2,44,2,4,1,14,2,5,0,4
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonWriterImpl,141,74,19,6,37,21,16,5,4,4
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonProviderImpl,317,36,10,0,40,6,35,4,30,4
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,BufferPoolImpl,0,46,0,6,0,15,0,7,0,4
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonWriterImpl,45,170,10,15,11,47,10,11,0,8
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonProviderImpl,253,100,9,1,32,14,28,11,23,11
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonStructureParser,391,0,76,0,92,0,58,0,15,0
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonNumberImpl.JsonLongNumber,51,0,2,0,15,0,11,0,10,0
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonNumberImpl.JsonIntNumber,37,14,2,0,10,5,8,3,7,3
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonNumberImpl.JsonLongNumber,38,13,2,0,10,5,8,3,7,3
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonNumberImpl.JsonIntNumber,18,33,1,1,5,10,6,5,5,5
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonGeneratorImpl.Scope,0,44,0,0,0,5,0,1,0,1
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonContext,236,103,37,12,44,29,33,13,8,13
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonWriterImpl.NoFlushOutputStream,12,0,0,0,5,0,3,0,3,0
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonContext,109,230,21,28,22,51,22,24,4,17
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonWriterImpl.NoFlushOutputStream,0,12,0,0,0,5,0,3,0,3
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonLocationImpl,51,0,0,0,10,0,6,0,6,0
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,NodeReference,22,0,0,0,4,0,4,0,4,0
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy,25,51,6,2,4,10,4,3,0,3
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy,4,72,3,5,1,13,3,4,0,3
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,NodeReference.ArrayReference,153,0,18,0,24,0,15,0,6,0
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonPointerImpl,379,0,51,0,74,0,39,0,13,0
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonGeneratorImpl.Context,0,9,0,0,0,4,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonMergePatchImpl,191,0,26,0,48,0,24,0,11,0
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonPrettyGeneratorImpl,113,0,6,0,36,0,15,0,12,0
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonParserImpl.NoneContext,35,34,5,1,8,6,4,2,1,2
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonGeneratorImpl,1024,1227,122,33,262,89,114,21,33,16
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonTokenizer,824,480,152,64,163,106,111,34,11,17
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonParserImpl.NoneContext,26,43,2,4,5,9,3,3,1,2
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonGeneratorImpl,909,1342,113,42,228,123,104,31,25,24
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonTokenizer,801,503,148,68,154,115,109,36,10,18
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonStructureParser.ArrayScope,28,0,0,0,8,0,5,0,5,0
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonPatchImpl.DiffGenerator,478,0,38,0,62,0,27,0,8,0
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonNumberImpl.JsonNumberNumber,27,0,2,0,8,0,4,0,3,0
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonNumberImpl.JsonNumberNumber,3,24,1,1,1,7,2,2,1,2
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonStructureParser.ObjectScope,37,0,0,0,10,0,5,0,5,0
-IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonParserImpl,373,198,49,21,88,41,48,18,17,11
+IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonParserImpl,371,200,48,22,87,42,47,19,17,11
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonParserFactoryImpl,42,0,0,0,9,0,7,0,7,0
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonParserImpl.Stack,7,28,1,3,2,8,2,4,1,3
 IU Java Utilities API Reference/iu-java-auth,org.eclipse.parsson,JsonPatchBuilderImpl,354,0,0,0,85,0,20,0,20,0

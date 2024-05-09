@@ -6,6 +6,8 @@ edu.iu.auth.basic
 edu.iu.auth.oauth
 edu.iu.auth.oidc
 edu.iu.auth.spi
+module:iu.util.client
+edu.iu.client
 module:iu.util.jdbc.pool
 edu.iu.jdbc.pool
 module:iu.util.runtime

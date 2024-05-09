@@ -1,5 +1,4 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
-IU Base Utilities Module,edu.iu,IuCrypt.new ThreadLocal() {...},0,10,0,0,0,2,0,3,0,3
 IU Base Utilities Module,edu.iu,IuOutOfServiceException,0,16,0,0,0,8,0,4,0,4
 IU Base Utilities Module,edu.iu,IuRateLimitter,0,408,0,50,0,115,0,44,0,19
 IU Base Utilities Module,edu.iu,IuBadRequestException,0,16,0,0,0,8,0,4,0,4
@@ -41,10 +40,9 @@ IU Base Utilities Module,edu.iu,IuParallelWorkloadController,0,726,0,60,0,158,0,
 IU Base Utilities Module,edu.iu,IuAsynchronousSubject.Subscriber,0,542,0,98,0,147,0,74,0,25
 IU Base Utilities Module,edu.iu,IuAuthorizationFailedException,0,16,0,0,0,8,0,4,0,4
 IU Base Utilities Module,edu.iu,IuCacheMap.CacheKeySet,0,24,0,0,0,3,0,4,0,4
-IU Base Utilities Module,edu.iu,IuWebUtils,0,646,0,111,0,146,0,89,0,14
+IU Base Utilities Module,edu.iu,IuWebUtils,0,651,0,113,0,148,0,90,0,14
 IU Base Utilities Module,edu.iu,IuCacheMap.CacheValues,0,27,0,0,0,3,0,4,0,4
 IU Base Utilities Module,edu.iu,IuRuntimeEnvironment,0,64,0,6,0,11,0,11,0,8
-IU Base Utilities Module,edu.iu,IuCrypt,0,25,0,4,0,5,0,4,0,2
 IU Base Utilities Module,edu.iu,IdGenerator.new ThreadLocal() {...},0,27,0,0,0,9,0,2,0,2
 IU Base Utilities Module,edu.iu,IuStream,0,65,0,4,0,17,0,7,0,5
 IU Base Utilities Module,edu.iu,IuIterable,0,218,0,39,0,60,0,38,0,18
