@@ -1,4 +1,4 @@
-package iu.auth.util;
+package iu.auth.saml;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -32,6 +32,7 @@ import org.xml.sax.SAXException;
 
 /**
  * Provides simplified access to DOM document elements.
+ * TODO create STARCH jira to move it to java-util package if need arise
  */
 public class XmlDomUtil {
 	/**

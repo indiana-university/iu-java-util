@@ -20,6 +20,7 @@ import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.auth.saml.IuSamlClient;
 import edu.iu.auth.saml.IuSamlProvider;
+import edu.iu.crypt.PemEncoded;
 
 @SuppressWarnings("javadoc")
 public class SpiTest {

@@ -9,6 +9,7 @@ import edu.iu.auth.saml.IuSamlClient;
 import edu.iu.auth.saml.IuSamlProvider;
 import edu.iu.auth.saml.IuSamlSession;
 import edu.iu.auth.spi.IuSamlSpi;
+import iu.auth.principal.PrincipalVerifierRegistry;
 
 /**
  * SAML connect SPI implementation
@@ -23,19 +24,22 @@ public class SamlConnectSpi implements IuSamlSpi {
 	}
 
 	@Override
-	public IuSamlProvider getSamlProvider(IuSamlClient client) {
-		Objects.requireNonNull(client.getAcsUris(), "Missing activation consumer uris");
-		Objects.requireNonNull(client.getMetaDataUris(), "Missing metadata uris");
-		Objects.requireNonNull(client.getAuthenticatedSessionTimeout(), "Missing authentication session timeout");
+	public synchronized IuSamlProvider getSamlProvider(IuSamlClient client) {
 		final var serviceProviderEntityId = Objects.requireNonNull(client.getServiceProviderEntityId(),
 				"Missing service provider entity Id");
 
+		if (PROVIDER.containsKey(serviceProviderEntityId))
+			throw new IllegalStateException("Already initialized");
+
+		Objects.requireNonNull(client.getAcsUris(), "Missing activation consumer uris");
+		Objects.requireNonNull(client.getMetaDataUris(), "Missing metadata uris");
+		Objects.requireNonNull(client.getAuthenticatedSessionTimeout(), "Missing authentication session timeout");
+
 		SamlProvider provider = new SamlProvider(client);
-		synchronized (PROVIDER) {
-			if (PROVIDER.containsKey(serviceProviderEntityId))
-				throw new IllegalStateException("Already initialized");
-			PROVIDER.put(serviceProviderEntityId, provider);
-		}
+
+		PrincipalVerifierRegistry.registerVerifier(new SamlPrincipalVerifier(true, serviceProviderEntityId));
+		PROVIDER.put(serviceProviderEntityId, provider);
+		
 		return provider;
 	}
 

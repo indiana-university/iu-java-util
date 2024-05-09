@@ -34,8 +34,8 @@ import edu.iu.auth.saml.IuSamlClient;
 import edu.iu.auth.saml.IuSamlProvider;
 import edu.iu.auth.saml.IuSamlSession;
 import edu.iu.client.IuVault;
+import edu.iu.crypt.PemEncoded;
 import edu.iu.test.IuTestLogger;
-import iu.auth.util.XmlDomUtil;
 
 @EnabledIf("edu.iu.client.IuVault#isConfigured")
 public class SamlAuthenticateIT {

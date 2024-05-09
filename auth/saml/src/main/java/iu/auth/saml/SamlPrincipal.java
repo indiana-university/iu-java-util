@@ -8,7 +8,7 @@ import edu.iu.auth.saml.IuSamlPrincipal;
 /**
  * Implementation of {@link IuSamlPrincipal}
  */
-public class SamlPrincipal implements IuSamlPrincipal {
+final class SamlPrincipal implements IuSamlPrincipal {
 
 	/**
 	 * TODO
@@ -16,19 +16,29 @@ public class SamlPrincipal implements IuSamlPrincipal {
 	private static final long serialVersionUID = 1L;
 	
 	/**
-	 * TODO
+	 * name
 	 */
 	private final String name;
 	
 	/**
-	 * TODO
+	 * displayName
 	 */
 	private final String displayName;
 	
 	/**
-	 * TODO
+	 * emailAddress
 	 */
 	private final String emailAddress;
+	
+	/**
+	 * identity provider id
+	 */
+	private final String entityId;
+	
+	/**
+	 * service provider id 
+	 */
+	private final String realm;
 
 	/**
 	 * Constructor
@@ -36,13 +46,17 @@ public class SamlPrincipal implements IuSamlPrincipal {
 	 * @param name eduPersonPrincipalName 
 	 * @param displayName display name
 	 * @param emailAddress email address
+	 * @param entityId  identity provider URI
+	 * @param realm service provider id
 	 */
-	public SamlPrincipal(String name, String displayName, String emailAddress) {
+	public SamlPrincipal(String name, String displayName, String emailAddress, String entityId, String realm) {
 		this.name = name;
 		this.displayName = displayName;
 		this.emailAddress = emailAddress;
+		this.entityId = entityId;
+		this.realm = realm;
 	}
-
+	
 	@Override
 	public String getName() {
 		return name;
@@ -73,10 +87,19 @@ public class SamlPrincipal implements IuSamlPrincipal {
 		subject.setReadOnly();
 		return subject;
 	}
+	
+	/**
+	 * Gets the authentication realm.
+	 * 
+	 * @return authentication realm
+	 */
+	String realm() {
+		return realm;
+	}
 
 	@Override
 	public int hashCode() {
-		return IuObject.hashCode(name, displayName, emailAddress);
+		return IuObject.hashCode(name, displayName, emailAddress, entityId, realm);
 	}
 
 	@Override
@@ -86,12 +109,15 @@ public class SamlPrincipal implements IuSamlPrincipal {
 		SamlPrincipal other = (SamlPrincipal) obj;
 		return IuObject.equals(name, other.name) //
 				&& IuObject.equals(displayName, other.displayName) //
-				&& IuObject.equals(emailAddress, other.emailAddress);
+				&& IuObject.equals(emailAddress, other.emailAddress)//
+				&& IuObject.equals(entityId, other.entityId)//
+				&& IuObject.equals(realm, other.realm);
 	}
 
 	@Override
 	public String toString() {
-		return "OIDC Principal ID [" + name + "; " + displayName + "; " + emailAddress + "] ";
+		return "SAML Principal ID [" + name + "; " + displayName + "; " + emailAddress 
+				+ "; " + entityId + "; " + realm + "] ";
 	}
 
 }
