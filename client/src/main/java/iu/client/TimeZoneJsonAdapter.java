@@ -29,27 +29,48 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu;
+package iu.client;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Date;
+import java.util.SimpleTimeZone;
+import java.util.TimeZone;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Base64;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonValue;
 
-import org.junit.jupiter.api.Test;
+/**
+ * Implements {@link IuJsonAdapter} for {@link Date}
+ */
+class TimeZoneJsonAdapter implements IuJsonAdapter<TimeZone> {
 
-@SuppressWarnings("javadoc")
-public class IuCryptTest {
+	/**
+	 * Singleton instance.
+	 */
+	static final TimeZoneJsonAdapter INSTANCE = new TimeZoneJsonAdapter();
 
-	@Test
-	public void testSha256() throws NoSuchAlgorithmException {
-		final var data = IuText.utf8(IdGenerator.generateId());
-		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha256(data)),
-				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(data)));
-		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha256(null)),
-				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(new byte[0])));
-		assertEquals(Base64.getEncoder().encodeToString(IuCrypt.sha256(new byte[0])),
-				Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(new byte[0])));
+	private TimeZoneJsonAdapter() {
 	}
+
+	@Override
+	public TimeZone fromJson(JsonValue value) {
+		final var text = TextJsonAdapter.INSTANCE.fromJson(value);
+		if (text == null)
+			return null;
+		else {
+			final var id = ZoneId.of(text);
+			final var now = LocalDateTime.now().atZone(id);
+			return new SimpleTimeZone(now.getOffset().getTotalSeconds() * 1000, id.getId());
+		}
+	}
+
+	@Override
+	public JsonValue toJson(TimeZone value) {
+		if (value == null)
+			return JsonValue.NULL;
+		else
+			return TextJsonAdapter.INSTANCE.toJson(value.getID());
+	}
+
 }

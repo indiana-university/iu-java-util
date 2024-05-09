@@ -29,20 +29,38 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package iu.client;
+
+import java.util.Iterator;
+import java.util.stream.Stream;
+
+import edu.iu.client.IuJsonAdapter;
+
 /**
- * Provides client-side resources defined by the
- * <a href= "https://openid.net/specs/openid-connect-core-1_0.html">OpenID
- * Connect Core 1.0 Specification</a>
+ * Adapts {@link Stream} values.
  * 
- * @provides edu.iu.auth.spi.IuOpenIdConnectSpi OIDC SPI implementation
+ * @param <E> element type
  */
+class IteratorAdapter<E> extends JsonArrayAdapter<Iterator<E>, E> {
 
-module iu.util.auth.oidc {
-	requires static com.auth0.jwt;
-	requires iu.util;
-	requires iu.util.auth;
-	requires iu.util.auth.util;
-	requires iu.util.client;
+	/**
+	 * Constructor
+	 * 
+	 * @param itemAdapter item adapter
+	 * @param factory     creates a new collection
+	 */
+	protected IteratorAdapter(IuJsonAdapter<E> itemAdapter) {
+		super(itemAdapter);
+	}
 
-	provides edu.iu.auth.spi.IuOpenIdConnectSpi with iu.auth.oidc.OpenIdConnectSpi;
+	@Override
+	protected Iterator<E> iterator(Iterator<E> value) {
+		return value;
+	}
+
+	@Override
+	protected Iterator<E> collect(Iterable<E> items) {
+		return items.iterator();
+	}
+
 }

@@ -29,20 +29,48 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package iu.client;
+
+import java.util.Date;
+import java.util.Optional;
+
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonValue;
+
 /**
- * Provides client-side resources defined by the
- * <a href= "https://openid.net/specs/openid-connect-core-1_0.html">OpenID
- * Connect Core 1.0 Specification</a>
+ * Implements {@link IuJsonAdapter} for {@link Date}
  * 
- * @provides edu.iu.auth.spi.IuOpenIdConnectSpi OIDC SPI implementation
+ * @param <T> value type
  */
+class OptionalJsonAdapter<T> implements IuJsonAdapter<Optional<T>> {
 
-module iu.util.auth.oidc {
-	requires static com.auth0.jwt;
-	requires iu.util;
-	requires iu.util.auth;
-	requires iu.util.auth.util;
-	requires iu.util.client;
+	/**
+	 * Singleton instance.
+	 */
+	static final OptionalJsonAdapter<?> INSTANCE = new OptionalJsonAdapter<>(BasicJsonAdapter.INSTANCE);
 
-	provides edu.iu.auth.spi.IuOpenIdConnectSpi with iu.auth.oidc.OpenIdConnectSpi;
+	private final IuJsonAdapter<T> adapter;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param adapter value adapter
+	 */
+	OptionalJsonAdapter(IuJsonAdapter<T> adapter) {
+		this.adapter = adapter;
+	}
+
+	@Override
+	public Optional<T> fromJson(JsonValue value) {
+		return Optional.ofNullable(adapter.fromJson(value));
+	}
+
+	@Override
+	public JsonValue toJson(Optional<T> value) {
+		if (value == null)
+			return JsonValue.NULL;
+		else
+			return adapter.toJson(value.orElse(null));
+	}
+
 }

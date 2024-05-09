@@ -39,6 +39,7 @@ import java.lang.reflect.Proxy;
 import java.net.URL;
 import java.util.Enumeration;
 import java.util.Properties;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.mockito.Mockito;
 
@@ -56,12 +57,27 @@ public final class IuTest {
 	}
 
 	/**
+	 * Returns a random enum value.
+	 * 
+	 * @param <E>       enum type
+	 * @param enumClass enum class
+	 * @return random value
+	 */
+	public static <E extends Enum<E>> E rand(Class<E> enumClass) {
+		final var values = enumClass.getEnumConstants();
+		final var i = ThreadLocalRandom.current().nextInt(values.length);
+		return values[i];
+	}
+
+	/**
 	 * Decorates a {@link Mockito#mock(Class)} with a proxy capable of invoking the
 	 * default methods on an interface.
 	 * 
 	 * @param <T>  interface type
 	 * @param type interface class
 	 * @return decorated mock instance
+	 * @deprecated Use {@link Mockito#mock(Class, org.mockito.MockSettings)
+	 *             mock(type, CALLS_REAL_METHODS)} instead
 	 */
 	public static <T> T mockWithDefaults(Class<T> type) {
 		IuTest.class.getModule().addReads(type.getModule());

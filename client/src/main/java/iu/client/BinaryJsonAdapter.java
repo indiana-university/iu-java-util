@@ -29,20 +29,41 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package iu.client;
+
+import edu.iu.IuText;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonValue;
+
 /**
- * Provides client-side resources defined by the
- * <a href= "https://openid.net/specs/openid-connect-core-1_0.html">OpenID
- * Connect Core 1.0 Specification</a>
- * 
- * @provides edu.iu.auth.spi.IuOpenIdConnectSpi OIDC SPI implementation
+ * Implements {@link IuJsonAdapter} for byte[]
  */
+class BinaryJsonAdapter implements IuJsonAdapter<byte[]> {
 
-module iu.util.auth.oidc {
-	requires static com.auth0.jwt;
-	requires iu.util;
-	requires iu.util.auth;
-	requires iu.util.auth.util;
-	requires iu.util.client;
+	/**
+	 * Singleton instance.
+	 */
+	static final BinaryJsonAdapter INSTANCE = new BinaryJsonAdapter();
 
-	provides edu.iu.auth.spi.IuOpenIdConnectSpi with iu.auth.oidc.OpenIdConnectSpi;
+	private BinaryJsonAdapter() {
+	}
+
+	@Override
+	public byte[] fromJson(JsonValue value) {
+		final var text = TextJsonAdapter.INSTANCE.fromJson(value);
+		if (text == null)
+			return null;
+		else
+			return IuText.base64(text);
+	}
+
+	@Override
+	public JsonValue toJson(byte[] data) {
+		final var text = IuText.base64(data);
+		if (text == null)
+			return JsonValue.NULL;
+		else
+			return TextJsonAdapter.INSTANCE.toJson(text);
+	}
+
 }

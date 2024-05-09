@@ -29,20 +29,54 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package iu.client;
+
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonNumber;
+import jakarta.json.JsonString;
+import jakarta.json.JsonStructure;
+import jakarta.json.JsonValue;
+
 /**
- * Provides client-side resources defined by the
- * <a href= "https://openid.net/specs/openid-connect-core-1_0.html">OpenID
- * Connect Core 1.0 Specification</a>
- * 
- * @provides edu.iu.auth.spi.IuOpenIdConnectSpi OIDC SPI implementation
+ * Implements {@link IuJsonAdapter} for {@link Long}
  */
+class BooleanJsonAdapter implements IuJsonAdapter<Boolean> {
 
-module iu.util.auth.oidc {
-	requires static com.auth0.jwt;
-	requires iu.util;
-	requires iu.util.auth;
-	requires iu.util.auth.util;
-	requires iu.util.client;
+	/**
+	 * Adapts {@link Boolean}
+	 */
+	static BooleanJsonAdapter INSTANCE = new BooleanJsonAdapter(null);
+	
+	/**
+	 * Adapts {@link Boolean#TYPE}
+	 */
+	static BooleanJsonAdapter PRIMITIVE = new BooleanJsonAdapter(false);
+	
+	private final Boolean nullValue;
+	
+	private BooleanJsonAdapter(Boolean nullValue) {
+		this.nullValue = nullValue;
+	}
 
-	provides edu.iu.auth.spi.IuOpenIdConnectSpi with iu.auth.oidc.OpenIdConnectSpi;
+	@Override
+	public Boolean fromJson(JsonValue value) {
+		if (JsonValue.NULL.equals(value) //
+				|| value == null)
+			return nullValue;
+		else if (value instanceof JsonString)
+			return Boolean.valueOf(TextJsonAdapter.INSTANCE.fromJson(value));
+		else if (value instanceof JsonNumber)
+			return ((JsonNumber) value).intValue() != 0;
+		else
+			return (value instanceof JsonStructure) || JsonValue.TRUE.equals(value);
+	}
+
+	@Override
+	public JsonValue toJson(Boolean value) {
+		if (value == null)
+			return JsonValue.NULL;
+		else
+			return value ? JsonValue.TRUE : JsonValue.FALSE;
+	}
+
 }

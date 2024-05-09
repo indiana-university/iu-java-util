@@ -29,20 +29,43 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package iu.client;
+
+import java.util.Iterator;
+import java.util.function.IntFunction;
+import java.util.stream.StreamSupport;
+
+import edu.iu.IuIterable;
+import edu.iu.client.IuJsonAdapter;
+
 /**
- * Provides client-side resources defined by the
- * <a href= "https://openid.net/specs/openid-connect-core-1_0.html">OpenID
- * Connect Core 1.0 Specification</a>
+ * Adapts array values.
  * 
- * @provides edu.iu.auth.spi.IuOpenIdConnectSpi OIDC SPI implementation
+ * @param <C> component type
  */
+public class ArrayAdapter<C> extends JsonArrayAdapter<C[], C> {
 
-module iu.util.auth.oidc {
-	requires static com.auth0.jwt;
-	requires iu.util;
-	requires iu.util.auth;
-	requires iu.util.auth.util;
-	requires iu.util.client;
+	private final IntFunction<C[]> factory;
 
-	provides edu.iu.auth.spi.IuOpenIdConnectSpi with iu.auth.oidc.OpenIdConnectSpi;
+	/**
+	 * Constructor
+	 * 
+	 * @param itemAdapter item adapter
+	 * @param factory     array factory
+	 */
+	protected ArrayAdapter(IuJsonAdapter<C> itemAdapter, IntFunction<C[]> factory) {
+		super(itemAdapter);
+		this.factory = factory;
+	}
+
+	@Override
+	protected Iterator<C> iterator(C[] value) {
+		return IuIterable.iter(value).iterator();
+	}
+
+	@Override
+	protected C[] collect(Iterable<C> items) {
+		return StreamSupport.stream(items.spliterator(), false).toArray(factory);
+	}
+
 }

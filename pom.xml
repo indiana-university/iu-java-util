@@ -473,6 +473,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			<modules>
 				<module>docfiles</module>
 				<module>base</module>
+				<module>client</module>
 				<module>test</module>
 				<module>jdbc</module>
 				<module>type</module>

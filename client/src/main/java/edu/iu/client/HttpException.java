@@ -29,20 +29,38 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package edu.iu.client;
+
+import java.io.InputStream;
+import java.net.http.HttpResponse;
+
 /**
- * Provides client-side resources defined by the
- * <a href= "https://openid.net/specs/openid-connect-core-1_0.html">OpenID
- * Connect Core 1.0 Specification</a>
- * 
- * @provides edu.iu.auth.spi.IuOpenIdConnectSpi OIDC SPI implementation
+ * Thrown by {@link IuHttp} when an error response is received from an HTTP
+ * request.
  */
+public class HttpException extends Exception {
+	private static final long serialVersionUID = 1L;
 
-module iu.util.auth.oidc {
-	requires static com.auth0.jwt;
-	requires iu.util;
-	requires iu.util.auth;
-	requires iu.util.auth.util;
-	requires iu.util.client;
+	private final transient HttpResponse<InputStream> response;
 
-	provides edu.iu.auth.spi.IuOpenIdConnectSpi with iu.auth.oidc.OpenIdConnectSpi;
+	/**
+	 * Constructor.
+	 * 
+	 * @param response error response, status code >= 400
+	 * @param message detailed error message
+	 */
+	HttpException(HttpResponse<InputStream> response, String message) {
+		super(message);
+		this.response = response;
+	}
+
+	/**
+	 * Gets the HTTP response that failed.
+	 * 
+	 * @return {@link HttpResponse}
+	 */
+	public HttpResponse<InputStream> getResponse() {
+		return response;
+	}
+
 }

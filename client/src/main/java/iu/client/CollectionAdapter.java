@@ -29,20 +29,45 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package iu.client;
+
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.function.Supplier;
+
+import edu.iu.client.IuJsonAdapter;
+
 /**
- * Provides client-side resources defined by the
- * <a href= "https://openid.net/specs/openid-connect-core-1_0.html">OpenID
- * Connect Core 1.0 Specification</a>
+ * Adapts {@link Collection} values.
  * 
- * @provides edu.iu.auth.spi.IuOpenIdConnectSpi OIDC SPI implementation
+ * @param <E> element type
+ * @param <C> collection type
  */
+class CollectionAdapter<E, C extends Collection<E>> extends JsonArrayAdapter<C, E> {
 
-module iu.util.auth.oidc {
-	requires static com.auth0.jwt;
-	requires iu.util;
-	requires iu.util.auth;
-	requires iu.util.auth.util;
-	requires iu.util.client;
+	private final Supplier<C> factory;
 
-	provides edu.iu.auth.spi.IuOpenIdConnectSpi with iu.auth.oidc.OpenIdConnectSpi;
+	/**
+	 * Constructor
+	 * 
+	 * @param itemAdapter item adapter
+	 * @param factory     creates a new collection
+	 */
+	protected CollectionAdapter(IuJsonAdapter<E> itemAdapter, Supplier<C> factory) {
+		super(itemAdapter);
+		this.factory = factory;
+	}
+
+	@Override
+	protected Iterator<E> iterator(C value) {
+		return value.iterator();
+	}
+
+	@Override
+	protected C collect(Iterable<E> items) {
+		final var collection = factory.get();
+		items.forEach(collection::add);
+		return collection;
+	}
+
 }

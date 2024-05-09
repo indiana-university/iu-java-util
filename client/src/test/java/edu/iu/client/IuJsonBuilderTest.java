@@ -29,20 +29,44 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Provides client-side resources defined by the
- * <a href= "https://openid.net/specs/openid-connect-core-1_0.html">OpenID
- * Connect Core 1.0 Specification</a>
- * 
- * @provides edu.iu.auth.spi.IuOpenIdConnectSpi OIDC SPI implementation
- */
+package edu.iu.client;
 
-module iu.util.auth.oidc {
-	requires static com.auth0.jwt;
-	requires iu.util;
-	requires iu.util.auth;
-	requires iu.util.auth.util;
-	requires iu.util.client;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-	provides edu.iu.auth.spi.IuOpenIdConnectSpi with iu.auth.oidc.OpenIdConnectSpi;
+import java.net.URI;
+import java.util.Set;
+
+import org.junit.jupiter.api.Test;
+
+@SuppressWarnings("javadoc")
+public class IuJsonBuilderTest {
+
+	private static class Builder extends IuJsonBuilder<Builder> {
+
+	}
+
+	@Test
+	public void testToJson() {
+		assertEquals(IuJson.object().build(), new Builder().toJson());
+	}
+
+	@Test
+	public void testMerge() {
+		final var a = new Builder();
+		a.param("foo", "bar");
+		final var b = new Builder();
+		b.param("bar", "baz");
+		b.copy(a);
+		assertEquals(IuJson.object().add("foo", "bar").add("bar", "baz").build(), b.toJson());
+		assertEquals(Set.of("foo", "bar"), b.paramNames());
+	}
+
+	@Test
+	public void testParam() {
+		final var a = new Builder();
+		a.param("foo", "bar");
+		a.param("bar", URI.create("baz://foo"), IuJsonAdapter.of(URI.class));
+		assertEquals(IuJson.string("bar"), a.param("foo"));
+	}
+
 }

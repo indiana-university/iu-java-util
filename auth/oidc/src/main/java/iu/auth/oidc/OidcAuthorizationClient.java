@@ -34,6 +34,7 @@ package iu.auth.oidc;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.http.HttpRequest;
+import java.security.MessageDigest;
 import java.security.Principal;
 import java.time.Duration;
 import java.time.Instant;
@@ -58,7 +59,6 @@ import com.auth0.jwt.interfaces.DecodedJWT;
 import edu.iu.IdGenerator;
 import edu.iu.IuAuthorizationFailedException;
 import edu.iu.IuBadRequestException;
-import edu.iu.IuCrypt;
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
@@ -206,7 +206,6 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 		return client.getResourceUri();
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
 	public Iterable<String> getScope() {
 		final var scope = client.getScope();
@@ -234,7 +233,8 @@ class OidcAuthorizationClient implements IuAuthorizationClient {
 			if (!alg.equals(verifiedIdToken.getAlgorithm()))
 				throw new IllegalArgumentException(alg + " required");
 
-			final var encodedHash = IuCrypt.sha256(IuText.utf8(accessToken));
+			final var encodedHash = IuException
+					.unchecked(() -> MessageDigest.getInstance("SHA-256").digest(IuText.utf8(accessToken)));
 			final var halfOfEncodedHash = Arrays.copyOf(encodedHash, (encodedHash.length / 2));
 			final var atHashGeneratedfromAccessToken = Base64.getUrlEncoder().withoutPadding()
 					.encodeToString(halfOfEncodedHash);

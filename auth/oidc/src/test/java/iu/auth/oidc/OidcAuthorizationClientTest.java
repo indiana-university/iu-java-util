@@ -49,6 +49,7 @@ import java.net.URISyntaxException;
 import java.net.http.HttpRequest;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.MessageDigest;
 import java.security.Principal;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
@@ -72,7 +73,6 @@ import com.auth0.jwt.algorithms.Algorithm;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuAuthorizationFailedException;
-import edu.iu.IuCrypt;
 import edu.iu.IuText;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
@@ -391,7 +391,7 @@ public class OidcAuthorizationClientTest {
 		final var nonce = authCodeAttributes.get("nonce");
 		assertNotNull(nonce);
 
-		final var encodedHash = IuCrypt.sha256(IuText.utf8(accessToken));
+		final var encodedHash = MessageDigest.getInstance("SHA-256").digest(IuText.utf8(accessToken));
 		final var wrongAtHash = Base64.getUrlEncoder().withoutPadding().encodeToString(encodedHash);
 
 		final var tokenResponse = mock(IuTokenResponse.class);
@@ -437,7 +437,7 @@ public class OidcAuthorizationClientTest {
 		final var nonce = authCodeAttributes.get("nonce");
 		assertNotNull(nonce);
 
-		final var encodedHash = IuCrypt.sha256(IuText.utf8(accessToken));
+		final var encodedHash = MessageDigest.getInstance("SHA-256").digest(IuText.utf8(accessToken));
 		final var halfOfEncodedHash = Arrays.copyOf(encodedHash, (encodedHash.length / 2));
 		final var atHash = Base64.getUrlEncoder().withoutPadding().encodeToString(halfOfEncodedHash);
 
@@ -484,7 +484,7 @@ public class OidcAuthorizationClientTest {
 		final var nonce = authCodeAttributes.get("nonce");
 		assertNotNull(nonce);
 
-		final var encodedhash = IuCrypt.sha256(IuText.utf8(accessToken));
+		final var encodedhash = MessageDigest.getInstance("SHA-256").digest(IuText.utf8(accessToken));
 		final var halfOfEncodedHash = Arrays.copyOf(encodedhash, (encodedhash.length / 2));
 		final var atHash = Base64.getUrlEncoder().withoutPadding().encodeToString(halfOfEncodedHash);
 
@@ -552,7 +552,7 @@ public class OidcAuthorizationClientTest {
 		final var nonce = authCodeAttributes.get("nonce");
 		assertNotNull(nonce);
 
-		final var encodedhash = IuCrypt.sha256(IuText.utf8(accessToken));
+		final var encodedhash = MessageDigest.getInstance("SHA-256").digest(IuText.utf8(accessToken));
 		final var halfOfEncodedHash = Arrays.copyOf(encodedhash, (encodedhash.length / 2));
 		final var atHash = Base64.getUrlEncoder().withoutPadding().encodeToString(halfOfEncodedHash);
 

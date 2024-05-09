@@ -29,20 +29,48 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package iu.client;
+
+import edu.iu.IuIterable;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonArray;
+import jakarta.json.JsonNumber;
+import jakarta.json.JsonString;
+import jakarta.json.JsonValue;
+
 /**
- * Provides client-side resources defined by the
- * <a href= "https://openid.net/specs/openid-connect-core-1_0.html">OpenID
- * Connect Core 1.0 Specification</a>
- * 
- * @provides edu.iu.auth.spi.IuOpenIdConnectSpi OIDC SPI implementation
+ * Implements {@link IuJsonAdapter} for {@link CharSequence}
  */
+class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
 
-module iu.util.auth.oidc {
-	requires static com.auth0.jwt;
-	requires iu.util;
-	requires iu.util.auth;
-	requires iu.util.auth.util;
-	requires iu.util.client;
+	/**
+	 * Singleton instance.
+	 */
+	static TextJsonAdapter INSTANCE = new TextJsonAdapter();
 
-	provides edu.iu.auth.spi.IuOpenIdConnectSpi with iu.auth.oidc.OpenIdConnectSpi;
+	@Override
+	public String fromJson(JsonValue value) {
+		if (value instanceof JsonString)
+			return ((JsonString) value).getString();
+		else if ((value instanceof JsonNumber) //
+				|| JsonValue.TRUE.equals(value) //
+				|| JsonValue.FALSE.equals(value))
+			return value.toString();
+		else if (value instanceof JsonArray)
+			return String.join(",", IuIterable.map(((JsonArray) value), this::fromJson));
+		else if (JsonValue.NULL.equals(value))
+			return null;
+		else
+			throw new IllegalArgumentException();
+	}
+
+	@Override
+	public JsonValue toJson(CharSequence value) {
+		if (value == null)
+			return JsonValue.NULL;
+		else
+			return IuJson.PROVIDER.createValue(value.toString());
+	}
+
 }

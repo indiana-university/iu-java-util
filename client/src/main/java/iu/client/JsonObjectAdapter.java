@@ -29,20 +29,59 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package iu.client;
+
+import java.util.Map;
+import java.util.function.Supplier;
+
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
+
 /**
- * Provides client-side resources defined by the
- * <a href= "https://openid.net/specs/openid-connect-core-1_0.html">OpenID
- * Connect Core 1.0 Specification</a>
+ * Adapts to/from {@link JsonObject} values.
  * 
- * @provides edu.iu.auth.spi.IuOpenIdConnectSpi OIDC SPI implementation
+ * @param <T> target type
+ * @param <V> value type
  */
+class JsonObjectAdapter<T extends Map<String, V>, V> implements IuJsonAdapter<T> {
 
-module iu.util.auth.oidc {
-	requires static com.auth0.jwt;
-	requires iu.util;
-	requires iu.util.auth;
-	requires iu.util.auth.util;
-	requires iu.util.client;
+	private final IuJsonAdapter<V> valueAdapter;
+	private final Supplier<T> factory;
 
-	provides edu.iu.auth.spi.IuOpenIdConnectSpi with iu.auth.oidc.OpenIdConnectSpi;
+	/**
+	 * Constructor
+	 * 
+	 * @param itemAdapter item adapter
+	 * @param factory     supplies a new map instance
+	 */
+	protected JsonObjectAdapter(IuJsonAdapter<V> itemAdapter, Supplier<T> factory) {
+		this.valueAdapter = itemAdapter;
+		this.factory = factory;
+	}
+
+	@Override
+	public T fromJson(JsonValue jsonValue) {
+		if (jsonValue == null //
+				|| JsonValue.NULL.equals(jsonValue))
+			return null;
+
+		final var map = factory.get();
+		for (final var e : jsonValue.asJsonObject().entrySet())
+			map.put(e.getKey(), valueAdapter.fromJson(e.getValue()));
+		return map;
+	}
+
+	@Override
+	public JsonValue toJson(T javaValue) {
+		if (javaValue == null)
+			return JsonValue.NULL;
+
+		final var a = IuJson.object();
+		for (final var e : javaValue.entrySet())
+			a.add(e.getKey(), valueAdapter.toJson(e.getValue()));
+		return a.build();
+	}
+
 }

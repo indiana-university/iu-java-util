@@ -29,40 +29,68 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu;
+package iu.client;
 
-import java.security.MessageDigest;
+import java.util.Iterator;
+
+import edu.iu.IuIterable;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonArray;
+import jakarta.json.JsonValue;
 
 /**
- * Low-level crypto utilities.
+ * Adapts to/from {@link JsonArray} values.
+ * 
+ * @param <T> target type
+ * @param <E> element type
  */
-public class IuCrypt {
-
-	private static final ThreadLocal<MessageDigest> SHA256 = new ThreadLocal<MessageDigest>() {
-		@Override
-		protected MessageDigest initialValue() {
-			return IuException.unchecked(() -> MessageDigest.getInstance("SHA-256"));
-		}
-	};
-
-	private static final byte[] EMPTY_PAYLOADHASH = SHA256.get().digest(new byte[0]);
+abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
 
 	/**
-	 * Gets a SHA-256 digest for character data.
-	 * <p>
-	 * The string passed into this method is first converted to UTF-8 binary format,
-	 * then digested.
-	 * </p>
+	 * Extracts an iterator from a Java value.
 	 * 
-	 * @param data character data
-	 * @return SHA-256 digest
+	 * @param value value
+	 * @return iterator
 	 */
-	public static byte[] sha256(byte[] data) {
-		if (data == null || data.length == 0)
-			return EMPTY_PAYLOADHASH;
-		return SHA256.get().digest(data);
+	abstract protected Iterator<E> iterator(T value);
+
+	/**
+	 * Collects items into the target type.
+	 * 
+	 * @param items items
+	 * @return target value
+	 */
+	abstract protected T collect(Iterable<E> items);
+
+	private final IuJsonAdapter<E> itemAdapter;
+
+	/**
+	 * Constructor
+	 * 
+	 * @param itemAdapter item adapter
+	 */
+	protected JsonArrayAdapter(IuJsonAdapter<E> itemAdapter) {
+		this.itemAdapter = itemAdapter;
 	}
 
-	private IuCrypt() {
+	@Override
+	public T fromJson(JsonValue jsonValue) {
+		if (jsonValue == null //
+				|| JsonValue.NULL.equals(jsonValue))
+			return null;
+		else
+			return collect(IuIterable.map(jsonValue.asJsonArray(), itemAdapter::fromJson));
 	}
+
+	@Override
+	public JsonValue toJson(T javaValue) {
+		if (javaValue == null)
+			return JsonValue.NULL;
+
+		final var a = IuJson.array();
+		iterator(javaValue).forEachRemaining(i -> a.add(itemAdapter.toJson(i)));
+		return a.build();
+	}
+
 }
