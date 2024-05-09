@@ -56,6 +56,7 @@ import edu.iu.crypt.WebKey.Operation;
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.WebSignedPayload;
 import iu.auth.principal.PrincipalVerifierRegistry;
+import jakarta.json.JsonObject;
 
 /**
  * JWT Service Provider Implementation
@@ -184,13 +185,62 @@ public class JwtSpi implements IuJwtSpi {
 	}
 
 	/**
-	 * Gets an issuer's well-known signature verification key by common name.
+	 * Gets an issuer's principal identity by common name.
 	 * 
 	 * @param iss common name
 	 * @return verified issuer principal
 	 */
 	static IuPrincipalIdentity getIssuer(String iss) {
 		return Objects.requireNonNull(ISSUER.get(iss), "issuer not registered");
+	}
+
+	/**
+	 * Gets an audience's principal identity by realm.
+	 * 
+	 * @param aud audience realm
+	 * @return verified issuer principal
+	 */
+	static IuPrincipalIdentity getAudience(String aud) {
+		return Objects.requireNonNull(AUDIENCE.get(aud), "audience not registered").audience();
+	}
+
+	/**
+	 * Parses the JWT header from serialized form.
+	 * 
+	 * @param jwt serialized JWT
+	 * @return {@link JsonObject} parsed header
+	 */
+	static JsonObject getHeader(String jwt) {
+		// 1. Verify that the JWT contains at least one period ('.') character.
+		var dot = jwt.indexOf('.');
+		if (dot == -1)
+			throw new IllegalArgumentException("Invalid JWT");
+
+		// 2. Let the Encoded JOSE Header be the portion of the JWT before the first
+		// period ('.') character.
+		//
+		// 3. Base64url decode the Encoded JOSE Header following the restriction that no
+		// line breaks, whitespace, or other additional characters have been used.
+		//
+		// 4. Verify that the resulting octet sequence is a UTF-8-encoded representation
+		// of a completely valid JSON object conforming to RFC 7159 [RFC7159]; let the
+		// JOSE Header be this JSON object.
+		return IuJson.parse(IuText.utf8(Base64.getUrlDecoder().decode(jwt.substring(0, dot)))).asJsonObject();
+	}
+
+	/**
+	 * Determines whether or not a JWT is encrypted by inspecting its header.
+	 * 
+	 * @param jose JWT header
+	 * @return true if encrypted; else false
+	 */
+	static boolean isEncrypted(JsonObject jose) {
+		// 6. Determine whether the JWT is a JWS or a JWE using any of the methods
+		// described in Section 9 of [JWE]: The JOSE Header for a JWS can be
+		// distinguished from the JOSE Header for a JWE by examining the "alg"
+		// (algorithm) Header Parameter value.
+		final var alg = Algorithm.from(jose.getString("alg"));
+		return alg.use.equals(Use.ENCRYPT);
 	}
 
 	@Override
@@ -209,6 +259,18 @@ public class JwtSpi implements IuJwtSpi {
 		if (AUDIENCE.containsKey(realm) || sealed)
 			throw new IllegalStateException("audience already registered");
 
+		if (audience instanceof IuWebKey) {
+			if (!realm.equals(audience.getName()))
+				throw new IllegalArgumentException("realm mismatch");
+
+			if (audience instanceof JwkPrincipal)
+				PrincipalVerifierRegistry.registerVerifier(new JwkPrincipalVerifier(realm));
+			else if (audience instanceof JwkSecret)
+				PrincipalVerifierRegistry.registerVerifier(new JwkSecretVerifier(realm));
+			else
+				throw new IllegalArgumentException("invalid key type");
+		}
+
 		final var verifier = new JwtVerifier(jwtRealm, audience, realm);
 		PrincipalVerifierRegistry.registerVerifier(verifier);
 
@@ -226,9 +288,18 @@ public class JwtSpi implements IuJwtSpi {
 	}
 
 	@Override
-	public Builder issue(String issuer) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("TODO");
+	public IuWebKey getSecretKey(String name, byte[] key) {
+		return new JwkSecret(name, key);
+	}
+
+	@Override
+	public Builder issue(String iss) {
+		if (!sealed)
+			throw new IllegalStateException("Not sealed");
+
+		final var issuer = Objects.requireNonNull(ISSUER.get(iss));
+
+		return new JwtBuilder(issuer, Objects.requireNonNull(getSigningKey(issuer)));
 	}
 
 	/**
@@ -245,28 +316,8 @@ public class JwtSpi implements IuJwtSpi {
 		if (!sealed)
 			throw new IllegalStateException("not sealed");
 
-		// 1. Verify that the JWT contains at least one period ('.') character.
-		var dot = jwt.indexOf('.');
-		if (dot == -1)
-			throw new IllegalArgumentException("Invalid JWT");
-
-		// 2. Let the Encoded JOSE Header be the portion of the JWT before the first
-		// period ('.') character.
-		//
-		// 3. Base64url decode the Encoded JOSE Header following the restriction that no
-		// line breaks, whitespace, or other additional characters have been used.
-		//
-		// 4. Verify that the resulting octet sequence is a UTF-8-encoded representation
-		// of a completely valid JSON object conforming to RFC 7159 [RFC7159]; let the
-		// JOSE Header be this JSON object.
-		final var jose = IuJson.parse(IuText.utf8(Base64.getUrlDecoder().decode(jwt.substring(0, dot)))).asJsonObject();
-
-		// 6. Determine whether the JWT is a JWS or a JWE using any of the methods
-		// described in Section 9 of [JWE]: The JOSE Header for a JWS can be
-		// distinguished from the JOSE Header for a JWE by examining the "alg"
-		// (algorithm) Header Parameter value.
-		final var alg = Algorithm.from(jose.getString("alg"));
-		if (alg.use.equals(Use.SIGN)) {
+		final var jose = getHeader(jwt);
+		if (!isEncrypted(jose)) {
 			// 5. Verify that the resulting JOSE Header includes only parameters and values
 			// whose syntax and semantics are both understood and supported or that are
 			// specified as being ignored when not understood.

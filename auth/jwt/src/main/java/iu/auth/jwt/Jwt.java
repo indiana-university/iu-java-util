@@ -39,12 +39,15 @@ import java.util.Set;
 
 import javax.security.auth.Subject;
 
+import edu.iu.IuException;
 import edu.iu.IuText;
 import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.jwt.IuWebToken;
 import edu.iu.auth.oauth.IuBearerToken;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebSignature;
 import edu.iu.crypt.WebSignedPayload;
 import jakarta.json.JsonNumber;
@@ -213,13 +216,25 @@ final class Jwt implements IuWebToken {
 	}
 
 	private void materialize() {
-		final var jws = WebSignedPayload.parse(token);
+		final var jose = JwtSpi.getHeader(token);
+		final WebSignedPayload jws;
+		if (JwtSpi.isEncrypted(jose)) {
+			final var audience = JwtSpi.getAudience(realm);
+			IuException.unchecked(() -> IuPrincipalIdentity.verify(audience, realm));
+			jws = WebSignedPayload.parse(WebEncryption.parse(token) //
+					.decryptText(JwtSpi.getDecryptKey( //
+							audience)));
+		} else
+			jws = WebSignedPayload.parse(token);
+
 		final var signatureIterator = jws.getSignatures().iterator();
 		final var signature = signatureIterator.next();
 		if (signatureIterator.hasNext())
 			throw new IllegalArgumentException();
 		payload = jws.getPayload();
 		claims = IuJson.parse(IuText.utf8(payload)).asJsonObject();
+		jws.verify(JwtSpi.getVerifyKey(JwtSpi.getIssuer(getIssuer())));
+
 		this.signature = signature;
 	}
 

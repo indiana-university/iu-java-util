@@ -39,26 +39,30 @@ import edu.iu.auth.spi.IuJwtSpi;
 import iu.auth.IuAuthSpiFactory;
 
 /**
- * Represents a publicly hosted JSON Web Key (JWK) principal.
+ * Represents a JSON Web Key (JWK) principal.
  * 
  * <p>
  * {@link IuPkiPrincipal} is preferred over this principal type when available.
- * JWK principals are not authoritative, but are available for cases where a
- * trusted issuer provides a JWKS URI and key ID, but does not include a valid
- * PKI certificate in the key set.
  * </p>
  * 
  * <p>
  * The {@link #toString() JWK serialized form} may be passed to
  * {@link IuPkiPrincipal#from(String)} if the key contains a trusted
  * certificate, or directly to {@link IuWebToken#register(IuPrincipalIdentity)}
- * if the key doesn't include a trusted PKI certificate.
+ * or {@link IuWebToken#register(String, IuPrincipalIdentity, String)} if the
+ * key doesn't include a trusted PKI certificate.
  * </p>
  */
 public interface IuWebKey extends IuPrincipalIdentity {
 
 	/**
-	 * Registers a trusted JSON Web Key Set (JWKS).
+	 * Reads a public key from a well-known JSON Web Key Set (JWKS).
+	 * 
+	 * <p>
+	 * Public JWK principals are not authoritative, but are available for cases
+	 * where a trusted issuer provides a JWKS URI and key ID, but does not include a
+	 * valid PKI certificate in the key set.
+	 * </p>
 	 * 
 	 * @param jwksUri Public JWKS {@link URI}
 	 * @param keyId   Key identifier (kid JOSE parameter)
@@ -66,6 +70,19 @@ public interface IuWebKey extends IuPrincipalIdentity {
 	 */
 	static IuWebKey from(URI jwksUri, String keyId) {
 		return IuAuthSpiFactory.get(IuJwtSpi.class).getWebKey(jwksUri, keyId);
+	}
+
+	/**
+	 * Creates a secret key principal.
+	 * 
+	 * @param name Unique principal name
+	 * @param key  Secret key data; <em>must</em> contain at least 128 bits (length
+	 *             16) of securely generated psuedo-random data appropriate for the
+	 *             encryption and/or signature algorithm.
+	 * @return {@link IuWebKey}
+	 */
+	static IuWebKey from(String name, byte[] key) {
+		return IuAuthSpiFactory.get(IuJwtSpi.class).getSecretKey(name, key);
 	}
 
 }

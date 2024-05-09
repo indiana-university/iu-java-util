@@ -29,73 +29,51 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.spi;
+package iu.auth.jwt;
 
-import java.net.URI;
+import java.util.Set;
 
-import edu.iu.auth.IuPrincipalIdentity;
+import javax.security.auth.Subject;
+
 import edu.iu.auth.jwt.IuWebKey;
-import edu.iu.auth.jwt.IuWebToken;
-import edu.iu.auth.jwt.IuWebToken.Builder;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Type;
 
 /**
- * JWT service provider interface.
+ * {@link IuWebKey} implementation.
  */
-public interface IuJwtSpi {
+final class JwkSecret implements IuWebKey {
+
+	private static final long serialVersionUID = 1L;
+
+	private final String name;
+	private final byte[] secretKey;
 
 	/**
-	 * Creates JWK principal.
+	 * Constructor.
 	 * 
-	 * @param jwksUri Public {@link URI} hosting a JSON Web Key Set.
-	 * @param keyId   Key identifier
-	 * @return {@link IuWebKey}
+	 * @param name      principal name
+	 * @param secretKey secret key
 	 */
-	IuWebKey getWebKey(URI jwksUri, String keyId);
+	JwkSecret(String name, byte[] secretKey) {
+		this.name = name;
+		this.secretKey = secretKey;
+	}
 
-	/**
-	 * Creates JWK principal.
-	 * 
-	 * @param name unique principal name
-	 * @param key  secret key data
-	 * @return {@link IuWebKey}
-	 */
-	IuWebKey getSecretKey(String name, byte[] key);
+	@Override
+	public String getName() {
+		return name;
+	}
 
-	/**
-	 * Registers a JWT issuer.
-	 * 
-	 * @param issuer Issuer principal
-	 */
-	void register(IuPrincipalIdentity issuer);
+	@Override
+	public Subject getSubject() {
+		final var jwk = WebKey.builder(Type.RAW).key(secretKey).build();
+		return new Subject(true, Set.of(this), Set.of(jwk), Set.of(jwk));
+	}
 
-	/**
-	 * Registers a JWT authentication realm.
-	 * 
-	 * @param jwtRealm JWT authentication realm
-	 * @param audience Audience principal
-	 * @param realm    principal authentication realm
-	 */
-	void register(String jwtRealm, IuPrincipalIdentity audience, String realm);
-
-	/**
-	 * Seals the trusted identity registry.
-	 */
-	void seal();
-
-	/**
-	 * Parses a JWT.
-	 * 
-	 * @param jwt serialized JWT
-	 * @return Parsed JWT
-	 */
-	IuWebToken parse(String jwt);
-
-	/**
-	 * Issues a new JWT.
-	 * 
-	 * @param issuer issuer
-	 * @return {@link Builder}
-	 */
-	Builder issue(String issuer);
+	@Override
+	public String toString() {
+		return "JwkSecret [" + name + "]";
+	}
 
 }
