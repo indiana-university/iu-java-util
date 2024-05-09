@@ -29,74 +29,39 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package iu.auth.jwt;
 
-import java.util.Iterator;
+import javax.security.auth.Subject;
 
-import edu.iu.IuIterable;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonValue;
+import edu.iu.IdGenerator;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.crypt.WebKey;
 
-/**
- * Adapts to/from {@link JsonArray} values.
- * 
- * @param <T> target type
- * @param <E> element type
- */
-abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
+@SuppressWarnings("javadoc")
+final class SimpleId implements IuPrincipalIdentity {
+	private static final long serialVersionUID = 1L;
 
-	/**
-	 * Extracts an iterator from a Java value.
-	 * 
-	 * @param value value
-	 * @return iterator
-	 */
-	abstract protected Iterator<E> iterator(T value);
+	final String name = IdGenerator.generateId();
+	final WebKey key;
 
-	/**
-	 * Collects items into the target type.
-	 * 
-	 * @param items items
-	 * @return target value
-	 */
-	abstract protected T collect(Iterable<E> items);
-
-	private final IuJsonAdapter<E> itemAdapter;
-
-	/**
-	 * Constructor
-	 * 
-	 * @param itemAdapter item adapter
-	 */
-	protected JsonArrayAdapter(IuJsonAdapter<E> itemAdapter) {
-		this.itemAdapter = itemAdapter;
+	SimpleId(WebKey key) {
+		this.key = key;
 	}
 
 	@Override
-	public T fromJson(JsonValue jsonValue) {
-		if (jsonValue == null //
-				|| JsonValue.NULL.equals(jsonValue))
-			return null;
-		else {
-			final JsonArray array;
-			if (jsonValue instanceof JsonArray)
-				array = jsonValue.asJsonArray();
-			else
-				array = IuJson.array().add(jsonValue).build();
-			return collect(IuIterable.map(array, itemAdapter::fromJson));
-		}
+	public String getName() {
+		return name;
 	}
 
 	@Override
-	public JsonValue toJson(T javaValue) {
-		if (javaValue == null)
-			return JsonValue.NULL;
-
-		final var a = IuJson.array();
-		iterator(javaValue).forEachRemaining(i -> a.add(itemAdapter.toJson(i)));
-		return a.build();
+	public Subject getSubject() {
+		final var subject = new Subject();
+		subject.getPrincipals().add(this);
+		if (key.getPrivateKey() != null)
+			subject.getPrivateCredentials().add(key);
+		if (key.getPublicKey() != null)
+			subject.getPublicCredentials().add(key);
+		subject.setReadOnly();
+		return subject;
 	}
-
 }

@@ -86,12 +86,12 @@ final class ComponentFactory {
 	/**
 	 * Creates a modular component.
 	 * 
-	 * @param parentLayer        {@link ModuleLayer} to extend
 	 * @param parent             parent component
 	 * @param parentLoader       {@link ClassLoader} for parent delegation
+	 * @param parentLayer        {@link ModuleLayer} to extend
 	 * @param archives           component path
 	 * @param controllerCallback receives a reference to the {@link Controller} for
-	 *                           the componet's module layer
+	 *                           the component's module layer
 	 * @param destroy            thunk for final cleanup after closing the component
 	 * @return module component
 	 * @throws IOException If an I/O error occurs reading from an archive
@@ -148,8 +148,8 @@ final class ComponentFactory {
 	 * Creates a component from the source queue.
 	 * 
 	 * @param parent             parent component
-	 * @param parentLayer        {@link ModuleLayer} to extend
 	 * @param parentLoader       {@link ClassLoader} for parent delegation
+	 * @param parentLayer        {@link ModuleLayer} to extend
 	 * @param controllerCallback receives a reference to {@link Controller} for the
 	 *                           component's module layer
 	 * @param sources            source queue; will be drained and all entries

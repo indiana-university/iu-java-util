@@ -142,7 +142,7 @@ public class IuJsonTest {
 		assertInstanceOf(JsonArrayBuilder.class, a);
 		a.add(1);
 		final var a2 = IuJson.array(a.build());
-		assertInstanceOf(JsonArrayBuilder.class, a);
+		assertInstanceOf(JsonArrayBuilder.class, a2);
 		assertEquals(1, a2.build().getInt(0));
 	}
 
@@ -152,7 +152,7 @@ public class IuJsonTest {
 		assertInstanceOf(JsonObjectBuilder.class, o);
 		o.add("a", 1);
 		final var o2 = IuJson.object(o.build());
-		assertInstanceOf(JsonObjectBuilder.class, o);
+		assertInstanceOf(JsonObjectBuilder.class, o2);
 		assertEquals(1, o2.build().getInt("a"));
 	}
 

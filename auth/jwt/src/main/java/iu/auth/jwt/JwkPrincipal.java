@@ -29,74 +29,53 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package iu.auth.jwt;
 
-import java.util.Iterator;
+import java.net.URI;
+import java.util.Set;
+
+import javax.security.auth.Subject;
 
 import edu.iu.IuIterable;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonValue;
+import edu.iu.IuObject;
+import edu.iu.auth.jwt.IuWebKey;
+import edu.iu.crypt.WebKey;
 
 /**
- * Adapts to/from {@link JsonArray} values.
- * 
- * @param <T> target type
- * @param <E> element type
+ * {@link IuWebKey} implementation.
  */
-abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
+final class JwkPrincipal implements IuWebKey {
+
+	private static final long serialVersionUID = 1L;
+
+	private final URI jwksUri;
+	private final String keyId;
 
 	/**
-	 * Extracts an iterator from a Java value.
+	 * Constructor.
 	 * 
-	 * @param value value
-	 * @return iterator
+	 * @param jwksUri JWKS URI
+	 * @param keyId   key ID
 	 */
-	abstract protected Iterator<E> iterator(T value);
-
-	/**
-	 * Collects items into the target type.
-	 * 
-	 * @param items items
-	 * @return target value
-	 */
-	abstract protected T collect(Iterable<E> items);
-
-	private final IuJsonAdapter<E> itemAdapter;
-
-	/**
-	 * Constructor
-	 * 
-	 * @param itemAdapter item adapter
-	 */
-	protected JsonArrayAdapter(IuJsonAdapter<E> itemAdapter) {
-		this.itemAdapter = itemAdapter;
+	JwkPrincipal(URI jwksUri, String keyId) {
+		this.jwksUri = jwksUri;
+		this.keyId = IuObject.once(jwksUri.getFragment(), keyId);
 	}
 
 	@Override
-	public T fromJson(JsonValue jsonValue) {
-		if (jsonValue == null //
-				|| JsonValue.NULL.equals(jsonValue))
-			return null;
-		else {
-			final JsonArray array;
-			if (jsonValue instanceof JsonArray)
-				array = jsonValue.asJsonArray();
-			else
-				array = IuJson.array().add(jsonValue).build();
-			return collect(IuIterable.map(array, itemAdapter::fromJson));
-		}
+	public String getName() {
+		if (jwksUri.getFragment() == null)
+			return jwksUri + "#" + keyId;
+		else
+			return jwksUri.toString();
 	}
 
 	@Override
-	public JsonValue toJson(T javaValue) {
-		if (javaValue == null)
-			return JsonValue.NULL;
-
-		final var a = IuJson.array();
-		iterator(javaValue).forEachRemaining(i -> a.add(itemAdapter.toJson(i)));
-		return a.build();
+	public Subject getSubject() {
+		final var jwk = IuIterable.filter(WebKey.readJwks(jwksUri), k -> keyId.equals(k.getKeyId())).iterator().next();
+		if (!jwk.wellKnown().equals(jwk))
+			throw new IllegalStateException("Public jwk must not include non-public key data");
+		return new Subject(true, Set.of(this), Set.of(jwk), Set.of());
 	}
 
 }

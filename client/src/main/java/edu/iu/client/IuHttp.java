@@ -58,7 +58,7 @@ import jakarta.json.JsonValue;
  * utilities for {@link HttpRequest} and {@link HttpResponse}.
  * 
  * <p>
- * All requests are handling via a cached {@link HttpClient} instance configured
+ * All requests are handled via a cached {@link HttpClient} instance configured
  * with {@link HttpClient#newHttpClient default settings}.
  * </p>
  */

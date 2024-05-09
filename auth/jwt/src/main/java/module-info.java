@@ -29,74 +29,17 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
-
-import java.util.Iterator;
-
-import edu.iu.IuIterable;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonValue;
-
 /**
- * Adapts to/from {@link JsonArray} values.
+ * JWT principal identity support.
  * 
- * @param <T> target type
- * @param <E> element type
+ * @provides edu.iu.auth.spi.IuJwtSpi service provider implementation
  */
-abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
+module iu.util.auth.jwt {
+	requires iu.util;
+	requires iu.util.auth;
+	requires iu.util.auth.principal;
+	requires iu.util.client;
+	requires iu.util.crypt;
 
-	/**
-	 * Extracts an iterator from a Java value.
-	 * 
-	 * @param value value
-	 * @return iterator
-	 */
-	abstract protected Iterator<E> iterator(T value);
-
-	/**
-	 * Collects items into the target type.
-	 * 
-	 * @param items items
-	 * @return target value
-	 */
-	abstract protected T collect(Iterable<E> items);
-
-	private final IuJsonAdapter<E> itemAdapter;
-
-	/**
-	 * Constructor
-	 * 
-	 * @param itemAdapter item adapter
-	 */
-	protected JsonArrayAdapter(IuJsonAdapter<E> itemAdapter) {
-		this.itemAdapter = itemAdapter;
-	}
-
-	@Override
-	public T fromJson(JsonValue jsonValue) {
-		if (jsonValue == null //
-				|| JsonValue.NULL.equals(jsonValue))
-			return null;
-		else {
-			final JsonArray array;
-			if (jsonValue instanceof JsonArray)
-				array = jsonValue.asJsonArray();
-			else
-				array = IuJson.array().add(jsonValue).build();
-			return collect(IuIterable.map(array, itemAdapter::fromJson));
-		}
-	}
-
-	@Override
-	public JsonValue toJson(T javaValue) {
-		if (javaValue == null)
-			return JsonValue.NULL;
-
-		final var a = IuJson.array();
-		iterator(javaValue).forEachRemaining(i -> a.add(itemAdapter.toJson(i)));
-		return a.build();
-	}
-
+	provides edu.iu.auth.spi.IuJwtSpi with iu.auth.jwt.JwtSpi;
 }

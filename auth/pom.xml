@@ -26,7 +26,7 @@
 				<module>principal</module>
 				<module>basic</module>
 				<module>pki</module>
-				<module>util</module>
+				<module>jwt</module>
 				<module>oauth</module>
 				<module>oidc</module>
 				<module>impl</module>

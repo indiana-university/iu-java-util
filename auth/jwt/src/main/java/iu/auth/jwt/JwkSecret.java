@@ -29,74 +29,51 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package iu.auth.jwt;
 
-import java.util.Iterator;
+import java.util.Set;
 
-import edu.iu.IuIterable;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonValue;
+import javax.security.auth.Subject;
+
+import edu.iu.auth.jwt.IuWebKey;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Type;
 
 /**
- * Adapts to/from {@link JsonArray} values.
- * 
- * @param <T> target type
- * @param <E> element type
+ * {@link IuWebKey} implementation.
  */
-abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
+final class JwkSecret implements IuWebKey {
+
+	private static final long serialVersionUID = 1L;
+
+	private final String name;
+	private final byte[] secretKey;
 
 	/**
-	 * Extracts an iterator from a Java value.
+	 * Constructor.
 	 * 
-	 * @param value value
-	 * @return iterator
+	 * @param name      principal name
+	 * @param secretKey secret key
 	 */
-	abstract protected Iterator<E> iterator(T value);
-
-	/**
-	 * Collects items into the target type.
-	 * 
-	 * @param items items
-	 * @return target value
-	 */
-	abstract protected T collect(Iterable<E> items);
-
-	private final IuJsonAdapter<E> itemAdapter;
-
-	/**
-	 * Constructor
-	 * 
-	 * @param itemAdapter item adapter
-	 */
-	protected JsonArrayAdapter(IuJsonAdapter<E> itemAdapter) {
-		this.itemAdapter = itemAdapter;
+	JwkSecret(String name, byte[] secretKey) {
+		this.name = name;
+		this.secretKey = secretKey;
 	}
 
 	@Override
-	public T fromJson(JsonValue jsonValue) {
-		if (jsonValue == null //
-				|| JsonValue.NULL.equals(jsonValue))
-			return null;
-		else {
-			final JsonArray array;
-			if (jsonValue instanceof JsonArray)
-				array = jsonValue.asJsonArray();
-			else
-				array = IuJson.array().add(jsonValue).build();
-			return collect(IuIterable.map(array, itemAdapter::fromJson));
-		}
+	public String getName() {
+		return name;
 	}
 
 	@Override
-	public JsonValue toJson(T javaValue) {
-		if (javaValue == null)
-			return JsonValue.NULL;
+	public Subject getSubject() {
+		final var jwk = WebKey.builder(Type.RAW).key(secretKey).build();
+		return new Subject(true, Set.of(this), Set.of(jwk), Set.of(jwk));
+	}
 
-		final var a = IuJson.array();
-		iterator(javaValue).forEachRemaining(i -> a.add(itemAdapter.toJson(i)));
-		return a.build();
+	@Override
+	public String toString() {
+		return "JwkSecret [" + name + "]";
 	}
 
 }

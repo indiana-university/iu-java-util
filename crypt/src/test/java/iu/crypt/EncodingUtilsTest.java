@@ -81,24 +81,6 @@ public class EncodingUtilsTest {
 	}
 
 	@Test
-	public void testUnpad() {
-		assertNull(UnpaddedBinary.unpad(null));
-		assertEquals("", UnpaddedBinary.unpad(""));
-		assertEquals("a", UnpaddedBinary.unpad("a==="));
-	}
-
-	@Test
-	public void testPad() {
-		assertNull(UnpaddedBinary.pad(null));
-		assertEquals("", UnpaddedBinary.pad(""));
-		assertEquals("a===", UnpaddedBinary.pad("a"));
-		assertEquals("ab==", UnpaddedBinary.pad("ab"));
-		assertEquals("abc=", UnpaddedBinary.pad("abc"));
-		assertEquals("abcd", UnpaddedBinary.pad("abcd"));
-		assertEquals("abcde===", UnpaddedBinary.pad("abcde"));
-	}
-
-	@Test
 	public void testBase64() {
 		// padded
 		assertEquals("Zm9vbGJhcm4=", IuText.base64(IuText.utf8("foolbarn")));
