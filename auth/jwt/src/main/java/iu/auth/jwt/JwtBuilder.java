@@ -13,6 +13,7 @@ import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.jwt.IuWebToken;
 import edu.iu.auth.jwt.IuWebToken.Builder;
 import edu.iu.client.IuJsonBuilder;
+import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
@@ -143,9 +144,21 @@ class JwtBuilder extends IuJsonBuilder<JwtBuilder> implements Builder {
 		Objects.requireNonNull(claims.get("sub"), "missing subject princpal");
 		Objects.requireNonNull(claims.get("exp"), "missing expiration time");
 
-		final var jws = WebSignature.builder(Algorithm.from(alg)).key(signingKey).sign(IuText.utf8(claims.toString()));
+		final var jws = WebSignature //
+				.builder(Algorithm.from(alg)) //
+				.type("JWT") //
+				.key(signingKey) //
+				.sign(IuText.utf8(claims.toString()));
+		
 		if (encryptKey == null)
-			return new Jwt(alg, alg);
+			return new Jwt(realm, jws.compact());
+
+		Algorithm 
+		final var jweBuilder = WebEncryption //
+				.builder(Objects.requireNonNullElse(enc, Encryption.AES_128_CBC_HMAC_SHA_256));
+		
+			
+//				.addRecipient()
 		// TODO Auto-generated method stub
 		return null;
 	}
