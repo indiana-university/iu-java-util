@@ -32,6 +32,7 @@
 package iu.crypt;
 
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
@@ -50,7 +51,6 @@ import edu.iu.IuText;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebEncryptionRecipient.Builder;
-import edu.iu.crypt.DigestUtils;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
@@ -104,8 +104,8 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 		for (var i = 0; i < reps; i++) {
 			final var n = i + 1;
 			// R(n) = H(n || Z || FixedInfo)
-			keyBuffer.put(DigestUtils
-					.sha256(EncodingUtils.concatKdf(n, z, /* FixedInfo = */ algId, uinfo, vinfo, keyDataLen)));
+			keyBuffer.put(IuException.unchecked(() -> MessageDigest.getInstance("SHA-256"))
+					.digest(EncodingUtils.concatKdf(n, z, /* FixedInfo = */ algId, uinfo, vinfo, keyDataLen)));
 		}
 
 		final var keylen = keyDataLen / 8;

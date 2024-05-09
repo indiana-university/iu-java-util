@@ -41,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.InvalidKeyException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.NoSuchElementException;
@@ -52,7 +53,6 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
-import edu.iu.crypt.DigestUtils;
 import edu.iu.crypt.WebKey;
 
 @SuppressWarnings("javadoc")
@@ -188,7 +188,7 @@ public class EncodingUtilsTest {
 						(byte) 140, (byte) 254, (byte) 144, (byte) 196, 0, 0, 0, 7, 65, 49, 50, 56, 71, 67, 77, 0, 0, 0,
 						5, 65, 108, 105, 99, 101, 0, 0, 0, 3, 66, 111, 98, 0, 0, 0, (byte) 128 });
 
-		final var h = DigestUtils.sha256(buf);
+		final var h = MessageDigest.getInstance("SHA-256").digest(buf);
 		final var k = Arrays.copyOf(h, 16);
 		assertEquals("VqqN6vgjbSBcIijNcacQGg", UnpaddedBinary.base64Url(k));
 	}

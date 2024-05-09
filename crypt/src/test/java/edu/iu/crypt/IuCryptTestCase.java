@@ -41,6 +41,7 @@ import static org.mockito.Mockito.when;
 import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.net.http.HttpResponse;
+import java.security.MessageDigest;
 import java.security.cert.X509Certificate;
 
 import org.junit.jupiter.api.AfterEach;
@@ -116,14 +117,16 @@ public class IuCryptTestCase {
 			+ "-----END CERTIFICATE-----\r\n";
 
 	protected static final X509Certificate CERT = PemEncoded.parse(CERT_TEXT).next().asCertificate();
-	protected static final byte[] CERT_S1 = IuException.unchecked(() -> DigestUtils.sha1(CERT.getEncoded()));
-	protected static final byte[] CERT_S256 = IuException.unchecked(() -> DigestUtils.sha256(CERT.getEncoded()));
+	protected static final byte[] CERT_S1 = IuException
+			.unchecked(() -> MessageDigest.getInstance("SHA-1").digest(CERT.getEncoded()));
+	protected static final byte[] CERT_S256 = IuException
+			.unchecked(() -> MessageDigest.getInstance("SHA-256").digest(CERT.getEncoded()));
 
 	protected static final X509Certificate ANOTHER_CERT = PemEncoded.parse(ANOTHER_CERT_TEXT).next().asCertificate();
 	protected static final byte[] ANOTHER_CERT_S1 = IuException
-			.unchecked(() -> DigestUtils.sha1(ANOTHER_CERT.getEncoded()));
+			.unchecked(() -> MessageDigest.getInstance("SHA-1").digest(ANOTHER_CERT.getEncoded()));
 	protected static final byte[] ANOTHER_CERT_S256 = IuException
-			.unchecked(() -> DigestUtils.sha256(ANOTHER_CERT.getEncoded()));
+			.unchecked(() -> MessageDigest.getInstance("SHA-256").digest(ANOTHER_CERT.getEncoded()));
 
 	private MockedStatic<IuHttp> mockHttp;
 

@@ -33,6 +33,7 @@ package edu.iu.crypt;
 
 import java.io.InputStream;
 import java.net.URI;
+import java.security.MessageDigest;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 
@@ -83,13 +84,13 @@ public interface WebCertificateReference {
 			final var certificateThumbprint = reference.getCertificateThumbprint();
 			if (certificateThumbprint != null //
 					&& !Arrays.equals(certificateThumbprint,
-							IuException.unchecked(() -> DigestUtils.sha1(cert.getEncoded()))))
+							IuException.unchecked(() -> MessageDigest.getInstance("SHA-1").digest(cert.getEncoded()))))
 				throw new IllegalArgumentException("Certificate SHA-1 thumbprint mismatch");
 
 			final var certificateSha256Thumbprint = reference.getCertificateSha256Thumbprint();
 			if (certificateSha256Thumbprint != null //
-					&& !Arrays.equals(certificateSha256Thumbprint,
-							IuException.unchecked(() -> DigestUtils.sha256(cert.getEncoded()))))
+					&& !Arrays.equals(certificateSha256Thumbprint, IuException
+							.unchecked(() -> MessageDigest.getInstance("SHA-256").digest(cert.getEncoded()))))
 				throw new IllegalArgumentException("Certificate SHA-256 thumbprint mismatch");
 		}
 

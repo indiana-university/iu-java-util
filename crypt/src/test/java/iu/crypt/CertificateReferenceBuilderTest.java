@@ -37,11 +37,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.ByteArrayInputStream;
-import java.security.cert.CertificateEncodingException;
+import java.security.MessageDigest;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.crypt.DigestUtils;
 import edu.iu.crypt.IuCryptTestCase;
 import edu.iu.crypt.PemEncoded;
 
@@ -71,41 +70,42 @@ public class CertificateReferenceBuilderTest extends IuCryptTestCase {
 	}
 
 	@Test
-	public void testCertThumbprint() throws CertificateEncodingException {
+	public void testCertThumbprint() throws Exception {
 		final var builder = new Builder();
-		builder.x5t(DigestUtils.sha1(CERT.getEncoded()));
+		builder.x5t(MessageDigest.getInstance("SHA-1").digest(CERT.getEncoded()));
 		builder.cert(CERT);
-		builder.x5t(DigestUtils.sha1(CERT.getEncoded()));
+		builder.x5t(MessageDigest.getInstance("SHA-1").digest(CERT.getEncoded()));
 		final var ref = builder.build();
-		assertArrayEquals(DigestUtils.sha1(CERT.getEncoded()), ref.getCertificateThumbprint());
+		assertArrayEquals(MessageDigest.getInstance("SHA-1").digest(CERT.getEncoded()), ref.getCertificateThumbprint());
 		assertSame(CERT, ref.getCertificateChain()[0]);
 	}
 
 	@Test
-	public void testCertThumbprintUri() throws CertificateEncodingException {
+	public void testCertThumbprintUri() throws Exception {
 		final var builder = new Builder();
-		builder.x5t(DigestUtils.sha1(CERT.getEncoded()));
+		builder.x5t(MessageDigest.getInstance("SHA-1").digest(CERT.getEncoded()));
 		builder.cert(uri(CERT_TEXT));
-		builder.x5t(DigestUtils.sha1(CERT.getEncoded()));
+		builder.x5t(MessageDigest.getInstance("SHA-1").digest(CERT.getEncoded()));
 	}
 
 	@Test
-	public void testCert256Thumbprint() throws CertificateEncodingException {
+	public void testCert256Thumbprint() throws Exception {
 		final var builder = new Builder();
-		builder.x5t256(DigestUtils.sha256(CERT.getEncoded()));
+		builder.x5t256(MessageDigest.getInstance("SHA-256").digest(CERT.getEncoded()));
 		builder.cert(CERT);
-		builder.x5t256(DigestUtils.sha256(CERT.getEncoded()));
+		builder.x5t256(MessageDigest.getInstance("SHA-256").digest(CERT.getEncoded()));
 		final var ref = builder.build();
-		assertArrayEquals(DigestUtils.sha256(CERT.getEncoded()), ref.getCertificateSha256Thumbprint());
+		assertArrayEquals(MessageDigest.getInstance("SHA-256").digest(CERT.getEncoded()),
+				ref.getCertificateSha256Thumbprint());
 		assertSame(CERT, ref.getCertificateChain()[0]);
 	}
 
 	@Test
-	public void testCert256ThumbprintUri() throws CertificateEncodingException {
+	public void testCert256ThumbprintUri() throws Exception {
 		final var builder = new Builder();
-		builder.x5t256(DigestUtils.sha256(CERT.getEncoded()));
+		builder.x5t256(MessageDigest.getInstance("SHA-256").digest(CERT.getEncoded()));
 		builder.cert(uri(CERT_TEXT));
-		builder.x5t256(DigestUtils.sha256(CERT.getEncoded()));
+		builder.x5t256(MessageDigest.getInstance("SHA-256").digest(CERT.getEncoded()));
 	}
 
 	@Test
