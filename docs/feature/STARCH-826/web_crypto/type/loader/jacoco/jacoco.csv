@@ -1,3 +1,3 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
-IU Type Introspection Module Loader,edu.iu.type.loader,IuComponentLoader,0,158,0,6,0,31,0,19,0,16
+IU Type Introspection Module Loader,edu.iu.type.loader,IuComponentLoader,0,172,0,10,0,34,0,17,0,12
 IU Type Introspection Module Loader,iu.type.loader,LoadedComponent,0,124,0,6,0,19,0,8,0,5

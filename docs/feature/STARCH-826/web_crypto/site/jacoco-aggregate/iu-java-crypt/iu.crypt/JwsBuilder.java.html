@@ -268,18 +268,19 @@ public class JwsBuilder implements Builder&lt;JwsBuilder&gt; {
 <span class="fc" id="L268">						sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA512.getDigestAlgorithm(), &quot;MGF1&quot;,</span>
 								MGF1ParameterSpec.SHA512, algorithm.size / 8, 1));
 <span class="fc" id="L270">						break;</span>
+
 					default:
 						break;
 					}
-<span class="fc" id="L274">					sig.initSign(key.getPrivateKey());</span>
-<span class="fc" id="L275">					sig.update(dataToSign);</span>
-<span class="fc" id="L276">					return sig.sign();</span>
+<span class="fc" id="L275">					sig.initSign(key.getPrivateKey());</span>
+<span class="fc" id="L276">					sig.update(dataToSign);</span>
+<span class="fc" id="L277">					return Jws.fromJce(key.getType(), algorithm, sig.sign());</span>
 				});
 
-<span class="fc" id="L279">			signatures.add(new Jws(protectedHeader, header, signature));</span>
-<span class="fc" id="L280">		}</span>
+<span class="fc" id="L280">			signatures.add(new Jws(protectedHeader, header, signature));</span>
+<span class="fc" id="L281">		}</span>
 
-<span class="fc" id="L282">		return new JwsSignedPayload(payload, Collections.unmodifiableCollection(signatures));</span>
+<span class="fc" id="L283">		return new JwsSignedPayload(payload, Collections.unmodifiableCollection(signatures));</span>
 	}
 
 }

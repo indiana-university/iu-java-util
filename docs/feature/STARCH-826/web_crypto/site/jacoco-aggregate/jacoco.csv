@@ -9,7 +9,9 @@ IU Java Utilities API Reference/iu-java-base,edu.iu,IuCacheMap.CacheCollection,0
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuStream.new ThreadLocal() {...},0,7,0,0,0,2,0,2,0,2
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuVisitor,0,89,0,12,0,27,0,12,0,6
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuStream.Buffers,0,11,0,0,0,3,0,1,0,1
+IU Java Utilities API Reference/iu-java-base,edu.iu,IuWebUtils.new Iterator() {...},0,265,0,30,0,45,0,18,0,3
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuObject,0,744,0,166,0,180,0,110,0,27
+IU Java Utilities API Reference/iu-java-base,edu.iu,IuWebUtils.1.new IuWebAuthenticationChallenge() {...},0,24,0,0,0,4,0,4,0,4
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuException,0,547,0,38,0,201,0,63,0,44
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuAsynchronousSubject,0,95,0,12,0,24,0,14,0,8
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuVisitor.ElementSplitter.new Object() {...},0,6,0,0,0,1,0,1,0,1
@@ -40,7 +42,7 @@ IU Java Utilities API Reference/iu-java-base,edu.iu,IuParallelWorkloadController
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuAsynchronousSubject.Subscriber,0,542,0,98,0,147,0,74,0,25
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuAuthorizationFailedException,0,16,0,0,0,8,0,4,0,4
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuCacheMap.CacheKeySet,0,24,0,0,0,3,0,4,0,4
-IU Java Utilities API Reference/iu-java-base,edu.iu,IuWebUtils,0,651,0,113,0,148,0,90,0,14
+IU Java Utilities API Reference/iu-java-base,edu.iu,IuWebUtils,0,1104,0,243,0,249,0,169,0,28
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuCacheMap.CacheValues,0,27,0,0,0,3,0,4,0,4
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuRuntimeEnvironment,0,64,0,6,0,11,0,11,0,8
 IU Java Utilities API Reference/iu-java-base,edu.iu,IdGenerator.new ThreadLocal() {...},0,27,0,0,0,9,0,2,0,2
@@ -68,16 +70,16 @@ IU Java Utilities API Reference/iu-java-client,iu.client,JsonObjectAdapter,0,81,
 IU Java Utilities API Reference/iu-java-client,iu.client,ArrayAdapter,0,19,0,0,0,5,0,3,0,3
 IU Java Utilities API Reference/iu-java-client,iu.client,IteratorAdapter,0,9,0,0,0,4,0,3,0,3
 IU Java Utilities API Reference/iu-java-client,iu.client,BooleanJsonAdapter,0,70,0,18,0,15,0,13,0,4
-IU Java Utilities API Reference/iu-java-client,iu.client,JsonArrayAdapter,0,50,1,5,0,12,1,6,0,4
+IU Java Utilities API Reference/iu-java-client,iu.client,JsonArrayAdapter,0,61,0,8,0,15,0,8,0,4
 IU Java Utilities API Reference/iu-java-client,iu.client,BinaryJsonAdapter,0,27,0,4,0,9,0,5,0,3
 IU Java Utilities API Reference/iu-java-client,iu.client,IterableAdapter,0,9,0,0,0,4,0,3,0,3
 IU Java Utilities API Reference/iu-java-client,iu.client,CalendarJsonAdapter,0,32,0,4,0,10,0,5,0,3
 IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuJsonAdapter.new IuJsonAdapter() {...},0,20,0,0,0,3,0,3,0,3
 IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuJsonAdapter.new IuJsonAdapter() {...},0,15,0,0,0,3,0,3,0,3
 IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuJsonAdapter.new IuJsonAdapter() {...},0,16,0,0,0,3,0,3,0,3
-IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuHttp,0,308,0,20,0,62,0,26,0,16
+IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuHttp,0,336,0,24,0,67,0,30,0,18
 IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuJsonAdapter,0,42,0,0,0,9,0,9,0,9
-IU Java Utilities API Reference/iu-java-client,edu.iu.client,HttpException,0,10,0,0,0,4,0,2,0,2
+IU Java Utilities API Reference/iu-java-client,edu.iu.client,HttpException,0,25,0,0,0,10,0,4,0,4
 IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuVault,0,277,0,14,0,62,0,19,0,12
 IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuJsonBuilder,0,98,0,2,0,16,0,12,0,11
 IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuJson,0,221,0,16,0,58,0,42,0,34
@@ -123,11 +125,11 @@ IU Java Utilities API Reference/iu-java-crypt,iu.crypt,UnpaddedBinary.new Iterat
 IU Java Utilities API Reference/iu-java-crypt,iu.crypt,JweRecipientBuilder,0,93,0,6,0,21,0,9,0,6
 IU Java Utilities API Reference/iu-java-crypt,iu.crypt,Jose,0,351,0,38,0,66,0,40,0,21
 IU Java Utilities API Reference/iu-java-crypt,iu.crypt,JweRecipientBuilder.EncryptedKeyBuilder,0,395,0,10,0,77,0,18,0,11
-IU Java Utilities API Reference/iu-java-crypt,iu.crypt,Jws,0,322,0,26,0,58,0,28,0,14
+IU Java Utilities API Reference/iu-java-crypt,iu.crypt,Jws,0,591,0,66,0,120,0,52,0,17
 IU Java Utilities API Reference/iu-java-crypt,iu.crypt,JsonCertificateReference,0,201,0,20,0,35,0,25,0,15
 IU Java Utilities API Reference/iu-java-crypt,iu.crypt,JwsBuilder.PendingSignature,0,88,0,10,0,16,0,9,0,4
-IU Java Utilities API Reference/iu-java-crypt,iu.crypt,UnpaddedBinary,0,110,0,26,0,27,0,23,0,9
-IU Java Utilities API Reference/iu-java-crypt,iu.crypt,JwsBuilder,0,417,0,18,0,85,0,29,0,19
+IU Java Utilities API Reference/iu-java-crypt,iu.crypt,UnpaddedBinary,0,58,0,10,0,14,0,12,0,7
+IU Java Utilities API Reference/iu-java-crypt,iu.crypt,JwsBuilder,0,421,0,18,0,85,0,29,0,19
 IU Java Utilities API Reference/iu-java-crypt,iu.crypt,KeyReferenceBuilder,0,16,0,0,0,3,0,3,0,3
 IU Java Utilities API Reference/iu-java-crypt,iu.crypt,JweBuilder,0,270,0,22,0,52,0,21,0,10
 IU Java Utilities API Reference/iu-java-jdbc-pool,edu.iu.jdbc.pool,IuPooledConnection.new ThreadFactory() {...},0,26,0,0,0,4,0,2,0,2
@@ -155,7 +157,7 @@ IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuComponentVersion,
 IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuComponent,0,101,0,2,0,15,0,9,0,8
 IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,FilteringClassLoader,0,66,0,16,0,19,0,10,0,2
 IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,TemporaryFile.new Object() {...},0,3,0,0,0,1,0,1,0,1
-IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,ModularClassLoader,0,725,0,84,0,153,0,67,0,25
+IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,ModularClassLoader,0,748,0,86,0,157,0,68,0,25
 IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,CloseableModuleFinder.Ref,0,53,0,8,0,17,0,7,0,3
 IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,CloseableModuleFinder,0,109,0,12,0,23,0,10,0,4
 IU Java Utilities API Reference/iu-java-type-base,edu.iu.type.base,ModularClassLoader.new AutoCloseable() {...},0,14,0,2,0,5,0,3,0,2
@@ -180,7 +182,7 @@ IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeFactory.new Object
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,DeclaredElementBase,0,46,0,4,0,13,0,5,0,3
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentModuleFinder,0,109,0,12,0,23,0,10,0,4
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeTemplate,0,977,1,115,0,191,1,108,0,51
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentFactory,0,404,0,40,0,72,0,30,0,10
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentFactory,0,456,0,42,0,79,0,33,0,12
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentArchive.ScannedAttributes,0,21,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,LegacyClassLoader,0,56,0,8,0,15,0,6,0,2
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentModuleFinder.Ref,0,53,0,8,0,17,0,7,0,3
@@ -204,14 +206,14 @@ IU Java Utilities API Reference/iu-java-type-impl,iu.type,ConstructorFacade,0,66
 IU Java Utilities API Reference/iu-java-type,jakarta.annotation,Resource.AuthenticationType,0,15,0,0,0,3,0,1,0,1
 IU Java Utilities API Reference/iu-java-type,jakarta.interceptor,InvocationContext,51,0,8,0,12,0,7,0,3,0
 IU Java Utilities API Reference/iu-java-type,edu.iu.type.bundle,IuTypeBundle,0,7,0,0,0,4,0,2,0,2
-IU Java Utilities API Reference/iu-java-type,iu.type.bundle,TypeBundleSpi,0,167,0,14,0,37,0,21,0,14
+IU Java Utilities API Reference/iu-java-type,iu.type.bundle,TypeBundleSpi,0,155,0,12,0,34,0,18,0,12
 IU Java Utilities API Reference/iu-java-type,iu.type,ParameterizedFacade,0,6,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-type,iu.type,TypeFacade,0,189,0,0,0,42,0,33,0,33
 IU Java Utilities API Reference/iu-java-type,iu.type,ParameterizedElement,0,179,0,24,0,46,0,18,0,6
 IU Java Utilities API Reference/iu-java-type,iu.type,ElementBase,0,62,0,6,0,19,0,8,0,5
 IU Java Utilities API Reference/iu-java-type,iu.type,ComponentModuleFinder,0,109,0,12,0,23,0,10,0,4
 IU Java Utilities API Reference/iu-java-type,iu.type,TypeTemplate,0,977,1,115,0,191,1,108,0,51
-IU Java Utilities API Reference/iu-java-type,iu.type,ComponentFactory,0,404,0,40,0,72,0,30,0,10
+IU Java Utilities API Reference/iu-java-type,iu.type,ComponentFactory,0,456,0,42,0,79,0,33,0,12
 IU Java Utilities API Reference/iu-java-type,iu.type,ComponentArchive.ScannedAttributes,0,21,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-type,iu.type,LegacyClassLoader,0,56,0,8,0,15,0,6,0,2
 IU Java Utilities API Reference/iu-java-type,iu.type,ComponentModuleFinder.Ref,0,53,0,8,0,17,0,7,0,3
@@ -244,11 +246,11 @@ IU Java Utilities API Reference/iu-java-type,iu.type,TypeReference,0,291,0,32,0,
 IU Java Utilities API Reference/iu-java-type,iu.type,PotentiallyRemoteAnnotationHandler,0,260,0,32,0,43,0,26,0,10
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.spi,TypeImplementation,0,9,0,0,0,2,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.annotation,Resource.AuthenticationType,0,15,0,0,0,3,0,1,0,1
-IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.loader,IuComponentLoader,0,158,0,6,0,31,0,19,0,16
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.loader,IuComponentLoader,0,172,0,10,0,34,0,17,0,12
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.interceptor,InvocationContext,51,0,8,0,12,0,7,0,3,0
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.bundle,IuTypeBundle,0,7,0,0,0,4,0,2,0,2
 IU Java Utilities API Reference/iu-java-type-loader,iu.type.loader,LoadedComponent,0,124,0,6,0,19,0,8,0,5
-IU Java Utilities API Reference/iu-java-type-loader,iu.type.bundle,TypeBundleSpi,0,167,0,14,0,37,0,21,0,14
+IU Java Utilities API Reference/iu-java-type-loader,iu.type.bundle,TypeBundleSpi,0,155,0,12,0,34,0,18,0,12
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuParameterizedElement,0,6,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuTypeKey,0,477,0,56,0,95,0,42,0,14
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuTypeKey.Kind,0,33,0,0,0,6,0,1,0,1
@@ -265,7 +267,7 @@ IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuType,0,404,0,6
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuExecutable,0,6,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuComponent.Kind,0,68,0,0,0,13,0,4,0,4
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeFacade,0,189,0,0,0,42,0,33,0,33
-IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentFactory,0,404,0,40,0,72,0,30,0,10
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentFactory,0,456,0,42,0,79,0,33,0,12
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,LegacyClassLoader,0,56,0,8,0,15,0,6,0,2
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentVersion,0,533,2,72,0,108,2,50,0,15
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentTarget,0,57,0,2,0,13,0,4,0,3

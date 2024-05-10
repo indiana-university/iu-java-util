@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UnpaddedBinary.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Crypto and PKI Utilities</a> &gt; <a href="index.source.html" class="el_package">iu.crypt</a> &gt; <span class="el_source">UnpaddedBinary.java</span></div><h1>UnpaddedBinary.java</h1><pre class="source lang-java linenums">/*
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UnpaddedBinary.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Web Cryptography Utilities</a> &gt; <a href="index.source.html" class="el_package">iu.crypt</a> &gt; <span class="el_source">UnpaddedBinary.java</span></div><h1>UnpaddedBinary.java</h1><pre class="source lang-java linenums">/*
  * Copyright © 2024 Indiana University
  * All rights reserved.
  *
@@ -66,42 +66,42 @@ public class UnpaddedBinary implements IuJsonAdapter&lt;byte[]&gt; {
 <span class="fc" id="L66">		return IuJsonAdapter.of(String.class).toJson(base64Url(javaValue));</span>
 	}
 
-	/**
-	 * Removes training padding characters from Base-64 encoded data.
-	 * 
-	 * @param b64 Base-64 encoded
-	 * @return encoded data with padding chars removed
-	 */
-	static String unpad(String b64) {
-<span class="fc bfc" id="L76" title="All 4 branches covered.">		if (b64 == null || b64.isEmpty())</span>
-<span class="fc" id="L77">			return b64;</span>
-<span class="fc" id="L78">		var i = b64.length() - 1;</span>
-<span class="fc bfc" id="L79" title="All 4 branches covered.">		while (i &gt; 0 &amp;&amp; b64.charAt(i) == '=')</span>
-<span class="fc" id="L80">			i--;</span>
-<span class="fc" id="L81">		return b64.substring(0, i + 1);</span>
-	}
-
-	/**
-	 * Restores padding characters to Base-64 encoded data.
-	 * 
-	 * @param b64 Base-64 encoded
-	 * @return encoded data with padding chars restored
-	 */
-	static String pad(String b64) {
-<span class="fc bfc" id="L91" title="All 4 branches covered.">		if (b64 == null || b64.isEmpty())</span>
-<span class="fc" id="L92">			return b64;</span>
-<span class="fc bfc" id="L93" title="All 4 branches covered.">		switch (b64.length() % 4) {</span>
-		case 1:
-<span class="fc" id="L95">			return b64 + &quot;===&quot;;</span>
-		case 2:
-<span class="fc" id="L97">			return b64 + &quot;==&quot;;</span>
-		case 3:
-<span class="fc" id="L99">			return b64 + &quot;=&quot;;</span>
-		default:
-<span class="fc" id="L101">			return b64;</span>
-		}
-	}
-
+//	/**
+//	 * Removes training padding characters from Base-64 encoded data.
+//	 * 
+//	 * @param b64 Base-64 encoded
+//	 * @return encoded data with padding chars removed
+//	 */
+//	static String unpad(String b64) {
+//		if (b64 == null || b64.isEmpty())
+//			return b64;
+//		var i = b64.length() - 1;
+//		while (i &gt; 0 &amp;&amp; b64.charAt(i) == '=')
+//			i--;
+//		return b64.substring(0, i + 1);
+//	}
+//
+//	/**
+//	 * Restores padding characters to Base-64 encoded data.
+//	 * 
+//	 * @param b64 Base-64 encoded
+//	 * @return encoded data with padding chars restored
+//	 */
+//	static String pad(String b64) {
+//		if (b64 == null || b64.isEmpty())
+//			return b64;
+//		switch (b64.length() % 4) {
+//		case 1:
+//			return b64 + &quot;===&quot;;
+//		case 2:
+//			return b64 + &quot;==&quot;;
+//		case 3:
+//			return b64 + &quot;=&quot;;
+//		default:
+//			return b64;
+//		}
+//	}
+//
 	/**
 	 * Encodes binary data as Base64 with URL encoding and padding chars stripped.
 	 * 
@@ -117,7 +117,7 @@ public class UnpaddedBinary implements IuJsonAdapter&lt;byte[]&gt; {
 <span class="fc bfc" id="L117" title="All 2 branches covered.">		if (data == null)</span>
 <span class="fc" id="L118">			return null;</span>
 		else
-<span class="fc" id="L120">			return unpad(Base64.getUrlEncoder().encodeToString(data));</span>
+<span class="fc" id="L120">			return Base64.getUrlEncoder().withoutPadding().encodeToString(data);</span>
 	}
 
 	/**
@@ -136,7 +136,7 @@ public class UnpaddedBinary implements IuJsonAdapter&lt;byte[]&gt; {
 <span class="fc bfc" id="L136" title="All 2 branches covered.">		if (data == null)</span>
 <span class="fc" id="L137">			return null;</span>
 		else
-<span class="fc" id="L139">			return Base64.getUrlDecoder().decode(pad(data));</span>
+<span class="fc" id="L139">			return Base64.getUrlDecoder().decode(data);</span>
 	}
 
 	/**

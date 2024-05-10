@@ -44,15 +44,36 @@ public class HttpException extends Exception {
 	private final transient HttpResponse&lt;InputStream&gt; response;
 
 	/**
+	 * Pre-response constructor.
+	 * 
+	 * @param message message
+	 */
+	public HttpException(String message) {
+<span class="fc" id="L52">		super(message);</span>
+<span class="fc" id="L53">		response = null;</span>
+<span class="fc" id="L54">	}</span>
+
+	/**
+	 * Pre-response constructor.
+	 * 
+	 * @param message message
+	 * @param cause cause
+	 */
+	public HttpException(String message, Throwable cause) {
+<span class="fc" id="L63">		super(message, cause);</span>
+<span class="fc" id="L64">		response = null;</span>
+<span class="fc" id="L65">	}</span>
+
+	/**
 	 * Constructor.
 	 * 
 	 * @param response error response, status code &gt;= 400
-	 * @param message detailed error message
+	 * @param message  detailed error message
 	 */
 	HttpException(HttpResponse&lt;InputStream&gt; response, String message) {
-<span class="fc" id="L53">		super(message);</span>
-<span class="fc" id="L54">		this.response = response;</span>
-<span class="fc" id="L55">	}</span>
+<span class="fc" id="L74">		super(message);</span>
+<span class="fc" id="L75">		this.response = response;</span>
+<span class="fc" id="L76">	}</span>
 
 	/**
 	 * Gets the HTTP response that failed.
@@ -60,7 +81,7 @@ public class HttpException extends Exception {
 	 * @return {@link HttpResponse}
 	 */
 	public HttpResponse&lt;InputStream&gt; getResponse() {
-<span class="fc" id="L63">		return response;</span>
+<span class="fc" id="L84">		return response;</span>
 	}
 
 }
