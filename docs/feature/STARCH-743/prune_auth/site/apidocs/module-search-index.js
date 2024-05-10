@@ -1,1 +1,0 @@
-moduleSearchIndex = [{"l":"iu.util"},{"l":"iu.util.client"},{"l":"iu.util.jdbc.pool"},{"l":"iu.util.runtime"},{"l":"iu.util.test"},{"l":"iu.util.type"},{"l":"iu.util.type.base"},{"l":"iu.util.type.impl"},{"l":"iu.util.type.loader"}];updateSearchResults();
