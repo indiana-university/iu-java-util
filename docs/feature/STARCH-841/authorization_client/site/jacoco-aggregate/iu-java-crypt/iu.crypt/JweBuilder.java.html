@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>JweBuilder.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-crypt</a> &gt; <a href="index.source.html" class="el_package">iu.crypt</a> &gt; <span class="el_source">JweBuilder.java</span></div><h1>JweBuilder.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.crypt;
+
+import java.io.InputStream;
+import java.util.ArrayDeque;
+import java.util.LinkedHashSet;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.Set;
+
+import edu.iu.IuObject;
+import edu.iu.crypt.WebCryptoHeader.Param;
+import edu.iu.crypt.WebEncryption;
+import edu.iu.crypt.WebEncryption.Builder;
+import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Use;
+
+/**
+ * Collects inputs for {@link Jwe} encrypted messages.
+ */
+public class JweBuilder implements Builder {
+	static {
+<span class="fc" id="L55">		IuObject.assertNotOpen(JweBuilder.class);</span>
+<span class="fc" id="L56">	}</span>
+
+	private final Encryption encryption;
+	private final boolean deflate;
+<span class="fc" id="L60">	private final Queue&lt;JweRecipientBuilder&gt; pendingRecipients = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L61">	private final Set&lt;String&gt; protectedParameters = new LinkedHashSet&lt;&gt;();</span>
+	private boolean compact;
+	private byte[] additionalData;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param encryption {@link Encryption content encryption algorithm}
+	 * @param deflate    true to compress content; false to encrypt without
+	 *                   compression
+	 */
+<span class="fc" id="L72">	public JweBuilder(Encryption encryption, boolean deflate) {</span>
+<span class="fc" id="L73">		this.encryption = encryption;</span>
+<span class="fc" id="L74">		this.deflate = deflate;</span>
+<span class="fc" id="L75">	}</span>
+
+	@Override
+	public Builder compact() {
+<span class="fc" id="L79">		compact = true;</span>
+<span class="fc" id="L80">		return this;</span>
+	}
+
+	@Override
+	public Builder aad(byte[] additionalData) {
+<span class="fc" id="L85">		this.additionalData = IuObject.once(this.additionalData, additionalData);</span>
+<span class="fc" id="L86">		return this;</span>
+	}
+
+	@Override
+	public Builder protect(Param... params) {
+<span class="fc bfc" id="L91" title="All 2 branches covered.">		for (final var param : params)</span>
+<span class="fc" id="L92">			protectedParameters.add(param.name);</span>
+<span class="fc" id="L93">		return this;</span>
+	}
+
+	@Override
+	public Builder protect(String... params) {
+<span class="fc bfc" id="L98" title="All 2 branches covered.">		for (final var param : params)</span>
+<span class="fc" id="L99">			protectedParameters.add(param);</span>
+<span class="fc" id="L100">		return this;</span>
+	}
+
+	@Override
+	public JweRecipientBuilder addRecipient(Algorithm algorithm) {
+<span class="fc" id="L105">		final var builder = new JweRecipientBuilder(this, algorithm);</span>
+<span class="fc" id="L106">		builder.param(Param.ENCRYPTION, encryption());</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">		if (deflate)</span>
+<span class="fc" id="L108">			builder.param(Param.ZIP, &quot;DEF&quot;);</span>
+<span class="fc" id="L109">		this.pendingRecipients.offer(builder);</span>
+<span class="fc" id="L110">		return builder;</span>
+	}
+
+	@Override
+	public WebEncryption encrypt(InputStream in) {
+<span class="fc" id="L115">		byte[] contentEncryptionKey = null;</span>
+<span class="fc" id="L116">		final Queue&lt;JweRecipient&gt; recipients = new ArrayDeque&lt;&gt;();</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">		for (final var pendingRecipient : pendingRecipients) {</span>
+<span class="fc" id="L118">			final var builder = pendingRecipient.encryptedKeyBuilder();</span>
+<span class="fc" id="L119">			final var algorithm = Objects.requireNonNull(builder.algorithm(), &quot;Missing algorithm&quot;);</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">			if (algorithm.equals(Algorithm.DIRECT)) {</span>
+				// 5.1#6 use shared key as CEK for direct encryption
+<span class="fc" id="L122">				final var jwk = Objects.requireNonNull(builder.key(), &quot;recipient must provide a key&quot;);</span>
+<span class="fc" id="L123">				final var cek = Objects.requireNonNull(jwk.getKey(), &quot;DIRECT requires a secret key&quot;);</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">				if (cek.length != encryption.size / 8)</span>
+<span class="fc" id="L125">					throw new IllegalArgumentException(&quot;Invalid key size for &quot; + encryption + &quot; &quot; + cek.length);</span>
+<span class="fc" id="L126">				contentEncryptionKey = IuObject.once(contentEncryptionKey, cek, &quot;cek already set&quot;);</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">			} else if (algorithm.equals(Algorithm.ECDH_ES))</span>
+<span class="fc" id="L128">				contentEncryptionKey = IuObject.once(contentEncryptionKey, builder.agreedUponKey(encryption),</span>
+						&quot;cek already set&quot;);
+<span class="fc bfc" id="L130" title="All 2 branches covered.">			else if (!algorithm.use.equals(Use.ENCRYPT))</span>
+<span class="fc" id="L131">				throw new IllegalArgumentException(&quot;Not an encryption algorithm &quot; + algorithm);</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">			else if (contentEncryptionKey == null)</span>
+<span class="fc" id="L133">				contentEncryptionKey = WebKey.ephemeral(encryption).getKey();</span>
+
+			// encrypt before processing header to ensure all headers are populated
+<span class="fc" id="L136">			final var recipient = builder.encrypt(encryption, contentEncryptionKey);</span>
+
+<span class="fc" id="L138">			final var header = recipient.getHeader();</span>
+<span class="fc" id="L139">			final var serializedHeader = header.toJson(a -&gt; true);</span>
+
+<span class="fc bfc" id="L141" title="All 2 branches covered.">			if (!compact //</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">					&amp;&amp; !serializedHeader.keySet().containsAll(protectedParameters))</span>
+<span class="fc" id="L143">				throw new IllegalArgumentException(</span>
+<span class="fc" id="L144">						&quot;Protected parameters &quot; + protectedParameters + &quot; are required &quot; + serializedHeader.keySet());</span>
+
+<span class="fc" id="L146">			recipients.add(recipient);</span>
+<span class="fc" id="L147">		}</span>
+
+<span class="fc" id="L149">		return new Jwe(encryption, deflate, compact, protectedParameters, recipients, contentEncryptionKey,</span>
+				additionalData, in);
+	}
+
+	/**
+	 * Gets the encryption.
+	 * 
+	 * @return encryption
+	 */
+	Encryption encryption() {
+<span class="fc" id="L159">		return encryption;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
