@@ -6,8 +6,8 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * Provides client configuration metadata for interacting with an SAML authorization
- * server.
+ * Provides client configuration metadata for interacting with an SAML
+ * authorization server.
  * 
  * <p>
  * The interface <em>should</em> be implemented by the application client module
@@ -15,7 +15,6 @@ import java.util.List;
  * </p>
  */
 public interface IuSamlClient {
-	
 
 	/**
 	 * Gets the root resource URI covered by this client's protection domain.
@@ -29,24 +28,28 @@ public interface IuSamlClient {
 	 * @return {@link URI}
 	 */
 	URI getApplicationUri();
-	
+
 	/**
-	 * Gets whether to fail on address mismatch or not, true if required, false if not
-	 * @return failed on address mismatch 
+	 * Gets whether to fail on address mismatch or not, true if required, false if
+	 * not
+	 * 
+	 * @return failed on address mismatch
 	 */
 	default boolean failOnAddressMismatch() {
 		return false;
 	}
+
 	/**
 	 * Gets allowed list of IP addresses to validate against SAML response
+	 * 
 	 * @return allowed ranged of IP addresses
 	 */
 	List<String> getAllowedRange();
 
 	/**
-	 * Gets the maximum time interval to re-established metadata resolver 
-	 * typically measured in seconds. Once this interval is passed,
-	 * metadata resolver will be re-established using metadata URIs.
+	 * Gets the maximum time interval to re-established metadata resolver typically
+	 * measured in seconds. Once this interval is passed, metadata resolver will be
+	 * re-established using metadata URIs.
 	 * 
 	 * @return metadaaTtl {@link Duration}
 	 */
@@ -55,14 +58,16 @@ public interface IuSamlClient {
 	}
 
 	/**
-	 * Gets the SAML metadata {@link URI} to retrieve configure metadata file that is configured directly 
-	 * into the SAML provider by administrator 
+	 * Gets the SAML metadata {@link URI} to retrieve configure metadata file that
+	 * is configured directly into the SAML provider by administrator
+	 * 
 	 * @return metadata URL
 	 */
 	List<URI> getMetaDataUris();
-	
+
 	/**
 	 * Gets the SAML identity provider {@link URI} to configure Metadata resolver
+	 * 
 	 * @return SAML identity provider URL
 	 */
 	default URI getIdentityProviderUri() {
@@ -70,45 +75,48 @@ public interface IuSamlClient {
 	}
 
 	/**
-	 * Gets the list of assertion Consumer {@link URI} 
+	 * Gets the list of assertion Consumer {@link URI}
+	 * 
 	 * @return allowed list of assertion consumer {@link URI}
 	 */
 	List<URI> getAcsUris();
 
 	/**
 	 * Gets the unique service provider id that register with identity provider
+	 * 
 	 * @return unique service provide id
 	 */
 	String getServiceProviderEntityId();
 
-
 	/**
-	 * Gets the X.509 certificate to validate SAML response
-	 * that came from identity provider by decrypt the signature,
-	 * using the public key on the X.509 certificate, and checking if the values match.
+	 * Gets the X.509 certificate to validate SAML response that came from identity
+	 * provider by decrypt the signature, using the public key on the X.509
+	 * certificate, and checking if the values match.
+	 * 
 	 * @return certificate
 	 */
 	X509Certificate getCertificate();
 
 	/**
-	 * Gets the private key to validate SAML response that came from identity provider by decrypt the
-	 * X.509 certificate using private key and match the values
+	 * Gets the private key to validate SAML response that came from identity
+	 * provider by decrypt the X.509 certificate using private key and match the
+	 * values
 	 * 
 	 * @return private key
 	 */
 
 	String getPrivateKey();
-	
+
 	/**
-	 * Gets the maximum length of time to allow an authenticated session
-	 * to be remain active before requesting 
-	 * the provide re-establish credentials for the principal.
+	 * Gets the maximum length of time to allow an authenticated session to be
+	 * remain active before requesting the provide re-establish credentials for the
+	 * principal.
 	 * 
 	 * @return {@link Duration}, will be truncated to seconds
 	 * 
-	 *TODO set default as 12 hours, client allow to configure but can't set more than 12 hours
+	 *         TODO set default as 12 hours, client allow to configure but can't set
+	 *         more than 12 hours
 	 */
 	Duration getAuthenticatedSessionTimeout();
-	
 
 }

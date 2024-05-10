@@ -39,7 +39,7 @@ public class SamlConnectSpi implements IuSamlSpi {
 
 		PrincipalVerifierRegistry.registerVerifier(new SamlPrincipalVerifier(true, serviceProviderEntityId));
 		PROVIDER.put(serviceProviderEntityId, provider);
-		
+
 		return provider;
 	}
 

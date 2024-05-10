@@ -1,7 +1,6 @@
 package iu.auth.saml;
 
 import java.io.ByteArrayInputStream;
-import java.security.Key;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -10,14 +9,10 @@ import java.security.cert.CertificateFactory;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import javax.crypto.Cipher;
-import javax.crypto.KeyGenerator;
 
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.Response;
@@ -40,15 +35,12 @@ import org.opensaml.xmlsec.signature.X509Data;
 public class SamlUtil {
 	private final static Logger LOG = Logger.getLogger(SamlUtil.class.getName());
 
-	
-
 	/**
 	 * default constructor
 	 */
 	public SamlUtil() {
 	}
 
-	
 	/**
 	 * Get credential resolver for SAML response
 	 * 

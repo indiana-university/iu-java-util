@@ -45,7 +45,7 @@ final class SamlPrincipalVerifier implements PrincipalVerifier<SamlPrincipal> {
 	/**
 	 * Constructor.
 	 * 
-	 * @param authoritative authoritative flag: true 
+	 * @param authoritative authoritative flag: true
 	 * @param realm         authentication realm the service provider id
 	 */
 	SamlPrincipalVerifier(boolean authoritative, String realm) {
@@ -75,6 +75,5 @@ final class SamlPrincipalVerifier implements PrincipalVerifier<SamlPrincipal> {
 
 		// TODO maxium allowed time
 	}
-
 
 }

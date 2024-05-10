@@ -3,7 +3,6 @@ package edu.iu.auth.saml;
 import edu.iu.auth.spi.IuSamlSpi;
 import iu.auth.IuAuthSpiFactory;
 
-
 /**
  * Client-side SPI interface for interacting with an SAML Provider.
  */
@@ -19,13 +18,11 @@ public interface IuSamlProvider {
 		return IuAuthSpiFactory.get(IuSamlSpi.class).getSamlProvider(client);
 	}
 
-	
-	
 	/**
 	 * Get service provider metadata for registered client
+	 * 
 	 * @return service provider metadata
 	 */
 	String getServiceProviderMetaData();
 
-	
 }

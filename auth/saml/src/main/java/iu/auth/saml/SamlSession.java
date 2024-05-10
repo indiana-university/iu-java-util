@@ -97,28 +97,27 @@ public class SamlSession implements IuSamlSession, Serializable {
 		Duration duration = client.getAuthenticatedSessionTimeout();
 		LocalDateTime currentTime = LocalDateTime.now();
 		LocalDateTime totalSessiontime = currentTime.minus(duration);
-		if(currentTime.isAfter(totalSessiontime))
-        
+		if (currentTime.isAfter(totalSessiontime))
 
-        if (currentTime.isAfter(totalSessiontime)) {
-			/*
-			 * final Map<String, String> challengeAttributes = new LinkedHashMap<>();
-			 * challengeAttributes.put("error_description",
-			 * "Authorized session has expired"); final var challenge = new
-			 * IuAuthenticationException( // IuWebUtils.createChallenge("saml",
-			 * challengeAttributes), null);
-			 * challenge.setLocation(client.getApplicationUri()); throw challenge;
-			 */
-        	// TODO add log for debugging purpose
-			id = null;
-			final var challenge = new IuAuthenticationException( //
-					null, new IllegalStateException("Authorization failed"));
-			challenge.setLocation(entryPoint);
-			throw challenge;
-        }
-		
+			if (currentTime.isAfter(totalSessiontime)) {
+				/*
+				 * final Map<String, String> challengeAttributes = new LinkedHashMap<>();
+				 * challengeAttributes.put("error_description",
+				 * "Authorized session has expired"); final var challenge = new
+				 * IuAuthenticationException( // IuWebUtils.createChallenge("saml",
+				 * challengeAttributes), null);
+				 * challenge.setLocation(client.getApplicationUri()); throw challenge;
+				 */
+				// TODO add log for debugging purpose
+				id = null;
+				final var challenge = new IuAuthenticationException( //
+						null, new IllegalStateException("Authorization failed"));
+				challenge.setLocation(entryPoint);
+				throw challenge;
+			}
+
 		return id;
-		
+
 	}
 
 	@Override
@@ -127,12 +126,12 @@ public class SamlSession implements IuSamlSession, Serializable {
 		SamlProvider provider = SamlConnectSpi.getProvider(serviceProviderIdentityId);
 		IuObject.require(id, Objects::isNull);
 		var grant = grants.remove(relayState);
-		if (grant != null ) {
+		if (grant != null) {
 			id = provider.authorize(address, postUri, samlResponse, grant.getSession());
 		} else {
-		//final Map<String, String> challengeAttributes = new LinkedHashMap<>();
-			//challengeAttributes.put("relayState", relayState);
-			//challengeAttributes.put("error_description", "invalid relay state");
+			// final Map<String, String> challengeAttributes = new LinkedHashMap<>();
+			// challengeAttributes.put("relayState", relayState);
+			// challengeAttributes.put("error_description", "invalid relay state");
 			// TODO add log for debugging purpose
 			final var challenge = new IuAuthenticationException( //
 					null, new IllegalArgumentException("Invalid relay state"));
@@ -140,16 +139,16 @@ public class SamlSession implements IuSamlSession, Serializable {
 			throw challenge;
 
 		}
-		
-		if (id != null ) {
+
+		if (id != null) {
 			return id;
 		}
-		
+
 		final var challenge = new IuAuthenticationException( //
 				null, new IllegalStateException("Authorization failed"));
 		challenge.setLocation(entryPoint);
 		throw challenge;
-	
+
 	}
 
 }

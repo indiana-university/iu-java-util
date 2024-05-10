@@ -31,6 +31,7 @@ import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.saml.IuSamlClient;
+import edu.iu.auth.saml.IuSamlPrincipal;
 import edu.iu.auth.saml.IuSamlProvider;
 import edu.iu.auth.saml.IuSamlSession;
 import edu.iu.client.IuVault;
@@ -197,27 +198,10 @@ public class SamlAuthenticateIT {
 		// TODO verify relay state and saml response values
 		String relayState = loginSuccessParams.get("RelayState");
 		String samlResponse = loginSuccessParams.get("SAMLResponse");
-		System.out.println(relayState);
-		// JsonValue jsonValue =Json.createReader(new
-		// StringReader(SamlUtil.decrypt(relayState))).readValue();
-		// System.out.println("relay state :: " + jsonValue.toString() );
-		// provider.validate(null, acsurl, samlResponse);
-		// String jsonString = SamlUtil.decrypt(relayState);
-		// System.out.println(jsonString);
-
-		/*
-		 * JsonReader jsonReader = Json.createReader(new StringReader(jsonString));
-		 * JsonObject relayStatejsonObject = jsonReader.readObject(); String
-		 * relayStateSessionId =
-		 * relayStatejsonObject.getJsonString("sessionId").getString(); String
-		 * relayStatePostUrl =
-		 * relayStatejsonObject.getJsonString("returnUrl").getString();
-		 */
-
-		// assertEquals(sessionId, relayStateSessionId);
-		// assertEquals(postUri.toString(), relayStatePostUrl);
-
-		samlSession.authorize(InetAddress.getLocalHost(), postUri, samlResponse, relayState);
+		
+	
+		IuSamlPrincipal iuSamlPrincipal = samlSession.authorize(InetAddress.getLocalHost(), postUri, samlResponse, relayState);
+		// TODO assert iuSamlPrincipal
 		metaData.delete();
 
 	}

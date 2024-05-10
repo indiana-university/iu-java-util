@@ -31,22 +31,21 @@ import org.w3c.dom.ls.LSSerializer;
 import org.xml.sax.SAXException;
 
 /**
- * Provides simplified access to DOM document elements.
- * TODO create STARCH jira to move it to java-util package if need arise
+ * Provides simplified access to DOM document elements. TODO create STARCH jira
+ * to move it to java-util package if need arise
  */
 public class XmlDomUtil {
 	/**
 	 * The standard XML date format.
 	 */
 	public static final String DATE_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSZ";
-	
+
 	/**
-	 *  default constructor
+	 * default constructor
 	 */
 	public XmlDomUtil() {
 		// TODO Auto-generated constructor stub
 	}
-	
 
 	/**
 	 * Parse an XML document from a string.
@@ -57,17 +56,18 @@ public class XmlDomUtil {
 	public static Document parse(String xml) {
 		try {
 			DocumentBuilderFactory builder = DocumentBuilderFactory.newInstance();
-			
+
 			// CWE-611 mitigation: Prevent XXE in XML Parse4
 			// See https://cwe.mitre.org/data/definitions/611.html
-			// See https://blog.shiftleft.io/preventing-xxe-in-java-applications-d557b6092db1
+			// See
+			// https://blog.shiftleft.io/preventing-xxe-in-java-applications-d557b6092db1
 			builder.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
 			builder.setFeature("http://xml.org/sax/features/external-general-entities", false);
 			builder.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
 			builder.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
 			builder.setXIncludeAware(false);
 			builder.setExpandEntityReferences(false);
-			
+
 			return builder.newDocumentBuilder().parse(new ByteArrayInputStream(xml.getBytes()));
 		} catch (SAXException e) {
 			throw new IllegalStateException(e);
@@ -77,19 +77,21 @@ public class XmlDomUtil {
 			throw new IllegalStateException(e);
 		}
 	}
-	
+
 	/**
 	 * Parse XML input stream to string
+	 * 
 	 * @param inputStream xml input stream
-	 * @return string representation of XML 
+	 * @return string representation of XML
 	 */
 	public static String xmlToString(InputStream inputStream) {
 		try {
 			DocumentBuilderFactory builder = DocumentBuilderFactory.newInstance();
-			
+
 			// CWE-611 mitigation: Prevent XXE in XML Parse4
 			// See https://cwe.mitre.org/data/definitions/611.html
-			// See https://blog.shiftleft.io/preventing-xxe-in-java-applications-d557b6092db1
+			// See
+			// https://blog.shiftleft.io/preventing-xxe-in-java-applications-d557b6092db1
 			builder.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
 			builder.setFeature("http://xml.org/sax/features/external-general-entities", false);
 			builder.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
@@ -290,6 +292,5 @@ public class XmlDomUtil {
 			throw new IllegalStateException("UTF-8 is unsupported", e);
 		}
 	}
-
 
 }

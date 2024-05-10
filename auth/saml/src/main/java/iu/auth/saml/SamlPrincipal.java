@@ -1,5 +1,8 @@
 package iu.auth.saml;
 
+import java.time.Duration;
+import java.util.Map;
+
 import javax.security.auth.Subject;
 
 import edu.iu.IuObject;
@@ -11,52 +14,64 @@ import edu.iu.auth.saml.IuSamlPrincipal;
 final class SamlPrincipal implements IuSamlPrincipal {
 
 	/**
-	 * TODO
+	 * serial version
 	 */
 	private static final long serialVersionUID = 1L;
-	
+
 	/**
 	 * name
 	 */
 	private final String name;
-	
+
 	/**
 	 * displayName
 	 */
 	private final String displayName;
-	
+
 	/**
 	 * emailAddress
 	 */
 	private final String emailAddress;
-	
+
 	/**
 	 * identity provider id
 	 */
 	private final String entityId;
-	
+
 	/**
-	 * service provider id 
+	 * service provider id
 	 */
 	private final String realm;
+	
+	private Map<String, ?> claims;
 
+	//private final Duration NotBefore;
+	
+	//private final Duration NotOnOrAfter;
+	
+	
 	/**
 	 * Constructor
 	 * 
-	 * @param name eduPersonPrincipalName 
-	 * @param displayName display name
+	 * @param name         eduPersonPrincipalName
+	 * @param displayName  display name
 	 * @param emailAddress email address
-	 * @param entityId  identity provider URI
-	 * @param realm service provider id
+	 * @param entityId     identity provider URI
+	 * @param realm        service provider id
 	 */
-	public SamlPrincipal(String name, String displayName, String emailAddress, String entityId, String realm) {
+	public SamlPrincipal(String name, String displayName, String emailAddress, String entityId, String realm, Map<String, ?> claims) {
 		this.name = name;
 		this.displayName = displayName;
 		this.emailAddress = emailAddress;
 		this.entityId = entityId;
 		this.realm = realm;
+		this.claims = claims;
 	}
 	
+    public Map<String, ?> getClaims() {
+		return claims;
+	}
+
 	@Override
 	public String getName() {
 		return name;
@@ -87,7 +102,7 @@ final class SamlPrincipal implements IuSamlPrincipal {
 		subject.setReadOnly();
 		return subject;
 	}
-	
+
 	/**
 	 * Gets the authentication realm.
 	 * 
@@ -116,8 +131,8 @@ final class SamlPrincipal implements IuSamlPrincipal {
 
 	@Override
 	public String toString() {
-		return "SAML Principal ID [" + name + "; " + displayName + "; " + emailAddress 
-				+ "; " + entityId + "; " + realm + "] ";
+		return "SAML Principal ID [" + name + "; " + displayName + "; " + emailAddress + "; " + entityId + "; " + realm
+				+ "] ";
 	}
 
 }
