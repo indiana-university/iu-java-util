@@ -9,7 +9,9 @@ IU Base Utilities Module,edu.iu,IuCacheMap.CacheCollection,0,151,0,6,0,32,0,19,0
 IU Base Utilities Module,edu.iu,IuStream.new ThreadLocal() {...},0,7,0,0,0,2,0,2,0,2
 IU Base Utilities Module,edu.iu,IuVisitor,0,89,0,12,0,27,0,12,0,6
 IU Base Utilities Module,edu.iu,IuStream.Buffers,0,11,0,0,0,3,0,1,0,1
+IU Base Utilities Module,edu.iu,IuWebUtils.new Iterator() {...},0,265,0,30,0,45,0,18,0,3
 IU Base Utilities Module,edu.iu,IuObject,0,744,0,166,0,180,0,110,0,27
+IU Base Utilities Module,edu.iu,IuWebUtils.1.new IuWebAuthenticationChallenge() {...},0,24,0,0,0,4,0,4,0,4
 IU Base Utilities Module,edu.iu,IuException,0,547,0,38,0,201,0,63,0,44
 IU Base Utilities Module,edu.iu,IuAsynchronousSubject,0,95,0,12,0,24,0,14,0,8
 IU Base Utilities Module,edu.iu,IuVisitor.ElementSplitter.new Object() {...},0,6,0,0,0,1,0,1,0,1
@@ -40,7 +42,7 @@ IU Base Utilities Module,edu.iu,IuParallelWorkloadController,0,726,0,60,0,158,0,
 IU Base Utilities Module,edu.iu,IuAsynchronousSubject.Subscriber,0,542,0,98,0,147,0,74,0,25
 IU Base Utilities Module,edu.iu,IuAuthorizationFailedException,0,16,0,0,0,8,0,4,0,4
 IU Base Utilities Module,edu.iu,IuCacheMap.CacheKeySet,0,24,0,0,0,3,0,4,0,4
-IU Base Utilities Module,edu.iu,IuWebUtils,0,651,0,113,0,148,0,90,0,14
+IU Base Utilities Module,edu.iu,IuWebUtils,0,1104,0,243,0,249,0,169,0,28
 IU Base Utilities Module,edu.iu,IuCacheMap.CacheValues,0,27,0,0,0,3,0,4,0,4
 IU Base Utilities Module,edu.iu,IuRuntimeEnvironment,0,64,0,6,0,11,0,11,0,8
 IU Base Utilities Module,edu.iu,IdGenerator.new ThreadLocal() {...},0,27,0,0,0,9,0,2,0,2
