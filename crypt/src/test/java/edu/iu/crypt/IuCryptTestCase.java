@@ -160,7 +160,7 @@ public class IuCryptTestCase {
 		mockHttp = mockStatic(IuHttp.class);
 		mockHttp.when(() -> IuHttp.get(any())).thenCallRealMethod();
 		mockHttp.when(() -> IuHttp.get(any(), any())).thenCallRealMethod();
-		mockHttp.when(() -> IuHttp.send(any(), any(), any())).thenCallRealMethod();
+		mockHttp.when(() -> IuHttp.send(any(URI.class), any(), any())).thenCallRealMethod();
 		mockHttp.when(() -> IuHttp.validate(any(), any())).thenCallRealMethod();
 		mockHttp.when(() -> IuHttp.expectStatus(anyInt())).thenCallRealMethod();
 		mockHttp.when(() -> IuHttp.checkHeaders(any())).thenCallRealMethod();

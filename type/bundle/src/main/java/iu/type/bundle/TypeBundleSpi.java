@@ -100,14 +100,10 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 				new FilteringClassLoader(IuIterable
 						.iter("edu.iu", "edu.iu.type", "edu.iu.type.base", "edu.iu.type.spi"), TYPE_SPI_LOADER),
 				TYPE_SPI_LAYER,
-				() -> IuIterable.map(TemporaryFile.readBundle(Objects.requireNonNull(
+				() -> TemporaryFile.readBundle(Objects.requireNonNull(
 						TypeBundleSpi.class.getClassLoader().getResource("iu-java-type-impl-bundle.jar"),
-						"Missing iu-java-type-impl-bundle.jar classpath entry")), a -> () -> a),
+						"Missing iu-java-type-impl-bundle.jar classpath entry")),
 				c -> {
-					// TODO: REMOVE
-//					final var implModule = c.layer().findModule("iu.util.type.impl").get();
-//					c.addReads(implModule, IuObject.class.getModule());
-//					c.addReads(implModule, ModularClassLoader.class.getModule());
 				});
 
 		delegate = IuException.checked(IOException.class, () -> IuException.initialize(bundleLoader,
@@ -145,9 +141,7 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 	public synchronized void close() throws Exception {
 		instance = null;
 
-		final var delegate = this.delegate;
-		if (delegate != null)
-			this.delegate = null;
+		this.delegate = null;
 
 		if (bundleLoader != null) {
 			final var bundleLoader = this.bundleLoader;

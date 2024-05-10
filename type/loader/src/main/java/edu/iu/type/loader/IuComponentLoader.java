@@ -39,10 +39,8 @@ import java.util.ArrayDeque;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import edu.iu.IuException;
-import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.type.base.ModularClassLoader;
 import edu.iu.type.base.TemporaryFile;
@@ -62,10 +60,13 @@ public class IuComponentLoader implements AutoCloseable {
 		return path.toArray(size -> new URL[size]);
 	});
 
-	private static Iterable<Supplier<Path>> toModulePath(Iterable<InputStream> modules) {
-		return IuIterable.cat( //
-				IuIterable.map(IuIterable.iter(TYPE_BUNDLE_MODULE_PATH), a -> () -> TemporaryFile.of(a)),
-				IuIterable.map(modules, a -> () -> TemporaryFile.of(a)));
+	private static Iterable<Path> toModulePath(Iterable<InputStream> modules) {
+		final Queue<Path> path = new ArrayDeque<>();
+		for (final var url : TYPE_BUNDLE_MODULE_PATH)
+			path.offer(TemporaryFile.of(url));
+		for (final var module : modules)
+			path.offer(TemporaryFile.of(module));
+		return path;
 	}
 
 	private volatile ModularClassLoader loader;

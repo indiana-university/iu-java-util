@@ -66,42 +66,42 @@ public class UnpaddedBinary implements IuJsonAdapter<byte[]> {
 		return IuJsonAdapter.of(String.class).toJson(base64Url(javaValue));
 	}
 
-	/**
-	 * Removes training padding characters from Base-64 encoded data.
-	 * 
-	 * @param b64 Base-64 encoded
-	 * @return encoded data with padding chars removed
-	 */
-	static String unpad(String b64) {
-		if (b64 == null || b64.isEmpty())
-			return b64;
-		var i = b64.length() - 1;
-		while (i > 0 && b64.charAt(i) == '=')
-			i--;
-		return b64.substring(0, i + 1);
-	}
-
-	/**
-	 * Restores padding characters to Base-64 encoded data.
-	 * 
-	 * @param b64 Base-64 encoded
-	 * @return encoded data with padding chars restored
-	 */
-	static String pad(String b64) {
-		if (b64 == null || b64.isEmpty())
-			return b64;
-		switch (b64.length() % 4) {
-		case 1:
-			return b64 + "===";
-		case 2:
-			return b64 + "==";
-		case 3:
-			return b64 + "=";
-		default:
-			return b64;
-		}
-	}
-
+//	/**
+//	 * Removes training padding characters from Base-64 encoded data.
+//	 * 
+//	 * @param b64 Base-64 encoded
+//	 * @return encoded data with padding chars removed
+//	 */
+//	static String unpad(String b64) {
+//		if (b64 == null || b64.isEmpty())
+//			return b64;
+//		var i = b64.length() - 1;
+//		while (i > 0 && b64.charAt(i) == '=')
+//			i--;
+//		return b64.substring(0, i + 1);
+//	}
+//
+//	/**
+//	 * Restores padding characters to Base-64 encoded data.
+//	 * 
+//	 * @param b64 Base-64 encoded
+//	 * @return encoded data with padding chars restored
+//	 */
+//	static String pad(String b64) {
+//		if (b64 == null || b64.isEmpty())
+//			return b64;
+//		switch (b64.length() % 4) {
+//		case 1:
+//			return b64 + "===";
+//		case 2:
+//			return b64 + "==";
+//		case 3:
+//			return b64 + "=";
+//		default:
+//			return b64;
+//		}
+//	}
+//
 	/**
 	 * Encodes binary data as Base64 with URL encoding and padding chars stripped.
 	 * 
@@ -117,7 +117,7 @@ public class UnpaddedBinary implements IuJsonAdapter<byte[]> {
 		if (data == null)
 			return null;
 		else
-			return unpad(Base64.getUrlEncoder().encodeToString(data));
+			return Base64.getUrlEncoder().withoutPadding().encodeToString(data);
 	}
 
 	/**
@@ -136,7 +136,7 @@ public class UnpaddedBinary implements IuJsonAdapter<byte[]> {
 		if (data == null)
 			return null;
 		else
-			return Base64.getUrlDecoder().decode(pad(data));
+			return Base64.getUrlDecoder().decode(data);
 	}
 
 	/**
