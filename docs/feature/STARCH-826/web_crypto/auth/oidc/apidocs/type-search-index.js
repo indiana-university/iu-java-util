@@ -1,1 +1,0 @@
-typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"iu.auth.oidc","l":"OidcAuthorizationClient"},{"p":"iu.auth.oidc","l":"OidcClaim"},{"p":"iu.auth.oidc","l":"OpenIdConnectSpi"},{"p":"iu.auth.oidc","l":"OpenIdProvider"}];updateSearchResults();

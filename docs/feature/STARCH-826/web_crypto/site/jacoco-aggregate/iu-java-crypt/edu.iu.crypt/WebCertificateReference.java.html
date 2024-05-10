@@ -33,6 +33,7 @@ package edu.iu.crypt;
 
 import java.io.InputStream;
 import java.net.URI;
+import java.security.MessageDigest;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 
@@ -68,32 +69,32 @@ public interface WebCertificateReference {
 	 *         populated
 	 */
 	static X509Certificate[] verify(WebCertificateReference reference) {
-<span class="fc" id="L71">		var certificateChain = reference.getCertificateChain();</span>
-<span class="fc bfc" id="L72" title="All 2 branches covered.">		if (certificateChain == null) {</span>
-<span class="fc" id="L73">			final var certificateUri = reference.getCertificateUri();</span>
-<span class="fc bfc" id="L74" title="All 2 branches covered.">			if (certificateUri != null)</span>
-<span class="fc" id="L75">				certificateChain = PemEncoded.getCertificateChain(certificateUri);</span>
+<span class="fc" id="L72">		var certificateChain = reference.getCertificateChain();</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">		if (certificateChain == null) {</span>
+<span class="fc" id="L74">			final var certificateUri = reference.getCertificateUri();</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">			if (certificateUri != null)</span>
+<span class="fc" id="L76">				certificateChain = PemEncoded.getCertificateChain(certificateUri);</span>
 		}
 
-<span class="fc bfc" id="L78" title="All 2 branches covered.">		if (certificateChain != null) {</span>
-<span class="fc bfc" id="L79" title="All 2 branches covered.">			if (certificateChain.length &lt; 1)</span>
-<span class="fc" id="L80">				throw new IllegalArgumentException(&quot;At least one certificate is required&quot;);</span>
-<span class="fc" id="L81">			final var cert = certificateChain[0];</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">		if (certificateChain != null) {</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">			if (certificateChain.length &lt; 1)</span>
+<span class="fc" id="L81">				throw new IllegalArgumentException(&quot;At least one certificate is required&quot;);</span>
+<span class="fc" id="L82">			final var cert = certificateChain[0];</span>
 
-<span class="fc" id="L83">			final var certificateThumbprint = reference.getCertificateThumbprint();</span>
-<span class="fc bfc" id="L84" title="All 2 branches covered.">			if (certificateThumbprint != null //</span>
-<span class="fc bfc" id="L85" title="All 2 branches covered.">					&amp;&amp; !Arrays.equals(certificateThumbprint,</span>
-<span class="fc" id="L86">							IuException.unchecked(() -&gt; DigestUtils.sha1(cert.getEncoded()))))</span>
-<span class="fc" id="L87">				throw new IllegalArgumentException(&quot;Certificate SHA-1 thumbprint mismatch&quot;);</span>
+<span class="fc" id="L84">			final var certificateThumbprint = reference.getCertificateThumbprint();</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">			if (certificateThumbprint != null //</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">					&amp;&amp; !Arrays.equals(certificateThumbprint,</span>
+<span class="fc" id="L87">							IuException.unchecked(() -&gt; MessageDigest.getInstance(&quot;SHA-1&quot;).digest(cert.getEncoded()))))</span>
+<span class="fc" id="L88">				throw new IllegalArgumentException(&quot;Certificate SHA-1 thumbprint mismatch&quot;);</span>
 
-<span class="fc" id="L89">			final var certificateSha256Thumbprint = reference.getCertificateSha256Thumbprint();</span>
-<span class="fc bfc" id="L90" title="All 2 branches covered.">			if (certificateSha256Thumbprint != null //</span>
-<span class="fc bfc" id="L91" title="All 2 branches covered.">					&amp;&amp; !Arrays.equals(certificateSha256Thumbprint,</span>
-<span class="fc" id="L92">							IuException.unchecked(() -&gt; DigestUtils.sha256(cert.getEncoded()))))</span>
-<span class="fc" id="L93">				throw new IllegalArgumentException(&quot;Certificate SHA-256 thumbprint mismatch&quot;);</span>
+<span class="fc" id="L90">			final var certificateSha256Thumbprint = reference.getCertificateSha256Thumbprint();</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">			if (certificateSha256Thumbprint != null //</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">					&amp;&amp; !Arrays.equals(certificateSha256Thumbprint, IuException</span>
+<span class="fc" id="L93">							.unchecked(() -&gt; MessageDigest.getInstance(&quot;SHA-256&quot;).digest(cert.getEncoded()))))</span>
+<span class="fc" id="L94">				throw new IllegalArgumentException(&quot;Certificate SHA-256 thumbprint mismatch&quot;);</span>
 		}
 
-<span class="fc" id="L96">		return certificateChain;</span>
+<span class="fc" id="L97">		return certificateChain;</span>
 	}
 
 	/**
@@ -175,7 +176,7 @@ public interface WebCertificateReference {
 	 * @return {@link URI}
 	 */
 	default URI getCertificateUri() {
-<span class="fc" id="L178">		return null;</span>
+<span class="fc" id="L179">		return null;</span>
 	}
 
 	/**
@@ -184,7 +185,7 @@ public interface WebCertificateReference {
 	 * @return parsed JSON x5c attribute value
 	 */
 	default X509Certificate[] getCertificateChain() {
-<span class="fc" id="L187">		return null;</span>
+<span class="fc" id="L188">		return null;</span>
 	}
 
 	/**
@@ -193,7 +194,7 @@ public interface WebCertificateReference {
 	 * @return JSON x5t attribute value
 	 */
 	default byte[] getCertificateThumbprint() {
-<span class="fc" id="L196">		return null;</span>
+<span class="fc" id="L197">		return null;</span>
 	}
 
 	/**
@@ -202,7 +203,7 @@ public interface WebCertificateReference {
 	 * @return JSON x5t#S256 attribute value
 	 */
 	default byte[] getCertificateSha256Thumbprint() {
-<span class="fc" id="L205">		return null;</span>
+<span class="fc" id="L206">		return null;</span>
 	}
 
 }

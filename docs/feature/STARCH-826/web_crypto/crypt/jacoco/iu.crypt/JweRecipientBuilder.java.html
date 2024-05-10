@@ -32,6 +32,7 @@
 package iu.crypt;
 
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
@@ -50,7 +51,6 @@ import edu.iu.IuText;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebEncryptionRecipient.Builder;
-import edu.iu.crypt.DigestUtils;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
@@ -104,8 +104,8 @@ class JweRecipientBuilder extends JoseBuilder&lt;JweRecipientBuilder&gt; impleme
 <span class="fc bfc" id="L104" title="All 2 branches covered.">		for (var i = 0; i &lt; reps; i++) {</span>
 <span class="fc" id="L105">			final var n = i + 1;</span>
 			// R(n) = H(n || Z || FixedInfo)
-<span class="fc" id="L107">			keyBuffer.put(DigestUtils</span>
-<span class="fc" id="L108">					.sha256(EncodingUtils.concatKdf(n, z, /* FixedInfo = */ algId, uinfo, vinfo, keyDataLen)));</span>
+<span class="fc" id="L107">			keyBuffer.put(IuException.unchecked(() -&gt; MessageDigest.getInstance(&quot;SHA-256&quot;))</span>
+<span class="fc" id="L108">					.digest(EncodingUtils.concatKdf(n, z, /* FixedInfo = */ algId, uinfo, vinfo, keyDataLen)));</span>
 		}
 
 <span class="fc" id="L111">		final var keylen = keyDataLen / 8;</span>
