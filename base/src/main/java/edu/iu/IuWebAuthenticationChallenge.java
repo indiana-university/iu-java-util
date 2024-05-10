@@ -29,74 +29,35 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package edu.iu;
 
-import java.util.Iterator;
-
-import edu.iu.IuIterable;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonValue;
+import java.util.Map;
 
 /**
- * Adapts to/from {@link JsonArray} values.
- * 
- * @param <T> target type
- * @param <E> element type
+ * Represents an authentication challenge entry from a
+ * <strong>WWW-Authenticate</strong> response header.
  */
-abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
+public interface IuWebAuthenticationChallenge {
 
 	/**
-	 * Extracts an iterator from a Java value.
+	 * Gets the authentication scheme.
 	 * 
-	 * @param value value
-	 * @return iterator
+	 * @return authentication scheme
 	 */
-	abstract protected Iterator<E> iterator(T value);
+	String getAuthScheme();
 
 	/**
-	 * Collects items into the target type.
+	 * Gets the authentication realm.
 	 * 
-	 * @param items items
-	 * @return target value
+	 * @return authentication realm
 	 */
-	abstract protected T collect(Iterable<E> items);
-
-	private final IuJsonAdapter<E> itemAdapter;
+	String getRealm();
 
 	/**
-	 * Constructor
+	 * Gets the authentication parameters.
 	 * 
-	 * @param itemAdapter item adapter
+	 * @return authentication parameters
 	 */
-	protected JsonArrayAdapter(IuJsonAdapter<E> itemAdapter) {
-		this.itemAdapter = itemAdapter;
-	}
-
-	@Override
-	public T fromJson(JsonValue jsonValue) {
-		if (jsonValue == null //
-				|| JsonValue.NULL.equals(jsonValue))
-			return null;
-		else {
-			final JsonArray array;
-			if (jsonValue instanceof JsonArray)
-				array = jsonValue.asJsonArray();
-			else
-				array = IuJson.array().add(jsonValue).build();
-			return collect(IuIterable.map(array, itemAdapter::fromJson));
-		}
-	}
-
-	@Override
-	public JsonValue toJson(T javaValue) {
-		if (javaValue == null)
-			return JsonValue.NULL;
-
-		final var a = IuJson.array();
-		iterator(javaValue).forEachRemaining(i -> a.add(itemAdapter.toJson(i)));
-		return a.build();
-	}
+	Map<String, String> getParameters();
 
 }

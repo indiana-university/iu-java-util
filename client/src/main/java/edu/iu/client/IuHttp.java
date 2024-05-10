@@ -39,7 +39,6 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.util.Collection;
 import java.util.function.BiPredicate;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -50,6 +49,7 @@ import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuRuntimeEnvironment;
 import edu.iu.IuWebUtils;
+import edu.iu.UnsafeConsumer;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonValue;
 
@@ -58,7 +58,7 @@ import jakarta.json.JsonValue;
  * utilities for {@link HttpRequest} and {@link HttpResponse}.
  * 
  * <p>
- * All requests are handling via a cached {@link HttpClient} instance configured
+ * All requests are handled via a cached {@link HttpClient} instance configured
  * with {@link HttpClient#newHttpClient default settings}.
  * </p>
  */
@@ -179,12 +179,36 @@ public class IuHttp {
 	 * @return {@link HttpResponse}
 	 * @throws HttpException If the response has error status code.
 	 */
-	public static HttpResponse<InputStream> send(URI uri, Consumer<HttpRequest.Builder> requestConsumer)
+	public static HttpResponse<InputStream> send(URI uri, UnsafeConsumer<HttpRequest.Builder> requestConsumer)
 			throws HttpException {
+		return send(HttpException.class, uri, requestConsumer);
+	}
+
+	/**
+	 * Sends a synchronous HTTP request.
+	 * 
+	 * @param <E>             additional exception type
+	 * 
+	 * @param uri             request URI
+	 * @param requestConsumer receives the {@link HttpRequest.Builder} before
+	 *                        sending to the server.
+	 * @param exceptionClass  additional checked exception type to allow thrown from
+	 *                        requestConsumer
+	 * 
+	 * @return {@link HttpResponse}
+	 * @throws HttpException If the response has error status code.
+	 * @throws E             from requestConsumer
+	 */
+	public static <E extends Exception> HttpResponse<InputStream> send(Class<E> exceptionClass, URI uri,
+			UnsafeConsumer<HttpRequest.Builder> requestConsumer) throws HttpException, E {
+		if (!"https".equals(uri.getScheme()) //
+				&& !"localhost".equals(uri.getHost()))
+			throw new IllegalArgumentException("insecure URI");
+
 		if (!ALLOWED_URI.stream().anyMatch(allowedUri -> IuWebUtils.isRootOf(allowedUri, uri)))
 			throw new IllegalArgumentException("URI not allowed, must be relative to " + ALLOWED_URI);
 
-		return IuException.checked(HttpException.class, () -> {
+		return IuException.checked(HttpException.class, exceptionClass, () -> {
 			final var requestBuilder = HttpRequest.newBuilder(uri);
 			if (requestConsumer != null)
 				requestConsumer.accept(requestBuilder);
@@ -244,9 +268,34 @@ public class IuHttp {
 	 * @return response value
 	 * @throws HttpException If the response has error status code.
 	 */
-	public static <T> T send(URI uri, Consumer<HttpRequest.Builder> requestConsumer,
+	public static <T> T send(URI uri, UnsafeConsumer<HttpRequest.Builder> requestConsumer,
 			HttpResponseHandler<T> responseHandler) throws HttpException {
-		return responseHandler.apply(send(uri, requestConsumer));
+		return send(HttpException.class, uri, requestConsumer, responseHandler);
+	}
+
+	/**
+	 * Sends a synchronous HTTP request expecting 200 OK and accepting all response
+	 * headers.
+	 * 
+	 * @param <T>             response type
+	 * @param <E>             additional exception type
+	 * 
+	 * @param uri             request URI
+	 * @param requestConsumer receives the {@link HttpRequest.Builder} before
+	 *                        sending to the server.
+	 * @param exceptionClass  additional checked exception class to allow from
+	 *                        requestConsumer
+	 * @param responseHandler function that converts HTTP response data to the
+	 *                        response type.
+	 * 
+	 * @return response value
+	 * @throws HttpException If the response has error status code.
+	 * @throws E             from requestConsumer
+	 */
+	public static <T, E extends Exception> T send(Class<E> exceptionClass, URI uri,
+			UnsafeConsumer<HttpRequest.Builder> requestConsumer, HttpResponseHandler<T> responseHandler)
+			throws HttpException, E {
+		return responseHandler.apply(send(exceptionClass, uri, requestConsumer));
 	}
 
 	private IuHttp() {

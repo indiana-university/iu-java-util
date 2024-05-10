@@ -196,8 +196,12 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 			new SecureRandom().nextBytes(p2s);
 			param(Param.PASSWORD_SALT, p2s);
 
-			// 128 -> 2048, 192 -> 3072, 256 -> 4096
-			final var p2c = algorithm.size * 16;
+			// ASVS4 #2.4.3: Verify that if PBKDF2 is used, the iteration count SHOULD be as
+			// large as verification server performance will allow, typically at least
+			// 100,000 iterations. (C6)
+
+			// 128 -> 131072, 192 -> 196608, 256 -> 262144
+			final var p2c = algorithm.size * 1024;
 			param(Param.PASSWORD_COUNT, p2c);
 
 			final var saltValue = ByteBuffer.wrap(new byte[alg.length + 1 + p2s.length]);

@@ -43,6 +43,7 @@ import java.util.function.Consumer;
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.UnsafeRunnable;
+import edu.iu.type.base.CloseableModuleFinder;
 import edu.iu.type.base.ModularClassLoader;
 import edu.iu.type.base.TemporaryFile;
 
@@ -85,12 +86,12 @@ final class ComponentFactory {
 	/**
 	 * Creates a modular component.
 	 * 
-	 * @param parentLayer        {@link ModuleLayer} to extend
 	 * @param parent             parent component
 	 * @param parentLoader       {@link ClassLoader} for parent delegation
+	 * @param parentLayer        {@link ModuleLayer} to extend
 	 * @param archives           component path
 	 * @param controllerCallback receives a reference to the {@link Controller} for
-	 *                           the componet's module layer
+	 *                           the component's module layer
 	 * @param destroy            thunk for final cleanup after closing the component
 	 * @return module component
 	 * @throws IOException If an I/O error occurs reading from an archive
@@ -98,12 +99,24 @@ final class ComponentFactory {
 	static Component createModular(Component parent, ClassLoader parentLoader, ModuleLayer parentLayer,
 			Iterable<ComponentArchive> archives, Consumer<Controller> controllerCallback, UnsafeRunnable destroy)
 			throws IOException {
+		final var firstComponent = archives.iterator().next();
+		final String firstModuleName;
+		try (final var finder = new CloseableModuleFinder(firstComponent.path())) {
+			firstModuleName = finder.findAll().iterator().next().descriptor().name();
+		}
+
 		return IuException.checked(IOException.class,
-				() -> IuException.initialize(
-						new ModularClassLoader(archives.iterator().next().kind().isWeb(),
-								IuIterable.map(archives, ComponentArchive::path), parentLayer, parentLoader,
-								controllerCallback),
-						loader -> new Component(parent, loader, loader.getModuleLayer(), archives,
+				() -> IuException.initialize(new ModularClassLoader(firstComponent.kind().isWeb(),
+						IuIterable.map(archives, ComponentArchive::path), parentLayer, parentLoader, c -> {
+
+							final var firstModule = c.layer().findModule(firstModuleName).get();
+							firstModule.getPackages()
+									.forEach(p -> c.addOpens(firstModule, p, ComponentFactory.class.getModule()));
+
+							if (controllerCallback != null)
+								controllerCallback.accept(c);
+
+						}), loader -> new Component(parent, loader, loader.getModuleLayer(), archives,
 								() -> IuException.suppress(loader::close, destroy))));
 	}
 
@@ -135,8 +148,8 @@ final class ComponentFactory {
 	 * Creates a component from the source queue.
 	 * 
 	 * @param parent             parent component
-	 * @param parentLayer        {@link ModuleLayer} to extend
 	 * @param parentLoader       {@link ClassLoader} for parent delegation
+	 * @param parentLayer        {@link ModuleLayer} to extend
 	 * @param controllerCallback receives a reference to {@link Controller} for the
 	 *                           component's module layer
 	 * @param sources            source queue; will be drained and all entries
