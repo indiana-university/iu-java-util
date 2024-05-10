@@ -59,8 +59,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 		<iu-java-util.version>7.0.2-SNAPSHOT</iu-java-util.version>
 
-		<jakarta.annotation-api.version>2.1.1</jakarta.annotation-api.version>
-		<jakarta.interceptor-api.version>2.1.0</jakarta.interceptor-api.version>
+		<jakarta.annotation-api.version>3.0.0</jakarta.annotation-api.version>
+		<jakarta.interceptor-api.version>2.2.0</jakarta.interceptor-api.version>
 		<jakarta.json-api.version>2.1.2</jakarta.json-api.version>
 		<jakarta.json.bind-api.version>3.0.0</jakarta.json.bind-api.version>
 		
@@ -138,7 +138,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 									<version>21</version>
 								</requireJavaVersion>
 								<requireMavenVersion>
-									<version>3.8</version>
+									<version>3.9</version>
 								</requireMavenVersion>
 							</rules>
 						</configuration>
@@ -293,6 +293,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 							<additionalOption>--add-stylesheet</additionalOption>
 							<additionalOption>rivet.min.css</additionalOption>
 						</additionalOptions>
+						<links>
+							<link>https://jakarta.ee/specifications/annotations/3.0/apidocs/</link>
+							<link>https://jakarta.ee/specifications/interceptors/2.2/apidocs/</link>
+						</links>
 						<failOnError>true</failOnError>
 						<failOnWarnings>true</failOnWarnings>
 						<docfilessubdirs>true</docfilessubdirs>
@@ -475,6 +479,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>base</module>
 				<module>client</module>
 				<module>test</module>
+				<module>crypt</module>
 				<module>jdbc</module>
 				<module>type</module>
 				<module>runtime</module>

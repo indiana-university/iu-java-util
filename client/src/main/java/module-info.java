@@ -30,7 +30,11 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /**
- * Thin client wrapper utilities supporting JSON over HTTP.
+ * Functional programming adapters for the
+ * <a href="https://jakarta.ee/specifications/jsonp/2.1/apidocs/">Jakarta JSON
+ * Processing</a> and <a href=
+ * "https://docs.oracle.com/en/java/javase/21/docs/api/java.net.http/module-summary.html">Java
+ * HTTP Client</a> modules.
  */
 module iu.util.client {
 	exports edu.iu.client;

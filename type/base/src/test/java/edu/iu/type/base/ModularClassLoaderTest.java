@@ -59,7 +59,6 @@ import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import edu.iu.IuIterable;
 import edu.iu.UnsafeRunnable;
 import edu.iu.test.IuTest;
 
@@ -394,7 +393,7 @@ public class ModularClassLoaderTest {
 			final var bundleUrl = getClass().getClassLoader().getResource("iu-java-type-testruntime-bundle.jar");
 			try (final var loader = ModularClassLoader.of(ClassLoader.getSystemClassLoader(), ModuleLayer.boot(),
 					() -> {
-						return IuIterable.map(TemporaryFile.readBundle(bundleUrl), a -> () -> a);
+						return TemporaryFile.readBundle(bundleUrl);
 					}, c -> {
 					})) {
 				loader.loadClass("edu.iu.type.testruntime.TestRuntime");

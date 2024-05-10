@@ -30,6 +30,12 @@
 			<version>${jakarta.json-api.version}</version>
 		</dependency>
 		<dependency>
+			<groupId>org.eclipse.parsson</groupId>
+			<artifactId>parsson</artifactId>
+			<version>${parsson.version}</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter-engine</artifactId>
 			<version>${junit-jupiter.version}</version>
@@ -41,12 +47,6 @@
 			<version>${mockito.version}</version>
 			<scope>test</scope>
 		</dependency>
-		<dependency>
-			<groupId>org.eclipse.parsson</groupId>
-			<artifactId>parsson</artifactId>
-			<version>${parsson.version}</version>
-			<scope>runtime</scope>
-		</dependency>
 	</dependencies>
 
 	<build>
@@ -55,6 +55,14 @@
 				<artifactId>maven-compiler-plugin</artifactId>
 				<configuration>
 					<release>11</release>
+				</configuration>
+			</plugin>
+			<plugin>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<configuration>
+					<links>
+						<link>https://jakarta.ee/specifications/jsonp/2.1/apidocs/</link>
+					</links>
 				</configuration>
 			</plugin>
 		</plugins>

@@ -114,6 +114,8 @@ public class IuComponentTest extends IuTypeTestCase {
 			assertTrue(controller.layer().findModule("iu.util.type.testruntime").isPresent());
 		}, TestArchives.getComponentArchive("testruntime"),
 				TestArchives.getProvidedDependencyArchives("testruntime"))) {
+			assertTrue(component.toString().startsWith("Component [parent=null, kind=MODULAR_JAR, versions=["),
+					component::toString);
 
 			assertEquals(Kind.MODULAR_JAR, component.kind());
 			assertEquals("iu-java-type-testruntime", component.version().name());
@@ -125,9 +127,11 @@ public class IuComponentTest extends IuTypeTestCase {
 
 			var contextLoader = Thread.currentThread().getContextClassLoader();
 			var loader = component.classLoader();
+			var layer = component.moduleLayer();
 			try {
 				Thread.currentThread().setContextClassLoader(loader);
 				var urlReader = loader.loadClass("edu.iu.type.testruntime.UrlReader");
+				assertSame(layer, urlReader.getModule().getLayer());
 				assertSame(urlReader, loader.loadClass("edu.iu.type.testruntime.UrlReader"));
 				var ejb = loader.loadClass("jakarta.ejb.EJB");
 				assertSame(ejb, loader.loadClass("jakarta.ejb.EJB"));

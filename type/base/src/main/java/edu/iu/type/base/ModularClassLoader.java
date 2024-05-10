@@ -71,7 +71,7 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 	 * @param parent             parent {@link ClassLoader}
 	 * @param parentLayer        parent {@link ModuleLayer}
 	 * @param modulePath         supplies module path entries on demand within a
-	 *                           {@link TemporaryFile#init(edu.iu.type.base.TemporaryFile.IORunnable)}
+	 *                           {@link TemporaryFile#init(UnsafeRunnable)}
 	 *                           context.
 	 * @param controllerCallback receives a {@link Controller} handle that
 	 *                           <em>should</em> be used and discarded by the
@@ -79,7 +79,7 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 	 * @return {@link ModularClassLoader}
 	 */
 	public static final ModularClassLoader of(ClassLoader parent, ModuleLayer parentLayer,
-			Supplier<Iterable<Supplier<Path>>> modulePath, Consumer<Controller> controllerCallback) {
+			Supplier<Iterable<Path>> modulePath, Consumer<Controller> controllerCallback) {
 		class Box implements AutoCloseable {
 			private ModularClassLoader loader;
 			private volatile UnsafeRunnable destroy;
@@ -95,7 +95,7 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 
 		final var box = new Box();
 		box.destroy = IuException.unchecked(() -> TemporaryFile.init(() -> {
-			box.loader = new ModularClassLoader(false, IuIterable.map(modulePath.get(), Supplier::get), parentLayer,
+			box.loader = new ModularClassLoader(false, modulePath.get(), parentLayer,
 					parent, controllerCallback) {
 				@Override
 				public void close() throws IOException {
@@ -182,6 +182,13 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 		for (final var classpathEntry : classpath) {
 			final var resourceRootUrl = "jar:" + classpathEntry.toUri() + "!/";
 
+			{
+				var resourceList = resourceUrls.get("");
+				if (resourceList == null)
+					resourceUrls.put("", resourceList = new ArrayList<>());
+				resourceList.add(new URL(resourceRootUrl));
+			}
+			
 			try (final var in = Files.newInputStream(classpathEntry); //
 					final var jar = new JarInputStream(in)) {
 				JarEntry entry;
