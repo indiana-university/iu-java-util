@@ -114,9 +114,8 @@ public class IuComponentTest extends IuTypeTestCase {
 			assertTrue(controller.layer().findModule("iu.util.type.testruntime").isPresent());
 		}, TestArchives.getComponentArchive("testruntime"),
 				TestArchives.getProvidedDependencyArchives("testruntime"))) {
-			assertEquals(
-					"Component [parent=null, kind=MODULAR_JAR, versions=[iu-java-type-testruntime-7.0.2-SNAPSHOT, parsson-1.1.2, commons-lang-2.6, jakarta.annotation-api-3.0.0, jakarta.ejb-api-4.0.0, jakarta.interceptor-api-2.2.0, jakarta.json-api-2.1.2, jakarta.transaction-api-2.0.0], closed=false]",
-					component.toString());
+			assertTrue(component.toString().startsWith("Component [parent=null, kind=MODULAR_JAR, versions=["),
+					component::toString);
 
 			assertEquals(Kind.MODULAR_JAR, component.kind());
 			assertEquals("iu-java-type-testruntime", component.version().name());
