@@ -38,21 +38,41 @@ import static org.mockito.Mockito.verify;
 import java.io.UnsupportedEncodingException;
 import java.net.http.HttpRequest;
 import java.util.Base64;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
+
+import edu.iu.IdGenerator;
+import edu.iu.IuText;
+import edu.iu.auth.basic.IuBasicAuthCredentials;
 
 @SuppressWarnings("javadoc")
 public class BasicAuthCredentialsTest {
 
 	@Test
 	public void testBasicAuth() throws UnsupportedEncodingException {
-		final var auth = new BasicAuthCredentials("foo", "bar");
-		assertEquals("foo", auth.getName());
-		assertEquals("bar", auth.getPassword());
+		final var name = IdGenerator.generateId();
+		final var password = IdGenerator.generateId();
+		final var auth = new BasicAuthCredentials(name, password, "US-ASCII");
+		assertEquals(name, auth.getName());
+		assertEquals(password, auth.getPassword());
+		assertEquals("US-ASCII", auth.getCharset());
 
 		final var req = mock(HttpRequest.Builder.class);
 		auth.applyTo(req);
-		verify(req).header("Authorization", "Basic " + Base64.getEncoder().encodeToString("foo:bar".getBytes("UTF-8")));
+		verify(req).header("Authorization",
+				"Basic " + Base64.getEncoder().encodeToString(IuText.ascii(name + ":" + password)));
+	}
+
+	@Test
+	public void testSubject() throws UnsupportedEncodingException {
+		final var name = IdGenerator.generateId();
+		final var password = IdGenerator.generateId();
+		final var auth = IuBasicAuthCredentials.of(name, password);
+		final var sub = auth.getSubject();
+		assertEquals(sub, auth.getSubject());
+		assertEquals(Set.of(auth), sub.getPrincipals());
+		assertEquals("BasicAuthCredentials [" + name + "]", auth.toString());
 	}
 
 }

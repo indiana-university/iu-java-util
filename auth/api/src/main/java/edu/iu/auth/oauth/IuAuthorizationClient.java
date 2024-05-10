@@ -32,15 +32,9 @@
 package edu.iu.auth.oauth;
 
 import java.net.URI;
-import java.security.Principal;
 import java.time.Duration;
 import java.util.Map;
 
-import javax.security.auth.Subject;
-
-import edu.iu.IuAuthorizationFailedException;
-import edu.iu.IuBadRequestException;
-import edu.iu.IuOutOfServiceException;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.spi.IuOAuthSpi;
@@ -78,11 +72,29 @@ public interface IuAuthorizationClient {
 	}
 
 	/**
-	 * Gets the authentication realm.
+	 * Gets the bearer authentication realm.
+	 * 
+	 * <p>
+	 * The bearer authentication realm typically refers the client application's
+	 * resource URI or session authorization endpoint.
+	 * </p>
 	 * 
 	 * @return authentication realm
 	 */
 	String getRealm();
+
+	/**
+	 * Gets supported token principal authentication realms.
+	 * 
+	 * <p>
+	 * To allow client credentials flow, include {@link #getRealm() the bearer
+	 * authentication realm}. For authorization code flow, indicate the delegated
+	 * authentication realm, typically the authorization server's resource URI or
+	 * authorization endpoint.
+	 * 
+	 * @return token principal authentication realms
+	 */
+	Iterable<String> getPrincipalRealms();
 
 	/**
 	 * Gets the maximum length of time to allow for authentication, including
@@ -91,6 +103,20 @@ public interface IuAuthorizationClient {
 	 * @return {@link Duration}
 	 */
 	Duration getAuthenticationTimeout();
+
+	/**
+	 * Gets the maximum length of time to allow for an access token to be
+	 * authorized.
+	 * 
+	 * <p>
+	 * This value will be used to determine the token expiration time if expires_in
+	 * is not sent. It will also be compared to the expires_in value and used
+	 * instead if smaller.
+	 * </p>
+	 * 
+	 * @return {@link Duration}
+	 */
+	Duration getAuthorizationTimeToLive();
 
 	/**
 	 * Gets the root resource URI covered by this client's protection domain.
@@ -138,30 +164,17 @@ public interface IuAuthorizationClient {
 	 * </p>
 	 * 
 	 * @param tokenResponse unverified token response
-	 * @return {@link Subject} implied the token response, <em>must</em> contain at
-	 *         least one {@link Principal}. The first principal <em>should</em>
-	 *         contain the the primary authenticated principal name (i.e., username)
-	 *         to associate with the authorization session.
-	 * @throws IuAuthenticationException      If the token response is invalid
-	 *                                        (i.e., expired or revoked) for the
-	 *                                        authentication realm and the user or
-	 *                                        remote client <em>must</em>
-	 *                                        authenticate before access can be
-	 *                                        authorized.
-	 * @throws IuBadRequestException          If the token response is malformed or
-	 *                                        not understood.
-	 * @throws IuAuthorizationFailedException If token response is valid but doesn't
-	 *                                        authorize access to the protected
-	 *                                        resource.
-	 * @throws IuOutOfServiceException        If token response is valid by access
-	 *                                        should be denied due to an environment
-	 *                                        restriction.
-	 * @throws IllegalStateException          If an unrecoverable error occurs,
-	 *                                        e.g., communicating with an
-	 *                                        authentication provider
+	 * @return {@link IuAuthorizedPrincipal}, must refer to a valid principal
+	 *         identity for a configured {@link #getPrincipalRealms() principal
+	 *         authentication realm} if in response to the authorization code flow,
+	 *         or null if in response to client credentials flow
+	 * @throws IuAuthenticationException If the token response is invalid (i.e.,
+	 *                                   expired or revoked) for the authentication
+	 *                                   realm and the user or remote client
+	 *                                   <em>must</em> authenticate before access
+	 *                                   can be authorized.
 	 */
-	Subject verify(IuTokenResponse tokenResponse) throws IuAuthenticationException, IuBadRequestException,
-			IuAuthorizationFailedException, IuOutOfServiceException, IllegalStateException;
+	IuAuthorizedPrincipal verify(IuTokenResponse tokenResponse) throws IuAuthenticationException;
 
 	/**
 	 * Verifies a refresh response as valid within the client's authentication
@@ -178,60 +191,17 @@ public interface IuAuthorizationClient {
 	 * @param refreshTokenResponse  refresh token response
 	 * @param originalTokenResponse {@link #verify(IuTokenResponse) verified} token
 	 *                              response previously
-	 * 
-	 * @return {@link Subject} implied the token response, <em>must</em> contain at
-	 *         least one {@link Principal}. The first principal <em>should</em>
-	 *         contain the the primary authenticated principal name (i.e., username)
-	 *         to associate with the authorization session.
-	 * @throws IuAuthenticationException      If the token response is invalid
-	 *                                        (i.e., expired or revoked) for the
-	 *                                        authentication realm and the user or
-	 *                                        remote client <em>must</em>
-	 *                                        authenticate before access can be
-	 *                                        authorized.
-	 * @throws IuBadRequestException          If the token response is malformed or
-	 *                                        not understood.
-	 * @throws IuAuthorizationFailedException If token response is valid but doesn't
-	 *                                        authorize access to the protected
-	 *                                        resource.
-	 * @throws IuOutOfServiceException        If token response is valid by access
-	 *                                        should be denied due to an environment
-	 *                                        restriction.
-	 * @throws IllegalStateException          If an unrecoverable error occurs,
-	 *                                        e.g., communicating with an
-	 *                                        authentication provider
+	 * @return {@link IuAuthorizedPrincipal}, must refer to a valid principal
+	 *         identity for a configured {@link #getPrincipalRealms() principal
+	 *         authentication realm}
+	 * @throws IuAuthenticationException If the token response is invalid (i.e.,
+	 *                                   expired or revoked) for the authentication
+	 *                                   realm and the user or remote client
+	 *                                   <em>must</em> authenticate before access
+	 *                                   can be authorized.
 	 */
-	Subject verify(IuTokenResponse refreshTokenResponse, IuTokenResponse originalTokenResponse)
-			throws IuAuthenticationException, IuBadRequestException, IuAuthorizationFailedException,
-			IuOutOfServiceException, IllegalStateException;
-
-	/**
-	 * Revalidates credentials as having been {@link #verify(IuTokenResponse)
-	 * verified}, not expired, not revoked, and not prohibited by an environment
-	 * restriction specified by the application realm or authentication provider, as
-	 * a condition for session activation.
-	 * 
-	 * @param credentials credentials to revalidate
-	 * @throws IuAuthenticationException      If the credentials are invalid (i.e.,
-	 *                                        expired or revoked) for the
-	 *                                        authentication realm and the user or
-	 *                                        remote client <em>must</em>
-	 *                                        reauthenticate before a session may be
-	 *                                        activated.
-	 * @throws IuBadRequestException          If the credentials are malformed or
-	 *                                        not understood.
-	 * @throws IuAuthorizationFailedException If access has been revoked since since
-	 *                                        initial authorization.
-	 * @throws IuOutOfServiceException        If credentials and authorization are
-	 *                                        still valid but access should be
-	 *                                        denied due to an environment
-	 *                                        restriction.
-	 * @throws IllegalStateException          If an unrecoverable error occurs,
-	 *                                        e.g., communicating with an
-	 *                                        authentication provider
-	 */
-	void activate(IuApiCredentials credentials) throws IuAuthenticationException, IuBadRequestException,
-			IuAuthorizationFailedException, IuOutOfServiceException, IllegalStateException;
+	IuAuthorizedPrincipal verify(IuTokenResponse refreshTokenResponse, IuTokenResponse originalTokenResponse)
+			throws IuAuthenticationException;
 
 	/**
 	 * Gets the endpoint {@link URI} for the authorization server.
@@ -280,15 +250,6 @@ public interface IuAuthorizationClient {
 	 */
 	default Map<String, String> getClientCredentialsAttributes() {
 		return null;
-	}
-
-	/**
-	 * Revokes credentials established for use with the client's authentication
-	 * realm, if supported.
-	 * 
-	 * @param credentials credentials to revoke
-	 */
-	default void revoke(IuApiCredentials credentials) {
 	}
 
 }

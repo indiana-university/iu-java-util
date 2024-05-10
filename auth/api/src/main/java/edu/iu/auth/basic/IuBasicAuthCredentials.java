@@ -32,13 +32,57 @@
 package edu.iu.auth.basic;
 
 import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.spi.IuBasicAuthSpi;
+import iu.auth.IuAuthSpiFactory;
 
 /**
  * Represents credentials for use with
  * <a href="https://datatracker.ietf.org/doc/html/rfc7617">HTTP Basic
  * Authentication</a>.
+ * 
+ * <p>
+ * <strong>Basic authentication is not secure</strong> and <em>should not</em>
+ * be used when secure options are available for establishing a principal
+ * identity. When using {@link IuBasicAuthCredentials} to authenticate remote
+ * clients, an expiration policy of no more than 45 days <em>should</em> be
+ * used.
+ * </p>
+ * 
+ * <p>
+ * Basic authentication <em>must not</em> be used to verify a <strong>user
+ * principal</strong>.
+ * </p>
  */
-public interface IuBasicAuthCredentials extends IuApiCredentials {
+public interface IuBasicAuthCredentials extends IuApiCredentials, IuPrincipalIdentity {
+
+	/**
+	 * Gets credentials for use with
+	 * <a href="https://datatracker.ietf.org/doc/html/rfc7617">HTTP Basic
+	 * Authentication</a>.
+	 * 
+	 * @param username username
+	 * @param password password
+	 * @return credentials for use with HTTP basic auth
+	 */
+	static IuBasicAuthCredentials of(String username, String password) {
+		return basic(username, password, "US-ASCII");
+	}
+
+	/**
+	 * Gets credentials for use with
+	 * <a href="https://datatracker.ietf.org/doc/html/rfc7617">HTTP Basic
+	 * Authentication</a>.
+	 * 
+	 * @param username username
+	 * @param password password
+	 * @param charset  charset to use with
+	 *                 {@link #applyTo(java.net.http.HttpRequest.Builder)}
+	 * @return credentials for use with HTTP basic auth
+	 */
+	static IuBasicAuthCredentials basic(String username, String password, String charset) {
+		return IuAuthSpiFactory.get(IuBasicAuthSpi.class).createCredentials(username, password, charset);
+	}
 
 	/**
 	 * Gets the password.
@@ -46,5 +90,15 @@ public interface IuBasicAuthCredentials extends IuApiCredentials {
 	 * @return password
 	 */
 	String getPassword();
+
+	/**
+	 * Gets the encoding to use with
+	 * {@link #applyTo(java.net.http.HttpRequest.Builder)}.
+	 * 
+	 * @return encoding
+	 */
+	default String getCharset() {
+		return "US-ASCII";
+	}
 
 }

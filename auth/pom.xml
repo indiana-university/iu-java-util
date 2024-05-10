@@ -13,7 +13,7 @@
 	<artifactId>iu-java-auth-parent</artifactId>
 	<packaging>pom</packaging>
 
-	<name>IU API Authorization Parent POM</name>
+	<name>IU Authentication and Authorization Parent POM</name>
 
 	<profiles>
 		<profile>
@@ -23,8 +23,10 @@
 			</activation>
 			<modules>
 				<module>api</module>
-				<module>util</module>
+				<module>principal</module>
 				<module>basic</module>
+				<module>pki</module>
+				<module>jwt</module>
 				<module>oauth</module>
 				<module>oidc</module>
 				<module>impl</module>

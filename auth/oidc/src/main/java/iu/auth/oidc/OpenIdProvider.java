@@ -32,60 +32,170 @@
 package iu.auth.oidc;
 
 import java.net.URI;
-import java.util.logging.Logger;
+import java.security.MessageDigest;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
 
 import edu.iu.IuException;
+import edu.iu.IuObject;
+import edu.iu.IuText;
+import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.jwt.IuWebToken;
 import edu.iu.auth.oauth.IuAuthorizationClient;
+import edu.iu.auth.oauth.IuAuthorizationGrant;
+import edu.iu.auth.oidc.IuAuthoritativeOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
-import iu.auth.util.AccessTokenVerifier;
-import iu.auth.util.HttpUtils;
+import edu.iu.client.IuHttp;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import jakarta.json.JsonObject;
 
 /**
  * {@link IuOpenIdProvider} implementation.
  */
-public class OpenIdProvider implements IuOpenIdProvider {
+class OpenIdProvider implements IuOpenIdProvider {
 
-	private final Logger LOG = Logger.getLogger(OpenIdProvider.class.getName());
-
-	private final String issuer;
 	private final IuOpenIdClient client;
+	private final IuAuthorizationGrant clientCredentials;
 	private JsonObject config;
-	private AccessTokenVerifier idTokenVerifier;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param configUri provider configuration URI
-	 * @param client    client configuration metadata
+	 * @param client client configuration metadata
 	 */
-	public OpenIdProvider(URI configUri, IuOpenIdClient client) {
-		config = HttpUtils.read(configUri).asJsonObject();
-		LOG.info("OIDC Provider configuration:\n" + config.toString());
-
-		this.issuer = config.getString("issuer");
-
-		this.idTokenVerifier = new AccessTokenVerifier(
-				IuException.unchecked(() -> new URI(config.getString("jwks_uri"))), issuer,
-				client::getTrustRefreshInterval);
-
+	OpenIdProvider(IuOpenIdClient client) {
 		this.client = client;
+		if (client instanceof IuAuthoritativeOpenIdClient)
+			clientCredentials = IuAuthorizationClient.initialize(new OidcAuthorizationClient(this));
+		else
+			clientCredentials = null;
 	}
 
 	@Override
-	public IuAuthorizationClient createAuthorizationClient() {
-		return new OidcAuthorizationClient(config, client, idTokenVerifier);
+	public IuAuthorizationGrant clientCredentials() {
+		return Objects.requireNonNull(clientCredentials, "Not authoritative for " + client.getRealm());
 	}
 
 	@Override
-	public String getIssuer() {
-		return issuer;
+	public OidcPrincipal hydrate(String accessToken) throws IuAuthenticationException {
+		return new OidcPrincipal(null, accessToken, this);
 	}
 
-	@Override
-	public URI getUserInfoEndpoint() {
-		return IuException.unchecked(() -> new URI(config.getString("userinfo_endpoint")));
+	/**
+	 * Gets the client configuration.
+	 * 
+	 * @return client configuration
+	 */
+	IuOpenIdClient client() {
+		return client;
+	}
+
+	/**
+	 * Gets the authoritative client configuration.
+	 * 
+	 * @return authoritative client configuration
+	 * @throws ClassCastException if client is not an instance of
+	 *                            {@link IuAuthoritativeOpenIdClient}.
+	 */
+	IuAuthoritativeOpenIdClient authClient() {
+		return (IuAuthoritativeOpenIdClient) client;
+	}
+
+	/**
+	 * Gets the OpenID Provider configuration, parsed as a JSON object.
+	 * 
+	 * @return {@link JsonObject} OP configuration
+	 */
+	JsonObject config() {
+		if (config == null)
+			config = IuException.unchecked(() -> IuHttp.get(client.getProviderConfigUri(), IuHttp.READ_JSON_OBJECT));
+		return config;
+	}
+
+	/**
+	 * Gets claims from the OP userinfo endpoint.
+	 * 
+	 * @param accessToken OIDC access token
+	 * @return {@link JsonObject} parsed userinfo claims
+	 */
+	Map<String, ?> userinfo(String accessToken) {
+		// TODO: support signed/encrypted content
+		return IuJsonAdapter.<Map<String, ?>>basic()
+				.fromJson(IuException.unchecked(
+						() -> IuHttp.send(IuJson.get(config(), "userinfo_endpoint", IuJsonAdapter.of(URI.class)),
+								b -> b.header("Authorization", "Bearer " + accessToken), IuHttp.READ_JSON_OBJECT)));
+	}
+
+	/**
+	 * Verifies tokens and returns consolidated claims from both ID token and
+	 * userinfo endpoint.
+	 * 
+	 * @param idToken     OIDC ID token
+	 * @param accessToken OIDC Access token
+	 * @return consolidated claims
+	 */
+	Map<String, ?> getClaims(String idToken, String accessToken) {
+		if (!(client instanceof IuAuthoritativeOpenIdClient))
+			return userinfo(accessToken);
+
+		final var authClient = (IuAuthoritativeOpenIdClient) client;
+		final var clientId = authClient.getCredentials().getName();
+		if (idToken == null) {
+			final var userinfo = userinfo(accessToken);
+			final var principal = (String) Objects.requireNonNull(userinfo.get("principal"),
+					"Userinfo missing principal claim");
+			final var sub = (String) Objects.requireNonNull(userinfo.get("sub"), "Userinfo missing sub claim");
+			if (clientId.equals(principal) //
+					&& sub.equals(principal))
+				return userinfo;
+			else
+				throw new IllegalArgumentException("Missing ID token");
+		}
+
+		final var idTokenAlgorithm = authClient.getIdTokenAlgorithm();
+		final var verifiedIdToken = IuWebToken.from(idToken);
+		if (!idTokenAlgorithm.equals(verifiedIdToken.getAlgorithm()))
+			throw new IllegalArgumentException(idTokenAlgorithm + " required");
+
+		final var encodedHash = IuException
+				.unchecked(() -> MessageDigest.getInstance("SHA-256").digest(IuText.utf8(accessToken)));
+		final var halfOfEncodedHash = Arrays.copyOf(encodedHash, (encodedHash.length / 2));
+		final var atHashGeneratedfromAccessToken = Base64.getUrlEncoder().withoutPadding()
+				.encodeToString(halfOfEncodedHash);
+
+		final var atHash = Objects.requireNonNull(verifiedIdToken.getClaim("at_hash"), "at_hash");
+		if (!atHash.equals(atHashGeneratedfromAccessToken))
+			throw new IllegalArgumentException("Invalid at_hash");
+
+		final String nonce = verifiedIdToken.getClaim("nonce");
+		authClient.verifyNonce(nonce);
+
+		final var now = Instant.now();
+		final Instant authTime = verifiedIdToken.getClaim("auth_time");
+		final var authExpires = authTime.plus(authClient.getAuthenticatedSessionTimeout());
+		if (now.isAfter(authExpires))
+			throw new IllegalArgumentException("OIDC authenticated session is expired");
+
+		// TODO: provide directly from ID Token JWT payload
+		final Map<String, Object> claims = new LinkedHashMap<>();
+		claims.put("sub", verifiedIdToken.getSubject());
+		claims.put("aud", verifiedIdToken.getAudience().iterator().next());
+		claims.put("iat", verifiedIdToken.getIssuedAt());
+		claims.put("exp", verifiedIdToken.getExpires());
+		claims.put("auth_time", authTime);
+
+		for (final var userinfoClaimEntry : userinfo(accessToken).entrySet())
+			claims.compute(userinfoClaimEntry.getKey(),
+					(name, value) -> IuObject.once(value, userinfoClaimEntry.getValue()));
+
+		return Collections.unmodifiableMap(claims);
 	}
 
 }

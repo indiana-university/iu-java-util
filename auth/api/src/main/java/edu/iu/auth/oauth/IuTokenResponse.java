@@ -31,7 +31,7 @@
  */
 package edu.iu.auth.oauth;
 
-import java.time.Instant;
+import java.time.Duration;
 import java.util.Map;
 
 /**
@@ -65,7 +65,7 @@ public interface IuTokenResponse {
 	 * 
 	 * @return expiration time
 	 */
-	Instant getExpires();
+	Duration getExpiresIn();
 
 	/**
 	 * Gets additional attributes sent with the initial authorization request.

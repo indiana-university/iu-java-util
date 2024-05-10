@@ -31,17 +31,63 @@
  */
 package iu.auth.oauth;
 
-import java.io.Serializable;
 import java.security.Principal;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+import javax.security.auth.Subject;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuObject;
+import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
+import iu.auth.principal.PrincipalVerifier;
+import iu.auth.principal.PrincipalVerifierRegistry;
 
 @SuppressWarnings("javadoc")
-class MockPrincipal implements Principal, Serializable {
+final class MockPrincipal implements IuPrincipalIdentity {
 	private static final long serialVersionUID = 1L;
 
+	private static final class Verifier implements PrincipalVerifier<MockPrincipal> {
+		private final String realm;
+
+		private Verifier(String realm) {
+			this.realm = realm;
+		}
+
+		@Override
+		public Class<MockPrincipal> getType() {
+			return MockPrincipal.class;
+		}
+
+		@Override
+		public String getRealm() {
+			return realm;
+		}
+
+		@Override
+		public boolean isAuthoritative() {
+			return false;
+		}
+
+		@Override
+		public void verify(MockPrincipal id, String realm) throws IuAuthenticationException {
+			if (!this.realm.equals(realm))
+				throw new IuAuthenticationException("Bearer realm=\"" + realm + "\"");
+		}
+	}
+
+	static void registerVerifier(String realm) {
+		PrincipalVerifierRegistry.registerVerifier(new Verifier(realm));
+	}
+
+	private final String realm;
 	private final String name = IdGenerator.generateId();
+	private final Set<Principal> additionalPrincipals = new LinkedHashSet<>();
+
+	public MockPrincipal(String realm) {
+		this.realm = realm;
+	}
 
 	@Override
 	public String getName() {
@@ -60,4 +106,27 @@ class MockPrincipal implements Principal, Serializable {
 		MockPrincipal other = (MockPrincipal) obj;
 		return IuObject.equals(name, other.name);
 	}
+
+	@Override
+	public String toString() {
+		return "MockPrincipal [realm=" + realm + ", name=" + name + "]";
+	}
+
+	@Override
+	public Subject getSubject() {
+		final var subject = new Subject();
+		subject.getPrincipals().add(this);
+		subject.getPrincipals().addAll(additionalPrincipals);
+		subject.setReadOnly();
+		return subject;
+	}
+
+	String getRealm() {
+		return realm;
+	}
+
+	void addPrincipal(Principal p) {
+		additionalPrincipals.add(p);
+	}
+
 }

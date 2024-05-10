@@ -39,7 +39,8 @@
 module iu.util.auth.oauth {
 	requires iu.util;
 	requires iu.util.auth;
-	requires iu.util.auth.util;
+	requires iu.util.auth.principal;
+	requires iu.util.client;
 
 	provides edu.iu.auth.spi.IuOAuthSpi with iu.auth.oauth.OAuthSpi;
 }

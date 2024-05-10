@@ -38,11 +38,11 @@
  */
 
 module iu.util.auth.oidc {
-	requires static com.auth0.jwt;
 	requires iu.util;
 	requires iu.util.auth;
-	requires iu.util.auth.util;
+	requires iu.util.auth.principal;
 	requires iu.util.client;
+	requires iu.util.crypt;
 
 	provides edu.iu.auth.spi.IuOpenIdConnectSpi with iu.auth.oidc.OpenIdConnectSpi;
 }

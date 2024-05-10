@@ -33,6 +33,9 @@ package iu.auth.basic;
 
 import java.net.http.HttpRequest.Builder;
 import java.util.Base64;
+import java.util.Set;
+
+import javax.security.auth.Subject;
 
 import edu.iu.IuException;
 import edu.iu.auth.basic.IuBasicAuthCredentials;
@@ -40,20 +43,35 @@ import edu.iu.auth.basic.IuBasicAuthCredentials;
 /**
  * Implementation of {@link IuBasicAuthCredentials}.
  */
-public class BasicAuthCredentials implements IuBasicAuthCredentials {
-	
+final class BasicAuthCredentials implements IuBasicAuthCredentials {
+	private static final long serialVersionUID = 1L;
+
+	/**
+	 * Name.
+	 */
 	private final String name;
+
+	/**
+	 * Password.
+	 */
 	private final String password;
+
+	/**
+	 * Character set.
+	 */
+	private final String charset;
 
 	/**
 	 * Constructor.
 	 * 
 	 * @param name     username
 	 * @param password password
+	 * @param charset  character set
 	 */
-	public BasicAuthCredentials(String name, String password) {
+	BasicAuthCredentials(String name, String password, String charset) {
 		this.name = name;
 		this.password = password;
+		this.charset = charset;
 	}
 
 	@Override
@@ -67,9 +85,24 @@ public class BasicAuthCredentials implements IuBasicAuthCredentials {
 	}
 
 	@Override
+	public String getCharset() {
+		return charset;
+	}
+
+	@Override
+	public Subject getSubject() {
+		return new Subject(true, Set.of(this), Set.of(), Set.of());
+	}
+
+	@Override
 	public void applyTo(Builder httpRequestBuilder) {
 		httpRequestBuilder.header("Authorization", "Basic " + Base64.getUrlEncoder()
-				.encodeToString(IuException.unchecked(() -> (name + ':' + password).getBytes("UTF-8"))));
+				.encodeToString(IuException.unchecked(() -> (getName() + ':' + password).getBytes(charset))));
+	}
+
+	@Override
+	public String toString() {
+		return "BasicAuthCredentials [" + name + "]";
 	}
 
 }

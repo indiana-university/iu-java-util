@@ -35,6 +35,8 @@
 module iu.util.auth.impl {
 	requires iu.util;
 	requires iu.util.auth;
+	requires iu.util.auth.principal;
+	requires iu.util.auth.pki;
 	requires iu.util.auth.basic;
 	requires iu.util.auth.oauth;
 	requires iu.util.auth.oidc;

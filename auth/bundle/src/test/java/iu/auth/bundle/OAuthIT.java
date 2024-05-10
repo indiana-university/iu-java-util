@@ -51,12 +51,17 @@ public class OAuthIT {
 	public void testClient() throws URISyntaxException {
 		final var realm = IdGenerator.generateId();
 		final var resourceUri = new URI("test:" + IdGenerator.generateId());
-		final var client = mock(IuAuthorizationClient.class);
-		when(client.getRealm()).thenReturn(realm);
-		when(client.getResourceUri()).thenReturn(resourceUri);
+		System.setProperty("iu.http.allowedUri", "test:" + resourceUri);
+		try {
+			final var client = mock(IuAuthorizationClient.class);
+			when(client.getRealm()).thenReturn(realm);
+			when(client.getResourceUri()).thenReturn(resourceUri);
 
-		assertNotNull(IuAuthorizationClient.initialize(client));
-		assertNotNull(IuAuthorizationSession.create(realm, resourceUri));
+			assertNotNull(IuAuthorizationClient.initialize(client));
+			assertNotNull(IuAuthorizationSession.create(realm, resourceUri));
+		} finally {
+			System.getProperties().remove("iu.http.allowedUri");
+		}
 	}
 
 }

@@ -39,6 +39,7 @@
 module iu.util.auth.basic {
 	requires iu.util;
 	requires iu.util.auth;
+	requires iu.util.auth.principal;
 
 	provides edu.iu.auth.spi.IuBasicAuthSpi with iu.auth.basic.BasicAuthSpi;
 }

@@ -36,24 +36,24 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.basic.IuBasicAuthCredentials;
 
 @SuppressWarnings("javadoc")
 public class BootstrapIT {
 
 	@Test
 	public void testShutdown() throws Exception {
-		IuApiCredentials.basic("foo", "bar");
+		IuBasicAuthCredentials.of("foo", "bar");
 		Bootstrap.shutdown();
 		Bootstrap.shutdown();
-		assertThrows(IllegalStateException.class, () -> IuApiCredentials.basic("foo", "bar"));
+		assertThrows(IllegalStateException.class, () -> IuBasicAuthCredentials.of("foo", "bar"));
 
 		final var impl = Bootstrap.class.getDeclaredField("impl");
 		impl.setAccessible(true);
 		final var loadImpl = Bootstrap.class.getDeclaredMethod("loadImpl");
 		loadImpl.setAccessible(true);
 		impl.set(null, loadImpl.invoke(null));
-		assertDoesNotThrow(() -> IuApiCredentials.basic("foo", "bar"));
+		assertDoesNotThrow(() -> IuBasicAuthCredentials.of("foo", "bar"));
 	}
 
 }
