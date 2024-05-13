@@ -2,11 +2,8 @@ package iu.auth.saml;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -14,25 +11,18 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.URISyntaxException;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import net.shibboleth.shared.xml.XMLParserException;
 
 public class SamlParserPoolTest {
-	
-	private SamlParserPool samlParserPool;
-    private DocumentBuilderFactory documentBuilderFactoryMock;
-    private DocumentBuilder documentBuilderMock;
 
-    
 	@Test
 	public void testParserPool() throws XMLParserException, ParserConfigurationException {
 		SamlParserPool parserPool = new SamlParserPool();
@@ -68,5 +58,4 @@ public class SamlParserPoolTest {
 		assertThrows(XMLParserException.class, () -> parserPool.parse(new FileReader("src/test/resource/invalid.xml")));
 	}
 
-	
 }
