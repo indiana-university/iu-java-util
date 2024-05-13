@@ -1,6 +1,5 @@
 package iu.auth.saml;
 
-import java.time.Duration;
 import java.util.Map;
 
 import javax.security.auth.Subject;
@@ -42,14 +41,9 @@ final class SamlPrincipal implements IuSamlPrincipal {
 	 * service provider id
 	 */
 	private final String realm;
-	
+
 	private Map<String, ?> claims;
 
-	//private final Duration NotBefore;
-	
-	//private final Duration NotOnOrAfter;
-	
-	
 	/**
 	 * Constructor
 	 * 
@@ -58,8 +52,10 @@ final class SamlPrincipal implements IuSamlPrincipal {
 	 * @param emailAddress email address
 	 * @param entityId     identity provider URI
 	 * @param realm        service provider id
+	 * @param claims       claims from SAML response
 	 */
-	public SamlPrincipal(String name, String displayName, String emailAddress, String entityId, String realm, Map<String, ?> claims) {
+	public SamlPrincipal(String name, String displayName, String emailAddress, String entityId, String realm,
+			Map<String, ?> claims) {
 		this.name = name;
 		this.displayName = displayName;
 		this.emailAddress = emailAddress;
@@ -67,8 +63,9 @@ final class SamlPrincipal implements IuSamlPrincipal {
 		this.realm = realm;
 		this.claims = claims;
 	}
-	
-    public Map<String, ?> getClaims() {
+
+	@Override
+	public Map<String, ?> getClaims() {
 		return claims;
 	}
 
@@ -82,6 +79,7 @@ final class SamlPrincipal implements IuSamlPrincipal {
 	 * 
 	 * @return principal display name
 	 */
+	@Override
 	public String getDisplayName() {
 		return displayName;
 	}
@@ -91,6 +89,7 @@ final class SamlPrincipal implements IuSamlPrincipal {
 	 * 
 	 * @return principal email address
 	 */
+	@Override
 	public String getEmailAddress() {
 		return emailAddress;
 	}

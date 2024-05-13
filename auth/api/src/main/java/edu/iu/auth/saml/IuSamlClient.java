@@ -17,6 +17,48 @@ import java.util.List;
 public interface IuSamlClient {
 
 	/**
+	 * Gets whether to fail on address mismatch or not, true if required, false if
+	 * not
+	 * 
+	 * @return failed on address mismatch
+	 */
+	default boolean failOnAddressMismatch() {
+		return false;
+	}
+	
+	
+	/**
+	 * Gets the maximum length of time to allow an authenticated session to be
+	 * remain active before requesting the provide re-establish credentials for the
+	 * principal.
+	 * 
+	 * @return {@link Duration}, will be truncated to second
+	 */
+	default Duration getAuthenticatedSessionTimeout() {
+		return Duration.ofHours(12L);
+	}
+	
+	/**
+	 * Gets the maximum time interval to re-established metadata resolver typically
+	 * measured in seconds. Once this interval is passed, metadata resolver will be
+	 * re-established using metadata URIs.
+	 * 
+	 * @return metadaaTtl {@link Duration}
+	 */
+	default Duration getMetadataTtl() {
+		return Duration.ofMillis(300000L);
+	}
+	
+	/**
+	 * Gets the SAML identity provider {@link URI} to configure Metadata resolver
+	 * 
+	 * @return SAML identity provider URL
+	 */
+	default URI getIdentityProviderUri() {
+		return null;
+	}
+	
+	/**
 	 * Gets the root resource URI covered by this client's protection domain.
 	 * 
 	 * <p>
@@ -30,33 +72,13 @@ public interface IuSamlClient {
 	URI getApplicationUri();
 
 	/**
-	 * Gets whether to fail on address mismatch or not, true if required, false if
-	 * not
-	 * 
-	 * @return failed on address mismatch
-	 */
-	default boolean failOnAddressMismatch() {
-		return false;
-	}
-
-	/**
 	 * Gets allowed list of IP addresses to validate against SAML response
 	 * 
 	 * @return allowed ranged of IP addresses
 	 */
 	List<String> getAllowedRange();
 
-	/**
-	 * Gets the maximum time interval to re-established metadata resolver typically
-	 * measured in seconds. Once this interval is passed, metadata resolver will be
-	 * re-established using metadata URIs.
-	 * 
-	 * @return metadaaTtl {@link Duration}
-	 */
-	default Duration getMetadataTtl() {
-		return Duration.ofMillis(300000L);
-	}
-
+	
 	/**
 	 * Gets the SAML metadata {@link URI} to retrieve configure metadata file that
 	 * is configured directly into the SAML provider by administrator
@@ -64,15 +86,6 @@ public interface IuSamlClient {
 	 * @return metadata URL
 	 */
 	List<URI> getMetaDataUris();
-
-	/**
-	 * Gets the SAML identity provider {@link URI} to configure Metadata resolver
-	 * 
-	 * @return SAML identity provider URL
-	 */
-	default URI getIdentityProviderUri() {
-		return null;
-	}
 
 	/**
 	 * Gets the list of assertion Consumer {@link URI}
@@ -106,17 +119,5 @@ public interface IuSamlClient {
 	 */
 
 	String getPrivateKey();
-
-	/**
-	 * Gets the maximum length of time to allow an authenticated session to be
-	 * remain active before requesting the provide re-establish credentials for the
-	 * principal.
-	 * 
-	 * @return {@link Duration}, will be truncated to seconds
-	 * 
-	 *         TODO set default as 12 hours, client allow to configure but can't set
-	 *         more than 12 hours
-	 */
-	Duration getAuthenticatedSessionTimeout();
 
 }

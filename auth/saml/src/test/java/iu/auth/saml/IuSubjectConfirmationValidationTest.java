@@ -20,6 +20,7 @@ import org.opensaml.saml.saml2.core.SubjectConfirmationData;
 
 import edu.iu.IuException;
 
+@SuppressWarnings("javadoc")
 public class IuSubjectConfirmationValidationTest {
 
 	public static final String SUBJECT_CONFIRMATION_LOCAL_ADDRESS = "10.1.2.3";

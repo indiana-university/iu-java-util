@@ -1,6 +1,8 @@
 package iu.auth.saml;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.BufferedWriter;
@@ -16,6 +18,7 @@ import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,9 +42,9 @@ import edu.iu.crypt.PemEncoded;
 import edu.iu.test.IuTestLogger;
 
 @EnabledIf("edu.iu.client.IuVault#isConfigured")
+@SuppressWarnings("javadoc")
 public class SamlAuthenticateIT {
 
-	private static IuSamlProvider provider;
 	private static File metaData;
 	private static String ldpMetaDataUrl;
 	private static String providerEntityId = System.getenv("SERVICE_PROVIDER_ENTITY_ID");
@@ -50,6 +53,7 @@ public class SamlAuthenticateIT {
 
 	@BeforeAll
 	public static void setupClass() {
+
 		String samlCertificate = IuVault.RUNTIME.get("iu-endpoint.saml.certificate");
 		String privateKey = IuVault.RUNTIME.get("iu-endpoint.saml.privateKey");
 		ldpMetaDataUrl = IuVault.RUNTIME.get("iu.ldp.stg.metadata.url");
@@ -69,7 +73,7 @@ public class SamlAuthenticateIT {
 			IuException.unchecked(() -> bw.close());
 		}
 
-		provider = IuSamlProvider.from(new IuSamlClient() {
+		IuSamlProvider provider = IuSamlProvider.from(new IuSamlClient() {
 
 			@Override
 			public String getServiceProviderEntityId() {
@@ -198,10 +202,25 @@ public class SamlAuthenticateIT {
 		// TODO verify relay state and saml response values
 		String relayState = loginSuccessParams.get("RelayState");
 		String samlResponse = loginSuccessParams.get("SAMLResponse");
-		
-	
-		IuSamlPrincipal iuSamlPrincipal = samlSession.authorize(InetAddress.getLocalHost(), postUri, samlResponse, relayState);
+
+		IuSamlPrincipal iuSamlPrincipal = samlSession.authorize(InetAddress.getLocalHost(), postUri, samlResponse,
+				relayState);
+		assertNotNull(iuSamlPrincipal.getName());
+		assertNotNull(iuSamlPrincipal.getSubject());
+		assertNotNull(iuSamlPrincipal.getClaims());
 		// TODO assert iuSamlPrincipal
+		assertEquals("esstest@iu.edu", iuSamlPrincipal.getName());
+		assertEquals("ESS Testing", iuSamlPrincipal.getDisplayName());
+		assertEquals("esstest@iu.edu", iuSamlPrincipal.getEmailAddress());
+		final Instant now = Instant.now();
+		final Instant latestValid = now.plus(Duration.ofMinutes(5));
+		Instant issueInstant = (Instant) iuSamlPrincipal.getClaims().get("issueInstant");
+		Instant notBefore = (Instant) iuSamlPrincipal.getClaims().get("notBefore");
+		Instant notOnOrAfter = (Instant) iuSamlPrincipal.getClaims().get("notOnOrAfter");
+
+		assertFalse(issueInstant.isAfter(latestValid));
+		assertFalse(notBefore.isAfter(latestValid));
+		assertFalse(notOnOrAfter.isBefore(now.minus(Duration.ofMinutes(5))));
 		metaData.delete();
 
 	}

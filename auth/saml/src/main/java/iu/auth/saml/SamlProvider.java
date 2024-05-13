@@ -258,7 +258,6 @@ public class SamlProvider implements IuSamlProvider {
 
 	private String setSpMetadata() {
 		Thread current = Thread.currentThread();
-		ClassLoader currentLoader = current.getContextClassLoader();
 		ClassLoader samlProvider = SamlProvider.class.getClassLoader();
 		current.setContextClassLoader(samlProvider);
 		X509Certificate spX509Cert = (X509Certificate) XMLObjectProviderRegistrySupport.getBuilderFactory()
@@ -403,6 +402,7 @@ public class SamlProvider implements IuSamlProvider {
 
 	/**
 	 * Authorize SAML response return back from IDP
+	 * 
 	 * @param parameterObject TODO
 	 * 
 	 * @return SAML attributes
@@ -411,12 +411,7 @@ public class SamlProvider implements IuSamlProvider {
 		Thread current = Thread.currentThread();
 		ClassLoader currentLoader = current.getContextClassLoader();
 		ClassLoader endpointLoader = SamlProvider.class.getClassLoader();
-		current.setContextClassLoader(endpointLoader);
-		// entity id is important in case of guest and social account
-		String principalName = "";
-		String emailAddress = "";
-		String displayName = "";
-		final Map<String, Object> claims = new LinkedHashMap<>();
+		current.setContextClassLoader(currentLoader);
 
 		Response response;
 		try (InputStream in = new ByteArrayInputStream(Base64.getDecoder().decode(samlResponse))) {
@@ -426,8 +421,6 @@ public class SamlProvider implements IuSamlProvider {
 			throw new IllegalArgumentException("Invalid SAMLResponse", e);
 		}
 		String entityId = response.getIssuer().getValue();
-		Instant issueInstant = response.getIssueInstant();
-		claims.put("issueInstant", issueInstant);
 		LOG.fine("SAML2 authentication response\nEntity ID: " + entityId + "\nPOST URL: " + postUri.toString() + "\n"
 				+ XmlDomUtil.getContent(response.getDOM()));
 
@@ -475,105 +468,114 @@ public class SamlProvider implements IuSamlProvider {
 					+ postUri.toString() + "\nAllow IP Range: " + client.getAllowedRange() + "\n"
 					+ XmlDomUtil.getContent(response.getDOM()) + "\nStatic Params: " + staticParams);
 
-	
 		// validate assertions
+		SamlPrincipal principal;
 		try {
-			for (Assertion assertion : response.getAssertions()) {
-				validator.validate(assertion, ctx);
-
-				for (AttributeStatement attributeStatement : assertion.getAttributeStatements())
-					for (Attribute attribute : attributeStatement.getAttributes())
-						if ("eduPersonPrincipalName".equals(attribute.getFriendlyName())
-								|| EDU_PERSON_PRINCIPAL_NAME_OID.equals(attribute.getName()))
-							principalName = readStringAttribute(attribute);
-						else if ("displayName".equals(attribute.getFriendlyName())
-								|| DISPLAY_NAME_OID.equals(attribute.getName()))
-							displayName = readStringAttribute(attribute);
-						else if ("mail".equals(attribute.getFriendlyName()) 
-								|| MAIL_OID.equals(attribute.getName()))
-							emailAddress = readStringAttribute(attribute);
-				final Conditions conditions = assertion.getConditions();
-				claims.put("notBefore", conditions.getNotBefore());
-				claims.put("notOnOrAfter", conditions.getNotOnOrAfter());
-				for ( AuthnStatement statement : assertion.getAuthnStatements()) {
-					claims.put("AuthnInstant", statement.getAuthnInstant());
-				}
-			}
-
-			for (EncryptedAssertion encryptedAssertion : response.getEncryptedAssertions()) {
-				Assertion assertion;
-				try {
-					// see:
-					// https://stackoverflow.com/questions/22672416/org-opensaml-xml-validation-validationexception-apache-xmlsec-idresolver-could
-					// https://stackoverflow.com/questions/24364686/saml-2-0-decrypting-encryptedassertion-removes-a-namespace-declaration
-					Decrypter dc = getDecrypter(client);
-					dc.setRootInNewDocument(true);
-					assertion = dc.decrypt(encryptedAssertion);
-				} catch (DecryptionException e) {
-					throw new IllegalArgumentException("Invalid encrypted assertion in response", e);
-				}
-				try {
-					validator.validate(assertion, ctx);
-				} catch (AssertionValidationException e) {
-					throw new IllegalArgumentException(ctx.toString(), e);
-				}
-				LOG.fine("SAML2 assertion " + XmlDomUtil.getContent(assertion.getDOM()));
-
-				for (AttributeStatement attributeStatement : assertion.getAttributeStatements())
-					for (Attribute attribute : attributeStatement.getAttributes())
-						if ("eduPersonPrincipalName".equals(attribute.getFriendlyName())
-								|| EDU_PERSON_PRINCIPAL_NAME_OID.equals(attribute.getName()))
-							principalName = readStringAttribute(attribute);
-						else if ("displayName".equals(attribute.getFriendlyName())
-								|| DISPLAY_NAME_OID.equals(attribute.getName()))
-							displayName = readStringAttribute(attribute);
-						else if ("mail".equals(attribute.getFriendlyName()) || MAIL_OID.equals(attribute.getName()))
-							emailAddress = readStringAttribute(attribute);
-				final Conditions conditions = assertion.getConditions();
-				if(conditions.getNotBefore() != null ) {
-					claims.put("notBefore", conditions.getNotBefore());
-				}
-				if(conditions.getNotOnOrAfter() != null ) {
-					claims.put("notOnOrAfter", conditions.getNotOnOrAfter());
-				}
-				for ( AuthnStatement statement : assertion.getAuthnStatements()) {
-
-					claims.put("AuthnInstant", statement.getAuthnInstant());
-				}
-
-			}
-
-			if (principalName == null)
-				throw new IllegalArgumentException(
-						"SAML2 must have at least one assertion with eduPersonPrincipalName attribute");
-
-			SubjectConfirmation confirmation = (SubjectConfirmation) ctx.getDynamicParameters()
-					.get(SAML2AssertionValidationParameters.CONFIRMED_SUBJECT_CONFIRMATION);
-			if (confirmation == null)
-				throw new IllegalArgumentException("Missing subject confirmation: " + ctx.getValidationFailureMessages()
-				+ "\n" + ctx.getDynamicParameters());
-
-			LOG.fine("SAML2 subject confirmation " + XmlDomUtil.getContent(confirmation.getDOM()));
-			Instant notBefore = confirmation.getSubjectConfirmationData().getNotBefore();
-			Instant notOnOrAfter = confirmation.getSubjectConfirmationData().getNotOnOrAfter();
-			if(notBefore != null ) {
-				claims.put("notBefore", notBefore);
-			}
-			if(notOnOrAfter != null ) {
-				claims.put("notOnOrAfter", notOnOrAfter);
-			}
-			
-
+			principal = validateAssertion(response, validator, ctx);
 		} catch (AssertionValidationException e) {
 			throw new IllegalArgumentException(ctx.toString(), e);
 		} finally {
 			current.setContextClassLoader(currentLoader);
 		}
+		return principal;
 
+	}
+
+	private SamlPrincipal validateAssertion(Response response, SAML20AssertionValidator validator,
+			ValidationContext ctx) throws AssertionValidationException {
+		String principalName = "";
+		String emailAddress = "";
+		String displayName = "";
+		final Map<String, Object> claims = new LinkedHashMap<>();
+		claims.put("issueInstant", response.getIssueInstant());
+		for (Assertion assertion : response.getAssertions()) {
+			validator.validate(assertion, ctx);
+
+			for (AttributeStatement attributeStatement : assertion.getAttributeStatements())
+				for (Attribute attribute : attributeStatement.getAttributes())
+					if ("eduPersonPrincipalName".equals(attribute.getFriendlyName())
+							|| EDU_PERSON_PRINCIPAL_NAME_OID.equals(attribute.getName()))
+						principalName = readStringAttribute(attribute);
+					else if ("displayName".equals(attribute.getFriendlyName())
+							|| DISPLAY_NAME_OID.equals(attribute.getName()))
+						displayName = readStringAttribute(attribute);
+					else if ("mail".equals(attribute.getFriendlyName()) || MAIL_OID.equals(attribute.getName()))
+						emailAddress = readStringAttribute(attribute);
+			final Conditions conditions = assertion.getConditions();
+			claims.put("notBefore", conditions.getNotBefore());
+			claims.put("notOnOrAfter", conditions.getNotOnOrAfter());
+			for (AuthnStatement statement : assertion.getAuthnStatements()) {
+				// Gets the time when the authentication took place.
+				claims.put("authnInstant", statement.getAuthnInstant());
+			}
+		}
+
+		for (EncryptedAssertion encryptedAssertion : response.getEncryptedAssertions()) {
+			Assertion assertion;
+			try {
+				// see:
+				// https://stackoverflow.com/questions/22672416/org-opensaml-xml-validation-validationexception-apache-xmlsec-idresolver-could
+				// https://stackoverflow.com/questions/24364686/saml-2-0-decrypting-encryptedassertion-removes-a-namespace-declaration
+				Decrypter dc = getDecrypter(client);
+				dc.setRootInNewDocument(true);
+				assertion = dc.decrypt(encryptedAssertion);
+			} catch (DecryptionException e) {
+				throw new IllegalArgumentException("Invalid encrypted assertion in response", e);
+			}
+			try {
+				validator.validate(assertion, ctx);
+			} catch (AssertionValidationException e) {
+				throw new IllegalArgumentException(ctx.toString(), e);
+			}
+			LOG.fine("SAML2 assertion " + XmlDomUtil.getContent(assertion.getDOM()));
+
+			for (AttributeStatement attributeStatement : assertion.getAttributeStatements())
+				for (Attribute attribute : attributeStatement.getAttributes())
+					if ("eduPersonPrincipalName".equals(attribute.getFriendlyName())
+							|| EDU_PERSON_PRINCIPAL_NAME_OID.equals(attribute.getName()))
+						principalName = readStringAttribute(attribute);
+					else if ("displayName".equals(attribute.getFriendlyName())
+							|| DISPLAY_NAME_OID.equals(attribute.getName()))
+						displayName = readStringAttribute(attribute);
+					else if ("mail".equals(attribute.getFriendlyName()) || MAIL_OID.equals(attribute.getName()))
+						emailAddress = readStringAttribute(attribute);
+			final Conditions conditions = assertion.getConditions();
+			if (conditions.getNotBefore() != null) {
+				claims.put("notBefore", conditions.getNotBefore());
+			}
+			if (conditions.getNotOnOrAfter() != null) {
+				claims.put("notOnOrAfter", conditions.getNotOnOrAfter());
+			}
+			for (AuthnStatement statement : assertion.getAuthnStatements()) {
+
+				claims.put("authnInstant", statement.getAuthnInstant());
+			}
+
+		}
+
+		if (principalName == null)
+			throw new IllegalArgumentException(
+					"SAML2 must have at least one assertion with eduPersonPrincipalName attribute");
+
+		SubjectConfirmation confirmation = (SubjectConfirmation) ctx.getDynamicParameters()
+				.get(SAML2AssertionValidationParameters.CONFIRMED_SUBJECT_CONFIRMATION);
+		if (confirmation == null)
+			throw new IllegalArgumentException("Missing subject confirmation: " + ctx.getValidationFailureMessages()
+					+ "\n" + ctx.getDynamicParameters());
+
+		LOG.fine("SAML2 subject confirmation " + XmlDomUtil.getContent(confirmation.getDOM()));
+		Instant notBefore = confirmation.getSubjectConfirmationData().getNotBefore();
+		Instant notOnOrAfter = confirmation.getSubjectConfirmationData().getNotOnOrAfter();
+		if (notBefore != null) {
+			claims.put("notBefore", notBefore);
+		}
+		if (notOnOrAfter != null) {
+			claims.put("notOnOrAfter", notOnOrAfter);
+		}
+		String entityId = response.getIssuer().getValue();
 		SamlPrincipal principal = new SamlPrincipal(principalName, displayName, emailAddress, entityId,
 				client.getServiceProviderEntityId(), claims);
 		return principal;
-
 	}
 
 	private Decrypter getDecrypter(IuSamlClient client) {

@@ -27,14 +27,10 @@ public class SamlParserPool implements ParserPool {
 	/**
 	 * Initialize the pool.
 	 */
-	public SamlParserPool() {
+	public SamlParserPool() throws ParserConfigurationException {
 		DocumentBuilderFactory newFactory = DocumentBuilderFactory.newInstance();
-		try {
-			newFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-			newFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-		} catch (ParserConfigurationException e) {
-			throw new IllegalStateException(e);
-		}
+		newFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+		newFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
 
 		newFactory.setCoalescing(true);
 		newFactory.setExpandEntityReferences(false);

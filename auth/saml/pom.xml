@@ -72,6 +72,11 @@
 			<version>${opensaml.version}</version>
 			<scope>provided</scope>
 		</dependency>
+		<dependency>
+			<groupId>edu.iu.util</groupId>
+			<artifactId>iu-java-auth-api</artifactId>
+			<version>7.0.2-SNAPSHOT</version>
+		</dependency>
 	</dependencies>
 	<repositories>
 		<repository>
