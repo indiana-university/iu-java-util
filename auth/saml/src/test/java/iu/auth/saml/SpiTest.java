@@ -63,6 +63,7 @@ public class SpiTest {
 
 	/**
 	 * Test is currently failing with MalformedURLException for getMetaDataUris
+	 * TODO fix Exception
 	 */
 	@Test
 	@Disabled
