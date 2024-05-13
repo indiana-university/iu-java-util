@@ -56,8 +56,6 @@ public class SamlParserPool implements ParserPool {
 
 	@Override
 	public void returnBuilder(DocumentBuilder builder) {
-		// TODO Auto-generated method stub
-
 	}
 
 	@Override
