@@ -88,7 +88,6 @@ public class IdTest {
 
 	@Test
 	public void testEncodeDecode() {
-		System.out.println(IdGenerator.generateId());
 		for (int i = 0; i < 1000000; i++) {
 			String randomId = IdGenerator.generateId();
 			IdGenerator.verifyId(randomId, 10000L);

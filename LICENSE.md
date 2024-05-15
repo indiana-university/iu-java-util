@@ -1,6 +1,6 @@
 # BSD 3-Clause License
 
-[Copyright](https://www.iu.edu/copyright/) &copy; 2023 [Indiana University](https://iu.edu/)
+[Copyright](https://www.iu.edu/copyright/) &copy; 2024 [Indiana University](https://iu.edu/)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

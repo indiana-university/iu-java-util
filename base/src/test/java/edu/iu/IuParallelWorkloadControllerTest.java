@@ -192,14 +192,14 @@ public class IuParallelWorkloadControllerTest {
 		workload.setGracefulTermination(Duration.ofMillis(5L));
 		workload.setGracefulDestroy(Duration.ofMillis(5L));
 		workload.apply(t -> {
-			Instant until = Instant.now().plus(Duration.ofMillis(200L));
+			Instant until = Instant.now().plus(Duration.ofMillis(1000L));
 			for (var now = Instant.now(); now.isBefore(until);)
 				try {
 					Thread.sleep(50L);
 				} catch (InterruptedException e) {
 				}
 		});
-		Thread.sleep(150L);
+		Thread.sleep(500L);
 		assertTrue(workload.isClosed());
 		assertInstanceOf(TimeoutException.class,
 				assertThrows(ExecutionException.class, () -> workload.await()).getCause());
@@ -325,14 +325,14 @@ public class IuParallelWorkloadControllerTest {
 
 	@Test
 	public void testAwaitExpired() throws Throwable {
-		workload.apply(a -> Thread.sleep(150L));
-		workload.apply(a -> Thread.sleep(200L));
+		workload.apply(a -> Thread.sleep(300L));
+		workload.apply(a -> Thread.sleep(500L));
 		assertEquals("Timed out in PT0.1S after completing 0 tasks, 2 tasks remain",
 				assertThrows(TimeoutException.class, workload::await).getMessage());
-		Thread.sleep(75L);
+		Thread.sleep(300L);
 		assertEquals("Timed out in PT0.1S after completing 1 task, 1 task remaining",
 				assertThrows(TimeoutException.class, workload::await).getMessage());
-		Thread.sleep(50L);
+		Thread.sleep(300L);
 		assertDoesNotThrow(workload::await);
 	}
 

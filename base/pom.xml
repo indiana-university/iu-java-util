@@ -7,11 +7,15 @@
 	<parent>
 		<groupId>edu.iu.util</groupId>
 		<artifactId>iu-java-parent</artifactId>
-		<version>7.0.1</version>
+		<version>7.0.2-SNAPSHOT</version>
 	</parent>
 
 	<artifactId>iu-java-base</artifactId>
 	<name>IU Base Utilities Module</name>
+
+	<properties>
+		<argLine>-ea -Xmx1g --add-modules ALL-MODULE-PATH -XX:+EnableDynamicAgentLoading</argLine>
+	</properties>
 
 	<dependencies>
 		<dependency>
@@ -31,16 +35,11 @@
 	<build>
 		<plugins>
 			<plugin>
-				<artifactId>maven-jar-plugin</artifactId>
+				<artifactId>maven-compiler-plugin</artifactId>
 				<configuration>
-					<archive>
-						<manifestEntries>
-							<Sealed>false</Sealed>
-						</manifestEntries>
-					</archive>
+					<release>11</release>
 				</configuration>
 			</plugin>
-
 		</plugins>
 	</build>
 

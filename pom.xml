@@ -37,7 +37,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 	<groupId>edu.iu.util</groupId>
 	<artifactId>iu-java-parent</artifactId>
-	<version>7.0.1</version>
+	<version>7.0.2-SNAPSHOT</version>
 
 	<packaging>pom</packaging>
 	<name>IU Java Utilities Parent POM</name>
@@ -57,14 +57,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<argLine>-ea --add-modules ALL-MODULE-PATH -XX:+EnableDynamicAgentLoading</argLine>
 
-		<iu-java-util.version>7.0.1</iu-java-util.version>
+		<iu-java-util.version>7.0.2-SNAPSHOT</iu-java-util.version>
 
-		<jakarta.annotation-api.version>2.1.1</jakarta.annotation-api.version>
-		<jakarta.interceptor-api.version>2.1.0</jakarta.interceptor-api.version>
+		<jakarta.annotation-api.version>3.0.0</jakarta.annotation-api.version>
+		<jakarta.interceptor-api.version>2.2.0</jakarta.interceptor-api.version>
 		<jakarta.json-api.version>2.1.2</jakarta.json-api.version>
 		<jakarta.json.bind-api.version>3.0.0</jakarta.json.bind-api.version>
 		
 		<parsson.version>1.1.2</parsson.version>
+		<java-jwt.version>4.4.0</java-jwt.version>
+		<jsoup.version>1.17.2</jsoup.version>
 
 		<junit-jupiter.version>5.10.0</junit-jupiter.version>
 		<junit-platform.version>1.10.0</junit-platform.version>
@@ -136,7 +138,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 									<version>21</version>
 								</requireJavaVersion>
 								<requireMavenVersion>
-									<version>3.8</version>
+									<version>3.9</version>
 								</requireMavenVersion>
 							</rules>
 						</configuration>
@@ -145,15 +147,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			</plugin>
 			<plugin>
 				<artifactId>maven-source-plugin</artifactId>
-				<executions>
-					<execution>
-						<id>bundle-sources</id>
-						<phase>process-classes</phase>
-						<goals>
-							<goal>jar-no-fork</goal>
-						</goals>
-					</execution>
-				</executions>
 			</plugin>
 			<plugin>
 				<artifactId>maven-javadoc-plugin</artifactId>
@@ -161,6 +154,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
+			</plugin>
+			<plugin>
+				<artifactId>maven-failsafe-plugin</artifactId>
 			</plugin>
 		</plugins>
 
@@ -172,7 +168,23 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				</plugin>
 				<plugin>
 					<artifactId>maven-surefire-plugin</artifactId>
-					<version>3.1.2</version>
+					<version>3.2.2</version>
+				</plugin>
+				<plugin>
+					<artifactId>maven-failsafe-plugin</artifactId>
+					<version>3.2.2</version>
+					<executions>
+						<execution>
+							<goals>
+								<goal>integration-test</goal>
+								<goal>verify</goal>
+							</goals>
+						</execution>
+					</executions>
+				</plugin>
+				<plugin>
+					<artifactId>maven-assembly-plugin</artifactId>
+					<version>3.6.0</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-ear-plugin</artifactId>
@@ -184,8 +196,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 					<configuration>
 						<archive>
 							<manifest>
-								<classpathPrefix>META-INF/lib</classpathPrefix>
 								<addExtensions>true</addExtensions>
+								<classpathPrefix>META-INF/lib</classpathPrefix>
 							</manifest>
 							<manifestEntries>
 								<Sealed>true</Sealed>
@@ -214,9 +226,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 					<executions>
 						<execution>
 							<id>default-source-jar</id>
-							<phase>package</phase>
+							<phase>process-classes</phase>
 							<goals>
-								<goal>jar</goal>
+								<goal>jar-no-fork</goal>
 							</goals>
 						</execution>
 					</executions>
@@ -281,6 +293,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 							<additionalOption>--add-stylesheet</additionalOption>
 							<additionalOption>rivet.min.css</additionalOption>
 						</additionalOptions>
+						<links>
+							<link>https://jakarta.ee/specifications/annotations/3.0/apidocs/</link>
+							<link>https://jakarta.ee/specifications/interceptors/2.2/apidocs/</link>
+						</links>
 						<failOnError>true</failOnError>
 						<failOnWarnings>true</failOnWarnings>
 						<docfilessubdirs>true</docfilessubdirs>
@@ -336,16 +352,19 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 									<exclude>**/*.jar</exclude>
 								</excludes>
 							</configuration>
-							<phase>test</phase>	
+							<phase>verify</phase>	
 						</execution>
 						<execution>
 							<id>coverage-check</id>
 							<goals>
 								<goal>check</goal>
 							</goals>
-							<phase>test</phase>
+							<phase>verify</phase>
 							<configuration>
 								<haltOnFailure>true</haltOnFailure>
+								<excludes>
+									<exclude>**/*.jar</exclude>
+								</excludes>
 								<rules>
 									<rule>
 										<element>BUNDLE</element>
@@ -393,6 +412,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 										<artifactId>maven-dependency-plugin</artifactId>
 										<versionRange>[0,)</versionRange>
 										<goals>
+											<goal>copy</goal>
 											<goal>copy-dependencies</goal>
 										</goals>
 									</pluginExecutionFilter>
@@ -457,11 +477,22 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			<modules>
 				<module>docfiles</module>
 				<module>base</module>
+				<module>client</module>
 				<module>test</module>
+				<module>crypt</module>
 				<module>jdbc</module>
 				<module>type</module>
 				<module>runtime</module>
 				<module>site</module>
+			</modules>
+		</profile>
+		<profile>
+			<id>scan</id>
+			<activation>
+				<activeByDefault>true</activeByDefault>
+			</activation>
+			<modules>
+				<module>scan</module>
 			</modules>
 		</profile>
 	</profiles>

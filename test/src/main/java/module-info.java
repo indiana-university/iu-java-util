@@ -49,10 +49,12 @@ module iu.util.test {
 	exports edu.iu.test;
 
 	requires iu.util;
+	requires java.net.http;
 	requires org.mockito;
 	requires transitive org.junit.jupiter.api;
 	requires transitive org.junit.platform.launcher;
-	
+	requires static jakarta.json;
+
 	provides org.junit.platform.launcher.LauncherSessionListener with edu.iu.test.IuTestSessionListener;
 	provides org.junit.jupiter.api.extension.Extension with edu.iu.test.IuTestExtension;
 }

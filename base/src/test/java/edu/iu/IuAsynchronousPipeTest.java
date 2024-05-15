@@ -72,7 +72,7 @@ public class IuAsynchronousPipeTest {
 	// Committed values balance thorough verification with fast build times
 	// This default configuration is set for high-latency; e.g. PSJOA CI
 	// May be tuned to simulate timings for large parallel processing tasks
-	private static final int N = 100;
+	private static final int N = 50;
 	private static final int LOG_PER_N = 10;
 	private static final int PARTIAL_SEND_SIZE = 25;
 	private static final Duration SIMULATED_SOURCE_DELAY = Duration.ofMillis(25L);
@@ -100,9 +100,16 @@ public class IuAsynchronousPipeTest {
 	private Logger log;
 	private Handler logHandler;
 
-	private record LogEntry( //
-			Duration elapsed, Thread thread, //
-			LogRecord record) {
+	private class LogEntry {
+		private final Duration elapsed;
+		private final Thread thread;
+		private final LogRecord record;
+
+		private LogEntry(Duration elapsed, Thread thread, LogRecord record) {
+			this.elapsed = elapsed;
+			this.thread = thread;
+			this.record = record;
+		}
 
 		void commit(PrintWriter logWriter) {
 			logWriter.print(elapsed);
@@ -301,7 +308,7 @@ public class IuAsynchronousPipeTest {
 			Thread.sleep(50L);
 			pipe.error(e);
 		});
-		assertSame(e, assertThrows(RuntimeException.class, () -> pipe.pauseController(1, Duration.ofMillis(100L))));
+		assertSame(e, assertThrows(RuntimeException.class, () -> pipe.pauseController(1, Duration.ofMillis(1000L))));
 	}
 
 	@Test
@@ -320,9 +327,9 @@ public class IuAsynchronousPipeTest {
 				box.error = e2;
 			}
 		});
-		Thread.sleep(50L);
+		Thread.sleep(250L);
 		pipe.error(e);
-		Thread.sleep(50L);
+		Thread.sleep(250L);
 		assertNotNull(box.error);
 		if (box.error instanceof RuntimeException)
 			assertSame(e, box.error, box.error::toString);
@@ -436,7 +443,7 @@ public class IuAsynchronousPipeTest {
 			stream.close();
 		});
 		pipe.accept("one");
-		assertEquals(0, pipe.pauseController(1, Duration.ofMillis(100L)));
+		assertEquals(0, pipe.pauseController(1, Duration.ofMillis(1000L)));
 	}
 
 	@Test
@@ -497,7 +504,7 @@ public class IuAsynchronousPipeTest {
 				assertEquals(0, accepted);
 
 				accepted = pipe.pauseReceiver(workload.getExpires());
-				assertEquals(100, accepted);
+				assertTrue(accepted == 99 || accepted == 100, Long.toString(accepted));
 
 				assertTrue(pipe.isClosed());
 

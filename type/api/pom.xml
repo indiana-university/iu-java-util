@@ -7,7 +7,7 @@
 	<parent>
 		<groupId>edu.iu.util</groupId>
 		<artifactId>iu-java-type-parent</artifactId>
-		<version>7.0.1</version>
+		<version>7.0.2-SNAPSHOT</version>
 	</parent>
 
 	<artifactId>iu-java-type-api</artifactId>
@@ -26,25 +26,5 @@
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
-
-	<build>
-		<plugins>
-			<plugin>
-				<artifactId>maven-dependency-plugin</artifactId>
-				<executions>
-					<execution>
-						<id>copy-deps</id>
-						<goals>
-							<goal>copy-dependencies</goal>
-						</goals>
-						<phase>generate-test-resources</phase>
-						<configuration>
-							<includeScope>provided</includeScope>
-						</configuration>
-					</execution>
-				</executions>
-			</plugin>
-		</plugins>
-	</build>
 
 </project>

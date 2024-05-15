@@ -33,7 +33,11 @@ package edu.iu.type.spi;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ModuleLayer.Controller;
 import java.lang.reflect.Type;
+import java.nio.file.Path;
+import java.util.function.Consumer;
+import java.util.jar.JarFile;
 
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuType;
@@ -56,15 +60,39 @@ public interface IuTypeSpi {
 	/**
 	 * Implements {@link IuComponent#of(InputStream, InputStream...)}.
 	 * 
+	 * @param parent                           {@link ClassLoader} for parent
+	 *                                         delegation
+	 * @param parentLayer                      {@link ModuleLayer} to extend
+	 * @param controllerCallback               receives a reference to the
+	 *                                         {@link Controller} for the
+	 *                                         components's module layer
 	 * @param componentArchiveSource           component archive
 	 * @param providedDependencyArchiveSources provided dependency archives
 	 * @return {@link IuComponent} instance
-	 * @throws IOException If the <strong>component archive</strong> or any
-	 *                     <strong>dependency archives</strong> are unreadable.
 	 * 
 	 * @see IuComponent
 	 */
-	IuComponent createComponent(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
-			throws IOException;
+	IuComponent createComponent(ClassLoader parent, ModuleLayer parentLayer, Consumer<Controller> controllerCallback,
+			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources);
+
+	/**
+	 * Decorates a path entry in a loaded class environment as a {@link IuComponent
+	 * component}.
+	 * 
+	 * @param classLoader {@link ClassLoader}; <em>must</em> include
+	 *                    {@code pathEntry} on its class or module path.
+	 * @param moduleLayer {@link ModuleLayer}
+	 * @param pathEntry   Single {@link Path path entry} representing a
+	 *                    {@link JarFile jar file} or folder containing resources
+	 *                    loaded by {@code classLoader}
+	 * @return {@link IuComponent} decorated view of the path entry relative to the
+	 *         class loader.
+	 * @throws IOException            if an I/O error occurs while scanning the path
+	 *                                for resources.
+	 * @throws ClassNotFoundException if any class discovered on the path could not
+	 *                                be loaded using {@code classLoader}
+	 */
+	IuComponent scanComponentEntry(ClassLoader classLoader, ModuleLayer moduleLayer, Path pathEntry)
+			throws IOException, ClassNotFoundException;
 
 }

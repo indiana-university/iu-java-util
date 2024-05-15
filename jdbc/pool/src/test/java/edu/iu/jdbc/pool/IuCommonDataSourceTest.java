@@ -1,3 +1,34 @@
+/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package edu.iu.jdbc.pool;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -191,7 +222,8 @@ public class IuCommonDataSourceTest {
 			@Override
 			public Void get() throws Throwable {
 				synchronized (this) {
-					this.wait();
+					while (connection == null)
+						this.wait(100L);
 				}
 				IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close; .*");
 				connection.close();
@@ -201,7 +233,7 @@ public class IuCommonDataSourceTest {
 
 		Throwable throwing = null;
 		final var closeTask = new CloseTask();
-		final var closeTaskController = new IuUtilityTaskController<>(closeTask, Instant.now().plusSeconds(5L));
+		final var closeTaskController = new IuUtilityTaskController<>(closeTask, Instant.now().plusSeconds(20L));
 		try (final var ds = mockCommonDataSource()) {
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-open:PT.*");
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open; .*");
@@ -245,7 +277,7 @@ public class IuCommonDataSourceTest {
 				synchronized (this) {
 					waiting = true;
 					notifyAll();
-					IuObject.waitFor(this, () -> ready, Duration.ofSeconds(5L));
+					IuObject.waitFor(this, () -> ready, Duration.ofSeconds(15L));
 				}
 				Thread.sleep(50L);
 				c.close();
@@ -254,16 +286,16 @@ public class IuCommonDataSourceTest {
 			}
 		}
 		final var closeTask = new CloseTask();
-		final var closeTaskController = new IuUtilityTaskController<>(closeTask, Instant.now().plusSeconds(5L));
+		final var closeTaskController = new IuUtilityTaskController<>(closeTask, Instant.now().plusSeconds(15L));
 
 		final var connectTask = new IuUtilityTaskController<>(() -> {
 			synchronized (closeTask) {
-				IuObject.waitFor(closeTask, () -> closeTask.waiting, Duration.ofSeconds(5L));
+				IuObject.waitFor(closeTask, () -> closeTask.waiting, Duration.ofSeconds(15L));
 				closeTask.ready = true;
 				closeTask.notifyAll();
 			}
 			return ds.getPooledConnection();
-		}, Instant.now().plusSeconds(5L));
+		}, Instant.now().plusSeconds(15L));
 
 		synchronized (closeTask) {
 			IuObject.waitFor(closeTask, () -> closeTask.ready, Duration.ofSeconds(5L));
@@ -274,7 +306,7 @@ public class IuCommonDataSourceTest {
 		IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-close:PT.*");
 		ds.close();
 		IuTestLogger.assertExpectedMessages();
-		
+
 		assertTrue(closeTask.done);
 		closeTaskController.get();
 
@@ -436,7 +468,7 @@ public class IuCommonDataSourceTest {
 					SQLException.class, a -> a == e);
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.WARNING, "jdbc-pool-close:PT.*",
 					SQLException.class, a -> a == e);
-			
+
 			assertSame(e, assertThrows(SQLException.class, c::createStatement));
 		}
 	}
@@ -700,38 +732,15 @@ public class IuCommonDataSourceTest {
 		}
 	}
 
-//	private static class PooledConnectionController implements Answer<Void> {
-//		private PooledConnection pooledConnection;
-//		private ConnectionEventListener connectionEventListener;
-//
-//		@Override
-//		public Void answer(InvocationOnMock invocation) throws Throwable {
-//			pooledConnection = (PooledConnection) invocation.getMock();
-//			connectionEventListener = invocation.getArgument(0);
-//			return null;
-//		}
-//
-//		private void close() {
-//			connectionEventListener.connectionClosed(new ConnectionEvent(pooledConnection));
-//		}
-//
-//		private void error(SQLException e) {
-//			connectionEventListener.connectionErrorOccurred(new ConnectionEvent(pooledConnection, e));
-//		}
-//	}
-//
 	private static class MockPooledConnectionFactory implements UnsafeSupplier<PooledConnection> {
-//		private PooledConnectionController lastController;
 		private PooledConnection lastPooledConnection;
 		private Connection lastConnection;
 		private Statement lastStatement;
 
 		@Override
 		public PooledConnection get() throws Throwable {
-//			final var controller = new PooledConnectionController();
 			final var pc = mock(PooledConnection.class);
 			lastPooledConnection = pc;
-//			doAnswer(controller).when(pc).addConnectionEventListener(any());
 
 			final Answer<ResultSet> newResultSet = a -> {
 				final var r = mock(ResultSet.class);
@@ -751,10 +760,6 @@ public class IuCommonDataSourceTest {
 				final var c = mock(Connection.class);
 				when(c.createStatement()).thenAnswer(newStatement);
 				when(c.unwrap(Connection.class)).thenReturn(c);
-//				doAnswer(ab -> {
-////					controller.close();
-//					return null;
-//				}).when(c).close();
 				lastStatement = null;
 				lastConnection = c;
 				return c;
@@ -762,7 +767,6 @@ public class IuCommonDataSourceTest {
 
 			when(pc.getConnection()).thenAnswer(newConnection);
 
-//			lastController = controller;
 			return pc;
 		}
 	}

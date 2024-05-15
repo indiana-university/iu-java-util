@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>edu.iu.util</groupId>
 		<artifactId>iu-java-type-parent</artifactId>
-		<version>7.0.1</version>
+		<version>7.0.2-SNAPSHOT</version>
 	</parent>
 	
 	<artifactId>iu-java-type-testcomponent</artifactId>
@@ -25,19 +25,5 @@
 			<version>${project.version}</version>
 		</dependency>
 	</dependencies>
-
-	<build>
-		<plugins>
-			<plugin>
-				<artifactId>maven-jar-plugin</artifactId>
-				<executions>
-					<execution>
-						<id>default-jar</id>
-						<phase>process-classes</phase>
-					</execution>
-				</executions>
-			</plugin>
-		</plugins>
-	</build>
 
 </project>

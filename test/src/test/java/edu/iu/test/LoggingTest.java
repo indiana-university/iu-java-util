@@ -40,6 +40,7 @@ import static org.mockito.Mockito.mockStatic;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.opentest4j.AssertionFailedError;
 
@@ -47,20 +48,21 @@ import org.opentest4j.AssertionFailedError;
 public class LoggingTest {
 
 	private static final Logger LOG = Logger.getLogger(LoggingTest.class.getName());
+	
+	@BeforeAll
+	public static void setupClass() {
+		LOG.fine("covers logging outside of a test case");
+	}
 
 	@Test
 	public void testStandardPlatformLoggers() {
-		assertTrue(IuTestLogger.isPlatformLogger("java"));
+		assertTrue(IuTestLogger.isPlatformLogger("java."));
 		assertTrue(IuTestLogger.isPlatformLogger("org.junit."));
 		assertTrue(IuTestLogger.isPlatformLogger("org.mockito."));
-		assertTrue(IuTestLogger.isPlatformLogger("java."));
-		assertTrue(IuTestLogger.isPlatformLogger("javax."));
-		assertTrue(IuTestLogger.isPlatformLogger("jakarta."));
-		assertTrue(IuTestLogger.isPlatformLogger("jdk."));
-		assertTrue(IuTestLogger.isPlatformLogger("com.sun."));
-		assertTrue(IuTestLogger.isPlatformLogger("com.oracle."));
-		assertTrue(IuTestLogger.isPlatformLogger("oracle."));
-		assertTrue(IuTestLogger.isPlatformLogger("sun."));
+		assertTrue(IuTestLogger.isPlatformLogger("org.apiguardian."));
+		assertTrue(IuTestLogger.isPlatformLogger("org.objenesis."));
+		assertTrue(IuTestLogger.isPlatformLogger("org.opentest4j."));
+		assertTrue(IuTestLogger.isPlatformLogger("net.bytebuddy."));
 		assertFalse(IuTestLogger.isPlatformLogger("edu.iu."));
 		Logger.getLogger("java.test.platformlogger").info("Should be logged on console and not cause the test to fail");
 	}
@@ -70,7 +72,7 @@ public class LoggingTest {
 		try (var mockIuTest = mockStatic(IuTest.class, CALLS_REAL_METHODS)) {
 			mockIuTest.when(() -> IuTest.getProperty("iu.util.test.platformLoggers"))
 					.thenReturn("custom.platform.a,custom.platform.b.");
-			assertTrue(IuTestLogger.isPlatformLogger("java")); // doesn't supersede standard list
+			assertTrue(IuTestLogger.isPlatformLogger("java.")); // doesn't supersede standard list
 			assertFalse(IuTestLogger.isPlatformLogger("edu.iu.")); // still not a platform logger
 			assertTrue(IuTestLogger.isPlatformLogger("custom.platform.a."));
 			assertTrue(IuTestLogger.isPlatformLogger("custom.platform.b."));
@@ -285,6 +287,20 @@ public class LoggingTest {
 		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "expected");
 		LOG.fine("expected");
 		IuTestLogger.assertExpectedMessages();
+	}
+	
+	@Test
+	public void testPatternMatch() {
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "ex.e.te.");
+		LOG.fine("expected");
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "ex{e.te.");
+		assertThrows(AssertionFailedError.class, () -> LOG.fine("expected"));
+		IuTestLogger.expect(LoggingTest.class.getName(), Level.FINE, "excepted");
+		assertThrows(AssertionFailedError.class, () -> LOG.fine("expected"));
+		assertThrows(AssertionFailedError.class, () -> IuTestLogger.assertExpectedMessages());
+		IuTestLogger.allow(LoggingTest.class.getName(), Level.FINE, "ex{e.te.");
+		assertThrows(AssertionFailedError.class, () -> LOG.fine("expected"));
+		assertThrows(AssertionFailedError.class, () -> IuTestLogger.assertExpectedMessages());
 	}
 
 }
