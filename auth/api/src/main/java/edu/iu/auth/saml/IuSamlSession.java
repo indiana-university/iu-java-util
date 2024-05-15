@@ -17,7 +17,7 @@ public interface IuSamlSession {
 	 * Creates a new {@link IuAuthorizationSession} for managing interactions with
 	 * an authorization server.
 	 * 
-	 * @param serviceProviderEntityId authentication service provider entity id,
+	 * @param serviceProviderEntityId unique service provider entity id,
 	 *                                <em>must</em> correspond to an
 	 *                                {@link IuSamlClient#getServiceProviderEntityId()
 	 *                                initialized client}.
@@ -37,13 +37,13 @@ public interface IuSamlSession {
 	 * Gets SAML authentication Request to request application resource access by
 	 * entity Id and post URI.
 	 * 
-	 * @param samlEntityId identity provider root URI to authorize access to
+	 * @param entityId identity provider root URI to authorize access to
 	 * @param postUri      Post back URI
 	 * @param resourceUri  resource to authorize access to
 	 * @return redirect URI
 	 * 
 	 */
-	URI getAuthenticationRequest(URI samlEntityId, URI postUri, URI resourceUri);
+	URI getAuthenticationRequest(URI entityId, URI postUri, URI resourceUri);
 
 	/**
 	 * Authorize SAML response received back from identity provider

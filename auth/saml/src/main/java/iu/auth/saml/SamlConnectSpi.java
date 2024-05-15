@@ -50,10 +50,9 @@ public class SamlConnectSpi implements IuSamlSpi {
 	 * @return client metadata
 	 */
 	static SamlProvider getProvider(String serviceProviderEntityId) {
-		final var provider = PROVIDER.get(serviceProviderEntityId);
-		if (provider == null)
-			throw new IllegalStateException("provider is not initialzied for " + serviceProviderEntityId);
-		return (SamlProvider) provider;
+		return (SamlProvider) Objects.requireNonNull(PROVIDER.get(serviceProviderEntityId), 
+				"provider is not initialzied for " + serviceProviderEntityId);
+		
 	}
 
 	@Override

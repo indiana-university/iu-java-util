@@ -336,15 +336,15 @@ public class SamlProvider implements IuSamlProvider {
 	}
 
 	/**
-	 * Generate SAML authentication request
+	 * Generate SAML authentication request 
+	 * use by client to redirect user to identity provider system for authentication.
 	 * 
-	 * @param samlEntityId        SAML entity id
 	 * @param postURI             send back URI
 	 * @param sessionId           session id associated with authentication request
 	 * @param destinationLocation destination location
-	 * @return SAML XML authentication request
+	 * @return encrypted SAML XML authentication request
 	 */
-	ByteArrayOutputStream authRequest(URI samlEntityId, URI postURI, String sessionId, String destinationLocation) {
+	ByteArrayOutputStream getAuthRequest(URI postURI, String sessionId, String destinationLocation) {
 
 		// validate entityId against metadataUrl configuration
 		var matchAcs = false;
@@ -410,7 +410,6 @@ public class SamlProvider implements IuSamlProvider {
 	SamlPrincipal authorize(InetAddress address, URI postUri, String samlResponse, String sessionId) {
 		Thread current = Thread.currentThread();
 		ClassLoader currentLoader = current.getContextClassLoader();
-		ClassLoader endpointLoader = SamlProvider.class.getClassLoader();
 		current.setContextClassLoader(currentLoader);
 
 		Response response;
@@ -487,6 +486,7 @@ public class SamlProvider implements IuSamlProvider {
 		String emailAddress = "";
 		String displayName = "";
 		final Map<String, Object> claims = new LinkedHashMap<>();
+		// Gets the date/time the response was issued.
 		claims.put("issueInstant", response.getIssueInstant());
 		for (Assertion assertion : response.getAssertions()) {
 			validator.validate(assertion, ctx);
@@ -502,7 +502,9 @@ public class SamlProvider implements IuSamlProvider {
 					else if ("mail".equals(attribute.getFriendlyName()) || MAIL_OID.equals(attribute.getName()))
 						emailAddress = readStringAttribute(attribute);
 			final Conditions conditions = assertion.getConditions();
+			// Get the date/time before which the assertion is invalid.
 			claims.put("notBefore", conditions.getNotBefore());
+			// Gets the date/time on, or after, which the assertion is invalid
 			claims.put("notOnOrAfter", conditions.getNotOnOrAfter());
 			for (AuthnStatement statement : assertion.getAuthnStatements()) {
 				// Gets the time when the authentication took place.

@@ -190,7 +190,7 @@ public class SpiTest {
 			assertSame(samlSession, mockSamlSession.constructed().get(0));
 		}
 
-		assertThrows(IllegalStateException.class, () -> SamlConnectSpi.getProvider(realm));
+		assertThrows(NullPointerException.class, () -> SamlConnectSpi.getProvider(realm));
 	}
 
 }

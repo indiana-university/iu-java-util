@@ -5,6 +5,7 @@ import java.io.Serializable;
 import java.net.InetAddress;
 import java.net.URI;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Collections;
@@ -64,21 +65,31 @@ public class SamlSession implements IuSamlSession, Serializable {
 	}
 
 	@Override
-	public URI getAuthenticationRequest(URI samlEntityId, URI postUri, URI resourceUri) {
+	public URI getAuthenticationRequest(URI entityId, URI postUri, URI resourceUri) {
 		SamlProvider provider = SamlConnectSpi.getProvider(serviceProviderIdentityId);
 		IuSamlClient client = provider.getClient();
 
-		if (IuWebUtils.isRootOf(client.getApplicationUri(), resourceUri)) {
+		if (!IuWebUtils.isRootOf(client.getApplicationUri(), resourceUri)) {
 			throw new IllegalArgumentException("Invalid resource URI for this client");
 		}
 
-		var destinationLocation = provider.getSingleSignOnLocation(samlEntityId.toString());
+		var validEntityId = false;
+		for (URI metaDataUri : client.getMetaDataUris()) {
+			if (metaDataUri.compareTo(entityId) == 0)
+				validEntityId = true;
+		}
+		if (!validEntityId) {
+			throw new IllegalArgumentException(
+					"Entity Id URI doesn't match with meta data URLs configured for this client" + entityId);
+		}
+
+		var destinationLocation = provider.getSingleSignOnLocation(entityId.toString());
 
 		RelayState relayState = new RelayState(client.getApplicationUri());
 		String state = IdGenerator.generateId();
 		grants.put(state, relayState);
 
-		ByteArrayOutputStream samlRequestBuffer = provider.authRequest(samlEntityId, postUri, relayState.getSession(),
+		ByteArrayOutputStream samlRequestBuffer = provider.getAuthRequest(postUri, relayState.getSession(),
 				destinationLocation);
 
 		Map<String, Iterable<String>> idpParams = new LinkedHashMap<>();
@@ -98,19 +109,21 @@ public class SamlSession implements IuSamlSession, Serializable {
 
 		IuSamlClient client = provider.getClient();
 		Duration duration = client.getAuthenticatedSessionTimeout();
-		LocalDateTime currentTime = LocalDateTime.now();
-		LocalDateTime totalSessiontime = currentTime.minus(duration);
-		if (currentTime.isAfter(totalSessiontime))
-			LOG.fine("Authorized session has expired, require reauthentication");
-		if (currentTime.isAfter(totalSessiontime)) {
-			id = null;
-			final var challenge = new IuAuthenticationException( //
-					null, new IllegalStateException("Authorization failed"));
-			challenge.setLocation(entryPoint);
-			throw challenge;
-		}
+		//IuObject.require(id, Objects::isNull);
 
-		return id;
+		Instant currentTime = Instant.now();
+		Instant authnInstant = (Instant) id.getClaims().get("authnInstant");
+		Instant totalSessiontime = authnInstant.plus(duration);
+		if (currentTime.isBefore(totalSessiontime) && currentTime.isAfter(authnInstant)) {
+			return id;
+		}
+		LOG.fine("Authorized session has expired, require reauthentication");
+		id = null;
+		final var challenge = new IuAuthenticationException( //
+				null, new IllegalStateException("Authorization failed"));
+		challenge.setLocation(entryPoint);
+		throw challenge;
+
 
 	}
 
