@@ -4,9 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 import java.net.URI;
 import java.time.Duration;
@@ -40,9 +42,13 @@ public void testUsesSpiFactory() {
 
 @Test
 public void testSamlClientDefault() {
-	final var client = IuTest.mockWithDefaults(IuSamlClient.class);
+	final var client = 	mock(IuSamlClient.class, withSettings()
+            .defaultAnswer(CALLS_REAL_METHODS)
+               );
+
 	assertNull(client.getIdentityProviderUri());
 	assertEquals(client.getMetadataTtl(), Duration.ofMillis(300000L));
+	assertEquals(client.getAuthenticatedSessionTimeout(), Duration.ofHours(12L));
 	assertFalse(client.failOnAddressMismatch());
 }
 }

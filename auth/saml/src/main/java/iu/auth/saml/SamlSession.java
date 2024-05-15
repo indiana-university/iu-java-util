@@ -28,7 +28,12 @@ import edu.iu.auth.saml.IuSamlSession;
  * SAML session implementation to support session management
  */
 public class SamlSession implements IuSamlSession, Serializable {
+	
+	/**
+	 * SAML session logger
+	 */
 	private final Logger LOG = Logger.getLogger(SamlSession.class.getName());
+	
 	private static final long serialVersionUID = 1L;
 
 	/**
@@ -109,12 +114,11 @@ public class SamlSession implements IuSamlSession, Serializable {
 
 		IuSamlClient client = provider.getClient();
 		Duration duration = client.getAuthenticatedSessionTimeout();
-		//IuObject.require(id, Objects::isNull);
-
 		Instant currentTime = Instant.now();
 		Instant authnInstant = (Instant) id.getClaims().get("authnInstant");
 		Instant totalSessiontime = authnInstant.plus(duration);
-		if (currentTime.isBefore(totalSessiontime) && currentTime.isAfter(authnInstant)) {
+		if (currentTime.isBefore(totalSessiontime) 
+				&& currentTime.isAfter(authnInstant)) {
 			return id;
 		}
 		LOG.fine("Authorized session has expired, require reauthentication");

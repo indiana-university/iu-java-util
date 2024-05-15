@@ -192,15 +192,6 @@ public class SamlProvider implements IuSamlProvider {
 		}
 	}
 
-	private Decrypter getDecrypter() {
-		PrivateKey privateKey = SamlUtil.getPrivateKey(client.getPrivateKey());
-		List<Credential> certs = new ArrayList<>();
-		certs.add(new BasicX509Credential(client.getCertificate(), privateKey));
-		KeyInfoCredentialResolver keyInfoResolver = new StaticKeyInfoCredentialResolver(certs);
-
-		return new Decrypter(null, keyInfoResolver, new InlineEncryptedKeyResolver());
-	}
-
 	/**
 	 * Get metadata resolver
 	 * 
@@ -403,11 +394,13 @@ public class SamlProvider implements IuSamlProvider {
 	/**
 	 * Authorize SAML response return back from IDP
 	 * 
-	 * @param parameterObject TODO
-	 * 
+	 * @param address IP address use by user to authenticate
+	 * @param postUri Post back URI
+	 * @param samlResponse xml SAML response back from identity provider
+	 * @param relayState return back relayState from identity provider
 	 * @return SAML attributes
 	 */
-	SamlPrincipal authorize(InetAddress address, URI postUri, String samlResponse, String sessionId) {
+	SamlPrincipal authorize(InetAddress address, URI postUri, String samlResponse, String relayState) {
 		Thread current = Thread.currentThread();
 		ClassLoader currentLoader = current.getContextClassLoader();
 		current.setContextClassLoader(currentLoader);
@@ -457,9 +450,7 @@ public class SamlProvider implements IuSamlProvider {
 		staticParams.put(SAML2AssertionValidationParameters.SC_VALID_RECIPIENTS,
 				Collections.singleton(postUri.toString()));
 		staticParams.put(SAML2AssertionValidationParameters.SIGNATURE_REQUIRED, false);
-		staticParams.put(SAML2AssertionValidationParameters.SC_VALID_IN_RESPONSE_TO, sessionId);
-		// staticParams.put(SAML2AssertionValidationParameters.STMT_AUTHN_MAX_TIME,
-		// Duration.ofHours(12));
+		staticParams.put(SAML2AssertionValidationParameters.SC_VALID_IN_RESPONSE_TO, relayState);
 		ValidationContext ctx = new ValidationContext(staticParams);
 
 		if (LOG.isLoggable(Level.FINE))
