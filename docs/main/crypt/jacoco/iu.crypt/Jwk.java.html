@@ -1,0 +1,451 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Jwk.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Web Cryptography Utilities</a> &gt; <a href="index.source.html" class="el_package">iu.crypt</a> &gt; <span class="el_source">Jwk.java</span></div><h1>Jwk.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.crypt;
+
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.math.BigInteger;
+import java.net.URI;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.spec.ECParameterSpec;
+import java.security.spec.ECPoint;
+import java.security.spec.ECPrivateKeySpec;
+import java.security.spec.ECPublicKeySpec;
+import java.security.spec.KeySpec;
+import java.security.spec.NamedParameterSpec;
+import java.security.spec.RSAPrivateCrtKeySpec;
+import java.security.spec.RSAPrivateKeySpec;
+import java.security.spec.RSAPublicKeySpec;
+import java.security.spec.XECPrivateKeySpec;
+import java.security.spec.XECPublicKeySpec;
+import java.time.Duration;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import edu.iu.IuCacheMap;
+import edu.iu.IuException;
+import edu.iu.IuIterable;
+import edu.iu.IuObject;
+import edu.iu.client.IuHttp;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.WebKey;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonObjectBuilder;
+
+/**
+ * JSON Web Key (JWK) implementation.
+ */
+public class Jwk extends JsonKeyReference&lt;Jwk&gt; implements WebKey {
+	static {
+<span class="fc" id="L76">		IuObject.assertNotOpen(JweBuilder.class);</span>
+	}
+
+	/**
+	 * JSON type adapter.
+	 */
+<span class="fc" id="L82">	public static final IuJsonAdapter&lt;WebKey&gt; JSON = IuJsonAdapter.from(v -&gt; {</span>
+<span class="fc" id="L83">		return new Jwk(v.asJsonObject());</span>
+	}, v -&gt; {
+<span class="fc" id="L85">		final var o = IuJson.object();</span>
+<span class="fc" id="L86">		((Jwk) v).serializeTo(o);</span>
+<span class="fc" id="L87">		return o.build();</span>
+	});
+
+<span class="fc" id="L90">	private static Map&lt;URI, Jwk[]&gt; JWKS_CACHE = new IuCacheMap&lt;&gt;(Duration.ofMinutes(15L));</span>
+
+	private static JsonObject writeAsJwks(Iterable&lt;? extends WebKey&gt; webKeys) {
+<span class="fc" id="L93">		return IuJson.object().add(&quot;keys&quot;, IuJsonAdapter.of(Iterable.class, JSON).toJson(webKeys)).build();</span>
+	}
+
+	/**
+	 * Gets key set by URI.
+	 * 
+	 * @param uri Key set URI
+	 * @return key set
+	 */
+	public static Iterable&lt;Jwk&gt; readJwks(URI uri) {
+<span class="fc" id="L103">		var jwks = JWKS_CACHE.get(uri);</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">		if (jwks == null)</span>
+<span class="fc" id="L105">			JWKS_CACHE.put(uri, jwks = IuException.unchecked(() -&gt; IuJsonAdapter.&lt;Stream&lt;Jwk&gt;&gt;of(Stream.class, JSON)</span>
+<span class="fc" id="L106">					.fromJson(IuHttp.get(uri, IuHttp.READ_JSON_OBJECT).getJsonArray(&quot;keys&quot;)).toArray(Jwk[]::new)));</span>
+<span class="fc" id="L107">		return IuIterable.iter(jwks);</span>
+	}
+
+	/**
+	 * Reads a key set from an input stream.
+	 * 
+	 * @param in input stream
+	 * @return {@link WebKey}
+	 */
+	public static Iterable&lt;Jwk&gt; readJwks(InputStream in) {
+<span class="fc" id="L117">		return IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L118">			return IuJsonAdapter.&lt;Iterable&lt;Jwk&gt;&gt;of(Iterable.class, JSON)</span>
+<span class="fc" id="L119">					.fromJson(IuJson.parse(in).asJsonObject().getJsonArray(&quot;keys&quot;));</span>
+		});
+	}
+
+	/**
+	 * Parses a JSON Web Key Set (JWKS).
+	 * 
+	 * @param jwks serialized JWKS
+	 * @return parsed key set
+	 */
+	public static Iterable&lt;Jwk&gt; parseJwks(JsonObject jwks) {
+<span class="fc" id="L130">		return IuJsonAdapter.&lt;Iterable&lt;Jwk&gt;&gt;of(Iterable.class, JSON).fromJson(jwks.getJsonArray(&quot;keys&quot;));</span>
+	}
+
+	/**
+	 * Serializes {@link WebKey}s as a JSON Web Key Set.
+	 * 
+	 * @param webKeys {@link WebKey}s
+	 * @return serialized JWKS
+	 */
+	public static JsonObject asJwks(Iterable&lt;? extends WebKey&gt; webKeys) {
+<span class="fc" id="L140">		return writeAsJwks(webKeys);</span>
+	}
+
+	/**
+	 * Writes {@link WebKey} as a JSON Web Key.
+	 * 
+	 * @param webKeys {@link WebKey}s
+	 * @param out     {@link OutputStream}
+	 */
+	public static void writeJwks(Iterable&lt;? extends WebKey&gt; webKeys, OutputStream out) {
+<span class="fc" id="L150">		IuJson.serialize(writeAsJwks(webKeys), out);</span>
+<span class="fc" id="L151">	}</span>
+
+	private static KeyPair readRSA(Type type, JsonObject parsedJwk) {
+<span class="fc" id="L154">		return IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L155">			final var keyFactory = KeyFactory.getInstance(type.kty);</span>
+
+<span class="fc" id="L157">			final var modulus = IuJson.get(parsedJwk, &quot;n&quot;, UnsignedBigInteger.JSON);</span>
+<span class="fc" id="L158">			final var exponent = IuJson.get(parsedJwk, &quot;e&quot;, UnsignedBigInteger.JSON);</span>
+
+			final PublicKey pub;
+<span class="fc bfc" id="L161" title="All 2 branches covered.">			if (exponent != null)</span>
+<span class="fc" id="L162">				pub = keyFactory.generatePublic(new RSAPublicKeySpec(Objects.requireNonNull(modulus, &quot;n&quot;), exponent));</span>
+			else
+<span class="fc" id="L164">				pub = null;</span>
+
+			final PrivateKey priv;
+<span class="fc bfc" id="L167" title="All 2 branches covered.">			if (parsedJwk.containsKey(&quot;d&quot;)) {</span>
+<span class="fc" id="L168">				Objects.requireNonNull(modulus, &quot;n&quot;);</span>
+
+				final KeySpec keySpec;
+<span class="fc" id="L171">				final var privateExponent = Objects.requireNonNull(IuJson.get(parsedJwk, &quot;d&quot;, UnsignedBigInteger.JSON),</span>
+						&quot;d&quot;);
+<span class="fc bfc" id="L173" title="All 2 branches covered.">				if (parsedJwk.containsKey(&quot;p&quot;)) {</span>
+<span class="fc" id="L174">					final var primeP = Objects.requireNonNull(IuJson.get(parsedJwk, &quot;p&quot;, UnsignedBigInteger.JSON), &quot;p&quot;);</span>
+<span class="fc" id="L175">					final var primeQ = Objects.requireNonNull(IuJson.get(parsedJwk, &quot;q&quot;, UnsignedBigInteger.JSON), &quot;q&quot;);</span>
+<span class="fc" id="L176">					final var primeExponentP = Objects</span>
+<span class="fc" id="L177">							.requireNonNull(IuJson.get(parsedJwk, &quot;dp&quot;, UnsignedBigInteger.JSON), &quot;dp&quot;);</span>
+<span class="fc" id="L178">					final var primeExponentQ = Objects</span>
+<span class="fc" id="L179">							.requireNonNull(IuJson.get(parsedJwk, &quot;dq&quot;, UnsignedBigInteger.JSON), &quot;dq&quot;);</span>
+<span class="fc" id="L180">					final var crtCoefficient = Objects</span>
+<span class="fc" id="L181">							.requireNonNull(IuJson.get(parsedJwk, &quot;qi&quot;, UnsignedBigInteger.JSON), &quot;qi&quot;);</span>
+
+<span class="fc bfc" id="L183" title="All 2 branches covered.">					if (parsedJwk.containsKey(&quot;oth&quot;))</span>
+						// TODO: identify a multi-prime test case
+						// * JCE doesn't generate multi-prime RSA keys
+						// * JCE can't read multi-prime key exported from OpenSSL as PKCS8
+						// * OpenSSL doesn't export as JWK
+<span class="fc" id="L188">						throw new UnsupportedOperationException();</span>
+
+<span class="fc" id="L190">					keySpec = new RSAPrivateCrtKeySpec(modulus, exponent, privateExponent, primeP, primeQ,</span>
+							primeExponentP, primeExponentQ, crtCoefficient);
+<span class="fc" id="L192">				} else</span>
+<span class="fc" id="L193">					keySpec = new RSAPrivateKeySpec(modulus, privateExponent);</span>
+
+<span class="fc" id="L195">				priv = keyFactory.generatePrivate(keySpec);</span>
+<span class="fc" id="L196">			} else</span>
+<span class="fc" id="L197">				priv = null;</span>
+
+<span class="fc" id="L199">			return new KeyPair(pub, priv);</span>
+		});
+	}
+
+	private static KeyPair readXEC(byte[] x, byte[] d, NamedParameterSpec namedSpec) {
+<span class="fc" id="L204">		final var keyFactory = IuException.unchecked(() -&gt; KeyFactory.getInstance(namedSpec.getName()));</span>
+<span class="fc" id="L205">		return new KeyPair(IuObject.convert(x, u -&gt; IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L206">			final var a = EncodingUtils.reverse(u);</span>
+<span class="fc bfc" id="L207" title="All 2 branches covered.">			if (namedSpec.getName().equals(Type.X25519.algorithmParams))</span>
+<span class="fc" id="L208">				a[0] &amp;= 0x7f;</span>
+<span class="fc" id="L209">			return keyFactory.generatePublic(new XECPublicKeySpec(namedSpec, UnsignedBigInteger.bigInt(a)));</span>
+<span class="fc" id="L210">		})), IuObject.convert(d,</span>
+<span class="fc" id="L211">				s -&gt; IuException.unchecked(() -&gt; keyFactory.generatePrivate(new XECPrivateKeySpec(namedSpec, s)))));</span>
+	}
+
+	private static KeyPair readEdEC(byte[] x, byte[] d, NamedParameterSpec namedSpec) {
+<span class="fc" id="L215">		final var keyFactory = IuException.unchecked(() -&gt; KeyFactory.getInstance(namedSpec.getName()));</span>
+<span class="fc" id="L216">		return new KeyPair(IuObject.convert(x, a -&gt; IuException.unchecked(() -&gt; {</span>
+			// Convert from RFC-8032 encoded format to JCE EdECPublicKeySpec
+			// https://datatracker.ietf.org/doc/html/rfc8032#section-5.1.2
+			// https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/security/spec/EdECPoint.html
+<span class="fc" id="L220">			final var y = EncodingUtils.reverse(a); // convert from little- to big-endian</span>
+<span class="fc bfc" id="L221" title="All 2 branches covered.">			final var xodd = (y[0] &amp; 0x80) != 0; // checks least-significant (odd) x bit</span>
+<span class="fc" id="L222">			y[0] &amp;= 0x7f; // clear x-odd from unsigned big-endian integer encoding</span>
+<span class="fc" id="L223">			final var yint = UnsignedBigInteger.bigInt(y); // decode y-axis value</span>
+
+			// EdDSA support was introduced in JDK 15, not supported by JDK 11
+			// TODO: convert to compiled code for source level 17+
+<span class="fc" id="L227">			final var pointClass = ClassLoader.getPlatformClassLoader().loadClass(&quot;java.security.spec.EdECPoint&quot;);</span>
+<span class="fc" id="L228">			return keyFactory.generatePublic(</span>
+<span class="fc" id="L229">					(KeySpec) ClassLoader.getPlatformClassLoader().loadClass(&quot;java.security.spec.EdECPublicKeySpec&quot;)</span>
+<span class="fc" id="L230">							.getConstructor(NamedParameterSpec.class, pointClass).newInstance(namedSpec,</span>
+<span class="fc" id="L231">									pointClass.getConstructor(Boolean.TYPE, BigInteger.class).newInstance(xodd, yint)));</span>
+<span class="fc" id="L232">		})), IuObject.convert(d,</span>
+<span class="fc" id="L233">				s -&gt; IuException.unchecked(() -&gt; keyFactory.generatePrivate((KeySpec) ClassLoader</span>
+<span class="fc" id="L234">						.getPlatformClassLoader().loadClass(&quot;java.security.spec.EdECPrivateKeySpec&quot;)</span>
+<span class="fc" id="L235">						.getConstructor(NamedParameterSpec.class, byte[].class).newInstance(namedSpec, s)))));</span>
+	}
+
+	private static KeyPair readEC(Type type, JsonObject parsedJwk) {
+<span class="fc" id="L239">		return IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L240">			final var x = IuJson.get(parsedJwk, &quot;x&quot;, UnpaddedBinary.JSON);</span>
+<span class="fc" id="L241">			final var d = IuJson.get(parsedJwk, &quot;d&quot;, UnpaddedBinary.JSON);</span>
+
+<span class="fc" id="L243">			final var spec = WebKey.algorithmParams(type.algorithmParams);</span>
+<span class="fc bfc" id="L244" title="All 2 branches covered.">			if (spec instanceof NamedParameterSpec)</span>
+<span class="fc bfc" id="L245" title="All 2 branches covered.">				if (type.algorithmParams.startsWith(&quot;X&quot;))</span>
+<span class="fc" id="L246">					return readXEC(x, d, (NamedParameterSpec) spec);</span>
+				else
+<span class="fc" id="L248">					return readEdEC(x, d, (NamedParameterSpec) spec);</span>
+			else {
+<span class="fc" id="L250">				final var keyFactory = IuException.unchecked(() -&gt; KeyFactory.getInstance(&quot;EC&quot;));</span>
+<span class="fc" id="L251">				return new KeyPair(</span>
+<span class="fc" id="L252">						IuObject.convert(x,</span>
+								a -&gt; IuException
+<span class="fc" id="L254">										.unchecked(</span>
+<span class="fc" id="L255">												() -&gt; keyFactory.generatePublic(new ECPublicKeySpec(</span>
+<span class="fc" id="L256">														new ECPoint(UnsignedBigInteger.bigInt(a),</span>
+<span class="fc" id="L257">																Objects.requireNonNull(IuJson.get(parsedJwk, &quot;y&quot;,</span>
+																		UnsignedBigInteger.JSON), &quot;y&quot;)),
+														(ECParameterSpec) spec)))),
+<span class="fc" id="L260">						IuObject.convert(d, a -&gt; IuException.unchecked(() -&gt; keyFactory.generatePrivate(</span>
+<span class="fc" id="L261">								new ECPrivateKeySpec(UnsignedBigInteger.bigInt(a), (ECParameterSpec) spec)))));</span>
+			}
+		});
+	}
+
+	private final Type type;
+	private final Use use;
+	private final Set&lt;Operation&gt; ops;
+	private final byte[] key;
+	private final PublicKey publicKey;
+	private final PrivateKey privateKey;
+	private final PublicKey verifiedPublicKey;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param jwk parsed JWK parameters
+	 */
+	public Jwk(JsonObject jwk) {
+<span class="fc" id="L280">		super(jwk);</span>
+<span class="fc" id="L281">		this.type = Objects.requireNonNull(Type.from(IuJson.get(jwk, &quot;kty&quot;), IuJson.get(jwk, &quot;crv&quot;)),</span>
+				&quot;Key type is required&quot;);
+
+<span class="fc" id="L284">		this.use = IuJson.get(jwk, &quot;use&quot;, Use.JSON);</span>
+<span class="fc" id="L285">		this.ops = IuJson.get(jwk, &quot;key_ops&quot;, IuJsonAdapter.&lt;Set&lt;Operation&gt;&gt;of(Set.class, Operation.JSON));</span>
+<span class="fc" id="L286">		this.key = IuJson.get(jwk, &quot;k&quot;, UnpaddedBinary.JSON);</span>
+
+<span class="fc bfc" id="L288" title="All 3 branches covered.">		switch (type) {</span>
+		case EC_P256:
+		case EC_P384:
+		case EC_P521:
+		case ED25519:
+		case ED448:
+		case X25519:
+		case X448: {
+<span class="fc" id="L296">			final var keyPair = readEC(type, jwk);</span>
+<span class="fc" id="L297">			this.publicKey = keyPair.getPublic();</span>
+<span class="fc" id="L298">			this.privateKey = keyPair.getPrivate();</span>
+<span class="fc" id="L299">			break;</span>
+		}
+
+		case RSA:
+		case RSASSA_PSS: {
+<span class="fc" id="L304">			final var keyPair = readRSA(type, jwk);</span>
+<span class="fc" id="L305">			this.publicKey = keyPair.getPublic();</span>
+<span class="fc" id="L306">			this.privateKey = keyPair.getPrivate();</span>
+<span class="fc" id="L307">			break;</span>
+		}
+
+		default:
+<span class="fc" id="L311">			this.publicKey = null;</span>
+<span class="fc" id="L312">			this.privateKey = null;</span>
+			break;
+		}
+
+<span class="fc" id="L316">		verifiedPublicKey = WebKey.verify(this);</span>
+<span class="fc" id="L317">	}</span>
+
+	/**
+	 * Well-known key constructor, strips private/secret key data and copies
+	 * verified public key data.
+	 * 
+	 * @param certParams  contains certificate parameters and id+algorithm
+	 * @param internalKey internal representation of the key, including
+	 *                    private/secret key data
+	 */
+	private Jwk(JsonObject certParams, Jwk internalKey) {
+<span class="fc" id="L328">		super(certParams);</span>
+<span class="fc" id="L329">		this.type = internalKey.type;</span>
+<span class="fc" id="L330">		this.use = internalKey.use;</span>
+<span class="fc bfc" id="L331" title="All 2 branches covered.">		this.ops = internalKey.verifiedPublicKey == null ? null</span>
+<span class="fc" id="L332">				: IuObject.convert(internalKey.ops,</span>
+<span class="fc bfc" id="L333" title="All 2 branches covered.">						ops -&gt; ops.stream().filter(op -&gt; !Set.of(Operation.UNWRAP, Operation.SIGN).contains(op))</span>
+<span class="fc" id="L334">								.collect(Collectors.toUnmodifiableSet()));</span>
+<span class="fc" id="L335">		this.key = null;</span>
+<span class="fc" id="L336">		this.privateKey = null;</span>
+<span class="fc" id="L337">		this.publicKey = internalKey.verifiedPublicKey;</span>
+<span class="fc" id="L338">		this.verifiedPublicKey = WebKey.verify(this);</span>
+<span class="fc" id="L339">	}</span>
+
+	@Override
+	public Type getType() {
+<span class="fc" id="L343">		return type;</span>
+	}
+
+	@Override
+	public Use getUse() {
+<span class="fc" id="L348">		return use;</span>
+	}
+
+	@Override
+	public byte[] getKey() {
+<span class="fc" id="L353">		return key;</span>
+	}
+
+	@Override
+	public PublicKey getPublicKey() {
+<span class="fc" id="L358">		return publicKey;</span>
+	}
+
+	@Override
+	public PrivateKey getPrivateKey() {
+<span class="fc" id="L363">		return privateKey;</span>
+	}
+
+	@Override
+	public Set&lt;Operation&gt; getOps() {
+<span class="fc" id="L368">		return ops;</span>
+	}
+
+	@Override
+	public Jwk wellKnown() {
+<span class="fc bfc" id="L373" title="All 6 branches covered.">		if (privateKey == null &amp;&amp; key == null &amp;&amp; publicKey != null)</span>
+<span class="fc" id="L374">			return this;</span>
+
+<span class="fc" id="L376">		final var jwkBuilder = (JwkBuilder) WebKey.builder(type);</span>
+<span class="fc" id="L377">		IuObject.convert(getCertificateUri(), jwkBuilder::cert);</span>
+<span class="fc" id="L378">		IuObject.convert(verifiedCertificateChain(), jwkBuilder::cert);</span>
+<span class="fc" id="L379">		IuObject.convert(getCertificateThumbprint(), jwkBuilder::x5t);</span>
+<span class="fc" id="L380">		IuObject.convert(getCertificateSha256Thumbprint(), jwkBuilder::x5t256);</span>
+<span class="fc" id="L381">		IuObject.convert(getAlgorithm(), jwkBuilder::algorithm);</span>
+<span class="fc" id="L382">		IuObject.convert(getKeyId(), jwkBuilder::keyId);</span>
+<span class="fc" id="L383">		final var initBuilder = IuJson.object();</span>
+<span class="fc" id="L384">		jwkBuilder.build(initBuilder);</span>
+<span class="fc" id="L385">		return new Jwk(initBuilder.build(), this);</span>
+	}
+
+	@Override
+	public int hashCode() {
+<span class="fc" id="L390">		return IuObject.hashCodeSuper(super.hashCode(), type, use, key, publicKey, privateKey, ops);</span>
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+<span class="fc bfc" id="L395" title="All 2 branches covered.">		if (!super.equals(obj))</span>
+<span class="fc" id="L396">			return false;</span>
+<span class="fc" id="L397">		Jwk other = (Jwk) obj;</span>
+<span class="pc bpc" id="L398" title="1 of 2 branches missed.">		return IuObject.equals(type, other.type) //</span>
+<span class="fc bfc" id="L399" title="All 2 branches covered.">				&amp;&amp; IuObject.equals(use, other.use) //</span>
+<span class="fc bfc" id="L400" title="All 2 branches covered.">				&amp;&amp; IuObject.equals(ops, other.ops) //</span>
+<span class="fc bfc" id="L401" title="All 2 branches covered.">				&amp;&amp; IuObject.equals(key, other.key) //</span>
+<span class="fc bfc" id="L402" title="All 2 branches covered.">				&amp;&amp; IuObject.equals(privateKey, other.privateKey) //</span>
+<span class="fc bfc" id="L403" title="All 2 branches covered.">				&amp;&amp; IuObject.equals(publicKey, other.publicKey);</span>
+	}
+
+	@Override
+	public String toString() {
+<span class="fc" id="L408">		final var jwkBuilder = IuJson.object();</span>
+<span class="fc" id="L409">		serializeTo(jwkBuilder);</span>
+<span class="fc" id="L410">		return jwkBuilder.build().toString();</span>
+	}
+
+	/**
+	 * Adds serialized JWK attributes to a JSON object builder.
+	 * 
+	 * @param jwkBuilder {@link JsonObjectBuilder}
+	 * @return jwkBuilder
+	 */
+	JsonObjectBuilder serializeTo(JsonObjectBuilder jwkBuilder) {
+<span class="fc" id="L420">		super.serializeTo(jwkBuilder);</span>
+<span class="fc" id="L421">		IuJson.add(jwkBuilder, &quot;use&quot;, () -&gt; use, Use.JSON);</span>
+<span class="fc" id="L422">		IuJson.add(jwkBuilder, &quot;key_ops&quot;, () -&gt; ops, IuJsonAdapter.of(Set.class, Operation.JSON));</span>
+
+<span class="fc" id="L424">		final var builder = (JwkBuilder) WebKey.builder(type);</span>
+<span class="fc" id="L425">		IuObject.convert(key, builder::key);</span>
+<span class="fc" id="L426">		IuObject.convert(publicKey, builder::key);</span>
+<span class="fc" id="L427">		IuObject.convert(privateKey, builder::key);</span>
+<span class="fc" id="L428">		builder.build(jwkBuilder);</span>
+
+<span class="fc" id="L430">		return jwkBuilder;</span>
+	}
+
+	/**
+	 * Determines whether or not the known components of this key match the known
+	 * components of another key.
+	 * 
+	 * @param key {@link WebKey}
+	 * @return true if all non-null components of both keys match
+	 */
+	boolean represents(Jwk key) {
+<span class="fc bfc" id="L441" title="All 2 branches covered.">		return super.represents(key) //</span>
+<span class="fc bfc" id="L442" title="All 2 branches covered.">				&amp;&amp; IuObject.represents(type, key.type) //</span>
+<span class="pc bpc" id="L443" title="1 of 2 branches missed.">				&amp;&amp; IuObject.represents(use, key.use) //</span>
+<span class="pc bpc" id="L444" title="1 of 2 branches missed.">				&amp;&amp; IuObject.represents(ops, key.ops) //</span>
+<span class="fc bfc" id="L445" title="All 2 branches covered.">				&amp;&amp; IuObject.represents(this.key, key.key) //</span>
+<span class="fc bfc" id="L446" title="All 2 branches covered.">				&amp;&amp; IuObject.represents(publicKey, key.publicKey) //</span>
+<span class="fc bfc" id="L447" title="All 2 branches covered.">				&amp;&amp; IuObject.represents(privateKey, key.privateKey);</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

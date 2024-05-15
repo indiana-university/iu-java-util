@@ -63,12 +63,7 @@ public interface IuAnnotatedElement {
 	 * @param annotationType annotation type
 	 * @return annotation if present, else null
 	 */
-	default &lt;A extends Annotation&gt; A annotation(Class&lt;A&gt; annotationType) {
-<span class="fc bfc" id="L67" title="All 2 branches covered.">		for (var a : annotations())</span>
-<span class="fc bfc" id="L68" title="All 2 branches covered.">			if (annotationType.isInstance(a))</span>
-<span class="fc" id="L69">				return annotationType.cast(a);</span>
-<span class="fc" id="L70">		return null;</span>
-	}
+	&lt;A extends Annotation&gt; A annotation(Class&lt;A&gt; annotationType);
 
 	/**
 	 * Determines if an annotation is present.
@@ -76,12 +71,7 @@ public interface IuAnnotatedElement {
 	 * @param annotationType annotation type
 	 * @return true if the annotation is present, else null
 	 */
-	default boolean hasAnnotation(Class&lt;? extends Annotation&gt; annotationType) {
-<span class="fc bfc" id="L80" title="All 2 branches covered.">		for (var a : annotations())</span>
-<span class="fc bfc" id="L81" title="All 2 branches covered.">			if (annotationType.isInstance(a))</span>
-<span class="fc" id="L82">				return true;</span>
-<span class="fc" id="L83">		return false;</span>
-	}
+	boolean hasAnnotation(Class&lt;? extends Annotation&gt; annotationType);
 
 	/**
 	 * Determines if access to this element is permitted in the current context.
@@ -99,7 +89,7 @@ public interface IuAnnotatedElement {
 	 *         else false
 	 */
 	default boolean permitted() {
-<span class="fc" id="L102">		return permitted(role -&gt; false);</span>
+<span class="fc" id="L92">		return permitted(role -&gt; false);</span>
 	}
 
 }

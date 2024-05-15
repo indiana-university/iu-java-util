@@ -1,0 +1,323 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JsonAdapters.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU HTTP Client Utilities</a> &gt; <a href="index.source.html" class="el_package">iu.client</a> &gt; <span class="el_source">JsonAdapters.java</span></div><h1>JsonAdapters.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.client;
+
+import java.lang.reflect.Array;
+import java.lang.reflect.GenericArrayType;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
+import java.lang.reflect.WildcardType;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.net.URI;
+import java.net.URL;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.OffsetTime;
+import java.time.Period;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.Date;
+import java.util.Deque;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.NavigableSet;
+import java.util.Optional;
+import java.util.Properties;
+import java.util.Queue;
+import java.util.Set;
+import java.util.SimpleTimeZone;
+import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TimeZone;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.WeakHashMap;
+import java.util.function.IntFunction;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
+
+import edu.iu.IuException;
+import edu.iu.client.IuJsonAdapter;
+
+/**
+ * Provides standard {@link IuJsonAdapter} instances.
+ */
+public final class JsonAdapters {
+
+<span class="fc" id="L94">	private static final Map&lt;Class&lt;?&gt;, Class&lt;?&gt;&gt; ARRAY_TYPES = new WeakHashMap&lt;&gt;();</span>
+
+	/**
+	 * {@link IuJsonAdapter} factory method.
+	 * 
+	 * @param type         Java type
+	 * @param valueAdapter value type adapter
+	 * @return {@link JsonAdapter}
+	 */
+	@SuppressWarnings({ &quot;unchecked&quot;, &quot;rawtypes&quot; })
+	public static IuJsonAdapter adapt(Type type, IuJsonAdapter valueAdapter) {
+<span class="fc" id="L105">		Class erased = erase(type);</span>
+
+<span class="fc bfc" id="L107" title="All 2 branches covered.">		if (erased == Object.class)</span>
+<span class="fc" id="L108">			return BasicJsonAdapter.INSTANCE;</span>
+
+<span class="fc bfc" id="L110" title="All 2 branches covered.">		if (erased == Boolean.class)</span>
+<span class="fc" id="L111">			return BooleanJsonAdapter.INSTANCE;</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">		if (erased == boolean.class)</span>
+<span class="fc" id="L113">			return BooleanJsonAdapter.PRIMITIVE;</span>
+
+<span class="fc bfc" id="L115" title="All 4 branches covered.">		if (erased == BigDecimal.class //</span>
+				|| erased == Number.class)
+<span class="fc" id="L117">			return NumberAdapter.BIG_DECIMAL;</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">		if (erased == BigInteger.class)</span>
+<span class="fc" id="L119">			return NumberAdapter.BIG_INTEGER;</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">		if (erased == Byte.class)</span>
+<span class="fc" id="L121">			return NumberAdapter.BYTE;</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">		if (erased == byte.class)</span>
+<span class="fc" id="L123">			return NumberAdapter.BYTE_PRIMITIVE;</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">		if (erased == Double.class)</span>
+<span class="fc" id="L125">			return NumberAdapter.DOUBLE;</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">		if (erased == double.class)</span>
+<span class="fc" id="L127">			return NumberAdapter.DOUBLE_PRIMITIVE;</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">		if (erased == Float.class)</span>
+<span class="fc" id="L129">			return NumberAdapter.FLOAT;</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">		if (erased == float.class)</span>
+<span class="fc" id="L131">			return NumberAdapter.FLOAT_PRIMITIVE;</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">		if (erased == Long.class)</span>
+<span class="fc" id="L133">			return NumberAdapter.LONG;</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">		if (erased == long.class)</span>
+<span class="fc" id="L135">			return NumberAdapter.LONG_PRIMITIVE;</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">		if (erased == Integer.class)</span>
+<span class="fc" id="L137">			return NumberAdapter.INT;</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">		if (erased == int.class)</span>
+<span class="fc" id="L139">			return NumberAdapter.INT_PRIMITIVE;</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">		if (erased == Short.class)</span>
+<span class="fc" id="L141">			return NumberAdapter.SHORT;</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">		if (erased == short.class)</span>
+<span class="fc" id="L143">			return NumberAdapter.SHORT_PRIMITIVE;</span>
+
+<span class="fc bfc" id="L145" title="All 4 branches covered.">		if (erased == CharSequence.class //</span>
+				|| erased == String.class)
+<span class="fc" id="L147">			return TextJsonAdapter.INSTANCE;</span>
+
+<span class="fc bfc" id="L149" title="All 2 branches covered.">		if (erased == byte[].class)</span>
+<span class="fc" id="L150">			return BinaryJsonAdapter.INSTANCE;</span>
+
+<span class="fc bfc" id="L152" title="All 2 branches covered.">		if (erased == Calendar.class)</span>
+<span class="fc" id="L153">			return CalendarJsonAdapter.INSTANCE;</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">		if (erased == Date.class)</span>
+<span class="fc" id="L155">			return DateJsonAdapter.INSTANCE;</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">		if (erased == Duration.class)</span>
+<span class="fc" id="L157">			return ParsingJsonAdapter.of(Duration.class, Duration::parse);</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">		if (erased == Instant.class)</span>
+<span class="fc" id="L159">			return ParsingJsonAdapter.of(Instant.class, Instant::parse);</span>
+<span class="fc bfc" id="L160" title="All 2 branches covered.">		if (erased == LocalDate.class)</span>
+<span class="fc" id="L161">			return ParsingJsonAdapter.of(LocalDate.class, LocalDate::parse);</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">		if (erased == LocalTime.class)</span>
+<span class="fc" id="L163">			return ParsingJsonAdapter.of(LocalTime.class, LocalTime::parse);</span>
+<span class="fc bfc" id="L164" title="All 2 branches covered.">		if (erased == LocalDateTime.class)</span>
+<span class="fc" id="L165">			return ParsingJsonAdapter.of(LocalDateTime.class, LocalDateTime::parse);</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">		if (erased == OffsetDateTime.class)</span>
+<span class="fc" id="L167">			return ParsingJsonAdapter.of(OffsetDateTime.class, OffsetDateTime::parse);</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">		if (erased == OffsetTime.class)</span>
+<span class="fc" id="L169">			return ParsingJsonAdapter.of(OffsetTime.class, OffsetTime::parse);</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">		if (erased == Pattern.class)</span>
+<span class="fc" id="L171">			return ParsingJsonAdapter.of(Pattern.class, Pattern::compile);</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">		if (erased == Period.class)</span>
+<span class="fc" id="L173">			return ParsingJsonAdapter.of(Period.class, Period::parse);</span>
+<span class="fc bfc" id="L174" title="All 2 branches covered.">		if (erased == SimpleTimeZone.class)</span>
+<span class="fc" id="L175">			return TimeZoneJsonAdapter.INSTANCE;</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">		if (erased == TimeZone.class)</span>
+<span class="fc" id="L177">			return TimeZoneJsonAdapter.INSTANCE;</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">		if (erased == ZonedDateTime.class)</span>
+<span class="fc" id="L179">			return ParsingJsonAdapter.of(ZonedDateTime.class, ZonedDateTime::parse);</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">		if (erased == ZoneId.class)</span>
+<span class="fc" id="L181">			return ParsingJsonAdapter.of(ZoneId.class, ZoneId::of);</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">		if (erased == ZoneOffset.class)</span>
+<span class="fc" id="L183">			return ParsingJsonAdapter.of(ZoneOffset.class, ZoneOffset::of);</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">		if (erased == URI.class)</span>
+<span class="fc" id="L185">			return ParsingJsonAdapter.of(URI.class, URI::create);</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">		if (erased == URL.class)</span>
+<span class="fc" id="L187">			return ParsingJsonAdapter.of(URL.class, a -&gt; IuException.unchecked(() -&gt; new URL(a)));</span>
+
+<span class="fc bfc" id="L189" title="All 2 branches covered.">		if (erased.isEnum())</span>
+<span class="fc" id="L190">			return ParsingJsonAdapter.of(erased, v -&gt; Enum.valueOf(erased, v));</span>
+
+<span class="fc bfc" id="L192" title="All 2 branches covered.">		if (erased == Optional.class)</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">			if (valueAdapter != null)</span>
+<span class="fc" id="L194">				return new OptionalJsonAdapter(valueAdapter);</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">			else if (type instanceof ParameterizedType)</span>
+<span class="fc" id="L196">				return new OptionalJsonAdapter(IuJsonAdapter.of(item(type)));</span>
+			else
+<span class="fc" id="L198">				return OptionalJsonAdapter.INSTANCE;</span>
+
+<span class="fc bfc" id="L200" title="All 2 branches covered.">		if (erased.isArray()) {</span>
+<span class="fc" id="L201">			final var item = item(type);</span>
+<span class="fc" id="L202">			final IntFunction factory = n -&gt; Array.newInstance(item, n);</span>
+			final IuJsonAdapter itemAdapter;
+<span class="fc bfc" id="L204" title="All 2 branches covered.">			if (valueAdapter != null)</span>
+<span class="fc" id="L205">				itemAdapter = valueAdapter;</span>
+			else
+<span class="fc" id="L207">				itemAdapter = IuJsonAdapter.of(item);</span>
+
+<span class="fc" id="L209">			return new ArrayAdapter(itemAdapter, factory);</span>
+		}
+
+<span class="fc bfc" id="L212" title="All 8 branches covered.">		if (Iterable.class.isAssignableFrom(erased) //</span>
+				|| erased == Enumeration.class //
+				|| erased == Iterator.class //
+				|| erased == Stream.class) {
+			final IuJsonAdapter itemAdapter;
+<span class="fc bfc" id="L217" title="All 2 branches covered.">			if (valueAdapter != null)</span>
+<span class="fc" id="L218">				itemAdapter = valueAdapter;</span>
+<span class="fc bfc" id="L219" title="All 2 branches covered.">			else if (type instanceof ParameterizedType)</span>
+<span class="fc" id="L220">				itemAdapter = IuJsonAdapter.of(item(type));</span>
+			else
+<span class="fc" id="L222">				itemAdapter = BasicJsonAdapter.INSTANCE;</span>
+
+<span class="fc bfc" id="L224" title="All 2 branches covered.">			if (erased == Iterable.class)</span>
+<span class="fc" id="L225">				return new IterableAdapter(itemAdapter);</span>
+
+<span class="fc bfc" id="L227" title="All 8 branches covered.">			if (erased == Collection.class //</span>
+					|| erased == Queue.class //
+					|| erased == Deque.class //
+					|| erased == ArrayDeque.class)
+<span class="fc" id="L231">				return new CollectionAdapter(itemAdapter, ArrayDeque::new);</span>
+
+<span class="fc bfc" id="L233" title="All 4 branches covered.">			if (erased == List.class //</span>
+					|| erased == ArrayList.class)
+<span class="fc" id="L235">				return new CollectionAdapter(itemAdapter, ArrayList::new);</span>
+
+<span class="fc bfc" id="L237" title="All 4 branches covered.">			if (erased == Set.class //</span>
+					|| erased == LinkedHashSet.class)
+<span class="fc" id="L239">				return new CollectionAdapter(itemAdapter, LinkedHashSet::new);</span>
+
+<span class="fc bfc" id="L241" title="All 6 branches covered.">			if (erased == SortedSet.class //</span>
+					|| erased == NavigableSet.class //
+					|| erased == TreeSet.class)
+<span class="fc" id="L244">				return new CollectionAdapter(itemAdapter, TreeSet::new);</span>
+
+<span class="fc bfc" id="L246" title="All 2 branches covered.">			if (erased == HashSet.class)</span>
+<span class="fc" id="L247">				return new CollectionAdapter(itemAdapter, HashSet::new);</span>
+
+<span class="fc bfc" id="L249" title="All 2 branches covered.">			if (erased == Enumeration.class)</span>
+<span class="fc" id="L250">				return new EnumerationAdapter(itemAdapter);</span>
+<span class="fc bfc" id="L251" title="All 2 branches covered.">			if (erased == Iterator.class)</span>
+<span class="fc" id="L252">				return new IteratorAdapter(itemAdapter);</span>
+<span class="fc bfc" id="L253" title="All 2 branches covered.">			if (erased == Stream.class)</span>
+<span class="fc" id="L254">				return new StreamAdapter(itemAdapter);</span>
+		}
+
+<span class="fc bfc" id="L257" title="All 2 branches covered.">		if (Map.class.isAssignableFrom(erased)) {</span>
+<span class="fc bfc" id="L258" title="All 2 branches covered.">			if (valueAdapter == null)</span>
+<span class="fc bfc" id="L259" title="All 2 branches covered.">				if (type instanceof ParameterizedType)</span>
+<span class="fc" id="L260">					valueAdapter = IuJsonAdapter.of(item(type));</span>
+				else
+<span class="fc" id="L262">					valueAdapter = BasicJsonAdapter.INSTANCE;</span>
+
+<span class="fc bfc" id="L264" title="All 4 branches covered.">			if (erased == Map.class //</span>
+					|| erased == LinkedHashMap.class)
+<span class="fc" id="L266">				return new JsonObjectAdapter(valueAdapter, LinkedHashMap::new);</span>
+
+<span class="fc bfc" id="L268" title="All 2 branches covered.">			if (erased == HashMap.class)</span>
+<span class="fc" id="L269">				return new JsonObjectAdapter(valueAdapter, HashMap::new);</span>
+
+<span class="fc bfc" id="L271" title="All 6 branches covered.">			if (erased == SortedMap.class //</span>
+					|| erased == NavigableMap.class //
+					|| erased == TreeMap.class)
+<span class="fc" id="L274">				return new JsonObjectAdapter(valueAdapter, TreeMap::new);</span>
+
+<span class="fc bfc" id="L276" title="All 2 branches covered.">			if (erased == Properties.class)</span>
+<span class="fc" id="L277">				return new JsonObjectAdapter(valueAdapter, Properties::new);</span>
+		}
+
+<span class="fc" id="L280">		throw new UnsupportedOperationException(&quot;Unsupported for JSON conversion: &quot; + type);</span>
+	}
+
+	private static Class&lt;?&gt; erase(Type type) {
+<span class="fc bfc" id="L284" title="All 2 branches covered.">		if (type instanceof Class)</span>
+<span class="fc" id="L285">			return (Class&lt;?&gt;) type;</span>
+<span class="fc bfc" id="L286" title="All 2 branches covered.">		else if (type instanceof GenericArrayType) {</span>
+<span class="fc" id="L287">			final var component = erase(((GenericArrayType) type).getGenericComponentType());</span>
+<span class="fc" id="L288">			var array = ARRAY_TYPES.get(component);</span>
+<span class="fc bfc" id="L289" title="All 2 branches covered.">			if (array == null) {</span>
+<span class="fc" id="L290">				array = Array.newInstance(component, 0).getClass();</span>
+<span class="fc" id="L291">				synchronized (ARRAY_TYPES) {</span>
+<span class="fc" id="L292">					ARRAY_TYPES.put(component, array);</span>
+<span class="fc" id="L293">				}</span>
+			}
+<span class="fc" id="L295">			return array;</span>
+<span class="fc bfc" id="L296" title="All 2 branches covered.">		} else if (type instanceof ParameterizedType)</span>
+<span class="fc" id="L297">			return erase(((ParameterizedType) type).getRawType());</span>
+<span class="fc bfc" id="L298" title="All 2 branches covered.">		else if (type instanceof TypeVariable)</span>
+<span class="fc" id="L299">			return erase(((TypeVariable&lt;?&gt;) type).getBounds()[0]);</span>
+		else // if (type instanceof WildcardType)
+<span class="fc" id="L301">			return erase(((WildcardType) type).getUpperBounds()[0]);</span>
+	}
+
+	private static Class&lt;?&gt; item(Type type) {
+<span class="fc bfc" id="L305" title="All 2 branches covered.">		if (type instanceof Class) {</span>
+<span class="fc" id="L306">			return ((Class&lt;?&gt;) type).getComponentType();</span>
+<span class="fc bfc" id="L307" title="All 2 branches covered.">		} else if (type instanceof GenericArrayType)</span>
+<span class="fc" id="L308">			return erase(((GenericArrayType) type).getGenericComponentType());</span>
+		else {
+			// assumes erase() was invoked and returned a supported type first
+<span class="fc" id="L311">			final var p = (ParameterizedType) type;</span>
+<span class="fc" id="L312">			final var raw = erase(p);</span>
+<span class="fc bfc" id="L313" title="All 2 branches covered.">			if (Map.class.isAssignableFrom(raw))</span>
+<span class="fc" id="L314">				return erase(p.getActualTypeArguments()[1]);</span>
+			else
+<span class="fc" id="L316">				return erase(p.getActualTypeArguments()[0]);</span>
+		}
+	}
+
+	private JsonAdapters() {
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

@@ -39,6 +39,7 @@ import java.lang.reflect.Proxy;
 import java.net.URL;
 import java.util.Enumeration;
 import java.util.Properties;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.mockito.Mockito;
 
@@ -52,7 +53,20 @@ public final class IuTest {
 	private static Properties properties;
 
 	private static Enumeration&lt;URL&gt; getResources(String name) throws IOException {
-<span class="fc" id="L55">		return ClassLoader.getSystemResources(name);</span>
+<span class="fc" id="L56">		return ClassLoader.getSystemResources(name);</span>
+	}
+
+	/**
+	 * Returns a random enum value.
+	 * 
+	 * @param &lt;E&gt;       enum type
+	 * @param enumClass enum class
+	 * @return random value
+	 */
+	public static &lt;E extends Enum&lt;E&gt;&gt; E rand(Class&lt;E&gt; enumClass) {
+<span class="fc" id="L67">		final var values = enumClass.getEnumConstants();</span>
+<span class="fc" id="L68">		final var i = ThreadLocalRandom.current().nextInt(values.length);</span>
+<span class="fc" id="L69">		return values[i];</span>
 	}
 
 	/**
@@ -62,23 +76,27 @@ public final class IuTest {
 	 * @param &lt;T&gt;  interface type
 	 * @param type interface class
 	 * @return decorated mock instance
+	 * @deprecated Use {@link Mockito#mock(Class, org.mockito.MockSettings)
+	 *             mock(type, CALLS_REAL_METHODS)} instead
 	 */
 	public static &lt;T&gt; T mockWithDefaults(Class&lt;T&gt; type) {
-<span class="fc" id="L67">		IuTest.class.getModule().addReads(type.getModule());</span>
+<span class="fc" id="L83">		IuTest.class.getModule().addReads(type.getModule());</span>
 
-<span class="fc" id="L69">		var mock = Mockito.mock(type);</span>
-<span class="fc" id="L70">		assertTrue(type.isInterface());</span>
+<span class="fc" id="L85">		var mock = Mockito.mock(type);</span>
+<span class="fc" id="L86">		assertTrue(type.isInterface());</span>
 
-<span class="fc" id="L72">		return Mockito.spy(type</span>
-<span class="fc" id="L73">				.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class&lt;?&gt;[] { type }, (proxy, method, args) -&gt; {</span>
-<span class="fc bfc" id="L74" title="All 2 branches covered.">					if (method.isDefault())</span>
+<span class="fc" id="L88">		return Mockito.spy(type</span>
+<span class="fc" id="L89">				.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class&lt;?&gt;[] { type }, (proxy, method, args) -&gt; {</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">					if (method.isDefault())</span>
 						try {
-<span class="fc" id="L76">							return MethodHandles.privateLookupIn(type, MethodHandles.lookup())</span>
-<span class="fc" id="L77">									.unreflectSpecial(method, type).bindTo(proxy).invokeWithArguments(args);</span>
-<span class="fc" id="L78">						} catch (UnsupportedOperationException e) {</span>
-						}
+<span class="fc" id="L92">							return MethodHandles.privateLookupIn(type, MethodHandles.lookup())</span>
+<span class="fc" id="L93">									.unreflectSpecial(method, type).bindTo(proxy).invokeWithArguments(args);</span>
+<span class="fc" id="L94">						} catch (UnsupportedOperationException e) {</span>
+<span class="fc" id="L95">						}</span>
+					else
+<span class="fc" id="L97">						method.setAccessible(true);</span>
 
-<span class="fc" id="L81">					return method.invoke(mock, args);</span>
+<span class="fc" id="L99">					return method.invoke(mock, args);</span>
 				})));
 	}
 
@@ -94,17 +112,17 @@ public final class IuTest {
 	 * @return properties
 	 */
 	public static Properties properties() {
-<span class="fc bfc" id="L97" title="All 2 branches covered.">		if (properties == null)</span>
-<span class="fc" id="L98">			IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L99">				var properties = new Properties();</span>
-<span class="fc" id="L100">				Enumeration&lt;URL&gt; sources = getResources(&quot;META-INF/iu-test.properties&quot;);</span>
-<span class="fc bfc" id="L101" title="All 2 branches covered.">				for (var source : (Iterable&lt;URL&gt;) sources::asIterator)</span>
-<span class="fc" id="L102">					try (var in = source.openStream()) {</span>
-<span class="fc" id="L103">						properties.load(in);</span>
-<span class="fc" id="L104">					}</span>
-<span class="fc" id="L105">				IuTest.properties = properties;</span>
-<span class="fc" id="L106">			});</span>
-<span class="fc" id="L107">		return properties;</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">		if (properties == null)</span>
+<span class="fc" id="L116">			IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L117">				var properties = new Properties();</span>
+<span class="fc" id="L118">				Enumeration&lt;URL&gt; sources = getResources(&quot;META-INF/iu-test.properties&quot;);</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">				for (var source : (Iterable&lt;URL&gt;) sources::asIterator)</span>
+<span class="fc" id="L120">					try (var in = source.openStream()) {</span>
+<span class="fc" id="L121">						properties.load(in);</span>
+<span class="fc" id="L122">					}</span>
+<span class="fc" id="L123">				IuTest.properties = properties;</span>
+<span class="fc" id="L124">			});</span>
+<span class="fc" id="L125">		return properties;</span>
 	}
 
 	/**
@@ -114,7 +132,7 @@ public final class IuTest {
 	 * @return property value
 	 */
 	public static String getProperty(String key) {
-<span class="fc" id="L117">		return properties().getProperty(key);</span>
+<span class="fc" id="L135">		return properties().getProperty(key);</span>
 
 	}
 

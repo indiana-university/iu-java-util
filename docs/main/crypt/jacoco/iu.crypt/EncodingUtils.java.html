@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EncodingUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Web Cryptography Utilities</a> &gt; <a href="index.source.html" class="el_package">iu.crypt</a> &gt; <span class="el_source">EncodingUtils.java</span></div><h1>EncodingUtils.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.crypt;
+
+import java.nio.ByteBuffer;
+
+/**
+ * Provides basic internal binary encoding behavior for JSON web crypto
+ * algorithms.
+ */
+class EncodingUtils {
+
+<span class="fc" id="L42">	private static final byte[] b0 = new byte[0];</span>
+
+	/**
+	 * Copies an 32-bit integer into a {@link ByteBuffer}
+	 * 
+	 * @param value  integer to encode
+	 * @param buffer {@link ByteBuffer}
+	 */
+	static void bigEndian(int value, ByteBuffer buffer) {
+<span class="fc" id="L51">		buffer.put((byte) ((value &gt;&gt;&gt; 24) &amp; 0xff));</span>
+<span class="fc" id="L52">		buffer.put((byte) ((value &gt;&gt;&gt; 16) &amp; 0xff));</span>
+<span class="fc" id="L53">		buffer.put((byte) ((value &gt;&gt;&gt; 8) &amp; 0xff));</span>
+<span class="fc" id="L54">		buffer.put((byte) value);</span>
+<span class="fc" id="L55">	}</span>
+
+	/**
+	 * Copies an 64-bit long into a {@link ByteBuffer}
+	 * 
+	 * @param value  integer to encode
+	 * @param buffer {@link ByteBuffer}
+	 */
+	static void bigEndian(long value, ByteBuffer buffer) {
+<span class="fc" id="L64">		buffer.put((byte) ((value &gt;&gt;&gt; 56) &amp; 0xff));</span>
+<span class="fc" id="L65">		buffer.put((byte) ((value &gt;&gt;&gt; 48) &amp; 0xff));</span>
+<span class="fc" id="L66">		buffer.put((byte) ((value &gt;&gt;&gt; 40) &amp; 0xff));</span>
+<span class="fc" id="L67">		buffer.put((byte) ((value &gt;&gt;&gt; 32) &amp; 0xff));</span>
+<span class="fc" id="L68">		buffer.put((byte) ((value &gt;&gt;&gt; 24) &amp; 0xff));</span>
+<span class="fc" id="L69">		buffer.put((byte) ((value &gt;&gt;&gt; 16) &amp; 0xff));</span>
+<span class="fc" id="L70">		buffer.put((byte) ((value &gt;&gt;&gt; 8) &amp; 0xff));</span>
+<span class="fc" id="L71">		buffer.put((byte) value);</span>
+<span class="fc" id="L72">	}</span>
+
+	/**
+	 * Encodes data in NIST.800-56A Concatenated Key Derivation Format (KDF).
+	 * 
+	 * @param data   data to encode
+	 * @param buffer {@link ByteBuffer}
+	 */
+	static void concatKdfFragment(byte[] data, ByteBuffer buffer) {
+<span class="fc" id="L81">		bigEndian(data.length, buffer);</span>
+<span class="fc" id="L82">		buffer.put(data);</span>
+<span class="fc" id="L83">	}</span>
+
+	/**
+	 * Gets the hash input data for one round of the &lt;a href=
+	 * &quot;https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-56Ar3.pdf&quot;&gt;NIST.800-56A
+	 * Section 5.8.1 Concatenated Key Derivation Format (KDF)&lt;/a&gt;
+	 * 
+	 * @param round   round number
+	 * @param z       key derivation output
+	 * @param algid   algorithm ID
+	 * @param uinfo   party UInfo value
+	 * @param vinfo   party VInfo value
+	 * @param datalen data length
+	 * @return Concat KDF hash input
+	 */
+	static byte[] concatKdf(int round, byte[] z, byte[] algid, byte[] uinfo, byte[] vinfo, int datalen) {
+<span class="fc bfc" id="L99" title="All 2 branches covered.">		if (uinfo == null)</span>
+<span class="fc" id="L100">			uinfo = b0;</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">		if (vinfo == null)</span>
+<span class="fc" id="L102">			vinfo = b0;</span>
+
+<span class="fc" id="L104">		final var buffer = ByteBuffer.wrap(new byte[20 + z.length + algid.length + uinfo.length + vinfo.length]);</span>
+<span class="fc" id="L105">		bigEndian(round, buffer);</span>
+<span class="fc" id="L106">		buffer.put(z);</span>
+<span class="fc" id="L107">		concatKdfFragment(algid, buffer);</span>
+<span class="fc" id="L108">		concatKdfFragment(uinfo, buffer);</span>
+<span class="fc" id="L109">		concatKdfFragment(vinfo, buffer);</span>
+<span class="fc" id="L110">		bigEndian(datalen, buffer);</span>
+<span class="fc" id="L111">		return buffer.array();</span>
+	}
+
+	/**
+	 * Reverses byte order
+	 * 
+	 * @param bytes big-endian data (or vice-versa)
+	 * @return little-endian data (or vice-versa)
+	 */
+	static byte[] reverse(byte[] bytes) {
+		final int l;
+<span class="fc bfc" id="L122" title="All 4 branches covered.">		if (bytes == null || (l = bytes.length) &lt;= 1)</span>
+<span class="fc" id="L123">			return bytes;</span>
+
+<span class="fc" id="L125">		final var b = new byte[l];</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">		for (var i = 0; i &lt; l; i++)</span>
+<span class="fc" id="L127">			b[i] = bytes[l - i - 1];</span>
+<span class="fc" id="L128">		return b;</span>
+	}
+
+	private EncodingUtils() {
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

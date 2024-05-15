@@ -1,7 +1,7 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
-IU Unit Test Support Module,edu.iu.test,IuTest,0,92,0,6,0,23,0,9,0,6
-IU Unit Test Support Module,edu.iu.test,IuTestLogger,0,341,0,24,0,80,0,27,0,15
-IU Unit Test Support Module,edu.iu.test,IuTestLogger.IuTestLogHandler,0,181,0,22,0,43,0,17,0,6
+IU Unit Test Support Module,edu.iu.test,IuTest,0,109,0,6,0,28,0,10,0,7
+IU Unit Test Support Module,edu.iu.test,IuTestLogger,0,328,0,32,0,81,0,30,0,14
+IU Unit Test Support Module,edu.iu.test,IuTestLogger.IuTestLogHandler,0,209,0,24,0,53,0,18,0,6
 IU Unit Test Support Module,edu.iu.test,IuTestSessionListener,0,7,0,0,0,6,0,3,0,3
-IU Unit Test Support Module,edu.iu.test,IuTestLogger.LogRecordMatcher,0,147,0,30,0,37,0,19,0,4
+IU Unit Test Support Module,edu.iu.test,IuTestLogger.LogRecordMatcher,0,168,0,38,0,39,0,23,0,4
 IU Unit Test Support Module,edu.iu.test,IuTestExtension,6,23,2,2,2,14,2,4,0,4

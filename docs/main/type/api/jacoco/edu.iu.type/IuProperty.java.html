@@ -141,10 +141,41 @@ public interface IuProperty&lt;D, T&gt; extends IuAttribute&lt;D, T&gt; {
 <span class="fc" id="L141">			write.annotations().forEach(annotations::offer);</span>
 
 <span class="fc" id="L143">		var read = read();</span>
-<span class="pc bpc" id="L144" title="1 of 2 branches missed.">		if (read != null)</span>
+<span class="fc bfc" id="L144" title="All 2 branches covered.">		if (read != null)</span>
 <span class="fc" id="L145">			read.annotations().forEach(annotations::offer);</span>
 
 <span class="fc" id="L147">		return annotations;</span>
+	}
+
+	@Override
+	default &lt;A extends Annotation&gt; A annotation(Class&lt;A&gt; annotationType) {
+<span class="fc" id="L152">		A annotation = null;</span>
+
+<span class="fc" id="L154">		final var write = write();</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">		if (write != null)</span>
+<span class="fc" id="L156">			annotation = write.annotation(annotationType);</span>
+
+<span class="fc" id="L158">		final var read = read();</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">		if (read != null) {</span>
+<span class="fc" id="L160">			final var readAnnotation = read.annotation(annotationType);</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">			if (annotation == null)</span>
+<span class="fc" id="L162">				annotation = readAnnotation;</span>
+<span class="fc bfc" id="L163" title="All 4 branches covered.">			else if (readAnnotation != null &amp;&amp; !readAnnotation.equals(annotation))</span>
+<span class="fc" id="L164">				throw new IllegalArgumentException(</span>
+						this + &quot; defines unequal values for @&quot; + annotationType + &quot; on both read and write methods&quot;);
+		}
+
+<span class="fc" id="L168">		return annotation;</span>
+	}
+
+	@Override
+	default boolean hasAnnotation(Class&lt;? extends Annotation&gt; annotationType) {
+<span class="fc" id="L173">		final var write = write();</span>
+<span class="fc bfc" id="L174" title="All 4 branches covered.">		if (write != null &amp;&amp; write.hasAnnotation(annotationType))</span>
+<span class="fc" id="L175">			return true;</span>
+
+<span class="fc" id="L177">		final var read = read();</span>
+<span class="pc bpc" id="L178" title="1 of 4 branches missed.">		return read != null &amp;&amp; read.hasAnnotation(annotationType);</span>
 	}
 
 	/**
@@ -162,7 +193,7 @@ public interface IuProperty&lt;D, T&gt; extends IuAttribute&lt;D, T&gt; {
 	 */
 	@Override
 	default boolean serializable() {
-<span class="fc bfc" id="L165" title="All 6 branches covered.">		return canRead() &amp;&amp; canWrite() &amp;&amp; !hasAnnotation(Transient.class);</span>
+<span class="fc bfc" id="L196" title="All 6 branches covered.">		return canRead() &amp;&amp; canWrite() &amp;&amp; !hasAnnotation(Transient.class);</span>
 	}
 
 }
