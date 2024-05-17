@@ -46,7 +46,7 @@ public interface IuSamlClient {
 	 * @return metadaaTtl {@link Duration}
 	 */
 	default Duration getMetadataTtl() {
-		return Duration.ofMillis(300000L);
+		return Duration.ofMinutes(5L);
 	}
 	
 	/**
@@ -97,7 +97,7 @@ public interface IuSamlClient {
 	/**
 	 * Gets the unique service provider id that register with identity provider
 	 * 
-	 * @return unique service provide id
+	 * @return unique service provider id
 	 */
 	String getServiceProviderEntityId();
 

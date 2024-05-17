@@ -47,7 +47,7 @@ public void testSamlClientDefault() {
                );
 
 	assertNull(client.getIdentityProviderUri());
-	assertEquals(client.getMetadataTtl(), Duration.ofMillis(300000L));
+	assertEquals(client.getMetadataTtl(), Duration.ofMinutes(5L));
 	assertEquals(client.getAuthenticatedSessionTimeout(), Duration.ofHours(12L));
 	assertFalse(client.failOnAddressMismatch());
 }
