@@ -82,7 +82,8 @@ public class SamlAuthenticateIT {
 
 			@Override
 			public List<URI> getMetaDataUris() {
-				return Arrays.asList(metaData.toURI());
+				URI entityId = IuException.unchecked(() -> new URI(ldpMetaDataUrl));
+				return Arrays.asList(entityId);
 			}
 
 			@Override

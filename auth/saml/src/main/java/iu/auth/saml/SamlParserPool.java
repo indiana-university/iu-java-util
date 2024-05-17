@@ -13,6 +13,7 @@ import org.w3c.dom.Document;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
+import edu.iu.IuException;
 import net.shibboleth.shared.xml.ParserPool;
 import net.shibboleth.shared.xml.XMLParserException;
 
@@ -50,16 +51,13 @@ public class SamlParserPool implements ParserPool {
 	}
 
 	@Override
-	public DocumentBuilder getBuilder() throws XMLParserException {
-		try {
-			return builderFactory.newDocumentBuilder();
-		} catch (final ParserConfigurationException e) {
-			throw new XMLParserException(e);
-		}
+	public DocumentBuilder getBuilder() {
+		return IuException.unchecked(() -> builderFactory.newDocumentBuilder());
 	}
 
 	@Override
 	public void returnBuilder(DocumentBuilder builder) {
+		throw new UnsupportedOperationException();
 	}
 
 	@Override

@@ -21,10 +21,11 @@ import org.junit.jupiter.api.Test;
 
 import net.shibboleth.shared.xml.XMLParserException;
 
+@SuppressWarnings("javadoc")
 public class SamlParserPoolTest {
 
 	@Test
-	public void testParserPool() throws XMLParserException, ParserConfigurationException {
+	public void testParserPool() throws ParserConfigurationException {
 		SamlParserPool parserPool = new SamlParserPool();
 		DocumentBuilder builder = parserPool.getBuilder();
 		assertNotNull(builder);
@@ -56,6 +57,12 @@ public class SamlParserPoolTest {
 		assertNotNull(parserPool.parse(inputStream));
 		assertNotNull(parserPool.parse(new FileReader("src/test/resource/foo.xml")));
 		assertThrows(XMLParserException.class, () -> parserPool.parse(new FileReader("src/test/resource/invalid.xml")));
+	}
+	
+	@Test 
+	public void testReturnBuilder() throws ParserConfigurationException {
+		SamlParserPool parserPool = new SamlParserPool();
+		assertThrows(UnsupportedOperationException.class, () -> parserPool.returnBuilder(null));
 	}
 
 }

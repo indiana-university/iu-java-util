@@ -156,25 +156,6 @@ public class XmlDomUtil {
 		return null;
 	}
 
-	/**
-	 * Determine if a node has any non-text child nodes.
-	 * 
-	 * @param node The node.
-	 * @return True if the node has any non-text child nodes, false if no children
-	 *         or text only.
-	 */
-	public static boolean hasNonTextChildNodes(Node node) {
-		//if (!node.hasChildNodes()) {
-		//	return false;
-		//}
-		NodeList children = node.getChildNodes();
-		for (int i = 0; i < children.getLength(); i++) {
-			if (!(children.item(i) instanceof Text)) {
-				return true;
-			}
-		}
-		return false;
-	}
 
 	/**
 	 * Get the first occurrence of a document element by name.

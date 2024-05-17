@@ -107,11 +107,4 @@ public class XmlDomUtilTest {
 		ByteArrayInputStream targetStream = new ByteArrayInputStream(xml.getBytes());
 		assertNotNull(XmlDomUtil.xmlToString(targetStream));
 	}
-	
-	@Test
-	public void testHasNonTextChildNodes() {
-		Document doc = XmlDomUtil.parse("<foo bar='bam'><bar>baz</bar></foo>");
-		assertTrue(XmlDomUtil.hasNonTextChildNodes(doc));
-	}
-
 }

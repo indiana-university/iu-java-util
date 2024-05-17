@@ -3,9 +3,16 @@ package iu.auth.saml;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.when;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
+import java.net.URL;
+import java.net.URLConnection;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.Arrays;
@@ -66,7 +73,6 @@ public class SpiTest {
 	 * fix Exception
 	 */
 	@Test
-	@Disabled
 	public void testSamlClient() {
 		final var spi = new SamlConnectSpi();
 		final var realm = "urn:iu:ess:sisjee-test";
@@ -175,10 +181,11 @@ public class SpiTest {
 			}
 
 		};
-
-		assertThrows(ServiceConfigurationError.class, () -> spi.getSamlProvider(client));
+		SamlProvider provider = (SamlProvider) spi.getSamlProvider(client);
+		assertThrows(ServiceConfigurationError.class, () -> provider.getSingleSignOnLocation("test://") );
 
 	}
+	
 
 	@Test
 	public void testCreateSession() {

@@ -5,10 +5,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.URI;
-import java.net.URL;
 import java.security.PrivateKey;
 import java.time.Instant;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -18,18 +16,13 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
-import java.util.ServiceConfigurationError;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 
-import org.opensaml.core.config.ConfigurationService;
 import org.opensaml.core.criterion.EntityIdCriterion;
-import org.opensaml.core.xml.config.XMLConfigurator;
-import org.opensaml.core.xml.config.XMLObjectProviderRegistry;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
 import org.opensaml.core.xml.schema.XSAny;
 import org.opensaml.core.xml.schema.XSString;
@@ -37,10 +30,6 @@ import org.opensaml.core.xml.util.XMLObjectSupport;
 import org.opensaml.saml.common.SAMLVersion;
 import org.opensaml.saml.common.assertion.AssertionValidationException;
 import org.opensaml.saml.common.assertion.ValidationContext;
-import org.opensaml.saml.config.SAMLConfiguration;
-import org.opensaml.saml.metadata.resolver.ChainingMetadataResolver;
-import org.opensaml.saml.metadata.resolver.MetadataResolver;
-import org.opensaml.saml.metadata.resolver.impl.DOMMetadataResolver;
 import org.opensaml.saml.saml2.assertion.SAML20AssertionValidator;
 import org.opensaml.saml.saml2.assertion.SAML2AssertionValidationParameters;
 import org.opensaml.saml.saml2.assertion.impl.AudienceRestrictionConditionValidator;
@@ -56,42 +45,28 @@ import org.opensaml.saml.saml2.core.NameIDPolicy;
 import org.opensaml.saml.saml2.core.Response;
 import org.opensaml.saml.saml2.core.SubjectConfirmation;
 import org.opensaml.saml.saml2.encryption.Decrypter;
-import org.opensaml.saml.saml2.metadata.AssertionConsumerService;
-import org.opensaml.saml.saml2.metadata.AttributeConsumingService;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.IDPSSODescriptor;
-import org.opensaml.saml.saml2.metadata.KeyDescriptor;
-import org.opensaml.saml.saml2.metadata.RequestedAttribute;
-import org.opensaml.saml.saml2.metadata.SPSSODescriptor;
 import org.opensaml.saml.saml2.metadata.SingleSignOnService;
 import org.opensaml.saml.security.impl.SAMLSignatureProfileValidator;
 import org.opensaml.security.credential.Credential;
 import org.opensaml.security.credential.CredentialResolver;
 import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.xmlsec.SignatureValidationParameters;
-import org.opensaml.xmlsec.config.DecryptionParserPool;
 import org.opensaml.xmlsec.encryption.support.DecryptionException;
 import org.opensaml.xmlsec.encryption.support.InlineEncryptedKeyResolver;
 import org.opensaml.xmlsec.keyinfo.KeyInfoCredentialResolver;
 import org.opensaml.xmlsec.keyinfo.impl.StaticKeyInfoCredentialResolver;
-import org.opensaml.xmlsec.signature.KeyInfo;
-import org.opensaml.xmlsec.signature.X509Certificate;
-import org.opensaml.xmlsec.signature.X509Data;
 import org.opensaml.xmlsec.signature.support.SignaturePrevalidator;
 import org.opensaml.xmlsec.signature.support.SignatureTrustEngine;
 import org.opensaml.xmlsec.signature.support.SignatureValidationParametersCriterion;
 import org.opensaml.xmlsec.signature.support.impl.ExplicitKeySignatureTrustEngine;
-import org.w3c.dom.Element;
 
-import edu.iu.IdGenerator;
 import edu.iu.IuException;
-import edu.iu.IuIterable;
-import edu.iu.IuText;
 import edu.iu.auth.saml.IuSamlClient;
 import edu.iu.auth.saml.IuSamlProvider;
 import net.shibboleth.shared.resolver.CriteriaSet;
 import net.shibboleth.shared.resolver.ResolverException;
-import net.shibboleth.shared.xml.ParserPool;
 
 /**
  * {@link IuSamlProvider implementation}
@@ -99,58 +74,12 @@ import net.shibboleth.shared.xml.ParserPool;
 public class SamlProvider implements IuSamlProvider {
 	private final Logger LOG = Logger.getLogger(SamlProvider.class.getName());
 
-	private static IuSamlClient client;
-	private MetadataResolver metadataResolver;
-	private long lastMetadataUpdate;
-	private String spMetaData;
+	private IuSamlClient client;
+	private SamlBuilder samlBuilder;
 
 	private static final String MAIL_OID = "urn:oid:0.9.2342.19200300.100.1.3";
 	private static final String DISPLAY_NAME_OID = "urn:oid:2.16.840.1.113730.3.1.241";
 	private static final String EDU_PERSON_PRINCIPAL_NAME_OID = "urn:oid:1.3.6.1.4.1.5923.1.1.1.6";
-
-	static {
-
-		Thread current = Thread.currentThread();
-		ClassLoader currentLoader = current.getContextClassLoader();
-		try {
-			ClassLoader scl = SamlProvider.class.getClassLoader();
-			current.setContextClassLoader(scl);
-			ConfigurationService.register(XMLObjectProviderRegistry.class, new XMLObjectProviderRegistry());
-			ConfigurationService.register(SAMLConfiguration.class, new SAMLConfiguration());
-			ConfigurationService.register(DecryptionParserPool.class, new DecryptionParserPool(new SamlParserPool()));
-
-			XMLConfigurator config = new XMLConfigurator();
-			config.load(scl.getResourceAsStream("default-config.xml"));
-			config.load(scl.getResourceAsStream("schema-config.xml"));
-			config.load(scl.getResourceAsStream("saml-ec-gss-config.xml"));
-			config.load(scl.getResourceAsStream("saml1-assertion-config.xml"));
-			config.load(scl.getResourceAsStream("saml1-metadata-config.xml"));
-			config.load(scl.getResourceAsStream("saml1-protocol-config.xml"));
-			config.load(scl.getResourceAsStream("saml2-assertion-config.xml"));
-			config.load(scl.getResourceAsStream("saml2-assertion-delegation-restriction-config.xml"));
-			config.load(scl.getResourceAsStream("saml2-channel-binding-config.xml"));
-			config.load(scl.getResourceAsStream("saml2-ecp-config.xml"));
-			config.load(scl.getResourceAsStream("saml2-metadata-algorithm-config.xml"));
-			config.load(scl.getResourceAsStream("saml2-metadata-attr-config.xml"));
-			config.load(scl.getResourceAsStream("saml2-metadata-config.xml"));
-			config.load(scl.getResourceAsStream("saml2-metadata-idp-discovery-config.xml"));
-			config.load(scl.getResourceAsStream("saml2-metadata-query-config.xml"));
-			config.load(scl.getResourceAsStream("saml2-metadata-reqinit-config.xml"));
-			config.load(scl.getResourceAsStream("saml2-metadata-rpi-config.xml"));
-			config.load(scl.getResourceAsStream("saml2-metadata-ui-config.xml"));
-			config.load(scl.getResourceAsStream("saml2-protocol-aslo-config.xml"));
-			config.load(scl.getResourceAsStream("saml2-protocol-config.xml"));
-			config.load(scl.getResourceAsStream("saml2-protocol-thirdparty-config.xml"));
-			config.load(scl.getResourceAsStream("signature-config.xml"));
-			config.load(scl.getResourceAsStream("encryption-config.xml"));
-
-			XMLObjectProviderRegistrySupport.setParserPool(new SamlParserPool());
-		} catch (Exception e) {
-			throw new ExceptionInInitializerError(e);
-		} finally {
-			current.setContextClassLoader(currentLoader);
-		}
-	}
 
 	/**
 	 * Initialize SAML provider
@@ -159,16 +88,13 @@ public class SamlProvider implements IuSamlProvider {
 	 */
 	public SamlProvider(IuSamlClient client) {
 		this.client = client;
-		this.metadataResolver = setMetadata(client.getMetaDataUris());
-		this.spMetaData = setSpMetadata();
-
+		this.samlBuilder = new SamlBuilder(client);
 	}
 
 	/**
-	 * Gets idp location
-	 * 
+	 * Gets identity provider location
 	 * @param entityId service provider entity id
-	 * @return idp location
+	 * @return identity provider location
 	 */
 	String getSingleSignOnLocation(String entityId) {
 		EntityDescriptor entity = getEntity(entityId);
@@ -183,7 +109,7 @@ public class SamlProvider implements IuSamlProvider {
 
 	private EntityDescriptor getEntity(String entityId) {
 		try {
-			EntityDescriptor entity = metadataResolver.resolveSingle(new CriteriaSet(new EntityIdCriterion(entityId)));
+			EntityDescriptor entity = samlBuilder.getMetadata().resolveSingle(new CriteriaSet(new EntityIdCriterion(entityId)));
 			if (entity == null)
 				throw new IllegalArgumentException("Entity " + entityId + " not found in SAML metadata");
 			return entity;
@@ -192,139 +118,6 @@ public class SamlProvider implements IuSamlProvider {
 		}
 	}
 
-	/**
-	 * Get metadata resolver
-	 * 
-	 * @param metadataUris metadata uris configured with identity provider
-	 * @return {@link MetadataResolver}
-	 */
-	synchronized MetadataResolver setMetadata(List<URI> metadataUris) {
-		Queue<Throwable> failures = new ArrayDeque<>();
-		List<MetadataResolver> resolvers = new ArrayList<>();
-
-		ParserPool pp = XMLObjectProviderRegistrySupport.getParserPool();
-		for (URI metadataUri : metadataUris)
-			try {
-				Element md;
-				try (InputStream in = new URL(metadataUri.toString()).openStream()) {
-					md = pp.parse(in).getDocumentElement();
-				}
-
-				DOMMetadataResolver mdr = new DOMMetadataResolver(md);
-				mdr.setId(IdGenerator.generateId());
-				mdr.setRequireValidMetadata(true);
-				mdr.initialize();
-
-				resolvers.add(mdr);
-
-			} catch (Throwable e) {
-				failures.add(new ServiceConfigurationError(metadataUri.toString(), e));
-			}
-
-		if (!failures.isEmpty()) {
-			ServiceConfigurationError error = new ServiceConfigurationError(
-					"Failed to load SAML metadata for at least one provider");
-			failures.forEach(error::addSuppressed);
-			if (resolvers.isEmpty())
-				throw error;
-			else
-				LOG.log(Level.WARNING, error, error::getMessage);
-		}
-
-		ChainingMetadataResolver cmdr = new ChainingMetadataResolver();
-		cmdr.setId(IdGenerator.generateId());
-		IuException.unchecked(() -> {
-			cmdr.setResolvers(resolvers);
-			cmdr.initialize();
-		});
-
-		if (!failures.isEmpty())
-			return cmdr;
-
-		metadataResolver = cmdr;
-		lastMetadataUpdate = System.currentTimeMillis();
-
-		return metadataResolver;
-	}
-
-	private String setSpMetadata() {
-		Thread current = Thread.currentThread();
-		ClassLoader samlProvider = SamlProvider.class.getClassLoader();
-		current.setContextClassLoader(samlProvider);
-		X509Certificate spX509Cert = (X509Certificate) XMLObjectProviderRegistrySupport.getBuilderFactory()
-				.getBuilder(X509Certificate.DEFAULT_ELEMENT_NAME).buildObject(X509Certificate.DEFAULT_ELEMENT_NAME);
-		spX509Cert.setValue(IuText.base64((IuException.unchecked(client.getCertificate()::getEncoded))));
-
-		X509Data spX509data = (X509Data) XMLObjectProviderRegistrySupport.getBuilderFactory()
-				.getBuilder(X509Data.DEFAULT_ELEMENT_NAME).buildObject(X509Data.DEFAULT_ELEMENT_NAME);
-		spX509data.getX509Certificates().add(spX509Cert);
-
-		KeyInfo spKeyInfo = (KeyInfo) XMLObjectProviderRegistrySupport.getBuilderFactory()
-				.getBuilder(KeyInfo.DEFAULT_ELEMENT_NAME).buildObject(KeyInfo.DEFAULT_ELEMENT_NAME);
-		spKeyInfo.getX509Datas().add(spX509data);
-
-		KeyDescriptor spKeyDescriptor = (KeyDescriptor) XMLObjectProviderRegistrySupport.getBuilderFactory()
-				.getBuilder(KeyDescriptor.DEFAULT_ELEMENT_NAME).buildObject(KeyDescriptor.DEFAULT_ELEMENT_NAME);
-		spKeyDescriptor.setKeyInfo(spKeyInfo);
-
-		EntityDescriptor spEntityDescriptor = (EntityDescriptor) XMLObjectProviderRegistrySupport.getBuilderFactory()
-				.getBuilder(EntityDescriptor.ELEMENT_QNAME).buildObject(EntityDescriptor.ELEMENT_QNAME);
-		spEntityDescriptor.setEntityID(client.getServiceProviderEntityId());
-
-		AttributeConsumingService spAttrConsumingService = (AttributeConsumingService) XMLObjectProviderRegistrySupport
-				.getBuilderFactory().getBuilder(AttributeConsumingService.DEFAULT_ELEMENT_NAME)
-				.buildObject(AttributeConsumingService.DEFAULT_ELEMENT_NAME);
-
-		RequestedAttribute spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()
-				.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)
-				.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);
-		spAttrEPPN.setFriendlyName("mail");
-		spAttrEPPN.setName("urn:oid:0.9.2342.19200300.100.1.3");
-		spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);
-		spAttrEPPN.setIsRequired(true);
-		spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);
-
-		spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()
-				.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)
-				.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);
-		spAttrEPPN.setFriendlyName("displayName");
-		spAttrEPPN.setName("urn:oid:2.16.840.1.113730.3.1.241");
-		spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);
-		spAttrEPPN.setIsRequired(true);
-		spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);
-
-		spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()
-				.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)
-				.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);
-		spAttrEPPN.setFriendlyName("eduPersonPrincipalName");
-		spAttrEPPN.setName("urn:oid:1.3.6.1.4.1.5923.1.1.1.6");
-		spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);
-		spAttrEPPN.setIsRequired(true);
-		spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);
-
-		SPSSODescriptor spsso = (SPSSODescriptor) XMLObjectProviderRegistrySupport.getBuilderFactory()
-				.getBuilder(SPSSODescriptor.DEFAULT_ELEMENT_NAME).buildObject(SPSSODescriptor.DEFAULT_ELEMENT_NAME);
-		spsso.getKeyDescriptors().add(spKeyDescriptor);
-		spsso.getAttributeConsumingServices().add(spAttrConsumingService);
-		spsso.addSupportedProtocol("urn:oasis:names:tc:SAML:2.0:protocol");
-
-		spEntityDescriptor.getRoleDescriptors().add(spsso);
-
-		int i = 0;
-		for (String acsUrl : IuIterable.map(client.getAcsUris(), URI::toString)) {
-			AssertionConsumerService acs = (AssertionConsumerService) XMLObjectProviderRegistrySupport
-					.getBuilderFactory().getBuilder(AssertionConsumerService.DEFAULT_ELEMENT_NAME)
-					.buildObject(AssertionConsumerService.DEFAULT_ELEMENT_NAME);
-			acs.setBinding("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST");
-			acs.setLocation(acsUrl);
-			acs.setIndex(i++);
-			spsso.getAssertionConsumerServices().add(acs);
-		}
-
-		return IuException.unchecked(() -> XmlDomUtil.getContent(XMLObjectProviderRegistrySupport.getMarshallerFactory()
-				.getMarshaller(spEntityDescriptor).marshall(spEntityDescriptor)));
-
-	}
 
 	/**
 	 * Generate SAML authentication request use by client to redirect user to
@@ -554,7 +347,7 @@ public class SamlProvider implements IuSamlProvider {
 				.get(SAML2AssertionValidationParameters.CONFIRMED_SUBJECT_CONFIRMATION);
 		if (confirmation == null)
 			throw new IllegalArgumentException("Missing subject confirmation: " + ctx.getValidationFailureMessages()
-					+ "\n" + ctx.getDynamicParameters());
+			+ "\n" + ctx.getDynamicParameters());
 
 		LOG.fine("SAML2 subject confirmation " + XmlDomUtil.getContent(confirmation.getDOM()));
 		Instant notBefore = confirmation.getSubjectConfirmationData().getNotBefore();
@@ -590,7 +383,7 @@ public class SamlProvider implements IuSamlProvider {
 
 	@Override
 	public String getServiceProviderMetaData() {
-		return this.spMetaData;
+		return samlBuilder.getServiceProviderMetadata();
 	}
 
 	/**
