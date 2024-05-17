@@ -36,7 +36,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import edu.iu.auth.oauth.IuAuthorizationClient;
+import edu.iu.auth.oauth.IuAuthorizationGrant;
+import edu.iu.auth.spi.IuAuthorizationClient;
 import edu.iu.auth.spi.IuOAuthSpi;
 import iu.auth.principal.PrincipalVerifierRegistry;
 
@@ -65,6 +66,17 @@ public class OAuthSpi implements IuOAuthSpi {
 			throw new IllegalStateException("Client metadata not initialized for " + realm);
 		return client;
 	}
+	
+	/**
+	 * Initializes client metadata.
+	 * 
+	 * @param client client metadata
+	 * @return <em>optional</em> client credentials grant
+	 * @see IuAuthorizationClient#initialize(IuAuthorizationClient)
+	 */
+	IuAuthorizationGrant initialize(IuAuthorizationClient client);
+
+
 
 	@Override
 	public ClientCredentialsGrant initialize(IuAuthorizationClient client) {

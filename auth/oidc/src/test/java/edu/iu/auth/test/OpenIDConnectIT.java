@@ -66,10 +66,10 @@ import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.basic.IuBasicAuthCredentials;
 import edu.iu.auth.oauth.IuAuthorizationSession;
 import edu.iu.auth.oauth.IuBearerToken;
-import edu.iu.auth.oidc.IuAuthoritativeOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
 import edu.iu.client.IuVault;
 import edu.iu.test.IuTestLogger;
+import iu.auth.oidc.IuAuthoritativeOpenIdClient;
 
 @EnabledIf("edu.iu.client.IuVault#isConfigured")
 @SuppressWarnings("javadoc")

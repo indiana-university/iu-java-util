@@ -45,7 +45,6 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.oauth.IuAuthorizationClient;
 import iu.auth.principal.PrincipalVerifierRegistry;
 
 @SuppressWarnings("javadoc")

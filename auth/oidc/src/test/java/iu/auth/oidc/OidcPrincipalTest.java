@@ -49,7 +49,6 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.auth.oidc.IuOpenIdClient;
 
 @SuppressWarnings("javadoc")
 public class OidcPrincipalTest extends IuOidcTestCase {

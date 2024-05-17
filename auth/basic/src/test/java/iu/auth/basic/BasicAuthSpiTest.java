@@ -48,6 +48,7 @@ import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.basic.IuBasicAuthCredentials;
 import edu.iu.auth.basic.IuClientCredentials;
+import edu.iu.auth.config.AuthConfig;
 import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
@@ -94,9 +95,11 @@ public class BasicAuthSpiTest {
 		};
 		final var credentials = new ArrayDeque<IuClientCredentials>();
 		credentials.offer(client);
-		IuClientCredentials.register(credentials, realm, Duration.ofMillis(500L));
-		assertThrows(IllegalArgumentException.class,
-				() -> IuClientCredentials.register(credentials, realm, Duration.ofMillis(500L)));
+
+		final var config = ClientCredentialSource.of(realm, credentials, Duration.ofMillis(500L));
+		AuthConfig.register(config);
+		AuthConfig.seal();
+		
 		IuPrincipalIdentity.verify(IuBasicAuthCredentials.of(id, secret), realm);
 		assertThrows(IuAuthenticationException.class,
 				() -> IuPrincipalIdentity.verify(IuBasicAuthCredentials.of(id, "wrong password"), realm));

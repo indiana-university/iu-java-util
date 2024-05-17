@@ -29,7 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.oauth;
+package iu.auth.oauth;
 
 import java.net.URI;
 import java.time.Duration;
@@ -37,6 +37,7 @@ import java.util.Map;
 
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.oauth.IuAuthorizationGrant;
 import edu.iu.auth.spi.IuOAuthSpi;
 import iu.auth.IuAuthSpiFactory;
 

@@ -23,6 +23,7 @@
 			</activation>
 			<modules>
 				<module>api</module>
+				<module>config</module>
 				<module>principal</module>
 				<module>basic</module>
 				<module>pki</module>

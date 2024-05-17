@@ -41,8 +41,8 @@ import java.net.URISyntaxException;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationSession;
+import iu.auth.oauth.IuAuthorizationClient;
 
 @SuppressWarnings("javadoc")
 public class OAuthIT {

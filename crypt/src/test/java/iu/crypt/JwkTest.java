@@ -55,6 +55,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import javax.crypto.spec.SecretKeySpec;
+
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
@@ -339,6 +341,22 @@ public class JwkTest extends IuCryptTestCase {
 				(byte) 0x07, (byte) 0x3a, (byte) 0x0e, (byte) 0xe1, (byte) 0x72, (byte) 0xf3, (byte) 0xda, (byte) 0xa6,
 				(byte) 0x23, (byte) 0x25, (byte) 0xaf, (byte) 0x02, (byte) 0x1a, (byte) 0x68, (byte) 0xf7, (byte) 0x07,
 				(byte) 0x51, (byte) 0x1a }, y);
+	}
+
+	@Test
+	public void testJceBuilder() {
+		KeyPair pair;
+
+		pair = EphemeralKeys.ec(WebKey.algorithmParams(Type.X448.crv));
+		WebKey.builder(pair.getPrivate()).key(pair).build();
+		WebKey.builder(pair.getPublic()).key(pair).build();
+
+		pair = EphemeralKeys.rsa("RSA", 2048);
+		WebKey.builder(pair.getPrivate()).key(pair).build();
+		WebKey.builder(pair.getPublic()).key(pair).build();
+
+		final var key = new SecretKeySpec(EphemeralKeys.contentEncryptionKey(256), "AES");
+		WebKey.builder(key).build();
 	}
 
 	private void assertEphemeral(Jwk jwk) {

@@ -29,25 +29,58 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.oidc;
+package iu.auth.oauth;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
-import static org.mockito.Mockito.mock;
+import java.time.Duration;
+import java.util.Map;
 
-import org.junit.jupiter.api.Test;
+import edu.iu.auth.oauth.IuAuthorizationGrant;
 
-@SuppressWarnings("javadoc")
-public class IuOpenIdClientTest {
+/**
+ * Represents a unverified response to an {@link IuAuthorizationGrant}.
+ */
+public interface IuTokenResponse {
 
-	@Test
-	public void testClientDefaults() {
-		final var client = mock(IuAuthoritativeOpenIdClient.class, CALLS_REAL_METHODS);
-		assertNull(client.getScope());
-		assertNull(client.getAuthorizationCodeAttributes());
-		assertNull(client.getClientCredentialsAttributes());
-		assertEquals("RS256", client.getIdTokenAlgorithm());
-	}
+	/**
+	 * Gets the token type.
+	 * 
+	 * @return token type
+	 */
+	String getTokenType();
 
+	/**
+	 * Gets the access token.
+	 * 
+	 * @return access token
+	 */
+	String getAccessToken();
+
+	/**
+	 * Gets the authorized scopes.
+	 * 
+	 * @return authorized scopesO
+	 */
+	Iterable<String> getScope();
+
+	/**
+	 * Gets the expiration time.
+	 * 
+	 * @return expiration time
+	 */
+	Duration getExpiresIn();
+
+	/**
+	 * Gets additional attributes sent with the initial authorization request.
+	 * 
+	 * @return attributes request attributes
+	 */
+	Map<String, ?> getRequestAttributes();
+
+	/**
+	 * Gets additional attributes received with the token response.
+	 * 
+	 * @return attributes token attributes
+	 */
+	Map<String, ?> getTokenAttributes();
+	
 }

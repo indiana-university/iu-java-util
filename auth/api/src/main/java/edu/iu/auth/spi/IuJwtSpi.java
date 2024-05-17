@@ -31,56 +31,12 @@
  */
 package edu.iu.auth.spi;
 
-import java.net.URI;
-
-import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.jwt.IuWebKey;
 import edu.iu.auth.jwt.IuWebToken;
-import edu.iu.auth.jwt.IuWebToken.Builder;
 
 /**
  * JWT service provider interface.
  */
 public interface IuJwtSpi {
-
-	/**
-	 * Creates JWK principal.
-	 * 
-	 * @param jwksUri Public {@link URI} hosting a JSON Web Key Set.
-	 * @param keyId   Key identifier
-	 * @return {@link IuWebKey}
-	 */
-	IuWebKey getWebKey(URI jwksUri, String keyId);
-
-	/**
-	 * Creates JWK principal.
-	 * 
-	 * @param name unique principal name
-	 * @param key  secret key data
-	 * @return {@link IuWebKey}
-	 */
-	IuWebKey getSecretKey(String name, byte[] key);
-
-	/**
-	 * Registers a JWT issuer.
-	 * 
-	 * @param issuer Issuer principal
-	 */
-	void register(IuPrincipalIdentity issuer);
-
-	/**
-	 * Registers a JWT authentication realm.
-	 * 
-	 * @param jwtRealm JWT authentication realm
-	 * @param audience Audience principal
-	 * @param realm    principal authentication realm
-	 */
-	void register(String jwtRealm, IuPrincipalIdentity audience, String realm);
-
-	/**
-	 * Seals the trusted identity registry.
-	 */
-	void seal();
 
 	/**
 	 * Parses a JWT.
@@ -89,13 +45,5 @@ public interface IuJwtSpi {
 	 * @return Parsed JWT
 	 */
 	IuWebToken parse(String jwt);
-
-	/**
-	 * Issues a new JWT.
-	 * 
-	 * @param issuer issuer
-	 * @return {@link Builder}
-	 */
-	Builder issue(String issuer);
 
 }

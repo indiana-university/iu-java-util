@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
+import java.net.URI;
 import java.util.Set;
 
 import javax.security.auth.Subject;
@@ -46,6 +47,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.config.AuthConfig;
 
 @SuppressWarnings("javadoc")
 public class PrincipalVerifierRegistryTest {
@@ -99,12 +101,16 @@ public class PrincipalVerifierRegistryTest {
 		public void verify(TestId id, String realm) {
 			assertEquals(realm, id.realm);
 		}
-	}
 
-	@Test
-	public void testFinalImpl() {
-		assertThrows(IllegalArgumentException.class,
-				() -> PrincipalVerifierRegistry.requireFinalImpl(IuPrincipalIdentity.class));
+		@Override
+		public String getAuthScheme() {
+			return null;
+		}
+
+		@Override
+		public URI getAuthenticationEndpoint() {
+			return null;
+		}
 	}
 
 	@Test
@@ -112,11 +118,12 @@ public class PrincipalVerifierRegistryTest {
 		final var realm = IdGenerator.generateId();
 		assertFalse(PrincipalVerifierRegistry.isAuthoritative(realm));
 
-		PrincipalVerifierRegistry.registerVerifier(new Verifier(realm, true));
+		AuthConfig.register(new Verifier(realm, true));
+		AuthConfig.seal();
 		assertTrue(PrincipalVerifierRegistry.isAuthoritative(realm));
 
 		assertThrows(IllegalStateException.class,
-				() -> PrincipalVerifierRegistry.registerVerifier(new Verifier(realm, false)));
+				() -> AuthConfig.register(new Verifier(realm, false)));
 		assertTrue(IuPrincipalIdentity.verify(new TestId(realm), realm));
 
 		assertThrows(ClassCastException.class,

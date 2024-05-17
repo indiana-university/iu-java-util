@@ -31,9 +31,9 @@
  */
 package iu.auth.bundle;
 
-import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
 import edu.iu.auth.spi.IuOpenIdConnectSpi;
+import iu.auth.oidc.IuOpenIdClient;
 
 /**
  * Delegating SPI implementation.

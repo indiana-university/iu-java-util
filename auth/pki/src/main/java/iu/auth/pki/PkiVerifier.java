@@ -31,14 +31,17 @@
  */
 package iu.auth.pki;
 
+import java.net.URI;
 import java.security.cert.CertPathValidator;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
+import java.security.cert.PKIXParameters;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
-import edu.iu.auth.IuAuthenticationException;
 import edu.iu.crypt.WebKey;
 import iu.auth.principal.PrincipalVerifier;
 
@@ -48,16 +51,29 @@ import iu.auth.principal.PrincipalVerifier;
 final class PkiVerifier implements PrincipalVerifier<PkiPrincipal> {
 	private final boolean authoritative;
 	private final String realm;
+	private final PKIXParameters trustParams;
 
 	/**
 	 * Constructor.
 	 * 
 	 * @param authoritative authoritative flag, indicates private key possession
 	 * @param realm         authentication realm
+	 * @param trustParams   PKIX certificate chain verifier parameters
 	 */
-	PkiVerifier(boolean authoritative, String realm) {
+	PkiVerifier(boolean authoritative, String realm, PKIXParameters trustParams) {
 		this.authoritative = authoritative;
 		this.realm = realm;
+		this.trustParams = trustParams;
+	}
+
+	@Override
+	public String getAuthScheme() {
+		return null;
+	}
+
+	@Override
+	public URI getAuthenticationEndpoint() {
+		return null;
 	}
 
 	@Override
@@ -76,15 +92,28 @@ final class PkiVerifier implements PrincipalVerifier<PkiPrincipal> {
 	}
 
 	@Override
-	public void verify(PkiPrincipal pki, String realm) throws IuAuthenticationException {
+	public void verify(PkiPrincipal pki, String realm) {
 		final var sub = pki.getSubject();
 		final var wellKnown = sub.getPublicCredentials(WebKey.class).iterator().next();
 
-		IuException.unchecked(() -> {
-			final var certPath = CertificateFactory.getInstance("X.509")
-					.generateCertPath(List.of(wellKnown.getCertificateChain()));
-			CertPathValidator.getInstance("PKIX").validate(certPath, PkiSpi.getPKIXParameters(realm));
-		});
+		final var anchor = X500Utils.getCommonName(
+				trustParams.getTrustAnchors().iterator().next().getTrustedCert().getSubjectX500Principal());
+
+		// establish and verify trust of signing key
+		final List<Certificate> pathToAnchor = new ArrayList<>();
+		var found = false;
+		for (final var cert : wellKnown.getCertificateChain()) {
+			pathToAnchor.add(cert);
+			if (anchor.equals(X500Utils.getCommonName(cert.getIssuerX500Principal()))) {
+				IuException.unchecked(() -> CertPathValidator.getInstance("PKIX")
+						.validate(CertificateFactory.getInstance("X.509").generateCertPath(pathToAnchor), trustParams));
+				found = true;
+				break;
+			}
+		}
+
+		if (!found)
+			throw new IllegalArgumentException("issuer not found");
 
 		if (authoritative) {
 			final var privIter = sub.getPrivateCredentials(WebKey.class).iterator();

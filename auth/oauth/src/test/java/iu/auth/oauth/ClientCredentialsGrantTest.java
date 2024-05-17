@@ -68,8 +68,6 @@ import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oauth.IuAuthorizedPrincipal;
 import edu.iu.auth.oauth.IuBearerToken;
 import edu.iu.client.IuHttp;
 import edu.iu.test.IuTestLogger;

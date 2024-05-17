@@ -41,8 +41,8 @@ import java.net.URISyntaxException;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
+import iu.auth.oidc.IuOpenIdClient;
 
 @SuppressWarnings("javadoc")
 public class OidcIT {

@@ -34,13 +34,13 @@ package iu.auth.pki;
 import javax.security.auth.Subject;
 
 import edu.iu.IuObject;
-import edu.iu.auth.pki.IuPkiPrincipal;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.crypt.WebKey;
 
 /**
- * {@link IuPkiPrincipal} implementation class.
+ * PKI principal identity implementation class.
  */
-final class PkiPrincipal implements IuPkiPrincipal {
+final class PkiPrincipal implements IuPrincipalIdentity {
 	private static final long serialVersionUID = 1L;
 
 	private transient WebKey key;

@@ -35,16 +35,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 
-import java.net.URI;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import edu.iu.IdGenerator;
-import edu.iu.IuText;
-import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.spi.IuJwtSpi;
 import iu.auth.IuAuthSpiFactory;
 
@@ -69,55 +65,10 @@ public class IuJwtTest {
 	}
 
 	@Test
-	public void testTrust() {
-		final var jwksUri = URI.create("test:" + IdGenerator.generateId());
-		final var keyId = IdGenerator.generateId();
-		IuWebKey.from(jwksUri, keyId);
-		verify(spi).getWebKey(jwksUri, keyId);
-	}
-
-	@Test
-	public void testSecret() {
-		final var secret = IdGenerator.generateId();
-		final var keyId = IdGenerator.generateId();
-		IuWebKey.from(keyId, IuText.utf8(secret));
-		verify(spi).getSecretKey(keyId, IuText.utf8(secret));
-	}
-
-	@Test
 	public void testParse() {
 		final var token = IdGenerator.generateId();
 		IuWebToken.from(token);
 		verify(spi).parse(token);
-	}
-
-	@Test
-	public void testIssue() {
-		final var iss = IdGenerator.generateId();
-		IuWebToken.issue(iss);
-		verify(spi).issue(iss);
-	}
-
-	@Test
-	public void testRegisterIssuer() {
-		final var issuer = mock(IuPrincipalIdentity.class);
-		IuWebToken.register(issuer);
-		verify(spi).register(issuer);
-	}
-
-	@Test
-	public void testRegisterAudience() {
-		final var jwtRealm = IdGenerator.generateId();
-		final var realm = IdGenerator.generateId();
-		final var audience = mock(IuPrincipalIdentity.class);
-		IuWebToken.register(jwtRealm, audience, realm);
-		verify(spi).register(jwtRealm, audience, realm);
-	}
-
-	@Test
-	public void testSeal() {
-		IuWebToken.seal();
-		verify(spi).seal();
 	}
 
 }

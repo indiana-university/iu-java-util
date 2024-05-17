@@ -51,9 +51,8 @@ import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.oauth.IuTokenResponse;
-import edu.iu.auth.oidc.IuAuthoritativeOpenIdClient;
 import edu.iu.client.IuJson;
+import iu.auth.oauth.IuTokenResponse;
 
 @SuppressWarnings("javadoc")
 public class OidcAuthorizationClientTest extends IuOidcTestCase {

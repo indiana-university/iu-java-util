@@ -31,8 +31,6 @@
  */
 package edu.iu.auth.oauth;
 
-import java.net.URI;
-
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 
@@ -46,7 +44,6 @@ public interface IuAuthorizationGrant {
 	/**
 	 * Authorizes access to an application resource by URI.
 	 * 
-	 * @param resourceUri resource to authorize access to
 	 * @return {@link IuApiCredentials} authorized to access the resource
 	 * 
 	 * @throws IuAuthenticationException If authorization could not be granted and
@@ -54,6 +51,6 @@ public interface IuAuthorizationGrant {
 	 *                                   authentication before attempting
 	 *                                   authorization.
 	 */
-	IuApiCredentials authorize(URI resourceUri) throws IuAuthenticationException;
+	IuApiCredentials authorize() throws IuAuthenticationException;
 
 }

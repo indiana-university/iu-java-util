@@ -51,7 +51,6 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.oauth.IuAuthorizationClient;
 
 @SuppressWarnings("javadoc")
 public class BearerTokenTest {

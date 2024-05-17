@@ -31,48 +31,44 @@
  */
 package edu.iu.auth.oauth;
 
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
-import java.net.URI;
-
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
+import edu.iu.IdGenerator;
 import edu.iu.auth.spi.IuOAuthSpi;
 import iu.auth.IuAuthSpiFactory;
 
 @SuppressWarnings("javadoc")
-public class IuAuthorizationClientTest {
+public class IuOAuthTest {
 
-	@Test
-	public void testUsesSpiFactory() {
-		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
-			final var mockSpi = mock(IuOAuthSpi.class);
-			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuOAuthSpi.class)).thenReturn(mockSpi);
+	private MockedStatic<IuAuthSpiFactory> mockSpiFactory;
+	private IuOAuthSpi spi;
 
-			final var mockClient = mock(IuAuthorizationClient.class);
-			final var mockGrant = mock(IuAuthorizationGrant.class);
-			when(mockSpi.initialize(mockClient)).thenReturn(mockGrant);
-			assertSame(mockGrant, IuAuthorizationClient.initialize(mockClient));
+	@BeforeEach
+	public void setup() {
+		spi = mock(IuOAuthSpi.class);
+		mockSpiFactory = mockStatic(IuAuthSpiFactory.class);
+		mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuOAuthSpi.class)).thenReturn(spi);
+	}
 
-			final var mockSession = mock(IuAuthorizationSession.class);
-			final var uri = mock(URI.class);
-			when(mockSpi.createAuthorizationSession("", uri)).thenReturn(mockSession);
-			assertSame(mockSession, IuAuthorizationSession.create("", uri));
-		}
+	@AfterEach
+	public void tearDown() {
+		mockSpiFactory.close();
+		mockSpiFactory = null;
+		spi = null;
 	}
 
 	@Test
-	public void testClientDefaults() {
-		final var client = mock(IuAuthorizationClient.class, CALLS_REAL_METHODS);
-		assertNull(client.getAuthorizationEndpoint());
-		assertNull(client.getRedirectUri());
-		assertNull(client.getAuthorizationCodeAttributes());
-		assertNull(client.getClientCredentialsAttributes());
+	public void testParse() {
+		final var realm = IdGenerator.generateId();
+		IuAuthorizationSession.create(realm);
+		verify(spi).createAuthorizationSession(realm);
 	}
 
 }

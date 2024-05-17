@@ -33,13 +33,14 @@ package iu.auth.principal;
 
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.config.IuAuthConfig;
 
 /**
  * Verifies a principal as valid for a realm.
  * 
  * @param <I> principal identity type
  */
-public interface PrincipalVerifier<I extends IuPrincipalIdentity> {
+public interface PrincipalVerifier<I extends IuPrincipalIdentity> extends IuAuthConfig {
 
 	/**
 	 * Gets the identity type.
@@ -47,13 +48,6 @@ public interface PrincipalVerifier<I extends IuPrincipalIdentity> {
 	 * @return identity type; must be a final implementation class
 	 */
 	Class<I> getType();
-
-	/**
-	 * Gets the authentication realm.
-	 * 
-	 * @return authentication realm
-	 */
-	String getRealm();
 
 	/**
 	 * Determines if this verifier is authoritative for the realm.

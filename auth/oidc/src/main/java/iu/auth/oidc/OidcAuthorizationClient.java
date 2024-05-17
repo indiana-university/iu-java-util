@@ -41,11 +41,11 @@ import java.util.Objects;
 import edu.iu.IuIterable;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.oauth.IuAuthorizationClient;
-import edu.iu.auth.oauth.IuAuthorizedPrincipal;
-import edu.iu.auth.oauth.IuTokenResponse;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import iu.auth.oauth.IuAuthorizationClient;
+import iu.auth.oauth.IuAuthorizedPrincipal;
+import iu.auth.oauth.IuTokenResponse;
 
 /**
  * OpenID Connect {@link IuAuthorizationClient} implementation for authoritative

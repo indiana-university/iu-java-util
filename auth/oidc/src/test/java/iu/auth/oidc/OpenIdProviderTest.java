@@ -58,8 +58,6 @@ import edu.iu.IuText;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
-import edu.iu.auth.oidc.IuAuthoritativeOpenIdClient;
-import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;

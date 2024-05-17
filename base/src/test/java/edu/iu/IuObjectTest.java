@@ -151,8 +151,8 @@ public class IuObjectTest {
 		assertSame("foo", IuObject.once(null, "foo"));
 		assertSame("foo", IuObject.once("foo", "foo", "bar"));
 		assertSame("foo", IuObject.once("foo", null));
-		assertEquals("baz", assertThrows(IllegalArgumentException.class, () -> IuObject.once("bar", "foo", "baz"))
-				.getMessage());
+		assertEquals("baz",
+				assertThrows(IllegalArgumentException.class, () -> IuObject.once("bar", "foo", "baz")).getMessage());
 	}
 
 	@Test
@@ -410,6 +410,19 @@ public class IuObjectTest {
 		final var timeout = new TimeoutException();
 		assertSame(timeout, assertThrows(TimeoutException.class,
 				() -> IuObject.waitFor(this, () -> false, Duration.ZERO, () -> timeout)));
+	}
+
+	interface NotFinal {
+	}
+
+	final static class FinalImpl implements NotFinal {
+	}
+
+	@Test
+	public void testFinalImpl() {
+		assertThrows(IllegalArgumentException.class, () -> IuObject.requireFinalImpl(IuObjectTest.class));
+		assertThrows(IllegalArgumentException.class, () -> IuObject.requireFinalImpl(NotFinal.class));
+		assertDoesNotThrow(() -> IuObject.requireFinalImpl(FinalImpl.class));
 	}
 
 }

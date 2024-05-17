@@ -33,6 +33,8 @@ package iu.auth.basic;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.time.Duration;
@@ -102,18 +104,22 @@ public class ClientCredentialsSourceTest {
 	@Test
 	public void testExpirationPolicy() {
 		assertThrows(IllegalArgumentException.class,
-				() -> new ClientCredentialSource(realm, credentials, Duration.ofSeconds(-5L)));
+				() -> ClientCredentialSource.of(realm, credentials, Duration.ofSeconds(-5L)));
 	}
 
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
 	public void testBasicAuth() throws IuAuthenticationException {
-		final var cc = new ClientCredentialSource(realm, credentials, Duration.ofSeconds(5L));
+		final var cc = (ClientCredentialSource) ClientCredentialSource.of(realm, credentials, Duration.ofSeconds(5L));
 		cc.verify(new BasicAuthCredentials(id, secret, "US-ASCII"), realm);
+		assertEquals("Basic", cc.getAuthScheme());
+		assertNull(cc.getAuthenticationEndpoint());
+		assertSame(BasicAuthCredentials.class, cc.getType());
 	}
 
 	@Test
 	public void testValidate() throws IuAuthenticationException {
-		final var cc = new ClientCredentialSource(realm, credentials, Duration.ofSeconds(5L));
+		final var cc = ClientCredentialSource.of(realm, credentials, Duration.ofSeconds(5L));
 		assertEquals("Client ID must contain only printable ASCII characters",
 				assertThrows(IllegalArgumentException.class,
 						() -> cc.validate(clientCredentials("테스트 클라이언트", secret, now, expires))).getMessage());
@@ -138,13 +144,14 @@ public class ClientCredentialsSourceTest {
 		cc.validate(clientCredentials(id, secret, now, expires));
 	}
 
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
 	public void testVerify() {
 		final var expiredId = IdGenerator.generateId();
 		credentials.offer(clientCredentials(expiredId, secret, null, null));
 		final var futureId = IdGenerator.generateId();
 		credentials.offer(clientCredentials(futureId, secret, now.plus(Period.ofDays(1)), expires));
-		final var cc = new ClientCredentialSource(realm, credentials, Duration.ofSeconds(5L));
+		final var cc = (ClientCredentialSource) ClientCredentialSource.of(realm, credentials, Duration.ofSeconds(5L));
 		assertDoesNotThrow(() -> cc.verify((BasicAuthCredentials) IuBasicAuthCredentials.of(id, secret), realm));
 
 		IuTestLogger.expect("iu.auth.basic.ClientCredentialSource", Level.CONFIG,

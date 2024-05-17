@@ -35,19 +35,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.verify;
-
-import java.time.Duration;
-import java.util.Set;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
-import edu.iu.IdGenerator;
 import edu.iu.auth.basic.IuBasicAuthCredentials;
-import edu.iu.auth.basic.IuClientCredentials;
 import edu.iu.auth.spi.IuBasicAuthSpi;
 import iu.auth.IuAuthSpiFactory;
 
@@ -69,15 +63,6 @@ public class IuBasicAuthTest {
 		mockSpiFactory.close();
 		mockSpiFactory = null;
 		spi = null;
-	}
-
-	@Test
-	public void testVerify() throws IuAuthenticationException {
-		final var realm = IdGenerator.generateId();
-		final var principal = mock(IuClientCredentials.class);
-		final var credentials = Set.of(principal);
-		IuClientCredentials.register(credentials, realm, Duration.ZERO);
-		verify(spi).register(credentials, realm, Duration.ZERO);
 	}
 
 	@Test

@@ -46,14 +46,12 @@ import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.jwt.IuWebToken;
-import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
-import edu.iu.auth.oidc.IuAuthoritativeOpenIdClient;
-import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import iu.auth.oauth.IuAuthorizationClient;
 import jakarta.json.JsonObject;
 
 /**

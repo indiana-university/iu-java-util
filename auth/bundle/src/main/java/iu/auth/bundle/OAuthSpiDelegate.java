@@ -33,10 +33,10 @@ package iu.auth.bundle;
 
 import java.net.URI;
 
-import edu.iu.auth.oauth.IuAuthorizationClient;
 import edu.iu.auth.oauth.IuAuthorizationGrant;
 import edu.iu.auth.oauth.IuAuthorizationSession;
 import edu.iu.auth.spi.IuOAuthSpi;
+import iu.auth.oauth.IuAuthorizationClient;
 
 /**
  * Delegating SPI implementation.

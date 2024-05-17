@@ -59,6 +59,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+import javax.crypto.SecretKey;
+
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.client.IuJson;
@@ -855,6 +857,31 @@ public interface WebKey extends WebKeyReference {
 		}
 
 		return publicKey;
+	}
+
+	/**
+	 * Creates a new builder.
+	 * 
+	 * @param key JCE key
+	 * @return {@link Builder}
+	 */
+	static Builder<?> builder(Key key) {
+		if (key instanceof SecretKey)
+			return WebKey.builder(Type.RAW).key(key.getEncoded());
+			
+		final WebKey.Builder<?> jwkBuilder;
+		final var params = WebKey.algorithmParams(key);
+		if (params == null)
+			jwkBuilder = WebKey.builder(Type.from(key.getAlgorithm(), null));
+		else
+			jwkBuilder = WebKey.builder(Objects.requireNonNull(Type.from(params), params.toString()));
+
+		if (key instanceof PrivateKey)
+			jwkBuilder.key((PrivateKey) key);
+		else
+			jwkBuilder.key((PublicKey) key);
+
+		return jwkBuilder;
 	}
 
 	/**

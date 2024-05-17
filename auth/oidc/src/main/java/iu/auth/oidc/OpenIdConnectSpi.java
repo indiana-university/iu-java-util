@@ -36,10 +36,13 @@ import java.util.Map;
 import java.util.Objects;
 
 import edu.iu.IuObject;
+import edu.iu.auth.oauth.IuAuthorizationSession;
 import edu.iu.auth.oidc.IuAuthoritativeOpenIdClient;
+import edu.iu.auth.oidc.IuAuthorizationClient;
 import edu.iu.auth.oidc.IuOpenIdClient;
 import edu.iu.auth.oidc.IuOpenIdProvider;
 import edu.iu.auth.spi.IuOpenIdConnectSpi;
+import iu.auth.IuAuthSpiFactory;
 import iu.auth.principal.PrincipalVerifierRegistry;
 
 /**
@@ -53,6 +56,33 @@ public class OpenIdConnectSpi implements IuOpenIdConnectSpi {
 	private static final Map<String, OpenIdProvider> PROVIDERS = new HashMap<>();
 
 	/**
+	 * Configures the client view of an OpenID provider.
+	 * 
+	 * <p>
+	 * <em>May</em> be called exactly once per authentication realm.
+	 * </p>
+	 * 
+	 * <p>
+	 * When initialized using {@link IuAuthoritativeOpenIdClient}, an
+	 * {@link IuAuthorizationClient} view of that configuration will be
+	 * {@link IuAuthorizationClient#initialize(IuAuthorizationClient) initialized}
+	 * for interacting with the OP as an authorization service. Use
+	 * {@link IuAuthorizationSession#create(String, java.net.URI)} with a protected
+	 * resource URI to use authorization code flow, or use
+	 * {@link #clientCredentials()} for a grant based on the
+	 * {@link IuAuthoritativeOpenIdClient#getCredentials() OIDC client's
+	 * credentials}.
+	 * </p>
+	 * 
+	 * @param client client configuration metadata
+	 * @return Client view of the OpenID provider
+	 */
+	static IuOpenIdProvider from(IuOpenIdClient client) {
+		return IuAuthSpiFactory.get(IuOpenIdConnectSpi.class).getOpenIdProvider(client);
+	}
+
+	/**
+	 * 
 	 * Gets the OpenID provider registered for an authentication realm.
 	 * 
 	 * @param realm authentication realm

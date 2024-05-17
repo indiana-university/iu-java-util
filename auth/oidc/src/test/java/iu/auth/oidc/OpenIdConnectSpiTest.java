@@ -39,7 +39,6 @@ import static org.mockito.Mockito.when;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.auth.oidc.IuOpenIdClient;
 
 @SuppressWarnings("javadoc")
 public class OpenIdConnectSpiTest extends IuOidcTestCase {

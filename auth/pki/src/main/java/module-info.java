@@ -31,14 +31,13 @@
  */
 /**
  * Public Key Infrastructure service provider module.
- * 
- * @provides edu.iu.auth.spi.IuPkiSpi service provider implementation
  */
 module iu.util.auth.pki {
+	exports iu.auth.pki;
+	
 	requires iu.util;
-	requires iu.util.auth;
+	requires transitive iu.util.auth;
+	requires iu.util.auth.config;
 	requires iu.util.auth.principal;
-	requires iu.util.crypt;
-
-	provides edu.iu.auth.spi.IuPkiSpi with iu.auth.pki.PkiSpi;
+	requires transitive iu.util.crypt;
 }

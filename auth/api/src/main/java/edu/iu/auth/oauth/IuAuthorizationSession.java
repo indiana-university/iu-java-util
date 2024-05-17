@@ -46,35 +46,19 @@ public interface IuAuthorizationSession {
 	 * Creates a new {@link IuAuthorizationSession} for managing interactions with
 	 * an authorization server.
 	 * 
-	 * @param realm      authentication realm, <em>must</em> correspond to an
-	 *                   {@link IuAuthorizationClient#initialize(IuAuthorizationClient)
-	 *                   initialized client}.
-	 * @param entryPoint <em>optional</em> entry point URI for the application
-	 *                   requiring authorization, <em>may</em> be sent to the user
-	 *                   agent as a redirect when authorization expires or used as a
-	 *                   default {@link #grant(URI) applicationUri} value; null if
-	 *                   not defined for the application
+	 * @param realm      authentication realm
 	 * @return authorization session
 	 */
-	static IuAuthorizationSession create(String realm, URI entryPoint) {
-		return IuAuthSpiFactory.get(IuOAuthSpi.class).createAuthorizationSession(realm, entryPoint);
+	static IuAuthorizationSession create(String realm) {
+		return IuAuthSpiFactory.get(IuOAuthSpi.class).createAuthorizationSession(realm);
 	}
 
 	/**
 	 * Gets an authorization code grant for the application entry point.
 	 * 
 	 * @return new authorization code grant
-	 * @throws UnsupportedOperationException if an entry point was not defined
 	 */
-	IuAuthorizationGrant grant() throws UnsupportedOperationException;
-
-	/**
-	 * Gets an authorization code grant for an application resource URI.
-	 * 
-	 * @param resourceUri resource URI
-	 * @return authorization code grant
-	 */
-	IuAuthorizationGrant grant(URI resourceUri);
+	IuAuthorizationGrant grant();
 
 	/**
 	 * Completes authorization using a code and state value provided by the

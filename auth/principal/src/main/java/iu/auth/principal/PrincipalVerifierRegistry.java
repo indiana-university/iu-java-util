@@ -31,34 +31,15 @@
  */
 package iu.auth.principal;
 
-import java.lang.reflect.Modifier;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.config.AuthConfig;
 import edu.iu.auth.spi.IuPrincipalSpi;
 
 /**
  * Provides identity verification support for internal implementation modules.
  */
 public class PrincipalVerifierRegistry implements IuPrincipalSpi {
-
-	private static Map<String, PrincipalVerifier<?>> VERIFIERS = new HashMap<>();
-
-	/**
-	 * Determines if a class is a final implementation class.
-	 * 
-	 * @param type type
-	 * @return true if the class is not an interface and includes the final modifier
-	 */
-	static Class<?> requireFinalImpl(Class<?> type) {
-		if (type.isInterface() //
-				|| (type.getModifiers() & Modifier.FINAL) == 0)
-			throw new IllegalArgumentException("must be a final implementation class: " + type);
-		return type;
-	}
 
 	/**
 	 * Determines if the indicated realm has been registered as authoritative for
@@ -68,28 +49,11 @@ public class PrincipalVerifierRegistry implements IuPrincipalSpi {
 	 * @return true of the local node registered as authoritative for the realm
 	 */
 	public static boolean isAuthoritative(String realm) {
-		return VERIFIERS.containsKey(realm) //
-				&& VERIFIERS.get(realm).isAuthoritative();
-	}
-
-	/**
-	 * Registers a principal identity verifier for an authentication realm.
-	 * 
-	 * <p>
-	 * Only one verifier may be registered per realm
-	 * </p>
-	 * 
-	 * @param verifier principal identity verifier
-	 */
-	public static synchronized void registerVerifier(PrincipalVerifier<?> verifier) {
-		requireFinalImpl(verifier.getClass());
-		requireFinalImpl(verifier.getType());
-
-		final var realm = verifier.getRealm();
-		if (VERIFIERS.containsKey(realm))
-			throw new IllegalStateException("verifier already registered for " + realm);
-
-		VERIFIERS.put(realm, verifier);
+		try {
+			return AuthConfig.<PrincipalVerifier<?>>get(realm).isAuthoritative();
+		} catch (Exception e) {
+			return false;
+		}
 	}
 
 	/**
@@ -101,7 +65,7 @@ public class PrincipalVerifierRegistry implements IuPrincipalSpi {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	public boolean verify(IuPrincipalIdentity id, String realm) throws IuAuthenticationException {
-		final PrincipalVerifier verifier = Objects.requireNonNull(VERIFIERS.get(realm), "missing verifier for realm");
+		final PrincipalVerifier verifier = AuthConfig.get(realm);
 		verifier.verify(id, realm);
 		return verifier.isAuthoritative();
 	}

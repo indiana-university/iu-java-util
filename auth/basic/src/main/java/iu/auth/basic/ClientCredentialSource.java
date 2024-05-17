@@ -31,6 +31,7 @@
  */
 package iu.auth.basic;
 
+import java.net.URI;
 import java.time.Instant;
 import java.time.temporal.TemporalAmount;
 import java.util.LinkedHashMap;
@@ -39,33 +40,76 @@ import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import edu.iu.IdGenerator;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.basic.IuBasicAuthCredentials;
 import edu.iu.auth.basic.IuClientCredentials;
 import iu.auth.principal.PrincipalVerifier;
 
 /**
- * Manages an externally sourced
- * {@link IuClientCredentials#register(Iterable, String, TemporalAmount) client
- * credential authentication realm}.
+ * Manages an client credential authentication realm.
+ * 
+ * @param <T> private internal principal type
  */
-final class ClientCredentialSource implements PrincipalVerifier<BasicAuthCredentials> {
+public final class ClientCredentialSource<T extends IuBasicAuthCredentials> implements PrincipalVerifier<T> {
 
-	private final Logger LOG = Logger.getLogger(ClientCredentialSource.class.getName());
+	private static final Logger LOG = Logger.getLogger(ClientCredentialSource.class.getName());
 
 	private final String realm;
 	private final Iterable<? extends IuClientCredentials> clientCredentials;
 	private final TemporalAmount expirationPolicy;
 
 	/**
-	 * Constructor.
+	 * Registers Basic authentication principals for verifying external OAuth 2
+	 * client credentials.
 	 * 
-	 * @param realm             authentication realm
-	 * @param clientCredentials client secrets
-	 * @param expirationPolicy  maximum length of time to allow secrets to remain
+	 * <p>
+	 * Client ID values provided via {@link IuClientCredentials#getId()}
+	 * <em>must</em> be printable ASCII with no whitespace, and start with a letter.
+	 * </p>
+	 * 
+	 * <p>
+	 * Client secret values provided via {@link IuClientCredentials#getSecret()}
+	 * <em>must</em> be printable ASCII, at least 12 characters in length.
+	 * Implementations <em>should</em> use {@link IdGenerator#generateId()} to
+	 * create passwords.
+	 * </p>
+	 * 
+	 * <p>
+	 * {@link IuClientCredentials#getNotBefore()} and
+	 * {@link IuClientCredentials#getExpires()} <em>must</em> be non-null for all
+	 * entries. Entries <em>may</em> be expired; expired entries <em>may</em> be
+	 * changed. <em>May</em> include multiple entries with the same name but
+	 * different passwords and expiration times.
+	 * </p>
+	 * 
+	 * <p>
+	 * <em>Implementation Note:</em> The {@link Iterable} provided to this method is
+	 * controlled externally. {@link Iterable#iterator()} is invoked each time an
+	 * {@link IuClientCredentials} principal is verified to discover externally
+	 * controlled metadata. Implementors <em>should</em> avoid passing
+	 * invalid/expires credentials.
+	 * </p>
+	 * 
+	 * @param clientCredentials Basic authentication client credential principals
+	 * @param realm             Authentication realm
+	 * @param expirationPolicy  Maximum length of time to allow passwords to remain
 	 *                          valid
+	 * @return {@link ClientCredentialSource} instance
+	 * @see <a href=
+	 *      "https://datatracker.ietf.org/doc/html/rfc6749#section-2.3.1">OAuth 2.0
+	 *      Client Password</a>
+	 * @see <a href=
+	 *      "https://github.com/OWASP/ASVS/raw/v4.0.3/4.0/OWASP%20Application%20Security%20Verification%20Standard%204.0.3-en.pdf">ASVS
+	 *      4.0: 2.1 and 2.4</a>
 	 */
-	ClientCredentialSource(String realm, Iterable<? extends IuClientCredentials> clientCredentials,
+	public static ClientCredentialSource<?> of(String realm, Iterable<? extends IuClientCredentials> clientCredentials,
+			TemporalAmount expirationPolicy) {
+		return new ClientCredentialSource<>(realm, clientCredentials, expirationPolicy);
+	}
+
+	private ClientCredentialSource(String realm, Iterable<? extends IuClientCredentials> clientCredentials,
 			TemporalAmount expirationPolicy) {
 		this.realm = realm;
 		this.clientCredentials = clientCredentials;
@@ -77,8 +121,19 @@ final class ClientCredentialSource implements PrincipalVerifier<BasicAuthCredent
 	}
 
 	@Override
-	public Class<BasicAuthCredentials> getType() {
-		return BasicAuthCredentials.class;
+	public String getAuthScheme() {
+		return "Basic";
+	}
+
+	@Override
+	public URI getAuthenticationEndpoint() {
+		return null;
+	}
+
+	@SuppressWarnings("unchecked")
+	@Override
+	public Class<T> getType() {
+		return (Class<T>) BasicAuthCredentials.class;
 	}
 
 	@Override
@@ -92,7 +147,7 @@ final class ClientCredentialSource implements PrincipalVerifier<BasicAuthCredent
 	}
 
 	@Override
-	public void verify(BasicAuthCredentials basic, String realm) throws IuAuthenticationException {
+	public void verify(T basic, String realm) throws IuAuthenticationException {
 		final var name = Objects.requireNonNull(basic.getName(), "missing client id");
 		final var password = Objects.requireNonNull(basic.getPassword(), "missing client secret");
 
@@ -166,5 +221,4 @@ final class ClientCredentialSource implements PrincipalVerifier<BasicAuthCredent
 		params.put("charset", "US-ASCII");
 		return IuWebUtils.createChallenge("Basic", params);
 	}
-
 }

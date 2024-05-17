@@ -29,55 +29,28 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth;
+package iu.auth.oauth;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.verify;
+import edu.iu.auth.IuPrincipalIdentity;
 
-import java.security.cert.CertPathParameters;
+/**
+ * Principal identity and delegated authentication realm as a final response to
+ * authorization code and/or refresh token flow.
+ */
+public interface IuAuthorizedPrincipal {
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
+	/**
+	 * Gets the authentication realm.
+	 * 
+	 * @return realm
+	 */
+	String getRealm();
 
-import edu.iu.IdGenerator;
-import edu.iu.auth.pki.IuPkiPrincipal;
-import edu.iu.auth.spi.IuPkiSpi;
-import iu.auth.IuAuthSpiFactory;
+	/**
+	 * Gets the principal identity.
+	 * 
+	 * @return {@link IuPrincipalIdentity}
+	 */
+	IuPrincipalIdentity getPrincipal();
 
-@SuppressWarnings("javadoc")
-public class IuPkiPrincipalTest {
-
-	private MockedStatic<IuAuthSpiFactory> mockSpiFactory;
-	private IuPkiSpi spi;
-
-	@BeforeEach
-	public void setup() {
-		spi = mock(IuPkiSpi.class);
-		mockSpiFactory = mockStatic(IuAuthSpiFactory.class);
-		mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuPkiSpi.class)).thenReturn(spi);
-	}
-
-	@AfterEach
-	public void tearDown() {
-		mockSpiFactory.close();
-		mockSpiFactory = null;
-		spi = null;
-	}
-
-	@Test
-	public void testFrom() {
-		final var serialized = IdGenerator.generateId();
-		IuPkiPrincipal.from(serialized);
-		verify(spi).readPkiPrincipal(serialized);
-	}
-
-	@Test
-	public void testTrust() {
-		final var params = mock(CertPathParameters.class);
-		IuPkiPrincipal.trust(params);
-		verify(spi).trust(params);
-	}
 }

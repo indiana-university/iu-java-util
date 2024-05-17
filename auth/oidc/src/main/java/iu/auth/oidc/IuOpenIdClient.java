@@ -29,30 +29,58 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.oauth;
+package iu.auth.oidc;
 
-import edu.iu.auth.IuPrincipalIdentity;
+import java.net.URI;
+import java.time.Duration;
 
 /**
- * Returned by {@link IuAuthorizationClient#verify(IuTokenResponse)} and
- * {@link IuAuthorizationClient#verify(IuTokenResponse, IuTokenResponse)} to
- * pass the verified principal identity and delegated authentication realm as a
- * final response to authorization code and/or refresh token flow.
+ * Provides client application metadata for configuring the OpenID client module
+ * {@code iu.util.auth.oidc}. To be implemented by an application-level request
+ * handler.
+ * 
+ * <p>
+ * Only one OAuth authorization client configuration can be configured per
+ * OpenID provider. It is expected but <em>optional</em> for implementations to
+ * be context-senstive.
+ * </p>
  */
-public interface IuAuthorizedPrincipal {
+public interface IuOpenIdClient {
 
 	/**
 	 * Gets the authentication realm.
 	 * 
-	 * @return realm
+	 * @return authentication realm
 	 */
 	String getRealm();
 
 	/**
-	 * Gets the principal identity.
+	 * Gets the root resource URI covered by this client's protection domain.
 	 * 
-	 * @return {@link IuPrincipalIdentity}
+	 * <p>
+	 * All client-side application URIs used in this client's context <em>must</em>
+	 * be rooted at this URI. The {@link URI} <em>may</em> be {@link URI#isOpaque()
+	 * opaque} and/or {@link URI#isAbsolute() not absolute} if protecting only a
+	 * single domain. Resource URIs <em>may</em> use the <strong>java:</strong> URI
+	 * scheme for environments that have JNDI configured.
+	 * </p>
+	 * 
+	 * @return {@link URI}
 	 */
-	IuPrincipalIdentity getPrincipal();
+	URI getResourceUri();
+
+	/**
+	 * Gets the OpenID Provider configuration URI.
+	 * 
+	 * @return {@link URI}
+	 */
+	URI getProviderConfigUri();
+
+	/**
+	 * Gets the length of time to retain ID claims before reverifying.
+	 * 
+	 * @return {@link Duration}
+	 */
+	Duration getVerificationInterval();
 
 }
