@@ -29,6 +29,7 @@
 				<module>jwt</module>
 				<module>oauth</module>
 				<module>oidc</module>
+				<module>saml</module>
 				<module>impl</module>
 				<module>bundle</module>
 			</modules>
