@@ -26,7 +26,10 @@ public class SamlParserPool implements ParserPool {
 
 	/**
 	 * Initialize the pool.
-	 * @throws ParserConfigurationException when DocumentBuilderFactory or the DocumentBuilders it creates cannot support this feature.
+	 * 
+	 * @throws ParserConfigurationException when DocumentBuilderFactory or the
+	 *                                      DocumentBuilders it creates cannot
+	 *                                      support this feature.
 	 */
 	public SamlParserPool() throws ParserConfigurationException {
 		DocumentBuilderFactory newFactory = DocumentBuilderFactory.newInstance();

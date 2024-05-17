@@ -6,7 +6,6 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
@@ -28,12 +27,12 @@ import edu.iu.auth.saml.IuSamlSession;
  * SAML session implementation to support session management
  */
 public class SamlSession implements IuSamlSession, Serializable {
-	
+
 	/**
 	 * SAML session logger
 	 */
 	private final Logger LOG = Logger.getLogger(SamlSession.class.getName());
-	
+
 	private static final long serialVersionUID = 1L;
 
 	/**
@@ -117,8 +116,7 @@ public class SamlSession implements IuSamlSession, Serializable {
 		Instant currentTime = Instant.now();
 		Instant authnInstant = (Instant) id.getClaims().get("authnInstant");
 		Instant totalSessiontime = authnInstant.plus(duration);
-		if (currentTime.isBefore(totalSessiontime) 
-				&& currentTime.isAfter(authnInstant)) {
+		if (currentTime.isBefore(totalSessiontime) && currentTime.isAfter(authnInstant)) {
 			return id;
 		}
 		LOG.fine("Authorized session has expired, require reauthentication");
@@ -127,7 +125,6 @@ public class SamlSession implements IuSamlSession, Serializable {
 				null, new IllegalStateException("Authorization failed"));
 		challenge.setLocation(entryPoint);
 		throw challenge;
-
 
 	}
 

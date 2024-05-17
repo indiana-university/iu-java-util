@@ -2,17 +2,14 @@ package iu.auth.saml;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
-import java.io.UnsupportedEncodingException;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.util.Date;
 import java.util.List;
 
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
@@ -28,11 +25,12 @@ import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 import org.w3c.dom.ls.DOMImplementationLS;
 import org.w3c.dom.ls.LSOutput;
 import org.w3c.dom.ls.LSSerializer;
-import org.xml.sax.SAXException;
+
+import edu.iu.IuException;
+import edu.iu.IuText;
 
 /**
- * Provides simplified access to DOM document elements. TODO create STARCH jira
- * to move it to java-util package if need arise
+ * Provides simplified access to DOM document elements.
  */
 public class XmlDomUtil {
 	/**
@@ -44,54 +42,50 @@ public class XmlDomUtil {
 	 * default constructor
 	 */
 	public XmlDomUtil() {
-		// TODO Auto-generated constructor stub
 	}
 
 	/**
 	 * Parse an XML document from a string.
 	 * 
-	 * @param xml The XML document.
+	 * @param string The XML document.
 	 * @return The document, parsed.
 	 */
-	public static Document parse(String xml) {
-		try {
-			DocumentBuilderFactory builder = DocumentBuilderFactory.newInstance();
+	public static Document parse(String string) {
+		DocumentBuilderFactory builder = DocumentBuilderFactory.newInstance();
 
-			// CWE-611 mitigation: Prevent XXE in XML Parse4
-			// See https://cwe.mitre.org/data/definitions/611.html
-			// See
-			// https://blog.shiftleft.io/preventing-xxe-in-java-applications-d557b6092db1
+		// CWE-611 mitigation: Prevent XXE in XML Parse4
+		// See https://cwe.mitre.org/data/definitions/611.html
+		// See
+		// https://blog.shiftleft.io/preventing-xxe-in-java-applications-d557b6092db1
+		IuException.unchecked(() -> {
 			builder.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
 			builder.setFeature("http://xml.org/sax/features/external-general-entities", false);
 			builder.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
 			builder.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
 			builder.setXIncludeAware(false);
 			builder.setExpandEntityReferences(false);
+		});
 
-			return builder.newDocumentBuilder().parse(new ByteArrayInputStream(xml.getBytes()));
-		} catch (SAXException e) {
-			throw new IllegalStateException(e);
-		} catch (IOException e) {
-			throw new IllegalStateException(e);
-		} catch (ParserConfigurationException e) {
-			throw new IllegalStateException(e);
-		}
+		return IuException.unchecked(() -> {
+			return builder.newDocumentBuilder().parse(new ByteArrayInputStream(string.getBytes()));
+		});
 	}
 
 	/**
-	 * Parse XML input stream to string
+	 * Parse an XML input stream to string
 	 * 
-	 * @param inputStream xml input stream
+	 * @param inputStream XML input stream
 	 * @return string representation of XML
 	 */
 	public static String xmlToString(InputStream inputStream) {
-		try {
-			DocumentBuilderFactory builder = DocumentBuilderFactory.newInstance();
 
-			// CWE-611 mitigation: Prevent XXE in XML Parse4
-			// See https://cwe.mitre.org/data/definitions/611.html
-			// See
-			// https://blog.shiftleft.io/preventing-xxe-in-java-applications-d557b6092db1
+		DocumentBuilderFactory builder = DocumentBuilderFactory.newInstance();
+
+		// CWE-611 mitigation: Prevent XXE in XML Parse4
+		// See https://cwe.mitre.org/data/definitions/611.html
+		// See
+		// https://blog.shiftleft.io/preventing-xxe-in-java-applications-d557b6092db1
+		return IuException.unchecked(() -> {
 			builder.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
 			builder.setFeature("http://xml.org/sax/features/external-general-entities", false);
 			builder.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
@@ -103,9 +97,8 @@ public class XmlDomUtil {
 			Transformer serializer = TransformerFactory.newInstance().newTransformer();
 			serializer.transform(new DOMSource(doc), new StreamResult(stw));
 			return stw.toString();
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
+		});
+
 	}
 
 	/**
@@ -171,9 +164,9 @@ public class XmlDomUtil {
 	 *         or text only.
 	 */
 	public static boolean hasNonTextChildNodes(Node node) {
-		if (!node.hasChildNodes()) {
-			return false;
-		}
+		//if (!node.hasChildNodes()) {
+		//	return false;
+		//}
 		NodeList children = node.getChildNodes();
 		for (int i = 0; i < children.getLength(); i++) {
 			if (!(children.item(i) instanceof Text)) {
@@ -192,7 +185,7 @@ public class XmlDomUtil {
 	 */
 	public static Element findElement(Document doc, String name) {
 		NodeList ctl = doc.getElementsByTagName(name);
-		if (ctl == null || ctl.getLength() == 0) {
+		if (ctl.getLength() == 0) {
 			return null;
 		}
 		return (Element) ctl.item(0);
@@ -232,17 +225,10 @@ public class XmlDomUtil {
 	public static DOMImplementation getDom() {
 		try {
 			return DOMImplementationRegistry.newInstance().getDOMImplementation("XML");
-		} catch (IllegalAccessException iaE) {
-			throw new IllegalStateException("Illegal access acquiring DOM instance", iaE);
-		} catch (InstantiationException itE) {
-			Throwable c = itE.getCause();
-			if (c instanceof RuntimeException) {
-				throw (RuntimeException) c;
-			} else if (c instanceof Error) {
-				throw (Error) c;
-			} else {
-				throw new IllegalStateException("Checked exception acquiring DOM instance", c);
-			}
+		} catch (IllegalAccessException iae) {
+			throw new IllegalStateException("Illegal access acquiring DOM instance", iae);
+		} catch (InstantiationException ite) {
+			throw new IllegalStateException("Checked exception acquiring DOM instance", ite);
 		} catch (ClassNotFoundException e) {
 			throw new IllegalStateException("Class not found acquiring DOM instance", e);
 		}
@@ -256,17 +242,10 @@ public class XmlDomUtil {
 	public static DOMImplementationLS getDomLS() {
 		try {
 			return (DOMImplementationLS) DOMImplementationRegistry.newInstance().getDOMImplementation("LS");
-		} catch (IllegalAccessException iaE) {
-			throw new IllegalStateException("Illegal access acquiring DOM LS instance", iaE);
-		} catch (InstantiationException itE) {
-			Throwable c = itE.getCause();
-			if (c instanceof RuntimeException) {
-				throw (RuntimeException) c;
-			} else if (c instanceof Error) {
-				throw (Error) c;
-			} else {
-				throw new IllegalStateException("Checked exception acquiring DOM LS instance", c);
-			}
+		} catch (IllegalAccessException iae) {
+			throw new IllegalStateException("Illegal access acquiring DOM LS instance", iae);
+		} catch (InstantiationException ite) {
+			throw new IllegalStateException("Checked exception acquiring DOM LS instance", ite);
 		} catch (ClassNotFoundException e) {
 			throw new IllegalStateException("Class not found acquiring DOM LS instance", e);
 		}
@@ -286,11 +265,8 @@ public class XmlDomUtil {
 		lso.setEncoding("UTF-8");
 		lso.setByteStream(baos);
 		ser.write(n, lso);
-		try {
-			return new String(baos.toByteArray(), "UTF-8");
-		} catch (UnsupportedEncodingException e) {
-			throw new IllegalStateException("UTF-8 is unsupported", e);
-		}
+		return IuText.utf8(baos.toByteArray());
+
 	}
 
 }

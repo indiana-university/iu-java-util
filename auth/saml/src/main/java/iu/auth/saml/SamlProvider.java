@@ -327,8 +327,8 @@ public class SamlProvider implements IuSamlProvider {
 	}
 
 	/**
-	 * Generate SAML authentication request 
-	 * use by client to redirect user to identity provider system for authentication.
+	 * Generate SAML authentication request use by client to redirect user to
+	 * identity provider system for authentication.
 	 * 
 	 * @param postURI             send back URI
 	 * @param sessionId           session id associated with authentication request
@@ -394,10 +394,10 @@ public class SamlProvider implements IuSamlProvider {
 	/**
 	 * Authorize SAML response return back from IDP
 	 * 
-	 * @param address IP address use by user to authenticate
-	 * @param postUri Post back URI
+	 * @param address      IP address use by user to authenticate
+	 * @param postUri      Post back URI
 	 * @param samlResponse xml SAML response back from identity provider
-	 * @param relayState return back relayState from identity provider
+	 * @param relayState   return back relayState from identity provider
 	 * @return SAML attributes
 	 */
 	SamlPrincipal authorize(InetAddress address, URI postUri, String samlResponse, String relayState) {

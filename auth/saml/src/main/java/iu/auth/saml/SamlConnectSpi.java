@@ -50,9 +50,9 @@ public class SamlConnectSpi implements IuSamlSpi {
 	 * @return client metadata
 	 */
 	static SamlProvider getProvider(String serviceProviderEntityId) {
-		return (SamlProvider) Objects.requireNonNull(PROVIDER.get(serviceProviderEntityId), 
+		return (SamlProvider) Objects.requireNonNull(PROVIDER.get(serviceProviderEntityId),
 				"provider is not initialzied for " + serviceProviderEntityId);
-		
+
 	}
 
 	@Override
