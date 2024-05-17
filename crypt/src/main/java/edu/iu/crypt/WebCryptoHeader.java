@@ -344,7 +344,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		B type(String type);
 
 		/**
-		 * Sets the header type parameter value.
+		 * Sets the header content type parameter value.
 		 * 
 		 * @param contentType header type parameter value.
 		 * @return this

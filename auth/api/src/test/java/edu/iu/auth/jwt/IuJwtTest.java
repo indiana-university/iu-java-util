@@ -43,6 +43,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuText;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.spi.IuJwtSpi;
 import iu.auth.IuAuthSpiFactory;
@@ -76,6 +77,14 @@ public class IuJwtTest {
 	}
 
 	@Test
+	public void testSecret() {
+		final var secret = IdGenerator.generateId();
+		final var keyId = IdGenerator.generateId();
+		IuWebKey.from(keyId, IuText.utf8(secret));
+		verify(spi).getSecretKey(keyId, IuText.utf8(secret));
+	}
+
+	@Test
 	public void testParse() {
 		final var token = IdGenerator.generateId();
 		IuWebToken.from(token);
@@ -104,7 +113,7 @@ public class IuJwtTest {
 		IuWebToken.register(jwtRealm, audience, realm);
 		verify(spi).register(jwtRealm, audience, realm);
 	}
-	
+
 	@Test
 	public void testSeal() {
 		IuWebToken.seal();

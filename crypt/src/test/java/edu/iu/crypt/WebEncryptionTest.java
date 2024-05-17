@@ -339,7 +339,7 @@ public class WebEncryptionTest extends IuCryptTestCase {
 				e -> "iv must be 96 bits".equals(e.getMessage()));
 		assertInstanceOf(AEADBadTagException.class,
 				assertThrows(IllegalStateException.class, () -> ence.decrypt(key)).getCause());
-		
+
 		final var encth = IuJson.object(enco.getJsonObject("header"))
 				.add("tag", UnpaddedBinary.base64Url(new byte[] { 1, 2, 3, 4, 5 })).build();
 		final var enct = WebEncryption.parse(IuJson.object(enco).add("header", encth).build().toString());

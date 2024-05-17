@@ -136,6 +136,8 @@ class JwtBuilder extends IuJsonBuilder<JwtBuilder> implements Builder {
 		if (aud.size() > 1) {
 			param("aud", aud);
 			encryptKey = null;
+			if (this.enc != null)
+				throw new IllegalArgumentException("can only encrypt to a single audience");
 		} else {
 			param("aud", audience.getName());
 			encryptKey = JwtSpi.getEncryptKey(audience);
@@ -149,15 +151,35 @@ class JwtBuilder extends IuJsonBuilder<JwtBuilder> implements Builder {
 				.type("JWT") //
 				.key(signingKey) //
 				.sign(IuText.utf8(claims.toString()));
-		
+
 		if (encryptKey == null)
 			return new Jwt(realm, jws.compact());
 
-		Algorithm 
+		final Algorithm algorithm;
+		if (this.alg != null)
+			algorithm = this.alg;
+		else
+			switch (encryptKey.getType()) {
+			case EC_P256:
+			case EC_P384:
+			case EC_P521:
+			case X25519:
+			case X448:
+				algorithm = Algorithm.ECDH_ES;
+				break;
+
+			case RSA:
+				algorithm = Algorithm.RSA_OAEP;
+				break;
+
+			default:
+				throw new IllegalArgumentException("invalid encryption key");
+			}
+		
+//		RSAPublicKeyRSA-OAEPECPublicKey or XECPublicKeyECDH-ES
 		final var jweBuilder = WebEncryption //
 				.builder(Objects.requireNonNullElse(enc, Encryption.AES_128_CBC_HMAC_SHA_256));
-		
-			
+
 //				.addRecipient()
 		// TODO Auto-generated method stub
 		return null;

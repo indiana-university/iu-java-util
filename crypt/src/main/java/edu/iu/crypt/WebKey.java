@@ -86,16 +86,15 @@ public interface WebKey extends WebKeyReference {
 	 */
 	static AlgorithmParameterSpec algorithmParams(String name) {
 		return IuObject.convert(name, a -> IuException.unchecked(() -> {
-			if (a.startsWith("sec")) {
+			if (Set.of("secp256r1", "secp384r1", "secp521r1").contains(a)) {
 				final var algorithmParamters = AlgorithmParameters.getInstance("EC");
 				algorithmParamters.init(new ECGenParameterSpec(a));
 				return algorithmParamters.getParameterSpec(ECParameterSpec.class);
-			} else
-				try {
-					return (AlgorithmParameterSpec) NamedParameterSpec.class.getField(a.toUpperCase()).get(null);
-				} catch (NoSuchFieldException e) {
-					return null;
-				}
+			} else if (Set.of("Ed25519", "Ed448", "X25519", "X448").contains(a))
+				return (AlgorithmParameterSpec) IuException
+						.unchecked(() -> NamedParameterSpec.class.getField(a.toUpperCase()).get(null));
+			else
+				return null;
 		}));
 	}
 

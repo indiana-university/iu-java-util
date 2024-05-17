@@ -32,6 +32,7 @@
 package iu.auth.pki;
 
 import java.net.URI;
+import java.security.MessageDigest;
 import java.security.PrivateKey;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathParameters;
@@ -52,7 +53,6 @@ import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.auth.spi.IuPkiSpi;
-import edu.iu.crypt.DigestUtils;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebCertificateReference;
 import edu.iu.crypt.WebKey;
@@ -244,8 +244,8 @@ public class PkiSpi implements IuPkiSpi {
 
 		IuException.unchecked(() -> {
 			final var encoded = idCert.getEncoded();
-			jwkBuilder.x5t(DigestUtils.sha1(encoded));
-			jwkBuilder.x5t256(DigestUtils.sha256(encoded));
+			jwkBuilder.x5t(MessageDigest.getInstance("SHA-1").digest(encoded));
+			jwkBuilder.x5t256(MessageDigest.getInstance("SHA-256").digest(encoded));
 		});
 
 		return new PkiPrincipal(jwkBuilder.build());

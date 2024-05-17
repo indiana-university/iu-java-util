@@ -91,6 +91,7 @@ public class EphemeralKeys {
 	 */
 	public static final KeyPair ec(AlgorithmParameterSpec param) {
 		return IuException.unchecked(() -> {
+			// TODO: filter input
 			if (param instanceof NamedParameterSpec)
 				return KeyPairGenerator.getInstance(((NamedParameterSpec) param).getName());
 			else if (param instanceof ECParameterSpec) {
@@ -111,6 +112,7 @@ public class EphemeralKeys {
 	 */
 	public static final KeyPair rsa(String algorithm, int size) {
 		return IuException.unchecked(() -> {
+			// TODO: filter input
 			final var gen = KeyPairGenerator.getInstance(algorithm);
 			gen.initialize(size);
 			return gen.generateKeyPair();

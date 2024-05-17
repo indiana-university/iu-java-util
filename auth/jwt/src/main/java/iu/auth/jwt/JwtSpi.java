@@ -78,7 +78,8 @@ public class JwtSpi implements IuJwtSpi {
 	 */
 	static boolean isSigningKey(WebKey key) {
 		final var ops = key.getOps();
-		return key.getPrivateKey() != null //
+		return (key.getPrivateKey() != null //
+				|| key.getKey() != null) //
 				&& ((ops != null //
 						&& ops.contains(Operation.SIGN)) //
 						|| Use.SIGN.equals(key.getUse()));
@@ -92,7 +93,8 @@ public class JwtSpi implements IuJwtSpi {
 	 */
 	static boolean isVerifyKey(WebKey key) {
 		final var ops = key.getOps();
-		return key.getPublicKey() != null //
+		return (key.getPublicKey() != null //
+				|| key.getKey() != null) //
 				&& ((ops != null //
 						&& ops.contains(Operation.VERIFY)) //
 						|| Use.SIGN.equals(key.getUse()));
