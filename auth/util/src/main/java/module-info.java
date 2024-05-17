@@ -33,7 +33,7 @@
  * Provides common utilities to API authorization implementation modules.
  */
 module iu.util.auth.util {
-	exports iu.auth.util to iu.util.auth.oauth, iu.util.auth.oidc;
+	exports iu.auth.util to iu.util.auth.oauth, iu.util.auth.oidc, iu.util.auth.saml;
 
 	requires static com.auth0.jwt;
 	requires iu.util;
@@ -41,4 +41,5 @@ module iu.util.auth.util {
 	requires iu.util.crypt;
 	requires transitive jakarta.json;
 	requires transitive java.net.http;
+	requires java.xml;
 }
