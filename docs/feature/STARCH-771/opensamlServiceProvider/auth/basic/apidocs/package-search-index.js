@@ -1,1 +1,0 @@
-packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html"},{"m":"iu.util.auth.basic","l":"iu.auth.basic"}];updateSearchResults();
