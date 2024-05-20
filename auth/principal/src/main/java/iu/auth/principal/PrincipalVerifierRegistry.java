@@ -66,7 +66,7 @@ public class PrincipalVerifierRegistry implements IuPrincipalSpi {
 	@Override
 	public boolean verify(IuPrincipalIdentity id, String realm) throws IuAuthenticationException {
 		final PrincipalVerifier verifier = AuthConfig.get(realm);
-		verifier.verify(id, realm);
+		verifier.verify(id);
 		return verifier.isAuthoritative();
 	}
 

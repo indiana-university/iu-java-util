@@ -6,5 +6,6 @@ module iu.util.auth.config {
 	exports edu.iu.auth.config;
 
 	requires iu.util;
-	requires iu.util.auth;
+	requires transitive iu.util.auth;
+	requires transitive iu.util.crypt;
 }

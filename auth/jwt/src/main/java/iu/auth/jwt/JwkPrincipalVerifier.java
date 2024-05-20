@@ -1,25 +1,41 @@
 package iu.auth.jwt;
 
+import java.net.URI;
+
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.jwt.IuWebKey;
-import edu.iu.crypt.WebKey;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
 import iu.auth.principal.PrincipalVerifier;
 
 /**
- * Verifies {@link IuWebKey} registered as a {@link Jwt} issuer or audience
- * principal.
+ * Verifies a registered {@link Jwt} issuer or audience principal.
  */
-final class JwkPrincipalVerifier implements PrincipalVerifier<JwkPrincipal> {
+final class JwkPrincipalVerifier implements PrincipalVerifier<JwkPrincipal>, IuPublicKeyPrincipalConfig {
 
-	private final String realm;
+	private final JwkPrincipal jwk;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param realm JWK principal realm
+	 * @param jwk JWK principal
 	 */
-	JwkPrincipalVerifier(String realm) {
-		this.realm = realm;
+	JwkPrincipalVerifier(JwkPrincipal jwk) {
+		this.jwk = jwk;
+	}
+
+	@Override
+	public IuPrincipalIdentity getIdentity() {
+		return jwk;
+	}
+
+	@Override
+	public String getAuthScheme() {
+		return null;
+	}
+
+	@Override
+	public URI getAuthenticationEndpoint() {
+		return null;
 	}
 
 	@Override
@@ -29,7 +45,7 @@ final class JwkPrincipalVerifier implements PrincipalVerifier<JwkPrincipal> {
 
 	@Override
 	public String getRealm() {
-		return realm;
+		return jwk.getName();
 	}
 
 	@Override
@@ -39,9 +55,10 @@ final class JwkPrincipalVerifier implements PrincipalVerifier<JwkPrincipal> {
 
 	@Override
 	public void verify(JwkPrincipal id, String realm) throws IuAuthenticationException {
-		if (!id.getName().equals(realm))
+		if (!getRealm().equals(realm))
 			throw new IllegalArgumentException("realm mismatch");
-		id.getSubject().getPublicCredentials(WebKey.class).iterator().next();
+		else if (id != jwk)
+			throw new IllegalArgumentException();
 	}
 
 }

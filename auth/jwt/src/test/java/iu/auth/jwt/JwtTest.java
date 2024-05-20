@@ -55,8 +55,12 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuText;
+import edu.iu.auth.config.AuthConfig;
+import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
 import edu.iu.client.IuJson;
+import edu.iu.crypt.EphemeralKeys;
 import edu.iu.crypt.WebCryptoHeader;
+import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebSignature;
 import edu.iu.crypt.WebSignedPayload;
@@ -190,20 +194,25 @@ public class JwtTest {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Test
 	public void testAuthorizationGrant() {
-		final var token = IdGenerator.generateId();
-		try (final var mockJws = mockStatic(WebSignedPayload.class);
-				final var mockAuthorizationGrant = mockConstruction(JwtAuthorizationGrant.class)) {
-			final var jws = mock(WebSignedPayload.class);
-			when(jws.getPayload()).thenReturn(IuText.utf8(IuJson.object() //
-					.build().toString()));
-			final var sig = mock(WebSignature.class);
-			when(jws.getSignatures()).thenReturn((List) List.of(sig));
-			mockJws.when(() -> WebSignedPayload.parse(token)).thenReturn(jws);
-			final var jwt = new Jwt(IdGenerator.generateId(), token);
-			final var scope = mock(Set.class);
-			final var bearer = jwt.asAuthorizationGrant(scope);
-			assertSame(mockAuthorizationGrant.constructed().get(0), bearer);
-		}
+		final var iss = IdGenerator.generateId();
+		final var key = EphemeralKeys.secret(Algorithm.HS256.algorithm, Algorithm.HS256.size);
+		final var aud = IdGenerator.generateId();
+		final var sub = IdGenerator.generateId();
+		AuthConfig.register(new JwkSecretVerifier(new JwkSecret(iss, key)));
+		AuthConfig.seal();
+
+		final var claims = IuJson.object();
+		claims.add("iss", iss);
+		claims.add("aud", aud);
+		claims.add("sub", sub);
+		claims.add("exp", Instant.now().getEpochSecond() + 5);
+		final var token = WebSignature.builder(Algorithm.HS256).compact().type("JWT") //
+				.key(AuthConfig.<IuPublicKeyPrincipalConfig>get(iss).getIdentity().getSubject()
+						.getPrivateCredentials(WebKey.class).stream().filter(a -> a.getUse().equals()).next())
+				.sign(claims.build().toString()).compact();
+
+		final var jwt = new Jwt(IdGenerator.generateId(), token);
+		assertEquals("HS256", jwt.getAlgorithm());
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })

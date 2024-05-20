@@ -33,11 +33,15 @@ package iu.auth.jwt;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.net.URI;
+
 import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
 import iu.auth.principal.PrincipalVerifier;
 
 @SuppressWarnings("javadoc")
-final class SimpleVerifier implements PrincipalVerifier<SimpleId> {
+final class SimpleVerifier implements PrincipalVerifier<SimpleId>, IuPublicKeyPrincipalConfig {
 	private final SimpleId id;
 
 	SimpleVerifier(SimpleId id) {
@@ -57,6 +61,21 @@ final class SimpleVerifier implements PrincipalVerifier<SimpleId> {
 	@Override
 	public boolean isAuthoritative() {
 		return id.key.getPrivateKey() != null;
+	}
+
+	@Override
+	public String getAuthScheme() {
+		return null;
+	}
+
+	@Override
+	public URI getAuthenticationEndpoint() {
+		return null;
+	}
+
+	@Override
+	public IuPrincipalIdentity getIdentity() {
+		return id;
 	}
 
 	@Override

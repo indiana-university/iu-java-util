@@ -47,9 +47,9 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
+import edu.iu.auth.config.AuthConfig;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebSignature;
-import iu.auth.principal.PrincipalVerifierRegistry;
 
 @SuppressWarnings("javadoc")
 public class JwtVerifierTest {
@@ -58,9 +58,9 @@ public class JwtVerifierTest {
 	public void testValid() {
 		final var key = mock(WebKey.class);
 		final var audience = new SimpleId(key);
-		PrincipalVerifierRegistry.registerVerifier(new SimpleVerifier(audience));
+		AuthConfig.register(new SimpleVerifier(audience));
 		final var issuer = new SimpleId(key);
-		PrincipalVerifierRegistry.registerVerifier(new SimpleVerifier(issuer));
+		AuthConfig.register(new SimpleVerifier(issuer));
 
 		final var sub = IdGenerator.generateId();
 		final var jwtRealm = IdGenerator.generateId();
@@ -73,15 +73,15 @@ public class JwtVerifierTest {
 		final var jws = mock(WebSignature.class);
 		when(jwt.signature()).thenReturn(jws);
 
-		try (final var mockSpi = mockStatic(JwtSpi.class)) {
-			mockSpi.when(() -> JwtSpi.getIssuer(issuer.getName())).thenReturn(issuer);
+//		try (final var mockSpi = mockStatic(JwtSpi.class)) {
+//			mockSpi.when(() -> JwtSpi.getIssuer(issuer.getName())).thenReturn(issuer);
 
-			final var verifier = new JwtVerifier(jwtRealm, audience, audience.getName());
-			assertEquals(Jwt.class, verifier.getType());
-			assertEquals(audience.getName(), verifier.realm());
-			assertFalse(verifier.isAuthoritative());
-			assertDoesNotThrow(() -> verifier.verify(jwt, jwtRealm));
-		}
+		final var verifier = new JwtVerifier(jwtRealm, audience, audience.getName());
+		assertEquals(Jwt.class, verifier.getType());
+		assertEquals(audience.getName(), verifier.realm());
+		assertFalse(verifier.isAuthoritative());
+		assertDoesNotThrow(() -> verifier.verify(jwt, jwtRealm));
+//		}
 	}
 
 	@Test
@@ -91,9 +91,9 @@ public class JwtVerifierTest {
 		when(key.getPrivateKey()).thenReturn(pk);
 
 		final var audience = new SimpleId(key);
-		PrincipalVerifierRegistry.registerVerifier(new SimpleVerifier(audience));
+		AuthConfig.register(new SimpleVerifier(audience));
 		final var issuer = new SimpleId(key);
-		PrincipalVerifierRegistry.registerVerifier(new SimpleVerifier(issuer));
+		AuthConfig.register(new SimpleVerifier(issuer));
 
 		final var sub = IdGenerator.generateId();
 		final var jwtRealm = IdGenerator.generateId();
@@ -111,15 +111,15 @@ public class JwtVerifierTest {
 		final var jws = mock(WebSignature.class);
 		when(jwt.signature()).thenReturn(jws);
 
-		try (final var mockSpi = mockStatic(JwtSpi.class)) {
-			mockSpi.when(() -> JwtSpi.getIssuer(issuer.getName())).thenReturn(issuer);
+//		try (final var mockSpi = mockStatic(JwtSpi.class)) {
+//			mockSpi.when(() -> JwtSpi.getIssuer(issuer.getName())).thenReturn(issuer);
 
-			final var verifier = new JwtVerifier(jwtRealm, audience, audience.getName());
-			assertEquals(Jwt.class, verifier.getType());
-			assertEquals(audience.getName(), verifier.realm());
-			assertTrue(verifier.isAuthoritative());
-			assertDoesNotThrow(() -> verifier.verify(jwt, jwtRealm));
-		}
+		final var verifier = new JwtVerifier(jwtRealm, audience, audience.getName());
+		assertEquals(Jwt.class, verifier.getType());
+		assertEquals(audience.getName(), verifier.realm());
+		assertTrue(verifier.isAuthoritative());
+		assertDoesNotThrow(() -> verifier.verify(jwt, jwtRealm));
+//		}
 	}
 
 	@Test
@@ -128,7 +128,7 @@ public class JwtVerifierTest {
 		final var jwt = mock(Jwt.class);
 		final var key = mock(WebKey.class);
 		final var audience = new SimpleId(key);
-		PrincipalVerifierRegistry.registerVerifier(new SimpleVerifier(audience));
+		AuthConfig.register(new SimpleVerifier(audience));
 		try (final var mockSpi = mockStatic(JwtSpi.class)) {
 			final var verifier = new JwtVerifier(jwtRealm, audience, audience.getName());
 			assertEquals("audience verification failed",
@@ -140,9 +140,9 @@ public class JwtVerifierTest {
 	public void testSubValidation() {
 		final var key = mock(WebKey.class);
 		final var audience = new SimpleId(key);
-		PrincipalVerifierRegistry.registerVerifier(new SimpleVerifier(audience));
+		AuthConfig.register(new SimpleVerifier(audience));
 		final var issuer = new SimpleId(key);
-		PrincipalVerifierRegistry.registerVerifier(new SimpleVerifier(issuer));
+		AuthConfig.register(new SimpleVerifier(issuer));
 
 		final var jwtRealm = IdGenerator.generateId();
 		final var jwt = mock(Jwt.class);
@@ -152,22 +152,22 @@ public class JwtVerifierTest {
 		final var jws = mock(WebSignature.class);
 		when(jwt.signature()).thenReturn(jws);
 
-		try (final var mockSpi = mockStatic(JwtSpi.class)) {
-			mockSpi.when(() -> JwtSpi.getIssuer(issuer.getName())).thenReturn(issuer);
+//		try (final var mockSpi = mockStatic(JwtSpi.class)) {
+//			mockSpi.when(() -> JwtSpi.getIssuer(issuer.getName())).thenReturn(issuer);
 
-			final var verifier = new JwtVerifier(jwtRealm, audience, audience.getName());
-			assertEquals("missing subject principal",
-					assertThrows(NullPointerException.class, () -> verifier.verify(jwt, jwtRealm)).getMessage());
-		}
+		final var verifier = new JwtVerifier(jwtRealm, audience, audience.getName());
+		assertEquals("missing subject principal",
+				assertThrows(NullPointerException.class, () -> verifier.verify(jwt, jwtRealm)).getMessage());
+//		}
 	}
 
 	@Test
 	public void testExpMissing() {
 		final var key = mock(WebKey.class);
 		final var audience = new SimpleId(key);
-		PrincipalVerifierRegistry.registerVerifier(new SimpleVerifier(audience));
+		AuthConfig.register(new SimpleVerifier(audience));
 		final var issuer = new SimpleId(key);
-		PrincipalVerifierRegistry.registerVerifier(new SimpleVerifier(issuer));
+		AuthConfig.register(new SimpleVerifier(issuer));
 
 		final var sub = IdGenerator.generateId();
 		final var jwtRealm = IdGenerator.generateId();
@@ -179,13 +179,13 @@ public class JwtVerifierTest {
 		final var jws = mock(WebSignature.class);
 		when(jwt.signature()).thenReturn(jws);
 
-		try (final var mockSpi = mockStatic(JwtSpi.class)) {
-			mockSpi.when(() -> JwtSpi.getIssuer(issuer.getName())).thenReturn(issuer);
+//		try (final var mockSpi = mockStatic(JwtSpi.class)) {
+//			mockSpi.when(() -> JwtSpi.getIssuer(issuer.getName())).thenReturn(issuer);
 
-			final var verifier = new JwtVerifier(jwtRealm, audience, audience.getName());
-			assertEquals("missing expiration time",
-					assertThrows(NullPointerException.class, () -> verifier.verify(jwt, jwtRealm)).getMessage());
-		}
+		final var verifier = new JwtVerifier(jwtRealm, audience, audience.getName());
+		assertEquals("missing expiration time",
+				assertThrows(NullPointerException.class, () -> verifier.verify(jwt, jwtRealm)).getMessage());
+//		}
 	}
 
 }

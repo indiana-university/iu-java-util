@@ -98,7 +98,7 @@ public class PrincipalVerifierRegistryTest {
 		}
 
 		@Override
-		public void verify(TestId id, String realm) {
+		public void verify(TestId id) {
 			assertEquals(realm, id.realm);
 		}
 

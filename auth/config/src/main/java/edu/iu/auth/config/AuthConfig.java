@@ -56,6 +56,20 @@ public class AuthConfig {
 	}
 
 	/**
+	 * Finds configuration registered by interface.
+	 * 
+	 * @param <T>  configuration type
+	 * @param type type
+	 * @return {@link IuAuthConfig} by type
+	 */
+	public static synchronized <T extends IuAuthConfig> Iterable<T> get(Class<T> type) {
+		if (sealed)
+			return () -> CONFIG.values().stream().filter(a -> type.isInstance(a)).map(a -> type.cast(a)).iterator();
+		else
+			throw new IllegalStateException("not sealed");
+	}
+
+	/**
 	 * Seals the authentication and authorization configuration.
 	 * 
 	 * <p>

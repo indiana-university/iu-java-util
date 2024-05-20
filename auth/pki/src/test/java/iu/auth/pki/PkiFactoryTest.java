@@ -51,20 +51,18 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.security.cert.CRL;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathValidatorException;
-import java.security.cert.CertStore;
 import java.security.cert.CertificateExpiredException;
 import java.security.cert.CertificateFactory;
-import java.security.cert.CollectionCertStoreParameters;
-import java.security.cert.PKIXParameters;
-import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.logging.Level;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
@@ -73,6 +71,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import edu.iu.IuException;
+import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.AuthConfig;
 import edu.iu.auth.config.IuAuthConfig;
@@ -81,6 +80,7 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Operation;
 import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebKey.Use;
+import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
 public class PkiFactoryTest {
@@ -322,7 +322,7 @@ public class PkiFactoryTest {
 			sealed = true;
 			return null;
 		});
-		mockAuthConfig.when(() -> AuthConfig.get(any())).thenAnswer(a -> {
+		mockAuthConfig.when(() -> AuthConfig.get(any(String.class))).thenAnswer(a -> {
 			assertTrue(sealed);
 			return Objects.requireNonNull(configs.get(a.getArguments()[0]));
 		});
@@ -344,15 +344,19 @@ public class PkiFactoryTest {
 
 	@Test
 	public void testSelfSignedEE() throws Exception {
-		final var pki = PkiFactory.from(WebKey.builder(Type.ED448).pem(SELF_SIGNED_PK + SELF_SIGNED_EE).build());
-		final var verifier = PkiFactory.trust(pki);
+		final var id = WebKey.pem(SELF_SIGNED_PK + SELF_SIGNED_EE);
+		final var pki = PkiFactory.from(id);
+		final var verifier = PkiFactory.trust(id);
 		assertNull(verifier.getAuthScheme());
 		assertNull(verifier.getAuthenticationEndpoint());
 		assertSame(PkiPrincipal.class, verifier.getType());
+		assertNotNull(verifier.getIdentity());
 		AuthConfig.register(verifier);
 		AuthConfig.seal();
 
-		IuPrincipalIdentity.verify(pki, pki.getName());
+		IuTestLogger.expect("iu.auth.pki.PkiVerifier", Level.INFO,
+				"pki:auth:urn:example:iu-java-auth-pki#PkiSpiTest; trustAnchor: CN=urn:example:iu-java-auth-pki\\#PkiSpiTest,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US");
+		assertTrue(IuPrincipalIdentity.verify(pki, pki.getName()));
 
 		final var sub = pki.getSubject();
 		assertEquals(Set.of(pki), sub.getPrincipals());
@@ -361,24 +365,26 @@ public class PkiFactoryTest {
 		assertEquals(1, pub.size());
 		final var wellKnown = (WebKey) pub.iterator().next();
 		final var publicId = PkiFactory.from(wellKnown);
-		assertEquals("missing private key",
-				assertThrows(IllegalArgumentException.class, () -> IuPrincipalIdentity.verify(publicId, pki.getName()))
-						.getMessage());
+
+		// must have private key to verify as authoritative
+		assertThrows(IllegalArgumentException.class, () -> IuPrincipalIdentity.verify(publicId, pki.getName()));
 
 		final var cert = wellKnown.getCertificateChain()[0];
 		assertEquals(pki.getName(), X500Utils.getCommonName(cert.getSubjectX500Principal()));
-
 		assertNotNull(sub.getPrivateCredentials(WebKey.class).iterator().next().getPrivateKey());
 		assertSerializable(pki);
 	}
 
 	@Test
 	public void testSelfSignedEECertOnly() throws Exception {
-		final var pki = PkiFactory.from(WebKey.builder(Type.ED448).pem(SELF_SIGNED_EE).build());
-		final var verifier = PkiFactory.trust(pki);
+		final var id = WebKey.pem(SELF_SIGNED_EE);
+		final var pki = PkiFactory.from(id);
+		final var verifier = PkiFactory.trust(id);
 		AuthConfig.register(verifier);
 		AuthConfig.seal();
 
+		IuTestLogger.expect("iu.auth.pki.PkiVerifier", Level.INFO,
+				"pki:verify:urn:example:iu-java-auth-pki#PkiSpiTest; trustAnchor: CN=urn:example:iu-java-auth-pki\\#PkiSpiTest,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US");
 		assertFalse(IuPrincipalIdentity.verify(pki, pki.getName()));
 
 		final var sub = pki.getSubject();
@@ -388,6 +394,9 @@ public class PkiFactoryTest {
 		assertEquals(1, pub.size());
 		final var wellKnown = (WebKey) pub.iterator().next();
 		final var publicId = PkiFactory.from(wellKnown);
+		
+		IuTestLogger.expect("iu.auth.pki.PkiVerifier", Level.INFO,
+				"pki:verify:urn:example:iu-java-auth-pki#PkiSpiTest; trustAnchor: CN=urn:example:iu-java-auth-pki\\#PkiSpiTest,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US");
 		IuPrincipalIdentity.verify(publicId, pki.getName());
 
 		final var cert = wellKnown.getCertificateChain()[0];
@@ -399,43 +408,48 @@ public class PkiFactoryTest {
 
 	@Test
 	public void testSelfSignedEEForEncrypt() throws Exception {
-		assertThrows(IllegalArgumentException.class,
-				() -> PkiFactory.from(WebKey.builder(Type.ED448).pem(SELF_SIGNED_PK + DATAENC_EE).build()));
-		assertThrows(IllegalArgumentException.class,
-				() -> PkiFactory.from(WebKey.builder(Type.ED448).pem(DATAENC_EE).build()));
+		assertThrows(NullPointerException.class, () -> PkiFactory.from(WebKey.pem(SELF_SIGNED_PK + DATAENC_EE)));
+		assertThrows(NullPointerException.class, () -> PkiFactory.from(WebKey.pem(DATAENC_EE)));
 
-		final var pki = PkiFactory.from(WebKey.builder(Type.ED448).pem(SELF_SIGNED_PK + KEYENC_EE).build());
-		AuthConfig.register(PkiFactory.trust(pki));
+		final var id = WebKey.pem(SELF_SIGNED_PK + KEYENC_EE);
+		final var pki = PkiFactory.from(id);
+		AuthConfig.register(PkiFactory.trust(id));
 		AuthConfig.seal();
 
+		IuTestLogger.expect("iu.auth.pki.PkiVerifier", Level.INFO,
+				"pki:auth:urn:example:iu-java-auth-pki#keyEncrypt; trustAnchor: CN=urn:example:iu-java-auth-pki\\#keyEncrypt,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US");
 		IuPrincipalIdentity.verify(pki, pki.getName());
 		final var key = pki.getSubject().getPrivateCredentials(WebKey.class).iterator().next();
-		assertEquals(Use.ENCRYPT, key.getUse());
+		assertNull(key.getUse());
 		assertEquals(Set.of(Operation.WRAP, Operation.UNWRAP), key.getOps());
 
-		final var pubkey = PkiFactory.from(WebKey.builder(Type.ED448).pem(KEYENC_EE).build()).getSubject()
-				.getPublicCredentials(WebKey.class).iterator().next();
-		assertEquals(Use.ENCRYPT, pubkey.getUse());
+		final var pubkey = PkiFactory.from(WebKey.pem(KEYENC_EE)).getSubject().getPublicCredentials(WebKey.class)
+				.iterator().next();
+		assertNull(pubkey.getUse());
 		assertEquals(Set.of(Operation.WRAP), pubkey.getOps());
 	}
 
 	@Test
 	public void testSelfSignedEEForKeyAgreement() throws Exception {
-		final var pki = PkiFactory.from(WebKey.builder(Type.ED448).pem(SELF_SIGNED_PK + KEYAGREE_EE).build());
-		AuthConfig.register(PkiFactory.trust(pki));
+		final var id = WebKey.pem(SELF_SIGNED_PK + KEYAGREE_EE);
+		final var pki = PkiFactory.from(id);
+		AuthConfig.register(PkiFactory.trust(id));
 		AuthConfig.seal();
 
+		IuTestLogger.expect("iu.auth.pki.PkiVerifier", Level.INFO,
+				"pki:auth:urn:example:iu-java-auth-pki#keyAgreement; trustAnchor: CN=urn:example:iu-java-auth-pki\\#keyAgreement,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US");
 		IuPrincipalIdentity.verify(pki, pki.getName());
 		final var key = pki.getSubject().getPrivateCredentials(WebKey.class).iterator().next();
-		assertEquals(Use.ENCRYPT, key.getUse());
+		assertNull(key.getUse());
 		assertEquals(Set.of(Operation.DERIVE_KEY), key.getOps());
 		PkiFactory.from(key.wellKnown()); // from full params
 	}
 
 	@Test
 	public void testExpiredEE() throws Exception {
-		final var pki = PkiFactory.from(WebKey.builder(Type.ED448).pem(SELF_SIGNED_PK + EXPIRED_EE).build());
-		AuthConfig.register(PkiFactory.trust(pki));
+		final var id = WebKey.builder(Type.ED448).pem(SELF_SIGNED_PK + EXPIRED_EE).build();
+		final var pki = PkiFactory.from(id);
+		AuthConfig.register(PkiFactory.trust(id));
 		AuthConfig.seal();
 
 		assertInstanceOf(CertificateExpiredException.class,
@@ -448,10 +462,13 @@ public class PkiFactoryTest {
 
 	@Test
 	public void testNoFragmentEE() throws Exception {
-		final var pki = PkiFactory.from(WebKey.builder(Type.ED448).pem(SELF_SIGNED_PK + NOFRAGMENT_EE).build());
-		AuthConfig.register(PkiFactory.trust(pki));
+		final var id = WebKey.pem(SELF_SIGNED_PK + NOFRAGMENT_EE);
+		final var pki = PkiFactory.from(id);
+		AuthConfig.register(PkiFactory.trust(id));
 		AuthConfig.seal();
 
+		IuTestLogger.expect("iu.auth.pki.PkiVerifier", Level.INFO,
+				"pki:auth:urn:example:iu-java-auth-pki-notag; trustAnchor: CN=urn:example:iu-java-auth-pki-notag,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US");
 		IuPrincipalIdentity.verify(pki, pki.getName());
 
 		final var sub = pki.getSubject();
@@ -460,14 +477,14 @@ public class PkiFactoryTest {
 		final var pub = sub.getPublicCredentials();
 		assertEquals(1, pub.size());
 		final var wellKnown = (WebKey) pub.iterator().next();
-		assertEquals(pki.getName(), wellKnown.getKeyId());
+		assertEquals("verify", wellKnown.getKeyId());
 	}
 
 	@Test
 	public void testPublicCA() throws Exception {
 		final CertPath iuEdu;
 		final X509Certificate inCommon;
-		final CertStore crl;
+		final CRL[] crl;
 		try {
 			final var http = HttpClient.newHttpClient();
 			final var resp = http.send(HttpRequest.newBuilder(URI.create("https://www.iu.edu/index.html"))
@@ -479,32 +496,26 @@ public class PkiFactoryTest {
 					HttpRequest.newBuilder(URI.create("http://crt.usertrust.com/USERTrustRSAAddTrustCA.crt")).build(),
 					BodyHandlers.ofInputStream()).body());
 
-			crl = CertStore.getInstance("Collection", new CollectionCertStoreParameters(Set.of(
+			crl = new CRL[] {
 					x509.generateCRL(http.send(HttpRequest
 							.newBuilder(URI.create("http://crl.incommon-rsa.org/InCommonRSAServerCA.crl")).build(),
 							BodyHandlers.ofInputStream()).body()),
 					x509.generateCRL(http.send(HttpRequest
 							.newBuilder(URI.create("http://crl.usertrust.com/USERTrustRSACertificationAuthority.crl"))
-							.build(), BodyHandlers.ofInputStream()).body()))));
+							.build(), BodyHandlers.ofInputStream()).body()) };
 		} catch (Throwable e) {
 			e.printStackTrace();
 			Assumptions.abort("unable to read public key data for verifying iu.edu " + e);
 			return;
 		}
 
-		final var anchor = new TrustAnchor(inCommon, null);
-		final var pkix = new PKIXParameters(Set.of(anchor));
-		pkix.addCertStore(crl);
-		final var verifier = PkiFactory.trust(null, pkix);
-		assertThrows(IllegalArgumentException.class,
-				() -> PkiFactory.trust(PemEncoded.parse(SELF_SIGNED_PK).next().asPrivate("ED448"), pkix));
-		AuthConfig.register(verifier);
+		AuthConfig.register(PkiFactory.trust(WebKey.builder(inCommon.getPublicKey()).cert(inCommon).build(), crl));
 		AuthConfig.seal();
 
 		final var iuEduPem = new StringBuilder();
 		PemEncoded.serialize(iuEdu.getCertificates().toArray(X509Certificate[]::new))
 				.forEachRemaining(iuEduPem::append);
-		final var iuEduId = PkiFactory.from(WebKey.builder(Type.RSA).pem(iuEduPem.toString()).build());
+		final var iuEduId = PkiFactory.from(WebKey.pem(iuEduPem.toString()));
 		assertEquals("iu.edu", iuEduId.getName());
 
 		IuPrincipalIdentity.verify(iuEduId, "USERTrust RSA Certification Authority");
@@ -519,24 +530,83 @@ public class PkiFactoryTest {
 
 	@Test
 	public void testPrivateCA() throws Exception {
+		final var caRoot = WebKey.pem(CA_ROOT);
 		assertEquals("ID certificate must be an end-entity",
-				assertThrows(IllegalArgumentException.class,
-						() -> PkiFactory.from(WebKey.builder(Type.ED448).pem(SELF_SIGNED_PK + CA_ROOT).build()))
-						.getMessage());
+				assertThrows(IllegalArgumentException.class, () -> PkiFactory.from(caRoot)).getMessage());
 
-		final var pki = PkiFactory.from(WebKey.builder(Type.ED448).pem(SELF_SIGNED_PK + CA_SIGNED).build());
-		final var caCert = PemEncoded.parse(CA_ROOT).next().asCertificate();
-		final var anchor = new TrustAnchor(caCert, null);
-		final var pkix = new PKIXParameters(Set.of(anchor));
-		pkix.addCertStore(CertStore.getInstance("Collection",
-				new CollectionCertStoreParameters(Set.of(PemEncoded.parse(CA_ROOT_CRL).next().asCRL()))));
-
-		final var verifier = PkiFactory.trust(null, pkix);
+		final var verifier = PkiFactory.trust(caRoot, PemEncoded.parse(CA_ROOT_CRL).next().asCRL());
 		AuthConfig.register(verifier);
 		AuthConfig.seal();
 
+		final var id = WebKey.pem(SELF_SIGNED_PK + CA_SIGNED);
+		final var pki = PkiFactory.from(id);
 		assertSerializable(pki);
-		IuPrincipalIdentity.verify(pki, X500Utils.getCommonName(caCert.getSubjectX500Principal()));
+
+		IuTestLogger.expect("iu.auth.pki.PkiVerifier", Level.INFO,
+				"pki:verify:urn:example:iu-java-auth-pki#PkiSpiTest_EE; trustAnchor: CN=urn:example:iu-java-auth-pki\\#PkiSpiTest_CA,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US");
+
+		IuPrincipalIdentity.verify(pki,
+				X500Utils.getCommonName(caRoot.getCertificateChain()[0].getSubjectX500Principal()));
+	}
+
+	private static final String PK2 = "-----BEGIN PRIVATE KEY-----\n" //
+			+ "MC4CAQAwBQYDK2VwBCIEIKDugq7tgDXBWvu24W0Flikh7URBRwFpjKmsq3+Qhv07\n" //
+			+ "-----END PRIVATE KEY-----\n";
+
+	private static final String PK2_CERT = "-----BEGIN CERTIFICATE-----\n" //
+			+ "MIICIzCCAdWgAwIBAgIUXFUgBaS/LWo1dyWhIosURCkGYo4wBQYDK2VwMIGAMQsw\n"
+			+ "CQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0\n"
+			+ "b24xGzAZBgNVBAoMEkluZGlhbmEgVW5pdmVyc2l0eTEPMA0GA1UECwwGU1RBUkNI\n"
+			+ "MRswGQYDVQQDDBJQa2lGYWN0b3J5VGVzdCNwazIwIBcNMjQwNTE3MjM0MjI2WhgP\n"
+			+ "MjEyNDA1MTgyMzQyMjZaMIGAMQswCQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFu\n"
+			+ "YTEUMBIGA1UEBwwLQmxvb21pbmd0b24xGzAZBgNVBAoMEkluZGlhbmEgVW5pdmVy\n"
+			+ "c2l0eTEPMA0GA1UECwwGU1RBUkNIMRswGQYDVQQDDBJQa2lGYWN0b3J5VGVzdCNw\n"
+			+ "azIwKjAFBgMrZXADIQC4mwCSvPxK+vYOWLvNGRzMPnNgiNigJcH8n9VLCPHnhaNd\n"
+			+ "MFswHQYDVR0OBBYEFHjhN0OongfMsuWHyahJ+hnKL3zpMB8GA1UdIwQYMBaAFHjh\n"
+			+ "N0OongfMsuWHyahJ+hnKL3zpMAwGA1UdEwQFMAMCAf8wCwYDVR0PBAQDAgEGMAUG\n"
+			+ "AytlcANBANwdh+Vz5664X7YCUrLYf0XdKoMNliKQ4BHsFclKOujMKlYsWdgrSKjB\n"
+			+ "NwZduVMNjT7aGsDrYocJJc+ATzRsHQU=\n" //
+			+ "-----END CERTIFICATE-----\n";
+
+	private static final String PK3 = "-----BEGIN PRIVATE KEY-----\n" //
+			+ "MC4CAQAwBQYDK2VwBCIEIClnfQHZGjmICLWmZx6kEeazRnOuO8DLTOWLDSPCX/v+\n" //
+			+ "-----END PRIVATE KEY-----\n";
+
+	private static final String PK3_CERT = "-----BEGIN CERTIFICATE-----\n" //
+			+ "MIICIzCCAdWgAwIBAgIULGJHtoFDBItb5Ci9TBj9TT/ZV3AwBQYDK2VwMIGAMQsw\n"
+			+ "CQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0\n"
+			+ "b24xGzAZBgNVBAoMEkluZGlhbmEgVW5pdmVyc2l0eTEPMA0GA1UECwwGU1RBUkNI\n"
+			+ "MRswGQYDVQQDDBJQa2lGYWN0b3J5VGVzdCNwazIwIBcNMjQwNTE3MjM0OTU3WhgP\n"
+			+ "MjEyNDA1MTgyMzQ5NTdaMIGAMQswCQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFu\n"
+			+ "YTEUMBIGA1UEBwwLQmxvb21pbmd0b24xGzAZBgNVBAoMEkluZGlhbmEgVW5pdmVy\n"
+			+ "c2l0eTEPMA0GA1UECwwGU1RBUkNIMRswGQYDVQQDDBJQa2lGYWN0b3J5VGVzdCNw\n"
+			+ "azIwKjAFBgMrZXADIQCOewWrIjwt6urqjpzwsHESUieYAVEtFP7hfscNEei+gaNd\n"
+			+ "MFswHQYDVR0OBBYEFK8BIOvGpWr7758g4xUgrboy0ocaMB8GA1UdIwQYMBaAFK8B\n"
+			+ "IOvGpWr7758g4xUgrboy0ocaMAwGA1UdEwQFMAMCAf8wCwYDVR0PBAQDAgEGMAUG\n"
+			+ "AytlcANBAM4sIMHRi6S+mcqxEHM5uCaRjini+cOGAwTKKRhTq4zbv3RMz6tItLgq\n"
+			+ "sy0UXhHVpR/ZVMT9w3ORm8vfbCmWewk=\n" //
+			+ "-----END CERTIFICATE-----\n";
+
+	@Test
+	public void testPrivateKeyRealmMismatch() throws IuAuthenticationException {
+		final var id = WebKey.builder(Type.ED448).pem(SELF_SIGNED_PK + SELF_SIGNED_EE).build();
+		final var pki = PkiFactory.from(id);
+		AuthConfig.register(PkiFactory.trust(id));
+		AuthConfig.seal();
+
+		final var pk2 = PkiFactory.from(WebKey.builder(Type.ED25519).pem(PK2 + PK2_CERT).build());
+		assertThrows(IllegalArgumentException.class, () -> IuPrincipalIdentity.verify(pk2, pki.getName()));
+	}
+
+	@Test
+	public void testPrivateKeyMismatch() throws IuAuthenticationException {
+		final var id = WebKey.builder(Type.ED25519).pem(PK2 + PK2_CERT).build();
+		final var pki = PkiFactory.from(id);
+		AuthConfig.register(PkiFactory.trust(id));
+		AuthConfig.seal();
+
+		final var pk2 = PkiFactory.from(WebKey.builder(Type.ED25519).pem(PK3 + PK3_CERT).build());
+		assertThrows(IllegalArgumentException.class, () -> IuPrincipalIdentity.verify(pk2, pki.getName()));
 	}
 
 	private void assertSerializable(IuPrincipalIdentity pki) {

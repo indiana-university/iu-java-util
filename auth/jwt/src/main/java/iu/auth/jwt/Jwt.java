@@ -34,6 +34,7 @@ package iu.auth.jwt;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Map;
 import java.util.Set;
 
@@ -43,6 +44,8 @@ import edu.iu.IuException;
 import edu.iu.IuText;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.config.AuthConfig;
+import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
 import edu.iu.auth.jwt.IuWebToken;
 import edu.iu.auth.oauth.IuBearerToken;
 import edu.iu.client.IuJson;
@@ -50,6 +53,8 @@ import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebSignature;
 import edu.iu.crypt.WebSignedPayload;
+import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Use;
 import jakarta.json.JsonNumber;
 import jakarta.json.JsonObject;
 
@@ -78,6 +83,45 @@ final class Jwt implements IuWebToken {
 	 */
 	static final IuJsonAdapter<Instant> NUMERIC_DATE = IuJsonAdapter
 			.from(v -> Instant.ofEpochSecond(((JsonNumber) v).longValue()), i -> IuJson.number(i.getEpochSecond()));
+
+	/**
+	 * Parses the JWT header from serialized form.
+	 * 
+	 * @param jwt serialized JWT
+	 * @return {@link JsonObject} parsed header
+	 */
+	static JsonObject getHeader(String jwt) {
+		// 1. Verify that the JWT contains at least one period ('.') character.
+		var dot = jwt.indexOf('.');
+		if (dot == -1)
+			throw new IllegalArgumentException("Invalid JWT");
+
+		// 2. Let the Encoded JOSE Header be the portion of the JWT before the first
+		// period ('.') character.
+		//
+		// 3. Base64url decode the Encoded JOSE Header following the restriction that no
+		// line breaks, whitespace, or other additional characters have been used.
+		//
+		// 4. Verify that the resulting octet sequence is a UTF-8-encoded representation
+		// of a completely valid JSON object conforming to RFC 7159 [RFC7159]; let the
+		// JOSE Header be this JSON object.
+		return IuJson.parse(IuText.utf8(Base64.getUrlDecoder().decode(jwt.substring(0, dot)))).asJsonObject();
+	}
+
+	/**
+	 * Determines whether or not a JWT is encrypted by inspecting its header.
+	 * 
+	 * @param jose JWT header
+	 * @return true if encrypted; else false
+	 */
+	static boolean isEncrypted(JsonObject jose) {
+		// 6. Determine whether the JWT is a JWS or a JWE using any of the methods
+		// described in Section 9 of [JWE]: The JOSE Header for a JWS can be
+		// distinguished from the JOSE Header for a JWE by examining the "alg"
+		// (algorithm) Header Parameter value.
+		final var alg = Algorithm.from(jose.getString("alg"));
+		return alg.use.equals(Use.ENCRYPT);
+	}
 
 	private final String realm;
 	private final String token;
@@ -216,14 +260,14 @@ final class Jwt implements IuWebToken {
 	}
 
 	private void materialize() {
-		final var jose = JwtSpi.getHeader(token);
+		final var jose = getHeader(token);
 		final WebSignedPayload jws;
-		if (JwtSpi.isEncrypted(jose)) {
-			final var audience = JwtSpi.getAudience(realm);
+		if (isEncrypted(jose)) {
+			final IuPublicKeyPrincipalConfig pkp = AuthConfig.get(realm);
+			final var audience = pkp.getIdentity();
 			IuException.unchecked(() -> IuPrincipalIdentity.verify(audience, realm));
 			jws = WebSignedPayload.parse(WebEncryption.parse(token) //
-					.decryptText(JwtSpi.getDecryptKey( //
-							audience)));
+					.decryptText(JwtSpi.getDecryptKey(audience)));
 		} else
 			jws = WebSignedPayload.parse(token);
 
@@ -233,7 +277,9 @@ final class Jwt implements IuWebToken {
 			throw new IllegalArgumentException();
 		payload = jws.getPayload();
 		claims = IuJson.parse(IuText.utf8(payload)).asJsonObject();
-		jws.verify(JwtSpi.getVerifyKey(JwtSpi.getIssuer(getIssuer())));
+
+		final IuPublicKeyPrincipalConfig pkp = AuthConfig.get(getIssuer());
+		jws.verify(JwtSpi.getVerifyKey(pkp.getIdentity()));
 
 		this.signature = signature;
 	}

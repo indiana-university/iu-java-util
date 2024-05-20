@@ -31,16 +31,7 @@
  */
 package iu.auth.jwt;
 
-import java.net.URI;
-import java.security.interfaces.ECPrivateKey;
-import java.security.interfaces.ECPublicKey;
-import java.security.interfaces.RSAPrivateKey;
-import java.security.interfaces.RSAPublicKey;
-import java.security.interfaces.XECPublicKey;
-import java.time.Instant;
 import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -49,9 +40,9 @@ import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.jwt.IuWebKey;
+import edu.iu.auth.config.AuthConfig;
+import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
 import edu.iu.auth.jwt.IuWebToken;
-import edu.iu.auth.jwt.IuWebToken.Builder;
 import edu.iu.auth.spi.IuJwtSpi;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
@@ -61,8 +52,6 @@ import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Operation;
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.WebSignedPayload;
-import iu.auth.IuAuthSpiFactory;
-import iu.auth.principal.PrincipalVerifierRegistry;
 import jakarta.json.JsonObject;
 
 /**
@@ -73,9 +62,9 @@ public class JwtSpi implements IuJwtSpi {
 		IuObject.assertNotOpen(JwtSpi.class);
 	}
 
-	private final static Map<String, IuPrincipalIdentity> ISSUER = new HashMap<>();
-	private final static Map<String, JwtVerifier> AUDIENCE = new HashMap<>();
-	private static volatile boolean sealed;
+//	private final static Map<String, IuPrincipalIdentity> ISSUER = new HashMap<>();
+//	private final static Map<String, JwtVerifier> AUDIENCE = new HashMap<>();
+//	private static volatile boolean sealed;
 
 	/**
 	 * Determines if a JWK may be used to sign a JWT.
@@ -193,340 +182,154 @@ public class JwtSpi implements IuJwtSpi {
 				.findFirst().orElse(null);
 	}
 
-	/**
-	 * Gets an issuer's principal identity by common name.
-	 * 
-	 * @param iss common name
-	 * @return verified issuer principal
-	 */
-	static IuPrincipalIdentity getIssuer(String iss) {
-		return Objects.requireNonNull(ISSUER.get(iss), "issuer not registered");
-	}
-
-	/**
-	 * Gets an audience's principal identity by realm.
-	 * 
-	 * @param aud audience realm
-	 * @return verified issuer principal
-	 */
-	static IuPrincipalIdentity getAudience(String aud) {
-		return Objects.requireNonNull(AUDIENCE.get(aud), "audience not registered").audience();
-	}
-
-	/**
-	 * Parses the JWT header from serialized form.
-	 * 
-	 * @param jwt serialized JWT
-	 * @return {@link JsonObject} parsed header
-	 */
-	static JsonObject getHeader(String jwt) {
-		// 1. Verify that the JWT contains at least one period ('.') character.
-		var dot = jwt.indexOf('.');
-		if (dot == -1)
-			throw new IllegalArgumentException("Invalid JWT");
-
-		// 2. Let the Encoded JOSE Header be the portion of the JWT before the first
-		// period ('.') character.
-		//
-		// 3. Base64url decode the Encoded JOSE Header following the restriction that no
-		// line breaks, whitespace, or other additional characters have been used.
-		//
-		// 4. Verify that the resulting octet sequence is a UTF-8-encoded representation
-		// of a completely valid JSON object conforming to RFC 7159 [RFC7159]; let the
-		// JOSE Header be this JSON object.
-		return IuJson.parse(IuText.utf8(Base64.getUrlDecoder().decode(jwt.substring(0, dot)))).asJsonObject();
-	}
-
-	/**
-	 * Determines whether or not a JWT is encrypted by inspecting its header.
-	 * 
-	 * @param jose JWT header
-	 * @return true if encrypted; else false
-	 */
-	static boolean isEncrypted(JsonObject jose) {
-		// 6. Determine whether the JWT is a JWS or a JWE using any of the methods
-		// described in Section 9 of [JWE]: The JOSE Header for a JWS can be
-		// distinguished from the JOSE Header for a JWE by examining the "alg"
-		// (algorithm) Header Parameter value.
-		final var alg = Algorithm.from(jose.getString("alg"));
-		return alg.use.equals(Use.ENCRYPT);
-	}
-
-	@Override
-	public synchronized void register(IuPrincipalIdentity issuer) {
-		final var name = Objects.requireNonNull(issuer.getName());
-		if (ISSUER.containsKey(name) || sealed)
-			throw new IllegalStateException("issuer already registered");
-
-		Objects.requireNonNull(getVerifyKey(issuer));
-
-		ISSUER.put(name, issuer);
-	}
-
-	@Override
-	public synchronized void register(String jwtRealm, IuPrincipalIdentity audience, String realm) {
-		if (AUDIENCE.containsKey(realm) || sealed)
-			throw new IllegalStateException("audience already registered");
-
-		if (audience instanceof IuWebKey) {
-			if (!realm.equals(audience.getName()))
-				throw new IllegalArgumentException("realm mismatch");
-
-			if (audience instanceof JwkPrincipal)
-				PrincipalVerifierRegistry.registerVerifier(new JwkPrincipalVerifier(realm));
-			else if (audience instanceof JwkSecret)
-				PrincipalVerifierRegistry.registerVerifier(new JwkSecretVerifier(realm));
-			else
-				throw new IllegalArgumentException("invalid key type");
-		}
-
-		final var verifier = new JwtVerifier(jwtRealm, audience, realm);
-		PrincipalVerifierRegistry.registerVerifier(verifier);
-
-		AUDIENCE.put(jwtRealm, verifier);
-	}
-	/**
-	 * Reads a public key from a well-known JSON Web Key Set (JWKS).
-	 * 
-	 * <p>
-	 * Public JWK principals are not authoritative, but are available for cases
-	 * where a trusted issuer provides a JWKS URI and key ID, but does not include a
-	 * valid PKI certificate in the key set.
-	 * </p>
-	 * 
-	 * @param jwksUri Public JWKS {@link URI}
-	 * @param keyId   Key identifier (kid JOSE parameter)
-	 * @return {@link IuWebKey}
-	 */
-	static IuWebKey from(URI jwksUri, String keyId) {
-		return IuAuthSpiFactory.get(IuJwtSpi.class).getWebKey(jwksUri, keyId);
-	}
-
-	/**
-	 * Creates a secret key principal.
-	 * 
-	 * @param name Unique principal name
-	 * @param key  Secret key data; <em>must</em> contain at least 128 bits (length
-	 *             16) of securely generated psuedo-random data appropriate for the
-	 *             encryption and/or signature algorithm.
-	 * @return {@link IuWebKey}
-	 */
-	static IuWebKey from(String name, byte[] key) {
-		return IuAuthSpiFactory.get(IuJwtSpi.class).getSecretKey(name, key);
-	}
-
-	/**
-	 * Registers a trusted JWT issuer.
-	 * 
-	 * <p>
-	 * If the issuer principal includes a private key matching its certificate, its
-	 * principal name <em>may</em> be used with {@link #issue(String)} to create new
-	 * JWTs.
-	 * </p>
-	 * 
-	 * @param issuer Issuer principal; <em>must</em> include a valid certificate
-	 *               with CN matching the principal name.
-	 */
-	static void register(IuPrincipalIdentity issuer) {
-		IuAuthSpiFactory.get(IuJwtSpi.class).register(issuer);
-	}
-
-	/**
-	 * Registers an JWT authentication realm.
-	 * 
-	 * <p>
-	 * If the audience principal includes a private key, {@link #from(String)} will
-	 * <em>require</em> the JWT to be encrypted to the audience as well as signed.
-	 * </p>
-	 * 
-	 * @param jwtRealm JWT authentication realm
-	 * @param audience Audience principal; <em>must</em> include a private key and
-	 *                 valid certificate with CN matching the principal name.
-	 * @param realm    Authentication realm for verifying the audience principal
-	 */
-	static void register(String jwtRealm, IuPrincipalIdentity audience, String realm) {
-		IuAuthSpiFactory.get(IuJwtSpi.class).register(jwtRealm, audience, realm);
-	}
-
-	/**
-	 * Seals the JWT verification registry.
-	 * 
-	 * <p>
-	 * Once this method has been invoked, further calls to register
-	 * {@link #register(IuPrincipalIdentity) issuer} or
-	 * {@link #register(String, IuPrincipalIdentity, String) audience} identifying
-	 * principals will be rejected.
-	 * </p>
-	 */
-	static void seal() {
-		IuAuthSpiFactory.get(IuJwtSpi.class).seal();
-	}
-
-	/**
-	 * Builder interface for issuing a JWT signed by an authoritative principal with
-	 * an applicable private key.
-	 */
-	interface Builder {
-
-		/**
-		 * Sets the subject.
-		 * 
-		 * @param sub   subject principal; <em>must</em> be
-		 *              {@link IuPrincipalIdentity#verify(IuPrincipalIdentity, String)
-		 *              verifiable as authoritative} for the authentication realm
-		 * @param realm authentication realm
-		 * @return this
-		 */
-		Builder subject(IuPrincipalIdentity sub, String realm);
-
-		/**
-		 * Sets the audience.
-		 * 
-		 * @param aud   audience principal; <em>must</em> be
-		 *              {@link IuPrincipalIdentity#verify(IuPrincipalIdentity, String)
-		 *              verifiable} for the authentication realm; <em>may</em>
-		 *              non-authoritative. If the
-		 *              {@link IuPrincipalIdentity#getSubject()} includes a public key
-		 *              designated with <strong>use</strong> = "enc", and/or
-		 *              <strong>key_op</strong> including "wrapKey" or "deriveKey" and
-		 *              only one audience is provided to the builder, the JWT will be
-		 *              encrypted.
-		 * @param realm authentication realm
-		 * @return this
-		 * @see #encrypt(String, String)
-		 */
-		Builder audience(IuPrincipalIdentity aud, String realm);
-
-		/**
-		 * Sets the time before which the JWT should not be accepted.
-		 * 
-		 * @param nbf not before time
-		 * @return this
-		 */
-		Builder notBefore(Instant nbf);
-
-		/**
-		 * Sets the time after which the JWT should not be accepted.
-		 * 
-		 * @param exp not before time
-		 * @return this
-		 */
-		Builder expires(Instant exp);
-
-		/**
-		 * Sets an extended claim value.
-		 * 
-		 * <p>
-		 * <a href="https://datatracker.ietf.org/doc/html/rfc7519#section-4.1">RFC-7519
-		 * JWT Registered Claims</a> are not included. Public claim names registered
-		 * with IANA <em>should</em> be used in accordance with linked specifications.
-		 * </p>
-		 * 
-		 * @param name  claim name
-		 * @param value claim value
-		 * @return this
-		 * @see <a href="https://www.iana.org/assignments/jwt/jwt.xhtml">IANA JWT
-		 *      Assignments</a>
-		 */
-		Builder claim(String name, Object value);
-
-		/**
-		 * Requires a single {@link #audience(IuPrincipalIdentity, String) audience}
-		 * principal that includes a public key, and sets content encryption algorithm
-		 * to use for encryption.
-		 * 
-		 * <p>
-		 * Algorithm parameters <em>must</em> be valid registered JOSE header values. If
-		 * not specified, but the JWT is for a single audience principal that includes a
-		 * public key, key encryption will be based on key type. Default content
-		 * encryption algorithm is A128CBC-HS256.
-		 * </p>
-		 * 
-		 * <dl>
-		 * <dt>{@link RSAPublicKey}</dt>
-		 * <dd>RSA-OAEP</dd>
-		 * <dt>{@link ECPublicKey} or {@link XECPublicKey}</dt>
-		 * <dd>ECDH-ES</dd>
-		 * </dl>
-		 * 
-		 * @param alg key encryption algorithm
-		 * @param enc content encryption algorithm
-		 * 
-		 * @return this
-		 * @see <a href=
-		 *      "https://www.iana.org/assignments/jose/jose.xhtml#web-signature-encryption-algorithms">IANA
-		 *      JOSE Registry</a>
-		 */
-		Builder encrypt(String alg, String enc);
-
-		/**
-		 * Signs, <em>optionally</em> encrypts, and issues the JWT using the default
-		 * signature algorithm by issuer key type.
-		 * 
-		 * <dl>
-		 * <dt>{@link RSAPrivateKey} with {@link RSAPrivateKey#getAlgorithm()} of
-		 * "RSA"</dt>
-		 * <dd>RS256</dd>
-		 * <dt>{@link RSAPrivateKey} with {@link RSAPrivateKey#getAlgorithm()} of
-		 * "RSASSA-PSS"</dt>
-		 * <dd>PS256</dd>
-		 * <dt>{@link ECPrivateKey}</dt>
-		 * <dd>ES256</dd>
-		 * <dt>EdECPrivateKey (JDK 15 or higher)</dt>
-		 * <dd>EdDSA</dd>
-		 * </dl>
-		 * 
-		 * @return {@link IuWebToken}
-		 */
-		IuWebToken sign();
-
-		/**
-		 * Signs, <em>optionally</em> encrypts, and issues the JWT.
-		 * 
-		 * @param alg Signature algorithm
-		 * @return {@link IuWebToken}
-		 */
-		IuWebToken sign(String alg);
-	}
-
-	/**
-	 * Issues a new JWT.
-	 * 
-	 * @param issuer Issuer principal name; <em>must</em> have be
-	 *               {@link #register(IuPrincipalIdentity) registered} with a
-	 *               private key and valid certificate.
-	 * @return {@link Builder}
-	 */
-	static Builder issue(String issuer) {
-		return IuAuthSpiFactory.get(IuJwtSpi.class).issue(issuer);
-	}
-
-
-	@Override
-	public synchronized void seal() {
-		sealed = true;
-	}
-
-	@Override
-	public IuWebKey getWebKey(URI jwksUri, String keyId) {
-		return new JwkPrincipal(jwksUri, keyId);
-	}
-
-	@Override
-	public IuWebKey getSecretKey(String name, byte[] key) {
-		return new JwkSecret(name, key);
-	}
-
-	@Override
-	public Builder issue(String iss) {
-		if (!sealed)
-			throw new IllegalStateException("Not sealed");
-
-		final var issuer = Objects.requireNonNull(ISSUER.get(iss));
-
-		return new JwtBuilder(issuer, Objects.requireNonNull(getSigningKey(issuer)));
-	}
-
+//	@Override
+//	public synchronized void register(IuPrincipalIdentity issuer) {
+//		final var name = Objects.requireNonNull(issuer.getName());
+//		if (ISSUER.containsKey(name) || sealed)
+//			throw new IllegalStateException("issuer already registered");
+//
+//		Objects.requireNonNull(getVerifyKey(issuer));
+//
+//		ISSUER.put(name, issuer);
+//	}
+//
+//	@Override
+//	public synchronized void register(String jwtRealm, IuPrincipalIdentity audience, String realm) {
+//		if (AUDIENCE.containsKey(realm) || sealed)
+//			throw new IllegalStateException("audience already registered");
+//
+//		if (audience instanceof IuWebKey) {
+//			if (!realm.equals(audience.getName()))
+//				throw new IllegalArgumentException("realm mismatch");
+//
+//			if (audience instanceof JwkPrincipal)
+//				PrincipalVerifierRegistry.registerVerifier(new JwkPrincipalVerifier(realm));
+//			else if (audience instanceof JwkSecret)
+//				PrincipalVerifierRegistry.registerVerifier(new JwkSecretVerifier(realm));
+//			else
+//				throw new IllegalArgumentException("invalid key type");
+//		}
+//
+//		final var verifier = new JwtVerifier(jwtRealm, audience, realm);
+//		PrincipalVerifierRegistry.registerVerifier(verifier);
+//
+//		AUDIENCE.put(jwtRealm, verifier);
+//	}
+//
+//	/**
+//	 * Reads a public key from a well-known JSON Web Key Set (JWKS).
+//	 * 
+//	 * <p>
+//	 * Public JWK principals are not authoritative, but are available for cases
+//	 * where a trusted issuer provides a JWKS URI and key ID, but does not include a
+//	 * valid PKI certificate in the key set.
+//	 * </p>
+//	 * 
+//	 * @param jwksUri Public JWKS {@link URI}
+//	 * @param keyId   Key identifier (kid JOSE parameter)
+//	 * @return {@link IuWebKey}
+//	 */
+//	static IuWebKey from(URI jwksUri, String keyId) {
+//		return IuAuthSpiFactory.get(IuJwtSpi.class).getWebKey(jwksUri, keyId);
+//	}
+//
+//	/**
+//	 * Creates a secret key principal.
+//	 * 
+//	 * @param name Unique principal name
+//	 * @param key  Secret key data; <em>must</em> contain at least 128 bits (length
+//	 *             16) of securely generated psuedo-random data appropriate for the
+//	 *             encryption and/or signature algorithm.
+//	 * @return {@link IuWebKey}
+//	 */
+//	static IuWebKey from(String name, byte[] key) {
+//		return IuAuthSpiFactory.get(IuJwtSpi.class).getSecretKey(name, key);
+//	}
+//
+//	/**
+//	 * Registers a trusted JWT issuer.
+//	 * 
+//	 * <p>
+//	 * If the issuer principal includes a private key matching its certificate, its
+//	 * principal name <em>may</em> be used with {@link #issue(String)} to create new
+//	 * JWTs.
+//	 * </p>
+//	 * 
+//	 * @param issuer Issuer principal; <em>must</em> include a valid certificate
+//	 *               with CN matching the principal name.
+//	 */
+//	static void register(IuPrincipalIdentity issuer) {
+//		IuAuthSpiFactory.get(IuJwtSpi.class).register(issuer);
+//	}
+//
+//	/**
+//	 * Registers an JWT authentication realm.
+//	 * 
+//	 * <p>
+//	 * If the audience principal includes a private key, {@link #from(String)} will
+//	 * <em>require</em> the JWT to be encrypted to the audience as well as signed.
+//	 * </p>
+//	 * 
+//	 * @param jwtRealm JWT authentication realm
+//	 * @param audience Audience principal; <em>must</em> include a private key and
+//	 *                 valid certificate with CN matching the principal name.
+//	 * @param realm    Authentication realm for verifying the audience principal
+//	 */
+//	static void register(String jwtRealm, IuPrincipalIdentity audience, String realm) {
+//		IuAuthSpiFactory.get(IuJwtSpi.class).register(jwtRealm, audience, realm);
+//	}
+//
+//	/**
+//	 * Seals the JWT verification registry.
+//	 * 
+//	 * <p>
+//	 * Once this method has been invoked, further calls to register
+//	 * {@link #register(IuPrincipalIdentity) issuer} or
+//	 * {@link #register(String, IuPrincipalIdentity, String) audience} identifying
+//	 * principals will be rejected.
+//	 * </p>
+//	 */
+//	static void seal() {
+//		IuAuthSpiFactory.get(IuJwtSpi.class).seal();
+//	}
+//
+//	/**
+//	 * Issues a new JWT.
+//	 * 
+//	 * @param issuer Issuer principal name; <em>must</em> have be
+//	 *               {@link #register(IuPrincipalIdentity) registered} with a
+//	 *               private key and valid certificate.
+//	 * @return {@link Builder}
+//	 */
+//	static Builder issue(String issuer) {
+//		return IuAuthSpiFactory.get(IuJwtSpi.class).issue(issuer);
+//	}
+//
+//	@Override
+//	public synchronized void seal() {
+//		sealed = true;
+//	}
+//
+//	@Override
+//	public IuWebKey getWebKey(URI jwksUri, String keyId) {
+//		return new JwkPrincipal(jwksUri, keyId);
+//	}
+//
+//	@Override
+//	public IuWebKey getSecretKey(String name, byte[] key) {
+//		return new JwkSecret(name, key);
+//	}
+//
+//	@Override
+//	public Builder issue(String iss) {
+//		if (!sealed)
+//			throw new IllegalStateException("Not sealed");
+//
+//		final var issuer = Objects.requireNonNull(ISSUER.get(iss));
+//
+//		return new JwtBuilder(issuer, Objects.requireNonNull(getSigningKey(issuer)));
+//	}
+//
 	/**
 	 * @see <a href=
 	 *      "https://datatracker.ietf.org/doc/html/rfc7519#section-7.2">RFC-7519 JWT
@@ -538,9 +341,6 @@ public class JwtSpi implements IuJwtSpi {
 	}
 
 	private IuWebToken parse(String jwt, String realm) {
-		if (!sealed)
-			throw new IllegalStateException("not sealed");
-
 		final var jose = getHeader(jwt);
 		if (!isEncrypted(jose)) {
 			// 5. Verify that the resulting JOSE Header includes only parameters and values
@@ -562,13 +362,15 @@ public class JwtSpi implements IuJwtSpi {
 			// representation of a completely valid JSON object conforming to RFC 7159
 			// [RFC7159]; let the JWT Claims Set be this JSON object.
 			final var claims = IuJson.parse(IuText.utf8(jws.getPayload())).asJsonObject();
-			jws.verify(getVerifyKey(getIssuer(claims.getString("iss"))));
+			final IuPublicKeyPrincipalConfig issuerConfig = AuthConfig.get(claims.getString("iss"));
+			jws.verify(getVerifyKey(issuerConfig.getIdentity()));
 
+			AuthConfig.get(IuPublicKeyPrincipalConfig.class);
 			final Set<String> audience = Objects.requireNonNull(
 					IuJson.get(claims, "aud", IuJsonAdapter.of(Set.class, Jwt.STRING_OR_URI)), "missing audience");
 			realm = IuObject.once(realm,
-					IuIterable.filter(AUDIENCE.entrySet(), e -> audience.contains(e.getValue().audience().getName()))
-							.iterator().next().getKey(),
+					IuIterable.filter(IuIterable.map(AuthConfig.get(IuPublicKeyPrincipalConfig.class),
+							IuPublicKeyPrincipalConfig::getRealm), audience::contains).iterator().next(),
 					() -> "audience mismatch");
 
 			final var webToken = new Jwt(realm, jwt);
@@ -599,14 +401,12 @@ public class JwtSpi implements IuJwtSpi {
 			}
 			final var box = new Box();
 			Throwable decryptionFailure = null;
-			for (final var audienceEntry : AUDIENCE.entrySet()) {
+			for (final var audience : AuthConfig.get(IuPublicKeyPrincipalConfig.class)) {
 				decryptionFailure = IuException.suppress(decryptionFailure, () -> {
-					final var key = audienceEntry.getKey();
-					final var verifier = audienceEntry.getValue();
-					final var audience = verifier.audience();
-					IuException.unchecked(() -> IuPrincipalIdentity.verify(audience, verifier.realm()));
-					box.decryptedToken = WebEncryption.parse(jwt).decryptText(getDecryptKey(audience));
-					box.realm = key;
+					IuException
+							.unchecked(() -> IuPrincipalIdentity.verify(audience.getIdentity(), audience.getRealm()));
+					box.decryptedToken = WebEncryption.parse(jwt).decryptText(getDecryptKey(audience.getIdentity()));
+					box.realm = audience.getRealm();
 				});
 				if (box.decryptedToken != null)
 					break;

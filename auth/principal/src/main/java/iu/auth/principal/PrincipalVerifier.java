@@ -64,9 +64,8 @@ public interface PrincipalVerifier<I extends IuPrincipalIdentity> extends IuAuth
 	 * Verifies a principal identity.
 	 * 
 	 * @param id    principal identity
-	 * @param realm authentication realm
 	 * @throws IuAuthenticationException If the principal could not be verified
 	 */
-	void verify(I id, String realm) throws IuAuthenticationException;
+	void verify(I id) throws IuAuthenticationException;
 
 }

@@ -31,21 +31,26 @@
  */
 package iu.auth.pki;
 
-import java.net.URI;
-import java.security.MessageDigest;
 import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.cert.CRL;
 import java.security.cert.CertPath;
+import java.security.cert.CertStore;
 import java.security.cert.CertificateFactory;
+import java.security.cert.CollectionCertStoreParameters;
 import java.security.cert.PKIXParameters;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
+import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
 import edu.iu.crypt.WebCertificateReference;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Operation;
@@ -60,24 +65,164 @@ public class PkiFactory {
 		IuObject.assertNotOpen(PkiFactory.class);
 	}
 
+	private static class KeyUsage {
+		private final boolean digitalSignature;
+		private final boolean nonRepudiation;
+		private final boolean keyEncipherment;
+		private final boolean keyAgreement;
+		private final boolean keyCertSign;
+		private final boolean cRLSign;
+
+		private KeyUsage(X509Certificate idCert) {
+			final var keyUsage = idCert.getKeyUsage();
+			digitalSignature = keyUsage[0];
+			nonRepudiation = keyUsage[1];
+			keyEncipherment = keyUsage[2];
+			keyAgreement = keyUsage[4];
+			keyCertSign = keyUsage[5];
+			cRLSign = keyUsage[6];
+		}
+
+		private boolean matches(Use use) {
+			if (use == null)
+				return true;
+			else
+				switch (use) {
+				case ENCRYPT:
+					return keyAgreement || keyEncipherment;
+
+				case SIGN:
+				default:
+					return digitalSignature || nonRepudiation || keyCertSign || cRLSign;
+				}
+		}
+
+		private boolean matches(Set<Operation> ops) {
+			if (ops != null)
+				for (final var op : ops)
+					switch (op) {
+					case DERIVE_BITS:
+					case DECRYPT:
+					case ENCRYPT:
+						return false;
+
+					case DERIVE_KEY:
+						if (!keyAgreement)
+							return false;
+						else
+							continue;
+
+					case UNWRAP:
+					case WRAP:
+						if (!keyEncipherment)
+							return false;
+						else
+							continue;
+
+					case SIGN:
+						if (!digitalSignature //
+								&& !nonRepudiation)
+							return false;
+						else
+							continue;
+
+					case VERIFY:
+					default:
+						if (!digitalSignature //
+								&& !nonRepudiation //
+								&& !keyCertSign //
+								&& !cRLSign)
+							return false;
+					}
+			return true;
+		}
+
+		private Operation[] ops(boolean verify, boolean hasPrivateKey) {
+			final Queue<Operation> ops = new ArrayDeque<>();
+			if (verify) {
+				if (digitalSignature || nonRepudiation) {
+					ops.add(Operation.VERIFY);
+					if (hasPrivateKey)
+						ops.add(Operation.SIGN);
+				} else if (keyCertSign || cRLSign)
+					ops.add(Operation.VERIFY);
+			}
+
+			else { // encrypt
+				if (keyEncipherment) {
+					ops.add(Operation.WRAP);
+					if (hasPrivateKey)
+						ops.add(Operation.UNWRAP);
+				}
+				if (keyAgreement)
+					ops.add(Operation.DERIVE_KEY);
+			}
+			return ops.toArray(Operation[]::new);
+		}
+	}
+
+	private static class PublicKeyParameters {
+		private final boolean ca;
+		private final PrivateKey privateKey;
+		private final PublicKey publicKey;
+		private final X509Certificate idCert;
+		private final CertPath certPath;
+		private final Operation[] encrypt;
+		private final Operation[] verify;
+
+		private PublicKeyParameters(WebKey partialKey) {
+			privateKey = partialKey.getPrivateKey();
+			certPath = IuException.unchecked(() -> CertificateFactory.getInstance("X.509")
+					.generateCertPath(List.of(Objects.requireNonNull(WebCertificateReference.verify(partialKey),
+							"Missing X.509 certificate chain"))));
+
+			// extract principal identifying certificate and extended parameters
+			final var certList = certPath.getCertificates();
+			idCert = (X509Certificate) certList.get(0);
+			ca = idCert.getBasicConstraints() >= 0;
+			final var keyUsage = new KeyUsage(idCert);
+
+			// extract and verify matching public key
+			publicKey = IuObject.once(partialKey.getPublicKey(), idCert.getPublicKey());
+
+			// verify usage restrictions
+			if (!keyUsage.matches(partialKey.getUse()) //
+					|| !keyUsage.matches(partialKey.getOps()))
+				throw new IllegalArgumentException("Invalid key usage for identifying cert");
+
+			encrypt = keyUsage.ops(false, privateKey != null);
+			verify = keyUsage.ops(true, privateKey != null);
+		}
+
+		private WebKey create(boolean verify) {
+			final var ops = verify ? this.verify : encrypt;
+			if (ops.length == 0)
+				return null;
+
+			final var builder = WebKey.builder(publicKey);
+			IuObject.convert(privateKey, builder::key);
+			builder.cert(certPath.getCertificates().toArray(X509Certificate[]::new));
+			builder.keyId(verify ? "verify" : "encrypt");
+			builder.ops(ops);
+			return builder.build();
+		}
+	}
+
 	/**
 	 * Creates a PKI principal.
 	 * 
 	 * <p>
-	 * <em>Must</em> include:
+	 * Partial key <em>must</em> include:
 	 * </p>
 	 * <ul>
-	 * <li>An {@link X509Certificate} with
+	 * <li>An {@link X509Certificate}, direct or by reference, with
 	 * <ul>
 	 * <li>{@link X509Certificate#getBasicConstraints() V3 basic constraints}</li>
 	 * <li>{@link X509Certificate#getKeyUsage() Key usage} describing at least one
 	 * compatible scenario</li>
 	 * <li>X500 subject with an RDN containing one of
 	 * <ul>
-	 * <li>CN attribute containing a system principal URI with fragment
-	 * naming/matching the JWK "kid" parameter</li>
-	 * <li>CN attribute containing a system principal URI, with no fragment,
-	 * matching the JWK "kid" parameter</li>
+	 * <li>CN attribute containing a system principal URI</li>
 	 * <li>UID attribute with user principal name, <em>optionally</em> qualified
 	 * with DC attribute values</li>
 	 * </ul>
@@ -92,139 +237,48 @@ public class PkiFactory {
 	 * @return {@link IuPrincipalIdentity}
 	 */
 	public static IuPrincipalIdentity from(final WebKey partialKey) {
-		final var privateKey = partialKey.getPrivateKey();
-
-		final var certChain = Objects.requireNonNull(WebCertificateReference.verify(partialKey),
-				"Missing X.509 certificate chain");
-		final CertPath certPath = IuException
-				.unchecked(() -> CertificateFactory.getInstance("X.509").generateCertPath(List.of(certChain)));
-
-		// extract principal identifying certificate
-		final var certList = certPath.getCertificates();
-		final var idCert = (X509Certificate) certList.get(0);
+		final var pkp = new PublicKeyParameters(partialKey);
 
 		// verify end-entity certificate
-		final var pathLen = idCert.getBasicConstraints();
-		if (pathLen != -1)
+		if (pkp.ca)
 			throw new IllegalArgumentException("ID certificate must be an end-entity");
 
-		// extract and verify matching public key
-		final var publicKey = IuObject.once(IuObject.convert(partialKey, WebKey::getPublicKey), idCert.getPublicKey());
+		return new PkiPrincipal(pkp.create(true), pkp.create(false));
+	}
 
-		// build principal JWK
-		final WebKey.Builder<?> jwkBuilder = WebKey.builder(publicKey);
-
-		// populate private and public keys
-		IuObject.convert(privateKey, jwkBuilder::key);
-		jwkBuilder.key(publicKey);
-
-		// extract key ID from X.500 subject common name
-		final var commonName = Objects.requireNonNull(X500Utils.getCommonName(idCert.getSubjectX500Principal()),
-				"missing common name");
-		if (commonName.indexOf(':') != -1) {
-			final var uri = URI.create(commonName);
-			final var fragment = uri.getFragment();
-			if (fragment != null)
-				jwkBuilder.keyId(IuObject.once(IuObject.convert(partialKey, WebKey::getKeyId), fragment));
-			else
-				jwkBuilder.keyId(IuObject.once(IuObject.convert(partialKey, WebKey::getKeyId), commonName));
-		} else
-			jwkBuilder.keyId(IuObject.once(IuObject.convert(partialKey, WebKey::getKeyId), commonName));
-
-		// extract public key use and key operations from X.509 extensions
-		final var keyUsage = idCert.getKeyUsage();
-		var use = IuObject.convert(partialKey, WebKey::getUse);
-		if (!Use.ENCRYPT.equals(use))
-			if (keyUsage[0]) { // digitalSignature
-				jwkBuilder.use(use = Use.SIGN);
-				if (privateKey == null)
-					jwkBuilder.ops(Operation.VERIFY);
-				else
-					jwkBuilder.ops(Operation.VERIFY, Operation.SIGN);
-			} else if (keyUsage[1]) { // nonRepudiation
-				jwkBuilder.use(use = Use.SIGN);
-				jwkBuilder.ops(Operation.VERIFY);
-			}
-
-		if (!Use.SIGN.equals(use)) {
-			if (keyUsage[2]) { // keyEncipherment
-				jwkBuilder.use(use = Use.ENCRYPT);
-				if (privateKey == null)
-					jwkBuilder.ops(Operation.WRAP);
-				else
-					jwkBuilder.ops(Operation.WRAP, Operation.UNWRAP);
-			}
-			if (keyUsage[3]) { // dataEncipherment
-				jwkBuilder.use(use = Use.ENCRYPT);
-				if (privateKey == null)
-					jwkBuilder.ops(Operation.ENCRYPT);
-				else
-					jwkBuilder.ops(Operation.ENCRYPT, Operation.DECRYPT);
-			}
-			if (keyUsage[4]) // keyAgreement
-				jwkBuilder.use(use = Use.ENCRYPT).ops(Operation.DERIVE_KEY);
+	/**
+	 * Creates a PKI principal verifier.
+	 * 
+	 * @param <V>        Public key verifier type
+	 * @param partialKey {@link WebKey} with certificate chain; private key will be
+	 *                   ignored for CA certificates; if provided with a self-signed
+	 *                   EE certificate, the verifier will be authoritative.
+	 * @param crl        Certificate revocation lists; empty if partial key is a
+	 *                   self-signed end-entity certificate
+	 * @return {@link PrincipalVerifier}
+	 */
+	@SuppressWarnings("unchecked")
+	public static <V extends IuPublicKeyPrincipalConfig & PrincipalVerifier<?>> V trust(final WebKey partialKey,
+			final CRL... crl) {
+		final var pkp = new PublicKeyParameters(partialKey);
+		final PkiPrincipal identity;
+		final var anchor = new TrustAnchor(pkp.idCert, null);
+		final var pkix = IuException.unchecked(() -> new PKIXParameters(Set.of(anchor)));
+		if (!pkp.ca && // disable revocation for self-signed end-entity certs
+				pkp.idCert.getIssuerX500Principal().equals(pkp.idCert.getSubjectX500Principal())) {
+			identity = new PkiPrincipal(pkp.create(true), pkp.create(false));
+			pkix.setRevocationEnabled(false);
+		} else if (crl.length <= 0)
+			throw new IllegalArgumentException("At least one revocation list required for CA-signed certificates");
+		else {
+			final var verify = IuObject.convert(pkp.create(true), WebKey::wellKnown);
+			final var encrypt = IuObject.convert(pkp.create(false), WebKey::wellKnown);
+			identity = new PkiPrincipal(verify, encrypt);
+			pkix.addCertStore(IuException.unchecked(
+					() -> CertStore.getInstance("Collection", new CollectionCertStoreParameters(Set.of(crl)))));
 		}
 
-		jwkBuilder.cert(certPath.getCertificates().toArray(X509Certificate[]::new));
-		IuObject.convert(partialKey.getCertificateUri(), jwkBuilder::cert);
-		IuObject.convert(partialKey.getCertificateThumbprint(), jwkBuilder::x5t);
-		IuObject.convert(partialKey.getCertificateSha256Thumbprint(), jwkBuilder::x5t256);
-		IuObject.convert(partialKey.getUse(), jwkBuilder::use);
-		IuObject.convert(partialKey.getOps(), a -> jwkBuilder.ops(a.toArray(Operation[]::new)));
-		IuObject.convert(partialKey.getKey(), jwkBuilder::key);
-
-		IuException.unchecked(() -> {
-			final var encoded = idCert.getEncoded();
-			jwkBuilder.x5t(MessageDigest.getInstance("SHA-1").digest(encoded));
-			jwkBuilder.x5t256(MessageDigest.getInstance("SHA-256").digest(encoded));
-		});
-
-		return new PkiPrincipal(jwkBuilder.build());
-	}
-
-	/**
-	 * Creates a verifier for a single PKI principal identity.
-	 * 
-	 * @param trustedPrincipal PKI principal to trust
-	 * @return {@link PrincipalVerifier}
-	 */
-	public static PrincipalVerifier<?> trust(IuPrincipalIdentity trustedPrincipal) {
-		final var subject = trustedPrincipal.getSubject();
-		final var privateKeys = subject.getPrivateCredentials(WebKey.class);
-		final WebKey key;
-		if (privateKeys.isEmpty())
-			key = subject.getPublicCredentials(WebKey.class).iterator().next();
-		else
-			key = privateKeys.iterator().next();
-
-		final var cert = WebCertificateReference.verify(key)[0];
-		final var anchor = new TrustAnchor(cert, null);
-		final var pkix = IuException.unchecked(() -> new PKIXParameters(Set.of(anchor)));
-		pkix.setRevocationEnabled(false);
-
-		return trust(key.getPrivateKey(), pkix);
-	}
-
-	/**
-	 * Creates a principal verifier for trusting
-	 * 
-	 * @param privateKey <em>must</em> match the public key of the trusted cert
-	 *                   attached to the first trust anchor if non-null;
-	 *                   <em>may</em> be null for non-authoritative signature
-	 *                   verification and message encryption use only
-	 * @param pkix       {@link PKIXParameters} with at least one trust anchor
-	 * @return {@link PrincipalVerifier}
-	 */
-	public static PrincipalVerifier<?> trust(PrivateKey privateKey, PKIXParameters pkix) {
-		final var issuerCertificate = pkix.getTrustAnchors().iterator().next().getTrustedCert();
-		final var publicKey = issuerCertificate.getPublicKey();
-		final var issuer = Objects.requireNonNull(X500Utils.getCommonName(issuerCertificate.getSubjectX500Principal()),
-				"First trust anchor's root certificate must name authentication realm");
-
-		if (privateKey != null) // validates keys match
-			WebKey.builder(publicKey).key(privateKey).build();
-
-		return new PkiVerifier(privateKey != null, issuer, pkix);
+		return (V) new PkiVerifier(identity, pkix);
 	}
 
 	private PkiFactory() {

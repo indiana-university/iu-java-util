@@ -32,55 +32,31 @@
 package iu.auth.jwt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.when;
 
-import java.net.URI;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.crypt.EphemeralKeys;
 import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Type;
 
 @SuppressWarnings("javadoc")
-public class JwkPrincipalTest extends JwtTestCase {
+public class JwkSecretTest extends JwtTestCase {
 
 	@Test
 	public void testDelegation() {
-		final var uri = URI.create("test:" + IdGenerator.generateId());
 		final var keyId = IdGenerator.generateId();
-		final var jwkId = new JwkPrincipal(uri, keyId);
-		assertEquals(uri + "#" + keyId, jwkId.getName());
+		final var key = EphemeralKeys.rand(32);
+		final var jwkId = new JwkSecret(keyId, key);
+		assertEquals(keyId, jwkId.getName());
 
-		try (final var mockJwk = mockStatic(WebKey.class)) {
-			final var key = mock(WebKey.class);
-			when(key.getKeyId()).thenReturn(keyId);
-			when(key.wellKnown()).thenReturn(key);
-			mockJwk.when(() -> WebKey.readJwks(uri)).thenReturn(Set.of(key));
-			final var subject = jwkId.getSubject();
-			assertEquals(Set.of(jwkId), subject.getPrincipals());
-			assertEquals(Set.of(key), subject.getPublicCredentials());
-		}
-	}
-
-	@Test
-	public void testRejectNonWellKnown() {
-		final var keyId = IdGenerator.generateId();
-		final var uri = URI.create("test:" + IdGenerator.generateId() + "#" + keyId);
-		final var jwkId = new JwkPrincipal(uri, null);
-		assertEquals(uri.toString(), jwkId.getName());
-
-		try (final var mockJwk = mockStatic(WebKey.class)) {
-			final var wellKnown = mock(WebKey.class);
-			final var key = mock(WebKey.class);
-			when(key.getKeyId()).thenReturn(keyId);
-			when(key.wellKnown()).thenReturn(wellKnown);
-			mockJwk.when(() -> WebKey.readJwks(uri)).thenReturn(Set.of(key));
-			assertThrows(IllegalStateException.class, jwkId::getSubject);
-		}
+		final var subject = jwkId.getSubject();
+		assertEquals(Set.of(jwkId), subject.getPrincipals());
+		assertEquals(Set.of(), subject.getPublicCredentials());
+		assertEquals(Set.of(WebKey.builder(Type.RAW).key(key).build()), subject.getPrivateCredentials());
+		assertEquals("JwkSecret [" + keyId + "]", jwkId.toString());
 	}
 
 }

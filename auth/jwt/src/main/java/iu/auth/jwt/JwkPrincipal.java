@@ -38,13 +38,13 @@ import javax.security.auth.Subject;
 
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
-import edu.iu.auth.jwt.IuWebKey;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.crypt.WebKey;
 
 /**
  * {@link IuWebKey} implementation.
  */
-final class JwkPrincipal implements IuWebKey {
+final class JwkPrincipal implements IuPrincipalIdentity {
 
 	private static final long serialVersionUID = 1L;
 

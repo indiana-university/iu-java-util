@@ -35,7 +35,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -47,11 +46,11 @@ import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import edu.iu.auth.jwt.IuWebToken;
+import edu.iu.auth.config.AuthConfig;
+import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Operation;
 import edu.iu.crypt.WebKey.Use;
-import iu.auth.principal.PrincipalVerifierRegistry;
 
 @SuppressWarnings("javadoc")
 public class JwtSpiTest {
@@ -150,7 +149,9 @@ public class JwtSpiTest {
 		when(k.getPublicKey()).thenReturn(bk);
 		when(k.getUse()).thenReturn(Use.SIGN);
 		final var id = new SimpleId(k);
-		PrincipalVerifierRegistry.registerVerifier(new SimpleVerifier(id));
+		AuthConfig.register(new SimpleVerifier(id));
+		AuthConfig.seal();
+
 		assertSame(k, JwtSpi.getSigningKey(id));
 		assertSame(k, JwtSpi.getVerifyKey(id));
 	}
@@ -162,7 +163,9 @@ public class JwtSpiTest {
 		when(k.getPublicKey()).thenReturn(pk);
 		when(k.getUse()).thenReturn(Use.SIGN);
 		final var id = new SimpleId(k);
-		PrincipalVerifierRegistry.registerVerifier(new SimpleVerifier(id));
+		AuthConfig.register(new SimpleVerifier(id));
+		AuthConfig.seal();
+
 		assertNull(JwtSpi.getSigningKey(id));
 		assertSame(k, JwtSpi.getVerifyKey(id));
 	}
@@ -176,7 +179,9 @@ public class JwtSpiTest {
 		when(k.getPublicKey()).thenReturn(bk);
 		when(k.getUse()).thenReturn(Use.ENCRYPT);
 		final var id = new SimpleId(k);
-		PrincipalVerifierRegistry.registerVerifier(new SimpleVerifier(id));
+		AuthConfig.register(new SimpleVerifier(id));
+		AuthConfig.seal();
+
 		assertSame(k, JwtSpi.getDecryptKey(id));
 		assertSame(k, JwtSpi.getEncryptKey(id));
 	}
@@ -188,7 +193,9 @@ public class JwtSpiTest {
 		when(k.getPublicKey()).thenReturn(pk);
 		when(k.getUse()).thenReturn(Use.ENCRYPT);
 		final var id = new SimpleId(k);
-		PrincipalVerifierRegistry.registerVerifier(new SimpleVerifier(id));
+		AuthConfig.register(new SimpleVerifier(id));
+		AuthConfig.seal();
+
 		assertSame(k, JwtSpi.getEncryptKey(id));
 		assertNull(JwtSpi.getDecryptKey(id));
 	}
@@ -200,12 +207,10 @@ public class JwtSpiTest {
 		when(k.getPublicKey()).thenReturn(pk);
 		when(k.getUse()).thenReturn(Use.SIGN);
 		final var id = new SimpleId(k);
-		PrincipalVerifierRegistry.registerVerifier(new SimpleVerifier(id));
-		IuWebToken.register(id);
-		assertThrows(IllegalStateException.class, () -> IuWebToken.register(id));
-		IuWebToken.seal();
-		assertThrows(IllegalStateException.class, () -> IuWebToken.register(new SimpleId(k)));
-		assertEquals(id, JwtSpi.getIssuer(id.getName()));
+		AuthConfig.register(new SimpleVerifier(id));
+		AuthConfig.seal();
+
+		assertEquals(id, AuthConfig.<IuPublicKeyPrincipalConfig>get(id.getName()).getIdentity());
 	}
 
 }

@@ -31,6 +31,7 @@
  */
 package iu.auth.jwt;
 
+import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -41,12 +42,17 @@ import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.config.AuthConfig;
+import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
 import iu.auth.principal.PrincipalVerifier;
 
 /**
  * Principal verifier for JWT.
  */
-final class JwtVerifier implements PrincipalVerifier<Jwt> {
+public final class JwtVerifier implements PrincipalVerifier<Jwt> {
+	static {
+		IuObject.assertNotOpen(JwtVerifier.class);
+	}
 
 	private final String jwtRealm;
 	private final IuPrincipalIdentity audience;
@@ -60,7 +66,7 @@ final class JwtVerifier implements PrincipalVerifier<Jwt> {
 	 * @param audience Audience principal
 	 * @param realm    ID authentication realm
 	 */
-	JwtVerifier(String jwtRealm, IuPrincipalIdentity audience, String realm) {
+	public JwtVerifier(String jwtRealm, IuPrincipalIdentity audience, String realm) {
 		this.jwtRealm = jwtRealm;
 		this.audience = audience;
 		this.realm = realm;
@@ -70,6 +76,16 @@ final class JwtVerifier implements PrincipalVerifier<Jwt> {
 	@Override
 	public Class<Jwt> getType() {
 		return Jwt.class;
+	}
+
+	@Override
+	public String getAuthScheme() {
+		return null;
+	}
+
+	@Override
+	public URI getAuthenticationEndpoint() {
+		return null;
 	}
 
 	@Override
@@ -91,9 +107,10 @@ final class JwtVerifier implements PrincipalVerifier<Jwt> {
 				aud -> IuIterable.filter(id.getAudience(), aud::equals).iterator().hasNext(),
 				() -> "audience verification failed");
 
-		final var issuer = JwtSpi.getIssuer(id.getIssuer());
-		final var strict = IuException.unchecked(() -> IuPrincipalIdentity.verify(issuer, issuer.getName()));
-		id.signature().verify(id.payload(), JwtSpi.getVerifyKey(issuer));
+		final IuPublicKeyPrincipalConfig issuer = AuthConfig.get(id.getIssuer());
+		final var strict = IuException
+				.unchecked(() -> IuPrincipalIdentity.verify(issuer.getIdentity(), issuer.getRealm()));
+		id.signature().verify(id.payload(), JwtSpi.getVerifyKey(issuer.getIdentity()));
 
 		Objects.requireNonNull(id.getName(), "missing subject principal");
 

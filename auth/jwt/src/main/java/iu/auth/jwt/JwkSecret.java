@@ -35,14 +35,15 @@ import java.util.Set;
 
 import javax.security.auth.Subject;
 
-import edu.iu.auth.jwt.IuWebKey;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Type;
+import edu.iu.crypt.WebKey.Use;
 
 /**
  * {@link IuWebKey} implementation.
  */
-final class JwkSecret implements IuWebKey {
+final class JwkSecret implements IuPrincipalIdentity {
 
 	private static final long serialVersionUID = 1L;
 
@@ -67,8 +68,10 @@ final class JwkSecret implements IuWebKey {
 
 	@Override
 	public Subject getSubject() {
-		final var jwk = WebKey.builder(Type.RAW).key(secretKey).build();
-		return new Subject(true, Set.of(this), Set.of(jwk), Set.of(jwk));
+		return new Subject(true, Set.of(this), Set.of(), //
+				Set.of( //
+						WebKey.builder(Type.RAW).use(Use.SIGN).key(secretKey).build(), //
+						WebKey.builder(Type.RAW).use(Use.ENCRYPT).key(secretKey).build()));
 	}
 
 	@Override

@@ -52,8 +52,10 @@ import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
 import java.security.spec.NamedParameterSpec;
 import java.security.spec.RSAPublicKeySpec;
+import java.util.ArrayDeque;
 import java.util.EnumSet;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
@@ -65,6 +67,7 @@ import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.PemEncoded.KeyType;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption.Encryption;
 import iu.crypt.Jwk;
@@ -868,7 +871,7 @@ public interface WebKey extends WebKeyReference {
 	static Builder<?> builder(Key key) {
 		if (key instanceof SecretKey)
 			return WebKey.builder(Type.RAW).key(key.getEncoded());
-			
+
 		final WebKey.Builder<?> jwkBuilder;
 		final var params = WebKey.algorithmParams(key);
 		if (params == null)
@@ -964,6 +967,35 @@ public interface WebKey extends WebKeyReference {
 	 */
 	static Iterable<? extends WebKey> parseJwks(String jwks) {
 		return Jwk.parseJwks(IuJson.parse(jwks).asJsonObject());
+	}
+
+	/**
+	 * Reads at least one PEM-encoded X509 certificate, and optionally a private
+	 * key, and returns a JWK partial-key representation.
+	 * 
+	 * @param pem PEM-encoded certificate(s) and optional private key
+	 * @return {@link WebKey}
+	 */
+	static WebKey pem(String pem) {
+		final Queue<X509Certificate> certs = new ArrayDeque<>();
+		PemEncoded privateKey = null;
+
+		final var parsed = PemEncoded.parse(pem);
+		while (parsed.hasNext()) {
+			final var encoded = parsed.next();
+			final var keyType = encoded.getKeyType();
+			if (keyType.equals(KeyType.CERTIFICATE))
+				certs.offer(encoded.asCertificate());
+			else if (keyType.equals(KeyType.PRIVATE_KEY))
+				privateKey = IuObject.once(privateKey, encoded);
+		}
+
+		final var publicKey = certs.peek().getPublicKey();
+		final var builder = WebKey.builder(publicKey);
+		builder.cert(certs.toArray(X509Certificate[]::new));
+		if (privateKey != null)
+			builder.key(privateKey.asPrivate(publicKey.getAlgorithm()));
+		return builder.build();
 	}
 
 	/**

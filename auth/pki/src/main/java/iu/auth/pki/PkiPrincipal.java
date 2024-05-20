@@ -31,6 +31,9 @@
  */
 package iu.auth.pki;
 
+import java.io.IOException;
+import java.util.Objects;
+
 import javax.security.auth.Subject;
 
 import edu.iu.IuObject;
@@ -43,20 +46,31 @@ import edu.iu.crypt.WebKey;
 final class PkiPrincipal implements IuPrincipalIdentity {
 	private static final long serialVersionUID = 1L;
 
-	private transient WebKey key;
-	private transient WebKey wellKnown;
+	private final String serializedVerifyKey;
+	private final String serializedEncryptKey;
 
-	private final String serializedWellKnownKey;
+	private transient WebKey verify;
+	private transient WebKey encrypt;
+
+	private void readObject(java.io.ObjectInputStream in) throws IOException, ClassNotFoundException {
+		in.defaultReadObject();
+		verify = IuObject.convert(serializedVerifyKey, WebKey::parse);
+		encrypt = IuObject.convert(serializedEncryptKey, WebKey::parse);
+	}
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param key fully populated JWK including private/secret key data
+	 * @param verify  fully populated JWK including private/secret key data
+	 * @param encrypt fully populated JWK including private/secret key data
 	 */
-	PkiPrincipal(WebKey key) {
-		this.wellKnown = key.wellKnown();
-		this.key = key;
-		this.serializedWellKnownKey = wellKnown.toString();
+	PkiPrincipal(WebKey verify, WebKey encrypt) {
+		this.verify = verify;
+		this.encrypt = encrypt;
+		getName(); // verify keys are well-formed
+
+		this.serializedVerifyKey = IuObject.convert(verify, a -> a.wellKnown().toString());
+		this.serializedEncryptKey = IuObject.convert(encrypt, a -> a.wellKnown().toString());
 	}
 
 	@Override
@@ -68,9 +82,22 @@ final class PkiPrincipal implements IuPrincipalIdentity {
 	public Subject getSubject() {
 		final var subject = new Subject();
 		subject.getPrincipals().add(this);
-		if (key != null)
-			IuObject.convert(key.getPrivateKey(), a -> subject.getPrivateCredentials().add(key));
-		subject.getPublicCredentials().add(wellKnown());
+
+		final var priv = subject.getPrivateCredentials();
+		final var pub = subject.getPublicCredentials();
+
+		if (verify != null) {
+			if (verify.getPrivateKey() != null)
+				priv.add(verify);
+			pub.add(verify.wellKnown());
+		}
+
+		if (encrypt != null) {
+			if (encrypt.getPrivateKey() != null)
+				priv.add(encrypt);
+			pub.add(encrypt.wellKnown());
+		}
+
 		subject.setReadOnly();
 		return subject;
 	}
@@ -78,6 +105,7 @@ final class PkiPrincipal implements IuPrincipalIdentity {
 	@Override
 	public String toString() {
 		final var sb = new StringBuilder();
+		final var key = key();
 		if (key == null //
 				|| key.getPrivateKey() == null)
 			sb.append("Well-Known");
@@ -96,10 +124,17 @@ final class PkiPrincipal implements IuPrincipalIdentity {
 		return sb.toString();
 	}
 
-	private WebKey wellKnown() {
-		if (wellKnown == null)
-			wellKnown = WebKey.parse(serializedWellKnownKey);
-		return wellKnown;
+	/**
+	 * Gets the identifying key
+	 * 
+	 * @return identifying key; verify key if non-null, else encrypt key
+	 */
+	WebKey key() {
+		return Objects.requireNonNullElse(verify, encrypt);
 	}
 
+	private WebKey wellKnown() {
+		return key().wellKnown();
+	}
+	
 }

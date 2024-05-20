@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+s * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -33,9 +33,11 @@ package edu.iu.auth.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.net.URI;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Set;
@@ -50,6 +52,8 @@ import edu.iu.IdGenerator;
 import edu.iu.IuText;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.config.AuthConfig;
+import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
 import edu.iu.auth.jwt.IuWebToken;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebEncryption;
@@ -57,8 +61,8 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebSignedPayload;
 import edu.iu.test.IuTestLogger;
 import iu.auth.jwt.JwtSpi;
+import iu.auth.jwt.JwtVerifier;
 import iu.auth.principal.PrincipalVerifier;
-import iu.auth.principal.PrincipalVerifierRegistry;
 
 @SuppressWarnings("javadoc")
 public class IuWebTokenTest {
@@ -85,11 +89,11 @@ public class IuWebTokenTest {
 		}
 	}
 
-	private static final class SampleVerifier implements PrincipalVerifier<SampleId> {
-		private final String realm;
+	private static final class SampleVerifier implements PrincipalVerifier<SampleId>, IuPublicKeyPrincipalConfig {
+		private final SampleId id;
 
-		private SampleVerifier(String realm) {
-			this.realm = realm;
+		private SampleVerifier(SampleId id) {
+			this.id = id;
 		}
 
 		@Override
@@ -98,8 +102,23 @@ public class IuWebTokenTest {
 		}
 
 		@Override
+		public String getAuthScheme() {
+			return null;
+		}
+
+		@Override
+		public URI getAuthenticationEndpoint() {
+			return null;
+		}
+
+		@Override
+		public IuPrincipalIdentity getIdentity() {
+			return id;
+		}
+
+		@Override
 		public String getRealm() {
-			return realm;
+			return id.getName();
 		}
 
 		@Override
@@ -110,6 +129,7 @@ public class IuWebTokenTest {
 		@Override
 		public void verify(SampleId id, String realm) throws IuAuthenticationException {
 			assertEquals(realm, id.getName());
+			assertSame(id, this.id);
 			assertInstanceOf(RSAPrivateKey.class,
 					id.getSubject().getPrivateCredentials(WebKey.class).iterator().next().getPrivateKey());
 			assertInstanceOf(RSAPublicKey.class,
@@ -219,16 +239,15 @@ public class IuWebTokenTest {
 		assertTrue(claims.getBoolean("http://example.com/is_root"));
 
 		final var issuer = new SampleId("joe", vkey);
-		PrincipalVerifierRegistry.registerVerifier(new SampleVerifier("joe"));
+		AuthConfig.register(new SampleVerifier(issuer));
 
 		final var jwtRealm = IdGenerator.generateId();
 		final var realm = IdGenerator.generateId();
 		final var audience = new SampleId(realm, dkey);
-		PrincipalVerifierRegistry.registerVerifier(new SampleVerifier(realm));
+		AuthConfig.register(new SampleVerifier(audience));
 
-		IuWebToken.register(issuer);
-		IuWebToken.register(jwtRealm, audience, realm);
-		IuWebToken.seal();
+		AuthConfig.register(new JwtVerifier(jwtRealm, audience, realm));
+		AuthConfig.seal();
 
 		// the example from RFC-7519 is a valid JWT, but invalid as a JWT assertion
 		// because it is missing sub, aud, and exp claims; of these aud is checked first
