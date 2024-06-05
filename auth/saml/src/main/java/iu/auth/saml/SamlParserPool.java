@@ -1,6 +1,5 @@
 package iu.auth.saml;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 
@@ -11,7 +10,6 @@ import javax.xml.parsers.ParserConfigurationException;
 
 import org.w3c.dom.Document;
 import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
 
 import edu.iu.IuException;
 import net.shibboleth.shared.xml.ParserPool;
@@ -66,21 +64,13 @@ public class SamlParserPool implements ParserPool {
 	}
 
 	@Override
-	public Document parse(InputStream input) throws XMLParserException {
-		try {
-			return getBuilder().parse(input);
-		} catch (SAXException | IOException e) {
-			throw new XMLParserException(e);
-		}
+	public Document parse(InputStream input)  {
+		return IuException.unchecked(()-> getBuilder().parse(input));
 	}
 
 	@Override
-	public Document parse(Reader input) throws XMLParserException {
-		try {
-			return getBuilder().parse(new InputSource(input));
-		} catch (SAXException | IOException e) {
-			throw new XMLParserException(e);
-		}
+	public Document parse(Reader input) {
+		return IuException.unchecked(() -> getBuilder().parse(new InputSource(input)));
 	}
 
 }

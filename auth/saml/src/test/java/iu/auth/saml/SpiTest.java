@@ -1,33 +1,31 @@
 package iu.auth.saml;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.when;
 
+import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
-import java.net.URL;
-import java.net.URLConnection;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.ServiceConfigurationError;
+import java.util.logging.Level;
 
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.auth.saml.IuSamlClient;
-import edu.iu.auth.saml.IuSamlProvider;
 import edu.iu.crypt.PemEncoded;
+import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
 public class SpiTest {
@@ -68,79 +66,128 @@ public class SpiTest {
 		certificate = pem.next().asCertificate();
 	}
 
-	/**
-	 * Test is currently failing with MalformedURLException for getMetaDataUris TODO
-	 * fix Exception
-	 */
 	@Test
 	public void testSamlClient() {
 		final var spi = new SamlConnectSpi();
 		final var realm = "urn:iu:ess:sisjee-test";
-		final var client = new IuSamlClient() {
-
-			@Override
-			public String getServiceProviderEntityId() {
-				return realm;
-			}
-
-			@Override
-			public String getPrivateKey() {
-				return "";
-			}
-
-			@Override
-			public X509Certificate getCertificate() {
-				return certificate;
-			}
-
-			@Override
-			public List<URI> getAcsUris() {
-				return IuException.unchecked(() -> Arrays.asList(new URI("test://postUrl")));
-			}
-
-			@Override
-			public List<URI> getMetaDataUris() {
-				final var uri = URI.create("test://metaDataUrl/" + IdGenerator.generateId());
-
-				return Arrays.asList(uri);
-			}
-
-			@Override
-			public List<String> getAllowedRange() {
-				return Arrays.asList("");
-			}
-
-			@Override
-			public Duration getAuthenticatedSessionTimeout() {
-				return Duration.ofMinutes(2L);
-			}
-
-			@Override
-			public URI getApplicationUri() {
-				final var uri = URI.create("test://localhost/" + IdGenerator.generateId());
-
-				return IuException.unchecked(() -> uri);
-			}
-
-		};
-
-		IuSamlProvider provider = spi.getSamlProvider(client);
+		final var uri = URI.create("test://metaDataUrl/" + IdGenerator.generateId());
+		final var client = getClient(Arrays.asList(uri), realm);
+		SamlProvider provider = (SamlProvider) spi.getSamlProvider(client);
 		assertNotNull(provider);
 		assertThrows(IllegalStateException.class, () -> spi.getSamlProvider(client));
 		assertNotNull(provider.getServiceProviderMetaData());
 		provider = SamlConnectSpi.getProvider(realm);
 		assertNotNull(provider);
-
+		assertEquals(realm, provider.getClient().getServiceProviderEntityId());
 	}
 
 	@Test
 	public void testSamlClientInvalidMetaData() {
 		final var spi = new SamlConnectSpi();
+		final var uri = URI.create("test://localhost/" + IdGenerator.generateId());
+		final var client = getClient(Arrays.asList(uri), "urn:iu:ess:test");
+		SamlProvider provider = (SamlProvider) spi.getSamlProvider(client);
+		assertThrows(ServiceConfigurationError.class, () -> provider.getSingleSignOnLocation("test://"));
+	}
+
+	@Test
+	public void testGetSingleSignOnLocation() throws IOException {
+		IuTestLogger.allow("iu.auth.saml.SamlBuilder", Level.WARNING);
+		final var spi = new SamlConnectSpi();
+		File file = new File("src/test/resource/metadata_sample.xml");
+		final var uri = mock(URI.class);
+		when(uri.toURL()).thenReturn(file.toPath().toUri().toURL());
+
+		// test valid SSO location for given identity provider entity
+		{
+			final var client = getClient(Arrays.asList(uri), "urn:iu:ess:thirdparty");
+
+			SamlProvider provider = (SamlProvider) spi.getSamlProvider(client);
+			String redirectLocation = provider.getSingleSignOnLocation("https://sp.identityserver");
+			assertEquals("https://sp.identityserver/idp/profile/SAML2/Redirect/SSO", redirectLocation);
+			assertThrows(IllegalArgumentException.class,
+					() -> provider.getSingleSignOnLocation("https://sp.identityserver-test"));
+			redirectLocation = provider.getSingleSignOnLocation("https://sp.identityserver");
+			assertEquals("https://sp.identityserver/idp/profile/SAML2/Redirect/SSO", redirectLocation);
+		}
+
+		// test method return valid metadata resolver for valid metadata URI and log
+		// message for invalid one
+
+		final var metadataUri = URI.create("test://identityProvider/" + IdGenerator.generateId());
+		{
+			final var client = getClient(Arrays.asList(metadataUri), "urn:iu:ess:applyiu");
+			SamlProvider provider = (SamlProvider) spi.getSamlProvider(client);
+			assertThrows(ServiceConfigurationError.class,
+					() -> provider.getSingleSignOnLocation("https://sp.identityserver"));
+		}
+
+		{
+			final var client = getClient(Arrays.asList(uri, metadataUri), "urn:iu:ess:adrx");
+			SamlProvider provider = (SamlProvider) spi.getSamlProvider(client);
+			String redirectLocation = provider.getSingleSignOnLocation("https://sp.identityserver");
+			assertEquals("https://sp.identityserver/idp/profile/SAML2/Redirect/SSO", redirectLocation);
+		}
+
+	}
+
+	@Test
+	public void testGetSingleSignOnLocationInvalidSamlProtocol() throws IOException {
+		IuTestLogger.allow("iu.auth.saml.SamlBuilder", Level.WARNING);
+		final var spi = new SamlConnectSpi();
+		File file = new File("src/test/resource/metadata_invalid_protocol.xml");
+		final var uri = mock(URI.class);
+		when(uri.toURL()).thenReturn(file.toPath().toUri().toURL());
+
+		final var client = getClient(Arrays.asList(uri), "urn:iu:ess:trex");
+		SamlProvider provider = (SamlProvider) spi.getSamlProvider(client);
+		assertThrows(IllegalStateException.class, () -> provider.getSingleSignOnLocation("https://sp.identityserver"));
+	}
+
+	@Test
+	public void testGetSingleSignOnLocationInvalidSamlBinding() throws IOException {
+		IuTestLogger.allow("iu.auth.saml.SamlBuilder", Level.WARNING);
+		final var spi = new SamlConnectSpi();
+		File file = new File("src/test/resource/metadata_invalid_binding.xml");
+		final var uri = mock(URI.class);
+		when(uri.toURL()).thenReturn(file.toPath().toUri().toURL());
+
+		final var client = getClient(Arrays.asList(uri), "urn:iu:esshr:test");
+		SamlProvider provider = (SamlProvider) spi.getSamlProvider(client);
+		assertThrows(IllegalStateException.class, () -> provider.getSingleSignOnLocation("https://sp.identityserver"));
+	}
+
+	@Test
+	public void testGetAuthenticationRequest() throws IOException {
+		String resourceUri = "test://entry/show";
+		final var uri = URI.create("test://localhost/" + IdGenerator.generateId());
+		final var spi = new SamlConnectSpi();
+		final var client = getClient(Arrays.asList(uri), "urn:iu:ess:iumobile");
+		SamlProvider provider = (SamlProvider) spi.getSamlProvider(client);
+		assertThrows(IllegalArgumentException.class,
+				() -> provider.getAuthRequest(URI.create("test://iumobile"), IdGenerator.generateId(), resourceUri));
+		assertNotNull(provider.getAuthRequest(URI.create("test://postUrl/"), IdGenerator.generateId(), resourceUri));
+	}
+
+	@Test
+	public void testCreateSession() {
+		final var spi = new SamlConnectSpi();
+		final var realm = IdGenerator.generateId();
+		final var entryPoint = IuException.unchecked(() -> new URI("http://foo"));
+		try (final var mockSamlSession = mockConstruction(SamlSession.class)) {
+			final var samlSession = spi.createAuthorizationSession(realm, entryPoint);
+			assertSame(samlSession, mockSamlSession.constructed().get(0));
+		}
+
+		assertThrows(NullPointerException.class, () -> SamlConnectSpi.getProvider(realm));
+	}
+
+	private IuSamlClient getClient(List<URI> metadataUris, String serviceProviderEntityId) {
 		final var client = new IuSamlClient() {
 
 			@Override
 			public String getServiceProviderEntityId() {
-				return "urn:iu:ess:test";
+				return serviceProviderEntityId;
 			}
 
 			@Override
@@ -155,14 +202,13 @@ public class SpiTest {
 
 			@Override
 			public List<URI> getAcsUris() {
-				final var uri = URI.create("test://postUrl/" + IdGenerator.generateId());
-				return IuException.unchecked(() -> Arrays.asList(uri));
+				final var acsUri = URI.create("test://postUrl/");
+				return IuException.unchecked(() -> Arrays.asList(acsUri));
 			}
 
 			@Override
 			public List<URI> getMetaDataUris() {
-				final var uri = URI.create("test://localhost/" + IdGenerator.generateId());
-				return IuException.unchecked(() -> Arrays.asList(uri));
+				return IuException.unchecked(() -> metadataUris);
 			}
 
 			@Override
@@ -181,23 +227,7 @@ public class SpiTest {
 			}
 
 		};
-		SamlProvider provider = (SamlProvider) spi.getSamlProvider(client);
-		assertThrows(ServiceConfigurationError.class, () -> provider.getSingleSignOnLocation("test://") );
-
-	}
-	
-
-	@Test
-	public void testCreateSession() {
-		final var spi = new SamlConnectSpi();
-		final var realm = IdGenerator.generateId();
-		final var entryPoint = IuException.unchecked(() -> new URI("http://foo"));
-		try (final var mockSamlSession = mockConstruction(SamlSession.class)) {
-			final var samlSession = spi.createAuthorizationSession(realm, entryPoint);
-			assertSame(samlSession, mockSamlSession.constructed().get(0));
-		}
-
-		assertThrows(NullPointerException.class, () -> SamlConnectSpi.getProvider(realm));
+		return client;
 	}
 
 }

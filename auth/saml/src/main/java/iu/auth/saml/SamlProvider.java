@@ -5,7 +5,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.URI;
-import java.security.PrivateKey;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,6 +31,7 @@ import org.opensaml.core.xml.util.XMLObjectSupport;
 import org.opensaml.saml.common.SAMLVersion;
 import org.opensaml.saml.common.assertion.AssertionValidationException;
 import org.opensaml.saml.common.assertion.ValidationContext;
+import org.opensaml.saml.metadata.resolver.MetadataResolver;
 import org.opensaml.saml.saml2.assertion.SAML20AssertionValidator;
 import org.opensaml.saml.saml2.assertion.SAML2AssertionValidationParameters;
 import org.opensaml.saml.saml2.assertion.impl.AudienceRestrictionConditionValidator;
@@ -47,26 +49,31 @@ import org.opensaml.saml.saml2.core.SubjectConfirmation;
 import org.opensaml.saml.saml2.encryption.Decrypter;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.IDPSSODescriptor;
+import org.opensaml.saml.saml2.metadata.KeyDescriptor;
 import org.opensaml.saml.saml2.metadata.SingleSignOnService;
 import org.opensaml.saml.security.impl.SAMLSignatureProfileValidator;
 import org.opensaml.security.credential.Credential;
 import org.opensaml.security.credential.CredentialResolver;
+import org.opensaml.security.credential.impl.StaticCredentialResolver;
 import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.xmlsec.SignatureValidationParameters;
 import org.opensaml.xmlsec.encryption.support.DecryptionException;
 import org.opensaml.xmlsec.encryption.support.InlineEncryptedKeyResolver;
 import org.opensaml.xmlsec.keyinfo.KeyInfoCredentialResolver;
 import org.opensaml.xmlsec.keyinfo.impl.StaticKeyInfoCredentialResolver;
+import org.opensaml.xmlsec.signature.X509Certificate;
+import org.opensaml.xmlsec.signature.X509Data;
 import org.opensaml.xmlsec.signature.support.SignaturePrevalidator;
 import org.opensaml.xmlsec.signature.support.SignatureTrustEngine;
 import org.opensaml.xmlsec.signature.support.SignatureValidationParametersCriterion;
 import org.opensaml.xmlsec.signature.support.impl.ExplicitKeySignatureTrustEngine;
 
 import edu.iu.IuException;
+import edu.iu.IuText;
 import edu.iu.auth.saml.IuSamlClient;
 import edu.iu.auth.saml.IuSamlProvider;
+import edu.iu.crypt.PemEncoded;
 import net.shibboleth.shared.resolver.CriteriaSet;
-import net.shibboleth.shared.resolver.ResolverException;
 
 /**
  * {@link IuSamlProvider implementation}
@@ -93,6 +100,7 @@ public class SamlProvider implements IuSamlProvider {
 
 	/**
 	 * Gets identity provider location
+	 * 
 	 * @param entityId service provider entity id
 	 * @return identity provider location
 	 */
@@ -108,16 +116,14 @@ public class SamlProvider implements IuSamlProvider {
 	}
 
 	private EntityDescriptor getEntity(String entityId) {
-		try {
-			EntityDescriptor entity = samlBuilder.getMetadata().resolveSingle(new CriteriaSet(new EntityIdCriterion(entityId)));
-			if (entity == null)
-				throw new IllegalArgumentException("Entity " + entityId + " not found in SAML metadata");
-			return entity;
-		} catch (ResolverException e) {
-			throw new IllegalArgumentException("Failed to resolve SAML metadata for " + entityId, e);
-		}
-	}
+		MetadataResolver resolver = samlBuilder.getMetadata();
+		EntityDescriptor entity = IuException
+				.unchecked(() -> resolver.resolveSingle(new CriteriaSet(new EntityIdCriterion(entityId))));
+		if (entity == null)
+			throw new IllegalArgumentException("Entity " + entityId + " not found in SAML metadata");
+		return entity;
 
+	}
 
 	/**
 	 * Generate SAML authentication request use by client to redirect user to
@@ -130,15 +136,14 @@ public class SamlProvider implements IuSamlProvider {
 	 */
 	ByteArrayOutputStream getAuthRequest(URI postURI, String sessionId, String destinationLocation) {
 
-		// validate entityId against metadataUrl configuration
 		var matchAcs = false;
 		for (URI acsUrl : client.getAcsUris()) {
-			if (acsUrl.getPath().compareTo(postURI.getPath()) == 0)
+			if (acsUrl.compareTo(postURI) == 0)
 				matchAcs = true;
 		}
 		if (!matchAcs) {
 			throw new IllegalArgumentException(
-					"Post URI doesn't match with allowed list of Assestion Consumer Service URLs" + postURI);
+					"Post URI doesn't match with allowed list of Assertion Consumer Service URLs " + postURI);
 		}
 
 		AuthnRequest authnRequest = (AuthnRequest) XMLObjectProviderRegistrySupport.getBuilderFactory()
@@ -208,10 +213,9 @@ public class SamlProvider implements IuSamlProvider {
 		String entityId = response.getIssuer().getValue();
 		LOG.fine("SAML2 authentication response\nEntity ID: " + entityId + "\nPOST URL: " + postUri.toString() + "\n"
 				+ XmlDomUtil.getContent(response.getDOM()));
-
-		CredentialResolver credentialResolver = SamlUtil.getCredentialResolver(getEntity(entityId));
+		CredentialResolver credentialResolver = IuException.unchecked(() -> getCredentialResolver(getEntity(entityId)));
 		SignatureTrustEngine newTrustEngine = new ExplicitKeySignatureTrustEngine(credentialResolver,
-				SamlUtil.getKeyInfoCredentialResolver(response));
+				getKeyInfoCredentialResolver(response));
 		SignaturePrevalidator newSignaturePrevalidator = new SAMLSignatureProfileValidator();
 
 		// validate certificate
@@ -246,29 +250,25 @@ public class SamlProvider implements IuSamlProvider {
 		staticParams.put(SAML2AssertionValidationParameters.SC_VALID_IN_RESPONSE_TO, relayState);
 		ValidationContext ctx = new ValidationContext(staticParams);
 
-		if (LOG.isLoggable(Level.FINE))
-			LOG.fine("SAML2 authentication response\nEntity ID: " + client.getServiceProviderEntityId() + "\nACS URL: "
-					+ postUri.toString() + "\nAllow IP Range: " + client.getAllowedRange() + "\n"
-					+ XmlDomUtil.getContent(response.getDOM()) + "\nStatic Params: " + staticParams);
+		LOG.fine("SAML2 authentication response\nEntity ID: " + client.getServiceProviderEntityId() + "\nACS URL: "
+				+ postUri.toString() + "\nAllow IP Range: " + client.getAllowedRange() + "\n"
+				+ XmlDomUtil.getContent(response.getDOM()) + "\nStatic Params: " + staticParams);
 
 		// validate assertions
 		SamlPrincipal principal;
-		try {
-			principal = validateAssertion(response, validator, ctx);
-		} catch (AssertionValidationException e) {
-			throw new IllegalArgumentException(ctx.toString(), e);
-		} finally {
-			current.setContextClassLoader(currentLoader);
-		}
+		principal = IuException.unchecked(() -> validateAssertion(response, validator, ctx));
+
+		current.setContextClassLoader(currentLoader);
+
 		return principal;
 
 	}
 
 	private SamlPrincipal validateAssertion(Response response, SAML20AssertionValidator validator,
 			ValidationContext ctx) throws AssertionValidationException {
-		String principalName = "";
-		String emailAddress = "";
-		String displayName = "";
+		String principalName = null;
+		String emailAddress = null;
+		String displayName = null;
 		final Map<String, Object> claims = new LinkedHashMap<>();
 		// Gets the date/time the response was issued.
 		claims.put("issueInstant", response.getIssueInstant());
@@ -286,10 +286,12 @@ public class SamlProvider implements IuSamlProvider {
 					else if ("mail".equals(attribute.getFriendlyName()) || MAIL_OID.equals(attribute.getName()))
 						emailAddress = readStringAttribute(attribute);
 			final Conditions conditions = assertion.getConditions();
-			// Get the date/time before which the assertion is invalid.
-			claims.put("notBefore", conditions.getNotBefore());
-			// Gets the date/time on, or after, which the assertion is invalid
-			claims.put("notOnOrAfter", conditions.getNotOnOrAfter());
+			if (conditions != null) {
+				// Get the date/time before which the assertion is invalid.
+				claims.put("notBefore", conditions.getNotBefore());
+				// Gets the date/time on, or after, which the assertion is invalid
+				claims.put("notOnOrAfter", conditions.getNotOnOrAfter());
+			}
 			for (AuthnStatement statement : assertion.getAuthnStatements()) {
 				// Gets the time when the authentication took place.
 				claims.put("authnInstant", statement.getAuthnInstant());
@@ -326,11 +328,13 @@ public class SamlProvider implements IuSamlProvider {
 					else if ("mail".equals(attribute.getFriendlyName()) || MAIL_OID.equals(attribute.getName()))
 						emailAddress = readStringAttribute(attribute);
 			final Conditions conditions = assertion.getConditions();
-			if (conditions.getNotBefore() != null) {
-				claims.put("notBefore", conditions.getNotBefore());
-			}
-			if (conditions.getNotOnOrAfter() != null) {
-				claims.put("notOnOrAfter", conditions.getNotOnOrAfter());
+			if (conditions != null) {
+				if (conditions.getNotBefore() != null) {
+					claims.put("notBefore", conditions.getNotBefore());
+				}
+				if (conditions.getNotOnOrAfter() != null) {
+					claims.put("notOnOrAfter", conditions.getNotOnOrAfter());
+				}
 			}
 			for (AuthnStatement statement : assertion.getAuthnStatements()) {
 
@@ -347,7 +351,7 @@ public class SamlProvider implements IuSamlProvider {
 				.get(SAML2AssertionValidationParameters.CONFIRMED_SUBJECT_CONFIRMATION);
 		if (confirmation == null)
 			throw new IllegalArgumentException("Missing subject confirmation: " + ctx.getValidationFailureMessages()
-			+ "\n" + ctx.getDynamicParameters());
+					+ "\n" + ctx.getDynamicParameters());
 
 		LOG.fine("SAML2 subject confirmation " + XmlDomUtil.getContent(confirmation.getDOM()));
 		Instant notBefore = confirmation.getSubjectConfirmationData().getNotBefore();
@@ -364,21 +368,107 @@ public class SamlProvider implements IuSamlProvider {
 		return principal;
 	}
 
-	private Decrypter getDecrypter(IuSamlClient client) {
-		PrivateKey privateKey = SamlUtil.getPrivateKey(client.getPrivateKey());
+	/**
+	 * Return decrypted XML object
+	 * @param client {@link IuSamlClient}
+	 * @return Decrypter 
+	 */
+	static Decrypter getDecrypter(IuSamlClient client) {
+		final var pem = PemEncoded.parse(new ByteArrayInputStream(IuText.utf8(client.getPrivateKey())));
+		final var key = pem.next();
+
 		List<Credential> certs = new ArrayList<>();
-		certs.add(new BasicX509Credential(client.getCertificate(), privateKey));
+		certs.add(new BasicX509Credential(client.getCertificate(), key.asPrivate("RSA")));
 		KeyInfoCredentialResolver keyInfoResolver = new StaticKeyInfoCredentialResolver(certs);
 
 		return new Decrypter(null, keyInfoResolver, new InlineEncryptedKeyResolver());
 	}
 
-	private static String readStringAttribute(Attribute attribute) {
+	private String readStringAttribute(Attribute attribute) {
 		Object attrval = attribute.getAttributeValues().get(0);
 		if (attrval instanceof XSString)
 			return ((XSString) attrval).getValue();
 		else
 			return ((XSAny) attrval).getTextContent();
+	}
+
+	/**
+	 * Get credential resolver for SAML response
+	 * 
+	 * @param response SAML response
+	 * @return credential resolver
+	 */
+	private KeyInfoCredentialResolver getKeyInfoCredentialResolver(Response response) {
+		CertificateFactory certFactory;
+		try {
+			certFactory = CertificateFactory.getInstance("X.509");
+		} catch (CertificateException e) {
+			throw new IllegalArgumentException(e);
+		}
+
+		List<Credential> certs = new ArrayList<>();
+		for (Assertion assertion : response.getAssertions())
+			if (assertion.getSignature() != null && assertion.getSignature().getKeyInfo() != null)
+				for (X509Data x509data : assertion.getSignature().getKeyInfo().getX509Datas())
+					for (X509Certificate x509cert : x509data.getX509Certificates())
+						try {
+							StringBuilder keyData = new StringBuilder(x509cert.getValue());
+							for (int i = 0; i < keyData.length();)
+								if (Character.isWhitespace(keyData.charAt(i)))
+									keyData.deleteCharAt(i);
+								else
+									i++;
+
+							certs.add(new BasicX509Credential(
+									(java.security.cert.X509Certificate) certFactory.generateCertificate(
+											new ByteArrayInputStream(Base64.getDecoder().decode(keyData.toString())))));
+
+						} catch (CertificateException e) {
+							LOG.log(Level.WARNING, e,
+									() -> "Invalid cert in response data for " + response.getDestination());
+						}
+
+		return new StaticKeyInfoCredentialResolver(certs);
+	}
+
+	/**
+	 * CredentialResolver
+	 * 
+	 * @param entity {@link EntityDescriptor}
+	 * @return {@link CredentialResolver}
+	 * @throws CertificateException
+	 */
+	private CredentialResolver getCredentialResolver(EntityDescriptor entity) throws CertificateException {
+		IDPSSODescriptor idp = entity.getIDPSSODescriptor("urn:oasis:names:tc:SAML:2.0:protocol");
+		CertificateFactory certFactory;
+		try {
+			certFactory = CertificateFactory.getInstance("X.509");
+		} catch (CertificateException e) {
+			throw new IllegalArgumentException(e);
+		}
+
+		List<Credential> certs = new ArrayList<>();
+		for (KeyDescriptor kds : idp.getKeyDescriptors())
+			if (kds.getKeyInfo() != null)
+				for (X509Data x509data : kds.getKeyInfo().getX509Datas())
+					for (org.opensaml.xmlsec.signature.X509Certificate x509cert : x509data.getX509Certificates())
+						try {
+							StringBuilder keyData = new StringBuilder(x509cert.getValue());
+							for (int i = 0; i < keyData.length();)
+								if (Character.isWhitespace(keyData.charAt(i)))
+									keyData.deleteCharAt(i);
+								else
+									i++;
+							byte[] decodedKeyData = Base64.getDecoder().decode(keyData.toString());
+							certs.add(new BasicX509Credential((java.security.cert.X509Certificate) certFactory
+									.generateCertificate(new ByteArrayInputStream(decodedKeyData))));
+
+						} catch (CertificateException e) {
+							LOG.log(Level.WARNING, e, () -> "Invalid cert in key data");
+
+						}
+
+		return new StaticCredentialResolver(certs);
 	}
 
 	@Override

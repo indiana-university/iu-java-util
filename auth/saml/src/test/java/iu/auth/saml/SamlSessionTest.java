@@ -177,25 +177,4 @@ public class SamlSessionTest {
 		}
 	}
 
-	/*
-	 * @Test public void testGetPrincipalIdentity() throws IuAuthenticationException
-	 * { final var uri = URI.create("test://entry/"); final var
-	 * serviceProviderIdentityId = "urn:iu:ess:example-test"; IuSamlClient client =
-	 * mock(IuSamlClient.class); SamlProvider provider = mock(SamlProvider.class);
-	 * when(provider.getClient()).thenReturn(client);
-	 * when(client.getAuthenticatedSessionTimeout()).thenReturn(Duration.ofHours(12L
-	 * ), Duration.ofMinutes(0));
-	 * 
-	 * 
-	 * try (final var mockSpi = mockStatic(SamlConnectSpi.class)) { mockSpi.when(()
-	 * ->
-	 * SamlConnectSpi.getProvider(serviceProviderIdentityId)).thenReturn(provider);
-	 * SamlSession session = new SamlSession(serviceProviderIdentityId, uri);
-	 * 
-	 * assertThrows(NullPointerException.class, () ->
-	 * session.getPrincipalIdentity());
-	 * //assertThrows(IuAuthenticationException.class, () ->
-	 * session.getPrincipalIdentity()); } }
-	 */
-
 }

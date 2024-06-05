@@ -3,6 +3,7 @@ package iu.auth.saml;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
+import java.net.URLConnection;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
@@ -32,6 +33,7 @@ import org.opensaml.xmlsec.signature.KeyInfo;
 import org.opensaml.xmlsec.signature.X509Certificate;
 import org.opensaml.xmlsec.signature.X509Data;
 import org.w3c.dom.Element;
+
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.IuIterable;
@@ -39,29 +41,28 @@ import edu.iu.IuText;
 import edu.iu.auth.saml.IuSamlClient;
 import net.shibboleth.shared.xml.ParserPool;
 
-
 /**
  * A SAML builder
- *  
+ * 
  */
 public class SamlBuilder {
-	
-	/** class logger  */
+
+	/** class logger */
 	private final Logger LOG = Logger.getLogger(SamlBuilder.class.getName());
 
 	/** metadata URIs */
 	private List<URI> metadataUris;
-	
+
 	/** metadata resolver object */
 	private MetadataResolver metadataResolver;
-	
+
 	/** metadata resolver last updated time */
 	private Instant lastMetadataUpdate;
-	
+
 	/** maximum duration of time metadata resolver is valid */
 	private Duration metadataTtl = Duration.ofMinutes(5L);
-	
-	/** allowed list of assertion consumer {@link URI}  */
+
+	/** allowed list of assertion consumer {@link URI} */
 	private List<URI> acsUris;
 
 	/** unique service provider id that register with identity provider */
@@ -69,8 +70,7 @@ public class SamlBuilder {
 
 	/** X.509 certificate */
 	java.security.cert.X509Certificate certificate;
-	
-	
+
 	static {
 
 		Thread current = Thread.currentThread();
@@ -108,12 +108,13 @@ public class SamlBuilder {
 			config.load(scl.getResourceAsStream("encryption-config.xml"));
 
 			XMLObjectProviderRegistrySupport.setParserPool(new SamlParserPool());
-		} );
+		});
 		current.setContextClassLoader(currentLoader);
 	}
-	
+
 	/**
 	 * Constructor
+	 * 
 	 * @param client client configuration {@see IuSamlClient}
 	 *
 	 */
@@ -124,15 +125,16 @@ public class SamlBuilder {
 		this.certificate = client.getCertificate();
 		this.serviceProviderEntityId = client.getServiceProviderEntityId();
 	}
-	
+
 	/**
 	 * Get metadata resolver {@link MetadataResolver} for given metadata URIs
+	 * 
 	 * @return {@link MetadataResolver} metadata resolver
 	 */
 	synchronized MetadataResolver getMetadata() {
-		if (metadataResolver != null && lastMetadataUpdate.isAfter(Instant.now().minus(metadataTtl))) 
+		if (metadataResolver != null && lastMetadataUpdate.isAfter(Instant.now().minus(metadataTtl)))
 			return metadataResolver;
-		
+
 		Queue<Throwable> failures = new ArrayDeque<>();
 		List<MetadataResolver> resolvers = new ArrayList<>();
 
@@ -140,9 +142,10 @@ public class SamlBuilder {
 		for (URI metadataUri : metadataUris)
 			try {
 				Element md;
-				try (InputStream in = metadataUri.toURL().openStream()) {
-					md = pp.parse(in).getDocumentElement();
-				}
+				URL url = metadataUri.toURL();
+				URLConnection connection = url.openConnection();
+				InputStream in = connection.getInputStream();
+				md = pp.parse(in).getDocumentElement();
 
 				DOMMetadataResolver mdr = new DOMMetadataResolver(md);
 				mdr.setId(IdGenerator.generateId());
@@ -179,9 +182,10 @@ public class SamlBuilder {
 		this.lastMetadataUpdate = Instant.now();
 		return metadataResolver;
 	}
-	
+
 	/**
 	 * Gets service provider metadata XML
+	 * 
 	 * @return service provider metadata XML
 	 */
 	String getServiceProviderMetadata() {
@@ -190,7 +194,7 @@ public class SamlBuilder {
 		current.setContextClassLoader(samlBuilder);
 		X509Certificate spX509Cert = (X509Certificate) XMLObjectProviderRegistrySupport.getBuilderFactory()
 				.getBuilder(X509Certificate.DEFAULT_ELEMENT_NAME).buildObject(X509Certificate.DEFAULT_ELEMENT_NAME);
-		
+
 		spX509Cert.setValue(IuText.base64((IuException.unchecked(certificate::getEncoded))));
 
 		X509Data spX509data = (X509Data) XMLObjectProviderRegistrySupport.getBuilderFactory()

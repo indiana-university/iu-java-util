@@ -56,7 +56,7 @@ public class SamlAuthenticateIT {
 
 		String samlCertificate = IuVault.RUNTIME.get("iu-endpoint.saml.certificate");
 		String privateKey = IuVault.RUNTIME.get("iu-endpoint.saml.privateKey");
-		ldpMetaDataUrl = IuVault.RUNTIME.get("iu.ldp.stg.metadata.url");
+		ldpMetaDataUrl = "https://idp-stg.login.iu.edu/idp/shibboleth"; // IuVault.RUNTIME.get("iu.ldp.stg.metadata.url");
 		HttpRequest request = IuException.unchecked(() -> HttpRequest.newBuilder().GET() //
 				.uri(new URI(ldpMetaDataUrl)) //
 				.build());
@@ -200,7 +200,7 @@ public class SamlAuthenticateIT {
 		for (final var i : parsedLoginSuccessForm.select("input[type='hidden']"))
 			loginSuccessParams.put(i.attr("name"), i.attr("value"));
 
-		// TODO verify relay state and saml response values
+		// verify relay state and SAML response values
 		String relayState = loginSuccessParams.get("RelayState");
 		String samlResponse = loginSuccessParams.get("SAMLResponse");
 
@@ -209,7 +209,7 @@ public class SamlAuthenticateIT {
 		assertNotNull(iuSamlPrincipal.getName());
 		assertNotNull(iuSamlPrincipal.getSubject());
 		assertNotNull(iuSamlPrincipal.getClaims());
-		// TODO assert iuSamlPrincipal
+		// assert iuSamlPrincipal
 		assertEquals("esstest@iu.edu", iuSamlPrincipal.getName());
 		assertEquals("ESS Testing", iuSamlPrincipal.getDisplayName());
 		assertEquals("esstest@iu.edu", iuSamlPrincipal.getEmailAddress());
