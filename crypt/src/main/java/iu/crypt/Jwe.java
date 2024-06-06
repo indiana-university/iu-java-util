@@ -121,6 +121,10 @@ public class Jwe implements WebEncryption {
 
 			content = IuException.unchecked(() -> {
 				final var messageCipher = Cipher.getInstance(encryption.algorithm);
+
+				if (initializationVector.length != messageCipher.getBlockSize())
+					throw new IllegalArgumentException("invalid initialization vector");
+
 				messageCipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(encKey, "AES"),
 						new IvParameterSpec(initializationVector));
 				return messageCipher.doFinal(cipherText);
@@ -132,11 +136,11 @@ public class Jwe implements WebEncryption {
 			macKey = macKey(cek);
 			encKey = encKey(cek);
 
-			initializationVector = new byte[16];
+			final var messageCipher = IuException.unchecked(() -> Cipher.getInstance(encryption.algorithm));
+			initializationVector = new byte[messageCipher.getBlockSize()];
 			new SecureRandom().nextBytes(initializationVector);
 
 			cipherText = IuException.unchecked(() -> {
-				final var messageCipher = Cipher.getInstance(encryption.algorithm);
 				messageCipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(encKey, "AES"),
 						new IvParameterSpec(initializationVector));
 				return messageCipher.doFinal(content);
@@ -427,6 +431,9 @@ public class Jwe implements WebEncryption {
 			final var endOfTag = cipherText.length + authenticationTag.length;
 			final var encryptedData = Arrays.copyOf(cipherText, endOfTag);
 			System.arraycopy(authenticationTag, 0, encryptedData, startOfTag, authenticationTag.length);
+
+			if (initializationVector.length != 12)
+				throw new IllegalArgumentException("invalid initialization vector");
 
 			final var secretKey = new SecretKeySpec(cek, "AES");
 			content = IuException.unchecked(() -> {
