@@ -36,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -842,10 +843,31 @@ public class WebKeyTest extends IuCryptTestCase {
 	public void testWellKnownWithOps() {
 		assertEquals(Set.of(Operation.DERIVE_KEY), WebKey.builder(Algorithm.ECDH_ES).ephemeral()
 				.ops(Algorithm.ECDH_ES.keyOps).build().wellKnown().getOps());
-		assertNull(WebKey.builder(Algorithm.A128GCMKW).ephemeral()
-				.ops(Algorithm.A128GCMKW.keyOps).build().wellKnown().getOps());
+		assertNull(WebKey.builder(Algorithm.A128GCMKW).ephemeral().ops(Algorithm.A128GCMKW.keyOps).build().wellKnown()
+				.getOps());
 		assertEquals(Set.of(Operation.WRAP), WebKey.builder(Algorithm.RSA_OAEP).ephemeral()
 				.ops(Algorithm.RSA_OAEP.keyOps).build().wellKnown().getOps());
+	}
+
+	@Test
+	public void testPem() {
+		WebKey key;
+		
+		key = WebKey.pem(EC_PRIVATE_KEY + ANOTHER_CERT_TEXT);
+		assertNotNull(key.getPrivateKey());
+		assertNotNull(key.getPublicKey());
+		assertNotNull(key.getCertificateChain());
+		assertEquals(1, key.getCertificateChain().length);
+		assertEquals("CN=iu-java-crypt-test,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US",
+				key.getCertificateChain()[0].getIssuerX500Principal().getName());
+		
+		key = WebKey.pem(CERT_TEXT);
+		assertNull(key.getPrivateKey());
+		assertNotNull(key.getPublicKey());
+		assertNotNull(key.getCertificateChain());
+		assertEquals(1, key.getCertificateChain().length);
+		assertEquals("CN=iu-java-crypt-test,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US",
+				key.getCertificateChain()[0].getIssuerX500Principal().getName());
 	}
 
 }
