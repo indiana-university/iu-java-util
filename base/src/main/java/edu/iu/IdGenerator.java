@@ -31,10 +31,9 @@
  */
 package edu.iu;
 
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.util.Arrays;
-import java.util.Random;
 
 /**
  * Provides a utility for generating short cryptographically secure unique
@@ -50,13 +49,13 @@ import java.util.Random;
  * with 1024 bytes of entropy from the system default mechanism. <em>The system
  * default entropy source can be exceedingly slow on a Linux server so is only
  * used to seed a (much faster) hash-based algorithm.</em></li>
- * <li>Generates 12 bytes of pseudorandom data, interposed with
+ * <li>Generates 24 bytes of pseudorandom data, interposed with
  * <ul>
- * <li>The lower 6 bytes of the system millisecond timestamp</li>
+ * <li>The 4 byte seconds since epoch timestamp</li>
  * <li>The lower 3 bytes of a hash checksum seeded by the system timestamp</li>
  * </ul>
  * </li>
- * <li>Uses a modified Base64 transform to convert to an id-safe 28 character
+ * <li>Uses a modified Base64 transform to convert to an id-safe 32 character
  * string
  * <ul>
  * <li>Includes only upper and lower case letters, digits, hyphen and underline
@@ -68,32 +67,6 @@ import java.util.Random;
  * </ul>
  */
 public class IdGenerator {
-
-	private static final Random SEED;
-	private static final byte[] SEED_BUF = new byte[1024];
-	static {
-		try {
-			SEED = SecureRandom.getInstanceStrong();
-		} catch (NoSuchAlgorithmException e) {
-			throw new ExceptionInInitializerError(e);
-		}
-	}
-
-	private static final ThreadLocal<SecureRandom> RAND = new ThreadLocal<SecureRandom>() {
-		@Override
-		protected SecureRandom initialValue() {
-			try {
-				SecureRandom rand = SecureRandom.getInstance("SHA1PRNG");
-				synchronized (SEED) {
-					SEED.nextBytes(SEED_BUF);
-					rand.setSeed(SEED_BUF);
-				}
-				return rand;
-			} catch (NoSuchAlgorithmException e) {
-				throw new IllegalStateException(e);
-			}
-		}
-	};
 
 	private static char getEncodedChar(int v) {
 		if (v == 0)
@@ -169,19 +142,17 @@ public class IdGenerator {
 	 */
 	public static String generateId() {
 		byte[] rawId = new byte[24];
-		RAND.get().nextBytes(rawId);
+		new SecureRandom().nextBytes(rawId);
 
-		long now = System.currentTimeMillis();
+		final var now = Instant.now().getEpochSecond();
 		rawId[3] = (byte) now;
 		rawId[9] = (byte) ((now >>> 8) & 0xff);
 		rawId[15] = (byte) ((now >>> 16) & 0xff);
 		rawId[6] = (byte) ((now >>> 24) & 0xff);
-		rawId[12] = (byte) ((now >>> 32) & 0xff);
-		rawId[18] = (byte) ((now >>> 40) & 0xff);
-
+		
 		int hash = (int) now;
-		for (int i = 1; i < 20; i++)
-			if (i != 11)
+		for (int i = 1; i < 24; i++)
+			if (i != 11 && i != 20)
 				hash = 47 * hash + rawId[i];
 		rawId[11] = (byte) hash;
 		rawId[20] = (byte) ((hash >>> 8) & 0xff);
@@ -203,24 +174,23 @@ public class IdGenerator {
 		if (decoded.length != 24)
 			throw new IllegalArgumentException("Invalid length");
 
-		long s = ((((long) decoded[18]) << 40) & 0xff0000000000L) //
-				| ((((long) decoded[12]) << 32) & 0xff00000000L) //
-				| ((((long) decoded[6]) << 24) & 0xff000000L) //
+		long s = ((((long) decoded[6]) << 24) & 0xff000000L) //
 				| ((((long) decoded[15]) << 16) & 0xff0000L) //
 				| ((((long) decoded[9]) << 8) & 0xff00L) //
 				| (((long) decoded[3]) & 0xffL);
 
-		long now = System.currentTimeMillis();
-		if (now - s < -1000L)
+		long now = Instant.now().getEpochSecond();
+		if (now - s < -1L)
 			throw new IllegalArgumentException("Invalid time signature");
 
-		if (ttl > 0 && now - s > ttl)
+		long ttls = (ttl + 999L) / 1000L;
+		if (ttls > 0 && now - s > ttls)
 			throw new IllegalArgumentException("Expired time signature");
 
 		int h = ((decoded[0] << 16) & 0xff0000) | ((decoded[20] << 8) & 0xff00) | (decoded[11] & 0xff);
 		int hash = (int) s;
-		for (int i = 1; i < 20; i++)
-			if (i != 11)
+		for (int i = 1; i < 24; i++)
+			if (i != 11 && i != 20)
 				hash = 47 * hash + decoded[i];
 		if (h != (hash & 0xffffff))
 			throw new IllegalArgumentException("Invalid checksum");

@@ -126,13 +126,6 @@ public class IuVaultTest {
 	public void setup() throws Exception {
 		final var runtime = IuVault.class.getDeclaredField("RUNTIME");
 		runtime.setAccessible(true);
-
-		final var secrets = IuVault.class.getDeclaredField("secrets");
-		secrets.setAccessible(true);
-
-		final var vault = runtime.get(null);
-		if (vault != null)
-			((Map<?, ?>) secrets.get(vault)).clear();
 	}
 
 	@Test
@@ -186,7 +179,7 @@ public class IuVaultTest {
 			assertEquals(42, IuVault.RUNTIME.get("num", IuJsonAdapter.<Number>basic()).intValue());
 			assertTrue(IuVault.RUNTIME.get("bool", IuJsonAdapter.<Boolean>basic()));
 			assertThrows(IllegalArgumentException.class, () -> IuVault.RUNTIME.get("baz"));
-			verify(mockRequestBuilder, times(4)).header("Authorization", "Bearer " + token);
+			verify(mockRequestBuilder, times(14)).header("Authorization", "Bearer " + token);
 		}
 	}
 
@@ -229,10 +222,10 @@ public class IuVaultTest {
 			assertTrue(IuVault.RUNTIME.get("bool", IuJsonAdapter.<Boolean>basic()));
 			assertThrows(IllegalArgumentException.class, () -> IuVault.RUNTIME.get("baz"));
 
-			verify(loginBuilder).POST(loginRequestPayload);
-			verify(loginBuilder).header("Content-Type", "application/json; charset=utf-8");
+			verify(loginBuilder, times(5)).POST(loginRequestPayload);
+			verify(loginBuilder, times(5)).header("Content-Type", "application/json; charset=utf-8");
 
-			verify(dataBuilder).header("Authorization", "Bearer " + token);
+			verify(dataBuilder, times(5)).header("Authorization", "Bearer " + token);
 		}
 	}
 

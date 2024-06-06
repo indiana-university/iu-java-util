@@ -70,7 +70,7 @@ public class PemEncodedTest extends IuCryptTestCase {
 
 	@Test
 	public void testInvalid() {
-		final var i = PemEncoded.parse(IdGenerator.generateId());
+		final var i = PemEncoded.parse("_-$" + IdGenerator.generateId());
 		assertTrue(i.hasNext());
 		assertThrows(IllegalArgumentException.class, () -> i.next());
 		assertFalse(i.hasNext());

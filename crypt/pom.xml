@@ -7,7 +7,7 @@
 	<parent>
 		<groupId>edu.iu.util</groupId>
 		<artifactId>iu-java-parent</artifactId>
-		<version>7.0.2</version>
+		<version>7.0.3-SNAPSHOT</version>
 	</parent>
 
 	<artifactId>iu-java-crypt</artifactId>
@@ -24,7 +24,6 @@
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-client</artifactId>
 			<version>${project.version}</version>
-			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>

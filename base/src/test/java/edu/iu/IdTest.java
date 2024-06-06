@@ -32,59 +32,12 @@
 package edu.iu;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mockStatic;
-
-import java.net.URI;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 
 import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("javadoc")
 public class IdTest {
-
-	private void isolate(Class<?> classToIsolate, UnsafeConsumer<Class<?>> isolatedClassConsumer) {
-		final var resourceName = classToIsolate.getName().replace('.', '/') + ".class";
-		final var absoluteResourceName = classToIsolate.getClassLoader().getResource(resourceName).toString();
-		final var classPathEntry = absoluteResourceName.substring(0,
-				absoluteResourceName.length() - resourceName.length());
-		try (final var isolatedLoader = new URLClassLoader(new URL[] { URI.create(classPathEntry).toURL() }, null)) {
-			final var isolatedClass = isolatedLoader.loadClass(classToIsolate.getName());
-			assertNotSame(classToIsolate, isolatedClass);
-			isolatedClassConsumer.accept(isolatedClass);
-		} catch (Throwable e) {
-			throw IuException.unchecked(e);
-		}
-	}
-
-	@Test
-	public void testInitExceptionOnSeed() throws Exception {
-		assertInstanceOf(NoSuchAlgorithmException.class,
-				assertThrows(ExceptionInInitializerError.class, () -> isolate(IdGenerator.class, c -> {
-					try (final var mockSecureRandom = mockStatic(SecureRandom.class)) {
-						mockSecureRandom.when(() -> SecureRandom.getInstanceStrong())
-								.thenThrow(NoSuchAlgorithmException.class);
-						c.getMethod("generateId").invoke(null);
-					}
-				})).getCause());
-	}
-
-	@Test
-	public void testInitExceptionOnPrng() throws Exception {
-		assertInstanceOf(NoSuchAlgorithmException.class,
-				assertThrows(IllegalStateException.class, () -> isolate(IdGenerator.class, c -> {
-					try (final var mockSecureRandom = mockStatic(SecureRandom.class)) {
-						mockSecureRandom.when(() -> SecureRandom.getInstance("SHA1PRNG"))
-								.thenThrow(NoSuchAlgorithmException.class);
-						IuException.checkedInvocation(() -> c.getMethod("generateId").invoke(null));
-					}
-				})).getCause());
-	}
 
 	@Test
 	public void testEncodeDecode() {
@@ -126,16 +79,15 @@ public class IdTest {
 	@Test
 	public void testVerifyNeedsUnexpiredTime() throws Exception {
 		var id = IdGenerator.generateId();
-		Thread.sleep(2);
+		Thread.sleep(2000L);
 		assertEquals("Expired time signature",
 				assertThrows(IllegalArgumentException.class, () -> IdGenerator.verifyId(id, 1)).getMessage());
 	}
 
 	@Test
 	public void testVerifyNeedsValidChecksum() throws Exception {
-		Thread.sleep(2);
 		assertEquals("Invalid checksum",
-				assertThrows(IllegalArgumentException.class, () -> IdGenerator.verifyId("hPTbzx2RQ4sCTn-aWy4zwPyU_TJoM6A3", 0)).getMessage());
+				assertThrows(IllegalArgumentException.class, () -> IdGenerator.verifyId("F4TS-R7YNZkaLtcVh544L4xSE2zCQpIZ", 0)).getMessage());
 	}
 
 }

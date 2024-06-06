@@ -43,7 +43,7 @@ import iu.crypt.JwsBuilder;
  * Unifies algorithm support and maps from JCE encryption to JSON Web Encryption
  * (JWE).
  * 
- * @see <a href="https://datatracker.ietf.org/doc/html/rfc7516">RFC 7515</a>
+ * @see <a href="https://datatracker.ietf.org/doc/html/rfc7516">RFC 7516</a>
  */
 public interface WebSignature {
 

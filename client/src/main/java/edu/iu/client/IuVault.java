@@ -35,8 +35,6 @@ import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 
 import edu.iu.IuException;
@@ -89,7 +87,7 @@ public class IuVault {
 	 * {@code VAULT_TOKEN} are populated, then approle properties will be skipped
 	 * </p>
 	 */
-	public static IuVault RUNTIME;
+	public static final IuVault RUNTIME;
 
 	static {
 		final var secrets = IuRuntimeEnvironment.envOptional("iu.vault.secrets", a -> a.split(","));
@@ -125,7 +123,6 @@ public class IuVault {
 		return RUNTIME != null;
 	}
 
-	private final Map<String, JsonObject> secrets = new HashMap<>();
 	private final URI endpoint;
 	private final String[] secretNames;
 	private final String token;
@@ -197,19 +194,9 @@ public class IuVault {
 	}
 
 	private JsonObject getSecret(String secret) {
-		var cachedSecret = secrets.get(secret);
-		if (cachedSecret != null)
-			return cachedSecret;
-
-		final var data = IuException.unchecked(
+		return IuException.unchecked(
 				() -> IuHttp.send(URI.create(endpoint + "/data/" + secret), this::authorize, IuHttp.READ_JSON_OBJECT))
 				.getJsonObject("data").getJsonObject("data");
-
-		synchronized (secrets) {
-			secrets.put(secret, data);
-		}
-
-		return data;
 	}
 
 	private void approle(HttpRequest.Builder dataRequestBuilder) {

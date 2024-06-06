@@ -152,10 +152,24 @@ class JweRecipient implements WebEncryptionRecipient {
 	 */
 	byte[] passphraseDerivedKey(String passphrase) {
 		final var algorithm = header.getAlgorithm();
-
 		final var alg = IuText.utf8(algorithm.alg);
+
 		final byte[] p2s = Objects.requireNonNull(header.getExtendedParameter("p2s"), "p2s required for " + algorithm);
+		if (p2s.length < 8)
+			// RFC-7518 JWA #4.8.1.1:
+			// A Salt Input value containing 8 or more octets MUST be used.
+			throw new IllegalArgumentException("p2s must contain at least 8 bytes");
+
+		// ASVS4 #2.4.3: Verify that if PBKDF2 is used, the iteration count SHOULD be as
+		// large as verification server performance will allow, typically at least
+		// 100,000 iterations. (C6)
+		// RFC-7518 JWA #4.8.1.2: The iteration count adds computational expense,
+		// ideally compounded by the possible range of keys introduced by the salt. A
+		// minimum iteration count of 1000 is RECOMMENDED.
+		// For interoperability, allow p2c low as 1000 for decryption only
 		final int p2c = Objects.requireNonNull(header.getExtendedParameter("p2c"), "p2c required for " + algorithm);
+		if (p2c < 1000)
+			throw new IllegalArgumentException("p2c must contain be at least 1000");
 
 		final var saltValue = ByteBuffer.wrap(new byte[alg.length + 1 + p2s.length]);
 		saltValue.put(alg);
@@ -258,9 +272,10 @@ class JweRecipient implements WebEncryptionRecipient {
 				cipher.init(Cipher.UNWRAP_MODE, key);
 				return ((SecretKey) cipher.unwrap(encryptedKey, "AES", Cipher.SECRET_KEY)).getEncoded();
 			});
-		else // if (EnumSet.of(Algorithm.PBES2_HS256_A128KW, Algorithm.PBES2_HS384_A192KW, Algorithm.PBES2_HS512_A256KW)
-			//	.contains(algorithm))
-			// password-based key derivation with key wrapping
+		else // if (EnumSet.of(Algorithm.PBES2_HS256_A128KW, Algorithm.PBES2_HS384_A192KW,
+				// Algorithm.PBES2_HS512_A256KW)
+				// .contains(algorithm))
+				// password-based key derivation with key wrapping
 			cek = IuException.unchecked(() -> {
 				final var key = new SecretKeySpec(passphraseDerivedKey(IuText.utf8(privateKey.getKey())), "AES");
 				final var cipher = Cipher.getInstance("AESWrap");
