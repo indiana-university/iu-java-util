@@ -35,8 +35,6 @@ import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 
 import edu.iu.IuException;
@@ -50,7 +48,7 @@ import jakarta.json.JsonObject;
  */
 public class IuVault {
 	static {
-<span class="fc" id="L53">		IuObject.assertNotOpen(IuVault.class);</span>
+<span class="fc" id="L51">		IuObject.assertNotOpen(IuVault.class);</span>
 	}
 
 	/**
@@ -89,25 +87,25 @@ public class IuVault {
 	 * {@code VAULT_TOKEN} are populated, then approle properties will be skipped
 	 * &lt;/p&gt;
 	 */
-	public static IuVault RUNTIME;
+	public static final IuVault RUNTIME;
 
 	static {
-<span class="fc" id="L95">		final var secrets = IuRuntimeEnvironment.envOptional(&quot;iu.vault.secrets&quot;, a -&gt; a.split(&quot;,&quot;));</span>
-<span class="fc bfc" id="L96" title="All 2 branches covered.">		if (secrets == null)</span>
-<span class="fc" id="L97">			RUNTIME = null;</span>
+<span class="fc" id="L93">		final var secrets = IuRuntimeEnvironment.envOptional(&quot;iu.vault.secrets&quot;, a -&gt; a.split(&quot;,&quot;));</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">		if (secrets == null)</span>
+<span class="fc" id="L95">			RUNTIME = null;</span>
 		else {
-<span class="fc" id="L99">			final var endpoint = IuRuntimeEnvironment.env(&quot;iu.vault.endpoint&quot;, URI::create);</span>
-<span class="fc" id="L100">			final var token = IuRuntimeEnvironment.envOptional(&quot;iu.vault.token&quot;);</span>
-<span class="fc bfc" id="L101" title="All 2 branches covered.">			if (token != null)</span>
-<span class="fc" id="L102">				RUNTIME = new IuVault(endpoint, secrets, token);</span>
+<span class="fc" id="L97">			final var endpoint = IuRuntimeEnvironment.env(&quot;iu.vault.endpoint&quot;, URI::create);</span>
+<span class="fc" id="L98">			final var token = IuRuntimeEnvironment.envOptional(&quot;iu.vault.token&quot;);</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">			if (token != null)</span>
+<span class="fc" id="L100">				RUNTIME = new IuVault(endpoint, secrets, token);</span>
 			else {
-<span class="fc" id="L104">				final var loginEndpoint = IuRuntimeEnvironment.env(&quot;iu.vault.loginEndpoint&quot;, URI::create);</span>
-<span class="fc" id="L105">				final var roleId = IuRuntimeEnvironment.env(&quot;iu.vault.roleId&quot;);</span>
-<span class="fc" id="L106">				final var secretId = IuRuntimeEnvironment.env(&quot;iu.vault.secretId&quot;);</span>
-<span class="fc" id="L107">				RUNTIME = new IuVault(endpoint, secrets, loginEndpoint, roleId, secretId);</span>
+<span class="fc" id="L102">				final var loginEndpoint = IuRuntimeEnvironment.env(&quot;iu.vault.loginEndpoint&quot;, URI::create);</span>
+<span class="fc" id="L103">				final var roleId = IuRuntimeEnvironment.env(&quot;iu.vault.roleId&quot;);</span>
+<span class="fc" id="L104">				final var secretId = IuRuntimeEnvironment.env(&quot;iu.vault.secretId&quot;);</span>
+<span class="fc" id="L105">				RUNTIME = new IuVault(endpoint, secrets, loginEndpoint, roleId, secretId);</span>
 			}
 		}
-<span class="fc" id="L110">	}</span>
+<span class="fc" id="L108">	}</span>
 
 	/**
 	 * Determines whether or not the RUNTIME Vault is configured.
@@ -122,10 +120,9 @@ public class IuVault {
 	 * @return true if Vault is configured; else false
 	 */
 	public static boolean isConfigured() {
-<span class="fc bfc" id="L125" title="All 2 branches covered.">		return RUNTIME != null;</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">		return RUNTIME != null;</span>
 	}
 
-<span class="fc" id="L128">	private final Map&lt;String, JsonObject&gt; secrets = new HashMap&lt;&gt;();</span>
 	private final URI endpoint;
 	private final String[] secretNames;
 	private final String token;
@@ -140,14 +137,14 @@ public class IuVault {
 	 * @param secretNames Secret names to load, collisions prefer first found
 	 * @param token       Bearer token
 	 */
-<span class="fc" id="L143">	public IuVault(URI endpoint, String[] secretNames, String token) {</span>
-<span class="fc" id="L144">		this.endpoint = endpoint;</span>
-<span class="fc" id="L145">		this.secretNames = secretNames;</span>
-<span class="fc" id="L146">		this.token = token;</span>
-<span class="fc" id="L147">		this.loginEndpoint = null;</span>
-<span class="fc" id="L148">		this.roleId = null;</span>
-<span class="fc" id="L149">		this.secretId = null;</span>
-<span class="fc" id="L150">	}</span>
+<span class="fc" id="L140">	public IuVault(URI endpoint, String[] secretNames, String token) {</span>
+<span class="fc" id="L141">		this.endpoint = endpoint;</span>
+<span class="fc" id="L142">		this.secretNames = secretNames;</span>
+<span class="fc" id="L143">		this.token = token;</span>
+<span class="fc" id="L144">		this.loginEndpoint = null;</span>
+<span class="fc" id="L145">		this.roleId = null;</span>
+<span class="fc" id="L146">		this.secretId = null;</span>
+<span class="fc" id="L147">	}</span>
 
 	/**
 	 * Constructor.
@@ -158,14 +155,14 @@ public class IuVault {
 	 * @param roleId        Role ID
 	 * @param secretId      Secret ID
 	 */
-<span class="fc" id="L161">	public IuVault(URI endpoint, String[] secretNames, URI loginEndpoint, String roleId, String secretId) {</span>
-<span class="fc" id="L162">		this.endpoint = endpoint;</span>
-<span class="fc" id="L163">		this.secretNames = secretNames;</span>
-<span class="fc" id="L164">		this.token = null;</span>
-<span class="fc" id="L165">		this.loginEndpoint = loginEndpoint;</span>
-<span class="fc" id="L166">		this.roleId = roleId;</span>
-<span class="fc" id="L167">		this.secretId = secretId;</span>
-<span class="fc" id="L168">	}</span>
+<span class="fc" id="L158">	public IuVault(URI endpoint, String[] secretNames, URI loginEndpoint, String roleId, String secretId) {</span>
+<span class="fc" id="L159">		this.endpoint = endpoint;</span>
+<span class="fc" id="L160">		this.secretNames = secretNames;</span>
+<span class="fc" id="L161">		this.token = null;</span>
+<span class="fc" id="L162">		this.loginEndpoint = loginEndpoint;</span>
+<span class="fc" id="L163">		this.roleId = roleId;</span>
+<span class="fc" id="L164">		this.secretId = secretId;</span>
+<span class="fc" id="L165">	}</span>
 
 	/**
 	 * Reads a property value from a Vault secret.
@@ -176,14 +173,14 @@ public class IuVault {
 	 * @return property value
 	 */
 	public &lt;T&gt; T get(String name, IuJsonAdapter&lt;T&gt; adapter) {
-<span class="fc bfc" id="L179" title="All 2 branches covered.">		for (String secret : secretNames) {</span>
-<span class="fc" id="L180">			final var data = getSecret(secret);</span>
-<span class="fc bfc" id="L181" title="All 2 branches covered.">			if (data.containsKey(name))</span>
-<span class="fc" id="L182">				return adapter.fromJson(data.get(name));</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">		for (String secret : secretNames) {</span>
+<span class="fc" id="L177">			final var data = getSecret(secret);</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">			if (data.containsKey(name))</span>
+<span class="fc" id="L179">				return adapter.fromJson(data.get(name));</span>
 		}
 
-<span class="fc" id="L185">		throw new IllegalArgumentException(</span>
-<span class="fc" id="L186">				name + &quot; not found in Vault using &quot; + endpoint + &quot;/data/&quot; + Arrays.toString(secretNames));</span>
+<span class="fc" id="L182">		throw new IllegalArgumentException(</span>
+<span class="fc" id="L183">				name + &quot; not found in Vault using &quot; + endpoint + &quot;/data/&quot; + Arrays.toString(secretNames));</span>
 	}
 
 	/**
@@ -193,46 +190,36 @@ public class IuVault {
 	 * @return property value
 	 */
 	public String get(String name) {
-<span class="fc" id="L196">		return get(name, IuJsonAdapter.of(String.class));</span>
+<span class="fc" id="L193">		return get(name, IuJsonAdapter.of(String.class));</span>
 	}
 
 	private JsonObject getSecret(String secret) {
-<span class="fc" id="L200">		var cachedSecret = secrets.get(secret);</span>
-<span class="fc bfc" id="L201" title="All 2 branches covered.">		if (cachedSecret != null)</span>
-<span class="fc" id="L202">			return cachedSecret;</span>
-
-<span class="fc" id="L204">		final var data = IuException.unchecked(</span>
-<span class="fc" id="L205">				() -&gt; IuHttp.send(URI.create(endpoint + &quot;/data/&quot; + secret), this::authorize, IuHttp.READ_JSON_OBJECT))</span>
-<span class="fc" id="L206">				.getJsonObject(&quot;data&quot;).getJsonObject(&quot;data&quot;);</span>
-
-<span class="fc" id="L208">		synchronized (secrets) {</span>
-<span class="fc" id="L209">			secrets.put(secret, data);</span>
-<span class="fc" id="L210">		}</span>
-
-<span class="fc" id="L212">		return data;</span>
+<span class="fc" id="L197">		return IuException.unchecked(</span>
+<span class="fc" id="L198">				() -&gt; IuHttp.send(URI.create(endpoint + &quot;/data/&quot; + secret), this::authorize, IuHttp.READ_JSON_OBJECT))</span>
+<span class="fc" id="L199">				.getJsonObject(&quot;data&quot;).getJsonObject(&quot;data&quot;);</span>
 	}
 
 	private void approle(HttpRequest.Builder dataRequestBuilder) {
-<span class="fc" id="L216">		final var payload = IuJson.object();</span>
-<span class="fc" id="L217">		payload.add(&quot;role_id&quot;, Objects.requireNonNull(roleId, &quot;Missing vault.roleId&quot;));</span>
-<span class="fc" id="L218">		payload.add(&quot;secret_id&quot;, Objects.requireNonNull(secretId, &quot;Missing vault.loginEndpoint&quot;));</span>
-<span class="fc" id="L219">		dataRequestBuilder.POST(BodyPublishers.ofString(payload.build().toString()));</span>
-<span class="fc" id="L220">		dataRequestBuilder.header(&quot;Content-Type&quot;, &quot;application/json; charset=utf-8&quot;);</span>
-<span class="fc" id="L221">	}</span>
+<span class="fc" id="L203">		final var payload = IuJson.object();</span>
+<span class="fc" id="L204">		payload.add(&quot;role_id&quot;, Objects.requireNonNull(roleId, &quot;Missing vault.roleId&quot;));</span>
+<span class="fc" id="L205">		payload.add(&quot;secret_id&quot;, Objects.requireNonNull(secretId, &quot;Missing vault.loginEndpoint&quot;));</span>
+<span class="fc" id="L206">		dataRequestBuilder.POST(BodyPublishers.ofString(payload.build().toString()));</span>
+<span class="fc" id="L207">		dataRequestBuilder.header(&quot;Content-Type&quot;, &quot;application/json; charset=utf-8&quot;);</span>
+<span class="fc" id="L208">	}</span>
 
 	private void authorize(HttpRequest.Builder dataRequestBuilder) {
-<span class="fc" id="L224">		var accessToken = token;</span>
+<span class="fc" id="L211">		var accessToken = token;</span>
 
-<span class="fc bfc" id="L226" title="All 2 branches covered.">		if (accessToken == null)</span>
-<span class="fc" id="L227">			accessToken = IuException</span>
-<span class="fc" id="L228">					.unchecked(</span>
+<span class="fc bfc" id="L213" title="All 2 branches covered.">		if (accessToken == null)</span>
+<span class="fc" id="L214">			accessToken = IuException</span>
+<span class="fc" id="L215">					.unchecked(</span>
 							() -&gt; IuHttp
-<span class="fc" id="L230">									.send(Objects.requireNonNull(loginEndpoint, &quot;Missing vault.loginEndpoint&quot;),</span>
+<span class="fc" id="L217">									.send(Objects.requireNonNull(loginEndpoint, &quot;Missing vault.loginEndpoint&quot;),</span>
 											this::approle, IuHttp.READ_JSON_OBJECT)
-<span class="fc" id="L232">									.getJsonObject(&quot;auth&quot;).getString(&quot;client_token&quot;));</span>
+<span class="fc" id="L219">									.getJsonObject(&quot;auth&quot;).getString(&quot;client_token&quot;));</span>
 
-<span class="fc" id="L234">		dataRequestBuilder.header(&quot;Authorization&quot;, &quot;Bearer &quot; + accessToken);</span>
-<span class="fc" id="L235">	}</span>
+<span class="fc" id="L221">		dataRequestBuilder.header(&quot;Authorization&quot;, &quot;Bearer &quot; + accessToken);</span>
+<span class="fc" id="L222">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
