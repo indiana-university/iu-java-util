@@ -54,8 +54,8 @@ public class SamlAuthenticateIT {
 	@BeforeAll
 	public static void setupClass() {
 
-		String samlCertificate = IuVault.RUNTIME.get("iu-endpoint.saml.certificate");
-		String privateKey = IuVault.RUNTIME.get("iu-endpoint.saml.privateKey");
+		String samlCertificate = IuVault.RUNTIME.get("thirdparty.saml.certificate");
+		String privateKey = IuVault.RUNTIME.get("thirdparty.saml.privateKey");
 		ldpMetaDataUrl = "https://idp-stg.login.iu.edu/idp/shibboleth"; // IuVault.RUNTIME.get("iu.ldp.stg.metadata.url");
 		HttpRequest request = IuException.unchecked(() -> HttpRequest.newBuilder().GET() //
 				.uri(new URI(ldpMetaDataUrl)) //
