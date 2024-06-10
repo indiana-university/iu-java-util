@@ -49,12 +49,10 @@ public class SamlParserPoolTest {
 		}));
 
 		String initialString = "<foo><bar>baz</bar></foo>";
-	    InputStream targetStream = new ByteArrayInputStream(initialString.getBytes());
-	   
-	    
+		InputStream targetStream = new ByteArrayInputStream(initialString.getBytes());
 		assertNotNull(parserPool.parse(targetStream));
-		assertNotNull(parserPool.parse( new StringReader(initialString)));
-		
+		assertNotNull(parserPool.parse(new StringReader(initialString)));
+
 	}
 
 	@Test

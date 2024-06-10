@@ -18,7 +18,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
@@ -57,7 +56,6 @@ import org.opensaml.security.credential.CredentialResolver;
 import org.opensaml.security.credential.impl.StaticCredentialResolver;
 import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.xmlsec.SignatureValidationParameters;
-import org.opensaml.xmlsec.encryption.support.DecryptionException;
 import org.opensaml.xmlsec.encryption.support.InlineEncryptedKeyResolver;
 import org.opensaml.xmlsec.keyinfo.KeyInfoCredentialResolver;
 import org.opensaml.xmlsec.keyinfo.impl.StaticKeyInfoCredentialResolver;
@@ -283,8 +281,9 @@ public class SamlProvider implements IuSamlProvider {
 					else if ("displayName".equals(attribute.getFriendlyName())
 							|| DISPLAY_NAME_OID.equals(attribute.getName()))
 						displayName = readStringAttribute(attribute);
-					else if ("mail".equals(attribute.getFriendlyName()) || MAIL_OID.equals(attribute.getName()))
+					else if ("mail".equals(attribute.getFriendlyName()) || MAIL_OID.equals(attribute.getName())) {
 						emailAddress = readStringAttribute(attribute);
+					}
 			final Conditions conditions = assertion.getConditions();
 			if (conditions != null) {
 				// Get the date/time before which the assertion is invalid.
@@ -300,21 +299,15 @@ public class SamlProvider implements IuSamlProvider {
 
 		for (EncryptedAssertion encryptedAssertion : response.getEncryptedAssertions()) {
 			Assertion assertion;
-			try {
-				// see:
-				// https://stackoverflow.com/questions/22672416/org-opensaml-xml-validation-validationexception-apache-xmlsec-idresolver-could
-				// https://stackoverflow.com/questions/24364686/saml-2-0-decrypting-encryptedassertion-removes-a-namespace-declaration
-				Decrypter dc = getDecrypter(client);
-				dc.setRootInNewDocument(true);
-				assertion = dc.decrypt(encryptedAssertion);
-			} catch (DecryptionException e) {
-				throw new IllegalArgumentException("Invalid encrypted assertion in response", e);
-			}
-			try {
-				validator.validate(assertion, ctx);
-			} catch (AssertionValidationException e) {
-				throw new IllegalArgumentException(ctx.toString(), e);
-			}
+			// see:
+			// https://stackoverflow.com/questions/22672416/org-opensaml-xml-validation-validationexception-apache-xmlsec-idresolver-could
+			// https://stackoverflow.com/questions/24364686/saml-2-0-decrypting-encryptedassertion-removes-a-namespace-declaration
+			Decrypter dc = getDecrypter(client);
+			dc.setRootInNewDocument(true);
+			assertion = IuException.unchecked(() -> dc.decrypt(encryptedAssertion));
+
+			IuException.unchecked(() -> validator.validate(assertion, ctx));
+
 			LOG.fine("SAML2 assertion " + XmlDomUtil.getContent(assertion.getDOM()));
 
 			for (AttributeStatement attributeStatement : assertion.getAttributeStatements())
@@ -327,14 +320,13 @@ public class SamlProvider implements IuSamlProvider {
 						displayName = readStringAttribute(attribute);
 					else if ("mail".equals(attribute.getFriendlyName()) || MAIL_OID.equals(attribute.getName()))
 						emailAddress = readStringAttribute(attribute);
+					else {
+						System.out.print("test");
+					}
 			final Conditions conditions = assertion.getConditions();
 			if (conditions != null) {
-				if (conditions.getNotBefore() != null) {
-					claims.put("notBefore", conditions.getNotBefore());
-				}
-				if (conditions.getNotOnOrAfter() != null) {
-					claims.put("notOnOrAfter", conditions.getNotOnOrAfter());
-				}
+				claims.put("notBefore", conditions.getNotBefore());
+				claims.put("notOnOrAfter", conditions.getNotOnOrAfter());
 			}
 			for (AuthnStatement statement : assertion.getAuthnStatements()) {
 
@@ -370,8 +362,9 @@ public class SamlProvider implements IuSamlProvider {
 
 	/**
 	 * Return decrypted XML object
+	 * 
 	 * @param client {@link IuSamlClient}
-	 * @return Decrypter 
+	 * @return Decrypter
 	 */
 	static Decrypter getDecrypter(IuSamlClient client) {
 		final var pem = PemEncoded.parse(new ByteArrayInputStream(IuText.utf8(client.getPrivateKey())));
@@ -398,35 +391,22 @@ public class SamlProvider implements IuSamlProvider {
 	 * @param response SAML response
 	 * @return credential resolver
 	 */
-	private KeyInfoCredentialResolver getKeyInfoCredentialResolver(Response response) {
+	static KeyInfoCredentialResolver getKeyInfoCredentialResolver(Response response) {
 		CertificateFactory certFactory;
-		try {
-			certFactory = CertificateFactory.getInstance("X.509");
-		} catch (CertificateException e) {
-			throw new IllegalArgumentException(e);
-		}
+		certFactory = IuException.unchecked(() -> CertificateFactory.getInstance("X.509"));
 
 		List<Credential> certs = new ArrayList<>();
 		for (Assertion assertion : response.getAssertions())
 			if (assertion.getSignature() != null && assertion.getSignature().getKeyInfo() != null)
 				for (X509Data x509data : assertion.getSignature().getKeyInfo().getX509Datas())
 					for (X509Certificate x509cert : x509data.getX509Certificates())
-						try {
+						IuException.unchecked(() -> {
 							StringBuilder keyData = new StringBuilder(x509cert.getValue());
-							for (int i = 0; i < keyData.length();)
-								if (Character.isWhitespace(keyData.charAt(i)))
-									keyData.deleteCharAt(i);
-								else
-									i++;
-
 							certs.add(new BasicX509Credential(
 									(java.security.cert.X509Certificate) certFactory.generateCertificate(
 											new ByteArrayInputStream(Base64.getDecoder().decode(keyData.toString())))));
 
-						} catch (CertificateException e) {
-							LOG.log(Level.WARNING, e,
-									() -> "Invalid cert in response data for " + response.getDestination());
-						}
+						});
 
 		return new StaticKeyInfoCredentialResolver(certs);
 	}
@@ -436,23 +416,18 @@ public class SamlProvider implements IuSamlProvider {
 	 * 
 	 * @param entity {@link EntityDescriptor}
 	 * @return {@link CredentialResolver}
-	 * @throws CertificateException
 	 */
-	private CredentialResolver getCredentialResolver(EntityDescriptor entity) throws CertificateException {
+	static CredentialResolver getCredentialResolver(EntityDescriptor entity) {
 		IDPSSODescriptor idp = entity.getIDPSSODescriptor("urn:oasis:names:tc:SAML:2.0:protocol");
 		CertificateFactory certFactory;
-		try {
-			certFactory = CertificateFactory.getInstance("X.509");
-		} catch (CertificateException e) {
-			throw new IllegalArgumentException(e);
-		}
+		certFactory = IuException.unchecked(() -> CertificateFactory.getInstance("X.509"));
 
 		List<Credential> certs = new ArrayList<>();
 		for (KeyDescriptor kds : idp.getKeyDescriptors())
 			if (kds.getKeyInfo() != null)
 				for (X509Data x509data : kds.getKeyInfo().getX509Datas())
 					for (org.opensaml.xmlsec.signature.X509Certificate x509cert : x509data.getX509Certificates())
-						try {
+						IuException.unchecked(() -> {
 							StringBuilder keyData = new StringBuilder(x509cert.getValue());
 							for (int i = 0; i < keyData.length();)
 								if (Character.isWhitespace(keyData.charAt(i)))
@@ -463,10 +438,7 @@ public class SamlProvider implements IuSamlProvider {
 							certs.add(new BasicX509Credential((java.security.cert.X509Certificate) certFactory
 									.generateCertificate(new ByteArrayInputStream(decodedKeyData))));
 
-						} catch (CertificateException e) {
-							LOG.log(Level.WARNING, e, () -> "Invalid cert in key data");
-
-						}
+						});
 
 		return new StaticCredentialResolver(certs);
 	}

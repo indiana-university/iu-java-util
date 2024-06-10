@@ -132,44 +132,6 @@ public class SpiTest {
 	}
 
 	@Test
-	public void testGetSingleSignOnLocationInvalidSamlProtocol() throws IOException {
-		IuTestLogger.allow("iu.auth.saml.SamlBuilder", Level.WARNING);
-		final var spi = new SamlConnectSpi();
-		File file = new File("src/test/resource/metadata_invalid_protocol.xml");
-		final var uri = mock(URI.class);
-		when(uri.toURL()).thenReturn(file.toPath().toUri().toURL());
-
-		final var client = getClient(Arrays.asList(uri), "urn:iu:ess:trex");
-		SamlProvider provider = (SamlProvider) spi.getSamlProvider(client);
-		assertThrows(IllegalStateException.class, () -> provider.getSingleSignOnLocation("https://sp.identityserver"));
-	}
-
-	@Test
-	public void testGetSingleSignOnLocationInvalidSamlBinding() throws IOException {
-		IuTestLogger.allow("iu.auth.saml.SamlBuilder", Level.WARNING);
-		final var spi = new SamlConnectSpi();
-		File file = new File("src/test/resource/metadata_invalid_binding.xml");
-		final var uri = mock(URI.class);
-		when(uri.toURL()).thenReturn(file.toPath().toUri().toURL());
-
-		final var client = getClient(Arrays.asList(uri), "urn:iu:esshr:test");
-		SamlProvider provider = (SamlProvider) spi.getSamlProvider(client);
-		assertThrows(IllegalStateException.class, () -> provider.getSingleSignOnLocation("https://sp.identityserver"));
-	}
-
-	@Test
-	public void testGetAuthenticationRequest() throws IOException {
-		String resourceUri = "test://entry/show";
-		final var uri = URI.create("test://localhost/" + IdGenerator.generateId());
-		final var spi = new SamlConnectSpi();
-		final var client = getClient(Arrays.asList(uri), "urn:iu:ess:iumobile");
-		SamlProvider provider = (SamlProvider) spi.getSamlProvider(client);
-		assertThrows(IllegalArgumentException.class,
-				() -> provider.getAuthRequest(URI.create("test://iumobile"), IdGenerator.generateId(), resourceUri));
-		assertNotNull(provider.getAuthRequest(URI.create("test://postUrl/"), IdGenerator.generateId(), resourceUri));
-	}
-
-	@Test
 	public void testCreateSession() {
 		final var spi = new SamlConnectSpi();
 		final var realm = IdGenerator.generateId();

@@ -64,8 +64,8 @@ public class SamlParserPool implements ParserPool {
 	}
 
 	@Override
-	public Document parse(InputStream input)  {
-		return IuException.unchecked(()-> getBuilder().parse(input));
+	public Document parse(InputStream input) {
+		return IuException.unchecked(() -> getBuilder().parse(input));
 	}
 
 	@Override
