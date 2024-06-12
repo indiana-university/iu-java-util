@@ -61,7 +61,7 @@ public interface IuAuthoritativeOpenIdClient extends IuOpenIdClient {
 	/**
 	 * Gets the maximum length of time to allow an authenticated session, as timed
 	 * by the {@code auth_time} OIDC claim, to be remain active before requesting
-	 * the provide re-establish credentials for the principal.
+	 * the provider re-establish credentials for the principal.
 	 * 
 	 * @return {@link Duration}, will be truncated to seconds
 	 */

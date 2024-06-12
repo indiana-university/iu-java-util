@@ -29,42 +29,27 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.jwt;
+package edu.iu.auth.config;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
-import java.net.URI;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 
 @SuppressWarnings("javadoc")
-public class JwkPrincipalVerifierTest {
+public class AudienceTest {
 
 	@Test
-	public void testVerifier() {
-		final var uri = URI.create("test:" + IdGenerator.generateId());
-		final var keyId = IdGenerator.generateId();
-		final var jwkId = new JwkPrincipal(uri, keyId);
-		final var jwkId2 = new JwkPrincipal(uri, keyId);
-
-		final var verifier = new JwkPrincipalVerifier(jwkId);
-		assertNull(verifier.getAuthenticationEndpoint());
-		assertNull(verifier.getAuthScheme());
-		assertEquals(uri + "#" + keyId, verifier.getRealm());
-		assertSame(JwkPrincipal.class, verifier.getType());
-		assertFalse(verifier.isAuthoritative());
-
-		assertDoesNotThrow(() -> verifier.verify(jwkId, verifier.getRealm()));
-		assertThrows(IllegalArgumentException.class, () -> verifier.verify(jwkId, IdGenerator.generateId()));
-		assertThrows(IllegalArgumentException.class, () -> verifier.verify(jwkId2, verifier.getRealm()));
-
+	public void testOf() {
+		final var authId = IdGenerator.generateId();
+		final var audience = mock(Audience.class);
+		try (final var mockAuthConfig = mockStatic(AuthConfig.class)) {
+			mockAuthConfig.when(() -> AuthConfig.load(Audience.class, "audience/" + authId)).thenReturn(audience);
+			assertSame(audience, Audience.of(authId));
+		}
 	}
 
 }

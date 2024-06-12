@@ -29,42 +29,42 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.jwt;
+package edu.iu.client;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import java.time.Instant;
+import java.util.Map;
 
-import java.net.URI;
+/**
+ * Represents metadata related to a Vault K/V engine.
+ */
+public interface IuVaultMetadata {
 
-import org.junit.jupiter.api.Test;
+	/**
+	 * Gets the created time.
+	 * 
+	 * @return {@link Instant}
+	 */
+	Instant getCreatedTime();
 
-import edu.iu.IdGenerator;
+	/**
+	 * Gets the deletion time.
+	 * 
+	 * @return {@link Instant}
+	 */
+	Instant getDeletionTime();
 
-@SuppressWarnings("javadoc")
-public class JwkPrincipalVerifierTest {
+	/**
+	 * Gets the version of the secret.
+	 * 
+	 * @return version
+	 */
+	int getVersion();
 
-	@Test
-	public void testVerifier() {
-		final var uri = URI.create("test:" + IdGenerator.generateId());
-		final var keyId = IdGenerator.generateId();
-		final var jwkId = new JwkPrincipal(uri, keyId);
-		final var jwkId2 = new JwkPrincipal(uri, keyId);
-
-		final var verifier = new JwkPrincipalVerifier(jwkId);
-		assertNull(verifier.getAuthenticationEndpoint());
-		assertNull(verifier.getAuthScheme());
-		assertEquals(uri + "#" + keyId, verifier.getRealm());
-		assertSame(JwkPrincipal.class, verifier.getType());
-		assertFalse(verifier.isAuthoritative());
-
-		assertDoesNotThrow(() -> verifier.verify(jwkId, verifier.getRealm()));
-		assertThrows(IllegalArgumentException.class, () -> verifier.verify(jwkId, IdGenerator.generateId()));
-		assertThrows(IllegalArgumentException.class, () -> verifier.verify(jwkId2, verifier.getRealm()));
-
-	}
+	/**
+	 * Gets custom metadata defined for the secret.
+	 * 
+	 * @return custom metadata
+	 */
+	Map<String, String> getCustomMetadata();
 
 }

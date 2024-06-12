@@ -100,6 +100,27 @@ public final class IuWebUtils {
 	}
 
 	/**
+	 * ctext = HTAB / SP / %x21-27 / %x2A-5B / %x5D-7E / obs-text
+	 * 
+	 * @param c character
+	 * @return true if c matches ctext ABNF rule; else false
+	 * @see <a href=
+	 *      "https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf">RFC-9110
+	 *      HTTP Semantics Collected ABNF</a>
+	 */
+	static boolean ctext(char c) {
+		return c == HTAB //
+				|| c == SP //
+				|| (c >= 0x21 // '!'-'''
+						&& c <= 0x27) //
+				|| (c >= 0x2A // '*'-'['
+						&& c <= 0x5b) //
+				|| (c >= 0x5d // ']'-'~'
+						&& c <= 0x7e) //
+				|| obsText(c);
+	}
+
+	/**
 	 * obs-text = %x80-FF
 	 * 
 	 * @param c character
@@ -111,6 +132,42 @@ public final class IuWebUtils {
 	static boolean obsText(char c) {
 		return c >= 0x80 //
 				&& c <= 0xff;
+	}
+
+	/**
+	 * comment = "(" *( ctext / quoted-pair / comment ) ")"
+	 * 
+	 * @param s   input string
+	 * @param pos position at start of comment
+	 * @return end position after matching comment ABNF rule; returns pos if token68
+	 *         was not matched
+	 * @see <a href=
+	 *      "https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf">RFC-9110
+	 *      HTTP Semantics Collected ABNF</a>
+	 */
+	static int comment(String s, final int pos) {
+		if (s.charAt(pos) != '(')
+			return pos;
+
+		var p = pos + 1;
+		int n;
+		char c;
+		do {
+			c = s.charAt(p);
+
+			if (ctext(c))
+				p++;
+			else if ((n = quotedPair(s, p)) > p //
+					|| (n = comment(s, p)) > p)
+				p = n;
+			else if (c == ')')
+				return p + 1;
+			else
+				return pos;
+
+		} while (p < s.length());
+
+		return pos;
 	}
 
 	/**
@@ -168,8 +225,8 @@ public final class IuWebUtils {
 	 * 
 	 * @param s   input string
 	 * @param pos position at start of token character
-	 * @return end position of a matching token ABNF rule; returns pos if token68
-	 *         was not matched
+	 * @return end position of a matching token ABNF rule; returns pos if token was
+	 *         not matched
 	 * @see <a href=
 	 *      "https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf">RFC-9110
 	 *      HTTP Semantics Collected ABNF</a>
@@ -194,6 +251,10 @@ public final class IuWebUtils {
 	 * 
 	 * <p>
 	 * OWS = *( SP / HTAB )
+	 * </p>
+	 *
+	 * <p>
+	 * RWS = 1*( SP / HTAB )
 	 * </p>
 	 * 
 	 * @param s   input string
@@ -225,7 +286,7 @@ public final class IuWebUtils {
 	 * 
 	 * @param s   input string
 	 * @param pos position at start of token character
-	 * @return end position of a matching BWS ABNF rule
+	 * @return end position of a matching sp ABNF rule
 	 * @see <a href=
 	 *      "https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf">RFC-9110
 	 *      HTTP Semantics Collected ABNF</a>
@@ -243,6 +304,30 @@ public final class IuWebUtils {
 		} while (c == SP);
 
 		return pos - 1;
+	}
+
+	/**
+	 * product = token [ "/" product-version ]
+	 * <p>
+	 * product-version = token
+	 * </p>
+	 * 
+	 * @param s   input string
+	 * @param pos position at start of product expression
+	 * @return end position of a matching product ABNF rule; pos if not matched
+	 */
+	static int product(String s, int pos) {
+		final var token = token(s, pos);
+		if (token == pos //
+				|| s.length() == token //
+				|| s.charAt(token) != '/')
+			return token;
+
+		final var version = token(s, token + 1);
+		if (version == token + 1)
+			return pos;
+		else
+			return version;
 	}
 
 	/**
@@ -318,6 +403,28 @@ public final class IuWebUtils {
 			return start;
 		else
 			return pos;
+	}
+
+	/**
+	 * Determines whether or not a string is composed entirely of non-whitespace
+	 * visible ASCII characters, and at least minLength characters, but no longer
+	 * than 1024.
+	 * 
+	 * @param s         string to check
+	 * @param minLength minimum length
+	 * @return true if all characters are visible ASCII
+	 */
+	public static boolean isVisibleAscii(String s, int minLength) {
+		final var len = s.length();
+		if (len < minLength //
+				|| len > 1024)
+			return false;
+
+		for (var i = 0; i < len; i++)
+			if (!vchar(s.charAt(i)))
+				return false;
+
+		return true;
 	}
 
 	/**
@@ -496,6 +603,38 @@ public final class IuWebUtils {
 				};
 			}
 		};
+	}
+
+	/**
+	 * Validates a user-agent header value.
+	 * 
+	 * <p>
+	 * User-Agent = product *( RWS ( product / comment ) )
+	 * </p>
+	 * 
+	 * @param userAgent user-agent header value
+	 * @see <a href=
+	 *      "https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf">RFC-9110
+	 *      Appendix A</a>
+	 */
+	public static void validateUserAgent(String userAgent) {
+		var pos = product(userAgent, 0);
+		if (pos <= 0)
+			throw new IllegalArgumentException();
+
+		while (pos < userAgent.length()) {
+			var n = bws(userAgent, pos);
+			if (n <= pos)
+				throw new IllegalArgumentException();
+			else
+				pos++;
+
+			if ((n = product(userAgent, pos)) <= pos //
+					&& (n = comment(userAgent, pos)) <= pos)
+				throw new IllegalArgumentException();
+			else
+				pos = n;
+		}
 	}
 
 	/**

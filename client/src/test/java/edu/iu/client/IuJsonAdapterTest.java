@@ -820,6 +820,11 @@ public class IuJsonAdapterTest {
 	}
 
 	@Test
+	public void testRawMap() throws NoSuchFieldException {
+		assertMap(IuJsonAdapter.of(Map.class), LinkedHashMap::new, IdGenerator::generateId);
+	}
+
+	@Test
 	public void testAdaptedMap() {
 		assertMap(IuJsonAdapter.of(LinkedHashMap.class, IuJsonAdapter.of(URI.class)), LinkedHashMap::new,
 				this::randomUri);

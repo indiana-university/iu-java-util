@@ -29,32 +29,55 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth;
+package edu.iu.auth.config;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.verify;
+import java.util.Arrays;
 
-import org.junit.jupiter.api.Test;
+/**
+ * Provides realm configuration.
+ */
+public interface Realm {
 
-import edu.iu.IdGenerator;
-import edu.iu.auth.basic.IuBasicAuthCredentials;
-import edu.iu.auth.spi.IuBasicAuthSpi;
-import iu.auth.IuAuthSpiFactory;
+	/**
+	 * Enumerates authentication realm types.
+	 */
+	enum Type {
 
-@SuppressWarnings("javadoc")
-public class IuApiCredentialsTest {
+		/**
+		 * Token issuer.
+		 */
+		TOKEN("token_endpoint", TokenEndpoint.class);
 
-	@Test
-	public void testBasicAuth() {
-		final var name = IdGenerator.generateId();
-		final var password = IdGenerator.generateId();
-		final var basicAuthSpi = mock(IuBasicAuthSpi.class);
-		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
-			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuBasicAuthSpi.class)).thenReturn(basicAuthSpi);
-			IuBasicAuthCredentials.of(name, password);
-			verify(basicAuthSpi).createCredentials(name, password, "US-ASCII");
+		private String code;
+		private Class<? extends Realm> authenticationInterface;
+
+		private Type(String code, Class<? extends Realm> authenticationInterface) {
+			this.code = code;
+			this.authenticationInterface = authenticationInterface;
 		}
+
+		/**
+		 * Gets an authentication realm type by configuration code
+		 * 
+		 * @param code configuration code
+		 * @return authentication realm type
+		 */
+		static Type from(String code) {
+			return Arrays.stream(Type.class.getEnumConstants()).filter(a -> a.code.equals(code)).findFirst().get();
+		}
+	}
+
+	/**
+	 * Gets the configuration for a realm.
+	 * 
+	 * @param <R>  authentication realm type
+	 * @param name realm name
+	 * @return realm configuration
+	 */
+	@SuppressWarnings("unchecked")
+	static <R extends Realm> R of(String name) {
+		return (R) AuthConfig.load(Realm.class, "realm/" + name,
+				config -> Type.from(config.getString("type")).authenticationInterface);
 	}
 
 }

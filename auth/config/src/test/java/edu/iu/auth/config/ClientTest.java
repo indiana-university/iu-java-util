@@ -29,42 +29,41 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.jwt;
+package edu.iu.auth.config;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
-import java.net.URI;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.auth.config.Client.AuthMethod;
+import edu.iu.auth.config.Client.GrantType;
 
 @SuppressWarnings("javadoc")
-public class JwkPrincipalVerifierTest {
+public class ClientTest {
 
 	@Test
-	public void testVerifier() {
-		final var uri = URI.create("test:" + IdGenerator.generateId());
-		final var keyId = IdGenerator.generateId();
-		final var jwkId = new JwkPrincipal(uri, keyId);
-		final var jwkId2 = new JwkPrincipal(uri, keyId);
+	public void testAuthMethodFrom() {
+		for (final var authMethod : AuthMethod.values())
+			assertSame(authMethod, AuthMethod.from(authMethod.parameterValue));
+	}
 
-		final var verifier = new JwkPrincipalVerifier(jwkId);
-		assertNull(verifier.getAuthenticationEndpoint());
-		assertNull(verifier.getAuthScheme());
-		assertEquals(uri + "#" + keyId, verifier.getRealm());
-		assertSame(JwkPrincipal.class, verifier.getType());
-		assertFalse(verifier.isAuthoritative());
+	@Test
+	public void testGrantTypeFrom() {
+		for (final var grantType : GrantType.values())
+			assertSame(grantType, GrantType.from(grantType.parameterValue));
+	}
 
-		assertDoesNotThrow(() -> verifier.verify(jwkId, verifier.getRealm()));
-		assertThrows(IllegalArgumentException.class, () -> verifier.verify(jwkId, IdGenerator.generateId()));
-		assertThrows(IllegalArgumentException.class, () -> verifier.verify(jwkId2, verifier.getRealm()));
-
+	@Test
+	public void testOf() {
+		final var authId = IdGenerator.generateId();
+		final var client = mock(Client.class);
+		try (final var mockAuthConfig = mockStatic(AuthConfig.class)) {
+			mockAuthConfig.when(() -> AuthConfig.load(Client.class, "client/" + authId)).thenReturn(client);
+			assertSame(client, Client.of(authId));
+		}
 	}
 
 }

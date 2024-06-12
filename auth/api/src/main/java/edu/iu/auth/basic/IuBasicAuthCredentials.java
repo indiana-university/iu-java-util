@@ -66,7 +66,7 @@ public interface IuBasicAuthCredentials extends IuApiCredentials, IuPrincipalIde
 	 * @return credentials for use with HTTP basic auth
 	 */
 	static IuBasicAuthCredentials of(String username, String password) {
-		return basic(username, password, "US-ASCII");
+		return of(username, password, "US-ASCII");
 	}
 
 	/**
@@ -80,7 +80,7 @@ public interface IuBasicAuthCredentials extends IuApiCredentials, IuPrincipalIde
 	 *                 {@link #applyTo(java.net.http.HttpRequest.Builder)}
 	 * @return credentials for use with HTTP basic auth
 	 */
-	static IuBasicAuthCredentials basic(String username, String password, String charset) {
+	static IuBasicAuthCredentials of(String username, String password, String charset) {
 		return IuAuthSpiFactory.get(IuBasicAuthSpi.class).createCredentials(username, password, charset);
 	}
 

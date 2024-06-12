@@ -29,49 +29,78 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.client;
+package edu.iu.auth.basic;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-import java.util.Properties;
-import java.util.function.Function;
+import java.util.Set;
+
+import javax.security.auth.Subject;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
-import iu.client.Vault;
+import edu.iu.IdGenerator;
+import edu.iu.auth.oauth.IuBearerToken;
+import edu.iu.auth.spi.IuBasicAuthSpi;
+import iu.auth.IuAuthSpiFactory;
 
 @SuppressWarnings("javadoc")
-public class IuVaultTest {
+public class IuBearerTokenTest {
 
-	private MockedStatic<Vault> vault;
+	private MockedStatic<IuAuthSpiFactory> mockSpiFactory;
+	private IuBasicAuthSpi spi;
 
 	@BeforeEach
 	public void setup() {
-		vault = mockStatic(Vault.class);
+		spi = mock(IuBasicAuthSpi.class);
+		mockSpiFactory = mockStatic(IuAuthSpiFactory.class);
+		mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuBasicAuthSpi.class)).thenReturn(spi);
 	}
 
 	@AfterEach
 	public void tearDown() {
-		vault.close();
+		mockSpiFactory.close();
+		mockSpiFactory = null;
+		spi = null;
 	}
 
 	@Test
-	public void testIsConfigured() {
-		IuVault.isConfigured();
-		vault.verify(() -> Vault.isConfigured());
+	public void testDefaultCharset() {
+		final var principal = mock(IuBasicAuthCredentials.class, CALLS_REAL_METHODS);
+		assertEquals("US-ASCII", principal.getCharset());
 	}
 
-	@SuppressWarnings("unchecked")
 	@Test
-	public void testOf() {
-		final var properties = mock(Properties.class);
-		final var valueAdapter = mock(Function.class);
-		IuVault.of(properties, valueAdapter);
-		vault.verify(() -> Vault.of(properties, valueAdapter));
+	public void testBasicAuth() {
+		final var name = IdGenerator.generateId();
+		final var password = IdGenerator.generateId();
+		final var basicAuthSpi = mock(IuBasicAuthSpi.class);
+		mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuBasicAuthSpi.class)).thenReturn(basicAuthSpi);
+		IuBasicAuthCredentials.of(name, password);
+		verify(basicAuthSpi).createCredentials(name, password, "US-ASCII");
+	}
+
+	@Test
+	public void testImpliesSubject() {
+		final var bearer = mock(IuBearerToken.class, CALLS_REAL_METHODS);
+		final var subject = mock(Subject.class);
+		assertFalse(bearer.implies(subject));
+		
+		when(subject.getPrincipals()).thenReturn(Set.of(bearer));
+		assertTrue(bearer.implies(subject));
+
+		when(bearer.getSubject()).thenReturn(subject);
+		assertTrue(bearer.implies(subject));
 	}
 
 }

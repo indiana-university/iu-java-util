@@ -29,46 +29,42 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth;
+package edu.iu.auth.config;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
+import java.net.URI;
+import java.time.Duration;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
+/**
+ * Configures a token endpoint authentication realm.
+ */
+public interface TokenEndpoint extends Realm {
 
-import edu.iu.auth.basic.IuBasicAuthCredentials;
-import edu.iu.auth.spi.IuBasicAuthSpi;
-import iu.auth.IuAuthSpiFactory;
+	/**
+	 * Gets the audience this endpoint issues access tokens for.
+	 * 
+	 * @return audience
+	 */
+	Audience getAudience();
 
-@SuppressWarnings("javadoc")
-public class IuBasicAuthTest {
+	/**
+	 * Gets the token endpoint URI.
+	 * 
+	 * @return {@link URI}
+	 */
+	URI getUri();
 
-	private MockedStatic<IuAuthSpiFactory> mockSpiFactory;
-	private IuBasicAuthSpi spi;
+	/**
+	 * Gets the signature verification key.
+	 * 
+	 * @return {@link KeyReference}
+	 */
+	KeyReference getVerify();
 
-	@BeforeEach
-	public void setup() {
-		spi = mock(IuBasicAuthSpi.class);
-		mockSpiFactory = mockStatic(IuAuthSpiFactory.class);
-		mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuBasicAuthSpi.class)).thenReturn(spi);
-	}
-
-	@AfterEach
-	public void tearDown() {
-		mockSpiFactory.close();
-		mockSpiFactory = null;
-		spi = null;
-	}
-
-	@Test
-	public void testDefaultCharset() {
-		final var principal = mock(IuBasicAuthCredentials.class, CALLS_REAL_METHODS);
-		assertEquals("US-ASCII", principal.getCharset());
-	}
+	/**
+	 * Gets the maximum time to live for issued tokens.
+	 * 
+	 * @return {@link Duration}
+	 */
+	Duration getTokenTtl();
 
 }
