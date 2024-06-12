@@ -455,7 +455,23 @@ public final class IuIterable {
 	}
 
 	/**
-	 * Filters an interable using predicate.
+	 * Selects the first {@link Iterable} element that matches a {@link Predicate}
+	 * condition.
+	 * 
+	 * @param <T> item type
+	 * @param i   iterable
+	 * @param p   predicate
+	 * @return The first element that meets the condition.
+	 */
+	public static <T> T select(Iterable<T> i, Predicate<T> p) {
+		for (final var e : i)
+			if (p.test(e))
+				return e;
+		throw new NoSuchElementException();
+	}
+
+	/**
+	 * Filters an {@link Iterable} using predicate.
 	 * 
 	 * @param <T> item type
 	 * @param i   iterable
