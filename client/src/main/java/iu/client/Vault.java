@@ -54,6 +54,7 @@ import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuRuntimeEnvironment;
 import edu.iu.client.HttpException;
+import edu.iu.client.HttpResponseHandler;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
@@ -249,12 +250,18 @@ public final class Vault implements IuVault {
 			}
 
 			final var dataUri = dataUri(secret);
-			final var result = IuHttp.send(dataUri, rb -> {
+			final HttpResponseHandler<?> responseHandler;
+			if (cubbyhole)
+				responseHandler = IuHttp.NO_CONTENT;
+			else
+				responseHandler = IuHttp.READ_JSON_OBJECT;
+
+			IuHttp.send(dataUri, rb -> {
 				rb.POST(BodyPublishers.ofString(dataRequestPayload));
 				this.authorize(rb);
-			}, IuHttp.READ_JSON_OBJECT).getJsonObject("data");
+			}, responseHandler);
 
-			LOG.config(() -> "vault:set:" + dataUri + ":" + mergePatch.keySet() + " " + result);
+			LOG.config(() -> "vault:set:" + dataUri + ":" + mergePatch.keySet());
 
 			final var updated = readSecret(secret);
 			if (secretCache == null)
@@ -285,7 +292,7 @@ public final class Vault implements IuVault {
 				return IuHttp.send(dataUri(secret), this::authorize, IuHttp.READ_JSON_OBJECT).getJsonObject("data");
 			} catch (HttpException e) {
 				if (e.getResponse().statusCode() == 404)
-					return IuJson.object().add("data", IuJson.object()).build();
+					return IuJson.object().build();
 				else
 					throw e;
 			}

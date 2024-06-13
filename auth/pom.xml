@@ -25,6 +25,7 @@
 				<module>api</module>
 				<module>config</module>
 				<module>principal</module>
+				<module>saml</module>
 				<module>basic</module>
 				<module>pki</module>
 				<module>jwt</module>

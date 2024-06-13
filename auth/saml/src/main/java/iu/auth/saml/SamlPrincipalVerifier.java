@@ -29,32 +29,71 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package iu.auth.saml;
+
+import java.net.URI;
+
+import edu.iu.auth.IuAuthenticationException;
+import iu.auth.principal.PrincipalVerifier;
+
 /**
- * API Authentication and Authorization interfaces.
- * 
- * <img src="doc-files/iu.util.auth.svg" alt="UML Class Diagram">
- * 
- * @uses edu.iu.auth.spi.IuBasicAuthSpi For access to HTTP basic auth resources
- * @uses edu.iu.auth.spi.IuJwtSpi for access to JWT implementation resources
- * @uses edu.iu.auth.spi.IuOAuthSpi For access to OAuth 2.0 implementation
- *       resources
- * @uses edu.iu.auth.spi.IuPrincipalSpi For access to identity provider
- *       verification resource
+ * Verifies {@link SamlPrincipal SAML principals}.
  */
-module iu.util.auth {
-	exports edu.iu.auth;
-	exports edu.iu.auth.basic;
-	exports edu.iu.auth.jwt;
-	exports edu.iu.auth.oauth;
-	exports edu.iu.auth.oidc;
-	exports edu.iu.auth.saml;
-	exports edu.iu.auth.spi;
+final class SamlPrincipalVerifier implements PrincipalVerifier<SamlPrincipal> {
 
-	requires iu.util;
-	requires transitive java.net.http;
+	private final boolean authoritative;
+	private final String realm;
 
-	uses edu.iu.auth.spi.IuBasicAuthSpi;
-	uses edu.iu.auth.spi.IuJwtSpi;
-	uses edu.iu.auth.spi.IuOAuthSpi;
-	uses edu.iu.auth.spi.IuPrincipalSpi;
+	/**
+	 * Constructor.
+	 * 
+	 * @param authoritative authoritative flag: true
+	 * @param realm         authentication realm the service provider id
+	 */
+	SamlPrincipalVerifier(boolean authoritative, String realm) {
+		this.authoritative = authoritative;
+		this.realm = realm;
+	}
+
+	@Override
+	public Class<SamlPrincipal> getType() {
+		return SamlPrincipal.class;
+	}
+
+	@Override
+	public String getRealm() {
+		return realm;
+	}
+
+	@Override
+	public boolean isAuthoritative() {
+		return authoritative;
+	}
+
+	@Override
+	public void verify(SamlPrincipal id, String realm) throws IuAuthenticationException {
+		if (!id.realm().equals(realm))
+			throw new IllegalArgumentException("Principal is invalid for the authenticaiton realm");
+
+		// TODO maxium allowed time
+	}
+
+	@Override
+	public String getAuthScheme() {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public URI getAuthenticationEndpoint() {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public void verify(SamlPrincipal id) throws IuAuthenticationException {
+		// TODO Auto-generated method stub
+		
+	}
+
 }
