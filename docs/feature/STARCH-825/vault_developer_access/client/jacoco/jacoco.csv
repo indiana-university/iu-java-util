@@ -19,14 +19,14 @@ IU HTTP Client Utilities,iu.client,IteratorAdapter,0,9,0,0,0,4,0,3,0,3
 IU HTTP Client Utilities,iu.client,BooleanJsonAdapter,0,70,0,18,0,15,0,13,0,4
 IU HTTP Client Utilities,iu.client,JsonArrayAdapter,0,61,0,8,0,15,0,8,0,4
 IU HTTP Client Utilities,iu.client,BinaryJsonAdapter,0,27,0,4,0,9,0,5,0,3
-IU HTTP Client Utilities,iu.client,Vault,0,641,0,42,0,132,0,54,0,33
+IU HTTP Client Utilities,iu.client,Vault,0,640,0,44,0,135,0,55,0,33
 IU HTTP Client Utilities,iu.client,IterableAdapter,0,9,0,0,0,4,0,3,0,3
 IU HTTP Client Utilities,iu.client,CalendarJsonAdapter,0,32,0,4,0,10,0,5,0,3
 IU HTTP Client Utilities,iu.client,VaultSecret,0,77,0,2,0,18,0,7,0,6
 IU HTTP Client Utilities,edu.iu.client,IuJsonAdapter.new IuJsonAdapter() {...},0,20,0,0,0,3,0,3,0,3
 IU HTTP Client Utilities,edu.iu.client,IuJsonAdapter.new IuJsonAdapter() {...},0,15,0,0,0,3,0,3,0,3
 IU HTTP Client Utilities,edu.iu.client,IuJsonAdapter.new IuJsonAdapter() {...},0,16,0,0,0,3,0,3,0,3
-IU HTTP Client Utilities,edu.iu.client,IuHttp,0,336,0,24,0,67,0,30,0,18
+IU HTTP Client Utilities,edu.iu.client,IuHttp,0,348,0,24,0,68,0,31,0,19
 IU HTTP Client Utilities,edu.iu.client,IuJsonAdapter,0,49,0,0,0,10,0,11,0,11
 IU HTTP Client Utilities,edu.iu.client,HttpException,0,25,0,0,0,10,0,4,0,4
 IU HTTP Client Utilities,edu.iu.client,IuVault,0,11,0,0,0,3,0,3,0,3
