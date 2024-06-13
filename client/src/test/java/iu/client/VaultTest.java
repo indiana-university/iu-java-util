@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -191,7 +192,7 @@ public class VaultTest extends IuHttpTestCase {
 			when(e.getResponse()).thenReturn(r);
 			mockHttp.when(() -> IuHttp.send(any(URI.class), any(), any())).thenThrow(e);
 
-			assertEquals(IuJson.object().add("data", IuJson.object()).build(), vault.readSecret(secret));
+			assertEquals(IuJson.object().build(), vault.readSecret(secret));
 		}
 	}
 
@@ -413,6 +414,7 @@ public class VaultTest extends IuHttpTestCase {
 		assertEquals(endpoint + "/foo/bar", vault.dataUri("foo/bar").toString());
 	}
 
+	@SuppressWarnings("unchecked")
 	@Test
 	public void testCubbyholeNotFoundThenSet() {
 		final var key = IdGenerator.generateId();
@@ -457,6 +459,8 @@ public class VaultTest extends IuHttpTestCase {
 			final var postPayload = mock(BodyPublisher.class);
 			mockBodyPublishers.when(() -> BodyPublishers.ofString(postPayloadJson)).thenReturn(postPayload);
 
+			mockHttp.when(() -> IuHttp.validate(any(), any())).thenCallRealMethod();
+			mockHttp.when(() -> IuHttp.expectStatus(anyInt())).thenCallRealMethod();
 			final Verification postVault = () -> IuHttp.send(eq(vault.dataUri(secret)), argThat(a -> {
 				class Box {
 					boolean post;
@@ -473,10 +477,14 @@ public class VaultTest extends IuHttpTestCase {
 					verify(rb).POST(postPayload);
 
 				return box.post;
-			}), eq(IuHttp.READ_JSON_OBJECT));
+			}), argThat(a -> {
+				final var r = mock(HttpResponse.class);
+				when(r.statusCode()).thenReturn(204);
+				assertDoesNotThrow(() -> a.apply(r));
+				return true;
+			}));
 
 			mockHttp.when(postVault).thenReturn(IuJson.object() //
-					.add("data", IuJson.object()) //
 					.build());
 
 			final var vs = vault.getSecret(secret);
@@ -487,7 +495,7 @@ public class VaultTest extends IuHttpTestCase {
 			vs.set(key, value, String.class);
 			verify(handler).publish(argThat(a -> {
 				assertEquals(Level.CONFIG, a.getLevel());
-				assertEquals("vault:set:" + endpoint + "/" + secret + ":[" + key + "] {}", a.getMessage());
+				assertEquals("vault:set:" + endpoint + "/" + secret + ":[" + key + "]", a.getMessage());
 				return true;
 			}));
 
@@ -497,6 +505,7 @@ public class VaultTest extends IuHttpTestCase {
 		}
 	}
 
+	@SuppressWarnings("unchecked")
 	private void assertGetSecretThenSet(String ttl, boolean cubbyhole) {
 		final var key = IdGenerator.generateId();
 		final var value = IdGenerator.generateId();
@@ -586,6 +595,8 @@ public class VaultTest extends IuHttpTestCase {
 			final var postPayload = mock(BodyPublisher.class);
 			mockBodyPublishers.when(() -> BodyPublishers.ofString(postPayloadJson)).thenReturn(postPayload);
 
+			mockHttp.when(() -> IuHttp.validate(any(), any())).thenCallRealMethod();
+			mockHttp.when(() -> IuHttp.expectStatus(anyInt())).thenCallRealMethod();
 			final Verification postVault = () -> IuHttp.send(
 					eq(URI.create(endpoint + "/" + URLEncoder.encode(secret, StandardCharsets.UTF_8))), argThat(a -> {
 						class Box {
@@ -603,11 +614,14 @@ public class VaultTest extends IuHttpTestCase {
 							verify(rb).POST(postPayload);
 
 						return box.post;
-					}), eq(IuHttp.READ_JSON_OBJECT));
+					}), cubbyhole ? argThat(a -> {
+						final var r = mock(HttpResponse.class);
+						when(r.statusCode()).thenReturn(204);
+						assertDoesNotThrow(() -> a.apply(r));
+						return true;
+					}) : eq(IuHttp.READ_JSON_OBJECT));
 
-			mockHttp.when(postVault).thenReturn(IuJson.object() //
-					.add("data", IuJson.object()) //
-					.build());
+			mockHttp.when(postVault).thenReturn(cubbyhole ? null : IuJson.object().build());
 
 			final var vs = vault.getSecret(secret);
 			assertEquals(value, vs.get(key, String.class));
@@ -620,7 +634,7 @@ public class VaultTest extends IuHttpTestCase {
 			vs.set(key, updatedValue, String.class);
 			verify(handler).publish(argThat(a -> {
 				assertEquals(Level.CONFIG, a.getLevel());
-				assertEquals("vault:set:" + endpoint + "/" + secret + ":[" + key + "] {}", a.getMessage());
+				assertEquals("vault:set:" + endpoint + "/" + secret + ":[" + key + "]", a.getMessage());
 				return true;
 			}));
 
