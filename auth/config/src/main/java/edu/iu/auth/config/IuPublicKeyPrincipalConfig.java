@@ -33,6 +33,9 @@ package edu.iu.auth.config;
 
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.crypt.WebKey;
+import iu.auth.config.IuAuthConfig;
+
+
 
 /**
  * Describes an authorization configuration that describes a public key or
