@@ -31,8 +31,8 @@
  */
 package edu.iu.auth;
 
-import java.io.Serializable;
 import java.security.Principal;
+import java.time.Instant;
 
 import javax.security.auth.Subject;
 
@@ -42,7 +42,7 @@ import iu.auth.IuAuthSpiFactory;
 /**
  * Designates an authenticated principal identity.
  */
-public interface IuPrincipalIdentity extends Principal, Serializable {
+public interface IuPrincipalIdentity extends Principal {
 
 	/**
 	 * Verifies that a principal identity was issued by a registered identity
@@ -59,6 +59,30 @@ public interface IuPrincipalIdentity extends Principal, Serializable {
 	static boolean verify(IuPrincipalIdentity id, String realm) throws IuAuthenticationException {
 		return IuAuthSpiFactory.get(IuPrincipalSpi.class).verify(id, realm);
 	}
+
+	/**
+	 * Gets the point in time proof of principal identity was issued by an
+	 * authentication provider.
+	 * 
+	 * @return {@link Instant}
+	 */
+	Instant getIssuedAt();
+
+	/**
+	 * Gets the point in time the principal's credentials were were verified by the
+	 * authentication provider.
+	 * 
+	 * @return {@link Instant}
+	 */
+	Instant getAuthTime();
+
+	/**
+	 * Gets the point in time after which the principal's authenticated session is
+	 * expired.
+	 * 
+	 * @return {@link Instant}
+	 */
+	Instant getExpires();
 
 	/**
 	 * Gets a subject including this principal, related principals, and implied

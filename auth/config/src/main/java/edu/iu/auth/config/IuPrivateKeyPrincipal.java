@@ -29,48 +29,58 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package edu.iu.auth.config;
 
-import edu.iu.IuIterable;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonNumber;
-import jakarta.json.JsonString;
-import jakarta.json.JsonValue;
+import java.security.cert.X509Certificate;
+
+import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
 
 /**
- * Implements {@link IuJsonAdapter} for {@link CharSequence}
+ * Configures the private key holder of an {@link X509Certificate X.509
+ * certificate chain}.
  */
-class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
+public interface IuPrivateKeyPrincipal extends IuAuthenticationRealm {
 
 	/**
-	 * Singleton instance.
+	 * Gets the algorithm to use for creating new digital signatures or as the key
+	 * protection algorithm when creating an encrypted messages.
+	 * 
+	 * @return {@link Algorithm}
 	 */
-	static TextJsonAdapter INSTANCE = new TextJsonAdapter();
+	Algorithm getAlg();
 
-	@Override
-	public String fromJson(JsonValue value) {
-		if (value instanceof JsonString)
-			return ((JsonString) value).getString();
-		else if ((value instanceof JsonNumber) //
-				|| JsonValue.TRUE.equals(value) //
-				|| JsonValue.FALSE.equals(value))
-			return value.toString();
-		else if (value instanceof JsonArray)
-			return String.join(",", IuIterable.map(((JsonArray) value), this::fromJson));
-		else if (value == null || JsonValue.NULL.equals(value))
-			return null;
-		else
-			throw new IllegalArgumentException();
+	/**
+	 * Gets the key protection algorithm to use for creating encrypted messages.
+	 * 
+	 * @return {@link Algorithm}
+	 */
+	default Algorithm getEncryptAlg() {
+		return getAlg();
 	}
 
-	@Override
-	public JsonValue toJson(CharSequence value) {
-		if (value == null)
-			return JsonValue.NULL;
-		else
-			return IuJson.PROVIDER.createValue(value.toString());
+	/**
+	 * Gets the content protection algorithm to use for creating encrypted messages.
+	 * 
+	 * @return {@link Encryption}
+	 */
+	Encryption getEnc();
+
+	/**
+	 * Gets the signature verification or encryption key.
+	 * 
+	 * @return {@link WebKey}
+	 */
+	WebKey getJwk();
+
+	/**
+	 * Gets the encryption key.
+	 * 
+	 * @return encryption key
+	 */
+	default WebKey getEncryptJwk() {
+		return getJwk();
 	}
 
 }

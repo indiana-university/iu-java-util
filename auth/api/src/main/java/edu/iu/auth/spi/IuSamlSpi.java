@@ -29,48 +29,34 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package edu.iu.auth.spi;
 
-import edu.iu.IuIterable;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonNumber;
-import jakarta.json.JsonString;
-import jakarta.json.JsonValue;
+import java.net.URI;
+import java.util.function.Supplier;
+
+import edu.iu.auth.saml.IuSamlSession;
 
 /**
- * Implements {@link IuJsonAdapter} for {@link CharSequence}
+ * Application-facing SAML Service Provider (SP) SPI interface.
  */
-class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
+public interface IuSamlSpi {
 
 	/**
-	 * Singleton instance.
+	 * Implements {@link IuSamlSession#create(URI, Supplier)}.
+	 * 
+	 * @param postUri   HTTP POST Binding URI
+	 * @param secretKey Secret key supplier
+	 * @return {@link IuSamlSession}
 	 */
-	static TextJsonAdapter INSTANCE = new TextJsonAdapter();
+	IuSamlSession createSession(URI postUri, Supplier<byte[]> secretKey);
 
-	@Override
-	public String fromJson(JsonValue value) {
-		if (value instanceof JsonString)
-			return ((JsonString) value).getString();
-		else if ((value instanceof JsonNumber) //
-				|| JsonValue.TRUE.equals(value) //
-				|| JsonValue.FALSE.equals(value))
-			return value.toString();
-		else if (value instanceof JsonArray)
-			return String.join(",", IuIterable.map(((JsonArray) value), this::fromJson));
-		else if (value == null || JsonValue.NULL.equals(value))
-			return null;
-		else
-			throw new IllegalArgumentException();
-	}
-
-	@Override
-	public JsonValue toJson(CharSequence value) {
-		if (value == null)
-			return JsonValue.NULL;
-		else
-			return IuJson.PROVIDER.createValue(value.toString());
-	}
+	/**
+	 * Implements {@link IuSamlSession#activate(String, Supplier)}.
+	 * 
+	 * @param sessionToken Tokenized session
+	 * @param secretKey    Secret key supplier
+	 * @return {@link IuSamlSession}
+	 */
+	IuSamlSession activateSession(String sessionToken, Supplier<byte[]> secretKey);
 
 }

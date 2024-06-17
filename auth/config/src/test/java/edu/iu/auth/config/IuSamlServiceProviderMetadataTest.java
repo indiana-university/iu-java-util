@@ -31,50 +31,27 @@
  */
 package edu.iu.auth.config;
 
-import java.net.URI;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mock;
 
-/**
- * Provides audience configuration.
- */
-public interface Audience {
+import java.time.Duration;
 
-	/**
-	 * Gets the configuration for an audience.
-	 * 
-	 * @param name audience name
-	 * @return audience configuration
-	 */
-	public static Audience of(String name) {
-		return AuthConfig.load(Audience.class, "audience/" + name);
+import org.junit.jupiter.api.Test;
+
+import edu.iu.auth.saml.IuSamlAssertion;
+
+@SuppressWarnings("javadoc")
+public class IuSamlServiceProviderMetadataTest {
+
+	@Test
+	public void testSamlClientDefault() {
+		final var client = mock(IuSamlServiceProviderMetadata.class, CALLS_REAL_METHODS);
+		assertEquals(client.getMetadataTtl(), Duration.ofMinutes(5L));
+		assertEquals(client.getAuthenticatedSessionTimeout(), Duration.ofHours(12L));
+		assertFalse(client.isFailOnAddressMismatch());
+		assertFalse(client.getAllowedRange().iterator().hasNext());
+		assertEquals(IuSamlAssertion.EDU_PERSON_PRINCIPAL_NAME_OID, client.getPrincipalNameAttribute());
 	}
-
-	/**
-	 * Gets the external root resource URI for this audience.
-	 * 
-	 * @return resource URI
-	 */
-	URI getResourceUri();
-
-	/**
-	 * Gets the name of the audience's authentication realm.
-	 * 
-	 * @param <R> authentication realm type
-	 * @return authentication realm name
-	 */
-	<R extends Realm> R getAuthentication();
-
-	/**
-	 * Gets the token endpoint authorization configuration for this audience.
-	 * 
-	 * @return authorization token endpoint
-	 */
-	TokenEndpoint getAuthorization();
-
-	/**
-	 * Gets the encryption key reference for this audience.
-	 * 
-	 * @return {@link KeyReference}
-	 */
-	KeyReference getEncrypt();
-
 }

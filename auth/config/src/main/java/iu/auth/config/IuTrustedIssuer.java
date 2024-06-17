@@ -29,45 +29,34 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.config;
+package iu.auth.config;
 
-import java.net.URI;
+import java.security.cert.X509Certificate;
+
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.config.IuPrivateKeyPrincipal;
 
 /**
- * Authentication and authorization configuration management interface.
- * 
- * <p>
- * Describes the properties of an authentication realm.
- * </p>
+ * Represents a configured private key principal trusted as a token issuer.
  */
-public interface IuAuthConfig {
+public interface IuTrustedIssuer extends IuAuthConfig {
 
 	/**
-	 * Gets the authentication realm.
-	 * 
-	 * @return authentication realm
-	 */
-	String getRealm();
-
-	/**
-	 * Gets the authorization scheme.
-	 * 
-	 * @return authorization scheme; null if the realm doesn't define authorization
-	 *         logic
-	 */
-	String getAuthScheme();
-
-	/**
-	 * Gets the authentication endpoint.
+	 * Gets a verifiable {@link IuPrincipalIdentity} that corresponds to a
+	 * configured private key principal, if the private key was registered as
+	 * trusted.
 	 * 
 	 * <p>
-	 * This endpoint is responsible with authentication server interactions for an
-	 * application module. This endpoint sets an authenticated session cookie and
-	 * redirects the user to an application-specific entry point.
+	 * If the private key is held locally by the incoming config, the principal
+	 * returned by this method will verify as authoritative. If a
+	 * {@link X509Certificate certificate} in the private key's well-known
+	 * certificate chain is held, but not the private key itself, the principal
+	 * returned will verify as non-authoritative.
 	 * </p>
 	 * 
-	 * @return authentication endpoint
+	 * @param privateKeyPrincipal private key principal configuration
+	 * @return Verifiable {@link IuPrincipalIdentity} if trusted; else null
 	 */
-	URI getAuthenticationEndpoint();
+	IuPrincipalIdentity getPrincipal(IuPrivateKeyPrincipal privateKeyPrincipal);
 
 }

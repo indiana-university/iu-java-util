@@ -29,27 +29,11 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.config;
+package iu.auth.config;
 
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-
-import org.junit.jupiter.api.Test;
-
-import edu.iu.IdGenerator;
-
-@SuppressWarnings("javadoc")
-public class AudienceTest {
-
-	@Test
-	public void testOf() {
-		final var authId = IdGenerator.generateId();
-		final var audience = mock(Audience.class);
-		try (final var mockAuthConfig = mockStatic(AuthConfig.class)) {
-			mockAuthConfig.when(() -> AuthConfig.load(Audience.class, "audience/" + authId)).thenReturn(audience);
-			assertSame(audience, Audience.of(authId));
-		}
-	}
-
+/**
+ * Authentication realm registration marker interface for binding a SAML service
+ * provider.
+ */
+public interface IuSamlServiceProvider extends IuAuthConfig {
 }

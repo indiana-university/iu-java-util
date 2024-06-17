@@ -29,48 +29,23 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package edu.iu.auth.config;
 
-import edu.iu.IuIterable;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonNumber;
-import jakarta.json.JsonString;
-import jakarta.json.JsonValue;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
-/**
- * Implements {@link IuJsonAdapter} for {@link CharSequence}
- */
-class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
+import org.junit.jupiter.api.Test;
 
-	/**
-	 * Singleton instance.
-	 */
-	static TextJsonAdapter INSTANCE = new TextJsonAdapter();
+@SuppressWarnings("javadoc")
+public class IuPrivateKeyPrincipalTest {
 
-	@Override
-	public String fromJson(JsonValue value) {
-		if (value instanceof JsonString)
-			return ((JsonString) value).getString();
-		else if ((value instanceof JsonNumber) //
-				|| JsonValue.TRUE.equals(value) //
-				|| JsonValue.FALSE.equals(value))
-			return value.toString();
-		else if (value instanceof JsonArray)
-			return String.join(",", IuIterable.map(((JsonArray) value), this::fromJson));
-		else if (value == null || JsonValue.NULL.equals(value))
-			return null;
-		else
-			throw new IllegalArgumentException();
+	@Test
+	public void testDefaults() {
+		final var pkp = mock(IuPrivateKeyPrincipal.class, CALLS_REAL_METHODS);
+		pkp.getEncryptAlg();
+		verify(pkp).getAlg();
+		pkp.getEncryptJwk();
+		verify(pkp).getJwk();
 	}
-
-	@Override
-	public JsonValue toJson(CharSequence value) {
-		if (value == null)
-			return JsonValue.NULL;
-		else
-			return IuJson.PROVIDER.createValue(value.toString());
-	}
-
 }

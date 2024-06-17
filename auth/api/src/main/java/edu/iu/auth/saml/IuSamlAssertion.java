@@ -29,48 +29,62 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package edu.iu.auth.saml;
 
-import edu.iu.IuIterable;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonNumber;
-import jakarta.json.JsonString;
-import jakarta.json.JsonValue;
+import java.time.Instant;
+import java.util.Map;
 
 /**
- * Implements {@link IuJsonAdapter} for {@link CharSequence}
+ * Represents an assertion issued by a SAML Identity Provider.
+ * 
+ * @see <a href=
+ *      "https://docs.oasis-open.org/security/saml/Post2.0/sstc-saml-tech-overview-2.0.html">SAML
+ *      2.0</a>
  */
-class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
+public interface IuSamlAssertion {
 
 	/**
-	 * Singleton instance.
+	 * OID for the common {@code eduPersonPrincipalName} attribute.
 	 */
-	static TextJsonAdapter INSTANCE = new TextJsonAdapter();
+	static final String EDU_PERSON_PRINCIPAL_NAME_OID = "urn:oid:1.3.6.1.4.1.5923.1.1.1.6";
 
-	@Override
-	public String fromJson(JsonValue value) {
-		if (value instanceof JsonString)
-			return ((JsonString) value).getString();
-		else if ((value instanceof JsonNumber) //
-				|| JsonValue.TRUE.equals(value) //
-				|| JsonValue.FALSE.equals(value))
-			return value.toString();
-		else if (value instanceof JsonArray)
-			return String.join(",", IuIterable.map(((JsonArray) value), this::fromJson));
-		else if (value == null || JsonValue.NULL.equals(value))
-			return null;
-		else
-			throw new IllegalArgumentException();
-	}
+	/**
+	 * OID for the common {@code displayName} attribute.
+	 */
+	static final String DISPLAY_NAME_OID = "urn:oid:2.16.840.1.113730.3.1.241";
 
-	@Override
-	public JsonValue toJson(CharSequence value) {
-		if (value == null)
-			return JsonValue.NULL;
-		else
-			return IuJson.PROVIDER.createValue(value.toString());
-	}
+	/**
+	 * OID for the common {@code mail} (email address) attribute.
+	 */
+	static final String MAIL_OID = "urn:oid:0.9.2342.19200300.100.1.3";
+
+	/**
+	 * Gets the {@code notBefore} condition value.
+	 * 
+	 * @return {@link Instant}
+	 */
+	Instant getNotBefore();
+
+	/**
+	 * Gets the {@code notOnOrAfter} condition value.
+	 * 
+	 * @return {@link Instant}
+	 */
+	Instant getNotOnOrAfter();
+
+	/** authnInstant */
+	/**
+	 * Gets the {@code authnInstant} authentication statement value.
+	 * 
+	 * @return {@link Instant}
+	 */
+	Instant getAuthnInstant();
+
+	/**
+	 * Gets attribute values.
+	 * 
+	 * @return {@link Map} of attribute values.
+	 */
+	Map<String, String> getAttributes();
 
 }

@@ -29,48 +29,45 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package iu.auth.config;
 
-import edu.iu.IuIterable;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonNumber;
-import jakarta.json.JsonString;
-import jakarta.json.JsonValue;
+import java.net.URI;
 
 /**
- * Implements {@link IuJsonAdapter} for {@link CharSequence}
+ * Authentication and authorization configuration management interface.
+ * 
+ * <p>
+ * Describes the properties of an authentication realm.
+ * </p>
  */
-class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
+public interface IuAuthConfig {
 
 	/**
-	 * Singleton instance.
+	 * Gets the authentication realm.
+	 * 
+	 * @return authentication realm
 	 */
-	static TextJsonAdapter INSTANCE = new TextJsonAdapter();
+	String getRealm();
 
-	@Override
-	public String fromJson(JsonValue value) {
-		if (value instanceof JsonString)
-			return ((JsonString) value).getString();
-		else if ((value instanceof JsonNumber) //
-				|| JsonValue.TRUE.equals(value) //
-				|| JsonValue.FALSE.equals(value))
-			return value.toString();
-		else if (value instanceof JsonArray)
-			return String.join(",", IuIterable.map(((JsonArray) value), this::fromJson));
-		else if (value == null || JsonValue.NULL.equals(value))
-			return null;
-		else
-			throw new IllegalArgumentException();
-	}
+	/**
+	 * Gets the authorization scheme.
+	 * 
+	 * @return authorization scheme; null if the realm doesn't define authorization
+	 *         logic
+	 */
+	String getAuthScheme();
 
-	@Override
-	public JsonValue toJson(CharSequence value) {
-		if (value == null)
-			return JsonValue.NULL;
-		else
-			return IuJson.PROVIDER.createValue(value.toString());
-	}
+	/**
+	 * Gets the authentication endpoint.
+	 * 
+	 * <p>
+	 * This endpoint is responsible with authentication server interactions for an
+	 * application module. This endpoint sets an authenticated session cookie and
+	 * redirects the user to an application-specific entry point.
+	 * </p>
+	 * 
+	 * @return authentication endpoint
+	 */
+	URI getAuthenticationEndpoint();
 
 }

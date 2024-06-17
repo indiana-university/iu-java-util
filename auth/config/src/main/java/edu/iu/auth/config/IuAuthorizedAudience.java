@@ -29,48 +29,60 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package edu.iu.auth.config;
 
-import edu.iu.IuIterable;
-import edu.iu.client.IuJson;
+import java.net.URI;
+
 import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonNumber;
-import jakarta.json.JsonString;
-import jakarta.json.JsonValue;
+import iu.auth.config.AuthConfig;
 
 /**
- * Implements {@link IuJsonAdapter} for {@link CharSequence}
+ * Provides audience configuration.
  */
-class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
+public interface IuAuthorizedAudience {
 
 	/**
-	 * Singleton instance.
+	 * JSON type adapter.
 	 */
-	static TextJsonAdapter INSTANCE = new TextJsonAdapter();
+	static IuJsonAdapter<IuAuthorizedAudience> JSON = IuJsonAdapter.text(IuAuthorizedAudience::of);
 
-	@Override
-	public String fromJson(JsonValue value) {
-		if (value instanceof JsonString)
-			return ((JsonString) value).getString();
-		else if ((value instanceof JsonNumber) //
-				|| JsonValue.TRUE.equals(value) //
-				|| JsonValue.FALSE.equals(value))
-			return value.toString();
-		else if (value instanceof JsonArray)
-			return String.join(",", IuIterable.map(((JsonArray) value), this::fromJson));
-		else if (value == null || JsonValue.NULL.equals(value))
-			return null;
-		else
-			throw new IllegalArgumentException();
+	/**
+	 * Gets the configuration for an audience.
+	 * 
+	 * @param name audience name
+	 * @return audience configuration
+	 */
+	public static IuAuthorizedAudience of(String name) {
+		return AuthConfig.load(IuAuthorizedAudience.class, "audience/" + name);
 	}
 
-	@Override
-	public JsonValue toJson(CharSequence value) {
-		if (value == null)
-			return JsonValue.NULL;
-		else
-			return IuJson.PROVIDER.createValue(value.toString());
-	}
+	/**
+	 * Gets the external root resource URI for this audience.
+	 * 
+	 * @return resource URI
+	 */
+	URI getResourceUri();
+
+	/**
+	 * Gets the name of the audience's authentication realm.
+	 * 
+	 * @param <R> authentication realm type
+	 * @return authentication realm name
+	 */
+	<R extends IuAuthenticationRealm> R getAuthentication();
+
+	/**
+	 * Gets the token endpoint authorization configuration for this audience.
+	 * 
+	 * @return authorization token endpoint
+	 */
+	TokenEndpoint getAuthorization();
+
+	/**
+	 * Gets audience private key principal.
+	 * 
+	 * @return {@link IuPrivateKeyPrincipal}
+	 */
+	IuPrivateKeyPrincipal getIdentity();
 
 }

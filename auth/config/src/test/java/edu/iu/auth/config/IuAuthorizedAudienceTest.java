@@ -31,53 +31,26 @@
  */
 package edu.iu.auth.config;
 
-import java.util.Arrays;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 
-/**
- * Provides realm configuration.
- */
-public interface Realm {
+import org.junit.jupiter.api.Test;
 
-	/**
-	 * Enumerates authentication realm types.
-	 */
-	enum Type {
+import edu.iu.IdGenerator;
+import iu.auth.config.AuthConfig;
 
-		/**
-		 * Token issuer.
-		 */
-		TOKEN("token_endpoint", TokenEndpoint.class);
+@SuppressWarnings("javadoc")
+public class IuAuthorizedAudienceTest {
 
-		private String code;
-		private Class<? extends Realm> authenticationInterface;
-
-		private Type(String code, Class<? extends Realm> authenticationInterface) {
-			this.code = code;
-			this.authenticationInterface = authenticationInterface;
+	@Test
+	public void testOf() {
+		final var authId = IdGenerator.generateId();
+		final var audience = mock(IuAuthorizedAudience.class);
+		try (final var mockAuthConfig = mockStatic(AuthConfig.class)) {
+			mockAuthConfig.when(() -> AuthConfig.load(IuAuthorizedAudience.class, "audience/" + authId)).thenReturn(audience);
+			assertSame(audience, IuAuthorizedAudience.of(authId));
 		}
-
-		/**
-		 * Gets an authentication realm type by configuration code
-		 * 
-		 * @param code configuration code
-		 * @return authentication realm type
-		 */
-		static Type from(String code) {
-			return Arrays.stream(Type.class.getEnumConstants()).filter(a -> a.code.equals(code)).findFirst().get();
-		}
-	}
-
-	/**
-	 * Gets the configuration for a realm.
-	 * 
-	 * @param <R>  authentication realm type
-	 * @param name realm name
-	 * @return realm configuration
-	 */
-	@SuppressWarnings("unchecked")
-	static <R extends Realm> R of(String name) {
-		return (R) AuthConfig.load(Realm.class, "realm/" + name,
-				config -> Type.from(config.getString("type")).authenticationInterface);
 	}
 
 }

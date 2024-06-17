@@ -35,8 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.lang.reflect.Proxy;
@@ -44,7 +44,7 @@ import java.lang.reflect.Proxy;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.client.IuJson;
-import jakarta.json.JsonObject;
+import edu.iu.client.IuJsonAdapter;
 
 @SuppressWarnings({ "javadoc" })
 public class JsonProxyTest {
@@ -75,16 +75,10 @@ public class JsonProxyTest {
 	}
 
 	@Test
-	public void testCanWrap() {
-		assertTrue(JsonProxy.canWrap(IuJson.object().build(), JsonBackedInterfaceReference.class));
-		assertFalse(JsonProxy.canWrap(IuJson.object().build(), Object.class));
-		assertFalse(JsonProxy.canWrap(IuJson.object().build(), JsonObject.class));
-	}
-
-	@Test
 	public void testProxyMethods() {
 		final var foobar = IuJson.object().add("foo", "bar").build();
 		final var data = IuJson.wrap(foobar, JsonBackedInterface.class);
+		assertSame(foobar, IuJson.unwrap(data));
 		final var data2 = IuJson.wrap(IuJson.object().add("foo", "baz").build(), JsonBackedInterface.class);
 		final var data3 = IuJson.wrap(IuJson.object().add("foo", "baz").build(), JsonBackedInterface.class);
 		assertEquals("bar", data.getFoo());
@@ -102,8 +96,14 @@ public class JsonProxyTest {
 		assertFalse(data.isNotThere());
 		assertThrows(UnsupportedOperationException.class, data::unsupported);
 
-		assertEquals(data, IuJson
-				.wrap(IuJson.object().add("data", foobar).build(), JsonBackedInterfaceReference.class).getData());
+		assertEquals(data,
+				IuJson.wrap(IuJson.object().add("data", foobar).build(), JsonBackedInterfaceReference.class, t -> {
+					if (t == JsonBackedInterface.class)
+						return IuJsonAdapter.from(v -> IuJson.wrap(v.asJsonObject(), JsonBackedInterface.class),
+								IuJson::unwrap);
+					else
+						return IuJsonAdapter.of(t);
+				}).getData());
 	}
 
 //	@Test

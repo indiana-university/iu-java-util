@@ -37,14 +37,14 @@ import java.time.Duration;
 /**
  * Configures a token endpoint authentication realm.
  */
-public interface TokenEndpoint extends Realm {
+public interface TokenEndpoint extends IuAuthenticationRealm {
 
 	/**
 	 * Gets the audience this endpoint issues access tokens for.
 	 * 
 	 * @return audience
 	 */
-	Audience getAudience();
+	IuAuthorizedAudience getAudience();
 
 	/**
 	 * Gets the token endpoint URI.
@@ -54,11 +54,11 @@ public interface TokenEndpoint extends Realm {
 	URI getUri();
 
 	/**
-	 * Gets the signature verification key.
+	 * Gets the token issuer's private key principal.
 	 * 
-	 * @return {@link KeyReference}
+	 * @return {@link IuPrivateKeyPrincipal}
 	 */
-	KeyReference getVerify();
+	IuPrivateKeyPrincipal getIdentity();
 
 	/**
 	 * Gets the maximum time to live for issued tokens.

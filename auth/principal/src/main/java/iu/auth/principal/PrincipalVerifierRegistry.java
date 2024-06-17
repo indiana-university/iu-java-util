@@ -33,8 +33,8 @@ package iu.auth.principal;
 
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.config.AuthConfig;
 import edu.iu.auth.spi.IuPrincipalSpi;
+import iu.auth.config.AuthConfig;
 
 /**
  * Provides identity verification support for internal implementation modules.
