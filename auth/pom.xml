@@ -25,6 +25,8 @@
 				<module>api</module>
 				<module>config</module>
 				<module>principal</module>
+				<module>pki</module>
+				<module>saml</module>
 			</modules>
 		</profile>
 	</profiles>
