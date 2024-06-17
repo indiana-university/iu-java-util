@@ -282,7 +282,7 @@ public interface WebEncryption {
 	 * @return recipients
 	 */
 	Stream<? extends WebEncryptionRecipient> getRecipients();
-
+	
 	/**
 	 * Gets the iv JWE attribute
 	 * 

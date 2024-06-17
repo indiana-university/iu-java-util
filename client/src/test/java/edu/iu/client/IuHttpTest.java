@@ -47,7 +47,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -60,7 +59,6 @@ import java.util.logging.Level;
 import java.util.logging.LogManager;
 
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -68,26 +66,7 @@ import edu.iu.IdGenerator;
 import edu.iu.UnsafeConsumer;
 
 @SuppressWarnings("javadoc")
-public class IuHttpTest {
-
-	private static final URI TEST_URI = URI.create("test://localhost/" + IdGenerator.generateId());
-	private static HttpClient http;
-
-	@BeforeAll
-	public static void setupClass() throws ClassNotFoundException {
-		try {
-			System.setProperty("iu.http.allowedUri", TEST_URI.toString());
-
-			http = mock(HttpClient.class);
-			try (final var mockHttpClient = mockStatic(HttpClient.class)) {
-				mockHttpClient.when(() -> HttpClient.newHttpClient()).thenReturn(http);
-				Class.forName(IuHttp.class.getName());
-			}
-
-		} finally {
-			System.getProperties().remove("iu-client.allowedUri");
-		}
-	}
+public class IuHttpTest extends IuHttpTestCase {
 
 	private Handler logHandler;
 	private Level restoreLevel;

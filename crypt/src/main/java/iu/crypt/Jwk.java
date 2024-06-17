@@ -76,17 +76,6 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 		IuObject.assertNotOpen(JweBuilder.class);
 	}
 
-	/**
-	 * JSON type adapter.
-	 */
-	public static final IuJsonAdapter<WebKey> JSON = IuJsonAdapter.from(v -> {
-		return new Jwk(v.asJsonObject());
-	}, v -> {
-		final var o = IuJson.object();
-		((Jwk) v).serializeTo(o);
-		return o.build();
-	});
-
 	private static Map<URI, Jwk[]> JWKS_CACHE = new IuCacheMap<>(Duration.ofMinutes(15L));
 
 	private static JsonObject writeAsJwks(Iterable<? extends WebKey> webKeys) {
@@ -416,7 +405,7 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 	 * @param jwkBuilder {@link JsonObjectBuilder}
 	 * @return jwkBuilder
 	 */
-	JsonObjectBuilder serializeTo(JsonObjectBuilder jwkBuilder) {
+	public JsonObjectBuilder serializeTo(JsonObjectBuilder jwkBuilder) {
 		super.serializeTo(jwkBuilder);
 		IuJson.add(jwkBuilder, "use", () -> use, Use.JSON);
 		IuJson.add(jwkBuilder, "key_ops", () -> ops, IuJsonAdapter.of(Set.class, Operation.JSON));

@@ -34,13 +34,16 @@ package edu.iu.client;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.StringReader;
+import java.lang.reflect.Type;
 import java.net.http.HttpResponse;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
+import iu.client.JsonProxy;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonBuilderFactory;
@@ -112,6 +115,54 @@ public class IuJson {
 	}
 
 	/**
+	 * Serializes a JSON value to an {@link OutputStream}.
+	 * 
+	 * @param value {@link JsonValue}
+	 * @param out   {@link OutputStream}
+	 */
+	public static void serialize(JsonValue value, OutputStream out) {
+		PROVIDER.createWriter(out).write(value);
+	}
+
+	/**
+	 * Wraps a JSON object in a java interface.
+	 * 
+	 * @param <T>             target interface type
+	 * @param value           value
+	 * @param targetInterface target interface class
+	 * @return {@link JsonProxy}
+	 */
+	public static <T> T wrap(JsonObject value, Class<T> targetInterface) {
+		return wrap(value, targetInterface, IuJsonAdapter::of);
+	}
+
+	/**
+	 * Wraps a JSON object in a java interface.
+	 * 
+	 * @param <T>             target interface type
+	 * @param value           value
+	 * @param targetInterface target interface class
+	 * @param valueAdapter    transform function: receives a {@link JsonValue} and
+	 *                        method return type, if custom handling returns an
+	 *                        object other than the original {@link JsonValue value}
+	 * @return {@link JsonProxy}
+	 */
+	public static <T> T wrap(JsonObject value, Class<T> targetInterface,
+			Function<Type, IuJsonAdapter<?>> valueAdapter) {
+		return JsonProxy.wrap(value, targetInterface, valueAdapter);
+	}
+
+	/**
+	 * Retrieves the {@link JsonObject} from a {@link JsonProxy} wrapper.
+	 * 
+	 * @param jsonProxy wrapper
+	 * @return {@link JsonObject}
+	 */
+	public static JsonObject unwrap(Object jsonProxy) {
+		return JsonProxy.unwrap(jsonProxy);
+	}
+
+	/**
 	 * Creates a JSON value from a {@link Boolean#TYPE boolean}.
 	 * 
 	 * @param value {@link Boolean#TYPE boolean}
@@ -139,16 +190,6 @@ public class IuJson {
 	 */
 	public static JsonString string(String value) {
 		return PROVIDER.createValue(value);
-	}
-
-	/**
-	 * Serializes a JSON value to an {@link OutputStream}.
-	 * 
-	 * @param value {@link JsonValue}
-	 * @param out   {@link OutputStream}
-	 */
-	public static void serialize(JsonValue value, OutputStream out) {
-		PROVIDER.createWriter(out).write(value);
 	}
 
 	/**
@@ -392,4 +433,5 @@ public class IuJson {
 
 	private IuJson() {
 	}
+
 }

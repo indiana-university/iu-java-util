@@ -39,6 +39,7 @@ import static edu.iu.IuIterable.map;
 import static edu.iu.IuIterable.of;
 import static edu.iu.IuIterable.print;
 import static edu.iu.IuIterable.remaindersAreEqual;
+import static edu.iu.IuIterable.select;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -235,6 +236,13 @@ public class IuIterableTest {
 	public void testFilter() {
 		var set = Set.of("three", "one");
 		assertEquals("[one, three]", filter(iter("one", "two", "three"), set::contains).toString());
+	}
+
+	@Test
+	public void testSelect() {
+		var set = Set.of("two");
+		assertEquals("two", select(iter("one", "two", "three"), set::contains));
+		assertThrows(NoSuchElementException.class, () -> select(iter("four", "five"), set::contains));
 	}
 
 	@Test

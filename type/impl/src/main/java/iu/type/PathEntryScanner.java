@@ -60,12 +60,30 @@ class PathEntryScanner {
 	 * @param pathEntry    path entry: jar file or filesystem directory
 	 * @param resourceName resource name
 	 * @return full binary contents of the resource
-	 * @throws IOException           if an error occurs while reading the file
-	 * @throws NoSuchFileException if the resourceName doesn't match an entry in
-	 *                               the jar file, or doesn't name a filesystem
-	 *                               resource relative to {@code pathEntry}.
+	 * @throws IOException         if an error occurs while reading the file
+	 * @throws NoSuchFileException if the resourceName doesn't match an entry in the
+	 *                             jar file, or doesn't name a filesystem resource
+	 *                             relative to {@code pathEntry}.
 	 */
 	static byte[] read(Path pathEntry, String resourceName) throws IOException {
+
+		// TODO: evaluate this guard condition; either flesh out boundaries or remove
+		// as unneeded for an internal tool. At present, only two values for
+		// resourceName are possible: META-INF/iu-type.properties and
+		// META-INF/iu.properties.
+		// Both of these may be removed in the course of completing JEE.
+
+		// https://github.com/indiana-university/iu-java-util/pull/50:
+		// @anderjak:I'm a little confused by this. the check seems to be looking for
+		// both
+		// indicators of relative paths and for an absolute path. It looks like it is
+		// linux/unix-specific, but if it is looking for relative paths, should it look
+		// for '~' as the first character too? Then the exception says the "resourceName
+		// must be relative". At first I thought maybe it should say "resourceName must
+		// not be relative", but the check for a leading '/' made me wonder whether the
+		// message was correct and the check was wrong or vice versa or if I'm missing
+		// something.
+
 		final var first = resourceName.charAt(0);
 		if (first == '.' || first == '/' || resourceName.endsWith("/..") || resourceName.indexOf("/../") != -1)
 			throw new IllegalArgumentException("resourceName must be relative");

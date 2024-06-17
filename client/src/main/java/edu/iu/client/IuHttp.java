@@ -81,6 +81,11 @@ public class IuHttp {
 	public static final HttpResponseValidator OK = expectStatus(200);
 
 	/**
+	 * Validates a 204 NO CONTENT response and returns null.
+	 */
+	public static final HttpResponseHandler<?> NO_CONTENT = validate(a -> null, IuHttp.expectStatus(204));
+
+	/**
 	 * Validates 200 OK then parses the response as a JSON object.
 	 */
 	public static final HttpResponseHandler<JsonValue> READ_JSON = validate(IuJson::parse, IuHttp.OK);

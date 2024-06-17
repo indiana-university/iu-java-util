@@ -352,8 +352,23 @@ public interface IuJsonAdapter<T> {
 	 * @return {@link IuJsonAdapter}
 	 * @see #of(Type)
 	 */
-	@SuppressWarnings("unchecked")
 	static <T> IuJsonAdapter<T> of(Class<? super T> type, IuJsonAdapter<?> valueAdapter) {
+		return of(type, a -> valueAdapter);
+	}
+
+	/**
+	 * Provides a JSON type adapter that delegates to another adapter for
+	 * parameterized values.
+	 * 
+	 * @param <T>          target type
+	 * @param type         target type
+	 * @param valueAdapter Factory function for supplying a value type adapter for
+	 *                     {@link JsonStructure} conversion based on the item type.
+	 * @return {@link IuJsonAdapter}
+	 * @see #of(Type)
+	 */
+	@SuppressWarnings("unchecked")
+	static <T> IuJsonAdapter<T> of(Type type, Function<Class<?>, IuJsonAdapter<?>> valueAdapter) {
 		return JsonAdapters.adapt(type, valueAdapter);
 	}
 

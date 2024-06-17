@@ -31,6 +31,7 @@
  */
 package edu.iu;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -45,6 +46,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.jupiter.api.Test;
 
@@ -197,6 +199,32 @@ public class IuWebUtilsTest {
 	}
 
 	@Test
+	public void testVisibleAsciiTooShort() {
+		assertFalse(IuWebUtils.isVisibleAscii("", 1));
+	}
+
+	@Test
+	public void testVisibleAsciiTooLong() {
+		final var b = new byte[1025];
+		for (var i = 0; i < b.length; i++)
+			b[i] = (byte) ThreadLocalRandom.current().nextInt(0x21, 0x7e);
+		assertFalse(IuWebUtils.isVisibleAscii(new String(b), 16));
+	}
+
+	@Test
+	public void testVisibleAsciiBadChars() {
+		assertFalse(IuWebUtils.isVisibleAscii("\n", 1));
+	}
+	
+	@Test
+	public void testVisibleAsciiSuccess() {
+		final var b = new byte[32];
+		for (var i = 0; i < b.length; i++)
+			b[i] = (byte) ThreadLocalRandom.current().nextInt(0x21, 0x7e);
+		assertTrue(IuWebUtils.isVisibleAscii(new String(b), 16));
+	}
+
+	@Test
 	public void testAlpha() {
 		assertFalse(IuWebUtils.alpha('@'));
 		assertTrue(IuWebUtils.alpha('A'));
@@ -289,6 +317,23 @@ public class IuWebUtilsTest {
 		assertTrue(IuWebUtils.qdtext('~'));
 		assertFalse(IuWebUtils.qdtext((char) 0x7f));
 		assertTrue(IuWebUtils.qdtext('\200'));
+	}
+
+	@Test
+	public void testCtext() {
+		assertTrue(IuWebUtils.ctext('\t'));
+		assertFalse(IuWebUtils.ctext('\f'));
+		assertTrue(IuWebUtils.ctext(' '));
+		assertTrue(IuWebUtils.ctext('!'));
+		assertFalse(IuWebUtils.ctext('('));
+		assertFalse(IuWebUtils.ctext(')'));
+		assertTrue(IuWebUtils.ctext('*'));
+		assertTrue(IuWebUtils.ctext('['));
+		assertFalse(IuWebUtils.ctext('\\'));
+		assertTrue(IuWebUtils.ctext(']'));
+		assertTrue(IuWebUtils.ctext('~'));
+		assertFalse(IuWebUtils.ctext((char) 0x7f));
+		assertTrue(IuWebUtils.ctext('\200'));
 	}
 
 	@Test
@@ -399,8 +444,39 @@ public class IuWebUtilsTest {
 		assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseAuthenticateHeader("Basic realm ").next());
 		assertEquals("expected quoted-string at 12", assertThrows(IllegalArgumentException.class,
 				() -> IuWebUtils.parseAuthenticateHeader("Basic realm=\"foobar").next()).getMessage());
-		assertEquals("invalid auth-param at 47", assertThrows(IllegalArgumentException.class,
-				() -> IuWebUtils.parseAuthenticateHeader("Basic realm=\"" + realm + "\" \f").next()).getMessage());
+		assertEquals("invalid auth-param at 47",
+				assertThrows(IllegalArgumentException.class,
+						() -> IuWebUtils.parseAuthenticateHeader("Basic realm=\"" + realm + "\" \f").next())
+						.getMessage());
+	}
+
+	@Test
+	public void testComment() {
+		assertEquals(0, IuWebUtils.comment("foobar", 0));
+		assertEquals(0, IuWebUtils.comment("(foobar", 0));
+		assertEquals(9, IuWebUtils.comment("(foo\\bar)", 0));
+		assertEquals(0, IuWebUtils.comment("(foo(bar)", 0));
+		assertEquals(10, IuWebUtils.comment("(foo(bar))", 0));
+		assertEquals(0, IuWebUtils.comment("(\foobar)", 0));
+	}
+
+	@Test
+	public void testProduct() {
+		assertEquals(6, IuWebUtils.product("foobar", 0));
+		assertEquals(3, IuWebUtils.product("foo(bar)", 0));
+		assertEquals(0, IuWebUtils.product("(foobar)", 0));
+		assertEquals(0, IuWebUtils.product("foobar/", 0));
+		assertEquals(12, IuWebUtils.product("foobar/1.2.3", 0));
+	}
+
+	@Test
+	public void testUserAgent() {
+		assertDoesNotThrow(() -> IuWebUtils.validateUserAgent("foobar"));
+		assertDoesNotThrow(() -> IuWebUtils.validateUserAgent("foo (bar)"));
+		assertDoesNotThrow(() -> IuWebUtils.validateUserAgent("foo\tbar"));
+		assertThrows(IllegalArgumentException.class, () -> IuWebUtils.validateUserAgent("foobar/"));
+		assertThrows(IllegalArgumentException.class, () -> IuWebUtils.validateUserAgent("foo(bar)"));
+		assertThrows(IllegalArgumentException.class, () -> IuWebUtils.validateUserAgent("foo\t\f(bar)"));
 	}
 
 	private Map<String, ? extends Iterable<String>> assertQueryString(String qs) {

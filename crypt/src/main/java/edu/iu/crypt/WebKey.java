@@ -748,6 +748,17 @@ public interface WebKey extends WebKeyReference {
 	}
 
 	/**
+	 * JSON type adapter.
+	 */
+	public static final IuJsonAdapter<WebKey> JSON = IuJsonAdapter.from(v -> {
+		return new Jwk(v.asJsonObject());
+	}, v -> {
+		final var o = IuJson.object();
+		((Jwk) v).serializeTo(o);
+		return o.build();
+	});
+
+	/**
 	 * Verifies encoded key data is correct for the key type, use, algorithm, and
 	 * X.509 certificate chain.
 	 * 

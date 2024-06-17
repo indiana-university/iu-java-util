@@ -79,6 +79,7 @@ import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.WeakHashMap;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -101,7 +102,7 @@ public final class JsonAdapters {
 	 * @return {@link JsonAdapter}
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	public static IuJsonAdapter adapt(Type type, IuJsonAdapter valueAdapter) {
+	public static IuJsonAdapter adapt(Type type, Function<Class<?>, IuJsonAdapter<?>> valueAdapter) {
 		Class erased = erase(type);
 
 		if (erased == Object.class)
@@ -191,7 +192,7 @@ public final class JsonAdapters {
 
 		if (erased == Optional.class)
 			if (valueAdapter != null)
-				return new OptionalJsonAdapter(valueAdapter);
+				return new OptionalJsonAdapter(valueAdapter.apply(item(type)));
 			else if (type instanceof ParameterizedType)
 				return new OptionalJsonAdapter(IuJsonAdapter.of(item(type)));
 			else
@@ -202,7 +203,7 @@ public final class JsonAdapters {
 			final IntFunction factory = n -> Array.newInstance(item, n);
 			final IuJsonAdapter itemAdapter;
 			if (valueAdapter != null)
-				itemAdapter = valueAdapter;
+				itemAdapter = valueAdapter.apply(item);
 			else
 				itemAdapter = IuJsonAdapter.of(item);
 
@@ -215,7 +216,7 @@ public final class JsonAdapters {
 				|| erased == Stream.class) {
 			final IuJsonAdapter itemAdapter;
 			if (valueAdapter != null)
-				itemAdapter = valueAdapter;
+				itemAdapter = valueAdapter.apply(item(type));
 			else if (type instanceof ParameterizedType)
 				itemAdapter = IuJsonAdapter.of(item(type));
 			else
@@ -257,24 +258,24 @@ public final class JsonAdapters {
 		if (Map.class.isAssignableFrom(erased)) {
 			if (valueAdapter == null)
 				if (type instanceof ParameterizedType)
-					valueAdapter = IuJsonAdapter.of(item(type));
+					valueAdapter = IuJsonAdapter::of;
 				else
-					valueAdapter = BasicJsonAdapter.INSTANCE;
+					valueAdapter = a -> BasicJsonAdapter.INSTANCE;
 
 			if (erased == Map.class //
 					|| erased == LinkedHashMap.class)
-				return new JsonObjectAdapter(valueAdapter, LinkedHashMap::new);
+				return new JsonObjectAdapter(valueAdapter.apply(item(type)), LinkedHashMap::new);
 
 			if (erased == HashMap.class)
-				return new JsonObjectAdapter(valueAdapter, HashMap::new);
+				return new JsonObjectAdapter(valueAdapter.apply(item(type)), HashMap::new);
 
 			if (erased == SortedMap.class //
 					|| erased == NavigableMap.class //
 					|| erased == TreeMap.class)
-				return new JsonObjectAdapter(valueAdapter, TreeMap::new);
+				return new JsonObjectAdapter(valueAdapter.apply(item(type)), TreeMap::new);
 
 			if (erased == Properties.class)
-				return new JsonObjectAdapter(valueAdapter, Properties::new);
+				return new JsonObjectAdapter(valueAdapter.apply(item(type)), Properties::new);
 		}
 
 		throw new UnsupportedOperationException("Unsupported for JSON conversion: " + type);
