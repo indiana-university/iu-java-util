@@ -1,159 +1,152 @@
 package iu.auth.saml;
 
-import java.io.ByteArrayOutputStream;
-import java.io.Serializable;
-import java.net.InetAddress;
 import java.net.URI;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
+import java.util.function.Supplier;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.iu.IdGenerator;
-import edu.iu.IuException;
 import edu.iu.IuObject;
+import edu.iu.IuText;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.config.IuSamlClient;
-import edu.iu.auth.saml.IuSamlPrincipal;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.saml.IuSamlSession;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.WebEncryption;
+import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Type;
+import edu.iu.crypt.WebSignature;
+import edu.iu.crypt.WebSignedPayload;
+import iu.auth.config.AuthConfig;
 
 /**
  * SAML session implementation to support session management
  */
-public class SamlSession implements IuSamlSession, Serializable {
+final class SamlSession implements IuSamlSession {
 
-	/**
-	 * SAML session logger
-	 */
 	private final Logger LOG = Logger.getLogger(SamlSession.class.getName());
 
-	private static final long serialVersionUID = 1L;
+	private final SamlServiceProvider serviceProvider;
+	private final URI postUri;
+	private final Supplier<byte[]> secretKey;
 
-	/**
-	 * grants
-	 */
-	private final Map<String, RelayState> grants = new HashMap<>();
-
-	/**
-	 * service provider identity id
-	 */
-	private final String serviceProviderIdentityId;
-
-	/**
-	 * entry point
-	 */
-	private final URI entryPoint;
-
-	/**
-	 * principal
-	 */
+	private String relayState;
+	private String sessionId;
 	private SamlPrincipal id;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param serviceProviderIdentityId authentication serviceProviderIdentityId
-	 * @param entryPoint                {@link URI} to redirect the user agent to in
-	 *                                  order restart the authentication process.
+	 * @param postUri         HTTP POST Binding URI
+	 * @param serviceProvider {@link SamlServiceProvider}
+	 * @param secretKey       Secret key to use for tokenizing the session.
 	 */
-	public SamlSession(String serviceProviderIdentityId, URI entryPoint) {
-		this.serviceProviderIdentityId = serviceProviderIdentityId;
-		this.entryPoint = entryPoint;
+	SamlSession(URI postUri, Supplier<byte[]> secretKey) {
+		this.postUri = postUri;
+		this.serviceProvider = SamlServiceProvider.withBinding(postUri);
+		this.secretKey = secretKey;
+	}
 
+	/**
+	 * Token constructor.
+	 * 
+	 * @param serviceProvider {@link SamlServiceProvider}
+	 * @param token           tokenized session
+	 * @param secretKey       Secret key to use for detokenizing the session.
+	 */
+	SamlSession(String token, Supplier<byte[]> secretKey) {
+		final var key = WebKey.builder(Type.RAW).key(secretKey.get()).build();
+		final var decryptedToken = WebSignedPayload.parse(WebEncryption.parse(token).decryptText(key));
+		final var tokenPayload = decryptedToken.getPayload();
+		final var data = IuJson.parse(IuText.utf8(tokenPayload)).asJsonObject();
+
+		postUri = Objects.requireNonNull(IuJson.get(data, "post_uri", AuthConfig.adaptJson(URI.class)));
+		serviceProvider = SamlServiceProvider.withBinding(postUri);
+		decryptedToken.getSignatures().iterator().next().verify(tokenPayload, serviceProvider.getVerifyKey());
+
+		this.secretKey = secretKey;
+		relayState = IuJson.get(data, "relay_state");
+		sessionId = IuJson.get(data, "session_id");
+		id = IuJson.get(data, "id", SamlPrincipal.JSON);
 	}
 
 	@Override
-	public URI getAuthenticationRequest(URI entityId, URI postUri, URI resourceUri) {
-		SamlProvider provider = SamlConnectSpi.getProvider(serviceProviderIdentityId);
-		IuSamlClient client = provider.getClient();
+	public URI getRequestUri() {
+		IuObject.require(id, Objects::isNull);
+		IuObject.require(relayState, Objects::isNull);
+		IuObject.require(sessionId, Objects::isNull);
 
-		if (!IuWebUtils.isRootOf(client.getApplicationUri(), resourceUri)) {
-			throw new IllegalArgumentException("Invalid resource URI for this client");
+		relayState = IdGenerator.generateId();
+		sessionId = IdGenerator.generateId();
+		return serviceProvider.getAuthnRequest(relayState, sessionId);
+	}
+
+	@Override
+	public void verifyResponse(String remoteAddr, String samlResponse, String relayState)
+			throws IuAuthenticationException {
+		try {
+			IuObject.require(id, Objects::isNull);
+			IuObject.once(Objects.requireNonNull(relayState), Objects.requireNonNull(this.relayState));
+
+			id = serviceProvider.verifyResponse( //
+					IuWebUtils.getInetAddress(remoteAddr), //
+					Objects.requireNonNull(samlResponse), //
+					Objects.requireNonNull(sessionId));
+
+		} catch (Throwable e) {
+			LOG.log(Level.INFO, "Invalid SAML Response", e);
+
+			final var challenge = new IuAuthenticationException(null, e);
+			challenge.setLocation(URI.create(serviceProvider.getAuthenticationEndpoint() + "?RelayState="
+					+ URLEncoder.encode(this.relayState, StandardCharsets.UTF_8)));
+			throw challenge;
 		}
-
-		var validEntityId = false;
-		for (URI metaDataUri : client.getMetaDataUris()) {
-			if (metaDataUri.compareTo(entityId) == 0)
-				validEntityId = true;
-		}
-		if (!validEntityId) {
-			throw new IllegalArgumentException(
-					"Entity Id URI doesn't match with meta data URLs configured for this client" + entityId);
-		}
-
-		var destinationLocation = provider.getSingleSignOnLocation(entityId.toString());
-
-		RelayState relayState = new RelayState(client.getApplicationUri());
-		String state = IdGenerator.generateId();
-		grants.put(state, relayState);
-
-		ByteArrayOutputStream samlRequestBuffer = provider.getAuthRequest(postUri, relayState.getSession(),
-				destinationLocation);
-
-		Map<String, Iterable<String>> idpParams = new LinkedHashMap<>();
-		idpParams.put("SAMLRequest",
-				Collections.singleton(Base64.getEncoder().encodeToString(samlRequestBuffer.toByteArray())));
-
-		idpParams.put("RelayState", Collections.singleton(state));
-
-		URI redirectUri = IuException
-				.unchecked(() -> new URI(destinationLocation + '?' + IuWebUtils.createQueryString(idpParams)));
-		return redirectUri;
 	}
 
 	@Override
 	public SamlPrincipal getPrincipalIdentity() throws IuAuthenticationException {
-		SamlProvider provider = SamlConnectSpi.getProvider(serviceProviderIdentityId);
-
-		IuSamlClient client = provider.getClient();
-		Duration duration = client.getAuthenticatedSessionTimeout();
-		Instant currentTime = Instant.now();
-		Instant authnInstant = (Instant) id.getClaims().get("authnInstant");
-		Instant totalSessiontime = authnInstant.plus(duration);
-		if (currentTime.isBefore(totalSessiontime) && currentTime.isAfter(authnInstant)) {
-			return id;
-		}
-		LOG.fine("Authorized session has expired, require reauthentication");
-		id = null;
-		final var challenge = new IuAuthenticationException( //
-				null, new IllegalStateException("Authorization failed"));
-		challenge.setLocation(entryPoint);
-		throw challenge;
-
+		IuPrincipalIdentity.verify(id, serviceProvider.getRealm());
+		return id;
 	}
 
 	@Override
-	public IuSamlPrincipal authorize(String remoteAddr, URI postUri, String samlResponse, String relayState)
-			throws IuAuthenticationException {
-		SamlProvider provider = SamlConnectSpi.getProvider(serviceProviderIdentityId);
-		IuObject.require(id, Objects::isNull);
-		var grant = grants.remove(relayState);
-		if (grant != null) {
-			id = provider.authorize(IuWebUtils.getInetAddress(remoteAddr), postUri, samlResponse, grant.getSession());
-		} else {
-			LOG.fine("Invalid relay state " + relayState);
-			final var challenge = new IuAuthenticationException( //
-					null, new IllegalArgumentException("Invalid relay state"));
-			challenge.setLocation(entryPoint);
-			throw challenge;
+	public String toString() {
+		final var builder = IuJson.object();
+		IuJson.add(builder, "post_uri", () -> postUri, AuthConfig.adaptJson(URI.class));
+		builder.add("relay_state", relayState) //
+				.add("session_id", sessionId);
+		IuJson.add(builder, "id", () -> id, IuJsonAdapter.to(a -> IuJson.parse(a.toString())));
 
+		final var secretKey = this.secretKey.get();
+		final Encryption enc;
+		switch (secretKey.length) {
+		case 16:
+			enc = Encryption.A128GCM;
+			break;
+		case 24:
+			enc = Encryption.A192GCM;
+			break;
+		case 32:
+			enc = Encryption.A256GCM;
+			break;
+		default:
+			throw new IllegalStateException("secret key size");
 		}
 
-		if (id != null) {
-			return id;
-		}
-
-		final var challenge = new IuAuthenticationException( //
-				null, new IllegalStateException("Authorization failed"));
-		challenge.setLocation(entryPoint);
-		throw challenge;
-
+		return WebEncryption.builder(enc).compact() //
+				.addRecipient(Algorithm.DIRECT) //
+				.key(WebKey.builder(Type.RAW).key(secretKey).build()) //
+				.encrypt(WebSignature.builder(serviceProvider.getVerifyAlg()).compact()
+						.key(serviceProvider.getVerifyKey()) //
+						.sign(builder.build().toString()).compact()) //
+				.compact();
 	}
 
 }

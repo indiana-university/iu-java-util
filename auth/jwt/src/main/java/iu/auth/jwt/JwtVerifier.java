@@ -43,7 +43,7 @@ import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.AuthConfig;
-import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
+import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import iu.auth.principal.PrincipalVerifier;
 
 /**
@@ -107,7 +107,7 @@ public final class JwtVerifier implements PrincipalVerifier<Jwt> {
 				aud -> IuIterable.filter(id.getAudience(), aud::equals).iterator().hasNext(),
 				() -> "audience verification failed");
 
-		final IuPublicKeyPrincipalConfig issuer = AuthConfig.get(id.getIssuer());
+		final IuPrivateKeyPrincipal issuer = AuthConfig.get(id.getIssuer());
 		final var strict = IuException
 				.unchecked(() -> IuPrincipalIdentity.verify(issuer.getIdentity(), issuer.getRealm()));
 		id.signature().verify(id.payload(), JwtSpi.getVerifyKey(issuer.getIdentity()));

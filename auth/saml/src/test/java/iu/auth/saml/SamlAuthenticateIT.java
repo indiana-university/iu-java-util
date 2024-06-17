@@ -1,28 +1,25 @@
 package iu.auth.saml;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.InputStream;
 import java.net.CookieManager;
-import java.net.InetAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
-import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.logging.Level;
+
+import javax.security.auth.Subject;
 
 import org.jsoup.Jsoup;
 import org.junit.jupiter.api.BeforeAll;
@@ -31,109 +28,179 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 
 import edu.iu.IdGenerator;
-import edu.iu.IuException;
 import edu.iu.IuWebUtils;
-import edu.iu.auth.config.IuSamlClient;
-import edu.iu.auth.saml.IuSamlPrincipal;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.config.IuAuthenticationRealm;
+import edu.iu.auth.config.IuPrivateKeyPrincipal;
+import edu.iu.auth.config.IuSamlServiceProviderMetadata;
+import edu.iu.auth.saml.IuSamlAssertion;
 import edu.iu.auth.saml.IuSamlSession;
+import edu.iu.client.IuHttp;
 import edu.iu.client.IuVault;
-import edu.iu.crypt.PemEncoded;
+import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
 import edu.iu.test.IuTestLogger;
+import iu.auth.config.AuthConfig;
 
 @EnabledIf("edu.iu.client.IuVault#isConfigured")
 @SuppressWarnings("javadoc")
 public class SamlAuthenticateIT {
 
-	private static File metaData;
-	private static String ldpMetaDataUrl;
-	private static String providerEntityId = System.getenv("SERVICE_PROVIDER_ENTITY_ID");
-	private static String postUrl = System.getenv("POST_URL");
-	private static String applicationUrl = System.getenv("APPLICATION_URL");
+	private static final String REALM = "iu-saml-test";
+	private static URI postUri;
+
+//	private static SamlServiceProviderConfig config;
+
+//	private static File metaData;
+//	private static String ldpMetaDataUrl;
+//	private static String providerEntityId = System.getenv("SERVICE_PROVIDER_ENTITY_ID");
+//	private static String postUrl = System.getenv("POST_URL");
+//	private static String applicationUrl = System.getenv("APPLICATION_URL");
+
+	private final class TrustedId implements IuPrincipalIdentity {
+
+		private final IuPrivateKeyPrincipal pkp;
+		private final Instant issuedAt = Instant.now();
+		private final Instant authTime = pkp.getJwk().getCertificateChain()[0].getNotBefore().toInstant();
+		private final Instant expires = pkp.getJwk().getCertificateChain()[0].getNotAfter().toInstant();
+
+		private TrustedId(IuPrivateKeyPrincipal pkp) {
+			this.pkp = pkp;
+		}
+
+		@Override
+		public String getName() {
+			return pkp.getJwk().getCertificateChain()[0].getSubjectX500Principal().getName();
+		}
+
+		@Override
+		public Instant getIssuedAt() {
+			// TODO Auto-generated method stub
+			return null;
+		}
+
+		@Override
+		public Instant getAuthTime() {
+			// TODO Auto-generated method stub
+			return null;
+		}
+
+		@Override
+		public Instant getExpires() {
+			// TODO Auto-generated method stub
+			return null;
+		}
+
+		@Override
+		public Subject getSubject() {
+			// TODO Auto-generated method stub
+			return null;
+		}
+
+	}
 
 	@BeforeAll
 	public static void setupClass() {
+		AuthConfig.addVault(IuAuthenticationRealm.class, IuVault.RUNTIME);
+		final IuSamlServiceProviderMetadata realm = IuAuthenticationRealm.of(REALM);
+		postUri = realm.getAcsUris().iterator().next();
 
-		String samlCertificate = IuVault.RUNTIME.get("thirdparty.saml.certificate");
-		String privateKey = IuVault.RUNTIME.get("thirdparty.saml.privateKey");
-		ldpMetaDataUrl = "https://idp-stg.login.iu.edu/idp/shibboleth"; // IuVault.RUNTIME.get("iu.ldp.stg.metadata.url");
-		HttpRequest request = IuException.unchecked(() -> HttpRequest.newBuilder().GET() //
-				.uri(new URI(ldpMetaDataUrl)) //
-				.build());
+		final var provider = new SamlServiceProvider(postUri, REALM);
+		AuthConfig.register(provider);
+		AuthConfig.seal();
 
-		final var response = IuException
-				.unchecked(() -> HttpClient.newHttpClient().send(request, BodyHandlers.ofInputStream()));
-		int statusCode = response.statusCode();
-		if (statusCode == 200) {
-			InputStream is = response.body();
-			String xml = XmlDomUtil.xmlToString(is);
-			metaData = IuException.unchecked(() -> File.createTempFile("idp-stg-metadta-test", ".xml"));
-			BufferedWriter bw = IuException.unchecked(() -> new BufferedWriter(new FileWriter(metaData, true)));
-			IuException.unchecked(() -> bw.write(xml));
-			IuException.unchecked(() -> bw.close());
-		}
+		final var identity = provider.serviceProviderIdentity(realm);
+		System.out.println("Verified SAML Service Provider " + identity);
 
-		IuSamlProvider provider = IuSamlProvider.from(new IuSamlClient() {
-
-			@Override
-			public String getServiceProviderEntityId() {
-				return providerEntityId;
-			}
-
-			@Override
-			public List<URI> getMetaDataUris() {
-				URI entityId = IuException.unchecked(() -> new URI(ldpMetaDataUrl));
-				return Arrays.asList(entityId);
-			}
-
-			@Override
-			public X509Certificate getCertificate() {
-				return PemEncoded.parse(samlCertificate).next().asCertificate();
-			}
-
-			@Override
-			public List<URI> getAcsUris() {
-				return IuException.unchecked(() -> Arrays.asList(new URI(postUrl)));
-			}
-
-			@Override
-			public String getPrivateKey() {
-				return privateKey;
-			}
-
-			@Override
-			public List<String> getAllowedRange() {
-				return IuException.unchecked(() -> Arrays.asList("127.0.0.0"));
-			}
-
-			@Override
-			public Duration getAuthenticatedSessionTimeout() {
-				return Duration.ofMinutes(2L);
-			}
-
-			@Override
-			public URI getApplicationUri() {
-				return IuException.unchecked(() -> new URI(applicationUrl));
-			}
-
-		});
+//		config = Realm.of(REALM);
+//
+//		String samlCertificate = IuVault.RUNTIME.get("thirdparty.saml.certificate");
+//		String privateKey = IuVault.RUNTIME.get("thirdparty.saml.privateKey");
+//		ldpMetaDataUrl = "https://idp-stg.login.iu.edu/idp/shibboleth"; // IuVault.RUNTIME.get("iu.ldp.stg.metadata.url");
+//		HttpRequest request = IuException.unchecked(() -> HttpRequest.newBuilder().GET() //
+//				.uri(new URI(ldpMetaDataUrl)) //
+//				.build());
+//
+//		final var response = IuException
+//				.unchecked(() -> HttpClient.newHttpClient().send(request, BodyHandlers.ofInputStream()));
+//		int statusCode = response.statusCode();
+//		if (statusCode == 200) {
+//			InputStream is = response.body();
+//			String xml = XmlDomUtil.xmlToString(is);
+//			metaData = IuException.unchecked(() -> File.createTempFile("idp-stg-metadta-test", ".xml"));
+//			BufferedWriter bw = IuException.unchecked(() -> new BufferedWriter(new FileWriter(metaData, true)));
+//			IuException.unchecked(() -> bw.write(xml));
+//			IuException.unchecked(() -> bw.close());
+//		}
+//
+//		IuSamlProvider provider = IuSamlProvider.from(new SamlServiceProviderConfig() {
+//
+//			@Override
+//			public String getServiceProviderEntityId() {
+//				return providerEntityId;
+//			}
+//
+//			@Override
+//			public List<URI> getMetaDataUris() {
+//				URI entityId = IuException.unchecked(() -> new URI(ldpMetaDataUrl));
+//				return Arrays.asList(entityId);
+//			}
+//
+//			@Override
+//			public X509Certificate getCertificate() {
+//				return PemEncoded.parse(samlCertificate).next().asCertificate();
+//			}
+//
+//			@Override
+//			public List<URI> getAcsUris() {
+//				return IuException.unchecked(() -> Arrays.asList(new URI(postUrl)));
+//			}
+//
+//			@Override
+//			public String getPrivateKey() {
+//				return privateKey;
+//			}
+//
+//			@Override
+//			public List<String> getAllowedRange() {
+//				return IuException.unchecked(() -> Arrays.asList("127.0.0.0"));
+//			}
+//
+//			@Override
+//			public Duration getAuthenticatedSessionTimeout() {
+//				return Duration.ofMinutes(2L);
+//			}
+//
+//			@Override
+//			public URI getApplicationUri() {
+//				return IuException.unchecked(() -> new URI(applicationUrl));
+//			}
+//
+//		});
 	}
+
+	// TODO: REMOVE or @AfterAll
+//	metaData.delete();
 
 	@BeforeEach
 	public void setup() {
-		IuTestLogger.allow("iu.auth.saml.SamlProvider", Level.FINE);
+		IuTestLogger.allow(IuHttp.class.getName(), Level.FINE);
+//		IuTestLogger.allow("iu.auth.saml.SamlProvider", Level.FINE);
 	}
 
 	@Test
-	public void testSamlAuthenication() throws Exception {
-		URI entityId = IuException.unchecked(() -> new URI(ldpMetaDataUrl));
-		URI postUri = IuException.unchecked(() -> new URI(postUrl));
-		URI applicationUri = IuException.unchecked(() -> new URI(applicationUrl));
-		var sessionId = IdGenerator.generateId();
-		System.out.println("sessionId " + sessionId);
+	public void testSamlAuthentication() throws Exception {
+//		final var entityId = config.getIdentityProviderEntityId();
+//		URI applicationUri = IuException.unchecked(() -> new URI(applicationUrl));
+//		var sessionId = IdGenerator.generateId();
+//		System.out.println("sessionId " + sessionId);
+		final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
+		IuSamlSession samlSession = IuSamlSession.create(postUri, () -> secret);
 
-		IuSamlSession samlSession = IuSamlSession.create(providerEntityId, applicationUri);
+		final var location = samlSession.getRequestUri();
+		final var relayState = IuWebUtils.parseQueryString(location.getQuery()).get("RelayState").iterator().next();
+		IdGenerator.verifyId(relayState, 2000L);
 
-		URI location = samlSession.getAuthenticationRequest(entityId, postUri, applicationUri);
 		System.out.println("Location: " + location);
 		final var cookieHandler = new CookieManager();
 		final var http = HttpClient.newBuilder().cookieHandler(cookieHandler).build();
@@ -200,28 +267,34 @@ public class SamlAuthenticateIT {
 			loginSuccessParams.put(i.attr("name"), i.attr("value"));
 
 		// verify relay state and SAML response values
-		String relayState = loginSuccessParams.get("RelayState");
-		String samlResponse = loginSuccessParams.get("SAMLResponse");
+		assertEquals(relayState, loginSuccessParams.get("RelayState"));
+		final var samlResponse = loginSuccessParams.get("SAMLResponse");
 
-		IuSamlPrincipal iuSamlPrincipal = samlSession.authorize(InetAddress.getLocalHost(), postUri, samlResponse,
-				relayState);
-		assertNotNull(iuSamlPrincipal.getName());
-		assertNotNull(iuSamlPrincipal.getSubject());
-		assertNotNull(iuSamlPrincipal.getClaims());
-		// assert iuSamlPrincipal
-		assertEquals("esstest@iu.edu", iuSamlPrincipal.getName());
-		assertEquals("ESS Testing", iuSamlPrincipal.getDisplayName());
-		assertEquals("esstest@iu.edu", iuSamlPrincipal.getEmailAddress());
+		assertDoesNotThrow(() -> samlSession.verifyResponse("127.0.0.1", samlResponse, relayState));
+
+		final var activatedSession = IuSamlSession.activate(samlSession.toString(), () -> secret);
+		final var iuSamlPrincipal = activatedSession.getPrincipalIdentity();
+		IuPrincipalIdentity.verify(iuSamlPrincipal, REALM);
+
+		final var subject = iuSamlPrincipal.getSubject();
+		final var assertions = subject.getPublicCredentials(IuSamlAssertion.class);
+		assertEquals(1, assertions.size());
+
+		final var assertion = assertions.iterator().next();
+		assertEquals(iuSamlPrincipal.getName(),
+				assertion.getAttributes().get(IuSamlAssertion.EDU_PERSON_PRINCIPAL_NAME_OID));
+
+		assertNotNull(assertion.getAttributes().get(IuSamlAssertion.DISPLAY_NAME_OID));
+		assertNotNull(assertion.getAttributes().get(IuSamlAssertion.MAIL_OID));
+
 		final Instant now = Instant.now();
 		final Instant latestValid = now.plus(Duration.ofMinutes(5));
-		Instant issueInstant = (Instant) iuSamlPrincipal.getClaims().get("issueInstant");
-		Instant notBefore = (Instant) iuSamlPrincipal.getClaims().get("notBefore");
-		Instant notOnOrAfter = (Instant) iuSamlPrincipal.getClaims().get("notOnOrAfter");
+		Instant issueInstant = iuSamlPrincipal.getIssuedAt();
+		Instant notBefore = assertion.getNotBefore();
+		Instant notOnOrAfter = assertion.getNotOnOrAfter();
 
 		assertFalse(issueInstant.isAfter(latestValid));
 		assertFalse(notBefore.isAfter(latestValid));
 		assertFalse(notOnOrAfter.isBefore(now.minus(Duration.ofMinutes(5))));
-		metaData.delete();
-
 	}
 }

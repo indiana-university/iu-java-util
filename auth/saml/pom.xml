@@ -11,10 +11,12 @@
 	</parent>
 
 	<artifactId>iu-java-auth-saml</artifactId>
-	<name>IU SAML Connect Client</name>
-    <properties>
+	<name>IU SAML 2.0 Service Provider</name>
+
+	<properties>
 		<opensaml.version>5.1.0</opensaml.version>
 	</properties>
+
 	<dependencies>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
@@ -36,6 +38,11 @@
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-auth-principal</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-auth-pki</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>

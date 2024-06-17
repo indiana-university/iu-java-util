@@ -57,32 +57,28 @@ public final class JsonProxy implements InvocationHandler {
 	 * @param <T>             target interface type
 	 * @param value           value
 	 * @param targetInterface target interface class
-	 * @param valueAdapter       transform function: receives a {@link JsonValue} and
+	 * @param valueAdapter    transform function: receives a {@link JsonValue} and
 	 *                        method return type, if custom handling returns an
 	 *                        object other than the original {@link JsonValue value}
 	 * @return {@link JsonProxy}
 	 */
 	public static <T> T wrap(JsonObject value, Class<T> targetInterface,
 			Function<Type, IuJsonAdapter<?>> valueAdapter) {
+		IuObject.assertNotOpen(targetInterface);
+		JsonProxy.class.getModule().addReads(targetInterface.getModule());
+
 		return targetInterface.cast(Proxy.newProxyInstance(targetInterface.getClassLoader(),
 				new Class<?>[] { targetInterface }, new JsonProxy(value, valueAdapter)));
 	}
 
 	/**
-	 * Determines if {@link JsonProxy} can support wrapping a value in an interface.
+	 * Retrieves the {@link JsonObject} from a {@link JsonProxy} wrapper.
 	 * 
-	 * @param rv         value, potentially {@link JsonObject}
-	 * @param returnType return type, potentially a
-	 *                   {@link IuObject#isPlatformName(String) non-platform}
-	 *                   {@link Class#isInterface() interface}
-	 * @return true if rv is a {@link JsonObject} and returnType is a
-	 *         {@link IuObject#isPlatformName(String) non-platform}
-	 *         {@link Class#isInterface() interface}
+	 * @param jsonProxy wrapper
+	 * @return {@link JsonObject}
 	 */
-	static boolean canWrap(JsonValue rv, Class<?> returnType) {
-		return (rv instanceof JsonObject) //
-				&& returnType.isInterface() //
-				&& !IuObject.isPlatformName(returnType.getName());
+	public static JsonObject unwrap(Object jsonProxy) {
+		return ((JsonProxy) Proxy.getInvocationHandler(jsonProxy)).value;
 	}
 
 	private final JsonObject value;
@@ -125,7 +121,6 @@ public final class JsonProxy implements InvocationHandler {
 		} else
 			throw new UnsupportedOperationException();
 
-		final var returnType = method.getReturnType();
 		final JsonValue rv;
 		if (propertyName == null)
 			rv = null;
@@ -141,17 +136,17 @@ public final class JsonProxy implements InvocationHandler {
 		}
 
 		final var genericReturnType = method.getGenericReturnType();
-		if (canWrap(rv, returnType)) {
-			return wrap(rv.asJsonObject(), returnType, valueAdapter);
-		} else
-			try {
-				return valueAdapter.apply(genericReturnType).fromJson(rv);
-			} catch (UnsupportedOperationException e) {
-				if (rv == null)
-					return null;
-				else
-					throw e;
-			}
+		try {
+			return valueAdapter.apply(genericReturnType).fromJson(rv);
+		} catch (UnsupportedOperationException e) {
+			if (rv == null)
+				return null;
+			else
+				throw e;
+		} catch (Throwable e) {
+			throw new IllegalArgumentException(
+					"Invalid JSON value for return type " + genericReturnType + " in property " + propertyName, e);
+		}
 	}
 
 	private String convertToSnakeCase(String camelCase) {

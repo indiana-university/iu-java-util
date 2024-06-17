@@ -38,6 +38,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import java.net.URI;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Set;
 
 import javax.security.auth.Subject;
@@ -47,16 +49,18 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.config.AuthConfig;
+import iu.auth.config.AuthConfig;
 
 @SuppressWarnings("javadoc")
 public class PrincipalVerifierRegistryTest {
 
 	private static final class TestId implements IuPrincipalIdentity {
-		private static final long serialVersionUID = 1L;
 
 		private final String realm;
 		private final String name = IdGenerator.generateId();
+		private final Instant issuedAt = Instant.now();
+		private final Instant authTime = issuedAt.truncatedTo(ChronoUnit.SECONDS);
+		private final Instant expires = authTime.plusSeconds(5L);
 
 		private TestId(String realm) {
 			this.realm = realm;
@@ -65,6 +69,21 @@ public class PrincipalVerifierRegistryTest {
 		@Override
 		public String getName() {
 			return name;
+		}
+
+		@Override
+		public Instant getIssuedAt() {
+			return issuedAt;
+		}
+
+		@Override
+		public Instant getAuthTime() {
+			return authTime;
+		}
+
+		@Override
+		public Instant getExpires() {
+			return expires;
 		}
 
 		@Override
@@ -122,8 +141,7 @@ public class PrincipalVerifierRegistryTest {
 		AuthConfig.seal();
 		assertTrue(PrincipalVerifierRegistry.isAuthoritative(realm));
 
-		assertThrows(IllegalStateException.class,
-				() -> AuthConfig.register(new Verifier(realm, false)));
+		assertThrows(IllegalStateException.class, () -> AuthConfig.register(new Verifier(realm, false)));
 		assertTrue(IuPrincipalIdentity.verify(new TestId(realm), realm));
 
 		assertThrows(ClassCastException.class,

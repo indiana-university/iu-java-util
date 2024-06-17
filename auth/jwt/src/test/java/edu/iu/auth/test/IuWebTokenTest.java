@@ -53,7 +53,7 @@ import edu.iu.IuText;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.AuthConfig;
-import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
+import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.jwt.IuWebToken;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebEncryption;
@@ -89,7 +89,7 @@ public class IuWebTokenTest {
 		}
 	}
 
-	private static final class SampleVerifier implements PrincipalVerifier<SampleId>, IuPublicKeyPrincipalConfig {
+	private static final class SampleVerifier implements PrincipalVerifier<SampleId>, IuPrivateKeyPrincipal {
 		private final SampleId id;
 
 		private SampleVerifier(SampleId id) {

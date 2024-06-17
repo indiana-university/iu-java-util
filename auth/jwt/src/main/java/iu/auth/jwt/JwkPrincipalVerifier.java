@@ -35,13 +35,13 @@ import java.net.URI;
 
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
+import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import iu.auth.principal.PrincipalVerifier;
 
 /**
  * Verifies a registered {@link Jwt} issuer or audience principal.
  */
-final class JwkPrincipalVerifier implements PrincipalVerifier<JwkPrincipal>, IuPublicKeyPrincipalConfig {
+final class JwkPrincipalVerifier implements PrincipalVerifier<JwkPrincipal>, IuPrivateKeyPrincipal {
 
 	private final JwkPrincipal jwk;
 

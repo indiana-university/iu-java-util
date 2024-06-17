@@ -1,23 +1,31 @@
 package edu.iu.auth.spi;
 
 import java.net.URI;
+import java.util.function.Supplier;
 
 import edu.iu.auth.saml.IuSamlSession;
 
-
 /**
- * Service provider interface for SAML.
+ * Application-facing SAML Service Provider (SP) SPI interface.
  */
 public interface IuSamlSpi {
-	
+
 	/**
-	 * Creates a new {@link IuSamlSession} for managing SAML authorization
-	 * server interactions.
+	 * Implements {@link IuSamlSession#create(URI, Supplier)}.
 	 * 
-	 * @param realm      authentication realm
-	 * @param entryPoint entry point URI
+	 * @param postUri   HTTP POST Binding URI
+	 * @param secretKey Secret key supplier
 	 * @return {@link IuSamlSession}
 	 */
-	IuSamlSession createAuthorizationSession(String realm, URI entryPoint);
+	IuSamlSession createSession(URI postUri, Supplier<byte[]> secretKey);
+
+	/**
+	 * Implements {@link IuSamlSession#activate(String, Supplier)}.
+	 * 
+	 * @param sessionToken Tokenized session
+	 * @param secretKey    Secret key supplier
+	 * @return {@link IuSamlSession}
+	 */
+	IuSamlSession activateSession(String sessionToken, Supplier<byte[]> secretKey);
 
 }

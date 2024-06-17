@@ -31,53 +31,56 @@
  */
 package edu.iu.auth.config;
 
-import java.util.Arrays;
+import java.security.cert.X509Certificate;
+
+import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
 
 /**
- * Provides realm configuration.
+ * Configures the private key holder of an {@link X509Certificate X.509
+ * certificate chain}.
  */
-public interface Realm {
+public interface IuPrivateKeyPrincipal extends IuAuthenticationRealm {
 
 	/**
-	 * Enumerates authentication realm types.
+	 * Gets the algorithm to use for creating new digital signatures or as the key
+	 * protection algorithm when creating an encrypted messages.
+	 * 
+	 * @return {@link Algorithm}
 	 */
-	enum Type {
+	Algorithm getAlg();
 
-		/**
-		 * Token issuer.
-		 */
-		TOKEN("token_endpoint", TokenEndpoint.class);
-
-		private String code;
-		private Class<? extends Realm> authenticationInterface;
-
-		private Type(String code, Class<? extends Realm> authenticationInterface) {
-			this.code = code;
-			this.authenticationInterface = authenticationInterface;
-		}
-
-		/**
-		 * Gets an authentication realm type by configuration code
-		 * 
-		 * @param code configuration code
-		 * @return authentication realm type
-		 */
-		static Type from(String code) {
-			return Arrays.stream(Type.class.getEnumConstants()).filter(a -> a.code.equals(code)).findFirst().get();
-		}
+	/**
+	 * Gets the key protection algorithm to use for creating encrypted messages.
+	 * 
+	 * @return {@link Algorithm}
+	 */
+	default Algorithm getEncryptAlg() {
+		return getAlg();
 	}
 
 	/**
-	 * Gets the configuration for a realm.
+	 * Gets the content protection algorithm to use for creating encrypted messages.
 	 * 
-	 * @param <R>  authentication realm type
-	 * @param name realm name
-	 * @return realm configuration
+	 * @return {@link Encryption}
 	 */
-	@SuppressWarnings("unchecked")
-	static <R extends Realm> R of(String name) {
-		return (R) AuthConfig.load(Realm.class, "realm/" + name,
-				config -> Type.from(config.getString("type")).authenticationInterface);
+	Encryption getEnc();
+
+	/**
+	 * Gets the signature verification or encryption key.
+	 * 
+	 * @return {@link WebKey}
+	 */
+	WebKey getJwk();
+
+	/**
+	 * Gets the encryption key.
+	 * 
+	 * @return encryption key
+	 */
+	default WebKey getEncryptJwk() {
+		return getJwk();
 	}
 
 }

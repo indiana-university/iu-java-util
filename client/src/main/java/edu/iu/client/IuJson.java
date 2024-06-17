@@ -153,6 +153,16 @@ public class IuJson {
 	}
 
 	/**
+	 * Retrieves the {@link JsonObject} from a {@link JsonProxy} wrapper.
+	 * 
+	 * @param jsonProxy wrapper
+	 * @return {@link JsonObject}
+	 */
+	public static JsonObject unwrap(Object jsonProxy) {
+		return JsonProxy.unwrap(jsonProxy);
+	}
+
+	/**
 	 * Creates a JSON value from a {@link Boolean#TYPE boolean}.
 	 * 
 	 * @param value {@link Boolean#TYPE boolean}

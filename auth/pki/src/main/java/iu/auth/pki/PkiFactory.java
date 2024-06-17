@@ -50,7 +50,7 @@ import java.util.Set;
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
+import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.crypt.WebCertificateReference;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Operation;
@@ -236,20 +236,19 @@ public class PkiFactory {
 	 * @param partialKey {@link WebKey} with the elements listed above
 	 * @return {@link IuPrincipalIdentity}
 	 */
-	public static IuPrincipalIdentity from(final WebKey partialKey) {
-		final var pkp = new PublicKeyParameters(partialKey);
+	public static IuPrincipalIdentity from(final IuPrivateKeyPrincipal partialKey) {
+		final var pkp = new PublicKeyParameters(partialKey.getJwk());
 
 		// verify end-entity certificate
 		if (pkp.ca)
 			throw new IllegalArgumentException("ID certificate must be an end-entity");
 
-		return new PkiPrincipal(pkp.create(true), pkp.create(false));
+		return new PkiPrincipal(partialKey, pkp.create(true), pkp.create(false));
 	}
 
 	/**
 	 * Creates a PKI principal verifier.
 	 * 
-	 * @param <V>        Public key verifier type
 	 * @param partialKey {@link WebKey} with certificate chain; private key will be
 	 *                   ignored for CA certificates; if provided with a self-signed
 	 *                   EE certificate, the verifier will be authoritative.
@@ -257,28 +256,26 @@ public class PkiFactory {
 	 *                   self-signed end-entity certificate
 	 * @return {@link PrincipalVerifier}
 	 */
-	@SuppressWarnings("unchecked")
-	public static <V extends IuPublicKeyPrincipalConfig & PrincipalVerifier<?>> V trust(final WebKey partialKey,
-			final CRL... crl) {
-		final var pkp = new PublicKeyParameters(partialKey);
+	public static PrincipalVerifier<?> trust(final IuPrivateKeyPrincipal partialKey, final CRL... crl) {
+		final var pkp = new PublicKeyParameters(partialKey.getJwk());
 		final PkiPrincipal identity;
 		final var anchor = new TrustAnchor(pkp.idCert, null);
 		final var pkix = IuException.unchecked(() -> new PKIXParameters(Set.of(anchor)));
 		if (!pkp.ca && // disable revocation for self-signed end-entity certs
 				pkp.idCert.getIssuerX500Principal().equals(pkp.idCert.getSubjectX500Principal())) {
-			identity = new PkiPrincipal(pkp.create(true), pkp.create(false));
+			identity = new PkiPrincipal(partialKey, pkp.create(true), pkp.create(false));
 			pkix.setRevocationEnabled(false);
 		} else if (crl.length <= 0)
 			throw new IllegalArgumentException("At least one revocation list required for CA-signed certificates");
 		else {
 			final var verify = IuObject.convert(pkp.create(true), WebKey::wellKnown);
 			final var encrypt = IuObject.convert(pkp.create(false), WebKey::wellKnown);
-			identity = new PkiPrincipal(verify, encrypt);
+			identity = new PkiPrincipal(partialKey, verify, encrypt);
 			pkix.addCertStore(IuException.unchecked(
 					() -> CertStore.getInstance("Collection", new CollectionCertStoreParameters(Set.of(crl)))));
 		}
 
-		return (V) new PkiVerifier(identity, pkix);
+		return new PkiVerifier(identity, pkix);
 	}
 
 	private PkiFactory() {

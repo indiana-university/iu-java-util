@@ -41,18 +41,19 @@ import iu.auth.principal.PrincipalVerifier;
  */
 final class SamlPrincipalVerifier implements PrincipalVerifier<SamlPrincipal> {
 
-	private final boolean authoritative;
 	private final String realm;
+	private final URI authenticationEndpoint;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param authoritative authoritative flag: true
-	 * @param realm         authentication realm the service provider id
+	 * @param realm                  authentication realm the service provider id
+	 * @param authenticationEndpoint authentication endpoint, to redirect the user
+	 *                               to if authentication expires
 	 */
-	SamlPrincipalVerifier(boolean authoritative, String realm) {
-		this.authoritative = authoritative;
+	SamlPrincipalVerifier(String realm, URI authenticationEndpoint) {
 		this.realm = realm;
+		this.authenticationEndpoint = authenticationEndpoint;
 	}
 
 	@Override
@@ -67,33 +68,28 @@ final class SamlPrincipalVerifier implements PrincipalVerifier<SamlPrincipal> {
 
 	@Override
 	public boolean isAuthoritative() {
-		return authoritative;
-	}
-
-	@Override
-	public void verify(SamlPrincipal id, String realm) throws IuAuthenticationException {
-		if (!id.realm().equals(realm))
-			throw new IllegalArgumentException("Principal is invalid for the authenticaiton realm");
-
-		// TODO maxium allowed time
+		return true;
 	}
 
 	@Override
 	public String getAuthScheme() {
-		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
 	public URI getAuthenticationEndpoint() {
-		// TODO Auto-generated method stub
-		return null;
+		return authenticationEndpoint;
 	}
 
 	@Override
 	public void verify(SamlPrincipal id) throws IuAuthenticationException {
-		// TODO Auto-generated method stub
-		
+		try {
+			id.verify(realm);
+		} catch (Throwable e) {
+			final var authException = new IuAuthenticationException(null, e);
+			authException.setLocation(authenticationEndpoint);
+			throw authException;
+		}
 	}
 
 }

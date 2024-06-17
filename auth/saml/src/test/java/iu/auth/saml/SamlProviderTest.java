@@ -59,7 +59,7 @@ import org.w3c.dom.Document;
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.IuText;
-import edu.iu.auth.config.IuSamlClient;
+import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.test.IuTestLogger;
 
@@ -155,7 +155,7 @@ public class SamlProviderTest {
 	public void testEmptySamlResponse() throws MalformedURLException {
 		IuTestLogger.allow("iu.auth.saml.SamlProvider", Level.FINE);
 		{
-			assertThrows(IllegalArgumentException.class, () -> provider.authorize(InetAddress.getByName("127.0.0.0"),
+			assertThrows(IllegalArgumentException.class, () -> provider.handleAcsPostResponse(InetAddress.getByName("127.0.0.0"),
 					URI.create("test://postUrl/"), "", IdGenerator.generateId()));
 
 		}
@@ -182,7 +182,7 @@ public class SamlProviderTest {
 			mockXmlObjectSupport.when(() -> XMLObjectSupport.unmarshallFromInputStream(any(), any()))
 					.thenReturn(mockResponse);
 			final var samlResponse = Base64.getEncoder().encodeToString(IuText.utf8(IdGenerator.generateId()));
-			assertThrows(SecurityException.class, () -> provider.authorize(InetAddress.getByName("127.0.0.0"),
+			assertThrows(SecurityException.class, () -> provider.handleAcsPostResponse(InetAddress.getByName("127.0.0.0"),
 					URI.create("test://postUrl/"), samlResponse, IdGenerator.generateId()));
 		}
 
@@ -219,7 +219,7 @@ public class SamlProviderTest {
 						.thenReturn(mockResponse);
 				final var samlResponse = Base64.getEncoder().encodeToString(IuText.utf8(IdGenerator.generateId()));
 				assertThrows(IllegalArgumentException.class,
-						() -> provider.authorize(InetAddress.getByName("127.0.0.0"), URI.create("test://postUrl/"),
+						() -> provider.handleAcsPostResponse(InetAddress.getByName("127.0.0.0"), URI.create("test://postUrl/"),
 								samlResponse, IdGenerator.generateId()));
 			}
 		}
@@ -280,7 +280,7 @@ public class SamlProviderTest {
 						.thenReturn(mockResponse);
 				final var samlResponse = Base64.getEncoder().encodeToString(IuText.utf8(IdGenerator.generateId()));
 				assertThrows(IllegalArgumentException.class,
-						() -> provider.authorize(InetAddress.getByName("127.0.0.0"), URI.create("test://postUrl/"),
+						() -> provider.handleAcsPostResponse(InetAddress.getByName("127.0.0.0"), URI.create("test://postUrl/"),
 								samlResponse, IdGenerator.generateId()));
 			}
 		}
@@ -676,8 +676,8 @@ public class SamlProviderTest {
 		assertNotNull(SamlProvider.getDecrypter(provider.getClient()));
 	}
 
-	static IuSamlClient getClient(List<URI> metadataUris, String serviceProviderEntityId) {
-		final var client = new IuSamlClient() {
+	static IuSamlServiceProviderMetadata getClient(List<URI> metadataUris, String serviceProviderEntityId) {
+		final var client = new IuSamlServiceProviderMetadata() {
 
 			@Override
 			public String getServiceProviderEntityId() {
@@ -701,7 +701,7 @@ public class SamlProviderTest {
 			}
 
 			@Override
-			public List<URI> getMetaDataUris() {
+			public List<URI> getMetadataUris() {
 				return IuException.unchecked(() -> metadataUris);
 			}
 

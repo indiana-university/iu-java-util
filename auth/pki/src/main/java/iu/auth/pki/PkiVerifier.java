@@ -38,30 +38,24 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.PKIXCertPathValidatorResult;
 import java.security.cert.PKIXParameters;
 import java.util.ArrayList;
-import java.util.EnumSet;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.logging.Logger;
 
 import edu.iu.IuException;
-import edu.iu.IuIterable;
 import edu.iu.IuObject;
-import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
+import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.crypt.WebCertificateReference;
-import edu.iu.crypt.WebKey;
-import edu.iu.crypt.WebKey.Operation;
+import iu.auth.config.IuTrustedIssuer;
 import iu.auth.principal.PrincipalVerifier;
 
 /**
  * Verifies {@link PkiPrincipal} identities.
  */
-final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuPublicKeyPrincipalConfig {
+final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuTrustedIssuer {
 
 	private static final Logger LOG = Logger.getLogger(PkiVerifier.class.getName());
-
-	private final Set<Operation> SIGNATURE_OPS = EnumSet.of(Operation.VERIFY, Operation.SIGN);
-	private final Set<Operation> ENCRYPT_OPS = EnumSet.of(Operation.DERIVE_KEY, Operation.WRAP, Operation.UNWRAP);
 
 	private final PkiPrincipal identity;
 	private final PKIXParameters trustParams;
@@ -109,31 +103,6 @@ final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuPublicKeyP
 	}
 
 	@Override
-	public PkiPrincipal getIdentity() {
-		return identity;
-	}
-
-	@Override
-	public WebKey getSignatureKey() {
-		final var subject = identity.getSubject();
-		return IuIterable
-				.stream(IuIterable.cat(subject.getPrivateCredentials(WebKey.class),
-						subject.getPublicCredentials(WebKey.class)))
-				.filter(k -> k.getOps().stream().anyMatch(SIGNATURE_OPS::contains)) //
-				.findFirst().get();
-	}
-
-	@Override
-	public WebKey getEncryptKey() {
-		final var subject = identity.getSubject();
-		return IuIterable
-				.stream(IuIterable.cat(subject.getPrivateCredentials(WebKey.class),
-						subject.getPublicCredentials(WebKey.class)))
-				.filter(k -> k.getOps().stream().anyMatch(ENCRYPT_OPS::contains)) //
-				.findFirst().get();
-	}
-
-	@Override
 	public void verify(PkiPrincipal pki) {
 		if (pki == identity)
 			return; // identity principal is always valid
@@ -166,6 +135,22 @@ final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuPublicKeyP
 		}
 
 		throw new IllegalArgumentException("issuer not trusted");
+	}
+
+	@Override
+	public PkiPrincipal getPrincipal(IuPrivateKeyPrincipal privateKeyPrincipal) {
+		final var key = identity.key();
+		final var jwk = privateKeyPrincipal.getJwk();
+
+		final var privateKey = key.getPrivateKey();
+		if (!IuObject.equals(privateKey, jwk.getPrivateKey()))
+			return null;
+
+		final var certificateChain = WebCertificateReference.verify(jwk);
+		if (!Arrays.equals(certificateChain, key.getCertificateChain()))
+			return null;
+
+		return identity;
 	}
 
 }

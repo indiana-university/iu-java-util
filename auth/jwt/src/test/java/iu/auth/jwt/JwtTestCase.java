@@ -45,7 +45,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.mockito.MockedStatic;
 
 import edu.iu.auth.config.AuthConfig;
-import edu.iu.auth.config.IuAuthConfig;
+import iu.auth.config.IuAuthConfig;
 
 @SuppressWarnings("javadoc")
 public class JwtTestCase {

@@ -31,37 +31,58 @@
  */
 package edu.iu.auth.config;
 
-import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.crypt.WebKey;
+import java.net.URI;
+
+import edu.iu.client.IuJsonAdapter;
+import iu.auth.config.AuthConfig;
 
 /**
- * Describes an authorization configuration that describes a public key or
- * public/private key pair, for use with digital signature creation and
- * validation, encryption, and decryption.
+ * Provides audience configuration.
  */
-public interface IuPublicKeyPrincipalConfig extends IuAuthConfig {
+public interface IuAuthorizedAudience {
 
 	/**
-	 * Gets the identity key, including private and/or secret key data if
-	 * authoritative.
-	 * 
-	 * @return authoritative identity key; null if not authoritative: only a public
-	 *         key or X.509 certificate is configured
+	 * JSON type adapter.
 	 */
-	IuPrincipalIdentity getIdentity();
+	static IuJsonAdapter<IuAuthorizedAudience> JSON = IuJsonAdapter.text(IuAuthorizedAudience::of);
 
 	/**
-	 * Gets the digital signature verification and/or creation key.
+	 * Gets the configuration for an audience.
 	 * 
-	 * @return signature key
+	 * @param name audience name
+	 * @return audience configuration
 	 */
-	WebKey getSignatureKey();
+	public static IuAuthorizedAudience of(String name) {
+		return AuthConfig.load(IuAuthorizedAudience.class, "audience/" + name);
+	}
 
 	/**
-	 * Gets the encryption key.
+	 * Gets the external root resource URI for this audience.
 	 * 
-	 * @return encryption key
+	 * @return resource URI
 	 */
-	WebKey getEncryptKey();
+	URI getResourceUri();
+
+	/**
+	 * Gets the name of the audience's authentication realm.
+	 * 
+	 * @param <R> authentication realm type
+	 * @return authentication realm name
+	 */
+	<R extends IuAuthenticationRealm> R getAuthentication();
+
+	/**
+	 * Gets the token endpoint authorization configuration for this audience.
+	 * 
+	 * @return authorization token endpoint
+	 */
+	TokenEndpoint getAuthorization();
+
+	/**
+	 * Gets audience private key principal.
+	 * 
+	 * @return {@link IuPrivateKeyPrincipal}
+	 */
+	IuPrivateKeyPrincipal getIdentity();
 
 }

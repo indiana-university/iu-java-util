@@ -66,13 +66,45 @@ public final class IuException {
 	 * @throws Error                 if {@code throwable} is an {@link Error}
 	 */
 	public static RuntimeException unchecked(Throwable throwable) throws IllegalStateException, Error {
+		return unchecked(throwable, (String) null);
+	}
+
+	/**
+	 * Expects a {@link Throwable} to be an (unchecked) {@link RuntimeException}.
+	 * 
+	 * <p>
+	 * This method <em>may</em> be used as an exception handler in situations where
+	 * {@link Throwable} or one or more {@link Exception checked exceptions} are
+	 * thrown from a downstream invocation, but a {@link Exception checked
+	 * exception} <em>must not</em> be thrown from the interface being implemented
+	 * and no special handling is specified.
+	 * </p>
+	 * 
+	 * <pre>
+	 * try {
+	 * 	// something unsafe
+	 * } catch (Throwable e) {
+	 * 	throw IuException.unchecked(e);
+	 * }
+	 * </pre>
+	 * 
+	 * @param throwable Any {@link Throwable}
+	 * @param message   Message to use with {@link IllegalStateException} if
+	 *                  throwable is not a {@link RuntimeException} or {@link Error}
+	 * @return {@code throwable} if {@link RuntimeException}
+	 * @throws IllegalStateException if {@code throwable} is a {@link Exception
+	 *                               checked exception} or {@link Throwable custom
+	 *                               throwable}
+	 * @throws Error                 if {@code throwable} is an {@link Error}
+	 */
+	public static RuntimeException unchecked(Throwable throwable, String message) throws IllegalStateException, Error {
 		if (throwable instanceof RuntimeException)
 			return (RuntimeException) throwable;
 
 		if (throwable instanceof Error)
 			throw (Error) throwable;
 
-		throw new IllegalStateException(throwable);
+		throw new IllegalStateException(message, throwable);
 	}
 
 	/**
@@ -457,10 +489,24 @@ public final class IuException {
 	 * @param runnable Any {@link UnsafeRunnable}
 	 */
 	public static void unchecked(UnsafeRunnable runnable) {
+		unchecked(runnable, (String) null);
+	}
+
+	/**
+	 * Gracefully runs an {@link UnsafeRunnable}.
+	 * 
+	 * <p>
+	 * Handles exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param runnable Any {@link UnsafeRunnable}
+	 * @param message message for use with {@link #unchecked(Throwable, String)}
+	 */
+	public static void unchecked(UnsafeRunnable runnable, String message) {
 		try {
 			runnable.run();
 		} catch (Throwable e) {
-			throw unchecked(e);
+			throw unchecked(e, message);
 		}
 	}
 
@@ -574,6 +620,23 @@ public final class IuException {
 	 * @return result
 	 */
 	public static <T> T unchecked(UnsafeSupplier<T> supplier) {
+		return unchecked(supplier, (String) null);
+	}
+
+	/**
+	 * Gracefully gets from an {@link UnsafeSupplier}.
+	 * 
+	 * <p>
+	 * Handles exceptions via {@link #unchecked(Throwable)}.
+	 * </p>
+	 * 
+	 * @param <T>      result type
+	 * 
+	 * @param supplier Any {@link UnsafeSupplier}
+	 * @param message Message to use with {@link #unchecked(Throwable, String)}
+	 * @return result
+	 */
+	public static <T> T unchecked(UnsafeSupplier<T> supplier, String message) {
 		try {
 			return supplier.get();
 		} catch (Throwable e) {

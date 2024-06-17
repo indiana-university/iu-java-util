@@ -39,7 +39,8 @@
  * @uses edu.iu.auth.spi.IuOAuthSpi For access to OAuth 2.0 implementation
  *       resources
  * @uses edu.iu.auth.spi.IuPrincipalSpi For access to identity provider
- *       verification resource
+ *       verification resources
+ * @uses edu.iu.auth.spi.IuSamlSpi For access to SAML provider resources
  */
 module iu.util.auth {
 	exports edu.iu.auth;
@@ -57,4 +58,5 @@ module iu.util.auth {
 	uses edu.iu.auth.spi.IuJwtSpi;
 	uses edu.iu.auth.spi.IuOAuthSpi;
 	uses edu.iu.auth.spi.IuPrincipalSpi;
+	uses edu.iu.auth.spi.IuSamlSpi;
 }

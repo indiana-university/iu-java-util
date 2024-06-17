@@ -31,50 +31,26 @@
  */
 package edu.iu.auth.config;
 
-import java.net.URI;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 
-/**
- * Provides audience configuration.
- */
-public interface Audience {
+import org.junit.jupiter.api.Test;
 
-	/**
-	 * Gets the configuration for an audience.
-	 * 
-	 * @param name audience name
-	 * @return audience configuration
-	 */
-	public static Audience of(String name) {
-		return AuthConfig.load(Audience.class, "audience/" + name);
+import edu.iu.IdGenerator;
+import iu.auth.config.AuthConfig;
+
+@SuppressWarnings("javadoc")
+public class IuAuthorizedAudienceTest {
+
+	@Test
+	public void testOf() {
+		final var authId = IdGenerator.generateId();
+		final var audience = mock(IuAuthorizedAudience.class);
+		try (final var mockAuthConfig = mockStatic(AuthConfig.class)) {
+			mockAuthConfig.when(() -> AuthConfig.load(IuAuthorizedAudience.class, "audience/" + authId)).thenReturn(audience);
+			assertSame(audience, IuAuthorizedAudience.of(authId));
+		}
 	}
-
-	/**
-	 * Gets the external root resource URI for this audience.
-	 * 
-	 * @return resource URI
-	 */
-	URI getResourceUri();
-
-	/**
-	 * Gets the name of the audience's authentication realm.
-	 * 
-	 * @param <R> authentication realm type
-	 * @return authentication realm name
-	 */
-	<R extends Realm> R getAuthentication();
-
-	/**
-	 * Gets the token endpoint authorization configuration for this audience.
-	 * 
-	 * @return authorization token endpoint
-	 */
-	TokenEndpoint getAuthorization();
-
-	/**
-	 * Gets the encryption key reference for this audience.
-	 * 
-	 * @return {@link KeyReference}
-	 */
-	KeyReference getEncrypt();
 
 }

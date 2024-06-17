@@ -31,51 +31,183 @@
  */
 package iu.auth.pki;
 
-import java.io.IOException;
+import java.security.cert.X509Certificate;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Predicate;
 
 import javax.security.auth.Subject;
 
 import edu.iu.IuObject;
 import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.config.IuPrivateKeyPrincipal;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.WebCertificateReference;
+import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Use;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
 
 /**
  * PKI principal identity implementation class.
  */
-final class PkiPrincipal implements IuPrincipalIdentity {
-	private static final long serialVersionUID = 1L;
+final class PkiPrincipal implements IuPrincipalIdentity, IuPrivateKeyPrincipal {
 
-	private final String serializedVerifyKey;
-	private final String serializedEncryptKey;
+	/**
+	 * JSON Type Adapter.
+	 */
+	static final IuJsonAdapter<PkiPrincipal> JSON = IuJsonAdapter.from(PkiPrincipal::new, PkiPrincipal::toJson);
 
-	private transient WebKey verify;
-	private transient WebKey encrypt;
-
-	private void readObject(java.io.ObjectInputStream in) throws IOException, ClassNotFoundException {
-		in.defaultReadObject();
-		verify = IuObject.convert(serializedVerifyKey, WebKey::parse);
-		encrypt = IuObject.convert(serializedEncryptKey, WebKey::parse);
-	}
+	private final Algorithm alg;
+	private final Algorithm encryptAlg;
+	private final Encryption enc;
+	private final WebKey verify;
+	private final WebKey encrypt;
+	private final String name;
+	private final Instant issuedAt;
+	private final Instant authTime;
+	private final Instant expires;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param verify  fully populated JWK including private/secret key data
-	 * @param encrypt fully populated JWK including private/secret key data
+	 * @param metadata Authentication realm metadata with original algorithm and
+	 *                 certificate values
+	 * @param verify   Fully populated JWK from {@link PkiFactory}
+	 * @param encrypt  Fully populated JWK from {@link PkiFactory}
 	 */
-	PkiPrincipal(WebKey verify, WebKey encrypt) {
+	PkiPrincipal(IuPrivateKeyPrincipal metadata, WebKey verify, WebKey encrypt) {
+		final var originalJwk = metadata.getJwk();
+		final var privateKey = originalJwk.getPrivateKey();
+		final var certificateChain = Objects.requireNonNull( //
+				WebCertificateReference.verify(originalJwk), "original missing certificate chain");
+		final Predicate<WebKey> keyMatch = //
+				jwk -> IuObject.equals(privateKey, jwk.getPrivateKey())
+						&& Arrays.equals(certificateChain, Objects.requireNonNull( //
+								jwk.getCertificateChain(), "missing certificate chain"));
+
+		IuObject.require(verify, keyMatch, () -> "verify key mismatch");
+		IuObject.require(encrypt, keyMatch, () -> "encrypt key mismatch");
+
 		this.verify = verify;
 		this.encrypt = encrypt;
-		getName(); // verify keys are well-formed
+		alg = metadata.getAlg();
+		encryptAlg = metadata.getEncryptAlg();
+		enc = metadata.getEnc();
 
-		this.serializedVerifyKey = IuObject.convert(verify, a -> a.wellKnown().toString());
-		this.serializedEncryptKey = IuObject.convert(encrypt, a -> a.wellKnown().toString());
+		final var cert = validateArguments();
+
+		name = X500Utils.getCommonName(cert.getSubjectX500Principal());
+		issuedAt = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+		authTime = cert.getNotBefore().toInstant();
+		expires = cert.getNotAfter().toInstant();
+	}
+
+	private PkiPrincipal(JsonValue value) {
+		final var claims = value.asJsonObject();
+		verify = IuJson.get(claims, "verify", WebKey.JSON);
+		encrypt = IuJson.get(claims, "encrypt", WebKey.JSON);
+		alg = IuJson.get(claims, "alg", Algorithm.JSON);
+		encryptAlg = IuJson.get(claims, "encrypt_alg", Algorithm.JSON);
+		enc = IuJson.get(claims, "enc", Encryption.JSON);
+
+		final var cert = validateArguments();
+		IuObject.once(claims.getString("iss"), X500Utils.getCommonName(cert.getIssuerX500Principal()));
+		name = X500Utils.getCommonName(cert.getSubjectX500Principal());
+		IuObject.once(claims.getString("sub"), name);
+		IuObject.once(claims.getString("aud"), name);
+
+		issuedAt = Instant.ofEpochSecond(claims.getJsonNumber("iat").longValue());
+		expires = Instant.ofEpochSecond(claims.getJsonNumber("exp").longValue());
+		authTime = Instant.ofEpochSecond(claims.getJsonNumber("auth_time").longValue());
+	}
+
+	private X509Certificate validateArguments() {
+		X509Certificate cert = null;
+
+		if (verify != null) {
+			Objects.requireNonNull(alg, "alg");
+
+			if (!Use.SIGN.equals(alg.use))
+				throw new IllegalArgumentException("Invalid verify algorithm " + alg);
+			if (!Set.of(alg.type).contains(verify.getType()))
+				throw new IllegalArgumentException("Invalid key type " + verify.getType() + " for algorithm " + alg);
+
+			cert = Objects.requireNonNull(
+					Objects.requireNonNull(verify.getCertificateChain(), "verify key missing certificate chain")[0],
+					"verify key missing certificate");
+		} else {
+			IuObject.require(alg, Objects::isNull, () -> "alg");
+		}
+
+		if (encrypt != null) {
+			Objects.requireNonNull(encryptAlg, "encrypt_alg");
+			Objects.requireNonNull(enc, "enc");
+
+			if (!Use.ENCRYPT.equals(encryptAlg.use))
+				throw new IllegalArgumentException("Invalid encrypt algorithm " + encryptAlg);
+			if (!Set.of(encryptAlg.type).contains(encrypt.getType()))
+				throw new IllegalArgumentException(
+						"Invalid key type " + encrypt.getType() + " for algorithm " + encryptAlg);
+
+			cert = IuObject.once(cert,
+					Objects.requireNonNull(Objects.requireNonNull(encrypt.getCertificateChain(),
+							"encrypt key missing certificate chain")[0], "encrypt key missing certificate"),
+					() -> "certificate mismatch");
+		}
+
+		return Objects.requireNonNull(cert, "missing certificate");
 	}
 
 	@Override
 	public String getName() {
-		return X500Utils.getCommonName(wellKnown().getCertificateChain()[0].getSubjectX500Principal());
+		return name;
+	}
+
+	@Override
+	public Algorithm getAlg() {
+		return alg;
+	}
+
+	@Override
+	public Algorithm getEncryptAlg() {
+		return encryptAlg;
+	}
+
+	@Override
+	public Encryption getEnc() {
+		return enc;
+	}
+
+	@Override
+	public WebKey getJwk() {
+		return verify;
+	}
+
+	@Override
+	public WebKey getEncryptJwk() {
+		return encrypt;
+	}
+
+	@Override
+	public Instant getIssuedAt() {
+		return issuedAt;
+	}
+
+	@Override
+	public Instant getAuthTime() {
+		return authTime;
+	}
+
+	@Override
+	public Instant getExpires() {
+		return expires;
 	}
 
 	@Override
@@ -125,9 +257,9 @@ final class PkiPrincipal implements IuPrincipalIdentity {
 	}
 
 	/**
-	 * Gets the identifying key
+	 * Gets {@link #verify} if non-null; else gets {@link #encrypt}
 	 * 
-	 * @return identifying key; verify key if non-null, else encrypt key
+	 * @return {@link WebKey}
 	 */
 	WebKey key() {
 		return Objects.requireNonNullElse(verify, encrypt);
@@ -136,5 +268,22 @@ final class PkiPrincipal implements IuPrincipalIdentity {
 	private WebKey wellKnown() {
 		return key().wellKnown();
 	}
-	
+
+	private JsonObject toJson() {
+		final var cert = wellKnown().getCertificateChain()[0];
+		final var builder = IuJson.object() //
+				.add("iss", X500Utils.getCommonName(cert.getIssuerX500Principal())) //
+				.add("sub", name) //
+				.add("aud", name) //
+				.add("iat", issuedAt.getEpochSecond()) //
+				.add("exp", expires.getEpochSecond()) //
+				.add("auth_time", authTime.getEpochSecond());
+		IuJson.add(builder, "alg", () -> alg, Algorithm.JSON);
+		IuJson.add(builder, "encrypt_alg", () -> encryptAlg, Algorithm.JSON);
+		IuJson.add(builder, "enc", () -> enc, Encryption.JSON);
+		IuJson.add(builder, "verify", () -> verify, WebKey.JSON);
+		IuJson.add(builder, "encrypt", () -> encrypt, WebKey.JSON);
+		return builder.build();
+	}
+
 }

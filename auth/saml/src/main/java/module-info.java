@@ -13,14 +13,14 @@ module iu.util.auth.saml {
 	requires java.xml;
 	requires jakarta.json;
 	
-	requires org.opensaml.core;
-	requires org.opensaml.saml;
-	requires org.opensaml.xmlsec;
-	requires net.shibboleth.shared.support;
-	requires org.opensaml.saml.impl;
-	requires org.opensaml.security;
-	requires org.opensaml.security.impl;
-	requires org.opensaml.xmlsec.impl;
+	requires static org.opensaml.core;
+	requires static org.opensaml.saml;
+	requires static org.opensaml.xmlsec;
+	requires static net.shibboleth.shared.support;
+	requires static org.opensaml.saml.impl;
+	requires static org.opensaml.security;
+	requires static org.opensaml.security.impl;
+	requires static org.opensaml.xmlsec.impl;
 
-	provides edu.iu.auth.spi.IuSamlSpi with iu.auth.saml.SamlConnectSpi;
+	provides edu.iu.auth.spi.IuSamlSpi with iu.auth.saml.SamlSpi;
 }

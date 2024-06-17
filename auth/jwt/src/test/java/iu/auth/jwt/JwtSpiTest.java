@@ -47,7 +47,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.auth.config.AuthConfig;
-import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
+import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Operation;
 import edu.iu.crypt.WebKey.Use;
@@ -210,7 +210,7 @@ public class JwtSpiTest {
 		AuthConfig.register(new SimpleVerifier(id));
 		AuthConfig.seal();
 
-		assertEquals(id, AuthConfig.<IuPublicKeyPrincipalConfig>get(id.getName()).getIdentity());
+		assertEquals(id, AuthConfig.<IuPrivateKeyPrincipal>get(id.getName()).getIdentity());
 	}
 
 }

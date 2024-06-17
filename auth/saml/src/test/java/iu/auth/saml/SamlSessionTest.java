@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.config.IuSamlClient;
+import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.auth.saml.IuSamlPrincipal;
 import edu.iu.test.IuTestLogger;
 
@@ -46,11 +46,11 @@ public class SamlSessionTest {
 		final var uri = URI.create("test://entry/");
 		final var serviceProviderIdentityId = "urn:iu:ess:example-test";
 		URI entityId = URI.create("test://ldp/shibboleth");
-		IuSamlClient client = mock(IuSamlClient.class);
+		IuSamlServiceProviderMetadata client = mock(IuSamlServiceProviderMetadata.class);
 		when(client.getApplicationUri()).thenReturn(uri);
 		SamlProvider provider = mock(SamlProvider.class);
 		when(provider.getClient()).thenReturn(client);
-		when(client.getMetaDataUris()).thenReturn(Arrays.asList(entityId));
+		when(client.getMetadataUris()).thenReturn(Arrays.asList(entityId));
 
 		try (final var mockSpi = mockStatic(SamlConnectSpi.class)) {
 			mockSpi.when(() -> SamlConnectSpi.getProvider(serviceProviderIdentityId)).thenReturn(provider);
@@ -104,9 +104,9 @@ public class SamlSessionTest {
 
 		SamlPrincipal samlPrincipal = null;
 
-		IuSamlClient client = mock(IuSamlClient.class);
+		IuSamlServiceProviderMetadata client = mock(IuSamlServiceProviderMetadata.class);
 		when(client.getApplicationUri()).thenReturn(uri);
-		when(client.getMetaDataUris()).thenReturn(Arrays.asList(new URI(entityId)));
+		when(client.getMetadataUris()).thenReturn(Arrays.asList(new URI(entityId)));
 		when(client.getAcsUris()).thenReturn(Arrays.asList(new URI(postUrl)));
 		when(client.getAuthenticatedSessionTimeout()).thenReturn(Duration.ofHours(12L), Duration.ofMinutes(0));
 
@@ -128,7 +128,7 @@ public class SamlSessionTest {
 			assertTrue(redirectUri.getQuery().contains("RelayState"));
 			String parameters[] = redirectUri.getQuery().split("&");
 			String relayState = parameters[1].split("=")[1];
-			IuSamlPrincipal principal = session.authorize(InetAddress.getByName("127.0.0.0"), URI.create(postUrl), "",
+			IuSamlPrincipal principal = session.handleAcsPostResponse(InetAddress.getByName("127.0.0.0"), URI.create(postUrl), "",
 					relayState);
 			assertNotNull(principal);
 			assertNotNull(session.getPrincipalIdentity());
@@ -141,7 +141,7 @@ public class SamlSessionTest {
 			assertTrue(redirectUri.getQuery().contains("RelayState"));
 			relayState = redirectUri.getQuery().split("&")[1].split("=")[1];
 
-			principal = session.authorize(InetAddress.getByName("127.0.0.0"), URI.create(postUrl), "", relayState);
+			principal = session.handleAcsPostResponse(InetAddress.getByName("127.0.0.0"), URI.create(postUrl), "", relayState);
 			assertThrows(IuAuthenticationException.class, () -> session.getPrincipalIdentity());
 
 			// verify authorize method return principal as null
@@ -152,7 +152,7 @@ public class SamlSessionTest {
 			assertTrue(redirectUri.getQuery().contains("RelayState"));
 			String newRelayState = redirectUri.getQuery().split("&")[1].split("=")[1];
 
-			assertThrows(IuAuthenticationException.class, () -> session.authorize(InetAddress.getByName("127.0.0.0"),
+			assertThrows(IuAuthenticationException.class, () -> session.handleAcsPostResponse(InetAddress.getByName("127.0.0.0"),
 					URI.create(postUrl), "", newRelayState));
 
 		}
@@ -165,14 +165,14 @@ public class SamlSessionTest {
 		final var serviceProviderIdentityId = "urn:iu:ess:example-test";
 		final var postUrl = "test://postUrl";
 
-		IuSamlClient client = mock(IuSamlClient.class);
+		IuSamlServiceProviderMetadata client = mock(IuSamlServiceProviderMetadata.class);
 		SamlProvider provider = mock(SamlProvider.class);
 		when(provider.getClient()).thenReturn(client);
 
 		try (final var mockSpi = mockStatic(SamlConnectSpi.class)) {
 			mockSpi.when(() -> SamlConnectSpi.getProvider(serviceProviderIdentityId)).thenReturn(provider);
 			SamlSession session = new SamlSession(serviceProviderIdentityId, uri);
-			assertThrows(IuAuthenticationException.class, () -> session.authorize(InetAddress.getByName("127.0.0.0"),
+			assertThrows(IuAuthenticationException.class, () -> session.handleAcsPostResponse(InetAddress.getByName("127.0.0.0"),
 					URI.create(postUrl), "", IdGenerator.generateId()));
 		}
 	}

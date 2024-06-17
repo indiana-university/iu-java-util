@@ -2,10 +2,12 @@ package iu.auth.saml;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.logging.Logger;
 
 import org.opensaml.saml.common.assertion.AssertionValidationException;
 import org.opensaml.saml.common.assertion.ValidationContext;
 import org.opensaml.saml.common.assertion.ValidationResult;
+import org.opensaml.saml.saml2.assertion.SAML2AssertionValidationParameters;
 import org.opensaml.saml.saml2.assertion.impl.BearerSubjectConfirmationValidator;
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.SubjectConfirmationData;
@@ -19,13 +21,13 @@ import net.shibboleth.shared.primitive.StringSupport;
  */
 public class IuSubjectConfirmationValidator extends BearerSubjectConfirmationValidator {
 
-//	private static final Logger LOG = Logger.getLogger(IuSubjectConfirmationValidator.class.getName());
+	private static final Logger LOG = Logger.getLogger(IuSubjectConfirmationValidator.class.getName());
 
 	private final Iterable<String> allowedRanges;
 	private final boolean failOnAddressMismatch;
 
 	/**
-	 * constructor
+	 * Constructor.
 	 * 
 	 * @param allowedRanges         allowed IP address list
 	 * @param failOnAddressMismatch determine whether to fail on address mismatch or
@@ -39,6 +41,15 @@ public class IuSubjectConfirmationValidator extends BearerSubjectConfirmationVal
 	@Override
 	protected ValidationResult validateAddress(SubjectConfirmationData confirmationData, Assertion assertion,
 			ValidationContext context, boolean required) throws AssertionValidationException {
+		super.validateAddress(confirmationData, assertion, context, required);
+
+		final Boolean checkAddress = (Boolean) context.getStaticParameters()
+				.get(SAML2AssertionValidationParameters.SC_CHECK_ADDRESS);
+
+		if (checkAddress != null && !checkAddress) {
+			LOG.fine("SubjectConfirmationData/@Address check is disabled, skipping");
+			return ValidationResult.VALID;
+		}
 
 		final String address = StringSupport.trimOrNull(confirmationData.getAddress());
 		if (address == null) {
@@ -64,14 +75,13 @@ public class IuSubjectConfirmationValidator extends BearerSubjectConfirmationVal
 		// the subject is calling from, this assumption will have to be good enough.
 		for (InetAddress confirmingAddress : confirmingAddresses) {
 			if (confirmingAddress.isSiteLocalAddress()) {
-				// LOG.fine("Allowing private IP " + confirmingAddress);
+				LOG.fine(() -> "Allowing private IP " + confirmingAddress);
 				return ValidationResult.VALID;
 			}
 			if (allowedRanges != null)
 				for (String range : allowedRanges)
 					if (IuWebUtils.isInetAddressInRange(confirmingAddress, range.toString())) {
-						// LOG.fine("Allowing whitelisted IP " + confirmingAddress + "; range = " +
-						// range);
+						LOG.fine(() -> "Allowing IP " + confirmingAddress + "; range = " + range);
 						return ValidationResult.VALID;
 					}
 		}
@@ -79,11 +89,9 @@ public class IuSubjectConfirmationValidator extends BearerSubjectConfirmationVal
 		ValidationResult result = super.validateAddress(confirmationData, assertion, context, required);
 
 		if (!ValidationResult.VALID.equals(result)) {
-			/*
-			 * LOG.info(() ->
-			 * "IP address mismatch in SAML subject confirmation; remote address = " +
-			 * address + "; allowed ranges = " + allowedRanges);
-			 */
+			LOG.info(() -> "IP address mismatch in SAML subject confirmation; remote address = " + address
+					+ "; allowed ranges = " + allowedRanges);
+
 			if (!failOnAddressMismatch)
 				return ValidationResult.VALID;
 		}

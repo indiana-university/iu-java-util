@@ -45,7 +45,7 @@ import edu.iu.IuText;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.AuthConfig;
-import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
+import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.jwt.IuWebToken;
 import edu.iu.auth.oauth.IuBearerToken;
 import edu.iu.client.IuJson;
@@ -263,7 +263,7 @@ final class Jwt implements IuWebToken {
 		final var jose = getHeader(token);
 		final WebSignedPayload jws;
 		if (isEncrypted(jose)) {
-			final IuPublicKeyPrincipalConfig pkp = AuthConfig.get(realm);
+			final IuPrivateKeyPrincipal pkp = AuthConfig.get(realm);
 			final var audience = pkp.getIdentity();
 			IuException.unchecked(() -> IuPrincipalIdentity.verify(audience, realm));
 			jws = WebSignedPayload.parse(WebEncryption.parse(token) //
@@ -278,7 +278,7 @@ final class Jwt implements IuWebToken {
 		payload = jws.getPayload();
 		claims = IuJson.parse(IuText.utf8(payload)).asJsonObject();
 
-		final IuPublicKeyPrincipalConfig pkp = AuthConfig.get(getIssuer());
+		final IuPrivateKeyPrincipal pkp = AuthConfig.get(getIssuer());
 		jws.verify(JwtSpi.getVerifyKey(pkp.getIdentity()));
 
 		this.signature = signature;

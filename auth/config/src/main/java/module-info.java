@@ -35,8 +35,12 @@
  */
 module iu.util.auth.config {
 	exports edu.iu.auth.config;
+	exports iu.auth.config;
+	
+	opens edu.iu.auth.config to iu.util.client;
 
 	requires iu.util;
 	requires transitive iu.util.auth;
+	requires iu.util.client;
 	requires transitive iu.util.crypt;
 }

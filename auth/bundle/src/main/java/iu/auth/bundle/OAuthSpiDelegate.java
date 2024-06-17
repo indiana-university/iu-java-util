@@ -58,7 +58,7 @@ public class OAuthSpiDelegate implements IuOAuthSpi {
 
 	@Override
 	public IuAuthorizationSession createAuthorizationSession(String realm, URI entryPoint) {
-		return DELEGATE.createAuthorizationSession(realm, entryPoint);
+		return DELEGATE.createSession(realm, entryPoint);
 	}
 
 }

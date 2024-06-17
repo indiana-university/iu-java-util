@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
-import edu.iu.auth.config.IuSamlClient;
+import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.test.IuTestLogger;
 
@@ -137,15 +137,15 @@ public class SpiTest {
 		final var realm = IdGenerator.generateId();
 		final var entryPoint = IuException.unchecked(() -> new URI("http://foo"));
 		try (final var mockSamlSession = mockConstruction(SamlSession.class)) {
-			final var samlSession = spi.createAuthorizationSession(realm, entryPoint);
+			final var samlSession = spi.createSession(realm, entryPoint);
 			assertSame(samlSession, mockSamlSession.constructed().get(0));
 		}
 
 		assertThrows(NullPointerException.class, () -> SamlConnectSpi.getProvider(realm));
 	}
 
-	private IuSamlClient getClient(List<URI> metadataUris, String serviceProviderEntityId) {
-		final var client = new IuSamlClient() {
+	private IuSamlServiceProviderMetadata getClient(List<URI> metadataUris, String serviceProviderEntityId) {
+		final var client = new IuSamlServiceProviderMetadata() {
 
 			@Override
 			public String getServiceProviderEntityId() {
@@ -169,7 +169,7 @@ public class SpiTest {
 			}
 
 			@Override
-			public List<URI> getMetaDataUris() {
+			public List<URI> getMetadataUris() {
 				return IuException.unchecked(() -> metadataUris);
 			}
 

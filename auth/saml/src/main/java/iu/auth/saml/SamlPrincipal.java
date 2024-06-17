@@ -1,72 +1,81 @@
 package iu.auth.saml;
 
-import java.util.Map;
+import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
 
 import javax.security.auth.Subject;
 
-import edu.iu.IuObject;
-import edu.iu.auth.saml.IuSamlPrincipal;
+import edu.iu.IuIterable;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
 
 /**
- * Implementation of {@link IuSamlPrincipal}
+ * SAML {@link IuPrincipalIdentity} implementation.
  */
-final class SamlPrincipal implements IuSamlPrincipal {
+final class SamlPrincipal implements IuPrincipalIdentity {
 
 	/**
-	 * serial version
+	 * JSON type adapter.
 	 */
-	private static final long serialVersionUID = 1L;
+	static final IuJsonAdapter<SamlPrincipal> JSON = IuJsonAdapter.from(SamlPrincipal::new, SamlPrincipal::toJson);
 
-	/**
-	 * name
-	 */
-	private final String name;
-
-	/**
-	 * displayName
-	 */
-	private final String displayName;
-
-	/**
-	 * emailAddress
-	 */
-	private final String emailAddress;
-
-	/**
-	 * identity provider id
-	 */
-	private final String entityId;
-
-	/**
-	 * service provider id
-	 */
+	/** authentication realm */
 	private final String realm;
 
-	private Map<String, ?> claims;
+	/** identity provider id */
+	private final String entityId;
+
+	/** name */
+	private final String name;
+
+	/** time authentication statement was issued by the IDP */
+	private final Instant issueTime;
+
+	/** authentication time */
+	private final Instant authTime;
+
+	/** expires */
+	private final Instant expires;
+
+	/** attributes */
+	private final SamlAssertion[] assertions;
 
 	/**
-	 * Constructor
+	 * Constructor.
 	 * 
-	 * @param name         eduPersonPrincipalName
-	 * @param displayName  display name
-	 * @param emailAddress email address
-	 * @param entityId     identity provider URI
-	 * @param realm        service provider id
-	 * @param claims       claims from SAML response
+	 * @param realm          authentication realm
+	 * @param entityId       entity ID
+	 * @param name           principal name
+	 * @param issueTime      time authentication statement was issued by the IDP
+	 * @param authTime       authentication time
+	 * @param expires        expire
+	 * @param samlAssertions verified SAML assertions
 	 */
-	public SamlPrincipal(String name, String displayName, String emailAddress, String entityId, String realm,
-			Map<String, ?> claims) {
-		this.name = name;
-		this.displayName = displayName;
-		this.emailAddress = emailAddress;
-		this.entityId = entityId;
-		this.realm = realm;
-		this.claims = claims;
+	public SamlPrincipal(String realm, String entityId, String name, Instant issueTime, Instant authTime,
+			Instant expires, Iterable<SamlAssertion> samlAssertions) {
+		this.realm = Objects.requireNonNull(realm);
+		this.entityId = Objects.requireNonNull(entityId);
+		this.name = Objects.requireNonNull(name);
+		this.authTime = Objects.requireNonNull(authTime);
+		this.issueTime = Objects.requireNonNull(issueTime);
+		this.expires = Objects.requireNonNull(expires);
+		this.assertions = IuIterable.stream(samlAssertions).toArray(SamlAssertion[]::new);
 	}
 
-	@Override
-	public Map<String, ?> getClaims() {
-		return claims;
+	private SamlPrincipal(JsonValue value) {
+		final var claims = value.asJsonObject();
+		this.name = claims.getString("sub");
+		this.entityId = claims.getString("iss");
+		this.realm = claims.getString("aud");
+		this.issueTime = Instant.ofEpochSecond(claims.getJsonNumber("iat").longValue());
+		this.expires = Instant.ofEpochSecond(claims.getJsonNumber("exp").longValue());
+		this.authTime = Instant.ofEpochSecond(claims.getJsonNumber("auth_time").longValue());
+		this.assertions = IuJson.get(claims, "urn:oasis:names:tc:SAML:2.0:assertion",
+				IuJsonAdapter.of(SamlAssertion[].class, SamlAssertion.JSON));
 	}
 
 	@Override
@@ -74,64 +83,59 @@ final class SamlPrincipal implements IuSamlPrincipal {
 		return name;
 	}
 
-	/**
-	 * Gets principal display name
-	 * 
-	 * @return principal display name
-	 */
 	@Override
-	public String getDisplayName() {
-		return displayName;
+	public Instant getIssuedAt() {
+		return issueTime;
 	}
 
-	/**
-	 * Gets the principal email address
-	 * 
-	 * @return principal email address
-	 */
 	@Override
-	public String getEmailAddress() {
-		return emailAddress;
+	public Instant getAuthTime() {
+		return authTime;
+	}
+
+	@Override
+	public Instant getExpires() {
+		return expires;
 	}
 
 	@Override
 	public Subject getSubject() {
 		final var subject = new Subject();
 		subject.getPrincipals().add(this);
+		subject.getPublicCredentials().addAll(List.of(assertions));
 		subject.setReadOnly();
 		return subject;
 	}
 
-	/**
-	 * Gets the authentication realm.
-	 * 
-	 * @return authentication realm
-	 */
-	String realm() {
-		return realm;
-	}
-
-	@Override
-	public int hashCode() {
-		return IuObject.hashCode(name, displayName, emailAddress, entityId, realm);
-	}
-
-	@Override
-	public boolean equals(Object obj) {
-		if (!IuObject.typeCheck(this, obj))
-			return false;
-		SamlPrincipal other = (SamlPrincipal) obj;
-		return IuObject.equals(name, other.name) //
-				&& IuObject.equals(displayName, other.displayName) //
-				&& IuObject.equals(emailAddress, other.emailAddress)//
-				&& IuObject.equals(entityId, other.entityId)//
-				&& IuObject.equals(realm, other.realm);
-	}
-
 	@Override
 	public String toString() {
-		return "SAML Principal ID [" + name + "; " + displayName + "; " + emailAddress + "; " + entityId + "; " + realm
-				+ "] ";
+		return toJson().toString();
+	}
+
+	/**
+	 * Verifies that the principal was issued by the indicated realm and has not
+	 * expired.
+	 * 
+	 * @param realm authentication realm
+	 */
+	void verify(String realm) {
+		if (!this.realm.equals(realm))
+			throw new IllegalArgumentException("invalid realm");
+		if (Instant.now().isAfter(expires))
+			throw new IllegalArgumentException("expired");
+	}
+
+	private JsonObject toJson() {
+		final var builder = IuJson.object() //
+				.add("iss", entityId) //
+				.add("aud", realm) //
+				.add("sub", name) //
+				.add("iat", issueTime.getEpochSecond()) //
+				.add("exp", expires.getEpochSecond()) //
+				.add("auth_time", authTime.getEpochSecond()); //
+		IuJson.add(builder, "urn:oasis:names:tc:SAML:2.0:assertion", () -> assertions,
+				IuJsonAdapter.of(SamlAssertion[].class, SamlAssertion.JSON));
+		return builder.build();
 	}
 
 }

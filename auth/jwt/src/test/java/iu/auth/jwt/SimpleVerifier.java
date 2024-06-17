@@ -37,11 +37,11 @@ import java.net.URI;
 
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
+import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import iu.auth.principal.PrincipalVerifier;
 
 @SuppressWarnings("javadoc")
-final class SimpleVerifier implements PrincipalVerifier<SimpleId>, IuPublicKeyPrincipalConfig {
+final class SimpleVerifier implements PrincipalVerifier<SimpleId>, IuPrivateKeyPrincipal {
 	private final SimpleId id;
 
 	SimpleVerifier(SimpleId id) {

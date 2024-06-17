@@ -37,7 +37,7 @@ module iu.util.auth.pki {
 	
 	requires iu.util;
 	requires transitive iu.util.auth;
-	requires iu.util.auth.config;
+	requires transitive iu.util.auth.config;
 	requires iu.util.auth.principal;
 	requires transitive iu.util.crypt;
 }

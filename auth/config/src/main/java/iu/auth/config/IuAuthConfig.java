@@ -29,33 +29,45 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.config;
+package iu.auth.config;
 
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
+import java.net.URI;
 
-import org.junit.jupiter.api.Test;
+/**
+ * Authentication and authorization configuration management interface.
+ * 
+ * <p>
+ * Describes the properties of an authentication realm.
+ * </p>
+ */
+public interface IuAuthConfig {
 
-import edu.iu.IdGenerator;
-import edu.iu.client.IuJson;
+	/**
+	 * Gets the authentication realm.
+	 * 
+	 * @return authentication realm
+	 */
+	String getRealm();
 
-@SuppressWarnings("javadoc")
-public class RealmTest {
+	/**
+	 * Gets the authorization scheme.
+	 * 
+	 * @return authorization scheme; null if the realm doesn't define authorization
+	 *         logic
+	 */
+	String getAuthScheme();
 
-	@Test
-	public void testOf() {
-		final var authId = IdGenerator.generateId();
-		final var realm = mock(TokenEndpoint.class);
-		try (final var mockAuthConfig = mockStatic(AuthConfig.class)) {
-			mockAuthConfig.when(() -> AuthConfig.load(eq(Realm.class), eq("realm/" + authId), argThat(a -> {
-				assertSame(TokenEndpoint.class, a.apply(IuJson.object().add("type", "token_endpoint").build()));
-				return true;
-			}))).thenReturn(realm);
-			assertSame(realm, Realm.of(authId));
-		}
-	}
+	/**
+	 * Gets the authentication endpoint.
+	 * 
+	 * <p>
+	 * This endpoint is responsible with authentication server interactions for an
+	 * application module. This endpoint sets an authenticated session cookie and
+	 * redirects the user to an application-specific entry point.
+	 * </p>
+	 * 
+	 * @return authentication endpoint
+	 */
+	URI getAuthenticationEndpoint();
 
 }

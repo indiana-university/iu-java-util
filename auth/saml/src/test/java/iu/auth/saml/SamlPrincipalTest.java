@@ -73,7 +73,7 @@ public class SamlPrincipalTest {
 		assertTrue(subject.getPublicCredentials().isEmpty());
 
 		assertEquals(realm, samlPrincipal.realm());
-		assertEquals(0, samlPrincipal.getClaims().size());
+		assertEquals(0, samlPrincipal.getAttributes().size());
 	}
 
 }

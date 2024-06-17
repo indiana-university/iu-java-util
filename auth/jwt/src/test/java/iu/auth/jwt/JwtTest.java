@@ -56,7 +56,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuText;
 import edu.iu.auth.config.AuthConfig;
-import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
+import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.EphemeralKeys;
 import edu.iu.crypt.WebCryptoHeader;
@@ -207,7 +207,7 @@ public class JwtTest {
 		claims.add("sub", sub);
 		claims.add("exp", Instant.now().getEpochSecond() + 5);
 		final var token = WebSignature.builder(Algorithm.HS256).compact().type("JWT") //
-				.key(AuthConfig.<IuPublicKeyPrincipalConfig>get(iss).getIdentity().getSubject()
+				.key(AuthConfig.<IuPrivateKeyPrincipal>get(iss).getIdentity().getSubject()
 						.getPrivateCredentials(WebKey.class).stream().filter(a -> a.getUse().equals()).next())
 				.sign(claims.build().toString()).compact();
 

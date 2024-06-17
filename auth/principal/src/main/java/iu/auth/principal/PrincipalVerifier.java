@@ -33,7 +33,7 @@ package iu.auth.principal;
 
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.config.IuAuthConfig;
+import iu.auth.config.IuAuthConfig;
 
 /**
  * Verifies a principal as valid for a realm.

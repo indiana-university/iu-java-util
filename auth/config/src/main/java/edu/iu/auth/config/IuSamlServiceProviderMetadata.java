@@ -2,9 +2,9 @@ package edu.iu.auth.config;
 
 import java.net.URI;
 import java.time.Duration;
-import java.util.List;
 
-import edu.iu.crypt.WebKey;
+import edu.iu.IuIterable;
+import edu.iu.auth.saml.IuSamlAssertion;
 
 /**
  * Provides client configuration metadata for interacting with an SAML
@@ -15,7 +15,7 @@ import edu.iu.crypt.WebKey;
  * requiring authorization on behalf of an SAML identity provider.
  * </p>
  */
-public interface IuSamlClient {
+public interface IuSamlServiceProviderMetadata extends IuAuthenticationRealm {
 
 	/**
 	 * Gets whether to fail on address mismatch or not, true if required, false if
@@ -50,24 +50,21 @@ public interface IuSamlClient {
 	}
 
 	/**
-	 * Gets the root resource URI covered by this client's protection domain.
-	 * 
-	 * <p>
-	 * All client-side application URIs used with this client <em>must</em> begin
-	 * with this URI. The root resource URI <em>should</em> end with a '/' character
-	 * unless the client is only intended to protect a single URI.
-	 * </p>
+	 * Gets the application entry point URI, where users will be returned after
+	 * successfully authenticating via the Service Provider.
 	 * 
 	 * @return {@link URI}
 	 */
-	URI getApplicationUri();
+	URI getEntryPointUri();
 
 	/**
 	 * Gets allowed list of IP addresses to validate against SAML response
 	 * 
 	 * @return allowed ranged of IP addresses
 	 */
-	Iterable<String> getAllowedRange();
+	default Iterable<String> getAllowedRange() {
+		return IuIterable.empty();
+	}
 
 	/**
 	 * Gets the SAML metadata {@link URI} to retrieve configure metadata file that
@@ -75,7 +72,7 @@ public interface IuSamlClient {
 	 * 
 	 * @return metadata URL
 	 */
-	Iterable<URI> getMetaDataUris();
+	Iterable<URI> getMetadataUris();
 
 	/**
 	 * Gets the list of assertion Consumer {@link URI}
@@ -85,18 +82,38 @@ public interface IuSamlClient {
 	Iterable<URI> getAcsUris();
 
 	/**
-	 * Gets the unique service provider id that register with identity provider
+	 * Gets the Service Provider registered Entity ID.
 	 * 
-	 * @return unique service provider id
+	 * @return SP Entity ID
 	 */
 	String getServiceProviderEntityId();
 
 	/**
-	 * Gets the private key and X.509 certificate used to decrypt SAML responses and
-	 * assertions from the identity provider.
+	 * Gets the Identity Provider registered Entity ID.
 	 * 
-	 * @return {@link WebKey}
+	 * @return IDP Entity ID
 	 */
-	WebKey getEncryptionKey();
+	String getIdentityProviderEntityId();
+
+	/**
+	 * Gets the SAML Service Provider identity keys.
+	 * 
+	 * @return SAML SP identity keys
+	 */
+	IuPrivateKeyPrincipal getIdentity();
+
+	/**
+	 * Gets the name of the SAML Assertion Attribute that contains the principal
+	 * name.
+	 * 
+	 * <p>
+	 * At least one assertion <em>must</em> include this attribute value.
+	 * </p>
+	 * 
+	 * @return principal name attribute
+	 */
+	default String getPrincipalNameAttribute() {
+		return IuSamlAssertion.EDU_PERSON_PRINCIPAL_NAME_OID;
+	}
 
 }

@@ -41,7 +41,7 @@ import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.AuthConfig;
-import edu.iu.auth.config.IuPublicKeyPrincipalConfig;
+import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.jwt.IuWebToken;
 import edu.iu.auth.spi.IuJwtSpi;
 import edu.iu.client.IuJson;
@@ -362,15 +362,15 @@ public class JwtSpi implements IuJwtSpi {
 			// representation of a completely valid JSON object conforming to RFC 7159
 			// [RFC7159]; let the JWT Claims Set be this JSON object.
 			final var claims = IuJson.parse(IuText.utf8(jws.getPayload())).asJsonObject();
-			final IuPublicKeyPrincipalConfig issuerConfig = AuthConfig.get(claims.getString("iss"));
+			final IuPrivateKeyPrincipal issuerConfig = AuthConfig.get(claims.getString("iss"));
 			jws.verify(getVerifyKey(issuerConfig.getIdentity()));
 
-			AuthConfig.get(IuPublicKeyPrincipalConfig.class);
+			AuthConfig.get(IuPrivateKeyPrincipal.class);
 			final Set<String> audience = Objects.requireNonNull(
 					IuJson.get(claims, "aud", IuJsonAdapter.of(Set.class, Jwt.STRING_OR_URI)), "missing audience");
 			realm = IuObject.once(realm,
-					IuIterable.filter(IuIterable.map(AuthConfig.get(IuPublicKeyPrincipalConfig.class),
-							IuPublicKeyPrincipalConfig::getRealm), audience::contains).iterator().next(),
+					IuIterable.filter(IuIterable.map(AuthConfig.get(IuPrivateKeyPrincipal.class),
+							IuPrivateKeyPrincipal::getRealm), audience::contains).iterator().next(),
 					() -> "audience mismatch");
 
 			final var webToken = new Jwt(realm, jwt);
@@ -401,7 +401,7 @@ public class JwtSpi implements IuJwtSpi {
 			}
 			final var box = new Box();
 			Throwable decryptionFailure = null;
-			for (final var audience : AuthConfig.get(IuPublicKeyPrincipalConfig.class)) {
+			for (final var audience : AuthConfig.get(IuPrivateKeyPrincipal.class)) {
 				decryptionFailure = IuException.suppress(decryptionFailure, () -> {
 					IuException
 							.unchecked(() -> IuPrincipalIdentity.verify(audience.getIdentity(), audience.getRealm()));
