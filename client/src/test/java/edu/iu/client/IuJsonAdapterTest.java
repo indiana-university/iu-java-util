@@ -204,7 +204,7 @@ public class IuJsonAdapterTest {
 		assertEquals("true", IuJsonAdapter.of(String.class).fromJson(JsonValue.TRUE));
 		assertEquals("false", IuJsonAdapter.of(String.class).fromJson(JsonValue.FALSE));
 		assertNull(IuJsonAdapter.of(String.class).fromJson(JsonValue.NULL));
-		assertThrows(IllegalArgumentException.class, () -> IuJsonAdapter.of(String.class).fromJson(null));
+		assertNull(IuJsonAdapter.of(String.class).fromJson(null));
 		assertEquals("a,1,true",
 				IuJsonAdapter.of(String.class).fromJson(IuJson.array().add("a").add(1).add(true).build()));
 	}
