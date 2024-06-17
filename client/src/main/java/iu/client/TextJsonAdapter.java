@@ -59,10 +59,8 @@ class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
 			return value.toString();
 		else if (value instanceof JsonArray)
 			return String.join(",", IuIterable.map(((JsonArray) value), this::fromJson));
-		else if (value == null || JsonValue.NULL.equals(value))
+		else // if (value == null || JsonValue.NULL.equals(value))
 			return null;
-		else
-			throw new IllegalArgumentException();
 	}
 
 	@Override
