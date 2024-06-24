@@ -271,6 +271,7 @@ public class SamlAuthenticateIT {
 		assertEquals(relayState, loginSuccessParams.get("RelayState"));
 		final var samlResponse = loginSuccessParams.get("SAMLResponse");
 
+		IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 authentication response.*");
 		assertDoesNotThrow(() -> samlSession.verifyResponse("127.0.0.1", samlResponse, relayState));
 
 		final var activatedSession = IuSamlSession.activate(samlSession.toString(), () -> secret);

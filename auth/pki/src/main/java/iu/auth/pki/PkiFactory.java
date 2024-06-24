@@ -261,6 +261,7 @@ public class PkiFactory {
 		final PkiPrincipal identity;
 		final var anchor = new TrustAnchor(pkp.idCert, null);
 		final var pkix = IuException.unchecked(() -> new PKIXParameters(Set.of(anchor)));
+		
 		if (!pkp.ca && // disable revocation for self-signed end-entity certs
 				pkp.idCert.getIssuerX500Principal().equals(pkp.idCert.getSubjectX500Principal())) {
 			identity = new PkiPrincipal(partialKey, pkp.create(true), pkp.create(false));

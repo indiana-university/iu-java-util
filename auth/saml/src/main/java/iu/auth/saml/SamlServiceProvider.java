@@ -98,8 +98,7 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 	 * @return {@link Decrypter}
 	 */
 	static Decrypter getDecrypter(IuPrincipalIdentity identity) {
-		final var encryptKey = identity.getSubject().getPrivateCredentials(WebKey.class).stream()
-				.filter(a -> "encrypt".equals(a.getKeyId())).findFirst().get();
+		final var encryptKey = identity.getSubject().getPrivateCredentials(WebKey.class).stream().findFirst().get();
 
 		List<Credential> certs = new ArrayList<>();
 		certs.add(new BasicX509Credential(encryptKey.getCertificateChain()[0], encryptKey.getPrivateKey()));
