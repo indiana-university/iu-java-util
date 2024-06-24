@@ -9,7 +9,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.opensaml.saml.common.assertion.AssertionValidationException;
 import org.opensaml.saml.common.assertion.ValidationContext;
@@ -19,12 +21,18 @@ import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.SubjectConfirmationData;
 
 import edu.iu.IuException;
+import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
 public class IuSubjectConfirmationValidationTest {
 
 	public static final String SUBJECT_CONFIRMATION_LOCAL_ADDRESS = "10.1.2.3";
 	public static final String SUBJECT_CONFIRMATION_ADDRESS = "128.0.0.0";
+
+	@BeforeEach
+	public void setup() {
+		IuTestLogger.allow("iu.auth.saml.IuSubjectConfirmationValidator", Level.INFO);
+	}
 
 	@Test
 	public void testLocalAddressValidation() throws AssertionValidationException {

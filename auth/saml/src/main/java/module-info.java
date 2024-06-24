@@ -12,7 +12,7 @@ module iu.util.auth.saml {
 	requires iu.util.crypt;
 	requires java.xml;
 	requires jakarta.json;
-	
+
 	requires static org.opensaml.core;
 	requires static org.opensaml.saml;
 	requires static org.opensaml.xmlsec;

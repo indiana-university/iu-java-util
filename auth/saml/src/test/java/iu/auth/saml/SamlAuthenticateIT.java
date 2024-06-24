@@ -14,7 +14,6 @@ import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.logging.Level;
@@ -61,8 +60,10 @@ public class SamlAuthenticateIT {
 
 		private final IuPrivateKeyPrincipal pkp;
 		private final Instant issuedAt = Instant.now();
-		private final Instant authTime = pkp.getJwk().getCertificateChain()[0].getNotBefore().toInstant();
-		private final Instant expires = pkp.getJwk().getCertificateChain()[0].getNotAfter().toInstant();
+		// private final Instant authTime =
+		// pkp.getJwk().getCertificateChain()[0].getNotBefore().toInstant();
+		// private final Instant expires =
+		// pkp.getJwk().getCertificateChain()[0].getNotAfter().toInstant();
 
 		private TrustedId(IuPrivateKeyPrincipal pkp) {
 			this.pkp = pkp;
