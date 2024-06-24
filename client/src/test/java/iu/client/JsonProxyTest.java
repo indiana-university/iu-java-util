@@ -57,6 +57,8 @@ public class JsonProxyTest {
 
 		boolean isNotThere();
 
+		int getNumber();
+
 		void unsupported();
 
 		Opaque getOpaque();
@@ -106,99 +108,6 @@ public class JsonProxyTest {
 				}).getData());
 	}
 
-//	@Test
-//	public void testWebKey() {
-//		final var key = WebKey.ephemeral(Encryption.A128GCM);
-//		assertEquals(key, JsonProxy
-//				.wrap(IuJson.object().add("key", IuJson.parse(key.toString())).build(), JsonBackedInterface.class)
-//				.getKey());
-//	}
-//
-//	@Test
-//	public void testRealm() {
-//		final var realm = mock(Realm.class);
-//		final var authId = IdGenerator.generateId();
-//		try (final var mockRealm = mockStatic(Realm.class)) {
-//			mockRealm.when(() -> Realm.of(authId)).thenReturn(realm);
-//			assertSame(realm, JsonProxy.authConfigurationTransform(IuJson.string(authId), Realm.class).get());
-//		}
-//	}
-//
-//	@Test
-//	public void testAudience() {
-//		final var audience = mock(Audience.class);
-//		final var authId = IdGenerator.generateId();
-//		try (final var mockAudience = mockStatic(Audience.class)) {
-//			mockAudience.when(() -> Audience.of(authId)).thenReturn(audience);
-//			assertSame(audience, JsonProxy.authConfigurationTransform(IuJson.string(authId), Audience.class).get());
-//		}
-//	}
-//
-//	@Test
-//	public void testAlgorithm() {
-//		final var alg = IuTest.rand(Algorithm.class);
-//		assertEquals(alg, JsonProxy.authConfigurationTransform(IuJson.string(alg.alg), Algorithm.class).get());
-//	}
-//
-//	@Test
-//	public void testEncryption() {
-//		final var enc = IuTest.rand(Encryption.class);
-//		assertEquals(enc, JsonProxy.authConfigurationTransform(IuJson.string(enc.enc), Encryption.class).get());
-//	}
-//
-//	@Test
-//	public void testGrantType() {
-//		final var grantType = IuTest.rand(GrantType.class);
-//		assertEquals(grantType,
-//				JsonProxy.authConfigurationTransform(IuJson.string(grantType.parameterValue), GrantType.class).get());
-//	}
-//
-//	@Test
-//	public void testAuthMethod() {
-//		final var authMethod = IuTest.rand(AuthMethod.class);
-//		assertEquals(authMethod,
-//				JsonProxy.authConfigurationTransform(IuJson.string(authMethod.parameterValue), AuthMethod.class).get());
-//	}
-//
-//	@Test
-//	public void testCredentialsAndGrantTypes() {
-//		final var clientId = IdGenerator.generateId();
-//		final var scope = IdGenerator.generateId();
-//		final var clientConfig = IuJson.object() //
-//				.add("scope", IuJson.array().add(scope)) //
-//				.add("credentials", IuJson.array().add(IuJson.object() //
-//						.add("grant_types", IuJson.array().add(IuJson.string("client_credentials"))) //
-//				)) //
-//				.build();
-//		final var secretData = IuJson.object() //
-//				.add("data", IuJson.object().add("data", IuJson.object() //
-//						.add("client/" + clientId, clientConfig.toString())))
-//				.build();
-//
-//		final var rb = mock(HttpRequest.Builder.class);
-//
-//		try (final var mockHttp = mockStatic(IuHttp.class)) {
-//			mockHttp.when(() -> IuHttp.send(eq(URI.create(VAULT_ENDPOINT + "/data/" + VAULT_SECRET)), argThat(a -> {
-//				assertDoesNotThrow(() -> a.accept(rb));
-//				return true;
-//			}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(secretData);
-//
-//			final var client = Client.of(clientId);
-//			final var credentials = assertInstanceOf(Credentials.class, client.getCredentials().iterator().next());
-//			assertEquals(GrantType.CLIENT_CREDENTALS, credentials.getGrantTypes().iterator().next());
-//			assertEquals(scope, client.getScope().iterator().next());
-//		}
-//	}
-//
-//	@Test
-//	public void testUnsupportedParamReturnType() {
-//		final var value = mock(JsonValue.class);
-//		final var paramType = mock(ParameterizedType.class);
-//		when(paramType.getRawType()).thenReturn(Stream.class);
-//		when(paramType.getActualTypeArguments()).thenReturn(new Class<?>[] { String.class });
-//		assertTrue(JsonProxy.authConfigurationTransform(value, paramType).isEmpty());
-//	}
-//
 	@Test
 	public void testDefault() {
 		final var data = IuJson.wrap(IuJson.object().build(), JsonBackedInterface.class);
@@ -215,6 +124,12 @@ public class JsonProxyTest {
 		assertNull(data.getOpaque());
 		final var data2 = IuJson.wrap(IuJson.object().add("opaque", "foo").build(), JsonBackedInterface.class);
 		assertThrows(UnsupportedOperationException.class, data2::getOpaque);
+	}
+
+	@Test
+	public void testInvalid() {
+		final var data = IuJson.wrap(IuJson.object().add("number", "foobar").build(), JsonBackedInterface.class);
+		assertThrows(IllegalArgumentException.class, data::getNumber);
 	}
 
 }

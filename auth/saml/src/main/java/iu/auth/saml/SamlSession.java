@@ -122,7 +122,7 @@ final class SamlSession implements IuSamlSession {
 		IuJson.add(builder, "post_uri", () -> postUri, AuthConfig.adaptJson(URI.class));
 		builder.add("relay_state", relayState) //
 				.add("session_id", sessionId);
-		IuJson.add(builder, "id", () -> id, IuJsonAdapter.to(a -> IuJson.parse(a.toString())));
+		IuJson.add(builder, "id", () -> id, SamlPrincipal.JSON);
 
 		final var secretKey = this.secretKey.get();
 		final Encryption enc;

@@ -6,7 +6,6 @@ import java.util.function.Supplier;
 import edu.iu.IuObject;
 import edu.iu.auth.saml.IuSamlSession;
 import edu.iu.auth.spi.IuSamlSpi;
-import edu.iu.crypt.WebCryptoHeader;
 
 /**
  * {@link IuSamlSpi} implementation.

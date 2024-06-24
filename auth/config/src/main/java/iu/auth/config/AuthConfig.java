@@ -101,7 +101,7 @@ public class AuthConfig {
 		if (VAULT.containsKey(configInterface))
 			throw new IllegalArgumentException("already configured");
 
-		VAULT.put(configInterface, vault);
+		VAULT.put(configInterface, Objects.requireNonNull(vault));
 	}
 
 	/**

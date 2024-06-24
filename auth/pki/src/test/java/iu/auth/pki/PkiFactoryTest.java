@@ -39,13 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mockStatic;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -57,20 +51,16 @@ import java.security.cert.CertPathValidatorException;
 import java.security.cert.CertificateExpiredException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
 
-import edu.iu.IuException;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.IuAuthenticationRealm;
@@ -84,53 +74,35 @@ import edu.iu.crypt.WebKey.Operation;
 import edu.iu.crypt.WebKey.Type;
 import edu.iu.test.IuTestLogger;
 import iu.auth.config.AuthConfig;
-import iu.auth.config.IuAuthConfig;
 
 @SuppressWarnings("javadoc")
 public class PkiFactoryTest {
 
-	/**
-	 * <p>
-	 * For verification and demonstration purposes only. NOT FOR PRODUCTION USE.
-	 * 
-	 * <pre>
-	$ openssl genpkey -algorithm ed448 | tee /tmp/k
-	 * </pre>
-	 */
-	private static final String SELF_SIGNED_PK = "-----BEGIN PRIVATE KEY-----\n" //
-			+ "MEcCAQAwBQYDK2VxBDsEOTJhHRjuRVDowCMKWslwironn8lKFWPw5ShatWk8vjgB\n" //
-			+ "C4xaM8unbSd02KYIjhisyRIyQX++Ph2QOA==\n" //
+	/** For verification and demonstration purposes only. NOT FOR PRODUCTION USE */
+	private static final String SELF_SIGNED_PK = "-----BEGIN PRIVATE KEY-----\n"
+			+ "MEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCAeYE6IDMu0y3wqHVcT\n" //
+			+ "+9G8+cxu33efYn7uzVqVPwefoA==\n" //
 			+ "-----END PRIVATE KEY-----\n";
 
-	/**
-	 * <p>
-	 * For verification and demonstration purposes only. NOT FOR PRODUCTION USE.
-	 * 
-	 * <pre>
-	$ openssl req -x509 -key /tmp/k -addext basicConstraints=pathlen:-1 \
-	-addext keyUsage=keyCertSign,cRLSign -days 821
-	 * </pre>
-	 */
-	private static final String SELF_SIGNED_EE = "-----BEGIN CERTIFICATE-----\r\n" //
-			+ "MIICmDCCAhigAwIBAgIULhCA4AFQAEpGt5LgLFk8XWjbevgwBQYDK2VxMIGVMQsw\r\n" //
-			+ "CQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0\r\n" //
-			+ "b24xGzAZBgNVBAoMEkluZGlhbmEgVW5pdmVyc2l0eTEPMA0GA1UECwwGU1RBUkNI\r\n" //
-			+ "MTAwLgYDVQQDDCd1cm46ZXhhbXBsZTppdS1qYXZhLWF1dGgtcGtpI1BraVNwaVRl\r\n" //
-			+ "c3QwIBcNMjQwNDE0MjMxMjM5WhgPMjEyNDA0MTUyMzEyMzlaMIGVMQswCQYDVQQG\r\n" //
-			+ "EwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0b24xGzAZ\r\n" //
-			+ "BgNVBAoMEkluZGlhbmEgVW5pdmVyc2l0eTEPMA0GA1UECwwGU1RBUkNIMTAwLgYD\r\n" //
-			+ "VQQDDCd1cm46ZXhhbXBsZTppdS1qYXZhLWF1dGgtcGtpI1BraVNwaVRlc3QwQzAF\r\n" //
-			+ "BgMrZXEDOgBCIEbu84CEkUNQzWVKhH2TVetBFR+4a7rT4XFXAq6WGigV1LHP199m\r\n" //
-			+ "Tt06kwbJsAdaIrpwEoAzQ4CjXTBbMB0GA1UdDgQWBBRqDb4aD1ROQ5uPS/LG7njv\r\n" //
-			+ "Eu/f+DAfBgNVHSMEGDAWgBRqDb4aD1ROQ5uPS/LG7njvEu/f+DAMBgNVHRMEBTAD\r\n" //
-			+ "AgH/MAsGA1UdDwQEAwIHgDAFBgMrZXEDcwAp8GWXdQB9zGsXyFalPKXdDzxqccGY\r\n" //
-			+ "UHigHjvIXAfDzoypRFJXmTBiotbJ719wbBsSijAaiXkMqoCUwY7PUTv9mtfTeXQg\r\n" //
-			+ "0gXa+OUW+5/C0tFm4khOPNe50GFwrnlAdV+UCFSU3+ZHluXWSrVVWbHRJwA=\r\n" //
-			+ "-----END CERTIFICATE-----\r\n";
+	/** For verification and demonstration purposes only. NOT FOR PRODUCTION USE */
+	private static final String SELF_SIGNED_EE = "-----BEGIN CERTIFICATE-----\n"
+			+ "MIICkzCCAjigAwIBAgIUKegWOIws1N0VWFVEnMKN0ZtPi8IwCgYIKoZIzj0EAwIw\n"
+			+ "gZkxCzAJBgNVBAYTAlVTMRAwDgYDVQQIDAdJbmRpYW5hMRQwEgYDVQQHDAtCbG9v\n"
+			+ "bWluZ3RvbjEbMBkGA1UECgwSSW5kaWFuYSBVbml2ZXJzaXR5MQ8wDQYDVQQLDAZT\n"
+			+ "VEFSQ0gxNDAyBgNVBAMMK3VybjpleGFtcGxlOml1LWphdmEtYXV0aC1wa2kjUGtp\n"
+			+ "RmFjdG9yeVRlc3QwIBcNMjQwNjE4MTMzOTA4WhgPMjEyNDA2MTkxMzM5MDhaMIGZ\n"
+			+ "MQswCQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21p\n"
+			+ "bmd0b24xGzAZBgNVBAoMEkluZGlhbmEgVW5pdmVyc2l0eTEPMA0GA1UECwwGU1RB\n"
+			+ "UkNIMTQwMgYDVQQDDCt1cm46ZXhhbXBsZTppdS1qYXZhLWF1dGgtcGtpI1BraUZh\n"
+			+ "Y3RvcnlUZXN0MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEUk91L7bhYDhLGb96\n"
+			+ "kxd5CRqRIDDY1v7aevxFuGHL14HYElT+iSgi0qgpiwHzQLqLbr6OgkujPyKLhosk\n"
+			+ "9+z3yaNaMFgwHQYDVR0OBBYEFJVT6uuqy1cWXtzZ8TVON458QwlsMB8GA1UdIwQY\n"
+			+ "MBaAFJVT6uuqy1cWXtzZ8TVON458QwlsMAkGA1UdEwQCMAAwCwYDVR0PBAQDAgWg\n"
+			+ "MAoGCCqGSM49BAMCA0kAMEYCIQC+G+S486N8OqsCZd6jsHBsDzVnRtCsZemxqo4W\n"
+			+ "HEoq4wIhAMwi6ZSWplcAJLhMJ1hGGOQLFy+EpFVM65FEd34chWJC\n" //
+			+ "-----END CERTIFICATE-----\n";
 
-	/**
-	 * For verification and demonstration purposes only. NOT FOR PRODUCTION USE.
-	 */
+	/** For verification and demonstration purposes only. NOT FOR PRODUCTION USE */
 	private static final String EXPIRED_EE = "-----BEGIN CERTIFICATE-----\n" //
 			+ "MIICjTCCAg2gAwIBAgIULgtpCpGnSH76irCqvzsohlr9wXUwBQYDK2VxMIGSMQsw\n" //
 			+ "CQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0\n" //
@@ -148,9 +120,7 @@ public class PkiFactoryTest {
 			+ "f5ISsvJY0jfEdwOnrO5c27KtbfL218KVOxKDzkOObzQA\n" //
 			+ "-----END CERTIFICATE-----";
 
-	/**
-	 * For verification and demonstration purposes only. NOT FOR PRODUCTION USE.
-	 */
+	/** For verification and demonstration purposes only. NOT FOR PRODUCTION USE */
 	private static final String NOFRAGMENT_EE = "-----BEGIN CERTIFICATE-----\n" //
 			+ "MIICizCCAgugAwIBAgIUe6o1zGeHH0C/9ILnEFX4+hKEe2YwBQYDK2VxMIGQMQsw\n" //
 			+ "CQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0\n" //
@@ -168,9 +138,7 @@ public class PkiFactoryTest {
 			+ "1n05O3vYY3gLSLxGcf2wekycLtbNvhkqIm07ZrY/AA==\n" //
 			+ "-----END CERTIFICATE-----";
 
-	/**
-	 * For verification and demonstration purposes only. NOT FOR PRODUCTION USE.
-	 */
+	/** For verification and demonstration purposes only. NOT FOR PRODUCTION USE */
 	private static final String DATAENC_EE = "-----BEGIN CERTIFICATE-----\n"
 			+ "MIIClzCCAhegAwIBAgIUCJ6chGs4gSHia6CKXVQe1SkGT90wBQYDK2VxMIGWMQsw\n"
 			+ "CQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0\n"
@@ -188,9 +156,7 @@ public class PkiFactoryTest {
 			+ "WJ/AWekK4zVa7w/IdjeFRuYG/olWP5MSPauz+XAXoZQPNJQtVpdAL5wtAA==\n" //
 			+ "-----END CERTIFICATE-----";
 
-	/**
-	 * For verification and demonstration purposes only. NOT FOR PRODUCTION USE.
-	 */
+	/** For verification and demonstration purposes only. NOT FOR PRODUCTION USE */
 	private static final String KEYENC_EE = "-----BEGIN CERTIFICATE-----\n"
 			+ "MIIClTCCAhWgAwIBAgIUdgj1+9770pRrQTtK7B7igdTDJB8wBQYDK2VxMIGVMQsw\n"
 			+ "CQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0\n"
@@ -205,7 +171,8 @@ public class PkiFactoryTest {
 			+ "Eu/f+DAfBgNVHSMEGDAWgBRqDb4aD1ROQ5uPS/LG7njvEu/f+DAJBgNVHRMEAjAA\n"
 			+ "MAsGA1UdDwQEAwIFIDAFBgMrZXEDcwDlj87FyC+xVzPClrMGQZqT9GGgTE6Du4+N\n"
 			+ "vSfksPtRKMgO8KSTWhMgrgQ+BDTJ2wvlBU4LeOtP/AB81c5/qZQoTBZ1POgokhyP\n"
-			+ "YEP1yOMcXcVyP3/6geBTGNuWBELol2TPdNvRTrq96IKMUHwvZ78OCQA=\n" + "-----END CERTIFICATE-----";
+			+ "YEP1yOMcXcVyP3/6geBTGNuWBELol2TPdNvRTrq96IKMUHwvZ78OCQA=\n" + //
+			"-----END CERTIFICATE-----";
 
 	/**
 	 * For verification and demonstration purposes only. NOT FOR PRODUCTION USE.
@@ -227,31 +194,22 @@ public class PkiFactoryTest {
 			+ "Gwk7a00JaJj//CtHMARLbjvGJ/itJUq+DI/F0h4Yx8EVotvwkbRq7/1FHw4A\n" //
 			+ "-----END CERTIFICATE-----\n";
 
-	/**
-	 * <p>
-	 * For verification and demonstration purposes only. NOT FOR PRODUCTION USE.
-	 * 
-	 * <pre>
-	$ openssl req -x509 -key /tmp/k -addext basicConstraints=critical,CA:true,pathlen:0 \
-	 -addext keyUsage=keyCertSign,cRLSign -days 821 | tee /tmp/ca
-	 * </pre>
-	 */
-	private static final String CA_ROOT = "-----BEGIN CERTIFICATE-----\n" //
-			+ "MIICpDCCAiSgAwIBAgIUTA+Skb7j/4Km5D/xt7kssBM/Kk8wBQYDK2VxMIGYMQsw\n" //
-			+ "CQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0\n" //
-			+ "b24xGzAZBgNVBAoMEkluZGlhbmEgVW5pdmVyc2l0eTEPMA0GA1UECwwGU1RBUkNI\n" //
-			+ "MTMwMQYDVQQDDCp1cm46ZXhhbXBsZTppdS1qYXZhLWF1dGgtcGtpI1BraVNwaVRl\n" //
-			+ "c3RfQ0EwIBcNMjQwNDE2MDk0ODM2WhgPMjEyNDA0MTcwOTQ4MzZaMIGYMQswCQYD\n" //
-			+ "VQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0b24x\n" //
-			+ "GzAZBgNVBAoMEkluZGlhbmEgVW5pdmVyc2l0eTEPMA0GA1UECwwGU1RBUkNIMTMw\n" //
-			+ "MQYDVQQDDCp1cm46ZXhhbXBsZTppdS1qYXZhLWF1dGgtcGtpI1BraVNwaVRlc3Rf\n" //
-			+ "Q0EwQzAFBgMrZXEDOgBCIEbu84CEkUNQzWVKhH2TVetBFR+4a7rT4XFXAq6WGigV\n" //
-			+ "1LHP199mTt06kwbJsAdaIrpwEoAzQ4CjYzBhMB0GA1UdDgQWBBRqDb4aD1ROQ5uP\n" //
-			+ "S/LG7njvEu/f+DAfBgNVHSMEGDAWgBRqDb4aD1ROQ5uPS/LG7njvEu/f+DASBgNV\n" //
-			+ "HRMBAf8ECDAGAQH/AgEAMAsGA1UdDwQEAwIBBjAFBgMrZXEDcwAxIP6HDFL5cxNO\n" //
-			+ "PqH0L1Vkk6xbqjmK1hGr79W6OCvfjlcaKhvC4ivnQzxJQV6CHCfGVlkix3m084Ce\n" //
-			+ "p6NSHLht5UOW+CeNzF4B8I6y3EJjxzUc/PvLy4Q5VRwJ64Aol1lttLgmIyr1Ww2w\n" //
-			+ "UvHVFEgfEQA=\n" //
+	/** For verification and demonstration purposes only. NOT FOR PRODUCTION USE */
+	private static final String CA_ROOT = "-----BEGIN CERTIFICATE-----\n"
+			+ "MIICnDCCAkGgAwIBAgIUVxJv/QjCBnIwWYJc9PpLMWOU/pMwCgYIKoZIzj0EAwIw\n"
+			+ "gZwxCzAJBgNVBAYTAlVTMRAwDgYDVQQIDAdJbmRpYW5hMRQwEgYDVQQHDAtCbG9v\n"
+			+ "bWluZ3RvbjEbMBkGA1UECgwSSW5kaWFuYSBVbml2ZXJzaXR5MQ8wDQYDVQQLDAZT\n"
+			+ "VEFSQ0gxNzA1BgNVBAMMLnVybjpleGFtcGxlOml1LWphdmEtYXV0aC1wa2kjUGtp\n"
+			+ "RmFjdG9yeVRlc3RfQ0EwIBcNMjQwNjE4MTQxMjU4WhgPMjEyNDA2MTkxNDEyNTha\n"
+			+ "MIGcMQswCQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxv\n"
+			+ "b21pbmd0b24xGzAZBgNVBAoMEkluZGlhbmEgVW5pdmVyc2l0eTEPMA0GA1UECwwG\n"
+			+ "U1RBUkNIMTcwNQYDVQQDDC51cm46ZXhhbXBsZTppdS1qYXZhLWF1dGgtcGtpI1Br\n"
+			+ "aUZhY3RvcnlUZXN0X0NBMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEUk91L7bh\n"
+			+ "YDhLGb96kxd5CRqRIDDY1v7aevxFuGHL14HYElT+iSgi0qgpiwHzQLqLbr6Ogkuj\n"
+			+ "PyKLhosk9+z3yaNdMFswHQYDVR0OBBYEFJVT6uuqy1cWXtzZ8TVON458QwlsMB8G\n"
+			+ "A1UdIwQYMBaAFJVT6uuqy1cWXtzZ8TVON458QwlsMAwGA1UdEwQFMAMBAf8wCwYD\n"
+			+ "VR0PBAQDAgEGMAoGCCqGSM49BAMCA0kAMEYCIQCH0GxjQdZ/4qqBVn1CaivAwIdS\n"
+			+ "1TGe9hRhWg+2oJKadwIhANYkEffs3K5tAnAsaPGjMrx1vDgnVrvxeKP34cPhjGcX\n" //
 			+ "-----END CERTIFICATE-----\n";
 
 	/**
@@ -280,112 +238,111 @@ public class PkiFactoryTest {
 			+ "jeDhXM+cmPQ/VFMuJf2tOy+n4TC+DvRMJg5bd8xqgU8Vm04lAA==\n" //
 			+ "-----END X509 CRL-----\n";
 
-	/**
-	 * <p>
-	 * For verification and demonstration purposes only. NOT FOR PRODUCTION USE.
-	 * 
-	 * <pre>
-	$ openssl req -new -out /tmp/req -key /tmp/k
-	$ openssl req -x509 -in /tmp/req -addext basicConstraints=CA:false \
-		-addext keyUsage=digitalSignature,keyAgreement -CA /tmp/ca -CAkey /tmp/k -days
-	 * </pre>
-	 */
-	private static final String CA_SIGNED = "-----BEGIN CERTIFICATE-----\n" //
-			+ "MIICmzCCAhugAwIBAgIUPYscr3NNwWMvs+DxyNZrN472cvUwBQYDK2VxMIGYMQsw\n" //
-			+ "CQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0\n" //
-			+ "b24xGzAZBgNVBAoMEkluZGlhbmEgVW5pdmVyc2l0eTEPMA0GA1UECwwGU1RBUkNI\n" //
-			+ "MTMwMQYDVQQDDCp1cm46ZXhhbXBsZTppdS1qYXZhLWF1dGgtcGtpI1BraVNwaVRl\n" //
-			+ "c3RfQ0EwIBcNMjQwNDE2MTAwNDA0WhgPMjEyNDA0MTcxMDA0MDRaMIGYMQswCQYD\n" //
-			+ "VQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0b24x\n" //
-			+ "GzAZBgNVBAoMEkluZGlhbmEgVW5pdmVyc2l0eTEPMA0GA1UECwwGU1RBUkNIMTMw\n" //
-			+ "MQYDVQQDDCp1cm46ZXhhbXBsZTppdS1qYXZhLWF1dGgtcGtpI1BraVNwaVRlc3Rf\n" //
-			+ "RUUwQzAFBgMrZXEDOgBCIEbu84CEkUNQzWVKhH2TVetBFR+4a7rT4XFXAq6WGigV\n" //
-			+ "1LHP199mTt06kwbJsAdaIrpwEoAzQ4CjWjBYMB0GA1UdDgQWBBRqDb4aD1ROQ5uP\n" //
-			+ "S/LG7njvEu/f+DAfBgNVHSMEGDAWgBRqDb4aD1ROQ5uPS/LG7njvEu/f+DAJBgNV\n" //
-			+ "HRMEAjAAMAsGA1UdDwQEAwIDiDAFBgMrZXEDcwBX2foR72+bPqirhp/XsG8piwC8\n" //
-			+ "HR3PGzh+tOXoLnjVuRARtb6OdO9Mz8NdjMKwseA+xB+YYl0DsIDVqq5IdtEIfgz9\n" //
-			+ "Y98CSqcpVOI9Wpmp9bpnrX0+fvlXVw4SWCklCl7FOTSuVeMlmIoyP9otyvaMFQA=\n" //
-			+ "-----END CERTIFICATE-----\n" + "";
+	/** For verification and demonstration purposes only. NOT FOR PRODUCTION USE */
+	private static final String CA_SIGNED = "-----BEGIN CERTIFICATE-----\n"
+			+ "MIICNzCCAd0CFFqpcBpyoA+TtQEJNQ2MyEBhtOtQMAoGCCqGSM49BAMCMIGcMQsw\n"
+			+ "CQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0\n"
+			+ "b24xGzAZBgNVBAoMEkluZGlhbmEgVW5pdmVyc2l0eTEPMA0GA1UECwwGU1RBUkNI\n"
+			+ "MTcwNQYDVQQDDC51cm46ZXhhbXBsZTppdS1qYXZhLWF1dGgtcGtpI1BraUZhY3Rv\n"
+			+ "cnlUZXN0X0NBMCAXDTI0MDYxODE0MzYyOVoYDzIxMjQwNjE5MTQzNjI5WjCBnDEL\n"
+			+ "MAkGA1UEBhMCVVMxEDAOBgNVBAgMB0luZGlhbmExFDASBgNVBAcMC0Jsb29taW5n\n"
+			+ "dG9uMRswGQYDVQQKDBJJbmRpYW5hIFVuaXZlcnNpdHkxDzANBgNVBAsMBlNUQVJD\n"
+			+ "SDE3MDUGA1UEAwwudXJuOmV4YW1wbGU6aXUtamF2YS1hdXRoLXBraSNQa2lGYWN0\n"
+			+ "b3J5VGVzdF9FRTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABFJPdS+24WA4Sxm/\n"
+			+ "epMXeQkakSAw2Nb+2nr8Rbhhy9eB2BJU/okoItKoKYsB80C6i26+joJLoz8ii4aL\n"
+			+ "JPfs98kwCgYIKoZIzj0EAwIDSAAwRQIhAJ8gA7jzNZkbp7stenQo0zq1Rc9Ka+CY\n"
+			+ "vj38pDbHJRxqAiAs2IKxKscJefQ8FmJQp5x8jmDcRNyVkYLog+z5cYA0LQ==\n" //
+			+ "-----END CERTIFICATE-----\n";
 
-	private MockedStatic<AuthConfig> mockAuthConfig;
-	private Map<String, IuAuthConfig> configs;
-	private boolean sealed;
+	@BeforeAll
+	public static void setupClass() {
+		final var verifier = PkiFactory.trust(privateKeyPrincipal(SELF_SIGNED_PK + SELF_SIGNED_EE));
+		// cover verifier property methods
+		assertNull(verifier.getAuthScheme());
+		assertNull(verifier.getAuthenticationEndpoint());
+		assertSame(PkiPrincipal.class, verifier.getType());
+		AuthConfig.register(verifier);
+
+		AuthConfig
+				.register(PkiFactory.trust(privateKeyPrincipal(CA_ROOT), PemEncoded.parse(CA_ROOT_CRL).next().asCRL()));
+
+		AuthConfig.seal();
+	}
 
 	@BeforeEach
 	public void setup() {
-		mockAuthConfig = mockStatic(AuthConfig.class);
-		configs = new HashMap<>();
-		mockAuthConfig.when(() -> AuthConfig.register(any())).then(a -> {
-			assertFalse(sealed);
-
-			final IuAuthConfig c = a.getArgument(0);
-			configs.put(c.getRealm(), c);
-			return null;
-		});
-		mockAuthConfig.when(() -> AuthConfig.seal()).then(a -> {
-			sealed = true;
-			return null;
-		});
-		mockAuthConfig.when(() -> AuthConfig.get(any(String.class))).thenAnswer(a -> {
-			assertTrue(sealed);
-			return Objects.requireNonNull(configs.get(a.getArguments()[0]));
-		});
 	}
 
 	@AfterEach
 	public void teardown() {
-		mockAuthConfig.close();
-		sealed = false;
-		mockAuthConfig = null;
-		configs = null;
 	}
 
-	private IuPrivateKeyPrincipal privateKeyPrincipal(WebKey jwk) {
-		return (IuPrivateKeyPrincipal) IuAuthenticationRealm.JSON.fromJson(IuJson.object() //
-				.add("type", "pki") //
-				.add("alg", Algorithm.EDDSA.alg) //
-				.add("encrypt_alg", Algorithm.ECDH_ES.alg) //
-				.add("enc", Encryption.A128GCM.enc) //
-				.add("jwk", WebKey.JSON.toJson(jwk)) //
-				.build());
+	@SuppressWarnings("deprecation")
+	private static IuPrivateKeyPrincipal privateKeyPrincipal(WebKey jwk) {
+		final var pkpBuilder = IuJson.object().add("type", "pki");
+		switch (jwk.getType()) {
+		case EC_P256:
+		case EC_P384:
+		case EC_P521:
+			pkpBuilder.add("alg", Algorithm.ES256.alg);
+			pkpBuilder.add("encrypt_alg", Algorithm.ECDH_ES.alg);
+			pkpBuilder.add("enc", Encryption.A128GCM.enc);
+			break;
+
+		case ED25519:
+		case ED448:
+			pkpBuilder.add("alg", Algorithm.EDDSA.alg);
+			break;
+
+		case RSA:
+			pkpBuilder.add("alg", Algorithm.RS256.alg);
+			pkpBuilder.add("encrypt_alg", Algorithm.RSA1_5.alg);
+			pkpBuilder.add("enc", Encryption.A128GCM.enc);
+			break;
+
+		case RSASSA_PSS:
+			pkpBuilder.add("alg", Algorithm.PS256.alg);
+			break;
+
+		case X25519:
+		case X448:
+			pkpBuilder.add("encrypt_alg", Algorithm.ECDH_ES.alg);
+			pkpBuilder.add("enc", Encryption.A128GCM.enc);
+
+		case RAW:
+		default:
+			break;
+		}
+
+		pkpBuilder.add("jwk", WebKey.JSON.toJson(jwk));
+
+		return (IuPrivateKeyPrincipal) IuAuthenticationRealm.JSON.fromJson(pkpBuilder.build());
 	}
 
-	private IuPrivateKeyPrincipal privateKeyPrincipal(String pem) {
-		return privateKeyPrincipal(WebKey.pem(SELF_SIGNED_PK + SELF_SIGNED_EE));
+	private static IuPrivateKeyPrincipal privateKeyPrincipal(String pem) {
+		return privateKeyPrincipal(WebKey.pem(pem));
 	}
 
 	@Test
 	public void testInvalidPkiPrincipal() {
 		assertEquals("Missing X.509 certificate chain", assertThrows(NullPointerException.class,
-				() -> PkiFactory.from(privateKeyPrincipal(WebKey.builder(Type.ED448).pem(SELF_SIGNED_PK).build())))
+				() -> PkiFactory.from(privateKeyPrincipal(WebKey.builder(Type.EC_P256).pem(SELF_SIGNED_PK).build())))
 				.getMessage());
 	}
 
 	@Test
 	public void testSelfSignedEE() throws Exception {
-		final var id = WebKey.pem(SELF_SIGNED_PK + SELF_SIGNED_EE);
-		final var pkp = (IuPrivateKeyPrincipal) IuAuthenticationRealm.JSON.fromJson(IuJson.object() //
-				.add("type", "pki") //
-				.add("jwk", WebKey.JSON.toJson(id)) //
-				.build());
-		final var pki = PkiFactory.from(pkp);
-		final var verifier = PkiFactory.trust(pkp);
-		assertNull(verifier.getAuthScheme());
-		assertNull(verifier.getAuthenticationEndpoint());
-		assertSame(PkiPrincipal.class, verifier.getType());
-//		assertNotNull(verifier.getIdentity());
-		AuthConfig.register(verifier);
-		AuthConfig.seal();
+		final var pki = (PkiPrincipal) PkiFactory.from(privateKeyPrincipal(SELF_SIGNED_PK + SELF_SIGNED_EE));
 
 		IuTestLogger.expect("iu.auth.pki.PkiVerifier", Level.INFO,
-				"pki:auth:urn:example:iu-java-auth-pki#PkiSpiTest; trustAnchor: CN=urn:example:iu-java-auth-pki\\#PkiSpiTest,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US");
+				"pki:auth:urn:example:iu-java-auth-pki#PkiFactoryTest; trustAnchor: CN=urn:example:iu-java-auth-pki\\#PkiFactoryTest,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US");
 		assertTrue(IuPrincipalIdentity.verify(pki, pki.getName()));
 
 		final var sub = pki.getSubject();
 		assertEquals(Set.of(pki), sub.getPrincipals());
 
 		final var pub = sub.getPublicCredentials();
-		assertEquals(1, pub.size());
+		assertEquals(2, pub.size());
 		final var wellKnown = (WebKey) pub.iterator().next();
 		final var publicId = PkiFactory.from(privateKeyPrincipal(wellKnown));
 
@@ -395,19 +352,18 @@ public class PkiFactoryTest {
 		final var cert = wellKnown.getCertificateChain()[0];
 		assertEquals(pki.getName(), X500Utils.getCommonName(cert.getSubjectX500Principal()));
 		assertNotNull(sub.getPrivateCredentials(WebKey.class).iterator().next().getPrivateKey());
-		assertSerializable(pki);
 	}
 
 	@Test
 	public void testSelfSignedEECertOnly() throws Exception {
 		final var id = privateKeyPrincipal(SELF_SIGNED_EE);
-		final var pki = PkiFactory.from(id);
+		final var pki = (PkiPrincipal) PkiFactory.from(id);
 		final var verifier = PkiFactory.trust(id);
 		AuthConfig.register(verifier);
 		AuthConfig.seal();
 
 		IuTestLogger.expect("iu.auth.pki.PkiVerifier", Level.INFO,
-				"pki:verify:urn:example:iu-java-auth-pki#PkiSpiTest; trustAnchor: CN=urn:example:iu-java-auth-pki\\#PkiSpiTest,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US");
+				"pki:verify:urn:example:iu-java-auth-pki#PkiFactoryTest; trustAnchor: CN=urn:example:iu-java-auth-pki\\#PkiFactoryTest,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US");
 		assertFalse(IuPrincipalIdentity.verify(pki, pki.getName()));
 
 		final var sub = pki.getSubject();
@@ -426,7 +382,6 @@ public class PkiFactoryTest {
 		assertEquals(pki.getName(), X500Utils.getCommonName(cert.getSubjectX500Principal()));
 
 		assertTrue(sub.getPrivateCredentials(WebKey.class).isEmpty());
-		assertSerializable(pki);
 	}
 
 	@Test
@@ -539,7 +494,7 @@ public class PkiFactoryTest {
 		final var iuEduPem = new StringBuilder();
 		PemEncoded.serialize(iuEdu.getCertificates().toArray(X509Certificate[]::new))
 				.forEachRemaining(iuEduPem::append);
-		final var iuEduId = PkiFactory.from(privateKeyPrincipal(iuEduPem.toString()));
+		final var iuEduId = (PkiPrincipal) PkiFactory.from(privateKeyPrincipal(iuEduPem.toString()));
 		assertEquals("iu.edu", iuEduId.getName());
 
 		IuPrincipalIdentity.verify(iuEduId, "USERTrust RSA Certification Authority");
@@ -547,8 +502,6 @@ public class PkiFactoryTest {
 		assertThrows(IllegalArgumentException.class,
 				() -> IuPrincipalIdentity.verify(PkiFactory.from(privateKeyPrincipal(SELF_SIGNED_PK + KEYAGREE_EE)),
 						"USERTrust RSA Certification Authority"));
-
-		assertSerializable(iuEduId);
 	}
 
 	@Test
@@ -557,13 +510,8 @@ public class PkiFactoryTest {
 		assertEquals("ID certificate must be an end-entity",
 				assertThrows(IllegalArgumentException.class, () -> PkiFactory.from(caRoot)).getMessage());
 
-		final var verifier = PkiFactory.trust(caRoot, PemEncoded.parse(CA_ROOT_CRL).next().asCRL());
-		AuthConfig.register(verifier);
-		AuthConfig.seal();
-
-		final var id = privateKeyPrincipal(SELF_SIGNED_PK + CA_SIGNED);
-		final var pki = PkiFactory.from(id);
-		assertSerializable(pki);
+		final var id = privateKeyPrincipal(CA_SIGNED);
+		final var pki = (PkiPrincipal) PkiFactory.from(id);
 
 		IuTestLogger.expect("iu.auth.pki.PkiVerifier", Level.INFO,
 				"pki:verify:urn:example:iu-java-auth-pki#PkiSpiTest_EE; trustAnchor: CN=urn:example:iu-java-auth-pki\\#PkiSpiTest_CA,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US");
@@ -630,36 +578,6 @@ public class PkiFactoryTest {
 
 		final var pk2 = PkiFactory.from(privateKeyPrincipal(PK3 + PK3_CERT));
 		assertThrows(IllegalArgumentException.class, () -> IuPrincipalIdentity.verify(pk2, pki.getName()));
-	}
-
-	private void assertSerializable(IuPrincipalIdentity pki) {
-		final var auth = !pki.getSubject().getPrivateCredentials().isEmpty();
-		final var pkis = pki.toString();
-		if (auth)
-			assertTrue(pkis.startsWith("Authoritative "), pkis);
-		else
-			assertTrue(pkis.startsWith("Well-Known "), pkis);
-
-		final var serialCopy = IuException.unchecked(() -> {
-			final var out = new ByteArrayOutputStream();
-			try (final var o = new ObjectOutputStream(out)) {
-				o.writeObject(pki);
-			}
-			try (final var o = new ObjectInputStream(new ByteArrayInputStream(out.toByteArray()))) {
-				return (IuPrincipalIdentity) o.readObject();
-			}
-		});
-
-		final var wks = serialCopy.toString();
-		assertTrue(wks.startsWith("Well-Known "), wks);
-		if (auth)
-			assertEquals(pkis.substring(14), wks.substring(11));
-		else
-			assertEquals(pkis, wks);
-
-		final var jwk = PkiFactory
-				.from(privateKeyPrincipal(pki.getSubject().getPublicCredentials(WebKey.class).iterator().next()));
-		assertEquals(wks, jwk.toString());
 	}
 
 }

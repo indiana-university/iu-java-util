@@ -592,8 +592,7 @@ public interface WebKey extends WebKeyReference {
 		/**
 		 * JSON type adapter.
 		 */
-		public static IuJsonAdapter<Algorithm> JSON = IuJsonAdapter.from(a -> from(((JsonString) a).getString()),
-				a -> IuJson.string(a.alg));
+		public static final IuJsonAdapter<Algorithm> JSON = IuJsonAdapter.text(Algorithm::from, a -> a.alg);
 
 		/**
 		 * Gets the value equivalent to the JWK alg attribute.
