@@ -96,10 +96,16 @@ final class PkiPrincipal implements IuPrincipalIdentity, IuPrivateKeyPrincipal {
 		IuObject.require(encrypt, keyMatch, () -> "encrypt key mismatch");
 
 		this.verify = verify;
-		this.encrypt = encrypt;
 		alg = metadata.getAlg();
+		
 		encryptAlg = metadata.getEncryptAlg();
-		enc = metadata.getEnc();
+		if (encryptAlg != null) {
+			this.encrypt = encrypt;
+			enc = metadata.getEnc();
+		} else {
+			this.encrypt = null;
+			enc = null;
+		}
 
 		final var cert = validateArguments();
 
