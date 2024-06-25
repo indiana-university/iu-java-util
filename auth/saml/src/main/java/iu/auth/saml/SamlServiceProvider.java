@@ -376,7 +376,7 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 				.filter(Objects::nonNull).findFirst() //
 				.orElseThrow(() -> new IllegalStateException("service provider is not trusted"));
 
-		if (!IuException.unchecked(() -> IuPrincipalIdentity.verify(identity, realm)))
+		if (!IuException.unchecked(() -> IuPrincipalIdentity.verify(identity, identity.getName())))
 			throw new IllegalStateException("service provider is not authoritative");
 		else
 			return identity;

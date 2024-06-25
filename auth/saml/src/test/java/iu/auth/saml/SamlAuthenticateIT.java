@@ -40,6 +40,7 @@ import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.test.IuTestLogger;
 import iu.auth.config.AuthConfig;
+import iu.auth.pki.PkiFactory;
 
 @EnabledIf("edu.iu.client.IuVault#isConfigured")
 @SuppressWarnings("javadoc")
@@ -105,7 +106,8 @@ public class SamlAuthenticateIT {
 		AuthConfig.addVault(IuAuthenticationRealm.class, IuVault.RUNTIME);
 		final IuSamlServiceProviderMetadata realm = IuAuthenticationRealm.of(REALM);
 		postUri = realm.getAcsUris().iterator().next();
-
+		
+		AuthConfig.register(PkiFactory.trust(realm.getIdentity()));
 		final var provider = new SamlServiceProvider(postUri, REALM);
 		AuthConfig.register(provider);
 		AuthConfig.seal();
