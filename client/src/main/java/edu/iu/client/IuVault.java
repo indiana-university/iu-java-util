@@ -135,6 +135,13 @@ public interface IuVault {
 	}
 
 	/**
+	 * Lists all available property names.
+	 * 
+	 * @return property names
+	 */
+	String[] list();
+
+	/**
 	 * Reads a property value.
 	 * 
 	 * @param name property name

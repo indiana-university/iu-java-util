@@ -40,10 +40,12 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.Queue;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -183,6 +185,18 @@ public final class Vault implements IuVault {
 	}
 
 	@Override
+	public String[] list() {
+		if (secretNames == null)
+			throw new UnsupportedOperationException();
+
+		final Queue<String> list = new ArrayDeque<>();
+		for (String secretName : secretNames)
+			list.addAll(getSecret(secretName).getData().keySet());
+
+		return list.toArray(String[]::new);
+	}
+
+	@Override
 	public String get(String name) {
 		return get(name, String.class);
 	}
@@ -218,7 +232,18 @@ public final class Vault implements IuVault {
 			convertData = a -> a;
 			convertMetadata = a -> null;
 		} else {
-			convertData = a -> a.getJsonObject("data");
+			// TODO: support launchpad through configuration
+			if (secret.startsWith("managed/")) {
+				final var lastSlash = secret.lastIndexOf('/');
+				final var prefix = secret.substring(lastSlash + 1) + '/';
+				convertData = a -> {
+					final var b = IuJson.object();
+					for (final var e : a.getJsonObject("data").entrySet())
+						b.add(prefix + e.getKey(), e.getValue());
+					return b.build();
+				};
+			} else
+				convertData = a -> a.getJsonObject("data");
 			convertMetadata = a -> a.getJsonObject("metadata");
 		}
 
@@ -233,42 +258,49 @@ public final class Vault implements IuVault {
 			metadataSupplier = () -> convertMetadata.apply(readSecretUsingCache(secret));
 		}
 
-		final Consumer<JsonObject> mergePatchConsumer = mergePatch -> IuException.unchecked(() -> {
-			final var data = dataSupplier.get();
-			final var metadata = metadataSupplier.get();
+		final Consumer<JsonObject> mergePatchConsumer;
+		if (secret.startsWith("managed/"))
+			mergePatchConsumer = a -> {
+				// TODO: support launchpad through configuration
+				throw new UnsupportedOperationException();
+			};
+		else
+			mergePatchConsumer = mergePatch -> IuException.unchecked(() -> {
+				final var data = dataSupplier.get();
+				final var metadata = metadataSupplier.get();
 
-			final var updatedData = IuJson.PROVIDER.createMergePatch(mergePatch).apply(data).asJsonObject();
+				final var updatedData = IuJson.PROVIDER.createMergePatch(mergePatch).apply(data).asJsonObject();
 
-			final String dataRequestPayload;
-			if (cubbyhole)
-				dataRequestPayload = updatedData.toString();
-			else {
-				final var dataRequestPayloadBuilder = IuJson.object();
-				dataRequestPayloadBuilder.add("options", IuJson.object().add("cas", metadata.getInt("version")));
-				dataRequestPayloadBuilder.add("data", updatedData);
-				dataRequestPayload = dataRequestPayloadBuilder.build().toString();
-			}
+				final String dataRequestPayload;
+				if (cubbyhole)
+					dataRequestPayload = updatedData.toString();
+				else {
+					final var dataRequestPayloadBuilder = IuJson.object();
+					dataRequestPayloadBuilder.add("options", IuJson.object().add("cas", metadata.getInt("version")));
+					dataRequestPayloadBuilder.add("data", updatedData);
+					dataRequestPayload = dataRequestPayloadBuilder.build().toString();
+				}
 
-			final var dataUri = dataUri(secret);
-			final HttpResponseHandler<?> responseHandler;
-			if (cubbyhole)
-				responseHandler = IuHttp.NO_CONTENT;
-			else
-				responseHandler = IuHttp.READ_JSON_OBJECT;
+				final var dataUri = dataUri(secret);
+				final HttpResponseHandler<?> responseHandler;
+				if (cubbyhole)
+					responseHandler = IuHttp.NO_CONTENT;
+				else
+					responseHandler = IuHttp.READ_JSON_OBJECT;
 
-			IuHttp.send(dataUri, rb -> {
-				rb.POST(BodyPublishers.ofString(dataRequestPayload));
-				this.authorize(rb);
-			}, responseHandler);
+				IuHttp.send(dataUri, rb -> {
+					rb.POST(BodyPublishers.ofString(dataRequestPayload));
+					this.authorize(rb);
+				}, responseHandler);
 
-			LOG.config(() -> "vault:set:" + dataUri + ":" + mergePatch.keySet());
+				LOG.config(() -> "vault:set:" + dataUri + ":" + mergePatch.keySet());
 
-			final var updated = readSecret(secret);
-			if (secretCache == null)
-				ref.data = updated;
-			else
-				secretCache.put(secret, updated);
-		});
+				final var updated = readSecret(secret);
+				if (secretCache == null)
+					ref.data = updated;
+				else
+					secretCache.put(secret, updated);
+			});
 
 		return new VaultSecret(dataSupplier, metadataSupplier, mergePatchConsumer, valueAdapter);
 	}
@@ -292,7 +324,10 @@ public final class Vault implements IuVault {
 				return IuHttp.send(dataUri(secret), this::authorize, IuHttp.READ_JSON_OBJECT).getJsonObject("data");
 			} catch (HttpException e) {
 				if (e.getResponse().statusCode() == 404)
-					return IuJson.object().build();
+					if (cubbyhole)
+						return IuJson.object().build();
+					else
+						return IuJson.object().add("data", IuJson.object()).build();
 				else
 					throw e;
 			}

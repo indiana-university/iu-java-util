@@ -31,6 +31,7 @@
  */
 package iu.client;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -183,6 +184,31 @@ public class VaultTest extends IuHttpTestCase {
 		props.setProperty("iu.vault.endpoint", endpoint.toString());
 		props.setProperty("iu.vault.token", token);
 		props.setProperty("iu.vault.secrets", secret);
+
+		final var vault = Vault.of(props, IuJsonAdapter::of);
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			final var r = mock(HttpResponse.class);
+			when(r.statusCode()).thenReturn(404);
+			final var e = mock(HttpException.class);
+			when(e.getResponse()).thenReturn(r);
+			mockHttp.when(() -> IuHttp.send(any(URI.class), any(), any())).thenThrow(e);
+
+			assertEquals(IuJson.object().add("data", IuJson.object()).build(), vault.readSecret(secret));
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testReadSecretNotFoundCubbyhole() {
+		final var secret = IdGenerator.generateId();
+		final var token = IdGenerator.generateId();
+		final var endpoint = URI.create("test:/" + IdGenerator.generateId());
+
+		final var props = new Properties();
+		props.setProperty("iu.vault.endpoint", endpoint.toString());
+		props.setProperty("iu.vault.token", token);
+		props.setProperty("iu.vault.secrets", secret);
+		props.setProperty("iu.vault.cubbyhole", "true");
 
 		final var vault = Vault.of(props, IuJsonAdapter::of);
 		try (final var mockHttp = mockStatic(IuHttp.class)) {
@@ -503,6 +529,67 @@ public class VaultTest extends IuHttpTestCase {
 			mockHttp.verify(readVault, times(2));
 			assertEquals(value, vs.get(key, String.class));
 		}
+	}
+
+	@Test
+	public void testGetManaged() {
+		final var key = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var secretName = IdGenerator.generateId();
+		final var secret = "managed/" + secretName;
+		final var token = IdGenerator.generateId();
+		final var endpoint = URI.create("test:/" + IdGenerator.generateId());
+
+		final var props = new Properties();
+		props.setProperty("iu.vault.endpoint", endpoint.toString());
+		props.setProperty("iu.vault.token", token);
+		props.setProperty("iu.vault.secrets", secret);
+
+		final var vault = Vault.of(props, IuJsonAdapter::of);
+		try (final var mockHttp = mockStatic(IuHttp.class); //
+				final var mockBodyPublishers = mockStatic(BodyPublishers.class)) {
+			final Verification readVault = () -> IuHttp.send(eq(vault.dataUri(secret)), argThat(a -> {
+				class Box {
+					boolean post;
+				}
+				final var box = new Box();
+				final var rb = mock(HttpRequest.Builder.class);
+				when(rb.POST(any())).then(b -> {
+					box.post = true;
+					return rb;
+				});
+				assertDoesNotThrow(() -> a.accept(rb));
+				verify(rb).header("X-Vault-Token", token);
+				return !box.post;
+			}), eq(IuHttp.READ_JSON_OBJECT));
+
+			mockHttp.when(readVault).thenReturn( //
+					IuJson.object() //
+							.add("data", IuJson.object() //
+									.add("data", IuJson.object() //
+											.add(key, value))) //
+							.build());
+
+			final var vs = vault.getSecret(secret);
+			assertEquals(value, vs.get(secretName + "/" + key, String.class));
+			assertThrows(UnsupportedOperationException.class,
+					() -> vs.set(secretName + "/" + key, IdGenerator.generateId(), String.class));
+			assertArrayEquals(new String[] { secretName + "/" + key }, vault.list());
+
+			mockHttp.verify(readVault, times(2));
+		}
+	}
+
+	@Test
+	public void testListUnsupported() {
+		final var token = IdGenerator.generateId();
+		final var endpoint = URI.create("test:/" + IdGenerator.generateId());
+		final var props = new Properties();
+		props.setProperty("iu.vault.endpoint", endpoint.toString());
+		props.setProperty("iu.vault.token", token);
+
+		final var vault = Vault.of(props, IuJsonAdapter::of);
+		assertThrows(UnsupportedOperationException.class, vault::list);
 	}
 
 	@SuppressWarnings("unchecked")
