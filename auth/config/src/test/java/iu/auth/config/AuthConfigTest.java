@@ -60,6 +60,7 @@ import edu.iu.auth.config.IuAuthorizedAudience;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuVault;
+import edu.iu.client.IuVaultKeyedValue;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
@@ -141,7 +142,9 @@ public class AuthConfigTest {
 		assertDoesNotThrow(() -> AuthConfig.addVault(LoadableConfig.class, vault));
 		assertThrows(IllegalArgumentException.class, () -> AuthConfig.addVault(LoadableConfig.class, vault));
 
-		when(vault.get(key)).thenReturn("{}");
+		final var vkv = mock(IuVaultKeyedValue.class);
+		when(vkv.getValue()).thenReturn("{}");
+		when(vault.get(key)).thenReturn(vkv);
 		assertInstanceOf(LoadableConfig.class, AuthConfig.load(LoadableConfig.class, key));
 		verify(vault).get(key);
 

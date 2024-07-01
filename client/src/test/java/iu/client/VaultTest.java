@@ -31,7 +31,6 @@
  */
 package iu.client;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -61,10 +60,12 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
+import java.util.logging.LogRecord;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatcher;
 import org.mockito.MockedStatic;
 import org.mockito.MockedStatic.Verification;
 
@@ -76,6 +77,8 @@ import edu.iu.client.IuHttp;
 import edu.iu.client.IuHttpTestCase;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuVaultKeyedValue;
+import edu.iu.client.IuVaultSecret;
 
 @SuppressWarnings("javadoc")
 public class VaultTest extends IuHttpTestCase {
@@ -136,9 +139,10 @@ public class VaultTest extends IuHttpTestCase {
 							.add("data", IuJson.object().add(key, value))) //
 					.build());
 
-			assertEquals(value, vault.get(key));
-			assertEquals(value, vault.get(key));
-			mockHttp.verify(readVault, times(2));
+			final var vs = vault.getSecret(secret);
+			assertKeyedValue(vs, key, value, vault.get(key));
+			assertKeyedValue(vs, key, value, vault.get(key));
+			mockHttp.verify(readVault, times(3));
 		}
 	}
 
@@ -167,8 +171,8 @@ public class VaultTest extends IuHttpTestCase {
 							.add("data", IuJson.object().add(key, value))) //
 					.build());
 
-			assertEquals(value, vault.get(key));
-			assertEquals(value, vault.get(key));
+			assertKeyedValue(vault.getSecret(secret), key, value, vault.get(key));
+			assertKeyedValue(vault.getSecret(secret), key, value, vault.get(key));
 			mockHttp.verify(readVault);
 		}
 	}
@@ -337,15 +341,19 @@ public class VaultTest extends IuHttpTestCase {
 							.add("data", IuJson.object().add(key, value))) //
 					.build());
 
-			assertEquals(value, vault.get(key));
-			assertEquals(value, vault.get(key));
+			final var vs = vault.getSecret(secret);
+			mockHttp.verify(read);
 			mockHttp.verify(approle);
-			mockHttp.verify(read, times(2));
+
+			assertKeyedValue(vs, key, value, vault.get(key));
+			assertKeyedValue(vs, key, value, vault.get(key));
+			mockHttp.verify(read, times(3));
+			mockHttp.verify(approle);
 
 			assertDoesNotThrow(() -> Thread.sleep(2000L));
-			assertEquals(value, vault.get(key));
+			assertKeyedValue(vs, key, value, vault.get(key));
 			mockHttp.verify(approle, times(2));
-			mockHttp.verify(read, times(3));
+			mockHttp.verify(read, times(4));
 		}
 	}
 
@@ -519,16 +527,50 @@ public class VaultTest extends IuHttpTestCase {
 			mockHttp.verify(readVault);
 
 			vs.set(key, value, String.class);
-			verify(handler).publish(argThat(a -> {
-				assertEquals(Level.CONFIG, a.getLevel());
-				assertEquals("vault:set:" + endpoint + "/" + secret + ":[" + key + "]", a.getMessage());
-				return true;
-			}));
+			verify(handler).publish(log(Level.CONFIG, "vault:set:" + endpoint + "/" + secret + ":[" + key + "]"));
 
 			mockHttp.verify(postVault);
 			mockHttp.verify(readVault, times(2));
-			assertEquals(value, vs.get(key, String.class));
+			assertKeyedValue(vs, key, value, vs.get(key, String.class));
+
+			vs.set(key, null, String.class);
+			verify(handler).publish(log(Level.CONFIG, "vault:delete:" + endpoint + "/" + secret + ":[" + key + "]"));
+			mockHttp.verify(() -> IuHttp.send(eq(vault.dataUri(secret)), argThat(a -> {
+				class Box {
+					boolean delete;
+				}
+				final var box = new Box();
+				final var rb = mock(HttpRequest.Builder.class);
+				when(rb.DELETE()).then(b -> {
+					box.delete = true;
+					return rb;
+				});
+				assertDoesNotThrow(() -> a.accept(rb));
+				verify(rb).header("X-Vault-Token", token);
+
+				return box.delete;
+			}), argThat(a -> {
+				final var r = mock(HttpResponse.class);
+				when(r.statusCode()).thenReturn(204);
+				assertDoesNotThrow(() -> a.apply(r));
+				return true;
+			})));
 		}
+	}
+
+	private static LogRecord log(Level level, String message) {
+		return argThat(new ArgumentMatcher<LogRecord>() {
+			@Override
+			public boolean matches(LogRecord a) {
+				return level.equals(a.getLevel()) //
+						&& message.equals(a.getMessage());
+			}
+
+			@Override
+			public String toString() {
+				return level + " " + message;
+			}
+		});
 	}
 
 	@Test
@@ -571,10 +613,13 @@ public class VaultTest extends IuHttpTestCase {
 							.build());
 
 			final var vs = vault.getSecret(secret);
-			assertEquals(value, vs.get(secretName + "/" + key, String.class));
+			assertKeyedValue(vs, secretName + "/" + key, value, vs.get(secretName + "/" + key, String.class));
 			assertThrows(UnsupportedOperationException.class,
 					() -> vs.set(secretName + "/" + key, IdGenerator.generateId(), String.class));
-			assertArrayEquals(new String[] { secretName + "/" + key }, vault.list());
+
+			final var list = vault.list().iterator();
+			assertTrue(list.hasNext());
+			assertKeyedValue(vs, secretName + "/" + key, value, Object.class, list.next());
 
 			mockHttp.verify(readVault, times(2));
 		}
@@ -711,7 +756,7 @@ public class VaultTest extends IuHttpTestCase {
 			mockHttp.when(postVault).thenReturn(cubbyhole ? null : IuJson.object().build());
 
 			final var vs = vault.getSecret(secret);
-			assertEquals(value, vs.get(key, String.class));
+			assertKeyedValue(vs, key, value, vs.get(key, String.class));
 			if (cubbyhole)
 				assertNull(vs.getMetadata());
 			else
@@ -727,10 +772,22 @@ public class VaultTest extends IuHttpTestCase {
 
 			mockHttp.verify(postVault);
 			mockHttp.verify(readVault, times(2));
-			assertEquals(updatedValue, vs.get(key, String.class));
+			assertKeyedValue(vs, key, updatedValue, vs.get(key, String.class));
 			if (!cubbyhole)
 				assertEquals(version + 1, vs.getMetadata().getVersion());
 		}
+	}
+
+	private void assertKeyedValue(IuVaultSecret vs, String key, String value, IuVaultKeyedValue<?> keyedValue) {
+		assertKeyedValue(vs, key, value, String.class, keyedValue);
+	}
+
+	private void assertKeyedValue(IuVaultSecret vs, String key, String value, Class<?> type,
+			IuVaultKeyedValue<?> keyedValue) {
+		assertEquals(vs, keyedValue.getSecret());
+		assertEquals(key, keyedValue.getKey());
+		assertEquals(value, keyedValue.getValue());
+		assertEquals(type, keyedValue.getType());
 	}
 
 	private UnsafeConsumer<HttpRequest.Builder> withToken(String token) {

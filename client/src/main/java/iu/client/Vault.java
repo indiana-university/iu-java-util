@@ -40,12 +40,11 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
-import java.util.Queue;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -61,8 +60,10 @@ import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuVault;
+import edu.iu.client.IuVaultKeyedValue;
 import edu.iu.client.IuVaultSecret;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
 
 /**
  * Provides access to secrets stored in HashiCorp Vault.
@@ -185,24 +186,28 @@ public final class Vault implements IuVault {
 	}
 
 	@Override
-	public String[] list() {
+	public Iterable<IuVaultKeyedValue<?>> list() {
 		if (secretNames == null)
 			throw new UnsupportedOperationException();
 
-		final Queue<String> list = new ArrayDeque<>();
-		for (String secretName : secretNames)
-			list.addAll(getSecret(secretName).getData().keySet());
+		final Map<String, IuVaultKeyedValue<?>> values = new LinkedHashMap<>();
+		for (final var secretName : secretNames) {
+			final var secret = getSecret(secretName);
+			for (final var key : secret.getData().keySet())
+				if (!values.containsKey(key))
+					values.put(key, secret.get(key, Object.class));
+		}
 
-		return list.toArray(String[]::new);
+		return values.values();
 	}
 
 	@Override
-	public String get(String name) {
+	public IuVaultKeyedValue<String> get(String name) {
 		return get(name, String.class);
 	}
 
 	@Override
-	public <T> T get(String name, Class<T> type) {
+	public <T> IuVaultKeyedValue<T> get(String name, Class<T> type) {
 		if (secretNames == null)
 			throw new UnsupportedOperationException();
 
@@ -221,6 +226,8 @@ public final class Vault implements IuVault {
 		class Ref {
 			JsonObject data;
 		}
+
+		final var dataUri = dataUri(secret);
 
 		final Ref ref;
 		final Supplier<JsonObject> dataSupplier;
@@ -281,19 +288,25 @@ public final class Vault implements IuVault {
 					dataRequestPayload = dataRequestPayloadBuilder.build().toString();
 				}
 
-				final var dataUri = dataUri(secret);
 				final HttpResponseHandler<?> responseHandler;
 				if (cubbyhole)
 					responseHandler = IuHttp.NO_CONTENT;
 				else
 					responseHandler = IuHttp.READ_JSON_OBJECT;
 
-				IuHttp.send(dataUri, rb -> {
-					rb.POST(BodyPublishers.ofString(dataRequestPayload));
-					this.authorize(rb);
-				}, responseHandler);
+				if (cubbyhole && updatedData.isEmpty())
+					IuHttp.send(dataUri, rb -> {
+						rb.DELETE();
+						this.authorize(rb);
+					}, responseHandler);
+				else
+					IuHttp.send(dataUri, rb -> {
+						rb.POST(BodyPublishers.ofString(dataRequestPayload));
+						this.authorize(rb);
+					}, responseHandler);
 
-				LOG.config(() -> "vault:set:" + dataUri + ":" + mergePatch.keySet());
+				final var delete = mergePatch.values().stream().allMatch(JsonValue.NULL::equals);
+				LOG.config(() -> "vault:" + (delete ? "delete:" : "set:") + dataUri + ":" + mergePatch.keySet());
 
 				final var updated = readSecret(secret);
 				if (secretCache == null)
@@ -302,7 +315,7 @@ public final class Vault implements IuVault {
 					secretCache.put(secret, updated);
 			});
 
-		return new VaultSecret(dataSupplier, metadataSupplier, mergePatchConsumer, valueAdapter);
+		return new VaultSecret(secret, dataUri, dataSupplier, metadataSupplier, mergePatchConsumer, valueAdapter);
 	}
 
 	private JsonObject readSecretUsingCache(String secret) {

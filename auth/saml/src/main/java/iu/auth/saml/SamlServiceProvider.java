@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.URI;
+import java.security.KeyPair;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -57,6 +58,7 @@ import edu.iu.IuWebUtils;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
+import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import iu.auth.config.AuthConfig;
@@ -98,11 +100,19 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 	 * @return {@link Decrypter}
 	 */
 	static Decrypter getDecrypter(IuPrincipalIdentity identity) {
-		final var encryptKey = identity.getSubject().getPrivateCredentials(WebKey.class).stream()
-				.filter(a -> "encrypt".equals(a.getKeyId())).findFirst().get();
+		final var encryptKey = identity.getSubject().getPrivateCredentials(WebKey.class).stream().findFirst().get();
+
+		final var pem = PemEncoded.serialize(new KeyPair(encryptKey.getPublicKey(), encryptKey.getPrivateKey()),
+				encryptKey.getCertificateChain());
+		final var sb = new StringBuilder();
+		pem.forEachRemaining(sb::append);
+
+		final var pemImported = PemEncoded.parse(sb.toString());
+		final var privateKey = pemImported.next().asPrivate("RSA");
+		final var cert = pemImported.next().asCertificate();
 
 		List<Credential> certs = new ArrayList<>();
-		certs.add(new BasicX509Credential(encryptKey.getCertificateChain()[0], encryptKey.getPrivateKey()));
+		certs.add(new BasicX509Credential(cert, privateKey));
 		KeyInfoCredentialResolver keyInfoResolver = new StaticKeyInfoCredentialResolver(certs);
 
 		return new Decrypter(null, keyInfoResolver, new InlineEncryptedKeyResolver());

@@ -31,52 +31,39 @@
  */
 package edu.iu.client;
 
-import jakarta.json.JsonObject;
-
 /**
- * Represents a HashiCorp Vault K/V secret.
+ * Encapsulates a single keyed value from HashiCorp Vault.
+ * 
+ * @param <T> value type
  */
-public interface IuVaultSecret {
+public interface IuVaultKeyedValue<T> {
 
 	/**
 	 * Gets the secret name.
 	 * 
 	 * @return secret name
 	 */
-	String getName();
+	IuVaultSecret getSecret();
 
 	/**
-	 * Gets secret data as a JSON object.
+	 * Gets the key.
 	 * 
-	 * @return {@link JsonObject}
+	 * @return key
 	 */
-	JsonObject getData();
+	String getKey();
 
 	/**
-	 * Gets K/V secret metadata.
+	 * Gets the value.
 	 * 
-	 * @return {@link IuVaultMetadata}
+	 * @return value
 	 */
-	IuVaultMetadata getMetadata();
+	T getValue();
 
 	/**
-	 * Gets a keyed value.
+	 * Gets the value type.
 	 * 
-	 * @param <T>  value type
-	 * @param key  key
-	 * @param type type
-	 * @return keyed value
+	 * @return value type
 	 */
-	<T> IuVaultKeyedValue<T> get(String key, Class<T> type);
-
-	/**
-	 * Sets a keyed value.
-	 * 
-	 * @param <T>   value type
-	 * @param key   key
-	 * @param value value
-	 * @param type  type
-	 */
-	<T> void set(String key, T value, Class<T> type);
+	Class<T> getType();
 
 }
