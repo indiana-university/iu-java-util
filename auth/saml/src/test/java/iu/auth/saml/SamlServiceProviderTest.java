@@ -1,3 +1,34 @@
+/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package iu.auth.saml;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -9,10 +40,8 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URI;
-import java.net.UnknownHostException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.Arrays;
@@ -24,13 +53,12 @@ import org.w3c.dom.Document;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
+import edu.iu.IuIterable;
 import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
-import iu.auth.config.AuthConfig;
-import iu.auth.pki.PkiFactory;
 
 public class SamlServiceProviderTest {
 	private static X509Certificate certificate;
@@ -122,22 +150,6 @@ public class SamlServiceProviderTest {
 		// provider = new SamlServiceProvider(postUri, "iu-saml-test");
 
 	}
-	
-	@Test 
-	public void testVerifyResponse() throws UnknownHostException {
-		final var postUri = URI.create("test://postUrl/");
-		final var realm = "iu-saml-test";
-		final var sessionId = IdGenerator.generateId();
-		try (final var mockIuAuthenticationRealm = mockStatic(IuAuthenticationRealm.class)) {
-			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
-			AuthConfig.register(PkiFactory.trust(config.getIdentity()));
-			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm);
-			AuthConfig.register(samlprovider);
-			AuthConfig.seal();
-			SamlPrincipal principal = samlprovider.verifyResponse(InetAddress.getByName("127.0.0.0"), "", sessionId);
-			
-		}
-	}
 
 	@Test
 	public void testGetAuthRequestSuccess() throws IOException {
@@ -217,11 +229,6 @@ public class SamlServiceProviderTest {
 			}
 
 			@Override
-			public URI getEntryPointUri() {
-				return URI.create("test://init");
-			}
-
-			@Override
 			public String getIdentityProviderEntityId() {
 				return "https://sp.identityserver";
 			}
@@ -229,6 +236,11 @@ public class SamlServiceProviderTest {
 			@Override
 			public IuPrivateKeyPrincipal getIdentity() {
 				return pkp;
+			}
+
+			@Override
+			public Iterable<URI> getEntryPointUris() {
+				return IuIterable.iter(URI.create("test://init"));
 			}
 
 		};

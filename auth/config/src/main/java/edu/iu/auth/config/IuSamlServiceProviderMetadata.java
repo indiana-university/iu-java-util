@@ -81,14 +81,6 @@ public interface IuSamlServiceProviderMetadata extends IuAuthenticationRealm {
 	}
 
 	/**
-	 * Gets the application entry point URI, where users will be returned after
-	 * successfully authenticating via the Service Provider.
-	 * 
-	 * @return {@link URI}
-	 */
-	URI getEntryPointUri();
-
-	/**
 	 * Gets allowed list of IP addresses to validate against SAML response
 	 * 
 	 * @return allowed ranged of IP addresses
@@ -111,6 +103,13 @@ public interface IuSamlServiceProviderMetadata extends IuAuthenticationRealm {
 	 * @return allowed list of assertion consumer {@link URI}
 	 */
 	Iterable<URI> getAcsUris();
+
+	/**
+	 * Gets the list of allowed application entry point {@link URI}s.
+	 * 
+	 * @return allowed list of application entry point {@link URI}
+	 */
+	Iterable<URI> getEntryPointUris();
 
 	/**
 	 * Gets the Service Provider registered Entity ID.

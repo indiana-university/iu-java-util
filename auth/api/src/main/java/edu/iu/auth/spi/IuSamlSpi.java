@@ -44,11 +44,12 @@ public interface IuSamlSpi {
 	/**
 	 * Implements {@link IuSamlSession#create(URI, Supplier)}.
 	 * 
-	 * @param postUri   HTTP POST Binding URI
-	 * @param secretKey Secret key supplier
+	 * @param entryPointUri application entry point URI
+	 * @param postUri       HTTP POST Binding URI
+	 * @param secretKey     Secret key supplier
 	 * @return {@link IuSamlSession}
 	 */
-	IuSamlSession createSession(URI postUri, Supplier<byte[]> secretKey);
+	IuSamlSession createSession(URI entryPointUri, URI postUri, Supplier<byte[]> secretKey);
 
 	/**
 	 * Implements {@link IuSamlSession#activate(String, Supplier)}.

@@ -1,3 +1,34 @@
+/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package iu.auth.saml;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -18,8 +49,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.logging.Level;
 
-import javax.security.auth.Subject;
-
 import org.jsoup.Jsoup;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,7 +59,6 @@ import edu.iu.IdGenerator;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.IuAuthenticationRealm;
-import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.auth.saml.IuSamlAssertion;
 import edu.iu.auth.saml.IuSamlSession;
@@ -48,147 +76,28 @@ public class SamlAuthenticateIT {
 
 	private static final String REALM = "iu-saml-test";
 	private static URI postUri;
-
-//	private static SamlServiceProviderConfig config;
-
-//	private static File metaData;
-//	private static String ldpMetaDataUrl;
-//	private static String providerEntityId = System.getenv("SERVICE_PROVIDER_ENTITY_ID");
-//	private static String postUrl = System.getenv("POST_URL");
-//	private static String applicationUrl = System.getenv("APPLICATION_URL");
-
-	private final class TrustedId implements IuPrincipalIdentity {
-
-		private final IuPrivateKeyPrincipal pkp;
-		private final Instant issuedAt = Instant.now();
-		// private final Instant authTime =
-		// pkp.getJwk().getCertificateChain()[0].getNotBefore().toInstant();
-		// private final Instant expires =
-		// pkp.getJwk().getCertificateChain()[0].getNotAfter().toInstant();
-
-		private TrustedId(IuPrivateKeyPrincipal pkp) {
-			this.pkp = pkp;
-		}
-
-		@Override
-		public String getName() {
-			return pkp.getJwk().getCertificateChain()[0].getSubjectX500Principal().getName();
-		}
-
-		@Override
-		public Instant getIssuedAt() {
-			// TODO Auto-generated method stub
-			return null;
-		}
-
-		@Override
-		public Instant getAuthTime() {
-			// TODO Auto-generated method stub
-			return null;
-		}
-
-		@Override
-		public Instant getExpires() {
-			// TODO Auto-generated method stub
-			return null;
-		}
-
-		@Override
-		public Subject getSubject() {
-			// TODO Auto-generated method stub
-			return null;
-		}
-
-	}
+	private static URI entryPointUri;
 
 	@BeforeAll
 	public static void setupClass() {
 		AuthConfig.addVault(IuAuthenticationRealm.class, IuVault.RUNTIME);
 		final IuSamlServiceProviderMetadata realm = IuAuthenticationRealm.of(REALM);
 		postUri = realm.getAcsUris().iterator().next();
-		
+		entryPointUri = realm.getEntryPointUris().iterator().next();
+
 		AuthConfig.register(PkiFactory.trust(realm.getIdentity()));
+
 		final var provider = new SamlServiceProvider(postUri, REALM);
 		AuthConfig.register(provider);
 		AuthConfig.seal();
 
 		final var identity = provider.serviceProviderIdentity(realm);
 		System.out.println("Verified SAML Service Provider " + identity);
-
-//		config = Realm.of(REALM);
-//
-//		String samlCertificate = IuVault.RUNTIME.get("thirdparty.saml.certificate");
-//		String privateKey = IuVault.RUNTIME.get("thirdparty.saml.privateKey");
-//		ldpMetaDataUrl = "https://idp-stg.login.iu.edu/idp/shibboleth"; // IuVault.RUNTIME.get("iu.ldp.stg.metadata.url");
-//		HttpRequest request = IuException.unchecked(() -> HttpRequest.newBuilder().GET() //
-//				.uri(new URI(ldpMetaDataUrl)) //
-//				.build());
-//
-//		final var response = IuException
-//				.unchecked(() -> HttpClient.newHttpClient().send(request, BodyHandlers.ofInputStream()));
-//		int statusCode = response.statusCode();
-//		if (statusCode == 200) {
-//			InputStream is = response.body();
-//			String xml = XmlDomUtil.xmlToString(is);
-//			metaData = IuException.unchecked(() -> File.createTempFile("idp-stg-metadta-test", ".xml"));
-//			BufferedWriter bw = IuException.unchecked(() -> new BufferedWriter(new FileWriter(metaData, true)));
-//			IuException.unchecked(() -> bw.write(xml));
-//			IuException.unchecked(() -> bw.close());
-//		}
-//
-//		IuSamlProvider provider = IuSamlProvider.from(new SamlServiceProviderConfig() {
-//
-//			@Override
-//			public String getServiceProviderEntityId() {
-//				return providerEntityId;
-//			}
-//
-//			@Override
-//			public List<URI> getMetaDataUris() {
-//				URI entityId = IuException.unchecked(() -> new URI(ldpMetaDataUrl));
-//				return Arrays.asList(entityId);
-//			}
-//
-//			@Override
-//			public X509Certificate getCertificate() {
-//				return PemEncoded.parse(samlCertificate).next().asCertificate();
-//			}
-//
-//			@Override
-//			public List<URI> getAcsUris() {
-//				return IuException.unchecked(() -> Arrays.asList(new URI(postUrl)));
-//			}
-//
-//			@Override
-//			public String getPrivateKey() {
-//				return privateKey;
-//			}
-//
-//			@Override
-//			public List<String> getAllowedRange() {
-//				return IuException.unchecked(() -> Arrays.asList("127.0.0.0"));
-//			}
-//
-//			@Override
-//			public Duration getAuthenticatedSessionTimeout() {
-//				return Duration.ofMinutes(2L);
-//			}
-//
-//			@Override
-//			public URI getApplicationUri() {
-//				return IuException.unchecked(() -> new URI(applicationUrl));
-//			}
-//
-//		});
 	}
-
-	// TODO: REMOVE or @AfterAll
-//	metaData.delete();
 
 	@BeforeEach
 	public void setup() {
 		IuTestLogger.allow(IuHttp.class.getName(), Level.FINE);
-//		IuTestLogger.allow("iu.auth.saml.SamlProvider", Level.FINE);
 	}
 
 	@Test
@@ -198,7 +107,7 @@ public class SamlAuthenticateIT {
 //		var sessionId = IdGenerator.generateId();
 //		System.out.println("sessionId " + sessionId);
 		final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
-		IuSamlSession samlSession = IuSamlSession.create(postUri, () -> secret);
+		IuSamlSession samlSession = IuSamlSession.create(entryPointUri, postUri, () -> secret);
 
 		final var location = samlSession.getRequestUri();
 		final var relayState = IuWebUtils.parseQueryString(location.getQuery()).get("RelayState").iterator().next();
@@ -251,8 +160,8 @@ public class SamlAuthenticateIT {
 		assertEquals("POST", parsedLoginForm.attr("method").toUpperCase());
 
 		final var loginFormParams = new LinkedHashMap<String, Iterable<String>>();
-		loginFormParams.put("j_username", List.of(IuVault.RUNTIME.get("test.username")));
-		loginFormParams.put("j_password", List.of(IuVault.RUNTIME.get("test.password")));
+		loginFormParams.put("j_username", List.of(IuVault.RUNTIME.get("test.username").getValue()));
+		loginFormParams.put("j_password", List.of(IuVault.RUNTIME.get("test.password").getValue()));
 		loginFormParams.put("_eventId_proceed", List.of(""));
 		final var loginFormQuery = IuWebUtils.createQueryString(loginFormParams);
 
@@ -273,14 +182,10 @@ public class SamlAuthenticateIT {
 		assertEquals(relayState, loginSuccessParams.get("RelayState"));
 		final var samlResponse = loginSuccessParams.get("SAMLResponse");
 
-		IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 authentication response.*");
-		IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 assertion.*");
-		IuTestLogger.expect(IuSubjectConfirmationValidator.class.getName(), Level.INFO, "IP address mismatch in SAML subject confirmation.*");
-		
-		IuTestLogger.allow(SamlSession.class.getName(), Level.INFO, "Invalid SAML Response");
-		IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 subject confirmation.*");
-
-		
+		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
+		IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 .*");
+		IuTestLogger.expect(IuSubjectConfirmationValidator.class.getName(), Level.INFO,
+				"IP address mismatch in SAML subject confirmation; remote address = .*");
 		assertDoesNotThrow(() -> samlSession.verifyResponse("127.0.0.1", samlResponse, relayState));
 
 		final var activatedSession = IuSamlSession.activate(samlSession.toString(), () -> secret);
@@ -309,3 +214,127 @@ public class SamlAuthenticateIT {
 		assertFalse(notOnOrAfter.isBefore(now.minus(Duration.ofMinutes(5))));
 	}
 }
+
+// TODO REVIEW AND REMOVE
+//private static SamlServiceProviderConfig config;
+
+//private static File metaData;
+//private static String ldpMetaDataUrl;
+//private static String providerEntityId = System.getenv("SERVICE_PROVIDER_ENTITY_ID");
+//private static String postUrl = System.getenv("POST_URL");
+//private static String applicationUrl = System.getenv("APPLICATION_URL");
+
+//private final class TrustedId implements IuPrincipalIdentity {
+//
+//	private final IuPrivateKeyPrincipal pkp;
+//	private final Instant issuedAt = Instant.now();
+//	// private final Instant authTime =
+//	// pkp.getJwk().getCertificateChain()[0].getNotBefore().toInstant();
+//	// private final Instant expires =
+//	// pkp.getJwk().getCertificateChain()[0].getNotAfter().toInstant();
+//
+//	private TrustedId(IuPrivateKeyPrincipal pkp) {
+//		this.pkp = pkp;
+//	}
+//
+//	@Override
+//	public String getName() {
+//		return pkp.getJwk().getCertificateChain()[0].getSubjectX500Principal().getName();
+//	}
+//
+//	@Override
+//	public Instant getIssuedAt() {
+//		// TODO Auto-generated method stub
+//		return null;
+//	}
+//
+//	@Override
+//	public Instant getAuthTime() {
+//		// TODO Auto-generated method stub
+//		return null;
+//	}
+//
+//	@Override
+//	public Instant getExpires() {
+//		// TODO Auto-generated method stub
+//		return null;
+//	}
+//
+//	@Override
+//	public Subject getSubject() {
+//		// TODO Auto-generated method stub
+//		return null;
+//	}
+//
+//}
+//
+
+//config = Realm.of(REALM);
+//
+//String samlCertificate = IuVault.RUNTIME.get("thirdparty.saml.certificate");
+//String privateKey = IuVault.RUNTIME.get("thirdparty.saml.privateKey");
+//ldpMetaDataUrl = "https://idp-stg.login.iu.edu/idp/shibboleth"; // IuVault.RUNTIME.get("iu.ldp.stg.metadata.url");
+//HttpRequest request = IuException.unchecked(() -> HttpRequest.newBuilder().GET() //
+//		.uri(new URI(ldpMetaDataUrl)) //
+//		.build());
+//
+//final var response = IuException
+//		.unchecked(() -> HttpClient.newHttpClient().send(request, BodyHandlers.ofInputStream()));
+//int statusCode = response.statusCode();
+//if (statusCode == 200) {
+//	InputStream is = response.body();
+//	String xml = XmlDomUtil.xmlToString(is);
+//	metaData = IuException.unchecked(() -> File.createTempFile("idp-stg-metadta-test", ".xml"));
+//	BufferedWriter bw = IuException.unchecked(() -> new BufferedWriter(new FileWriter(metaData, true)));
+//	IuException.unchecked(() -> bw.write(xml));
+//	IuException.unchecked(() -> bw.close());
+//}
+//
+//IuSamlProvider provider = IuSamlProvider.from(new SamlServiceProviderConfig() {
+//
+//	@Override
+//	public String getServiceProviderEntityId() {
+//		return providerEntityId;
+//	}
+//
+//	@Override
+//	public List<URI> getMetaDataUris() {
+//		URI entityId = IuException.unchecked(() -> new URI(ldpMetaDataUrl));
+//		return Arrays.asList(entityId);
+//	}
+//
+//	@Override
+//	public X509Certificate getCertificate() {
+//		return PemEncoded.parse(samlCertificate).next().asCertificate();
+//	}
+//
+//	@Override
+//	public List<URI> getAcsUris() {
+//		return IuException.unchecked(() -> Arrays.asList(new URI(postUrl)));
+//	}
+//
+//	@Override
+//	public String getPrivateKey() {
+//		return privateKey;
+//	}
+//
+//	@Override
+//	public List<String> getAllowedRange() {
+//		return IuException.unchecked(() -> Arrays.asList("127.0.0.0"));
+//	}
+//
+//	@Override
+//	public Duration getAuthenticatedSessionTimeout() {
+//		return Duration.ofMinutes(2L);
+//	}
+//
+//	@Override
+//	public URI getApplicationUri() {
+//		return IuException.unchecked(() -> new URI(applicationUrl));
+//	}
+//
+//});
+// TODO: REMOVE or @AfterAll
+//metaData.delete();
+
+//IuTestLogger.allow("iu.auth.saml.SamlProvider", Level.FINE);

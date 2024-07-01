@@ -279,6 +279,13 @@ public interface IuAuthorizationClient {
 	Set<String> getScope();
 
 	/**
+	 * Gets the allowed IP address ranges.
+	 * 
+	 * @return Set of allowed IP address ranges
+	 */
+	Set<String> getIpAllow();
+
+	/**
 	 * Defines the maximum time to live for assertions issued by this client.
 	 * 
 	 * @return {@link Duration}
@@ -291,12 +298,5 @@ public interface IuAuthorizationClient {
 	 * @return {@link Credentials}
 	 */
 	Iterable<Credentials> getCredentials();
-
-	/**
-	 * Gets the allowed IP address ranges.
-	 * 
-	 * @return Set of allowed IP address ranges
-	 */
-	Set<String> getIpAllow();
 
 }

@@ -1,3 +1,34 @@
+/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package iu.auth.saml;
 
 import java.io.ByteArrayInputStream;
@@ -5,6 +36,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.URI;
+import java.security.KeyPair;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -54,10 +86,10 @@ import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.IuWebUtils;
+import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
-import edu.iu.client.IuVault;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
@@ -65,12 +97,13 @@ import iu.auth.config.AuthConfig;
 import iu.auth.config.IuAuthConfig;
 import iu.auth.config.IuSamlServiceProvider;
 import iu.auth.config.IuTrustedIssuer;
+import iu.auth.principal.PrincipalVerifier;
 import net.shibboleth.shared.resolver.CriteriaSet;
 
 /**
  * SAML Service Provider implementation class.
  */
-public final class SamlServiceProvider implements IuSamlServiceProvider {
+public final class SamlServiceProvider implements IuSamlServiceProvider, PrincipalVerifier<SamlPrincipal> {
 	static {
 		IuObject.assertNotOpen(SamlServiceProvider.class);
 	}
@@ -86,9 +119,11 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 	 * @return {@link SamlServiceProvider}
 	 */
 	static SamlServiceProvider withBinding(URI postUri) {
-		for (final var sp : AuthConfig.get(IuSamlServiceProvider.class))
-			if (postUri.equals(sp.getAuthenticationEndpoint()))
-				return (SamlServiceProvider) sp;
+		for (final var sp : AuthConfig.get(IuSamlServiceProvider.class)) {
+			final var samlServiceProvider = (SamlServiceProvider) sp;
+			if (postUri.equals(samlServiceProvider.postUri))
+				return samlServiceProvider;
+		}
 		throw new IllegalArgumentException();
 	}
 
@@ -100,24 +135,22 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 	 * @return {@link Decrypter}
 	 */
 	static Decrypter getDecrypter(IuPrincipalIdentity identity) {
-		//String privateKey = 
-		//final var encryptKey = identity.getSubject().getPrivateCredentials(WebKey.class).stream().findFirst().get();
-		String samlCertificate = IuVault.RUNTIME.get("iu-endpoint.saml.certificate");
-		String privateKey = IuVault.RUNTIME.get("iu-endpoint.saml.privateKey");
-		
-		final var pem = PemEncoded.parse(new ByteArrayInputStream(IuText.utf8(privateKey)));
-		final var key = pem.next();
+		final var encryptKey = identity.getSubject().getPrivateCredentials(WebKey.class).stream().findFirst().get();
 
-		//List<Credential> certs = new ArrayList<>();
+		final var pem = PemEncoded.serialize(new KeyPair(encryptKey.getPublicKey(), encryptKey.getPrivateKey()),
+				encryptKey.getCertificateChain());
+		final var sb = new StringBuilder();
+		pem.forEachRemaining(sb::append);
+
+		final var pemImported = PemEncoded.parse(sb.toString());
+		final var privateKey = pemImported.next().asPrivate("RSA");
+		final var cert = pemImported.next().asCertificate();
+
 		List<Credential> certs = new ArrayList<>();
-		//certs.add(new BasicX509Credential(encryptKey.getCertificateChain()[0], encryptKey.getPrivateKey()));
-		//KeyInfoCredentialResolver keyInfoResolver = new StaticKeyInfoCredentialResolver(certs);
-
-		certs.add(new BasicX509Credential(PemEncoded.parse(samlCertificate).next().asCertificate(), key.asPrivate("RSA")));
+		certs.add(new BasicX509Credential(cert, privateKey));
 		KeyInfoCredentialResolver keyInfoResolver = new StaticKeyInfoCredentialResolver(certs);
 
 		return new Decrypter(null, keyInfoResolver, new InlineEncryptedKeyResolver());
-		//return new Decrypter(null, keyInfoResolver, new InlineEncryptedKeyResolver());
 	}
 
 	private final String realm;
@@ -165,6 +198,25 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 		return postUri;
 	}
 
+	@Override
+	public Class<SamlPrincipal> getType() {
+		return SamlPrincipal.class;
+	}
+
+	@Override
+	public boolean isAuthoritative() {
+		return true;
+	}
+
+	@Override
+	public void verify(SamlPrincipal id) throws IuAuthenticationException {
+		try {
+			id.verify(realm);
+		} catch (Throwable e) {
+			throw new IuAuthenticationException(null, e);
+		}
+	}
+
 	/**
 	 * Gets the service provider metadata for external hosting.
 	 * 
@@ -172,6 +224,19 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 	 */
 	public String getServiceProviderMetaData() {
 		return samlBuilder.getServiceProviderMetadata();
+	}
+
+	/**
+	 * Checks an entry point URI against the configured allow list.
+	 * 
+	 * @param entryPointUri entry point URI
+	 * @return true if allowed
+	 */
+	boolean isValidEntryPoint(URI entryPointUri) {
+		for (final var entryPoint : samlBuilder.entryPointUris)
+			if (entryPoint.equals(entryPointUri))
+				return true;
+		return false;
 	}
 
 	/**
