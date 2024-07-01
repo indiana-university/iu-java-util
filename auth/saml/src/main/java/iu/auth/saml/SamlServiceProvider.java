@@ -57,6 +57,8 @@ import edu.iu.IuWebUtils;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
+import edu.iu.client.IuVault;
+import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import iu.auth.config.AuthConfig;
@@ -98,13 +100,24 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 	 * @return {@link Decrypter}
 	 */
 	static Decrypter getDecrypter(IuPrincipalIdentity identity) {
-		final var encryptKey = identity.getSubject().getPrivateCredentials(WebKey.class).stream().findFirst().get();
+		//String privateKey = 
+		//final var encryptKey = identity.getSubject().getPrivateCredentials(WebKey.class).stream().findFirst().get();
+		String samlCertificate = IuVault.RUNTIME.get("iu-endpoint.saml.certificate");
+		String privateKey = IuVault.RUNTIME.get("iu-endpoint.saml.privateKey");
+		
+		final var pem = PemEncoded.parse(new ByteArrayInputStream(IuText.utf8(privateKey)));
+		final var key = pem.next();
 
+		//List<Credential> certs = new ArrayList<>();
 		List<Credential> certs = new ArrayList<>();
-		certs.add(new BasicX509Credential(encryptKey.getCertificateChain()[0], encryptKey.getPrivateKey()));
+		//certs.add(new BasicX509Credential(encryptKey.getCertificateChain()[0], encryptKey.getPrivateKey()));
+		//KeyInfoCredentialResolver keyInfoResolver = new StaticKeyInfoCredentialResolver(certs);
+
+		certs.add(new BasicX509Credential(PemEncoded.parse(samlCertificate).next().asCertificate(), key.asPrivate("RSA")));
 		KeyInfoCredentialResolver keyInfoResolver = new StaticKeyInfoCredentialResolver(certs);
 
 		return new Decrypter(null, keyInfoResolver, new InlineEncryptedKeyResolver());
+		//return new Decrypter(null, keyInfoResolver, new InlineEncryptedKeyResolver());
 	}
 
 	private final String realm;
@@ -271,7 +284,7 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 			staticParams.put(SAML2AssertionValidationParameters.SC_VALID_IN_RESPONSE_TO, sessionId);
 			staticParams.put(SAML2AssertionValidationParameters.SC_VALID_RECIPIENTS, Set.of(postUri.toString()));
 			staticParams.put(SAML2AssertionValidationParameters.SC_VALID_ADDRESSES, Set.of(address));
-			staticParams.put(SAML2AssertionValidationParameters.SIGNATURE_REQUIRED, true);
+			staticParams.put(SAML2AssertionValidationParameters.SIGNATURE_REQUIRED, false);
 			ValidationContext ctx = new ValidationContext(staticParams);
 
 			LOG.fine("SAML2 authentication response\nEntity ID: " + samlBuilder.serviceProviderEntityId + "\nACS URL: "

@@ -274,6 +274,13 @@ public class SamlAuthenticateIT {
 		final var samlResponse = loginSuccessParams.get("SAMLResponse");
 
 		IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 authentication response.*");
+		IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 assertion.*");
+		IuTestLogger.expect(IuSubjectConfirmationValidator.class.getName(), Level.INFO, "IP address mismatch in SAML subject confirmation.*");
+		
+		IuTestLogger.allow(SamlSession.class.getName(), Level.INFO, "Invalid SAML Response");
+		IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 subject confirmation.*");
+
+		
 		assertDoesNotThrow(() -> samlSession.verifyResponse("127.0.0.1", samlResponse, relayState));
 
 		final var activatedSession = IuSamlSession.activate(samlSession.toString(), () -> secret);

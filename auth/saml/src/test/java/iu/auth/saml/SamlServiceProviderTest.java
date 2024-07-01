@@ -9,8 +9,10 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.Arrays;
@@ -27,6 +29,8 @@ import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
+import iu.auth.config.AuthConfig;
+import iu.auth.pki.PkiFactory;
 
 public class SamlServiceProviderTest {
 	private static X509Certificate certificate;
@@ -117,6 +121,22 @@ public class SamlServiceProviderTest {
 		// final var postUri = URI.create("test://postUrl/");
 		// provider = new SamlServiceProvider(postUri, "iu-saml-test");
 
+	}
+	
+	@Test 
+	public void testVerifyResponse() throws UnknownHostException {
+		final var postUri = URI.create("test://postUrl/");
+		final var realm = "iu-saml-test";
+		final var sessionId = IdGenerator.generateId();
+		try (final var mockIuAuthenticationRealm = mockStatic(IuAuthenticationRealm.class)) {
+			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
+			AuthConfig.register(PkiFactory.trust(config.getIdentity()));
+			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm);
+			AuthConfig.register(samlprovider);
+			AuthConfig.seal();
+			SamlPrincipal principal = samlprovider.verifyResponse(InetAddress.getByName("127.0.0.0"), "", sessionId);
+			
+		}
 	}
 
 	@Test
