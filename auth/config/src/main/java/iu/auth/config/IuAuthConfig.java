@@ -61,7 +61,7 @@ public interface IuAuthConfig {
 	 * Gets the authentication endpoint.
 	 * 
 	 * <p>
-	 * This endpoint is responsible with authentication server interactions for an
+	 * This endpoint is responsible for authentication server interactions for an
 	 * application module. This endpoint sets an authenticated session cookie and
 	 * redirects the user to an application-specific entry point.
 	 * </p>

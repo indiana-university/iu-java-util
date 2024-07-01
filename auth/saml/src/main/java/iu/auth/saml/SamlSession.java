@@ -35,6 +35,7 @@ final class SamlSession implements IuSamlSession {
 
 	private final SamlServiceProvider serviceProvider;
 	private final URI postUri;
+	private final URI entryPointUri;
 	private final Supplier<byte[]> secretKey;
 
 	private String relayState;
@@ -44,13 +45,17 @@ final class SamlSession implements IuSamlSession {
 	/**
 	 * Constructor.
 	 * 
+	 * @param entryPointUri   Application entry point URI
 	 * @param postUri         HTTP POST Binding URI
 	 * @param serviceProvider {@link SamlServiceProvider}
 	 * @param secretKey       Secret key to use for tokenizing the session.
 	 */
-	SamlSession(URI postUri, Supplier<byte[]> secretKey) {
+	SamlSession(URI entryPointUri, URI postUri, Supplier<byte[]> secretKey) {
+		this.entryPointUri = entryPointUri;
 		this.postUri = postUri;
 		this.serviceProvider = SamlServiceProvider.withBinding(postUri);
+		if (!serviceProvider.isValidEntryPoint(entryPointUri))
+			throw new IllegalArgumentException("Invalid entry point URI");
 		this.secretKey = secretKey;
 	}
 
@@ -67,6 +72,7 @@ final class SamlSession implements IuSamlSession {
 		final var tokenPayload = decryptedToken.getPayload();
 		final var data = IuJson.parse(IuText.utf8(tokenPayload)).asJsonObject();
 
+		entryPointUri = Objects.requireNonNull(IuJson.get(data, "entry_point_uri", AuthConfig.adaptJson(URI.class)));
 		postUri = Objects.requireNonNull(IuJson.get(data, "post_uri", AuthConfig.adaptJson(URI.class)));
 		serviceProvider = SamlServiceProvider.withBinding(postUri);
 		decryptedToken.getSignatures().iterator().next().verify(tokenPayload, serviceProvider.getVerifyKey());
@@ -104,7 +110,7 @@ final class SamlSession implements IuSamlSession {
 			LOG.log(Level.INFO, "Invalid SAML Response", e);
 
 			final var challenge = new IuAuthenticationException(null, e);
-			challenge.setLocation(URI.create(serviceProvider.getAuthenticationEndpoint() + "?RelayState="
+			challenge.setLocation(URI.create(entryPointUri + "?RelayState="
 					+ URLEncoder.encode(this.relayState, StandardCharsets.UTF_8)));
 			throw challenge;
 		}
@@ -112,13 +118,19 @@ final class SamlSession implements IuSamlSession {
 
 	@Override
 	public SamlPrincipal getPrincipalIdentity() throws IuAuthenticationException {
-		IuPrincipalIdentity.verify(id, serviceProvider.getRealm());
+		try {
+			IuPrincipalIdentity.verify(id, serviceProvider.getRealm());
+		} catch (IuAuthenticationException e) {
+			e.setLocation(entryPointUri);
+			throw e;
+		}
 		return id;
 	}
 
 	@Override
 	public String toString() {
 		final var builder = IuJson.object();
+		IuJson.add(builder, "entry_point_uri", () -> entryPointUri, AuthConfig.adaptJson(URI.class));
 		IuJson.add(builder, "post_uri", () -> postUri, AuthConfig.adaptJson(URI.class));
 		builder.add("relay_state", relayState) //
 				.add("session_id", sessionId);

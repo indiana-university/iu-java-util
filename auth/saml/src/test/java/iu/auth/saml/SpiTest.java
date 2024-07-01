@@ -21,8 +21,9 @@ public class SpiTest {
 
 		final var spi = new SamlSpi();
 		final var entryPoint = IuException.unchecked(() -> new URI("http://foo"));
+		final var postUri = IuException.unchecked(() -> new URI("http://bar"));
 		try (final var mockSamlSession = mockConstruction(SamlSession.class)) {
-			final var samlSession = spi.createSession(entryPoint, () -> secret);
+			final var samlSession = spi.createSession(entryPoint, postUri, () -> secret);
 			assertSame(samlSession, mockSamlSession.constructed().get(0));
 		}
 	}

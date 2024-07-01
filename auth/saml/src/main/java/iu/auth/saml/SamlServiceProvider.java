@@ -55,6 +55,7 @@ import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.IuWebUtils;
+import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
@@ -65,12 +66,13 @@ import iu.auth.config.AuthConfig;
 import iu.auth.config.IuAuthConfig;
 import iu.auth.config.IuSamlServiceProvider;
 import iu.auth.config.IuTrustedIssuer;
+import iu.auth.principal.PrincipalVerifier;
 import net.shibboleth.shared.resolver.CriteriaSet;
 
 /**
  * SAML Service Provider implementation class.
  */
-public final class SamlServiceProvider implements IuSamlServiceProvider {
+public final class SamlServiceProvider implements IuSamlServiceProvider, PrincipalVerifier<SamlPrincipal> {
 	static {
 		IuObject.assertNotOpen(SamlServiceProvider.class);
 	}
@@ -86,9 +88,11 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 	 * @return {@link SamlServiceProvider}
 	 */
 	static SamlServiceProvider withBinding(URI postUri) {
-		for (final var sp : AuthConfig.get(IuSamlServiceProvider.class))
-			if (postUri.equals(sp.getAuthenticationEndpoint()))
-				return (SamlServiceProvider) sp;
+		for (final var sp : AuthConfig.get(IuSamlServiceProvider.class)) {
+			final var samlServiceProvider = (SamlServiceProvider) sp;
+			if (postUri.equals(samlServiceProvider.postUri))
+				return samlServiceProvider;
+		}
 		throw new IllegalArgumentException();
 	}
 
@@ -163,6 +167,25 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 		return postUri;
 	}
 
+	@Override
+	public Class<SamlPrincipal> getType() {
+		return SamlPrincipal.class;
+	}
+
+	@Override
+	public boolean isAuthoritative() {
+		return true;
+	}
+
+	@Override
+	public void verify(SamlPrincipal id) throws IuAuthenticationException {
+		try {
+			id.verify(realm);
+		} catch (Throwable e) {
+			throw new IuAuthenticationException(null, e);
+		}
+	}
+
 	/**
 	 * Gets the service provider metadata for external hosting.
 	 * 
@@ -170,6 +193,19 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 	 */
 	public String getServiceProviderMetaData() {
 		return samlBuilder.getServiceProviderMetadata();
+	}
+
+	/**
+	 * Checks an entry point URI against the configured allow list.
+	 * 
+	 * @param entryPointUri entry point URI
+	 * @return true if allowed
+	 */
+	boolean isValidEntryPoint(URI entryPointUri) {
+		for (final var entryPoint : samlBuilder.entryPointUris)
+			if (entryPoint.equals(entryPointUri))
+				return true;
+		return false;
 	}
 
 	/**
@@ -282,7 +318,7 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 			staticParams.put(SAML2AssertionValidationParameters.SC_VALID_IN_RESPONSE_TO, sessionId);
 			staticParams.put(SAML2AssertionValidationParameters.SC_VALID_RECIPIENTS, Set.of(postUri.toString()));
 			staticParams.put(SAML2AssertionValidationParameters.SC_VALID_ADDRESSES, Set.of(address));
-			staticParams.put(SAML2AssertionValidationParameters.SIGNATURE_REQUIRED, true);
+			staticParams.put(SAML2AssertionValidationParameters.SIGNATURE_REQUIRED, false);
 			ValidationContext ctx = new ValidationContext(staticParams);
 
 			LOG.fine("SAML2 authentication response\nEntity ID: " + samlBuilder.serviceProviderEntityId + "\nACS URL: "

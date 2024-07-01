@@ -24,23 +24,25 @@ public interface IuSamlSession {
 	 * Creates a new {@link IuSamlSession} for managing interactions with a locally
 	 * deployed Service Provider.
 	 * 
-	 * @param postUri   HTTP POST Binding URI
-	 * @param secretKey Supplies a secret key for tokenizing the session, must
-	 *                  contain 128, 192, or 256 bits of securely generated
-	 *                  pseudo-random data. This value <em>should</em> be encoded as
-	 *                  a cookie and stored only on the user-agent using HTTPOnly,
-	 *                  Secure, SameSite='strict', and Max-Age=900; endpoint session
-	 *                  storage <em>should</em> store the tokenized session at
-	 *                  deactivation time, keyed by the SHA-256 checksum of the
-	 *                  secret key. Secret keys and tokenized sessions may be
-	 *                  rotated at the endpoint's discretion, but <em>must</em> be
-	 *                  refreshed at least every 15 minutes to remain authenticated.
-	 *                  Shorter session inactivity duration values <em>may</em> be
-	 *                  configured.
+	 * @param entryPointUri application entry point URI
+	 * @param postUri       HTTP POST Binding URI
+	 * @param secretKey     Supplies a secret key for tokenizing the session, must
+	 *                      contain 128, 192, or 256 bits of securely generated
+	 *                      pseudo-random data. This value <em>should</em> be
+	 *                      encoded as a cookie and stored only on the user-agent
+	 *                      using HTTPOnly, Secure, SameSite='strict', and
+	 *                      Max-Age=900; endpoint session storage <em>should</em>
+	 *                      store the tokenized session at deactivation time, keyed
+	 *                      by the SHA-256 checksum of the secret key. Secret keys
+	 *                      and tokenized sessions may be rotated at the endpoint's
+	 *                      discretion, but <em>must</em> be refreshed at least
+	 *                      every 15 minutes to remain authenticated. Shorter
+	 *                      session inactivity duration values <em>may</em> be
+	 *                      configured.
 	 * @return {@link IuSamlSession}
 	 */
-	static IuSamlSession create(URI postUri, Supplier<byte[]> secretKey) {
-		return IuAuthSpiFactory.get(IuSamlSpi.class).createSession(postUri, secretKey);
+	static IuSamlSession create(URI entryPointUri, URI postUri, Supplier<byte[]> secretKey) {
+		return IuAuthSpiFactory.get(IuSamlSpi.class).createSession(entryPointUri, postUri, secretKey);
 	}
 
 	/**

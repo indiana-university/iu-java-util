@@ -74,16 +74,14 @@ final class SamlAssertion implements IuSamlAssertion {
 		LOG.fine(() -> "SAML2 assertion " + XmlDomUtil.getContent(assertion.getDOM()));
 
 		for (AttributeStatement attributeStatement : assertion.getAttributeStatements())
-			attr: for (Attribute attribute : attributeStatement.getAttributes()) {
+			for (Attribute attribute : attributeStatement.getAttributes()) {
 				final var value = readStringAttribute(attribute);
 
 				for (final var name : IuIterable.filter(IuIterable.iter( //
 						attribute.getName(), //
 						attribute.getFriendlyName() //
-				), Objects::nonNull)) {
+				), Objects::nonNull))
 					IuObject.once(value, attributes.put(name, value));
-					break attr; // only use friendlyName when name is null
-				}
 			}
 
 		final Conditions conditions = assertion.getConditions();
@@ -107,8 +105,8 @@ final class SamlAssertion implements IuSamlAssertion {
 		final var claims = value.asJsonObject();
 		notBefore = IuJson.get(claims, "nbf", NUMERIC_DATE);
 		notOnOrAfter = IuJson.get(claims, "exp", NUMERIC_DATE);
-		authnInstant = IuJson.get(claims, "auth_time", NUMERIC_DATE);
-		attributes = IuJson.get(claims, "attribute_statements");
+		authnInstant = IuJson.get(claims, "authn_instant", NUMERIC_DATE);
+		attributes = IuJson.get(claims, "attribute_statement");
 	}
 
 	@Override

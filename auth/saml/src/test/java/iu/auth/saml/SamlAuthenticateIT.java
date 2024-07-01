@@ -45,13 +45,15 @@ public class SamlAuthenticateIT {
 
 	private static final String REALM = "iu-saml-test";
 	private static URI postUri;
+	private static URI entryPointUri;
 
 	@BeforeAll
 	public static void setupClass() {
 		AuthConfig.addVault(IuAuthenticationRealm.class, IuVault.RUNTIME);
 		final IuSamlServiceProviderMetadata realm = IuAuthenticationRealm.of(REALM);
 		postUri = realm.getAcsUris().iterator().next();
-		
+		entryPointUri = realm.getEntryPointUris().iterator().next();
+
 		AuthConfig.register(PkiFactory.trust(realm.getIdentity()));
 
 		final var provider = new SamlServiceProvider(postUri, REALM);
@@ -74,7 +76,7 @@ public class SamlAuthenticateIT {
 //		var sessionId = IdGenerator.generateId();
 //		System.out.println("sessionId " + sessionId);
 		final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
-		IuSamlSession samlSession = IuSamlSession.create(postUri, () -> secret);
+		IuSamlSession samlSession = IuSamlSession.create(entryPointUri, postUri, () -> secret);
 
 		final var location = samlSession.getRequestUri();
 		final var relayState = IuWebUtils.parseQueryString(location.getQuery()).get("RelayState").iterator().next();
@@ -127,8 +129,8 @@ public class SamlAuthenticateIT {
 		assertEquals("POST", parsedLoginForm.attr("method").toUpperCase());
 
 		final var loginFormParams = new LinkedHashMap<String, Iterable<String>>();
-		loginFormParams.put("j_username", List.of(IuVault.RUNTIME.get("test.username")));
-		loginFormParams.put("j_password", List.of(IuVault.RUNTIME.get("test.password")));
+		loginFormParams.put("j_username", List.of(IuVault.RUNTIME.get("test.username").getValue()));
+		loginFormParams.put("j_password", List.of(IuVault.RUNTIME.get("test.password").getValue()));
 		loginFormParams.put("_eventId_proceed", List.of(""));
 		final var loginFormQuery = IuWebUtils.createQueryString(loginFormParams);
 
@@ -149,7 +151,10 @@ public class SamlAuthenticateIT {
 		assertEquals(relayState, loginSuccessParams.get("RelayState"));
 		final var samlResponse = loginSuccessParams.get("SAMLResponse");
 
-		IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 authentication response.*");
+		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
+		IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 .*");
+		IuTestLogger.expect(IuSubjectConfirmationValidator.class.getName(), Level.INFO,
+				"IP address mismatch in SAML subject confirmation; remote address = .*");
 		assertDoesNotThrow(() -> samlSession.verifyResponse("127.0.0.1", samlResponse, relayState));
 
 		final var activatedSession = IuSamlSession.activate(samlSession.toString(), () -> secret);

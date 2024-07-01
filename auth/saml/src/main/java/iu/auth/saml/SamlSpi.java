@@ -22,8 +22,8 @@ public class SamlSpi implements IuSamlSpi {
 	}
 
 	@Override
-	public IuSamlSession createSession(URI postUri, Supplier<byte[]> secretKey) {
-		return new SamlSession(postUri, secretKey);
+	public IuSamlSession createSession(URI entryPointUri, URI postUri, Supplier<byte[]> secretKey) {
+		return new SamlSession(entryPointUri, postUri, secretKey);
 	}
 
 	@Override

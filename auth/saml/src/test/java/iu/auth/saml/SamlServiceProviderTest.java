@@ -22,6 +22,7 @@ import org.w3c.dom.Document;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
+import edu.iu.IuIterable;
 import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
@@ -197,11 +198,6 @@ public class SamlServiceProviderTest {
 			}
 
 			@Override
-			public URI getEntryPointUri() {
-				return URI.create("test://init");
-			}
-
-			@Override
 			public String getIdentityProviderEntityId() {
 				return "https://sp.identityserver";
 			}
@@ -209,6 +205,11 @@ public class SamlServiceProviderTest {
 			@Override
 			public IuPrivateKeyPrincipal getIdentity() {
 				return pkp;
+			}
+
+			@Override
+			public Iterable<URI> getEntryPointUris() {
+				return IuIterable.iter(URI.create("test://init"));
 			}
 
 		};
