@@ -160,8 +160,8 @@ public class SamlAuthenticateIT {
 		assertEquals("POST", parsedLoginForm.attr("method").toUpperCase());
 
 		final var loginFormParams = new LinkedHashMap<String, Iterable<String>>();
-		loginFormParams.put("j_username", List.of(IuVault.RUNTIME.get("test.username").getValue()));
-		loginFormParams.put("j_password", List.of(IuVault.RUNTIME.get("test.password").getValue()));
+		loginFormParams.put("j_username", List.of(IuVault.RUNTIME.get("test.username")));
+		loginFormParams.put("j_password", List.of(IuVault.RUNTIME.get("test.password")));
 		loginFormParams.put("_eventId_proceed", List.of(""));
 		final var loginFormQuery = IuWebUtils.createQueryString(loginFormParams);
 

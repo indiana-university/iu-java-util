@@ -31,21 +31,31 @@
  */
 package iu.auth.saml;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+
+import javax.security.auth.Subject;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -54,11 +64,18 @@ import org.w3c.dom.Document;
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.IuIterable;
+import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
+import iu.auth.config.AuthConfig;
+import iu.auth.config.IuTrustedIssuer;
+import iu.auth.pki.PkiFactory;
+import iu.auth.principal.PrincipalVerifier;
+
+
 
 public class SamlServiceProviderTest {
 	private static X509Certificate certificate;
@@ -68,9 +85,10 @@ public class SamlServiceProviderTest {
 	private static final String MAIL_OID = "urn:oid:0.9.2342.19200300.100.1.3";
 	private static final String DISPLAY_NAME_OID = "urn:oid:2.16.840.1.113730.3.1.241";
 	private static final String EDU_PERSON_PRINCIPAL_NAME_OID = "urn:oid:1.3.6.1.4.1.5923.1.1.1.6";
-
+	
 	@BeforeAll
 	static void setup() throws MalformedURLException {
+		
 		// This is a sample key for testing and demonstration purpose only.
 		// ---- NOT FOR PRODUCTION USE -----
 		// $ openssl genrsa | tee /tmp/k
@@ -142,6 +160,7 @@ public class SamlServiceProviderTest {
 		final var mockPkp = mock(IuPrivateKeyPrincipal.class);
 		when(mockPkp.getEncryptJwk()).thenReturn(mockWebKey);
 		when(mockPkp.getAlg()).thenReturn(WebKey.Algorithm.RS256);
+		when(mockPkp.getJwk()).thenReturn(mockWebKey);
 		final var uri = mock(URI.class);
 		when(uri.toURL()).thenReturn(metaDataFile.toPath().toUri().toURL());
 
@@ -197,7 +216,113 @@ public class SamlServiceProviderTest {
 	public void testGetDecrypterSuccess() {
 		// assertNotNull(SamlServiceProvider.getDecrypter(provider.getClient()));
 	}
+	
+	@Test 
+	public void testVerifyResponse() throws UnknownHostException {
+	
+		final var postUri = URI.create("test://postUrl/");
+		final var realm = "iu-saml-test";
+		final var sessionId = IdGenerator.generateId();
+		final var id = new TestId();
+		AuthConfig.register(new Verifier(id.getName(), true));
+		
+		final var mockIuTrustedIssuer = mock(IuTrustedIssuer.class);
+		when(mockIuTrustedIssuer.getPrincipal(any())).thenReturn(id);
+		try (final var mockIuAuthenticationRealm = mockStatic(IuAuthenticationRealm.class);
+			final var mockAuthConfig = mockStatic(AuthConfig.class, CALLS_REAL_METHODS)) {
+			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class)).thenReturn(Arrays.asList(mockIuTrustedIssuer));
+			
+			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
+			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm);
+			AuthConfig.register(samlprovider);
+			AuthConfig.seal();
+			assertThrows(IllegalStateException.class, () -> 
+			samlprovider.verifyResponse(InetAddress.getByName("127.0.0.0"), "", sessionId));
 
+		}
+	}
+	
+	
+	private static final class Verifier implements PrincipalVerifier<TestId> {
+		private final String realm;
+		private final boolean authoritative;
+
+		private Verifier(String realm, boolean authoritative) {
+			this.realm = realm;
+			this.authoritative = authoritative;
+		}
+
+		@Override
+		public Class<TestId> getType() {
+			return TestId.class;
+		}
+
+		@Override
+		public String getRealm() {
+			return realm;
+		}
+
+		@Override
+		public boolean isAuthoritative() {
+			return authoritative;
+		}
+
+		@Override
+		public void verify(TestId id) {
+			assertEquals(realm, id.getName());
+		}
+
+		@Override
+		public String getAuthScheme() {
+			return null;
+		}
+
+		@Override
+		public URI getAuthenticationEndpoint() {
+			return null;
+		}
+	}
+
+	
+	
+	private static final class TestId implements IuPrincipalIdentity {
+
+		//private final String realm;
+		private final String name = IdGenerator.generateId();
+		private final Instant issuedAt = Instant.now();
+		private final Instant authTime = issuedAt.truncatedTo(ChronoUnit.SECONDS);
+		private final Instant expires = authTime.plusSeconds(5L);
+
+		/*private TestId(String realm) {
+			this.realm = realm;
+		}*/
+
+		@Override
+		public String getName() {
+			return name;
+		}
+
+		@Override
+		public Instant getIssuedAt() {
+			return issuedAt;
+		}
+
+		@Override
+		public Instant getAuthTime() {
+			return authTime;
+		}
+
+		@Override
+		public Instant getExpires() {
+			return expires;
+		}
+
+		@Override
+		public Subject getSubject() {
+			return new Subject(true, Set.of(this), Set.of(), Set.of());
+		}
+	}
+	
 	static IuSamlServiceProviderMetadata getConfig(List<URI> metadataUris, String serviceProviderEntityId,
 			IuPrivateKeyPrincipal pkp) {
 		final var config = new IuSamlServiceProviderMetadata() {

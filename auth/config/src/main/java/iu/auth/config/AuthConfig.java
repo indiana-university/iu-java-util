@@ -128,7 +128,7 @@ public class AuthConfig {
 	 */
 	public static <T> T load(Class<T> configInterface, String key, Function<JsonObject, Class<? extends T>> specifier) {
 		final var vault = Objects.requireNonNull(VAULT.get(configInterface), "not configured");
-		final var config = IuJson.parse(vault.get(key).getValue()).asJsonObject();
+		final var config = IuJson.parse(vault.get(key)).asJsonObject();
 		return IuJson.wrap(config, specifier.apply(config), AuthConfig::adaptJson);
 	}
 

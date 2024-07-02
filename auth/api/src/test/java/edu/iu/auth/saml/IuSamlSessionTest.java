@@ -52,13 +52,14 @@ public class IuSamlSessionTest {
 	@Test
 	public void testCreate() {
 		final var postUri = mock(URI.class);
+		final var entryPointUri = mock(URI.class);
 		final var secretKey = mock(Supplier.class);
 		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
 			final var mockSpi = mock(IuSamlSpi.class);
 			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuSamlSpi.class)).thenReturn(mockSpi);
 			final var mockSession = mock(IuSamlSession.class);
-			when(mockSpi.createSession(postUri, secretKey)).thenReturn(mockSession);
-			assertSame(mockSession, IuSamlSession.create(postUri, secretKey));
+			when(mockSpi.createSession(entryPointUri, postUri, secretKey)).thenReturn(mockSession);
+			assertSame(mockSession, IuSamlSession.create(entryPointUri, postUri, secretKey));
 		}
 	}
 
