@@ -14,14 +14,12 @@ import edu.iu.IuText;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.saml.IuSamlSession;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
-import edu.iu.crypt.WebKey;
-import edu.iu.crypt.WebKey.Algorithm;
-import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebSignature;
 import edu.iu.crypt.WebSignedPayload;
 import iu.auth.config.AuthConfig;
@@ -36,7 +34,7 @@ final class SamlSession implements IuSamlSession {
 	private final SamlServiceProvider serviceProvider;
 	private final URI postUri;
 	private final URI entryPointUri;
-	private final Supplier<byte[]> secretKey;
+	private final Supplier<IuPrivateKeyPrincipal> pkp;
 
 	private String relayState;
 	private String sessionId;
@@ -48,15 +46,16 @@ final class SamlSession implements IuSamlSession {
 	 * @param entryPointUri   Application entry point URI
 	 * @param postUri         HTTP POST Binding URI
 	 * @param serviceProvider {@link SamlServiceProvider}
-	 * @param secretKey       Secret key to use for tokenizing the session.
+	 * @param pkp             Supplies the private key principal identity of the
+	 *                        session token recipient
 	 */
-	SamlSession(URI entryPointUri, URI postUri, Supplier<byte[]> secretKey) {
+	SamlSession(URI entryPointUri, URI postUri, Supplier<IuPrivateKeyPrincipal> pkp) {
 		this.entryPointUri = entryPointUri;
 		this.postUri = postUri;
 		this.serviceProvider = SamlServiceProvider.withBinding(postUri);
 		if (!serviceProvider.isValidEntryPoint(entryPointUri))
 			throw new IllegalArgumentException("Invalid entry point URI");
-		this.secretKey = secretKey;
+		this.pkp = pkp;
 	}
 
 	/**
@@ -64,10 +63,11 @@ final class SamlSession implements IuSamlSession {
 	 * 
 	 * @param serviceProvider {@link SamlServiceProvider}
 	 * @param token           tokenized session
-	 * @param secretKey       Secret key to use for detokenizing the session.
+	 * @param pkp             Supplies the private key principal identity of the
+	 *                        session token recipient
 	 */
-	SamlSession(String token, Supplier<byte[]> secretKey) {
-		final var key = WebKey.builder(Type.RAW).key(secretKey.get()).build();
+	SamlSession(String token, Supplier<IuPrivateKeyPrincipal> pkp) {
+		final var key = pkp.get().getJwk();
 		final var decryptedToken = WebSignedPayload.parse(WebEncryption.parse(token).decryptText(key));
 		final var tokenPayload = decryptedToken.getPayload();
 		final var data = IuJson.parse(IuText.utf8(tokenPayload)).asJsonObject();
@@ -77,7 +77,7 @@ final class SamlSession implements IuSamlSession {
 		serviceProvider = SamlServiceProvider.withBinding(postUri);
 		decryptedToken.getSignatures().iterator().next().verify(tokenPayload, serviceProvider.getVerifyKey());
 
-		this.secretKey = secretKey;
+		this.pkp = pkp;
 		relayState = IuJson.get(data, "relay_state");
 		sessionId = IuJson.get(data, "session_id");
 		id = IuJson.get(data, "id", SamlPrincipal.JSON);
@@ -110,8 +110,8 @@ final class SamlSession implements IuSamlSession {
 			LOG.log(Level.INFO, "Invalid SAML Response", e);
 
 			final var challenge = new IuAuthenticationException(null, e);
-			challenge.setLocation(URI.create(entryPointUri + "?RelayState="
-					+ URLEncoder.encode(this.relayState, StandardCharsets.UTF_8)));
+			challenge.setLocation(URI.create(
+					entryPointUri + "?RelayState=" + URLEncoder.encode(this.relayState, StandardCharsets.UTF_8)));
 			throw challenge;
 		}
 	}
@@ -136,25 +136,10 @@ final class SamlSession implements IuSamlSession {
 				.add("session_id", sessionId);
 		IuJson.add(builder, "id", () -> id, IuJsonAdapter.to(a -> IuJson.parse(a.toString())));
 
-		final var secretKey = this.secretKey.get();
-		final Encryption enc;
-		switch (secretKey.length) {
-		case 16:
-			enc = Encryption.A128GCM;
-			break;
-		case 24:
-			enc = Encryption.A192GCM;
-			break;
-		case 32:
-			enc = Encryption.A256GCM;
-			break;
-		default:
-			throw new IllegalStateException("secret key size");
-		}
-
-		return WebEncryption.builder(enc).compact() //
-				.addRecipient(Algorithm.DIRECT) //
-				.key(WebKey.builder(Type.RAW).key(secretKey).build()) //
+		final var pkp = this.pkp.get();
+		return WebEncryption.builder(Encryption.A256GCM).compact() //
+				.addRecipient(pkp.getEncryptAlg()) //
+				.key(pkp.getEncryptJwk()) //
 				.encrypt(WebSignature.builder(serviceProvider.getVerifyAlg()).compact()
 						.key(serviceProvider.getVerifyKey()) //
 						.sign(builder.build().toString()).compact()) //
