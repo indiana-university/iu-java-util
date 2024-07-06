@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JwsBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Crypto and PKI Utilities</a> &gt; <a href="index.source.html" class="el_package">iu.crypt</a> &gt; <span class="el_source">JwsBuilder.java</span></div><h1>JwsBuilder.java</h1><pre class="source lang-java linenums">/*
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JwsBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Web Cryptography Utilities</a> &gt; <a href="index.source.html" class="el_package">iu.crypt</a> &gt; <span class="el_source">JwsBuilder.java</span></div><h1>JwsBuilder.java</h1><pre class="source lang-java linenums">/*
  * Copyright © 2024 Indiana University
  * All rights reserved.
  *
@@ -268,18 +268,19 @@ public class JwsBuilder implements Builder&lt;JwsBuilder&gt; {
 <span class="fc" id="L268">						sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA512.getDigestAlgorithm(), &quot;MGF1&quot;,</span>
 								MGF1ParameterSpec.SHA512, algorithm.size / 8, 1));
 <span class="fc" id="L270">						break;</span>
+
 					default:
 						break;
 					}
-<span class="fc" id="L274">					sig.initSign(key.getPrivateKey());</span>
-<span class="fc" id="L275">					sig.update(dataToSign);</span>
-<span class="fc" id="L276">					return sig.sign();</span>
+<span class="fc" id="L275">					sig.initSign(key.getPrivateKey());</span>
+<span class="fc" id="L276">					sig.update(dataToSign);</span>
+<span class="fc" id="L277">					return Jws.fromJce(key.getType(), algorithm, sig.sign());</span>
 				});
 
-<span class="fc" id="L279">			signatures.add(new Jws(protectedHeader, header, signature));</span>
-<span class="fc" id="L280">		}</span>
+<span class="fc" id="L280">			signatures.add(new Jws(protectedHeader, header, signature));</span>
+<span class="fc" id="L281">		}</span>
 
-<span class="fc" id="L282">		return new JwsSignedPayload(payload, Collections.unmodifiableCollection(signatures));</span>
+<span class="fc" id="L283">		return new JwsSignedPayload(payload, Collections.unmodifiableCollection(signatures));</span>
 	}
 
 }

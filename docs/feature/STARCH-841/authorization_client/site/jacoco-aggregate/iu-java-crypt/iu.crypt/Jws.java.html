@@ -31,6 +31,8 @@
  */
 package iu.crypt;
 
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.security.Signature;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
@@ -47,6 +49,8 @@ import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebSignature;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
@@ -68,77 +72,207 @@ class Jws implements WebSignature {
 	 * @param header          JWS unprotected header
 	 * @param signature       signature
 	 */
-<span class="fc" id="L71">	Jws(JsonObject protectedHeader, Jose header, byte[] signature) {</span>
-<span class="fc" id="L72">		this.protectedHeader = protectedHeader;</span>
-<span class="fc" id="L73">		this.header = header;</span>
-<span class="fc" id="L74">		this.signature = signature;</span>
+<span class="fc" id="L75">	Jws(JsonObject protectedHeader, Jose header, byte[] signature) {</span>
+<span class="fc" id="L76">		this.protectedHeader = protectedHeader;</span>
+<span class="fc" id="L77">		this.header = header;</span>
+<span class="fc" id="L78">		this.signature = signature;</span>
 
-<span class="fc bfc" id="L76" title="All 2 branches covered.">		if (protectedHeader != null)</span>
-<span class="fc bfc" id="L77" title="All 2 branches covered.">			for (final var protectedEntry : protectedHeader.entrySet()) {</span>
-<span class="fc" id="L78">				final var name = protectedEntry.getKey();</span>
-<span class="fc" id="L79">				final var value = protectedEntry.getValue();</span>
-<span class="fc" id="L80">				final var param = Param.from(name);</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">		if (protectedHeader != null)</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">			for (final var protectedEntry : protectedHeader.entrySet()) {</span>
+<span class="fc" id="L82">				final var name = protectedEntry.getKey();</span>
+<span class="fc" id="L83">				final var value = protectedEntry.getValue();</span>
+<span class="fc" id="L84">				final var param = Param.from(name);</span>
 
-<span class="fc bfc" id="L82" title="All 2 branches covered.">				if (param == null) {</span>
-<span class="fc" id="L83">					final var ext = Jose.getExtension(name);</span>
-<span class="fc bfc" id="L84" title="All 2 branches covered.">					if (!ext.fromJson(value).equals(header.getExtendedParameter(name)))</span>
-<span class="fc" id="L85">						throw new IllegalArgumentException(name + &quot; must match protected header&quot;);</span>
-<span class="fc bfc" id="L86" title="All 2 branches covered.">				} else if (!param.json().fromJson(value).equals(param.get(header)))</span>
-<span class="fc" id="L87">					throw new IllegalArgumentException(name + &quot; must match protected header&quot;);</span>
-<span class="fc" id="L88">			}</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">				if (param == null) {</span>
+<span class="fc" id="L87">					final var ext = Jose.getExtension(name);</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">					if (!ext.fromJson(value).equals(header.getExtendedParameter(name)))</span>
+<span class="fc" id="L89">						throw new IllegalArgumentException(name + &quot; must match protected header&quot;);</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">				} else if (!param.json().fromJson(value).equals(param.get(header)))</span>
+<span class="fc" id="L91">					throw new IllegalArgumentException(name + &quot; must match protected header&quot;);</span>
+<span class="fc" id="L92">			}</span>
 
-<span class="fc bfc" id="L90" title="All 2 branches covered.">		for (final var name : header.extendedParameters().keySet())</span>
-<span class="fc" id="L91">			Jose.getExtension(name).verify(this);</span>
-<span class="fc" id="L92">	}</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">		for (final var name : header.extendedParameters().keySet())</span>
+<span class="fc" id="L95">			Jose.getExtension(name).verify(this);</span>
+<span class="fc" id="L96">	}</span>
 
 	@Override
 	public WebCryptoHeader getHeader() {
-<span class="fc" id="L96">		return header;</span>
+<span class="fc" id="L100">		return header;</span>
 	}
 
 	@Override
 	public byte[] getSignature() {
-<span class="fc" id="L101">		return signature;</span>
+<span class="fc" id="L105">		return signature;</span>
 	}
 
 	@Override
 	public void verify(byte[] payload, WebKey key) {
-<span class="fc" id="L106">		final var algorithm = header.getAlgorithm();</span>
-<span class="fc" id="L107">		final var signingInput = getSignatureInput(payload);</span>
-<span class="fc" id="L108">		final var dataToSign = IuText.utf8(signingInput);</span>
+<span class="fc" id="L110">		final var algorithm = header.getAlgorithm();</span>
+<span class="fc" id="L111">		final var signingInput = getSignatureInput(payload);</span>
+<span class="fc" id="L112">		final var dataToSign = IuText.utf8(signingInput);</span>
 
-<span class="fc bfc" id="L110" title="All 2 branches covered.">		if (algorithm.algorithm.startsWith(&quot;Hmac&quot;)) {</span>
-<span class="fc bfc" id="L111" title="All 2 branches covered.">			if (!Arrays.equals(signature, IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L112">				final var mac = Mac.getInstance(algorithm.algorithm);</span>
-<span class="fc" id="L113">				mac.init(new SecretKeySpec(key.getKey(), &quot;Hmac&quot;));</span>
-<span class="fc" id="L114">				return mac.doFinal(dataToSign);</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">		if (algorithm.algorithm.startsWith(&quot;Hmac&quot;)) {</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">			if (!Arrays.equals(signature, IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L116">				final var mac = Mac.getInstance(algorithm.algorithm);</span>
+<span class="fc" id="L117">				mac.init(new SecretKeySpec(key.getKey(), &quot;Hmac&quot;));</span>
+<span class="fc" id="L118">				return mac.doFinal(dataToSign);</span>
 			})))
-<span class="fc" id="L116">				throw new IllegalArgumentException(algorithm.algorithm + &quot; verification failed&quot;);</span>
+<span class="fc" id="L120">				throw new IllegalArgumentException(algorithm.algorithm + &quot; verification failed&quot;);</span>
 		} else
-<span class="fc" id="L118">			IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L119">				final var sig = Signature.getInstance(algorithm.algorithm);</span>
-<span class="fc bfc" id="L120" title="All 4 branches covered.">				switch (algorithm) {</span>
+<span class="fc" id="L122">			IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L123">				final var sig = Signature.getInstance(algorithm.algorithm);</span>
+<span class="fc bfc" id="L124" title="All 4 branches covered.">				switch (algorithm) {</span>
 				case PS256:
-<span class="fc" id="L122">					sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA256.getDigestAlgorithm(), &quot;MGF1&quot;,</span>
+<span class="fc" id="L126">					sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA256.getDigestAlgorithm(), &quot;MGF1&quot;,</span>
 							MGF1ParameterSpec.SHA256, algorithm.size / 8, 1));
-<span class="fc" id="L124">					break;</span>
-				case PS384:
-<span class="fc" id="L126">					sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA384.getDigestAlgorithm(), &quot;MGF1&quot;,</span>
-							MGF1ParameterSpec.SHA384, algorithm.size / 8, 1));
 <span class="fc" id="L128">					break;</span>
-				case PS512:
-<span class="fc" id="L130">					sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA512.getDigestAlgorithm(), &quot;MGF1&quot;,</span>
-							MGF1ParameterSpec.SHA512, algorithm.size / 8, 1));
+				case PS384:
+<span class="fc" id="L130">					sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA384.getDigestAlgorithm(), &quot;MGF1&quot;,</span>
+							MGF1ParameterSpec.SHA384, algorithm.size / 8, 1));
 <span class="fc" id="L132">					break;</span>
+				case PS512:
+<span class="fc" id="L134">					sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA512.getDigestAlgorithm(), &quot;MGF1&quot;,</span>
+							MGF1ParameterSpec.SHA512, algorithm.size / 8, 1));
+<span class="fc" id="L136">					break;</span>
 				default:
 					break;
 				}
-<span class="fc" id="L136">				sig.initVerify(key.getPublicKey());</span>
-<span class="fc" id="L137">				sig.update(dataToSign);</span>
-<span class="fc bfc" id="L138" title="All 2 branches covered.">				if (!sig.verify(signature))</span>
-<span class="fc" id="L139">					throw new IllegalArgumentException(algorithm.algorithm + &quot; verification failed&quot;);</span>
-<span class="fc" id="L140">			});</span>
-<span class="fc" id="L141">	}</span>
+<span class="fc" id="L140">				sig.initVerify(key.getPublicKey());</span>
+<span class="fc" id="L141">				sig.update(dataToSign);</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">				if (!sig.verify(toJce(key.getType(), algorithm, signature)))</span>
+<span class="fc" id="L143">					throw new IllegalArgumentException(algorithm.algorithm + &quot; verification failed&quot;);</span>
+<span class="fc" id="L144">			});</span>
+<span class="fc" id="L145">	}</span>
+
+	/**
+	 * Gets the expected signature component length by key type.
+	 * 
+	 * @param type key type
+	 * @return expected signature component length
+	 */
+	static int componentLength(Type type) {
+<span class="fc bfc" id="L154" title="All 4 branches covered.">		switch (type) {</span>
+		case EC_P256:
+<span class="fc" id="L156">			return 32;</span>
+		case EC_P384:
+<span class="fc" id="L158">			return 48;</span>
+		case EC_P521:
+<span class="fc" id="L160">			return 66;</span>
+		default:
+<span class="fc" id="L162">			throw new IllegalArgumentException();</span>
+		}
+	}
+
+	/**
+	 * Converts a signature from JWA format to JCE
+	 * 
+	 * @param type         key type
+	 * @param algorithm    algorithm
+	 * @param jwaSignature JWA formatted signature
+	 * @return JCE formatted signature
+	 */
+	static byte[] toJce(Type type, Algorithm algorithm, byte[] jwaSignature) {
+<span class="fc bfc" id="L175" title="All 2 branches covered.">		switch (algorithm) {</span>
+		case ES256:
+		case ES384:
+		case ES512: {
+			// Validate expected length of R || S
+<span class="fc" id="L180">			final int alen = componentLength(type);</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">			if (jwaSignature.length != alen * 2)</span>
+<span class="fc" id="L182">				throw new IllegalArgumentException();</span>
+
+			// Convert R and S to Java encoded BigInteger (w/ signum)
+<span class="fc" id="L185">			final var ri = UnsignedBigInteger.bigInt(Arrays.copyOf(jwaSignature, alen));</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">			if (ri.compareTo(BigInteger.ZERO) &lt;= 0)</span>
+<span class="fc" id="L187">				throw new IllegalArgumentException();</span>
+<span class="fc" id="L188">			final var r = ri.toByteArray();</span>
+
+<span class="fc" id="L190">			final var si = UnsignedBigInteger.bigInt(Arrays.copyOfRange(jwaSignature, alen, alen * 2));</span>
+<span class="fc bfc" id="L191" title="All 2 branches covered.">			if (si.compareTo(BigInteger.ZERO) &lt;= 0)</span>
+<span class="fc" id="L192">				throw new IllegalArgumentException();</span>
+<span class="fc" id="L193">			final var s = si.toByteArray();</span>
+
+<span class="fc" id="L195">			final var tlen = r.length + s.length + 4;</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">			final var sequenceEncodingBytes = type.equals(Type.EC_P521) ? 3 : 2;</span>
+
+			// converted length = includes 6 bytes for DER encoding
+<span class="fc" id="L199">			final var converted = ByteBuffer.wrap(new byte[tlen + sequenceEncodingBytes]);</span>
+<span class="fc" id="L200">			converted.put((byte) 0x30); // DER constructed sequence</span>
+<span class="fc bfc" id="L201" title="All 2 branches covered.">			if (type.equals(Type.EC_P521)) // DER single octet extended length (&gt; 127)</span>
+<span class="fc" id="L202">				converted.put((byte) 0x81);</span>
+<span class="fc" id="L203">			converted.put((byte) tlen); // Sequence length</span>
+<span class="fc" id="L204">			converted.put((byte) 0x02); // DER integer</span>
+<span class="fc" id="L205">			converted.put((byte) r.length);</span>
+<span class="fc" id="L206">			converted.put(r);</span>
+<span class="fc" id="L207">			converted.put((byte) 0x02); // DER integer</span>
+<span class="fc" id="L208">			converted.put((byte) s.length);</span>
+<span class="fc" id="L209">			converted.put(s);</span>
+<span class="fc" id="L210">			return converted.array();</span>
+		}
+
+		default:
+<span class="fc" id="L214">			return jwaSignature;</span>
+		}
+	}
+
+	/**
+	 * Converts a signature from JCE format to JWA
+	 * 
+	 * @param type         key type
+	 * @param algorithm    algorithm
+	 * @param jceSignature JCE calculated signature
+	 * @return JWA formatted signature
+	 */
+	static byte[] fromJce(Type type, Algorithm algorithm, byte[] jceSignature) {
+<span class="fc bfc" id="L227" title="All 2 branches covered.">		switch (algorithm) {</span>
+		case ES256:
+		case ES384:
+		case ES512: {
+<span class="fc" id="L231">			final var alen = componentLength(type); // expected length of R and S values</span>
+<span class="fc bfc" id="L232" title="All 2 branches covered.">			if (jceSignature.length &lt; 8) // at least one non-zero byte per component value</span>
+<span class="fc" id="L233">				throw new IllegalArgumentException();</span>
+
+<span class="fc" id="L235">			final var original = ByteBuffer.wrap(jceSignature);</span>
+<span class="fc" id="L236">			final var converted = ByteBuffer.wrap(new byte[alen * 2]);</span>
+
+			// Assert DER constructed sequence
+<span class="fc bfc" id="L239" title="All 2 branches covered.">			if (original.get() != 0x30)</span>
+<span class="fc" id="L240">				throw new IllegalArgumentException();</span>
+
+			// Assert constructed sequence length matches remaining count
+<span class="fc bfc" id="L243" title="All 4 branches covered.">			if (alen &gt;= 62 &amp;&amp; original.get() != (byte) 0x81) // DER 1-octet extended</span>
+<span class="fc" id="L244">				throw new IllegalArgumentException();</span>
+<span class="fc bfc" id="L245" title="All 2 branches covered.">			if (original.get() != (byte) original.remaining())</span>
+<span class="fc" id="L246">				throw new IllegalArgumentException();</span>
+
+<span class="fc bfc" id="L248" title="All 2 branches covered.">			for (var i = 0; i &lt; 2; i++) {</span>
+<span class="fc bfc" id="L249" title="All 2 branches covered.">				if (original.get() != 2) // Assert DER integer</span>
+<span class="fc" id="L250">					throw new IllegalArgumentException();</span>
+<span class="fc" id="L251">				int ilen = original.get(); // Integer length</span>
+<span class="fc bfc" id="L252" title="All 2 branches covered.">				if (ilen &lt; 0) // Convert to unsigned int</span>
+<span class="fc" id="L253">					ilen += 0x100;</span>
+				// Assert encoded BigInteger length
+<span class="fc bfc" id="L255" title="All 2 branches covered.">				if (ilen &gt; alen + 1)</span>
+<span class="fc" id="L256">					throw new IllegalArgumentException();</span>
+
+<span class="fc" id="L258">				final var ibuf = new byte[ilen];</span>
+<span class="fc" id="L259">				original.get(ibuf); // Convert Java BigInteger to JWA format</span>
+<span class="fc" id="L260">				final var ib = UnsignedBigInteger.bigInt(new BigInteger(ibuf));</span>
+<span class="fc bfc" id="L261" title="All 2 branches covered.">				for (var j = ib.length; j &lt; alen; j++)</span>
+<span class="fc" id="L262">					converted.put((byte) 0); // pad left side</span>
+<span class="fc" id="L263">				converted.put(ib);</span>
+			}
+
+<span class="fc bfc" id="L266" title="All 2 branches covered.">			if (original.hasRemaining())</span>
+<span class="fc" id="L267">				throw new IllegalArgumentException();</span>
+
+<span class="fc" id="L269">			return converted.array();</span>
+		}
+
+		default:
+<span class="fc" id="L273">			return jceSignature;</span>
+		}
+	}
 
 	/**
 	 * Parses per-signature JWS parameters from raw JSON.
@@ -147,12 +281,12 @@ class Jws implements WebSignature {
 	 * @return parsed JWS parameters
 	 */
 	static Jws parse(JsonValue jwsSignature) {
-<span class="fc" id="L150">		final var parsed = jwsSignature.asJsonObject();</span>
-<span class="fc" id="L151">		final var protectedHeader = IuJson.get(parsed, &quot;protected&quot;,</span>
-<span class="fc" id="L152">				IuJsonAdapter.from(v -&gt; IuJson.parse(IuText.utf8(UnpaddedBinary.JSON.fromJson(v))).asJsonObject()));</span>
-<span class="fc" id="L153">		final var header = IuJson.get(parsed, &quot;header&quot;, IuJsonAdapter.from(JsonValue::asJsonObject));</span>
-<span class="fc" id="L154">		final var signature = IuJson.get(parsed, &quot;signature&quot;, UnpaddedBinary.JSON);</span>
-<span class="fc" id="L155">		return new Jws(protectedHeader, Jose.from(protectedHeader, null, header), signature);</span>
+<span class="fc" id="L284">		final var parsed = jwsSignature.asJsonObject();</span>
+<span class="fc" id="L285">		final var protectedHeader = IuJson.get(parsed, &quot;protected&quot;,</span>
+<span class="fc" id="L286">				IuJsonAdapter.from(v -&gt; IuJson.parse(IuText.utf8(UnpaddedBinary.JSON.fromJson(v))).asJsonObject()));</span>
+<span class="fc" id="L287">		final var header = IuJson.get(parsed, &quot;header&quot;, IuJsonAdapter.from(JsonValue::asJsonObject));</span>
+<span class="fc" id="L288">		final var signature = IuJson.get(parsed, &quot;signature&quot;, UnpaddedBinary.JSON);</span>
+<span class="fc" id="L289">		return new Jws(protectedHeader, Jose.from(protectedHeader, null, header), signature);</span>
 	}
 
 	/**
@@ -161,11 +295,11 @@ class Jws implements WebSignature {
 	 * @param json {@link JsonObjectBuilder}
 	 */
 	void serializeTo(JsonObjectBuilder json) {
-<span class="fc" id="L164">		IuJson.add(json, &quot;protected&quot;, () -&gt; protectedHeader,</span>
-<span class="fc" id="L165">				IuJsonAdapter.to(h -&gt; UnpaddedBinary.JSON.toJson(IuText.utf8(h.toString()))));</span>
-<span class="fc bfc" id="L166" title="All 4 branches covered.">		IuJson.add(json, &quot;header&quot;, header.toJson(n -&gt; protectedHeader == null || !protectedHeader.containsKey(n)));</span>
-<span class="fc" id="L167">		IuJson.add(json, &quot;signature&quot;, () -&gt; signature, UnpaddedBinary.JSON);</span>
-<span class="fc" id="L168">	}</span>
+<span class="fc" id="L298">		IuJson.add(json, &quot;protected&quot;, () -&gt; protectedHeader,</span>
+<span class="fc" id="L299">				IuJsonAdapter.to(h -&gt; UnpaddedBinary.JSON.toJson(IuText.utf8(h.toString()))));</span>
+<span class="fc bfc" id="L300" title="All 4 branches covered.">		IuJson.add(json, &quot;header&quot;, header.toJson(n -&gt; protectedHeader == null || !protectedHeader.containsKey(n)));</span>
+<span class="fc" id="L301">		IuJson.add(json, &quot;signature&quot;, () -&gt; signature, UnpaddedBinary.JSON);</span>
+<span class="fc" id="L302">	}</span>
 
 	/**
 	 * Gets the signature input.
@@ -174,8 +308,8 @@ class Jws implements WebSignature {
 	 * @return signature input
 	 */
 	String getSignatureInput(byte[] payload) {
-<span class="fc" id="L177">		return UnpaddedBinary.base64Url(IuText.utf8(Objects.requireNonNullElse(protectedHeader, &quot;&quot;).toString())) + '.'</span>
-<span class="fc" id="L178">				+ UnpaddedBinary.base64Url(payload);</span>
+<span class="fc" id="L311">		return UnpaddedBinary.base64Url(IuText.utf8(Objects.requireNonNullElse(protectedHeader, &quot;&quot;).toString())) + '.'</span>
+<span class="fc" id="L312">				+ UnpaddedBinary.base64Url(payload);</span>
 	}
 
 }

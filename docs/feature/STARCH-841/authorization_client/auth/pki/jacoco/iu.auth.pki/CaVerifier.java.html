@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CaVerifier.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Public Key Infrastructure Authorization Utilities</a> &gt; <a href="index.source.html" class="el_package">iu.auth.pki</a> &gt; <span class="el_source">CaVerifier.java</span></div><h1>CaVerifier.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.pki;
+
+import java.net.URI;
+import java.security.cert.CertPathValidator;
+import java.security.cert.CertStore;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import java.security.cert.CollectionCertStoreParameters;
+import java.security.cert.PKIXCertPathValidatorResult;
+import java.security.cert.PKIXParameters;
+import java.security.cert.TrustAnchor;
+import java.security.cert.X509CRL;
+import java.security.cert.X509Certificate;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Queue;
+import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import edu.iu.IuException;
+import edu.iu.auth.config.IuCertificateAuthority;
+import edu.iu.auth.config.IuPrivateKeyPrincipal;
+import edu.iu.auth.config.X500Utils;
+import edu.iu.crypt.WebCertificateReference;
+import iu.auth.config.IuTrustedIssuer;
+import iu.auth.principal.PrincipalVerifier;
+
+/**
+ * Verifies {@link PkiPrincipal} identities.
+ */
+final class CaVerifier implements PrincipalVerifier&lt;PkiPrincipal&gt;, IuTrustedIssuer {
+
+<span class="fc" id="L66">	private static final Logger LOG = Logger.getLogger(CaVerifier.class.getName());</span>
+
+	private final X509Certificate cert;
+	private final PKIXParameters trustParams;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param ca CA principal identity
+	 */
+<span class="fc" id="L76">	CaVerifier(IuCertificateAuthority ca) {</span>
+<span class="fc" id="L77">		cert = ca.getCertificate();</span>
+<span class="fc" id="L78">		final var keyUsage = new KeyUsage(cert);</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">		if (!keyUsage.isCA())</span>
+<span class="fc" id="L80">			throw new IllegalArgumentException(&quot;X.509 certificate is not a valid CA signing cert&quot;);</span>
+
+<span class="fc" id="L82">		final var anchor = new TrustAnchor(ca.getCertificate(), null);</span>
+<span class="fc" id="L83">		final var pkix = IuException.unchecked(() -&gt; new PKIXParameters(Set.of(anchor)));</span>
+<span class="fc" id="L84">		final Queue&lt;X509CRL&gt; crl = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L85">		ca.getCrl().forEach(crl::offer);</span>
+<span class="fc" id="L86">		pkix.addCertStore(IuException</span>
+<span class="fc" id="L87">				.unchecked(() -&gt; CertStore.getInstance(&quot;Collection&quot;, new CollectionCertStoreParameters(crl))));</span>
+<span class="fc" id="L88">		this.trustParams = pkix;</span>
+<span class="fc" id="L89">	}</span>
+
+	@Override
+	public String getAuthScheme() {
+<span class="fc" id="L93">		return null;</span>
+	}
+
+	@Override
+	public URI getAuthenticationEndpoint() {
+<span class="fc" id="L98">		return null;</span>
+	}
+
+	@Override
+	public Class&lt;PkiPrincipal&gt; getType() {
+<span class="fc" id="L103">		return PkiPrincipal.class;</span>
+	}
+
+	@Override
+	public String getRealm() {
+<span class="fc" id="L108">		return X500Utils.getCommonName(cert.getSubjectX500Principal());</span>
+	}
+
+	@Override
+	public boolean isAuthoritative() {
+<span class="fc" id="L113">		return false;</span>
+	}
+
+	@Override
+	public void verify(PkiPrincipal pki) {
+<span class="fc" id="L118">		final var issuerPrincipal = cert.getSubjectX500Principal();</span>
+<span class="fc" id="L119">		final List&lt;Certificate&gt; pathToAnchor = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">		for (final var cert : WebCertificateReference.verify(pki.getJwk())) {</span>
+<span class="fc" id="L121">			pathToAnchor.add(cert);</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">			if (issuerPrincipal.equals(cert.getIssuerX500Principal())) {</span>
+<span class="fc" id="L123">				final var result = (PKIXCertPathValidatorResult) IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L124">					final var validator = CertPathValidator.getInstance(&quot;PKIX&quot;);</span>
+<span class="fc" id="L125">					final var certFactory = CertificateFactory.getInstance(&quot;X.509&quot;);</span>
+<span class="fc" id="L126">					return validator.validate(certFactory.generateCertPath(pathToAnchor), trustParams);</span>
+				});
+
+<span class="fc" id="L129">				LOG.info(() -&gt; &quot;ca:verify:&quot; + pki.getName() + &quot;; trustAnchor: &quot;</span>
+<span class="fc" id="L130">						+ X500Utils.getCommonName(result.getTrustAnchor().getTrustedCert().getSubjectX500Principal()));</span>
+<span class="fc" id="L131">				return;</span>
+			}
+		}
+
+<span class="fc" id="L135">		throw new IllegalArgumentException(&quot;issuer not trusted&quot;);</span>
+	}
+
+	@Override
+	public PkiPrincipal getPrincipal(IuPrivateKeyPrincipal pkp) {
+<span class="fc" id="L140">		final var issuerPrincipal = cert.getSubjectX500Principal();</span>
+
+<span class="fc" id="L142">		final List&lt;Certificate&gt; pathToAnchor = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">		for (final var cert : WebCertificateReference.verify(pkp.getJwk())) {</span>
+<span class="fc" id="L144">			pathToAnchor.add(cert);</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">			if (issuerPrincipal.equals(cert.getIssuerX500Principal()))</span>
+				try {
+<span class="fc" id="L147">					final var validator = CertPathValidator.getInstance(&quot;PKIX&quot;);</span>
+<span class="fc" id="L148">					final var certFactory = CertificateFactory.getInstance(&quot;X.509&quot;);</span>
+<span class="fc" id="L149">					validator.validate(certFactory.generateCertPath(pathToAnchor), trustParams);</span>
+<span class="fc" id="L150">					return new PkiPrincipal(pkp);</span>
+<span class="fc" id="L151">				} catch (Throwable e) {</span>
+<span class="fc" id="L152">					LOG.log(Level.INFO, e, () -&gt; &quot;ca:invalid:&quot; + getRealm() + &quot; rejected &quot; + X500Utils</span>
+<span class="fc" id="L153">							.getCommonName(((X509Certificate) pathToAnchor.get(0)).getSubjectX500Principal()));</span>
+<span class="fc" id="L154">					break;</span>
+				}
+		}
+<span class="fc" id="L157">		return null;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

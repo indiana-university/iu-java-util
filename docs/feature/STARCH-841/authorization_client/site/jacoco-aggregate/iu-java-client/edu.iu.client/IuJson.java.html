@@ -34,13 +34,16 @@ package edu.iu.client;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.StringReader;
+import java.lang.reflect.Type;
 import java.net.http.HttpResponse;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
+import iu.client.JsonProxy;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonBuilderFactory;
@@ -64,18 +67,18 @@ public class IuJson {
 	public static final JsonProvider PROVIDER;
 
 	static {
-<span class="fc" id="L67">		final var current = Thread.currentThread();</span>
-<span class="fc" id="L68">		final var contextToRestore = current.getContextClassLoader();</span>
+<span class="fc" id="L70">		final var current = Thread.currentThread();</span>
+<span class="fc" id="L71">		final var contextToRestore = current.getContextClassLoader();</span>
 		try {
-<span class="fc" id="L70">			current.setContextClassLoader(JsonProvider.class.getClassLoader());</span>
-<span class="fc" id="L71">			PROVIDER = JsonProvider.provider();</span>
+<span class="fc" id="L73">			current.setContextClassLoader(JsonProvider.class.getClassLoader());</span>
+<span class="fc" id="L74">			PROVIDER = JsonProvider.provider();</span>
 		} finally {
-<span class="fc" id="L73">			current.setContextClassLoader(contextToRestore);</span>
+<span class="fc" id="L76">			current.setContextClassLoader(contextToRestore);</span>
 		}
 	}
 
-<span class="fc" id="L77">	private static final JsonBuilderFactory FACTORY = PROVIDER</span>
-<span class="fc" id="L78">			.createBuilderFactory(Map.of(JsonConfig.KEY_STRATEGY, KeyStrategy.NONE));</span>
+<span class="fc" id="L80">	private static final JsonBuilderFactory FACTORY = PROVIDER</span>
+<span class="fc" id="L81">			.createBuilderFactory(Map.of(JsonConfig.KEY_STRATEGY, KeyStrategy.NONE));</span>
 
 	/**
 	 * Parses a JSON value from an HTTP response.
@@ -84,7 +87,7 @@ public class IuJson {
 	 * @return {@link JsonValue}
 	 */
 	public static JsonValue parse(HttpResponse&lt;InputStream&gt; serialized) {
-<span class="fc" id="L87">		return parse(serialized.body());</span>
+<span class="fc" id="L90">		return parse(serialized.body());</span>
 	}
 
 	/**
@@ -94,7 +97,7 @@ public class IuJson {
 	 * @return {@link JsonValue}
 	 */
 	public static JsonValue parse(InputStream serialized) {
-<span class="fc" id="L97">		return PROVIDER.createReader(serialized).readValue();</span>
+<span class="fc" id="L100">		return PROVIDER.createReader(serialized).readValue();</span>
 	}
 
 	/**
@@ -105,40 +108,10 @@ public class IuJson {
 	 * @return {@link JsonValue}
 	 */
 	public static JsonValue parse(String serialized) {
-<span class="fc bfc" id="L108" title="All 2 branches covered.">		if (serialized == null)</span>
-<span class="fc" id="L109">			return null;</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">		if (serialized == null)</span>
+<span class="fc" id="L112">			return null;</span>
 		else
-<span class="fc" id="L111">			return PROVIDER.createReader(new StringReader(serialized)).readValue();</span>
-	}
-
-	/**
-	 * Creates a JSON value from a {@link Boolean#TYPE boolean}.
-	 * 
-	 * @param value {@link Boolean#TYPE boolean}
-	 * @return {@link JsonValue}
-	 */
-	public static JsonValue bool(boolean value) {
-<span class="fc bfc" id="L121" title="All 2 branches covered.">		return value ? JsonValue.TRUE : JsonValue.FALSE;</span>
-	}
-
-	/**
-	 * Creates a JSON value from a {@link Number}.
-	 * 
-	 * @param value {@link Number}
-	 * @return {@link JsonNumber}
-	 */
-	public static JsonNumber number(Number value) {
-<span class="fc" id="L131">		return PROVIDER.createValue(value);</span>
-	}
-
-	/**
-	 * Creates a JSON value from a {@link String}.
-	 * 
-	 * @param value {@link String}
-	 * @return {@link JsonString}
-	 */
-	public static JsonString string(String value) {
-<span class="fc" id="L141">		return PROVIDER.createValue(value);</span>
+<span class="fc" id="L114">			return PROVIDER.createReader(new StringReader(serialized)).readValue();</span>
 	}
 
 	/**
@@ -148,8 +121,76 @@ public class IuJson {
 	 * @param out   {@link OutputStream}
 	 */
 	public static void serialize(JsonValue value, OutputStream out) {
-<span class="fc" id="L151">		PROVIDER.createWriter(out).write(value);</span>
-<span class="fc" id="L152">	}</span>
+<span class="fc" id="L124">		PROVIDER.createWriter(out).write(value);</span>
+<span class="fc" id="L125">	}</span>
+
+	/**
+	 * Wraps a JSON object in a java interface.
+	 * 
+	 * @param &lt;T&gt;             target interface type
+	 * @param value           value
+	 * @param targetInterface target interface class
+	 * @return {@link JsonProxy}
+	 */
+	public static &lt;T&gt; T wrap(JsonObject value, Class&lt;T&gt; targetInterface) {
+<span class="fc" id="L136">		return wrap(value, targetInterface, IuJsonAdapter::of);</span>
+	}
+
+	/**
+	 * Wraps a JSON object in a java interface.
+	 * 
+	 * @param &lt;T&gt;             target interface type
+	 * @param value           value
+	 * @param targetInterface target interface class
+	 * @param valueAdapter    transform function: receives a {@link JsonValue} and
+	 *                        method return type, if custom handling returns an
+	 *                        object other than the original {@link JsonValue value}
+	 * @return {@link JsonProxy}
+	 */
+	public static &lt;T&gt; T wrap(JsonObject value, Class&lt;T&gt; targetInterface,
+			Function&lt;Type, IuJsonAdapter&lt;?&gt;&gt; valueAdapter) {
+<span class="fc" id="L152">		return JsonProxy.wrap(value, targetInterface, valueAdapter);</span>
+	}
+
+	/**
+	 * Retrieves the {@link JsonObject} from a {@link JsonProxy} wrapper.
+	 * 
+	 * @param jsonProxy wrapper
+	 * @return {@link JsonObject}
+	 */
+	public static JsonObject unwrap(Object jsonProxy) {
+<span class="fc" id="L162">		return JsonProxy.unwrap(jsonProxy);</span>
+	}
+
+	/**
+	 * Creates a JSON value from a {@link Boolean#TYPE boolean}.
+	 * 
+	 * @param value {@link Boolean#TYPE boolean}
+	 * @return {@link JsonValue}
+	 */
+	public static JsonValue bool(boolean value) {
+<span class="fc bfc" id="L172" title="All 2 branches covered.">		return value ? JsonValue.TRUE : JsonValue.FALSE;</span>
+	}
+
+	/**
+	 * Creates a JSON value from a {@link Number}.
+	 * 
+	 * @param value {@link Number}
+	 * @return {@link JsonNumber}
+	 */
+	public static JsonNumber number(Number value) {
+<span class="fc" id="L182">		return PROVIDER.createValue(value);</span>
+	}
+
+	/**
+	 * Creates a JSON value from a {@link String}.
+	 * 
+	 * @param value {@link String}
+	 * @return {@link JsonString}
+	 */
+	public static JsonString string(String value) {
+<span class="fc" id="L192">		return PROVIDER.createValue(value);</span>
+	}
 
 	/**
 	 * Creates an array builder that rejects duplicate values.
@@ -157,7 +198,7 @@ public class IuJson {
 	 * @return {@link JsonArrayBuilder}
 	 */
 	public static JsonArrayBuilder array() {
-<span class="fc" id="L160">		return FACTORY.createArrayBuilder();</span>
+<span class="fc" id="L201">		return FACTORY.createArrayBuilder();</span>
 	}
 
 	/**
@@ -167,7 +208,7 @@ public class IuJson {
 	 * @return {@link JsonArrayBuilder}
 	 */
 	public static JsonArrayBuilder array(JsonArray array) {
-<span class="fc" id="L170">		return PROVIDER.createArrayBuilder(array);</span>
+<span class="fc" id="L211">		return PROVIDER.createArrayBuilder(array);</span>
 	}
 
 	/**
@@ -176,7 +217,7 @@ public class IuJson {
 	 * @return {@link JsonObjectBuilder}
 	 */
 	public static JsonObjectBuilder object() {
-<span class="fc" id="L179">		return FACTORY.createObjectBuilder();</span>
+<span class="fc" id="L220">		return FACTORY.createObjectBuilder();</span>
 	}
 
 	/**
@@ -186,7 +227,7 @@ public class IuJson {
 	 * @return {@link JsonObjectBuilder}
 	 */
 	public static JsonObjectBuilder object(JsonObject object) {
-<span class="fc" id="L189">		return PROVIDER.createObjectBuilder(object);</span>
+<span class="fc" id="L230">		return PROVIDER.createObjectBuilder(object);</span>
 	}
 
 	/**
@@ -197,8 +238,8 @@ public class IuJson {
 	 * @param value   value
 	 */
 	public static void add(JsonObjectBuilder builder, String name, Object value) {
-<span class="fc" id="L200">		add(builder, name, () -&gt; value, () -&gt; true, IuJsonAdapter.basic());</span>
-<span class="fc" id="L201">	}</span>
+<span class="fc" id="L241">		add(builder, name, () -&gt; value, () -&gt; true, IuJsonAdapter.basic());</span>
+<span class="fc" id="L242">	}</span>
 
 	/**
 	 * Adds a value to an object builder.
@@ -211,8 +252,8 @@ public class IuJson {
 	 */
 	public static &lt;T&gt; void add(JsonObjectBuilder builder, String name, Supplier&lt;T&gt; valueSupplier,
 			IuJsonAdapter&lt;T&gt; adapter) {
-<span class="fc" id="L214">		add(builder, name, valueSupplier, () -&gt; true, adapter);</span>
-<span class="fc" id="L215">	}</span>
+<span class="fc" id="L255">		add(builder, name, valueSupplier, () -&gt; true, adapter);</span>
+<span class="fc" id="L256">	}</span>
 
 	/**
 	 * Adds a value to an object builder.
@@ -225,8 +266,8 @@ public class IuJson {
 	 *                  nothing
 	 */
 	public static &lt;T&gt; void add(JsonObjectBuilder builder, String name, T value, BooleanSupplier condition) {
-<span class="fc" id="L228">		add(builder, name, () -&gt; value, condition, IuJsonAdapter.basic());</span>
-<span class="fc" id="L229">	}</span>
+<span class="fc" id="L269">		add(builder, name, () -&gt; value, condition, IuJsonAdapter.basic());</span>
+<span class="fc" id="L270">	}</span>
 
 	/**
 	 * Adds a value to an object builder.
@@ -241,13 +282,13 @@ public class IuJson {
 	 */
 	public static &lt;T&gt; void add(JsonObjectBuilder builder, String name, Supplier&lt;T&gt; valueSupplier,
 			BooleanSupplier condition, IuJsonAdapter&lt;T&gt; adapter) {
-<span class="fc bfc" id="L244" title="All 2 branches covered.">		if (!condition.getAsBoolean())</span>
-<span class="fc" id="L245">			return;</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">		if (!condition.getAsBoolean())</span>
+<span class="fc" id="L286">			return;</span>
 
-<span class="fc" id="L247">		final var a = valueSupplier.get();</span>
-<span class="fc bfc" id="L248" title="All 2 branches covered.">		if (a != null)</span>
-<span class="fc" id="L249">			builder.add(name, adapter.toJson(a));</span>
-<span class="fc" id="L250">	}</span>
+<span class="fc" id="L288">		final var a = valueSupplier.get();</span>
+<span class="fc bfc" id="L289" title="All 2 branches covered.">		if (a != null)</span>
+<span class="fc" id="L290">			builder.add(name, adapter.toJson(a));</span>
+<span class="fc" id="L291">	}</span>
 
 	/**
 	 * Adds a value to an array builder.
@@ -257,8 +298,8 @@ public class IuJson {
 	 * @param value   value
 	 */
 	public static &lt;T&gt; void add(JsonArrayBuilder builder, T value) {
-<span class="fc" id="L260">		add(builder, () -&gt; value, () -&gt; true, IuJsonAdapter.basic());</span>
-<span class="fc" id="L261">	}</span>
+<span class="fc" id="L301">		add(builder, () -&gt; value, () -&gt; true, IuJsonAdapter.basic());</span>
+<span class="fc" id="L302">	}</span>
 
 	/**
 	 * Adds a value to an array builder.
@@ -269,8 +310,8 @@ public class IuJson {
 	 * @param adapter       JSON type adapter for handling non-null values
 	 */
 	public static &lt;T&gt; void add(JsonArrayBuilder builder, Supplier&lt;T&gt; valueSupplier, IuJsonAdapter&lt;T&gt; adapter) {
-<span class="fc" id="L272">		add(builder, valueSupplier, () -&gt; true, adapter);</span>
-<span class="fc" id="L273">	}</span>
+<span class="fc" id="L313">		add(builder, valueSupplier, () -&gt; true, adapter);</span>
+<span class="fc" id="L314">	}</span>
 
 	/**
 	 * Adds a value to an array builder.
@@ -282,8 +323,8 @@ public class IuJson {
 	 *                  nothing
 	 */
 	public static &lt;T&gt; void add(JsonArrayBuilder builder, T value, BooleanSupplier condition) {
-<span class="fc" id="L285">		add(builder, () -&gt; value, condition, IuJsonAdapter.basic());</span>
-<span class="fc" id="L286">	}</span>
+<span class="fc" id="L326">		add(builder, () -&gt; value, condition, IuJsonAdapter.basic());</span>
+<span class="fc" id="L327">	}</span>
 
 	/**
 	 * Adds a value to an array builder.
@@ -297,13 +338,13 @@ public class IuJson {
 	 */
 	public static &lt;T&gt; void add(JsonArrayBuilder builder, Supplier&lt;T&gt; valueSupplier, BooleanSupplier condition,
 			IuJsonAdapter&lt;T&gt; adapter) {
-<span class="fc bfc" id="L300" title="All 2 branches covered.">		if (!condition.getAsBoolean())</span>
-<span class="fc" id="L301">			return;</span>
+<span class="fc bfc" id="L341" title="All 2 branches covered.">		if (!condition.getAsBoolean())</span>
+<span class="fc" id="L342">			return;</span>
 
-<span class="fc" id="L303">		final var a = valueSupplier.get();</span>
-<span class="fc bfc" id="L304" title="All 2 branches covered.">		if (a != null)</span>
-<span class="fc" id="L305">			builder.add(adapter.toJson(a));</span>
-<span class="fc" id="L306">	}</span>
+<span class="fc" id="L344">		final var a = valueSupplier.get();</span>
+<span class="fc bfc" id="L345" title="All 2 branches covered.">		if (a != null)</span>
+<span class="fc" id="L346">			builder.add(adapter.toJson(a));</span>
+<span class="fc" id="L347">	}</span>
 
 	/**
 	 * Gets a property value from a JSON object.
@@ -315,7 +356,7 @@ public class IuJson {
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	public static &lt;T&gt; T get(JsonObject object, String name) {
-<span class="fc" id="L318">		return (T) get(object, name, null, IuJsonAdapter.of(Object.class));</span>
+<span class="fc" id="L359">		return (T) get(object, name, null, IuJsonAdapter.of(Object.class));</span>
 	}
 
 	/**
@@ -328,7 +369,7 @@ public class IuJson {
 	 * @return property value
 	 */
 	public static &lt;T&gt; T get(JsonObject object, String name, IuJsonAdapter&lt;T&gt; adapter) {
-<span class="fc" id="L331">		return get(object, name, null, adapter);</span>
+<span class="fc" id="L372">		return get(object, name, null, adapter);</span>
 	}
 
 	/**
@@ -342,7 +383,7 @@ public class IuJson {
 	 * @throws NullPointerException if the property value is {@link JsonValue#NULL}
 	 */
 	public static &lt;T&gt; T nonNull(JsonObject object, String name, IuJsonAdapter&lt;T&gt; adapter) {
-<span class="fc" id="L345">		return Objects.requireNonNull(get(object, name, null, adapter), name);</span>
+<span class="fc" id="L386">		return Objects.requireNonNull(get(object, name, null, adapter), name);</span>
 	}
 
 	/**
@@ -354,8 +395,8 @@ public class IuJson {
 	 * @param consumer accepts the property value if non-null; else skipped
 	 */
 	public static &lt;T&gt; void get(JsonObject object, String name, Consumer&lt;T&gt; consumer) {
-<span class="fc" id="L357">		get(object, name, IuJsonAdapter.basic(), consumer);</span>
-<span class="fc" id="L358">	}</span>
+<span class="fc" id="L398">		get(object, name, IuJsonAdapter.basic(), consumer);</span>
+<span class="fc" id="L399">	}</span>
 
 	/**
 	 * Gets a property value from a JSON object, accepting if non-null..
@@ -367,10 +408,10 @@ public class IuJson {
 	 * @param consumer accepts the property value if non-null; else skipped
 	 */
 	public static &lt;T&gt; void get(JsonObject object, String name, IuJsonAdapter&lt;T&gt; adapter, Consumer&lt;T&gt; consumer) {
-<span class="fc" id="L370">		final var value = get(object, name, null, adapter);</span>
-<span class="fc bfc" id="L371" title="All 2 branches covered.">		if (value != null)</span>
-<span class="fc" id="L372">			consumer.accept(value);</span>
-<span class="fc" id="L373">	}</span>
+<span class="fc" id="L411">		final var value = get(object, name, null, adapter);</span>
+<span class="fc bfc" id="L412" title="All 2 branches covered.">		if (value != null)</span>
+<span class="fc" id="L413">			consumer.accept(value);</span>
+<span class="fc" id="L414">	}</span>
 
 	/**
 	 * Gets a property value from a JSON object.
@@ -383,14 +424,15 @@ public class IuJson {
 	 * @return property value, or defaultValue if the property is missing
 	 */
 	public static &lt;T&gt; T get(JsonObject object, String name, T defaultValue, IuJsonAdapter&lt;T&gt; adapter) {
-<span class="fc" id="L386">		final var v = object.get(name);</span>
-<span class="fc bfc" id="L387" title="All 2 branches covered.">		if (v == null)</span>
-<span class="fc" id="L388">			return defaultValue;</span>
+<span class="fc" id="L427">		final var v = object.get(name);</span>
+<span class="fc bfc" id="L428" title="All 2 branches covered.">		if (v == null)</span>
+<span class="fc" id="L429">			return defaultValue;</span>
 		else
-<span class="fc" id="L390">			return adapter.fromJson(v);</span>
+<span class="fc" id="L431">			return adapter.fromJson(v);</span>
 	}
 
 	private IuJson() {
 	}
+
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

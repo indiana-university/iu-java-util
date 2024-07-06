@@ -196,19 +196,23 @@ class JweRecipientBuilder extends JoseBuilder&lt;JweRecipientBuilder&gt; impleme
 <span class="fc" id="L196">			new SecureRandom().nextBytes(p2s);</span>
 <span class="fc" id="L197">			param(Param.PASSWORD_SALT, p2s);</span>
 
-			// 128 -&gt; 2048, 192 -&gt; 3072, 256 -&gt; 4096
-<span class="fc" id="L200">			final var p2c = algorithm.size * 16;</span>
-<span class="fc" id="L201">			param(Param.PASSWORD_COUNT, p2c);</span>
+			// ASVS4 #2.4.3: Verify that if PBKDF2 is used, the iteration count SHOULD be as
+			// large as verification server performance will allow, typically at least
+			// 100,000 iterations. (C6)
 
-<span class="fc" id="L203">			final var saltValue = ByteBuffer.wrap(new byte[alg.length + 1 + p2s.length]);</span>
-<span class="fc" id="L204">			saltValue.put(alg);</span>
-<span class="fc" id="L205">			saltValue.put((byte) 0);</span>
-<span class="fc" id="L206">			saltValue.put(p2s);</span>
+			// 128 -&gt; 131072, 192 -&gt; 196608, 256 -&gt; 262144
+<span class="fc" id="L204">			final var p2c = algorithm.size * 1024;</span>
+<span class="fc" id="L205">			param(Param.PASSWORD_COUNT, p2c);</span>
 
-<span class="fc" id="L208">			return IuException</span>
-<span class="fc" id="L209">					.unchecked(() -&gt; SecretKeyFactory.getInstance(algorithm.algorithm).generateSecret(</span>
-<span class="fc" id="L210">							new PBEKeySpec(IuText.utf8(key().getKey()).toCharArray(), saltValue.array(), p2c, 128)))</span>
-<span class="fc" id="L211">					.getEncoded();</span>
+<span class="fc" id="L207">			final var saltValue = ByteBuffer.wrap(new byte[alg.length + 1 + p2s.length]);</span>
+<span class="fc" id="L208">			saltValue.put(alg);</span>
+<span class="fc" id="L209">			saltValue.put((byte) 0);</span>
+<span class="fc" id="L210">			saltValue.put(p2s);</span>
+
+<span class="fc" id="L212">			return IuException</span>
+<span class="fc" id="L213">					.unchecked(() -&gt; SecretKeyFactory.getInstance(algorithm.algorithm).generateSecret(</span>
+<span class="fc" id="L214">							new PBEKeySpec(IuText.utf8(key().getKey()).toCharArray(), saltValue.array(), p2c, 128)))</span>
+<span class="fc" id="L215">					.getEncoded();</span>
 		}
 
 		/**
@@ -223,90 +227,90 @@ class JweRecipientBuilder extends JoseBuilder&lt;JweRecipientBuilder&gt; impleme
 		 */
 		@SuppressWarnings({ &quot;deprecation&quot; })
 		JweRecipient encrypt(Encryption encryption, byte[] contentEncryptionKey) {
-<span class="fc" id="L226">			final var algorithm = this.algorithm();</span>
+<span class="fc" id="L230">			final var algorithm = this.algorithm();</span>
 
-<span class="fc" id="L228">			byte[] encryptedKey = null;</span>
+<span class="fc" id="L232">			byte[] encryptedKey = null;</span>
 			// 5.1#4 encrypt CEK to the recipient
-<span class="fc bfc" id="L230" title="All 6 branches covered.">			switch (algorithm) {</span>
+<span class="fc bfc" id="L234" title="All 6 branches covered.">			switch (algorithm) {</span>
 			case A128KW:
 			case A192KW:
 			case A256KW:
 				// key wrapping
-<span class="fc" id="L235">				encryptedKey = IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L236">					final var key = new SecretKeySpec(key().getKey(), &quot;AES&quot;);</span>
-<span class="fc" id="L237">					final var cipher = Cipher.getInstance(algorithm.algorithm);</span>
-<span class="fc" id="L238">					cipher.init(Cipher.WRAP_MODE, key);</span>
-<span class="fc" id="L239">					return cipher.wrap(new SecretKeySpec(contentEncryptionKey, &quot;AES&quot;));</span>
+<span class="fc" id="L239">				encryptedKey = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L240">					final var key = new SecretKeySpec(key().getKey(), &quot;AES&quot;);</span>
+<span class="fc" id="L241">					final var cipher = Cipher.getInstance(algorithm.algorithm);</span>
+<span class="fc" id="L242">					cipher.init(Cipher.WRAP_MODE, key);</span>
+<span class="fc" id="L243">					return cipher.wrap(new SecretKeySpec(contentEncryptionKey, &quot;AES&quot;));</span>
 				});
-<span class="fc" id="L241">				break;</span>
+<span class="fc" id="L245">				break;</span>
 
 			case A128GCMKW:
 			case A192GCMKW:
 			case A256GCMKW:
 				// key wrapping w/ GCM
-<span class="fc" id="L247">				encryptedKey = IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L248">					final var key = new SecretKeySpec(key().getKey(), &quot;AES&quot;);</span>
-<span class="fc" id="L249">					final var iv = new byte[12];</span>
-<span class="fc" id="L250">					new SecureRandom().nextBytes(iv);</span>
-<span class="fc" id="L251">					param(Param.INITIALIZATION_VECTOR, iv);</span>
+<span class="fc" id="L251">				encryptedKey = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L252">					final var key = new SecretKeySpec(key().getKey(), &quot;AES&quot;);</span>
+<span class="fc" id="L253">					final var iv = new byte[12];</span>
+<span class="fc" id="L254">					new SecureRandom().nextBytes(iv);</span>
+<span class="fc" id="L255">					param(Param.INITIALIZATION_VECTOR, iv);</span>
 
-<span class="fc" id="L253">					final var cipher = Cipher.getInstance(algorithm.algorithm);</span>
-<span class="fc" id="L254">					cipher.init(Cipher.WRAP_MODE, key, new GCMParameterSpec(128, iv));</span>
-<span class="fc" id="L255">					final var wrappedKey = cipher.wrap(new SecretKeySpec(contentEncryptionKey, &quot;AES&quot;));</span>
+<span class="fc" id="L257">					final var cipher = Cipher.getInstance(algorithm.algorithm);</span>
+<span class="fc" id="L258">					cipher.init(Cipher.WRAP_MODE, key, new GCMParameterSpec(128, iv));</span>
+<span class="fc" id="L259">					final var wrappedKey = cipher.wrap(new SecretKeySpec(contentEncryptionKey, &quot;AES&quot;));</span>
 
-<span class="fc" id="L257">					param(Param.TAG, Arrays.copyOfRange(wrappedKey, wrappedKey.length - 16, wrappedKey.length));</span>
+<span class="fc" id="L261">					param(Param.TAG, Arrays.copyOfRange(wrappedKey, wrappedKey.length - 16, wrappedKey.length));</span>
 
-<span class="fc" id="L259">					return Arrays.copyOf(wrappedKey, wrappedKey.length - 16);</span>
+<span class="fc" id="L263">					return Arrays.copyOf(wrappedKey, wrappedKey.length - 16);</span>
 				});
-<span class="fc" id="L261">				break;</span>
+<span class="fc" id="L265">				break;</span>
 
 			case RSA1_5:
 			case RSA_OAEP:
 			case RSA_OAEP_256:
 				// key encryption
-<span class="fc" id="L267">				encryptedKey = IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L268">					final var keyCipher = Cipher.getInstance(algorithm.algorithm);</span>
-<span class="fc" id="L269">					keyCipher.init(Cipher.ENCRYPT_MODE, key().getPublicKey());</span>
-<span class="fc" id="L270">					return keyCipher.doFinal(contentEncryptionKey);</span>
+<span class="fc" id="L271">				encryptedKey = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L272">					final var keyCipher = Cipher.getInstance(algorithm.algorithm);</span>
+<span class="fc" id="L273">					keyCipher.init(Cipher.ENCRYPT_MODE, key().getPublicKey());</span>
+<span class="fc" id="L274">					return keyCipher.doFinal(contentEncryptionKey);</span>
 				});
-<span class="fc" id="L272">				break;</span>
+<span class="fc" id="L276">				break;</span>
 
 			case ECDH_ES_A128KW:
 			case ECDH_ES_A192KW:
 			case ECDH_ES_A256KW:
 				// key agreement with key wrapping
-<span class="fc" id="L278">				encryptedKey = IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L279">					final var key = new SecretKeySpec(agreedUponKey(encryption), &quot;AES&quot;);</span>
-<span class="fc" id="L280">					final var cipher = Cipher.getInstance(&quot;AESWrap&quot;);</span>
-<span class="fc" id="L281">					cipher.init(Cipher.WRAP_MODE, key);</span>
-<span class="fc" id="L282">					return cipher.wrap(new SecretKeySpec(contentEncryptionKey, &quot;AES&quot;));</span>
+<span class="fc" id="L282">				encryptedKey = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L283">					final var key = new SecretKeySpec(agreedUponKey(encryption), &quot;AES&quot;);</span>
+<span class="fc" id="L284">					final var cipher = Cipher.getInstance(&quot;AESWrap&quot;);</span>
+<span class="fc" id="L285">					cipher.init(Cipher.WRAP_MODE, key);</span>
+<span class="fc" id="L286">					return cipher.wrap(new SecretKeySpec(contentEncryptionKey, &quot;AES&quot;));</span>
 				});
-<span class="fc" id="L284">				break;</span>
+<span class="fc" id="L288">				break;</span>
 
 			case PBES2_HS256_A128KW:
 			case PBES2_HS384_A192KW:
 			case PBES2_HS512_A256KW:
 				// passphrase-derived key with key wrapping
-<span class="fc" id="L290">				encryptedKey = IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L291">					final var key = new SecretKeySpec(passphraseDerivedKey(), &quot;AES&quot;);</span>
-<span class="fc" id="L292">					final var cipher = Cipher.getInstance(&quot;AESWrap&quot;);</span>
-<span class="fc" id="L293">					cipher.init(Cipher.WRAP_MODE, key);</span>
-<span class="fc" id="L294">					return cipher.wrap(new SecretKeySpec(contentEncryptionKey, &quot;AES&quot;));</span>
+<span class="fc" id="L294">				encryptedKey = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L295">					final var key = new SecretKeySpec(passphraseDerivedKey(), &quot;AES&quot;);</span>
+<span class="fc" id="L296">					final var cipher = Cipher.getInstance(&quot;AESWrap&quot;);</span>
+<span class="fc" id="L297">					cipher.init(Cipher.WRAP_MODE, key);</span>
+<span class="fc" id="L298">					return cipher.wrap(new SecretKeySpec(contentEncryptionKey, &quot;AES&quot;));</span>
 				});
-<span class="fc" id="L296">				break;</span>
+<span class="fc" id="L300">				break;</span>
 
 			case ECDH_ES:
 			case EDDSA:
 			case DIRECT:
 			default:
-<span class="fc" id="L302">				IuObject.once(algorithm.use, Use.ENCRYPT, &quot;encryption algorithm required&quot;);</span>
+<span class="fc" id="L306">				IuObject.once(algorithm.use, Use.ENCRYPT, &quot;encryption algorithm required&quot;);</span>
 				// 5.1#5 don't populate encrypted key for direct key agreement or encryption
-<span class="fc" id="L304">				encryptedKey = null;</span>
+<span class="fc" id="L308">				encryptedKey = null;</span>
 				break;
 			}
 
-<span class="fc" id="L308">			final var header = new Jose(toJson());</span>
-<span class="fc" id="L309">			return new JweRecipient(header, encryptedKey);</span>
+<span class="fc" id="L312">			final var header = new Jose(toJson());</span>
+<span class="fc" id="L313">			return new JweRecipient(header, encryptedKey);</span>
 		}
 	}
 
@@ -319,13 +323,13 @@ class JweRecipientBuilder extends JoseBuilder&lt;JweRecipientBuilder&gt; impleme
 	 * @param algorithm  key encryption algorithm
 	 */
 	JweRecipientBuilder(JweBuilder jweBuilder, Algorithm algorithm) {
-<span class="fc" id="L322">		super(algorithm);</span>
-<span class="fc" id="L323">		this.jweBuilder = jweBuilder;</span>
-<span class="fc" id="L324">	}</span>
+<span class="fc" id="L326">		super(algorithm);</span>
+<span class="fc" id="L327">		this.jweBuilder = jweBuilder;</span>
+<span class="fc" id="L328">	}</span>
 
 	@Override
 	public JweBuilder then() {
-<span class="fc" id="L328">		return jweBuilder;</span>
+<span class="fc" id="L332">		return jweBuilder;</span>
 	}
 
 	/**
@@ -334,7 +338,7 @@ class JweRecipientBuilder extends JoseBuilder&lt;JweRecipientBuilder&gt; impleme
 	 * @return encrypted key builder
 	 */
 	EncryptedKeyBuilder encryptedKeyBuilder() {
-<span class="fc" id="L337">		return new EncryptedKeyBuilder();</span>
+<span class="fc" id="L341">		return new EncryptedKeyBuilder();</span>
 	}
 
 }

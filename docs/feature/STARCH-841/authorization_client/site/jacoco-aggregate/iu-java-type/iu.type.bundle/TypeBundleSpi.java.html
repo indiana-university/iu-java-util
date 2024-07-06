@@ -100,61 +100,55 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 				new FilteringClassLoader(IuIterable
 <span class="fc" id="L101">						.iter(&quot;edu.iu&quot;, &quot;edu.iu.type&quot;, &quot;edu.iu.type.base&quot;, &quot;edu.iu.type.spi&quot;), TYPE_SPI_LOADER),</span>
 				TYPE_SPI_LAYER,
-<span class="fc" id="L103">				() -&gt; IuIterable.map(TemporaryFile.readBundle(Objects.requireNonNull(</span>
+<span class="fc" id="L103">				() -&gt; TemporaryFile.readBundle(Objects.requireNonNull(</span>
 <span class="fc" id="L104">						TypeBundleSpi.class.getClassLoader().getResource(&quot;iu-java-type-impl-bundle.jar&quot;),</span>
-<span class="fc" id="L105">						&quot;Missing iu-java-type-impl-bundle.jar classpath entry&quot;)), a -&gt; () -&gt; a),</span>
+						&quot;Missing iu-java-type-impl-bundle.jar classpath entry&quot;)),
 				c -&gt; {
-					// TODO: REMOVE
-//					final var implModule = c.layer().findModule(&quot;iu.util.type.impl&quot;).get();
-//					c.addReads(implModule, IuObject.class.getModule());
-//					c.addReads(implModule, ModularClassLoader.class.getModule());
-<span class="fc" id="L111">				});</span>
+<span class="fc" id="L107">				});</span>
 
-<span class="fc" id="L113">		delegate = IuException.checked(IOException.class, () -&gt; IuException.initialize(bundleLoader,</span>
-<span class="fc" id="L114">				a -&gt; ServiceLoader.load(IuTypeSpi.class, a).findFirst().get()));</span>
+<span class="fc" id="L109">		delegate = IuException.checked(IOException.class, () -&gt; IuException.initialize(bundleLoader,</span>
+<span class="fc" id="L110">				a -&gt; ServiceLoader.load(IuTypeSpi.class, a).findFirst().get()));</span>
 
-<span class="fc" id="L116">		instance = this;</span>
-<span class="fc" id="L117">	}</span>
+<span class="fc" id="L112">		instance = this;</span>
+<span class="fc" id="L113">	}</span>
 
 	@Override
 	public IuType&lt;?, ?&gt; resolveType(Type type) {
-<span class="fc bfc" id="L121" title="All 2 branches covered.">		if (delegate == null)</span>
-<span class="fc" id="L122">			throw new IllegalStateException(&quot;closed&quot;);</span>
-<span class="fc" id="L123">		return delegate.resolveType(type);</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">		if (delegate == null)</span>
+<span class="fc" id="L118">			throw new IllegalStateException(&quot;closed&quot;);</span>
+<span class="fc" id="L119">		return delegate.resolveType(type);</span>
 	}
 
 	@Override
 	public IuComponent scanComponentEntry(ClassLoader classLoader, ModuleLayer moduleLayer, Path pathEntry)
 			throws IOException, ClassNotFoundException {
-<span class="fc bfc" id="L129" title="All 2 branches covered.">		if (delegate == null)</span>
-<span class="fc" id="L130">			throw new IllegalStateException(&quot;closed&quot;);</span>
-<span class="fc" id="L131">		return delegate.scanComponentEntry(classLoader, moduleLayer, pathEntry);</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">		if (delegate == null)</span>
+<span class="fc" id="L126">			throw new IllegalStateException(&quot;closed&quot;);</span>
+<span class="fc" id="L127">		return delegate.scanComponentEntry(classLoader, moduleLayer, pathEntry);</span>
 	}
 
 	@Override
 	public IuComponent createComponent(ClassLoader parent, ModuleLayer parentLayer,
 			Consumer&lt;Controller&gt; controllerCallback, InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) {
-<span class="fc bfc" id="L138" title="All 2 branches covered.">		if (delegate == null)</span>
-<span class="fc" id="L139">			throw new IllegalStateException(&quot;closed&quot;);</span>
-<span class="fc" id="L140">		return delegate.createComponent(parent, parentLayer, controllerCallback, componentArchiveSource,</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">		if (delegate == null)</span>
+<span class="fc" id="L135">			throw new IllegalStateException(&quot;closed&quot;);</span>
+<span class="fc" id="L136">		return delegate.createComponent(parent, parentLayer, controllerCallback, componentArchiveSource,</span>
 				providedDependencyArchiveSources);
 	}
 
 	@Override
 	public synchronized void close() throws Exception {
-<span class="fc" id="L146">		instance = null;</span>
+<span class="fc" id="L142">		instance = null;</span>
 
-<span class="fc" id="L148">		final var delegate = this.delegate;</span>
-<span class="fc bfc" id="L149" title="All 2 branches covered.">		if (delegate != null)</span>
-<span class="fc" id="L150">			this.delegate = null;</span>
+<span class="fc" id="L144">		this.delegate = null;</span>
 
-<span class="fc bfc" id="L152" title="All 2 branches covered.">		if (bundleLoader != null) {</span>
-<span class="fc" id="L153">			final var bundleLoader = this.bundleLoader;</span>
-<span class="fc" id="L154">			this.bundleLoader = null;</span>
-<span class="fc" id="L155">			bundleLoader.close();</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">		if (bundleLoader != null) {</span>
+<span class="fc" id="L147">			final var bundleLoader = this.bundleLoader;</span>
+<span class="fc" id="L148">			this.bundleLoader = null;</span>
+<span class="fc" id="L149">			bundleLoader.close();</span>
 		}
-<span class="fc" id="L157">	}</span>
+<span class="fc" id="L151">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
