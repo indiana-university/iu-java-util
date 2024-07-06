@@ -32,9 +32,9 @@
 				<module>jwt</module>
 				<module>oauth</module>
 				<module>oidc</module>
--->
 				<module>impl</module>
 				<module>bundle</module>
+-->
 			</modules>
 		</profile>
 	</profiles>

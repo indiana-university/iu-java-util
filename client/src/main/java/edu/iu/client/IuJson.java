@@ -244,19 +244,6 @@ public class IuJson {
 	/**
 	 * Adds a value to an object builder.
 	 * 
-	 * @param <T>     value type
-	 * @param builder {@link JsonObjectBuilder}
-	 * @param name    property name
-	 * @param value   value
-	 * @param adapter JSON type adapter for handling non-null values
-	 */
-	public static <T> void add(JsonObjectBuilder builder, String name, T value, IuJsonAdapter<T> adapter) {
-		add(builder, name, () -> value, () -> true, adapter);
-	}
-
-	/**
-	 * Adds a value to an object builder.
-	 * 
 	 * @param <T>           value type
 	 * @param builder       {@link JsonObjectBuilder}
 	 * @param name          property name

@@ -80,6 +80,10 @@ public final class PkiPrincipal implements IuPrincipalIdentity, IuPrivateKeyPrin
 				WebCertificateReference.verify(jwk), "missing certificate chain");
 
 		final var cert = certificateChain[0];
+		name = X500Utils.getCommonName(cert.getSubjectX500Principal());
+		if (!name.equals(jwk.getKeyId()))
+			throw new IllegalArgumentException("Key ID doesn't match CN");
+		
 		final var keyUsage = new KeyUsage(cert);
 
 		alg = Objects.requireNonNull(pkp.getAlg(), "Missing digital signature algorithm");
@@ -120,7 +124,6 @@ public final class PkiPrincipal implements IuPrincipalIdentity, IuPrivateKeyPrin
 			encrypt = null;
 		}
 
-		name = X500Utils.getCommonName(cert.getSubjectX500Principal());
 		issuedAt = Instant.now().truncatedTo(ChronoUnit.SECONDS);
 		authTime = cert.getNotBefore().toInstant();
 		expires = cert.getNotAfter().toInstant();
@@ -191,6 +194,23 @@ public final class PkiPrincipal implements IuPrincipalIdentity, IuPrivateKeyPrin
 
 		subject.setReadOnly();
 		return subject;
+	}
+
+	@Override
+	public int hashCode() {
+		return IuObject.hashCode(alg, enc, encrypt, encryptAlg, verify);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (!IuObject.typeCheck(this, obj))
+			return false;
+		PkiPrincipal other = (PkiPrincipal) obj;
+		return alg == other.alg //
+				&& enc == other.enc //
+				&& encryptAlg == other.encryptAlg //
+				&& IuObject.equals(encrypt, other.encrypt) //
+				&& IuObject.equals(verify, other.verify);
 	}
 
 	@Override

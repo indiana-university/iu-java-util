@@ -51,7 +51,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.iu.IuException;
-import edu.iu.IuIterable;
 import edu.iu.auth.config.IuCertificateAuthority;
 import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.config.X500Utils;
@@ -76,15 +75,9 @@ final class CaVerifier implements PrincipalVerifier<PkiPrincipal>, IuTrustedIssu
 	 */
 	CaVerifier(IuCertificateAuthority ca) {
 		cert = ca.getCertificate();
-		if (cert.getBasicConstraints() == -1)
-			throw new IllegalArgumentException("Not a CA certificate");
-
-		final var keyUsage = cert.getKeyUsage();
-		if (keyUsage == null || //
-				!keyUsage[5])
-			throw new IllegalArgumentException("Key usage doesn't permit certificate signing");
-		if (!keyUsage[6])
-			throw new IllegalArgumentException("Key usage doesn't permit CRL signing");
+		final var keyUsage = new KeyUsage(cert);
+		if (!keyUsage.isCA())
+			throw new IllegalArgumentException("X.509 certificate is not a valid CA signing cert");
 
 		final var anchor = new TrustAnchor(ca.getCertificate(), null);
 		final var pkix = IuException.unchecked(() -> new PKIXParameters(Set.of(anchor)));
@@ -134,7 +127,7 @@ final class CaVerifier implements PrincipalVerifier<PkiPrincipal>, IuTrustedIssu
 				});
 
 				LOG.info(() -> "ca:verify:" + pki.getName() + "; trustAnchor: "
-						+ result.getTrustAnchor().getTrustedCert().getSubjectX500Principal().getName());
+						+ X500Utils.getCommonName(result.getTrustAnchor().getTrustedCert().getSubjectX500Principal()));
 				return;
 			}
 		}
@@ -156,7 +149,9 @@ final class CaVerifier implements PrincipalVerifier<PkiPrincipal>, IuTrustedIssu
 					validator.validate(certFactory.generateCertPath(pathToAnchor), trustParams);
 					return new PkiPrincipal(pkp);
 				} catch (Throwable e) {
-					LOG.log(Level.INFO, e, () -> "ca:invalid:" + getRealm());
+					LOG.log(Level.INFO, e, () -> "ca:invalid:" + getRealm() + " rejected " + X500Utils
+							.getCommonName(((X509Certificate) pathToAnchor.get(0)).getSubjectX500Principal()));
+					break;
 				}
 		}
 		return null;

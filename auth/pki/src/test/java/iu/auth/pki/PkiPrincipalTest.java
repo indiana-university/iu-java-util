@@ -33,29 +33,28 @@ package iu.auth.pki;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IuException;
-import edu.iu.auth.config.IuAuthenticationRealm;
-import edu.iu.auth.config.IuPrivateKeyPrincipal;
+import edu.iu.IuIterable;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 
 @SuppressWarnings("javadoc")
-public class PkiPrincipalTest {
-
-	private static IuPrivateKeyPrincipal pkp(String pkp) {
-		return (IuPrivateKeyPrincipal) IuAuthenticationRealm.JSON.fromJson(IuJson.parse(pkp));
-	}
+public class PkiPrincipalTest extends PkiTestCase {
 
 	@Test
 	public void testRejectWithoutSignatureAlg() {
@@ -352,8 +351,67 @@ public class PkiPrincipalTest {
 		assertEquals(Set.of(pki.getJwk().wellKnown(), pki.getEncryptJwk().wellKnown()), sub.getPublicCredentials());
 		assertEquals(Set.of(pki.getJwk(), pki.getEncryptJwk()), sub.getPrivateCredentials());
 
-		assertEquals("Authoritative PKI Principal urn:example:iu-java-auth-pki#PkiPrincipalTest, Issued by urn:example:iu-java-auth-pki#PkiPrincipalTest_CA",
+		assertEquals(
+				"Authoritative PKI Principal urn:example:iu-java-auth-pki#PkiPrincipalTest, Issued by urn:example:iu-java-auth-pki#PkiPrincipalTest_CA",
 				pki.toString());
 	}
 
+	@Test
+	public void testHashCodeEquals() {
+		// For demonstration only, not for production use
+		final var key1 = WebKey.parse("{\n" //
+				+ "        \"kid\": \"urn:example:iu-java-auth-pki#PkiPrincipalTest\",\n" //
+				+ "        \"x5c\": [\n" //
+				+ "            \"MIIC1zCCAlegAwIBAgIUBvK+pPy+Dj/y5l8brmDRMnXGnA4wBQYDK2VxMIGeMQswCQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0b24xGzAZBgNVBAoMEkluZGlhbmEgVW5pdmVyc2l0eTEPMA0GA1UECwwGU1RBUkNIMTkwNwYDVQQDDDB1cm46ZXhhbXBsZTppdS1qYXZhLWF1dGgtcGtpI1BraVByaW5jaXBhbFRlc3RfQ0EwIBcNMjQwNzA2MDEyNjUxWhgPMjEyNDA3MDcwMTI2NTFaMIGbMQswCQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0b24xGzAZBgNVBAoMEkluZGlhbmEgVW5pdmVyc2l0eTEPMA0GA1UECwwGU1RBUkNIMTYwNAYDVQQDDC11cm46ZXhhbXBsZTppdS1qYXZhLWF1dGgtcGtpI1BraVByaW5jaXBhbFRlc3QwdjAQBgcqhkjOPQIBBgUrgQQAIgNiAAT3YZJMHgU6AWQ/3oy79J5XXnaVX9KjBGmJl/cdRImehmqTiyRSrX156llkWPY/r8UwyOY6key5yYUR9UsbHqjBxybZiCGPaH0sUGpLqkyXaIKXQo/9sjfLEu7gGW3ydNCjWjBYMAkGA1UdEwQCMAAwCwYDVR0PBAQDAgOIMB0GA1UdDgQWBBQX58Hl/1ICEebfVbCiGGZHQSFfBzAfBgNVHSMEGDAWgBSfNR6bNL4nz1FqZPSwZzTIR59uDjAFBgMrZXEDcwAw+qw6Eg2PGX0j/FfAetE/rA05a7GQ+KlZ5w3MeLWR5l8Jhl+VcDN87phNjllIlZY5MrmoU75XCYAZJ1ZDDk8cK10NdUxxHalu8ak7XIuodq+3kV0qGqgdPeiiOexwHM+1YBOBkFabcLSZ3Ex5W44kLwA=\",\n" //
+				+ "            \"MIICsDCCAjCgAwIBAgIUMPncuDW4Ov8V7OpdZApQhar4J+YwBQYDK2VxMIGeMQswCQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0b24xGzAZBgNVBAoMEkluZGlhbmEgVW5pdmVyc2l0eTEPMA0GA1UECwwGU1RBUkNIMTkwNwYDVQQDDDB1cm46ZXhhbXBsZTppdS1qYXZhLWF1dGgtcGtpI1BraVByaW5jaXBhbFRlc3RfQ0EwIBcNMjQwNzA2MDEyMzM1WhgPMjEyNDA3MDcwMTIzMzVaMIGeMQswCQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0b24xGzAZBgNVBAoMEkluZGlhbmEgVW5pdmVyc2l0eTEPMA0GA1UECwwGU1RBUkNIMTkwNwYDVQQDDDB1cm46ZXhhbXBsZTppdS1qYXZhLWF1dGgtcGtpI1BraVByaW5jaXBhbFRlc3RfQ0EwQzAFBgMrZXEDOgBb6+Rqggvc6XDwNVAfpRuobEDslz3gq6p4X12TjpZEpHE8mfcFShNOcLWiAE8aFvw/iHaJl//4U4CjYzBhMB0GA1UdDgQWBBSfNR6bNL4nz1FqZPSwZzTIR59uDjAfBgNVHSMEGDAWgBSfNR6bNL4nz1FqZPSwZzTIR59uDjASBgNVHRMBAf8ECDAGAQH/AgEAMAsGA1UdDwQEAwIBBjAFBgMrZXEDcwANDIjFXGuOZi8T/d8FLxKn+oevuP7iahi/Voq5SZEBiKsYU7q1kO3jZjlBdkUyYGheA320iciVmQD2uqhsSTKCVK0F/etxKHJeeCrMP24Ad8zNUYLiiaobyyRXVE3oGEAJZ7Z10wJjVE8X7/P2Ge2vGQA=\"\n" //
+				+ "        ],\n" //
+				+ "        \"kty\": \"EC\",\n" //
+				+ "        \"crv\": \"P-384\",\n" //
+				+ "        \"x\": \"92GSTB4FOgFkP96Mu_SeV152lV_SowRpiZf3HUSJnoZqk4skUq19eepZZFj2P6_F\",\n" //
+				+ "        \"y\": \"MMjmOpHsucmFEfVLGx6owccm2Yghj2h9LFBqS6pMl2iCl0KP_bI3yxLu4Blt8nTQ\",\n" //
+				+ "        \"d\": \"IurZbxJ28TEA7C902yBr4lWX_ViUfJ3hLu4FifMyHgQ1RTT_R-f5db0-gHNPbmje\"\n" //
+				+ "}\n");
+		final var key2 = WebKey.parse("{\n" //
+				+ "        \"kid\": \"urn:example:iu-java-auth-pki#PkiPrincipalTest\",\n" //
+				+ "        \"x5c\": [\n" //
+				+ "            \"MIIClzCCAjygAwIBAgIULDargtUW0DjpsOoPGh4ysNF+QA4wCgYIKoZIzj0EAwIwgZsxCzAJBgNVBAYTAlVTMRAwDgYDVQQIDAdJbmRpYW5hMRQwEgYDVQQHDAtCbG9vbWluZ3RvbjEbMBkGA1UECgwSSW5kaWFuYSBVbml2ZXJzaXR5MQ8wDQYDVQQLDAZTVEFSQ0gxNjA0BgNVBAMMLXVybjpleGFtcGxlOml1LWphdmEtYXV0aC1wa2kjUGtpUHJpbmNpcGFsVGVzdDAgFw0yNDA3MDYwMDIxMDlaGA8yMTI0MDcwNzAwMjEwOVowgZsxCzAJBgNVBAYTAlVTMRAwDgYDVQQIDAdJbmRpYW5hMRQwEgYDVQQHDAtCbG9vbWluZ3RvbjEbMBkGA1UECgwSSW5kaWFuYSBVbml2ZXJzaXR5MQ8wDQYDVQQLDAZTVEFSQ0gxNjA0BgNVBAMMLXVybjpleGFtcGxlOml1LWphdmEtYXV0aC1wa2kjUGtpUHJpbmNpcGFsVGVzdDBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABEEpIbyg2H6WaLGC1vv/JtdJnq7EZ+v1u/7grj2TDBkk54cCz2Vt+DT9HhntEmpSwJeoDd62L8ZVISw/7wytY7mjWjBYMB0GA1UdDgQWBBTq57y75qrVZVN5GWC8cnbDBJjLOTAfBgNVHSMEGDAWgBTq57y75qrVZVN5GWC8cnbDBJjLOTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIDiDAKBggqhkjOPQQDAgNJADBGAiEA6hr6mhNrj3J+hm9DHi2j/0fV1V+o4imzxlRhgRC5P3cCIQDU08uWitXt7EiWLQds3+U0qDfFjJWtGhr6FhrEsmNYtA==\"\n" //
+				+ "        ],\n" //
+				+ "        \"kty\": \"EC\",\n" //
+				+ "        \"crv\": \"P-256\",\n" //
+				+ "        \"x\": \"QSkhvKDYfpZosYLW-_8m10mersRn6_W7_uCuPZMMGSQ\",\n" //
+				+ "        \"y\": \"54cCz2Vt-DT9HhntEmpSwJeoDd62L8ZVISw_7wytY7k\"\n" //
+				+ "}\n");
+
+		final List<PkiPrincipal> principals = new ArrayList<>();
+		for (final var key : IuIterable.iter(key1, key2))
+			for (final var alg : IuIterable.iter(Algorithm.ES384, Algorithm.ES256)) {
+				final var pkpBuilder = IuJson.object().add("type", "pki");
+				IuJson.add(pkpBuilder, "alg", () -> alg, Algorithm.JSON);
+				pkpBuilder.addNull("encrypt_alg").addNull("enc");
+				IuJson.add(pkpBuilder, "jwk", () -> key, WebKey.JSON);
+				principals.add(new PkiPrincipal(pkp(pkpBuilder.build().toString())));
+
+				for (final var enc : IuIterable.iter(Encryption.A192GCM, Encryption.A256GCM))
+					for (final var encryptAlg : IuIterable.iter(Algorithm.ECDH_ES, Algorithm.ECDH_ES_A128KW)) {
+						final var pkpEncBuilder = IuJson.object().add("type", "pki");
+						IuJson.add(pkpEncBuilder, "alg", () -> alg, Algorithm.JSON);
+						IuJson.add(pkpEncBuilder, "encrypt_alg", () -> encryptAlg, Algorithm.JSON);
+						IuJson.add(pkpEncBuilder, "enc", () -> enc, Encryption.JSON);
+						IuJson.add(pkpEncBuilder, "jwk", () -> key, WebKey.JSON);
+						principals.add(new PkiPrincipal(pkp(pkpEncBuilder.build().toString())));
+					}
+			}
+
+		for (int i = 0; i < principals.size(); i++)
+			for (int j = 0; j < principals.size(); j++)
+				if (i == j) {
+					assertNotEquals(principals.get(i), new Object());
+					assertEquals(principals.get(i), principals.get(j));
+					assertEquals(principals.get(i).hashCode(), principals.get(j).hashCode());
+				} else {
+					assertNotEquals(principals.get(i), principals.get(j));
+					assertNotEquals(principals.get(j), principals.get(i));
+					assertNotEquals(principals.get(i).hashCode(), principals.get(j).hashCode());
+				}
+	}
 }

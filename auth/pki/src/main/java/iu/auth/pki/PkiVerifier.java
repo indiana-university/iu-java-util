@@ -86,6 +86,8 @@ final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuTrustedIss
 		if (!keyUsage.matches(Use.SIGN))
 			throw new IllegalArgumentException("X.509 certificate not valid for digital signature");
 		realm = X500Utils.getCommonName(cert.getSubjectX500Principal());
+		if (!realm.equals(jwk.getKeyId()))
+			throw new IllegalArgumentException("Key ID doesn't match CN");
 
 		final var anchor = new TrustAnchor(cert, null);
 		final var pkix = IuException.unchecked(() -> new PKIXParameters(Set.of(anchor)));

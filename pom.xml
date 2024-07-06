@@ -483,7 +483,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>jdbc</module>
 				<module>type</module>
 				<module>auth</module>
+<!--
 				<module>runtime</module>
+ -->
 				<module>site</module>
 			</modules>
 		</profile>

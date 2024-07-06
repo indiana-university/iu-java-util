@@ -29,13 +29,22 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Authentication and authorization roll-up implementation module.
- */
-module iu.util.auth.impl {
-	requires iu.util;
-	requires iu.util.auth;
-	requires iu.util.auth.config;
-	requires iu.util.auth.principal;
-	requires iu.util.auth.pki;
+package iu.auth.pki;
+
+import edu.iu.auth.config.IuAuthenticationRealm;
+import edu.iu.auth.config.IuCertificateAuthority;
+import edu.iu.auth.config.IuPrivateKeyPrincipal;
+import edu.iu.client.IuJson;
+
+@SuppressWarnings("javadoc")
+public class PkiTestCase {
+
+	static IuPrivateKeyPrincipal pkp(String pkp) {
+		return (IuPrivateKeyPrincipal) IuAuthenticationRealm.JSON.fromJson(IuJson.parse(pkp));
+	}
+
+	static IuCertificateAuthority ca(String ca) {
+		return (IuCertificateAuthority) IuAuthenticationRealm.JSON.fromJson(IuJson.parse(ca));
+	}
+
 }
