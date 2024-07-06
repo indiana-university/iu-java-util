@@ -29,7 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.pki;
+package edu.iu.auth.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -43,6 +43,8 @@ import java.util.Map;
 import javax.security.auth.x500.X500Principal;
 
 import org.junit.jupiter.api.Test;
+
+import edu.iu.auth.config.X500Utils;
 
 @SuppressWarnings("javadoc")
 public class X500UtilsTest {

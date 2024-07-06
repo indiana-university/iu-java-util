@@ -29,7 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.pki;
+package edu.iu.auth.config;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.CharBuffer;
@@ -51,7 +51,7 @@ import edu.iu.IuText;
 /**
  * Provides basic metadata inspection utilities for {@link X500Principal}.
  */
-class X500Utils {
+public final class X500Utils {
 
 	/**
 	 * Maps required X500 OID values to standard short names
@@ -74,7 +74,7 @@ class X500Utils {
 	 * @return parsed CN value from {@link X500Principal}; else
 	 *         {@link Principal#getName()}
 	 */
-	static String getCommonName(X500Principal principal) {
+	public static String getCommonName(X500Principal principal) {
 		final var name = principal.getName();
 
 		String cn = null;
@@ -126,7 +126,7 @@ class X500Utils {
 	 * @return parsed DN
 	 * @see #getCommonName(X500Principal)
 	 */
-	static Iterable<Map<String, String>> parse(String name) {
+	public static Iterable<Map<String, String>> parse(String name) {
 		if (name.isEmpty())
 			return IuIterable.empty();
 

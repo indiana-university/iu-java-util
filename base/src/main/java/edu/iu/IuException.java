@@ -31,6 +31,8 @@
  */
 package edu.iu;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
 
@@ -500,7 +502,7 @@ public final class IuException {
 	 * </p>
 	 * 
 	 * @param runnable Any {@link UnsafeRunnable}
-	 * @param message message for use with {@link #unchecked(Throwable, String)}
+	 * @param message  message for use with {@link #unchecked(Throwable, String)}
 	 */
 	public static void unchecked(UnsafeRunnable runnable, String message) {
 		try {
@@ -633,7 +635,7 @@ public final class IuException {
 	 * @param <T>      result type
 	 * 
 	 * @param supplier Any {@link UnsafeSupplier}
-	 * @param message Message to use with {@link #unchecked(Throwable, String)}
+	 * @param message  Message to use with {@link #unchecked(Throwable, String)}
 	 * @return result
 	 */
 	public static <T> T unchecked(UnsafeSupplier<T> supplier, String message) {
@@ -1409,6 +1411,20 @@ public final class IuException {
 			e = suppress(e, task);
 		if (e != null)
 			throw e;
+	}
+
+	/**
+	 * Gets a stack trace from a {@link Throwable} as a {@link String}.
+	 * 
+	 * @param e {@link Throwable}
+	 * @return {@link String} representation of the stack trace.
+	 */
+	public static String trace(Throwable e) {
+		final var w = new StringWriter();
+		try (final var pw = new PrintWriter(w)) {
+			e.printStackTrace(pw);
+		}
+		return w.toString();
 	}
 
 	private IuException() {

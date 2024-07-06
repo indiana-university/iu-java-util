@@ -32,6 +32,8 @@
 package iu.auth.config;
 
 import java.lang.reflect.Type;
+import java.security.cert.X509CRL;
+import java.security.cert.X509Certificate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -46,6 +48,7 @@ import edu.iu.auth.config.IuAuthorizedAudience;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuVault;
+import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
@@ -211,6 +214,10 @@ public class AuthConfig {
 			return (IuJsonAdapter<T>) Algorithm.JSON;
 		else if (Encryption.class == type)
 			return (IuJsonAdapter<T>) Encryption.JSON;
+		else if (X509Certificate.class == type)
+			return (IuJsonAdapter<T>) PemEncoded.CERT_JSON;
+		else if (X509CRL.class == type)
+			return (IuJsonAdapter<T>) PemEncoded.CRL_JSON;
 		else
 			return IuJsonAdapter.of(type, AuthConfig::adaptJson);
 	}
