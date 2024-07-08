@@ -322,7 +322,21 @@ public final class IuObject {
 	 * @throws IllegalArgumentException if the types don't match
 	 */
 	public static <T> T require(T value, Predicate<T> condition) {
-		return require(value, condition, () -> null);
+		return require(value, condition, (String) null);
+	}
+
+	/**
+	 * Require a condition to be true for a value if non-null.
+	 * 
+	 * @param <T>       value type
+	 * @param value     value
+	 * @param condition condition to verify
+	 * @param message   provides a message for {@link IllegalArgumentException}
+	 * @return value
+	 * @throws IllegalArgumentException if the types don't match
+	 */
+	public static <T> T require(T value, Predicate<T> condition, String message) {
+		return require(value, condition, () -> message);
 	}
 
 	/**

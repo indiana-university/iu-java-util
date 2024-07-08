@@ -482,7 +482,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>crypt</module>
 				<module>jdbc</module>
 				<module>type</module>
-				<module>runtime</module>
+				<module>auth</module>
 				<module>site</module>
 			</modules>
 		</profile>
