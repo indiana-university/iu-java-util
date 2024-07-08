@@ -31,8 +31,10 @@
  */
 package iu.auth.pki;
 
+import java.math.BigInteger;
 import java.net.URI;
 import java.security.cert.CertPathValidator;
+import java.security.cert.CertPathValidatorException;
 import java.security.cert.CertStore;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
@@ -44,17 +46,21 @@ import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import edu.iu.IuDigest;
 import edu.iu.IuException;
+import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.config.IuCertificateAuthority;
 import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.config.X500Utils;
 import edu.iu.crypt.WebCertificateReference;
+import edu.iu.crypt.WebKey;
 import iu.auth.config.IuTrustedIssuer;
 import iu.auth.principal.PrincipalVerifier;
 
@@ -114,25 +120,39 @@ final class CaVerifier implements PrincipalVerifier<PkiPrincipal>, IuTrustedIssu
 	}
 
 	@Override
-	public void verify(PkiPrincipal pki) {
-		final var issuerPrincipal = cert.getSubjectX500Principal();
-		final List<Certificate> pathToAnchor = new ArrayList<>();
-		for (final var cert : WebCertificateReference.verify(pki.getJwk())) {
-			pathToAnchor.add(cert);
-			if (issuerPrincipal.equals(cert.getIssuerX500Principal())) {
-				final var result = (PKIXCertPathValidatorResult) IuException.unchecked(() -> {
-					final var validator = CertPathValidator.getInstance("PKIX");
-					final var certFactory = CertificateFactory.getInstance("X.509");
-					return validator.validate(certFactory.generateCertPath(pathToAnchor), trustParams);
-				});
+	public void verify(PkiPrincipal pki) throws IuAuthenticationException {
+		final var subject = pki.getSubject();
+		final var keys = subject.getPublicCredentials(WebKey.class);
+		if (keys.isEmpty())
+			throw new IllegalArgumentException("missing public key");
 
-				LOG.info(() -> "ca:verify:" + pki.getName() + "; trustAnchor: "
-						+ X500Utils.getCommonName(result.getTrustAnchor().getTrustedCert().getSubjectX500Principal()));
-				return;
+		final var issuerPrincipal = cert.getSubjectX500Principal();
+		final Set<BigInteger> trusted = new HashSet<>();
+		for (final var jwk : keys) {
+			final List<Certificate> pathToAnchor = new ArrayList<>();
+			for (final var cert : WebCertificateReference.verify(jwk)) {
+				pathToAnchor.add(cert);
+				if (issuerPrincipal.equals(cert.getIssuerX500Principal()) //
+						&& trusted.add(new BigInteger(
+								IuDigest.sha256(IuException.unchecked(jwk.getCertificateChain()[0]::getEncoded)))))
+					try {
+						final var result = (PKIXCertPathValidatorResult) IuException
+								.checked(CertPathValidatorException.class, () -> {
+									final var validator = CertPathValidator.getInstance("PKIX");
+									final var certFactory = CertificateFactory.getInstance("X.509");
+									return validator.validate(certFactory.generateCertPath(pathToAnchor), trustParams);
+								});
+
+						LOG.info(() -> "ca:verify:" + pki.getName() + "; trustAnchor: " + X500Utils
+								.getCommonName(result.getTrustAnchor().getTrustedCert().getSubjectX500Principal()));
+
+					} catch (CertPathValidatorException e) {
+						throw new IuAuthenticationException(null, e);
+					}
 			}
 		}
-
-		throw new IllegalArgumentException("issuer not trusted");
+		if (trusted.isEmpty())
+			throw new IllegalArgumentException("issuer not trusted");
 	}
 
 	@Override

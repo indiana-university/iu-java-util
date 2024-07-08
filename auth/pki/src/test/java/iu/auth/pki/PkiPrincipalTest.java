@@ -34,15 +34,14 @@ package iu.auth.pki;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import org.junit.jupiter.api.Test;
 
@@ -153,6 +152,10 @@ public class PkiPrincipalTest extends PkiTestCase {
 		assertEquals("Invalid key type EC_P256 for algorithm RSA_OAEP", e.getMessage(), () -> IuException.trace(e));
 	}
 
+	private static Predicate<Object> keyWithId(String id) {
+		return key -> (key instanceof WebKey) && id.equals(((WebKey) key).getKeyId());
+	}
+
 	@Test
 	public void testWellKnown() {
 		// For demonstration only, not for production use
@@ -172,21 +175,19 @@ public class PkiPrincipalTest extends PkiTestCase {
 				+ "    }\n" //
 				+ "}"));
 		assertEquals("urn:example:iu-java-auth-pki#PkiPrincipalTest", pki.getName());
-		assertEquals(Algorithm.EDDSA, pki.getAlg());
-		assertNull(pki.getEncryptAlg());
-		assertNull(pki.getEnc());
-		assertEquals("verify", pki.getJwk().getKeyId());
-		assertNull(pki.getEncryptJwk());
+		final var sub = pki.getSubject();
+		assertEquals(Set.of(pki), sub.getPrincipals());
+		assertEquals(Set.of(), sub.getPrivateCredentials());
+
+		final var pub = sub.getPublicCredentials();
+		assertEquals(1, pub.size());
+		assertTrue(pub.stream().anyMatch(keyWithId("verify")));
+		assertFalse(pub.stream().anyMatch(keyWithId("encrypt")));
 
 		final var now = Instant.now();
 		assertTrue(now.isAfter(pki.getAuthTime()));
 		assertFalse(now.isBefore(pki.getIssuedAt()));
 		assertTrue(now.isBefore(pki.getExpires()));
-
-		final var sub = pki.getSubject();
-		assertEquals(Set.of(pki), sub.getPrincipals());
-		assertEquals(Set.of(pki.getJwk()), new HashSet<>(sub.getPublicCredentials()));
-		assertEquals(Set.of(), sub.getPrivateCredentials());
 
 		assertEquals("Well-Known PKI Principal urn:example:iu-java-auth-pki#PkiPrincipalTest, Self-Issued",
 				pki.toString());
@@ -212,21 +213,22 @@ public class PkiPrincipalTest extends PkiTestCase {
 				+ "    }\n" //
 				+ "}"));
 		assertEquals("urn:example:iu-java-auth-pki#PkiPrincipalTest", pki.getName());
-		assertEquals(Algorithm.EDDSA, pki.getAlg());
-		assertNull(pki.getEncryptAlg());
-		assertNull(pki.getEnc());
-		assertEquals("verify", pki.getJwk().getKeyId());
-		assertNull(pki.getEncryptJwk());
+		final var sub = pki.getSubject();
+		assertEquals(Set.of(pki), sub.getPrincipals());
+
+		final var priv = sub.getPrivateCredentials();
+		assertEquals(1, priv.size());
+		final var verify = (WebKey) priv.iterator().next();
+		assertEquals("verify", verify.getKeyId());
+
+		final var pub = sub.getPublicCredentials();
+		assertEquals(1, pub.size());
+		assertEquals(verify.wellKnown(), pub.iterator().next());
 
 		final var now = Instant.now();
 		assertTrue(now.isAfter(pki.getAuthTime()));
 		assertFalse(now.isBefore(pki.getIssuedAt()));
 		assertTrue(now.isBefore(pki.getExpires()));
-
-		final var sub = pki.getSubject();
-		assertEquals(Set.of(pki), sub.getPrincipals());
-		assertEquals(Set.of(pki.getJwk().wellKnown()), sub.getPublicCredentials());
-		assertEquals(Set.of(pki.getJwk()), sub.getPrivateCredentials());
 
 		assertEquals("Authoritative PKI Principal urn:example:iu-java-auth-pki#PkiPrincipalTest, Self-Issued",
 				pki.toString());
@@ -253,21 +255,23 @@ public class PkiPrincipalTest extends PkiTestCase {
 				+ "    }\n" //
 				+ "}\n"));
 		assertEquals("urn:example:iu-java-auth-pki#PkiPrincipalTest", pki.getName());
-		assertEquals(Algorithm.ES256, pki.getAlg());
-		assertEquals(Algorithm.ECDH_ES, pki.getEncryptAlg());
-		assertEquals(Encryption.A128GCM, pki.getEnc());
-		assertEquals("verify", pki.getJwk().getKeyId());
-		assertEquals("encrypt", pki.getEncryptJwk().getKeyId());
+		final var sub = pki.getSubject();
+		assertEquals(Set.of(pki), sub.getPrincipals());
+
+		final var priv = sub.getPrivateCredentials();
+		assertEquals(2, priv.size());
+		final var verify = (WebKey) priv.stream().filter(keyWithId("verify")).findAny().get();
+		final var encrypt = (WebKey) priv.stream().filter(keyWithId("encrypt")).findAny().get();
+
+		final var pub = sub.getPublicCredentials();
+		assertEquals(2, pub.size());
+		assertTrue(pub.contains(verify.wellKnown()));
+		assertTrue(pub.contains(encrypt.wellKnown()));
 
 		final var now = Instant.now();
 		assertTrue(now.isAfter(pki.getAuthTime()));
 		assertFalse(now.isBefore(pki.getIssuedAt()));
 		assertTrue(now.isBefore(pki.getExpires()));
-
-		final var sub = pki.getSubject();
-		assertEquals(Set.of(pki), sub.getPrincipals());
-		assertEquals(Set.of(pki.getJwk().wellKnown(), pki.getEncryptJwk().wellKnown()), sub.getPublicCredentials());
-		assertEquals(Set.of(pki.getJwk(), pki.getEncryptJwk()), sub.getPrivateCredentials());
 
 		assertEquals("Authoritative PKI Principal urn:example:iu-java-auth-pki#PkiPrincipalTest, Self-Issued",
 				pki.toString());
@@ -293,21 +297,19 @@ public class PkiPrincipalTest extends PkiTestCase {
 				+ "    }\n" //
 				+ "}\n"));
 		assertEquals("urn:example:iu-java-auth-pki#PkiPrincipalTest", pki.getName());
-		assertEquals(Algorithm.ES256, pki.getAlg());
-		assertEquals(Algorithm.ECDH_ES, pki.getEncryptAlg());
-		assertEquals(Encryption.A128GCM, pki.getEnc());
-		assertEquals("verify", pki.getJwk().getKeyId());
-		assertEquals("encrypt", pki.getEncryptJwk().getKeyId());
+		final var sub = pki.getSubject();
+		assertEquals(Set.of(pki), sub.getPrincipals());
+		assertEquals(Set.of(), sub.getPrivateCredentials());
+
+		final var pub = sub.getPublicCredentials();
+		assertEquals(2, pub.size());
+		assertTrue(pub.stream().anyMatch(keyWithId("verify")));
+		assertTrue(pub.stream().anyMatch(keyWithId("encrypt")));
 
 		final var now = Instant.now();
 		assertTrue(now.isAfter(pki.getAuthTime()));
 		assertFalse(now.isBefore(pki.getIssuedAt()));
 		assertTrue(now.isBefore(pki.getExpires()));
-
-		final var sub = pki.getSubject();
-		assertEquals(Set.of(pki), sub.getPrincipals());
-		assertEquals(Set.of(pki.getJwk(), pki.getEncryptJwk()), sub.getPublicCredentials());
-		assertEquals(Set.of(), sub.getPrivateCredentials());
 
 		assertEquals("Well-Known PKI Principal urn:example:iu-java-auth-pki#PkiPrincipalTest, Self-Issued",
 				pki.toString());
@@ -335,21 +337,23 @@ public class PkiPrincipalTest extends PkiTestCase {
 				+ "    }\n" //
 				+ "}\n"));
 		assertEquals("urn:example:iu-java-auth-pki#PkiPrincipalTest", pki.getName());
-		assertEquals(Algorithm.ES384, pki.getAlg());
-		assertEquals(Algorithm.ECDH_ES, pki.getEncryptAlg());
-		assertEquals(Encryption.A192GCM, pki.getEnc());
-		assertEquals("verify", pki.getJwk().getKeyId());
-		assertEquals("encrypt", pki.getEncryptJwk().getKeyId());
+		final var sub = pki.getSubject();
+		assertEquals(Set.of(pki), sub.getPrincipals());
+
+		final var priv = sub.getPrivateCredentials();
+		assertEquals(2, priv.size());
+		final var verify = (WebKey) priv.stream().filter(keyWithId("verify")).findAny().get();
+		final var encrypt = (WebKey) priv.stream().filter(keyWithId("encrypt")).findAny().get();
+
+		final var pub = sub.getPublicCredentials();
+		assertEquals(2, pub.size());
+		assertTrue(pub.contains(verify.wellKnown()));
+		assertTrue(pub.contains(encrypt.wellKnown()));
 
 		final var now = Instant.now();
 		assertTrue(now.isAfter(pki.getAuthTime()));
 		assertFalse(now.isBefore(pki.getIssuedAt()));
 		assertTrue(now.isBefore(pki.getExpires()));
-
-		final var sub = pki.getSubject();
-		assertEquals(Set.of(pki), sub.getPrincipals());
-		assertEquals(Set.of(pki.getJwk().wellKnown(), pki.getEncryptJwk().wellKnown()), sub.getPublicCredentials());
-		assertEquals(Set.of(pki.getJwk(), pki.getEncryptJwk()), sub.getPrivateCredentials());
 
 		assertEquals(
 				"Authoritative PKI Principal urn:example:iu-java-auth-pki#PkiPrincipalTest, Issued by urn:example:iu-java-auth-pki#PkiPrincipalTest_CA",

@@ -51,7 +51,7 @@ import edu.iu.crypt.WebKey.Use;
 /**
  * PKI principal identity implementation class.
  */
-public final class PkiPrincipal implements IuPrincipalIdentity, IuPrivateKeyPrincipal {
+public final class PkiPrincipal implements IuPrincipalIdentity {
 	static {
 		IuObject.assertNotOpen(PkiPrincipal.class);
 	}
@@ -132,31 +132,6 @@ public final class PkiPrincipal implements IuPrincipalIdentity, IuPrivateKeyPrin
 	@Override
 	public String getName() {
 		return name;
-	}
-
-	@Override
-	public Algorithm getAlg() {
-		return alg;
-	}
-
-	@Override
-	public Algorithm getEncryptAlg() {
-		return encryptAlg;
-	}
-
-	@Override
-	public Encryption getEnc() {
-		return enc;
-	}
-
-	@Override
-	public WebKey getJwk() {
-		return verify;
-	}
-
-	@Override
-	public WebKey getEncryptJwk() {
-		return encrypt;
 	}
 
 	@Override

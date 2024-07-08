@@ -38,13 +38,18 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.security.cert.CertPathValidatorException;
 import java.util.logging.Level;
 
+import javax.security.auth.Subject;
+
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IuException;
+import edu.iu.auth.IuAuthenticationException;
 import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
@@ -100,6 +105,21 @@ public class CaVerifierTest extends PkiTestCase {
 
 		final var e = assertThrows(IllegalArgumentException.class, () -> new CaVerifier(ca));
 		assertEquals("X.509 certificate is not a valid CA signing cert", e.getMessage(), () -> IuException.trace(e));
+	}
+
+	@Test
+	public void testRejectsInvalid() {
+		final var ca = ca("{\"type\": \"ca\",\n"
+				+ "    \"certificate\": \"MIICpDCCAiSgAwIBAgIUKF3bSJnpQo2LAF8Jp5ajwwv+Zw8wBQYDK2VxMIGYMQswCQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0b24xGzAZBgNVBAoMEkluZGlhbmEgVW5pdmVyc2l0eTEPMA0GA1UECwwGU1RBUkNIMTMwMQYDVQQDDCp1cm46ZXhhbXBsZTppdS1qYXZhLWF1dGgtcGtpI0NhVmVyZmllclRlc3QwIBcNMjQwNzA1MTcwMTQ5WhgPMjEyNDA3MDYxNzAxNDlaMIGYMQswCQYDVQQGEwJVUzEQMA4GA1UECAwHSW5kaWFuYTEUMBIGA1UEBwwLQmxvb21pbmd0b24xGzAZBgNVBAoMEkluZGlhbmEgVW5pdmVyc2l0eTEPMA0GA1UECwwGU1RBUkNIMTMwMQYDVQQDDCp1cm46ZXhhbXBsZTppdS1qYXZhLWF1dGgtcGtpI0NhVmVyZmllclRlc3QwQzAFBgMrZXEDOgDdKYCu0k+z9jO6oHTfzHIdriCcmwnJFauIxJiaXbEfEoMOkGh6tZm9hJjVVRiF8cOiNyMbaDb514CjYzBhMB0GA1UdDgQWBBSWXyftXtwpQcl+Vw6015ORuHNF5TAfBgNVHSMEGDAWgBSWXyftXtwpQcl+Vw6015ORuHNF5TASBgNVHRMBAf8ECDAGAQH/AgEAMAsGA1UdDwQEAwIBBjAFBgMrZXEDcwD8FkUQli9NbXQGjLaQVC0yr7ToJJM6VBEacR0deNYB2n9MtOz5dJc46OV2kUW/G5yaishopXZkPoAINs/1otsPpH8f7qzSaxAluFJynvZlaADL+tcAB29aOn0FseA84QyYTKi/ezNp6wTrGaxTQFG2EgA=\",\n"
+				+ "    \"crl\": \"MIIBQTCBwjAFBgMrZXEwgZgxCzAJBgNVBAYTAlVTMRAwDgYDVQQIDAdJbmRpYW5hMRQwEgYDVQQHDAtCbG9vbWluZ3RvbjEbMBkGA1UECgwSSW5kaWFuYSBVbml2ZXJzaXR5MQ8wDQYDVQQLDAZTVEFSQ0gxMzAxBgNVBAMMKnVybjpleGFtcGxlOml1LWphdmEtYXV0aC1wa2kjQ2FWZXJmaWVyVGVzdBcNMjQwNzA1MTcwMTUwWhgPMjEyNDA3MDYxNzAxNTBaMAUGAytlcQNzANZrFP6qeOhBIUiqjAf/FG3uojCAKJ+AuPbWIumoWJL6bEnvDsO0ORBrfTSGgutOH6IzuTokStZcABnI61O9gUg3ZYCUmdn+PMZ69+4y4SszshLznVg9rH4NY/66EF1pwhsQG1kI5jpj7yKX/b+anPESAA==\"\n"
+				+ "}\n");
+
+		final var verifier = new CaVerifier(ca);
+		final var ipki = mock(PkiPrincipal.class);
+		final var sub = new Subject();
+		when(ipki.getSubject()).thenReturn(sub);
+		var e = assertThrows(IllegalArgumentException.class, () -> verifier.verify(ipki));
+		assertEquals("missing public key", e.getMessage());
 	}
 
 	@Test
@@ -163,7 +183,7 @@ public class CaVerifierTest extends PkiTestCase {
 				"ca:invalid:urn:example:iu-java-auth-pki#CaVerifierTest_CA rejected urn:example:iu-java-auth-pki#CaVerifierTest",
 				CertPathValidatorException.class);
 		assertNull(verifier.getPrincipal(pkp));
-		final var e = assertThrows(IllegalStateException.class, () -> verifier.verify(new PkiPrincipal(pkp)));
+		final var e = assertThrows(IuAuthenticationException.class, () -> verifier.verify(new PkiPrincipal(pkp)));
 		assertInstanceOf(CertPathValidatorException.class, e.getCause(), () -> IuException.trace(e));
 	}
 
