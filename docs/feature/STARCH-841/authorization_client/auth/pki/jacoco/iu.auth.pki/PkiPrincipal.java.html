@@ -51,7 +51,7 @@ import edu.iu.crypt.WebKey.Use;
 /**
  * PKI principal identity implementation class.
  */
-public final class PkiPrincipal implements IuPrincipalIdentity, IuPrivateKeyPrincipal {
+public final class PkiPrincipal implements IuPrincipalIdentity {
 	static {
 <span class="fc" id="L56">		IuObject.assertNotOpen(PkiPrincipal.class);</span>
 <span class="fc" id="L57">	}</span>
@@ -72,7 +72,7 @@ public final class PkiPrincipal implements IuPrincipalIdentity, IuPrivateKeyPrin
 	 * @param pkp Authentication realm metadata with original algorithm and
 	 *            certificate values
 	 */
-<span class="fc" id="L75">	PkiPrincipal(IuPrivateKeyPrincipal pkp) {</span>
+<span class="fc" id="L75">	public PkiPrincipal(IuPrivateKeyPrincipal pkp) {</span>
 <span class="fc" id="L76">		final var jwk = pkp.getJwk();</span>
 <span class="fc" id="L77">		final var keyType = jwk.getType();</span>
 <span class="fc" id="L78">		final var privateKey = jwk.getPrivateKey();</span>
@@ -135,102 +135,77 @@ public final class PkiPrincipal implements IuPrincipalIdentity, IuPrivateKeyPrin
 	}
 
 	@Override
-	public Algorithm getAlg() {
-<span class="fc" id="L139">		return alg;</span>
-	}
-
-	@Override
-	public Algorithm getEncryptAlg() {
-<span class="fc" id="L144">		return encryptAlg;</span>
-	}
-
-	@Override
-	public Encryption getEnc() {
-<span class="fc" id="L149">		return enc;</span>
-	}
-
-	@Override
-	public WebKey getJwk() {
-<span class="fc" id="L154">		return verify;</span>
-	}
-
-	@Override
-	public WebKey getEncryptJwk() {
-<span class="fc" id="L159">		return encrypt;</span>
-	}
-
-	@Override
 	public Instant getIssuedAt() {
-<span class="fc" id="L164">		return issuedAt;</span>
+<span class="fc" id="L139">		return issuedAt;</span>
 	}
 
 	@Override
 	public Instant getAuthTime() {
-<span class="fc" id="L169">		return authTime;</span>
+<span class="fc" id="L144">		return authTime;</span>
 	}
 
 	@Override
 	public Instant getExpires() {
-<span class="fc" id="L174">		return expires;</span>
+<span class="fc" id="L149">		return expires;</span>
 	}
 
 	@Override
 	public Subject getSubject() {
-<span class="fc" id="L179">		final var subject = new Subject();</span>
-<span class="fc" id="L180">		subject.getPrincipals().add(this);</span>
+<span class="fc" id="L154">		final var subject = new Subject();</span>
+<span class="fc" id="L155">		subject.getPrincipals().add(this);</span>
 
-<span class="fc" id="L182">		final var priv = subject.getPrivateCredentials();</span>
-<span class="fc" id="L183">		final var pub = subject.getPublicCredentials();</span>
+<span class="fc" id="L157">		final var priv = subject.getPrivateCredentials();</span>
+<span class="fc" id="L158">		final var pub = subject.getPublicCredentials();</span>
 
-<span class="fc bfc" id="L185" title="All 2 branches covered.">		if (verify.getPrivateKey() != null)</span>
-<span class="fc" id="L186">			priv.add(verify);</span>
-<span class="fc" id="L187">		pub.add(verify.wellKnown());</span>
+<span class="fc bfc" id="L160" title="All 2 branches covered.">		if (verify.getPrivateKey() != null)</span>
+<span class="fc" id="L161">			priv.add(verify);</span>
+<span class="fc" id="L162">		pub.add(verify.wellKnown());</span>
 
-<span class="fc bfc" id="L189" title="All 2 branches covered.">		if (encrypt != null) {</span>
-<span class="fc bfc" id="L190" title="All 2 branches covered.">			if (encrypt.getPrivateKey() != null)</span>
-<span class="fc" id="L191">				priv.add(encrypt);</span>
-<span class="fc" id="L192">			pub.add(encrypt.wellKnown());</span>
+<span class="fc bfc" id="L164" title="All 2 branches covered.">		if (encrypt != null) {</span>
+<span class="fc bfc" id="L165" title="All 2 branches covered.">			if (encrypt.getPrivateKey() != null)</span>
+<span class="fc" id="L166">				priv.add(encrypt);</span>
+<span class="fc" id="L167">			pub.add(encrypt.wellKnown());</span>
 		}
 
-<span class="fc" id="L195">		subject.setReadOnly();</span>
-<span class="fc" id="L196">		return subject;</span>
+<span class="fc" id="L170">		subject.setReadOnly();</span>
+<span class="fc" id="L171">		return subject;</span>
 	}
 
 	@Override
 	public int hashCode() {
-<span class="fc" id="L201">		return IuObject.hashCode(alg, enc, encrypt, encryptAlg, verify);</span>
+<span class="fc" id="L176">		return IuObject.hashCode(alg, enc, encrypt, encryptAlg, verify);</span>
 	}
 
 	@Override
 	public boolean equals(Object obj) {
-<span class="fc bfc" id="L206" title="All 2 branches covered.">		if (!IuObject.typeCheck(this, obj))</span>
-<span class="fc" id="L207">			return false;</span>
-<span class="fc" id="L208">		PkiPrincipal other = (PkiPrincipal) obj;</span>
-<span class="fc bfc" id="L209" title="All 6 branches covered.">		return alg == other.alg //</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">		if (!IuObject.typeCheck(this, obj))</span>
+<span class="fc" id="L182">			return false;</span>
+<span class="fc" id="L183">		PkiPrincipal other = (PkiPrincipal) obj;</span>
+<span class="fc bfc" id="L184" title="All 6 branches covered.">		return alg == other.alg //</span>
 				&amp;&amp; enc == other.enc //
 				&amp;&amp; encryptAlg == other.encryptAlg //
-<span class="fc bfc" id="L212" title="All 2 branches covered.">				&amp;&amp; IuObject.equals(encrypt, other.encrypt) //</span>
-<span class="fc bfc" id="L213" title="All 2 branches covered.">				&amp;&amp; IuObject.equals(verify, other.verify);</span>
+<span class="fc bfc" id="L187" title="All 2 branches covered.">				&amp;&amp; IuObject.equals(encrypt, other.encrypt) //</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">				&amp;&amp; IuObject.equals(verify, other.verify);</span>
 	}
 
 	@Override
 	public String toString() {
-<span class="fc" id="L218">		final var sb = new StringBuilder();</span>
-<span class="fc bfc" id="L219" title="All 2 branches covered.">		if (verify.getPrivateKey() == null)</span>
-<span class="fc" id="L220">			sb.append(&quot;Well-Known&quot;);</span>
+<span class="fc" id="L193">		final var sb = new StringBuilder();</span>
+<span class="fc bfc" id="L194" title="All 2 branches covered.">		if (verify.getPrivateKey() == null)</span>
+<span class="fc" id="L195">			sb.append(&quot;Well-Known&quot;);</span>
 		else
-<span class="fc" id="L222">			sb.append(&quot;Authoritative&quot;);</span>
-<span class="fc" id="L223">		sb.append(&quot; PKI Principal &quot;).append(getName());</span>
+<span class="fc" id="L197">			sb.append(&quot;Authoritative&quot;);</span>
+<span class="fc" id="L198">		sb.append(&quot; PKI Principal &quot;).append(getName());</span>
 
-<span class="fc" id="L225">		final var certChain = verify.getCertificateChain();</span>
-<span class="fc" id="L226">		final var issuer = certChain[certChain.length - 1].getIssuerX500Principal();</span>
-<span class="fc" id="L227">		final var subject = certChain[0].getSubjectX500Principal();</span>
-<span class="fc bfc" id="L228" title="All 2 branches covered.">		if (subject.equals(issuer))</span>
-<span class="fc" id="L229">			sb.append(&quot;, Self-Issued&quot;);</span>
+<span class="fc" id="L200">		final var certChain = verify.getCertificateChain();</span>
+<span class="fc" id="L201">		final var issuer = certChain[certChain.length - 1].getIssuerX500Principal();</span>
+<span class="fc" id="L202">		final var subject = certChain[0].getSubjectX500Principal();</span>
+<span class="fc bfc" id="L203" title="All 2 branches covered.">		if (subject.equals(issuer))</span>
+<span class="fc" id="L204">			sb.append(&quot;, Self-Issued&quot;);</span>
 		else
-<span class="fc" id="L231">			sb.append(&quot;, Issued by &quot;).append(X500Utils.getCommonName(issuer));</span>
+<span class="fc" id="L206">			sb.append(&quot;, Issued by &quot;).append(X500Utils.getCommonName(issuer));</span>
 
-<span class="fc" id="L233">		return sb.toString();</span>
+<span class="fc" id="L208">		return sb.toString();</span>
 	}
 
 }

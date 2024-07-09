@@ -40,6 +40,7 @@ IU Base Utilities Module,edu.iu,IuText,0,52,0,12,0,18,0,12,0,6
 IU Base Utilities Module,edu.iu,IuCacheMap.CacheSpliterator.new Object() {...},0,6,0,0,0,1,0,1,0,1
 IU Base Utilities Module,edu.iu,IuParallelWorkloadController,0,726,0,60,0,158,0,57,0,27
 IU Base Utilities Module,edu.iu,IuAsynchronousSubject.Subscriber,0,542,0,98,0,147,0,74,0,25
+IU Base Utilities Module,edu.iu,IuDigest,0,50,0,0,0,5,0,10,0,10
 IU Base Utilities Module,edu.iu,IuAuthorizationFailedException,0,16,0,0,0,8,0,4,0,4
 IU Base Utilities Module,edu.iu,IuCacheMap.CacheKeySet,0,24,0,0,0,3,0,4,0,4
 IU Base Utilities Module,edu.iu,IuWebUtils,0,1295,0,299,0,295,0,202,0,33

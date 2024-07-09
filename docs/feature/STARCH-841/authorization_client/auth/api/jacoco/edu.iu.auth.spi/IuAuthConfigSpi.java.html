@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuAuthConfigSpi.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Authentication and Authorization API</a> &gt; <a href="index.source.html" class="el_package">edu.iu.auth.spi</a> &gt; <span class="el_source">IuAuthConfigSpi.java</span></div><h1>IuAuthConfigSpi.java</h1><pre class="source lang-java linenums">package edu.iu.auth.spi;
+
+import java.io.Closeable;
+
+import iu.auth.IuAuthSpiFactory;
+
+/**
+ * Bootstraps authentication and authorization configuration.
+ */
+public interface IuAuthConfigSpi extends Closeable {
+
+	/**
+	 * Bootstraps the authorization configuration layer.
+	 * 
+	 * &lt;p&gt;
+	 * The controlling application should invoke this method with the implementation
+	 * module as the context class loader as soon as the module is created.
+	 * &lt;/p&gt;
+	 * 
+	 * @return {@link IuAuthConfigSpi}
+	 */
+	static IuAuthConfigSpi configure() {
+<span class="fc" id="L23">		return IuAuthSpiFactory.get(IuAuthConfigSpi.class);</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

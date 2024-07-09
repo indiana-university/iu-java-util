@@ -31,8 +31,10 @@
  */
 package iu.auth.pki;
 
+import java.math.BigInteger;
 import java.net.URI;
 import java.security.cert.CertPathValidator;
+import java.security.cert.CertPathValidatorException;
 import java.security.cert.CertStore;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
@@ -44,26 +46,30 @@ import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import edu.iu.IuDigest;
 import edu.iu.IuException;
+import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.config.IuCertificateAuthority;
 import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.config.X500Utils;
 import edu.iu.crypt.WebCertificateReference;
+import edu.iu.crypt.WebKey;
 import iu.auth.config.IuTrustedIssuer;
 import iu.auth.principal.PrincipalVerifier;
 
 /**
  * Verifies {@link PkiPrincipal} identities.
  */
-final class CaVerifier implements PrincipalVerifier&lt;PkiPrincipal&gt;, IuTrustedIssuer {
+public final class CaVerifier implements PrincipalVerifier&lt;PkiPrincipal&gt;, IuTrustedIssuer {
 
-<span class="fc" id="L66">	private static final Logger LOG = Logger.getLogger(CaVerifier.class.getName());</span>
+<span class="fc" id="L72">	private static final Logger LOG = Logger.getLogger(CaVerifier.class.getName());</span>
 
 	private final X509Certificate cert;
 	private final PKIXParameters trustParams;
@@ -73,88 +79,107 @@ final class CaVerifier implements PrincipalVerifier&lt;PkiPrincipal&gt;, IuTrust
 	 * 
 	 * @param ca CA principal identity
 	 */
-<span class="fc" id="L76">	CaVerifier(IuCertificateAuthority ca) {</span>
-<span class="fc" id="L77">		cert = ca.getCertificate();</span>
-<span class="fc" id="L78">		final var keyUsage = new KeyUsage(cert);</span>
-<span class="fc bfc" id="L79" title="All 2 branches covered.">		if (!keyUsage.isCA())</span>
-<span class="fc" id="L80">			throw new IllegalArgumentException(&quot;X.509 certificate is not a valid CA signing cert&quot;);</span>
+<span class="fc" id="L82">	public CaVerifier(IuCertificateAuthority ca) {</span>
+<span class="fc" id="L83">		cert = ca.getCertificate();</span>
+<span class="fc" id="L84">		final var keyUsage = new KeyUsage(cert);</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">		if (!keyUsage.isCA())</span>
+<span class="fc" id="L86">			throw new IllegalArgumentException(&quot;X.509 certificate is not a valid CA signing cert&quot;);</span>
 
-<span class="fc" id="L82">		final var anchor = new TrustAnchor(ca.getCertificate(), null);</span>
-<span class="fc" id="L83">		final var pkix = IuException.unchecked(() -&gt; new PKIXParameters(Set.of(anchor)));</span>
-<span class="fc" id="L84">		final Queue&lt;X509CRL&gt; crl = new ArrayDeque&lt;&gt;();</span>
-<span class="fc" id="L85">		ca.getCrl().forEach(crl::offer);</span>
-<span class="fc" id="L86">		pkix.addCertStore(IuException</span>
-<span class="fc" id="L87">				.unchecked(() -&gt; CertStore.getInstance(&quot;Collection&quot;, new CollectionCertStoreParameters(crl))));</span>
-<span class="fc" id="L88">		this.trustParams = pkix;</span>
-<span class="fc" id="L89">	}</span>
+<span class="fc" id="L88">		final var anchor = new TrustAnchor(ca.getCertificate(), null);</span>
+<span class="fc" id="L89">		final var pkix = IuException.unchecked(() -&gt; new PKIXParameters(Set.of(anchor)));</span>
+<span class="fc" id="L90">		final Queue&lt;X509CRL&gt; crl = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L91">		ca.getCrl().forEach(crl::offer);</span>
+<span class="fc" id="L92">		pkix.addCertStore(IuException</span>
+<span class="fc" id="L93">				.unchecked(() -&gt; CertStore.getInstance(&quot;Collection&quot;, new CollectionCertStoreParameters(crl))));</span>
+<span class="fc" id="L94">		this.trustParams = pkix;</span>
+<span class="fc" id="L95">	}</span>
 
 	@Override
 	public String getAuthScheme() {
-<span class="fc" id="L93">		return null;</span>
+<span class="fc" id="L99">		return null;</span>
 	}
 
 	@Override
 	public URI getAuthenticationEndpoint() {
-<span class="fc" id="L98">		return null;</span>
+<span class="fc" id="L104">		return null;</span>
 	}
 
 	@Override
 	public Class&lt;PkiPrincipal&gt; getType() {
-<span class="fc" id="L103">		return PkiPrincipal.class;</span>
+<span class="fc" id="L109">		return PkiPrincipal.class;</span>
 	}
 
 	@Override
 	public String getRealm() {
-<span class="fc" id="L108">		return X500Utils.getCommonName(cert.getSubjectX500Principal());</span>
+<span class="fc" id="L114">		return X500Utils.getCommonName(cert.getSubjectX500Principal());</span>
 	}
 
 	@Override
 	public boolean isAuthoritative() {
-<span class="fc" id="L113">		return false;</span>
+<span class="fc" id="L119">		return false;</span>
 	}
 
 	@Override
-	public void verify(PkiPrincipal pki) {
-<span class="fc" id="L118">		final var issuerPrincipal = cert.getSubjectX500Principal();</span>
-<span class="fc" id="L119">		final List&lt;Certificate&gt; pathToAnchor = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L120" title="All 2 branches covered.">		for (final var cert : WebCertificateReference.verify(pki.getJwk())) {</span>
-<span class="fc" id="L121">			pathToAnchor.add(cert);</span>
-<span class="fc bfc" id="L122" title="All 2 branches covered.">			if (issuerPrincipal.equals(cert.getIssuerX500Principal())) {</span>
-<span class="fc" id="L123">				final var result = (PKIXCertPathValidatorResult) IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L124">					final var validator = CertPathValidator.getInstance(&quot;PKIX&quot;);</span>
-<span class="fc" id="L125">					final var certFactory = CertificateFactory.getInstance(&quot;X.509&quot;);</span>
-<span class="fc" id="L126">					return validator.validate(certFactory.generateCertPath(pathToAnchor), trustParams);</span>
-				});
+	public void verify(PkiPrincipal pki) throws IuAuthenticationException {
+<span class="fc" id="L124">		final var subject = pki.getSubject();</span>
+<span class="fc" id="L125">		final var keys = subject.getPublicCredentials(WebKey.class);</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">		if (keys.isEmpty())</span>
+<span class="fc" id="L127">			throw new IllegalArgumentException(&quot;missing public key&quot;);</span>
 
-<span class="fc" id="L129">				LOG.info(() -&gt; &quot;ca:verify:&quot; + pki.getName() + &quot;; trustAnchor: &quot;</span>
-<span class="fc" id="L130">						+ X500Utils.getCommonName(result.getTrustAnchor().getTrustedCert().getSubjectX500Principal()));</span>
-<span class="fc" id="L131">				return;</span>
+<span class="fc" id="L129">		final var issuerPrincipal = cert.getSubjectX500Principal();</span>
+<span class="fc" id="L130">		final Set&lt;BigInteger&gt; trusted = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">		for (final var jwk : keys) {</span>
+<span class="fc" id="L132">			final List&lt;Certificate&gt; pathToAnchor = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">			for (final var cert : WebCertificateReference.verify(jwk)) {</span>
+<span class="fc" id="L134">				pathToAnchor.add(cert);</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">				if (issuerPrincipal.equals(cert.getIssuerX500Principal()) //</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">						&amp;&amp; trusted.add(new BigInteger(</span>
+<span class="fc" id="L137">								IuDigest.sha256(IuException.unchecked(jwk.getCertificateChain()[0]::getEncoded)))))</span>
+					try {
+<span class="fc" id="L139">						final var result = (PKIXCertPathValidatorResult) IuException</span>
+<span class="fc" id="L140">								.checked(CertPathValidatorException.class, () -&gt; {</span>
+<span class="fc" id="L141">									final var validator = CertPathValidator.getInstance(&quot;PKIX&quot;);</span>
+<span class="fc" id="L142">									final var certFactory = CertificateFactory.getInstance(&quot;X.509&quot;);</span>
+<span class="fc" id="L143">									return validator.validate(certFactory.generateCertPath(pathToAnchor), trustParams);</span>
+								});
+
+<span class="fc" id="L146">						LOG.info(() -&gt; &quot;ca:verify:&quot; + pki.getName() + &quot;; trustAnchor: &quot; + X500Utils</span>
+<span class="fc" id="L147">								.getCommonName(result.getTrustAnchor().getTrustedCert().getSubjectX500Principal()));</span>
+
+<span class="fc" id="L149">					} catch (CertPathValidatorException e) {</span>
+<span class="fc" id="L150">						throw new IuAuthenticationException(null, e);</span>
+<span class="fc" id="L151">					}</span>
 			}
-		}
-
-<span class="fc" id="L135">		throw new IllegalArgumentException(&quot;issuer not trusted&quot;);</span>
-	}
+<span class="fc" id="L153">		}</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">		if (trusted.isEmpty())</span>
+<span class="fc" id="L155">			throw new IllegalArgumentException(&quot;issuer not trusted&quot;);</span>
+<span class="fc" id="L156">	}</span>
 
 	@Override
 	public PkiPrincipal getPrincipal(IuPrivateKeyPrincipal pkp) {
-<span class="fc" id="L140">		final var issuerPrincipal = cert.getSubjectX500Principal();</span>
+<span class="fc" id="L160">		final var issuerPrincipal = cert.getSubjectX500Principal();</span>
 
-<span class="fc" id="L142">		final List&lt;Certificate&gt; pathToAnchor = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L143" title="All 2 branches covered.">		for (final var cert : WebCertificateReference.verify(pkp.getJwk())) {</span>
-<span class="fc" id="L144">			pathToAnchor.add(cert);</span>
-<span class="fc bfc" id="L145" title="All 2 branches covered.">			if (issuerPrincipal.equals(cert.getIssuerX500Principal()))</span>
+<span class="fc" id="L162">		final List&lt;Certificate&gt; pathToAnchor = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">		for (final var cert : WebCertificateReference.verify(pkp.getJwk())) {</span>
+<span class="fc" id="L164">			pathToAnchor.add(cert);</span>
+<span class="fc bfc" id="L165" title="All 2 branches covered.">			if (issuerPrincipal.equals(cert.getIssuerX500Principal()))</span>
 				try {
-<span class="fc" id="L147">					final var validator = CertPathValidator.getInstance(&quot;PKIX&quot;);</span>
-<span class="fc" id="L148">					final var certFactory = CertificateFactory.getInstance(&quot;X.509&quot;);</span>
-<span class="fc" id="L149">					validator.validate(certFactory.generateCertPath(pathToAnchor), trustParams);</span>
-<span class="fc" id="L150">					return new PkiPrincipal(pkp);</span>
-<span class="fc" id="L151">				} catch (Throwable e) {</span>
-<span class="fc" id="L152">					LOG.log(Level.INFO, e, () -&gt; &quot;ca:invalid:&quot; + getRealm() + &quot; rejected &quot; + X500Utils</span>
-<span class="fc" id="L153">							.getCommonName(((X509Certificate) pathToAnchor.get(0)).getSubjectX500Principal()));</span>
-<span class="fc" id="L154">					break;</span>
+<span class="fc" id="L167">					final var validator = CertPathValidator.getInstance(&quot;PKIX&quot;);</span>
+<span class="fc" id="L168">					final var certFactory = CertificateFactory.getInstance(&quot;X.509&quot;);</span>
+<span class="fc" id="L169">					validator.validate(certFactory.generateCertPath(pathToAnchor), trustParams);</span>
+<span class="fc" id="L170">					return new PkiPrincipal(pkp);</span>
+<span class="fc" id="L171">				} catch (Throwable e) {</span>
+<span class="fc" id="L172">					LOG.log(Level.INFO, e, () -&gt; &quot;ca:invalid:&quot; + getRealm() + &quot; rejected &quot; + X500Utils</span>
+<span class="fc" id="L173">							.getCommonName(((X509Certificate) pathToAnchor.get(0)).getSubjectX500Principal()));</span>
+<span class="fc" id="L174">					break;</span>
 				}
 		}
-<span class="fc" id="L157">		return null;</span>
+<span class="fc" id="L177">		return null;</span>
+	}
+
+	@Override
+	public String toString() {
+<span class="fc" id="L182">		return &quot;CaVerifier [&quot; + getRealm() + &quot;]&quot;;</span>
 	}
 
 }
