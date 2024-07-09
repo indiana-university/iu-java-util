@@ -72,7 +72,7 @@ public final class PkiPrincipal implements IuPrincipalIdentity {
 	 * @param pkp Authentication realm metadata with original algorithm and
 	 *            certificate values
 	 */
-	PkiPrincipal(IuPrivateKeyPrincipal pkp) {
+	public PkiPrincipal(IuPrivateKeyPrincipal pkp) {
 		final var jwk = pkp.getJwk();
 		final var keyType = jwk.getType();
 		final var privateKey = jwk.getPrivateKey();

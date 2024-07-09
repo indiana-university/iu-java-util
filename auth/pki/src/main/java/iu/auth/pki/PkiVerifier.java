@@ -65,7 +65,7 @@ import iu.auth.principal.PrincipalVerifier;
 /**
  * Verifies {@link PkiPrincipal} end-entity identities.
  */
-final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuTrustedIssuer {
+public final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuTrustedIssuer {
 
 	private static final Logger LOG = Logger.getLogger(PkiVerifier.class.getName());
 
@@ -78,7 +78,7 @@ final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuTrustedIss
 	 * 
 	 * @param pkp private key principal
 	 */
-	PkiVerifier(IuPrivateKeyPrincipal pkp) {
+	public PkiVerifier(IuPrivateKeyPrincipal pkp) {
 		final var jwk = pkp.getJwk();
 		final var privateKey = jwk.getPrivateKey();
 		if (privateKey == null)
@@ -151,15 +151,16 @@ final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuTrustedIss
 		keys.addAll(publicKeys);
 
 		final Set<BigInteger> trusted = new HashSet<>();
-		for (final var jwk : keys)
-			if (trusted.add(
-					new BigInteger(IuDigest.sha256(IuException.unchecked(jwk.getCertificateChain()[0]::getEncoded)))))
+		for (final var jwk : keys) {
+			final var cert = jwk.getCertificateChain()[0];
+			if (trusted.add(new BigInteger(IuDigest.sha256(IuException.unchecked(cert::getEncoded)))))
 				try {
 					IuException.checked(CertPathValidatorException.class, () -> {
 						final var validator = CertPathValidator.getInstance("PKIX");
 						final var certFactory = CertificateFactory.getInstance("X.509");
-						final var certPath = certFactory.generateCertPath(List.of(jwk.getCertificateChain()));
+						final var certPath = certFactory.generateCertPath(List.of(cert));
 						final var result = (PKIXCertPathValidatorResult) validator.validate(certPath, trustParams);
+
 						LOG.info(() -> "pki:" + (pkhash != null ? "auth" : "verify") + ":" + pki.getName()
 								+ "; trustAnchor: " + X500Utils.getCommonName(
 										result.getTrustAnchor().getTrustedCert().getSubjectX500Principal()));
@@ -167,6 +168,7 @@ final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuTrustedIss
 				} catch (CertPathValidatorException e) {
 					throw new IuAuthenticationException(null, e);
 				}
+		}
 	}
 
 	@Override
@@ -201,6 +203,11 @@ final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuTrustedIss
 			LOG.log(Level.FINE, e, () -> "pki:invalid:" + realm);
 			return null;
 		}
+	}
+
+	@Override
+	public String toString() {
+		return "PkiVerifier [" + realm + "]";
 	}
 
 }

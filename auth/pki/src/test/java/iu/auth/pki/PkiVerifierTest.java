@@ -69,6 +69,7 @@ public class PkiVerifierTest extends PkiTestCase {
 		assertNull(pkiv.getAuthenticationEndpoint());
 		assertEquals(PkiPrincipal.class, pkiv.getType());
 		assertEquals("urn:example:iu-java-auth-pki#PkiVerifierTest", pkiv.getRealm());
+		assertEquals("PkiVerifier [urn:example:iu-java-auth-pki#PkiVerifierTest]", pkiv.toString());
 		assertTrue(pkiv.isAuthoritative());
 
 		final var pki = new PkiPrincipal(pkp);

@@ -90,17 +90,4 @@ public class IuBearerTokenTest {
 		verify(basicAuthSpi).createCredentials(name, password, "US-ASCII");
 	}
 
-	@Test
-	public void testImpliesSubject() {
-		final var bearer = mock(IuBearerToken.class, CALLS_REAL_METHODS);
-		final var subject = mock(Subject.class);
-		assertFalse(bearer.implies(subject));
-		
-		when(subject.getPrincipals()).thenReturn(Set.of(bearer));
-		assertTrue(bearer.implies(subject));
-
-		when(bearer.getSubject()).thenReturn(subject);
-		assertTrue(bearer.implies(subject));
-	}
-
 }

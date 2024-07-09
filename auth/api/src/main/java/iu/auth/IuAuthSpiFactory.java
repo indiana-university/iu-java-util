@@ -38,13 +38,14 @@ import java.util.WeakHashMap;
 /**
  * Maintains singleton instances of SPI interfaces related to API authorization
  * and authentication.
- * 
- * <p>
- * SPI providers <em>must</em> be visible to the same class loader that loaded
- * the service interface.
- * </p>
  */
 public class IuAuthSpiFactory {
+
+	/**
+	 * Captures the context class loader of a thread that __explicitly__ loaded this
+	 * class by using any SPI-bound authorization API during initialization.
+	 */
+	private static final ClassLoader CONTEXT = Thread.currentThread().getContextClassLoader();
 
 	private static class Provider<P> {
 		P instance;
@@ -71,8 +72,7 @@ public class IuAuthSpiFactory {
 
 		synchronized (provider) {
 			if (provider.instance == null)
-				provider.instance = ServiceLoader.load(serviceInterface, serviceInterface.getClassLoader()).findFirst()
-						.get();
+				provider.instance = ServiceLoader.load(serviceInterface, CONTEXT).findFirst().get();
 		}
 
 		return provider.instance;
