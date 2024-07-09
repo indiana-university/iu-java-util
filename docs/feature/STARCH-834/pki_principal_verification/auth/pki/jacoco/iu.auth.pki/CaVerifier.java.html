@@ -67,7 +67,7 @@ import iu.auth.principal.PrincipalVerifier;
 /**
  * Verifies {@link PkiPrincipal} identities.
  */
-final class CaVerifier implements PrincipalVerifier&lt;PkiPrincipal&gt;, IuTrustedIssuer {
+public final class CaVerifier implements PrincipalVerifier&lt;PkiPrincipal&gt;, IuTrustedIssuer {
 
 <span class="fc" id="L72">	private static final Logger LOG = Logger.getLogger(CaVerifier.class.getName());</span>
 
@@ -79,7 +79,7 @@ final class CaVerifier implements PrincipalVerifier&lt;PkiPrincipal&gt;, IuTrust
 	 * 
 	 * @param ca CA principal identity
 	 */
-<span class="fc" id="L82">	CaVerifier(IuCertificateAuthority ca) {</span>
+<span class="fc" id="L82">	public CaVerifier(IuCertificateAuthority ca) {</span>
 <span class="fc" id="L83">		cert = ca.getCertificate();</span>
 <span class="fc" id="L84">		final var keyUsage = new KeyUsage(cert);</span>
 <span class="fc bfc" id="L85" title="All 2 branches covered.">		if (!keyUsage.isCA())</span>
@@ -175,6 +175,11 @@ final class CaVerifier implements PrincipalVerifier&lt;PkiPrincipal&gt;, IuTrust
 				}
 		}
 <span class="fc" id="L177">		return null;</span>
+	}
+
+	@Override
+	public String toString() {
+<span class="fc" id="L182">		return &quot;CaVerifier [&quot; + getRealm() + &quot;]&quot;;</span>
 	}
 
 }

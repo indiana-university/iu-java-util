@@ -38,19 +38,20 @@ import java.util.WeakHashMap;
 /**
  * Maintains singleton instances of SPI interfaces related to API authorization
  * and authentication.
- * 
- * &lt;p&gt;
- * SPI providers &lt;em&gt;must&lt;/em&gt; be visible to the same class loader that loaded
- * the service interface.
- * &lt;/p&gt;
  */
 public class IuAuthSpiFactory {
+
+	/**
+	 * Captures the context class loader of a thread that __explicitly__ loaded this
+	 * class by using any SPI-bound authorization API during initialization.
+	 */
+<span class="fc" id="L48">	private static final ClassLoader CONTEXT = Thread.currentThread().getContextClassLoader();</span>
 
 	private static class Provider&lt;P&gt; {
 		P instance;
 	}
 
-<span class="fc" id="L53">	private static final Map&lt;Class&lt;?&gt;, Provider&lt;?&gt;&gt; PROVIDERS = new WeakHashMap&lt;&gt;();</span>
+<span class="fc" id="L54">	private static final Map&lt;Class&lt;?&gt;, Provider&lt;?&gt;&gt; PROVIDERS = new WeakHashMap&lt;&gt;();</span>
 
 	/**
 	 * Gets a singleton instance of a service interface.
@@ -62,17 +63,16 @@ public class IuAuthSpiFactory {
 	@SuppressWarnings(&quot;unchecked&quot;)
 	public static &lt;P&gt; P get(Class&lt;P&gt; serviceInterface) {
 		final Provider&lt;P&gt; provider;
-<span class="fc" id="L65">		synchronized (PROVIDERS) {</span>
-<span class="fc bfc" id="L66" title="All 2 branches covered.">			if (PROVIDERS.containsKey(serviceInterface))</span>
-<span class="fc" id="L67">				provider = (Provider&lt;P&gt;) PROVIDERS.get(serviceInterface);</span>
+<span class="fc" id="L66">		synchronized (PROVIDERS) {</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">			if (PROVIDERS.containsKey(serviceInterface))</span>
+<span class="fc" id="L68">				provider = (Provider&lt;P&gt;) PROVIDERS.get(serviceInterface);</span>
 			else
-<span class="fc" id="L69">				PROVIDERS.put(serviceInterface, provider = new Provider&lt;&gt;());</span>
-<span class="fc" id="L70">		}</span>
+<span class="fc" id="L70">				PROVIDERS.put(serviceInterface, provider = new Provider&lt;&gt;());</span>
+<span class="fc" id="L71">		}</span>
 
-<span class="fc" id="L72">		synchronized (provider) {</span>
-<span class="fc bfc" id="L73" title="All 2 branches covered.">			if (provider.instance == null)</span>
-<span class="fc" id="L74">				provider.instance = ServiceLoader.load(serviceInterface, serviceInterface.getClassLoader()).findFirst()</span>
-<span class="fc" id="L75">						.get();</span>
+<span class="fc" id="L73">		synchronized (provider) {</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">			if (provider.instance == null)</span>
+<span class="fc" id="L75">				provider.instance = ServiceLoader.load(serviceInterface, CONTEXT).findFirst().get();</span>
 <span class="fc" id="L76">		}</span>
 
 <span class="fc" id="L78">		return provider.instance;</span>
