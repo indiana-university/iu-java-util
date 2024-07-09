@@ -34,6 +34,7 @@
  * 
  * @uses edu.iu.auth.spi.IuPrincipalSpi For access to identity provider
  *       verification resources
+ * @uses edu.iu.auth.spi.IuAuthConfigSpi Configuration bootstrap
  */
 module iu.util.auth {
 	exports edu.iu.auth;
@@ -42,4 +43,5 @@ module iu.util.auth {
 	requires iu.util;
 
 	uses edu.iu.auth.spi.IuPrincipalSpi;
+	uses edu.iu.auth.spi.IuAuthConfigSpi;
 }

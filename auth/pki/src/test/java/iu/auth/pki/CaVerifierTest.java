@@ -86,6 +86,7 @@ public class CaVerifierTest extends PkiTestCase {
 		assertNull(verifier.getAuthenticationEndpoint());
 		assertSame(PkiPrincipal.class, verifier.getType());
 		assertEquals("urn:example:iu-java-auth-pki#CaVerifierTest_CA", verifier.getRealm());
+		assertEquals("CaVerifier [urn:example:iu-java-auth-pki#CaVerifierTest_CA]", verifier.toString());
 		assertFalse(verifier.isAuthoritative());
 
 		final var pki = new PkiPrincipal(pkp);

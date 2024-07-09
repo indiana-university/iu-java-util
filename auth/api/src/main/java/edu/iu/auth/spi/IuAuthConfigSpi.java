@@ -29,56 +29,29 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth;
+package edu.iu.auth.spi;
 
-import java.util.Map;
-import java.util.ServiceLoader;
-import java.util.WeakHashMap;
+import java.io.Closeable;
+
+import iu.auth.IuAuthSpiFactory;
 
 /**
- * Maintains singleton instances of SPI interfaces related to API authorization
- * and authentication.
+ * Bootstraps authentication and authorization configuration.
  */
-public class IuAuthSpiFactory {
+public interface IuAuthConfigSpi extends Closeable {
 
 	/**
-	 * Captures the context class loader of a thread that __explicitly__ loaded this
-	 * class by using any SPI-bound authorization API during initialization.
-	 */
-	private static final ClassLoader CONTEXT = Thread.currentThread().getContextClassLoader();
-
-	private static class Provider<P> {
-		P instance;
-	}
-
-	private static final Map<Class<?>, Provider<?>> PROVIDERS = new WeakHashMap<>();
-
-	/**
-	 * Gets a singleton instance of a service interface.
+	 * Bootstraps the authorization configuration layer.
 	 * 
-	 * @param <P>              service type
-	 * @param serviceInterface service interface
-	 * @return singleton instance
+	 * <p>
+	 * The controlling application should invoke this method with the implementation
+	 * module as the context class loader as soon as the module is created.
+	 * </p>
+	 * 
+	 * @return {@link IuAuthConfigSpi}
 	 */
-	@SuppressWarnings("unchecked")
-	public static <P> P get(Class<P> serviceInterface) {
-		final Provider<P> provider;
-		synchronized (PROVIDERS) {
-			if (PROVIDERS.containsKey(serviceInterface))
-				provider = (Provider<P>) PROVIDERS.get(serviceInterface);
-			else
-				PROVIDERS.put(serviceInterface, provider = new Provider<>());
-		}
-
-		synchronized (provider) {
-			if (provider.instance == null)
-				provider.instance = ServiceLoader.load(serviceInterface, CONTEXT).findFirst().get();
-		}
-
-		return provider.instance;
-	}
-
-	private IuAuthSpiFactory() {
+	static IuAuthConfigSpi configure() {
+		return IuAuthSpiFactory.get(IuAuthConfigSpi.class);
 	}
 
 }
