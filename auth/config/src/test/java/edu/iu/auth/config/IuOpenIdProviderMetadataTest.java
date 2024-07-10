@@ -29,42 +29,20 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.spi;
+package edu.iu.auth.config;
 
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
-
-import iu.auth.IuAuthSpiFactory;
 
 @SuppressWarnings("javadoc")
-public class IuAuthConfigSpiTest {
-
-	private MockedStatic<IuAuthSpiFactory> mockSpiFactory;
-	private IuAuthConfigSpi spi;
-
-	@BeforeEach
-	public void setup() {
-		spi = mock(IuAuthConfigSpi.class);
-		mockSpiFactory = mockStatic(IuAuthSpiFactory.class);
-		mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuAuthConfigSpi.class)).thenReturn(spi);
-	}
-
-	@AfterEach
-	public void tearDown() {
-		mockSpiFactory.close();
-		mockSpiFactory = null;
-		spi = null;
-	}
+public class IuOpenIdProviderMetadataTest {
 
 	@Test
-	public void testConfigure() {
-		assertSame(spi, IuAuthConfigSpi.configure());
+	public void testDefault() {
+		final var op = mock(IuOpenIdProviderMetadata.class, CALLS_REAL_METHODS);
+		assertTrue(op.isRequestUriParameterSupported());
 	}
-
 }
