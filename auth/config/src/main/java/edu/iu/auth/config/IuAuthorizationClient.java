@@ -57,7 +57,7 @@ public interface IuAuthorizationClient {
 	}, IuJson::unwrap);
 
 	/**
-	 * Enumerate grant types.
+	 * Enumerate token endpoint authentication methods types.
 	 */
 	enum AuthMethod {
 
