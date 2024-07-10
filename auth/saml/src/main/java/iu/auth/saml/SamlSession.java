@@ -142,7 +142,7 @@ final class SamlSession implements IuSamlSession {
 
 			final var challenge = new IuAuthenticationException(null, e);
 			challenge.setLocation(URI.create(entryPointUri + "?RelayState="
-					+ URLEncoder.encode(this.relayState, StandardCharsets.UTF_8)));
+					+ URLEncoder.encode(this.relayState != null ? this.relayState : "", StandardCharsets.UTF_8)));
 			throw challenge;
 		}
 	}

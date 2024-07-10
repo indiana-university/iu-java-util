@@ -87,6 +87,29 @@ public class IuSubjectConfirmationValidationTest {
 	}
 
 	@Test
+	public void testDisableAddressCheck() throws AssertionValidationException {
+
+		InetAddress address = IuException.unchecked(() -> InetAddress.getByName(SUBJECT_CONFIRMATION_LOCAL_ADDRESS));
+		Map<String, Object> staticParams = new HashMap<>();
+		staticParams.put(SAML2AssertionValidationParameters.SC_VALID_ADDRESSES, address);
+		staticParams.put(SAML2AssertionValidationParameters.SC_CHECK_ADDRESS, Boolean.FALSE);
+		IuSubjectConfirmationValidator validator = new IuSubjectConfirmationValidator(
+				Arrays.asList(SUBJECT_CONFIRMATION_LOCAL_ADDRESS), false);
+
+		final var subjectConfirmationData = mock(SubjectConfirmationData.class);
+		when(subjectConfirmationData.getAddress()).thenReturn(SUBJECT_CONFIRMATION_LOCAL_ADDRESS);
+
+		final var assertion = mock(Assertion.class);
+
+		final var validationContext = mock(ValidationContext.class);
+		when(validationContext.getStaticParameters()).thenReturn(staticParams);
+		ValidationResult result = validator.validateAddress(subjectConfirmationData, assertion, validationContext,
+				false);
+		assertEquals(ValidationResult.VALID, result);
+
+	}
+
+	@Test
 	public void testSubjectConfirmationDataAddressValidation() throws AssertionValidationException {
 		String range = "150.50.0.0/16,127.0.0.0/8";
 

@@ -119,7 +119,8 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 	 * @return {@link SamlServiceProvider}
 	 */
 	static SamlServiceProvider withBinding(URI postUri) {
-		for (final var sp : AuthConfig.get(IuSamlServiceProvider.class)) {
+		Iterable<IuSamlServiceProvider> providers = AuthConfig.get(IuSamlServiceProvider.class);
+		for (final var sp : providers) {
 			final var samlServiceProvider = (SamlServiceProvider) sp;
 			if (postUri.equals(samlServiceProvider.postUri))
 				return samlServiceProvider;
@@ -407,15 +408,14 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 		Instant authnInstant = null;
 		for (final var samlAssertion : samlAssertions) {
 			final var assertionAuthnInstant = samlAssertion.getAuthnInstant();
-			if (assertionAuthnInstant != null) {
-				final var attributes = samlAssertion.getAttributes();
-				final var assertionPrincipalName = Objects.requireNonNull( //
-						attributes.get(principalNameAttribute), //
-						principalNameAttribute);
+			final var attributes = samlAssertion.getAttributes();
+			final var assertionPrincipalName = Objects.requireNonNull( //
+					attributes.get(principalNameAttribute), //
+					principalNameAttribute);
 
-				principalName = IuObject.once(principalName, assertionPrincipalName);
-				authnInstant = IuObject.once(authnInstant, assertionAuthnInstant);
-			}
+			principalName = IuObject.once(principalName, assertionPrincipalName);
+			authnInstant = IuObject.once(authnInstant, assertionAuthnInstant);
+
 		}
 
 		Objects.requireNonNull(principalName,
