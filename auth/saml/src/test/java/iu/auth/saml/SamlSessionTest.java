@@ -53,6 +53,7 @@ public class SamlSessionTest {
 	@BeforeEach
 	public void setup() throws Exception {
 		IuTestLogger.allow("iu.auth.saml.SamlSession", Level.FINE);
+		IuTestLogger.allow("iu.auth.saml.SamlSession", Level.INFO);
 		mockPrincipalIdentity = mockStatic(IuPrincipalIdentity.class);
 
 	}
@@ -96,8 +97,6 @@ public class SamlSessionTest {
 
 	@Test
 	public void testIuAuthenticationExceptionVerifyResponse() throws IuAuthenticationException {
-		IuTestLogger.allow("iu.auth.saml.SamlSession", Level.INFO);
-
 		URI requestUri = URI.create("https://sp.identityserver/?SAMLRequest=1233&RelayState=1223");
 		SamlServiceProvider provider = mock(SamlServiceProvider.class);
 		when(provider.isValidEntryPoint(any())).thenReturn(true);
@@ -118,8 +117,6 @@ public class SamlSessionTest {
 	public void testIuAuthenticationExceptionMisMatchRelayStateVerifyResponse()
 			throws IuAuthenticationException, NoSuchFieldException, SecurityException, MalformedURLException,
 			IllegalArgumentException, IllegalAccessException {
-		IuTestLogger.allow("iu.auth.saml.SamlSession", Level.INFO);
-
 		File metaDataFile = new File("src/test/resource/metadata_sample.xml");
 		final var cert = mock(X509Certificate.class);
 		final var mockWebKey = mock(WebKey.class);
@@ -172,9 +169,8 @@ public class SamlSessionTest {
 	}
 
 	@Test
-	public void testVerifyResponse() throws MalformedURLException, IuAuthenticationException, NoSuchFieldException,
+	public void testSuccessVerifyResponse() throws MalformedURLException, IuAuthenticationException, NoSuchFieldException,
 			SecurityException, IllegalArgumentException, IllegalAccessException {
-		IuTestLogger.allow("iu.auth.saml.SamlSession", Level.INFO);
 		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 
 		File metaDataFile = new File("src/test/resource/metadata_sample.xml");
@@ -194,19 +190,25 @@ public class SamlSessionTest {
 		final var postUri = URI.create("test://postUrl/");
 		final var realm = "iu-saml-test";
 
+		final Queue<SamlAssertion> samlAssertions = new ArrayDeque<>();
+		final var principalName = "foo";
+		final var issueInstant = Instant.now();
+		final var authnInstant = Instant.now();
+		final var expires = authnInstant.plus(Duration.ofHours(12L));
+		final var assertions = IuIterable.stream(samlAssertions).toArray(SamlAssertion[]::new);
+
+		final var jsonbuilder = IuJson.object() //
+				.add("iss", "https://sp.identityserver") //
+				.add("aud", realm) //
+				.add("sub", principalName) //
+				.add("iat", issueInstant.getEpochSecond()) //
+				.add("exp", expires.getEpochSecond()) //
+				.add("auth_time", authnInstant.getEpochSecond()); //
+		IuJson.add(jsonbuilder, "urn:oasis:names:tc:SAML:2.0:assertion", () -> assertions,
+				IuJsonAdapter.of(SamlAssertion[].class, SamlAssertion.JSON));
+		
 		final var mockSamlPrincipal = mock(SamlPrincipal.class);
-		when(mockSamlPrincipal.toString()).thenReturn("{\n    \"iss\": \"https://sp.identityserver\",\n    "
-				+ "\"aud\": \"iu-saml-test\",\n    " + "\"sub\": \"test@iu.edu\",\n  " + "  \"iat\": 1720645746,\n   "
-				+ " \"exp\": 1720688946,\n    " + "\"auth_time\": 1720645746,\n   "
-				+ " \"urn:oasis:names:tc:SAML:2.0:assertion\": [\n " + "       {\n            "
-				+ "\"nbf\": 1720645746,\n           " + " \"exp\": 1720646046,\n           "
-				+ " \"authn_instant\": 1720645746,\n           " + " \"attribute_statement\": {\n                "
-				+ "\"urn:oid:2.16.840.1.113730.3.1.241\": \"ESS Testing\",\n                "
-				+ "\"displayName\": \"Testing\",\n               "
-				+ " \"urn:oid:0.9.2342.19200300.100.1.3\": \"test@iu.edu\",\n         "
-				+ "       \"mail\": \"test@iu.edu\",\n                "
-				+ "\"urn:oid:1.3.6.1.4.1.5923.1.1.1.6\": \"test@iu.edu\",\n                "
-				+ "\"eduPersonPrincipalName\": \"test@iu.edu\"\n            " + "}\n   }\n    ]\n}");
+		when(mockSamlPrincipal.toString()).thenReturn(jsonbuilder.build().toString());
 
 		SamlBuilder builder = new SamlBuilder(config);
 		final var provider = mock(SamlServiceProvider.class);
@@ -245,7 +247,6 @@ public class SamlSessionTest {
 			assertNotNull(activatedSession);
 			final var iuSamlPrincipal = activatedSession.getPrincipalIdentity();
 			assertNotNull(iuSamlPrincipal);
-
 			activatedSession.getPrincipalIdentity();
 
 		}
@@ -254,9 +255,6 @@ public class SamlSessionTest {
 	@Test
 	public void testToString() throws MalformedURLException, NoSuchFieldException, SecurityException,
 			IllegalArgumentException, IllegalAccessException {
-		IuTestLogger.allow("iu.auth.saml.SamlSession", Level.INFO);
-		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
-
 		File metaDataFile = new File("src/test/resource/metadata_sample.xml");
 		final var cert = mock(X509Certificate.class);
 
@@ -273,20 +271,26 @@ public class SamlSessionTest {
 				Arrays.asList(acsUri));
 		final var postUri = URI.create("test://postUrl/");
 		final var realm = "iu-saml-test";
+	
+		final Queue<SamlAssertion> samlAssertions = new ArrayDeque<>();
+		final var principalName = "foo";
+		final var issueInstant = Instant.now();
+		final var authnInstant = Instant.now();
+		final var expires = authnInstant.plus(Duration.ofHours(12L));
+		final var assertions = IuIterable.stream(samlAssertions).toArray(SamlAssertion[]::new);
+
+		final var jsonbuilder = IuJson.object() //
+				.add("iss", "https://sp.identityserver") //
+				.add("aud", realm) //
+				.add("sub", principalName) //
+				.add("iat", issueInstant.getEpochSecond()) //
+				.add("exp", expires.getEpochSecond()) //
+				.add("auth_time", authnInstant.getEpochSecond()); //
+		IuJson.add(jsonbuilder, "urn:oasis:names:tc:SAML:2.0:assertion", () -> assertions,
+				IuJsonAdapter.of(SamlAssertion[].class, SamlAssertion.JSON));
 
 		final var mockSamlPrincipal = mock(SamlPrincipal.class);
-		when(mockSamlPrincipal.toString()).thenReturn("{\n    \"iss\": \"https://sp.identityserver\",\n    "
-				+ "\"aud\": \"iu-saml-test\",\n    " + "\"sub\": \"test@iu.edu\",\n  " + "  \"iat\": 1720645746,\n   "
-				+ " \"exp\": 1720688946,\n    " + "\"auth_time\": 1720645746,\n   "
-				+ " \"urn:oasis:names:tc:SAML:2.0:assertion\": [\n " + "       {\n            "
-				+ "\"nbf\": 1720645746,\n           " + " \"exp\": 1720646046,\n           "
-				+ " \"authn_instant\": 1720645746,\n           " + " \"attribute_statement\": {\n                "
-				+ "\"urn:oid:2.16.840.1.113730.3.1.241\": \"ESS Testing\",\n                "
-				+ "\"displayName\": \"Testing\",\n               "
-				+ " \"urn:oid:0.9.2342.19200300.100.1.3\": \"test@iu.edu\",\n         "
-				+ "       \"mail\": \"test@iu.edu\",\n                "
-				+ "\"urn:oid:1.3.6.1.4.1.5923.1.1.1.6\": \"test@iu.edu\",\n                "
-				+ "\"eduPersonPrincipalName\": \"test@iu.edu\"\n            " + "}\n   }\n    ]\n}");
+		when(mockSamlPrincipal.toString()).thenReturn(jsonbuilder.build().toString());
 
 		final var provider = mock(SamlServiceProvider.class);
 		when(provider.isValidEntryPoint(any())).thenReturn(true);
@@ -341,7 +345,6 @@ public class SamlSessionTest {
 	@Test
 	public void testGetPrincipalIdentityIuAuthenticationException() throws NoSuchFieldException, SecurityException,
 			MalformedURLException, IllegalArgumentException, IllegalAccessException, IuAuthenticationException {
-		IuTestLogger.allow("iu.auth.saml.SamlSession", Level.INFO);
 		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 
 		File metaDataFile = new File("src/test/resource/metadata_sample.xml");
