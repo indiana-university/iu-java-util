@@ -1,0 +1,438 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuJson.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU HTTP Client Utilities</a> &gt; <a href="index.source.html" class="el_package">edu.iu.client</a> &gt; <span class="el_source">IuJson.java</span></div><h1>IuJson.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu.client;
+
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.StringReader;
+import java.lang.reflect.Type;
+import java.net.http.HttpResponse;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+import iu.client.JsonProxy;
+import jakarta.json.JsonArray;
+import jakarta.json.JsonArrayBuilder;
+import jakarta.json.JsonBuilderFactory;
+import jakarta.json.JsonConfig;
+import jakarta.json.JsonConfig.KeyStrategy;
+import jakarta.json.JsonNumber;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonObjectBuilder;
+import jakarta.json.JsonString;
+import jakarta.json.JsonValue;
+import jakarta.json.spi.JsonProvider;
+
+/**
+ * JSON-P processing utilities.
+ */
+public class IuJson {
+
+	/**
+	 * Singleton {@link JsonProvider}.
+	 */
+	public static final JsonProvider PROVIDER;
+
+	static {
+<span class="fc" id="L70">		final var current = Thread.currentThread();</span>
+<span class="fc" id="L71">		final var contextToRestore = current.getContextClassLoader();</span>
+		try {
+<span class="fc" id="L73">			current.setContextClassLoader(JsonProvider.class.getClassLoader());</span>
+<span class="fc" id="L74">			PROVIDER = JsonProvider.provider();</span>
+		} finally {
+<span class="fc" id="L76">			current.setContextClassLoader(contextToRestore);</span>
+		}
+	}
+
+<span class="fc" id="L80">	private static final JsonBuilderFactory FACTORY = PROVIDER</span>
+<span class="fc" id="L81">			.createBuilderFactory(Map.of(JsonConfig.KEY_STRATEGY, KeyStrategy.NONE));</span>
+
+	/**
+	 * Parses a JSON value from an HTTP response.
+	 * 
+	 * @param serialized raw serialized JSON input stream
+	 * @return {@link JsonValue}
+	 */
+	public static JsonValue parse(HttpResponse&lt;InputStream&gt; serialized) {
+<span class="fc" id="L90">		return parse(serialized.body());</span>
+	}
+
+	/**
+	 * Parses a JSON value from serialized form.
+	 * 
+	 * @param serialized raw serialized JSON input stream
+	 * @return {@link JsonValue}
+	 */
+	public static JsonValue parse(InputStream serialized) {
+<span class="fc" id="L100">		return PROVIDER.createReader(serialized).readValue();</span>
+	}
+
+	/**
+	 * Parses a JSON value from serialized form.
+	 * 
+	 * @param serialized raw serialized JSON data, as generated by
+	 *                   {@link JsonValue#toString()}
+	 * @return {@link JsonValue}
+	 */
+	public static JsonValue parse(String serialized) {
+<span class="fc bfc" id="L111" title="All 2 branches covered.">		if (serialized == null)</span>
+<span class="fc" id="L112">			return null;</span>
+		else
+<span class="fc" id="L114">			return PROVIDER.createReader(new StringReader(serialized)).readValue();</span>
+	}
+
+	/**
+	 * Serializes a JSON value to an {@link OutputStream}.
+	 * 
+	 * @param value {@link JsonValue}
+	 * @param out   {@link OutputStream}
+	 */
+	public static void serialize(JsonValue value, OutputStream out) {
+<span class="fc" id="L124">		PROVIDER.createWriter(out).write(value);</span>
+<span class="fc" id="L125">	}</span>
+
+	/**
+	 * Wraps a JSON object in a java interface.
+	 * 
+	 * @param &lt;T&gt;             target interface type
+	 * @param value           value
+	 * @param targetInterface target interface class
+	 * @return {@link JsonProxy}
+	 */
+	public static &lt;T&gt; T wrap(JsonObject value, Class&lt;T&gt; targetInterface) {
+<span class="fc" id="L136">		return wrap(value, targetInterface, IuJsonAdapter::of);</span>
+	}
+
+	/**
+	 * Wraps a JSON object in a java interface.
+	 * 
+	 * @param &lt;T&gt;             target interface type
+	 * @param value           value
+	 * @param targetInterface target interface class
+	 * @param valueAdapter    transform function: receives a {@link JsonValue} and
+	 *                        method return type, if custom handling returns an
+	 *                        object other than the original {@link JsonValue value}
+	 * @return {@link JsonProxy}
+	 */
+	public static &lt;T&gt; T wrap(JsonObject value, Class&lt;T&gt; targetInterface,
+			Function&lt;Type, IuJsonAdapter&lt;?&gt;&gt; valueAdapter) {
+<span class="fc" id="L152">		return JsonProxy.wrap(value, targetInterface, valueAdapter);</span>
+	}
+
+	/**
+	 * Retrieves the {@link JsonObject} from a {@link JsonProxy} wrapper.
+	 * 
+	 * @param jsonProxy wrapper
+	 * @return {@link JsonObject}
+	 */
+	public static JsonObject unwrap(Object jsonProxy) {
+<span class="fc" id="L162">		return JsonProxy.unwrap(jsonProxy);</span>
+	}
+
+	/**
+	 * Creates a JSON value from a {@link Boolean#TYPE boolean}.
+	 * 
+	 * @param value {@link Boolean#TYPE boolean}
+	 * @return {@link JsonValue}
+	 */
+	public static JsonValue bool(boolean value) {
+<span class="fc bfc" id="L172" title="All 2 branches covered.">		return value ? JsonValue.TRUE : JsonValue.FALSE;</span>
+	}
+
+	/**
+	 * Creates a JSON value from a {@link Number}.
+	 * 
+	 * @param value {@link Number}
+	 * @return {@link JsonNumber}
+	 */
+	public static JsonNumber number(Number value) {
+<span class="fc" id="L182">		return PROVIDER.createValue(value);</span>
+	}
+
+	/**
+	 * Creates a JSON value from a {@link String}.
+	 * 
+	 * @param value {@link String}
+	 * @return {@link JsonString}
+	 */
+	public static JsonString string(String value) {
+<span class="fc" id="L192">		return PROVIDER.createValue(value);</span>
+	}
+
+	/**
+	 * Creates an array builder that rejects duplicate values.
+	 * 
+	 * @return {@link JsonArrayBuilder}
+	 */
+	public static JsonArrayBuilder array() {
+<span class="fc" id="L201">		return FACTORY.createArrayBuilder();</span>
+	}
+
+	/**
+	 * Creates a builder for modifying an array.
+	 * 
+	 * @param array array to copy
+	 * @return {@link JsonArrayBuilder}
+	 */
+	public static JsonArrayBuilder array(JsonArray array) {
+<span class="fc" id="L211">		return PROVIDER.createArrayBuilder(array);</span>
+	}
+
+	/**
+	 * Creates an object builder that rejects duplicate values.
+	 * 
+	 * @return {@link JsonObjectBuilder}
+	 */
+	public static JsonObjectBuilder object() {
+<span class="fc" id="L220">		return FACTORY.createObjectBuilder();</span>
+	}
+
+	/**
+	 * Creates a builder for modifying an object.
+	 *
+	 * @param object object to copy
+	 * @return {@link JsonObjectBuilder}
+	 */
+	public static JsonObjectBuilder object(JsonObject object) {
+<span class="fc" id="L230">		return PROVIDER.createObjectBuilder(object);</span>
+	}
+
+	/**
+	 * Adds a value to an object builder.
+	 * 
+	 * @param builder {@link JsonObjectBuilder}
+	 * @param name    name
+	 * @param value   value
+	 */
+	public static void add(JsonObjectBuilder builder, String name, Object value) {
+<span class="fc" id="L241">		add(builder, name, () -&gt; value, () -&gt; true, IuJsonAdapter.basic());</span>
+<span class="fc" id="L242">	}</span>
+
+	/**
+	 * Adds a value to an object builder.
+	 * 
+	 * @param &lt;T&gt;           value type
+	 * @param builder       {@link JsonObjectBuilder}
+	 * @param name          property name
+	 * @param valueSupplier value supplier
+	 * @param adapter       JSON type adapter for handling non-null values
+	 */
+	public static &lt;T&gt; void add(JsonObjectBuilder builder, String name, Supplier&lt;T&gt; valueSupplier,
+			IuJsonAdapter&lt;T&gt; adapter) {
+<span class="fc" id="L255">		add(builder, name, valueSupplier, () -&gt; true, adapter);</span>
+<span class="fc" id="L256">	}</span>
+
+	/**
+	 * Adds a value to an object builder.
+	 * 
+	 * @param &lt;T&gt;       value type
+	 * @param builder   {@link JsonObjectBuilder}
+	 * @param name      property name
+	 * @param value     value
+	 * @param condition supplies true if the value should be added; false to do
+	 *                  nothing
+	 */
+	public static &lt;T&gt; void add(JsonObjectBuilder builder, String name, T value, BooleanSupplier condition) {
+<span class="fc" id="L269">		add(builder, name, () -&gt; value, condition, IuJsonAdapter.basic());</span>
+<span class="fc" id="L270">	}</span>
+
+	/**
+	 * Adds a value to an object builder.
+	 * 
+	 * @param &lt;T&gt;           value type
+	 * @param builder       {@link JsonObjectBuilder}
+	 * @param name          property name
+	 * @param valueSupplier value supplier
+	 * @param condition     supplies true if the value should be added; false to do
+	 *                      nothing
+	 * @param adapter       JSON type adapter for handling non-null values
+	 */
+	public static &lt;T&gt; void add(JsonObjectBuilder builder, String name, Supplier&lt;T&gt; valueSupplier,
+			BooleanSupplier condition, IuJsonAdapter&lt;T&gt; adapter) {
+<span class="fc bfc" id="L285" title="All 2 branches covered.">		if (!condition.getAsBoolean())</span>
+<span class="fc" id="L286">			return;</span>
+
+<span class="fc" id="L288">		final var a = valueSupplier.get();</span>
+<span class="fc bfc" id="L289" title="All 2 branches covered.">		if (a != null)</span>
+<span class="fc" id="L290">			builder.add(name, adapter.toJson(a));</span>
+<span class="fc" id="L291">	}</span>
+
+	/**
+	 * Adds a value to an array builder.
+	 * 
+	 * @param &lt;T&gt;     value type
+	 * @param builder {@link JsonArrayBuilder}
+	 * @param value   value
+	 */
+	public static &lt;T&gt; void add(JsonArrayBuilder builder, T value) {
+<span class="fc" id="L301">		add(builder, () -&gt; value, () -&gt; true, IuJsonAdapter.basic());</span>
+<span class="fc" id="L302">	}</span>
+
+	/**
+	 * Adds a value to an array builder.
+	 * 
+	 * @param &lt;T&gt;           value type
+	 * @param builder       {@link JsonArrayBuilder}
+	 * @param valueSupplier value supplier
+	 * @param adapter       JSON type adapter for handling non-null values
+	 */
+	public static &lt;T&gt; void add(JsonArrayBuilder builder, Supplier&lt;T&gt; valueSupplier, IuJsonAdapter&lt;T&gt; adapter) {
+<span class="fc" id="L313">		add(builder, valueSupplier, () -&gt; true, adapter);</span>
+<span class="fc" id="L314">	}</span>
+
+	/**
+	 * Adds a value to an array builder.
+	 * 
+	 * @param &lt;T&gt;       value type
+	 * @param builder   {@link JsonArrayBuilder}
+	 * @param value     value
+	 * @param condition supplies true if the value should be added; false to do
+	 *                  nothing
+	 */
+	public static &lt;T&gt; void add(JsonArrayBuilder builder, T value, BooleanSupplier condition) {
+<span class="fc" id="L326">		add(builder, () -&gt; value, condition, IuJsonAdapter.basic());</span>
+<span class="fc" id="L327">	}</span>
+
+	/**
+	 * Adds a value to an array builder.
+	 * 
+	 * @param &lt;T&gt;           value type
+	 * @param builder       {@link JsonArrayBuilder}
+	 * @param valueSupplier value supplier
+	 * @param condition     supplies true if the value should be added; false to do
+	 *                      nothing
+	 * @param adapter       JSON type adapter for handling non-null values
+	 */
+	public static &lt;T&gt; void add(JsonArrayBuilder builder, Supplier&lt;T&gt; valueSupplier, BooleanSupplier condition,
+			IuJsonAdapter&lt;T&gt; adapter) {
+<span class="fc bfc" id="L341" title="All 2 branches covered.">		if (!condition.getAsBoolean())</span>
+<span class="fc" id="L342">			return;</span>
+
+<span class="fc" id="L344">		final var a = valueSupplier.get();</span>
+<span class="fc bfc" id="L345" title="All 2 branches covered.">		if (a != null)</span>
+<span class="fc" id="L346">			builder.add(adapter.toJson(a));</span>
+<span class="fc" id="L347">	}</span>
+
+	/**
+	 * Gets a property value from a JSON object.
+	 * 
+	 * @param &lt;T&gt;    result type
+	 * @param object {@link JsonObject}
+	 * @param name   property name
+	 * @return property value
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	public static &lt;T&gt; T get(JsonObject object, String name) {
+<span class="fc" id="L359">		return (T) get(object, name, null, IuJsonAdapter.of(Object.class));</span>
+	}
+
+	/**
+	 * Gets a property value from a JSON object.
+	 * 
+	 * @param &lt;T&gt;     result type
+	 * @param object  {@link JsonObject}
+	 * @param name    property name
+	 * @param adapter adapter for converting non-null values
+	 * @return property value
+	 */
+	public static &lt;T&gt; T get(JsonObject object, String name, IuJsonAdapter&lt;T&gt; adapter) {
+<span class="fc" id="L372">		return get(object, name, null, adapter);</span>
+	}
+
+	/**
+	 * Gets a non-null property value from a JSON object.
+	 * 
+	 * @param &lt;T&gt;     result type
+	 * @param object  {@link JsonObject}
+	 * @param name    property name
+	 * @param adapter adapter for converting non-null values
+	 * @return property value
+	 * @throws NullPointerException if the property value is {@link JsonValue#NULL}
+	 */
+	public static &lt;T&gt; T nonNull(JsonObject object, String name, IuJsonAdapter&lt;T&gt; adapter) {
+<span class="fc" id="L386">		return Objects.requireNonNull(get(object, name, null, adapter), name);</span>
+	}
+
+	/**
+	 * Gets a property value from a JSON object, accepting if non-null.
+	 * 
+	 * @param &lt;T&gt;      result type
+	 * @param object   {@link JsonObject}
+	 * @param name     property name
+	 * @param consumer accepts the property value if non-null; else skipped
+	 */
+	public static &lt;T&gt; void get(JsonObject object, String name, Consumer&lt;T&gt; consumer) {
+<span class="fc" id="L398">		get(object, name, IuJsonAdapter.basic(), consumer);</span>
+<span class="fc" id="L399">	}</span>
+
+	/**
+	 * Gets a property value from a JSON object, accepting if non-null..
+	 * 
+	 * @param &lt;T&gt;      result type
+	 * @param object   {@link JsonObject}
+	 * @param name     property name
+	 * @param adapter  JSON type adapter
+	 * @param consumer accepts the property value if non-null; else skipped
+	 */
+	public static &lt;T&gt; void get(JsonObject object, String name, IuJsonAdapter&lt;T&gt; adapter, Consumer&lt;T&gt; consumer) {
+<span class="fc" id="L411">		final var value = get(object, name, null, adapter);</span>
+<span class="fc bfc" id="L412" title="All 2 branches covered.">		if (value != null)</span>
+<span class="fc" id="L413">			consumer.accept(value);</span>
+<span class="fc" id="L414">	}</span>
+
+	/**
+	 * Gets a property value from a JSON object.
+	 * 
+	 * @param &lt;T&gt;          result type
+	 * @param object       {@link JsonObject}
+	 * @param name         property name
+	 * @param defaultValue value to return if the property is missing
+	 * @param adapter      adapter for converting non-null values to Java
+	 * @return property value, or defaultValue if the property is missing
+	 */
+	public static &lt;T&gt; T get(JsonObject object, String name, T defaultValue, IuJsonAdapter&lt;T&gt; adapter) {
+<span class="fc" id="L427">		final var v = object.get(name);</span>
+<span class="fc bfc" id="L428" title="All 2 branches covered.">		if (v == null)</span>
+<span class="fc" id="L429">			return defaultValue;</span>
+		else
+<span class="fc" id="L431">			return adapter.fromJson(v);</span>
+	}
+
+	private IuJson() {
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
