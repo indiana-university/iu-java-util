@@ -78,7 +78,12 @@ public interface IuAuthenticationRealm {
 		/**
 		 * PKIX {@link X509Certificate} trusted CA.
 		 */
-		CA("ca", IuCertificateAuthority.class);
+		CA("ca", IuCertificateAuthority.class),
+
+		/**
+		 * SAML Service Provider.
+		 */
+		SAML("saml_sp", IuSamlServiceProviderMetadata.class);
 
 		private String code;
 		private Class<? extends IuAuthenticationRealm> authInterface;
