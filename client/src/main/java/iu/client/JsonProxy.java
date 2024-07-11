@@ -121,13 +121,7 @@ public final class JsonProxy implements InvocationHandler {
 		} else
 			throw new UnsupportedOperationException();
 
-		final JsonValue rv;
-		if (propertyName == null)
-			rv = null;
-		else if (value.containsKey(propertyName))
-			rv = value.get(propertyName);
-		else
-			rv = value.get(convertToSnakeCase(propertyName));
+		final JsonValue rv = returnValueWithCaseConversion(propertyName);
 
 		if (rv == null && method.isDefault()) {
 			final var type = proxy.getClass().getInterfaces()[0];
@@ -147,6 +141,20 @@ public final class JsonProxy implements InvocationHandler {
 			throw new IllegalArgumentException(
 					"Invalid JSON value for return type " + genericReturnType + " in property " + propertyName, e);
 		}
+	}
+
+	private JsonValue returnValueWithCaseConversion(String propertyName) {
+		if (propertyName == null)
+			return null;
+
+		if (value.containsKey(propertyName))
+			return value.get(propertyName);
+
+		String lowerSnakeCasePropertyName = convertToSnakeCase(propertyName).toLowerCase();
+		if (value.containsKey(lowerSnakeCasePropertyName))
+			return value.get(lowerSnakeCasePropertyName);
+
+		return value.get(lowerSnakeCasePropertyName.toUpperCase());
 	}
 
 	private String convertToSnakeCase(String camelCase) {
