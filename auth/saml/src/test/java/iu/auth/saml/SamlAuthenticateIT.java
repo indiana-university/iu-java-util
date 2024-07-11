@@ -68,7 +68,7 @@ import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.test.IuTestLogger;
 import iu.auth.config.AuthConfig;
-import iu.auth.pki.PkiFactory;
+import iu.auth.pki.PkiVerifier;
 
 @EnabledIf("edu.iu.client.IuVault#isConfigured")
 @SuppressWarnings("javadoc")
@@ -85,7 +85,7 @@ public class SamlAuthenticateIT {
 		postUri = realm.getAcsUris().iterator().next();
 		entryPointUri = realm.getEntryPointUris().iterator().next();
 
-		AuthConfig.register(PkiFactory.trust(realm.getIdentity()));
+		AuthConfig.register(new PkiVerifier(realm.getIdentity()));
 
 		final var provider = new SamlServiceProvider(postUri, REALM);
 		AuthConfig.register(provider);
@@ -160,8 +160,8 @@ public class SamlAuthenticateIT {
 		assertEquals("POST", parsedLoginForm.attr("method").toUpperCase());
 
 		final var loginFormParams = new LinkedHashMap<String, Iterable<String>>();
-		loginFormParams.put("j_username", List.of(IuVault.RUNTIME.get("test.username")));
-		loginFormParams.put("j_password", List.of(IuVault.RUNTIME.get("test.password")));
+		loginFormParams.put("j_username", List.of(IuVault.RUNTIME.get("test.username").getValue()));
+		loginFormParams.put("j_password", List.of(IuVault.RUNTIME.get("test.password").getValue()));
 		loginFormParams.put("_eventId_proceed", List.of(""));
 		final var loginFormQuery = IuWebUtils.createQueryString(loginFormParams);
 

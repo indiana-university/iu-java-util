@@ -35,15 +35,19 @@
  * @uses edu.iu.auth.spi.IuAuthConfigSpi Configuration bootstrap
  * @uses edu.iu.auth.spi.IuPrincipalSpi For access to identity provider
  *       verification resources
+ * @uses edu.iu.auth.spi.IuSamlSpi SAML service provider
  * @uses edu.iu.auth.spi.IuNonceSpi One-time number generator
  */
 module iu.util.auth {
 	exports edu.iu.auth;
+	exports edu.iu.auth.saml;
 	exports edu.iu.auth.spi;
 
 	requires iu.util;
+	requires transitive java.net.http;
 
 	uses edu.iu.auth.spi.IuAuthConfigSpi;
 	uses edu.iu.auth.spi.IuPrincipalSpi;
 	uses edu.iu.auth.spi.IuNonceSpi;
+	uses edu.iu.auth.spi.IuSamlSpi;
 }

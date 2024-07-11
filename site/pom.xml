@@ -121,6 +121,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			<artifactId>iu-java-auth-pki</artifactId>
 			<version>${project.version}</version>
 		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-auth-saml</artifactId>
+			<version>${project.version}</version>
+		</dependency>
 	</dependencies>
 
 	<reporting>

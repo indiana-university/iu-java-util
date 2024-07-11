@@ -132,7 +132,7 @@ public interface IuSamlSession {
 
 	/**
 	 * Tokenizes session state, for use at deactivation time, using the secret key
-	 * supplied via {@link #create(URI, Supplier)}, for later activation by
+	 * supplied via {@link #create(URI, URI, Supplier)}, for later activation by
 	 * {@link #activate(String, Supplier)}.
 	 * 
 	 * @return tokenized session

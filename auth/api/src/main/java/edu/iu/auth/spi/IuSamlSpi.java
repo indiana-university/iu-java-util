@@ -42,7 +42,7 @@ import edu.iu.auth.saml.IuSamlSession;
 public interface IuSamlSpi {
 
 	/**
-	 * Implements {@link IuSamlSession#create(URI, Supplier)}.
+	 * Implements {@link IuSamlSession#create(URI, URI, Supplier)}.
 	 * 
 	 * @param entryPointUri application entry point URI
 	 * @param postUri       HTTP POST Binding URI
