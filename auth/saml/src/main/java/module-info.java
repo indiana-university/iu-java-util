@@ -35,6 +35,8 @@
  * @provides edu.iu.auth.spi.IuSamlSpi
  */
 module iu.util.auth.saml {
+	exports iu.auth.saml;
+	
 	requires iu.util;
 	requires iu.util.auth;
 	requires iu.util.auth.config;
