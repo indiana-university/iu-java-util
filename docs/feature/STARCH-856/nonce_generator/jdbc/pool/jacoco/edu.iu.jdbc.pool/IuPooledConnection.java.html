@@ -1,0 +1,605 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuPooledConnection.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Database Connection Pools</a> &gt; <a href="index.source.html" class="el_package">edu.iu.jdbc.pool</a> &gt; <span class="el_source">IuPooledConnection.java</span></div><h1>IuPooledConnection.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu.jdbc.pool;
+
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.sql.CallableStatement;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import javax.sql.ConnectionEvent;
+import javax.sql.ConnectionEventListener;
+import javax.sql.PooledConnection;
+import javax.sql.StatementEvent;
+import javax.sql.StatementEventListener;
+
+import edu.iu.IuException;
+import edu.iu.IuObject;
+import edu.iu.UnsafeFunction;
+
+/**
+ * Generic {@link PooledConnection} implementation.
+ */
+public class IuPooledConnection implements PooledConnection, ConnectionEventListener, StatementEventListener {
+
+<span class="fc" id="L74">	private static final Logger LOG = Logger.getLogger(IuPooledConnection.class.getName());</span>
+
+<span class="fc" id="L76">	private static final ClassLoader JAVA_SQL_LOADER = Connection.class.getClassLoader();</span>
+<span class="fc" id="L77">	private static final Class&lt;?&gt;[] CONNECTION_PROXY_INTERFACES = new Class&lt;?&gt;[] { Connection.class };</span>
+	private static final ScheduledThreadPoolExecutor REAPER_SCHEDULER;
+
+	static {
+<span class="fc" id="L81">		final var threadGroup = new ThreadGroup(&quot;iu-java-jdbc-pool-reaper&quot;);</span>
+<span class="fc" id="L82">		final var threadFactory = new ThreadFactory() {</span>
+			private int num;
+
+			@Override
+			public Thread newThread(Runnable r) {
+<span class="fc" id="L87">				final var thread = new Thread(threadGroup, r, &quot;iu-java-jdbc-pool-reaper/&quot; + (++num));</span>
+<span class="fc" id="L88">				thread.setDaemon(true);</span>
+<span class="fc" id="L89">				return thread;</span>
+			}
+		};
+<span class="fc" id="L92">		REAPER_SCHEDULER = new ScheduledThreadPoolExecutor(4, threadFactory);</span>
+<span class="fc" id="L93">	}</span>
+
+	/**
+	 * Hash key for {@link PreparedStatement} initialization args.
+	 */
+	static class StatementKey {
+		private final Class&lt;? extends PreparedStatement&gt; type;
+		private final Object[] args;
+
+		/**
+		 * Constructor.
+		 * 
+		 * @param type {@link PreparedStatement} or {@link CallableStatement}
+		 * @param args arguments to be passed to
+		 *             {@link Method#invoke(Object, Object...)} after a cache miss.
+		 */
+<span class="fc" id="L109">		StatementKey(Class&lt;? extends PreparedStatement&gt; type, Object[] args) {</span>
+<span class="fc" id="L110">			this.type = type;</span>
+<span class="fc" id="L111">			this.args = args;</span>
+<span class="fc" id="L112">		}</span>
+
+		@Override
+		public int hashCode() {
+<span class="fc" id="L116">			return IuObject.hashCode(type, args);</span>
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+<span class="fc bfc" id="L121" title="All 2 branches covered.">			if (!IuObject.typeCheck(this, obj))</span>
+<span class="fc" id="L122">				return false;</span>
+<span class="fc" id="L123">			StatementKey other = (StatementKey) obj;</span>
+<span class="fc bfc" id="L124" title="All 4 branches covered.">			return type == other.type &amp;&amp; IuObject.equals(args, other.args);</span>
+		}
+	}
+
+	private class ConnectionHandler implements InvocationHandler {
+
+		private final Connection delegate;
+
+<span class="fc" id="L132">		private ConnectionHandler(Connection delegate) {</span>
+<span class="fc" id="L133">			this.delegate = delegate;</span>
+<span class="fc" id="L134">		}</span>
+
+		@Override
+		public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+<span class="fc bfc" id="L138" title="All 2 branches covered.">			if (method.getName().equals(&quot;close&quot;)) {</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">				if (logicalConnectionOpened != null)</span>
+<span class="fc" id="L140">					connectionClosed(new ConnectionEvent(physicalConnection));</span>
+<span class="fc" id="L141">				return null;</span>
+			}
+
+			try {
+<span class="fc" id="L145">				final var returnType = method.getReturnType();</span>
+
+				final StatementKey statementKey;
+<span class="fc bfc" id="L148" title="All 2 branches covered.">				if (PreparedStatement.class.isAssignableFrom(returnType)) {</span>
+<span class="fc" id="L149">					statementKey = new StatementKey(returnType.asSubclass(PreparedStatement.class), args);</span>
+
+<span class="fc" id="L151">					synchronized (reusableStatements) {</span>
+<span class="fc" id="L152">						Queue&lt;PreparedStatement&gt; cachedStatements = reusableStatements.get(statementKey);</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">						if (cachedStatements != null) {</span>
+<span class="fc" id="L154">							final var cachedStatement = cachedStatements.poll();</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">							if (cachedStatements.isEmpty())</span>
+<span class="fc" id="L156">								reusableStatements.remove(statementKey);</span>
+
+<span class="fc" id="L158">							handleStatementReused(cachedStatement);</span>
+<span class="fc" id="L159">							return wrap(returnType, (String) args[0], cachedStatement);</span>
+						}
+<span class="fc" id="L161">					}</span>
+
+				} else
+<span class="fc" id="L164">					statementKey = null;</span>
+
+<span class="fc" id="L166">				final var rv = IuException.checkedInvocation(() -&gt; method.invoke(delegate, args));</span>
+
+<span class="fc bfc" id="L168" title="All 2 branches covered.">				if (statementKey != null) {</span>
+<span class="fc" id="L169">					final var statement = (PreparedStatement) rv;</span>
+
+<span class="fc" id="L171">					synchronized (statementReverseIndex) {</span>
+<span class="fc" id="L172">						statementReverseIndex.put(statement, statementKey);</span>
+<span class="fc" id="L173">					}</span>
+
+<span class="fc" id="L175">					handleStatementOpened(statement);</span>
+<span class="fc" id="L176">					return wrap(returnType, (String) args[0], statement);</span>
+				}
+
+<span class="fc" id="L179">				return rv;</span>
+<span class="fc" id="L180">			} catch (Throwable e) {</span>
+				final SQLException error;
+<span class="fc bfc" id="L182" title="All 2 branches covered.">				if (e instanceof SQLException se)</span>
+<span class="fc" id="L183">					error = se;</span>
+				else
+<span class="fc" id="L185">					error = new SQLException(&quot;jdbc-pool-logical-error&quot;, e);</span>
+<span class="fc" id="L186">				IuException.suppress(e, () -&gt; connectionErrorOccurred(new ConnectionEvent(physicalConnection, error)));</span>
+<span class="fc" id="L187">				throw e;</span>
+			}
+		}
+
+		private PreparedStatement wrap(Class&lt;?&gt; type, String sql, PreparedStatement statement) {
+<span class="fc" id="L192">			final var statementHandler = new IuStatementHandler(sql, statement, (doClose, error) -&gt; {</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">				if (error == null)</span>
+<span class="fc" id="L194">					statementClosed(new StatementEvent(physicalConnection, statement));</span>
+				else {
+<span class="fc" id="L196">					IuException.suppress(error, doClose);</span>
+<span class="fc bfc" id="L197" title="All 2 branches covered.">					if (!(error instanceof SQLException))</span>
+<span class="fc" id="L198">						error = new SQLException(&quot;jdbc-pool-statement-error&quot;, error);</span>
+<span class="fc" id="L199">					statementErrorOccurred(new StatementEvent(physicalConnection, statement, (SQLException) error));</span>
+				}
+<span class="fc" id="L201">			});</span>
+<span class="fc" id="L202">			return (PreparedStatement) Proxy.newProxyInstance(type.getClassLoader(), new Class&lt;?&gt;[] { type },</span>
+					statementHandler);
+		}
+	}
+
+<span class="fc" id="L207">	private final Queue&lt;ConnectionEventListener&gt; connectionEventListeners = new ConcurrentLinkedQueue&lt;&gt;();</span>
+<span class="fc" id="L208">	private final Queue&lt;StatementEventListener&gt; statementEventListeners = new ConcurrentLinkedQueue&lt;&gt;();</span>
+<span class="fc" id="L209">	private final Map&lt;StatementKey, Queue&lt;PreparedStatement&gt;&gt; reusableStatements = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L210">	private final Map&lt;PreparedStatement, StatementKey&gt; statementReverseIndex = new WeakHashMap&lt;&gt;();</span>
+<span class="fc" id="L211">	private final ConnectionEvent connectionClosedEvent = new ConnectionEvent(this);</span>
+
+	private final Instant connectionInitiated;
+<span class="fc" id="L214">	private final Instant connectionOpened = Instant.now();</span>
+	private final PooledConnection physicalConnection;
+	private final UnsafeFunction&lt;Connection, Connection&gt; connectionInitializer;
+	private final Duration abandonedConnectionTimeout;
+	private final Consumer&lt;IuPooledConnection&gt; onClose;
+
+	private volatile boolean validated;
+	private volatile Connection connection;
+	private volatile Instant logicalConnectionOpened;
+	private volatile ScheduledFuture&lt;?&gt; reaper;
+	private volatile Throwable error;
+	private volatile boolean closed;
+
+	private volatile Instant lastTransactionSegmentStarted;
+	private volatile Instant lastTransactionSegmentEnded;
+	private volatile Duration averageTransactionSegmentDuration;
+	private volatile Duration maxTransactionSegmentDuration;
+	private volatile long transactionSegmentCount;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param initTime                   {@link Instant} the physical connection was
+	 *                                   initiated
+	 * @param abandonedConnectionTimeout {@link Duration} after
+	 *                                   {@link #getConnection()} is invoked when
+	 *                                   the connection will be considered abandoned
+	 *                                   and removed from the pool
+	 * @param physicalConnection         {@link PooledConnection} downstream
+	 *                                   physical connection
+	 * @param connectionInitializer      From
+	 *                                   {@link IuCommonDataSource#setConnectionInitializer(UnsafeFunction)}
+	 * @param onClose                    receives a handle to this pooled connection
+	 *                                   decorator when {@link #close()} is invoked
+	 */
+	public IuPooledConnection(Instant initTime, PooledConnection physicalConnection,
+			UnsafeFunction&lt;Connection, Connection&gt; connectionInitializer, Duration abandonedConnectionTimeout,
+<span class="fc" id="L251">			Consumer&lt;IuPooledConnection&gt; onClose) {</span>
+<span class="fc" id="L252">		this.connectionInitiated = initTime;</span>
+<span class="fc" id="L253">		this.physicalConnection = physicalConnection;</span>
+<span class="fc" id="L254">		this.connectionInitializer = connectionInitializer;</span>
+<span class="fc" id="L255">		this.abandonedConnectionTimeout = abandonedConnectionTimeout;</span>
+<span class="fc" id="L256">		this.onClose = onClose;</span>
+
+//		physicalConnection.addConnectionEventListener(this);
+//		physicalConnection.addStatementEventListener(this);
+<span class="fc" id="L260">	}</span>
+
+	@Override
+	public synchronized Connection getConnection() throws SQLException {
+<span class="fc bfc" id="L264" title="All 2 branches covered.">		if (closed) {</span>
+<span class="fc" id="L265">			final var closedError = new IllegalStateException(&quot;closed&quot;);</span>
+<span class="fc bfc" id="L266" title="All 2 branches covered.">			if (error != null)</span>
+<span class="fc" id="L267">				closedError.initCause(error);</span>
+<span class="fc" id="L268">			throw closedError;</span>
+		}
+
+<span class="fc bfc" id="L271" title="All 2 branches covered.">		if (logicalConnectionOpened != null)</span>
+<span class="fc bfc" id="L272" title="All 2 branches covered.">			if (validated) {</span>
+<span class="fc" id="L273">				validated = false;</span>
+<span class="fc" id="L274">				return (Connection) Proxy.newProxyInstance(JAVA_SQL_LOADER, CONNECTION_PROXY_INTERFACES,</span>
+						new ConnectionHandler(connection));
+			} else
+<span class="fc" id="L277">				throw new IllegalStateException(&quot;already connected&quot;);</span>
+
+<span class="fc bfc" id="L279" title="All 2 branches covered.">		if (connection == null) {</span>
+<span class="fc" id="L280">			final var newConnection = physicalConnection.getConnection();</span>
+<span class="fc bfc" id="L281" title="All 2 branches covered.">			if (connectionInitializer != null) {</span>
+<span class="fc" id="L282">				final var initializedConnection = IuException.checked(SQLException.class, newConnection,</span>
+						connectionInitializer);
+<span class="fc bfc" id="L284" title="All 2 branches covered.">				if (newConnection != initializedConnection.unwrap(Connection.class))</span>
+<span class="fc" id="L285">					throw new SQLException(</span>
+							&quot;Invalid connection initializer; unwrap(Connection.class) must return original connection&quot;);
+<span class="fc" id="L287">				connection = initializedConnection;</span>
+<span class="fc" id="L288">			} else</span>
+<span class="fc" id="L289">				connection = newConnection;</span>
+		}
+
+<span class="fc" id="L292">		final var openTrace = new Throwable(&quot;opened by&quot;);</span>
+<span class="fc" id="L293">		reaper = REAPER_SCHEDULER.schedule(() -&gt; {</span>
+			try {
+<span class="fc" id="L295">				afterLogicalClose();</span>
+<span class="fc" id="L296">				close();</span>
+<span class="fc" id="L297">				LOG.log(Level.INFO, openTrace, () -&gt; &quot;jdbc-pool-reaper-close; &quot; + connection);</span>
+<span class="fc" id="L298">			} catch (Throwable e) {</span>
+<span class="fc" id="L299">				LOG.log(Level.WARNING, e, () -&gt; &quot;jdbc-pool-reaper-fail; &quot; + connection);</span>
+<span class="fc" id="L300">			}</span>
+<span class="fc" id="L301">		}, abandonedConnectionTimeout.toMillis(), TimeUnit.MILLISECONDS);</span>
+
+<span class="fc" id="L303">		logicalConnectionOpened = Instant.now();</span>
+<span class="fc" id="L304">		LOG.finer(() -&gt; &quot;jdbc-pool-logical-open; &quot; + connection + &quot; &quot; + this);</span>
+
+<span class="fc" id="L306">		return (Connection) Proxy.newProxyInstance(JAVA_SQL_LOADER, CONNECTION_PROXY_INTERFACES,</span>
+				new ConnectionHandler(connection));
+	}
+
+	@Override
+	public void addConnectionEventListener(ConnectionEventListener listener) {
+<span class="fc" id="L312">		connectionEventListeners.add(listener);</span>
+<span class="fc" id="L313">	}</span>
+
+	@Override
+	public void connectionClosed(ConnectionEvent event) {
+<span class="fc" id="L317">		Objects.requireNonNull(logicalConnectionOpened, &quot;not connected&quot;);</span>
+
+<span class="fc" id="L319">		afterLogicalClose();</span>
+<span class="fc" id="L320">		LOG.finer(() -&gt; &quot;jdbc-pool-logical-close; &quot; + connection + &quot; &quot; + this);</span>
+
+<span class="fc" id="L322">		connectionEventListeners.parallelStream().forEach(a -&gt; a.connectionClosed(connectionClosedEvent));</span>
+<span class="fc" id="L323">	}</span>
+
+	@Override
+	public void connectionErrorOccurred(ConnectionEvent event) {
+<span class="fc" id="L327">		final var error = event.getSQLException();</span>
+<span class="fc bfc" id="L328" title="All 2 branches covered.">		if (logicalConnectionOpened != null)</span>
+<span class="fc" id="L329">			afterLogicalClose();</span>
+
+<span class="fc" id="L331">		LOG.log(Level.INFO, error, () -&gt; &quot;jdbc-pool-logical-close; &quot; + connection + &quot; &quot; + this);</span>
+<span class="fc" id="L332">		afterPhysicalClose(error);</span>
+
+<span class="fc" id="L334">		final var decoratedEvent = new ConnectionEvent(this, error);</span>
+<span class="fc" id="L335">		connectionEventListeners.parallelStream().forEach(a -&gt; a.connectionErrorOccurred(decoratedEvent));</span>
+<span class="fc" id="L336">	}</span>
+
+	@Override
+	public void removeConnectionEventListener(ConnectionEventListener listener) {
+<span class="fc" id="L340">		connectionEventListeners.remove(listener);</span>
+<span class="fc" id="L341">	}</span>
+
+	@Override
+	public void addStatementEventListener(StatementEventListener listener) {
+<span class="fc" id="L345">		statementEventListeners.add(listener);</span>
+<span class="fc" id="L346">	}</span>
+
+	@Override
+	public void statementClosed(StatementEvent event) {
+<span class="fc" id="L350">		final var statement = event.getStatement();</span>
+<span class="fc" id="L351">		LOG.finer(() -&gt; &quot;jdbc-pool-statement-close; &quot; + connection + ' ' + statement + ' ' + this);</span>
+
+<span class="fc" id="L353">		final var decoratedEvent = new StatementEvent(this, statement);</span>
+<span class="fc" id="L354">		statementEventListeners.parallelStream().forEach(a -&gt; a.statementClosed(decoratedEvent));</span>
+
+<span class="fc" id="L356">		final var statementKey = statementReverseIndex.get(statement);</span>
+<span class="fc bfc" id="L357" title="All 2 branches covered.">		if (statementKey != null)</span>
+<span class="fc" id="L358">			synchronized (reusableStatements) {</span>
+<span class="fc" id="L359">				var cachedStatements = reusableStatements.get(statementKey);</span>
+<span class="fc bfc" id="L360" title="All 2 branches covered.">				if (cachedStatements == null)</span>
+<span class="fc" id="L361">					reusableStatements.put(statementKey, cachedStatements = new ArrayDeque&lt;&gt;());</span>
+<span class="fc" id="L362">				cachedStatements.offer(statement);</span>
+<span class="fc" id="L363">			}</span>
+<span class="fc" id="L364">	}</span>
+
+	@Override
+	public void statementErrorOccurred(StatementEvent event) {
+<span class="fc" id="L368">		final var statement = event.getStatement();</span>
+<span class="fc" id="L369">		final var error = event.getSQLException();</span>
+<span class="fc" id="L370">		LOG.log(Level.INFO, error, () -&gt; &quot;jdbc-pool-statement-error; &quot; + connection + ' ' + statement + ' ' + this);</span>
+
+<span class="fc" id="L372">		final var decoratedEvent = new StatementEvent(this, statement, error);</span>
+<span class="fc" id="L373">		statementEventListeners.parallelStream().forEach(a -&gt; a.statementErrorOccurred(decoratedEvent));</span>
+
+<span class="fc" id="L375">		synchronized (statementReverseIndex) {</span>
+<span class="fc" id="L376">			statementReverseIndex.remove(statement);</span>
+<span class="fc" id="L377">		}</span>
+
+<span class="fc" id="L379">		synchronized (reusableStatements) {</span>
+<span class="fc" id="L380">			final var i = reusableStatements.values().iterator();</span>
+<span class="fc bfc" id="L381" title="All 2 branches covered.">			while (i.hasNext()) {</span>
+<span class="fc" id="L382">				final var q = i.next();</span>
+<span class="fc bfc" id="L383" title="All 2 branches covered.">				if (q.remove(statement) //</span>
+<span class="pc bpc" id="L384" title="1 of 2 branches missed.">						&amp;&amp; q.isEmpty())</span>
+<span class="fc" id="L385">					i.remove();</span>
+<span class="fc" id="L386">			}</span>
+<span class="fc" id="L387">		}</span>
+<span class="fc" id="L388">	}</span>
+
+	@Override
+	public void removeStatementEventListener(StatementEventListener listener) {
+<span class="fc" id="L392">		statementEventListeners.remove(listener);</span>
+<span class="fc" id="L393">	}</span>
+
+	@Override
+	public synchronized void close() throws SQLException {
+		final Throwable closeError;
+<span class="fc bfc" id="L398" title="All 2 branches covered.">		if (!closed)</span>
+<span class="fc" id="L399">			closeError = IuException.suppress(null, physicalConnection::close);</span>
+		else
+<span class="fc" id="L401">			closeError = null;</span>
+
+<span class="fc" id="L403">		Throwable error = closeError;</span>
+<span class="fc bfc" id="L404" title="All 2 branches covered.">		if (logicalConnectionOpened != null)</span>
+<span class="fc" id="L405">			error = IuException.suppress(error, () -&gt; afterLogicalClose());</span>
+<span class="fc" id="L406">		error = IuException.suppress(error, () -&gt; afterPhysicalClose(closeError));</span>
+
+<span class="fc bfc" id="L408" title="All 2 branches covered.">		if (error != null)</span>
+<span class="fc" id="L409">			throw IuException.checked(error, SQLException.class);</span>
+<span class="fc" id="L410">	}</span>
+
+	@Override
+	public String toString() {
+		// Not using JSON-P to avoid complex dependency issues with legacy apps
+<span class="fc" id="L415">		final var sb = new StringBuilder(&quot;{&quot;);</span>
+<span class="fc" id="L416">		final BiConsumer&lt;String, Object&gt; addValue = (n, v) -&gt; {</span>
+<span class="fc bfc" id="L417" title="All 2 branches covered.">			if (sb.length() &gt; 1)</span>
+<span class="fc" id="L418">				sb.append(',');</span>
+<span class="fc" id="L419">			sb.append('\&quot;').append(n).append(&quot;\&quot;:&quot;).append(v);</span>
+<span class="fc" id="L420">		};</span>
+<span class="fc" id="L421">		final BiConsumer&lt;String, Object&gt; addText = (n, t) -&gt; {</span>
+<span class="fc bfc" id="L422" title="All 2 branches covered.">			if (t == null)</span>
+<span class="fc" id="L423">				return;</span>
+<span class="fc" id="L424">			addValue.accept(n, '\&quot;' + t.toString().replace(&quot;\\&quot;, &quot;\\\\&quot;).replace(&quot;\&quot;&quot;, &quot;\\\&quot;&quot;) + '\&quot;');</span>
+<span class="fc" id="L425">		};</span>
+<span class="fc" id="L426">		addText.accept(&quot;connectionInitiated&quot;, getConnectionInitiated());</span>
+<span class="fc" id="L427">		addText.accept(&quot;connectionOpened&quot;, getConnectionOpened());</span>
+<span class="fc" id="L428">		addText.accept(&quot;logicalConnectionOpened&quot;, getLogicalConnectionOpened());</span>
+<span class="fc" id="L429">		addText.accept(&quot;lastTransactionSegmentStarted&quot;, getLastTransactionSegmentStarted());</span>
+<span class="fc" id="L430">		addText.accept(&quot;lastTransactionSegmentEnded&quot;, getLastTransactionSegmentEnded());</span>
+<span class="fc" id="L431">		addText.accept(&quot;averageTransactionSegmentDuration&quot;, getAverageTransactionSegmentDuration());</span>
+<span class="fc" id="L432">		addText.accept(&quot;maxTransactionSegmentDuration&quot;, getMaxTransactionSegmentDuration());</span>
+<span class="fc" id="L433">		addValue.accept(&quot;transactionSegmentCount&quot;, getTransactionSegmentCount());</span>
+<span class="fc" id="L434">		addText.accept(&quot;abandonedConnectionTimeout&quot;, abandonedConnectionTimeout);</span>
+<span class="fc" id="L435">		addText.accept(&quot;physicalConnection&quot;, physicalConnection);</span>
+<span class="fc" id="L436">		addText.accept(&quot;connection&quot;, connection);</span>
+<span class="fc" id="L437">		addValue.accept(&quot;closed&quot;, isClosed());</span>
+<span class="fc" id="L438">		return sb.append('}').toString();</span>
+	}
+
+	/**
+	 * Gets the {@link Instant} the connection factory initiated this physical
+	 * connection.
+	 * 
+	 * @return {@link Instant}
+	 */
+	public Instant getConnectionInitiated() {
+<span class="fc" id="L448">		return connectionInitiated;</span>
+	}
+
+	/**
+	 * Gets the {@link Instant} the connection factory opened this physical
+	 * connection.
+	 * 
+	 * @return {@link Instant}
+	 */
+	public Instant getConnectionOpened() {
+<span class="fc" id="L458">		return connectionOpened;</span>
+	}
+
+	/**
+	 * Gets the {@link Instant} the logical connection associated with this physical
+	 * connection was opened.
+	 * 
+	 * @return {@link Instant}
+	 */
+	public Instant getLogicalConnectionOpened() {
+<span class="fc" id="L468">		return logicalConnectionOpened;</span>
+	}
+
+	/**
+	 * Gets the start {@link Instant} of the last transaction segment completed on
+	 * this physical connection.
+	 * 
+	 * @return {@link Instant}
+	 */
+	public Instant getLastTransactionSegmentStarted() {
+<span class="fc" id="L478">		return lastTransactionSegmentStarted;</span>
+	}
+
+	/**
+	 * Gets the end {@link Instant} of the last transaction segment completed on
+	 * this physical connection.
+	 * 
+	 * @return {@link Instant}
+	 */
+	public Instant getLastTransactionSegmentEnded() {
+<span class="fc" id="L488">		return lastTransactionSegmentEnded;</span>
+	}
+
+	/**
+	 * Gets the average {@link Duration} of the transaction segments completed via
+	 * this physical connection.
+	 * 
+	 * @return {@link Duration}
+	 */
+	public Duration getAverageTransactionSegmentDuration() {
+<span class="fc" id="L498">		return averageTransactionSegmentDuration;</span>
+	}
+
+	/**
+	 * Gets the average {@link Duration} of the transaction segments completed via
+	 * this physical connection.
+	 * 
+	 * @return {@link Duration}
+	 */
+	public Duration getMaxTransactionSegmentDuration() {
+<span class="fc" id="L508">		return maxTransactionSegmentDuration;</span>
+	}
+
+	/**
+	 * Gets the number of times this connection has been used.
+	 * 
+	 * @return {@link long}
+	 */
+	public long getTransactionSegmentCount() {
+<span class="fc" id="L517">		return transactionSegmentCount;</span>
+	}
+
+	/**
+	 * Determines whether or not the physical connection is closed.
+	 * 
+	 * @return true if the physical connection is closed; else false
+	 */
+	public boolean isClosed() {
+<span class="fc" id="L526">		return closed;</span>
+	}
+
+	/**
+	 * Gets the error that invalidated this connection, if invalid due to an error.
+	 * 
+	 * @return {@link SQLException}; null if the connection has not experienced a
+	 *         error
+	 */
+	Throwable error() {
+<span class="fc" id="L536">		return error;</span>
+	}
+
+	/**
+	 * Pre-emptively establishes and validates the logical connection.
+	 * 
+	 * @param validationQuery SQL to execute on the connection, &lt;em&gt;should&lt;/em&gt;
+	 *                        produce at least one row with a non-null value in the
+	 *                        first column
+	 * @throws SQLException if the logical connection cannot be established or the
+	 *                      validation query fails
+	 */
+	synchronized void validate(String validationQuery) throws SQLException {
+<span class="fc" id="L549">		final var c = getConnection();</span>
+
+<span class="fc" id="L551">		try (final var s = c.createStatement(); //</span>
+<span class="fc" id="L552">				final var r = s.executeQuery(validationQuery)) {</span>
+<span class="fc bfc" id="L553" title="All 4 branches covered.">			if (!r.next() || r.getObject(1) == null) {</span>
+<span class="fc" id="L554">				final var error = new SQLException(</span>
+						&quot;Validation query failed to produce a non-null result: &quot; + validationQuery + &quot;; &quot; + this);
+<span class="fc" id="L556">				connectionErrorOccurred(new ConnectionEvent(this, error));</span>
+<span class="fc" id="L557">				throw error;</span>
+			}
+		}
+
+<span class="fc" id="L561">		validated = true;</span>
+<span class="fc" id="L562">	}</span>
+
+	private void handleStatementOpened(PreparedStatement statement) {
+<span class="fc" id="L565">		LOG.finer(() -&gt; &quot;jdbc-pool-statement-open; &quot; + connection + ' ' + statement + &quot; &quot; + this);</span>
+<span class="fc" id="L566">	}</span>
+
+	private void handleStatementReused(PreparedStatement statement) {
+<span class="fc" id="L569">		LOG.finer(() -&gt; &quot;jdbc-pool-statement-reuse; &quot; + connection + ' ' + statement + &quot; &quot; + this);</span>
+<span class="fc" id="L570">	}</span>
+
+	private synchronized void afterLogicalClose() {
+<span class="pc bpc" id="L573" title="1 of 2 branches missed.">		if (reaper != null) {</span>
+<span class="fc" id="L574">			reaper.cancel(false);</span>
+<span class="fc" id="L575">			reaper = null;</span>
+		}
+
+<span class="fc" id="L578">		lastTransactionSegmentStarted = Objects.requireNonNull(logicalConnectionOpened);</span>
+<span class="fc" id="L579">		logicalConnectionOpened = null;</span>
+
+<span class="fc" id="L581">		lastTransactionSegmentEnded = Instant.now();</span>
+<span class="fc" id="L582">		final var transactionTime = Duration.between(lastTransactionSegmentStarted, lastTransactionSegmentEnded);</span>
+<span class="fc bfc" id="L583" title="All 4 branches covered.">		if (maxTransactionSegmentDuration == null || maxTransactionSegmentDuration.compareTo(transactionTime) &lt; 0)</span>
+<span class="fc" id="L584">			maxTransactionSegmentDuration = transactionTime;</span>
+
+<span class="fc bfc" id="L586" title="All 2 branches covered.">		if (averageTransactionSegmentDuration == null)</span>
+<span class="fc" id="L587">			averageTransactionSegmentDuration = transactionTime;</span>
+		else
+<span class="fc" id="L589">			averageTransactionSegmentDuration = (averageTransactionSegmentDuration.multipliedBy(transactionSegmentCount)</span>
+<span class="fc" id="L590">					.plus(transactionTime)).dividedBy(transactionSegmentCount + 1);</span>
+
+<span class="fc" id="L592">		transactionSegmentCount++;</span>
+<span class="fc" id="L593">	}</span>
+
+	private synchronized void afterPhysicalClose(Throwable error) {
+<span class="fc bfc" id="L596" title="All 2 branches covered.">		if (!closed) {</span>
+<span class="fc" id="L597">			this.error = error;</span>
+<span class="fc" id="L598">			onClose.accept(this);</span>
+<span class="fc" id="L599">			closed = true;</span>
+		} else
+<span class="fc" id="L601">			return;</span>
+<span class="fc" id="L602">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

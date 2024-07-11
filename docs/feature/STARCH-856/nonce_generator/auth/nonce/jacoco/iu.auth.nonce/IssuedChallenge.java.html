@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IssuedChallenge.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU One-Time Number Generator</a> &gt; <a href="index.source.html" class="el_package">iu.auth.nonce</a> &gt; <span class="el_source">IssuedChallenge.java</span></div><h1>IssuedChallenge.java</h1><pre class="source lang-java linenums">package iu.auth.nonce;
+
+import edu.iu.IdGenerator;
+import edu.iu.IuDigest;
+import edu.iu.IuText;
+import edu.iu.IuWebUtils;
+import edu.iu.auth.IuAuthorizationChallenge;
+
+/**
+ * Broadcasts a one-time number that has been issued to a client.
+ * 
+ * &lt;p&gt;
+ * When received: the nonce value is validated and queued for later
+ * verification.
+ * &lt;/p&gt;
+ */
+final class IssuedChallenge implements IuAuthorizationChallenge {
+
+	/**
+	 * Validates remote address and user agent, and creates a client footprint.
+	 * 
+	 * @param remoteAddress remote address
+	 * @param userAgent     user agent
+	 * @return client thumbprint
+	 */
+	static byte[] thumbprint(String remoteAddress, String userAgent) {
+<span class="fc" id="L27">		IuWebUtils.validateUserAgent(userAgent);</span>
+<span class="fc" id="L28">		return IuDigest.sha256(IuText.utf8(IuWebUtils.getInetAddress(remoteAddress).getHostAddress() + userAgent));</span>
+	}
+
+<span class="fc" id="L31">	private final String nonce = IdGenerator.generateId();</span>
+	private final byte[] clientThumbprint;
+
+	/**
+	 * Creates a message that indicates the one-time number has been created.
+	 * 
+	 * @param remoteAddress remote address
+	 * @param userAgent     user agent
+	 */
+<span class="fc" id="L40">	IssuedChallenge(String remoteAddress, String userAgent) {</span>
+<span class="fc" id="L41">		IuWebUtils.validateUserAgent(userAgent);</span>
+<span class="fc" id="L42">		this.clientThumbprint = thumbprint(remoteAddress, userAgent);</span>
+<span class="fc" id="L43">	}</span>
+
+	@Override
+	public String getNonce() {
+<span class="fc" id="L47">		return nonce;</span>
+	}
+
+	@Override
+	public byte[] getClientThumbprint() {
+<span class="fc" id="L52">		return clientThumbprint;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

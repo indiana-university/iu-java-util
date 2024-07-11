@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>IuOneTimeNumber.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-auth-api</a> &gt; <a href="index.source.html" class="el_package">edu.iu.auth</a> &gt; <span class="el_source">IuOneTimeNumber.java</span></div><h1>IuOneTimeNumber.java</h1><pre class="source lang-java linenums">package edu.iu.auth;
+
+import java.net.InetAddress;
+
+import edu.iu.IuWebUtils;
+import edu.iu.auth.spi.IuNonceSpi;
+import iu.auth.IuAuthSpiFactory;
+
+/**
+ * One-time number (nonce) engine.
+ *
+ * &lt;img src=&quot;doc-files/Nonce.svg&quot; alt=&quot;UML Sequence Diagram&quot;&gt;
+ * 
+ * &lt;p&gt;
+ * Provides securely generated one-time numbers. Clients &lt;em&gt;should&lt;/em&gt;
+ * optimistically limit concurrent access to a single thread. Single-use
+ * tracking is performed internally:
+ * &lt;/p&gt;
+ * 
+ * &lt;ul&gt;
+ * &lt;li&gt;&lt;strong&gt;Nonce&lt;/strong&gt; values &lt;em&gt;must&lt;/em&gt; be used within the configured
+ * time to live interval. PT15S is &lt;em&gt;recommended&lt;/em&gt; as a default value.&lt;/li&gt;
+ * &lt;li&gt;Creating a new &lt;strong&gt;nonce&lt;/strong&gt; value causes all previously created
+ * &lt;strong&gt;nonce&lt;/strong&gt; values for the same client to expire if generated more
+ * than PT0.25S in the past.&lt;/li&gt;
+ * &lt;li&gt;Client is thumbprinted by
+ * {@code sha256(utf8(remoteAddr || userAgent))}&lt;/li&gt;
+ * &lt;li&gt;remoteAddr is resolved by {@link IuWebUtils#getInetAddress(String)} then
+ * canonicalized with {@link InetAddress#getAddress()}&lt;/li&gt;
+ * &lt;li&gt;userAgent is {@link IuWebUtils#validateUserAgent(String) validated}&lt;/li&gt;
+ * &lt;li&gt;When pruning stale &lt;strong&gt;nonce&lt;/strong&gt; challenges, 25ms artificial
+ * delay is inserted to prevent excessive use&lt;/li&gt;
+ * &lt;li&gt;Regardless of validation status, a &lt;strong&gt;nonce&lt;/strong&gt; value
+ * &lt;em&gt;may&lt;/em&gt; only be used once.&lt;/li&gt;
+ * &lt;/ul&gt;
+ */
+public interface IuOneTimeNumber extends AutoCloseable {
+
+	/**
+	 * Initializes a new one-time number generator.
+	 * 
+	 * @param config configuration properties
+	 * @return {@link IuOneTimeNumber}
+	 */
+	static IuOneTimeNumber initialize(IuOneTimeNumberConfig config) {
+<span class="fc" id="L46">		return IuAuthSpiFactory.get(IuNonceSpi.class).initialize(config);</span>
+	}
+
+	/**
+	 * Creates a one-time number (nonce) value.
+	 * 
+	 * @param remoteAddress textual representation of the client IP address
+	 * @param userAgent     user agent string
+	 * @return one-time number
+	 */
+	String create(String remoteAddress, String userAgent);
+
+	/**
+	 * Validates a one-time number (nonce) value.
+	 * 
+	 * @param remoteAddress textual representation of the client IP address
+	 * @param userAgent     user agent string
+	 * @param nonce         one-time number
+	 */
+	void validate(String remoteAddress, String userAgent, String nonce);
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

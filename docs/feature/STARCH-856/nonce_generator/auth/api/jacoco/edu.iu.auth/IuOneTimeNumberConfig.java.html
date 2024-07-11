@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuOneTimeNumberConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Authentication and Authorization API</a> &gt; <a href="index.source.html" class="el_package">edu.iu.auth</a> &gt; <span class="el_source">IuOneTimeNumberConfig.java</span></div><h1>IuOneTimeNumberConfig.java</h1><pre class="source lang-java linenums">package edu.iu.auth;
+
+import java.time.Duration;
+import java.util.function.Consumer;
+
+/**
+ * Provides configuration properties for tuning {@link IuOneTimeNumber}
+ * instances.
+ */
+public interface IuOneTimeNumberConfig {
+
+	/**
+	 * Gets the maximum time to allow a pending one-time number value to be
+	 * accepted.
+	 * 
+	 * @return {@link Duration}
+	 */
+	default Duration getTimeToLive() {
+<span class="fc" id="L19">		return Duration.ofMinutes(2L);</span>
+	}
+
+	/**
+	 * Gets the maximum number of concurrent nonce requests to allow per client.
+	 * 
+	 * @return maximum number of concurrent nonce requests
+	 */
+	default int getMaxConcurrency() {
+<span class="fc" id="L28">		return 5;</span>
+	}
+
+	/**
+	 * Subscribes the one-time number generator to external
+	 * {@link IuAuthorizationChallenge} events.
+	 * 
+	 * @param challengeSubscriber Receives a {@link Consumer} for publishing
+	 *                            {@link IuAuthorizationChallenge} events received
+	 *                            from other nodes.
+	 */
+	default void subscribe(Consumer&lt;IuAuthorizationChallenge&gt; challengeSubscriber) {
+<span class="fc" id="L40">	}</span>
+
+	/**
+	 * Broadcasts a {@link IuAuthorizationChallenge} event to all subscribers.
+	 * 
+	 * @param challenge {@link IuAuthorizationChallenge} event
+	 */
+	default void publish(IuAuthorizationChallenge challenge) {
+<span class="fc" id="L48">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
