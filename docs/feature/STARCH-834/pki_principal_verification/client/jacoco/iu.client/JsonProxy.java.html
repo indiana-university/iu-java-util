@@ -121,44 +121,52 @@ public final class JsonProxy implements InvocationHandler {
 		} else
 <span class="fc" id="L122">			throw new UnsupportedOperationException();</span>
 
-		final JsonValue rv;
-<span class="fc bfc" id="L125" title="All 2 branches covered.">		if (propertyName == null)</span>
-<span class="fc" id="L126">			rv = null;</span>
-<span class="fc bfc" id="L127" title="All 2 branches covered.">		else if (value.containsKey(propertyName))</span>
-<span class="fc" id="L128">			rv = value.get(propertyName);</span>
-		else
-<span class="fc" id="L130">			rv = value.get(convertToSnakeCase(propertyName));</span>
+<span class="fc" id="L124">		final JsonValue rv = returnValueWithCaseConversion(propertyName);</span>
 
-<span class="fc bfc" id="L132" title="All 4 branches covered.">		if (rv == null &amp;&amp; method.isDefault()) {</span>
-<span class="fc" id="L133">			final var type = proxy.getClass().getInterfaces()[0];</span>
-<span class="fc" id="L134">			return MethodHandles.privateLookupIn(type, MethodHandles.lookup()).unreflectSpecial(method, type)</span>
-<span class="fc" id="L135">					.bindTo(proxy).invokeWithArguments(args);</span>
+<span class="fc bfc" id="L126" title="All 4 branches covered.">		if (rv == null &amp;&amp; method.isDefault()) {</span>
+<span class="fc" id="L127">			final var type = proxy.getClass().getInterfaces()[0];</span>
+<span class="fc" id="L128">			return MethodHandles.privateLookupIn(type, MethodHandles.lookup()).unreflectSpecial(method, type)</span>
+<span class="fc" id="L129">					.bindTo(proxy).invokeWithArguments(args);</span>
 		}
 
-<span class="fc" id="L138">		final var genericReturnType = method.getGenericReturnType();</span>
+<span class="fc" id="L132">		final var genericReturnType = method.getGenericReturnType();</span>
 		try {
-<span class="fc" id="L140">			return valueAdapter.apply(genericReturnType).fromJson(rv);</span>
-<span class="fc" id="L141">		} catch (UnsupportedOperationException e) {</span>
-<span class="fc bfc" id="L142" title="All 2 branches covered.">			if (rv == null)</span>
-<span class="fc" id="L143">				return null;</span>
+<span class="fc" id="L134">			return valueAdapter.apply(genericReturnType).fromJson(rv);</span>
+<span class="fc" id="L135">		} catch (UnsupportedOperationException e) {</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">			if (rv == null)</span>
+<span class="fc" id="L137">				return null;</span>
 			else
-<span class="fc" id="L145">				throw e;</span>
-<span class="fc" id="L146">		} catch (Throwable e) {</span>
-<span class="fc" id="L147">			throw new IllegalArgumentException(</span>
+<span class="fc" id="L139">				throw e;</span>
+<span class="fc" id="L140">		} catch (Throwable e) {</span>
+<span class="fc" id="L141">			throw new IllegalArgumentException(</span>
 					&quot;Invalid JSON value for return type &quot; + genericReturnType + &quot; in property &quot; + propertyName, e);
 		}
 	}
 
+	private JsonValue returnValueWithCaseConversion(String propertyName) {
+<span class="fc bfc" id="L147" title="All 2 branches covered.">		if (propertyName == null)</span>
+<span class="fc" id="L148">			return null;</span>
+
+<span class="fc bfc" id="L150" title="All 2 branches covered.">		if (value.containsKey(propertyName))</span>
+<span class="fc" id="L151">			return value.get(propertyName);</span>
+
+<span class="fc" id="L153">		String lowerSnakeCasePropertyName = convertToSnakeCase(propertyName).toLowerCase();</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">		if (value.containsKey(lowerSnakeCasePropertyName))</span>
+<span class="fc" id="L155">			return value.get(lowerSnakeCasePropertyName);</span>
+
+<span class="fc" id="L157">		return value.get(lowerSnakeCasePropertyName.toUpperCase());</span>
+	}
+
 	private String convertToSnakeCase(String camelCase) {
-<span class="fc" id="L153">		final var sb = new StringBuilder(camelCase);</span>
-<span class="fc bfc" id="L154" title="All 2 branches covered.">		for (var i = 0; i &lt; sb.length(); i++) {</span>
-<span class="fc" id="L155">			final var c = sb.charAt(i);</span>
-<span class="fc bfc" id="L156" title="All 2 branches covered.">			if (Character.isUpperCase(c)) {</span>
-<span class="fc" id="L157">				sb.setCharAt(i, Character.toLowerCase(c));</span>
-<span class="fc" id="L158">				sb.insert(i, '_');</span>
+<span class="fc" id="L161">		final var sb = new StringBuilder(camelCase);</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">		for (var i = 0; i &lt; sb.length(); i++) {</span>
+<span class="fc" id="L163">			final var c = sb.charAt(i);</span>
+<span class="fc bfc" id="L164" title="All 2 branches covered.">			if (Character.isUpperCase(c)) {</span>
+<span class="fc" id="L165">				sb.setCharAt(i, Character.toLowerCase(c));</span>
+<span class="fc" id="L166">				sb.insert(i, '_');</span>
 			}
 		}
-<span class="fc" id="L161">		return sb.toString();</span>
+<span class="fc" id="L169">		return sb.toString();</span>
 	}
 
 }
