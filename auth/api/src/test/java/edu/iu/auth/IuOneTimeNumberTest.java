@@ -29,21 +29,45 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * API Authentication and Authorization interfaces.
- * 
- * @uses edu.iu.auth.spi.IuAuthConfigSpi Configuration bootstrap
- * @uses edu.iu.auth.spi.IuPrincipalSpi For access to identity provider
- *       verification resources
- * @uses edu.iu.auth.spi.IuNonceSpi One-time number generator
- */
-module iu.util.auth {
-	exports edu.iu.auth;
-	exports edu.iu.auth.spi;
+package edu.iu.auth;
 
-	requires iu.util;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 
-	uses edu.iu.auth.spi.IuAuthConfigSpi;
-	uses edu.iu.auth.spi.IuPrincipalSpi;
-	uses edu.iu.auth.spi.IuNonceSpi;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+
+import edu.iu.auth.spi.IuNonceSpi;
+import iu.auth.IuAuthSpiFactory;
+
+@SuppressWarnings("javadoc")
+public class IuOneTimeNumberTest {
+
+	private MockedStatic<IuAuthSpiFactory> mockSpiFactory;
+	private IuNonceSpi spi;
+
+	@BeforeEach
+	public void setup() {
+		spi = mock(IuNonceSpi.class);
+		mockSpiFactory = mockStatic(IuAuthSpiFactory.class);
+		mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuNonceSpi.class)).thenReturn(spi);
+	}
+
+	@AfterEach
+	public void tearDown() {
+		mockSpiFactory.close();
+		mockSpiFactory = null;
+		spi = null;
+	}
+
+	@Test
+	public void testInitialize() throws IuAuthenticationException {
+		final var config = mock(IuOneTimeNumberConfig.class);
+		IuOneTimeNumber.initialize(config);
+		verify(spi).initialize(config);
+	}
+
 }

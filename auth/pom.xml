@@ -26,6 +26,7 @@
 				<module>config</module>
 				<module>principal</module>
 				<module>pki</module>
+				<module>nonce</module>
 			</modules>
 		</profile>
 	</profiles>

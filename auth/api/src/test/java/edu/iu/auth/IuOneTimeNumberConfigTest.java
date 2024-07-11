@@ -29,21 +29,26 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * API Authentication and Authorization interfaces.
- * 
- * @uses edu.iu.auth.spi.IuAuthConfigSpi Configuration bootstrap
- * @uses edu.iu.auth.spi.IuPrincipalSpi For access to identity provider
- *       verification resources
- * @uses edu.iu.auth.spi.IuNonceSpi One-time number generator
- */
-module iu.util.auth {
-	exports edu.iu.auth;
-	exports edu.iu.auth.spi;
+package edu.iu.auth;
 
-	requires iu.util;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mock;
 
-	uses edu.iu.auth.spi.IuAuthConfigSpi;
-	uses edu.iu.auth.spi.IuPrincipalSpi;
-	uses edu.iu.auth.spi.IuNonceSpi;
+import java.time.Duration;
+
+import org.junit.jupiter.api.Test;
+
+@SuppressWarnings("javadoc")
+public class IuOneTimeNumberConfigTest {
+
+	@Test
+	public void testDefaults() {
+		final var config = mock(IuOneTimeNumberConfig.class, CALLS_REAL_METHODS);
+		assertEquals(Duration.ofMinutes(2L), config.getTimeToLive());
+		assertEquals(5, config.getMaxConcurrency());
+		config.publish(null);
+		config.subscribe(null);
+	}
+
 }
