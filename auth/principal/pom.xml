@@ -16,6 +16,12 @@
 	<dependencies>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-base</artifactId>
+			<version>${project.version}</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-auth-api</artifactId>
 			<version>${project.version}</version>
 			<scope>provided</scope>
@@ -30,11 +36,6 @@
 			<artifactId>iu-java-test</artifactId>
 			<version>${project.version}</version>
 			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>edu.iu.util</groupId>
-			<artifactId>iu-java-base</artifactId>
-			<version>${project.version}</version>
 		</dependency>
 	</dependencies>
 

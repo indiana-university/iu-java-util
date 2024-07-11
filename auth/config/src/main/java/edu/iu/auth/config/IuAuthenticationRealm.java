@@ -71,14 +71,14 @@ public interface IuAuthenticationRealm {
 		TOKEN("token_endpoint", TokenEndpoint.class),
 
 		/**
-		 * PKIX {@link X509Certificate} trusted CA or End-Entity.
+		 * PKIX {@link X509Certificate} trusted End-Entity.
 		 */
 		PKI("pki", IuPrivateKeyPrincipal.class),
 
 		/**
-		 * SAML Service Provider.
+		 * PKIX {@link X509Certificate} trusted CA.
 		 */
-		SAML("saml_sp", IuSamlServiceProviderMetadata.class);
+		CA("ca", IuCertificateAuthority.class);
 
 		private String code;
 		private Class<? extends IuAuthenticationRealm> authInterface;

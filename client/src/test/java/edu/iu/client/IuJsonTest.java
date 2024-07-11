@@ -46,6 +46,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.http.HttpResponse;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 
@@ -78,7 +79,7 @@ public class IuJsonTest {
 	@Test
 	public void testAddBySupplier() {
 		final var b = IuJson.PROVIDER.createObjectBuilder();
-		IuJson.add(b, "id", IdGenerator::generateId, IuJsonAdapter.basic());
+		IuJson.add(b, "id", (Supplier<String>) IdGenerator::generateId, IuJsonAdapter.<String> basic());
 		IdGenerator.verifyId(b.build().getString("id"), 100L);
 	}
 

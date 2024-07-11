@@ -135,12 +135,19 @@ public interface IuVault {
 	}
 
 	/**
+	 * Lists all available property names.
+	 * 
+	 * @return property names
+	 */
+	Iterable<IuVaultKeyedValue<?>> list();
+
+	/**
 	 * Reads a property value.
 	 * 
 	 * @param name property name
 	 * @return property value
 	 */
-	String get(String name);
+	IuVaultKeyedValue<String> get(String name);
 
 	/**
 	 * Reads a property value.
@@ -150,7 +157,7 @@ public interface IuVault {
 	 * @param type value class
 	 * @return property value
 	 */
-	<T> T get(String name, Class<T> type);
+	<T> IuVaultKeyedValue<T> get(String name, Class<T> type);
 
 	/**
 	 * Gets a full K/V secret.

@@ -31,12 +31,16 @@
  */
 package iu.client;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Type;
+import java.net.URI;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -58,7 +62,9 @@ public class VaultSecretTest {
 	public void testMetadata() {
 		final var metadata = mock(JsonObject.class);
 		final Function<Type, IuJsonAdapter<?>> valueAdapter = mock(Function.class);
-		final var secret = new VaultSecret(null, () -> metadata, null, valueAdapter);
+		final var uri = URI.create("test:" + IdGenerator.generateId());
+		final var secret = new VaultSecret(null, uri, null, () -> metadata, null, valueAdapter);
+		assertEquals("VaultSecret [" + uri + "]", secret.toString());
 		try (final var mockJsonProxy = mockStatic(JsonProxy.class)) {
 			secret.getMetadata();
 			mockJsonProxy.verify(() -> JsonProxy.wrap(metadata, IuVaultMetadata.class, valueAdapter));
@@ -87,7 +93,10 @@ public class VaultSecretTest {
 		when(valueAdapter.apply(ValueType.class)).thenReturn(adapter);
 
 		final Consumer<JsonObject> mergePatchConsumer = mock(Consumer.class);
-		final var secret = new VaultSecret(null, null, mergePatchConsumer, valueAdapter);
+		final var secret = new VaultSecret(null, null, null, null, mergePatchConsumer, valueAdapter);
+		assertNull(secret.getName());
+		assertEquals(31, secret.hashCode());
+		assertNotEquals(secret, new Object());
 		try (final var mockJson = mockStatic(IuJson.class)) {
 			when(IuJson.object()).thenReturn(builder);
 			secret.set(key, value, ValueType.class);

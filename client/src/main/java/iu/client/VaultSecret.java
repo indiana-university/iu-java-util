@@ -32,6 +32,8 @@
 package iu.client;
 
 import java.lang.reflect.Type;
+import java.net.URI;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -39,6 +41,7 @@ import java.util.function.Supplier;
 import edu.iu.IuObject;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuVaultKeyedValue;
 import edu.iu.client.IuVaultMetadata;
 import edu.iu.client.IuVaultSecret;
 import jakarta.json.JsonObject;
@@ -48,6 +51,8 @@ import jakarta.json.JsonObject;
  */
 final class VaultSecret implements IuVaultSecret {
 
+	private final String name;
+	private final URI uri;
 	private final Supplier<JsonObject> dataSupplier;
 	private final Supplier<JsonObject> metadataSupplier;
 	private final Consumer<JsonObject> mergePatchConsumer;
@@ -55,19 +60,28 @@ final class VaultSecret implements IuVaultSecret {
 
 	/**
 	 * Constructor.
-	 * 
+	 *
+	 * @param name               secret name
+	 * @param uri                data URI
 	 * @param dataSupplier       supplies the current version of the secret
 	 * @param metadataSupplier   supplies metadata for the current version of the
 	 *                           secret, supplies null for cubbyhole secrets
 	 * @param mergePatchConsumer consumes a merge patch for updating the secret
 	 * @param valueAdapter       value adapter function
 	 */
-	VaultSecret(Supplier<JsonObject> dataSupplier, Supplier<JsonObject> metadataSupplier,
+	VaultSecret(String name, URI uri, Supplier<JsonObject> dataSupplier, Supplier<JsonObject> metadataSupplier,
 			Consumer<JsonObject> mergePatchConsumer, Function<Type, IuJsonAdapter<?>> valueAdapter) {
+		this.name = name;
+		this.uri = uri;
 		this.dataSupplier = dataSupplier;
 		this.metadataSupplier = metadataSupplier;
 		this.mergePatchConsumer = mergePatchConsumer;
 		this.valueAdapter = valueAdapter;
+	}
+
+	@Override
+	public String getName() {
+		return name;
 	}
 
 	@Override
@@ -82,12 +96,12 @@ final class VaultSecret implements IuVaultSecret {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public <T> T get(String key, Class<T> type) {
+	public <T> IuVaultKeyedValue<T> get(String key, Class<T> type) {
 		final var value = getData().get(key);
 		if (value == null)
 			return null;
 		else
-			return (T) valueAdapter.apply(type).fromJson(value);
+			return new VaultKeyedValue<>(this, key, (T) valueAdapter.apply(type).fromJson(value), type);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -100,6 +114,24 @@ final class VaultSecret implements IuVaultSecret {
 		builder.add(key, jsonValue);
 
 		mergePatchConsumer.accept(builder.build());
+	}
+
+	@Override
+	public String toString() {
+		return "VaultSecret [" + uri + "]";
+	}
+
+	@Override
+	public int hashCode() {
+		return IuObject.hashCode(uri);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (!IuObject.typeCheck(this, obj))
+			return false;
+		VaultSecret other = (VaultSecret) obj;
+		return Objects.equals(uri, other.uri);
 	}
 
 }

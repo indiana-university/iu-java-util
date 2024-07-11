@@ -31,50 +31,76 @@
  */
 package iu.auth.pki;
 
+import java.math.BigInteger;
 import java.net.URI;
 import java.security.cert.CertPathValidator;
-import java.security.cert.Certificate;
+import java.security.cert.CertPathValidatorException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.PKIXCertPathValidatorResult;
 import java.security.cert.PKIXParameters;
-import java.util.ArrayList;
+import java.security.cert.TrustAnchor;
+import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Queue;
+import java.util.Set;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import edu.iu.IuDigest;
 import edu.iu.IuException;
-import edu.iu.IuObject;
+import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuPrivateKeyPrincipal;
+import edu.iu.auth.config.X500Utils;
+import edu.iu.client.IuJson;
 import edu.iu.crypt.WebCertificateReference;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Use;
 import iu.auth.config.IuTrustedIssuer;
 import iu.auth.principal.PrincipalVerifier;
 
 /**
- * Verifies {@link PkiPrincipal} identities.
+ * Verifies {@link PkiPrincipal} end-entity identities.
  */
-final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuTrustedIssuer {
+public final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuTrustedIssuer {
 
 	private static final Logger LOG = Logger.getLogger(PkiVerifier.class.getName());
 
-	private final PkiPrincipal identity;
+	private final byte[] pkhash;
+	private final String realm;
 	private final PKIXParameters trustParams;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param identity    identity private key
-	 * @param trustParams PKIX certificate chain verifier parameters
+	 * @param pkp private key principal
 	 */
-	PkiVerifier(PkiPrincipal identity, PKIXParameters trustParams) {
-		if (trustParams.getTrustAnchors().size() != 1)
-			throw new IllegalArgumentException();
+	public PkiVerifier(IuPrivateKeyPrincipal pkp) {
+		final var jwk = pkp.getJwk();
+		final var privateKey = jwk.getPrivateKey();
+		if (privateKey == null)
+			pkhash = null;
+		else
+			pkhash = IuDigest.sha256(privateKey.getEncoded());
 
-		IuObject.once(Objects.requireNonNull(WebCertificateReference.verify(identity.key())[0]),
-				Objects.requireNonNull(trustParams.getTrustAnchors().iterator().next().getTrustedCert()));
+		final var certificateChain = Objects.requireNonNull( //
+				WebCertificateReference.verify(jwk), "missing certificate chain");
 
-		this.identity = identity;
-		this.trustParams = trustParams;
+		final var cert = certificateChain[0];
+		final var keyUsage = new KeyUsage(cert);
+		if (!keyUsage.matches(Use.SIGN))
+			throw new IllegalArgumentException("X.509 certificate not valid for digital signature");
+		realm = X500Utils.getCommonName(cert.getSubjectX500Principal());
+		if (!realm.equals(jwk.getKeyId()))
+			throw new IllegalArgumentException("Key ID doesn't match CN");
+
+		final var anchor = new TrustAnchor(cert, null);
+		final var pkix = IuException.unchecked(() -> new PKIXParameters(Set.of(anchor)));
+		pkix.setRevocationEnabled(false);
+		this.trustParams = pkix;
 	}
 
 	@Override
@@ -94,63 +120,94 @@ final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuTrustedIss
 
 	@Override
 	public String getRealm() {
-		return identity.getName();
+		return realm;
 	}
 
 	@Override
 	public boolean isAuthoritative() {
-		return identity.key().getPrivateKey() != null;
+		return pkhash != null;
 	}
 
 	@Override
-	public void verify(PkiPrincipal pki) {
-		if (pki == identity)
-			return; // identity principal is always valid
+	public void verify(PkiPrincipal pki) throws IuAuthenticationException {
+		final var subject = pki.getSubject();
 
-		final var privateKey = identity.key().getPrivateKey();
-		if (privateKey != null && !privateKey.equals(pki.key().getPrivateKey()))
-			throw new IllegalArgumentException("identity mismatch");
+		final Queue<WebKey> keys = new ArrayDeque<>();
+		if (isAuthoritative()) {
+			final var privateKeys = subject.getPrivateCredentials(WebKey.class);
+			if (privateKeys.isEmpty())
+				throw new IllegalArgumentException("missing private key");
 
-		final var anchor = trustParams.getTrustAnchors().iterator().next();
-		final var anchorName = X500Utils.getCommonName(anchor.getTrustedCert().getSubjectX500Principal());
-
-		// establish and verify trust of signing key
-		final List<Certificate> pathToAnchor = new ArrayList<>();
-		for (final var cert : WebCertificateReference.verify(pki.key())) {
-			pathToAnchor.add(cert);
-			if (anchorName.equals(identity.getName())) {
-				final var result = (PKIXCertPathValidatorResult) IuException.unchecked(() -> {
-					final var validator = CertPathValidator.getInstance("PKIX");
-					final var certFactory = CertificateFactory.getInstance("X.509");
-					final var certPath = certFactory.generateCertPath(pathToAnchor);
-					return validator.validate(certPath, trustParams);
-				});
-
-				LOG.info(() -> "pki:" + (privateKey != null ? "auth" : "verify") + ":" + pki.getName()
-						+ "; trustAnchor: "
-						+ result.getTrustAnchor().getTrustedCert().getSubjectX500Principal().getName());
-
-				return;
-			}
+			for (final var jwk : privateKeys)
+				if (!Arrays.equals(pkhash, IuDigest.sha256(jwk.getPrivateKey().getEncoded())))
+					throw new IllegalArgumentException("private key mismatch");
+				else
+					keys.add(jwk);
 		}
 
-		throw new IllegalArgumentException("issuer not trusted");
+		final var publicKeys = subject.getPublicCredentials(WebKey.class);
+		if (publicKeys.isEmpty())
+			throw new IllegalArgumentException("missing public key");
+		keys.addAll(publicKeys);
+
+		final Set<BigInteger> trusted = new HashSet<>();
+		for (final var jwk : keys) {
+			final var cert = jwk.getCertificateChain()[0];
+			if (trusted.add(new BigInteger(IuDigest.sha256(IuException.unchecked(cert::getEncoded)))))
+				try {
+					IuException.checked(CertPathValidatorException.class, () -> {
+						final var validator = CertPathValidator.getInstance("PKIX");
+						final var certFactory = CertificateFactory.getInstance("X.509");
+						final var certPath = certFactory.generateCertPath(List.of(cert));
+						final var result = (PKIXCertPathValidatorResult) validator.validate(certPath, trustParams);
+
+						LOG.info(() -> "pki:" + (pkhash != null ? "auth" : "verify") + ":" + pki.getName()
+								+ "; trustAnchor: " + X500Utils.getCommonName(
+										result.getTrustAnchor().getTrustedCert().getSubjectX500Principal()));
+					});
+				} catch (CertPathValidatorException e) {
+					throw new IuAuthenticationException(null, e);
+				}
+		}
 	}
 
 	@Override
-	public PkiPrincipal getPrincipal(IuPrivateKeyPrincipal privateKeyPrincipal) {
-		final var key = identity.key();
-		final var jwk = privateKeyPrincipal.getJwk();
-
-		final var privateKey = key.getPrivateKey();
-		if (!IuObject.equals(privateKey, jwk.getPrivateKey()))
+	public PkiPrincipal getPrincipal(IuPrivateKeyPrincipal pkp) {
+		final var jwk = pkp.getJwk();
+		if (!realm.equals(pkp.getJwk().getKeyId()))
 			return null;
 
-		final var certificateChain = WebCertificateReference.verify(jwk);
-		if (!Arrays.equals(certificateChain, key.getCertificateChain()))
-			return null;
+		final var privateKey = jwk.getPrivateKey();
+		if (isAuthoritative()) {
+			if (privateKey == null || !Arrays.equals(pkhash, IuDigest.sha256(privateKey.getEncoded()))) {
+				LOG.log(Level.FINE, new IllegalArgumentException("private key mismatch"), () -> "pki:invalid:" + realm);
+				return null;
+			}
+		} else if (privateKey != null) {
+			final var wellKnownJwk = pkp.getJwk().wellKnown();
+			pkp = (IuPrivateKeyPrincipal) IuAuthenticationRealm.JSON
+					.fromJson(IuJson.object(IuJson.unwrap(pkp)).add("jwk", WebKey.JSON.toJson(wellKnownJwk)).build());
+		}
 
-		return identity;
+		try {
+			IuException.checked(CertPathValidatorException.class, () -> {
+				final var validator = CertPathValidator.getInstance("PKIX");
+				final var certFactory = CertificateFactory.getInstance("X.509");
+				final var certPath = certFactory.generateCertPath(List.of(jwk.getCertificateChain()));
+				validator.validate(certPath, trustParams);
+			});
+
+			return new PkiPrincipal(pkp);
+
+		} catch (CertPathValidatorException e) {
+			LOG.log(Level.FINE, e, () -> "pki:invalid:" + realm);
+			return null;
+		}
+	}
+
+	@Override
+	public String toString() {
+		return "PkiVerifier [" + realm + "]";
 	}
 
 }

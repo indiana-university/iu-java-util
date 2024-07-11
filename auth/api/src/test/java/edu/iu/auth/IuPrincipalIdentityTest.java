@@ -31,9 +31,17 @@
  */
 package edu.iu.auth;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.Set;
+
+import javax.security.auth.Subject;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -70,6 +78,19 @@ public class IuPrincipalIdentityTest {
 		final var principal = mock(IuPrincipalIdentity.class);
 		IuPrincipalIdentity.verify(principal, realm);
 		verify(spi).verify(principal, realm);
+	}
+
+	@Test
+	public void testImpliesSubject() {
+		final var principal = mock(IuPrincipalIdentity.class, CALLS_REAL_METHODS);
+		final var subject = mock(Subject.class);
+		assertFalse(principal.implies(subject));
+
+		when(subject.getPrincipals()).thenReturn(Set.of(principal));
+		assertTrue(principal.implies(subject));
+
+		when(principal.getSubject()).thenReturn(subject);
+		assertTrue(principal.implies(subject));
 	}
 
 }

@@ -46,7 +46,7 @@ import edu.iu.crypt.WebKey.Algorithm;
  *      Connect Discovery 1.0</a>
  */
 public interface IuOpenIdProviderMetadata {
-	
+
 	/**
 	 * URL using the https scheme with no query or fragment components that the OP
 	 * asserts as its Issuer Identifier. If Issuer discovery is supported (see
@@ -273,30 +273,118 @@ public interface IuOpenIdProviderMetadata {
 	 */
 	Set<Algorithm> getTokenEndpointSigningAlgValuesSupported();
 
-	// TODO:
-//	display_values_supported
-//	OPTIONAL. JSON array containing a list of the display parameter values that the OpenID Provider supports. These values are described in Section 3.1.2.1 of OpenID Connect Core 1.0 [OpenID.Core].
-//	claim_types_supported
-//	OPTIONAL. JSON array containing a list of the Claim Types that the OpenID Provider supports. These Claim Types are described in Section 5.6 of OpenID Connect Core 1.0 [OpenID.Core]. Values defined by this specification are normal, aggregated, and distributed. If omitted, the implementation supports only normal Claims.
-//	claims_supported
-//	RECOMMENDED. JSON array containing a list of the Claim Names of the Claims that the OpenID Provider MAY be able to supply values for. Note that for privacy or other reasons, this might not be an exhaustive list.
-//	service_documentation
-//	OPTIONAL. URL of a page containing human-readable information that developers might want or need to know when using the OpenID Provider. In particular, if the OpenID Provider does not support Dynamic Client Registration, then information on how to register Clients needs to be provided in this documentation.
-//	claims_locales_supported
-//	OPTIONAL. Languages and scripts supported for values in Claims being returned, represented as a JSON array of BCP47 [RFC5646] language tag values. Not all languages and scripts are necessarily supported for all Claim values.
-//	ui_locales_supported
-//	OPTIONAL. Languages and scripts supported for the user interface, represented as a JSON array of BCP47 [RFC5646] language tag values.
-//	claims_parameter_supported
-//	OPTIONAL. Boolean value specifying whether the OP supports use of the claims parameter, with true indicating support. If omitted, the default value is false.
-//	request_parameter_supported
-//	OPTIONAL. Boolean value specifying whether the OP supports use of the request parameter, with true indicating support. If omitted, the default value is false.
-//	request_uri_parameter_supported
-//	OPTIONAL. Boolean value specifying whether the OP supports use of the request_uri parameter, with true indicating support. If omitted, the default value is true.
-//	require_request_uri_registration
-//	OPTIONAL. Boolean value specifying whether the OP requires any request_uri values used to be pre-registered using the request_uris registration parameter. Pre-registration is REQUIRED when the value is true. If omitted, the default value is false.
-//	op_policy_uri
-//	OPTIONAL. URL that the OpenID Provider provides to the person registering the Client to read about the OP's requirements on how the Relying Party can use the data provided by the OP. The registration process SHOULD display this URL to the person registering the Client if it is given.
-//	op_tos_uri
-//	OPTIONAL. URL that the OpenID Provider provides to the person registering the Client to read about the OpenID Provider's terms of service. The registration process SHOULD display this URL to the person registering the Client if it is given.
+	/**
+	 * JSON array containing a list of the Claim Names of the Claims that the OpenID
+	 * Provider MAY be able to supply values for. Note that for privacy or other
+	 * reasons, this might not be an exhaustive list.
+	 * 
+	 * @return {@link Set} of supported claims names
+	 */
+	Set<String> getClaimsSupported();
+
+	/**
+	 * JSON array containing a list of the display parameter values that the OpenID
+	 * Provider supports. These values are described in Section 3.1.2.1 of OpenID
+	 * Connect Core 1.0 [OpenID.Core].
+	 * 
+	 * @return supported display values
+	 */
+	Set<String> getDisplayValuesSupported();
+
+	/**
+	 * JSON array containing a list of the Claim Types that the OpenID Provider
+	 * supports. These Claim Types are described in Section 5.6 of OpenID Connect
+	 * Core 1.0 [OpenID.Core]. Values defined by this specification are normal,
+	 * aggregated, and distributed. If omitted, the implementation supports only
+	 * normal Claims.
+	 * 
+	 * @return supported claim types
+	 */
+	Set<String> getClaimTypesSupported();
+
+	/**
+	 * URL of a page containing human-readable information that developers might
+	 * want or need to know when using the OpenID Provider. In particular, if the
+	 * OpenID Provider does not support Dynamic Client Registration, then
+	 * information on how to register Clients needs to be provided in this
+	 * documentation.
+	 * 
+	 * @return service documentation {@link URI}
+	 */
+	URI getServiceDocumentation();
+
+	/**
+	 * Languages and scripts supported for values in Claims being returned,
+	 * represented as a JSON array of BCP47 [RFC5646] language tag values. Not all
+	 * languages and scripts are necessarily supported for all Claim values.
+	 * 
+	 * @return supported claim locales
+	 */
+	Set<String> getClaimsLocalesSupported();
+
+	/**
+	 * Languages and scripts supported for the user interface, represented as a JSON
+	 * array of BCP47 [RFC5646] language tag values.
+	 * 
+	 * @return supported ui locales
+	 */
+	Set<String> getUiLocalesSupported();
+
+	/**
+	 * Boolean value specifying whether the OP supports use of the claims parameter,
+	 * with true indicating support. If omitted, the default value is false.
+	 * 
+	 * @return true if claims parameter is supported; else false
+	 */
+	boolean isClaimsParameterSupported();
+
+	/**
+	 * Boolean value specifying whether the OP supports use of the request
+	 * parameter, with true indicating support. If omitted, the default value is
+	 * false.
+	 * 
+	 * @return true if request parameter is supported; else false
+	 */
+	boolean isRequestParameterSupported();
+
+	/**
+	 * Boolean value specifying whether the OP supports use of the request_uri
+	 * parameter, with true indicating support. If omitted, the default value is
+	 * true.
+	 * 
+	 * @return true if request_uri parameter is supported; else false
+	 */
+	default boolean isRequestUriParameterSupported() {
+		return true;
+	}
+
+	/**
+	 * Boolean value specifying whether the OP requires any request_uri values used
+	 * to be pre-registered using the request_uris registration parameter.
+	 * Pre-registration is REQUIRED when the value is true. If omitted, the default
+	 * value is false.
+	 * 
+	 * @return true if claims parameter is supported; else false
+	 */
+	boolean isRequireRequestUriRegistration();
+
+	/**
+	 * URL that the OpenID Provider provides to the person registering the Client to
+	 * read about the OP's requirements on how the Relying Party can use the data
+	 * provided by the OP. The registration process SHOULD display this URL to the
+	 * person registering the Client if it is given.
+	 * 
+	 * @return {@link URI}
+	 */
+	URI getOpPolicyUri();
+
+	/**
+	 * URL that the OpenID Provider provides to the person registering the Client to
+	 * read about the OpenID Provider's terms of service. The registration process
+	 * SHOULD display this URL to the person registering the Client if it is given.
+	 * 
+	 * @return {@link URI}
+	 */
+	URI getOpTosUri();
 
 }

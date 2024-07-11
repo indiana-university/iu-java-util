@@ -41,6 +41,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
@@ -59,8 +60,10 @@ import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuVault;
+import edu.iu.client.IuVaultKeyedValue;
 import edu.iu.client.IuVaultSecret;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
 
 /**
  * Provides access to secrets stored in HashiCorp Vault.
@@ -183,12 +186,28 @@ public final class Vault implements IuVault {
 	}
 
 	@Override
-	public String get(String name) {
+	public Iterable<IuVaultKeyedValue<?>> list() {
+		if (secretNames == null)
+			throw new UnsupportedOperationException();
+
+		final Map<String, IuVaultKeyedValue<?>> values = new LinkedHashMap<>();
+		for (final var secretName : secretNames) {
+			final var secret = getSecret(secretName);
+			for (final var key : secret.getData().keySet())
+				if (!values.containsKey(key))
+					values.put(key, secret.get(key, Object.class));
+		}
+
+		return values.values();
+	}
+
+	@Override
+	public IuVaultKeyedValue<String> get(String name) {
 		return get(name, String.class);
 	}
 
 	@Override
-	public <T> T get(String name, Class<T> type) {
+	public <T> IuVaultKeyedValue<T> get(String name, Class<T> type) {
 		if (secretNames == null)
 			throw new UnsupportedOperationException();
 
@@ -208,6 +227,8 @@ public final class Vault implements IuVault {
 			JsonObject data;
 		}
 
+		final var dataUri = dataUri(secret);
+
 		final Ref ref;
 		final Supplier<JsonObject> dataSupplier;
 		final Supplier<JsonObject> metadataSupplier;
@@ -218,7 +239,18 @@ public final class Vault implements IuVault {
 			convertData = a -> a;
 			convertMetadata = a -> null;
 		} else {
-			convertData = a -> a.getJsonObject("data");
+			// TODO: support launchpad through configuration
+			if (secret.startsWith("managed/")) {
+				final var lastSlash = secret.lastIndexOf('/');
+				final var prefix = secret.substring(lastSlash + 1) + '/';
+				convertData = a -> {
+					final var b = IuJson.object();
+					for (final var e : a.getJsonObject("data").entrySet())
+						b.add(prefix + e.getKey(), e.getValue());
+					return b.build();
+				};
+			} else
+				convertData = a -> a.getJsonObject("data");
 			convertMetadata = a -> a.getJsonObject("metadata");
 		}
 
@@ -233,44 +265,57 @@ public final class Vault implements IuVault {
 			metadataSupplier = () -> convertMetadata.apply(readSecretUsingCache(secret));
 		}
 
-		final Consumer<JsonObject> mergePatchConsumer = mergePatch -> IuException.unchecked(() -> {
-			final var data = dataSupplier.get();
-			final var metadata = metadataSupplier.get();
+		final Consumer<JsonObject> mergePatchConsumer;
+		if (secret.startsWith("managed/"))
+			mergePatchConsumer = a -> {
+				// TODO: support launchpad through configuration
+				throw new UnsupportedOperationException();
+			};
+		else
+			mergePatchConsumer = mergePatch -> IuException.unchecked(() -> {
+				final var data = dataSupplier.get();
+				final var metadata = metadataSupplier.get();
 
-			final var updatedData = IuJson.PROVIDER.createMergePatch(mergePatch).apply(data).asJsonObject();
+				final var updatedData = IuJson.PROVIDER.createMergePatch(mergePatch).apply(data).asJsonObject();
 
-			final String dataRequestPayload;
-			if (cubbyhole)
-				dataRequestPayload = updatedData.toString();
-			else {
-				final var dataRequestPayloadBuilder = IuJson.object();
-				dataRequestPayloadBuilder.add("options", IuJson.object().add("cas", metadata.getInt("version")));
-				dataRequestPayloadBuilder.add("data", updatedData);
-				dataRequestPayload = dataRequestPayloadBuilder.build().toString();
-			}
+				final String dataRequestPayload;
+				if (cubbyhole)
+					dataRequestPayload = updatedData.toString();
+				else {
+					final var dataRequestPayloadBuilder = IuJson.object();
+					dataRequestPayloadBuilder.add("options", IuJson.object().add("cas", metadata.getInt("version")));
+					dataRequestPayloadBuilder.add("data", updatedData);
+					dataRequestPayload = dataRequestPayloadBuilder.build().toString();
+				}
 
-			final var dataUri = dataUri(secret);
-			final HttpResponseHandler<?> responseHandler;
-			if (cubbyhole)
-				responseHandler = IuHttp.NO_CONTENT;
-			else
-				responseHandler = IuHttp.READ_JSON_OBJECT;
+				final HttpResponseHandler<?> responseHandler;
+				if (cubbyhole)
+					responseHandler = IuHttp.NO_CONTENT;
+				else
+					responseHandler = IuHttp.READ_JSON_OBJECT;
 
-			IuHttp.send(dataUri, rb -> {
-				rb.POST(BodyPublishers.ofString(dataRequestPayload));
-				this.authorize(rb);
-			}, responseHandler);
+				if (cubbyhole && updatedData.isEmpty())
+					IuHttp.send(dataUri, rb -> {
+						rb.DELETE();
+						this.authorize(rb);
+					}, responseHandler);
+				else
+					IuHttp.send(dataUri, rb -> {
+						rb.POST(BodyPublishers.ofString(dataRequestPayload));
+						this.authorize(rb);
+					}, responseHandler);
 
-			LOG.config(() -> "vault:set:" + dataUri + ":" + mergePatch.keySet());
+				final var delete = mergePatch.values().stream().allMatch(JsonValue.NULL::equals);
+				LOG.config(() -> "vault:" + (delete ? "delete:" : "set:") + dataUri + ":" + mergePatch.keySet());
 
-			final var updated = readSecret(secret);
-			if (secretCache == null)
-				ref.data = updated;
-			else
-				secretCache.put(secret, updated);
-		});
+				final var updated = readSecret(secret);
+				if (secretCache == null)
+					ref.data = updated;
+				else
+					secretCache.put(secret, updated);
+			});
 
-		return new VaultSecret(dataSupplier, metadataSupplier, mergePatchConsumer, valueAdapter);
+		return new VaultSecret(secret, dataUri, dataSupplier, metadataSupplier, mergePatchConsumer, valueAdapter);
 	}
 
 	private JsonObject readSecretUsingCache(String secret) {
@@ -292,7 +337,10 @@ public final class Vault implements IuVault {
 				return IuHttp.send(dataUri(secret), this::authorize, IuHttp.READ_JSON_OBJECT).getJsonObject("data");
 			} catch (HttpException e) {
 				if (e.getResponse().statusCode() == 404)
-					return IuJson.object().build();
+					if (cubbyhole)
+						return IuJson.object().build();
+					else
+						return IuJson.object().add("data", IuJson.object()).build();
 				else
 					throw e;
 			}

@@ -39,6 +39,13 @@ import jakarta.json.JsonObject;
 public interface IuVaultSecret {
 
 	/**
+	 * Gets the secret name.
+	 * 
+	 * @return secret name
+	 */
+	String getName();
+
+	/**
 	 * Gets secret data as a JSON object.
 	 * 
 	 * @return {@link JsonObject}
@@ -60,7 +67,7 @@ public interface IuVaultSecret {
 	 * @param type type
 	 * @return keyed value
 	 */
-	<T> T get(String key, Class<T> type);
+	<T> IuVaultKeyedValue<T> get(String key, Class<T> type);
 
 	/**
 	 * Sets a keyed value.

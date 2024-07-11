@@ -46,6 +46,8 @@ import static org.mockito.Mockito.when;
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 import java.net.URI;
+import java.security.cert.X509CRL;
+import java.security.cert.X509Certificate;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -60,6 +62,8 @@ import edu.iu.auth.config.IuAuthorizedAudience;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuVault;
+import edu.iu.client.IuVaultKeyedValue;
+import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
@@ -132,7 +136,8 @@ public class AuthConfigTest {
 		assertThrows(IllegalStateException.class, () -> AuthConfig.register(config));
 	}
 
-	/*@Test
+	@SuppressWarnings("unchecked")
+	@Test
 	public void testVault() {
 		final var key = IdGenerator.generateId();
 		assertThrows(NullPointerException.class, () -> AuthConfig.load(LoadableConfig.class, key));
@@ -151,7 +156,7 @@ public class AuthConfigTest {
 		assertThrows(IllegalStateException.class, () -> AuthConfig.addVault(UnloadableConfig.class, vault));
 		assertInstanceOf(LoadableConfig.class, AuthConfig.load(LoadableConfig.class, key));
 		verify(vault, times(2)).get(key);
-	}*/
+	}
 
 	@Test
 	public void testAdaptJsonDefault() {
@@ -222,5 +227,15 @@ public class AuthConfigTest {
 	@Test
 	public void testAdaptEncryption() {
 		assertSame(Encryption.JSON, AuthConfig.adaptJson(Encryption.class));
+	}
+
+	@Test
+	public void testAdaptCrl() {
+		assertSame(PemEncoded.CRL_JSON, AuthConfig.adaptJson(X509CRL.class));
+	}
+
+	@Test
+	public void testAdaptCert() {
+		assertSame(PemEncoded.CERT_JSON, AuthConfig.adaptJson(X509Certificate.class));
 	}
 }
