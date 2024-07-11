@@ -107,6 +107,7 @@ public interface IuWebToken extends IuPrincipalIdentity {
 	 * 
 	 * @return issued time (iat claim)
 	 */
+	@Override
 	Instant getIssuedAt();
 
 	/**
@@ -121,6 +122,7 @@ public interface IuWebToken extends IuPrincipalIdentity {
 	 * 
 	 * @return token expiration time (exp claim)
 	 */
+	@Override
 	Instant getExpires();
 
 	/**

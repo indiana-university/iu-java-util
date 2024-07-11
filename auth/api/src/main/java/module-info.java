@@ -34,14 +34,15 @@
  * 
  * <img src="doc-files/iu.util.auth.svg" alt="UML Class Diagram">
  * 
+ * @uses edu.iu.auth.spi.IuAuthConfigSpi Configuration bootstrap
+ * @uses edu.iu.auth.spi.IuPrincipalSpi For access to identity provider
+ *       verification resources
+ * @uses edu.iu.auth.spi.IuNonceSpi One-time number generator
  * @uses edu.iu.auth.spi.IuBasicAuthSpi For access to HTTP basic auth resources
  * @uses edu.iu.auth.spi.IuJwtSpi for access to JWT implementation resources
  * @uses edu.iu.auth.spi.IuOAuthSpi For access to OAuth 2.0 implementation
  *       resources
- * @uses edu.iu.auth.spi.IuPrincipalSpi For access to identity provider
- *       verification resources
  * @uses edu.iu.auth.spi.IuSamlSpi For access to SAML provider resources
- * @uses edu.iu.auth.spi.IuAuthConfigSpi Configuration bootstrap
  */
 module iu.util.auth {
 	exports edu.iu.auth;
@@ -55,10 +56,11 @@ module iu.util.auth {
 	requires iu.util;
 	requires transitive java.net.http;
 
+	uses edu.iu.auth.spi.IuPrincipalSpi;
+	uses edu.iu.auth.spi.IuAuthConfigSpi;
+	uses edu.iu.auth.spi.IuNonceSpi;
 	uses edu.iu.auth.spi.IuBasicAuthSpi;
 	uses edu.iu.auth.spi.IuJwtSpi;
 	uses edu.iu.auth.spi.IuOAuthSpi;
 	uses edu.iu.auth.spi.IuSamlSpi;
-	uses edu.iu.auth.spi.IuPrincipalSpi;
-	uses edu.iu.auth.spi.IuAuthConfigSpi;
 }

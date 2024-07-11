@@ -35,11 +35,16 @@ import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.WeakHashMap;
 
+import edu.iu.IuObject;
+
 /**
  * Maintains singleton instances of SPI interfaces related to API authorization
  * and authentication.
  */
-public class IuAuthSpiFactory {
+public final class IuAuthSpiFactory {
+	static {
+		IuObject.assertNotOpen(IuAuthSpiFactory.class);
+	}
 
 	/**
 	 * Captures the context class loader of a thread that __explicitly__ loaded this

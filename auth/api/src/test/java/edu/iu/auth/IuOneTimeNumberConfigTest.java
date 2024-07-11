@@ -29,17 +29,26 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * JWT principal identity support.
- * 
- * @provides edu.iu.auth.spi.IuJwtSpi service provider implementation
- */
-module iu.util.auth.jwt {
-	requires iu.util;
-	requires transitive iu.util.auth;
-	requires iu.util.auth.config;
-	requires iu.util.client;
-	requires iu.util.crypt;
+package edu.iu.auth;
 
-	provides edu.iu.auth.spi.IuJwtSpi with iu.auth.jwt.JwtSpi;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mock;
+
+import java.time.Duration;
+
+import org.junit.jupiter.api.Test;
+
+@SuppressWarnings("javadoc")
+public class IuOneTimeNumberConfigTest {
+
+	@Test
+	public void testDefaults() {
+		final var config = mock(IuOneTimeNumberConfig.class, CALLS_REAL_METHODS);
+		assertEquals(Duration.ofMinutes(2L), config.getTimeToLive());
+		assertEquals(5, config.getMaxConcurrency());
+		config.publish(null);
+		config.subscribe(null);
+	}
+
 }

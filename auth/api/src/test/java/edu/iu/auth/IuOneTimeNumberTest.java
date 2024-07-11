@@ -29,17 +29,45 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * JWT principal identity support.
- * 
- * @provides edu.iu.auth.spi.IuJwtSpi service provider implementation
- */
-module iu.util.auth.jwt {
-	requires iu.util;
-	requires transitive iu.util.auth;
-	requires iu.util.auth.config;
-	requires iu.util.client;
-	requires iu.util.crypt;
+package edu.iu.auth;
 
-	provides edu.iu.auth.spi.IuJwtSpi with iu.auth.jwt.JwtSpi;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+
+import edu.iu.auth.spi.IuNonceSpi;
+import iu.auth.IuAuthSpiFactory;
+
+@SuppressWarnings("javadoc")
+public class IuOneTimeNumberTest {
+
+	private MockedStatic<IuAuthSpiFactory> mockSpiFactory;
+	private IuNonceSpi spi;
+
+	@BeforeEach
+	public void setup() {
+		spi = mock(IuNonceSpi.class);
+		mockSpiFactory = mockStatic(IuAuthSpiFactory.class);
+		mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuNonceSpi.class)).thenReturn(spi);
+	}
+
+	@AfterEach
+	public void tearDown() {
+		mockSpiFactory.close();
+		mockSpiFactory = null;
+		spi = null;
+	}
+
+	@Test
+	public void testInitialize() throws IuAuthenticationException {
+		final var config = mock(IuOneTimeNumberConfig.class);
+		IuOneTimeNumber.initialize(config);
+		verify(spi).initialize(config);
+	}
+
 }
