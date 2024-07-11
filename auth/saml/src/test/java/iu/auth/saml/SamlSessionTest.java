@@ -36,6 +36,7 @@ import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
+import edu.iu.auth.saml.IuSamlAssertion;
 import edu.iu.auth.saml.IuSamlSession;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
@@ -190,13 +191,18 @@ public class SamlSessionTest {
 		final var postUri = URI.create("test://postUrl/");
 		final var realm = "iu-saml-test";
 
+		
 		final Queue<SamlAssertion> samlAssertions = new ArrayDeque<>();
+		final var mockSamlAssertion = mock(SamlAssertion.class);
+		 when(mockSamlAssertion.getNotBefore()).thenReturn(Instant.now());
+		 when(mockSamlAssertion.getNotOnOrAfter()).thenReturn(Instant.now());
+		 samlAssertions.add(mockSamlAssertion);
 		final var principalName = "foo";
 		final var issueInstant = Instant.now();
 		final var authnInstant = Instant.now();
 		final var expires = authnInstant.plus(Duration.ofHours(12L));
 		final var assertions = IuIterable.stream(samlAssertions).toArray(SamlAssertion[]::new);
-
+		
 		final var jsonbuilder = IuJson.object() //
 				.add("iss", "https://sp.identityserver") //
 				.add("aud", realm) //
@@ -247,7 +253,14 @@ public class SamlSessionTest {
 			assertNotNull(activatedSession);
 			final var iuSamlPrincipal = activatedSession.getPrincipalIdentity();
 			assertNotNull(iuSamlPrincipal);
-			activatedSession.getPrincipalIdentity();
+			final var subject = iuSamlPrincipal.getSubject();
+			
+			final var samlassertions = subject.getPublicCredentials(IuSamlAssertion.class);
+			final var assertion = samlassertions.iterator().next();
+			assertNotNull(assertion.getNotBefore());
+			assertNotNull(assertion.getNotOnOrAfter());
+			assertNotNull(assertion.toString());
+				
 
 		}
 	}
