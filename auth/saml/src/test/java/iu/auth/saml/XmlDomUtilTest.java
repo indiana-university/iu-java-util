@@ -49,7 +49,6 @@ public class XmlDomUtilTest {
 
 	@Test
 	public void testParse() {
-		XmlDomUtil util = new XmlDomUtil();
 		Document doc = XmlDomUtil.parse("<foo><bar>baz</bar></foo>");
 		assertEquals(1, doc.getChildNodes().getLength());
 		assertEquals("foo", doc.getChildNodes().item(0).getNodeName());

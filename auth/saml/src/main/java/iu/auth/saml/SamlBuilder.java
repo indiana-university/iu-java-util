@@ -213,11 +213,9 @@ final class SamlBuilder {
 
 		List<Credential> certs = new ArrayList<>();
 		for (final var keyDescriptor : idp.getKeyDescriptors())
-			if (keyDescriptor.getKeyInfo() != null)
-				for (final var x509data : keyDescriptor.getKeyInfo().getX509Datas())
-					for (final var x509cert : x509data.getX509Certificates())
-						certs.add(
-								new BasicX509Credential(PemEncoded.parse(x509cert.getValue()).next().asCertificate()));
+			for (final var x509data : keyDescriptor.getKeyInfo().getX509Datas())
+				for (final var x509cert : x509data.getX509Certificates())
+					certs.add(new BasicX509Credential(PemEncoded.parse(x509cert.getValue()).next().asCertificate()));
 
 		credentialResolver = new StaticCredentialResolver(certs);
 	}
@@ -252,7 +250,8 @@ final class SamlBuilder {
 	 * @return {@link MetadataResolver} metadata resolver
 	 */
 	MetadataResolver getMetadata() {
-		if (metadataResolver != null && lastMetadataUpdate.isAfter(Instant.now().minus(metadataTtl)))
+		if (metadataResolver != null //
+				&& lastMetadataUpdate.plus(metadataTtl).isAfter(Instant.now()))
 			return metadataResolver;
 
 		metadataResolver = IuException.unchecked(() -> {
@@ -289,81 +288,86 @@ final class SamlBuilder {
 	 */
 	String getServiceProviderMetadata() {
 		Thread current = Thread.currentThread();
+		final var restore = current.getContextClassLoader();
 		ClassLoader samlBuilder = SamlBuilder.class.getClassLoader();
-		current.setContextClassLoader(samlBuilder);
-		X509Certificate spX509Cert = (X509Certificate) XMLObjectProviderRegistrySupport.getBuilderFactory()
-				.getBuilder(X509Certificate.DEFAULT_ELEMENT_NAME).buildObject(X509Certificate.DEFAULT_ELEMENT_NAME);
+		try {
+			current.setContextClassLoader(samlBuilder);
+			X509Certificate spX509Cert = (X509Certificate) XMLObjectProviderRegistrySupport.getBuilderFactory()
+					.getBuilder(X509Certificate.DEFAULT_ELEMENT_NAME).buildObject(X509Certificate.DEFAULT_ELEMENT_NAME);
 
-		spX509Cert.setValue(IuText.base64((IuException.unchecked(certificate::getEncoded))));
+			spX509Cert.setValue(IuText.base64((IuException.unchecked(certificate::getEncoded))));
 
-		X509Data spX509data = (X509Data) XMLObjectProviderRegistrySupport.getBuilderFactory()
-				.getBuilder(X509Data.DEFAULT_ELEMENT_NAME).buildObject(X509Data.DEFAULT_ELEMENT_NAME);
-		spX509data.getX509Certificates().add(spX509Cert);
+			X509Data spX509data = (X509Data) XMLObjectProviderRegistrySupport.getBuilderFactory()
+					.getBuilder(X509Data.DEFAULT_ELEMENT_NAME).buildObject(X509Data.DEFAULT_ELEMENT_NAME);
+			spX509data.getX509Certificates().add(spX509Cert);
 
-		KeyInfo spKeyInfo = (KeyInfo) XMLObjectProviderRegistrySupport.getBuilderFactory()
-				.getBuilder(KeyInfo.DEFAULT_ELEMENT_NAME).buildObject(KeyInfo.DEFAULT_ELEMENT_NAME);
-		spKeyInfo.getX509Datas().add(spX509data);
+			KeyInfo spKeyInfo = (KeyInfo) XMLObjectProviderRegistrySupport.getBuilderFactory()
+					.getBuilder(KeyInfo.DEFAULT_ELEMENT_NAME).buildObject(KeyInfo.DEFAULT_ELEMENT_NAME);
+			spKeyInfo.getX509Datas().add(spX509data);
 
-		KeyDescriptor spKeyDescriptor = (KeyDescriptor) XMLObjectProviderRegistrySupport.getBuilderFactory()
-				.getBuilder(KeyDescriptor.DEFAULT_ELEMENT_NAME).buildObject(KeyDescriptor.DEFAULT_ELEMENT_NAME);
-		spKeyDescriptor.setKeyInfo(spKeyInfo);
+			KeyDescriptor spKeyDescriptor = (KeyDescriptor) XMLObjectProviderRegistrySupport.getBuilderFactory()
+					.getBuilder(KeyDescriptor.DEFAULT_ELEMENT_NAME).buildObject(KeyDescriptor.DEFAULT_ELEMENT_NAME);
+			spKeyDescriptor.setKeyInfo(spKeyInfo);
 
-		EntityDescriptor spEntityDescriptor = (EntityDescriptor) XMLObjectProviderRegistrySupport.getBuilderFactory()
-				.getBuilder(EntityDescriptor.ELEMENT_QNAME).buildObject(EntityDescriptor.ELEMENT_QNAME);
-		spEntityDescriptor.setEntityID(serviceProviderEntityId);
+			EntityDescriptor spEntityDescriptor = (EntityDescriptor) XMLObjectProviderRegistrySupport
+					.getBuilderFactory().getBuilder(EntityDescriptor.ELEMENT_QNAME)
+					.buildObject(EntityDescriptor.ELEMENT_QNAME);
+			spEntityDescriptor.setEntityID(serviceProviderEntityId);
 
-		AttributeConsumingService spAttrConsumingService = (AttributeConsumingService) XMLObjectProviderRegistrySupport
-				.getBuilderFactory().getBuilder(AttributeConsumingService.DEFAULT_ELEMENT_NAME)
-				.buildObject(AttributeConsumingService.DEFAULT_ELEMENT_NAME);
+			AttributeConsumingService spAttrConsumingService = (AttributeConsumingService) XMLObjectProviderRegistrySupport
+					.getBuilderFactory().getBuilder(AttributeConsumingService.DEFAULT_ELEMENT_NAME)
+					.buildObject(AttributeConsumingService.DEFAULT_ELEMENT_NAME);
 
-		RequestedAttribute spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()
-				.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)
-				.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);
-		spAttrEPPN.setFriendlyName("mail");
-		spAttrEPPN.setName("urn:oid:0.9.2342.19200300.100.1.3");
-		spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);
-		spAttrEPPN.setIsRequired(true);
-		spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);
+			RequestedAttribute spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()
+					.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)
+					.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);
+			spAttrEPPN.setFriendlyName("mail");
+			spAttrEPPN.setName("urn:oid:0.9.2342.19200300.100.1.3");
+			spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);
+			spAttrEPPN.setIsRequired(true);
+			spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);
 
-		spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()
-				.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)
-				.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);
-		spAttrEPPN.setFriendlyName("displayName");
-		spAttrEPPN.setName("urn:oid:2.16.840.1.113730.3.1.241");
-		spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);
-		spAttrEPPN.setIsRequired(true);
-		spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);
+			spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()
+					.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)
+					.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);
+			spAttrEPPN.setFriendlyName("displayName");
+			spAttrEPPN.setName("urn:oid:2.16.840.1.113730.3.1.241");
+			spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);
+			spAttrEPPN.setIsRequired(true);
+			spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);
 
-		spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()
-				.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)
-				.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);
-		spAttrEPPN.setFriendlyName("eduPersonPrincipalName");
-		spAttrEPPN.setName("urn:oid:1.3.6.1.4.1.5923.1.1.1.6");
-		spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);
-		spAttrEPPN.setIsRequired(true);
-		spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);
+			spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()
+					.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)
+					.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);
+			spAttrEPPN.setFriendlyName("eduPersonPrincipalName");
+			spAttrEPPN.setName("urn:oid:1.3.6.1.4.1.5923.1.1.1.6");
+			spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);
+			spAttrEPPN.setIsRequired(true);
+			spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);
 
-		SPSSODescriptor spsso = (SPSSODescriptor) XMLObjectProviderRegistrySupport.getBuilderFactory()
-				.getBuilder(SPSSODescriptor.DEFAULT_ELEMENT_NAME).buildObject(SPSSODescriptor.DEFAULT_ELEMENT_NAME);
-		spsso.getKeyDescriptors().add(spKeyDescriptor);
-		spsso.getAttributeConsumingServices().add(spAttrConsumingService);
-		spsso.addSupportedProtocol("urn:oasis:names:tc:SAML:2.0:protocol");
+			SPSSODescriptor spsso = (SPSSODescriptor) XMLObjectProviderRegistrySupport.getBuilderFactory()
+					.getBuilder(SPSSODescriptor.DEFAULT_ELEMENT_NAME).buildObject(SPSSODescriptor.DEFAULT_ELEMENT_NAME);
+			spsso.getKeyDescriptors().add(spKeyDescriptor);
+			spsso.getAttributeConsumingServices().add(spAttrConsumingService);
+			spsso.addSupportedProtocol("urn:oasis:names:tc:SAML:2.0:protocol");
 
-		spEntityDescriptor.getRoleDescriptors().add(spsso);
+			spEntityDescriptor.getRoleDescriptors().add(spsso);
 
-		int i = 0;
-		for (String acsUrl : IuIterable.map(acsUris, URI::toString)) {
-			AssertionConsumerService acs = (AssertionConsumerService) XMLObjectProviderRegistrySupport
-					.getBuilderFactory().getBuilder(AssertionConsumerService.DEFAULT_ELEMENT_NAME)
-					.buildObject(AssertionConsumerService.DEFAULT_ELEMENT_NAME);
-			acs.setBinding("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST");
-			acs.setLocation(acsUrl);
-			acs.setIndex(i++);
-			spsso.getAssertionConsumerServices().add(acs);
+			int i = 0;
+			for (String acsUrl : IuIterable.map(acsUris, URI::toString)) {
+				AssertionConsumerService acs = (AssertionConsumerService) XMLObjectProviderRegistrySupport
+						.getBuilderFactory().getBuilder(AssertionConsumerService.DEFAULT_ELEMENT_NAME)
+						.buildObject(AssertionConsumerService.DEFAULT_ELEMENT_NAME);
+				acs.setBinding("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST");
+				acs.setLocation(acsUrl);
+				acs.setIndex(i++);
+				spsso.getAssertionConsumerServices().add(acs);
+			}
+
+			return IuException.unchecked(() -> XmlDomUtil.getContent(XMLObjectProviderRegistrySupport
+					.getMarshallerFactory().getMarshaller(spEntityDescriptor).marshall(spEntityDescriptor)));
+		} finally {
+			current.setContextClassLoader(restore);
 		}
-
-		return IuException.unchecked(() -> XmlDomUtil.getContent(XMLObjectProviderRegistrySupport.getMarshallerFactory()
-				.getMarshaller(spEntityDescriptor).marshall(spEntityDescriptor)));
-
 	}
 }

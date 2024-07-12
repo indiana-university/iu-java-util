@@ -44,11 +44,9 @@ import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.net.InetAddress;
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.UnknownHostException;
 import java.security.cert.X509Certificate;
@@ -90,7 +88,6 @@ import org.opensaml.xmlsec.encryption.support.DecryptionException;
 import org.opensaml.xmlsec.keyinfo.KeyInfoCredentialResolver;
 import org.opensaml.xmlsec.signature.Signature;
 import org.opensaml.xmlsec.signature.support.impl.ExplicitKeySignatureTrustEngine;
-import org.w3c.dom.Document;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
@@ -102,13 +99,13 @@ import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.crypt.WebKey;
-import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.test.IuTestLogger;
 import iu.auth.config.AuthConfig;
 import iu.auth.config.IuSamlServiceProvider;
 import iu.auth.config.IuTrustedIssuer;
 import iu.auth.principal.PrincipalVerifier;
 
+@SuppressWarnings("javadoc")
 public class SamlServiceProviderTest {
 	private static IuSamlServiceProviderMetadata config;
 	private static final String MAIL_OID = "urn:oid:0.9.2342.19200300.100.1.3";
@@ -116,10 +113,9 @@ public class SamlServiceProviderTest {
 	private static final String EDU_PERSON_PRINCIPAL_NAME_OID = "urn:oid:1.3.6.1.4.1.5923.1.1.1.6";
 	private MockedStatic<IuPrincipalIdentity> mockPrincipalIdentity;
 
+	@SuppressWarnings("deprecation")
 	@BeforeAll
-	static void setup() throws MalformedURLException {
-
-		File metaDataFile = new File("src/test/resource/metadata_sample.xml");
+	static void setup() throws Exception {
 		final var cert = mock(X509Certificate.class);
 		final var mockWebKey = mock(WebKey.class);
 		when(mockWebKey.getCertificateChain()).thenReturn(new X509Certificate[] { cert });
@@ -127,10 +123,11 @@ public class SamlServiceProviderTest {
 		when(mockPkp.getEncryptJwk()).thenReturn(mockWebKey);
 		when(mockPkp.getAlg()).thenReturn(WebKey.Algorithm.RS256);
 		when(mockPkp.getJwk()).thenReturn(mockWebKey);
-		final var uri = mock(URI.class);
-		when(uri.toURL()).thenReturn(metaDataFile.toPath().toUri().toURL());
 		final var acsUri = URI.create("test://postUrl/");
-		config = getConfig(Arrays.asList(uri), "urn:iu:ess:sisjee", mockPkp, Arrays.asList(acsUri));
+		config = getConfig(
+				Arrays.asList(
+						SamlServiceProviderTest.class.getClassLoader().getResource("metadata_sample.xml").toURI()),
+				"urn:example:sp", mockPkp, Arrays.asList(acsUri));
 	}
 
 	@BeforeEach
@@ -154,7 +151,7 @@ public class SamlServiceProviderTest {
 
 		try (final var mockIuAuthenticationRealm = mockStatic(IuAuthenticationRealm.class)) {
 			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
-			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm);
+			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
 			URI authnRequest = samlprovider.getAuthnRequest(relayState, sessionId);
 			assertNotNull(authnRequest);
 			assertTrue(authnRequest.getQuery().startsWith("SAMLRequest"));
@@ -168,18 +165,61 @@ public class SamlServiceProviderTest {
 		final var realm = "iu-saml-test";
 		final var relayState = IdGenerator.generateId();
 		final var sessionId = IdGenerator.generateId();
-		String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<root><child>content</child></root>";
-		Document doc = XmlDomUtil.parse("<foo bar='bam'><bar>baz</bar></foo>");
+		String xml1 = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<root><child>content</child></root>";
+		String xml2 = "<root><child>content</child></root>";
 
-		try (final var mockIuAuthenticationRealm = mockStatic(IuAuthenticationRealm.class)) {
-			final var mockXmlDomUtil = mockStatic(XmlDomUtil.class);
-			mockXmlDomUtil.when(() -> XmlDomUtil.getContent(any())).thenReturn(xml);
+		try (final var mockIuAuthenticationRealm = mockStatic(IuAuthenticationRealm.class);
+				final var mockXmlDomUtil = mockStatic(XmlDomUtil.class)) {
+			mockXmlDomUtil.when(() -> XmlDomUtil.getContent(any())).thenReturn(xml1, xml2);
 			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
-			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm);
-			URI authnRequest = samlprovider.getAuthnRequest(relayState, sessionId);
-			assertNotNull(authnRequest);
-			assertTrue(authnRequest.getQuery().startsWith("SAMLRequest"));
-			assertTrue(authnRequest.getQuery().contains("RelayState"));
+			for (int i = 0; i < 2; i++) {
+				SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
+				final var authnRequest = samlprovider.getAuthnRequest(relayState, sessionId);
+				assertNotNull(authnRequest);
+				assertTrue(authnRequest.getQuery().startsWith("SAMLRequest"));
+				assertTrue(authnRequest.getQuery().contains("RelayState"));
+			}
+		}
+	}
+
+	@Test
+	public void testIdpMetadataCache() throws Exception {
+		final var postUri = URI.create("test://postUrl/");
+		final var realm = "iu-saml-test";
+
+		try (final var mockIuAuthenticationRealm = mockStatic(IuAuthenticationRealm.class);
+				final var mockXmlDomUtil = mockStatic(XmlDomUtil.class)) {
+			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
+			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
+			final var f = SamlServiceProvider.class.getDeclaredField("samlBuilder");
+			f.setAccessible(true);
+			SamlBuilder samlBuilder = (SamlBuilder) f.get(samlprovider);
+			for (int i = 0; i < 3; i++) {
+				samlBuilder.getKeyInfoCredentialResolver("https://sp.identityserver");
+				if (i == 0)
+					Thread.sleep(2000L);
+			}
+		}
+	}
+
+	@Test
+	public void testVerifyKey() {
+		final var postUri = URI.create("test://postUrl/");
+		final var realm = "iu-saml-test";
+
+		final var id = new TestId();
+		AuthConfig.register(new Verifier(id.getName(), true));
+		final var mockIuTrustedIssuer = mock(IuTrustedIssuer.class);
+		when(mockIuTrustedIssuer.getPrincipal(any())).thenReturn(id);
+		mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any())).thenReturn(true);
+
+		try (final var mockIuAuthenticationRealm = mockStatic(IuAuthenticationRealm.class);
+				final var mockAuthConfig = mockStatic(AuthConfig.class, CALLS_REAL_METHODS)) {
+			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
+			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class))
+					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
+			final SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
+			samlprovider.getVerifyKey();
 		}
 	}
 
@@ -196,7 +236,7 @@ public class SamlServiceProviderTest {
 			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class))
 					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
 			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
-			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm);
+			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
 			mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any())).thenReturn(true);
 			final var samlResponse = Base64.getEncoder().encodeToString(IuText.utf8(IdGenerator.generateId()));
 
@@ -220,7 +260,7 @@ public class SamlServiceProviderTest {
 			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class))
 					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
 			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
-			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm);
+			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
 			mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any())).thenReturn(false);
 			final var samlResponse = Base64.getEncoder().encodeToString(IuText.utf8(IdGenerator.generateId()));
 			assertThrows(IllegalStateException.class,
@@ -228,8 +268,9 @@ public class SamlServiceProviderTest {
 		}
 	}
 
+	@SuppressWarnings("deprecation")
 	@Test
-	public void testGetSingleSignOnLocationInvalidSamlBinding() throws IOException {
+	public void testGetSingleSignOnLocationInvalidSamlBinding() throws Exception {
 
 		final var postUri = URI.create("test://postUrl/");
 		final var realm = "iu-saml-test";
@@ -237,10 +278,6 @@ public class SamlServiceProviderTest {
 		AuthConfig.register(new Verifier(id.getName(), true));
 		final var mockIuTrustedIssuer = mock(IuTrustedIssuer.class);
 		when(mockIuTrustedIssuer.getPrincipal(any())).thenReturn(id);
-
-		File file = new File("src/test/resource/metadata_invalid_binding.xml");
-		final var uri = mock(URI.class);
-		when(uri.toURL()).thenReturn(file.toPath().toUri().toURL());
 
 		final var cert = mock(X509Certificate.class);
 		final var mockWebKey = mock(WebKey.class);
@@ -251,14 +288,15 @@ public class SamlServiceProviderTest {
 		when(mockPkp.getJwk()).thenReturn(mockWebKey);
 		final var acsUri = URI.create("test://postUrl/");
 
-		IuSamlServiceProviderMetadata metadata = getConfig(Arrays.asList(uri), "urn:iu:ess:sisjee", mockPkp,
-				Arrays.asList(acsUri));
+		IuSamlServiceProviderMetadata metadata = getConfig(Arrays.asList(
+				SamlServiceProviderTest.class.getClassLoader().getResource("metadata_invalid_binding.xml").toURI()),
+				"urn:example:sp", mockPkp, Arrays.asList(acsUri));
 		try (final var mockIuAuthenticationRealm = mockStatic(IuAuthenticationRealm.class);
 				final var mockAuthConfig = mockStatic(AuthConfig.class, CALLS_REAL_METHODS)) {
 			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class))
 					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
 			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(metadata);
-			assertThrows(IllegalStateException.class, () -> new SamlServiceProvider(postUri, realm));
+			assertThrows(IllegalStateException.class, () -> new SamlServiceProvider(postUri, realm, metadata));
 		}
 	}
 
@@ -276,7 +314,7 @@ public class SamlServiceProviderTest {
 			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class))
 					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
 			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
-			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm);
+			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
 			mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any())).thenReturn(false);
 			assertFalse(samlprovider.isValidEntryPoint(postUri));
 			assertTrue(samlprovider.isValidEntryPoint(URI.create("test://init")));
@@ -307,7 +345,7 @@ public class SamlServiceProviderTest {
 			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class))
 					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
 			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
-			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm);
+			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
 			Field f;
 			f = SamlServiceProvider.class.getDeclaredField("samlBuilder");
 			f.setAccessible(true);
@@ -317,7 +355,6 @@ public class SamlServiceProviderTest {
 		}
 	}
 
-	@SuppressWarnings("static-access")
 	@Test
 	public void testWithBinding()
 			throws NoSuchFieldException, SecurityException, IllegalArgumentException, IllegalAccessException {
@@ -337,7 +374,7 @@ public class SamlServiceProviderTest {
 					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
 			mockAuthConfig.when(() -> AuthConfig.get(IuSamlServiceProvider.class)).thenReturn(Arrays.asList(provider));
 			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
-			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm);
+			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
 			Field f;
 			f = SamlServiceProvider.class.getDeclaredField("samlBuilder");
 			f.setAccessible(true);
@@ -354,13 +391,13 @@ public class SamlServiceProviderTest {
 		}
 	}
 
+	@SuppressWarnings("deprecation")
 	@Test
-	public void testInvalidAcsUrl() throws UnknownHostException, MalformedURLException {
+	public void testInvalidAcsUrl() throws Exception {
 
 		final var postUri = URI.create("test://postUrl/");
 		final var realm = "iu-saml-test";
 
-		File metaDataFile = new File("src/test/resource/metadata_sample.xml");
 		final var cert = mock(X509Certificate.class);
 		final var mockWebKey = mock(WebKey.class);
 		when(mockWebKey.getCertificateChain()).thenReturn(new X509Certificate[] { cert });
@@ -368,11 +405,11 @@ public class SamlServiceProviderTest {
 		when(mockPkp.getEncryptJwk()).thenReturn(mockWebKey);
 		when(mockPkp.getAlg()).thenReturn(WebKey.Algorithm.RS256);
 		when(mockPkp.getJwk()).thenReturn(mockWebKey);
-		final var uri = mock(URI.class);
-		when(uri.toURL()).thenReturn(metaDataFile.toPath().toUri().toURL());
 		final var acsUri = URI.create("test://acsUrl/");
-		IuSamlServiceProviderMetadata metadata = getConfig(Arrays.asList(uri), "urn:iu:ess:sisjee", mockPkp,
-				Arrays.asList(acsUri));
+		IuSamlServiceProviderMetadata metadata = getConfig(
+				Arrays.asList(
+						SamlServiceProviderTest.class.getClassLoader().getResource("metadata_sample.xml").toURI()),
+				"urn:example:sp", mockPkp, Arrays.asList(acsUri));
 
 		final var id = new TestId();
 		AuthConfig.register(new Verifier(id.getName(), true));
@@ -384,7 +421,7 @@ public class SamlServiceProviderTest {
 			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class))
 					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
 			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(metadata);
-			assertThrows(IllegalArgumentException.class, () -> new SamlServiceProvider(postUri, realm));
+			assertThrows(IllegalArgumentException.class, () -> new SamlServiceProvider(postUri, realm, metadata));
 		}
 	}
 
@@ -426,7 +463,7 @@ public class SamlServiceProviderTest {
 			mockXMLObjectSupport.when(() -> XMLObjectSupport.unmarshallFromInputStream(any(), any()))
 					.thenReturn(mockResponse);
 			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
-			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm);
+			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
 			mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any())).thenReturn(true);
 			IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 .*");
 			final var samlResponse = Base64.getEncoder().encodeToString(IuText.utf8(IdGenerator.generateId()));
@@ -435,13 +472,13 @@ public class SamlServiceProviderTest {
 		}
 	}
 
-	@SuppressWarnings("static-access")
+//	@SuppressWarnings("static-access")
 	@Test
 	public void testGetDecrypter() throws UnknownHostException {
 
-		final var postUri = URI.create("test://postUrl/");
-		final var realm = "iu-saml-test";
-		final var sessionId = IdGenerator.generateId();
+//		final var postUri = URI.create("test://postUrl/");
+//		final var realm = "iu-saml-test";
+//		final var sessionId = IdGenerator.generateId();
 		final var id = new TestId();
 		AuthConfig.register(new Verifier(id.getName(), true));
 		final var mockIuTrustedIssuer = mock(IuTrustedIssuer.class);
@@ -451,19 +488,19 @@ public class SamlServiceProviderTest {
 		when(issuer.getValue()).thenReturn("https://sp.identityserver");
 		final var mockSignature = mock(Signature.class);
 
-		try (final var mockIuAuthenticationRealm = mockStatic(IuAuthenticationRealm.class);
-				final var mockXMLObjectSupport = mockStatic(XMLObjectSupport.class);
+		try (// final var mockIuAuthenticationRealm =
+				// mockStatic(IuAuthenticationRealm.class);
+				// final var mockXMLObjectSupport = mockStatic(XMLObjectSupport.class);
 				final var mockAuthConfig = mockStatic(AuthConfig.class, CALLS_REAL_METHODS);
-				MockedConstruction<ExplicitKeySignatureTrustEngine> mockSignatureTrustEngine = mockConstruction(
-						ExplicitKeySignatureTrustEngine.class, (mock, context) -> {
-							CredentialResolver resolver = (CredentialResolver) context.arguments().get(0);
-							when(mock.getCredentialResolver()).thenReturn(resolver);
-							KeyInfoCredentialResolver keyResolver = (KeyInfoCredentialResolver) context.arguments()
-									.get(1);
-							when(mock.getKeyInfoResolver()).thenReturn(keyResolver);
-							when(mock.validate(any(), any())).thenReturn(false);
-						});
-
+//				MockedConstruction<ExplicitKeySignatureTrustEngine> mockSignatureTrustEngine = mockConstruction(
+//						ExplicitKeySignatureTrustEngine.class, (mock, context) -> {
+//							CredentialResolver resolver = (CredentialResolver) context.arguments().get(0);
+//							when(mock.getCredentialResolver()).thenReturn(resolver);
+//							KeyInfoCredentialResolver keyResolver = (KeyInfoCredentialResolver) context.arguments()
+//									.get(1);
+//							when(mock.getKeyInfoResolver()).thenReturn(keyResolver);
+//							when(mock.validate(any(), any())).thenReturn(false);
+//						});
 		) {
 			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class))
 					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
@@ -471,13 +508,13 @@ public class SamlServiceProviderTest {
 			when(mockResponse.getIssuer()).thenReturn(issuer);
 			when(mockResponse.getSignature()).thenReturn(mockSignature);
 
-			mockXMLObjectSupport.when(() -> XMLObjectSupport.unmarshallFromInputStream(any(), any()))
-					.thenReturn(mockResponse);
-			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
-			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm);
+//			mockXMLObjectSupport.when(() -> XMLObjectSupport.unmarshallFromInputStream(any(), any()))
+//					.thenReturn(mockResponse);
+//			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
+//			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
 			mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any())).thenReturn(true);
 			IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 .*");
-			samlprovider.getDecrypter(id);
+			SamlServiceProvider.getDecrypter(id);
 		}
 	}
 
@@ -572,7 +609,7 @@ public class SamlServiceProviderTest {
 					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
 
 			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
-			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm);
+			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
 
 			final var samlResponse = Base64.getEncoder().encodeToString(IuText.utf8(IdGenerator.generateId()));
 			IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 .*");
@@ -584,6 +621,8 @@ public class SamlServiceProviderTest {
 			assertNotNull(principal);
 			assertEquals("testUser", principal.getName());
 
+			IuTestLogger.expect(SamlServiceProvider.class.getName(), Level.INFO,
+					"saml:verify:testUser; serviceProvider: iu-saml-test");
 			samlprovider.verify(principal);
 		}
 	}
@@ -675,7 +714,7 @@ public class SamlServiceProviderTest {
 					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
 
 			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
-			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm);
+			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
 
 			final var samlResponse = Base64.getEncoder().encodeToString(IuText.utf8(IdGenerator.generateId()));
 			IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 .*");
@@ -791,7 +830,7 @@ public class SamlServiceProviderTest {
 					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
 
 			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
-			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm);
+			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
 
 			final var samlResponse = Base64.getEncoder().encodeToString(IuText.utf8(IdGenerator.generateId()));
 			IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 .*");
@@ -854,7 +893,7 @@ public class SamlServiceProviderTest {
 
 		// For testing purposes only. NOT FOR PRODUCTION USE
 		private final WebKey encrypt = WebKey.parse("{\n" //
-				+ "        \"kid\": \"urn:example:SamlServiceProviderTest\",\n" //
+				+ "        \"kid\": \"verify\",\n" //
 				+ "        \"x5c\": [\n" //
 				+ "            \"MIIEDjCCAvagAwIBAgIUYc91WRFm5DXRwgn1h61zNRIV4b0wDQYJKoZIhvcNAQELBQAwgZExCzAJBgNVBAYTAlVTMRAwDgYDVQQIDAdJbmRpYW5hMRQwEgYDVQQHDAtCbG9vbWluZ3RvbjEbMBkGA1UECgwSSW5kaWFuYSBVbml2ZXJzaXR5MQ8wDQYDVQQLDAZTVEFSQ0gxLDAqBgNVBAMMI3VybjpleGFtcGxlOlNhbWxTZXJ2aWNlUHJvdmlkZXJUZXN0MCAXDTI0MDcxMTE5NTgyMFoYDzIxMjQwNzEyMTk1ODIwWjCBkTELMAkGA1UEBhMCVVMxEDAOBgNVBAgMB0luZGlhbmExFDASBgNVBAcMC0Jsb29taW5ndG9uMRswGQYDVQQKDBJJbmRpYW5hIFVuaXZlcnNpdHkxDzANBgNVBAsMBlNUQVJDSDEsMCoGA1UEAwwjdXJuOmV4YW1wbGU6U2FtbFNlcnZpY2VQcm92aWRlclRlc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDh5XgRboPi2gOvJBujUzPhGSpTAf+YV3is/70LEUw/4sGsnzUdn1GoiUBMpR+PKhz37eoOOQ4QWrHeI8DQtXMP4SmclBwwZOP03pLhNr3Jop0WoetZECTOA6Xj1jDqRVMQRPcdOMX47qlM5DhJy9qBOWt/tKSKbo2smOWygKYMIhUxllohjhfOxjI+FHKJSxCinXFIDlWxEA/WkUcMCqDeSY8x9aNBO5aubVPjQ2uNKKUZtfPoX8kvuNDxh8NsfTK4H3FHDC5b0u0gDE0jWCVYqLX3Abd4pqJgtOdq82aQmAXZk9UArtTczM/C7WjlkyA6CqbHEyMu6eB4fsudF/ABAgMBAAGjWjBYMB0GA1UdDgQWBBQFNUZPip9TKU5O2XUqRLo0zYaW7jAfBgNVHSMEGDAWgBQFNUZPip9TKU5O2XUqRLo0zYaW7jAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDANBgkqhkiG9w0BAQsFAAOCAQEAQSAtji1V9wCEVAsExZfjuqUfGtYQvYzFj+kt2ooPVp887XzjPWiqOBBC2d+jW1oNgNJF71fpeGuaSkGMhDg9ASnq5pV3VgD/S+mIj9ItSefAjQifpTpyWBqL99UT5cAKN9577M1Ggh6gFLf9vZvobF62Ay4DRsh6AUF8twaXeh3ZxUghNm6K8HZnWQQSmT93QEGYWQDx1U0wKyckteFnIqDIczmH6Y2NmTFmHby4wTsA7OyGMev+vDskKYwGCnrCc0TBq6kzSKOYbPYtOVhS96atfnSZ2ehe64FMKoPZpE0QCaPrL7EJGPQm6JUAAqsWJWPNjNNpmlggNvA1OfKUBg==\"\n"
 				+ "        ],\n" //
@@ -920,8 +959,13 @@ public class SamlServiceProviderTest {
 			}
 
 			@Override
+			public Duration getMetadataTtl() {
+				return Duration.ofSeconds(2L);
+			}
+
+			@Override
 			public Duration getAuthenticatedSessionTimeout() {
-				return Duration.ofMinutes(2L);
+				return Duration.ofSeconds(2L);
 			}
 
 			@Override

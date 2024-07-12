@@ -162,12 +162,11 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 	 * Initialize SAML provider
 	 * 
 	 * @param postUri HTTP POST Binding URI
-	 * @param realm   authentication realm
-	 * @param client  {@link IuSamlServiceProviderMetadata}
+	 * @param realm   authentication realm to use for reloading the config as needed
+	 *                for future operations.
+	 * @param config  {@link IuSamlServiceProviderMetadata}
 	 */
-	public SamlServiceProvider(URI postUri, String realm) {
-		final IuSamlServiceProviderMetadata config = IuAuthenticationRealm.of(realm);
-
+	public SamlServiceProvider(URI postUri, String realm, IuSamlServiceProviderMetadata config) {
 		var matchAcs = false;
 		for (final var acsUri : config.getAcsUris())
 			if (acsUri.equals(postUri)) {
@@ -211,11 +210,8 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 
 	@Override
 	public void verify(SamlPrincipal id) throws IuAuthenticationException {
-		try {
-			id.verify(realm);
-		} catch (Throwable e) {
-			throw new IuAuthenticationException(null, e);
-		}
+		id.verify(realm);
+		LOG.info(() -> "saml:verify:" + id.getName() + "; serviceProvider: " + realm);
 	}
 
 	/**

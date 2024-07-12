@@ -39,7 +39,7 @@ module iu.util.auth.saml {
 	
 	requires iu.util;
 	requires iu.util.auth;
-	requires iu.util.auth.config;
+	requires transitive iu.util.auth.config;
 	requires iu.util.auth.principal;
 	requires iu.util.auth.pki;
 	requires iu.util.client;

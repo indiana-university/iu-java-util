@@ -76,10 +76,9 @@ final class SamlSession implements IuSamlSession {
 	/**
 	 * Constructor.
 	 * 
-	 * @param entryPointUri   Application entry point URI
-	 * @param postUri         HTTP POST Binding URI
-	 * @param serviceProvider {@link SamlServiceProvider}
-	 * @param secretKey       Secret key to use for tokenizing the session.
+	 * @param entryPointUri Application entry point URI
+	 * @param postUri       HTTP POST Binding URI
+	 * @param secretKey     Secret key to use for tokenizing the session.
 	 */
 	SamlSession(URI entryPointUri, URI postUri, Supplier<byte[]> secretKey) {
 		this.entryPointUri = entryPointUri;
@@ -93,9 +92,8 @@ final class SamlSession implements IuSamlSession {
 	/**
 	 * Token constructor.
 	 * 
-	 * @param serviceProvider {@link SamlServiceProvider}
-	 * @param token           tokenized session
-	 * @param secretKey       Secret key to use for detokenizing the session.
+	 * @param token     tokenized session
+	 * @param secretKey Secret key to use for detokenizing the session.
 	 */
 	SamlSession(String token, Supplier<byte[]> secretKey) {
 		final var key = WebKey.builder(Type.RAW).key(secretKey.get()).build();
@@ -141,8 +139,11 @@ final class SamlSession implements IuSamlSession {
 			LOG.log(Level.INFO, "Invalid SAML Response", e);
 
 			final var challenge = new IuAuthenticationException(null, e);
-			challenge.setLocation(URI.create(entryPointUri + "?RelayState="
-					+ URLEncoder.encode(this.relayState != null ? this.relayState : "", StandardCharsets.UTF_8)));
+			challenge.setLocation(URI.create(entryPointUri + "?RelayState=" + //
+					URLEncoder.encode(this.relayState != null //
+							? this.relayState
+							: "", //
+							StandardCharsets.UTF_8)));
 			throw challenge;
 		}
 	}

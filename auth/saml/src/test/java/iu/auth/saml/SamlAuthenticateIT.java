@@ -87,7 +87,7 @@ public class SamlAuthenticateIT {
 
 		AuthConfig.register(new PkiVerifier(realm.getIdentity()));
 
-		final var provider = new SamlServiceProvider(postUri, REALM);
+		final var provider = new SamlServiceProvider(postUri, REALM, realm);
 		AuthConfig.register(provider);
 		AuthConfig.seal();
 

@@ -62,17 +62,12 @@ import edu.iu.IuText;
 /**
  * Provides simplified access to DOM document elements.
  */
-public class XmlDomUtil {
+final class XmlDomUtil {
+
 	/**
 	 * The standard XML date format.
 	 */
-	public static final String DATE_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSZ";
-
-	/**
-	 * default constructor
-	 */
-	public XmlDomUtil() {
-	}
+	static final String DATE_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSZ";
 
 	/**
 	 * Parse an XML document from a string.
@@ -80,7 +75,7 @@ public class XmlDomUtil {
 	 * @param string The XML document.
 	 * @return The document, parsed.
 	 */
-	public static Document parse(String string) {
+	static Document parse(String string) {
 		DocumentBuilderFactory builder = DocumentBuilderFactory.newInstance();
 
 		// CWE-611 mitigation: Prevent XXE in XML Parse4
@@ -107,7 +102,7 @@ public class XmlDomUtil {
 	 * @param inputStream XML input stream
 	 * @return string representation of XML
 	 */
-	public static String xmlToString(InputStream inputStream) {
+	static String xmlToString(InputStream inputStream) {
 
 		DocumentBuilderFactory builder = DocumentBuilderFactory.newInstance();
 
@@ -138,7 +133,7 @@ public class XmlDomUtil {
 	 * @param attr The attribute name.
 	 * @return The attribute value for the node.
 	 */
-	public static String getAttribute(Node node, String attr) {
+	static String getAttribute(Node node, String attr) {
 		if (!node.hasAttributes()) {
 			return null;
 		}
@@ -156,7 +151,7 @@ public class XmlDomUtil {
 	 * @param name The child node name.
 	 * @return An array of nodes that match the given node name.
 	 */
-	public static Node[] getChildNodes(Node node, String name) {
+	static Node[] getChildNodes(Node node, String name) {
 		List<Node> rv = new java.util.LinkedList<Node>();
 		NodeList children = node.getChildNodes();
 		for (int i = 0; i < children.getLength(); i++) {
@@ -175,7 +170,7 @@ public class XmlDomUtil {
 	 * @param name The child node name.
 	 * @return The first child node with the given node name.
 	 */
-	public static Node getChildNode(Node node, String name) {
+	static Node getChildNode(Node node, String name) {
 		NodeList children = node.getChildNodes();
 		for (int i = 0; i < children.getLength(); i++) {
 			Node c = children.item(i);
@@ -193,7 +188,7 @@ public class XmlDomUtil {
 	 * @param name The element name.
 	 * @return The first document element found by name, null if no match.
 	 */
-	public static Element findElement(Document doc, String name) {
+	static Element findElement(Document doc, String name) {
 		NodeList ctl = doc.getElementsByTagName(name);
 		if (ctl.getLength() == 0) {
 			return null;
@@ -207,7 +202,7 @@ public class XmlDomUtil {
 	 * @param rv The date.
 	 * @return The standard XML date string.
 	 */
-	public static String dateToString(Date rv) {
+	static String dateToString(Date rv) {
 		DateFormat df = new java.text.SimpleDateFormat(DATE_FORMAT);
 		return df.format(rv);
 	}
@@ -218,7 +213,7 @@ public class XmlDomUtil {
 	 * @param rv The date.
 	 * @return The standard XML date string.
 	 */
-	public static Date stringToDate(String rv) {
+	static Date stringToDate(String rv) {
 		DateFormat df = new java.text.SimpleDateFormat(DATE_FORMAT);
 		try {
 			return df.parse(rv);
@@ -232,7 +227,7 @@ public class XmlDomUtil {
 	 * 
 	 * @return DOM instance
 	 */
-	public static DOMImplementation getDom() {
+	static DOMImplementation getDom() {
 		try {
 			return DOMImplementationRegistry.newInstance().getDOMImplementation("XML");
 		} catch (IllegalAccessException iae) {
@@ -249,7 +244,7 @@ public class XmlDomUtil {
 	 * 
 	 * @return DOM LS instance
 	 */
-	public static DOMImplementationLS getDomLS() {
+	static DOMImplementationLS getDomLS() {
 		try {
 			return (DOMImplementationLS) DOMImplementationRegistry.newInstance().getDOMImplementation("LS");
 		} catch (IllegalAccessException iae) {
@@ -267,7 +262,7 @@ public class XmlDomUtil {
 	 * @param n The node.
 	 * @return A string representation of a DOM node.
 	 */
-	public static String getContent(Node n) {
+	static String getContent(Node n) {
 		DOMImplementationLS ls = getDomLS();
 		LSSerializer ser = ls.createLSSerializer();
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -277,6 +272,9 @@ public class XmlDomUtil {
 		ser.write(n, lso);
 		return IuText.utf8(baos.toByteArray());
 
+	}
+
+	private XmlDomUtil() {
 	}
 
 }

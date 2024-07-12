@@ -78,9 +78,7 @@ public class SamlSessionTest {
 			URI entryPointUri = URI.create("test://entrypoint");
 			IuSamlSession samlSession = new SamlSession(entryPointUri, postUri, () -> secret);
 			assertEquals(requestUri, samlSession.getRequestUri());
-
 		}
-
 	}
 
 	@Test
@@ -111,14 +109,16 @@ public class SamlSessionTest {
 			IuSamlSession samlSession = new SamlSession(entryPointUri, postUri, () -> secret);
 			assertThrows(IuAuthenticationException.class,
 					() -> samlSession.verifyResponse("127.0.0.0", "", IdGenerator.generateId()));
+			
+			samlSession.getRequestUri();
+			assertThrows(IuAuthenticationException.class,
+					() -> samlSession.verifyResponse("127.0.0.0", "", IdGenerator.generateId()));
 		}
 	}
 
+	@SuppressWarnings("deprecation")
 	@Test
-	public void testIuAuthenticationExceptionMisMatchRelayStateVerifyResponse()
-			throws IuAuthenticationException, NoSuchFieldException, SecurityException, MalformedURLException,
-			IllegalArgumentException, IllegalAccessException {
-		File metaDataFile = new File("src/test/resource/metadata_sample.xml");
+	public void testIuAuthenticationExceptionMisMatchRelayStateVerifyResponse() throws Exception {
 		final var cert = mock(X509Certificate.class);
 		final var mockWebKey = mock(WebKey.class);
 		when(mockWebKey.getCertificateChain()).thenReturn(new X509Certificate[] { cert });
@@ -126,11 +126,11 @@ public class SamlSessionTest {
 		when(mockPkp.getEncryptJwk()).thenReturn(mockWebKey);
 		when(mockPkp.getAlg()).thenReturn(WebKey.Algorithm.RS256);
 		when(mockPkp.getJwk()).thenReturn(mockWebKey);
-		final var uri = mock(URI.class);
-		when(uri.toURL()).thenReturn(metaDataFile.toPath().toUri().toURL());
 		final var acsUri = URI.create("test://postUrl/");
-		IuSamlServiceProviderMetadata config = getConfig(Arrays.asList(uri), "urn:iu:ess:sisjee", mockPkp,
-				Arrays.asList(acsUri));
+		IuSamlServiceProviderMetadata config = getConfig(
+				Arrays.asList(SamlSessionTest.class.getClassLoader().getResource("metadata_sample.xml").toURI()),
+				"urn:example:sp", mockPkp, Arrays.asList(acsUri));
+
 		final var postUri = URI.create("test://postUrl/");
 		final var realm = "iu-saml-test";
 
@@ -162,16 +162,15 @@ public class SamlSessionTest {
 
 			URI entryPointUri = URI.create("test://entrypoint");
 			IuSamlSession samlSession = new SamlSession(entryPointUri, postUri, () -> secret);
-			URI requestUri = samlSession.getRequestUri();
 			assertThrows(IuAuthenticationException.class,
 					() -> samlSession.verifyResponse("127.0.0.0", "", IdGenerator.generateId()));
 
 		}
 	}
 
+	@SuppressWarnings("deprecation")
 	@Test
-	public void testSuccessVerifyResponse() throws MalformedURLException, IuAuthenticationException, NoSuchFieldException,
-			SecurityException, IllegalArgumentException, IllegalAccessException {
+	public void testSuccessVerifyResponse() throws Exception {
 		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 
 		File metaDataFile = new File("src/test/resource/metadata_sample.xml");
@@ -186,23 +185,24 @@ public class SamlSessionTest {
 		final var uri = mock(URI.class);
 		when(uri.toURL()).thenReturn(metaDataFile.toPath().toUri().toURL());
 		final var acsUri = URI.create("test://postUrl/");
-		IuSamlServiceProviderMetadata config = getConfig(Arrays.asList(uri), "urn:iu:ess:sisjee", mockPkp,
-				Arrays.asList(acsUri));
+		IuSamlServiceProviderMetadata config = getConfig(
+				Arrays.asList(SamlSessionTest.class.getClassLoader().getResource("metadata_sample.xml").toURI()),
+				"urn:example:sp", mockPkp, Arrays.asList(acsUri));
+
 		final var postUri = URI.create("test://postUrl/");
 		final var realm = "iu-saml-test";
 
-		
 		final Queue<SamlAssertion> samlAssertions = new ArrayDeque<>();
 		final var mockSamlAssertion = mock(SamlAssertion.class);
-		 when(mockSamlAssertion.getNotBefore()).thenReturn(Instant.now());
-		 when(mockSamlAssertion.getNotOnOrAfter()).thenReturn(Instant.now());
-		 samlAssertions.add(mockSamlAssertion);
+		when(mockSamlAssertion.getNotBefore()).thenReturn(Instant.now());
+		when(mockSamlAssertion.getNotOnOrAfter()).thenReturn(Instant.now());
+		samlAssertions.add(mockSamlAssertion);
 		final var principalName = "foo";
 		final var issueInstant = Instant.now();
 		final var authnInstant = Instant.now();
 		final var expires = authnInstant.plus(Duration.ofHours(12L));
 		final var assertions = IuIterable.stream(samlAssertions).toArray(SamlAssertion[]::new);
-		
+
 		final var jsonbuilder = IuJson.object() //
 				.add("iss", "https://sp.identityserver") //
 				.add("aud", realm) //
@@ -212,7 +212,7 @@ public class SamlSessionTest {
 				.add("auth_time", authnInstant.getEpochSecond()); //
 		IuJson.add(jsonbuilder, "urn:oasis:names:tc:SAML:2.0:assertion", () -> assertions,
 				IuJsonAdapter.of(SamlAssertion[].class, SamlAssertion.JSON));
-		
+
 		final var mockSamlPrincipal = mock(SamlPrincipal.class);
 		when(mockSamlPrincipal.toString()).thenReturn(jsonbuilder.build().toString());
 
@@ -254,17 +254,17 @@ public class SamlSessionTest {
 			final var iuSamlPrincipal = activatedSession.getPrincipalIdentity();
 			assertNotNull(iuSamlPrincipal);
 			final var subject = iuSamlPrincipal.getSubject();
-			
+
 			final var samlassertions = subject.getPublicCredentials(IuSamlAssertion.class);
 			final var assertion = samlassertions.iterator().next();
 			assertNotNull(assertion.getNotBefore());
 			assertNotNull(assertion.getNotOnOrAfter());
 			assertNotNull(assertion.toString());
-				
 
 		}
 	}
 
+	@SuppressWarnings("deprecation")
 	@Test
 	public void testToString() throws MalformedURLException, NoSuchFieldException, SecurityException,
 			IllegalArgumentException, IllegalAccessException {
@@ -284,7 +284,7 @@ public class SamlSessionTest {
 				Arrays.asList(acsUri));
 		final var postUri = URI.create("test://postUrl/");
 		final var realm = "iu-saml-test";
-	
+
 		final Queue<SamlAssertion> samlAssertions = new ArrayDeque<>();
 		final var principalName = "foo";
 		final var issueInstant = Instant.now();
@@ -355,12 +355,11 @@ public class SamlSessionTest {
 		}
 	}
 
+	@SuppressWarnings("deprecation")
 	@Test
-	public void testGetPrincipalIdentityIuAuthenticationException() throws NoSuchFieldException, SecurityException,
-			MalformedURLException, IllegalArgumentException, IllegalAccessException, IuAuthenticationException {
+	public void testGetPrincipalIdentityIuAuthenticationException() throws Exception {
 		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 
-		File metaDataFile = new File("src/test/resource/metadata_sample.xml");
 		final var cert = mock(X509Certificate.class);
 
 		final var mockWebKey = mock(WebKey.class);
@@ -369,11 +368,11 @@ public class SamlSessionTest {
 		when(mockPkp.getEncryptJwk()).thenReturn(mockWebKey);
 		when(mockPkp.getAlg()).thenReturn(WebKey.Algorithm.RS256);
 		when(mockPkp.getJwk()).thenReturn(mockWebKey);
-		final var uri = mock(URI.class);
-		when(uri.toURL()).thenReturn(metaDataFile.toPath().toUri().toURL());
 		final var acsUri = URI.create("test://postUrl/");
-		IuSamlServiceProviderMetadata config = getConfig(Arrays.asList(uri), "urn:iu:ess:sisjee", mockPkp,
-				Arrays.asList(acsUri));
+		IuSamlServiceProviderMetadata config = getConfig(
+				Arrays.asList(
+						SamlServiceProviderTest.class.getClassLoader().getResource("metadata_sample.xml").toURI()),
+				"urn:example:sp", mockPkp, Arrays.asList(acsUri));
 
 		final var postUri = URI.create("test://postUrl/");
 		final var realm = "iu-saml-test";

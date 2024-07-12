@@ -31,7 +31,9 @@
  */
 package iu.auth.saml;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -45,6 +47,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
+import edu.iu.auth.IuAuthenticationException;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 
@@ -87,7 +90,7 @@ public class SamlPrincipalTest {
 		assertEquals(issueInstant, samlPrincipal.getIssuedAt());
 		assertEquals(expires, samlPrincipal.getExpires());
 
-		samlPrincipal.verify(realm);
+		assertDoesNotThrow(() -> samlPrincipal.verify(realm));
 
 		assertThrows(IllegalArgumentException.class, () -> samlPrincipal.verify(IdGenerator.generateId()));
 
@@ -116,7 +119,9 @@ public class SamlPrincipalTest {
 
 		SamlPrincipal samlPrincipal = new SamlPrincipal(realm, entityId, principalName, issueInstant, authnInstant,
 				expires, samlAssertions);
-		assertThrows(IllegalArgumentException.class, () -> samlPrincipal.verify(realm));
+		final var e = assertThrows(IuAuthenticationException.class, () -> samlPrincipal.verify(realm));
+		assertInstanceOf(IllegalStateException.class, e.getCause());
+		assertEquals("expired", e.getCause().getMessage());
 	}
 
 }

@@ -38,6 +38,8 @@ import java.util.Objects;
 import javax.security.auth.Subject;
 
 import edu.iu.IuIterable;
+import edu.iu.IuObject;
+import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
@@ -47,7 +49,10 @@ import jakarta.json.JsonValue;
 /**
  * SAML {@link IuPrincipalIdentity} implementation.
  */
-final class SamlPrincipal implements IuPrincipalIdentity {
+public final class SamlPrincipal implements IuPrincipalIdentity {
+	static {
+		IuObject.assertNotOpen(SamlPrincipal.class);
+	}
 
 	/**
 	 * JSON type adapter.
@@ -86,8 +91,8 @@ final class SamlPrincipal implements IuPrincipalIdentity {
 	 * @param expires        expire
 	 * @param samlAssertions verified SAML assertions
 	 */
-	public SamlPrincipal(String realm, String entityId, String name, Instant issueTime, Instant authTime,
-			Instant expires, Iterable<SamlAssertion> samlAssertions) {
+	SamlPrincipal(String realm, String entityId, String name, Instant issueTime, Instant authTime, Instant expires,
+			Iterable<SamlAssertion> samlAssertions) {
 		this.realm = Objects.requireNonNull(realm);
 		this.entityId = Objects.requireNonNull(entityId);
 		this.name = Objects.requireNonNull(name);
@@ -148,12 +153,14 @@ final class SamlPrincipal implements IuPrincipalIdentity {
 	 * expired.
 	 * 
 	 * @param realm authentication realm
+	 * @throws IuAuthenticationException if the session is expired
 	 */
-	void verify(String realm) {
+	void verify(String realm) throws IuAuthenticationException {
 		if (!this.realm.equals(realm))
 			throw new IllegalArgumentException("invalid realm");
+
 		if (Instant.now().isAfter(expires))
-			throw new IllegalArgumentException("expired");
+			throw new IuAuthenticationException(null, new IllegalStateException("expired"));
 	}
 
 	private JsonObject toJson() {
