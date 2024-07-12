@@ -34,8 +34,6 @@ package edu.iu.auth.config;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 
-import edu.iu.crypt.WebKey;
-
 /**
  * Configures a certifying authority for an {@link X509Certificate X.509
  * certificate chain}.
@@ -43,19 +41,9 @@ import edu.iu.crypt.WebKey;
 public interface IuCertificateAuthority extends IuAuthenticationRealm {
 
 	/**
-	 * Gets the CA's public key and certificate.
+	 * Gets the CA signing certificate.
 	 * 
-	 * <p>
-	 * CA private key and issue certificate database should be managed externally
-	 * and not loaded using this application-facing interface. Authorization tools
-	 * that consume this interface to form trust relationships <em>should</em>
-	 * reject initialization due to insecure configuration if a private key or
-	 * certificate database is present.
-	 * </p>
-	 * 
-	 * @return {@link WebKey} with {@link WebKey#getPublicKey()} and
-	 *         {@link WebKey#getCertificateChain()} containing the CA signing
-	 *         certificate.
+	 * @return {@link X509Certificate}
 	 */
 	X509Certificate getCertificate();
 

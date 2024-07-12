@@ -136,25 +136,25 @@ public interface IuOpenIdProviderMetadata {
 	 * Practices [OAuth.Responses]. If omitted, the default for Dynamic OpenID
 	 * Providers is ["query", "fragment"].
 	 * 
-	 * @return {@link Set} of OAuth 2.0 response types
+	 * @return {@link Set} of OAuth 2.0 response modes
 	 */
 	Set<String> getResponseModesSupported();
 
 	/**
-	 * JSON array containing a list of the OAuth 2.0 response_mode values that this
-	 * OP supports, as specified in OAuth 2.0 Multiple Response Type Encoding
-	 * Practices [OAuth.Responses]. If omitted, the default for Dynamic OpenID
-	 * Providers is ["query", "fragment"].
+	 * JSON array containing a list of the OAuth 2.0 Grant Type values that this OP
+	 * supports. Dynamic OpenID Providers MUST support the authorization_code and
+	 * implicit Grant Type values and MAY support other Grant Types. If omitted, the
+	 * default value is ["authorization_code", "implicit"].
 	 * 
-	 * @return {@link Set} of OAuth 2.0 response types
+	 * @return {@link Set} of OAuth 2.0 grant types
 	 */
 	Set<String> getGrantTypesSupported();
 
 	/**
-	 * JSON array containing a list of the Authentication Context Class References
-	 * that this OP supports.
+	 * JSON array containing a list of the Authentication Context Class Reference
+	 * values that this OP supports.
 	 * 
-	 * @return {@link Set} of OAuth 2.0 response types
+	 * @return {@link Set} of ACR values
 	 */
 	Set<String> getAcrValuesSupported();
 
@@ -162,7 +162,7 @@ public interface IuOpenIdProviderMetadata {
 	 * JSON array containing a list of the Subject Identifier types that this OP
 	 * supports. Valid types include pairwise and public.
 	 * 
-	 * @return {@link Set} of OAuth 2.0 response types
+	 * @return {@link Set} of subject types
 	 */
 	Set<String> getSubjectTypesSupported();
 

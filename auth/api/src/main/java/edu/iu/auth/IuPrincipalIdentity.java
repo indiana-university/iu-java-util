@@ -69,7 +69,7 @@ public interface IuPrincipalIdentity extends Principal {
 	Instant getIssuedAt();
 
 	/**
-	 * Gets the point in time the principal's credentials were were verified by the
+	 * Gets the point in time the principal's credentials were verified by the
 	 * authentication provider.
 	 * 
 	 * @return {@link Instant}
