@@ -55,6 +55,10 @@ public class JsonProxyTest {
 	interface JsonBackedInterface {
 		String getFoo();
 
+		String getLowerSnakeFoo();
+
+		String getUpperSnakeFoo();
+
 		boolean isNotThere();
 
 		int getNumber();
@@ -106,6 +110,13 @@ public class JsonProxyTest {
 					else
 						return IuJsonAdapter.of(t);
 				}).getData());
+
+		final var data4 = IuJson.wrap(IuJson.object().add("lower_snake_foo", "little snek").build(),
+				JsonBackedInterface.class);
+		assertEquals("little snek", data4.getLowerSnakeFoo());
+		final var data5 = IuJson.wrap(IuJson.object().add("UPPER_SNAKE_FOO", "BIG SNEK").build(),
+				JsonBackedInterface.class);
+		assertEquals("BIG SNEK", data5.getUpperSnakeFoo());
 	}
 
 	@Test
