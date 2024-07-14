@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>AuthConfig.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-auth-config</a> &gt; <a href="index.source.html" class="el_package">iu.auth.config</a> &gt; <span class="el_source">AuthConfig.java</span></div><h1>AuthConfig.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.config;
+
+import java.lang.reflect.Type;
+import java.security.cert.X509CRL;
+import java.security.cert.X509Certificate;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+
+import edu.iu.IuObject;
+import edu.iu.auth.IuOneTimeNumberConfig;
+import edu.iu.auth.config.IuAuthNonceConfig;
+import edu.iu.auth.config.IuAuthenticationRealm;
+import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
+import edu.iu.auth.config.IuAuthorizationClient.Credentials;
+import edu.iu.auth.config.IuAuthorizationClient.GrantType;
+import edu.iu.auth.config.IuAuthorizedAudience;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuVault;
+import edu.iu.crypt.PemEncoded;
+import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
+import jakarta.json.JsonObject;
+
+/**
+ * Authentication and authorization root configuration utility.
+ */
+public class AuthConfig {
+	static {
+<span class="fc" id="L64">		IuObject.assertNotOpen(AuthConfig.class);</span>
+	}
+
+<span class="fc" id="L67">	private static final IuJsonAdapter&lt;IuOneTimeNumberConfig&gt; NONCE_JSON = IuJsonAdapter</span>
+<span class="fc" id="L68">			.from(v -&gt; IuJson.wrap(v.asJsonObject(), IuAuthNonceConfig.class));</span>
+
+<span class="fc" id="L70">	private static final Map&lt;String, IuAuthConfig&gt; CONFIG = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L71">	private static final Map&lt;Class&lt;?&gt;, IuVault&gt; VAULT = new HashMap&lt;&gt;();</span>
+	private static boolean sealed;
+
+	/**
+	 * Registers a configuration descriptor for an authentication realm.
+	 * 
+	 * &lt;p&gt;
+	 * Only one verifier may be registered per realm
+	 * &lt;/p&gt;
+	 * 
+	 * @param config principal identity verifier
+	 */
+	public static synchronized void register(IuAuthConfig config) {
+<span class="fc bfc" id="L84" title="All 2 branches covered.">		if (sealed)</span>
+<span class="fc" id="L85">			throw new IllegalStateException(&quot;sealed&quot;);</span>
+
+<span class="fc" id="L87">		IuObject.assertNotOpen(config.getClass());</span>
+<span class="fc" id="L88">		IuObject.requireFinalImpl(config.getClass());</span>
+
+<span class="fc" id="L90">		final var realm = config.getRealm();</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">		if (CONFIG.containsKey(realm))</span>
+<span class="fc" id="L92">			throw new IllegalArgumentException(&quot;already configured&quot;);</span>
+
+<span class="fc" id="L94">		CONFIG.put(realm, config);</span>
+<span class="fc" id="L95">	}</span>
+
+	/**
+	 * Registers a vault for loading authorization configuration.
+	 * 
+	 * @param configInterface configuration interface
+	 * @param vault           vault to use for loading configuration
+	 */
+	public static synchronized void addVault(Class&lt;?&gt; configInterface, IuVault vault) {
+<span class="fc bfc" id="L104" title="All 2 branches covered.">		if (sealed)</span>
+<span class="fc" id="L105">			throw new IllegalStateException(&quot;sealed&quot;);</span>
+
+<span class="fc" id="L107">		IuObject.require(configInterface, Class::isInterface);</span>
+
+<span class="fc bfc" id="L109" title="All 2 branches covered.">		if (VAULT.containsKey(configInterface))</span>
+<span class="fc" id="L110">			throw new IllegalArgumentException(&quot;already configured&quot;);</span>
+
+<span class="fc" id="L112">		VAULT.put(configInterface, Objects.requireNonNull(vault));</span>
+<span class="fc" id="L113">	}</span>
+
+	/**
+	 * Loads a configuration object from vault.
+	 * 
+	 * @param &lt;T&gt;             configuration type
+	 * @param configInterface configuration interface
+	 * @param key             vault key
+	 * @return loaded configuration
+	 */
+	public static &lt;T&gt; T load(Class&lt;T&gt; configInterface, String key) {
+<span class="fc" id="L124">		return load(configInterface, key, a -&gt; configInterface);</span>
+	}
+
+	/**
+	 * Loads a configuration object from vault.
+	 * 
+	 * @param &lt;T&gt;             configuration type
+	 * @param configInterface configuration interface
+	 * @param key             vault key
+	 * @param specifier       function that determines the correct configuration
+	 *                        subinterface based on raw data
+	 * @return loaded configuration
+	 */
+	public static &lt;T&gt; T load(Class&lt;T&gt; configInterface, String key, Function&lt;JsonObject, Class&lt;? extends T&gt;&gt; specifier) {
+<span class="fc" id="L138">		final var vault = Objects.requireNonNull(VAULT.get(configInterface), &quot;not configured&quot;);</span>
+<span class="fc" id="L139">		final var config = IuJson.parse(vault.get(key).getValue()).asJsonObject();</span>
+<span class="fc" id="L140">		return IuJson.wrap(config, specifier.apply(config), AuthConfig::adaptJson);</span>
+	}
+
+	/**
+	 * Gets the configuration registered for a realm.
+	 * 
+	 * @param &lt;T&gt;   configuration type
+	 * @param realm authentication realm
+	 * @return {@link IuAuthConfig} by realm
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	public static &lt;T extends IuAuthConfig&gt; T get(String realm) {
+<span class="fc bfc" id="L152" title="All 2 branches covered.">		if (sealed)</span>
+<span class="fc" id="L153">			return (T) Objects.requireNonNull(CONFIG.get(realm), &quot;invalid realm&quot;);</span>
+		else
+<span class="fc" id="L155">			throw new IllegalStateException(&quot;not sealed&quot;);</span>
+	}
+
+	/**
+	 * Finds configuration registered by interface.
+	 * 
+	 * @param &lt;T&gt;  configuration type
+	 * @param type type
+	 * @return {@link IuAuthConfig} by type
+	 */
+	public static &lt;T extends IuAuthConfig&gt; Iterable&lt;T&gt; get(Class&lt;T&gt; type) {
+<span class="fc bfc" id="L166" title="All 2 branches covered.">		if (sealed)</span>
+<span class="fc" id="L167">			return () -&gt; CONFIG.values().stream().filter(a -&gt; type.isInstance(a)).map(a -&gt; type.cast(a)).iterator();</span>
+		else
+<span class="fc" id="L169">			throw new IllegalStateException(&quot;not sealed&quot;);</span>
+	}
+
+	/**
+	 * Seals the authentication and authorization configuration.
+	 * 
+	 * &lt;p&gt;
+	 * Until sealed, no per-realm configurations can be used. Once sealed, no new
+	 * configurations can be registered. Configuration state is controlled by the
+	 * auth module.
+	 * &lt;/p&gt;
+	 */
+	public static synchronized void seal() {
+<span class="fc" id="L182">		sealed = true;</span>
+<span class="fc" id="L183">	}</span>
+
+	/**
+	 * Provides additional JSON adapters for configuring the authorization module.
+	 * 
+	 * @param &lt;T&gt;  target type
+	 * @param type type
+	 * @return {@link IuJsonAdapter}
+	 */
+	public static &lt;T&gt; IuJsonAdapter&lt;T&gt; adaptJson(Class&lt;T&gt; type) {
+<span class="fc" id="L193">		return adaptJson((Type) type);</span>
+	}
+
+	/**
+	 * Provides additional JSON adapters for configuring the authorization module.
+	 * 
+	 * @param &lt;T&gt;  target type
+	 * @param type type
+	 * @return {@link IuJsonAdapter}
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	public static &lt;T&gt; IuJsonAdapter&lt;T&gt; adaptJson(Type type) {
+<span class="fc bfc" id="L205" title="All 2 branches covered.">		if (type == Credentials.class)</span>
+<span class="fc" id="L206">			return (IuJsonAdapter&lt;T&gt;) Credentials.JSON;</span>
+<span class="fc bfc" id="L207" title="All 2 branches covered.">		else if ((type instanceof Class) //</span>
+<span class="fc bfc" id="L208" title="All 2 branches covered.">				&amp;&amp; IuAuthenticationRealm.class.isAssignableFrom((Class&lt;?&gt;) type))</span>
+<span class="fc" id="L209">			return (IuJsonAdapter&lt;T&gt;) IuAuthenticationRealm.JSON;</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">		else if (IuAuthorizedAudience.class == type)</span>
+<span class="fc" id="L211">			return (IuJsonAdapter&lt;T&gt;) IuAuthorizedAudience.JSON;</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">		else if (IuOneTimeNumberConfig.class == type)</span>
+<span class="fc" id="L213">			return (IuJsonAdapter&lt;T&gt;) NONCE_JSON;</span>
+<span class="fc bfc" id="L214" title="All 2 branches covered.">		else if (AuthMethod.class == type)</span>
+<span class="fc" id="L215">			return (IuJsonAdapter&lt;T&gt;) AuthMethod.JSON;</span>
+<span class="fc bfc" id="L216" title="All 2 branches covered.">		else if (GrantType.class == type)</span>
+<span class="fc" id="L217">			return (IuJsonAdapter&lt;T&gt;) GrantType.JSON;</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">		else if (WebKey.class == type)</span>
+<span class="fc" id="L219">			return (IuJsonAdapter&lt;T&gt;) WebKey.JSON;</span>
+<span class="fc bfc" id="L220" title="All 2 branches covered.">		else if (Algorithm.class == type)</span>
+<span class="fc" id="L221">			return (IuJsonAdapter&lt;T&gt;) Algorithm.JSON;</span>
+<span class="fc bfc" id="L222" title="All 2 branches covered.">		else if (Encryption.class == type)</span>
+<span class="fc" id="L223">			return (IuJsonAdapter&lt;T&gt;) Encryption.JSON;</span>
+<span class="fc bfc" id="L224" title="All 2 branches covered.">		else if (X509Certificate.class == type)</span>
+<span class="fc" id="L225">			return (IuJsonAdapter&lt;T&gt;) PemEncoded.CERT_JSON;</span>
+<span class="fc bfc" id="L226" title="All 2 branches covered.">		else if (X509CRL.class == type)</span>
+<span class="fc" id="L227">			return (IuJsonAdapter&lt;T&gt;) PemEncoded.CRL_JSON;</span>
+		else
+<span class="fc" id="L229">			return IuJsonAdapter.of(type, AuthConfig::adaptJson);</span>
+	}
+
+	private AuthConfig() {
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

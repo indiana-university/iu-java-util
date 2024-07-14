@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SamlPrincipal.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU SAML 2.0 Service Provider</a> &gt; <a href="index.source.html" class="el_package">iu.auth.saml</a> &gt; <span class="el_source">SamlPrincipal.java</span></div><h1>SamlPrincipal.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.saml;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
+
+import javax.security.auth.Subject;
+
+import edu.iu.IuIterable;
+import edu.iu.IuObject;
+import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
+
+/**
+ * SAML {@link IuPrincipalIdentity} implementation.
+ */
+public final class SamlPrincipal implements IuPrincipalIdentity {
+	static {
+<span class="fc" id="L54">		IuObject.assertNotOpen(SamlPrincipal.class);</span>
+	}
+
+	/**
+	 * JSON type adapter.
+	 */
+<span class="fc" id="L60">	static final IuJsonAdapter&lt;SamlPrincipal&gt; JSON = IuJsonAdapter.from(SamlPrincipal::new, SamlPrincipal::toJson);</span>
+
+	/** authentication realm */
+	private final String realm;
+
+	/** identity provider id */
+	private final String entityId;
+
+	/** name */
+	private final String name;
+
+	/** time authentication statement was issued by the IDP */
+	private final Instant issueTime;
+
+	/** authentication time */
+	private final Instant authTime;
+
+	/** expires */
+	private final Instant expires;
+
+	/** attributes */
+	private final SamlAssertion[] assertions;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param realm          authentication realm
+	 * @param entityId       entity ID
+	 * @param name           principal name
+	 * @param issueTime      time authentication statement was issued by the IDP
+	 * @param authTime       authentication time
+	 * @param expires        expire
+	 * @param samlAssertions verified SAML assertions
+	 */
+	SamlPrincipal(String realm, String entityId, String name, Instant issueTime, Instant authTime, Instant expires,
+<span class="fc" id="L95">			Iterable&lt;SamlAssertion&gt; samlAssertions) {</span>
+<span class="fc" id="L96">		this.realm = Objects.requireNonNull(realm);</span>
+<span class="fc" id="L97">		this.entityId = Objects.requireNonNull(entityId);</span>
+<span class="fc" id="L98">		this.name = Objects.requireNonNull(name);</span>
+<span class="fc" id="L99">		this.authTime = Objects.requireNonNull(authTime);</span>
+<span class="fc" id="L100">		this.issueTime = Objects.requireNonNull(issueTime);</span>
+<span class="fc" id="L101">		this.expires = Objects.requireNonNull(expires);</span>
+<span class="fc" id="L102">		this.assertions = IuIterable.stream(samlAssertions).toArray(SamlAssertion[]::new);</span>
+<span class="fc" id="L103">	}</span>
+
+<span class="fc" id="L105">	private SamlPrincipal(JsonValue value) {</span>
+<span class="fc" id="L106">		final var claims = value.asJsonObject();</span>
+<span class="fc" id="L107">		this.name = claims.getString(&quot;sub&quot;);</span>
+<span class="fc" id="L108">		this.entityId = claims.getString(&quot;iss&quot;);</span>
+<span class="fc" id="L109">		this.realm = claims.getString(&quot;aud&quot;);</span>
+<span class="fc" id="L110">		this.issueTime = Instant.ofEpochSecond(claims.getJsonNumber(&quot;iat&quot;).longValue());</span>
+<span class="fc" id="L111">		this.expires = Instant.ofEpochSecond(claims.getJsonNumber(&quot;exp&quot;).longValue());</span>
+<span class="fc" id="L112">		this.authTime = Instant.ofEpochSecond(claims.getJsonNumber(&quot;auth_time&quot;).longValue());</span>
+<span class="fc" id="L113">		this.assertions = IuJson.get(claims, &quot;urn:oasis:names:tc:SAML:2.0:assertion&quot;,</span>
+<span class="fc" id="L114">				IuJsonAdapter.of(SamlAssertion[].class, SamlAssertion.JSON));</span>
+<span class="fc" id="L115">	}</span>
+
+	@Override
+	public String getName() {
+<span class="fc" id="L119">		return name;</span>
+	}
+
+	@Override
+	public Instant getIssuedAt() {
+<span class="fc" id="L124">		return issueTime;</span>
+	}
+
+	@Override
+	public Instant getAuthTime() {
+<span class="fc" id="L129">		return authTime;</span>
+	}
+
+	@Override
+	public Instant getExpires() {
+<span class="fc" id="L134">		return expires;</span>
+	}
+
+	@Override
+	public Subject getSubject() {
+<span class="fc" id="L139">		final var subject = new Subject();</span>
+<span class="fc" id="L140">		subject.getPrincipals().add(this);</span>
+<span class="fc" id="L141">		subject.getPublicCredentials().addAll(List.of(assertions));</span>
+<span class="fc" id="L142">		subject.setReadOnly();</span>
+<span class="fc" id="L143">		return subject;</span>
+	}
+
+	@Override
+	public String toString() {
+<span class="fc" id="L148">		return toJson().toString();</span>
+	}
+
+	/**
+	 * Verifies that the principal was issued by the indicated realm and has not
+	 * expired.
+	 * 
+	 * @param realm authentication realm
+	 * @throws IuAuthenticationException if the session is expired
+	 */
+	void verify(String realm) throws IuAuthenticationException {
+<span class="fc bfc" id="L159" title="All 2 branches covered.">		if (!this.realm.equals(realm))</span>
+<span class="fc" id="L160">			throw new IllegalArgumentException(&quot;invalid realm&quot;);</span>
+
+<span class="fc bfc" id="L162" title="All 2 branches covered.">		if (Instant.now().isAfter(expires))</span>
+<span class="fc" id="L163">			throw new IuAuthenticationException(null, new IllegalStateException(&quot;expired&quot;));</span>
+<span class="fc" id="L164">	}</span>
+
+	private JsonObject toJson() {
+<span class="fc" id="L167">		final var builder = IuJson.object() //</span>
+<span class="fc" id="L168">				.add(&quot;iss&quot;, entityId) //</span>
+<span class="fc" id="L169">				.add(&quot;aud&quot;, realm) //</span>
+<span class="fc" id="L170">				.add(&quot;sub&quot;, name) //</span>
+<span class="fc" id="L171">				.add(&quot;iat&quot;, issueTime.getEpochSecond()) //</span>
+<span class="fc" id="L172">				.add(&quot;exp&quot;, expires.getEpochSecond()) //</span>
+<span class="fc" id="L173">				.add(&quot;auth_time&quot;, authTime.getEpochSecond()); //</span>
+<span class="fc" id="L174">		IuJson.add(builder, &quot;urn:oasis:names:tc:SAML:2.0:assertion&quot;, () -&gt; assertions,</span>
+<span class="fc" id="L175">				IuJsonAdapter.of(SamlAssertion[].class, SamlAssertion.JSON));</span>
+<span class="fc" id="L176">		return builder.build();</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
