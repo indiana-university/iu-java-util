@@ -32,6 +32,7 @@
 package iu.auth.config;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -48,12 +49,14 @@ import java.lang.reflect.Type;
 import java.net.URI;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.auth.IuOneTimeNumberConfig;
 import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
 import edu.iu.auth.config.IuAuthorizationClient.Credentials;
@@ -174,6 +177,14 @@ public class AuthConfigTest {
 			mockRealm.when(() -> IuAuthenticationRealm.of(authId)).thenReturn(realm);
 			assertSame(realm, AuthConfig.adaptJson(IuAuthenticationRealm.class).fromJson(IuJson.string(authId)));
 		}
+	}
+
+	@Test
+	public void testAdaptNonce() {
+		final IuOneTimeNumberConfig nonce = AuthConfig.adaptJson(IuOneTimeNumberConfig.class)
+				.fromJson(IuJson.object().build());
+		assertEquals(Duration.ofMinutes(2L), nonce.getTimeToLive());
+		assertEquals(5, nonce.getMaxConcurrency());
 	}
 
 	@Test

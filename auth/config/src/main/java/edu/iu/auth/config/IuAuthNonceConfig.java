@@ -29,30 +29,25 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.nonce;
+package edu.iu.auth.config;
 
-import edu.iu.IuObject;
-import edu.iu.auth.IuOneTimeNumber;
+import java.time.Duration;
+
 import edu.iu.auth.IuOneTimeNumberConfig;
-import edu.iu.auth.spi.IuNonceSpi;
 
 /**
- * {@link IuNonceSpi} implementation.
+ * Base configuration extension of {@link IuOneTimeNumberConfig}
  */
-public class NonceSpi implements IuNonceSpi {
-	static {
-		IuObject.assertNotOpen(NonceSpi.class);
-	}
+public interface IuAuthNonceConfig extends IuOneTimeNumberConfig {
 
-	/**
-	 * Default constructor.
-	 */
-	public NonceSpi() {
+	@Override
+	default Duration getTimeToLive() {
+		return IuOneTimeNumberConfig.super.getTimeToLive();
 	}
 
 	@Override
-	public IuOneTimeNumber initialize(IuOneTimeNumberConfig config) {
-		return new OneTimeNumber(config);
+	default int getMaxConcurrency() {
+		return IuOneTimeNumberConfig.super.getMaxConcurrency();
 	}
 
 }

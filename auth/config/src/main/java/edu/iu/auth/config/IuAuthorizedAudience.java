@@ -33,6 +33,7 @@ package edu.iu.auth.config;
 
 import java.net.URI;
 
+import edu.iu.auth.IuOneTimeNumberConfig;
 import edu.iu.client.IuJsonAdapter;
 import iu.auth.config.AuthConfig;
 
@@ -62,6 +63,13 @@ public interface IuAuthorizedAudience {
 	 * @return resource URI
 	 */
 	URI getResourceUri();
+
+	/**
+	 * Gets the one-time number configuration for this audience.
+	 * 
+	 * @return {@link IuOneTimeNumberConfig}
+	 */
+	IuOneTimeNumberConfig getNonce();
 
 	/**
 	 * Gets the name of the audience's authentication realm.

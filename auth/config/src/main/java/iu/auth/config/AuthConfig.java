@@ -40,6 +40,8 @@ import java.util.Objects;
 import java.util.function.Function;
 
 import edu.iu.IuObject;
+import edu.iu.auth.IuOneTimeNumberConfig;
+import edu.iu.auth.config.IuAuthNonceConfig;
 import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
 import edu.iu.auth.config.IuAuthorizationClient.Credentials;
@@ -61,6 +63,9 @@ public class AuthConfig {
 	static {
 		IuObject.assertNotOpen(AuthConfig.class);
 	}
+
+	private static final IuJsonAdapter<IuOneTimeNumberConfig> NONCE_JSON = IuJsonAdapter
+			.from(v -> IuJson.wrap(v.asJsonObject(), IuAuthNonceConfig.class));
 
 	private static final Map<String, IuAuthConfig> CONFIG = new HashMap<>();
 	private static final Map<Class<?>, IuVault> VAULT = new HashMap<>();
@@ -204,6 +209,8 @@ public class AuthConfig {
 			return (IuJsonAdapter<T>) IuAuthenticationRealm.JSON;
 		else if (IuAuthorizedAudience.class == type)
 			return (IuJsonAdapter<T>) IuAuthorizedAudience.JSON;
+		else if (IuOneTimeNumberConfig.class == type)
+			return (IuJsonAdapter<T>) NONCE_JSON;
 		else if (AuthMethod.class == type)
 			return (IuJsonAdapter<T>) AuthMethod.JSON;
 		else if (GrantType.class == type)
