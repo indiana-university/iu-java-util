@@ -37,21 +37,22 @@ import java.time.Duration;
 /**
  * Configures a token endpoint authentication realm.
  */
-public interface TokenEndpoint extends IuAuthenticationRealm {
+public interface IuTokenEndpoint extends IuAuthenticationRealm {
 
 	/**
-	 * Gets the audience this endpoint issues access tokens for.
-	 * 
-	 * @return audience
-	 */
-	IuAuthorizedAudience getAudience();
-
-	/**
-	 * Gets the token endpoint URI.
+	 * Gets the issuer root resource URI.
 	 * 
 	 * @return {@link URI}
 	 */
-	URI getUri();
+	URI getIssuerUri();
+
+	/**
+	 * Gets the path to the token endpoint relative to the {@link #getIssuerUri()
+	 * issuer URI}.
+	 * 
+	 * @return token endpoint path
+	 */
+	String getPath();
 
 	/**
 	 * Gets the token issuer's private key principal.

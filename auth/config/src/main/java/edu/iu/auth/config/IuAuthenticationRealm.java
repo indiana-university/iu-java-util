@@ -68,7 +68,7 @@ public interface IuAuthenticationRealm {
 		/**
 		 * OAuth 2 Token Endpoint.
 		 */
-		TOKEN("token_endpoint", TokenEndpoint.class),
+		TOKEN("token_endpoint", IuTokenEndpoint.class),
 
 		/**
 		 * PKIX {@link X509Certificate} trusted End-Entity.

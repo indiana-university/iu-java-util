@@ -33,9 +33,12 @@ package edu.iu.auth.config;
 
 import java.net.URI;
 
+import edu.iu.IuObject;
 import edu.iu.auth.IuOneTimeNumberConfig;
+import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import iu.auth.config.AuthConfig;
+import jakarta.json.JsonString;
 
 /**
  * Provides audience configuration.
@@ -45,7 +48,13 @@ public interface IuAuthorizedAudience {
 	/**
 	 * JSON type adapter.
 	 */
-	static IuJsonAdapter<IuAuthorizedAudience> JSON = IuJsonAdapter.text(IuAuthorizedAudience::of);
+	static final IuJsonAdapter<IuAuthorizedAudience> JSON = IuJsonAdapter.from(v -> {
+		if (v instanceof JsonString)
+			return of(((JsonString) v).getString());
+		else
+			return IuObject.convert(v,
+					a -> IuJson.wrap(a.asJsonObject(), IuAuthorizedAudience.class, AuthConfig::adaptJson));
+	}, IuJson::unwrap);
 
 	/**
 	 * Gets the configuration for an audience.
@@ -84,7 +93,7 @@ public interface IuAuthorizedAudience {
 	 * 
 	 * @return authorization token endpoint
 	 */
-	TokenEndpoint getAuthorization();
+	IuTokenEndpoint getAuthorization();
 
 	/**
 	 * Gets audience private key principal.

@@ -31,14 +31,20 @@
  */
 package edu.iu.auth.config;
 
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.client.IuJson;
 import iu.auth.config.AuthConfig;
+import jakarta.json.JsonObject;
 
 @SuppressWarnings("javadoc")
 public class IuAuthorizedAudienceTest {
@@ -48,8 +54,33 @@ public class IuAuthorizedAudienceTest {
 		final var authId = IdGenerator.generateId();
 		final var audience = mock(IuAuthorizedAudience.class);
 		try (final var mockAuthConfig = mockStatic(AuthConfig.class)) {
-			mockAuthConfig.when(() -> AuthConfig.load(IuAuthorizedAudience.class, "audience/" + authId)).thenReturn(audience);
+			mockAuthConfig.when(() -> AuthConfig.load(IuAuthorizedAudience.class, "audience/" + authId))
+					.thenReturn(audience);
 			assertSame(audience, IuAuthorizedAudience.of(authId));
+		}
+	}
+
+	@Test
+	public void testJsonNullReturnsNull() {
+		assertNull(IuAuthorizedAudience.JSON.fromJson(null));
+	}
+
+	@Test
+	public void testJsonStringCallsOf() {
+		try (final var mockAuthorizedAudience = mockStatic(IuAuthorizedAudience.class)) {
+			final var id = IuJson.string(IdGenerator.generateId());
+			IuAuthorizedAudience.JSON.fromJson(id);
+			mockAuthorizedAudience.verify(() -> IuAuthorizedAudience.of(id.getString()));
+		}
+	}
+
+	@Test
+	public void testJsonObjectWraps() {
+		try (final var mockIuJson = mockStatic(IuJson.class)) {
+			final var o = mock(JsonObject.class);
+			when(o.asJsonObject()).thenReturn(o);
+			IuAuthorizedAudience.JSON.fromJson(o);
+			mockIuJson.verify(() -> IuJson.wrap(eq(o), eq(IuAuthorizedAudience.class), any()));
 		}
 	}
 
