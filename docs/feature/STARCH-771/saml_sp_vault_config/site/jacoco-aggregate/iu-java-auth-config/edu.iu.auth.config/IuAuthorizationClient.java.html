@@ -267,9 +267,9 @@ public interface IuAuthorizationClient {
 	/**
 	 * Gets the token endpoint associated with this client.
 	 * 
-	 * @return {@link TokenEndpoint}
+	 * @return {@link IuTokenEndpoint}
 	 */
-	TokenEndpoint getTokenEndpoint();
+	IuTokenEndpoint getTokenEndpoint();
 
 	/**
 	 * Gets the scope of access authorized to this client.

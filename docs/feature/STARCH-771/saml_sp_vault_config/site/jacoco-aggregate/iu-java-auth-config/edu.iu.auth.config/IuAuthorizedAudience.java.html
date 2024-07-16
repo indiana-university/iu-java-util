@@ -33,9 +33,12 @@ package edu.iu.auth.config;
 
 import java.net.URI;
 
+import edu.iu.IuObject;
 import edu.iu.auth.IuOneTimeNumberConfig;
+import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import iu.auth.config.AuthConfig;
+import jakarta.json.JsonString;
 
 /**
  * Provides audience configuration.
@@ -45,7 +48,13 @@ public interface IuAuthorizedAudience {
 	/**
 	 * JSON type adapter.
 	 */
-<span class="fc" id="L48">	static IuJsonAdapter&lt;IuAuthorizedAudience&gt; JSON = IuJsonAdapter.text(IuAuthorizedAudience::of);</span>
+<span class="fc" id="L51">	static final IuJsonAdapter&lt;IuAuthorizedAudience&gt; JSON = IuJsonAdapter.from(v -&gt; {</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">		if (v instanceof JsonString)</span>
+<span class="fc" id="L53">			return of(((JsonString) v).getString());</span>
+		else
+<span class="fc" id="L55">			return IuObject.convert(v,</span>
+<span class="fc" id="L56">					a -&gt; IuJson.wrap(a.asJsonObject(), IuAuthorizedAudience.class, AuthConfig::adaptJson));</span>
+	}, IuJson::unwrap);
 
 	/**
 	 * Gets the configuration for an audience.
@@ -54,7 +63,7 @@ public interface IuAuthorizedAudience {
 	 * @return audience configuration
 	 */
 	public static IuAuthorizedAudience of(String name) {
-<span class="fc" id="L57">		return AuthConfig.load(IuAuthorizedAudience.class, &quot;audience/&quot; + name);</span>
+<span class="fc" id="L66">		return AuthConfig.load(IuAuthorizedAudience.class, &quot;audience/&quot; + name);</span>
 	}
 
 	/**
@@ -84,7 +93,7 @@ public interface IuAuthorizedAudience {
 	 * 
 	 * @return authorization token endpoint
 	 */
-	TokenEndpoint getAuthorization();
+	IuTokenEndpoint getAuthorization();
 
 	/**
 	 * Gets audience private key principal.
