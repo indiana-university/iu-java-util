@@ -91,6 +91,6 @@ public interface IuAuthorizedAudience {
 	 * 
 	 * @return {@link IuPrivateKeyPrincipal}
 	 */
-	IuPrivateKeyPrincipal getIdentity();
+	Iterable<IuPrivateKeyPrincipal> getIdentity();
 
 }

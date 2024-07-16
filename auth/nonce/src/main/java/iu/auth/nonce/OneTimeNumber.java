@@ -57,13 +57,14 @@ final class OneTimeNumber implements IuOneTimeNumber, AutoCloseable {
 		private volatile int count;
 	}
 
+	private static volatile int c;
+
 	private final Logger LOG = Logger.getLogger(OneTimeNumber.class.getName());
 
 	private IuOneTimeNumberConfig config;
-	private Map<String, IuAuthorizationChallenge> challenge;
+	private Map<String, IuAuthorizationChallenge> issuedChallenges;
 	private Timer purge;
 
-	private int maxConcurrency = 5;
 	private transient Map<String, ActiveCount> activeCount = new HashMap<>();
 
 	/**
@@ -73,13 +74,13 @@ final class OneTimeNumber implements IuOneTimeNumber, AutoCloseable {
 	 */
 	OneTimeNumber(IuOneTimeNumberConfig config) {
 		this.config = config;
-		challenge = new ConcurrentHashMap<>();
+		issuedChallenges = new ConcurrentHashMap<>();
 
-		purge = new Timer();
+		purge = new Timer("iu-java-auth-nonce/" + (++c), true);
 		purge.schedule(new TimerTask() {
 			@Override
 			public void run() {
-				final var i = challenge.keySet().iterator();
+				final var i = issuedChallenges.keySet().iterator();
 				while (i.hasNext())
 					try {
 						IdGenerator.verifyId(i.next(), config.getTimeToLive().toMillis());
@@ -94,7 +95,7 @@ final class OneTimeNumber implements IuOneTimeNumber, AutoCloseable {
 
 	@Override
 	public String create(String remoteAddress, String userAgent) {
-		if (challenge == null)
+		if (issuedChallenges == null)
 			return IdGenerator.generateId();
 
 		ActiveCount activeCount;
@@ -106,19 +107,19 @@ final class OneTimeNumber implements IuOneTimeNumber, AutoCloseable {
 		}
 
 		try {
-			if (activeCount.count > maxConcurrency) {
+			if (activeCount.count > config.getMaxConcurrency()) {
 				LOG.info("Blocking excessive nonce generation; " + remoteAddress);
 				return IdGenerator.generateId();
 			}
 
 			try {
-				final var challenge = new IssuedChallenge(remoteAddress, userAgent);
-				prune(challenge.getClientThumbprint());
+				final var issuedChallenge = new IssuedChallenge(remoteAddress, userAgent);
+				prune(issuedChallenge.getClientThumbprint());
 
-				final var nonce = challenge.getNonce();
-				this.challenge.put(nonce, challenge);
+				final var nonce = issuedChallenge.getNonce();
+				issuedChallenges.put(nonce, issuedChallenge);
 
-				config.publish(challenge);
+				config.publish(issuedChallenge);
 
 				return nonce;
 			} catch (Throwable e) {
@@ -140,14 +141,14 @@ final class OneTimeNumber implements IuOneTimeNumber, AutoCloseable {
 
 	@Override
 	public void validate(String remoteAddress, String userAgent, String nonce) {
-		if (challenge == null)
+		if (issuedChallenges == null)
 			throw new IllegalStateException();
 
 		IdGenerator.verifyId(nonce, config.getTimeToLive().toMillis());
 		config.publish(new UsedChallenge(nonce));
 
 		if (!Arrays.equals(IssuedChallenge.thumbprint(remoteAddress, userAgent),
-				Objects.requireNonNull(this.challenge.remove(nonce)).getClientThumbprint()))
+				Objects.requireNonNull(this.issuedChallenges.remove(nonce)).getClientThumbprint()))
 			throw new IllegalArgumentException();
 	}
 
@@ -158,11 +159,11 @@ final class OneTimeNumber implements IuOneTimeNumber, AutoCloseable {
 		if (purge != null)
 			purge.cancel();
 
-		challenge = null;
+		issuedChallenges = null;
 	}
 
 	private void receive(IuAuthorizationChallenge message) {
-		if (challenge == null)
+		if (issuedChallenges == null)
 			throw new IllegalStateException();
 
 		final var nonce = message.getNonce();
@@ -170,15 +171,15 @@ final class OneTimeNumber implements IuOneTimeNumber, AutoCloseable {
 
 		final var thumbprint = message.getClientThumbprint();
 		if (thumbprint == null)
-			challenge.remove(message.getNonce());
+			issuedChallenges.remove(message.getNonce());
 		else {
 			prune(thumbprint);
-			challenge.put(message.getNonce(), message);
+			issuedChallenges.put(message.getNonce(), message);
 		}
 	}
 
 	private void prune(byte[] thumbprint) {
-		final var i = challenge.entrySet().iterator();
+		final var i = issuedChallenges.entrySet().iterator();
 
 		Queue<String> toPrune = null;
 		while (i.hasNext()) {
@@ -199,7 +200,7 @@ final class OneTimeNumber implements IuOneTimeNumber, AutoCloseable {
 		}
 
 		if (toPrune != null)
-			toPrune.forEach(challenge::remove);
+			toPrune.forEach(issuedChallenges::remove);
 	}
 
 }

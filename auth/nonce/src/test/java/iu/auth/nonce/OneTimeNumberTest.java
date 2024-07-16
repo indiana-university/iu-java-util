@@ -94,7 +94,7 @@ public class OneTimeNumberTest {
 	private Config config;
 	private IuOneTimeNumber oneTimeNumber;
 	private Consumer<IuAuthorizationChallenge> challengeSubscriber;
-	private Map<String, IuAuthorizationChallenge> challenge;
+	private Map<String, IuAuthorizationChallenge> issuedChallenges;
 
 	@SuppressWarnings("unchecked")
 	@BeforeEach
@@ -106,10 +106,10 @@ public class OneTimeNumberTest {
 		assertNotNull(challengeSubscriber);
 
 		Field f;
-		f = OneTimeNumber.class.getDeclaredField("challenge");
+		f = OneTimeNumber.class.getDeclaredField("issuedChallenges");
 		f.setAccessible(true);
-		challenge = (Map<String, IuAuthorizationChallenge>) f.get(oneTimeNumber);
-		assertNotNull(challenge);
+		issuedChallenges = (Map<String, IuAuthorizationChallenge>) f.get(oneTimeNumber);
+		assertNotNull(issuedChallenges);
 	}
 
 	@AfterEach
@@ -120,28 +120,28 @@ public class OneTimeNumberTest {
 	@Test
 	public void testKnock() throws Exception {
 		final var nonce = oneTimeNumber.create(addr, agent);
-		assertSame(config.challenge, challenge.get(nonce));
+		assertSame(config.challenge, issuedChallenges.get(nonce));
 		assertDoesNotThrow(() -> oneTimeNumber.validate(addr, agent, nonce));
-		assertNull(challenge.get(config.challenge.getNonce()));
+		assertNull(issuedChallenges.get(config.challenge.getNonce()));
 		assertThrows(NullPointerException.class, () -> oneTimeNumber.validate(addr, agent, nonce));
 
 		challengeSubscriber.accept(config.challenge);
-		assertSame(config.challenge, challenge.get(nonce));
+		assertSame(config.challenge, issuedChallenges.get(nonce));
 		assertThrows(IllegalArgumentException.class,
 				() -> oneTimeNumber.validate(addr, IdGenerator.generateId(), nonce));
 		assertThrows(NullPointerException.class, () -> oneTimeNumber.validate(addr, agent, nonce));
 
 		challengeSubscriber.accept(config.challenge);
-		assertSame(config.challenge, challenge.get(nonce));
+		assertSame(config.challenge, issuedChallenges.get(nonce));
 		final var removeChallenge = new UsedChallenge(config.challenge.getNonce());
 		challengeSubscriber.accept(removeChallenge);
-		assertNull(challenge.get(config.challenge.getNonce()));
+		assertNull(issuedChallenges.get(config.challenge.getNonce()));
 
 		challengeSubscriber.accept(config.challenge);
-		assertSame(config.challenge, challenge.get(nonce));
+		assertSame(config.challenge, issuedChallenges.get(nonce));
 
 		Thread.sleep(2000L);
-		assertNull(challenge.get(config.challenge.getNonce()));
+		assertNull(issuedChallenges.get(config.challenge.getNonce()));
 	}
 
 	@Test
@@ -151,7 +151,7 @@ public class OneTimeNumberTest {
 		final Set<String> nonces = new HashSet<>();
 		for (var i = 0; i < 100; i++)
 			nonces.add(oneTimeNumber.create(addr, i % 2 == 0 ? agent : agent2));
-		nonces.retainAll(challenge.keySet());
+		nonces.retainAll(issuedChallenges.keySet());
 		assertTrue(nonces.size() <= 20, nonces::toString);
 	}
 
@@ -193,7 +193,7 @@ public class OneTimeNumberTest {
 				final var nonce = oneTimeNumber.create(addr, agent);
 				IdGenerator.verifyId(nonce, 5000L);
 
-				final var challenge = this.challenge.values().stream().filter(a -> nonce.equals(a.getNonce()))
+				final var challenge = this.issuedChallenges.values().stream().filter(a -> nonce.equals(a.getNonce()))
 						.findFirst();
 				if (challenge.isPresent()) {
 					assertArrayEquals(thumbprint, challenge.get().getClientThumbprint());
