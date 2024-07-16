@@ -65,7 +65,7 @@ public class AuthConfig {
 	}
 
 <span class="fc" id="L67">	private static final IuJsonAdapter&lt;IuOneTimeNumberConfig&gt; NONCE_JSON = IuJsonAdapter</span>
-<span class="fc" id="L68">			.from(v -&gt; IuJson.wrap(v.asJsonObject(), IuAuthNonceConfig.class));</span>
+<span class="fc" id="L68">			.from(a -&gt; IuObject.convert(a, v -&gt; IuJson.wrap(v.asJsonObject(), IuAuthNonceConfig.class)));</span>
 
 <span class="fc" id="L70">	private static final Map&lt;String, IuAuthConfig&gt; CONFIG = new HashMap&lt;&gt;();</span>
 <span class="fc" id="L71">	private static final Map&lt;Class&lt;?&gt;, IuVault&gt; VAULT = new HashMap&lt;&gt;();</span>

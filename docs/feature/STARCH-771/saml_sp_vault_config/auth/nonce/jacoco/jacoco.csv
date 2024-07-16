@@ -1,5 +1,5 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
-IU One-Time Number Generator,iu.auth.nonce,OneTimeNumber,0,312,0,26,0,79,0,20,0,7
+IU One-Time Number Generator,iu.auth.nonce,OneTimeNumber,0,317,0,26,0,78,0,20,0,7
 IU One-Time Number Generator,iu.auth.nonce,UsedChallenge,0,11,0,0,0,5,0,3,0,3
 IU One-Time Number Generator,iu.auth.nonce,IssuedChallenge,0,29,0,0,0,9,0,4,0,4
 IU One-Time Number Generator,iu.auth.nonce,OneTimeNumber.new TimerTask() {...},0,32,0,2,0,8,0,3,0,2
