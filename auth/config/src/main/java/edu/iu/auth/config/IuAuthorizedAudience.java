@@ -74,26 +74,18 @@ public interface IuAuthorizedAudience {
 	URI getResourceUri();
 
 	/**
+	 * Gets the token issuer's root resource URI.
+	 * 
+	 * @return Issuer root resource URI
+	 */
+	URI getOidcMetadataUri();
+
+	/**
 	 * Gets the one-time number configuration for this audience.
 	 * 
 	 * @return {@link IuOneTimeNumberConfig}
 	 */
 	IuOneTimeNumberConfig getNonce();
-
-	/**
-	 * Gets the name of the audience's authentication realm.
-	 * 
-	 * @param <R> authentication realm type
-	 * @return authentication realm name
-	 */
-	<R extends IuAuthenticationRealm> R getAuthentication();
-
-	/**
-	 * Gets the token endpoint authorization configuration for this audience.
-	 * 
-	 * @return authorization token endpoint
-	 */
-	IuTokenEndpoint getAuthorization();
 
 	/**
 	 * Gets audience private key principal.

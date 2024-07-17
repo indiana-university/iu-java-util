@@ -52,11 +52,11 @@ public class IuAuthenticationRealmTest {
 	@Test
 	public void testOf() {
 		final var authId = IdGenerator.generateId();
-		final var realm = mock(IuTokenEndpoint.class);
+		final var realm = mock(IuPrivateKeyPrincipal.class);
 		try (final var mockAuthConfig = mockStatic(AuthConfig.class)) {
 			mockAuthConfig
 					.when(() -> AuthConfig.load(eq(IuAuthenticationRealm.class), eq("realm/" + authId), argThat(a -> {
-						assertSame(IuTokenEndpoint.class, a.apply(IuJson.object().add("type", "token_endpoint").build()));
+						assertSame(IuPrivateKeyPrincipal.class, a.apply(IuJson.object().add("type", "pki").build()));
 						return true;
 					}))).thenReturn(realm);
 			assertSame(realm, IuAuthenticationRealm.of(authId));

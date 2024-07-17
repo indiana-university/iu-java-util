@@ -66,11 +66,6 @@ public interface IuAuthenticationRealm {
 	enum Type {
 
 		/**
-		 * OAuth 2 Token Endpoint.
-		 */
-		TOKEN("token_endpoint", IuTokenEndpoint.class),
-
-		/**
 		 * PKIX {@link X509Certificate} trusted End-Entity.
 		 */
 		PKI("pki", IuPrivateKeyPrincipal.class),
