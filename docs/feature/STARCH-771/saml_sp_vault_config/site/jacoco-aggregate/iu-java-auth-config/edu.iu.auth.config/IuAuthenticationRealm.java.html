@@ -66,32 +66,27 @@ public interface IuAuthenticationRealm {
 <span class="fc" id="L66">	enum Type {</span>
 
 		/**
-		 * OAuth 2 Token Endpoint.
-		 */
-<span class="fc" id="L71">		TOKEN(&quot;token_endpoint&quot;, IuTokenEndpoint.class),</span>
-
-		/**
 		 * PKIX {@link X509Certificate} trusted End-Entity.
 		 */
-<span class="fc" id="L76">		PKI(&quot;pki&quot;, IuPrivateKeyPrincipal.class),</span>
+<span class="fc" id="L71">		PKI(&quot;pki&quot;, IuPrivateKeyPrincipal.class),</span>
 
 		/**
 		 * PKIX {@link X509Certificate} trusted CA.
 		 */
-<span class="fc" id="L81">		CA(&quot;ca&quot;, IuCertificateAuthority.class),</span>
+<span class="fc" id="L76">		CA(&quot;ca&quot;, IuCertificateAuthority.class),</span>
 
 		/**
 		 * SAML Service Provider.
 		 */
-<span class="fc" id="L86">		SAML(&quot;saml_sp&quot;, IuSamlServiceProviderMetadata.class);</span>
+<span class="fc" id="L81">		SAML(&quot;saml_sp&quot;, IuSamlServiceProviderMetadata.class);</span>
 
 		private String code;
 		private Class&lt;? extends IuAuthenticationRealm&gt; authInterface;
 
-<span class="fc" id="L91">		private Type(String code, Class&lt;? extends IuAuthenticationRealm&gt; authenticationInterface) {</span>
-<span class="fc" id="L92">			this.code = code;</span>
-<span class="fc" id="L93">			this.authInterface = authenticationInterface;</span>
-<span class="fc" id="L94">		}</span>
+<span class="fc" id="L86">		private Type(String code, Class&lt;? extends IuAuthenticationRealm&gt; authenticationInterface) {</span>
+<span class="fc" id="L87">			this.code = code;</span>
+<span class="fc" id="L88">			this.authInterface = authenticationInterface;</span>
+<span class="fc" id="L89">		}</span>
 
 		/**
 		 * Gets an authentication realm type by configuration code
@@ -100,7 +95,7 @@ public interface IuAuthenticationRealm {
 		 * @return authentication realm type
 		 */
 		static Type from(String code) {
-<span class="fc" id="L103">			return Arrays.stream(Type.class.getEnumConstants()).filter(a -&gt; a.code.equals(code)).findFirst().get();</span>
+<span class="fc" id="L98">			return Arrays.stream(Type.class.getEnumConstants()).filter(a -&gt; a.code.equals(code)).findFirst().get();</span>
 		}
 	}
 
@@ -113,8 +108,8 @@ public interface IuAuthenticationRealm {
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	static &lt;R extends IuAuthenticationRealm&gt; R of(String name) {
-<span class="fc" id="L116">		return (R) AuthConfig.load(IuAuthenticationRealm.class, &quot;realm/&quot; + name,</span>
-<span class="fc" id="L117">				config -&gt; Type.from(config.getString(&quot;type&quot;)).authInterface);</span>
+<span class="fc" id="L111">		return (R) AuthConfig.load(IuAuthenticationRealm.class, &quot;realm/&quot; + name,</span>
+<span class="fc" id="L112">				config -&gt; Type.from(config.getString(&quot;type&quot;)).authInterface);</span>
 	}
 
 }
