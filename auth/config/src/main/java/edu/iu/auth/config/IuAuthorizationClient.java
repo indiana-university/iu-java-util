@@ -265,13 +265,6 @@ public interface IuAuthorizationClient {
 	}
 
 	/**
-	 * Gets the scope of access authorized to this client.
-	 * 
-	 * @return authorized scopes
-	 */
-	Set<String> getScope();
-
-	/**
 	 * Gets the allowed IP address ranges.
 	 * 
 	 * @return Set of allowed IP address ranges
