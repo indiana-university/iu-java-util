@@ -592,8 +592,7 @@ public interface WebKey extends WebKeyReference {
 		/**
 		 * JSON type adapter.
 		 */
-<span class="fc" id="L595">		public static IuJsonAdapter&lt;Algorithm&gt; JSON = IuJsonAdapter.from(a -&gt; from(((JsonString) a).getString()),</span>
-<span class="fc" id="L596">				a -&gt; IuJson.string(a.alg));</span>
+<span class="fc" id="L595">		public static final IuJsonAdapter&lt;Algorithm&gt; JSON = IuJsonAdapter.text(Algorithm::from, a -&gt; a.alg);</span>
 
 		/**
 		 * Gets the value equivalent to the JWK alg attribute.
@@ -602,7 +601,7 @@ public interface WebKey extends WebKeyReference {
 		 * @return {@link Operation}
 		 */
 		public static Algorithm from(String alg) {
-<span class="fc" id="L605">			return EnumSet.allOf(Algorithm.class).stream().filter(a -&gt; IuObject.equals(alg, a.alg)).findFirst().get();</span>
+<span class="fc" id="L604">			return EnumSet.allOf(Algorithm.class).stream().filter(a -&gt; IuObject.equals(alg, a.alg)).findFirst().get();</span>
 		}
 
 		/**
@@ -641,15 +640,15 @@ public interface WebKey extends WebKeyReference {
 		public final Set&lt;Param&gt; encryptionParams;
 
 		private Algorithm(String alg, String algorithm, int size, Type[] type, Use use, Operation[] keyOps,
-<span class="fc" id="L644">				Set&lt;Param&gt; encryptionParams) {</span>
-<span class="fc" id="L645">			this.alg = alg;</span>
-<span class="fc" id="L646">			this.algorithm = algorithm;</span>
-<span class="fc" id="L647">			this.size = size;</span>
-<span class="fc" id="L648">			this.type = type;</span>
-<span class="fc" id="L649">			this.use = use;</span>
-<span class="fc" id="L650">			this.keyOps = keyOps;</span>
-<span class="fc" id="L651">			this.encryptionParams = encryptionParams;</span>
-<span class="fc" id="L652">		}</span>
+<span class="fc" id="L643">				Set&lt;Param&gt; encryptionParams) {</span>
+<span class="fc" id="L644">			this.alg = alg;</span>
+<span class="fc" id="L645">			this.algorithm = algorithm;</span>
+<span class="fc" id="L646">			this.size = size;</span>
+<span class="fc" id="L647">			this.type = type;</span>
+<span class="fc" id="L648">			this.use = use;</span>
+<span class="fc" id="L649">			this.keyOps = keyOps;</span>
+<span class="fc" id="L650">			this.encryptionParams = encryptionParams;</span>
+<span class="fc" id="L651">		}</span>
 	}
 
 	/**
@@ -748,6 +747,17 @@ public interface WebKey extends WebKeyReference {
 	}
 
 	/**
+	 * JSON type adapter.
+	 */
+<span class="fc" id="L752">	public static final IuJsonAdapter&lt;WebKey&gt; JSON = IuJsonAdapter.from(v -&gt; {</span>
+<span class="fc" id="L753">		return new Jwk(v.asJsonObject());</span>
+	}, v -&gt; {
+<span class="fc" id="L755">		final var o = IuJson.object();</span>
+<span class="fc" id="L756">		((Jwk) v).serializeTo(o);</span>
+<span class="fc" id="L757">		return o.build();</span>
+	});
+
+	/**
 	 * Verifies encoded key data is correct for the key type, use, algorithm, and
 	 * X.509 certificate chain.
 	 * 
@@ -759,107 +769,107 @@ public interface WebKey extends WebKeyReference {
 	 * @throws IllegalArgumentException if the key is invalid
 	 */
 	static PublicKey verify(WebKey webKey) {
-<span class="fc" id="L762">		final var key = webKey.getKey();</span>
-<span class="fc" id="L763">		final var type = Objects.requireNonNull(webKey.getType(), &quot;Key type is required&quot;);</span>
+<span class="fc" id="L772">		final var key = webKey.getKey();</span>
+<span class="fc" id="L773">		final var type = Objects.requireNonNull(webKey.getType(), &quot;Key type is required&quot;);</span>
 
-<span class="fc" id="L765">		final var algorithm = webKey.getAlgorithm();</span>
-<span class="fc bfc" id="L766" title="All 2 branches covered.">		if (algorithm != null //</span>
-<span class="fc bfc" id="L767" title="All 2 branches covered.">				&amp;&amp; !Stream.of(algorithm.type).anyMatch(type::equals))</span>
-<span class="fc" id="L768">			throw new IllegalArgumentException(&quot;Illegal type &quot; + type + &quot; for algorithm &quot; + algorithm);</span>
+<span class="fc" id="L775">		final var algorithm = webKey.getAlgorithm();</span>
+<span class="fc bfc" id="L776" title="All 2 branches covered.">		if (algorithm != null //</span>
+<span class="fc bfc" id="L777" title="All 2 branches covered.">				&amp;&amp; !Stream.of(algorithm.type).anyMatch(type::equals))</span>
+<span class="fc" id="L778">			throw new IllegalArgumentException(&quot;Illegal type &quot; + type + &quot; for algorithm &quot; + algorithm);</span>
 
-<span class="fc" id="L770">		final var use = webKey.getUse();</span>
-<span class="fc bfc" id="L771" title="All 6 branches covered.">		if (use != null &amp;&amp; algorithm != null &amp;&amp; !use.equals(algorithm.use))</span>
-<span class="fc" id="L772">			throw new IllegalArgumentException(&quot;Illegal use &quot; + use + &quot; for algorithm &quot; + algorithm);</span>
+<span class="fc" id="L780">		final var use = webKey.getUse();</span>
+<span class="fc bfc" id="L781" title="All 6 branches covered.">		if (use != null &amp;&amp; algorithm != null &amp;&amp; !use.equals(algorithm.use))</span>
+<span class="fc" id="L782">			throw new IllegalArgumentException(&quot;Illegal use &quot; + use + &quot; for algorithm &quot; + algorithm);</span>
 
-<span class="fc" id="L774">		final var ops = webKey.getOps();</span>
-<span class="fc bfc" id="L775" title="All 2 branches covered.">		if (ops != null) {</span>
-<span class="fc bfc" id="L776" title="All 2 branches covered.">			if (ops.size() &gt; 2)</span>
-<span class="fc" id="L777">				throw new IllegalArgumentException(&quot;Illegal ops &quot; + ops);</span>
-<span class="fc bfc" id="L778" title="All 2 branches covered.">			else if (ops.size() == 2) {</span>
-<span class="fc" id="L779">				BiConsumer&lt;Operation, Operation&gt; checkPair = (a, b) -&gt; {</span>
-<span class="fc bfc" id="L780" title="All 6 branches covered.">					if (ops.contains(a) != (b != null &amp;&amp; ops.contains(b)))</span>
-<span class="fc" id="L781">						throw new IllegalArgumentException(&quot;Illegal ops &quot; + ops);</span>
-<span class="fc" id="L782">				};</span>
-<span class="fc" id="L783">				checkPair.accept(Operation.SIGN, Operation.VERIFY);</span>
-<span class="fc" id="L784">				checkPair.accept(Operation.ENCRYPT, Operation.DECRYPT);</span>
-<span class="fc" id="L785">				checkPair.accept(Operation.WRAP, Operation.UNWRAP);</span>
-<span class="fc" id="L786">				checkPair.accept(Operation.DERIVE_BITS, null);</span>
-<span class="fc" id="L787">				checkPair.accept(Operation.DERIVE_KEY, null);</span>
+<span class="fc" id="L784">		final var ops = webKey.getOps();</span>
+<span class="fc bfc" id="L785" title="All 2 branches covered.">		if (ops != null) {</span>
+<span class="fc bfc" id="L786" title="All 2 branches covered.">			if (ops.size() &gt; 2)</span>
+<span class="fc" id="L787">				throw new IllegalArgumentException(&quot;Illegal ops &quot; + ops);</span>
+<span class="fc bfc" id="L788" title="All 2 branches covered.">			else if (ops.size() == 2) {</span>
+<span class="fc" id="L789">				BiConsumer&lt;Operation, Operation&gt; checkPair = (a, b) -&gt; {</span>
+<span class="fc bfc" id="L790" title="All 6 branches covered.">					if (ops.contains(a) != (b != null &amp;&amp; ops.contains(b)))</span>
+<span class="fc" id="L791">						throw new IllegalArgumentException(&quot;Illegal ops &quot; + ops);</span>
+<span class="fc" id="L792">				};</span>
+<span class="fc" id="L793">				checkPair.accept(Operation.SIGN, Operation.VERIFY);</span>
+<span class="fc" id="L794">				checkPair.accept(Operation.ENCRYPT, Operation.DECRYPT);</span>
+<span class="fc" id="L795">				checkPair.accept(Operation.WRAP, Operation.UNWRAP);</span>
+<span class="fc" id="L796">				checkPair.accept(Operation.DERIVE_BITS, null);</span>
+<span class="fc" id="L797">				checkPair.accept(Operation.DERIVE_KEY, null);</span>
 			}
 
-<span class="fc bfc" id="L790" title="All 4 branches covered.">			if (algorithm != null &amp;&amp; !Set.of(algorithm.keyOps).containsAll(ops))</span>
-<span class="fc" id="L791">				throw new IllegalArgumentException(&quot;Illegal ops &quot; + ops + &quot; for algorithm &quot; + algorithm);</span>
+<span class="fc bfc" id="L800" title="All 4 branches covered.">			if (algorithm != null &amp;&amp; !Set.of(algorithm.keyOps).containsAll(ops))</span>
+<span class="fc" id="L801">				throw new IllegalArgumentException(&quot;Illegal ops &quot; + ops + &quot; for algorithm &quot; + algorithm);</span>
 
-<span class="fc bfc" id="L793" title="All 2 branches covered.">			if (use != null)</span>
-<span class="fc bfc" id="L794" title="All 4 branches covered.">				if (ops.contains(Operation.SIGN) || ops.contains(Operation.VERIFY)) {</span>
-<span class="fc bfc" id="L795" title="All 2 branches covered.">					if (use.equals(Use.ENCRYPT))</span>
-<span class="fc" id="L796">						throw new IllegalArgumentException(&quot;Illegal ops &quot; + ops + &quot; for use &quot; + use);</span>
-<span class="fc bfc" id="L797" title="All 2 branches covered.">				} else if (use.equals(Use.SIGN))</span>
-<span class="fc" id="L798">					throw new IllegalArgumentException(&quot;Illegal ops &quot; + ops + &quot; for use &quot; + use);</span>
+<span class="fc bfc" id="L803" title="All 2 branches covered.">			if (use != null)</span>
+<span class="fc bfc" id="L804" title="All 4 branches covered.">				if (ops.contains(Operation.SIGN) || ops.contains(Operation.VERIFY)) {</span>
+<span class="fc bfc" id="L805" title="All 2 branches covered.">					if (use.equals(Use.ENCRYPT))</span>
+<span class="fc" id="L806">						throw new IllegalArgumentException(&quot;Illegal ops &quot; + ops + &quot; for use &quot; + use);</span>
+<span class="fc bfc" id="L807" title="All 2 branches covered.">				} else if (use.equals(Use.SIGN))</span>
+<span class="fc" id="L808">					throw new IllegalArgumentException(&quot;Illegal ops &quot; + ops + &quot; for use &quot; + use);</span>
 		}
 
-<span class="fc" id="L801">		final var cert = IuObject.convert(WebCertificateReference.verify(webKey), a -&gt; a[0]);</span>
+<span class="fc" id="L811">		final var cert = IuObject.convert(WebCertificateReference.verify(webKey), a -&gt; a[0]);</span>
 
-<span class="fc bfc" id="L803" title="All 2 branches covered.">		if (type.equals(Type.RAW)) {</span>
-<span class="fc" id="L804">			IuObject.require(webKey.getPrivateKey(), Objects::isNull, () -&gt; &quot;Unexpected private key&quot;);</span>
-<span class="fc" id="L805">			IuObject.require(webKey.getPublicKey(), Objects::isNull, () -&gt; &quot;Unexpected public key&quot;);</span>
-<span class="fc" id="L806">			IuObject.require(cert, Objects::isNull, () -&gt; &quot;Unexpected certificate&quot;);</span>
-<span class="fc" id="L807">			return null;</span>
+<span class="fc bfc" id="L813" title="All 2 branches covered.">		if (type.equals(Type.RAW)) {</span>
+<span class="fc" id="L814">			IuObject.require(webKey.getPrivateKey(), Objects::isNull, () -&gt; &quot;Unexpected private key&quot;);</span>
+<span class="fc" id="L815">			IuObject.require(webKey.getPublicKey(), Objects::isNull, () -&gt; &quot;Unexpected public key&quot;);</span>
+<span class="fc" id="L816">			IuObject.require(cert, Objects::isNull, () -&gt; &quot;Unexpected certificate&quot;);</span>
+<span class="fc" id="L817">			return null;</span>
 		}
 
-<span class="fc bfc" id="L810" title="All 2 branches covered.">		if (key != null)</span>
-<span class="fc" id="L811">			throw new IllegalArgumentException(&quot;Unexpected raw key data for &quot; + type);</span>
+<span class="fc bfc" id="L820" title="All 2 branches covered.">		if (key != null)</span>
+<span class="fc" id="L821">			throw new IllegalArgumentException(&quot;Unexpected raw key data for &quot; + type);</span>
 
-<span class="fc" id="L813">		var publicKey = IuObject.first(webKey.getPublicKey(), //</span>
-<span class="fc" id="L814">				IuObject.convert(cert, X509Certificate::getPublicKey), //</span>
-<span class="fc" id="L815">				() -&gt; &quot;public key doesn't match X.509 certificate&quot;);</span>
-<span class="fc" id="L816">		var params = algorithmParams(publicKey);</span>
+<span class="fc" id="L823">		var publicKey = IuObject.first(webKey.getPublicKey(), //</span>
+<span class="fc" id="L824">				IuObject.convert(cert, X509Certificate::getPublicKey), //</span>
+<span class="fc" id="L825">				() -&gt; &quot;public key doesn't match X.509 certificate&quot;);</span>
+<span class="fc" id="L826">		var params = algorithmParams(publicKey);</span>
 
-<span class="fc" id="L818">		final var privateKey = webKey.getPrivateKey();</span>
-<span class="fc" id="L819">		final var privateParams = algorithmParams(privateKey);</span>
-<span class="fc bfc" id="L820" title="All 2 branches covered.">		if (params == null)</span>
-<span class="fc" id="L821">			params = privateParams;</span>
-<span class="fc bfc" id="L822" title="All 2 branches covered.">		else if (params instanceof NamedParameterSpec) {</span>
-<span class="fc" id="L823">			final var namedSpec = (NamedParameterSpec) params;</span>
-<span class="fc bfc" id="L824" title="All 2 branches covered.">			if (privateParams != null &amp;&amp; //</span>
-<span class="fc bfc" id="L825" title="All 2 branches covered.">					!namedSpec.getName().equals(((NamedParameterSpec) privateParams).getName()))</span>
-<span class="fc" id="L826">				throw new IllegalArgumentException(&quot;parameter spec mismatch&quot;);</span>
-<span class="fc bfc" id="L827" title="All 2 branches covered.">		} else if (privateParams != null &amp;&amp; //</span>
-<span class="fc bfc" id="L828" title="All 2 branches covered.">				!params.equals(privateParams))</span>
-<span class="fc" id="L829">			throw new IllegalArgumentException(&quot;parameter spec mismatch&quot;);</span>
+<span class="fc" id="L828">		final var privateKey = webKey.getPrivateKey();</span>
+<span class="fc" id="L829">		final var privateParams = algorithmParams(privateKey);</span>
+<span class="fc bfc" id="L830" title="All 2 branches covered.">		if (params == null)</span>
+<span class="fc" id="L831">			params = privateParams;</span>
+<span class="fc bfc" id="L832" title="All 2 branches covered.">		else if (params instanceof NamedParameterSpec) {</span>
+<span class="fc" id="L833">			final var namedSpec = (NamedParameterSpec) params;</span>
+<span class="fc bfc" id="L834" title="All 2 branches covered.">			if (privateParams != null &amp;&amp; //</span>
+<span class="fc bfc" id="L835" title="All 2 branches covered.">					!namedSpec.getName().equals(((NamedParameterSpec) privateParams).getName()))</span>
+<span class="fc" id="L836">				throw new IllegalArgumentException(&quot;parameter spec mismatch&quot;);</span>
+<span class="fc bfc" id="L837" title="All 2 branches covered.">		} else if (privateParams != null &amp;&amp; //</span>
+<span class="fc bfc" id="L838" title="All 2 branches covered.">				!params.equals(privateParams))</span>
+<span class="fc" id="L839">			throw new IllegalArgumentException(&quot;parameter spec mismatch&quot;);</span>
 
-<span class="fc bfc" id="L831" title="All 4 branches covered.">		if ((publicKey instanceof RSAPublicKey) || (privateKey instanceof RSAPrivateKey)) {</span>
-<span class="fc" id="L832">			final var rsaPrivate = IuObject.requireType(RSAPrivateKey.class, privateKey);</span>
-<span class="fc" id="L833">			final var rsaPublic = IuObject.requireType(RSAPublicKey.class, publicKey);</span>
-<span class="fc bfc" id="L834" title="All 2 branches covered.">			if (rsaPrivate != null)</span>
-<span class="fc bfc" id="L835" title="All 2 branches covered.">				if (rsaPublic != null) {</span>
-<span class="fc bfc" id="L836" title="All 2 branches covered.">					if (!rsaPrivate.getModulus().equals(rsaPublic.getModulus()))</span>
-<span class="fc" id="L837">						throw new IllegalArgumentException(&quot;RSA public key modulus doesn't match private key&quot;);</span>
-<span class="fc bfc" id="L838" title="All 2 branches covered.">					else if ((rsaPrivate instanceof RSAPrivateCrtKey) //</span>
-<span class="fc" id="L839">							&amp;&amp; !((RSAPrivateCrtKey) rsaPrivate).getPublicExponent()</span>
-<span class="fc bfc" id="L840" title="All 2 branches covered.">									.equals(rsaPublic.getPublicExponent()))</span>
-<span class="fc" id="L841">						throw new IllegalArgumentException(&quot;RSA public key exponent doesn't match private key&quot;);</span>
-<span class="fc bfc" id="L842" title="All 2 branches covered.">				} else if (rsaPrivate instanceof RSAPrivateCrtKey)</span>
-<span class="fc" id="L843">					publicKey = IuException.unchecked(</span>
-<span class="fc" id="L844">							() -&gt; (RSAPublicKey) KeyFactory.getInstance(type.kty).generatePublic(new RSAPublicKeySpec(</span>
-<span class="fc" id="L845">									rsaPrivate.getModulus(), ((RSAPrivateCrtKey) rsaPrivate).getPublicExponent())));</span>
-<span class="fc bfc" id="L846" title="All 6 branches covered.">		} else if ((publicKey != null || privateKey != null) &amp;&amp; params == null)</span>
-<span class="fc" id="L847">			throw new IllegalArgumentException(&quot;Missing algorithm parameters&quot;);</span>
+<span class="fc bfc" id="L841" title="All 4 branches covered.">		if ((publicKey instanceof RSAPublicKey) || (privateKey instanceof RSAPrivateKey)) {</span>
+<span class="fc" id="L842">			final var rsaPrivate = IuObject.requireType(RSAPrivateKey.class, privateKey);</span>
+<span class="fc" id="L843">			final var rsaPublic = IuObject.requireType(RSAPublicKey.class, publicKey);</span>
+<span class="fc bfc" id="L844" title="All 2 branches covered.">			if (rsaPrivate != null)</span>
+<span class="fc bfc" id="L845" title="All 2 branches covered.">				if (rsaPublic != null) {</span>
+<span class="fc bfc" id="L846" title="All 2 branches covered.">					if (!rsaPrivate.getModulus().equals(rsaPublic.getModulus()))</span>
+<span class="fc" id="L847">						throw new IllegalArgumentException(&quot;RSA public key modulus doesn't match private key&quot;);</span>
+<span class="fc bfc" id="L848" title="All 2 branches covered.">					else if ((rsaPrivate instanceof RSAPrivateCrtKey) //</span>
+<span class="fc" id="L849">							&amp;&amp; !((RSAPrivateCrtKey) rsaPrivate).getPublicExponent()</span>
+<span class="fc bfc" id="L850" title="All 2 branches covered.">									.equals(rsaPublic.getPublicExponent()))</span>
+<span class="fc" id="L851">						throw new IllegalArgumentException(&quot;RSA public key exponent doesn't match private key&quot;);</span>
+<span class="fc bfc" id="L852" title="All 2 branches covered.">				} else if (rsaPrivate instanceof RSAPrivateCrtKey)</span>
+<span class="fc" id="L853">					publicKey = IuException.unchecked(</span>
+<span class="fc" id="L854">							() -&gt; (RSAPublicKey) KeyFactory.getInstance(type.kty).generatePublic(new RSAPublicKeySpec(</span>
+<span class="fc" id="L855">									rsaPrivate.getModulus(), ((RSAPrivateCrtKey) rsaPrivate).getPublicExponent())));</span>
+<span class="fc bfc" id="L856" title="All 6 branches covered.">		} else if ((publicKey != null || privateKey != null) &amp;&amp; params == null)</span>
+<span class="fc" id="L857">			throw new IllegalArgumentException(&quot;Missing algorithm parameters&quot;);</span>
 
-<span class="fc bfc" id="L849" title="All 2 branches covered.">		if (ops != null) {</span>
-<span class="fc bfc" id="L850" title="All 4 branches covered.">			if (ops.contains(Operation.ENCRYPT) || ops.contains(Operation.DECRYPT))</span>
-<span class="fc" id="L851">				throw new IllegalArgumentException(&quot;Secret key required by ops &quot; + ops);</span>
-<span class="fc bfc" id="L852" title="All 4 branches covered.">			if (publicKey == null &amp;&amp; (ops.contains(Operation.WRAP) //</span>
-<span class="fc bfc" id="L853" title="All 2 branches covered.">					|| ops.contains(Operation.VERIFY)))</span>
-<span class="fc" id="L854">				throw new IllegalArgumentException(&quot;Public key required by ops &quot; + ops);</span>
-<span class="fc bfc" id="L855" title="All 4 branches covered.">			if (privateKey == null &amp;&amp; (ops.contains(Operation.UNWRAP) //</span>
-<span class="fc bfc" id="L856" title="All 2 branches covered.">					|| ops.contains(Operation.SIGN)))</span>
-<span class="fc" id="L857">				throw new IllegalArgumentException(&quot;Private key required by ops &quot; + ops);</span>
-<span class="fc bfc" id="L858" title="All 6 branches covered.">			if (ops.contains(Operation.DERIVE_KEY) &amp;&amp; privateKey == null &amp;&amp; publicKey == null)</span>
-<span class="fc" id="L859">				throw new IllegalArgumentException(&quot;Public or private key required by ops &quot; + ops);</span>
+<span class="fc bfc" id="L859" title="All 2 branches covered.">		if (ops != null) {</span>
+<span class="fc bfc" id="L860" title="All 4 branches covered.">			if (ops.contains(Operation.ENCRYPT) || ops.contains(Operation.DECRYPT))</span>
+<span class="fc" id="L861">				throw new IllegalArgumentException(&quot;Secret key required by ops &quot; + ops);</span>
+<span class="fc bfc" id="L862" title="All 4 branches covered.">			if (publicKey == null &amp;&amp; (ops.contains(Operation.WRAP) //</span>
+<span class="fc bfc" id="L863" title="All 2 branches covered.">					|| ops.contains(Operation.VERIFY)))</span>
+<span class="fc" id="L864">				throw new IllegalArgumentException(&quot;Public key required by ops &quot; + ops);</span>
+<span class="fc bfc" id="L865" title="All 4 branches covered.">			if (privateKey == null &amp;&amp; (ops.contains(Operation.UNWRAP) //</span>
+<span class="fc bfc" id="L866" title="All 2 branches covered.">					|| ops.contains(Operation.SIGN)))</span>
+<span class="fc" id="L867">				throw new IllegalArgumentException(&quot;Private key required by ops &quot; + ops);</span>
+<span class="fc bfc" id="L868" title="All 6 branches covered.">			if (ops.contains(Operation.DERIVE_KEY) &amp;&amp; privateKey == null &amp;&amp; publicKey == null)</span>
+<span class="fc" id="L869">				throw new IllegalArgumentException(&quot;Public or private key required by ops &quot; + ops);</span>
 		}
 
-<span class="fc" id="L862">		return publicKey;</span>
+<span class="fc" id="L872">		return publicKey;</span>
 	}
 
 	/**
@@ -869,22 +879,22 @@ public interface WebKey extends WebKeyReference {
 	 * @return {@link Builder}
 	 */
 	static Builder&lt;?&gt; builder(Key key) {
-<span class="fc bfc" id="L872" title="All 2 branches covered.">		if (key instanceof SecretKey)</span>
-<span class="fc" id="L873">			return WebKey.builder(Type.RAW).key(key.getEncoded());</span>
+<span class="fc bfc" id="L882" title="All 2 branches covered.">		if (key instanceof SecretKey)</span>
+<span class="fc" id="L883">			return WebKey.builder(Type.RAW).key(key.getEncoded());</span>
 
 		final WebKey.Builder&lt;?&gt; jwkBuilder;
-<span class="fc" id="L876">		final var params = WebKey.algorithmParams(key);</span>
-<span class="fc bfc" id="L877" title="All 2 branches covered.">		if (params == null)</span>
-<span class="fc" id="L878">			jwkBuilder = WebKey.builder(Type.from(key.getAlgorithm(), null));</span>
+<span class="fc" id="L886">		final var params = WebKey.algorithmParams(key);</span>
+<span class="fc bfc" id="L887" title="All 2 branches covered.">		if (params == null)</span>
+<span class="fc" id="L888">			jwkBuilder = WebKey.builder(Type.from(key.getAlgorithm(), null));</span>
 		else
-<span class="fc" id="L880">			jwkBuilder = WebKey.builder(Objects.requireNonNull(Type.from(params), params.toString()));</span>
+<span class="fc" id="L890">			jwkBuilder = WebKey.builder(Objects.requireNonNull(Type.from(params), params.toString()));</span>
 
-<span class="fc bfc" id="L882" title="All 2 branches covered.">		if (key instanceof PrivateKey)</span>
-<span class="fc" id="L883">			jwkBuilder.key((PrivateKey) key);</span>
+<span class="fc bfc" id="L892" title="All 2 branches covered.">		if (key instanceof PrivateKey)</span>
+<span class="fc" id="L893">			jwkBuilder.key((PrivateKey) key);</span>
 		else
-<span class="fc" id="L885">			jwkBuilder.key((PublicKey) key);</span>
+<span class="fc" id="L895">			jwkBuilder.key((PublicKey) key);</span>
 
-<span class="fc" id="L887">		return jwkBuilder;</span>
+<span class="fc" id="L897">		return jwkBuilder;</span>
 	}
 
 	/**
@@ -894,7 +904,7 @@ public interface WebKey extends WebKeyReference {
 	 * @return {@link Builder}
 	 */
 	static Builder&lt;?&gt; builder(Type type) {
-<span class="fc" id="L897">		return JwkBuilder.of(type);</span>
+<span class="fc" id="L907">		return JwkBuilder.of(type);</span>
 	}
 
 	/**
@@ -911,7 +921,7 @@ public interface WebKey extends WebKeyReference {
 	 * @return JWE recipient or JWS issuer key
 	 */
 	static Builder&lt;?&gt; builder(Algorithm algorithm) {
-<span class="fc" id="L914">		return builder(algorithm.type[0]).algorithm(algorithm);</span>
+<span class="fc" id="L924">		return builder(algorithm.type[0]).algorithm(algorithm);</span>
 	}
 
 	/**
@@ -929,7 +939,7 @@ public interface WebKey extends WebKeyReference {
 	 * @return content encryption key
 	 */
 	static WebKey ephemeral(Encryption encryption) {
-<span class="fc" id="L932">		return builder(Type.RAW).ephemeral(encryption).build();</span>
+<span class="fc" id="L942">		return builder(Type.RAW).ephemeral(encryption).build();</span>
 	}
 
 	/**
@@ -946,7 +956,7 @@ public interface WebKey extends WebKeyReference {
 	 * @return JWE recipient or JWS issuer key
 	 */
 	static WebKey ephemeral(Algorithm algorithm) {
-<span class="fc" id="L949">		return builder(algorithm.type[0]).ephemeral(algorithm).build();</span>
+<span class="fc" id="L959">		return builder(algorithm.type[0]).ephemeral(algorithm).build();</span>
 	}
 
 	/**
@@ -956,7 +966,7 @@ public interface WebKey extends WebKeyReference {
 	 * @return {@link WebKey}
 	 */
 	static WebKey parse(String jwk) {
-<span class="fc" id="L959">		return new Jwk(IuJson.parse(jwk).asJsonObject());</span>
+<span class="fc" id="L969">		return new Jwk(IuJson.parse(jwk).asJsonObject());</span>
 	}
 
 	/**
@@ -966,7 +976,7 @@ public interface WebKey extends WebKeyReference {
 	 * @return parsed key set
 	 */
 	static Iterable&lt;? extends WebKey&gt; parseJwks(String jwks) {
-<span class="fc" id="L969">		return Jwk.parseJwks(IuJson.parse(jwks).asJsonObject());</span>
+<span class="fc" id="L979">		return Jwk.parseJwks(IuJson.parse(jwks).asJsonObject());</span>
 	}
 
 	/**
@@ -977,25 +987,25 @@ public interface WebKey extends WebKeyReference {
 	 * @return {@link WebKey}
 	 */
 	static WebKey pem(String pem) {
-<span class="fc" id="L980">		final Queue&lt;X509Certificate&gt; certs = new ArrayDeque&lt;&gt;();</span>
-<span class="fc" id="L981">		PemEncoded privateKey = null;</span>
+<span class="fc" id="L990">		final Queue&lt;X509Certificate&gt; certs = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L991">		PemEncoded privateKey = null;</span>
 
-<span class="fc" id="L983">		final var parsed = PemEncoded.parse(pem);</span>
-<span class="fc bfc" id="L984" title="All 2 branches covered.">		while (parsed.hasNext()) {</span>
-<span class="fc" id="L985">			final var encoded = parsed.next();</span>
-<span class="fc" id="L986">			final var keyType = encoded.getKeyType();</span>
-<span class="fc bfc" id="L987" title="All 2 branches covered.">			if (keyType.equals(KeyType.CERTIFICATE))</span>
-<span class="fc" id="L988">				certs.offer(encoded.asCertificate());</span>
-<span class="pc bpc" id="L989" title="1 of 2 branches missed.">			else if (keyType.equals(KeyType.PRIVATE_KEY))</span>
-<span class="fc" id="L990">				privateKey = IuObject.once(privateKey, encoded);</span>
-<span class="fc" id="L991">		}</span>
+<span class="fc" id="L993">		final var parsed = PemEncoded.parse(pem);</span>
+<span class="fc bfc" id="L994" title="All 2 branches covered.">		while (parsed.hasNext()) {</span>
+<span class="fc" id="L995">			final var encoded = parsed.next();</span>
+<span class="fc" id="L996">			final var keyType = encoded.getKeyType();</span>
+<span class="fc bfc" id="L997" title="All 2 branches covered.">			if (keyType.equals(KeyType.CERTIFICATE))</span>
+<span class="fc" id="L998">				certs.offer(encoded.asCertificate());</span>
+<span class="pc bpc" id="L999" title="1 of 2 branches missed.">			else if (keyType.equals(KeyType.PRIVATE_KEY))</span>
+<span class="fc" id="L1000">				privateKey = IuObject.once(privateKey, encoded);</span>
+<span class="fc" id="L1001">		}</span>
 
-<span class="fc" id="L993">		final var publicKey = certs.peek().getPublicKey();</span>
-<span class="fc" id="L994">		final var builder = WebKey.builder(publicKey);</span>
-<span class="fc" id="L995">		builder.cert(certs.toArray(X509Certificate[]::new));</span>
-<span class="fc bfc" id="L996" title="All 2 branches covered.">		if (privateKey != null)</span>
-<span class="fc" id="L997">			builder.key(privateKey.asPrivate(publicKey.getAlgorithm()));</span>
-<span class="fc" id="L998">		return builder.build();</span>
+<span class="fc" id="L1003">		final var publicKey = certs.peek().getPublicKey();</span>
+<span class="fc" id="L1004">		final var builder = WebKey.builder(publicKey);</span>
+<span class="fc" id="L1005">		builder.cert(certs.toArray(X509Certificate[]::new));</span>
+<span class="fc bfc" id="L1006" title="All 2 branches covered.">		if (privateKey != null)</span>
+<span class="fc" id="L1007">			builder.key(privateKey.asPrivate(publicKey.getAlgorithm()));</span>
+<span class="fc" id="L1008">		return builder.build();</span>
 	}
 
 	/**
@@ -1005,7 +1015,7 @@ public interface WebKey extends WebKeyReference {
 	 * @return parsed key set
 	 */
 	static Iterable&lt;? extends WebKey&gt; readJwks(URI jwks) {
-<span class="fc" id="L1008">		return Jwk.readJwks(jwks);</span>
+<span class="fc" id="L1018">		return Jwk.readJwks(jwks);</span>
 	}
 
 	/**
@@ -1015,7 +1025,7 @@ public interface WebKey extends WebKeyReference {
 	 * @return parsed key set
 	 */
 	static Iterable&lt;? extends WebKey&gt; readJwks(InputStream jwks) {
-<span class="fc" id="L1018">		return Jwk.readJwks(jwks);</span>
+<span class="fc" id="L1028">		return Jwk.readJwks(jwks);</span>
 	}
 
 	/**
@@ -1025,7 +1035,7 @@ public interface WebKey extends WebKeyReference {
 	 * @return serialized JWKS
 	 */
 	static String asJwks(Iterable&lt;? extends WebKey&gt; webKeys) {
-<span class="fc" id="L1028">		return Jwk.asJwks(webKeys).toString();</span>
+<span class="fc" id="L1038">		return Jwk.asJwks(webKeys).toString();</span>
 	}
 
 	/**
@@ -1035,8 +1045,8 @@ public interface WebKey extends WebKeyReference {
 	 * @param out     {@link OutputStream}
 	 */
 	static void writeJwks(Iterable&lt;? extends WebKey&gt; webKeys, OutputStream out) {
-<span class="fc" id="L1038">		Jwk.writeJwks(webKeys, out);</span>
-<span class="fc" id="L1039">	}</span>
+<span class="fc" id="L1048">		Jwk.writeJwks(webKeys, out);</span>
+<span class="fc" id="L1049">	}</span>
 
 	/**
 	 * Returns a copy of this key for which {@link #getPrivateKey()} and

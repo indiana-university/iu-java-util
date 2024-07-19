@@ -31,25 +31,43 @@
  */
 package edu.iu.client;
 
-import java.net.URI;
-import java.net.http.HttpRequest;
-import java.net.http.HttpRequest.BodyPublishers;
-import java.util.Arrays;
-import java.util.Objects;
+import java.lang.reflect.Type;
+import java.util.Properties;
+import java.util.function.Function;
 
-import edu.iu.IuException;
-import edu.iu.IuObject;
-import edu.iu.IuRuntimeEnvironment;
+import iu.client.Vault;
 import jakarta.json.JsonObject;
 
 /**
- * Provides access to secrets stored in HashiCorp Vault.
+ * Provides access to a HashiCorp Vault K/V secrets engine.
  * 
+ * &lt;p&gt;
+ * Properties for use with {@link #RUNTIME} or {@link #of(Properties, Function)}
+ * are listed below.
+ * &lt;/p&gt;
+ * 
+ * &lt;dl&gt;
+ * &lt;dt&gt;iu.vault.secrets (IU_VAULT_SECRETS)&lt;/dt&gt;
+ * &lt;dd&gt;Comma-separated list of secrets to read from the Vault K/V store&lt;/dd&gt;
+ * &lt;dt&gt;iu.vault.endpoint (IU_VAULT_ENDPOINT)&lt;/dt&gt;
+ * &lt;dd&gt;Base URL for a Vault K/V V2 engine API&lt;/dd&gt;
+ * &lt;dt&gt;iu.vault.token (IU_VAULT_TOKEN)&lt;/dt&gt;
+ * &lt;dd&gt;Access token for use with Vault, i.e., in development. If not set,
+ * iu.vault.loginEndpoint, iu.vault.roleId, and iu.vault.secretId &lt;em&gt;must&lt;/em&gt;
+ * be provided, i.e., for use by a CI/CD environment. If iu.vault.token is set,
+ * the approle properties will be ignored.&lt;/dd&gt;
+ * &lt;dt&gt;iu.vault.loginEndpoint (IU_VAULT_LOGIN_ENDPOINT)&lt;/dt&gt;
+ * &lt;dd&gt;URL for the Vault approle login endpoint, for use when iu.vault.token is
+ * not set.&lt;/dd&gt;
+ * &lt;dt&gt;iu.vault.roleId (IU_VAULT_ROLE_ID)&lt;/dt&gt;
+ * &lt;dd&gt;Vault approle Role ID, for use when iu.vault.token is not set.&lt;/dd&gt;
+ * &lt;dt&gt;iu.vault.secretId (IU_VAULT_SECRET_ID)&lt;/dt&gt;
+ * &lt;dd&gt;Vault approle Secret ID, for use when iu.vault.token is not set.&lt;/dd&gt;
+ * &lt;dt&gt;iu.vault.cacheTtl (IU_VAULT_CACHE_TTL)&lt;/dt&gt;
+ * &lt;dd&gt;Secrets cache time to live; by default, secrets are not cached.&lt;/dd&gt;
+ * &lt;/dl&gt;
  */
-public class IuVault {
-	static {
-<span class="fc" id="L51">		IuObject.assertNotOpen(IuVault.class);</span>
-	}
+public interface IuVault {
 
 	/**
 	 * Singleton instance configured at class initialization time.
@@ -87,25 +105,7 @@ public class IuVault {
 	 * {@code VAULT_TOKEN} are populated, then approle properties will be skipped
 	 * &lt;/p&gt;
 	 */
-	public static final IuVault RUNTIME;
-
-	static {
-<span class="fc" id="L93">		final var secrets = IuRuntimeEnvironment.envOptional(&quot;iu.vault.secrets&quot;, a -&gt; a.split(&quot;,&quot;));</span>
-<span class="fc bfc" id="L94" title="All 2 branches covered.">		if (secrets == null)</span>
-<span class="fc" id="L95">			RUNTIME = null;</span>
-		else {
-<span class="fc" id="L97">			final var endpoint = IuRuntimeEnvironment.env(&quot;iu.vault.endpoint&quot;, URI::create);</span>
-<span class="fc" id="L98">			final var token = IuRuntimeEnvironment.envOptional(&quot;iu.vault.token&quot;);</span>
-<span class="fc bfc" id="L99" title="All 2 branches covered.">			if (token != null)</span>
-<span class="fc" id="L100">				RUNTIME = new IuVault(endpoint, secrets, token);</span>
-			else {
-<span class="fc" id="L102">				final var loginEndpoint = IuRuntimeEnvironment.env(&quot;iu.vault.loginEndpoint&quot;, URI::create);</span>
-<span class="fc" id="L103">				final var roleId = IuRuntimeEnvironment.env(&quot;iu.vault.roleId&quot;);</span>
-<span class="fc" id="L104">				final var secretId = IuRuntimeEnvironment.env(&quot;iu.vault.secretId&quot;);</span>
-<span class="fc" id="L105">				RUNTIME = new IuVault(endpoint, secrets, loginEndpoint, roleId, secretId);</span>
-			}
-		}
-<span class="fc" id="L108">	}</span>
+<span class="fc" id="L108">	public static final IuVault RUNTIME = Vault.of(null, IuJsonAdapter::of);</span>
 
 	/**
 	 * Determines whether or not the RUNTIME Vault is configured.
@@ -120,106 +120,52 @@ public class IuVault {
 	 * @return true if Vault is configured; else false
 	 */
 	public static boolean isConfigured() {
-<span class="fc bfc" id="L123" title="All 2 branches covered.">		return RUNTIME != null;</span>
-	}
-
-	private final URI endpoint;
-	private final String[] secretNames;
-	private final String token;
-	private final URI loginEndpoint;
-	private final String roleId;
-	private final String secretId;
-
-	/**
-	 * Constructor.
-	 * 
-	 * @param endpoint    Vault K/V endpoint
-	 * @param secretNames Secret names to load, collisions prefer first found
-	 * @param token       Bearer token
-	 */
-<span class="fc" id="L140">	public IuVault(URI endpoint, String[] secretNames, String token) {</span>
-<span class="fc" id="L141">		this.endpoint = endpoint;</span>
-<span class="fc" id="L142">		this.secretNames = secretNames;</span>
-<span class="fc" id="L143">		this.token = token;</span>
-<span class="fc" id="L144">		this.loginEndpoint = null;</span>
-<span class="fc" id="L145">		this.roleId = null;</span>
-<span class="fc" id="L146">		this.secretId = null;</span>
-<span class="fc" id="L147">	}</span>
-
-	/**
-	 * Constructor.
-	 * 
-	 * @param endpoint      Vault K/V endpoint
-	 * @param secretNames   Secret names to load, collisions prefer first found
-	 * @param loginEndpoint Vault approle login endpoint
-	 * @param roleId        Role ID
-	 * @param secretId      Secret ID
-	 */
-<span class="fc" id="L158">	public IuVault(URI endpoint, String[] secretNames, URI loginEndpoint, String roleId, String secretId) {</span>
-<span class="fc" id="L159">		this.endpoint = endpoint;</span>
-<span class="fc" id="L160">		this.secretNames = secretNames;</span>
-<span class="fc" id="L161">		this.token = null;</span>
-<span class="fc" id="L162">		this.loginEndpoint = loginEndpoint;</span>
-<span class="fc" id="L163">		this.roleId = roleId;</span>
-<span class="fc" id="L164">		this.secretId = secretId;</span>
-<span class="fc" id="L165">	}</span>
-
-	/**
-	 * Reads a property value from a Vault secret.
-	 * 
-	 * @param &lt;T&gt;     value type
-	 * @param name    property name
-	 * @param adapter converts the property value to the value type
-	 * @return property value
-	 */
-	public &lt;T&gt; T get(String name, IuJsonAdapter&lt;T&gt; adapter) {
-<span class="fc bfc" id="L176" title="All 2 branches covered.">		for (String secret : secretNames) {</span>
-<span class="fc" id="L177">			final var data = getSecret(secret);</span>
-<span class="fc bfc" id="L178" title="All 2 branches covered.">			if (data.containsKey(name))</span>
-<span class="fc" id="L179">				return adapter.fromJson(data.get(name));</span>
-		}
-
-<span class="fc" id="L182">		throw new IllegalArgumentException(</span>
-<span class="fc" id="L183">				name + &quot; not found in Vault using &quot; + endpoint + &quot;/data/&quot; + Arrays.toString(secretNames));</span>
+<span class="fc" id="L123">		return Vault.isConfigured();</span>
 	}
 
 	/**
-	 * Reads a property value from a Vault secret.
+	 * Gets an {@link IuVault} instance for a specific application scenario.
+	 * 
+	 * @param properties   {@link Properties}
+	 * @param valueAdapter {@link IuJsonAdapter} type mapping function
+	 * @return {@link IuVault}
+	 */
+	public static IuVault of(Properties properties, Function&lt;Type, IuJsonAdapter&lt;?&gt;&gt; valueAdapter) {
+<span class="fc" id="L134">		return Vault.of(properties, valueAdapter);</span>
+	}
+
+	/**
+	 * Lists all available property names.
+	 * 
+	 * @return property names
+	 */
+	Iterable&lt;IuVaultKeyedValue&lt;?&gt;&gt; list();
+
+	/**
+	 * Reads a property value.
 	 * 
 	 * @param name property name
 	 * @return property value
 	 */
-	public String get(String name) {
-<span class="fc" id="L193">		return get(name, IuJsonAdapter.of(String.class));</span>
-	}
+	IuVaultKeyedValue&lt;String&gt; get(String name);
 
-	private JsonObject getSecret(String secret) {
-<span class="fc" id="L197">		return IuException.unchecked(</span>
-<span class="fc" id="L198">				() -&gt; IuHttp.send(URI.create(endpoint + &quot;/data/&quot; + secret), this::authorize, IuHttp.READ_JSON_OBJECT))</span>
-<span class="fc" id="L199">				.getJsonObject(&quot;data&quot;).getJsonObject(&quot;data&quot;);</span>
-	}
+	/**
+	 * Reads a property value.
+	 * 
+	 * @param &lt;T&gt;  value type
+	 * @param name property name
+	 * @param type value class
+	 * @return property value
+	 */
+	&lt;T&gt; IuVaultKeyedValue&lt;T&gt; get(String name, Class&lt;T&gt; type);
 
-	private void approle(HttpRequest.Builder dataRequestBuilder) {
-<span class="fc" id="L203">		final var payload = IuJson.object();</span>
-<span class="fc" id="L204">		payload.add(&quot;role_id&quot;, Objects.requireNonNull(roleId, &quot;Missing vault.roleId&quot;));</span>
-<span class="fc" id="L205">		payload.add(&quot;secret_id&quot;, Objects.requireNonNull(secretId, &quot;Missing vault.loginEndpoint&quot;));</span>
-<span class="fc" id="L206">		dataRequestBuilder.POST(BodyPublishers.ofString(payload.build().toString()));</span>
-<span class="fc" id="L207">		dataRequestBuilder.header(&quot;Content-Type&quot;, &quot;application/json; charset=utf-8&quot;);</span>
-<span class="fc" id="L208">	}</span>
-
-	private void authorize(HttpRequest.Builder dataRequestBuilder) {
-<span class="fc" id="L211">		var accessToken = token;</span>
-
-<span class="fc bfc" id="L213" title="All 2 branches covered.">		if (accessToken == null)</span>
-<span class="fc" id="L214">			accessToken = IuException</span>
-<span class="fc" id="L215">					.unchecked(</span>
-							() -&gt; IuHttp
-<span class="fc" id="L217">									.send(Objects.requireNonNull(loginEndpoint, &quot;Missing vault.loginEndpoint&quot;),</span>
-											this::approle, IuHttp.READ_JSON_OBJECT)
-<span class="fc" id="L219">									.getJsonObject(&quot;auth&quot;).getString(&quot;client_token&quot;));</span>
-
-<span class="fc" id="L221">		dataRequestBuilder.header(&quot;Authorization&quot;, &quot;Bearer &quot; + accessToken);</span>
-<span class="fc" id="L222">	}</span>
+	/**
+	 * Gets a full K/V secret.
+	 * 
+	 * @param secret secret name
+	 * @return {@link JsonObject}
+	 */
+	IuVaultSecret getSecret(String secret);
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
