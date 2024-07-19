@@ -592,8 +592,7 @@ public interface WebKey extends WebKeyReference {
 		/**
 		 * JSON type adapter.
 		 */
-		public static IuJsonAdapter<Algorithm> JSON = IuJsonAdapter.from(a -> from(((JsonString) a).getString()),
-				a -> IuJson.string(a.alg));
+		public static final IuJsonAdapter<Algorithm> JSON = IuJsonAdapter.text(Algorithm::from, a -> a.alg);
 
 		/**
 		 * Gets the value equivalent to the JWK alg attribute.
@@ -746,6 +745,17 @@ public interface WebKey extends WebKeyReference {
 		 */
 		WebKey build();
 	}
+
+	/**
+	 * JSON type adapter.
+	 */
+	public static final IuJsonAdapter<WebKey> JSON = IuJsonAdapter.from(v -> {
+		return new Jwk(v.asJsonObject());
+	}, v -> {
+		final var o = IuJson.object();
+		((Jwk) v).serializeTo(o);
+		return o.build();
+	});
 
 	/**
 	 * Verifies encoded key data is correct for the key type, use, algorithm, and

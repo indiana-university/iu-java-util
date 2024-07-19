@@ -44,6 +44,8 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
@@ -414,7 +416,8 @@ public class IuExceptionTest {
 		try (var mockIuException = mockStatic(IuException.class, CALLS_REAL_METHODS)) {
 			assertRunnable(RuntimeException.class, r -> IuException.unchecked(r));
 			mockIuException.verify(() -> IuException.unchecked(any(UnsafeRunnable.class)), times(2));
-			mockIuException.verify(() -> IuException.unchecked(any(RuntimeException.class)), times(1));
+			mockIuException.verify(() -> IuException.unchecked(any(RuntimeException.class), eq((String) null)),
+					times(1));
 		}
 	}
 
@@ -855,7 +858,17 @@ public class IuExceptionTest {
 		assertStandardRuntimeException(IuAuthorizationFailedException.class);
 		assertStandardRuntimeException(IuOutOfServiceException.class);
 	}
-	
+
+	@Test
+	public void testTrace() {
+		final var t = new Throwable();
+		final var w = new StringWriter();
+		try (final var pw = new PrintWriter(w)) {
+			t.printStackTrace(pw);
+		}
+		assertEquals(w.toString(), IuException.trace(t));
+	}
+
 	private void assertStandardRuntimeException(Class<? extends RuntimeException> exceptionClass) {
 		Assertions.assertThrows(exceptionClass, () -> {
 			throw exceptionClass.getConstructor().newInstance();

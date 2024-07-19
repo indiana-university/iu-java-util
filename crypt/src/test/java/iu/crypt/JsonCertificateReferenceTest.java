@@ -55,7 +55,7 @@ public class JsonCertificateReferenceTest extends IuCryptTestCase {
 				.build());
 		assertEquals(CERT, ref.getCertificateChain()[0]);
 	}
-
+	
 	@Test
 	public void testCertUri() {
 		final var ref = new JsonCertificateReference<>(IuJson.object().add("x5u", uri(CERT_TEXT).toString()).build());

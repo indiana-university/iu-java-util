@@ -514,7 +514,7 @@ public interface IuComponent extends AutoCloseable {
 	 *                                  unreadable.
 	 * @throws IllegalArgumentException If the <strong>component archive</strong> or
 	 *                                  any <strong>dependency archives</strong>
-	 *                                  invalid.
+	 *                                  are invalid.
 	 */
 	static IuComponent of(ClassLoader parent, ModuleLayer parentLayer, InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException {
@@ -546,7 +546,7 @@ public interface IuComponent extends AutoCloseable {
 	 *                                  unreadable.
 	 * @throws IllegalArgumentException If the <strong>component archive</strong> or
 	 *                                  any <strong>dependency archives</strong>
-	 *                                  invalid.
+	 *                                  are invalid.
 	 */
 	static IuComponent of(Consumer<Controller> controllerCallback, InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException {
@@ -586,7 +586,7 @@ public interface IuComponent extends AutoCloseable {
 	 *                                  unreadable.
 	 * @throws IllegalArgumentException If the <strong>component archive</strong> or
 	 *                                  any <strong>dependency archives</strong>
-	 *                                  invalid.
+	 *                                  are invalid.
 	 */
 	static IuComponent of(ClassLoader parent, ModuleLayer parentLayer, Consumer<Controller> controllerCallback,
 			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
@@ -603,7 +603,7 @@ public interface IuComponent extends AutoCloseable {
 	 * a subset of classes visible from an externally managed {@link ClassLoader}.
 	 * The external {@link ClassLoader} is fully responsible for the lifecycle of
 	 * its resources and embedded components, and any related security
-	 * configuration. The {@code iu.util.type.impl} module <em>must</em> must have
+	 * configuration. The {@code iu.util.type.impl} module <em>must</em> have
 	 * <a href=
 	 * "https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/invoke/MethodHandles.Lookup.html#privacc">private
 	 * access</a> to all packages encapsulated by the path entry in order to perform
@@ -690,7 +690,7 @@ public interface IuComponent extends AutoCloseable {
 	 *                                  unreadable.
 	 * @throws IllegalArgumentException If the <strong>component archive</strong> or
 	 *                                  any <strong>dependency archives</strong>
-	 *                                  invalid.
+	 *                                  are invalid.
 	 */
 	default IuComponent extend(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
 			throws IOException, IllegalArgumentException {
