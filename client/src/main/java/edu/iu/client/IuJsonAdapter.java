@@ -81,6 +81,7 @@ import java.util.stream.Stream;
 
 import edu.iu.IuText;
 import iu.client.JsonAdapters;
+import iu.client.JsonSerializer;
 import iu.client.ParsingJsonAdapter;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonArrayBuilder;
@@ -183,6 +184,24 @@ public interface IuJsonAdapter<T> {
 				return toJson.apply(javaValue);
 			}
 		};
+	}
+
+	/**
+	 * Creates a JSON type adapter that converts from a JavaBeans business object
+	 * type to and from JSON.
+	 * 
+	 * @param <T>                business object type
+	 * @param type               business object class; <em>must</em> be an
+	 *                           interface to convert from JSON, an interface is
+	 *                           <em>not required</em> to convert from JSON.
+	 * @param propertyNameFormat property name format to use for converting to JSON
+	 * @param valueAdapter       value adapter function
+	 * @return {@link IuJsonAdapter}
+	 */
+	static <T> IuJsonAdapter<T> from(Class<T> type, IuJsonPropertyNameFormat propertyNameFormat,
+			Function<Type, IuJsonAdapter<?>> valueAdapter) {
+		return from(v -> IuJson.wrap(v.asJsonObject(), type, valueAdapter),
+				v -> JsonSerializer.serialize(v, propertyNameFormat, valueAdapter));
 	}
 
 	/**

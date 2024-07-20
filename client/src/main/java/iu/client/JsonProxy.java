@@ -40,6 +40,7 @@ import java.util.function.Function;
 
 import edu.iu.IuObject;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonPropertyNameFormat;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonValue;
 
@@ -157,7 +158,14 @@ public final class JsonProxy implements InvocationHandler {
 		return value.get(lowerSnakeCasePropertyName.toUpperCase());
 	}
 
-	private String convertToSnakeCase(String camelCase) {
+	/**
+	 * Converts a camel case property name to
+	 * {@link IuJsonPropertyNameFormat#LOWER_CASE_WITH_UNDERSCORES}.
+	 * 
+	 * @param camelCase property name
+	 * @return snake case property name
+	 */
+	static String convertToSnakeCase(String camelCase) {
 		final var sb = new StringBuilder(camelCase);
 		for (var i = 0; i < sb.length(); i++) {
 			final var c = sb.charAt(i);
