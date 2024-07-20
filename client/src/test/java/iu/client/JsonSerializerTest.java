@@ -33,8 +33,8 @@ public class JsonSerializerTest {
 
 	@Test
 	public void testSerializePlainObject() {
-		assertEquals(IuJson.object().build(),
-				JsonSerializer.serialize(new Object(), IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of));
+		assertEquals(IuJson.object().build(), JsonSerializer.serialize(Object.class, new Object(),
+				IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of));
 	}
 
 	@Test
@@ -55,7 +55,7 @@ public class JsonSerializerTest {
 		final var bean = new Bean();
 		bean.id = IdGenerator.generateId();
 		assertEquals(IuJson.object().add("id", bean.id).build(),
-				JsonSerializer.serialize(bean, IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of));
+				JsonSerializer.serialize(Bean.class, bean, IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of));
 	}
 
 	interface TestInterface {
@@ -65,15 +65,16 @@ public class JsonSerializerTest {
 	public void testUnwrapProxy() {
 		final var wrapped = IuJson.object().build();
 		final var proxy = IuJson.wrap(wrapped, TestInterface.class);
-		assertSame(wrapped, JsonSerializer.serialize(proxy, IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of));
+		assertSame(wrapped, JsonSerializer.serialize(TestInterface.class, proxy, IuJsonPropertyNameFormat.IDENTITY,
+				IuJsonAdapter::of));
 	}
 
 	@Test
 	public void testDoesntUnwrapNonJsonProxy() {
-		final var value = Proxy.newProxyInstance(TestInterface.class.getClassLoader(),
+		final var value = (TestInterface) Proxy.newProxyInstance(TestInterface.class.getClassLoader(),
 				new Class<?>[] { TestInterface.class }, (proxy, method, args) -> fail());
-		assertEquals(IuJson.object().build(),
-				JsonSerializer.serialize(value, IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of));
+		assertEquals(IuJson.object().build(), JsonSerializer.serialize(TestInterface.class, value,
+				IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of));
 	}
 
 }

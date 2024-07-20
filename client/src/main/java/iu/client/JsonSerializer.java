@@ -48,13 +48,14 @@ public final class JsonSerializer {
 	 * Serializes a business object as JSON.
 	 * 
 	 * @param <T>                value type
+	 * @param type               value type for introspection
 	 * @param value              business object to serialize
 	 * @param propertyNameFormat property name format
 	 * @param adapt              adapter function
 	 * @return {@link JsonObject}
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	public static <T> JsonObject serialize(T value, IuJsonPropertyNameFormat propertyNameFormat,
+	public static <T> JsonObject serialize(Class<T> type, T value, IuJsonPropertyNameFormat propertyNameFormat,
 			Function<Type, IuJsonAdapter<?>> adapt) {
 
 		final var valueClass = value.getClass();
@@ -66,7 +67,7 @@ public final class JsonSerializer {
 
 		final var builder = IuJson.object();
 
-		for (final var propertyDescriptor : IuException.unchecked(() -> Introspector.getBeanInfo(value.getClass()))
+		for (final var propertyDescriptor : IuException.unchecked(() -> Introspector.getBeanInfo(type))
 				.getPropertyDescriptors()) {
 			final var readMethod = propertyDescriptor.getReadMethod();
 			if (readMethod == null || readMethod.getDeclaringClass() == Object.class)

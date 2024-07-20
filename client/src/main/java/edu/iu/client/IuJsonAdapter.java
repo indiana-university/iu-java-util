@@ -201,7 +201,7 @@ public interface IuJsonAdapter<T> {
 	static <T> IuJsonAdapter<T> from(Class<T> type, IuJsonPropertyNameFormat propertyNameFormat,
 			Function<Type, IuJsonAdapter<?>> valueAdapter) {
 		return from(v -> IuJson.wrap(v.asJsonObject(), type, valueAdapter),
-				v -> JsonSerializer.serialize(v, propertyNameFormat, valueAdapter));
+				v -> JsonSerializer.serialize(type, v, propertyNameFormat, valueAdapter));
 	}
 
 	/**
