@@ -43,12 +43,16 @@ import edu.iu.IuException;
 @SuppressWarnings("javadoc")
 public class IuHttpTestCase {
 
-	static final URI TEST_URI = URI.create("test://localhost/" + IdGenerator.generateId());
+	static final URI TEST_INSECURE_URI = URI.create("test://localhost/" + IdGenerator.generateId());
+	static final URI TEST_URI = URI
+			.create("https://" + IdGenerator.generateId() + "/" + IdGenerator.generateId());
+	
 	static HttpClient http;
 
 	static {
 		try {
 			System.setProperty("iu.http.allowedUri", TEST_URI.toString());
+			System.setProperty("iu.http.allowedInsecureUri", TEST_INSECURE_URI.toString());
 
 			http = mock(HttpClient.class);
 			try (final var mockHttpClient = mockStatic(HttpClient.class)) {
