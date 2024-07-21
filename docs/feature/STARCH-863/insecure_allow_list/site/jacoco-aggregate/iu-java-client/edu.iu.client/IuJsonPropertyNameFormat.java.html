@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>IuJsonPropertyNameFormat.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-client</a> &gt; <a href="index.source.html" class="el_package">edu.iu.client</a> &gt; <span class="el_source">IuJsonPropertyNameFormat.java</span></div><h1>IuJsonPropertyNameFormat.java</h1><pre class="source lang-java linenums">package edu.iu.client;
+
+/**
+ * Enumerates property name formats for JSON conversion.
+ */
+<span class="fc" id="L6">public enum IuJsonPropertyNameFormat {</span>
+
+	/**
+	 * Uses Java properties names as-is.
+	 * 
+	 * &lt;p&gt;
+	 * Consistent with &lt;a href=
+	 * &quot;https://jakarta.ee/specifications/jsonb/3.0/apidocs/jakarta.json.bind/jakarta/json/bind/config/propertynamingstrategy&quot;&gt;JSON-B
+	 * PropertyNamingStrategy&lt;/a&gt;
+	 * &lt;/p&gt;
+	 */
+<span class="fc" id="L17">	IDENTITY,</span>
+
+	/**
+	 * Converts all letters to lower case, with an underline preceding each that was
+	 * originally upper case.
+	 * 
+	 * &lt;p&gt;
+	 * Consistent with &lt;a href=
+	 * &quot;https://jakarta.ee/specifications/jsonb/3.0/apidocs/jakarta.json.bind/jakarta/json/bind/config/propertynamingstrategy&quot;&gt;JSON-B
+	 * PropertyNamingStrategy&lt;/a&gt;
+	 * &lt;/p&gt;
+	 */
+<span class="fc" id="L29">	LOWER_CASE_WITH_UNDERSCORES,</span>
+
+	/**
+	 * Converts all letters to upper case, with an underline preceding each that was
+	 * originally upper case.
+	 */
+<span class="fc" id="L35">	UPPER_CASE_WITH_UNDERSCORES;</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
