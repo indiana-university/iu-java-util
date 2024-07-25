@@ -52,13 +52,13 @@ import java.util.logging.Logger;
 import edu.iu.IuDigest;
 import edu.iu.IuException;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.config.X500Utils;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebCertificateReference;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Use;
+import iu.auth.config.AuthConfig;
 import iu.auth.config.IuTrustedIssuer;
 import iu.auth.principal.PrincipalVerifier;
 
@@ -185,8 +185,9 @@ public final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuTru
 			}
 		} else if (privateKey != null) {
 			final var wellKnownJwk = pkp.getJwk().wellKnown();
-			pkp = (IuPrivateKeyPrincipal) IuAuthenticationRealm.JSON
-					.fromJson(IuJson.object(IuJson.unwrap(pkp)).add("jwk", WebKey.JSON.toJson(wellKnownJwk)).build());
+			final var wellKnownPkpBuilder = IuJson.object(IuJson.unwrap(pkp));
+			wellKnownPkpBuilder.add("jwk", WebKey.JSON.toJson(wellKnownJwk));
+			pkp = AuthConfig.adaptJson(IuPrivateKeyPrincipal.class).fromJson(wellKnownPkpBuilder.build());
 		}
 
 		try {

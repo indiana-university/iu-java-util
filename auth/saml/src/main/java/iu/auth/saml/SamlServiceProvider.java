@@ -88,7 +88,6 @@ import edu.iu.IuText;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
@@ -301,8 +300,8 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 	 * @return {@link SamlPrincipal}
 	 */
 	SamlPrincipal verifyResponse(InetAddress address, String samlResponse, String sessionId) {
-		final IuSamlServiceProviderMetadata config = IuAuthenticationRealm.of(realm);
-		final IuPrincipalIdentity identity = serviceProviderIdentity(config);
+		final var config = AuthConfig.load(IuSamlServiceProviderMetadata.class, realm);
+		final var identity = serviceProviderIdentity(config);
 
 		Thread current = Thread.currentThread();
 		ClassLoader currentLoader = current.getContextClassLoader();
@@ -381,8 +380,8 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 	 * @return {@link WebKey}
 	 */
 	WebKey getVerifyKey() {
-		final IuSamlServiceProviderMetadata config = IuAuthenticationRealm.of(realm);
-		final IuPrincipalIdentity identity = serviceProviderIdentity(config);
+		final var config = AuthConfig.load(IuSamlServiceProviderMetadata.class, realm);
+		final var identity = serviceProviderIdentity(config);
 		return identity.getSubject().getPrivateCredentials(WebKey.class).stream()
 				.filter(a -> "verify".equals(a.getKeyId())).findFirst().get();
 	}

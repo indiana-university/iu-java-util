@@ -65,7 +65,6 @@ public final class JsonProxy implements InvocationHandler {
 	 */
 	public static <T> T wrap(JsonObject value, Class<T> targetInterface,
 			Function<Type, IuJsonAdapter<?>> valueAdapter) {
-		IuObject.assertNotOpen(targetInterface);
 		JsonProxy.class.getModule().addReads(targetInterface.getModule());
 
 		return targetInterface.cast(Proxy.newProxyInstance(targetInterface.getClassLoader(),

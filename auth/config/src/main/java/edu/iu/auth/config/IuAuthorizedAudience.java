@@ -33,38 +33,12 @@ package edu.iu.auth.config;
 
 import java.net.URI;
 
-import edu.iu.IuObject;
 import edu.iu.auth.IuOneTimeNumberConfig;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import iu.auth.config.AuthConfig;
-import jakarta.json.JsonString;
 
 /**
  * Provides audience configuration.
  */
 public interface IuAuthorizedAudience {
-
-	/**
-	 * JSON type adapter.
-	 */
-	static final IuJsonAdapter<IuAuthorizedAudience> JSON = IuJsonAdapter.from(v -> {
-		if (v instanceof JsonString)
-			return of(((JsonString) v).getString());
-		else
-			return IuObject.convert(v,
-					a -> IuJson.wrap(a.asJsonObject(), IuAuthorizedAudience.class, AuthConfig::adaptJson));
-	}, IuJson::unwrap);
-
-	/**
-	 * Gets the configuration for an audience.
-	 * 
-	 * @param name audience name
-	 * @return audience configuration
-	 */
-	public static IuAuthorizedAudience of(String name) {
-		return AuthConfig.load(IuAuthorizedAudience.class, "audience/" + name);
-	}
 
 	/**
 	 * Gets the external root resource URI for this audience.

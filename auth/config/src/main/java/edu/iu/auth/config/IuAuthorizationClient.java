@@ -36,25 +36,12 @@ import java.time.Instant;
 import java.util.Set;
 
 import edu.iu.IuIterable;
-import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
-import iu.auth.config.AuthConfig;
-import jakarta.json.JsonString;
 
 /**
  * Provides client configuration.
  */
 public interface IuAuthorizationClient {
-
-	/**
-	 * JSON type adapter.
-	 */
-	static final IuJsonAdapter<IuAuthorizationClient> JSON = IuJsonAdapter.from(v -> {
-		if (v instanceof JsonString)
-			return of(((JsonString) v).getString());
-		else
-			return IuJson.wrap(v.asJsonObject(), IuAuthorizationClient.class, AuthConfig::adaptJson);
-	}, IuJson::unwrap);
 
 	/**
 	 * Enumerate token endpoint authentication methods types.
@@ -226,12 +213,6 @@ public interface IuAuthorizationClient {
 	interface Credentials extends IuPrivateKeyPrincipal {
 
 		/**
-		 * JSON type adapter.
-		 */
-		static IuJsonAdapter<Credentials> JSON = IuJsonAdapter
-				.from(v -> IuJson.wrap(v.asJsonObject(), Credentials.class, AuthConfig::adaptJson), IuJson::unwrap);
-
-		/**
 		 * Gets the grant types the credentials are authorized for use with.
 		 * 
 		 * @return {@link Set} of {@link GrantType}
@@ -252,16 +233,6 @@ public interface IuAuthorizationClient {
 		 */
 		Instant getExpires();
 
-	}
-
-	/**
-	 * Gets the configuration for a client.
-	 * 
-	 * @param name client name
-	 * @return client configuration
-	 */
-	static IuAuthorizationClient of(String name) {
-		return AuthConfig.load(IuAuthorizationClient.class, "client/" + name);
 	}
 
 	/**

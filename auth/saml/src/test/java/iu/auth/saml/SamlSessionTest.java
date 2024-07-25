@@ -64,7 +64,6 @@ import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.auth.saml.IuSamlAssertion;
@@ -140,7 +139,7 @@ public class SamlSessionTest {
 			IuSamlSession samlSession = new SamlSession(entryPointUri, postUri, () -> secret);
 			assertThrows(IuAuthenticationException.class,
 					() -> samlSession.verifyResponse("127.0.0.0", "", IdGenerator.generateId()));
-			
+
 			samlSession.getRequestUri();
 			assertThrows(IuAuthenticationException.class,
 					() -> samlSession.verifyResponse("127.0.0.0", "", IdGenerator.generateId()));
@@ -181,13 +180,12 @@ public class SamlSessionTest {
 		f.setAccessible(true);
 		f.set(provider, postUri);
 
-		try (final var mockIuAuthenticationRealm = mockStatic(IuAuthenticationRealm.class);
-				final var mockAuthConfig = mockStatic(AuthConfig.class, CALLS_REAL_METHODS);
+		try (final var mockAuthConfig = mockStatic(AuthConfig.class, CALLS_REAL_METHODS);
 				final var mockProvider = mockStatic(SamlServiceProvider.class)) {
 
 			mockProvider.when(() -> SamlServiceProvider.withBinding(postUri)).thenReturn(provider);
 
-			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
+			mockAuthConfig.when(() -> AuthConfig.load(IuSamlServiceProviderMetadata.class, realm)).thenReturn(config);
 			mockAuthConfig.when(() -> AuthConfig.get(IuSamlServiceProvider.class)).thenReturn(Arrays.asList(provider));
 			final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
 
@@ -264,13 +262,12 @@ public class SamlSessionTest {
 		f.setAccessible(true);
 		f.set(provider, postUri);
 
-		try (final var mockIuAuthenticationRealm = mockStatic(IuAuthenticationRealm.class);
-				final var mockAuthConfig = mockStatic(AuthConfig.class, CALLS_REAL_METHODS);
+		try (final var mockAuthConfig = mockStatic(AuthConfig.class, CALLS_REAL_METHODS);
 				final var mockProvider = mockStatic(SamlServiceProvider.class)) {
 			mockProvider.when(() -> SamlServiceProvider.withBinding(postUri)).thenReturn(provider);
 			mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any())).thenReturn(true);
 
-			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
+			mockAuthConfig.when(() -> AuthConfig.load(IuSamlServiceProviderMetadata.class, realm)).thenReturn(config);
 			mockAuthConfig.when(() -> AuthConfig.get(IuSamlServiceProvider.class)).thenReturn(Arrays.asList(provider));
 			final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
 
@@ -342,12 +339,11 @@ public class SamlSessionTest {
 		when(provider.verifyResponse(any(), any(), any())).thenReturn(mockSamlPrincipal);
 		when(provider.getVerifyAlg()).thenReturn(WebKey.Algorithm.RS256);
 		when(provider.getVerifyKey()).thenReturn(WebKey.ephemeral(Algorithm.RSA_OAEP));
-		try (final var mockIuAuthenticationRealm = mockStatic(IuAuthenticationRealm.class);
-				final var mockAuthConfig = mockStatic(AuthConfig.class, CALLS_REAL_METHODS);
+		try (final var mockAuthConfig = mockStatic(AuthConfig.class, CALLS_REAL_METHODS);
 				final var mockProvider = mockStatic(SamlServiceProvider.class)) {
 			mockProvider.when(() -> SamlServiceProvider.withBinding(postUri)).thenReturn(provider);
 
-			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
+			mockAuthConfig.when(() -> AuthConfig.load(IuSamlServiceProviderMetadata.class, realm)).thenReturn(config);
 			mockAuthConfig.when(() -> AuthConfig.get(IuSamlServiceProvider.class)).thenReturn(Arrays.asList(provider));
 			final var secret = WebKey.ephemeral(Encryption.A128GCM).getKey();
 
@@ -446,14 +442,13 @@ public class SamlSessionTest {
 		f.setAccessible(true);
 		f.set(provider, postUri);
 
-		try (final var mockIuAuthenticationRealm = mockStatic(IuAuthenticationRealm.class);
-				final var mockAuthConfig = mockStatic(AuthConfig.class, CALLS_REAL_METHODS);
+		try (final var mockAuthConfig = mockStatic(AuthConfig.class, CALLS_REAL_METHODS);
 				final var mockProvider = mockStatic(SamlServiceProvider.class)) {
 			mockProvider.when(() -> SamlServiceProvider.withBinding(postUri)).thenReturn(provider);
 			mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any()))
 					.thenThrow(IuAuthenticationException.class);
 
-			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
+			mockAuthConfig.when(() -> AuthConfig.load(IuSamlServiceProviderMetadata.class, realm)).thenReturn(config);
 			mockAuthConfig.when(() -> AuthConfig.get(IuSamlServiceProvider.class)).thenReturn(Arrays.asList(provider));
 			final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
 
@@ -473,6 +468,10 @@ public class SamlSessionTest {
 	static IuSamlServiceProviderMetadata getConfig(List<URI> metadataUris, String serviceProviderEntityId,
 			IuPrivateKeyPrincipal pkp, List<URI> acsUris) {
 		final var config = new IuSamlServiceProviderMetadata() {
+			@Override
+			public Type getType() {
+				return Type.SAML;
+			}
 
 			@Override
 			public String getServiceProviderEntityId() {
