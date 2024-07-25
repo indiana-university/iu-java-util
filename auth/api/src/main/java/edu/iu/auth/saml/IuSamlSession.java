@@ -32,6 +32,7 @@
 package edu.iu.auth.saml;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.function.Supplier;
 
 import javax.security.auth.Subject;
@@ -84,8 +85,9 @@ public interface IuSamlSession {
 	 *                     session.
 	 * @return {@link IuSamlSession}
 	 */
-	static IuSamlSession activate(String sessionToken, Supplier<byte[]> secretKey) {
-		return IuAuthSpiFactory.get(IuSamlSpi.class).activateSession(sessionToken, secretKey);
+	static IuSamlSession activate(String sessionToken, Supplier<byte[]> secretKey, Duration sessionTtl) {
+		
+		return IuAuthSpiFactory.get(IuSamlSpi.class).activateSession(sessionToken, secretKey, sessionTtl);
 	}
 
 	/**
@@ -139,5 +141,6 @@ public interface IuSamlSession {
 	 */
 	@Override
 	String toString();
+	
 
 }

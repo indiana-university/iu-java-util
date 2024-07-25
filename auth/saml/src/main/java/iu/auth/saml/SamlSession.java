@@ -80,7 +80,7 @@ final class SamlSession implements IuSamlSession {
 	 * @param postUri       HTTP POST Binding URI
 	 * @param secretKey     Secret key to use for tokenizing the session.
 	 */
-	SamlSession(URI entryPointUri, URI postUri, Supplier<byte[]> secretKey) {
+	SamlSession(URI entryPointUri, URI postUri, Supplier<byte[]> secretKey, Duration sessionTtl) {
 		this.entryPointUri = entryPointUri;
 		this.postUri = postUri;
 		this.serviceProvider = SamlServiceProvider.withBinding(postUri);

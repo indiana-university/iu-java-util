@@ -32,6 +32,7 @@
 package iu.auth.saml;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.function.Supplier;
 
 import edu.iu.IuObject;
@@ -58,8 +59,8 @@ public class SamlSpi implements IuSamlSpi {
 	}
 
 	@Override
-	public IuSamlSession activateSession(String sessionToken, Supplier<byte[]> secretKey) {
-		return new SamlSession(sessionToken, secretKey);
+	public IuSamlSession activateSession(String sessionToken, Supplier<byte[]> secretKey, Duration sessionTtl) {
+		return new SamlSession(sessionToken, secretKey, sessionTtl);
 	}
 
 }

@@ -32,6 +32,7 @@
 package edu.iu.auth.spi;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.function.Supplier;
 
 import edu.iu.auth.saml.IuSamlSession;
@@ -56,8 +57,9 @@ public interface IuSamlSpi {
 	 * 
 	 * @param sessionToken Tokenized session
 	 * @param secretKey    Secret key supplier
+	 * @param sessionTtl 
 	 * @return {@link IuSamlSession}
 	 */
-	IuSamlSession activateSession(String sessionToken, Supplier<byte[]> secretKey);
+	IuSamlSession activateSession(String sessionToken, Supplier<byte[]> secretKey, Duration sessionTtl);
 
 }
