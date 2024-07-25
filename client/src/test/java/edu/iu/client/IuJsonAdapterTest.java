@@ -135,6 +135,22 @@ public class IuJsonAdapterTest {
 		verify(from).apply(null);
 	}
 
+	public interface Bean {
+		String getId();
+	}
+
+	@Test
+	public void testFromJavaBeans() {
+		final var id = IdGenerator.generateId();
+		final var adapter = IuJsonAdapter.from(Bean.class, IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of);
+		assertEquals(id, adapter.fromJson(adapter.toJson(new Bean() {
+			@Override
+			public String getId() {
+				return id;
+			}
+		})).getId());
+	}
+
 	@Test
 	@SuppressWarnings("unchecked")
 	public void testTo() {

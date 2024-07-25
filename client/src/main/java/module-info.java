@@ -41,5 +41,6 @@ module iu.util.client {
 
 	requires iu.util;
 	requires transitive jakarta.json;
+	requires java.desktop;
 	requires transitive java.net.http;
 }
