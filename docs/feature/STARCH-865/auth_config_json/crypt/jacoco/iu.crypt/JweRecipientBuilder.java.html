@@ -1,0 +1,345 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JweRecipientBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Web Cryptography Utilities</a> &gt; <a href="index.source.html" class="el_package">iu.crypt</a> &gt; <span class="el_source">JweRecipientBuilder.java</span></div><h1>JweRecipientBuilder.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.crypt;
+
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.util.Arrays;
+
+import javax.crypto.Cipher;
+import javax.crypto.KeyAgreement;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
+
+import edu.iu.IuException;
+import edu.iu.IuObject;
+import edu.iu.IuText;
+import edu.iu.crypt.WebCryptoHeader.Param;
+import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebEncryptionRecipient.Builder;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Use;
+
+/**
+ * Builds JWE recipients for {@link JweBuilder}
+ */
+class JweRecipientBuilder extends JoseBuilder&lt;JweRecipientBuilder&gt; implements Builder&lt;JweRecipientBuilder&gt; {
+
+	/**
+	 * Computes the agreed-upon key for ECDH key agreement with NIST.SP.800.56C
+	 * Concat KDF using SHA-256 as the key derivation formula.
+	 * 
+	 * @param privateKey JCE private key
+	 * @param publicKey  JCE public key
+	 * @param algorithm  JCE key agreement algorithm name
+	 * @param algId      JWA algorithm ID
+	 * @param uinfo      PartyUInfo value for Concat KDF
+	 * @param vinfo      PartyVInfo value for Concat KDF
+	 * @param keyDataLen bit length of desired output key, SuppPubInfo for Concat
+	 *                   KDF
+	 * @return derived key data
+	 * @see &lt;a href=
+	 *      &quot;https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-56Ar3.pdf&quot;&gt;NIST.SP.800-56Ar3&lt;/a&gt;
+	 * @see &lt;a href=
+	 *      &quot;https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-56Cr2.pdf&quot;&gt;NIST.SP.800-56Cr2&lt;/a&gt;
+	 * @see &lt;a href=
+	 *      &quot;https://datatracker.ietf.org/doc/html/rfc7518#section-4.6.2&quot;&gt;RFC-7518
+	 *      JSON Web Algorithms (JWA) 4.6.2&lt;/a&gt;
+	 */
+	static byte[] agreedUponKey(PrivateKey privateKey, PublicKey publicKey, String algorithm, byte[] algId,
+			byte[] uinfo, byte[] vinfo, int keyDataLen) {
+
+<span class="fc" id="L87">		final var z = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L88">			final var ka = KeyAgreement.getInstance(algorithm);</span>
+<span class="fc" id="L89">			ka.init(privateKey);</span>
+<span class="fc" id="L90">			ka.doPhase(publicKey, true);</span>
+<span class="fc" id="L91">			return ka.generateSecret();</span>
+		});
+
+		// JWA: H = SHA-256
+		// L in [256,384,512] for AES-CBC-HMAC, [128,192,512] for AES-GCM and ECDH+KW
+		// =&gt; 1 or 2 rounds
+<span class="fc bfc" id="L97" title="All 2 branches covered.">		final var reps = keyDataLen &lt;= 256 ? 1 : 2;</span>
+<span class="fc" id="L98">		final var keyData = new byte[32 * reps];</span>
+
+		// NIST.SP.800-56Cr2 5.8.2.1.1:
+		// R(0) = []
+		// K = for n in [1..r]: R(n-1) || R(n)
+<span class="fc" id="L103">		final var keyBuffer = ByteBuffer.wrap(keyData);</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">		for (var i = 0; i &lt; reps; i++) {</span>
+<span class="fc" id="L105">			final var n = i + 1;</span>
+			// R(n) = H(n || Z || FixedInfo)
+<span class="fc" id="L107">			keyBuffer.put(IuException.unchecked(() -&gt; MessageDigest.getInstance(&quot;SHA-256&quot;))</span>
+<span class="fc" id="L108">					.digest(EncodingUtils.concatKdf(n, z, /* FixedInfo = */ algId, uinfo, vinfo, keyDataLen)));</span>
+		}
+
+<span class="fc" id="L111">		final var keylen = keyDataLen / 8;</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">		if (keyData.length == keylen)</span>
+<span class="fc" id="L113">			return keyData;</span>
+		else
+<span class="fc" id="L115">			return Arrays.copyOf(keyData, keylen);</span>
+	}
+
+	/**
+	 * Handles ephemeral key-protection parameters.
+	 */
+	class EncryptedKeyBuilder extends JoseBuilder&lt;EncryptedKeyBuilder&gt; {
+
+<span class="fc" id="L123">		private EncryptedKeyBuilder() {</span>
+<span class="fc" id="L124">			super(Algorithm.JSON.fromJson(JweRecipientBuilder.this.param(&quot;alg&quot;)));</span>
+<span class="fc" id="L125">			copy(JweRecipientBuilder.this);</span>
+<span class="fc" id="L126">		}</span>
+
+		/**
+		 * Gets the algorithm
+		 * 
+		 * @return algorithm
+		 */
+		Algorithm algorithm() {
+<span class="fc" id="L134">			return Algorithm.JSON.fromJson(param(&quot;alg&quot;));</span>
+		}
+
+		/**
+		 * Computes the agreed-upon key for the Elliptic Curve Diffie-Hellman algorithm.
+		 * 
+		 * @param encryption encryption algorithm
+		 * @param epk        key to use as the ephemeral public key; &lt;em&gt;must&lt;/em&gt;
+		 *                   contain an EC public/private key, when serialized with only
+		 *                   kid, or jwk (if kid is null); &lt;em&gt;may&lt;/em&gt; be null to
+		 *                   generate an epk
+		 * 
+		 * @return agreed-upon key
+		 * @see &lt;a href=
+		 *      &quot;https://datatracker.ietf.org/doc/html/rfc7518#section-4.6&quot;&gt;RFC-7518 JWA
+		 *      Section 4.6&lt;/a&gt;
+		 * @see &lt;a href=
+		 *      &quot;https://datatracker.ietf.org/doc/html/rfc7516#section-5.1&quot;&gt;RFC-7516 JWE
+		 *      Section 5.1 #3&lt;/a&gt;
+		 */
+		byte[] agreedUponKey(Encryption encryption) {
+<span class="fc" id="L155">			final var algorithm = this.algorithm();</span>
+
+<span class="fc" id="L157">			final var key = key();</span>
+<span class="fc" id="L158">			final var type = key.getType();</span>
+			final String keyAlg;
+<span class="fc bfc" id="L160" title="All 2 branches covered.">			if (type.kty.equals(&quot;EC&quot;))</span>
+<span class="fc" id="L161">				keyAlg = &quot;ECDH&quot;;</span>
+			else
+<span class="fc" id="L163">				keyAlg = type.algorithmParams;</span>
+
+<span class="fc" id="L165">			final var epk = WebKey.builder(type).algorithm(algorithm).ephemeral().build();</span>
+<span class="fc" id="L166">			param(Param.EPHEMERAL_PUBLIC_KEY, epk.wellKnown());</span>
+
+<span class="fc" id="L168">			final var uinfo = UnpaddedBinary.JSON.fromJson(param(&quot;apu&quot;));</span>
+<span class="fc" id="L169">			final var vinfo = UnpaddedBinary.JSON.fromJson(param(&quot;apv&quot;));</span>
+
+			final int keyDataLen;
+			final byte[] algId;
+<span class="fc bfc" id="L173" title="All 2 branches covered.">			if (algorithm.equals(Algorithm.ECDH_ES)) {</span>
+<span class="fc" id="L174">				keyDataLen = encryption.size;</span>
+<span class="fc" id="L175">				algId = IuText.ascii(encryption.enc);</span>
+			} else {
+<span class="fc" id="L177">				keyDataLen = algorithm.size;</span>
+<span class="fc" id="L178">				algId = IuText.ascii(algorithm.alg);</span>
+			}
+
+<span class="fc" id="L181">			return JweRecipientBuilder.agreedUponKey(epk.getPrivateKey(), key().getPublicKey(), keyAlg, algId, uinfo,</span>
+					vinfo, keyDataLen);
+		}
+
+		/**
+		 * Gets the passphrase-derived key to use with PBKDF2 key derivation defined by
+		 * &lt;a href=&quot;https://datatracker.ietf.org/doc/html/rfc8018&quot;&gt;PKCS#5&lt;/a&gt;.
+		 * 
+		 * @return 128-bit derived key data suitable for use with AESWrap
+		 */
+		byte[] passphraseDerivedKey() {
+<span class="fc" id="L192">			final var algorithm = this.algorithm();</span>
+
+<span class="fc" id="L194">			final var alg = IuText.utf8(algorithm.alg);</span>
+<span class="fc" id="L195">			final byte[] p2s = new byte[algorithm.size / 8];</span>
+<span class="fc" id="L196">			new SecureRandom().nextBytes(p2s);</span>
+<span class="fc" id="L197">			param(Param.PASSWORD_SALT, p2s);</span>
+
+			// ASVS4 #2.4.3: Verify that if PBKDF2 is used, the iteration count SHOULD be as
+			// large as verification server performance will allow, typically at least
+			// 100,000 iterations. (C6)
+
+			// 128 -&gt; 131072, 192 -&gt; 196608, 256 -&gt; 262144
+<span class="fc" id="L204">			final var p2c = algorithm.size * 1024;</span>
+<span class="fc" id="L205">			param(Param.PASSWORD_COUNT, p2c);</span>
+
+<span class="fc" id="L207">			final var saltValue = ByteBuffer.wrap(new byte[alg.length + 1 + p2s.length]);</span>
+<span class="fc" id="L208">			saltValue.put(alg);</span>
+<span class="fc" id="L209">			saltValue.put((byte) 0);</span>
+<span class="fc" id="L210">			saltValue.put(p2s);</span>
+
+<span class="fc" id="L212">			return IuException</span>
+<span class="fc" id="L213">					.unchecked(() -&gt; SecretKeyFactory.getInstance(algorithm.algorithm).generateSecret(</span>
+<span class="fc" id="L214">							new PBEKeySpec(IuText.utf8(key().getKey()).toCharArray(), saltValue.array(), p2c, 128)))</span>
+<span class="fc" id="L215">					.getEncoded();</span>
+		}
+
+		/**
+		 * Generates the encrypted key and creates the recipient.
+		 * 
+		 * @param encryption           content encryption algorithm
+		 * @param contentEncryptionKey supplies an ephemeral content encryption key if
+		 *                             needed
+		 * @param from                 message originator key, if known
+		 * 
+		 * @return recipient
+		 */
+		@SuppressWarnings({ &quot;deprecation&quot; })
+		JweRecipient encrypt(Encryption encryption, byte[] contentEncryptionKey) {
+<span class="fc" id="L230">			final var algorithm = this.algorithm();</span>
+
+<span class="fc" id="L232">			byte[] encryptedKey = null;</span>
+			// 5.1#4 encrypt CEK to the recipient
+<span class="fc bfc" id="L234" title="All 6 branches covered.">			switch (algorithm) {</span>
+			case A128KW:
+			case A192KW:
+			case A256KW:
+				// key wrapping
+<span class="fc" id="L239">				encryptedKey = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L240">					final var key = new SecretKeySpec(key().getKey(), &quot;AES&quot;);</span>
+<span class="fc" id="L241">					final var cipher = Cipher.getInstance(algorithm.algorithm);</span>
+<span class="fc" id="L242">					cipher.init(Cipher.WRAP_MODE, key);</span>
+<span class="fc" id="L243">					return cipher.wrap(new SecretKeySpec(contentEncryptionKey, &quot;AES&quot;));</span>
+				});
+<span class="fc" id="L245">				break;</span>
+
+			case A128GCMKW:
+			case A192GCMKW:
+			case A256GCMKW:
+				// key wrapping w/ GCM
+<span class="fc" id="L251">				encryptedKey = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L252">					final var key = new SecretKeySpec(key().getKey(), &quot;AES&quot;);</span>
+<span class="fc" id="L253">					final var iv = new byte[12];</span>
+<span class="fc" id="L254">					new SecureRandom().nextBytes(iv);</span>
+<span class="fc" id="L255">					param(Param.INITIALIZATION_VECTOR, iv);</span>
+
+<span class="fc" id="L257">					final var cipher = Cipher.getInstance(algorithm.algorithm);</span>
+<span class="fc" id="L258">					cipher.init(Cipher.WRAP_MODE, key, new GCMParameterSpec(128, iv));</span>
+<span class="fc" id="L259">					final var wrappedKey = cipher.wrap(new SecretKeySpec(contentEncryptionKey, &quot;AES&quot;));</span>
+
+<span class="fc" id="L261">					param(Param.TAG, Arrays.copyOfRange(wrappedKey, wrappedKey.length - 16, wrappedKey.length));</span>
+
+<span class="fc" id="L263">					return Arrays.copyOf(wrappedKey, wrappedKey.length - 16);</span>
+				});
+<span class="fc" id="L265">				break;</span>
+
+			case RSA1_5:
+			case RSA_OAEP:
+			case RSA_OAEP_256:
+				// key encryption
+<span class="fc" id="L271">				encryptedKey = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L272">					final var keyCipher = Cipher.getInstance(algorithm.algorithm);</span>
+<span class="fc" id="L273">					keyCipher.init(Cipher.ENCRYPT_MODE, key().getPublicKey());</span>
+<span class="fc" id="L274">					return keyCipher.doFinal(contentEncryptionKey);</span>
+				});
+<span class="fc" id="L276">				break;</span>
+
+			case ECDH_ES_A128KW:
+			case ECDH_ES_A192KW:
+			case ECDH_ES_A256KW:
+				// key agreement with key wrapping
+<span class="fc" id="L282">				encryptedKey = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L283">					final var key = new SecretKeySpec(agreedUponKey(encryption), &quot;AES&quot;);</span>
+<span class="fc" id="L284">					final var cipher = Cipher.getInstance(&quot;AESWrap&quot;);</span>
+<span class="fc" id="L285">					cipher.init(Cipher.WRAP_MODE, key);</span>
+<span class="fc" id="L286">					return cipher.wrap(new SecretKeySpec(contentEncryptionKey, &quot;AES&quot;));</span>
+				});
+<span class="fc" id="L288">				break;</span>
+
+			case PBES2_HS256_A128KW:
+			case PBES2_HS384_A192KW:
+			case PBES2_HS512_A256KW:
+				// passphrase-derived key with key wrapping
+<span class="fc" id="L294">				encryptedKey = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L295">					final var key = new SecretKeySpec(passphraseDerivedKey(), &quot;AES&quot;);</span>
+<span class="fc" id="L296">					final var cipher = Cipher.getInstance(&quot;AESWrap&quot;);</span>
+<span class="fc" id="L297">					cipher.init(Cipher.WRAP_MODE, key);</span>
+<span class="fc" id="L298">					return cipher.wrap(new SecretKeySpec(contentEncryptionKey, &quot;AES&quot;));</span>
+				});
+<span class="fc" id="L300">				break;</span>
+
+			case ECDH_ES:
+			case EDDSA:
+			case DIRECT:
+			default:
+<span class="fc" id="L306">				IuObject.once(algorithm.use, Use.ENCRYPT, &quot;encryption algorithm required&quot;);</span>
+				// 5.1#5 don't populate encrypted key for direct key agreement or encryption
+<span class="fc" id="L308">				encryptedKey = null;</span>
+				break;
+			}
+
+<span class="fc" id="L312">			final var header = new Jose(toJson());</span>
+<span class="fc" id="L313">			return new JweRecipient(header, encryptedKey);</span>
+		}
+	}
+
+	private final JweBuilder jweBuilder;
+
+	/**
+	 * Constructor
+	 * 
+	 * @param jweBuilder JWE builder
+	 * @param algorithm  key encryption algorithm
+	 */
+	JweRecipientBuilder(JweBuilder jweBuilder, Algorithm algorithm) {
+<span class="fc" id="L326">		super(algorithm);</span>
+<span class="fc" id="L327">		this.jweBuilder = jweBuilder;</span>
+<span class="fc" id="L328">	}</span>
+
+	@Override
+	public JweBuilder then() {
+<span class="fc" id="L332">		return jweBuilder;</span>
+	}
+
+	/**
+	 * Gets a builder for completing key protection.
+	 * 
+	 * @return encrypted key builder
+	 */
+	EncryptedKeyBuilder encryptedKeyBuilder() {
+<span class="fc" id="L341">		return new EncryptedKeyBuilder();</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

@@ -1,0 +1,614 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>IuParallelWorkloadController.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-base</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuParallelWorkloadController.java</span></div><h1>IuParallelWorkloadController.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Objects;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import iu.ParallelTaskController;
+
+/**
+ * Controls parallel processing over a bounded workload.
+ * 
+ * &lt;p&gt;
+ * &lt;img alt=&quot;UML Class Diagram&quot; src=
+ * &quot;doc-files/edu.iu.IuParallelWorkloadController.svg&quot; /&gt;
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * Each controller is {@link AutoCloseable closeable}, timed, and operates in a
+ * dedicated task executor. It's expected for all tasks related to the workload
+ * to complete within the established a given {@link Duration timeout interval},
+ * after which active tasks will be interrupted and related resources will be
+ * torn down.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * All tasks &lt;em&gt;should&lt;/em&gt; handle exceptions. By default, any
+ * {@link Throwable} not handled by task execution notifies an immediate stop to
+ * all work and for the controller to close. The exception that caused the
+ * failure will be thrown as the cause of {@link ExecutionException} from
+ * {@link #await()}.
+ * &lt;/p&gt;
+ * 
+ * @see IuAsynchronousPipe
+ * @see IuTaskController
+ * @see IuRateLimitter
+ */
+public class IuParallelWorkloadController
+		implements UnsafeFunction&lt;UnsafeConsumer&lt;IuTaskController&gt;, IuTaskController&gt;, AutoCloseable {
+
+<span class="fc" id="L83">	private final static Logger LOG = Logger.getLogger(IuParallelWorkloadController.class.getName());</span>
+
+	private final Instant start;
+	private final Instant expires;
+	private final Duration timeout;
+
+<span class="fc" id="L89">	private Duration gracefulShutdown = Duration.ofMillis(500L);</span>
+<span class="fc" id="L90">	private Duration gracefulTermination = Duration.ofSeconds(2L);</span>
+<span class="fc" id="L91">	private Duration gracefulDestroy = Duration.ofSeconds(3L);</span>
+<span class="fc" id="L92">	private Consumer&lt;Throwable&gt; failedExecutionHandler = this::defaultHandleFailedExecution;</span>
+
+	private final int size;
+<span class="fc" id="L95">	private final ThreadLocal&lt;Integer&gt; usageCount = new ThreadLocal&lt;&gt;();</span>
+
+<span class="fc" id="L97">	private Logger log = LOG;</span>
+
+	private volatile long spawned;
+	private volatile long pending;
+	private volatile long completed;
+
+	private volatile Throwable severeFailure;
+	private volatile boolean closed;
+	private ThreadGroup threadGroup;
+	private ThreadPoolExecutor exec;
+	private Timer closeTimer;
+
+<span class="fc" id="L109">	private class CloseTask extends TimerTask {</span>
+
+		@Override
+		public void run() {
+<span class="fc" id="L113">			final Logger log = IuParallelWorkloadController.this.log;</span>
+			try {
+<span class="fc" id="L115">				log.config(() -&gt; &quot;Terminating all execution due to parallel workload timeout&quot;);</span>
+<span class="fc" id="L116">				close();</span>
+<span class="fc" id="L117">			} catch (Throwable e) {</span>
+<span class="fc" id="L118">				log.log(Level.WARNING, e, () -&gt; &quot;Execution errors detected by parallel workload timeout&quot;);</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">				if (severeFailure == null)</span>
+<span class="fc" id="L120">					severeFailure = e;</span>
+				else
+<span class="fc" id="L122">					severeFailure.addSuppressed(e);</span>
+<span class="fc" id="L123">			}</span>
+<span class="fc" id="L124">		}</span>
+
+	}
+
+	/**
+	 * Creates a new workload controller.
+	 * 
+	 * @param name    descriptive name of the workload, for logging and error
+	 *                reporting
+	 * @param size    maximum number of parallel tasks to execute at the same time
+	 * @param timeout total time to live for all workload-related tasks
+	 */
+<span class="fc" id="L136">	public IuParallelWorkloadController(String name, int size, Duration timeout) {</span>
+<span class="fc bfc" id="L137" title="All 4 branches covered.">		if (timeout.isNegative() || timeout.isZero())</span>
+<span class="fc" id="L138">			throw new IllegalArgumentException(&quot;timeout must be positive&quot;);</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">		if (size &lt; 1)</span>
+<span class="fc" id="L140">			throw new IllegalArgumentException(&quot;size must be positive&quot;);</span>
+
+<span class="fc" id="L142">		this.size = size;</span>
+<span class="fc" id="L143">		this.timeout = timeout;</span>
+
+<span class="fc" id="L145">		threadGroup = new ThreadGroup(name);</span>
+
+<span class="fc" id="L147">		final Timer closeTimer = new Timer(name + &quot;/closeTimer&quot;);</span>
+<span class="fc" id="L148">		closeTimer.schedule(new CloseTask(), timeout.toMillis());</span>
+<span class="fc" id="L149">		this.closeTimer = closeTimer;</span>
+
+<span class="fc" id="L151">		exec = new ThreadPoolExecutor(size, Math.max(5, size * 2), timeout.toMillis(), TimeUnit.MILLISECONDS,</span>
+				new SynchronousQueue&lt;&gt;(), r -&gt; {
+					long threadNum;
+<span class="fc" id="L154">					synchronized (IuParallelWorkloadController.this) {</span>
+<span class="fc" id="L155">						threadNum = spawned++;</span>
+<span class="fc" id="L156">					}</span>
+
+<span class="fc" id="L158">					Thread thread = new Thread(threadGroup, r, name + '/' + threadNum);</span>
+<span class="fc" id="L159">					log.config(&quot;Spawned &quot; + thread.getName());</span>
+<span class="fc" id="L160">					return thread;</span>
+				});
+
+<span class="fc" id="L163">		start = Instant.now();</span>
+<span class="fc" id="L164">		expires = start.plus(timeout);</span>
+<span class="fc" id="L165">	}</span>
+
+	// BEGIN customization hooks
+
+	/**
+	 * Provides an alternative logger to use for tracing workload events.
+	 * 
+	 * &lt;p&gt;
+	 * Uses a class-level delegating default logger until this method provides an
+	 * alternative.
+	 * &lt;/p&gt;
+	 * 
+	 * @param log alternative logger
+	 */
+	public void setLog(Logger log) {
+<span class="fc bfc" id="L180" title="All 2 branches covered.">		if (this.log != LOG)</span>
+<span class="fc" id="L181">			throw new IllegalStateException(&quot;Logger already initialized&quot;);</span>
+
+<span class="fc" id="L183">		Objects.requireNonNull(log, &quot;log&quot;).config(() -&gt; &quot;Logger configured &quot; + this);</span>
+<span class="fc" id="L184">		this.log = log;</span>
+<span class="fc" id="L185">	}</span>
+
+	/**
+	 * Sets the time to wait for worker threads to complete after closing the
+	 * controller, before shutting down the thread pool.
+	 * 
+	 * @param gracefulShutdown {@link Duration}
+	 */
+	public void setGracefulShutdown(Duration gracefulShutdown) {
+<span class="fc bfc" id="L194" title="All 2 branches covered.">		if (Objects.requireNonNull(gracefulShutdown, &quot;gracefulShutdown&quot;).compareTo(Duration.ZERO) &lt;= 0)</span>
+<span class="fc" id="L195">			throw new IllegalArgumentException(&quot;Must be positive&quot;);</span>
+<span class="fc" id="L196">		this.gracefulShutdown = gracefulShutdown;</span>
+<span class="fc" id="L197">	}</span>
+
+	/**
+	 * Sets the time to wait for the thread pool to shut down, after closing the
+	 * controller and waiting for worker threads to
+	 * {@link #setGracefulShutdown(Duration) complete gracefully}, before
+	 * interrupting all threads managed by this controller.
+	 * 
+	 * @param gracefulTermination {@link Duration}
+	 */
+	public void setGracefulTermination(Duration gracefulTermination) {
+<span class="fc bfc" id="L208" title="All 2 branches covered.">		if (Objects.requireNonNull(gracefulTermination, &quot;gracefulTermination&quot;).compareTo(Duration.ZERO) &lt;= 0)</span>
+<span class="fc" id="L209">			throw new IllegalArgumentException(&quot;Must be positive&quot;);</span>
+<span class="fc" id="L210">		this.gracefulTermination = gracefulTermination;</span>
+<span class="fc" id="L211">	}</span>
+
+	/**
+	 * Sets the time to wait for the thread pool to shut down, after closing the
+	 * controller, waiting for worker threads to
+	 * {@link #setGracefulShutdown(Duration) complete gracefully}, and interrupting
+	 * all threads managed by this controller.
+	 * 
+	 * &lt;p&gt;
+	 * After the graceful destroy period has passed, all threads managed by this
+	 * controller and still running will be abandoned and a {@link Level#WARNING}
+	 * will be logged. This condition indicates a possible resource leak.
+	 * &lt;/p&gt;
+	 * 
+	 * @param gracefulDestroy {@link Duration}
+	 */
+	public void setGracefulDestroy(Duration gracefulDestroy) {
+<span class="fc bfc" id="L228" title="All 2 branches covered.">		if (Objects.requireNonNull(gracefulDestroy, &quot;gracefulDestroy&quot;).compareTo(Duration.ZERO) &lt;= 0)</span>
+<span class="fc" id="L229">			throw new IllegalArgumentException(&quot;Must be positive&quot;);</span>
+<span class="fc" id="L230">		this.gracefulDestroy = gracefulDestroy;</span>
+<span class="fc" id="L231">	}</span>
+
+	/**
+	 * Overrides the default execution handler.
+	 *
+	 * @param failedExecutionHandler consumer to accept any task execution failures,
+	 *                               &lt;em&gt;may&lt;/em&gt; call
+	 *                               {@link #defaultHandleFailedExecution(Throwable)}
+	 *                               to inject default behavior.
+	 */
+	public void setFailedExecutionHandler(Consumer&lt;Throwable&gt; failedExecutionHandler) {
+<span class="fc" id="L242">		this.failedExecutionHandler = failedExecutionHandler;</span>
+<span class="fc" id="L243">	}</span>
+
+	/**
+	 * Invoked by default if any task throws an exception during execution.
+	 * 
+	 * @param cause task execution error
+	 */
+	public synchronized void defaultHandleFailedExecution(Throwable cause) {
+<span class="fc bfc" id="L251" title="All 2 branches covered.">		if (severeFailure == null)</span>
+<span class="fc" id="L252">			severeFailure = cause;</span>
+		else
+<span class="fc" id="L254">			severeFailure.addSuppressed(cause);</span>
+
+<span class="fc" id="L256">		closeTimer.schedule(new CloseTask(), 0L);</span>
+<span class="fc" id="L257">	}</span>
+
+	/**
+	 * Gets a count of threads spawned by this controller.
+	 * 
+	 * @return thread count
+	 */
+	public long getSpawnedThreadCount() {
+<span class="fc" id="L265">		return spawned;</span>
+	}
+
+	/**
+	 * Gets a count of tasks submitted to this controller that have not yet
+	 * completed.
+	 * 
+	 * @return pending task count
+	 */
+	public long getPendingTaskCount() {
+<span class="fc" id="L275">		return pending;</span>
+	}
+
+	/**
+	 * Gets a count of tasks completed by this controller.
+	 * 
+	 * @return pending task count
+	 */
+	public long getCompletedTaskCount() {
+<span class="fc" id="L284">		return completed;</span>
+	}
+
+	/**
+	 * Gets the time elapsed since the controller was created.
+	 * 
+	 * @return time elapsed
+	 */
+	public Duration getElapsed() {
+<span class="fc" id="L293">		return Duration.between(start, Instant.now());</span>
+	}
+
+	/**
+	 * Gets the time remaining until the controller expires.
+	 * 
+	 * @return time remaining; may be zero or negative if already
+	 *         {@link #isExpired()}
+	 */
+	public Duration getRemaining() {
+<span class="fc" id="L303">		return Duration.between(Instant.now(), expires);</span>
+	}
+
+	/**
+	 * Gets the instant the timeout interval expires.
+	 * 
+	 * @return instant the timeout interval expires.
+	 */
+	public Instant getExpires() {
+<span class="fc" id="L312">		return expires;</span>
+	}
+
+	/**
+	 * Determines whether or not the controller has expired.
+	 * 
+	 * &lt;p&gt;
+	 * Once expired, all threads waiting on the controller will be notified and the
+	 * controller will be closed. No more tasks may be submitted once the controller
+	 * has expired; all remaining tasks will be interrupted and/or throw
+	 * {@link IllegalStateException} with a message indicating a timeout.
+	 * &lt;/p&gt;
+	 * 
+	 * @return true if the controller is expired; else false
+	 */
+	public boolean isExpired() {
+<span class="fc bfc" id="L328" title="All 2 branches covered.">		return !Instant.now().isBefore(expires);</span>
+	}
+
+	/**
+	 * Wait until either all pending tasks have completed, or until the controller
+	 * {@link #isExpired() expires}.
+	 * 
+	 * @throws ExecutionException   If a task used
+	 *                              {@link #defaultHandleFailedExecution(Throwable)}
+	 *                              to report an execution error. The first error
+	 *                              reported will be the cause, and additional
+	 *                              errors reported prior to shutdown will be
+	 *                              suppressed.
+	 * @throws InterruptedException if interrupted waiting for pending tasks to
+	 *                              complete. If task execution was interrupted,
+	 *                              that condition will be the cause of
+	 *                              {@link ExecutionException};
+	 *                              {@link InterruptedException} thrown directly
+	 *                              indicates this thread, not a task thread, was
+	 *                              interrupted.
+	 * @throws TimeoutException     if the controller expires before all pending
+	 *                              tasks complete normally. If task times out, that
+	 *                              condition will be the cause of
+	 *                              {@link ExecutionException};
+	 *                              {@link TimeoutException} thrown directly
+	 *                              indicates this thread, not a task thread, timed
+	 *                              out.
+	 */
+	public synchronized void await() throws ExecutionException, InterruptedException, TimeoutException {
+		// deadlock prevention: don't include the current thread if controlling a task
+<span class="fc bfc" id="L358" title="All 2 branches covered.">		int min = Thread.currentThread().getThreadGroup() == threadGroup ? 1 : 0;</span>
+
+<span class="fc bfc" id="L360" title="All 4 branches covered.">		IuObject.waitFor(this, () -&gt; severeFailure != null || pending &lt;= min, expires, this::createTimeoutException);</span>
+
+<span class="fc bfc" id="L362" title="All 2 branches covered.">		if (severeFailure != null)</span>
+<span class="fc" id="L363">			throw new ExecutionException(severeFailure);</span>
+<span class="fc" id="L364">	}</span>
+
+	/**
+	 * Submits an asynchronous task for processing.
+	 * 
+	 * &lt;p&gt;
+	 * This method will block until a thread is available for excuting the task, or
+	 * until the controller has {@link #isExpired() expired}. Applications
+	 * &lt;em&gt;should&lt;/em&gt;, however, use {@link IuRateLimitter} or similar to restrict
+	 * prevent the need for blocking, and &lt;em&gt;should&lt;/em&gt; enforce SLOs on workload
+	 * runtimes to ensure algorithm scalability can be calculated to approach but
+	 * not reach the upper limit.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * To ensure resources are released gracefully and efficiently when the workload
+	 * timeout expires, both the thread the created the task and the thread
+	 * executing the task &lt;em&gt;may&lt;/em&gt; use {@link IuTaskController} to synchronize
+	 * task execution.
+	 * &lt;/p&gt;
+	 * 
+	 * @param task task, will be provided a {@link IuTaskController} for
+	 *             synchronizing task execution.
+	 * @return {@link IuTaskController}
+	 * @throws TimeoutException     if the workload expiration timeout is reached
+	 *                              before a worker thread is available
+	 * @throws InterruptedException if the current thread is interrupted before a
+	 *                              worker thread picks up the task
+	 */
+	@Override
+	public IuTaskController apply(UnsafeConsumer&lt;IuTaskController&gt; task) throws InterruptedException, TimeoutException {
+
+<span class="fc" id="L396">		synchronized (this) {</span>
+<span class="fc bfc" id="L397" title="All 4 branches covered.">			IuObject.waitFor(this, () -&gt; closed || pending &lt; size, expires, this::createTimeoutException);</span>
+
+<span class="fc bfc" id="L399" title="All 2 branches covered.">			if (closed) {</span>
+<span class="fc" id="L400">				final var closedException = new RejectedExecutionException(&quot;Closed &quot; + this);</span>
+<span class="fc bfc" id="L401" title="All 2 branches covered.">				if (severeFailure != null)</span>
+<span class="fc" id="L402">					closedException.initCause(severeFailure);</span>
+<span class="fc" id="L403">				throw closedException;</span>
+			}
+
+<span class="fc" id="L406">			pending++;</span>
+<span class="fc" id="L407">			this.notifyAll();</span>
+<span class="fc" id="L408">		}</span>
+
+<span class="fc" id="L410">		ParallelTaskController taskController = new ParallelTaskController(expires);</span>
+<span class="fc" id="L411">		exec.submit(new Runnable() {</span>
+<span class="fc" id="L412">			private final String descr = task.toString();</span>
+
+			{ // for coverage
+<span class="fc" id="L415">				toString();</span>
+<span class="fc" id="L416">			}</span>
+
+			@Override
+			public void run() {
+<span class="fc bfc" id="L420" title="All 2 branches covered.">				if (log.isLoggable(Level.FINE)) {</span>
+<span class="fc" id="L421">					Integer use = usageCount.get();</span>
+<span class="fc bfc" id="L422" title="All 2 branches covered.">					if (use == null)</span>
+<span class="fc" id="L423">						usageCount.set(1);</span>
+					else {
+<span class="fc bfc" id="L425" title="All 2 branches covered.">						if (++use % 10_000 == 0)</span>
+<span class="fc" id="L426">							log.fine(&quot;used &quot; + use + &quot; times&quot;);</span>
+<span class="fc" id="L427">						usageCount.set(use);</span>
+					}
+				}
+
+				try {
+<span class="fc" id="L432">					taskController.accept(() -&gt; {</span>
+<span class="fc" id="L433">						log.finer(() -&gt; &quot;start &quot; + descr);</span>
+<span class="fc" id="L434">						task.accept(taskController);</span>
+<span class="fc" id="L435">						log.finer(() -&gt; &quot;end &quot; + descr + &quot; &quot; + taskController.getElapsed());</span>
+
+<span class="fc" id="L437">						synchronized (IuParallelWorkloadController.this) {</span>
+<span class="fc" id="L438">							pending--;</span>
+<span class="fc" id="L439">							completed++;</span>
+<span class="fc" id="L440">							IuParallelWorkloadController.this.notifyAll();</span>
+<span class="fc" id="L441">						}</span>
+<span class="fc" id="L442">					});</span>
+<span class="fc" id="L443">				} catch (Throwable e) {</span>
+<span class="fc" id="L444">					log.log(Level.INFO, e, () -&gt; &quot;fail &quot; + descr + &quot; &quot; + taskController.getElapsed());</span>
+
+<span class="fc" id="L446">					synchronized (IuParallelWorkloadController.this) {</span>
+<span class="fc" id="L447">						failedExecutionHandler.accept(e);</span>
+<span class="fc" id="L448">						pending--;</span>
+<span class="fc" id="L449">						completed++;</span>
+<span class="fc" id="L450">						IuParallelWorkloadController.this.notifyAll();</span>
+<span class="fc" id="L451">					}</span>
+<span class="fc" id="L452">				}</span>
+<span class="fc" id="L453">			}</span>
+
+			@Override
+			public String toString() {
+<span class="fc" id="L457">				return IuParallelWorkloadController.this.toString() + &quot; &quot; + descr;</span>
+			}
+		});
+
+<span class="fc" id="L461">		return taskController;</span>
+	}
+
+	/**
+	 * Determines whether or not this controller is closed.
+	 * 
+	 * @return true if closed; false if still available for accepting new tasks
+	 */
+	public boolean isClosed() {
+<span class="fc" id="L470">		return closed;</span>
+	}
+
+	/**
+	 * Shuts down all activity and releases resources related to the workload.
+	 * 
+	 * &lt;p&gt;
+	 * This method is invoked from a timer when the controller {@link #isExpired()
+	 * expires}. No more tasks can be submitted once the controller is closed.
+	 * Repeat calls to this method have no effect.
+	 * &lt;/p&gt;
+	 */
+	@Override
+	public void close() throws InterruptedException, TimeoutException {
+		final ExecutorService exec;
+		final ThreadGroup threadGroup;
+		final Logger log;
+		final Timer closeTimer;
+
+<span class="fc" id="L489">		synchronized (this) {</span>
+<span class="fc bfc" id="L490" title="All 2 branches covered.">			if (closed)</span>
+<span class="fc" id="L491">				return;</span>
+
+<span class="fc" id="L493">			log = this.log;</span>
+<span class="fc" id="L494">			this.log = LOG;</span>
+
+<span class="fc" id="L496">			log.fine(&quot;Close requested&quot;);</span>
+
+<span class="fc" id="L498">			exec = this.exec;</span>
+<span class="fc" id="L499">			threadGroup = this.threadGroup;</span>
+<span class="fc" id="L500">			closeTimer = this.closeTimer;</span>
+
+<span class="fc" id="L502">			this.exec = null;</span>
+<span class="fc" id="L503">			this.threadGroup = null;</span>
+<span class="fc" id="L504">			this.closeTimer = null;</span>
+<span class="fc" id="L505">			this.closed = true;</span>
+
+<span class="fc" id="L507">			closeTimer.cancel();</span>
+
+<span class="fc" id="L509">			this.notifyAll();</span>
+<span class="fc" id="L510">		}</span>
+
+<span class="fc" id="L512">		log.fine(() -&gt; &quot;Close reserved, pending = &quot; + pending);</span>
+<span class="fc" id="L513">		final var endOfGracefulShutdown = Instant.now().plus(gracefulShutdown);</span>
+<span class="fc bfc" id="L514" title="All 2 branches covered.">		while (pending &gt; 0) {</span>
+<span class="fc" id="L515">			var now = Instant.now();</span>
+<span class="fc bfc" id="L516" title="All 2 branches covered.">			if (now.isBefore(endOfGracefulShutdown)) {</span>
+<span class="fc" id="L517">				final var waitFor = Duration.between(now, endOfGracefulShutdown);</span>
+<span class="fc" id="L518">				synchronized (this) {</span>
+<span class="fc" id="L519">					this.wait(waitFor.toMillis(), waitFor.toNanosPart() % 1_000_000);</span>
+<span class="fc" id="L520">				}</span>
+			} else
+				break;
+<span class="fc" id="L523">		}</span>
+
+<span class="fc bfc" id="L525" title="All 2 branches covered.">		if (pending &gt; 0)</span>
+			// we are no longer tracking pending at this point, but not a WARNING
+			// yet since thread pool shutdown should terminate abandoned resources
+<span class="fc" id="L528">			log.info(() -&gt; &quot;Graceful shutdown timed out after &quot; + gracefulShutdown);</span>
+		else
+<span class="fc" id="L530">			log.fine(&quot;Graceful shutdown complete&quot;);</span>
+
+		try {
+<span class="fc" id="L533">			log.fine(&quot;Executor shutdown requested&quot;);</span>
+<span class="fc" id="L534">			exec.shutdown();</span>
+
+<span class="fc" id="L536">			var termination = getRemaining();</span>
+<span class="fc bfc" id="L537" title="All 2 branches covered.">			if (gracefulTermination.compareTo(termination) &gt; 0)</span>
+<span class="fc" id="L538">				termination = gracefulTermination;</span>
+
+<span class="fc bfc" id="L540" title="All 2 branches covered.">			if (!exec.awaitTermination(termination.toNanos(), TimeUnit.NANOSECONDS)) {</span>
+<span class="fc" id="L541">				log.info(&quot;Thread pool failed to terminate gracefully after &quot; + termination + &quot;, interrupting&quot;);</span>
+
+<span class="fc" id="L543">				threadGroup.interrupt();</span>
+<span class="fc bfc" id="L544" title="All 2 branches covered.">				if (exec.awaitTermination(gracefulDestroy.toNanos(), TimeUnit.NANOSECONDS))</span>
+<span class="fc" id="L545">					log.info(&quot;Terminated gracefully after interrupt&quot;);</span>
+				else
+<span class="fc" id="L547">					throw new TimeoutException(</span>
+<span class="fc" id="L548">							&quot;Graceful thread termination timed out after &quot; + termination.plus(gracefulDestroy) + &quot;, &quot;</span>
+<span class="fc" id="L549">									+ threadGroup.activeCount() + &quot; still active after interrupt&quot;);</span>
+			} else
+<span class="fc" id="L551">				log.fine(&quot;Terminated gracefully&quot;);</span>
+
+<span class="fc" id="L553">			log.fine(&quot;Executor shutdown complete&quot;);</span>
+
+		} finally {
+<span class="fc" id="L556">			log.fine(&quot;Closed &quot; + this);</span>
+		}
+<span class="fc" id="L558">	}</span>
+
+	@Override
+	public String toString() {
+<span class="fc" id="L562">		final var sb = new StringBuilder(&quot;[IuParallelWorkloadController &quot;);</span>
+<span class="fc bfc" id="L563" title="All 2 branches covered.">		if (!closed)</span>
+<span class="fc" id="L564">			sb.append(getElapsed()).append(' ');</span>
+
+<span class="fc" id="L566">		sb.append('(');</span>
+<span class="fc" id="L567">		sb.append(pending);</span>
+<span class="fc" id="L568">		sb.append('/').append(spawned);</span>
+<span class="fc" id="L569">		sb.append(&quot; of &quot;).append(size);</span>
+<span class="fc" id="L570">		sb.append(&quot; -&gt; &quot;).append(completed);</span>
+<span class="fc" id="L571">		sb.append(&quot;) &quot;);</span>
+
+<span class="fc bfc" id="L573" title="All 2 branches covered.">		if (isExpired())</span>
+<span class="fc" id="L574">			sb.append(&quot;expired &quot;);</span>
+		else
+<span class="fc" id="L576">			sb.append(&quot;expires &quot;);</span>
+<span class="fc" id="L577">		sb.append(timeout);</span>
+
+<span class="fc bfc" id="L579" title="All 2 branches covered.">		if (closed)</span>
+<span class="fc" id="L580">			sb.append(&quot; closed&quot;);</span>
+		else
+<span class="fc" id="L582">			sb.append(&quot;+&quot;).append(gracefulShutdown);</span>
+
+<span class="fc bfc" id="L584" title="All 2 branches covered.">		if (threadGroup != null)</span>
+<span class="fc" id="L585">			sb.append(&quot; threadGroup: &quot;).append(threadGroup.getName());</span>
+
+<span class="fc" id="L587">		sb.append(&quot;]&quot;);</span>
+
+<span class="fc" id="L589">		return sb.toString();</span>
+	}
+
+	private TimeoutException createTimeoutException() {
+<span class="fc" id="L593">		StringBuilder sb = new StringBuilder(&quot;Timed out in &quot;);</span>
+<span class="fc" id="L594">		sb.append(Duration.between(start, expires));</span>
+<span class="fc" id="L595">		sb.append(&quot; after completing &quot;);</span>
+
+<span class="fc" id="L597">		final var completed = this.completed;</span>
+<span class="fc" id="L598">		sb.append(completed);</span>
+<span class="fc" id="L599">		sb.append(&quot; task&quot;);</span>
+<span class="fc bfc" id="L600" title="All 2 branches covered.">		if (completed != 1)</span>
+<span class="fc" id="L601">			sb.append('s');</span>
+
+<span class="fc" id="L603">		final var pending = this.pending;</span>
+<span class="fc" id="L604">		sb.append(&quot;, &quot;).append(pending).append(&quot; task&quot;);</span>
+<span class="fc bfc" id="L605" title="All 2 branches covered.">		if (pending == 1)</span>
+<span class="fc" id="L606">			sb.append(&quot; remaining&quot;);</span>
+		else
+<span class="fc" id="L608">			sb.append(&quot;s remain&quot;);</span>
+
+<span class="fc" id="L610">		return new TimeoutException(sb.toString());</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
