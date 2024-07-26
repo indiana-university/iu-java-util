@@ -180,7 +180,7 @@ final class SamlBuilder {
 <span class="fc" id="L180">		this.metadataTtl = Objects.requireNonNull(config.getMetadataTtl(), &quot;metadataTtl&quot;);</span>
 <span class="fc" id="L181">		this.acsUris = Objects.requireNonNull(config.getAcsUris(), &quot;acsUris&quot;);</span>
 <span class="fc" id="L182">		this.entryPointUris = Objects.requireNonNull(config.getEntryPointUris(), &quot;entryPointUris&quot;);</span>
-<span class="fc" id="L183">		this.certificate = Objects.requireNonNull(config.getIdentity().getEncryptJwk().getCertificateChain()[0],</span>
+<span class="fc" id="L183">		this.certificate = Objects.requireNonNull(config.getIdentity().getJwk().getCertificateChain()[0],</span>
 				&quot;certificate&quot;);
 <span class="fc" id="L185">		this.verifyAlg = Objects.requireNonNull(config.getIdentity().getAlg());</span>
 <span class="fc" id="L186">		this.serviceProviderEntityId = Objects.requireNonNull(config.getServiceProviderEntityId(),</span>

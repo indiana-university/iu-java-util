@@ -31,26 +31,30 @@
  */
 package iu.client;
 
+import java.io.StringWriter;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
+import java.util.Map;
 import java.util.function.Function;
 
 import edu.iu.IuObject;
+import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
 
 /**
  * Thin invocation handler for wrapping JSON objects in a Java interface.
  */
 public final class JsonProxy implements InvocationHandler {
 	static {
-<span class="fc" id="L52">		IuObject.assertNotOpen(JsonProxy.class);</span>
-<span class="fc" id="L53">	}</span>
+<span class="fc" id="L56">		IuObject.assertNotOpen(JsonProxy.class);</span>
+<span class="fc" id="L57">	}</span>
 
 	/**
 	 * Wraps a JSON object in a java interface.
@@ -65,9 +69,9 @@ public final class JsonProxy implements InvocationHandler {
 	 */
 	public static &lt;T&gt; T wrap(JsonObject value, Class&lt;T&gt; targetInterface,
 			Function&lt;Type, IuJsonAdapter&lt;?&gt;&gt; valueAdapter) {
-<span class="fc" id="L68">		JsonProxy.class.getModule().addReads(targetInterface.getModule());</span>
+<span class="fc" id="L72">		JsonProxy.class.getModule().addReads(targetInterface.getModule());</span>
 
-<span class="fc" id="L70">		return targetInterface.cast(Proxy.newProxyInstance(targetInterface.getClassLoader(),</span>
+<span class="fc" id="L74">		return targetInterface.cast(Proxy.newProxyInstance(targetInterface.getClassLoader(),</span>
 				new Class&lt;?&gt;[] { targetInterface }, new JsonProxy(value, valueAdapter)));
 	}
 
@@ -78,83 +82,86 @@ public final class JsonProxy implements InvocationHandler {
 	 * @return {@link JsonObject}
 	 */
 	public static JsonObject unwrap(Object jsonProxy) {
-<span class="fc" id="L81">		return ((JsonProxy) Proxy.getInvocationHandler(jsonProxy)).value;</span>
+<span class="fc" id="L85">		return ((JsonProxy) Proxy.getInvocationHandler(jsonProxy)).value;</span>
 	}
 
 	private final JsonObject value;
 	private final Function&lt;Type, IuJsonAdapter&lt;?&gt;&gt; valueAdapter;
 
-<span class="fc" id="L87">	private JsonProxy(JsonObject value, Function&lt;Type, IuJsonAdapter&lt;?&gt;&gt; valueAdapter) {</span>
-<span class="fc" id="L88">		this.value = value;</span>
-<span class="fc" id="L89">		this.valueAdapter = valueAdapter;</span>
-<span class="fc" id="L90">	}</span>
+<span class="fc" id="L91">	private JsonProxy(JsonObject value, Function&lt;Type, IuJsonAdapter&lt;?&gt;&gt; valueAdapter) {</span>
+<span class="fc" id="L92">		this.value = value;</span>
+<span class="fc" id="L93">		this.valueAdapter = valueAdapter;</span>
+<span class="fc" id="L94">	}</span>
 
 	@Override
 	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-<span class="fc" id="L94">		final var methodName = method.getName();</span>
-<span class="fc bfc" id="L95" title="All 2 branches covered.">		if (methodName.equals(&quot;hashCode&quot;))</span>
-<span class="fc" id="L96">			return value.hashCode();</span>
+<span class="fc" id="L98">		final var methodName = method.getName();</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">		if (methodName.equals(&quot;hashCode&quot;))</span>
+<span class="fc" id="L100">			return value.hashCode();</span>
 
-<span class="fc bfc" id="L98" title="All 2 branches covered.">		if (methodName.equals(&quot;equals&quot;)) {</span>
-<span class="fc bfc" id="L99" title="All 2 branches covered.">			if (args[0] == null)</span>
-<span class="fc" id="L100">				return false;</span>
-<span class="fc bfc" id="L101" title="All 2 branches covered.">			if (!Proxy.isProxyClass(args[0].getClass()))</span>
-<span class="fc" id="L102">				return false;</span>
-
-<span class="fc" id="L104">			final var other = Proxy.getInvocationHandler(args[0]);</span>
-<span class="fc bfc" id="L105" title="All 2 branches covered.">			if (!(other instanceof JsonProxy))</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">		if (methodName.equals(&quot;equals&quot;)) {</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">			if (args[0] == null)</span>
+<span class="fc" id="L104">				return false;</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">			if (!Proxy.isProxyClass(args[0].getClass()))</span>
 <span class="fc" id="L106">				return false;</span>
-<span class="fc" id="L107">			return ((JsonProxy) other).value.equals(value);</span>
+
+<span class="fc" id="L108">			final var other = Proxy.getInvocationHandler(args[0]);</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">			if (!(other instanceof JsonProxy))</span>
+<span class="fc" id="L110">				return false;</span>
+<span class="fc" id="L111">			return ((JsonProxy) other).value.equals(value);</span>
 		}
 
-<span class="fc bfc" id="L110" title="All 2 branches covered.">		if (methodName.equals(&quot;toString&quot;)) {</span>
-<span class="fc" id="L111">			return value.toString();</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">		if (methodName.equals(&quot;toString&quot;)) {</span>
+<span class="fc" id="L115">			final var writer = new StringWriter();</span>
+<span class="fc" id="L116">			IuJson.PROVIDER.createWriterFactory(Map.of(JsonGenerator.PRETTY_PRINTING, true)).createWriter(writer)</span>
+<span class="fc" id="L117">					.write(value);</span>
+<span class="fc" id="L118">			return writer.toString();</span>
 		}
 
 		final String propertyName;
-<span class="fc bfc" id="L115" title="All 2 branches covered.">		if (methodName.startsWith(&quot;get&quot;))</span>
-<span class="fc" id="L116">			propertyName = Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4);</span>
-<span class="fc bfc" id="L117" title="All 2 branches covered.">		else if (methodName.startsWith(&quot;is&quot;))</span>
-<span class="fc" id="L118">			propertyName = Character.toLowerCase(methodName.charAt(2)) + methodName.substring(3);</span>
-<span class="fc bfc" id="L119" title="All 2 branches covered.">		else if (method.isDefault()) {</span>
-<span class="fc" id="L120">			propertyName = null;</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">		if (methodName.startsWith(&quot;get&quot;))</span>
+<span class="fc" id="L123">			propertyName = Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4);</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">		else if (methodName.startsWith(&quot;is&quot;))</span>
+<span class="fc" id="L125">			propertyName = Character.toLowerCase(methodName.charAt(2)) + methodName.substring(3);</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">		else if (method.isDefault()) {</span>
+<span class="fc" id="L127">			propertyName = null;</span>
 		} else
-<span class="fc" id="L122">			throw new UnsupportedOperationException();</span>
+<span class="fc" id="L129">			throw new UnsupportedOperationException();</span>
 
-<span class="fc" id="L124">		final JsonValue rv = returnValueWithCaseConversion(propertyName);</span>
+<span class="fc" id="L131">		final JsonValue rv = returnValueWithCaseConversion(propertyName);</span>
 
-<span class="fc bfc" id="L126" title="All 4 branches covered.">		if (rv == null &amp;&amp; method.isDefault()) {</span>
-<span class="fc" id="L127">			final var type = proxy.getClass().getInterfaces()[0];</span>
-<span class="fc" id="L128">			return MethodHandles.privateLookupIn(type, MethodHandles.lookup()).unreflectSpecial(method, type)</span>
-<span class="fc" id="L129">					.bindTo(proxy).invokeWithArguments(args);</span>
+<span class="fc bfc" id="L133" title="All 4 branches covered.">		if (rv == null &amp;&amp; method.isDefault()) {</span>
+<span class="fc" id="L134">			final var type = proxy.getClass().getInterfaces()[0];</span>
+<span class="fc" id="L135">			return MethodHandles.privateLookupIn(type, MethodHandles.lookup()).unreflectSpecial(method, type)</span>
+<span class="fc" id="L136">					.bindTo(proxy).invokeWithArguments(args);</span>
 		}
 
-<span class="fc" id="L132">		final var genericReturnType = method.getGenericReturnType();</span>
+<span class="fc" id="L139">		final var genericReturnType = method.getGenericReturnType();</span>
 		try {
-<span class="fc" id="L134">			return valueAdapter.apply(genericReturnType).fromJson(rv);</span>
-<span class="fc" id="L135">		} catch (UnsupportedOperationException e) {</span>
-<span class="fc bfc" id="L136" title="All 2 branches covered.">			if (rv == null)</span>
-<span class="fc" id="L137">				return null;</span>
+<span class="fc" id="L141">			return valueAdapter.apply(genericReturnType).fromJson(rv);</span>
+<span class="fc" id="L142">		} catch (UnsupportedOperationException e) {</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">			if (rv == null)</span>
+<span class="fc" id="L144">				return null;</span>
 			else
-<span class="fc" id="L139">				throw e;</span>
-<span class="fc" id="L140">		} catch (Throwable e) {</span>
-<span class="fc" id="L141">			throw new IllegalArgumentException(</span>
+<span class="fc" id="L146">				throw e;</span>
+<span class="fc" id="L147">		} catch (Throwable e) {</span>
+<span class="fc" id="L148">			throw new IllegalArgumentException(</span>
 					&quot;Invalid JSON value for return type &quot; + genericReturnType + &quot; in property &quot; + propertyName, e);
 		}
 	}
 
 	private JsonValue returnValueWithCaseConversion(String propertyName) {
-<span class="fc bfc" id="L147" title="All 2 branches covered.">		if (propertyName == null)</span>
-<span class="fc" id="L148">			return null;</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">		if (propertyName == null)</span>
+<span class="fc" id="L155">			return null;</span>
 
-<span class="fc bfc" id="L150" title="All 2 branches covered.">		if (value.containsKey(propertyName))</span>
-<span class="fc" id="L151">			return value.get(propertyName);</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">		if (value.containsKey(propertyName))</span>
+<span class="fc" id="L158">			return value.get(propertyName);</span>
 
-<span class="fc" id="L153">		String lowerSnakeCasePropertyName = convertToSnakeCase(propertyName).toLowerCase();</span>
-<span class="fc bfc" id="L154" title="All 2 branches covered.">		if (value.containsKey(lowerSnakeCasePropertyName))</span>
-<span class="fc" id="L155">			return value.get(lowerSnakeCasePropertyName);</span>
+<span class="fc" id="L160">		String lowerSnakeCasePropertyName = convertToSnakeCase(propertyName).toLowerCase();</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">		if (value.containsKey(lowerSnakeCasePropertyName))</span>
+<span class="fc" id="L162">			return value.get(lowerSnakeCasePropertyName);</span>
 
-<span class="fc" id="L157">		return value.get(lowerSnakeCasePropertyName.toUpperCase());</span>
+<span class="fc" id="L164">		return value.get(lowerSnakeCasePropertyName.toUpperCase());</span>
 	}
 
 	/**
@@ -165,15 +172,15 @@ public final class JsonProxy implements InvocationHandler {
 	 * @return snake case property name
 	 */
 	static String convertToSnakeCase(String camelCase) {
-<span class="fc" id="L168">		final var sb = new StringBuilder(camelCase);</span>
-<span class="fc bfc" id="L169" title="All 2 branches covered.">		for (var i = 0; i &lt; sb.length(); i++) {</span>
-<span class="fc" id="L170">			final var c = sb.charAt(i);</span>
-<span class="fc bfc" id="L171" title="All 2 branches covered.">			if (Character.isUpperCase(c)) {</span>
-<span class="fc" id="L172">				sb.setCharAt(i, Character.toLowerCase(c));</span>
-<span class="fc" id="L173">				sb.insert(i, '_');</span>
+<span class="fc" id="L175">		final var sb = new StringBuilder(camelCase);</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">		for (var i = 0; i &lt; sb.length(); i++) {</span>
+<span class="fc" id="L177">			final var c = sb.charAt(i);</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">			if (Character.isUpperCase(c)) {</span>
+<span class="fc" id="L179">				sb.setCharAt(i, Character.toLowerCase(c));</span>
+<span class="fc" id="L180">				sb.insert(i, '_');</span>
 			}
 		}
-<span class="fc" id="L176">		return sb.toString();</span>
+<span class="fc" id="L183">		return sb.toString();</span>
 	}
 
 }

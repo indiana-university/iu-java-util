@@ -34,6 +34,10 @@ package iu.client;
 import java.beans.Introspector;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Function;
 
 import edu.iu.IuException;
@@ -48,8 +52,8 @@ import jakarta.json.JsonObject;
  */
 public final class JsonSerializer {
 	static {
-<span class="fc" id="L51">		IuObject.assertNotOpen(JsonSerializer.class);</span>
-<span class="fc" id="L52">	}</span>
+<span class="fc" id="L55">		IuObject.assertNotOpen(JsonSerializer.class);</span>
+<span class="fc" id="L56">	}</span>
 
 	private JsonSerializer() {
 	}
@@ -62,16 +66,16 @@ public final class JsonSerializer {
 	 * @return formatted property name
 	 */
 	static String formatPropertyName(String propertyName, IuJsonPropertyNameFormat propertyNameFormat) {
-<span class="fc bfc" id="L65" title="All 3 branches covered.">		switch (propertyNameFormat) {</span>
+<span class="fc bfc" id="L69" title="All 3 branches covered.">		switch (propertyNameFormat) {</span>
 		case LOWER_CASE_WITH_UNDERSCORES:
-<span class="fc" id="L67">			return JsonProxy.convertToSnakeCase(propertyName);</span>
+<span class="fc" id="L71">			return JsonProxy.convertToSnakeCase(propertyName);</span>
 
 		case UPPER_CASE_WITH_UNDERSCORES:
-<span class="fc" id="L70">			return JsonProxy.convertToSnakeCase(propertyName).toUpperCase();</span>
+<span class="fc" id="L74">			return JsonProxy.convertToSnakeCase(propertyName).toUpperCase();</span>
 
 		default:
 		case IDENTITY:
-<span class="fc" id="L74">			return propertyName;</span>
+<span class="fc" id="L78">			return propertyName;</span>
 		}
 	}
 
@@ -89,28 +93,40 @@ public final class JsonSerializer {
 	public static &lt;T&gt; JsonObject serialize(Class&lt;T&gt; type, T value, IuJsonPropertyNameFormat propertyNameFormat,
 			Function&lt;Type, IuJsonAdapter&lt;?&gt;&gt; adapt) {
 
-<span class="fc" id="L92">		final var valueClass = value.getClass();</span>
-<span class="fc bfc" id="L93" title="All 2 branches covered.">		if (Proxy.isProxyClass(valueClass)) {</span>
-<span class="fc" id="L94">			final var invocationHandler = Proxy.getInvocationHandler(value);</span>
-<span class="fc bfc" id="L95" title="All 2 branches covered.">			if (invocationHandler instanceof JsonProxy)</span>
-<span class="fc" id="L96">				return JsonProxy.unwrap(value);</span>
+<span class="fc" id="L96">		final var valueClass = value.getClass();</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">		if (Proxy.isProxyClass(valueClass)) {</span>
+<span class="fc" id="L98">			final var invocationHandler = Proxy.getInvocationHandler(value);</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">			if (invocationHandler instanceof JsonProxy)</span>
+<span class="fc" id="L100">				return JsonProxy.unwrap(value);</span>
 		}
 
-<span class="fc" id="L99">		final var builder = IuJson.object();</span>
+<span class="fc" id="L103">		final var builder = IuJson.object();</span>
+		
+<span class="fc" id="L105">		final Deque&lt;Class&lt;?&gt;&gt; todo = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L106">		final Set&lt;String&gt; seen = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L107">		todo.push(type);</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">		while (!todo.isEmpty()) {</span>
+<span class="fc" id="L109">			final var next = todo.pop();</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">			for (final var propertyDescriptor : IuException.unchecked(() -&gt; Introspector.getBeanInfo(next))</span>
+<span class="fc" id="L111">					.getPropertyDescriptors()) {</span>
+<span class="fc" id="L112">				final var readMethod = propertyDescriptor.getReadMethod();</span>
+<span class="fc bfc" id="L113" title="All 4 branches covered.">				if (readMethod == null || readMethod.getDeclaringClass() == Object.class)</span>
+<span class="fc" id="L114">					continue;</span>
 
-<span class="fc bfc" id="L101" title="All 2 branches covered.">		for (final var propertyDescriptor : IuException.unchecked(() -&gt; Introspector.getBeanInfo(type))</span>
-<span class="fc" id="L102">				.getPropertyDescriptors()) {</span>
-<span class="fc" id="L103">			final var readMethod = propertyDescriptor.getReadMethod();</span>
-<span class="fc bfc" id="L104" title="All 4 branches covered.">			if (readMethod == null || readMethod.getDeclaringClass() == Object.class)</span>
-<span class="fc" id="L105">				continue;</span>
+<span class="fc" id="L116">				final var propertyName = formatPropertyName(propertyDescriptor.getName(), propertyNameFormat);</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">				if (!seen.add(propertyName))</span>
+<span class="fc" id="L118">					continue;</span>
 
-<span class="fc" id="L107">			final var propertyName = formatPropertyName(propertyDescriptor.getName(), propertyNameFormat);</span>
-<span class="fc" id="L108">			final var propertyValue = IuException.uncheckedInvocation(() -&gt; readMethod.invoke(value));</span>
-<span class="fc" id="L109">			final var adapter = adapt.apply(readMethod.getGenericReturnType());</span>
-<span class="fc" id="L110">			IuJson.add(builder, propertyName, () -&gt; propertyValue, (IuJsonAdapter) adapter);</span>
-		}
+<span class="fc" id="L120">				final var propertyValue = IuException.uncheckedInvocation(() -&gt; readMethod.invoke(value));</span>
+<span class="fc" id="L121">				final var adapter = adapt.apply(readMethod.getGenericReturnType());</span>
+<span class="fc" id="L122">				IuJson.add(builder, propertyName, () -&gt; propertyValue, (IuJsonAdapter) adapter);</span>
+			}
 
-<span class="fc" id="L113">		return builder.build();</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">			for (final var i : next.getInterfaces())</span>
+<span class="fc" id="L126">				todo.push(i);</span>
+<span class="fc" id="L127">		}</span>
+
+<span class="fc" id="L129">		return builder.build();</span>
 	}
 
 }
