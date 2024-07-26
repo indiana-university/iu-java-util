@@ -79,7 +79,7 @@ public class SamlAuthenticateIT {
 
 	@BeforeAll
 	public static void setupClass() {
-		AuthConfig.addVault("realm", IuSamlServiceProviderMetadata.class, IuVault.RUNTIME);
+		AuthConfig.registerInterface("realm", IuSamlServiceProviderMetadata.class, IuVault.RUNTIME);
 		final var realm = AuthConfig.load(IuSamlServiceProviderMetadata.class, REALM);
 		postUri = realm.getAcsUris().iterator().next();
 		entryPointUri = realm.getEntryPointUris().iterator().next();

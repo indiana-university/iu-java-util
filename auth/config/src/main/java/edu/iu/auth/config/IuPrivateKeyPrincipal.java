@@ -56,9 +56,7 @@ public interface IuPrivateKeyPrincipal extends IuAuthenticationRealm {
 	 * 
 	 * @return {@link Algorithm}
 	 */
-	default Algorithm getEncryptAlg() {
-		return getAlg();
-	}
+	Algorithm getEncryptAlg();
 
 	/**
 	 * Gets the content protection algorithm to use for creating encrypted messages.
@@ -73,14 +71,5 @@ public interface IuPrivateKeyPrincipal extends IuAuthenticationRealm {
 	 * @return {@link WebKey}
 	 */
 	WebKey getJwk();
-
-	/**
-	 * Gets the encryption key.
-	 * 
-	 * @return encryption key
-	 */
-	default WebKey getEncryptJwk() {
-		return getJwk();
-	}
 
 }

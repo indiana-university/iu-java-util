@@ -46,6 +46,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.security.cert.X509CRL;
@@ -117,9 +118,13 @@ public class AuthConfigTest {
 		f.setAccessible(true);
 		((Map<?, ?>) f.get(null)).clear();
 
-		f = AuthConfig.class.getDeclaredField("VAULT");
+		f = AuthConfig.class.getDeclaredField("STORAGE");
 		f.setAccessible(true);
 		((Map<?, ?>) f.get(null)).clear();
+
+		Method m = AuthConfig.class.getDeclaredMethod("registerDefaults");
+		m.setAccessible(true);
+		m.invoke(null);
 	}
 
 	@Test
@@ -136,6 +141,7 @@ public class AuthConfigTest {
 		assertSame(config, AuthConfig.get(realm));
 		assertSame(config, AuthConfig.get(Config.class).iterator().next());
 		assertThrows(IllegalStateException.class, () -> AuthConfig.register(config));
+		assertThrows(IllegalStateException.class, () -> AuthConfig.registerAdapter(null, null));
 	}
 
 	@SuppressWarnings("unchecked")
@@ -146,9 +152,9 @@ public class AuthConfigTest {
 		assertThrows(NullPointerException.class, () -> AuthConfig.load(LoadableConfig.class, key));
 
 		final var vault = mock(IuVault.class);
-		assertDoesNotThrow(() -> AuthConfig.addVault("loadable", LoadableConfig.class, vault));
+		assertDoesNotThrow(() -> AuthConfig.registerInterface("loadable", LoadableConfig.class, vault));
 		assertThrows(IllegalArgumentException.class,
-				() -> AuthConfig.addVault("loadable", LoadableConfig.class, vault));
+				() -> AuthConfig.registerInterface("loadable", LoadableConfig.class, vault));
 
 		final var vkv = mock(IuVaultKeyedValue.class);
 		when(vkv.getValue()).thenReturn("{}");
@@ -162,7 +168,7 @@ public class AuthConfigTest {
 
 		AuthConfig.seal();
 		assertThrows(IllegalStateException.class,
-				() -> AuthConfig.addVault("unloadable", UnloadableConfig.class, vault));
+				() -> AuthConfig.registerInterface("unloadable", UnloadableConfig.class, vault));
 		assertInstanceOf(LoadableConfig.class, AuthConfig.load(LoadableConfig.class, key));
 		verify(vault, times(3)).get("loadable/" + key);
 	}
@@ -173,12 +179,13 @@ public class AuthConfigTest {
 			AuthConfig.adaptJson(String.class);
 			mockJsonAdapter.verify(() -> IuJsonAdapter.of(eq((Type) String.class), any()));
 		}
+		assertThrows(IllegalArgumentException.class, () -> AuthConfig.registerAdapter(WebKey.class, null));
 	}
 
 	@Test
 	public void testAdaptNonce() {
 		final var vault = mock(IuVault.class, a -> fail());
-		AuthConfig.addVault("nonce", IuOneTimeNumberConfig.class, vault);
+		AuthConfig.registerInterface("nonce", IuOneTimeNumberConfig.class, vault);
 		final IuOneTimeNumberConfig nonce = AuthConfig.adaptJson(IuOneTimeNumberConfig.class)
 				.fromJson(IuJson.object().build());
 		assertEquals(Duration.ofMinutes(2L), nonce.getTimeToLive());
@@ -190,7 +197,7 @@ public class AuthConfigTest {
 	@Test
 	public void testAdaptJsonCredentials() {
 		final var vault = mock(IuVault.class, a -> fail());
-		AuthConfig.addVault("credentials", Credentials.class, vault);
+		AuthConfig.registerInterface("credentials", Credentials.class, vault);
 		final var cred = mock(JsonObject.class);
 		when(cred.asJsonObject()).thenReturn(cred);
 		final var credentials = mock(Credentials.class);

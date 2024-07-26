@@ -108,4 +108,34 @@ public class JsonSerializerTest {
 				IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of));
 	}
 
+	interface A {
+		String getFoo();
+
+		String getBar();
+	}
+
+	interface B extends A {
+		String getFoo();
+	}
+
+	@Test
+	public void testIgnoresPropertyNameConflicts() {
+		final String foo = IdGenerator.generateId();
+		final String bar = IdGenerator.generateId();
+		final var bean = new B() {
+			@Override
+			public String getFoo() {
+				return foo;
+			}
+
+			@Override
+			public String getBar() {
+				return bar;
+			}
+		};
+
+		assertEquals(IuJson.object().add("foo", foo).add("bar", bar).build(),
+				JsonSerializer.serialize(B.class, bean, IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of));
+	}
+
 }

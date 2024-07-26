@@ -34,6 +34,10 @@ package iu.client;
 import java.beans.Introspector;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Function;
 
 import edu.iu.IuException;
@@ -97,17 +101,29 @@ public final class JsonSerializer {
 		}
 
 		final var builder = IuJson.object();
+		
+		final Deque<Class<?>> todo = new ArrayDeque<>();
+		final Set<String> seen = new HashSet<>();
+		todo.push(type);
+		while (!todo.isEmpty()) {
+			final var next = todo.pop();
+			for (final var propertyDescriptor : IuException.unchecked(() -> Introspector.getBeanInfo(next))
+					.getPropertyDescriptors()) {
+				final var readMethod = propertyDescriptor.getReadMethod();
+				if (readMethod == null || readMethod.getDeclaringClass() == Object.class)
+					continue;
 
-		for (final var propertyDescriptor : IuException.unchecked(() -> Introspector.getBeanInfo(type))
-				.getPropertyDescriptors()) {
-			final var readMethod = propertyDescriptor.getReadMethod();
-			if (readMethod == null || readMethod.getDeclaringClass() == Object.class)
-				continue;
+				final var propertyName = formatPropertyName(propertyDescriptor.getName(), propertyNameFormat);
+				if (!seen.add(propertyName))
+					continue;
 
-			final var propertyName = formatPropertyName(propertyDescriptor.getName(), propertyNameFormat);
-			final var propertyValue = IuException.uncheckedInvocation(() -> readMethod.invoke(value));
-			final var adapter = adapt.apply(readMethod.getGenericReturnType());
-			IuJson.add(builder, propertyName, () -> propertyValue, (IuJsonAdapter) adapter);
+				final var propertyValue = IuException.uncheckedInvocation(() -> readMethod.invoke(value));
+				final var adapter = adapt.apply(readMethod.getGenericReturnType());
+				IuJson.add(builder, propertyName, () -> propertyValue, (IuJsonAdapter) adapter);
+			}
+
+			for (final var i : next.getInterfaces())
+				todo.push(i);
 		}
 
 		return builder.build();

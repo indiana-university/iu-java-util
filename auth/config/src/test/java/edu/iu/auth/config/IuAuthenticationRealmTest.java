@@ -55,8 +55,8 @@ public class IuAuthenticationRealmTest {
 		final var value = mock(IuVaultKeyedValue.class);
 		when(value.getValue()).thenReturn("{\"type\":\"pki\"}");
 		when(vault.get("realm/" + authId)).thenReturn(value);
-		AuthConfig.addVault("realm", IuPrivateKeyPrincipal.class, vault);
-		AuthConfig.addVault("realm", IuCertificateAuthority.class, vault);
+		AuthConfig.registerInterface("realm", IuPrivateKeyPrincipal.class, vault);
+		AuthConfig.registerInterface("realm", IuCertificateAuthority.class, vault);
 
 		final var realm = AuthConfig.load(IuPrivateKeyPrincipal.class, authId);
 		assertInstanceOf(IuPrivateKeyPrincipal.class, realm);

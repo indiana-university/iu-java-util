@@ -119,7 +119,7 @@ public class SamlServiceProviderTest {
 		final var mockWebKey = mock(WebKey.class);
 		when(mockWebKey.getCertificateChain()).thenReturn(new X509Certificate[] { cert });
 		final var mockPkp = mock(IuPrivateKeyPrincipal.class);
-		when(mockPkp.getEncryptJwk()).thenReturn(mockWebKey);
+		when(mockPkp.getJwk()).thenReturn(mockWebKey);
 		when(mockPkp.getAlg()).thenReturn(WebKey.Algorithm.RS256);
 		when(mockPkp.getJwk()).thenReturn(mockWebKey);
 		final var acsUri = URI.create("test://postUrl/");
@@ -279,7 +279,7 @@ public class SamlServiceProviderTest {
 		final var mockWebKey = mock(WebKey.class);
 		when(mockWebKey.getCertificateChain()).thenReturn(new X509Certificate[] { cert });
 		final var mockPkp = mock(IuPrivateKeyPrincipal.class);
-		when(mockPkp.getEncryptJwk()).thenReturn(mockWebKey);
+		when(mockPkp.getJwk()).thenReturn(mockWebKey);
 		when(mockPkp.getAlg()).thenReturn(WebKey.Algorithm.RS256);
 		when(mockPkp.getJwk()).thenReturn(mockWebKey);
 		final var acsUri = URI.create("test://postUrl/");
@@ -394,7 +394,7 @@ public class SamlServiceProviderTest {
 		final var mockWebKey = mock(WebKey.class);
 		when(mockWebKey.getCertificateChain()).thenReturn(new X509Certificate[] { cert });
 		final var mockPkp = mock(IuPrivateKeyPrincipal.class);
-		when(mockPkp.getEncryptJwk()).thenReturn(mockWebKey);
+		when(mockPkp.getJwk()).thenReturn(mockWebKey);
 		when(mockPkp.getAlg()).thenReturn(WebKey.Algorithm.RS256);
 		when(mockPkp.getJwk()).thenReturn(mockWebKey);
 		final var acsUri = URI.create("test://acsUrl/");

@@ -44,8 +44,8 @@ public class PkiTestCase {
 
 	static {
 		final var vault = mock(IuVault.class);
-		AuthConfig.addVault("realm", IuPrivateKeyPrincipal.class, vault);
-		AuthConfig.addVault("realm", IuCertificateAuthority.class, vault);
+		AuthConfig.registerInterface("realm", IuPrivateKeyPrincipal.class, vault);
+		AuthConfig.registerInterface("realm", IuCertificateAuthority.class, vault);
 	}
 
 	static IuPrivateKeyPrincipal pkp(String pkp) {
