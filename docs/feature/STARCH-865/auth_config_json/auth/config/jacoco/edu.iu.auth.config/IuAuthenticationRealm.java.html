@@ -67,16 +67,20 @@ public interface IuAuthenticationRealm {
 		 */
 <span class="fc" id="L68">		SAML(&quot;saml_sp&quot;, IuSamlServiceProviderMetadata.class);</span>
 
-		private String code;
+		/**
+		 * Code used for validating config data.
+		 */
+		String code;
+
 		private Class&lt;? extends IuAuthenticationRealm&gt; authInterface;
 
-<span class="fc" id="L73">		private Type(String code, Class&lt;? extends IuAuthenticationRealm&gt; authenticationInterface) {</span>
-<span class="fc" id="L74">			this.code = code;</span>
-<span class="fc" id="L75">			this.authInterface = authenticationInterface;</span>
-<span class="fc" id="L76">		}</span>
+<span class="fc" id="L77">		private Type(String code, Class&lt;? extends IuAuthenticationRealm&gt; authenticationInterface) {</span>
+<span class="fc" id="L78">			this.code = code;</span>
+<span class="fc" id="L79">			this.authInterface = authenticationInterface;</span>
+<span class="fc" id="L80">		}</span>
 
 		/** JSON type adapter */
-<span class="fc" id="L79">		public static IuJsonAdapter&lt;Type&gt; JSON = IuJsonAdapter.text(Type::from);</span>
+<span class="fc" id="L83">		public static IuJsonAdapter&lt;Type&gt; JSON = IuJsonAdapter.text(Type::from, a -&gt; a.code);</span>
 
 		/**
 		 * Gets an authentication realm type by configuration code
@@ -85,7 +89,7 @@ public interface IuAuthenticationRealm {
 		 * @return authentication realm type
 		 */
 		public static Type from(String code) {
-<span class="fc" id="L88">			return Arrays.stream(Type.class.getEnumConstants()).filter(a -&gt; a.code.equals(code)).findFirst().get();</span>
+<span class="fc" id="L92">			return Arrays.stream(Type.class.getEnumConstants()).filter(a -&gt; a.code.equals(code)).findFirst().get();</span>
 		}
 
 		/**
@@ -94,9 +98,9 @@ public interface IuAuthenticationRealm {
 		 * @param realm {@link IuAuthenticationRealm}
 		 */
 		void check(IuAuthenticationRealm realm) {
-<span class="fc bfc" id="L97" title="All 2 branches covered.">			if (!authInterface.isInstance(realm))</span>
-<span class="fc" id="L98">				throw new IllegalStateException(&quot;Invalid realm type for &quot; + code);</span>
-<span class="fc" id="L99">		}</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">			if (!authInterface.isInstance(realm))</span>
+<span class="fc" id="L102">				throw new IllegalStateException(&quot;Invalid realm type for &quot; + code);</span>
+<span class="fc" id="L103">		}</span>
 	}
 
 	/**
@@ -106,8 +110,8 @@ public interface IuAuthenticationRealm {
 	 * @param realm {@link IuAuthenticationRealm}
 	 */
 	static void verify(IuAuthenticationRealm realm) {
-<span class="fc" id="L109">		realm.getType().check(realm);</span>
-<span class="fc" id="L110">	}</span>
+<span class="fc" id="L113">		realm.getType().check(realm);</span>
+<span class="fc" id="L114">	}</span>
 
 	/**
 	 * Gets the authentication realm type.
