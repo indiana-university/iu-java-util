@@ -50,7 +50,7 @@ import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
 public class JweBuilderTest extends IuCryptTestCase {
-
+	
 	@Test
 	public void testCompactLimits() {
 		final var b = new JweBuilder(Encryption.AES_192_CBC_HMAC_SHA_384, false);

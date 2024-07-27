@@ -335,7 +335,7 @@ public class Jwe implements WebEncryption {
 			authenticationTag = UnpaddedBinary.base64Url(i.next());
 
 			if (i.hasNext())
-				throw new IllegalArgumentException();
+				throw new IllegalArgumentException("Invalid compact format, found more than 5 segments");
 			additionalData = null;
 		}
 

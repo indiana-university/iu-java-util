@@ -67,7 +67,11 @@ public interface IuAuthenticationRealm {
 		 */
 		SAML("saml_sp", IuSamlServiceProviderMetadata.class);
 
-		private String code;
+		/**
+		 * Code used for validating config data.
+		 */
+		String code;
+
 		private Class<? extends IuAuthenticationRealm> authInterface;
 
 		private Type(String code, Class<? extends IuAuthenticationRealm> authenticationInterface) {
@@ -76,7 +80,7 @@ public interface IuAuthenticationRealm {
 		}
 
 		/** JSON type adapter */
-		public static IuJsonAdapter<Type> JSON = IuJsonAdapter.text(Type::from);
+		public static IuJsonAdapter<Type> JSON = IuJsonAdapter.text(Type::from, a -> a.code);
 
 		/**
 		 * Gets an authentication realm type by configuration code

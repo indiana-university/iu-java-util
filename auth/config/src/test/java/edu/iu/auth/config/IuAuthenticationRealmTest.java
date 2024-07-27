@@ -40,6 +40,8 @@ import static org.mockito.Mockito.when;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.auth.config.IuAuthenticationRealm.Type;
+import edu.iu.client.IuJson;
 import edu.iu.client.IuVault;
 import edu.iu.client.IuVaultKeyedValue;
 import iu.auth.config.AuthConfig;
@@ -66,4 +68,11 @@ public class IuAuthenticationRealmTest {
 		assertEquals("Invalid realm type for pki", error.getMessage());
 	}
 
+	@Test
+	public void testJson() {
+		for (final var t : Type.values()) {
+			assertEquals(IuJson.string(t.code), Type.JSON.toJson(t));
+		}
+	}
+	
 }

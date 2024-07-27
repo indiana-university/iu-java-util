@@ -39,6 +39,7 @@ import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKeyReference;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
+import jakarta.json.JsonValue;
 
 /**
  * Encapsulates JSON properties that refer to or verify an X.509 certificate
@@ -56,10 +57,10 @@ class JsonKeyReference<R extends JsonKeyReference<R>> extends JsonCertificateRef
 	 * 
 	 * @param jwk {@link JsonObject}
 	 */
-	JsonKeyReference(JsonObject jwk) {
+	JsonKeyReference(JsonValue jwk) {
 		super(jwk);
-		keyId = IuJson.get(jwk, "kid", IuJsonAdapter.of(String.class));
-		algorithm = IuJson.get(jwk, "alg", Algorithm.JSON);
+		keyId = IuJson.get(jwk.asJsonObject(), "kid", IuJsonAdapter.of(String.class));
+		algorithm = IuJson.get(jwk.asJsonObject(), "alg", Algorithm.JSON);
 	}
 
 	@Override
