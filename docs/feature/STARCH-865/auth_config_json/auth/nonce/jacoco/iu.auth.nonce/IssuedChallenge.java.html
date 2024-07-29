@@ -35,7 +35,7 @@ import edu.iu.IdGenerator;
 import edu.iu.IuDigest;
 import edu.iu.IuText;
 import edu.iu.IuWebUtils;
-import edu.iu.auth.IuAuthorizationChallenge;
+import edu.iu.auth.nonce.IuAuthorizationChallenge;
 
 /**
  * Broadcasts a one-time number that has been issued to a client.

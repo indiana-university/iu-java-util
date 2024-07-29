@@ -34,6 +34,7 @@ package edu.iu.auth;
 import java.net.InetAddress;
 
 import edu.iu.IuWebUtils;
+import edu.iu.auth.nonce.IuOneTimeNumberConfig;
 import edu.iu.auth.spi.IuNonceSpi;
 import iu.auth.IuAuthSpiFactory;
 
@@ -74,7 +75,7 @@ public interface IuOneTimeNumber extends AutoCloseable {
 	 * @return {@link IuOneTimeNumber}
 	 */
 	static IuOneTimeNumber initialize(IuOneTimeNumberConfig config) {
-<span class="fc" id="L77">		return IuAuthSpiFactory.get(IuNonceSpi.class).initialize(config);</span>
+<span class="fc" id="L78">		return IuAuthSpiFactory.get(IuNonceSpi.class).initialize(config);</span>
 	}
 
 	/**

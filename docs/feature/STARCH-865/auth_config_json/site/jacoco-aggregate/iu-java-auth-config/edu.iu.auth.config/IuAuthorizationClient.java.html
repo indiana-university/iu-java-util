@@ -51,48 +51,67 @@ public interface IuAuthorizationClient {
 		/**
 		 * Direct use of client secret as password at API endpoint via Authorization
 		 * Basic header.
+		 * 
+		 * @deprecated Most container standards &lt;em&gt;require&lt;/em&gt; support for basic
+		 *             authentication, and Basic auth is supported by current HTTP
+		 *             standards. However, password authentication is insecure and
+		 *             &lt;em&gt;should not&lt;/em&gt; be used in production. This
+		 *             {@link AuthMethod} is useful for development and test
+		 *             environments and will be retained long term, but is deprecated to
+		 *             discourage direct use by enterprise applications.
 		 */
-<span class="fc" id="L55">		@Deprecated</span>
-<span class="fc" id="L56">		BASIC(&quot;basic&quot;, Duration.ofDays(45L), true),</span>
+<span class="fc" id="L63">		@Deprecated</span>
+<span class="fc" id="L64">		BASIC(&quot;basic&quot;, Duration.ofDays(45L), true),</span>
 
 		/**
-		 * Direct use of access token at API endpoint via Authorization Bearer header.
-		 * 
-		 * &lt;p&gt;
-		 * Not intended for client configuration except in development environments.
-		 * &lt;/p&gt;
+		 * Direct use of an access token via Authorization Bearer header.
 		 */
-<span class="fc" id="L65">		BEARER(&quot;bearer&quot;, Duration.ofHours(12L), false),</span>
+<span class="fc" id="L69">		BEARER(&quot;bearer&quot;, Duration.ofHours(12L), false),</span>
 
 		/**
 		 * Bearer token w/ use of client secret as password at token endpoint via
 		 * Authorization Basic header.
+		 * 
+		 * @deprecated OAuth 2.0 &lt;em&gt;requires&lt;/em&gt; support for client_secret password,
+		 *             and Basic auth is supported by current HTTP standards. However,
+		 *             password authentication is insecure and &lt;em&gt;should not&lt;/em&gt; be
+		 *             used in production. This {@link AuthMethod} is useful for
+		 *             development and test environments and will be retained long term,
+		 *             but is deprecated to discourage direct use by enterprise
+		 *             applications.
 		 */
-<span class="fc" id="L71">		@Deprecated</span>
-<span class="fc" id="L72">		CLIENT_SECRET_BASIC(&quot;client_secret_basic&quot;, Duration.ofDays(45L), true),</span>
+<span class="fc" id="L83">		@Deprecated</span>
+<span class="fc" id="L84">		CLIENT_SECRET_BASIC(&quot;client_secret_basic&quot;, Duration.ofDays(45L), true),</span>
 
 		/**
 		 * Bearer token w/ use of client secret as password at token endpoint via POST
 		 * parameter.
+		 * 
+		 * @deprecated OAuth 2.0 &lt;em&gt;requires&lt;/em&gt; support for client_secret POST.
+		 *             However, password authentication is insecure and &lt;em&gt;should
+		 *             not&lt;/em&gt; be used in production. This {@link AuthMethod} is useful
+		 *             for development and test environments and will be retained long
+		 *             term, but is deprecated to discourage direct use by enterprise
+		 *             applications.
 		 */
-<span class="fc" id="L78">		@Deprecated</span>
-<span class="fc" id="L79">		CLIENT_SECRET_POST(&quot;client_secret_post&quot;, Duration.ofDays(45L), true),</span>
+<span class="fc" id="L97">		@Deprecated</span>
+<span class="fc" id="L98">		CLIENT_SECRET_POST(&quot;client_secret_post&quot;, Duration.ofDays(45L), true),</span>
 
 		/**
 		 * Bearer token w/ use of client secret as HMAC key for signing a JWT assertion.
 		 */
-<span class="fc" id="L84">		CLIENT_SECRET_JWT(&quot;client_secret_jwt&quot;, Duration.ofDays(455L), false),</span>
+<span class="fc" id="L103">		CLIENT_SECRET_JWT(&quot;client_secret_jwt&quot;, Duration.ofDays(455L), false),</span>
 
 		/**
 		 * Bearer token w/ use of X509 certificate to demonstrate proof of private key
 		 * possession via JWT assertion.
 		 */
-<span class="fc" id="L90">		PRIVATE_KEY_JWT(&quot;private_key_jwt&quot;, Duration.ofDays(830L), false);</span>
+<span class="fc" id="L109">		PRIVATE_KEY_JWT(&quot;private_key_jwt&quot;, Duration.ofDays(830L), false);</span>
 
 		/**
 		 * JSON type adapter.
 		 */
-<span class="fc" id="L95">		public static IuJsonAdapter&lt;AuthMethod&gt; JSON = IuJsonAdapter.text(AuthMethod::from, a -&gt; a.parameterValue);</span>
+<span class="fc" id="L114">		public static IuJsonAdapter&lt;AuthMethod&gt; JSON = IuJsonAdapter.text(AuthMethod::from, a -&gt; a.parameterValue);</span>
 
 		/**
 		 * Gets an authentication method from standard parameter value.
@@ -101,8 +120,8 @@ public interface IuAuthorizationClient {
 		 * @return {@link AuthMethod}
 		 */
 		public static AuthMethod from(String parameterValue) {
-<span class="fc" id="L104">			return IuIterable.select(IuIterable.iter(AuthMethod.values()),</span>
-<span class="fc" id="L105">					a -&gt; a.parameterValue.equals(parameterValue));</span>
+<span class="fc" id="L123">			return IuIterable.select(IuIterable.iter(AuthMethod.values()),</span>
+<span class="fc" id="L124">					a -&gt; a.parameterValue.equals(parameterValue));</span>
 		}
 
 		/**
@@ -122,11 +141,11 @@ public interface IuAuthorizationClient {
 		 */
 		public final boolean requiresIpAllow;
 
-<span class="fc" id="L125">		private AuthMethod(String parameterValue, Duration ttlPolicy, boolean requiresIpAllow) {</span>
-<span class="fc" id="L126">			this.parameterValue = parameterValue;</span>
-<span class="fc" id="L127">			this.ttlPolicy = ttlPolicy;</span>
-<span class="fc" id="L128">			this.requiresIpAllow = requiresIpAllow;</span>
-<span class="fc" id="L129">		}</span>
+<span class="fc" id="L144">		private AuthMethod(String parameterValue, Duration ttlPolicy, boolean requiresIpAllow) {</span>
+<span class="fc" id="L145">			this.parameterValue = parameterValue;</span>
+<span class="fc" id="L146">			this.ttlPolicy = ttlPolicy;</span>
+<span class="fc" id="L147">			this.requiresIpAllow = requiresIpAllow;</span>
+<span class="fc" id="L148">		}</span>
 	}
 
 	/**
@@ -135,7 +154,7 @@ public interface IuAuthorizationClient {
 	 * @see &lt;a href=&quot;https://datatracker.ietf.org/doc/html/rfc7591#section-2&quot;&gt;OAuth
 	 *      2.0 Dynamic Client Registration&lt;/a&gt;
 	 */
-<span class="fc" id="L138">	enum GrantType {</span>
+<span class="fc" id="L157">	enum GrantType {</span>
 
 		/**
 		 * Authorization code.
@@ -144,7 +163,7 @@ public interface IuAuthorizationClient {
 		 *      &quot;https://openid.net/specs/openid-connect-core-1_0.html#CodeFlowAuth&quot;&gt;OIDC
 		 *      Core 1.0 Section 3.1&lt;/a&gt;
 		 */
-<span class="fc" id="L147">		AUTHORIZATION_CODE(&quot;code&quot;),</span>
+<span class="fc" id="L166">		AUTHORIZATION_CODE(&quot;code&quot;),</span>
 
 		/**
 		 * Client credentials.
@@ -153,7 +172,7 @@ public interface IuAuthorizationClient {
 		 *      &quot;https://datatracker.ietf.org/doc/html/rfc6749#section-4.4&quot;&gt;OAuth 2.0
 		 *      Section 4.4&lt;/a&gt;
 		 */
-<span class="fc" id="L156">		CLIENT_CREDENTIALS(&quot;client_credentials&quot;),</span>
+<span class="fc" id="L175">		CLIENT_CREDENTIALS(&quot;client_credentials&quot;),</span>
 
 		/**
 		 * Resource owner password.
@@ -162,7 +181,7 @@ public interface IuAuthorizationClient {
 		 *      &quot;https://datatracker.ietf.org/doc/html/rfc6749#section-4.3&quot;&gt;OAuth 2.0
 		 *      Section 4.3&lt;/a&gt;
 		 */
-<span class="fc" id="L165">		PASSWORD(&quot;password&quot;),</span>
+<span class="fc" id="L184">		PASSWORD(&quot;password&quot;),</span>
 
 		/**
 		 * Refresh token.
@@ -171,7 +190,7 @@ public interface IuAuthorizationClient {
 		 *      &quot;https://openid.net/specs/openid-connect-core-1_0.html#OfflineAccess&quot;&gt;OIDC
 		 *      Core 1.0 Section 11&lt;/a&gt;
 		 */
-<span class="fc" id="L174">		REFRESH_TOKEN(&quot;refresh_token&quot;),</span>
+<span class="fc" id="L193">		REFRESH_TOKEN(&quot;refresh_token&quot;),</span>
 
 		/**
 		 * JWT bearer assertion.
@@ -179,12 +198,12 @@ public interface IuAuthorizationClient {
 		 * @see &lt;a href=&quot;https://datatracker.ietf.org/doc/html/rfc7523&quot;&gt;OAuth 2.0 JWT
 		 *      Bearer Token Profiles&lt;/a&gt;
 		 */
-<span class="fc" id="L182">		JWT_BEARER(&quot;urn:ietf:params:oauth:grant-type:jwt-bearer&quot;);</span>
+<span class="fc" id="L201">		JWT_BEARER(&quot;urn:ietf:params:oauth:grant-type:jwt-bearer&quot;);</span>
 
 		/**
 		 * JSON type adapter.
 		 */
-<span class="fc" id="L187">		public static IuJsonAdapter&lt;GrantType&gt; JSON = IuJsonAdapter.text(GrantType::from, a -&gt; a.parameterValue);</span>
+<span class="fc" id="L206">		public static IuJsonAdapter&lt;GrantType&gt; JSON = IuJsonAdapter.text(GrantType::from, a -&gt; a.parameterValue);</span>
 
 		/**
 		 * Gets a grant type from parameter value.
@@ -193,7 +212,7 @@ public interface IuAuthorizationClient {
 		 * @return {@link GrantType}
 		 */
 		public static GrantType from(String parameterValue) {
-<span class="fc" id="L196">			return IuIterable.select(IuIterable.iter(GrantType.values()), a -&gt; a.parameterValue.equals(parameterValue));</span>
+<span class="fc" id="L215">			return IuIterable.select(IuIterable.iter(GrantType.values()), a -&gt; a.parameterValue.equals(parameterValue));</span>
 		}
 
 		/**
@@ -201,9 +220,9 @@ public interface IuAuthorizationClient {
 		 */
 		public final String parameterValue;
 
-<span class="fc" id="L204">		private GrantType(String parameterValue) {</span>
-<span class="fc" id="L205">			this.parameterValue = parameterValue;</span>
-<span class="fc" id="L206">		}</span>
+<span class="fc" id="L223">		private GrantType(String parameterValue) {</span>
+<span class="fc" id="L224">			this.parameterValue = parameterValue;</span>
+<span class="fc" id="L225">		}</span>
 
 	}
 
@@ -254,7 +273,7 @@ public interface IuAuthorizationClient {
 	 * 
 	 * @return {@link Credentials}
 	 */
-	Iterable&lt;Credentials&gt; getCredentials();
+	Iterable&lt;? extends Credentials&gt;  getCredentials();
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
