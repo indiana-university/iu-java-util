@@ -43,7 +43,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Stream;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.Inflater;
@@ -67,6 +66,7 @@ import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebKey;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
 /**
@@ -78,6 +78,23 @@ public class Jwe implements WebEncryption {
 	}
 
 	private static final Logger LOG = Logger.getLogger(Jwe.class.getName());
+
+	/** {@link IuJsonAdapter} */
+	public static final IuJsonAdapter<WebEncryption> JSON = IuJsonAdapter.from(v -> {
+		if (v instanceof JsonString)
+			return new Jwe(((JsonString) v).getString());
+		else
+			return IuObject.convert(v, a -> new Jwe(a.asJsonObject().toString()));
+	}, h -> {
+		if (h == null)
+			return null;
+		final var jwe = (Jwe) h;
+		if (jwe.recipients.length != 1 //
+				|| jwe.additionalData != null)
+			return IuJson.parse(jwe.toString());
+		else
+			return IuJson.string(jwe.compact());
+	});
 
 	private static class AesCbcHmac {
 		private static byte[] macKey(byte[] cek) {
@@ -364,8 +381,8 @@ public class Jwe implements WebEncryption {
 	}
 
 	@Override
-	public Stream<JweRecipient> getRecipients() {
-		return Stream.of(recipients);
+	public Iterable<JweRecipient> getRecipients() {
+		return IuIterable.iter(recipients);
 	}
 
 	@Override

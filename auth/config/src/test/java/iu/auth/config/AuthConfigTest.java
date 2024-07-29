@@ -184,8 +184,7 @@ public class AuthConfigTest {
 
 	@Test
 	public void testAdaptNonce() {
-		final var vault = mock(IuVault.class, a -> fail());
-		AuthConfig.registerInterface("nonce", IuOneTimeNumberConfig.class, vault);
+		AuthConfig.registerInterface(IuOneTimeNumberConfig.class);
 		final IuOneTimeNumberConfig nonce = AuthConfig.adaptJson(IuOneTimeNumberConfig.class)
 				.fromJson(IuJson.object().build());
 		assertEquals(Duration.ofMinutes(2L), nonce.getTimeToLive());

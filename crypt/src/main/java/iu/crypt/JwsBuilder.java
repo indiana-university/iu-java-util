@@ -39,6 +39,7 @@ import java.security.spec.PSSParameterSpec;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Queue;
@@ -61,6 +62,7 @@ import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.WebSignature.Builder;
 import edu.iu.crypt.WebSignedPayload;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
 /**
@@ -70,6 +72,25 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 	static {
 		IuObject.assertNotOpen(JwsBuilder.class);
 	}
+
+	/** {@link IuJsonAdapter} */
+	public static final IuJsonAdapter<WebSignedPayload> JSON = IuJsonAdapter.from(v -> {
+		if (v instanceof JsonString)
+			return parse(((JsonString) v).getString());
+		else
+			return IuObject.convert(v, a -> parse(a.asJsonObject().toString()));
+	}, h -> {
+		if (h == null)
+			return null;
+
+		final var jws = (JwsSignedPayload) h;
+		final Iterator<Jws> signatureIterator = jws.getSignatures().iterator();
+		signatureIterator.next();
+		if (signatureIterator.hasNext())
+			return IuJson.parse(jws.toString());
+		else
+			return IuJson.string(jws.compact());
+	});
 
 	/**
 	 * Parses JWS signed payload from serialized form

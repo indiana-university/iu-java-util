@@ -41,7 +41,10 @@
 module iu.util.auth {
 	exports edu.iu.auth;
 	opens edu.iu.auth;
-	
+
+	exports edu.iu.auth.jwt;
+	opens edu.iu.auth.jwt;
+
 	exports edu.iu.auth.saml;
 	opens edu.iu.auth.saml;
 	

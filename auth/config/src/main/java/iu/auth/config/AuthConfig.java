@@ -49,9 +49,12 @@ import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.client.IuVault;
 import edu.iu.crypt.PemEncoded;
+import edu.iu.crypt.WebCryptoHeader;
+import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebSignedPayload;
 import jakarta.json.JsonString;
 
 /**
@@ -90,6 +93,9 @@ public class AuthConfig {
 		registerAdapter(Algorithm.class, Algorithm.JSON);
 		registerAdapter(Encryption.class, Encryption.JSON);
 		registerAdapter(WebKey.class, WebKey.JSON);
+		registerAdapter(WebCryptoHeader.class, WebCryptoHeader.JSON);
+		registerAdapter(WebEncryption.class, WebEncryption.JSON);
+		registerAdapter(WebSignedPayload.class, WebSignedPayload.JSON);
 		registerAdapter(X509Certificate.class, PemEncoded.CERT_JSON);
 		registerAdapter(X509CRL.class, PemEncoded.CRL_JSON);
 		registerAdapter(IuAuthenticationRealm.Type.class, IuAuthenticationRealm.Type.JSON);
@@ -134,6 +140,18 @@ public class AuthConfig {
 			throw new IllegalArgumentException("already configured");
 
 		STORAGE.put(type, new StorageConfig<>(null, null, adapter));
+	}
+
+	/**
+	 * Registers an authorization configuration interface that doesn't tie to a
+	 * vault configuration name.
+	 * 
+	 * @param <T>             configuration type
+	 * @param configInterface configuration interface
+	 */
+	public static synchronized <T> void registerInterface(Class<T> configInterface) {
+		registerAdapter(configInterface, IuJsonAdapter.from(configInterface,
+				IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, AuthConfig::adaptJson));
 	}
 
 	/**

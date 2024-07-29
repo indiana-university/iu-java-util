@@ -29,78 +29,76 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.crypt;
+package edu.iu.auth.jwt;
 
-import edu.iu.IuException;
-import edu.iu.client.IuJsonAdapter;
-import iu.crypt.JwsBuilder;
+import java.net.URI;
+import java.time.Instant;
 
 /**
- * Encapsulates signed data.
+ * Represents JSON Web Token (JWT) claims.
+ * 
+ * @see <a href="https://datatracker.ietf.org/doc/html/rfc7519">RFC-7519 JSON
+ *      Web Token (JWT)</a>
  */
-public interface WebSignedPayload {
-
-	/** {@link IuJsonAdapter} */
-	public static final IuJsonAdapter<WebSignedPayload> JSON = JwsBuilder.JSON;
+public interface IuWebToken {
 
 	/**
-	 * Parses JWS signed payload from serialized form.
+	 * Gets the token identifier.
 	 * 
-	 * @param jws serialized JWS
-	 * @return parsed JWS signed payload
+	 * @return token identifier (jti claim);
 	 */
-	static WebSignedPayload parse(String jws) {
-		return JwsBuilder.parse(jws);
-	}
+	String getTokenId();
 
 	/**
-	 * Gets the signed message payload.
+	 * Gets the token issuer URI.
 	 * 
-	 * @return signed message payload
+	 * @return {@link URI}
 	 */
-	byte[] getPayload();
+	URI getIssuer();
 
 	/**
-	 * Gets one or more signatures for verifying the payload.
+	 * Gets the token audience URIs.
 	 * 
-	 * @return {@link WebSignature}s
+	 * @return at least one {@link URI}
 	 */
-	Iterable<? extends WebSignature> getSignatures();
+	Iterable<URI> getAudience();
 
 	/**
-	 * Gets the signed payload in compact serialized form.
+	 * Gets the subject of the JWT.
 	 * 
-	 * @return compact serialized form
+	 * @return subject (sub claim)
 	 */
-	String compact();
+	String getSubject();
 
 	/**
-	 * Verifies at least one signature using a public or shared key.
+	 * Gets the time the JWT was issued.
 	 * 
-	 * @param key public or shared key
+	 * @return issued time (iat claim)
 	 */
-	default void verify(WebKey key) {
-		Throwable error = null;
-		final var payload = getPayload();
-		for (final var signature : getSignatures())
-			try {
-				signature.verify(payload, key);
-				return;
-			} catch (Throwable e) {
-				if (error == null)
-					error = e;
-				else
-					error.addSuppressed(e);
-			}
-		throw IuException.unchecked(error);
-	}
+	Instant getIssuedAt();
 
 	/**
-	 * Gets the signed payload in JSON serialized form.
+	 * Gets the time before which the JWT should not be accepted.
 	 * 
-	 * @return JSON serialized form
+	 * @return not before time (nbf claim)
 	 */
-	@Override
-	String toString();
+	Instant getNotBefore();
+
+	/**
+	 * Gets the time after which the JWT should not be accepted.
+	 * 
+	 * @return token expiration time (exp claim)
+	 */
+	Instant getExpires();
+
+	/**
+	 * Gets the nonce claim.
+	 * 
+	 * @return nonce claim value
+	 * @see <a href=
+	 *      "https://openid.net/specs/openid-connect-core-1_0.html#NonceNotes">OpenID
+	 *      Connection Core 1.0 Section 15.5.2</a>
+	 */
+	String getNonce();
 
 }

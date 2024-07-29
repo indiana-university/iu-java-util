@@ -51,22 +51,34 @@ public interface IuAuthorizationClient {
 		/**
 		 * Direct use of client secret as password at API endpoint via Authorization
 		 * Basic header.
+		 * 
+		 * @deprecated Most container standards <em>require</em> support for basic
+		 *             authentication, and Basic auth is supported by current HTTP
+		 *             standards. However, password authentication is insecure and
+		 *             <em>should not</em> be used in production. This
+		 *             {@link AuthMethod} is useful for development and test
+		 *             environments and will be retained long term, but is deprecated to
+		 *             discourage direct use by enterprise applications.
 		 */
 		@Deprecated
 		BASIC("basic", Duration.ofDays(45L), true),
 
 		/**
-		 * Direct use of access token at API endpoint via Authorization Bearer header.
-		 * 
-		 * <p>
-		 * Not intended for client configuration except in development environments.
-		 * </p>
+		 * Direct use of an access token via Authorization Bearer header.
 		 */
 		BEARER("bearer", Duration.ofHours(12L), false),
 
 		/**
 		 * Bearer token w/ use of client secret as password at token endpoint via
 		 * Authorization Basic header.
+		 * 
+		 * @deprecated OAuth 2.0 <em>requires</em> support for client_secret password,
+		 *             and Basic auth is supported by current HTTP standards. However,
+		 *             password authentication is insecure and <em>should not</em> be
+		 *             used in production. This {@link AuthMethod} is useful for
+		 *             development and test environments and will be retained long term,
+		 *             but is deprecated to discourage direct use by enterprise
+		 *             applications.
 		 */
 		@Deprecated
 		CLIENT_SECRET_BASIC("client_secret_basic", Duration.ofDays(45L), true),
@@ -74,6 +86,13 @@ public interface IuAuthorizationClient {
 		/**
 		 * Bearer token w/ use of client secret as password at token endpoint via POST
 		 * parameter.
+		 * 
+		 * @deprecated OAuth 2.0 <em>requires</em> support for client_secret POST.
+		 *             However, password authentication is insecure and <em>should
+		 *             not</em> be used in production. This {@link AuthMethod} is useful
+		 *             for development and test environments and will be retained long
+		 *             term, but is deprecated to discourage direct use by enterprise
+		 *             applications.
 		 */
 		@Deprecated
 		CLIENT_SECRET_POST("client_secret_post", Duration.ofDays(45L), true),
@@ -254,6 +273,6 @@ public interface IuAuthorizationClient {
 	 * 
 	 * @return {@link Credentials}
 	 */
-	Iterable<Credentials> getCredentials();
+	Iterable<? extends Credentials>  getCredentials();
 
 }

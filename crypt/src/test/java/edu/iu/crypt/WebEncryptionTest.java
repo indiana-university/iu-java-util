@@ -74,6 +74,7 @@ public class WebEncryptionTest extends IuCryptTestCase {
 				a -> a.use.equals(Use.ENCRYPT)))
 			for (final var encryption : Encryption.values())
 				assertEncryption(algorithm, encryption);
+		assertNull(WebEncryption.JSON.fromJson(WebEncryption.JSON.toJson(null)));
 	}
 
 	@Test
@@ -192,6 +193,8 @@ public class WebEncryptionTest extends IuCryptTestCase {
 			IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
 			assertEquals(message, compactJwe.decryptText(key));
 			assertNull(compactJwe.getAdditionalData());
+			assertEquals(IuJson.parse(compactJwe.toString()),
+					IuJson.parse(WebEncryption.JSON.fromJson(WebEncryption.JSON.toJson(compactJwe)).toString()));
 
 			final var fromCompact = WebEncryption.parse(compactJwe.compact());
 			final var compactHeader = fromCompact.getRecipients().iterator().next().getHeader();
@@ -209,6 +212,8 @@ public class WebEncryptionTest extends IuCryptTestCase {
 		{
 			final var serialJwe = WebEncryption.to(encryption, algorithm).wellKnown(key).then().encrypt(message);
 			assertNull(serialJwe.getAdditionalData());
+			assertEquals(IuJson.parse(serialJwe.toString()),
+					IuJson.parse(WebEncryption.JSON.fromJson(WebEncryption.JSON.toJson(serialJwe)).toString()));
 
 			final var fromSerial = WebEncryption.parse(serialJwe.toString());
 			final var serialHeader = fromSerial.getRecipients().iterator().next().getHeader();
@@ -225,7 +230,7 @@ public class WebEncryptionTest extends IuCryptTestCase {
 					.encrypt(message);
 			assertNotNull(slientJwe.getAdditionalData());
 
-			final var fromSilent = WebEncryption.parse(slientJwe.toString());
+			final var fromSilent = WebEncryption.JSON.fromJson(WebEncryption.JSON.toJson(slientJwe));
 			final var silentHeader = fromSilent.getRecipients().iterator().next().getHeader();
 			assertEquals(algorithm, silentHeader.getAlgorithm());
 			assertEquals(encryption, fromSilent.getEncryption());
