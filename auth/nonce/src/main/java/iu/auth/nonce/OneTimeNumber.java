@@ -44,9 +44,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.iu.IdGenerator;
-import edu.iu.auth.IuAuthorizationChallenge;
 import edu.iu.auth.IuOneTimeNumber;
-import edu.iu.auth.IuOneTimeNumberConfig;
+import edu.iu.auth.nonce.IuAuthorizationChallenge;
+import edu.iu.auth.nonce.IuOneTimeNumberConfig;
 
 /**
  * {@link IuOneTimeNumber} implementation class.

@@ -58,10 +58,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.auth.IuOneTimeNumberConfig;
 import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
 import edu.iu.auth.config.IuAuthorizationClient.Credentials;
 import edu.iu.auth.config.IuAuthorizationClient.GrantType;
+import edu.iu.auth.nonce.IuOneTimeNumberConfig;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuVault;

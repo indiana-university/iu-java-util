@@ -40,14 +40,17 @@
  */
 module iu.util.auth {
 	exports edu.iu.auth;
-	opens edu.iu.auth;
 
 	exports edu.iu.auth.jwt;
+
 	opens edu.iu.auth.jwt;
 
+	exports edu.iu.auth.nonce;
+
+	opens edu.iu.auth.nonce;
+
 	exports edu.iu.auth.saml;
-	opens edu.iu.auth.saml;
-	
+
 	exports edu.iu.auth.spi;
 
 	requires iu.util;

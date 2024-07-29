@@ -33,7 +33,7 @@ package edu.iu.auth.config;
 
 import java.net.URI;
 
-import edu.iu.auth.IuOneTimeNumberConfig;
+import edu.iu.auth.nonce.IuOneTimeNumberConfig;
 
 /**
  * Provides audience configuration.

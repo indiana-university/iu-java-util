@@ -32,7 +32,7 @@
 package edu.iu.auth.spi;
 
 import edu.iu.auth.IuOneTimeNumber;
-import edu.iu.auth.IuOneTimeNumberConfig;
+import edu.iu.auth.nonce.IuOneTimeNumberConfig;
 
 /**
  * One-time number (nonce) service provider interface.

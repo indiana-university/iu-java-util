@@ -31,7 +31,7 @@
  */
 package iu.auth.nonce;
 
-import edu.iu.auth.IuAuthorizationChallenge;
+import edu.iu.auth.nonce.IuAuthorizationChallenge;
 
 /**
  * Represents a one-time number that has been used for external synchronization.
