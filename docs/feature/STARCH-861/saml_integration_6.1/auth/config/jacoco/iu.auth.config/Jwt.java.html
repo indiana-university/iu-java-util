@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Jwt.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Authentication and Authorization Configuration</a> &gt; <a href="index.source.html" class="el_package">iu.auth.config</a> &gt; <span class="el_source">Jwt.java</span></div><h1>Jwt.java</h1><pre class="source lang-java linenums">package iu.auth.config;
+
+import java.net.URI;
+import java.time.Instant;
+
+import edu.iu.IuObject;
+import edu.iu.auth.jwt.IuWebToken;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonObject;
+
+/**
+ * Basic JWT claims {@link IuWebToken} implementation.
+ */
+final class Jwt implements IuWebToken {
+	static {
+<span class="fc" id="L17">		IuObject.assertNotOpen(Jwt.class);</span>
+<span class="fc" id="L18">	}</span>
+
+	private final JsonObject claims;
+
+	/**
+	 * Constructor
+	 * 
+	 * @param claims {@link JsonObject}
+	 */
+<span class="fc" id="L27">	Jwt(JsonObject claims) {</span>
+<span class="fc" id="L28">		this.claims = claims;</span>
+<span class="fc" id="L29">	}</span>
+
+	@Override
+	public String getTokenId() {
+<span class="fc" id="L33">		return IuJson.get(claims, &quot;jti&quot;);</span>
+	}
+
+	@Override
+	public URI getIssuer() {
+<span class="fc" id="L38">		return IuJson.get(claims, &quot;iss&quot;, IuJsonAdapter.of(URI.class));</span>
+	}
+
+	@Override
+	public Iterable&lt;URI&gt; getAudience() {
+<span class="fc" id="L43">		return IuJson.get(claims, &quot;aud&quot;, IuJsonAdapter.of(Iterable.class, IuJsonAdapter.of(URI.class)));</span>
+	}
+
+	@Override
+	public String getSubject() {
+<span class="fc" id="L48">		return IuJson.get(claims, &quot;sub&quot;);</span>
+	}
+
+	@Override
+	public Instant getIssuedAt() {
+<span class="fc" id="L53">		return IuJson.get(claims, &quot;iat&quot;, JwtAdapter.NUMERIC_DATE);</span>
+	}
+
+	@Override
+	public Instant getNotBefore() {
+<span class="fc" id="L58">		return IuJson.get(claims, &quot;nbf&quot;, JwtAdapter.NUMERIC_DATE);</span>
+	}
+
+	@Override
+	public Instant getExpires() {
+<span class="fc" id="L63">		return IuJson.get(claims, &quot;exp&quot;, JwtAdapter.NUMERIC_DATE);</span>
+	}
+
+	@Override
+	public String getNonce() {
+<span class="fc" id="L68">		return IuJson.get(claims, &quot;nonce&quot;);</span>
+	}
+
+	@Override
+	public int hashCode() {
+<span class="fc" id="L73">		return IuObject.hashCode(claims);</span>
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+<span class="fc bfc" id="L78" title="All 2 branches covered.">		if (!IuObject.typeCheck(this, obj))</span>
+<span class="fc" id="L79">			return false;</span>
+<span class="fc" id="L80">		Jwt other = (Jwt) obj;</span>
+<span class="fc" id="L81">		return IuObject.equals(claims, other.claims);</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
