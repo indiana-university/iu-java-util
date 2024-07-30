@@ -124,7 +124,7 @@ final class SamlSession implements IuSamlSession {
 	}
 
 	@Override
-	public void verifyResponse(String remoteAddr, String samlResponse, String relayState)
+	public URI verifyResponse(String remoteAddr, String samlResponse, String relayState)
 			throws IuAuthenticationException {
 		try {
 			IuObject.require(id, Objects::isNull);
@@ -146,6 +146,8 @@ final class SamlSession implements IuSamlSession {
 							StandardCharsets.UTF_8)));
 			throw challenge;
 		}
+		
+		return entryPointUri;
 	}
 
 	@Override
