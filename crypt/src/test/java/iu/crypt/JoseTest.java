@@ -69,6 +69,12 @@ public class JoseTest extends IuCryptTestCase {
 		return new Builder(algorithm);
 	}
 
+	@Test
+	public void testJson() {
+		final var o = jose(Algorithm.HS256).build();
+		assertEquals(o, Jose.JSON.fromJson(Jose.JSON.toJson(o)));
+	}
+
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testRegister() {

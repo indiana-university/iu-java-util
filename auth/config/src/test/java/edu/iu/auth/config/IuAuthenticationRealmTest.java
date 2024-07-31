@@ -32,54 +32,47 @@
 package edu.iu.auth.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.auth.config.IuAuthenticationRealm.Type;
 import edu.iu.client.IuJson;
+import edu.iu.client.IuVault;
+import edu.iu.client.IuVaultKeyedValue;
 import iu.auth.config.AuthConfig;
 
 @SuppressWarnings("javadoc")
 public class IuAuthenticationRealmTest {
 
+	@SuppressWarnings("unchecked")
 	@Test
-	public void testOf() {
+	public void testVerify() {
 		final var authId = IdGenerator.generateId();
-		final var realm = mock(IuPrivateKeyPrincipal.class);
-		try (final var mockAuthConfig = mockStatic(AuthConfig.class)) {
-			mockAuthConfig
-					.when(() -> AuthConfig.load(eq(IuAuthenticationRealm.class), eq("realm/" + authId), argThat(a -> {
-						assertSame(IuPrivateKeyPrincipal.class, a.apply(IuJson.object().add("type", "pki").build()));
-						return true;
-					}))).thenReturn(realm);
-			assertSame(realm, IuAuthenticationRealm.of(authId));
-		}
+		final var vault = mock(IuVault.class);
+		final var value = mock(IuVaultKeyedValue.class);
+		when(value.getValue()).thenReturn("{\"type\":\"pki\"}");
+		when(vault.get("realm/" + authId)).thenReturn(value);
+		AuthConfig.registerInterface("realm", IuPrivateKeyPrincipal.class, vault);
+		AuthConfig.registerInterface("realm", IuCertificateAuthority.class, vault);
+
+		final var realm = AuthConfig.load(IuPrivateKeyPrincipal.class, authId);
+		assertInstanceOf(IuPrivateKeyPrincipal.class, realm);
+
+		final var error = assertThrows(IllegalStateException.class,
+				() -> AuthConfig.load(IuCertificateAuthority.class, authId));
+		assertEquals("Invalid realm type for pki", error.getMessage());
 	}
 
 	@Test
 	public void testJson() {
-		final var value = IuJson.object().add("type", "pki").build();
-		try (final var mockJson = mockStatic(IuJson.class)) {
-			IuAuthenticationRealm.JSON.fromJson(value);
-			mockJson.verify(() -> IuJson.wrap(eq(value), eq(IuPrivateKeyPrincipal.class), any()));
+		for (final var t : Type.values()) {
+			assertEquals(IuJson.string(t.code), Type.JSON.toJson(t));
 		}
 	}
-
-	@Test
-	public void testJsonMissingType() {
-		final var value = IuJson.object().build();
-		final var e = assertThrows(IllegalArgumentException.class, () -> IuAuthenticationRealm.JSON.fromJson(value));
-		assertEquals("Authentication realm definition missing type", e.getMessage(), () -> {
-			e.printStackTrace();
-			return e.getMessage();
-		});
-	}
-
+	
 }

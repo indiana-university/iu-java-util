@@ -36,25 +36,12 @@ import java.time.Instant;
 import java.util.Set;
 
 import edu.iu.IuIterable;
-import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
-import iu.auth.config.AuthConfig;
-import jakarta.json.JsonString;
 
 /**
  * Provides client configuration.
  */
 public interface IuAuthorizationClient {
-
-	/**
-	 * JSON type adapter.
-	 */
-	static final IuJsonAdapter<IuAuthorizationClient> JSON = IuJsonAdapter.from(v -> {
-		if (v instanceof JsonString)
-			return of(((JsonString) v).getString());
-		else
-			return IuJson.wrap(v.asJsonObject(), IuAuthorizationClient.class, AuthConfig::adaptJson);
-	}, IuJson::unwrap);
 
 	/**
 	 * Enumerate token endpoint authentication methods types.
@@ -64,22 +51,34 @@ public interface IuAuthorizationClient {
 		/**
 		 * Direct use of client secret as password at API endpoint via Authorization
 		 * Basic header.
+		 * 
+		 * @deprecated Most container standards <em>require</em> support for basic
+		 *             authentication, and Basic auth is supported by current HTTP
+		 *             standards. However, password authentication is insecure and
+		 *             <em>should not</em> be used in production. This
+		 *             {@link AuthMethod} is useful for development and test
+		 *             environments and will be retained long term, but is deprecated to
+		 *             discourage direct use by enterprise applications.
 		 */
 		@Deprecated
 		BASIC("basic", Duration.ofDays(45L), true),
 
 		/**
-		 * Direct use of access token at API endpoint via Authorization Bearer header.
-		 * 
-		 * <p>
-		 * Not intended for client configuration except in development environments.
-		 * </p>
+		 * Direct use of an access token via Authorization Bearer header.
 		 */
 		BEARER("bearer", Duration.ofHours(12L), false),
 
 		/**
 		 * Bearer token w/ use of client secret as password at token endpoint via
 		 * Authorization Basic header.
+		 * 
+		 * @deprecated OAuth 2.0 <em>requires</em> support for client_secret password,
+		 *             and Basic auth is supported by current HTTP standards. However,
+		 *             password authentication is insecure and <em>should not</em> be
+		 *             used in production. This {@link AuthMethod} is useful for
+		 *             development and test environments and will be retained long term,
+		 *             but is deprecated to discourage direct use by enterprise
+		 *             applications.
 		 */
 		@Deprecated
 		CLIENT_SECRET_BASIC("client_secret_basic", Duration.ofDays(45L), true),
@@ -87,6 +86,13 @@ public interface IuAuthorizationClient {
 		/**
 		 * Bearer token w/ use of client secret as password at token endpoint via POST
 		 * parameter.
+		 * 
+		 * @deprecated OAuth 2.0 <em>requires</em> support for client_secret POST.
+		 *             However, password authentication is insecure and <em>should
+		 *             not</em> be used in production. This {@link AuthMethod} is useful
+		 *             for development and test environments and will be retained long
+		 *             term, but is deprecated to discourage direct use by enterprise
+		 *             applications.
 		 */
 		@Deprecated
 		CLIENT_SECRET_POST("client_secret_post", Duration.ofDays(45L), true),
@@ -226,12 +232,6 @@ public interface IuAuthorizationClient {
 	interface Credentials extends IuPrivateKeyPrincipal {
 
 		/**
-		 * JSON type adapter.
-		 */
-		static IuJsonAdapter<Credentials> JSON = IuJsonAdapter
-				.from(v -> IuJson.wrap(v.asJsonObject(), Credentials.class, AuthConfig::adaptJson), IuJson::unwrap);
-
-		/**
 		 * Gets the grant types the credentials are authorized for use with.
 		 * 
 		 * @return {@link Set} of {@link GrantType}
@@ -255,16 +255,6 @@ public interface IuAuthorizationClient {
 	}
 
 	/**
-	 * Gets the configuration for a client.
-	 * 
-	 * @param name client name
-	 * @return client configuration
-	 */
-	static IuAuthorizationClient of(String name) {
-		return AuthConfig.load(IuAuthorizationClient.class, "client/" + name);
-	}
-
-	/**
 	 * Gets the allowed IP address ranges.
 	 * 
 	 * @return Set of allowed IP address ranges
@@ -283,6 +273,6 @@ public interface IuAuthorizationClient {
 	 * 
 	 * @return {@link Credentials}
 	 */
-	Iterable<Credentials> getCredentials();
+	Iterable<? extends Credentials>  getCredentials();
 
 }

@@ -29,53 +29,25 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth;
-
-import java.time.Duration;
-import java.util.function.Consumer;
+package edu.iu.auth.nonce;
 
 /**
- * Provides configuration properties for tuning {@link IuOneTimeNumber}
- * instances.
+ * Represents an authorization challenge.
  */
-public interface IuOneTimeNumberConfig {
+public interface IuAuthorizationChallenge {
 
 	/**
-	 * Gets the maximum time to allow a pending one-time number value to be
-	 * accepted.
+	 * One-time number value.
 	 * 
-	 * @return {@link Duration}
+	 * @return one-time number
 	 */
-	default Duration getTimeToLive() {
-		return Duration.ofMinutes(2L);
-	}
+	String getNonce();
 
 	/**
-	 * Gets the maximum number of concurrent nonce requests to allow per client.
+	 * Client thumbprint.
 	 * 
-	 * @return maximum number of concurrent nonce requests
+	 * @return client thumbprint
 	 */
-	default int getMaxConcurrency() {
-		return 5;
-	}
-
-	/**
-	 * Subscribes the one-time number generator to external
-	 * {@link IuAuthorizationChallenge} events.
-	 * 
-	 * @param challengeSubscriber Receives a {@link Consumer} for publishing
-	 *                            {@link IuAuthorizationChallenge} events received
-	 *                            from other nodes.
-	 */
-	default void subscribe(Consumer<IuAuthorizationChallenge> challengeSubscriber) {
-	}
-
-	/**
-	 * Broadcasts a {@link IuAuthorizationChallenge} event to all subscribers.
-	 * 
-	 * @param challenge {@link IuAuthorizationChallenge} event
-	 */
-	default void publish(IuAuthorizationChallenge challenge) {
-	}
+	byte[] getClientThumbprint();
 
 }

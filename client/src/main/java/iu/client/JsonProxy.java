@@ -31,18 +31,22 @@
  */
 package iu.client;
 
+import java.io.StringWriter;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
+import java.util.Map;
 import java.util.function.Function;
 
 import edu.iu.IuObject;
+import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
 
 /**
  * Thin invocation handler for wrapping JSON objects in a Java interface.
@@ -65,7 +69,6 @@ public final class JsonProxy implements InvocationHandler {
 	 */
 	public static <T> T wrap(JsonObject value, Class<T> targetInterface,
 			Function<Type, IuJsonAdapter<?>> valueAdapter) {
-		IuObject.assertNotOpen(targetInterface);
 		JsonProxy.class.getModule().addReads(targetInterface.getModule());
 
 		return targetInterface.cast(Proxy.newProxyInstance(targetInterface.getClassLoader(),
@@ -109,7 +112,10 @@ public final class JsonProxy implements InvocationHandler {
 		}
 
 		if (methodName.equals("toString")) {
-			return value.toString();
+			final var writer = new StringWriter();
+			IuJson.PROVIDER.createWriterFactory(Map.of(JsonGenerator.PRETTY_PRINTING, true)).createWriter(writer)
+					.write(value);
+			return writer.toString();
 		}
 
 		final String propertyName;

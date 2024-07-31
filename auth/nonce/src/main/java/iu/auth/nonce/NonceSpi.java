@@ -33,7 +33,7 @@ package iu.auth.nonce;
 
 import edu.iu.IuObject;
 import edu.iu.auth.IuOneTimeNumber;
-import edu.iu.auth.IuOneTimeNumberConfig;
+import edu.iu.auth.nonce.IuOneTimeNumberConfig;
 import edu.iu.auth.spi.IuNonceSpi;
 
 /**

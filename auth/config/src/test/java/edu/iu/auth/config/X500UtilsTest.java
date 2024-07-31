@@ -44,8 +44,6 @@ import javax.security.auth.x500.X500Principal;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.auth.config.X500Utils;
-
 @SuppressWarnings("javadoc")
 public class X500UtilsTest {
 

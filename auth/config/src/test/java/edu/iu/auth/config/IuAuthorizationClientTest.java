@@ -33,20 +33,11 @@ package edu.iu.auth.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.IdGenerator;
 import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
 import edu.iu.auth.config.IuAuthorizationClient.GrantType;
-import edu.iu.client.IuJson;
-import iu.auth.config.AuthConfig;
-import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
 
 @SuppressWarnings("javadoc")
@@ -62,38 +53,6 @@ public class IuAuthorizationClientTest {
 	public void testGrantTypeFrom() {
 		for (final var grantType : GrantType.values())
 			assertSame(grantType, GrantType.from(grantType.parameterValue));
-	}
-
-	@Test
-	public void testOf() {
-		final var authId = IdGenerator.generateId();
-		final var client = mock(IuAuthorizationClient.class);
-		try (final var mockAuthConfig = mockStatic(AuthConfig.class)) {
-			mockAuthConfig.when(() -> AuthConfig.load(IuAuthorizationClient.class, "client/" + authId))
-					.thenReturn(client);
-			assertSame(client, IuAuthorizationClient.of(authId));
-		}
-	}
-
-	@Test
-	public void testJsonString() {
-		final var authId = IdGenerator.generateId();
-		final var client = mock(IuAuthorizationClient.class);
-		try (final var mockAuthConfig = mockStatic(AuthConfig.class)) {
-			mockAuthConfig.when(() -> AuthConfig.load(IuAuthorizationClient.class, "client/" + authId))
-					.thenReturn(client);
-			assertSame(client, IuAuthorizationClient.JSON.fromJson(IuJson.string(authId)));
-		}
-	}
-
-	@Test
-	public void testJsonObject() {
-		final var o = mock(JsonObject.class);
-		when(o.asJsonObject()).thenReturn(o);
-		try (final var mockJson = mockStatic(IuJson.class)) {
-			IuAuthorizationClient.JSON.fromJson(o);
-			mockJson.verify(() -> IuJson.wrap(eq(o), eq(IuAuthorizationClient.class), any()));
-		}
 	}
 
 	@Test

@@ -58,7 +58,6 @@ import org.junit.jupiter.api.condition.EnabledIf;
 import edu.iu.IdGenerator;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.auth.saml.IuSamlAssertion;
 import edu.iu.auth.saml.IuSamlSession;
@@ -80,8 +79,8 @@ public class SamlAuthenticateIT {
 
 	@BeforeAll
 	public static void setupClass() {
-		AuthConfig.addVault(IuAuthenticationRealm.class, IuVault.RUNTIME);
-		final IuSamlServiceProviderMetadata realm = IuAuthenticationRealm.of(REALM);
+		AuthConfig.registerInterface("realm", IuSamlServiceProviderMetadata.class, IuVault.RUNTIME);
+		final var realm = AuthConfig.load(IuSamlServiceProviderMetadata.class, REALM);
 		postUri = realm.getAcsUris().iterator().next();
 		entryPointUri = realm.getEntryPointUris().iterator().next();
 

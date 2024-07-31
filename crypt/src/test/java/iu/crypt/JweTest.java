@@ -337,6 +337,8 @@ public class JweTest {
 				.addRecipient(Algorithm.DIRECT).key(key).encrypt("foo");
 		assertEquals(IuJson.array().add(IuJson.object()).add(IuJson.object()).build(),
 				IuJson.parse(jwe.toString()).asJsonObject().getJsonArray("recipients"));
+		assertEquals(IuJson.parse(jwe.toString()),
+				IuJson.parse(WebEncryption.JSON.fromJson(WebEncryption.JSON.toJson(jwe)).toString()));
 
 		final var jwe2 = WebEncryption.builder(Encryption.A128GCM).compact().addRecipient(Algorithm.DIRECT).key(key)
 				.encrypt("foo");
@@ -347,12 +349,17 @@ public class JweTest {
 		assertNull(jwe.getAdditionalData());
 		assertNull(IuJson.parse(jwe2.toString()).asJsonObject().getJsonArray("recipients"));
 		assertNull(IuJson.parse(jwe2.toString()).asJsonObject().getJsonObject("header"));
+		assertEquals(IuJson.parse(jwe2.toString()),
+				IuJson.parse(WebEncryption.JSON.fromJson(WebEncryption.JSON.toJson(jwe2)).toString()));
 
 		final var jwe3 = WebEncryption.builder(Encryption.A128GCM).protect(Param.ENCRYPTION, Param.ZIP, Param.ALGORITHM)
 				.addRecipient(Algorithm.DIRECT).keyId(IdGenerator.generateId()).key(key).then()
 				.addRecipient(Algorithm.DIRECT).keyId(IdGenerator.generateId()).key(key).encrypt("foo");
 		assertNotNull(IuJson.parse(jwe3.toString()).asJsonObject().getJsonArray("recipients"));
 		assertNull(IuJson.parse(jwe3.toString()).asJsonObject().getJsonObject("unprotected"));
+		assertEquals(IuJson.parse(jwe3.toString()),
+				IuJson.parse(WebEncryption.JSON.fromJson(WebEncryption.JSON.toJson(jwe3)).toString()));
+
 	}
 
 	@Test
@@ -397,7 +404,7 @@ public class JweTest {
 		final var serialized = IuJson.parse(jwe.toString()).asJsonObject();
 
 		final var iv = Arrays.copyOf(UnpaddedBinary.JSON.fromJson(serialized.get("iv")), 11);
-		
+
 		final var b = IuJson.object(serialized);
 		b.add("iv", UnpaddedBinary.base64Url(iv));
 

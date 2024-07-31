@@ -46,6 +46,7 @@ import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Use;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
 
 /**
  * Provides {@link WebCryptoHeader} and {@link WebEncryptionHeader} processing
@@ -55,6 +56,10 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 	static {
 		IuObject.assertNotOpen(Jose.class);
 	}
+
+	/** {@link IuJsonAdapter} */
+	public static final IuJsonAdapter<WebCryptoHeader> JSON = IuJsonAdapter.from(Jose::new,
+			h -> ((Jose) h).toJson(a -> true));
 
 	private static final Map<String, Extension<?>> EXTENSIONS = new HashMap<>();
 
@@ -132,10 +137,12 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 	/**
 	 * Constructor.
 	 * 
-	 * @param jose header parameters
+	 * @param joseValue header parameters
 	 */
-	Jose(JsonObject jose) {
-		super(jose);
+	Jose(JsonValue joseValue) {
+		super(joseValue);
+
+		final var jose = joseValue.asJsonObject();
 		keySetUri = IuJson.get(jose, "jku", IuJsonAdapter.of(URI.class));
 		key = (Jwk) IuObject.convert(IuJson.get(jose, "jwk", Jwk.JSON), WebKey::wellKnown);
 		type = IuJson.get(jose, "typ");
@@ -150,7 +157,7 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 		this.extendedParameters = extendedParametersBuilder.build();
 
 		wellKnownKey = (Jwk) WebCryptoHeader.verify(this);
-		
+
 		for (final var paramName : extendedParameters.keySet())
 			if (Param.from(paramName) == null)
 				getExtension(paramName).verify(this);

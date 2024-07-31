@@ -37,24 +37,25 @@ import java.security.cert.X509Certificate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.Consumer;
 
+import edu.iu.IuException;
 import edu.iu.IuObject;
-import edu.iu.auth.IuOneTimeNumberConfig;
-import edu.iu.auth.config.IuAuthNonceConfig;
 import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
-import edu.iu.auth.config.IuAuthorizationClient.Credentials;
 import edu.iu.auth.config.IuAuthorizationClient.GrantType;
-import edu.iu.auth.config.IuAuthorizedAudience;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.client.IuVault;
 import edu.iu.crypt.PemEncoded;
+import edu.iu.crypt.WebCryptoHeader;
+import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
-import jakarta.json.JsonObject;
+import edu.iu.crypt.WebSignedPayload;
+import jakarta.json.JsonString;
 
 /**
  * Authentication and authorization root configuration utility.
@@ -64,12 +65,41 @@ public class AuthConfig {
 		IuObject.assertNotOpen(AuthConfig.class);
 	}
 
-	private static final IuJsonAdapter<IuOneTimeNumberConfig> NONCE_JSON = IuJsonAdapter
-			.from(a -> IuObject.convert(a, v -> IuJson.wrap(v.asJsonObject(), IuAuthNonceConfig.class)));
+	private static class StorageConfig<T> {
+		private final String prefix;
+		private final Consumer<? super T> verifier;
+		private final IuJsonAdapter<T> adapter;
+		private final IuVault[] vault;
+
+		private StorageConfig(String prefix, Consumer<? super T> verifier, IuJsonAdapter<T> adapter, IuVault... vault) {
+			this.prefix = prefix;
+			this.verifier = verifier;
+			this.adapter = adapter;
+			this.vault = vault;
+		}
+	}
 
 	private static final Map<String, IuAuthConfig> CONFIG = new HashMap<>();
-	private static final Map<Class<?>, IuVault> VAULT = new HashMap<>();
+	private static final Map<Class<?>, StorageConfig<?>> STORAGE = new HashMap<>();
 	private static boolean sealed;
+
+	static {
+		registerDefaults();
+	}
+
+	private static void registerDefaults() {
+		registerAdapter(AuthMethod.class, AuthMethod.JSON);
+		registerAdapter(GrantType.class, GrantType.JSON);
+		registerAdapter(Algorithm.class, Algorithm.JSON);
+		registerAdapter(Encryption.class, Encryption.JSON);
+		registerAdapter(WebKey.class, WebKey.JSON);
+		registerAdapter(WebCryptoHeader.class, WebCryptoHeader.JSON);
+		registerAdapter(WebEncryption.class, WebEncryption.JSON);
+		registerAdapter(WebSignedPayload.class, WebSignedPayload.JSON);
+		registerAdapter(X509Certificate.class, PemEncoded.CERT_JSON);
+		registerAdapter(X509CRL.class, PemEncoded.CRL_JSON);
+		registerAdapter(IuAuthenticationRealm.Type.class, IuAuthenticationRealm.Type.JSON);
+	}
 
 	/**
 	 * Registers a configuration descriptor for an authentication realm.
@@ -95,21 +125,91 @@ public class AuthConfig {
 	}
 
 	/**
-	 * Registers a vault for loading authorization configuration.
+	 * Registers a JSON type adapter for a non-interface configuration class, for
+	 * example a custom enum.
 	 * 
-	 * @param configInterface configuration interface
-	 * @param vault           vault to use for loading configuration
+	 * @param <T>     type
+	 * @param type    class
+	 * @param adapter {@link IuJsonAdapter}
 	 */
-	public static synchronized void addVault(Class<?> configInterface, IuVault vault) {
+	public static synchronized <T> void registerAdapter(Class<T> type, IuJsonAdapter<T> adapter) {
 		if (sealed)
 			throw new IllegalStateException("sealed");
 
-		IuObject.require(configInterface, Class::isInterface);
-
-		if (VAULT.containsKey(configInterface))
+		if (STORAGE.containsKey(type))
 			throw new IllegalArgumentException("already configured");
 
-		VAULT.put(configInterface, Objects.requireNonNull(vault));
+		STORAGE.put(type, new StorageConfig<>(null, null, adapter));
+	}
+
+	/**
+	 * Registers an authorization configuration interface that doesn't tie to a
+	 * vault configuration name.
+	 * 
+	 * @param <T>             configuration type
+	 * @param configInterface configuration interface
+	 */
+	public static synchronized <T> void registerInterface(Class<T> configInterface) {
+		registerAdapter(configInterface, IuJsonAdapter.from(configInterface,
+				IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, AuthConfig::adaptJson));
+	}
+
+	/**
+	 * Registers a vault for loading authorization configuration.
+	 * 
+	 * @param <T>             configuration type
+	 * @param prefix          prefix to append to vault key to classify the resource
+	 *                        names used by {@link #load(Class, String)}
+	 * @param configInterface configuration interface
+	 * @param vault           vault to use for loading configuration
+	 */
+	@SuppressWarnings("unchecked")
+	public static synchronized <T> void registerInterface(String prefix, Class<T> configInterface, IuVault... vault) {
+		final Consumer<? super T> verifier;
+		if (IuAuthenticationRealm.class.isAssignableFrom(configInterface))
+			verifier = ((Consumer<? super T>) (Consumer<IuAuthenticationRealm>) IuAuthenticationRealm::verify);
+		else
+			verifier = null;
+
+		registerInterface(prefix, configInterface, verifier, vault);
+	}
+
+	/**
+	 * Registers a vault for loading authorization configuration.
+	 * 
+	 * @param <T>             configuration type
+	 * @param prefix          prefix to append to vault key to classify the resource
+	 *                        names used by {@link #load(Class, String)}
+	 * @param configInterface configuration interface
+	 * @param verifier        provides additional verification logic to be apply
+	 *                        before returning each loaded instance
+	 * @param vault           vault to use for loading configuration
+	 */
+	public static synchronized <T> void registerInterface(String prefix, Class<T> configInterface,
+			Consumer<? super T> verifier, IuVault... vault) {
+		if (sealed)
+			throw new IllegalStateException("sealed");
+
+		IuObject.require(configInterface, Class::isInterface, configInterface + " is not an interface");
+		IuObject.require(Objects.requireNonNull(prefix, "Missing prefix"), a -> a.matches("\\p{Lower}+"),
+				"invalid prefix " + prefix);
+
+		if (STORAGE.containsKey(configInterface))
+			throw new IllegalArgumentException("already configured");
+
+		final var propertyAdapter = IuJsonAdapter.from(configInterface,
+				IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, AuthConfig::adaptJson);
+
+		final var adapter = IuJsonAdapter.from(v -> {
+			if (v instanceof JsonString)
+				return load(configInterface, ((JsonString) v).getString());
+			else
+				return IuObject.convert(v, propertyAdapter::fromJson);
+		}, //
+				propertyAdapter::toJson);
+
+		STORAGE.put(configInterface,
+				Objects.requireNonNull(new StorageConfig<>(prefix + '/', verifier, adapter, vault)));
 	}
 
 	/**
@@ -121,23 +221,32 @@ public class AuthConfig {
 	 * @return loaded configuration
 	 */
 	public static <T> T load(Class<T> configInterface, String key) {
-		return load(configInterface, key, a -> configInterface);
-	}
+		final var vaultConfig = Objects.requireNonNull(STORAGE.get(configInterface), "not configured");
+		return (new Object() {
+			T value;
+			Throwable error;
 
-	/**
-	 * Loads a configuration object from vault.
-	 * 
-	 * @param <T>             configuration type
-	 * @param configInterface configuration interface
-	 * @param key             vault key
-	 * @param specifier       function that determines the correct configuration
-	 *                        subinterface based on raw data
-	 * @return loaded configuration
-	 */
-	public static <T> T load(Class<T> configInterface, String key, Function<JsonObject, Class<? extends T>> specifier) {
-		final var vault = Objects.requireNonNull(VAULT.get(configInterface), "not configured");
-		final var config = IuJson.parse(vault.get(key).getValue()).asJsonObject();
-		return IuJson.wrap(config, specifier.apply(config), AuthConfig::adaptJson);
+			@SuppressWarnings({ "unchecked", "rawtypes" })
+			void check(IuVault vault) {
+				final var keyedValue = vault.get(vaultConfig.prefix + key).getValue();
+				final var config = IuJson.parse(keyedValue).asJsonObject();
+
+				final var value = IuJson.wrap(config, configInterface, AuthConfig::adaptJson);
+				if (vaultConfig.verifier != null)
+					((Consumer) vaultConfig.verifier).accept(value);
+
+				this.value = value;
+			}
+
+			T load() {
+				for (final var v : vaultConfig.vault) {
+					error = IuException.suppress(error, () -> check(v));
+					if (value != null)
+						return value;
+				}
+				throw IuException.unchecked(error);
+			}
+		}).load();
 	}
 
 	/**
@@ -189,42 +298,22 @@ public class AuthConfig {
 	 * @param type type
 	 * @return {@link IuJsonAdapter}
 	 */
+	@SuppressWarnings("unchecked")
 	public static <T> IuJsonAdapter<T> adaptJson(Class<T> type) {
-		return adaptJson((Type) type);
+		return (IuJsonAdapter<T>) adaptJson((Type) type);
 	}
 
 	/**
-	 * Provides additional JSON adapters for configuring the authorization module.
+	 * Provides JSON adapters for components that used
+	 * {@link #registerInterface(String, Class, Consumer, IuVault...)} to register
+	 * configuration interfaces for authentication and authorization.
 	 * 
-	 * @param <T>  target type
 	 * @param type type
 	 * @return {@link IuJsonAdapter}
 	 */
-	@SuppressWarnings("unchecked")
-	public static <T> IuJsonAdapter<T> adaptJson(Type type) {
-		if (type == Credentials.class)
-			return (IuJsonAdapter<T>) Credentials.JSON;
-		else if ((type instanceof Class) //
-				&& IuAuthenticationRealm.class.isAssignableFrom((Class<?>) type))
-			return (IuJsonAdapter<T>) IuAuthenticationRealm.JSON;
-		else if (IuAuthorizedAudience.class == type)
-			return (IuJsonAdapter<T>) IuAuthorizedAudience.JSON;
-		else if (IuOneTimeNumberConfig.class == type)
-			return (IuJsonAdapter<T>) NONCE_JSON;
-		else if (AuthMethod.class == type)
-			return (IuJsonAdapter<T>) AuthMethod.JSON;
-		else if (GrantType.class == type)
-			return (IuJsonAdapter<T>) GrantType.JSON;
-		else if (WebKey.class == type)
-			return (IuJsonAdapter<T>) WebKey.JSON;
-		else if (Algorithm.class == type)
-			return (IuJsonAdapter<T>) Algorithm.JSON;
-		else if (Encryption.class == type)
-			return (IuJsonAdapter<T>) Encryption.JSON;
-		else if (X509Certificate.class == type)
-			return (IuJsonAdapter<T>) PemEncoded.CERT_JSON;
-		else if (X509CRL.class == type)
-			return (IuJsonAdapter<T>) PemEncoded.CRL_JSON;
+	public static IuJsonAdapter<?> adaptJson(Type type) {
+		if (STORAGE.containsKey(type))
+			return STORAGE.get(type).adapter;
 		else
 			return IuJsonAdapter.of(type, AuthConfig::adaptJson);
 	}

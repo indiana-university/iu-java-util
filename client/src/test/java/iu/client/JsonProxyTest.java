@@ -88,7 +88,7 @@ public class JsonProxyTest {
 		final var data2 = IuJson.wrap(IuJson.object().add("foo", "baz").build(), JsonBackedInterface.class);
 		final var data3 = IuJson.wrap(IuJson.object().add("foo", "baz").build(), JsonBackedInterface.class);
 		assertEquals("bar", data.getFoo());
-		assertEquals(foobar.toString(), data.toString());
+		assertEquals(foobar.toString(), IuJson.parse(data.toString()).toString());
 		assertEquals(foobar.hashCode(), data.hashCode());
 		assertNotEquals(data, data2);
 		assertNotEquals(data, null);

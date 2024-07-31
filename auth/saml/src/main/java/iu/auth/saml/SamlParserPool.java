@@ -50,6 +50,7 @@ import net.shibboleth.shared.xml.XMLParserException;
  * Implemented custom parser pool to support SAML Parser pool
  *
  */
+@SuppressWarnings("exports") // requires static only
 public class SamlParserPool implements ParserPool {
 
 	private final DocumentBuilderFactory builderFactory;

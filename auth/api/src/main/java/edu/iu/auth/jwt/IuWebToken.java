@@ -29,26 +29,76 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth;
+package edu.iu.auth.jwt;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
-import static org.mockito.Mockito.mock;
+import java.net.URI;
+import java.time.Instant;
 
-import java.time.Duration;
+/**
+ * Represents JSON Web Token (JWT) claims.
+ * 
+ * @see <a href="https://datatracker.ietf.org/doc/html/rfc7519">RFC-7519 JSON
+ *      Web Token (JWT)</a>
+ */
+public interface IuWebToken {
 
-import org.junit.jupiter.api.Test;
+	/**
+	 * Gets the token identifier.
+	 * 
+	 * @return token identifier (jti claim);
+	 */
+	String getTokenId();
 
-@SuppressWarnings("javadoc")
-public class IuOneTimeNumberConfigTest {
+	/**
+	 * Gets the token issuer URI.
+	 * 
+	 * @return {@link URI}
+	 */
+	URI getIssuer();
 
-	@Test
-	public void testDefaults() {
-		final var config = mock(IuOneTimeNumberConfig.class, CALLS_REAL_METHODS);
-		assertEquals(Duration.ofMinutes(2L), config.getTimeToLive());
-		assertEquals(5, config.getMaxConcurrency());
-		config.publish(null);
-		config.subscribe(null);
-	}
+	/**
+	 * Gets the token audience URIs.
+	 * 
+	 * @return at least one {@link URI}
+	 */
+	Iterable<URI> getAudience();
+
+	/**
+	 * Gets the subject of the JWT.
+	 * 
+	 * @return subject (sub claim)
+	 */
+	String getSubject();
+
+	/**
+	 * Gets the time the JWT was issued.
+	 * 
+	 * @return issued time (iat claim)
+	 */
+	Instant getIssuedAt();
+
+	/**
+	 * Gets the time before which the JWT should not be accepted.
+	 * 
+	 * @return not before time (nbf claim)
+	 */
+	Instant getNotBefore();
+
+	/**
+	 * Gets the time after which the JWT should not be accepted.
+	 * 
+	 * @return token expiration time (exp claim)
+	 */
+	Instant getExpires();
+
+	/**
+	 * Gets the nonce claim.
+	 * 
+	 * @return nonce claim value
+	 * @see <a href=
+	 *      "https://openid.net/specs/openid-connect-core-1_0.html#NonceNotes">OpenID
+	 *      Connection Core 1.0 Section 15.5.2</a>
+	 */
+	String getNonce();
 
 }

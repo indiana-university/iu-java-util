@@ -180,7 +180,7 @@ final class SamlBuilder {
 		this.metadataTtl = Objects.requireNonNull(config.getMetadataTtl(), "metadataTtl");
 		this.acsUris = Objects.requireNonNull(config.getAcsUris(), "acsUris");
 		this.entryPointUris = Objects.requireNonNull(config.getEntryPointUris(), "entryPointUris");
-		this.certificate = Objects.requireNonNull(config.getIdentity().getEncryptJwk().getCertificateChain()[0],
+		this.certificate = Objects.requireNonNull(config.getIdentity().getJwk().getCertificateChain()[0],
 				"certificate");
 		this.verifyAlg = Objects.requireNonNull(config.getIdentity().getAlg());
 		this.serviceProviderEntityId = Objects.requireNonNull(config.getServiceProviderEntityId(),

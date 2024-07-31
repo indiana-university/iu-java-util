@@ -58,9 +58,9 @@ import edu.iu.IuDigest;
 import edu.iu.IuParallelWorkloadController;
 import edu.iu.IuRateLimitter;
 import edu.iu.IuText;
-import edu.iu.auth.IuAuthorizationChallenge;
 import edu.iu.auth.IuOneTimeNumber;
-import edu.iu.auth.IuOneTimeNumberConfig;
+import edu.iu.auth.nonce.IuAuthorizationChallenge;
+import edu.iu.auth.nonce.IuOneTimeNumberConfig;
 import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")

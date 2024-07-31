@@ -31,20 +31,29 @@
  */
 package iu.auth.pki;
 
-import edu.iu.auth.config.IuAuthenticationRealm;
+import static org.mockito.Mockito.mock;
+
 import edu.iu.auth.config.IuCertificateAuthority;
 import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.client.IuJson;
+import edu.iu.client.IuVault;
+import iu.auth.config.AuthConfig;
 
 @SuppressWarnings("javadoc")
 public class PkiTestCase {
 
+	static {
+		final var vault = mock(IuVault.class);
+		AuthConfig.registerInterface("realm", IuPrivateKeyPrincipal.class, vault);
+		AuthConfig.registerInterface("realm", IuCertificateAuthority.class, vault);
+	}
+
 	static IuPrivateKeyPrincipal pkp(String pkp) {
-		return (IuPrivateKeyPrincipal) IuAuthenticationRealm.JSON.fromJson(IuJson.parse(pkp));
+		return AuthConfig.adaptJson(IuPrivateKeyPrincipal.class).fromJson(IuJson.parse(pkp));
 	}
 
 	static IuCertificateAuthority ca(String ca) {
-		return (IuCertificateAuthority) IuAuthenticationRealm.JSON.fromJson(IuJson.parse(ca));
+		return AuthConfig.adaptJson(IuCertificateAuthority.class).fromJson(IuJson.parse(ca));
 	}
 
 }

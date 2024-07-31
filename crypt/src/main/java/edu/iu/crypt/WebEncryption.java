@@ -52,6 +52,9 @@ import iu.crypt.JweBuilder;
  */
 public interface WebEncryption {
 
+	/** {@link IuJsonAdapter} */
+	public static final IuJsonAdapter<WebEncryption> JSON = Jwe.JSON;
+
 	/**
 	 * Enumerates content encryption algorithms.
 	 */
@@ -281,8 +284,8 @@ public interface WebEncryption {
 	 * 
 	 * @return recipients
 	 */
-	Stream<? extends WebEncryptionRecipient> getRecipients();
-	
+	Iterable<? extends WebEncryptionRecipient> getRecipients();
+
 	/**
 	 * Gets the iv JWE attribute
 	 * 

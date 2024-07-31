@@ -59,6 +59,9 @@ import iu.crypt.UnpaddedBinary;
  */
 public interface WebCryptoHeader extends WebCertificateReference {
 
+	/** {@link IuJsonAdapter} */
+	public static final IuJsonAdapter<WebCryptoHeader> JSON = Jose.JSON;
+
 	/**
 	 * Enumerates standard header parameters.
 	 */

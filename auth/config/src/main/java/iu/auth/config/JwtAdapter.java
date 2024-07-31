@@ -29,23 +29,57 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.config;
+package iu.auth.config;
 
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
+import java.net.URI;
+import java.time.Instant;
 
-import org.junit.jupiter.api.Test;
+import edu.iu.auth.jwt.IuWebToken;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonValue;
 
-@SuppressWarnings("javadoc")
-public class IuPrivateKeyPrincipalTest {
+/**
+ * Handles common JWT claims.
+ */
+class JwtAdapter implements IuJsonAdapter<IuWebToken> {
 
-	@Test
-	public void testDefaults() {
-		final var pkp = mock(IuPrivateKeyPrincipal.class, CALLS_REAL_METHODS);
-		pkp.getEncryptAlg();
-		verify(pkp).getAlg();
-		pkp.getEncryptJwk();
-		verify(pkp).getJwk();
+	/**
+	 * Translates {@link Instant} values as seconds since epoch
+	 */
+	static final IuJsonAdapter<Instant> NUMERIC_DATE = IuJsonAdapter.from(
+			v -> v == null ? null : Instant.ofEpochSecond(IuJsonAdapter.of(Long.class).fromJson(v).longValue()),
+			v -> v == null ? null : IuJsonAdapter.of(Long.class).toJson(v.getEpochSecond()));
+
+	/**
+	 * Default constructor
+	 */
+	JwtAdapter() {
 	}
+
+	@Override
+	public IuWebToken fromJson(JsonValue serializedJwt) {
+		if (serializedJwt == null)
+			return null;
+		else
+			return new Jwt(serializedJwt.asJsonObject());
+	}
+
+	@Override
+	public JsonValue toJson(IuWebToken jwt) {
+		if (jwt == null)
+			return null;
+
+		final var builder = IuJson.object();
+		IuJson.add(builder, "jti", jwt.getTokenId());
+		IuJson.add(builder, "iss", jwt::getIssuer, IuJsonAdapter.of(URI.class));
+		IuJson.add(builder, "aud", jwt::getAudience, IuJsonAdapter.of(Iterable.class, IuJsonAdapter.of(URI.class)));
+		IuJson.add(builder, "sub", jwt.getSubject());
+		IuJson.add(builder, "iat", jwt::getIssuedAt, NUMERIC_DATE);
+		IuJson.add(builder, "nbf", jwt::getNotBefore, NUMERIC_DATE);
+		IuJson.add(builder, "exp", jwt::getExpires, NUMERIC_DATE);
+		IuJson.add(builder, "nonce", jwt.getNonce());
+		return builder.build();
+	}
+
 }
