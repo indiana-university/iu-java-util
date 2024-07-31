@@ -52,13 +52,13 @@ import java.util.logging.Logger;
 import edu.iu.IuDigest;
 import edu.iu.IuException;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.config.X500Utils;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebCertificateReference;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Use;
+import iu.auth.config.AuthConfig;
 import iu.auth.config.IuTrustedIssuer;
 import iu.auth.principal.PrincipalVerifier;
 
@@ -185,29 +185,30 @@ public final class PkiVerifier implements PrincipalVerifier&lt;PkiPrincipal&gt;,
 			}
 <span class="fc bfc" id="L186" title="All 2 branches covered.">		} else if (privateKey != null) {</span>
 <span class="fc" id="L187">			final var wellKnownJwk = pkp.getJwk().wellKnown();</span>
-<span class="fc" id="L188">			pkp = (IuPrivateKeyPrincipal) IuAuthenticationRealm.JSON</span>
-<span class="fc" id="L189">					.fromJson(IuJson.object(IuJson.unwrap(pkp)).add(&quot;jwk&quot;, WebKey.JSON.toJson(wellKnownJwk)).build());</span>
+<span class="fc" id="L188">			final var wellKnownPkpBuilder = IuJson.object(IuJson.unwrap(pkp));</span>
+<span class="fc" id="L189">			wellKnownPkpBuilder.add(&quot;jwk&quot;, WebKey.JSON.toJson(wellKnownJwk));</span>
+<span class="fc" id="L190">			pkp = AuthConfig.adaptJson(IuPrivateKeyPrincipal.class).fromJson(wellKnownPkpBuilder.build());</span>
 		}
 
 		try {
-<span class="fc" id="L193">			IuException.checked(CertPathValidatorException.class, () -&gt; {</span>
-<span class="fc" id="L194">				final var validator = CertPathValidator.getInstance(&quot;PKIX&quot;);</span>
-<span class="fc" id="L195">				final var certFactory = CertificateFactory.getInstance(&quot;X.509&quot;);</span>
-<span class="fc" id="L196">				final var certPath = certFactory.generateCertPath(List.of(jwk.getCertificateChain()));</span>
-<span class="fc" id="L197">				validator.validate(certPath, trustParams);</span>
-<span class="fc" id="L198">			});</span>
+<span class="fc" id="L194">			IuException.checked(CertPathValidatorException.class, () -&gt; {</span>
+<span class="fc" id="L195">				final var validator = CertPathValidator.getInstance(&quot;PKIX&quot;);</span>
+<span class="fc" id="L196">				final var certFactory = CertificateFactory.getInstance(&quot;X.509&quot;);</span>
+<span class="fc" id="L197">				final var certPath = certFactory.generateCertPath(List.of(jwk.getCertificateChain()));</span>
+<span class="fc" id="L198">				validator.validate(certPath, trustParams);</span>
+<span class="fc" id="L199">			});</span>
 
-<span class="fc" id="L200">			return new PkiPrincipal(pkp);</span>
+<span class="fc" id="L201">			return new PkiPrincipal(pkp);</span>
 
-<span class="fc" id="L202">		} catch (CertPathValidatorException e) {</span>
-<span class="fc" id="L203">			LOG.log(Level.FINE, e, () -&gt; &quot;pki:invalid:&quot; + realm);</span>
-<span class="fc" id="L204">			return null;</span>
+<span class="fc" id="L203">		} catch (CertPathValidatorException e) {</span>
+<span class="fc" id="L204">			LOG.log(Level.FINE, e, () -&gt; &quot;pki:invalid:&quot; + realm);</span>
+<span class="fc" id="L205">			return null;</span>
 		}
 	}
 
 	@Override
 	public String toString() {
-<span class="fc" id="L210">		return &quot;PkiVerifier [&quot; + realm + &quot;]&quot;;</span>
+<span class="fc" id="L211">		return &quot;PkiVerifier [&quot; + realm + &quot;]&quot;;</span>
 	}
 
 }

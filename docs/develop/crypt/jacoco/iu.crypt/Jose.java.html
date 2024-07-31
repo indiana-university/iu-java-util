@@ -46,6 +46,7 @@ import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Use;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
 
 /**
  * Provides {@link WebCryptoHeader} and {@link WebEncryptionHeader} processing
@@ -53,10 +54,14 @@ import jakarta.json.JsonObject;
  */
 public final class Jose extends JsonKeyReference&lt;Jose&gt; implements WebCryptoHeader {
 	static {
-<span class="fc" id="L56">		IuObject.assertNotOpen(Jose.class);</span>
+<span class="fc" id="L57">		IuObject.assertNotOpen(Jose.class);</span>
 	}
 
-<span class="fc" id="L59">	private static final Map&lt;String, Extension&lt;?&gt;&gt; EXTENSIONS = new HashMap&lt;&gt;();</span>
+	/** {@link IuJsonAdapter} */
+<span class="fc" id="L61">	public static final IuJsonAdapter&lt;WebCryptoHeader&gt; JSON = IuJsonAdapter.from(Jose::new,</span>
+<span class="fc" id="L62">			h -&gt; ((Jose) h).toJson(a -&gt; true));</span>
+
+<span class="fc" id="L64">	private static final Map&lt;String, Extension&lt;?&gt;&gt; EXTENSIONS = new HashMap&lt;&gt;();</span>
 
 	/**
 	 * Registers an extension.
@@ -65,13 +70,13 @@ public final class Jose extends JsonKeyReference&lt;Jose&gt; implements WebCrypt
 	 * @param extension     extension
 	 */
 	public static synchronized &lt;T&gt; void register(String parameterName, Extension&lt;T&gt; extension) {
-<span class="fc bfc" id="L68" title="All 2 branches covered.">		if (Param.from(parameterName) != null)</span>
-<span class="fc" id="L69">			throw new IllegalArgumentException(&quot;Must not be a standard regsitered parameter name&quot;);</span>
-<span class="fc bfc" id="L70" title="All 2 branches covered.">		if (EXTENSIONS.containsKey(parameterName))</span>
-<span class="fc" id="L71">			throw new IllegalArgumentException(&quot;Already registered&quot;);</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">		if (Param.from(parameterName) != null)</span>
+<span class="fc" id="L74">			throw new IllegalArgumentException(&quot;Must not be a standard regsitered parameter name&quot;);</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">		if (EXTENSIONS.containsKey(parameterName))</span>
+<span class="fc" id="L76">			throw new IllegalArgumentException(&quot;Already registered&quot;);</span>
 
-<span class="fc" id="L73">		EXTENSIONS.put(parameterName, extension);</span>
-<span class="fc" id="L74">	}</span>
+<span class="fc" id="L78">		EXTENSIONS.put(parameterName, extension);</span>
+<span class="fc" id="L79">	}</span>
 
 	/**
 	 * Gets a registered extension.
@@ -82,7 +87,7 @@ public final class Jose extends JsonKeyReference&lt;Jose&gt; implements WebCrypt
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	static &lt;T&gt; Extension&lt;T&gt; getExtension(String parameterName) {
-<span class="fc" id="L85">		return Objects.requireNonNull((Extension&lt;T&gt;) EXTENSIONS.get(parameterName),</span>
+<span class="fc" id="L90">		return Objects.requireNonNull((Extension&lt;T&gt;) EXTENSIONS.get(parameterName),</span>
 				&quot;must understand extension &quot; + parameterName);
 	}
 
@@ -95,15 +100,15 @@ public final class Jose extends JsonKeyReference&lt;Jose&gt; implements WebCrypt
 	 * @return JOSE header
 	 */
 	static Jose from(JsonObject protectedHeader, JsonObject sharedHeader, JsonObject perRecipientHeader) {
-<span class="fc bfc" id="L98" title="All 4 branches covered.">		if (sharedHeader == null &amp;&amp; perRecipientHeader == null)</span>
-<span class="fc" id="L99">			return new Jose(protectedHeader);</span>
+<span class="fc bfc" id="L103" title="All 4 branches covered.">		if (sharedHeader == null &amp;&amp; perRecipientHeader == null)</span>
+<span class="fc" id="L104">			return new Jose(protectedHeader);</span>
 
-<span class="fc" id="L101">		final var b = IuJson.object();</span>
-<span class="fc bfc" id="L102" title="All 2 branches covered.">		for (final var header : IuIterable.iter(protectedHeader, sharedHeader, perRecipientHeader))</span>
-<span class="fc bfc" id="L103" title="All 2 branches covered.">			if (header != null)</span>
-<span class="fc" id="L104">				header.forEach(b::add);</span>
+<span class="fc" id="L106">		final var b = IuJson.object();</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">		for (final var header : IuIterable.iter(protectedHeader, sharedHeader, perRecipientHeader))</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">			if (header != null)</span>
+<span class="fc" id="L109">				header.forEach(b::add);</span>
 
-<span class="fc" id="L106">		return new Jose(b.build());</span>
+<span class="fc" id="L111">		return new Jose(b.build());</span>
 	}
 
 	/**
@@ -114,11 +119,11 @@ public final class Jose extends JsonKeyReference&lt;Jose&gt; implements WebCrypt
 	 *         by this implementation.
 	 */
 	private static boolean isUnderstood(String paramName) {
-<span class="fc" id="L117">		final var param = Param.from(paramName);</span>
-<span class="fc bfc" id="L118" title="All 2 branches covered.">		if (param == null)</span>
-<span class="fc" id="L119">			return EXTENSIONS.containsKey(paramName);</span>
+<span class="fc" id="L122">		final var param = Param.from(paramName);</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">		if (param == null)</span>
+<span class="fc" id="L124">			return EXTENSIONS.containsKey(paramName);</span>
 		else
-<span class="fc bfc" id="L121" title="All 2 branches covered.">			return !param.isUsedFor(Use.SIGN);</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">			return !param.isUsedFor(Use.SIGN);</span>
 	}
 
 	private final Jwk key;
@@ -132,71 +137,73 @@ public final class Jose extends JsonKeyReference&lt;Jose&gt; implements WebCrypt
 	/**
 	 * Constructor.
 	 * 
-	 * @param jose header parameters
+	 * @param joseValue header parameters
 	 */
-	Jose(JsonObject jose) {
-<span class="fc" id="L138">		super(jose);</span>
-<span class="fc" id="L139">		keySetUri = IuJson.get(jose, &quot;jku&quot;, IuJsonAdapter.of(URI.class));</span>
-<span class="fc" id="L140">		key = (Jwk) IuObject.convert(IuJson.get(jose, &quot;jwk&quot;, Jwk.JSON), WebKey::wellKnown);</span>
-<span class="fc" id="L141">		type = IuJson.get(jose, &quot;typ&quot;);</span>
-<span class="fc" id="L142">		contentType = IuJson.get(jose, &quot;cty&quot;);</span>
-<span class="fc" id="L143">		criticalParameters = IuJson.get(jose, &quot;crit&quot;, IuJsonAdapter.of(Set.class, IuJsonAdapter.of(String.class)));</span>
+	Jose(JsonValue joseValue) {
+<span class="fc" id="L143">		super(joseValue);</span>
 
-<span class="fc" id="L145">		final var extendedParametersBuilder = IuJson.object();</span>
-<span class="fc bfc" id="L146" title="All 2 branches covered.">		for (final var parameterEntry : jose.entrySet()) {</span>
-<span class="fc" id="L147">			final var paramName = parameterEntry.getKey();</span>
-<span class="fc" id="L148">			IuJson.add(extendedParametersBuilder, paramName, parameterEntry.getValue(), () -&gt; isUnderstood(paramName));</span>
-<span class="fc" id="L149">		}</span>
-<span class="fc" id="L150">		this.extendedParameters = extendedParametersBuilder.build();</span>
+<span class="fc" id="L145">		final var jose = joseValue.asJsonObject();</span>
+<span class="fc" id="L146">		keySetUri = IuJson.get(jose, &quot;jku&quot;, IuJsonAdapter.of(URI.class));</span>
+<span class="fc" id="L147">		key = (Jwk) IuObject.convert(IuJson.get(jose, &quot;jwk&quot;, Jwk.JSON), WebKey::wellKnown);</span>
+<span class="fc" id="L148">		type = IuJson.get(jose, &quot;typ&quot;);</span>
+<span class="fc" id="L149">		contentType = IuJson.get(jose, &quot;cty&quot;);</span>
+<span class="fc" id="L150">		criticalParameters = IuJson.get(jose, &quot;crit&quot;, IuJsonAdapter.of(Set.class, IuJsonAdapter.of(String.class)));</span>
 
-<span class="fc" id="L152">		wellKnownKey = (Jwk) WebCryptoHeader.verify(this);</span>
-		
-<span class="fc bfc" id="L154" title="All 2 branches covered.">		for (final var paramName : extendedParameters.keySet())</span>
-<span class="fc bfc" id="L155" title="All 2 branches covered.">			if (Param.from(paramName) == null)</span>
-<span class="fc" id="L156">				getExtension(paramName).verify(this);</span>
-<span class="fc" id="L157">	}</span>
+<span class="fc" id="L152">		final var extendedParametersBuilder = IuJson.object();</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">		for (final var parameterEntry : jose.entrySet()) {</span>
+<span class="fc" id="L154">			final var paramName = parameterEntry.getKey();</span>
+<span class="fc" id="L155">			IuJson.add(extendedParametersBuilder, paramName, parameterEntry.getValue(), () -&gt; isUnderstood(paramName));</span>
+<span class="fc" id="L156">		}</span>
+<span class="fc" id="L157">		this.extendedParameters = extendedParametersBuilder.build();</span>
+
+<span class="fc" id="L159">		wellKnownKey = (Jwk) WebCryptoHeader.verify(this);</span>
+
+<span class="fc bfc" id="L161" title="All 2 branches covered.">		for (final var paramName : extendedParameters.keySet())</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">			if (Param.from(paramName) == null)</span>
+<span class="fc" id="L163">				getExtension(paramName).verify(this);</span>
+<span class="fc" id="L164">	}</span>
 
 	@Override
 	public URI getKeySetUri() {
-<span class="fc" id="L161">		return keySetUri;</span>
+<span class="fc" id="L168">		return keySetUri;</span>
 	}
 
 	@Override
 	public Jwk getKey() {
-<span class="fc" id="L166">		return key;</span>
+<span class="fc" id="L173">		return key;</span>
 	}
 
 	@Override
 	public String getType() {
-<span class="fc" id="L171">		return type;</span>
+<span class="fc" id="L178">		return type;</span>
 	}
 
 	@Override
 	public String getContentType() {
-<span class="fc" id="L176">		return contentType;</span>
+<span class="fc" id="L183">		return contentType;</span>
 	}
 
 	@Override
 	public Set&lt;String&gt; getCriticalParameters() {
-<span class="fc" id="L181">		return criticalParameters;</span>
+<span class="fc" id="L188">		return criticalParameters;</span>
 	}
 
 	@Override
 	public &lt;T&gt; T getExtendedParameter(String name) {
-<span class="fc" id="L186">		final var param = Param.from(name);</span>
+<span class="fc" id="L193">		final var param = Param.from(name);</span>
 
 		final IuJsonAdapter&lt;T&gt; adapter;
-<span class="fc bfc" id="L189" title="All 2 branches covered.">		if (param != null)</span>
-<span class="fc" id="L190">			adapter = param.json();</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">		if (param != null)</span>
+<span class="fc" id="L197">			adapter = param.json();</span>
 		else
-<span class="fc" id="L192">			adapter = Jose.getExtension(name);</span>
+<span class="fc" id="L199">			adapter = Jose.getExtension(name);</span>
 
-<span class="fc" id="L194">		return IuJson.get(extendedParameters, name, adapter);</span>
+<span class="fc" id="L201">		return IuJson.get(extendedParameters, name, adapter);</span>
 	}
 
 	@Override
 	public String toString() {
-<span class="fc" id="L199">		return toJson(a -&gt; true).toString();</span>
+<span class="fc" id="L206">		return toJson(a -&gt; true).toString();</span>
 	}
 
 	/**
@@ -205,7 +212,7 @@ public final class Jose extends JsonKeyReference&lt;Jose&gt; implements WebCrypt
 	 * @return well-known key
 	 */
 	Jwk wellKnown() {
-<span class="fc" id="L208">		return wellKnownKey;</span>
+<span class="fc" id="L215">		return wellKnownKey;</span>
 	}
 
 	/**
@@ -214,7 +221,7 @@ public final class Jose extends JsonKeyReference&lt;Jose&gt; implements WebCrypt
 	 * @return extended parameters
 	 */
 	JsonObject extendedParameters() {
-<span class="fc" id="L217">		return extendedParameters;</span>
+<span class="fc" id="L224">		return extendedParameters;</span>
 	}
 
 	/**
@@ -225,26 +232,26 @@ public final class Jose extends JsonKeyReference&lt;Jose&gt; implements WebCrypt
 	 * @return {@link JsonObject}; null if no parameters match the filter
 	 */
 	JsonObject toJson(Predicate&lt;String&gt; nameFilter) {
-<span class="fc" id="L228">		final var headerBuilder = IuJson.object();</span>
+<span class="fc" id="L235">		final var headerBuilder = IuJson.object();</span>
 
-<span class="fc bfc" id="L230" title="All 2 branches covered.">		for (final var param : Param.values())</span>
-<span class="fc bfc" id="L231" title="All 2 branches covered.">			if (!param.equals(Param.KEY) //</span>
-<span class="fc bfc" id="L232" title="All 2 branches covered.">					&amp;&amp; param.isUsedFor(Use.SIGN) //</span>
-<span class="fc bfc" id="L233" title="All 2 branches covered.">					&amp;&amp; nameFilter.test(param.name))</span>
-<span class="fc" id="L234">				IuJson.add(headerBuilder, param.name, () -&gt; param.get(this), param.json());</span>
-<span class="fc bfc" id="L235" title="All 2 branches covered.">		if (key != null)</span>
-<span class="fc" id="L236">			IuJson.add(headerBuilder, &quot;jwk&quot;, () -&gt; wellKnownKey, Jwk.JSON);</span>
+<span class="fc bfc" id="L237" title="All 2 branches covered.">		for (final var param : Param.values())</span>
+<span class="fc bfc" id="L238" title="All 2 branches covered.">			if (!param.equals(Param.KEY) //</span>
+<span class="fc bfc" id="L239" title="All 2 branches covered.">					&amp;&amp; param.isUsedFor(Use.SIGN) //</span>
+<span class="fc bfc" id="L240" title="All 2 branches covered.">					&amp;&amp; nameFilter.test(param.name))</span>
+<span class="fc" id="L241">				IuJson.add(headerBuilder, param.name, () -&gt; param.get(this), param.json());</span>
+<span class="fc bfc" id="L242" title="All 2 branches covered.">		if (key != null)</span>
+<span class="fc" id="L243">			IuJson.add(headerBuilder, &quot;jwk&quot;, () -&gt; wellKnownKey, Jwk.JSON);</span>
 
-<span class="fc bfc" id="L238" title="All 2 branches covered.">		for (final var extendedParameterEntry : extendedParameters.entrySet()) {</span>
-<span class="fc" id="L239">			final var name = extendedParameterEntry.getKey();</span>
-<span class="fc" id="L240">			IuJson.add(headerBuilder, name, extendedParameterEntry.getValue(), () -&gt; nameFilter.test(name));</span>
-<span class="fc" id="L241">		}</span>
+<span class="fc bfc" id="L245" title="All 2 branches covered.">		for (final var extendedParameterEntry : extendedParameters.entrySet()) {</span>
+<span class="fc" id="L246">			final var name = extendedParameterEntry.getKey();</span>
+<span class="fc" id="L247">			IuJson.add(headerBuilder, name, extendedParameterEntry.getValue(), () -&gt; nameFilter.test(name));</span>
+<span class="fc" id="L248">		}</span>
 
-<span class="fc" id="L243">		final var header = headerBuilder.build();</span>
-<span class="fc bfc" id="L244" title="All 2 branches covered.">		if (header.isEmpty())</span>
-<span class="fc" id="L245">			return null;</span>
+<span class="fc" id="L250">		final var header = headerBuilder.build();</span>
+<span class="fc bfc" id="L251" title="All 2 branches covered.">		if (header.isEmpty())</span>
+<span class="fc" id="L252">			return null;</span>
 		else
-<span class="fc" id="L247">			return header;</span>
+<span class="fc" id="L254">			return header;</span>
 	}
 
 }

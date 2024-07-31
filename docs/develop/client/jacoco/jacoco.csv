@@ -6,12 +6,12 @@ IU HTTP Client Utilities,iu.client,TimeZoneJsonAdapter,0,40,0,4,0,10,0,5,0,3
 IU HTTP Client Utilities,iu.client,CollectionAdapter,0,24,0,0,0,7,0,3,0,3
 IU HTTP Client Utilities,iu.client,BasicJsonAdapter,0,228,0,44,0,56,0,26,0,4
 IU HTTP Client Utilities,iu.client,EnumerationAdapter,0,13,0,0,0,4,0,3,0,3
-IU HTTP Client Utilities,iu.client,JsonSerializer,0,100,0,13,0,22,0,13,0,6
+IU HTTP Client Utilities,iu.client,JsonSerializer,0,144,0,19,0,32,0,16,0,6
 IU HTTP Client Utilities,iu.client,OptionalJsonAdapter,0,29,0,2,0,8,0,5,0,4
 IU HTTP Client Utilities,iu.client,EnumerationAdapter.new Enumeration() {...},0,22,0,0,0,4,0,3,0,3
 IU HTTP Client Utilities,iu.client,NumberAdapter,0,182,0,8,0,27,0,14,0,10
 IU HTTP Client Utilities,iu.client,ParsingJsonAdapter,0,66,0,6,0,19,0,8,0,5
-IU HTTP Client Utilities,iu.client,JsonProxy,0,263,0,34,0,59,0,24,0,7
+IU HTTP Client Utilities,iu.client,JsonProxy,0,275,0,34,0,61,0,24,0,7
 IU HTTP Client Utilities,iu.client,StreamAdapter,0,16,0,0,0,4,0,3,0,3
 IU HTTP Client Utilities,iu.client,JsonObjectAdapter,0,81,0,10,0,17,0,8,0,3
 IU HTTP Client Utilities,iu.client,Vault.new Object() {...},0,6,0,0,0,1,0,1,0,1
@@ -29,7 +29,7 @@ IU HTTP Client Utilities,edu.iu.client,IuJsonPropertyNameFormat,0,21,0,0,0,4,0,1
 IU HTTP Client Utilities,edu.iu.client,IuJsonAdapter.new IuJsonAdapter() {...},0,20,0,0,0,3,0,3,0,3
 IU HTTP Client Utilities,edu.iu.client,IuJsonAdapter.new IuJsonAdapter() {...},0,15,0,0,0,3,0,3,0,3
 IU HTTP Client Utilities,edu.iu.client,IuJsonAdapter.new IuJsonAdapter() {...},0,16,0,0,0,3,0,3,0,3
-IU HTTP Client Utilities,edu.iu.client,IuHttp,0,348,0,24,0,68,0,31,0,19
+IU HTTP Client Utilities,edu.iu.client,IuHttp,0,381,0,26,0,74,0,35,0,22
 IU HTTP Client Utilities,edu.iu.client,IuJsonAdapter,0,70,0,0,0,12,0,14,0,14
 IU HTTP Client Utilities,edu.iu.client,HttpException,0,25,0,0,0,10,0,4,0,4
 IU HTTP Client Utilities,edu.iu.client,IuVault,0,11,0,0,0,3,0,3,0,3

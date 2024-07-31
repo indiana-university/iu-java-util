@@ -34,10 +34,8 @@ package edu.iu.auth.config;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 
-import edu.iu.client.IuJson;
+import edu.iu.auth.config.IuAuthorizationClient.Credentials;
 import edu.iu.client.IuJsonAdapter;
-import iu.auth.config.AuthConfig;
-import jakarta.json.JsonString;
 
 /**
  * Provides realm configuration.
@@ -45,48 +43,44 @@ import jakarta.json.JsonString;
 public interface IuAuthenticationRealm {
 
 	/**
-	 * JSON type adapter.
-	 */
-<span class="fc" id="L50">	static final IuJsonAdapter&lt;IuAuthenticationRealm&gt; JSON = IuJsonAdapter.from(v -&gt; {</span>
-<span class="fc bfc" id="L51" title="All 2 branches covered.">		if (v instanceof JsonString)</span>
-<span class="fc" id="L52">			return of(((JsonString) v).getString());</span>
-		else {
-<span class="fc" id="L54">			final var config = v.asJsonObject();</span>
-
-<span class="fc bfc" id="L56" title="All 2 branches covered.">			if (!(config.get(&quot;type&quot;) instanceof JsonString))</span>
-<span class="fc" id="L57">				throw new IllegalArgumentException(&quot;Authentication realm definition missing type&quot;);</span>
-
-<span class="fc" id="L59">			return IuJson.wrap(config, Type.from(config.getString(&quot;type&quot;)).authInterface, AuthConfig::adaptJson);</span>
-		}
-	}, IuJson::unwrap);
-
-	/**
 	 * Enumerates authentication realm types.
 	 */
-<span class="fc" id="L66">	enum Type {</span>
+<span class="fc" id="L48">	enum Type {</span>
+
+		/**
+		 * OIDC client credentials.
+		 */
+<span class="fc" id="L53">		CREDENTIALS(&quot;credentials&quot;, Credentials.class),</span>
 
 		/**
 		 * PKIX {@link X509Certificate} trusted End-Entity.
 		 */
-<span class="fc" id="L71">		PKI(&quot;pki&quot;, IuPrivateKeyPrincipal.class),</span>
+<span class="fc" id="L58">		PKI(&quot;pki&quot;, IuPrivateKeyPrincipal.class),</span>
 
 		/**
 		 * PKIX {@link X509Certificate} trusted CA.
 		 */
-<span class="fc" id="L76">		CA(&quot;ca&quot;, IuCertificateAuthority.class),</span>
+<span class="fc" id="L63">		CA(&quot;ca&quot;, IuCertificateAuthority.class),</span>
 
 		/**
 		 * SAML Service Provider.
 		 */
-<span class="fc" id="L81">		SAML(&quot;saml_sp&quot;, IuSamlServiceProviderMetadata.class);</span>
+<span class="fc" id="L68">		SAML(&quot;saml_sp&quot;, IuSamlServiceProviderMetadata.class);</span>
 
-		private String code;
+		/**
+		 * Code used for validating config data.
+		 */
+		String code;
+
 		private Class&lt;? extends IuAuthenticationRealm&gt; authInterface;
 
-<span class="fc" id="L86">		private Type(String code, Class&lt;? extends IuAuthenticationRealm&gt; authenticationInterface) {</span>
-<span class="fc" id="L87">			this.code = code;</span>
-<span class="fc" id="L88">			this.authInterface = authenticationInterface;</span>
-<span class="fc" id="L89">		}</span>
+<span class="fc" id="L77">		private Type(String code, Class&lt;? extends IuAuthenticationRealm&gt; authenticationInterface) {</span>
+<span class="fc" id="L78">			this.code = code;</span>
+<span class="fc" id="L79">			this.authInterface = authenticationInterface;</span>
+<span class="fc" id="L80">		}</span>
+
+		/** JSON type adapter */
+<span class="fc" id="L83">		public static IuJsonAdapter&lt;Type&gt; JSON = IuJsonAdapter.text(Type::from, a -&gt; a.code);</span>
 
 		/**
 		 * Gets an authentication realm type by configuration code
@@ -94,23 +88,37 @@ public interface IuAuthenticationRealm {
 		 * @param code configuration code
 		 * @return authentication realm type
 		 */
-		static Type from(String code) {
-<span class="fc" id="L98">			return Arrays.stream(Type.class.getEnumConstants()).filter(a -&gt; a.code.equals(code)).findFirst().get();</span>
+		public static Type from(String code) {
+<span class="fc" id="L92">			return Arrays.stream(Type.class.getEnumConstants()).filter(a -&gt; a.code.equals(code)).findFirst().get();</span>
 		}
+
+		/**
+		 * Verifies the type of realm matches this type.
+		 * 
+		 * @param realm {@link IuAuthenticationRealm}
+		 */
+		void check(IuAuthenticationRealm realm) {
+<span class="fc bfc" id="L101" title="All 2 branches covered.">			if (!authInterface.isInstance(realm))</span>
+<span class="fc" id="L102">				throw new IllegalStateException(&quot;Invalid realm type for &quot; + code);</span>
+<span class="fc" id="L103">		}</span>
 	}
 
 	/**
-	 * Gets the configuration for a realm.
+	 * Verifies that {@link #getType()} may be used to inform a decision to cast an
+	 * instance to a specific subclass.
 	 * 
-	 * @param &lt;R&gt;  authentication realm type
-	 * @param name realm name
-	 * @return realm configuration
+	 * @param realm {@link IuAuthenticationRealm}
 	 */
-	@SuppressWarnings(&quot;unchecked&quot;)
-	static &lt;R extends IuAuthenticationRealm&gt; R of(String name) {
-<span class="fc" id="L111">		return (R) AuthConfig.load(IuAuthenticationRealm.class, &quot;realm/&quot; + name,</span>
-<span class="fc" id="L112">				config -&gt; Type.from(config.getString(&quot;type&quot;)).authInterface);</span>
-	}
+	static void verify(IuAuthenticationRealm realm) {
+<span class="fc" id="L113">		realm.getType().check(realm);</span>
+<span class="fc" id="L114">	}</span>
+
+	/**
+	 * Gets the authentication realm type.
+	 * 
+	 * @return {@link Type}
+	 */
+	Type getType();
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

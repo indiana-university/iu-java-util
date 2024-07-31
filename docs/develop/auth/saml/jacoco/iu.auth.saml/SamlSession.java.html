@@ -124,7 +124,7 @@ final class SamlSession implements IuSamlSession {
 	}
 
 	@Override
-	public void verifyResponse(String remoteAddr, String samlResponse, String relayState)
+	public URI verifyResponse(String remoteAddr, String samlResponse, String relayState)
 			throws IuAuthenticationException {
 		try {
 <span class="fc" id="L130">			IuObject.require(id, Objects::isNull);</span>
@@ -146,51 +146,53 @@ final class SamlSession implements IuSamlSession {
 							StandardCharsets.UTF_8)));
 <span class="fc" id="L147">			throw challenge;</span>
 <span class="fc" id="L148">		}</span>
-<span class="fc" id="L149">	}</span>
+		
+<span class="fc" id="L150">		return entryPointUri;</span>
+	}
 
 	@Override
 	public SamlPrincipal getPrincipalIdentity() throws IuAuthenticationException {
 		try {
-<span class="fc" id="L154">			IuPrincipalIdentity.verify(id, serviceProvider.getRealm());</span>
-<span class="fc" id="L155">		} catch (IuAuthenticationException e) {</span>
-<span class="fc" id="L156">			e.setLocation(entryPointUri);</span>
-<span class="fc" id="L157">			throw e;</span>
-<span class="fc" id="L158">		}</span>
-<span class="fc" id="L159">		return id;</span>
+<span class="fc" id="L156">			IuPrincipalIdentity.verify(id, serviceProvider.getRealm());</span>
+<span class="fc" id="L157">		} catch (IuAuthenticationException e) {</span>
+<span class="fc" id="L158">			e.setLocation(entryPointUri);</span>
+<span class="fc" id="L159">			throw e;</span>
+<span class="fc" id="L160">		}</span>
+<span class="fc" id="L161">		return id;</span>
 	}
 
 	@Override
 	public String toString() {
-<span class="fc" id="L164">		final var builder = IuJson.object();</span>
-<span class="fc" id="L165">		IuJson.add(builder, &quot;entry_point_uri&quot;, () -&gt; entryPointUri, AuthConfig.adaptJson(URI.class));</span>
-<span class="fc" id="L166">		IuJson.add(builder, &quot;post_uri&quot;, () -&gt; postUri, AuthConfig.adaptJson(URI.class));</span>
-<span class="fc" id="L167">		builder.add(&quot;relay_state&quot;, relayState) //</span>
-<span class="fc" id="L168">				.add(&quot;session_id&quot;, sessionId);</span>
-<span class="fc" id="L169">		IuJson.add(builder, &quot;id&quot;, () -&gt; id, IuJsonAdapter.to(a -&gt; IuJson.parse(a.toString())));</span>
+<span class="fc" id="L166">		final var builder = IuJson.object();</span>
+<span class="fc" id="L167">		IuJson.add(builder, &quot;entry_point_uri&quot;, () -&gt; entryPointUri, AuthConfig.adaptJson(URI.class));</span>
+<span class="fc" id="L168">		IuJson.add(builder, &quot;post_uri&quot;, () -&gt; postUri, AuthConfig.adaptJson(URI.class));</span>
+<span class="fc" id="L169">		builder.add(&quot;relay_state&quot;, relayState) //</span>
+<span class="fc" id="L170">				.add(&quot;session_id&quot;, sessionId);</span>
+<span class="fc" id="L171">		IuJson.add(builder, &quot;id&quot;, () -&gt; id, IuJsonAdapter.to(a -&gt; IuJson.parse(a.toString())));</span>
 
-<span class="fc" id="L171">		final var secretKey = this.secretKey.get();</span>
+<span class="fc" id="L173">		final var secretKey = this.secretKey.get();</span>
 		final Encryption enc;
-<span class="fc bfc" id="L173" title="All 4 branches covered.">		switch (secretKey.length) {</span>
+<span class="fc bfc" id="L175" title="All 4 branches covered.">		switch (secretKey.length) {</span>
 		case 16:
-<span class="fc" id="L175">			enc = Encryption.A128GCM;</span>
-<span class="fc" id="L176">			break;</span>
+<span class="fc" id="L177">			enc = Encryption.A128GCM;</span>
+<span class="fc" id="L178">			break;</span>
 		case 24:
-<span class="fc" id="L178">			enc = Encryption.A192GCM;</span>
-<span class="fc" id="L179">			break;</span>
+<span class="fc" id="L180">			enc = Encryption.A192GCM;</span>
+<span class="fc" id="L181">			break;</span>
 		case 32:
-<span class="fc" id="L181">			enc = Encryption.A256GCM;</span>
-<span class="fc" id="L182">			break;</span>
+<span class="fc" id="L183">			enc = Encryption.A256GCM;</span>
+<span class="fc" id="L184">			break;</span>
 		default:
-<span class="fc" id="L184">			throw new IllegalStateException(&quot;secret key size&quot;);</span>
+<span class="fc" id="L186">			throw new IllegalStateException(&quot;secret key size&quot;);</span>
 		}
 
-<span class="fc" id="L187">		return WebEncryption.builder(enc).compact() //</span>
-<span class="fc" id="L188">				.addRecipient(Algorithm.DIRECT) //</span>
-<span class="fc" id="L189">				.key(WebKey.builder(Type.RAW).key(secretKey).build()) //</span>
-<span class="fc" id="L190">				.encrypt(WebSignature.builder(serviceProvider.getVerifyAlg()).compact()</span>
-<span class="fc" id="L191">						.key(serviceProvider.getVerifyKey()) //</span>
-<span class="fc" id="L192">						.sign(builder.build().toString()).compact()) //</span>
-<span class="fc" id="L193">				.compact();</span>
+<span class="fc" id="L189">		return WebEncryption.builder(enc).compact() //</span>
+<span class="fc" id="L190">				.addRecipient(Algorithm.DIRECT) //</span>
+<span class="fc" id="L191">				.key(WebKey.builder(Type.RAW).key(secretKey).build()) //</span>
+<span class="fc" id="L192">				.encrypt(WebSignature.builder(serviceProvider.getVerifyAlg()).compact()</span>
+<span class="fc" id="L193">						.key(serviceProvider.getVerifyKey()) //</span>
+<span class="fc" id="L194">						.sign(builder.build().toString()).compact()) //</span>
+<span class="fc" id="L195">				.compact();</span>
 	}
 
 }

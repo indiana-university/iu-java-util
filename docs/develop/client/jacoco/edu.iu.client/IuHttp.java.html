@@ -73,27 +73,31 @@ public class IuHttp {
 <span class="fc" id="L73">	private static final Collection&lt;URI&gt; ALLOWED_URI = IuRuntimeEnvironment.env(&quot;iu.http.allowedUri&quot;,</span>
 <span class="fc" id="L74">			a -&gt; Stream.of(a.split(&quot;,&quot;)).map(URI::create).collect(Collectors.toUnmodifiableList()));</span>
 
-<span class="fc" id="L76">	private static final HttpClient HTTP = HttpClient.newHttpClient();</span>
+<span class="fc" id="L76">	private static final Collection&lt;URI&gt; ALLOWED_INSECURE_URI = IuRuntimeEnvironment.envOptional(</span>
+			&quot;iu.http.allowedInsecureUri&quot;,
+<span class="fc" id="L78">			a -&gt; Stream.of(a.split(&quot;,&quot;)).map(URI::create).collect(Collectors.toUnmodifiableList()));</span>
+
+<span class="fc" id="L80">	private static final HttpClient HTTP = HttpClient.newHttpClient();</span>
 
 	/**
 	 * Validates a 200 OK response.
 	 */
-<span class="fc" id="L81">	public static final HttpResponseValidator OK = expectStatus(200);</span>
+<span class="fc" id="L85">	public static final HttpResponseValidator OK = expectStatus(200);</span>
 
 	/**
 	 * Validates a 204 NO CONTENT response and returns null.
 	 */
-<span class="fc" id="L86">	public static final HttpResponseHandler&lt;?&gt; NO_CONTENT = validate(a -&gt; null, IuHttp.expectStatus(204));</span>
+<span class="fc" id="L90">	public static final HttpResponseHandler&lt;?&gt; NO_CONTENT = validate(a -&gt; null, IuHttp.expectStatus(204));</span>
 
 	/**
 	 * Validates 200 OK then parses the response as a JSON object.
 	 */
-<span class="fc" id="L91">	public static final HttpResponseHandler&lt;JsonValue&gt; READ_JSON = validate(IuJson::parse, IuHttp.OK);</span>
+<span class="fc" id="L95">	public static final HttpResponseHandler&lt;JsonValue&gt; READ_JSON = validate(IuJson::parse, IuHttp.OK);</span>
 
 	/**
 	 * Validates 200 OK then parses the response as a JSON object.
 	 */
-<span class="fc" id="L96">	public static final HttpResponseHandler&lt;JsonObject&gt; READ_JSON_OBJECT = validate(a -&gt; IuJson.parse(a).asJsonObject(),</span>
+<span class="fc" id="L100">	public static final HttpResponseHandler&lt;JsonObject&gt; READ_JSON_OBJECT = validate(a -&gt; IuJson.parse(a).asJsonObject(),</span>
 			IuHttp.OK);
 
 	/**
@@ -107,10 +111,10 @@ public class IuHttp {
 	 */
 	public static &lt;T&gt; HttpResponseHandler&lt;T&gt; validate(Function&lt;InputStream, T&gt; bodyDeserializer,
 			HttpResponseValidator... responseValidators) {
-<span class="fc" id="L110">		return response -&gt; {</span>
-<span class="fc bfc" id="L111" title="All 2 branches covered.">			for (final var responseValidator : responseValidators)</span>
-<span class="fc" id="L112">				responseValidator.accept(response);</span>
-<span class="fc" id="L113">			return bodyDeserializer.apply(response.body());</span>
+<span class="fc" id="L114">		return response -&gt; {</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">			for (final var responseValidator : responseValidators)</span>
+<span class="fc" id="L116">				responseValidator.accept(response);</span>
+<span class="fc" id="L117">			return bodyDeserializer.apply(response.body());</span>
 		};
 	}
 
@@ -121,12 +125,12 @@ public class IuHttp {
 	 * @return {@link HttpResponseValidator}
 	 */
 	public static HttpResponseValidator expectStatus(int expectedStatusCode) {
-<span class="fc" id="L124">		return response -&gt; {</span>
-<span class="fc" id="L125">			final var statusCode = response.statusCode();</span>
-<span class="fc bfc" id="L126" title="All 2 branches covered.">			if (statusCode != expectedStatusCode)</span>
-<span class="fc" id="L127">				throw new HttpException(response, &quot;Expected &quot; + IuWebUtils.describeStatus(expectedStatusCode)</span>
-<span class="fc" id="L128">						+ &quot;, found &quot; + IuWebUtils.describeStatus(statusCode));</span>
-<span class="fc" id="L129">		};</span>
+<span class="fc" id="L128">		return response -&gt; {</span>
+<span class="fc" id="L129">			final var statusCode = response.statusCode();</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">			if (statusCode != expectedStatusCode)</span>
+<span class="fc" id="L131">				throw new HttpException(response, &quot;Expected &quot; + IuWebUtils.describeStatus(expectedStatusCode)</span>
+<span class="fc" id="L132">						+ &quot;, found &quot; + IuWebUtils.describeStatus(statusCode));</span>
+<span class="fc" id="L133">		};</span>
 	}
 
 	/**
@@ -136,14 +140,14 @@ public class IuHttp {
 	 * @return {@link HttpResponseValidator}
 	 */
 	public static HttpResponseValidator checkHeaders(BiPredicate&lt;String, String&gt; headerValidator) {
-<span class="fc" id="L139">		return response -&gt; {</span>
-<span class="fc bfc" id="L140" title="All 2 branches covered.">			for (final var headerEntry : response.headers().map().entrySet()) {</span>
-<span class="fc" id="L141">				final var name = headerEntry.getKey();</span>
-<span class="fc bfc" id="L142" title="All 2 branches covered.">				for (final var value : headerEntry.getValue())</span>
-<span class="fc bfc" id="L143" title="All 2 branches covered.">					if (!headerValidator.test(name, value))</span>
-<span class="fc" id="L144">						throw new HttpException(response, &quot;Invalid header &quot; + name);</span>
-<span class="fc" id="L145">			}</span>
-<span class="fc" id="L146">		};</span>
+<span class="fc" id="L143">		return response -&gt; {</span>
+<span class="fc bfc" id="L144" title="All 2 branches covered.">			for (final var headerEntry : response.headers().map().entrySet()) {</span>
+<span class="fc" id="L145">				final var name = headerEntry.getKey();</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">				for (final var value : headerEntry.getValue())</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">					if (!headerValidator.test(name, value))</span>
+<span class="fc" id="L148">						throw new HttpException(response, &quot;Invalid header &quot; + name);</span>
+<span class="fc" id="L149">			}</span>
+<span class="fc" id="L150">		};</span>
 	}
 
 	/**
@@ -155,7 +159,7 @@ public class IuHttp {
 	 * @throws HttpException If the response has error status code.
 	 */
 	public static HttpResponse&lt;InputStream&gt; get(URI uri) throws HttpException {
-<span class="fc" id="L158">		return send(uri, null);</span>
+<span class="fc" id="L162">		return send(uri, null);</span>
 	}
 
 	/**
@@ -171,7 +175,7 @@ public class IuHttp {
 	 * @throws HttpException If the response has error status code.
 	 */
 	public static &lt;T&gt; T get(URI uri, HttpResponseHandler&lt;T&gt; responseHandler) throws HttpException {
-<span class="fc" id="L174">		return responseHandler.apply(send(uri, null));</span>
+<span class="fc" id="L178">		return responseHandler.apply(send(uri, null));</span>
 	}
 
 	/**
@@ -186,7 +190,22 @@ public class IuHttp {
 	 */
 	public static HttpResponse&lt;InputStream&gt; send(URI uri, UnsafeConsumer&lt;HttpRequest.Builder&gt; requestConsumer)
 			throws HttpException {
-<span class="fc" id="L189">		return send(HttpException.class, uri, requestConsumer);</span>
+<span class="fc" id="L193">		return send(HttpException.class, uri, requestConsumer);</span>
+	}
+
+	/**
+	 * Determines whether or not an allow list contains a root of a URI.
+	 * 
+	 * @param allowList allowed root URIs
+	 * @param uri       {@link URI} to check
+	 * @return true if the allow list is non-null and contains at least one entry
+	 *         that is a root of the supplied URI
+	 */
+	static boolean isAllowed(Collection&lt;URI&gt; allowList, URI uri) {
+<span class="fc bfc" id="L205" title="All 2 branches covered.">		if (allowList == null)</span>
+<span class="fc" id="L206">			return false;</span>
+		else
+<span class="fc" id="L208">			return allowList.stream().anyMatch(allowedUri -&gt; IuWebUtils.isRootOf(allowedUri, uri));</span>
 	}
 
 	/**
@@ -206,55 +225,57 @@ public class IuHttp {
 	 */
 	public static &lt;E extends Exception&gt; HttpResponse&lt;InputStream&gt; send(Class&lt;E&gt; exceptionClass, URI uri,
 			UnsafeConsumer&lt;HttpRequest.Builder&gt; requestConsumer) throws HttpException, E {
-<span class="fc bfc" id="L209" title="All 2 branches covered.">		if (!&quot;https&quot;.equals(uri.getScheme()) //</span>
-<span class="fc bfc" id="L210" title="All 2 branches covered.">				&amp;&amp; !&quot;localhost&quot;.equals(uri.getHost()))</span>
-<span class="fc" id="L211">			throw new IllegalArgumentException(&quot;insecure URI&quot;);</span>
+<span class="fc bfc" id="L228" title="All 2 branches covered.">		if (!&quot;https&quot;.equals(uri.getScheme())) {</span>
+<span class="fc bfc" id="L229" title="All 2 branches covered.">			if (!isAllowed(ALLOWED_INSECURE_URI, uri))</span>
+<span class="fc" id="L230">				throw new IllegalArgumentException(</span>
+						&quot;Insecure URI not allowed, must be relative to &quot; + ALLOWED_INSECURE_URI);
+			else
+<span class="fc" id="L233">				LOG.info(() -&gt; &quot;Allowing insecure URI &quot; + uri);</span>
+<span class="fc bfc" id="L234" title="All 2 branches covered.">		} else if (!isAllowed(ALLOWED_URI, uri))</span>
+<span class="fc" id="L235">			throw new IllegalArgumentException(&quot;URI not allowed, must be relative to &quot; + ALLOWED_URI);</span>
 
-<span class="fc bfc" id="L213" title="All 2 branches covered.">		if (!ALLOWED_URI.stream().anyMatch(allowedUri -&gt; IuWebUtils.isRootOf(allowedUri, uri)))</span>
-<span class="fc" id="L214">			throw new IllegalArgumentException(&quot;URI not allowed, must be relative to &quot; + ALLOWED_URI);</span>
+<span class="fc" id="L237">		return IuException.checked(HttpException.class, exceptionClass, () -&gt; {</span>
+<span class="fc" id="L238">			final var requestBuilder = HttpRequest.newBuilder(uri);</span>
+<span class="fc bfc" id="L239" title="All 2 branches covered.">			if (requestConsumer != null)</span>
+<span class="fc" id="L240">				requestConsumer.accept(requestBuilder);</span>
+<span class="fc" id="L241">			final var request = requestBuilder.build();</span>
 
-<span class="fc" id="L216">		return IuException.checked(HttpException.class, exceptionClass, () -&gt; {</span>
-<span class="fc" id="L217">			final var requestBuilder = HttpRequest.newBuilder(uri);</span>
-<span class="fc bfc" id="L218" title="All 2 branches covered.">			if (requestConsumer != null)</span>
-<span class="fc" id="L219">				requestConsumer.accept(requestBuilder);</span>
-<span class="fc" id="L220">			final var request = requestBuilder.build();</span>
-
-<span class="fc" id="L222">			final var sb = new StringBuilder();</span>
-<span class="fc" id="L223">			sb.append(request.method());</span>
-<span class="fc" id="L224">			sb.append(' ').append(request.uri());</span>
-<span class="fc" id="L225">			final var requestHeaders = request.headers();</span>
-<span class="fc" id="L226">			final var requestHeaderMap = requestHeaders.map();</span>
-<span class="fc bfc" id="L227" title="All 2 branches covered.">			if (!requestHeaderMap.isEmpty())</span>
+<span class="fc" id="L243">			final var sb = new StringBuilder();</span>
+<span class="fc" id="L244">			sb.append(request.method());</span>
+<span class="fc" id="L245">			sb.append(' ').append(request.uri());</span>
+<span class="fc" id="L246">			final var requestHeaders = request.headers();</span>
+<span class="fc" id="L247">			final var requestHeaderMap = requestHeaders.map();</span>
+<span class="fc bfc" id="L248" title="All 2 branches covered.">			if (!requestHeaderMap.isEmpty())</span>
 				// TODO: apply security filter
-<span class="fc" id="L229">				sb.append(' ').append(requestHeaderMap.keySet());</span>
+<span class="fc" id="L250">				sb.append(' ').append(requestHeaderMap.keySet());</span>
 
 			final HttpResponse&lt;InputStream&gt; response;
 			try {
-<span class="fc" id="L233">				response = HTTP.send(request, BodyHandlers.ofInputStream());</span>
-<span class="fc" id="L234">			} catch (Throwable e) {</span>
-<span class="fc" id="L235">				final var m = &quot;HTTP connection failed &quot; + sb;</span>
-<span class="fc" id="L236">				LOG.log(Level.INFO, e, () -&gt; m);</span>
-<span class="fc" id="L237">				throw new IllegalStateException(m, e);</span>
-<span class="fc" id="L238">			}</span>
+<span class="fc" id="L254">				response = HTTP.send(request, BodyHandlers.ofInputStream());</span>
+<span class="fc" id="L255">			} catch (Throwable e) {</span>
+<span class="fc" id="L256">				final var m = &quot;HTTP connection failed &quot; + sb;</span>
+<span class="fc" id="L257">				LOG.log(Level.INFO, e, () -&gt; m);</span>
+<span class="fc" id="L258">				throw new IllegalStateException(m, e);</span>
+<span class="fc" id="L259">			}</span>
 
-<span class="fc" id="L240">			final var status = response.statusCode();</span>
-<span class="fc" id="L241">			sb.append(&quot; &quot;).append(IuWebUtils.describeStatus(status));</span>
+<span class="fc" id="L261">			final var status = response.statusCode();</span>
+<span class="fc" id="L262">			sb.append(&quot; &quot;).append(IuWebUtils.describeStatus(status));</span>
 
-<span class="fc" id="L243">			final var responseHeaders = response.headers();</span>
-<span class="fc" id="L244">			final var responseHeaderMap = responseHeaders.map();</span>
-<span class="fc bfc" id="L245" title="All 2 branches covered.">			if (!responseHeaderMap.isEmpty())</span>
+<span class="fc" id="L264">			final var responseHeaders = response.headers();</span>
+<span class="fc" id="L265">			final var responseHeaderMap = responseHeaders.map();</span>
+<span class="fc bfc" id="L266" title="All 2 branches covered.">			if (!responseHeaderMap.isEmpty())</span>
 				// TODO: apply security filter
-<span class="fc" id="L247">				sb.append(' ').append(responseHeaderMap.keySet());</span>
+<span class="fc" id="L268">				sb.append(' ').append(responseHeaderMap.keySet());</span>
 
-<span class="fc bfc" id="L249" title="All 2 branches covered.">			if (response.statusCode() &gt;= 400) {</span>
-<span class="fc" id="L250">				final var m = sb.toString();</span>
-<span class="fc" id="L251">				final var e = new HttpException(response, m);</span>
-<span class="fc" id="L252">				LOG.log(Level.INFO, m, e);</span>
-<span class="fc" id="L253">				throw e;</span>
+<span class="fc bfc" id="L270" title="All 2 branches covered.">			if (response.statusCode() &gt;= 400) {</span>
+<span class="fc" id="L271">				final var m = sb.toString();</span>
+<span class="fc" id="L272">				final var e = new HttpException(response, m);</span>
+<span class="fc" id="L273">				LOG.log(Level.INFO, m, e);</span>
+<span class="fc" id="L274">				throw e;</span>
 			} else
-<span class="fc" id="L255">				LOG.fine(sb::toString);</span>
+<span class="fc" id="L276">				LOG.fine(sb::toString);</span>
 
-<span class="fc" id="L257">			return response;</span>
+<span class="fc" id="L278">			return response;</span>
 		});
 	}
 
@@ -275,7 +296,7 @@ public class IuHttp {
 	 */
 	public static &lt;T&gt; T send(URI uri, UnsafeConsumer&lt;HttpRequest.Builder&gt; requestConsumer,
 			HttpResponseHandler&lt;T&gt; responseHandler) throws HttpException {
-<span class="fc" id="L278">		return send(HttpException.class, uri, requestConsumer, responseHandler);</span>
+<span class="fc" id="L299">		return send(HttpException.class, uri, requestConsumer, responseHandler);</span>
 	}
 
 	/**
@@ -300,7 +321,7 @@ public class IuHttp {
 	public static &lt;T, E extends Exception&gt; T send(Class&lt;E&gt; exceptionClass, URI uri,
 			UnsafeConsumer&lt;HttpRequest.Builder&gt; requestConsumer, HttpResponseHandler&lt;T&gt; responseHandler)
 			throws HttpException, E {
-<span class="fc" id="L303">		return responseHandler.apply(send(exceptionClass, uri, requestConsumer));</span>
+<span class="fc" id="L324">		return responseHandler.apply(send(exceptionClass, uri, requestConsumer));</span>
 	}
 
 	private IuHttp() {

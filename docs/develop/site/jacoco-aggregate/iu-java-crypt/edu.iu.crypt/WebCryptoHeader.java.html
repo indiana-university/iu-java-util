@@ -59,83 +59,86 @@ import iu.crypt.UnpaddedBinary;
  */
 public interface WebCryptoHeader extends WebCertificateReference {
 
+	/** {@link IuJsonAdapter} */
+<span class="fc" id="L63">	public static final IuJsonAdapter&lt;WebCryptoHeader&gt; JSON = Jose.JSON;</span>
+
 	/**
 	 * Enumerates standard header parameters.
 	 */
-<span class="fc" id="L65">	enum Param {</span>
+<span class="fc" id="L68">	enum Param {</span>
 		/**
 		 * Encryption/signature algorithm.
 		 */
-<span class="fc" id="L69">		ALGORITHM(&quot;alg&quot;, EnumSet.allOf(Use.class), true, WebCryptoHeader::getAlgorithm, () -&gt; Algorithm.JSON),</span>
+<span class="fc" id="L72">		ALGORITHM(&quot;alg&quot;, EnumSet.allOf(Use.class), true, WebCryptoHeader::getAlgorithm, () -&gt; Algorithm.JSON),</span>
 
 		/**
 		 * Well-known key identifier.
 		 */
-<span class="fc" id="L74">		KEY_ID(&quot;kid&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getKeyId, () -&gt; IuJsonAdapter.of(String.class)),</span>
+<span class="fc" id="L77">		KEY_ID(&quot;kid&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getKeyId, () -&gt; IuJsonAdapter.of(String.class)),</span>
 
 		/**
 		 * Well-known key set URI.
 		 */
-<span class="fc" id="L79">		KEY_SET_URI(&quot;jku&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getKeySetUri,</span>
-<span class="fc" id="L80">				() -&gt; IuJsonAdapter.of(URI.class)),</span>
+<span class="fc" id="L82">		KEY_SET_URI(&quot;jku&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getKeySetUri,</span>
+<span class="fc" id="L83">				() -&gt; IuJsonAdapter.of(URI.class)),</span>
 
 		/**
 		 * Well-known public key.
 		 */
-<span class="fc" id="L85">		KEY(&quot;jwk&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getKey, () -&gt; Jwk.JSON),</span>
+<span class="fc" id="L88">		KEY(&quot;jwk&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getKey, () -&gt; Jwk.JSON),</span>
 
 		/**
 		 * Certificate chain URI.
 		 */
-<span class="fc" id="L90">		CERTIFICATE_URI(&quot;x5u&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getCertificateUri,</span>
-<span class="fc" id="L91">				() -&gt; IuJsonAdapter.of(URI.class)),</span>
+<span class="fc" id="L93">		CERTIFICATE_URI(&quot;x5u&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getCertificateUri,</span>
+<span class="fc" id="L94">				() -&gt; IuJsonAdapter.of(URI.class)),</span>
 
 		/**
 		 * Certificate chain.
 		 */
-<span class="fc" id="L96">		CERTIFICATE_CHAIN(&quot;x5c&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getCertificateChain,</span>
-<span class="fc" id="L97">				() -&gt; IuJsonAdapter.of(X509Certificate[].class, PemEncoded.CERT_JSON)),</span>
+<span class="fc" id="L99">		CERTIFICATE_CHAIN(&quot;x5c&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getCertificateChain,</span>
+<span class="fc" id="L100">				() -&gt; IuJsonAdapter.of(X509Certificate[].class, PemEncoded.CERT_JSON)),</span>
 
 		/**
 		 * Certificate SHA-1 thumb print.
 		 */
-<span class="fc" id="L102">		CERTIFICATE_THUMBPRINT(&quot;x5t&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getCertificateThumbprint,</span>
-<span class="fc" id="L103">				() -&gt; UnpaddedBinary.JSON),</span>
+<span class="fc" id="L105">		CERTIFICATE_THUMBPRINT(&quot;x5t&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getCertificateThumbprint,</span>
+<span class="fc" id="L106">				() -&gt; UnpaddedBinary.JSON),</span>
 
 		/**
 		 * Certificate SHA-1 thumb print.
 		 */
-<span class="fc" id="L108">		CERTIFICATE_SHA256_THUMBPRINT(&quot;x5t#S256&quot;, EnumSet.allOf(Use.class), false,</span>
-<span class="fc" id="L109">				WebCryptoHeader::getCertificateSha256Thumbprint, () -&gt; UnpaddedBinary.JSON),</span>
+<span class="fc" id="L111">		CERTIFICATE_SHA256_THUMBPRINT(&quot;x5t#S256&quot;, EnumSet.allOf(Use.class), false,</span>
+<span class="fc" id="L112">				WebCryptoHeader::getCertificateSha256Thumbprint, () -&gt; UnpaddedBinary.JSON),</span>
 
 		/**
 		 * Signature/encryption media type.
 		 */
-<span class="fc" id="L114">		TYPE(&quot;typ&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getType, () -&gt; IuJsonAdapter.of(String.class)),</span>
+<span class="fc" id="L117">		TYPE(&quot;typ&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getType, () -&gt; IuJsonAdapter.of(String.class)),</span>
 
 		/**
 		 * Content media type.
 		 */
-<span class="fc" id="L119">		CONTENT_TYPE(&quot;cty&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getContentType,</span>
-<span class="fc" id="L120">				() -&gt; IuJsonAdapter.of(String.class)),</span>
+<span class="fc" id="L122">		CONTENT_TYPE(&quot;cty&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getContentType,</span>
+<span class="fc" id="L123">				() -&gt; IuJsonAdapter.of(String.class)),</span>
 
 		/**
 		 * Extended parameter names that &lt;em&gt;must&lt;/em&gt; be included in the protected
 		 * header.
 		 */
-<span class="fc" id="L126">		CRITICAL_PARAMS(&quot;crit&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getCriticalParameters,</span>
-<span class="fc" id="L127">				() -&gt; IuJsonAdapter.of(Set.class, IuJsonAdapter.of(String.class))),</span>
+<span class="fc" id="L129">		CRITICAL_PARAMS(&quot;crit&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getCriticalParameters,</span>
+<span class="fc" id="L130">				() -&gt; IuJsonAdapter.of(Set.class, IuJsonAdapter.of(String.class))),</span>
 
 		/**
 		 * Content encryption algorithm.
 		 */
-<span class="fc" id="L132">		ENCRYPTION(&quot;enc&quot;, EnumSet.of(Use.ENCRYPT), true, a -&gt; a.getExtendedParameter(&quot;enc&quot;), () -&gt; Encryption.JSON),</span>
+<span class="fc" id="L135">		ENCRYPTION(&quot;enc&quot;, EnumSet.of(Use.ENCRYPT), true, a -&gt; a.getExtendedParameter(&quot;enc&quot;), () -&gt; Encryption.JSON),</span>
 
 		/**
 		 * Plain-text compression algorithm for encryption.
 		 */
-<span class="fc" id="L137">		ZIP(&quot;zip&quot;, EnumSet.of(Use.ENCRYPT), false, a -&gt; a.getExtendedParameter(&quot;zip&quot;),</span>
-<span class="fc" id="L138">				() -&gt; IuJsonAdapter.of(String.class)),</span>
+<span class="fc" id="L140">		ZIP(&quot;zip&quot;, EnumSet.of(Use.ENCRYPT), false, a -&gt; a.getExtendedParameter(&quot;zip&quot;),</span>
+<span class="fc" id="L141">				() -&gt; IuJsonAdapter.of(String.class)),</span>
 
 		/**
 		 * Ephemeral public key for key agreement algorithms.
@@ -145,7 +148,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @see Algorithm#ECDH_ES_A192KW
 		 * @see Algorithm#ECDH_ES_A256KW
 		 */
-<span class="fc" id="L148">		EPHEMERAL_PUBLIC_KEY(&quot;epk&quot;, EnumSet.of(Use.ENCRYPT), true, a -&gt; a.getExtendedParameter(&quot;epk&quot;), () -&gt; Jwk.JSON),</span>
+<span class="fc" id="L151">		EPHEMERAL_PUBLIC_KEY(&quot;epk&quot;, EnumSet.of(Use.ENCRYPT), true, a -&gt; a.getExtendedParameter(&quot;epk&quot;), () -&gt; Jwk.JSON),</span>
 
 		/**
 		 * Public originator identifier (PartyUInfo) for key derivation.
@@ -155,8 +158,8 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @see Algorithm#ECDH_ES_A192KW
 		 * @see Algorithm#ECDH_ES_A256KW
 		 */
-<span class="fc" id="L158">		PARTY_UINFO(&quot;apu&quot;, EnumSet.of(Use.ENCRYPT), false, a -&gt; a.getExtendedParameter(&quot;apu&quot;),</span>
-<span class="fc" id="L159">				() -&gt; UnpaddedBinary.JSON),</span>
+<span class="fc" id="L161">		PARTY_UINFO(&quot;apu&quot;, EnumSet.of(Use.ENCRYPT), false, a -&gt; a.getExtendedParameter(&quot;apu&quot;),</span>
+<span class="fc" id="L162">				() -&gt; UnpaddedBinary.JSON),</span>
 
 		/**
 		 * Public recipient identifier (PartyVInfo) for key derivation.
@@ -166,8 +169,8 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @see Algorithm#ECDH_ES_A192KW
 		 * @see Algorithm#ECDH_ES_A256KW
 		 */
-<span class="fc" id="L169">		PARTY_VINFO(&quot;apv&quot;, EnumSet.of(Use.ENCRYPT), false, a -&gt; a.getExtendedParameter(&quot;apv&quot;),</span>
-<span class="fc" id="L170">				() -&gt; UnpaddedBinary.JSON),</span>
+<span class="fc" id="L172">		PARTY_VINFO(&quot;apv&quot;, EnumSet.of(Use.ENCRYPT), false, a -&gt; a.getExtendedParameter(&quot;apv&quot;),</span>
+<span class="fc" id="L173">				() -&gt; UnpaddedBinary.JSON),</span>
 
 		/**
 		 * Initialization vector for GCM key wrap.
@@ -176,8 +179,8 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @see Algorithm#A192GCMKW
 		 * @see Algorithm#A256GCMKW
 		 */
-<span class="fc" id="L179">		INITIALIZATION_VECTOR(&quot;iv&quot;, EnumSet.of(Use.ENCRYPT), true, a -&gt; a.getExtendedParameter(&quot;iv&quot;),</span>
-<span class="fc" id="L180">				() -&gt; UnpaddedBinary.JSON),</span>
+<span class="fc" id="L182">		INITIALIZATION_VECTOR(&quot;iv&quot;, EnumSet.of(Use.ENCRYPT), true, a -&gt; a.getExtendedParameter(&quot;iv&quot;),</span>
+<span class="fc" id="L183">				() -&gt; UnpaddedBinary.JSON),</span>
 
 		/**
 		 * Authentication tag for GCM key wrap.
@@ -186,7 +189,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @see Algorithm#A192GCMKW
 		 * @see Algorithm#A256GCMKW
 		 */
-<span class="fc" id="L189">		TAG(&quot;tag&quot;, Set.of(Use.ENCRYPT), true, a -&gt; a.getExtendedParameter(&quot;tag&quot;), () -&gt; UnpaddedBinary.JSON),</span>
+<span class="fc" id="L192">		TAG(&quot;tag&quot;, Set.of(Use.ENCRYPT), true, a -&gt; a.getExtendedParameter(&quot;tag&quot;), () -&gt; UnpaddedBinary.JSON),</span>
 
 		/**
 		 * Password salt for use with PBES2.
@@ -195,7 +198,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @see Algorithm#PBES2_HS384_A192KW
 		 * @see Algorithm#PBES2_HS512_A256KW
 		 */
-<span class="fc" id="L198">		PASSWORD_SALT(&quot;p2s&quot;, Set.of(Use.ENCRYPT), true, a -&gt; a.getExtendedParameter(&quot;p2s&quot;), () -&gt; UnpaddedBinary.JSON),</span>
+<span class="fc" id="L201">		PASSWORD_SALT(&quot;p2s&quot;, Set.of(Use.ENCRYPT), true, a -&gt; a.getExtendedParameter(&quot;p2s&quot;), () -&gt; UnpaddedBinary.JSON),</span>
 
 		/**
 		 * PBKDF2 iteration count for use with PBES2.
@@ -204,8 +207,8 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @see Algorithm#PBES2_HS384_A192KW
 		 * @see Algorithm#PBES2_HS512_A256KW
 		 */
-<span class="fc" id="L207">		PASSWORD_COUNT(&quot;p2c&quot;, Set.of(Use.ENCRYPT), true, a -&gt; a.getExtendedParameter(&quot;p2c&quot;),</span>
-<span class="fc" id="L208">				() -&gt; IuJsonAdapter.of(Integer.class));</span>
+<span class="fc" id="L210">		PASSWORD_COUNT(&quot;p2c&quot;, Set.of(Use.ENCRYPT), true, a -&gt; a.getExtendedParameter(&quot;p2c&quot;),</span>
+<span class="fc" id="L211">				() -&gt; IuJsonAdapter.of(Integer.class));</span>
 
 		/**
 		 * Gets a parameter by JOSE standard parameter name.
@@ -214,8 +217,8 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @return {@link Param}
 		 */
 		public static Param from(String name) {
-<span class="fc" id="L217">			return EnumSet.allOf(Param.class).stream().filter(a -&gt; IuObject.equals(name, a.name)).findFirst()</span>
-<span class="fc" id="L218">					.orElse(null);</span>
+<span class="fc" id="L220">			return EnumSet.allOf(Param.class).stream().filter(a -&gt; IuObject.equals(name, a.name)).findFirst()</span>
+<span class="fc" id="L221">					.orElse(null);</span>
 		}
 
 		/**
@@ -241,13 +244,13 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		private final Function&lt;WebCryptoHeader, ?&gt; get;
 
 		private Param(String name, Set&lt;Use&gt; use, boolean required, Function&lt;WebCryptoHeader, ?&gt; get,
-<span class="fc" id="L244">				Supplier&lt;IuJsonAdapter&lt;?&gt;&gt; json) {</span>
-<span class="fc" id="L245">			this.name = name;</span>
-<span class="fc" id="L246">			this.use = Collections.unmodifiableSet(use);</span>
-<span class="fc" id="L247">			this.required = required;</span>
-<span class="fc" id="L248">			this.get = get;</span>
-<span class="fc" id="L249">			this.json = json;</span>
-<span class="fc" id="L250">		}</span>
+<span class="fc" id="L247">				Supplier&lt;IuJsonAdapter&lt;?&gt;&gt; json) {</span>
+<span class="fc" id="L248">			this.name = name;</span>
+<span class="fc" id="L249">			this.use = Collections.unmodifiableSet(use);</span>
+<span class="fc" id="L250">			this.required = required;</span>
+<span class="fc" id="L251">			this.get = get;</span>
+<span class="fc" id="L252">			this.json = json;</span>
+<span class="fc" id="L253">		}</span>
 
 		/**
 		 * Verifies that the header contains a non-null value.
@@ -256,7 +259,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @return true if the value is present; else false
 		 */
 		public boolean isPresent(WebCryptoHeader header) {
-<span class="fc bfc" id="L259" title="All 2 branches covered.">			return get(header) != null;</span>
+<span class="fc bfc" id="L262" title="All 2 branches covered.">			return get(header) != null;</span>
 		}
 
 		/**
@@ -267,7 +270,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 *         case.
 		 */
 		public boolean isUsedFor(Use use) {
-<span class="fc" id="L270">			return this.use.contains(use);</span>
+<span class="fc" id="L273">			return this.use.contains(use);</span>
 		}
 
 		/**
@@ -278,7 +281,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 */
 		@SuppressWarnings(&quot;unchecked&quot;)
 		public &lt;T&gt; IuJsonAdapter&lt;T&gt; json() {
-<span class="fc" id="L281">			return (IuJsonAdapter&lt;T&gt;) json.get();</span>
+<span class="fc" id="L284">			return (IuJsonAdapter&lt;T&gt;) json.get();</span>
 		}
 
 		/**
@@ -288,7 +291,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @return header value
 		 */
 		public Object get(WebCryptoHeader header) {
-<span class="fc" id="L291">			return get.apply(header);</span>
+<span class="fc" id="L294">			return get.apply(header);</span>
 		}
 	}
 
@@ -395,7 +398,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @throws IllegalArgumentException if the value is invalid
 		 */
 		default void validate(T value, Builder&lt;?&gt; builder) throws IllegalArgumentException {
-<span class="fc" id="L398">		}</span>
+<span class="fc" id="L401">		}</span>
 
 		/**
 		 * Applies extended verification logic for processing {@link WebCryptoHeader}.
@@ -404,7 +407,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @throws IllegalStateException if the header verification fails
 		 */
 		default void verify(WebCryptoHeader header) throws IllegalStateException {
-<span class="fc" id="L407">		}</span>
+<span class="fc" id="L410">		}</span>
 
 		/**
 		 * Applies extended verification logic for processing {@link WebSignature}.
@@ -413,7 +416,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @throws IllegalStateException if the verification fails
 		 */
 		default void verify(WebSignature signature) throws IllegalStateException {
-<span class="fc" id="L416">		}</span>
+<span class="fc" id="L419">		}</span>
 
 		/**
 		 * Applies extended verification logic for processing {@link WebEncryption}.
@@ -424,7 +427,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 		 * @throws IllegalStateException if the verification fails
 		 */
 		default void verify(WebEncryption encryption, WebEncryptionRecipient recipient) throws IllegalStateException {
-<span class="fc" id="L427">		}</span>
+<span class="fc" id="L430">		}</span>
 	}
 
 	/**
@@ -448,8 +451,8 @@ public interface WebCryptoHeader extends WebCertificateReference {
 	 *      Section 4.2&lt;/a&gt;
 	 */
 	static &lt;T&gt; void register(String parameterName, Extension&lt;T&gt; extension) {
-<span class="fc" id="L451">		Jose.register(parameterName, extension);</span>
-<span class="fc" id="L452">	}</span>
+<span class="fc" id="L454">		Jose.register(parameterName, extension);</span>
+<span class="fc" id="L455">	}</span>
 
 	/**
 	 * Verifies all parameters in a {@link WebCryptoHeader}.
@@ -458,47 +461,47 @@ public interface WebCryptoHeader extends WebCertificateReference {
 	 * @return Well-known key referred to by the header; null if not known
 	 */
 	static WebKey verify(WebCryptoHeader header) {
-<span class="fc" id="L461">		final var algorithm = Objects.requireNonNull(header.getAlgorithm(),</span>
-<span class="fc" id="L462">				() -&gt; &quot;Signature or key protected algorithm is required&quot;);</span>
+<span class="fc" id="L464">		final var algorithm = Objects.requireNonNull(header.getAlgorithm(),</span>
+<span class="fc" id="L465">				() -&gt; &quot;Signature or key protected algorithm is required&quot;);</span>
 
-<span class="fc bfc" id="L464" title="All 2 branches covered.">		if (algorithm.use.equals(Use.ENCRYPT)) {</span>
-<span class="fc" id="L465">			Objects.requireNonNull(header.getExtendedParameter(Param.ENCRYPTION.name),</span>
-<span class="fc" id="L466">					() -&gt; &quot;Content encryption algorithm is required&quot;);</span>
-<span class="fc bfc" id="L467" title="All 2 branches covered.">			for (final var param : algorithm.encryptionParams)</span>
-<span class="fc bfc" id="L468" title="All 4 branches covered.">				if (param.required &amp;&amp; !param.isPresent(header))</span>
-<span class="fc" id="L469">					throw new IllegalArgumentException(&quot;Missing required encryption parameter &quot; + param.name);</span>
+<span class="fc bfc" id="L467" title="All 2 branches covered.">		if (algorithm.use.equals(Use.ENCRYPT)) {</span>
+<span class="fc" id="L468">			Objects.requireNonNull(header.getExtendedParameter(Param.ENCRYPTION.name),</span>
+<span class="fc" id="L469">					() -&gt; &quot;Content encryption algorithm is required&quot;);</span>
+<span class="fc bfc" id="L470" title="All 2 branches covered.">			for (final var param : algorithm.encryptionParams)</span>
+<span class="fc bfc" id="L471" title="All 4 branches covered.">				if (param.required &amp;&amp; !param.isPresent(header))</span>
+<span class="fc" id="L472">					throw new IllegalArgumentException(&quot;Missing required encryption parameter &quot; + param.name);</span>
 		}
 
-<span class="fc" id="L472">		final var criticalParameters = header.getCriticalParameters();</span>
-<span class="fc bfc" id="L473" title="All 2 branches covered.">		if (criticalParameters != null)</span>
-<span class="fc bfc" id="L474" title="All 2 branches covered.">			for (final var paramName : criticalParameters) {</span>
-<span class="fc" id="L475">				final var param = Param.from(paramName);</span>
-<span class="fc bfc" id="L476" title="All 2 branches covered.">				if (param == null) {</span>
-<span class="fc bfc" id="L477" title="All 2 branches covered.">					if (header.getExtendedParameter(paramName) == null)</span>
-<span class="fc" id="L478">						throw new IllegalArgumentException(&quot;Missing critical extended parameter &quot; + paramName);</span>
-<span class="fc bfc" id="L479" title="All 2 branches covered.">				} else if (!param.isPresent(header))</span>
-<span class="fc" id="L480">					throw new IllegalArgumentException(&quot;Missing critical registered parameter &quot; + paramName);</span>
-<span class="fc" id="L481">			}</span>
+<span class="fc" id="L475">		final var criticalParameters = header.getCriticalParameters();</span>
+<span class="fc bfc" id="L476" title="All 2 branches covered.">		if (criticalParameters != null)</span>
+<span class="fc bfc" id="L477" title="All 2 branches covered.">			for (final var paramName : criticalParameters) {</span>
+<span class="fc" id="L478">				final var param = Param.from(paramName);</span>
+<span class="fc bfc" id="L479" title="All 2 branches covered.">				if (param == null) {</span>
+<span class="fc bfc" id="L480" title="All 2 branches covered.">					if (header.getExtendedParameter(paramName) == null)</span>
+<span class="fc" id="L481">						throw new IllegalArgumentException(&quot;Missing critical extended parameter &quot; + paramName);</span>
+<span class="fc bfc" id="L482" title="All 2 branches covered.">				} else if (!param.isPresent(header))</span>
+<span class="fc" id="L483">					throw new IllegalArgumentException(&quot;Missing critical registered parameter &quot; + paramName);</span>
+<span class="fc" id="L484">			}</span>
 
-<span class="fc" id="L483">		final var key = header.getKey();</span>
-<span class="fc" id="L484">		final var keyId = IuObject.first(header.getKeyId(), IuObject.convert(key, WebKey::getKeyId));</span>
-<span class="fc" id="L485">		final var certChain = WebCertificateReference.verify(header);</span>
+<span class="fc" id="L486">		final var key = header.getKey();</span>
+<span class="fc" id="L487">		final var keyId = IuObject.first(header.getKeyId(), IuObject.convert(key, WebKey::getKeyId));</span>
+<span class="fc" id="L488">		final var certChain = WebCertificateReference.verify(header);</span>
 
-<span class="fc" id="L487">		var wellKnown = IuObject.convert(key, WebKey::wellKnown);</span>
-<span class="fc bfc" id="L488" title="All 4 branches covered.">		if (wellKnown == null //</span>
+<span class="fc" id="L490">		var wellKnown = IuObject.convert(key, WebKey::wellKnown);</span>
+<span class="fc bfc" id="L491" title="All 4 branches covered.">		if (wellKnown == null //</span>
 				&amp;&amp; keyId != null)
-<span class="fc" id="L490">			wellKnown = IuObject.convert(header.getKeySetUri(), //</span>
-<span class="fc" id="L491">					uri -&gt; IuIterable.filter(Jwk.readJwks(uri), //</span>
-<span class="fc" id="L492">							k -&gt; keyId.equals(k.getKeyId())).iterator().next());</span>
-<span class="fc bfc" id="L493" title="All 4 branches covered.">		if (wellKnown == null //</span>
+<span class="fc" id="L493">			wellKnown = IuObject.convert(header.getKeySetUri(), //</span>
+<span class="fc" id="L494">					uri -&gt; IuIterable.filter(Jwk.readJwks(uri), //</span>
+<span class="fc" id="L495">							k -&gt; keyId.equals(k.getKeyId())).iterator().next());</span>
+<span class="fc bfc" id="L496" title="All 4 branches covered.">		if (wellKnown == null //</span>
 				&amp;&amp; certChain != null)
-<span class="fc" id="L495">			wellKnown = WebKey.builder(algorithm.type[0]).cert(certChain).build().wellKnown();</span>
+<span class="fc" id="L498">			wellKnown = WebKey.builder(algorithm.type[0]).cert(certChain).build().wellKnown();</span>
 
-<span class="fc" id="L497">		IuObject.first( //</span>
-<span class="fc" id="L498">				IuObject.convert(wellKnown, WebKey::getPublicKey), //</span>
-<span class="fc" id="L499">				IuObject.convert(certChain, c -&gt; c[0].getPublicKey()));</span>
+<span class="fc" id="L500">		IuObject.first( //</span>
+<span class="fc" id="L501">				IuObject.convert(wellKnown, WebKey::getPublicKey), //</span>
+<span class="fc" id="L502">				IuObject.convert(certChain, c -&gt; c[0].getPublicKey()));</span>
 
-<span class="fc" id="L501">		return wellKnown;</span>
+<span class="fc" id="L504">		return wellKnown;</span>
 	}
 
 	/**

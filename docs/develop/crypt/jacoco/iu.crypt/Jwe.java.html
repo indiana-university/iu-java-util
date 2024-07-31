@@ -43,7 +43,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Stream;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.Inflater;
@@ -67,6 +66,7 @@ import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebKey;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
 /**
@@ -79,13 +79,30 @@ public class Jwe implements WebEncryption {
 
 <span class="fc" id="L80">	private static final Logger LOG = Logger.getLogger(Jwe.class.getName());</span>
 
+	/** {@link IuJsonAdapter} */
+<span class="fc" id="L83">	public static final IuJsonAdapter&lt;WebEncryption&gt; JSON = IuJsonAdapter.from(v -&gt; {</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">		if (v instanceof JsonString)</span>
+<span class="fc" id="L85">			return new Jwe(((JsonString) v).getString());</span>
+		else
+<span class="fc" id="L87">			return IuObject.convert(v, a -&gt; new Jwe(a.asJsonObject().toString()));</span>
+	}, h -&gt; {
+<span class="fc bfc" id="L89" title="All 2 branches covered.">		if (h == null)</span>
+<span class="fc" id="L90">			return null;</span>
+<span class="fc" id="L91">		final var jwe = (Jwe) h;</span>
+<span class="fc bfc" id="L92" title="All 4 branches covered.">		if (jwe.recipients.length != 1 //</span>
+				|| jwe.additionalData != null)
+<span class="fc" id="L94">			return IuJson.parse(jwe.toString());</span>
+		else
+<span class="fc" id="L96">			return IuJson.string(jwe.compact());</span>
+	});
+
 	private static class AesCbcHmac {
 		private static byte[] macKey(byte[] cek) {
-<span class="fc" id="L84">			return Arrays.copyOf(cek, cek.length / 2);</span>
+<span class="fc" id="L101">			return Arrays.copyOf(cek, cek.length / 2);</span>
 		}
 
 		private static byte[] encKey(byte[] cek) {
-<span class="fc" id="L88">			return Arrays.copyOfRange(cek, cek.length / 2, cek.length);</span>
+<span class="fc" id="L105">			return Arrays.copyOfRange(cek, cek.length / 2, cek.length);</span>
 		}
 
 		private final byte[] initializationVector;
@@ -96,84 +113,84 @@ public class Jwe implements WebEncryption {
 		private final byte[] encKey;
 
 		private AesCbcHmac(Encryption encryption, byte[] initializationVector, byte[] cipherText,
-<span class="fc" id="L99">				byte[] authenticationTag, byte[] aad, byte[] cek) {</span>
-<span class="fc" id="L100">			macKey = macKey(cek);</span>
-<span class="fc" id="L101">			encKey = encKey(cek);</span>
+<span class="fc" id="L116">				byte[] authenticationTag, byte[] aad, byte[] cek) {</span>
+<span class="fc" id="L117">			macKey = macKey(cek);</span>
+<span class="fc" id="L118">			encKey = encKey(cek);</span>
 
-<span class="fc" id="L103">			final var macInput = ByteBuffer</span>
-<span class="fc" id="L104">					.wrap(new byte[aad.length + initializationVector.length + cipherText.length + 8]);</span>
-<span class="fc" id="L105">			macInput.put(aad);</span>
-<span class="fc" id="L106">			macInput.put(initializationVector);</span>
-<span class="fc" id="L107">			macInput.put(cipherText);</span>
-<span class="fc" id="L108">			EncodingUtils.bigEndian((long) aad.length * 8L, macInput);</span>
+<span class="fc" id="L120">			final var macInput = ByteBuffer</span>
+<span class="fc" id="L121">					.wrap(new byte[aad.length + initializationVector.length + cipherText.length + 8]);</span>
+<span class="fc" id="L122">			macInput.put(aad);</span>
+<span class="fc" id="L123">			macInput.put(initializationVector);</span>
+<span class="fc" id="L124">			macInput.put(cipherText);</span>
+<span class="fc" id="L125">			EncodingUtils.bigEndian((long) aad.length * 8L, macInput);</span>
 
-<span class="fc bfc" id="L110" title="All 2 branches covered.">			if (!Arrays.equals(authenticationTag, 0, authenticationTag.length, IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L111">				final var mac = Mac.getInstance(encryption.mac);</span>
-<span class="fc" id="L112">				mac.init(new SecretKeySpec(macKey, encryption.mac));</span>
-<span class="fc" id="L113">				return mac.doFinal(macInput.array());</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">			if (!Arrays.equals(authenticationTag, 0, authenticationTag.length, IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L128">				final var mac = Mac.getInstance(encryption.mac);</span>
+<span class="fc" id="L129">				mac.init(new SecretKeySpec(macKey, encryption.mac));</span>
+<span class="fc" id="L130">				return mac.doFinal(macInput.array());</span>
 			}), 0, cek.length / 2))
-<span class="fc" id="L115">				throw new IllegalStateException(&quot;Invalid authentication tag&quot;,</span>
+<span class="fc" id="L132">				throw new IllegalStateException(&quot;Invalid authentication tag&quot;,</span>
 						new AEADBadTagException(&quot;AES/CBC/HMAC verification failure&quot;));
 
-<span class="fc" id="L118">			this.initializationVector = initializationVector;</span>
-<span class="fc" id="L119">			this.cipherText = cipherText;</span>
-<span class="fc" id="L120">			this.authenticationTag = authenticationTag;</span>
+<span class="fc" id="L135">			this.initializationVector = initializationVector;</span>
+<span class="fc" id="L136">			this.cipherText = cipherText;</span>
+<span class="fc" id="L137">			this.authenticationTag = authenticationTag;</span>
 
-<span class="fc" id="L122">			content = IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L123">				final var messageCipher = Cipher.getInstance(encryption.algorithm);</span>
+<span class="fc" id="L139">			content = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L140">				final var messageCipher = Cipher.getInstance(encryption.algorithm);</span>
 
-<span class="fc bfc" id="L125" title="All 2 branches covered.">				if (initializationVector.length != messageCipher.getBlockSize())</span>
-<span class="fc" id="L126">					throw new IllegalArgumentException(&quot;invalid initialization vector&quot;);</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">				if (initializationVector.length != messageCipher.getBlockSize())</span>
+<span class="fc" id="L143">					throw new IllegalArgumentException(&quot;invalid initialization vector&quot;);</span>
 
-<span class="fc" id="L128">				messageCipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(encKey, &quot;AES&quot;),</span>
+<span class="fc" id="L145">				messageCipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(encKey, &quot;AES&quot;),</span>
 						new IvParameterSpec(initializationVector));
-<span class="fc" id="L130">				return messageCipher.doFinal(cipherText);</span>
+<span class="fc" id="L147">				return messageCipher.doFinal(cipherText);</span>
 			});
-<span class="fc" id="L132">		}</span>
+<span class="fc" id="L149">		}</span>
 
-<span class="fc" id="L134">		private AesCbcHmac(Encryption encryption, byte[] content, byte[] cek, byte[] aad) {</span>
-<span class="fc" id="L135">			this.content = content;</span>
-<span class="fc" id="L136">			macKey = macKey(cek);</span>
-<span class="fc" id="L137">			encKey = encKey(cek);</span>
+<span class="fc" id="L151">		private AesCbcHmac(Encryption encryption, byte[] content, byte[] cek, byte[] aad) {</span>
+<span class="fc" id="L152">			this.content = content;</span>
+<span class="fc" id="L153">			macKey = macKey(cek);</span>
+<span class="fc" id="L154">			encKey = encKey(cek);</span>
 
-<span class="fc" id="L139">			final var messageCipher = IuException.unchecked(() -&gt; Cipher.getInstance(encryption.algorithm));</span>
-<span class="fc" id="L140">			initializationVector = new byte[messageCipher.getBlockSize()];</span>
-<span class="fc" id="L141">			new SecureRandom().nextBytes(initializationVector);</span>
+<span class="fc" id="L156">			final var messageCipher = IuException.unchecked(() -&gt; Cipher.getInstance(encryption.algorithm));</span>
+<span class="fc" id="L157">			initializationVector = new byte[messageCipher.getBlockSize()];</span>
+<span class="fc" id="L158">			new SecureRandom().nextBytes(initializationVector);</span>
 
-<span class="fc" id="L143">			cipherText = IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L144">				messageCipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(encKey, &quot;AES&quot;),</span>
+<span class="fc" id="L160">			cipherText = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L161">				messageCipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(encKey, &quot;AES&quot;),</span>
 						new IvParameterSpec(initializationVector));
-<span class="fc" id="L146">				return messageCipher.doFinal(content);</span>
+<span class="fc" id="L163">				return messageCipher.doFinal(content);</span>
 			});
 
-<span class="fc" id="L149">			final var macInput = ByteBuffer</span>
-<span class="fc" id="L150">					.wrap(new byte[aad.length + initializationVector.length + cipherText.length + 8]);</span>
-<span class="fc" id="L151">			macInput.put(aad);</span>
-<span class="fc" id="L152">			macInput.put(initializationVector);</span>
-<span class="fc" id="L153">			macInput.put(cipherText);</span>
-<span class="fc" id="L154">			EncodingUtils.bigEndian((long) aad.length * 8L, macInput);</span>
+<span class="fc" id="L166">			final var macInput = ByteBuffer</span>
+<span class="fc" id="L167">					.wrap(new byte[aad.length + initializationVector.length + cipherText.length + 8]);</span>
+<span class="fc" id="L168">			macInput.put(aad);</span>
+<span class="fc" id="L169">			macInput.put(initializationVector);</span>
+<span class="fc" id="L170">			macInput.put(cipherText);</span>
+<span class="fc" id="L171">			EncodingUtils.bigEndian((long) aad.length * 8L, macInput);</span>
 
-<span class="fc" id="L156">			authenticationTag = IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L157">				final var mac = Mac.getInstance(encryption.mac);</span>
-<span class="fc" id="L158">				mac.init(new SecretKeySpec(macKey, encryption.mac));</span>
-<span class="fc" id="L159">				final var hash = mac.doFinal(macInput.array());</span>
-<span class="fc" id="L160">				return Arrays.copyOf(hash, cek.length / 2);</span>
+<span class="fc" id="L173">			authenticationTag = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L174">				final var mac = Mac.getInstance(encryption.mac);</span>
+<span class="fc" id="L175">				mac.init(new SecretKeySpec(macKey, encryption.mac));</span>
+<span class="fc" id="L176">				final var hash = mac.doFinal(macInput.array());</span>
+<span class="fc" id="L177">				return Arrays.copyOf(hash, cek.length / 2);</span>
 			});
-<span class="fc" id="L162">		}</span>
+<span class="fc" id="L179">		}</span>
 	}
 
 	private static Map&lt;String, JsonValue&gt; createSharedHeader(Iterable&lt;JweRecipient&gt; recipients) {
-<span class="fc" id="L166">		Map&lt;String, JsonValue&gt; sharedHeader = null;</span>
-<span class="fc bfc" id="L167" title="All 2 branches covered.">		for (final var recipient : recipients) {</span>
-<span class="fc" id="L168">			final var serializedHeader = recipient.getHeader().toJson(a -&gt; true);</span>
-<span class="fc bfc" id="L169" title="All 2 branches covered.">			if (sharedHeader == null)</span>
-<span class="fc" id="L170">				sharedHeader = new LinkedHashMap&lt;&gt;(serializedHeader);</span>
+<span class="fc" id="L183">		Map&lt;String, JsonValue&gt; sharedHeader = null;</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">		for (final var recipient : recipients) {</span>
+<span class="fc" id="L185">			final var serializedHeader = recipient.getHeader().toJson(a -&gt; true);</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">			if (sharedHeader == null)</span>
+<span class="fc" id="L187">				sharedHeader = new LinkedHashMap&lt;&gt;(serializedHeader);</span>
 			else
-<span class="fc bfc" id="L172" title="All 2 branches covered.">				for (final var paramEntry : serializedHeader.entrySet())</span>
-<span class="fc" id="L173">					sharedHeader.computeIfPresent(paramEntry.getKey(),</span>
-<span class="fc bfc" id="L174" title="All 2 branches covered.">							(a, value) -&gt; IuObject.equals(value, paramEntry.getValue()) ? value : null);</span>
-<span class="fc" id="L175">		}</span>
-<span class="fc" id="L176">		return sharedHeader;</span>
+<span class="fc bfc" id="L189" title="All 2 branches covered.">				for (final var paramEntry : serializedHeader.entrySet())</span>
+<span class="fc" id="L190">					sharedHeader.computeIfPresent(paramEntry.getKey(),</span>
+<span class="fc bfc" id="L191" title="All 2 branches covered.">							(a, value) -&gt; IuObject.equals(value, paramEntry.getValue()) ? value : null);</span>
+<span class="fc" id="L192">		}</span>
+<span class="fc" id="L193">		return sharedHeader;</span>
 	}
 
 	private final Encryption encryption;
@@ -202,325 +219,325 @@ public class Jwe implements WebEncryption {
 	 * @param in                   provides the plain text data to be encrypted
 	 */
 	Jwe(Encryption encryption, boolean deflate, boolean compact, Set&lt;String&gt; protectedParameters,
-<span class="fc" id="L205">			Iterable&lt;JweRecipient&gt; recipients, byte[] contentEncryptionKey, byte[] additionalData, InputStream in) {</span>
-<span class="fc" id="L206">		this.encryption = encryption;</span>
-<span class="fc" id="L207">		this.deflate = deflate;</span>
-<span class="fc" id="L208">		this.additionalData = additionalData;</span>
+<span class="fc" id="L222">			Iterable&lt;JweRecipient&gt; recipients, byte[] contentEncryptionKey, byte[] additionalData, InputStream in) {</span>
+<span class="fc" id="L223">		this.encryption = encryption;</span>
+<span class="fc" id="L224">		this.deflate = deflate;</span>
+<span class="fc" id="L225">		this.additionalData = additionalData;</span>
 
-<span class="fc" id="L210">		final var sharedHeader = Objects.requireNonNull(createSharedHeader(recipients),</span>
+<span class="fc" id="L227">		final var sharedHeader = Objects.requireNonNull(createSharedHeader(recipients),</span>
 				&quot;at least one recipient required&quot;);
 
-<span class="fc bfc" id="L213" title="All 2 branches covered.">		if (compact) {</span>
-<span class="fc" id="L214">			final var recipientIterator = recipients.iterator();</span>
-<span class="fc" id="L215">			recipientIterator.next();</span>
-<span class="fc bfc" id="L216" title="All 2 branches covered.">			if (recipientIterator.hasNext())</span>
-<span class="fc" id="L217">				throw new IllegalArgumentException(&quot;cannot specifiy compact for more than one recipient&quot;);</span>
-<span class="fc" id="L218">			IuObject.require(additionalData, Objects::isNull, () -&gt; &quot;cannot specify compact with additionalData&quot;);</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">		if (compact) {</span>
+<span class="fc" id="L231">			final var recipientIterator = recipients.iterator();</span>
+<span class="fc" id="L232">			recipientIterator.next();</span>
+<span class="fc bfc" id="L233" title="All 2 branches covered.">			if (recipientIterator.hasNext())</span>
+<span class="fc" id="L234">				throw new IllegalArgumentException(&quot;cannot specifiy compact for more than one recipient&quot;);</span>
+<span class="fc" id="L235">			IuObject.require(additionalData, Objects::isNull, () -&gt; &quot;cannot specify compact with additionalData&quot;);</span>
 
-<span class="fc bfc" id="L220" title="All 2 branches covered.">			if (!sharedHeader.keySet().containsAll(protectedParameters))</span>
-<span class="fc" id="L221">				throw new IllegalArgumentException(&quot;protected parameters &quot; + protectedParameters + &quot; are required&quot;);</span>
+<span class="fc bfc" id="L237" title="All 2 branches covered.">			if (!sharedHeader.keySet().containsAll(protectedParameters))</span>
+<span class="fc" id="L238">				throw new IllegalArgumentException(&quot;protected parameters &quot; + protectedParameters + &quot; are required&quot;);</span>
 
-<span class="fc" id="L223">			final var protectedHeaderBuilder = IuJson.object();</span>
-<span class="fc" id="L224">			sharedHeader.forEach(protectedHeaderBuilder::add);</span>
-<span class="fc" id="L225">			protectedHeader = protectedHeaderBuilder.build();</span>
-<span class="fc" id="L226">			unprotected = null;</span>
+<span class="fc" id="L240">			final var protectedHeaderBuilder = IuJson.object();</span>
+<span class="fc" id="L241">			sharedHeader.forEach(protectedHeaderBuilder::add);</span>
+<span class="fc" id="L242">			protectedHeader = protectedHeaderBuilder.build();</span>
+<span class="fc" id="L243">			unprotected = null;</span>
 
-<span class="fc" id="L228">		} else {</span>
-<span class="fc bfc" id="L229" title="All 2 branches covered.">			if (!protectedParameters.isEmpty()) {</span>
-<span class="fc" id="L230">				final var protectedHeaderBuilder = IuJson.object();</span>
-<span class="fc bfc" id="L231" title="All 2 branches covered.">				for (final var paramName : protectedParameters)</span>
-<span class="fc" id="L232">					protectedHeaderBuilder.add(paramName,</span>
-<span class="fc" id="L233">							Objects.requireNonNull(sharedHeader.remove(paramName), paramName));</span>
-<span class="fc" id="L234">				protectedHeader = protectedHeaderBuilder.build();</span>
-<span class="fc" id="L235">			} else</span>
-<span class="fc" id="L236">				protectedHeader = null;</span>
+<span class="fc" id="L245">		} else {</span>
+<span class="fc bfc" id="L246" title="All 2 branches covered.">			if (!protectedParameters.isEmpty()) {</span>
+<span class="fc" id="L247">				final var protectedHeaderBuilder = IuJson.object();</span>
+<span class="fc bfc" id="L248" title="All 2 branches covered.">				for (final var paramName : protectedParameters)</span>
+<span class="fc" id="L249">					protectedHeaderBuilder.add(paramName,</span>
+<span class="fc" id="L250">							Objects.requireNonNull(sharedHeader.remove(paramName), paramName));</span>
+<span class="fc" id="L251">				protectedHeader = protectedHeaderBuilder.build();</span>
+<span class="fc" id="L252">			} else</span>
+<span class="fc" id="L253">				protectedHeader = null;</span>
 
-<span class="fc bfc" id="L238" title="All 2 branches covered.">			if (sharedHeader.isEmpty())</span>
-<span class="fc" id="L239">				unprotected = null;</span>
+<span class="fc bfc" id="L255" title="All 2 branches covered.">			if (sharedHeader.isEmpty())</span>
+<span class="fc" id="L256">				unprotected = null;</span>
 			else {
-<span class="fc" id="L241">				final var unprotectedBuilder = IuJson.object();</span>
-<span class="fc" id="L242">				sharedHeader.forEach(unprotectedBuilder::add);</span>
-<span class="fc" id="L243">				unprotected = unprotectedBuilder.build();</span>
+<span class="fc" id="L258">				final var unprotectedBuilder = IuJson.object();</span>
+<span class="fc" id="L259">				sharedHeader.forEach(unprotectedBuilder::add);</span>
+<span class="fc" id="L260">				unprotected = unprotectedBuilder.build();</span>
 			}
 		}
 
-<span class="fc" id="L247">		this.recipients = IuIterable.stream(recipients).toArray(JweRecipient[]::new);</span>
+<span class="fc" id="L264">		this.recipients = IuIterable.stream(recipients).toArray(JweRecipient[]::new);</span>
 
 		// 5.1#11 compress content if requested
-<span class="fc" id="L250">		final var content = IuException.unchecked(() -&gt; {</span>
-<span class="fc bfc" id="L251" title="All 2 branches covered.">			if (deflate) {</span>
-<span class="fc" id="L252">				final var deflatedContent = new ByteArrayOutputStream();</span>
-<span class="fc" id="L253">				try (final var d = new DeflaterOutputStream(deflatedContent,</span>
+<span class="fc" id="L267">		final var content = IuException.unchecked(() -&gt; {</span>
+<span class="fc bfc" id="L268" title="All 2 branches covered.">			if (deflate) {</span>
+<span class="fc" id="L269">				final var deflatedContent = new ByteArrayOutputStream();</span>
+<span class="fc" id="L270">				try (final var d = new DeflaterOutputStream(deflatedContent,</span>
 						new Deflater(Deflater.DEFAULT_COMPRESSION, true /* &lt;= RFC-1951 compliant */))) {
-<span class="fc" id="L255">					IuStream.copy(in, d);</span>
+<span class="fc" id="L272">					IuStream.copy(in, d);</span>
 				}
-<span class="fc" id="L257">				return deflatedContent.toByteArray();</span>
+<span class="fc" id="L274">				return deflatedContent.toByteArray();</span>
 			} else
-<span class="fc" id="L259">				return IuStream.read(in);</span>
+<span class="fc" id="L276">				return IuStream.read(in);</span>
 		});
 
 		// 5.1#13 encode protected header
-<span class="fc" id="L263">		final var aadBuilder = new StringBuilder();</span>
-<span class="fc bfc" id="L264" title="All 2 branches covered.">		if (protectedHeader != null)</span>
-<span class="fc" id="L265">			aadBuilder.append(UnpaddedBinary.base64Url(IuText.utf8(protectedHeader.toString())));</span>
+<span class="fc" id="L280">		final var aadBuilder = new StringBuilder();</span>
+<span class="fc bfc" id="L281" title="All 2 branches covered.">		if (protectedHeader != null)</span>
+<span class="fc" id="L282">			aadBuilder.append(UnpaddedBinary.base64Url(IuText.utf8(protectedHeader.toString())));</span>
 
 		// 5.1#14 calculate additional data for AEAD
-<span class="fc bfc" id="L268" title="All 2 branches covered.">		if (additionalData != null)</span>
-<span class="fc" id="L269">			aadBuilder.append('.').append(UnpaddedBinary.base64Url(additionalData));</span>
-<span class="fc" id="L270">		final var aad = IuText.ascii(aadBuilder.toString());</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">		if (additionalData != null)</span>
+<span class="fc" id="L286">			aadBuilder.append('.').append(UnpaddedBinary.base64Url(additionalData));</span>
+<span class="fc" id="L287">		final var aad = IuText.ascii(aadBuilder.toString());</span>
 
 		// 5.1#15 encrypt content
-<span class="fc bfc" id="L273" title="All 2 branches covered.">		if (encryption.mac != null) {</span>
-<span class="fc" id="L274">			final var aesCbcHmac = new AesCbcHmac(encryption, content, contentEncryptionKey, aad);</span>
-<span class="fc" id="L275">			initializationVector = aesCbcHmac.initializationVector;</span>
-<span class="fc" id="L276">			cipherText = aesCbcHmac.cipherText;</span>
-<span class="fc" id="L277">			authenticationTag = aesCbcHmac.authenticationTag;</span>
-<span class="fc" id="L278">		} else {</span>
+<span class="fc bfc" id="L290" title="All 2 branches covered.">		if (encryption.mac != null) {</span>
+<span class="fc" id="L291">			final var aesCbcHmac = new AesCbcHmac(encryption, content, contentEncryptionKey, aad);</span>
+<span class="fc" id="L292">			initializationVector = aesCbcHmac.initializationVector;</span>
+<span class="fc" id="L293">			cipherText = aesCbcHmac.cipherText;</span>
+<span class="fc" id="L294">			authenticationTag = aesCbcHmac.authenticationTag;</span>
+<span class="fc" id="L295">		} else {</span>
 			// GCM w/ 96-bit initialization vector
-<span class="fc" id="L280">			initializationVector = new byte[12]; // 96 bits = 12 bytes</span>
-<span class="fc" id="L281">			new SecureRandom().nextBytes(initializationVector);</span>
+<span class="fc" id="L297">			initializationVector = new byte[12]; // 96 bits = 12 bytes</span>
+<span class="fc" id="L298">			new SecureRandom().nextBytes(initializationVector);</span>
 
-<span class="fc" id="L283">			final var encryptedData = IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L284">				final var gcmSpec = new GCMParameterSpec(128, initializationVector);</span>
-<span class="fc" id="L285">				final var messageCipher = Cipher.getInstance(encryption.algorithm);</span>
-<span class="fc" id="L286">				messageCipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(contentEncryptionKey, &quot;AES&quot;), gcmSpec);</span>
-<span class="fc" id="L287">				messageCipher.updateAAD(aad);</span>
-<span class="fc" id="L288">				return messageCipher.doFinal(content);</span>
+<span class="fc" id="L300">			final var encryptedData = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L301">				final var gcmSpec = new GCMParameterSpec(128, initializationVector);</span>
+<span class="fc" id="L302">				final var messageCipher = Cipher.getInstance(encryption.algorithm);</span>
+<span class="fc" id="L303">				messageCipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(contentEncryptionKey, &quot;AES&quot;), gcmSpec);</span>
+<span class="fc" id="L304">				messageCipher.updateAAD(aad);</span>
+<span class="fc" id="L305">				return messageCipher.doFinal(content);</span>
 			});
 
 			// GCM Cipher.doFinal() returns (cipherText || authenticationTag)
 			// 16 = 128-bit authenticationTag (from GCMParameterSpec), in bytes
-<span class="fc" id="L293">			final var endOfTag = encryptedData.length;</span>
-<span class="fc" id="L294">			final var startOfTag = endOfTag - 16;</span>
-<span class="fc" id="L295">			cipherText = Arrays.copyOf(encryptedData, startOfTag);</span>
-<span class="fc" id="L296">			authenticationTag = Arrays.copyOfRange(encryptedData, startOfTag, endOfTag);</span>
+<span class="fc" id="L310">			final var endOfTag = encryptedData.length;</span>
+<span class="fc" id="L311">			final var startOfTag = endOfTag - 16;</span>
+<span class="fc" id="L312">			cipherText = Arrays.copyOf(encryptedData, startOfTag);</span>
+<span class="fc" id="L313">			authenticationTag = Arrays.copyOfRange(encryptedData, startOfTag, endOfTag);</span>
 		}
 
-<span class="fc" id="L299">		verifyExtensions();</span>
-<span class="fc" id="L300">	}</span>
+<span class="fc" id="L316">		verifyExtensions();</span>
+<span class="fc" id="L317">	}</span>
 
 	/**
 	 * Verifies and prepares decryption of an inbound encrypted message.
 	 * 
 	 * @param jwe inbound encrypted message
 	 */
-<span class="fc" id="L307">	public Jwe(String jwe) {</span>
-<span class="fc bfc" id="L308" title="All 2 branches covered.">		if (jwe.charAt(0) == '{') {</span>
-<span class="fc" id="L309">			final var parsed = IuJson.parse(jwe).asJsonObject();</span>
-<span class="fc" id="L310">			protectedHeader = IuJson.get(parsed, &quot;protected&quot;,</span>
-<span class="fc" id="L311">					IuJsonAdapter.from(v -&gt; IuJson.parse(IuText.utf8(UnpaddedBinary.JSON.fromJson(v))).asJsonObject()));</span>
-<span class="fc" id="L312">			unprotected = IuJson.get(parsed, &quot;unprotected&quot;, IuJsonAdapter.from(JsonValue::asJsonObject));</span>
+<span class="fc" id="L324">	public Jwe(String jwe) {</span>
+<span class="fc bfc" id="L325" title="All 2 branches covered.">		if (jwe.charAt(0) == '{') {</span>
+<span class="fc" id="L326">			final var parsed = IuJson.parse(jwe).asJsonObject();</span>
+<span class="fc" id="L327">			protectedHeader = IuJson.get(parsed, &quot;protected&quot;,</span>
+<span class="fc" id="L328">					IuJsonAdapter.from(v -&gt; IuJson.parse(IuText.utf8(UnpaddedBinary.JSON.fromJson(v))).asJsonObject()));</span>
+<span class="fc" id="L329">			unprotected = IuJson.get(parsed, &quot;unprotected&quot;, IuJsonAdapter.from(JsonValue::asJsonObject));</span>
 
-<span class="fc bfc" id="L314" title="All 2 branches covered.">			if (parsed.containsKey(&quot;recipients&quot;)) {</span>
-<span class="fc bfc" id="L315" title="All 2 branches covered.">				if (parsed.containsKey(&quot;header&quot;))</span>
-<span class="fc" id="L316">					throw new IllegalArgumentException(&quot;Must not contain both header and recipients&quot;);</span>
-<span class="fc" id="L317">				recipients = IuJson.get(parsed, &quot;recipients&quot;, IuJsonAdapter.of(JweRecipient[].class, IuJsonAdapter</span>
-<span class="fc" id="L318">						.from(recipient -&gt; new JweRecipient(protectedHeader, unprotected, recipient.asJsonObject()))));</span>
+<span class="fc bfc" id="L331" title="All 2 branches covered.">			if (parsed.containsKey(&quot;recipients&quot;)) {</span>
+<span class="fc bfc" id="L332" title="All 2 branches covered.">				if (parsed.containsKey(&quot;header&quot;))</span>
+<span class="fc" id="L333">					throw new IllegalArgumentException(&quot;Must not contain both header and recipients&quot;);</span>
+<span class="fc" id="L334">				recipients = IuJson.get(parsed, &quot;recipients&quot;, IuJsonAdapter.of(JweRecipient[].class, IuJsonAdapter</span>
+<span class="fc" id="L335">						.from(recipient -&gt; new JweRecipient(protectedHeader, unprotected, recipient.asJsonObject()))));</span>
 			} else
-<span class="fc" id="L320">				recipients = new JweRecipient[] { new JweRecipient(protectedHeader, unprotected, parsed) };</span>
+<span class="fc" id="L337">				recipients = new JweRecipient[] { new JweRecipient(protectedHeader, unprotected, parsed) };</span>
 
-<span class="fc" id="L322">			initializationVector = IuJson.get(parsed, &quot;iv&quot;, UnpaddedBinary.JSON);</span>
-<span class="fc" id="L323">			cipherText = IuJson.nonNull(parsed, &quot;cipher_text&quot;, UnpaddedBinary.JSON);</span>
-<span class="fc" id="L324">			authenticationTag = IuJson.get(parsed, &quot;tag&quot;, UnpaddedBinary.JSON);</span>
-<span class="fc" id="L325">			additionalData = IuJson.get(parsed, &quot;aad&quot;, UnpaddedBinary.JSON);</span>
+<span class="fc" id="L339">			initializationVector = IuJson.get(parsed, &quot;iv&quot;, UnpaddedBinary.JSON);</span>
+<span class="fc" id="L340">			cipherText = IuJson.nonNull(parsed, &quot;cipher_text&quot;, UnpaddedBinary.JSON);</span>
+<span class="fc" id="L341">			authenticationTag = IuJson.get(parsed, &quot;tag&quot;, UnpaddedBinary.JSON);</span>
+<span class="fc" id="L342">			additionalData = IuJson.get(parsed, &quot;aad&quot;, UnpaddedBinary.JSON);</span>
 
-<span class="fc" id="L327">		} else {</span>
-<span class="fc" id="L328">			final var i = UnpaddedBinary.compact(jwe);</span>
-<span class="fc" id="L329">			protectedHeader = (JsonObject) UnpaddedBinary.compactJson(i.next());</span>
-<span class="fc" id="L330">			unprotected = null;</span>
-<span class="fc" id="L331">			recipients = new JweRecipient[] { new JweRecipient(IuObject.convert(protectedHeader, Jose::new),</span>
-<span class="fc" id="L332">					UnpaddedBinary.base64Url(i.next())) };</span>
-<span class="fc" id="L333">			initializationVector = UnpaddedBinary.base64Url(i.next());</span>
-<span class="fc" id="L334">			cipherText = UnpaddedBinary.base64Url(i.next());</span>
-<span class="fc" id="L335">			authenticationTag = UnpaddedBinary.base64Url(i.next());</span>
+<span class="fc" id="L344">		} else {</span>
+<span class="fc" id="L345">			final var i = UnpaddedBinary.compact(jwe);</span>
+<span class="fc" id="L346">			protectedHeader = (JsonObject) UnpaddedBinary.compactJson(i.next());</span>
+<span class="fc" id="L347">			unprotected = null;</span>
+<span class="fc" id="L348">			recipients = new JweRecipient[] { new JweRecipient(IuObject.convert(protectedHeader, Jose::new),</span>
+<span class="fc" id="L349">					UnpaddedBinary.base64Url(i.next())) };</span>
+<span class="fc" id="L350">			initializationVector = UnpaddedBinary.base64Url(i.next());</span>
+<span class="fc" id="L351">			cipherText = UnpaddedBinary.base64Url(i.next());</span>
+<span class="fc" id="L352">			authenticationTag = UnpaddedBinary.base64Url(i.next());</span>
 
-<span class="fc bfc" id="L337" title="All 2 branches covered.">			if (i.hasNext())</span>
-<span class="fc" id="L338">				throw new IllegalArgumentException();</span>
-<span class="fc" id="L339">			additionalData = null;</span>
+<span class="fc bfc" id="L354" title="All 2 branches covered.">			if (i.hasNext())</span>
+<span class="fc" id="L355">				throw new IllegalArgumentException(&quot;Invalid compact format, found more than 5 segments&quot;);</span>
+<span class="fc" id="L356">			additionalData = null;</span>
 		}
 
-<span class="fc" id="L342">		final var header = recipients[0].getHeader();</span>
-<span class="fc" id="L343">		encryption = Objects.requireNonNull(header.getExtendedParameter(&quot;enc&quot;), &quot;Missing enc header parameter&quot;);</span>
-<span class="fc" id="L344">		deflate = &quot;DEF&quot;.equals(header.getExtendedParameter(&quot;zip&quot;));</span>
+<span class="fc" id="L359">		final var header = recipients[0].getHeader();</span>
+<span class="fc" id="L360">		encryption = Objects.requireNonNull(header.getExtendedParameter(&quot;enc&quot;), &quot;Missing enc header parameter&quot;);</span>
+<span class="fc" id="L361">		deflate = &quot;DEF&quot;.equals(header.getExtendedParameter(&quot;zip&quot;));</span>
 
-<span class="fc" id="L346">		verifyExtensions();</span>
-<span class="fc" id="L347">	}</span>
+<span class="fc" id="L363">		verifyExtensions();</span>
+<span class="fc" id="L364">	}</span>
 
 	private void verifyExtensions() {
-<span class="fc bfc" id="L350" title="All 2 branches covered.">		for (final var recipient : recipients)</span>
-<span class="fc bfc" id="L351" title="All 2 branches covered.">			for (final var paramName : recipient.getHeader().extendedParameters().keySet())</span>
-<span class="fc bfc" id="L352" title="All 2 branches covered.">				if (Param.from(paramName) == null)</span>
-<span class="fc" id="L353">					Jose.getExtension(paramName).verify(this, recipient);</span>
-<span class="fc" id="L354">	}</span>
+<span class="fc bfc" id="L367" title="All 2 branches covered.">		for (final var recipient : recipients)</span>
+<span class="fc bfc" id="L368" title="All 2 branches covered.">			for (final var paramName : recipient.getHeader().extendedParameters().keySet())</span>
+<span class="fc bfc" id="L369" title="All 2 branches covered.">				if (Param.from(paramName) == null)</span>
+<span class="fc" id="L370">					Jose.getExtension(paramName).verify(this, recipient);</span>
+<span class="fc" id="L371">	}</span>
 
 	@Override
 	public Encryption getEncryption() {
-<span class="fc" id="L358">		return encryption;</span>
+<span class="fc" id="L375">		return encryption;</span>
 	}
 
 	@Override
 	public boolean isDeflate() {
-<span class="fc" id="L363">		return deflate;</span>
+<span class="fc" id="L380">		return deflate;</span>
 	}
 
 	@Override
-	public Stream&lt;JweRecipient&gt; getRecipients() {
-<span class="fc" id="L368">		return Stream.of(recipients);</span>
+	public Iterable&lt;JweRecipient&gt; getRecipients() {
+<span class="fc" id="L385">		return IuIterable.iter(recipients);</span>
 	}
 
 	@Override
 	public byte[] getInitializationVector() {
-<span class="fc" id="L373">		return initializationVector;</span>
+<span class="fc" id="L390">		return initializationVector;</span>
 	}
 
 	@Override
 	public byte[] getCipherText() {
-<span class="fc" id="L378">		return cipherText;</span>
+<span class="fc" id="L395">		return cipherText;</span>
 	}
 
 	@Override
 	public byte[] getAuthenticationTag() {
-<span class="fc" id="L383">		return authenticationTag;</span>
+<span class="fc" id="L400">		return authenticationTag;</span>
 	}
 
 	@Override
 	public byte[] getAdditionalData() {
-<span class="fc" id="L388">		return additionalData;</span>
+<span class="fc" id="L405">		return additionalData;</span>
 	}
 
 	@Override
 	public void decrypt(WebKey key, OutputStream out) {
-<span class="fc" id="L393">		byte[] cek = null;</span>
+<span class="fc" id="L410">		byte[] cek = null;</span>
 
-<span class="fc" id="L395">		final var jwk = (Jwk) key;</span>
-<span class="fc" id="L396">		final var wellKnown = jwk.wellKnown();</span>
-<span class="fc bfc" id="L397" title="All 4 branches covered.">		for (var i = 0; cek == null &amp;&amp; i &lt; recipients.length; i++)</span>
+<span class="fc" id="L412">		final var jwk = (Jwk) key;</span>
+<span class="fc" id="L413">		final var wellKnown = jwk.wellKnown();</span>
+<span class="fc bfc" id="L414" title="All 4 branches covered.">		for (var i = 0; cek == null &amp;&amp; i &lt; recipients.length; i++)</span>
 			try {
-<span class="fc" id="L399">				cek = recipients[i].decryptCek(encryption, jwk);</span>
+<span class="fc" id="L416">				cek = recipients[i].decryptCek(encryption, jwk);</span>
 
 				// 5.2#12 record CEK decryption success
-<span class="fc" id="L402">				LOG.fine(&quot;CEK decryption successful for &quot; + wellKnown);</span>
-<span class="fc" id="L403">			} catch (Throwable e) {</span>
+<span class="fc" id="L419">				LOG.fine(&quot;CEK decryption successful for &quot; + wellKnown);</span>
+<span class="fc" id="L420">			} catch (Throwable e) {</span>
 				// 5.2#12 record CEK decryption failure
-<span class="fc" id="L405">				LOG.log(Level.FINE, e, () -&gt; &quot;CEK decryption failed&quot;);</span>
-<span class="fc" id="L406">			}</span>
+<span class="fc" id="L422">				LOG.log(Level.FINE, e, () -&gt; &quot;CEK decryption failed&quot;);</span>
+<span class="fc" id="L423">			}</span>
 
-<span class="fc bfc" id="L408" title="All 2 branches covered.">		if (cek == null)</span>
+<span class="fc bfc" id="L425" title="All 2 branches covered.">		if (cek == null)</span>
 			// see: https://datatracker.ietf.org/doc/html/rfc7516#section-11.5
 			// -&gt; proceed with a random key that will not work
-<span class="fc" id="L411">			cek = WebKey.ephemeral(encryption).getKey();</span>
+<span class="fc" id="L428">			cek = WebKey.ephemeral(encryption).getKey();</span>
 
-<span class="fc" id="L413">		StringBuilder aadBuilder = new StringBuilder();</span>
-<span class="fc bfc" id="L414" title="All 2 branches covered.">		if (protectedHeader != null)</span>
-<span class="fc" id="L415">			aadBuilder.append(UnpaddedBinary.base64Url(IuText.utf8(protectedHeader.toString())));</span>
+<span class="fc" id="L430">		StringBuilder aadBuilder = new StringBuilder();</span>
+<span class="fc bfc" id="L431" title="All 2 branches covered.">		if (protectedHeader != null)</span>
+<span class="fc" id="L432">			aadBuilder.append(UnpaddedBinary.base64Url(IuText.utf8(protectedHeader.toString())));</span>
 
 		// 5.2#14 calculate additional data for AEAD
-<span class="fc bfc" id="L418" title="All 2 branches covered.">		if (additionalData != null)</span>
-<span class="fc" id="L419">			aadBuilder.append('.').append(UnpaddedBinary.base64Url(additionalData));</span>
+<span class="fc bfc" id="L435" title="All 2 branches covered.">		if (additionalData != null)</span>
+<span class="fc" id="L436">			aadBuilder.append('.').append(UnpaddedBinary.base64Url(additionalData));</span>
 
-<span class="fc" id="L421">		final var aad = IuText.ascii(aadBuilder.toString());</span>
+<span class="fc" id="L438">		final var aad = IuText.ascii(aadBuilder.toString());</span>
 
 		// 5.2#15 decrypt content
 		final byte[] content;
-<span class="fc bfc" id="L425" title="All 2 branches covered.">		if (encryption.mac != null)</span>
-<span class="fc" id="L426">			content = new AesCbcHmac(encryption, initializationVector, cipherText, authenticationTag, aad, cek).content;</span>
+<span class="fc bfc" id="L442" title="All 2 branches covered.">		if (encryption.mac != null)</span>
+<span class="fc" id="L443">			content = new AesCbcHmac(encryption, initializationVector, cipherText, authenticationTag, aad, cek).content;</span>
 		else {
 			// GCM Cipher.doFinal() returns (cipherText || authenticationTag)
 			// 16 = 128-bit authenticationTag (from GCMParameterSpec), in bytes
-<span class="fc" id="L430">			final var startOfTag = cipherText.length;</span>
-<span class="fc" id="L431">			final var endOfTag = cipherText.length + authenticationTag.length;</span>
-<span class="fc" id="L432">			final var encryptedData = Arrays.copyOf(cipherText, endOfTag);</span>
-<span class="fc" id="L433">			System.arraycopy(authenticationTag, 0, encryptedData, startOfTag, authenticationTag.length);</span>
+<span class="fc" id="L447">			final var startOfTag = cipherText.length;</span>
+<span class="fc" id="L448">			final var endOfTag = cipherText.length + authenticationTag.length;</span>
+<span class="fc" id="L449">			final var encryptedData = Arrays.copyOf(cipherText, endOfTag);</span>
+<span class="fc" id="L450">			System.arraycopy(authenticationTag, 0, encryptedData, startOfTag, authenticationTag.length);</span>
 
-<span class="fc bfc" id="L435" title="All 2 branches covered.">			if (initializationVector.length != 12)</span>
-<span class="fc" id="L436">				throw new IllegalArgumentException(&quot;invalid initialization vector&quot;);</span>
+<span class="fc bfc" id="L452" title="All 2 branches covered.">			if (initializationVector.length != 12)</span>
+<span class="fc" id="L453">				throw new IllegalArgumentException(&quot;invalid initialization vector&quot;);</span>
 
-<span class="fc" id="L438">			final var secretKey = new SecretKeySpec(cek, &quot;AES&quot;);</span>
-<span class="fc" id="L439">			content = IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L440">				final var gcmSpec = new GCMParameterSpec(128, initializationVector);</span>
-<span class="fc" id="L441">				final var messageCipher = Cipher.getInstance(encryption.algorithm);</span>
-<span class="fc" id="L442">				messageCipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec);</span>
-<span class="fc" id="L443">				messageCipher.updateAAD(aad);</span>
-<span class="fc" id="L444">				return messageCipher.doFinal(encryptedData);</span>
+<span class="fc" id="L455">			final var secretKey = new SecretKeySpec(cek, &quot;AES&quot;);</span>
+<span class="fc" id="L456">			content = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L457">				final var gcmSpec = new GCMParameterSpec(128, initializationVector);</span>
+<span class="fc" id="L458">				final var messageCipher = Cipher.getInstance(encryption.algorithm);</span>
+<span class="fc" id="L459">				messageCipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec);</span>
+<span class="fc" id="L460">				messageCipher.updateAAD(aad);</span>
+<span class="fc" id="L461">				return messageCipher.doFinal(encryptedData);</span>
 			});
 		}
 
 		// 5.2#16 decompress content if requested
-<span class="fc" id="L449">		final var plaintext = IuException.unchecked(() -&gt; {</span>
-<span class="fc bfc" id="L450" title="All 2 branches covered.">			if (deflate) {</span>
-<span class="fc" id="L451">				final var inflatedContent = new ByteArrayOutputStream();</span>
-<span class="fc" id="L452">				try (final var d = new InflaterOutputStream(inflatedContent,</span>
+<span class="fc" id="L466">		final var plaintext = IuException.unchecked(() -&gt; {</span>
+<span class="fc bfc" id="L467" title="All 2 branches covered.">			if (deflate) {</span>
+<span class="fc" id="L468">				final var inflatedContent = new ByteArrayOutputStream();</span>
+<span class="fc" id="L469">				try (final var d = new InflaterOutputStream(inflatedContent,</span>
 						new Inflater(true /* &lt;= RFC-1951 compliant */))) {
-<span class="fc" id="L454">					d.write(content);</span>
+<span class="fc" id="L471">					d.write(content);</span>
 				}
-<span class="fc" id="L456">				return inflatedContent.toByteArray();</span>
+<span class="fc" id="L473">				return inflatedContent.toByteArray();</span>
 			} else
-<span class="fc" id="L458">				return content;</span>
+<span class="fc" id="L475">				return content;</span>
 		});
 
-<span class="fc" id="L461">		IuException.unchecked(() -&gt; out.write(plaintext));</span>
-<span class="fc" id="L462">	}</span>
+<span class="fc" id="L478">		IuException.unchecked(() -&gt; out.write(plaintext));</span>
+<span class="fc" id="L479">	}</span>
 
 	@Override
 	public String compact() {
-<span class="fc bfc" id="L466" title="All 4 branches covered.">		if (recipients.length != 1 //</span>
+<span class="fc bfc" id="L483" title="All 4 branches covered.">		if (recipients.length != 1 //</span>
 				|| additionalData != null)
-<span class="fc" id="L468">			throw new IllegalStateException(</span>
+<span class="fc" id="L485">			throw new IllegalStateException(</span>
 					&quot;Must have exactly one recipient with no additional authentication data to use JWE compact serialization&quot;);
-<span class="fc" id="L470">		final var recipient = recipients[0];</span>
-<span class="fc" id="L471">		return UnpaddedBinary.base64Url(IuText.utf8(Objects.requireNonNullElse(protectedHeader, &quot;&quot;).toString())) //</span>
-<span class="fc" id="L472">				+ '.' + Objects.requireNonNullElse(UnpaddedBinary.base64Url(recipient.getEncryptedKey()), &quot;&quot;) //</span>
-<span class="fc" id="L473">				+ '.' + UnpaddedBinary.base64Url(initializationVector) //</span>
-<span class="fc" id="L474">				+ '.' + UnpaddedBinary.base64Url(cipherText) //</span>
-<span class="fc" id="L475">				+ '.' + UnpaddedBinary.base64Url(authenticationTag);</span>
+<span class="fc" id="L487">		final var recipient = recipients[0];</span>
+<span class="fc" id="L488">		return UnpaddedBinary.base64Url(IuText.utf8(Objects.requireNonNullElse(protectedHeader, &quot;&quot;).toString())) //</span>
+<span class="fc" id="L489">				+ '.' + Objects.requireNonNullElse(UnpaddedBinary.base64Url(recipient.getEncryptedKey()), &quot;&quot;) //</span>
+<span class="fc" id="L490">				+ '.' + UnpaddedBinary.base64Url(initializationVector) //</span>
+<span class="fc" id="L491">				+ '.' + UnpaddedBinary.base64Url(cipherText) //</span>
+<span class="fc" id="L492">				+ '.' + UnpaddedBinary.base64Url(authenticationTag);</span>
 	}
 
 	@Override
 	public String toString() {
-<span class="fc" id="L480">		final var serializedHeaderBuilder = IuJson.object();</span>
+<span class="fc" id="L497">		final var serializedHeaderBuilder = IuJson.object();</span>
 
 		// 5.1#13 encode protected header
-<span class="fc" id="L483">		IuJson.add(serializedHeaderBuilder, &quot;protected&quot;, () -&gt; protectedHeader,</span>
-<span class="fc" id="L484">				IuJsonAdapter.to(v -&gt; IuJson.string(UnpaddedBinary.base64Url(IuText.utf8(v.toString())))));</span>
+<span class="fc" id="L500">		IuJson.add(serializedHeaderBuilder, &quot;protected&quot;, () -&gt; protectedHeader,</span>
+<span class="fc" id="L501">				IuJsonAdapter.to(v -&gt; IuJson.string(UnpaddedBinary.base64Url(IuText.utf8(v.toString())))));</span>
 
-<span class="fc bfc" id="L486" title="All 2 branches covered.">		if (recipients.length &gt; 1) {</span>
-<span class="fc" id="L487">			IuJson.add(serializedHeaderBuilder, &quot;unprotected&quot;, unprotected);</span>
+<span class="fc bfc" id="L503" title="All 2 branches covered.">		if (recipients.length &gt; 1) {</span>
+<span class="fc" id="L504">			IuJson.add(serializedHeaderBuilder, &quot;unprotected&quot;, unprotected);</span>
 
-<span class="fc" id="L489">			final var serializedRecipients = IuJson.array();</span>
-<span class="fc bfc" id="L490" title="All 2 branches covered.">			for (final var additionalRecipient : this.recipients) {</span>
-<span class="fc" id="L491">				final var recipientBuilder = IuJson.object();</span>
-<span class="fc" id="L492">				final var perRecipientHeader = additionalRecipient.getHeader().toJson(a -&gt; isPerRecipient(a));</span>
-<span class="fc bfc" id="L493" title="All 2 branches covered.">				if (perRecipientHeader != null)</span>
-<span class="fc" id="L494">					recipientBuilder.add(&quot;header&quot;, perRecipientHeader);</span>
-<span class="fc" id="L495">				IuJson.add(recipientBuilder, &quot;encrypted_key&quot;, additionalRecipient::getEncryptedKey,</span>
+<span class="fc" id="L506">			final var serializedRecipients = IuJson.array();</span>
+<span class="fc bfc" id="L507" title="All 2 branches covered.">			for (final var additionalRecipient : this.recipients) {</span>
+<span class="fc" id="L508">				final var recipientBuilder = IuJson.object();</span>
+<span class="fc" id="L509">				final var perRecipientHeader = additionalRecipient.getHeader().toJson(a -&gt; isPerRecipient(a));</span>
+<span class="fc bfc" id="L510" title="All 2 branches covered.">				if (perRecipientHeader != null)</span>
+<span class="fc" id="L511">					recipientBuilder.add(&quot;header&quot;, perRecipientHeader);</span>
+<span class="fc" id="L512">				IuJson.add(recipientBuilder, &quot;encrypted_key&quot;, additionalRecipient::getEncryptedKey,</span>
 						UnpaddedBinary.JSON);
-<span class="fc" id="L497">				serializedRecipients.add(recipientBuilder);</span>
+<span class="fc" id="L514">				serializedRecipients.add(recipientBuilder);</span>
 			}
 
-<span class="fc" id="L500">			IuJson.add(serializedHeaderBuilder, &quot;recipients&quot;, serializedRecipients);</span>
-<span class="fc" id="L501">		} else {</span>
-<span class="fc bfc" id="L502" title="All 2 branches covered.">			if (unprotected != null)</span>
-<span class="fc" id="L503">				serializedHeaderBuilder.add(&quot;header&quot;, unprotected);</span>
-<span class="fc" id="L504">			IuJson.add(serializedHeaderBuilder, &quot;encrypted_key&quot;, recipients[0]::getEncryptedKey, UnpaddedBinary.JSON);</span>
+<span class="fc" id="L517">			IuJson.add(serializedHeaderBuilder, &quot;recipients&quot;, serializedRecipients);</span>
+<span class="fc" id="L518">		} else {</span>
+<span class="fc bfc" id="L519" title="All 2 branches covered.">			if (unprotected != null)</span>
+<span class="fc" id="L520">				serializedHeaderBuilder.add(&quot;header&quot;, unprotected);</span>
+<span class="fc" id="L521">			IuJson.add(serializedHeaderBuilder, &quot;encrypted_key&quot;, recipients[0]::getEncryptedKey, UnpaddedBinary.JSON);</span>
 		}
 
-<span class="fc" id="L507">		IuJson.add(serializedHeaderBuilder, &quot;iv&quot;, () -&gt; initializationVector, UnpaddedBinary.JSON);</span>
-<span class="fc" id="L508">		IuJson.add(serializedHeaderBuilder, &quot;cipher_text&quot;, () -&gt; cipherText, UnpaddedBinary.JSON);</span>
-<span class="fc" id="L509">		IuJson.add(serializedHeaderBuilder, &quot;tag&quot;, () -&gt; authenticationTag, UnpaddedBinary.JSON);</span>
-<span class="fc" id="L510">		IuJson.add(serializedHeaderBuilder, &quot;aad&quot;, () -&gt; additionalData, UnpaddedBinary.JSON);</span>
+<span class="fc" id="L524">		IuJson.add(serializedHeaderBuilder, &quot;iv&quot;, () -&gt; initializationVector, UnpaddedBinary.JSON);</span>
+<span class="fc" id="L525">		IuJson.add(serializedHeaderBuilder, &quot;cipher_text&quot;, () -&gt; cipherText, UnpaddedBinary.JSON);</span>
+<span class="fc" id="L526">		IuJson.add(serializedHeaderBuilder, &quot;tag&quot;, () -&gt; authenticationTag, UnpaddedBinary.JSON);</span>
+<span class="fc" id="L527">		IuJson.add(serializedHeaderBuilder, &quot;aad&quot;, () -&gt; additionalData, UnpaddedBinary.JSON);</span>
 
-<span class="fc" id="L512">		return serializedHeaderBuilder.build().toString();</span>
+<span class="fc" id="L529">		return serializedHeaderBuilder.build().toString();</span>
 	}
 
 	private boolean isUnprotected(String paramName) {
-<span class="fc bfc" id="L516" title="All 2 branches covered.">		return protectedHeader == null //</span>
-<span class="fc bfc" id="L517" title="All 2 branches covered.">				|| !protectedHeader.containsKey(paramName);</span>
+<span class="fc bfc" id="L533" title="All 2 branches covered.">		return protectedHeader == null //</span>
+<span class="fc bfc" id="L534" title="All 2 branches covered.">				|| !protectedHeader.containsKey(paramName);</span>
 	}
 
 	private boolean isPerRecipient(String paramName) {
-<span class="fc bfc" id="L521" title="All 4 branches covered.">		return isUnprotected(paramName) //</span>
+<span class="fc bfc" id="L538" title="All 4 branches covered.">		return isUnprotected(paramName) //</span>
 				&amp;&amp; (unprotected == null //
-<span class="fc bfc" id="L523" title="All 2 branches covered.">						|| !unprotected.containsKey(paramName));</span>
+<span class="fc bfc" id="L540" title="All 2 branches covered.">						|| !unprotected.containsKey(paramName));</span>
 	}
 
 }

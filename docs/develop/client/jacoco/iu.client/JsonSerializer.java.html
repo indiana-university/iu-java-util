@@ -1,8 +1,43 @@
-<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JsonSerializer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU HTTP Client Utilities</a> &gt; <a href="index.source.html" class="el_package">iu.client</a> &gt; <span class="el_source">JsonSerializer.java</span></div><h1>JsonSerializer.java</h1><pre class="source lang-java linenums">package iu.client;
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JsonSerializer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU HTTP Client Utilities</a> &gt; <a href="index.source.html" class="el_package">iu.client</a> &gt; <span class="el_source">JsonSerializer.java</span></div><h1>JsonSerializer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.client;
 
 import java.beans.Introspector;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Function;
 
 import edu.iu.IuException;
@@ -17,8 +52,8 @@ import jakarta.json.JsonObject;
  */
 public final class JsonSerializer {
 	static {
-<span class="fc" id="L20">		IuObject.assertNotOpen(JsonSerializer.class);</span>
-<span class="fc" id="L21">	}</span>
+<span class="fc" id="L55">		IuObject.assertNotOpen(JsonSerializer.class);</span>
+<span class="fc" id="L56">	}</span>
 
 	private JsonSerializer() {
 	}
@@ -31,16 +66,16 @@ public final class JsonSerializer {
 	 * @return formatted property name
 	 */
 	static String formatPropertyName(String propertyName, IuJsonPropertyNameFormat propertyNameFormat) {
-<span class="fc bfc" id="L34" title="All 3 branches covered.">		switch (propertyNameFormat) {</span>
+<span class="fc bfc" id="L69" title="All 3 branches covered.">		switch (propertyNameFormat) {</span>
 		case LOWER_CASE_WITH_UNDERSCORES:
-<span class="fc" id="L36">			return JsonProxy.convertToSnakeCase(propertyName);</span>
+<span class="fc" id="L71">			return JsonProxy.convertToSnakeCase(propertyName);</span>
 
 		case UPPER_CASE_WITH_UNDERSCORES:
-<span class="fc" id="L39">			return JsonProxy.convertToSnakeCase(propertyName).toUpperCase();</span>
+<span class="fc" id="L74">			return JsonProxy.convertToSnakeCase(propertyName).toUpperCase();</span>
 
 		default:
 		case IDENTITY:
-<span class="fc" id="L43">			return propertyName;</span>
+<span class="fc" id="L78">			return propertyName;</span>
 		}
 	}
 
@@ -58,28 +93,40 @@ public final class JsonSerializer {
 	public static &lt;T&gt; JsonObject serialize(Class&lt;T&gt; type, T value, IuJsonPropertyNameFormat propertyNameFormat,
 			Function&lt;Type, IuJsonAdapter&lt;?&gt;&gt; adapt) {
 
-<span class="fc" id="L61">		final var valueClass = value.getClass();</span>
-<span class="fc bfc" id="L62" title="All 2 branches covered.">		if (Proxy.isProxyClass(valueClass)) {</span>
-<span class="fc" id="L63">			final var invocationHandler = Proxy.getInvocationHandler(value);</span>
-<span class="fc bfc" id="L64" title="All 2 branches covered.">			if (invocationHandler instanceof JsonProxy)</span>
-<span class="fc" id="L65">				return JsonProxy.unwrap(value);</span>
+<span class="fc" id="L96">		final var valueClass = value.getClass();</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">		if (Proxy.isProxyClass(valueClass)) {</span>
+<span class="fc" id="L98">			final var invocationHandler = Proxy.getInvocationHandler(value);</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">			if (invocationHandler instanceof JsonProxy)</span>
+<span class="fc" id="L100">				return JsonProxy.unwrap(value);</span>
 		}
 
-<span class="fc" id="L68">		final var builder = IuJson.object();</span>
+<span class="fc" id="L103">		final var builder = IuJson.object();</span>
+		
+<span class="fc" id="L105">		final Deque&lt;Class&lt;?&gt;&gt; todo = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L106">		final Set&lt;String&gt; seen = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L107">		todo.push(type);</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">		while (!todo.isEmpty()) {</span>
+<span class="fc" id="L109">			final var next = todo.pop();</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">			for (final var propertyDescriptor : IuException.unchecked(() -&gt; Introspector.getBeanInfo(next))</span>
+<span class="fc" id="L111">					.getPropertyDescriptors()) {</span>
+<span class="fc" id="L112">				final var readMethod = propertyDescriptor.getReadMethod();</span>
+<span class="fc bfc" id="L113" title="All 4 branches covered.">				if (readMethod == null || readMethod.getDeclaringClass() == Object.class)</span>
+<span class="fc" id="L114">					continue;</span>
 
-<span class="fc bfc" id="L70" title="All 2 branches covered.">		for (final var propertyDescriptor : IuException.unchecked(() -&gt; Introspector.getBeanInfo(type))</span>
-<span class="fc" id="L71">				.getPropertyDescriptors()) {</span>
-<span class="fc" id="L72">			final var readMethod = propertyDescriptor.getReadMethod();</span>
-<span class="fc bfc" id="L73" title="All 4 branches covered.">			if (readMethod == null || readMethod.getDeclaringClass() == Object.class)</span>
-<span class="fc" id="L74">				continue;</span>
+<span class="fc" id="L116">				final var propertyName = formatPropertyName(propertyDescriptor.getName(), propertyNameFormat);</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">				if (!seen.add(propertyName))</span>
+<span class="fc" id="L118">					continue;</span>
 
-<span class="fc" id="L76">			final var propertyName = formatPropertyName(propertyDescriptor.getName(), propertyNameFormat);</span>
-<span class="fc" id="L77">			final var propertyValue = IuException.uncheckedInvocation(() -&gt; readMethod.invoke(value));</span>
-<span class="fc" id="L78">			final var adapter = adapt.apply(readMethod.getGenericReturnType());</span>
-<span class="fc" id="L79">			IuJson.add(builder, propertyName, () -&gt; propertyValue, (IuJsonAdapter) adapter);</span>
-		}
+<span class="fc" id="L120">				final var propertyValue = IuException.uncheckedInvocation(() -&gt; readMethod.invoke(value));</span>
+<span class="fc" id="L121">				final var adapter = adapt.apply(readMethod.getGenericReturnType());</span>
+<span class="fc" id="L122">				IuJson.add(builder, propertyName, () -&gt; propertyValue, (IuJsonAdapter) adapter);</span>
+			}
 
-<span class="fc" id="L82">		return builder.build();</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">			for (final var i : next.getInterfaces())</span>
+<span class="fc" id="L126">				todo.push(i);</span>
+<span class="fc" id="L127">		}</span>
+
+<span class="fc" id="L129">		return builder.build();</span>
 	}
 
 }

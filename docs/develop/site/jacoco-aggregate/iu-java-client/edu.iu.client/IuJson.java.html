@@ -247,7 +247,7 @@ public class IuJson {
 	 * @param &lt;T&gt;           value type
 	 * @param builder       {@link JsonObjectBuilder}
 	 * @param name          property name
-	 * @param valueSupplier value supplier
+	 * @param valueSupplier value supplier; if null is returned, the property will be undefined
 	 * @param adapter       JSON type adapter for handling non-null values
 	 */
 	public static &lt;T&gt; void add(JsonObjectBuilder builder, String name, Supplier&lt;T&gt; valueSupplier,
