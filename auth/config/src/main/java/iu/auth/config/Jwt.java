@@ -36,67 +36,75 @@ import java.time.Instant;
 
 import edu.iu.IuObject;
 import edu.iu.auth.jwt.IuWebToken;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
 import jakarta.json.JsonObject;
 
 /**
  * Basic JWT claims {@link IuWebToken} implementation.
+ * 
+ * <p>
+ * <em>May</em> be extended to implement token-specific claim values.
+ * </p>
  */
-final class Jwt implements IuWebToken {
+public class Jwt implements IuWebToken {
 	static {
 		IuObject.assertNotOpen(Jwt.class);
 	}
 
-	private final JsonObject claims;
+	/** {@link JwtAdapter} with claims registered to support this token type */
+	protected final JwtAdapter<? extends IuWebToken> adapter;
+
+	/** {@link JwtAdapter} with claims registered to support this token type */
+	protected final JsonObject claims;
 
 	/**
 	 * Constructor
 	 * 
-	 * @param claims {@link JsonObject}
+	 * @param adapter {@link JwtAdapter}
+	 * @param claims  {@link JsonObject}
 	 */
-	Jwt(JsonObject claims) {
+	Jwt(JwtAdapter<? extends IuWebToken> adapter, JsonObject claims) {
+		this.adapter = adapter;
 		this.claims = claims;
 	}
 
 	@Override
 	public String getTokenId() {
-		return IuJson.get(claims, "jti");
+		return adapter.getClaim(claims, "jti");
 	}
 
 	@Override
 	public URI getIssuer() {
-		return IuJson.get(claims, "iss", IuJsonAdapter.of(URI.class));
+		return adapter.getClaim(claims, "iss");
 	}
 
 	@Override
 	public Iterable<URI> getAudience() {
-		return IuJson.get(claims, "aud", IuJsonAdapter.of(Iterable.class, IuJsonAdapter.of(URI.class)));
+		return adapter.getClaim(claims, "aud");
 	}
 
 	@Override
 	public String getSubject() {
-		return IuJson.get(claims, "sub");
+		return adapter.getClaim(claims, "sub");
 	}
 
 	@Override
 	public Instant getIssuedAt() {
-		return IuJson.get(claims, "iat", JwtAdapter.NUMERIC_DATE);
+		return adapter.getClaim(claims, "iat");
 	}
 
 	@Override
 	public Instant getNotBefore() {
-		return IuJson.get(claims, "nbf", JwtAdapter.NUMERIC_DATE);
+		return adapter.getClaim(claims, "nbf");
 	}
 
 	@Override
 	public Instant getExpires() {
-		return IuJson.get(claims, "exp", JwtAdapter.NUMERIC_DATE);
+		return adapter.getClaim(claims, "exp");
 	}
 
 	@Override
 	public String getNonce() {
-		return IuJson.get(claims, "nonce");
+		return adapter.getClaim(claims, "nonce");
 	}
 
 	@Override
