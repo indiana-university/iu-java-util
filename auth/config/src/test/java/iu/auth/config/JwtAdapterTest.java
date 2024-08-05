@@ -34,6 +34,7 @@ package iu.auth.config;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.URI;
@@ -49,10 +50,25 @@ import edu.iu.auth.jwt.IuWebToken;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 
-@SuppressWarnings("javadoc")
+@SuppressWarnings({ "javadoc", "rawtypes", "unchecked" })
 public class JwtAdapterTest {
 
-	private final JwtAdapter jwt = new JwtAdapter();
+	private final JwtAdapter jwt = new JwtAdapter<>() {
+		@Override
+		protected void registerClaims() {
+			super.registerClaims(); // for coverage
+			assertEquals("not sealed",
+					assertThrows(IllegalStateException.class, () -> getClaim(null, null)).getMessage());
+			assertEquals("already registered",
+					assertThrows(IllegalArgumentException.class, () -> registerClaim("jti", null, null)).getMessage());
+		}
+	};
+
+	@Test
+	public void testSealed() {
+		assertEquals("sealed",
+				assertThrows(IllegalStateException.class, () -> jwt.registerClaim(null, null, null)).getMessage());
+	}
 
 	@Test
 	public void testNullFromJson() {
@@ -152,6 +168,8 @@ public class JwtAdapterTest {
 		final var claims = builder.build();
 
 		final var jwt = this.jwt.fromJson(claims);
+		assertEquals(claims, IuJson.parse(jwt.toString()));
+
 		assertEquals(tokenId, jwt.getTokenId());
 		assertEquals(nonce, jwt.getNonce());
 		assertEquals(subject, jwt.getSubject());
