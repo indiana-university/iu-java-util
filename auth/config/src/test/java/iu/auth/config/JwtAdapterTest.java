@@ -168,6 +168,8 @@ public class JwtAdapterTest {
 		final var claims = builder.build();
 
 		final var jwt = this.jwt.fromJson(claims);
+		assertEquals(claims, IuJson.parse(jwt.toString()));
+
 		assertEquals(tokenId, jwt.getTokenId());
 		assertEquals(nonce, jwt.getNonce());
 		assertEquals(subject, jwt.getSubject());

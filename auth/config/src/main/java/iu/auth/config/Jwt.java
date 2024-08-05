@@ -31,12 +31,16 @@
  */
 package iu.auth.config;
 
+import java.io.StringWriter;
 import java.net.URI;
 import java.time.Instant;
+import java.util.Map;
 
 import edu.iu.IuObject;
 import edu.iu.auth.jwt.IuWebToken;
+import edu.iu.client.IuJson;
 import jakarta.json.JsonObject;
+import jakarta.json.stream.JsonGenerator;
 
 /**
  * Basic JWT claims {@link IuWebToken} implementation.
@@ -118,6 +122,14 @@ public class Jwt implements IuWebToken {
 			return false;
 		Jwt other = (Jwt) obj;
 		return IuObject.equals(claims, other.claims);
+	}
+
+	@Override
+	public String toString() {
+		final var writer = new StringWriter();
+		IuJson.PROVIDER.createWriterFactory(Map.of(JsonGenerator.PRETTY_PRINTING, true)).createWriter(writer)
+				.write(claims);
+		return writer.toString();
 	}
 
 }
