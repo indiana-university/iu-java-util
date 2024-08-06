@@ -43,7 +43,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Stream;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.Inflater;
@@ -67,6 +66,7 @@ import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebKey;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
 /**
@@ -78,6 +78,23 @@ public class Jwe implements WebEncryption {
 	}
 
 	private static final Logger LOG = Logger.getLogger(Jwe.class.getName());
+
+	/** {@link IuJsonAdapter} */
+	public static final IuJsonAdapter<WebEncryption> JSON = IuJsonAdapter.from(v -> {
+		if (v instanceof JsonString)
+			return new Jwe(((JsonString) v).getString());
+		else
+			return IuObject.convert(v, a -> new Jwe(a.asJsonObject().toString()));
+	}, h -> {
+		if (h == null)
+			return null;
+		final var jwe = (Jwe) h;
+		if (jwe.recipients.length != 1 //
+				|| jwe.additionalData != null)
+			return IuJson.parse(jwe.toString());
+		else
+			return IuJson.string(jwe.compact());
+	});
 
 	private static class AesCbcHmac {
 		private static byte[] macKey(byte[] cek) {
@@ -121,6 +138,10 @@ public class Jwe implements WebEncryption {
 
 			content = IuException.unchecked(() -> {
 				final var messageCipher = Cipher.getInstance(encryption.algorithm);
+
+				if (initializationVector.length != messageCipher.getBlockSize())
+					throw new IllegalArgumentException("invalid initialization vector");
+
 				messageCipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(encKey, "AES"),
 						new IvParameterSpec(initializationVector));
 				return messageCipher.doFinal(cipherText);
@@ -132,11 +153,11 @@ public class Jwe implements WebEncryption {
 			macKey = macKey(cek);
 			encKey = encKey(cek);
 
-			initializationVector = new byte[16];
+			final var messageCipher = IuException.unchecked(() -> Cipher.getInstance(encryption.algorithm));
+			initializationVector = new byte[messageCipher.getBlockSize()];
 			new SecureRandom().nextBytes(initializationVector);
 
 			cipherText = IuException.unchecked(() -> {
-				final var messageCipher = Cipher.getInstance(encryption.algorithm);
 				messageCipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(encKey, "AES"),
 						new IvParameterSpec(initializationVector));
 				return messageCipher.doFinal(content);
@@ -331,7 +352,7 @@ public class Jwe implements WebEncryption {
 			authenticationTag = UnpaddedBinary.base64Url(i.next());
 
 			if (i.hasNext())
-				throw new IllegalArgumentException();
+				throw new IllegalArgumentException("Invalid compact format, found more than 5 segments");
 			additionalData = null;
 		}
 
@@ -360,8 +381,8 @@ public class Jwe implements WebEncryption {
 	}
 
 	@Override
-	public Stream<JweRecipient> getRecipients() {
-		return Stream.of(recipients);
+	public Iterable<JweRecipient> getRecipients() {
+		return IuIterable.iter(recipients);
 	}
 
 	@Override
@@ -427,6 +448,9 @@ public class Jwe implements WebEncryption {
 			final var endOfTag = cipherText.length + authenticationTag.length;
 			final var encryptedData = Arrays.copyOf(cipherText, endOfTag);
 			System.arraycopy(authenticationTag, 0, encryptedData, startOfTag, authenticationTag.length);
+
+			if (initializationVector.length != 12)
+				throw new IllegalArgumentException("invalid initialization vector");
 
 			final var secretKey = new SecretKeySpec(cek, "AES");
 			content = IuException.unchecked(() -> {

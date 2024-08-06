@@ -52,17 +52,22 @@ import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
 import java.security.spec.NamedParameterSpec;
 import java.security.spec.RSAPublicKeySpec;
+import java.util.ArrayDeque;
 import java.util.EnumSet;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+import javax.crypto.SecretKey;
+
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.PemEncoded.KeyType;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption.Encryption;
 import iu.crypt.Jwk;
@@ -86,16 +91,15 @@ public interface WebKey extends WebKeyReference {
 	 */
 	static AlgorithmParameterSpec algorithmParams(String name) {
 		return IuObject.convert(name, a -> IuException.unchecked(() -> {
-			if (a.startsWith("sec")) {
+			if (Set.of("secp256r1", "secp384r1", "secp521r1").contains(a)) {
 				final var algorithmParamters = AlgorithmParameters.getInstance("EC");
 				algorithmParamters.init(new ECGenParameterSpec(a));
 				return algorithmParamters.getParameterSpec(ECParameterSpec.class);
-			} else
-				try {
-					return (AlgorithmParameterSpec) NamedParameterSpec.class.getField(a.toUpperCase()).get(null);
-				} catch (NoSuchFieldException e) {
-					return null;
-				}
+			} else if (Set.of("Ed25519", "Ed448", "X25519", "X448").contains(a))
+				return (AlgorithmParameterSpec) IuException
+						.unchecked(() -> NamedParameterSpec.class.getField(a.toUpperCase()).get(null));
+			else
+				return null;
 		}));
 	}
 
@@ -588,8 +592,7 @@ public interface WebKey extends WebKeyReference {
 		/**
 		 * JSON type adapter.
 		 */
-		public static IuJsonAdapter<Algorithm> JSON = IuJsonAdapter.from(a -> from(((JsonString) a).getString()),
-				a -> IuJson.string(a.alg));
+		public static final IuJsonAdapter<Algorithm> JSON = IuJsonAdapter.text(Algorithm::from, a -> a.alg);
 
 		/**
 		 * Gets the value equivalent to the JWK alg attribute.
@@ -744,6 +747,17 @@ public interface WebKey extends WebKeyReference {
 	}
 
 	/**
+	 * JSON type adapter.
+	 */
+	public static final IuJsonAdapter<WebKey> JSON = IuJsonAdapter.from(v -> {
+		return new Jwk(v.asJsonObject());
+	}, v -> {
+		final var o = IuJson.object();
+		((Jwk) v).serializeTo(o);
+		return o.build();
+	});
+
+	/**
 	 * Verifies encoded key data is correct for the key type, use, algorithm, and
 	 * X.509 certificate chain.
 	 * 
@@ -859,6 +873,31 @@ public interface WebKey extends WebKeyReference {
 	}
 
 	/**
+	 * Creates a new builder.
+	 * 
+	 * @param key JCE key
+	 * @return {@link Builder}
+	 */
+	static Builder<?> builder(Key key) {
+		if (key instanceof SecretKey)
+			return WebKey.builder(Type.RAW).key(key.getEncoded());
+
+		final WebKey.Builder<?> jwkBuilder;
+		final var params = WebKey.algorithmParams(key);
+		if (params == null)
+			jwkBuilder = WebKey.builder(Type.from(key.getAlgorithm(), null));
+		else
+			jwkBuilder = WebKey.builder(Objects.requireNonNull(Type.from(params), params.toString()));
+
+		if (key instanceof PrivateKey)
+			jwkBuilder.key((PrivateKey) key);
+		else
+			jwkBuilder.key((PublicKey) key);
+
+		return jwkBuilder;
+	}
+
+	/**
 	 * Creates a new {@link Builder}.
 	 * 
 	 * @param type key type
@@ -938,6 +977,35 @@ public interface WebKey extends WebKeyReference {
 	 */
 	static Iterable<? extends WebKey> parseJwks(String jwks) {
 		return Jwk.parseJwks(IuJson.parse(jwks).asJsonObject());
+	}
+
+	/**
+	 * Reads at least one PEM-encoded X509 certificate, and optionally a private
+	 * key, and returns a JWK partial-key representation.
+	 * 
+	 * @param pem PEM-encoded certificate(s) and optional private key
+	 * @return {@link WebKey}
+	 */
+	static WebKey pem(String pem) {
+		final Queue<X509Certificate> certs = new ArrayDeque<>();
+		PemEncoded privateKey = null;
+
+		final var parsed = PemEncoded.parse(pem);
+		while (parsed.hasNext()) {
+			final var encoded = parsed.next();
+			final var keyType = encoded.getKeyType();
+			if (keyType.equals(KeyType.CERTIFICATE))
+				certs.offer(encoded.asCertificate());
+			else if (keyType.equals(KeyType.PRIVATE_KEY))
+				privateKey = IuObject.once(privateKey, encoded);
+		}
+
+		final var publicKey = certs.peek().getPublicKey();
+		final var builder = WebKey.builder(publicKey);
+		builder.cert(certs.toArray(X509Certificate[]::new));
+		if (privateKey != null)
+			builder.key(privateKey.asPrivate(publicKey.getAlgorithm()));
+		return builder.build();
 	}
 
 	/**

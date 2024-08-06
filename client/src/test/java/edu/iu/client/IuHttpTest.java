@@ -33,6 +33,7 @@ package edu.iu.client;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -47,7 +48,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -60,7 +60,6 @@ import java.util.logging.Level;
 import java.util.logging.LogManager;
 
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -68,26 +67,7 @@ import edu.iu.IdGenerator;
 import edu.iu.UnsafeConsumer;
 
 @SuppressWarnings("javadoc")
-public class IuHttpTest {
-
-	private static final URI TEST_URI = URI.create("test://localhost/" + IdGenerator.generateId());
-	private static HttpClient http;
-
-	@BeforeAll
-	public static void setupClass() throws ClassNotFoundException {
-		try {
-			System.setProperty("iu.http.allowedUri", TEST_URI.toString());
-
-			http = mock(HttpClient.class);
-			try (final var mockHttpClient = mockStatic(HttpClient.class)) {
-				mockHttpClient.when(() -> HttpClient.newHttpClient()).thenReturn(http);
-				Class.forName(IuHttp.class.getName());
-			}
-
-		} finally {
-			System.getProperties().remove("iu-client.allowedUri");
-		}
-	}
+public class IuHttpTest extends IuHttpTestCase {
 
 	private Handler logHandler;
 	private Level restoreLevel;
@@ -141,6 +121,11 @@ public class IuHttpTest {
 		assertDoesNotThrow(() -> IuHttp.checkHeaders((n, v) -> n.equals("foo")).accept(response));
 		assertThrows(HttpException.class, () -> IuHttp.checkHeaders((n, v) -> v.equals("bar")).accept(response));
 	}
+	
+	@Test
+	public void testAllowNull() {
+		assertFalse(IuHttp.isAllowed(null, TEST_URI));
+	}
 
 	@SuppressWarnings("unchecked")
 	@Test
@@ -166,9 +151,9 @@ public class IuHttpTest {
 
 	@Test
 	public void testDenyByDefault() {
-		assertEquals("insecure URI",
+		assertEquals("Insecure URI not allowed, must be relative to [" + TEST_INSECURE_URI + "]",
 				assertThrows(IllegalArgumentException.class, () -> IuHttp.get(mock(URI.class))).getMessage());
-		assertEquals("insecure URI",
+		assertEquals("Insecure URI not allowed, must be relative to [" + TEST_INSECURE_URI + "]",
 				assertThrows(IllegalArgumentException.class, () -> IuHttp.get(URI.create("test:foobar"))).getMessage());
 		assertEquals("URI not allowed, must be relative to [" + TEST_URI + "]",
 				assertThrows(IllegalArgumentException.class, () -> IuHttp.get(URI.create("https://www.iu.edu/")))
@@ -202,6 +187,33 @@ public class IuHttpTest {
 				assertEquals("GET " + TEST_URI + " 200 OK", r.getMessage());
 				return true;
 			}));
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testInsecureGet() throws Exception {
+		try (final var mockRequest = mockStatic(HttpRequest.class)) {
+			final var request = mock(HttpRequest.class);
+			when(request.method()).thenReturn("GET");
+			when(request.headers()).thenReturn(HttpHeaders.of(Map.of(), (a, b) -> true));
+			when(request.uri()).thenReturn(TEST_INSECURE_URI);
+
+			final var mockBuilder = mock(HttpRequest.Builder.class);
+			when(mockBuilder.build()).thenReturn(request);
+			mockRequest.when(() -> HttpRequest.newBuilder(TEST_INSECURE_URI)).thenReturn(mockBuilder);
+
+			final var response = mock(HttpResponse.class);
+			when(response.statusCode()).thenReturn(200);
+			when(response.headers()).thenReturn(HttpHeaders.of(Map.of(), (a, b) -> true));
+			when(http.send(eq(request), any(BodyHandler.class))).thenReturn(response);
+
+			final var body = new Object();
+			final var handler = mock(HttpResponseHandler.class);
+			when(handler.apply(response)).thenReturn(body);
+			assertSame(body, IuHttp.get(TEST_INSECURE_URI, handler));
+			verify(logHandler).publish(argThat(r -> Level.INFO.equals(r.getLevel()) && r.getMessage().equals("Allowing insecure URI " + TEST_INSECURE_URI)));
+			verify(logHandler).publish(argThat(r -> Level.FINE.equals(r.getLevel()) && r.getMessage().equals("GET " + TEST_INSECURE_URI + " 200 OK")));
 		}
 	}
 

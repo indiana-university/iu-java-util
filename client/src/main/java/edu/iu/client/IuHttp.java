@@ -73,12 +73,21 @@ public class IuHttp {
 	private static final Collection<URI> ALLOWED_URI = IuRuntimeEnvironment.env("iu.http.allowedUri",
 			a -> Stream.of(a.split(",")).map(URI::create).collect(Collectors.toUnmodifiableList()));
 
+	private static final Collection<URI> ALLOWED_INSECURE_URI = IuRuntimeEnvironment.envOptional(
+			"iu.http.allowedInsecureUri",
+			a -> Stream.of(a.split(",")).map(URI::create).collect(Collectors.toUnmodifiableList()));
+
 	private static final HttpClient HTTP = HttpClient.newHttpClient();
 
 	/**
 	 * Validates a 200 OK response.
 	 */
 	public static final HttpResponseValidator OK = expectStatus(200);
+
+	/**
+	 * Validates a 204 NO CONTENT response and returns null.
+	 */
+	public static final HttpResponseHandler<?> NO_CONTENT = validate(a -> null, IuHttp.expectStatus(204));
 
 	/**
 	 * Validates 200 OK then parses the response as a JSON object.
@@ -185,6 +194,21 @@ public class IuHttp {
 	}
 
 	/**
+	 * Determines whether or not an allow list contains a root of a URI.
+	 * 
+	 * @param allowList allowed root URIs
+	 * @param uri       {@link URI} to check
+	 * @return true if the allow list is non-null and contains at least one entry
+	 *         that is a root of the supplied URI
+	 */
+	static boolean isAllowed(Collection<URI> allowList, URI uri) {
+		if (allowList == null)
+			return false;
+		else
+			return allowList.stream().anyMatch(allowedUri -> IuWebUtils.isRootOf(allowedUri, uri));
+	}
+
+	/**
 	 * Sends a synchronous HTTP request.
 	 * 
 	 * @param <E>             additional exception type
@@ -201,11 +225,13 @@ public class IuHttp {
 	 */
 	public static <E extends Exception> HttpResponse<InputStream> send(Class<E> exceptionClass, URI uri,
 			UnsafeConsumer<HttpRequest.Builder> requestConsumer) throws HttpException, E {
-		if (!"https".equals(uri.getScheme()) //
-				&& !"localhost".equals(uri.getHost()))
-			throw new IllegalArgumentException("insecure URI");
-
-		if (!ALLOWED_URI.stream().anyMatch(allowedUri -> IuWebUtils.isRootOf(allowedUri, uri)))
+		if (!"https".equals(uri.getScheme())) {
+			if (!isAllowed(ALLOWED_INSECURE_URI, uri))
+				throw new IllegalArgumentException(
+						"Insecure URI not allowed, must be relative to " + ALLOWED_INSECURE_URI);
+			else
+				LOG.info(() -> "Allowing insecure URI " + uri);
+		} else if (!isAllowed(ALLOWED_URI, uri))
 			throw new IllegalArgumentException("URI not allowed, must be relative to " + ALLOWED_URI);
 
 		return IuException.checked(HttpException.class, exceptionClass, () -> {

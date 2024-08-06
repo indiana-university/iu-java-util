@@ -91,7 +91,33 @@ public class JwsTest extends IuCryptTestCase {
 
 	@SuppressWarnings("unchecked")
 	@Test
+	public void testMultipleSignatures() {
+		assertNull(WebSignedPayload.JSON.fromJson(WebSignedPayload.JSON.toJson(null)));
+
+		final Queue<Jwk> keys = new ArrayDeque<>();
+		final var key = (Jwk) WebKey.ephemeral(Algorithm.ES256);
+		keys.add(key);
+		
+		final var key2 = (Jwk) WebKey.ephemeral(Algorithm.PS384);
+		keys.add(key2);
+		
+		final var jwsBuilder = WebSignature.builder(Algorithm.ES256);
+		jwsBuilder.key(key);
+		jwsBuilder.next(Algorithm.PS384);
+		jwsBuilder.key(key2);
+
+		final var id = IdGenerator.generateId();
+		final var jws = jwsBuilder.sign(id);
+		final var serialJws = WebSignedPayload.JSON.fromJson(WebSignedPayload.JSON.toJson(jws));
+		assertDoesNotThrow(() -> serialJws.verify(key));
+		assertDoesNotThrow(() -> serialJws.verify(key2));
+	}
+	
+	@SuppressWarnings("unchecked")
+	@Test
 	public void testAllTheSignatures() {
+		assertNull(WebSignedPayload.JSON.fromJson(WebSignedPayload.JSON.toJson(null)));
+
 		final var extName = IdGenerator.generateId();
 		final var ext = mock(Extension.class, CALLS_REAL_METHODS);
 		when(ext.toJson(any())).thenAnswer(a -> IuJson.string((String) a.getArgument(0)));
@@ -118,11 +144,11 @@ public class JwsTest extends IuCryptTestCase {
 
 			final var id = IdGenerator.generateId();
 			final var compactJws = WebSignature.builder(algorithm).key(key).compact().sign(id);
-			final var fromCompact = WebSignedPayload.parse(compactJws.compact());
+			final var fromCompact = WebSignedPayload.JSON.fromJson(WebSignedPayload.JSON.toJson(compactJws));
 			assertEquals(id, IuText.utf8(fromCompact.getPayload()));
 			fromCompact.verify(key);
 
-			final var fromSerial = WebSignedPayload.parse(compactJws.toString());
+			final var fromSerial = WebSignedPayload.JSON.fromJson(IuJson.string(compactJws.toString()));
 			assertEquals(id, IuText.utf8(fromSerial.getPayload()));
 			fromSerial.verify(key);
 		} while (algorithmIterator.hasNext());
@@ -240,7 +266,7 @@ public class JwsTest extends IuCryptTestCase {
 				+ "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 				+ "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
 		assertThrows(IllegalArgumentException.class, () -> jws.verify(jwk));
-		
+
 		final var jws2 = WebSignedPayload.parse("eyJhbGciOiJFUzUxMiJ9.UGF5bG9hZA."
 				+ "AdwMgeerwtHoh-l192l60hp9wAHZFVJbLfD_UxMi70cwnZOYaRI1bKPWROc-mZZqwqT2SI-KGDKB34XO0aw_7Xdt"
 				+ "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
@@ -251,14 +277,14 @@ public class JwsTest extends IuCryptTestCase {
 	public void testFromJCE() {
 		assertThrows(IllegalArgumentException.class, () -> Jws.fromJce(Type.RSA, Algorithm.ES256, new byte[0]));
 		assertThrows(IllegalArgumentException.class, () -> Jws.fromJce(Type.EC_P256, Algorithm.ES256, new byte[0]));
-		
+
 		final var b256 = new byte[72];
 		assertThrows(IllegalArgumentException.class, () -> Jws.fromJce(Type.EC_P256, Algorithm.ES256, b256));
-		
+
 		final var b521 = new byte[140];
 		b521[0] = (byte) 0x30;
 		assertThrows(IllegalArgumentException.class, () -> Jws.fromJce(Type.EC_P521, Algorithm.ES512, b521));
-		
+
 		b256[0] = (byte) 0x30;
 		assertThrows(IllegalArgumentException.class, () -> Jws.fromJce(Type.EC_P256, Algorithm.ES256, b256));
 
@@ -279,5 +305,5 @@ public class JwsTest extends IuCryptTestCase {
 		assertThrows(IllegalArgumentException.class, () -> Jws.fromJce(Type.EC_P256, Algorithm.ES256, b256));
 
 	}
-	
+
 }

@@ -337,6 +337,8 @@ public class JweTest {
 				.addRecipient(Algorithm.DIRECT).key(key).encrypt("foo");
 		assertEquals(IuJson.array().add(IuJson.object()).add(IuJson.object()).build(),
 				IuJson.parse(jwe.toString()).asJsonObject().getJsonArray("recipients"));
+		assertEquals(IuJson.parse(jwe.toString()),
+				IuJson.parse(WebEncryption.JSON.fromJson(WebEncryption.JSON.toJson(jwe)).toString()));
 
 		final var jwe2 = WebEncryption.builder(Encryption.A128GCM).compact().addRecipient(Algorithm.DIRECT).key(key)
 				.encrypt("foo");
@@ -347,12 +349,17 @@ public class JweTest {
 		assertNull(jwe.getAdditionalData());
 		assertNull(IuJson.parse(jwe2.toString()).asJsonObject().getJsonArray("recipients"));
 		assertNull(IuJson.parse(jwe2.toString()).asJsonObject().getJsonObject("header"));
+		assertEquals(IuJson.parse(jwe2.toString()),
+				IuJson.parse(WebEncryption.JSON.fromJson(WebEncryption.JSON.toJson(jwe2)).toString()));
 
 		final var jwe3 = WebEncryption.builder(Encryption.A128GCM).protect(Param.ENCRYPTION, Param.ZIP, Param.ALGORITHM)
 				.addRecipient(Algorithm.DIRECT).keyId(IdGenerator.generateId()).key(key).then()
 				.addRecipient(Algorithm.DIRECT).keyId(IdGenerator.generateId()).key(key).encrypt("foo");
 		assertNotNull(IuJson.parse(jwe3.toString()).asJsonObject().getJsonArray("recipients"));
 		assertNull(IuJson.parse(jwe3.toString()).asJsonObject().getJsonObject("unprotected"));
+		assertEquals(IuJson.parse(jwe3.toString()),
+				IuJson.parse(WebEncryption.JSON.fromJson(WebEncryption.JSON.toJson(jwe3)).toString()));
+
 	}
 
 	@Test
@@ -361,4 +368,48 @@ public class JweTest {
 		assertThrows(IllegalArgumentException.class,
 				() -> WebEncryption.builder(Encryption.A128GCM).addRecipient(Algorithm.DIRECT).key(key).encrypt("foo"));
 	}
+
+	@Test
+	public void testInvalidVector() throws Exception {
+		final var jwk = WebKey.ephemeral(Encryption.AES_128_CBC_HMAC_SHA_256);
+		final var id = IdGenerator.generateId();
+		final var jwe = WebEncryption.builder(Encryption.AES_128_CBC_HMAC_SHA_256) //
+				.addRecipient(Algorithm.DIRECT).key(jwk).encrypt(id);
+		final var serialized = IuJson.parse(jwe.toString()).asJsonObject();
+
+		final var iv = Arrays.copyOf(UnpaddedBinary.JSON.fromJson(serialized.get("iv")), 12);
+		final var cipherText = UnpaddedBinary.JSON.fromJson(serialized.get("cipher_text"));
+		final var macInput = ByteBuffer.wrap(new byte[iv.length + cipherText.length + 8]);
+		macInput.put(iv);
+		macInput.put(cipherText);
+		EncodingUtils.bigEndian((long) 0L, macInput);
+		final var mac = Mac.getInstance(Encryption.AES_128_CBC_HMAC_SHA_256.mac);
+		mac.init(new SecretKeySpec(Arrays.copyOfRange(jwk.getKey(), 0, jwk.getKey().length / 2),
+				Encryption.AES_128_CBC_HMAC_SHA_256.mac));
+
+		final var b = IuJson.object(serialized);
+		b.add("iv", UnpaddedBinary.base64Url(iv));
+		b.add("tag", UnpaddedBinary.base64Url(Arrays.copyOf(mac.doFinal(macInput.array()), jwk.getKey().length / 2)));
+
+		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
+		assertThrows(IllegalArgumentException.class, () -> WebEncryption.parse(b.build().toString()).decrypt(jwk));
+	}
+
+	@Test
+	public void testInvalidVectorGCM() throws Exception {
+		final var jwk = WebKey.ephemeral(Encryption.A128GCM);
+		final var id = IdGenerator.generateId();
+		final var jwe = WebEncryption.builder(Encryption.A128GCM) //
+				.addRecipient(Algorithm.DIRECT).key(jwk).encrypt(id);
+		final var serialized = IuJson.parse(jwe.toString()).asJsonObject();
+
+		final var iv = Arrays.copyOf(UnpaddedBinary.JSON.fromJson(serialized.get("iv")), 11);
+
+		final var b = IuJson.object(serialized);
+		b.add("iv", UnpaddedBinary.base64Url(iv));
+
+		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
+		assertThrows(IllegalArgumentException.class, () -> WebEncryption.parse(b.build().toString()).decrypt(jwk));
+	}
+
 }

@@ -42,6 +42,7 @@ import edu.iu.crypt.WebCertificateReference;
 import edu.iu.crypt.WebKey;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
+import jakarta.json.JsonValue;
 
 /**
  * Encapsulates JSON properties that refer to or verify an X.509 certificate
@@ -60,9 +61,10 @@ class JsonCertificateReference<R extends JsonCertificateReference<R>> implements
 	/**
 	 * Constructor.
 	 * 
-	 * @param jwk {@link JsonObject}
+	 * @param certRef {@link JsonObject}
 	 */
-	JsonCertificateReference(JsonObject jwk) {
+	JsonCertificateReference(JsonValue certRef) {
+		final var jwk = certRef.asJsonObject();
 		certificateUri = IuJson.get(jwk, "x5u", IuJsonAdapter.of(URI.class));
 		certificateChain = IuJson.get(jwk, "x5c", IuJsonAdapter.of(X509Certificate[].class, PemEncoded.CERT_JSON));
 		certificateThumbprint = IuJson.get(jwk, "x5t", UnpaddedBinary.JSON);

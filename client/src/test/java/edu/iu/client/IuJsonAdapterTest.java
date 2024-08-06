@@ -135,6 +135,22 @@ public class IuJsonAdapterTest {
 		verify(from).apply(null);
 	}
 
+	public interface Bean {
+		String getId();
+	}
+
+	@Test
+	public void testFromJavaBeans() {
+		final var id = IdGenerator.generateId();
+		final var adapter = IuJsonAdapter.from(Bean.class, IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of);
+		assertEquals(id, adapter.fromJson(adapter.toJson(new Bean() {
+			@Override
+			public String getId() {
+				return id;
+			}
+		})).getId());
+	}
+
 	@Test
 	@SuppressWarnings("unchecked")
 	public void testTo() {
@@ -204,7 +220,7 @@ public class IuJsonAdapterTest {
 		assertEquals("true", IuJsonAdapter.of(String.class).fromJson(JsonValue.TRUE));
 		assertEquals("false", IuJsonAdapter.of(String.class).fromJson(JsonValue.FALSE));
 		assertNull(IuJsonAdapter.of(String.class).fromJson(JsonValue.NULL));
-		assertThrows(IllegalArgumentException.class, () -> IuJsonAdapter.of(String.class).fromJson(null));
+		assertNull(IuJsonAdapter.of(String.class).fromJson(null));
 		assertEquals("a,1,true",
 				IuJsonAdapter.of(String.class).fromJson(IuJson.array().add("a").add(1).add(true).build()));
 	}
@@ -817,6 +833,11 @@ public class IuJsonAdapterTest {
 		}
 		assertMap(IuJsonAdapter.of(A.class.getDeclaredField("m").getGenericType()), LinkedHashMap::new,
 				this::randomUri);
+	}
+
+	@Test
+	public void testRawMap() throws NoSuchFieldException {
+		assertMap(IuJsonAdapter.of(Map.class), LinkedHashMap::new, IdGenerator::generateId);
 	}
 
 	@Test

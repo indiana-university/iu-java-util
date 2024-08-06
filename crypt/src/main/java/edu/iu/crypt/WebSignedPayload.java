@@ -32,12 +32,16 @@
 package edu.iu.crypt;
 
 import edu.iu.IuException;
+import edu.iu.client.IuJsonAdapter;
 import iu.crypt.JwsBuilder;
 
 /**
  * Encapsulates signed data.
  */
 public interface WebSignedPayload {
+
+	/** {@link IuJsonAdapter} */
+	public static final IuJsonAdapter<WebSignedPayload> JSON = JwsBuilder.JSON;
 
 	/**
 	 * Parses JWS signed payload from serialized form.

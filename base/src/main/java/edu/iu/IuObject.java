@@ -32,6 +32,7 @@
 package edu.iu;
 
 import java.lang.reflect.Array;
+import java.lang.reflect.Modifier;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
@@ -168,6 +169,19 @@ public final class IuObject {
 		final var module = classToCheck.getModule();
 		if (module.isOpen(classToCheck.getPackageName()))
 			throw new IllegalStateException("Must be in a named module and not open");
+	}
+
+	/**
+	 * Determines if a class is a final implementation class.
+	 * 
+	 * @param type type
+	 * @return true if the class is not an interface and includes the final modifier
+	 */
+	public static Class<?> requireFinalImpl(Class<?> type) {
+		if (type.isInterface() //
+				|| (type.getModifiers() & Modifier.FINAL) == 0)
+			throw new IllegalArgumentException("must be a final implementation class: " + type);
+		return type;
 	}
 
 	/**
@@ -308,7 +322,21 @@ public final class IuObject {
 	 * @throws IllegalArgumentException if the types don't match
 	 */
 	public static <T> T require(T value, Predicate<T> condition) {
-		return require(value, condition, () -> null);
+		return require(value, condition, (String) null);
+	}
+
+	/**
+	 * Require a condition to be true for a value if non-null.
+	 * 
+	 * @param <T>       value type
+	 * @param value     value
+	 * @param condition condition to verify
+	 * @param message   provides a message for {@link IllegalArgumentException}
+	 * @return value
+	 * @throws IllegalArgumentException if the types don't match
+	 */
+	public static <T> T require(T value, Predicate<T> condition, String message) {
+		return require(value, condition, () -> message);
 	}
 
 	/**

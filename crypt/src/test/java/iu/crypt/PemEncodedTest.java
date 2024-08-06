@@ -70,7 +70,7 @@ public class PemEncodedTest extends IuCryptTestCase {
 
 	@Test
 	public void testInvalid() {
-		final var i = PemEncoded.parse(IdGenerator.generateId());
+		final var i = PemEncoded.parse("_-$" + IdGenerator.generateId());
 		assertTrue(i.hasNext());
 		assertThrows(IllegalArgumentException.class, () -> i.next());
 		assertFalse(i.hasNext());
@@ -391,8 +391,9 @@ public class PemEncodedTest extends IuCryptTestCase {
 		assertTrue(pem.hasNext());
 		var key = pem.next();
 		assertEquals(KeyType.X509_CRL, key.getKeyType());
-		assertInstanceOf(X509CRL.class, key.asCRL());
-
+		final var crl = key.asCRL();
+		assertInstanceOf(X509CRL.class, crl);
+		assertEquals(crl, PemEncoded.CRL_JSON.fromJson(PemEncoded.CRL_JSON.toJson(crl)));
 		assertFalse(pem.hasNext());
 	}
 

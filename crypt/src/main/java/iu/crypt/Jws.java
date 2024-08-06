@@ -43,6 +43,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import edu.iu.IuException;
+import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
@@ -85,9 +86,9 @@ class Jws implements WebSignature {
 
 				if (param == null) {
 					final var ext = Jose.getExtension(name);
-					if (!ext.fromJson(value).equals(header.getExtendedParameter(name)))
+					if (!IuObject.equals(ext.fromJson(value), header.getExtendedParameter(name)))
 						throw new IllegalArgumentException(name + " must match protected header");
-				} else if (!param.json().fromJson(value).equals(param.get(header)))
+				} else if (!IuObject.equals(param.json().fromJson(value), param.get(header)))
 					throw new IllegalArgumentException(name + " must match protected header");
 			}
 

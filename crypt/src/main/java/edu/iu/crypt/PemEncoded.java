@@ -78,6 +78,13 @@ public final class PemEncoded {
 			a -> IuJson.string(IuText.base64(IuException.unchecked(a::getEncoded))));
 
 	/**
+	 * JSON type adapter for {@link X509CRL}.
+	 */
+	public static final IuJsonAdapter<X509CRL> CRL_JSON = IuJsonAdapter.from(
+			a -> asCRL(IuText.base64(((JsonString) a).getString())),
+			a -> IuJson.string(IuText.base64(IuException.unchecked(a::getEncoded))));
+
+	/**
 	 * Enumerates encoded key type.
 	 */
 	public enum KeyType {
