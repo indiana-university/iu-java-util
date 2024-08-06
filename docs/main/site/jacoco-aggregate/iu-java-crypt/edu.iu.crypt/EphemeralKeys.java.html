@@ -91,15 +91,16 @@ public class EphemeralKeys {
 	 */
 	public static final KeyPair ec(AlgorithmParameterSpec param) {
 <span class="fc" id="L93">		return IuException.unchecked(() -&gt; {</span>
-<span class="fc bfc" id="L94" title="All 2 branches covered.">			if (param instanceof NamedParameterSpec)</span>
-<span class="fc" id="L95">				return KeyPairGenerator.getInstance(((NamedParameterSpec) param).getName());</span>
-<span class="fc bfc" id="L96" title="All 2 branches covered.">			else if (param instanceof ECParameterSpec) {</span>
-<span class="fc" id="L97">				final var gen = KeyPairGenerator.getInstance(&quot;EC&quot;);</span>
-<span class="fc" id="L98">				gen.initialize(param);</span>
-<span class="fc" id="L99">				return gen;</span>
+			// TODO: filter input
+<span class="fc bfc" id="L95" title="All 2 branches covered.">			if (param instanceof NamedParameterSpec)</span>
+<span class="fc" id="L96">				return KeyPairGenerator.getInstance(((NamedParameterSpec) param).getName());</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">			else if (param instanceof ECParameterSpec) {</span>
+<span class="fc" id="L98">				final var gen = KeyPairGenerator.getInstance(&quot;EC&quot;);</span>
+<span class="fc" id="L99">				gen.initialize(param);</span>
+<span class="fc" id="L100">				return gen;</span>
 			} else
-<span class="fc" id="L101">				throw new IllegalArgumentException(param.toString());</span>
-<span class="fc" id="L102">		}).generateKeyPair();</span>
+<span class="fc" id="L102">				throw new IllegalArgumentException(param.toString());</span>
+<span class="fc" id="L103">		}).generateKeyPair();</span>
 	}
 
 	/**
@@ -110,10 +111,11 @@ public class EphemeralKeys {
 	 * @return {@link KeyPair}
 	 */
 	public static final KeyPair rsa(String algorithm, int size) {
-<span class="fc" id="L113">		return IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L114">			final var gen = KeyPairGenerator.getInstance(algorithm);</span>
-<span class="fc" id="L115">			gen.initialize(size);</span>
-<span class="fc" id="L116">			return gen.generateKeyPair();</span>
+<span class="fc" id="L114">		return IuException.unchecked(() -&gt; {</span>
+			// TODO: filter input
+<span class="fc" id="L116">			final var gen = KeyPairGenerator.getInstance(algorithm);</span>
+<span class="fc" id="L117">			gen.initialize(size);</span>
+<span class="fc" id="L118">			return gen.generateKeyPair();</span>
 		});
 	}
 
@@ -124,7 +126,7 @@ public class EphemeralKeys {
 	 * @return content encryption key
 	 */
 	public static final byte[] contentEncryptionKey(int size) {
-<span class="fc" id="L127">		return contentEncryptionKey(null, size);</span>
+<span class="fc" id="L129">		return contentEncryptionKey(null, size);</span>
 	}
 
 	/**
@@ -135,15 +137,15 @@ public class EphemeralKeys {
 	 * @return content encryption key
 	 */
 	public static final byte[] contentEncryptionKey(String mac, int size) {
-<span class="fc bfc" id="L138" title="All 2 branches covered.">		final var keylen = size / (mac == null ? 1 : 2);</span>
-<span class="fc" id="L139">		final byte[] key = secret(&quot;AES&quot;, keylen);</span>
-<span class="fc bfc" id="L140" title="All 2 branches covered.">		if (mac == null)</span>
-<span class="fc" id="L141">			return key;</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">		final var keylen = size / (mac == null ? 1 : 2);</span>
+<span class="fc" id="L141">		final byte[] key = secret(&quot;AES&quot;, keylen);</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">		if (mac == null)</span>
+<span class="fc" id="L143">			return key;</span>
 
-<span class="fc" id="L143">		final var buffer = ByteBuffer.wrap(new byte[keylen / 4]);</span>
-<span class="fc" id="L144">		buffer.put(secret(mac, keylen));</span>
-<span class="fc" id="L145">		buffer.put(key);</span>
-<span class="fc" id="L146">		return buffer.array();</span>
+<span class="fc" id="L145">		final var buffer = ByteBuffer.wrap(new byte[keylen / 4]);</span>
+<span class="fc" id="L146">		buffer.put(secret(mac, keylen));</span>
+<span class="fc" id="L147">		buffer.put(key);</span>
+<span class="fc" id="L148">		return buffer.array();</span>
 	}
 
 	private EphemeralKeys() {

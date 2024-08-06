@@ -59,18 +59,16 @@ import jakarta.json.JsonValue;
 <span class="fc" id="L59">			return value.toString();</span>
 <span class="fc bfc" id="L60" title="All 2 branches covered.">		else if (value instanceof JsonArray)</span>
 <span class="fc" id="L61">			return String.join(&quot;,&quot;, IuIterable.map(((JsonArray) value), this::fromJson));</span>
-<span class="fc bfc" id="L62" title="All 2 branches covered.">		else if (JsonValue.NULL.equals(value))</span>
+		else // if (value == null || JsonValue.NULL.equals(value))
 <span class="fc" id="L63">			return null;</span>
-		else
-<span class="fc" id="L65">			throw new IllegalArgumentException();</span>
 	}
 
 	@Override
 	public JsonValue toJson(CharSequence value) {
-<span class="fc bfc" id="L70" title="All 2 branches covered.">		if (value == null)</span>
-<span class="fc" id="L71">			return JsonValue.NULL;</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">		if (value == null)</span>
+<span class="fc" id="L69">			return JsonValue.NULL;</span>
 		else
-<span class="fc" id="L73">			return IuJson.PROVIDER.createValue(value.toString());</span>
+<span class="fc" id="L71">			return IuJson.PROVIDER.createValue(value.toString());</span>
 	}
 
 }

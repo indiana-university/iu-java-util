@@ -31,6 +31,8 @@
  */
 package edu.iu;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
 
@@ -66,13 +68,45 @@ public final class IuException {
 	 * @throws Error                 if {@code throwable} is an {@link Error}
 	 */
 	public static RuntimeException unchecked(Throwable throwable) throws IllegalStateException, Error {
-<span class="fc bfc" id="L69" title="All 2 branches covered.">		if (throwable instanceof RuntimeException)</span>
-<span class="fc" id="L70">			return (RuntimeException) throwable;</span>
+<span class="fc" id="L71">		return unchecked(throwable, (String) null);</span>
+	}
 
-<span class="fc bfc" id="L72" title="All 2 branches covered.">		if (throwable instanceof Error)</span>
-<span class="fc" id="L73">			throw (Error) throwable;</span>
+	/**
+	 * Expects a {@link Throwable} to be an (unchecked) {@link RuntimeException}.
+	 * 
+	 * &lt;p&gt;
+	 * This method &lt;em&gt;may&lt;/em&gt; be used as an exception handler in situations where
+	 * {@link Throwable} or one or more {@link Exception checked exceptions} are
+	 * thrown from a downstream invocation, but a {@link Exception checked
+	 * exception} &lt;em&gt;must not&lt;/em&gt; be thrown from the interface being implemented
+	 * and no special handling is specified.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;pre&gt;
+	 * try {
+	 * 	// something unsafe
+	 * } catch (Throwable e) {
+	 * 	throw IuException.unchecked(e);
+	 * }
+	 * &lt;/pre&gt;
+	 * 
+	 * @param throwable Any {@link Throwable}
+	 * @param message   Message to use with {@link IllegalStateException} if
+	 *                  throwable is not a {@link RuntimeException} or {@link Error}
+	 * @return {@code throwable} if {@link RuntimeException}
+	 * @throws IllegalStateException if {@code throwable} is a {@link Exception
+	 *                               checked exception} or {@link Throwable custom
+	 *                               throwable}
+	 * @throws Error                 if {@code throwable} is an {@link Error}
+	 */
+	public static RuntimeException unchecked(Throwable throwable, String message) throws IllegalStateException, Error {
+<span class="fc bfc" id="L103" title="All 2 branches covered.">		if (throwable instanceof RuntimeException)</span>
+<span class="fc" id="L104">			return (RuntimeException) throwable;</span>
 
-<span class="fc" id="L75">		throw new IllegalStateException(throwable);</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">		if (throwable instanceof Error)</span>
+<span class="fc" id="L107">			throw (Error) throwable;</span>
+
+<span class="fc" id="L109">		throw new IllegalStateException(message, throwable);</span>
 	}
 
 	/**
@@ -101,13 +135,13 @@ public final class IuException {
 	 * @throws Error                 if {@code throwable} is an {@link Error}
 	 */
 	public static Exception checked(Throwable throwable) throws Error, IllegalStateException {
-<span class="fc bfc" id="L104" title="All 2 branches covered.">		if (throwable instanceof Exception)</span>
-<span class="fc" id="L105">			return (Exception) throwable;</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">		if (throwable instanceof Exception)</span>
+<span class="fc" id="L139">			return (Exception) throwable;</span>
 
-<span class="fc bfc" id="L107" title="All 2 branches covered.">		else if (throwable instanceof Error)</span>
-<span class="fc" id="L108">			throw (Error) throwable;</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">		else if (throwable instanceof Error)</span>
+<span class="fc" id="L142">			throw (Error) throwable;</span>
 
-<span class="fc" id="L110">		throw new IllegalStateException(throwable);</span>
+<span class="fc" id="L144">		throw new IllegalStateException(throwable);</span>
 	}
 
 	/**
@@ -146,16 +180,16 @@ public final class IuException {
 	 */
 	public static &lt;T extends Exception&gt; T checked(Throwable throwable, Class&lt;T&gt; expectedExceptionClass)
 			throws RuntimeException, Error, IllegalStateException {
-<span class="fc bfc" id="L149" title="All 2 branches covered.">		if (expectedExceptionClass.isInstance(throwable))</span>
-<span class="fc" id="L150">			return expectedExceptionClass.cast(throwable);</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">		if (expectedExceptionClass.isInstance(throwable))</span>
+<span class="fc" id="L184">			return expectedExceptionClass.cast(throwable);</span>
 
-<span class="fc bfc" id="L152" title="All 2 branches covered.">		else if (throwable instanceof Error)</span>
-<span class="fc" id="L153">			throw (Error) throwable;</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">		else if (throwable instanceof Error)</span>
+<span class="fc" id="L187">			throw (Error) throwable;</span>
 
-<span class="fc bfc" id="L155" title="All 2 branches covered.">		else if (throwable instanceof RuntimeException)</span>
-<span class="fc" id="L156">			throw (RuntimeException) throwable;</span>
+<span class="fc bfc" id="L189" title="All 2 branches covered.">		else if (throwable instanceof RuntimeException)</span>
+<span class="fc" id="L190">			throw (RuntimeException) throwable;</span>
 
-<span class="fc" id="L158">		throw new IllegalStateException(throwable);</span>
+<span class="fc" id="L192">		throw new IllegalStateException(throwable);</span>
 	}
 
 	/**
@@ -199,19 +233,19 @@ public final class IuException {
 	public static &lt;T1 extends Exception, T2 extends Exception&gt; T1 checked(Throwable throwable,
 			Class&lt;T1&gt; expectedExceptionClass1, Class&lt;T2&gt; expectedExceptionClass2)
 			throws T2, RuntimeException, Error, IllegalStateException {
-<span class="fc bfc" id="L202" title="All 2 branches covered.">		if (expectedExceptionClass1.isInstance(throwable))</span>
-<span class="fc" id="L203">			return expectedExceptionClass1.cast(throwable);</span>
+<span class="fc bfc" id="L236" title="All 2 branches covered.">		if (expectedExceptionClass1.isInstance(throwable))</span>
+<span class="fc" id="L237">			return expectedExceptionClass1.cast(throwable);</span>
 
-<span class="fc bfc" id="L205" title="All 2 branches covered.">		else if (expectedExceptionClass2.isInstance(throwable))</span>
-<span class="fc" id="L206">			throw expectedExceptionClass2.cast(throwable);</span>
+<span class="fc bfc" id="L239" title="All 2 branches covered.">		else if (expectedExceptionClass2.isInstance(throwable))</span>
+<span class="fc" id="L240">			throw expectedExceptionClass2.cast(throwable);</span>
 
-<span class="fc bfc" id="L208" title="All 2 branches covered.">		else if (throwable instanceof RuntimeException)</span>
-<span class="fc" id="L209">			throw (RuntimeException) throwable;</span>
+<span class="fc bfc" id="L242" title="All 2 branches covered.">		else if (throwable instanceof RuntimeException)</span>
+<span class="fc" id="L243">			throw (RuntimeException) throwable;</span>
 
-<span class="fc bfc" id="L211" title="All 2 branches covered.">		else if (throwable instanceof Error)</span>
-<span class="fc" id="L212">			throw (Error) throwable;</span>
+<span class="fc bfc" id="L245" title="All 2 branches covered.">		else if (throwable instanceof Error)</span>
+<span class="fc" id="L246">			throw (Error) throwable;</span>
 
-<span class="fc" id="L214">		throw new IllegalStateException(throwable);</span>
+<span class="fc" id="L248">		throw new IllegalStateException(throwable);</span>
 	}
 
 	/**
@@ -261,22 +295,22 @@ public final class IuException {
 	public static &lt;T1 extends Exception, T2 extends Exception, T3 extends Exception&gt; T1 checked(Throwable throwable,
 			Class&lt;T1&gt; expectedExceptionClass1, Class&lt;T2&gt; expectedExceptionClass2, Class&lt;T3&gt; expectedExceptionClass3)
 			throws T2, T3, RuntimeException, Error, IllegalStateException {
-<span class="fc bfc" id="L264" title="All 2 branches covered.">		if (expectedExceptionClass1.isInstance(throwable))</span>
-<span class="fc" id="L265">			return expectedExceptionClass1.cast(throwable);</span>
+<span class="fc bfc" id="L298" title="All 2 branches covered.">		if (expectedExceptionClass1.isInstance(throwable))</span>
+<span class="fc" id="L299">			return expectedExceptionClass1.cast(throwable);</span>
 
-<span class="fc bfc" id="L267" title="All 2 branches covered.">		else if (expectedExceptionClass2.isInstance(throwable))</span>
-<span class="fc" id="L268">			throw expectedExceptionClass2.cast(throwable);</span>
+<span class="fc bfc" id="L301" title="All 2 branches covered.">		else if (expectedExceptionClass2.isInstance(throwable))</span>
+<span class="fc" id="L302">			throw expectedExceptionClass2.cast(throwable);</span>
 
-<span class="fc bfc" id="L270" title="All 2 branches covered.">		else if (expectedExceptionClass3.isInstance(throwable))</span>
-<span class="fc" id="L271">			throw expectedExceptionClass3.cast(throwable);</span>
+<span class="fc bfc" id="L304" title="All 2 branches covered.">		else if (expectedExceptionClass3.isInstance(throwable))</span>
+<span class="fc" id="L305">			throw expectedExceptionClass3.cast(throwable);</span>
 
-<span class="fc bfc" id="L273" title="All 2 branches covered.">		else if (throwable instanceof RuntimeException)</span>
-<span class="fc" id="L274">			throw (RuntimeException) throwable;</span>
+<span class="fc bfc" id="L307" title="All 2 branches covered.">		else if (throwable instanceof RuntimeException)</span>
+<span class="fc" id="L308">			throw (RuntimeException) throwable;</span>
 
-<span class="fc bfc" id="L276" title="All 2 branches covered.">		else if (throwable instanceof Error)</span>
-<span class="fc" id="L277">			throw (Error) throwable;</span>
+<span class="fc bfc" id="L310" title="All 2 branches covered.">		else if (throwable instanceof Error)</span>
+<span class="fc" id="L311">			throw (Error) throwable;</span>
 
-<span class="fc" id="L279">		throw new IllegalStateException(throwable);</span>
+<span class="fc" id="L313">		throw new IllegalStateException(throwable);</span>
 	}
 
 	/**
@@ -298,12 +332,12 @@ public final class IuException {
 	public static &lt;R&gt; R uncheckedInvocation(UnsafeSupplier&lt;R&gt; supplier) {
 		try {
 			try {
-<span class="fc" id="L301">				return supplier.get();</span>
-<span class="fc" id="L302">			} catch (InvocationTargetException e) {</span>
-<span class="fc" id="L303">				throw e.getCause();</span>
+<span class="fc" id="L335">				return supplier.get();</span>
+<span class="fc" id="L336">			} catch (InvocationTargetException e) {</span>
+<span class="fc" id="L337">				throw e.getCause();</span>
 			}
-<span class="fc" id="L305">		} catch (Throwable e) {</span>
-<span class="fc" id="L306">			throw unchecked(e);</span>
+<span class="fc" id="L339">		} catch (Throwable e) {</span>
+<span class="fc" id="L340">			throw unchecked(e);</span>
 		}
 	}
 
@@ -327,12 +361,12 @@ public final class IuException {
 	public static &lt;R&gt; R checkedInvocation(UnsafeSupplier&lt;R&gt; supplier) throws Exception {
 		try {
 			try {
-<span class="fc" id="L330">				return supplier.get();</span>
-<span class="fc" id="L331">			} catch (InvocationTargetException e) {</span>
-<span class="fc" id="L332">				throw e.getCause();</span>
+<span class="fc" id="L364">				return supplier.get();</span>
+<span class="fc" id="L365">			} catch (InvocationTargetException e) {</span>
+<span class="fc" id="L366">				throw e.getCause();</span>
 			}
-<span class="fc" id="L334">		} catch (Throwable e) {</span>
-<span class="fc" id="L335">			throw checked(e);</span>
+<span class="fc" id="L368">		} catch (Throwable e) {</span>
+<span class="fc" id="L369">			throw checked(e);</span>
 		}
 	}
 
@@ -361,12 +395,12 @@ public final class IuException {
 			UnsafeSupplier&lt;R&gt; supplier) throws T {
 		try {
 			try {
-<span class="fc" id="L364">				return supplier.get();</span>
-<span class="fc" id="L365">			} catch (InvocationTargetException e) {</span>
-<span class="fc" id="L366">				throw e.getCause();</span>
+<span class="fc" id="L398">				return supplier.get();</span>
+<span class="fc" id="L399">			} catch (InvocationTargetException e) {</span>
+<span class="fc" id="L400">				throw e.getCause();</span>
 			}
-<span class="fc" id="L368">		} catch (Throwable e) {</span>
-<span class="fc" id="L369">			throw checked(e, expectedExceptionClass);</span>
+<span class="fc" id="L402">		} catch (Throwable e) {</span>
+<span class="fc" id="L403">			throw checked(e, expectedExceptionClass);</span>
 		}
 	}
 
@@ -397,12 +431,12 @@ public final class IuException {
 			Class&lt;T2&gt; expectedExceptionClass2, UnsafeSupplier&lt;R&gt; supplier) throws T1, T2 {
 		try {
 			try {
-<span class="fc" id="L400">				return supplier.get();</span>
-<span class="fc" id="L401">			} catch (InvocationTargetException e) {</span>
-<span class="fc" id="L402">				throw e.getCause();</span>
+<span class="fc" id="L434">				return supplier.get();</span>
+<span class="fc" id="L435">			} catch (InvocationTargetException e) {</span>
+<span class="fc" id="L436">				throw e.getCause();</span>
 			}
-<span class="fc" id="L404">		} catch (Throwable e) {</span>
-<span class="fc" id="L405">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
+<span class="fc" id="L438">		} catch (Throwable e) {</span>
+<span class="fc" id="L439">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
 		}
 	}
 
@@ -438,12 +472,12 @@ public final class IuException {
 			UnsafeSupplier&lt;R&gt; supplier) throws T1, T2, T3 {
 		try {
 			try {
-<span class="fc" id="L441">				return supplier.get();</span>
-<span class="fc" id="L442">			} catch (InvocationTargetException e) {</span>
-<span class="fc" id="L443">				throw e.getCause();</span>
+<span class="fc" id="L475">				return supplier.get();</span>
+<span class="fc" id="L476">			} catch (InvocationTargetException e) {</span>
+<span class="fc" id="L477">				throw e.getCause();</span>
 			}
-<span class="fc" id="L445">		} catch (Throwable e) {</span>
-<span class="fc" id="L446">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
+<span class="fc" id="L479">		} catch (Throwable e) {</span>
+<span class="fc" id="L480">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
 		}
 	}
 
@@ -457,12 +491,26 @@ public final class IuException {
 	 * @param runnable Any {@link UnsafeRunnable}
 	 */
 	public static void unchecked(UnsafeRunnable runnable) {
+<span class="fc" id="L494">		unchecked(runnable, (String) null);</span>
+<span class="fc" id="L495">	}</span>
+
+	/**
+	 * Gracefully runs an {@link UnsafeRunnable}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #unchecked(Throwable)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param runnable Any {@link UnsafeRunnable}
+	 * @param message  message for use with {@link #unchecked(Throwable, String)}
+	 */
+	public static void unchecked(UnsafeRunnable runnable, String message) {
 		try {
-<span class="fc" id="L461">			runnable.run();</span>
-<span class="fc" id="L462">		} catch (Throwable e) {</span>
-<span class="fc" id="L463">			throw unchecked(e);</span>
-<span class="fc" id="L464">		}</span>
-<span class="fc" id="L465">	}</span>
+<span class="fc" id="L509">			runnable.run();</span>
+<span class="fc" id="L510">		} catch (Throwable e) {</span>
+<span class="fc" id="L511">			throw unchecked(e, message);</span>
+<span class="fc" id="L512">		}</span>
+<span class="fc" id="L513">	}</span>
 
 	/**
 	 * Gracefully runs an {@link UnsafeRunnable}.
@@ -476,11 +524,11 @@ public final class IuException {
 	 */
 	public static void checked(UnsafeRunnable runnable) throws Exception {
 		try {
-<span class="fc" id="L479">			runnable.run();</span>
-<span class="fc" id="L480">		} catch (Throwable e) {</span>
-<span class="fc" id="L481">			throw checked(e);</span>
-<span class="fc" id="L482">		}</span>
-<span class="fc" id="L483">	}</span>
+<span class="fc" id="L527">			runnable.run();</span>
+<span class="fc" id="L528">		} catch (Throwable e) {</span>
+<span class="fc" id="L529">			throw checked(e);</span>
+<span class="fc" id="L530">		}</span>
+<span class="fc" id="L531">	}</span>
 
 	/**
 	 * Gracefully runs an {@link UnsafeRunnable}.
@@ -499,11 +547,11 @@ public final class IuException {
 	public static &lt;T extends Exception&gt; void checked(Class&lt;T&gt; expectedExceptionClass, UnsafeRunnable runnable)
 			throws T {
 		try {
-<span class="fc" id="L502">			runnable.run();</span>
-<span class="fc" id="L503">		} catch (Throwable e) {</span>
-<span class="fc" id="L504">			throw checked(e, expectedExceptionClass);</span>
-<span class="fc" id="L505">		}</span>
-<span class="fc" id="L506">	}</span>
+<span class="fc" id="L550">			runnable.run();</span>
+<span class="fc" id="L551">		} catch (Throwable e) {</span>
+<span class="fc" id="L552">			throw checked(e, expectedExceptionClass);</span>
+<span class="fc" id="L553">		}</span>
+<span class="fc" id="L554">	}</span>
 
 	/**
 	 * Gracefully runs an {@link UnsafeRunnable}.
@@ -525,11 +573,11 @@ public final class IuException {
 	public static &lt;T1 extends Exception, T2 extends Exception&gt; void checked(Class&lt;T1&gt; expectedExceptionClass1,
 			Class&lt;T2&gt; expectedExceptionClass2, UnsafeRunnable runnable) throws T1, T2 {
 		try {
-<span class="fc" id="L528">			runnable.run();</span>
-<span class="fc" id="L529">		} catch (Throwable e) {</span>
-<span class="fc" id="L530">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
-<span class="fc" id="L531">		}</span>
-<span class="fc" id="L532">	}</span>
+<span class="fc" id="L576">			runnable.run();</span>
+<span class="fc" id="L577">		} catch (Throwable e) {</span>
+<span class="fc" id="L578">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
+<span class="fc" id="L579">		}</span>
+<span class="fc" id="L580">	}</span>
 
 	/**
 	 * Gracefully runs an {@link UnsafeRunnable}.
@@ -555,11 +603,11 @@ public final class IuException {
 			Class&lt;T1&gt; expectedExceptionClass1, Class&lt;T2&gt; expectedExceptionClass2, Class&lt;T3&gt; expectedExceptionClass3,
 			UnsafeRunnable runnable) throws T1, T2, T3 {
 		try {
-<span class="fc" id="L558">			runnable.run();</span>
-<span class="fc" id="L559">		} catch (Throwable e) {</span>
-<span class="fc" id="L560">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
-<span class="fc" id="L561">		}</span>
-<span class="fc" id="L562">	}</span>
+<span class="fc" id="L606">			runnable.run();</span>
+<span class="fc" id="L607">		} catch (Throwable e) {</span>
+<span class="fc" id="L608">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
+<span class="fc" id="L609">		}</span>
+<span class="fc" id="L610">	}</span>
 
 	/**
 	 * Gracefully gets from an {@link UnsafeSupplier}.
@@ -574,10 +622,27 @@ public final class IuException {
 	 * @return result
 	 */
 	public static &lt;T&gt; T unchecked(UnsafeSupplier&lt;T&gt; supplier) {
+<span class="fc" id="L625">		return unchecked(supplier, (String) null);</span>
+	}
+
+	/**
+	 * Gracefully gets from an {@link UnsafeSupplier}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #unchecked(Throwable)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;      result type
+	 * 
+	 * @param supplier Any {@link UnsafeSupplier}
+	 * @param message  Message to use with {@link #unchecked(Throwable, String)}
+	 * @return result
+	 */
+	public static &lt;T&gt; T unchecked(UnsafeSupplier&lt;T&gt; supplier, String message) {
 		try {
-<span class="fc" id="L578">			return supplier.get();</span>
-<span class="fc" id="L579">		} catch (Throwable e) {</span>
-<span class="fc" id="L580">			throw unchecked(e);</span>
+<span class="fc" id="L643">			return supplier.get();</span>
+<span class="fc" id="L644">		} catch (Throwable e) {</span>
+<span class="fc" id="L645">			throw unchecked(e);</span>
 		}
 	}
 
@@ -596,9 +661,9 @@ public final class IuException {
 	 */
 	public static &lt;T&gt; T checked(UnsafeSupplier&lt;T&gt; supplier) throws Exception {
 		try {
-<span class="fc" id="L599">			return supplier.get();</span>
-<span class="fc" id="L600">		} catch (Throwable e) {</span>
-<span class="fc" id="L601">			throw checked(e);</span>
+<span class="fc" id="L664">			return supplier.get();</span>
+<span class="fc" id="L665">		} catch (Throwable e) {</span>
+<span class="fc" id="L666">			throw checked(e);</span>
 		}
 	}
 
@@ -620,9 +685,9 @@ public final class IuException {
 	public static &lt;T, T1 extends Exception&gt; T checked(Class&lt;T1&gt; expectedExceptionClass, UnsafeSupplier&lt;T&gt; supplier)
 			throws T1 {
 		try {
-<span class="fc" id="L623">			return supplier.get();</span>
-<span class="fc" id="L624">		} catch (Throwable e) {</span>
-<span class="fc" id="L625">			throw checked(e, expectedExceptionClass);</span>
+<span class="fc" id="L688">			return supplier.get();</span>
+<span class="fc" id="L689">		} catch (Throwable e) {</span>
+<span class="fc" id="L690">			throw checked(e, expectedExceptionClass);</span>
 		}
 	}
 
@@ -647,9 +712,9 @@ public final class IuException {
 	public static &lt;T, T1 extends Exception, T2 extends Exception&gt; T checked(Class&lt;T1&gt; expectedExceptionClass1,
 			Class&lt;T2&gt; expectedExceptionClass2, UnsafeSupplier&lt;T&gt; supplier) throws T1, T2 {
 		try {
-<span class="fc" id="L650">			return supplier.get();</span>
-<span class="fc" id="L651">		} catch (Throwable e) {</span>
-<span class="fc" id="L652">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
+<span class="fc" id="L715">			return supplier.get();</span>
+<span class="fc" id="L716">		} catch (Throwable e) {</span>
+<span class="fc" id="L717">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
 		}
 	}
 
@@ -678,9 +743,9 @@ public final class IuException {
 			Class&lt;T1&gt; expectedExceptionClass1, Class&lt;T2&gt; expectedExceptionClass2, Class&lt;T3&gt; expectedExceptionClass3,
 			UnsafeSupplier&lt;T&gt; supplier) throws T1, T2, T3 {
 		try {
-<span class="fc" id="L681">			return supplier.get();</span>
-<span class="fc" id="L682">		} catch (Throwable e) {</span>
-<span class="fc" id="L683">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
+<span class="fc" id="L746">			return supplier.get();</span>
+<span class="fc" id="L747">		} catch (Throwable e) {</span>
+<span class="fc" id="L748">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
 		}
 	}
 
@@ -698,11 +763,11 @@ public final class IuException {
 	 */
 	public static &lt;T&gt; void unchecked(T argument, UnsafeConsumer&lt;T&gt; consumer) {
 		try {
-<span class="fc" id="L701">			consumer.accept(argument);</span>
-<span class="fc" id="L702">		} catch (Throwable e) {</span>
-<span class="fc" id="L703">			throw unchecked(e);</span>
-<span class="fc" id="L704">		}</span>
-<span class="fc" id="L705">	}</span>
+<span class="fc" id="L766">			consumer.accept(argument);</span>
+<span class="fc" id="L767">		} catch (Throwable e) {</span>
+<span class="fc" id="L768">			throw unchecked(e);</span>
+<span class="fc" id="L769">		}</span>
+<span class="fc" id="L770">	}</span>
 
 	/**
 	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
@@ -719,11 +784,11 @@ public final class IuException {
 	 */
 	public static &lt;T&gt; void checked(T argument, UnsafeConsumer&lt;T&gt; consumer) throws Exception {
 		try {
-<span class="fc" id="L722">			consumer.accept(argument);</span>
-<span class="fc" id="L723">		} catch (Throwable e) {</span>
-<span class="fc" id="L724">			throw checked(e);</span>
-<span class="fc" id="L725">		}</span>
-<span class="fc" id="L726">	}</span>
+<span class="fc" id="L787">			consumer.accept(argument);</span>
+<span class="fc" id="L788">		} catch (Throwable e) {</span>
+<span class="fc" id="L789">			throw checked(e);</span>
+<span class="fc" id="L790">		}</span>
+<span class="fc" id="L791">	}</span>
 
 	/**
 	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
@@ -745,11 +810,11 @@ public final class IuException {
 	public static &lt;T, T1 extends Exception&gt; void checked(Class&lt;T1&gt; expectedExceptionClass, T argument,
 			UnsafeConsumer&lt;T&gt; consumer) throws T1 {
 		try {
-<span class="fc" id="L748">			consumer.accept(argument);</span>
-<span class="fc" id="L749">		} catch (Throwable e) {</span>
-<span class="fc" id="L750">			throw checked(e, expectedExceptionClass);</span>
-<span class="fc" id="L751">		}</span>
-<span class="fc" id="L752">	}</span>
+<span class="fc" id="L813">			consumer.accept(argument);</span>
+<span class="fc" id="L814">		} catch (Throwable e) {</span>
+<span class="fc" id="L815">			throw checked(e, expectedExceptionClass);</span>
+<span class="fc" id="L816">		}</span>
+<span class="fc" id="L817">	}</span>
 
 	/**
 	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
@@ -774,11 +839,11 @@ public final class IuException {
 	public static &lt;T, T1 extends Exception, T2 extends Exception&gt; void checked(Class&lt;T1&gt; expectedExceptionClass1,
 			Class&lt;T2&gt; expectedExceptionClass2, T argument, UnsafeConsumer&lt;T&gt; consumer) throws T1, T2 {
 		try {
-<span class="fc" id="L777">			consumer.accept(argument);</span>
-<span class="fc" id="L778">		} catch (Throwable e) {</span>
-<span class="fc" id="L779">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
-<span class="fc" id="L780">		}</span>
-<span class="fc" id="L781">	}</span>
+<span class="fc" id="L842">			consumer.accept(argument);</span>
+<span class="fc" id="L843">		} catch (Throwable e) {</span>
+<span class="fc" id="L844">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
+<span class="fc" id="L845">		}</span>
+<span class="fc" id="L846">	}</span>
 
 	/**
 	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
@@ -807,11 +872,11 @@ public final class IuException {
 			Class&lt;T1&gt; expectedExceptionClass1, Class&lt;T2&gt; expectedExceptionClass2, Class&lt;T3&gt; expectedExceptionClass3,
 			T argument, UnsafeConsumer&lt;T&gt; consumer) throws T1, T2, T3 {
 		try {
-<span class="fc" id="L810">			consumer.accept(argument);</span>
-<span class="fc" id="L811">		} catch (Throwable e) {</span>
-<span class="fc" id="L812">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
-<span class="fc" id="L813">		}</span>
-<span class="fc" id="L814">	}</span>
+<span class="fc" id="L875">			consumer.accept(argument);</span>
+<span class="fc" id="L876">		} catch (Throwable e) {</span>
+<span class="fc" id="L877">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
+<span class="fc" id="L878">		}</span>
+<span class="fc" id="L879">	}</span>
 
 	/**
 	 * Gracefully applies an {@link UnsafeFunction}.
@@ -829,9 +894,9 @@ public final class IuException {
 	 */
 	public static &lt;T, R&gt; R unchecked(T argument, UnsafeFunction&lt;T, R&gt; function) {
 		try {
-<span class="fc" id="L832">			return function.apply(argument);</span>
-<span class="fc" id="L833">		} catch (Throwable e) {</span>
-<span class="fc" id="L834">			throw unchecked(e);</span>
+<span class="fc" id="L897">			return function.apply(argument);</span>
+<span class="fc" id="L898">		} catch (Throwable e) {</span>
+<span class="fc" id="L899">			throw unchecked(e);</span>
 		}
 	}
 
@@ -852,9 +917,9 @@ public final class IuException {
 	 */
 	public static &lt;T, R&gt; R checked(T argument, UnsafeFunction&lt;T, R&gt; function) throws Exception {
 		try {
-<span class="fc" id="L855">			return function.apply(argument);</span>
-<span class="fc" id="L856">		} catch (Throwable e) {</span>
-<span class="fc" id="L857">			throw checked(e);</span>
+<span class="fc" id="L920">			return function.apply(argument);</span>
+<span class="fc" id="L921">		} catch (Throwable e) {</span>
+<span class="fc" id="L922">			throw checked(e);</span>
 		}
 	}
 
@@ -879,9 +944,9 @@ public final class IuException {
 	public static &lt;T, R, T1 extends Exception&gt; R checked(Class&lt;T1&gt; expectedExceptionClass, T argument,
 			UnsafeFunction&lt;T, R&gt; function) throws T1 {
 		try {
-<span class="fc" id="L882">			return function.apply(argument);</span>
-<span class="fc" id="L883">		} catch (Throwable e) {</span>
-<span class="fc" id="L884">			throw checked(e, expectedExceptionClass);</span>
+<span class="fc" id="L947">			return function.apply(argument);</span>
+<span class="fc" id="L948">		} catch (Throwable e) {</span>
+<span class="fc" id="L949">			throw checked(e, expectedExceptionClass);</span>
 		}
 	}
 
@@ -909,9 +974,9 @@ public final class IuException {
 	public static &lt;T, R, T1 extends Exception, T2 extends Exception&gt; R checked(Class&lt;T1&gt; expectedExceptionClass1,
 			Class&lt;T2&gt; expectedExceptionClass2, T argument, UnsafeFunction&lt;T, R&gt; function) throws T1, T2 {
 		try {
-<span class="fc" id="L912">			return function.apply(argument);</span>
-<span class="fc" id="L913">		} catch (Throwable e) {</span>
-<span class="fc" id="L914">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
+<span class="fc" id="L977">			return function.apply(argument);</span>
+<span class="fc" id="L978">		} catch (Throwable e) {</span>
+<span class="fc" id="L979">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
 		}
 	}
 
@@ -943,9 +1008,9 @@ public final class IuException {
 			Class&lt;T1&gt; expectedExceptionClass1, Class&lt;T2&gt; expectedExceptionClass2, Class&lt;T3&gt; expectedExceptionClass3,
 			T argument, UnsafeFunction&lt;T, R&gt; function) throws T1, T2, T3 {
 		try {
-<span class="fc" id="L946">			return function.apply(argument);</span>
-<span class="fc" id="L947">		} catch (Throwable e) {</span>
-<span class="fc" id="L948">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
+<span class="fc" id="L1011">			return function.apply(argument);</span>
+<span class="fc" id="L1012">		} catch (Throwable e) {</span>
+<span class="fc" id="L1013">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
 		}
 	}
 
@@ -967,11 +1032,11 @@ public final class IuException {
 	 */
 	public static &lt;T, U&gt; void unchecked(T firstArgument, U secondArgument, UnsafeBiConsumer&lt;T, U&gt; consumer) {
 		try {
-<span class="fc" id="L970">			consumer.accept(firstArgument, secondArgument);</span>
-<span class="fc" id="L971">		} catch (Throwable e) {</span>
-<span class="fc" id="L972">			throw unchecked(e);</span>
-<span class="fc" id="L973">		}</span>
-<span class="fc" id="L974">	}</span>
+<span class="fc" id="L1035">			consumer.accept(firstArgument, secondArgument);</span>
+<span class="fc" id="L1036">		} catch (Throwable e) {</span>
+<span class="fc" id="L1037">			throw unchecked(e);</span>
+<span class="fc" id="L1038">		}</span>
+<span class="fc" id="L1039">	}</span>
 
 	/**
 	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
@@ -993,11 +1058,11 @@ public final class IuException {
 	public static &lt;T, U&gt; void checked(T firstArgument, U secondArgument, UnsafeBiConsumer&lt;T, U&gt; consumer)
 			throws Exception {
 		try {
-<span class="fc" id="L996">			consumer.accept(firstArgument, secondArgument);</span>
-<span class="fc" id="L997">		} catch (Throwable e) {</span>
-<span class="fc" id="L998">			throw checked(e);</span>
-<span class="fc" id="L999">		}</span>
-<span class="fc" id="L1000">	}</span>
+<span class="fc" id="L1061">			consumer.accept(firstArgument, secondArgument);</span>
+<span class="fc" id="L1062">		} catch (Throwable e) {</span>
+<span class="fc" id="L1063">			throw checked(e);</span>
+<span class="fc" id="L1064">		}</span>
+<span class="fc" id="L1065">	}</span>
 
 	/**
 	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
@@ -1022,11 +1087,11 @@ public final class IuException {
 	public static &lt;T, U, T1 extends Exception&gt; void checked(Class&lt;T1&gt; expectedExceptionClass, T firstArgument,
 			U secondArgument, UnsafeBiConsumer&lt;T, U&gt; consumer) throws T1 {
 		try {
-<span class="fc" id="L1025">			consumer.accept(firstArgument, secondArgument);</span>
-<span class="fc" id="L1026">		} catch (Throwable e) {</span>
-<span class="fc" id="L1027">			throw checked(e, expectedExceptionClass);</span>
-<span class="fc" id="L1028">		}</span>
-<span class="fc" id="L1029">	}</span>
+<span class="fc" id="L1090">			consumer.accept(firstArgument, secondArgument);</span>
+<span class="fc" id="L1091">		} catch (Throwable e) {</span>
+<span class="fc" id="L1092">			throw checked(e, expectedExceptionClass);</span>
+<span class="fc" id="L1093">		}</span>
+<span class="fc" id="L1094">	}</span>
 
 	/**
 	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
@@ -1055,11 +1120,11 @@ public final class IuException {
 			Class&lt;T2&gt; expectedExceptionClass2, T firstArgument, U secondArgument, UnsafeBiConsumer&lt;T, U&gt; consumer)
 			throws T1, T2 {
 		try {
-<span class="fc" id="L1058">			consumer.accept(firstArgument, secondArgument);</span>
-<span class="fc" id="L1059">		} catch (Throwable e) {</span>
-<span class="fc" id="L1060">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
-<span class="fc" id="L1061">		}</span>
-<span class="fc" id="L1062">	}</span>
+<span class="fc" id="L1123">			consumer.accept(firstArgument, secondArgument);</span>
+<span class="fc" id="L1124">		} catch (Throwable e) {</span>
+<span class="fc" id="L1125">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
+<span class="fc" id="L1126">		}</span>
+<span class="fc" id="L1127">	}</span>
 
 	/**
 	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
@@ -1091,11 +1156,11 @@ public final class IuException {
 			Class&lt;T1&gt; expectedExceptionClass1, Class&lt;T2&gt; expectedExceptionClass2, Class&lt;T3&gt; expectedExceptionClass3,
 			T firstArgument, U secondArgument, UnsafeBiConsumer&lt;T, U&gt; consumer) throws T1, T2, T3 {
 		try {
-<span class="fc" id="L1094">			consumer.accept(firstArgument, secondArgument);</span>
-<span class="fc" id="L1095">		} catch (Throwable e) {</span>
-<span class="fc" id="L1096">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
-<span class="fc" id="L1097">		}</span>
-<span class="fc" id="L1098">	}</span>
+<span class="fc" id="L1159">			consumer.accept(firstArgument, secondArgument);</span>
+<span class="fc" id="L1160">		} catch (Throwable e) {</span>
+<span class="fc" id="L1161">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
+<span class="fc" id="L1162">		}</span>
+<span class="fc" id="L1163">	}</span>
 
 	/**
 	 * Gracefully applies an {@link UnsafeBiFunction}.
@@ -1117,9 +1182,9 @@ public final class IuException {
 	 */
 	public static &lt;T, U, R&gt; R unchecked(T firstArgument, U secondArgument, UnsafeBiFunction&lt;T, U, R&gt; function) {
 		try {
-<span class="fc" id="L1120">			return function.apply(firstArgument, secondArgument);</span>
-<span class="fc" id="L1121">		} catch (Throwable e) {</span>
-<span class="fc" id="L1122">			throw unchecked(e);</span>
+<span class="fc" id="L1185">			return function.apply(firstArgument, secondArgument);</span>
+<span class="fc" id="L1186">		} catch (Throwable e) {</span>
+<span class="fc" id="L1187">			throw unchecked(e);</span>
 		}
 	}
 
@@ -1145,9 +1210,9 @@ public final class IuException {
 	public static &lt;T, U, R&gt; R checked(T firstArgument, U secondArgument, UnsafeBiFunction&lt;T, U, R&gt; function)
 			throws Exception {
 		try {
-<span class="fc" id="L1148">			return function.apply(firstArgument, secondArgument);</span>
-<span class="fc" id="L1149">		} catch (Throwable e) {</span>
-<span class="fc" id="L1150">			throw checked(e);</span>
+<span class="fc" id="L1213">			return function.apply(firstArgument, secondArgument);</span>
+<span class="fc" id="L1214">		} catch (Throwable e) {</span>
+<span class="fc" id="L1215">			throw checked(e);</span>
 		}
 	}
 
@@ -1175,9 +1240,9 @@ public final class IuException {
 	public static &lt;T, U, R, T1 extends Exception&gt; R checked(Class&lt;T1&gt; expectedExceptionClass, T firstArgument,
 			U secondArgument, UnsafeBiFunction&lt;T, U, R&gt; function) throws T1 {
 		try {
-<span class="fc" id="L1178">			return function.apply(firstArgument, secondArgument);</span>
-<span class="fc" id="L1179">		} catch (Throwable e) {</span>
-<span class="fc" id="L1180">			throw checked(e, expectedExceptionClass);</span>
+<span class="fc" id="L1243">			return function.apply(firstArgument, secondArgument);</span>
+<span class="fc" id="L1244">		} catch (Throwable e) {</span>
+<span class="fc" id="L1245">			throw checked(e, expectedExceptionClass);</span>
 		}
 	}
 
@@ -1209,9 +1274,9 @@ public final class IuException {
 			Class&lt;T2&gt; expectedExceptionClass2, T firstArgument, U secondArgument, UnsafeBiFunction&lt;T, U, R&gt; function)
 			throws T1, T2 {
 		try {
-<span class="fc" id="L1212">			return function.apply(firstArgument, secondArgument);</span>
-<span class="fc" id="L1213">		} catch (Throwable e) {</span>
-<span class="fc" id="L1214">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
+<span class="fc" id="L1277">			return function.apply(firstArgument, secondArgument);</span>
+<span class="fc" id="L1278">		} catch (Throwable e) {</span>
+<span class="fc" id="L1279">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
 		}
 	}
 
@@ -1246,9 +1311,9 @@ public final class IuException {
 			Class&lt;T1&gt; expectedExceptionClass1, Class&lt;T2&gt; expectedExceptionClass2, Class&lt;T3&gt; expectedExceptionClass3,
 			T firstArgument, U secondArgument, UnsafeBiFunction&lt;T, U, R&gt; function) throws T1, T2, T3 {
 		try {
-<span class="fc" id="L1249">			return function.apply(firstArgument, secondArgument);</span>
-<span class="fc" id="L1250">		} catch (Throwable e) {</span>
-<span class="fc" id="L1251">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
+<span class="fc" id="L1314">			return function.apply(firstArgument, secondArgument);</span>
+<span class="fc" id="L1315">		} catch (Throwable e) {</span>
+<span class="fc" id="L1316">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
 		}
 	}
 
@@ -1276,10 +1341,10 @@ public final class IuException {
 	public static &lt;T extends AutoCloseable, R&gt; R initialize(T resource, UnsafeFunction&lt;T, R&gt; initializer)
 			throws Exception {
 		try {
-<span class="fc" id="L1279">			return initializer.apply(resource);</span>
-<span class="fc" id="L1280">		} catch (Throwable e) {</span>
-<span class="fc" id="L1281">			suppress(e, resource::close);</span>
-<span class="fc" id="L1282">			throw checked(e);</span>
+<span class="fc" id="L1344">			return initializer.apply(resource);</span>
+<span class="fc" id="L1345">		} catch (Throwable e) {</span>
+<span class="fc" id="L1346">			suppress(e, resource::close);</span>
+<span class="fc" id="L1347">			throw checked(e);</span>
 		}
 	}
 
@@ -1302,14 +1367,14 @@ public final class IuException {
 	 */
 	public static Throwable suppress(Throwable throwable, UnsafeRunnable runnable) {
 		try {
-<span class="fc" id="L1305">			runnable.run();</span>
-<span class="fc" id="L1306">		} catch (Throwable e) {</span>
-<span class="fc bfc" id="L1307" title="All 2 branches covered.">			if (throwable == null)</span>
-<span class="fc" id="L1308">				throwable = e;</span>
+<span class="fc" id="L1370">			runnable.run();</span>
+<span class="fc" id="L1371">		} catch (Throwable e) {</span>
+<span class="fc bfc" id="L1372" title="All 2 branches covered.">			if (throwable == null)</span>
+<span class="fc" id="L1373">				throwable = e;</span>
 			else
-<span class="fc" id="L1310">				throwable.addSuppressed(e);</span>
-<span class="fc" id="L1311">		}</span>
-<span class="fc" id="L1312">		return throwable;</span>
+<span class="fc" id="L1375">				throwable.addSuppressed(e);</span>
+<span class="fc" id="L1376">		}</span>
+<span class="fc" id="L1377">		return throwable;</span>
 	}
 
 	/**
@@ -1325,8 +1390,8 @@ public final class IuException {
 	 * @throws Throwable from the first task the fails in error
 	 */
 	public static void suppress(UnsafeRunnable... tasks) throws Throwable {
-<span class="fc" id="L1328">		suppress(IuIterable.iter(tasks));</span>
-<span class="fc" id="L1329">	}</span>
+<span class="fc" id="L1393">		suppress(IuIterable.iter(tasks));</span>
+<span class="fc" id="L1394">	}</span>
 
 	/**
 	 * Runs a sequence of tasks with error suppression.
@@ -1341,12 +1406,26 @@ public final class IuException {
 	 * @throws Throwable from the first task the fails in error
 	 */
 	public static void suppress(Iterable&lt;UnsafeRunnable&gt; tasks) throws Throwable {
-<span class="fc" id="L1344">		Throwable e = null;</span>
-<span class="fc bfc" id="L1345" title="All 2 branches covered.">		for (final var task : tasks)</span>
-<span class="fc" id="L1346">			e = suppress(e, task);</span>
-<span class="fc bfc" id="L1347" title="All 2 branches covered.">		if (e != null)</span>
-<span class="fc" id="L1348">			throw e;</span>
-<span class="fc" id="L1349">	}</span>
+<span class="fc" id="L1409">		Throwable e = null;</span>
+<span class="fc bfc" id="L1410" title="All 2 branches covered.">		for (final var task : tasks)</span>
+<span class="fc" id="L1411">			e = suppress(e, task);</span>
+<span class="fc bfc" id="L1412" title="All 2 branches covered.">		if (e != null)</span>
+<span class="fc" id="L1413">			throw e;</span>
+<span class="fc" id="L1414">	}</span>
+
+	/**
+	 * Gets a stack trace from a {@link Throwable} as a {@link String}.
+	 * 
+	 * @param e {@link Throwable}
+	 * @return {@link String} representation of the stack trace.
+	 */
+	public static String trace(Throwable e) {
+<span class="fc" id="L1423">		final var w = new StringWriter();</span>
+<span class="fc" id="L1424">		try (final var pw = new PrintWriter(w)) {</span>
+<span class="fc" id="L1425">			e.printStackTrace(pw);</span>
+		}
+<span class="fc" id="L1427">		return w.toString();</span>
+	}
 
 	private IuException() {
 	}

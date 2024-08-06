@@ -81,6 +81,7 @@ import java.util.stream.Stream;
 
 import edu.iu.IuText;
 import iu.client.JsonAdapters;
+import iu.client.JsonSerializer;
 import iu.client.ParsingJsonAdapter;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonArrayBuilder;
@@ -106,15 +107,15 @@ public interface IuJsonAdapter&lt;T&gt; {
 	 * @return functional adapter
 	 */
 	static &lt;T&gt; IuJsonAdapter&lt;T&gt; from(Function&lt;JsonValue, T&gt; fromJson) {
-<span class="fc" id="L109">		return new IuJsonAdapter&lt;T&gt;() {</span>
+<span class="fc" id="L110">		return new IuJsonAdapter&lt;T&gt;() {</span>
 			@Override
 			public T fromJson(JsonValue jsonValue) {
-<span class="fc" id="L112">				return fromJson.apply(jsonValue);</span>
+<span class="fc" id="L113">				return fromJson.apply(jsonValue);</span>
 			}
 
 			@Override
 			public JsonValue toJson(T javaValue) {
-<span class="fc" id="L117">				throw new UnsupportedOperationException();</span>
+<span class="fc" id="L118">				throw new UnsupportedOperationException();</span>
 			}
 		};
 	}
@@ -127,7 +128,7 @@ public interface IuJsonAdapter&lt;T&gt; {
 	 * @return functional adapter
 	 */
 	static &lt;T&gt; IuJsonAdapter&lt;T&gt; text(Function&lt;String, T&gt; parser) {
-<span class="fc" id="L130">		return text(parser, T::toString);</span>
+<span class="fc" id="L131">		return text(parser, T::toString);</span>
 	}
 
 	/**
@@ -139,7 +140,7 @@ public interface IuJsonAdapter&lt;T&gt; {
 	 * @return functional adapter
 	 */
 	static &lt;T&gt; IuJsonAdapter&lt;T&gt; text(Function&lt;String, T&gt; parser, Function&lt;T, String&gt; print) {
-<span class="fc" id="L142">		return new ParsingJsonAdapter&lt;&gt;(parser, print);</span>
+<span class="fc" id="L143">		return new ParsingJsonAdapter&lt;&gt;(parser, print);</span>
 	}
 
 	/**
@@ -150,15 +151,15 @@ public interface IuJsonAdapter&lt;T&gt; {
 	 * @return functional adapter
 	 */
 	static &lt;T&gt; IuJsonAdapter&lt;T&gt; to(Function&lt;T, JsonValue&gt; toJson) {
-<span class="fc" id="L153">		return new IuJsonAdapter&lt;T&gt;() {</span>
+<span class="fc" id="L154">		return new IuJsonAdapter&lt;T&gt;() {</span>
 			@Override
 			public T fromJson(JsonValue jsonValue) {
-<span class="fc" id="L156">				throw new UnsupportedOperationException();</span>
+<span class="fc" id="L157">				throw new UnsupportedOperationException();</span>
 			}
 
 			@Override
 			public JsonValue toJson(T javaValue) {
-<span class="fc" id="L161">				return toJson.apply(javaValue);</span>
+<span class="fc" id="L162">				return toJson.apply(javaValue);</span>
 			}
 		};
 	}
@@ -172,17 +173,35 @@ public interface IuJsonAdapter&lt;T&gt; {
 	 * @return functional adapter
 	 */
 	static &lt;T&gt; IuJsonAdapter&lt;T&gt; from(Function&lt;JsonValue, T&gt; fromJson, Function&lt;T, JsonValue&gt; toJson) {
-<span class="fc" id="L175">		return new IuJsonAdapter&lt;T&gt;() {</span>
+<span class="fc" id="L176">		return new IuJsonAdapter&lt;T&gt;() {</span>
 			@Override
 			public T fromJson(JsonValue jsonValue) {
-<span class="fc" id="L178">				return fromJson.apply(jsonValue);</span>
+<span class="fc" id="L179">				return fromJson.apply(jsonValue);</span>
 			}
 
 			@Override
 			public JsonValue toJson(T javaValue) {
-<span class="fc" id="L183">				return toJson.apply(javaValue);</span>
+<span class="fc" id="L184">				return toJson.apply(javaValue);</span>
 			}
 		};
+	}
+
+	/**
+	 * Creates a JSON type adapter that converts from a JavaBeans business object
+	 * type to and from JSON.
+	 * 
+	 * @param &lt;T&gt;                business object type
+	 * @param type               business object class; &lt;em&gt;must&lt;/em&gt; be an
+	 *                           interface to convert from JSON, an interface is
+	 *                           &lt;em&gt;not required&lt;/em&gt; to convert from JSON.
+	 * @param propertyNameFormat property name format to use for converting to JSON
+	 * @param valueAdapter       value adapter function
+	 * @return {@link IuJsonAdapter}
+	 */
+	static &lt;T&gt; IuJsonAdapter&lt;T&gt; from(Class&lt;T&gt; type, IuJsonPropertyNameFormat propertyNameFormat,
+			Function&lt;Type, IuJsonAdapter&lt;?&gt;&gt; valueAdapter) {
+<span class="fc" id="L203">		return from(v -&gt; IuJson.wrap(v.asJsonObject(), type, valueAdapter),</span>
+<span class="fc" id="L204">				v -&gt; JsonSerializer.serialize(type, v, propertyNameFormat, valueAdapter));</span>
 	}
 
 	/**
@@ -223,7 +242,7 @@ public interface IuJsonAdapter&lt;T&gt; {
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	static &lt;T&gt; IuJsonAdapter&lt;T&gt; basic() {
-<span class="fc" id="L226">		return JsonAdapters.adapt(Object.class, null);</span>
+<span class="fc" id="L245">		return JsonAdapters.adapt(Object.class, null);</span>
 	}
 
 	/**
@@ -324,7 +343,7 @@ public interface IuJsonAdapter&lt;T&gt; {
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	static &lt;T&gt; IuJsonAdapter&lt;T&gt; of(Type type) {
-<span class="fc" id="L327">		return JsonAdapters.adapt(type, null);</span>
+<span class="fc" id="L346">		return JsonAdapters.adapt(type, null);</span>
 	}
 
 	/**
@@ -337,7 +356,7 @@ public interface IuJsonAdapter&lt;T&gt; {
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	static &lt;T&gt; IuJsonAdapter&lt;T&gt; of(Class&lt;T&gt; type) {
-<span class="fc" id="L340">		return JsonAdapters.adapt((Type) type, null);</span>
+<span class="fc" id="L359">		return JsonAdapters.adapt((Type) type, null);</span>
 	}
 
 	/**
@@ -352,9 +371,24 @@ public interface IuJsonAdapter&lt;T&gt; {
 	 * @return {@link IuJsonAdapter}
 	 * @see #of(Type)
 	 */
-	@SuppressWarnings(&quot;unchecked&quot;)
 	static &lt;T&gt; IuJsonAdapter&lt;T&gt; of(Class&lt;? super T&gt; type, IuJsonAdapter&lt;?&gt; valueAdapter) {
-<span class="fc" id="L357">		return JsonAdapters.adapt(type, valueAdapter);</span>
+<span class="fc" id="L375">		return of(type, a -&gt; valueAdapter);</span>
+	}
+
+	/**
+	 * Provides a JSON type adapter that delegates to another adapter for
+	 * parameterized values.
+	 * 
+	 * @param &lt;T&gt;          target type
+	 * @param type         target type
+	 * @param valueAdapter Factory function for supplying a value type adapter for
+	 *                     {@link JsonStructure} conversion based on the item type.
+	 * @return {@link IuJsonAdapter}
+	 * @see #of(Type)
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	static &lt;T&gt; IuJsonAdapter&lt;T&gt; of(Type type, Function&lt;Class&lt;?&gt;, IuJsonAdapter&lt;?&gt;&gt; valueAdapter) {
+<span class="fc" id="L391">		return JsonAdapters.adapt(type, valueAdapter);</span>
 	}
 
 	/**
