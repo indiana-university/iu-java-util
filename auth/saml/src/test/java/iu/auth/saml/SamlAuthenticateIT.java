@@ -82,7 +82,7 @@ public class SamlAuthenticateIT {
 		AuthConfig.registerInterface("realm", IuSamlServiceProviderMetadata.class, IuVault.RUNTIME);
 		final var realm = AuthConfig.load(IuSamlServiceProviderMetadata.class, REALM);
 		postUri = realm.getAcsUris().iterator().next();
-		entryPointUri = realm.getEntryPointUris().iterator().next();
+		entryPointUri = URI.create("test:" + IdGenerator.generateId());
 
 		AuthConfig.register(new PkiVerifier(realm.getIdentity()));
 

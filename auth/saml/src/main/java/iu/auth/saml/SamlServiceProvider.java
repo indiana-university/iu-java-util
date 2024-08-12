@@ -223,19 +223,6 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 	}
 
 	/**
-	 * Checks an entry point URI against the configured allow list.
-	 * 
-	 * @param entryPointUri entry point URI
-	 * @return true if allowed
-	 */
-	boolean isValidEntryPoint(URI entryPointUri) {
-		for (final var entryPoint : samlBuilder.entryPointUris)
-			if (entryPoint.equals(entryPointUri))
-				return true;
-		return false;
-	}
-
-	/**
 	 * Generate SAML authentication request use by client to redirect user to
 	 * identity provider system for authentication.
 	 * 

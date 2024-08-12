@@ -84,8 +84,6 @@ final class SamlSession implements IuSamlSession {
 		this.entryPointUri = entryPointUri;
 		this.postUri = postUri;
 		this.serviceProvider = SamlServiceProvider.withBinding(postUri);
-		if (!serviceProvider.isValidEntryPoint(entryPointUri))
-			throw new IllegalArgumentException("Invalid entry point URI");
 		this.secretKey = secretKey;
 	}
 

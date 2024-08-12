@@ -98,7 +98,6 @@ public class SamlSessionTest {
 	public void testGetRequestUri() {
 		URI requestUri = URI.create("https://sp.identityserver/?SAMLRequest=1233&RelayState=1223");
 		SamlServiceProvider provider = mock(SamlServiceProvider.class);
-		when(provider.isValidEntryPoint(any())).thenReturn(true);
 		when(provider.getAuthnRequest(any(), any())).thenReturn(requestUri);
 		URI postUri = URI.create("test://postUri");
 
@@ -112,23 +111,9 @@ public class SamlSessionTest {
 	}
 
 	@Test
-	public void testInvalidEntryPointURI() {
-		SamlServiceProvider provider = mock(SamlServiceProvider.class);
-		URI postUri = URI.create("test://postUri");
-
-		try (final var mockProvider = mockStatic(SamlServiceProvider.class)) {
-			mockProvider.when(() -> SamlServiceProvider.withBinding(postUri)).thenReturn(provider);
-			final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
-			URI entryPointUri = URI.create("test://entrypoint");
-			assertThrows(IllegalArgumentException.class, () -> new SamlSession(entryPointUri, postUri, () -> secret));
-		}
-	}
-
-	@Test
 	public void testIuAuthenticationExceptionVerifyResponse() throws IuAuthenticationException {
 		URI requestUri = URI.create("https://sp.identityserver/?SAMLRequest=1233&RelayState=1223");
 		SamlServiceProvider provider = mock(SamlServiceProvider.class);
-		when(provider.isValidEntryPoint(any())).thenReturn(true);
 		when(provider.getAuthnRequest(any(), any())).thenReturn(requestUri);
 		URI postUri = URI.create("test://postUri");
 
@@ -168,7 +153,6 @@ public class SamlSessionTest {
 
 		SamlBuilder builder = new SamlBuilder(config);
 		final var provider = mock(SamlServiceProvider.class);
-		when(provider.isValidEntryPoint(any())).thenReturn(true);
 		when(provider.getAuthnRequest(any(), any())).thenCallRealMethod();
 		when(provider.verifyResponse(any(), any(), any())).thenReturn(mockSamlPrincipal);
 		Field f;
@@ -247,7 +231,6 @@ public class SamlSessionTest {
 
 		SamlBuilder builder = new SamlBuilder(config);
 		final var provider = mock(SamlServiceProvider.class);
-		when(provider.isValidEntryPoint(any())).thenReturn(true);
 		when(provider.getAuthnRequest(any(), any())).thenCallRealMethod();
 		when(provider.verifyResponse(any(), any(), any())).thenReturn(mockSamlPrincipal);
 		when(provider.getVerifyAlg()).thenReturn(WebKey.Algorithm.RS256);
@@ -334,7 +317,7 @@ public class SamlSessionTest {
 		when(mockSamlPrincipal.toString()).thenReturn(jsonbuilder.build().toString());
 
 		final var provider = mock(SamlServiceProvider.class);
-		when(provider.isValidEntryPoint(any())).thenReturn(true);
+//		when(provider.isValidEntryPoint(any())).thenReturn(true);
 		when(provider.getAuthnRequest(any(), any())).thenCallRealMethod();
 		when(provider.verifyResponse(any(), any(), any())).thenReturn(mockSamlPrincipal);
 		when(provider.getVerifyAlg()).thenReturn(WebKey.Algorithm.RS256);
@@ -427,7 +410,7 @@ public class SamlSessionTest {
 
 		SamlBuilder builder = new SamlBuilder(config);
 		final var provider = mock(SamlServiceProvider.class);
-		when(provider.isValidEntryPoint(any())).thenReturn(true);
+//		when(provider.isValidEntryPoint(any())).thenReturn(true);
 		when(provider.getAuthnRequest(any(), any())).thenCallRealMethod();
 		when(provider.verifyResponse(any(), any(), any())).thenReturn(mockSamlPrincipal);
 		when(provider.getVerifyAlg()).thenReturn(WebKey.Algorithm.RS256);
@@ -507,12 +490,6 @@ public class SamlSessionTest {
 			public IuPrivateKeyPrincipal getIdentity() {
 				return pkp;
 			}
-
-			@Override
-			public Iterable<URI> getEntryPointUris() {
-				return IuIterable.iter(URI.create("test://entrypoint"));
-			}
-
 		};
 		return config;
 	}

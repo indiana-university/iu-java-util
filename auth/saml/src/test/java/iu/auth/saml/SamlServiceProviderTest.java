@@ -32,7 +32,6 @@
 package iu.auth.saml;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -91,7 +90,6 @@ import org.opensaml.xmlsec.signature.support.impl.ExplicitKeySignatureTrustEngin
 
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
-import edu.iu.IuIterable;
 import edu.iu.IuText;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
@@ -310,8 +308,6 @@ public class SamlServiceProviderTest {
 			mockAuthConfig.when(() -> AuthConfig.load(IuSamlServiceProviderMetadata.class, realm)).thenReturn(config);
 			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
 			mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any())).thenReturn(false);
-			assertFalse(samlprovider.isValidEntryPoint(postUri));
-			assertTrue(samlprovider.isValidEntryPoint(URI.create("test://init")));
 			assertEquals(realm, samlprovider.getRealm());
 			assertNull(samlprovider.getAuthScheme());
 			assertEquals(postUri, samlprovider.getAuthenticationEndpoint());
@@ -968,12 +964,6 @@ public class SamlServiceProviderTest {
 			public IuPrivateKeyPrincipal getIdentity() {
 				return pkp;
 			}
-
-			@Override
-			public Iterable<URI> getEntryPointUris() {
-				return IuIterable.iter(URI.create("test://init"));
-			}
-
 		};
 		return config;
 	}

@@ -105,13 +105,6 @@ public interface IuSamlServiceProviderMetadata extends IuAuthenticationRealm {
 	Iterable<URI> getAcsUris();
 
 	/**
-	 * Gets the list of allowed application entry point {@link URI}s.
-	 * 
-	 * @return allowed list of application entry point {@link URI}
-	 */
-	Iterable<URI> getEntryPointUris();
-
-	/**
 	 * Gets the Service Provider registered Entity ID.
 	 * 
 	 * @return SP Entity ID

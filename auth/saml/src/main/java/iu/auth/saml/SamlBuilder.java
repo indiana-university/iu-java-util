@@ -137,8 +137,8 @@ final class SamlBuilder {
 	/** allowed list of assertion consumer {@link URI} */
 	private final Iterable<URI> acsUris;
 
-	/** allowed list of application entry point {@link URI} */
-	final Iterable<URI> entryPointUris;
+//	/** allowed list of application entry point {@link URI} */
+//	final Iterable<URI> entryPointUris;
 
 	/** IDP redirect URI for single sign-on */
 	final URI singleSignOnLocation;
@@ -179,7 +179,7 @@ final class SamlBuilder {
 		this.metadataUris = Objects.requireNonNull(config.getMetadataUris(), "metadataUris");
 		this.metadataTtl = Objects.requireNonNull(config.getMetadataTtl(), "metadataTtl");
 		this.acsUris = Objects.requireNonNull(config.getAcsUris(), "acsUris");
-		this.entryPointUris = Objects.requireNonNull(config.getEntryPointUris(), "entryPointUris");
+//		this.entryPointUris = Objects.requireNonNull(config.getEntryPointUris(), "entryPointUris");
 		this.certificate = Objects.requireNonNull(config.getIdentity().getJwk().getCertificateChain()[0],
 				"certificate");
 		this.verifyAlg = Objects.requireNonNull(config.getIdentity().getAlg());
