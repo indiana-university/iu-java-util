@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OneTimeNumber.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU One-Time Number Generator</a> &gt; <a href="index.source.html" class="el_package">iu.auth.nonce</a> &gt; <span class="el_source">OneTimeNumber.java</span></div><h1>OneTimeNumber.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.nonce;
+
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import edu.iu.IdGenerator;
+import edu.iu.auth.IuOneTimeNumber;
+import edu.iu.auth.nonce.IuAuthorizationChallenge;
+import edu.iu.auth.nonce.IuOneTimeNumberConfig;
+
+/**
+ * {@link IuOneTimeNumber} implementation class.
+ */
+final class OneTimeNumber implements IuOneTimeNumber, AutoCloseable {
+
+	private static class ActiveCount {
+		private volatile int count;
+	}
+
+	private static volatile int c;
+
+<span class="fc" id="L62">	private final Logger LOG = Logger.getLogger(OneTimeNumber.class.getName());</span>
+
+	private IuOneTimeNumberConfig config;
+	private Map&lt;String, IuAuthorizationChallenge&gt; issuedChallenges;
+	private Timer purge;
+
+<span class="fc" id="L68">	private transient Map&lt;String, ActiveCount&gt; activeCount = new HashMap&lt;&gt;();</span>
+
+	/**
+	 * Constructor
+	 * 
+	 * @param config {@link IuOneTimeNumber}
+	 */
+<span class="fc" id="L75">	OneTimeNumber(IuOneTimeNumberConfig config) {</span>
+<span class="fc" id="L76">		this.config = config;</span>
+<span class="fc" id="L77">		issuedChallenges = new ConcurrentHashMap&lt;&gt;();</span>
+
+<span class="fc" id="L79">		purge = new Timer(&quot;iu-java-auth-nonce/&quot; + (++c), true);</span>
+<span class="fc" id="L80">		purge.schedule(new TimerTask() {</span>
+			@Override
+			public void run() {
+<span class="fc" id="L83">				final var i = issuedChallenges.keySet().iterator();</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">				while (i.hasNext())</span>
+					try {
+<span class="fc" id="L86">						IdGenerator.verifyId(i.next(), config.getTimeToLive().toMillis());</span>
+<span class="fc" id="L87">					} catch (Throwable e) {</span>
+<span class="fc" id="L88">						i.remove();</span>
+<span class="fc" id="L89">					}</span>
+<span class="fc" id="L90">			}</span>
+		}, 500L, 500L);
+
+<span class="fc" id="L93">		config.subscribe(this::receive);</span>
+<span class="fc" id="L94">	}</span>
+
+	@Override
+	public String create(String remoteAddress, String userAgent) {
+<span class="fc bfc" id="L98" title="All 2 branches covered.">		if (issuedChallenges == null)</span>
+<span class="fc" id="L99">			return IdGenerator.generateId();</span>
+
+		ActiveCount activeCount;
+<span class="fc" id="L102">		synchronized (this.activeCount) {</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">			activeCount = this.activeCount.compute(remoteAddress, (k, v) -&gt; v == null ? new ActiveCount() : v);</span>
+<span class="fc" id="L104">			synchronized (activeCount) {</span>
+<span class="fc" id="L105">				activeCount.count++;</span>
+<span class="fc" id="L106">			}</span>
+<span class="fc" id="L107">		}</span>
+
+		try {
+<span class="fc bfc" id="L110" title="All 2 branches covered.">			if (activeCount.count &gt; config.getMaxConcurrency()) {</span>
+<span class="fc" id="L111">				LOG.info(&quot;Blocking excessive nonce generation; &quot; + remoteAddress);</span>
+<span class="fc" id="L112">				return IdGenerator.generateId();</span>
+			}
+
+			try {
+<span class="fc" id="L116">				final var issuedChallenge = new IssuedChallenge(remoteAddress, userAgent);</span>
+<span class="fc" id="L117">				prune(issuedChallenge.getClientThumbprint());</span>
+
+<span class="fc" id="L119">				final var nonce = issuedChallenge.getNonce();</span>
+<span class="fc" id="L120">				issuedChallenges.put(nonce, issuedChallenge);</span>
+
+<span class="fc" id="L122">				config.publish(issuedChallenge);</span>
+
+<span class="fc" id="L124">				return nonce;</span>
+<span class="fc" id="L125">			} catch (Throwable e) {</span>
+<span class="fc" id="L126">				LOG.log(Level.INFO, &quot;Discarding nonce&quot;, e);</span>
+<span class="fc" id="L127">				return IdGenerator.generateId();</span>
+			}
+
+		} finally {
+<span class="fc" id="L131">			synchronized (this.activeCount) {</span>
+<span class="fc" id="L132">				synchronized (activeCount) {</span>
+<span class="fc" id="L133">					activeCount.count--;</span>
+<span class="fc" id="L134">				}</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">				if (activeCount.count &lt;= 0)</span>
+<span class="fc" id="L136">					this.activeCount.remove(remoteAddress);</span>
+<span class="fc" id="L137">			}</span>
+		}
+
+	}
+
+	@Override
+	public void validate(String remoteAddress, String userAgent, String nonce) {
+<span class="fc bfc" id="L144" title="All 2 branches covered.">		if (issuedChallenges == null)</span>
+<span class="fc" id="L145">			throw new IllegalStateException();</span>
+
+<span class="fc" id="L147">		IdGenerator.verifyId(nonce, config.getTimeToLive().toMillis());</span>
+<span class="fc" id="L148">		config.publish(new UsedChallenge(nonce));</span>
+
+<span class="fc bfc" id="L150" title="All 2 branches covered.">		if (!Arrays.equals(IssuedChallenge.thumbprint(remoteAddress, userAgent),</span>
+<span class="fc" id="L151">				Objects.requireNonNull(this.issuedChallenges.remove(nonce)).getClientThumbprint()))</span>
+<span class="fc" id="L152">			throw new IllegalArgumentException();</span>
+<span class="fc" id="L153">	}</span>
+
+	@Override
+	public void close() {
+<span class="fc" id="L157">		final var purge = this.purge;</span>
+<span class="fc" id="L158">		this.purge = null;</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">		if (purge != null)</span>
+<span class="fc" id="L160">			purge.cancel();</span>
+
+<span class="fc" id="L162">		issuedChallenges = null;</span>
+<span class="fc" id="L163">	}</span>
+
+	private void receive(IuAuthorizationChallenge message) {
+<span class="fc bfc" id="L166" title="All 2 branches covered.">		if (issuedChallenges == null)</span>
+<span class="fc" id="L167">			throw new IllegalStateException();</span>
+
+<span class="fc" id="L169">		final var nonce = message.getNonce();</span>
+<span class="fc" id="L170">		IdGenerator.verifyId(nonce, config.getTimeToLive().toMillis());</span>
+
+<span class="fc" id="L172">		final var thumbprint = message.getClientThumbprint();</span>
+<span class="fc bfc" id="L173" title="All 2 branches covered.">		if (thumbprint == null)</span>
+<span class="fc" id="L174">			issuedChallenges.remove(message.getNonce());</span>
+		else {
+<span class="fc" id="L176">			prune(thumbprint);</span>
+<span class="fc" id="L177">			issuedChallenges.put(message.getNonce(), message);</span>
+		}
+<span class="fc" id="L179">	}</span>
+
+	private void prune(byte[] thumbprint) {
+<span class="fc" id="L182">		final var i = issuedChallenges.entrySet().iterator();</span>
+
+<span class="fc" id="L184">		Queue&lt;String&gt; toPrune = null;</span>
+<span class="fc bfc" id="L185" title="All 2 branches covered.">		while (i.hasNext()) {</span>
+<span class="fc" id="L186">			final var entry = i.next();</span>
+<span class="fc" id="L187">			final var verifyThumbprint = entry.getValue().getClientThumbprint();</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">			if (Arrays.equals(thumbprint, verifyThumbprint)) {</span>
+<span class="fc" id="L189">				final var nonce = entry.getKey();</span>
+				try {
+<span class="fc" id="L191">					IdGenerator.verifyId(nonce, 250L);</span>
+					// artificial delay prevents excessive requests
+<span class="fc" id="L193">					Thread.sleep(25L);</span>
+<span class="fc" id="L194">				} catch (Throwable e) {</span>
+<span class="pc bpc" id="L195" title="1 of 2 branches missed.">					if (toPrune == null)</span>
+<span class="fc" id="L196">						toPrune = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L197">					toPrune.add(nonce);</span>
+<span class="fc" id="L198">				}</span>
+			}
+<span class="fc" id="L200">		}</span>
+
+<span class="fc bfc" id="L202" title="All 2 branches covered.">		if (toPrune != null)</span>
+<span class="fc" id="L203">			toPrune.forEach(issuedChallenges::remove);</span>
+<span class="fc" id="L204">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
