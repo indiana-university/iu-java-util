@@ -317,7 +317,6 @@ public class SamlSessionTest {
 		when(mockSamlPrincipal.toString()).thenReturn(jsonbuilder.build().toString());
 
 		final var provider = mock(SamlServiceProvider.class);
-//		when(provider.isValidEntryPoint(any())).thenReturn(true);
 		when(provider.getAuthnRequest(any(), any())).thenCallRealMethod();
 		when(provider.verifyResponse(any(), any(), any())).thenReturn(mockSamlPrincipal);
 		when(provider.getVerifyAlg()).thenReturn(WebKey.Algorithm.RS256);
@@ -410,7 +409,6 @@ public class SamlSessionTest {
 
 		SamlBuilder builder = new SamlBuilder(config);
 		final var provider = mock(SamlServiceProvider.class);
-//		when(provider.isValidEntryPoint(any())).thenReturn(true);
 		when(provider.getAuthnRequest(any(), any())).thenCallRealMethod();
 		when(provider.verifyResponse(any(), any(), any())).thenReturn(mockSamlPrincipal);
 		when(provider.getVerifyAlg()).thenReturn(WebKey.Algorithm.RS256);
