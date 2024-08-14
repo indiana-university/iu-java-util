@@ -62,7 +62,9 @@ public class IuSubjectConfirmationValidationTest {
 
 	@BeforeEach
 	public void setup() {
-		IuTestLogger.allow("iu.auth.saml.IuSubjectConfirmationValidator", Level.INFO);
+		IuTestLogger.allow("net.shibboleth", Level.FINE);
+		IuTestLogger.allow("org.apache.xml", Level.FINE);
+		IuTestLogger.allow("org.opensaml", Level.FINE);
 	}
 
 	@Test
@@ -81,6 +83,8 @@ public class IuSubjectConfirmationValidationTest {
 
 		final var validationContext = mock(ValidationContext.class);
 		when(validationContext.getStaticParameters()).thenReturn(staticParams);
+		IuTestLogger.expect(IuSubjectConfirmationValidator.class.getName(), Level.FINE,
+				"Allowing private IP /10.1.2.3");
 		ValidationResult result = validator.validateAddress(subjectConfirmationData, assertion, validationContext,
 				false);
 		assertEquals(ValidationResult.VALID, result);
@@ -103,6 +107,8 @@ public class IuSubjectConfirmationValidationTest {
 
 		final var validationContext = mock(ValidationContext.class);
 		when(validationContext.getStaticParameters()).thenReturn(staticParams);
+		IuTestLogger.expect(IuSubjectConfirmationValidator.class.getName(), Level.FINE,
+				"SubjectConfirmationData/@Address check is disabled, skipping");
 		ValidationResult result = validator.validateAddress(subjectConfirmationData, assertion, validationContext,
 				false);
 		assertEquals(ValidationResult.VALID, result);
@@ -149,6 +155,8 @@ public class IuSubjectConfirmationValidationTest {
 		final var subjectConfirmationDataValid = mock(SubjectConfirmationData.class);
 		when(subjectConfirmationDataValid.getAddress()).thenReturn(SUBJECT_CONFIRMATION_LOCAL_ADDRESS);
 
+		IuTestLogger.expect(IuSubjectConfirmationValidator.class.getName(), Level.FINE,
+				"Allowing private IP /10.1.2.3");
 		result = validator.validateAddress(subjectConfirmationDataValid, assertion, validationContext, false);
 		assertEquals(ValidationResult.VALID, result);
 
@@ -156,6 +164,8 @@ public class IuSubjectConfirmationValidationTest {
 		final var nonLocalAddress = mock(SubjectConfirmationData.class);
 		when(nonLocalAddress.getAddress()).thenReturn("127.0.0.0");
 
+		IuTestLogger.expect(IuSubjectConfirmationValidator.class.getName(), Level.FINE,
+				"Allowing IP /127.0.0.0; range = 127.0.0.0/8");
 		result = validator.validateAddress(nonLocalAddress, assertion, validationContext, false);
 		assertEquals(ValidationResult.VALID, result);
 
@@ -163,16 +173,22 @@ public class IuSubjectConfirmationValidationTest {
 		final var nonAllowedValidIpAddress = mock(SubjectConfirmationData.class);
 		when(nonAllowedValidIpAddress.getAddress()).thenReturn("157.0.0.9");
 
+		IuTestLogger.expect(IuSubjectConfirmationValidator.class.getName(), Level.INFO,
+				"IP address mismatch in SAML subject confirmation; remote address = 157.0.0.9; allowed ranges = [150.50.0.0/16, 127.0.0.0/8]");
 		result = validator.validateAddress(nonAllowedValidIpAddress, assertion, validationContext, false);
 		assertEquals(ValidationResult.VALID, result);
 
 		// allowed list is null and failOnAddressMismatch is false
 		validator = new IuSubjectConfirmationValidator(null, false);
+		IuTestLogger.expect(IuSubjectConfirmationValidator.class.getName(), Level.INFO,
+				"IP address mismatch in SAML subject confirmation; remote address = 157.0.0.9; allowed ranges = null");
 		result = validator.validateAddress(nonAllowedValidIpAddress, assertion, validationContext, false);
 		assertEquals(ValidationResult.VALID, result);
 
 		// allowed list is null and failOnAddressMismatch is true
 		validator = new IuSubjectConfirmationValidator(null, true);
+		IuTestLogger.expect(IuSubjectConfirmationValidator.class.getName(), Level.INFO,
+				"IP address mismatch in SAML subject confirmation; remote address = 157.0.0.9; allowed ranges = null");
 		result = validator.validateAddress(nonAllowedValidIpAddress, assertion, validationContext, false);
 		assertEquals(ValidationResult.INDETERMINATE, result);
 

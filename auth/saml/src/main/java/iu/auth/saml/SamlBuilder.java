@@ -53,6 +53,7 @@ import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.KeyDescriptor;
 import org.opensaml.saml.saml2.metadata.RequestedAttribute;
 import org.opensaml.saml.saml2.metadata.SPSSODescriptor;
+import org.opensaml.saml.security.impl.SAMLSignatureProfileValidator;
 import org.opensaml.security.credential.Credential;
 import org.opensaml.security.credential.CredentialResolver;
 import org.opensaml.security.credential.impl.StaticCredentialResolver;
@@ -63,6 +64,7 @@ import org.opensaml.xmlsec.keyinfo.impl.StaticKeyInfoCredentialResolver;
 import org.opensaml.xmlsec.signature.KeyInfo;
 import org.opensaml.xmlsec.signature.X509Certificate;
 import org.opensaml.xmlsec.signature.X509Data;
+import org.opensaml.xmlsec.signature.support.impl.ExplicitKeySignatureTrustEngine;
 import org.w3c.dom.Element;
 
 import edu.iu.IdGenerator;
@@ -278,6 +280,52 @@ final class SamlBuilder {
 	}
 
 	/**
+	 * Creates a {@link SAMLSignatureProfileValidator}
+	 * 
+	 * @return {@link SAMLSignatureProfileValidator}
+	 */
+	static SAMLSignatureProfileValidator createSignatureProfileValidator() {
+		return new SAMLSignatureProfileValidator();
+	}
+
+	/**
+	 * Creates a {@link ExplicitKeySignatureTrustEngine}
+	 * 
+	 * @param entityId    IDP entity ID
+	 * @return {@link ExplicitKeySignatureTrustEngine}
+	 */
+	ExplicitKeySignatureTrustEngine createTrustEngine(String entityId) {
+		return new ExplicitKeySignatureTrustEngine(credentialResolver, getKeyInfoCredentialResolver(entityId));
+	}
+
+	/**
+	 * Gets {@link #serviceProviderEntityId}
+	 * 
+	 * @return serviceProviderEntityId
+	 */
+	String getServiceProviderEntityId() {
+		return serviceProviderEntityId;
+	}
+
+	/**
+	 * Gets {@link #allowedRange}
+	 * 
+	 * @return allowedRange
+	 */
+	Iterable<String> getAllowedRange() {
+		return allowedRange;
+	}
+
+	/**
+	 * Gets {@link #subjectConfirmationValidator}
+	 * 
+	 * @return {@link #subjectConfirmationValidator}
+	 */
+	IuSubjectConfirmationValidator getSubjectConfirmationValidator() {
+		return subjectConfirmationValidator;
+	}
+
+	/**
 	 * Gets service provider metadata XML
 	 * 
 	 * @return service provider metadata XML
@@ -366,4 +414,5 @@ final class SamlBuilder {
 			current.setContextClassLoader(restore);
 		}
 	}
+
 }

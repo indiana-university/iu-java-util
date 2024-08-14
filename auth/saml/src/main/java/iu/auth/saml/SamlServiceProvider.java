@@ -36,19 +36,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.URI;
-import java.security.KeyPair;
 import java.time.Instant;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Queue;
-import java.util.Set;
 import java.util.logging.Logger;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
@@ -58,28 +51,10 @@ import javax.security.auth.Subject;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
 import org.opensaml.core.xml.util.XMLObjectSupport;
 import org.opensaml.saml.common.SAMLVersion;
-import org.opensaml.saml.common.assertion.AssertionValidationException;
-import org.opensaml.saml.common.assertion.ValidationContext;
-import org.opensaml.saml.saml2.assertion.SAML20AssertionValidator;
-import org.opensaml.saml.saml2.assertion.SAML2AssertionValidationParameters;
-import org.opensaml.saml.saml2.assertion.impl.AudienceRestrictionConditionValidator;
-import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.AuthnRequest;
-import org.opensaml.saml.saml2.core.EncryptedAssertion;
 import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.NameIDPolicy;
 import org.opensaml.saml.saml2.core.Response;
-import org.opensaml.saml.saml2.core.SubjectConfirmation;
-import org.opensaml.saml.saml2.encryption.Decrypter;
-import org.opensaml.saml.security.impl.SAMLSignatureProfileValidator;
-import org.opensaml.security.credential.Credential;
-import org.opensaml.security.x509.BasicX509Credential;
-import org.opensaml.xmlsec.SignatureValidationParameters;
-import org.opensaml.xmlsec.encryption.support.InlineEncryptedKeyResolver;
-import org.opensaml.xmlsec.keyinfo.KeyInfoCredentialResolver;
-import org.opensaml.xmlsec.keyinfo.impl.StaticKeyInfoCredentialResolver;
-import org.opensaml.xmlsec.signature.support.SignatureValidationParametersCriterion;
-import org.opensaml.xmlsec.signature.support.impl.ExplicitKeySignatureTrustEngine;
 
 import edu.iu.IuException;
 import edu.iu.IuIterable;
@@ -89,7 +64,6 @@ import edu.iu.IuWebUtils;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
-import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import iu.auth.config.AuthConfig;
@@ -97,7 +71,6 @@ import iu.auth.config.IuAuthConfig;
 import iu.auth.config.IuSamlServiceProvider;
 import iu.auth.config.IuTrustedIssuer;
 import iu.auth.principal.PrincipalVerifier;
-import net.shibboleth.shared.resolver.CriteriaSet;
 
 /**
  * SAML Service Provider implementation class.
@@ -125,32 +98,6 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 				return samlServiceProvider;
 		}
 		throw new IllegalArgumentException();
-	}
-
-	/**
-	 * Gets a {@link Decrypter} for deciphering encrypted SAML Response and
-	 * Assertion content.
-	 * 
-	 * @param identity SAML SP {@link IuPrincipalIdentity}
-	 * @return {@link Decrypter}
-	 */
-	static Decrypter getDecrypter(IuPrincipalIdentity identity) {
-		final var encryptKey = identity.getSubject().getPrivateCredentials(WebKey.class).stream().findFirst().get();
-
-		final var pem = PemEncoded.serialize(new KeyPair(encryptKey.getPublicKey(), encryptKey.getPrivateKey()),
-				encryptKey.getCertificateChain());
-		final var sb = new StringBuilder();
-		pem.forEachRemaining(sb::append);
-
-		final var pemImported = PemEncoded.parse(sb.toString());
-		final var privateKey = pemImported.next().asPrivate("RSA");
-		final var cert = pemImported.next().asCertificate();
-
-		List<Credential> certs = new ArrayList<>();
-		certs.add(new BasicX509Credential(cert, privateKey));
-		KeyInfoCredentialResolver keyInfoResolver = new StaticKeyInfoCredentialResolver(certs);
-
-		return new Decrypter(null, keyInfoResolver, new InlineEncryptedKeyResolver());
 	}
 
 	private final String realm;
@@ -279,80 +226,6 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 	}
 
 	/**
-	 * Authorize SAML response return back from IDP
-	 * 
-	 * @param address      IP address use by user to authenticate
-	 * @param samlResponse xml SAML response back from identity provider
-	 * @param sessionId    SAML session ID from original AuthnRequest
-	 * @return {@link SamlPrincipal}
-	 */
-	SamlPrincipal verifyResponse(InetAddress address, String samlResponse, String sessionId) {
-		final var config = AuthConfig.load(IuSamlServiceProviderMetadata.class, realm);
-		final var identity = serviceProviderIdentity(config);
-
-		Thread current = Thread.currentThread();
-		ClassLoader currentLoader = current.getContextClassLoader();
-		try {
-			current.setContextClassLoader(XMLObjectSupport.class.getClassLoader());
-
-			final var response = IuException.unchecked(() -> {
-				try (InputStream in = new ByteArrayInputStream(Base64.getDecoder().decode(samlResponse))) {
-					return (Response) XMLObjectSupport
-							.unmarshallFromInputStream(XMLObjectProviderRegistrySupport.getParserPool(), in);
-				}
-			}, "Invalid SAMLResponse");
-
-			String entityId = response.getIssuer().getValue();
-			LOG.fine(() -> "SAML2 authentication response\nEntity ID: " + entityId + "\nPOST URL: " + postUri.toString()
-					+ "\n" + XmlDomUtil.getContent(response.getDOM()));
-
-			final var newTrustEngine = new ExplicitKeySignatureTrustEngine(samlBuilder.credentialResolver,
-					samlBuilder.getKeyInfoCredentialResolver(entityId));
-
-			final var newSignaturePrevalidator = new SAMLSignatureProfileValidator();
-
-			// Verify SAMLResponse signature
-			IuException.unchecked(() -> {
-				SignatureValidationParameters vparam = new SignatureValidationParameters();
-				vparam.setSignatureTrustEngine(newTrustEngine);
-				newSignaturePrevalidator.validate(response.getSignature());
-				if (!newTrustEngine.validate(response.getSignature(),
-						new CriteriaSet(new SignatureValidationParametersCriterion(vparam))))
-					throw new IllegalArgumentException("SAML signature verification failed");
-			});
-
-			final var validator = new SAML20AssertionValidator(
-					Arrays.asList(new AudienceRestrictionConditionValidator()),
-					Arrays.asList(samlBuilder.subjectConfirmationValidator), Collections.emptySet(), null,
-					newTrustEngine, newSignaturePrevalidator);
-
-			final Map<String, Object> staticParams = new LinkedHashMap<>();
-			staticParams.put(SAML2AssertionValidationParameters.COND_VALID_AUDIENCES,
-					Set.of(samlBuilder.serviceProviderEntityId));
-			staticParams.put(SAML2AssertionValidationParameters.SC_VALID_IN_RESPONSE_TO, sessionId);
-			staticParams.put(SAML2AssertionValidationParameters.SC_VALID_RECIPIENTS, Set.of(postUri.toString()));
-			staticParams.put(SAML2AssertionValidationParameters.SC_VALID_ADDRESSES, Set.of(address));
-			staticParams.put(SAML2AssertionValidationParameters.SIGNATURE_REQUIRED, false);
-			ValidationContext ctx = new ValidationContext(staticParams);
-
-			LOG.fine("SAML2 authentication response\nEntity ID: " + samlBuilder.serviceProviderEntityId + "\nACS URL: "
-					+ postUri.toString() + "\nAllow IP Range: " + samlBuilder.allowedRange + "\n"
-					+ XmlDomUtil.getContent(response.getDOM()) + "\nStatic Params: " + staticParams);
-
-			final var decrypter = getDecrypter(identity);
-			// https://stackoverflow.com/questions/22672416/org-opensaml-xml-validation-validationexception-apache-xmlsec-idresolver-could
-			// https://stackoverflow.com/questions/24364686/saml-2-0-decrypting-encryptedassertion-removes-a-namespace-declaration
-			decrypter.setRootInNewDocument(true);
-
-			// validate assertions
-			return IuException.unchecked(() -> validateResponse(config, response, decrypter, validator, ctx));
-
-		} finally {
-			current.setContextClassLoader(currentLoader);
-		}
-	}
-
-	/**
 	 * Gets the token signature verification algorithm.
 	 * 
 	 * @return {@link Algorithm}
@@ -373,49 +246,6 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 				.filter(a -> "verify".equals(a.getKeyId())).findFirst().get();
 	}
 
-	private SamlPrincipal validateResponse(IuSamlServiceProviderMetadata config, Response response, Decrypter decrypter,
-			SAML20AssertionValidator validator, ValidationContext ctx) throws AssertionValidationException {
-		// Gets the date/time the response was issued.
-		Instant issueInstant = response.getIssueInstant();
-
-		final Queue<SamlAssertion> samlAssertions = new ArrayDeque<>();
-		for (Assertion assertion : response.getAssertions())
-			samlAssertions.offer(new SamlAssertion(validator, ctx, assertion));
-		for (EncryptedAssertion encryptedAssertion : response.getEncryptedAssertions())
-			samlAssertions.offer(new SamlAssertion(validator, ctx,
-					IuException.unchecked(() -> decrypter.decrypt(encryptedAssertion))));
-
-		final var principalNameAttribute = config.getPrincipalNameAttribute();
-		String principalName = null;
-		Instant authnInstant = null;
-		for (final var samlAssertion : samlAssertions) {
-			final var assertionAuthnInstant = samlAssertion.getAuthnInstant();
-			final var attributes = samlAssertion.getAttributes();
-			final var assertionPrincipalName = Objects.requireNonNull( //
-					attributes.get(principalNameAttribute), //
-					principalNameAttribute);
-
-			principalName = IuObject.once(principalName, assertionPrincipalName);
-			authnInstant = IuObject.once(authnInstant, assertionAuthnInstant);
-
-		}
-
-		Objects.requireNonNull(principalName,
-				"SAML Response must have at least one assertion with an AuthnStatement and principal name attribute "
-						+ principalNameAttribute);
-
-		final var confirmation = (SubjectConfirmation) ctx.getDynamicParameters()
-				.get(SAML2AssertionValidationParameters.CONFIRMED_SUBJECT_CONFIRMATION);
-		if (confirmation == null)
-			throw new IllegalArgumentException("Missing subject confirmation: " + ctx.getValidationFailureMessages()
-					+ "\n" + ctx.getDynamicParameters());
-
-		LOG.fine(() -> "SAML2 subject confirmation " + XmlDomUtil.getContent(confirmation.getDOM()));
-
-		return new SamlPrincipal(realm, response.getIssuer().getValue(), principalName, issueInstant, authnInstant,
-				authnInstant.plus(config.getAuthenticatedSessionTimeout()), samlAssertions);
-	}
-
 	/**
 	 * Looks for an authoritative trusted issuer identity matching the SAML Service
 	 * Provider configuration and returns its principal identity.
@@ -430,7 +260,7 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 	 * @param config {@link IuSamlServiceProviderMetadata}
 	 * @return {@link IuPrincipalIdentity}
 	 */
-	IuPrincipalIdentity serviceProviderIdentity(IuSamlServiceProviderMetadata config) {
+	static IuPrincipalIdentity serviceProviderIdentity(IuSamlServiceProviderMetadata config) {
 		final var identity = IuIterable.stream(AuthConfig.get(IuTrustedIssuer.class)) //
 				.map(a -> a.getPrincipal(config.getIdentity())) //
 				.filter(Objects::nonNull).findFirst() //
@@ -442,4 +272,36 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 			return identity;
 	}
 
+	/**
+	 * Authorize SAML response return back from IDP
+	 * 
+	 * @param address      IP address use by user to authenticate
+	 * @param samlResponse xml SAML response back from identity provider
+	 * @param sessionId    SAML session ID from original AuthnRequest
+	 * @return {@link SamlPrincipal}
+	 */
+	SamlPrincipal verifyResponse(InetAddress address, String samlResponse, String sessionId) {
+		Thread current = Thread.currentThread();
+		ClassLoader currentLoader = current.getContextClassLoader();
+		try {
+			current.setContextClassLoader(XMLObjectSupport.class.getClassLoader());
+
+			final var response = IuException.unchecked(() -> {
+				try (InputStream in = new ByteArrayInputStream(Base64.getDecoder().decode(samlResponse))) {
+					return (Response) XMLObjectSupport
+							.unmarshallFromInputStream(XMLObjectProviderRegistrySupport.getParserPool(), in);
+				}
+			}, "Invalid SAMLResponse");
+
+			String entityId = response.getIssuer().getValue();
+			LOG.fine(() -> "SAML2 authentication response\nEntity ID: " + entityId + "\nPOST URL: " + postUri.toString()
+					+ "\n" + XmlDomUtil.getContent(response.getDOM()));
+
+			final var samlResponseValidator = new SamlResponseValidator(realm, postUri, entityId, sessionId, address, samlBuilder);
+			return IuException.unchecked(() -> samlResponseValidator.validate(response));
+
+		} finally {
+			current.setContextClassLoader(currentLoader);
+		}
+	}
 }

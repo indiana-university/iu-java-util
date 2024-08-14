@@ -60,6 +60,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuBadRequestException;
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.auth.IuAuthenticationException;
@@ -83,10 +84,10 @@ public class SamlSessionTest {
 
 	@BeforeEach
 	public void setup() throws Exception {
-		IuTestLogger.allow("iu.auth.saml.SamlSession", Level.FINE);
-		IuTestLogger.allow("iu.auth.saml.SamlSession", Level.INFO);
+		IuTestLogger.allow("net.shibboleth", Level.FINE);
+		IuTestLogger.allow("org.apache.xml", Level.FINE);
+		IuTestLogger.allow("org.opensaml", Level.FINE);
 		mockPrincipalIdentity = mockStatic(IuPrincipalIdentity.class);
-
 	}
 
 	@AfterEach
@@ -122,10 +123,15 @@ public class SamlSessionTest {
 			final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
 			URI entryPointUri = URI.create("test://entrypoint");
 			IuSamlSession samlSession = new SamlSession(entryPointUri, postUri, () -> secret);
+
+			IuTestLogger.expect(SamlSession.class.getName(), Level.INFO, "Invalid SAML Response",
+					NullPointerException.class);
 			assertThrows(IuAuthenticationException.class,
 					() -> samlSession.verifyResponse("127.0.0.0", "", IdGenerator.generateId()));
 
 			samlSession.getRequestUri();
+			IuTestLogger.expect(SamlSession.class.getName(), Level.INFO, "Invalid SAML Response",
+					IllegalArgumentException.class);
 			assertThrows(IuAuthenticationException.class,
 					() -> samlSession.verifyResponse("127.0.0.0", "", IdGenerator.generateId()));
 		}
@@ -175,6 +181,8 @@ public class SamlSessionTest {
 
 			URI entryPointUri = URI.create("test://entrypoint");
 			IuSamlSession samlSession = new SamlSession(entryPointUri, postUri, () -> secret);
+			IuTestLogger.expect(SamlSession.class.getName(), Level.INFO, "Invalid SAML Response",
+					NullPointerException.class);
 			assertThrows(IuAuthenticationException.class,
 					() -> samlSession.verifyResponse("127.0.0.0", "", IdGenerator.generateId()));
 
@@ -443,6 +451,17 @@ public class SamlSessionTest {
 			final var activatedSession = IuSamlSession.activate(samlSession.toString(), () -> secret);
 			assertNotNull(activatedSession);
 			assertThrows(IuAuthenticationException.class, () -> activatedSession.getPrincipalIdentity());
+		}
+	}
+
+	@Test
+	public void testInvalidSession() {
+		try (final var mockServiceProvider = mockStatic(SamlServiceProvider.class)) {
+			final var samlSession = new SamlSession(null, null, null);
+			IuTestLogger.expect(SamlSession.class.getName(), Level.INFO, "Invalid SAML Response",
+					NullPointerException.class);
+			assertThrows(IuAuthenticationException.class, () -> samlSession.verifyResponse(null, null, null));
+			assertThrows(IuBadRequestException.class, () -> samlSession.getPrincipalIdentity());
 		}
 	}
 
