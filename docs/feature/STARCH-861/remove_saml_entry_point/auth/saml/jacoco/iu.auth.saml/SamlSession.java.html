@@ -32,14 +32,13 @@
 package iu.auth.saml;
 
 import java.net.URI;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuBadRequestException;
 import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.IuWebUtils;
@@ -62,7 +61,7 @@ import iu.auth.config.AuthConfig;
  */
 final class SamlSession implements IuSamlSession {
 
-<span class="fc" id="L65">	private final Logger LOG = Logger.getLogger(SamlSession.class.getName());</span>
+<span class="fc" id="L64">	private final Logger LOG = Logger.getLogger(SamlSession.class.getName());</span>
 
 	private final SamlServiceProvider serviceProvider;
 	private final URI postUri;
@@ -72,6 +71,7 @@ final class SamlSession implements IuSamlSession {
 	private String relayState;
 	private String sessionId;
 	private SamlPrincipal id;
+	private boolean invalid;
 
 	/**
 	 * Constructor.
@@ -135,21 +135,21 @@ final class SamlSession implements IuSamlSession {
 
 <span class="fc" id="L136">		} catch (Throwable e) {</span>
 <span class="fc" id="L137">			LOG.log(Level.INFO, &quot;Invalid SAML Response&quot;, e);</span>
+<span class="fc" id="L138">			invalid = true;</span>
 
-<span class="fc" id="L139">			final var challenge = new IuAuthenticationException(null, e);</span>
-<span class="fc" id="L140">			challenge.setLocation(URI.create(entryPointUri + &quot;?RelayState=&quot; + //</span>
-<span class="fc bfc" id="L141" title="All 2 branches covered.">					URLEncoder.encode(this.relayState != null //</span>
-<span class="fc" id="L142">							? this.relayState</span>
-<span class="fc" id="L143">							: &quot;&quot;, //</span>
-							StandardCharsets.UTF_8)));
-<span class="fc" id="L145">			throw challenge;</span>
-<span class="fc" id="L146">		}</span>
-		
-<span class="fc" id="L148">		return entryPointUri;</span>
+<span class="fc" id="L140">			final var challenge = new IuAuthenticationException(null, e);</span>
+<span class="fc" id="L141">			challenge.setLocation(entryPointUri);</span>
+<span class="fc" id="L142">			throw challenge;</span>
+<span class="fc" id="L143">		}</span>
+
+<span class="fc" id="L145">		return entryPointUri;</span>
 	}
 
 	@Override
 	public SamlPrincipal getPrincipalIdentity() throws IuAuthenticationException {
+<span class="fc bfc" id="L150" title="All 2 branches covered.">		if (invalid)</span>
+<span class="fc" id="L151">			throw new IuBadRequestException(&quot;Session failed due to an invalid SAML response, check POST logs&quot;);</span>
+
 		try {
 <span class="fc" id="L154">			IuPrincipalIdentity.verify(id, serviceProvider.getRealm());</span>
 <span class="fc" id="L155">		} catch (IuAuthenticationException e) {</span>

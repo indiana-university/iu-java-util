@@ -36,19 +36,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.URI;
-import java.security.KeyPair;
 import java.time.Instant;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Queue;
-import java.util.Set;
 import java.util.logging.Logger;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
@@ -58,28 +51,10 @@ import javax.security.auth.Subject;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
 import org.opensaml.core.xml.util.XMLObjectSupport;
 import org.opensaml.saml.common.SAMLVersion;
-import org.opensaml.saml.common.assertion.AssertionValidationException;
-import org.opensaml.saml.common.assertion.ValidationContext;
-import org.opensaml.saml.saml2.assertion.SAML20AssertionValidator;
-import org.opensaml.saml.saml2.assertion.SAML2AssertionValidationParameters;
-import org.opensaml.saml.saml2.assertion.impl.AudienceRestrictionConditionValidator;
-import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.AuthnRequest;
-import org.opensaml.saml.saml2.core.EncryptedAssertion;
 import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.NameIDPolicy;
 import org.opensaml.saml.saml2.core.Response;
-import org.opensaml.saml.saml2.core.SubjectConfirmation;
-import org.opensaml.saml.saml2.encryption.Decrypter;
-import org.opensaml.saml.security.impl.SAMLSignatureProfileValidator;
-import org.opensaml.security.credential.Credential;
-import org.opensaml.security.x509.BasicX509Credential;
-import org.opensaml.xmlsec.SignatureValidationParameters;
-import org.opensaml.xmlsec.encryption.support.InlineEncryptedKeyResolver;
-import org.opensaml.xmlsec.keyinfo.KeyInfoCredentialResolver;
-import org.opensaml.xmlsec.keyinfo.impl.StaticKeyInfoCredentialResolver;
-import org.opensaml.xmlsec.signature.support.SignatureValidationParametersCriterion;
-import org.opensaml.xmlsec.signature.support.impl.ExplicitKeySignatureTrustEngine;
 
 import edu.iu.IuException;
 import edu.iu.IuIterable;
@@ -89,7 +64,6 @@ import edu.iu.IuWebUtils;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
-import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import iu.auth.config.AuthConfig;
@@ -97,17 +71,16 @@ import iu.auth.config.IuAuthConfig;
 import iu.auth.config.IuSamlServiceProvider;
 import iu.auth.config.IuTrustedIssuer;
 import iu.auth.principal.PrincipalVerifier;
-import net.shibboleth.shared.resolver.CriteriaSet;
 
 /**
  * SAML Service Provider implementation class.
  */
 public final class SamlServiceProvider implements IuSamlServiceProvider, PrincipalVerifier&lt;SamlPrincipal&gt; {
 	static {
-<span class="fc" id="L107">		IuObject.assertNotOpen(SamlServiceProvider.class);</span>
+<span class="fc" id="L80">		IuObject.assertNotOpen(SamlServiceProvider.class);</span>
 	}
 
-<span class="fc" id="L110">	private static final Logger LOG = Logger.getLogger(SamlServiceProvider.class.getName());</span>
+<span class="fc" id="L83">	private static final Logger LOG = Logger.getLogger(SamlServiceProvider.class.getName());</span>
 
 	/**
 	 * Locates a SAML Service Provider configured with a given HTTP POST Binding URI
@@ -118,39 +91,13 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 	 * @return {@link SamlServiceProvider}
 	 */
 	static SamlServiceProvider withBinding(URI postUri) {
-<span class="fc" id="L121">		Iterable&lt;IuSamlServiceProvider&gt; providers = AuthConfig.get(IuSamlServiceProvider.class);</span>
-<span class="fc bfc" id="L122" title="All 2 branches covered.">		for (final var sp : providers) {</span>
-<span class="fc" id="L123">			final var samlServiceProvider = (SamlServiceProvider) sp;</span>
-<span class="fc bfc" id="L124" title="All 2 branches covered.">			if (postUri.equals(samlServiceProvider.postUri))</span>
-<span class="fc" id="L125">				return samlServiceProvider;</span>
-<span class="fc" id="L126">		}</span>
-<span class="fc" id="L127">		throw new IllegalArgumentException();</span>
-	}
-
-	/**
-	 * Gets a {@link Decrypter} for deciphering encrypted SAML Response and
-	 * Assertion content.
-	 * 
-	 * @param identity SAML SP {@link IuPrincipalIdentity}
-	 * @return {@link Decrypter}
-	 */
-	static Decrypter getDecrypter(IuPrincipalIdentity identity) {
-<span class="fc" id="L138">		final var encryptKey = identity.getSubject().getPrivateCredentials(WebKey.class).stream().findFirst().get();</span>
-
-<span class="fc" id="L140">		final var pem = PemEncoded.serialize(new KeyPair(encryptKey.getPublicKey(), encryptKey.getPrivateKey()),</span>
-<span class="fc" id="L141">				encryptKey.getCertificateChain());</span>
-<span class="fc" id="L142">		final var sb = new StringBuilder();</span>
-<span class="fc" id="L143">		pem.forEachRemaining(sb::append);</span>
-
-<span class="fc" id="L145">		final var pemImported = PemEncoded.parse(sb.toString());</span>
-<span class="fc" id="L146">		final var privateKey = pemImported.next().asPrivate(&quot;RSA&quot;);</span>
-<span class="fc" id="L147">		final var cert = pemImported.next().asCertificate();</span>
-
-<span class="fc" id="L149">		List&lt;Credential&gt; certs = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L150">		certs.add(new BasicX509Credential(cert, privateKey));</span>
-<span class="fc" id="L151">		KeyInfoCredentialResolver keyInfoResolver = new StaticKeyInfoCredentialResolver(certs);</span>
-
-<span class="fc" id="L153">		return new Decrypter(null, keyInfoResolver, new InlineEncryptedKeyResolver());</span>
+<span class="fc" id="L94">		Iterable&lt;IuSamlServiceProvider&gt; providers = AuthConfig.get(IuSamlServiceProvider.class);</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">		for (final var sp : providers) {</span>
+<span class="fc" id="L96">			final var samlServiceProvider = (SamlServiceProvider) sp;</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">			if (postUri.equals(samlServiceProvider.postUri))</span>
+<span class="fc" id="L98">				return samlServiceProvider;</span>
+<span class="fc" id="L99">		}</span>
+<span class="fc" id="L100">		throw new IllegalArgumentException();</span>
 	}
 
 	private final String realm;
@@ -165,53 +112,53 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 	 *                for future operations.
 	 * @param config  {@link IuSamlServiceProviderMetadata}
 	 */
-<span class="fc" id="L168">	public SamlServiceProvider(URI postUri, String realm, IuSamlServiceProviderMetadata config) {</span>
-<span class="fc" id="L169">		var matchAcs = false;</span>
-<span class="fc bfc" id="L170" title="All 2 branches covered.">		for (final var acsUri : config.getAcsUris())</span>
-<span class="fc bfc" id="L171" title="All 2 branches covered.">			if (acsUri.equals(postUri)) {</span>
-<span class="fc" id="L172">				matchAcs = true;</span>
-<span class="fc" id="L173">				break;</span>
+<span class="fc" id="L115">	public SamlServiceProvider(URI postUri, String realm, IuSamlServiceProviderMetadata config) {</span>
+<span class="fc" id="L116">		var matchAcs = false;</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">		for (final var acsUri : config.getAcsUris())</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">			if (acsUri.equals(postUri)) {</span>
+<span class="fc" id="L119">				matchAcs = true;</span>
+<span class="fc" id="L120">				break;</span>
 			}
 
-<span class="fc bfc" id="L176" title="All 2 branches covered.">		if (!matchAcs)</span>
-<span class="fc" id="L177">			throw new IllegalArgumentException(</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">		if (!matchAcs)</span>
+<span class="fc" id="L124">			throw new IllegalArgumentException(</span>
 					&quot;Post URI doesn't match with allowed list of Assertion Consumer Service URLs&quot;);
 
-<span class="fc" id="L180">		this.postUri = postUri;</span>
-<span class="fc" id="L181">		this.realm = realm;</span>
-<span class="fc" id="L182">		this.samlBuilder = new SamlBuilder(config);</span>
-<span class="fc" id="L183">	}</span>
+<span class="fc" id="L127">		this.postUri = postUri;</span>
+<span class="fc" id="L128">		this.realm = realm;</span>
+<span class="fc" id="L129">		this.samlBuilder = new SamlBuilder(config);</span>
+<span class="fc" id="L130">	}</span>
 
 	@Override
 	public String getRealm() {
-<span class="fc" id="L187">		return realm;</span>
+<span class="fc" id="L134">		return realm;</span>
 	}
 
 	@Override
 	public String getAuthScheme() {
-<span class="fc" id="L192">		return null;</span>
+<span class="fc" id="L139">		return null;</span>
 	}
 
 	@Override
 	public URI getAuthenticationEndpoint() {
-<span class="fc" id="L197">		return postUri;</span>
+<span class="fc" id="L144">		return postUri;</span>
 	}
 
 	@Override
 	public Class&lt;SamlPrincipal&gt; getType() {
-<span class="fc" id="L202">		return SamlPrincipal.class;</span>
+<span class="fc" id="L149">		return SamlPrincipal.class;</span>
 	}
 
 	@Override
 	public boolean isAuthoritative() {
-<span class="fc" id="L207">		return true;</span>
+<span class="fc" id="L154">		return true;</span>
 	}
 
 	@Override
 	public void verify(SamlPrincipal id) throws IuAuthenticationException {
-<span class="fc" id="L212">		id.verify(realm);</span>
-<span class="fc" id="L213">		LOG.info(() -&gt; &quot;saml:verify:&quot; + id.getName() + &quot;; serviceProvider: &quot; + realm);</span>
-<span class="fc" id="L214">	}</span>
+<span class="fc" id="L159">		id.verify(realm);</span>
+<span class="fc" id="L160">		LOG.info(() -&gt; &quot;saml:verify:&quot; + id.getName() + &quot;; serviceProvider: &quot; + realm);</span>
+<span class="fc" id="L161">	}</span>
 
 	/**
 	 * Gets the service provider metadata for external hosting.
@@ -219,7 +166,7 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 	 * @return SP metadata
 	 */
 	public String getServiceProviderMetaData() {
-<span class="fc" id="L222">		return samlBuilder.getServiceProviderMetadata();</span>
+<span class="fc" id="L169">		return samlBuilder.getServiceProviderMetadata();</span>
 	}
 
 	/**
@@ -231,125 +178,51 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 	 * @return SAML AuthnRequest Redirect URI
 	 */
 	URI getAuthnRequest(String relayState, String sessionId) {
-<span class="fc" id="L234">		final var destinationLocation = samlBuilder.singleSignOnLocation.toString();</span>
+<span class="fc" id="L181">		final var destinationLocation = samlBuilder.singleSignOnLocation.toString();</span>
 
-<span class="fc" id="L236">		final var authnRequest = (AuthnRequest) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
-<span class="fc" id="L237">				.getBuilder(AuthnRequest.DEFAULT_ELEMENT_NAME).buildObject(AuthnRequest.DEFAULT_ELEMENT_NAME);</span>
-<span class="fc" id="L238">		authnRequest.setAssertionConsumerServiceURL(postUri.toString());</span>
-<span class="fc" id="L239">		authnRequest.setDestination(destinationLocation);</span>
-<span class="fc" id="L240">		authnRequest.setID(sessionId);</span>
-<span class="fc" id="L241">		authnRequest.setIssueInstant(Instant.now());</span>
-<span class="fc" id="L242">		authnRequest.setProtocolBinding(&quot;urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST&quot;);</span>
-<span class="fc" id="L243">		authnRequest.setVersion(SAMLVersion.VERSION_20);</span>
+<span class="fc" id="L183">		final var authnRequest = (AuthnRequest) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
+<span class="fc" id="L184">				.getBuilder(AuthnRequest.DEFAULT_ELEMENT_NAME).buildObject(AuthnRequest.DEFAULT_ELEMENT_NAME);</span>
+<span class="fc" id="L185">		authnRequest.setAssertionConsumerServiceURL(postUri.toString());</span>
+<span class="fc" id="L186">		authnRequest.setDestination(destinationLocation);</span>
+<span class="fc" id="L187">		authnRequest.setID(sessionId);</span>
+<span class="fc" id="L188">		authnRequest.setIssueInstant(Instant.now());</span>
+<span class="fc" id="L189">		authnRequest.setProtocolBinding(&quot;urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST&quot;);</span>
+<span class="fc" id="L190">		authnRequest.setVersion(SAMLVersion.VERSION_20);</span>
 
-<span class="fc" id="L245">		final var issuer = (Issuer) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
-<span class="fc" id="L246">				.getBuilder(Issuer.DEFAULT_ELEMENT_NAME).buildObject(Issuer.DEFAULT_ELEMENT_NAME);</span>
-<span class="fc" id="L247">		issuer.setValue(samlBuilder.serviceProviderEntityId);</span>
-<span class="fc" id="L248">		authnRequest.setIssuer(issuer);</span>
+<span class="fc" id="L192">		final var issuer = (Issuer) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
+<span class="fc" id="L193">				.getBuilder(Issuer.DEFAULT_ELEMENT_NAME).buildObject(Issuer.DEFAULT_ELEMENT_NAME);</span>
+<span class="fc" id="L194">		issuer.setValue(samlBuilder.serviceProviderEntityId);</span>
+<span class="fc" id="L195">		authnRequest.setIssuer(issuer);</span>
 
-<span class="fc" id="L250">		final var nameIdPolicy = (NameIDPolicy) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
-<span class="fc" id="L251">				.getBuilder(NameIDPolicy.DEFAULT_ELEMENT_NAME).buildObject(NameIDPolicy.DEFAULT_ELEMENT_NAME);</span>
-<span class="fc" id="L252">		nameIdPolicy.setAllowCreate(true);</span>
-<span class="fc" id="L253">		authnRequest.setNameIDPolicy(nameIdPolicy);</span>
+<span class="fc" id="L197">		final var nameIdPolicy = (NameIDPolicy) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
+<span class="fc" id="L198">				.getBuilder(NameIDPolicy.DEFAULT_ELEMENT_NAME).buildObject(NameIDPolicy.DEFAULT_ELEMENT_NAME);</span>
+<span class="fc" id="L199">		nameIdPolicy.setAllowCreate(true);</span>
+<span class="fc" id="L200">		authnRequest.setNameIDPolicy(nameIdPolicy);</span>
 
-<span class="fc" id="L255">		final var samlRequest = IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L256">			var s = XmlDomUtil.getContent(XMLObjectProviderRegistrySupport.getMarshallerFactory()</span>
-<span class="fc" id="L257">					.getMarshaller(authnRequest).marshall(authnRequest));</span>
-<span class="fc bfc" id="L258" title="All 2 branches covered.">			if (s.startsWith(&quot;&lt;?xml&quot;)) {</span>
-<span class="fc" id="L259">				StringBuilder sb = new StringBuilder(s);</span>
-<span class="fc" id="L260">				int i = sb.indexOf(&quot;?&gt;\n&quot;, 4);</span>
-<span class="fc bfc" id="L261" title="All 2 branches covered.">				if (i != -1)</span>
-<span class="fc" id="L262">					sb.delete(0, i + 3);</span>
-<span class="fc" id="L263">				s = sb.toString();</span>
+<span class="fc" id="L202">		final var samlRequest = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L203">			var s = XmlDomUtil.getContent(XMLObjectProviderRegistrySupport.getMarshallerFactory()</span>
+<span class="fc" id="L204">					.getMarshaller(authnRequest).marshall(authnRequest));</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">			if (s.startsWith(&quot;&lt;?xml&quot;)) {</span>
+<span class="fc" id="L206">				StringBuilder sb = new StringBuilder(s);</span>
+<span class="fc" id="L207">				int i = sb.indexOf(&quot;?&gt;\n&quot;, 4);</span>
+<span class="fc bfc" id="L208" title="All 2 branches covered.">				if (i != -1)</span>
+<span class="fc" id="L209">					sb.delete(0, i + 3);</span>
+<span class="fc" id="L210">				s = sb.toString();</span>
 			}
 
-<span class="fc" id="L266">			final var deflater = new Deflater(Deflater.DEFLATED, true);</span>
-<span class="fc" id="L267">			final var samlRequestBuffer = new ByteArrayOutputStream();</span>
-<span class="fc" id="L268">			try (DeflaterOutputStream d = new DeflaterOutputStream(samlRequestBuffer, deflater)) {</span>
-<span class="fc" id="L269">				d.write(IuText.utf8(s));</span>
+<span class="fc" id="L213">			final var deflater = new Deflater(Deflater.DEFLATED, true);</span>
+<span class="fc" id="L214">			final var samlRequestBuffer = new ByteArrayOutputStream();</span>
+<span class="fc" id="L215">			try (DeflaterOutputStream d = new DeflaterOutputStream(samlRequestBuffer, deflater)) {</span>
+<span class="fc" id="L216">				d.write(IuText.utf8(s));</span>
 			}
 
-<span class="fc" id="L272">			return Base64.getEncoder().encodeToString(samlRequestBuffer.toByteArray());</span>
+<span class="fc" id="L219">			return Base64.getEncoder().encodeToString(samlRequestBuffer.toByteArray());</span>
 		});
 
-<span class="fc" id="L275">		final Map&lt;String, Iterable&lt;String&gt;&gt; idpParams = new LinkedHashMap&lt;&gt;();</span>
-<span class="fc" id="L276">		idpParams.put(&quot;SAMLRequest&quot;, Collections.singleton(samlRequest));</span>
-<span class="fc" id="L277">		idpParams.put(&quot;RelayState&quot;, Collections.singleton(relayState));</span>
-<span class="fc" id="L278">		return URI.create(destinationLocation + '?' + IuWebUtils.createQueryString(idpParams));</span>
-	}
-
-	/**
-	 * Authorize SAML response return back from IDP
-	 * 
-	 * @param address      IP address use by user to authenticate
-	 * @param samlResponse xml SAML response back from identity provider
-	 * @param sessionId    SAML session ID from original AuthnRequest
-	 * @return {@link SamlPrincipal}
-	 */
-	SamlPrincipal verifyResponse(InetAddress address, String samlResponse, String sessionId) {
-<span class="fc" id="L290">		final var config = AuthConfig.load(IuSamlServiceProviderMetadata.class, realm);</span>
-<span class="fc" id="L291">		final var identity = serviceProviderIdentity(config);</span>
-
-<span class="fc" id="L293">		Thread current = Thread.currentThread();</span>
-<span class="fc" id="L294">		ClassLoader currentLoader = current.getContextClassLoader();</span>
-		try {
-<span class="fc" id="L296">			current.setContextClassLoader(XMLObjectSupport.class.getClassLoader());</span>
-
-<span class="fc" id="L298">			final var response = IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L299">				try (InputStream in = new ByteArrayInputStream(Base64.getDecoder().decode(samlResponse))) {</span>
-<span class="fc" id="L300">					return (Response) XMLObjectSupport</span>
-<span class="fc" id="L301">							.unmarshallFromInputStream(XMLObjectProviderRegistrySupport.getParserPool(), in);</span>
-				}
-			}, &quot;Invalid SAMLResponse&quot;);
-
-<span class="fc" id="L305">			String entityId = response.getIssuer().getValue();</span>
-<span class="fc" id="L306">			LOG.fine(() -&gt; &quot;SAML2 authentication response\nEntity ID: &quot; + entityId + &quot;\nPOST URL: &quot; + postUri.toString()</span>
-<span class="fc" id="L307">					+ &quot;\n&quot; + XmlDomUtil.getContent(response.getDOM()));</span>
-
-<span class="fc" id="L309">			final var newTrustEngine = new ExplicitKeySignatureTrustEngine(samlBuilder.credentialResolver,</span>
-<span class="fc" id="L310">					samlBuilder.getKeyInfoCredentialResolver(entityId));</span>
-
-<span class="fc" id="L312">			final var newSignaturePrevalidator = new SAMLSignatureProfileValidator();</span>
-
-			// Verify SAMLResponse signature
-<span class="fc" id="L315">			IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L316">				SignatureValidationParameters vparam = new SignatureValidationParameters();</span>
-<span class="fc" id="L317">				vparam.setSignatureTrustEngine(newTrustEngine);</span>
-<span class="fc" id="L318">				newSignaturePrevalidator.validate(response.getSignature());</span>
-<span class="fc bfc" id="L319" title="All 2 branches covered.">				if (!newTrustEngine.validate(response.getSignature(),</span>
-						new CriteriaSet(new SignatureValidationParametersCriterion(vparam))))
-<span class="fc" id="L321">					throw new IllegalArgumentException(&quot;SAML signature verification failed&quot;);</span>
-<span class="fc" id="L322">			});</span>
-
-<span class="fc" id="L324">			final var validator = new SAML20AssertionValidator(</span>
-<span class="fc" id="L325">					Arrays.asList(new AudienceRestrictionConditionValidator()),</span>
-<span class="fc" id="L326">					Arrays.asList(samlBuilder.subjectConfirmationValidator), Collections.emptySet(), null,</span>
-					newTrustEngine, newSignaturePrevalidator);
-
-<span class="fc" id="L329">			final Map&lt;String, Object&gt; staticParams = new LinkedHashMap&lt;&gt;();</span>
-<span class="fc" id="L330">			staticParams.put(SAML2AssertionValidationParameters.COND_VALID_AUDIENCES,</span>
-<span class="fc" id="L331">					Set.of(samlBuilder.serviceProviderEntityId));</span>
-<span class="fc" id="L332">			staticParams.put(SAML2AssertionValidationParameters.SC_VALID_IN_RESPONSE_TO, sessionId);</span>
-<span class="fc" id="L333">			staticParams.put(SAML2AssertionValidationParameters.SC_VALID_RECIPIENTS, Set.of(postUri.toString()));</span>
-<span class="fc" id="L334">			staticParams.put(SAML2AssertionValidationParameters.SC_VALID_ADDRESSES, Set.of(address));</span>
-<span class="fc" id="L335">			staticParams.put(SAML2AssertionValidationParameters.SIGNATURE_REQUIRED, false);</span>
-<span class="fc" id="L336">			ValidationContext ctx = new ValidationContext(staticParams);</span>
-
-<span class="fc" id="L338">			LOG.fine(&quot;SAML2 authentication response\nEntity ID: &quot; + samlBuilder.serviceProviderEntityId + &quot;\nACS URL: &quot;</span>
-<span class="fc" id="L339">					+ postUri.toString() + &quot;\nAllow IP Range: &quot; + samlBuilder.allowedRange + &quot;\n&quot;</span>
-<span class="fc" id="L340">					+ XmlDomUtil.getContent(response.getDOM()) + &quot;\nStatic Params: &quot; + staticParams);</span>
-
-<span class="fc" id="L342">			final var decrypter = getDecrypter(identity);</span>
-			// https://stackoverflow.com/questions/22672416/org-opensaml-xml-validation-validationexception-apache-xmlsec-idresolver-could
-			// https://stackoverflow.com/questions/24364686/saml-2-0-decrypting-encryptedassertion-removes-a-namespace-declaration
-<span class="fc" id="L345">			decrypter.setRootInNewDocument(true);</span>
-
-			// validate assertions
-<span class="fc" id="L348">			return IuException.unchecked(() -&gt; validateResponse(config, response, decrypter, validator, ctx));</span>
-
-		} finally {
-<span class="fc" id="L351">			current.setContextClassLoader(currentLoader);</span>
-		}
+<span class="fc" id="L222">		final Map&lt;String, Iterable&lt;String&gt;&gt; idpParams = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L223">		idpParams.put(&quot;SAMLRequest&quot;, Collections.singleton(samlRequest));</span>
+<span class="fc" id="L224">		idpParams.put(&quot;RelayState&quot;, Collections.singleton(relayState));</span>
+<span class="fc" id="L225">		return URI.create(destinationLocation + '?' + IuWebUtils.createQueryString(idpParams));</span>
 	}
 
 	/**
@@ -358,7 +231,7 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 	 * @return {@link Algorithm}
 	 */
 	Algorithm getVerifyAlg() {
-<span class="fc" id="L361">		return samlBuilder.verifyAlg;</span>
+<span class="fc" id="L234">		return samlBuilder.verifyAlg;</span>
 	}
 
 	/**
@@ -367,53 +240,10 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 	 * @return {@link WebKey}
 	 */
 	WebKey getVerifyKey() {
-<span class="fc" id="L370">		final var config = AuthConfig.load(IuSamlServiceProviderMetadata.class, realm);</span>
-<span class="fc" id="L371">		final var identity = serviceProviderIdentity(config);</span>
-<span class="fc" id="L372">		return identity.getSubject().getPrivateCredentials(WebKey.class).stream()</span>
-<span class="fc" id="L373">				.filter(a -&gt; &quot;verify&quot;.equals(a.getKeyId())).findFirst().get();</span>
-	}
-
-	private SamlPrincipal validateResponse(IuSamlServiceProviderMetadata config, Response response, Decrypter decrypter,
-			SAML20AssertionValidator validator, ValidationContext ctx) throws AssertionValidationException {
-		// Gets the date/time the response was issued.
-<span class="fc" id="L379">		Instant issueInstant = response.getIssueInstant();</span>
-
-<span class="fc" id="L381">		final Queue&lt;SamlAssertion&gt; samlAssertions = new ArrayDeque&lt;&gt;();</span>
-<span class="fc bfc" id="L382" title="All 2 branches covered.">		for (Assertion assertion : response.getAssertions())</span>
-<span class="fc" id="L383">			samlAssertions.offer(new SamlAssertion(validator, ctx, assertion));</span>
-<span class="fc bfc" id="L384" title="All 2 branches covered.">		for (EncryptedAssertion encryptedAssertion : response.getEncryptedAssertions())</span>
-<span class="fc" id="L385">			samlAssertions.offer(new SamlAssertion(validator, ctx,</span>
-<span class="fc" id="L386">					IuException.unchecked(() -&gt; decrypter.decrypt(encryptedAssertion))));</span>
-
-<span class="fc" id="L388">		final var principalNameAttribute = config.getPrincipalNameAttribute();</span>
-<span class="fc" id="L389">		String principalName = null;</span>
-<span class="fc" id="L390">		Instant authnInstant = null;</span>
-<span class="fc bfc" id="L391" title="All 2 branches covered.">		for (final var samlAssertion : samlAssertions) {</span>
-<span class="fc" id="L392">			final var assertionAuthnInstant = samlAssertion.getAuthnInstant();</span>
-<span class="fc" id="L393">			final var attributes = samlAssertion.getAttributes();</span>
-<span class="fc" id="L394">			final var assertionPrincipalName = Objects.requireNonNull( //</span>
-<span class="fc" id="L395">					attributes.get(principalNameAttribute), //</span>
-					principalNameAttribute);
-
-<span class="fc" id="L398">			principalName = IuObject.once(principalName, assertionPrincipalName);</span>
-<span class="fc" id="L399">			authnInstant = IuObject.once(authnInstant, assertionAuthnInstant);</span>
-
-<span class="fc" id="L401">		}</span>
-
-<span class="fc" id="L403">		Objects.requireNonNull(principalName,</span>
-				&quot;SAML Response must have at least one assertion with an AuthnStatement and principal name attribute &quot;
-						+ principalNameAttribute);
-
-<span class="fc" id="L407">		final var confirmation = (SubjectConfirmation) ctx.getDynamicParameters()</span>
-<span class="fc" id="L408">				.get(SAML2AssertionValidationParameters.CONFIRMED_SUBJECT_CONFIRMATION);</span>
-<span class="fc bfc" id="L409" title="All 2 branches covered.">		if (confirmation == null)</span>
-<span class="fc" id="L410">			throw new IllegalArgumentException(&quot;Missing subject confirmation: &quot; + ctx.getValidationFailureMessages()</span>
-<span class="fc" id="L411">					+ &quot;\n&quot; + ctx.getDynamicParameters());</span>
-
-<span class="fc" id="L413">		LOG.fine(() -&gt; &quot;SAML2 subject confirmation &quot; + XmlDomUtil.getContent(confirmation.getDOM()));</span>
-
-<span class="fc" id="L415">		return new SamlPrincipal(realm, response.getIssuer().getValue(), principalName, issueInstant, authnInstant,</span>
-<span class="fc" id="L416">				authnInstant.plus(config.getAuthenticatedSessionTimeout()), samlAssertions);</span>
+<span class="fc" id="L243">		final var config = AuthConfig.load(IuSamlServiceProviderMetadata.class, realm);</span>
+<span class="fc" id="L244">		final var identity = serviceProviderIdentity(config);</span>
+<span class="fc" id="L245">		return identity.getSubject().getPrivateCredentials(WebKey.class).stream()</span>
+<span class="fc" id="L246">				.filter(a -&gt; &quot;verify&quot;.equals(a.getKeyId())).findFirst().get();</span>
 	}
 
 	/**
@@ -430,17 +260,49 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 	 * @param config {@link IuSamlServiceProviderMetadata}
 	 * @return {@link IuPrincipalIdentity}
 	 */
-	IuPrincipalIdentity serviceProviderIdentity(IuSamlServiceProviderMetadata config) {
-<span class="fc" id="L434">		final var identity = IuIterable.stream(AuthConfig.get(IuTrustedIssuer.class)) //</span>
-<span class="fc" id="L435">				.map(a -&gt; a.getPrincipal(config.getIdentity())) //</span>
-<span class="fc" id="L436">				.filter(Objects::nonNull).findFirst() //</span>
-<span class="fc" id="L437">				.orElseThrow(() -&gt; new IllegalStateException(&quot;service provider is not trusted&quot;));</span>
+	static IuPrincipalIdentity serviceProviderIdentity(IuSamlServiceProviderMetadata config) {
+<span class="fc" id="L264">		final var identity = IuIterable.stream(AuthConfig.get(IuTrustedIssuer.class)) //</span>
+<span class="fc" id="L265">				.map(a -&gt; a.getPrincipal(config.getIdentity())) //</span>
+<span class="fc" id="L266">				.filter(Objects::nonNull).findFirst() //</span>
+<span class="fc" id="L267">				.orElseThrow(() -&gt; new IllegalStateException(&quot;service provider is not trusted&quot;));</span>
 
-<span class="fc bfc" id="L439" title="All 2 branches covered.">		if (!IuException.unchecked(() -&gt; IuPrincipalIdentity.verify(identity, identity.getName())))</span>
-<span class="fc" id="L440">			throw new IllegalStateException(&quot;service provider is not authoritative&quot;);</span>
+<span class="fc bfc" id="L269" title="All 2 branches covered.">		if (!IuException.unchecked(() -&gt; IuPrincipalIdentity.verify(identity, identity.getName())))</span>
+<span class="fc" id="L270">			throw new IllegalStateException(&quot;service provider is not authoritative&quot;);</span>
 		else
-<span class="fc" id="L442">			return identity;</span>
+<span class="fc" id="L272">			return identity;</span>
 	}
 
+	/**
+	 * Authorize SAML response return back from IDP
+	 * 
+	 * @param address      IP address use by user to authenticate
+	 * @param samlResponse xml SAML response back from identity provider
+	 * @param sessionId    SAML session ID from original AuthnRequest
+	 * @return {@link SamlPrincipal}
+	 */
+	SamlPrincipal verifyResponse(InetAddress address, String samlResponse, String sessionId) {
+<span class="fc" id="L284">		Thread current = Thread.currentThread();</span>
+<span class="fc" id="L285">		ClassLoader currentLoader = current.getContextClassLoader();</span>
+		try {
+<span class="fc" id="L287">			current.setContextClassLoader(XMLObjectSupport.class.getClassLoader());</span>
+
+<span class="fc" id="L289">			final var response = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L290">				try (InputStream in = new ByteArrayInputStream(Base64.getDecoder().decode(samlResponse))) {</span>
+<span class="fc" id="L291">					return (Response) XMLObjectSupport</span>
+<span class="fc" id="L292">							.unmarshallFromInputStream(XMLObjectProviderRegistrySupport.getParserPool(), in);</span>
+				}
+			}, &quot;Invalid SAMLResponse&quot;);
+
+<span class="fc" id="L296">			String entityId = response.getIssuer().getValue();</span>
+<span class="fc" id="L297">			LOG.fine(() -&gt; &quot;SAML2 authentication response\nEntity ID: &quot; + entityId + &quot;\nPOST URL: &quot; + postUri.toString()</span>
+<span class="fc" id="L298">					+ &quot;\n&quot; + XmlDomUtil.getContent(response.getDOM()));</span>
+
+<span class="fc" id="L300">			final var samlResponseValidator = new SamlResponseValidator(realm, postUri, entityId, sessionId, address, samlBuilder);</span>
+<span class="fc" id="L301">			return IuException.unchecked(() -&gt; samlResponseValidator.validate(response));</span>
+
+		} finally {
+<span class="fc" id="L304">			current.setContextClassLoader(currentLoader);</span>
+		}
+	}
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

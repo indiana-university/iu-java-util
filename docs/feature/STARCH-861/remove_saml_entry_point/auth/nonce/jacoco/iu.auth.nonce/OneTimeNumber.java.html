@@ -192,7 +192,7 @@ final class OneTimeNumber implements IuOneTimeNumber, AutoCloseable {
 					// artificial delay prevents excessive requests
 <span class="fc" id="L193">					Thread.sleep(25L);</span>
 <span class="fc" id="L194">				} catch (Throwable e) {</span>
-<span class="pc bpc" id="L195" title="1 of 2 branches missed.">					if (toPrune == null)</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">					if (toPrune == null)</span>
 <span class="fc" id="L196">						toPrune = new ArrayDeque&lt;&gt;();</span>
 <span class="fc" id="L197">					toPrune.add(nonce);</span>
 <span class="fc" id="L198">				}</span>

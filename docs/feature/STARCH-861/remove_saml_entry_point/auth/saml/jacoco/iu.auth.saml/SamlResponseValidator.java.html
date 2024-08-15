@@ -1,0 +1,319 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SamlResponseValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU SAML 2.0 Service Provider</a> &gt; <a href="index.source.html" class="el_package">iu.auth.saml</a> &gt; <span class="el_source">SamlResponseValidator.java</span></div><h1>SamlResponseValidator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.saml;
+
+import java.net.InetAddress;
+import java.net.URI;
+import java.security.KeyPair;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.Set;
+import java.util.logging.Logger;
+
+import org.opensaml.saml.common.assertion.ValidationContext;
+import org.opensaml.saml.saml2.assertion.SAML20AssertionValidator;
+import org.opensaml.saml.saml2.assertion.SAML2AssertionValidationParameters;
+import org.opensaml.saml.saml2.assertion.impl.AudienceRestrictionConditionValidator;
+import org.opensaml.saml.saml2.core.Assertion;
+import org.opensaml.saml.saml2.core.EncryptedAssertion;
+import org.opensaml.saml.saml2.core.Response;
+import org.opensaml.saml.saml2.core.SubjectConfirmation;
+import org.opensaml.saml.saml2.encryption.Decrypter;
+import org.opensaml.saml.security.impl.SAMLSignatureProfileValidator;
+import org.opensaml.security.SecurityException;
+import org.opensaml.security.credential.Credential;
+import org.opensaml.security.x509.BasicX509Credential;
+import org.opensaml.xmlsec.SignatureValidationParameters;
+import org.opensaml.xmlsec.encryption.support.InlineEncryptedKeyResolver;
+import org.opensaml.xmlsec.keyinfo.KeyInfoCredentialResolver;
+import org.opensaml.xmlsec.keyinfo.impl.StaticKeyInfoCredentialResolver;
+import org.opensaml.xmlsec.signature.support.SignatureException;
+import org.opensaml.xmlsec.signature.support.SignatureValidationParametersCriterion;
+import org.opensaml.xmlsec.signature.support.impl.ExplicitKeySignatureTrustEngine;
+
+import edu.iu.IuIterable;
+import edu.iu.IuObject;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.config.IuSamlServiceProviderMetadata;
+import edu.iu.crypt.PemEncoded;
+import edu.iu.crypt.WebKey;
+import iu.auth.config.AuthConfig;
+import net.shibboleth.shared.resolver.CriteriaSet;
+
+/**
+ * Encapsulates interactions with OpenSAML for handling IDP-issued responses.
+ */
+class SamlResponseValidator {
+
+<span class="fc" id="L83">	private static final Logger LOG = Logger.getLogger(SamlResponseValidator.class.getName());</span>
+
+	private final String realm;
+	private final IuSamlServiceProviderMetadata config;
+	private final SAMLSignatureProfileValidator signatureProfileValidator;
+	private final ExplicitKeySignatureTrustEngine trustEngine;
+	private final SAML20AssertionValidator assertionValidator;
+	private final ValidationContext validationContext;
+	private final Decrypter decrypter;
+
+	/**
+	 * Constructor
+	 * 
+	 * @param realm       authentication realm
+	 * @param postUri     HTTP POST binding URI
+	 * @param entityId    IDP entity ID
+	 * @param sessionId   expected session ID
+	 * @param remoteAddr  remote address
+	 * @param samlBuilder {@link SamlBuilder}
+	 */
+	SamlResponseValidator(String realm, URI postUri, String entityId, String sessionId, InetAddress remoteAddr,
+<span class="fc" id="L104">			SamlBuilder samlBuilder) {</span>
+<span class="fc" id="L105">		this.realm = realm;</span>
+<span class="fc" id="L106">		final var spEntityId = samlBuilder.getServiceProviderEntityId();</span>
+
+<span class="fc" id="L108">		signatureProfileValidator = SamlBuilder.createSignatureProfileValidator();</span>
+<span class="fc" id="L109">		trustEngine = samlBuilder.createTrustEngine(entityId);</span>
+
+<span class="fc" id="L111">		assertionValidator = createAssertionValidator(signatureProfileValidator, trustEngine,</span>
+<span class="fc" id="L112">				samlBuilder.getSubjectConfirmationValidator());</span>
+<span class="fc" id="L113">		validationContext = createValidationContext(spEntityId, sessionId, postUri, remoteAddr);</span>
+
+<span class="fc" id="L115">		config = AuthConfig.load(IuSamlServiceProviderMetadata.class, realm);</span>
+<span class="fc" id="L116">		final var identity = SamlServiceProvider.serviceProviderIdentity(config);</span>
+<span class="fc" id="L117">		decrypter = getDecrypter(identity);</span>
+
+<span class="fc" id="L119">		LOG.fine(&quot;SamlResponseValidator spEntityId: &quot; + spEntityId + &quot;; postUri: &quot; + postUri.toString()</span>
+<span class="fc" id="L120">				+ &quot;; allowedRange: &quot; + samlBuilder.getAllowedRange() + &quot;; staticParams: &quot;</span>
+<span class="fc" id="L121">				+ validationContext.getStaticParameters());</span>
+<span class="fc" id="L122">	}</span>
+
+	/**
+	 * Creates an {@link SAML20AssertionValidator}
+	 * 
+	 * @param signatureProfileValidator    {@link SAMLSignatureProfileValidator}
+	 * @param trustEngine                  {@link ExplicitKeySignatureTrustEngine}
+	 * @param subjectConfirmationValidator {@link IuSubjectConfirmationValidator}
+	 * @return {@link SAML20AssertionValidator}
+	 */
+	static SAML20AssertionValidator createAssertionValidator(SAMLSignatureProfileValidator signatureProfileValidator,
+			ExplicitKeySignatureTrustEngine trustEngine, IuSubjectConfirmationValidator subjectConfirmationValidator) {
+<span class="fc" id="L134">		return new SAML20AssertionValidator( //</span>
+<span class="fc" id="L135">				Set.of(new AudienceRestrictionConditionValidator()), //</span>
+<span class="fc" id="L136">				Set.of(subjectConfirmationValidator), //</span>
+<span class="fc" id="L137">				Collections.emptySet(), null, trustEngine, signatureProfileValidator);</span>
+	}
+
+	/**
+	 * Creates {@link ValidationContext} from static parameters.
+	 * 
+	 * @param spEntityId service provider entity ID
+	 * @param sessionId  expected session ID
+	 * @param postUri    HTTP POST binding URI
+	 * @param remoteAddr remote address
+	 * @return {@link ValidationContext}
+	 */
+	static ValidationContext createValidationContext(String spEntityId, String sessionId, URI postUri,
+			InetAddress remoteAddr) {
+<span class="fc" id="L151">		final Map&lt;String, Object&gt; staticParams = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L152">		staticParams.put(SAML2AssertionValidationParameters.COND_VALID_AUDIENCES, Set.of(spEntityId));</span>
+<span class="fc" id="L153">		staticParams.put(SAML2AssertionValidationParameters.SC_VALID_IN_RESPONSE_TO, sessionId);</span>
+<span class="fc" id="L154">		staticParams.put(SAML2AssertionValidationParameters.SC_VALID_RECIPIENTS, Set.of(postUri.toString()));</span>
+<span class="fc" id="L155">		staticParams.put(SAML2AssertionValidationParameters.SC_VALID_ADDRESSES, Set.of(remoteAddr));</span>
+<span class="fc" id="L156">		staticParams.put(SAML2AssertionValidationParameters.SIGNATURE_REQUIRED, false);</span>
+<span class="fc" id="L157">		return new ValidationContext(staticParams);</span>
+	}
+
+	/**
+	 * Gets a {@link Decrypter} for deciphering encrypted SAML Response and
+	 * Assertion content.
+	 * 
+	 * @param identity SAML SP {@link IuPrincipalIdentity}
+	 * @return {@link Decrypter}
+	 */
+	static Decrypter getDecrypter(IuPrincipalIdentity identity) {
+<span class="fc" id="L168">		final var encryptKey = identity.getSubject().getPrivateCredentials(WebKey.class).stream().findFirst().get();</span>
+
+<span class="fc" id="L170">		final var pem = PemEncoded.serialize(new KeyPair(encryptKey.getPublicKey(), encryptKey.getPrivateKey()),</span>
+<span class="fc" id="L171">				encryptKey.getCertificateChain());</span>
+<span class="fc" id="L172">		final var sb = new StringBuilder();</span>
+<span class="fc" id="L173">		pem.forEachRemaining(sb::append);</span>
+
+<span class="fc" id="L175">		final var pemImported = PemEncoded.parse(sb.toString());</span>
+<span class="fc" id="L176">		final var privateKey = pemImported.next().asPrivate(&quot;RSA&quot;);</span>
+<span class="fc" id="L177">		final var cert = pemImported.next().asCertificate();</span>
+
+<span class="fc" id="L179">		List&lt;Credential&gt; certs = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L180">		certs.add(new BasicX509Credential(cert, privateKey));</span>
+<span class="fc" id="L181">		KeyInfoCredentialResolver keyInfoResolver = new StaticKeyInfoCredentialResolver(certs);</span>
+
+<span class="fc" id="L183">		final var decrypter = new Decrypter(null, keyInfoResolver, new InlineEncryptedKeyResolver());</span>
+		// https://stackoverflow.com/questions/22672416/org-opensaml-xml-validation-validationexception-apache-xmlsec-idresolver-could
+		// https://stackoverflow.com/questions/24364686/saml-2-0-decrypting-encryptedassertion-removes-a-namespace-declaration
+<span class="fc" id="L186">		decrypter.setRootInNewDocument(true);</span>
+<span class="fc" id="L187">		return decrypter;</span>
+	}
+
+	/**
+	 * Validates a parsed SAML response (entry point).
+	 * 
+	 * @param response parsed SAML response
+	 * @return Verified {@link SamlPrincipal} if the response and signature are
+	 *         valid, subject confirmation verification checks pass, and the
+	 *         response contains at least one potentially encrypted assertion that
+	 *         includes an authentication statement, conditions, and principal name
+	 *         attribute
+	 * @throws Exception if any verification steps fail
+	 */
+	SamlPrincipal validate(Response response) throws Exception {
+<span class="fc" id="L202">		final var issueInstant = response.getIssueInstant();</span>
+
+<span class="fc" id="L204">		LOG.fine(() -&gt; &quot;saml:pre-validate\n&quot; + XmlDomUtil.getContent(response.getDOM()));</span>
+
+<span class="fc" id="L206">		validateSignature(response);</span>
+<span class="fc" id="L207">		final var samlAssertions = validateAssertions(response);</span>
+<span class="fc bfc" id="L208" title="All 2 branches covered.">		final var authnAssertion = IuIterable.select(samlAssertions, a -&gt; a.getAuthnInstant() != null);</span>
+
+<span class="fc" id="L210">		verifySubjectConfirmation();</span>
+
+<span class="fc" id="L212">		final var config = config();</span>
+<span class="fc" id="L213">		final var authnInstant = authnAssertion.getAuthnInstant();</span>
+<span class="fc" id="L214">		final var principalNameAttribute = config.getPrincipalNameAttribute();</span>
+<span class="fc" id="L215">		final var principalName = Objects.requireNonNull( //</span>
+<span class="fc" id="L216">				authnAssertion.getAttributes().get(principalNameAttribute), //</span>
+				principalNameAttribute);
+
+<span class="fc" id="L219">		final var issuer = response.getIssuer().getValue();</span>
+<span class="fc" id="L220">		final var expires = authnInstant.plus(config.getAuthenticatedSessionTimeout());</span>
+
+<span class="fc" id="L222">		LOG.fine(() -&gt; &quot;saml:post-validate:&quot; + principalName + &quot;:&quot; + authnInstant + &quot;; issuer: &quot; + issuer + &quot; @&quot;</span>
+				+ issueInstant + &quot;, expires &quot; + expires + &quot;; assertions: &quot; + samlAssertions);
+
+<span class="fc" id="L225">		return new SamlPrincipal(realm(), issuer, principalName, issueInstant, authnInstant, expires, samlAssertions);</span>
+	}
+
+	/**
+	 * Gets {@link #config}
+	 * 
+	 * @return {@link #config}
+	 */
+	IuSamlServiceProviderMetadata config() {
+<span class="fc" id="L234">		return config;</span>
+	}
+
+	/**
+	 * Gets {@link #realm}
+	 * 
+	 * @return {@link #realm}
+	 */
+	String realm() {
+<span class="fc" id="L243">		return realm;</span>
+	}
+
+	/**
+	 * Validates the signature of a response
+	 * 
+	 * @param response                  {@link Response}
+	 * @throws SecurityException  from trustEngine
+	 * @throws SignatureException from signatureProfileValidator
+	 */
+	void validateSignature(Response response) throws SecurityException, SignatureException {
+<span class="fc" id="L254">		SignatureValidationParameters vparam = new SignatureValidationParameters();</span>
+<span class="fc" id="L255">		vparam.setSignatureTrustEngine(trustEngine);</span>
+<span class="fc" id="L256">		signatureProfileValidator.validate(response.getSignature());</span>
+<span class="fc bfc" id="L257" title="All 2 branches covered.">		if (!trustEngine.validate(response.getSignature(),</span>
+				new CriteriaSet(new SignatureValidationParametersCriterion(vparam))))
+<span class="fc" id="L259">			throw new IllegalArgumentException(&quot;SAML signature verification failed&quot;);</span>
+<span class="fc" id="L260">	}</span>
+
+	/**
+	 * Validates potentially encrypted SAML assertions from a response
+	 * 
+	 * @param response {@link Response}
+	 * @return At least one {@link SamlAssertion}
+	 * @throws Exception if an assertion fails to validate
+	 */
+	Iterable&lt;SamlAssertion&gt; validateAssertions(Response response) throws Exception {
+<span class="fc" id="L270">		final Queue&lt;SamlAssertion&gt; samlAssertions = new ArrayDeque&lt;&gt;();</span>
+
+<span class="fc bfc" id="L272" title="All 2 branches covered.">		for (Assertion assertion : response.getAssertions()) {</span>
+<span class="fc" id="L273">			assertionValidator.validate(assertion, validationContext);</span>
+<span class="fc" id="L274">			samlAssertions.offer(new SamlAssertion(assertion));</span>
+<span class="fc" id="L275">		}</span>
+
+<span class="fc bfc" id="L277" title="All 2 branches covered.">		for (EncryptedAssertion encryptedAssertion : response.getEncryptedAssertions()) {</span>
+<span class="fc" id="L278">			final var assertion = decrypter.decrypt(encryptedAssertion);</span>
+<span class="fc" id="L279">			assertionValidator.validate(assertion, validationContext);</span>
+<span class="fc" id="L280">			samlAssertions.offer(new SamlAssertion(assertion));</span>
+<span class="fc" id="L281">		}</span>
+
+<span class="fc" id="L283">		final var principalNameAttribute = config.getPrincipalNameAttribute();</span>
+<span class="fc" id="L284">		String principalName = null;</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">		for (final var samlAssertion : samlAssertions) {</span>
+<span class="fc" id="L286">			final var assertionAuthnInstant = samlAssertion.getAuthnInstant();</span>
+<span class="fc bfc" id="L287" title="All 2 branches covered.">			if (assertionAuthnInstant != null) {</span>
+<span class="fc" id="L288">				final var attributes = samlAssertion.getAttributes();</span>
+<span class="fc" id="L289">				final var assertionPrincipalName = Objects.requireNonNull( //</span>
+<span class="fc" id="L290">						attributes.get(principalNameAttribute), //</span>
+						principalNameAttribute);
+
+<span class="fc" id="L293">				principalName = IuObject.once(principalName, assertionPrincipalName);</span>
+			}
+<span class="fc" id="L295">		}</span>
+
+<span class="fc" id="L297">		Objects.requireNonNull(principalName,</span>
+				&quot;SAML Response must have at least one assertion with an AuthnStatement and principal name attribute &quot;
+						+ principalNameAttribute);
+
+<span class="fc" id="L301">		return samlAssertions;</span>
+	}
+
+	/**
+	 * Verifies that previous validation activities provided a confirmed subject
+	 * confirmation.
+	 */
+	void verifySubjectConfirmation() {
+<span class="fc" id="L309">		final var confirmation = (SubjectConfirmation) Objects.requireNonNull(</span>
+<span class="fc" id="L310">				validationContext.getDynamicParameters()</span>
+<span class="fc" id="L311">						.get(SAML2AssertionValidationParameters.CONFIRMED_SUBJECT_CONFIRMATION),</span>
+<span class="fc" id="L312">				&quot;Missing subject confirmation: &quot; + validationContext.getValidationFailureMessages() + &quot;\n&quot;</span>
+<span class="fc" id="L313">						+ validationContext.getDynamicParameters());</span>
+
+<span class="fc" id="L315">		LOG.fine(() -&gt; &quot;SAML2 subject confirmation &quot; + XmlDomUtil.getContent(confirmation.getDOM()));</span>
+<span class="fc" id="L316">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
