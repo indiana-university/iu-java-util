@@ -30,38 +30,12 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /**
- * API Authentication and Authorization interfaces.
+ * Provides server side session handler support
  * 
- * @uses edu.iu.auth.spi.IuSessionHandlerSpi
- * @uses edu.iu.auth.spi.IuAuthConfigSpi Configuration bootstrap
- * @uses edu.iu.auth.spi.IuPrincipalSpi For access to identity provider
- *       verification resources
- * @uses edu.iu.auth.spi.IuSamlSpi SAML service provider
- * @uses edu.iu.auth.spi.IuNonceSpi One-time number generator
+ * 
  */
-module iu.util.auth {
-	exports edu.iu.auth;
-
-	exports edu.iu.auth.jwt;
-
-	opens edu.iu.auth.jwt;
-
-	exports edu.iu.auth.nonce;
-
-	opens edu.iu.auth.nonce;
-
-	exports edu.iu.auth.saml;
+module iu.util.auth.session {
+	exports iu.auth.session;
 	
-	exports edu.iu.auth.session;
 	
-	exports edu.iu.auth.spi;
-
-	requires iu.util;
-	requires transitive java.net.http;
-	
-	uses edu.iu.auth.spi.IuAuthConfigSpi;
-	uses edu.iu.auth.spi.IuPrincipalSpi;
-	uses edu.iu.auth.spi.IuNonceSpi;
-	uses edu.iu.auth.spi.IuSamlSpi;
-	uses edu.iu.auth.spi.IuSessionHandlerSpi;
 }

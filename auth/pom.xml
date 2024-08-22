@@ -27,6 +27,7 @@
 				<module>principal</module>
 				<module>pki</module>
 				<module>saml</module>
+				<module>session</module>
 				<module>nonce</module>
 			</modules>
 		</profile>
