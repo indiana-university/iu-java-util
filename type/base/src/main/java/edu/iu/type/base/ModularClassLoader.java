@@ -347,7 +347,7 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 	}
 
 	@Override
-	protected URL findResource(String name) {
+	public URL findResource(String name) {
 		class Box implements BiPredicate<ModuleReference, URL> {
 			ModuleReference moduleReference;
 			URL resource;
@@ -371,7 +371,7 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 	}
 
 	@Override
-	protected Enumeration<URL> findResources(String name) throws IOException {
+	public Enumeration<URL> findResources(String name) throws IOException {
 		final Queue<URL> resources = new ArrayDeque<>();
 		findResource(name, (moduleRef, resource) -> {
 			if (moduleRef == null //

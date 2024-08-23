@@ -37,6 +37,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import org.opensaml.core.config.ConfigurationService;
 import org.opensaml.core.criterion.EntityIdCriterion;
@@ -145,6 +146,9 @@ final class SamlBuilder {
 	/** unique service provider id that register with identity provider */
 	final String serviceProviderEntityId;
 
+	/** set of valid identity provider entity IDs */
+	final Set<String> identityProviderEntityIds;
+
 	/** X.509 certificate */
 	final java.security.cert.X509Certificate certificate;
 
@@ -183,13 +187,15 @@ final class SamlBuilder {
 		this.verifyAlg = Objects.requireNonNull(config.getIdentity().getAlg());
 		this.serviceProviderEntityId = Objects.requireNonNull(config.getServiceProviderEntityId(),
 				"serviceProviderEntityId");
-
+		this.identityProviderEntityIds = Objects.requireNonNull(config.getIdentityProviderEntityIds(),
+				"identityProviderEntityIds");
 		this.allowedRange = config.getAllowedRange();
 		this.failOnAddressMismatch = config.isFailOnAddressMismatch();
 		this.subjectConfirmationValidator = new IuSubjectConfirmationValidator(allowedRange, failOnAddressMismatch);
 
 		final var resolver = getMetadata();
-		final var entityId = Objects.requireNonNull(config.getIdentityProviderEntityId(), "identityProviderEntityId");
+		final var entityId = Objects.requireNonNull(config.getIdentityProviderEntityIds(), "identityProviderEntityId")
+				.iterator().next();
 		final var entity = Objects.requireNonNull(
 				IuException.unchecked(() -> resolver.resolveSingle(new CriteriaSet(new EntityIdCriterion(entityId)))),
 				"Entity " + entityId + " not found in SAML metadata");
@@ -291,7 +297,7 @@ final class SamlBuilder {
 	/**
 	 * Creates a {@link ExplicitKeySignatureTrustEngine}
 	 * 
-	 * @param entityId    IDP entity ID
+	 * @param entityId IDP entity ID
 	 * @return {@link ExplicitKeySignatureTrustEngine}
 	 */
 	ExplicitKeySignatureTrustEngine createTrustEngine(String entityId) {
@@ -305,6 +311,15 @@ final class SamlBuilder {
 	 */
 	String getServiceProviderEntityId() {
 		return serviceProviderEntityId;
+	}
+
+	/**
+	 * Gets {@link #identityProviderEntityIds}
+	 * 
+	 * @return {@link #identityProviderEntityIds}
+	 */
+	Set<String> getIdentityProviderEntityIds() {
+		return identityProviderEntityIds;
 	}
 
 	/**

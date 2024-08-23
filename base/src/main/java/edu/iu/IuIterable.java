@@ -137,7 +137,7 @@ import java.util.stream.StreamSupport;
  */
 public final class IuIterable {
 
-	private static final Iterable<?> EMPTY = Collections::emptyIterator;
+	private static final Iterable<?> EMPTY = of(Collections::emptyIterator);
 
 	private static class IuIterator<T> implements Iterator<T> {
 		private final Supplier<Iterator<T>> iteratorSupplier;

@@ -666,8 +666,8 @@ public class SamlServiceProviderTest {
 			}
 
 			@Override
-			public String getIdentityProviderEntityId() {
-				return "https://sp.identityserver";
+			public Set<String> getIdentityProviderEntityIds() {
+				return Set.of("https://sp.identityserver");
 			}
 
 			@Override

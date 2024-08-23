@@ -55,6 +55,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.logging.Level;
 
 import javax.security.auth.Subject;
@@ -104,6 +105,7 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 	private URI postUri;
 	private String entityId;
 	private String spEntityId;
+	private Set<String> idpEntityIds;
 	private String sessionId;
 	private InetAddress remoteAddr;
 	private SamlBuilder samlBuilder;
@@ -125,11 +127,13 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 		postUri = URI.create(IdGenerator.generateId());
 		entityId = IdGenerator.generateId();
 		spEntityId = IdGenerator.generateId();
+		idpEntityIds = Set.of(IdGenerator.generateId());
 		sessionId = IdGenerator.generateId();
 		remoteAddr = mock(InetAddress.class);
 		samlBuilder = mock(SamlBuilder.class);
 		allowedIp = IdGenerator.generateId();
 		when(samlBuilder.getServiceProviderEntityId()).thenReturn(spEntityId);
+		when(samlBuilder.getIdentityProviderEntityIds()).thenReturn(idpEntityIds);
 		when(samlBuilder.getAllowedRange()).thenReturn(IuIterable.iter(allowedIp));
 
 		trustEngine = mock(ExplicitKeySignatureTrustEngine.class);
@@ -169,9 +173,8 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 			final var paramValue = IdGenerator.generateId();
 			when(validationContext.getStaticParameters()).thenReturn(Map.of(paramName, paramValue));
 
-			mockSamlResponseValidator.when(
-					() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId, postUri, remoteAddr))
-					.thenReturn(validationContext);
+			mockSamlResponseValidator.when(() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId,
+					postUri, remoteAddr, idpEntityIds)).thenReturn(validationContext);
 
 			IuTestLogger.expect(SamlResponseValidator.class.getName(), Level.FINE,
 					"SamlResponseValidator spEntityId: " + spEntityId + "; postUri: " + postUri + "; allowedRange: ["
@@ -184,8 +187,8 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 
 			mockSamlResponseValidator.verify(() -> SamlResponseValidator
 					.createAssertionValidator(signatureProfileValidator, trustEngine, subjectConfigurationValidator));
-			mockSamlResponseValidator.verify(
-					() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId, postUri, remoteAddr));
+			mockSamlResponseValidator.verify(() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId,
+					postUri, remoteAddr, idpEntityIds));
 			mockSamlResponseValidator.verify(() -> SamlResponseValidator.getDecrypter(identity));
 		}
 	}
@@ -246,9 +249,8 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 		try (final var mockSamlResponseValidator = mockStatic(SamlResponseValidator.class)) {
 			IuTestLogger.allow(SamlResponseValidator.class.getName(), Level.FINE);
 			final var validationContext = mock(ValidationContext.class);
-			mockSamlResponseValidator.when(
-					() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId, postUri, remoteAddr))
-					.thenReturn(validationContext);
+			mockSamlResponseValidator.when(() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId,
+					postUri, remoteAddr, idpEntityIds)).thenReturn(validationContext);
 
 			final var samlResponseValidator = new SamlResponseValidator(realm, postUri, entityId, sessionId, remoteAddr,
 					samlBuilder);
@@ -280,9 +282,8 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 		try (final var mockSamlResponseValidator = mockStatic(SamlResponseValidator.class)) {
 			IuTestLogger.allow(SamlResponseValidator.class.getName(), Level.FINE);
 			final var validationContext = mock(ValidationContext.class);
-			mockSamlResponseValidator.when(
-					() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId, postUri, remoteAddr))
-					.thenReturn(validationContext);
+			mockSamlResponseValidator.when(() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId,
+					postUri, remoteAddr, idpEntityIds)).thenReturn(validationContext);
 
 			final var samlResponseValidator = new SamlResponseValidator(realm, postUri, entityId, sessionId, remoteAddr,
 					samlBuilder);
@@ -302,9 +303,8 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 				final var mockXmlDomUtil = mockStatic(XmlDomUtil.class)) {
 			IuTestLogger.allow(SamlResponseValidator.class.getName(), Level.FINE);
 			final var validationContext = mock(ValidationContext.class);
-			mockSamlResponseValidator.when(
-					() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId, postUri, remoteAddr))
-					.thenReturn(validationContext);
+			mockSamlResponseValidator.when(() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId,
+					postUri, remoteAddr, idpEntityIds)).thenReturn(validationContext);
 
 			final var assertionValidator = mock(SAML20AssertionValidator.class);
 			mockSamlResponseValidator.when(() -> SamlResponseValidator.createAssertionValidator(any(), any(), any()))
@@ -365,9 +365,8 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 		try (final var mockSamlResponseValidator = mockStatic(SamlResponseValidator.class)) {
 			IuTestLogger.allow(SamlResponseValidator.class.getName(), Level.FINE);
 			final var validationContext = mock(ValidationContext.class);
-			mockSamlResponseValidator.when(
-					() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId, postUri, remoteAddr))
-					.thenReturn(validationContext);
+			mockSamlResponseValidator.when(() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId,
+					postUri, remoteAddr, idpEntityIds)).thenReturn(validationContext);
 
 			final var samlResponseValidator = new SamlResponseValidator(realm, postUri, entityId, sessionId, remoteAddr,
 					samlBuilder);
@@ -386,9 +385,8 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 		try (final var mockSamlResponseValidator = mockStatic(SamlResponseValidator.class)) {
 			IuTestLogger.allow(SamlResponseValidator.class.getName(), Level.FINE);
 			final var validationContext = mock(ValidationContext.class);
-			mockSamlResponseValidator.when(
-					() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId, postUri, remoteAddr))
-					.thenReturn(validationContext);
+			mockSamlResponseValidator.when(() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId,
+					postUri, remoteAddr, idpEntityIds)).thenReturn(validationContext);
 
 			final var samlResponseValidator = new SamlResponseValidator(realm, postUri, entityId, sessionId, remoteAddr,
 					samlBuilder);
@@ -403,9 +401,8 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 		try (final var mockXmlDomUtil = mockStatic(XmlDomUtil.class);
 				final var mockSamlResponseValidator = mockStatic(SamlResponseValidator.class)) {
 			final var validationContext = mock(ValidationContext.class);
-			mockSamlResponseValidator.when(
-					() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId, postUri, remoteAddr))
-					.thenReturn(validationContext);
+			mockSamlResponseValidator.when(() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId,
+					postUri, remoteAddr, idpEntityIds)).thenReturn(validationContext);
 
 			final var subjectConfirmation = mock(SubjectConfirmation.class);
 			final var element = mock(Element.class);
@@ -433,9 +430,8 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 				final var mockSamlResponseValidator = mockStatic(SamlResponseValidator.class);
 				final var mockSamlResponseValidatorCon = mockConstruction(SamlResponseValidator.class)) {
 			final var validationContext = mock(ValidationContext.class);
-			mockSamlResponseValidator.when(
-					() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId, postUri, remoteAddr))
-					.thenReturn(validationContext);
+			mockSamlResponseValidator.when(() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId,
+					postUri, remoteAddr, idpEntityIds)).thenReturn(validationContext);
 
 			final var samlResponseValidator = new SamlResponseValidator(realm, postUri, entityId, sessionId, remoteAddr,
 					samlBuilder);
@@ -445,7 +441,7 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 			final var assertion = mock(SamlAssertion.class);
 			assertDoesNotThrow(
 					() -> when(samlResponseValidator.validateAssertions(response)).thenReturn(List.of(assertion)));
-			
+
 			assertThrows(NoSuchElementException.class, () -> samlResponseValidator.validate(response));
 		}
 	}
@@ -456,9 +452,8 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 				final var mockSamlResponseValidator = mockStatic(SamlResponseValidator.class);
 				final var mockSamlResponseValidatorCon = mockConstruction(SamlResponseValidator.class)) {
 			final var validationContext = mock(ValidationContext.class);
-			mockSamlResponseValidator.when(
-					() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId, postUri, remoteAddr))
-					.thenReturn(validationContext);
+			mockSamlResponseValidator.when(() -> SamlResponseValidator.createValidationContext(spEntityId, sessionId,
+					postUri, remoteAddr, idpEntityIds)).thenReturn(validationContext);
 
 			final var samlResponseValidator = new SamlResponseValidator(realm, postUri, entityId, sessionId, remoteAddr,
 					samlBuilder);

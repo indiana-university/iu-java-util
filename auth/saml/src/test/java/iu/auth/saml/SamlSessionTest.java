@@ -52,6 +52,7 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Queue;
+import java.util.Set;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.AfterEach;
@@ -499,8 +500,8 @@ public class SamlSessionTest {
 			}
 
 			@Override
-			public String getIdentityProviderEntityId() {
-				return "https://sp.identityserver";
+			public Set<String> getIdentityProviderEntityIds() {
+				return Set.of("https://sp.identityserver");
 			}
 
 			@Override

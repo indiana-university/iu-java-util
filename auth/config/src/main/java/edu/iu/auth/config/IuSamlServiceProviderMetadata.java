@@ -33,6 +33,7 @@ package edu.iu.auth.config;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.Set;
 
 import edu.iu.IuIterable;
 import edu.iu.auth.saml.IuSamlAssertion;
@@ -112,11 +113,16 @@ public interface IuSamlServiceProviderMetadata extends IuAuthenticationRealm {
 	String getServiceProviderEntityId();
 
 	/**
-	 * Gets the Identity Provider registered Entity ID.
+	 * Gets an ordered set of registered Identity Provider Entity IDs.
+	 * 
+	 * <p>
+	 * The first entry in the set is the primary IDP for redirecting the user agent
+	 * to for initiating sign-in
+	 * </p>
 	 * 
 	 * @return IDP Entity ID
 	 */
-	String getIdentityProviderEntityId();
+	Set<String> getIdentityProviderEntityIds();
 
 	/**
 	 * Gets the SAML Service Provider identity keys.

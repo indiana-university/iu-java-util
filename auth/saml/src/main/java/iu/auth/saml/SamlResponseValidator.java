@@ -110,7 +110,8 @@ class SamlResponseValidator {
 
 		assertionValidator = createAssertionValidator(signatureProfileValidator, trustEngine,
 				samlBuilder.getSubjectConfirmationValidator());
-		validationContext = createValidationContext(spEntityId, sessionId, postUri, remoteAddr);
+		validationContext = createValidationContext(spEntityId, sessionId, postUri, remoteAddr,
+				samlBuilder.getIdentityProviderEntityIds());
 
 		config = AuthConfig.load(IuSamlServiceProviderMetadata.class, realm);
 		final var identity = SamlServiceProvider.serviceProviderIdentity(config);
@@ -140,19 +141,21 @@ class SamlResponseValidator {
 	/**
 	 * Creates {@link ValidationContext} from static parameters.
 	 * 
-	 * @param spEntityId service provider entity ID
-	 * @param sessionId  expected session ID
-	 * @param postUri    HTTP POST binding URI
-	 * @param remoteAddr remote address
+	 * @param spEntityId   service provider entity ID
+	 * @param sessionId    expected session ID
+	 * @param postUri      HTTP POST binding URI
+	 * @param remoteAddr   remote address
+	 * @param validIssuers valid IDP entity IDs
 	 * @return {@link ValidationContext}
 	 */
 	static ValidationContext createValidationContext(String spEntityId, String sessionId, URI postUri,
-			InetAddress remoteAddr) {
+			InetAddress remoteAddr, Set<String> validIssuers) {
 		final Map<String, Object> staticParams = new LinkedHashMap<>();
 		staticParams.put(SAML2AssertionValidationParameters.COND_VALID_AUDIENCES, Set.of(spEntityId));
 		staticParams.put(SAML2AssertionValidationParameters.SC_VALID_IN_RESPONSE_TO, sessionId);
 		staticParams.put(SAML2AssertionValidationParameters.SC_VALID_RECIPIENTS, Set.of(postUri.toString()));
 		staticParams.put(SAML2AssertionValidationParameters.SC_VALID_ADDRESSES, Set.of(remoteAddr));
+		staticParams.put(SAML2AssertionValidationParameters.VALID_ISSUERS, validIssuers);
 		staticParams.put(SAML2AssertionValidationParameters.SIGNATURE_REQUIRED, false);
 		return new ValidationContext(staticParams);
 	}
@@ -246,7 +249,7 @@ class SamlResponseValidator {
 	/**
 	 * Validates the signature of a response
 	 * 
-	 * @param response                  {@link Response}
+	 * @param response {@link Response}
 	 * @throws SecurityException  from trustEngine
 	 * @throws SignatureException from signatureProfileValidator
 	 */
