@@ -33,6 +33,7 @@ package edu.iu.auth.config;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.Set;
 
 import edu.iu.IuIterable;
 import edu.iu.auth.saml.IuSamlAssertion;
@@ -55,7 +56,7 @@ public interface IuSamlServiceProviderMetadata extends IuAuthenticationRealm {
 	 * @return failed on address mismatch
 	 */
 	default boolean isFailOnAddressMismatch() {
-<span class="fc" id="L58">		return false;</span>
+<span class="fc" id="L59">		return false;</span>
 	}
 
 	/**
@@ -66,7 +67,7 @@ public interface IuSamlServiceProviderMetadata extends IuAuthenticationRealm {
 	 * @return {@link Duration}, will be truncated to second
 	 */
 	default Duration getAuthenticatedSessionTimeout() {
-<span class="fc" id="L69">		return Duration.ofHours(12L);</span>
+<span class="fc" id="L70">		return Duration.ofHours(12L);</span>
 	}
 
 	/**
@@ -77,7 +78,7 @@ public interface IuSamlServiceProviderMetadata extends IuAuthenticationRealm {
 	 * @return metadaaTtl {@link Duration}
 	 */
 	default Duration getMetadataTtl() {
-<span class="fc" id="L80">		return Duration.ofMinutes(5L);</span>
+<span class="fc" id="L81">		return Duration.ofMinutes(5L);</span>
 	}
 
 	/**
@@ -86,7 +87,7 @@ public interface IuSamlServiceProviderMetadata extends IuAuthenticationRealm {
 	 * @return allowed ranged of IP addresses
 	 */
 	default Iterable&lt;String&gt; getAllowedRange() {
-<span class="fc" id="L89">		return IuIterable.empty();</span>
+<span class="fc" id="L90">		return IuIterable.empty();</span>
 	}
 
 	/**
@@ -105,13 +106,6 @@ public interface IuSamlServiceProviderMetadata extends IuAuthenticationRealm {
 	Iterable&lt;URI&gt; getAcsUris();
 
 	/**
-	 * Gets the list of allowed application entry point {@link URI}s.
-	 * 
-	 * @return allowed list of application entry point {@link URI}
-	 */
-	Iterable&lt;URI&gt; getEntryPointUris();
-
-	/**
 	 * Gets the Service Provider registered Entity ID.
 	 * 
 	 * @return SP Entity ID
@@ -119,11 +113,16 @@ public interface IuSamlServiceProviderMetadata extends IuAuthenticationRealm {
 	String getServiceProviderEntityId();
 
 	/**
-	 * Gets the Identity Provider registered Entity ID.
+	 * Gets an ordered set of registered Identity Provider Entity IDs.
+	 * 
+	 * &lt;p&gt;
+	 * The first entry in the set is the primary IDP for redirecting the user agent
+	 * to for initiating sign-in
+	 * &lt;/p&gt;
 	 * 
 	 * @return IDP Entity ID
 	 */
-	String getIdentityProviderEntityId();
+	Set&lt;String&gt; getIdentityProviderEntityIds();
 
 	/**
 	 * Gets the SAML Service Provider identity keys.
@@ -143,7 +142,7 @@ public interface IuSamlServiceProviderMetadata extends IuAuthenticationRealm {
 	 * @return principal name attribute
 	 */
 	default String getPrincipalNameAttribute() {
-<span class="fc" id="L146">		return IuSamlAssertion.EDU_PERSON_PRINCIPAL_NAME_OID;</span>
+<span class="fc" id="L145">		return IuSamlAssertion.EDU_PERSON_PRINCIPAL_NAME_OID;</span>
 	}
 
 }
