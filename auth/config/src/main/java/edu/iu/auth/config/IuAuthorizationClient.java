@@ -31,6 +31,7 @@
  */
 package edu.iu.auth.config;
 
+import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
@@ -255,6 +256,22 @@ public interface IuAuthorizationClient {
 	}
 
 	/**
+	 * Gets the authentication realm to use with
+	 * {@link GrantType#AUTHORIZATION_CODE}.
+	 * 
+	 * @return redirect URIs
+	 */
+	String getRealm();
+
+	/**
+	 * Gets redirect URIs allowed for this client to use with
+	 * {@link GrantType#AUTHORIZATION_CODE}.
+	 * 
+	 * @return redirect URIs
+	 */
+	Set<URI> getRedirectUri();
+
+	/**
 	 * Gets the allowed IP address ranges.
 	 * 
 	 * @return Set of allowed IP address ranges
@@ -273,6 +290,6 @@ public interface IuAuthorizationClient {
 	 * 
 	 * @return {@link Credentials}
 	 */
-	Iterable<? extends Credentials>  getCredentials();
+	Iterable<? extends Credentials> getCredentials();
 
 }

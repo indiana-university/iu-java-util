@@ -40,15 +40,12 @@ import java.util.logging.Logger;
 
 import org.opensaml.core.xml.schema.XSAny;
 import org.opensaml.core.xml.schema.XSString;
-import org.opensaml.saml.common.assertion.ValidationContext;
-import org.opensaml.saml.saml2.assertion.SAML20AssertionValidator;
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.Attribute;
 import org.opensaml.saml.saml2.core.AttributeStatement;
 import org.opensaml.saml.saml2.core.AuthnStatement;
 import org.opensaml.saml.saml2.core.Conditions;
 
-import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.auth.saml.IuSamlAssertion;
@@ -64,7 +61,7 @@ import jakarta.json.JsonValue;
  */
 final class SamlAssertion implements IuSamlAssertion {
 
-	private static final Logger LOG = Logger.getLogger(SamlServiceProvider.class.getName());
+	private static final Logger LOG = Logger.getLogger(SamlAssertion.class.getName());
 
 	/**
 	 * JSON type adapter for timestamp values.
@@ -77,7 +74,13 @@ final class SamlAssertion implements IuSamlAssertion {
 	 */
 	static IuJsonAdapter<SamlAssertion> JSON = IuJsonAdapter.from(SamlAssertion::new, SamlAssertion::toJson);
 
-	private static String readStringAttribute(Attribute attribute) {
+	/**
+	 * Extracts string contents from a SAML attribute
+	 * 
+	 * @param attribute attribute
+	 * @return string content
+	 */
+	static String readStringAttribute(Attribute attribute) {
 		Object attrval = attribute.getAttributeValues().get(0);
 		if (attrval instanceof XSString)
 			return ((XSString) attrval).getValue();
@@ -93,13 +96,9 @@ final class SamlAssertion implements IuSamlAssertion {
 	/**
 	 * Constructor.
 	 * 
-	 * @param validator         OpenSAML Assertion Validator
-	 * @param validationContext OpenSAML Validation Context
 	 * @param assertion         Unmarshalled OpenSAML Assertion
 	 */
-	SamlAssertion(SAML20AssertionValidator validator, ValidationContext validationContext, Assertion assertion) {
-		IuException.unchecked(() -> validator.validate(assertion, validationContext));
-
+	SamlAssertion(Assertion assertion) {
 		final Map<String, String> attributes = new LinkedHashMap<>();
 
 		LOG.fine(() -> "SAML2 assertion " + XmlDomUtil.getContent(assertion.getDOM()));

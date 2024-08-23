@@ -31,19 +31,22 @@
  */
 package iu.auth.saml;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.net.InetAddress;
@@ -67,33 +70,20 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
-import org.opensaml.core.xml.schema.XSAny;
-import org.opensaml.core.xml.schema.XSString;
 import org.opensaml.core.xml.util.XMLObjectSupport;
-import org.opensaml.saml.common.SAMLVersion;
-import org.opensaml.saml.saml2.core.Assertion;
-import org.opensaml.saml.saml2.core.Attribute;
-import org.opensaml.saml.saml2.core.AttributeStatement;
-import org.opensaml.saml.saml2.core.AuthnStatement;
-import org.opensaml.saml.saml2.core.Conditions;
-import org.opensaml.saml.saml2.core.EncryptedAssertion;
 import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.Response;
-import org.opensaml.saml.saml2.core.SubjectConfirmation;
-import org.opensaml.saml.saml2.core.SubjectConfirmationData;
-import org.opensaml.saml.saml2.encryption.Decrypter;
+import org.opensaml.saml.security.impl.SAMLSignatureProfileValidator;
 import org.opensaml.security.credential.CredentialResolver;
-import org.opensaml.xmlsec.encryption.EncryptedData;
-import org.opensaml.xmlsec.encryption.support.DecryptionException;
 import org.opensaml.xmlsec.keyinfo.KeyInfoCredentialResolver;
 import org.opensaml.xmlsec.signature.Signature;
 import org.opensaml.xmlsec.signature.support.impl.ExplicitKeySignatureTrustEngine;
+import org.w3c.dom.Element;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuText;
-import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
@@ -106,10 +96,8 @@ import iu.auth.principal.PrincipalVerifier;
 
 @SuppressWarnings("javadoc")
 public class SamlServiceProviderTest {
+
 	private static IuSamlServiceProviderMetadata config;
-	private static final String MAIL_OID = "urn:oid:0.9.2342.19200300.100.1.3";
-	private static final String DISPLAY_NAME_OID = "urn:oid:2.16.840.1.113730.3.1.241";
-	private static final String EDU_PERSON_PRINCIPAL_NAME_OID = "urn:oid:1.3.6.1.4.1.5923.1.1.1.6";
 	private MockedStatic<IuPrincipalIdentity> mockPrincipalIdentity;
 
 	@SuppressWarnings("deprecation")
@@ -131,8 +119,10 @@ public class SamlServiceProviderTest {
 
 	@BeforeEach
 	public void setupAuthConfig() throws Exception {
+		IuTestLogger.allow("net.shibboleth", Level.FINE);
+		IuTestLogger.allow("org.apache.xml", Level.FINE);
+		IuTestLogger.allow("org.opensaml", Level.FINE);
 		mockPrincipalIdentity = mockStatic(IuPrincipalIdentity.class);
-
 	}
 
 	@AfterEach
@@ -310,8 +300,6 @@ public class SamlServiceProviderTest {
 			mockAuthConfig.when(() -> AuthConfig.load(IuSamlServiceProviderMetadata.class, realm)).thenReturn(config);
 			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
 			mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any())).thenReturn(false);
-			assertFalse(samlprovider.isValidEntryPoint(postUri));
-			assertTrue(samlprovider.isValidEntryPoint(URI.create("test://init")));
 			assertEquals(realm, samlprovider.getRealm());
 			assertNull(samlprovider.getAuthScheme());
 			assertEquals(postUri, samlprovider.getAuthenticationEndpoint());
@@ -418,7 +406,6 @@ public class SamlServiceProviderTest {
 
 	@Test
 	public void testInvalidSignatureVerificationSamlResponse() throws UnknownHostException {
-
 		final var postUri = URI.create("test://postUrl/");
 		final var realm = "iu-saml-test";
 		final var sessionId = IdGenerator.generateId();
@@ -432,6 +419,7 @@ public class SamlServiceProviderTest {
 		final var mockSignature = mock(Signature.class);
 
 		try (final var mockXMLObjectSupport = mockStatic(XMLObjectSupport.class);
+				final var mockXmlDomUtil = mockStatic(XmlDomUtil.class);
 				final var mockAuthConfig = mockStatic(AuthConfig.class, CALLS_REAL_METHODS);
 				MockedConstruction<ExplicitKeySignatureTrustEngine> mockSignatureTrustEngine = mockConstruction(
 						ExplicitKeySignatureTrustEngine.class, (mock, context) -> {
@@ -452,382 +440,100 @@ public class SamlServiceProviderTest {
 
 			mockXMLObjectSupport.when(() -> XMLObjectSupport.unmarshallFromInputStream(any(), any()))
 					.thenReturn(mockResponse);
+
+			final var dom = mock(Element.class);
+			when(mockResponse.getDOM()).thenReturn(dom);
+			final var content = IdGenerator.generateId();
+			mockXmlDomUtil.when(() -> XmlDomUtil.getContent(dom)).thenReturn(content);
+
 			mockAuthConfig.when(() -> AuthConfig.load(IuSamlServiceProviderMetadata.class, realm)).thenReturn(config);
 			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
 			mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any())).thenReturn(true);
-			IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 .*");
+
+			IuTestLogger.allow(SAMLSignatureProfileValidator.class.getName(), Level.INFO);
+			IuTestLogger.allow(SamlResponseValidator.class.getName(), Level.FINE);
+			IuTestLogger.expect(SamlServiceProvider.class.getName(), Level.FINE,
+					"SAML2 authentication response\nEntity ID: https://sp.identityserver\nPOST URL: " + postUri + "\n"
+							+ content);
+
 			final var samlResponse = Base64.getEncoder().encodeToString(IuText.utf8(IdGenerator.generateId()));
 			assertThrows(IllegalArgumentException.class,
 					() -> samlprovider.verifyResponse(InetAddress.getByName("127.0.0.0"), samlResponse, sessionId));
 		}
 	}
 
-//	@SuppressWarnings("static-access")
 	@Test
-	public void testGetDecrypter() throws UnknownHostException {
+	public void testServiceProviderIdentityMissingFromConfig() {
+		final var config = mock(IuSamlServiceProviderMetadata.class);
 
-//		final var postUri = URI.create("test://postUrl/");
-//		final var realm = "iu-saml-test";
-//		final var sessionId = IdGenerator.generateId();
-		final var id = new TestId();
-		AuthConfig.register(new Verifier(id.getName(), true));
-		final var mockIuTrustedIssuer = mock(IuTrustedIssuer.class);
-		when(mockIuTrustedIssuer.getPrincipal(any())).thenReturn(id);
-
-		final var issuer = mock(Issuer.class);
-		when(issuer.getValue()).thenReturn("https://sp.identityserver");
-		final var mockSignature = mock(Signature.class);
-
-		try (// final var mockIuAuthenticationRealm =
-				// mockStatic(IuAuthenticationRealm.class);
-				// final var mockXMLObjectSupport = mockStatic(XMLObjectSupport.class);
-				final var mockAuthConfig = mockStatic(AuthConfig.class, CALLS_REAL_METHODS);
-//				MockedConstruction<ExplicitKeySignatureTrustEngine> mockSignatureTrustEngine = mockConstruction(
-//						ExplicitKeySignatureTrustEngine.class, (mock, context) -> {
-//							CredentialResolver resolver = (CredentialResolver) context.arguments().get(0);
-//							when(mock.getCredentialResolver()).thenReturn(resolver);
-//							KeyInfoCredentialResolver keyResolver = (KeyInfoCredentialResolver) context.arguments()
-//									.get(1);
-//							when(mock.getKeyInfoResolver()).thenReturn(keyResolver);
-//							when(mock.validate(any(), any())).thenReturn(false);
-//						});
-		) {
-			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class))
-					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
-			final var mockResponse = mock(Response.class);
-			when(mockResponse.getIssuer()).thenReturn(issuer);
-			when(mockResponse.getSignature()).thenReturn(mockSignature);
-
-//			mockXMLObjectSupport.when(() -> XMLObjectSupport.unmarshallFromInputStream(any(), any()))
-//					.thenReturn(mockResponse);
-//			mockIuAuthenticationRealm.when(() -> IuAuthenticationRealm.of(realm)).thenReturn(config);
-//			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
-			mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any())).thenReturn(true);
-			IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 .*");
-			SamlServiceProvider.getDecrypter(id);
+		try (final var mockAuthConfig = mockStatic(AuthConfig.class)) {
+			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class)).thenReturn(Set.of());
+			final var error = assertThrows(IllegalStateException.class,
+					() -> SamlServiceProvider.serviceProviderIdentity(config));
+			assertEquals("service provider is not trusted", error.getMessage());
 		}
 	}
 
 	@Test
-	public void testSamlResponseWithConditionAsNull()
-			throws UnknownHostException, DecryptionException, IuAuthenticationException {
+	public void testServiceProviderIdentityNonAuthoritative() {
+		final var config = mock(IuSamlServiceProviderMetadata.class);
 
-		final var postUri = URI.create("test://postUrl/");
-		final var realm = "iu-saml-test";
-		final var sessionId = IdGenerator.generateId();
-		final var id = new TestId();
-		AuthConfig.register(new Verifier(id.getName(), true));
-		Instant now = Instant.now();
-		Instant issueInstant = now.plus(Duration.ofMinutes(5)).minusSeconds(5);
-
-		final var issuer = mock(Issuer.class);
-		when(issuer.getValue()).thenReturn("https://sp.identityserver");
-
-		final var mockSignature = mock(Signature.class);
-
-		final var mockXSAny = mock(XSAny.class);
-		when(mockXSAny.getTextContent()).thenReturn("testUser");
-
-		final var mockAttributePrincipalName = mock(Attribute.class);
-
-		when(mockAttributePrincipalName.getAttributeValues()).thenReturn(Arrays.asList(mockXSAny));
-
-		final var attributeStatement = mock(AttributeStatement.class);
-		when(attributeStatement.getAttributes()).thenReturn(Arrays.asList(mockAttributePrincipalName));
-		when(mockAttributePrincipalName.getName()).thenReturn(EDU_PERSON_PRINCIPAL_NAME_OID);
-
-		final var mockAssertion = mock(Assertion.class);
-		when(mockAssertion.getAttributeStatements()).thenReturn(Arrays.asList(attributeStatement));
-		when(mockAssertion.getVersion()).thenReturn(SAMLVersion.VERSION_20);
-		when(mockAssertion.getIssueInstant()).thenReturn(issueInstant);
-		final var mockIssuer = mock(Issuer.class);
-		when(mockIssuer.getValue()).thenReturn("test");
-		when(mockAssertion.getIssuer()).thenReturn(mockIssuer);
-
-		final var mockAuthnStatement = mock(AuthnStatement.class);
-		when(mockAuthnStatement.getAuthnInstant()).thenReturn(issueInstant);
-		when(mockAssertion.getAuthnStatements()).thenReturn(Arrays.asList(mockAuthnStatement));
-
-		final var mockSubject = mock(org.opensaml.saml.saml2.core.Subject.class);
-		final var mockSubjectConfirmation = mock(SubjectConfirmation.class);
-		when(mockSubjectConfirmation.getMethod()).thenReturn("urn:oasis:names:tc:SAML:2.0:cm:bearer");
-		final var mockSubjectConfirmationData = mock(SubjectConfirmationData.class);
-		when(mockSubjectConfirmation.getSubjectConfirmationData()).thenReturn(mockSubjectConfirmationData);
-		when(mockSubject.getSubjectConfirmations()).thenReturn(Arrays.asList(mockSubjectConfirmation));
-
-		when(mockAssertion.getSubject()).thenReturn(mockSubject);
-		final var mockDecrypter = mock(Decrypter.class);
-
-		when(mockAssertion.getSubject()).thenReturn(mockSubject);
-
-		final var mockIuTrustedIssuer = mock(IuTrustedIssuer.class);
-		when(mockIuTrustedIssuer.getPrincipal(any())).thenReturn(id);
-		try (final var mockAuthConfig = mockStatic(AuthConfig.class);
-				final var mockXMLObjectSupport = mockStatic(XMLObjectSupport.class);
-				final var mockProvider = mockStatic(SamlServiceProvider.class, CALLS_REAL_METHODS);
-				MockedConstruction<ExplicitKeySignatureTrustEngine> mockSignatureTrustEngine = mockConstruction(
-						ExplicitKeySignatureTrustEngine.class, (mock, context) -> {
-							CredentialResolver resolver = (CredentialResolver) context.arguments().get(0);
-							when(mock.getCredentialResolver()).thenReturn(resolver);
-							KeyInfoCredentialResolver keyResolver = (KeyInfoCredentialResolver) context.arguments()
-									.get(1);
-							when(mock.getKeyInfoResolver()).thenReturn(keyResolver);
-							when(mock.validate(any(), any())).thenReturn(true);
-						});
-
-		) {
-			mockProvider.when(() -> SamlServiceProvider.getDecrypter(any())).thenReturn(mockDecrypter);
-
-			final var mockResponse = mock(Response.class);
-			final var encryptedAssertion = mock(EncryptedAssertion.class);
-
-			when(mockResponse.getIssuer()).thenReturn(issuer);
-			when(mockResponse.getIssueInstant()).thenReturn(issueInstant);
-			when(mockResponse.getSignature()).thenReturn(mockSignature);
-			when(mockResponse.getAssertions()).thenReturn(Arrays.asList(mockAssertion));
-			when(mockResponse.getEncryptedAssertions()).thenReturn(Arrays.asList(encryptedAssertion));
-
-			final var encryptedData = mock(EncryptedData.class);
-			when(encryptedAssertion.getEncryptedData()).thenReturn(encryptedData);
-
-			when(mockDecrypter.decrypt(encryptedAssertion)).thenReturn(mockAssertion);
-
-			mockXMLObjectSupport.when(() -> XMLObjectSupport.unmarshallFromInputStream(any(), any()))
-					.thenReturn(mockResponse);
-			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class))
-					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
-
-			mockAuthConfig.when(() -> AuthConfig.load(IuSamlServiceProviderMetadata.class, realm)).thenReturn(config);
-			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
-
-			final var samlResponse = Base64.getEncoder().encodeToString(IuText.utf8(IdGenerator.generateId()));
-			IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 .*");
-
-			mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any())).thenReturn(true);
-
-			SamlPrincipal principal = samlprovider.verifyResponse(InetAddress.getByName("127.0.0.0"), samlResponse,
-					sessionId);
-			assertNotNull(principal);
-			assertEquals("testUser", principal.getName());
-
-			IuTestLogger.expect(SamlServiceProvider.class.getName(), Level.INFO,
-					"saml:verify:testUser; serviceProvider: iu-saml-test");
-			samlprovider.verify(principal);
+		try (final var mockAuthConfig = mockStatic(AuthConfig.class)) {
+			final var trustedIssuer = mock(IuTrustedIssuer.class);
+			final var identity = mock(IuPrincipalIdentity.class);
+			when(trustedIssuer.getPrincipal(any())).thenReturn(identity);
+			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class)).thenReturn(Set.of(trustedIssuer));
+			final var error = assertThrows(IllegalStateException.class,
+					() -> SamlServiceProvider.serviceProviderIdentity(config));
+			assertEquals("service provider is not authoritative", error.getMessage());
 		}
 	}
 
 	@Test
-	public void testSamlResponseNullSubjectConfirmation() throws UnknownHostException, DecryptionException {
-
-		final var postUri = URI.create("test://postUrl/");
-		final var realm = "iu-saml-test";
-		final var sessionId = IdGenerator.generateId();
-		final var id = new TestId();
-		AuthConfig.register(new Verifier(id.getName(), true));
-		Instant now = Instant.now();
-		Instant issueInstant = now.plus(Duration.ofMinutes(5)).minusSeconds(5);
-
-		final var issuer = mock(Issuer.class);
-		when(issuer.getValue()).thenReturn("https://sp.identityserver");
-
-		final var mockSignature = mock(Signature.class);
-
-		final var mockXSAny = mock(XSAny.class);
-		when(mockXSAny.getTextContent()).thenReturn("testUser");
-
-		final var mockAttributePrincipalName = mock(Attribute.class);
-
-		when(mockAttributePrincipalName.getAttributeValues()).thenReturn(Arrays.asList(mockXSAny));
-
-		final var attributeStatement = mock(AttributeStatement.class);
-		when(attributeStatement.getAttributes()).thenReturn(Arrays.asList(mockAttributePrincipalName));
-
-		final var mockAssertion = mock(Assertion.class);
-		when(mockAssertion.getAttributeStatements()).thenReturn(Arrays.asList(attributeStatement));
-		when(mockAssertion.getVersion()).thenReturn(SAMLVersion.VERSION_20);
-		when(mockAssertion.getIssueInstant()).thenReturn(issueInstant);
-		final var mockIssuer = mock(Issuer.class);
-		when(mockIssuer.getValue()).thenReturn("test");
-		when(mockAssertion.getIssuer()).thenReturn(mockIssuer);
-
-		final var mockAuthnStatement = mock(AuthnStatement.class);
-		when(mockAuthnStatement.getAuthnInstant()).thenReturn(issueInstant);
-		when(mockAssertion.getAuthnStatements()).thenReturn(Arrays.asList(mockAuthnStatement));
-
-		final var mockSubject = mock(org.opensaml.saml.saml2.core.Subject.class);
-
-		when(mockAssertion.getSubject()).thenReturn(mockSubject);
-		final var mockDecrypter = mock(Decrypter.class);
-
-		when(mockAssertion.getSubject()).thenReturn(mockSubject);
-
-		final var mockIuTrustedIssuer = mock(IuTrustedIssuer.class);
-		when(mockIuTrustedIssuer.getPrincipal(any())).thenReturn(id);
-
-		try (final var mockAuthConfig = mockStatic(AuthConfig.class);
-				final var mockXMLObjectSupport = mockStatic(XMLObjectSupport.class);
-				final var mockProvider = mockStatic(SamlServiceProvider.class, CALLS_REAL_METHODS);
-
-				MockedConstruction<ExplicitKeySignatureTrustEngine> mockSignatureTrustEngine = mockConstruction(
-						ExplicitKeySignatureTrustEngine.class, (mock, context) -> {
-							CredentialResolver resolver = (CredentialResolver) context.arguments().get(0);
-							when(mock.getCredentialResolver()).thenReturn(resolver);
-							KeyInfoCredentialResolver keyResolver = (KeyInfoCredentialResolver) context.arguments()
-									.get(1);
-							when(mock.getKeyInfoResolver()).thenReturn(keyResolver);
-							when(mock.validate(any(), any())).thenReturn(true);
-						});
-
-		) {
-			mockProvider.when(() -> SamlServiceProvider.getDecrypter(any())).thenReturn(mockDecrypter);
-			when(mockAttributePrincipalName.getName()).thenReturn(EDU_PERSON_PRINCIPAL_NAME_OID);
-
-			final var mockResponse = mock(Response.class);
-			final var encryptedAssertion = mock(EncryptedAssertion.class);
-
-			when(mockResponse.getIssuer()).thenReturn(issuer);
-			when(mockResponse.getIssueInstant()).thenReturn(issueInstant);
-			when(mockResponse.getSignature()).thenReturn(mockSignature);
-			when(mockResponse.getAssertions()).thenReturn(Arrays.asList(mockAssertion));
-			when(mockResponse.getEncryptedAssertions()).thenReturn(Arrays.asList(encryptedAssertion));
-
-			final var encryptedData = mock(EncryptedData.class);
-			when(encryptedAssertion.getEncryptedData()).thenReturn(encryptedData);
-
-			when(mockDecrypter.decrypt(encryptedAssertion)).thenReturn(mockAssertion);
-
-			mockXMLObjectSupport.when(() -> XMLObjectSupport.unmarshallFromInputStream(any(), any()))
-					.thenReturn(mockResponse);
-			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class))
-					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
-
-			mockAuthConfig.when(() -> AuthConfig.load(IuSamlServiceProviderMetadata.class, realm)).thenReturn(config);
-			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
-
-			final var samlResponse = Base64.getEncoder().encodeToString(IuText.utf8(IdGenerator.generateId()));
-			IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 .*");
-
-			mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any())).thenReturn(true);
-
-			assertThrows(IllegalArgumentException.class,
-					() -> samlprovider.verifyResponse(InetAddress.getByName("127.0.0.0"), samlResponse, sessionId));
-		}
+	public void testVerifyPrincipial() {
+		final var sp = mock(SamlServiceProvider.class, CALLS_REAL_METHODS);
+		final var identity = mock(SamlPrincipal.class);
+		final var name = IdGenerator.generateId();
+		when(identity.getName()).thenReturn(name);
+		IuTestLogger.expect(SamlServiceProvider.class.getName(), Level.INFO,
+				"saml:verify:" + name + "; serviceProvider: null");
+		assertDoesNotThrow(() -> sp.verify(identity));
 	}
 
 	@Test
-	public void testSuccessSamlResponse() throws UnknownHostException, DecryptionException {
-
-		final var postUri = URI.create("test://postUrl/");
-		final var realm = "iu-saml-test";
+	public void testVerifyResponse() {
+		final var postUri = URI.create(IdGenerator.generateId());
+		final var realm = IdGenerator.generateId();
+		final var remoteAddr = mock(InetAddress.class);
+		final var samlResponse = IdGenerator.generateId();
+		final var encodedSamlResponse = IuText.base64(IuText.utf8(samlResponse));
 		final var sessionId = IdGenerator.generateId();
-		final var id = new TestId();
-		AuthConfig.register(new Verifier(id.getName(), true));
-		Instant now = Instant.now();
-		Instant issueInstant = now.plus(Duration.ofMinutes(5)).minusSeconds(5);
 
+		final var issuerValue = IdGenerator.generateId();
 		final var issuer = mock(Issuer.class);
-		when(issuer.getValue()).thenReturn("https://sp.identityserver");
+		final var response = mock(Response.class);
+		when(response.getIssuer()).thenReturn(issuer);
+		when(issuer.getValue()).thenReturn(issuerValue);
 
-		final var mockSignature = mock(Signature.class);
+		final var config = mock(IuSamlServiceProviderMetadata.class);
+		when(config.getAcsUris()).thenReturn(IuIterable.iter(postUri));
+		try (final var mockBuilder = mockConstruction(SamlBuilder.class);
+				final var mockResponseValidator = mockConstruction(SamlResponseValidator.class);
+				final var mockByteArrayInputStream = mockConstruction(ByteArrayInputStream.class, (a, ctx) -> {
+					assertEquals(samlResponse, IuText.utf8((byte[]) ctx.arguments().get(0)));
+				});
+				final var mockXmlObjectSupport = mockStatic(XMLObjectSupport.class)) {
 
-		final var xsString = mock(XSString.class);
-		when(xsString.getValue()).thenReturn("testUser");
+			mockXmlObjectSupport
+					.when(() -> XMLObjectSupport.unmarshallFromInputStream(any(),
+							argThat(a -> mockByteArrayInputStream.constructed().get(0).equals(a))))
+					.thenReturn(response);
 
-		final var mockAttributePrincipalName = mock(Attribute.class);
-		final var mockAttributeDisplayName = mock(Attribute.class);
-
-		final var mockAttributeEmail = mock(Attribute.class);
-
-		when(mockAttributePrincipalName.getAttributeValues()).thenReturn(Arrays.asList(xsString));
-		when(mockAttributeDisplayName.getAttributeValues()).thenReturn(Arrays.asList(xsString));
-		when(mockAttributeEmail.getAttributeValues()).thenReturn(Arrays.asList(xsString));
-
-		final var attributeStatement = mock(AttributeStatement.class);
-		when(attributeStatement.getAttributes())
-				.thenReturn(Arrays.asList(mockAttributePrincipalName, mockAttributeDisplayName, mockAttributeEmail));
-
-		final var mockAssertion = mock(Assertion.class);
-		when(mockAssertion.getAttributeStatements()).thenReturn(Arrays.asList(attributeStatement));
-		when(mockAssertion.getVersion()).thenReturn(SAMLVersion.VERSION_20);
-		when(mockAssertion.getIssueInstant()).thenReturn(issueInstant);
-		final var mockIssuer = mock(Issuer.class);
-		when(mockIssuer.getValue()).thenReturn("test");
-		when(mockAssertion.getIssuer()).thenReturn(mockIssuer);
-
-		final var mockConditions = mock(Conditions.class);
-		Instant expectedNotBefore = Instant.parse("1984-08-26T10:01:30.043Z");
-		when(mockConditions.getNotBefore()).thenReturn(expectedNotBefore);
-		when(mockAssertion.getConditions()).thenReturn(mockConditions);
-		final var mockAuthnStatement = mock(AuthnStatement.class);
-		when(mockAuthnStatement.getAuthnInstant()).thenReturn(issueInstant);
-		when(mockAssertion.getAuthnStatements()).thenReturn(Arrays.asList(mockAuthnStatement));
-
-		final var mockSubject = mock(org.opensaml.saml.saml2.core.Subject.class);
-		final var mockSubjectConfirmation = mock(SubjectConfirmation.class);
-		when(mockSubjectConfirmation.getMethod()).thenReturn("urn:oasis:names:tc:SAML:2.0:cm:bearer");
-		final var mockSubjectConfirmationData = mock(SubjectConfirmationData.class);
-		when(mockSubjectConfirmation.getSubjectConfirmationData()).thenReturn(mockSubjectConfirmationData);
-		when(mockSubject.getSubjectConfirmations()).thenReturn(Arrays.asList(mockSubjectConfirmation));
-
-		when(mockAssertion.getSubject()).thenReturn(mockSubject);
-		final var mockDecrypter = mock(Decrypter.class);
-
-		when(mockAssertion.getSubject()).thenReturn(mockSubject);
-
-		final var mockIuTrustedIssuer = mock(IuTrustedIssuer.class);
-		when(mockIuTrustedIssuer.getPrincipal(any())).thenReturn(id);
-
-		try (final var mockAuthConfig = mockStatic(AuthConfig.class);
-				final var mockXMLObjectSupport = mockStatic(XMLObjectSupport.class);
-				final var mockProvider = mockStatic(SamlServiceProvider.class, CALLS_REAL_METHODS);
-				MockedConstruction<ExplicitKeySignatureTrustEngine> mockSignatureTrustEngine = mockConstruction(
-						ExplicitKeySignatureTrustEngine.class, (mock, context) -> {
-							CredentialResolver resolver = (CredentialResolver) context.arguments().get(0);
-							when(mock.getCredentialResolver()).thenReturn(resolver);
-							KeyInfoCredentialResolver keyResolver = (KeyInfoCredentialResolver) context.arguments()
-									.get(1);
-							when(mock.getKeyInfoResolver()).thenReturn(keyResolver);
-							when(mock.validate(any(), any())).thenReturn(true);
-						});
-
-		) {
-
-			mockProvider.when(() -> SamlServiceProvider.getDecrypter(any())).thenReturn(mockDecrypter);
-			when(mockAttributePrincipalName.getName()).thenReturn(EDU_PERSON_PRINCIPAL_NAME_OID);
-			when(mockAttributeDisplayName.getName()).thenReturn(DISPLAY_NAME_OID);
-			when(mockAttributeEmail.getName()).thenReturn(MAIL_OID);
-
-			final var mockResponse = mock(Response.class);
-			final var encryptedAssertion = mock(EncryptedAssertion.class);
-
-			when(mockResponse.getIssuer()).thenReturn(issuer);
-			when(mockResponse.getIssueInstant()).thenReturn(issueInstant);
-			when(mockResponse.getSignature()).thenReturn(mockSignature);
-			when(mockResponse.getAssertions()).thenReturn(Arrays.asList(mockAssertion));
-			when(mockResponse.getEncryptedAssertions()).thenReturn(Arrays.asList(encryptedAssertion));
-
-			final var encryptedData = mock(EncryptedData.class);
-			when(encryptedAssertion.getEncryptedData()).thenReturn(encryptedData);
-
-			when(mockDecrypter.decrypt(encryptedAssertion)).thenReturn(mockAssertion);
-
-			mockXMLObjectSupport.when(() -> XMLObjectSupport.unmarshallFromInputStream(any(), any()))
-					.thenReturn(mockResponse);
-			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class))
-					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
-
-			mockAuthConfig.when(() -> AuthConfig.load(IuSamlServiceProviderMetadata.class, realm)).thenReturn(config);
-			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
-
-			final var samlResponse = Base64.getEncoder().encodeToString(IuText.utf8(IdGenerator.generateId()));
-			IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 .*");
-
-			mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any())).thenReturn(true);
-
-			SamlPrincipal principal = samlprovider.verifyResponse(InetAddress.getByName("127.0.0.0"), samlResponse,
-					sessionId);
-			assertNotNull(principal);
-			assertEquals("testUser", principal.getName());
+			SamlServiceProvider samlProvider = new SamlServiceProvider(postUri, realm, config);
+			IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE);
+			assertDoesNotThrow(() -> samlProvider.verifyResponse(remoteAddr, encodedSamlResponse, sessionId));
+			assertDoesNotThrow(() -> verify((SamlResponseValidator) mockResponseValidator.constructed().get(0))
+					.validate(response));
 		}
 	}
 
@@ -960,20 +666,14 @@ public class SamlServiceProviderTest {
 			}
 
 			@Override
-			public String getIdentityProviderEntityId() {
-				return "https://sp.identityserver";
+			public Set<String> getIdentityProviderEntityIds() {
+				return Set.of("https://sp.identityserver");
 			}
 
 			@Override
 			public IuPrivateKeyPrincipal getIdentity() {
 				return pkp;
 			}
-
-			@Override
-			public Iterable<URI> getEntryPointUris() {
-				return IuIterable.iter(URI.create("test://init"));
-			}
-
 		};
 		return config;
 	}
