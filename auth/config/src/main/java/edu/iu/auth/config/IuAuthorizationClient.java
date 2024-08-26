@@ -37,6 +37,7 @@ import java.time.Instant;
 import java.util.Set;
 
 import edu.iu.IuIterable;
+import edu.iu.auth.client.IuAuthorizationAttributeResponse;
 import edu.iu.client.IuJsonAdapter;
 
 /**
@@ -270,6 +271,21 @@ public interface IuAuthorizationClient {
 	 * @return redirect URIs
 	 */
 	Set<URI> getRedirectUri();
+
+	/**
+	 * Gets scopes permitted for use with this client.
+	 * 
+	 * @return permitted scopes
+	 */
+	Set<String> getScope();
+
+	/**
+	 * Gets attribute release {@link URIs}.
+	 * 
+	 * @return attribute release {@link URIs}
+	 * @see IuAuthorizationAttributeResponse
+	 */
+	Iterable<URI> getAttributeUris();
 
 	/**
 	 * Gets the allowed IP address ranges.

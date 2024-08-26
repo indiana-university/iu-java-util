@@ -28,6 +28,7 @@
 				<module>pki</module>
 				<module>saml</module>
 				<module>nonce</module>
+				<module>oidc</module>
 			</modules>
 		</profile>
 	</profiles>
