@@ -29,48 +29,31 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.config;
+package edu.iu.auth.client;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.jwt.IuWebToken;
 
-import org.junit.jupiter.api.Test;
+/**
+ * Represents credentials for use with
+ * <a href="https://datatracker.ietf.org/doc/html/rfc6750">OAuth 2.0 Bearer
+ * Token Authorization</a>.
+ */
+public interface IuBearerToken extends IuApiCredentials, IuPrincipalIdentity {
 
-import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
-import edu.iu.auth.config.IuAuthorizationClient.GrantType;
-import jakarta.json.JsonString;
+	/**
+	 * Gets the access token.
+	 * 
+	 * @return access token
+	 */
+	String getAccessToken();
 
-@SuppressWarnings("javadoc")
-public class IuAuthorizationClientTest {
-
-	@Test
-	public void testAuthMethodFrom() {
-		for (final var authMethod : AuthMethod.values())
-			assertSame(authMethod, AuthMethod.from(authMethod.parameterValue));
-	}
-
-	@Test
-	public void testGrantTypeFrom() {
-		for (final var grantType : GrantType.values())
-			assertSame(grantType, GrantType.from(grantType.parameterValue));
-	}
-
-	@Test
-	public void testAuthMethodJson() {
-		for (final var a : AuthMethod.values()) {
-			final var j = AuthMethod.JSON.toJson(a);
-			assertEquals(a.parameterValue, ((JsonString) j).getString());
-			assertEquals(a, AuthMethod.JSON.fromJson(j));
-		}
-	}
-
-	@Test
-	public void testGrantTypeJson() {
-		for (final var a : GrantType.values()) {
-			final var j = GrantType.JSON.toJson(a);
-			assertEquals(a.parameterValue, ((JsonString) j).getString());
-			assertEquals(a, GrantType.JSON.fromJson(j));
-		}
-	}
+	/**
+	 * Gets the scope of access authorized for the token.
+	 * 
+	 * @return scope
+	 */
+	IuWebToken getToken();
 
 }

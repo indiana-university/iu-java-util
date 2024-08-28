@@ -29,7 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.config;
+package iu.auth.jwt;
 
 import java.net.URI;
 import java.time.Instant;
@@ -39,9 +39,11 @@ import java.util.Objects;
 import java.util.function.Function;
 
 import edu.iu.IuObject;
+import edu.iu.IuText;
 import edu.iu.auth.jwt.IuWebToken;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.WebSignedPayload;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonValue;
@@ -66,6 +68,8 @@ public class JwtAdapter<T extends IuWebToken> implements IuJsonAdapter<T> {
 	public static final IuJsonAdapter<Instant> NUMERIC_DATE = IuJsonAdapter.from(
 			v -> v == null ? null : Instant.ofEpochSecond(IuJsonAdapter.of(Long.class).fromJson(v).longValue()),
 			v -> v == null ? null : IuJsonAdapter.of(Long.class).toJson(v.getEpochSecond()));
+
+	private static final JwtAdapter<Jwt> JSON = new JwtAdapter<>();
 
 	private class Claim<C> {
 		private final Function<T, C> get;
@@ -98,6 +102,21 @@ public class JwtAdapter<T extends IuWebToken> implements IuJsonAdapter<T> {
 		registerClaim("nonce", IuWebToken::getNonce, IuJsonAdapter.of(String.class));
 		registerClaims();
 		sealed = true;
+	}
+
+	/**
+	 * Parses JWT claims from {@link WebSignedPayload}.
+	 * 
+	 * <p>
+	 * NOTE: This is a convenience method only, and does not verify the JWS
+	 * signature.
+	 * </p>
+	 * 
+	 * @param jws {@link WebSignedPayload}
+	 * @return {@link IuWebToken}
+	 */
+	public static Jwt parseToken(WebSignedPayload jws) {
+		return JSON.fromJson(IuJson.parse(IuText.utf8(jws.getPayload())));
 	}
 
 	/**

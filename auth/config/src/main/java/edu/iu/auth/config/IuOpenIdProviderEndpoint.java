@@ -2,6 +2,9 @@ package edu.iu.auth.config;
 
 import java.net.URI;
 
+import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.client.IuAuthorizationAttributeResponse;
+
 /**
  * Provides configuration properties for a locally hosted OpenID Connect
  * provider.
@@ -29,5 +32,14 @@ public interface IuOpenIdProviderEndpoint {
 	 * @return assertion issuer realm
 	 */
 	String getAssertionIssuerRealm();
+
+	/**
+	 * Requests attributes from a URI
+	 * 
+	 * @param attributeUri Attribute URI
+	 * @param credentials  {@link IuApiCredentials}
+	 * @return {@link IuAuthorizationAttributeResponse}
+	 */
+	IuAuthorizationAttributeResponse getAttributes(URI attributeUri, IuApiCredentials credentials);
 
 }

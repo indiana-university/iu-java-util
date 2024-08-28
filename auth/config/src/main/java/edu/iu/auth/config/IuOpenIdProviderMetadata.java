@@ -34,7 +34,6 @@ package edu.iu.auth.config;
 import java.net.URI;
 import java.util.Set;
 
-import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey.Algorithm;
 

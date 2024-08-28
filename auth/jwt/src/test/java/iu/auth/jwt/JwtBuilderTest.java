@@ -29,12 +29,14 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.config;
+package iu.auth.jwt;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
 
 import java.net.URI;
+import java.time.Duration;
 import java.time.Instant;
 
 import org.junit.jupiter.api.Test;
@@ -155,6 +157,17 @@ public class JwtBuilderTest {
 			@Override
 			public String getNonce() {
 				return nonce;
+			}
+
+			@Override
+			public void validateClaims(URI audience, Duration ttl) {
+				fail();
+			}
+
+			@Override
+			public boolean isExpired() {
+				fail();
+				return true;
 			}
 		});
 

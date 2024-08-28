@@ -41,9 +41,9 @@ import java.util.function.Consumer;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
+import edu.iu.auth.config.AuthMethod;
+import edu.iu.auth.config.GrantType;
 import edu.iu.auth.config.IuAuthenticationRealm;
-import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
-import edu.iu.auth.config.IuAuthorizationClient.GrantType;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;

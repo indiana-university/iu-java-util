@@ -29,69 +29,45 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.config;
+package edu.iu.auth.client;
 
 import java.net.URI;
-import java.time.Duration;
-import java.util.Set;
 
-import edu.iu.auth.client.IuAuthorizationAttributeResponse;
+import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.spi.IuAuthClientSpi;
+import iu.auth.IuAuthSpiFactory;
 
 /**
- * Provides endpoint-facing authorization client configuration metadata.
+ * Represents an authorization grant, as described by the
+ * <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4">OAuth 2.0
+ * Authorization Framework</a>.
  */
-public interface IuAuthorizationClient {
+public interface IuAuthorizationGrant {
 
 	/**
-	 * Gets the authentication realm to use with
-	 * {@link GrantType#AUTHORIZATION_CODE}.
+	 * Creates a new {@link IuAuthorizationGrant} for managing interactions with
+	 * an authorization server on behalf of the remote client.
 	 * 
-	 * @return redirect URIs
+	 * @param clientId    Client ID
+	 * @param resourceUri Root resource API
+	 * @param scope       Scopes to request access for
+	 * 
+	 * @return {@link IuAuthorizationSession}
 	 */
-	String getRealm();
-
+	static IuAuthorizationGrant create(String clientId, URI resourceUri, String... scope) {
+		return IuAuthSpiFactory.get(IuAuthClientSpi.class).createAuthorizationGrant(clientId, resourceUri, scope);
+	}
+	
 	/**
-	 * Gets redirect URIs allowed for this client to use with
-	 * {@link GrantType#AUTHORIZATION_CODE}.
+	 * Authorizes access to an application resource.
 	 * 
-	 * @return redirect URIs
-	 */
-	Set<URI> getRedirectUri();
-
-	/**
-	 * Gets scopes permitted for use with this client.
+	 * @return {@link IuApiCredentials} authorized to access the resource
 	 * 
-	 * @return permitted scopes
+	 * @throws IuAuthenticationException If authorization could not be granted and
+	 *                                   the client MUST complete authentication
+	 *                                   before attempting authorization.
 	 */
-	Set<String> getScope();
-
-	/**
-	 * Gets attribute release {@link URIs}.
-	 * 
-	 * @return attribute release {@link URIs}
-	 * @see IuAuthorizationAttributeResponse
-	 */
-	Iterable<URI> getAttributeUris();
-
-	/**
-	 * Gets the allowed IP address ranges.
-	 * 
-	 * @return Set of allowed IP address ranges
-	 */
-	Set<String> getIpAllow();
-
-	/**
-	 * Defines the maximum time to live for assertions issued by this client.
-	 * 
-	 * @return {@link Duration}
-	 */
-	Duration getAssertionTtl();
-
-	/**
-	 * Gets credentials issued to this client.
-	 * 
-	 * @return {@link IuAuthorizationCredentials}
-	 */
-	Iterable<? extends IuAuthorizationCredentials> getCredentials();
+	IuApiCredentials authorize() throws IuAuthenticationException;
 
 }

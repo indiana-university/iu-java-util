@@ -9,10 +9,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
+import java.net.InetAddress;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -21,15 +21,13 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import edu.iu.IuText;
+import edu.iu.IuWebUtils;
 import edu.iu.auth.config.IuAuthorizationClient;
 import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
 import edu.iu.auth.config.IuAuthorizationClient.Credentials;
 import edu.iu.auth.config.IuAuthorizationClient.GrantType;
 import edu.iu.auth.config.IuOpenIdProviderEndpoint;
-import edu.iu.auth.jwt.IuWebToken;
 import edu.iu.auth.oidc.IuAuthorizationRequest;
-import edu.iu.client.IuJson;
-import edu.iu.crypt.WebSignedPayload;
 import iu.auth.config.AuthConfig;
 
 @SuppressWarnings("javadoc")
@@ -40,40 +38,6 @@ public class OpenIdConnectProviderTest {
 		final var config = mock(IuOpenIdProviderEndpoint.class);
 		final var provider = new OpenIdConnectProvider(config);
 		assertSame(config, provider.config());
-	}
-
-	@Test
-	public void testParseTokenClaims() {
-		final var iss = URI.create(IdGenerator.generateId());
-		final var aud = URI.create(IdGenerator.generateId());
-		final var sub = IdGenerator.generateId();
-		final var jti = IdGenerator.generateId();
-		final var nonce = IdGenerator.generateId();
-		final var iat = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-		final var nbf = iat.minusSeconds(1L);
-		final var exp = iat.plusSeconds(1L);
-
-		final var jws = mock(WebSignedPayload.class);
-		when(jws.getPayload()).thenReturn(IuText.utf8(IuJson.object() //
-				.add("iss", iss.toString()) //
-				.add("aud", aud.toString()) //
-				.add("sub", sub) //
-				.add("jti", jti) //
-				.add("nonce", nonce) //
-				.add("iat", iat.getEpochSecond()) //
-				.add("nbf", nbf.getEpochSecond()) //
-				.add("exp", exp.getEpochSecond()) //
-				.build().toString()));
-
-		final var token = OpenIdConnectProvider.parseTokenClaims(jws);
-		assertEquals(iss, token.getIssuer());
-		assertEquals(aud, token.getAudience().iterator().next());
-		assertEquals(sub, token.getSubject());
-		assertEquals(jti, token.getTokenId());
-		assertEquals(nonce, token.getNonce());
-		assertEquals(iat, token.getIssuedAt());
-		assertEquals(nbf, token.getNotBefore());
-		assertEquals(exp, token.getExpires());
 	}
 
 	@Test
@@ -152,172 +116,31 @@ public class OpenIdConnectProviderTest {
 	}
 
 	@Test
-	public void testValidateClaimsMissingIss() {
-		final var ttl = Duration.ofSeconds(30L);
-		final var token = mock(IuWebToken.class);
-		final var audience = URI.create(IdGenerator.generateId());
-		final var error = assertThrows(NullPointerException.class,
-				() -> OpenIdConnectProvider.validateClaims(audience, token, ttl));
-		assertEquals("Missing iss claim", error.getMessage());
+	public void testVerifyIpAllowed() {
+		final var remoteAddr = IdGenerator.generateId();
+		final var clientIp = mock(InetAddress.class);
+		final var ipAllow = IdGenerator.generateId();
+		final var ipAllowToIgnore = IdGenerator.generateId();
+		final var ipAllowList = IuIterable.iter(ipAllowToIgnore, ipAllow);
+		try (final var mockIuWebUtils = mockStatic(IuWebUtils.class)) {
+			mockIuWebUtils.when(() -> IuWebUtils.getInetAddress(remoteAddr)).thenReturn(clientIp);
+			mockIuWebUtils.when(() -> IuWebUtils.isInetAddressInRange(clientIp, ipAllow)).thenReturn(true);
+			assertDoesNotThrow(() -> OpenIdConnectProvider.verifyIpAllowed(ipAllowList, remoteAddr));
+		}
 	}
 
 	@Test
-	public void testValidateClaimsMissingSub() {
-		final var iss = URI.create(IdGenerator.generateId());
-		final var ttl = Duration.ofSeconds(30L);
-		final var token = mock(IuWebToken.class);
-		when(token.getIssuer()).thenReturn(iss);
-		final var audience = URI.create(IdGenerator.generateId());
-		final var error = assertThrows(NullPointerException.class,
-				() -> OpenIdConnectProvider.validateClaims(audience, token, ttl));
-		assertEquals("Missing sub claim", error.getMessage());
-	}
-
-	@Test
-	public void testValidateClaimsMissingAud() {
-		final var iss = URI.create(IdGenerator.generateId());
-		final var sub = IdGenerator.generateId();
-		final var ttl = Duration.ofSeconds(30L);
-		final var token = mock(IuWebToken.class);
-		when(token.getIssuer()).thenReturn(iss);
-		when(token.getSubject()).thenReturn(sub);
-		final var audience = URI.create(IdGenerator.generateId());
-		final var error = assertThrows(IllegalArgumentException.class,
-				() -> OpenIdConnectProvider.validateClaims(audience, token, ttl));
-		assertEquals("Token aud claim doesn't include " + audience, error.getMessage());
-	}
-
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	@Test
-	public void testValidateClaimsMissingIat() {
-		final var iss = URI.create(IdGenerator.generateId());
-		final var sub = IdGenerator.generateId();
-		final var ttl = Duration.ofSeconds(30L);
-		final var token = mock(IuWebToken.class);
-		when(token.getIssuer()).thenReturn(iss);
-		when(token.getSubject()).thenReturn(sub);
-		final var audience = URI.create(IdGenerator.generateId());
-		when(token.getAudience()).thenReturn((Iterable) IuIterable.iter(audience));
-		final var error = assertThrows(NullPointerException.class,
-				() -> OpenIdConnectProvider.validateClaims(audience, token, ttl));
-		assertEquals("Missing iat claim", error.getMessage());
-	}
-
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	@Test
-	public void testValidateClaimsInvalidIat() {
-		final var iss = URI.create(IdGenerator.generateId());
-		final var sub = IdGenerator.generateId();
-		final var iat = Instant.now().plusSeconds(30L);
-		final var ttl = Duration.ofSeconds(30L);
-		final var token = mock(IuWebToken.class);
-		when(token.getIssuer()).thenReturn(iss);
-		when(token.getSubject()).thenReturn(sub);
-		when(token.getIssuedAt()).thenReturn(iat);
-		final var audience = URI.create(IdGenerator.generateId());
-		when(token.getAudience()).thenReturn((Iterable) IuIterable.iter(audience));
-		final var error = assertThrows(IllegalArgumentException.class,
-				() -> OpenIdConnectProvider.validateClaims(audience, token, ttl));
-		assertEquals("Token iat claim must be no more than PT15S in the future", error.getMessage());
-	}
-
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	@Test
-	public void testValidateClaimsMissingExp() {
-		final var iss = URI.create(IdGenerator.generateId());
-		final var sub = IdGenerator.generateId();
-		final var iat = Instant.now();
-		final var ttl = Duration.ofSeconds(30L);
-		final var token = mock(IuWebToken.class);
-		when(token.getIssuer()).thenReturn(iss);
-		when(token.getSubject()).thenReturn(sub);
-		when(token.getIssuedAt()).thenReturn(iat);
-		final var audience = URI.create(IdGenerator.generateId());
-		when(token.getAudience()).thenReturn((Iterable) IuIterable.iter(audience));
-		final var error = assertThrows(NullPointerException.class,
-				() -> OpenIdConnectProvider.validateClaims(audience, token, ttl));
-		assertEquals("Missing exp claim", error.getMessage());
-	}
-
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	@Test
-	public void testValidateClaimsInvalidNbf() {
-		final var iss = URI.create(IdGenerator.generateId());
-		final var sub = IdGenerator.generateId();
-		final var iat = Instant.now();
-		final var nbf = iat.plusSeconds(30L);
-		final var ttl = Duration.ofSeconds(30L);
-		final var token = mock(IuWebToken.class);
-		when(token.getIssuer()).thenReturn(iss);
-		when(token.getSubject()).thenReturn(sub);
-		when(token.getIssuedAt()).thenReturn(iat);
-		when(token.getNotBefore()).thenReturn(nbf);
-		final var audience = URI.create(IdGenerator.generateId());
-		when(token.getAudience()).thenReturn((Iterable) IuIterable.iter(audience));
-		final var error = assertThrows(IllegalArgumentException.class,
-				() -> OpenIdConnectProvider.validateClaims(audience, token, ttl));
-		assertEquals("Token nbf claim must be no more than PT15S in the future", error.getMessage());
-	}
-
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	@Test
-	public void testValidateClaimsInvalidExp() {
-		final var iss = URI.create(IdGenerator.generateId());
-		final var sub = IdGenerator.generateId();
-		final var iat = Instant.now();
-		final var exp = iat.plusSeconds(60L);
-		final var ttl = Duration.ofSeconds(30L);
-		final var token = mock(IuWebToken.class);
-		when(token.getIssuer()).thenReturn(iss);
-		when(token.getSubject()).thenReturn(sub);
-		when(token.getIssuedAt()).thenReturn(iat);
-		when(token.getExpires()).thenReturn(exp);
-		final var audience = URI.create(IdGenerator.generateId());
-		when(token.getAudience()).thenReturn((Iterable) IuIterable.iter(audience));
-		final var error = assertThrows(IllegalArgumentException.class,
-				() -> OpenIdConnectProvider.validateClaims(audience, token, ttl));
-		assertEquals("Token exp claim must be no more than PT30S in the future", error.getMessage());
-	}
-
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	@Test
-	public void testValidateClaimsExpired() {
-		final var iss = URI.create(IdGenerator.generateId());
-		final var sub = IdGenerator.generateId();
-		final var iat = Instant.now().minusSeconds(60L);
-		final var exp = iat.plusSeconds(30L);
-		final var ttl = Duration.ofSeconds(30L);
-		final var token = mock(IuWebToken.class);
-		when(token.getIssuer()).thenReturn(iss);
-		when(token.getSubject()).thenReturn(sub);
-		when(token.getIssuedAt()).thenReturn(iat);
-		when(token.getExpires()).thenReturn(exp);
-		final var audience = URI.create(IdGenerator.generateId());
-		when(token.getAudience()).thenReturn((Iterable) IuIterable.iter(audience));
-		final var error = assertThrows(IllegalArgumentException.class,
-				() -> OpenIdConnectProvider.validateClaims(audience, token, ttl));
-		assertEquals("Token is expired", error.getMessage());
-	}
-
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	@Test
-	public void testValidateClaims() {
-		final var iss = URI.create(IdGenerator.generateId());
-		final var sub = IdGenerator.generateId();
-		final var iat = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-		final var nbf = iat.minusSeconds(1L);
-		final var exp = iat.plusSeconds(1L);
-		final var ttl = Duration.ofSeconds(30L);
-		final var token = mock(IuWebToken.class);
-		when(token.getIssuer()).thenReturn(iss);
-		when(token.getSubject()).thenReturn(sub);
-		when(token.getIssuedAt()).thenReturn(iat);
-		when(token.getNotBefore()).thenReturn(nbf);
-		when(token.getExpires()).thenReturn(exp);
-		final var audToIgnore = URI.create(IdGenerator.generateId());
-		final var audience = URI.create(IdGenerator.generateId());
-		when(token.getAudience()).thenReturn((Iterable) IuIterable.iter(audToIgnore, audience));
-		assertDoesNotThrow(() -> OpenIdConnectProvider.validateClaims(audience, token, ttl));
+	public void testVerifyIpNotAllowed() {
+		final var remoteAddr = IdGenerator.generateId();
+		final var clientIp = mock(InetAddress.class);
+		final var ipAllow = IdGenerator.generateId();
+		final var ipAllowList = IuIterable.iter(ipAllow);
+		try (final var mockIuWebUtils = mockStatic(IuWebUtils.class)) {
+			mockIuWebUtils.when(() -> IuWebUtils.getInetAddress(remoteAddr)).thenReturn(clientIp);
+			final var error = assertThrows(IllegalArgumentException.class,
+					() -> OpenIdConnectProvider.verifyIpAllowed(ipAllowList, remoteAddr));
+			assertEquals("Remote address not in allow list " + ipAllowList, error.getMessage());
+		}
 	}
 
 	@Test
@@ -520,7 +343,7 @@ public class OpenIdConnectProviderTest {
 		final var clientSecret = IdGenerator.generateId();
 		final var nonce = IdGenerator.generateId();
 		final var client = mock(IuAuthorizationClient.class);
-		final var credentials = mock(Credentials.class);
+		final var credentials = mock(IuAuthorizationCredentials.class);
 		final var provider = mock(OpenIdConnectProvider.class);
 		when(provider.authenticateClientSecret(AuthMethod.CLIENT_SECRET_BASIC, clientId, clientSecret, nonce))
 				.thenCallRealMethod();
@@ -543,4 +366,29 @@ public class OpenIdConnectProviderTest {
 			assertDoesNotThrow(() -> IdGenerator.verifyId(authenticatedClient.jti(), 15000L));
 		}
 	}
+
+	@Test
+	public void testAuthenticateClientAssertion() {
+		final var issuerRealm = IdGenerator.generateId();
+		final var assertion = IdGenerator.generateId();
+		final var tokenEndpoint = URI.create(IdGenerator.generateId());
+		final var config = mock(IuOpenIdProviderEndpoint.class);
+		when(config.getTokenEndpoint()).thenReturn(tokenEndpoint);
+		when(config.getAssertionIssuerRealm()).thenReturn(issuerRealm);
+
+		final var provider = mock(OpenIdConnectProvider.class);
+		when(provider.config()).thenReturn(config);
+		when(provider.authenticateClientAssertion(assertion)).thenCallRealMethod();
+
+		final var authenticatedClient = mock(AuthenticatedClient.class);
+
+		try (final var mockClientAssertionVerifier = mockStatic(ClientAssertionVerifier.class)) {
+			mockClientAssertionVerifier
+					.when(() -> ClientAssertionVerifier.verify(tokenEndpoint, assertion, issuerRealm))
+					.thenReturn(authenticatedClient);
+
+			assertSame(authenticatedClient, provider.authenticateClientAssertion(assertion));
+		}
+	}
+
 }

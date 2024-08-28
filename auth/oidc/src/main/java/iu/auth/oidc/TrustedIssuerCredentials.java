@@ -17,10 +17,10 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 
 /**
- * Encapsulates a non-registered {@link Credentials} trusted to issue private
+ * Encapsulates a non-registered {@link IuAuthorizationCredentials} trusted to issue private
  * key assertions on behalf of an {@link IuAuthorizationClient}.
  */
-class TrustedIssuerCredentials implements Credentials {
+class TrustedIssuerCredentials implements IuAuthorizationCredentials {
 
 	private final WebCryptoHeader jose;
 	private final X509Certificate cert;

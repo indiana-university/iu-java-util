@@ -12,7 +12,7 @@ import edu.iu.auth.config.IuAuthorizationClient.Credentials;
 import edu.iu.crypt.WebKey.Type;
 
 /**
- * Verifies {@link Credentials} for authenticating an
+ * Verifies {@link IuAuthorizationCredentials} for authenticating an
  * {@link IuAuthorizationClient}.
  */
 final class ClientSecretVerifier {
@@ -32,10 +32,10 @@ final class ClientSecretVerifier {
 	 * @param client       {@link IuAuthorizationClient}
 	 * @param authMethod   {@link AuthMethod}
 	 * @param clientSecret externally supplied client secret
-	 * @return First matching {@link Credentials} from
+	 * @return First matching {@link IuAuthorizationCredentials} from
 	 *         {@link IuAuthorizationClient#getCredentials()}
 	 */
-	static Credentials verify(IuAuthorizationClient client, AuthMethod authMethod, String clientSecret) {
+	static IuAuthorizationCredentials verify(IuAuthorizationClient client, AuthMethod authMethod, String clientSecret) {
 		final Queue<Throwable> errors = new ArrayDeque<>();
 		for (final var credentialsToTry : client.getCredentials())
 			if (credentialsToTry.getTokenEndpointAuthMethod().equals(authMethod))
@@ -54,13 +54,13 @@ final class ClientSecretVerifier {
 
 	/**
 	 * Matches client secret against the salted hash from
-	 * {@link Credentials#getJwk()}.
+	 * {@link IuAuthorizationCredentials#getJwk()}.
 	 * 
-	 * @param credentials  {@link Credentials}
+	 * @param credentials  {@link IuAuthorizationCredentials}
 	 * @param clientSecret client secret or assertion value provided in response to
 	 *                     an authentication challenge
 	 */
-	static void verify(Credentials credentials, String clientSecret) {
+	static void verify(IuAuthorizationCredentials credentials, String clientSecret) {
 		final var jwk = credentials.getJwk();
 		final var keyType = jwk.getType();
 		if (!Type.RAW.equals(keyType))

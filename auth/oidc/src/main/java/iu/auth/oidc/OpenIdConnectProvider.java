@@ -1,9 +1,7 @@
 package iu.auth.oidc;
 
-import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.Objects;
 import java.util.logging.Logger;
@@ -13,19 +11,15 @@ import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuText;
+import edu.iu.IuWebUtils;
 import edu.iu.UnsafeSupplier;
 import edu.iu.auth.config.IuAuthorizationClient;
 import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
 import edu.iu.auth.config.IuAuthorizationClient.GrantType;
 import edu.iu.auth.config.IuOpenIdProviderEndpoint;
-import edu.iu.auth.jwt.IuWebToken;
 import edu.iu.auth.oidc.IuAuthorizationRequest;
 import edu.iu.auth.oidc.IuTokenResponse;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import edu.iu.crypt.WebSignedPayload;
 import iu.auth.config.AuthConfig;
-import iu.auth.config.JwtAdapter;
 
 /**
  * OpenID Connect Provider implementation.
@@ -43,9 +37,37 @@ public final class OpenIdConnectProvider {
 	/** Matches 16 to 4096 visible ASCII characters */
 	static final Pattern VSCHAR16 = Pattern.compile("[\\x20-\\x7e]{16,4096}");
 
-	private static final IuJsonAdapter<? extends IuWebToken> JWT_JSON = new JwtAdapter<>();
-
 	private final IuOpenIdProviderEndpoint config;
+
+	/**
+	 * Validates and converts the scope parameter.
+	 * TODO: regex
+	 * @param scope configured scope
+	 * @return scope attribute
+	 */
+	static String validateScope(Iterable<String> scope) {
+		if (scope == null)
+			return null;
+
+		final var sb = new StringBuilder();
+		scope.forEach(scopeToken -> {
+			// scope = scope-token *( SP scope-token )
+			if (sb.length() > 0)
+				sb.append(' ');
+			// scope-token = 1*( %x21 / %x23-5B / %x5D-7E )
+			for (var i = 0; i < scopeToken.length(); i++) {
+				final var c = (int) scopeToken.charAt(i);
+				if (c < 0x21 || c == 0x22 || c == 0x5c || c > 0x7e)
+					throw new IllegalArgumentException();
+			}
+			sb.append(scopeToken);
+		});
+
+		if (sb.length() == 0)
+			return null;
+		else
+			return sb.toString();
+	}
 
 	/**
 	 * Constructor.
@@ -63,16 +85,6 @@ public final class OpenIdConnectProvider {
 	 */
 	IuOpenIdProviderEndpoint config() {
 		return config;
-	}
-
-	/**
-	 * Parses JWT claims.
-	 * 
-	 * @param jws {@link WebSignedPayload}
-	 * @return {@link IuWebToken}
-	 */
-	static IuWebToken parseTokenClaims(WebSignedPayload jws) {
-		return JWT_JSON.fromJson(IuJson.parse(IuText.utf8(jws.getPayload())));
 	}
 
 	/**
@@ -141,47 +153,17 @@ public final class OpenIdConnectProvider {
 	}
 
 	/**
-	 * Verify JWT registered claims are well-formed and within the allowed time
-	 * window.
+	 * Validates that a remote address is in the client's allow list.
 	 * 
-	 * @param audience Expected audience {@link URI}
-	 * @param claims   Parsed JWT claims
-	 * @param ttl      Maximum assertion time to live allowed by client
-	 *                 configuration
-	 * @see <a href=
-	 *      "https://datatracker.ietf.org/doc/html/rfc7519#section-4.1">RFC-7519 JWT
-	 *      Section 4.1</a>
+	 * @param ipAllowList allowed IP ranges
+	 * @param remoteAddr  remote address
 	 */
-	static void validateClaims(URI audience, IuWebToken claims, Duration ttl) {
-		validateTtl(ttl);
-
-		Objects.requireNonNull(claims.getIssuer(), "Missing iss claim");
-		Objects.requireNonNull(claims.getSubject(), "Missing sub claim");
-
-		boolean found = false;
-		for (final var aud : Objects.requireNonNull(claims.getAudience(), "Missing aud claim"))
-			if (aud.equals(audience)) {
-				found = true;
-				break;
-			}
-		if (!found)
-			throw new IllegalArgumentException("Token aud claim doesn't include " + audience);
-
-		final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-
-		final var iat = Objects.requireNonNull(claims.getIssuedAt(), "Missing iat claim");
-		if (iat.isAfter(now.plusSeconds(15L)))
-			throw new IllegalArgumentException("Token iat claim must be no more than PT15S in the future");
-
-		final var nbf = claims.getNotBefore();
-		if (nbf != null && nbf.isAfter(now.plusSeconds(15L)))
-			throw new IllegalArgumentException("Token nbf claim must be no more than PT15S in the future");
-
-		final var exp = Objects.requireNonNull(claims.getExpires(), "Missing exp claim");
-		if (ttl.compareTo(Duration.between(iat, exp)) < 0)
-			throw new IllegalArgumentException("Token exp claim must be no more than " + ttl + " in the future");
-		if (exp.isBefore(now.minusSeconds(15L)))
-			throw new IllegalArgumentException("Token is expired");
+	static void verifyIpAllowed(Iterable<String> ipAllowList, String remoteAddr) {
+		final var clientIp = IuWebUtils.getInetAddress(remoteAddr);
+		for (final var ipAllow : ipAllowList)
+			if (IuWebUtils.isInetAddressInRange(clientIp, ipAllow))
+				return;
+		throw new IllegalArgumentException("Remote address not in allow list " + ipAllowList);
 	}
 
 	/**
@@ -265,7 +247,8 @@ public final class OpenIdConnectProvider {
 	 * @return authorized client record
 	 */
 	AuthenticatedClient authenticateClientAssertion(String assertion) {
-		return ClientAssertionVerifier.verify(config.getTokenEndpoint(), assertion, config.getAssertionIssuerRealm());
+		return ClientAssertionVerifier.verify(config().getTokenEndpoint(), assertion,
+				config().getAssertionIssuerRealm());
 	}
 
 	/**
@@ -275,8 +258,35 @@ public final class OpenIdConnectProvider {
 	 * @return {@link IuTokenResponse}
 	 */
 	public IuTokenResponse handleTokenEndpointRequest(IuAuthorizationRequest request) {
-		final AuthenticatedClient authorizedClient = IuException
+		final AuthenticatedClient authenticatedClient = IuException
 				.unchecked(() -> delayOnFailure(() -> authenticateClient(request)));
+
+		if (authenticatedClient.credentials().getTokenEndpointAuthMethod().requiresIpAllow)
+			verifyIpAllowed(authenticatedClient.client().getIpAllow(), request.getRemoteAddr());
+
+		final var params = request.getParams();
+		final var grantType = GrantType.from(param(params, "grant_type"));
+		// TODO: verify grant type is allowed for credentials
+
+		switch (grantType) {
+		case CLIENT_CREDENTIALS:
+		case JWT_BEARER:
+			// TODO: resolve client attributes from authenticated metadata
+			break;
+
+		case AUTHORIZATION_CODE:
+			// TODO: resolve user principal and attributes from authorization code
+
+		case REFRESH_TOKEN:
+			// TODO: resolve user principal and attributes from refresh token
+
+		case PASSWORD:
+		default:
+			throw new UnsupportedOperationException("Unsupported grant type " + grantType);
+		}
+
+		// TODO: verify all requested scopes are satisfied
+		// TODO: issue access, id, and/or refresh tokens
 
 		throw new UnsupportedOperationException("TODO");
 	}

@@ -24,6 +24,8 @@ import edu.iu.auth.jwt.IuWebToken;
 import edu.iu.crypt.WebSignature;
 import edu.iu.crypt.WebSignedPayload;
 import iu.auth.config.AuthConfig;
+import iu.auth.jwt.Jwt;
+import iu.auth.jwt.JwtAdapter;
 import iu.auth.pki.PkiPrincipal;
 
 /**
@@ -92,10 +94,10 @@ final class ClientAssertionVerifier {
 	 * @param jws         parsed assertion {@link WebSignature}
 	 * @param token       parsed assertion {@link IuWebToken} claims
 	 * @param issuerRealm issuer authentication realm
-	 * @return {@link Credentials} derived from the JOSE header after passing a
+	 * @return {@link IuAuthorizationCredentials} derived from the JOSE header after passing a
 	 *         verification steps
 	 */
-	static Credentials verifyAssertionIssuerTrust(WebSignedPayload jws, IuWebToken token, String issuerRealm) {
+	static IuAuthorizationCredentials verifyAssertionIssuerTrust(WebSignedPayload jws, IuWebToken token, String issuerRealm) {
 		final var credentials = new TrustedIssuerCredentials(jws.getSignatures().iterator().next().getHeader());
 		final var principal = new PkiPrincipal(credentials);
 
@@ -134,24 +136,26 @@ final class ClientAssertionVerifier {
 	 */
 	static AuthenticatedClient verify(URI tokenEndpoint, String assertion, String issuerRealm) {
 		final var jws = WebSignedPayload.parse(assertion);
-		final var token = OpenIdConnectProvider.parseTokenClaims(jws);
+		final var token = JwtAdapter.parseToken(jws);
 
 		final var clientId = Objects.requireNonNull(token.getSubject(), "Missing sub claim");
 		if (!OpenIdConnectProvider.VSCHAR2.matcher(clientId).matches())
 			throw new IllegalArgumentException("Invalid client_id in sub claim");
-		
+
 		final var client = AuthConfig.load(IuAuthorizationClient.class, clientId);
-		OpenIdConnectProvider.validateClaims(tokenEndpoint, token, client.getAssertionTtl());
+		final var assertionTtl = client.getAssertionTtl();
+		OpenIdConnectProvider.validateTtl(assertionTtl);
+		Jwt.validateClaims(tokenEndpoint, token, assertionTtl);
 
 		final var iss = token.getIssuer();
 		final var jti = token.getTokenId();
 		validateAssertionJti(jti, iss);
 
-		final Credentials credentials;
+		final IuAuthorizationCredentials credentials;
 		if (!clientId.equals(iss.toString()))
 			credentials = verifyAssertionIssuerTrust(jws, token, issuerRealm);
 		else {
-			Credentials verifiedCredentials = null;
+			IuAuthorizationCredentials verifiedCredentials = null;
 			final Queue<Throwable> errors = new ArrayDeque<>();
 			for (final var credentialsToTry : client.getCredentials())
 				if (AUTH_METHODS.contains(credentialsToTry.getTokenEndpointAuthMethod()))

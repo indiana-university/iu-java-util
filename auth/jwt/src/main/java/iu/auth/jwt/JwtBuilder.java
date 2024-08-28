@@ -29,107 +29,138 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.config;
+package iu.auth.jwt;
 
-import java.io.StringWriter;
 import java.net.URI;
+import java.time.Duration;
 import java.time.Instant;
-import java.util.Map;
 
-import edu.iu.IuObject;
 import edu.iu.auth.jwt.IuWebToken;
-import edu.iu.client.IuJson;
-import jakarta.json.JsonObject;
-import jakarta.json.stream.JsonGenerator;
 
 /**
- * Basic JWT claims {@link IuWebToken} implementation.
- * 
- * <p>
- * <em>May</em> be extended to implement token-specific claim values.
- * </p>
+ * {@link IuWebTokenBuilder} implementation.
  */
-public class Jwt implements IuWebToken {
-	static {
-		IuObject.assertNotOpen(Jwt.class);
-	}
+public class JwtBuilder implements IuWebTokenBuilder {
 
-	/** {@link JwtAdapter} with claims registered to support this token type */
-	protected final JwtAdapter<? extends IuWebToken> adapter;
-
-	/** {@link JwtAdapter} with claims registered to support this token type */
-	protected final JsonObject claims;
+	private String tokenId;
+	private URI issuer;
+	private Iterable<URI> audience;
+	private String subject;
+	private Instant issuedAt;
+	private Instant notBefore;
+	private Instant expires;
+	private String nonce;
 
 	/**
-	 * Constructor
-	 * 
-	 * @param adapter {@link JwtAdapter}
-	 * @param claims  {@link JsonObject}
+	 * Default constructor
 	 */
-	Jwt(JwtAdapter<? extends IuWebToken> adapter, JsonObject claims) {
-		this.adapter = adapter;
-		this.claims = claims;
+	public JwtBuilder() {
+	}
+
+	/**
+	 * Copy constructor
+	 * 
+	 * @param token {@link IuWebToken} to copy from
+	 */
+	public JwtBuilder(IuWebToken token) {
+		tokenId = token.getTokenId();
+		issuer = token.getIssuer();
+		audience = token.getAudience();
+		subject = token.getSubject();
+		issuedAt = token.getIssuedAt();
+		notBefore = token.getNotBefore();
+		expires = token.getExpires();
+		nonce = token.getNonce();
 	}
 
 	@Override
 	public String getTokenId() {
-		return adapter.getClaim(claims, "jti");
+		return tokenId;
+	}
+
+	@Override
+	public void setTokenId(String tokenId) {
+		this.tokenId = tokenId;
 	}
 
 	@Override
 	public URI getIssuer() {
-		return adapter.getClaim(claims, "iss");
+		return issuer;
+	}
+
+	@Override
+	public void setIssuer(URI issuer) {
+		this.issuer = issuer;
 	}
 
 	@Override
 	public Iterable<URI> getAudience() {
-		return adapter.getClaim(claims, "aud");
+		return audience;
+	}
+
+	@Override
+	public void setAudience(Iterable<URI> audience) {
+		this.audience = audience;
 	}
 
 	@Override
 	public String getSubject() {
-		return adapter.getClaim(claims, "sub");
+		return subject;
+	}
+
+	@Override
+	public void setSubject(String subject) {
+		this.subject = subject;
 	}
 
 	@Override
 	public Instant getIssuedAt() {
-		return adapter.getClaim(claims, "iat");
+		return issuedAt;
+	}
+
+	@Override
+	public void setIssuedAt(Instant issuedAt) {
+		this.issuedAt = issuedAt;
 	}
 
 	@Override
 	public Instant getNotBefore() {
-		return adapter.getClaim(claims, "nbf");
+		return notBefore;
+	}
+
+	@Override
+	public void setNotBefore(Instant notBefore) {
+		this.notBefore = notBefore;
 	}
 
 	@Override
 	public Instant getExpires() {
-		return adapter.getClaim(claims, "exp");
+		return expires;
+	}
+
+	@Override
+	public void setExpires(Instant expires) {
+		this.expires = expires;
 	}
 
 	@Override
 	public String getNonce() {
-		return adapter.getClaim(claims, "nonce");
+		return nonce;
 	}
 
 	@Override
-	public int hashCode() {
-		return IuObject.hashCode(claims);
+	public void setNonce(String nonce) {
+		this.nonce = nonce;
 	}
 
 	@Override
-	public boolean equals(Object obj) {
-		if (!IuObject.typeCheck(this, obj))
-			return false;
-		Jwt other = (Jwt) obj;
-		return IuObject.equals(claims, other.claims);
+	public void validateClaims(URI audience, Duration ttl) {
+		throw new UnsupportedOperationException("Mutable claim validation is not supported");
 	}
 
 	@Override
-	public String toString() {
-		final var writer = new StringWriter();
-		IuJson.PROVIDER.createWriterFactory(Map.of(JsonGenerator.PRETTY_PRINTING, true)).createWriter(writer)
-				.write(claims);
-		return writer.toString();
+	public boolean isExpired() {
+		throw new UnsupportedOperationException("Mutable claim validation is not supported");
 	}
 
 }

@@ -50,7 +50,7 @@ public class ClientSecretVerifierTest {
 	public void testVerifyClient() {
 		final var clientSecret = IdGenerator.generateId();
 		final var client = mock(IuAuthorizationClient.class);
-		final var credentials = mock(Credentials.class);
+		final var credentials = mock(IuAuthorizationCredentials.class);
 		when(credentials.getTokenEndpointAuthMethod()).thenReturn(AuthMethod.CLIENT_SECRET_BASIC);
 		when(client.getCredentials()).thenReturn((Iterable) List.of(credentials));
 		mockClientSecretVerifier
@@ -67,10 +67,10 @@ public class ClientSecretVerifierTest {
 	public void testVerifyClientFailure() {
 		final var clientSecret = IdGenerator.generateId();
 		final var client = mock(IuAuthorizationClient.class);
-		final var credentials = mock(Credentials.class);
+		final var credentials = mock(IuAuthorizationCredentials.class);
 		when(credentials.getTokenEndpointAuthMethod()).thenReturn(AuthMethod.CLIENT_SECRET_POST);
 
-		final var credentialsForDifferentAuthType = mock(Credentials.class);
+		final var credentialsForDifferentAuthType = mock(IuAuthorizationCredentials.class);
 		when(credentialsForDifferentAuthType.getTokenEndpointAuthMethod()).thenReturn(AuthMethod.CLIENT_SECRET_BASIC);
 		when(client.getCredentials()).thenReturn((Iterable) List.of(credentialsForDifferentAuthType, credentials));
 
@@ -97,7 +97,7 @@ public class ClientSecretVerifierTest {
 	@Test
 	public void testVerifyClientSecret() {
 		final var clientSecret = IdGenerator.generateId();
-		final var credentials = mock(Credentials.class);
+		final var credentials = mock(IuAuthorizationCredentials.class);
 
 		final var password = IuText.utf8(clientSecret);
 		final var saltedPassword = new byte[clientSecret.length() + 4];
@@ -120,7 +120,7 @@ public class ClientSecretVerifierTest {
 	@Test
 	public void testVerifyClientSecretWrongKeyType() {
 		final var clientSecret = IdGenerator.generateId();
-		final var credentials = mock(Credentials.class);
+		final var credentials = mock(IuAuthorizationCredentials.class);
 		when(credentials.getTokenEndpointAuthMethod()).thenReturn(AuthMethod.BASIC);
 		final var jwk = WebKey.ephemeral(Algorithm.EDDSA);
 		when(credentials.getJwk()).thenReturn(jwk);
@@ -136,7 +136,7 @@ public class ClientSecretVerifierTest {
 	@Test
 	public void testVerifyClientSecretInvalidHash() {
 		final var clientSecret = IdGenerator.generateId();
-		final var credentials = mock(Credentials.class);
+		final var credentials = mock(IuAuthorizationCredentials.class);
 		final var jwk = WebKey.ephemeral(Encryption.A128GCM);
 		when(credentials.getJwk()).thenReturn(jwk);
 
@@ -151,7 +151,7 @@ public class ClientSecretVerifierTest {
 	@Test
 	public void testVerifyClientSecretInvalidSecret() {
 		final var clientSecret = IdGenerator.generateId();
-		final var credentials = mock(Credentials.class);
+		final var credentials = mock(IuAuthorizationCredentials.class);
 
 		final var hashThatWontMatch = new byte[36];
 		new SecureRandom().nextBytes(hashThatWontMatch);

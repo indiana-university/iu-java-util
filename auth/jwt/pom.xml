@@ -10,8 +10,8 @@
 		<version>7.0.4-SNAPSHOT</version>
 	</parent>
 
-	<artifactId>iu-java-auth-oidc</artifactId>
-	<name>IU OAuth 2.0 and OpenID Connect Provider</name>
+	<artifactId>iu-java-auth-jwt</artifactId>
+	<name>IU JWT Tokenization Utilities</name>
 
 	<dependencies>
 		<dependency>
@@ -28,41 +28,15 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-auth-config</artifactId>
+			<artifactId>iu-java-crypt</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-auth-jwt</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-auth-principal</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-auth-pki</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-			<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-test</artifactId>
 			<version>${project.version}</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
-	
-	<build>
-		<plugins>
-				<plugin>
-					<artifactId>maven-compiler-plugin</artifactId>
-					<configuration>
-						<release>17</release>
-					</configuration>
-				</plugin>
-		</plugins>
-	</build>
-	
+
 </project>

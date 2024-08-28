@@ -31,67 +31,29 @@
  */
 package edu.iu.auth.config;
 
-import java.net.URI;
-import java.time.Duration;
-import java.util.Set;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
-import edu.iu.auth.client.IuAuthorizationAttributeResponse;
+import org.junit.jupiter.api.Test;
 
-/**
- * Provides endpoint-facing authorization client configuration metadata.
- */
-public interface IuAuthorizationClient {
+import jakarta.json.JsonString;
 
-	/**
-	 * Gets the authentication realm to use with
-	 * {@link GrantType#AUTHORIZATION_CODE}.
-	 * 
-	 * @return redirect URIs
-	 */
-	String getRealm();
+@SuppressWarnings("javadoc")
+public class GrantTypeTest {
 
-	/**
-	 * Gets redirect URIs allowed for this client to use with
-	 * {@link GrantType#AUTHORIZATION_CODE}.
-	 * 
-	 * @return redirect URIs
-	 */
-	Set<URI> getRedirectUri();
+	@Test
+	public void testGrantTypeFrom() {
+		for (final var grantType : GrantType.values())
+			assertSame(grantType, GrantType.from(grantType.parameterValue));
+	}
 
-	/**
-	 * Gets scopes permitted for use with this client.
-	 * 
-	 * @return permitted scopes
-	 */
-	Set<String> getScope();
-
-	/**
-	 * Gets attribute release {@link URIs}.
-	 * 
-	 * @return attribute release {@link URIs}
-	 * @see IuAuthorizationAttributeResponse
-	 */
-	Iterable<URI> getAttributeUris();
-
-	/**
-	 * Gets the allowed IP address ranges.
-	 * 
-	 * @return Set of allowed IP address ranges
-	 */
-	Set<String> getIpAllow();
-
-	/**
-	 * Defines the maximum time to live for assertions issued by this client.
-	 * 
-	 * @return {@link Duration}
-	 */
-	Duration getAssertionTtl();
-
-	/**
-	 * Gets credentials issued to this client.
-	 * 
-	 * @return {@link IuAuthorizationCredentials}
-	 */
-	Iterable<? extends IuAuthorizationCredentials> getCredentials();
+	@Test
+	public void testGrantTypeJson() {
+		for (final var a : GrantType.values()) {
+			final var j = GrantType.JSON.toJson(a);
+			assertEquals(a.parameterValue, ((JsonString) j).getString());
+			assertEquals(a, GrantType.JSON.fromJson(j));
+		}
+	}
 
 }

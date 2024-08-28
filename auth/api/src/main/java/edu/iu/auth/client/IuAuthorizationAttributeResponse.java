@@ -28,7 +28,7 @@ public interface IuAuthorizationAttributeResponse {
 	 * <p>
 	 * A valid non-null JWT issued by a party trusted by the authorization server
 	 * MUST be returned if authorization is allowed. The attribute token SHOULD
-	 * include a {@link scope} claim indicating the scopes satisfied by the claim.
+	 * include a {@code scope} claim indicating the scopes satisfied by the claim.
 	 * </p>
 	 * 
 	 * @return signed JWT

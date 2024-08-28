@@ -30,6 +30,7 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebSignature;
 import edu.iu.crypt.WebSignedPayload;
 import iu.auth.config.AuthConfig;
+import iu.auth.jwt.JwtAdapter;
 import iu.auth.pki.PkiPrincipal;
 
 @SuppressWarnings("javadoc")
@@ -125,10 +126,10 @@ public class ClientAssertionVerifierTest {
 		final var token = mock(IuWebToken.class);
 
 		try (final var mockWebSignedPayload = mockStatic(WebSignedPayload.class);
-				final var mockOpenIdConnectProvider = mockStatic(OpenIdConnectProvider.class);
+				final var mockJwtAdapter = mockStatic(JwtAdapter.class);
 				final var mockClientAssertionVerifier = mockStatic(ClientAssertionVerifier.class)) {
 			mockWebSignedPayload.when(() -> WebSignedPayload.parse(assertion)).thenReturn(jws);
-			mockOpenIdConnectProvider.when(() -> OpenIdConnectProvider.parseTokenClaims(jws)).thenReturn(token);
+			mockJwtAdapter.when(() -> JwtAdapter.parseToken(jws)).thenReturn(token);
 			mockClientAssertionVerifier
 					.when(() -> ClientAssertionVerifier.verify(tokenEndpoint, assertion, issuerRealm))
 					.thenCallRealMethod();
@@ -149,10 +150,10 @@ public class ClientAssertionVerifierTest {
 		when(token.getSubject()).thenReturn("");
 
 		try (final var mockWebSignedPayload = mockStatic(WebSignedPayload.class);
-				final var mockOpenIdConnectProvider = mockStatic(OpenIdConnectProvider.class);
+				final var mockJwtAdapter = mockStatic(JwtAdapter.class);
 				final var mockClientAssertionVerifier = mockStatic(ClientAssertionVerifier.class)) {
 			mockWebSignedPayload.when(() -> WebSignedPayload.parse(assertion)).thenReturn(jws);
-			mockOpenIdConnectProvider.when(() -> OpenIdConnectProvider.parseTokenClaims(jws)).thenReturn(token);
+			mockJwtAdapter.when(() -> JwtAdapter.parseToken(jws)).thenReturn(token);
 			mockClientAssertionVerifier
 					.when(() -> ClientAssertionVerifier.verify(tokenEndpoint, assertion, issuerRealm))
 					.thenCallRealMethod();
@@ -181,14 +182,14 @@ public class ClientAssertionVerifierTest {
 		when(token.getNonce()).thenReturn(nonce);
 
 		final var client = mock(IuAuthorizationClient.class);
-		final var credentials = mock(Credentials.class);
+		final var credentials = mock(IuAuthorizationCredentials.class);
 
 		try (final var mockWebSignedPayload = mockStatic(WebSignedPayload.class);
-				final var mockOpenIdConnectProvider = mockStatic(OpenIdConnectProvider.class);
+				final var mockJwtAdapter = mockStatic(JwtAdapter.class);
 				final var mockAuthConfig = mockStatic(AuthConfig.class);
 				final var mockClientAssertionVerifier = mockStatic(ClientAssertionVerifier.class)) {
 			mockWebSignedPayload.when(() -> WebSignedPayload.parse(assertion)).thenReturn(jws);
-			mockOpenIdConnectProvider.when(() -> OpenIdConnectProvider.parseTokenClaims(jws)).thenReturn(token);
+			mockJwtAdapter.when(() -> JwtAdapter.parseToken(jws)).thenReturn(token);
 			mockAuthConfig.when(() -> AuthConfig.load(IuAuthorizationClient.class, clientId)).thenReturn(client);
 			mockClientAssertionVerifier
 					.when(() -> ClientAssertionVerifier.verifyAssertionIssuerTrust(jws, token, issuerRealm))
@@ -227,7 +228,7 @@ public class ClientAssertionVerifierTest {
 		when(token.getNonce()).thenReturn(nonce);
 
 		final var client = mock(IuAuthorizationClient.class);
-		final var credentials = mock(Credentials.class);
+		final var credentials = mock(IuAuthorizationCredentials.class);
 		final var jwk = mock(WebKey.class);
 		when(credentials.getTokenEndpointAuthMethod()).thenReturn(AuthMethod.CLIENT_SECRET_JWT);
 		when(credentials.getJwk()).thenReturn(jwk);
@@ -237,11 +238,11 @@ public class ClientAssertionVerifierTest {
 		doThrow(signatureVerificationFailure).when(jws).verify(jwk);
 
 		try (final var mockWebSignedPayload = mockStatic(WebSignedPayload.class);
-				final var mockOpenIdConnectProvider = mockStatic(OpenIdConnectProvider.class);
+				final var mockJwtAdapter = mockStatic(JwtAdapter.class);
 				final var mockAuthConfig = mockStatic(AuthConfig.class);
 				final var mockClientAssertionVerifier = mockStatic(ClientAssertionVerifier.class)) {
 			mockWebSignedPayload.when(() -> WebSignedPayload.parse(assertion)).thenReturn(jws);
-			mockOpenIdConnectProvider.when(() -> OpenIdConnectProvider.parseTokenClaims(jws)).thenReturn(token);
+			mockJwtAdapter.when(() -> JwtAdapter.parseToken(jws)).thenReturn(token);
 			mockAuthConfig.when(() -> AuthConfig.load(IuAuthorizationClient.class, clientId)).thenReturn(client);
 
 			mockClientAssertionVerifier.when(() -> ClientAssertionVerifier.verify(tokenEndpoint, assertion, null))
@@ -275,18 +276,18 @@ public class ClientAssertionVerifierTest {
 		when(token.getNonce()).thenReturn(nonce);
 
 		final var client = mock(IuAuthorizationClient.class);
-		final var credentialToIgnore = mock(Credentials.class);
+		final var credentialToIgnore = mock(IuAuthorizationCredentials.class);
 		when(credentialToIgnore.getTokenEndpointAuthMethod()).thenReturn(AuthMethod.CLIENT_SECRET_BASIC);
-		final var credentials = mock(Credentials.class);
+		final var credentials = mock(IuAuthorizationCredentials.class);
 		when(credentials.getTokenEndpointAuthMethod()).thenReturn(AuthMethod.CLIENT_SECRET_JWT);
 		when(client.getCredentials()).thenReturn((Iterable) IuIterable.iter(credentialToIgnore, credentials));
 
 		try (final var mockWebSignedPayload = mockStatic(WebSignedPayload.class);
-				final var mockOpenIdConnectProvider = mockStatic(OpenIdConnectProvider.class);
+				final var mockJwtAdapter = mockStatic(JwtAdapter.class);
 				final var mockAuthConfig = mockStatic(AuthConfig.class);
 				final var mockClientAssertionVerifier = mockStatic(ClientAssertionVerifier.class)) {
 			mockWebSignedPayload.when(() -> WebSignedPayload.parse(assertion)).thenReturn(jws);
-			mockOpenIdConnectProvider.when(() -> OpenIdConnectProvider.parseTokenClaims(jws)).thenReturn(token);
+			mockJwtAdapter.when(() -> JwtAdapter.parseToken(jws)).thenReturn(token);
 			mockAuthConfig.when(() -> AuthConfig.load(IuAuthorizationClient.class, clientId)).thenReturn(client);
 
 			mockClientAssertionVerifier.when(() -> ClientAssertionVerifier.verify(tokenEndpoint, assertion, null))

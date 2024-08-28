@@ -1,7 +1,7 @@
 package iu.auth.oidc;
 
 import edu.iu.auth.config.IuAuthorizationClient;
-import edu.iu.auth.config.IuAuthorizationClient.Credentials;
+import edu.iu.auth.config.IuAuthorizationCredentials;
 
 /**
  * Represents a successfully authorized grant according to client configuration
@@ -9,10 +9,10 @@ import edu.iu.auth.config.IuAuthorizationClient.Credentials;
  * 
  * @param clientId    Client ID
  * @param client      {@link IuAuthorizationClient}
- * @param credentials {@link Credentials} used to authenticate the client
+ * @param credentials {@link IuAuthorizationCredentials} used to authenticate the client
  * @param jti         Unique token ID
  * @param nonce       One-time number
  */
-record AuthenticatedClient(String clientId, IuAuthorizationClient client, Credentials credentials, String jti,
+record AuthenticatedClient(String clientId, IuAuthorizationClient client, IuAuthorizationCredentials credentials, String jti,
 		String nonce) {
 }

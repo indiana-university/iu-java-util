@@ -29,15 +29,19 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.config;
+package iu.auth.jwt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.net.URI;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Iterator;
@@ -46,9 +50,11 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
+import edu.iu.IuText;
 import edu.iu.auth.jwt.IuWebToken;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.WebSignedPayload;
 
 @SuppressWarnings({ "javadoc", "rawtypes", "unchecked" })
 public class JwtAdapterTest {
@@ -127,6 +133,18 @@ public class JwtAdapterTest {
 			public Iterable<URI> getAudience() {
 				return aud;
 			}
+
+			@Override
+			public void validateClaims(URI audience, Duration ttl) {
+				fail();
+			}
+
+			@Override
+			public boolean isExpired() {
+				fail();
+				return true;
+			}
+
 		}).asJsonObject();
 
 		assertEquals(tokenId, serializedJwt.getString("jti"));
@@ -184,6 +202,40 @@ public class JwtAdapterTest {
 		final var jwt2 = this.jwt.fromJson(claims);
 		assertEquals(jwt.hashCode(), jwt2.hashCode());
 		assertEquals(jwt, jwt2);
+	}
+
+	@Test
+	public void testParseToken() {
+		final var iss = URI.create(IdGenerator.generateId());
+		final var aud = URI.create(IdGenerator.generateId());
+		final var sub = IdGenerator.generateId();
+		final var jti = IdGenerator.generateId();
+		final var nonce = IdGenerator.generateId();
+		final var iat = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+		final var nbf = iat.minusSeconds(1L);
+		final var exp = iat.plusSeconds(1L);
+
+		final var jws = mock(WebSignedPayload.class);
+		when(jws.getPayload()).thenReturn(IuText.utf8(IuJson.object() //
+				.add("iss", iss.toString()) //
+				.add("aud", aud.toString()) //
+				.add("sub", sub) //
+				.add("jti", jti) //
+				.add("nonce", nonce) //
+				.add("iat", iat.getEpochSecond()) //
+				.add("nbf", nbf.getEpochSecond()) //
+				.add("exp", exp.getEpochSecond()) //
+				.build().toString()));
+
+		final var token = JwtAdapter.parseToken(jws);
+		assertEquals(iss, token.getIssuer());
+		assertEquals(aud, token.getAudience().iterator().next());
+		assertEquals(sub, token.getSubject());
+		assertEquals(jti, token.getTokenId());
+		assertEquals(nonce, token.getNonce());
+		assertEquals(iat, token.getIssuedAt());
+		assertEquals(nbf, token.getNotBefore());
+		assertEquals(exp, token.getExpires());
 	}
 
 }

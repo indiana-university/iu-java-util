@@ -33,32 +33,29 @@
  * API Authentication and Authorization interfaces.
  * 
  * @uses edu.iu.auth.spi.IuAuthConfigSpi Configuration bootstrap
- * @uses edu.iu.auth.spi.IuPrincipalSpi For access to identity provider
- *       verification resources
- * @uses edu.iu.auth.spi.IuSamlSpi SAML service provider
- * @uses edu.iu.auth.spi.IuNonceSpi One-time number generator
+ * @uses edu.iu.auth.spi.IuAuthClientSpi Authorization client SPI
+ * @uses edu.iu.auth.spi.IuPrincipalSpi Authenticated principal verification SPI
+ * @uses edu.iu.auth.spi.IuSamlSpi SAML service provider SPI
+ * @uses edu.iu.auth.spi.IuNonceSpi One-time number generator SPI
  */
 module iu.util.auth {
 	exports edu.iu.auth;
-
 	exports edu.iu.auth.client;
-	opens edu.iu.auth.client;
-
 	exports edu.iu.auth.jwt;
-	opens edu.iu.auth.jwt;
-
 	exports edu.iu.auth.nonce;
-	opens edu.iu.auth.nonce;
-
 	exports edu.iu.auth.oidc;
 	exports edu.iu.auth.saml;
-
 	exports edu.iu.auth.spi;
+
+	opens edu.iu.auth.client;
+	opens edu.iu.auth.jwt;
+	opens edu.iu.auth.nonce;
 
 	requires iu.util;
 	requires transitive java.net.http;
 
 	uses edu.iu.auth.spi.IuAuthConfigSpi;
+	uses edu.iu.auth.spi.IuAuthClientSpi;
 	uses edu.iu.auth.spi.IuPrincipalSpi;
 	uses edu.iu.auth.spi.IuNonceSpi;
 	uses edu.iu.auth.spi.IuSamlSpi;

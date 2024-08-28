@@ -29,69 +29,55 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.config;
+package edu.iu.auth.client;
 
 import java.net.URI;
-import java.time.Duration;
-import java.util.Set;
 
-import edu.iu.auth.client.IuAuthorizationAttributeResponse;
+import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.spi.IuAuthClientSpi;
+import iu.auth.IuAuthSpiFactory;
 
 /**
- * Provides endpoint-facing authorization client configuration metadata.
+ * Manages client-side authorization session state.
  */
-public interface IuAuthorizationClient {
+public interface IuAuthorizationSession {
 
 	/**
-	 * Gets the authentication realm to use with
-	 * {@link GrantType#AUTHORIZATION_CODE}.
+	 * Creates a new {@link IuAuthorizationSession} for managing interactions with
+	 * an authorization server.
 	 * 
-	 * @return redirect URIs
+	 * @param clientId    Client ID
+	 * @param resourceUri Root resource API
+	 * @param scope       Scopes to request access for
+	 * 
+	 * @return {@link IuAuthorizationSession}
 	 */
-	String getRealm();
+	static IuAuthorizationSession create(String clientId, URI resourceUri, String... scope) {
+		return IuAuthSpiFactory.get(IuAuthClientSpi.class).createAuthorizationSession(clientId, resourceUri, scope);
+	}
 
 	/**
-	 * Gets redirect URIs allowed for this client to use with
-	 * {@link GrantType#AUTHORIZATION_CODE}.
+	 * Gets an authorization code grant for the application entry point.
 	 * 
-	 * @return redirect URIs
+	 * @param redirectUri Application redirect {@link URI}, MUST be registered for
+	 *                    the client at the token endpoint. The user will be
+	 *                    returned to this URI once authorization is complete.
+	 * @return {@link URI} to direct the user agent to after completing
+	 *         authorization
 	 */
-	Set<URI> getRedirectUri();
+	URI grant(URI redirectUri);
 
 	/**
-	 * Gets scopes permitted for use with this client.
+	 * Completes authorization using a code and state value provided by the
+	 * authorization server.
 	 * 
-	 * @return permitted scopes
+	 * @param code  authorization code
+	 * @param state opaque value tying the authorization code to a pending request
+	 *
+	 * @return {@link IuAuthorizationGrant}
+	 * @throws IuAuthenticationException If authorization could not be granted due
+	 *                                   to missing or expired authentication.
 	 */
-	Set<String> getScope();
-
-	/**
-	 * Gets attribute release {@link URIs}.
-	 * 
-	 * @return attribute release {@link URIs}
-	 * @see IuAuthorizationAttributeResponse
-	 */
-	Iterable<URI> getAttributeUris();
-
-	/**
-	 * Gets the allowed IP address ranges.
-	 * 
-	 * @return Set of allowed IP address ranges
-	 */
-	Set<String> getIpAllow();
-
-	/**
-	 * Defines the maximum time to live for assertions issued by this client.
-	 * 
-	 * @return {@link Duration}
-	 */
-	Duration getAssertionTtl();
-
-	/**
-	 * Gets credentials issued to this client.
-	 * 
-	 * @return {@link IuAuthorizationCredentials}
-	 */
-	Iterable<? extends IuAuthorizationCredentials> getCredentials();
+	IuAuthorizationGrant authorize(String code, String state) throws IuAuthenticationException;
 
 }
