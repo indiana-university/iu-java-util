@@ -32,28 +32,19 @@
 package edu.iu.auth.client;
 
 import edu.iu.auth.IuApiCredentials;
-import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.jwt.IuWebToken;
 
 /**
  * Represents credentials for use with
  * <a href="https://datatracker.ietf.org/doc/html/rfc6750">OAuth 2.0 Bearer
  * Token Authorization</a>.
  */
-public interface IuBearerToken extends IuApiCredentials, IuPrincipalIdentity {
-
-	/**
-	 * Gets the access token.
-	 * 
-	 * @return access token
-	 */
-	String getAccessToken();
+public interface IuBearerToken extends IuApiCredentials {
 
 	/**
 	 * Gets the scope of access authorized for the token.
 	 * 
 	 * @return scope
 	 */
-	IuWebToken getToken();
+	IuAccessToken getAccessToken();
 
 }

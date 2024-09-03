@@ -29,24 +29,50 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth;
+package edu.iu.auth.client;
 
-import java.net.http.HttpRequest;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 
-/**
- * Encapsulates managed credentials that can be
- * {@link #applyTo(HttpRequest.Builder) applied to} to authenticate an
- * {@link HttpRequest HTTP request}.
- */
-public interface IuApiCredentials {
+import java.net.URI;
 
-	/**
-	 * Applies the client's API credentials to an HTTP request.
-	 * 
-	 * @param httpRequestBuilder {@link HttpRequest.Builder}
-	 * @throws IuAuthenticationException If authenticated credentials have expired
-	 *                                   or been revoked since initial authorization
-	 */
-	void applyTo(HttpRequest.Builder httpRequestBuilder) throws IuAuthenticationException;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+
+import edu.iu.IdGenerator;
+import edu.iu.auth.spi.IuAuthClientSpi;
+import iu.auth.IuAuthSpiFactory;
+
+@SuppressWarnings("javadoc")
+public class IuAuthorizationSessionTest {
+
+	private MockedStatic<IuAuthSpiFactory> mockSpiFactory;
+	private IuAuthClientSpi spi;
+
+	@BeforeEach
+	public void setup() {
+		spi = mock(IuAuthClientSpi.class);
+		mockSpiFactory = mockStatic(IuAuthSpiFactory.class);
+		mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuAuthClientSpi.class)).thenReturn(spi);
+	}
+
+	@AfterEach
+	public void tearDown() {
+		mockSpiFactory.close();
+		mockSpiFactory = null;
+		spi = null;
+	}
+
+	@Test
+	public void testCreateSession() {
+		final var clientId = IdGenerator.generateId();
+		final var resourceUri = URI.create(IdGenerator.generateId());
+		final var scope = IdGenerator.generateId();
+		IuAuthorizationSession.create(clientId, resourceUri, scope);
+		verify(spi).createAuthorizationSession(clientId, resourceUri, scope);
+	}
 
 }

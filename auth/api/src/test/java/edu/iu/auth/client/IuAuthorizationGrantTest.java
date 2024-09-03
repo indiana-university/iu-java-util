@@ -29,75 +29,50 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.jwt;
+package edu.iu.auth.client;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 
 import java.net.URI;
-import java.time.Instant;
 
-import edu.iu.auth.jwt.IuWebToken;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
-/**
- * Adds setters to {@link IuWebToken}
- */
-public interface IuWebTokenBuilder extends IuWebToken {
+import edu.iu.IdGenerator;
+import edu.iu.auth.spi.IuAuthClientSpi;
+import iu.auth.IuAuthSpiFactory;
 
-	/**
-	 * Sets the token identifier.
-	 * 
-	 * @param jti token identifier (jti claim);
-	 */
-	void setTokenId(String jti);
+@SuppressWarnings("javadoc")
+public class IuAuthorizationGrantTest {
 
-	/**
-	 * Sets the token issuer URI.
-	 * 
-	 * @param iss {@link URI}
-	 */
-	void setIssuer(URI iss);
+	private MockedStatic<IuAuthSpiFactory> mockSpiFactory;
+	private IuAuthClientSpi spi;
 
-	/**
-	 * Sets the token audience URIs.
-	 * 
-	 * @param aud at least one {@link URI}
-	 */
-	void setAudience(Iterable<URI> aud);
+	@BeforeEach
+	public void setup() {
+		spi = mock(IuAuthClientSpi.class);
+		mockSpiFactory = mockStatic(IuAuthSpiFactory.class);
+		mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuAuthClientSpi.class)).thenReturn(spi);
+	}
 
-	/**
-	 * Sets the subject of the JWT.
-	 * 
-	 * @param sub subject (sub claim)
-	 */
-	void setSubject(String sub);
+	@AfterEach
+	public void tearDown() {
+		mockSpiFactory.close();
+		mockSpiFactory = null;
+		spi = null;
+	}
 
-	/**
-	 * Sets the time the JWT was issued.
-	 * 
-	 * @param iat issued time (iat claim)
-	 */
-	void setIssuedAt(Instant iat);
-
-	/**
-	 * Sets the time before which the JWT should not be accepted.
-	 * 
-	 * @param nbf not before time (nbf claim)
-	 */
-	void setNotBefore(Instant nbf);
-
-	/**
-	 * Sets the time after which the JWT should not be accepted.
-	 * 
-	 * @param exp token expiration time (exp claim)
-	 */
-	void setExpires(Instant exp);
-
-	/**
-	 * Sets the nonce claim.
-	 * 
-	 * @param nonce nonce claim value
-	 * @see <a href=
-	 *      "https://openid.net/specs/openid-connect-core-1_0.html#NonceNotes">OpenID
-	 *      Connection Core 1.0 Section 15.5.2</a>
-	 */
-	void setNonce(String nonce);
+	@Test
+	public void testCreateGrant() {
+		final var clientId = IdGenerator.generateId();
+		final var resourceUri = URI.create(IdGenerator.generateId());
+		final var scope = IdGenerator.generateId();
+		IuAuthorizationGrant.create(clientId, resourceUri, scope);
+		verify(spi).createAuthorizationGrant(clientId, resourceUri, scope);
+	}
 
 }

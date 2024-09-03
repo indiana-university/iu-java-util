@@ -114,13 +114,21 @@ public interface IuWebToken {
 	 * window.
 	 * 
 	 * <p>
-	 * Expects
+	 * In addition to the rules outlined in
+	 * <a href="https://datatracker.ietf.org/doc/html/rfc7519#section-4.1">RFC-7519
+	 * JWT Section 4.1</a>, REQUIRES the following claim values to be present and
+	 * not empty:
+	 * </p>
+	 * <ul>
+	 * <li>{@link #getIssuer()}</li>
+	 * <li>{@link #getAudience()}</li>
+	 * <li>{@link #getSubject()}</li>
+	 * <li>{@link #getIssuedAt()}</li>
+	 * <li>{@link #getExpires()}</li>
+	 * </ul>
 	 * 
 	 * @param audience Expected audience {@link URI}
 	 * @param ttl      Maximum assertion time to live allowed by configuration
-	 * @see <a href=
-	 *      "https://datatracker.ietf.org/doc/html/rfc7519#section-4.1">RFC-7519 JWT
-	 *      Section 4.1</a>
 	 */
 	void validateClaims(URI audience, Duration ttl);
 

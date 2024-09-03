@@ -66,9 +66,9 @@ public interface IuAuthorizationClient {
 	Set<String> getScope();
 
 	/**
-	 * Gets attribute release {@link URIs}.
+	 * Gets attribute release {@link URI}s.
 	 * 
-	 * @return attribute release {@link URIs}
+	 * @return attribute release {@link URI}s
 	 * @see IuAuthorizationAttributeResponse
 	 */
 	Iterable<URI> getAttributeUris();

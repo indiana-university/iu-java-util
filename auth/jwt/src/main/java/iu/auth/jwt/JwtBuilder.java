@@ -38,9 +38,15 @@ import java.time.Instant;
 import edu.iu.auth.jwt.IuWebToken;
 
 /**
- * {@link IuWebTokenBuilder} implementation.
+ * Mutable builder implementation for programmatically constructing new
+ * {@link Jwt} instances.
+ * 
+ * <p>
+ * Modules that provide a subclass of {@link Jwt} SHOULD also provide a subclass
+ * of this class that overrides {@link #build()}.
+ * </p>
  */
-public class JwtBuilder implements IuWebTokenBuilder {
+public class JwtBuilder implements IuWebToken {
 
 	private String tokenId;
 	private URI issuer;
@@ -78,7 +84,11 @@ public class JwtBuilder implements IuWebTokenBuilder {
 		return tokenId;
 	}
 
-	@Override
+	/**
+	 * Sets {@link #tokenId}
+	 * 
+	 * @param tokenId {@link #tokenId}
+	 */
 	public void setTokenId(String tokenId) {
 		this.tokenId = tokenId;
 	}
@@ -88,7 +98,11 @@ public class JwtBuilder implements IuWebTokenBuilder {
 		return issuer;
 	}
 
-	@Override
+	/**
+	 * Sets {@link #issuer}
+	 * 
+	 * @param issuer {@link #issuer}
+	 */
 	public void setIssuer(URI issuer) {
 		this.issuer = issuer;
 	}
@@ -98,7 +112,11 @@ public class JwtBuilder implements IuWebTokenBuilder {
 		return audience;
 	}
 
-	@Override
+	/**
+	 * Sets {@link #audience}
+	 * 
+	 * @param audience {@link #audience}
+	 */
 	public void setAudience(Iterable<URI> audience) {
 		this.audience = audience;
 	}
@@ -108,7 +126,11 @@ public class JwtBuilder implements IuWebTokenBuilder {
 		return subject;
 	}
 
-	@Override
+	/**
+	 * Sets {@link #subject}
+	 * 
+	 * @param subject {@link #subject}
+	 */
 	public void setSubject(String subject) {
 		this.subject = subject;
 	}
@@ -118,7 +140,11 @@ public class JwtBuilder implements IuWebTokenBuilder {
 		return issuedAt;
 	}
 
-	@Override
+	/**
+	 * Sets {@link #issuedAt}
+	 * 
+	 * @param issuedAt {@link #issuedAt}
+	 */
 	public void setIssuedAt(Instant issuedAt) {
 		this.issuedAt = issuedAt;
 	}
@@ -128,7 +154,11 @@ public class JwtBuilder implements IuWebTokenBuilder {
 		return notBefore;
 	}
 
-	@Override
+	/**
+	 * Sets {@link #notBefore}
+	 * 
+	 * @param notBefore {@link #notBefore}
+	 */
 	public void setNotBefore(Instant notBefore) {
 		this.notBefore = notBefore;
 	}
@@ -138,7 +168,11 @@ public class JwtBuilder implements IuWebTokenBuilder {
 		return expires;
 	}
 
-	@Override
+	/**
+	 * Sets {@link #expires}
+	 * 
+	 * @param expires {@link #expires}
+	 */
 	public void setExpires(Instant expires) {
 		this.expires = expires;
 	}
@@ -148,19 +182,39 @@ public class JwtBuilder implements IuWebTokenBuilder {
 		return nonce;
 	}
 
-	@Override
+	/**
+	 * Sets {@link #nonce}
+	 * 
+	 * @param nonce {@link #nonce}
+	 */
 	public void setNonce(String nonce) {
 		this.nonce = nonce;
 	}
 
 	@Override
-	public void validateClaims(URI audience, Duration ttl) {
-		throw new UnsupportedOperationException("Mutable claim validation is not supported");
+	public boolean isExpired() {
+		throw new UnsupportedOperationException(
+				"Use build() to complete JWT construction before verifying token claims");
 	}
 
 	@Override
-	public boolean isExpired() {
-		throw new UnsupportedOperationException("Mutable claim validation is not supported");
+	public void validateClaims(URI audience, Duration ttl) {
+		throw new UnsupportedOperationException(
+				"Use build() to complete JWT construction before verifying token claims");
+	}
+
+	/**
+	 * Completes {@link Jwt} construction.
+	 * 
+	 * <p>
+	 * Subclasses SHOULD override this method to refine return type and support
+	 * extended claims.
+	 * </p>
+	 * 
+	 * @return {@link Jwt}
+	 */
+	public Jwt build() {
+		return new Jwt(this);
 	}
 
 }

@@ -18,7 +18,7 @@ import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
 import edu.iu.auth.config.IuAuthorizationClient.GrantType;
 import edu.iu.auth.config.IuOpenIdProviderEndpoint;
 import edu.iu.auth.oidc.IuAuthorizationRequest;
-import edu.iu.auth.oidc.IuTokenResponse;
+import iu.auth.client.IuTokenResponse;
 import iu.auth.config.AuthConfig;
 
 /**

@@ -41,7 +41,7 @@ import edu.iu.auth.IuPrincipalIdentity;
  * Verifies an explicit hard reference to a configured non-authorizative
  * {@link IuPrincipalIdentity}.
  * 
- * @param <T> Principal identity type; MUST be final and not and interface
+ * @param <T> Principal identity type; MUST be final and not an interface
  */
 public final class IdentityPrincipalVerifier<T extends IuPrincipalIdentity> implements PrincipalVerifier<T> {
 

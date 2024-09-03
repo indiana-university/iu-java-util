@@ -57,7 +57,7 @@ public interface IuAuthorizationSession {
 	}
 
 	/**
-	 * Gets an authorization code grant for the application entry point.
+	 * Initiates authorization for an end-user.
 	 * 
 	 * @param redirectUri Application redirect {@link URI}, MUST be registered for
 	 *                    the client at the token endpoint. The user will be
@@ -65,10 +65,10 @@ public interface IuAuthorizationSession {
 	 * @return {@link URI} to direct the user agent to after completing
 	 *         authorization
 	 */
-	URI grant(URI redirectUri);
+	URI initiate(URI redirectUri);
 
 	/**
-	 * Completes authorization using a code and state value provided by the
+	 * Completes end-user authorization via a code and state value provided by the
 	 * authorization server.
 	 * 
 	 * @param code  authorization code
@@ -78,6 +78,6 @@ public interface IuAuthorizationSession {
 	 * @throws IuAuthenticationException If authorization could not be granted due
 	 *                                   to missing or expired authentication.
 	 */
-	IuAuthorizationGrant authorize(String code, String state) throws IuAuthenticationException;
+	IuAuthorizationGrant complete(String code, String state) throws IuAuthenticationException;
 
 }

@@ -31,8 +31,15 @@
  */
 package edu.iu;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import java.math.BigInteger;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.jupiter.api.Test;
 
@@ -50,17 +57,17 @@ public class IdTest {
 
 	@Test
 	public void testVerifyNeedsValidChars() {
-		assertEquals("Invalid encoding",
+		assertEquals("Illegal base64 character 40",
 				assertThrows(IllegalArgumentException.class, () -> IdGenerator.verifyId("@!#&", 0)).getMessage());
-		assertEquals("Invalid encoding",
+		assertEquals("Illegal base64 character a",
 				assertThrows(IllegalArgumentException.class, () -> IdGenerator.verifyId("\n\t\f\0", 0)).getMessage());
-		assertEquals("Invalid encoding",
+		assertEquals("Illegal base64 character 7b",
 				assertThrows(IllegalArgumentException.class, () -> IdGenerator.verifyId("{||}", 0)).getMessage());
 	}
-	
+
 	@Test
 	public void testVerifyNeedsPowerOf4() {
-		assertEquals("Invalid length",
+		assertEquals("Input byte[] should at least have 2 bytes for base64 bytes",
 				assertThrows(IllegalArgumentException.class, () -> IdGenerator.verifyId("a", 0)).getMessage());
 	}
 
@@ -72,8 +79,8 @@ public class IdTest {
 
 	@Test
 	public void testVerifyNeedsValidTime() {
-		assertEquals("Invalid time signature",
-				assertThrows(IllegalArgumentException.class, () -> IdGenerator.verifyId("abcdefghijklmnopqrstuvwxyzABCDEF", 0)).getMessage());
+		assertEquals("Invalid time signature", assertThrows(IllegalArgumentException.class,
+				() -> IdGenerator.verifyId("abcdefghijklmnopqrstuvwxyzABCDEF", 0)).getMessage());
 	}
 
 	@Test
@@ -86,8 +93,8 @@ public class IdTest {
 
 	@Test
 	public void testVerifyNeedsValidChecksum() throws Exception {
-		assertEquals("Invalid checksum",
-				assertThrows(IllegalArgumentException.class, () -> IdGenerator.verifyId("F4TS-R7YNZkaLtcVh544L4xSE2zCQpIZ", 0)).getMessage());
+		assertEquals("Invalid checksum", assertThrows(IllegalArgumentException.class,
+				() -> IdGenerator.verifyId("F4TS-R7YNZkaLtcVh544L4xSE2zCQpIZ", 0)).getMessage());
 	}
 
 }
