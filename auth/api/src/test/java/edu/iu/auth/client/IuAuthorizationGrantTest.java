@@ -67,12 +67,27 @@ public class IuAuthorizationGrantTest {
 	}
 
 	@Test
+	public void testCreate() {
+		final var request = mock(IuAuthorizationRequest.class);
+		IuAuthorizationGrant.create(request);
+		verify(spi).createClientCredentialsGrant(request);
+	}
+
+	@Test
+	public void testInitiate() {
+		final var request = mock(IuAuthorizationRequest.class);
+		final var redirectUri = URI.create(IdGenerator.generateId());
+		IuAuthorizationGrant.initiate(request, redirectUri);
+		verify(spi).initiateAuthorizationCodeGrant(request, redirectUri);
+	}
+
+	@Test
 	public void testCreateGrant() {
-		final var clientId = IdGenerator.generateId();
-		final var resourceUri = URI.create(IdGenerator.generateId());
-		final var scope = IdGenerator.generateId();
-		IuAuthorizationGrant.create(clientId, resourceUri, scope);
-		verify(spi).createAuthorizationGrant(clientId, resourceUri, scope);
+		final var redirectUri = URI.create(IdGenerator.generateId());
+		final var code = IdGenerator.generateId();
+		final var state = IdGenerator.generateId();
+		IuAuthorizationGrant.complete(redirectUri, code, state);
+		verify(spi).completeAuthorizationCodeGrant(redirectUri, code, state);
 	}
 
 }

@@ -46,19 +46,49 @@ import iu.auth.IuAuthSpiFactory;
 public interface IuAuthorizationGrant {
 
 	/**
-	 * Creates a new {@link IuAuthorizationGrant} for managing interactions with
-	 * an authorization server on behalf of the remote client.
+	 * Creates a new {@link IuAuthorizationGrant} for managing interactions with an
+	 * authorization server on behalf of the client application.
 	 * 
-	 * @param clientId    Client ID
-	 * @param resourceUri Root resource API
-	 * @param scope       Scopes to request access for
+	 * @param request {@link IuAuthorizationRequest}
 	 * 
-	 * @return {@link IuAuthorizationSession}
+	 * @return {@link IuAuthorizationGrant}
 	 */
-	static IuAuthorizationGrant create(String clientId, URI resourceUri, String... scope) {
-		return IuAuthSpiFactory.get(IuAuthClientSpi.class).createAuthorizationGrant(clientId, resourceUri, scope);
+	static IuAuthorizationGrant create(IuAuthorizationRequest request) {
+		return IuAuthSpiFactory.get(IuAuthClientSpi.class).createClientCredentialsGrant(request);
 	}
-	
+
+	/**
+	 * Creates a new {@link IuAuthorizationGrant} for managing interactions with an
+	 * authorization server on behalf of the a client application user.
+	 * 
+	 * @param request     {@link IuAuthorizationRequest}
+	 * @param redirectUri {@link URI} to return to after completing authorization
+	 * 
+	 * @return {@link URI} to redirect the user to complete the authorization
+	 *         process
+	 */
+	static URI initiate(IuAuthorizationRequest request, URI redirectUri) {
+		return IuAuthSpiFactory.get(IuAuthClientSpi.class).initiateAuthorizationCodeGrant(request, redirectUri);
+	}
+
+	/**
+	 * Creates a new {@link IuAuthorizationGrant} for managing interactions with an
+	 * authorization server on behalf of a client application user.
+	 * 
+	 * @param requestUri Incoming request {@link URI}; MUST match
+	 *                   {@link redirectUri} from
+	 *                   {@link #initiate(IuAuthorizationRequest, URI)}
+	 * @param code       Authorization code
+	 * @param state      State parameter generated from
+	 *                   {@link #initiate(IuAuthorizationRequest, URI)} to verify
+	 *                   the authorization code against
+	 * 
+	 * @return {@link IuAuthorizationGrant}
+	 */
+	static IuAuthorizationGrant complete(URI requestUri, String code, String state) {
+		return IuAuthSpiFactory.get(IuAuthClientSpi.class).completeAuthorizationCodeGrant(requestUri, code, state);
+	}
+
 	/**
 	 * Authorizes access to an application resource.
 	 * 

@@ -31,6 +31,7 @@
  */
 package edu.iu.auth.config;
 
+import java.net.URI;
 import java.security.cert.X509Certificate;
 
 import edu.iu.crypt.WebEncryption.Encryption;
@@ -71,5 +72,31 @@ public interface IuPrivateKeyPrincipal extends IuAuthenticationRealm {
 	 * @return {@link WebKey}
 	 */
 	WebKey getJwk();
+
+	/**
+	 * Gets the key ID relative to the JWKS key at {@link #getJku()} of the
+	 * signature verification or encryption key.
+	 * 
+	 * @return Key ID
+	 */
+	String getKid();
+
+	/**
+	 * Gets the reference URI for looking up the signature or verification key.
+	 *
+	 * <p>
+	 * If {@link #getKid() kid} is also set, this {@link URI} MUST refer to a
+	 * {@link WebKey#readJwks(URI)} JWKS key set; else it refers to a single
+	 * {@link WebKey#parse(String) JWK}.
+	 * </p>
+	 * 
+	 * <p>
+	 * Note: http/https URIs are not authenticated and SHOULD only be used for
+	 * looking up well-known public key data.
+	 * </p>
+	 * 
+	 * @return JWK or JWKS {@link URI}
+	 */
+	URI getJku();
 
 }

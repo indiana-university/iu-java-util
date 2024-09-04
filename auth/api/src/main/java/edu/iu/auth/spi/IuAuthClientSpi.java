@@ -3,7 +3,7 @@ package edu.iu.auth.spi;
 import java.net.URI;
 
 import edu.iu.auth.client.IuAuthorizationGrant;
-import edu.iu.auth.client.IuAuthorizationSession;
+import edu.iu.auth.client.IuAuthorizationRequest;
 
 /**
  * Authorization client service provider interface.
@@ -11,27 +11,36 @@ import edu.iu.auth.client.IuAuthorizationSession;
 public interface IuAuthClientSpi {
 
 	/**
-	 * Creates a new {@link IuAuthorizationSession} for managing interactions with
-	 * an authorization server.
+	 * Creates a new {@link IuAuthorizationGrant} for managing interactions with an
+	 * authorization server on behalf of the remote client.
 	 * 
-	 * @param clientId    Client ID
-	 * @param resourceUri Root resource API
-	 * @param scope       Scopes to request access for
-	 * 
-	 * @return {@link IuAuthorizationSession}
+	 * @param request {@link IuAuthorizationRequest}
+	 * @return {@link IuAuthorizationGrant}
 	 */
-	IuAuthorizationSession createAuthorizationSession(String clientId, URI resourceUri, String... scope);
+	IuAuthorizationGrant createClientCredentialsGrant(IuAuthorizationRequest request);
 
 	/**
 	 * Creates a new {@link IuAuthorizationGrant} for managing interactions with an
 	 * authorization server on behalf of the remote client.
 	 * 
-	 * @param clientId    Client ID
-	 * @param resourceUri Root resource API
-	 * @param scope       Scopes to request access for
+	 * @param request     {@link IuAuthorizationRequest}
+	 * @param redirectUri {@link URI} to return to after completing authorization
+	 * @return {@link URI} to redirect the user to complete the authorization
+	 *         process
+	 */
+	URI initiateAuthorizationCodeGrant(IuAuthorizationRequest request, URI redirectUri);
+
+	/**
+	 * Creates a new {@link IuAuthorizationGrant} for managing interactions with an
+	 * authorization server on behalf of the remote client.
 	 * 
+	 * @param requestUri Incoming request {@link URI}
+	 * @param code       Authorization code
+	 * @param state      State parameter to verify the authorization code against
+	 * 
+	 * @param request    {@link IuAuthorizationRequest}
 	 * @return {@link IuAuthorizationGrant}
 	 */
-	IuAuthorizationGrant createAuthorizationGrant(String clientId, URI resourceUri, String... scope);
+	IuAuthorizationGrant completeAuthorizationCodeGrant(URI requestUri, String code, String state);
 
 }
