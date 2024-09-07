@@ -1,0 +1,567 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebCryptoHeader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Web Cryptography Utilities</a> &gt; <a href="index.source.html" class="el_package">edu.iu.crypt</a> &gt; <span class="el_source">WebCryptoHeader.java</span></div><h1>WebCryptoHeader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu.crypt;
+
+import java.net.URI;
+import java.security.cert.X509Certificate;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+import edu.iu.IuIterable;
+import edu.iu.IuObject;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Use;
+import iu.crypt.Jose;
+import iu.crypt.Jwk;
+import iu.crypt.UnpaddedBinary;
+
+/**
+ * Unifies algorithm support and maps cryptographic header data from JCE to JSON
+ * Object Signing and Encryption (JOSE).
+ * 
+ * @see &lt;a href=&quot;https://datatracker.ietf.org/doc/html/rfc7517&quot;&gt;JSON Web Key
+ *      (JWK) RFC-7517&lt;/a&gt;
+ */
+public interface WebCryptoHeader extends WebCertificateReference {
+
+	/** {@link IuJsonAdapter} */
+<span class="fc" id="L63">	public static final IuJsonAdapter&lt;WebCryptoHeader&gt; JSON = Jose.JSON;</span>
+
+	/**
+	 * Enumerates standard header parameters.
+	 */
+<span class="fc" id="L68">	enum Param {</span>
+		/**
+		 * Encryption/signature algorithm.
+		 */
+<span class="fc" id="L72">		ALGORITHM(&quot;alg&quot;, EnumSet.allOf(Use.class), true, WebCryptoHeader::getAlgorithm, () -&gt; Algorithm.JSON),</span>
+
+		/**
+		 * Well-known key identifier.
+		 */
+<span class="fc" id="L77">		KEY_ID(&quot;kid&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getKeyId, () -&gt; IuJsonAdapter.of(String.class)),</span>
+
+		/**
+		 * Well-known key set URI.
+		 */
+<span class="fc" id="L82">		KEY_SET_URI(&quot;jku&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getKeySetUri,</span>
+<span class="fc" id="L83">				() -&gt; IuJsonAdapter.of(URI.class)),</span>
+
+		/**
+		 * Well-known public key.
+		 */
+<span class="fc" id="L88">		KEY(&quot;jwk&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getKey, () -&gt; Jwk.JSON),</span>
+
+		/**
+		 * Certificate chain URI.
+		 */
+<span class="fc" id="L93">		CERTIFICATE_URI(&quot;x5u&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getCertificateUri,</span>
+<span class="fc" id="L94">				() -&gt; IuJsonAdapter.of(URI.class)),</span>
+
+		/**
+		 * Certificate chain.
+		 */
+<span class="fc" id="L99">		CERTIFICATE_CHAIN(&quot;x5c&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getCertificateChain,</span>
+<span class="fc" id="L100">				() -&gt; IuJsonAdapter.of(X509Certificate[].class, PemEncoded.CERT_JSON)),</span>
+
+		/**
+		 * Certificate SHA-1 thumb print.
+		 */
+<span class="fc" id="L105">		CERTIFICATE_THUMBPRINT(&quot;x5t&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getCertificateThumbprint,</span>
+<span class="fc" id="L106">				() -&gt; UnpaddedBinary.JSON),</span>
+
+		/**
+		 * Certificate SHA-1 thumb print.
+		 */
+<span class="fc" id="L111">		CERTIFICATE_SHA256_THUMBPRINT(&quot;x5t#S256&quot;, EnumSet.allOf(Use.class), false,</span>
+<span class="fc" id="L112">				WebCryptoHeader::getCertificateSha256Thumbprint, () -&gt; UnpaddedBinary.JSON),</span>
+
+		/**
+		 * Signature/encryption media type.
+		 */
+<span class="fc" id="L117">		TYPE(&quot;typ&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getType, () -&gt; IuJsonAdapter.of(String.class)),</span>
+
+		/**
+		 * Content media type.
+		 */
+<span class="fc" id="L122">		CONTENT_TYPE(&quot;cty&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getContentType,</span>
+<span class="fc" id="L123">				() -&gt; IuJsonAdapter.of(String.class)),</span>
+
+		/**
+		 * Extended parameter names that &lt;em&gt;must&lt;/em&gt; be included in the protected
+		 * header.
+		 */
+<span class="fc" id="L129">		CRITICAL_PARAMS(&quot;crit&quot;, EnumSet.allOf(Use.class), false, WebCryptoHeader::getCriticalParameters,</span>
+<span class="fc" id="L130">				() -&gt; IuJsonAdapter.of(Set.class, IuJsonAdapter.of(String.class))),</span>
+
+		/**
+		 * Content encryption algorithm.
+		 */
+<span class="fc" id="L135">		ENCRYPTION(&quot;enc&quot;, EnumSet.of(Use.ENCRYPT), true, a -&gt; a.getExtendedParameter(&quot;enc&quot;), () -&gt; Encryption.JSON),</span>
+
+		/**
+		 * Plain-text compression algorithm for encryption.
+		 */
+<span class="fc" id="L140">		ZIP(&quot;zip&quot;, EnumSet.of(Use.ENCRYPT), false, a -&gt; a.getExtendedParameter(&quot;zip&quot;),</span>
+<span class="fc" id="L141">				() -&gt; IuJsonAdapter.of(String.class)),</span>
+
+		/**
+		 * Ephemeral public key for key agreement algorithms.
+		 * 
+		 * @see Algorithm#ECDH_ES
+		 * @see Algorithm#ECDH_ES_A128KW
+		 * @see Algorithm#ECDH_ES_A192KW
+		 * @see Algorithm#ECDH_ES_A256KW
+		 */
+<span class="fc" id="L151">		EPHEMERAL_PUBLIC_KEY(&quot;epk&quot;, EnumSet.of(Use.ENCRYPT), true, a -&gt; a.getExtendedParameter(&quot;epk&quot;), () -&gt; Jwk.JSON),</span>
+
+		/**
+		 * Public originator identifier (PartyUInfo) for key derivation.
+		 * 
+		 * @see Algorithm#ECDH_ES
+		 * @see Algorithm#ECDH_ES_A128KW
+		 * @see Algorithm#ECDH_ES_A192KW
+		 * @see Algorithm#ECDH_ES_A256KW
+		 */
+<span class="fc" id="L161">		PARTY_UINFO(&quot;apu&quot;, EnumSet.of(Use.ENCRYPT), false, a -&gt; a.getExtendedParameter(&quot;apu&quot;),</span>
+<span class="fc" id="L162">				() -&gt; UnpaddedBinary.JSON),</span>
+
+		/**
+		 * Public recipient identifier (PartyVInfo) for key derivation.
+		 * 
+		 * @see Algorithm#ECDH_ES
+		 * @see Algorithm#ECDH_ES_A128KW
+		 * @see Algorithm#ECDH_ES_A192KW
+		 * @see Algorithm#ECDH_ES_A256KW
+		 */
+<span class="fc" id="L172">		PARTY_VINFO(&quot;apv&quot;, EnumSet.of(Use.ENCRYPT), false, a -&gt; a.getExtendedParameter(&quot;apv&quot;),</span>
+<span class="fc" id="L173">				() -&gt; UnpaddedBinary.JSON),</span>
+
+		/**
+		 * Initialization vector for GCM key wrap.
+		 * 
+		 * @see Algorithm#A128GCMKW
+		 * @see Algorithm#A192GCMKW
+		 * @see Algorithm#A256GCMKW
+		 */
+<span class="fc" id="L182">		INITIALIZATION_VECTOR(&quot;iv&quot;, EnumSet.of(Use.ENCRYPT), true, a -&gt; a.getExtendedParameter(&quot;iv&quot;),</span>
+<span class="fc" id="L183">				() -&gt; UnpaddedBinary.JSON),</span>
+
+		/**
+		 * Authentication tag for GCM key wrap.
+		 * 
+		 * @see Algorithm#A128GCMKW
+		 * @see Algorithm#A192GCMKW
+		 * @see Algorithm#A256GCMKW
+		 */
+<span class="fc" id="L192">		TAG(&quot;tag&quot;, Set.of(Use.ENCRYPT), true, a -&gt; a.getExtendedParameter(&quot;tag&quot;), () -&gt; UnpaddedBinary.JSON),</span>
+
+		/**
+		 * Password salt for use with PBES2.
+		 * 
+		 * @see Algorithm#PBES2_HS256_A128KW
+		 * @see Algorithm#PBES2_HS384_A192KW
+		 * @see Algorithm#PBES2_HS512_A256KW
+		 */
+<span class="fc" id="L201">		PASSWORD_SALT(&quot;p2s&quot;, Set.of(Use.ENCRYPT), true, a -&gt; a.getExtendedParameter(&quot;p2s&quot;), () -&gt; UnpaddedBinary.JSON),</span>
+
+		/**
+		 * PBKDF2 iteration count for use with PBES2.
+		 * 
+		 * @see Algorithm#PBES2_HS256_A128KW
+		 * @see Algorithm#PBES2_HS384_A192KW
+		 * @see Algorithm#PBES2_HS512_A256KW
+		 */
+<span class="fc" id="L210">		PASSWORD_COUNT(&quot;p2c&quot;, Set.of(Use.ENCRYPT), true, a -&gt; a.getExtendedParameter(&quot;p2c&quot;),</span>
+<span class="fc" id="L211">				() -&gt; IuJsonAdapter.of(Integer.class));</span>
+
+		/**
+		 * Gets a parameter by JOSE standard parameter name.
+		 * 
+		 * @param name JOSE standard name
+		 * @return {@link Param}
+		 */
+		public static Param from(String name) {
+<span class="fc" id="L220">			return EnumSet.allOf(Param.class).stream().filter(a -&gt; IuObject.equals(name, a.name)).findFirst()</span>
+<span class="fc" id="L221">					.orElse(null);</span>
+		}
+
+		/**
+		 * JOSE standard parameter name.
+		 */
+		public final String name;
+
+		/**
+		 * Indicates if the parameter name is registered for use with &lt;a href=
+		 * &quot;https://datatracker.ietf.org/doc/html/rfc7515#section-4.1&quot;&gt;signature&lt;/a&gt;
+		 * and/or &lt;a href=
+		 * &quot;https://datatracker.ietf.org/doc/html/rfc7515#section-4.1&quot;&gt;encryption&lt;/a&gt;.
+		 */
+		private final Set&lt;Use&gt; use;
+
+		/**
+		 * Indicates if the parameter is required for this algorithm.
+		 */
+		public final boolean required;
+
+		private final Supplier&lt;IuJsonAdapter&lt;?&gt;&gt; json;
+
+		private final Function&lt;WebCryptoHeader, ?&gt; get;
+
+		private Param(String name, Set&lt;Use&gt; use, boolean required, Function&lt;WebCryptoHeader, ?&gt; get,
+<span class="fc" id="L247">				Supplier&lt;IuJsonAdapter&lt;?&gt;&gt; json) {</span>
+<span class="fc" id="L248">			this.name = name;</span>
+<span class="fc" id="L249">			this.use = Collections.unmodifiableSet(use);</span>
+<span class="fc" id="L250">			this.required = required;</span>
+<span class="fc" id="L251">			this.get = get;</span>
+<span class="fc" id="L252">			this.json = json;</span>
+<span class="fc" id="L253">		}</span>
+
+		/**
+		 * Verifies that the header contains a non-null value.
+		 * 
+		 * @param header header
+		 * @return true if the value is present; else false
+		 */
+		public boolean isPresent(WebCryptoHeader header) {
+<span class="fc bfc" id="L262" title="All 2 branches covered.">			return get(header) != null;</span>
+		}
+
+		/**
+		 * Determines if a header applies to a public JWK use case.
+		 * 
+		 * @param use public key use
+		 * @return true if the header parameter is registered for the public JWK use
+		 *         case.
+		 */
+		public boolean isUsedFor(Use use) {
+<span class="fc" id="L273">			return this.use.contains(use);</span>
+		}
+
+		/**
+		 * Gets a JSON type adapter for use with the parameter.
+		 * 
+		 * @param &lt;T&gt; parameter type
+		 * @return JSON type adapter
+		 */
+		@SuppressWarnings(&quot;unchecked&quot;)
+		public &lt;T&gt; IuJsonAdapter&lt;T&gt; json() {
+<span class="fc" id="L284">			return (IuJsonAdapter&lt;T&gt;) json.get();</span>
+		}
+
+		/**
+		 * Gets the header value.
+		 * 
+		 * @param header header
+		 * @return header value
+		 */
+		public Object get(WebCryptoHeader header) {
+<span class="fc" id="L294">			return get.apply(header);</span>
+		}
+	}
+
+	/**
+	 * Builder interface for creating {@link WebCryptoHeader} instances.
+	 * 
+	 * @param &lt;B&gt; builder type
+	 */
+	interface Builder&lt;B extends Builder&lt;B&gt;&gt; {
+		/**
+		 * Sets the key ID relative to {@link #getKeySetUri()} corresponding to a JWKS
+		 * key entry.
+		 *
+		 * @param keyId key ID
+		 * @return this
+		 */
+		B keyId(String keyId);
+
+		/**
+		 * Sets the URI where JWKS well-known key data can be retrieved.
+		 * 
+		 * @param uri JWKS {@link URI}
+		 * @return this
+		 */
+		B wellKnown(URI uri);
+
+		/**
+		 * Sets the key to include with the header.
+		 * 
+		 * @param key &lt;em&gt;may&lt;/em&gt; include private/secret key data to use for
+		 *            encryption/signing; only {@link WebKey#wellKnown()} will be
+		 *            included in the header.
+		 * @return this
+		 */
+		B wellKnown(WebKey key);
+
+		/**
+		 * The key to use for encrypting or signing.
+		 * 
+		 * @param key key to use for encryption or signing; will not be included in the
+		 *            header. Use {@link #wellKnown(WebKey)} to set the key and include
+		 *            well-known component in the header.
+		 * @return this
+		 */
+		B key(WebKey key);
+
+		/**
+		 * Sets the header type parameter value.
+		 * 
+		 * @param type header type parameter value.
+		 * @return this
+		 */
+		B type(String type);
+
+		/**
+		 * Sets the header content type parameter value.
+		 * 
+		 * @param contentType header type parameter value.
+		 * @return this
+		 */
+		B contentType(String contentType);
+
+		/**
+		 * Sets critical parameter names.
+		 * 
+		 * @param parameterNames critical parameter names
+		 * @return this
+		 */
+		B crit(String... parameterNames);
+
+		/**
+		 * Sets a registered parameter value
+		 * 
+		 * @param &lt;T&gt;   value type
+		 * @param param parameter
+		 * @param value parameter value
+		 * @return this
+		 */
+		&lt;T&gt; B param(Param param, T value);
+
+		/**
+		 * Sets an extended parameter value
+		 * 
+		 * @param &lt;T&gt;   value type
+		 * @param name  parameter name
+		 * @param value parameter value
+		 * @return this
+		 */
+		&lt;T&gt; B param(String name, T value);
+	}
+
+	/**
+	 * Extension provider interface.
+	 * 
+	 * @param &lt;T&gt; value type
+	 */
+	interface Extension&lt;T&gt; extends IuJsonAdapter&lt;T&gt; {
+		/**
+		 * Validates an incoming parameter value.
+		 * 
+		 * @param value   value
+		 * @param builder {@link WebSignature.Builder} or
+		 *                {@link WebEncryptionRecipient.Builder}
+		 * @throws IllegalArgumentException if the value is invalid
+		 */
+		default void validate(T value, Builder&lt;?&gt; builder) throws IllegalArgumentException {
+<span class="fc" id="L401">		}</span>
+
+		/**
+		 * Applies extended verification logic for processing {@link WebCryptoHeader}.
+		 * 
+		 * @param header JOSE header
+		 * @throws IllegalStateException if the header verification fails
+		 */
+		default void verify(WebCryptoHeader header) throws IllegalStateException {
+<span class="fc" id="L410">		}</span>
+
+		/**
+		 * Applies extended verification logic for processing {@link WebSignature}.
+		 * 
+		 * @param signature JWS signature
+		 * @throws IllegalStateException if the verification fails
+		 */
+		default void verify(WebSignature signature) throws IllegalStateException {
+<span class="fc" id="L419">		}</span>
+
+		/**
+		 * Applies extended verification logic for processing {@link WebEncryption}.
+		 * 
+		 * @param encryption JWE encrypted message
+		 * @param recipient  JWE recipient, available via
+		 *                   {@link WebEncryption#getRecipients()}
+		 * @throws IllegalStateException if the verification fails
+		 */
+		default void verify(WebEncryption encryption, WebEncryptionRecipient recipient) throws IllegalStateException {
+<span class="fc" id="L430">		}</span>
+	}
+
+	/**
+	 * Registers an extension.
+	 *
+	 * @param &lt;T&gt;           parameter type
+	 * @param parameterName parameter name; &lt;em&gt;must not&lt;/em&gt; be a registered
+	 *                      parameter name enumerated by {@link Param},
+	 *                      &lt;em&gt;should&lt;/em&gt; be collision-resistant. Take care when
+	 *                      using {@link Extension} to implement an &lt;a href=
+	 *                      &quot;https://www.iana.org/assignments/jose/jose.xhtml#web-signature-encryption-header-parameters&quot;&gt;IANA
+	 *                      Registered Parameter&lt;/a&gt; not enumerated by
+	 *                      {@link Param}, since these may be implemented internally
+	 *                      in a future release.
+	 * @param extension     provider implementation
+	 * @see &lt;a href=
+	 *      &quot;https://datatracker.ietf.org/doc/html/rfc7515#section-4.2&quot;&gt;RFC-7516 JWS
+	 *      Section 4.2&lt;/a&gt;
+	 * @see &lt;a href=
+	 *      &quot;https://datatracker.ietf.org/doc/html/rfc7516#section-4.2&quot;&gt;RFC-7516 JWE
+	 *      Section 4.2&lt;/a&gt;
+	 */
+	static &lt;T&gt; void register(String parameterName, Extension&lt;T&gt; extension) {
+<span class="fc" id="L454">		Jose.register(parameterName, extension);</span>
+<span class="fc" id="L455">	}</span>
+
+	/**
+	 * Verifies all parameters in a {@link WebCryptoHeader}.
+	 * 
+	 * @param header {@link WebCryptoHeader}
+	 * @return Well-known key referred to by the header; null if not known
+	 */
+	static WebKey verify(WebCryptoHeader header) {
+<span class="fc" id="L464">		final var algorithm = Objects.requireNonNull(header.getAlgorithm(),</span>
+<span class="fc" id="L465">				() -&gt; &quot;Signature or key protected algorithm is required&quot;);</span>
+
+<span class="fc bfc" id="L467" title="All 2 branches covered.">		if (algorithm.use.equals(Use.ENCRYPT)) {</span>
+<span class="fc" id="L468">			Objects.requireNonNull(header.getExtendedParameter(Param.ENCRYPTION.name),</span>
+<span class="fc" id="L469">					() -&gt; &quot;Content encryption algorithm is required&quot;);</span>
+<span class="fc bfc" id="L470" title="All 2 branches covered.">			for (final var param : algorithm.encryptionParams)</span>
+<span class="fc bfc" id="L471" title="All 4 branches covered.">				if (param.required &amp;&amp; !param.isPresent(header))</span>
+<span class="fc" id="L472">					throw new IllegalArgumentException(&quot;Missing required encryption parameter &quot; + param.name);</span>
+		}
+
+<span class="fc" id="L475">		final var criticalParameters = header.getCriticalParameters();</span>
+<span class="fc bfc" id="L476" title="All 2 branches covered.">		if (criticalParameters != null)</span>
+<span class="fc bfc" id="L477" title="All 2 branches covered.">			for (final var paramName : criticalParameters) {</span>
+<span class="fc" id="L478">				final var param = Param.from(paramName);</span>
+<span class="fc bfc" id="L479" title="All 2 branches covered.">				if (param == null) {</span>
+<span class="fc bfc" id="L480" title="All 2 branches covered.">					if (header.getExtendedParameter(paramName) == null)</span>
+<span class="fc" id="L481">						throw new IllegalArgumentException(&quot;Missing critical extended parameter &quot; + paramName);</span>
+<span class="fc bfc" id="L482" title="All 2 branches covered.">				} else if (!param.isPresent(header))</span>
+<span class="fc" id="L483">					throw new IllegalArgumentException(&quot;Missing critical registered parameter &quot; + paramName);</span>
+<span class="fc" id="L484">			}</span>
+
+<span class="fc" id="L486">		final var key = header.getKey();</span>
+<span class="fc" id="L487">		final var keyId = IuObject.first(header.getKeyId(), IuObject.convert(key, WebKey::getKeyId));</span>
+<span class="fc" id="L488">		final var certChain = WebCertificateReference.verify(header);</span>
+
+<span class="fc" id="L490">		var wellKnown = IuObject.convert(key, WebKey::wellKnown);</span>
+<span class="fc bfc" id="L491" title="All 4 branches covered.">		if (wellKnown == null //</span>
+				&amp;&amp; keyId != null)
+<span class="fc" id="L493">			wellKnown = IuObject.convert(header.getKeySetUri(), //</span>
+<span class="fc" id="L494">					uri -&gt; IuIterable.filter(Jwk.readJwks(uri), //</span>
+<span class="fc" id="L495">							k -&gt; keyId.equals(k.getKeyId())).iterator().next());</span>
+<span class="fc bfc" id="L496" title="All 4 branches covered.">		if (wellKnown == null //</span>
+				&amp;&amp; certChain != null)
+<span class="fc" id="L498">			wellKnown = WebKey.builder(algorithm.type[0]).cert(certChain).build().wellKnown();</span>
+
+<span class="fc" id="L500">		IuObject.first( //</span>
+<span class="fc" id="L501">				IuObject.convert(wellKnown, WebKey::getPublicKey), //</span>
+<span class="fc" id="L502">				IuObject.convert(certChain, c -&gt; c[0].getPublicKey()));</span>
+
+<span class="fc" id="L504">		return wellKnown;</span>
+	}
+
+	/**
+	 * Gets the cryptographic algorithm.
+	 * 
+	 * @return {@link Algorithm}
+	 */
+	Algorithm getAlgorithm();
+
+	/**
+	 * Gets the key ID relative to {@link #getKeySetUri()} corresponding to a JWKS
+	 * key entry.
+	 * 
+	 * @return key ID
+	 */
+	String getKeyId();
+
+	/**
+	 * Gets the URI where JWKS well-known key data can be retrieved.
+	 * 
+	 * @return {@link URI}
+	 */
+	URI getKeySetUri();
+
+	/**
+	 * Gets the well-known key data.
+	 * 
+	 * @return {@link WebKey}
+	 */
+	WebKey getKey();
+
+	/**
+	 * Gets the header type parameter value.
+	 * 
+	 * @return header type parameter value.
+	 */
+	String getType();
+
+	/**
+	 * Gets the header type parameter value.
+	 * 
+	 * @return header type parameter value.
+	 */
+	String getContentType();
+
+	/**
+	 * Gets the set of critical parameter names.
+	 * 
+	 * @return critical parameter names
+	 */
+	Set&lt;String&gt; getCriticalParameters();
+
+	/**
+	 * Gets extended parameters.
+	 * 
+	 * @param &lt;T&gt;  parameter type
+	 * @param name parameter name
+	 * @return extended parameters
+	 */
+	&lt;T&gt; T getExtendedParameter(String name);
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
