@@ -50,17 +50,17 @@ public class IdTest {
 
 	@Test
 	public void testVerifyNeedsValidChars() {
-		assertEquals("Invalid encoding",
+		assertEquals("Illegal base64 character 40",
 				assertThrows(IllegalArgumentException.class, () -> IdGenerator.verifyId("@!#&", 0)).getMessage());
-		assertEquals("Invalid encoding",
+		assertEquals("Illegal base64 character a",
 				assertThrows(IllegalArgumentException.class, () -> IdGenerator.verifyId("\n\t\f\0", 0)).getMessage());
-		assertEquals("Invalid encoding",
+		assertEquals("Illegal base64 character 7b",
 				assertThrows(IllegalArgumentException.class, () -> IdGenerator.verifyId("{||}", 0)).getMessage());
 	}
 	
 	@Test
 	public void testVerifyNeedsPowerOf4() {
-		assertEquals("Invalid length",
+		assertEquals("Input byte[] should at least have 2 bytes for base64 bytes",
 				assertThrows(IllegalArgumentException.class, () -> IdGenerator.verifyId("a", 0)).getMessage());
 	}
 
