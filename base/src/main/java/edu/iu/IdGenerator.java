@@ -33,7 +33,6 @@ package edu.iu;
 
 import java.security.SecureRandom;
 import java.time.Instant;
-import java.util.Arrays;
 
 /**
  * Provides a utility for generating short cryptographically secure unique
@@ -45,10 +44,6 @@ import java.util.Arrays;
  * </p>
  *
  * <ul>
- * <li>Once per thread, creates a SHA1PRNG pseudo random number generator seeded
- * with 1024 bytes of entropy from the system default mechanism. <em>The system
- * default entropy source can be exceedingly slow on a Linux server so is only
- * used to seed a (much faster) hash-based algorithm.</em></li>
  * <li>Generates 24 bytes of pseudorandom data, interposed with
  * <ul>
  * <li>The 4 byte seconds since epoch timestamp</li>
@@ -67,73 +62,6 @@ import java.util.Arrays;
  * </ul>
  */
 public class IdGenerator {
-
-	private static char getEncodedChar(int v) {
-		if (v == 0)
-			return '_';
-		else if (v == 1)
-			return '-';
-		else if (v < 12)
-			return (char) ('0' + (v - 2));
-		else if (v < 38)
-			return (char) ('A' + (v - 12));
-		else
-			return (char) ('a' + (v - 38));
-	}
-
-	private static String encodeId(byte[] raw) {
-		StringBuilder sb = new StringBuilder();
-		int p = 0;
-		for (int i = 0; i < raw.length; i++) {
-			int b0 = raw[i];
-			if (p <= 2)
-				sb.append(getEncodedChar((b0 >> (2 - p)) & 0x3f));
-			int p1 = (p + 4) % 6;
-			if (p != 2) {
-				byte b1 = raw[i + 1];
-				sb.append(getEncodedChar(((b0 << p1) & 0x3f) + ((b1 >> (8 - p1)) & ((int) Math.pow(2, p1) - 1))));
-			}
-			p = p1;
-		}
-		return sb.toString();
-	}
-
-	private static byte getDecodedValue(char c) {
-		if (c == '_')
-			return (byte) 0;
-		if (c == '-')
-			return (byte) 1;
-		if (c >= '0' && c <= '9')
-			return (byte) (2 + (c - '0'));
-		if (c >= 'A' && c <= 'Z')
-			return (byte) (12 + (c - 'A'));
-		if (c >= 'a' && c <= 'z')
-			return (byte) (38 + (c - 'a'));
-		throw new IllegalArgumentException("Invalid encoding");
-	}
-
-	private static byte[] decodeId(String id) {
-		if (id.length() % 4 != 0)
-			throw new IllegalArgumentException("Invalid length");
-		byte[] raw = new byte[id.length() * 3 / 4];
-		Arrays.fill(raw, (byte) 0);
-		int p = 0, i = 0;
-		for (int j = 0; j < id.length(); j++) {
-			byte v = getDecodedValue(id.charAt(j));
-			int d = (int) (v * Math.pow(2, 2 - p));
-			if (d > 127)
-				d -= 256;
-			raw[i] |= (byte) d;
-			p += 6;
-			if (p >= 8) {
-				p -= 8;
-				i++;
-				if (p > 0)
-					raw[i] |= (byte) (v * Math.pow(2, 8 - p));
-			}
-		}
-		return raw;
-	}
 
 	/**
 	 * Generates a new unique identifier.
@@ -158,7 +86,7 @@ public class IdGenerator {
 		rawId[20] = (byte) ((hash >>> 8) & 0xff);
 		rawId[0] = (byte) ((hash >>> 16) & 0xff);
 
-		return encodeId(rawId);
+		return IuText.base64Url(rawId);
 	}
 	
 	/**
@@ -170,7 +98,7 @@ public class IdGenerator {
 	 *            the id; 0 for no expiration time
 	 */
 	public static void verifyId(String id, long ttl) {
-		byte[] decoded = decodeId(id);
+		byte[] decoded = IuText.base64Url(id);
 		if (decoded.length != 24)
 			throw new IllegalArgumentException("Invalid length");
 
