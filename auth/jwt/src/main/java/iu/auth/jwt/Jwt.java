@@ -153,6 +153,7 @@ public class Jwt implements IuWebToken {
 		notBefore = IuJson.get(claims, "nbf", NUMERIC_DATE);
 		expires = IuJson.get(claims, "exp", NUMERIC_DATE);
 		nonce = IuJson.get(claims, "nonce");
+		validate();
 	}
 
 	private JsonObject toJson() {

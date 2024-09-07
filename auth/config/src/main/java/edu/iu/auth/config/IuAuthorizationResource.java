@@ -10,6 +10,13 @@ import java.util.List;
 public interface IuAuthorizationResource {
 
 	/**
+	 * Gets the authentication realm for verifying the issuer.
+	 * 
+	 * @return Authentication realm
+	 */
+	String getRealm();
+
+	/**
 	 * Gets the self-issued {@link IuOpenIdProviderMetadata} {@link URI} trusted for
 	 * this resource.
 	 * 

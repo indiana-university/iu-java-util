@@ -57,6 +57,11 @@ public interface IuAuthenticationRealm {
 		PKI("pki", IuPrivateKeyPrincipal.class),
 
 		/**
+		 * Public key reference.
+		 */
+		KEY_REFERENCE("jku", IuPublicKeyPrincipal.class),
+
+		/**
 		 * PKIX {@link X509Certificate} trusted CA.
 		 */
 		CA("ca", IuCertificateAuthority.class),

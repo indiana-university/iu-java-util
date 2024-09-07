@@ -38,7 +38,6 @@ public interface IuAuthClientSpi {
 	 * @param code       Authorization code
 	 * @param state      State parameter to verify the authorization code against
 	 * 
-	 * @param request    {@link IuAuthorizationRequest}
 	 * @return {@link IuAuthorizationGrant}
 	 */
 	IuAuthorizationGrant completeAuthorizationCodeGrant(URI requestUri, String code, String state);

@@ -31,21 +31,40 @@
  */
 package edu.iu.auth.config;
 
-import java.security.cert.X509Certificate;
+import java.net.URI;
 
 import edu.iu.crypt.WebKey;
 
 /**
- * Configures the private key holder of an {@link X509Certificate X.509
- * certificate chain}.
+ * Configures a {@link URI} reference to a well-known public key, or other key
+ * configured via environment URI.
  */
-public interface IuPrivateKeyPrincipal extends IuWebKeyPrincipal {
+public interface IuPublicKeyPrincipal extends IuWebKeyPrincipal {
 
 	/**
-	 * Gets the signature verification or encryption key.
+	 * Gets the key ID relative to the JWKS key at {@link #getJku()} of the
+	 * signature verification or encryption key.
 	 * 
-	 * @return {@link WebKey}
+	 * @return Key ID
 	 */
-	WebKey getJwk();
+	String getKid();
+
+	/**
+	 * Gets the reference URI for looking up the signature or verification key.
+	 *
+	 * <p>
+	 * If {@link #getKid() kid} is also set, this {@link URI} MUST refer to a
+	 * {@link WebKey#readJwks(URI)} JWKS key set; else it refers to a single
+	 * {@link WebKey#parse(String) JWK}.
+	 * </p>
+	 * 
+	 * <p>
+	 * Note: http/https URIs SHOULD only be used for looking up well-known public
+	 * key data.
+	 * </p>
+	 * 
+	 * @return JWK or JWKS {@link URI}
+	 */
+	URI getJku();
 
 }

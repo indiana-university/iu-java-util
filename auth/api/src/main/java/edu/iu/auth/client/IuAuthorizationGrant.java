@@ -76,7 +76,7 @@ public interface IuAuthorizationGrant {
 	 * authorization server on behalf of a client application user.
 	 * 
 	 * @param requestUri Incoming request {@link URI}; MUST match
-	 *                   {@link redirectUri} from
+	 *                   {@code redirectUri} from
 	 *                   {@link #initiate(IuAuthorizationRequest, URI)}
 	 * @param code       Authorization code
 	 * @param state      State parameter generated from
@@ -98,6 +98,6 @@ public interface IuAuthorizationGrant {
 	 *                                   the client MUST complete authentication
 	 *                                   before attempting authorization.
 	 */
-	IuApiCredentials authorize() throws IuAuthenticationException;
+	IuBearerToken authorize() throws IuAuthenticationException;
 
 }
