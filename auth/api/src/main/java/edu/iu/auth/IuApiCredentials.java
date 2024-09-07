@@ -32,13 +32,13 @@
 package edu.iu.auth;
 
 import java.net.http.HttpRequest;
-import java.security.Principal;
 
 /**
- * {@link Principal} implementation for an HTTP-authenticated user or client
- * application.
+ * Encapsulates managed credentials that can be
+ * {@link #applyTo(HttpRequest.Builder) applied to} to authenticate an
+ * {@link HttpRequest HTTP request}.
  */
-public interface IuApiCredentials extends IuPrincipalIdentity {
+public interface IuApiCredentials {
 
 	/**
 	 * Applies the client's API credentials to an HTTP request.

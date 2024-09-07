@@ -31,46 +31,40 @@
  */
 package edu.iu.auth.config;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
 
-import org.junit.jupiter.api.Test;
+/**
+ * Configures a configured or direct reference to a {@link WebKey} as a
+ * verifiable {@link IuPrincipalIdentity principal identity}.
+ * 
+ * @see IuPublicKeyPrincipal
+ * @see IuPrivateKeyPrincipal
+ */
+public interface IuWebKeyPrincipal extends IuAuthenticationRealm {
 
-import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
-import edu.iu.auth.config.IuAuthorizationClient.GrantType;
-import jakarta.json.JsonString;
+	/**
+	 * Gets the algorithm to use for creating new digital signatures or as the key
+	 * protection algorithm when creating an encrypted messages.
+	 * 
+	 * @return {@link Algorithm}
+	 */
+	Algorithm getAlg();
 
-@SuppressWarnings("javadoc")
-public class IuAuthorizationClientTest {
+	/**
+	 * Gets the key protection algorithm to use for creating encrypted messages.
+	 * 
+	 * @return {@link Algorithm}
+	 */
+	Algorithm getEncryptAlg();
 
-	@Test
-	public void testAuthMethodFrom() {
-		for (final var authMethod : AuthMethod.values())
-			assertSame(authMethod, AuthMethod.from(authMethod.parameterValue));
-	}
-
-	@Test
-	public void testGrantTypeFrom() {
-		for (final var grantType : GrantType.values())
-			assertSame(grantType, GrantType.from(grantType.parameterValue));
-	}
-
-	@Test
-	public void testAuthMethodJson() {
-		for (final var a : AuthMethod.values()) {
-			final var j = AuthMethod.JSON.toJson(a);
-			assertEquals(a.parameterValue, ((JsonString) j).getString());
-			assertEquals(a, AuthMethod.JSON.fromJson(j));
-		}
-	}
-
-	@Test
-	public void testGrantTypeJson() {
-		for (final var a : GrantType.values()) {
-			final var j = GrantType.JSON.toJson(a);
-			assertEquals(a.parameterValue, ((JsonString) j).getString());
-			assertEquals(a, GrantType.JSON.fromJson(j));
-		}
-	}
+	/**
+	 * Gets the content protection algorithm to use for creating encrypted messages.
+	 * 
+	 * @return {@link Encryption}
+	 */
+	Encryption getEnc();
 
 }

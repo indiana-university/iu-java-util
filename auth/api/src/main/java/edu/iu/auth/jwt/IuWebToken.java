@@ -32,6 +32,7 @@
 package edu.iu.auth.jwt;
 
 import java.net.URI;
+import java.time.Duration;
 import java.time.Instant;
 
 /**
@@ -100,5 +101,35 @@ public interface IuWebToken {
 	 *      Connection Core 1.0 Section 15.5.2</a>
 	 */
 	String getNonce();
+
+	/**
+	 * Determines if the token has expired.
+	 * 
+	 * @return true if {@link #getExpires()} is in the past
+	 */
+	boolean isExpired();
+
+	/**
+	 * Verify JWT registered claims are well-formed and within the allowed time
+	 * window.
+	 * 
+	 * <p>
+	 * In addition to the rules outlined in
+	 * <a href="https://datatracker.ietf.org/doc/html/rfc7519#section-4.1">RFC-7519
+	 * JWT Section 4.1</a>, REQUIRES the following claim values to be present and
+	 * not empty:
+	 * </p>
+	 * <ul>
+	 * <li>{@link #getIssuer()}</li>
+	 * <li>{@link #getAudience()}</li>
+	 * <li>{@link #getSubject()}</li>
+	 * <li>{@link #getIssuedAt()}</li>
+	 * <li>{@link #getExpires()}</li>
+	 * </ul>
+	 * 
+	 * @param audience Expected audience {@link URI}
+	 * @param ttl      Maximum assertion time to live allowed by configuration
+	 */
+	void validateClaims(URI audience, Duration ttl);
 
 }

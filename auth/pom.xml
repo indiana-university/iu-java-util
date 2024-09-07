@@ -24,10 +24,13 @@
 			<modules>
 				<module>api</module>
 				<module>config</module>
+				<module>client</module>
+				<module>jwt</module>
 				<module>principal</module>
 				<module>pki</module>
 				<module>saml</module>
 				<module>nonce</module>
+				<module>oidc</module>
 			</modules>
 		</profile>
 	</profiles>

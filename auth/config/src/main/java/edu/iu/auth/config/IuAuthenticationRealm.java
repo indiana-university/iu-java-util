@@ -34,7 +34,6 @@ package edu.iu.auth.config;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 
-import edu.iu.auth.config.IuAuthorizationClient.Credentials;
 import edu.iu.client.IuJsonAdapter;
 
 /**
@@ -50,12 +49,17 @@ public interface IuAuthenticationRealm {
 		/**
 		 * OIDC client credentials.
 		 */
-		CREDENTIALS("credentials", Credentials.class),
+		CREDENTIALS("credentials", IuAuthorizationCredentials.class),
 
 		/**
 		 * PKIX {@link X509Certificate} trusted End-Entity.
 		 */
 		PKI("pki", IuPrivateKeyPrincipal.class),
+
+		/**
+		 * Public key reference.
+		 */
+		KEY_REFERENCE("jku", IuPublicKeyPrincipal.class),
 
 		/**
 		 * PKIX {@link X509Certificate} trusted CA.

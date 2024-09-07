@@ -31,73 +31,29 @@
  */
 package edu.iu.auth.config;
 
-import java.net.URI;
-import java.time.Instant;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
-import edu.iu.auth.jwt.IuWebToken;
+import org.junit.jupiter.api.Test;
 
-/**
- * Adds setters to {@link IuWebToken}
- */
-public interface IuWebTokenBuilder extends IuWebToken {
+import jakarta.json.JsonString;
 
-	/**
-	 * Sets the token identifier.
-	 * 
-	 * @param jti token identifier (jti claim);
-	 */
-	void setTokenId(String jti);
+@SuppressWarnings("javadoc")
+public class AuthMethodTest {
 
-	/**
-	 * Sets the token issuer URI.
-	 * 
-	 * @param iss {@link URI}
-	 */
-	void setIssuer(URI iss);
+	@Test
+	public void testAuthMethodFrom() {
+		for (final var authMethod : AuthMethod.values())
+			assertSame(authMethod, AuthMethod.from(authMethod.parameterValue));
+	}
 
-	/**
-	 * Sets the token audience URIs.
-	 * 
-	 * @param aud at least one {@link URI}
-	 */
-	void setAudience(Iterable<URI> aud);
-
-	/**
-	 * Sets the subject of the JWT.
-	 * 
-	 * @param sub subject (sub claim)
-	 */
-	void setSubject(String sub);
-
-	/**
-	 * Sets the time the JWT was issued.
-	 * 
-	 * @param iat issued time (iat claim)
-	 */
-	void setIssuedAt(Instant iat);
-
-	/**
-	 * Sets the time before which the JWT should not be accepted.
-	 * 
-	 * @param nbf not before time (nbf claim)
-	 */
-	void setNotBefore(Instant nbf);
-
-	/**
-	 * Sets the time after which the JWT should not be accepted.
-	 * 
-	 * @param exp token expiration time (exp claim)
-	 */
-	void setExpires(Instant exp);
-
-	/**
-	 * Sets the nonce claim.
-	 * 
-	 * @param nonce nonce claim value
-	 * @see <a href=
-	 *      "https://openid.net/specs/openid-connect-core-1_0.html#NonceNotes">OpenID
-	 *      Connection Core 1.0 Section 15.5.2</a>
-	 */
-	void setNonce(String nonce);
+	@Test
+	public void testAuthMethodJson() {
+		for (final var a : AuthMethod.values()) {
+			final var j = AuthMethod.JSON.toJson(a);
+			assertEquals(a.parameterValue, ((JsonString) j).getString());
+			assertEquals(a, AuthMethod.JSON.fromJson(j));
+		}
+	}
 
 }
