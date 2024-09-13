@@ -40,9 +40,9 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey.Operation;
 import edu.iu.crypt.WebKey.Use;
+import iu.crypt.PemEncoded;
 
 @SuppressWarnings("javadoc")
 public class KeyUsageTest {

@@ -70,9 +70,9 @@ import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
-import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import iu.auth.config.AuthConfig;
+import iu.crypt.PemEncoded;
 import net.shibboleth.shared.resolver.CriteriaSet;
 
 /**
