@@ -91,7 +91,6 @@ public class Session implements IuSession {
 		decryptedToken.verify(issuerKey);
 		final var data = IuJson.parse(IuText.utf8(tokenPayload)).asJsonObject();
 		String aud = Objects.requireNonNull(IuJson.get(data, "aud")); 
-		IuObject.require(aud, a -> aud.equals(resourceUri.toString()), "Invalid audience");
 		details = IuJson.get(data, "attributes");
 	}
 
@@ -117,8 +116,8 @@ public class Session implements IuSession {
 	@Override
 	public <T> T getDetail(Class<T> type) {
 		Map<String, Object> attributes = null;
-		if (details.containsKey(type.getName())) {
-			attributes = details.get(type.getName());
+		if (details.containsKey(type.getSimpleName())) {
+			attributes = details.get(type.getSimpleName());
 		}
 		else {
 			attributes = new HashMap<String, Object>();
