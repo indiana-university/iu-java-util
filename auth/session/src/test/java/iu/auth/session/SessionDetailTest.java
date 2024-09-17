@@ -40,7 +40,7 @@ class SessionDetailTest {
 	}
 
 	@Test
-	void invokeWithHashCode() throws Throwable {
+	void testInvokeWithHashCode() throws Throwable {
 		Object proxy = Proxy.newProxyInstance(SessionDetailInterface.class.getClassLoader(),
 				new Class[] { SessionDetailInterface.class }, sessionDetail);
 		assertEquals(proxy.hashCode(),
@@ -48,7 +48,7 @@ class SessionDetailTest {
 	}
 
 	@Test
-	void invokeWithEquals() throws Throwable {
+	void testInvokeWithEquals() throws Throwable {
 		Object proxy = Proxy.newProxyInstance(SessionDetail.class.getClassLoader(), new Class[] {}, sessionDetail);
 		assertTrue((Boolean) sessionDetail.invoke(proxy, Object.class.getMethod("equals", Object.class),
 				new Object[] { proxy }));
@@ -57,13 +57,13 @@ class SessionDetailTest {
 	}
 
 	@Test
-	void invokeWithToString() throws Throwable {
+	void testInvokeWithToString() throws Throwable {
 		Object proxy = Proxy.newProxyInstance(SessionDetail.class.getClassLoader(), new Class[] {}, sessionDetail);
 		assertEquals(attributes.toString(), sessionDetail.invoke(proxy, Object.class.getMethod("toString"), null));
 	}
 
 	@Test
-	void invokeWithIsMethod() throws Throwable {
+	void testInvokeWithIsMethod() throws Throwable {
 		attributes.put("notThere", true);
 		Object proxy = Proxy.newProxyInstance(SessionDetailInterface.class.getClassLoader(),
 				new Class[] { SessionDetailInterface.class }, sessionDetail);
@@ -71,7 +71,7 @@ class SessionDetailTest {
 	}
 
 	@Test
-	void invokeWithGetMethod() throws Throwable {
+	void testInvokeWithGetMethod() throws Throwable {
 		attributes.put("givenName", "foo");
 		Object proxy = Proxy.newProxyInstance(SessionDetailInterface.class.getClassLoader(),
 				new Class[] { SessionDetailInterface.class }, sessionDetail);
@@ -79,7 +79,7 @@ class SessionDetailTest {
 	}
 
 	@Test
-	void invokeWithSetMethodExistingAttribute() throws Throwable {
+	void testInvokeWithSetMethodExistingAttribute() throws Throwable {
 		attributes.put("givenName", "foo");
 		Object proxy = Proxy.newProxyInstance(SessionDetailInterface.class.getClassLoader(),
 				new Class[] { SessionDetailInterface.class }, sessionDetail);
@@ -90,7 +90,7 @@ class SessionDetailTest {
 	}
 
 	@Test
-	void invokeWithSetMethodForNonMatchAttributeValue() throws Throwable {
+	void testInvokeWithSetMethodForNonMatchAttributeValue() throws Throwable {
 		attributes.put("givenName", "foo");
 		Object proxy = Proxy.newProxyInstance(SessionDetailInterface.class.getClassLoader(),
 				new Class[] { SessionDetailInterface.class }, sessionDetail);
@@ -101,7 +101,7 @@ class SessionDetailTest {
 	}
 
 	@Test
-	void invokeWithSetMethod() throws Throwable {
+	void testInvokeWithSetMethod() throws Throwable {
 		Object proxy = Proxy.newProxyInstance(SessionDetailInterface.class.getClassLoader(),
 				new Class[] { SessionDetailInterface.class }, sessionDetail);
 		sessionDetail.invoke(proxy, SessionDetailInterface.class.getMethod("setGivenName", String.class),
@@ -111,7 +111,7 @@ class SessionDetailTest {
 	}
 
 	@Test
-	void invokeWithUnsupportedMethod() {
+	void testInvokeWithUnsupportedMethod() {
 		Object proxy = Proxy.newProxyInstance(SessionDetailInterface.class.getClassLoader(),
 				new Class[] { SessionDetailInterface.class }, sessionDetail);
 		assertThrows(UnsupportedOperationException.class,

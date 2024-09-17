@@ -47,7 +47,7 @@ public class SessionTest {
 	}
 
 	@Test
-	void createSessionWithValidParameters() {
+	void testCreateSessionWithValidParameters() {
 		assertEquals(resourceUri, session.resourceUri);
 		assertNotNull(session.issueAt);
 		assertNotNull(session.expires);
@@ -55,35 +55,11 @@ public class SessionTest {
 	}
 
 	@Test
-	void getDetail() {
+	void testGetDetail() {
 		Object detail = session.getDetail(SessionDetailInterface.class);
 		assertNotNull(detail);
 		assertEquals(SessionDetailInterface.class, detail.getClass().getInterfaces()[0]);
 	}
-
-	/*
-	 * @Test public void tokenDecryptionAndVerificationSuccessful() { final var
-	 * token = "sampleToken"; final var secretKey = new byte[32]; final var
-	 * issuerKey = mock(WebKey.class); WebEncryption webEncryption =
-	 * mock(WebEncryption.class); WebSignedPayload webSignedPayload =
-	 * mock(WebSignedPayload.class);
-	 * when(WebEncryption.parse(token)).thenReturn(webEncryption);
-	 * when(webEncryption.decryptText(any())).thenReturn("decryptedToken");
-	 * when(WebSignedPayload.parse("decryptedToken")).thenReturn(webSignedPayload);
-	 * when(webSignedPayload.getPayload()).thenReturn("payload".getBytes());
-	 * when(IuJson.parse(IuText.utf8("payload".getBytes()))).thenReturn(mock(
-	 * JsonObject.class)); session = new Session(token, secretKey, issuerKey);
-	 * assertNotNull(session); }
-	 * 
-	 * @Test public void tokenDecryptionAndVerificationFailed() { final var token =
-	 * "sampleToken"; final var secretKey = new byte[16]; final var issuerKey =
-	 * mock(WebKey.class); WebEncryption webEncryption = mock(WebEncryption.class);
-	 * when(WebEncryption.parse(token)).thenReturn(webEncryption);
-	 * when(webEncryption.decryptText(any())).thenReturn("decryptedToken");
-	 * when(WebSignedPayload.parse("decryptedToken")).thenThrow(new
-	 * RuntimeException()); assertThrows(RuntimeException.class, () -> new
-	 * Session(token, secretKey, issuerKey)); }
-	 */
 
 	@Test
 	void testDetailKeyExistsInSession() {
@@ -107,28 +83,28 @@ public class SessionTest {
 	}
 
 	@Test
-	void changeFlagManipulation() {
+	void testChangeFlagManipulation() {
 		assertFalse(session.isChange());
 		session.setChange(true);
 		assertTrue(session.isChange());
 	}
 
 	@Test
-	void getExpires() {
+	void testGetExpires() {
 		Instant expirationTime = session.getExpires();
 		assertNotNull(expirationTime);
 		assertTrue(expirationTime.isAfter(session.issueAt));
 	}
 
 	@Test
-	void getIssueAt() {
+	void testGetIssueAt() {
 		Instant creationTime = session.getIssueAt();
 		assertNotNull(creationTime);
 		assertTrue(creationTime.isBefore(session.expires));
 	}
 
 	@Test
-	void tokenizeWithValidParameters() {
+	void testTokenizeWithValidParameters() {
 		final var secretKey = new byte[32];
 		final var issuerKey = WebKey.ephemeral(Algorithm.HS256);
 		final var algorithm = WebKey.Algorithm.HS256;
@@ -137,7 +113,7 @@ public class SessionTest {
 	}
 
 	@Test
-	void createSessionFromValidJsonValue() {
+	void testCreateSessionFromValidJsonValue() {
 		final var builder = IuJson.object() //
 				.add("iat", 1625140800) //
 				.add("exp", 1625227200) //

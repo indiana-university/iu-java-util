@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 public class SessionTokenTest {
 
 	@Test
-	void createSessionTokenWithValidParameters() {
+	void testCreateSessionTokenWithValidParameters() {
 		String token = "testToken";
 		Instant inactivePurgeTime = Instant.now();
 		SessionToken sessionToken = new SessionToken(token, inactivePurgeTime);
@@ -21,14 +21,14 @@ public class SessionTokenTest {
 	}
 
 	@Test
-	void createSessionTokenWithNullToken() {
+	void testCreateSessionTokenWithNullToken() {
 		Instant inactivePurgeTime = Instant.now();
 
 		assertThrows(NullPointerException.class, () -> new SessionToken(null, inactivePurgeTime));
 	}
 
 	@Test
-	void createSessionTokenWithNullInactivePurgeTime() {
+	void testCreateSessionTokenWithNullInactivePurgeTime() {
 		String token = "testToken";
 
 		assertThrows(NullPointerException.class, () -> new SessionToken(token, null));

@@ -42,31 +42,31 @@ public class SessionHandlerTest {
 	}
 
 	@Test
-	public void sessionHandlerConstructorWithValidParameters() {
+	public void testSessionHandlerConstructorWithValidParameters() {
 		assertDoesNotThrow(() -> new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm));
 	}
 
 	@Test
-	public void sessionHandlerConstructorWithInvalidResourceUri() {
+	public void testSessionHandlerConstructorWithInvalidResourceUri() {
 		resourceUri = URI.create("http://localhost/resource");
 		assertThrows(IllegalArgumentException.class,
 				() -> new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm));
 	}
 
 	@Test
-	public void sessionCreationWithValidParameters() {
+	public void testSessionCreationWithValidParameters() {
 		when(configuration.getMaxSessionTtl()).thenReturn(Duration.ofHours(12L));
 		assertNotNull(sessionHandler.create());
 	}
 
 	@Test
-	public void activateSessionWithNoSecretKey() {
+	public void testActivateSessionWithNoSecretKey() {
 		Iterable<HttpCookie> cookies = Arrays.asList(new HttpCookie("iu-sk", "validSecretKey"));
 		assertNull(sessionHandler.activate(cookies));
 	}
 
 	@Test
-	public void storeSession() {
+	public void testStoreSessionAndActivateSessionSuccess() {
 		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 		Session session = new Session(resourceUri, Duration.ofHours(12L));
 		when(configuration.getInActiveTtl()).thenCallRealMethod();
@@ -77,7 +77,7 @@ public class SessionHandlerTest {
 	}
 
 	@Test
-	public void purgeStoredSession() {
+	public void testPurgeStoredSessionWhenExpire() {
 		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 		when(configuration.getInActiveTtl()).thenReturn(Duration.ofMillis(250L));
 		Session session = new Session(resourceUri, Duration.ofHours(12L));
@@ -89,7 +89,7 @@ public class SessionHandlerTest {
 	}
 
 	@Test
-	public void purgeTask() {
+	public void testPurgeTask() {
 		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 
 		final var purgeTask = new SessionHandler.PurgeTask();
@@ -101,19 +101,19 @@ public class SessionHandlerTest {
 	}
 
 	@Test
-	public void storeWithNoPurgeTask() {
+	public void testStoreWithNoPurgeTask() {
 		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 
 		final var purgeTask = new SessionHandler.PurgeTask();
 		when(configuration.getInActiveTtl()).thenCallRealMethod();
 		Session session = new Session(resourceUri, Duration.ofHours(12L));
-		String cookie = sessionHandler.store(session, true);
+		sessionHandler.store(session, true);
 		assertDoesNotThrow(purgeTask::run);
 
 	}
 
 	@Test
-	public void storeWithPurgeTaskAndActivate() {
+	public void testStoreWithPurgeTaskAndActivate() {
 		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 		final var purgeTask = new SessionHandler.PurgeTask();
 		when(configuration.getInActiveTtl()).thenReturn(Duration.ofMillis(250L));
