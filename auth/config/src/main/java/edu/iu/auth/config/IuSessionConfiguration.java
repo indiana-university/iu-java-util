@@ -42,7 +42,7 @@ import java.time.Duration;
  * requiring session handler management.
  * </p>
  */
-public interface IuSessionConfiguration {
+public interface IuSessionConfiguration extends IuAuthenticationRealm {
 
 	/**
 	 * Gets allowed resource URI
