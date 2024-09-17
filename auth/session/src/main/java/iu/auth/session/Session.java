@@ -2,16 +2,13 @@ package iu.auth.session;
 
 import java.lang.reflect.Proxy;
 import java.net.URI;
-import java.security.AlgorithmConstraints;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Predicate;
 
-import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.auth.session.IuSession;
 import edu.iu.client.IuJson;
@@ -31,21 +28,20 @@ import jakarta.json.JsonValue;
  * {@link IuSession} implementation
  */
 public class Session implements IuSession {
-	
+
 	/** root protected resource URI */
 	URI resourceUri;
-	
+
 	/** Session expiration time */
 	Instant expires;
-	
+
 	/** Session creation time */
 	Instant issueAt;
-	
+
 	/** change flag to determine when session attributes change */
 	boolean isChange;
 
-	
-	/** Session details  */
+	/** Session details */
 	Map<String, Map<String, Object>> details;
 
 	/**
@@ -59,18 +55,24 @@ public class Session implements IuSession {
 	 */
 	static IuJsonAdapter<Session> JSON = IuJsonAdapter.from(Session::new, Session::toJson);
 
-	/** 
+	/**
 	 * Constructor
+	 * 
 	 * @param resourceUri root protected resource URI
-	 * @param expires expiration time
+	 * @param expires     expiration time
 	 */
 	public Session(URI resourceUri, Duration expires) {
 		this.resourceUri = resourceUri;
 		this.issueAt = Instant.now();
 		this.expires = issueAt.plus(expires.toMillis(), ChronoUnit.HOURS);
-		details = new HashMap<String, Map<String,Object>>();
+		details = new HashMap<String, Map<String, Object>>();
 	}
 
+	/**
+	 * JSON constructor
+	 * 
+	 * @param value JSON value
+	 */
 	Session(JsonValue value) {
 		final var claims = value.asJsonObject();
 		issueAt = IuJson.get(claims, "iat", NUMERIC_DATE);
@@ -80,52 +82,50 @@ public class Session implements IuSession {
 
 	/**
 	 * Token constructor
-	 * @param token tokenized session
+	 * 
+	 * @param token     tokenized session
 	 * @param issuerKey issuer key
 	 * @param secretKey Secret key to use for detokenizing the session.
 	 */
-	Session(String token, byte[] secretKey, WebKey issuerKey ) {
+	Session(String token, byte[] secretKey, WebKey issuerKey) {
 		final var key = WebKey.builder(Type.RAW).key(secretKey).build();
 		final var decryptedToken = WebSignedPayload.parse(WebEncryption.parse(token).decryptText(key));
 		final var tokenPayload = decryptedToken.getPayload();
 		decryptedToken.verify(issuerKey);
 		final var data = IuJson.parse(IuText.utf8(tokenPayload)).asJsonObject();
-		String aud = Objects.requireNonNull(IuJson.get(data, "aud")); 
+		String aud = Objects.requireNonNull(IuJson.get(data, "aud"));
 		details = IuJson.get(data, "attributes");
 	}
 
 	/**
 	 * Token constructor
+	 * 
 	 * @param secretKey secret key
 	 * @param issuerKey issuer key
-	 * @param algorithm algorithm 
+	 * @param algorithm algorithm
 	 * @return tokenized session
 	 */
-	String tokenize(byte[] secretKey, WebKey issuerKey, Algorithm algorithm ) {
+	String tokenize(byte[] secretKey, WebKey issuerKey, Algorithm algorithm) {
 		return WebEncryption.builder(Encryption.A256GCM).compact() //
 				.addRecipient(Algorithm.DIRECT) //
 				.key(WebKey.builder(Type.RAW).key(secretKey).build())
-				.encrypt(WebSignature.builder(algorithm).compact()
-						.key(issuerKey) //
+				.encrypt(WebSignature.builder(algorithm).compact().key(issuerKey) //
 						.sign(toString()).compact()) //
 				.compact();
 
 	}
-
 
 	@Override
 	public <T> T getDetail(Class<T> type) {
 		Map<String, Object> attributes = null;
 		if (details.containsKey(type.getSimpleName())) {
 			attributes = details.get(type.getSimpleName());
-		}
-		else {
+		} else {
 			attributes = new HashMap<String, Object>();
 			details.put(type.getName(), attributes);
 		}
-		return type.cast(Proxy.newProxyInstance(type.getClassLoader(),
-				new Class<?>[] { type }, new SessionDetail(attributes, this) ));
-
+		return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type },
+				new SessionDetail(attributes, this)));
 
 	}
 
@@ -134,10 +134,10 @@ public class Session implements IuSession {
 		return isChange;
 	}
 
-
 	/**
 	 * Sets the change flag
-	 * @param isChange set to true when session attributes change, otherwise false 
+	 * 
+	 * @param isChange set to true when session attributes change, otherwise false
 	 */
 	void setChange(boolean isChange) {
 		this.isChange = isChange;
@@ -145,6 +145,7 @@ public class Session implements IuSession {
 
 	/**
 	 * Gets session expire time
+	 * 
 	 * @return {@link Instant} session expire time
 	 */
 	Instant getExpires() {
@@ -153,6 +154,7 @@ public class Session implements IuSession {
 
 	/**
 	 * Gets session creation time
+	 * 
 	 * @return {@link Instant} session creation time
 	 */
 	Instant getIssueAt() {
@@ -168,12 +170,10 @@ public class Session implements IuSession {
 		final var builder = IuJson.object()//
 				.add("iss", resourceUri.toString()) //
 				.add("aud", resourceUri.toString()); //
-		IuJson.add(builder, "iat",this::getIssueAt , NUMERIC_DATE);
+		IuJson.add(builder, "iat", this::getIssueAt, NUMERIC_DATE);
 		IuJson.add(builder, "exp", this::getExpires, NUMERIC_DATE);
 		IuJson.add(builder, "details", this.details);
 		return builder.build();
 	}
-
-
 
 }

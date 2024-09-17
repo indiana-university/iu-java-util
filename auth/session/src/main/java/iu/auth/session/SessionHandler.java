@@ -23,6 +23,7 @@ import edu.iu.crypt.WebKey.Algorithm;
  */
 public class SessionHandler implements IuSessionHandler {
 
+	/** session token storage */
 	static final Map<String, SessionToken> SESSION_TOKENS = new ConcurrentHashMap<>();
 	private static final Timer PURGE_TIMER = new Timer("session-purge", true);
 
@@ -58,13 +59,15 @@ public class SessionHandler implements IuSessionHandler {
 
 	/**
 	 * Constructor.
-	 * @param resourceUri root protected resource URI
+	 * 
+	 * @param resourceUri   root protected resource URI
 	 * @param configuration {#link {@link IuSessionConfiguration}
-	 * @param issuerKey issuer key supplier
-	 * @param algorithm  algorithm
+	 * @param issuerKey     issuer key supplier
+	 * @param algorithm     algorithm
 	 */
-	public SessionHandler(URI resourceUri, IuSessionConfiguration configuration, Supplier<WebKey> issuerKey, Algorithm algorithm) {
-		if(!resourceUri.getPath().endsWith("/"))
+	public SessionHandler(URI resourceUri, IuSessionConfiguration configuration, Supplier<WebKey> issuerKey,
+			Algorithm algorithm) {
+		if (!resourceUri.getPath().endsWith("/"))
 			throw new IllegalArgumentException("Invalid resource Uri");
 		this.resourceUri = resourceUri;
 		this.configuration = configuration;
@@ -102,9 +105,10 @@ public class SessionHandler implements IuSessionHandler {
 	public String store(IuSession session, boolean strict) {
 
 		secretKey = EphemeralKeys.secret("AES", 256);
-		Session s = (Session)session;
+		Session s = (Session) session;
 
-		SESSION_TOKENS.put(hashKey(), new SessionToken(s.tokenize(secretKey, issuerKey.get(), algorithm ), Instant.now().plus(configuration.getInActiveTtl())));
+		SESSION_TOKENS.put(hashKey(), new SessionToken(s.tokenize(secretKey, issuerKey.get(), algorithm),
+				Instant.now().plus(configuration.getInActiveTtl())));
 
 		final var cookieBuilder = new StringBuilder();
 		cookieBuilder.append(getSessionCookieName(resourceUri));
@@ -117,7 +121,6 @@ public class SessionHandler implements IuSessionHandler {
 			cookieBuilder.append("; SameSite=Strict");
 		return cookieBuilder.toString();
 	}
-
 
 	/**
 	 * Gets the hash key to use for storing tokenized session data.

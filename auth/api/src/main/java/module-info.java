@@ -50,14 +50,14 @@ module iu.util.auth {
 	opens edu.iu.auth.nonce;
 
 	exports edu.iu.auth.saml;
-	
+
 	exports edu.iu.auth.session;
-	
+
 	exports edu.iu.auth.spi;
 
 	requires iu.util;
 	requires transitive java.net.http;
-	
+
 	uses edu.iu.auth.spi.IuAuthConfigSpi;
 	uses edu.iu.auth.spi.IuPrincipalSpi;
 	uses edu.iu.auth.spi.IuNonceSpi;

@@ -3,11 +3,7 @@ package iu.auth.session;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.net.URI;
 import java.time.Duration;
@@ -18,15 +14,10 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
-import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
-import edu.iu.crypt.WebSignedPayload;
-import jakarta.json.JsonObject;
-
 
 @SuppressWarnings("javadoc")
 public class SessionTest {
@@ -37,9 +28,13 @@ public class SessionTest {
 
 	interface SessionDetailInterface {
 		String getGivenName();
+
 		void setGivenName(String givenName);
+
 		boolean isNotThere();
+
 		void unsupported();
+
 		@Override
 		int hashCode();
 	}
@@ -66,33 +61,29 @@ public class SessionTest {
 		assertEquals(SessionDetailInterface.class, detail.getClass().getInterfaces()[0]);
 	}
 
-	/*@Test
-	public void tokenDecryptionAndVerificationSuccessful() {
-		final var token = "sampleToken";
-		final var   secretKey = new byte[32];
-		final var   issuerKey = mock(WebKey.class);
-		WebEncryption webEncryption = mock(WebEncryption.class);
-		WebSignedPayload webSignedPayload = mock(WebSignedPayload.class);
-		when(WebEncryption.parse(token)).thenReturn(webEncryption);
-		when(webEncryption.decryptText(any())).thenReturn("decryptedToken");
-		when(WebSignedPayload.parse("decryptedToken")).thenReturn(webSignedPayload);
-		when(webSignedPayload.getPayload()).thenReturn("payload".getBytes());
-		when(IuJson.parse(IuText.utf8("payload".getBytes()))).thenReturn(mock(JsonObject.class));
-		session = new Session(token, secretKey, issuerKey);
-		assertNotNull(session);
-	}
-
-	@Test
-	public void tokenDecryptionAndVerificationFailed() {
-		final var token = "sampleToken";
-        final var   secretKey = new byte[16];
-        final var   issuerKey = mock(WebKey.class);
-		WebEncryption webEncryption = mock(WebEncryption.class);
-		when(WebEncryption.parse(token)).thenReturn(webEncryption);
-		when(webEncryption.decryptText(any())).thenReturn("decryptedToken");
-		when(WebSignedPayload.parse("decryptedToken")).thenThrow(new RuntimeException());
-		assertThrows(RuntimeException.class, () -> new Session(token, secretKey, issuerKey));
-	}*/
+	/*
+	 * @Test public void tokenDecryptionAndVerificationSuccessful() { final var
+	 * token = "sampleToken"; final var secretKey = new byte[32]; final var
+	 * issuerKey = mock(WebKey.class); WebEncryption webEncryption =
+	 * mock(WebEncryption.class); WebSignedPayload webSignedPayload =
+	 * mock(WebSignedPayload.class);
+	 * when(WebEncryption.parse(token)).thenReturn(webEncryption);
+	 * when(webEncryption.decryptText(any())).thenReturn("decryptedToken");
+	 * when(WebSignedPayload.parse("decryptedToken")).thenReturn(webSignedPayload);
+	 * when(webSignedPayload.getPayload()).thenReturn("payload".getBytes());
+	 * when(IuJson.parse(IuText.utf8("payload".getBytes()))).thenReturn(mock(
+	 * JsonObject.class)); session = new Session(token, secretKey, issuerKey);
+	 * assertNotNull(session); }
+	 * 
+	 * @Test public void tokenDecryptionAndVerificationFailed() { final var token =
+	 * "sampleToken"; final var secretKey = new byte[16]; final var issuerKey =
+	 * mock(WebKey.class); WebEncryption webEncryption = mock(WebEncryption.class);
+	 * when(WebEncryption.parse(token)).thenReturn(webEncryption);
+	 * when(webEncryption.decryptText(any())).thenReturn("decryptedToken");
+	 * when(WebSignedPayload.parse("decryptedToken")).thenThrow(new
+	 * RuntimeException()); assertThrows(RuntimeException.class, () -> new
+	 * Session(token, secretKey, issuerKey)); }
+	 */
 
 	@Test
 	void testDetailKeyExistsInSession() {
@@ -106,9 +97,8 @@ public class SessionTest {
 
 		final var builder = IuJson.object() //
 				.add("iat", 1625140800) //
-				.add("exp", 1625227200) ;//
+				.add("exp", 1625227200);//
 		IuJson.add(builder, "attributes", () -> details, IuJsonAdapter.basic());
-
 
 		session = new Session(builder.build());
 		Object detail = session.getDetail(SessionDetailInterface.class);
@@ -139,7 +129,7 @@ public class SessionTest {
 
 	@Test
 	void tokenizeWithValidParameters() {
-		final var  secretKey = new byte[32];
+		final var secretKey = new byte[32];
 		final var issuerKey = WebKey.ephemeral(Algorithm.HS256);
 		final var algorithm = WebKey.Algorithm.HS256;
 		String token = session.tokenize(secretKey, issuerKey, algorithm);

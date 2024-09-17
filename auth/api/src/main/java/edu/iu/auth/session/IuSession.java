@@ -37,18 +37,21 @@ package edu.iu.auth.session;
  */
 public interface IuSession {
 
-	/** Get session attributes 
-	 * @param <T> type
+	/**
+	 * Get session attributes
+	 * 
+	 * @param <T>  type
 	 * @param type class
-	 * @return attributes for the session 
+	 * @return attributes for the session
 	 */
 	<T> T getDetail(Class<T> type);
-	
+
 	/**
 	 * Gets whether session object state change
+	 * 
 	 * @return true if session object state has change, otherwise false;
 	 */
-	default  boolean isChange() {
+	default boolean isChange() {
 		return false;
 	}
 }

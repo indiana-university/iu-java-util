@@ -4,17 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.net.HttpCookie;
 import java.net.URI;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -32,28 +28,29 @@ public class SessionHandlerTest {
 	private WebKey issuerKey;
 	private Algorithm algorithm;
 	private SessionHandler sessionHandler;
-    private SessionHandler.PurgeTask purgeTask;
-    
+	private SessionHandler.PurgeTask purgeTask;
+
 	@SuppressWarnings("unchecked")
 	@BeforeEach
 	public void setup() {
 		purgeTask = new SessionHandler.PurgeTask();
 		resourceUri = URI.create("http://localhost/");
 		configuration = mock(IuSessionConfiguration.class);
-		issuerKey = WebKey.ephemeral(Algorithm.HS256) ;
+		issuerKey = WebKey.ephemeral(Algorithm.HS256);
 		algorithm = Algorithm.HS256;
 		sessionHandler = new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm);
 	}
 
 	@Test
 	public void sessionHandlerConstructorWithValidParameters() {
-		assertDoesNotThrow(() -> new SessionHandler(resourceUri, configuration, ()-> issuerKey, algorithm));
+		assertDoesNotThrow(() -> new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm));
 	}
 
 	@Test
 	public void sessionHandlerConstructorWithInvalidResourceUri() {
 		resourceUri = URI.create("http://localhost/resource");
-		assertThrows(IllegalArgumentException.class, () -> new SessionHandler(resourceUri, configuration, ()-> issuerKey, algorithm));
+		assertThrows(IllegalArgumentException.class,
+				() -> new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm));
 	}
 
 	@Test
@@ -68,52 +65,53 @@ public class SessionHandlerTest {
 		assertNull(sessionHandler.activate(cookies));
 	}
 
-	@Test	
+	@Test
 	public void storeSession() {
 		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 		Session session = new Session(resourceUri, Duration.ofHours(12L));
 		when(configuration.getInActiveTtl()).thenCallRealMethod();
-		
+
 		String cookie = sessionHandler.store(session, false);
 		assertNotNull(cookie);
 		assertNotNull(sessionHandler.activate(Arrays.asList(new HttpCookie("iu-sk", cookie))));
 	}
 
-	@Test	
+	@Test
 	public void purgeStoredSession() {
 		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
+		when(configuration.getInActiveTtl()).thenReturn(Duration.ofMillis(250L));
 		Session session = new Session(resourceUri, Duration.ofHours(12L));
 		String cookie = sessionHandler.store(session, false);
 		assertNotNull(cookie);
+		assertDoesNotThrow(() -> Thread.sleep(250L));
+
 		assertNull(sessionHandler.activate(Arrays.asList(new HttpCookie("iu-sk", cookie))));
 	}
 
 	@Test
 	public void purgeTask() {
 		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
-		
+
 		final var purgeTask = new SessionHandler.PurgeTask();
 		assertDoesNotThrow(purgeTask::run);
 		Session session = new Session(resourceUri, Duration.ofHours(12L));
 		String cookie = sessionHandler.store(session, true);
 		assertDoesNotThrow(purgeTask::run);
-		
-	
-		 
+
 	}
-	
+
 	@Test
 	public void storeWithNoPurgeTask() {
 		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
-		
+
 		final var purgeTask = new SessionHandler.PurgeTask();
 		when(configuration.getInActiveTtl()).thenCallRealMethod();
 		Session session = new Session(resourceUri, Duration.ofHours(12L));
 		String cookie = sessionHandler.store(session, true);
 		assertDoesNotThrow(purgeTask::run);
-		
+
 	}
-	
+
 	@Test
 	public void storeWithPurgeTaskAndActivate() {
 		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
@@ -123,9 +121,8 @@ public class SessionHandlerTest {
 		String cookie = sessionHandler.store(session, true);
 		assertDoesNotThrow(() -> Thread.sleep(250L));
 		assertDoesNotThrow(purgeTask::run);
-		assertNull(sessionHandler.activate(Arrays.asList(new HttpCookie("iu-sk",
-				 cookie))));
-	
+		assertNull(sessionHandler.activate(Arrays.asList(new HttpCookie("iu-sk", cookie))));
+
 	}
 
 }
