@@ -38,6 +38,8 @@ import java.util.Base64;
  * Low-level text processing utilities.
  */
 public final class IuText {
+	
+	private static final Base64.Encoder URL_ENCODER = Base64.getUrlEncoder().withoutPadding();
 
 	/**
 	 * Encodes binary data as basic Base64.
@@ -63,6 +65,32 @@ public final class IuText {
 			return null;
 		else
 			return Base64.getDecoder().decode(data);
+	}
+
+	/**
+	 * Encodes binary data as basic Base64.
+	 * 
+	 * @param data binary data
+	 * @return encoded {@link String}
+	 */
+	public static String base64Url(byte[] data) {
+		if (data == null)
+			return null;
+		else
+			return URL_ENCODER.encodeToString(data);
+	}
+
+	/**
+	 * Decodes binary data from basic Base64.
+	 * 
+	 * @param data encoded {@link String}
+	 * @return binary data
+	 */
+	public static byte[] base64Url(String data) {
+		if (data == null)
+			return null;
+		else
+			return Base64.getUrlDecoder().decode(data);
 	}
 
 	/**

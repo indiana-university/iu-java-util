@@ -68,5 +68,15 @@ public class IuTextTest {
 		assertArrayEquals(new byte[0], IuText.base64(""));
 	}
 
+	@Test
+	public void testBase64Url() {
+		assertEquals("Zm9vYmFy", IuText.base64Url(IuText.utf8("foobar")));
+		assertEquals("foobar", IuText.utf8(IuText.base64Url("Zm9vYmFy")));
+		assertNull(IuText.base64Url((byte[]) null));
+		assertNull(IuText.base64Url((String) null));
+		assertEquals("", IuText.base64Url(new byte[0]));
+		assertArrayEquals(new byte[0], IuText.base64Url(""));
+	}
+
 
 }
