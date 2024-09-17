@@ -4,6 +4,8 @@ import java.net.HttpCookie;
 import java.net.URI;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
@@ -21,13 +23,38 @@ import edu.iu.crypt.WebKey.Algorithm;
  */
 public class SessionHandler implements IuSessionHandler {
 
-	private static final Map<String, SessionToken> SESSION_TOKENS = new ConcurrentHashMap<>();
+	static final Map<String, SessionToken> SESSION_TOKENS = new ConcurrentHashMap<>();
+	private static final Timer PURGE_TIMER = new Timer("session-purge", true);
 
 	private final URI resourceUri;
 	private byte[] secretKey;
 	private final IuSessionConfiguration configuration;
 	private final Supplier<WebKey> issuerKey;
 	private final Algorithm algorithm;
+
+	static {
+		PURGE_TIMER.schedule(new PurgeTask(), 15000L, 15000L);
+	}
+
+	/**
+	 * Purges all expired stored sessions.
+	 */
+	static class PurgeTask extends TimerTask {
+		/**
+		 * Default constructor
+		 */
+		PurgeTask() {
+		}
+
+		@Override
+		public void run() {
+			final var purgeTime = Instant.now();
+			final var i = SESSION_TOKENS.values().iterator();
+			while (i.hasNext())
+				if (i.next().inactivePurgeTime().isBefore(purgeTime))
+					i.remove();
+		}
+	}
 
 	/**
 	 * Constructor.
@@ -38,7 +65,7 @@ public class SessionHandler implements IuSessionHandler {
 	 */
 	public SessionHandler(URI resourceUri, IuSessionConfiguration configuration, Supplier<WebKey> issuerKey, Algorithm algorithm) {
 		if(!resourceUri.getPath().endsWith("/"))
-		  throw new IllegalArgumentException("Invalid resource Uri");
+			throw new IllegalArgumentException("Invalid resource Uri");
 		this.resourceUri = resourceUri;
 		this.configuration = configuration;
 		this.issuerKey = issuerKey;
