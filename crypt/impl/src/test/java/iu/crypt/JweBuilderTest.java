@@ -40,7 +40,6 @@ import java.util.logging.Level;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.crypt.IuCryptTestCase;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
@@ -49,7 +48,7 @@ import edu.iu.crypt.WebKey.Type;
 import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
-public class JweBuilderTest extends IuCryptTestCase {
+public class JweBuilderTest {
 	
 	@Test
 	public void testCompactLimits() {

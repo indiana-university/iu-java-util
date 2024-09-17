@@ -31,27 +31,34 @@
  */
 package iu.crypt;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
+import java.io.InputStream;
 import java.net.URI;
 import java.security.cert.X509Certificate;
+import java.util.Iterator;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuText;
+import edu.iu.crypt.PemEncoded;
 import jakarta.json.JsonObject;
 
 @SuppressWarnings("javadoc")
 public class CertificateReferenceBuilderTest {
-	
+
 	private static class Builder extends CertificateReferenceBuilder<Builder> {
 		@Override
 		protected JsonObject toJson() {
 			return super.toJson();
 		}
 	}
-	
+
 	@Test
 	public void testCert() {
 		final var builder = new Builder();
@@ -64,6 +71,62 @@ public class CertificateReferenceBuilderTest {
 	public void testCertChain() {
 		final var builder = new Builder();
 		final var cert = mock(X509Certificate.class);
-		
+		final var encoded = IdGenerator.generateId();
+		assertDoesNotThrow(() -> when(cert.getEncoded()).thenReturn(IuText.utf8(encoded)));
+		builder.cert(cert);
+		assertEquals(IuText.base64(IuText.utf8(encoded)), builder.toJson().getJsonArray("x5c").getString(0));
 	}
+
+	@Test
+	public void testCertThumbprint() {
+		final var builder = new Builder();
+		final var thumbprint = IuText.utf8(IdGenerator.generateId());
+		builder.x5t(thumbprint);
+		assertEquals(IuText.base64Url(thumbprint), builder.toJson().getString("x5t"));
+	}
+
+	@Test
+	public void testCert256Thumbprint() {
+		final var builder = new Builder();
+		final var thumbprint = IuText.utf8(IdGenerator.generateId());
+		builder.x5t256(thumbprint);
+		assertEquals(IuText.base64Url(thumbprint), builder.toJson().getString("x5t#S256"));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testPemInputStream() {
+		final var builder = new Builder();
+		final var cert = mock(X509Certificate.class);
+		final var encoded = IdGenerator.generateId();
+		assertDoesNotThrow(() -> when(cert.getEncoded()).thenReturn(IuText.utf8(encoded)));
+		final var in = mock(InputStream.class);
+		final var pemIter = mock(Iterator.class);
+		try (final var mockPemEncoded = mockStatic(PemEncoded.class)) {
+			mockPemEncoded.when(() -> PemEncoded.parse(in)).thenReturn(pemIter);
+			mockPemEncoded.when(() -> PemEncoded.getCertificateChain(pemIter))
+					.thenReturn(new X509Certificate[] { cert });
+			builder.pem(in);
+			assertEquals(IuText.base64(IuText.utf8(encoded)), builder.toJson().getJsonArray("x5c").getString(0));
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testPemString() {
+		final var builder = new Builder();
+		final var cert = mock(X509Certificate.class);
+		final var encoded = IdGenerator.generateId();
+		assertDoesNotThrow(() -> when(cert.getEncoded()).thenReturn(IuText.utf8(encoded)));
+		final var pem = IdGenerator.generateId();
+		final var pemIter = mock(Iterator.class);
+		try (final var mockPemEncoded = mockStatic(PemEncoded.class)) {
+			mockPemEncoded.when(() -> PemEncoded.parse(pem)).thenReturn(pemIter);
+			mockPemEncoded.when(() -> PemEncoded.getCertificateChain(pemIter))
+					.thenReturn(new X509Certificate[] { cert });
+			builder.pem(pem);
+			assertEquals(IuText.base64(IuText.utf8(encoded)), builder.toJson().getJsonArray("x5c").getString(0));
+		}
+	}
+
 }

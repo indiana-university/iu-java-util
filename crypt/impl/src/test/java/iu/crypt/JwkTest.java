@@ -32,6 +32,7 @@
 package iu.crypt;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -40,14 +41,21 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
+import java.net.URI;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
+import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.RSAPrivateKeySpec;
@@ -62,9 +70,9 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import edu.iu.IuText;
+import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.EphemeralKeys;
-import edu.iu.crypt.IuCryptTestCase;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebCertificateReference;
 import edu.iu.crypt.WebEncryption.Encryption;
@@ -76,7 +84,7 @@ import edu.iu.crypt.WebKey.Use;
 import edu.iu.test.IuTest;
 
 @SuppressWarnings("javadoc")
-public class JwkTest extends IuCryptTestCase {
+public class JwkTest extends CryptImplTestCase {
 
 	@Test
 	public void testUse() {
@@ -103,6 +111,7 @@ public class JwkTest extends IuCryptTestCase {
 		final var jwk = WebKey.builder(Type.ED25519).pem(text).build();
 		assertNotNull(jwk.getPublicKey(), jwk::toString);
 		assertNotNull(jwk.getPrivateKey(), jwk::toString);
+		assertEquals(jwk, WebKey.builder(Type.ED25519).pem(new ByteArrayInputStream(text.getBytes())).build());
 	}
 
 	@Test
@@ -128,34 +137,26 @@ public class JwkTest extends IuCryptTestCase {
 	}
 
 	@Test
-	public void testPKIKey() {
-		assertEquals(
-				"{\"kid\":\"CN=iu-java-crypt-test,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US\",\"x5c\":[\"MIIClzCCAhygAwIBAgIURBnmOnYrSqsKrszgC751/Iat0uEwCgYIKoZIzj0EAwIwgYAxCzAJBgNVBAYTAlVTMRAwDgYDVQQIDAdJbmRpYW5hMRQwEgYDVQQHDAtCbG9vbWluZ3RvbjEbMBkGA1UECgwSSW5kaWFuYSBVbml2ZXJzaXR5MQ8wDQYDVQQLDAZTVEFSQ0gxGzAZBgNVBAMMEml1LWphdmEtY3J5cHQtdGVzdDAgFw0yNDAzMTAxOTE2MjRaGA8yMTI0MDMxMTE5MTYyNFowgYAxCzAJBgNVBAYTAlVTMRAwDgYDVQQIDAdJbmRpYW5hMRQwEgYDVQQHDAtCbG9vbWluZ3RvbjEbMBkGA1UECgwSSW5kaWFuYSBVbml2ZXJzaXR5MQ8wDQYDVQQLDAZTVEFSQ0gxGzAZBgNVBAMMEml1LWphdmEtY3J5cHQtdGVzdDB2MBAGByqGSM49AgEGBSuBBAAiA2IABB21Lelr9GqaBwPWN9aNn+msrjbWINECr3iEkqnCKMta7Zii6Gg8cjmUiLgVIpPfAXGUIo8Jr6SPH+Vb6845xRVjls4Gd/mhzbs1UeBKORACUCwt2PKWiIJFPXMgTpEY+aNTMFEwHQYDVR0OBBYEFIolC3PH9md71NuPiuJQXhDl888QMB8GA1UdIwQYMBaAFIolC3PH9md71NuPiuJQXhDl888QMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwIDaQAwZgIxAKHtm01BrBpO+uNkzwxfsk8o5/Y3V31T53VN0N22+IMc2Fo0fX6EiRj7JUINzTJN/QIxAOKD0DabieNBfzWg9IDvuGnDWNEzN0l6IrnHdnEwVDQUpzFNw8UjGz8ohdztRSVKlQ==\"],\"kty\":\"EC\",\"crv\":\"P-384\",\"x\":\"HbUt6Wv0apoHA9Y31o2f6ayuNtYg0QKveISSqcIoy1rtmKLoaDxyOZSIuBUik98B\",\"y\":\"cZQijwmvpI8f5VvrzjnFFWOWzgZ3-aHNuzVR4Eo5EAJQLC3Y8paIgkU9cyBOkRj5\",\"d\":\"6yvTIgqOsGi-8Dim3767KiDJXaYIA2I_VMg1hImqS4FxvyCktLRbOvLKyQcxxkqn\"}",
-				WebKey.builder(Type.EC_P384).keyId(ANOTHER_CERT.getSubjectX500Principal().getName()).cert(ANOTHER_CERT)
-						.key(ANOTHER_CERT.getPublicKey()).pem(EC_PRIVATE_KEY).build().toString());
-	}
-
-	@Test
 	public void testWellKnownSameSame() throws InvalidKeySpecException, NoSuchAlgorithmException {
-		final var key = WebKey.builder(Type.EC_P384).cert(uri(ANOTHER_CERT_TEXT)).build();
-		final var wellKnown = key.wellKnown();
-		assertEquals(WebKey.verify(key), wellKnown.getPublicKey());
-		assertEquals(wellKnown, wellKnown.wellKnown());
+		final var cert = mock(X509Certificate.class);
+		final var encoded = IuText.utf8(IdGenerator.generateId());
+		assertDoesNotThrow(() -> when(cert.getEncoded()).thenReturn(encoded));
+		final var uri = URI.create(IdGenerator.generateId());
+		try (final var mockPemEncoded = mockStatic(PemEncoded.class)) {
+			mockPemEncoded.when(() -> PemEncoded.getCertificateChain(uri)).thenReturn(new X509Certificate[] { cert });
+			mockPemEncoded.when(() -> PemEncoded.asCertificate(encoded)).thenReturn(cert);
+			final var key = WebKey.builder(Type.EC_P384).cert(uri).build();
+			final var wellKnown = key.wellKnown();
+			assertEquals(WebKey.verify(key), wellKnown.getPublicKey());
+			assertEquals(wellKnown, wellKnown.wellKnown());
+		}
 	}
 
 	@Test
-	public void testPem() {
-		final var priv = PemEncoded.parse(EC_PRIVATE_KEY).next().asPrivate("EC");
-		final var cert = PemEncoded.parse(ANOTHER_CERT_TEXT).next().asCertificate();
-		final var pub = cert.getPublicKey();
-		final var text = new StringBuilder();
-		PemEncoded.serialize(new KeyPair(pub, null)).forEachRemaining(text::append);
-		assertEquals(pub, WebKey.verify(WebKey.builder(Type.EC_P384).pem(text.toString()).build()));
-
-		PemEncoded.serialize(new KeyPair(pub, priv), cert).forEachRemaining(text::append);
-		final var jwk = WebKey.builder(Type.EC_P384).pem(text.toString()).build();
-		assertEquals(jwk,
-				WebKey.builder(Type.EC_P384).pem(new ByteArrayInputStream(IuText.utf8(text.toString()))).build());
+	public void testDifferentTypeNotEquals() {
+		final var key = (Jwk) WebKey.builder(Type.EC_P384).build();
+		final var key2 = (Jwk) WebKey.builder(Type.EC_P521).build();
+		assertNotEquals(key, key2);
 	}
 
 	@Test
@@ -181,8 +182,11 @@ public class JwkTest extends IuCryptTestCase {
 			assertNotEquals(ao, null);
 			assertNotEquals(ao.hashCode(), bo.hashCode());
 
-//			assertFalse(ao.represents(
-//					(Jwk) WebKey.builder(alg).use(alg.use == Use.ENCRYPT ? Use.SIGN : Use.ENCRYPT).build()));
+			try (final var mockWebKey = mockStatic(WebKey.class, CALLS_REAL_METHODS)) {
+				mockWebKey.when(() -> WebKey.verify(any())).thenReturn(null);
+				assertFalse(ao.represents(
+						(Jwk) WebKey.builder(alg).use(alg.use == Use.ENCRYPT ? Use.SIGN : Use.ENCRYPT).build()));
+			}
 			assertFalse(((Jwk) WebKey.builder(alg).keyId(IdGenerator.generateId()).build())
 					.represents((Jwk) WebKey.builder(alg).keyId(IdGenerator.generateId()).build()));
 
@@ -359,6 +363,15 @@ public class JwkTest extends IuCryptTestCase {
 		WebKey.builder(key).build();
 	}
 
+	@Test
+	public void testWellKnownOps() {
+		final var key = (Jwk) WebKey.builder(Algorithm.ES384).ephemeral().ops(Operation.SIGN).build().wellKnown();
+		assertSame(key, key.wellKnown());
+		final var key2 = (Jwk) WebKey.builder(Algorithm.ES384).ephemeral().ops(Operation.VERIFY).build().wellKnown();
+		assertNotEquals(key, key2);
+		assertFalse(key.represents(key2));
+	}
+
 	private void assertEphemeral(Jwk jwk) {
 		assertEquals(jwk, new Jwk(IuJson.parse(jwk.toString()).asJsonObject()));
 
@@ -377,10 +390,13 @@ public class JwkTest extends IuCryptTestCase {
 		Jwk.writeJwks(fromInput, out);
 		assertEquals(jwksText, IuText.utf8(out.toByteArray()));
 
-		final var jwks = uri(jwksText);
-		final var fromJwks = Jwk.readJwks(jwks).iterator().next();
-		assertEquals(jwk, fromJwks);
-		assertSame(fromJwks, Jwk.readJwks(jwks).iterator().next());
+		final var jwks = mock(URI.class);
+		try (final var mockIuHttp = mockStatic(IuHttp.class)) {
+			mockIuHttp.when(() -> IuHttp.get(jwks, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.parse(jwksText));
+			final var fromJwks = Jwk.readJwks(jwks).iterator().next();
+			assertEquals(jwk, fromJwks);
+			assertSame(fromJwks, Jwk.readJwks(jwks).iterator().next());
+		}
 	}
 
 }

@@ -32,11 +32,14 @@
 package iu.crypt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.net.URI;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
@@ -44,16 +47,15 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
-import edu.iu.crypt.IuCryptTestCase;
-import edu.iu.crypt.WebCryptoHeader.Extension;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.test.IuTest;
+import iu.crypt.Jose.Extension;
 import jakarta.json.JsonObject;
 
 @SuppressWarnings("javadoc")
-public class JoseBuilderTest extends IuCryptTestCase {
+public class JoseBuilderTest {
 
 	private static class Builder extends JoseBuilder<Builder> {
 		private Builder(Algorithm algorithm) {
@@ -77,7 +79,7 @@ public class JoseBuilderTest extends IuCryptTestCase {
 
 	@Test
 	public void testWellKnown() {
-		final var uri = uri("");
+		final var uri = mock(URI.class);
 		assertEquals(uri.toString(), jose().wellKnown(uri).toJson().getString("jku"));
 	}
 
@@ -85,6 +87,15 @@ public class JoseBuilderTest extends IuCryptTestCase {
 	public void testKey() {
 		final var key = WebKey.ephemeral(Algorithm.RSA_OAEP);
 		assertEquals(key.wellKnown().toString(), jose().wellKnown(key).toJson().getJsonObject("jwk").toString());
+	}
+
+	@Test
+	public void testKeyNotWellKnown() {
+		final var key = WebKey.ephemeral(Algorithm.RSA_OAEP);
+		final var builder = jose().key(key);
+		assertSame(key, builder.key());
+		assertFalse(jose().toJson().containsKey("jwk"));
+		assertSame(key, jose().copy(builder).key());
 	}
 
 	@Test

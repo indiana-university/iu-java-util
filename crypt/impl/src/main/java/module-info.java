@@ -49,8 +49,10 @@
  * @provides iu.crypt.spi.IuCryptSpi Service provider implementation
  */
 module iu.util.crypt.impl {
-	requires iu.util.crypt;
+	exports iu.crypt;
+	
 	requires iu.util;
+	requires transitive iu.util.crypt;
 	requires transitive iu.util.client;
 
 	provides iu.crypt.spi.IuCryptSpi with iu.crypt.CryptSpi;

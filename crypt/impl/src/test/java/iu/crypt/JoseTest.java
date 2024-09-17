@@ -31,29 +31,31 @@
  */
 package iu.crypt;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.IuIterable;
 import edu.iu.client.IuJson;
-import edu.iu.crypt.IuCryptTestCase;
 import edu.iu.crypt.WebCryptoHeader;
-import edu.iu.crypt.WebCryptoHeader.Extension;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebSignature;
+import iu.crypt.Jose.Extension;
 
 @SuppressWarnings("javadoc")
-public class JoseTest extends IuCryptTestCase {
+public class JoseTest extends CryptImplTestCase {
 
 	private static class Builder extends JoseBuilder<Builder> {
 		private Builder(Algorithm algorithm) {
@@ -72,36 +74,35 @@ public class JoseTest extends IuCryptTestCase {
 	@Test
 	public void testJson() {
 		final var o = jose(Algorithm.HS256).build();
-		assertEquals(o, Jose.JSON.fromJson(Jose.JSON.toJson(o)));
+		assertEquals(o, CryptJsonAdapters.JOSE.fromJson(CryptJsonAdapters.JOSE.toJson(o)));
 	}
 
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testRegister() {
 		final var ext = mock(Extension.class);
-		assertThrows(IllegalArgumentException.class, () -> WebCryptoHeader.register("enc", ext));
+		assertThrows(IllegalArgumentException.class, () -> Jose.register("enc", ext));
 		final var id = IdGenerator.generateId();
 		assertThrows(NullPointerException.class, () -> Jose.getExtension(id));
-		WebCryptoHeader.register(id, ext);
+		Jose.register(id, ext);
 		assertSame(ext, Jose.getExtension(id));
-		assertThrows(IllegalArgumentException.class, () -> WebCryptoHeader.register(id, ext));
+		assertThrows(IllegalArgumentException.class, () -> Jose.register(id, ext));
 	}
 
-	@SuppressWarnings("deprecation")
+	@SuppressWarnings("unchecked")
 	@Test
-	public void testWellKnown() {
-		final var id = IdGenerator.generateId();
-		final var jwk = WebKey.builder(Algorithm.ES256).keyId(id).ephemeral().build();
-		assertEquals(jwk.wellKnown(), jose(Algorithm.ES256).keyId(id)
-				.wellKnown(uri(WebKey.asJwks(IuIterable.iter(jwk.wellKnown())))).build().wellKnown());
-		assertEquals(jwk.wellKnown(), jose(Algorithm.ES256).keyId(id).wellKnown(jwk).build().wellKnown());
-		assertEquals(CERT.getPublicKey(), jose(Algorithm.RS256).cert(CERT).build().wellKnown().getPublicKey());
+	public void testExtensionDefaults() {
+		final var ext = mock(Extension.class, CALLS_REAL_METHODS);
+		assertDoesNotThrow(() -> ext.validate(null, null));
+		assertDoesNotThrow(() -> ext.verify((WebCryptoHeader) null));
+		assertDoesNotThrow(() -> ext.verify((WebSignature) null));
+		assertDoesNotThrow(() -> ext.verify(null, null));
 	}
 
 	@Test
 	public void testAlgorithmValidation() throws ClassNotFoundException {
 		assertThrows(NullPointerException.class, () -> jose(Algorithm.A192KW).build());
-		assertThrows(IllegalArgumentException.class, () -> jose(Algorithm.ECDH_ES) //
+		assertThrows(NullPointerException.class, () -> jose(Algorithm.ECDH_ES) //
 				.param(Param.ENCRYPTION, Encryption.A128GCM) //
 				.build());
 		assertInstanceOf(Class.forName("java.security.interfaces.XECPublicKey"), jose(Algorithm.ECDH_ES) //
@@ -113,8 +114,35 @@ public class JoseTest extends IuCryptTestCase {
 	@Test
 	public void testKeyId() {
 		final var id = IdGenerator.generateId();
-		assertThrows(IllegalArgumentException.class, () -> jose(Algorithm.HS256).crit("kid").build());
+		assertThrows(NullPointerException.class, () -> jose(Algorithm.HS256).crit("kid").build());
 		assertEquals(id, jose(Algorithm.HS256).crit("kid").keyId(id).build().getKeyId());
+	}
+
+	@Test
+	public void testFromHeaders() {
+		final var prot = IuJson.object().add("enc", Encryption.A128GCM.enc).build();
+		final var shared = IuJson.object().add("zip", "DEF").build();
+		final var perRecip = IuJson.object().add("alg", Algorithm.HS256.alg).build();
+		try (final var mockJose = mockConstruction(Jose.class, (mock, context) -> {
+			assertEquals(IuJson.object().add("enc", Encryption.A128GCM.enc).add("zip", "DEF")
+					.add("alg", Algorithm.HS256.alg).build(), context.arguments().get(0));
+		})) {
+			final var fromHeaders = Jose.from(prot, shared, perRecip);
+			assertSame(mockJose.constructed().get(0), fromHeaders);
+		}
+	}
+
+	@Test
+	public void testFromPerRecipNoShared() {
+		final var prot = IuJson.object().add("enc", Encryption.A128GCM.enc).build();
+		final var perRecip = IuJson.object().add("zip", "DEF").add("alg", Algorithm.HS256.alg).build();
+		try (final var mockJose = mockConstruction(Jose.class, (mock, context) -> {
+			assertEquals(IuJson.object().add("enc", Encryption.A128GCM.enc).add("zip", "DEF")
+					.add("alg", Algorithm.HS256.alg).build(), context.arguments().get(0));
+		})) {
+			final var fromHeaders = Jose.from(prot, null, perRecip);
+			assertSame(mockJose.constructed().get(0), fromHeaders);
+		}
 	}
 
 	@SuppressWarnings("unchecked")
@@ -128,7 +156,7 @@ public class JoseTest extends IuCryptTestCase {
 		when(ext.toJson(value)).thenReturn(IuJson.string(value));
 		when(ext.fromJson(IuJson.string(value))).thenReturn(value);
 		Jose.register(name, ext);
-		assertThrows(IllegalArgumentException.class, () -> jose(Algorithm.HS256).crit(name).build());
+		assertThrows(NullPointerException.class, () -> jose(Algorithm.HS256).crit(name).build());
 		assertEquals(value, jose(Algorithm.HS256).crit(name).param(name, value).build().getExtendedParameter(name));
 	}
 
@@ -177,4 +205,20 @@ public class JoseTest extends IuCryptTestCase {
 		assertNull(new Jose(j).toJson(a -> false));
 	}
 
+	@Test
+	public void testWellKnown() {
+		final var key = WebKey.ephemeral(Algorithm.ES512);
+		final var jose = jose(Algorithm.ES512).wellKnown(key).build();
+		assertEquals(key.wellKnown(), jose.wellKnown());
+	}
+
+
+	@Test
+	public void testECDHParams() {
+		final var epk = WebKey.ephemeral(Algorithm.ECDH_ES).wellKnown();
+		final var jose = jose(Algorithm.ECDH_ES).param(Param.ENCRYPTION, Encryption.A128GCM)
+				.param(Param.EPHEMERAL_PUBLIC_KEY, epk).build();
+		assertEquals(Encryption.A128GCM.enc, jose.extendedParameters().getString("enc"));
+		assertEquals(epk, new Jwk(jose.extendedParameters().getJsonObject("epk")));
+	}
 }

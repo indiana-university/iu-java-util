@@ -30,6 +30,12 @@
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-crypt</artifactId>
 			<version>${project.version}</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-crypt-impl</artifactId>
+			<version>${project.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>

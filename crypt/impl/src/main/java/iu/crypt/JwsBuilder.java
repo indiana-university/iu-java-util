@@ -101,7 +101,7 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 	public static JwsSignedPayload parse(String jws) {
 		if (jws.startsWith("{")) {
 			final var json = IuJson.parse(jws).asJsonObject();
-			final var payload = IuJson.get(json, "payload", UnpaddedBinary.JSON);
+			final var payload = IuJson.get(json, "payload", CryptJsonAdapters.B64URL);
 
 			var signatures = IuJson.get(json, "signatures",
 					IuJsonAdapter.<Iterable<Jws>>of(Iterable.class, IuJsonAdapter.from(Jws::parse)));
@@ -110,12 +110,13 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 
 			return new JwsSignedPayload(payload, signatures);
 		} else {
-			final var compact = UnpaddedBinary.compact(jws);
+			final var compact = CompactEncoded.compact(jws);
 			final var protectedHeader = Objects
-					.requireNonNull(UnpaddedBinary.compactJson(compact.next()), "protected header required")
+					.requireNonNull(IuJson.parse(IuText.utf8(IuText.base64Url(compact.next()))),
+							"protected header required")
 					.asJsonObject();
-			final var payload = UnpaddedBinary.base64Url(compact.next());
-			final var signature = UnpaddedBinary.base64Url(compact.next());
+			final var payload = IuText.base64Url(compact.next());
+			final var signature = IuText.base64Url(compact.next());
 			if (compact.hasNext())
 				throw new IllegalArgumentException("Unexpected content after JWS signature");
 
@@ -260,9 +261,9 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 			final var algorithm = header.getAlgorithm();
 
 			final var protectedHeader = pendingSignature.protectedHeader();
-			final var encodedHeader = UnpaddedBinary
+			final var encodedHeader = IuText
 					.base64Url(IuText.utf8(Objects.requireNonNullElse(protectedHeader, "").toString()));
-			final var encodedPayload = UnpaddedBinary.base64Url(payload);
+			final var encodedPayload = IuText.base64Url(payload);
 			final var signingInput = encodedHeader + '.' + encodedPayload;
 			final var dataToSign = IuText.utf8(signingInput);
 

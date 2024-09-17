@@ -42,6 +42,12 @@ import edu.iu.crypt.WebKeyReference;
 class KeyReferenceBuilder<B extends KeyReferenceBuilder<B>> extends CertificateReferenceBuilder<B>
 		implements WebKeyReference.Builder<B> {
 
+	/**
+	 * Default constructor.
+	 */
+	KeyReferenceBuilder() {
+	}
+
 	@Override
 	public B keyId(String id) {
 		return super.param("kid", id);
@@ -49,7 +55,7 @@ class KeyReferenceBuilder<B extends KeyReferenceBuilder<B>> extends CertificateR
 
 	@Override
 	public B algorithm(Algorithm algorithm) {
-		return super.param("alg", algorithm, Algorithm.JSON);
+		return super.param("alg", algorithm, CryptJsonAdapters.ALG);
 	}
 
 }

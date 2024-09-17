@@ -104,7 +104,7 @@ class JoseBuilder<B extends JoseBuilder<B>> extends KeyReferenceBuilder<B> imple
 
 	@Override
 	public <T> B param(Param param, T value) {
-		return super.param(param.name, value, param.json());
+		return super.param(param.name, value, CryptJsonAdapters.of(param));
 	}
 
 	@Override

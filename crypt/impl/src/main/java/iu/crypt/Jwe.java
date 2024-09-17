@@ -279,11 +279,11 @@ public class Jwe implements WebEncryption {
 		// 5.1#13 encode protected header
 		final var aadBuilder = new StringBuilder();
 		if (protectedHeader != null)
-			aadBuilder.append(UnpaddedBinary.base64Url(IuText.utf8(protectedHeader.toString())));
+			aadBuilder.append(IuText.base64Url(IuText.utf8(protectedHeader.toString())));
 
 		// 5.1#14 calculate additional data for AEAD
 		if (additionalData != null)
-			aadBuilder.append('.').append(UnpaddedBinary.base64Url(additionalData));
+			aadBuilder.append('.').append(IuText.base64Url(additionalData));
 		final var aad = IuText.ascii(aadBuilder.toString());
 
 		// 5.1#15 encrypt content
@@ -324,8 +324,8 @@ public class Jwe implements WebEncryption {
 	public Jwe(String jwe) {
 		if (jwe.charAt(0) == '{') {
 			final var parsed = IuJson.parse(jwe).asJsonObject();
-			protectedHeader = IuJson.get(parsed, "protected",
-					IuJsonAdapter.from(v -> IuJson.parse(IuText.utf8(UnpaddedBinary.JSON.fromJson(v))).asJsonObject()));
+			protectedHeader = IuJson.get(parsed, "protected", IuJsonAdapter
+					.from(v -> IuJson.parse(IuText.utf8(CryptJsonAdapters.B64URL.fromJson(v))).asJsonObject()));
 			unprotected = IuJson.get(parsed, "unprotected", IuJsonAdapter.from(JsonValue::asJsonObject));
 
 			if (parsed.containsKey("recipients")) {
@@ -336,20 +336,20 @@ public class Jwe implements WebEncryption {
 			} else
 				recipients = new JweRecipient[] { new JweRecipient(protectedHeader, unprotected, parsed) };
 
-			initializationVector = IuJson.get(parsed, "iv", UnpaddedBinary.JSON);
-			cipherText = IuJson.nonNull(parsed, "cipher_text", UnpaddedBinary.JSON);
-			authenticationTag = IuJson.get(parsed, "tag", UnpaddedBinary.JSON);
-			additionalData = IuJson.get(parsed, "aad", UnpaddedBinary.JSON);
+			initializationVector = IuJson.get(parsed, "iv", CryptJsonAdapters.B64URL);
+			cipherText = IuJson.nonNull(parsed, "cipher_text", CryptJsonAdapters.B64URL);
+			authenticationTag = IuJson.get(parsed, "tag", CryptJsonAdapters.B64URL);
+			additionalData = IuJson.get(parsed, "aad", CryptJsonAdapters.B64URL);
 
 		} else {
-			final var i = UnpaddedBinary.compact(jwe);
-			protectedHeader = (JsonObject) UnpaddedBinary.compactJson(i.next());
+			final var i = CompactEncoded.compact(jwe);
+			protectedHeader = (JsonObject) IuJson.parse(IuText.utf8(IuText.base64(i.next())));
 			unprotected = null;
-			recipients = new JweRecipient[] { new JweRecipient(IuObject.convert(protectedHeader, Jose::new),
-					UnpaddedBinary.base64Url(i.next())) };
-			initializationVector = UnpaddedBinary.base64Url(i.next());
-			cipherText = UnpaddedBinary.base64Url(i.next());
-			authenticationTag = UnpaddedBinary.base64Url(i.next());
+			recipients = new JweRecipient[] {
+					new JweRecipient(IuObject.convert(protectedHeader, Jose::new), IuText.base64Url(i.next())) };
+			initializationVector = IuText.base64Url(i.next());
+			cipherText = IuText.base64Url(i.next());
+			authenticationTag = IuText.base64Url(i.next());
 
 			if (i.hasNext())
 				throw new IllegalArgumentException("Invalid compact format, found more than 5 segments");
@@ -429,11 +429,11 @@ public class Jwe implements WebEncryption {
 
 		StringBuilder aadBuilder = new StringBuilder();
 		if (protectedHeader != null)
-			aadBuilder.append(UnpaddedBinary.base64Url(IuText.utf8(protectedHeader.toString())));
+			aadBuilder.append(IuText.base64Url(IuText.utf8(protectedHeader.toString())));
 
 		// 5.2#14 calculate additional data for AEAD
 		if (additionalData != null)
-			aadBuilder.append('.').append(UnpaddedBinary.base64Url(additionalData));
+			aadBuilder.append('.').append(IuText.base64Url(additionalData));
 
 		final var aad = IuText.ascii(aadBuilder.toString());
 
@@ -485,11 +485,11 @@ public class Jwe implements WebEncryption {
 			throw new IllegalStateException(
 					"Must have exactly one recipient with no additional authentication data to use JWE compact serialization");
 		final var recipient = recipients[0];
-		return UnpaddedBinary.base64Url(IuText.utf8(Objects.requireNonNullElse(protectedHeader, "").toString())) //
-				+ '.' + Objects.requireNonNullElse(UnpaddedBinary.base64Url(recipient.getEncryptedKey()), "") //
-				+ '.' + UnpaddedBinary.base64Url(initializationVector) //
-				+ '.' + UnpaddedBinary.base64Url(cipherText) //
-				+ '.' + UnpaddedBinary.base64Url(authenticationTag);
+		return IuText.base64Url(IuText.utf8(Objects.requireNonNullElse(protectedHeader, "").toString())) //
+				+ '.' + Objects.requireNonNullElse(IuText.base64Url(recipient.getEncryptedKey()), "") //
+				+ '.' + IuText.base64Url(initializationVector) //
+				+ '.' + IuText.base64Url(cipherText) //
+				+ '.' + IuText.base64Url(authenticationTag);
 	}
 
 	@Override
@@ -498,7 +498,7 @@ public class Jwe implements WebEncryption {
 
 		// 5.1#13 encode protected header
 		IuJson.add(serializedHeaderBuilder, "protected", () -> protectedHeader,
-				IuJsonAdapter.to(v -> IuJson.string(UnpaddedBinary.base64Url(IuText.utf8(v.toString())))));
+				IuJsonAdapter.to(v -> IuJson.string(IuText.base64Url(IuText.utf8(v.toString())))));
 
 		if (recipients.length > 1) {
 			IuJson.add(serializedHeaderBuilder, "unprotected", unprotected);
@@ -510,7 +510,7 @@ public class Jwe implements WebEncryption {
 				if (perRecipientHeader != null)
 					recipientBuilder.add("header", perRecipientHeader);
 				IuJson.add(recipientBuilder, "encrypted_key", additionalRecipient::getEncryptedKey,
-						UnpaddedBinary.JSON);
+						CryptJsonAdapters.B64URL);
 				serializedRecipients.add(recipientBuilder);
 			}
 
@@ -518,13 +518,14 @@ public class Jwe implements WebEncryption {
 		} else {
 			if (unprotected != null)
 				serializedHeaderBuilder.add("header", unprotected);
-			IuJson.add(serializedHeaderBuilder, "encrypted_key", recipients[0]::getEncryptedKey, UnpaddedBinary.JSON);
+			IuJson.add(serializedHeaderBuilder, "encrypted_key", recipients[0]::getEncryptedKey,
+					CryptJsonAdapters.B64URL);
 		}
 
-		IuJson.add(serializedHeaderBuilder, "iv", () -> initializationVector, UnpaddedBinary.JSON);
-		IuJson.add(serializedHeaderBuilder, "cipher_text", () -> cipherText, UnpaddedBinary.JSON);
-		IuJson.add(serializedHeaderBuilder, "tag", () -> authenticationTag, UnpaddedBinary.JSON);
-		IuJson.add(serializedHeaderBuilder, "aad", () -> additionalData, UnpaddedBinary.JSON);
+		IuJson.add(serializedHeaderBuilder, "iv", () -> initializationVector, CryptJsonAdapters.B64URL);
+		IuJson.add(serializedHeaderBuilder, "cipher_text", () -> cipherText, CryptJsonAdapters.B64URL);
+		IuJson.add(serializedHeaderBuilder, "tag", () -> authenticationTag, CryptJsonAdapters.B64URL);
+		IuJson.add(serializedHeaderBuilder, "aad", () -> additionalData, CryptJsonAdapters.B64URL);
 
 		return serializedHeaderBuilder.build().toString();
 	}

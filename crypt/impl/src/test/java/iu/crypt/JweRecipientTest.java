@@ -49,7 +49,7 @@ public class JweRecipientTest {
 				.add("alg", Algorithm.PBES2_HS256_A128KW.alg) //
 				.add("enc", Encryption.A128GCM.enc) //
 				.add("p2c", 1000) //
-				.add("p2s", UnpaddedBinary.JSON.toJson("foo".getBytes())) //
+				.add("p2s", CryptJsonAdapters.B64URL.toJson("foo".getBytes())) //
 				.build());
 		final var jweRecipient = new JweRecipient(jose, null);
 		final var password = IdGenerator.generateId();
@@ -62,7 +62,7 @@ public class JweRecipientTest {
 				.add("alg", Algorithm.PBES2_HS256_A128KW.alg) //
 				.add("enc", Encryption.A128GCM.enc) //
 				.add("p2c", 4) //
-				.add("p2s", UnpaddedBinary.JSON.toJson(IdGenerator.generateId().getBytes())) //
+				.add("p2s", CryptJsonAdapters.B64URL.toJson(IdGenerator.generateId().getBytes())) //
 				.build());
 		final var jweRecipient = new JweRecipient(jose, null);
 		final var password = IdGenerator.generateId();

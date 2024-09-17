@@ -29,31 +29,26 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.crypt;
+package iu.crypt;
 
-import java.util.ServiceLoader;
+import edu.iu.IdGenerator;
+import edu.iu.IuException;
+import edu.iu.client.IuHttp;
 
-import iu.crypt.spi.IuCryptSpi;
+@SuppressWarnings("javadoc")
+public class CryptImplTestCase {
 
-/**
- * Initialization stub to be <em>explicitly</em> loaded from the bootstrap
- * module in control of the implementation's {@link ModuleLayer}, before
- * attempting to use any crypto functions, while the implementation module's
- * {@link ClassLoader} is in control of the
- * {@link Thread#getContextClassLoader()} current thread's context.
- * 
- * <p>
- * Note: When both iu.util.crypt and iu.util.crypt.impl are in named modules
- * loaded by the {@link ClassLoader#getSystemClassLoader() System ClassLoader},
- * explicit initialization is not needed.
- * </p>
- */
-public final class Init {
-
-	private Init() {
+	static {
+		final var props = System.getProperties();
+		synchronized (props) {
+			final var restore = (String) props.setProperty("iu.http.allowedUri", IdGenerator.generateId());
+			IuException.unchecked(() -> Class.forName(IuHttp.class.getName()));
+			if (restore == null)
+				props.remove("iu.http.allowedUri");
+			else
+				props.setProperty("iu.http.allowedUri", restore);
+		}
 	}
-
-	/** {@link IuCryptSpi} instance */
-	static final IuCryptSpi SPI = ServiceLoader.load(IuCryptSpi.class).findFirst().get();
-
+	
+	
 }

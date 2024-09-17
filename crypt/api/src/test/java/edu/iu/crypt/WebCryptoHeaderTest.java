@@ -227,7 +227,7 @@ public class WebCryptoHeaderTest {
 	public void testVerifyRequiresAlgorithm() {
 		final var header = mock(WebCryptoHeader.class);
 		final var error = assertThrows(NullPointerException.class, () -> WebCryptoHeader.verify(header));
-		assertEquals("Signature or key protected algorithm is required", error.getMessage());
+		assertEquals("Signature or key protection algorithm is required", error.getMessage());
 	}
 
 	@Test

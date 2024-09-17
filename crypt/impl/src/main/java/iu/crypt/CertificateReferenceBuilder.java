@@ -48,6 +48,12 @@ import edu.iu.crypt.WebCertificateReference;
 class CertificateReferenceBuilder<B extends CertificateReferenceBuilder<B>> extends IuJsonBuilder<B>
 		implements WebCertificateReference.Builder<B> {
 
+	/**
+	 * Default constructor.
+	 */
+	public CertificateReferenceBuilder() {
+	}
+	
 	@Override
 	public B cert(URI uri) {
 		return super.param("x5u", uri, IuJsonAdapter.of(URI.class));
@@ -60,12 +66,12 @@ class CertificateReferenceBuilder<B extends CertificateReferenceBuilder<B>> exte
 
 	@Override
 	public B x5t(byte[] certificateThumbprint) {
-		return super.param("x5t", certificateThumbprint, UnpaddedBinary.JSON);
+		return super.param("x5t", certificateThumbprint, CryptJsonAdapters.B64URL);
 	}
 
 	@Override
 	public B x5t256(byte[] certificateSha256Thumbprint) {
-		return super.param("x5t#S256", certificateSha256Thumbprint, UnpaddedBinary.JSON);
+		return super.param("x5t#S256", certificateSha256Thumbprint, CryptJsonAdapters.B64URL);
 	}
 
 	@Override

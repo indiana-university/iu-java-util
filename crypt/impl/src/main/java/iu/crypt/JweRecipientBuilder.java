@@ -58,7 +58,10 @@ import edu.iu.crypt.WebKey.Use;
 /**
  * Builds JWE recipients for {@link JweBuilder}
  */
-class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Builder<JweRecipientBuilder> {
+public class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Builder<JweRecipientBuilder> {
+	static {
+		IuObject.assertNotOpen(JweRecipientBuilder.class);
+	}
 
 	/**
 	 * Computes the agreed-upon key for ECDH key agreement with NIST.SP.800.56C
@@ -121,7 +124,7 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 	class EncryptedKeyBuilder extends JoseBuilder<EncryptedKeyBuilder> {
 
 		private EncryptedKeyBuilder() {
-			super(Algorithm.JSON.fromJson(JweRecipientBuilder.this.param("alg")));
+			super(CryptJsonAdapters.ALG.fromJson(JweRecipientBuilder.this.param("alg")));
 			copy(JweRecipientBuilder.this);
 		}
 
@@ -131,17 +134,13 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 		 * @return algorithm
 		 */
 		Algorithm algorithm() {
-			return Algorithm.JSON.fromJson(param("alg"));
+			return CryptJsonAdapters.ALG.fromJson(param("alg"));
 		}
 
 		/**
 		 * Computes the agreed-upon key for the Elliptic Curve Diffie-Hellman algorithm.
 		 * 
 		 * @param encryption encryption algorithm
-		 * @param epk        key to use as the ephemeral public key; <em>must</em>
-		 *                   contain an EC public/private key, when serialized with only
-		 *                   kid, or jwk (if kid is null); <em>may</em> be null to
-		 *                   generate an epk
 		 * 
 		 * @return agreed-upon key
 		 * @see <a href=
@@ -165,8 +164,8 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 			final var epk = WebKey.builder(type).algorithm(algorithm).ephemeral().build();
 			param(Param.EPHEMERAL_PUBLIC_KEY, epk.wellKnown());
 
-			final var uinfo = UnpaddedBinary.JSON.fromJson(param("apu"));
-			final var vinfo = UnpaddedBinary.JSON.fromJson(param("apv"));
+			final var uinfo = CryptJsonAdapters.B64URL.fromJson(param("apu"));
+			final var vinfo = CryptJsonAdapters.B64URL.fromJson(param("apv"));
 
 			final int keyDataLen;
 			final byte[] algId;
@@ -221,8 +220,6 @@ class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implements Bu
 		 * @param encryption           content encryption algorithm
 		 * @param contentEncryptionKey supplies an ephemeral content encryption key if
 		 *                             needed
-		 * @param from                 message originator key, if known
-		 * 
 		 * @return recipient
 		 */
 		@SuppressWarnings({ "deprecation" })

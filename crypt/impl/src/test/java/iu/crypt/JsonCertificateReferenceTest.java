@@ -31,91 +31,126 @@
  */
 package iu.crypt;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
+import java.net.URI;
 import java.security.cert.X509Certificate;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.IdGenerator;
+import edu.iu.IuDigest;
+import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
-import edu.iu.crypt.IuCryptTestCase;
 import edu.iu.crypt.PemEncoded;
 
 @SuppressWarnings("javadoc")
-public class JsonCertificateReferenceTest extends IuCryptTestCase {
+public class JsonCertificateReferenceTest {
 
 	@Test
 	public void testCert() {
-		final var ref = new JsonCertificateReference<>(IuJson.object().add("x5c",
-				IuJsonAdapter.of(X509Certificate[].class, PemEncoded.CERT_JSON).toJson(new X509Certificate[] { CERT }))
-				.build());
-		assertEquals(CERT, ref.getCertificateChain()[0]);
+		final var cert = mock(X509Certificate.class);
+		final var encoded = IuText.utf8(IdGenerator.generateId());
+		assertDoesNotThrow(() -> when(cert.getEncoded()).thenReturn(encoded));
+		try (final var mockPemEncoded = mockStatic(PemEncoded.class)) {
+			mockPemEncoded.when(() -> PemEncoded.asCertificate(encoded)).thenReturn(cert);
+			final var ref = new JsonCertificateReference<>(
+					IuJson.object().add("x5c", IuJsonAdapter.of(X509Certificate[].class, CryptJsonAdapters.CERT)
+							.toJson(new X509Certificate[] { cert })).build());
+			assertEquals(cert, ref.getCertificateChain()[0]);
+		}
 	}
-	
+
 	@Test
 	public void testCertUri() {
-		final var ref = new JsonCertificateReference<>(IuJson.object().add("x5u", uri(CERT_TEXT).toString()).build());
-		assertNull(ref.getCertificateChain());
-		assertEquals(CERT, ref.verifiedCertificateChain()[0]);
+		final var cert = mock(X509Certificate.class);
+		final var uri = URI.create(IdGenerator.generateId());
+		try (final var mockPemEncoded = mockStatic(PemEncoded.class)) {
+			mockPemEncoded.when(() -> PemEncoded.getCertificateChain(uri)).thenReturn(new X509Certificate[] { cert });
+			final var ref = new JsonCertificateReference<>(IuJson.object().add("x5u", uri.toString()).build());
+			assertNull(ref.getCertificateChain());
+			assertEquals(cert, ref.verifiedCertificateChain()[0]);
+		}
 	}
 
-	@SuppressWarnings({ "rawtypes", "unchecked" })
+	@SuppressWarnings({ "rawtypes", "unchecked", "deprecation" })
 	@Test
 	public void testEqualsHashCode() {
+		final var cert = mock(X509Certificate.class);
+		final var encoded = IuText.utf8(IdGenerator.generateId());
+		assertDoesNotThrow(() -> when(cert.getEncoded()).thenReturn(encoded));
+		final var uri = URI.create(IdGenerator.generateId());
+		final var thumbprint = IuDigest.sha1(encoded);
+		final var thumbprint256 = IuDigest.sha256(encoded);
 		final var a = IuJson.object() //
-				.add("x5c", IuJson.array().add(PemEncoded.CERT_JSON.toJson(CERT))) //
-				.add("x5u", uri(CERT_TEXT).toString()) //
-				.add("x5t", UnpaddedBinary.base64Url(CERT_S1)) //
-				.add("x5t#S256", UnpaddedBinary.base64Url(CERT_S256)) //
+				.add("x5c", IuJson.array().add(IuText.base64(encoded))) //
+				.add("x5u", uri.toString()) //
+				.add("x5t", IuText.base64Url(thumbprint)) //
+				.add("x5t#S256", IuText.base64Url(thumbprint256)) //
 				.build();
+
+		final var bcert = mock(X509Certificate.class);
+		final var bencoded = IuText.utf8(IdGenerator.generateId());
+		assertDoesNotThrow(() -> when(bcert.getEncoded()).thenReturn(bencoded));
+		final var buri = URI.create(IdGenerator.generateId());
+		final var bthumbprint = IuDigest.sha1(bencoded);
+		final var bthumbprint256 = IuDigest.sha256(bencoded);
 		final var b = IuJson.object() //
-				.add("x5c", IuJson.array().add(PemEncoded.CERT_JSON.toJson(ANOTHER_CERT))) //
-				.add("x5u", uri(ANOTHER_CERT_TEXT).toString()) //
-				.add("x5t", UnpaddedBinary.base64Url(ANOTHER_CERT_S1)) //
-				.add("x5t#S256", UnpaddedBinary.base64Url(ANOTHER_CERT_S256)) //
+				.add("x5c", IuJson.array().add(IuText.base64(bencoded))) //
+				.add("x5u", buri.toString()) //
+				.add("x5t", IuText.base64Url(bthumbprint)) //
+				.add("x5t#S256", IuText.base64Url(bthumbprint256)) //
 				.build();
 
-		final var ao = new JsonCertificateReference(a);
-		final var bo = new JsonCertificateReference(b);
-		assertNotEquals(ao, null);
-		assertNotEquals(ao.hashCode(), bo.hashCode());
+		try (final var mockPemEncoded = mockStatic(PemEncoded.class)) {
+			mockPemEncoded.when(() -> PemEncoded.asCertificate(encoded)).thenReturn(cert);
+			mockPemEncoded.when(() -> PemEncoded.asCertificate(bencoded)).thenReturn(bcert);
+			final var ao = new JsonCertificateReference(a);
+			final var bo = new JsonCertificateReference(b);
+			assertNotEquals(ao, null);
+			assertNotEquals(ao.hashCode(), bo.hashCode());
 
-		for (var i = 1; i < 16; i++)
-			for (var j = 1; j < 16; j++) {
-				final var ai = IuJson.object();
-				if ((i & 1) == 1)
-					ai.add("x5c", a.get("x5c"));
-				if ((i & 2) == 2)
-					ai.add("x5u", a.get("x5u"));
-				if ((i & 4) == 4)
-					ai.add("x5t", a.get("x5t"));
-				if ((i & 8) == 8)
-					ai.add("x5t#S256", a.get("x5t#S256"));
-				final var ac = new JsonCertificateReference(ai.build());
+			for (var i = 1; i < 16; i++)
+				for (var j = 1; j < 16; j++) {
+					final var ai = IuJson.object();
+					if ((i & 1) == 1)
+						ai.add("x5c", a.get("x5c"));
+					if ((i & 2) == 2)
+						ai.add("x5u", a.get("x5u"));
+					if ((i & 4) == 4)
+						ai.add("x5t", a.get("x5t"));
+					if ((i & 8) == 8)
+						ai.add("x5t#S256", a.get("x5t#S256"));
+					final var ac = new JsonCertificateReference(ai.build());
 
-				final var bj = IuJson.object();
-				if ((j & 1) == 1)
-					bj.add("x5c", b.get("x5c"));
-				if ((j & 2) == 2)
-					bj.add("x5u", b.get("x5u"));
-				if ((j & 4) == 4)
-					bj.add("x5t", b.get("x5t"));
-				if ((j & 8) == 8)
-					bj.add("x5t#S256", b.get("x5t#S256"));
-				final var bc = new JsonCertificateReference(bj.build());
+					final var bj = IuJson.object();
+					if ((j & 1) == 1)
+						bj.add("x5c", b.get("x5c"));
+					if ((j & 2) == 2)
+						bj.add("x5u", b.get("x5u"));
+					if ((j & 4) == 4)
+						bj.add("x5t", b.get("x5t"));
+					if ((j & 8) == 8)
+						bj.add("x5t#S256", b.get("x5t#S256"));
+					final var bc = new JsonCertificateReference(bj.build());
 
-				assertEquals(ac, new JsonCertificateReference(IuJson.parse(ac.toString()).asJsonObject()));
-				assertEquals(bc, new JsonCertificateReference(IuJson.parse(bc.toString()).asJsonObject()));
-				assertNotEquals(ac, bc);
-				assertNotEquals(bc, ac);
-				assertTrue(ac.represents(ao));
-				assertTrue(bc.represents(bo));
-				assertEquals(ac.represents(bc), bc.represents(ac));
-			}
+					assertEquals(ac, new JsonCertificateReference(IuJson.parse(ac.toString()).asJsonObject()));
+					assertEquals(bc, new JsonCertificateReference(IuJson.parse(bc.toString()).asJsonObject()));
+					assertNotEquals(ac, bc);
+					assertNotEquals(bc, ac);
+					assertTrue(ac.represents(ao));
+					assertTrue(bc.represents(bo));
+					assertEquals(ac.represents(bc), bc.represents(ac));
+				}
+		}
 	}
 
 }

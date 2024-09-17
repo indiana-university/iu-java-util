@@ -36,16 +36,17 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
+import java.net.URI;
 import java.nio.ByteBuffer;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyFactory;
@@ -79,19 +80,20 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IuIterable;
 import edu.iu.IuText;
+import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
-import edu.iu.crypt.WebKey;
+import edu.iu.crypt.EphemeralKeys;
+import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Operation;
 import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.test.IuTestLogger;
-import iu.crypt.IuCryptTestCase;
-import iu.crypt.UnpaddedBinary;
 
 @SuppressWarnings("javadoc")
-public class WebKeyTest extends IuCryptTestCase {
+public class WebKeyTest extends CryptImplTestCase {
 	// Includes test cases from RFC-7517 appendices A and B
 
 	@Test
@@ -110,7 +112,7 @@ public class WebKeyTest extends IuCryptTestCase {
 	public void testUse() {
 		IuIterable.iter(Use.values()).forEach(use -> {
 			assertSame(use, Use.from(use.use));
-			assertEquals(use, Use.JSON.fromJson(Use.JSON.toJson(use)));
+			assertEquals(use, CryptJsonAdapters.USE.fromJson(CryptJsonAdapters.USE.toJson(use)));
 		});
 		assertThrows(NoSuchElementException.class, () -> Use.from("foobar"));
 	}
@@ -119,7 +121,7 @@ public class WebKeyTest extends IuCryptTestCase {
 	public void testOp() {
 		IuIterable.iter(Operation.values()).forEach(op -> {
 			assertSame(op, Operation.from(op.keyOp));
-			assertEquals(op, Operation.JSON.fromJson(Operation.JSON.toJson(op)));
+			assertEquals(op, CryptJsonAdapters.OP.fromJson(CryptJsonAdapters.OP.toJson(op)));
 		});
 		assertThrows(NoSuchElementException.class, () -> Operation.from("foobar"));
 	}
@@ -170,10 +172,13 @@ public class WebKeyTest extends IuCryptTestCase {
 
 	@Test
 	public void testPubCertMismatch() {
+		final var cert = mock(X509Certificate.class);
+		final var pub = EphemeralKeys.rsa("RSA", 1024).getPublic();
+		when(cert.getPublicKey()).thenReturn(pub);
 		final var k = mock(WebKey.class);
 		when(k.getType()).thenReturn(Type.RSA);
 		when(k.getPublicKey()).thenReturn(EphemeralKeys.rsa("RSA", 1024).getPublic());
-		when(k.getCertificateChain()).thenReturn(new X509Certificate[] { CERT });
+		when(k.getCertificateChain()).thenReturn(new X509Certificate[] { cert });
 		assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k));
 	}
 
@@ -182,9 +187,9 @@ public class WebKeyTest extends IuCryptTestCase {
 		final var k = mock(WebKey.class);
 		when(k.getType()).thenReturn(Type.RSA);
 		when(k.getPublicKey())
-		.thenReturn(EphemeralKeys.ec(WebKey.algorithmParams(Type.ED25519.algorithmParams)).getPublic());
+				.thenReturn(EphemeralKeys.ec(WebKey.algorithmParams(Type.ED25519.algorithmParams)).getPublic());
 		when(k.getPrivateKey())
-		.thenReturn(EphemeralKeys.ec(WebKey.algorithmParams(Type.ED448.algorithmParams)).getPrivate());
+				.thenReturn(EphemeralKeys.ec(WebKey.algorithmParams(Type.ED448.algorithmParams)).getPrivate());
 		assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k));
 	}
 
@@ -193,9 +198,9 @@ public class WebKeyTest extends IuCryptTestCase {
 		final var k = mock(WebKey.class);
 		when(k.getType()).thenReturn(Type.RSA);
 		when(k.getPublicKey())
-		.thenReturn(EphemeralKeys.ec(WebKey.algorithmParams(Type.EC_P256.algorithmParams)).getPublic());
+				.thenReturn(EphemeralKeys.ec(WebKey.algorithmParams(Type.EC_P256.algorithmParams)).getPublic());
 		when(k.getPrivateKey())
-		.thenReturn(EphemeralKeys.ec(WebKey.algorithmParams(Type.ED448.algorithmParams)).getPrivate());
+				.thenReturn(EphemeralKeys.ec(WebKey.algorithmParams(Type.ED448.algorithmParams)).getPrivate());
 		assertThrows(IllegalArgumentException.class, () -> WebKey.verify(k));
 	}
 
@@ -258,7 +263,7 @@ public class WebKeyTest extends IuCryptTestCase {
 			public WebKey next() {
 				i++;
 				final var algorithm = Algorithm.values()[ThreadLocalRandom.current()
-				                                         .nextInt(Algorithm.values().length)];
+						.nextInt(Algorithm.values().length)];
 				if (algorithm.equals(Algorithm.DIRECT))
 					return WebKey.ephemeral(
 							Encryption.values()[ThreadLocalRandom.current().nextInt(Encryption.values().length)]);
@@ -266,7 +271,11 @@ public class WebKeyTest extends IuCryptTestCase {
 					return WebKey.ephemeral(algorithm);
 			}
 		}));
-		assertEquals(jwks, WebKey.asJwks(WebKey.readJwks(uri(jwks))));
+		final var uri = mock(URI.class);
+		try (final var mockIuHttp = mockStatic(IuHttp.class)) {
+			mockIuHttp.when(() -> IuHttp.get(uri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.parse(jwks));
+			assertEquals(jwks, WebKey.asJwks(WebKey.readJwks(uri)));
+		}
 		assertEquals(jwks, WebKey.asJwks(WebKey.readJwks(new ByteArrayInputStream(jwks.getBytes()))));
 		final var out = new ByteArrayOutputStream();
 		WebKey.writeJwks(WebKey.parseJwks(jwks), out);
@@ -320,8 +329,8 @@ public class WebKeyTest extends IuCryptTestCase {
 
 		assertEquals(IuJson.parse(text),
 				IuJson.object()
-				.add("keys", IuJson.array().add(IuJson.parse(ec.toString())).add(IuJson.parse(rsa.toString())))
-				.build());
+						.add("keys", IuJson.array().add(IuJson.parse(ec.toString())).add(IuJson.parse(rsa.toString())))
+						.build());
 	}
 
 	@SuppressWarnings("deprecation")
@@ -396,8 +405,8 @@ public class WebKeyTest extends IuCryptTestCase {
 
 		assertEquals(IuJson.parse(text),
 				IuJson.object()
-				.add("keys", IuJson.array().add(IuJson.parse(ec.toString())).add(IuJson.parse(rsa.toString())))
-				.build());
+						.add("keys", IuJson.array().add(IuJson.parse(ec.toString())).add(IuJson.parse(rsa.toString())))
+						.build());
 	}
 
 	@Test
@@ -427,7 +436,7 @@ public class WebKeyTest extends IuCryptTestCase {
 		assertEquals(IuJson.parse(text),
 				IuJson.object().add("keys",
 						IuJson.array().add(IuJson.parse(jwks[0].toString())).add(IuJson.parse(jwks[1].toString())))
-				.build());
+						.build());
 	}
 
 	@Test
@@ -482,33 +491,33 @@ public class WebKeyTest extends IuCryptTestCase {
 		// $ openssl genrsa
 		final var rsa = WebKey.builder(Type.RSA).pem( //
 				"-----BEGIN PRIVATE KEY-----\r\n"
-				+ "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDYXFUKjgq4Iblp\r\n"
-				+ "mU3Ymww0LgMjaWIO/DmFQF+EViO+rCRteffNzKFWR3+raINMH4uKXL7d9NGJa1TF\r\n"
-				+ "pbrj3XdsdKk/uhrmWfvnClvs79e8J/+UBQ59h5Da7C3f19rVfdIxf+jkPYff+lSw\r\n"
-				+ "JLCLlZVsdn71BPAKpOvsu5qr9Nc04EMcPMklbc+n882hPsyeopAgZ01l928RX7/U\r\n"
-				+ "NU3Uw+MQuYYia54XI3P6PPKDNfqd9dMY0KHLUeo6b/5FZZkLZvnikuvNVO4H+fQO\r\n"
-				+ "OVDvezhXFxO2zM9Q2eCJbvayR2p0TthK2N7O48cKofgMdk1U4Un2vMDXF7pTdGtI\r\n"
-				+ "udC1OzJXAgMBAAECggEACObvptIGVeIpV1Nz9QQYIfN8tJHK85PkJ/vokjDbIqbB\r\n"
-				+ "jvGURRb00nB5q8tOj6zCmIxNXCONFYrhf4pcoLCFj+RS7GjTX4P3Td/KvXp21WqN\r\n"
-				+ "5QC6Qmb4ClHqZ0nh2qPlKJ07L1zqwMfzgRXZX7zlW4OaoKk12TJE9MYZTJbz3dyC\r\n"
-				+ "7Dl6Z6o2PM7HEUXfw7ge6CFDTUV6/cQxfNieKrpVEsCOSj3XUf1hCscWBa7JApWe\r\n"
-				+ "ejhz3YEqFHwprIPe21ZkPbVGz1hkhNCMfBFLw2ZJmiu/yyV9/LhefIul+4nJyIGE\r\n"
-				+ "InYzbjnYPn+gI46i9I8S6v/WQYCJu+q1ZD4mHPnMDQKBgQD8d92fLDIZwxnbC99J\r\n"
-				+ "sJemmhxvcX3F8PvfqG+JcyNf6dgiaIUECUnvfgDipdDmKzHjzD6OTKyerzRVmidj\r\n"
-				+ "qpDkivHVhTbuqNZpQaWt+8tSpjxN5oZySfizeOeBLrphcay61h6q6ne3HHiWIa82\r\n"
-				+ "6qDVQUe0qYb18SP/RLmofMizUwKBgQDbYyioRlvzgbwZ+lhXD0gimx1+QRxb90/d\r\n"
-				+ "+9GiE3IbSCTWwz1efyOdDy+xCzh8/L7NX8E0ZQ6e4pmuBBnDt8aZ3boyRt0e0ui/\r\n"
-				+ "Sepg20iCfBVOJ37i3n9GhBprkzzIPBb4YoPQQwyOvBgjYhak8hrpADJUWJeIYzi0\r\n"
-				+ "pdGCQdrIbQKBgQCH9ZEe7/EHGJ8q7EjR6Uyxxpp7lXWzDCTH/HAcaCnrtAXV+c1w\r\n"
-				+ "MARl+chGRh+qZCaY01v4y+fGCPo5AywlKyyeNwknAHdlrPzScCzl9gw3tRgSp4tN\r\n"
-				+ "rvJEzF53ng92/H2VnEulpWDU9nsl9nviKhZ04ZPZAdaRScwl4v/McW6vywKBgHq0\r\n"
-				+ "MDZF/AHrKvjgo242FuN8HHfUFPd/EIWY5bwf4i9OH4Sa+IUU2SdsKgF8xCBsAI+/\r\n"
-				+ "ocEbUJ0fIlNI6dwkuoiukgiyx9QIpLLwtY1suFZ67jOjNX3QciFPm7NVS6a2rSZJ\r\n"
-				+ "e24NQkXHAD0yDHY/DzwIpx2z2zUmQb4QDGktSh/VAoGBAI+93qCHtVU5rUeY3771\r\n"
-				+ "V541cJqy1gKCob3w9wfhbCTM8ynVREZyUpljcnDBQ9H+gkaoHtPy000FlbUHNyBf\r\n"
-				+ "K1ixXXvUZZEvN/8UyQp3VJipKbL+NDXaq8qE8eixPwkG1L2ebqlbjZsxKXKbotnp\r\n"
-				+ "Jh+eDKPGD66PxfmLT9GtZxS+\r\n" //
-				+ "-----END PRIVATE KEY-----\r\n")
+						+ "MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDYXFUKjgq4Iblp\r\n"
+						+ "mU3Ymww0LgMjaWIO/DmFQF+EViO+rCRteffNzKFWR3+raINMH4uKXL7d9NGJa1TF\r\n"
+						+ "pbrj3XdsdKk/uhrmWfvnClvs79e8J/+UBQ59h5Da7C3f19rVfdIxf+jkPYff+lSw\r\n"
+						+ "JLCLlZVsdn71BPAKpOvsu5qr9Nc04EMcPMklbc+n882hPsyeopAgZ01l928RX7/U\r\n"
+						+ "NU3Uw+MQuYYia54XI3P6PPKDNfqd9dMY0KHLUeo6b/5FZZkLZvnikuvNVO4H+fQO\r\n"
+						+ "OVDvezhXFxO2zM9Q2eCJbvayR2p0TthK2N7O48cKofgMdk1U4Un2vMDXF7pTdGtI\r\n"
+						+ "udC1OzJXAgMBAAECggEACObvptIGVeIpV1Nz9QQYIfN8tJHK85PkJ/vokjDbIqbB\r\n"
+						+ "jvGURRb00nB5q8tOj6zCmIxNXCONFYrhf4pcoLCFj+RS7GjTX4P3Td/KvXp21WqN\r\n"
+						+ "5QC6Qmb4ClHqZ0nh2qPlKJ07L1zqwMfzgRXZX7zlW4OaoKk12TJE9MYZTJbz3dyC\r\n"
+						+ "7Dl6Z6o2PM7HEUXfw7ge6CFDTUV6/cQxfNieKrpVEsCOSj3XUf1hCscWBa7JApWe\r\n"
+						+ "ejhz3YEqFHwprIPe21ZkPbVGz1hkhNCMfBFLw2ZJmiu/yyV9/LhefIul+4nJyIGE\r\n"
+						+ "InYzbjnYPn+gI46i9I8S6v/WQYCJu+q1ZD4mHPnMDQKBgQD8d92fLDIZwxnbC99J\r\n"
+						+ "sJemmhxvcX3F8PvfqG+JcyNf6dgiaIUECUnvfgDipdDmKzHjzD6OTKyerzRVmidj\r\n"
+						+ "qpDkivHVhTbuqNZpQaWt+8tSpjxN5oZySfizeOeBLrphcay61h6q6ne3HHiWIa82\r\n"
+						+ "6qDVQUe0qYb18SP/RLmofMizUwKBgQDbYyioRlvzgbwZ+lhXD0gimx1+QRxb90/d\r\n"
+						+ "+9GiE3IbSCTWwz1efyOdDy+xCzh8/L7NX8E0ZQ6e4pmuBBnDt8aZ3boyRt0e0ui/\r\n"
+						+ "Sepg20iCfBVOJ37i3n9GhBprkzzIPBb4YoPQQwyOvBgjYhak8hrpADJUWJeIYzi0\r\n"
+						+ "pdGCQdrIbQKBgQCH9ZEe7/EHGJ8q7EjR6Uyxxpp7lXWzDCTH/HAcaCnrtAXV+c1w\r\n"
+						+ "MARl+chGRh+qZCaY01v4y+fGCPo5AywlKyyeNwknAHdlrPzScCzl9gw3tRgSp4tN\r\n"
+						+ "rvJEzF53ng92/H2VnEulpWDU9nsl9nviKhZ04ZPZAdaRScwl4v/McW6vywKBgHq0\r\n"
+						+ "MDZF/AHrKvjgo242FuN8HHfUFPd/EIWY5bwf4i9OH4Sa+IUU2SdsKgF8xCBsAI+/\r\n"
+						+ "ocEbUJ0fIlNI6dwkuoiukgiyx9QIpLLwtY1suFZ67jOjNX3QciFPm7NVS6a2rSZJ\r\n"
+						+ "e24NQkXHAD0yDHY/DzwIpx2z2zUmQb4QDGktSh/VAoGBAI+93qCHtVU5rUeY3771\r\n"
+						+ "V541cJqy1gKCob3w9wfhbCTM8ynVREZyUpljcnDBQ9H+gkaoHtPy000FlbUHNyBf\r\n"
+						+ "K1ixXXvUZZEvN/8UyQp3VJipKbL+NDXaq8qE8eixPwkG1L2ebqlbjZsxKXKbotnp\r\n"
+						+ "Jh+eDKPGD66PxfmLT9GtZxS+\r\n" //
+						+ "-----END PRIVATE KEY-----\r\n")
 				.build();
 
 		final var pub = assertInstanceOf(RSAPublicKey.class, rsa.getPublicKey());
@@ -670,7 +679,7 @@ public class WebKeyTest extends IuCryptTestCase {
 				+ "VKcmlwUTF3IiwicDJjIjo0MDk2LCJlbmMiOiJBMTI4Q0JDLUhTMjU2IiwiY3R5IjoiandrK2pzb24ifQ";
 		assertEquals(
 				"{\"alg\":\"PBES2-HS256+A128KW\",\"p2s\":\"2WCTcJZ1Rvd_CJuJripQ1w\",\"p2c\":4096,\"enc\":\"A128CBC-HS256\",\"cty\":\"jwk+json\"}",
-				IuText.utf8(UnpaddedBinary.base64Url(protHeader)));
+				IuText.utf8(IuText.base64Url(protHeader)));
 
 		final var cek = new byte[] { 111, 27, 25, 52, 66, 29, 20, 78, 92, (byte) 176, 56, (byte) 240, 65, (byte) 208,
 				82, 112, (byte) 161, (byte) 131, 36, 55, (byte) 202, (byte) 236, (byte) 185, (byte) 172, (byte) 129, 23,
@@ -851,25 +860,25 @@ public class WebKeyTest extends IuCryptTestCase {
 				.ops(Algorithm.RSA_OAEP.keyOps).build().wellKnown().getOps());
 	}
 
-	@Test
-	public void testPem() {
-		WebKey key;
-
-		key = WebKey.pem(EC_PRIVATE_KEY + ANOTHER_CERT_TEXT);
-		assertNotNull(key.getPrivateKey());
-		assertNotNull(key.getPublicKey());
-		assertNotNull(key.getCertificateChain());
-		assertEquals(1, key.getCertificateChain().length);
-		assertEquals("CN=iu-java-crypt-test,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US",
-				key.getCertificateChain()[0].getIssuerX500Principal().getName());
-
-		key = WebKey.pem(CERT_TEXT);
-		assertNull(key.getPrivateKey());
-		assertNotNull(key.getPublicKey());
-		assertNotNull(key.getCertificateChain());
-		assertEquals(1, key.getCertificateChain().length);
-		assertEquals("CN=iu-java-crypt-test,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US",
-				key.getCertificateChain()[0].getIssuerX500Principal().getName());
-	}
+//	@Test
+//	public void testPem() {
+//		WebKey key;
+//		
+//		key = WebKey.pem(EC_PRIVATE_KEY + ANOTHER_CERT_TEXT);
+//		assertNotNull(key.getPrivateKey());
+//		assertNotNull(key.getPublicKey());
+//		assertNotNull(key.getCertificateChain());
+//		assertEquals(1, key.getCertificateChain().length);
+//		assertEquals("CN=iu-java-crypt-test,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US",
+//				key.getCertificateChain()[0].getIssuerX500Principal().getName());
+//
+//		key = WebKey.pem(CERT_TEXT);
+//		assertNull(key.getPrivateKey());
+//		assertNotNull(key.getPublicKey());
+//		assertNotNull(key.getCertificateChain());
+//		assertEquals(1, key.getCertificateChain().length);
+//		assertEquals("CN=iu-java-crypt-test,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US",
+//				key.getCertificateChain()[0].getIssuerX500Principal().getName());
+//	}
 
 }

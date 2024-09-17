@@ -45,6 +45,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.NoSuchElementException;
+import java.util.concurrent.ThreadLocalRandom;
 
 import javax.crypto.KeyAgreement;
 
@@ -59,16 +60,10 @@ import edu.iu.crypt.WebKey;
 public class EncodingUtilsTest {
 
 	@Test
-	public void testCompactJson() {
-		final var object = IuJson.object().add(IdGenerator.generateId(), IdGenerator.generateId()).build();
-		assertEquals(object, UnpaddedBinary.compactJson(UnpaddedBinary.base64Url(IuText.utf8(object.toString()))));
-	}
-
-	@Test
 	public void testCompactIterator() {
-		final var f1 = UnpaddedBinary.base64Url(IuText.utf8(IdGenerator.generateId()));
-		final var f2 = UnpaddedBinary.base64Url(IuText.utf8(IdGenerator.generateId()));
-		final var i = UnpaddedBinary.compact(f1 + ".." + f2);
+		final var f1 = IuText.base64Url(IuText.utf8(IdGenerator.generateId()));
+		final var f2 = IuText.base64Url(IuText.utf8(IdGenerator.generateId()));
+		final var i = CompactEncoded.compact(f1 + ".." + f2);
 		assertTrue(i.hasNext());
 		assertEquals(f1, i.next());
 		assertTrue(i.hasNext());
@@ -90,11 +85,11 @@ public class EncodingUtilsTest {
 	@Test
 	public void testBase64Url() {
 		// unpadded
-		assertNull(UnpaddedBinary.base64Url((String) null));
-		assertNull(UnpaddedBinary.base64Url((byte[]) null));
-		assertEquals("", UnpaddedBinary.base64Url(new byte[0]));
-		assertEquals("Zm9vdGJhcnQ", UnpaddedBinary.base64Url(IuText.utf8("footbart")));
-		assertEquals("footbart", IuText.utf8(UnpaddedBinary.base64Url("Zm9vdGJhcnQ")));
+		assertNull(IuText.base64Url((String) null));
+		assertNull(IuText.base64Url((byte[]) null));
+		assertEquals("", IuText.base64Url(new byte[0]));
+		assertEquals("Zm9vdGJhcnQ", IuText.base64Url(IuText.utf8("footbart")));
+		assertEquals("footbart", IuText.utf8(IuText.base64Url("Zm9vdGJhcnQ")));
 	}
 
 	@Test
@@ -102,13 +97,13 @@ public class EncodingUtilsTest {
 		// covers getBytes()/setBytes()
 		final var o = IuJson.object();
 		final var bi = BigInteger.valueOf(System.currentTimeMillis());
-		IuJson.add(o, "time", () -> bi, UnsignedBigInteger.JSON);
-		assertEquals(bi, IuJson.get(o.build(), "time", UnsignedBigInteger.JSON));
+		IuJson.add(o, "time", () -> bi, CryptJsonAdapters.BIGINT);
+		assertEquals(bi, IuJson.get(o.build(), "time", CryptJsonAdapters.BIGINT));
 	}
 
 	private void assertEncodedBigInt(String e) {
-		final var b = UnpaddedBinary.base64Url(e);
-		assertEquals(e, UnpaddedBinary.base64Url(b));
+		final var b = IuText.base64Url(e);
+		assertEquals(e, IuText.base64Url(b));
 		final var i = UnsignedBigInteger.bigInt(b);
 		assertArrayEquals(b, UnsignedBigInteger.bigInt(i));
 	}
@@ -119,6 +114,26 @@ public class EncodingUtilsTest {
 		assertEncodedBigInt("4Etl6SRW2YiLUrN5vfvVHuhp7x8PxltmWWlbbM4IFyM");
 		assertEncodedBigInt(
 				"0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw");
+	}
+
+	@Test
+	public void testConcatKdfNoPartyInfo() {
+		final var z = new byte[32];
+		ThreadLocalRandom.current().nextBytes(z);
+		final var algid = new byte[4];
+		ThreadLocalRandom.current().nextBytes(algid);
+		final var datalen = ThreadLocalRandom.current().nextInt(16, 256);
+		final var kdf = EncodingUtils.concatKdf(1, z, algid, null, null, datalen);
+
+		final var expected = new byte[z.length + algid.length + 20];
+		final var buf = ByteBuffer.wrap(expected);
+		EncodingUtils.bigEndian(1, buf);
+		buf.put(z);
+		EncodingUtils.concatKdfFragment(algid, buf);
+		EncodingUtils.concatKdfFragment(new byte[0], buf);
+		EncodingUtils.concatKdfFragment(new byte[0], buf);
+		EncodingUtils.bigEndian(datalen, buf);
+		assertArrayEquals(expected, kdf);
 	}
 
 	@Test
@@ -172,7 +187,7 @@ public class EncodingUtilsTest {
 
 		final var h = MessageDigest.getInstance("SHA-256").digest(buf);
 		final var k = Arrays.copyOf(h, 16);
-		assertEquals("VqqN6vgjbSBcIijNcacQGg", UnpaddedBinary.base64Url(k));
+		assertEquals("VqqN6vgjbSBcIijNcacQGg", IuText.base64Url(k));
 	}
 
 	@Test

@@ -52,8 +52,7 @@ import jakarta.json.JsonObject;
 import jakarta.json.JsonValue;
 
 /**
- * Provides {@link WebCryptoHeader} and {@link WebEncryptionHeader} processing
- * utilities.
+ * {@link WebCryptoHeader} implementation.
  */
 public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeader {
 	static {
@@ -67,7 +66,7 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 	 * 
 	 * @param <T> value type
 	 */
-	interface Extension<T> extends IuJsonAdapter<T> {
+	public interface Extension<T> extends IuJsonAdapter<T> {
 		/**
 		 * Validates an incoming parameter value.
 		 * 

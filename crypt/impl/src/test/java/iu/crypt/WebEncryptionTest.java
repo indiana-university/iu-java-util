@@ -45,6 +45,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.net.URI;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Level;
 
@@ -56,20 +57,18 @@ import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
-import edu.iu.crypt.WebEncryption;
-import edu.iu.crypt.WebKey;
-import edu.iu.crypt.WebCryptoHeader.Extension;
 import edu.iu.crypt.WebCryptoHeader.Param;
+import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.test.IuTestLogger;
-import iu.crypt.IuCryptTestCase;
-import iu.crypt.UnpaddedBinary;
+import iu.crypt.Jose.Extension;
 
 @SuppressWarnings("javadoc")
-public class WebEncryptionTest extends IuCryptTestCase {
+public class WebEncryptionTest {
 
 	@Test
 	public void testEncryption() {
@@ -77,7 +76,7 @@ public class WebEncryptionTest extends IuCryptTestCase {
 				a -> a.use.equals(Use.ENCRYPT)))
 			for (final var encryption : Encryption.values())
 				assertEncryption(algorithm, encryption);
-		assertNull(WebEncryption.JSON.fromJson(WebEncryption.JSON.toJson(null)));
+		assertNull(Jwe.JSON.fromJson(Jwe.JSON.toJson(null)));
 	}
 
 	@Test
@@ -120,8 +119,10 @@ public class WebEncryptionTest extends IuCryptTestCase {
 		final var key2 = WebKey.ephemeral(Algorithm.RSA_OAEP_256);
 		final var key3 = WebKey.ephemeral(Algorithm.ECDH_ES_A192KW);
 		final var id = IdGenerator.generateId();
-		final var protext = ext();
-		final var pertext = ext();
+		final var protext = IdGenerator.generateId();
+		Jose.register(protext, new StringExtension());
+		final var pertext = IdGenerator.generateId();
+		Jose.register(pertext, new StringExtension());
 		final var original = WebEncryption.builder(Encryption.A256GCM, false) //
 				.addRecipient(Algorithm.A256GCMKW).key(key1).type("example").param(protext, "foo")
 				.param(pertext, IdGenerator.generateId()).then() //
@@ -160,7 +161,7 @@ public class WebEncryptionTest extends IuCryptTestCase {
 		when(ext.toJson(id)).thenReturn(IuJson.string(id));
 		when(ext.fromJson(IuJson.string(id))).thenReturn(id);
 
-		WebCryptoHeader.register("urn:example:iu:id", ext);
+		Jose.register("urn:example:iu:id", ext);
 
 		final var key = WebKey.ephemeral(Encryption.A128GCM);
 		final var jwe = WebEncryption.to(Encryption.A128GCM, Algorithm.DIRECT).key(key).param("urn:example:iu:id", id)
@@ -197,7 +198,7 @@ public class WebEncryptionTest extends IuCryptTestCase {
 			assertEquals(message, compactJwe.decryptText(key));
 			assertNull(compactJwe.getAdditionalData());
 			assertEquals(IuJson.parse(compactJwe.toString()),
-					IuJson.parse(WebEncryption.JSON.fromJson(WebEncryption.JSON.toJson(compactJwe)).toString()));
+					IuJson.parse(Jwe.JSON.fromJson(Jwe.JSON.toJson(compactJwe)).toString()));
 
 			final var fromCompact = WebEncryption.parse(compactJwe.compact());
 			final var compactHeader = fromCompact.getRecipients().iterator().next().getHeader();
@@ -216,7 +217,7 @@ public class WebEncryptionTest extends IuCryptTestCase {
 			final var serialJwe = WebEncryption.to(encryption, algorithm).wellKnown(key).then().encrypt(message);
 			assertNull(serialJwe.getAdditionalData());
 			assertEquals(IuJson.parse(serialJwe.toString()),
-					IuJson.parse(WebEncryption.JSON.fromJson(WebEncryption.JSON.toJson(serialJwe)).toString()));
+					IuJson.parse(Jwe.JSON.fromJson(Jwe.JSON.toJson(serialJwe)).toString()));
 
 			final var fromSerial = WebEncryption.parse(serialJwe.toString());
 			final var serialHeader = fromSerial.getRecipients().iterator().next().getHeader();
@@ -233,7 +234,7 @@ public class WebEncryptionTest extends IuCryptTestCase {
 					.encrypt(message);
 			assertNotNull(slientJwe.getAdditionalData());
 
-			final var fromSilent = WebEncryption.JSON.fromJson(WebEncryption.JSON.toJson(slientJwe));
+			final var fromSilent = Jwe.JSON.fromJson(Jwe.JSON.toJson(slientJwe));
 			final var silentHeader = fromSilent.getRecipients().iterator().next().getHeader();
 			assertEquals(algorithm, silentHeader.getAlgorithm());
 			assertEquals(encryption, fromSilent.getEncryption());
@@ -248,8 +249,9 @@ public class WebEncryptionTest extends IuCryptTestCase {
 	@Test
 	public void testSimpleExample() {
 		IuTestLogger.allow("iu.crypt", Level.FINE);
-		String jsonString = IuJson.object().add("sessionId", IdGenerator.generateId())
-				.add("returnUrl", uri("foo").toString()).build().toString();
+		final var uri = URI.create(IdGenerator.generateId());
+		String jsonString = IuJson.object().add("sessionId", IdGenerator.generateId()).add("returnUrl", uri.toString())
+				.build().toString();
 
 		final var key = WebKey.ephemeral(Encryption.A128GCM);
 		final var enc = WebEncryption.builder(Encryption.A128GCM).compact().addRecipient(Algorithm.DIRECT).key(key)
@@ -297,7 +299,7 @@ public class WebEncryptionTest extends IuCryptTestCase {
 		final var encb = WebEncryption.builder(Encryption.A128GCM).addRecipient(Algorithm.ECDH_ES).wellKnown(key);
 		final var enco = IuJson.parse(encb.encrypt("foo").toString()).asJsonObject();
 		final var ence = WebEncryption.parse(IuJson.object(enco)
-				.add("encrypted_key", UnpaddedBinary.base64Url(WebKey.ephemeral(Encryption.A128GCM).getKey())).build()
+				.add("encrypted_key", IuText.base64Url(WebKey.ephemeral(Encryption.A128GCM).getKey())).build()
 				.toString());
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalArgumentException.class,
 				e -> "encrypted key must be empty for ECDH_ES".equals(e.getMessage()));
@@ -327,7 +329,7 @@ public class WebEncryptionTest extends IuCryptTestCase {
 				.wellKnown(key);
 		final var enco = IuJson.parse(encb.encrypt("foo").toString()).asJsonObject();
 		final var ence = WebEncryption.parse(IuJson.object(enco)
-				.add("encrypted_key", UnpaddedBinary.base64Url(WebKey.ephemeral(Encryption.A128GCM).getKey())).build()
+				.add("encrypted_key", IuText.base64Url(WebKey.ephemeral(Encryption.A128GCM).getKey())).build()
 				.toString());
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalArgumentException.class,
 				e -> "encrypted key must be empty for DIRECT".equals(e.getMessage()));
@@ -341,7 +343,7 @@ public class WebEncryptionTest extends IuCryptTestCase {
 		final var enc = WebEncryption.builder(Encryption.A192GCM).addRecipient(Algorithm.A192GCMKW).key(key);
 		final var enco = IuJson.parse(enc.encrypt("foo").toString()).asJsonObject();
 		final var ench = IuJson.object(enco.getJsonObject("header"))
-				.add("iv", UnpaddedBinary.base64Url(new byte[] { 1, 2, 3, 4, 5 })).build();
+				.add("iv", IuText.base64Url(new byte[] { 1, 2, 3, 4, 5 })).build();
 		final var ence = WebEncryption.parse(IuJson.object(enco).add("header", ench).build().toString());
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalArgumentException.class,
 				e -> "iv must be 96 bits".equals(e.getMessage()));
@@ -349,7 +351,7 @@ public class WebEncryptionTest extends IuCryptTestCase {
 				assertThrows(IllegalStateException.class, () -> ence.decrypt(key)).getCause());
 
 		final var encth = IuJson.object(enco.getJsonObject("header"))
-				.add("tag", UnpaddedBinary.base64Url(new byte[] { 1, 2, 3, 4, 5 })).build();
+				.add("tag", IuText.base64Url(new byte[] { 1, 2, 3, 4, 5 })).build();
 		final var enct = WebEncryption.parse(IuJson.object(enco).add("header", encth).build().toString());
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption failed", IllegalArgumentException.class,
 				e -> "tag must be 128 bits".equals(e.getMessage()));

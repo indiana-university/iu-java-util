@@ -43,6 +43,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.InvocationTargetException;
+import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.concurrent.ThreadLocalRandom;
@@ -53,8 +54,6 @@ import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
-import edu.iu.crypt.IuCryptTestCase;
-import edu.iu.crypt.WebCryptoHeader.Extension;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
@@ -62,10 +61,11 @@ import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.WebSignature;
 import edu.iu.crypt.WebSignedPayload;
+import iu.crypt.Jose.Extension;
 import jakarta.json.JsonString;
 
 @SuppressWarnings("javadoc")
-public class JwsTest extends IuCryptTestCase {
+public class JwsTest {
 
 	@Test
 	public void testRFC8037_A_4() throws IllegalAccessException, IllegalArgumentException, InvocationTargetException,
@@ -89,18 +89,17 @@ public class JwsTest extends IuCryptTestCase {
 		assertThrows(IllegalArgumentException.class, () -> fromCompact.verify(wrongKey));
 	}
 
-	@SuppressWarnings("unchecked")
 	@Test
 	public void testMultipleSignatures() {
-		assertNull(WebSignedPayload.JSON.fromJson(WebSignedPayload.JSON.toJson(null)));
+		assertNull(JwsBuilder.JSON.fromJson(JwsBuilder.JSON.toJson(null)));
 
 		final Queue<Jwk> keys = new ArrayDeque<>();
 		final var key = (Jwk) WebKey.ephemeral(Algorithm.ES256);
 		keys.add(key);
-		
+
 		final var key2 = (Jwk) WebKey.ephemeral(Algorithm.PS384);
 		keys.add(key2);
-		
+
 		final var jwsBuilder = WebSignature.builder(Algorithm.ES256);
 		jwsBuilder.key(key);
 		jwsBuilder.next(Algorithm.PS384);
@@ -108,16 +107,14 @@ public class JwsTest extends IuCryptTestCase {
 
 		final var id = IdGenerator.generateId();
 		final var jws = jwsBuilder.sign(id);
-		final var serialJws = WebSignedPayload.JSON.fromJson(WebSignedPayload.JSON.toJson(jws));
+		final var serialJws = JwsBuilder.JSON.fromJson(JwsBuilder.JSON.toJson(jws));
 		assertDoesNotThrow(() -> serialJws.verify(key));
 		assertDoesNotThrow(() -> serialJws.verify(key2));
 	}
-	
+
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testAllTheSignatures() {
-		assertNull(WebSignedPayload.JSON.fromJson(WebSignedPayload.JSON.toJson(null)));
-
 		final var extName = IdGenerator.generateId();
 		final var ext = mock(Extension.class, CALLS_REAL_METHODS);
 		when(ext.toJson(any())).thenAnswer(a -> IuJson.string((String) a.getArgument(0)));
@@ -144,11 +141,11 @@ public class JwsTest extends IuCryptTestCase {
 
 			final var id = IdGenerator.generateId();
 			final var compactJws = WebSignature.builder(algorithm).key(key).compact().sign(id);
-			final var fromCompact = WebSignedPayload.JSON.fromJson(WebSignedPayload.JSON.toJson(compactJws));
+			final var fromCompact = JwsBuilder.JSON.fromJson(JwsBuilder.JSON.toJson(compactJws));
 			assertEquals(id, IuText.utf8(fromCompact.getPayload()));
 			fromCompact.verify(key);
 
-			final var fromSerial = WebSignedPayload.JSON.fromJson(IuJson.string(compactJws.toString()));
+			final var fromSerial = JwsBuilder.JSON.fromJson(IuJson.string(compactJws.toString()));
 			assertEquals(id, IuText.utf8(fromSerial.getPayload()));
 			fromSerial.verify(key);
 		} while (algorithmIterator.hasNext());
@@ -169,7 +166,8 @@ public class JwsTest extends IuCryptTestCase {
 		final var jose = new Jose(IuJson.object().add("alg", "HS384").build());
 		assertThrows(IllegalArgumentException.class, () -> new Jws(p, jose, null));
 
-		final var extName = ext();
+		final var extName = IdGenerator.generateId();
+		Jose.register(extName, new StringExtension());
 		final var p2 = IuJson.object().add("alg", "HS256").add(extName, IdGenerator.generateId()).build();
 		final var jose2 = new Jose(IuJson.object().add("alg", "HS256").add(extName, IdGenerator.generateId()).build());
 		assertThrows(IllegalArgumentException.class, () -> new Jws(p2, jose2, null));
@@ -209,12 +207,15 @@ public class JwsTest extends IuCryptTestCase {
 		final var id = IdGenerator.generateId();
 		final var key = WebKey.builder(Algorithm.EDDSA).keyId(id).ephemeral().build();
 		final var jwsBuilder = WebSignature.builder(Algorithm.EDDSA).wellKnown(key);
-		final var ext = ext();
+		final var ext = IdGenerator.generateId();
+		Jose.register(ext, new StringExtension());
 		jwsBuilder.protect(Param.ALGORITHM, Param.CONTENT_TYPE);
 		jwsBuilder.protect(ext);
 		jwsBuilder.crit(Param.ALGORITHM.name, ext);
 		jwsBuilder.keyId(id);
-		jwsBuilder.wellKnown(uri(WebKey.asJwks(IuIterable.iter(key.wellKnown()))));
+
+		final var uri = URI.create(IdGenerator.generateId());
+		jwsBuilder.wellKnown(uri);
 		jwsBuilder.param(Param.TYPE, "baz");
 		jwsBuilder.type("baz");
 

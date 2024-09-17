@@ -60,7 +60,10 @@ import jakarta.json.JsonValue;
 /**
  * JSON implementation of {@link WebSignature}.
  */
-class Jws implements WebSignature {
+public class Jws implements WebSignature {
+	static {
+		IuObject.assertNotOpen(Jws.class);
+	}
 
 	private final JsonObject protectedHeader;
 	private final Jose header;
@@ -88,7 +91,7 @@ class Jws implements WebSignature {
 					final var ext = Jose.getExtension(name);
 					if (!IuObject.equals(ext.fromJson(value), header.getExtendedParameter(name)))
 						throw new IllegalArgumentException(name + " must match protected header");
-				} else if (!IuObject.equals(param.json().fromJson(value), param.get(header)))
+				} else if (!IuObject.equals(CryptJsonAdapters.of(param).fromJson(value), param.get(header)))
 					throw new IllegalArgumentException(name + " must match protected header");
 			}
 
@@ -283,10 +286,10 @@ class Jws implements WebSignature {
 	 */
 	static Jws parse(JsonValue jwsSignature) {
 		final var parsed = jwsSignature.asJsonObject();
-		final var protectedHeader = IuJson.get(parsed, "protected",
-				IuJsonAdapter.from(v -> IuJson.parse(IuText.utf8(UnpaddedBinary.JSON.fromJson(v))).asJsonObject()));
+		final var protectedHeader = IuJson.get(parsed, "protected", IuJsonAdapter
+				.from(v -> IuJson.parse(IuText.utf8(CryptJsonAdapters.B64URL.fromJson(v))).asJsonObject()));
 		final var header = IuJson.get(parsed, "header", IuJsonAdapter.from(JsonValue::asJsonObject));
-		final var signature = IuJson.get(parsed, "signature", UnpaddedBinary.JSON);
+		final var signature = IuJson.get(parsed, "signature", CryptJsonAdapters.B64URL);
 		return new Jws(protectedHeader, Jose.from(protectedHeader, null, header), signature);
 	}
 
@@ -297,9 +300,9 @@ class Jws implements WebSignature {
 	 */
 	void serializeTo(JsonObjectBuilder json) {
 		IuJson.add(json, "protected", () -> protectedHeader,
-				IuJsonAdapter.to(h -> UnpaddedBinary.JSON.toJson(IuText.utf8(h.toString()))));
+				IuJsonAdapter.to(h -> CryptJsonAdapters.B64URL.toJson(IuText.utf8(h.toString()))));
 		IuJson.add(json, "header", header.toJson(n -> protectedHeader == null || !protectedHeader.containsKey(n)));
-		IuJson.add(json, "signature", () -> signature, UnpaddedBinary.JSON);
+		IuJson.add(json, "signature", () -> signature, CryptJsonAdapters.B64URL);
 	}
 
 	/**
@@ -309,8 +312,8 @@ class Jws implements WebSignature {
 	 * @return signature input
 	 */
 	String getSignatureInput(byte[] payload) {
-		return UnpaddedBinary.base64Url(IuText.utf8(Objects.requireNonNullElse(protectedHeader, "").toString())) + '.'
-				+ UnpaddedBinary.base64Url(payload);
+		return IuText.base64Url(IuText.utf8(Objects.requireNonNullElse(protectedHeader, "").toString())) + '.'
+				+ IuText.base64Url(payload);
 	}
 
 }

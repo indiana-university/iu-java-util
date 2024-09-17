@@ -31,16 +31,48 @@
  */
 package iu.crypt;
 
-import static org.junit.jupiter.api.Assertions.assertNull;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 
-import org.junit.jupiter.api.Test;
-
-@SuppressWarnings("javadoc")
-public class UnpaddedBinaryTest {
-
-	@Test
-	public void testNullCompact() {
-		assertNull(UnpaddedBinary.compactJson(null));
-		assertNull(UnpaddedBinary.compactJson(""));
+/**
+ * Encodes {@link byte[]} values for inclusion in JWS and JWE serialized forms
+ * as unpadded Base64 URL encoded strings.
+ */
+final class CompactEncoded {
+	private CompactEncoded() {
 	}
+
+	/**
+	 * Iterates over segments in a JSON compact serialized structure.
+	 * 
+	 * @param data compact serialize data
+	 * @return {@link Iterator} over data segments
+	 */
+	static Iterator<String> compact(final String data) {
+		return new Iterator<String>() {
+			private int start;
+			private int end = -1;
+
+			@Override
+			public boolean hasNext() {
+				if (end < start) {
+					end = data.indexOf('.', start);
+					if (end == -1)
+						end = data.length();
+				}
+				return start < data.length();
+			}
+
+			@Override
+			public String next() {
+				if (!hasNext())
+					throw new NoSuchElementException();
+
+				final var next = start == end ? null : data.substring(start, end);
+				start = end + 1;
+				return next;
+			}
+		};
+	}
+
 }

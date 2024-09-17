@@ -66,8 +66,8 @@ class JsonCertificateReference<R extends JsonCertificateReference<R>> implements
 		final var jwk = certRef.asJsonObject();
 		certificateUri = IuJson.get(jwk, "x5u", IuJsonAdapter.of(URI.class));
 		certificateChain = IuJson.get(jwk, "x5c", IuJsonAdapter.of(X509Certificate[].class, CryptJsonAdapters.CERT));
-		certificateThumbprint = IuJson.get(jwk, "x5t", UnpaddedBinary.JSON);
-		certificateSha256Thumbprint = IuJson.get(jwk, "x5t#S256", UnpaddedBinary.JSON);
+		certificateThumbprint = IuJson.get(jwk, "x5t", CryptJsonAdapters.B64URL);
+		certificateSha256Thumbprint = IuJson.get(jwk, "x5t#S256", CryptJsonAdapters.B64URL);
 		verifiedCertificateChain = WebCertificateReference.verify(this);
 	}
 
@@ -117,8 +117,8 @@ class JsonCertificateReference<R extends JsonCertificateReference<R>> implements
 	/**
 	 * Gets the verified certificate chain resolved by this reference.
 	 * 
-	 * @return {@link X509CertificateChain}; verified as consistent with the other
-	 *         parameters in this reference, at minimum
+	 * @return Array of {@link X509Certificate}; verified as consistent with the
+	 *         other parameters in this reference, at minimum
 	 *         {@link WebCertificateReference#verify(WebCertificateReference)}
 	 */
 	X509Certificate[] verifiedCertificateChain() {
@@ -135,8 +135,8 @@ class JsonCertificateReference<R extends JsonCertificateReference<R>> implements
 		IuJson.add(jwkBuilder, "x5u", () -> certificateUri, IuJsonAdapter.of(URI.class));
 		IuJson.add(jwkBuilder, "x5c", () -> certificateChain,
 				IuJsonAdapter.of(X509Certificate[].class, CryptJsonAdapters.CERT));
-		IuJson.add(jwkBuilder, "x5t", () -> certificateThumbprint, UnpaddedBinary.JSON);
-		IuJson.add(jwkBuilder, "x5t#S256", () -> certificateSha256Thumbprint, UnpaddedBinary.JSON);
+		IuJson.add(jwkBuilder, "x5t", () -> certificateThumbprint, CryptJsonAdapters.B64URL);
+		IuJson.add(jwkBuilder, "x5t#S256", () -> certificateSha256Thumbprint, CryptJsonAdapters.B64URL);
 		return jwkBuilder;
 	}
 
@@ -152,8 +152,7 @@ class JsonCertificateReference<R extends JsonCertificateReference<R>> implements
 		return IuObject.represents(certificateChain, ref.certificateChain)
 				&& IuObject.represents(certificateSha256Thumbprint, ref.certificateSha256Thumbprint)
 				&& IuObject.represents(certificateThumbprint, ref.certificateThumbprint)
-				&& IuObject.represents(certificateUri, ref.certificateUri)
-				&& IuObject.represents(verifiedCertificateChain, ref.verifiedCertificateChain);
+				&& IuObject.represents(certificateUri, ref.certificateUri);
 	}
 
 }

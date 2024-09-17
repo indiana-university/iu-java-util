@@ -45,6 +45,7 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import edu.iu.IuException;
+import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
@@ -58,7 +59,10 @@ import jakarta.json.JsonValue;
 /**
  * Represents a recipient of a {@link Jwe} encrypted message.
  */
-class JweRecipient implements WebEncryptionRecipient {
+public class JweRecipient implements WebEncryptionRecipient {
+	static {
+		IuObject.assertNotOpen(JweRecipient.class);
+	}
 
 	private final Jose header;
 	private final byte[] encryptedKey;
@@ -77,7 +81,6 @@ class JweRecipient implements WebEncryptionRecipient {
 	/**
 	 * Constructor.
 	 * 
-	 * @param encryption      encrypted message
 	 * @param protectedHeader protected header parameters
 	 * @param sharedHeader    shared header parameters
 	 * @param recipient       recipient parameters
@@ -85,7 +88,7 @@ class JweRecipient implements WebEncryptionRecipient {
 	JweRecipient(JsonObject protectedHeader, JsonObject sharedHeader, JsonObject recipient) {
 		this(Jose.from(protectedHeader, sharedHeader,
 				IuJson.get(recipient, "header", IuJsonAdapter.from(JsonValue::asJsonObject))),
-				IuJson.get(recipient, "encrypted_key", UnpaddedBinary.JSON));
+				IuJson.get(recipient, "encrypted_key", CryptJsonAdapters.B64URL));
 	}
 
 	@Override
@@ -186,7 +189,6 @@ class JweRecipient implements WebEncryptionRecipient {
 	 * Decrypts the content encryption key (CEK)
 	 * 
 	 * @param encryption content encryption algorithm
-	 * @param recipient  in-progress recipient builder
 	 * @param privateKey private key
 	 * @return content encryption key
 	 */
