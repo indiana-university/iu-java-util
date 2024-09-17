@@ -1,3 +1,4 @@
+package edu.iu.auth.config;
 /*
  * Copyright © 2024 Indiana University
  * All rights reserved.
@@ -29,21 +30,41 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.spi;
 
 import java.net.URI;
-import edu.iu.auth.session.IuSessionHandler;
+import java.time.Duration;
 
 /**
- * Application-facing Session handler SPI interface.
+ * Provides session configuration metadata for session handler
+ * 
+ * <p>
+ * The interface <em>should</em> be implemented by the application client module
+ * requiring session handler management.
+ * </p>
  */
-public interface IuSessionHandlerSpi {
+public interface IuSessionConfiguration {
 
 	/**
-	 * Implements {@link IuSessionHandler#createSession(URI)}.
-	 * @param resourceUri application resource URI
-	 * @return {@link IuSessionHandler}
-	 */ 
-	IuSessionHandler createSession(URI resourceUri);
+	 * Gets allowed resource URI
+	 * @return allowed resource URI
+	 */
+	Iterable<URI> getResourceUris();
+	
+	/**
+	 * Gets time to live active {@link Duration} for store session.
+	 * @return {@link Duration}
+	 */
+	default Duration getInActiveTtl() {
+		return Duration.ofMinutes(15L);
+	}
 
+	/**
+	 * Gets the maximum length of time to allow session to be
+	 * remain active.
+	 * 
+	 * @return {@link Duration}, will be truncated to second
+	 */
+	default Duration getMaxSessionTtl() {
+		return Duration.ofHours(12L);
+	}
 }

@@ -33,16 +33,16 @@
 package edu.iu.auth.session;
 
 /**
- *
- * This interface represents tokenized session object .
+ * This interface represents session object .
  */
 public interface IuSession {
 
-	/**
-	 * @param <T>
-	 * @param type
+	/** Get session attributes 
+	 * @param <T> type
+	 * @param type class
+	 * @return attributes for the session 
 	 */
-	<T> void getDetail(Class<T> type);
+	<T> T getDetail(Class<T> type);
 	
 	/**
 	 * Gets whether session object state change

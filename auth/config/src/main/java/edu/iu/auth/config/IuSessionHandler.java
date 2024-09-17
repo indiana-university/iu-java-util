@@ -29,52 +29,41 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.session;
+package edu.iu.auth.config;
 
 import java.net.HttpCookie;
-import java.net.URI;
+import edu.iu.auth.session.IuSession;
 
-import edu.iu.auth.spi.IuSessionHandlerSpi;
-import iu.auth.IuAuthSpiFactory;
 
 
 /**
  *
- * Manages session handler 
+ * Manages generic session handler for applications
  * <p>
  * Implementations manage session tokens and state of sessions to ensure that 
- * session attribute transfer via encrypted channel.
+ * session attributes transfer via encrypted channel.
  * </p> 
  */
 public interface IuSessionHandler {
 
 	/**
-	 * Creates a new session for managing session state.
-	 * 
-	 * @param resourceUri application resource URI
-	
-	 */
-	static IuSessionHandler createSession(URI resourceUri) {
-		return IuAuthSpiFactory.get(IuSessionHandlerSpi.class).createSession(resourceUri);
-	}
-	
-	/**
 	 * Create IuSession 
-	 * @return {{@link #IuSession}
+	 * @return {@link IuSession}
 	 */
 	IuSession create();
 	
 	/**
-	 * Activates a tokenized session
+	 * Activates session for registered resource URI
 	 * @param cookies {@link HttpCookie} 
 	 * @return {@link IuSession}
 	 */
 	IuSession activate(Iterable<HttpCookie> cookies);
 	
 	/**
-	 * 
-	 * @param session
-	 * @return string
+	 * Rekeys, tokenizes, and stores an active session.
+	 * @param session {@link IuSession}
+	 * @param strict true if client requires to set SameSite=Strict otherwise false
+	 * @return response cookie attributes
 	 */
-	String store(IuSession session);
+	String store(IuSession session, boolean strict);
 }

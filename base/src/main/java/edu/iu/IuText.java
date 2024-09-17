@@ -39,6 +39,7 @@ import java.util.Base64;
  */
 public final class IuText {
 	
+
 	private static final Base64.Encoder URL_ENCODER = Base64.getUrlEncoder().withoutPadding();
 
 	/**

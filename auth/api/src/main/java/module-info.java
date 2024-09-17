@@ -32,7 +32,6 @@
 /**
  * API Authentication and Authorization interfaces.
  * 
- * @uses edu.iu.auth.spi.IuSessionHandlerSpi
  * @uses edu.iu.auth.spi.IuAuthConfigSpi Configuration bootstrap
  * @uses edu.iu.auth.spi.IuPrincipalSpi For access to identity provider
  *       verification resources
@@ -63,5 +62,4 @@ module iu.util.auth {
 	uses edu.iu.auth.spi.IuPrincipalSpi;
 	uses edu.iu.auth.spi.IuNonceSpi;
 	uses edu.iu.auth.spi.IuSamlSpi;
-	uses edu.iu.auth.spi.IuSessionHandlerSpi;
 }
