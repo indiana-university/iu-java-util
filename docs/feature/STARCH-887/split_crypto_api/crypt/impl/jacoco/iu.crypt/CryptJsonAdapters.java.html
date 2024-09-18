@@ -134,7 +134,7 @@ public class CryptJsonAdapters {
 <span class="fc" id="L134">			return (IuJsonAdapter&lt;T&gt;) ALG;</span>
 
 		case CERTIFICATE_CHAIN:
-<span class="fc" id="L137">			return (IuJsonAdapter&lt;T&gt;) CERT;</span>
+<span class="fc" id="L137">			return (IuJsonAdapter&lt;T&gt;) IuJsonAdapter.of(X509Certificate[].class, CryptJsonAdapters.CERT);</span>
 
 		case CERTIFICATE_THUMBPRINT:
 		case CERTIFICATE_SHA256_THUMBPRINT:

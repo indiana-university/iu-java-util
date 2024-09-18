@@ -6,7 +6,7 @@ IU Web Cryptography Utilities,iu.crypt,Jwe,0,1090,0,88,0,208,0,83,0,39
 IU Web Cryptography Utilities,iu.crypt,EncodingUtils,0,201,0,10,0,36,0,11,0,6
 IU Web Cryptography Utilities,iu.crypt,JwsSignedPayload,0,103,0,8,0,31,0,11,0,7
 IU Web Cryptography Utilities,iu.crypt,UnsignedBigInteger,0,31,0,2,0,8,0,3,0,2
-IU Web Cryptography Utilities,iu.crypt,CryptJsonAdapters,0,142,0,9,0,29,0,24,0,16
+IU Web Cryptography Utilities,iu.crypt,CryptJsonAdapters,0,144,0,9,0,29,0,24,0,16
 IU Web Cryptography Utilities,iu.crypt,CertificateReferenceBuilder,0,46,0,0,0,8,0,7,0,7
 IU Web Cryptography Utilities,iu.crypt,JweRecipient,0,541,0,38,0,102,0,33,0,14
 IU Web Cryptography Utilities,iu.crypt,JsonKeyReference,0,106,0,10,0,19,0,13,0,8

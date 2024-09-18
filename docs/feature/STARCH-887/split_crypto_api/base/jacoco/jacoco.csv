@@ -35,7 +35,7 @@ IU Base Utilities Module,edu.iu,IuNotFoundException,0,16,0,0,0,8,0,4,0,4
 IU Base Utilities Module,edu.iu,IuCacheMap.CacheEntry,0,81,0,8,0,18,0,10,0,6
 IU Base Utilities Module,edu.iu,IuIterable.new Iterator() {...},0,55,0,6,0,12,0,6,0,3
 IU Base Utilities Module,edu.iu,IuIterable.new Iterator() {...},0,25,0,0,0,4,0,3,0,3
-IU Base Utilities Module,edu.iu,IuCacheMap.CacheSpliterator,0,72,0,8,0,20,0,10,0,6
+IU Base Utilities Module,edu.iu,IuCacheMap.CacheSpliterator,0,72,1,7,0,20,1,9,0,6
 IU Base Utilities Module,edu.iu,IuText,0,72,0,16,0,25,0,17,0,9
 IU Base Utilities Module,edu.iu,IuCacheMap.CacheSpliterator.new Object() {...},0,6,0,0,0,1,0,1,0,1
 IU Base Utilities Module,edu.iu,IuParallelWorkloadController,0,726,0,60,0,158,0,57,0,27
