@@ -134,7 +134,7 @@ public class CryptJsonAdapters {
 			return (IuJsonAdapter<T>) ALG;
 
 		case CERTIFICATE_CHAIN:
-			return (IuJsonAdapter<T>) CERT;
+			return (IuJsonAdapter<T>) IuJsonAdapter.of(X509Certificate[].class, CryptJsonAdapters.CERT);
 
 		case CERTIFICATE_THUMBPRINT:
 		case CERTIFICATE_SHA256_THUMBPRINT:

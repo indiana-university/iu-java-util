@@ -31,6 +31,7 @@
  */
 package iu.crypt;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -82,7 +83,7 @@ public class CryptJsonAdaptersTest {
 			assertEquals(cert, adapter.fromJson(adapter.toJson(cert)));
 		}
 	}
-	
+
 	@Test
 	public void testBigInt() {
 		final var adapter = CryptJsonAdapters.BIGINT;
@@ -91,7 +92,7 @@ public class CryptJsonAdaptersTest {
 		final var bigInt = new BigInteger(1, binary);
 		assertEquals(bigInt, adapter.fromJson(adapter.toJson(bigInt)));
 	}
-	
+
 	@Test
 	public void testCrl() {
 		final var adapter = CryptJsonAdapters.CRL;
@@ -189,7 +190,6 @@ public class CryptJsonAdaptersTest {
 	@Test
 	public void testOfParams() {
 		assertSame(CryptJsonAdapters.ALG, CryptJsonAdapters.of(Param.ALGORITHM));
-		assertSame(CryptJsonAdapters.CERT, CryptJsonAdapters.of(Param.CERTIFICATE_CHAIN));
 		assertSame(CryptJsonAdapters.B64URL, CryptJsonAdapters.of(Param.CERTIFICATE_THUMBPRINT));
 		assertSame(CryptJsonAdapters.B64URL, CryptJsonAdapters.of(Param.CERTIFICATE_SHA256_THUMBPRINT));
 		assertSame(CryptJsonAdapters.B64URL, CryptJsonAdapters.of(Param.INITIALIZATION_VECTOR));
@@ -206,6 +206,19 @@ public class CryptJsonAdaptersTest {
 		assertSame(IuJsonAdapter.of(String.class), CryptJsonAdapters.of(Param.KEY_ID));
 		assertSame(IuJsonAdapter.of(String.class), CryptJsonAdapters.of(Param.TYPE));
 		assertSame(IuJsonAdapter.of(String.class), CryptJsonAdapters.of(Param.ZIP));
+	}
+
+	@Test
+	public void testOfCertificateChain() {
+		final var adapter = CryptJsonAdapters.of(Param.CERTIFICATE_CHAIN);
+		final var cert = mock(X509Certificate.class);
+		final var encoded = IuText.utf8(IdGenerator.generateId());
+		assertDoesNotThrow(() -> when(cert.getEncoded()).thenReturn(encoded));
+		try (final var mockPemEncoded = mockStatic(PemEncoded.class)) {
+			mockPemEncoded.when(() -> PemEncoded.asCertificate(encoded)).thenReturn(cert);
+			final var chain = new X509Certificate[] { cert };
+			assertArrayEquals(chain, (X509Certificate[]) adapter.fromJson(adapter.toJson(chain)));
+		}
 	}
 
 	@Test
