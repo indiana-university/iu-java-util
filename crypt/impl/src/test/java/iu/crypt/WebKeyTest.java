@@ -860,25 +860,4 @@ public class WebKeyTest extends CryptImplTestCase {
 				.ops(Algorithm.RSA_OAEP.keyOps).build().wellKnown().getOps());
 	}
 
-//	@Test
-//	public void testPem() {
-//		WebKey key;
-//		
-//		key = WebKey.pem(EC_PRIVATE_KEY + ANOTHER_CERT_TEXT);
-//		assertNotNull(key.getPrivateKey());
-//		assertNotNull(key.getPublicKey());
-//		assertNotNull(key.getCertificateChain());
-//		assertEquals(1, key.getCertificateChain().length);
-//		assertEquals("CN=iu-java-crypt-test,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US",
-//				key.getCertificateChain()[0].getIssuerX500Principal().getName());
-//
-//		key = WebKey.pem(CERT_TEXT);
-//		assertNull(key.getPrivateKey());
-//		assertNotNull(key.getPublicKey());
-//		assertNotNull(key.getCertificateChain());
-//		assertEquals(1, key.getCertificateChain().length);
-//		assertEquals("CN=iu-java-crypt-test,OU=STARCH,O=Indiana University,L=Bloomington,ST=Indiana,C=US",
-//				key.getCertificateChain()[0].getIssuerX500Principal().getName());
-//	}
-
 }

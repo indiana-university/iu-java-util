@@ -45,7 +45,7 @@ final class CompactEncoded {
 	/**
 	 * Iterates over segments in a JSON compact serialized structure.
 	 * 
-	 * @param data compact serialize data
+	 * @param data compact serialized data
 	 * @return {@link Iterator} over data segments
 	 */
 	static Iterator<String> compact(final String data) {
