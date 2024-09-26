@@ -65,60 +65,62 @@ public class CryptJsonAdapters {
 <span class="fc" id="L65">	public static final IuJsonAdapter&lt;byte[]&gt; B64URL = IuJsonAdapter.text(IuText::base64Url, IuText::base64Url);</span>
 
 	/**
-	 * Singleton.
+	 * JSON type adapter for {@link BigInteger}, as unsigned big-endian binary data
+	 * encoded as {@link #B64URL}.
+	 * @see &lt;a href=&quot;https://datatracker.ietf.org/doc/html/rfc7518#section-2&quot;&gt;RFC 7518 Section 2: Base64urlUInt&lt;/a&gt;
 	 */
-<span class="fc" id="L70">	public static final IuJsonAdapter&lt;BigInteger&gt; BIGINT = IuJsonAdapter.text(</span>
-<span class="fc" id="L71">			v -&gt; UnsignedBigInteger.bigInt(IuText.base64Url(v)), v -&gt; IuText.base64Url(UnsignedBigInteger.bigInt(v)));</span>
+<span class="fc" id="L72">	public static final IuJsonAdapter&lt;BigInteger&gt; BIGINT = IuJsonAdapter.text(</span>
+<span class="fc" id="L73">			v -&gt; UnsignedBigInteger.bigInt(IuText.base64Url(v)), v -&gt; IuText.base64Url(UnsignedBigInteger.bigInt(v)));</span>
 
 	/**
 	 * JSON type adapter for {@link X509Certificate}.
 	 */
-<span class="fc" id="L76">	public static final IuJsonAdapter&lt;X509Certificate&gt; CERT = IuJsonAdapter.from(</span>
-<span class="fc" id="L77">			a -&gt; PemEncoded.asCertificate(IuText.base64(((JsonString) a).getString())),</span>
-<span class="fc" id="L78">			a -&gt; IuJson.string(IuText.base64(IuException.unchecked(a::getEncoded))));</span>
+<span class="fc" id="L78">	public static final IuJsonAdapter&lt;X509Certificate&gt; CERT = IuJsonAdapter.from(</span>
+<span class="fc" id="L79">			a -&gt; PemEncoded.asCertificate(IuText.base64(((JsonString) a).getString())),</span>
+<span class="fc" id="L80">			a -&gt; IuJson.string(IuText.base64(IuException.unchecked(a::getEncoded))));</span>
 
 	/**
 	 * JSON type adapter for {@link X509CRL}.
 	 */
-<span class="fc" id="L83">	public static final IuJsonAdapter&lt;X509CRL&gt; CRL = IuJsonAdapter.text(a -&gt; PemEncoded.asCRL(IuText.base64(a)),</span>
-<span class="fc" id="L84">			a -&gt; IuText.base64(IuException.unchecked(a::getEncoded)));</span>
+<span class="fc" id="L85">	public static final IuJsonAdapter&lt;X509CRL&gt; CRL = IuJsonAdapter.text(a -&gt; PemEncoded.asCRL(IuText.base64(a)),</span>
+<span class="fc" id="L86">			a -&gt; IuText.base64(IuException.unchecked(a::getEncoded)));</span>
 
 	/**
 	 * JSON type adapter for {@link Use}.
 	 */
-<span class="fc" id="L89">	public static final IuJsonAdapter&lt;Use&gt; USE = IuJsonAdapter.text(Use::from, u -&gt; u.use);</span>
+<span class="fc" id="L91">	public static final IuJsonAdapter&lt;Use&gt; USE = IuJsonAdapter.text(Use::from, u -&gt; u.use);</span>
 
 	/**
 	 * JSON type adapter for {@link Operation}.
 	 */
-<span class="fc" id="L94">	public static final IuJsonAdapter&lt;Operation&gt; OP = IuJsonAdapter.text(Operation::from, a -&gt; a.keyOp);</span>
+<span class="fc" id="L96">	public static final IuJsonAdapter&lt;Operation&gt; OP = IuJsonAdapter.text(Operation::from, a -&gt; a.keyOp);</span>
 
 	/**
 	 * JSON type adapter for {@link Algorithm}.
 	 */
-<span class="fc" id="L99">	public static final IuJsonAdapter&lt;Algorithm&gt; ALG = IuJsonAdapter.text(Algorithm::from, a -&gt; a.alg);</span>
+<span class="fc" id="L101">	public static final IuJsonAdapter&lt;Algorithm&gt; ALG = IuJsonAdapter.text(Algorithm::from, a -&gt; a.alg);</span>
 
 	/**
 	 * JSON type adapter
 	 */
-<span class="fc" id="L104">	public static final IuJsonAdapter&lt;Encryption&gt; ENC = IuJsonAdapter.text(Encryption::from, e -&gt; e.enc);</span>
+<span class="fc" id="L106">	public static final IuJsonAdapter&lt;Encryption&gt; ENC = IuJsonAdapter.text(Encryption::from, e -&gt; e.enc);</span>
 
 	/**
 	 * JSON type adapter for {@link WebKey}.
 	 */
-<span class="fc" id="L109">	public static final IuJsonAdapter&lt;WebKey&gt; WEBKEY = IuJsonAdapter.from(v -&gt; {</span>
-<span class="fc" id="L110">		return new Jwk(v.asJsonObject());</span>
+<span class="fc" id="L111">	public static final IuJsonAdapter&lt;WebKey&gt; WEBKEY = IuJsonAdapter.from(v -&gt; {</span>
+<span class="fc" id="L112">		return new Jwk(v.asJsonObject());</span>
 	}, v -&gt; {
-<span class="fc" id="L112">		final var o = IuJson.object();</span>
-<span class="fc" id="L113">		((Jwk) v).serializeTo(o);</span>
-<span class="fc" id="L114">		return o.build();</span>
+<span class="fc" id="L114">		final var o = IuJson.object();</span>
+<span class="fc" id="L115">		((Jwk) v).serializeTo(o);</span>
+<span class="fc" id="L116">		return o.build();</span>
 	});
 
 	/**
 	 * JSON type adapter for {@link WebCryptoHeader}.
 	 */
-<span class="fc" id="L120">	public static final IuJsonAdapter&lt;WebCryptoHeader&gt; JOSE = IuJsonAdapter.from(Jose::new,</span>
-<span class="fc" id="L121">			h -&gt; ((Jose) h).toJson(a -&gt; true));</span>
+<span class="fc" id="L122">	public static final IuJsonAdapter&lt;WebCryptoHeader&gt; JOSE = IuJsonAdapter.from(Jose::new,</span>
+<span class="fc" id="L123">			h -&gt; ((Jose) h).toJson(a -&gt; true));</span>
 
 	/**
 	 * Gets a JSON type adapter by {@link WebCryptoHeader.Param}.
@@ -129,12 +131,12 @@ public class CryptJsonAdapters {
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	public static final &lt;T&gt; IuJsonAdapter&lt;T&gt; of(WebCryptoHeader.Param param) {
-<span class="fc bfc" id="L132" title="All 9 branches covered.">		switch (param) {</span>
+<span class="fc bfc" id="L134" title="All 9 branches covered.">		switch (param) {</span>
 		case ALGORITHM:
-<span class="fc" id="L134">			return (IuJsonAdapter&lt;T&gt;) ALG;</span>
+<span class="fc" id="L136">			return (IuJsonAdapter&lt;T&gt;) ALG;</span>
 
 		case CERTIFICATE_CHAIN:
-<span class="fc" id="L137">			return (IuJsonAdapter&lt;T&gt;) IuJsonAdapter.of(X509Certificate[].class, CryptJsonAdapters.CERT);</span>
+<span class="fc" id="L139">			return (IuJsonAdapter&lt;T&gt;) IuJsonAdapter.of(X509Certificate[].class, CryptJsonAdapters.CERT);</span>
 
 		case CERTIFICATE_THUMBPRINT:
 		case CERTIFICATE_SHA256_THUMBPRINT:
@@ -143,31 +145,31 @@ public class CryptJsonAdapters {
 		case PARTY_VINFO:
 		case PASSWORD_SALT:
 		case TAG:
-<span class="fc" id="L146">			return (IuJsonAdapter&lt;T&gt;) B64URL;</span>
+<span class="fc" id="L148">			return (IuJsonAdapter&lt;T&gt;) B64URL;</span>
 
 		case CRITICAL_PARAMS:
-<span class="fc" id="L149">			return (IuJsonAdapter&lt;T&gt;) IuJsonAdapter.of(Set.class, IuJsonAdapter.of(String.class));</span>
+<span class="fc" id="L151">			return (IuJsonAdapter&lt;T&gt;) IuJsonAdapter.of(Set.class, IuJsonAdapter.of(String.class));</span>
 
 		case ENCRYPTION:
-<span class="fc" id="L152">			return (IuJsonAdapter&lt;T&gt;) ENC;</span>
+<span class="fc" id="L154">			return (IuJsonAdapter&lt;T&gt;) ENC;</span>
 
 		case EPHEMERAL_PUBLIC_KEY:
 		case KEY:
-<span class="fc" id="L156">			return (IuJsonAdapter&lt;T&gt;) WEBKEY;</span>
+<span class="fc" id="L158">			return (IuJsonAdapter&lt;T&gt;) WEBKEY;</span>
 
 		case CERTIFICATE_URI:
 		case KEY_SET_URI:
-<span class="fc" id="L160">			return (IuJsonAdapter&lt;T&gt;) IuJsonAdapter.of(URI.class);</span>
+<span class="fc" id="L162">			return (IuJsonAdapter&lt;T&gt;) IuJsonAdapter.of(URI.class);</span>
 
 		case PASSWORD_COUNT:
-<span class="fc" id="L163">			return (IuJsonAdapter&lt;T&gt;) IuJsonAdapter.of(Integer.class);</span>
+<span class="fc" id="L165">			return (IuJsonAdapter&lt;T&gt;) IuJsonAdapter.of(Integer.class);</span>
 
 		case CONTENT_TYPE:
 		case KEY_ID:
 		case TYPE:
 		case ZIP:
 		}
-<span class="fc" id="L170">		return (IuJsonAdapter&lt;T&gt;) IuJsonAdapter.of(String.class);</span>
+<span class="fc" id="L172">		return (IuJsonAdapter&lt;T&gt;) IuJsonAdapter.of(String.class);</span>
 	}
 
 }
