@@ -65,7 +65,9 @@ public class CryptJsonAdapters {
 	public static final IuJsonAdapter<byte[]> B64URL = IuJsonAdapter.text(IuText::base64Url, IuText::base64Url);
 
 	/**
-	 * Singleton.
+	 * JSON type adapter for {@link BigInteger}, as unsigned big-endian binary data
+	 * encoded as {@link #B64URL}.
+	 * @see <a href="https://datatracker.ietf.org/doc/html/rfc7518#section-2">RFC 7518 Section 2: Base64urlUInt</a>
 	 */
 	public static final IuJsonAdapter<BigInteger> BIGINT = IuJsonAdapter.text(
 			v -> UnsignedBigInteger.bigInt(IuText.base64Url(v)), v -> IuText.base64Url(UnsignedBigInteger.bigInt(v)));
