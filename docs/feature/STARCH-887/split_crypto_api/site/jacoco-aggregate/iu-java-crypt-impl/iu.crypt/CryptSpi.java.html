@@ -52,6 +52,8 @@ import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebSignature;
 import edu.iu.crypt.WebSignedPayload;
+import edu.iu.crypt.WebToken;
+import edu.iu.crypt.WebTokenBuilder;
 import iu.crypt.spi.IuCryptSpi;
 
 /**
@@ -59,76 +61,91 @@ import iu.crypt.spi.IuCryptSpi;
  */
 public class CryptSpi implements IuCryptSpi {
 
-<span class="fc" id="L62">	private static Map&lt;URI, X509Certificate[]&gt; CERT_CACHE = new IuCacheMap&lt;&gt;(Duration.ofMinutes(15L));</span>
+<span class="fc" id="L64">	private static Map&lt;URI, X509Certificate[]&gt; CERT_CACHE = new IuCacheMap&lt;&gt;(Duration.ofMinutes(15L));</span>
 
 	/**
 	 * Default constructor.
 	 */
-<span class="fc" id="L67">	public CryptSpi() {</span>
-<span class="fc" id="L68">	}</span>
+<span class="fc" id="L69">	public CryptSpi() {</span>
+<span class="fc" id="L70">	}</span>
 
 	@Override
 	public X509Certificate[] getCertificateChain(URI uri) {
-<span class="fc" id="L72">		var chain = CERT_CACHE.get(uri);</span>
-<span class="fc bfc" id="L73" title="All 2 branches covered.">		if (chain == null)</span>
-<span class="fc" id="L74">			CERT_CACHE.put(uri, chain = PemEncoded.getCertificateChain((Iterator&lt;PemEncoded&gt;) IuException</span>
-<span class="fc" id="L75">					.unchecked(() -&gt; IuHttp.get(uri, IuHttp.validate(PemEncoded::parse, IuHttp.OK)))));</span>
-<span class="fc" id="L76">		return chain;</span>
+<span class="fc" id="L74">		var chain = CERT_CACHE.get(uri);</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">		if (chain == null)</span>
+<span class="fc" id="L76">			CERT_CACHE.put(uri, chain = PemEncoded.getCertificateChain((Iterator&lt;PemEncoded&gt;) IuException</span>
+<span class="fc" id="L77">					.unchecked(() -&gt; IuHttp.get(uri, IuHttp.validate(PemEncoded::parse, IuHttp.OK)))));</span>
+<span class="fc" id="L78">		return chain;</span>
 	}
 
 	@Override
 	public WebKey.Builder&lt;?&gt; getJwkBuilder(Type type) {
-<span class="fc" id="L81">		return JwkBuilder.of(type);</span>
+<span class="fc" id="L83">		return JwkBuilder.of(type);</span>
 	}
 
 	@Override
 	public WebKey parseJwk(String jwk) {
-<span class="fc" id="L86">		return new Jwk(IuJson.parse(jwk).asJsonObject());</span>
+<span class="fc" id="L88">		return new Jwk(IuJson.parse(jwk).asJsonObject());</span>
 	}
 
 	@Override
 	public Iterable&lt;? extends WebKey&gt; parseJwks(String jwks) {
-<span class="fc" id="L91">		return Jwk.parseJwks(IuJson.parse(jwks).asJsonObject());</span>
+<span class="fc" id="L93">		return Jwk.parseJwks(IuJson.parse(jwks).asJsonObject());</span>
 	}
 
 	@Override
 	public Iterable&lt;? extends WebKey&gt; readJwks(URI jwks) {
-<span class="fc" id="L96">		return Jwk.readJwks(jwks);</span>
+<span class="fc" id="L98">		return Jwk.readJwks(jwks);</span>
 	}
 
 	@Override
 	public Iterable&lt;? extends WebKey&gt; readJwks(InputStream jwks) {
-<span class="fc" id="L101">		return Jwk.readJwks(jwks);</span>
+<span class="fc" id="L103">		return Jwk.readJwks(jwks);</span>
 	}
 
 	@Override
 	public String asJwks(Iterable&lt;? extends WebKey&gt; webKeys) {
-<span class="fc" id="L106">		return Jwk.asJwks(webKeys).toString();</span>
+<span class="fc" id="L108">		return Jwk.asJwks(webKeys).toString();</span>
 	}
 
 	@Override
 	public void writeJwks(Iterable&lt;? extends WebKey&gt; webKeys, OutputStream out) {
-<span class="fc" id="L111">		Jwk.writeJwks(webKeys, out);</span>
-<span class="fc" id="L112">	}</span>
+<span class="fc" id="L113">		Jwk.writeJwks(webKeys, out);</span>
+<span class="fc" id="L114">	}</span>
 
 	@Override
 	public WebSignature.Builder&lt;?&gt; getJwsBuilder(Algorithm algorithm) {
-<span class="fc" id="L116">		return new JwsBuilder(algorithm);</span>
+<span class="fc" id="L118">		return new JwsBuilder(algorithm);</span>
 	}
 
 	@Override
 	public Builder getJweBuilder(Encryption encryption, boolean deflate) {
-<span class="fc" id="L121">		return new JweBuilder(encryption, deflate);</span>
+<span class="fc" id="L123">		return new JweBuilder(encryption, deflate);</span>
 	}
 
 	@Override
 	public WebEncryption parseJwe(String jwe) {
-<span class="fc" id="L126">		return new Jwe(jwe);</span>
+<span class="fc" id="L128">		return new Jwe(jwe);</span>
 	}
 
 	@Override
 	public WebSignedPayload parseJws(String jws) {
-<span class="fc" id="L131">		return JwsBuilder.parse(jws);</span>
+<span class="fc" id="L133">		return JwsBuilder.parse(jws);</span>
+	}
+
+	@Override
+	public WebTokenBuilder getJwtBuilder() {
+<span class="fc" id="L138">		return new JwtBuilder();</span>
+	}
+
+	@Override
+	public WebToken verifyJwt(String jwt, WebKey issuerKey) {
+<span class="fc" id="L143">		return new Jwt(jwt, issuerKey);</span>
+	}
+
+	@Override
+	public WebToken decryptAndVerifyJwt(String jwt, WebKey issuerKey, WebKey audienceKey) {
+<span class="fc" id="L148">		return new Jwt(jwt, issuerKey, audienceKey);</span>
 	}
 
 }

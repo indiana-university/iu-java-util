@@ -15,12 +15,14 @@ IU Web Cryptography Utilities,iu.crypt,JweRecipientBuilder,0,96,0,6,0,23,0,10,0,
 IU Web Cryptography Utilities,iu.crypt,Jose,0,354,0,38,0,67,0,40,0,21
 IU Web Cryptography Utilities,iu.crypt,JweRecipientBuilder.EncryptedKeyBuilder,0,397,0,10,0,77,0,18,0,11
 IU Web Cryptography Utilities,iu.crypt,CompactEncoded.new Iterator() {...},0,71,0,10,0,12,0,8,0,3
+IU Web Cryptography Utilities,iu.crypt,Jwt,0,656,0,50,0,117,0,62,0,37
 IU Web Cryptography Utilities,iu.crypt,Jws,0,595,0,66,0,122,0,53,0,18
 IU Web Cryptography Utilities,iu.crypt,JsonCertificateReference,0,198,0,18,0,35,0,24,0,15
 IU Web Cryptography Utilities,iu.crypt,JwsBuilder.PendingSignature,0,88,0,10,0,16,0,9,0,4
 IU Web Cryptography Utilities,iu.crypt,Jose.Extension,0,4,0,0,0,4,0,4,0,4
-IU Web Cryptography Utilities,iu.crypt,CryptSpi,0,90,0,2,0,20,0,16,0,15
+IU Web Cryptography Utilities,iu.crypt,CryptSpi,0,107,0,2,0,23,0,19,0,18
 IU Web Cryptography Utilities,iu.crypt,JwsBuilder,0,470,0,24,0,96,0,35,0,22
+IU Web Cryptography Utilities,iu.crypt,JwtBuilder,0,114,0,0,0,41,0,21,0,21
 IU Web Cryptography Utilities,iu.crypt,KeyReferenceBuilder,0,16,0,0,0,4,0,3,0,3
 IU Web Cryptography Utilities,iu.crypt,JweBuilder,0,270,0,22,0,52,0,21,0,10
 IU Web Cryptography Utilities,iu.crypt,CompactEncoded,0,5,0,0,0,1,0,1,0,1
