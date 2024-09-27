@@ -66,11 +66,11 @@ import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuVault;
 import edu.iu.client.IuVaultKeyedValue;
-import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.test.IuTest;
+import iu.crypt.CryptJsonAdapters;
 import jakarta.json.JsonObject;
 
 @SuppressWarnings("javadoc")
@@ -230,26 +230,27 @@ public class AuthConfigTest {
 
 	@Test
 	public void testAdaptWebKey() {
-		assertSame(WebKey.JSON, AuthConfig.adaptJson(WebKey.class));
+		assertSame(CryptJsonAdapters.WEBKEY, AuthConfig.adaptJson(WebKey.class));
 	}
 
 	@Test
 	public void testAdaptAlgorithm() {
-		assertSame(Algorithm.JSON, AuthConfig.adaptJson(Algorithm.class));
+		assertSame(CryptJsonAdapters.ALG, AuthConfig.adaptJson(Algorithm.class));
 	}
 
 	@Test
 	public void testAdaptEncryption() {
-		assertSame(Encryption.JSON, AuthConfig.adaptJson(Encryption.class));
+		assertSame(CryptJsonAdapters.ENC, AuthConfig.adaptJson(Encryption.class));
 	}
 
 	@Test
 	public void testAdaptCrl() {
-		assertSame(PemEncoded.CRL_JSON, AuthConfig.adaptJson(X509CRL.class));
+		assertSame(CryptJsonAdapters.CRL, AuthConfig.adaptJson(X509CRL.class));
 	}
 
 	@Test
 	public void testAdaptCert() {
-		assertSame(PemEncoded.CERT_JSON, AuthConfig.adaptJson(X509Certificate.class));
+		assertSame(CryptJsonAdapters.CERT, AuthConfig.adaptJson(X509Certificate.class));
 	}
+
 }

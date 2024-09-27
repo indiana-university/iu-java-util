@@ -48,13 +48,15 @@ import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.client.IuVault;
-import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebSignedPayload;
+import iu.crypt.CryptJsonAdapters;
+import iu.crypt.Jwe;
+import iu.crypt.JwsBuilder;
 import jakarta.json.JsonString;
 
 /**
@@ -90,14 +92,14 @@ public class AuthConfig {
 	private static void registerDefaults() {
 		registerAdapter(AuthMethod.class, AuthMethod.JSON);
 		registerAdapter(GrantType.class, GrantType.JSON);
-		registerAdapter(Algorithm.class, Algorithm.JSON);
-		registerAdapter(Encryption.class, Encryption.JSON);
-		registerAdapter(WebKey.class, WebKey.JSON);
-		registerAdapter(WebCryptoHeader.class, WebCryptoHeader.JSON);
-		registerAdapter(WebEncryption.class, WebEncryption.JSON);
-		registerAdapter(WebSignedPayload.class, WebSignedPayload.JSON);
-		registerAdapter(X509Certificate.class, PemEncoded.CERT_JSON);
-		registerAdapter(X509CRL.class, PemEncoded.CRL_JSON);
+		registerAdapter(Algorithm.class, CryptJsonAdapters.ALG);
+		registerAdapter(Encryption.class, CryptJsonAdapters.ENC);
+		registerAdapter(WebKey.class, CryptJsonAdapters.WEBKEY);
+		registerAdapter(WebCryptoHeader.class, CryptJsonAdapters.JOSE);
+		registerAdapter(WebEncryption.class, Jwe.JSON);
+		registerAdapter(WebSignedPayload.class, JwsBuilder.JSON);
+		registerAdapter(X509Certificate.class, CryptJsonAdapters.CERT);
+		registerAdapter(X509CRL.class, CryptJsonAdapters.CRL);
 		registerAdapter(IuAuthenticationRealm.Type.class, IuAuthenticationRealm.Type.JSON);
 	}
 
