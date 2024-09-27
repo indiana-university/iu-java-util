@@ -43,8 +43,8 @@ import java.util.function.Supplier;
 import edu.iu.IuDigest;
 import edu.iu.IuText;
 import edu.iu.auth.config.IuSessionConfiguration;
-import edu.iu.auth.config.IuSessionHandler;
 import edu.iu.auth.session.IuSession;
+import edu.iu.auth.session.IuSessionHandler;
 import edu.iu.crypt.EphemeralKeys;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
@@ -113,6 +113,14 @@ public class SessionHandler implements IuSessionHandler {
 
 	@Override
 	public IuSession activate(Iterable<HttpCookie> cookies) {
+
+		final var cookieName = getSessionCookieName(resourceUri);
+		if (cookies != null)
+			for (final var cookie : cookies)
+				if (cookie.getName().equals(cookieName)) {
+					secretKey = IuText.base64(cookie.getValue());
+					break;
+				}
 		if (secretKey == null)
 			return null;
 

@@ -74,7 +74,7 @@ class BasicJsonAdapter implements IuJsonAdapter<Object> {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private final IuJsonAdapter<Stream<?>> streamAdapter = new StreamAdapter(this);
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private final IuJsonAdapter<Map<?, ?>> mapAdapter = new JsonObjectAdapter(this, LinkedHashMap::new);
+	private final IuJsonAdapter<Map<?, ?>> mapAdapter = new JsonObjectAdapter(this, this, LinkedHashMap::new);
 
 	@Override
 	public Object fromJson(JsonValue value) {
