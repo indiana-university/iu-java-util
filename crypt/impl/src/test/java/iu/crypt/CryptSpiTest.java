@@ -32,6 +32,7 @@
 package iu.crypt;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -216,14 +217,14 @@ public class CryptSpiTest extends CryptImplTestCase {
 	@Test
 	public void testParseJwe() {
 		final var jwe = IdGenerator.generateId();
-		try (final var mockJwe = mockConstruction(Jwe.class, (a, ctx) ->  {
+		try (final var mockJwe = mockConstruction(Jwe.class, (a, ctx) -> {
 			assertSame(jwe, ctx.arguments().get(0));
 		})) {
 			final var parsedJwe = spi.parseJwe(jwe);
 			assertSame(mockJwe.constructed().get(0), parsedJwe);
 		}
 	}
-	
+
 	@Test
 	public void testParseJws() {
 		final var jws = IdGenerator.generateId();
@@ -233,5 +234,40 @@ public class CryptSpiTest extends CryptImplTestCase {
 			assertSame(webSignedPayload, spi.parseJws(jws));
 		}
 	}
-	
+
+	@Test
+	public void testJwtBuilder() {
+		try (final var mockJwtBuilder = mockConstruction(JwtBuilder.class)) {
+			final var jwtBuilder = spi.getJwtBuilder();
+			assertEquals(mockJwtBuilder.constructed().get(0), jwtBuilder);
+		}
+	}
+
+	@Test
+	public void testVerifyJwt() {
+		final var jwt = IdGenerator.generateId();
+		final var issuerKey = mock(WebKey.class);
+		try (final var mockJwtBuilder = mockConstruction(Jwt.class, (a, ctx) -> {
+			assertSame(jwt, ctx.arguments().get(0));
+			assertSame(issuerKey, ctx.arguments().get(1));
+		})) {
+			final var jwtBuilder = spi.verifyJwt(jwt, issuerKey);
+			assertEquals(mockJwtBuilder.constructed().get(0), jwtBuilder);
+		}
+	}
+
+	@Test
+	public void testDecryptAndVerifyJwt() {
+		final var jwt = IdGenerator.generateId();
+		final var issuerKey = mock(WebKey.class);
+		final var audienceKey = mock(WebKey.class);
+		try (final var mockJwtBuilder = mockConstruction(Jwt.class, (a, ctx) -> {
+			assertSame(jwt, ctx.arguments().get(0));
+			assertSame(issuerKey, ctx.arguments().get(1));
+			assertSame(audienceKey, ctx.arguments().get(2));
+		})) {
+			final var jwtBuilder = spi.decryptAndVerifyJwt(jwt, issuerKey, audienceKey);
+			assertEquals(mockJwtBuilder.constructed().get(0), jwtBuilder);
+		}
+	}
 }

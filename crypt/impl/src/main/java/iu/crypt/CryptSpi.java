@@ -52,6 +52,8 @@ import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebSignature;
 import edu.iu.crypt.WebSignedPayload;
+import edu.iu.crypt.WebToken;
+import edu.iu.crypt.WebTokenBuilder;
 import iu.crypt.spi.IuCryptSpi;
 
 /**
@@ -129,6 +131,21 @@ public class CryptSpi implements IuCryptSpi {
 	@Override
 	public WebSignedPayload parseJws(String jws) {
 		return JwsBuilder.parse(jws);
+	}
+
+	@Override
+	public WebTokenBuilder getJwtBuilder() {
+		return new JwtBuilder();
+	}
+
+	@Override
+	public WebToken verifyJwt(String jwt, WebKey issuerKey) {
+		return new Jwt(jwt, issuerKey);
+	}
+
+	@Override
+	public WebToken decryptAndVerifyJwt(String jwt, WebKey issuerKey, WebKey audienceKey) {
+		return new Jwt(jwt, issuerKey, audienceKey);
 	}
 
 }
