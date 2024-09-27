@@ -84,9 +84,9 @@ public class SessionTest {
 
 	@Test
 	void testChangeFlagManipulation() {
-		assertFalse(session.isChange());
+		assertFalse(session.isChanged());
 		session.setChange(true);
-		assertTrue(session.isChange());
+		assertTrue(session.isChanged());
 	}
 
 	@Test

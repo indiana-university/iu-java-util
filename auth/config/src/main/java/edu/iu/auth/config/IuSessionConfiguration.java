@@ -46,12 +46,14 @@ public interface IuSessionConfiguration extends IuAuthenticationRealm {
 
 	/**
 	 * Gets allowed resource URI
+	 * 
 	 * @return allowed resource URI
 	 */
 	Iterable<URI> getResourceUris();
-	
+
 	/**
 	 * Gets time to live active {@link Duration} for store session.
+	 * 
 	 * @return {@link Duration}
 	 */
 	default Duration getInActiveTtl() {
@@ -59,12 +61,12 @@ public interface IuSessionConfiguration extends IuAuthenticationRealm {
 	}
 
 	/**
-	 * Gets the maximum length of time to allow session to be
-	 * remain active.
+	 * Gets the maximum length of time to allow session to be remain active.
 	 * 
 	 * @return {@link Duration}, will be truncated to second
 	 */
 	default Duration getMaxSessionTtl() {
 		return Duration.ofHours(12L);
 	}
+	
 }

@@ -33,35 +33,35 @@ package edu.iu.auth.session;
 
 import java.net.HttpCookie;
 
-
-
 /**
- *
  * Manages generic session handler for applications
  * <p>
- * Implementations manage session tokens and state of sessions to ensure that 
+ * Implementations manage session tokens and state of sessions to ensure that
  * session attributes transfer via encrypted channel.
- * </p> 
+ * </p>
  */
 public interface IuSessionHandler {
 
 	/**
-	 * Create IuSession 
+	 * Create IuSession
+	 * 
 	 * @return {@link IuSession}
 	 */
 	IuSession create();
-	
+
 	/**
 	 * Activates session for registered resource URI
-	 * @param cookies {@link HttpCookie} 
+	 * 
+	 * @param cookies {@link HttpCookie}
 	 * @return {@link IuSession}
 	 */
 	IuSession activate(Iterable<HttpCookie> cookies);
-	
+
 	/**
 	 * Rekeys, tokenizes, and stores an active session.
+	 * 
 	 * @param session {@link IuSession}
-	 * @param strict true if client requires to set SameSite=Strict otherwise false
+	 * @param strict  true if client requires to set SameSite=Strict otherwise false
 	 * @return response cookie attributes
 	 */
 	String store(IuSession session, boolean strict);

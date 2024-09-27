@@ -51,7 +51,7 @@ public interface IuSession {
 	 * 
 	 * @return true if session object state has change, otherwise false;
 	 */
-	default boolean isChange() {
+	default boolean isChanged() {
 		return false;
 	}
 }

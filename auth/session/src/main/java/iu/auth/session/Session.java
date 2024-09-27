@@ -70,7 +70,7 @@ public class Session implements IuSession {
 	Instant issueAt;
 
 	/** change flag to determine when session attributes change */
-	boolean isChange;
+	boolean changed;
 
 	/** Session details */
 	Map<String, Map<String, Object>> details;
@@ -161,17 +161,17 @@ public class Session implements IuSession {
 	}
 
 	@Override
-	public boolean isChange() {
-		return isChange;
+	public boolean isChanged() {
+		return changed;
 	}
 
 	/**
 	 * Sets the change flag
 	 * 
-	 * @param isChange set to true when session attributes change, otherwise false
+	 * @param change set to true when session attributes change, otherwise false
 	 */
-	void setChange(boolean isChange) {
-		this.isChange = isChange;
+	void setChange(boolean change) {
+		this.changed = change;
 	}
 
 	/**

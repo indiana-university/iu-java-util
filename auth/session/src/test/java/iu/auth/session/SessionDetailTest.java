@@ -86,7 +86,7 @@ class SessionDetailTest {
 		sessionDetail.invoke(proxy, SessionDetailInterface.class.getMethod("setGivenName", String.class),
 				new Object[] { "foo" });
 		assertEquals("foo", attributes.get("givenName"));
-		assertFalse(session.isChange());
+		assertFalse(session.isChanged());
 	}
 
 	@Test

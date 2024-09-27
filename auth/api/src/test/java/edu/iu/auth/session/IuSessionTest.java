@@ -12,6 +12,6 @@ public class IuSessionTest {
 	@Test
 	public void testDefault() {
 		final var iuSessionMock = mock(IuSession.class, CALLS_REAL_METHODS);
-		assertFalse(iuSessionMock.isChange());
+		assertFalse(iuSessionMock.isChanged());
 	}
 }
