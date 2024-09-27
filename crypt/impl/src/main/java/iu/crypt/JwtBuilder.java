@@ -34,8 +34,8 @@ package iu.crypt;
 import java.net.URI;
 import java.time.Instant;
 
-import edu.iu.crypt.WebToken;
 import edu.iu.crypt.WebTokenBuilder;
+import edu.iu.crypt.WebTokenClaims;
 
 /**
  * Mutable builder implementation for programmatically constructing new
@@ -67,9 +67,9 @@ public class JwtBuilder implements WebTokenBuilder {
 	/**
 	 * Copy constructor
 	 * 
-	 * @param token {@link IuWebToken} to copy from
+	 * @param token {@link WebTokenClaims} to copy from
 	 */
-	public JwtBuilder(WebToken token) {
+	public JwtBuilder(WebTokenClaims token) {
 		tokenId = token.getTokenId();
 		issuer = token.getIssuer();
 		audience = token.getAudience();

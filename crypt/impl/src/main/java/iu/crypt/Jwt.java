@@ -59,7 +59,7 @@ import jakarta.json.JsonObjectBuilder;
 import jakarta.json.stream.JsonGenerator;
 
 /**
- * Immutable {@link IuWebToken} with JWT signing, signature verification, and
+ * Immutable {@link WebToken} with JWT signing, signature verification, and
  * encryption methods.
  */
 public class Jwt implements WebToken {
@@ -86,7 +86,7 @@ public class Jwt implements WebToken {
 	 * Copy constructor
 	 * 
 	 * @param type Token type
-	 * @param copy Externally supplied {@link IuWebToken}
+	 * @param copy Externally supplied {@link WebToken}
 	 */
 	protected Jwt(String type, WebTokenClaims copy) {
 		this.type = type;
