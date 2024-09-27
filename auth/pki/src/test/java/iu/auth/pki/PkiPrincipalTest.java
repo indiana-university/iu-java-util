@@ -51,6 +51,7 @@ import edu.iu.client.IuJson;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
+import iu.crypt.CryptJsonAdapters;
 
 @SuppressWarnings("javadoc")
 public class PkiPrincipalTest extends PkiTestCase {
@@ -390,18 +391,18 @@ public class PkiPrincipalTest extends PkiTestCase {
 		for (final var key : IuIterable.iter(key1, key2))
 			for (final var alg : IuIterable.iter(Algorithm.ES384, Algorithm.ES256)) {
 				final var pkpBuilder = IuJson.object().add("type", "pki");
-				IuJson.add(pkpBuilder, "alg", () -> alg, Algorithm.JSON);
+				IuJson.add(pkpBuilder, "alg", () -> alg, CryptJsonAdapters.ALG);
 				pkpBuilder.addNull("encrypt_alg").addNull("enc");
-				IuJson.add(pkpBuilder, "jwk", () -> key, WebKey.JSON);
+				IuJson.add(pkpBuilder, "jwk", () -> key, CryptJsonAdapters.WEBKEY);
 				principals.add(new PkiPrincipal(pkp(pkpBuilder.build().toString())));
 
 				for (final var enc : IuIterable.iter(Encryption.A192GCM, Encryption.A256GCM))
 					for (final var encryptAlg : IuIterable.iter(Algorithm.ECDH_ES, Algorithm.ECDH_ES_A128KW)) {
 						final var pkpEncBuilder = IuJson.object().add("type", "pki");
-						IuJson.add(pkpEncBuilder, "alg", () -> alg, Algorithm.JSON);
-						IuJson.add(pkpEncBuilder, "encrypt_alg", () -> encryptAlg, Algorithm.JSON);
-						IuJson.add(pkpEncBuilder, "enc", () -> enc, Encryption.JSON);
-						IuJson.add(pkpEncBuilder, "jwk", () -> key, WebKey.JSON);
+						IuJson.add(pkpEncBuilder, "alg", () -> alg, CryptJsonAdapters.ALG);
+						IuJson.add(pkpEncBuilder, "encrypt_alg", () -> encryptAlg, CryptJsonAdapters.ALG);
+						IuJson.add(pkpEncBuilder, "enc", () -> enc, CryptJsonAdapters.ENC);
+						IuJson.add(pkpEncBuilder, "jwk", () -> key, CryptJsonAdapters.WEBKEY);
 						principals.add(new PkiPrincipal(pkp(pkpEncBuilder.build().toString())));
 					}
 			}
