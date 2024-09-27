@@ -32,16 +32,11 @@
 package edu.iu.crypt;
 
 import edu.iu.IuException;
-import edu.iu.client.IuJsonAdapter;
-import iu.crypt.JwsBuilder;
 
 /**
  * Encapsulates signed data.
  */
 public interface WebSignedPayload {
-
-	/** {@link IuJsonAdapter} */
-<span class="fc" id="L44">	public static final IuJsonAdapter&lt;WebSignedPayload&gt; JSON = JwsBuilder.JSON;</span>
 
 	/**
 	 * Parses JWS signed payload from serialized form.
@@ -50,7 +45,7 @@ public interface WebSignedPayload {
 	 * @return parsed JWS signed payload
 	 */
 	static WebSignedPayload parse(String jws) {
-<span class="fc" id="L53">		return JwsBuilder.parse(jws);</span>
+<span class="fc" id="L48">		return Init.SPI.parseJws(jws);</span>
 	}
 
 	/**
@@ -80,19 +75,19 @@ public interface WebSignedPayload {
 	 * @param key public or shared key
 	 */
 	default void verify(WebKey key) {
-<span class="fc" id="L83">		Throwable error = null;</span>
-<span class="fc" id="L84">		final var payload = getPayload();</span>
-<span class="fc bfc" id="L85" title="All 2 branches covered.">		for (final var signature : getSignatures())</span>
+<span class="fc" id="L78">		Throwable error = null;</span>
+<span class="fc" id="L79">		final var payload = getPayload();</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">		for (final var signature : getSignatures())</span>
 			try {
-<span class="fc" id="L87">				signature.verify(payload, key);</span>
-<span class="fc" id="L88">				return;</span>
-<span class="fc" id="L89">			} catch (Throwable e) {</span>
-<span class="fc bfc" id="L90" title="All 2 branches covered.">				if (error == null)</span>
-<span class="fc" id="L91">					error = e;</span>
+<span class="fc" id="L82">				signature.verify(payload, key);</span>
+<span class="fc" id="L83">				return;</span>
+<span class="fc" id="L84">			} catch (Throwable e) {</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">				if (error == null)</span>
+<span class="fc" id="L86">					error = e;</span>
 				else
-<span class="fc" id="L93">					error.addSuppressed(e);</span>
-<span class="fc" id="L94">			}</span>
-<span class="fc" id="L95">		throw IuException.unchecked(error);</span>
+<span class="fc" id="L88">					error.addSuppressed(e);</span>
+<span class="fc" id="L89">			}</span>
+<span class="fc" id="L90">		throw IuException.unchecked(error);</span>
 	}
 
 	/**

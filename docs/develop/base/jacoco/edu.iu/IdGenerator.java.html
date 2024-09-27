@@ -33,7 +33,6 @@ package edu.iu;
 
 import java.security.SecureRandom;
 import java.time.Instant;
-import java.util.Arrays;
 
 /**
  * Provides a utility for generating short cryptographically secure unique
@@ -45,10 +44,6 @@ import java.util.Arrays;
  * &lt;/p&gt;
  *
  * &lt;ul&gt;
- * &lt;li&gt;Once per thread, creates a SHA1PRNG pseudo random number generator seeded
- * with 1024 bytes of entropy from the system default mechanism. &lt;em&gt;The system
- * default entropy source can be exceedingly slow on a Linux server so is only
- * used to seed a (much faster) hash-based algorithm.&lt;/em&gt;&lt;/li&gt;
  * &lt;li&gt;Generates 24 bytes of pseudorandom data, interposed with
  * &lt;ul&gt;
  * &lt;li&gt;The 4 byte seconds since epoch timestamp&lt;/li&gt;
@@ -68,97 +63,30 @@ import java.util.Arrays;
  */
 public class IdGenerator {
 
-	private static char getEncodedChar(int v) {
-<span class="fc bfc" id="L72" title="All 2 branches covered.">		if (v == 0)</span>
-<span class="fc" id="L73">			return '_';</span>
-<span class="fc bfc" id="L74" title="All 2 branches covered.">		else if (v == 1)</span>
-<span class="fc" id="L75">			return '-';</span>
-<span class="fc bfc" id="L76" title="All 2 branches covered.">		else if (v &lt; 12)</span>
-<span class="fc" id="L77">			return (char) ('0' + (v - 2));</span>
-<span class="fc bfc" id="L78" title="All 2 branches covered.">		else if (v &lt; 38)</span>
-<span class="fc" id="L79">			return (char) ('A' + (v - 12));</span>
-		else
-<span class="fc" id="L81">			return (char) ('a' + (v - 38));</span>
-	}
-
-	private static String encodeId(byte[] raw) {
-<span class="fc" id="L85">		StringBuilder sb = new StringBuilder();</span>
-<span class="fc" id="L86">		int p = 0;</span>
-<span class="fc bfc" id="L87" title="All 2 branches covered.">		for (int i = 0; i &lt; raw.length; i++) {</span>
-<span class="fc" id="L88">			int b0 = raw[i];</span>
-<span class="fc bfc" id="L89" title="All 2 branches covered.">			if (p &lt;= 2)</span>
-<span class="fc" id="L90">				sb.append(getEncodedChar((b0 &gt;&gt; (2 - p)) &amp; 0x3f));</span>
-<span class="fc" id="L91">			int p1 = (p + 4) % 6;</span>
-<span class="fc bfc" id="L92" title="All 2 branches covered.">			if (p != 2) {</span>
-<span class="fc" id="L93">				byte b1 = raw[i + 1];</span>
-<span class="fc" id="L94">				sb.append(getEncodedChar(((b0 &lt;&lt; p1) &amp; 0x3f) + ((b1 &gt;&gt; (8 - p1)) &amp; ((int) Math.pow(2, p1) - 1))));</span>
-			}
-<span class="fc" id="L96">			p = p1;</span>
-		}
-<span class="fc" id="L98">		return sb.toString();</span>
-	}
-
-	private static byte getDecodedValue(char c) {
-<span class="fc bfc" id="L102" title="All 2 branches covered.">		if (c == '_')</span>
-<span class="fc" id="L103">			return (byte) 0;</span>
-<span class="fc bfc" id="L104" title="All 2 branches covered.">		if (c == '-')</span>
-<span class="fc" id="L105">			return (byte) 1;</span>
-<span class="fc bfc" id="L106" title="All 4 branches covered.">		if (c &gt;= '0' &amp;&amp; c &lt;= '9')</span>
-<span class="fc" id="L107">			return (byte) (2 + (c - '0'));</span>
-<span class="fc bfc" id="L108" title="All 4 branches covered.">		if (c &gt;= 'A' &amp;&amp; c &lt;= 'Z')</span>
-<span class="fc" id="L109">			return (byte) (12 + (c - 'A'));</span>
-<span class="fc bfc" id="L110" title="All 4 branches covered.">		if (c &gt;= 'a' &amp;&amp; c &lt;= 'z')</span>
-<span class="fc" id="L111">			return (byte) (38 + (c - 'a'));</span>
-<span class="fc" id="L112">		throw new IllegalArgumentException(&quot;Invalid encoding&quot;);</span>
-	}
-
-	private static byte[] decodeId(String id) {
-<span class="fc bfc" id="L116" title="All 2 branches covered.">		if (id.length() % 4 != 0)</span>
-<span class="fc" id="L117">			throw new IllegalArgumentException(&quot;Invalid length&quot;);</span>
-<span class="fc" id="L118">		byte[] raw = new byte[id.length() * 3 / 4];</span>
-<span class="fc" id="L119">		Arrays.fill(raw, (byte) 0);</span>
-<span class="fc" id="L120">		int p = 0, i = 0;</span>
-<span class="fc bfc" id="L121" title="All 2 branches covered.">		for (int j = 0; j &lt; id.length(); j++) {</span>
-<span class="fc" id="L122">			byte v = getDecodedValue(id.charAt(j));</span>
-<span class="fc" id="L123">			int d = (int) (v * Math.pow(2, 2 - p));</span>
-<span class="fc bfc" id="L124" title="All 2 branches covered.">			if (d &gt; 127)</span>
-<span class="fc" id="L125">				d -= 256;</span>
-<span class="fc" id="L126">			raw[i] |= (byte) d;</span>
-<span class="fc" id="L127">			p += 6;</span>
-<span class="fc bfc" id="L128" title="All 2 branches covered.">			if (p &gt;= 8) {</span>
-<span class="fc" id="L129">				p -= 8;</span>
-<span class="fc" id="L130">				i++;</span>
-<span class="fc bfc" id="L131" title="All 2 branches covered.">				if (p &gt; 0)</span>
-<span class="fc" id="L132">					raw[i] |= (byte) (v * Math.pow(2, 8 - p));</span>
-			}
-		}
-<span class="fc" id="L135">		return raw;</span>
-	}
-
 	/**
 	 * Generates a new unique identifier.
 	 * 
 	 * @return new unique identifier
 	 */
 	public static String generateId() {
-<span class="fc" id="L144">		byte[] rawId = new byte[24];</span>
-<span class="fc" id="L145">		new SecureRandom().nextBytes(rawId);</span>
+<span class="fc" id="L72">		byte[] rawId = new byte[24];</span>
+<span class="fc" id="L73">		new SecureRandom().nextBytes(rawId);</span>
 
-<span class="fc" id="L147">		final var now = Instant.now().getEpochSecond();</span>
-<span class="fc" id="L148">		rawId[3] = (byte) now;</span>
-<span class="fc" id="L149">		rawId[9] = (byte) ((now &gt;&gt;&gt; 8) &amp; 0xff);</span>
-<span class="fc" id="L150">		rawId[15] = (byte) ((now &gt;&gt;&gt; 16) &amp; 0xff);</span>
-<span class="fc" id="L151">		rawId[6] = (byte) ((now &gt;&gt;&gt; 24) &amp; 0xff);</span>
+<span class="fc" id="L75">		final var now = Instant.now().getEpochSecond();</span>
+<span class="fc" id="L76">		rawId[3] = (byte) now;</span>
+<span class="fc" id="L77">		rawId[9] = (byte) ((now &gt;&gt;&gt; 8) &amp; 0xff);</span>
+<span class="fc" id="L78">		rawId[15] = (byte) ((now &gt;&gt;&gt; 16) &amp; 0xff);</span>
+<span class="fc" id="L79">		rawId[6] = (byte) ((now &gt;&gt;&gt; 24) &amp; 0xff);</span>
 		
-<span class="fc" id="L153">		int hash = (int) now;</span>
-<span class="fc bfc" id="L154" title="All 2 branches covered.">		for (int i = 1; i &lt; 24; i++)</span>
-<span class="fc bfc" id="L155" title="All 4 branches covered.">			if (i != 11 &amp;&amp; i != 20)</span>
-<span class="fc" id="L156">				hash = 47 * hash + rawId[i];</span>
-<span class="fc" id="L157">		rawId[11] = (byte) hash;</span>
-<span class="fc" id="L158">		rawId[20] = (byte) ((hash &gt;&gt;&gt; 8) &amp; 0xff);</span>
-<span class="fc" id="L159">		rawId[0] = (byte) ((hash &gt;&gt;&gt; 16) &amp; 0xff);</span>
+<span class="fc" id="L81">		int hash = (int) now;</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">		for (int i = 1; i &lt; 24; i++)</span>
+<span class="fc bfc" id="L83" title="All 4 branches covered.">			if (i != 11 &amp;&amp; i != 20)</span>
+<span class="fc" id="L84">				hash = 47 * hash + rawId[i];</span>
+<span class="fc" id="L85">		rawId[11] = (byte) hash;</span>
+<span class="fc" id="L86">		rawId[20] = (byte) ((hash &gt;&gt;&gt; 8) &amp; 0xff);</span>
+<span class="fc" id="L87">		rawId[0] = (byte) ((hash &gt;&gt;&gt; 16) &amp; 0xff);</span>
 
-<span class="fc" id="L161">		return encodeId(rawId);</span>
+<span class="fc" id="L89">		return IuText.base64Url(rawId);</span>
 	}
 	
 	/**
@@ -170,31 +98,31 @@ public class IdGenerator {
 	 *            the id; 0 for no expiration time
 	 */
 	public static void verifyId(String id, long ttl) {
-<span class="fc" id="L173">		byte[] decoded = decodeId(id);</span>
-<span class="fc bfc" id="L174" title="All 2 branches covered.">		if (decoded.length != 24)</span>
-<span class="fc" id="L175">			throw new IllegalArgumentException(&quot;Invalid length&quot;);</span>
+<span class="fc" id="L101">		byte[] decoded = IuText.base64Url(id);</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">		if (decoded.length != 24)</span>
+<span class="fc" id="L103">			throw new IllegalArgumentException(&quot;Invalid length&quot;);</span>
 
-<span class="fc" id="L177">		long s = ((((long) decoded[6]) &lt;&lt; 24) &amp; 0xff000000L) //</span>
+<span class="fc" id="L105">		long s = ((((long) decoded[6]) &lt;&lt; 24) &amp; 0xff000000L) //</span>
 				| ((((long) decoded[15]) &lt;&lt; 16) &amp; 0xff0000L) //
 				| ((((long) decoded[9]) &lt;&lt; 8) &amp; 0xff00L) //
 				| (((long) decoded[3]) &amp; 0xffL);
 
-<span class="fc" id="L182">		long now = Instant.now().getEpochSecond();</span>
-<span class="fc bfc" id="L183" title="All 2 branches covered.">		if (now - s &lt; -1L)</span>
-<span class="fc" id="L184">			throw new IllegalArgumentException(&quot;Invalid time signature&quot;);</span>
+<span class="fc" id="L110">		long now = Instant.now().getEpochSecond();</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">		if (now - s &lt; -1L)</span>
+<span class="fc" id="L112">			throw new IllegalArgumentException(&quot;Invalid time signature&quot;);</span>
 
-<span class="fc" id="L186">		long ttls = (ttl + 999L) / 1000L;</span>
-<span class="fc bfc" id="L187" title="All 4 branches covered.">		if (ttls &gt; 0 &amp;&amp; now - s &gt; ttls)</span>
-<span class="fc" id="L188">			throw new IllegalArgumentException(&quot;Expired time signature&quot;);</span>
+<span class="fc" id="L114">		long ttls = (ttl + 999L) / 1000L;</span>
+<span class="fc bfc" id="L115" title="All 4 branches covered.">		if (ttls &gt; 0 &amp;&amp; now - s &gt; ttls)</span>
+<span class="fc" id="L116">			throw new IllegalArgumentException(&quot;Expired time signature&quot;);</span>
 
-<span class="fc" id="L190">		int h = ((decoded[0] &lt;&lt; 16) &amp; 0xff0000) | ((decoded[20] &lt;&lt; 8) &amp; 0xff00) | (decoded[11] &amp; 0xff);</span>
-<span class="fc" id="L191">		int hash = (int) s;</span>
-<span class="fc bfc" id="L192" title="All 2 branches covered.">		for (int i = 1; i &lt; 24; i++)</span>
-<span class="fc bfc" id="L193" title="All 4 branches covered.">			if (i != 11 &amp;&amp; i != 20)</span>
-<span class="fc" id="L194">				hash = 47 * hash + decoded[i];</span>
-<span class="fc bfc" id="L195" title="All 2 branches covered.">		if (h != (hash &amp; 0xffffff))</span>
-<span class="fc" id="L196">			throw new IllegalArgumentException(&quot;Invalid checksum&quot;);</span>
-<span class="fc" id="L197">	}</span>
+<span class="fc" id="L118">		int h = ((decoded[0] &lt;&lt; 16) &amp; 0xff0000) | ((decoded[20] &lt;&lt; 8) &amp; 0xff00) | (decoded[11] &amp; 0xff);</span>
+<span class="fc" id="L119">		int hash = (int) s;</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">		for (int i = 1; i &lt; 24; i++)</span>
+<span class="fc bfc" id="L121" title="All 4 branches covered.">			if (i != 11 &amp;&amp; i != 20)</span>
+<span class="fc" id="L122">				hash = 47 * hash + decoded[i];</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">		if (h != (hash &amp; 0xffffff))</span>
+<span class="fc" id="L124">			throw new IllegalArgumentException(&quot;Invalid checksum&quot;);</span>
+<span class="fc" id="L125">	}</span>
 
 	private IdGenerator() {
 	}
