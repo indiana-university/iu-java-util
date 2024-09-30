@@ -1,7 +1,7 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
 IU Web Cryptography API,edu.iu.crypt,EphemeralKeys,0,145,0,8,0,34,0,15,0,11
 IU Web Cryptography API,edu.iu.crypt,Init,0,7,0,0,0,1,0,1,0,1
-IU Web Cryptography API,edu.iu.crypt,WebCryptoHeader,0,182,0,26,0,33,0,19,0,6
+IU Web Cryptography API,edu.iu.crypt,WebCryptoHeader,0,186,0,26,0,34,0,20,0,7
 IU Web Cryptography API,edu.iu.crypt,PemEncoded,0,338,0,28,0,67,0,37,0,23
 IU Web Cryptography API,edu.iu.crypt,WebKey,0,688,0,126,0,144,0,90,0,27
 IU Web Cryptography API,edu.iu.crypt,WebCertificateReference,0,80,0,16,0,23,0,13,0,5
@@ -13,7 +13,7 @@ IU Web Cryptography API,edu.iu.crypt,WebSignature,0,4,0,0,0,1,0,1,0,1
 IU Web Cryptography API,edu.iu.crypt,WebSignature.Builder,0,12,0,0,0,2,0,2,0,2
 IU Web Cryptography API,edu.iu.crypt,WebKey.Type,0,182,0,12,0,29,0,13,0,7
 IU Web Cryptography API,edu.iu.crypt,WebKey.Use,0,40,0,0,0,7,0,4,0,4
-IU Web Cryptography API,edu.iu.crypt,WebToken,0,14,0,0,0,3,0,3,0,3
+IU Web Cryptography API,edu.iu.crypt,WebToken,0,21,0,0,0,4,0,4,0,4
 IU Web Cryptography API,edu.iu.crypt,PemEncoded.new Iterator() {...},0,204,0,20,0,36,0,13,0,3
 IU Web Cryptography API,edu.iu.crypt,WebEncryption.Builder,0,12,0,0,0,2,0,2,0,2
 IU Web Cryptography API,edu.iu.crypt,WebEncryptionRecipient.Builder,0,15,0,0,0,3,0,3,0,3

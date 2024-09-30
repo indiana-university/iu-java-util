@@ -34,8 +34,11 @@ package iu.crypt;
 import java.net.URI;
 import java.time.Instant;
 
+import edu.iu.IdGenerator;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonBuilder;
+import edu.iu.crypt.WebToken;
 import edu.iu.crypt.WebTokenBuilder;
-import edu.iu.crypt.WebTokenClaims;
 
 /**
  * Mutable builder implementation for programmatically constructing new
@@ -45,183 +48,88 @@ import edu.iu.crypt.WebTokenClaims;
  * Modules that provide a subclass of {@link Jwt} SHOULD also provide a subclass
  * of this class that overrides {@link #build()}.
  * &lt;/p&gt;
+ * 
+ * @param &lt;B&gt; Concrete builder type
  */
-public class JwtBuilder implements WebTokenBuilder {
+public class JwtBuilder&lt;B extends JwtBuilder&lt;B&gt;&gt; extends IuJsonBuilder&lt;B&gt; implements WebTokenBuilder {
 
-<span class="fc" id="L51">	private String type = &quot;JWT&quot;;</span>
-	private String tokenId;
-	private URI issuer;
-	private Iterable&lt;URI&gt; audience;
-	private String subject;
-	private Instant issuedAt;
-	private Instant notBefore;
-	private Instant expires;
-	private String nonce;
+	private boolean setIssuedAt;
 
 	/**
 	 * Default constructor
 	 */
-<span class="fc" id="L64">	public JwtBuilder() {</span>
-<span class="fc" id="L65">	}</span>
-
-	/**
-	 * Copy constructor
-	 * 
-	 * @param token {@link WebTokenClaims} to copy from
-	 */
-<span class="fc" id="L72">	public JwtBuilder(WebTokenClaims token) {</span>
-<span class="fc" id="L73">		tokenId = token.getTokenId();</span>
-<span class="fc" id="L74">		issuer = token.getIssuer();</span>
-<span class="fc" id="L75">		audience = token.getAudience();</span>
-<span class="fc" id="L76">		subject = token.getSubject();</span>
-<span class="fc" id="L77">		issuedAt = token.getIssuedAt();</span>
-<span class="fc" id="L78">		notBefore = token.getNotBefore();</span>
-<span class="fc" id="L79">		expires = token.getExpires();</span>
-<span class="fc" id="L80">		nonce = token.getNonce();</span>
-<span class="fc" id="L81">	}</span>
-
-	/**
-	 * Gets the token type
-	 * 
-	 * @return token type
-	 */
-	public String getType() {
-<span class="fc" id="L89">		return type;</span>
-	}
-
-	/**
-	 * Sets the token type
-	 * 
-	 * @param type token type
-	 */
-	public void setType(String type) {
-<span class="fc" id="L98">		this.type = type;</span>
-<span class="fc" id="L99">	}</span>
+<span class="fc" id="L61">	public JwtBuilder() {</span>
+<span class="fc" id="L62">	}</span>
 
 	@Override
-	public String getTokenId() {
-<span class="fc" id="L103">		return tokenId;</span>
+	public B jti() {
+<span class="fc" id="L66">		return jti(IdGenerator.generateId());</span>
 	}
-
-	/**
-	 * Sets {@link #tokenId}
-	 * 
-	 * @param tokenId {@link #tokenId}
-	 */
-	public void setTokenId(String tokenId) {
-<span class="fc" id="L112">		this.tokenId = tokenId;</span>
-<span class="fc" id="L113">	}</span>
 
 	@Override
-	public URI getIssuer() {
-<span class="fc" id="L117">		return issuer;</span>
+	public B jti(String tokenId) {
+<span class="fc" id="L71">		return param(&quot;jti&quot;, tokenId);</span>
+	}
+
+	@Override
+	public B iss(URI issuer) {
+<span class="fc" id="L76">		return param(&quot;iss&quot;, issuer, IuJsonAdapter.of(URI.class));</span>
+	}
+
+	@Override
+	public B aud(URI... audience) {
+<span class="fc bfc" id="L81" title="All 2 branches covered.">		if (audience.length == 0)</span>
+<span class="fc" id="L82">			throw new IllegalArgumentException(&quot;At least one audience URI is required&quot;);</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">		if (audience.length == 1)</span>
+<span class="fc" id="L84">			return param(&quot;aud&quot;, audience[0], IuJsonAdapter.of(URI.class));</span>
+		else
+<span class="fc" id="L86">			return param(&quot;aud&quot;, audience, IuJsonAdapter.of(URI[].class));</span>
+	}
+
+	@Override
+	public B sub(String subject) {
+<span class="fc" id="L91">		return param(&quot;sub&quot;, subject);</span>
+	}
+
+	@SuppressWarnings(&quot;unchecked&quot;)
+	@Override
+	public B iat() {
+<span class="fc" id="L97">		setIssuedAt = true;</span>
+<span class="fc" id="L98">		return (B) this;</span>
+	}
+
+	@Override
+	public B nbf(Instant notBefore) {
+<span class="fc" id="L103">		return param(&quot;nbf&quot;, notBefore, Jwt.NUMERIC_DATE);</span>
+	}
+
+	@Override
+	public B exp(Instant expires) {
+<span class="fc" id="L108">		return param(&quot;exp&quot;, expires, Jwt.NUMERIC_DATE);</span>
+	}
+
+	@Override
+	public B nonce(String nonce) {
+<span class="fc" id="L113">		return param(&quot;nonce&quot;, nonce);</span>
 	}
 
 	/**
-	 * Sets {@link #issuer}
+	 * Applies state just prior to building the token.
 	 * 
-	 * @param issuer {@link #issuer}
+	 * &lt;p&gt;
+	 * Call this method when overriding {@link #build()} to apply any final state,
+	 * e.g., setting the iat claim value.
+	 * &lt;/p&gt;
 	 */
-	public void setIssuer(URI issuer) {
-<span class="fc" id="L126">		this.issuer = issuer;</span>
+	protected void prepare() {
+<span class="fc bfc" id="L125" title="All 2 branches covered.">		if (setIssuedAt)</span>
+<span class="fc" id="L126">			param(&quot;iat&quot;, Instant.now(), Jwt.NUMERIC_DATE);</span>
 <span class="fc" id="L127">	}</span>
 
 	@Override
-	public Iterable&lt;URI&gt; getAudience() {
-<span class="fc" id="L131">		return audience;</span>
-	}
-
-	/**
-	 * Sets {@link #audience}
-	 * 
-	 * @param audience {@link #audience}
-	 */
-	public void setAudience(Iterable&lt;URI&gt; audience) {
-<span class="fc" id="L140">		this.audience = audience;</span>
-<span class="fc" id="L141">	}</span>
-
-	@Override
-	public String getSubject() {
-<span class="fc" id="L145">		return subject;</span>
-	}
-
-	/**
-	 * Sets {@link #subject}
-	 * 
-	 * @param subject {@link #subject}
-	 */
-	public void setSubject(String subject) {
-<span class="fc" id="L154">		this.subject = subject;</span>
-<span class="fc" id="L155">	}</span>
-
-	@Override
-	public Instant getIssuedAt() {
-<span class="fc" id="L159">		return issuedAt;</span>
-	}
-
-	/**
-	 * Sets {@link #issuedAt}
-	 * 
-	 * @param issuedAt {@link #issuedAt}
-	 */
-	public void setIssuedAt(Instant issuedAt) {
-<span class="fc" id="L168">		this.issuedAt = issuedAt;</span>
-<span class="fc" id="L169">	}</span>
-
-	@Override
-	public Instant getNotBefore() {
-<span class="fc" id="L173">		return notBefore;</span>
-	}
-
-	/**
-	 * Sets {@link #notBefore}
-	 * 
-	 * @param notBefore {@link #notBefore}
-	 */
-	public void setNotBefore(Instant notBefore) {
-<span class="fc" id="L182">		this.notBefore = notBefore;</span>
-<span class="fc" id="L183">	}</span>
-
-	@Override
-	public Instant getExpires() {
-<span class="fc" id="L187">		return expires;</span>
-	}
-
-	/**
-	 * Sets {@link #expires}
-	 * 
-	 * @param expires {@link #expires}
-	 */
-	public void setExpires(Instant expires) {
-<span class="fc" id="L196">		this.expires = expires;</span>
-<span class="fc" id="L197">	}</span>
-
-	@Override
-	public String getNonce() {
-<span class="fc" id="L201">		return nonce;</span>
-	}
-
-	/**
-	 * Sets {@link #nonce}
-	 * 
-	 * @param nonce {@link #nonce}
-	 */
-	public void setNonce(String nonce) {
-<span class="fc" id="L210">		this.nonce = nonce;</span>
-<span class="fc" id="L211">	}</span>
-
-	/**
-	 * Completes {@link Jwt} construction.
-	 * 
-	 * &lt;p&gt;
-	 * Subclasses SHOULD override this method to refine return type and support
-	 * extended claims.
-	 * &lt;/p&gt;
-	 * 
-	 * @return {@link Jwt}
-	 */
-	public Jwt build() {
-<span class="fc" id="L224">		return new Jwt(type, this);</span>
+	public WebToken build() {
+<span class="fc" id="L131">		prepare();</span>
+<span class="fc" id="L132">		return new Jwt(toJson());</span>
 	}
 
 }

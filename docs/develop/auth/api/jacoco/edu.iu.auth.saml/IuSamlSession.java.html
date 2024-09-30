@@ -111,7 +111,7 @@ public interface IuSamlSession {
 	 *                     after user has been authenticate
 	 * @param relayState   state value that received back from identity provider
 	 *                     after successful authentication.
-	 * @return entryPointUri 
+	 * @return entryPointUri
 	 *
 	 * @throws IuAuthenticationException when relay state is invalid or verification
 	 *                                   failed

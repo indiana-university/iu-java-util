@@ -2,9 +2,9 @@ module:iu.util
 edu.iu
 module:iu.util.auth
 edu.iu.auth
-edu.iu.auth.jwt
 edu.iu.auth.nonce
 edu.iu.auth.saml
+edu.iu.auth.session
 edu.iu.auth.spi
 module:iu.util.auth.config
 edu.iu.auth.config

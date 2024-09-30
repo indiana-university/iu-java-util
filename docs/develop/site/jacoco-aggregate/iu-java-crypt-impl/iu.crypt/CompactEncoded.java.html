@@ -31,14 +31,22 @@
  */
 package iu.crypt;
 
+import java.util.Base64;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.Objects;
+
+import edu.iu.IuObject;
+import edu.iu.IuText;
+import edu.iu.client.IuJson;
+import jakarta.json.JsonObject;
 
 /**
  * Encodes {@link byte[]} values for inclusion in JWS and JWE serialized forms
  * as unpadded Base64 URL encoded strings.
  */
-final class CompactEncoded {
+public final class CompactEncoded {
+
 	private CompactEncoded() {
 	}
 
@@ -48,31 +56,46 @@ final class CompactEncoded {
 	 * @param data compact serialized data
 	 * @return {@link Iterator} over data segments
 	 */
-	static Iterator&lt;String&gt; compact(final String data) {
-<span class="fc" id="L52">		return new Iterator&lt;String&gt;() {</span>
+	public static Iterator&lt;String&gt; compact(final String data) {
+<span class="fc" id="L60">		return new Iterator&lt;String&gt;() {</span>
 			private int start;
-<span class="fc" id="L54">			private int end = -1;</span>
+<span class="fc" id="L62">			private int end = -1;</span>
 
 			@Override
 			public boolean hasNext() {
-<span class="fc bfc" id="L58" title="All 2 branches covered.">				if (end &lt; start) {</span>
-<span class="fc" id="L59">					end = data.indexOf('.', start);</span>
-<span class="fc bfc" id="L60" title="All 2 branches covered.">					if (end == -1)</span>
-<span class="fc" id="L61">						end = data.length();</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">				if (end &lt; start) {</span>
+<span class="fc" id="L67">					end = data.indexOf('.', start);</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">					if (end == -1)</span>
+<span class="fc" id="L69">						end = data.length();</span>
 				}
-<span class="fc bfc" id="L63" title="All 2 branches covered.">				return start &lt; data.length();</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">				return start &lt; data.length();</span>
 			}
 
 			@Override
 			public String next() {
-<span class="fc bfc" id="L68" title="All 2 branches covered.">				if (!hasNext())</span>
-<span class="fc" id="L69">					throw new NoSuchElementException();</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">				if (!hasNext())</span>
+<span class="fc" id="L77">					throw new NoSuchElementException();</span>
 
-<span class="fc bfc" id="L71" title="All 2 branches covered.">				final var next = start == end ? null : data.substring(start, end);</span>
-<span class="fc" id="L72">				start = end + 1;</span>
-<span class="fc" id="L73">				return next;</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">				final var next = start == end ? null : data.substring(start, end);</span>
+<span class="fc" id="L80">				start = end + 1;</span>
+<span class="fc" id="L81">				return next;</span>
 			}
 		};
+	}
+
+	/**
+	 * Returns the protected header of a compact serialized JWS or JWE.
+	 * 
+	 * @param compactSerialized compact serialized JWS or JWE
+	 * @return protected header
+	 */
+	public static JsonObject getProtectedHeader(String compactSerialized) {
+<span class="fc" id="L93">		final var dot = IuObject.require(//</span>
+<span class="fc" id="L94">				Objects.requireNonNull(compactSerialized, &quot;Missing token&quot;).indexOf('.'), //</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">				i -&gt; i != -1, &quot;Invalid compact serialized data&quot;);</span>
+
+<span class="fc" id="L97">		final var encodedProtectedHeader = compactSerialized.substring(0, dot);</span>
+<span class="fc" id="L98">		return IuJson.parse(IuText.utf8(Base64.getUrlDecoder().decode(encodedProtectedHeader))).asJsonObject();</span>
 	}
 
 }

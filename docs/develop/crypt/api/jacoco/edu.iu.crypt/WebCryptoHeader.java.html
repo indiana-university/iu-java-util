@@ -348,54 +348,70 @@ public interface WebCryptoHeader extends WebCertificateReference {
 	}
 
 	/**
+	 * Returns the protected header from a serialized JWS or JWE.
+	 * 
+	 * &lt;p&gt;
+	 * This method is useful for inspecting header parameters before processing the
+	 * signed and/or encrypted payload, e.g., to determine content type or to
+	 * identify the correct decryption or verification key.
+	 * &lt;/p&gt;
+	 * 
+	 * @param serialized serialized JWS or JWE
+	 * @return protected header
+	 */
+	public static WebCryptoHeader getProtectedHeader(String serialized) {
+<span class="fc" id="L363">		return Init.SPI.getProtectedHeader(serialized);</span>
+	}
+
+	/**
 	 * Verifies all parameters in a {@link WebCryptoHeader}.
 	 * 
 	 * @param header {@link WebCryptoHeader}
 	 * @return Well-known key referred to by the header; null if not known
 	 */
 	static WebKey verify(WebCryptoHeader header) {
-<span class="fc" id="L357">		final var algorithm = Objects.requireNonNull(header.getAlgorithm(),</span>
-<span class="fc" id="L358">				() -&gt; &quot;Signature or key protection algorithm is required&quot;);</span>
+<span class="fc" id="L373">		final var algorithm = Objects.requireNonNull(header.getAlgorithm(),</span>
+<span class="fc" id="L374">				() -&gt; &quot;Signature or key protection algorithm is required&quot;);</span>
 
-<span class="fc bfc" id="L360" title="All 2 branches covered.">		if (algorithm.use.equals(Use.ENCRYPT)) {</span>
-<span class="fc" id="L361">			Objects.requireNonNull(header.getExtendedParameter(Param.ENCRYPTION.name),</span>
-<span class="fc" id="L362">					() -&gt; &quot;Content encryption algorithm is required&quot;);</span>
-<span class="fc bfc" id="L363" title="All 2 branches covered.">			for (final var param : algorithm.encryptionParams)</span>
-<span class="fc bfc" id="L364" title="All 2 branches covered.">				if (param.required //</span>
-<span class="fc bfc" id="L365" title="All 2 branches covered.">						&amp;&amp; !param.isPresent(header))</span>
-<span class="fc" id="L366">					throw new NullPointerException(&quot;Missing required encryption parameter &quot; + param.name);</span>
+<span class="fc bfc" id="L376" title="All 2 branches covered.">		if (algorithm.use.equals(Use.ENCRYPT)) {</span>
+<span class="fc" id="L377">			Objects.requireNonNull(header.getExtendedParameter(Param.ENCRYPTION.name),</span>
+<span class="fc" id="L378">					() -&gt; &quot;Content encryption algorithm is required&quot;);</span>
+<span class="fc bfc" id="L379" title="All 2 branches covered.">			for (final var param : algorithm.encryptionParams)</span>
+<span class="fc bfc" id="L380" title="All 2 branches covered.">				if (param.required //</span>
+<span class="fc bfc" id="L381" title="All 2 branches covered.">						&amp;&amp; !param.isPresent(header))</span>
+<span class="fc" id="L382">					throw new NullPointerException(&quot;Missing required encryption parameter &quot; + param.name);</span>
 		}
 
-<span class="fc" id="L369">		final var criticalParameters = header.getCriticalParameters();</span>
-<span class="fc bfc" id="L370" title="All 2 branches covered.">		if (criticalParameters != null)</span>
-<span class="fc bfc" id="L371" title="All 2 branches covered.">			for (final var paramName : criticalParameters) {</span>
-<span class="fc" id="L372">				final var param = Param.from(paramName);</span>
-<span class="fc bfc" id="L373" title="All 2 branches covered.">				if (param == null) {</span>
-<span class="fc bfc" id="L374" title="All 2 branches covered.">					if (header.getExtendedParameter(paramName) == null)</span>
-<span class="fc" id="L375">						throw new NullPointerException(&quot;Missing critical extended parameter &quot; + paramName);</span>
-<span class="fc bfc" id="L376" title="All 2 branches covered.">				} else if (!param.isPresent(header))</span>
-<span class="fc" id="L377">					throw new NullPointerException(&quot;Missing critical registered parameter &quot; + paramName);</span>
-<span class="fc" id="L378">			}</span>
+<span class="fc" id="L385">		final var criticalParameters = header.getCriticalParameters();</span>
+<span class="fc bfc" id="L386" title="All 2 branches covered.">		if (criticalParameters != null)</span>
+<span class="fc bfc" id="L387" title="All 2 branches covered.">			for (final var paramName : criticalParameters) {</span>
+<span class="fc" id="L388">				final var param = Param.from(paramName);</span>
+<span class="fc bfc" id="L389" title="All 2 branches covered.">				if (param == null) {</span>
+<span class="fc bfc" id="L390" title="All 2 branches covered.">					if (header.getExtendedParameter(paramName) == null)</span>
+<span class="fc" id="L391">						throw new NullPointerException(&quot;Missing critical extended parameter &quot; + paramName);</span>
+<span class="fc bfc" id="L392" title="All 2 branches covered.">				} else if (!param.isPresent(header))</span>
+<span class="fc" id="L393">					throw new NullPointerException(&quot;Missing critical registered parameter &quot; + paramName);</span>
+<span class="fc" id="L394">			}</span>
 
-<span class="fc" id="L380">		final var key = header.getKey();</span>
-<span class="fc" id="L381">		final var keyId = IuObject.first(header.getKeyId(), IuObject.convert(key, WebKey::getKeyId));</span>
-<span class="fc" id="L382">		final var certChain = WebCertificateReference.verify(header);</span>
+<span class="fc" id="L396">		final var key = header.getKey();</span>
+<span class="fc" id="L397">		final var keyId = IuObject.first(header.getKeyId(), IuObject.convert(key, WebKey::getKeyId));</span>
+<span class="fc" id="L398">		final var certChain = WebCertificateReference.verify(header);</span>
 
-<span class="fc" id="L384">		var wellKnown = IuObject.convert(key, WebKey::wellKnown);</span>
-<span class="fc bfc" id="L385" title="All 4 branches covered.">		if (wellKnown == null //</span>
+<span class="fc" id="L400">		var wellKnown = IuObject.convert(key, WebKey::wellKnown);</span>
+<span class="fc bfc" id="L401" title="All 4 branches covered.">		if (wellKnown == null //</span>
 				&amp;&amp; keyId != null)
-<span class="fc" id="L387">			wellKnown = IuObject.convert(header.getKeySetUri(), //</span>
-<span class="fc" id="L388">					uri -&gt; IuIterable.filter(WebKey.readJwks(uri), //</span>
-<span class="fc" id="L389">							k -&gt; keyId.equals(k.getKeyId())).iterator().next());</span>
-<span class="fc bfc" id="L390" title="All 4 branches covered.">		if (wellKnown == null //</span>
+<span class="fc" id="L403">			wellKnown = IuObject.convert(header.getKeySetUri(), //</span>
+<span class="fc" id="L404">					uri -&gt; IuIterable.filter(WebKey.readJwks(uri), //</span>
+<span class="fc" id="L405">							k -&gt; keyId.equals(k.getKeyId())).iterator().next());</span>
+<span class="fc bfc" id="L406" title="All 4 branches covered.">		if (wellKnown == null //</span>
 				&amp;&amp; certChain != null)
-<span class="fc" id="L392">			wellKnown = WebKey.builder(algorithm.type[0]).cert(certChain).build().wellKnown();</span>
+<span class="fc" id="L408">			wellKnown = WebKey.builder(algorithm.type[0]).cert(certChain).build().wellKnown();</span>
 
-<span class="fc" id="L394">		IuObject.first( //</span>
-<span class="fc" id="L395">				IuObject.convert(wellKnown, WebKey::getPublicKey), //</span>
-<span class="fc" id="L396">				IuObject.convert(certChain, c -&gt; c[0].getPublicKey()));</span>
+<span class="fc" id="L410">		IuObject.first( //</span>
+<span class="fc" id="L411">				IuObject.convert(wellKnown, WebKey::getPublicKey), //</span>
+<span class="fc" id="L412">				IuObject.convert(certChain, c -&gt; c[0].getPublicKey()));</span>
 
-<span class="fc" id="L398">		return wellKnown;</span>
+<span class="fc" id="L414">		return wellKnown;</span>
 	}
 
 	/**

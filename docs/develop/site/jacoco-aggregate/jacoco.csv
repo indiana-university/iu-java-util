@@ -35,7 +35,7 @@ IU Java Utilities API Reference/iu-java-base,edu.iu,IuNotFoundException,0,16,0,0
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuCacheMap.CacheEntry,0,81,0,8,0,18,0,10,0,6
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuIterable.new Iterator() {...},0,55,0,6,0,12,0,6,0,3
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuIterable.new Iterator() {...},0,25,0,0,0,4,0,3,0,3
-IU Java Utilities API Reference/iu-java-base,edu.iu,IuCacheMap.CacheSpliterator,0,72,1,7,0,20,1,9,0,6
+IU Java Utilities API Reference/iu-java-base,edu.iu,IuCacheMap.CacheSpliterator,0,72,0,8,0,20,0,10,0,6
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuText,0,72,0,16,0,25,0,17,0,9
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuCacheMap.CacheSpliterator.new Object() {...},0,6,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuParallelWorkloadController,0,726,0,60,0,158,0,57,0,27
@@ -54,12 +54,12 @@ IU Java Utilities API Reference/iu-java-base,edu.iu,IuCacheMap.CacheEntrySet,0,4
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuIterable.IuIterator,0,81,0,6,0,19,0,9,0,6
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuVisitor.ElementSplitter,0,77,1,9,0,21,1,10,0,6
 IU Java Utilities API Reference/iu-java-base,iu,ParallelTaskController,0,329,0,40,0,81,0,38,0,18
-IU Java Utilities API Reference/iu-java-client,iu.client,JsonAdapters,0,621,0,170,0,154,0,94,0,9
+IU Java Utilities API Reference/iu-java-client,iu.client,JsonAdapters,0,641,0,172,0,157,0,95,0,9
 IU Java Utilities API Reference/iu-java-client,iu.client,DateJsonAdapter,0,83,0,8,0,21,0,8,0,4
 IU Java Utilities API Reference/iu-java-client,iu.client,TextJsonAdapter,0,51,0,12,0,14,0,10,0,4
 IU Java Utilities API Reference/iu-java-client,iu.client,TimeZoneJsonAdapter,0,40,0,4,0,10,0,5,0,3
 IU Java Utilities API Reference/iu-java-client,iu.client,CollectionAdapter,0,24,0,0,0,7,0,3,0,3
-IU Java Utilities API Reference/iu-java-client,iu.client,BasicJsonAdapter,0,228,0,44,0,56,0,26,0,4
+IU Java Utilities API Reference/iu-java-client,iu.client,BasicJsonAdapter,0,229,0,44,0,56,0,26,0,4
 IU Java Utilities API Reference/iu-java-client,iu.client,EnumerationAdapter,0,13,0,0,0,4,0,3,0,3
 IU Java Utilities API Reference/iu-java-client,iu.client,JsonSerializer,0,144,0,19,0,32,0,16,0,6
 IU Java Utilities API Reference/iu-java-client,iu.client,OptionalJsonAdapter,0,29,0,2,0,8,0,5,0,4
@@ -68,7 +68,7 @@ IU Java Utilities API Reference/iu-java-client,iu.client,NumberAdapter,0,182,0,8
 IU Java Utilities API Reference/iu-java-client,iu.client,ParsingJsonAdapter,0,66,0,6,0,19,0,8,0,5
 IU Java Utilities API Reference/iu-java-client,iu.client,JsonProxy,0,275,0,34,0,61,0,24,0,7
 IU Java Utilities API Reference/iu-java-client,iu.client,StreamAdapter,0,16,0,0,0,4,0,3,0,3
-IU Java Utilities API Reference/iu-java-client,iu.client,JsonObjectAdapter,0,81,0,10,0,17,0,8,0,3
+IU Java Utilities API Reference/iu-java-client,iu.client,JsonObjectAdapter,0,104,0,10,0,20,0,10,0,5
 IU Java Utilities API Reference/iu-java-client,iu.client,Vault.new Object() {...},0,6,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-client,iu.client,ArrayAdapter,0,19,0,0,0,5,0,3,0,3
 IU Java Utilities API Reference/iu-java-client,iu.client,IteratorAdapter,0,9,0,0,0,4,0,3,0,3
@@ -98,7 +98,7 @@ IU Java Utilities API Reference/iu-java-test,edu.iu.test,IuTestLogger.LogRecordM
 IU Java Utilities API Reference/iu-java-test,edu.iu.test,IuTestExtension,6,23,2,2,2,14,2,4,0,4
 IU Java Utilities API Reference/iu-java-crypt,edu.iu.crypt,EphemeralKeys,0,145,0,8,0,34,0,15,0,11
 IU Java Utilities API Reference/iu-java-crypt,edu.iu.crypt,Init,0,7,0,0,0,1,0,1,0,1
-IU Java Utilities API Reference/iu-java-crypt,edu.iu.crypt,WebCryptoHeader,0,182,0,26,0,33,0,19,0,6
+IU Java Utilities API Reference/iu-java-crypt,edu.iu.crypt,WebCryptoHeader,0,186,0,26,0,34,0,20,0,7
 IU Java Utilities API Reference/iu-java-crypt,edu.iu.crypt,PemEncoded,0,338,0,28,0,67,0,37,0,23
 IU Java Utilities API Reference/iu-java-crypt,edu.iu.crypt,WebKey,0,688,0,126,0,144,0,90,0,27
 IU Java Utilities API Reference/iu-java-crypt,edu.iu.crypt,WebCertificateReference,0,80,0,16,0,23,0,13,0,5
@@ -110,7 +110,7 @@ IU Java Utilities API Reference/iu-java-crypt,edu.iu.crypt,WebSignature,0,4,0,0,
 IU Java Utilities API Reference/iu-java-crypt,edu.iu.crypt,WebSignature.Builder,0,12,0,0,0,2,0,2,0,2
 IU Java Utilities API Reference/iu-java-crypt,edu.iu.crypt,WebKey.Type,0,182,0,12,0,29,0,13,0,7
 IU Java Utilities API Reference/iu-java-crypt,edu.iu.crypt,WebKey.Use,0,40,0,0,0,7,0,4,0,4
-IU Java Utilities API Reference/iu-java-crypt,edu.iu.crypt,WebToken,0,14,0,0,0,3,0,3,0,3
+IU Java Utilities API Reference/iu-java-crypt,edu.iu.crypt,WebToken,0,21,0,0,0,4,0,4,0,4
 IU Java Utilities API Reference/iu-java-crypt,edu.iu.crypt,PemEncoded.new Iterator() {...},0,204,0,20,0,36,0,13,0,3
 IU Java Utilities API Reference/iu-java-crypt,edu.iu.crypt,WebEncryption.Builder,0,12,0,0,0,2,0,2,0,2
 IU Java Utilities API Reference/iu-java-crypt,edu.iu.crypt,WebEncryptionRecipient.Builder,0,15,0,0,0,3,0,3,0,3
@@ -134,17 +134,17 @@ IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,JweRecipientBuilder,
 IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,Jose,0,354,0,38,0,67,0,40,0,21
 IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,JweRecipientBuilder.EncryptedKeyBuilder,0,397,0,10,0,77,0,18,0,11
 IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,CompactEncoded.new Iterator() {...},0,71,0,10,0,12,0,8,0,3
-IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,Jwt,0,656,0,50,0,117,0,62,0,37
-IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,Jws,0,595,0,66,0,122,0,53,0,18
+IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,Jwt,0,298,0,20,0,61,0,33,0,23
+IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,Jws,0,608,0,68,0,125,0,54,0,18
 IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,JsonCertificateReference,0,198,0,18,0,35,0,24,0,15
 IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,JwsBuilder.PendingSignature,0,88,0,10,0,16,0,9,0,4
 IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,Jose.Extension,0,4,0,0,0,4,0,4,0,4
-IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,CryptSpi,0,107,0,2,0,23,0,19,0,18
+IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,CryptSpi,0,129,0,4,0,27,0,21,0,19
 IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,JwsBuilder,0,470,0,24,0,96,0,35,0,22
-IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,JwtBuilder,0,114,0,0,0,41,0,21,0,21
+IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,JwtBuilder,0,100,0,6,0,21,0,15,0,12
 IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,KeyReferenceBuilder,0,16,0,0,0,4,0,3,0,3
 IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,JweBuilder,0,270,0,22,0,52,0,21,0,10
-IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,CompactEncoded,0,5,0,0,0,1,0,1,0,1
+IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,CompactEncoded,0,38,0,2,0,6,0,4,0,3
 IU Java Utilities API Reference/iu-java-jdbc-pool,edu.iu.jdbc.pool,IuPooledConnection.new ThreadFactory() {...},0,26,0,0,0,4,0,2,0,2
 IU Java Utilities API Reference/iu-java-jdbc-pool,edu.iu.jdbc.pool,IuCommonDataSource.new Object() {...},0,9,0,0,0,2,0,1,0,1
 IU Java Utilities API Reference/iu-java-jdbc-pool,edu.iu.jdbc.pool,IuPooledConnection,0,816,2,48,0,181,2,69,0,46
@@ -322,10 +322,12 @@ IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth,IuAuthenticationExc
 IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth,IuOneTimeNumber,0,6,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth,IuPrincipalIdentity,0,19,0,4,0,2,0,4,0,2
 IU Java Utilities API Reference/iu-java-auth-api,iu.auth,IuAuthSpiFactory,0,54,0,4,0,12,0,4,0,2
+IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth.session,IuSession,0,2,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth.nonce,IuOneTimeNumberConfig,0,7,0,0,0,4,0,4,0,4
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthorizationClient.AuthMethod,0,96,0,0,0,18,0,5,0,5
-IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthenticationRealm.Type,0,82,0,2,0,14,0,7,0,6
+IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthenticationRealm.Type,0,90,0,2,0,15,0,7,0,6
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthorizationClient.GrantType,0,65,0,0,0,11,0,5,0,5
+IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuSessionConfiguration,0,6,0,0,0,2,0,2,0,2
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,X500Utils,0,693,0,136,0,121,0,84,0,16
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuOpenIdProviderMetadata,0,2,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuSamlServiceProviderMetadata,0,12,0,0,0,5,0,5,0,5
@@ -333,10 +335,6 @@ IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthent
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,AuthConfig,0,293,0,22,0,69,0,29,0,18
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,AuthConfig.new Object() {...},0,86,0,6,0,13,0,7,0,4
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,AuthConfig.StorageConfig,0,15,0,0,0,6,0,1,0,1
-IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,JwtAdapter.Claim,0,26,0,0,0,6,0,3,0,3
-IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,Jwt,0,118,0,2,0,23,0,14,0,13
-IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,JwtAdapter,0,177,0,14,0,36,0,17,0,10
-IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,JwtBuilder,0,94,0,0,0,36,0,18,0,18
 IU Java Utilities API Reference/iu-java-auth-principal,iu.auth.principal,PrincipalVerifierRegistry,0,21,0,0,0,8,0,3,0,3
 IU Java Utilities API Reference/iu-java-auth-pki,iu.auth.pki,PkiPrincipal,0,408,0,42,0,86,0,31,0,10
 IU Java Utilities API Reference/iu-java-auth-pki,iu.auth.pki,CaVerifier,0,297,0,18,0,61,0,24,0,15
