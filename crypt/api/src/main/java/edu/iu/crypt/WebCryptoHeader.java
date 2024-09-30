@@ -348,6 +348,22 @@ public interface WebCryptoHeader extends WebCertificateReference {
 	}
 
 	/**
+	 * Returns the protected header from a serialized JWS or JWE.
+	 * 
+	 * <p>
+	 * This method is useful for inspecting header parameters before processing the
+	 * signed and/or encrypted payload, e.g., to determine content type or to
+	 * identify the correct decryption or verification key.
+	 * </p>
+	 * 
+	 * @param serialized serialized JWS or JWE
+	 * @return protected header
+	 */
+	public static WebCryptoHeader getProtectedHeader(String serialized) {
+		return Init.SPI.getProtectedHeader(serialized);
+	}
+
+	/**
 	 * Verifies all parameters in a {@link WebCryptoHeader}.
 	 * 
 	 * @param header {@link WebCryptoHeader}

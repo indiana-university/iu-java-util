@@ -29,30 +29,15 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.saml;
+/**
+ * Provides server side session handler support
+ * 
+ */
+module iu.util.auth.session {
+	exports iu.auth.session;
 
-@SuppressWarnings("javadoc")
-public class SamlPrincipalVerifierTest {
-
-	/*
-	 * @Test public void testVerify() throws IuAuthenticationException { final var
-	 * realm = IdGenerator.generateId(); final var verifier = new
-	 * SamlPrincipalVerifier(realm, URI.create(""));
-	 * assertTrue(verifier.isAuthoritative()); assertEquals(realm,
-	 * verifier.getRealm()); assertEquals(SamlPrincipal.class, verifier.getType());
-	 * 
-	 * final var id = mock(SamlPrincipal.class); when(id.realm()).thenReturn(realm);
-	 * verifier.verify(id, realm); }
-	 * 
-	 * @Test public void testWrongRealm() { final var realm =
-	 * IdGenerator.generateId(); final var verifier = new
-	 * SamlPrincipalVerifier(true, realm); assertTrue(verifier.isAuthoritative());
-	 * assertEquals(realm, verifier.getRealm()); assertEquals(SamlPrincipal.class,
-	 * verifier.getType());
-	 * 
-	 * final var id = mock(SamlPrincipal.class);
-	 * when(id.realm()).thenReturn(IdGenerator.generateId());
-	 * assertThrows(IllegalArgumentException.class, () -> verifier.verify(id,
-	 * realm)); }
-	 */
+	requires iu.util;
+	requires iu.util.crypt;
+	requires transitive iu.util.auth;
+	requires transitive iu.util.auth.config;
 }

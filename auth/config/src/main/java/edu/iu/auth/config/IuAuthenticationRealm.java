@@ -65,7 +65,13 @@ public interface IuAuthenticationRealm {
 		/**
 		 * SAML Service Provider.
 		 */
-		SAML("saml_sp", IuSamlServiceProviderMetadata.class);
+		SAML("saml_sp", IuSamlServiceProviderMetadata.class),
+		
+		
+		/**
+		 * Session attributes.
+		 */
+		SESSION("session", IuSessionConfiguration.class);
 
 		/**
 		 * Code used for validating config data.

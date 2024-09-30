@@ -29,75 +29,30 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.config;
+package iu.auth.session;
 
-import java.net.URI;
 import java.time.Instant;
-
-import edu.iu.auth.jwt.IuWebToken;
+import java.util.Objects;
 
 /**
- * Adds setters to {@link IuWebToken}
+ * Holds session token record
+ * 
+ * @param token             tokenized session
+ * @param inactivePurgeTime inactive purge time
  */
-public interface IuWebTokenBuilder extends IuWebToken {
+public record SessionToken(String token, Instant inactivePurgeTime) {
 
 	/**
-	 * Sets the token identifier.
+	 * constructor
 	 * 
-	 * @param jti token identifier (jti claim);
+	 * @param token             token
+	 * @param inactivePurgeTime inactive purge time
 	 */
-	void setTokenId(String jti);
-
-	/**
-	 * Sets the token issuer URI.
-	 * 
-	 * @param iss {@link URI}
-	 */
-	void setIssuer(URI iss);
-
-	/**
-	 * Sets the token audience URIs.
-	 * 
-	 * @param aud at least one {@link URI}
-	 */
-	void setAudience(Iterable<URI> aud);
-
-	/**
-	 * Sets the subject of the JWT.
-	 * 
-	 * @param sub subject (sub claim)
-	 */
-	void setSubject(String sub);
-
-	/**
-	 * Sets the time the JWT was issued.
-	 * 
-	 * @param iat issued time (iat claim)
-	 */
-	void setIssuedAt(Instant iat);
-
-	/**
-	 * Sets the time before which the JWT should not be accepted.
-	 * 
-	 * @param nbf not before time (nbf claim)
-	 */
-	void setNotBefore(Instant nbf);
-
-	/**
-	 * Sets the time after which the JWT should not be accepted.
-	 * 
-	 * @param exp token expiration time (exp claim)
-	 */
-	void setExpires(Instant exp);
-
-	/**
-	 * Sets the nonce claim.
-	 * 
-	 * @param nonce nonce claim value
-	 * @see <a href=
-	 *      "https://openid.net/specs/openid-connect-core-1_0.html#NonceNotes">OpenID
-	 *      Connection Core 1.0 Section 15.5.2</a>
-	 */
-	void setNonce(String nonce);
+	public SessionToken(String token, Instant inactivePurgeTime) {
+		Objects.requireNonNull(token, "token required");
+		Objects.requireNonNull(inactivePurgeTime, "inactivePurgeTime required");
+		this.token = token;
+		this.inactivePurgeTime = inactivePurgeTime;
+	}
 
 }

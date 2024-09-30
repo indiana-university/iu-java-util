@@ -29,76 +29,39 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.jwt;
+package iu.auth.session;
 
-import java.net.URI;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import java.time.Instant;
 
-/**
- * Represents JSON Web Token (JWT) claims.
- * 
- * @see <a href="https://datatracker.ietf.org/doc/html/rfc7519">RFC-7519 JSON
- *      Web Token (JWT)</a>
- */
-public interface IuWebToken {
+import org.junit.jupiter.api.Test;
 
-	/**
-	 * Gets the token identifier.
-	 * 
-	 * @return token identifier (jti claim);
-	 */
-	String getTokenId();
+@SuppressWarnings("javadoc")
+public class SessionTokenTest {
 
-	/**
-	 * Gets the token issuer URI.
-	 * 
-	 * @return {@link URI}
-	 */
-	URI getIssuer();
+	@Test
+	void testCreateSessionTokenWithValidParameters() {
+		String token = "testToken";
+		Instant inactivePurgeTime = Instant.now();
+		SessionToken sessionToken = new SessionToken(token, inactivePurgeTime);
 
-	/**
-	 * Gets the token audience URIs.
-	 * 
-	 * @return at least one {@link URI}
-	 */
-	Iterable<URI> getAudience();
+		assertEquals(token, sessionToken.token());
+		assertEquals(inactivePurgeTime, sessionToken.inactivePurgeTime());
+	}
 
-	/**
-	 * Gets the subject of the JWT.
-	 * 
-	 * @return subject (sub claim)
-	 */
-	String getSubject();
+	@Test
+	void testCreateSessionTokenWithNullToken() {
+		Instant inactivePurgeTime = Instant.now();
 
-	/**
-	 * Gets the time the JWT was issued.
-	 * 
-	 * @return issued time (iat claim)
-	 */
-	Instant getIssuedAt();
+		assertThrows(NullPointerException.class, () -> new SessionToken(null, inactivePurgeTime));
+	}
 
-	/**
-	 * Gets the time before which the JWT should not be accepted.
-	 * 
-	 * @return not before time (nbf claim)
-	 */
-	Instant getNotBefore();
+	@Test
+	void testCreateSessionTokenWithNullInactivePurgeTime() {
+		String token = "testToken";
 
-	/**
-	 * Gets the time after which the JWT should not be accepted.
-	 * 
-	 * @return token expiration time (exp claim)
-	 */
-	Instant getExpires();
-
-	/**
-	 * Gets the nonce claim.
-	 * 
-	 * @return nonce claim value
-	 * @see <a href=
-	 *      "https://openid.net/specs/openid-connect-core-1_0.html#NonceNotes">OpenID
-	 *      Connection Core 1.0 Section 15.5.2</a>
-	 */
-	String getNonce();
-
+		assertThrows(NullPointerException.class, () -> new SessionToken(token, null));
+	}
 }

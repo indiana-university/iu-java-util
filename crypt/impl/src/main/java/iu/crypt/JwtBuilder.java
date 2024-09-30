@@ -34,8 +34,11 @@ package iu.crypt;
 import java.net.URI;
 import java.time.Instant;
 
+import edu.iu.IdGenerator;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonBuilder;
+import edu.iu.crypt.WebToken;
 import edu.iu.crypt.WebTokenBuilder;
-import edu.iu.crypt.WebTokenClaims;
 
 /**
  * Mutable builder implementation for programmatically constructing new
@@ -45,18 +48,12 @@ import edu.iu.crypt.WebTokenClaims;
  * Modules that provide a subclass of {@link Jwt} SHOULD also provide a subclass
  * of this class that overrides {@link #build()}.
  * </p>
+ * 
+ * @param <B> Concrete builder type
  */
-public class JwtBuilder implements WebTokenBuilder {
+public class JwtBuilder<B extends JwtBuilder<B>> extends IuJsonBuilder<B> implements WebTokenBuilder {
 
-	private String type = "JWT";
-	private String tokenId;
-	private URI issuer;
-	private Iterable<URI> audience;
-	private String subject;
-	private Instant issuedAt;
-	private Instant notBefore;
-	private Instant expires;
-	private String nonce;
+	private boolean setIssuedAt;
 
 	/**
 	 * Default constructor
@@ -64,164 +61,75 @@ public class JwtBuilder implements WebTokenBuilder {
 	public JwtBuilder() {
 	}
 
-	/**
-	 * Copy constructor
-	 * 
-	 * @param token {@link WebTokenClaims} to copy from
-	 */
-	public JwtBuilder(WebTokenClaims token) {
-		tokenId = token.getTokenId();
-		issuer = token.getIssuer();
-		audience = token.getAudience();
-		subject = token.getSubject();
-		issuedAt = token.getIssuedAt();
-		notBefore = token.getNotBefore();
-		expires = token.getExpires();
-		nonce = token.getNonce();
-	}
-
-	/**
-	 * Gets the token type
-	 * 
-	 * @return token type
-	 */
-	public String getType() {
-		return type;
-	}
-
-	/**
-	 * Sets the token type
-	 * 
-	 * @param type token type
-	 */
-	public void setType(String type) {
-		this.type = type;
+	@Override
+	public B jti() {
+		return jti(IdGenerator.generateId());
 	}
 
 	@Override
-	public String getTokenId() {
-		return tokenId;
-	}
-
-	/**
-	 * Sets {@link #tokenId}
-	 * 
-	 * @param tokenId {@link #tokenId}
-	 */
-	public void setTokenId(String tokenId) {
-		this.tokenId = tokenId;
+	public B jti(String tokenId) {
+		return param("jti", tokenId);
 	}
 
 	@Override
-	public URI getIssuer() {
-		return issuer;
-	}
-
-	/**
-	 * Sets {@link #issuer}
-	 * 
-	 * @param issuer {@link #issuer}
-	 */
-	public void setIssuer(URI issuer) {
-		this.issuer = issuer;
+	public B iss(URI issuer) {
+		return param("iss", issuer, IuJsonAdapter.of(URI.class));
 	}
 
 	@Override
-	public Iterable<URI> getAudience() {
-		return audience;
-	}
-
-	/**
-	 * Sets {@link #audience}
-	 * 
-	 * @param audience {@link #audience}
-	 */
-	public void setAudience(Iterable<URI> audience) {
-		this.audience = audience;
+	public B aud(URI... audience) {
+		if (audience.length == 0)
+			throw new IllegalArgumentException("At least one audience URI is required");
+		if (audience.length == 1)
+			return param("aud", audience[0], IuJsonAdapter.of(URI.class));
+		else
+			return param("aud", audience, IuJsonAdapter.of(URI[].class));
 	}
 
 	@Override
-	public String getSubject() {
-		return subject;
+	public B sub(String subject) {
+		return param("sub", subject);
 	}
 
-	/**
-	 * Sets {@link #subject}
-	 * 
-	 * @param subject {@link #subject}
-	 */
-	public void setSubject(String subject) {
-		this.subject = subject;
+	@SuppressWarnings("unchecked")
+	@Override
+	public B iat() {
+		setIssuedAt = true;
+		return (B) this;
 	}
 
 	@Override
-	public Instant getIssuedAt() {
-		return issuedAt;
-	}
-
-	/**
-	 * Sets {@link #issuedAt}
-	 * 
-	 * @param issuedAt {@link #issuedAt}
-	 */
-	public void setIssuedAt(Instant issuedAt) {
-		this.issuedAt = issuedAt;
+	public B nbf(Instant notBefore) {
+		return param("nbf", notBefore, Jwt.NUMERIC_DATE);
 	}
 
 	@Override
-	public Instant getNotBefore() {
-		return notBefore;
-	}
-
-	/**
-	 * Sets {@link #notBefore}
-	 * 
-	 * @param notBefore {@link #notBefore}
-	 */
-	public void setNotBefore(Instant notBefore) {
-		this.notBefore = notBefore;
+	public B exp(Instant expires) {
+		return param("exp", expires, Jwt.NUMERIC_DATE);
 	}
 
 	@Override
-	public Instant getExpires() {
-		return expires;
+	public B nonce(String nonce) {
+		return param("nonce", nonce);
 	}
 
 	/**
-	 * Sets {@link #expires}
-	 * 
-	 * @param expires {@link #expires}
-	 */
-	public void setExpires(Instant expires) {
-		this.expires = expires;
-	}
-
-	@Override
-	public String getNonce() {
-		return nonce;
-	}
-
-	/**
-	 * Sets {@link #nonce}
-	 * 
-	 * @param nonce {@link #nonce}
-	 */
-	public void setNonce(String nonce) {
-		this.nonce = nonce;
-	}
-
-	/**
-	 * Completes {@link Jwt} construction.
+	 * Applies state just prior to building the token.
 	 * 
 	 * <p>
-	 * Subclasses SHOULD override this method to refine return type and support
-	 * extended claims.
+	 * Call this method when overriding {@link #build()} to apply any final state,
+	 * e.g., setting the iat claim value.
 	 * </p>
-	 * 
-	 * @return {@link Jwt}
 	 */
-	public Jwt build() {
-		return new Jwt(type, this);
+	protected void prepare() {
+		if (setIssuedAt)
+			param("iat", Instant.now(), Jwt.NUMERIC_DATE);
+	}
+
+	@Override
+	public WebToken build() {
+		prepare();
+		return new Jwt(toJson());
 	}
 
 }

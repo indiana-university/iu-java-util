@@ -44,20 +44,24 @@ import jakarta.json.JsonValue;
  * 
  * @param <T> target type
  * @param <V> value type
+ * @param <K> key type
  */
-class JsonObjectAdapter<T extends Map<String, V>, V> implements IuJsonAdapter<T> {
+class JsonObjectAdapter<T extends Map<K, V>, K, V> implements IuJsonAdapter<T> {
 
 	private final IuJsonAdapter<V> valueAdapter;
+	private final IuJsonAdapter<K> keyAdapter;
 	private final Supplier<T> factory;
 
 	/**
 	 * Constructor
 	 * 
-	 * @param itemAdapter item adapter
-	 * @param factory     supplies a new map instance
+	 * @param keyAdapter   key adapter
+	 * @param valueAdapter value adapter
+	 * @param factory      supplies a new map instance
 	 */
-	protected JsonObjectAdapter(IuJsonAdapter<V> itemAdapter, Supplier<T> factory) {
-		this.valueAdapter = itemAdapter;
+	protected JsonObjectAdapter(IuJsonAdapter<K> keyAdapter, IuJsonAdapter<V> valueAdapter, Supplier<T> factory) {
+		this.valueAdapter = valueAdapter;
+		this.keyAdapter = keyAdapter;
 		this.factory = factory;
 	}
 
@@ -69,7 +73,7 @@ class JsonObjectAdapter<T extends Map<String, V>, V> implements IuJsonAdapter<T>
 
 		final var map = factory.get();
 		for (final var e : jsonValue.asJsonObject().entrySet())
-			map.put(e.getKey(), valueAdapter.fromJson(e.getValue()));
+			map.put(fromString(e.getKey()), valueAdapter.fromJson(e.getValue()));
 		return map;
 	}
 
@@ -80,8 +84,16 @@ class JsonObjectAdapter<T extends Map<String, V>, V> implements IuJsonAdapter<T>
 
 		final var a = IuJson.object();
 		for (final var e : javaValue.entrySet())
-			a.add(e.getKey(), valueAdapter.toJson(e.getValue()));
+			a.add(toString(e.getKey()), valueAdapter.toJson(e.getValue()));
 		return a.build();
+	}
+
+	private K fromString(String key) {
+		return keyAdapter.fromJson(IuJsonAdapter.of(String.class).toJson(key));
+	}
+
+	private String toString(K key) {
+		return IuJsonAdapter.of(String.class).fromJson(keyAdapter.toJson(key));
 	}
 
 }

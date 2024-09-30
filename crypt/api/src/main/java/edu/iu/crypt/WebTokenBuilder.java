@@ -40,56 +40,70 @@ import java.time.Instant;
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc7519">RFC-7519 JSON
  *      Web Token (JWT)</a>
  */
-public interface WebTokenBuilder extends WebTokenClaims {
+public interface WebTokenBuilder {
 
 	/**
-	 * Sets the token identifier.
+	 * Generates a unique token identifier.
 	 * 
-	 * @param tokenId token identifier (jti claim);
+	 * @return this
 	 */
-	void setTokenId(String tokenId);
+	WebTokenBuilder jti();
+
+	/**
+	 * Provides a specific token identifier.
+	 * 
+	 * @param tokenId token identifier
+	 * @return this
+	 */
+	WebTokenBuilder jti(String tokenId);
 
 	/**
 	 * Sets the token issuer URI.
 	 * 
 	 * @param issuer {@link URI}
+	 * @return this
 	 */
-	void setIssuer(URI issuer);
+	WebTokenBuilder iss(URI issuer);
 
 	/**
 	 * Sets the token audience URIs.
 	 * 
 	 * @param audience at least one {@link URI}
+	 * @return this
 	 */
-	void setAudience(Iterable<URI> audience);
+	WebTokenBuilder aud(URI... audience);
 
 	/**
 	 * Sets the subject of the JWT.
 	 * 
 	 * @param subject (sub claim)
+	 * @return this
 	 */
-	void setSubject(String subject);
+	WebTokenBuilder sub(String subject);
 
 	/**
-	 * Sets the time the JWT was issued.
+	 * Indicates that {@link #build()} should set the issued at time to the current
+	 * time.
 	 * 
-	 * @param issuedAt issued time (iat claim)
+	 * @return this
 	 */
-	void setIssuedAt(Instant issuedAt);
+	WebTokenBuilder iat();
 
 	/**
 	 * Sets the time before which the JWT should not be accepted.
 	 * 
 	 * @param notBefore not before time (nbf claim)
+	 * @return this
 	 */
-	void setNotBefore(Instant notBefore);
+	WebTokenBuilder nbf(Instant notBefore);
 
 	/**
 	 * Sets the time after which the JWT should not be accepted.
 	 * 
 	 * @param expires token expiration time (exp claim)
+	 * @return this
 	 */
-	void setExpires(Instant expires);
+	WebTokenBuilder exp(Instant expires);
 
 	/**
 	 * Sets the nonce claim.
@@ -98,8 +112,9 @@ public interface WebTokenBuilder extends WebTokenClaims {
 	 * @see <a href=
 	 *      "https://openid.net/specs/openid-connect-core-1_0.html#NonceNotes">OpenID
 	 *      Connection Core 1.0 Section 15.5.2</a>
+	 * @return this
 	 */
-	void setNonce(String nonce);
+	WebTokenBuilder nonce(String nonce);
 
 	/**
 	 * Builds a {@link WebToken} instance based on provided claim values.

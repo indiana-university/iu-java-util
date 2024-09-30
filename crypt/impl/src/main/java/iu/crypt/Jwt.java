@@ -1,5 +1,5 @@
 /*
-s * Copyright © 2024 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -35,12 +35,9 @@ import java.io.StringWriter;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.Base64;
 import java.util.Map;
 import java.util.Objects;
 
-import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
@@ -49,13 +46,10 @@ import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
-import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.WebSignature;
 import edu.iu.crypt.WebSignedPayload;
 import edu.iu.crypt.WebToken;
-import edu.iu.crypt.WebTokenClaims;
 import jakarta.json.JsonObject;
-import jakarta.json.JsonObjectBuilder;
 import jakarta.json.stream.JsonGenerator;
 
 /**
@@ -72,38 +66,16 @@ public class Jwt implements WebToken {
 			v -> Instant.ofEpochSecond(IuJsonAdapter.of(Long.class).fromJson(v).longValue()),
 			v -> IuJsonAdapter.of(Long.class).toJson(v.getEpochSecond()));
 
-	private final String type;
-	private final String tokenId;
-	private final URI issuer;
-	private final URI[] audience;
-	private final String subject;
-	private final Instant issuedAt;
-	private final Instant notBefore;
-	private final Instant expires;
-	private final String nonce;
+	/** Parsed JWT claims */
+	protected final JsonObject claims;
 
 	/**
-	 * Copy constructor
+	 * JSON claims constructor
 	 * 
-	 * @param type Token type
-	 * @param copy Externally supplied {@link WebToken}
+	 * @param claims {@link JsonObject} of token claims
 	 */
-	protected Jwt(String type, WebTokenClaims copy) {
-		this.type = type;
-		tokenId = copy.getTokenId();
-		issuer = copy.getIssuer();
-
-		final var aud = copy.getAudience();
-		if (aud == null)
-			audience = null;
-		else
-			audience = IuIterable.stream(aud).toArray(URI[]::new);
-
-		subject = copy.getSubject();
-		issuedAt = IuObject.convert(copy.getIssuedAt(), a -> a.truncatedTo(ChronoUnit.SECONDS));
-		notBefore = IuObject.convert(copy.getNotBefore(), a -> a.truncatedTo(ChronoUnit.SECONDS));
-		expires = IuObject.convert(copy.getExpires(), a -> a.truncatedTo(ChronoUnit.SECONDS));
-		nonce = copy.getNonce();
+	protected Jwt(JsonObject claims) {
+		this.claims = claims;
 		validate();
 	}
 
@@ -113,9 +85,12 @@ public class Jwt implements WebToken {
 	 * 
 	 * @param jwt       {@link WebSignedPayload#compact() JWS compact serialization}
 	 * @param issuerKey Issuer public {@link WebKey}
+	 * @return {@link JsonObject} of token claims
 	 */
-	public Jwt(String jwt, WebKey issuerKey) {
-		this(jwt, issuerKey, null);
+	public static JsonObject verify(String jwt, WebKey issuerKey) {
+		final var jws = WebSignedPayload.parse(jwt);
+		jws.verify(issuerKey);
+		return IuJson.parse(IuText.utf8(jws.getPayload())).asJsonObject();
 	}
 
 	/**
@@ -127,72 +102,11 @@ public class Jwt implements WebToken {
 	 * @param issuerKey   Issuer public {@link WebKey}
 	 * @param audienceKey Audience private {@link WebKey}, ignored if the JWT is not
 	 *                    encrypted
+	 * @return {@link JsonObject} of token claims
 	 */
-	public Jwt(String jwt, WebKey issuerKey, WebKey audienceKey) {
-		final var dot = IuObject.require(//
-				Objects.requireNonNull(jwt, "Missing token").indexOf('.'), //
-				i -> i != -1, "Invalid token; must be enclosed in a compact JWS or JWE");
-
-		final var encodedProtectedHeader = jwt.substring(0, dot);
-		final var parsedProtectedHeader = IuJson
-				.parse(IuText.utf8(Base64.getUrlDecoder().decode(encodedProtectedHeader)));
-		final var jose = CryptJsonAdapters.JOSE.fromJson(parsedProtectedHeader);
-
-		final String decryptedJwt;
-		if (jose.getAlgorithm().use.equals(Use.SIGN))
-			decryptedJwt = jwt;
-		else
-			decryptedJwt = WebEncryption.parse(jwt)
-					.decryptText(Objects.requireNonNull(audienceKey, "Missing audience key for decryption"));
-
-		final var jws = WebSignedPayload.parse(decryptedJwt);
-		jws.verify(issuerKey);
-		type = jws.getSignatures().iterator().next().getHeader().getType();
-
-		final var claims = IuJson.parse(IuText.utf8(jws.getPayload())).asJsonObject();
-		tokenId = IuJson.get(claims, "jti");
-		issuer = IuJson.get(claims, "iss", IuJsonAdapter.of(URI.class));
-		audience = IuJson.get(claims, "aud", IuJsonAdapter.of(URI[].class));
-		subject = IuJson.get(claims, "sub");
-		issuedAt = IuJson.get(claims, "iat", NUMERIC_DATE);
-		notBefore = IuJson.get(claims, "nbf", NUMERIC_DATE);
-		expires = IuJson.get(claims, "exp", NUMERIC_DATE);
-		nonce = IuJson.get(claims, "nonce");
-		validate();
-	}
-
-	private JsonObject toJson() {
-		final var builder = IuJson.object();
-		addClaims(builder);
-		return builder.build();
-	}
-
-	/**
-	 * Adds token claims to a {@link JsonObjectBuilder} while serializing the JWT
-	 * signature payload.
-	 * 
-	 * <p>
-	 * Subclasses SHOULD override with method and call
-	 * {@code super.addClaims(builder)} to add extended claims.
-	 * </p>
-	 * 
-	 * @param builder {@link JsonObjectBuilder}
-	 * @see #NUMERIC_DATE For RFC-compliant handling of Instant values
-	 * @see IuJsonAdapter#of(java.lang.reflect.Type) for additional built-in types
-	 */
-	protected void addClaims(JsonObjectBuilder builder) {
-		IuJson.add(builder, "jti", tokenId);
-		IuJson.add(builder, "iss", () -> issuer, IuJsonAdapter.of(URI.class));
-		if (audience != null)
-			if (audience.length == 1)
-				IuJson.add(builder, "aud", () -> audience[0], IuJsonAdapter.of(URI.class));
-			else
-				IuJson.add(builder, "aud", () -> audience, IuJsonAdapter.of(URI[].class));
-		IuJson.add(builder, "sub", subject);
-		IuJson.add(builder, "iat", () -> issuedAt, NUMERIC_DATE);
-		IuJson.add(builder, "nbf", () -> notBefore, NUMERIC_DATE);
-		IuJson.add(builder, "exp", () -> expires, NUMERIC_DATE);
-		IuJson.add(builder, "nonce", nonce);
+	public static JsonObject decryptAndVerify(String jwt, WebKey issuerKey, WebKey audienceKey) {
+		return verify(WebEncryption.parse(jwt)
+				.decryptText(Objects.requireNonNull(audienceKey, "Missing audience key for decryption")), issuerKey);
 	}
 
 	/**
@@ -203,8 +117,8 @@ public class Jwt implements WebToken {
 	 *      JSON Web Token Section 4.1</a>
 	 */
 	protected void validate() {
-		validateNotBefore("iat", issuedAt);
-		validateNotBefore("nbf", notBefore);
+		validateNotBefore("iat", getIssuedAt());
+		validateNotBefore("nbf", getNotBefore());
 		if (isExpired())
 			throw new IllegalArgumentException("Token is expired");
 	}
@@ -220,14 +134,11 @@ public class Jwt implements WebToken {
 	public void validateClaims(URI expectedAudience, Duration ttl) {
 		validate();
 
-		Objects.requireNonNull(issuer, "Missing iss claim");
-		Objects.requireNonNull(subject, "Missing sub claim");
-
-		Objects.requireNonNull(audience, "Missing aud claim");
-		IuObject.require(audience, a -> a.length > 0, "Empty aud claim");
+		Objects.requireNonNull(getIssuer(), "Missing iss claim");
+		Objects.requireNonNull(getSubject(), "Missing sub claim");
 
 		boolean found = false;
-		for (final var aud : audience)
+		for (final var aud : Objects.requireNonNull(getAudience(), "Missing aud claim"))
 			if (aud.equals(expectedAudience)) {
 				found = true;
 				break;
@@ -235,56 +146,56 @@ public class Jwt implements WebToken {
 		if (!found)
 			throw new IllegalArgumentException("Token aud claim doesn't include " + expectedAudience);
 
-		Objects.requireNonNull(issuedAt, "Missing iat claim");
-
-		final var exp = Objects.requireNonNull(expires, "Missing exp claim");
-		if (ttl.compareTo(Duration.between(issuedAt, exp)) < 0)
+		final var issuedAt = Objects.requireNonNull(getIssuedAt(), "Missing iat claim");
+		final var expires = Objects.requireNonNull(getExpires(), "Missing exp claim");
+		if (ttl.compareTo(Duration.between(issuedAt, expires)) < 0)
 			throw new IllegalArgumentException("Token exp claim must be no more than " + ttl + " in the future");
 
 	}
 
 	@Override
 	public String getTokenId() {
-		return tokenId;
+		return IuJson.get(claims, "jti");
 	}
 
 	@Override
 	public URI getIssuer() {
-		return issuer;
+		return IuJson.get(claims, "iss", IuJsonAdapter.of(URI.class));
 	}
 
 	@Override
 	public Iterable<URI> getAudience() {
-		return audience == null ? null : IuIterable.iter(audience);
+		return IuJson.get(claims, "aud", IuJsonAdapter.of(Iterable.class, IuJsonAdapter.of(URI.class)));
 	}
 
 	@Override
 	public String getSubject() {
-		return subject;
+		return IuJson.get(claims, "sub");
 	}
 
 	@Override
 	public Instant getIssuedAt() {
-		return issuedAt;
+		return IuJson.get(claims, "iat", NUMERIC_DATE);
 	}
 
 	@Override
 	public Instant getNotBefore() {
-		return notBefore;
+		return IuJson.get(claims, "nbf", NUMERIC_DATE);
 	}
 
 	@Override
 	public Instant getExpires() {
-		return expires;
+		return IuJson.get(claims, "exp", NUMERIC_DATE);
 	}
 
 	@Override
 	public String getNonce() {
-		return nonce;
+		return IuJson.get(claims, "nonce");
 	}
 
 	@Override
 	public boolean isExpired() {
+		final var expires = getExpires();
 		return expires != null //
 				&& expires.isBefore(Instant.now().minusSeconds(15L));
 	}
@@ -292,17 +203,19 @@ public class Jwt implements WebToken {
 	/**
 	 * Signs this {@link Jwt}
 	 * 
+	 * @param type      Token type
 	 * @param algorithm {@link Algorithm}
 	 * @param issuerKey Issuer private {@link WebKey}
 	 * @return {@link WebSignedPayload#compact() JWS compact serialization}
 	 */
-	public String sign(Algorithm algorithm, WebKey issuerKey) {
-		return WebSignature.builder(algorithm).compact().key(issuerKey).type(type).sign(toJson().toString()).compact();
+	public String sign(String type, Algorithm algorithm, WebKey issuerKey) {
+		return WebSignature.builder(algorithm).compact().key(issuerKey).type(type).sign(claims.toString()).compact();
 	}
 
 	/**
 	 * Signs and encrypts this {@link Jwt}
 	 * 
+	 * @param type             Token type
 	 * @param signAlgorithm    {@link Algorithm}
 	 * @param issuerKey        Issuer private {@link WebKey}
 	 * @param encryptAlgorithm {@link Algorithm}
@@ -310,15 +223,15 @@ public class Jwt implements WebToken {
 	 * @param audienceKey      Audience public {@link WebKey}
 	 * @return {@link WebEncryption#compact() JWE compact serialization}
 	 */
-	public String signAndEncrypt(Algorithm signAlgorithm, WebKey issuerKey, Algorithm encryptAlgorithm,
+	public String signAndEncrypt(String type, Algorithm signAlgorithm, WebKey issuerKey, Algorithm encryptAlgorithm,
 			Encryption encryption, WebKey audienceKey) {
 		return WebEncryption.builder(encryption).compact().addRecipient(encryptAlgorithm).key(audienceKey)
-				.contentType(type).encrypt(sign(signAlgorithm, issuerKey)).compact();
+				.contentType(type).encrypt(sign(type, signAlgorithm, issuerKey)).compact();
 	}
 
 	@Override
 	public int hashCode() {
-		return IuObject.hashCode(tokenId, issuer, audience, subject, issuedAt, notBefore, expires, nonce);
+		return claims.hashCode();
 	}
 
 	@Override
@@ -326,14 +239,7 @@ public class Jwt implements WebToken {
 		if (!IuObject.typeCheck(this, obj))
 			return false;
 		Jwt other = (Jwt) obj;
-		return IuObject.equals(tokenId, other.tokenId) //
-				&& IuObject.equals(issuer, other.issuer) //
-				&& IuObject.equals(subject, other.subject) //
-				&& IuObject.equals(audience, other.audience) //
-				&& IuObject.equals(issuedAt, other.issuedAt) //
-				&& IuObject.equals(notBefore, other.notBefore) //
-				&& IuObject.equals(expires, other.expires) //
-				&& IuObject.equals(nonce, other.nonce);
+		return IuObject.equals(claims, other.claims);
 	}
 
 	@Override
@@ -341,7 +247,7 @@ public class Jwt implements WebToken {
 		final var writer = new StringWriter();
 		IuJson.PROVIDER.createWriterFactory(Map.of(JsonGenerator.PRETTY_PRINTING, true)) //
 				.createWriter(writer) //
-				.write(toJson());
+				.write(claims);
 		return writer.toString();
 	}
 

@@ -52,6 +52,7 @@ import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Type;
+import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.WebSignature;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
@@ -80,6 +81,10 @@ public class Jws implements WebSignature {
 		this.protectedHeader = protectedHeader;
 		this.header = header;
 		this.signature = signature;
+
+		final var algorithm = header.getAlgorithm();
+		if (!algorithm.use.equals(Use.SIGN))
+			throw new IllegalArgumentException("Signature algorithm is required");
 
 		if (protectedHeader != null)
 			for (final var protectedEntry : protectedHeader.entrySet()) {

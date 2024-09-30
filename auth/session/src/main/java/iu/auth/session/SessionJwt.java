@@ -29,9 +29,37 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.saml;
+package iu.auth.session;
 
-@SuppressWarnings("javadoc")
-public class SamlUtilTest {
+import java.util.Map;
+import java.util.Objects;
+
+import edu.iu.client.IuJson;
+import iu.crypt.Jwt;
+import jakarta.json.JsonObject;
+
+/**
+ * JWT token implementation that includes {@link Session} details.
+ */
+public class SessionJwt extends Jwt {
+
+	/**
+	 * Default constructor
+	 *
+	 * @param claims {@link JsonObject} claims
+	 */
+	public SessionJwt(JsonObject claims) {
+		super(claims);
+		Objects.requireNonNull(getDetails(), "Missing session details");
+	}
+
+	/**
+	 * Gets the session details.
+	 *
+	 * @return {@link JsonObject} session details
+	 */
+	public Map<String, Map<String, Object>> getDetails() {
+		return IuJson.get(claims, "details");
+	}
 
 }

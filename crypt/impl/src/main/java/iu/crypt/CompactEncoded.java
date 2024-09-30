@@ -31,14 +31,22 @@
  */
 package iu.crypt;
 
+import java.util.Base64;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.Objects;
+
+import edu.iu.IuObject;
+import edu.iu.IuText;
+import edu.iu.client.IuJson;
+import jakarta.json.JsonObject;
 
 /**
  * Encodes {@link byte[]} values for inclusion in JWS and JWE serialized forms
  * as unpadded Base64 URL encoded strings.
  */
-final class CompactEncoded {
+public final class CompactEncoded {
+
 	private CompactEncoded() {
 	}
 
@@ -48,7 +56,7 @@ final class CompactEncoded {
 	 * @param data compact serialized data
 	 * @return {@link Iterator} over data segments
 	 */
-	static Iterator<String> compact(final String data) {
+	public static Iterator<String> compact(final String data) {
 		return new Iterator<String>() {
 			private int start;
 			private int end = -1;
@@ -73,6 +81,21 @@ final class CompactEncoded {
 				return next;
 			}
 		};
+	}
+
+	/**
+	 * Returns the protected header of a compact serialized JWS or JWE.
+	 * 
+	 * @param compactSerialized compact serialized JWS or JWE
+	 * @return protected header
+	 */
+	public static JsonObject getProtectedHeader(String compactSerialized) {
+		final var dot = IuObject.require(//
+				Objects.requireNonNull(compactSerialized, "Missing token").indexOf('.'), //
+				i -> i != -1, "Invalid compact serialized data");
+
+		final var encodedProtectedHeader = compactSerialized.substring(0, dot);
+		return IuJson.parse(IuText.utf8(Base64.getUrlDecoder().decode(encodedProtectedHeader))).asJsonObject();
 	}
 
 }
