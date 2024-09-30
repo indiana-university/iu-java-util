@@ -37,95 +37,76 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import edu.iu.IuText;
+import edu.iu.IuObject;
 import edu.iu.auth.session.IuSession;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import edu.iu.crypt.WebEncryption;
+import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Type;
-import edu.iu.crypt.WebSignature;
-import edu.iu.crypt.WebSignedPayload;
-import jakarta.json.JsonNumber;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonValue;
+import iu.crypt.Jwt;
 
 /**
  * {@link IuSession} implementation
  */
-public class Session implements IuSession {
+class Session implements IuSession {
+	static {
+		IuObject.assertNotOpen(Session.class);
+	}
 
 	/** root protected resource URI */
-	URI resourceUri;
+	private URI resourceUri;
 
 	/** Session expiration time */
-	Instant expires;
-
-	/** Session creation time */
-	Instant issueAt;
+	private Instant expires;
 
 	/** change flag to determine when session attributes change */
-	boolean changed;
+	private boolean changed;
 
 	/** Session details */
-	Map<String, Map<String, Object>> details;
+	private Map<String, Map<String, Object>> details;
 
 	/**
-	 * JSON type adapter for timestamp values.
-	 */
-	static IuJsonAdapter<Instant> NUMERIC_DATE = IuJsonAdapter
-			.from(v -> Instant.ofEpochSecond(((JsonNumber) v).longValue()), v -> IuJson.number(v.getEpochSecond()));
-
-	/**
-	 * JSON type adapter.
-	 */
-	static IuJsonAdapter<Session> JSON = IuJsonAdapter.from(Session::new, Session::toJson);
-
-	/**
-	 * Constructor
+	 * New session constructor.
 	 * 
 	 * @param resourceUri root protected resource URI
 	 * @param expires     expiration time
 	 */
-	public Session(URI resourceUri, Duration expires) {
+	Session(URI resourceUri, Duration expires) {
 		this.resourceUri = resourceUri;
-		this.issueAt = Instant.now();
-		this.expires = issueAt.plus(expires.toMillis(), ChronoUnit.HOURS);
-		details = new HashMap<String, Map<String, Object>>();
+		this.expires = Instant.now().plus(expires).truncatedTo(ChronoUnit.SECONDS);
+		details = new LinkedHashMap<String, Map<String, Object>>();
 	}
 
 	/**
-	 * JSON constructor
+	 * Session token constructor.
 	 * 
-	 * @param value JSON value
+	 * @param token         tokenized session
+	 * @param secretKey     Secret key to use for detokenizing the session.
+	 * @param issuerKey     issuer key
+	 * @param maxSessionTtl maximum session time to live
 	 */
-	Session(JsonValue value) {
-		final var claims = value.asJsonObject();
-		issueAt = IuJson.get(claims, "iat", NUMERIC_DATE);
-		expires = IuJson.get(claims, "exp", NUMERIC_DATE);
-		details = IuJson.get(claims, "attributes");
-	}
+	Session(String token, byte[] secretKey, WebKey issuerKey, Duration maxSessionTtl) {
+		final var jose = WebCryptoHeader.getProtectedHeader(token);
+		if (!jose.getAlgorithm().equals(Algorithm.DIRECT))
+			throw new IllegalArgumentException("Invalid token key protection algorithm");
+		if (!WebCryptoHeader.Param.ENCRYPTION.get(jose).equals(Encryption.A256GCM))
+			throw new IllegalArgumentException("Invalid token content encryption algorithm");
+		if (!"session+jwt".equals(jose.getContentType()))
+			throw new IllegalArgumentException("Invalid token type");
 
-	/**
-	 * Token constructor
-	 * 
-	 * @param token     tokenized session
-	 * @param issuerKey issuer key
-	 * @param secretKey Secret key to use for detokenizing the session.
-	 */
-	Session(String token, byte[] secretKey, WebKey issuerKey) {
-		final var key = WebKey.builder(Type.RAW).key(secretKey).build();
-		final var decryptedToken = WebSignedPayload.parse(WebEncryption.parse(token).decryptText(key));
-		final var tokenPayload = decryptedToken.getPayload();
-		decryptedToken.verify(issuerKey);
-		final var data = IuJson.parse(IuText.utf8(tokenPayload)).asJsonObject();
-		String aud = Objects.requireNonNull(IuJson.get(data, "aud"));
-		details = IuJson.get(data, "attributes");
+		final var jwt = new SessionJwt(
+				Jwt.decryptAndVerify(token, issuerKey, WebKey.builder(Type.RAW).key(secretKey).build()));
+
+		resourceUri = Objects.requireNonNull(jwt.getIssuer(), "Missing token issuer");
+		jwt.validateClaims(resourceUri, maxSessionTtl);
+		IuObject.require(jwt.getSubject(), resourceUri.toString()::equals);
+		expires = Objects.requireNonNull(jwt.getExpires());
+		details = new LinkedHashMap<>(Objects.requireNonNull(jwt.getDetails()));
 	}
 
 	/**
@@ -137,13 +118,15 @@ public class Session implements IuSession {
 	 * @return tokenized session
 	 */
 	String tokenize(byte[] secretKey, WebKey issuerKey, Algorithm algorithm) {
-		return WebEncryption.builder(Encryption.A256GCM).compact() //
-				.addRecipient(Algorithm.DIRECT) //
-				.key(WebKey.builder(Type.RAW).key(secretKey).build())
-				.encrypt(WebSignature.builder(algorithm).compact().key(issuerKey) //
-						.sign(toString()).compact()) //
-				.compact();
-
+		return new SessionJwtBuilder() //
+				.iss(resourceUri) //
+				.sub(resourceUri.toString()) //
+				.aud(resourceUri) //
+				.iat() // 
+				.exp(expires) //
+				.details(details) //
+				.build().signAndEncrypt("session+jwt", algorithm, issuerKey, Algorithm.DIRECT, Encryption.A256GCM,
+						WebKey.builder(Type.RAW).key(secretKey).build());
 	}
 
 	@Override
@@ -168,10 +151,10 @@ public class Session implements IuSession {
 	/**
 	 * Sets the change flag
 	 * 
-	 * @param change set to true when session attributes change, otherwise false
+	 * @param changed set to true when session attributes change, otherwise false
 	 */
-	void setChange(boolean change) {
-		this.changed = change;
+	void setChanged(boolean changed) {
+		this.changed = changed;
 	}
 
 	/**
@@ -183,28 +166,10 @@ public class Session implements IuSession {
 		return expires;
 	}
 
-	/**
-	 * Gets session creation time
-	 * 
-	 * @return {@link Instant} session creation time
-	 */
-	Instant getIssueAt() {
-		return issueAt;
-	}
-
 	@Override
 	public String toString() {
-		return JSON.toJson(this).toString();
-	}
-
-	private JsonObject toJson() {
-		final var builder = IuJson.object()//
-				.add("iss", resourceUri.toString()) //
-				.add("aud", resourceUri.toString()); //
-		IuJson.add(builder, "iat", this::getIssueAt, NUMERIC_DATE);
-		IuJson.add(builder, "exp", this::getExpires, NUMERIC_DATE);
-		IuJson.add(builder, "details", this.details);
-		return builder.build();
+		return "Session [resourceUri=" + resourceUri + ", expires=" + expires + ", changed=" + changed + ", details="
+				+ details + "]";
 	}
 
 }

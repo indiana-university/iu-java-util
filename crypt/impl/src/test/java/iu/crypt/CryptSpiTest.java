@@ -110,6 +110,23 @@ public class CryptSpiTest extends CryptImplTestCase {
 	}
 
 	@Test
+	public void testGetCompactProtectedHeader() {
+		final var header = IuJson.object().add("alg", "ES256").build();
+		final var serialized = IdGenerator.generateId();
+		try (final var mockCompactEncoded = mockStatic(CompactEncoded.class)) {
+			mockCompactEncoded.when(() -> CompactEncoded.getProtectedHeader(serialized)).thenReturn(header);
+			assertEquals(Algorithm.ES256, spi.getProtectedHeader(serialized).getAlgorithm());
+		}
+	}
+
+	@Test
+	public void testGetSerializedProtectedHeader() {
+		final var header = IuJson.object().add("alg", "ES256").build();
+		final var serialized = IuJson.object().add("protected", header).build().toString();
+		assertEquals(Algorithm.ES256, spi.getProtectedHeader(serialized).getAlgorithm());
+	}
+
+	@Test
 	public void testGetJwkBuidler() {
 		try (final var mockJwkBuilder = mockStatic(JwkBuilder.class)) {
 			final var type = IuTest.rand(WebKey.Type.class);
@@ -247,12 +264,14 @@ public class CryptSpiTest extends CryptImplTestCase {
 	public void testVerifyJwt() {
 		final var jwt = IdGenerator.generateId();
 		final var issuerKey = mock(WebKey.class);
-		try (final var mockJwtBuilder = mockConstruction(Jwt.class, (a, ctx) -> {
-			assertSame(jwt, ctx.arguments().get(0));
-			assertSame(issuerKey, ctx.arguments().get(1));
-		})) {
+		final var claims = mock(JsonObject.class);
+		try (final var mockJwtStatic = mockStatic(Jwt.class); //
+				final var mockJwt = mockConstruction(Jwt.class, (a, ctx) -> {
+					assertSame(claims, ctx.arguments().get(0));
+				})) {
+			mockJwtStatic.when(() -> Jwt.verify(jwt, issuerKey)).thenReturn(claims);
 			final var jwtBuilder = spi.verifyJwt(jwt, issuerKey);
-			assertEquals(mockJwtBuilder.constructed().get(0), jwtBuilder);
+			assertEquals(mockJwt.constructed().get(0), jwtBuilder);
 		}
 	}
 
@@ -261,13 +280,14 @@ public class CryptSpiTest extends CryptImplTestCase {
 		final var jwt = IdGenerator.generateId();
 		final var issuerKey = mock(WebKey.class);
 		final var audienceKey = mock(WebKey.class);
-		try (final var mockJwtBuilder = mockConstruction(Jwt.class, (a, ctx) -> {
-			assertSame(jwt, ctx.arguments().get(0));
-			assertSame(issuerKey, ctx.arguments().get(1));
-			assertSame(audienceKey, ctx.arguments().get(2));
-		})) {
+		final var claims = mock(JsonObject.class);
+		try (final var mockJwtStatic = mockStatic(Jwt.class); //
+				final var mockJwt = mockConstruction(Jwt.class, (a, ctx) -> {
+					assertSame(claims, ctx.arguments().get(0));
+				})) {
+			mockJwtStatic.when(() -> Jwt.decryptAndVerify(jwt, issuerKey, audienceKey)).thenReturn(claims);
 			final var jwtBuilder = spi.decryptAndVerifyJwt(jwt, issuerKey, audienceKey);
-			assertEquals(mockJwtBuilder.constructed().get(0), jwtBuilder);
+			assertEquals(mockJwt.constructed().get(0), jwtBuilder);
 		}
 	}
 }

@@ -33,14 +33,16 @@ package edu.iu.crypt;
 
 import java.net.URI;
 import java.time.Duration;
+import java.time.Instant;
 
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Use;
 
 /**
  * Represents a JSON Web Token (JWT).
  */
-public interface WebToken extends WebTokenClaims {
+public interface WebToken {
 
 	/**
 	 * Gets a mutable {@link WebTokenBuilder} instance.
@@ -49,6 +51,16 @@ public interface WebToken extends WebTokenClaims {
 	 */
 	static WebTokenBuilder builder() {
 		return Init.SPI.getJwtBuilder();
+	}
+
+	/**
+	 * Convenience method to determine if a JWT is encrypted.
+	 * 
+	 * @param jwt JWT
+	 * @return true if the JWT is encrypted; else false
+	 */
+	static boolean isEncrypted(String jwt) {
+		return WebCryptoHeader.getProtectedHeader(jwt).getAlgorithm().use.equals(Use.ENCRYPT);
 	}
 
 	/**
@@ -73,6 +85,65 @@ public interface WebToken extends WebTokenClaims {
 	static WebToken decryptAndVerify(String jwt, WebKey issuerKey, WebKey audienceKey) {
 		return Init.SPI.decryptAndVerifyJwt(jwt, issuerKey, audienceKey);
 	}
+
+	/**
+	 * Gets the token identifier.
+	 * 
+	 * @return token identifier (jti claim);
+	 */
+	String getTokenId();
+
+	/**
+	 * Gets the token issuer URI.
+	 * 
+	 * @return {@link URI}
+	 */
+	URI getIssuer();
+
+	/**
+	 * Gets the token audience URIs.
+	 * 
+	 * @return at least one {@link URI}
+	 */
+	Iterable<URI> getAudience();
+
+	/**
+	 * Gets the subject of the JWT.
+	 * 
+	 * @return subject (sub claim)
+	 */
+	String getSubject();
+
+	/**
+	 * Gets the time the JWT was issued.
+	 * 
+	 * @return issued time (iat claim)
+	 */
+	Instant getIssuedAt();
+
+	/**
+	 * Gets the time before which the JWT should not be accepted.
+	 * 
+	 * @return not before time (nbf claim)
+	 */
+	Instant getNotBefore();
+
+	/**
+	 * Gets the time after which the JWT should not be accepted.
+	 * 
+	 * @return token expiration time (exp claim)
+	 */
+	Instant getExpires();
+
+	/**
+	 * Gets the nonce claim.
+	 * 
+	 * @return nonce claim value
+	 * @see <a href=
+	 *      "https://openid.net/specs/openid-connect-core-1_0.html#NonceNotes">OpenID
+	 *      Connection Core 1.0 Section 15.5.2</a>
+	 */
+	String getNonce();
 
 	/**
 	 * Determines if the token has expired.
@@ -107,15 +178,17 @@ public interface WebToken extends WebTokenClaims {
 	/**
 	 * Encodes all claims as a signed JSON Web Token
 	 * 
+	 * @param type      token type; e.g., "JWT"
 	 * @param algorithm signature algorithm
 	 * @param issuerKey issuer key
 	 * @return Signed JWT
 	 */
-	String sign(Algorithm algorithm, WebKey issuerKey);
+	String sign(String type, Algorithm algorithm, WebKey issuerKey);
 
 	/**
 	 * Encodes all claims as a signed and encrypted JSON Web Token.
 	 * 
+	 * @param type             token type; e.g., "JWT"
 	 * @param signAlgorithm    signature algorithm
 	 * @param issuerKey        issuer key
 	 * @param encryptAlgorithm key protection algorithm
@@ -123,7 +196,7 @@ public interface WebToken extends WebTokenClaims {
 	 * @param audienceKey      audience key
 	 * @return Signed and encrypted JWT
 	 */
-	String signAndEncrypt(Algorithm signAlgorithm, WebKey issuerKey, Algorithm encryptAlgorithm, Encryption encryption,
-			WebKey audienceKey);
+	String signAndEncrypt(String type, Algorithm signAlgorithm, WebKey issuerKey, Algorithm encryptAlgorithm,
+			Encryption encryption, WebKey audienceKey);
 
 }

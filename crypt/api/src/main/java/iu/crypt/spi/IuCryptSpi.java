@@ -37,6 +37,7 @@ import java.net.URI;
 import java.security.cert.X509Certificate;
 
 import edu.iu.crypt.PemEncoded;
+import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
@@ -173,5 +174,14 @@ public interface IuCryptSpi {
 	 * @return {@link WebToken}
 	 */
 	WebToken decryptAndVerifyJwt(String jwt, WebKey issuerKey, WebKey audienceKey);
+
+	/**
+	 * Implements {@link WebCryptoHeader#getProtectedHeader(String, WebKey, WebKey)}
+	 * 
+	 * @param serialized Serialized {@link WebSignedPayload} or
+	 *                   {@link WebEncryption}
+	 * @return {@link WebCryptoHeader}
+	 */
+	WebCryptoHeader getProtectedHeader(String serialized);
 
 }

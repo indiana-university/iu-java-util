@@ -41,6 +41,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 import edu.iu.IuDigest;
+import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.auth.config.IuSessionConfiguration;
 import edu.iu.auth.session.IuSession;
@@ -52,14 +53,16 @@ import edu.iu.crypt.WebKey.Algorithm;
 /**
  * {@link IuSessionHandler} implementation
  */
-public class SessionHandler implements IuSessionHandler {
+class SessionHandler implements IuSessionHandler {
+	static {
+		IuObject.assertNotOpen(SessionHandler.class);
+	}
 
 	/** session token storage */
 	static final Map<String, SessionToken> SESSION_TOKENS = new ConcurrentHashMap<>();
 	private static final Timer PURGE_TIMER = new Timer("session-purge", true);
 
 	private final URI resourceUri;
-	private byte[] secretKey;
 	private final IuSessionConfiguration configuration;
 	private final Supplier<WebKey> issuerKey;
 	private final Algorithm algorithm;
@@ -98,8 +101,8 @@ public class SessionHandler implements IuSessionHandler {
 	 */
 	public SessionHandler(URI resourceUri, IuSessionConfiguration configuration, Supplier<WebKey> issuerKey,
 			Algorithm algorithm) {
-		if (!resourceUri.getPath().endsWith("/"))
-			throw new IllegalArgumentException("Invalid resource Uri");
+		if (!resourceUri.getPath().startsWith("/"))
+			throw new IllegalArgumentException("Invalid resource URI");
 		this.resourceUri = resourceUri;
 		this.configuration = configuration;
 		this.issuerKey = issuerKey;
@@ -113,18 +116,19 @@ public class SessionHandler implements IuSessionHandler {
 
 	@Override
 	public IuSession activate(Iterable<HttpCookie> cookies) {
-
-		final var cookieName = getSessionCookieName(resourceUri);
+		final var cookieName = getSessionCookieName();
+		
+		byte[] secretKey = null;
 		if (cookies != null)
 			for (final var cookie : cookies)
 				if (cookie.getName().equals(cookieName)) {
-					secretKey = IuText.base64(cookie.getValue());
+					secretKey = IuText.base64Url(cookie.getValue());
 					break;
 				}
 		if (secretKey == null)
 			return null;
 
-		final var hashKey = hashKey();
+		final var hashKey = hashKey(secretKey);
 		final var storedSession = SESSION_TOKENS.get(hashKey);
 		if (storedSession == null) {
 			secretKey = null;
@@ -137,22 +141,21 @@ public class SessionHandler implements IuSessionHandler {
 			return null;
 		}
 
-		return new Session(storedSession.token(), secretKey, issuerKey.get());
+		return new Session(storedSession.token(), secretKey, issuerKey.get(), configuration.getMaxSessionTtl());
 	}
 
 	@Override
 	public String store(IuSession session, boolean strict) {
+		final var secretKey = EphemeralKeys.secret("AES", 256);
+		final var s = (Session) session;
 
-		secretKey = EphemeralKeys.secret("AES", 256);
-		Session s = (Session) session;
-
-		SESSION_TOKENS.put(hashKey(), new SessionToken(s.tokenize(secretKey, issuerKey.get(), algorithm),
-				Instant.now().plus(configuration.getInActiveTtl())));
+		SESSION_TOKENS.put(hashKey(secretKey), new SessionToken(s.tokenize(secretKey, issuerKey.get(), algorithm),
+				Instant.now().plus(configuration.getInactiveTtl())));
 
 		final var cookieBuilder = new StringBuilder();
-		cookieBuilder.append(getSessionCookieName(resourceUri));
+		cookieBuilder.append(getSessionCookieName());
 		cookieBuilder.append('=');
-		cookieBuilder.append(IuText.base64(secretKey));
+		cookieBuilder.append(IuText.base64Url(secretKey));
 		cookieBuilder.append("; Path=").append(resourceUri.getPath());
 		cookieBuilder.append("; Secure");
 		cookieBuilder.append("; HttpOnly");
@@ -164,9 +167,10 @@ public class SessionHandler implements IuSessionHandler {
 	/**
 	 * Gets the hash key to use for storing tokenized session data.
 	 * 
+	 * @param secretKey secret key data 
 	 * @return encoded digest of the session key
 	 */
-	String hashKey() {
+	static String hashKey(byte[] secretKey) {
 		return IuText.base64(IuDigest.sha256(secretKey));
 	}
 
@@ -176,7 +180,7 @@ public class SessionHandler implements IuSessionHandler {
 	 * @param resourceUri resource {@link URI}
 	 * @return session cookie name
 	 */
-	String getSessionCookieName(URI resourceUri) {
-		return "iu-sk_" + IuText.base64(IuDigest.sha256(IuText.utf8(resourceUri.toString())));
+	String getSessionCookieName() {
+		return "iu-sk_" + IuText.base64Url(IuDigest.sha256(IuText.utf8(resourceUri.toString())));
 	}
 }

@@ -29,71 +29,31 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package iu.auth.session;
 
 import java.util.Map;
-import java.util.function.Supplier;
 
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonValue;
+import iu.crypt.JwtBuilder;
 
 /**
- * Adapts to/from {@link JsonObject} values.
- * 
- * @param <T> target type
- * @param <V> value type
- * @param <K> key type
+ * Extends {@link JwtBuilder} to add claims values for use with {@link Session}.
  */
-class JsonObjectAdapter<T extends Map<K, V>, K, V> implements IuJsonAdapter<T> {
-
-	private final IuJsonAdapter<V> valueAdapter;
-	private final IuJsonAdapter<K> keyAdapter;
-	private final Supplier<T> factory;
+public class SessionJwtBuilder extends JwtBuilder<SessionJwtBuilder> {
 
 	/**
-	 * Constructor
+	 * Sets the session details.
 	 * 
-	 * @param keyAdapter   key adapter
-	 * @param valueAdapter value adapter
-	 * @param factory      supplies a new map instance
+	 * @param details {@link Map} of session details
+	 * @return this
 	 */
-	protected JsonObjectAdapter(IuJsonAdapter<K> keyAdapter, IuJsonAdapter<V> valueAdapter, Supplier<T> factory) {
-		this.valueAdapter = valueAdapter;
-		this.keyAdapter = keyAdapter;
-		this.factory = factory;
+	public SessionJwtBuilder details(Map<String, Map<String, Object>> details) {
+		return param("details", details);
 	}
 
 	@Override
-	public T fromJson(JsonValue jsonValue) {
-		if (jsonValue == null //
-				|| JsonValue.NULL.equals(jsonValue))
-			return null;
-
-		final var map = factory.get();
-		for (final var e : jsonValue.asJsonObject().entrySet())
-			map.put(fromString(e.getKey()), valueAdapter.fromJson(e.getValue()));
-		return map;
-	}
-
-	@Override
-	public JsonValue toJson(T javaValue) {
-		if (javaValue == null)
-			return JsonValue.NULL;
-
-		final var a = IuJson.object();
-		for (final var e : javaValue.entrySet())
-			a.add(toString(e.getKey()), valueAdapter.toJson(e.getValue()));
-		return a.build();
-	}
-
-	private K fromString(String key) {
-		return keyAdapter.fromJson(IuJsonAdapter.of(String.class).toJson(key));
-	}
-
-	private String toString(K key) {
-		return IuJsonAdapter.of(String.class).fromJson(keyAdapter.toJson(key));
+	public SessionJwt build() {
+		prepare();
+		return new SessionJwt(toJson());
 	}
 
 }

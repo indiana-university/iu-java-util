@@ -44,6 +44,7 @@ import edu.iu.IuException;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.PemEncoded;
+import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Builder;
 import edu.iu.crypt.WebEncryption.Encryption;
@@ -55,6 +56,7 @@ import edu.iu.crypt.WebSignedPayload;
 import edu.iu.crypt.WebToken;
 import edu.iu.crypt.WebTokenBuilder;
 import iu.crypt.spi.IuCryptSpi;
+import jakarta.json.JsonObject;
 
 /**
  * {@link IuCryptSpi} implementation.
@@ -76,6 +78,17 @@ public class CryptSpi implements IuCryptSpi {
 			CERT_CACHE.put(uri, chain = PemEncoded.getCertificateChain((Iterator<PemEncoded>) IuException
 					.unchecked(() -> IuHttp.get(uri, IuHttp.validate(PemEncoded::parse, IuHttp.OK)))));
 		return chain;
+	}
+
+	@Override
+	public WebCryptoHeader getProtectedHeader(String serialized) {
+		final JsonObject protectedHeader;
+		if (serialized.charAt(0) == '{')
+			protectedHeader = IuJson.parse(serialized).asJsonObject().getJsonObject("protected");
+		else
+			protectedHeader = CompactEncoded.getProtectedHeader(serialized);
+
+		return CryptJsonAdapters.JOSE.fromJson(protectedHeader);
 	}
 
 	@Override
@@ -135,17 +148,17 @@ public class CryptSpi implements IuCryptSpi {
 
 	@Override
 	public WebTokenBuilder getJwtBuilder() {
-		return new JwtBuilder();
+		return new JwtBuilder<>();
 	}
 
 	@Override
 	public WebToken verifyJwt(String jwt, WebKey issuerKey) {
-		return new Jwt(jwt, issuerKey);
+		return new Jwt(Jwt.verify(jwt, issuerKey));
 	}
 
 	@Override
 	public WebToken decryptAndVerifyJwt(String jwt, WebKey issuerKey, WebKey audienceKey) {
-		return new Jwt(jwt, issuerKey, audienceKey);
+		return new Jwt(Jwt.decryptAndVerify(jwt, issuerKey, audienceKey));
 	}
 
 }

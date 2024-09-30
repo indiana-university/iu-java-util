@@ -35,10 +35,15 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.util.Map;
 
+import edu.iu.IuObject;
+
 /**
  * Holds Session attributes
  */
-public class SessionDetail implements InvocationHandler {
+class SessionDetail implements InvocationHandler {
+	static {
+		IuObject.assertNotOpen(SessionDetail.class);
+	}
 
 	/** session attributes */
 	final Map<String, Object> attributes;
@@ -52,7 +57,7 @@ public class SessionDetail implements InvocationHandler {
 	 * @param attributes attributes
 	 * @param session    session
 	 */
-	public SessionDetail(Map<String, Object> attributes, Session session) {
+	SessionDetail(Map<String, Object> attributes, Session session) {
 		this.attributes = attributes;
 		this.session = session;
 	}
@@ -84,19 +89,17 @@ public class SessionDetail implements InvocationHandler {
 
 		if (methodName.startsWith("set") && args != null && args.length == 1) {
 			key = methodName.substring(3, 4).toLowerCase() + methodName.substring(4);
-			if (attributes.containsKey(key)) {
-				if (args[0] != attributes.get(key)) {
-					attributes.put(key, args[0]);
-					session.setChange(true);
-				}
-				return null;
-			}
-			attributes.put(key, args[0]);
-			session.setChange(true);
+
+			if (args[0] == null) {
+				if (attributes.remove(key) != null)
+					session.setChanged(true);
+			} else if (!IuObject.equals(args[0], attributes.put(key, args[0])))
+				session.setChanged(true);
+
 			return null;
 		}
 
-		throw new UnsupportedOperationException("Method " + methodName + " is not supported.");
+		throw new UnsupportedOperationException(method.toString());
 	}
 
 }

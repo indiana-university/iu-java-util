@@ -38,7 +38,6 @@ import java.net.URI;
 import java.security.Key;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.logging.Level;
 
 import org.jose4j.jwa.AlgorithmConstraints;
@@ -171,19 +170,19 @@ public class Jose4JTest {
 		final var expires = issuedAt.plusSeconds(600L);
 		final var jti = IdGenerator.generateId();
 
-		final var builder = new JwtBuilder();
-		builder.setTokenId(jti);
-		builder.setIssuer(issuer);
-		builder.setAudience(List.of(audience));
-		builder.setSubject(subject);
-		builder.setIssuedAt(issuedAt);
-		builder.setNotBefore(notBefore);
-		builder.setExpires(expires);
+		final var builder = new JwtBuilder<>();
+		builder.jti(jti);
+		builder.iss(issuer);
+		builder.aud(audience);
+		builder.sub(subject);
+		builder.iat();
+		builder.nbf(notBefore);
+		builder.exp(expires);
 
 		final var jwt = builder.build();
 		final var issuerKey = WebKey.builder(Type.ED25519).ephemeral(Algorithm.EDDSA).build();
 		final var audienceKey = WebKey.builder(Type.X25519).ephemeral(Algorithm.ECDH_ES).build();
-		final var serializedJwt = jwt.signAndEncrypt(Algorithm.EDDSA, issuerKey, Algorithm.ECDH_ES,
+		final var serializedJwt = jwt.signAndEncrypt("JWT", Algorithm.EDDSA, issuerKey, Algorithm.ECDH_ES,
 				Encryption.AES_128_CBC_HMAC_SHA_256, audienceKey);
 
 		final var jwtConsumer = new JwtConsumerBuilder().setRequireExpirationTime() //

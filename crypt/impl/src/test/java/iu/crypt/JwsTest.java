@@ -112,6 +112,14 @@ public class JwsTest {
 		assertDoesNotThrow(() -> serialJws.verify(key2));
 	}
 
+	@Test
+	public void testRequiresSignatureAlgorithm() {
+		final var jose = mock(Jose.class);
+		when(jose.getAlgorithm()).thenReturn(Algorithm.ECDH_ES);
+		final var error = assertThrows(IllegalArgumentException.class, () -> new Jws(null, jose, null));
+		assertEquals("Signature algorithm is required", error.getMessage());
+	}
+
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testAllTheSignatures() {

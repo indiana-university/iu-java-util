@@ -1,9 +1,43 @@
+/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package iu.auth.session;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import java.lang.reflect.Proxy;
 import java.util.HashMap;
@@ -17,7 +51,7 @@ import org.mockito.Mockito;
 class SessionDetailTest {
 	private Map<String, Object> attributes;
 	private Session session;
-	private SessionDetail sessionDetail;
+	private SessionDetailInterface sessionDetail;
 
 	interface SessionDetailInterface {
 		String getGivenName();
@@ -28,93 +62,89 @@ class SessionDetailTest {
 
 		void unsupported();
 
-		@Override
-		int hashCode();
+		void setUnsupported();
+
+		void setUnsupported(String value, String value2);
 	}
 
 	@BeforeEach
 	void setUp() {
 		attributes = new HashMap<>();
 		session = Mockito.mock(Session.class);
-		sessionDetail = new SessionDetail(attributes, session);
+		sessionDetail = (SessionDetailInterface) Proxy.newProxyInstance(SessionDetailInterface.class.getClassLoader(),
+				new Class[] { SessionDetailInterface.class }, new SessionDetail(attributes, session));
 	}
 
 	@Test
 	void testInvokeWithHashCode() throws Throwable {
-		Object proxy = Proxy.newProxyInstance(SessionDetailInterface.class.getClassLoader(),
-				new Class[] { SessionDetailInterface.class }, sessionDetail);
-		assertEquals(proxy.hashCode(),
-				sessionDetail.invoke(proxy, SessionDetailInterface.class.getMethod("hashCode"), null));
+		assertEquals(System.identityHashCode(sessionDetail), sessionDetail.hashCode());
 	}
 
 	@Test
 	void testInvokeWithEquals() throws Throwable {
-		Object proxy = Proxy.newProxyInstance(SessionDetail.class.getClassLoader(), new Class[] {}, sessionDetail);
-		assertTrue((Boolean) sessionDetail.invoke(proxy, Object.class.getMethod("equals", Object.class),
-				new Object[] { proxy }));
-		assertFalse((Boolean) sessionDetail.invoke(proxy, Object.class.getMethod("equals", Object.class),
-				new Object[] { new Object() }));
+		assertEquals(sessionDetail, sessionDetail);
+		assertNotEquals(sessionDetail, new Object());
 	}
 
 	@Test
 	void testInvokeWithToString() throws Throwable {
-		Object proxy = Proxy.newProxyInstance(SessionDetail.class.getClassLoader(), new Class[] {}, sessionDetail);
-		assertEquals(attributes.toString(), sessionDetail.invoke(proxy, Object.class.getMethod("toString"), null));
+		assertEquals(attributes.toString(), sessionDetail.toString());
 	}
 
 	@Test
 	void testInvokeWithIsMethod() throws Throwable {
 		attributes.put("notThere", true);
-		Object proxy = Proxy.newProxyInstance(SessionDetailInterface.class.getClassLoader(),
-				new Class[] { SessionDetailInterface.class }, sessionDetail);
-		assertTrue((boolean) sessionDetail.invoke(proxy, SessionDetailInterface.class.getMethod("isNotThere"), null));
+		assertTrue(sessionDetail.isNotThere());
 	}
 
 	@Test
 	void testInvokeWithGetMethod() throws Throwable {
 		attributes.put("givenName", "foo");
-		Object proxy = Proxy.newProxyInstance(SessionDetailInterface.class.getClassLoader(),
-				new Class[] { SessionDetailInterface.class }, sessionDetail);
-		assertEquals("foo", sessionDetail.invoke(proxy, SessionDetailInterface.class.getMethod("getGivenName"), null));
+		assertEquals("foo", sessionDetail.getGivenName());
 	}
 
 	@Test
 	void testInvokeWithSetMethodExistingAttribute() throws Throwable {
 		attributes.put("givenName", "foo");
-		Object proxy = Proxy.newProxyInstance(SessionDetailInterface.class.getClassLoader(),
-				new Class[] { SessionDetailInterface.class }, sessionDetail);
-		sessionDetail.invoke(proxy, SessionDetailInterface.class.getMethod("setGivenName", String.class),
-				new Object[] { "foo" });
+		sessionDetail.setGivenName("foo");
 		assertEquals("foo", attributes.get("givenName"));
-		assertFalse(session.isChanged());
+		verify(session, never()).setChanged(true);
 	}
 
 	@Test
+	void testInvokeWithSetMethodNullNoChangeAttribute() throws Throwable {
+		sessionDetail.setGivenName(null);
+		assertFalse(attributes.containsKey("givenName"));
+		verify(session, never()).setChanged(true);
+	}
+	
+	@Test
 	void testInvokeWithSetMethodForNonMatchAttributeValue() throws Throwable {
 		attributes.put("givenName", "foo");
-		Object proxy = Proxy.newProxyInstance(SessionDetailInterface.class.getClassLoader(),
-				new Class[] { SessionDetailInterface.class }, sessionDetail);
-		sessionDetail.invoke(proxy, SessionDetailInterface.class.getMethod("setGivenName", String.class),
-				new Object[] { "bar" });
+		sessionDetail.setGivenName("bar");
 		assertEquals("bar", attributes.get("givenName"));
-		Mockito.verify(session).setChange(true);
+		verify(session).setChanged(true);
 	}
 
 	@Test
 	void testInvokeWithSetMethod() throws Throwable {
-		Object proxy = Proxy.newProxyInstance(SessionDetailInterface.class.getClassLoader(),
-				new Class[] { SessionDetailInterface.class }, sessionDetail);
-		sessionDetail.invoke(proxy, SessionDetailInterface.class.getMethod("setGivenName", String.class),
-				new Object[] { "bar" });
+		sessionDetail.setGivenName("bar");
 		assertEquals("bar", attributes.get("givenName"));
-		Mockito.verify(session).setChange(true);
+		verify(session).setChanged(true);
+	}
+
+	@Test
+	void testInvokeWithSetMethodRemoveAttribute() throws Throwable {
+		attributes.put("givenName", "foo");
+		sessionDetail.setGivenName(null);
+		assertFalse(attributes.containsKey("givenName"));
+		verify(session).setChanged(true);
 	}
 
 	@Test
 	void testInvokeWithUnsupportedMethod() {
-		Object proxy = Proxy.newProxyInstance(SessionDetailInterface.class.getClassLoader(),
-				new Class[] { SessionDetailInterface.class }, sessionDetail);
-		assertThrows(UnsupportedOperationException.class,
-				() -> sessionDetail.invoke(proxy, SessionDetailInterface.class.getMethod("unsupported"), null));
+		assertThrows(UnsupportedOperationException.class, () -> sessionDetail.unsupported());
+		assertThrows(UnsupportedOperationException.class, () -> sessionDetail.setUnsupported());
+		assertThrows(UnsupportedOperationException.class, () -> sessionDetail.setUnsupported(null, null));
 	}
 }

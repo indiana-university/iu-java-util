@@ -29,73 +29,37 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.crypt;
+package iu.auth.session;
 
-import java.util.Base64;
-import java.util.Iterator;
-import java.util.NoSuchElementException;
+import java.util.Map;
 import java.util.Objects;
 
-import edu.iu.IuObject;
-import edu.iu.IuText;
 import edu.iu.client.IuJson;
+import iu.crypt.Jwt;
 import jakarta.json.JsonObject;
 
 /**
- * Encodes {@link byte[]} values for inclusion in JWS and JWE serialized forms
- * as unpadded Base64 URL encoded strings.
+ * JWT token implementation that includes {@link Session} details.
  */
-public final class CompactEncoded {
+public class SessionJwt extends Jwt {
 
-	private CompactEncoded() {
+	/**
+	 * Default constructor
+	 *
+	 * @param claims {@link JsonObject} claims
+	 */
+	public SessionJwt(JsonObject claims) {
+		super(claims);
+		Objects.requireNonNull(getDetails(), "Missing session details");
 	}
 
 	/**
-	 * Iterates over segments in a JSON compact serialized structure.
-	 * 
-	 * @param data compact serialized data
-	 * @return {@link Iterator} over data segments
+	 * Gets the session details.
+	 *
+	 * @return {@link JsonObject} session details
 	 */
-	public static Iterator<String> compact(final String data) {
-		return new Iterator<String>() {
-			private int start;
-			private int end = -1;
-
-			@Override
-			public boolean hasNext() {
-				if (end < start) {
-					end = data.indexOf('.', start);
-					if (end == -1)
-						end = data.length();
-				}
-				return start < data.length();
-			}
-
-			@Override
-			public String next() {
-				if (!hasNext())
-					throw new NoSuchElementException();
-
-				final var next = start == end ? null : data.substring(start, end);
-				start = end + 1;
-				return next;
-			}
-		};
-	}
-
-	/**
-	 * Returns the protected header of a compact serialized JWS or JWE.
-	 * 
-	 * @param compactSerialized compact serialized JWS or JWE
-	 * @return protected header
-	 */
-	public static JsonObject getProtectedHeader(String compactSerialized) {
-		final var dot = IuObject.require(//
-				Objects.requireNonNull(compactSerialized, "Missing token").indexOf('.'), //
-				i -> i != -1, "Invalid compact serialized data");
-
-		final var encodedProtectedHeader = compactSerialized.substring(0, dot);
-		return IuJson.parse(IuText.utf8(Base64.getUrlDecoder().decode(encodedProtectedHeader))).asJsonObject();
+	public Map<String, Map<String, Object>> getDetails() {
+		return IuJson.get(claims, "details");
 	}
 
 }

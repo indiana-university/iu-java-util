@@ -31,71 +31,54 @@
  */
 package iu.crypt;
 
-import java.util.Base64;
-import java.util.Iterator;
-import java.util.NoSuchElementException;
-import java.util.Objects;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import edu.iu.IuObject;
+import java.util.NoSuchElementException;
+
+import org.junit.jupiter.api.Test;
+
+import edu.iu.IdGenerator;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
-import jakarta.json.JsonObject;
 
-/**
- * Encodes {@link byte[]} values for inclusion in JWS and JWE serialized forms
- * as unpadded Base64 URL encoded strings.
- */
-public final class CompactEncoded {
+@SuppressWarnings("javadoc")
+public class CompactEncodedTest {
 
-	private CompactEncoded() {
+	@Test
+	void testCompactEncoded() {
+		final var s1 = IdGenerator.generateId();
+		final var s2 = IdGenerator.generateId();
+		final var s3 = IdGenerator.generateId();
+		final var i = s1 + ".." + s2 + "." + s3;
+
+		final var compact = CompactEncoded.compact(i);
+		assertTrue(compact.hasNext());
+		assertEquals(s1, compact.next());
+		assertTrue(compact.hasNext());
+		assertNull(compact.next());
+		assertTrue(compact.hasNext());
+		assertEquals(s2, compact.next());
+		assertTrue(compact.hasNext());
+		assertEquals(s3, compact.next());
+		assertFalse(compact.hasNext());
+		assertThrows(NoSuchElementException.class, () -> compact.next());
 	}
 
-	/**
-	 * Iterates over segments in a JSON compact serialized structure.
-	 * 
-	 * @param data compact serialized data
-	 * @return {@link Iterator} over data segments
-	 */
-	public static Iterator<String> compact(final String data) {
-		return new Iterator<String>() {
-			private int start;
-			private int end = -1;
-
-			@Override
-			public boolean hasNext() {
-				if (end < start) {
-					end = data.indexOf('.', start);
-					if (end == -1)
-						end = data.length();
-				}
-				return start < data.length();
-			}
-
-			@Override
-			public String next() {
-				if (!hasNext())
-					throw new NoSuchElementException();
-
-				final var next = start == end ? null : data.substring(start, end);
-				start = end + 1;
-				return next;
-			}
-		};
+	@Test
+	public void testProtectedHeader() {
+		final var header = IuJson.object().add(IdGenerator.generateId(), IdGenerator.generateId()).build();
+		assertEquals(header, CompactEncoded.getProtectedHeader(IuText.base64Url(IuText.utf8(header.toString())) + "."));
 	}
 
-	/**
-	 * Returns the protected header of a compact serialized JWS or JWE.
-	 * 
-	 * @param compactSerialized compact serialized JWS or JWE
-	 * @return protected header
-	 */
-	public static JsonObject getProtectedHeader(String compactSerialized) {
-		final var dot = IuObject.require(//
-				Objects.requireNonNull(compactSerialized, "Missing token").indexOf('.'), //
-				i -> i != -1, "Invalid compact serialized data");
-
-		final var encodedProtectedHeader = compactSerialized.substring(0, dot);
-		return IuJson.parse(IuText.utf8(Base64.getUrlDecoder().decode(encodedProtectedHeader))).asJsonObject();
+	@Test
+	public void testProtectedHeaderEmpty() {
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> CompactEncoded.getProtectedHeader(IdGenerator.generateId()));
+		assertEquals("Invalid compact serialized data", error.getMessage());
 	}
 
 }
