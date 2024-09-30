@@ -31,22 +31,41 @@
  */
 package iu.auth.session;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Proxy;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.logging.Level;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.crypt.EphemeralKeys;
+import edu.iu.crypt.WebCryptoHeader;
+import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.test.IuTestLogger;
+import iu.crypt.Jwt;
+import jakarta.json.JsonObject;
 
 @SuppressWarnings("javadoc")
 public class SessionTest {
@@ -56,6 +75,9 @@ public class SessionTest {
 	private Duration expires;
 
 	interface SessionDetailInterface {
+		String getFoo();
+
+		void setFoo(String foo);
 	}
 
 	@BeforeEach
@@ -66,74 +88,126 @@ public class SessionTest {
 	}
 
 	@Test
-	void testGetDetail() {
+	public void testTokenRequiresDirect() {
+		final var token = IdGenerator.generateId();
+		final var header = mock(WebCryptoHeader.class);
+		try (final var mockWebCryptoHeader = mockStatic(WebCryptoHeader.class)) {
+			mockWebCryptoHeader.when(() -> WebCryptoHeader.getProtectedHeader(token)).thenReturn(header);
+			final var error = assertThrows(IllegalArgumentException.class, () -> new Session(token, null, null, null));
+			assertEquals("Invalid token key protection algorithm", error.getMessage());
+		}
+	}
+
+	@Test
+	public void testTokenRequiresA256GCM() {
+		final var token = IdGenerator.generateId();
+		final var header = mock(WebCryptoHeader.class);
+		when(header.getAlgorithm()).thenReturn(Algorithm.DIRECT);
+		try (final var mockWebCryptoHeader = mockStatic(WebCryptoHeader.class)) {
+			mockWebCryptoHeader.when(() -> WebCryptoHeader.getProtectedHeader(token)).thenReturn(header);
+			final var error = assertThrows(IllegalArgumentException.class, () -> new Session(token, null, null, null));
+			assertEquals("Invalid token content encryption algorithm", error.getMessage());
+		}
+	}
+
+	@Test
+	public void testTokenRequiresSessionType() {
+		final var token = IdGenerator.generateId();
+		final var header = mock(WebCryptoHeader.class);
+		when(header.getAlgorithm()).thenReturn(Algorithm.DIRECT);
+		when(header.getExtendedParameter("enc")).thenReturn(Encryption.A256GCM);
+		try (final var mockWebCryptoHeader = mockStatic(WebCryptoHeader.class)) {
+			mockWebCryptoHeader.when(() -> WebCryptoHeader.getProtectedHeader(token)).thenReturn(header);
+			final var error = assertThrows(IllegalArgumentException.class, () -> new Session(token, null, null, null));
+			assertEquals("Invalid token type", error.getMessage());
+		}
+	}
+
+	@Test
+	public void testTokenConstructor() {
+		final var resourceUri = URI.create(IdGenerator.generateId());
+		final var maxSessionTtl = Duration.ofHours(1);
+		final var token = IdGenerator.generateId();
+		final var secretKey = new byte[32];
+		ThreadLocalRandom.current().nextBytes(secretKey);
+
+		final var issuerKey = mock(WebKey.class);
+		final var header = mock(WebCryptoHeader.class);
+		when(header.getAlgorithm()).thenReturn(Algorithm.DIRECT);
+		when(header.getExtendedParameter("enc")).thenReturn(Encryption.A256GCM);
+		when(header.getContentType()).thenReturn("session+jwt");
+
+		final var claims = mock(JsonObject.class);
+
+		try (final var mockWebCryptoHeader = mockStatic(WebCryptoHeader.class);
+				final var mockJwt = mockStatic(Jwt.class);
+				final var mockSessionJwt = mockConstruction(SessionJwt.class, (a, ctx) -> {
+					assertEquals(claims, ctx.arguments().get(0));
+					when(a.getIssuer()).thenReturn(resourceUri);
+					when(a.getSubject()).thenReturn(resourceUri.toString());
+					when(a.getExpires()).thenReturn(Instant.now().plus(maxSessionTtl));
+				})) {
+			mockJwt.when(() -> Jwt.decryptAndVerify(eq(token), eq(issuerKey), argThat(a -> {
+				final var audienceKey = assertInstanceOf(WebKey.class, a);
+				assertEquals(WebKey.Type.RAW, audienceKey.getType());
+				assertArrayEquals(secretKey, audienceKey.getKey());
+				return true;
+			}))).thenReturn(claims);
+			mockWebCryptoHeader.when(() -> WebCryptoHeader.getProtectedHeader(token)).thenReturn(header);
+			final var session = assertDoesNotThrow(() -> new Session(token, secretKey, issuerKey, maxSessionTtl));
+			assertTrue(Duration.between(Instant.now(), session.getExpires()).compareTo(maxSessionTtl) <= 0);
+
+			final var sessionJwt = mockSessionJwt.constructed().get(0);
+			verify(sessionJwt).validateClaims(resourceUri, maxSessionTtl);
+		}
+	}
+
+	@Test
+	public void testGetDetail() {
 		final var detail = session.getDetail(SessionDetailInterface.class);
 		assertNotNull(detail);
 		assertTrue(Proxy.isProxyClass(detail.getClass()));
 		assertInstanceOf(SessionDetail.class, Proxy.getInvocationHandler(detail));
+		final var foo = IdGenerator.generateId();
+		detail.setFoo(foo);
+		assertEquals(foo, session.getDetail(SessionDetailInterface.class).getFoo());
+		assertEquals("Session [resourceUri=" + resourceUri + ", expires=" + session.getExpires()
+				+ ", changed=true, details={iu.auth.session.SessionTest$SessionDetailInterface={foo=" + foo + "}}]",
+				session.toString());
 	}
 
-//	@Test
-//	void testDetailKeyExistsInSession() {
-//		session = new Session(resourceUri, expires);
-//
-//		Map<String, Map<String, Object>> details = new HashMap<>();
-//		Map<String, Object> detailMap = new HashMap<>();
-//
-//		detailMap.put("givenName", "John");
-//		detailMap.put("notThere", false);
-//		details.put("SessionDetailInterface", detailMap);
-//
-////		final var builder = IuJson.object() //
-////				.add("iat", 1625140800) //
-////				.add("exp", 1625227200);//
-////		IuJson.add(builder, "attributes", () -> details, IuJsonAdapter.basic());
-////
-//		Object detail = session.getDetail(SessionDetailInterface.class);
-//		assertNotNull(detail);
-//		assertEquals(SessionDetailInterface.class, detail.getClass().getInterfaces()[0]);
-//	}
-
 	@Test
-	void testChangeFlagManipulation() {
+	public void testChangeFlagManipulation() {
 		assertFalse(session.isChanged());
 		session.setChanged(true);
 		assertTrue(session.isChanged());
 	}
 
 	@Test
-	void testGetExpires() {
+	public void testGetExpires() {
 		Instant expirationTime = session.getExpires();
 		assertNotNull(expirationTime);
 		assertTrue(expirationTime.isAfter(Instant.now()));
 	}
 
-//	@Test
-//	void testGetIssueAt() {
-//		Instant creationTime = session.getIssueAt();
-//		assertNotNull(creationTime);
-//		assertTrue(creationTime.isBefore(session.expires));
-//	}
-
 	@Test
-	void testTokenizeWithValidParameters() {
-		final var secretKey = new byte[32];
+	public void testTokenizeWithValidParameters() {
+		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
+
+		final var secretKey = EphemeralKeys.secret("AES", 256);
 		final var issuerKey = WebKey.ephemeral(Algorithm.HS256);
 		final var algorithm = WebKey.Algorithm.HS256;
-		String token = session.tokenize(secretKey, issuerKey, algorithm);
+		final var detail = session.getDetail(SessionDetailInterface.class);
+		assertInstanceOf(SessionDetail.class, Proxy.getInvocationHandler(detail));
+
+		final var foo = IdGenerator.generateId();
+		detail.setFoo(foo);
+
+		final var token = session.tokenize(secretKey, issuerKey, algorithm);
 		assertNotNull(token);
+
+		final var fromToken = new Session(token, secretKey, issuerKey, expires);
+		assertEquals(foo, fromToken.getDetail(SessionDetailInterface.class).getFoo());
 	}
 
-//	@Test
-//	void testCreateSessionFromValidJsonValue() {
-//		final var builder = IuJson.object() //
-//				.add("iat", 1625140800) //
-//				.add("exp", 1625227200) //
-//				.add("attributes", IuJson.object().build()).build();
-//		session = new Session(builder);
-//		assertNotNull(session);
-//		assertEquals(Instant.ofEpochSecond(1625140800), session.getIssueAt());
-//		assertEquals(Instant.ofEpochSecond(1625227200), session.getExpires());
-//		assertTrue(session.details.isEmpty());
-//	}
 }

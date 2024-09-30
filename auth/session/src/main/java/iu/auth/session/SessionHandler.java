@@ -177,7 +177,6 @@ class SessionHandler implements IuSessionHandler {
 	/**
 	 * Gets the session cookie name for a protected resource URI
 	 * 
-	 * @param resourceUri resource {@link URI}
 	 * @return session cookie name
 	 */
 	String getSessionCookieName() {

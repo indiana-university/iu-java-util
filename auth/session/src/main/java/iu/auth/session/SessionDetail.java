@@ -46,10 +46,10 @@ class SessionDetail implements InvocationHandler {
 	}
 
 	/** session attributes */
-	final Map<String, Object> attributes;
+	private final Map<String, Object> attributes;
 
 	/** session */
-	final Session session;
+	private final Session session;
 
 	/**
 	 * Constructor

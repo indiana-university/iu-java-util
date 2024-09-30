@@ -61,7 +61,7 @@ import edu.iu.crypt.WebKey.Use;
 import edu.iu.test.IuTest;
 
 @SuppressWarnings("javadoc")
-public class WebCryptoHeaderTest {
+public class WebCryptoHeaderTest extends IuCryptApiTestCase {
 
 	private void assertParam(Param param, boolean encrypt, boolean sign, boolean required, String name, Object value,
 			Consumer<WebCryptoHeader> setup) {
@@ -223,6 +223,13 @@ public class WebCryptoHeaderTest {
 				a -> when(a.getExtendedParameter("p2c")).thenReturn(p2c));
 	}
 
+	@Test
+	public void testProtectedHeader() {
+		final var serialized = IdGenerator.generateId();
+		WebCryptoHeader.getProtectedHeader(serialized);
+		verify(Init.SPI).getProtectedHeader(serialized);
+	}
+	
 	@Test
 	public void testVerifyRequiresAlgorithm() {
 		final var header = mock(WebCryptoHeader.class);

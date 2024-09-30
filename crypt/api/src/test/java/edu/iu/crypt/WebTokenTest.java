@@ -31,12 +31,17 @@
  */
 package edu.iu.crypt;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.crypt.WebKey.Algorithm;
 
 @SuppressWarnings("javadoc")
 public class WebTokenTest extends IuCryptApiTestCase {
@@ -46,7 +51,29 @@ public class WebTokenTest extends IuCryptApiTestCase {
 		WebToken.builder();
 		verify(Init.SPI).getJwtBuilder();
 	}
-	
+
+	@Test
+	public void testIsEncrypted() {
+		final var token = IdGenerator.generateId();
+		final var header = mock(WebCryptoHeader.class);
+		when(header.getAlgorithm()).thenReturn(Algorithm.ECDH_ES);
+		try (final var mockWebCryptoHeader = mockStatic(WebCryptoHeader.class)) {
+			mockWebCryptoHeader.when(() -> WebCryptoHeader.getProtectedHeader(token)).thenReturn(header);
+			assertTrue(WebToken.isEncrypted(token));
+		}
+	}
+
+	@Test
+	public void testIsNotEncrypted() {
+		final var token = IdGenerator.generateId();
+		final var header = mock(WebCryptoHeader.class);
+		when(header.getAlgorithm()).thenReturn(Algorithm.ES256);
+		try (final var mockWebCryptoHeader = mockStatic(WebCryptoHeader.class)) {
+			mockWebCryptoHeader.when(() -> WebCryptoHeader.getProtectedHeader(token)).thenReturn(header);
+			assertFalse(WebToken.isEncrypted(token));
+		}
+	}
+
 	@Test
 	public void testDecryptAndVerify() {
 		final var jwt = IdGenerator.generateId();
@@ -55,7 +82,7 @@ public class WebTokenTest extends IuCryptApiTestCase {
 		WebToken.decryptAndVerify(jwt, issuerKey, audienceKey);
 		verify(Init.SPI).decryptAndVerifyJwt(jwt, issuerKey, audienceKey);
 	}
-	
+
 	@Test
 	public void testVerify() {
 		final var jwt = IdGenerator.generateId();
@@ -63,5 +90,5 @@ public class WebTokenTest extends IuCryptApiTestCase {
 		WebToken.verify(jwt, issuerKey);
 		verify(Init.SPI).verifyJwt(jwt, issuerKey);
 	}
-	
+
 }

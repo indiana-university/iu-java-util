@@ -176,7 +176,7 @@ public interface IuCryptSpi {
 	WebToken decryptAndVerifyJwt(String jwt, WebKey issuerKey, WebKey audienceKey);
 
 	/**
-	 * Implements {@link WebCryptoHeader#getProtectedHeader(String, WebKey, WebKey)}
+	 * Implements {@link WebCryptoHeader#getProtectedHeader(String)}
 	 * 
 	 * @param serialized Serialized {@link WebSignedPayload} or
 	 *                   {@link WebEncryption}

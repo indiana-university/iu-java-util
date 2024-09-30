@@ -92,9 +92,9 @@ class Session implements IuSession {
 	 */
 	Session(String token, byte[] secretKey, WebKey issuerKey, Duration maxSessionTtl) {
 		final var jose = WebCryptoHeader.getProtectedHeader(token);
-		if (!jose.getAlgorithm().equals(Algorithm.DIRECT))
+		if (!Algorithm.DIRECT.equals(jose.getAlgorithm()))
 			throw new IllegalArgumentException("Invalid token key protection algorithm");
-		if (!WebCryptoHeader.Param.ENCRYPTION.get(jose).equals(Encryption.A256GCM))
+		if (!Encryption.A256GCM.equals(WebCryptoHeader.Param.ENCRYPTION.get(jose)))
 			throw new IllegalArgumentException("Invalid token content encryption algorithm");
 		if (!"session+jwt".equals(jose.getContentType()))
 			throw new IllegalArgumentException("Invalid token type");
@@ -122,7 +122,7 @@ class Session implements IuSession {
 				.iss(resourceUri) //
 				.sub(resourceUri.toString()) //
 				.aud(resourceUri) //
-				.iat() // 
+				.iat() //
 				.exp(expires) //
 				.details(details) //
 				.build().signAndEncrypt("session+jwt", algorithm, issuerKey, Algorithm.DIRECT, Encryption.A256GCM,
@@ -132,8 +132,8 @@ class Session implements IuSession {
 	@Override
 	public <T> T getDetail(Class<T> type) {
 		Map<String, Object> attributes = null;
-		if (details.containsKey(type.getSimpleName())) {
-			attributes = details.get(type.getSimpleName());
+		if (details.containsKey(type.getName())) {
+			attributes = details.get(type.getName());
 		} else {
 			attributes = new HashMap<String, Object>();
 			details.put(type.getName(), attributes);

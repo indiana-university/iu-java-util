@@ -33,12 +33,22 @@ package iu.auth.session;
 
 import java.util.Map;
 
+import edu.iu.IuObject;
 import iu.crypt.JwtBuilder;
 
 /**
  * Extends {@link JwtBuilder} to add claims values for use with {@link Session}.
  */
-public class SessionJwtBuilder extends JwtBuilder<SessionJwtBuilder> {
+class SessionJwtBuilder extends JwtBuilder<SessionJwtBuilder> {
+	static {
+		IuObject.assertNotOpen(SessionJwtBuilder.class);
+	}
+
+	/**
+	 * Default constructor.
+	 */
+	SessionJwtBuilder() {
+	}
 
 	/**
 	 * Sets the session details.
@@ -46,7 +56,7 @@ public class SessionJwtBuilder extends JwtBuilder<SessionJwtBuilder> {
 	 * @param details {@link Map} of session details
 	 * @return this
 	 */
-	public SessionJwtBuilder details(Map<String, Map<String, Object>> details) {
+	SessionJwtBuilder details(Map<String, Map<String, Object>> details) {
 		return param("details", details);
 	}
 
