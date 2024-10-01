@@ -40,15 +40,12 @@ import java.util.logging.Logger;
 
 import org.opensaml.core.xml.schema.XSAny;
 import org.opensaml.core.xml.schema.XSString;
-import org.opensaml.saml.common.assertion.ValidationContext;
-import org.opensaml.saml.saml2.assertion.SAML20AssertionValidator;
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.Attribute;
 import org.opensaml.saml.saml2.core.AttributeStatement;
 import org.opensaml.saml.saml2.core.AuthnStatement;
 import org.opensaml.saml.saml2.core.Conditions;
 
-import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.auth.saml.IuSamlAssertion;
@@ -64,25 +61,31 @@ import jakarta.json.JsonValue;
  */
 final class SamlAssertion implements IuSamlAssertion {
 
-<span class="fc" id="L67">	private static final Logger LOG = Logger.getLogger(SamlServiceProvider.class.getName());</span>
+<span class="fc" id="L64">	private static final Logger LOG = Logger.getLogger(SamlAssertion.class.getName());</span>
 
 	/**
 	 * JSON type adapter for timestamp values.
 	 */
-<span class="fc" id="L72">	static IuJsonAdapter&lt;Instant&gt; NUMERIC_DATE = IuJsonAdapter</span>
-<span class="fc" id="L73">			.from(v -&gt; Instant.ofEpochSecond(((JsonNumber) v).longValue()), v -&gt; IuJson.number(v.getEpochSecond()));</span>
+<span class="fc" id="L69">	static IuJsonAdapter&lt;Instant&gt; NUMERIC_DATE = IuJsonAdapter</span>
+<span class="fc" id="L70">			.from(v -&gt; Instant.ofEpochSecond(((JsonNumber) v).longValue()), v -&gt; IuJson.number(v.getEpochSecond()));</span>
 
 	/**
 	 * JSON type adapter.
 	 */
-<span class="fc" id="L78">	static IuJsonAdapter&lt;SamlAssertion&gt; JSON = IuJsonAdapter.from(SamlAssertion::new, SamlAssertion::toJson);</span>
+<span class="fc" id="L75">	static IuJsonAdapter&lt;SamlAssertion&gt; JSON = IuJsonAdapter.from(SamlAssertion::new, SamlAssertion::toJson);</span>
 
-	private static String readStringAttribute(Attribute attribute) {
-<span class="fc" id="L81">		Object attrval = attribute.getAttributeValues().get(0);</span>
-<span class="fc bfc" id="L82" title="All 2 branches covered.">		if (attrval instanceof XSString)</span>
-<span class="fc" id="L83">			return ((XSString) attrval).getValue();</span>
+	/**
+	 * Extracts string contents from a SAML attribute
+	 * 
+	 * @param attribute attribute
+	 * @return string content
+	 */
+	static String readStringAttribute(Attribute attribute) {
+<span class="fc" id="L84">		Object attrval = attribute.getAttributeValues().get(0);</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">		if (attrval instanceof XSString)</span>
+<span class="fc" id="L86">			return ((XSString) attrval).getValue();</span>
 		else
-<span class="fc" id="L85">			return ((XSAny) attrval).getTextContent();</span>
+<span class="fc" id="L88">			return ((XSAny) attrval).getTextContent();</span>
 	}
 
 	private final Instant notBefore;
@@ -93,85 +96,81 @@ final class SamlAssertion implements IuSamlAssertion {
 	/**
 	 * Constructor.
 	 * 
-	 * @param validator         OpenSAML Assertion Validator
-	 * @param validationContext OpenSAML Validation Context
 	 * @param assertion         Unmarshalled OpenSAML Assertion
 	 */
-<span class="fc" id="L100">	SamlAssertion(SAML20AssertionValidator validator, ValidationContext validationContext, Assertion assertion) {</span>
-<span class="fc" id="L101">		IuException.unchecked(() -&gt; validator.validate(assertion, validationContext));</span>
+<span class="fc" id="L101">	SamlAssertion(Assertion assertion) {</span>
+<span class="fc" id="L102">		final Map&lt;String, String&gt; attributes = new LinkedHashMap&lt;&gt;();</span>
 
-<span class="fc" id="L103">		final Map&lt;String, String&gt; attributes = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L104">		LOG.fine(() -&gt; &quot;SAML2 assertion &quot; + XmlDomUtil.getContent(assertion.getDOM()));</span>
 
-<span class="fc" id="L105">		LOG.fine(() -&gt; &quot;SAML2 assertion &quot; + XmlDomUtil.getContent(assertion.getDOM()));</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">		for (AttributeStatement attributeStatement : assertion.getAttributeStatements())</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">			for (Attribute attribute : attributeStatement.getAttributes()) {</span>
+<span class="fc" id="L108">				final var value = readStringAttribute(attribute);</span>
 
-<span class="fc bfc" id="L107" title="All 2 branches covered.">		for (AttributeStatement attributeStatement : assertion.getAttributeStatements())</span>
-<span class="fc bfc" id="L108" title="All 2 branches covered.">			for (Attribute attribute : attributeStatement.getAttributes()) {</span>
-<span class="fc" id="L109">				final var value = readStringAttribute(attribute);</span>
-
-<span class="fc bfc" id="L111" title="All 2 branches covered.">				for (final var name : IuIterable.filter(IuIterable.iter( //</span>
-<span class="fc" id="L112">						attribute.getName(), //</span>
-<span class="fc" id="L113">						attribute.getFriendlyName() //</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">				for (final var name : IuIterable.filter(IuIterable.iter( //</span>
+<span class="fc" id="L111">						attribute.getName(), //</span>
+<span class="fc" id="L112">						attribute.getFriendlyName() //</span>
 				), Objects::nonNull))
-<span class="fc" id="L115">					IuObject.once(value, attributes.put(name, value));</span>
-<span class="fc" id="L116">			}</span>
+<span class="fc" id="L114">					IuObject.once(value, attributes.put(name, value));</span>
+<span class="fc" id="L115">			}</span>
 
-<span class="fc" id="L118">		final Conditions conditions = assertion.getConditions();</span>
-<span class="fc bfc" id="L119" title="All 2 branches covered.">		if (conditions != null) {</span>
-<span class="fc" id="L120">			notBefore = conditions.getNotBefore();</span>
-<span class="fc" id="L121">			notOnOrAfter = conditions.getNotOnOrAfter();</span>
+<span class="fc" id="L117">		final Conditions conditions = assertion.getConditions();</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">		if (conditions != null) {</span>
+<span class="fc" id="L119">			notBefore = conditions.getNotBefore();</span>
+<span class="fc" id="L120">			notOnOrAfter = conditions.getNotOnOrAfter();</span>
 		} else {
-<span class="fc" id="L123">			notBefore = null;</span>
-<span class="fc" id="L124">			notOnOrAfter = null;</span>
+<span class="fc" id="L122">			notBefore = null;</span>
+<span class="fc" id="L123">			notOnOrAfter = null;</span>
 		}
 
-<span class="fc" id="L127">		Instant authnInstant = null;</span>
-<span class="fc bfc" id="L128" title="All 2 branches covered.">		for (AuthnStatement statement : assertion.getAuthnStatements())</span>
-<span class="fc" id="L129">			authnInstant = IuObject.once(authnInstant, statement.getAuthnInstant());</span>
-<span class="fc" id="L130">		this.authnInstant = authnInstant;</span>
+<span class="fc" id="L126">		Instant authnInstant = null;</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">		for (AuthnStatement statement : assertion.getAuthnStatements())</span>
+<span class="fc" id="L128">			authnInstant = IuObject.once(authnInstant, statement.getAuthnInstant());</span>
+<span class="fc" id="L129">		this.authnInstant = authnInstant;</span>
 
-<span class="fc" id="L132">		this.attributes = Collections.unmodifiableMap(attributes);</span>
-<span class="fc" id="L133">	}</span>
+<span class="fc" id="L131">		this.attributes = Collections.unmodifiableMap(attributes);</span>
+<span class="fc" id="L132">	}</span>
 
-<span class="fc" id="L135">	private SamlAssertion(JsonValue value) {</span>
-<span class="fc" id="L136">		final var claims = value.asJsonObject();</span>
-<span class="fc" id="L137">		notBefore = IuJson.get(claims, &quot;nbf&quot;, NUMERIC_DATE);</span>
-<span class="fc" id="L138">		notOnOrAfter = IuJson.get(claims, &quot;exp&quot;, NUMERIC_DATE);</span>
-<span class="fc" id="L139">		authnInstant = IuJson.get(claims, &quot;authn_instant&quot;, NUMERIC_DATE);</span>
-<span class="fc" id="L140">		attributes = IuJson.get(claims, &quot;attribute_statement&quot;);</span>
-<span class="fc" id="L141">	}</span>
+<span class="fc" id="L134">	private SamlAssertion(JsonValue value) {</span>
+<span class="fc" id="L135">		final var claims = value.asJsonObject();</span>
+<span class="fc" id="L136">		notBefore = IuJson.get(claims, &quot;nbf&quot;, NUMERIC_DATE);</span>
+<span class="fc" id="L137">		notOnOrAfter = IuJson.get(claims, &quot;exp&quot;, NUMERIC_DATE);</span>
+<span class="fc" id="L138">		authnInstant = IuJson.get(claims, &quot;authn_instant&quot;, NUMERIC_DATE);</span>
+<span class="fc" id="L139">		attributes = IuJson.get(claims, &quot;attribute_statement&quot;);</span>
+<span class="fc" id="L140">	}</span>
 
 	@Override
 	public Instant getNotBefore() {
-<span class="fc" id="L145">		return notBefore;</span>
+<span class="fc" id="L144">		return notBefore;</span>
 	}
 
 	@Override
 	public Instant getNotOnOrAfter() {
-<span class="fc" id="L150">		return notOnOrAfter;</span>
+<span class="fc" id="L149">		return notOnOrAfter;</span>
 	}
 
 	@Override
 	public Instant getAuthnInstant() {
-<span class="fc" id="L155">		return authnInstant;</span>
+<span class="fc" id="L154">		return authnInstant;</span>
 	}
 
 	@Override
 	public Map&lt;String, String&gt; getAttributes() {
-<span class="fc" id="L160">		return attributes;</span>
+<span class="fc" id="L159">		return attributes;</span>
 	}
 
 	@Override
 	public String toString() {
-<span class="fc" id="L165">		return JSON.toJson(this).toString();</span>
+<span class="fc" id="L164">		return JSON.toJson(this).toString();</span>
 	}
 
 	private JsonObject toJson() {
-<span class="fc" id="L169">		final var builder = IuJson.object();</span>
-<span class="fc" id="L170">		IuJson.add(builder, &quot;nbf&quot;, this::getNotBefore, NUMERIC_DATE);</span>
-<span class="fc" id="L171">		IuJson.add(builder, &quot;exp&quot;, this::getNotOnOrAfter, NUMERIC_DATE);</span>
-<span class="fc" id="L172">		IuJson.add(builder, &quot;authn_instant&quot;, this::getAuthnInstant, NUMERIC_DATE);</span>
-<span class="fc" id="L173">		IuJson.add(builder, &quot;attribute_statement&quot;, this::getAttributes, IuJsonAdapter.basic());</span>
-<span class="fc" id="L174">		return builder.build();</span>
+<span class="fc" id="L168">		final var builder = IuJson.object();</span>
+<span class="fc" id="L169">		IuJson.add(builder, &quot;nbf&quot;, this::getNotBefore, NUMERIC_DATE);</span>
+<span class="fc" id="L170">		IuJson.add(builder, &quot;exp&quot;, this::getNotOnOrAfter, NUMERIC_DATE);</span>
+<span class="fc" id="L171">		IuJson.add(builder, &quot;authn_instant&quot;, this::getAuthnInstant, NUMERIC_DATE);</span>
+<span class="fc" id="L172">		IuJson.add(builder, &quot;attribute_statement&quot;, this::getAttributes, IuJsonAdapter.basic());</span>
+<span class="fc" id="L173">		return builder.build();</span>
 	}
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

@@ -61,13 +61,14 @@ import edu.iu.crypt.WebKey.Use;
 import iu.auth.config.AuthConfig;
 import iu.auth.config.IuTrustedIssuer;
 import iu.auth.principal.PrincipalVerifier;
+import iu.crypt.CryptJsonAdapters;
 
 /**
  * Verifies {@link PkiPrincipal} end-entity identities.
  */
 public final class PkiVerifier implements PrincipalVerifier&lt;PkiPrincipal&gt;, IuTrustedIssuer {
 
-<span class="fc" id="L70">	private static final Logger LOG = Logger.getLogger(PkiVerifier.class.getName());</span>
+<span class="fc" id="L71">	private static final Logger LOG = Logger.getLogger(PkiVerifier.class.getName());</span>
 
 	private final byte[] pkhash;
 	private final String realm;
@@ -78,137 +79,137 @@ public final class PkiVerifier implements PrincipalVerifier&lt;PkiPrincipal&gt;,
 	 * 
 	 * @param pkp private key principal
 	 */
-<span class="fc" id="L81">	public PkiVerifier(IuPrivateKeyPrincipal pkp) {</span>
-<span class="fc" id="L82">		final var jwk = pkp.getJwk();</span>
-<span class="fc" id="L83">		final var privateKey = jwk.getPrivateKey();</span>
-<span class="fc bfc" id="L84" title="All 2 branches covered.">		if (privateKey == null)</span>
-<span class="fc" id="L85">			pkhash = null;</span>
+<span class="fc" id="L82">	public PkiVerifier(IuPrivateKeyPrincipal pkp) {</span>
+<span class="fc" id="L83">		final var jwk = pkp.getJwk();</span>
+<span class="fc" id="L84">		final var privateKey = jwk.getPrivateKey();</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">		if (privateKey == null)</span>
+<span class="fc" id="L86">			pkhash = null;</span>
 		else
-<span class="fc" id="L87">			pkhash = IuDigest.sha256(privateKey.getEncoded());</span>
+<span class="fc" id="L88">			pkhash = IuDigest.sha256(privateKey.getEncoded());</span>
 
-<span class="fc" id="L89">		final var certificateChain = Objects.requireNonNull( //</span>
-<span class="fc" id="L90">				WebCertificateReference.verify(jwk), &quot;missing certificate chain&quot;);</span>
+<span class="fc" id="L90">		final var certificateChain = Objects.requireNonNull( //</span>
+<span class="fc" id="L91">				WebCertificateReference.verify(jwk), &quot;missing certificate chain&quot;);</span>
 
-<span class="fc" id="L92">		final var cert = certificateChain[0];</span>
-<span class="fc" id="L93">		final var keyUsage = new KeyUsage(cert);</span>
-<span class="fc bfc" id="L94" title="All 2 branches covered.">		if (!keyUsage.matches(Use.SIGN))</span>
-<span class="fc" id="L95">			throw new IllegalArgumentException(&quot;X.509 certificate not valid for digital signature&quot;);</span>
-<span class="fc" id="L96">		realm = X500Utils.getCommonName(cert.getSubjectX500Principal());</span>
-<span class="fc bfc" id="L97" title="All 2 branches covered.">		if (!realm.equals(jwk.getKeyId()))</span>
-<span class="fc" id="L98">			throw new IllegalArgumentException(&quot;Key ID doesn't match CN&quot;);</span>
+<span class="fc" id="L93">		final var cert = certificateChain[0];</span>
+<span class="fc" id="L94">		final var keyUsage = new KeyUsage(cert);</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">		if (!keyUsage.matches(Use.SIGN))</span>
+<span class="fc" id="L96">			throw new IllegalArgumentException(&quot;X.509 certificate not valid for digital signature&quot;);</span>
+<span class="fc" id="L97">		realm = X500Utils.getCommonName(cert.getSubjectX500Principal());</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">		if (!realm.equals(jwk.getKeyId()))</span>
+<span class="fc" id="L99">			throw new IllegalArgumentException(&quot;Key ID doesn't match CN&quot;);</span>
 
-<span class="fc" id="L100">		final var anchor = new TrustAnchor(cert, null);</span>
-<span class="fc" id="L101">		final var pkix = IuException.unchecked(() -&gt; new PKIXParameters(Set.of(anchor)));</span>
-<span class="fc" id="L102">		pkix.setRevocationEnabled(false);</span>
-<span class="fc" id="L103">		this.trustParams = pkix;</span>
-<span class="fc" id="L104">	}</span>
+<span class="fc" id="L101">		final var anchor = new TrustAnchor(cert, null);</span>
+<span class="fc" id="L102">		final var pkix = IuException.unchecked(() -&gt; new PKIXParameters(Set.of(anchor)));</span>
+<span class="fc" id="L103">		pkix.setRevocationEnabled(false);</span>
+<span class="fc" id="L104">		this.trustParams = pkix;</span>
+<span class="fc" id="L105">	}</span>
 
 	@Override
 	public String getAuthScheme() {
-<span class="fc" id="L108">		return null;</span>
+<span class="fc" id="L109">		return null;</span>
 	}
 
 	@Override
 	public URI getAuthenticationEndpoint() {
-<span class="fc" id="L113">		return null;</span>
+<span class="fc" id="L114">		return null;</span>
 	}
 
 	@Override
 	public Class&lt;PkiPrincipal&gt; getType() {
-<span class="fc" id="L118">		return PkiPrincipal.class;</span>
+<span class="fc" id="L119">		return PkiPrincipal.class;</span>
 	}
 
 	@Override
 	public String getRealm() {
-<span class="fc" id="L123">		return realm;</span>
+<span class="fc" id="L124">		return realm;</span>
 	}
 
 	@Override
 	public boolean isAuthoritative() {
-<span class="fc bfc" id="L128" title="All 2 branches covered.">		return pkhash != null;</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">		return pkhash != null;</span>
 	}
 
 	@Override
 	public void verify(PkiPrincipal pki) throws IuAuthenticationException {
-<span class="fc" id="L133">		final var subject = pki.getSubject();</span>
+<span class="fc" id="L134">		final var subject = pki.getSubject();</span>
 
-<span class="fc" id="L135">		final Queue&lt;WebKey&gt; keys = new ArrayDeque&lt;&gt;();</span>
-<span class="fc bfc" id="L136" title="All 2 branches covered.">		if (isAuthoritative()) {</span>
-<span class="fc" id="L137">			final var privateKeys = subject.getPrivateCredentials(WebKey.class);</span>
-<span class="fc bfc" id="L138" title="All 2 branches covered.">			if (privateKeys.isEmpty())</span>
-<span class="fc" id="L139">				throw new IllegalArgumentException(&quot;missing private key&quot;);</span>
+<span class="fc" id="L136">		final Queue&lt;WebKey&gt; keys = new ArrayDeque&lt;&gt;();</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">		if (isAuthoritative()) {</span>
+<span class="fc" id="L138">			final var privateKeys = subject.getPrivateCredentials(WebKey.class);</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">			if (privateKeys.isEmpty())</span>
+<span class="fc" id="L140">				throw new IllegalArgumentException(&quot;missing private key&quot;);</span>
 
-<span class="fc bfc" id="L141" title="All 2 branches covered.">			for (final var jwk : privateKeys)</span>
-<span class="fc bfc" id="L142" title="All 2 branches covered.">				if (!Arrays.equals(pkhash, IuDigest.sha256(jwk.getPrivateKey().getEncoded())))</span>
-<span class="fc" id="L143">					throw new IllegalArgumentException(&quot;private key mismatch&quot;);</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">			for (final var jwk : privateKeys)</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">				if (!Arrays.equals(pkhash, IuDigest.sha256(jwk.getPrivateKey().getEncoded())))</span>
+<span class="fc" id="L144">					throw new IllegalArgumentException(&quot;private key mismatch&quot;);</span>
 				else
-<span class="fc" id="L145">					keys.add(jwk);</span>
+<span class="fc" id="L146">					keys.add(jwk);</span>
 		}
 
-<span class="fc" id="L148">		final var publicKeys = subject.getPublicCredentials(WebKey.class);</span>
-<span class="fc bfc" id="L149" title="All 2 branches covered.">		if (publicKeys.isEmpty())</span>
-<span class="fc" id="L150">			throw new IllegalArgumentException(&quot;missing public key&quot;);</span>
-<span class="fc" id="L151">		keys.addAll(publicKeys);</span>
+<span class="fc" id="L149">		final var publicKeys = subject.getPublicCredentials(WebKey.class);</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">		if (publicKeys.isEmpty())</span>
+<span class="fc" id="L151">			throw new IllegalArgumentException(&quot;missing public key&quot;);</span>
+<span class="fc" id="L152">		keys.addAll(publicKeys);</span>
 
-<span class="fc" id="L153">		final Set&lt;BigInteger&gt; trusted = new HashSet&lt;&gt;();</span>
-<span class="fc bfc" id="L154" title="All 2 branches covered.">		for (final var jwk : keys) {</span>
-<span class="fc" id="L155">			final var cert = jwk.getCertificateChain()[0];</span>
-<span class="fc bfc" id="L156" title="All 2 branches covered.">			if (trusted.add(new BigInteger(IuDigest.sha256(IuException.unchecked(cert::getEncoded)))))</span>
+<span class="fc" id="L154">		final Set&lt;BigInteger&gt; trusted = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">		for (final var jwk : keys) {</span>
+<span class="fc" id="L156">			final var cert = jwk.getCertificateChain()[0];</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">			if (trusted.add(new BigInteger(IuDigest.sha256(IuException.unchecked(cert::getEncoded)))))</span>
 				try {
-<span class="fc" id="L158">					IuException.checked(CertPathValidatorException.class, () -&gt; {</span>
-<span class="fc" id="L159">						final var validator = CertPathValidator.getInstance(&quot;PKIX&quot;);</span>
-<span class="fc" id="L160">						final var certFactory = CertificateFactory.getInstance(&quot;X.509&quot;);</span>
-<span class="fc" id="L161">						final var certPath = certFactory.generateCertPath(List.of(cert));</span>
-<span class="fc" id="L162">						final var result = (PKIXCertPathValidatorResult) validator.validate(certPath, trustParams);</span>
+<span class="fc" id="L159">					IuException.checked(CertPathValidatorException.class, () -&gt; {</span>
+<span class="fc" id="L160">						final var validator = CertPathValidator.getInstance(&quot;PKIX&quot;);</span>
+<span class="fc" id="L161">						final var certFactory = CertificateFactory.getInstance(&quot;X.509&quot;);</span>
+<span class="fc" id="L162">						final var certPath = certFactory.generateCertPath(List.of(cert));</span>
+<span class="fc" id="L163">						final var result = (PKIXCertPathValidatorResult) validator.validate(certPath, trustParams);</span>
 
-<span class="fc bfc" id="L164" title="All 2 branches covered.">						LOG.info(() -&gt; &quot;pki:&quot; + (pkhash != null ? &quot;auth&quot; : &quot;verify&quot;) + &quot;:&quot; + pki.getName()</span>
-<span class="fc" id="L165">								+ &quot;; trustAnchor: &quot; + X500Utils.getCommonName(</span>
-<span class="fc" id="L166">										result.getTrustAnchor().getTrustedCert().getSubjectX500Principal()));</span>
-<span class="fc" id="L167">					});</span>
-<span class="fc" id="L168">				} catch (CertPathValidatorException e) {</span>
-<span class="fc" id="L169">					throw new IuAuthenticationException(null, e);</span>
-<span class="fc" id="L170">				}</span>
-<span class="fc" id="L171">		}</span>
-<span class="fc" id="L172">	}</span>
+<span class="fc bfc" id="L165" title="All 2 branches covered.">						LOG.info(() -&gt; &quot;pki:&quot; + (pkhash != null ? &quot;auth&quot; : &quot;verify&quot;) + &quot;:&quot; + pki.getName()</span>
+<span class="fc" id="L166">								+ &quot;; trustAnchor: &quot; + X500Utils.getCommonName(</span>
+<span class="fc" id="L167">										result.getTrustAnchor().getTrustedCert().getSubjectX500Principal()));</span>
+<span class="fc" id="L168">					});</span>
+<span class="fc" id="L169">				} catch (CertPathValidatorException e) {</span>
+<span class="fc" id="L170">					throw new IuAuthenticationException(null, e);</span>
+<span class="fc" id="L171">				}</span>
+<span class="fc" id="L172">		}</span>
+<span class="fc" id="L173">	}</span>
 
 	@Override
 	public PkiPrincipal getPrincipal(IuPrivateKeyPrincipal pkp) {
-<span class="fc" id="L176">		final var jwk = pkp.getJwk();</span>
-<span class="fc bfc" id="L177" title="All 2 branches covered.">		if (!realm.equals(pkp.getJwk().getKeyId()))</span>
-<span class="fc" id="L178">			return null;</span>
+<span class="fc" id="L177">		final var jwk = pkp.getJwk();</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">		if (!realm.equals(pkp.getJwk().getKeyId()))</span>
+<span class="fc" id="L179">			return null;</span>
 
-<span class="fc" id="L180">		final var privateKey = jwk.getPrivateKey();</span>
-<span class="fc bfc" id="L181" title="All 2 branches covered.">		if (isAuthoritative()) {</span>
-<span class="fc bfc" id="L182" title="All 4 branches covered.">			if (privateKey == null || !Arrays.equals(pkhash, IuDigest.sha256(privateKey.getEncoded()))) {</span>
-<span class="fc" id="L183">				LOG.log(Level.FINE, new IllegalArgumentException(&quot;private key mismatch&quot;), () -&gt; &quot;pki:invalid:&quot; + realm);</span>
-<span class="fc" id="L184">				return null;</span>
+<span class="fc" id="L181">		final var privateKey = jwk.getPrivateKey();</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">		if (isAuthoritative()) {</span>
+<span class="fc bfc" id="L183" title="All 4 branches covered.">			if (privateKey == null || !Arrays.equals(pkhash, IuDigest.sha256(privateKey.getEncoded()))) {</span>
+<span class="fc" id="L184">				LOG.log(Level.FINE, new IllegalArgumentException(&quot;private key mismatch&quot;), () -&gt; &quot;pki:invalid:&quot; + realm);</span>
+<span class="fc" id="L185">				return null;</span>
 			}
-<span class="fc bfc" id="L186" title="All 2 branches covered.">		} else if (privateKey != null) {</span>
-<span class="fc" id="L187">			final var wellKnownJwk = pkp.getJwk().wellKnown();</span>
-<span class="fc" id="L188">			final var wellKnownPkpBuilder = IuJson.object(IuJson.unwrap(pkp));</span>
-<span class="fc" id="L189">			wellKnownPkpBuilder.add(&quot;jwk&quot;, WebKey.JSON.toJson(wellKnownJwk));</span>
-<span class="fc" id="L190">			pkp = AuthConfig.adaptJson(IuPrivateKeyPrincipal.class).fromJson(wellKnownPkpBuilder.build());</span>
+<span class="fc bfc" id="L187" title="All 2 branches covered.">		} else if (privateKey != null) {</span>
+<span class="fc" id="L188">			final var wellKnownJwk = pkp.getJwk().wellKnown();</span>
+<span class="fc" id="L189">			final var wellKnownPkpBuilder = IuJson.object(IuJson.unwrap(pkp));</span>
+<span class="fc" id="L190">			wellKnownPkpBuilder.add(&quot;jwk&quot;, CryptJsonAdapters.WEBKEY.toJson(wellKnownJwk));</span>
+<span class="fc" id="L191">			pkp = AuthConfig.adaptJson(IuPrivateKeyPrincipal.class).fromJson(wellKnownPkpBuilder.build());</span>
 		}
 
 		try {
-<span class="fc" id="L194">			IuException.checked(CertPathValidatorException.class, () -&gt; {</span>
-<span class="fc" id="L195">				final var validator = CertPathValidator.getInstance(&quot;PKIX&quot;);</span>
-<span class="fc" id="L196">				final var certFactory = CertificateFactory.getInstance(&quot;X.509&quot;);</span>
-<span class="fc" id="L197">				final var certPath = certFactory.generateCertPath(List.of(jwk.getCertificateChain()));</span>
-<span class="fc" id="L198">				validator.validate(certPath, trustParams);</span>
-<span class="fc" id="L199">			});</span>
+<span class="fc" id="L195">			IuException.checked(CertPathValidatorException.class, () -&gt; {</span>
+<span class="fc" id="L196">				final var validator = CertPathValidator.getInstance(&quot;PKIX&quot;);</span>
+<span class="fc" id="L197">				final var certFactory = CertificateFactory.getInstance(&quot;X.509&quot;);</span>
+<span class="fc" id="L198">				final var certPath = certFactory.generateCertPath(List.of(jwk.getCertificateChain()));</span>
+<span class="fc" id="L199">				validator.validate(certPath, trustParams);</span>
+<span class="fc" id="L200">			});</span>
 
-<span class="fc" id="L201">			return new PkiPrincipal(pkp);</span>
+<span class="fc" id="L202">			return new PkiPrincipal(pkp);</span>
 
-<span class="fc" id="L203">		} catch (CertPathValidatorException e) {</span>
-<span class="fc" id="L204">			LOG.log(Level.FINE, e, () -&gt; &quot;pki:invalid:&quot; + realm);</span>
-<span class="fc" id="L205">			return null;</span>
+<span class="fc" id="L204">		} catch (CertPathValidatorException e) {</span>
+<span class="fc" id="L205">			LOG.log(Level.FINE, e, () -&gt; &quot;pki:invalid:&quot; + realm);</span>
+<span class="fc" id="L206">			return null;</span>
 		}
 	}
 
 	@Override
 	public String toString() {
-<span class="fc" id="L211">		return &quot;PkiVerifier [&quot; + realm + &quot;]&quot;;</span>
+<span class="fc" id="L212">		return &quot;PkiVerifier [&quot; + realm + &quot;]&quot;;</span>
 	}
 
 }

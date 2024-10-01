@@ -37,13 +37,12 @@ import java.io.InputStream;
 import edu.iu.IuText;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey.Algorithm;
-import iu.crypt.JwsBuilder;
 
 /**
- * Unifies algorithm support and maps from JCE encryption to JSON Web Encryption
- * (JWE).
+ * Unifies algorithm support and maps from JCE encryption to JSON Web Signature
+ * (JWS).
  * 
- * @see &lt;a href=&quot;https://datatracker.ietf.org/doc/html/rfc7516&quot;&gt;RFC 7516&lt;/a&gt;
+ * @see &lt;a href=&quot;https://datatracker.ietf.org/doc/html/rfc7515&quot;&gt;RFC 7515&lt;/a&gt;
  */
 public interface WebSignature {
 
@@ -92,7 +91,7 @@ public interface WebSignature {
 		 * @return this
 		 */
 		default WebSignedPayload sign(String text) {
-<span class="fc" id="L95">			return sign(IuText.utf8(text));</span>
+<span class="fc" id="L94">			return sign(IuText.utf8(text));</span>
 		}
 
 		/**
@@ -102,7 +101,7 @@ public interface WebSignature {
 		 * @return this
 		 */
 		default WebSignedPayload sign(byte[] data) {
-<span class="fc" id="L105">			return sign(new ByteArrayInputStream(data));</span>
+<span class="fc" id="L104">			return sign(new ByteArrayInputStream(data));</span>
 		}
 
 		/**
@@ -121,7 +120,7 @@ public interface WebSignature {
 	 * @return {@link Builder}
 	 */
 	static Builder&lt;?&gt; builder(Algorithm algorithm) {
-<span class="fc" id="L124">		return new JwsBuilder(algorithm);</span>
+<span class="fc" id="L123">		return Init.SPI.getJwsBuilder(algorithm);</span>
 	}
 
 	/**

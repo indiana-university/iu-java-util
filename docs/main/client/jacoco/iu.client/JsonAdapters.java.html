@@ -261,60 +261,65 @@ public final class JsonAdapters {
 <span class="fc" id="L261">					valueAdapter = IuJsonAdapter::of;</span>
 				else
 <span class="fc" id="L263">					valueAdapter = a -&gt; BasicJsonAdapter.INSTANCE;</span>
-
-<span class="fc bfc" id="L265" title="All 4 branches covered.">			if (erased == Map.class //</span>
+			final IuJsonAdapter keyAdapter ;	
+<span class="fc bfc" id="L265" title="All 2 branches covered.">			if (type instanceof ParameterizedType)	</span>
+<span class="fc" id="L266">					keyAdapter = valueAdapter.apply(erase(((ParameterizedType) type).getActualTypeArguments()[0]));</span>
+			else 
+<span class="fc" id="L268">				    keyAdapter = BasicJsonAdapter.INSTANCE;</span>
+					
+<span class="fc bfc" id="L270" title="All 4 branches covered.">			if (erased == Map.class //</span>
 					|| erased == LinkedHashMap.class)
-<span class="fc" id="L267">				return new JsonObjectAdapter(valueAdapter.apply(item(type)), LinkedHashMap::new);</span>
+<span class="fc" id="L272">				return new JsonObjectAdapter(keyAdapter, valueAdapter.apply(item(type)), LinkedHashMap::new);</span>
 
-<span class="fc bfc" id="L269" title="All 2 branches covered.">			if (erased == HashMap.class)</span>
-<span class="fc" id="L270">				return new JsonObjectAdapter(valueAdapter.apply(item(type)), HashMap::new);</span>
+<span class="fc bfc" id="L274" title="All 2 branches covered.">			if (erased == HashMap.class)</span>
+<span class="fc" id="L275">				return new JsonObjectAdapter(keyAdapter, valueAdapter.apply(item(type)), HashMap::new);</span>
 
-<span class="fc bfc" id="L272" title="All 6 branches covered.">			if (erased == SortedMap.class //</span>
+<span class="fc bfc" id="L277" title="All 6 branches covered.">			if (erased == SortedMap.class //</span>
 					|| erased == NavigableMap.class //
 					|| erased == TreeMap.class)
-<span class="fc" id="L275">				return new JsonObjectAdapter(valueAdapter.apply(item(type)), TreeMap::new);</span>
+<span class="fc" id="L280">				return new JsonObjectAdapter(keyAdapter, valueAdapter.apply(item(type)), TreeMap::new);</span>
 
-<span class="fc bfc" id="L277" title="All 2 branches covered.">			if (erased == Properties.class)</span>
-<span class="fc" id="L278">				return new JsonObjectAdapter(valueAdapter.apply(item(type)), Properties::new);</span>
+<span class="fc bfc" id="L282" title="All 2 branches covered.">			if (erased == Properties.class)</span>
+<span class="fc" id="L283">				return new JsonObjectAdapter(keyAdapter, valueAdapter.apply(item(type)), Properties::new);</span>
 		}
 
-<span class="fc" id="L281">		throw new UnsupportedOperationException(&quot;Unsupported for JSON conversion: &quot; + type);</span>
+<span class="fc" id="L286">		throw new UnsupportedOperationException(&quot;Unsupported for JSON conversion: &quot; + type);</span>
 	}
 
 	private static Class&lt;?&gt; erase(Type type) {
-<span class="fc bfc" id="L285" title="All 2 branches covered.">		if (type instanceof Class)</span>
-<span class="fc" id="L286">			return (Class&lt;?&gt;) type;</span>
-<span class="fc bfc" id="L287" title="All 2 branches covered.">		else if (type instanceof GenericArrayType) {</span>
-<span class="fc" id="L288">			final var component = erase(((GenericArrayType) type).getGenericComponentType());</span>
-<span class="fc" id="L289">			var array = ARRAY_TYPES.get(component);</span>
-<span class="fc bfc" id="L290" title="All 2 branches covered.">			if (array == null) {</span>
-<span class="fc" id="L291">				array = Array.newInstance(component, 0).getClass();</span>
-<span class="fc" id="L292">				synchronized (ARRAY_TYPES) {</span>
-<span class="fc" id="L293">					ARRAY_TYPES.put(component, array);</span>
-<span class="fc" id="L294">				}</span>
+<span class="fc bfc" id="L290" title="All 2 branches covered.">		if (type instanceof Class)</span>
+<span class="fc" id="L291">			return (Class&lt;?&gt;) type;</span>
+<span class="fc bfc" id="L292" title="All 2 branches covered.">		else if (type instanceof GenericArrayType) {</span>
+<span class="fc" id="L293">			final var component = erase(((GenericArrayType) type).getGenericComponentType());</span>
+<span class="fc" id="L294">			var array = ARRAY_TYPES.get(component);</span>
+<span class="fc bfc" id="L295" title="All 2 branches covered.">			if (array == null) {</span>
+<span class="fc" id="L296">				array = Array.newInstance(component, 0).getClass();</span>
+<span class="fc" id="L297">				synchronized (ARRAY_TYPES) {</span>
+<span class="fc" id="L298">					ARRAY_TYPES.put(component, array);</span>
+<span class="fc" id="L299">				}</span>
 			}
-<span class="fc" id="L296">			return array;</span>
-<span class="fc bfc" id="L297" title="All 2 branches covered.">		} else if (type instanceof ParameterizedType)</span>
-<span class="fc" id="L298">			return erase(((ParameterizedType) type).getRawType());</span>
-<span class="fc bfc" id="L299" title="All 2 branches covered.">		else if (type instanceof TypeVariable)</span>
-<span class="fc" id="L300">			return erase(((TypeVariable&lt;?&gt;) type).getBounds()[0]);</span>
+<span class="fc" id="L301">			return array;</span>
+<span class="fc bfc" id="L302" title="All 2 branches covered.">		} else if (type instanceof ParameterizedType)</span>
+<span class="fc" id="L303">			return erase(((ParameterizedType) type).getRawType());</span>
+<span class="fc bfc" id="L304" title="All 2 branches covered.">		else if (type instanceof TypeVariable)</span>
+<span class="fc" id="L305">			return erase(((TypeVariable&lt;?&gt;) type).getBounds()[0]);</span>
 		else // if (type instanceof WildcardType)
-<span class="fc" id="L302">			return erase(((WildcardType) type).getUpperBounds()[0]);</span>
+<span class="fc" id="L307">			return erase(((WildcardType) type).getUpperBounds()[0]);</span>
 	}
 
 	private static Class&lt;?&gt; item(Type type) {
-<span class="fc bfc" id="L306" title="All 2 branches covered.">		if (type instanceof Class) {</span>
-<span class="fc" id="L307">			return ((Class&lt;?&gt;) type).getComponentType();</span>
-<span class="fc bfc" id="L308" title="All 2 branches covered.">		} else if (type instanceof GenericArrayType)</span>
-<span class="fc" id="L309">			return erase(((GenericArrayType) type).getGenericComponentType());</span>
+<span class="fc bfc" id="L311" title="All 2 branches covered.">		if (type instanceof Class) {</span>
+<span class="fc" id="L312">			return ((Class&lt;?&gt;) type).getComponentType();</span>
+<span class="fc bfc" id="L313" title="All 2 branches covered.">		} else if (type instanceof GenericArrayType)</span>
+<span class="fc" id="L314">			return erase(((GenericArrayType) type).getGenericComponentType());</span>
 		else {
 			// assumes erase() was invoked and returned a supported type first
-<span class="fc" id="L312">			final var p = (ParameterizedType) type;</span>
-<span class="fc" id="L313">			final var raw = erase(p);</span>
-<span class="fc bfc" id="L314" title="All 2 branches covered.">			if (Map.class.isAssignableFrom(raw))</span>
-<span class="fc" id="L315">				return erase(p.getActualTypeArguments()[1]);</span>
+<span class="fc" id="L317">			final var p = (ParameterizedType) type;</span>
+<span class="fc" id="L318">			final var raw = erase(p);</span>
+<span class="fc bfc" id="L319" title="All 2 branches covered.">			if (Map.class.isAssignableFrom(raw))</span>
+<span class="fc" id="L320">				return erase(p.getActualTypeArguments()[1]);</span>
 			else
-<span class="fc" id="L317">				return erase(p.getActualTypeArguments()[0]);</span>
+<span class="fc" id="L322">				return erase(p.getActualTypeArguments()[0]);</span>
 		}
 	}
 
