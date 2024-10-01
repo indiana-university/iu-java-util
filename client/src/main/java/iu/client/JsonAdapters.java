@@ -261,21 +261,26 @@ public final class JsonAdapters {
 					valueAdapter = IuJsonAdapter::of;
 				else
 					valueAdapter = a -> BasicJsonAdapter.INSTANCE;
-
+			final IuJsonAdapter keyAdapter ;	
+			if (type instanceof ParameterizedType)	
+					keyAdapter = valueAdapter.apply(erase(((ParameterizedType) type).getActualTypeArguments()[0]));
+			else 
+				    keyAdapter = BasicJsonAdapter.INSTANCE;
+					
 			if (erased == Map.class //
 					|| erased == LinkedHashMap.class)
-				return new JsonObjectAdapter(valueAdapter.apply(item(type)), LinkedHashMap::new);
+				return new JsonObjectAdapter(keyAdapter, valueAdapter.apply(item(type)), LinkedHashMap::new);
 
 			if (erased == HashMap.class)
-				return new JsonObjectAdapter(valueAdapter.apply(item(type)), HashMap::new);
+				return new JsonObjectAdapter(keyAdapter, valueAdapter.apply(item(type)), HashMap::new);
 
 			if (erased == SortedMap.class //
 					|| erased == NavigableMap.class //
 					|| erased == TreeMap.class)
-				return new JsonObjectAdapter(valueAdapter.apply(item(type)), TreeMap::new);
+				return new JsonObjectAdapter(keyAdapter, valueAdapter.apply(item(type)), TreeMap::new);
 
 			if (erased == Properties.class)
-				return new JsonObjectAdapter(valueAdapter.apply(item(type)), Properties::new);
+				return new JsonObjectAdapter(keyAdapter, valueAdapter.apply(item(type)), Properties::new);
 		}
 
 		throw new UnsupportedOperationException("Unsupported for JSON conversion: " + type);

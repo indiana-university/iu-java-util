@@ -7,41 +7,48 @@
 	<parent>
 		<groupId>edu.iu.util</groupId>
 		<artifactId>iu-java-parent</artifactId>
-		<version>7.0.3</version>
+		<version>7.0.4-SNAPSHOT</version>
 	</parent>
 
-	<artifactId>iu-java-crypt</artifactId>
-	<name>IU Web Cryptography Utilities</name>
+	<artifactId>iu-java-crypt-parent</artifactId>
+	<packaging>pom</packaging>
 
-	<dependencies>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-base</artifactId>
-			<version>${project.version}</version>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-client</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-test</artifactId>
-			<version>${project.version}</version>
-			<scope>test</scope>
-		</dependency>
-	</dependencies>
+	<name>IU Web Cryptography Parent POM</name>
+
+	<profiles>
+		<profile>
+			<id>default</id>
+			<activation>
+				<activeByDefault>true</activeByDefault>
+			</activation>
+			<modules>
+				<module>api</module>
+				<module>impl</module>
+			</modules>
+		</profile>
+	</profiles>
 
 	<build>
-		<plugins>
-			<plugin>
-				<artifactId>maven-compiler-plugin</artifactId>
-				<configuration>
-					<release>11</release>
-				</configuration>
-			</plugin>
-		</plugins>
+		<pluginManagement>
+			<plugins>
+				<plugin>
+					<artifactId>maven-compiler-plugin</artifactId>
+					<configuration>
+						<release>11</release>
+					</configuration>
+				</plugin>
+				<plugin>
+					<artifactId>maven-jar-plugin</artifactId>
+					<configuration>
+						<archive>
+							<manifest>
+								<addExtensions>false</addExtensions>
+							</manifest>
+						</archive>
+					</configuration>
+				</plugin>
+			</plugins>
+		</pluginManagement>
 	</build>
-		
+
 </project>

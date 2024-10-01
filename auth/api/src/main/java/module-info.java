@@ -41,15 +41,13 @@
 module iu.util.auth {
 	exports edu.iu.auth;
 
-	exports edu.iu.auth.jwt;
-
-	opens edu.iu.auth.jwt;
-
 	exports edu.iu.auth.nonce;
 
 	opens edu.iu.auth.nonce;
 
 	exports edu.iu.auth.saml;
+
+	exports edu.iu.auth.session;
 
 	exports edu.iu.auth.spi;
 

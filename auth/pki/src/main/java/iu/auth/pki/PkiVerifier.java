@@ -61,6 +61,7 @@ import edu.iu.crypt.WebKey.Use;
 import iu.auth.config.AuthConfig;
 import iu.auth.config.IuTrustedIssuer;
 import iu.auth.principal.PrincipalVerifier;
+import iu.crypt.CryptJsonAdapters;
 
 /**
  * Verifies {@link PkiPrincipal} end-entity identities.
@@ -186,7 +187,7 @@ public final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuTru
 		} else if (privateKey != null) {
 			final var wellKnownJwk = pkp.getJwk().wellKnown();
 			final var wellKnownPkpBuilder = IuJson.object(IuJson.unwrap(pkp));
-			wellKnownPkpBuilder.add("jwk", WebKey.JSON.toJson(wellKnownJwk));
+			wellKnownPkpBuilder.add("jwk", CryptJsonAdapters.WEBKEY.toJson(wellKnownJwk));
 			pkp = AuthConfig.adaptJson(IuPrivateKeyPrincipal.class).fromJson(wellKnownPkpBuilder.build());
 		}
 

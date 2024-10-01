@@ -37,6 +37,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import org.opensaml.core.config.ConfigurationService;
 import org.opensaml.core.criterion.EntityIdCriterion;
@@ -53,6 +54,7 @@ import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.KeyDescriptor;
 import org.opensaml.saml.saml2.metadata.RequestedAttribute;
 import org.opensaml.saml.saml2.metadata.SPSSODescriptor;
+import org.opensaml.saml.security.impl.SAMLSignatureProfileValidator;
 import org.opensaml.security.credential.Credential;
 import org.opensaml.security.credential.CredentialResolver;
 import org.opensaml.security.credential.impl.StaticCredentialResolver;
@@ -63,6 +65,7 @@ import org.opensaml.xmlsec.keyinfo.impl.StaticKeyInfoCredentialResolver;
 import org.opensaml.xmlsec.signature.KeyInfo;
 import org.opensaml.xmlsec.signature.X509Certificate;
 import org.opensaml.xmlsec.signature.X509Data;
+import org.opensaml.xmlsec.signature.support.impl.ExplicitKeySignatureTrustEngine;
 import org.w3c.dom.Element;
 
 import edu.iu.IdGenerator;
@@ -137,14 +140,14 @@ final class SamlBuilder {
 	/** allowed list of assertion consumer {@link URI} */
 	private final Iterable<URI> acsUris;
 
-	/** allowed list of application entry point {@link URI} */
-	final Iterable<URI> entryPointUris;
-
 	/** IDP redirect URI for single sign-on */
 	final URI singleSignOnLocation;
 
 	/** unique service provider id that register with identity provider */
 	final String serviceProviderEntityId;
+
+	/** set of valid identity provider entity IDs */
+	final Set<String> identityProviderEntityIds;
 
 	/** X.509 certificate */
 	final java.security.cert.X509Certificate certificate;
@@ -179,19 +182,20 @@ final class SamlBuilder {
 		this.metadataUris = Objects.requireNonNull(config.getMetadataUris(), "metadataUris");
 		this.metadataTtl = Objects.requireNonNull(config.getMetadataTtl(), "metadataTtl");
 		this.acsUris = Objects.requireNonNull(config.getAcsUris(), "acsUris");
-		this.entryPointUris = Objects.requireNonNull(config.getEntryPointUris(), "entryPointUris");
 		this.certificate = Objects.requireNonNull(config.getIdentity().getJwk().getCertificateChain()[0],
 				"certificate");
 		this.verifyAlg = Objects.requireNonNull(config.getIdentity().getAlg());
 		this.serviceProviderEntityId = Objects.requireNonNull(config.getServiceProviderEntityId(),
 				"serviceProviderEntityId");
-
+		this.identityProviderEntityIds = Objects.requireNonNull(config.getIdentityProviderEntityIds(),
+				"identityProviderEntityIds");
 		this.allowedRange = config.getAllowedRange();
 		this.failOnAddressMismatch = config.isFailOnAddressMismatch();
 		this.subjectConfirmationValidator = new IuSubjectConfirmationValidator(allowedRange, failOnAddressMismatch);
 
 		final var resolver = getMetadata();
-		final var entityId = Objects.requireNonNull(config.getIdentityProviderEntityId(), "identityProviderEntityId");
+		final var entityId = Objects.requireNonNull(config.getIdentityProviderEntityIds(), "identityProviderEntityId")
+				.iterator().next();
 		final var entity = Objects.requireNonNull(
 				IuException.unchecked(() -> resolver.resolveSingle(new CriteriaSet(new EntityIdCriterion(entityId)))),
 				"Entity " + entityId + " not found in SAML metadata");
@@ -279,6 +283,61 @@ final class SamlBuilder {
 
 		this.lastMetadataUpdate = Instant.now();
 		return metadataResolver;
+	}
+
+	/**
+	 * Creates a {@link SAMLSignatureProfileValidator}
+	 * 
+	 * @return {@link SAMLSignatureProfileValidator}
+	 */
+	static SAMLSignatureProfileValidator createSignatureProfileValidator() {
+		return new SAMLSignatureProfileValidator();
+	}
+
+	/**
+	 * Creates a {@link ExplicitKeySignatureTrustEngine}
+	 * 
+	 * @param entityId IDP entity ID
+	 * @return {@link ExplicitKeySignatureTrustEngine}
+	 */
+	ExplicitKeySignatureTrustEngine createTrustEngine(String entityId) {
+		return new ExplicitKeySignatureTrustEngine(credentialResolver, getKeyInfoCredentialResolver(entityId));
+	}
+
+	/**
+	 * Gets {@link #serviceProviderEntityId}
+	 * 
+	 * @return serviceProviderEntityId
+	 */
+	String getServiceProviderEntityId() {
+		return serviceProviderEntityId;
+	}
+
+	/**
+	 * Gets {@link #identityProviderEntityIds}
+	 * 
+	 * @return {@link #identityProviderEntityIds}
+	 */
+	Set<String> getIdentityProviderEntityIds() {
+		return identityProviderEntityIds;
+	}
+
+	/**
+	 * Gets {@link #allowedRange}
+	 * 
+	 * @return allowedRange
+	 */
+	Iterable<String> getAllowedRange() {
+		return allowedRange;
+	}
+
+	/**
+	 * Gets {@link #subjectConfirmationValidator}
+	 * 
+	 * @return {@link #subjectConfirmationValidator}
+	 */
+	IuSubjectConfirmationValidator getSubjectConfirmationValidator() {
+		return subjectConfirmationValidator;
 	}
 
 	/**
@@ -370,4 +429,5 @@ final class SamlBuilder {
 			current.setContextClassLoader(restore);
 		}
 	}
+
 }

@@ -32,14 +32,13 @@
 package iu.auth.saml;
 
 import java.net.URI;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuBadRequestException;
 import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.IuWebUtils;
@@ -72,6 +71,7 @@ final class SamlSession implements IuSamlSession {
 	private String relayState;
 	private String sessionId;
 	private SamlPrincipal id;
+	private boolean invalid;
 
 	/**
 	 * Constructor.
@@ -81,11 +81,10 @@ final class SamlSession implements IuSamlSession {
 	 * @param secretKey     Secret key to use for tokenizing the session.
 	 */
 	SamlSession(URI entryPointUri, URI postUri, Supplier<byte[]> secretKey) {
+		
 		this.entryPointUri = entryPointUri;
 		this.postUri = postUri;
 		this.serviceProvider = SamlServiceProvider.withBinding(postUri);
-		if (!serviceProvider.isValidEntryPoint(entryPointUri))
-			throw new IllegalArgumentException("Invalid entry point URI");
 		this.secretKey = secretKey;
 	}
 
@@ -137,21 +136,21 @@ final class SamlSession implements IuSamlSession {
 
 		} catch (Throwable e) {
 			LOG.log(Level.INFO, "Invalid SAML Response", e);
+			invalid = true;
 
 			final var challenge = new IuAuthenticationException(null, e);
-			challenge.setLocation(URI.create(entryPointUri + "?RelayState=" + //
-					URLEncoder.encode(this.relayState != null //
-							? this.relayState
-							: "", //
-							StandardCharsets.UTF_8)));
+			challenge.setLocation(entryPointUri);
 			throw challenge;
 		}
-		
+
 		return entryPointUri;
 	}
 
 	@Override
 	public SamlPrincipal getPrincipalIdentity() throws IuAuthenticationException {
+		if (invalid)
+			throw new IuBadRequestException("Session failed due to an invalid SAML response, check POST logs");
+
 		try {
 			IuPrincipalIdentity.verify(id, serviceProvider.getRealm());
 		} catch (IuAuthenticationException e) {

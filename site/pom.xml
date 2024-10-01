@@ -38,7 +38,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	<parent>
 		<groupId>edu.iu.util</groupId>
 		<artifactId>iu-java-parent</artifactId>
-		<version>7.0.3</version>
+		<version>7.0.4-SNAPSHOT</version>
 	</parent>
 
 	<name>IU Java Utilities API Reference</name>
@@ -69,6 +69,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-crypt</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-crypt-impl</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
@@ -119,6 +124,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-auth-pki</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-auth-session</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 	</dependencies>
