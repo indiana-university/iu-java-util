@@ -39,10 +39,10 @@ import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey.Algorithm;
 
 /**
- * Unifies algorithm support and maps from JCE encryption to JSON Web Encryption
- * (JWE).
+ * Unifies algorithm support and maps from JCE encryption to JSON Web Signature
+ * (JWS).
  * 
- * @see <a href="https://datatracker.ietf.org/doc/html/rfc7516">RFC 7516</a>
+ * @see <a href="https://datatracker.ietf.org/doc/html/rfc7515">RFC 7515</a>
  */
 public interface WebSignature {
 
