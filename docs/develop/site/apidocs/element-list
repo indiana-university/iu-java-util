@@ -13,6 +13,8 @@ module:iu.util.auth.pki
 iu.auth.pki
 module:iu.util.auth.principal
 iu.auth.principal
+module:iu.util.auth.session
+iu.auth.session
 module:iu.util.client
 edu.iu.client
 module:iu.util.crypt
