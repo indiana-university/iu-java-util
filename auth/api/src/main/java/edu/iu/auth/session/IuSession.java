@@ -31,6 +31,8 @@
  */
 package edu.iu.auth.session;
 
+import java.net.URI;
+
 /**
  * This interface represents session object .
  */
@@ -53,4 +55,11 @@ public interface IuSession {
 	default boolean isChanged() {
 		return false;
 	}
+	
+	/**
+	 * Get resource URI
+	 * 
+	 * @return resource URI
+	 */
+	URI getResourceUri();
 }
