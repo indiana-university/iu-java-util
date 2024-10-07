@@ -76,7 +76,7 @@ public class JwtBuilderTest {
 		final var jwt = builder.build();
 		assertEquals(tokenId, jwt.getTokenId());
 		assertEquals(issuer, jwt.getIssuer());
-		assertEquals(subject, jwt.getSubject());
+		assertEquals(subject, jwt.getSubjectName());
 		assertEquals(audience.toString(),
 				assertInstanceOf(JsonString.class, IuJson.parse(jwt.toString()).asJsonObject().get("aud")).getString());
 		assertTrue(IuIterable.remaindersAreEqual(IuIterable.iter(audience).iterator(), jwt.getAudience().iterator()));

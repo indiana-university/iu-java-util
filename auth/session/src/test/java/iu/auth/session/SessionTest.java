@@ -144,7 +144,7 @@ public class SessionTest {
 				final var mockSessionJwt = mockConstruction(SessionJwt.class, (a, ctx) -> {
 					assertEquals(claims, ctx.arguments().get(0));
 					when(a.getIssuer()).thenReturn(resourceUri);
-					when(a.getSubject()).thenReturn(resourceUri.toString());
+					when(a.getSubjectName()).thenReturn(resourceUri.toString());
 					when(a.getExpires()).thenReturn(Instant.now().plus(maxSessionTtl));
 				})) {
 			mockJwt.when(() -> Jwt.decryptAndVerify(eq(token), eq(issuerKey), argThat(a -> {

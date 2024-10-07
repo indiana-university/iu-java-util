@@ -78,7 +78,7 @@ public class JwtTest {
 		final var jwt = new Jwt(IuJson.object().build());
 		assertNull(jwt.getTokenId());
 		assertNull(jwt.getIssuer());
-		assertNull(jwt.getSubject());
+		assertNull(jwt.getSubjectName());
 		assertNull(jwt.getAudience());
 		assertNull(jwt.getIssuedAt());
 		assertNull(jwt.getNotBefore());
@@ -111,7 +111,7 @@ public class JwtTest {
 
 		assertEquals(tokenId, jwt.getTokenId());
 		assertEquals(issuer, jwt.getIssuer());
-		assertEquals(subject, jwt.getSubject());
+		assertEquals(subject, jwt.getSubjectName());
 		assertTrue(IuIterable.remaindersAreEqual(IuIterable.iter(audience).iterator(), jwt.getAudience().iterator()));
 		assertEquals(issuedAt.truncatedTo(ChronoUnit.SECONDS), jwt.getIssuedAt());
 		assertEquals(notBefore.truncatedTo(ChronoUnit.SECONDS), jwt.getNotBefore());
@@ -250,32 +250,6 @@ public class JwtTest {
 		assertEquals("SHA256withECDSA verification failed", error.getMessage());
 	}
 
-//	@Test
-//	public void testOneAudienceFlattensToString() {
-//		final var audience = URI.create(IdGenerator.generateId());
-//		final var claims = mock(WebTokenClaims.class);
-//		when(claims.getAudience()).thenReturn(Set.of(audience));
-//		final var token = new Jwt(claims);
-//		assertEquals(audience.toString(),
-//				IuJson.parse(token.toString()).asJsonObject().getJsonString("aud").getString());
-//	}
-//
-//	@Test
-//	public void testNullAudienceUndefined() {
-//		final var token = new Jwt(IuJson.object().build());
-//		assertFalse(IuJson.parse(token.toString()).asJsonObject().containsKey("aud"));
-//	}
-//
-//
-
-//
-//	@Test
-//	public void testInvalidToken() {
-//		final var invalidToken = IdGenerator.generateId();
-//		final var error = assertThrows(IllegalArgumentException.class, () -> Jwt.verify(invalidToken, (WebKey) null));
-//		assertEquals("Invalid token; must be enclosed in a compact JWS or JWE", error.getMessage());
-//	}
-//
 	@Test
 	public void testValidateMissingIssuer() {
 		final var jwt = new Jwt(IuJson.object().build());

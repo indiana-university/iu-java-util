@@ -135,7 +135,7 @@ public class Jwt implements WebToken {
 		validate();
 
 		Objects.requireNonNull(getIssuer(), "Missing iss claim");
-		Objects.requireNonNull(getSubject(), "Missing sub claim");
+		Objects.requireNonNull(getSubjectName(), "Missing sub claim");
 
 		boolean found = false;
 		for (final var aud : Objects.requireNonNull(getAudience(), "Missing aud claim"))
@@ -169,7 +169,7 @@ public class Jwt implements WebToken {
 	}
 
 	@Override
-	public String getSubject() {
+	public String getSubjectName() {
 		return IuJson.get(claims, "sub");
 	}
 

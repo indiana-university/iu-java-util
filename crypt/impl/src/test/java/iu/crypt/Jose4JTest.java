@@ -149,7 +149,7 @@ public class Jose4JTest {
 		final var audienceKey = WebKey.builder(WebKey.Type.X25519).key(receiverJwk.getPrivateKey()).build();
 		final var jwt = WebToken.decryptAndVerify(serializedJwt, issuerKey, audienceKey);
 		assertEquals(issuer, jwt.getIssuer());
-		assertEquals(subject, jwt.getSubject());
+		assertEquals(subject, jwt.getSubjectName());
 		assertDoesNotThrow(() -> jwt.validateClaims(audience, Duration.ofMinutes(10L)));
 	}
 

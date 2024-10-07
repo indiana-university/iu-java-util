@@ -37,25 +37,26 @@
  *       verification resources
  * @uses edu.iu.auth.spi.IuSamlSpi SAML service provider
  * @uses edu.iu.auth.spi.IuNonceSpi One-time number generator
+ * @uses edu.iu.auth.spi.IuAuthorizationClientSpi Client-side OAuth 2.0
+ *       utilities
  */
 module iu.util.auth {
 	exports edu.iu.auth;
-
+	exports edu.iu.auth.client;
 	exports edu.iu.auth.nonce;
+	exports edu.iu.auth.saml;
+	exports edu.iu.auth.session;
+	exports edu.iu.auth.spi;
 
 	opens edu.iu.auth.nonce;
 
-	exports edu.iu.auth.saml;
-
-	exports edu.iu.auth.session;
-
-	exports edu.iu.auth.spi;
-
 	requires iu.util;
+	requires iu.util.crypt;
 	requires transitive java.net.http;
 
 	uses edu.iu.auth.spi.IuAuthConfigSpi;
 	uses edu.iu.auth.spi.IuPrincipalSpi;
 	uses edu.iu.auth.spi.IuNonceSpi;
 	uses edu.iu.auth.spi.IuSamlSpi;
+	uses edu.iu.auth.spi.IuAuthorizationClientSpi;
 }

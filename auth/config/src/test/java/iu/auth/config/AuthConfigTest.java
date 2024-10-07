@@ -58,9 +58,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
-import edu.iu.auth.config.IuAuthorizationClient.Credentials;
-import edu.iu.auth.config.IuAuthorizationClient.GrantType;
+import edu.iu.auth.config.AuthMethod;
+import edu.iu.auth.config.GrantType;
+import edu.iu.auth.config.IuAuthorizationCredentials;
 import edu.iu.auth.nonce.IuOneTimeNumberConfig;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
@@ -196,13 +196,13 @@ public class AuthConfigTest {
 	@Test
 	public void testAdaptJsonCredentials() {
 		final var vault = mock(IuVault.class, a -> fail());
-		AuthConfig.registerInterface("credentials", Credentials.class, vault);
+		AuthConfig.registerInterface("credentials", IuAuthorizationCredentials.class, vault);
 		final var cred = mock(JsonObject.class);
 		when(cred.asJsonObject()).thenReturn(cred);
-		final var credentials = mock(Credentials.class);
+		final var credentials = mock(IuAuthorizationCredentials.class);
 		try (final var mockJson = mockStatic(IuJson.class)) {
-			mockJson.when(() -> IuJson.wrap(eq(cred), eq(Credentials.class), any())).thenReturn(credentials);
-			assertSame(credentials, AuthConfig.adaptJson(Credentials.class).fromJson(cred));
+			mockJson.when(() -> IuJson.wrap(eq(cred), eq(IuAuthorizationCredentials.class), any())).thenReturn(credentials);
+			assertSame(credentials, AuthConfig.adaptJson(IuAuthorizationCredentials.class).fromJson(cred));
 		}
 	}
 

@@ -112,7 +112,7 @@ public interface WebToken {
 	 * 
 	 * @return subject (sub claim)
 	 */
-	String getSubject();
+	String getSubjectName();
 
 	/**
 	 * Gets the time the JWT was issued.

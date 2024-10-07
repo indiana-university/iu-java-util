@@ -31,44 +31,29 @@
  */
 package edu.iu.auth.config;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import java.net.URI;
 
-import org.junit.jupiter.api.Test;
+import edu.iu.crypt.WebKey;
 
-import jakarta.json.JsonString;
+/**
+ * Configures a reference to a public {@link WebKey} published as a JSON Web Key
+ * Set (JWKS) at a publicly accessible URI.
+ */
+public interface IuPublicKeyPrincipal extends IuWebKeyPrincipal {
 
-@SuppressWarnings("javadoc")
-public class IuAuthorizationClientTest {
+	/**
+	 * Gets the key ID relative to {@link #getKeySetUri()} corresponding to a JWKS
+	 * key entry.
+	 * 
+	 * @return key ID
+	 */
+	String getKeyId();
 
-	@Test
-	public void testAuthMethodFrom() {
-		for (final var authMethod : AuthMethod.values())
-			assertSame(authMethod, AuthMethod.from(authMethod.parameterValue));
-	}
-
-	@Test
-	public void testGrantTypeFrom() {
-		for (final var grantType : GrantType.values())
-			assertSame(grantType, GrantType.from(grantType.parameterValue));
-	}
-
-	@Test
-	public void testAuthMethodJson() {
-		for (final var a : AuthMethod.values()) {
-			final var j = AuthMethod.JSON.toJson(a);
-			assertEquals(a.parameterValue, ((JsonString) j).getString());
-			assertEquals(a, AuthMethod.JSON.fromJson(j));
-		}
-	}
-
-	@Test
-	public void testGrantTypeJson() {
-		for (final var a : GrantType.values()) {
-			final var j = GrantType.JSON.toJson(a);
-			assertEquals(a.parameterValue, ((JsonString) j).getString());
-			assertEquals(a, GrantType.JSON.fromJson(j));
-		}
-	}
+	/**
+	 * Gets the URI where JWKS well-known key data can be retrieved.
+	 * 
+	 * @return {@link URI}
+	 */
+	URI getKeySetUri();
 
 }

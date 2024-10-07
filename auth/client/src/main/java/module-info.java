@@ -29,46 +29,19 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.config;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-
-import org.junit.jupiter.api.Test;
-
-import jakarta.json.JsonString;
-
-@SuppressWarnings("javadoc")
-public class IuAuthorizationClientTest {
-
-	@Test
-	public void testAuthMethodFrom() {
-		for (final var authMethod : AuthMethod.values())
-			assertSame(authMethod, AuthMethod.from(authMethod.parameterValue));
-	}
-
-	@Test
-	public void testGrantTypeFrom() {
-		for (final var grantType : GrantType.values())
-			assertSame(grantType, GrantType.from(grantType.parameterValue));
-	}
-
-	@Test
-	public void testAuthMethodJson() {
-		for (final var a : AuthMethod.values()) {
-			final var j = AuthMethod.JSON.toJson(a);
-			assertEquals(a.parameterValue, ((JsonString) j).getString());
-			assertEquals(a, AuthMethod.JSON.fromJson(j));
-		}
-	}
-
-	@Test
-	public void testGrantTypeJson() {
-		for (final var a : GrantType.values()) {
-			final var j = GrantType.JSON.toJson(a);
-			assertEquals(a.parameterValue, ((JsonString) j).getString());
-			assertEquals(a, GrantType.JSON.fromJson(j));
-		}
-	}
-
+/**
+ * Provides internal support for client-side authentication and authorization
+ * via OAuth 2.0, OpenID Connect, and related standards.
+ * @provides edu.iu.auth.spi.IuAuthorizationClientSpi SPI implementation
+ */
+module iu.util.auth.client {
+	exports iu.auth.client;
+	
+	requires iu.util;
+	requires transitive iu.util.auth;
+	requires transitive iu.util.auth.config;
+	requires transitive iu.util.crypt;
+	requires transitive iu.util.crypt.impl;
+	
+	provides edu.iu.auth.spi.IuAuthorizationClientSpi with iu.auth.client.AuthorizationClientSpi;
 }

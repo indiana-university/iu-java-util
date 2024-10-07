@@ -29,46 +29,46 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.config;
+package edu.iu.auth.client;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
-import jakarta.json.JsonString;
+import edu.iu.auth.spi.IuAuthorizationClientSpi;
+import iu.auth.IuAuthSpiFactory;
 
 @SuppressWarnings("javadoc")
-public class IuAuthorizationClientTest {
+public class IuAuthorizationGrantTest {
 
-	@Test
-	public void testAuthMethodFrom() {
-		for (final var authMethod : AuthMethod.values())
-			assertSame(authMethod, AuthMethod.from(authMethod.parameterValue));
+	private MockedStatic<IuAuthSpiFactory> mockSpiFactory;
+	private IuAuthorizationClientSpi spi;
+
+	@BeforeEach
+	public void setup() {
+		spi = mock(IuAuthorizationClientSpi.class);
+		mockSpiFactory = mockStatic(IuAuthSpiFactory.class);
+		mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuAuthorizationClientSpi.class)).thenReturn(spi);
+	}
+
+	@AfterEach
+	public void tearDown() {
+		mockSpiFactory.close();
+		mockSpiFactory = null;
+		spi = null;
 	}
 
 	@Test
-	public void testGrantTypeFrom() {
-		for (final var grantType : GrantType.values())
-			assertSame(grantType, GrantType.from(grantType.parameterValue));
-	}
-
-	@Test
-	public void testAuthMethodJson() {
-		for (final var a : AuthMethod.values()) {
-			final var j = AuthMethod.JSON.toJson(a);
-			assertEquals(a.parameterValue, ((JsonString) j).getString());
-			assertEquals(a, AuthMethod.JSON.fromJson(j));
-		}
-	}
-
-	@Test
-	public void testGrantTypeJson() {
-		for (final var a : GrantType.values()) {
-			final var j = GrantType.JSON.toJson(a);
-			assertEquals(a.parameterValue, ((JsonString) j).getString());
-			assertEquals(a, GrantType.JSON.fromJson(j));
-		}
+	public void testClientCredentials() {
+		IuAuthorizationRequest request = mock(IuAuthorizationRequest.class);
+		assertDoesNotThrow(() -> IuAuthorizationGrant.clientCredentials(request));
+		verify(spi).clientCredentials(request);
 	}
 
 }

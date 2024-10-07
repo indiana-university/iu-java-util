@@ -104,7 +104,7 @@ class Session implements IuSession {
 
 		resourceUri = Objects.requireNonNull(jwt.getIssuer(), "Missing token issuer");
 		jwt.validateClaims(resourceUri, maxSessionTtl);
-		IuObject.require(jwt.getSubject(), resourceUri.toString()::equals);
+		IuObject.require(jwt.getSubjectName(), resourceUri.toString()::equals);
 		expires = Objects.requireNonNull(jwt.getExpires());
 		details = new LinkedHashMap<>(Objects.requireNonNull(jwt.getDetails()));
 	}

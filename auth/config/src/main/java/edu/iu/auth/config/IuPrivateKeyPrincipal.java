@@ -31,39 +31,14 @@
  */
 package edu.iu.auth.config;
 
-import java.security.cert.X509Certificate;
-
-import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
-import edu.iu.crypt.WebKey.Algorithm;
 
 /**
- * Configures the private key holder of an {@link X509Certificate X.509
- * certificate chain}.
+ * Configures an internally managed, potentially private, {@link WebKey} for use
+ * with {@link WebKey.Operation Web Crypto Operations} while acting as a
+ * principal system identity controlled by the application.
  */
-public interface IuPrivateKeyPrincipal extends IuAuthenticationRealm {
-
-	/**
-	 * Gets the algorithm to use for creating new digital signatures or as the key
-	 * protection algorithm when creating an encrypted messages.
-	 * 
-	 * @return {@link Algorithm}
-	 */
-	Algorithm getAlg();
-
-	/**
-	 * Gets the key protection algorithm to use for creating encrypted messages.
-	 * 
-	 * @return {@link Algorithm}
-	 */
-	Algorithm getEncryptAlg();
-
-	/**
-	 * Gets the content protection algorithm to use for creating encrypted messages.
-	 * 
-	 * @return {@link Encryption}
-	 */
-	Encryption getEnc();
+public interface IuPrivateKeyPrincipal extends IuWebKeyPrincipal {
 
 	/**
 	 * Gets the signature verification or encryption key.
