@@ -53,7 +53,7 @@ import edu.iu.crypt.WebKey.Algorithm;
 /**
  * {@link IuSessionHandler} implementation
  */
-class SessionHandler implements IuSessionHandler {
+public class SessionHandler implements IuSessionHandler {
 	static {
 		IuObject.assertNotOpen(SessionHandler.class);
 	}
