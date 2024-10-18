@@ -101,8 +101,8 @@ public class SessionHandler implements IuSessionHandler {
 	 */
 	public SessionHandler(URI resourceUri, IuSessionConfiguration configuration, Supplier<WebKey> issuerKey,
 			Algorithm algorithm) {
-		if (!resourceUri.getPath().startsWith("/"))
-			throw new IllegalArgumentException("Invalid resource URI");
+		//if (!resourceUri.toString().isEmpty() && !resourceUri.getPath().startsWith("/"))
+			//throw new IllegalArgumentException("Invalid resource URI");
 		this.resourceUri = resourceUri;
 		this.configuration = configuration;
 		this.issuerKey = issuerKey;
@@ -157,8 +157,12 @@ public class SessionHandler implements IuSessionHandler {
 		cookieBuilder.append('=');
 		cookieBuilder.append(IuText.base64Url(secretKey));
 		cookieBuilder.append("; Path=").append(resourceUri.getPath());
+		
+		if(resourceUri.getScheme().equals("https"))
 		cookieBuilder.append("; Secure");
+		
 		cookieBuilder.append("; HttpOnly");
+		
 		if (strict)
 			cookieBuilder.append("; SameSite=Strict");
 		return cookieBuilder.toString();
