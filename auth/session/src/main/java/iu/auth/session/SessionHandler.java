@@ -101,8 +101,6 @@ public class SessionHandler implements IuSessionHandler {
 	 */
 	public SessionHandler(URI resourceUri, IuSessionConfiguration configuration, Supplier<WebKey> issuerKey,
 			Algorithm algorithm) {
-		//if (!resourceUri.toString().isEmpty() && !resourceUri.getPath().startsWith("/"))
-			//throw new IllegalArgumentException("Invalid resource URI");
 		this.resourceUri = resourceUri;
 		this.configuration = configuration;
 		this.issuerKey = issuerKey;
