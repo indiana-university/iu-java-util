@@ -22,8 +22,8 @@ public interface IuBearerToken extends IuApiCredentials {
 	 * API request. For example, the client application might verify the token is a
 	 * valid {@link WebToken#validateClaims(java.net.URI, java.time.Duration) JWT
 	 * from a trusted issuer that lists the target API as audience} and claims an
-	 * authorized client application user as the {@link WebToken#getSubject()
-	 * subject}.
+	 * authorized client application username as the
+	 * {@link WebToken#getSubjectName() subject}.
 	 * </p>
 	 * 
 	 * @return Access token

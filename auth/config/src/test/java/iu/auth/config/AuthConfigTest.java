@@ -53,6 +53,7 @@ import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Queue;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,6 +61,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.auth.config.AuthMethod;
 import edu.iu.auth.config.GrantType;
+import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuAuthorizationCredentials;
 import edu.iu.auth.nonce.IuOneTimeNumberConfig;
 import edu.iu.client.IuJson;
@@ -74,30 +76,11 @@ import iu.crypt.CryptJsonAdapters;
 import jakarta.json.JsonObject;
 
 @SuppressWarnings("javadoc")
-public class AuthConfigTest {
+public class AuthConfigTest extends AuthConfigTestCase {
 
 	private static final class Config implements IuAuthConfig {
-		private final String realm;
-
-		private Config(String realm) {
-			this.realm = realm;
+		private Config() {
 		}
-
-		@Override
-		public String getRealm() {
-			return realm;
-		}
-
-		@Override
-		public String getAuthScheme() {
-			return null;
-		}
-
-		@Override
-		public URI getAuthenticationEndpoint() {
-			return null;
-		}
-
 	}
 
 	interface LoadableConfig {
@@ -116,7 +99,7 @@ public class AuthConfigTest {
 
 		f = AuthConfig.class.getDeclaredField("CONFIG");
 		f.setAccessible(true);
-		((Map<?, ?>) f.get(null)).clear();
+		((Queue<?>) f.get(null)).clear();
 
 		f = AuthConfig.class.getDeclaredField("STORAGE");
 		f.setAccessible(true);
@@ -129,16 +112,12 @@ public class AuthConfigTest {
 
 	@Test
 	public void testSealed() {
-		final var realm = IdGenerator.generateId();
-		assertThrows(IllegalStateException.class, () -> AuthConfig.get(realm));
 		assertThrows(IllegalStateException.class, () -> AuthConfig.get(Config.class));
 
-		final var config = new Config(realm);
+		final var config = new Config();
 		assertDoesNotThrow(() -> AuthConfig.register(config));
-		assertThrows(IllegalArgumentException.class, () -> AuthConfig.register(config));
 
 		AuthConfig.seal();
-		assertSame(config, AuthConfig.get(realm));
 		assertSame(config, AuthConfig.get(Config.class).iterator().next());
 		assertThrows(IllegalStateException.class, () -> AuthConfig.register(config));
 		assertThrows(IllegalStateException.class, () -> AuthConfig.registerAdapter(null, null));
@@ -173,6 +152,33 @@ public class AuthConfigTest {
 		verify(vault, times(3)).get("loadable/" + key);
 	}
 
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testRegisterAuthRealm() {
+		final var key = IdGenerator.generateId();
+		final var vault = mock(IuVault.class);
+		final var vkv = mock(IuVaultKeyedValue.class);
+		when(vkv.getValue()).thenReturn("{\"type\":\"credentials\"}");
+		when(vault.get("credentials/" + key)).thenReturn(vkv);
+		AuthConfig.registerInterface("credentials", IuAuthorizationCredentials.class, vault);
+		try (final var mockAuthRealm = mockStatic(IuAuthenticationRealm.class)) {
+			final var credentials = assertInstanceOf(IuAuthorizationCredentials.class,
+					AuthConfig.load(IuAuthorizationCredentials.class, key));
+			mockAuthRealm.verify(() -> IuAuthenticationRealm.verify(credentials));
+		}
+	}
+
+	@Test
+	public void testLoadFromUri() {
+		final var uri = URI.create(IdGenerator.generateId() + ":" + IdGenerator.generateId());
+		final var config = mock(LoadableConfig.class);
+		AuthConfig.registerInterface(LoadableConfig.class, a -> {
+			assertEquals(a, uri);
+			return config;
+		});
+		AuthConfig.load(LoadableConfig.class, url.toString());
+	}
+
 	@Test
 	public void testAdaptJsonDefault() {
 		try (final var mockJsonAdapter = mockStatic(IuJsonAdapter.class)) {
@@ -201,7 +207,8 @@ public class AuthConfigTest {
 		when(cred.asJsonObject()).thenReturn(cred);
 		final var credentials = mock(IuAuthorizationCredentials.class);
 		try (final var mockJson = mockStatic(IuJson.class)) {
-			mockJson.when(() -> IuJson.wrap(eq(cred), eq(IuAuthorizationCredentials.class), any())).thenReturn(credentials);
+			mockJson.when(() -> IuJson.wrap(eq(cred), eq(IuAuthorizationCredentials.class), any()))
+					.thenReturn(credentials);
 			assertSame(credentials, AuthConfig.adaptJson(IuAuthorizationCredentials.class).fromJson(cred));
 		}
 	}

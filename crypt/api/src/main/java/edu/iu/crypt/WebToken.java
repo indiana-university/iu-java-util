@@ -165,7 +165,7 @@ public interface WebToken {
 	 * <ul>
 	 * <li>{@link #getIssuer()}</li>
 	 * <li>{@link #getAudience()}</li>
-	 * <li>{@link #getSubject()}</li>
+	 * <li>{@link #getSubjectName()}</li>
 	 * <li>{@link #getIssuedAt()}</li>
 	 * <li>{@link #getExpires()}</li>
 	 * </ul>
