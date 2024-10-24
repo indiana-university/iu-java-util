@@ -189,6 +189,11 @@ public class SessionTest {
 		assertNotNull(expirationTime);
 		assertTrue(expirationTime.isAfter(Instant.now()));
 	}
+	
+	@Test
+	public void testGetResourceUri() {
+		assertEquals(resourceUri, session.getResourceUri());
+	}
 
 	@Test
 	public void testTokenizeWithValidParameters() {

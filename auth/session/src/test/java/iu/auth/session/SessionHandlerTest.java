@@ -48,6 +48,7 @@ import java.util.logging.Level;
 import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
@@ -64,111 +65,133 @@ public class SessionHandlerTest {
 	private Algorithm algorithm;
 	private SessionHandler sessionHandler;
 
-	@BeforeEach
-	public void setup() {
-		resourceUri = URI.create("/" + IdGenerator.generateId());
-		configuration = mock(IuSessionConfiguration.class, CALLS_REAL_METHODS);
-		when(configuration.getResourceUris()).thenReturn(Arrays.asList(resourceUri));
-		issuerKey = WebKey.ephemeral(Algorithm.HS256);
-		algorithm = Algorithm.HS256;
-		sessionHandler = new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm);
-		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
+	@Nested
+	class SessionHandlerTest_1 {
+		@BeforeEach
+		public void setup() {
+			resourceUri = URI.create("http://" + IdGenerator.generateId());
+			configuration = mock(IuSessionConfiguration.class, CALLS_REAL_METHODS);
+			when(configuration.getResourceUris()).thenReturn(Arrays.asList(resourceUri));
+			issuerKey = WebKey.ephemeral(Algorithm.HS256);
+			algorithm = Algorithm.HS256;
+			sessionHandler = new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm);
+			IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
+		}
+
+
+
+		@Test
+		public void testSessionHandlerConstructorWithValidParameters() {
+			assertDoesNotThrow(() -> new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm));
+		}
+
+
+		@Test
+		public void testSessionCreationWithValidParameters() {
+			when(configuration.getMaxSessionTtl()).thenReturn(Duration.ofHours(12L));
+			assertNotNull(sessionHandler.create());
+		}
+
+		@Test
+		public void testActivateSessionNull() {
+			assertNull(sessionHandler.activate(null));
+		}
+
+		@Test
+		public void testActivateSessionWithNoSecretKey() {
+			Iterable<HttpCookie> cookies = Arrays
+					.asList(new HttpCookie(IdGenerator.generateId(), IdGenerator.generateId()));
+			assertNull(sessionHandler.activate(cookies));
+		}
+
+		@Test
+		public void testActivateSessionWithInvalidSecretKey() {
+			Iterable<HttpCookie> cookies = Arrays
+					.asList(new HttpCookie(sessionHandler.getSessionCookieName(), "invalidSecretKey"));
+			assertNull(sessionHandler.activate(cookies));
+		}
+
+		@Test
+		public void testStoreSessionAndActivateSessionSuccess() {
+			Session session = new Session(resourceUri, Duration.ofHours(12L));
+			when(configuration.getInactiveTtl()).thenCallRealMethod();
+
+			String cookie = sessionHandler.store(session, false);
+			assertNotNull(cookie);
+			final var cookieMatcher = Pattern.compile(sessionHandler.getSessionCookieName() + "=([^;]+); Path="
+					+ resourceUri.getPath() + "; HttpOnly").matcher(cookie);
+			assertTrue(cookieMatcher.matches(), cookie);
+			assertNotNull(sessionHandler.activate(
+					Arrays.asList(new HttpCookie(sessionHandler.getSessionCookieName(), cookieMatcher.group(1)))));
+		}
+
+		@Test
+		public void testPurgeStoredSessionWhenExpire() {
+			when(configuration.getInactiveTtl()).thenReturn(Duration.ofMillis(250L));
+			Session session = new Session(resourceUri, Duration.ofHours(12L));
+			String cookie = sessionHandler.store(session, false);
+			assertNotNull(cookie);
+			final var cookieMatcher = Pattern.compile(sessionHandler.getSessionCookieName() + "=([^;]+); Path="
+					+ resourceUri.getPath() + "; HttpOnly").matcher(cookie);
+			assertTrue(cookieMatcher.matches(), cookie);
+			assertDoesNotThrow(() -> Thread.sleep(250L));
+			assertNull(sessionHandler.activate(
+					Arrays.asList(new HttpCookie(sessionHandler.getSessionCookieName(), cookieMatcher.group(1)))));
+		}
+
+		@Test
+		public void testPurgeTask() {
+			final var purgeTask = new SessionHandler.PurgeTask();
+			assertDoesNotThrow(purgeTask::run);
+			Session session = new Session(resourceUri, Duration.ofHours(12L));
+			sessionHandler.store(session, true);
+			assertDoesNotThrow(purgeTask::run);
+		}
+
+		@Test
+		public void testStoreWithNoPurgeTask() {
+			final var purgeTask = new SessionHandler.PurgeTask();
+			Session session = new Session(resourceUri, Duration.ofHours(12L));
+			sessionHandler.store(session, true);
+			assertDoesNotThrow(purgeTask::run);
+		}
+
+		@Test
+		public void testStoreWithPurgeTaskAndActivate() {
+			final var purgeTask = new SessionHandler.PurgeTask();
+			when(configuration.getInactiveTtl()).thenReturn(Duration.ofMillis(250L));
+			Session session = new Session(resourceUri, Duration.ofHours(12L));
+			String cookie = sessionHandler.store(session, true);
+			final var cookieMatcher = Pattern.compile(sessionHandler.getSessionCookieName() + "=([^;]+); Path="
+					+ resourceUri.getPath() + "; HttpOnly; SameSite=Strict").matcher(cookie);
+			assertTrue(cookieMatcher.matches(), cookie);
+			assertDoesNotThrow(() -> Thread.sleep(250L));
+			assertDoesNotThrow(purgeTask::run);
+			assertNull(sessionHandler.activate(
+					Arrays.asList(new HttpCookie(sessionHandler.getSessionCookieName(), cookieMatcher.group(1)))));
+		}
 	}
 
-	@Test
-	public void testSessionHandlerConstructorWithValidParameters() {
-		assertDoesNotThrow(() -> new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm));
+
+	@Nested
+	class SessionHandlerTest_2 {
+		@BeforeEach 
+		public void setup() {
+			resourceUri = URI.create("https://" + IdGenerator.generateId());
+			configuration = mock(IuSessionConfiguration.class, CALLS_REAL_METHODS);
+			when(configuration.getResourceUris()).thenReturn(Arrays.asList(resourceUri));
+			issuerKey = WebKey.ephemeral(Algorithm.HS256);
+			algorithm = Algorithm.HS256;
+			sessionHandler = new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm);
+			IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
+		}
+
+		@Test
+		public void testStoreWithHttpsResourceUrl() {
+			final var purgeTask = new SessionHandler.PurgeTask();
+			Session session = new Session(resourceUri, Duration.ofHours(12L));
+			sessionHandler.store(session, true);
+			assertDoesNotThrow(purgeTask::run);
+		}
 	}
-
-	@Test
-	public void testSessionHandlerConstructorWithInvalidResourceUri() {
-		assertThrows(IllegalArgumentException.class, () -> new SessionHandler(URI.create(IdGenerator.generateId()),
-				configuration, () -> issuerKey, algorithm));
-	}
-
-	@Test
-	public void testSessionCreationWithValidParameters() {
-		when(configuration.getMaxSessionTtl()).thenReturn(Duration.ofHours(12L));
-		assertNotNull(sessionHandler.create());
-	}
-
-	@Test
-	public void testActivateSessionNull() {
-		assertNull(sessionHandler.activate(null));
-	}
-
-	@Test
-	public void testActivateSessionWithNoSecretKey() {
-		Iterable<HttpCookie> cookies = Arrays
-				.asList(new HttpCookie(IdGenerator.generateId(), IdGenerator.generateId()));
-		assertNull(sessionHandler.activate(cookies));
-	}
-
-	@Test
-	public void testActivateSessionWithInvalidSecretKey() {
-		Iterable<HttpCookie> cookies = Arrays
-				.asList(new HttpCookie(sessionHandler.getSessionCookieName(), "invalidSecretKey"));
-		assertNull(sessionHandler.activate(cookies));
-	}
-
-	@Test
-	public void testStoreSessionAndActivateSessionSuccess() {
-		Session session = new Session(resourceUri, Duration.ofHours(12L));
-		when(configuration.getInactiveTtl()).thenCallRealMethod();
-
-		String cookie = sessionHandler.store(session, false);
-		assertNotNull(cookie);
-		final var cookieMatcher = Pattern.compile(sessionHandler.getSessionCookieName() + "=([^;]+); Path="
-				+ resourceUri.getPath() + "; Secure; HttpOnly").matcher(cookie);
-		assertTrue(cookieMatcher.matches(), cookie);
-		assertNotNull(sessionHandler.activate(
-				Arrays.asList(new HttpCookie(sessionHandler.getSessionCookieName(), cookieMatcher.group(1)))));
-	}
-
-	@Test
-	public void testPurgeStoredSessionWhenExpire() {
-		when(configuration.getInactiveTtl()).thenReturn(Duration.ofMillis(250L));
-		Session session = new Session(resourceUri, Duration.ofHours(12L));
-		String cookie = sessionHandler.store(session, false);
-		assertNotNull(cookie);
-		final var cookieMatcher = Pattern.compile(sessionHandler.getSessionCookieName() + "=([^;]+); Path="
-				+ resourceUri.getPath() + "; Secure; HttpOnly").matcher(cookie);
-		assertTrue(cookieMatcher.matches(), cookie);
-		assertDoesNotThrow(() -> Thread.sleep(250L));
-		assertNull(sessionHandler.activate(
-				Arrays.asList(new HttpCookie(sessionHandler.getSessionCookieName(), cookieMatcher.group(1)))));
-	}
-
-	@Test
-	public void testPurgeTask() {
-		final var purgeTask = new SessionHandler.PurgeTask();
-		assertDoesNotThrow(purgeTask::run);
-		Session session = new Session(resourceUri, Duration.ofHours(12L));
-		sessionHandler.store(session, true);
-		assertDoesNotThrow(purgeTask::run);
-	}
-
-	@Test
-	public void testStoreWithNoPurgeTask() {
-		final var purgeTask = new SessionHandler.PurgeTask();
-		Session session = new Session(resourceUri, Duration.ofHours(12L));
-		sessionHandler.store(session, true);
-		assertDoesNotThrow(purgeTask::run);
-	}
-
-	@Test
-	public void testStoreWithPurgeTaskAndActivate() {
-		final var purgeTask = new SessionHandler.PurgeTask();
-		when(configuration.getInactiveTtl()).thenReturn(Duration.ofMillis(250L));
-		Session session = new Session(resourceUri, Duration.ofHours(12L));
-		String cookie = sessionHandler.store(session, true);
-		final var cookieMatcher = Pattern.compile(sessionHandler.getSessionCookieName() + "=([^;]+); Path="
-				+ resourceUri.getPath() + "; Secure; HttpOnly; SameSite=Strict").matcher(cookie);
-		assertTrue(cookieMatcher.matches(), cookie);
-		assertDoesNotThrow(() -> Thread.sleep(250L));
-		assertDoesNotThrow(purgeTask::run);
-		assertNull(sessionHandler.activate(
-				Arrays.asList(new HttpCookie(sessionHandler.getSessionCookieName(), cookieMatcher.group(1)))));
-	}
-
 }

@@ -165,6 +165,11 @@ class Session implements IuSession {
 	Instant getExpires() {
 		return expires;
 	}
+	
+	@Override
+	public URI getResourceUri() {
+		return resourceUri;
+	}
 
 	@Override
 	public String toString() {
