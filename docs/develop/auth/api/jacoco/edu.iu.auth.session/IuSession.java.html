@@ -31,6 +31,8 @@
  */
 package edu.iu.auth.session;
 
+import java.net.URI;
+
 /**
  * This interface represents session object .
  */
@@ -51,7 +53,14 @@ public interface IuSession {
 	 * @return true if session object state has change, otherwise false;
 	 */
 	default boolean isChanged() {
-<span class="fc" id="L54">		return false;</span>
+<span class="fc" id="L56">		return false;</span>
 	}
+	
+	/**
+	 * Get resource URI
+	 * 
+	 * @return resource URI
+	 */
+	URI getResourceUri();
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

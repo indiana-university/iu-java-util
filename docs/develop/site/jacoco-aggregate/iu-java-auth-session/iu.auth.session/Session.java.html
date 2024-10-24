@@ -165,10 +165,15 @@ class Session implements IuSession {
 	Instant getExpires() {
 <span class="fc" id="L166">		return expires;</span>
 	}
+	
+	@Override
+	public URI getResourceUri() {
+<span class="fc" id="L171">		return resourceUri;</span>
+	}
 
 	@Override
 	public String toString() {
-<span class="fc" id="L171">		return &quot;Session [resourceUri=&quot; + resourceUri + &quot;, expires=&quot; + expires + &quot;, changed=&quot; + changed + &quot;, details=&quot;</span>
+<span class="fc" id="L176">		return &quot;Session [resourceUri=&quot; + resourceUri + &quot;, expires=&quot; + expires + &quot;, changed=&quot; + changed + &quot;, details=&quot;</span>
 				+ details + &quot;]&quot;;
 	}
 
