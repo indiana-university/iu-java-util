@@ -512,6 +512,11 @@ public class SamlSessionTest {
 			public IuPrivateKeyPrincipal getIdentity() {
 				return pkp;
 			}
+			@Override
+			public Iterable<URI> getResourceUris() {
+				// TODO Auto-generated method stub
+				return null;
+			}
 		};
 		return config;
 	}
