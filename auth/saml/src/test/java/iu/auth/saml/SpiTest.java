@@ -48,26 +48,12 @@ public class SpiTest {
 
 	@Test
 	public void testCreateSession() {
-		final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
-
 		final var spi = new SamlSpi();
-		final var entryPoint = IuException.unchecked(() -> new URI("http://foo"));
 		final var postUri = IuException.unchecked(() -> new URI("http://bar"));
-		try (final var mockSamlSession = mockConstruction(SamlSession.class)) {
-			final var samlSession = spi.createSession(entryPoint, postUri, () -> secret);
+		try (final var mockSamlSession = mockConstruction(SamlSessionVerifier.class)) {
+			final var samlSession = spi.createVerifier(postUri);
 			assertSame(samlSession, mockSamlSession.constructed().get(0));
 		}
-	}
-
-	@Test
-	public void testActivateSession() {
-		final var spi = new SamlSpi();
-		final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
-		try (final var mockSamlSession = mockConstruction(SamlSession.class)) {
-			final var samlSession = spi.activateSession(IdGenerator.generateId(), () -> secret);
-			assertSame(samlSession, mockSamlSession.constructed().get(0));
-		}
-
 	}
 
 }

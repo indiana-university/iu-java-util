@@ -44,7 +44,8 @@ import edu.iu.IuText;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.saml.IuSamlSession;
+import edu.iu.auth.saml.IuSamlSessionVerifier;
+import edu.iu.auth.session.IuSession;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebEncryption;
@@ -59,75 +60,50 @@ import iu.auth.config.AuthConfig;
 /**
  * SAML session implementation to support session management
  */
-final class SamlSession implements IuSamlSession {
+final class SamlSessionVerifier implements IuSamlSessionVerifier {
 
-	private final Logger LOG = Logger.getLogger(SamlSession.class.getName());
+	private final Logger LOG = Logger.getLogger(SamlSessionVerifier.class.getName());
 
 	private final SamlServiceProvider serviceProvider;
-	private final URI postUri;
-	private final URI entryPointUri;
-	private final Supplier<byte[]> secretKey;
 
-	private String relayState;
-	private String sessionId;
+	
 	private SamlPrincipal id;
 	private boolean invalid;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param entryPointUri Application entry point URI
 	 * @param postUri       HTTP POST Binding URI
-	 * @param secretKey     Secret key to use for tokenizing the session.
 	 */
-	SamlSession(URI entryPointUri, URI postUri, Supplier<byte[]> secretKey) {
-		
-		this.entryPointUri = entryPointUri;
-		this.postUri = postUri;
+	SamlSessionVerifier(URI postUri) {
 		this.serviceProvider = SamlServiceProvider.withBinding(postUri);
-		this.secretKey = secretKey;
 	}
 
-	/**
-	 * Token constructor.
-	 * 
-	 * @param token     tokenized session
-	 * @param secretKey Secret key to use for detokenizing the session.
-	 */
-	SamlSession(String token, Supplier<byte[]> secretKey) {
-		final var key = WebKey.builder(Type.RAW).key(secretKey.get()).build();
-		final var decryptedToken = WebSignedPayload.parse(WebEncryption.parse(token).decryptText(key));
-		final var tokenPayload = decryptedToken.getPayload();
-		final var data = IuJson.parse(IuText.utf8(tokenPayload)).asJsonObject();
-
-		entryPointUri = Objects.requireNonNull(IuJson.get(data, "entry_point_uri", AuthConfig.adaptJson(URI.class)));
-		postUri = Objects.requireNonNull(IuJson.get(data, "post_uri", AuthConfig.adaptJson(URI.class)));
-		serviceProvider = SamlServiceProvider.withBinding(postUri);
-		decryptedToken.getSignatures().iterator().next().verify(tokenPayload, serviceProvider.getVerifyKey());
-
-		this.secretKey = secretKey;
-		relayState = IuJson.get(data, "relay_state");
-		sessionId = IuJson.get(data, "session_id");
-		id = IuJson.get(data, "id", SamlPrincipal.JSON);
-	}
 
 	@Override
-	public URI getRequestUri() {
+	public URI initRequest(IuSession session) {
+		IuSamlSessionDetails detail = session.getDetail(IuSamlSessionDetails.class);
 		IuObject.require(id, Objects::isNull);
-		IuObject.require(relayState, Objects::isNull);
-		IuObject.require(sessionId, Objects::isNull);
+		IuObject.require(detail.getRelayState(), Objects::isNull);
+		IuObject.require(detail.getSessionId(), Objects::isNull);
 
-		relayState = IdGenerator.generateId();
-		sessionId = IdGenerator.generateId();
+		final var relayState = IdGenerator.generateId();
+		final var sessionId = IdGenerator.generateId();
+		detail.setRelayState(relayState);
+		detail.setSessionId(sessionId);
 		return serviceProvider.getAuthnRequest(relayState, sessionId);
 	}
 
 	@Override
-	public URI verifyResponse(String remoteAddr, String samlResponse, String relayState)
+	public URI verifyResponse(IuSession session, String remoteAddr, String samlResponse, String relayState)
 			throws IuAuthenticationException {
+		IuSamlSessionDetails detail = session.getDetail(IuSamlSessionDetails.class);
+		final var  entryPointUri = detail.getEntryPointUri();
+		
 		try {
+			final var sessionId = detail.getSessionId();
 			IuObject.require(id, Objects::isNull);
-			IuObject.once(Objects.requireNonNull(relayState), Objects.requireNonNull(this.relayState));
+			IuObject.once(Objects.requireNonNull(relayState), Objects.requireNonNull(detail.getRelayState()));
 
 			id = serviceProvider.verifyResponse( //
 					IuWebUtils.getInetAddress(remoteAddr), //
@@ -147,7 +123,9 @@ final class SamlSession implements IuSamlSession {
 	}
 
 	@Override
-	public SamlPrincipal getPrincipalIdentity() throws IuAuthenticationException {
+	public SamlPrincipal getPrincipalIdentity(IuSession session) throws IuAuthenticationException {
+		IuSamlSessionDetails detail = session.getDetail(IuSamlSessionDetails.class);
+		final var entryPointUri = detail.getEntryPointUri();
 		if (invalid)
 			throw new IuBadRequestException("Session failed due to an invalid SAML response, check POST logs");
 
@@ -158,40 +136,6 @@ final class SamlSession implements IuSamlSession {
 			throw e;
 		}
 		return id;
-	}
-
-	@Override
-	public String toString() {
-		final var builder = IuJson.object();
-		IuJson.add(builder, "entry_point_uri", () -> entryPointUri, AuthConfig.adaptJson(URI.class));
-		IuJson.add(builder, "post_uri", () -> postUri, AuthConfig.adaptJson(URI.class));
-		builder.add("relay_state", relayState) //
-				.add("session_id", sessionId);
-		IuJson.add(builder, "id", () -> id, IuJsonAdapter.to(a -> IuJson.parse(a.toString())));
-
-		final var secretKey = this.secretKey.get();
-		final Encryption enc;
-		switch (secretKey.length) {
-		case 16:
-			enc = Encryption.A128GCM;
-			break;
-		case 24:
-			enc = Encryption.A192GCM;
-			break;
-		case 32:
-			enc = Encryption.A256GCM;
-			break;
-		default:
-			throw new IllegalStateException("secret key size");
-		}
-
-		return WebEncryption.builder(enc).compact() //
-				.addRecipient(Algorithm.DIRECT) //
-				.key(WebKey.builder(Type.RAW).key(secretKey).build()) //
-				.encrypt(WebSignature.builder(serviceProvider.getVerifyAlg()).compact()
-						.key(serviceProvider.getVerifyKey()) //
-						.sign(builder.build().toString()).compact()) //
-				.compact();
 	}
 
 }

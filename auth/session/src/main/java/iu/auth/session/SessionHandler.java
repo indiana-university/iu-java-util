@@ -115,7 +115,7 @@ public class SessionHandler implements IuSessionHandler {
 	@Override
 	public IuSession activate(Iterable<HttpCookie> cookies) {
 		final var cookieName = getSessionCookieName();
-		
+
 		byte[] secretKey = null;
 		if (cookies != null)
 			for (final var cookie : cookies)
@@ -164,6 +164,17 @@ public class SessionHandler implements IuSessionHandler {
 		if (strict)
 			cookieBuilder.append("; SameSite=Strict");
 		return cookieBuilder.toString();
+	}
+
+	@Override
+	public void remove(Iterable<HttpCookie> cookies) {
+		if (cookies != null) {
+			for (final var cookie : cookies) {
+				var secretKey = IuText.base64Url(cookie.getValue());
+				SESSION_TOKENS.remove(hashKey(secretKey));
+			}
+		}
+
 	}
 
 	/**

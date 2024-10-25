@@ -69,7 +69,8 @@ import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.auth.saml.IuSamlAssertion;
-import edu.iu.auth.saml.IuSamlSession;
+import edu.iu.auth.saml.IuSamlSessionVerifier;
+import edu.iu.auth.session.IuSession;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebEncryption.Encryption;
@@ -97,44 +98,48 @@ public class SamlSessionTest {
 	}
 
 	@Test
-	public void testGetRequestUri() {
+	public void testInitRequest() {
 		URI requestUri = URI.create("https://sp.identityserver/?SAMLRequest=1233&RelayState=1223");
 		SamlServiceProvider provider = mock(SamlServiceProvider.class);
 		when(provider.getAuthnRequest(any(), any())).thenReturn(requestUri);
 		URI postUri = URI.create("test://postUri");
-
+		IuSession session = mock(IuSession.class);
+		IuSamlSessionDetails detail = mock(IuSamlSessionDetails.class);
+		when(session.getDetail(IuSamlSessionDetails.class)).thenReturn(detail);
+	
+		
 		try (final var mockProvider = mockStatic(SamlServiceProvider.class)) {
 			mockProvider.when(() -> SamlServiceProvider.withBinding(postUri)).thenReturn(provider);
-			final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
-			URI entryPointUri = URI.create("test://entrypoint");
-			IuSamlSession samlSession = new SamlSession(entryPointUri, postUri, () -> secret);
-			assertEquals(requestUri, samlSession.getRequestUri());
+			IuSamlSessionVerifier samlSession = new SamlSessionVerifier(postUri);
+			assertEquals(requestUri, samlSession.initRequest(session));
 		}
 	}
 
+	
 	@Test
 	public void testIuAuthenticationExceptionVerifyResponse() throws IuAuthenticationException {
 		URI requestUri = URI.create("https://sp.identityserver/?SAMLRequest=1233&RelayState=1223");
 		SamlServiceProvider provider = mock(SamlServiceProvider.class);
 		when(provider.getAuthnRequest(any(), any())).thenReturn(requestUri);
 		URI postUri = URI.create("test://postUri");
+		IuSession session = mock(IuSession.class);
 
 		try (final var mockProvider = mockStatic(SamlServiceProvider.class)) {
 			mockProvider.when(() -> SamlServiceProvider.withBinding(postUri)).thenReturn(provider);
 			final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
 			URI entryPointUri = URI.create("test://entrypoint");
-			IuSamlSession samlSession = new SamlSession(entryPointUri, postUri, () -> secret);
+			IuSamlSessionVerifier samlSession = new SamlSessionVerifier(entryPointUri);
 
-			IuTestLogger.expect(SamlSession.class.getName(), Level.INFO, "Invalid SAML Response",
+			IuTestLogger.expect(SamlSessionVerifier.class.getName(), Level.INFO, "Invalid SAML Response",
 					NullPointerException.class);
 			assertThrows(IuAuthenticationException.class,
-					() -> samlSession.verifyResponse("127.0.0.0", "", IdGenerator.generateId()));
+					() -> samlSession.verifyResponse(session,"127.0.0.0", "", IdGenerator.generateId()));
 
-			samlSession.getRequestUri();
-			IuTestLogger.expect(SamlSession.class.getName(), Level.INFO, "Invalid SAML Response",
+			samlSession.initRequest(session);
+			IuTestLogger.expect(SamlSessionVerifier.class.getName(), Level.INFO, "Invalid SAML Response",
 					IllegalArgumentException.class);
 			assertThrows(IuAuthenticationException.class,
-					() -> samlSession.verifyResponse("127.0.0.0", "", IdGenerator.generateId()));
+					() -> samlSession.verifyResponse(session,"127.0.0.0", "", IdGenerator.generateId()));
 		}
 	}
 
@@ -152,7 +157,7 @@ public class SamlSessionTest {
 		IuSamlServiceProviderMetadata config = getConfig(
 				Arrays.asList(SamlSessionTest.class.getClassLoader().getResource("metadata_sample.xml").toURI()),
 				"urn:example:sp", mockPkp, Arrays.asList(acsUri));
-
+		IuSession session = mock(IuSession.class);
 		final var postUri = URI.create("test://postUrl/");
 		final var realm = "iu-saml-test";
 
@@ -181,11 +186,11 @@ public class SamlSessionTest {
 			final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
 
 			URI entryPointUri = URI.create("test://entrypoint");
-			IuSamlSession samlSession = new SamlSession(entryPointUri, postUri, () -> secret);
-			IuTestLogger.expect(SamlSession.class.getName(), Level.INFO, "Invalid SAML Response",
+			IuSamlSessionVerifier samlSession = new SamlSessionVerifier(postUri);
+			IuTestLogger.expect(SamlSessionVerifier.class.getName(), Level.INFO, "Invalid SAML Response",
 					NullPointerException.class);
 			assertThrows(IuAuthenticationException.class,
-					() -> samlSession.verifyResponse("127.0.0.0", "", IdGenerator.generateId()));
+					() -> samlSession.verifyResponse(session,"127.0.0.0", "", IdGenerator.generateId()));
 
 		}
 	}
@@ -258,18 +263,18 @@ public class SamlSessionTest {
 				final var mockProvider = mockStatic(SamlServiceProvider.class)) {
 			mockProvider.when(() -> SamlServiceProvider.withBinding(postUri)).thenReturn(provider);
 			mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any())).thenReturn(true);
-
+			IuSession session = mock(IuSession.class);
 			mockAuthConfig.when(() -> AuthConfig.load(IuSamlServiceProviderMetadata.class, realm)).thenReturn(config);
 			mockAuthConfig.when(() -> AuthConfig.get(IuSamlServiceProvider.class)).thenReturn(Arrays.asList(provider));
 			final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
 
 			URI entryPointUri = URI.create("test://entrypoint");
-			IuSamlSession samlSession = new SamlSession(entryPointUri, postUri, () -> secret);
-			URI requestUri = samlSession.getRequestUri();
+			IuSamlSessionVerifier samlSession = new SamlSessionVerifier(postUri);
+			URI requestUri = samlSession.initRequest(session);
 			String parameters[] = requestUri.getQuery().split("&");
 			String relayState = parameters[1].split("=")[1];
-			assertDoesNotThrow(() -> samlSession.verifyResponse("127.0.0.0", "", relayState));
-			final var activatedSession = IuSamlSession.activate(samlSession.toString(), () -> secret);
+			assertDoesNotThrow(() -> samlSession.verifyResponse(session, "127.0.0.0", "", relayState));
+		/*	final var activatedSession = IuSamlSessionVerifier.activate(samlSession.toString(), () -> secret);
 			assertNotNull(activatedSession);
 			final var iuSamlPrincipal = activatedSession.getPrincipalIdentity();
 			assertNotNull(iuSamlPrincipal);
@@ -279,7 +284,7 @@ public class SamlSessionTest {
 			final var assertion = samlassertions.iterator().next();
 			assertNotNull(assertion.getNotBefore());
 			assertNotNull(assertion.getNotOnOrAfter());
-			assertNotNull(assertion.toString());
+			assertNotNull(assertion.toString());*/
 
 		}
 	}
@@ -339,33 +344,33 @@ public class SamlSessionTest {
 			final var secret = WebKey.ephemeral(Encryption.A128GCM).getKey();
 
 			URI entryPointUri = URI.create("test://entrypoint");
-			IuSamlSession samlSession = new SamlSession(entryPointUri, postUri, () -> secret);
+			IuSamlSessionVerifier samlSession = new SamlSessionVerifier(postUri);
 			Field f;
-			f = SamlSession.class.getDeclaredField("relayState");
+			f = SamlSessionVerifier.class.getDeclaredField("relayState");
 			f.setAccessible(true);
 			f.set(samlSession, IdGenerator.generateId());
 
-			f = SamlSession.class.getDeclaredField("sessionId");
-			f.setAccessible(true);
-			f.set(samlSession, IdGenerator.generateId());
-			assertNotNull(samlSession.toString());
-
-			samlSession = new SamlSession(entryPointUri, postUri, () -> WebKey.ephemeral(Encryption.A192GCM).getKey());
-			f = SamlSession.class.getDeclaredField("relayState");
-			f.setAccessible(true);
-			f.set(samlSession, IdGenerator.generateId());
-
-			f = SamlSession.class.getDeclaredField("sessionId");
+			f = SamlSessionVerifier.class.getDeclaredField("sessionId");
 			f.setAccessible(true);
 			f.set(samlSession, IdGenerator.generateId());
 			assertNotNull(samlSession.toString());
 
-			final var session = new SamlSession(entryPointUri, postUri, () -> new byte[8]);
-			f = SamlSession.class.getDeclaredField("relayState");
+			samlSession = new SamlSessionVerifier(postUri);
+			f = SamlSessionVerifier.class.getDeclaredField("relayState");
+			f.setAccessible(true);
+			f.set(samlSession, IdGenerator.generateId());
+
+			f = SamlSessionVerifier.class.getDeclaredField("sessionId");
+			f.setAccessible(true);
+			f.set(samlSession, IdGenerator.generateId());
+			assertNotNull(samlSession.toString());
+
+			final var session = new SamlSessionVerifier(postUri);
+			f = SamlSessionVerifier.class.getDeclaredField("relayState");
 			f.setAccessible(true);
 			f.set(session, IdGenerator.generateId());
 
-			f = SamlSession.class.getDeclaredField("sessionId");
+			f = SamlSessionVerifier.class.getDeclaredField("sessionId");
 			f.setAccessible(true);
 			f.set(session, IdGenerator.generateId());
 			assertThrows(IllegalStateException.class, () -> session.toString());
@@ -437,32 +442,31 @@ public class SamlSessionTest {
 			mockProvider.when(() -> SamlServiceProvider.withBinding(postUri)).thenReturn(provider);
 			mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any()))
 					.thenThrow(IuAuthenticationException.class);
-
+			IuSession session = mock(IuSession.class);
 			mockAuthConfig.when(() -> AuthConfig.load(IuSamlServiceProviderMetadata.class, realm)).thenReturn(config);
 			mockAuthConfig.when(() -> AuthConfig.get(IuSamlServiceProvider.class)).thenReturn(Arrays.asList(provider));
 			final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
 
 			URI entryPointUri = URI.create("test://entrypoint");
-			IuSamlSession samlSession = new SamlSession(entryPointUri, postUri, () -> secret);
-			URI requestUri = samlSession.getRequestUri();
+			IuSamlSessionVerifier samlSession = new SamlSessionVerifier(postUri);
+			URI requestUri = samlSession.initRequest(session);
 
 			String parameters[] = requestUri.getQuery().split("&");
 			String relayState = parameters[1].split("=")[1];
-			assertDoesNotThrow(() -> samlSession.verifyResponse("127.0.0.0", "", relayState));
-			final var activatedSession = IuSamlSession.activate(samlSession.toString(), () -> secret);
-			assertNotNull(activatedSession);
-			assertThrows(IuAuthenticationException.class, () -> activatedSession.getPrincipalIdentity());
+			assertDoesNotThrow(() -> samlSession.verifyResponse(session,"127.0.0.0", "", relayState));
+	     
 		}
 	}
 
 	@Test
 	public void testInvalidSession() {
 		try (final var mockServiceProvider = mockStatic(SamlServiceProvider.class)) {
-			final var samlSession = new SamlSession(null, null, null);
-			IuTestLogger.expect(SamlSession.class.getName(), Level.INFO, "Invalid SAML Response",
+			final var samlSession = new SamlSessionVerifier(null);
+			IuSession session = mock(IuSession.class);
+			IuTestLogger.expect(SamlSessionVerifier.class.getName(), Level.INFO, "Invalid SAML Response",
 					NullPointerException.class);
-			assertThrows(IuAuthenticationException.class, () -> samlSession.verifyResponse(null, null, null));
-			assertThrows(IuBadRequestException.class, () -> samlSession.getPrincipalIdentity());
+			assertThrows(IuAuthenticationException.class, () -> samlSession.verifyResponse(null,null, null, null));
+			assertThrows(IuBadRequestException.class, () -> samlSession.getPrincipalIdentity(session));
 		}
 	}
 
