@@ -108,11 +108,11 @@ public class SamlAuthenticateIT {
 //		var sessionId = IdGenerator.generateId();
 //		System.out.println("sessionId " + sessionId);
 		IuSession session = mock(IuSession.class);
-		
+		URI entryPointUri = URI.create(IdGenerator.generateId());
 		final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
 		IuSamlSessionVerifier samlSession = IuSamlSessionVerifier.create(postUri);
 		
-		final var location = samlSession.initRequest(session);
+		final var location = samlSession.initRequest(session, entryPointUri);
 		final var relayState = IuWebUtils.parseQueryString(location.getQuery()).get("RelayState").iterator().next();
 		IdGenerator.verifyId(relayState, 2000L);
 

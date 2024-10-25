@@ -81,8 +81,8 @@ final class SamlSessionVerifier implements IuSamlSessionVerifier {
 
 
 	@Override
-	public URI initRequest(IuSession session) {
-		IuSamlSessionDetails detail = session.getDetail(IuSamlSessionDetails.class);
+	public URI initRequest(IuSession session, URI entryPointUri) {
+		SamlSessionDetails detail = session.getDetail(SamlSessionDetails.class);
 		IuObject.require(id, Objects::isNull);
 		IuObject.require(detail.getRelayState(), Objects::isNull);
 		IuObject.require(detail.getSessionId(), Objects::isNull);
@@ -97,7 +97,7 @@ final class SamlSessionVerifier implements IuSamlSessionVerifier {
 	@Override
 	public URI verifyResponse(IuSession session, String remoteAddr, String samlResponse, String relayState)
 			throws IuAuthenticationException {
-		IuSamlSessionDetails detail = session.getDetail(IuSamlSessionDetails.class);
+		SamlSessionDetails detail = session.getDetail(SamlSessionDetails.class);
 		final var  entryPointUri = detail.getEntryPointUri();
 		
 		try {
@@ -124,7 +124,7 @@ final class SamlSessionVerifier implements IuSamlSessionVerifier {
 
 	@Override
 	public SamlPrincipal getPrincipalIdentity(IuSession session) throws IuAuthenticationException {
-		IuSamlSessionDetails detail = session.getDetail(IuSamlSessionDetails.class);
+		SamlSessionDetails detail = session.getDetail(SamlSessionDetails.class);
 		final var entryPointUri = detail.getEntryPointUri();
 		if (invalid)
 			throw new IuBadRequestException("Session failed due to an invalid SAML response, check POST logs");

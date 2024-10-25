@@ -63,10 +63,11 @@ public interface IuSamlSessionVerifier {
 	 * Location {@link URI} for the configured Identity Provider with the appropriate SAML 
 	 * {@code SAMLRequest} and {@code RelayState} HTTP query parameters.
 	 * @param session session
+	 * @param entryPointUri entry point URI
 	 * 
 	 * @return {@link URI}
 	 */
-	URI initRequest(IuSession session);
+	URI initRequest(IuSession session, URI entryPointUri);
 
 	/**
 	 * Decodes a SAML Response, performs Subject Confirmation validation logic, and

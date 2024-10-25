@@ -7,7 +7,7 @@ import edu.iu.auth.saml.IuSamlAssertion;
 /**
  * SAML session details interface
  */
-public interface IuSamlSessionDetails {
+public interface SamlSessionDetails {
 	/**
 	 * Get session id
 	 * @return session id
@@ -25,6 +25,13 @@ public interface IuSamlSessionDetails {
 	 * @return entry point URI
 	 */
 	URI getEntryPointUri();
+	
+	/**
+	 * Set entry point URI
+	 * @param entryPointUri entry point URI
+	 */
+	void setEntryPointUri(URI entryPointUri);
+	
 	
 	/**
 	 * Get relay state
