@@ -156,7 +156,7 @@ public class SessionHandler implements IuSessionHandler {
 		cookieBuilder.append(IuText.base64Url(secretKey));
 		cookieBuilder.append("; Path=").append(resourceUri.getPath());
 		
-		if(resourceUri.getScheme().equals("https"))
+		if(resourceUri.getScheme() != null && resourceUri.getScheme().equals("https"))
 		cookieBuilder.append("; Secure");
 		
 		cookieBuilder.append("; HttpOnly");
