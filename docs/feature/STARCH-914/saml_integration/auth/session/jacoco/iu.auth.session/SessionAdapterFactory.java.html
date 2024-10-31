@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SessionAdapterFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Authenticated Session Handler</a> &gt; <a href="index.source.html" class="el_package">iu.auth.session</a> &gt; <span class="el_source">SessionAdapterFactory.java</span></div><h1>SessionAdapterFactory.java</h1><pre class="source lang-java linenums">package iu.auth.session;
+
+import java.lang.reflect.Type;
+import java.util.function.Function;
+
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonPropertyNameFormat;
+
+/**
+ * Session adapter factory.
+ * 
+ * @param &lt;T&gt; source type
+ */
+public class SessionAdapterFactory&lt;T&gt; implements Function&lt;T, IuJsonAdapter&lt;?&gt;&gt; {
+
+	private final Class&lt;?&gt; baseType;
+
+	/**
+	 * Constructor
+	 * 
+	 * @param baseType base type
+	 */
+<span class="fc" id="L23">	public SessionAdapterFactory(Class&lt;?&gt; baseType) {</span>
+<span class="fc" id="L24">		this.baseType = baseType;</span>
+<span class="fc" id="L25">	}</span>
+
+	@SuppressWarnings({ &quot;rawtypes&quot;, &quot;unchecked&quot; })
+	@Override
+	public IuJsonAdapter&lt;?&gt; apply(T t) {
+<span class="fc bfc" id="L30" title="All 2 branches covered.">		if (t instanceof Class) {</span>
+<span class="fc" id="L31">			final var c = (Class) t;</span>
+<span class="fc bfc" id="L32" title="All 2 branches covered.">			if (c.isInterface() //</span>
+<span class="fc bfc" id="L33" title="All 2 branches covered.">					&amp;&amp; c.getModule().equals(baseType.getModule()))</span>
+<span class="fc" id="L34">				return IuJsonAdapter.from(c, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, (Function) this);</span>
+		}
+
+<span class="fc" id="L37">		return IuJsonAdapter.of((Type) t, (Function) this);</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

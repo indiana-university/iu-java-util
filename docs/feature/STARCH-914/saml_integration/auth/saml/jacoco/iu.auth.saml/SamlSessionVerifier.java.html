@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SamlSessionVerifier.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU SAML 2.0 Service Provider</a> &gt; <a href="index.source.html" class="el_package">iu.auth.saml</a> &gt; <span class="el_source">SamlSessionVerifier.java</span></div><h1>SamlSessionVerifier.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.saml;
+
+import java.net.URI;
+import java.util.Objects;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import edu.iu.IdGenerator;
+import edu.iu.IuObject;
+import edu.iu.IuWebUtils;
+import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.saml.IuSamlSessionVerifier;
+import edu.iu.auth.session.IuSession;
+
+/**
+ * SAML session implementation to support session management
+ */
+final class SamlSessionVerifier implements IuSamlSessionVerifier {
+
+<span class="fc" id="L52">	private final Logger LOG = Logger.getLogger(SamlSessionVerifier.class.getName());</span>
+
+	private final SamlServiceProvider serviceProvider;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param postUri HTTP POST Binding URI
+	 */
+<span class="fc" id="L61">	SamlSessionVerifier(URI postUri) {</span>
+<span class="fc" id="L62">		this.serviceProvider = SamlServiceProvider.withBinding(postUri);</span>
+<span class="fc" id="L63">	}</span>
+
+	@Override
+	public URI initRequest(IuSession session, URI entryPointUri) {
+<span class="fc" id="L67">		Objects.requireNonNull(entryPointUri, &quot;Missing entryPointUri&quot;);</span>
+
+<span class="fc" id="L69">		final var detail = session.getDetail(SamlSessionDetails.class);</span>
+<span class="fc" id="L70">		IuObject.require(detail.getRelayState(), Objects::isNull, &quot;relayState is already initialized&quot;);</span>
+<span class="fc" id="L71">		IuObject.require(detail.getSessionId(), Objects::isNull, &quot;sessionId is already initialized&quot;);</span>
+<span class="fc" id="L72">		IuObject.require(detail.getEntryPointUri(), Objects::isNull, &quot;entryPointUri is already initialized&quot;);</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">		IuObject.require(detail.isInvalid(), a -&gt; !a, &quot;invalid session&quot;);</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">		IuObject.require(detail, a -&gt; !SamlPrincipal.isBound(a), &quot;principal attributes have already been bound&quot;);</span>
+
+<span class="fc" id="L76">		final var relayState = IdGenerator.generateId();</span>
+<span class="fc" id="L77">		final var sessionId = IdGenerator.generateId();</span>
+<span class="fc" id="L78">		detail.setRelayState(relayState);</span>
+<span class="fc" id="L79">		detail.setSessionId(sessionId);</span>
+<span class="fc" id="L80">		detail.setEntryPointUri(entryPointUri);</span>
+
+<span class="fc" id="L82">		return serviceProvider.getAuthnRequest(relayState, sessionId);</span>
+	}
+
+	@Override
+	public URI verifyResponse(IuSession session, String remoteAddr, String samlResponse, String relayState)
+			throws IuAuthenticationException {
+<span class="fc" id="L88">		final var detail = session.getDetail(SamlSessionDetails.class);</span>
+<span class="fc" id="L89">		final var sessionId = Objects.requireNonNull(detail.getSessionId(), &quot;Missing sessionId&quot;);</span>
+<span class="fc" id="L90">		final var entryPointUri = Objects.requireNonNull(detail.getEntryPointUri(), &quot;Missing entryPointUri&quot;);</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">		IuObject.require(detail.isInvalid(), a -&gt; !a, &quot;invalid session&quot;);</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">		IuObject.require(detail, a -&gt; !SamlPrincipal.isBound(a), &quot;principal attributes have already been bound&quot;);</span>
+
+<span class="fc" id="L94">		IuObject.once(Objects.requireNonNull(relayState, &quot;Missing RelayState parameter&quot;),</span>
+<span class="fc" id="L95">				Objects.requireNonNull(detail.getRelayState(), &quot;Missing relayState in session&quot;), &quot;RelayState mismatch&quot;);</span>
+
+		try {
+<span class="fc" id="L98">			serviceProvider</span>
+<span class="fc" id="L99">					.verifyResponse(IuWebUtils.getInetAddress(remoteAddr),</span>
+<span class="fc" id="L100">							Objects.requireNonNull(samlResponse, &quot;Missing SAMLResponse parameter&quot;), sessionId)</span>
+<span class="fc" id="L101">					.bind(detail);</span>
+<span class="fc" id="L102">		} catch (Throwable e) {</span>
+<span class="fc" id="L103">			LOG.log(Level.INFO, &quot;Invalid SAML Response&quot;, e);</span>
+<span class="fc" id="L104">			detail.setInvalid(true);</span>
+
+<span class="fc" id="L106">			final var challenge = new IuAuthenticationException(null, e);</span>
+<span class="fc" id="L107">			challenge.setLocation(entryPointUri);</span>
+<span class="fc" id="L108">			throw challenge;</span>
+<span class="fc" id="L109">		}</span>
+
+<span class="fc" id="L111">		return entryPointUri;</span>
+	}
+
+	@Override
+	public SamlPrincipal getPrincipalIdentity(IuSession session) throws IuAuthenticationException {
+<span class="fc" id="L116">		final var detail = session.getDetail(SamlSessionDetails.class);</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">		IuObject.require(detail.isInvalid(), a -&gt; !a, &quot;invalid session&quot;);</span>
+<span class="fc" id="L118">		IuObject.require(detail, SamlPrincipal::isBound, &quot;Session missing principal&quot;);</span>
+<span class="fc" id="L119">		final var entryPointUri = Objects.requireNonNull(detail.getEntryPointUri(), &quot;Missing entryPointUri&quot;);</span>
+
+<span class="fc" id="L121">		final var id = SamlPrincipal.from(detail);</span>
+		try {
+<span class="fc" id="L123">			IuPrincipalIdentity.verify(id, serviceProvider.getRealm());</span>
+<span class="fc" id="L124">		} catch (IuAuthenticationException e) {</span>
+<span class="fc" id="L125">			e.setLocation(entryPointUri);</span>
+<span class="fc" id="L126">			throw e;</span>
+<span class="fc" id="L127">		}</span>
+
+<span class="fc" id="L129">		return id;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
