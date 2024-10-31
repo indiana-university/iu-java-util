@@ -34,8 +34,11 @@ package iu.auth.session;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.function.Function;
 
 import edu.iu.IuObject;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonValue;
 
 /**
  * Holds Session attributes
@@ -46,57 +49,67 @@ class SessionDetail implements InvocationHandler {
 	}
 
 	/** session attributes */
-	private final Map<String, Object> attributes;
+	private final Map<String, JsonValue> attributes;
 
 	/** session */
 	private final Session session;
 
+	/** adapter factory */
+	private final Function<Class<?>, IuJsonAdapter<?>> adapterFactory;
+
 	/**
 	 * Constructor
 	 * 
-	 * @param attributes attributes
-	 * @param session    session
+	 * @param attributes     attributes
+	 * @param session        session
+	 * @param adapterFactory adapter factory
 	 */
-	SessionDetail(Map<String, Object> attributes, Session session) {
+	SessionDetail(Map<String, JsonValue> attributes, Session session,
+			Function<Class<?>, IuJsonAdapter<?>> adapterFactory) {
 		this.attributes = attributes;
 		this.session = session;
+		this.adapterFactory = adapterFactory;
 	}
 
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Override
 	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 		final var methodName = method.getName();
 
-		if (methodName.equals("hashCode")) {
-			return System.identityHashCode(proxy);
-		}
-
-		if (methodName.equals("equals")) {
-			return args[0] == proxy;
-		}
-
-		if (methodName.equals("toString")) {
-			return attributes.toString();
-		}
-
 		final String key;
-		if (methodName.startsWith("get")) {
-			key = Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4);
-			return attributes.get(key);
-		} else if (methodName.startsWith("is")) {
-			key = Character.toLowerCase(methodName.charAt(2)) + methodName.substring(3);
-			return attributes.get(key);
-		}
+		if (args == null) {
+			if (methodName.equals("hashCode"))
+				return System.identityHashCode(proxy);
+			if (methodName.equals("toString"))
+				return attributes.toString();
 
-		if (methodName.startsWith("set") && args != null && args.length == 1) {
-			key = methodName.substring(3, 4).toLowerCase() + methodName.substring(4);
+			if (methodName.startsWith("get"))
+				key = Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4);
+			else if (methodName.startsWith("is"))
+				key = Character.toLowerCase(methodName.charAt(2)) + methodName.substring(3);
+			else
+				throw new UnsupportedOperationException(method.toString());
 
-			if (args[0] == null) {
-				if (attributes.remove(key) != null)
-					session.setChanged(true);
-			} else if (!IuObject.equals(args[0], attributes.put(key, args[0])))
-				session.setChanged(true);
+			return adapterFactory.apply(method.getReturnType()).fromJson(attributes.get(key));
 
-			return null;
+		} else if (args.length == 1) {
+			if (methodName.equals("equals"))
+				return args[0] == proxy;
+
+			if (methodName.startsWith("set")) {
+				key = methodName.substring(3, 4).toLowerCase() + methodName.substring(4);
+				final var value = args[0];
+				if (value == null) {
+					if (attributes.remove(key) != null)
+						session.setChanged(true);
+				} else {
+					IuJsonAdapter adapter = adapterFactory.apply(method.getParameterTypes()[0]);
+					final var jsonValue = adapter.toJson(value);
+					if (!IuObject.equals(jsonValue, attributes.put(key, jsonValue)))
+						session.setChanged(true);
+				}
+				return null;
+			}
 		}
 
 		throw new UnsupportedOperationException(method.toString());

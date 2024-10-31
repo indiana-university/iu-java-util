@@ -32,6 +32,7 @@
 package iu.auth.saml;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -41,10 +42,7 @@ import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonValue;
+import edu.iu.auth.saml.IuSamlAssertion;
 
 /**
  * SAML {@link IuPrincipalIdentity} implementation.
@@ -54,16 +52,8 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 		IuObject.assertNotOpen(SamlPrincipal.class);
 	}
 
-	/**
-	 * JSON type adapter.
-	 */
-	static final IuJsonAdapter<SamlPrincipal> JSON = IuJsonAdapter.from(SamlPrincipal::new, SamlPrincipal::toJson);
-
 	/** authentication realm */
 	private final String realm;
-
-	/** identity provider id */
-	private final String entityId;
 
 	/** name */
 	private final String name;
@@ -78,40 +68,26 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	private final Instant expires;
 
 	/** attributes */
-	private final SamlAssertion[] assertions;
+	private final IuSamlAssertion[] assertions;
 
 	/**
 	 * Constructor.
 	 * 
 	 * @param realm          authentication realm
-	 * @param entityId       entity ID
 	 * @param name           principal name
 	 * @param issueTime      time authentication statement was issued by the IDP
 	 * @param authTime       authentication time
 	 * @param expires        expire
 	 * @param samlAssertions verified SAML assertions
 	 */
-	SamlPrincipal(String realm, String entityId, String name, Instant issueTime, Instant authTime, Instant expires,
-			Iterable<SamlAssertion> samlAssertions) {
+	SamlPrincipal(String realm, String name, Instant issueTime, Instant authTime, Instant expires,
+			Iterable<IuSamlAssertion> samlAssertions) {
 		this.realm = Objects.requireNonNull(realm);
-		this.entityId = Objects.requireNonNull(entityId);
 		this.name = Objects.requireNonNull(name);
 		this.authTime = Objects.requireNonNull(authTime);
 		this.issueTime = Objects.requireNonNull(issueTime);
 		this.expires = Objects.requireNonNull(expires);
-		this.assertions = IuIterable.stream(samlAssertions).toArray(SamlAssertion[]::new);
-	}
-
-	private SamlPrincipal(JsonValue value) {
-		final var claims = value.asJsonObject();
-		this.name = claims.getString("sub");
-		this.entityId = claims.getString("iss");
-		this.realm = claims.getString("aud");
-		this.issueTime = Instant.ofEpochSecond(claims.getJsonNumber("iat").longValue());
-		this.expires = Instant.ofEpochSecond(claims.getJsonNumber("exp").longValue());
-		this.authTime = Instant.ofEpochSecond(claims.getJsonNumber("auth_time").longValue());
-		this.assertions = IuJson.get(claims, "urn:oasis:names:tc:SAML:2.0:assertion",
-				IuJsonAdapter.of(SamlAssertion[].class, SamlAssertion.JSON));
+		this.assertions = IuIterable.stream(samlAssertions).toArray(IuSamlAssertion[]::new);
 	}
 
 	@Override
@@ -145,7 +121,49 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 
 	@Override
 	public String toString() {
-		return toJson().toString();
+		return "SamlPrincipal [realm=" + realm + ", name=" + name + ", issueTime=" + issueTime + ", authTime="
+				+ authTime + ", expires=" + expires + ", assertions=" + Arrays.toString(assertions) + "]";
+	}
+
+	/**
+	 * Determines if an authenticated principal is bound to a session.
+	 * 
+	 * @param details session details
+	 * @return true if bound
+	 */
+	static boolean isBound(SamlSessionDetails details) {
+		return details.getRealm() != null //
+				&& details.getName() != null //
+				&& details.getIssueTime() != null //
+				&& details.getAuthTime() != null //
+				&& details.getExpires() != null //
+				&& details.getAssertions() != null;
+	}
+
+	/**
+	 * Creates a principal from the bound session details.
+	 * 
+	 * @param details session details
+	 * @return principal
+	 */
+	static SamlPrincipal from(SamlSessionDetails details) {
+		IuObject.require(details, SamlPrincipal::isBound);
+		return new SamlPrincipal(details.getRealm(), details.getName(), details.getIssueTime(),
+				details.getAuthTime(), details.getExpires(), details.getAssertions());
+	}
+
+	/**
+	 * Binds the authenticated principal data to a session.
+	 * 
+	 * @param details session details
+	 */
+	void bind(SamlSessionDetails details) {
+		details.setRealm(realm);
+		details.setName(name);
+		details.setIssueTime(issueTime);
+		details.setAuthTime(authTime);
+		details.setExpires(expires);
+		details.setAssertions(IuIterable.iter(assertions));
 	}
 
 	/**
@@ -161,19 +179,6 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 
 		if (Instant.now().isAfter(expires))
 			throw new IuAuthenticationException(null, new IllegalStateException("expired"));
-	}
-
-	private JsonObject toJson() {
-		final var builder = IuJson.object() //
-				.add("iss", entityId) //
-				.add("aud", realm) //
-				.add("sub", name) //
-				.add("iat", issueTime.getEpochSecond()) //
-				.add("exp", expires.getEpochSecond()) //
-				.add("auth_time", authTime.getEpochSecond()); //
-		IuJson.add(builder, "urn:oasis:names:tc:SAML:2.0:assertion", () -> assertions,
-				IuJsonAdapter.of(SamlAssertion[].class, SamlAssertion.JSON));
-		return builder.build();
 	}
 
 }

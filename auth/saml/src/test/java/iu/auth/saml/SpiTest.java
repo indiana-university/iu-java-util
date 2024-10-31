@@ -38,10 +38,7 @@ import java.net.URI;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.IdGenerator;
 import edu.iu.IuException;
-import edu.iu.crypt.WebEncryption.Encryption;
-import edu.iu.crypt.WebKey;
 
 @SuppressWarnings("javadoc")
 public class SpiTest {

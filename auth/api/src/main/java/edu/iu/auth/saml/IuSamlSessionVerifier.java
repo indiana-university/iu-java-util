@@ -32,7 +32,6 @@
 package edu.iu.auth.saml;
 
 import java.net.URI;
-import java.util.function.Supplier;
 
 import javax.security.auth.Subject;
 

@@ -33,29 +33,16 @@ package iu.auth.saml;
 
 import java.net.URI;
 import java.util.Objects;
-import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.iu.IdGenerator;
-import edu.iu.IuBadRequestException;
 import edu.iu.IuObject;
-import edu.iu.IuText;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.saml.IuSamlSessionVerifier;
 import edu.iu.auth.session.IuSession;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import edu.iu.crypt.WebEncryption;
-import edu.iu.crypt.WebEncryption.Encryption;
-import edu.iu.crypt.WebKey;
-import edu.iu.crypt.WebKey.Algorithm;
-import edu.iu.crypt.WebKey.Type;
-import edu.iu.crypt.WebSignature;
-import edu.iu.crypt.WebSignedPayload;
-import iu.auth.config.AuthConfig;
 
 /**
  * SAML session implementation to support session management
@@ -66,53 +53,55 @@ final class SamlSessionVerifier implements IuSamlSessionVerifier {
 
 	private final SamlServiceProvider serviceProvider;
 
-	
-	private SamlPrincipal id;
-	private boolean invalid;
-
 	/**
 	 * Constructor.
 	 * 
-	 * @param postUri       HTTP POST Binding URI
+	 * @param postUri HTTP POST Binding URI
 	 */
 	SamlSessionVerifier(URI postUri) {
 		this.serviceProvider = SamlServiceProvider.withBinding(postUri);
 	}
 
-
 	@Override
 	public URI initRequest(IuSession session, URI entryPointUri) {
-		SamlSessionDetails detail = session.getDetail(SamlSessionDetails.class);
-		IuObject.require(id, Objects::isNull);
-		IuObject.require(detail.getRelayState(), Objects::isNull);
-		IuObject.require(detail.getSessionId(), Objects::isNull);
+		Objects.requireNonNull(entryPointUri, "Missing entryPointUri");
+
+		final var detail = session.getDetail(SamlSessionDetails.class);
+		IuObject.require(detail.getRelayState(), Objects::isNull, "relayState is already initialized");
+		IuObject.require(detail.getSessionId(), Objects::isNull, "sessionId is already initialized");
+		IuObject.require(detail.getEntryPointUri(), Objects::isNull, "entryPointUri is already initialized");
+		IuObject.require(detail.isInvalid(), a -> !a, "invalid session");
+		IuObject.require(detail, a -> !SamlPrincipal.isBound(a), "principal attributes have already been bound");
 
 		final var relayState = IdGenerator.generateId();
 		final var sessionId = IdGenerator.generateId();
 		detail.setRelayState(relayState);
 		detail.setSessionId(sessionId);
+		detail.setEntryPointUri(entryPointUri);
+
 		return serviceProvider.getAuthnRequest(relayState, sessionId);
 	}
 
 	@Override
 	public URI verifyResponse(IuSession session, String remoteAddr, String samlResponse, String relayState)
 			throws IuAuthenticationException {
-		SamlSessionDetails detail = session.getDetail(SamlSessionDetails.class);
-		final var  entryPointUri = detail.getEntryPointUri();
-		
+		final var detail = session.getDetail(SamlSessionDetails.class);
+		final var sessionId = Objects.requireNonNull(detail.getSessionId(), "Missing sessionId");
+		final var entryPointUri = Objects.requireNonNull(detail.getEntryPointUri(), "Missing entryPointUri");
+		IuObject.require(detail.isInvalid(), a -> !a, "invalid session");
+		IuObject.require(detail, a -> !SamlPrincipal.isBound(a), "principal attributes have already been bound");
+
+		IuObject.once(Objects.requireNonNull(relayState, "Missing RelayState parameter"),
+				Objects.requireNonNull(detail.getRelayState(), "Missing relayState in session"), "RelayState mismatch");
+
 		try {
-			final var sessionId = detail.getSessionId();
-			IuObject.require(id, Objects::isNull);
-			IuObject.once(Objects.requireNonNull(relayState), Objects.requireNonNull(detail.getRelayState()));
-
-			id = serviceProvider.verifyResponse( //
-					IuWebUtils.getInetAddress(remoteAddr), //
-					Objects.requireNonNull(samlResponse), //
-					Objects.requireNonNull(sessionId));
-
+			serviceProvider
+					.verifyResponse(IuWebUtils.getInetAddress(remoteAddr),
+							Objects.requireNonNull(samlResponse, "Missing SAMLResponse parameter"), sessionId)
+					.bind(detail);
 		} catch (Throwable e) {
 			LOG.log(Level.INFO, "Invalid SAML Response", e);
-			invalid = true;
+			detail.setInvalid(true);
 
 			final var challenge = new IuAuthenticationException(null, e);
 			challenge.setLocation(entryPointUri);
@@ -124,17 +113,19 @@ final class SamlSessionVerifier implements IuSamlSessionVerifier {
 
 	@Override
 	public SamlPrincipal getPrincipalIdentity(IuSession session) throws IuAuthenticationException {
-		SamlSessionDetails detail = session.getDetail(SamlSessionDetails.class);
-		final var entryPointUri = detail.getEntryPointUri();
-		if (invalid)
-			throw new IuBadRequestException("Session failed due to an invalid SAML response, check POST logs");
+		final var detail = session.getDetail(SamlSessionDetails.class);
+		IuObject.require(detail.isInvalid(), a -> !a, "invalid session");
+		IuObject.require(detail, SamlPrincipal::isBound, "Session missing principal");
+		final var entryPointUri = Objects.requireNonNull(detail.getEntryPointUri(), "Missing entryPointUri");
 
+		final var id = SamlPrincipal.from(detail);
 		try {
 			IuPrincipalIdentity.verify(id, serviceProvider.getRealm());
 		} catch (IuAuthenticationException e) {
 			e.setLocation(entryPointUri);
 			throw e;
 		}
+
 		return id;
 	}
 

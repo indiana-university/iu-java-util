@@ -33,8 +33,6 @@ package iu.auth.saml;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -44,8 +42,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.logging.Level;
@@ -58,15 +54,11 @@ import org.junit.jupiter.api.condition.EnabledIf;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuWebUtils;
-import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
-import edu.iu.auth.saml.IuSamlAssertion;
 import edu.iu.auth.saml.IuSamlSessionVerifier;
 import edu.iu.auth.session.IuSession;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuVault;
-import edu.iu.crypt.WebEncryption.Encryption;
-import edu.iu.crypt.WebKey;
 import edu.iu.test.IuTestLogger;
 import iu.auth.config.AuthConfig;
 import iu.auth.pki.PkiVerifier;
@@ -77,14 +69,13 @@ public class SamlAuthenticateIT {
 
 	private static final String REALM = "iu-saml-test";
 	private static URI postUri;
-	private static URI entryPointUri;
 
 	@BeforeAll
 	public static void setupClass() {
 		AuthConfig.registerInterface("realm", IuSamlServiceProviderMetadata.class, IuVault.RUNTIME);
 		final var realm = AuthConfig.load(IuSamlServiceProviderMetadata.class, REALM);
 		postUri = realm.getAcsUris().iterator().next();
-		entryPointUri = URI.create("test:" + IdGenerator.generateId());
+//		entryPointUri = URI.create("test:" + IdGenerator.generateId());
 
 		AuthConfig.register(new PkiVerifier(realm.getIdentity()));
 
@@ -92,7 +83,7 @@ public class SamlAuthenticateIT {
 		AuthConfig.register(provider);
 		AuthConfig.seal();
 
-		final var identity = provider.serviceProviderIdentity(realm);
+		final var identity = SamlServiceProvider.serviceProviderIdentity(realm);
 		System.out.println("Verified SAML Service Provider " + identity);
 	}
 
@@ -109,7 +100,7 @@ public class SamlAuthenticateIT {
 //		System.out.println("sessionId " + sessionId);
 		IuSession session = mock(IuSession.class);
 		URI entryPointUri = URI.create(IdGenerator.generateId());
-		final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
+//		final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
 		IuSamlSessionVerifier samlSession = IuSamlSessionVerifier.create(postUri);
 		
 		final var location = samlSession.initRequest(session, entryPointUri);

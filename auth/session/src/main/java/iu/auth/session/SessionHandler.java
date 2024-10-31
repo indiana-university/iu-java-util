@@ -39,6 +39,8 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import edu.iu.IuDigest;
 import edu.iu.IuObject;
@@ -58,8 +60,9 @@ public class SessionHandler implements IuSessionHandler {
 		IuObject.assertNotOpen(SessionHandler.class);
 	}
 
-	/** session token storage */
-	static final Map<String, SessionToken> SESSION_TOKENS = new ConcurrentHashMap<>();
+	private static final Logger LOG = Logger.getLogger(SessionHandler.class.getName());
+
+	private static final Map<String, SessionToken> SESSION_TOKENS = new ConcurrentHashMap<>();
 	private static final Timer PURGE_TIMER = new Timer("session-purge", true);
 
 	private final URI resourceUri;
@@ -119,10 +122,13 @@ public class SessionHandler implements IuSessionHandler {
 		byte[] secretKey = null;
 		if (cookies != null)
 			for (final var cookie : cookies)
-				if (cookie.getName().equals(cookieName)) {
-					secretKey = IuText.base64Url(cookie.getValue());
-					break;
-				}
+				if (cookie.getName().equals(cookieName))
+					try {
+						secretKey = IuText.base64Url(cookie.getValue());
+						break;
+					} catch (Throwable e) {
+						LOG.log(Level.INFO, "Invalid session cookie value", e);
+					}
 		if (secretKey == null)
 			return null;
 
@@ -155,12 +161,12 @@ public class SessionHandler implements IuSessionHandler {
 		cookieBuilder.append('=');
 		cookieBuilder.append(IuText.base64Url(secretKey));
 		cookieBuilder.append("; Path=").append(resourceUri.getPath());
-		
-		if(resourceUri.getScheme() != null && resourceUri.getScheme().equals("https"))
-		cookieBuilder.append("; Secure");
-		
+
+		if (IuObject.equals(resourceUri.getScheme(), "https"))
+			cookieBuilder.append("; Secure");
+
 		cookieBuilder.append("; HttpOnly");
-		
+
 		if (strict)
 			cookieBuilder.append("; SameSite=Strict");
 		return cookieBuilder.toString();
@@ -169,18 +175,21 @@ public class SessionHandler implements IuSessionHandler {
 	@Override
 	public void remove(Iterable<HttpCookie> cookies) {
 		if (cookies != null) {
-			for (final var cookie : cookies) {
-				var secretKey = IuText.base64Url(cookie.getValue());
-				SESSION_TOKENS.remove(hashKey(secretKey));
-			}
+			final var cookieName = getSessionCookieName();
+			for (final var cookie : cookies)
+				if (cookie.getName().equals(cookieName))
+					try {
+						SESSION_TOKENS.remove(hashKey(IuText.base64Url(cookie.getValue())));
+					} catch (Throwable e) {
+						LOG.log(Level.INFO, "Invalid session cookie value", e);
+					}
 		}
-
 	}
 
 	/**
 	 * Gets the hash key to use for storing tokenized session data.
 	 * 
-	 * @param secretKey secret key data 
+	 * @param secretKey secret key data
 	 * @return encoded digest of the session key
 	 */
 	static String hashKey(byte[] secretKey) {

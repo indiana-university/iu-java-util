@@ -32,7 +32,6 @@
 package iu.auth.saml;
 
 import java.net.URI;
-import java.util.function.Supplier;
 
 import edu.iu.IuObject;
 import edu.iu.auth.saml.IuSamlSessionVerifier;
@@ -56,7 +55,5 @@ public class SamlSpi implements IuSamlSpi {
 	public IuSamlSessionVerifier createVerifier(URI postUri) {
 		return new SamlSessionVerifier(postUri);
 	}
-
-	
 
 }

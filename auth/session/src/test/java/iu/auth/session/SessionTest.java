@@ -47,8 +47,12 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.lang.reflect.Proxy;
 import java.net.URI;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.ThreadLocalRandom;
@@ -63,6 +67,7 @@ import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.test.IuTest;
 import edu.iu.test.IuTestLogger;
 import iu.crypt.Jwt;
 import jakarta.json.JsonObject;
@@ -163,6 +168,32 @@ public class SessionTest {
 	}
 
 	@Test
+	public void testGetDetailRequiresNamedModule() throws IOException {
+		final var path = Path.of(IuTest.getProperty("project.build.testOutputDirectory")).toUri().toURL();
+		try (final var loader = new URLClassLoader(new URL[] { path }, ClassLoader.getPlatformClassLoader()) {
+			@Override
+			protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+				synchronized (getClassLoadingLock(name)) {
+					Class<?> c = findLoadedClass(name);
+					if (c == null)
+						try {
+							c = findClass(name);
+						} catch (ClassNotFoundException e) {
+							return super.loadClass(name, resolve);
+						}
+					if (resolve)
+						resolveClass(c);
+					return c;
+				}
+			}
+		}) {
+			final var c = assertDoesNotThrow(() -> loader.loadClass(SessionDetailInterface.class.getName()));
+			final var error = assertThrows(IllegalArgumentException.class, () -> session.getDetail(c));
+			assertEquals("Invalid session type, must be in a named module", error.getMessage());
+		}
+	}
+
+	@Test
 	public void testGetDetail() {
 		final var detail = session.getDetail(SessionDetailInterface.class);
 		assertNotNull(detail);
@@ -172,8 +203,8 @@ public class SessionTest {
 		detail.setFoo(foo);
 		assertEquals(foo, session.getDetail(SessionDetailInterface.class).getFoo());
 		assertEquals("Session [resourceUri=" + resourceUri + ", expires=" + session.getExpires()
-				+ ", changed=true, details={iu.auth.session.SessionTest$SessionDetailInterface={foo=" + foo + "}}]",
-				session.toString());
+				+ ", changed=true, details={" + SessionDetailInterface.class.getModule().getName() + "/"
+				+ SessionDetailInterface.class.getName() + "={foo=\"" + foo + "\"}}]", session.toString());
 	}
 
 	@Test
@@ -189,7 +220,7 @@ public class SessionTest {
 		assertNotNull(expirationTime);
 		assertTrue(expirationTime.isAfter(Instant.now()));
 	}
-	
+
 	@Test
 	public void testGetResourceUri() {
 		assertEquals(resourceUri, session.getResourceUri());

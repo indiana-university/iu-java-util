@@ -49,11 +49,6 @@ import org.opensaml.saml.saml2.core.Conditions;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.auth.saml.IuSamlAssertion;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonNumber;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonValue;
 
 /**
  * Validates, decodes, and holds attribute, condition, and authentication
@@ -62,17 +57,6 @@ import jakarta.json.JsonValue;
 final class SamlAssertion implements IuSamlAssertion {
 
 	private static final Logger LOG = Logger.getLogger(SamlAssertion.class.getName());
-
-	/**
-	 * JSON type adapter for timestamp values.
-	 */
-	static IuJsonAdapter<Instant> NUMERIC_DATE = IuJsonAdapter
-			.from(v -> Instant.ofEpochSecond(((JsonNumber) v).longValue()), v -> IuJson.number(v.getEpochSecond()));
-
-	/**
-	 * JSON type adapter.
-	 */
-	static IuJsonAdapter<SamlAssertion> JSON = IuJsonAdapter.from(SamlAssertion::new, SamlAssertion::toJson);
 
 	/**
 	 * Extracts string contents from a SAML attribute
@@ -96,7 +80,7 @@ final class SamlAssertion implements IuSamlAssertion {
 	/**
 	 * Constructor.
 	 * 
-	 * @param assertion         Unmarshalled OpenSAML Assertion
+	 * @param assertion Unmarshalled OpenSAML Assertion
 	 */
 	SamlAssertion(Assertion assertion) {
 		final Map<String, String> attributes = new LinkedHashMap<>();
@@ -131,14 +115,6 @@ final class SamlAssertion implements IuSamlAssertion {
 		this.attributes = Collections.unmodifiableMap(attributes);
 	}
 
-	private SamlAssertion(JsonValue value) {
-		final var claims = value.asJsonObject();
-		notBefore = IuJson.get(claims, "nbf", NUMERIC_DATE);
-		notOnOrAfter = IuJson.get(claims, "exp", NUMERIC_DATE);
-		authnInstant = IuJson.get(claims, "authn_instant", NUMERIC_DATE);
-		attributes = IuJson.get(claims, "attribute_statement");
-	}
-
 	@Override
 	public Instant getNotBefore() {
 		return notBefore;
@@ -159,17 +135,4 @@ final class SamlAssertion implements IuSamlAssertion {
 		return attributes;
 	}
 
-	@Override
-	public String toString() {
-		return JSON.toJson(this).toString();
-	}
-
-	private JsonObject toJson() {
-		final var builder = IuJson.object();
-		IuJson.add(builder, "nbf", this::getNotBefore, NUMERIC_DATE);
-		IuJson.add(builder, "exp", this::getNotOnOrAfter, NUMERIC_DATE);
-		IuJson.add(builder, "authn_instant", this::getAuthnInstant, NUMERIC_DATE);
-		IuJson.add(builder, "attribute_statement", this::getAttributes, IuJsonAdapter.basic());
-		return builder.build();
-	}
 }

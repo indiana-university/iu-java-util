@@ -70,6 +70,7 @@ import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
+import edu.iu.auth.saml.IuSamlAssertion;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import iu.auth.config.AuthConfig;
@@ -225,7 +226,7 @@ class SamlResponseValidator {
 		LOG.fine(() -> "saml:post-validate:" + principalName + ":" + authnInstant + "; issuer: " + issuer + " @"
 				+ issueInstant + ", expires " + expires + "; assertions: " + samlAssertions);
 
-		return new SamlPrincipal(realm(), issuer, principalName, issueInstant, authnInstant, expires, samlAssertions);
+		return new SamlPrincipal(realm(), principalName, issueInstant, authnInstant, expires, samlAssertions);
 	}
 
 	/**
@@ -269,8 +270,8 @@ class SamlResponseValidator {
 	 * @return At least one {@link SamlAssertion}
 	 * @throws Exception if an assertion fails to validate
 	 */
-	Iterable<SamlAssertion> validateAssertions(Response response) throws Exception {
-		final Queue<SamlAssertion> samlAssertions = new ArrayDeque<>();
+	Iterable<IuSamlAssertion> validateAssertions(Response response) throws Exception {
+		final Queue<IuSamlAssertion> samlAssertions = new ArrayDeque<>();
 
 		for (Assertion assertion : response.getAssertions()) {
 			assertionValidator.validate(assertion, validationContext);
