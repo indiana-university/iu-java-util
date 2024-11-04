@@ -12,7 +12,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.net.URI;
-import java.time.Instant;
 import java.util.Objects;
 import java.util.logging.Level;
 
@@ -59,96 +58,20 @@ public class SamlSessionVerifierTest {
 	public void testInitRequestMissingEntryPoint() {
 		final var verifier = new SamlSessionVerifier(postUri);
 		final var error = assertThrows(NullPointerException.class, () -> verifier.initRequest(null, null));
-		assertEquals("Missing entryPointUri", error.getMessage());
-	}
-
-	@Test
-	public void testInitRequestRejectRelayState() {
-		final var details = mock(SamlSessionDetails.class);
-		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
-
-		final var relayState = IdGenerator.generateId();
-		when(details.getRelayState()).thenReturn(relayState);
-
-		final var verifier = new SamlSessionVerifier(postUri);
-		final var error = assertThrows(IllegalArgumentException.class,
-				() -> verifier.initRequest(session, URI.create(IdGenerator.generateId())));
-		assertEquals("relayState is already initialized", error.getMessage());
-	}
-
-	@Test
-	public void testInitRequestRejectSessionId() {
-		final var details = mock(SamlSessionDetails.class);
-		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
-
-		final var sessionId = IdGenerator.generateId();
-		when(details.getSessionId()).thenReturn(sessionId);
-
-		final var verifier = new SamlSessionVerifier(postUri);
-		final var error = assertThrows(IllegalArgumentException.class,
-				() -> verifier.initRequest(session, URI.create(IdGenerator.generateId())));
-		assertEquals("sessionId is already initialized", error.getMessage());
-	}
-
-	@Test
-	public void testInitRequestRejectEntryPointUri() {
-		final var details = mock(SamlSessionDetails.class);
-		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
-
-		final var entryPointUri = URI.create(IdGenerator.generateId());
-		when(details.getEntryPointUri()).thenReturn(entryPointUri);
-
-		final var verifier = new SamlSessionVerifier(postUri);
-		final var error = assertThrows(IllegalArgumentException.class,
-				() -> verifier.initRequest(session, URI.create(IdGenerator.generateId())));
-		assertEquals("entryPointUri is already initialized", error.getMessage());
-	}
-
-	@Test
-	public void testInitRequestRejectInvalidSession() {
-		final var details = mock(SamlSessionDetails.class);
-		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
-
-		when(details.isInvalid()).thenReturn(true);
-
-		final var verifier = new SamlSessionVerifier(postUri);
-		final var error = assertThrows(IllegalArgumentException.class,
-				() -> verifier.initRequest(session, URI.create(IdGenerator.generateId())));
-		assertEquals("invalid session", error.getMessage());
-	}
-
-	@Test
-	public void testInitRequestRejectBoundPrincipal() {
-		final var details = mock(SamlSessionDetails.class);
-		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
-
-		when(details.getName()).thenReturn(IdGenerator.generateId());
-		when(details.getRealm()).thenReturn(IdGenerator.generateId());
-		when(details.getIssueTime()).thenReturn(Instant.now());
-		when(details.getAuthTime()).thenReturn(Instant.now());
-		when(details.getExpires()).thenReturn(Instant.now());
-
-		final var verifier = new SamlSessionVerifier(postUri);
-		final var error = assertThrows(IllegalArgumentException.class,
-				() -> verifier.initRequest(session, URI.create(IdGenerator.generateId())));
-		assertEquals("principal attributes have already been bound", error.getMessage());
+		assertEquals("Missing returnUri", error.getMessage());
 	}
 
 	@Test
 	public void testInitRequest() {
 		final var entryPointUri = URI.create(IdGenerator.generateId());
 
-		final var details = mock(SamlSessionDetails.class);
+		final var details = mock(SamlPreAuthentication.class);
 		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
+		when(session.getDetail(SamlPreAuthentication.class)).thenReturn(details);
 
 		final var verifier = new SamlSessionVerifier(postUri);
 		assertDoesNotThrow(() -> verifier.initRequest(session, entryPointUri));
+		verify(session).clearDetail(SamlPreAuthentication.class);
 
 		class StringTracker implements ArgumentMatcher<String> {
 			private String value;
@@ -175,227 +98,215 @@ public class SamlSessionVerifierTest {
 	}
 
 	@Test
+	public void testVerifyResponseRequiresReturnUri() {
+		final var details = mock(SamlPreAuthentication.class);
+		final var session = mock(IuSession.class);
+		when(session.getDetail(SamlPreAuthentication.class)).thenReturn(details);
+
+		final var verifier = new SamlSessionVerifier(postUri);
+		final var error = assertThrows(NullPointerException.class,
+				() -> verifier.verifyResponse(session, "127.0.0.1", null, null));
+		assertEquals("Missing returnUri", error.getMessage());
+	}
+
+	@Test
 	public void testVerifyResponseRequiresSessionId() {
-		final var details = mock(SamlSessionDetails.class);
-		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
+		final var returnUri = URI.create(IdGenerator.generateId());
 
-		final var verifier = new SamlSessionVerifier(postUri);
-		final var error = assertThrows(NullPointerException.class,
-				() -> verifier.verifyResponse(session, "127.0.0.1", null, null));
-		assertEquals("Missing sessionId", error.getMessage());
-	}
+		final var details = mock(SamlPreAuthentication.class);
+		when(details.getReturnUri()).thenReturn(returnUri);
 
-	@Test
-	public void testVerifyResponseRequiresEntryPointUri() {
-		final var sessionId = IdGenerator.generateId();
-
-		final var details = mock(SamlSessionDetails.class);
-		when(details.getSessionId()).thenReturn(sessionId);
+		final var postAuth = mock(SamlPostAuthentication.class);
 
 		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
+		when(session.getDetail(SamlPreAuthentication.class)).thenReturn(details);
+		when(session.getDetail(SamlPostAuthentication.class)).thenReturn(postAuth);
 
 		final var verifier = new SamlSessionVerifier(postUri);
-		final var error = assertThrows(NullPointerException.class,
+		IuTestLogger.expect(SamlSessionVerifier.class.getName(), Level.INFO, "Invalid SAML Response",
+				NullPointerException.class, e -> "Missing sessionId".equals(e.getMessage()));
+		final var error = assertThrows(IuAuthenticationException.class,
 				() -> verifier.verifyResponse(session, "127.0.0.1", null, null));
-		assertEquals("Missing entryPointUri", error.getMessage());
-	}
-
-	@Test
-	public void testVerifyResponseRejectInvalidSession() {
-		final var sessionId = IdGenerator.generateId();
-		final var entryPointUri = URI.create(IdGenerator.generateId());
-
-		final var details = mock(SamlSessionDetails.class);
-		when(details.getSessionId()).thenReturn(sessionId);
-		when(details.getEntryPointUri()).thenReturn(entryPointUri);
-		when(details.isInvalid()).thenReturn(true);
-
-		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
-
-		final var verifier = new SamlSessionVerifier(postUri);
-		final var error = assertThrows(IllegalArgumentException.class,
-				() -> verifier.verifyResponse(session, "127.0.0.1", null, null));
-		assertEquals("invalid session", error.getMessage());
-	}
-
-	@Test
-	public void testVerifyResponseRejectBoundPrincipal() {
-		final var sessionId = IdGenerator.generateId();
-		final var entryPointUri = URI.create(IdGenerator.generateId());
-
-		final var details = mock(SamlSessionDetails.class);
-		when(details.getSessionId()).thenReturn(sessionId);
-		when(details.getEntryPointUri()).thenReturn(entryPointUri);
-		when(details.getName()).thenReturn(IdGenerator.generateId());
-		when(details.getRealm()).thenReturn(IdGenerator.generateId());
-		when(details.getIssueTime()).thenReturn(Instant.now());
-		when(details.getAuthTime()).thenReturn(Instant.now());
-		when(details.getExpires()).thenReturn(Instant.now());
-
-		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
-
-		final var verifier = new SamlSessionVerifier(postUri);
-		final var error = assertThrows(IllegalArgumentException.class,
-				() -> verifier.verifyResponse(session, "127.0.0.1", null, null));
-		assertEquals("principal attributes have already been bound", error.getMessage());
+		verify(session).clearDetail(SamlPreAuthentication.class);
+		verify(session).clearDetail(SamlPostAuthentication.class);
+		verify(postAuth).setInvalid(true);
+		assertEquals(returnUri, error.getLocation());
 	}
 
 	@Test
 	public void testVerifyResponseRequiresRelayStateParam() {
 		final var sessionId = IdGenerator.generateId();
-		final var entryPointUri = URI.create(IdGenerator.generateId());
+		final var returnUri = URI.create(IdGenerator.generateId());
 
-		final var details = mock(SamlSessionDetails.class);
+		final var details = mock(SamlPreAuthentication.class);
 		when(details.getSessionId()).thenReturn(sessionId);
-		when(details.getEntryPointUri()).thenReturn(entryPointUri);
+		when(details.getReturnUri()).thenReturn(returnUri);
+
+		final var postAuth = mock(SamlPostAuthentication.class);
 
 		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
+		when(session.getDetail(SamlPreAuthentication.class)).thenReturn(details);
+		when(session.getDetail(SamlPostAuthentication.class)).thenReturn(postAuth);
 
 		final var verifier = new SamlSessionVerifier(postUri);
-		final var error = assertThrows(NullPointerException.class,
+		IuTestLogger.expect(SamlSessionVerifier.class.getName(), Level.INFO, "Invalid SAML Response",
+				NullPointerException.class, e -> "Missing RelayState parameter".equals(e.getMessage()));
+		final var error = assertThrows(IuAuthenticationException.class,
 				() -> verifier.verifyResponse(session, "127.0.0.1", null, null));
-		assertEquals("Missing RelayState parameter", error.getMessage());
+		verify(session).clearDetail(SamlPreAuthentication.class);
+		verify(session).clearDetail(SamlPostAuthentication.class);
+		verify(postAuth).setInvalid(true);
+		assertEquals(returnUri, error.getLocation());
 	}
 
 	@Test
 	public void testVerifyResponseRequiresRelayStateInSession() {
 		final var sessionId = IdGenerator.generateId();
-		final var entryPointUri = URI.create(IdGenerator.generateId());
+		final var returnUri = URI.create(IdGenerator.generateId());
 		final var relayState = IdGenerator.generateId();
 
-		final var details = mock(SamlSessionDetails.class);
+		final var details = mock(SamlPreAuthentication.class);
 		when(details.getSessionId()).thenReturn(sessionId);
-		when(details.getEntryPointUri()).thenReturn(entryPointUri);
+		when(details.getReturnUri()).thenReturn(returnUri);
+
+		final var postAuth = mock(SamlPostAuthentication.class);
 
 		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
+		when(session.getDetail(SamlPreAuthentication.class)).thenReturn(details);
+		when(session.getDetail(SamlPostAuthentication.class)).thenReturn(postAuth);
 
 		final var verifier = new SamlSessionVerifier(postUri);
-		final var error = assertThrows(NullPointerException.class,
+		IuTestLogger.expect(SamlSessionVerifier.class.getName(), Level.INFO, "Invalid SAML Response",
+				NullPointerException.class, e -> "Missing relayState in session".equals(e.getMessage()));
+		final var error = assertThrows(IuAuthenticationException.class,
 				() -> verifier.verifyResponse(session, "127.0.0.1", null, relayState));
-		assertEquals("Missing relayState in session", error.getMessage());
+		verify(session).clearDetail(SamlPreAuthentication.class);
+		verify(session).clearDetail(SamlPostAuthentication.class);
+		verify(postAuth).setInvalid(true);
+		assertEquals(returnUri, error.getLocation());
 	}
 
 	@Test
 	public void testVerifyResponseRelayStateMismatch() {
 		final var sessionId = IdGenerator.generateId();
-		final var entryPointUri = URI.create(IdGenerator.generateId());
+		final var returnUri = URI.create(IdGenerator.generateId());
 		final var relayState = IdGenerator.generateId();
 
-		final var details = mock(SamlSessionDetails.class);
+		final var details = mock(SamlPreAuthentication.class);
 		when(details.getSessionId()).thenReturn(sessionId);
-		when(details.getEntryPointUri()).thenReturn(entryPointUri);
+		when(details.getReturnUri()).thenReturn(returnUri);
 		when(details.getRelayState()).thenReturn(IdGenerator.generateId());
 
+		final var postAuth = mock(SamlPostAuthentication.class);
+
 		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
+		when(session.getDetail(SamlPreAuthentication.class)).thenReturn(details);
+		when(session.getDetail(SamlPostAuthentication.class)).thenReturn(postAuth);
 
 		final var verifier = new SamlSessionVerifier(postUri);
-		final var error = assertThrows(IllegalArgumentException.class,
+		IuTestLogger.expect(SamlSessionVerifier.class.getName(), Level.INFO, "Invalid SAML Response",
+				IllegalArgumentException.class, e -> "RelayState mismatch".equals(e.getMessage()));
+		final var error = assertThrows(IuAuthenticationException.class,
 				() -> verifier.verifyResponse(session, "127.0.0.1", null, relayState));
-		assertEquals("RelayState mismatch", error.getMessage());
+		verify(session).clearDetail(SamlPreAuthentication.class);
+		verify(session).clearDetail(SamlPostAuthentication.class);
+		verify(postAuth).setInvalid(true);
+		assertEquals(returnUri, error.getLocation());
 	}
 
 	@Test
 	public void testVerifyResponseRequiresSamlResponse() {
 		final var sessionId = IdGenerator.generateId();
-		final var entryPointUri = URI.create(IdGenerator.generateId());
+		final var returnUri = URI.create(IdGenerator.generateId());
 		final var relayState = IdGenerator.generateId();
 
-		final var details = mock(SamlSessionDetails.class);
+		final var details = mock(SamlPreAuthentication.class);
 		when(details.getSessionId()).thenReturn(sessionId);
-		when(details.getEntryPointUri()).thenReturn(entryPointUri);
+		when(details.getReturnUri()).thenReturn(returnUri);
 		when(details.getRelayState()).thenReturn(relayState);
 
+		final var postAuth = mock(SamlPostAuthentication.class);
+
 		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
+		when(session.getDetail(SamlPreAuthentication.class)).thenReturn(details);
+		when(session.getDetail(SamlPostAuthentication.class)).thenReturn(postAuth);
 
 		final var verifier = new SamlSessionVerifier(postUri);
 		IuTestLogger.expect(SamlSessionVerifier.class.getName(), Level.INFO, "Invalid SAML Response",
 				NullPointerException.class, e -> "Missing SAMLResponse parameter".equals(e.getMessage()));
 		final var error = assertThrows(IuAuthenticationException.class,
 				() -> verifier.verifyResponse(session, "127.0.0.1", null, relayState));
-		assertEquals(entryPointUri, error.getLocation());
+		verify(session).clearDetail(SamlPreAuthentication.class);
+		verify(session).clearDetail(SamlPostAuthentication.class);
+		verify(postAuth).setInvalid(true);
+		assertEquals(returnUri, error.getLocation());
 	}
 
 	@Test
 	public void testVerifyResponse() {
 		final var sessionId = IdGenerator.generateId();
-		final var entryPointUri = URI.create(IdGenerator.generateId());
+		final var returnUri = URI.create(IdGenerator.generateId());
 		final var relayState = IdGenerator.generateId();
 		final var samlResponse = IdGenerator.generateId();
 
-		final var details = mock(SamlSessionDetails.class);
+		final var details = mock(SamlPreAuthentication.class);
 		when(details.getSessionId()).thenReturn(sessionId);
-		when(details.getEntryPointUri()).thenReturn(entryPointUri);
+		when(details.getReturnUri()).thenReturn(returnUri);
 		when(details.getRelayState()).thenReturn(relayState);
 
+		final var postAuth = mock(SamlPostAuthentication.class);
+
 		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
+		when(session.getDetail(SamlPreAuthentication.class)).thenReturn(details);
+		when(session.getDetail(SamlPostAuthentication.class)).thenReturn(postAuth);
 
 		final var verifier = new SamlSessionVerifier(postUri);
 		final var principal = mock(SamlPrincipal.class);
 		when(provider.verifyResponse(IuWebUtils.getInetAddress("127.0.0.1"), samlResponse, sessionId))
 				.thenReturn(principal);
-		assertEquals(entryPointUri,
+		assertEquals(returnUri,
 				assertDoesNotThrow(() -> verifier.verifyResponse(session, "127.0.0.1", samlResponse, relayState)));
-		verify(principal).bind(details);
+		verify(session).clearDetail(SamlPreAuthentication.class);
+		verify(session).clearDetail(SamlPostAuthentication.class);
+		verify(principal).bind(postAuth);
 	}
 
 	@Test
 	public void testGetPrincipalIdentityRejectsInvalidSession() {
-		final var details = mock(SamlSessionDetails.class);
-		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
+		final var details = mock(SamlPostAuthentication.class);
+		final var preAuthSession = mock(IuSession.class);
+		final var postAuthSession = mock(IuSession.class);
+		when(preAuthSession.getDetail(SamlPostAuthentication.class)).thenReturn(details);
 
 		when(details.isInvalid()).thenReturn(true);
 
 		final var verifier = new SamlSessionVerifier(postUri);
-		final var error = assertThrows(IllegalArgumentException.class, () -> verifier.getPrincipalIdentity(session));
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> verifier.getPrincipalIdentity(preAuthSession, postAuthSession));
 		assertEquals("invalid session", error.getMessage());
 	}
 
 	@Test
 	public void testGetPrincipalIdentityRejectsUnboundSession() {
-		final var details = mock(SamlSessionDetails.class);
-		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
+		final var details = mock(SamlPostAuthentication.class);
+		final var postAuthSession = mock(IuSession.class);
+		when(postAuthSession.getDetail(SamlPostAuthentication.class)).thenReturn(details);
 
 		final var verifier = new SamlSessionVerifier(postUri);
-		final var error = assertThrows(IllegalArgumentException.class, () -> verifier.getPrincipalIdentity(session));
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> verifier.getPrincipalIdentity(null, postAuthSession));
 		assertEquals("Session missing principal", error.getMessage());
 	}
 
 	@Test
-	public void testGetPrincipalIdentityRequiresEntryPoint() {
-		final var details = mock(SamlSessionDetails.class);
-		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
-
-		final var verifier = new SamlSessionVerifier(postUri);
-		try (final var mockSamlPrincipal = mockStatic(SamlPrincipal.class)) {
-			mockSamlPrincipal.when(() -> SamlPrincipal.isBound(details)).thenReturn(true);
-			final var error = assertThrows(NullPointerException.class, () -> verifier.getPrincipalIdentity(session));
-			assertEquals("Missing entryPointUri", error.getMessage());
-		}
-	}
-
-	@Test
 	public void testGetPrincipalIdentity() {
-		final var entryPointUri = URI.create(IdGenerator.generateId());
 		final var realm = IdGenerator.generateId();
 
-		final var details = mock(SamlSessionDetails.class);
-		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
+		final var details = mock(SamlPostAuthentication.class);
+		final var postAuthSession = mock(IuSession.class);
+		when(postAuthSession.getDetail(SamlPostAuthentication.class)).thenReturn(details);
 
 		when(provider.getRealm()).thenReturn(realm);
-		when(details.getEntryPointUri()).thenReturn(entryPointUri);
 
 		final var verifier = new SamlSessionVerifier(postUri);
 		final var id = mock(SamlPrincipal.class);
@@ -403,22 +314,20 @@ public class SamlSessionVerifierTest {
 				final var mockIuPrincipalIdentity = mockStatic(IuPrincipalIdentity.class)) {
 			mockSamlPrincipal.when(() -> SamlPrincipal.isBound(details)).thenReturn(true);
 			mockSamlPrincipal.when(() -> SamlPrincipal.from(details)).thenReturn(id);
-			assertSame(id, assertDoesNotThrow(() -> verifier.getPrincipalIdentity(session)));
+			assertSame(id, assertDoesNotThrow(() -> verifier.getPrincipalIdentity(null, postAuthSession)));
 			mockIuPrincipalIdentity.verify(() -> IuPrincipalIdentity.verify(id, realm));
 		}
 	}
 
 	@Test
 	public void testGetPrincipalIdentityVerificationFailure() {
-		final var entryPointUri = URI.create(IdGenerator.generateId());
 		final var realm = IdGenerator.generateId();
 
-		final var details = mock(SamlSessionDetails.class);
-		final var session = mock(IuSession.class);
-		when(session.getDetail(SamlSessionDetails.class)).thenReturn(details);
+		final var details = mock(SamlPostAuthentication.class);
+		final var postAuthSession = mock(IuSession.class);
+		when(postAuthSession.getDetail(SamlPostAuthentication.class)).thenReturn(details);
 
 		when(provider.getRealm()).thenReturn(realm);
-		when(details.getEntryPointUri()).thenReturn(entryPointUri);
 
 		final var verifier = new SamlSessionVerifier(postUri);
 		final var id = mock(SamlPrincipal.class);
@@ -429,9 +338,35 @@ public class SamlSessionVerifierTest {
 
 			final var error = new IuAuthenticationException(null);
 			mockIuPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(id, realm)).thenThrow(error);
-			assertSame(error, assertThrows(IuAuthenticationException.class, () -> verifier.getPrincipalIdentity(session)));
-			assertEquals(entryPointUri, error.getLocation());
+			assertSame(error, assertThrows(IuAuthenticationException.class,
+					() -> verifier.getPrincipalIdentity(null, postAuthSession)));
 		}
 	}
 
+	@Test
+	public void testGetPrincipalBindsPostAuth() {
+		final var realm = IdGenerator.generateId();
+
+        final var preAuth = mock(SamlPostAuthentication.class);
+        final var preAuthSession = mock(IuSession.class);
+        when(preAuthSession.getDetail(SamlPostAuthentication.class)).thenReturn(preAuth);
+        
+        final var postAuth = mock(SamlPostAuthentication.class);
+        final var postAuthSession = mock(IuSession.class);
+        when(postAuthSession.getDetail(SamlPostAuthentication.class)).thenReturn(postAuth);
+
+        when(provider.getRealm()).thenReturn(realm);
+
+        final var verifier = new SamlSessionVerifier(postUri);
+        final var id = mock(SamlPrincipal.class);
+        try (final var mockSamlPrincipal = mockStatic(SamlPrincipal.class);
+                final var mockIuPrincipalIdentity = mockStatic(IuPrincipalIdentity.class)) {
+            mockSamlPrincipal.when(() -> SamlPrincipal.isBound(preAuth)).thenReturn(true);
+            mockSamlPrincipal.when(() -> SamlPrincipal.from(preAuth)).thenReturn(id);
+            
+            assertSame(id, assertDoesNotThrow(() -> verifier.getPrincipalIdentity(preAuthSession, postAuthSession)));
+            verify(id).bind(postAuth);
+        }
+	}
+	
 }

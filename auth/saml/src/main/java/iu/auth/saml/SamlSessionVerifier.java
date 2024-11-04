@@ -63,21 +63,17 @@ final class SamlSessionVerifier implements IuSamlSessionVerifier {
 	}
 
 	@Override
-	public URI initRequest(IuSession session, URI entryPointUri) {
-		Objects.requireNonNull(entryPointUri, "Missing entryPointUri");
+	public URI initRequest(IuSession session, URI returnUri) {
+		Objects.requireNonNull(returnUri, "Missing returnUri");
 
-		final var detail = session.getDetail(SamlSessionDetails.class);
-		IuObject.require(detail.getRelayState(), Objects::isNull, "relayState is already initialized");
-		IuObject.require(detail.getSessionId(), Objects::isNull, "sessionId is already initialized");
-		IuObject.require(detail.getEntryPointUri(), Objects::isNull, "entryPointUri is already initialized");
-		IuObject.require(detail.isInvalid(), a -> !a, "invalid session");
-		IuObject.require(detail, a -> !SamlPrincipal.isBound(a), "principal attributes have already been bound");
+		session.clearDetail(SamlPreAuthentication.class);
+		final var detail = session.getDetail(SamlPreAuthentication.class);
 
 		final var relayState = IdGenerator.generateId();
 		final var sessionId = IdGenerator.generateId();
 		detail.setRelayState(relayState);
 		detail.setSessionId(sessionId);
-		detail.setEntryPointUri(entryPointUri);
+		detail.setReturnUri(returnUri);
 
 		return serviceProvider.getAuthnRequest(relayState, sessionId);
 	}
@@ -85,45 +81,54 @@ final class SamlSessionVerifier implements IuSamlSessionVerifier {
 	@Override
 	public URI verifyResponse(IuSession session, String remoteAddr, String samlResponse, String relayState)
 			throws IuAuthenticationException {
-		final var detail = session.getDetail(SamlSessionDetails.class);
-		final var sessionId = Objects.requireNonNull(detail.getSessionId(), "Missing sessionId");
-		final var entryPointUri = Objects.requireNonNull(detail.getEntryPointUri(), "Missing entryPointUri");
-		IuObject.require(detail.isInvalid(), a -> !a, "invalid session");
-		IuObject.require(detail, a -> !SamlPrincipal.isBound(a), "principal attributes have already been bound");
+		final var preAuth = session.getDetail(SamlPreAuthentication.class);
+		session.clearDetail(SamlPreAuthentication.class);
 
-		IuObject.once(Objects.requireNonNull(relayState, "Missing RelayState parameter"),
-				Objects.requireNonNull(detail.getRelayState(), "Missing relayState in session"), "RelayState mismatch");
+		session.clearDetail(SamlPostAuthentication.class);
+		final var postAuth = session.getDetail(SamlPostAuthentication.class);
 
+		final var returnUri = Objects.requireNonNull(preAuth.getReturnUri(), "Missing returnUri");
 		try {
-			serviceProvider
-					.verifyResponse(IuWebUtils.getInetAddress(remoteAddr),
-							Objects.requireNonNull(samlResponse, "Missing SAMLResponse parameter"), sessionId)
-					.bind(detail);
+			final var sessionId = Objects.requireNonNull(preAuth.getSessionId(), "Missing sessionId");
+
+			IuObject.once(Objects.requireNonNull(relayState, "Missing RelayState parameter"),
+					Objects.requireNonNull(preAuth.getRelayState(), "Missing relayState in session"),
+					"RelayState mismatch");
+
+			final var response = Objects.requireNonNull(samlResponse, "Missing SAMLResponse parameter");
+
+			serviceProvider.verifyResponse(IuWebUtils.getInetAddress(remoteAddr), response, sessionId).bind(postAuth);
 		} catch (Throwable e) {
 			LOG.log(Level.INFO, "Invalid SAML Response", e);
-			detail.setInvalid(true);
+			postAuth.setInvalid(true);
 
 			final var challenge = new IuAuthenticationException(null, e);
-			challenge.setLocation(entryPointUri);
+			challenge.setLocation(returnUri);
 			throw challenge;
 		}
 
-		return entryPointUri;
+		return returnUri;
 	}
 
 	@Override
-	public SamlPrincipal getPrincipalIdentity(IuSession session) throws IuAuthenticationException {
-		final var detail = session.getDetail(SamlSessionDetails.class);
+	public SamlPrincipal getPrincipalIdentity(IuSession preAuthSession, IuSession postAuthSession)
+			throws IuAuthenticationException {
+		final SamlPostAuthentication detail;
+		if (preAuthSession == null)
+			detail = postAuthSession.getDetail(SamlPostAuthentication.class);
+		else
+			detail = preAuthSession.getDetail(SamlPostAuthentication.class);
+
 		IuObject.require(detail.isInvalid(), a -> !a, "invalid session");
 		IuObject.require(detail, SamlPrincipal::isBound, "Session missing principal");
-		final var entryPointUri = Objects.requireNonNull(detail.getEntryPointUri(), "Missing entryPointUri");
 
 		final var id = SamlPrincipal.from(detail);
-		try {
-			IuPrincipalIdentity.verify(id, serviceProvider.getRealm());
-		} catch (IuAuthenticationException e) {
-			e.setLocation(entryPointUri);
-			throw e;
+		IuPrincipalIdentity.verify(id, serviceProvider.getRealm());
+
+		if (preAuthSession != null) {
+			postAuthSession.clearDetail(SamlPostAuthentication.class);
+			final var postAuth = postAuthSession.getDetail(SamlPostAuthentication.class);
+			id.bind(postAuth);
 		}
 
 		return id;

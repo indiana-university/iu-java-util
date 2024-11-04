@@ -131,7 +131,7 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	 * @param details session details
 	 * @return true if bound
 	 */
-	static boolean isBound(SamlSessionDetails details) {
+	static boolean isBound(SamlPostAuthentication details) {
 		return details.getRealm() != null //
 				&& details.getName() != null //
 				&& details.getIssueTime() != null //
@@ -146,7 +146,7 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	 * @param details session details
 	 * @return principal
 	 */
-	static SamlPrincipal from(SamlSessionDetails details) {
+	static SamlPrincipal from(SamlPostAuthentication details) {
 		IuObject.require(details, SamlPrincipal::isBound);
 		return new SamlPrincipal(details.getRealm(), details.getName(), details.getIssueTime(),
 				details.getAuthTime(), details.getExpires(), details.getAssertions());
@@ -157,7 +157,7 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	 * 
 	 * @param details session details
 	 */
-	void bind(SamlSessionDetails details) {
+	void bind(SamlPostAuthentication details) {
 		details.setRealm(realm);
 		details.setName(name);
 		details.setIssueTime(issueTime);

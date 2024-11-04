@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -190,6 +191,8 @@ public class SessionTest {
 			final var c = assertDoesNotThrow(() -> loader.loadClass(SessionDetailInterface.class.getName()));
 			final var error = assertThrows(IllegalArgumentException.class, () -> session.getDetail(c));
 			assertEquals("Invalid session type, must be in a named module", error.getMessage());
+			final var error2 = assertThrows(IllegalArgumentException.class, () -> session.clearDetail(c));
+			assertEquals("Invalid session type, must be in a named module", error2.getMessage());
 		}
 	}
 
@@ -205,6 +208,21 @@ public class SessionTest {
 		assertEquals("Session [resourceUri=" + resourceUri + ", expires=" + session.getExpires()
 				+ ", changed=true, details={" + SessionDetailInterface.class.getModule().getName() + "/"
 				+ SessionDetailInterface.class.getName() + "={foo=\"" + foo + "\"}}]", session.toString());
+	}
+
+	@Test
+	public void testClearDetailNotChanged() {
+		session.clearDetail(SessionDetailInterface.class);
+		assertFalse(session.isChanged());
+	}
+
+	@Test
+	public void testClearDetailChanged() {
+		final var detail = session.getDetail(SessionDetailInterface.class);
+		detail.setFoo(IdGenerator.generateId());
+		session.clearDetail(SessionDetailInterface.class);
+		assertNull(session.getDetail(SessionDetailInterface.class).getFoo());
+		assertTrue(session.isChanged());
 	}
 
 	@Test

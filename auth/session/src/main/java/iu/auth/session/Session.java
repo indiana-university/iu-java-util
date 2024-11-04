@@ -142,6 +142,16 @@ class Session implements IuSession {
 	}
 
 	@Override
+	public void clearDetail(Class<?> type) {
+		final var module = type.getModule();
+		if (!module.isNamed())
+			throw new IllegalArgumentException("Invalid session type, must be in a named module");
+
+		if (details.remove(module.getName() + "/" + type.getName()) != null)
+			changed = true;
+	}
+
+	@Override
 	public boolean isChanged() {
 		return changed;
 	}

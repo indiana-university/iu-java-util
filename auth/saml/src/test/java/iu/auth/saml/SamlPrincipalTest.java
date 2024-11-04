@@ -109,7 +109,7 @@ public class SamlPrincipalTest {
 
 	@Test
 	public void testIsBound() {
-		final var details = mock(SamlSessionDetails.class);
+		final var details = mock(SamlPostAuthentication.class);
 		assertFalse(SamlPrincipal.isBound(details));
 		when(details.getRealm()).thenReturn(IdGenerator.generateId());
 		assertFalse(SamlPrincipal.isBound(details));
@@ -133,7 +133,7 @@ public class SamlPrincipalTest {
 		final var authTime = Instant.now().minusSeconds(15L);
 		final var expires = Instant.now().plusSeconds(15L);
 
-		final var details = mock(SamlSessionDetails.class);
+		final var details = mock(SamlPostAuthentication.class);
 		when(details.getRealm()).thenReturn(realm);
 		when(details.getName()).thenReturn(name);
 		when(details.getIssueTime()).thenReturn(issueTime);
