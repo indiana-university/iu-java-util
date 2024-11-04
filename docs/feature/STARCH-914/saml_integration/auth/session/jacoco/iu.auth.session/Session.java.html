@@ -142,8 +142,18 @@ class Session implements IuSession {
 	}
 
 	@Override
+	public void clearDetail(Class&lt;?&gt; type) {
+<span class="fc" id="L146">		final var module = type.getModule();</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">		if (!module.isNamed())</span>
+<span class="fc" id="L148">			throw new IllegalArgumentException(&quot;Invalid session type, must be in a named module&quot;);</span>
+
+<span class="fc bfc" id="L150" title="All 2 branches covered.">		if (details.remove(module.getName() + &quot;/&quot; + type.getName()) != null)</span>
+<span class="fc" id="L151">			changed = true;</span>
+<span class="fc" id="L152">	}</span>
+
+	@Override
 	public boolean isChanged() {
-<span class="fc" id="L146">		return changed;</span>
+<span class="fc" id="L156">		return changed;</span>
 	}
 
 	/**
@@ -152,8 +162,8 @@ class Session implements IuSession {
 	 * @param changed set to true when session attributes change, otherwise false
 	 */
 	void setChanged(boolean changed) {
-<span class="fc" id="L155">		this.changed = changed;</span>
-<span class="fc" id="L156">	}</span>
+<span class="fc" id="L165">		this.changed = changed;</span>
+<span class="fc" id="L166">	}</span>
 
 	/**
 	 * Gets session expire time
@@ -161,17 +171,17 @@ class Session implements IuSession {
 	 * @return {@link Instant} session expire time
 	 */
 	Instant getExpires() {
-<span class="fc" id="L164">		return expires;</span>
+<span class="fc" id="L174">		return expires;</span>
 	}
 
 	@Override
 	public URI getResourceUri() {
-<span class="fc" id="L169">		return resourceUri;</span>
+<span class="fc" id="L179">		return resourceUri;</span>
 	}
 
 	@Override
 	public String toString() {
-<span class="fc" id="L174">		return &quot;Session [resourceUri=&quot; + resourceUri + &quot;, expires=&quot; + expires + &quot;, changed=&quot; + changed + &quot;, details=&quot;</span>
+<span class="fc" id="L184">		return &quot;Session [resourceUri=&quot; + resourceUri + &quot;, expires=&quot; + expires + &quot;, changed=&quot; + changed + &quot;, details=&quot;</span>
 				+ details + &quot;]&quot;;
 	}
 

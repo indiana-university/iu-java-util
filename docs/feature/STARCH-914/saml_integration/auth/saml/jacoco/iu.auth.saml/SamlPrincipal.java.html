@@ -131,7 +131,7 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	 * @param details session details
 	 * @return true if bound
 	 */
-	static boolean isBound(SamlSessionDetails details) {
+	static boolean isBound(SamlPostAuthentication details) {
 <span class="fc bfc" id="L135" title="All 2 branches covered.">		return details.getRealm() != null //</span>
 <span class="fc bfc" id="L136" title="All 2 branches covered.">				&amp;&amp; details.getName() != null //</span>
 <span class="fc bfc" id="L137" title="All 2 branches covered.">				&amp;&amp; details.getIssueTime() != null //</span>
@@ -146,7 +146,7 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	 * @param details session details
 	 * @return principal
 	 */
-	static SamlPrincipal from(SamlSessionDetails details) {
+	static SamlPrincipal from(SamlPostAuthentication details) {
 <span class="fc" id="L150">		IuObject.require(details, SamlPrincipal::isBound);</span>
 <span class="fc" id="L151">		return new SamlPrincipal(details.getRealm(), details.getName(), details.getIssueTime(),</span>
 <span class="fc" id="L152">				details.getAuthTime(), details.getExpires(), details.getAssertions());</span>
@@ -157,7 +157,7 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	 * 
 	 * @param details session details
 	 */
-	void bind(SamlSessionDetails details) {
+	void bind(SamlPostAuthentication details) {
 <span class="fc" id="L161">		details.setRealm(realm);</span>
 <span class="fc" id="L162">		details.setName(name);</span>
 <span class="fc" id="L163">		details.setIssueTime(issueTime);</span>

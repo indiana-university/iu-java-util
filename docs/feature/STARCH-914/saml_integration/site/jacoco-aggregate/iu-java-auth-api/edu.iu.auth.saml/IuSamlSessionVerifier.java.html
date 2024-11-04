@@ -48,49 +48,56 @@ import iu.auth.IuAuthSpiFactory;
 public interface IuSamlSessionVerifier {
 
 	/**
-	 * Creates a new {@link IuSamlSessionVerifier} for managing interactions with a locally
-	 * deployed Service Provider.
-	 * @param postUri       HTTP POST Binding URI
+	 * Creates a new {@link IuSamlSessionVerifier} for managing interactions with a
+	 * locally deployed Service Provider.
+	 * 
+	 * @param postUri HTTP POST Binding URI
 	 * @return {@link IuSamlSessionVerifier}
 	 */
 	static IuSamlSessionVerifier create(URI postUri) {
-<span class="fc" id="L57">		return IuAuthSpiFactory.get(IuSamlSpi.class).createVerifier(postUri);</span>
+<span class="fc" id="L58">		return IuAuthSpiFactory.get(IuSamlSpi.class).createVerifier(postUri);</span>
 	}
 
 	/**
-	 * Initiate request using session and return 
-	 * Location {@link URI} for the configured Identity Provider with the appropriate SAML 
-	 * {@code SAMLRequest} and {@code RelayState} HTTP query parameters.
-	 * @param session session
-	 * @param entryPointUri entry point URI
+	 * Initiate request using session and return Location {@link URI} for the
+	 * configured Identity Provider with the appropriate SAML {@code SAMLRequest}
+	 * and {@code RelayState} HTTP query parameters.
+	 * 
+	 * @param session   session
+	 * @param returnUri return URI
 	 * 
 	 * @return {@link URI}
 	 */
-	URI initRequest(IuSession session, URI entryPointUri);
+	URI initRequest(IuSession session, URI returnUri);
 
 	/**
 	 * Decodes a SAML Response, performs Subject Confirmation validation logic, and
 	 * validates assertions to authenticate a {@link IuPrincipalIdentity} as valid
 	 * for the local Service Provider.
 	 * 
-	 * @param session session
+	 * @param session      session
 	 * 
 	 * @param remoteAddr   IP address to validate against allowed list
 	 * @param samlResponse SAML response that received back from identity provider
 	 *                     after user has been authenticate
 	 * @param relayState   state value that received back from identity provider
 	 *                     after successful authentication.
-	 * @return entryPointUri
+	 * @return returnUri from related {@link #initRequest(IuSession, URI)}
 	 *
 	 * @throws IuAuthenticationException when relay state is invalid or verification
 	 *                                   failed
-	 * 
 	 */
-	URI verifyResponse(IuSession session, String remoteAddr, String samlResponse, String relayState) throws IuAuthenticationException;
+	URI verifyResponse(IuSession session, String remoteAddr, String samlResponse, String relayState)
+			throws IuAuthenticationException;
 
 	/**
 	 * Gets the authenticated SAML principal.
-	 * @param session session
+	 * 
+	 * @param preAuthSession  session used with
+	 *                        {@link #verifyResponse(IuSession, String, String, String)};
+	 *                        null if authentication handshake is already complete
+	 * @param postAuthSession session to bind principal attributes after completing
+	 *                        authentication handshake
 	 * 
 	 * @return {@link IuPrincipalIdentity}; will include at least one
 	 *         {@link IuSamlAssertion} in its
@@ -99,8 +106,8 @@ public interface IuSamlSessionVerifier {
 	 * @throws IuAuthenticationException If not authenticated or authentication has
 	 *                                   expired
 	 */
-	IuPrincipalIdentity getPrincipalIdentity(IuSession session) throws IuAuthenticationException;
-
+	IuPrincipalIdentity getPrincipalIdentity(IuSession preAuthSession, IuSession postAuthSession)
+			throws IuAuthenticationException;
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

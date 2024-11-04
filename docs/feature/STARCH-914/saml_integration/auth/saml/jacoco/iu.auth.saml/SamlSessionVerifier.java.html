@@ -63,70 +63,75 @@ final class SamlSessionVerifier implements IuSamlSessionVerifier {
 <span class="fc" id="L63">	}</span>
 
 	@Override
-	public URI initRequest(IuSession session, URI entryPointUri) {
-<span class="fc" id="L67">		Objects.requireNonNull(entryPointUri, &quot;Missing entryPointUri&quot;);</span>
+	public URI initRequest(IuSession session, URI returnUri) {
+<span class="fc" id="L67">		Objects.requireNonNull(returnUri, &quot;Missing returnUri&quot;);</span>
 
-<span class="fc" id="L69">		final var detail = session.getDetail(SamlSessionDetails.class);</span>
-<span class="fc" id="L70">		IuObject.require(detail.getRelayState(), Objects::isNull, &quot;relayState is already initialized&quot;);</span>
-<span class="fc" id="L71">		IuObject.require(detail.getSessionId(), Objects::isNull, &quot;sessionId is already initialized&quot;);</span>
-<span class="fc" id="L72">		IuObject.require(detail.getEntryPointUri(), Objects::isNull, &quot;entryPointUri is already initialized&quot;);</span>
-<span class="fc bfc" id="L73" title="All 2 branches covered.">		IuObject.require(detail.isInvalid(), a -&gt; !a, &quot;invalid session&quot;);</span>
-<span class="fc bfc" id="L74" title="All 2 branches covered.">		IuObject.require(detail, a -&gt; !SamlPrincipal.isBound(a), &quot;principal attributes have already been bound&quot;);</span>
+<span class="fc" id="L69">		session.clearDetail(SamlPreAuthentication.class);</span>
+<span class="fc" id="L70">		final var detail = session.getDetail(SamlPreAuthentication.class);</span>
 
-<span class="fc" id="L76">		final var relayState = IdGenerator.generateId();</span>
-<span class="fc" id="L77">		final var sessionId = IdGenerator.generateId();</span>
-<span class="fc" id="L78">		detail.setRelayState(relayState);</span>
-<span class="fc" id="L79">		detail.setSessionId(sessionId);</span>
-<span class="fc" id="L80">		detail.setEntryPointUri(entryPointUri);</span>
+<span class="fc" id="L72">		final var relayState = IdGenerator.generateId();</span>
+<span class="fc" id="L73">		final var sessionId = IdGenerator.generateId();</span>
+<span class="fc" id="L74">		detail.setRelayState(relayState);</span>
+<span class="fc" id="L75">		detail.setSessionId(sessionId);</span>
+<span class="fc" id="L76">		detail.setReturnUri(returnUri);</span>
 
-<span class="fc" id="L82">		return serviceProvider.getAuthnRequest(relayState, sessionId);</span>
+<span class="fc" id="L78">		return serviceProvider.getAuthnRequest(relayState, sessionId);</span>
 	}
 
 	@Override
 	public URI verifyResponse(IuSession session, String remoteAddr, String samlResponse, String relayState)
 			throws IuAuthenticationException {
-<span class="fc" id="L88">		final var detail = session.getDetail(SamlSessionDetails.class);</span>
-<span class="fc" id="L89">		final var sessionId = Objects.requireNonNull(detail.getSessionId(), &quot;Missing sessionId&quot;);</span>
-<span class="fc" id="L90">		final var entryPointUri = Objects.requireNonNull(detail.getEntryPointUri(), &quot;Missing entryPointUri&quot;);</span>
-<span class="fc bfc" id="L91" title="All 2 branches covered.">		IuObject.require(detail.isInvalid(), a -&gt; !a, &quot;invalid session&quot;);</span>
-<span class="fc bfc" id="L92" title="All 2 branches covered.">		IuObject.require(detail, a -&gt; !SamlPrincipal.isBound(a), &quot;principal attributes have already been bound&quot;);</span>
+<span class="fc" id="L84">		final var preAuth = session.getDetail(SamlPreAuthentication.class);</span>
+<span class="fc" id="L85">		session.clearDetail(SamlPreAuthentication.class);</span>
 
-<span class="fc" id="L94">		IuObject.once(Objects.requireNonNull(relayState, &quot;Missing RelayState parameter&quot;),</span>
-<span class="fc" id="L95">				Objects.requireNonNull(detail.getRelayState(), &quot;Missing relayState in session&quot;), &quot;RelayState mismatch&quot;);</span>
+<span class="fc" id="L87">		session.clearDetail(SamlPostAuthentication.class);</span>
+<span class="fc" id="L88">		final var postAuth = session.getDetail(SamlPostAuthentication.class);</span>
 
+<span class="fc" id="L90">		final var returnUri = Objects.requireNonNull(preAuth.getReturnUri(), &quot;Missing returnUri&quot;);</span>
 		try {
-<span class="fc" id="L98">			serviceProvider</span>
-<span class="fc" id="L99">					.verifyResponse(IuWebUtils.getInetAddress(remoteAddr),</span>
-<span class="fc" id="L100">							Objects.requireNonNull(samlResponse, &quot;Missing SAMLResponse parameter&quot;), sessionId)</span>
-<span class="fc" id="L101">					.bind(detail);</span>
-<span class="fc" id="L102">		} catch (Throwable e) {</span>
-<span class="fc" id="L103">			LOG.log(Level.INFO, &quot;Invalid SAML Response&quot;, e);</span>
-<span class="fc" id="L104">			detail.setInvalid(true);</span>
+<span class="fc" id="L92">			final var sessionId = Objects.requireNonNull(preAuth.getSessionId(), &quot;Missing sessionId&quot;);</span>
 
-<span class="fc" id="L106">			final var challenge = new IuAuthenticationException(null, e);</span>
-<span class="fc" id="L107">			challenge.setLocation(entryPointUri);</span>
-<span class="fc" id="L108">			throw challenge;</span>
-<span class="fc" id="L109">		}</span>
+<span class="fc" id="L94">			IuObject.once(Objects.requireNonNull(relayState, &quot;Missing RelayState parameter&quot;),</span>
+<span class="fc" id="L95">					Objects.requireNonNull(preAuth.getRelayState(), &quot;Missing relayState in session&quot;),</span>
+					&quot;RelayState mismatch&quot;);
 
-<span class="fc" id="L111">		return entryPointUri;</span>
+<span class="fc" id="L98">			final var response = Objects.requireNonNull(samlResponse, &quot;Missing SAMLResponse parameter&quot;);</span>
+
+<span class="fc" id="L100">			serviceProvider.verifyResponse(IuWebUtils.getInetAddress(remoteAddr), response, sessionId).bind(postAuth);</span>
+<span class="fc" id="L101">		} catch (Throwable e) {</span>
+<span class="fc" id="L102">			LOG.log(Level.INFO, &quot;Invalid SAML Response&quot;, e);</span>
+<span class="fc" id="L103">			postAuth.setInvalid(true);</span>
+
+<span class="fc" id="L105">			final var challenge = new IuAuthenticationException(null, e);</span>
+<span class="fc" id="L106">			challenge.setLocation(returnUri);</span>
+<span class="fc" id="L107">			throw challenge;</span>
+<span class="fc" id="L108">		}</span>
+
+<span class="fc" id="L110">		return returnUri;</span>
 	}
 
 	@Override
-	public SamlPrincipal getPrincipalIdentity(IuSession session) throws IuAuthenticationException {
-<span class="fc" id="L116">		final var detail = session.getDetail(SamlSessionDetails.class);</span>
-<span class="fc bfc" id="L117" title="All 2 branches covered.">		IuObject.require(detail.isInvalid(), a -&gt; !a, &quot;invalid session&quot;);</span>
-<span class="fc" id="L118">		IuObject.require(detail, SamlPrincipal::isBound, &quot;Session missing principal&quot;);</span>
-<span class="fc" id="L119">		final var entryPointUri = Objects.requireNonNull(detail.getEntryPointUri(), &quot;Missing entryPointUri&quot;);</span>
+	public SamlPrincipal getPrincipalIdentity(IuSession preAuthSession, IuSession postAuthSession)
+			throws IuAuthenticationException {
+		final SamlPostAuthentication detail;
+<span class="fc bfc" id="L117" title="All 2 branches covered.">		if (preAuthSession == null)</span>
+<span class="fc" id="L118">			detail = postAuthSession.getDetail(SamlPostAuthentication.class);</span>
+		else
+<span class="fc" id="L120">			detail = preAuthSession.getDetail(SamlPostAuthentication.class);</span>
 
-<span class="fc" id="L121">		final var id = SamlPrincipal.from(detail);</span>
-		try {
-<span class="fc" id="L123">			IuPrincipalIdentity.verify(id, serviceProvider.getRealm());</span>
-<span class="fc" id="L124">		} catch (IuAuthenticationException e) {</span>
-<span class="fc" id="L125">			e.setLocation(entryPointUri);</span>
-<span class="fc" id="L126">			throw e;</span>
-<span class="fc" id="L127">		}</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">		IuObject.require(detail.isInvalid(), a -&gt; !a, &quot;invalid session&quot;);</span>
+<span class="fc" id="L123">		IuObject.require(detail, SamlPrincipal::isBound, &quot;Session missing principal&quot;);</span>
 
-<span class="fc" id="L129">		return id;</span>
+<span class="fc" id="L125">		final var id = SamlPrincipal.from(detail);</span>
+<span class="fc" id="L126">		IuPrincipalIdentity.verify(id, serviceProvider.getRealm());</span>
+
+<span class="fc bfc" id="L128" title="All 2 branches covered.">		if (preAuthSession != null) {</span>
+<span class="fc" id="L129">			postAuthSession.clearDetail(SamlPostAuthentication.class);</span>
+<span class="fc" id="L130">			final var postAuth = postAuthSession.getDetail(SamlPostAuthentication.class);</span>
+<span class="fc" id="L131">			id.bind(postAuth);</span>
+		}
+
+<span class="fc" id="L134">		return id;</span>
 	}
 
 }

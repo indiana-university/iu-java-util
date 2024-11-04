@@ -48,12 +48,19 @@ public interface IuSession {
 	&lt;T&gt; T getDetail(Class&lt;T&gt; type);
 
 	/**
+	 * Clear session attributes
+	 * 
+	 * @param type class
+	 */
+	void clearDetail(Class&lt;?&gt; type);
+	
+	/**
 	 * Gets whether session object state change
 	 * 
 	 * @return true if session object state has change, otherwise false;
 	 */
 	default boolean isChanged() {
-<span class="fc" id="L56">		return false;</span>
+<span class="fc" id="L63">		return false;</span>
 	}
 	
 	/**
