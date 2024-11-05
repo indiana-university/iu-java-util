@@ -48,13 +48,12 @@ import org.opensaml.saml.saml2.core.Conditions;
 
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
-import edu.iu.auth.saml.IuSamlAssertion;
 
 /**
  * Validates, decodes, and holds attribute, condition, and authentication
  * statement values from a SAML Assertion.
  */
-final class SamlAssertion implements IuSamlAssertion {
+final class SamlAssertion implements StoredSamlAssertion {
 
 	private static final Logger LOG = Logger.getLogger(SamlAssertion.class.getName());
 

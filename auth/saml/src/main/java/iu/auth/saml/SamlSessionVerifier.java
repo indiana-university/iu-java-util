@@ -119,6 +119,7 @@ final class SamlSessionVerifier implements IuSamlSessionVerifier {
 		else
 			detail = preAuthSession.getDetail(SamlPostAuthentication.class);
 
+		// TODO: embed invalid exception in session
 		IuObject.require(detail.isInvalid(), a -> !a, "invalid session");
 		IuObject.require(detail, SamlPrincipal::isBound, "Session missing principal");
 

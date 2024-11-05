@@ -42,7 +42,6 @@ import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.saml.IuSamlAssertion;
 
 /**
  * SAML {@link IuPrincipalIdentity} implementation.
@@ -68,7 +67,7 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	private final Instant expires;
 
 	/** attributes */
-	private final IuSamlAssertion[] assertions;
+	private final StoredSamlAssertion[] assertions;
 
 	/**
 	 * Constructor.
@@ -81,13 +80,13 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	 * @param samlAssertions verified SAML assertions
 	 */
 	SamlPrincipal(String realm, String name, Instant issueTime, Instant authTime, Instant expires,
-			Iterable<IuSamlAssertion> samlAssertions) {
+			Iterable<StoredSamlAssertion> samlAssertions) {
 		this.realm = Objects.requireNonNull(realm);
 		this.name = Objects.requireNonNull(name);
 		this.authTime = Objects.requireNonNull(authTime);
 		this.issueTime = Objects.requireNonNull(issueTime);
 		this.expires = Objects.requireNonNull(expires);
-		this.assertions = IuIterable.stream(samlAssertions).toArray(IuSamlAssertion[]::new);
+		this.assertions = IuIterable.stream(samlAssertions).toArray(StoredSamlAssertion[]::new);
 	}
 
 	@Override
@@ -148,8 +147,8 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	 */
 	static SamlPrincipal from(SamlPostAuthentication details) {
 		IuObject.require(details, SamlPrincipal::isBound);
-		return new SamlPrincipal(details.getRealm(), details.getName(), details.getIssueTime(),
-				details.getAuthTime(), details.getExpires(), details.getAssertions());
+		return new SamlPrincipal(details.getRealm(), details.getName(), details.getIssueTime(), details.getAuthTime(),
+				details.getExpires(), details.getAssertions());
 	}
 
 	/**

@@ -60,7 +60,7 @@ public class SamlPrincipalTest {
 
 	@Test
 	public void testPrincipal() {
-		final Queue<IuSamlAssertion> samlAssertions = new ArrayDeque<>();
+		final Queue<StoredSamlAssertion> samlAssertions = new ArrayDeque<>();
 		final var realm = IdGenerator.generateId();
 		final var principalName = IdGenerator.generateId();
 		final var issueInstant = Instant.now();
@@ -93,7 +93,7 @@ public class SamlPrincipalTest {
 
 	@Test
 	public void testPrincipalExpire() {
-		final Queue<IuSamlAssertion> samlAssertions = new ArrayDeque<>();
+		final Queue<StoredSamlAssertion> samlAssertions = new ArrayDeque<>();
 		final var realm = IdGenerator.generateId();
 		final var principalName = "foo";
 		final var issueInstant = Instant.now();
@@ -140,8 +140,8 @@ public class SamlPrincipalTest {
 		when(details.getAuthTime()).thenReturn(authTime);
 		when(details.getExpires()).thenReturn(expires);
 
-		final var assertion1 = mock(IuSamlAssertion.class);
-		final var assertion2 = mock(IuSamlAssertion.class);
+		final var assertion1 = mock(StoredSamlAssertion.class);
+		final var assertion2 = mock(StoredSamlAssertion.class);
 		when(details.getAssertions()).thenReturn(IuIterable.iter(assertion1, assertion2));
 
 		final var principal = SamlPrincipal.from(details);

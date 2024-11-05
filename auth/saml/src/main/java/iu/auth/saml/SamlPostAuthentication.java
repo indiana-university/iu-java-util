@@ -2,8 +2,6 @@ package iu.auth.saml;
 
 import java.time.Instant;
 
-import edu.iu.auth.saml.IuSamlAssertion;
-
 /**
  * SAML session details interface
  */
@@ -98,13 +96,13 @@ public interface SamlPostAuthentication {
 	 * 
 	 * @return SAML assertions
 	 */
-	Iterable<IuSamlAssertion> getAssertions();
+	Iterable<StoredSamlAssertion> getAssertions();
 
 	/**
 	 * Set SAML assertions
 	 * 
 	 * @param assertions SAML assertions
 	 */
-	void setAssertions(Iterable<IuSamlAssertion> assertions);
+	void setAssertions(Iterable<StoredSamlAssertion> assertions);
 
 }
