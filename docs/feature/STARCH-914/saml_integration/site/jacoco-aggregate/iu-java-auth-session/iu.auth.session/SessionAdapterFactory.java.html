@@ -30,7 +30,7 @@ public class SessionAdapterFactory&lt;T&gt; implements Function&lt;T, IuJsonAdap
 <span class="fc bfc" id="L30" title="All 2 branches covered.">		if (t instanceof Class) {</span>
 <span class="fc" id="L31">			final var c = (Class) t;</span>
 <span class="fc bfc" id="L32" title="All 2 branches covered.">			if (c.isInterface() //</span>
-<span class="fc bfc" id="L33" title="All 2 branches covered.">					&amp;&amp; c.getModule().equals(baseType.getModule()))</span>
+<span class="fc bfc" id="L33" title="All 2 branches covered.">					&amp;&amp; c.getModule().isOpen(c.getPackageName(), baseType.getModule()))</span>
 <span class="fc" id="L34">				return IuJsonAdapter.from(c, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, (Function) this);</span>
 		}
 

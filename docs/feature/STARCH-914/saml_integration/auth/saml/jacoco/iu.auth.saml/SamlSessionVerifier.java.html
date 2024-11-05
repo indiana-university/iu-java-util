@@ -119,19 +119,20 @@ final class SamlSessionVerifier implements IuSamlSessionVerifier {
 		else
 <span class="fc" id="L120">			detail = preAuthSession.getDetail(SamlPostAuthentication.class);</span>
 
-<span class="fc bfc" id="L122" title="All 2 branches covered.">		IuObject.require(detail.isInvalid(), a -&gt; !a, &quot;invalid session&quot;);</span>
-<span class="fc" id="L123">		IuObject.require(detail, SamlPrincipal::isBound, &quot;Session missing principal&quot;);</span>
+		// TODO: embed invalid exception in session
+<span class="fc bfc" id="L123" title="All 2 branches covered.">		IuObject.require(detail.isInvalid(), a -&gt; !a, &quot;invalid session&quot;);</span>
+<span class="fc" id="L124">		IuObject.require(detail, SamlPrincipal::isBound, &quot;Session missing principal&quot;);</span>
 
-<span class="fc" id="L125">		final var id = SamlPrincipal.from(detail);</span>
-<span class="fc" id="L126">		IuPrincipalIdentity.verify(id, serviceProvider.getRealm());</span>
+<span class="fc" id="L126">		final var id = SamlPrincipal.from(detail);</span>
+<span class="fc" id="L127">		IuPrincipalIdentity.verify(id, serviceProvider.getRealm());</span>
 
-<span class="fc bfc" id="L128" title="All 2 branches covered.">		if (preAuthSession != null) {</span>
-<span class="fc" id="L129">			postAuthSession.clearDetail(SamlPostAuthentication.class);</span>
-<span class="fc" id="L130">			final var postAuth = postAuthSession.getDetail(SamlPostAuthentication.class);</span>
-<span class="fc" id="L131">			id.bind(postAuth);</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">		if (preAuthSession != null) {</span>
+<span class="fc" id="L130">			postAuthSession.clearDetail(SamlPostAuthentication.class);</span>
+<span class="fc" id="L131">			final var postAuth = postAuthSession.getDetail(SamlPostAuthentication.class);</span>
+<span class="fc" id="L132">			id.bind(postAuth);</span>
 		}
 
-<span class="fc" id="L134">		return id;</span>
+<span class="fc" id="L135">		return id;</span>
 	}
 
 }

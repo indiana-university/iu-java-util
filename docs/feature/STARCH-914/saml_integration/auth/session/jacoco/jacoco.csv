@@ -6,4 +6,4 @@ IU Authenticated Session Handler,iu.auth.session,SessionJwt,0,23,0,0,0,5,0,3,0,3
 IU Authenticated Session Handler,iu.auth.session,SessionJwtBuilder,0,20,0,0,0,7,0,4,0,4
 IU Authenticated Session Handler,iu.auth.session,SessionDetail,0,164,0,24,0,34,0,15,0,3
 IU Authenticated Session Handler,iu.auth.session,SessionHandler.PurgeTask,0,23,0,4,0,8,0,4,0,2
-IU Authenticated Session Handler,iu.auth.session,SessionAdapterFactory,0,32,0,6,0,9,0,5,0,2
+IU Authenticated Session Handler,iu.auth.session,SessionAdapterFactory,0,34,0,6,0,9,0,5,0,2
