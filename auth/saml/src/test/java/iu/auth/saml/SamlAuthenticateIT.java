@@ -33,8 +33,13 @@ package iu.auth.saml;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.net.CookieManager;
 import java.net.URI;
@@ -42,6 +47,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.logging.Level;
@@ -53,11 +60,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuIterable;
 import edu.iu.IuWebUtils;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
+import edu.iu.auth.saml.IuSamlAssertion;
 import edu.iu.auth.saml.IuSamlSessionVerifier;
 import edu.iu.auth.session.IuSession;
-import edu.iu.client.IuHttp;
 import edu.iu.client.IuVault;
 import edu.iu.test.IuTestLogger;
 import iu.auth.config.AuthConfig;
@@ -73,9 +83,9 @@ public class SamlAuthenticateIT {
 	@BeforeAll
 	public static void setupClass() {
 		AuthConfig.registerInterface("realm", IuSamlServiceProviderMetadata.class, IuVault.RUNTIME);
+		AuthConfig.registerInterface(IuPrivateKeyPrincipal.class);
 		final var realm = AuthConfig.load(IuSamlServiceProviderMetadata.class, REALM);
 		postUri = realm.getAcsUris().iterator().next();
-//		entryPointUri = URI.create("test:" + IdGenerator.generateId());
 
 		AuthConfig.register(new PkiVerifier(realm.getIdentity()));
 
@@ -89,21 +99,36 @@ public class SamlAuthenticateIT {
 
 	@BeforeEach
 	public void setup() {
-		IuTestLogger.allow(IuHttp.class.getName(), Level.FINE);
+		IuTestLogger.allow("", Level.FINE);
+		IuTestLogger.allow("iu.auth.pki.PkiVerifier", Level.INFO);
+		IuTestLogger.allow("iu.auth.saml.SamlResponseValidator", Level.INFO);
+		IuTestLogger.allow("iu.auth.saml.SamlSessionVerifier", Level.INFO);
+		IuTestLogger.allow("iu.auth.saml.SamlServiceProvider", Level.INFO);
 	}
 
 	@Test
 	public void testSamlAuthentication() throws Exception {
-//		final var entityId = config.getIdentityProviderEntityId();
-//		URI applicationUri = IuException.unchecked(() -> new URI(applicationUrl));
-//		var sessionId = IdGenerator.generateId();
-//		System.out.println("sessionId " + sessionId);
-		IuSession session = mock(IuSession.class);
+		IuSession preAuthSession = mock(IuSession.class);
+		final var preAuthDetail = mock(SamlPreAuthentication.class);
+		final var prePostAuthDetail = mock(SamlPostAuthentication.class);
+		when(preAuthSession.getDetail(SamlPreAuthentication.class)).thenReturn(preAuthDetail);
+		when(preAuthSession.getDetail(SamlPostAuthentication.class)).thenReturn(prePostAuthDetail);
+
 		URI entryPointUri = URI.create(IdGenerator.generateId());
-//		final var secret = WebKey.ephemeral(Encryption.A256GCM).getKey();
-		IuSamlSessionVerifier samlSession = IuSamlSessionVerifier.create(postUri);
-		
-		final var location = samlSession.initRequest(session, entryPointUri);
+		IuSamlSessionVerifier samlSessionVerifier = IuSamlSessionVerifier.create(postUri);
+
+		final var location = samlSessionVerifier.initRequest(preAuthSession, entryPointUri);
+		verify(preAuthDetail).setReturnUri(entryPointUri);
+		when(preAuthDetail.getReturnUri()).thenReturn(entryPointUri);
+		verify(preAuthDetail).setSessionId(argThat(s -> {
+			when(preAuthDetail.getSessionId()).thenReturn(s);
+			return true;
+		}));
+		verify(preAuthDetail).setRelayState(argThat(s -> {
+			when(preAuthDetail.getRelayState()).thenReturn(s);
+			return true;
+		}));
+
 		final var relayState = IuWebUtils.parseQueryString(location.getQuery()).get("RelayState").iterator().next();
 		IdGenerator.verifyId(relayState, 2000L);
 
@@ -180,10 +205,63 @@ public class SamlAuthenticateIT {
 		IuTestLogger.allow(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 .*");
 		IuTestLogger.expect(IuSubjectConfirmationValidator.class.getName(), Level.INFO,
 				"IP address mismatch in SAML subject confirmation; remote address = .*");
-		assertDoesNotThrow(() -> samlSession.verifyResponse(session,"127.0.0.1", samlResponse, relayState));
+		assertDoesNotThrow(
+				() -> samlSessionVerifier.verifyResponse(preAuthSession, "127.0.0.1", samlResponse, relayState));
+		verify(prePostAuthDetail).setName(argThat(a -> {
+			when(prePostAuthDetail.getName()).thenReturn(a);
+			return true;
+		}));
+		verify(prePostAuthDetail).setRealm(argThat(a -> {
+			when(prePostAuthDetail.getRealm()).thenReturn(a);
+			return true;
+		}));
+		verify(prePostAuthDetail).setIssueTime(argThat(a -> {
+			when(prePostAuthDetail.getIssueTime()).thenReturn(a);
+			return true;
+		}));
+		verify(prePostAuthDetail).setExpires(argThat(a -> {
+			when(prePostAuthDetail.getExpires()).thenReturn(a);
+			return true;
+		}));
+		verify(prePostAuthDetail).setAuthTime(argThat(a -> {
+			when(prePostAuthDetail.getAuthTime()).thenReturn(a);
+			return true;
+		}));
+		verify(prePostAuthDetail).setAssertions(argThat(a -> {
+			when(prePostAuthDetail.getAssertions()).thenReturn(a);
+			return true;
+		}));
 
-	/*	final var activatedSession = IuSamlSessionVerifier.activate(samlSession.toString(), () -> secret);
-		final var iuSamlPrincipal = activatedSession.getPrincipalIdentity();
+		final var postAuthSession = mock(IuSession.class);
+		final var postAuthDetail = mock(SamlPostAuthentication.class);
+		when(postAuthSession.getDetail(SamlPostAuthentication.class)).thenReturn(postAuthDetail);
+
+		final var iuSamlPrincipal = samlSessionVerifier.getPrincipalIdentity(preAuthSession, postAuthSession);
+		verify(postAuthDetail).setName(argThat(a -> {
+			when(postAuthDetail.getName()).thenReturn(a);
+			return a.equals(prePostAuthDetail.getName());
+		}));
+		verify(postAuthDetail).setRealm(argThat(a -> {
+			when(postAuthDetail.getRealm()).thenReturn(a);
+			return a.equals(prePostAuthDetail.getRealm());
+		}));
+		verify(postAuthDetail).setIssueTime(argThat(a -> {
+			when(postAuthDetail.getIssueTime()).thenReturn(a);
+			return a.equals(prePostAuthDetail.getIssueTime());
+		}));
+		verify(postAuthDetail).setExpires(argThat(a -> {
+			when(postAuthDetail.getExpires()).thenReturn(a);
+			return a.equals(prePostAuthDetail.getExpires());
+		}));
+		verify(postAuthDetail).setAuthTime(argThat(a -> {
+			when(postAuthDetail.getAuthTime()).thenReturn(a);
+			return a.equals(prePostAuthDetail.getAuthTime());
+		}));
+		verify(postAuthDetail).setAssertions(argThat(a -> {
+			when(postAuthDetail.getAssertions()).thenReturn(a);
+			return IuIterable.remaindersAreEqual(a.iterator(), prePostAuthDetail.getAssertions().iterator());
+		}));
+
 		IuPrincipalIdentity.verify(iuSamlPrincipal, REALM);
 
 		final var subject = iuSamlPrincipal.getSubject();
@@ -205,6 +283,6 @@ public class SamlAuthenticateIT {
 
 		assertFalse(issueInstant.isAfter(latestValid));
 		assertFalse(notBefore.isAfter(latestValid));
-		assertFalse(notOnOrAfter.isBefore(now.minus(Duration.ofMinutes(5))));*/
+		assertFalse(notOnOrAfter.isBefore(now.minus(Duration.ofMinutes(5))));
 	}
 }

@@ -78,13 +78,13 @@ public interface IuAuthenticationRealm {
 		 */
 		String code;
 
-		private Class<? extends IuAuthenticationRealm>[] authInterface;
+		private Class<? extends IuAuthenticationRealm>[] authInterfaces;
 
 	
 		@SafeVarargs
-		private Type(String code, Class<? extends IuAuthenticationRealm>... authenticationInterface) {
+		private Type(String code, Class<? extends IuAuthenticationRealm>... authenticationInterfaces) {
 			this.code = code;
-			this.authInterface = authenticationInterface;
+			this.authInterfaces = authenticationInterfaces;
 		}
 
 		/** JSON type adapter */
@@ -106,7 +106,7 @@ public interface IuAuthenticationRealm {
 		 * @param realm {@link IuAuthenticationRealm}
 		 */
 		void check(IuAuthenticationRealm realm) {
-			for(Class<? extends IuAuthenticationRealm> authInterface : authInterface) { 
+			for(Class<? extends IuAuthenticationRealm> authInterface : authInterfaces) { 
 			if (authInterface.isInstance(realm)) 
 				return ;
 			}
