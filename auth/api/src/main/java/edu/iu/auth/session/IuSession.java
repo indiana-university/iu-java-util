@@ -48,6 +48,13 @@ public interface IuSession {
 	<T> T getDetail(Class<T> type);
 
 	/**
+	 * Clear session attributes
+	 * 
+	 * @param type class
+	 */
+	void clearDetail(Class<?> type);
+	
+	/**
 	 * Gets whether session object state change
 	 * 
 	 * @return true if session object state has change, otherwise false;

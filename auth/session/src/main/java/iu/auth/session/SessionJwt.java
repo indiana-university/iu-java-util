@@ -35,8 +35,10 @@ import java.util.Map;
 import java.util.Objects;
 
 import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import iu.crypt.Jwt;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
 
 /**
  * JWT token implementation that includes {@link Session} details.
@@ -58,8 +60,9 @@ public class SessionJwt extends Jwt {
 	 *
 	 * @return {@link JsonObject} session details
 	 */
-	public Map<String, Map<String, Object>> getDetails() {
-		return IuJson.get(claims, "details");
+	public Map<String, Map<String, JsonValue>> getDetails() {
+		return IuJson.get(claims, "details",
+				IuJsonAdapter.of(Map.class, IuJsonAdapter.of(Map.class, IuJsonAdapter.from(a -> a))));
 	}
 
 }

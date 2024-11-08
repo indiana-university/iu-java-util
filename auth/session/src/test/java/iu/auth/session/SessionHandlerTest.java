@@ -34,7 +34,6 @@ package iu.auth.session;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
@@ -78,13 +77,10 @@ public class SessionHandlerTest {
 			IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 		}
 
-
-
 		@Test
 		public void testSessionHandlerConstructorWithValidParameters() {
 			assertDoesNotThrow(() -> new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm));
 		}
-
 
 		@Test
 		public void testSessionCreationWithValidParameters() {
@@ -112,17 +108,61 @@ public class SessionHandlerTest {
 		}
 
 		@Test
+		public void testActivateSessionWithCorruptSecretKey() {
+			Iterable<HttpCookie> cookies = Arrays
+					.asList(new HttpCookie(sessionHandler.getSessionCookieName(), "Q@#$%^SecretKey"));
+			IuTestLogger.expect(SessionHandler.class.getName(), Level.INFO, "Invalid session cookie value",
+					IllegalArgumentException.class);
+			assertNull(sessionHandler.activate(cookies));
+		}
+
+		@Test
+		public void testRemoveInvalidSecretKey() {
+			Iterable<HttpCookie> cookies = Arrays
+					.asList(new HttpCookie(sessionHandler.getSessionCookieName(), "invalidSecretKey"));
+			assertDoesNotThrow(() -> sessionHandler.remove(cookies));
+		}
+
+		@Test
+		public void testRemoveCorruptSecretKey() {
+			Iterable<HttpCookie> cookies = Arrays
+					.asList(new HttpCookie(sessionHandler.getSessionCookieName(), "Q@#$%^SecretKey"));
+			IuTestLogger.expect(SessionHandler.class.getName(), Level.INFO, "Invalid session cookie value",
+					IllegalArgumentException.class);
+			assertDoesNotThrow(() -> sessionHandler.remove(cookies));
+		}
+
+		@Test
+		public void testRemoveIgnoreNullCookies() {
+			assertDoesNotThrow(() -> sessionHandler.remove(null));
+		}
+
+		@Test
+		public void testRemoveIgnoreOtherCookies() {
+			Iterable<HttpCookie> cookies = Arrays
+					.asList(new HttpCookie(IdGenerator.generateId(), IdGenerator.generateId()));
+			assertDoesNotThrow(() -> sessionHandler.remove(cookies));
+		}
+
+		@Test
 		public void testStoreSessionAndActivateSessionSuccess() {
 			Session session = new Session(resourceUri, Duration.ofHours(12L));
 			when(configuration.getInactiveTtl()).thenCallRealMethod();
 
 			String cookie = sessionHandler.store(session, false);
 			assertNotNull(cookie);
-			final var cookieMatcher = Pattern.compile(sessionHandler.getSessionCookieName() + "=([^;]+); Path="
-					+ resourceUri.getPath() + "; HttpOnly").matcher(cookie);
+			final var cookieMatcher = Pattern.compile(
+					sessionHandler.getSessionCookieName() + "=([^;]+); Path=" + resourceUri.getPath() + "; HttpOnly")
+					.matcher(cookie);
 			assertTrue(cookieMatcher.matches(), cookie);
-			assertNotNull(sessionHandler.activate(
-					Arrays.asList(new HttpCookie(sessionHandler.getSessionCookieName(), cookieMatcher.group(1)))));
+
+			final var key = cookieMatcher.group(1);
+			final var cookies = Arrays.asList(new HttpCookie(sessionHandler.getSessionCookieName(), key));
+			assertNotNull(sessionHandler.activate(cookies));
+			assertNotNull(sessionHandler.activate(cookies));
+
+			assertDoesNotThrow(() -> sessionHandler.remove(cookies));
+			assertNull(sessionHandler.activate(cookies));
 		}
 
 		@Test
@@ -131,8 +171,9 @@ public class SessionHandlerTest {
 			Session session = new Session(resourceUri, Duration.ofHours(12L));
 			String cookie = sessionHandler.store(session, false);
 			assertNotNull(cookie);
-			final var cookieMatcher = Pattern.compile(sessionHandler.getSessionCookieName() + "=([^;]+); Path="
-					+ resourceUri.getPath() + "; HttpOnly").matcher(cookie);
+			final var cookieMatcher = Pattern.compile(
+					sessionHandler.getSessionCookieName() + "=([^;]+); Path=" + resourceUri.getPath() + "; HttpOnly")
+					.matcher(cookie);
 			assertTrue(cookieMatcher.matches(), cookie);
 			assertDoesNotThrow(() -> Thread.sleep(250L));
 			assertNull(sessionHandler.activate(
@@ -172,10 +213,9 @@ public class SessionHandlerTest {
 		}
 	}
 
-
 	@Nested
 	class SessionHandlerTest_2 {
-		@BeforeEach 
+		@BeforeEach
 		public void setup() {
 			resourceUri = URI.create("https://" + IdGenerator.generateId());
 			configuration = mock(IuSessionConfiguration.class, CALLS_REAL_METHODS);
