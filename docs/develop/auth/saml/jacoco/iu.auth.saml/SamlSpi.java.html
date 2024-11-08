@@ -32,10 +32,9 @@
 package iu.auth.saml;
 
 import java.net.URI;
-import java.util.function.Supplier;
 
 import edu.iu.IuObject;
-import edu.iu.auth.saml.IuSamlSession;
+import edu.iu.auth.saml.IuSamlSessionVerifier;
 import edu.iu.auth.spi.IuSamlSpi;
 
 /**
@@ -43,23 +42,18 @@ import edu.iu.auth.spi.IuSamlSpi;
  */
 public class SamlSpi implements IuSamlSpi {
 	static {
-<span class="fc" id="L46">		IuObject.assertNotOpen(SamlSpi.class);</span>
-<span class="fc" id="L47">	}</span>
+<span class="fc" id="L45">		IuObject.assertNotOpen(SamlSpi.class);</span>
+<span class="fc" id="L46">	}</span>
 
 	/**
 	 * Default constructor.
 	 */
-<span class="fc" id="L52">	public SamlSpi() {</span>
-<span class="fc" id="L53">	}</span>
+<span class="fc" id="L51">	public SamlSpi() {</span>
+<span class="fc" id="L52">	}</span>
 
 	@Override
-	public IuSamlSession createSession(URI entryPointUri, URI postUri, Supplier&lt;byte[]&gt; secretKey) {
-<span class="fc" id="L57">		return new SamlSession(entryPointUri, postUri, secretKey);</span>
-	}
-
-	@Override
-	public IuSamlSession activateSession(String sessionToken, Supplier&lt;byte[]&gt; secretKey) {
-<span class="fc" id="L62">		return new SamlSession(sessionToken, secretKey);</span>
+	public IuSamlSessionVerifier createVerifier(URI postUri) {
+<span class="fc" id="L56">		return new SamlSessionVerifier(postUri);</span>
 	}
 
 }

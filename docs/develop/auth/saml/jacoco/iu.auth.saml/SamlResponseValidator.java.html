@@ -225,7 +225,7 @@ class SamlResponseValidator {
 <span class="fc" id="L225">		LOG.fine(() -&gt; &quot;saml:post-validate:&quot; + principalName + &quot;:&quot; + authnInstant + &quot;; issuer: &quot; + issuer + &quot; @&quot;</span>
 				+ issueInstant + &quot;, expires &quot; + expires + &quot;; assertions: &quot; + samlAssertions);
 
-<span class="fc" id="L228">		return new SamlPrincipal(realm(), issuer, principalName, issueInstant, authnInstant, expires, samlAssertions);</span>
+<span class="fc" id="L228">		return new SamlPrincipal(realm(), principalName, issueInstant, authnInstant, expires, samlAssertions);</span>
 	}
 
 	/**
@@ -269,8 +269,8 @@ class SamlResponseValidator {
 	 * @return At least one {@link SamlAssertion}
 	 * @throws Exception if an assertion fails to validate
 	 */
-	Iterable&lt;SamlAssertion&gt; validateAssertions(Response response) throws Exception {
-<span class="fc" id="L273">		final Queue&lt;SamlAssertion&gt; samlAssertions = new ArrayDeque&lt;&gt;();</span>
+	Iterable&lt;StoredSamlAssertion&gt; validateAssertions(Response response) throws Exception {
+<span class="fc" id="L273">		final Queue&lt;StoredSamlAssertion&gt; samlAssertions = new ArrayDeque&lt;&gt;();</span>
 
 <span class="fc bfc" id="L275" title="All 2 branches covered.">		for (Assertion assertion : response.getAssertions()) {</span>
 <span class="fc" id="L276">			assertionValidator.validate(assertion, validationContext);</span>

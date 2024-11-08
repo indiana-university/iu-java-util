@@ -35,20 +35,21 @@ import java.util.Map;
 
 import edu.iu.IuObject;
 import iu.crypt.JwtBuilder;
+import jakarta.json.JsonValue;
 
 /**
  * Extends {@link JwtBuilder} to add claims values for use with {@link Session}.
  */
 class SessionJwtBuilder extends JwtBuilder&lt;SessionJwtBuilder&gt; {
 	static {
-<span class="fc" id="L44">		IuObject.assertNotOpen(SessionJwtBuilder.class);</span>
-<span class="fc" id="L45">	}</span>
+<span class="fc" id="L45">		IuObject.assertNotOpen(SessionJwtBuilder.class);</span>
+<span class="fc" id="L46">	}</span>
 
 	/**
 	 * Default constructor.
 	 */
-<span class="fc" id="L50">	SessionJwtBuilder() {</span>
-<span class="fc" id="L51">	}</span>
+<span class="fc" id="L51">	SessionJwtBuilder() {</span>
+<span class="fc" id="L52">	}</span>
 
 	/**
 	 * Sets the session details.
@@ -56,14 +57,14 @@ class SessionJwtBuilder extends JwtBuilder&lt;SessionJwtBuilder&gt; {
 	 * @param details {@link Map} of session details
 	 * @return this
 	 */
-	SessionJwtBuilder details(Map&lt;String, Map&lt;String, Object&gt;&gt; details) {
-<span class="fc" id="L60">		return param(&quot;details&quot;, details);</span>
+	SessionJwtBuilder details(Map&lt;String, Map&lt;String, JsonValue&gt;&gt; details) {
+<span class="fc" id="L61">		return param(&quot;details&quot;, details);</span>
 	}
 
 	@Override
 	public SessionJwt build() {
-<span class="fc" id="L65">		prepare();</span>
-<span class="fc" id="L66">		return new SessionJwt(toJson());</span>
+<span class="fc" id="L66">		prepare();</span>
+<span class="fc" id="L67">		return new SessionJwt(toJson());</span>
 	}
 
 }

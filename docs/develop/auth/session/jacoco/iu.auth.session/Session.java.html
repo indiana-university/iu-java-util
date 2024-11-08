@@ -36,7 +36,6 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -49,6 +48,7 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Type;
 import iu.crypt.Jwt;
+import jakarta.json.JsonValue;
 
 /**
  * {@link IuSession} implementation
@@ -68,7 +68,7 @@ class Session implements IuSession {
 	private boolean changed;
 
 	/** Session details */
-	private Map&lt;String, Map&lt;String, Object&gt;&gt; details;
+	private Map&lt;String, Map&lt;String, JsonValue&gt;&gt; details;
 
 	/**
 	 * New session constructor.
@@ -79,7 +79,7 @@ class Session implements IuSession {
 <span class="fc" id="L79">	Session(URI resourceUri, Duration expires) {</span>
 <span class="fc" id="L80">		this.resourceUri = resourceUri;</span>
 <span class="fc" id="L81">		this.expires = Instant.now().plus(expires).truncatedTo(ChronoUnit.SECONDS);</span>
-<span class="fc" id="L82">		details = new LinkedHashMap&lt;String, Map&lt;String, Object&gt;&gt;();</span>
+<span class="fc" id="L82">		details = new LinkedHashMap&lt;String, Map&lt;String, JsonValue&gt;&gt;();</span>
 <span class="fc" id="L83">	}</span>
 
 	/**
@@ -131,21 +131,29 @@ class Session implements IuSession {
 
 	@Override
 	public &lt;T&gt; T getDetail(Class&lt;T&gt; type) {
-<span class="fc" id="L134">		Map&lt;String, Object&gt; attributes = null;</span>
-<span class="fc bfc" id="L135" title="All 2 branches covered.">		if (details.containsKey(type.getName())) {</span>
-<span class="fc" id="L136">			attributes = details.get(type.getName());</span>
-		} else {
-<span class="fc" id="L138">			attributes = new HashMap&lt;String, Object&gt;();</span>
-<span class="fc" id="L139">			details.put(type.getName(), attributes);</span>
-		}
-<span class="fc" id="L141">		return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class&lt;?&gt;[] { type },</span>
-				new SessionDetail(attributes, this)));
+<span class="fc" id="L134">		final var module = type.getModule();</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">		if (!module.isNamed())</span>
+<span class="fc" id="L136">			throw new IllegalArgumentException(&quot;Invalid session type, must be in a named module&quot;);</span>
 
+<span class="fc" id="L138">		return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class&lt;?&gt;[] { type },</span>
+				new SessionDetail(
+<span class="fc" id="L140">						details.computeIfAbsent(module.getName() + &quot;/&quot; + type.getName(), a -&gt; new LinkedHashMap&lt;&gt;()),</span>
+						this, new SessionAdapterFactory&lt;&gt;(type))));
 	}
 
 	@Override
+	public void clearDetail(Class&lt;?&gt; type) {
+<span class="fc" id="L146">		final var module = type.getModule();</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">		if (!module.isNamed())</span>
+<span class="fc" id="L148">			throw new IllegalArgumentException(&quot;Invalid session type, must be in a named module&quot;);</span>
+
+<span class="fc bfc" id="L150" title="All 2 branches covered.">		if (details.remove(module.getName() + &quot;/&quot; + type.getName()) != null)</span>
+<span class="fc" id="L151">			changed = true;</span>
+<span class="fc" id="L152">	}</span>
+
+	@Override
 	public boolean isChanged() {
-<span class="fc" id="L148">		return changed;</span>
+<span class="fc" id="L156">		return changed;</span>
 	}
 
 	/**
@@ -154,8 +162,8 @@ class Session implements IuSession {
 	 * @param changed set to true when session attributes change, otherwise false
 	 */
 	void setChanged(boolean changed) {
-<span class="fc" id="L157">		this.changed = changed;</span>
-<span class="fc" id="L158">	}</span>
+<span class="fc" id="L165">		this.changed = changed;</span>
+<span class="fc" id="L166">	}</span>
 
 	/**
 	 * Gets session expire time
@@ -163,17 +171,17 @@ class Session implements IuSession {
 	 * @return {@link Instant} session expire time
 	 */
 	Instant getExpires() {
-<span class="fc" id="L166">		return expires;</span>
+<span class="fc" id="L174">		return expires;</span>
 	}
-	
+
 	@Override
 	public URI getResourceUri() {
-<span class="fc" id="L171">		return resourceUri;</span>
+<span class="fc" id="L179">		return resourceUri;</span>
 	}
 
 	@Override
 	public String toString() {
-<span class="fc" id="L176">		return &quot;Session [resourceUri=&quot; + resourceUri + &quot;, expires=&quot; + expires + &quot;, changed=&quot; + changed + &quot;, details=&quot;</span>
+<span class="fc" id="L184">		return &quot;Session [resourceUri=&quot; + resourceUri + &quot;, expires=&quot; + expires + &quot;, changed=&quot; + changed + &quot;, details=&quot;</span>
 				+ details + &quot;]&quot;;
 	}
 
