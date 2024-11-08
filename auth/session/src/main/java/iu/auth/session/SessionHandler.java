@@ -119,33 +119,35 @@ public class SessionHandler implements IuSessionHandler {
 	public IuSession activate(Iterable<HttpCookie> cookies) {
 		final var cookieName = getSessionCookieName();
 
+		SessionToken activatedSession = null;
 		byte[] secretKey = null;
 		if (cookies != null)
 			for (final var cookie : cookies)
 				if (cookie.getName().equals(cookieName))
 					try {
-						secretKey = IuText.base64Url(cookie.getValue());
+						final var value = IuText.base64Url(cookie.getValue());
+						
+						final var hashKey = hashKey(value);
+						final var session = SESSION_TOKENS.get(hashKey);
+						if (session == null)
+							continue;
+
+						if (session.inactivePurgeTime().isBefore(Instant.now())) {
+							SESSION_TOKENS.remove(hashKey);
+							continue;
+						}
+
+						secretKey = value;
+						activatedSession = session;
 						break;
 					} catch (Throwable e) {
 						LOG.log(Level.INFO, "Invalid session cookie value", e);
 					}
-		if (secretKey == null)
+		
+		if (activatedSession == null)
 			return null;
 
-		final var hashKey = hashKey(secretKey);
-		final var storedSession = SESSION_TOKENS.get(hashKey);
-		if (storedSession == null) {
-			secretKey = null;
-			return null;
-		}
-
-		if (storedSession.inactivePurgeTime().isBefore(Instant.now())) {
-			SESSION_TOKENS.remove(hashKey);
-			secretKey = null;
-			return null;
-		}
-
-		return new Session(storedSession.token(), secretKey, issuerKey.get(), configuration.getMaxSessionTtl());
+		return new Session(activatedSession.token(), secretKey, issuerKey.get(), configuration.getMaxSessionTtl());
 	}
 
 	@Override
@@ -160,7 +162,13 @@ public class SessionHandler implements IuSessionHandler {
 		cookieBuilder.append(getSessionCookieName());
 		cookieBuilder.append('=');
 		cookieBuilder.append(IuText.base64Url(secretKey));
-		cookieBuilder.append("; Path=").append(resourceUri.getPath());
+		cookieBuilder.append("; Path=");
+
+		final var path = resourceUri.getPath();
+		if (path.isEmpty())
+			cookieBuilder.append("/");
+		else
+			cookieBuilder.append(path);
 
 		if (IuObject.equals(resourceUri.getScheme(), "https"))
 			cookieBuilder.append("; Secure");

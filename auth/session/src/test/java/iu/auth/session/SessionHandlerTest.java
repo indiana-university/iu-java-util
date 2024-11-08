@@ -151,8 +151,53 @@ public class SessionHandlerTest {
 
 			String cookie = sessionHandler.store(session, false);
 			assertNotNull(cookie);
-			final var cookieMatcher = Pattern.compile(
-					sessionHandler.getSessionCookieName() + "=([^;]+); Path=" + resourceUri.getPath() + "; HttpOnly")
+			final var cookieMatcher = Pattern
+					.compile(sessionHandler.getSessionCookieName() + "=([^;]+); Path=/; HttpOnly").matcher(cookie);
+			assertTrue(cookieMatcher.matches(), cookie);
+
+			final var key = cookieMatcher.group(1);
+			final var cookies = Arrays.asList(new HttpCookie(sessionHandler.getSessionCookieName(), key));
+			assertNotNull(sessionHandler.activate(cookies));
+			assertNotNull(sessionHandler.activate(cookies));
+
+			assertDoesNotThrow(() -> sessionHandler.remove(cookies));
+			assertNull(sessionHandler.activate(cookies));
+		}
+
+		@Test
+		public void testStoreSessionAndActivateSessionSuccessWithInvalidCookieFirst() {
+			Session session = new Session(resourceUri, Duration.ofHours(12L));
+			when(configuration.getInactiveTtl()).thenCallRealMethod();
+
+			String cookie = sessionHandler.store(session, false);
+			assertNotNull(cookie);
+			final var cookieMatcher = Pattern
+					.compile(sessionHandler.getSessionCookieName() + "=([^;]+); Path=/; HttpOnly").matcher(cookie);
+			assertTrue(cookieMatcher.matches(), cookie);
+
+			final var key = cookieMatcher.group(1);
+			final var cookies = Arrays.asList(
+					new HttpCookie(sessionHandler.getSessionCookieName(), IdGenerator.generateId()),
+					new HttpCookie(sessionHandler.getSessionCookieName(), key));
+			assertNotNull(sessionHandler.activate(cookies));
+			assertNotNull(sessionHandler.activate(cookies));
+
+			assertDoesNotThrow(() -> sessionHandler.remove(cookies));
+			assertNull(sessionHandler.activate(cookies));
+		}
+
+		@Test
+		public void testStoreSessionAndActivateSessionSuccessSubpath() {
+			final var path = "/" + IdGenerator.generateId();
+			final var uriWithPath = URI.create(resourceUri + path);
+			sessionHandler = new SessionHandler(uriWithPath, configuration, () -> issuerKey, algorithm);
+			Session session = new Session(uriWithPath, Duration.ofHours(12L));
+			when(configuration.getInactiveTtl()).thenCallRealMethod();
+
+			String cookie = sessionHandler.store(session, false);
+			assertNotNull(cookie);
+			final var cookieMatcher = Pattern
+					.compile(sessionHandler.getSessionCookieName() + "=([^;]+); Path=" + path + "; HttpOnly")
 					.matcher(cookie);
 			assertTrue(cookieMatcher.matches(), cookie);
 
@@ -171,9 +216,8 @@ public class SessionHandlerTest {
 			Session session = new Session(resourceUri, Duration.ofHours(12L));
 			String cookie = sessionHandler.store(session, false);
 			assertNotNull(cookie);
-			final var cookieMatcher = Pattern.compile(
-					sessionHandler.getSessionCookieName() + "=([^;]+); Path=" + resourceUri.getPath() + "; HttpOnly")
-					.matcher(cookie);
+			final var cookieMatcher = Pattern
+					.compile(sessionHandler.getSessionCookieName() + "=([^;]+); Path=/; HttpOnly").matcher(cookie);
 			assertTrue(cookieMatcher.matches(), cookie);
 			assertDoesNotThrow(() -> Thread.sleep(250L));
 			assertNull(sessionHandler.activate(
@@ -203,8 +247,9 @@ public class SessionHandlerTest {
 			when(configuration.getInactiveTtl()).thenReturn(Duration.ofMillis(250L));
 			Session session = new Session(resourceUri, Duration.ofHours(12L));
 			String cookie = sessionHandler.store(session, true);
-			final var cookieMatcher = Pattern.compile(sessionHandler.getSessionCookieName() + "=([^;]+); Path="
-					+ resourceUri.getPath() + "; HttpOnly; SameSite=Strict").matcher(cookie);
+			final var cookieMatcher = Pattern
+					.compile(sessionHandler.getSessionCookieName() + "=([^;]+); Path=/; HttpOnly; SameSite=Strict")
+					.matcher(cookie);
 			assertTrue(cookieMatcher.matches(), cookie);
 			assertDoesNotThrow(() -> Thread.sleep(250L));
 			assertDoesNotThrow(purgeTask::run);
