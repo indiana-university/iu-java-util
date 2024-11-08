@@ -1,1 +1,0 @@
-packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html"},{"m":"iu.util.crypt","l":"edu.iu.crypt"},{"m":"iu.util.crypt","l":"iu.crypt.spi"}];updateSearchResults();
