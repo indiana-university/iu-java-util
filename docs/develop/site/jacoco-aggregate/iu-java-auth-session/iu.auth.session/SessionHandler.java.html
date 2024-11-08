@@ -119,72 +119,80 @@ public class SessionHandler implements IuSessionHandler {
 	public IuSession activate(Iterable&lt;HttpCookie&gt; cookies) {
 <span class="fc" id="L120">		final var cookieName = getSessionCookieName();</span>
 
-<span class="fc" id="L122">		byte[] secretKey = null;</span>
-<span class="fc bfc" id="L123" title="All 2 branches covered.">		if (cookies != null)</span>
-<span class="fc bfc" id="L124" title="All 2 branches covered.">			for (final var cookie : cookies)</span>
-<span class="fc bfc" id="L125" title="All 2 branches covered.">				if (cookie.getName().equals(cookieName))</span>
+<span class="fc" id="L122">		SessionToken activatedSession = null;</span>
+<span class="fc" id="L123">		byte[] secretKey = null;</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">		if (cookies != null)</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">			for (final var cookie : cookies)</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">				if (cookie.getName().equals(cookieName))</span>
 					try {
-<span class="fc" id="L127">						secretKey = IuText.base64Url(cookie.getValue());</span>
-<span class="fc" id="L128">						break;</span>
-<span class="fc" id="L129">					} catch (Throwable e) {</span>
-<span class="fc" id="L130">						LOG.log(Level.INFO, &quot;Invalid session cookie value&quot;, e);</span>
+<span class="fc" id="L128">						final var value = IuText.base64Url(cookie.getValue());</span>
+						
+<span class="fc" id="L130">						final var hashKey = hashKey(value);</span>
+<span class="fc" id="L131">						final var session = SESSION_TOKENS.get(hashKey);</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">						if (session == null)</span>
+<span class="fc" id="L133">							continue;</span>
+
+<span class="fc bfc" id="L135" title="All 2 branches covered.">						if (session.inactivePurgeTime().isBefore(Instant.now())) {</span>
+<span class="fc" id="L136">							SESSION_TOKENS.remove(hashKey);</span>
+<span class="fc" id="L137">							continue;</span>
+						}
+
+<span class="fc" id="L140">						secretKey = value;</span>
+<span class="fc" id="L141">						activatedSession = session;</span>
+<span class="fc" id="L142">						break;</span>
+<span class="fc" id="L143">					} catch (Throwable e) {</span>
+<span class="fc" id="L144">						LOG.log(Level.INFO, &quot;Invalid session cookie value&quot;, e);</span>
 					}
-<span class="fc bfc" id="L132" title="All 2 branches covered.">		if (secretKey == null)</span>
-<span class="fc" id="L133">			return null;</span>
+		
+<span class="fc bfc" id="L147" title="All 2 branches covered.">		if (activatedSession == null)</span>
+<span class="fc" id="L148">			return null;</span>
 
-<span class="fc" id="L135">		final var hashKey = hashKey(secretKey);</span>
-<span class="fc" id="L136">		final var storedSession = SESSION_TOKENS.get(hashKey);</span>
-<span class="fc bfc" id="L137" title="All 2 branches covered.">		if (storedSession == null) {</span>
-<span class="fc" id="L138">			secretKey = null;</span>
-<span class="fc" id="L139">			return null;</span>
-		}
-
-<span class="fc bfc" id="L142" title="All 2 branches covered.">		if (storedSession.inactivePurgeTime().isBefore(Instant.now())) {</span>
-<span class="fc" id="L143">			SESSION_TOKENS.remove(hashKey);</span>
-<span class="fc" id="L144">			secretKey = null;</span>
-<span class="fc" id="L145">			return null;</span>
-		}
-
-<span class="fc" id="L148">		return new Session(storedSession.token(), secretKey, issuerKey.get(), configuration.getMaxSessionTtl());</span>
+<span class="fc" id="L150">		return new Session(activatedSession.token(), secretKey, issuerKey.get(), configuration.getMaxSessionTtl());</span>
 	}
 
 	@Override
 	public String store(IuSession session, boolean strict) {
-<span class="fc" id="L153">		final var secretKey = EphemeralKeys.secret(&quot;AES&quot;, 256);</span>
-<span class="fc" id="L154">		final var s = (Session) session;</span>
+<span class="fc" id="L155">		final var secretKey = EphemeralKeys.secret(&quot;AES&quot;, 256);</span>
+<span class="fc" id="L156">		final var s = (Session) session;</span>
 
-<span class="fc" id="L156">		SESSION_TOKENS.put(hashKey(secretKey), new SessionToken(s.tokenize(secretKey, issuerKey.get(), algorithm),</span>
-<span class="fc" id="L157">				Instant.now().plus(configuration.getInactiveTtl())));</span>
+<span class="fc" id="L158">		SESSION_TOKENS.put(hashKey(secretKey), new SessionToken(s.tokenize(secretKey, issuerKey.get(), algorithm),</span>
+<span class="fc" id="L159">				Instant.now().plus(configuration.getInactiveTtl())));</span>
 
-<span class="fc" id="L159">		final var cookieBuilder = new StringBuilder();</span>
-<span class="fc" id="L160">		cookieBuilder.append(getSessionCookieName());</span>
-<span class="fc" id="L161">		cookieBuilder.append('=');</span>
-<span class="fc" id="L162">		cookieBuilder.append(IuText.base64Url(secretKey));</span>
-<span class="fc" id="L163">		cookieBuilder.append(&quot;; Path=&quot;).append(resourceUri.getPath());</span>
+<span class="fc" id="L161">		final var cookieBuilder = new StringBuilder();</span>
+<span class="fc" id="L162">		cookieBuilder.append(getSessionCookieName());</span>
+<span class="fc" id="L163">		cookieBuilder.append('=');</span>
+<span class="fc" id="L164">		cookieBuilder.append(IuText.base64Url(secretKey));</span>
+<span class="fc" id="L165">		cookieBuilder.append(&quot;; Path=&quot;);</span>
 
-<span class="fc bfc" id="L165" title="All 2 branches covered.">		if (IuObject.equals(resourceUri.getScheme(), &quot;https&quot;))</span>
-<span class="fc" id="L166">			cookieBuilder.append(&quot;; Secure&quot;);</span>
+<span class="fc" id="L167">		final var path = resourceUri.getPath();</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">		if (path.isEmpty())</span>
+<span class="fc" id="L169">			cookieBuilder.append(&quot;/&quot;);</span>
+		else
+<span class="fc" id="L171">			cookieBuilder.append(path);</span>
 
-<span class="fc" id="L168">		cookieBuilder.append(&quot;; HttpOnly&quot;);</span>
+<span class="fc bfc" id="L173" title="All 2 branches covered.">		if (IuObject.equals(resourceUri.getScheme(), &quot;https&quot;))</span>
+<span class="fc" id="L174">			cookieBuilder.append(&quot;; Secure&quot;);</span>
 
-<span class="fc bfc" id="L170" title="All 2 branches covered.">		if (strict)</span>
-<span class="fc" id="L171">			cookieBuilder.append(&quot;; SameSite=Strict&quot;);</span>
-<span class="fc" id="L172">		return cookieBuilder.toString();</span>
+<span class="fc" id="L176">		cookieBuilder.append(&quot;; HttpOnly&quot;);</span>
+
+<span class="fc bfc" id="L178" title="All 2 branches covered.">		if (strict)</span>
+<span class="fc" id="L179">			cookieBuilder.append(&quot;; SameSite=Strict&quot;);</span>
+<span class="fc" id="L180">		return cookieBuilder.toString();</span>
 	}
 
 	@Override
 	public void remove(Iterable&lt;HttpCookie&gt; cookies) {
-<span class="fc bfc" id="L177" title="All 2 branches covered.">		if (cookies != null) {</span>
-<span class="fc" id="L178">			final var cookieName = getSessionCookieName();</span>
-<span class="fc bfc" id="L179" title="All 2 branches covered.">			for (final var cookie : cookies)</span>
-<span class="fc bfc" id="L180" title="All 2 branches covered.">				if (cookie.getName().equals(cookieName))</span>
+<span class="fc bfc" id="L185" title="All 2 branches covered.">		if (cookies != null) {</span>
+<span class="fc" id="L186">			final var cookieName = getSessionCookieName();</span>
+<span class="fc bfc" id="L187" title="All 2 branches covered.">			for (final var cookie : cookies)</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">				if (cookie.getName().equals(cookieName))</span>
 					try {
-<span class="fc" id="L182">						SESSION_TOKENS.remove(hashKey(IuText.base64Url(cookie.getValue())));</span>
-<span class="fc" id="L183">					} catch (Throwable e) {</span>
-<span class="fc" id="L184">						LOG.log(Level.INFO, &quot;Invalid session cookie value&quot;, e);</span>
-<span class="fc" id="L185">					}</span>
+<span class="fc" id="L190">						SESSION_TOKENS.remove(hashKey(IuText.base64Url(cookie.getValue())));</span>
+<span class="fc" id="L191">					} catch (Throwable e) {</span>
+<span class="fc" id="L192">						LOG.log(Level.INFO, &quot;Invalid session cookie value&quot;, e);</span>
+<span class="fc" id="L193">					}</span>
 		}
-<span class="fc" id="L187">	}</span>
+<span class="fc" id="L195">	}</span>
 
 	/**
 	 * Gets the hash key to use for storing tokenized session data.
@@ -193,7 +201,7 @@ public class SessionHandler implements IuSessionHandler {
 	 * @return encoded digest of the session key
 	 */
 	static String hashKey(byte[] secretKey) {
-<span class="fc" id="L196">		return IuText.base64(IuDigest.sha256(secretKey));</span>
+<span class="fc" id="L204">		return IuText.base64(IuDigest.sha256(secretKey));</span>
 	}
 
 	/**
@@ -202,7 +210,7 @@ public class SessionHandler implements IuSessionHandler {
 	 * @return session cookie name
 	 */
 	String getSessionCookieName() {
-<span class="fc" id="L205">		return &quot;iu-sk_&quot; + IuText.base64Url(IuDigest.sha256(IuText.utf8(resourceUri.toString())));</span>
+<span class="fc" id="L213">		return &quot;iu-sk_&quot; + IuText.base64Url(IuDigest.sha256(IuText.utf8(resourceUri.toString())));</span>
 	}
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
