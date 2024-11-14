@@ -1,0 +1,484 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ModularClassLoader.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-type-base</a> &gt; <a href="index.source.html" class="el_package">edu.iu.type.base</a> &gt; <span class="el_source">ModularClassLoader.java</span></div><h1>ModularClassLoader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu.type.base;
+
+import java.io.IOException;
+import java.lang.ModuleLayer.Controller;
+import java.lang.module.Configuration;
+import java.lang.module.ModuleFinder;
+import java.lang.module.ModuleReference;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Enumeration;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.function.BiPredicate;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.jar.JarEntry;
+import java.util.jar.JarInputStream;
+
+import edu.iu.IuException;
+import edu.iu.IuIterable;
+import edu.iu.IuObject;
+import edu.iu.IuStream;
+import edu.iu.UnsafeRunnable;
+
+/**
+ * {@link AutoCloseable Closeable} {@link ClassLoader} implementation that
+ * manages an application-defined {@link ModuleLayer}.
+ */
+public class ModularClassLoader extends ClassLoader implements AutoCloseable {
+
+	/**
+	 * Creates a modular class loader from raw input.
+	 * 
+	 * @param parent             parent {@link ClassLoader}
+	 * @param parentLayer        parent {@link ModuleLayer}
+	 * @param modulePath         supplies module path entries on demand within a
+	 *                           {@link TemporaryFile#init(UnsafeRunnable)}
+	 *                           context.
+	 * @param controllerCallback receives a {@link Controller} handle that
+	 *                           &lt;em&gt;should&lt;/em&gt; be used and discarded by the
+	 *                           application before any classes are loaded
+	 * @return {@link ModularClassLoader}
+	 */
+	public static final ModularClassLoader of(ClassLoader parent, ModuleLayer parentLayer,
+			Supplier&lt;Iterable&lt;Path&gt;&gt; modulePath, Consumer&lt;Controller&gt; controllerCallback) {
+<span class="fc" id="L83">		class Box implements AutoCloseable {</span>
+			private ModularClassLoader loader;
+			private volatile UnsafeRunnable destroy;
+
+			@Override
+			public synchronized void close() throws IOException {
+<span class="fc bfc" id="L89" title="All 2 branches covered.">				if (destroy != null) {</span>
+<span class="fc" id="L90">					IuException.checked(IOException.class, destroy);</span>
+<span class="fc" id="L91">					destroy = null;</span>
+				}
+<span class="fc" id="L93">			}</span>
+		}
+
+<span class="fc" id="L96">		final var box = new Box();</span>
+<span class="fc" id="L97">		box.destroy = IuException.unchecked(() -&gt; TemporaryFile.init(() -&gt; {</span>
+<span class="fc" id="L98">			box.loader = new ModularClassLoader(false, modulePath.get(), parentLayer,</span>
+<span class="fc" id="L99">					parent, controllerCallback) {</span>
+				@Override
+				public void close() throws IOException {
+<span class="fc" id="L102">					IuException.checked(IOException.class, () -&gt; IuException.suppress(super::close, box::close));</span>
+<span class="fc" id="L103">				}</span>
+			};
+<span class="fc" id="L105">		}));</span>
+
+<span class="fc" id="L107">		return box.loader;</span>
+	}
+
+	private final boolean web;
+	private final CloseableModuleFinder moduleFinder;
+	private final ModuleLayer moduleLayer;
+	private final Map&lt;String, byte[]&gt; classData;
+	private final Map&lt;String, List&lt;URL&gt;&gt; resourceUrls;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param web                true for &lt;a href=
+	 *                           &quot;https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader&quot;&gt;web
+	 *                           classloading semantics&lt;/a&gt;; false for normal parent
+	 *                           delegation semantics
+	 * @param path               class/module path
+	 * @param parentLayer        parent module layer
+	 * @param parent             parent class loader
+	 * @param controllerCallback receives a reference to the {@link Controller} for
+	 *                           the module layer created in conjunction with this
+	 *                           loader. API Note from {@link Controller}: &lt;em&gt;Care
+	 *                           should be taken with Controller objects, they
+	 *                           should never be shared with untrusted code.&lt;/em&gt;
+	 * @throws IOException if an error occurs reading a class path entry
+	 */
+	public ModularClassLoader(boolean web, Iterable&lt;Path&gt; path, ModuleLayer parentLayer, ClassLoader parent,
+			Consumer&lt;Controller&gt; controllerCallback) throws IOException {
+<span class="fc bfc" id="L135" title="All 2 branches covered.">		this(web, IuIterable.filter(path, p -&gt; !hasModuleInfo(p)),</span>
+<span class="fc" id="L136">				IuIterable.filter(path, ModularClassLoader::hasModuleInfo), parentLayer, parent, controllerCallback);</span>
+<span class="fc" id="L137">	}</span>
+
+	private static boolean hasModuleInfo(Path pathEntry) {
+<span class="fc" id="L140">		return IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L141">			boolean hasModuleInfo = false;</span>
+<span class="fc" id="L142">			try (final var in = Files.newInputStream(pathEntry); //</span>
+<span class="fc" id="L143">					final var jar = new JarInputStream(in)) {</span>
+				JarEntry entry;
+<span class="fc bfc" id="L145" title="All 2 branches covered.">				while ((entry = jar.getNextJarEntry()) != null)</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">					if (entry.getName().equals(&quot;module-info.class&quot;)) {</span>
+<span class="fc" id="L147">						hasModuleInfo = true;</span>
+<span class="fc" id="L148">						break;</span>
+					}
+			}
+<span class="fc" id="L151">			return hasModuleInfo;</span>
+		});
+	}
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param web                true for &lt;a href=
+	 *                           &quot;https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader&quot;&gt;web
+	 *                           classloading semantics&lt;/a&gt;; false for normal parent
+	 *                           delegation semantics
+	 * @param classpath          class path
+	 * @param modulepath         module path
+	 * @param parentLayer        parent module layer
+	 * @param parent             parent class loader
+	 * @param controllerCallback receives a reference to the {@link Controller} for
+	 *                           the module layer created in conjunction with this
+	 *                           loader. API Note from {@link Controller}: &lt;em&gt;Care
+	 *                           should be taken with Controller objects, they
+	 *                           should never be shared with untrusted code.&lt;/em&gt;
+	 * @throws IOException if an error occurs reading a class path entry
+	 */
+	public ModularClassLoader(boolean web, Iterable&lt;Path&gt; classpath, Iterable&lt;Path&gt; modulepath, ModuleLayer parentLayer,
+			ClassLoader parent, Consumer&lt;Controller&gt; controllerCallback) throws IOException {
+<span class="fc" id="L175">		super(parent);</span>
+<span class="fc" id="L176">		registerAsParallelCapable();</span>
+
+<span class="fc" id="L178">		this.web = web;</span>
+<span class="fc" id="L179">		classData = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L180">		resourceUrls = new LinkedHashMap&lt;&gt;();</span>
+
+<span class="fc bfc" id="L182" title="All 2 branches covered.">		for (final var classpathEntry : classpath) {</span>
+<span class="fc" id="L183">			final var resourceRootUrl = &quot;jar:&quot; + classpathEntry.toUri() + &quot;!/&quot;;</span>
+
+			{
+<span class="fc" id="L186">				var resourceList = resourceUrls.get(&quot;&quot;);</span>
+<span class="fc bfc" id="L187" title="All 2 branches covered.">				if (resourceList == null)</span>
+<span class="fc" id="L188">					resourceUrls.put(&quot;&quot;, resourceList = new ArrayList&lt;&gt;());</span>
+<span class="fc" id="L189">				resourceList.add(new URL(resourceRootUrl));</span>
+			}
+			
+<span class="fc" id="L192">			try (final var in = Files.newInputStream(classpathEntry); //</span>
+<span class="fc" id="L193">					final var jar = new JarInputStream(in)) {</span>
+				JarEntry entry;
+<span class="fc bfc" id="L195" title="All 2 branches covered.">				while ((entry = jar.getNextJarEntry()) != null) {</span>
+<span class="fc" id="L196">					final var name = entry.getName();</span>
+<span class="fc" id="L197">					var resourceList = resourceUrls.get(name);</span>
+<span class="fc bfc" id="L198" title="All 2 branches covered.">					if (resourceList == null)</span>
+<span class="fc" id="L199">						resourceUrls.put(name, resourceList = new ArrayList&lt;&gt;());</span>
+<span class="fc" id="L200">					resourceList.add(new URL(resourceRootUrl + name));</span>
+
+<span class="fc bfc" id="L202" title="All 2 branches covered.">					if (name.endsWith(&quot;.class&quot;))</span>
+<span class="fc" id="L203">						classData.put(name.substring(0, name.length() - 6).replace('/', '.'), IuStream.read(jar));</span>
+
+<span class="fc" id="L205">					jar.closeEntry();</span>
+<span class="fc" id="L206">				}</span>
+			}
+<span class="fc" id="L208">		}</span>
+
+<span class="fc" id="L210">		class Box {</span>
+			CloseableModuleFinder moduleFinder;
+			ModuleLayer moduleLayer;
+		}
+<span class="fc" id="L214">		final var box = new Box();</span>
+
+<span class="fc" id="L216">		final Queue&lt;Path&gt; path = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L217">		modulepath.forEach(path::offer);</span>
+
+<span class="fc" id="L219">		IuException.checked(IOException.class, () -&gt; IuException</span>
+<span class="fc" id="L220">				.initialize(new CloseableModuleFinder(path.toArray(new Path[path.size()])), moduleFinder -&gt; {</span>
+<span class="fc" id="L221">					box.moduleFinder = moduleFinder;</span>
+
+<span class="fc" id="L223">					final Collection&lt;String&gt; moduleNames = new ArrayDeque&lt;&gt;();</span>
+<span class="fc bfc" id="L224" title="All 2 branches covered.">					for (final var moduleRef : moduleFinder.findAll())</span>
+<span class="fc" id="L225">						moduleNames.add(moduleRef.descriptor().name());</span>
+
+<span class="fc" id="L227">					final var configuration = Configuration.resolveAndBind( //</span>
+<span class="fc" id="L228">							moduleFinder, List.of(parentLayer.configuration()), ModuleFinder.of(), moduleNames);</span>
+
+<span class="fc" id="L230">					final var controller = ModuleLayer.defineModules(configuration, List.of(parentLayer), a -&gt; this);</span>
+<span class="fc" id="L231">					box.moduleLayer = controller.layer();</span>
+<span class="fc bfc" id="L232" title="All 2 branches covered.">					if (controllerCallback != null)</span>
+<span class="fc" id="L233">						controllerCallback.accept(controller);</span>
+<span class="fc" id="L234">					return null;</span>
+				}));
+<span class="fc" id="L236">		this.moduleFinder = box.moduleFinder;</span>
+<span class="fc" id="L237">		this.moduleLayer = box.moduleLayer;</span>
+<span class="fc" id="L238">	}</span>
+
+	/**
+	 * Gets the module layer associated with this class loader.
+	 * 
+	 * @return {@link ModuleLayer}
+	 */
+	public ModuleLayer getModuleLayer() {
+<span class="fc" id="L246">		return moduleLayer;</span>
+	}
+
+	@Override
+	public void close() throws IOException {
+<span class="fc" id="L251">		moduleFinder.close();</span>
+<span class="fc" id="L252">	}</span>
+
+	@Override
+	protected Class&lt;?&gt; loadClass(String name, boolean resolve) throws ClassNotFoundException {
+<span class="fc bfc" id="L256" title="All 4 branches covered.">		if (!web || IuObject.isPlatformName(name))</span>
+<span class="fc" id="L257">			return super.loadClass(name, resolve);</span>
+
+<span class="fc" id="L259">		synchronized (getClassLoadingLock(name)) {</span>
+<span class="fc" id="L260">			Class&lt;?&gt; rv = this.findLoadedClass(name);</span>
+<span class="fc bfc" id="L261" title="All 2 branches covered.">			if (rv != null)</span>
+<span class="fc" id="L262">				return rv;</span>
+
+			try {
+<span class="fc" id="L265">				rv = findClass(name);</span>
+<span class="fc bfc" id="L266" title="All 2 branches covered.">				if (resolve)</span>
+<span class="fc" id="L267">					resolveClass(rv);</span>
+<span class="fc" id="L268">				return rv;</span>
+<span class="fc" id="L269">			} catch (ClassNotFoundException e) {</span>
+				// will attempt throw again when called from
+				// super.loadClass if also not found in parent
+			}
+
+<span class="fc" id="L274">			return super.loadClass(name, resolve);</span>
+		}
+	}
+
+	@Override
+	protected Class&lt;?&gt; findClass(String name) throws ClassNotFoundException {
+<span class="fc" id="L280">		final var classData = this.classData.get(name);</span>
+<span class="fc bfc" id="L281" title="All 2 branches covered.">		if (classData == null) {</span>
+<span class="fc" id="L282">			final var resourceName = name.replace('.', '/') + &quot;.class&quot;;</span>
+
+<span class="fc bfc" id="L284" title="All 2 branches covered.">			for (final var moduleRef : moduleFinder.findAll()) {</span>
+<span class="fc" id="L285">				final var classFromModule = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L286">					final var resource = moduleRef.open().read(resourceName);</span>
+<span class="fc bfc" id="L287" title="All 2 branches covered.">					if (resource.isEmpty())</span>
+<span class="fc" id="L288">						return (Class&lt;?&gt;) null;</span>
+
+<span class="fc" id="L290">					final var moduleClassData = resource.get();</span>
+<span class="fc" id="L291">					return defineClass(name, moduleClassData, null);</span>
+				});
+
+<span class="fc bfc" id="L294" title="All 2 branches covered.">				if (classFromModule != null)</span>
+<span class="fc" id="L295">					return classFromModule;</span>
+<span class="fc" id="L296">			}</span>
+
+<span class="fc" id="L298">			var parentLoader = getParent();</span>
+<span class="fc bfc" id="L299" title="All 2 branches covered.">			if (parentLoader == null)</span>
+<span class="fc" id="L300">				parentLoader = ClassLoader.getPlatformClassLoader();</span>
+
+<span class="fc" id="L302">			final var parentClass = parentLoader.loadClass(name);</span>
+<span class="fc bfc" id="L303" title="All 2 branches covered.">			if (parentClass.getModule().isNamed())</span>
+<span class="fc" id="L304">				return parentClass;</span>
+			else
+<span class="fc" id="L306">				throw new ClassNotFoundException(name);</span>
+
+		} else
+<span class="fc" id="L309">			return defineClass(name, classData, 0, classData.length);</span>
+	}
+
+	@Override
+	protected Class&lt;?&gt; findClass(String moduleName, String name) {
+<span class="fc" id="L314">		final var moduleRef = moduleFinder.find(moduleName);</span>
+<span class="fc bfc" id="L315" title="All 2 branches covered.">		if (moduleRef.isEmpty())</span>
+<span class="fc" id="L316">			return null;</span>
+
+<span class="fc" id="L318">		final var resourceName = name.replace('.', '/') + &quot;.class&quot;;</span>
+<span class="fc" id="L319">		return IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L320">			final var resource = moduleRef.get().open().read(resourceName);</span>
+<span class="fc bfc" id="L321" title="All 2 branches covered.">			if (resource.isEmpty())</span>
+<span class="fc" id="L322">				return null;</span>
+
+<span class="fc" id="L324">			return defineClass(name, resource.get(), null);</span>
+		});
+	}
+
+	@Override
+	protected URL findResource(String moduleName, String name) throws IOException {
+<span class="fc bfc" id="L330" title="All 2 branches covered.">		if (moduleName == null) {</span>
+<span class="fc" id="L331">			final var classpathResources = resourceUrls.get(name);</span>
+<span class="fc bfc" id="L332" title="All 2 branches covered.">			if (classpathResources != null)</span>
+<span class="fc" id="L333">				return classpathResources.get(0);</span>
+			else
+<span class="fc" id="L335">				return null;</span>
+		}
+
+<span class="fc" id="L338">		final var moduleRef = moduleFinder.find(moduleName);</span>
+<span class="fc bfc" id="L339" title="All 2 branches covered.">		if (moduleRef.isEmpty())</span>
+<span class="fc" id="L340">			return null;</span>
+
+<span class="fc" id="L342">		final var resource = moduleRef.get().open().find(name);</span>
+<span class="fc bfc" id="L343" title="All 2 branches covered.">		if (resource.isEmpty())</span>
+<span class="fc" id="L344">			return null;</span>
+		else
+<span class="fc" id="L346">			return resource.get().toURL();</span>
+	}
+
+	@Override
+	public URL findResource(String name) {
+<span class="fc" id="L351">		class Box implements BiPredicate&lt;ModuleReference, URL&gt; {</span>
+			ModuleReference moduleReference;
+			URL resource;
+
+			@Override
+			public boolean test(ModuleReference moduleReference, URL resource) {
+<span class="fc" id="L357">				this.moduleReference = moduleReference;</span>
+<span class="fc" id="L358">				this.resource = resource;</span>
+<span class="fc" id="L359">				return true;</span>
+			}
+		}
+<span class="fc" id="L362">		final var box = new Box();</span>
+<span class="fc" id="L363">		findResource(name, box);</span>
+
+<span class="fc bfc" id="L365" title="All 2 branches covered.">		if (box.moduleReference == null //</span>
+<span class="fc bfc" id="L366" title="All 2 branches covered.">				|| isOpen(moduleLayer.findModule(box.moduleReference.descriptor().name()).get(), name))</span>
+<span class="fc" id="L367">			return box.resource;</span>
+		else
+<span class="fc" id="L369">			return null;</span>
+
+	}
+
+	@Override
+	public Enumeration&lt;URL&gt; findResources(String name) throws IOException {
+<span class="fc" id="L375">		final Queue&lt;URL&gt; resources = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L376">		findResource(name, (moduleRef, resource) -&gt; {</span>
+<span class="fc bfc" id="L377" title="All 2 branches covered.">			if (moduleRef == null //</span>
+<span class="fc bfc" id="L378" title="All 2 branches covered.">					|| isOpen(moduleLayer.findModule(moduleRef.descriptor().name()).get(), name))</span>
+<span class="fc" id="L379">				resources.offer(resource);</span>
+<span class="fc" id="L380">			return false;</span>
+		});
+
+<span class="fc" id="L383">		final var i = resources.iterator();</span>
+<span class="fc" id="L384">		return new Enumeration&lt;URL&gt;() {</span>
+			@Override
+			public boolean hasMoreElements() {
+<span class="fc" id="L387">				return i.hasNext();</span>
+			}
+
+			@Override
+			public URL nextElement() {
+<span class="fc" id="L392">				return i.next();</span>
+			}
+		};
+	}
+
+	/**
+	 * Finds module and resource URL for resources available from this class loader.
+	 * 
+	 * @param name              resource name
+	 * @param resourcePredicate receives a reference to the module and resource URL
+	 *                          for each instance of the resource found; returns
+	 *                          true to terminate the loop after inspecting the
+	 *                          reference, false to keep searching
+	 */
+	void findResource(String name, BiPredicate&lt;ModuleReference, URL&gt; resourcePredicate) {
+<span class="fc bfc" id="L407" title="All 2 branches covered.">		for (final var moduleRef : moduleFinder.findAll()) {</span>
+<span class="fc" id="L408">			final var optionalResource = IuException.unchecked(() -&gt; moduleRef.open().find(name));</span>
+<span class="fc bfc" id="L409" title="All 2 branches covered.">			if (optionalResource.isPresent())</span>
+<span class="fc bfc" id="L410" title="All 2 branches covered.">				if (resourcePredicate.test(moduleRef, IuException.unchecked(optionalResource.get()::toURL)))</span>
+<span class="fc" id="L411">					return;</span>
+<span class="fc" id="L412">		}</span>
+
+<span class="fc" id="L414">		final var classpathResources = resourceUrls.get(name);</span>
+<span class="fc bfc" id="L415" title="All 2 branches covered.">		if (classpathResources != null)</span>
+<span class="fc bfc" id="L416" title="All 2 branches covered.">			for (URL classpathResource : classpathResources)</span>
+<span class="fc bfc" id="L417" title="All 2 branches covered.">				if (resourcePredicate.test(null, classpathResource))</span>
+<span class="fc" id="L418">					return;</span>
+<span class="fc" id="L419">	}</span>
+
+	/**
+	 * Helper fragment for {@link #findResource(String)} and
+	 * {@link #findResources(String)}.
+	 * 
+	 * @param module module that contains the resource
+	 * @param name   resource name
+	 * 
+	 * @return true if the resource is either not encapsulated or is in a package
+	 *         that is unconditionally open
+	 * 
+	 * @see #findResource(String)
+	 * @see #findResources(String)
+	 * @see Module#getResourceAsStream(String)
+	 */
+	boolean isOpen(Module module, String name) {
+		// + A resource in a named module may be encapsulated ...
+<span class="fc bfc" id="L437" title="All 2 branches covered.">		if (module == null)</span>
+<span class="fc" id="L438">			return true; // not in a module</span>
+
+		// ... so that it cannot be located by code in other modules.
+		// + Whether a resource can be located or not is determined as follows:
+		// + If the resource name ends with &quot;.class&quot; then it is not encapsulated.
+<span class="fc bfc" id="L443" title="All 2 branches covered.">		if (name.endsWith(&quot;.class&quot;))</span>
+<span class="fc" id="L444">			return true; // not encapsulated</span>
+
+<span class="fc" id="L446">		final var lastSlash = name.lastIndexOf('/');</span>
+		/*
+		 * + If the resource is not in a package (no slash in resource name) in the
+		 * module then the resource is not encapsulated.
+		 */
+		// + &quot;META-INF&quot; is not a legal package name
+<span class="fc bfc" id="L452" title="All 4 branches covered.">		if (lastSlash &lt;= 0 || name.startsWith(&quot;META-INF/&quot;))</span>
+<span class="fc" id="L453">			return true;</span>
+
+		// + A leading slash is ignored when deriving the package name.
+<span class="fc bfc" id="L456" title="All 2 branches covered.">		final var startOfPackageName = name.charAt(0) == '/' ? 1 : 0;</span>
+
+		/*
+		 * + A package name is derived from the subsequence of characters that precedes
+		 * the last '/' in the name and then replacing each '/' character in the
+		 * subsequence with '.'.
+		 */
+<span class="fc" id="L463">		final String packageName = name.substring(startOfPackageName, lastSlash).replace('/', '.');</span>
+
+		// + If the package name is a package in the module ...
+<span class="fc bfc" id="L466" title="All 2 branches covered.">		if (!module.isExported(packageName))</span>
+<span class="fc" id="L467">			return false;</span>
+
+		/*
+		 * ... then the resource can only be located by the caller of this method when
+		 * the package is open to at least the caller's module ... + additionally, it
+		 * must not find non-&quot;.class&quot; resources in packages of named modules unless the
+		 * package is opened unconditionally.
+		 */
+		// ==&gt; the caller's module is not important: .class is not encapsulated, others
+		// must be in an unconditionally open package
+<span class="fc bfc" id="L477" title="All 2 branches covered.">		if (module.isOpen(packageName))</span>
+<span class="fc" id="L478">			return true;</span>
+
+<span class="fc" id="L480">		return false;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

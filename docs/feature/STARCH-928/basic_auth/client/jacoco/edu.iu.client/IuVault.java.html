@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuVault.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU HTTP Client Utilities</a> &gt; <a href="index.source.html" class="el_package">edu.iu.client</a> &gt; <span class="el_source">IuVault.java</span></div><h1>IuVault.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu.client;
+
+import java.lang.reflect.Type;
+import java.util.Properties;
+import java.util.function.Function;
+
+import iu.client.Vault;
+import jakarta.json.JsonObject;
+
+/**
+ * Provides access to a HashiCorp Vault K/V secrets engine.
+ * 
+ * &lt;p&gt;
+ * Properties for use with {@link #RUNTIME} or {@link #of(Properties, Function)}
+ * are listed below.
+ * &lt;/p&gt;
+ * 
+ * &lt;dl&gt;
+ * &lt;dt&gt;iu.vault.secrets (IU_VAULT_SECRETS)&lt;/dt&gt;
+ * &lt;dd&gt;Comma-separated list of secrets to read from the Vault K/V store&lt;/dd&gt;
+ * &lt;dt&gt;iu.vault.endpoint (IU_VAULT_ENDPOINT)&lt;/dt&gt;
+ * &lt;dd&gt;Base URL for a Vault K/V V2 engine API&lt;/dd&gt;
+ * &lt;dt&gt;iu.vault.token (IU_VAULT_TOKEN)&lt;/dt&gt;
+ * &lt;dd&gt;Access token for use with Vault, i.e., in development. If not set,
+ * iu.vault.loginEndpoint, iu.vault.roleId, and iu.vault.secretId &lt;em&gt;must&lt;/em&gt;
+ * be provided, i.e., for use by a CI/CD environment. If iu.vault.token is set,
+ * the approle properties will be ignored.&lt;/dd&gt;
+ * &lt;dt&gt;iu.vault.loginEndpoint (IU_VAULT_LOGIN_ENDPOINT)&lt;/dt&gt;
+ * &lt;dd&gt;URL for the Vault approle login endpoint, for use when iu.vault.token is
+ * not set.&lt;/dd&gt;
+ * &lt;dt&gt;iu.vault.roleId (IU_VAULT_ROLE_ID)&lt;/dt&gt;
+ * &lt;dd&gt;Vault approle Role ID, for use when iu.vault.token is not set.&lt;/dd&gt;
+ * &lt;dt&gt;iu.vault.secretId (IU_VAULT_SECRET_ID)&lt;/dt&gt;
+ * &lt;dd&gt;Vault approle Secret ID, for use when iu.vault.token is not set.&lt;/dd&gt;
+ * &lt;dt&gt;iu.vault.cacheTtl (IU_VAULT_CACHE_TTL)&lt;/dt&gt;
+ * &lt;dd&gt;Secrets cache time to live; by default, secrets are not cached.&lt;/dd&gt;
+ * &lt;/dl&gt;
+ */
+public interface IuVault {
+
+	/**
+	 * Singleton instance configured at class initialization time.
+	 * 
+	 * &lt;p&gt;
+	 * Expects {@link System#getProperty(String) system properties} (or
+	 * {@link System#getenv(String)}) variables if missing.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * Will be null if vault.secrets is not populated.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;dl&gt;
+	 * &lt;dt&gt;iu.vault.secrets (IU_VAULT_SECRETS)&lt;/dt&gt;
+	 * &lt;dd&gt;Comma-separated list of secrets to read from the Vault K/V store&lt;/dd&gt;
+	 * &lt;dt&gt;iu.vault.endpoint (IU_VAULT_ENDPOINT)&lt;/dt&gt;
+	 * &lt;dd&gt;Base URL for a Vault K/V store&lt;/dd&gt;
+	 * &lt;dt&gt;iu.vault.token (IU_VAULT_TOKEN)&lt;/dt&gt;
+	 * &lt;dd&gt;Access token for use with Vault, i.e., in development. If not set,
+	 * vault.loginEndpoint, vault.roleId, and vault.secretId &lt;em&gt;must&lt;/em&gt; be
+	 * provided, i.e., for use by a CI/CD environment. If vault.token is set, the
+	 * approle properties will be ignored.&lt;/dd&gt;
+	 * &lt;dt&gt;iu.vault.loginEndpoint (IU_VAULT_LOGIN_ENDPOINT)&lt;/dt&gt;
+	 * &lt;dd&gt;URL for the Vault approle login endpoint, for use when vault.token is not
+	 * set.&lt;/dd&gt;
+	 * &lt;dt&gt;iu.vault.roleId (IU_VAULT_ROLE_ID)&lt;/dt&gt;
+	 * &lt;dd&gt;Vault approle Role ID, for use when vault.token is not set.&lt;/dd&gt;
+	 * &lt;dt&gt;iu.vault.secretId (IU_VAULT_SECRET_ID)&lt;/dt&gt;
+	 * &lt;dd&gt;Vault approle Secret ID, for use when vault.token is not set.&lt;/dd&gt;
+	 * &lt;/dl&gt;
+	 * 
+	 * &lt;p&gt;
+	 * If the system property {@code vault.token} or environment variable
+	 * {@code VAULT_TOKEN} are populated, then approle properties will be skipped
+	 * &lt;/p&gt;
+	 */
+<span class="fc" id="L108">	public static final IuVault RUNTIME = Vault.of(null, IuJsonAdapter::of);</span>
+
+	/**
+	 * Determines whether or not the RUNTIME Vault is configured.
+	 * &lt;p&gt;
+	 * May be used to selectively disable unit tests. For example:
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;pre&gt;
+	 * &amp;#64;EnabledIf(&quot;edu.iu.client.IuVault#isConfigured&quot;)
+	 * &lt;/pre&gt;
+	 * 
+	 * @return true if Vault is configured; else false
+	 */
+	public static boolean isConfigured() {
+<span class="fc" id="L123">		return Vault.isConfigured();</span>
+	}
+
+	/**
+	 * Gets an {@link IuVault} instance for a specific application scenario.
+	 * 
+	 * @param properties   {@link Properties}
+	 * @param valueAdapter {@link IuJsonAdapter} type mapping function
+	 * @return {@link IuVault}
+	 */
+	public static IuVault of(Properties properties, Function&lt;Type, IuJsonAdapter&lt;?&gt;&gt; valueAdapter) {
+<span class="fc" id="L134">		return Vault.of(properties, valueAdapter);</span>
+	}
+
+	/**
+	 * Lists all available property names.
+	 * 
+	 * @return property names
+	 */
+	Iterable&lt;IuVaultKeyedValue&lt;?&gt;&gt; list();
+
+	/**
+	 * Reads a property value.
+	 * 
+	 * @param name property name
+	 * @return property value
+	 */
+	IuVaultKeyedValue&lt;String&gt; get(String name);
+
+	/**
+	 * Reads a property value.
+	 * 
+	 * @param &lt;T&gt;  value type
+	 * @param name property name
+	 * @param type value class
+	 * @return property value
+	 */
+	&lt;T&gt; IuVaultKeyedValue&lt;T&gt; get(String name, Class&lt;T&gt; type);
+
+	/**
+	 * Gets a full K/V secret.
+	 * 
+	 * @param secret secret name
+	 * @return {@link JsonObject}
+	 */
+	IuVaultSecret getSecret(String secret);
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
