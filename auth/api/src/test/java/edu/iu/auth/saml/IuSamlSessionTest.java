@@ -37,18 +37,15 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import java.net.URI;
-import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.IdGenerator;
 import edu.iu.auth.spi.IuSamlSpi;
 import iu.auth.IuAuthSpiFactory;
 
 @SuppressWarnings("javadoc")
 public class IuSamlSessionTest {
 
-	@SuppressWarnings("unchecked")
 	@Test
 	public void testCreate() {
 		final var postUri = mock(URI.class);
