@@ -32,7 +32,6 @@
 package edu.iu.auth.spi;
 
 import java.net.URI;
-import java.util.function.Supplier;
 
 import edu.iu.auth.saml.IuSamlSessionVerifier;
 
