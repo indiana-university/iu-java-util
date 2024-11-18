@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>KeyUsage.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Public Key Infrastructure Authorization Utilities</a> &gt; <a href="index.source.html" class="el_package">iu.auth.pki</a> &gt; <span class="el_source">KeyUsage.java</span></div><h1>KeyUsage.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.pki;
+
+import java.security.cert.X509Certificate;
+import java.util.ArrayDeque;
+import java.util.Queue;
+import java.util.Set;
+
+import edu.iu.crypt.WebKey.Operation;
+import edu.iu.crypt.WebKey.Use;
+
+/**
+ * Processes {@link X509Certificate#getKeyUsage() X509 Key Usage Extensions}.
+ */
+final class KeyUsage {
+
+	private final int pathLen;
+	private final boolean digitalSignature;
+	private final boolean keyEncipherment;
+	private final boolean keyAgreement;
+	private final boolean keyCertSign;
+	private final boolean cRLSign;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param certificate {@link X509Certificate}
+	 */
+<span class="fc" id="L59">	KeyUsage(X509Certificate certificate) {</span>
+<span class="fc" id="L60">		pathLen = certificate.getBasicConstraints();</span>
+<span class="fc" id="L61">		final var keyUsage = certificate.getKeyUsage();</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">		if (keyUsage == null) {</span>
+<span class="fc" id="L63">			digitalSignature = false;</span>
+<span class="fc" id="L64">			keyEncipherment = false;</span>
+<span class="fc" id="L65">			keyAgreement = false;</span>
+<span class="fc" id="L66">			keyCertSign = false;</span>
+<span class="fc" id="L67">			cRLSign = false;</span>
+		} else {
+<span class="fc" id="L69">			digitalSignature = keyUsage[0];</span>
+<span class="fc" id="L70">			keyEncipherment = keyUsage[2];</span>
+<span class="fc" id="L71">			keyAgreement = keyUsage[4];</span>
+<span class="fc" id="L72">			keyCertSign = keyUsage[5];</span>
+<span class="fc" id="L73">			cRLSign = keyUsage[6];</span>
+		}
+<span class="fc" id="L75">	}</span>
+
+	/**
+	 * Determines if key usage permits public key use as a CA signing certificate.
+	 * 
+	 * @return true if X509 key usage flags allow CA certificate and CRL signing
+	 */
+	boolean isCA() {
+<span class="fc bfc" id="L83" title="All 6 branches covered.">		return pathLen &gt;= 0 //</span>
+				&amp;&amp; keyCertSign //
+				&amp;&amp; cRLSign;
+	}
+
+	/**
+	 * Determines if key usage flags match {@link Use public key use}.
+	 * 
+	 * @param use {@link Use public key use}
+	 * @return true if X509 key usage flags allow the public key use, else false
+	 */
+	boolean matches(Use use) {
+<span class="fc bfc" id="L95" title="All 2 branches covered.">		switch (use) {</span>
+		case ENCRYPT:
+<span class="fc bfc" id="L97" title="All 4 branches covered.">			return keyAgreement || keyEncipherment;</span>
+
+		case SIGN:
+		default:
+<span class="fc" id="L101">			return digitalSignature;</span>
+		}
+	}
+
+	/**
+	 * Determines if key usage flags match (@link Operation Web Crypto key
+	 * operations}.
+	 * 
+	 * @param ops {@link Operation} {@link Set}
+	 * @return true if X509 key usage flags allow all key operations, else false
+	 */
+	boolean matches(Set&lt;Operation&gt; ops) {
+<span class="fc bfc" id="L113" title="All 2 branches covered.">		for (final var op : ops)</span>
+<span class="fc bfc" id="L114" title="All 5 branches covered.">			switch (op) {</span>
+			case DERIVE_BITS:
+			case DECRYPT:
+			case ENCRYPT:
+<span class="fc" id="L118">				return false;</span>
+
+			case DERIVE_KEY:
+<span class="fc bfc" id="L121" title="All 2 branches covered.">				if (!keyAgreement)</span>
+<span class="fc" id="L122">					return false;</span>
+				else
+					continue;
+
+			case UNWRAP:
+			case WRAP:
+<span class="fc bfc" id="L128" title="All 2 branches covered.">				if (!keyEncipherment)</span>
+<span class="fc" id="L129">					return false;</span>
+				else
+					continue;
+
+			case SIGN:
+<span class="fc bfc" id="L134" title="All 2 branches covered.">				if (!digitalSignature)</span>
+<span class="fc" id="L135">					return false;</span>
+				else
+					continue;
+
+			case VERIFY:
+			default:
+<span class="fc bfc" id="L141" title="All 2 branches covered.">				if (!digitalSignature)</span>
+<span class="fc" id="L142">					return false;</span>
+<span class="fc" id="L143">			}</span>
+<span class="fc" id="L144">		return true;</span>
+	}
+
+	/**
+	 * Gets {@link Operation Web Crypto key operations} allowed by key usage.
+	 * 
+	 * @param verify        true to get key ops for digitial signature verification;
+	 *                      false for data encryption
+	 * @param hasPrivateKey true if the private key is available; false for public
+	 *                      key operations only
+	 * @return {@link Operation}[]
+	 */
+	Operation[] ops(boolean verify, boolean hasPrivateKey) {
+<span class="fc" id="L157">		final Queue&lt;Operation&gt; ops = new ArrayDeque&lt;&gt;();</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">		if (verify) {</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">			if (digitalSignature) {</span>
+<span class="fc" id="L160">				ops.add(Operation.VERIFY);</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">				if (hasPrivateKey)</span>
+<span class="fc" id="L162">					ops.add(Operation.SIGN);</span>
+			}
+		} else { // encrypt
+<span class="fc bfc" id="L165" title="All 2 branches covered.">			if (keyEncipherment) {</span>
+<span class="fc" id="L166">				ops.add(Operation.WRAP);</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">				if (hasPrivateKey)</span>
+<span class="fc" id="L168">					ops.add(Operation.UNWRAP);</span>
+			}
+<span class="fc bfc" id="L170" title="All 2 branches covered.">			if (keyAgreement)</span>
+<span class="fc" id="L171">				ops.add(Operation.DERIVE_KEY);</span>
+		}
+<span class="fc" id="L173">		return ops.toArray(Operation[]::new);</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
