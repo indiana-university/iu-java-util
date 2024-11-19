@@ -674,6 +674,11 @@ public class SamlServiceProviderTest {
 			public IuPrivateKeyPrincipal getIdentity() {
 				return pkp;
 			}
+
+			@Override
+			public Iterable<URI> getResourceUris() {
+				return null;
+			}
 		};
 		return config;
 	}

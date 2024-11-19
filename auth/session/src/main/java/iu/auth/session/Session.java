@@ -36,7 +36,6 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -49,6 +48,7 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Type;
 import iu.crypt.Jwt;
+import jakarta.json.JsonValue;
 
 /**
  * {@link IuSession} implementation
@@ -68,7 +68,7 @@ class Session implements IuSession {
 	private boolean changed;
 
 	/** Session details */
-	private Map<String, Map<String, Object>> details;
+	private Map<String, Map<String, JsonValue>> details;
 
 	/**
 	 * New session constructor.
@@ -79,7 +79,7 @@ class Session implements IuSession {
 	Session(URI resourceUri, Duration expires) {
 		this.resourceUri = resourceUri;
 		this.expires = Instant.now().plus(expires).truncatedTo(ChronoUnit.SECONDS);
-		details = new LinkedHashMap<String, Map<String, Object>>();
+		details = new LinkedHashMap<String, Map<String, JsonValue>>();
 	}
 
 	/**
@@ -131,16 +131,24 @@ class Session implements IuSession {
 
 	@Override
 	public <T> T getDetail(Class<T> type) {
-		Map<String, Object> attributes = null;
-		if (details.containsKey(type.getName())) {
-			attributes = details.get(type.getName());
-		} else {
-			attributes = new HashMap<String, Object>();
-			details.put(type.getName(), attributes);
-		}
-		return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type },
-				new SessionDetail(attributes, this)));
+		final var module = type.getModule();
+		if (!module.isNamed())
+			throw new IllegalArgumentException("Invalid session type, must be in a named module");
 
+		return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type },
+				new SessionDetail(
+						details.computeIfAbsent(module.getName() + "/" + type.getName(), a -> new LinkedHashMap<>()),
+						this, new SessionAdapterFactory<>(type))));
+	}
+
+	@Override
+	public void clearDetail(Class<?> type) {
+		final var module = type.getModule();
+		if (!module.isNamed())
+			throw new IllegalArgumentException("Invalid session type, must be in a named module");
+
+		if (details.remove(module.getName() + "/" + type.getName()) != null)
+			changed = true;
 	}
 
 	@Override
@@ -164,6 +172,11 @@ class Session implements IuSession {
 	 */
 	Instant getExpires() {
 		return expires;
+	}
+
+	@Override
+	public URI getResourceUri() {
+		return resourceUri;
 	}
 
 	@Override

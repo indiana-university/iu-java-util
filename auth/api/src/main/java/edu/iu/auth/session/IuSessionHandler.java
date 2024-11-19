@@ -65,4 +65,11 @@ public interface IuSessionHandler {
 	 * @return response cookie attributes
 	 */
 	String store(IuSession session, boolean strict);
+	
+	/**
+	 * 
+	 * Removes session from storage
+	 * @param cookies cookies
+	 */
+	void remove(Iterable<HttpCookie> cookies);
 }

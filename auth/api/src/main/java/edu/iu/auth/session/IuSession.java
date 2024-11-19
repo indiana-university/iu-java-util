@@ -31,6 +31,8 @@
  */
 package edu.iu.auth.session;
 
+import java.net.URI;
+
 /**
  * This interface represents session object .
  */
@@ -46,6 +48,13 @@ public interface IuSession {
 	<T> T getDetail(Class<T> type);
 
 	/**
+	 * Clear session attributes
+	 * 
+	 * @param type class
+	 */
+	void clearDetail(Class<?> type);
+	
+	/**
 	 * Gets whether session object state change
 	 * 
 	 * @return true if session object state has change, otherwise false;
@@ -53,4 +62,11 @@ public interface IuSession {
 	default boolean isChanged() {
 		return false;
 	}
+	
+	/**
+	 * Get resource URI
+	 * 
+	 * @return resource URI
+	 */
+	URI getResourceUri();
 }

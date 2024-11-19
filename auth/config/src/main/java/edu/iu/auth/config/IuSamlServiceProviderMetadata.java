@@ -47,7 +47,7 @@ import edu.iu.auth.saml.IuSamlAssertion;
  * requiring authorization on behalf of an SAML identity provider.
  * </p>
  */
-public interface IuSamlServiceProviderMetadata extends IuAuthenticationRealm {
+public interface IuSamlServiceProviderMetadata extends IuSessionConfiguration {
 
 	/**
 	 * Gets whether to fail on address mismatch or not, true if required, false if

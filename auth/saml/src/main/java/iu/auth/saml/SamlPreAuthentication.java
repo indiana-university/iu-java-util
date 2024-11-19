@@ -29,40 +29,55 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.session;
+package iu.auth.saml;
 
-import java.util.Map;
-import java.util.Objects;
-
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import iu.crypt.Jwt;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonValue;
+import java.net.URI;
 
 /**
- * JWT token implementation that includes {@link Session} details.
+ * SAML session details interface
  */
-public class SessionJwt extends Jwt {
+public interface SamlPreAuthentication {
 
 	/**
-	 * Default constructor
-	 *
-	 * @param claims {@link JsonObject} claims
+	 * Get session id
+	 * 
+	 * @return session id
 	 */
-	public SessionJwt(JsonObject claims) {
-		super(claims);
-		Objects.requireNonNull(getDetails(), "Missing session details");
-	}
+	String getSessionId();
 
 	/**
-	 * Gets the session details.
-	 *
-	 * @return {@link JsonObject} session details
+	 * set session id
+	 * 
+	 * @param sessionId session id
 	 */
-	public Map<String, Map<String, JsonValue>> getDetails() {
-		return IuJson.get(claims, "details",
-				IuJsonAdapter.of(Map.class, IuJsonAdapter.of(Map.class, IuJsonAdapter.from(a -> a))));
-	}
+	void setSessionId(String sessionId);
+
+	/**
+	 * Get return
+	 * 
+	 * @return return URI
+	 */
+	URI getReturnUri();
+
+	/**
+	 * Set return URI
+	 * 
+	 * @param returnUri return URI
+	 */
+	void setReturnUri(URI returnUri);
+
+	/**
+	 * Get relay state
+	 * 
+	 * @return relay state
+	 */
+	String getRelayState();
+
+	/**
+	 * set relay state
+	 * 
+	 * @param relayState relay state
+	 */
+	void setRelayState(String relayState);
 
 }

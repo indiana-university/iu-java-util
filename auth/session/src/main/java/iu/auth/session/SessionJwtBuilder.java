@@ -35,6 +35,7 @@ import java.util.Map;
 
 import edu.iu.IuObject;
 import iu.crypt.JwtBuilder;
+import jakarta.json.JsonValue;
 
 /**
  * Extends {@link JwtBuilder} to add claims values for use with {@link Session}.
@@ -56,7 +57,7 @@ class SessionJwtBuilder extends JwtBuilder<SessionJwtBuilder> {
 	 * @param details {@link Map} of session details
 	 * @return this
 	 */
-	SessionJwtBuilder details(Map<String, Map<String, Object>> details) {
+	SessionJwtBuilder details(Map<String, Map<String, JsonValue>> details) {
 		return param("details", details);
 	}
 

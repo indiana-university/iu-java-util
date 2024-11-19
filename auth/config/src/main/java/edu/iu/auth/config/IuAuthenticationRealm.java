@@ -65,7 +65,7 @@ public interface IuAuthenticationRealm {
 		/**
 		 * SAML Service Provider.
 		 */
-		SAML("saml_sp", IuSamlServiceProviderMetadata.class),
+		SAML("saml_sp", IuSamlServiceProviderMetadata.class, IuSessionConfiguration.class),
 		
 		
 		/**
@@ -78,11 +78,13 @@ public interface IuAuthenticationRealm {
 		 */
 		String code;
 
-		private Class<? extends IuAuthenticationRealm> authInterface;
+		private Class<? extends IuAuthenticationRealm>[] authInterfaces;
 
-		private Type(String code, Class<? extends IuAuthenticationRealm> authenticationInterface) {
+	
+		@SafeVarargs
+		private Type(String code, Class<? extends IuAuthenticationRealm>... authenticationInterfaces) {
 			this.code = code;
-			this.authInterface = authenticationInterface;
+			this.authInterfaces = authenticationInterfaces;
 		}
 
 		/** JSON type adapter */
@@ -104,8 +106,11 @@ public interface IuAuthenticationRealm {
 		 * @param realm {@link IuAuthenticationRealm}
 		 */
 		void check(IuAuthenticationRealm realm) {
-			if (!authInterface.isInstance(realm))
-				throw new IllegalStateException("Invalid realm type for " + code);
+			for(Class<? extends IuAuthenticationRealm> authInterface : authInterfaces) { 
+			if (authInterface.isInstance(realm)) 
+				return ;
+			}
+			throw new IllegalStateException("Invalid realm type for " + code);
 		}
 	}
 

@@ -32,10 +32,9 @@
 package iu.auth.saml;
 
 import java.net.URI;
-import java.util.function.Supplier;
 
 import edu.iu.IuObject;
-import edu.iu.auth.saml.IuSamlSession;
+import edu.iu.auth.saml.IuSamlSessionVerifier;
 import edu.iu.auth.spi.IuSamlSpi;
 
 /**
@@ -53,13 +52,8 @@ public class SamlSpi implements IuSamlSpi {
 	}
 
 	@Override
-	public IuSamlSession createSession(URI entryPointUri, URI postUri, Supplier<byte[]> secretKey) {
-		return new SamlSession(entryPointUri, postUri, secretKey);
-	}
-
-	@Override
-	public IuSamlSession activateSession(String sessionToken, Supplier<byte[]> secretKey) {
-		return new SamlSession(sessionToken, secretKey);
+	public IuSamlSessionVerifier createVerifier(URI postUri) {
+		return new SamlSessionVerifier(postUri);
 	}
 
 }

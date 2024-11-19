@@ -29,40 +29,38 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.session;
+package edu.iu.auth.config;
 
-import java.util.Map;
-import java.util.Objects;
+import java.net.http.HttpRequest.Builder;
 
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import iu.crypt.Jwt;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonValue;
+import edu.iu.IuText;
+import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuAuthenticationException;
 
 /**
- * JWT token implementation that includes {@link Session} details.
+ * Provides client-side support for the use of HTTP Basic authentication as API
+ * credentials.
  */
-public class SessionJwt extends Jwt {
+public interface IuBasicAuthCredentials extends IuApiCredentials {
 
 	/**
-	 * Default constructor
+	 * Returns the username to be used for HTTP Basic authentication.
 	 *
-	 * @param claims {@link JsonObject} claims
+	 * @return the username
 	 */
-	public SessionJwt(JsonObject claims) {
-		super(claims);
-		Objects.requireNonNull(getDetails(), "Missing session details");
-	}
+	String getUsername();
 
 	/**
-	 * Gets the session details.
+	 * Returns the password to be used for HTTP Basic authentication.
 	 *
-	 * @return {@link JsonObject} session details
+	 * @return the password
 	 */
-	public Map<String, Map<String, JsonValue>> getDetails() {
-		return IuJson.get(claims, "details",
-				IuJsonAdapter.of(Map.class, IuJsonAdapter.of(Map.class, IuJsonAdapter.from(a -> a))));
+	String getPassword();
+
+	@Override
+	default void applyTo(Builder httpRequestBuilder) throws IuAuthenticationException {
+		httpRequestBuilder.header("Authorization",
+				"Basic " + IuText.base64(IuText.utf8(getUsername() + ":" + getPassword())));
 	}
 
 }

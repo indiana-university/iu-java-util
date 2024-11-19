@@ -7,7 +7,7 @@
 	<parent>
 		<groupId>edu.iu.util</groupId>
 		<artifactId>iu-java-auth-parent</artifactId>
-		<version>7.0.4</version>
+		<version>7.0.5-SNAPSHOT</version>
 	</parent>
 
 	<artifactId>iu-java-auth-saml</artifactId>
@@ -80,6 +80,12 @@
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-jdk14</artifactId>
 			<version>${slf4j.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-auth-session</artifactId>
+			<version>${project.version}</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>

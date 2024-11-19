@@ -39,6 +39,8 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import edu.iu.IuDigest;
 import edu.iu.IuObject;
@@ -53,13 +55,14 @@ import edu.iu.crypt.WebKey.Algorithm;
 /**
  * {@link IuSessionHandler} implementation
  */
-class SessionHandler implements IuSessionHandler {
+public class SessionHandler implements IuSessionHandler {
 	static {
 		IuObject.assertNotOpen(SessionHandler.class);
 	}
 
-	/** session token storage */
-	static final Map<String, SessionToken> SESSION_TOKENS = new ConcurrentHashMap<>();
+	private static final Logger LOG = Logger.getLogger(SessionHandler.class.getName());
+
+	private static final Map<String, SessionToken> SESSION_TOKENS = new ConcurrentHashMap<>();
 	private static final Timer PURGE_TIMER = new Timer("session-purge", true);
 
 	private final URI resourceUri;
@@ -101,8 +104,6 @@ class SessionHandler implements IuSessionHandler {
 	 */
 	public SessionHandler(URI resourceUri, IuSessionConfiguration configuration, Supplier<WebKey> issuerKey,
 			Algorithm algorithm) {
-		if (!resourceUri.getPath().startsWith("/"))
-			throw new IllegalArgumentException("Invalid resource URI");
 		this.resourceUri = resourceUri;
 		this.configuration = configuration;
 		this.issuerKey = issuerKey;
@@ -117,31 +118,36 @@ class SessionHandler implements IuSessionHandler {
 	@Override
 	public IuSession activate(Iterable<HttpCookie> cookies) {
 		final var cookieName = getSessionCookieName();
-		
+
+		SessionToken activatedSession = null;
 		byte[] secretKey = null;
 		if (cookies != null)
 			for (final var cookie : cookies)
-				if (cookie.getName().equals(cookieName)) {
-					secretKey = IuText.base64Url(cookie.getValue());
-					break;
-				}
-		if (secretKey == null)
+				if (cookie.getName().equals(cookieName))
+					try {
+						final var value = IuText.base64Url(cookie.getValue());
+						
+						final var hashKey = hashKey(value);
+						final var session = SESSION_TOKENS.get(hashKey);
+						if (session == null)
+							continue;
+
+						if (session.inactivePurgeTime().isBefore(Instant.now())) {
+							SESSION_TOKENS.remove(hashKey);
+							continue;
+						}
+
+						secretKey = value;
+						activatedSession = session;
+						break;
+					} catch (Throwable e) {
+						LOG.log(Level.INFO, "Invalid session cookie value", e);
+					}
+		
+		if (activatedSession == null)
 			return null;
 
-		final var hashKey = hashKey(secretKey);
-		final var storedSession = SESSION_TOKENS.get(hashKey);
-		if (storedSession == null) {
-			secretKey = null;
-			return null;
-		}
-
-		if (storedSession.inactivePurgeTime().isBefore(Instant.now())) {
-			SESSION_TOKENS.remove(hashKey);
-			secretKey = null;
-			return null;
-		}
-
-		return new Session(storedSession.token(), secretKey, issuerKey.get(), configuration.getMaxSessionTtl());
+		return new Session(activatedSession.token(), secretKey, issuerKey.get(), configuration.getMaxSessionTtl());
 	}
 
 	@Override
@@ -156,18 +162,42 @@ class SessionHandler implements IuSessionHandler {
 		cookieBuilder.append(getSessionCookieName());
 		cookieBuilder.append('=');
 		cookieBuilder.append(IuText.base64Url(secretKey));
-		cookieBuilder.append("; Path=").append(resourceUri.getPath());
-		cookieBuilder.append("; Secure");
+		cookieBuilder.append("; Path=");
+
+		final var path = resourceUri.getPath();
+		if (path.isEmpty())
+			cookieBuilder.append("/");
+		else
+			cookieBuilder.append(path);
+
+		if (IuObject.equals(resourceUri.getScheme(), "https"))
+			cookieBuilder.append("; Secure");
+
 		cookieBuilder.append("; HttpOnly");
+
 		if (strict)
 			cookieBuilder.append("; SameSite=Strict");
 		return cookieBuilder.toString();
 	}
 
+	@Override
+	public void remove(Iterable<HttpCookie> cookies) {
+		if (cookies != null) {
+			final var cookieName = getSessionCookieName();
+			for (final var cookie : cookies)
+				if (cookie.getName().equals(cookieName))
+					try {
+						SESSION_TOKENS.remove(hashKey(IuText.base64Url(cookie.getValue())));
+					} catch (Throwable e) {
+						LOG.log(Level.INFO, "Invalid session cookie value", e);
+					}
+		}
+	}
+
 	/**
 	 * Gets the hash key to use for storing tokenized session data.
 	 * 
-	 * @param secretKey secret key data 
+	 * @param secretKey secret key data
 	 * @return encoded digest of the session key
 	 */
 	static String hashKey(byte[] secretKey) {

@@ -47,9 +47,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonValue;
+
 @SuppressWarnings("javadoc")
 class SessionDetailTest {
-	private Map<String, Object> attributes;
+	private Map<String, JsonValue> attributes;
 	private Session session;
 	private SessionDetailInterface sessionDetail;
 
@@ -61,6 +65,8 @@ class SessionDetailTest {
 		boolean isNotThere();
 
 		void unsupported();
+		
+		void unsupported(String value);
 
 		void setUnsupported();
 
@@ -72,7 +78,8 @@ class SessionDetailTest {
 		attributes = new HashMap<>();
 		session = Mockito.mock(Session.class);
 		sessionDetail = (SessionDetailInterface) Proxy.newProxyInstance(SessionDetailInterface.class.getClassLoader(),
-				new Class[] { SessionDetailInterface.class }, new SessionDetail(attributes, session));
+				new Class[] { SessionDetailInterface.class },
+				new SessionDetail(attributes, session, IuJsonAdapter::of));
 	}
 
 	@Test
@@ -93,21 +100,21 @@ class SessionDetailTest {
 
 	@Test
 	void testInvokeWithIsMethod() throws Throwable {
-		attributes.put("notThere", true);
+		attributes.put("notThere", JsonValue.TRUE);
 		assertTrue(sessionDetail.isNotThere());
 	}
 
 	@Test
 	void testInvokeWithGetMethod() throws Throwable {
-		attributes.put("givenName", "foo");
+		attributes.put("givenName", IuJson.string("foo"));
 		assertEquals("foo", sessionDetail.getGivenName());
 	}
 
 	@Test
 	void testInvokeWithSetMethodExistingAttribute() throws Throwable {
-		attributes.put("givenName", "foo");
+		attributes.put("givenName", IuJson.string("foo"));
 		sessionDetail.setGivenName("foo");
-		assertEquals("foo", attributes.get("givenName"));
+		assertEquals(IuJson.string("foo"), attributes.get("givenName"));
 		verify(session, never()).setChanged(true);
 	}
 
@@ -117,25 +124,25 @@ class SessionDetailTest {
 		assertFalse(attributes.containsKey("givenName"));
 		verify(session, never()).setChanged(true);
 	}
-	
+
 	@Test
 	void testInvokeWithSetMethodForNonMatchAttributeValue() throws Throwable {
-		attributes.put("givenName", "foo");
+		attributes.put("givenName", IuJson.string("foo"));
 		sessionDetail.setGivenName("bar");
-		assertEquals("bar", attributes.get("givenName"));
+		assertEquals(IuJson.string("bar"), attributes.get("givenName"));
 		verify(session).setChanged(true);
 	}
 
 	@Test
 	void testInvokeWithSetMethod() throws Throwable {
 		sessionDetail.setGivenName("bar");
-		assertEquals("bar", attributes.get("givenName"));
+		assertEquals(IuJson.string("bar"), attributes.get("givenName"));
 		verify(session).setChanged(true);
 	}
 
 	@Test
 	void testInvokeWithSetMethodRemoveAttribute() throws Throwable {
-		attributes.put("givenName", "foo");
+		attributes.put("givenName", IuJson.string("foo"));
 		sessionDetail.setGivenName(null);
 		assertFalse(attributes.containsKey("givenName"));
 		verify(session).setChanged(true);
@@ -144,6 +151,7 @@ class SessionDetailTest {
 	@Test
 	void testInvokeWithUnsupportedMethod() {
 		assertThrows(UnsupportedOperationException.class, () -> sessionDetail.unsupported());
+		assertThrows(UnsupportedOperationException.class, () -> sessionDetail.unsupported(null));
 		assertThrows(UnsupportedOperationException.class, () -> sessionDetail.setUnsupported());
 		assertThrows(UnsupportedOperationException.class, () -> sessionDetail.setUnsupported(null, null));
 	}

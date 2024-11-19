@@ -31,38 +31,41 @@
  */
 package iu.auth.session;
 
-import java.util.Map;
-import java.util.Objects;
+import java.lang.reflect.Type;
+import java.util.function.Function;
 
-import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
-import iu.crypt.Jwt;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonValue;
+import edu.iu.client.IuJsonPropertyNameFormat;
 
 /**
- * JWT token implementation that includes {@link Session} details.
+ * Session adapter factory.
+ * 
+ * @param <T> source type
  */
-public class SessionJwt extends Jwt {
+public class SessionAdapterFactory<T> implements Function<T, IuJsonAdapter<?>> {
+
+	private final Class<?> baseType;
 
 	/**
-	 * Default constructor
-	 *
-	 * @param claims {@link JsonObject} claims
+	 * Constructor
+	 * 
+	 * @param baseType base type
 	 */
-	public SessionJwt(JsonObject claims) {
-		super(claims);
-		Objects.requireNonNull(getDetails(), "Missing session details");
+	public SessionAdapterFactory(Class<?> baseType) {
+		this.baseType = baseType;
 	}
 
-	/**
-	 * Gets the session details.
-	 *
-	 * @return {@link JsonObject} session details
-	 */
-	public Map<String, Map<String, JsonValue>> getDetails() {
-		return IuJson.get(claims, "details",
-				IuJsonAdapter.of(Map.class, IuJsonAdapter.of(Map.class, IuJsonAdapter.from(a -> a))));
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	@Override
+	public IuJsonAdapter<?> apply(T t) {
+		if (t instanceof Class) {
+			final var c = (Class) t;
+			if (c.isInterface() //
+					&& c.getModule().isOpen(c.getPackageName(), baseType.getModule()))
+				return IuJsonAdapter.from(c, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, (Function) this);
+		}
+
+		return IuJsonAdapter.of((Type) t, (Function) this);
 	}
 
 }
