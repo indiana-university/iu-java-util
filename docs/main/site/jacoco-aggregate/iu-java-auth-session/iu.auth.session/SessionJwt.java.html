@@ -35,8 +35,10 @@ import java.util.Map;
 import java.util.Objects;
 
 import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import iu.crypt.Jwt;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
 
 /**
  * JWT token implementation that includes {@link Session} details.
@@ -49,17 +51,18 @@ public class SessionJwt extends Jwt {
 	 * @param claims {@link JsonObject} claims
 	 */
 	public SessionJwt(JsonObject claims) {
-<span class="fc" id="L52">		super(claims);</span>
-<span class="fc" id="L53">		Objects.requireNonNull(getDetails(), &quot;Missing session details&quot;);</span>
-<span class="fc" id="L54">	}</span>
+<span class="fc" id="L54">		super(claims);</span>
+<span class="fc" id="L55">		Objects.requireNonNull(getDetails(), &quot;Missing session details&quot;);</span>
+<span class="fc" id="L56">	}</span>
 
 	/**
 	 * Gets the session details.
 	 *
 	 * @return {@link JsonObject} session details
 	 */
-	public Map&lt;String, Map&lt;String, Object&gt;&gt; getDetails() {
-<span class="fc" id="L62">		return IuJson.get(claims, &quot;details&quot;);</span>
+	public Map&lt;String, Map&lt;String, JsonValue&gt;&gt; getDetails() {
+<span class="fc" id="L64">		return IuJson.get(claims, &quot;details&quot;,</span>
+<span class="fc" id="L65">				IuJsonAdapter.of(Map.class, IuJsonAdapter.of(Map.class, IuJsonAdapter.from(a -&gt; a))));</span>
 	}
 
 }

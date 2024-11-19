@@ -316,7 +316,7 @@ IU Java Utilities API Reference/iu-java-type-loader,iu.type,Component,0,851,0,80
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeSpi,0,21,0,0,0,5,0,4,0,4
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeFacade.new Runnable() {...},0,96,0,4,0,18,0,6,0,4
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,PotentiallyRemoteAnnotationHandler,0,260,0,32,0,43,0,26,0,10
-IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth.saml,IuSamlSession,0,15,0,0,0,2,0,2,0,2
+IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth.saml,IuSamlSessionVerifier,0,6,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth.spi,IuAuthConfigSpi,0,4,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth,IuAuthenticationException,0,19,0,0,0,8,0,5,0,5
 IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth,IuOneTimeNumber,0,6,0,0,0,1,0,1,0,1
@@ -325,11 +325,12 @@ IU Java Utilities API Reference/iu-java-auth-api,iu.auth,IuAuthSpiFactory,0,54,0
 IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth.session,IuSession,0,2,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth.nonce,IuOneTimeNumberConfig,0,7,0,0,0,4,0,4,0,4
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthorizationClient.AuthMethod,0,96,0,0,0,18,0,5,0,5
-IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthenticationRealm.Type,0,90,0,2,0,15,0,7,0,6
-IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthorizationClient.GrantType,0,65,0,0,0,11,0,5,0,5
+IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthenticationRealm.Type,0,135,0,4,0,16,0,8,0,6
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuSessionConfiguration,0,6,0,0,0,2,0,2,0,2
+IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthorizationClient.GrantType,0,65,0,0,0,11,0,5,0,5
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,X500Utils,0,693,0,136,0,121,0,84,0,16
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuOpenIdProviderMetadata,0,2,0,0,0,1,0,1,0,1
+IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuBasicAuthCredentials,0,13,0,0,0,3,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuSamlServiceProviderMetadata,0,12,0,0,0,5,0,5,0,5
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthenticationRealm,0,5,0,0,0,2,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,AuthConfig,0,293,0,22,0,69,0,29,0,18
@@ -341,9 +342,10 @@ IU Java Utilities API Reference/iu-java-auth-pki,iu.auth.pki,CaVerifier,0,297,0,
 IU Java Utilities API Reference/iu-java-auth-pki,iu.auth.pki,KeyUsage,0,172,0,41,0,45,0,28,0,6
 IU Java Utilities API Reference/iu-java-auth-pki,iu.auth.pki,PkiVerifier,0,371,0,34,0,82,0,33,0,16
 IU Java Utilities API Reference/iu-java-auth-session,iu.auth.session,SessionToken,0,17,0,0,0,6,0,1,0,1
-IU Java Utilities API Reference/iu-java-auth-session,iu.auth.session,Session,0,218,0,8,0,43,0,13,0,9
-IU Java Utilities API Reference/iu-java-auth-session,iu.auth.session,SessionHandler,0,211,0,16,0,49,0,15,0,7
-IU Java Utilities API Reference/iu-java-auth-session,iu.auth.session,SessionJwt,0,15,0,0,0,4,0,2,0,2
+IU Java Utilities API Reference/iu-java-auth-session,iu.auth.session,Session,0,246,0,12,0,49,0,18,0,12
+IU Java Utilities API Reference/iu-java-auth-session,iu.auth.session,SessionHandler,0,265,0,24,0,65,0,20,0,8
+IU Java Utilities API Reference/iu-java-auth-session,iu.auth.session,SessionJwt,0,23,0,0,0,5,0,3,0,3
 IU Java Utilities API Reference/iu-java-auth-session,iu.auth.session,SessionJwtBuilder,0,20,0,0,0,7,0,4,0,4
-IU Java Utilities API Reference/iu-java-auth-session,iu.auth.session,SessionDetail,0,139,0,24,0,28,0,15,0,3
+IU Java Utilities API Reference/iu-java-auth-session,iu.auth.session,SessionDetail,0,164,0,24,0,34,0,15,0,3
 IU Java Utilities API Reference/iu-java-auth-session,iu.auth.session,SessionHandler.PurgeTask,0,23,0,4,0,8,0,4,0,2
+IU Java Utilities API Reference/iu-java-auth-session,iu.auth.session,SessionAdapterFactory,0,34,0,6,0,9,0,5,0,2
