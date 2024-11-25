@@ -69,6 +69,9 @@ class Session implements IuSession {
 
 	/** Session details */
 	private Map&lt;String, Map&lt;String, JsonValue&gt;&gt; details;
+	
+	/** strict mode */
+<span class="fc" id="L74">	private boolean strict = true;</span>
 
 	/**
 	 * New session constructor.
@@ -76,11 +79,11 @@ class Session implements IuSession {
 	 * @param resourceUri root protected resource URI
 	 * @param expires     expiration time
 	 */
-<span class="fc" id="L79">	Session(URI resourceUri, Duration expires) {</span>
-<span class="fc" id="L80">		this.resourceUri = resourceUri;</span>
-<span class="fc" id="L81">		this.expires = Instant.now().plus(expires).truncatedTo(ChronoUnit.SECONDS);</span>
-<span class="fc" id="L82">		details = new LinkedHashMap&lt;String, Map&lt;String, JsonValue&gt;&gt;();</span>
-<span class="fc" id="L83">	}</span>
+<span class="fc" id="L82">	Session(URI resourceUri, Duration expires) {</span>
+<span class="fc" id="L83">		this.resourceUri = resourceUri;</span>
+<span class="fc" id="L84">		this.expires = Instant.now().plus(expires).truncatedTo(ChronoUnit.SECONDS);</span>
+<span class="fc" id="L85">		details = new LinkedHashMap&lt;String, Map&lt;String, JsonValue&gt;&gt;();</span>
+<span class="fc" id="L86">	}</span>
 
 	/**
 	 * Session token constructor.
@@ -90,24 +93,24 @@ class Session implements IuSession {
 	 * @param issuerKey     issuer key
 	 * @param maxSessionTtl maximum session time to live
 	 */
-<span class="fc" id="L93">	Session(String token, byte[] secretKey, WebKey issuerKey, Duration maxSessionTtl) {</span>
-<span class="fc" id="L94">		final var jose = WebCryptoHeader.getProtectedHeader(token);</span>
-<span class="fc bfc" id="L95" title="All 2 branches covered.">		if (!Algorithm.DIRECT.equals(jose.getAlgorithm()))</span>
-<span class="fc" id="L96">			throw new IllegalArgumentException(&quot;Invalid token key protection algorithm&quot;);</span>
-<span class="fc bfc" id="L97" title="All 2 branches covered.">		if (!Encryption.A256GCM.equals(WebCryptoHeader.Param.ENCRYPTION.get(jose)))</span>
-<span class="fc" id="L98">			throw new IllegalArgumentException(&quot;Invalid token content encryption algorithm&quot;);</span>
-<span class="fc bfc" id="L99" title="All 2 branches covered.">		if (!&quot;session+jwt&quot;.equals(jose.getContentType()))</span>
-<span class="fc" id="L100">			throw new IllegalArgumentException(&quot;Invalid token type&quot;);</span>
+<span class="fc" id="L96">	Session(String token, byte[] secretKey, WebKey issuerKey, Duration maxSessionTtl) {</span>
+<span class="fc" id="L97">		final var jose = WebCryptoHeader.getProtectedHeader(token);</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">		if (!Algorithm.DIRECT.equals(jose.getAlgorithm()))</span>
+<span class="fc" id="L99">			throw new IllegalArgumentException(&quot;Invalid token key protection algorithm&quot;);</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">		if (!Encryption.A256GCM.equals(WebCryptoHeader.Param.ENCRYPTION.get(jose)))</span>
+<span class="fc" id="L101">			throw new IllegalArgumentException(&quot;Invalid token content encryption algorithm&quot;);</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">		if (!&quot;session+jwt&quot;.equals(jose.getContentType()))</span>
+<span class="fc" id="L103">			throw new IllegalArgumentException(&quot;Invalid token type&quot;);</span>
 
-<span class="fc" id="L102">		final var jwt = new SessionJwt(</span>
-<span class="fc" id="L103">				Jwt.decryptAndVerify(token, issuerKey, WebKey.builder(Type.RAW).key(secretKey).build()));</span>
+<span class="fc" id="L105">		final var jwt = new SessionJwt(</span>
+<span class="fc" id="L106">				Jwt.decryptAndVerify(token, issuerKey, WebKey.builder(Type.RAW).key(secretKey).build()));</span>
 
-<span class="fc" id="L105">		resourceUri = Objects.requireNonNull(jwt.getIssuer(), &quot;Missing token issuer&quot;);</span>
-<span class="fc" id="L106">		jwt.validateClaims(resourceUri, maxSessionTtl);</span>
-<span class="fc" id="L107">		IuObject.require(jwt.getSubject(), resourceUri.toString()::equals);</span>
-<span class="fc" id="L108">		expires = Objects.requireNonNull(jwt.getExpires());</span>
-<span class="fc" id="L109">		details = new LinkedHashMap&lt;&gt;(Objects.requireNonNull(jwt.getDetails()));</span>
-<span class="fc" id="L110">	}</span>
+<span class="fc" id="L108">		resourceUri = Objects.requireNonNull(jwt.getIssuer(), &quot;Missing token issuer&quot;);</span>
+<span class="fc" id="L109">		jwt.validateClaims(resourceUri, maxSessionTtl);</span>
+<span class="fc" id="L110">		IuObject.require(jwt.getSubject(), resourceUri.toString()::equals);</span>
+<span class="fc" id="L111">		expires = Objects.requireNonNull(jwt.getExpires());</span>
+<span class="fc" id="L112">		details = new LinkedHashMap&lt;&gt;(Objects.requireNonNull(jwt.getDetails()));</span>
+<span class="fc" id="L113">	}</span>
 
 	/**
 	 * Token constructor
@@ -118,42 +121,42 @@ class Session implements IuSession {
 	 * @return tokenized session
 	 */
 	String tokenize(byte[] secretKey, WebKey issuerKey, Algorithm algorithm) {
-<span class="fc" id="L121">		return new SessionJwtBuilder() //</span>
-<span class="fc" id="L122">				.iss(resourceUri) //</span>
-<span class="fc" id="L123">				.sub(resourceUri.toString()) //</span>
-<span class="fc" id="L124">				.aud(resourceUri) //</span>
-<span class="fc" id="L125">				.iat() //</span>
-<span class="fc" id="L126">				.exp(expires) //</span>
-<span class="fc" id="L127">				.details(details) //</span>
-<span class="fc" id="L128">				.build().signAndEncrypt(&quot;session+jwt&quot;, algorithm, issuerKey, Algorithm.DIRECT, Encryption.A256GCM,</span>
-<span class="fc" id="L129">						WebKey.builder(Type.RAW).key(secretKey).build());</span>
+<span class="fc" id="L124">		return new SessionJwtBuilder() //</span>
+<span class="fc" id="L125">				.iss(resourceUri) //</span>
+<span class="fc" id="L126">				.sub(resourceUri.toString()) //</span>
+<span class="fc" id="L127">				.aud(resourceUri) //</span>
+<span class="fc" id="L128">				.iat() //</span>
+<span class="fc" id="L129">				.exp(expires) //</span>
+<span class="fc" id="L130">				.details(details) //</span>
+<span class="fc" id="L131">				.build().signAndEncrypt(&quot;session+jwt&quot;, algorithm, issuerKey, Algorithm.DIRECT, Encryption.A256GCM,</span>
+<span class="fc" id="L132">						WebKey.builder(Type.RAW).key(secretKey).build());</span>
 	}
 
 	@Override
 	public &lt;T&gt; T getDetail(Class&lt;T&gt; type) {
-<span class="fc" id="L134">		final var module = type.getModule();</span>
-<span class="fc bfc" id="L135" title="All 2 branches covered.">		if (!module.isNamed())</span>
-<span class="fc" id="L136">			throw new IllegalArgumentException(&quot;Invalid session type, must be in a named module&quot;);</span>
+<span class="fc" id="L137">		final var module = type.getModule();</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">		if (!module.isNamed())</span>
+<span class="fc" id="L139">			throw new IllegalArgumentException(&quot;Invalid session type, must be in a named module&quot;);</span>
 
-<span class="fc" id="L138">		return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class&lt;?&gt;[] { type },</span>
+<span class="fc" id="L141">		return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class&lt;?&gt;[] { type },</span>
 				new SessionDetail(
-<span class="fc" id="L140">						details.computeIfAbsent(module.getName() + &quot;/&quot; + type.getName(), a -&gt; new LinkedHashMap&lt;&gt;()),</span>
+<span class="fc" id="L143">						details.computeIfAbsent(module.getName() + &quot;/&quot; + type.getName(), a -&gt; new LinkedHashMap&lt;&gt;()),</span>
 						this, new SessionAdapterFactory&lt;&gt;(type))));
 	}
 
 	@Override
 	public void clearDetail(Class&lt;?&gt; type) {
-<span class="fc" id="L146">		final var module = type.getModule();</span>
-<span class="fc bfc" id="L147" title="All 2 branches covered.">		if (!module.isNamed())</span>
-<span class="fc" id="L148">			throw new IllegalArgumentException(&quot;Invalid session type, must be in a named module&quot;);</span>
+<span class="fc" id="L149">		final var module = type.getModule();</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">		if (!module.isNamed())</span>
+<span class="fc" id="L151">			throw new IllegalArgumentException(&quot;Invalid session type, must be in a named module&quot;);</span>
 
-<span class="fc bfc" id="L150" title="All 2 branches covered.">		if (details.remove(module.getName() + &quot;/&quot; + type.getName()) != null)</span>
-<span class="fc" id="L151">			changed = true;</span>
-<span class="fc" id="L152">	}</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">		if (details.remove(module.getName() + &quot;/&quot; + type.getName()) != null)</span>
+<span class="fc" id="L154">			changed = true;</span>
+<span class="fc" id="L155">	}</span>
 
 	@Override
 	public boolean isChanged() {
-<span class="fc" id="L156">		return changed;</span>
+<span class="fc" id="L159">		return changed;</span>
 	}
 
 	/**
@@ -162,8 +165,8 @@ class Session implements IuSession {
 	 * @param changed set to true when session attributes change, otherwise false
 	 */
 	void setChanged(boolean changed) {
-<span class="fc" id="L165">		this.changed = changed;</span>
-<span class="fc" id="L166">	}</span>
+<span class="fc" id="L168">		this.changed = changed;</span>
+<span class="fc" id="L169">	}</span>
 
 	/**
 	 * Gets session expire time
@@ -171,19 +174,34 @@ class Session implements IuSession {
 	 * @return {@link Instant} session expire time
 	 */
 	Instant getExpires() {
-<span class="fc" id="L174">		return expires;</span>
+<span class="fc" id="L177">		return expires;</span>
 	}
 
 	@Override
 	public URI getResourceUri() {
-<span class="fc" id="L179">		return resourceUri;</span>
+<span class="fc" id="L182">		return resourceUri;</span>
+	}
+	
+	@Override
+	public String toString() {
+<span class="fc" id="L187">		return &quot;Session [resourceUri=&quot; + resourceUri + &quot;, expires=&quot; + expires + &quot;, changed=&quot; + changed + &quot;, details=&quot;</span>
+				+ details + &quot;]&quot;;
+	}
+
+
+	/**
+	 * Gets strict 
+	 * @return strict mode
+	 */
+	public boolean isStrict() {
+<span class="fc" id="L197">		return strict;</span>
 	}
 
 	@Override
-	public String toString() {
-<span class="fc" id="L184">		return &quot;Session [resourceUri=&quot; + resourceUri + &quot;, expires=&quot; + expires + &quot;, changed=&quot; + changed + &quot;, details=&quot;</span>
-				+ details + &quot;]&quot;;
-	}
+	public void setStrict(boolean strict) {
+<span class="fc" id="L202">		this.changed = true;</span>
+<span class="fc" id="L203">		this.strict = strict;</span>
+<span class="fc" id="L204">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
