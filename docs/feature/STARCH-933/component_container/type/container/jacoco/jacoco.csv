@@ -1,0 +1,6 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+IU Type Introspection Container,iu.type.container,TypeContainerArchive.new UnsafeRunnable() {...},0,133,0,16,0,27,0,10,0,2
+IU Type Introspection Container,iu.type.container,TypeContainerArchive,0,78,0,0,0,16,0,11,0,11
+IU Type Introspection Container,iu.type.container,TypeContainerBootstrap.new Consumer() {...},0,33,0,2,0,5,0,3,0,2
+IU Type Introspection Container,iu.type.container,TypeContainerBootstrap.new Consumer() {...},0,19,0,0,0,4,0,2,0,2
+IU Type Introspection Container,iu.type.container,TypeContainerBootstrap,0,449,0,36,0,89,0,26,0,8

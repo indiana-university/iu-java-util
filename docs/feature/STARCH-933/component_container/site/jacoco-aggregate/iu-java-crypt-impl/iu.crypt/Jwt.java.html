@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>Jwt.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-crypt-impl</a> &gt; <a href="index.source.html" class="el_package">iu.crypt</a> &gt; <span class="el_source">Jwt.java</span></div><h1>Jwt.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.crypt;
+
+import java.io.StringWriter;
+import java.net.URI;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
+import java.util.Objects;
+
+import edu.iu.IuObject;
+import edu.iu.IuText;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.WebEncryption;
+import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebSignature;
+import edu.iu.crypt.WebSignedPayload;
+import edu.iu.crypt.WebToken;
+import jakarta.json.JsonObject;
+import jakarta.json.stream.JsonGenerator;
+
+/**
+ * Immutable {@link WebToken} with JWT signing, signature verification, and
+ * encryption methods.
+ */
+public class Jwt implements WebToken {
+	static {
+<span class="fc" id="L61">		IuObject.assertNotOpen(Jwt.class);</span>
+	}
+
+	/** Translates {@link Instant} values as seconds since epoch */
+<span class="fc" id="L65">	protected static final IuJsonAdapter&lt;Instant&gt; NUMERIC_DATE = IuJsonAdapter.from( //</span>
+<span class="fc" id="L66">			v -&gt; Instant.ofEpochSecond(IuJsonAdapter.of(Long.class).fromJson(v).longValue()),</span>
+<span class="fc" id="L67">			v -&gt; IuJsonAdapter.of(Long.class).toJson(v.getEpochSecond()));</span>
+
+	/** Parsed JWT claims */
+	protected final JsonObject claims;
+
+	/**
+	 * JSON claims constructor
+	 * 
+	 * @param claims {@link JsonObject} of token claims
+	 */
+<span class="fc" id="L77">	protected Jwt(JsonObject claims) {</span>
+<span class="fc" id="L78">		this.claims = claims;</span>
+<span class="fc" id="L79">		validate();</span>
+<span class="fc" id="L80">	}</span>
+
+	/**
+	 * Parses and verifies a JWT encoded with {@link WebSignedPayload#compact() JWS
+	 * compact serialization}.
+	 * 
+	 * @param jwt       {@link WebSignedPayload#compact() JWS compact serialization}
+	 * @param issuerKey Issuer public {@link WebKey}
+	 * @return {@link JsonObject} of token claims
+	 */
+	public static JsonObject verify(String jwt, WebKey issuerKey) {
+<span class="fc" id="L91">		final var jws = WebSignedPayload.parse(jwt);</span>
+<span class="fc" id="L92">		jws.verify(issuerKey);</span>
+<span class="fc" id="L93">		return IuJson.parse(IuText.utf8(jws.getPayload())).asJsonObject();</span>
+	}
+
+	/**
+	 * Parses, decrypts, and verifies a JWT encoded with
+	 * {@link WebSignedPayload#compact() JWS compact serialization}.
+	 * 
+	 * @param jwt         {@link WebSignedPayload#compact() JWS} or
+	 *                    {@link WebEncryption#compact() JWE} compact serialization
+	 * @param issuerKey   Issuer public {@link WebKey}
+	 * @param audienceKey Audience private {@link WebKey}, ignored if the JWT is not
+	 *                    encrypted
+	 * @return {@link JsonObject} of token claims
+	 */
+	public static JsonObject decryptAndVerify(String jwt, WebKey issuerKey, WebKey audienceKey) {
+<span class="fc" id="L108">		return verify(WebEncryption.parse(jwt)</span>
+<span class="fc" id="L109">				.decryptText(Objects.requireNonNull(audienceKey, &quot;Missing audience key for decryption&quot;)), issuerKey);</span>
+	}
+
+	/**
+	 * Performs basic JWT validation logic.
+	 * 
+	 * @see &lt;a href=
+	 *      &quot;https://datatracker.ietf.org/doc/html/rfc7519#section-4.1&quot;&gt;RFC-7519
+	 *      JSON Web Token Section 4.1&lt;/a&gt;
+	 */
+	protected void validate() {
+<span class="fc" id="L120">		validateNotBefore(&quot;iat&quot;, getIssuedAt());</span>
+<span class="fc" id="L121">		validateNotBefore(&quot;nbf&quot;, getNotBefore());</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">		if (isExpired())</span>
+<span class="fc" id="L123">			throw new IllegalArgumentException(&quot;Token is expired&quot;);</span>
+<span class="fc" id="L124">	}</span>
+
+	private static void validateNotBefore(String claimName, Instant notBefore) {
+<span class="fc bfc" id="L127" title="All 2 branches covered.">		if (notBefore != null //</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">				&amp;&amp; notBefore.isAfter(Instant.now().plusSeconds(15L)))</span>
+<span class="fc" id="L129">			throw new IllegalArgumentException(</span>
+					&quot;Token &quot; + claimName + &quot; claim must be no more than PT15S in the future&quot;);
+<span class="fc" id="L131">	}</span>
+
+	@Override
+	public void validateClaims(URI expectedAudience, Duration ttl) {
+<span class="fc" id="L135">		validate();</span>
+
+<span class="fc" id="L137">		Objects.requireNonNull(getIssuer(), &quot;Missing iss claim&quot;);</span>
+<span class="fc" id="L138">		Objects.requireNonNull(getSubject(), &quot;Missing sub claim&quot;);</span>
+
+<span class="fc" id="L140">		boolean found = false;</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">		for (final var aud : Objects.requireNonNull(getAudience(), &quot;Missing aud claim&quot;))</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">			if (aud.equals(expectedAudience)) {</span>
+<span class="fc" id="L143">				found = true;</span>
+<span class="fc" id="L144">				break;</span>
+			}
+<span class="fc bfc" id="L146" title="All 2 branches covered.">		if (!found)</span>
+<span class="fc" id="L147">			throw new IllegalArgumentException(&quot;Token aud claim doesn't include &quot; + expectedAudience);</span>
+
+<span class="fc" id="L149">		final var issuedAt = Objects.requireNonNull(getIssuedAt(), &quot;Missing iat claim&quot;);</span>
+<span class="fc" id="L150">		final var expires = Objects.requireNonNull(getExpires(), &quot;Missing exp claim&quot;);</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">		if (ttl.compareTo(Duration.between(issuedAt, expires)) &lt; 0)</span>
+<span class="fc" id="L152">			throw new IllegalArgumentException(&quot;Token exp claim must be no more than &quot; + ttl + &quot; in the future&quot;);</span>
+
+<span class="fc" id="L154">	}</span>
+
+	@Override
+	public String getTokenId() {
+<span class="fc" id="L158">		return IuJson.get(claims, &quot;jti&quot;);</span>
+	}
+
+	@Override
+	public URI getIssuer() {
+<span class="fc" id="L163">		return IuJson.get(claims, &quot;iss&quot;, IuJsonAdapter.of(URI.class));</span>
+	}
+
+	@Override
+	public Iterable&lt;URI&gt; getAudience() {
+<span class="fc" id="L168">		return IuJson.get(claims, &quot;aud&quot;, IuJsonAdapter.of(Iterable.class, IuJsonAdapter.of(URI.class)));</span>
+	}
+
+	@Override
+	public String getSubject() {
+<span class="fc" id="L173">		return IuJson.get(claims, &quot;sub&quot;);</span>
+	}
+
+	@Override
+	public Instant getIssuedAt() {
+<span class="fc" id="L178">		return IuJson.get(claims, &quot;iat&quot;, NUMERIC_DATE);</span>
+	}
+
+	@Override
+	public Instant getNotBefore() {
+<span class="fc" id="L183">		return IuJson.get(claims, &quot;nbf&quot;, NUMERIC_DATE);</span>
+	}
+
+	@Override
+	public Instant getExpires() {
+<span class="fc" id="L188">		return IuJson.get(claims, &quot;exp&quot;, NUMERIC_DATE);</span>
+	}
+
+	@Override
+	public String getNonce() {
+<span class="fc" id="L193">		return IuJson.get(claims, &quot;nonce&quot;);</span>
+	}
+
+	@Override
+	public boolean isExpired() {
+<span class="fc" id="L198">		final var expires = getExpires();</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">		return expires != null //</span>
+<span class="fc bfc" id="L200" title="All 2 branches covered.">				&amp;&amp; expires.isBefore(Instant.now().minusSeconds(15L));</span>
+	}
+
+	/**
+	 * Signs this {@link Jwt}
+	 * 
+	 * @param type      Token type
+	 * @param algorithm {@link Algorithm}
+	 * @param issuerKey Issuer private {@link WebKey}
+	 * @return {@link WebSignedPayload#compact() JWS compact serialization}
+	 */
+	public String sign(String type, Algorithm algorithm, WebKey issuerKey) {
+<span class="fc" id="L212">		return WebSignature.builder(algorithm).compact().key(issuerKey).type(type).sign(claims.toString()).compact();</span>
+	}
+
+	/**
+	 * Signs and encrypts this {@link Jwt}
+	 * 
+	 * @param type             Token type
+	 * @param signAlgorithm    {@link Algorithm}
+	 * @param issuerKey        Issuer private {@link WebKey}
+	 * @param encryptAlgorithm {@link Algorithm}
+	 * @param encryption       {@link Encryption}
+	 * @param audienceKey      Audience public {@link WebKey}
+	 * @return {@link WebEncryption#compact() JWE compact serialization}
+	 */
+	public String signAndEncrypt(String type, Algorithm signAlgorithm, WebKey issuerKey, Algorithm encryptAlgorithm,
+			Encryption encryption, WebKey audienceKey) {
+<span class="fc" id="L228">		return WebEncryption.builder(encryption).compact().addRecipient(encryptAlgorithm).key(audienceKey)</span>
+<span class="fc" id="L229">				.contentType(type).encrypt(sign(type, signAlgorithm, issuerKey)).compact();</span>
+	}
+
+	@Override
+	public int hashCode() {
+<span class="fc" id="L234">		return claims.hashCode();</span>
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+<span class="fc bfc" id="L239" title="All 2 branches covered.">		if (!IuObject.typeCheck(this, obj))</span>
+<span class="fc" id="L240">			return false;</span>
+<span class="fc" id="L241">		Jwt other = (Jwt) obj;</span>
+<span class="fc" id="L242">		return IuObject.equals(claims, other.claims);</span>
+	}
+
+	@Override
+	public String toString() {
+<span class="fc" id="L247">		final var writer = new StringWriter();</span>
+<span class="fc" id="L248">		IuJson.PROVIDER.createWriterFactory(Map.of(JsonGenerator.PRETTY_PRINTING, true)) //</span>
+<span class="fc" id="L249">				.createWriter(writer) //</span>
+<span class="fc" id="L250">				.write(claims);</span>
+<span class="fc" id="L251">		return writer.toString();</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

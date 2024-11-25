@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TypeContainerBootstrap.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Type Introspection Container</a> &gt; <a href="index.source.html" class="el_package">iu.type.container</a> &gt; <span class="el_source">TypeContainerBootstrap.java</span></div><h1>TypeContainerBootstrap.java</h1><pre class="source lang-java linenums">package iu.type.container;
+
+import java.io.InputStream;
+import java.lang.ModuleLayer.Controller;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.logging.Logger;
+import java.util.stream.Stream;
+
+import edu.iu.IuException;
+import edu.iu.IuIterable;
+import edu.iu.IuObject;
+import edu.iu.IuRuntimeEnvironment;
+import edu.iu.UnsafeRunnable;
+import edu.iu.type.IuComponent;
+import edu.iu.type.base.FilteringClassLoader;
+import edu.iu.type.base.ModularClassLoader;
+
+/**
+ * Authentication and authorization bootstrap.
+ */
+public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
+	static {
+<span class="fc" id="L29">		IuObject.assertNotOpen(TypeContainerBootstrap.class);</span>
+	}
+
+<span class="fc" id="L32">	private static final Logger LOG = Logger.getLogger(TypeContainerBootstrap.class.getName());</span>
+
+	private final TypeContainerArchive[] archives;
+	private final ClassLoader parentLoader;
+	private final ModuleLayer parentLayer;
+
+	private ModularClassLoader base;
+	private ModularClassLoader support;
+	private Deque&lt;IuComponent&gt; initializedComponents;
+	private boolean closed;
+
+	/**
+	 * Constructor
+	 */
+<span class="fc" id="L46">	public TypeContainerBootstrap() {</span>
+<span class="fc" id="L47">		final var componentsPropertyValue = IuRuntimeEnvironment.envOptional(&quot;iu.boot.components&quot;);</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">		if (componentsPropertyValue == null) {</span>
+<span class="fc" id="L49">			archives = null;</span>
+<span class="fc" id="L50">			parentLoader = null;</span>
+<span class="fc" id="L51">			parentLayer = null;</span>
+		} else {
+<span class="fc" id="L53">			final var archivePathNames = componentsPropertyValue.split(&quot;,&quot;);</span>
+<span class="fc" id="L54">			archives = new TypeContainerArchive[archivePathNames.length];</span>
+<span class="fc bfc" id="L55" title="All 2 branches covered.">			for (var i = 0; i &lt; archives.length; i++)</span>
+<span class="fc" id="L56">				archives[i] = IuException.unchecked(Path.of(archivePathNames[i]), TypeContainerArchive::new);</span>
+
+<span class="fc" id="L58">			parentLoader = IuObject.class.getClassLoader();</span>
+<span class="fc" id="L59">			parentLayer = IuObject.class.getModule().getLayer();</span>
+		}
+<span class="fc" id="L61">	}</span>
+
+	@Override
+	public void run() throws Throwable {
+<span class="fc bfc" id="L65" title="All 2 branches covered.">		if (archives == null)</span>
+<span class="fc" id="L66">			return;</span>
+
+<span class="fc" id="L68">		LOG.fine(&quot;before init container&quot;);</span>
+<span class="fc" id="L69">		final var filter = new FilteringClassLoader(IuIterable.iter(IuObject.class.getPackageName()), parentLoader);</span>
+<span class="fc" id="L70">		final var api = IuIterable.of(() -&gt; Stream.of(archives).flatMap(a -&gt; Stream.of(a.api())).iterator());</span>
+
+<span class="fc" id="L72">		final var baseInit = new Consumer&lt;Controller&gt;() {</span>
+			Controller controller;
+			Module cryptModule;
+
+			@Override
+			public void accept(Controller c) {
+<span class="fc" id="L78">				controller = c;</span>
+<span class="fc" id="L79">				cryptModule = c.layer().findModule(&quot;iu.util.crypt&quot;).orElse(null);</span>
+<span class="fc" id="L80">			}</span>
+		};
+<span class="fc" id="L82">		base = new ModularClassLoader(false, api, parentLayer, filter, baseInit);</span>
+
+		try {
+<span class="fc" id="L85">			LOG.fine(&quot;after init base &quot; + base.getModuleLayer());</span>
+
+<span class="fc" id="L87">			final Deque&lt;IuComponent&gt; initializedComponents = new ArrayDeque&lt;&gt;();</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">			for (final var archive : archives) {</span>
+				final ClassLoader parent;
+<span class="fc bfc" id="L90" title="All 2 branches covered.">				if (archive.support().length == 0)</span>
+<span class="fc" id="L91">					parent = base;</span>
+				else {
+<span class="fc" id="L93">					support = new ModularClassLoader(false, IuIterable.iter(archive.support()), base.getModuleLayer(),</span>
+							base, c -&gt; {
+<span class="fc" id="L95">							});</span>
+<span class="fc" id="L96">					LOG.fine(&quot;after init support &quot; + support.getModuleLayer());</span>
+<span class="fc" id="L97">					parent = support;</span>
+				}
+
+<span class="fc" id="L100">				final List&lt;InputStream&gt; sources = new ArrayList&lt;&gt;(1 + archive.lib().length);</span>
+<span class="fc" id="L101">				sources.add(Files.newInputStream(archive.primary()));</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">				for (final var lib : archive.lib())</span>
+<span class="fc" id="L103">					sources.add(Files.newInputStream(lib));</span>
+
+<span class="fc" id="L105">				final var compInit = new Consumer&lt;Controller&gt;() {</span>
+					Module cryptImpl;
+
+					@Override
+					public void accept(Controller c) {
+<span class="fc" id="L110">						cryptImpl = c.layer().findModule(&quot;iu.util.crypt.impl&quot;).orElse(null);</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">						if (cryptImpl != null)</span>
+<span class="fc" id="L112">							baseInit.controller.addExports(baseInit.cryptModule, &quot;iu.crypt.spi&quot;, cryptImpl);</span>
+<span class="fc" id="L113">					}</span>
+				};
+<span class="fc" id="L115">				final var component = IuComponent.of(parent, base.getModuleLayer(), compInit, sources.get(0),</span>
+<span class="fc" id="L116">						sources.subList(1, sources.size()).toArray(InputStream[]::new));</span>
+
+<span class="fc" id="L118">				final var current = Thread.currentThread();</span>
+<span class="fc" id="L119">				final var restore = current.getContextClassLoader();</span>
+				try {
+<span class="fc" id="L121">					current.setContextClassLoader(component.classLoader());</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">					if (compInit.cryptImpl != null)</span>
+<span class="fc" id="L123">						base.loadClass(&quot;edu.iu.crypt.Init&quot;);</span>
+				} finally {
+<span class="fc" id="L125">					current.setContextClassLoader(restore);</span>
+				}
+
+<span class="fc bfc" id="L128" title="All 2 branches covered.">				for (final var source : sources)</span>
+<span class="fc" id="L129">					source.close();</span>
+
+<span class="fc" id="L131">				LOG.fine(&quot;after create &quot; + component);</span>
+<span class="fc" id="L132">				initializedComponents.push(component);</span>
+			}
+
+<span class="fc" id="L135">			this.initializedComponents = initializedComponents;</span>
+
+			// TODO: run and await completion for all Runnable and UnsafeRunnable resources
+
+<span class="fc" id="L139">		} catch (Throwable e) {</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">			if (support != null)</span>
+<span class="fc" id="L141">				IuException.suppress(e, support::close);</span>
+<span class="fc" id="L142">			IuException.suppress(e, base::close);</span>
+<span class="fc" id="L143">			throw e;</span>
+<span class="fc" id="L144">		}</span>
+<span class="fc" id="L145">	}</span>
+
+	@Override
+	public void close() throws Exception {
+<span class="fc bfc" id="L149" title="All 2 branches covered.">		if (archives == null)</span>
+<span class="fc" id="L150">			return;</span>
+
+<span class="fc" id="L152">		Throwable error = null;</span>
+
+<span class="fc" id="L154">		final var initializedComponents = this.initializedComponents;</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">		if (initializedComponents != null) {</span>
+<span class="fc" id="L156">			this.initializedComponents = null;</span>
+<span class="fc" id="L157">			synchronized (initializedComponents) {</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">				while (!initializedComponents.isEmpty()) {</span>
+<span class="fc" id="L159">					final var component = initializedComponents.pop();</span>
+<span class="fc" id="L160">					LOG.fine(&quot;before destroy &quot; + component);</span>
+<span class="fc" id="L161">					error = IuException.suppress(error, component::close);</span>
+<span class="fc" id="L162">				}</span>
+<span class="fc" id="L163">			}</span>
+		}
+
+<span class="fc" id="L166">		final var support = this.support;</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">		if (support != null) {</span>
+<span class="fc" id="L168">			this.support = null;</span>
+<span class="fc" id="L169">			LOG.fine(&quot;before destroy support &quot; + support.getModuleLayer());</span>
+<span class="fc" id="L170">			error = IuException.suppress(error, support::close);</span>
+		}
+
+<span class="fc" id="L173">		final var base = this.base;</span>
+<span class="fc bfc" id="L174" title="All 2 branches covered.">		if (base != null) {</span>
+<span class="fc" id="L175">			this.base = null;</span>
+<span class="fc" id="L176">			LOG.fine(&quot;before destroy base &quot; + base.getModuleLayer());</span>
+<span class="fc" id="L177">			error = IuException.suppress(error, base::close);</span>
+		}
+
+<span class="fc bfc" id="L180" title="All 2 branches covered.">		for (var i = 0; i &lt; archives.length; i++)</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">			if (archives[i] != null) {</span>
+<span class="fc" id="L182">				error = IuException.suppress(error, archives[i]::close);</span>
+<span class="fc" id="L183">				archives[i] = null;</span>
+			}
+
+<span class="fc bfc" id="L186" title="All 2 branches covered.">		if (error != null)</span>
+<span class="fc" id="L187">			throw IuException.checked(error);</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">		else if (!closed) {</span>
+<span class="fc" id="L189">			closed = true;</span>
+<span class="fc" id="L190">			LOG.fine(&quot;after destroy container&quot;);</span>
+		}
+<span class="fc" id="L192">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

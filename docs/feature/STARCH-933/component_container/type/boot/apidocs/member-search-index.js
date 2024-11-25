@@ -1,0 +1,1 @@
+memberSearchIndex = [{"p":"iu.type.boot","c":"Init","l":"close()"},{"p":"iu.type.boot","c":"Init","l":"Init()","u":"%3Cinit%3E()"},{"p":"iu.type.boot","c":"Init","l":"main(String...)","u":"main(java.lang.String...)"}];updateSearchResults();
