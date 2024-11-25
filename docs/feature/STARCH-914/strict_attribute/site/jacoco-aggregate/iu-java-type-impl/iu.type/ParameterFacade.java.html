@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ParameterFacade.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-type-impl</a> &gt; <a href="index.source.html" class="el_package">iu.type</a> &gt; <span class="el_source">ParameterFacade.java</span></div><h1>ParameterFacade.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.type;
+
+import java.lang.reflect.Executable;
+import java.lang.reflect.Parameter;
+import java.util.Map;
+
+import edu.iu.type.IuParameter;
+import edu.iu.type.IuReferenceKind;
+
+/**
+ * Facade implementation of {@link IuParameter}.
+ * 
+ * @param &lt;T&gt; parameter type
+ */
+final class ParameterFacade&lt;T&gt; extends AnnotatedElementBase&lt;Parameter&gt; implements IuParameter&lt;T&gt;, ParameterizedFacade {
+
+	private final int index;
+	private final ExecutableBase&lt;?, ?, ?&gt; executable;
+	private final TypeFacade&lt;?, T&gt; type;
+
+	/**
+	 * Facade constructor, for exclusive use by {@link ExecutableBase}.
+	 * 
+	 * @param parameter    real parameter to provide a view of
+	 * @param index        parameter index related to executable
+	 *                     {@link Executable#getParameters()}
+	 * @param typeTemplate {@link TypeTemplate} for the parameter type
+	 * @param executable   declaring executable facade
+	 */
+	ParameterFacade(Parameter parameter, int index, ExecutableBase&lt;?, ?, ?&gt; executable,
+			TypeTemplate&lt;?, T&gt; typeTemplate) {
+<span class="fc" id="L63">		super(parameter);</span>
+<span class="fc" id="L64">		this.index = index;</span>
+<span class="fc" id="L65">		this.executable = executable;</span>
+<span class="fc" id="L66">		this.type = new TypeFacade&lt;&gt;(typeTemplate, this, IuReferenceKind.PARAMETER, index);</span>
+<span class="fc" id="L67">		executable.postInit(this::seal);</span>
+<span class="fc" id="L68">	}</span>
+
+	@Override
+	public Map&lt;String, TypeFacade&lt;?, ?&gt;&gt; typeParameters() {
+<span class="fc" id="L72">		return executable.typeParameters();</span>
+	}
+
+	@Override
+	public ExecutableBase&lt;?, ?, ?&gt; declaringExecutable() {
+<span class="fc" id="L77">		return executable;</span>
+	}
+
+	@Override
+	public int index() {
+<span class="fc" id="L82">		return index;</span>
+	}
+
+	@Override
+	public String name() {
+<span class="fc" id="L87">		return annotatedElement.getName();</span>
+	}
+
+	@Override
+	public TypeFacade&lt;?, T&gt; type() {
+<span class="fc" id="L92">		return type;</span>
+	}
+
+	@Override
+	public String toString() {
+<span class="fc bfc" id="L97" title="All 2 branches covered.">		if (type == null)</span>
+<span class="fc" id="L98">			return name();</span>
+		else
+<span class="fc" id="L100">			return name() + &quot;:&quot; + TypeUtils.printType(type.deref());</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
