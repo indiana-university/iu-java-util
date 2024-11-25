@@ -31,6 +31,8 @@
  */
 package iu.type;
 
+import java.net.URLClassLoader;
+
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -38,15 +40,15 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 @SuppressWarnings({ "javadoc", "exports" })
 public class LegacyContextSupport implements BeforeEachCallback, AfterEachCallback {
 
-	private static final ThreadLocal<LegacyClassLoader> LEGACY_CONTEXT = new ThreadLocal<>();
+	private static final ThreadLocal<URLClassLoader> LEGACY_CONTEXT = new ThreadLocal<>();
 
-	static LegacyClassLoader get() {
+	static URLClassLoader get() {
 		return LEGACY_CONTEXT.get();
 	}
 
 	@Override
 	public void beforeEach(ExtensionContext context) throws Exception {
-		LEGACY_CONTEXT.set(new LegacyClassLoader(false, TestArchives.getClassPath("testlegacy"), null));
+		LEGACY_CONTEXT.set(new URLClassLoader(TestArchives.getClassPath("testlegacy"), null));
 	}
 
 	@Override

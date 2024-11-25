@@ -191,7 +191,7 @@ class ComponentResource<T> implements IuResource<T> {
 	private T create() {
 		var type = type().erasedClass();
 		var impl = factory.get();
-		if (impl instanceof InvocationHandler h)
+		if (impl instanceof InvocationHandler)
 			return type.cast(
 					Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type }, (InvocationHandler) impl));
 		else
