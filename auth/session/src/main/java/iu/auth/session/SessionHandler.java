@@ -151,7 +151,7 @@ public class SessionHandler implements IuSessionHandler {
 	}
 
 	@Override
-	public String store(IuSession session, boolean strict) {
+	public String store(IuSession session) {
 		final var secretKey = EphemeralKeys.secret("AES", 256);
 		final var s = (Session) session;
 
@@ -175,7 +175,7 @@ public class SessionHandler implements IuSessionHandler {
 
 		cookieBuilder.append("; HttpOnly");
 
-		if (strict)
+		if (s.isStrict())
 			cookieBuilder.append("; SameSite=Strict");
 		return cookieBuilder.toString();
 	}
