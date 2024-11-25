@@ -61,10 +61,9 @@ public interface IuSessionHandler {
 	 * Rekeys, tokenizes, and stores an active session.
 	 * 
 	 * @param session {@link IuSession}
-	 * @param strict  true if client requires to set SameSite=Strict otherwise false
 	 * @return response cookie attributes
 	 */
-	String store(IuSession session, boolean strict);
+	String store(IuSession session);
 	
 	/**
 	 * 
