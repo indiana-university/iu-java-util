@@ -17,7 +17,7 @@ public class AuthComponentBootstrap {
 	 */
 	AuthComponentBootstrap() {
 		LOG.config("TODO: initialize authentication");
-		throw new UnsupportedOperationException("TODO");
+//		throw new UnsupportedOperationException("TODO");
 	}
 
 }

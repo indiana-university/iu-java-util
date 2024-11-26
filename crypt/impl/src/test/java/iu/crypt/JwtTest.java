@@ -185,7 +185,7 @@ public class JwtTest {
 	}
 
 	@Test
-	public void testSignAndVerify() {
+	public void v() {
 		final var tokenId = IdGenerator.generateId();
 		final var issuer = URI.create(IdGenerator.generateId());
 		final var subject = IdGenerator.generateId();
@@ -204,6 +204,7 @@ public class JwtTest {
 				.add("nbf", notBefore.getEpochSecond()) //
 				.add("exp", expires.getEpochSecond()) //
 				.add("nonce", nonce).build());
+		IuTestLogger.allow("edu.iu.crypt.Init", Level.CONFIG);
 		final var issuerKey = WebKey.ephemeral(Algorithm.ES256);
 		final var signed = jwt.sign("JWT", Algorithm.ES256, issuerKey);
 		assertEquals(jwt, new Jwt(Jwt.verify(signed, issuerKey)));
@@ -233,6 +234,7 @@ public class JwtTest {
 				.add("nbf", notBefore.getEpochSecond()) //
 				.add("exp", expires.getEpochSecond()) //
 				.add("nonce", nonce).build());
+		IuTestLogger.allow("edu.iu.crypt.Init", Level.CONFIG);
 		final var issuerKey = WebKey.ephemeral(Algorithm.ES256);
 		final var audienceKey = WebKey.builder(Type.X25519).ephemeral(Algorithm.ECDH_ES).build();
 		final var signed = jwt.signAndEncrypt("JWT", Algorithm.ES256, issuerKey, Algorithm.ECDH_ES, Encryption.A128GCM,

@@ -1,6 +1,6 @@
 package iu.auth.component;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import java.util.logging.Level;
 
@@ -14,7 +14,7 @@ public class AuthComponentBootstrapTest {
 	@Test
 	public void testConstructor() {
 		IuTestLogger.expect(AuthComponentBootstrap.class.getName(), Level.CONFIG, "TODO: initialize authentication");
-		assertThrows(UnsupportedOperationException.class, AuthComponentBootstrap::new);
+		assertDoesNotThrow(AuthComponentBootstrap::new);
 	}
 
 }

@@ -2,12 +2,16 @@ package iu.type.container;
 
 import java.io.InputStream;
 import java.lang.ModuleLayer.Controller;
+import java.lang.module.ModuleDescriptor.Exports;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Queue;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
@@ -69,14 +73,25 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 		final var filter = new FilteringClassLoader(IuIterable.iter(IuObject.class.getPackageName()), parentLoader);
 		final var api = IuIterable.of(() -> Stream.of(archives).flatMap(a -> Stream.of(a.api())).iterator());
 
+		class PendingExport {
+			Exports exports;
+			Module module;
+		}
 		final var baseInit = new Consumer<Controller>() {
 			Controller controller;
-			Module cryptModule;
+			Map<String, PendingExport> pendingExports = new LinkedHashMap<>();
 
 			@Override
 			public void accept(Controller c) {
 				controller = c;
-				cryptModule = c.layer().findModule("iu.util.crypt").orElse(null);
+				for (final var module : c.layer().modules())
+					for (final var exports : module.getDescriptor().exports())
+						for (final var target : exports.targets()) {
+							final var pendingExport = new PendingExport();
+							pendingExport.module = module;
+							pendingExport.exports = exports;
+							pendingExports.put(target, pendingExport);
+						}
 			}
 		};
 		base = new ModularClassLoader(false, api, parentLayer, filter, baseInit);
@@ -103,27 +118,18 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 					sources.add(Files.newInputStream(lib));
 
 				final var compInit = new Consumer<Controller>() {
-					Module cryptImpl;
-
 					@Override
 					public void accept(Controller c) {
-						cryptImpl = c.layer().findModule("iu.util.crypt.impl").orElse(null);
-						if (cryptImpl != null)
-							baseInit.controller.addExports(baseInit.cryptModule, "iu.crypt.spi", cryptImpl);
+						for (final var module : c.layer().modules()) {
+							final var pendingExport = baseInit.pendingExports.get(module.getName());
+							if (pendingExport != null)
+								baseInit.controller.addExports(pendingExport.module, pendingExport.exports.source(),
+										module);
+						}
 					}
 				};
 				final var component = IuComponent.of(parent, base.getModuleLayer(), compInit, sources.get(0),
 						sources.subList(1, sources.size()).toArray(InputStream[]::new));
-
-				final var current = Thread.currentThread();
-				final var restore = current.getContextClassLoader();
-				try {
-					current.setContextClassLoader(component.classLoader());
-					if (compInit.cryptImpl != null)
-						base.loadClass("edu.iu.crypt.Init");
-				} finally {
-					current.setContextClassLoader(restore);
-				}
 
 				for (final var source : sources)
 					source.close();
@@ -134,7 +140,16 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 
 			this.initializedComponents = initializedComponents;
 
-			// TODO: run and await completion for all Runnable and UnsafeRunnable resources
+			final Queue<TypeContainerResource> containerResources = new ArrayDeque<>();
+			for (final var component : initializedComponents)
+				for (final var resource : component.resources())
+					containerResources.add(new TypeContainerResource(resource, component));
+
+			Throwable error = null;
+			for (final var containerResource : containerResources)
+				error = IuException.suppress(error, containerResource::join);
+			if (error != null)
+				throw error;
 
 		} catch (Throwable e) {
 			if (support != null)
