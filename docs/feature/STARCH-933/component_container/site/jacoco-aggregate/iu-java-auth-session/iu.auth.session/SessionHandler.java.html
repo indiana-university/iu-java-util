@@ -151,7 +151,7 @@ public class SessionHandler implements IuSessionHandler {
 	}
 
 	@Override
-	public String store(IuSession session, boolean strict) {
+	public String store(IuSession session) {
 <span class="fc" id="L155">		final var secretKey = EphemeralKeys.secret(&quot;AES&quot;, 256);</span>
 <span class="fc" id="L156">		final var s = (Session) session;</span>
 
@@ -175,7 +175,7 @@ public class SessionHandler implements IuSessionHandler {
 
 <span class="fc" id="L176">		cookieBuilder.append(&quot;; HttpOnly&quot;);</span>
 
-<span class="fc bfc" id="L178" title="All 2 branches covered.">		if (strict)</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">		if (s.isStrict())</span>
 <span class="fc" id="L179">			cookieBuilder.append(&quot;; SameSite=Strict&quot;);</span>
 <span class="fc" id="L180">		return cookieBuilder.toString();</span>
 	}

@@ -1,4 +1,35 @@
-<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TypeContainerArchive.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Type Introspection Container</a> &gt; <a href="index.source.html" class="el_package">iu.type.container</a> &gt; <span class="el_source">TypeContainerArchive.java</span></div><h1>TypeContainerArchive.java</h1><pre class="source lang-java linenums">package iu.type.container;
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TypeContainerArchive.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Type Introspection Container</a> &gt; <a href="index.source.html" class="el_package">iu.type.container</a> &gt; <span class="el_source">TypeContainerArchive.java</span></div><h1>TypeContainerArchive.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.type.container;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -34,52 +65,52 @@ class TypeContainerArchive implements AutoCloseable {
 	 * @param path {@link Path}
 	 * @throws IOException If an error occurs reading the component source bundle
 	 */
-<span class="fc" id="L37">	TypeContainerArchive(Path path) throws IOException {</span>
-<span class="fc" id="L38">		final var init = new UnsafeRunnable() {</span>
-<span class="fc" id="L39">			Path primary = null;</span>
-<span class="fc" id="L40">			final Queue&lt;Path&gt; api = new ArrayDeque&lt;&gt;();</span>
-<span class="fc" id="L41">			final Queue&lt;Path&gt; lib = new ArrayDeque&lt;&gt;();</span>
-<span class="fc" id="L42">			final Queue&lt;Path&gt; support = new ArrayDeque&lt;&gt;();</span>
-<span class="fc" id="L43">			final Queue&lt;Path&gt; embedded = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L68">	TypeContainerArchive(Path path) throws IOException {</span>
+<span class="fc" id="L69">		final var init = new UnsafeRunnable() {</span>
+<span class="fc" id="L70">			Path primary = null;</span>
+<span class="fc" id="L71">			final Queue&lt;Path&gt; api = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L72">			final Queue&lt;Path&gt; lib = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L73">			final Queue&lt;Path&gt; support = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L74">			final Queue&lt;Path&gt; embedded = new ArrayDeque&lt;&gt;();</span>
 
 			@Override
 			public void run() throws Throwable {
-<span class="fc" id="L47">				try (final var in = Files.newInputStream(path); //</span>
-<span class="fc" id="L48">						final var componentJar = new JarInputStream(in)) {</span>
+<span class="fc" id="L78">				try (final var in = Files.newInputStream(path); //</span>
+<span class="fc" id="L79">						final var componentJar = new JarInputStream(in)) {</span>
 					JarEntry entry;
-<span class="fc bfc" id="L50" title="All 2 branches covered.">					while ((entry = componentJar.getNextJarEntry()) != null) {</span>
-<span class="fc" id="L51">						final var name = entry.getName();</span>
-<span class="fc bfc" id="L52" title="All 2 branches covered.">						if (name.endsWith(&quot;/&quot;))</span>
-<span class="fc" id="L53">							continue;</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">					while ((entry = componentJar.getNextJarEntry()) != null) {</span>
+<span class="fc" id="L82">						final var name = entry.getName();</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">						if (name.endsWith(&quot;/&quot;))</span>
+<span class="fc" id="L84">							continue;</span>
 
-<span class="fc bfc" id="L55" title="All 2 branches covered.">						if (name.endsWith(&quot;.jar&quot;))</span>
-<span class="fc bfc" id="L56" title="All 2 branches covered.">							if (name.startsWith(&quot;api/&quot;))</span>
-<span class="fc" id="L57">								api.offer(TemporaryFile.of(componentJar));</span>
-<span class="fc bfc" id="L58" title="All 2 branches covered.">							else if (name.startsWith(&quot;lib/&quot;))</span>
-<span class="fc" id="L59">								lib.offer(TemporaryFile.of(componentJar));</span>
-<span class="fc bfc" id="L60" title="All 2 branches covered.">							else if (name.startsWith(&quot;support/&quot;))</span>
-<span class="fc" id="L61">								support.offer(TemporaryFile.of(componentJar));</span>
-<span class="fc bfc" id="L62" title="All 2 branches covered.">							else if (name.indexOf('/') != -1)</span>
-<span class="fc" id="L63">								embedded.offer(TemporaryFile.of(componentJar));</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">						if (name.endsWith(&quot;.jar&quot;))</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">							if (name.startsWith(&quot;api/&quot;))</span>
+<span class="fc" id="L88">								api.offer(TemporaryFile.of(componentJar));</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">							else if (name.startsWith(&quot;lib/&quot;))</span>
+<span class="fc" id="L90">								lib.offer(TemporaryFile.of(componentJar));</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">							else if (name.startsWith(&quot;support/&quot;))</span>
+<span class="fc" id="L92">								support.offer(TemporaryFile.of(componentJar));</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">							else if (name.indexOf('/') != -1)</span>
+<span class="fc" id="L94">								embedded.offer(TemporaryFile.of(componentJar));</span>
 							else
-<span class="fc" id="L65">								primary = IuObject.once(primary, TemporaryFile.of(componentJar));</span>
-<span class="fc bfc" id="L66" title="All 2 branches covered.">						else if (name.endsWith(&quot;.war&quot;))</span>
-<span class="fc" id="L67">							embedded.offer(TemporaryFile.of(componentJar));</span>
+<span class="fc" id="L96">								primary = IuObject.once(primary, TemporaryFile.of(componentJar));</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">						else if (name.endsWith(&quot;.war&quot;))</span>
+<span class="fc" id="L98">							embedded.offer(TemporaryFile.of(componentJar));</span>
 						else
-<span class="fc" id="L69">							throw new IllegalArgumentException(&quot;Unexpected entry &quot; + name);</span>
-<span class="fc" id="L70">					}</span>
+<span class="fc" id="L100">							throw new IllegalArgumentException(&quot;Unexpected entry &quot; + name);</span>
+<span class="fc" id="L101">					}</span>
 				}
-<span class="fc" id="L72">			}</span>
+<span class="fc" id="L103">			}</span>
 
 		};
-<span class="fc" id="L75">		onClose = TemporaryFile.init(init);</span>
+<span class="fc" id="L106">		onClose = TemporaryFile.init(init);</span>
 
-<span class="fc" id="L77">		this.primary = Objects.requireNonNull(init.primary);</span>
-<span class="fc" id="L78">		this.api = init.api.toArray(Path[]::new);</span>
-<span class="fc" id="L79">		this.lib = init.lib.toArray(Path[]::new);</span>
-<span class="fc" id="L80">		this.support = init.support.toArray(Path[]::new);</span>
-<span class="fc" id="L81">		this.embedded = init.embedded.toArray(Path[]::new);</span>
-<span class="fc" id="L82">	}</span>
+<span class="fc" id="L108">		this.primary = Objects.requireNonNull(init.primary);</span>
+<span class="fc" id="L109">		this.api = init.api.toArray(Path[]::new);</span>
+<span class="fc" id="L110">		this.lib = init.lib.toArray(Path[]::new);</span>
+<span class="fc" id="L111">		this.support = init.support.toArray(Path[]::new);</span>
+<span class="fc" id="L112">		this.embedded = init.embedded.toArray(Path[]::new);</span>
+<span class="fc" id="L113">	}</span>
 
 	/**
 	 * Returns the primary component archive.
@@ -87,7 +118,7 @@ class TypeContainerArchive implements AutoCloseable {
 	 * @return {@link Path}
 	 */
 	Path primary() {
-<span class="fc" id="L90">		return primary;</span>
+<span class="fc" id="L121">		return primary;</span>
 	}
 
 	/**
@@ -96,7 +127,7 @@ class TypeContainerArchive implements AutoCloseable {
 	 * @return {@link Path}[]
 	 */
 	Path[] api() {
-<span class="fc" id="L99">		return api;</span>
+<span class="fc" id="L130">		return api;</span>
 	}
 
 	/**
@@ -105,7 +136,7 @@ class TypeContainerArchive implements AutoCloseable {
 	 * @return {@link Path}[]
 	 */
 	Path[] lib() {
-<span class="fc" id="L108">		return lib;</span>
+<span class="fc" id="L139">		return lib;</span>
 	}
 
 	/**
@@ -114,7 +145,7 @@ class TypeContainerArchive implements AutoCloseable {
 	 * @return {@link Path}[]
 	 */
 	Path[] support() {
-<span class="fc" id="L117">		return support;</span>
+<span class="fc" id="L148">		return support;</span>
 	}
 
 	/**
@@ -123,13 +154,13 @@ class TypeContainerArchive implements AutoCloseable {
 	 * @return {@link Path}[]
 	 */
 	Path[] embedded() {
-<span class="fc" id="L126">		return embedded;</span>
+<span class="fc" id="L157">		return embedded;</span>
 	}
 
 	@Override
 	public void close() throws Exception {
-<span class="fc" id="L131">		IuException.checked(onClose);</span>
-<span class="fc" id="L132">	}</span>
+<span class="fc" id="L162">		IuException.checked(onClose);</span>
+<span class="fc" id="L163">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TypeContainerResource.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Type Introspection Container</a> &gt; <a href="index.source.html" class="el_package">iu.type.container</a> &gt; <span class="el_source">TypeContainerResource.java</span></div><h1>TypeContainerResource.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.type.container;
+
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import edu.iu.IuObject;
+import edu.iu.UnsafeRunnable;
+import edu.iu.type.IuComponent;
+import edu.iu.type.IuResource;
+
+/**
+ * Manages {@link IuResource} instances in behalf of bootstrapped
+ * {@link IuComponent}s.
+ */
+class TypeContainerResource implements Comparable&lt;TypeContainerResource&gt; {
+	static {
+<span class="fc" id="L48">		IuObject.assertNotOpen(TypeContainerResource.class);</span>
+	}
+
+<span class="fc" id="L51">	private static final Logger LOG = Logger.getLogger(TypeContainerResource.class.getName());</span>
+	private static volatile int c;
+
+	private final int id;
+	private final int priority;
+	private final Thread thread;
+	private volatile boolean started;
+	private volatile Throwable error;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param resource  {@link IuResource}
+	 * @param component {@link IuComponent}
+	 */
+<span class="fc" id="L66">	TypeContainerResource(IuResource&lt;?&gt; resource, IuComponent component) {</span>
+<span class="fc" id="L67">		id = ++c;</span>
+
+<span class="fc" id="L69">		final var erased = resource.type().autoboxClass();</span>
+<span class="fc" id="L70">		final var nameBuilder = new StringBuilder();</span>
+<span class="fc" id="L71">		nameBuilder.append(erased.getModule().getName());</span>
+<span class="fc" id="L72">		nameBuilder.append('/');</span>
+<span class="fc" id="L73">		nameBuilder.append(erased.getName());</span>
+<span class="fc" id="L74">		IuObject.convert(resource.name(), a -&gt; nameBuilder.append('/').append(a));</span>
+<span class="fc" id="L75">		nameBuilder.append('/');</span>
+<span class="fc" id="L76">		nameBuilder.append(id);</span>
+
+<span class="fc" id="L78">		priority = resource.priority();</span>
+
+<span class="fc" id="L80">		thread = new Thread(() -&gt; {</span>
+<span class="fc" id="L81">			Thread.currentThread().setContextClassLoader(component.classLoader());</span>
+<span class="fc" id="L82">			LOG.fine(&quot;init resource &quot; + resource);</span>
+			try {
+<span class="fc" id="L84">				final var init = resource.get();</span>
+
+				// TODO: invoke @PostConstruct methods
+
+<span class="fc bfc" id="L88" title="All 2 branches covered.">				if (init instanceof Runnable)</span>
+<span class="fc" id="L89">					((Runnable) init).run();</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">				else if (init instanceof UnsafeRunnable)</span>
+<span class="fc" id="L91">					((UnsafeRunnable) init).run();</span>
+
+<span class="fc" id="L93">			} catch (Throwable e) {</span>
+<span class="fc" id="L94">				LOG.log(Level.SEVERE, &quot;fail resource &quot; + resource, e);</span>
+<span class="fc" id="L95">				error = e;</span>
+<span class="fc" id="L96">			}</span>
+<span class="fc" id="L97">		}, nameBuilder.toString());</span>
+<span class="fc" id="L98">	}</span>
+
+	/**
+	 * Asynchronously initializes the resource.
+	 * 
+	 * @see #join()
+	 */
+	synchronized void asyncInit() {
+<span class="fc bfc" id="L106" title="All 2 branches covered.">		if (!started) {</span>
+<span class="fc" id="L107">			thread.start();</span>
+<span class="fc" id="L108">			started = true;</span>
+		}
+<span class="fc" id="L110">	}</span>
+
+	/**
+	 * Returns the priority of the resource.
+	 * 
+	 * @return priority
+	 */
+	int priority() {
+<span class="fc" id="L118">		return priority;</span>
+	}
+
+	/**
+	 * Waits for a previous call to asyncInit to complete.
+	 * 
+	 * @throws Throwable If an error occurs
+	 */
+	void join() throws Throwable {
+<span class="fc bfc" id="L127" title="All 2 branches covered.">		if (!started)</span>
+<span class="fc" id="L128">			throw new IllegalStateException(&quot;not started&quot;);</span>
+
+<span class="fc" id="L130">		thread.join();</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">		if (error != null)</span>
+<span class="fc" id="L132">			throw error;</span>
+<span class="fc" id="L133">	}</span>
+
+	@Override
+	public int compareTo(TypeContainerResource o) {
+<span class="fc" id="L137">		int p1 = priority;</span>
+<span class="fc" id="L138">		int p2 = o.priority;</span>
+
+<span class="fc bfc" id="L140" title="All 2 branches covered.">		if (p1 == p2)</span>
+<span class="fc" id="L141">			return Integer.compare(Math.abs(id), Math.abs(o.id));</span>
+
+<span class="fc bfc" id="L143" title="All 4 branches covered.">		if (p1 &gt; 0 &amp;&amp; p2 &lt; 0)</span>
+<span class="fc" id="L144">			return -1;</span>
+<span class="fc bfc" id="L145" title="All 4 branches covered.">		if (p1 &lt; 0 &amp;&amp; p2 &gt; 0)</span>
+<span class="fc" id="L146">			return 1;</span>
+
+<span class="fc" id="L148">		return Integer.compare(Math.abs(p1), Math.abs(p2));</span>
+	}
+
+	@Override
+	public String toString() {
+<span class="fc" id="L153">		return &quot;TypeContainerResource [&quot; + thread.getName() + &quot;, priority=&quot; + priority + &quot;, started=&quot; + started</span>
+				+ &quot;, error=&quot; + error + &quot;]&quot;;
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
