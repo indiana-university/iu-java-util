@@ -29,23 +29,13 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.component;
+package edu.iu.type.testcomponent;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import jakarta.annotation.Priority;
+import jakarta.annotation.Resource;
 
-import java.util.logging.Level;
-
-import org.junit.jupiter.api.Test;
-
-import edu.iu.test.IuTestLogger;
-
+@Resource
+@Priority(34)
 @SuppressWarnings("javadoc")
-public class AuthComponentBootstrapTest {
-
-	@Test
-	public void testConstructor() {
-		IuTestLogger.expect(AuthComponentBootstrap.class.getName(), Level.CONFIG, "TODO: initialize authentication");
-		assertDoesNotThrow(AuthComponentBootstrap::new);
-	}
-
+public class PriorityResource {
 }

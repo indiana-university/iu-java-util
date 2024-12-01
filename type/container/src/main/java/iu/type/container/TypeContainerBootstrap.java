@@ -1,3 +1,34 @@
+/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package iu.type.container;
 
 import java.io.InputStream;
@@ -11,6 +42,7 @@ import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
@@ -22,6 +54,9 @@ import edu.iu.IuObject;
 import edu.iu.IuRuntimeEnvironment;
 import edu.iu.UnsafeRunnable;
 import edu.iu.type.IuComponent;
+import edu.iu.type.IuResource;
+import edu.iu.type.IuResourceKey;
+import edu.iu.type.IuResourceReference;
 import edu.iu.type.base.FilteringClassLoader;
 import edu.iu.type.base.ModularClassLoader;
 
@@ -39,10 +74,10 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 	private final ClassLoader parentLoader;
 	private final ModuleLayer parentLayer;
 
-	private ModularClassLoader base;
-	private ModularClassLoader support;
-	private Deque<IuComponent> initializedComponents;
-	private boolean closed;
+	private volatile ModularClassLoader base;
+	private volatile ModularClassLoader support;
+	private volatile Deque<IuComponent> initializedComponents;
+	private volatile boolean closed;
 
 	/**
 	 * Constructor
@@ -65,7 +100,7 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 	}
 
 	@Override
-	public void run() throws Throwable {
+	public synchronized void run() throws Throwable {
 		if (archives == null)
 			return;
 
@@ -96,10 +131,10 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 		};
 		base = new ModularClassLoader(false, api, parentLayer, filter, baseInit);
 
+		initializedComponents = new ArrayDeque<>();
 		try {
 			LOG.fine("after init base " + base.getModuleLayer());
 
-			final Deque<IuComponent> initializedComponents = new ArrayDeque<>();
 			for (final var archive : archives) {
 				final ClassLoader parent;
 				if (archive.support().length == 0)
@@ -108,7 +143,7 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 					support = new ModularClassLoader(false, IuIterable.iter(archive.support()), base.getModuleLayer(),
 							base, c -> {
 							});
-					LOG.fine("after init support " + support.getModuleLayer());
+					LOG.fine(() -> "after init support " + support.getModuleLayer());
 					parent = support;
 				}
 
@@ -134,33 +169,81 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 				for (final var source : sources)
 					source.close();
 
-				LOG.fine("after create " + component);
+				LOG.fine(() -> "after create " + component);
 				initializedComponents.push(component);
 			}
 
-			this.initializedComponents = initializedComponents;
-
-			final Queue<TypeContainerResource> containerResources = new ArrayDeque<>();
-			for (final var component : initializedComponents)
-				for (final var resource : component.resources())
-					containerResources.add(new TypeContainerResource(resource, component));
-
-			Throwable error = null;
-			for (final var containerResource : containerResources)
-				error = IuException.suppress(error, containerResource::join);
-			if (error != null)
-				throw error;
+			initializeComponents(initializedComponents);
 
 		} catch (Throwable e) {
-			if (support != null)
-				IuException.suppress(e, support::close);
-			IuException.suppress(e, base::close);
+			IuException.suppress(e, this::close);
 			throw e;
 		}
 	}
 
+	/**
+	 * Initializes components.
+	 * 
+	 * @param componentsToInitialize Created components that have not yet been
+	 *                               initialized
+	 * @throws Throwable If an error occurs
+	 */
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	static void initializeComponents(Iterable<IuComponent> componentsToInitialize) throws Throwable {
+		final Map<IuResourceKey<?>, IuResource<?>> boundResources = new LinkedHashMap<>();
+		final List<TypeContainerResource> containerResources = new ArrayList<>();
+		for (final var component : componentsToInitialize)
+			for (final var resource : component.resources()) {
+				IuObject.require(boundResources.put(IuResourceKey.from(resource), resource), Objects::isNull,
+						"already bound " + resource);
+				containerResources.add(new TypeContainerResource(resource, component));
+				LOG.fine(() -> "after create " + resource);
+			}
+
+		final Map<IuResourceKey<?>, Queue<IuResourceReference<?, ?>>> resourceReferences = new LinkedHashMap<>();
+		for (final var component : componentsToInitialize)
+			for (final var resourceRef : component.resourceReferences()) {
+				final var key = IuResourceKey.from(resourceRef);
+				final IuResource resource = Objects.requireNonNull(boundResources.get(key),
+						"Missing resource binding " + key);
+				final var resourceReferenceQueue = resourceReferences.computeIfAbsent(key, k -> new ArrayDeque<>());
+				resourceReferenceQueue.add(resourceRef);
+				resourceRef.bind(resource);
+				LOG.fine(() -> "bind " + resourceRef + " " + resource);
+			}
+
+		var priority = 0;
+		Throwable error = null;
+		final Queue<TypeContainerResource> pendingResources = new ArrayDeque<>();
+		containerResources.sort(TypeContainerResource::compareTo);
+		for (final var containerResource : containerResources) {
+			if (containerResource.priority() != priority) {
+				priority = containerResource.priority();
+				while (!pendingResources.isEmpty()) {
+					final var pendingResource = pendingResources.poll();
+					LOG.fine(() -> "before join " + pendingResource);
+					error = IuException.suppress(error, pendingResource::join);
+				}
+				if (error != null)
+					throw error;
+			}
+
+			containerResource.asyncInit();
+			pendingResources.add(containerResource);
+		}
+
+		for (final var containerResource : pendingResources) {
+			LOG.fine(() -> "before join " + containerResource);
+			error = IuException.suppress(error, containerResource::join);
+		}
+
+		if (error != null)
+			throw error;
+
+	}
+
 	@Override
-	public void close() throws Exception {
+	public synchronized void close() throws Exception {
 		if (archives == null)
 			return;
 

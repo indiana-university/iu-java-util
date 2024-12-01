@@ -42,6 +42,7 @@ import edu.iu.IuObject;
 import edu.iu.type.IuResource;
 import edu.iu.type.IuResourceKey;
 import edu.iu.type.IuType;
+import jakarta.annotation.Priority;
 import jakarta.annotation.Resource;
 import jakarta.annotation.Resource.AuthenticationType;
 import jakarta.annotation.Resources;
@@ -61,7 +62,7 @@ class ComponentResource<T> implements IuResource<T> {
 	 * @return static web resource
 	 */
 	static ComponentResource<byte[]> createWebResource(String name, byte[] data) {
-		return new ComponentResource<byte[]>(true, true, name, TypeFactory.resolveRawClass(byte[].class), () -> data);
+		return new ComponentResource<byte[]>(true, true, -1, name, TypeFactory.resolveRawClass(byte[].class), () -> data);
 	}
 
 	/**
@@ -119,22 +120,26 @@ class ComponentResource<T> implements IuResource<T> {
 		else
 			name = resource.name();
 
+		final var priority = type.annotation(Priority.class);
+
 		return new ComponentResource<>(resource.authenticationType().equals(AuthenticationType.CONTAINER),
-				resource.shareable(), name, type,
+				resource.shareable(), priority == null ? -1 : priority.value(), name, type,
 				() -> IuException.unchecked(() -> TypeFactory.resolveRawClass(targetClass).constructor().exec()));
 	}
 
 	private final boolean needsAuthentication;
 	private final boolean shared;
+	private final int priority;
 	private final String name;
 	private final TypeTemplate<?, T> type;
 	private volatile T singleton;
 	private Supplier<?> factory;
 
-	private ComponentResource(boolean needsAuthentication, boolean shared, String name, TypeTemplate<?, T> type,
-			Supplier<?> factory) {
+	private ComponentResource(boolean needsAuthentication, boolean shared, int priority, String name,
+			TypeTemplate<?, T> type, Supplier<?> factory) {
 		this.needsAuthentication = needsAuthentication;
 		this.shared = shared;
+		this.priority = priority;
 		this.name = name;
 		this.type = type;
 		this.factory = factory;
@@ -148,6 +153,11 @@ class ComponentResource<T> implements IuResource<T> {
 	@Override
 	public boolean shared() {
 		return shared;
+	}
+
+	@Override
+	public int priority() {
+		return priority;
 	}
 
 	@Override

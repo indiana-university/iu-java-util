@@ -247,6 +247,8 @@ public class IuComponentTest extends IuTypeTestCase {
 			var resource = resources.next();
 			assertEquals("urlReader", resource.name());
 			resource = resources.next();
+			assertEquals("priorityResource", resource.name());
+			resource = resources.next();
 			assertEquals("testResource", resource.name());
 			// TODO: STARCH-653 Implement @AroundConstruct
 			assertThrows(UnsupportedOperationException.class, resource::get);
