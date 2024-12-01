@@ -29,6 +29,7 @@
 				<module>saml</module>
 				<module>session</module>
 				<module>nonce</module>
+				<module>component</module>
 			</modules>
 		</profile>
 	</profiles>
