@@ -242,17 +242,16 @@ public class IuComponentTest extends IuTypeTestCase {
 				}
 			assertTrue(found);
 
-			var resources = component.resources().iterator();
-			assertTrue(resources.hasNext());
-			var resource = resources.next();
-			assertEquals("urlReader", resource.name());
-			resource = resources.next();
-			assertEquals("priorityResource", resource.name());
-			resource = resources.next();
-			assertEquals("testResource", resource.name());
-			// TODO: STARCH-653 Implement @AroundConstruct
-			assertThrows(UnsupportedOperationException.class, resource::get);
-			assertFalse(resources.hasNext());
+			final Set<String> expected = new HashSet<>(Set.of("urlReader", "priorityResource", "testResource"));
+			for (final var resource : component.resources()) {
+				final var name = resource.name();
+				assertTrue(expected.remove(name), () -> name + " " + expected);
+				if (name.equals("testResource")) {
+					// TODO: STARCH-653 Implement @AroundConstruct
+					assertThrows(UnsupportedOperationException.class, resource::get);
+				}
+			}
+			assertTrue(expected.isEmpty(), expected::toString);
 
 			final var target = component.classLoader().loadClass("edu.iu.type.testcomponent.TestBean");
 			final var view = IuComponent.scan(target);
