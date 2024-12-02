@@ -1,0 +1,1433 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>IuException.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-base</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuException.java</span></div><h1>IuException.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu;
+
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.lang.reflect.Executable;
+import java.lang.reflect.InvocationTargetException;
+
+/**
+ * Exception handling utilities.
+ */
+public final class IuException {
+
+	/**
+	 * Expects a {@link Throwable} to be an (unchecked) {@link RuntimeException}.
+	 * 
+	 * &lt;p&gt;
+	 * This method &lt;em&gt;may&lt;/em&gt; be used as an exception handler in situations where
+	 * {@link Throwable} or one or more {@link Exception checked exceptions} are
+	 * thrown from a downstream invocation, but a {@link Exception checked
+	 * exception} &lt;em&gt;must not&lt;/em&gt; be thrown from the interface being implemented
+	 * and no special handling is specified.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;pre&gt;
+	 * try {
+	 * 	// something unsafe
+	 * } catch (Throwable e) {
+	 * 	throw IuException.unchecked(e);
+	 * }
+	 * &lt;/pre&gt;
+	 * 
+	 * @param throwable Any {@link Throwable}
+	 * @return {@code throwable} if {@link RuntimeException}
+	 * @throws IllegalStateException if {@code throwable} is a {@link Exception
+	 *                               checked exception} or {@link Throwable custom
+	 *                               throwable}
+	 * @throws Error                 if {@code throwable} is an {@link Error}
+	 */
+	public static RuntimeException unchecked(Throwable throwable) throws IllegalStateException, Error {
+<span class="fc" id="L71">		return unchecked(throwable, (String) null);</span>
+	}
+
+	/**
+	 * Expects a {@link Throwable} to be an (unchecked) {@link RuntimeException}.
+	 * 
+	 * &lt;p&gt;
+	 * This method &lt;em&gt;may&lt;/em&gt; be used as an exception handler in situations where
+	 * {@link Throwable} or one or more {@link Exception checked exceptions} are
+	 * thrown from a downstream invocation, but a {@link Exception checked
+	 * exception} &lt;em&gt;must not&lt;/em&gt; be thrown from the interface being implemented
+	 * and no special handling is specified.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;pre&gt;
+	 * try {
+	 * 	// something unsafe
+	 * } catch (Throwable e) {
+	 * 	throw IuException.unchecked(e);
+	 * }
+	 * &lt;/pre&gt;
+	 * 
+	 * @param throwable Any {@link Throwable}
+	 * @param message   Message to use with {@link IllegalStateException} if
+	 *                  throwable is not a {@link RuntimeException} or {@link Error}
+	 * @return {@code throwable} if {@link RuntimeException}
+	 * @throws IllegalStateException if {@code throwable} is a {@link Exception
+	 *                               checked exception} or {@link Throwable custom
+	 *                               throwable}
+	 * @throws Error                 if {@code throwable} is an {@link Error}
+	 */
+	public static RuntimeException unchecked(Throwable throwable, String message) throws IllegalStateException, Error {
+<span class="fc bfc" id="L103" title="All 2 branches covered.">		if (throwable instanceof RuntimeException)</span>
+<span class="fc" id="L104">			return (RuntimeException) throwable;</span>
+
+<span class="fc bfc" id="L106" title="All 2 branches covered.">		if (throwable instanceof Error)</span>
+<span class="fc" id="L107">			throw (Error) throwable;</span>
+
+<span class="fc" id="L109">		throw new IllegalStateException(message, throwable);</span>
+	}
+
+	/**
+	 * Expects a {@link Throwable} to be a {@link Exception checked exception}.
+	 * 
+	 * &lt;p&gt;
+	 * This method &lt;em&gt;may&lt;/em&gt; be used as an exception handler in situations where
+	 * {@link Throwable} is thrown from a downstream invocation, but only
+	 * {@link Exception exception} &lt;em&gt;may&lt;/em&gt; be thrown from the interface being
+	 * implemented and special handling is not specified for {@link Throwable custom
+	 * throwables}.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;pre&gt;
+	 * try {
+	 * 	// something unsafe
+	 * } catch (Throwable e) {
+	 * 	throw IuException.checked(e);
+	 * }
+	 * &lt;/pre&gt;
+	 * 
+	 * @param throwable Any {@link Throwable}
+	 * @return {@code throwable} if {@link Exception}
+	 * @throws IllegalStateException if {@code throwable} is a {@link Throwable
+	 *                               custom throwable}
+	 * @throws Error                 if {@code throwable} is an {@link Error}
+	 */
+	public static Exception checked(Throwable throwable) throws Error, IllegalStateException {
+<span class="fc bfc" id="L138" title="All 2 branches covered.">		if (throwable instanceof Exception)</span>
+<span class="fc" id="L139">			return (Exception) throwable;</span>
+
+<span class="fc bfc" id="L141" title="All 2 branches covered.">		else if (throwable instanceof Error)</span>
+<span class="fc" id="L142">			throw (Error) throwable;</span>
+
+<span class="fc" id="L144">		throw new IllegalStateException(throwable);</span>
+	}
+
+	/**
+	 * Expects a {@link Throwable} to be a specific {@link Exception checked
+	 * exception}.
+	 * 
+	 * &lt;p&gt;
+	 * This method &lt;em&gt;may&lt;/em&gt; be used as an exception handler in situations where
+	 * {@link Throwable}, {@link Exception}, or specific {@link Exception checked
+	 * exceptions} are thrown from a downstream invocation, but at least one of
+	 * these &lt;em&gt;must not&lt;/em&gt; be thrown from the interface being implemented and
+	 * special handling is not specified for the unexpected {@link Throwable
+	 * throwable types}.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;pre&gt;
+	 * try {
+	 * 	// something unsafe
+	 * } catch (Throwable e) {
+	 * 	throw IuException.checked(e, ACheckedException.class);
+	 * }
+	 * &lt;/pre&gt;
+	 * 
+	 * @param &lt;T&gt;                    Expected exception type
+	 * 
+	 * @param throwable              Any {@link Throwable}
+	 * @param expectedExceptionClass Expected exception class
+	 * @return {@code throwable} if {@code instanceof T}
+	 * 
+	 * @throws RuntimeException      if {@code throwable} is a
+	 *                               {@link RuntimeException}
+	 * @throws Error                 if {@code throwable} is an {@link Error}
+	 * @throws IllegalStateException if {@code throwable} is custom or a
+	 *                               {@link Exception checked exception} other than
+	 *                               {@code T}
+	 */
+	public static &lt;T extends Exception&gt; T checked(Throwable throwable, Class&lt;T&gt; expectedExceptionClass)
+			throws RuntimeException, Error, IllegalStateException {
+<span class="fc bfc" id="L183" title="All 2 branches covered.">		if (expectedExceptionClass.isInstance(throwable))</span>
+<span class="fc" id="L184">			return expectedExceptionClass.cast(throwable);</span>
+
+<span class="fc bfc" id="L186" title="All 2 branches covered.">		else if (throwable instanceof Error)</span>
+<span class="fc" id="L187">			throw (Error) throwable;</span>
+
+<span class="fc bfc" id="L189" title="All 2 branches covered.">		else if (throwable instanceof RuntimeException)</span>
+<span class="fc" id="L190">			throw (RuntimeException) throwable;</span>
+
+<span class="fc" id="L192">		throw new IllegalStateException(throwable);</span>
+	}
+
+	/**
+	 * Expects a {@link Throwable} to be a specific {@link Exception checked
+	 * exception}.
+	 * 
+	 * &lt;p&gt;
+	 * This method &lt;em&gt;may&lt;/em&gt; be used as an exception handler in situations where
+	 * {@link Throwable}, {@link Exception}, or specific {@link Exception checked
+	 * exceptions} are thrown from a downstream invocation, but at least one of
+	 * these &lt;em&gt;must not&lt;/em&gt; be thrown from the interface being implemented and
+	 * special handling is not specified for the unexpected {@link Throwable
+	 * throwable types}.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;pre&gt;
+	 * try {
+	 * 	// something unsafe
+	 * } catch (Throwable e) {
+	 * 	throw IuException.checked(e, ACheckedException.class, AnotherCheckedException.class);
+	 * }
+	 * &lt;/pre&gt;
+	 * 
+	 * @param &lt;T1&gt;                    Expected exception type
+	 * @param &lt;T2&gt;                    Additional exception type that &lt;em&gt;may&lt;/em&gt; be
+	 *                                thrown
+	 * 
+	 * @param throwable               Any {@link Throwable}
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Additional exception class that &lt;em&gt;may&lt;/em&gt;
+	 *                                be thrown
+	 * @return {@code throwable} if {@code instanceof T1}
+	 * @throws T2                    if {@code throwable} is {@code T2}
+	 * @throws RuntimeException      if {@code throwable} is a
+	 *                               {@link RuntimeException}
+	 * @throws Error                 if {@code throwable} is an {@link Error}
+	 * @throws IllegalStateException if {@code throwable} is custom or a
+	 *                               {@link Exception checked exception} other than
+	 *                               {@code T} be thrown
+	 */
+	public static &lt;T1 extends Exception, T2 extends Exception&gt; T1 checked(Throwable throwable,
+			Class&lt;T1&gt; expectedExceptionClass1, Class&lt;T2&gt; expectedExceptionClass2)
+			throws T2, RuntimeException, Error, IllegalStateException {
+<span class="fc bfc" id="L236" title="All 2 branches covered.">		if (expectedExceptionClass1.isInstance(throwable))</span>
+<span class="fc" id="L237">			return expectedExceptionClass1.cast(throwable);</span>
+
+<span class="fc bfc" id="L239" title="All 2 branches covered.">		else if (expectedExceptionClass2.isInstance(throwable))</span>
+<span class="fc" id="L240">			throw expectedExceptionClass2.cast(throwable);</span>
+
+<span class="fc bfc" id="L242" title="All 2 branches covered.">		else if (throwable instanceof RuntimeException)</span>
+<span class="fc" id="L243">			throw (RuntimeException) throwable;</span>
+
+<span class="fc bfc" id="L245" title="All 2 branches covered.">		else if (throwable instanceof Error)</span>
+<span class="fc" id="L246">			throw (Error) throwable;</span>
+
+<span class="fc" id="L248">		throw new IllegalStateException(throwable);</span>
+	}
+
+	/**
+	 * Expects a {@link Throwable} to be a specific {@link Exception checked
+	 * exception}.
+	 * 
+	 * &lt;p&gt;
+	 * This method &lt;em&gt;may&lt;/em&gt; be used as an exception handler in situations where
+	 * {@link Throwable}, {@link Exception}, or specific {@link Exception checked
+	 * exceptions} are thrown from a downstream invocation, but at least one of
+	 * these &lt;em&gt;must not&lt;/em&gt; be thrown from the interface being implemented and
+	 * special handling is not specified for the unexpected {@link Throwable
+	 * throwable types}.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;pre&gt;
+	 * try {
+	 * 	// something unsafe
+	 * } catch (Throwable e) {
+	 * 	throw IuException.checked(e, ACheckedException.class, AnotherCheckedException.class,
+	 * 			YetAnotherCheckedException.class);
+	 * }
+	 * &lt;/pre&gt;
+	 * 
+	 * @param &lt;T1&gt;                    Expected exception type
+	 * @param &lt;T2&gt;                    Additional exception type that &lt;em&gt;may&lt;/em&gt; be
+	 *                                thrown
+	 * @param &lt;T3&gt;                    Additional exception type that &lt;em&gt;may&lt;/em&gt; be
+	 *                                thrown
+	 * 
+	 * @param throwable               Any {@link Throwable}
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Additional exception class that &lt;em&gt;may&lt;/em&gt;
+	 *                                be thrown
+	 * @param expectedExceptionClass3 Additional exception class that &lt;em&gt;may&lt;/em&gt;
+	 *                                be thrown
+	 * @return {@code throwable} if {@code instanceof T1}
+	 * @throws T2                    if {@code throwable} is {@code T2}
+	 * @throws T3                    if {@code throwable} is {@code T3}
+	 * @throws RuntimeException      if {@code throwable} is a
+	 *                               {@link RuntimeException}
+	 * @throws Error                 if {@code throwable} is an {@link Error}
+	 * @throws IllegalStateException if {@code throwable} is custom or a
+	 *                               {@link Exception checked exception} other than
+	 *                               {@code T} be thrown
+	 */
+	public static &lt;T1 extends Exception, T2 extends Exception, T3 extends Exception&gt; T1 checked(Throwable throwable,
+			Class&lt;T1&gt; expectedExceptionClass1, Class&lt;T2&gt; expectedExceptionClass2, Class&lt;T3&gt; expectedExceptionClass3)
+			throws T2, T3, RuntimeException, Error, IllegalStateException {
+<span class="fc bfc" id="L298" title="All 2 branches covered.">		if (expectedExceptionClass1.isInstance(throwable))</span>
+<span class="fc" id="L299">			return expectedExceptionClass1.cast(throwable);</span>
+
+<span class="fc bfc" id="L301" title="All 2 branches covered.">		else if (expectedExceptionClass2.isInstance(throwable))</span>
+<span class="fc" id="L302">			throw expectedExceptionClass2.cast(throwable);</span>
+
+<span class="fc bfc" id="L304" title="All 2 branches covered.">		else if (expectedExceptionClass3.isInstance(throwable))</span>
+<span class="fc" id="L305">			throw expectedExceptionClass3.cast(throwable);</span>
+
+<span class="fc bfc" id="L307" title="All 2 branches covered.">		else if (throwable instanceof RuntimeException)</span>
+<span class="fc" id="L308">			throw (RuntimeException) throwable;</span>
+
+<span class="fc bfc" id="L310" title="All 2 branches covered.">		else if (throwable instanceof Error)</span>
+<span class="fc" id="L311">			throw (Error) throwable;</span>
+
+<span class="fc" id="L313">		throw new IllegalStateException(throwable);</span>
+	}
+
+	/**
+	 * Gracefully invokes a supplier assumed to wrap {@link Executable invocation}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles {@link InvocationTargetException} by unwrapping the cause and
+	 * re-throwing.
+	 * &lt;/p&gt;
+	 * &lt;p&gt;
+	 * Handles other exceptions via {@link #unchecked(Throwable)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;R&gt;      result type
+	 * @param supplier {@link UnsafeSupplier} assumed to wrap {@link Executable
+	 *                 invocation}.
+	 * @return result
+	 */
+	public static &lt;R&gt; R uncheckedInvocation(UnsafeSupplier&lt;R&gt; supplier) {
+		try {
+			try {
+<span class="fc" id="L335">				return supplier.get();</span>
+<span class="fc" id="L336">			} catch (InvocationTargetException e) {</span>
+<span class="fc" id="L337">				throw e.getCause();</span>
+			}
+<span class="fc" id="L339">		} catch (Throwable e) {</span>
+<span class="fc" id="L340">			throw unchecked(e);</span>
+		}
+	}
+
+	/**
+	 * Gracefully invokes a {@link Executable method or constructor}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles {@link InvocationTargetException} by unwrapping the cause and
+	 * re-throwing.
+	 * &lt;/p&gt;
+	 * &lt;p&gt;
+	 * Handles other exceptions via {@link #checked(Throwable)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;R&gt;      result type
+	 * @param supplier {@link UnsafeSupplier} assumed to wrap {@link Executable
+	 *                 invocation}.
+	 * @return result
+	 * @throws Exception If invocation fails
+	 */
+	public static &lt;R&gt; R checkedInvocation(UnsafeSupplier&lt;R&gt; supplier) throws Exception {
+		try {
+			try {
+<span class="fc" id="L364">				return supplier.get();</span>
+<span class="fc" id="L365">			} catch (InvocationTargetException e) {</span>
+<span class="fc" id="L366">				throw e.getCause();</span>
+			}
+<span class="fc" id="L368">		} catch (Throwable e) {</span>
+<span class="fc" id="L369">			throw checked(e);</span>
+		}
+	}
+
+	/**
+	 * Gracefully invokes a {@link Executable method or constructor}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles {@link InvocationTargetException} by unwrapping the cause and
+	 * re-throwing.
+	 * &lt;/p&gt;
+	 * &lt;p&gt;
+	 * Handles other exceptions via {@link #checked(Throwable, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;R&gt;                    result type
+	 * @param &lt;T&gt;                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass Expected exception class
+	 * @param supplier               {@link UnsafeSupplier} assumed to wrap
+	 *                               {@link Executable invocation}.
+	 * @return result
+	 * 
+	 * @throws T If invocation fails
+	 */
+	public static &lt;R, T extends Exception&gt; R checkedInvocation(Class&lt;T&gt; expectedExceptionClass,
+			UnsafeSupplier&lt;R&gt; supplier) throws T {
+		try {
+			try {
+<span class="fc" id="L398">				return supplier.get();</span>
+<span class="fc" id="L399">			} catch (InvocationTargetException e) {</span>
+<span class="fc" id="L400">				throw e.getCause();</span>
+			}
+<span class="fc" id="L402">		} catch (Throwable e) {</span>
+<span class="fc" id="L403">			throw checked(e, expectedExceptionClass);</span>
+		}
+	}
+
+	/**
+	 * Gracefully invokes a {@link Executable method or constructor}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles {@link InvocationTargetException} by unwrapping the cause and
+	 * re-throwing.
+	 * &lt;/p&gt;
+	 * &lt;p&gt;
+	 * Handles other exceptions via {@link #checked(Throwable, Class, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;R&gt;                     result type
+	 * @param &lt;T1&gt;                    Expected exception type
+	 * @param &lt;T2&gt;                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param supplier                {@link UnsafeSupplier} assumed to wrap
+	 *                                {@link Executable invocation}.
+	 * @return result
+	 * @throws T1 If invocation fails
+	 * @throws T2 If invocation fails
+	 */
+	public static &lt;R, T1 extends Exception, T2 extends Exception&gt; R checkedInvocation(Class&lt;T1&gt; expectedExceptionClass1,
+			Class&lt;T2&gt; expectedExceptionClass2, UnsafeSupplier&lt;R&gt; supplier) throws T1, T2 {
+		try {
+			try {
+<span class="fc" id="L434">				return supplier.get();</span>
+<span class="fc" id="L435">			} catch (InvocationTargetException e) {</span>
+<span class="fc" id="L436">				throw e.getCause();</span>
+			}
+<span class="fc" id="L438">		} catch (Throwable e) {</span>
+<span class="fc" id="L439">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
+		}
+	}
+
+	/**
+	 * Gracefully invokes a {@link Executable method or constructor}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles {@link InvocationTargetException} by unwrapping the cause and
+	 * re-throwing.
+	 * &lt;/p&gt;
+	 * &lt;p&gt;
+	 * Handles other exceptions via
+	 * {@link #checked(Throwable, Class, Class, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;R&gt;                     result type
+	 * @param &lt;T1&gt;                    Expected exception type
+	 * @param &lt;T2&gt;                    Expected exception type
+	 * @param &lt;T3&gt;                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param expectedExceptionClass3 Expected exception class
+	 * @param supplier                {@link UnsafeSupplier} assumed to wrap
+	 *                                {@link Executable invocation}.
+	 * @return result
+	 * @throws T1 If invocation fails
+	 * @throws T2 If invocation fails
+	 * @throws T3 If invocation fails
+	 */
+	public static &lt;R, T1 extends Exception, T2 extends Exception, T3 extends Exception&gt; R checkedInvocation(
+			Class&lt;T1&gt; expectedExceptionClass1, Class&lt;T2&gt; expectedExceptionClass2, Class&lt;T3&gt; expectedExceptionClass3,
+			UnsafeSupplier&lt;R&gt; supplier) throws T1, T2, T3 {
+		try {
+			try {
+<span class="fc" id="L475">				return supplier.get();</span>
+<span class="fc" id="L476">			} catch (InvocationTargetException e) {</span>
+<span class="fc" id="L477">				throw e.getCause();</span>
+			}
+<span class="fc" id="L479">		} catch (Throwable e) {</span>
+<span class="fc" id="L480">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
+		}
+	}
+
+	/**
+	 * Gracefully runs an {@link UnsafeRunnable}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #unchecked(Throwable)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param runnable Any {@link UnsafeRunnable}
+	 */
+	public static void unchecked(UnsafeRunnable runnable) {
+<span class="fc" id="L494">		unchecked(runnable, (String) null);</span>
+<span class="fc" id="L495">	}</span>
+
+	/**
+	 * Gracefully runs an {@link UnsafeRunnable}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #unchecked(Throwable)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param runnable Any {@link UnsafeRunnable}
+	 * @param message  message for use with {@link #unchecked(Throwable, String)}
+	 */
+	public static void unchecked(UnsafeRunnable runnable, String message) {
+		try {
+<span class="fc" id="L509">			runnable.run();</span>
+<span class="fc" id="L510">		} catch (Throwable e) {</span>
+<span class="fc" id="L511">			throw unchecked(e, message);</span>
+<span class="fc" id="L512">		}</span>
+<span class="fc" id="L513">	}</span>
+
+	/**
+	 * Gracefully runs an {@link UnsafeRunnable}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param runnable Any {@link UnsafeRunnable}
+	 * @throws Exception If thrown by {@link UnsafeRunnable#run()}
+	 */
+	public static void checked(UnsafeRunnable runnable) throws Exception {
+		try {
+<span class="fc" id="L527">			runnable.run();</span>
+<span class="fc" id="L528">		} catch (Throwable e) {</span>
+<span class="fc" id="L529">			throw checked(e);</span>
+<span class="fc" id="L530">		}</span>
+<span class="fc" id="L531">	}</span>
+
+	/**
+	 * Gracefully runs an {@link UnsafeRunnable}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass Expected exception class
+	 * 
+	 * @param runnable               Any {@link UnsafeRunnable}
+	 * @throws T If thrown by {@link UnsafeRunnable#run()}
+	 */
+	public static &lt;T extends Exception&gt; void checked(Class&lt;T&gt; expectedExceptionClass, UnsafeRunnable runnable)
+			throws T {
+		try {
+<span class="fc" id="L550">			runnable.run();</span>
+<span class="fc" id="L551">		} catch (Throwable e) {</span>
+<span class="fc" id="L552">			throw checked(e, expectedExceptionClass);</span>
+<span class="fc" id="L553">		}</span>
+<span class="fc" id="L554">	}</span>
+
+	/**
+	 * Gracefully runs an {@link UnsafeRunnable}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T1&gt;                    Expected exception type
+	 * @param &lt;T2&gt;                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * 
+	 * @param runnable                Any {@link UnsafeRunnable}
+	 * @throws T1 If thrown by {@link UnsafeRunnable#run()}
+	 * @throws T2 If thrown by {@link UnsafeRunnable#run()}
+	 */
+	public static &lt;T1 extends Exception, T2 extends Exception&gt; void checked(Class&lt;T1&gt; expectedExceptionClass1,
+			Class&lt;T2&gt; expectedExceptionClass2, UnsafeRunnable runnable) throws T1, T2 {
+		try {
+<span class="fc" id="L576">			runnable.run();</span>
+<span class="fc" id="L577">		} catch (Throwable e) {</span>
+<span class="fc" id="L578">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
+<span class="fc" id="L579">		}</span>
+<span class="fc" id="L580">	}</span>
+
+	/**
+	 * Gracefully runs an {@link UnsafeRunnable}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T1&gt;                    Expected exception type
+	 * @param &lt;T2&gt;                    Expected exception type
+	 * @param &lt;T3&gt;                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param expectedExceptionClass3 Expected exception class
+	 * 
+	 * @param runnable                Any {@link UnsafeRunnable}
+	 * @throws T1 If thrown by {@link UnsafeRunnable#run()}
+	 * @throws T2 If thrown by {@link UnsafeRunnable#run()}
+	 * @throws T3 If thrown by {@link UnsafeRunnable#run()}
+	 */
+	public static &lt;T1 extends Exception, T2 extends Exception, T3 extends Exception&gt; void checked(
+			Class&lt;T1&gt; expectedExceptionClass1, Class&lt;T2&gt; expectedExceptionClass2, Class&lt;T3&gt; expectedExceptionClass3,
+			UnsafeRunnable runnable) throws T1, T2, T3 {
+		try {
+<span class="fc" id="L606">			runnable.run();</span>
+<span class="fc" id="L607">		} catch (Throwable e) {</span>
+<span class="fc" id="L608">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
+<span class="fc" id="L609">		}</span>
+<span class="fc" id="L610">	}</span>
+
+	/**
+	 * Gracefully gets from an {@link UnsafeSupplier}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #unchecked(Throwable)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;      result type
+	 * 
+	 * @param supplier Any {@link UnsafeSupplier}
+	 * @return result
+	 */
+	public static &lt;T&gt; T unchecked(UnsafeSupplier&lt;T&gt; supplier) {
+<span class="fc" id="L625">		return unchecked(supplier, (String) null);</span>
+	}
+
+	/**
+	 * Gracefully gets from an {@link UnsafeSupplier}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #unchecked(Throwable)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;      result type
+	 * 
+	 * @param supplier Any {@link UnsafeSupplier}
+	 * @param message  Message to use with {@link #unchecked(Throwable, String)}
+	 * @return result
+	 */
+	public static &lt;T&gt; T unchecked(UnsafeSupplier&lt;T&gt; supplier, String message) {
+		try {
+<span class="fc" id="L643">			return supplier.get();</span>
+<span class="fc" id="L644">		} catch (Throwable e) {</span>
+<span class="fc" id="L645">			throw unchecked(e);</span>
+		}
+	}
+
+	/**
+	 * Gracefully gets from an {@link UnsafeSupplier}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;      result type
+	 * 
+	 * @param supplier Any {@link UnsafeSupplier}
+	 * @return result
+	 * @throws Exception If thrown by {@link UnsafeSupplier#get()}
+	 */
+	public static &lt;T&gt; T checked(UnsafeSupplier&lt;T&gt; supplier) throws Exception {
+		try {
+<span class="fc" id="L664">			return supplier.get();</span>
+<span class="fc" id="L665">		} catch (Throwable e) {</span>
+<span class="fc" id="L666">			throw checked(e);</span>
+		}
+	}
+
+	/**
+	 * Gracefully gets from an {@link UnsafeSupplier}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;                    result type
+	 * @param &lt;T1&gt;                   Expected exception type
+	 * 
+	 * @param expectedExceptionClass Expected exception class
+	 * @param supplier               Any {@link UnsafeSupplier}
+	 * @return result
+	 * @throws T1 If thrown by {@link UnsafeSupplier#get()}
+	 */
+	public static &lt;T, T1 extends Exception&gt; T checked(Class&lt;T1&gt; expectedExceptionClass, UnsafeSupplier&lt;T&gt; supplier)
+			throws T1 {
+		try {
+<span class="fc" id="L688">			return supplier.get();</span>
+<span class="fc" id="L689">		} catch (Throwable e) {</span>
+<span class="fc" id="L690">			throw checked(e, expectedExceptionClass);</span>
+		}
+	}
+
+	/**
+	 * Gracefully gets from an {@link UnsafeSupplier}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;                     result type
+	 * @param &lt;T1&gt;                    Expected exception type
+	 * @param &lt;T2&gt;                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param supplier                Any {@link UnsafeSupplier}
+	 * @return result
+	 * @throws T1 If thrown by {@link UnsafeSupplier#get()}
+	 * @throws T2 If thrown by {@link UnsafeSupplier#get()}
+	 */
+	public static &lt;T, T1 extends Exception, T2 extends Exception&gt; T checked(Class&lt;T1&gt; expectedExceptionClass1,
+			Class&lt;T2&gt; expectedExceptionClass2, UnsafeSupplier&lt;T&gt; supplier) throws T1, T2 {
+		try {
+<span class="fc" id="L715">			return supplier.get();</span>
+<span class="fc" id="L716">		} catch (Throwable e) {</span>
+<span class="fc" id="L717">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
+		}
+	}
+
+	/**
+	 * Gracefully gets from an {@link UnsafeSupplier}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;                     result type
+	 * @param &lt;T1&gt;                    Expected exception type
+	 * @param &lt;T2&gt;                    Expected exception type
+	 * @param &lt;T3&gt;                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param expectedExceptionClass3 Expected exception class
+	 * @param supplier                Any {@link UnsafeSupplier}
+	 * @return result
+	 * @throws T1 If thrown by {@link UnsafeSupplier#get()}
+	 * @throws T2 If thrown by {@link UnsafeSupplier#get()}
+	 * @throws T3 If thrown by {@link UnsafeSupplier#get()}
+	 */
+	public static &lt;T, T1 extends Exception, T2 extends Exception, T3 extends Exception&gt; T checked(
+			Class&lt;T1&gt; expectedExceptionClass1, Class&lt;T2&gt; expectedExceptionClass2, Class&lt;T3&gt; expectedExceptionClass3,
+			UnsafeSupplier&lt;T&gt; supplier) throws T1, T2, T3 {
+		try {
+<span class="fc" id="L746">			return supplier.get();</span>
+<span class="fc" id="L747">		} catch (Throwable e) {</span>
+<span class="fc" id="L748">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
+		}
+	}
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #unchecked(Throwable)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;      argument type
+	 * 
+	 * @param argument Argument for {@link UnsafeConsumer#accept(Object)}
+	 * @param consumer Any {@link UnsafeConsumer}
+	 */
+	public static &lt;T&gt; void unchecked(T argument, UnsafeConsumer&lt;T&gt; consumer) {
+		try {
+<span class="fc" id="L766">			consumer.accept(argument);</span>
+<span class="fc" id="L767">		} catch (Throwable e) {</span>
+<span class="fc" id="L768">			throw unchecked(e);</span>
+<span class="fc" id="L769">		}</span>
+<span class="fc" id="L770">	}</span>
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;      argument type
+	 * 
+	 * @param argument Argument for {@link UnsafeConsumer#accept(Object)}
+	 * @param consumer Any {@link UnsafeConsumer}
+	 * @throws Exception If thrown by {@link UnsafeConsumer#accept(Object)}
+	 */
+	public static &lt;T&gt; void checked(T argument, UnsafeConsumer&lt;T&gt; consumer) throws Exception {
+		try {
+<span class="fc" id="L787">			consumer.accept(argument);</span>
+<span class="fc" id="L788">		} catch (Throwable e) {</span>
+<span class="fc" id="L789">			throw checked(e);</span>
+<span class="fc" id="L790">		}</span>
+<span class="fc" id="L791">	}</span>
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;                    argument type
+	 * @param &lt;T1&gt;                   Expected exception type
+	 * 
+	 * @param expectedExceptionClass Expected exception class
+	 * @param argument               Argument for
+	 *                               {@link UnsafeConsumer#accept(Object)}
+	 * @param consumer               Any {@link UnsafeConsumer}
+	 * 
+	 * @throws T1 If thrown by {@link UnsafeConsumer#accept(Object)}
+	 */
+	public static &lt;T, T1 extends Exception&gt; void checked(Class&lt;T1&gt; expectedExceptionClass, T argument,
+			UnsafeConsumer&lt;T&gt; consumer) throws T1 {
+		try {
+<span class="fc" id="L813">			consumer.accept(argument);</span>
+<span class="fc" id="L814">		} catch (Throwable e) {</span>
+<span class="fc" id="L815">			throw checked(e, expectedExceptionClass);</span>
+<span class="fc" id="L816">		}</span>
+<span class="fc" id="L817">	}</span>
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;                     argument type
+	 * @param &lt;T1&gt;                    Expected exception type
+	 * @param &lt;T2&gt;                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param argument                Argument for
+	 *                                {@link UnsafeConsumer#accept(Object)}
+	 * @param consumer                Any {@link UnsafeConsumer}
+	 * 
+	 * @throws T1 If thrown by {@link UnsafeConsumer#accept(Object)}
+	 * @throws T2 If thrown by {@link UnsafeConsumer#accept(Object)}
+	 */
+	public static &lt;T, T1 extends Exception, T2 extends Exception&gt; void checked(Class&lt;T1&gt; expectedExceptionClass1,
+			Class&lt;T2&gt; expectedExceptionClass2, T argument, UnsafeConsumer&lt;T&gt; consumer) throws T1, T2 {
+		try {
+<span class="fc" id="L842">			consumer.accept(argument);</span>
+<span class="fc" id="L843">		} catch (Throwable e) {</span>
+<span class="fc" id="L844">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
+<span class="fc" id="L845">		}</span>
+<span class="fc" id="L846">	}</span>
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeConsumer}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;                     argument type
+	 * @param &lt;T1&gt;                    Expected exception type
+	 * @param &lt;T2&gt;                    Expected exception type
+	 * @param &lt;T3&gt;                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param expectedExceptionClass3 Expected exception class
+	 * @param argument                Argument for
+	 *                                {@link UnsafeConsumer#accept(Object)}
+	 * @param consumer                Any {@link UnsafeConsumer}
+	 * 
+	 * @throws T1 If thrown by {@link UnsafeConsumer#accept(Object)}
+	 * @throws T2 If thrown by {@link UnsafeConsumer#accept(Object)}
+	 * @throws T3 If thrown by {@link UnsafeConsumer#accept(Object)}
+	 */
+	public static &lt;T, T1 extends Exception, T2 extends Exception, T3 extends Exception&gt; void checked(
+			Class&lt;T1&gt; expectedExceptionClass1, Class&lt;T2&gt; expectedExceptionClass2, Class&lt;T3&gt; expectedExceptionClass3,
+			T argument, UnsafeConsumer&lt;T&gt; consumer) throws T1, T2, T3 {
+		try {
+<span class="fc" id="L875">			consumer.accept(argument);</span>
+<span class="fc" id="L876">		} catch (Throwable e) {</span>
+<span class="fc" id="L877">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
+<span class="fc" id="L878">		}</span>
+<span class="fc" id="L879">	}</span>
+
+	/**
+	 * Gracefully applies an {@link UnsafeFunction}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #unchecked(Throwable)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;      argument type
+	 * @param &lt;R&gt;      result type
+	 * 
+	 * @param argument Argument to {@link UnsafeFunction#apply(Object)}
+	 * @param function Any {@link UnsafeFunction}
+	 * @return result
+	 */
+	public static &lt;T, R&gt; R unchecked(T argument, UnsafeFunction&lt;T, R&gt; function) {
+		try {
+<span class="fc" id="L897">			return function.apply(argument);</span>
+<span class="fc" id="L898">		} catch (Throwable e) {</span>
+<span class="fc" id="L899">			throw unchecked(e);</span>
+		}
+	}
+
+	/**
+	 * Gracefully applies an {@link UnsafeFunction}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;      argument type
+	 * @param &lt;R&gt;      result type
+	 * 
+	 * @param argument Argument to {@link UnsafeFunction#apply(Object)}
+	 * @param function Any {@link UnsafeFunction}
+	 * @return result
+	 * @throws Exception If thrown by {@link UnsafeFunction#apply(Object)}
+	 */
+	public static &lt;T, R&gt; R checked(T argument, UnsafeFunction&lt;T, R&gt; function) throws Exception {
+		try {
+<span class="fc" id="L920">			return function.apply(argument);</span>
+<span class="fc" id="L921">		} catch (Throwable e) {</span>
+<span class="fc" id="L922">			throw checked(e);</span>
+		}
+	}
+
+	/**
+	 * Gracefully applies an {@link UnsafeFunction}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;                    argument type
+	 * @param &lt;R&gt;                    result type
+	 * @param &lt;T1&gt;                   Expected exception type
+	 * 
+	 * @param expectedExceptionClass Expected exception class
+	 * @param argument               Argument to
+	 *                               {@link UnsafeFunction#apply(Object)}
+	 * @param function               Any {@link UnsafeFunction}
+	 * @return result
+	 * @throws T1 If thrown by {@link UnsafeFunction#apply(Object)}
+	 */
+	public static &lt;T, R, T1 extends Exception&gt; R checked(Class&lt;T1&gt; expectedExceptionClass, T argument,
+			UnsafeFunction&lt;T, R&gt; function) throws T1 {
+		try {
+<span class="fc" id="L947">			return function.apply(argument);</span>
+<span class="fc" id="L948">		} catch (Throwable e) {</span>
+<span class="fc" id="L949">			throw checked(e, expectedExceptionClass);</span>
+		}
+	}
+
+	/**
+	 * Gracefully applies an {@link UnsafeFunction}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;                     argument type
+	 * @param &lt;R&gt;                     result type
+	 * @param &lt;T1&gt;                    Expected exception type
+	 * @param &lt;T2&gt;                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param argument                Argument to
+	 *                                {@link UnsafeFunction#apply(Object)}
+	 * @param function                Any {@link UnsafeFunction}
+	 * @return result
+	 * @throws T1 If thrown by {@link UnsafeFunction#apply(Object)}
+	 * @throws T2 If thrown by {@link UnsafeFunction#apply(Object)}
+	 */
+	public static &lt;T, R, T1 extends Exception, T2 extends Exception&gt; R checked(Class&lt;T1&gt; expectedExceptionClass1,
+			Class&lt;T2&gt; expectedExceptionClass2, T argument, UnsafeFunction&lt;T, R&gt; function) throws T1, T2 {
+		try {
+<span class="fc" id="L977">			return function.apply(argument);</span>
+<span class="fc" id="L978">		} catch (Throwable e) {</span>
+<span class="fc" id="L979">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
+		}
+	}
+
+	/**
+	 * Gracefully applies an {@link UnsafeFunction}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;                     argument type
+	 * @param &lt;R&gt;                     result type
+	 * @param &lt;T1&gt;                    Expected exception type
+	 * @param &lt;T2&gt;                    Expected exception type
+	 * @param &lt;T3&gt;                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param expectedExceptionClass3 Expected exception class
+	 * @param argument                Argument to
+	 *                                {@link UnsafeFunction#apply(Object)}
+	 * @param function                Any {@link UnsafeFunction}
+	 * @return result
+	 * @throws T1 If thrown by {@link UnsafeFunction#apply(Object)}
+	 * @throws T2 If thrown by {@link UnsafeFunction#apply(Object)}
+	 * @throws T3 If thrown by {@link UnsafeFunction#apply(Object)}
+	 */
+	public static &lt;T, R, T1 extends Exception, T2 extends Exception, T3 extends Exception&gt; R checked(
+			Class&lt;T1&gt; expectedExceptionClass1, Class&lt;T2&gt; expectedExceptionClass2, Class&lt;T3&gt; expectedExceptionClass3,
+			T argument, UnsafeFunction&lt;T, R&gt; function) throws T1, T2, T3 {
+		try {
+<span class="fc" id="L1011">			return function.apply(argument);</span>
+<span class="fc" id="L1012">		} catch (Throwable e) {</span>
+<span class="fc" id="L1013">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
+		}
+	}
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #unchecked(Throwable)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;            first argument type
+	 * @param &lt;U&gt;            second argument type
+	 * 
+	 * @param firstArgument  First argument for
+	 *                       {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param secondArgument Second argument for
+	 *                       {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param consumer       Any {@link UnsafeBiConsumer}
+	 */
+	public static &lt;T, U&gt; void unchecked(T firstArgument, U secondArgument, UnsafeBiConsumer&lt;T, U&gt; consumer) {
+		try {
+<span class="fc" id="L1035">			consumer.accept(firstArgument, secondArgument);</span>
+<span class="fc" id="L1036">		} catch (Throwable e) {</span>
+<span class="fc" id="L1037">			throw unchecked(e);</span>
+<span class="fc" id="L1038">		}</span>
+<span class="fc" id="L1039">	}</span>
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;            first argument type
+	 * @param &lt;U&gt;            second argument type
+	 * 
+	 * @param firstArgument  Argument for
+	 *                       {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param secondArgument Second argument for
+	 *                       {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param consumer       Any {@link UnsafeBiConsumer}
+	 * @throws Exception If thrown by {@link UnsafeBiConsumer#accept(Object,Object)}
+	 */
+	public static &lt;T, U&gt; void checked(T firstArgument, U secondArgument, UnsafeBiConsumer&lt;T, U&gt; consumer)
+			throws Exception {
+		try {
+<span class="fc" id="L1061">			consumer.accept(firstArgument, secondArgument);</span>
+<span class="fc" id="L1062">		} catch (Throwable e) {</span>
+<span class="fc" id="L1063">			throw checked(e);</span>
+<span class="fc" id="L1064">		}</span>
+<span class="fc" id="L1065">	}</span>
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;                    first argument type
+	 * @param &lt;U&gt;                    second argument type
+	 * @param &lt;T1&gt;                   Expected exception type
+	 * 
+	 * @param expectedExceptionClass Expected exception class
+	 * @param firstArgument          Argument for
+	 *                               {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param secondArgument         Second argument for
+	 *                               {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param consumer               Any {@link UnsafeBiConsumer}
+	 * 
+	 * @throws T1 If thrown by {@link UnsafeBiConsumer#accept(Object,Object)}
+	 */
+	public static &lt;T, U, T1 extends Exception&gt; void checked(Class&lt;T1&gt; expectedExceptionClass, T firstArgument,
+			U secondArgument, UnsafeBiConsumer&lt;T, U&gt; consumer) throws T1 {
+		try {
+<span class="fc" id="L1090">			consumer.accept(firstArgument, secondArgument);</span>
+<span class="fc" id="L1091">		} catch (Throwable e) {</span>
+<span class="fc" id="L1092">			throw checked(e, expectedExceptionClass);</span>
+<span class="fc" id="L1093">		}</span>
+<span class="fc" id="L1094">	}</span>
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;                     first argument type
+	 * @param &lt;U&gt;                     second argument type
+	 * @param &lt;T1&gt;                    Expected exception type
+	 * @param &lt;T2&gt;                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param firstArgument           Argument for
+	 *                                {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param secondArgument          Second argument for
+	 *                                {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param consumer                Any {@link UnsafeBiConsumer}
+	 * 
+	 * @throws T1 If thrown by {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @throws T2 If thrown by {@link UnsafeBiConsumer#accept(Object,Object)}
+	 */
+	public static &lt;T, U, T1 extends Exception, T2 extends Exception&gt; void checked(Class&lt;T1&gt; expectedExceptionClass1,
+			Class&lt;T2&gt; expectedExceptionClass2, T firstArgument, U secondArgument, UnsafeBiConsumer&lt;T, U&gt; consumer)
+			throws T1, T2 {
+		try {
+<span class="fc" id="L1123">			consumer.accept(firstArgument, secondArgument);</span>
+<span class="fc" id="L1124">		} catch (Throwable e) {</span>
+<span class="fc" id="L1125">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
+<span class="fc" id="L1126">		}</span>
+<span class="fc" id="L1127">	}</span>
+
+	/**
+	 * Gracefully supplies a value to an {@link UnsafeBiConsumer}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;                     first argument type
+	 * @param &lt;U&gt;                     second argument type
+	 * @param &lt;T1&gt;                    Expected exception type
+	 * @param &lt;T2&gt;                    Expected exception type
+	 * @param &lt;T3&gt;                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param expectedExceptionClass3 Expected exception class
+	 * @param firstArgument           Argument for
+	 *                                {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param secondArgument          Second argument for
+	 *                                {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @param consumer                Any {@link UnsafeBiConsumer}
+	 * 
+	 * @throws T1 If thrown by {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @throws T2 If thrown by {@link UnsafeBiConsumer#accept(Object,Object)}
+	 * @throws T3 If thrown by {@link UnsafeBiConsumer#accept(Object,Object)}
+	 */
+	public static &lt;T, U, T1 extends Exception, T2 extends Exception, T3 extends Exception&gt; void checked(
+			Class&lt;T1&gt; expectedExceptionClass1, Class&lt;T2&gt; expectedExceptionClass2, Class&lt;T3&gt; expectedExceptionClass3,
+			T firstArgument, U secondArgument, UnsafeBiConsumer&lt;T, U&gt; consumer) throws T1, T2, T3 {
+		try {
+<span class="fc" id="L1159">			consumer.accept(firstArgument, secondArgument);</span>
+<span class="fc" id="L1160">		} catch (Throwable e) {</span>
+<span class="fc" id="L1161">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
+<span class="fc" id="L1162">		}</span>
+<span class="fc" id="L1163">	}</span>
+
+	/**
+	 * Gracefully applies an {@link UnsafeBiFunction}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #unchecked(Throwable)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;            first argument type
+	 * @param &lt;U&gt;            second argument type
+	 * @param &lt;R&gt;            result type
+	 * 
+	 * @param firstArgument  First argument to
+	 *                       {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param secondArgument Second argument to
+	 *                       {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param function       Any {@link UnsafeFunction}
+	 * @return result
+	 */
+	public static &lt;T, U, R&gt; R unchecked(T firstArgument, U secondArgument, UnsafeBiFunction&lt;T, U, R&gt; function) {
+		try {
+<span class="fc" id="L1185">			return function.apply(firstArgument, secondArgument);</span>
+<span class="fc" id="L1186">		} catch (Throwable e) {</span>
+<span class="fc" id="L1187">			throw unchecked(e);</span>
+		}
+	}
+
+	/**
+	 * Gracefully applies an {@link UnsafeBiFunction}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;            first argument type
+	 * @param &lt;U&gt;            second argument type
+	 * @param &lt;R&gt;            result type
+	 * 
+	 * @param firstArgument  First argument to
+	 *                       {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param secondArgument Second argument to
+	 *                       {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param function       Any {@link UnsafeBiFunction}
+	 * @return result
+	 * @throws Exception If thrown by {@link UnsafeBiFunction#apply(Object, Object)}
+	 */
+	public static &lt;T, U, R&gt; R checked(T firstArgument, U secondArgument, UnsafeBiFunction&lt;T, U, R&gt; function)
+			throws Exception {
+		try {
+<span class="fc" id="L1213">			return function.apply(firstArgument, secondArgument);</span>
+<span class="fc" id="L1214">		} catch (Throwable e) {</span>
+<span class="fc" id="L1215">			throw checked(e);</span>
+		}
+	}
+
+	/**
+	 * Gracefully applies an {@link UnsafeBiFunction}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;                    first argument type
+	 * @param &lt;U&gt;                    second argument type
+	 * @param &lt;R&gt;                    result type
+	 * @param &lt;T1&gt;                   Expected exception type
+	 * 
+	 * @param expectedExceptionClass Expected exception class
+	 * @param firstArgument          First argument to
+	 *                               {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param secondArgument         Second argument to
+	 *                               {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param function               Any {@link UnsafeBiFunction}
+	 * @return result
+	 * @throws T1 If thrown by {@link UnsafeBiFunction#apply(Object, Object)}
+	 */
+	public static &lt;T, U, R, T1 extends Exception&gt; R checked(Class&lt;T1&gt; expectedExceptionClass, T firstArgument,
+			U secondArgument, UnsafeBiFunction&lt;T, U, R&gt; function) throws T1 {
+		try {
+<span class="fc" id="L1243">			return function.apply(firstArgument, secondArgument);</span>
+<span class="fc" id="L1244">		} catch (Throwable e) {</span>
+<span class="fc" id="L1245">			throw checked(e, expectedExceptionClass);</span>
+		}
+	}
+
+	/**
+	 * Gracefully applies an {@link UnsafeBiFunction}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;                     first argument type
+	 * @param &lt;U&gt;                     second argument type
+	 * @param &lt;R&gt;                     result type
+	 * @param &lt;T1&gt;                    Expected exception type
+	 * @param &lt;T2&gt;                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param firstArgument           First argument to
+	 *                                {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param secondArgument          Second argument to
+	 *                                {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param function                Any {@link UnsafeBiFunction}
+	 * @return result
+	 * @throws T1 If thrown by {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @throws T2 If thrown by {@link UnsafeBiFunction#apply(Object, Object)}
+	 */
+	public static &lt;T, U, R, T1 extends Exception, T2 extends Exception&gt; R checked(Class&lt;T1&gt; expectedExceptionClass1,
+			Class&lt;T2&gt; expectedExceptionClass2, T firstArgument, U secondArgument, UnsafeBiFunction&lt;T, U, R&gt; function)
+			throws T1, T2 {
+		try {
+<span class="fc" id="L1277">			return function.apply(firstArgument, secondArgument);</span>
+<span class="fc" id="L1278">		} catch (Throwable e) {</span>
+<span class="fc" id="L1279">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2);</span>
+		}
+	}
+
+	/**
+	 * Gracefully applies an {@link UnsafeBiFunction}.
+	 * 
+	 * &lt;p&gt;
+	 * Handles exceptions via {@link #checked(Throwable, Class, Class, Class)}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;                     first argument type
+	 * @param &lt;U&gt;                     second argument type
+	 * @param &lt;R&gt;                     result type
+	 * @param &lt;T1&gt;                    Expected exception type
+	 * @param &lt;T2&gt;                    Expected exception type
+	 * @param &lt;T3&gt;                    Expected exception type
+	 * 
+	 * @param expectedExceptionClass1 Expected exception class
+	 * @param expectedExceptionClass2 Expected exception class
+	 * @param expectedExceptionClass3 Expected exception class
+	 * @param firstArgument           First argument to
+	 *                                {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param secondArgument          Second argument to
+	 *                                {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @param function                Any {@link UnsafeBiFunction}
+	 * @return result
+	 * @throws T1 If thrown by {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @throws T2 If thrown by {@link UnsafeBiFunction#apply(Object, Object)}
+	 * @throws T3 If thrown by {@link UnsafeBiFunction#apply(Object, Object)}
+	 */
+	public static &lt;T, U, R, T1 extends Exception, T2 extends Exception, T3 extends Exception&gt; R checked(
+			Class&lt;T1&gt; expectedExceptionClass1, Class&lt;T2&gt; expectedExceptionClass2, Class&lt;T3&gt; expectedExceptionClass3,
+			T firstArgument, U secondArgument, UnsafeBiFunction&lt;T, U, R&gt; function) throws T1, T2, T3 {
+		try {
+<span class="fc" id="L1314">			return function.apply(firstArgument, secondArgument);</span>
+<span class="fc" id="L1315">		} catch (Throwable e) {</span>
+<span class="fc" id="L1316">			throw checked(e, expectedExceptionClass1, expectedExceptionClass2, expectedExceptionClass3);</span>
+		}
+	}
+
+	/**
+	 * Gracefully initializes a component that depends on an {@link AutoCloseable}
+	 * resource, {@link AutoCloseable#close() closing} the resource and suppressing
+	 * any close errors before rethrowing a checked exception if the component fails
+	 * to initialize.
+	 * 
+	 * &lt;p&gt;
+	 * If no exception or error is thrown by {@code initializer}, then the resource
+	 * remains open, and becomes the responsibility of the initialized component to
+	 * close when finished with it.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;         {@link AutoCloseable} resource type
+	 * @param &lt;R&gt;         {@link UnsafeFunction} dependent component type
+	 * 
+	 * @param resource    Open resource
+	 * @param initializer {@link UnsafeFunction} for initializing the resource
+	 * @return {@code resource}, after successfully invoking
+	 *         {@code initializationConsumer}
+	 * @throws Exception If thrown from by {@code initializationConsumer}
+	 */
+	public static &lt;T extends AutoCloseable, R&gt; R initialize(T resource, UnsafeFunction&lt;T, R&gt; initializer)
+			throws Exception {
+		try {
+<span class="fc" id="L1344">			return initializer.apply(resource);</span>
+<span class="fc" id="L1345">		} catch (Throwable e) {</span>
+<span class="fc" id="L1346">			suppress(e, resource::close);</span>
+<span class="fc" id="L1347">			throw checked(e);</span>
+		}
+	}
+
+	/**
+	 * Runs an {@link UnsafeRunnable} and adds any exception thrown as suppressed by
+	 * an another exception.
+	 * 
+	 * &lt;p&gt;
+	 * This is useful for adding clean-up tasks to error handling routines related
+	 * to failed initialization of closeable resources.
+	 * &lt;/p&gt;
+	 * 
+	 * @param throwable Throwable that will
+	 *                  {@link Throwable#addSuppressed(Throwable) suppress}
+	 *                  exceptions thrown from {@code runnable}.
+	 * @param runnable  {@link UnsafeRunnable}; will be run, and any exceptions
+	 *                  thrown will be suppressed by {@code throwable}
+	 * @return throwable if non-null; the exception thrown from runnable or null if
+	 *         no exception was thrown
+	 */
+	public static Throwable suppress(Throwable throwable, UnsafeRunnable runnable) {
+		try {
+<span class="fc" id="L1370">			runnable.run();</span>
+<span class="fc" id="L1371">		} catch (Throwable e) {</span>
+<span class="fc bfc" id="L1372" title="All 2 branches covered.">			if (throwable == null)</span>
+<span class="fc" id="L1373">				throwable = e;</span>
+			else
+<span class="fc" id="L1375">				throwable.addSuppressed(e);</span>
+<span class="fc" id="L1376">		}</span>
+<span class="fc" id="L1377">		return throwable;</span>
+	}
+
+	/**
+	 * Runs a sequence of tasks with error suppression.
+	 * 
+	 * &lt;p&gt;
+	 * All tasks are guaranteed to run, but not guaranteed to finish. After all
+	 * tasks have run, the first error encountered will be thrown; all additional
+	 * errors will be suppressed.
+	 * &lt;/p&gt;
+	 * 
+	 * @param tasks tasks to run
+	 * @throws Throwable from the first task the fails in error
+	 */
+	public static void suppress(UnsafeRunnable... tasks) throws Throwable {
+<span class="fc" id="L1393">		suppress(IuIterable.iter(tasks));</span>
+<span class="fc" id="L1394">	}</span>
+
+	/**
+	 * Runs a sequence of tasks with error suppression.
+	 * 
+	 * &lt;p&gt;
+	 * All tasks are guaranteed to run, but not guaranteed to finish. After all
+	 * tasks have run, the first error encountered will be thrown; all additional
+	 * errors will be suppressed.
+	 * &lt;/p&gt;
+	 * 
+	 * @param tasks tasks to run
+	 * @throws Throwable from the first task the fails in error
+	 */
+	public static void suppress(Iterable&lt;UnsafeRunnable&gt; tasks) throws Throwable {
+<span class="fc" id="L1409">		Throwable e = null;</span>
+<span class="fc bfc" id="L1410" title="All 2 branches covered.">		for (final var task : tasks)</span>
+<span class="fc" id="L1411">			e = suppress(e, task);</span>
+<span class="fc bfc" id="L1412" title="All 2 branches covered.">		if (e != null)</span>
+<span class="fc" id="L1413">			throw e;</span>
+<span class="fc" id="L1414">	}</span>
+
+	/**
+	 * Gets a stack trace from a {@link Throwable} as a {@link String}.
+	 * 
+	 * @param e {@link Throwable}
+	 * @return {@link String} representation of the stack trace.
+	 */
+	public static String trace(Throwable e) {
+<span class="fc" id="L1423">		final var w = new StringWriter();</span>
+<span class="fc" id="L1424">		try (final var pw = new PrintWriter(w)) {</span>
+<span class="fc" id="L1425">			e.printStackTrace(pw);</span>
+		}
+<span class="fc" id="L1427">		return w.toString();</span>
+	}
+
+	private IuException() {
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
