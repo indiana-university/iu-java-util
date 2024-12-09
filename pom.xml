@@ -57,7 +57,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<argLine>-ea --add-modules ALL-MODULE-PATH -XX:+EnableDynamicAgentLoading</argLine>
 
-		<iu-java-util.version>7.0.5-SNAPSHOT</iu-java-util.version>
+		<iu-java-util.version>7.0.6-SNAPSHOT</iu-java-util.version>
 
 		<jakarta.annotation-api.version>3.0.0</jakarta.annotation-api.version>
 		<jakarta.interceptor-api.version>2.2.0</jakarta.interceptor-api.version>
@@ -483,6 +483,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>jdbc</module>
 				<module>type</module>
 				<module>auth</module>
+				<module>logging</module>
 				<module>site</module>
 			</modules>
 		</profile>
