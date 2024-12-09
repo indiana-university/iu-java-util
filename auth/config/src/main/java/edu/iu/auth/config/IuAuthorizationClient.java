@@ -62,7 +62,7 @@ public interface IuAuthorizationClient {
 		 *             discourage direct use by enterprise applications.
 		 */
 		@Deprecated
-		BASIC("basic", Duration.ofDays(45L), true),
+		BASIC("basic", Duration.ofDays(120L), true),
 
 		/**
 		 * Direct use of an access token via Authorization Bearer header.
@@ -82,7 +82,7 @@ public interface IuAuthorizationClient {
 		 *             applications.
 		 */
 		@Deprecated
-		CLIENT_SECRET_BASIC("client_secret_basic", Duration.ofDays(45L), true),
+		CLIENT_SECRET_BASIC("client_secret_basic", Duration.ofDays(120L), true),
 
 		/**
 		 * Bearer token w/ use of client secret as password at token endpoint via POST
@@ -96,7 +96,7 @@ public interface IuAuthorizationClient {
 		 *             applications.
 		 */
 		@Deprecated
-		CLIENT_SECRET_POST("client_secret_post", Duration.ofDays(45L), true),
+		CLIENT_SECRET_POST("client_secret_post", Duration.ofDays(120L), true),
 
 		/**
 		 * Bearer token w/ use of client secret as HMAC key for signing a JWT assertion.

@@ -69,6 +69,9 @@ class Session implements IuSession {
 
 	/** Session details */
 	private Map<String, Map<String, JsonValue>> details;
+	
+	/** strict mode */
+	private boolean strict = true;
 
 	/**
 	 * New session constructor.
@@ -178,11 +181,26 @@ class Session implements IuSession {
 	public URI getResourceUri() {
 		return resourceUri;
 	}
-
+	
 	@Override
 	public String toString() {
 		return "Session [resourceUri=" + resourceUri + ", expires=" + expires + ", changed=" + changed + ", details="
 				+ details + "]";
+	}
+
+
+	/**
+	 * Gets strict 
+	 * @return strict mode
+	 */
+	public boolean isStrict() {
+		return strict;
+	}
+
+	@Override
+	public void setStrict(boolean strict) {
+		this.changed = true;
+		this.strict = strict;
 	}
 
 }
