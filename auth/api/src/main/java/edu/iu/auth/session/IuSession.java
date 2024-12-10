@@ -64,9 +64,16 @@ public interface IuSession {
 	}
 	
 	/**
+	 * Set strict mode
+	 * @param strict strict mode
+	 */
+	void setStrict(boolean strict);
+	
+	/**
 	 * Get resource URI
 	 * 
 	 * @return resource URI
 	 */
 	URI getResourceUri();
+
 }
