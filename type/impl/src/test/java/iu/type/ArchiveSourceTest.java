@@ -159,15 +159,17 @@ public class ArchiveSourceTest extends IuTypeTestCase {
 		ArchiveSource empty = read(createJar(Map.of()));
 		assertFalse(empty.classPath().iterator().hasNext());
 
-		ArchiveSource source = new ArchiveSource(
-				Files.newInputStream(Path.of(IuTest.getProperty("testruntime.archive"))));
-		assertEquals(List.of(
-				"META-INF/lib/jakarta.interceptor-api-" + IuTest.getProperty("jakarta.interceptor-api.version")
-						+ ".jar",
-				"META-INF/lib/jakarta.annotation-api-" + IuTest.getProperty("jakarta.annotation-api.version") + ".jar",
-				"META-INF/lib/jakarta.json-api-" + IuTest.getProperty("jakarta.json-api.version") + ".jar",
-				"META-INF/lib/commons-lang-2.6.jar", "META-INF/lib/jakarta.ejb-api-4.0.0.jar",
-				"META-INF/lib/jakarta.transaction-api-2.0.0.jar"), source.classPath());
+		try (final var source = new ArchiveSource(
+				Files.newInputStream(Path.of(IuTest.getProperty("testruntime.archive"))))) {
+			assertEquals(List.of(
+					"META-INF/lib/jakarta.interceptor-api-" + IuTest.getProperty("jakarta.interceptor-api.version")
+							+ ".jar",
+					"META-INF/lib/jakarta.annotation-api-" + IuTest.getProperty("jakarta.annotation-api.version")
+							+ ".jar",
+					"META-INF/lib/jakarta.json-api-" + IuTest.getProperty("jakarta.json-api.version") + ".jar",
+					"META-INF/lib/commons-lang-2.6.jar", "META-INF/lib/jakarta.ejb-api-4.0.0.jar",
+					"META-INF/lib/jakarta.transaction-api-2.0.0.jar"), source.classPath());
+		}
 	}
 
 	@Test

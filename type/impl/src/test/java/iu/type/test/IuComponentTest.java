@@ -40,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
-import java.net.URL;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
@@ -54,6 +54,7 @@ import java.util.logging.Level;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 
@@ -80,7 +81,7 @@ public class IuComponentTest extends IuTypeTestCase {
 
 	@Test
 	public void testMustProvideNonBundledDependencies() {
-		assertEquals("Not all depdendencies were met, missing [parsson-1.1+]",
+		assertEquals("Not all dependencies were met, missing [parsson-1.1+]",
 				assertThrows(IllegalArgumentException.class,
 						() -> IuComponent.of(TestArchives.getComponentArchive("testruntime"))).getMessage());
 	}
@@ -101,7 +102,7 @@ public class IuComponentTest extends IuTypeTestCase {
 	public void testLoadsRuntime() throws Exception {
 		var publicUrlThatWorksAndReturnsJson = "https://idp-stg.login.iu.edu/.well-known/openid-configuration";
 		String expected;
-		try (InputStream in = new URL(publicUrlThatWorksAndReturnsJson).openStream()) {
+		try (InputStream in = URI.create(publicUrlThatWorksAndReturnsJson).toURL().openStream()) {
 			expected = new String(in.readAllBytes());
 		} catch (Throwable e) {
 			e.printStackTrace();
@@ -145,10 +146,18 @@ public class IuComponentTest extends IuTypeTestCase {
 	}
 
 	@Test
+	public void testRejectsLegacy() throws Exception {
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> IuComponent.of(TestArchives.getComponentArchive("testlegacy")));
+		assertEquals("First component must be a module", error.getMessage());
+	}
+
+	@Disabled
+	@Test
 	public void testLoadsLegacy() throws Exception {
 		var publicUrlThatWorksAndReturnsJson = "https://idp-stg.login.iu.edu/.well-known/openid-configuration";
 		String expected;
-		try (InputStream in = new URL(publicUrlThatWorksAndReturnsJson).openStream()) {
+		try (InputStream in = URI.create(publicUrlThatWorksAndReturnsJson).toURL().openStream()) {
 			expected = new String(in.readAllBytes());
 		} catch (Throwable e) {
 			e.printStackTrace();
@@ -233,13 +242,16 @@ public class IuComponentTest extends IuTypeTestCase {
 				}
 			assertTrue(found);
 
-			var resources = component.resources().iterator();
-			assertTrue(resources.hasNext());
-			var resource = resources.next();
-			assertEquals("testResource", resource.name());
-			// TODO: STARCH-653 Implement @AroundConstruct
-			assertThrows(UnsupportedOperationException.class, resource::get);
-			assertFalse(resources.hasNext());
+			final Set<String> expected = new HashSet<>(Set.of("urlReader", "priorityResource", "testResource"));
+			for (final var resource : component.resources()) {
+				final var name = resource.name();
+				assertTrue(expected.remove(name), () -> name + " " + expected);
+				if (name.equals("testResource")) {
+					// TODO: STARCH-653 Implement @AroundConstruct
+					assertThrows(UnsupportedOperationException.class, resource::get);
+				}
+			}
+			assertTrue(expected.isEmpty(), expected::toString);
 
 			final var target = component.classLoader().loadClass("edu.iu.type.testcomponent.TestBean");
 			final var view = IuComponent.scan(target);
@@ -268,15 +280,23 @@ public class IuComponentTest extends IuTypeTestCase {
 			assertTrue(interfaces.hasNext());
 			assertSame(testRuntime, interfaces.next().erasedClass());
 
-			var expectedResources = new HashSet<>(Set.of("index.html", "WEB-INF/web.xml"));
+			final var annotated = component.annotatedTypes(Resource.class);
+			assertTrue(annotated.iterator().hasNext());
+			assertEquals("edu.iu.type.testruntime.UrlReader", annotated.iterator().next().autoboxClass().getName());
+
+			var expectedResources = new HashSet<>(Set.of("urlReader", "index.html", "WEB-INF/web.xml"));
 			for (final var r : component.resources()) {
-				assertInstanceOf(byte[].class, r.get());
+				if (r.name().equals("urlReader"))
+					assertEquals("edu.iu.type.testruntime.UrlReader", r.type().autoboxClass().getName());
+				else
+					assertInstanceOf(byte[].class, r.get());
 				assertTrue(expectedResources.remove(r.name()));
 			}
 			assertTrue(expectedResources.isEmpty(), expectedResources::toString);
 		}
 	}
 
+	@Disabled
 	@Test
 	public void testLoadsLegacyWar() throws Exception {
 		try (var parent = IuComponent.of(TestArchives.getComponentArchive("testlegacy"));

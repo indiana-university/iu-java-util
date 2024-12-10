@@ -29,58 +29,13 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type;
+package edu.iu.type.testcomponent;
 
-import java.net.URL;
-import java.net.URLClassLoader;
+import jakarta.annotation.Priority;
+import jakarta.annotation.Resource;
 
-import edu.iu.IuObject;
-import edu.iu.type.IuComponent.Kind;
-
-/**
- * Class loader for {@link Kind#isModular() legacy} components.
- */
-class LegacyClassLoader extends URLClassLoader {
-
-	private final boolean web;
-
-	/**
-	 * Constructor for use by {@link ComponentFactory}
-	 * 
-	 * @param web       true for <a href=
-	 *                  "https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader">web
-	 *                  classloading semantics</a>; false for normal parent
-	 *                  delegation semantics
-	 * @param classpath class path URLs
-	 * @param parent    parent class loader
-	 */
-	LegacyClassLoader(boolean web, URL[] classpath, ClassLoader parent) {
-		super(classpath, parent);
-		this.web = web;
-	}
-
-	@Override
-	protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-		if (!web || IuObject.isPlatformName(name))
-			return super.loadClass(name, resolve);
-
-		synchronized (getClassLoadingLock(name)) {
-			Class<?> rv = this.findLoadedClass(name);
-			if (rv != null)
-				return rv;
-
-			try {
-				rv = findClass(name);
-				if (resolve)
-					resolveClass(rv);
-				return rv;
-			} catch (ClassNotFoundException e) {
-				// will attempt throw again when called from
-				// super.loadClass if also not found in parent
-			}
-
-			return super.loadClass(name, resolve);
-		}
-	}
-
+@Resource
+@Priority(34)
+@SuppressWarnings("javadoc")
+public class PriorityResource {
 }

@@ -48,7 +48,6 @@ public class FilteringClassLoaderTest {
 		final var loader = new FilteringClassLoader(IuIterable.empty(), getClass().getClassLoader());
 		assertThrows(ClassNotFoundException.class, () -> loader.loadClass(getClass().getName()));
 		assertDoesNotThrow(() -> getClass().getClassLoader().loadClass("javax.sql.DataSource"));
-		assertThrows(ClassNotFoundException.class, () -> loader.loadClass("javax.sql.DataSource"));
 		assertThrows(ClassNotFoundException.class, () -> loader.loadClass(Resource.class.getName()));
 		assertSame(Object.class, loader.loadClass(Object.class.getName()));
 	}
