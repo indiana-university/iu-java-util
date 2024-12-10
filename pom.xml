@@ -484,6 +484,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>type</module>
 				<module>auth</module>
 				<module>site</module>
+				<module>redis</module>
 			</modules>
 		</profile>
 		<profile>
