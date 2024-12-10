@@ -46,21 +46,52 @@ public class BootstrapTest {
 	}
 
 	@Test
-	public void testInit() {
-		final var root = mock(Logger.class);
-		when(root.getHandlers()).thenReturn(new Handler[] { new ConsoleHandler() });
+	public void testInitNoConfig() {
+		System.setProperty("iu.config", "target/" + IdGenerator.generateId());
+		try {
+			final var root = mock(Logger.class);
+			when(root.getHandlers()).thenReturn(new Handler[] { new ConsoleHandler() });
 
-		final var logManager = mock(LogManager.class);
-		when(logManager.getLogger("")).thenReturn(root);
+			final var logManager = mock(LogManager.class);
+			when(logManager.getLogger("")).thenReturn(root);
 
-		try (final var mockLogManager = mockStatic(LogManager.class)) {
-			mockLogManager.when(() -> LogManager.getLogManager()).thenReturn(logManager);
-			Bootstrap.init(ClassLoader.getSystemClassLoader());
+			try (final var mockLogManager = mockStatic(LogManager.class)) {
+				mockLogManager.when(() -> LogManager.getLogManager()).thenReturn(logManager);
+				Bootstrap.init(ClassLoader.getSystemClassLoader());
 
-			verify(root).addHandler(Bootstrap.HANDLER);
-			verify(root).config("IU Logging Bootstrap initialized " + Bootstrap.HANDLER + " DefaultLogContext [nodeId="
-					+ nodeId + ", endpoint=" + endpoint + ", application=" + application + ", environment="
-					+ environment + "]; context: " + ClassLoader.getSystemClassLoader());
+				verify(root).addHandler(Bootstrap.HANDLER);
+				verify(root)
+						.config("IU Logging Bootstrap initialized " + Bootstrap.HANDLER + " DefaultLogContext [nodeId="
+								+ nodeId + ", endpoint=" + endpoint + ", application=" + application + ", environment="
+								+ environment + "]; context: " + ClassLoader.getSystemClassLoader());
+			}
+		} finally {
+			System.clearProperty("iu.config");
+		}
+	}
+
+	@Test
+	public void testInitWithConfig() {
+		System.setProperty("iu.config", "target/test-classes");
+		try {
+			final var root = mock(Logger.class);
+			when(root.getHandlers()).thenReturn(new Handler[] { new ConsoleHandler() });
+
+			final var logManager = mock(LogManager.class);
+			when(logManager.getLogger("")).thenReturn(root);
+
+			try (final var mockLogManager = mockStatic(LogManager.class)) {
+				mockLogManager.when(() -> LogManager.getLogManager()).thenReturn(logManager);
+				Bootstrap.init(ClassLoader.getSystemClassLoader());
+
+				verify(root).addHandler(Bootstrap.HANDLER);
+				verify(root)
+						.config("IU Logging Bootstrap initialized " + Bootstrap.HANDLER + " DefaultLogContext [nodeId="
+								+ nodeId + ", endpoint=" + endpoint + ", application=" + application + ", environment="
+								+ environment + "]; context: " + ClassLoader.getSystemClassLoader());
+			}
+		} finally {
+			System.clearProperty("iu.config");
 		}
 	}
 

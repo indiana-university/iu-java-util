@@ -2,10 +2,10 @@ package iu.logging.internal;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Deque;
 import java.util.Map;
+import java.util.Queue;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
@@ -22,7 +22,7 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 
 	private static volatile int c = 0;
 
-	private final Deque<IuLogEvent> logEvents = new ConcurrentLinkedDeque<>();
+	private final Queue<IuLogEvent> logEvents = new ConcurrentLinkedQueue<>();
 	private final IuAsynchronousSubject<IuLogEvent> subject = new IuAsynchronousSubject<>(logEvents::spliterator);
 
 	private final int maxEvents;
@@ -144,7 +144,7 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 
 		{ // First purge from tail based on eventTtl
 			final var notBefore = now.minus(eventTtl);
-			final var iterator = logEvents.descendingIterator();
+			final var iterator = logEvents.iterator();
 			while (iterator.hasNext())
 				if (iterator.next().getTimestamp().isBefore(notBefore))
 					iterator.remove();
@@ -170,7 +170,7 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 			}
 		}
 
-		final var iterator = logEvents.descendingIterator();
+		final var iterator = logEvents.iterator();
 		while (toPurge > 0)
 			if (iterator.next().getLevel().intValue() < level.intValue()) {
 				iterator.remove();
@@ -188,7 +188,7 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 
 		final var event = new IuLogEvent(record);
 		IuProcessLogger.trace(() -> event.getMessage());
-		logEvents.push(event);
+		logEvents.offer(event);
 		subject.accept(event);
 
 		if (logEvents.size() >= maxEvents)

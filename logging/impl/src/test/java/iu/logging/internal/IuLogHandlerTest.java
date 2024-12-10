@@ -14,7 +14,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.Queue;
 import java.util.Spliterator;
 import java.util.function.Supplier;
 import java.util.logging.Level;
@@ -30,14 +30,18 @@ import iu.logging.IuProcessLogger;
 @SuppressWarnings("javadoc")
 public class IuLogHandlerTest {
 
+	private static ByteArrayOutputStream OUT = new ByteArrayOutputStream();
 	private static ByteArrayOutputStream ERR = new ByteArrayOutputStream();
+
 	static {
 		mockStatic(Files.class).close();
+		System.setOut(new PrintStream(OUT));
 		System.setErr(new PrintStream(ERR));
 	}
 
 	@BeforeEach
 	public void setup() {
+		OUT.reset();
 		ERR.reset();
 	}
 
@@ -91,22 +95,22 @@ public class IuLogHandlerTest {
 				final var mockBootstrap = mockStatic(Bootstrap.class); //
 				final var logHandler = new IuLogHandler()) {
 			mockBootstrap.when(() -> Bootstrap.getDefaultContext()).thenReturn(context);
-			final Deque<String> control = new ArrayDeque<>();
+			final Queue<String> control = new ArrayDeque<>();
 			for (var i = 0; i < 2; i++) {
 				final var msg = IdGenerator.generateId();
-				control.addFirst(msg);
+				control.offer(msg);
 				logHandler.publish(new LogRecord(Level.INFO, msg));
 			}
 			for (var i = 0; i < 10; i++) {
 				final var msg = IdGenerator.generateId();
 				if (i > 6)
-					control.addFirst(msg);
+					control.offer(msg);
 				logHandler.publish(new LogRecord(Level.FINE, msg));
 			}
 			assertDoesNotThrow(() -> Thread.sleep(200L));
 
 			try (final var sub = logHandler.subscribe()) {
-				final Deque<String> collected = new ArrayDeque<>();
+				final Queue<String> collected = new ArrayDeque<>();
 				final var stream = sub.stream().spliterator();
 				Spliterator<IuLogEvent> split;
 				while ((split = stream.trySplit()) != null)
@@ -127,7 +131,7 @@ public class IuLogHandlerTest {
 				final var mockBootstrap = mockStatic(Bootstrap.class); //
 				final var logHandler = new IuLogHandler()) {
 			mockBootstrap.when(() -> Bootstrap.getDefaultContext()).thenReturn(context);
-			final Deque<String> control = new ArrayDeque<>();
+			final Queue<String> control = new ArrayDeque<>();
 			for (var i = 0; i < 10; i++) {
 				final var msg = IdGenerator.generateId();
 				logHandler.publish(new LogRecord(Level.INFO, msg));
@@ -135,13 +139,13 @@ public class IuLogHandlerTest {
 			assertDoesNotThrow(() -> Thread.sleep(1000L));
 			for (var i = 0; i < 10; i++) {
 				final var msg = IdGenerator.generateId();
-				control.addFirst(msg);
+				control.offer(msg);
 				logHandler.publish(new LogRecord(Level.INFO, msg));
 			}
 			assertDoesNotThrow(() -> Thread.sleep(1000L));
 
 			try (final var sub = logHandler.subscribe()) {
-				final Deque<String> collected = new ArrayDeque<>();
+				final Queue<String> collected = new ArrayDeque<>();
 				final var stream = sub.stream().spliterator();
 				Spliterator<IuLogEvent> split;
 				while ((split = stream.trySplit()) != null)
@@ -162,28 +166,34 @@ public class IuLogHandlerTest {
 				final var mockBootstrap = mockStatic(Bootstrap.class); //
 				final var logHandler = new IuLogHandler()) {
 			mockBootstrap.when(() -> Bootstrap.getDefaultContext()).thenReturn(context);
-			final Deque<String> control = new ArrayDeque<>();
+			final var outControl = new StringBuilder();
+			final Queue<String> control = new ArrayDeque<>();
 			for (var i = 0; i < 2; i++) {
 				final var msg = IdGenerator.generateId();
-				control.addFirst(msg);
+				control.offer(msg);
 				logHandler.publish(new LogRecord(Level.INFO, msg));
 			}
 			for (var i = 0; i < 10; i++) {
 				final var msg = IdGenerator.generateId();
-				control.addFirst(msg);
+				control.offer(msg);
 				logHandler.publish(new LogRecord(Level.FINE, msg));
 			}
 			assertDoesNotThrow(() -> Thread.sleep(200L));
 
 			try (final var sub = logHandler.subscribe()) {
-				final Deque<String> collected = new ArrayDeque<>();
+				final Queue<String> collected = new ArrayDeque<>();
 				final var stream = sub.stream().spliterator();
 				Spliterator<IuLogEvent> split;
 				while ((split = stream.trySplit()) != null)
-					split.forEachRemaining(a -> collected.add(a.getMessage()));
+					split.forEachRemaining(a -> {
+						if (a.getLevel().intValue() >= Level.INFO.intValue())
+							outControl.append(a.format());
+						collected.add(a.getMessage());
+					});
 
 				assertArrayEquals(control.toArray(), collected.toArray());
 			}
+			assertEquals(outControl.toString(), OUT.toString());
 		} finally {
 			System.getProperties().remove("iu.logging.consoleLevel");
 		}
