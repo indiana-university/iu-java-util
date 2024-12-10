@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>edu.iu.util</groupId>
 		<artifactId>iu-java-parent</artifactId>
-		<version>7.0.6</version>
+		<version>7.0.7-SNAPSHOT</version>
 	</parent>
 
 	<name>IU Branding Resources for Javadoc</name>
