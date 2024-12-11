@@ -1,4 +1,4 @@
-package iu.logging;
+package iu.logging.internal;
 
 import java.util.logging.Level;
 

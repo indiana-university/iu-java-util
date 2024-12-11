@@ -5,13 +5,18 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.Objects;
 import java.util.WeakHashMap;
+import java.util.function.Supplier;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
 
 import edu.iu.IuException;
 import edu.iu.IuRuntimeEnvironment;
+import edu.iu.UnsafeSupplier;
 import iu.logging.internal.DefaultLogContext;
 import iu.logging.internal.IuLogHandler;
+import iu.logging.internal.IuLoggingProxy;
+import iu.logging.internal.LogContext;
+import iu.logging.internal.ProcessLogger;
 
 /**
  * Per-context logging bootstrap.
@@ -82,6 +87,43 @@ public final class Bootstrap {
 	public static DefaultLogContext getDefaultContext() {
 		return Objects.requireNonNullElse(DEFAULT_CONTEXT.get(Thread.currentThread().getContextClassLoader()),
 				Objects.requireNonNull(DEFAULT_CONTEXT.get(ClassLoader.getPlatformClassLoader())));
+	}
+
+	/**
+	 * Gets the active context on the current thread.
+	 * 
+	 * @param <T>         context type
+	 * @param contextType context type
+	 * @return log context
+	 */
+	public static <T> T getActiveContext(Class<T> contextType) {
+		return IuLoggingProxy.adapt(contextType, ProcessLogger.getActiveContext());
+	}
+
+	/**
+	 * Proxy method for
+	 * {@link ProcessLogger#follow(LogContext, String, UnsafeSupplier)}.
+	 * 
+	 * @param context  externally defined {@link LogContext}
+	 * @param header   process log header message
+	 * @param supplier externally defined {@link UnsafeSupplier}
+	 * @return return value
+	 * @throws Throwable
+	 * 
+	 */
+	@SuppressWarnings("unchecked")
+	public static Object follow(Object context, String header, Object supplier) throws Throwable {
+		return ProcessLogger.follow(IuLoggingProxy.adapt(LogContext.class, context), header,
+				IuLoggingProxy.adapt(UnsafeSupplier.class, supplier));
+	}
+
+	/**
+	 * Adds a message to the process trace without logging.
+	 * 
+	 * @param messageSupplier Message {@link Supplier}
+	 */
+	public static void trace(Supplier<String> messageSupplier) {
+		ProcessLogger.trace(messageSupplier);
 	}
 
 }

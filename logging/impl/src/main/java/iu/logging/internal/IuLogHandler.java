@@ -13,7 +13,6 @@ import java.util.logging.LogRecord;
 import edu.iu.IuAsynchronousSubject;
 import edu.iu.IuAsynchronousSubscription;
 import edu.iu.IuRuntimeEnvironment;
-import iu.logging.IuProcessLogger;
 
 /**
  * Efficiently handles writing log output for IU JEE application components.
@@ -187,7 +186,7 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 			return;
 
 		final var event = new IuLogEvent(record);
-		IuProcessLogger.trace(() -> event.getMessage());
+		ProcessLogger.trace(() -> event.getMessage());
 		logEvents.offer(event);
 		subject.accept(event);
 

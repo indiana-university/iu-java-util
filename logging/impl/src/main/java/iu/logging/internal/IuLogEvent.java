@@ -9,7 +9,6 @@ import java.util.logging.Level;
 import java.util.logging.LogRecord;
 
 import iu.logging.Bootstrap;
-import iu.logging.IuProcessLogger;
 
 /**
  * Fully resolved buffered log event holder.
@@ -49,8 +48,7 @@ class IuLogEvent {
 	 * @param record {@link LogRecord}
 	 */
 	IuLogEvent(LogRecord record) {
-		final var context = Objects.requireNonNullElse(IuProcessLogger.getActiveContext(),
-				Bootstrap.getDefaultContext());
+		final var context = Objects.requireNonNullElse(ProcessLogger.getActiveContext(), Bootstrap.getDefaultContext());
 
 		level = record.getLevel();
 		loggerName = record.getLoggerName();
@@ -71,7 +69,7 @@ class IuLogEvent {
 		sourceMethodName = record.getSourceMethodName();
 		message = MESSAGE_FORMATTER.format(record);
 		if (level.intValue() >= Level.WARNING.intValue())
-			processLog = IuProcessLogger.export();
+			processLog = ProcessLogger.export();
 		else
 			processLog = null;
 

@@ -4,7 +4,6 @@ import java.net.InetAddress;
 import java.util.logging.Level;
 
 import edu.iu.IuException;
-import iu.logging.LogContext;
 
 /**
  * {@link LogContext} to fall back on, by context, when none is active on the

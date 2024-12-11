@@ -131,7 +131,7 @@ public class LoggingBootstrap {
 	 * @throws Throwable if an error occurs
 	 */
 	public static Class<?> impl() throws Throwable {
-		return implLoader().loadClass("iu.logging.IuProcessLogger");
+		return implLoader().loadClass("iu.logging.Bootstrap");
 	}
 
 	/**

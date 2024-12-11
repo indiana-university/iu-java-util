@@ -25,7 +25,6 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import iu.logging.Bootstrap;
-import iu.logging.IuProcessLogger;
 
 @SuppressWarnings("javadoc")
 public class IuLogHandlerTest {
@@ -49,11 +48,11 @@ public class IuLogHandlerTest {
 	public void testPublishAndSubscribe() {
 		final var msg = IdGenerator.generateId();
 		final var context = mock(DefaultLogContext.class);
-		try (final var mockProcessLogger = mockStatic(IuProcessLogger.class); //
+		try (final var mockProcessLogger = mockStatic(ProcessLogger.class); //
 				final var mockBootstrap = mockStatic(Bootstrap.class); //
 				final var logHandler = new IuLogHandler()) {
 			mockBootstrap.when(() -> Bootstrap.getDefaultContext()).thenReturn(context);
-			mockProcessLogger.when(() -> IuProcessLogger.trace(any())).then(a -> {
+			mockProcessLogger.when(() -> ProcessLogger.trace(any())).then(a -> {
 				assertEquals(msg, ((Supplier<?>) a.getArgument(0)).get());
 				return null;
 			});
@@ -73,7 +72,7 @@ public class IuLogHandlerTest {
 		final var msg = IdGenerator.generateId();
 		final var context = mock(DefaultLogContext.class);
 		final Throwable error;
-		try (final var mockProcessLogger = mockStatic(IuProcessLogger.class); //
+		try (final var mockProcessLogger = mockStatic(ProcessLogger.class); //
 				final var mockBootstrap = mockStatic(Bootstrap.class); //
 				final var logHandler = new IuLogHandler()) {
 			mockBootstrap.when(() -> Bootstrap.getDefaultContext()).thenReturn(context);
@@ -91,7 +90,7 @@ public class IuLogHandlerTest {
 	public void testPurgeMaxEventsLimit() {
 		System.setProperty("iu.logging.maxEvents", "5");
 		final var context = mock(DefaultLogContext.class);
-		try (final var mockProcessLogger = mockStatic(IuProcessLogger.class); //
+		try (final var mockProcessLogger = mockStatic(ProcessLogger.class); //
 				final var mockBootstrap = mockStatic(Bootstrap.class); //
 				final var logHandler = new IuLogHandler()) {
 			mockBootstrap.when(() -> Bootstrap.getDefaultContext()).thenReturn(context);
@@ -127,7 +126,7 @@ public class IuLogHandlerTest {
 	public void testPurgeEventTtlLimit() {
 		System.setProperty("iu.logging.eventTtl", "PT1S");
 		final var context = mock(DefaultLogContext.class);
-		try (final var mockProcessLogger = mockStatic(IuProcessLogger.class); //
+		try (final var mockProcessLogger = mockStatic(ProcessLogger.class); //
 				final var mockBootstrap = mockStatic(Bootstrap.class); //
 				final var logHandler = new IuLogHandler()) {
 			mockBootstrap.when(() -> Bootstrap.getDefaultContext()).thenReturn(context);
@@ -162,7 +161,7 @@ public class IuLogHandlerTest {
 	public void testPurgeNoLimits() {
 		final var context = mock(DefaultLogContext.class);
 		System.setProperty("iu.logging.consoleLevel", "INFO");
-		try (final var mockProcessLogger = mockStatic(IuProcessLogger.class); //
+		try (final var mockProcessLogger = mockStatic(ProcessLogger.class); //
 				final var mockBootstrap = mockStatic(Bootstrap.class); //
 				final var logHandler = new IuLogHandler()) {
 			mockBootstrap.when(() -> Bootstrap.getDefaultContext()).thenReturn(context);

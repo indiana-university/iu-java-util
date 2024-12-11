@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import iu.logging.Bootstrap;
-import iu.logging.IuProcessLogger;
 
 @SuppressWarnings("javadoc")
 public class IuLogEventTest {
@@ -27,7 +26,7 @@ public class IuLogEventTest {
 
 		final var context = mock(DefaultLogContext.class);
 
-		try (final var mockProcessLogger = mockStatic(IuProcessLogger.class); //
+		try (final var mockProcessLogger = mockStatic(ProcessLogger.class); //
 				final var mockBootstrap = mockStatic(Bootstrap.class)) {
 			mockBootstrap.when(() -> Bootstrap.getDefaultContext()).thenReturn(context);
 
@@ -89,7 +88,7 @@ public class IuLogEventTest {
 		when(context.getCallerPrincipalName()).thenReturn(callerPrincipalName);
 		when(context.getImpersonatedPrincipalName()).thenReturn(impersonatedPrincipalName);
 
-		try (final var mockProcessLogger = mockStatic(IuProcessLogger.class); //
+		try (final var mockProcessLogger = mockStatic(ProcessLogger.class); //
 				final var mockBootstrap = mockStatic(Bootstrap.class)) {
 			mockBootstrap.when(() -> Bootstrap.getDefaultContext()).thenReturn(context);
 
@@ -157,10 +156,10 @@ public class IuLogEventTest {
 		when(context.getImpersonatedPrincipalName()).thenReturn(impersonatedPrincipalName);
 
 		final var processLog = IdGenerator.generateId();
-		try (final var mockProcessLogger = mockStatic(IuProcessLogger.class); //
+		try (final var mockProcessLogger = mockStatic(ProcessLogger.class); //
 				final var mockBootstrap = mockStatic(Bootstrap.class)) {
 			mockBootstrap.when(() -> Bootstrap.getDefaultContext()).thenReturn(context);
-			mockProcessLogger.when(() -> IuProcessLogger.export()).thenReturn(processLog);
+			mockProcessLogger.when(() -> ProcessLogger.export()).thenReturn(processLog);
 
 			final var event = new IuLogEvent(rec);
 			assertEquals(Level.SEVERE, event.getLevel());
