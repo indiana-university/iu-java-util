@@ -31,10 +31,18 @@
  */
 /**
  * @provides redis implementation support
+ * @provides edu.iu.redis.spi.IuRedisSpi
  * 
  **/
 module iu.util.redis.impl {
+	exports iu.redis;
+	
+	requires org.apache.commons.pool2;
+	requires lettuce.core;
 	
 	requires iu.util;
-	requires iu.util.redis;
+	requires transitive iu.util.redis;
+	
+	
+	provides edu.iu.redis.spi.IuRedisSpi with iu.redis.RedisSpi;
 }

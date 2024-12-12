@@ -29,11 +29,9 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Redis connection utilities
- */
-module iu.util.redis {
-	exports edu.iu.redis;
-	exports edu.iu.redis.spi;
-	requires iu.util;
+package edu.iu.redis.spi;
+
+@SuppressWarnings("javadoc")
+public class IuRedisSpiTest {
+
 }

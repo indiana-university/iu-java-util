@@ -31,35 +31,28 @@
  */
 package edu.iu.redis;
 
-/**
- * Redis configuration interface.
- */
-public interface RedisConfiguration {
-	/**
-	 * Returns the username to be used for HTTP Basic authentication.
-	 *
-	 * @return the username
-	 */
-	String getUsername();
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
-	/**
-	 * Returns the password to be used for HTTP Basic authentication.
-	 *
-	 * @return the password
-	 */
-	String getPassword();
-	
-	/**
-	 * Returns the host to be used for Redis connection.
-	 *
-	 * @return the host
-	 */
-	String getHost();
-	
-	/**
-	 * Returns the port to be used for Redis connection.
-	 *
-	 * @return the port
-	 */	
-	String getPort();
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.mock;
+
+import edu.iu.redis.spi.IuRedisSpi;
+import iu.redis.IuRedisSpiFactory;
+@SuppressWarnings("javadoc")
+public class IuRedisConnectionTest {
+
+	@Test
+	public void testGetStandAloneConnection() {
+		final var mockConfig = mock(IuRedisConfiguration.class);
+		try (final var mockSpiFactory = mockStatic(IuRedisSpiFactory.class)) {
+            final var mockSpi = mock(IuRedisSpi.class);
+            mockSpiFactory.when(() -> IuRedisSpiFactory.get(IuRedisSpi.class)).thenReturn(mockSpi);
+            final var mockRedisConnection = mock(IuRedis.class);
+            when(mockSpi.createConnection(mockConfig)).thenReturn(mockRedisConnection);
+            assertSame(mockRedisConnection, IuRedis.createConnection(mockConfig));
+		}
+	}
 }

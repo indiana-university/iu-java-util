@@ -29,11 +29,47 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package iu.redis.lettuce;
+
+import java.util.Objects;
+import java.util.logging.Logger;
+
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+
+
+import edu.iu.redis.IuRedisConfiguration;
+import edu.iu.redis.IuRedis;
+import io.lettuce.core.RedisClient;
+import io.lettuce.core.RedisURI;
+import io.lettuce.core.api.StatefulRedisConnection;
+
 /**
- * Redis connection utilities
+ * Support Lettuce connection.
  */
-module iu.util.redis {
-	exports edu.iu.redis;
-	exports edu.iu.redis.spi;
-	requires iu.util;
+public class LettuceConnection implements IuRedis {
+	//private final GenericObjectPoolConfig poolConfig;
+	private static final Logger LOG = Logger.getLogger(LettuceConnection.class.getName());
+	
+	
+	@SuppressWarnings("unused")
+	private final StatefulRedisConnection<String, String> connection;
+	
+	/**
+	 * constructor.
+	 * @param config redis configuration
+	 */
+	public LettuceConnection(IuRedisConfiguration config) {
+		String host = Objects.requireNonNull(config.getHost(), "host is required");
+		String port = Objects.requireNonNull(config.getPort(), "port is required");
+		String password = Objects.requireNonNull(config.getPassword(), "password is required");
+		LOG.finer("Lettuce connection created");
+		//this.poolConfig = new GenericObjectPoolConfig();
+		RedisURI redisUri = RedisURI.Builder.redis(host, Integer.parseInt(port)) //
+					.withPassword(password.toCharArray()) //
+					.withSsl(true) //
+					.build();
+			RedisClient redisClient = RedisClient.create(redisUri);
+			this.connection = redisClient.connect();
+    }
+
 }

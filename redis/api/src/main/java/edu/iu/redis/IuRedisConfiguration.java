@@ -29,11 +29,45 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package edu.iu.redis;
+
 /**
- * Redis connection utilities
+ * Redis configuration interface.
  */
-module iu.util.redis {
-	exports edu.iu.redis;
-	exports edu.iu.redis.spi;
-	requires iu.util;
+public interface IuRedisConfiguration {
+	/**
+	 * Returns the username to be used for HTTP Basic authentication.
+	 *
+	 * @return the username
+	 */
+	String getUsername();
+
+	/**
+	 * Returns the password to be used for HTTP Basic authentication.
+	 *
+	 * @return the password
+	 */
+	String getPassword();
+	
+	/**
+	 * Returns the host to be used for Redis connection.
+	 *
+	 * @return the host
+	 */
+	String getHost();
+	
+	/**
+	 * Returns the port to be used for Redis connection.
+	 *
+	 * @return the port
+	 */	
+	String getPort();
+
+	/**
+	 * Connecting to Redis Cluster with SSL enabled.
+	 * @return true if SSL is enabled otherwise
+	 */
+	default boolean  getSsl() {
+		return true;
+	}
 }

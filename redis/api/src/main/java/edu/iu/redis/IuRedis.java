@@ -31,20 +31,33 @@
  */
 package edu.iu.redis;
 
-/**
- * Redis connection interface.
- */
-public interface IuRedisConnection {
- /**
- * 
- */
-RedisConnection getStandAloneConnection(RedisConfiguration config);
+import edu.iu.redis.spi.IuRedisSpi;
+import iu.redis.IuRedisSpiFactory;
 
 /**
-* 
-*/
-RedisConnection getAsynConnection(RedisConfiguration config);
+ * A Redis connection interface.
+ * <p>
+ * The {@link IuRedis} interface serves as a common abstraction to get connection across different Redis libraries.
+ * </p>
+ */
+public interface IuRedis {
 
+	/**
+	 * Create a connection to Redis.
+	 * 
+	 * @param config Redis configuration
+	 * @return a Redis connection
+	 */
+	static IuRedis createConnection(IuRedisConfiguration config) {
+		return IuRedisSpiFactory.get(IuRedisSpi.class).createConnection(config);
+	}
+
+	/**
+	 * TODO support async connection
+	 */
+	//IuRedisConnection getAsynConnection(RedisConfiguration config);
+
+	
 
 
 }

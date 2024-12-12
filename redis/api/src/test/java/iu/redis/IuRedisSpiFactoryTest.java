@@ -29,11 +29,41 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Redis connection utilities
- */
-module iu.util.redis {
-	exports edu.iu.redis;
-	exports edu.iu.redis.spi;
-	requires iu.util;
+package iu.redis;
+
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
+
+import java.util.Optional;
+import java.util.ServiceLoader;
+
+import org.junit.jupiter.api.Test;
+
+
+@SuppressWarnings("javadoc")
+public class IuRedisSpiFactoryTest {
+	private interface TestService {
+		
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testSingletons() {
+		try (final var mockServiceLoader = mockStatic(ServiceLoader.class)) {
+			mockServiceLoader.when(() -> ServiceLoader.load(any(Class.class), any(ClassLoader.class))).then(a -> {
+				final Class<?> c = a.getArgument(0);
+				assertSame(c.getClassLoader(), a.getArgument(1));
+				final var mockLoader = mock(ServiceLoader.class);
+				final var mockProvider = mock(c);
+				when(mockLoader.findFirst()).thenReturn(Optional.of(mockProvider));
+				return mockLoader;
+			});
+			final var i = assertInstanceOf(TestService.class, IuRedisSpiFactory.get(TestService.class));
+			assertSame(i, IuRedisSpiFactory.get(TestService.class));
+		}
+	}
 }

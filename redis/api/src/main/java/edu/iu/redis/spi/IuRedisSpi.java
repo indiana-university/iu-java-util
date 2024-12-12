@@ -29,11 +29,20 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package edu.iu.redis.spi;
+
+import edu.iu.redis.IuRedis;
+import edu.iu.redis.IuRedisConfiguration;
+
 /**
- * Redis connection utilities
+ * Service provider interface for Redis.
  */
-module iu.util.redis {
-	exports edu.iu.redis;
-	exports edu.iu.redis.spi;
-	requires iu.util;
+public interface IuRedisSpi {
+	/**
+	 * Creates a new connection.
+	 * @param config redis configuration
+	 * 
+	 * @return a new connection
+	 */
+	public IuRedis createConnection(IuRedisConfiguration config);
 }
