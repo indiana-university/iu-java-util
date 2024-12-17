@@ -36,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 
@@ -48,37 +49,15 @@ import edu.iu.redis.IuRedisConfiguration;
 @EnabledIf("edu.iu.client.IuVault#isConfigured")
 @SuppressWarnings("javadoc")
 public class LettuceConnectionIT {
+	private static IuRedisConfiguration config;
 
 	@BeforeAll
 	public static void setupClass() {
-		// Connection info in Vault: ua-vpit/enterprise-systems/eshrs-jeecontrol/kv/managed/jeecontrol/unt/cache
-		
-		//final var config = IuJson.parse(keyedValue).asJsonObject();
-		/*AuthConfig.registerInterface("realm", IuSamlServiceProviderMetadata.class, IuVault.RUNTIME);
-		AuthConfig.registerInterface(IuPrivateKeyPrincipal.class);
-		final var realm = AuthConfig.load(IuSamlServiceProviderMetadata.class, REALM);
-		postUri = realm.getAcsUris().iterator().next();
-
-		AuthConfig.register(new PkiVerifier(realm.getIdentity()));
-
-		final var provider = new SamlServiceProvider(postUri, REALM, realm);
-		AuthConfig.register(provider);
-		AuthConfig.seal();
-
-		final var identity = SamlServiceProvider.serviceProviderIdentity(realm);
-		System.out.println("Verified SAML Service Provider " + identity);*/
-
-	}
-	
-	@Test
-	public void testConnection() {
-		IuTestLogger.allow("", Level.FINE);
 		IuVault vault = IuVault.RUNTIME;
 		final var host = vault.get("cache/spring.redis.host").getValue();
 		String port = vault.get("cache/spring.redis.port").getValue();
 		String password = vault.get("cache/spring.redis.password").getValue();
-		
-		IuRedisConfiguration config = new IuRedisConfiguration() {
+		config = new IuRedisConfiguration() {
 			@Override
 			public String getHost() {
 				return host;
@@ -99,6 +78,15 @@ public class LettuceConnectionIT {
 				return "test_user";
 			}
 		};
+	}
+	
+	@BeforeEach
+	public void setup() {
+		IuTestLogger.allow("", Level.FINE);
+	}
+	
+	@Test
+	public void testConnection() {
 		final var connection = new LettuceConnection(config);
 		assertNotNull(connection);
 		
