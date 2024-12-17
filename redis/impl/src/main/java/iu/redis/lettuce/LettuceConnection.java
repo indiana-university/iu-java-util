@@ -59,6 +59,7 @@ public class LettuceConnection implements IuRedis {
 	 * @param config redis configuration
 	 */
 	public LettuceConnection(IuRedisConfiguration config) {
+		Objects.requireNonNull(config, "config is required");
 		String host = Objects.requireNonNull(config.getHost(), "host is required");
 		String port = Objects.requireNonNull(config.getPort(), "port is required");
 		String password = Objects.requireNonNull(config.getPassword(), "password is required");

@@ -29,9 +29,21 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.redis.lettuce;
+package iu.redis.spi;
 
-@SuppressWarnings("javadoc")
-public class LettuceConnectionTest {
+import edu.iu.redis.IuRedisConfiguration;
+import edu.iu.redis.IuRedis;
+import edu.iu.redis.spi.IuRedisSpi;
+import iu.redis.lettuce.LettuceConnection;
+
+/**
+ * Implementation of Redis service provider interface.
+ */
+public class RedisSpi implements IuRedisSpi {
+
+	@Override
+	public IuRedis createConnection(IuRedisConfiguration config) {
+		return new LettuceConnection(config);
+	}
 
 }

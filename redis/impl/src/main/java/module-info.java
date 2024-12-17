@@ -35,14 +35,13 @@
  * 
  **/
 module iu.util.redis.impl {
-	exports iu.redis;
-	
+
 	requires org.apache.commons.pool2;
 	requires lettuce.core;
-	
 	requires iu.util;
+	requires iu.util.client;
+
 	requires transitive iu.util.redis;
 	
-	
-	provides edu.iu.redis.spi.IuRedisSpi with iu.redis.RedisSpi;
+	provides edu.iu.redis.spi.IuRedisSpi with iu.redis.spi.RedisSpi;
 }
