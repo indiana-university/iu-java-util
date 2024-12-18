@@ -158,9 +158,9 @@ public class LogFilePublisherTest {
 	@Test
 	public void testDuelingPublishers() throws IOException {
 		final var msg1 = IdGenerator.generateId();
-		final var pub1 = new LogFilePublisher(path, 64L + System.lineSeparator().length(), 3);
+		final var pub1 = new LogFilePublisher(path, 64L + System.lineSeparator().length() * 2, 3);
 		final var msg2 = IdGenerator.generateId();
-		final var pub2 = new LogFilePublisher(path, 64L + System.lineSeparator().length(), 3);
+		final var pub2 = new LogFilePublisher(path, 64L + System.lineSeparator().length() * 2, 3);
 		pub1.publish(msg1);
 		pub2.publish(msg2);
 		pub2.flush();
@@ -191,15 +191,15 @@ public class LogFilePublisherTest {
 	@Test
 	public void testFlushEverything() throws IOException {
 		Files.delete(path);
-		final var pub = new LogFilePublisher(path, 64L + System.lineSeparator().length(), 3);
+		final var pub = new LogFilePublisher(path, 64L + System.lineSeparator().length() * 2, 3);
 		final var msg1 = IdGenerator.generateId();
 		final var msg2 = IdGenerator.generateId();
 		final var msg3 = IdGenerator.generateId();
 		final var msg4 = IdGenerator.generateId();
 		pub.publish(msg1);
 		pub.publish(msg2);
-        pub.publish(msg3);
-        pub.publish(msg4);
+		pub.publish(msg3);
+		pub.publish(msg4);
 		pub.flush();
 		try (final var in = Files.newInputStream(path)) {
 			assertEquals("", IuText.utf8(IuStream.read(in)));
