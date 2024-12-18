@@ -1,12 +1,40 @@
+/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package edu.iu.logging;
 
-import static iu.logging.boot.LoggingBootstrap.impl;
-
-import java.util.function.Supplier;
 import java.util.logging.Level;
 
-import edu.iu.IuException;
 import edu.iu.UnsafeSupplier;
+import iu.logging.boot.IuLoggingBootstrap;
 
 /**
  * Provides thread-bound context information for log events.
@@ -14,57 +42,36 @@ import edu.iu.UnsafeSupplier;
 public interface IuLogContext {
 
 	/**
-	 * Gets the active context on the current thread.
+	 * Binds top-level attributes to log events observed in the
+	 * {@link Thread#getContextClassLoader() current thread's context}.
 	 * 
-	 * @return {@link IuLogContext}
+	 * <p>
+	 * This method SHOULD be invoked exactly once during initialization, typically
+	 * once per container, to bind per-{@link ClassLoader} node-level runtime
+	 * attributes.
+	 * </p>
+	 * 
+	 * @param endpoint    endpoint identifier
+	 * @param application application code
+	 * @param environment environment code
 	 */
-	public static IuLogContext getActiveContext() {
-		return IuException.uncheckedInvocation(() -> {
-			final var impl = impl();
-			return (IuLogContext) impl.getMethod("getActiveContext", Class.class).invoke(null, IuLogContext.class);
-		});
+	public static void initializeContext(String endpoint, String application, String environment) {
+		IuLoggingBootstrap.initializeContext(endpoint, application, environment);
 	}
 
 	/**
-	 * Pushes a new logging context onto the current thread and uses it to follow a
-	 * synchronous processing task.
+	 * Applies full context attributes to log events generated during the invocation
+	 * of an application-defined {@link UnsafeSupplier}.
 	 * 
 	 * @param <T>      return type
 	 * @param context  {@link IuLogContext}
-	 * @param msg      short message to augment trace behavior
+	 * @param message  short message to augment trace behavior
 	 * @param supplier processing task to follow
 	 * @return value from {@link UnsafeSupplier#get()}
 	 * @throws Throwable from {@link UnsafeSupplier#get()}
 	 */
-	@SuppressWarnings("unchecked")
-	public static <T> T follow(IuLogContext context, String msg, UnsafeSupplier<T> supplier) throws Throwable {
-		final var impl = impl();
-		final var follow = impl.getMethod("follow", Object.class, String.class, Object.class);
-		return (T) IuException.checkedInvocation(() -> follow.invoke(null, context, msg, supplier));
-	}
-
-	/**
-	 * Adds a message to the process trace without logging.
-	 * 
-	 * @param messageSupplier Message {@link Supplier}
-	 */
-	public static void trace(Supplier<String> messageSupplier) {
-		IuException.uncheckedInvocation(() -> {
-			impl().getMethod("trace", Supplier.class).invoke(null, messageSupplier);
-			return null;
-		});
-	}
-
-	/**
-	 * Forces all log events.
-	 */
-	public static void flushLogFiles() {
-		IuException.uncheckedInvocation(() -> {
-			final var impl = impl();
-			final var flushLogFiles = impl.getMethod("flushLogFiles");
-			flushLogFiles.invoke(null);
-			return null;
-		});
+	public static <T> T follow(IuLogContext context, String message, UnsafeSupplier<T> supplier) throws Throwable {
+		return IuLoggingBootstrap.follow(context, message, supplier);
 	}
 
 	/**

@@ -1,3 +1,34 @@
+/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package iu.logging.internal;
 
 import java.time.Duration;
@@ -6,6 +37,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.Function;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
@@ -35,13 +67,13 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 	public IuLogHandler() {
 		final var c = ++IuLogHandler.c;
 
-		maxEvents = env("iu.logging.maxEvents", 100000);
-		eventTtl = env("iu.logging.eventTtl", Duration.ofDays(1L));
+		maxEvents = env("iu.logging.maxEvents", 100000, Integer::parseInt);
+		eventTtl = env("iu.logging.eventTtl", Duration.ofDays(1L), Duration::parse);
 		purge = new Thread(this::purgeTask, "iu-java-logging-purge/" + c);
 		purge.setDaemon(true);
 		purge.start();
 
-		final var consoleLevel = env("iu.logging.consoleLevel", Level.OFF);
+		final var consoleLevel = env("iu.logging.consoleLevel", Level.OFF, Level::parse);
 		if (consoleLevel.intValue() < Level.OFF.intValue()) {
 			final var console = new Thread(() -> this.consoleTask(consoleLevel), "iu-java-logging-console/" + c);
 			console.setDaemon(true);
@@ -49,52 +81,12 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 		}
 	};
 
-	/**
-	 * Gets an integer value from the environment
-	 * 
-	 * @param name         environment property name
-	 * @param defaultValue value to return if not supplied by the environment
-	 * @return environment environment value parsed as an integer, if present; else
-	 *         defaultValue
-	 */
-	static int env(String name, int defaultValue) {
+	private static <T> T env(String name, T defaultValue, Function<String, T> convert) {
 		final var value = IuRuntimeEnvironment.envOptional(name);
 		if (value == null)
 			return defaultValue;
 		else
-			return Integer.parseInt(value);
-	}
-
-	/**
-	 * Gets an {@link Duration} value from the environment
-	 * 
-	 * @param name         environment property name
-	 * @param defaultValue value to return if not supplied by the environment
-	 * @return environment environment value parsed as a {@link Duration}, if
-	 *         present; else defaultValue
-	 */
-	static Duration env(String name, Duration defaultValue) {
-		final var value = IuRuntimeEnvironment.envOptional(name);
-		if (value == null)
-			return defaultValue;
-		else
-			return Duration.parse(value);
-	}
-
-	/**
-	 * Gets a {@link Level} value from the environment
-	 * 
-	 * @param name         environment property name
-	 * @param defaultValue value to return if not supplied by the environment
-	 * @return environment value parsed as a {@link Level}, if present; else
-	 *         defaultValue
-	 */
-	static Level env(String name, Level defaultValue) {
-		final var value = IuRuntimeEnvironment.envOptional(name);
-		if (value == null)
-			return defaultValue;
-		else
-			return Level.parse(value);
+			return convert.apply(value);
 	}
 
 	/**
@@ -210,4 +202,10 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 		}
 	}
 
+	@Override
+	public String toString() {
+		return "IuLogHandler [logEvents=" + logEvents.size() + ", maxEvents=" + maxEvents
+				+ ", eventTtl=" + eventTtl + ", purge=" + purge.getName() + ", closed=" + closed + "]";
+	}
+	
 }

@@ -29,53 +29,63 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.logging;
+package iu.logging.boot;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
+import java.util.logging.Level;
 
-import edu.iu.IdGenerator;
-import edu.iu.UnsafeSupplier;
-import iu.logging.boot.IuLoggingBootstrap;
+import org.junit.jupiter.api.Test;
+
+import edu.iu.test.IuTestLogger;
+import edu.iu.type.base.TemporaryFile;
 
 @SuppressWarnings("javadoc")
-public class IuLogContextTest {
+public class IuLoggingBootstrapTest {
 
-	private MockedStatic<IuLoggingBootstrap> mockLoggingBootstrap;
-
-	@BeforeEach
-	public void setup() {
-		mockLoggingBootstrap = mockStatic(IuLoggingBootstrap.class);
-	}
-
-	@AfterEach
-	public void teardown() {
-		mockLoggingBootstrap.close();
+	@Test
+	public void testInitAnyDestroy() {
+		try (final var mockTemporaryFile = mockStatic(TemporaryFile.class)) {
+			final IuLoggingBootstrap bootstrap = assertDoesNotThrow(() -> new IuLoggingBootstrap(true));
+			assertFalse(bootstrap.isDestroyed());
+			assertDoesNotThrow(bootstrap::destroy);
+			assertTrue(bootstrap.isDestroyed());
+			assertDoesNotThrow(bootstrap::destroy);
+		}
 	}
 
 	@Test
-	public void testInitializeContext() {
-		final var endpoint = IdGenerator.generateId();
-		final var application = IdGenerator.generateId();
-		final var environment = IdGenerator.generateId();
-		assertDoesNotThrow(() -> IuLogContext.initializeContext(endpoint, application, environment));
-		mockLoggingBootstrap.verify(() -> IuLoggingBootstrap.initializeContext(endpoint, application, environment));
+	public void testInitDestroysPrevious() {
+		try (final var mockTemporaryFile = mockStatic(TemporaryFile.class)) {
+			final IuLoggingBootstrap bootstrap = assertDoesNotThrow(() -> new IuLoggingBootstrap(true));
+			assertDoesNotThrow(() -> new IuLoggingBootstrap(true));
+			assertTrue(bootstrap.isDestroyed());
+		}
 	}
 
-	@SuppressWarnings("unchecked")
 	@Test
-	public void testFollow() {
-		final var context = mock(IuLogContext.class);
-		final var message = IdGenerator.generateId();
-		final var supplier = mock(UnsafeSupplier.class);
-		assertDoesNotThrow(() -> IuLogContext.follow(context, message, supplier));
-		mockLoggingBootstrap.verify(() -> IuLoggingBootstrap.follow(context, message, supplier));
-	}
+	public void testInitDestroyPreviousError() {
+		final var error = new IllegalStateException();
+		final IuLoggingBootstrap bootstrap = mock(IuLoggingBootstrap.class);
+		assertDoesNotThrow(() -> {
+			doThrow(error).when(bootstrap).destroy();
+			final var f = IuLoggingBootstrap.class.getDeclaredField("initialized");
+			f.setAccessible(true);
+			f.set(null, bootstrap);
+		});
 
+		IuTestLogger.expect(IuLoggingBootstrap.class.getName(), Level.WARNING,
+				"Failed to destroy logging implementation module after hot replace", IllegalStateException.class,
+				e -> e == error);
+
+		try (final var mockTemporaryFile = mockStatic(TemporaryFile.class)) {
+			final var newBootstrap = assertDoesNotThrow(() -> new IuLoggingBootstrap());
+			assertDoesNotThrow(newBootstrap::destroy);
+		}
+	}
 }

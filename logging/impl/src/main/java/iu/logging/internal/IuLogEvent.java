@@ -1,3 +1,34 @@
+/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package iu.logging.internal;
 
 import java.io.PrintWriter;
@@ -49,7 +80,6 @@ class IuLogEvent {
 	 */
 	IuLogEvent(LogRecord record) {
 		final var context = Objects.requireNonNullElse(ProcessLogger.getActiveContext(), Bootstrap.getDefaultContext());
-
 		level = record.getLevel();
 		loggerName = record.getLoggerName();
 
@@ -138,7 +168,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #level}
 	 */
-	Level getLevel() {
+	public Level getLevel() {
 		return level;
 	}
 
@@ -147,7 +177,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #loggerName}
 	 */
-	String getLoggerName() {
+	public String getLoggerName() {
 		return loggerName;
 	}
 
@@ -156,7 +186,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #requestId}
 	 */
-	String getRequestId() {
+	public String getRequestId() {
 		return requestId;
 	}
 
@@ -165,7 +195,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #environment}
 	 */
-	String getEnvironment() {
+	public String getEnvironment() {
 		return environment;
 	}
 
@@ -174,7 +204,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #application}
 	 */
-	String getApplication() {
+	public String getApplication() {
 		return application;
 	}
 
@@ -183,7 +213,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #module}
 	 */
-	String getModule() {
+	public String getModule() {
 		return module;
 	}
 
@@ -192,7 +222,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #component}
 	 */
-	String getComponent() {
+	public String getComponent() {
 		return component;
 	}
 
@@ -201,7 +231,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #nodeId}
 	 */
-	String getNodeId() {
+	public String getNodeId() {
 		return nodeId;
 	}
 
@@ -210,7 +240,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #thread}
 	 */
-	String getThread() {
+	public String getThread() {
 		return thread;
 	}
 
@@ -219,7 +249,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #callerIpAddress}
 	 */
-	String getCallerIpAddress() {
+	public String getCallerIpAddress() {
 		return callerIpAddress;
 	}
 
@@ -228,7 +258,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #calledUrl}
 	 */
-	String getCalledUrl() {
+	public String getCalledUrl() {
 		return calledUrl;
 	}
 
@@ -237,7 +267,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #callerPrincipalName}
 	 */
-	String getCallerPrincipalName() {
+	public String getCallerPrincipalName() {
 		return callerPrincipalName;
 	}
 
@@ -246,7 +276,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #impersonatedPrincipalName}
 	 */
-	String getImpersonatedPrincipalName() {
+	public String getImpersonatedPrincipalName() {
 		return impersonatedPrincipalName;
 	}
 
@@ -255,7 +285,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #timestamp}
 	 */
-	Instant getTimestamp() {
+	public Instant getTimestamp() {
 		return timestamp;
 	}
 
@@ -264,7 +294,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #sourceClassName}
 	 */
-	String getSourceClassName() {
+	public String getSourceClassName() {
 		return sourceClassName;
 	}
 
@@ -273,7 +303,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #sourceMethodName}
 	 */
-	String getSourceMethodName() {
+	public String getSourceMethodName() {
 		return sourceMethodName;
 	}
 
@@ -282,7 +312,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #message}
 	 */
-	String getMessage() {
+	public String getMessage() {
 		return message;
 	}
 
@@ -291,7 +321,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #processLog}
 	 */
-	String getProcessLog() {
+	public String getProcessLog() {
 		return processLog;
 	}
 
@@ -300,7 +330,7 @@ class IuLogEvent {
 	 * 
 	 * @return {@link #error}
 	 */
-	String getError() {
+	public String getError() {
 		return error;
 	}
 
