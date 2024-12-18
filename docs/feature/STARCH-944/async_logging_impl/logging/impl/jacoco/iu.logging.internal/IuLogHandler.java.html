@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuLogHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Logging Implementation</a> &gt; <a href="index.source.html" class="el_package">iu.logging.internal</a> &gt; <span class="el_source">IuLogHandler.java</span></div><h1>IuLogHandler.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.logging.internal;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
+import java.util.Queue;
+import java.util.TreeMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.Function;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+
+import edu.iu.IuAsynchronousSubject;
+import edu.iu.IuAsynchronousSubscription;
+import edu.iu.IuRuntimeEnvironment;
+
+/**
+ * Efficiently handles writing log output for IU JEE application components.
+ */
+public class IuLogHandler extends Handler implements AutoCloseable {
+
+<span class="fc" id="L54">	private static volatile int c = 0;</span>
+
+<span class="fc" id="L56">	private final Queue&lt;IuLogEvent&gt; logEvents = new ConcurrentLinkedQueue&lt;&gt;();</span>
+<span class="fc" id="L57">	private final IuAsynchronousSubject&lt;IuLogEvent&gt; subject = new IuAsynchronousSubject&lt;&gt;(logEvents::spliterator);</span>
+
+	private final int maxEvents;
+	private final Duration eventTtl;
+	private final Thread purge;
+	private volatile boolean closed;
+
+	/**
+	 * Constructor
+	 */
+<span class="fc" id="L67">	public IuLogHandler() {</span>
+<span class="fc" id="L68">		final var c = ++IuLogHandler.c;</span>
+
+<span class="fc" id="L70">		maxEvents = env(&quot;iu.logging.maxEvents&quot;, 100000, Integer::parseInt);</span>
+<span class="fc" id="L71">		eventTtl = env(&quot;iu.logging.eventTtl&quot;, Duration.ofDays(1L), Duration::parse);</span>
+<span class="fc" id="L72">		purge = new Thread(this::purgeTask, &quot;iu-java-logging-purge/&quot; + c);</span>
+<span class="fc" id="L73">		purge.setDaemon(true);</span>
+<span class="fc" id="L74">		purge.start();</span>
+
+<span class="fc" id="L76">		final var consoleLevel = env(&quot;iu.logging.consoleLevel&quot;, Level.OFF, Level::parse);</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">		if (consoleLevel.intValue() &lt; Level.OFF.intValue()) {</span>
+<span class="fc" id="L78">			final var console = new Thread(() -&gt; this.consoleTask(consoleLevel), &quot;iu-java-logging-console/&quot; + c);</span>
+<span class="fc" id="L79">			console.setDaemon(true);</span>
+<span class="fc" id="L80">			console.start();</span>
+		}
+<span class="fc" id="L82">	};</span>
+
+	private static &lt;T&gt; T env(String name, T defaultValue, Function&lt;String, T&gt; convert) {
+<span class="fc" id="L85">		final var value = IuRuntimeEnvironment.envOptional(name);</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">		if (value == null)</span>
+<span class="fc" id="L87">			return defaultValue;</span>
+		else
+<span class="fc" id="L89">			return convert.apply(value);</span>
+	}
+
+	/**
+	 * Subscribes to {@link IuLogEvent log events}.
+	 * 
+	 * @return {@link IuAsynchronousSubscription} of {@link IuLogEvent}
+	 */
+	public IuAsynchronousSubscription&lt;IuLogEvent&gt; subscribe() {
+<span class="fc" id="L98">		return subject.subscribe();</span>
+	}
+
+	/**
+	 * Subscribes to log messages, and writes each to {@link System#out}.
+	 * 
+	 * @param level Maximum log level to print
+	 */
+	void consoleTask(Level level) {
+<span class="fc bfc" id="L107" title="All 2 branches covered.">		subject.subscribe().stream().filter(a -&gt; a.getLevel().intValue() &gt;= level.intValue())</span>
+<span class="fc" id="L108">				.forEach(event -&gt; System.out.print(event.format()));</span>
+<span class="fc" id="L109">	}</span>
+
+	/**
+	 * Repeatedly invokes {@link #purge} in a loop as long as this instance is open.
+	 */
+	void purgeTask() {
+<span class="fc bfc" id="L115" title="All 2 branches covered.">		while (!closed)</span>
+<span class="fc" id="L116">			synchronized (purge) {</span>
+				try {
+<span class="fc" id="L118">					purge.wait(2000L);</span>
+<span class="fc" id="L119">					purge();</span>
+<span class="fc" id="L120">				} catch (Throwable e) {</span>
+<span class="fc" id="L121">					e.printStackTrace();</span>
+<span class="fc" id="L122">				}</span>
+<span class="fc" id="L123">			}</span>
+<span class="fc" id="L124">	}</span>
+
+	/**
+	 * Purges log events from the queue.
+	 * &lt;p&gt;
+	 * Executes continuously in the background to prune older and excessive log
+	 * events.
+	 * &lt;/p&gt;
+	 */
+	void purge() {
+<span class="fc" id="L134">		final var now = Instant.now();</span>
+
+		{ // First purge from tail based on eventTtl
+<span class="fc" id="L137">			final var notBefore = now.minus(eventTtl);</span>
+<span class="fc" id="L138">			final var iterator = logEvents.iterator();</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">			while (iterator.hasNext())</span>
+<span class="fc bfc" id="L140" title="All 2 branches covered.">				if (iterator.next().getTimestamp().isBefore(notBefore))</span>
+<span class="fc" id="L141">					iterator.remove();</span>
+				else // assume chronological insert order
+					break;
+		}
+
+<span class="fc" id="L146">		var toPurge = logEvents.size() - maxEvents;</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">		if (toPurge &lt;= 0)</span>
+<span class="fc" id="L148">			return; // under size, nothing to do</span>
+
+<span class="fc" id="L150">		var level = Level.OFF;</span>
+		{ // determine the highest level that can be fully retained within the max size
+<span class="fc" id="L152">			final Map&lt;Level, Integer&gt; countByLevel = new TreeMap&lt;&gt;(</span>
+<span class="fc" id="L153">					(a, b) -&gt; -Integer.compare(a.intValue(), b.intValue()));</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">			logEvents.forEach(e -&gt; countByLevel.compute(e.getLevel(), (a, count) -&gt; count == null ? 1 : count + 1));</span>
+
+<span class="fc" id="L156">			var total = 0;</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">			for (final var countByLevelEntry : countByLevel.entrySet()) {</span>
+<span class="fc" id="L158">				total += countByLevelEntry.getValue();</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">				if (total &lt;= maxEvents - toPurge)</span>
+<span class="fc" id="L160">					level = countByLevelEntry.getKey();</span>
+<span class="fc" id="L161">			}</span>
+		}
+
+<span class="fc" id="L164">		final var iterator = logEvents.iterator();</span>
+<span class="fc bfc" id="L165" title="All 2 branches covered.">		while (toPurge &gt; 0)</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">			if (iterator.next().getLevel().intValue() &lt; level.intValue()) {</span>
+<span class="fc" id="L167">				iterator.remove();</span>
+<span class="fc" id="L168">				toPurge--;</span>
+			}
+<span class="fc" id="L170">	}</span>
+
+	@Override
+	public void publish(LogRecord record) {
+<span class="fc bfc" id="L174" title="All 2 branches covered.">		if (closed)</span>
+<span class="fc" id="L175">			throw new IllegalStateException(&quot;closed&quot;);</span>
+
+<span class="fc bfc" id="L177" title="All 2 branches covered.">		if (record.getMessage() == null)</span>
+<span class="fc" id="L178">			return;</span>
+
+<span class="fc" id="L180">		final var event = new IuLogEvent(record);</span>
+<span class="fc" id="L181">		ProcessLogger.trace(() -&gt; event.getMessage());</span>
+<span class="fc" id="L182">		logEvents.offer(event);</span>
+<span class="fc" id="L183">		subject.accept(event);</span>
+
+<span class="fc bfc" id="L185" title="All 2 branches covered.">		if (logEvents.size() &gt;= maxEvents)</span>
+<span class="fc" id="L186">			synchronized (purge) {</span>
+<span class="fc" id="L187">				purge.notify();</span>
+<span class="fc" id="L188">			}</span>
+<span class="fc" id="L189">	}</span>
+
+	@Override
+	public void flush() {
+<span class="fc" id="L193">		purge();</span>
+<span class="fc" id="L194">	}</span>
+
+	@Override
+	public synchronized void close() {
+<span class="fc bfc" id="L198" title="All 2 branches covered.">		if (!closed) {</span>
+<span class="fc" id="L199">			closed = true;</span>
+<span class="fc" id="L200">			subject.close();</span>
+<span class="fc" id="L201">			logEvents.clear();</span>
+		}
+<span class="fc" id="L203">	}</span>
+
+	@Override
+	public String toString() {
+<span class="fc" id="L207">		return &quot;IuLogHandler [logEvents=&quot; + logEvents.size() + &quot;, maxEvents=&quot; + maxEvents</span>
+<span class="fc" id="L208">				+ &quot;, eventTtl=&quot; + eventTtl + &quot;, purge=&quot; + purge.getName() + &quot;, closed=&quot; + closed + &quot;]&quot;;</span>
+	}
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
