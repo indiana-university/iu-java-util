@@ -133,7 +133,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-auth-logging</artifactId>
+			<artifactId>iu-java-logging</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 	</dependencies>
