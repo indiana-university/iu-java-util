@@ -38,5 +38,6 @@ module iu.util.logging.impl {
 	requires iu.util;
 	requires iu.util.client;
 	requires iu.util.crypt;
+	requires jakarta.annotation;
 	requires transitive java.logging;
 }
