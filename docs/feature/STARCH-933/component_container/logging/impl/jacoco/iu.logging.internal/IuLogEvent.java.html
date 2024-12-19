@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuLogEvent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Logging Implementation</a> &gt; <a href="index.source.html" class="el_package">iu.logging.internal</a> &gt; <span class="el_source">IuLogEvent.java</span></div><h1>IuLogEvent.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.logging.internal;
+
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.time.Instant;
+import java.util.Objects;
+import java.util.logging.Formatter;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+
+import iu.logging.Bootstrap;
+
+/**
+ * Fully resolved buffered log event holder.
+ */
+class IuLogEvent {
+
+<span class="fc" id="L49">	private static final Formatter MESSAGE_FORMATTER = new Formatter() {</span>
+		@Override
+		public String format(LogRecord record) {
+<span class="fc" id="L52">			return formatMessage(record);</span>
+		}
+	};
+
+	private final Level level;
+	private final String loggerName;
+	private final String requestId;
+	private final String environment;
+	private final String application;
+	private final String module;
+	private final String component;
+	private final String nodeId;
+<span class="fc" id="L64">	private final String thread = Thread.currentThread().getName();</span>
+	private final String callerIpAddress;
+	private final String calledUrl;
+	private final String callerPrincipalName;
+	private final String impersonatedPrincipalName;
+	private final Instant timestamp;
+	private final String sourceClassName;
+	private final String sourceMethodName;
+	private final String message;
+	private final String processLog;
+	private final String error;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param record {@link LogRecord}
+	 */
+<span class="fc" id="L81">	IuLogEvent(LogRecord record) {</span>
+<span class="fc" id="L82">		final var context = Objects.requireNonNullElse(ProcessLogger.getActiveContext(), Bootstrap.getDefaultContext());</span>
+<span class="fc" id="L83">		level = record.getLevel();</span>
+<span class="fc" id="L84">		loggerName = record.getLoggerName();</span>
+
+<span class="fc" id="L86">		requestId = context.getRequestId();</span>
+<span class="fc" id="L87">		environment = context.getEnvironment();</span>
+<span class="fc" id="L88">		application = context.getApplication();</span>
+<span class="fc" id="L89">		module = context.getModule();</span>
+<span class="fc" id="L90">		component = context.getComponent();</span>
+<span class="fc" id="L91">		nodeId = context.getNodeId();</span>
+<span class="fc" id="L92">		callerIpAddress = context.getCallerIpAddress();</span>
+<span class="fc" id="L93">		calledUrl = context.getCalledUrl();</span>
+<span class="fc" id="L94">		callerPrincipalName = context.getCallerPrincipalName();</span>
+<span class="fc" id="L95">		impersonatedPrincipalName = context.getImpersonatedPrincipalName();</span>
+
+<span class="fc" id="L97">		timestamp = record.getInstant();</span>
+<span class="fc" id="L98">		sourceClassName = record.getSourceClassName();</span>
+<span class="fc" id="L99">		sourceMethodName = record.getSourceMethodName();</span>
+<span class="fc" id="L100">		message = MESSAGE_FORMATTER.format(record);</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">		if (level.intValue() &gt;= Level.WARNING.intValue())</span>
+<span class="fc" id="L102">			processLog = ProcessLogger.export();</span>
+		else
+<span class="fc" id="L104">			processLog = null;</span>
+
+<span class="fc" id="L106">		Throwable thrown = record.getThrown();</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">		if (thrown != null) {</span>
+<span class="fc" id="L108">			StringWriter w = new StringWriter();</span>
+<span class="fc" id="L109">			thrown.printStackTrace(new PrintWriter(w));</span>
+<span class="fc" id="L110">			error = w.toString();</span>
+<span class="fc" id="L111">		} else</span>
+<span class="fc" id="L112">			error = null;</span>
+<span class="fc" id="L113">	}</span>
+
+	private void append(StringBuilder sb, Object value) {
+<span class="fc bfc" id="L116" title="All 2 branches covered.">		if (value != null)</span>
+<span class="fc" id="L117">			sb.append(value);</span>
+<span class="fc" id="L118">		sb.append(',');</span>
+<span class="fc" id="L119">	}</span>
+
+	/**
+	 * Formats the log message as human-readable.
+	 * 
+	 * @return human-readable log message
+	 */
+	String format() {
+<span class="fc" id="L127">		StringBuilder sb = new StringBuilder();</span>
+<span class="fc" id="L128">		append(sb, level);</span>
+<span class="fc" id="L129">		append(sb, requestId);</span>
+<span class="fc" id="L130">		append(sb, environment);</span>
+<span class="fc" id="L131">		append(sb, application);</span>
+<span class="fc" id="L132">		append(sb, module);</span>
+<span class="fc" id="L133">		append(sb, component);</span>
+<span class="fc" id="L134">		append(sb, nodeId);</span>
+<span class="fc" id="L135">		append(sb, thread);</span>
+<span class="fc" id="L136">		append(sb, callerIpAddress);</span>
+<span class="fc" id="L137">		append(sb, calledUrl);</span>
+<span class="fc" id="L138">		append(sb, callerPrincipalName);</span>
+<span class="fc" id="L139">		append(sb, impersonatedPrincipalName);</span>
+<span class="fc" id="L140">		append(sb, timestamp);</span>
+<span class="fc" id="L141">		append(sb, loggerName);</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">		if (sourceClassName != null)</span>
+<span class="fc" id="L143">			sb.append(sourceClassName);</span>
+<span class="fc bfc" id="L144" title="All 2 branches covered.">		if (sourceMethodName != null) {</span>
+<span class="fc" id="L145">			sb.append('.');</span>
+<span class="fc" id="L146">			sb.append(sourceMethodName);</span>
+<span class="fc" id="L147">			sb.append(&quot;()&quot;);</span>
+		}
+<span class="fc" id="L149">		sb.append(System.lineSeparator());</span>
+<span class="fc" id="L150">		sb.append(message);</span>
+
+<span class="fc bfc" id="L152" title="All 2 branches covered.">		if (processLog != null) {</span>
+<span class="fc" id="L153">			sb.append(System.lineSeparator());</span>
+<span class="fc" id="L154">			sb.append(processLog);</span>
+		}
+
+<span class="fc bfc" id="L157" title="All 2 branches covered.">		if (error != null) {</span>
+<span class="fc" id="L158">			sb.append(System.lineSeparator());</span>
+<span class="fc" id="L159">			sb.append(error);</span>
+		}
+
+<span class="fc" id="L162">		sb.append(System.lineSeparator());</span>
+<span class="fc" id="L163">		return sb.toString();</span>
+	}
+
+	/**
+	 * Gets {@link #level}
+	 * 
+	 * @return {@link #level}
+	 */
+	public Level getLevel() {
+<span class="fc" id="L172">		return level;</span>
+	}
+
+	/**
+	 * Gets {@link #loggerName}
+	 * 
+	 * @return {@link #loggerName}
+	 */
+	public String getLoggerName() {
+<span class="fc" id="L181">		return loggerName;</span>
+	}
+
+	/**
+	 * Gets {@link #requestId}
+	 * 
+	 * @return {@link #requestId}
+	 */
+	public String getRequestId() {
+<span class="fc" id="L190">		return requestId;</span>
+	}
+
+	/**
+	 * Gets {@link #environment}
+	 * 
+	 * @return {@link #environment}
+	 */
+	public String getEnvironment() {
+<span class="fc" id="L199">		return environment;</span>
+	}
+
+	/**
+	 * Gets {@link #application}
+	 * 
+	 * @return {@link #application}
+	 */
+	public String getApplication() {
+<span class="fc" id="L208">		return application;</span>
+	}
+
+	/**
+	 * Gets {@link #module}
+	 * 
+	 * @return {@link #module}
+	 */
+	public String getModule() {
+<span class="fc" id="L217">		return module;</span>
+	}
+
+	/**
+	 * Gets {@link #component}
+	 * 
+	 * @return {@link #component}
+	 */
+	public String getComponent() {
+<span class="fc" id="L226">		return component;</span>
+	}
+
+	/**
+	 * Gets {@link #nodeId}
+	 * 
+	 * @return {@link #nodeId}
+	 */
+	public String getNodeId() {
+<span class="fc" id="L235">		return nodeId;</span>
+	}
+
+	/**
+	 * Gets {@link #thread}
+	 * 
+	 * @return {@link #thread}
+	 */
+	public String getThread() {
+<span class="fc" id="L244">		return thread;</span>
+	}
+
+	/**
+	 * Gets {@link #callerIpAddress}
+	 * 
+	 * @return {@link #callerIpAddress}
+	 */
+	public String getCallerIpAddress() {
+<span class="fc" id="L253">		return callerIpAddress;</span>
+	}
+
+	/**
+	 * Gets {@link #calledUrl}
+	 * 
+	 * @return {@link #calledUrl}
+	 */
+	public String getCalledUrl() {
+<span class="fc" id="L262">		return calledUrl;</span>
+	}
+
+	/**
+	 * Gets {@link #callerPrincipalName}
+	 * 
+	 * @return {@link #callerPrincipalName}
+	 */
+	public String getCallerPrincipalName() {
+<span class="fc" id="L271">		return callerPrincipalName;</span>
+	}
+
+	/**
+	 * Gets {@link #impersonatedPrincipalName}
+	 * 
+	 * @return {@link #impersonatedPrincipalName}
+	 */
+	public String getImpersonatedPrincipalName() {
+<span class="fc" id="L280">		return impersonatedPrincipalName;</span>
+	}
+
+	/**
+	 * Gets {@link #timestamp}
+	 * 
+	 * @return {@link #timestamp}
+	 */
+	public Instant getTimestamp() {
+<span class="fc" id="L289">		return timestamp;</span>
+	}
+
+	/**
+	 * Gets {@link #sourceClassName}
+	 * 
+	 * @return {@link #sourceClassName}
+	 */
+	public String getSourceClassName() {
+<span class="fc" id="L298">		return sourceClassName;</span>
+	}
+
+	/**
+	 * Gets {@link #sourceMethodName}
+	 * 
+	 * @return {@link #sourceMethodName}
+	 */
+	public String getSourceMethodName() {
+<span class="fc" id="L307">		return sourceMethodName;</span>
+	}
+
+	/**
+	 * Gets {@link #message}
+	 * 
+	 * @return {@link #message}
+	 */
+	public String getMessage() {
+<span class="fc" id="L316">		return message;</span>
+	}
+
+	/**
+	 * Gets {@link #processLog}
+	 * 
+	 * @return {@link #processLog}
+	 */
+	public String getProcessLog() {
+<span class="fc" id="L325">		return processLog;</span>
+	}
+
+	/**
+	 * Gets {@link #error}
+	 * 
+	 * @return {@link #error}
+	 */
+	public String getError() {
+<span class="fc" id="L334">		return error;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

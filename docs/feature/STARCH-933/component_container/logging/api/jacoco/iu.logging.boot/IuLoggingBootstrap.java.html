@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuLoggingBootstrap.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Logging Configuration API</a> &gt; <a href="index.source.html" class="el_package">iu.logging.boot</a> &gt; <span class="el_source">IuLoggingBootstrap.java</span></div><h1>IuLoggingBootstrap.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2024 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.logging.boot;
+
+import java.lang.ModuleLayer.Controller;
+import java.util.Objects;
+import java.util.logging.Level;
+import java.util.logging.LogManager;
+import java.util.logging.Logger;
+import java.util.stream.Stream;
+
+import edu.iu.IuException;
+import edu.iu.IuObject;
+import edu.iu.UnsafeRunnable;
+import edu.iu.UnsafeSupplier;
+import edu.iu.logging.IuLogContext;
+import edu.iu.logging.IuLogEvent;
+import edu.iu.type.base.ModularClassLoader;
+import edu.iu.type.base.TemporaryFile;
+
+/**
+ * Bootstraps the logging module.
+ * 
+ * &lt;p&gt;
+ * Recommended use is to ensure iu-java-base, iu-java-type-base, and
+ * iu-java-logging are in the ({@code -p}) module path and start the JVM with
+ * {@code -Djava.util.logging.config.class=iu.logging.boot.IuLoggingBootstrap}.
+ * Alternatively, {@link #LoggingBootstrap(boolean)} may be used via reflection
+ * to control logging configuration after initialization.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * Additional system proprties configure the logging implementation module and
+ * may be overridden by an application container module:
+ * &lt;/p&gt;
+ * &lt;ul&gt;
+ * &lt;li&gt;{@code iu.config} - folder with logging.properties&lt;/li&gt;
+ * &lt;li&gt;{@code iu.logging.logPath} - root log folder&lt;/li&gt;
+ * &lt;/ul&gt;
+ * 
+ * &lt;p&gt;
+ * During application initialization, within the application's
+ * {@link Thread#getContextClassLoader() thread context}, invoke
+ * {@link #initializeContext(String, String, String)} to initialize logging.
+ * &lt;/p&gt;
+ * 
+ * @see LogManager
+ */
+public class IuLoggingBootstrap {
+	static {
+<span class="fc" id="L80">		IuObject.assertNotOpen(IuObject.class);</span>
+<span class="fc" id="L81">		IuObject.assertNotOpen(IuLoggingBootstrap.class);</span>
+<span class="fc" id="L82">	}</span>
+
+	private static IuLoggingBootstrap initialized;
+
+	private volatile boolean closed;
+	private volatile ModularClassLoader loader;
+	private volatile Class&lt;?&gt; bootstrap;
+	private volatile UnsafeRunnable destroy;
+
+	/**
+	 * Default constructor.
+	 * 
+	 * @throws Exception If an error occurs
+	 */
+	public IuLoggingBootstrap() throws Exception {
+<span class="fc" id="L97">		this(false);</span>
+<span class="fc" id="L98">	}</span>
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param update true to update the existing configuration; false for initial
+	 *               system configuration
+	 * 
+	 * @throws Exception If an error occurs
+	 */
+<span class="fc" id="L108">	public IuLoggingBootstrap(boolean update) throws Exception {</span>
+<span class="fc" id="L109">		final var toDestroy = initialized;</span>
+
+<span class="fc" id="L111">		destroy = TemporaryFile.init(() -&gt; {</span>
+<span class="fc" id="L112">			loader = ModularClassLoader.of(ClassLoader.getPlatformClassLoader(), ModuleLayer.boot(),</span>
+<span class="fc" id="L113">					() -&gt; TemporaryFile.readBundle(Objects.requireNonNull(</span>
+<span class="fc" id="L114">							IuLogContext.class.getClassLoader()</span>
+<span class="fc" id="L115">									.getResource(&quot;META-INF/component/iu-java-logging-impl-bundle.jar&quot;),</span>
+							&quot;Missing iu-java-logging-impl-bundle.jar&quot;)),
+					IuLoggingBootstrap::initImplModule);
+			try {
+<span class="fc" id="L119">				bootstrap = loader.loadClass(&quot;iu.logging.Bootstrap&quot;);</span>
+<span class="fc" id="L120">				IuException</span>
+<span class="fc" id="L121">						.checkedInvocation(() -&gt; bootstrap.getMethod(&quot;configure&quot;, boolean.class).invoke(null, update));</span>
+<span class="fc" id="L122">			} catch (Throwable e) {</span>
+<span class="fc" id="L123">				IuException.suppress(e, loader::close);</span>
+<span class="fc" id="L124">				throw e;</span>
+<span class="fc" id="L125">			}</span>
+<span class="fc" id="L126">		});</span>
+
+<span class="fc" id="L128">		initialized = this;</span>
+
+<span class="fc bfc" id="L130" title="All 2 branches covered.">		if (toDestroy != null)</span>
+			try {
+<span class="fc" id="L132">				toDestroy.destroy();</span>
+<span class="fc" id="L133">			} catch (Throwable e) {</span>
+<span class="fc" id="L134">				Logger.getLogger(getClass().getName()).log(Level.WARNING,</span>
+						&quot;Failed to destroy logging implementation module after hot replace&quot;, e);
+<span class="fc" id="L136">			}</span>
+<span class="fc" id="L137">	}</span>
+
+	/**
+	 * Initializes the implementation module.
+	 * 
+	 * @param c {@link Controller}
+	 */
+	static void initImplModule(Controller c) {
+<span class="fc" id="L145">	}</span>
+
+	/**
+	 * Destroys logging resources and closes the implementation module.
+	 * 
+	 * @throws Exception If an error occurs
+	 */
+	synchronized void destroy() throws Exception {
+<span class="fc bfc" id="L153" title="All 2 branches covered.">		if (!closed) {</span>
+<span class="fc" id="L154">			closed = true;</span>
+<span class="fc" id="L155">			Throwable error = null;</span>
+
+<span class="fc" id="L157">			final var loader = this.loader;</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">			if (loader != null) {</span>
+<span class="fc" id="L159">				this.loader = null;</span>
+<span class="fc" id="L160">				error = IuException.suppress(error, loader::close);</span>
+			}
+
+<span class="fc" id="L163">			final var destroy = this.destroy;</span>
+<span class="fc bfc" id="L164" title="All 2 branches covered.">			if (destroy != null) {</span>
+<span class="fc" id="L165">				this.destroy = null;</span>
+<span class="fc" id="L166">				error = IuException.suppress(error, destroy);</span>
+			}
+
+<span class="fc bfc" id="L169" title="All 2 branches covered.">			if (this == initialized)</span>
+<span class="fc" id="L170">				initialized = null;</span>
+		}
+<span class="fc" id="L172">	}</span>
+
+	/**
+	 * Determines whether or not the logging module controlled by this bootstrap
+	 * instance has been replaced by a new instance and destroyed.
+	 * 
+	 * @return true if destroyed; else false
+	 */
+	boolean isDestroyed() {
+<span class="fc" id="L181">		return closed;</span>
+	}
+
+	private static Class&lt;?&gt; bootstrap() {
+<span class="fc" id="L185">		return Objects.requireNonNull(initialized, &quot;Not initialized&quot;).bootstrap;</span>
+	}
+
+	/**
+	 * Implements {@link IuLogContext#initializeContext(String, String, String)}.
+	 * 
+	 * @param endpoint    endpoint
+	 * @param application application
+	 * @param environment environment
+	 */
+	public static void initializeContext(String endpoint, String application, String environment) {
+<span class="fc" id="L196">		IuException.uncheckedInvocation(() -&gt; bootstrap() //</span>
+<span class="fc" id="L197">				.getMethod(&quot;initializeContext&quot;, String.class, String.class, String.class) //</span>
+<span class="fc" id="L198">				.invoke(null, endpoint, application, environment));</span>
+<span class="fc" id="L199">	}</span>
+
+	/**
+	 * Implements {@link IuLogContext#follow(IuLogContext, String, UnsafeSupplier)}.
+	 * 
+	 * @param &lt;T&gt;      return type
+	 * @param context  context
+	 * @param message  message
+	 * @param supplier supplier
+	 * @return return value
+	 * @throws Throwable error
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	public static &lt;T&gt; T follow(IuLogContext context, String message, UnsafeSupplier&lt;T&gt; supplier) throws Throwable {
+<span class="fc" id="L213">		return (T) IuException.checkedInvocation(() -&gt; bootstrap() //</span>
+<span class="fc" id="L214">				.getMethod(&quot;follow&quot;, Object.class, String.class, Object.class) //</span>
+<span class="fc" id="L215">				.invoke(null, context, message, supplier));</span>
+	}
+
+	/**
+	 * Implements {@link IuLogEvent#subscribe()}.
+	 * 
+	 * @return {@link Stream} of log events.
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	public static Stream&lt;IuLogEvent&gt; subscribe() {
+<span class="fc" id="L225">		return (Stream&lt;IuLogEvent&gt;) IuException.uncheckedInvocation(() -&gt; bootstrap() //</span>
+<span class="fc" id="L226">				.getMethod(&quot;subscribe&quot;, Class.class) //</span>
+<span class="fc" id="L227">				.invoke(null, IuLogEvent.class));</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

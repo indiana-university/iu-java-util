@@ -1,0 +1,13 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+IU Logging Implementation,iu.logging,Bootstrap,0,178,0,12,0,43,0,17,0,11
+IU Logging Implementation,iu.logging.internal,IuLogEvent.new Formatter() {...},0,7,0,0,0,2,0,2,0,2
+IU Logging Implementation,iu.logging.internal,ProcessLogger.new ThreadLocal() {...},0,8,0,0,0,2,0,2,0,2
+IU Logging Implementation,iu.logging.internal,ProcessLogger.new ThreadLocal() {...},0,8,0,0,0,2,0,2,0,2
+IU Logging Implementation,iu.logging.internal,ProcessLogger,0,365,0,24,0,78,0,24,0,12
+IU Logging Implementation,iu.logging.internal,LogFilePublisher,0,304,0,24,0,62,0,21,0,9
+IU Logging Implementation,iu.logging.internal,ProcessLogger.TracedMessage,0,138,0,10,0,32,0,8,0,3
+IU Logging Implementation,iu.logging.internal,IuLogHandler,0,354,0,32,0,80,0,34,0,18
+IU Logging Implementation,iu.logging.internal,IuLogEvent,0,324,0,14,0,85,0,30,0,23
+IU Logging Implementation,iu.logging.internal,IuLoggingProxy,0,61,0,8,0,13,0,7,0,3
+IU Logging Implementation,iu.logging.internal,DefaultLogContext,0,60,0,0,0,20,0,16,0,16
+IU Logging Implementation,iu.logging.internal,ProcessLogger.ProcessState,0,323,0,20,0,68,0,13,0,3

@@ -24,6 +24,8 @@ module:iu.util.crypt.impl
 iu.crypt
 module:iu.util.jdbc.pool
 edu.iu.jdbc.pool
+module:iu.util.logging
+edu.iu.logging
 module:iu.util.test
 edu.iu.test
 module:iu.util.type
