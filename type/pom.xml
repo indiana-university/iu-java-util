@@ -32,6 +32,8 @@
 				<module>base</module>
 				<module>impl</module>
 				<module>bundle</module>
+				<module>container</module>
+				<module>boot</module>
 				<module>loader</module>
 			</modules>
 		</profile>

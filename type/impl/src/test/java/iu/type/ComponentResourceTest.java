@@ -42,9 +42,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Proxy;
 import java.util.function.Supplier;
+import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.test.IuTestLogger;
+import edu.iu.type.IuComponent;
 import edu.iu.type.IuResourceKey;
 import edu.iu.type.IuType;
 import edu.iu.type.testresources.AnInterface;
@@ -71,29 +74,30 @@ public class ComponentResourceTest extends IuTypeTestCase {
 	}
 
 	private <T> ComponentResource<T> assertComponentResource(String name, Class<T> type, Supplier<?> factory) {
-		return assertComponentResource(true, true, name, type, type, factory);
+		return assertComponentResource(true, true, -1, name, type, type, factory);
 	}
 
 	private <T> ComponentResource<T> assertComponentResource(Class<T> type, Class<?> impl, Supplier<?> factory) {
-		return assertComponentResource(true, true, IuResourceKey.getDefaultResourceName(type), type, impl, factory);
+		return assertComponentResource(true, true, -1, IuResourceKey.getDefaultResourceName(type), type, impl, factory);
 	}
 
-	private <T> ComponentResource<T> assertComponentResource(boolean needsAuthentication, boolean shared, String name,
-			Class<T> type, Class<?> impl, Supplier<?> factory) {
+	private <T> ComponentResource<T> assertComponentResource(boolean needsAuthentication, boolean shared, int priority,
+			String name, Class<T> type, Class<?> impl, Supplier<?> factory) {
 		ComponentResource<T> last = null;
 		for (final var r : ComponentResource.getResources(impl)) {
 			r.factory(factory);
-			last = assertComponentResource(needsAuthentication, shared, name, type, r);
+			last = assertComponentResource(needsAuthentication, shared, priority, name, type, r);
 		}
 		assertNotNull(last);
 		return last;
 	}
 
 	@SuppressWarnings("unchecked")
-	private <T> ComponentResource<T> assertComponentResource(boolean needsAuthentication, boolean shared, String name,
-			Class<T> type, ComponentResource<?> r) {
+	private <T> ComponentResource<T> assertComponentResource(boolean needsAuthentication, boolean shared, int priority,
+			String name, Class<T> type, ComponentResource<?> r) {
 		assertEquals(shared, r.shared());
 		assertEquals(needsAuthentication, r.needsAuthentication());
+		assertEquals(priority, r.priority());
 		assertEquals(name, r.name());
 		assertSame(type, r.type().erasedClass());
 
@@ -130,6 +134,19 @@ public class ComponentResourceTest extends IuTypeTestCase {
 	@Test
 	public void testProxyResourceIsApplicationResourceWithoutAnInterface() {
 		assertFalse(ComponentResource.getResources(ProxyNonResource.class).iterator().hasNext());
+	}
+
+	@Test
+	public void testPriority() throws Exception {
+		IuTestLogger.allow("", Level.WARNING);
+		try (final var r = IuComponent.of(TestArchives.getComponentArchive("testruntime"),
+				TestArchives.getProvidedDependencyArchives("testruntime"));
+				final var c = r.extend(TestArchives.getComponentArchive("testcomponent"))) {
+			final var loader = c.classLoader();
+			final var type = loader.loadClass("edu.iu.type.testcomponent.PriorityResource");
+			final var resource = ComponentResource.getResources(type).iterator().next();
+			assertComponentResource(true, true, 34, "priorityResource", type, resource);
+		}
 	}
 
 	@Test
@@ -182,7 +199,7 @@ public class ComponentResourceTest extends IuTypeTestCase {
 
 	@Test
 	public void testNonSharedResource() {
-		assertComponentResource(false, false, "nonSharedResource", NonSharedResource.class, NonSharedResource.class,
+		assertComponentResource(false, false, -1, "nonSharedResource", NonSharedResource.class, NonSharedResource.class,
 				NonSharedResource::new);
 	}
 
@@ -194,12 +211,12 @@ public class ComponentResourceTest extends IuTypeTestCase {
 		assertTrue(resourceIterator.hasNext());
 		var resource = resourceIterator.next();
 		resource.factory(MultiResource::new);
-		assertComponentResource(true, true, "multiResource", MultiResource.class, resource);
+		assertComponentResource(true, true, -1, "multiResource", MultiResource.class, resource);
 
 		assertTrue(resourceIterator.hasNext());
 		resource = resourceIterator.next();
 		resource.factory(MultiResource::new);
-		assertComponentResource(true, false, "sharedMultiResource", MultiResource.class, resource);
+		assertComponentResource(true, false, -1, "sharedMultiResource", MultiResource.class, resource);
 		assertFalse(resourceIterator.hasNext());
 	}
 

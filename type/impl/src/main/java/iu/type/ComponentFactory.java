@@ -34,7 +34,6 @@ package iu.type;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ModuleLayer.Controller;
-import java.net.URL;
 import java.nio.file.Files;
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -96,10 +95,14 @@ final class ComponentFactory {
 	 * @return module component
 	 * @throws IOException If an I/O error occurs reading from an archive
 	 */
+	@SuppressWarnings("resource") // Component is responsible for ModularClassLoader close
 	static Component createModular(Component parent, ClassLoader parentLoader, ModuleLayer parentLayer,
 			Iterable<ComponentArchive> archives, Consumer<Controller> controllerCallback, UnsafeRunnable destroy)
 			throws IOException {
 		final var firstComponent = archives.iterator().next();
+		if (!firstComponent.kind().isModular())
+			throw new IllegalArgumentException("First component must be a module");
+
 		final String firstModuleName;
 		try (final var finder = new CloseableModuleFinder(firstComponent.path())) {
 			firstModuleName = finder.findAll().iterator().next().descriptor().name();
@@ -118,30 +121,6 @@ final class ComponentFactory {
 
 						}), loader -> new Component(parent, loader, loader.getModuleLayer(), archives,
 								() -> IuException.suppress(loader::close, destroy))));
-	}
-
-	/**
-	 * Creates a modular component.
-	 * 
-	 * @param parent       parent component
-	 * @param parentLoader {@link ClassLoader} for parent delegation
-	 * @param archives     component path
-	 * @param destroy      thunk for final cleanup after closing the component
-	 * @return module component
-	 * @throws IOException If an I/O error occurs reading from an archive
-	 */
-	static Component createLegacy(Component parent, ClassLoader parentLoader, Queue<ComponentArchive> archives,
-			UnsafeRunnable destroy) throws IOException {
-		var path = new URL[archives.size()];
-		{
-			var i = 0;
-			for (var archive : archives)
-				path[i++] = archive.path().toUri().toURL();
-		}
-
-		final var loader = new LegacyClassLoader(archives.iterator().next().kind().isWeb(), path, parentLoader);
-
-		return new Component(parent, loader, null, archives, () -> IuException.suppress(loader::close, destroy));
 	}
 
 	/**
@@ -194,16 +173,12 @@ final class ComponentFactory {
 				}
 
 			if (!unmetDependencies.isEmpty())
-				throw new IllegalArgumentException("Not all depdendencies were met, missing " + unmetDependencies);
+				throw new IllegalArgumentException("Not all dependencies were met, missing " + unmetDependencies);
 
 		});
 
 		try {
-			var kind = archives.iterator().next().kind();
-			if (kind.isModular())
-				return createModular(parent, parentLoader, parentLayer, archives, controllerCallback, destroy);
-			else
-				return createLegacy(parent, parentLoader, archives, destroy);
+			return createModular(parent, parentLoader, parentLayer, archives, controllerCallback, destroy);
 		} catch (Throwable e) {
 			IuException.suppress(e, destroy);
 			throw e;

@@ -46,18 +46,26 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.logging.Level;
 
 import javax.crypto.KeyAgreement;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebKey;
+import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
 public class EncodingUtilsTest {
+
+	@BeforeEach
+	public void setup() {
+		IuTestLogger.allow("edu.iu.crypt.Init", Level.CONFIG);
+	}
 
 	@Test
 	public void testCompactIterator() {

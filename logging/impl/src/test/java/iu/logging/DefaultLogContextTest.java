@@ -29,58 +29,45 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type;
+package iu.logging;
 
-import java.net.URL;
-import java.net.URLClassLoader;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
-import edu.iu.IuObject;
-import edu.iu.type.IuComponent.Kind;
+import java.net.InetAddress;
 
-/**
- * Class loader for {@link Kind#isModular() legacy} components.
- */
-class LegacyClassLoader extends URLClassLoader {
+import org.junit.jupiter.api.Test;
 
-	private final boolean web;
+import edu.iu.IdGenerator;
+import edu.iu.IuException;
+import iu.logging.internal.DefaultLogContext;
 
-	/**
-	 * Constructor for use by {@link ComponentFactory}
-	 * 
-	 * @param web       true for <a href=
-	 *                  "https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader">web
-	 *                  classloading semantics</a>; false for normal parent
-	 *                  delegation semantics
-	 * @param classpath class path URLs
-	 * @param parent    parent class loader
-	 */
-	LegacyClassLoader(boolean web, URL[] classpath, ClassLoader parent) {
-		super(classpath, parent);
-		this.web = web;
-	}
+@SuppressWarnings("javadoc")
+public class DefaultLogContextTest {
 
-	@Override
-	protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-		if (!web || IuObject.isPlatformName(name))
-			return super.loadClass(name, resolve);
-
-		synchronized (getClassLoadingLock(name)) {
-			Class<?> rv = this.findLoadedClass(name);
-			if (rv != null)
-				return rv;
-
-			try {
-				rv = findClass(name);
-				if (resolve)
-					resolveClass(rv);
-				return rv;
-			} catch (ClassNotFoundException e) {
-				// will attempt throw again when called from
-				// super.loadClass if also not found in parent
-			}
-
-			return super.loadClass(name, resolve);
-		}
+	@Test
+	public void testDefaults() {
+		final var nodeId = IuException.unchecked(InetAddress::getLocalHost).getHostName();
+		final var endpoint = IdGenerator.generateId();
+		final var application = IdGenerator.generateId();
+		final var environment = IdGenerator.generateId();
+		final var context = new DefaultLogContext(endpoint, application, environment);
+		assertEquals(nodeId, context.getNodeId());
+		assertEquals(endpoint, context.getEndpoint());
+		assertEquals(application, context.getApplication());
+		assertEquals(environment, context.getEnvironment());
+		assertNull(context.getCalledUrl());
+		assertNull(context.getCallerIpAddress());
+		assertNull(context.getCallerPrincipalName());
+		assertNull(context.getComponent());
+		assertNull(context.getImpersonatedPrincipalName());
+		assertNull(context.getLevel());
+		assertFalse(context.isDevelopment());
+		assertNull(context.getModule());
+		assertNull(context.getRequestId());
+		assertEquals("DefaultLogContext [nodeId=" + nodeId + ", endpoint=" + endpoint + ", application=" + application
+				+ ", environment=" + environment + "]", context.toString());
 	}
 
 }
