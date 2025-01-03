@@ -54,8 +54,8 @@ import edu.iu.type.base.TemporaryFile;
  * Recommended use is to ensure iu-java-base, iu-java-type-base, and
  * iu-java-logging are in the ({@code -p}) module path and start the JVM with
  * {@code -Djava.util.logging.config.class=iu.logging.boot.IuLoggingBootstrap}.
- * Alternatively, {@link #LoggingBootstrap(boolean)} may be used via reflection
- * to control logging configuration after initialization.
+ * Alternatively, {@link #IuLoggingBootstrap(boolean)} may be used via
+ * reflection to control logging configuration after initialization.
  * </p>
  * 
  * <p>
@@ -70,7 +70,8 @@ import edu.iu.type.base.TemporaryFile;
  * <p>
  * During application initialization, within the application's
  * {@link Thread#getContextClassLoader() thread context}, invoke
- * {@link #initializeContext(String, String, String)} to initialize logging.
+ * {@link #initializeContext(String, boolean, String, String, String, String, String, String)}
+ * to initialize logging.
  * </p>
  * 
  * @see LogManager
@@ -108,22 +109,24 @@ public class IuLoggingBootstrap {
 	public IuLoggingBootstrap(boolean update) throws Exception {
 		final var toDestroy = initialized;
 
-		destroy = TemporaryFile.init(() -> {
-			loader = ModularClassLoader.of(ClassLoader.getPlatformClassLoader(), ModuleLayer.boot(),
-					() -> TemporaryFile.readBundle(Objects.requireNonNull(
-							IuLogContext.class.getClassLoader()
-									.getResource("META-INF/component/iu-java-logging-impl-bundle.jar"),
-							"Missing iu-java-logging-impl-bundle.jar")),
-					IuLoggingBootstrap::initImplModule);
-			try {
-				bootstrap = loader.loadClass("iu.logging.Bootstrap");
-				IuException
-						.checkedInvocation(() -> bootstrap.getMethod("configure", boolean.class).invoke(null, update));
-			} catch (Throwable e) {
-				IuException.suppress(e, loader::close);
-				throw e;
-			}
-		});
+		IuException.checked(() -> IuLogManager.bound(() -> {
+			destroy = TemporaryFile.init(() -> {
+				loader = ModularClassLoader.of(ClassLoader.getPlatformClassLoader(), ModuleLayer.boot(),
+						() -> TemporaryFile.readBundle(Objects.requireNonNull(
+								IuLogContext.class.getClassLoader()
+										.getResource("META-INF/component/iu-java-logging-impl-bundle.jar"),
+								"Missing iu-java-logging-impl-bundle.jar")),
+						IuLoggingBootstrap::initImplModule);
+				try {
+					bootstrap = loader.loadClass("iu.logging.Bootstrap");
+					IuException.checkedInvocation(
+							() -> bootstrap.getMethod("configure", boolean.class).invoke(null, update));
+				} catch (Throwable e) {
+					IuException.suppress(e, loader::close);
+					throw e;
+				}
+			});
+		}));
 
 		initialized = this;
 
@@ -136,12 +139,7 @@ public class IuLoggingBootstrap {
 			}
 	}
 
-	/**
-	 * Initializes the implementation module.
-	 * 
-	 * @param c {@link Controller}
-	 */
-	static void initImplModule(Controller c) {
+	private static void initImplModule(Controller c) {
 	}
 
 	/**
@@ -153,6 +151,13 @@ public class IuLoggingBootstrap {
 		if (!closed) {
 			closed = true;
 			Throwable error = null;
+
+			final var bootstrap = this.bootstrap;
+			if (bootstrap != null) {
+				this.bootstrap = null;
+				error = IuException.suppress(error,
+						() -> IuException.checkedInvocation(() -> bootstrap.getMethod("destroy").invoke(null)));
+			}
 
 			final var loader = this.loader;
 			if (loader != null) {
@@ -168,6 +173,9 @@ public class IuLoggingBootstrap {
 
 			if (this == initialized)
 				initialized = null;
+
+			if (error != null)
+				throw IuException.checked(error);
 		}
 	}
 
@@ -186,16 +194,33 @@ public class IuLoggingBootstrap {
 	}
 
 	/**
-	 * Implements {@link IuLogContext#initializeContext(String, String, String)}.
+	 * Implements {@link IuLogContext#initialize()}.
+	 */
+	public static void initialize() {
+		IuException.uncheckedInvocation(() -> bootstrap() //
+				.getMethod("initialize") //
+				.invoke(null));
+	}
+
+	/**
+	 * Implements
+	 * {@link IuLogContext#initializeContext(String, boolean, String, String, String, String, String, String)}.
 	 * 
+	 * @param nodeId      node identifier
+	 * @param development development flag
 	 * @param endpoint    endpoint
 	 * @param application application
 	 * @param environment environment
+	 * @param module      module
+	 * @param runtime     runtime
+	 * @param component   component
 	 */
-	public static void initializeContext(String endpoint, String application, String environment) {
+	public static void initializeContext(String nodeId, boolean development, String endpoint, String application,
+			String environment, String module, String runtime, String component) {
 		IuException.uncheckedInvocation(() -> bootstrap() //
-				.getMethod("initializeContext", String.class, String.class, String.class) //
-				.invoke(null, endpoint, application, environment));
+				.getMethod("initializeContext", String.class, boolean.class, String.class, String.class, String.class,
+						String.class, String.class, String.class) //
+				.invoke(null, nodeId, development, endpoint, application, environment, module, runtime, component));
 	}
 
 	/**

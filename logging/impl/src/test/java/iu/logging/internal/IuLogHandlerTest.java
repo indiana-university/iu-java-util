@@ -36,53 +36,41 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
-import java.nio.file.Files;
 import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Queue;
 import java.util.Spliterator;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
+import java.util.stream.StreamSupport;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.opentest4j.AssertionFailedError;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuIterable;
 import iu.logging.Bootstrap;
+import iu.logging.IuLoggingTestCase;
+import iu.logging.LogEnvironment;
 
 @SuppressWarnings("javadoc")
-public class IuLogHandlerTest {
-
-	private static ByteArrayOutputStream OUT = new ByteArrayOutputStream();
-	private static ByteArrayOutputStream ERR = new ByteArrayOutputStream();
-
-	static {
-		mockStatic(Files.class).close();
-		System.setOut(new PrintStream(OUT));
-		System.setErr(new PrintStream(ERR));
-	}
-
-	@BeforeEach
-	public void setup() {
-		OUT.reset();
-		ERR.reset();
-	}
+public class IuLogHandlerTest extends IuLoggingTestCase {
 
 	@Test
 	public void testPublishAndSubscribe() {
 		final var msg = IdGenerator.generateId();
-		final var context = mock(DefaultLogContext.class);
+		final var env = mock(LogEnvironment.class);
 		try (final var mockProcessLogger = mockStatic(ProcessLogger.class); //
 				final var mockBootstrap = mockStatic(Bootstrap.class); //
 				final var logHandler = new IuLogHandler()) {
-			mockBootstrap.when(() -> Bootstrap.getDefaultContext()).thenReturn(context);
+			mockBootstrap.when(() -> Bootstrap.getEnvironment()).thenReturn(env);
 			mockProcessLogger.when(() -> ProcessLogger.trace(any())).then(a -> {
 				assertEquals(msg, ((Supplier<?>) a.getArgument(0)).get());
 				return null;
@@ -101,12 +89,12 @@ public class IuLogHandlerTest {
 	@Test
 	public void testPurgeTaskError() {
 		final var msg = IdGenerator.generateId();
-		final var context = mock(DefaultLogContext.class);
+		final var env = mock(LogEnvironment.class);
 		final Throwable error;
 		try (final var mockProcessLogger = mockStatic(ProcessLogger.class); //
 				final var mockBootstrap = mockStatic(Bootstrap.class); //
 				final var logHandler = new IuLogHandler()) {
-			mockBootstrap.when(() -> Bootstrap.getDefaultContext()).thenReturn(context);
+			mockBootstrap.when(() -> Bootstrap.getEnvironment()).thenReturn(env);
 			final var rec = mock(LogRecord.class);
 			when(rec.getMessage()).thenReturn(msg);
 			when(rec.getLevel()).thenReturn(Level.INFO);
@@ -120,11 +108,11 @@ public class IuLogHandlerTest {
 	@Test
 	public void testPurgeMaxEventsLimit() {
 		System.setProperty("iu.logging.maxEvents", "5");
-		final var context = mock(DefaultLogContext.class);
+		final var env = mock(LogEnvironment.class);
 		try (final var mockProcessLogger = mockStatic(ProcessLogger.class); //
 				final var mockBootstrap = mockStatic(Bootstrap.class); //
 				final var logHandler = new IuLogHandler()) {
-			mockBootstrap.when(() -> Bootstrap.getDefaultContext()).thenReturn(context);
+			mockBootstrap.when(() -> Bootstrap.getEnvironment()).thenReturn(env);
 			final Queue<String> control = new ArrayDeque<>();
 			for (var i = 0; i < 2; i++) {
 				final var msg = IdGenerator.generateId();
@@ -155,33 +143,43 @@ public class IuLogHandlerTest {
 
 	@Test
 	public void testPurgeEventTtlLimit() {
-		System.setProperty("iu.logging.eventTtl", "PT1S");
-		final var context = mock(DefaultLogContext.class);
+		System.setProperty("iu.logging.eventTtl", "PT3S");
+		final var env = mock(LogEnvironment.class);
 		try (final var mockProcessLogger = mockStatic(ProcessLogger.class); //
 				final var mockBootstrap = mockStatic(Bootstrap.class); //
 				final var logHandler = new IuLogHandler()) {
-			mockBootstrap.when(() -> Bootstrap.getDefaultContext()).thenReturn(context);
-			final Queue<String> control = new ArrayDeque<>();
+			mockBootstrap.when(() -> Bootstrap.getEnvironment()).thenReturn(env);
+			final Deque<String> control = new ArrayDeque<>();
 			for (var i = 0; i < 10; i++) {
 				final var msg = IdGenerator.generateId();
 				logHandler.publish(new LogRecord(Level.INFO, msg));
 			}
-			assertDoesNotThrow(() -> Thread.sleep(1000L));
+			assertDoesNotThrow(() -> Thread.sleep(2000L));
 			for (var i = 0; i < 10; i++) {
 				final var msg = IdGenerator.generateId();
 				control.offer(msg);
 				logHandler.publish(new LogRecord(Level.INFO, msg));
 			}
-			assertDoesNotThrow(() -> Thread.sleep(1000L));
+			assertDoesNotThrow(() -> Thread.sleep(2000L));
 
 			try (final var sub = logHandler.subscribe()) {
-				final Queue<String> collected = new ArrayDeque<>();
+				final Deque<String> collected = new ArrayDeque<>();
 				final var stream = sub.stream().spliterator();
 				Spliterator<IuLogEvent> split;
 				while ((split = stream.trySplit()) != null)
 					split.forEachRemaining(a -> collected.add(a.getMessage()));
 
-				assertArrayEquals(control.toArray(), collected.toArray());
+				try {
+					assertArrayEquals(control.toArray(), collected.toArray());
+				} catch (AssertionFailedError e) {
+					try {
+//						collected.push(collected.peek());
+						fail(control + " " + collected);
+					} catch (AssertionFailedError e2) {
+						e.addSuppressed(e2);
+						throw e;
+					}
+				}
 			}
 		} finally {
 			System.getProperties().remove("iu.logging.eventTtl");
@@ -190,12 +188,14 @@ public class IuLogHandlerTest {
 
 	@Test
 	public void testPurgeNoLimits() {
-		final var context = mock(DefaultLogContext.class);
+		final var env = mock(LogEnvironment.class);
 		System.setProperty("iu.logging.consoleLevel", "INFO");
 		try (final var mockProcessLogger = mockStatic(ProcessLogger.class); //
 				final var mockBootstrap = mockStatic(Bootstrap.class); //
 				final var logHandler = new IuLogHandler()) {
-			mockBootstrap.when(() -> Bootstrap.getDefaultContext()).thenReturn(context);
+			mockBootstrap.when(() -> Bootstrap.getEnvironment()).thenReturn(env);
+
+			String firstMessage = null;
 			final var outControl = new StringBuilder();
 			final Queue<String> control = new ArrayDeque<>();
 			for (var i = 0; i < 2; i++) {
@@ -214,16 +214,32 @@ public class IuLogHandlerTest {
 				final Queue<String> collected = new ArrayDeque<>();
 				final var stream = sub.stream().spliterator();
 				Spliterator<IuLogEvent> split;
-				while ((split = stream.trySplit()) != null)
-					split.forEachRemaining(a -> {
-						if (a.getLevel().intValue() >= Level.INFO.intValue())
-							outControl.append(a.format());
+				while ((split = stream.trySplit()) != null) {
+					for (final var a : IuIterable.of(StreamSupport.stream(split, false)::iterator)) {
+						if (a.getLevel().intValue() >= Level.INFO.intValue()) {
+							final var message = a.export();
+							if (firstMessage == null)
+								firstMessage = message;
+							outControl.append(message).append(System.lineSeparator());
+						}
 						collected.add(a.getMessage());
-					});
+					}
+				}
 
 				assertArrayEquals(control.toArray(), collected.toArray());
 			}
-			assertEquals(outControl.toString(), OUT.toString());
+			try {
+				assertEquals(outControl.toString(), OUT.toString(), ERR::toString);
+			} catch (AssertionFailedError e) {
+				if (firstMessage != null)
+					try { // async subject race condition < %1
+							// second split occasionally contains duplicates
+						assertEquals(firstMessage + outControl, OUT.toString());
+					} catch (AssertionFailedError e2) {
+						e.addSuppressed(e2);
+					}
+				throw e;
+			}
 		} finally {
 			System.getProperties().remove("iu.logging.consoleLevel");
 		}

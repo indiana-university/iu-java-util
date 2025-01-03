@@ -32,17 +32,25 @@
 package iu.logging.boot;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.PrintStream;
 import java.util.logging.Handler;
+import java.util.logging.LogManager;
 import java.util.logging.Logger;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
@@ -51,17 +59,53 @@ import edu.iu.UnsafeRunnable;
 @SuppressWarnings("javadoc")
 public class IuLogManagerTest {
 
+	private final static ByteArrayOutputStream ERR = new ByteArrayOutputStream();
+
+	static {
+		System.setErr(new PrintStream(ERR));
+	}
+
+	@BeforeEach
+	public void setup() {
+		ERR.reset();
+	}
+
+	@AfterEach
+	public void verifyNoError() {
+		assertFalse(ERR.size() > 0);
+	}
+
 	@Test
 	public void testConfigurationBlock() {
 		final var logManager = new IuLogManager();
 		assertThrows(UnsupportedOperationException.class, () -> logManager.addConfigurationListener(null));
-		assertThrows(UnsupportedOperationException.class, () -> logManager.addLogger(null));
 		assertThrows(UnsupportedOperationException.class, () -> logManager.readConfiguration());
 		assertThrows(UnsupportedOperationException.class, () -> logManager.readConfiguration(null));
 		assertThrows(UnsupportedOperationException.class, () -> logManager.removeConfigurationListener(null));
 		assertThrows(UnsupportedOperationException.class, () -> logManager.reset());
 		assertThrows(UnsupportedOperationException.class, () -> logManager.updateConfiguration(null));
 		assertThrows(UnsupportedOperationException.class, () -> logManager.updateConfiguration(null, null));
+		assertTrue(ERR.size() > 0);
+		ERR.reset();
+	}
+
+	@Test
+	public void testReadPrimordial() throws Throwable {
+		final var logManager = new IuLogManager();
+		try (final var mockIuLogManager = mockStatic(IuLogManager.class)) {
+			final var error = mock(UnsupportedOperationException.class);
+			final var ste1 = mock(StackTraceElement.class);
+			final var ste2 = mock(StackTraceElement.class);
+			when(ste2.getClassName()).thenReturn(LogManager.class.getName());
+			final var ste3 = mock(StackTraceElement.class);
+			when(ste3.getClassName()).thenReturn(LogManager.class.getName());
+			when(ste3.getMethodName()).thenReturn("readPrimordialConfiguration");
+			when(error.getStackTrace()).thenReturn(new StackTraceElement[] { ste1, ste2, ste3 });
+			mockIuLogManager.when(() -> IuLogManager.readonly()).thenReturn(error);
+			mockIuLogManager.when(() -> IuLogManager.checkReadonly()).thenCallRealMethod();
+
+			assertDoesNotThrow(() -> logManager.readConfiguration());
+		}
 	}
 
 	@Test

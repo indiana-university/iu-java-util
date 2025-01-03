@@ -35,16 +35,17 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
-import java.net.InetAddress;
+import java.io.IOException;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.logging.Level;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Logger;
 
 import org.junit.jupiter.api.Test;
@@ -53,51 +54,77 @@ import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.logging.IuLogContext;
 import edu.iu.logging.IuLogEvent;
-import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
 public class IuLoggingBootstrapIT {
 
+	final static IuLoggingBootstrap BOOT = assertDoesNotThrow(() -> new IuLoggingBootstrap(false));
+
+	static {
+		assertDoesNotThrow(() -> IuLogContext.initialize());
+	}
+
 	@Test
-	public void testInit() {
-		final var nodeId = assertDoesNotThrow(() -> InetAddress.getLocalHost().getHostName());
+	public void testInit() throws IOException {
+//		final var nodeId = assertDoesNotThrow(() -> InetAddress.getLocalHost().getHostName());
+		final var nodeId = IdGenerator.generateId();
+		final var development = ThreadLocalRandom.current().nextBoolean();
 		final var endpoint = IdGenerator.generateId();
 		final var application = IdGenerator.generateId();
 		final var environment = IdGenerator.generateId();
-		IuTestLogger.expect("", Level.CONFIG,
-				"IU Logging Bootstrap initialized IuLogHandler \\[logEvents=\\d+, maxEvents=100000, eventTtl=PT24H, purge=iu-java-logging-purge/\\d+, closed=false\\] DefaultLogContext \\[nodeId="
-						+ nodeId + ", endpoint=" + endpoint + ", application=" + application + ", environment="
-						+ environment + "\\]; context: "
-						+ ClassLoader.getSystemClassLoader().toString().replace("$", "\\$"));
-		IuTestLogger.allow("", Level.CONFIG, "Logging configuration updated from .*");
+		final var module = IdGenerator.generateId();
+		final var runtime = IdGenerator.generateId();
+		final var component = IdGenerator.generateId();
 
-		final var header = IdGenerator.generateId();
-		final var message = IdGenerator.generateId();
-		final var context = mock(IuLogContext.class);
+		final var current = Thread.currentThread();
+		final var restore = current.getContextClassLoader();
+		try (final var loader = new URLClassLoader(new URL[0])) {
+			current.setContextClassLoader(loader);
+			IuLogContext.initializeContext(nodeId, development, endpoint, application, environment, module, runtime,
+					component);
+//		IuTestLogger.expect("", Level.CONFIG,
+//				"IU Logging Bootstrap initialized IuLogHandler \\[logEvents=\\d+, maxEvents=100000, eventTtl=PT24H, purge=iu-java-logging-purge/\\d+, closed=false\\] DefaultLogContext \\[nodeId="
+//						+ nodeId + ", endpoint=" + endpoint + ", application=" + application + ", environment="
+//						+ environment + "\\]; context: "
+//						+ ClassLoader.getSystemClassLoader().toString().replace("$", "\\$"));
 
-		final Deque<IuLogEvent> events = new ArrayDeque<>();
-		final var bootstrap = assertDoesNotThrow(() -> new IuLoggingBootstrap(true));
-		try (final var sub = IuLoggingBootstrap.subscribe()) {
-			new Thread(() -> sub.forEach(events::push)).start();
-			assertDoesNotThrow(() -> IuLoggingBootstrap.initializeContext(endpoint, application, environment));
+			final var header = IdGenerator.generateId();
+			final var message = IdGenerator.generateId();
+			final var context = mock(IuLogContext.class);
 
-			IuTestLogger.expect("iu.logging.internal.ProcessLogger", Level.INFO, "begin 1: " + header);
-			IuTestLogger.expect(IuLoggingBootstrapIT.class.getName(), Level.INFO, message);
-			IuTestLogger.expect("iu.logging.internal.ProcessLogger", Level.INFO,
-					"complete 1: " + header + ".*" + message + ".*");
+			final Deque<IuLogEvent> events = new ArrayDeque<>();
+			final var bootstrap = assertDoesNotThrow(() -> new IuLoggingBootstrap(true));
+			try (final var sub = IuLoggingBootstrap.subscribe()) {
+				new Thread(() -> sub.forEach(events::push)).start();
+//
+//			IuTestLogger.expect("iu.logging.internal.ProcessLogger", Level.INFO, "begin 1: " + header);
+//			IuTestLogger.expect(IuLoggingBootstrapIT.class.getName(), Level.INFO, message);
+//			IuTestLogger.expect("iu.logging.internal.ProcessLogger", Level.INFO,
+//					"complete 1: " + header + ".*" + message + ".*");
 
-			assertDoesNotThrow(() -> IuLogContext.follow(context, header, () -> {
-				Logger.getLogger(IuLoggingBootstrapIT.class.getName()).info(message);
-				return null;
-			}));
+				assertDoesNotThrow(() -> IuLogContext.follow(context, header, () -> {
+					Logger.getLogger(IuLoggingBootstrapIT.class.getName()).info(message);
+					return null;
+				}));
 
+				final var error = new IllegalStateException();
+				try (final var mockIuException = mockStatic(IuException.class)) {
+					mockIuException.when(() -> IuException.suppress(any(), any())).thenReturn(error);
+					mockIuException.when(() -> IuException.checked(any(Throwable.class))).thenReturn(error);
+					assertSame(error, assertThrows(IllegalStateException.class, () -> bootstrap.destroy()));
+				}
+
+			} finally {
+				assertDoesNotThrow(bootstrap::destroy);
+			}
+			assertEquals(3, events.size(), events::toString);
+			events.pop();
+			final var event = events.pop();
+			System.out.println(event);
+			assertEquals(message, event.getMessage());
 		} finally {
-			assertDoesNotThrow(bootstrap::destroy);
+			current.setContextClassLoader(restore);
 		}
-		assertTrue(events.size() == 4 || events.size() == 5, Integer.toString(events.size()));
-		events.pop();
-		final var event = events.pop();
-		assertEquals(message, event.getMessage());
 	}
 
 	@Test

@@ -34,11 +34,11 @@ package iu.logging.internal;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Instant;
-import java.util.Objects;
 import java.util.logging.Formatter;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
 
+import edu.iu.client.IuJson;
 import iu.logging.Bootstrap;
 
 /**
@@ -56,9 +56,10 @@ class IuLogEvent {
 	private final Level level;
 	private final String loggerName;
 	private final String requestId;
-	private final String environment;
 	private final String application;
+	private final String environment;
 	private final String module;
+	private final String runtime;
 	private final String component;
 	private final String nodeId;
 	private final String thread = Thread.currentThread().getName();
@@ -79,20 +80,32 @@ class IuLogEvent {
 	 * @param record {@link LogRecord}
 	 */
 	IuLogEvent(LogRecord record) {
-		final var context = Objects.requireNonNullElse(ProcessLogger.getActiveContext(), Bootstrap.getDefaultContext());
+		final var env = Bootstrap.getEnvironment();
+		final var context = ProcessLogger.getActiveContext();
+
 		level = record.getLevel();
 		loggerName = record.getLoggerName();
 
-		requestId = context.getRequestId();
-		environment = context.getEnvironment();
-		application = context.getApplication();
-		module = context.getModule();
-		component = context.getComponent();
-		nodeId = context.getNodeId();
-		callerIpAddress = context.getCallerIpAddress();
-		calledUrl = context.getCalledUrl();
-		callerPrincipalName = context.getCallerPrincipalName();
-		impersonatedPrincipalName = context.getImpersonatedPrincipalName();
+		application = env.getApplication();
+		environment = env.getEnvironment();
+		module = env.getModule();
+		component = env.getComponent();
+		runtime = env.getRuntime();
+		nodeId = env.getNodeId();
+
+		if (context != null) {
+			requestId = context.getRequestId();
+			callerIpAddress = context.getCallerIpAddress();
+			calledUrl = context.getCalledUrl();
+			callerPrincipalName = context.getCallerPrincipalName();
+			impersonatedPrincipalName = context.getImpersonatedPrincipalName();
+		} else {
+			requestId = null;
+			callerIpAddress = null;
+			calledUrl = null;
+			callerPrincipalName = null;
+			impersonatedPrincipalName = null;
+		}
 
 		timestamp = record.getInstant();
 		sourceClassName = record.getSourceClassName();
@@ -119,6 +132,36 @@ class IuLogEvent {
 	}
 
 	/**
+	 * Exports the log message as JSON.
+	 * 
+	 * @return JSON formatted log message
+	 */
+	String export() {
+		final var builder = IuJson.object();
+		IuJson.add(builder, "level", level.getName());
+		IuJson.add(builder, "requestId", requestId);
+		IuJson.add(builder, "application", application);
+		IuJson.add(builder, "environment", environment);
+		IuJson.add(builder, "module", module);
+		IuJson.add(builder, "runtime", runtime);
+		IuJson.add(builder, "component", component);
+		IuJson.add(builder, "nodeId", nodeId);
+		IuJson.add(builder, "thread", thread);
+		IuJson.add(builder, "callerIpAddress", callerIpAddress);
+		IuJson.add(builder, "calledUrl", calledUrl);
+		IuJson.add(builder, "callerPrincipalName", callerPrincipalName);
+		IuJson.add(builder, "impersonatedPrincipalName", impersonatedPrincipalName);
+		IuJson.add(builder, "timestamp", timestamp.toString());
+		IuJson.add(builder, "loggerName", loggerName);
+		IuJson.add(builder, "sourceClassName", sourceClassName);
+		IuJson.add(builder, "sourceMethodName", sourceMethodName);
+		IuJson.add(builder, "message", message);
+		IuJson.add(builder, "processLog", processLog);
+		IuJson.add(builder, "error", error);
+		return builder.build().toString();
+	}
+
+	/**
 	 * Formats the log message as human-readable.
 	 * 
 	 * @return human-readable log message
@@ -127,9 +170,10 @@ class IuLogEvent {
 		StringBuilder sb = new StringBuilder();
 		append(sb, level);
 		append(sb, requestId);
-		append(sb, environment);
 		append(sb, application);
+		append(sb, environment);
 		append(sb, module);
+		append(sb, runtime);
 		append(sb, component);
 		append(sb, nodeId);
 		append(sb, thread);
@@ -332,6 +376,11 @@ class IuLogEvent {
 	 */
 	public String getError() {
 		return error;
+	}
+
+	@Override
+	public String toString() {
+		return format();
 	}
 
 }

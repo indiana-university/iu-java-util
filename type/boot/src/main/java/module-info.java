@@ -36,4 +36,5 @@ module iu.util.type.boot {
 	requires iu.util;
 	requires iu.util.type.base;
 	requires java.logging;
+	requires iu.util.logging;
 }

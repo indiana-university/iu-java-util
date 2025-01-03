@@ -35,7 +35,8 @@ done
 }
 
 IU_CONFIG=$ROOT/conf java \
-	-Djava.util.logging.config.file=$ROOT/conf/logging.properties \
+  -Djava.util.logging.manager=iu.logging.boot.IuLogManager \
+  -Djava.util.logging.config.class=iu.logging.boot.IuLoggingBootstrap \
   -Diu.boot.components=$COMPONENTS \
 	-Djava.io.temp=$TMP \
   --add-modules=java.net.http \

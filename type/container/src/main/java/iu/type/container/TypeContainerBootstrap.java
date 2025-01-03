@@ -103,7 +103,7 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 	public synchronized void run() throws Throwable {
 		if (archives == null)
 			return;
-
+		
 		LOG.fine("before init container");
 		final var filter = new FilteringClassLoader(IuIterable.iter(IuObject.class.getPackageName()), parentLoader);
 		final var api = IuIterable.of(() -> Stream.of(archives).flatMap(a -> Stream.of(a.api())).iterator());
@@ -133,7 +133,14 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 
 		initializedComponents = new ArrayDeque<>();
 		try {
-			LOG.fine("after init base " + base.getModuleLayer());
+			final var current = Thread.currentThread();
+			final var restore = current.getContextClassLoader();
+			try {
+				current.setContextClassLoader(base);
+				LOG.fine("after init base " + base.getModuleLayer());
+			} finally {
+				current.setContextClassLoader(restore);
+			}
 
 			for (final var archive : archives) {
 				final ClassLoader parent;
@@ -143,7 +150,14 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 					support = new ModularClassLoader(false, IuIterable.iter(archive.support()), base.getModuleLayer(),
 							base, c -> {
 							});
-					LOG.fine(() -> "after init support " + support.getModuleLayer());
+					
+					try {
+						current.setContextClassLoader(support);
+						LOG.fine(() -> "after init support " + support.getModuleLayer());
+					} finally {
+						current.setContextClassLoader(restore);
+					}
+
 					parent = support;
 				}
 

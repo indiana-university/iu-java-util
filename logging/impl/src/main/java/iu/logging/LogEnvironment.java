@@ -31,43 +31,66 @@
  */
 package iu.logging;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
+/**
+ * Provides environment-bound context attributes.
+ */
+public interface LogEnvironment {
 
-import java.net.InetAddress;
+	/**
+	 * Gets the node identifier.
+	 * 
+	 * @return Unique node identifier
+	 */
+	String getNodeId();
 
-import org.junit.jupiter.api.Test;
+	/**
+	 * Gets the endpoint.
+	 * 
+	 * @return endpoint
+	 */
+	String getEndpoint();
 
-import edu.iu.IdGenerator;
-import edu.iu.IuException;
-import iu.logging.internal.DefaultLogContext;
+	/**
+	 * Gets the application code.
+	 * 
+	 * @return application code
+	 */
+	String getApplication();
 
-@SuppressWarnings("javadoc")
-public class DefaultLogContextTest {
+	/**
+	 * Gets the application environment.
+	 * 
+	 * @return application environment
+	 */
+	String getEnvironment();
 
-	@Test
-	public void testDefaults() {
-		final var nodeId = IuException.unchecked(InetAddress::getLocalHost).getHostName();
-		final var endpoint = IdGenerator.generateId();
-		final var application = IdGenerator.generateId();
-		final var environment = IdGenerator.generateId();
-		final var context = new DefaultLogContext(endpoint, application, environment);
-		assertEquals(nodeId, context.getNodeId());
-		assertEquals(endpoint, context.getEndpoint());
-		assertEquals(application, context.getApplication());
-		assertEquals(environment, context.getEnvironment());
-		assertNull(context.getCalledUrl());
-		assertNull(context.getCallerIpAddress());
-		assertNull(context.getCallerPrincipalName());
-		assertNull(context.getComponent());
-		assertNull(context.getImpersonatedPrincipalName());
-		assertNull(context.getLevel());
-		assertFalse(context.isDevelopment());
-		assertNull(context.getModule());
-		assertNull(context.getRequestId());
-		assertEquals("DefaultLogContext [nodeId=" + nodeId + ", endpoint=" + endpoint + ", application=" + application
-				+ ", environment=" + environment + "]", context.toString());
-	}
+	/**
+	 * Gets the module code.
+	 * 
+	 * @return module code
+	 */
+	String getModule();
+
+	/**
+	 * Gets the runtime code.
+	 * 
+	 * @return runtime code
+	 */
+	String getRuntime();
+
+	/**
+	 * Gets the component code.
+	 * 
+	 * @return component code
+	 */
+	String getComponent();
+
+	/**
+	 * Determines whether or not to enable extended debug logging appropriate for
+	 * development environments.
+	 * 
+	 * @return true to enable extended debug logging; else false
+	 */
+	boolean isDevelopment();
 
 }

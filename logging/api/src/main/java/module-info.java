@@ -36,6 +36,8 @@ module iu.util.logging {
 	exports edu.iu.logging;
 	opens edu.iu.logging;
 	
+	exports iu.logging.boot to java.logging;
+
 	requires iu.util;
 	requires iu.util.type.base;
 	requires transitive java.logging;

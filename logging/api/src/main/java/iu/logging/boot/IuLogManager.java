@@ -36,7 +36,6 @@ import java.io.InputStream;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.logging.LogManager;
-import java.util.logging.Logger;
 
 import edu.iu.UnsafeRunnable;
 
@@ -83,69 +82,73 @@ public class IuLogManager extends LogManager {
 			task.run();
 	}
 
-	@Override
-	public boolean addLogger(Logger logger) {
-		if (!isBound())
-			throw new UnsupportedOperationException("Logging configuration is read-only");
-		else
-			return super.addLogger(logger);
+	/**
+	 * Generates an error indicating that log configuration is read-only.
+	 * 
+	 * @return {@link UnsupportedOperationException}
+	 */
+	static UnsupportedOperationException readonly() {
+		return new UnsupportedOperationException("Logging configuration is read-only");
+	}
+
+	/**
+	 * Checks if the current thread is bound to a configuration task.
+	 */
+	static void checkReadonly() {
+		if (isBound())
+			return;
+
+		final var error = readonly();
+		for (final var element : error.getStackTrace())
+			if (LogManager.class.getName().equals(element.getClassName()) //
+					&& "readPrimordialConfiguration".equals(element.getMethodName()))
+				return;
+
+		error.printStackTrace();
+		throw error;
 	}
 
 	@Override
 	public void readConfiguration() throws IOException, SecurityException {
-		if (!isBound())
-			throw new UnsupportedOperationException("Logging configuration is read-only");
-		else
-			super.readConfiguration();
+		checkReadonly();
+		super.readConfiguration();
 	}
 
 	@Override
 	public void reset() throws SecurityException {
-		if (!isBound())
-			throw new UnsupportedOperationException("Logging configuration is read-only");
-		else
-			super.reset();
+		checkReadonly();
+		super.reset();
 	}
 
 	@Override
 	public void readConfiguration(InputStream ins) throws IOException, SecurityException {
-		if (!isBound())
-			throw new UnsupportedOperationException("Logging configuration is read-only");
-		else
-			super.readConfiguration(ins);
+		checkReadonly();
+		super.readConfiguration(ins);
 	}
 
 	@Override
 	public void updateConfiguration(Function<String, BiFunction<String, String, String>> mapper) throws IOException {
-		if (!isBound())
-			throw new UnsupportedOperationException("Logging configuration is read-only");
-		else
-			super.updateConfiguration(mapper);
+		checkReadonly();
+		super.updateConfiguration(mapper);
 	}
 
 	@Override
 	public void updateConfiguration(InputStream ins, Function<String, BiFunction<String, String, String>> mapper)
 			throws IOException {
-		if (!isBound())
-			throw new UnsupportedOperationException("Logging configuration is read-only");
-		else
-			super.updateConfiguration(ins, mapper);
+		checkReadonly();
+		super.updateConfiguration(ins, mapper);
 	}
 
 	@Override
 	public LogManager addConfigurationListener(Runnable listener) {
-		if (!isBound())
-			throw new UnsupportedOperationException("Logging configuration is read-only");
-		else
-			return super.addConfigurationListener(listener);
+		checkReadonly();
+		return super.addConfigurationListener(listener);
 	}
 
 	@Override
 	public void removeConfigurationListener(Runnable listener) {
-		if (!isBound())
-			throw new UnsupportedOperationException("Logging configuration is read-only");
-		else
-			super.removeConfigurationListener(listener);
+		checkReadonly();
+		super.removeConfigurationListener(listener);
 	}
 
 }

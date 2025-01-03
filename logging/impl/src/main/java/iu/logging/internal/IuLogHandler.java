@@ -105,7 +105,7 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 	 */
 	void consoleTask(Level level) {
 		subject.subscribe().stream().filter(a -> a.getLevel().intValue() >= level.intValue())
-				.forEach(event -> System.out.print(event.format()));
+				.forEach(event -> System.out.println(event.export()));
 	}
 
 	/**

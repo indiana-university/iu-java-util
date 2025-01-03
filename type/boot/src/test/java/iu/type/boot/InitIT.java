@@ -40,6 +40,8 @@ import static org.mockito.Mockito.mockStatic;
 import java.io.IOException;
 import java.util.logging.Level;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
@@ -48,6 +50,17 @@ import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
 public class InitIT {
+
+	@BeforeEach
+	public void init() throws Exception {
+		System.setProperty("iu.config", "");
+		Class.forName("iu.logging.boot.IuLoggingBootstrap").getConstructor(boolean.class).newInstance(true);
+		IuTestLogger.allow("", Level.CONFIG, "IuLogContext initialized .*");
+	}
+
+	@AfterEach
+	public void cleanup() {
+	}
 
 	@Test
 	public void testMain() {

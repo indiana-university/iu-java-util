@@ -35,6 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,11 +63,18 @@ public class IuLogContextTest {
 
 	@Test
 	public void testInitializeContext() {
+		final var nodeId = IdGenerator.generateId();
+		final var development = ThreadLocalRandom.current().nextBoolean();
 		final var endpoint = IdGenerator.generateId();
 		final var application = IdGenerator.generateId();
 		final var environment = IdGenerator.generateId();
-		assertDoesNotThrow(() -> IuLogContext.initializeContext(endpoint, application, environment));
-		mockLoggingBootstrap.verify(() -> IuLoggingBootstrap.initializeContext(endpoint, application, environment));
+		final var module = IdGenerator.generateId();
+		final var runtime = IdGenerator.generateId();
+		final var component = IdGenerator.generateId();
+		assertDoesNotThrow(() -> IuLogContext.initializeContext(nodeId, development, endpoint, application, environment,
+				module, runtime, component));
+		mockLoggingBootstrap.verify(() -> IuLoggingBootstrap.initializeContext(nodeId, development, endpoint,
+				application, environment, module, runtime, component));
 	}
 
 	@SuppressWarnings("unchecked")

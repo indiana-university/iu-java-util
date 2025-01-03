@@ -38,6 +38,7 @@ import java.util.logging.Logger;
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.UnsafeRunnable;
+import edu.iu.logging.IuLogContext;
 import edu.iu.type.base.ModularClassLoader;
 import edu.iu.type.base.TemporaryFile;
 
@@ -61,6 +62,8 @@ public class Init implements AutoCloseable {
 	 *                     a component archive.
 	 */
 	public Init() throws IOException {
+		IuLogContext.initialize();
+		
 		final var init = new UnsafeRunnable() {
 			private ModularClassLoader loader;
 			private AutoCloseable containerBootstrap;

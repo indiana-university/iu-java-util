@@ -37,6 +37,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 
 import java.time.Duration;
@@ -46,11 +48,12 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.test.IuTestLogger;
-import iu.logging.IuLoggingTestCase;
+import iu.logging.Bootstrap;
 import iu.logging.LogContext;
+import iu.logging.LogEnvironment;
 
 @SuppressWarnings("javadoc")
-public class ProcessLoggerTest extends IuLoggingTestCase {
+public class ProcessLoggerTest {
 
 	@Test
 	public void testSizeToString() {
@@ -113,8 +116,7 @@ public class ProcessLoggerTest extends IuLoggingTestCase {
 		final var header3 = IdGenerator.generateId();
 		final var context = mock(LogContext.class);
 		final var application = IdGenerator.generateId();
-		final var context2 = mock(LogContext.class);
-		when(context2.getApplication()).thenReturn(application);
+
 		final var message = IdGenerator.generateId();
 		final var message2 = IdGenerator.generateId();
 		final var message3 = IdGenerator.generateId();
@@ -141,31 +143,40 @@ public class ProcessLoggerTest extends IuLoggingTestCase {
 				+ msgRegex("end 1: " + header) + System.lineSeparator() //
 				+ "final: " + TIME_REGEX + " " + SIZE_REGEX + " " + MEM_REGEX + System.lineSeparator() //
 		);
-		assertDoesNotThrow(() -> ProcessLogger.follow(context, header, () -> {
-			ProcessLogger.trace(() -> null);
-			ProcessLogger.trace(() -> message);
-			assertSame(context, ProcessLogger.getActiveContext());
-			ProcessLogger.follow(context, header2, () -> {
-				ProcessLogger.trace(() -> message2);
+
+		final var env = mock(LogEnvironment.class);
+		try (final var mockBootstrap = mockStatic(Bootstrap.class)) {
+			mockBootstrap.when(() -> Bootstrap.getEnvironment()).thenReturn(env);
+			assertDoesNotThrow(() -> ProcessLogger.follow(context, header, () -> {
+				ProcessLogger.trace(() -> null);
+				ProcessLogger.trace(() -> message);
 				assertSame(context, ProcessLogger.getActiveContext());
-				return null;
-			});
-			ProcessLogger.trace(() -> message3);
-			ProcessLogger.follow(context2, header3, () -> {
-				assertSame(context2, ProcessLogger.getActiveContext());
-				ProcessLogger.trace(() -> message4);
+				ProcessLogger.follow(context, header2, () -> {
+					ProcessLogger.trace(() -> message2);
+					assertSame(context, ProcessLogger.getActiveContext());
+					return null;
+				});
+				ProcessLogger.trace(() -> message3);
 
-				final var exp = ProcessLogger.export();
-				assertTrue(exp.matches("init: " + TIME_REGEX + " " + MEM_REGEX + System.lineSeparator() //
-						+ msgRegex(">1.2 " + application + ": " + header3) + System.lineSeparator() //
-						+ msgRegex(" " + message4) + System.lineSeparator() //
-				), exp::toString);
+				when(env.getApplication()).thenReturn(application);
+				ProcessLogger.follow(context, header3, () -> {
+					assertSame(context, ProcessLogger.getActiveContext());
+					ProcessLogger.trace(() -> message4);
 
-				ProcessLogger.trace(() -> message5);
+					final var exp = ProcessLogger.export();
+					assertTrue(exp.matches("init: " + TIME_REGEX + " " + MEM_REGEX + System.lineSeparator() //
+							+ msgRegex(">1.2 " + application + ": " + header3) + System.lineSeparator() //
+							+ msgRegex(" " + message4) + System.lineSeparator() //
+					), exp::toString);
+
+					ProcessLogger.trace(() -> message5);
+					return null;
+				});
+				reset(env);
+				
 				return null;
-			});
-			return null;
-		}));
+			}));
+		}
 	}
 
 }

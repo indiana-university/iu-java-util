@@ -31,8 +31,10 @@
  */
 package edu.iu.logging;
 
+import java.net.InetAddress;
 import java.util.logging.Level;
 
+import edu.iu.IuRuntimeEnvironment;
 import edu.iu.UnsafeSupplier;
 import iu.logging.boot.IuLoggingBootstrap;
 
@@ -42,21 +44,56 @@ import iu.logging.boot.IuLoggingBootstrap;
 public interface IuLogContext {
 
 	/**
-	 * Binds top-level attributes to log events observed in the
-	 * {@link Thread#getContextClassLoader() current thread's context}.
+	 * Ensures that logging is fully initialized for the
+	 * {@link ClassLoader#getSystemClassLoader() system} and
+	 * {@link ClassLoader#getPlatformClassLoader() platform} {@link ClassLoader}s.
 	 * 
 	 * <p>
-	 * This method SHOULD be invoked exactly once during initialization, typically
-	 * once per container, to bind per-{@link ClassLoader} node-level runtime
-	 * attributes.
+	 * {@link IuRuntimeEnvironment#envOptional(String) Runtime properties}:
 	 * </p>
+	 * <ul>
+	 * <li>iu.endpoint - refers to the external port or client node identifier for
+	 * the active runtime</li>
+	 * <li>iu.application - refers to the application configuration code relative to
+	 * the runtime environment</li>
+	 * <li>iu.environment - refers to the application's environment code, for
+	 * classifying runtime configuration</li>
+	 * <li>iu.logging.maxEvents - maximum number of log events to retain in
+	 * buffer</li>
+	 * <li>iu.logging.eventTtl - maximum time to live for buffered log events</li>
+	 * <li>iu.logging.consoleLevel - minimum log level to write to
+	 * {@link System#out}</li>
+	 * </ul>
 	 * 
-	 * @param endpoint    endpoint identifier
-	 * @param application application code
-	 * @param environment environment code
+	 * @see #initializeContext(String, boolean, String, String, String, String, String, String)
 	 */
-	public static void initializeContext(String endpoint, String application, String environment) {
-		IuLoggingBootstrap.initializeContext(endpoint, application, environment);
+	static void initialize() {
+		IuLoggingBootstrap.initialize();
+	}
+
+	/**
+	 * Initializes attributes for the {@link Thread#getContextClassLoader() current
+	 * thread's context}.
+	 * 
+	 * @param nodeId      runtime node identifier; defaults to
+	 *                    {@link InetAddress#getLocalHost()}{@link InetAddress#getHostName()
+	 *                    .getHostName()}
+	 * @param development development environment flag
+	 * @param endpoint    external port or client node identifier
+	 * @param application application configuration code
+	 * @param environment environment code
+	 * @param module      module configuration code, relative to application and
+	 *                    environment
+	 * @param runtime     runtime configuration code, relative to application and
+	 *                    environment
+	 * @param component   component name, relative to application, environment, and
+	 *                    runtime
+	 * @see #initialize()
+	 */
+	static void initializeContext(String nodeId, boolean development, String endpoint, String application,
+			String environment, String module, String runtime, String component) {
+		IuLoggingBootstrap.initializeContext(nodeId, development, endpoint, application, environment, module, runtime,
+				component);
 	}
 
 	/**
@@ -70,7 +107,7 @@ public interface IuLogContext {
 	 * @return value from {@link UnsafeSupplier#get()}
 	 * @throws Throwable from {@link UnsafeSupplier#get()}
 	 */
-	public static <T> T follow(IuLogContext context, String message, UnsafeSupplier<T> supplier) throws Throwable {
+	static <T> T follow(IuLogContext context, String message, UnsafeSupplier<T> supplier) throws Throwable {
 		return IuLoggingBootstrap.follow(context, message, supplier);
 	}
 

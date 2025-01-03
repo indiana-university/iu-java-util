@@ -43,7 +43,9 @@ import java.util.logging.Logger;
 
 import edu.iu.IuObject;
 import edu.iu.UnsafeSupplier;
+import iu.logging.Bootstrap;
 import iu.logging.LogContext;
+import iu.logging.LogEnvironment;
 
 /**
  * Tracks log messages by bounded execution context.
@@ -105,6 +107,7 @@ public final class ProcessLogger {
 
 	private static class ProcessState {
 		private final String requestId;
+		private final LogEnvironment logEnvironment;
 		private final LogContext logContext;
 		private final String header;
 		private final Instant start = Instant.now();
@@ -133,8 +136,9 @@ public final class ProcessLogger {
 			}
 
 			this.logContext = logContext;
+			this.logEnvironment = Bootstrap.getEnvironment();
 
-			final var application = logContext.getApplication();
+			final var application = logEnvironment.getApplication();
 			final var begin = new StringBuilder();
 			begin.append((depth == 0) ? "begin " : ">").append(requestId);
 			if (application != null)
@@ -151,7 +155,7 @@ public final class ProcessLogger {
 			endMax = runtime.maxMemory();
 			end = Instant.now();
 
-			final var application = logContext.getApplication();
+			final var application = logEnvironment.getApplication();
 			final var end = new StringBuilder();
 			end.append((depth == 0) ? "end " : "<").append(requestId);
 			if (application != null)
