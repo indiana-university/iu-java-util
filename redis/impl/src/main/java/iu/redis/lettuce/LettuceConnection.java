@@ -31,6 +31,7 @@
  */
 package iu.redis.lettuce;
 
+import java.time.Duration;
 import java.util.Objects;
 import java.util.logging.Logger;
 
@@ -42,6 +43,7 @@ import edu.iu.redis.IuRedis;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.api.sync.RedisCommands;
 
 /**
  * Support Lettuce connection.
@@ -49,10 +51,16 @@ import io.lettuce.core.api.StatefulRedisConnection;
 public class LettuceConnection implements IuRedis {
 	//private final GenericObjectPoolConfig poolConfig;
 	private static final Logger LOG = Logger.getLogger(LettuceConnection.class.getName());
-	
-	
-	@SuppressWarnings("unused")
+
 	private final StatefulRedisConnection<String, String> connection;
+	
+	private RedisCommands<String, String> getRedisCommands() {
+		if (connection == null) {
+			throw new IllegalStateException("connection is not established");
+		}
+		RedisCommands<String, String> syncCommands = connection.sync();
+		return syncCommands;
+	}
 	
 	/**
 	 * constructor.
@@ -63,7 +71,6 @@ public class LettuceConnection implements IuRedis {
 		String host = Objects.requireNonNull(config.getHost(), "host is required");
 		String port = Objects.requireNonNull(config.getPort(), "port is required");
 		String password = Objects.requireNonNull(config.getPassword(), "password is required");
-		LOG.finer("Lettuce connection created");
 		//this.poolConfig = new GenericObjectPoolConfig();
 		RedisURI redisUri = RedisURI.Builder.redis(host, Integer.parseInt(port)) //
 					.withPassword(password.toCharArray()) //
@@ -72,5 +79,33 @@ public class LettuceConnection implements IuRedis {
 			RedisClient redisClient = RedisClient.create(redisUri);
 			this.connection = redisClient.connect();
     }
+	
+	@Override
+	public byte[] get(byte[] key) {
+		Objects.requireNonNull(key, "key is required");
+		String value = getRedisCommands().get(new String(key));
+		return value != null ? value.getBytes() : null;
+	}
+	
+	@Override
+	public void put(byte[] key, byte[] value, Duration ttl) {
+		Objects.requireNonNull(key,"key is required" );
+		Objects.requireNonNull(value,"value is required" );
+		if (ttl != null && !ttl.isZero() && !ttl.isNegative()) {
+			getRedisCommands().setex(key.toString(), ttl.toMillis(), value.toString());
+		}
+		getRedisCommands().set(new String(key), new String(value));
+		
+	}
+
+
+	
+	
+	
+	/*private void close() {
+		if (connection != null) {
+			connection.close();
+		}
+	}*/
 
 }

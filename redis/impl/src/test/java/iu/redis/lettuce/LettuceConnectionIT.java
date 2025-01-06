@@ -31,6 +31,7 @@
  */
 package iu.redis.lettuce;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.util.logging.Level;
@@ -41,7 +42,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 
 import edu.iu.test.IuTestLogger;
-import edu.iu.client.IuJson;
 import edu.iu.client.IuVault;
 import edu.iu.redis.IuRedisConfiguration;
 
@@ -54,9 +54,9 @@ public class LettuceConnectionIT {
 	@BeforeAll
 	public static void setupClass() {
 		IuVault vault = IuVault.RUNTIME;
-		final var host = vault.get("cache/spring.redis.host").getValue();
-		String port = vault.get("cache/spring.redis.port").getValue();
-		String password = vault.get("cache/spring.redis.password").getValue();
+		final var host = vault.get("spring.redis.host").getValue();
+		String port = vault.get("spring.redis.port").getValue();
+		String password = vault.get("spring.redis.password").getValue();
 		config = new IuRedisConfiguration() {
 			@Override
 			public String getHost() {
@@ -89,6 +89,9 @@ public class LettuceConnectionIT {
 	public void testConnection() {
 		final var connection = new LettuceConnection(config);
 		assertNotNull(connection);
-		
+		byte[] key = "testKey".getBytes();
+		byte[] value = "testValue".getBytes();
+		connection.put(key, value, null);
+		assertEquals(new String(value), new String(connection.get(key)));
 	}
 }

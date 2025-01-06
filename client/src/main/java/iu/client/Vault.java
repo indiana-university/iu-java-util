@@ -240,7 +240,7 @@ public final class Vault implements IuVault {
 			convertMetadata = a -> null;
 		} else {
 			// TODO: support launchpad through configuration
-			if (secret.startsWith("managed/")) {
+			/*if (secret.startsWith("managed/")) {
 				final var lastSlash = secret.lastIndexOf('/');
 				final var prefix = secret.substring(lastSlash + 1) + '/';
 				convertData = a -> {
@@ -249,7 +249,7 @@ public final class Vault implements IuVault {
 						b.add(prefix + e.getKey(), e.getValue());
 					return b.build();
 				};
-			} else
+			} else*/
 				convertData = a -> a.getJsonObject("data");
 			convertMetadata = a -> a.getJsonObject("metadata");
 		}
@@ -266,12 +266,12 @@ public final class Vault implements IuVault {
 		}
 
 		final Consumer<JsonObject> mergePatchConsumer;
-		if (secret.startsWith("managed/"))
+	/*	if (secret.startsWith("managed/"))
 			mergePatchConsumer = a -> {
 				// TODO: support launchpad through configuration
 				throw new UnsupportedOperationException();
 			};
-		else
+		else*/
 			mergePatchConsumer = mergePatch -> IuException.unchecked(() -> {
 				final var data = dataSupplier.get();
 				final var metadata = metadataSupplier.get();

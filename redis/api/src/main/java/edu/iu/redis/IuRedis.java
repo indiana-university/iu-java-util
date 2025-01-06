@@ -31,6 +31,7 @@
  */
 package edu.iu.redis;
 
+import java.time.Duration;
 import edu.iu.redis.spi.IuRedisSpi;
 import iu.redis.IuRedisSpiFactory;
 
@@ -57,7 +58,24 @@ public interface IuRedis {
 	 */
 	//IuRedisConnection getAsynConnection(RedisConfiguration config);
 
+	/**
+	 * Write the given key/value pair to Redis and set the expiration time if defined.
+	 *
+	* @param key key for the cache entry. Must not be {@literal null}.
+	 * @param value value stored for the key. Must not be {@literal null}.
+	 * @param ttl optional expiration time. Can be {@literal null}.
+	 */
+	void put(byte[] key, byte[] value, Duration ttl);
 	
+	
+	/**
+	 * Get the binary value representation from Redis stored for the given key.
+	 * @param key must not be {@literal null}.
+	 * @return {@literal null} if key does not exist.
+	 */
+	byte[] get(byte[] key);
 
+
+    
 
 }
