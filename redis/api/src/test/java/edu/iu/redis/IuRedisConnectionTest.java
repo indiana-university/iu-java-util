@@ -31,16 +31,16 @@
  */
 package edu.iu.redis;
 
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.mockito.Mockito.mock;
-
 import edu.iu.redis.spi.IuRedisSpi;
 import iu.redis.IuRedisSpiFactory;
+
 @SuppressWarnings("javadoc")
 public class IuRedisConnectionTest {
 
@@ -48,11 +48,11 @@ public class IuRedisConnectionTest {
 	public void testGetStandAloneConnection() {
 		final var mockConfig = mock(IuRedisConfiguration.class);
 		try (final var mockSpiFactory = mockStatic(IuRedisSpiFactory.class)) {
-            final var mockSpi = mock(IuRedisSpi.class);
-            mockSpiFactory.when(() -> IuRedisSpiFactory.get(IuRedisSpi.class)).thenReturn(mockSpi);
-            final var mockRedisConnection = mock(IuRedis.class);
-            when(mockSpi.createConnection(mockConfig)).thenReturn(mockRedisConnection);
-            assertSame(mockRedisConnection, IuRedis.createConnection(mockConfig));
+			final var mockSpi = mock(IuRedisSpi.class);
+			mockSpiFactory.when(() -> IuRedisSpiFactory.get(IuRedisSpi.class)).thenReturn(mockSpi);
+			final var mockRedisConnection = mock(IuRedis.class);
+			when(mockSpi.createConnection(mockConfig)).thenReturn(mockRedisConnection);
+			assertSame(mockRedisConnection, IuRedis.createConnection(mockConfig));
 		}
 	}
 }

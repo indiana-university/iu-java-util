@@ -31,8 +31,8 @@
  */
 package iu.redis.spi;
 
-import edu.iu.redis.IuRedisConfiguration;
 import edu.iu.redis.IuRedis;
+import edu.iu.redis.IuRedisConfiguration;
 import edu.iu.redis.spi.IuRedisSpi;
 import iu.redis.lettuce.LettuceConnection;
 

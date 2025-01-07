@@ -43,11 +43,10 @@ import java.util.ServiceLoader;
 
 import org.junit.jupiter.api.Test;
 
-
 @SuppressWarnings("javadoc")
 public class IuRedisSpiFactoryTest {
 	private interface TestService {
-		
+
 	}
 
 	@SuppressWarnings("unchecked")

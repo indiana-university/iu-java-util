@@ -35,5 +35,6 @@
 module iu.util.redis {
 	exports edu.iu.redis;
 	exports edu.iu.redis.spi;
+
 	requires iu.util;
 }

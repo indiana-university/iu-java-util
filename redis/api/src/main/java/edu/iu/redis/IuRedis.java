@@ -31,17 +31,18 @@
  */
 package edu.iu.redis;
 
-import java.time.Duration;
+import edu.iu.IuDataStore;
 import edu.iu.redis.spi.IuRedisSpi;
 import iu.redis.IuRedisSpiFactory;
 
 /**
  * A Redis connection interface.
  * <p>
- * The {@link IuRedis} interface serves as a common abstraction to get connection across different Redis libraries.
+ * The {@link IuRedis} interface serves as a common abstraction to get
+ * connection across different Redis libraries.
  * </p>
  */
-public interface IuRedis {
+public interface IuRedis extends IuDataStore {
 
 	/**
 	 * Create a connection to Redis.
@@ -52,30 +53,5 @@ public interface IuRedis {
 	static IuRedis createConnection(IuRedisConfiguration config) {
 		return IuRedisSpiFactory.get(IuRedisSpi.class).createConnection(config);
 	}
-
-	/**
-	 * TODO support async connection
-	 */
-	//IuRedisConnection getAsynConnection(RedisConfiguration config);
-
-	/**
-	 * Write the given key/value pair to Redis and set the expiration time if defined.
-	 *
-	* @param key key for the cache entry. Must not be {@literal null}.
-	 * @param value value stored for the key. Must not be {@literal null}.
-	 * @param ttl optional expiration time. Can be {@literal null}.
-	 */
-	void put(byte[] key, byte[] value, Duration ttl);
-	
-	
-	/**
-	 * Get the binary value representation from Redis stored for the given key.
-	 * @param key must not be {@literal null}.
-	 * @return {@literal null} if key does not exist.
-	 */
-	byte[] get(byte[] key);
-
-
-    
 
 }

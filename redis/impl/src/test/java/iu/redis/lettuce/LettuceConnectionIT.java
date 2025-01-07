@@ -41,10 +41,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 
-import edu.iu.test.IuTestLogger;
 import edu.iu.client.IuVault;
 import edu.iu.redis.IuRedisConfiguration;
-
+import edu.iu.test.IuTestLogger;
 
 @EnabledIf("edu.iu.client.IuVault#isConfigured")
 @SuppressWarnings("javadoc")
@@ -79,12 +78,12 @@ public class LettuceConnectionIT {
 			}
 		};
 	}
-	
+
 	@BeforeEach
 	public void setup() {
 		IuTestLogger.allow("", Level.FINE);
 	}
-	
+
 	@Test
 	public void testConnection() {
 		final var connection = new LettuceConnection(config);

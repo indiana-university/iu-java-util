@@ -35,11 +35,8 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.logging.Logger;
 
-import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-
-
-import edu.iu.redis.IuRedisConfiguration;
 import edu.iu.redis.IuRedis;
+import edu.iu.redis.IuRedisConfiguration;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
@@ -48,12 +45,12 @@ import io.lettuce.core.api.sync.RedisCommands;
 /**
  * Support Lettuce connection.
  */
-public class LettuceConnection implements IuRedis {
-	//private final GenericObjectPoolConfig poolConfig;
+public class LettuceConnection implements IuRedis, AutoCloseable {
+	// private final GenericObjectPoolConfig poolConfig;
 	private static final Logger LOG = Logger.getLogger(LettuceConnection.class.getName());
 
 	private final StatefulRedisConnection<String, String> connection;
-	
+
 	private RedisCommands<String, String> getRedisCommands() {
 		if (connection == null) {
 			throw new IllegalStateException("connection is not established");
@@ -61,9 +58,10 @@ public class LettuceConnection implements IuRedis {
 		RedisCommands<String, String> syncCommands = connection.sync();
 		return syncCommands;
 	}
-	
+
 	/**
 	 * constructor.
+	 * 
 	 * @param config redis configuration
 	 */
 	public LettuceConnection(IuRedisConfiguration config) {
@@ -71,41 +69,43 @@ public class LettuceConnection implements IuRedis {
 		String host = Objects.requireNonNull(config.getHost(), "host is required");
 		String port = Objects.requireNonNull(config.getPort(), "port is required");
 		String password = Objects.requireNonNull(config.getPassword(), "password is required");
-		//this.poolConfig = new GenericObjectPoolConfig();
+		// this.poolConfig = new GenericObjectPoolConfig();
 		RedisURI redisUri = RedisURI.Builder.redis(host, Integer.parseInt(port)) //
-					.withPassword(password.toCharArray()) //
-					.withSsl(true) //
-					.build();
-			RedisClient redisClient = RedisClient.create(redisUri);
-			this.connection = redisClient.connect();
-    }
-	
+				.withPassword(password.toCharArray()) //
+				.withSsl(true) //
+				.build();
+		RedisClient redisClient = RedisClient.create(redisUri);
+		this.connection = redisClient.connect();
+	}
+
 	@Override
 	public byte[] get(byte[] key) {
 		Objects.requireNonNull(key, "key is required");
 		String value = getRedisCommands().get(new String(key));
 		return value != null ? value.getBytes() : null;
 	}
-	
+
 	@Override
 	public void put(byte[] key, byte[] value, Duration ttl) {
-		Objects.requireNonNull(key,"key is required" );
-		Objects.requireNonNull(value,"value is required" );
+		Objects.requireNonNull(key, "key is required");
+		Objects.requireNonNull(value, "value is required");
 		if (ttl != null && !ttl.isZero() && !ttl.isNegative()) {
 			getRedisCommands().setex(key.toString(), ttl.toMillis(), value.toString());
 		}
 		getRedisCommands().set(new String(key), new String(value));
-		
+
 	}
 
+	@Override
+	public Iterable<?> list() {
 
-	
-	
-	
-	/*private void close() {
-		if (connection != null) {
-			connection.close();
-		}
-	}*/
+		throw new UnsupportedOperationException("TODO STARCH-915 ");
+	}
+
+	@Override
+	public void close() throws Exception {
+		throw new UnsupportedOperationException("TODO STARCH-915 ");
+
+	}
 
 }

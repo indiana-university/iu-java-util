@@ -40,6 +40,7 @@ import edu.iu.redis.IuRedisConfiguration;
 public interface IuRedisSpi {
 	/**
 	 * Creates a new connection.
+	 * 
 	 * @param config redis configuration
 	 * 
 	 * @return a new connection

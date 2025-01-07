@@ -75,6 +75,7 @@ public class IuRedisSpiFactory {
 
 		return provider.instance;
 	}
+
 	private IuRedisSpiFactory() {
 	}
 

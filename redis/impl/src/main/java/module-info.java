@@ -42,6 +42,6 @@ module iu.util.redis.impl {
 	requires iu.util.client;
 
 	requires transitive iu.util.redis;
-	
+
 	provides edu.iu.redis.spi.IuRedisSpi with iu.redis.spi.RedisSpi;
 }

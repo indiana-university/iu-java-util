@@ -31,6 +31,8 @@
  */
 package edu.iu.redis;
 
+import java.time.Duration;
+
 /**
  * Redis configuration interface.
  */
@@ -48,26 +50,36 @@ public interface IuRedisConfiguration {
 	 * @return the password
 	 */
 	String getPassword();
-	
+
 	/**
 	 * Returns the host to be used for Redis connection.
 	 *
 	 * @return the host
 	 */
 	String getHost();
-	
+
 	/**
 	 * Returns the port to be used for Redis connection.
 	 *
 	 * @return the port
-	 */	
+	 */
 	String getPort();
 
 	/**
 	 * Connecting to Redis Cluster with SSL enabled.
+	 * 
 	 * @return true if SSL is enabled otherwise
 	 */
-	default boolean  getSsl() {
+	default boolean getSsl() {
 		return true;
+	}
+
+	/**
+	 * Returns the key expiration duration.
+	 * 
+	 * @return the key expiration duration
+	 */
+	default Duration getKeyExpiration() {
+		return Duration.ofMinutes(5);
 	}
 }
