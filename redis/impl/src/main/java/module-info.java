@@ -30,6 +30,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /**
+ * redis connection 
  * @provides edu.iu.redis.spi.IuRedisSpi
  * 
  **/
