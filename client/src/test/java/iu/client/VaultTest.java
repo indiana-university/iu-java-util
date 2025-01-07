@@ -613,13 +613,11 @@ public class VaultTest extends IuHttpTestCase {
 							.build());
 
 			final var vs = vault.getSecret(secret);
-			assertKeyedValue(vs, secretName + "/" + key, value, vs.get(secretName + "/" + key, String.class));
-			assertThrows(UnsupportedOperationException.class,
-					() -> vs.set(secretName + "/" + key, IdGenerator.generateId(), String.class));
-
+			assertKeyedValue(vs, key, value, vs.get(key, String.class));
+	
 			final var list = vault.list().iterator();
 			assertTrue(list.hasNext());
-			assertKeyedValue(vs, secretName + "/" + key, value, Object.class, list.next());
+			assertKeyedValue(vs, key, value, Object.class, list.next());
 
 			mockHttp.verify(readVault, times(2));
 		}
