@@ -35,29 +35,28 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.logging.Logger;
 
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+
+import edu.iu.IuException;
 import edu.iu.redis.IuRedis;
 import edu.iu.redis.IuRedisConfiguration;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisCommands;
+import io.lettuce.core.support.ConnectionPoolSupport;
 
 /**
  * Support Lettuce connection.
  */
 public class LettuceConnection implements IuRedis, AutoCloseable {
-	// private final GenericObjectPoolConfig poolConfig;
+
 	private static final Logger LOG = Logger.getLogger(LettuceConnection.class.getName());
 
-	private final StatefulRedisConnection<String, String> connection;
-
-	private RedisCommands<String, String> getRedisCommands() {
-		if (connection == null) {
-			throw new IllegalStateException("connection is not established");
-		}
-		RedisCommands<String, String> syncCommands = connection.sync();
-		return syncCommands;
-	}
+	private final GenericObjectPool<StatefulRedisConnection<String, String>> genericPool;
+	private final 	RedisClient redisClient;
+	
 
 	/**
 	 * constructor.
@@ -69,30 +68,46 @@ public class LettuceConnection implements IuRedis, AutoCloseable {
 		String host = Objects.requireNonNull(config.getHost(), "host is required");
 		String port = Objects.requireNonNull(config.getPort(), "port is required");
 		String password = Objects.requireNonNull(config.getPassword(), "password is required");
-		// this.poolConfig = new GenericObjectPoolConfig();
 		RedisURI redisUri = RedisURI.Builder.redis(host, Integer.parseInt(port)) //
 				.withPassword(password.toCharArray()) //
 				.withSsl(true) //
 				.build();
-		RedisClient redisClient = RedisClient.create(redisUri);
-		this.connection = redisClient.connect();
+		this.redisClient = RedisClient.create(redisUri);
+			this.genericPool = ConnectionPoolSupport
+				.createGenericObjectPool(() -> redisClient.connect(), new GenericObjectPoolConfig<StatefulRedisConnection<String, String>>());
 	}
 
 	@Override
 	public byte[] get(byte[] key) {
 		Objects.requireNonNull(key, "key is required");
-		String value = getRedisCommands().get(new String(key));
-		return value != null ? value.getBytes() : null;
+
+		try (StatefulRedisConnection<String, String> connection = genericPool.borrowObject()) {
+
+			RedisCommands<String, String> commands = connection.sync();
+			String value = commands.get(new String(key));
+			return value != null ? value.getBytes() : null;
+		} catch (Exception e) {
+			IuException.suppress(e,()->  e.getMessage());
+			throw new IllegalStateException("connection cannot be obtained from the pool");
+		}
 	}
 
 	@Override
 	public void put(byte[] key, byte[] value, Duration ttl) {
 		Objects.requireNonNull(key, "key is required");
 		Objects.requireNonNull(value, "value is required");
-		if (ttl != null && !ttl.isZero() && !ttl.isNegative()) {
-			getRedisCommands().setex(key.toString(), ttl.toMillis(), value.toString());
+		try (StatefulRedisConnection<String, String> connection = genericPool.borrowObject()) {
+
+			RedisCommands<String, String> commands = connection.sync();
+			if (ttl != null && !ttl.isZero() && !ttl.isNegative()) {
+				commands.setex(key.toString(), ttl.toMillis(), value.toString());
+			}
+
+			commands.set(new String(key), new String(value));
+		} catch (Exception e) {
+			IuException.suppress(e,()->  e.getMessage());
+			throw new IllegalStateException("connection cannot be obtained from the pool");
 		}
-		getRedisCommands().set(new String(key), new String(value));
 
 	}
 
@@ -104,8 +119,8 @@ public class LettuceConnection implements IuRedis, AutoCloseable {
 
 	@Override
 	public void close() throws Exception {
-		throw new UnsupportedOperationException("TODO STARCH-915 ");
-
+		genericPool.close();
+		redisClient.shutdown();
 	}
 
 }

@@ -162,7 +162,7 @@ public class LettuceConnectionTest {
 			assertDoesNotThrow(() -> lettuceConnection.get("key".getBytes()));
 			assertDoesNotThrow(() -> lettuceConnection.get("key".getBytes()));
 			assertThrows(UnsupportedOperationException.class, () -> lettuceConnection.list());
-			assertThrows(UnsupportedOperationException.class, () -> lettuceConnection.close());
+			assertDoesNotThrow(() -> lettuceConnection.close());
 		}
 
 	}
@@ -186,6 +186,8 @@ public class LettuceConnectionTest {
 			redisClientStaticMock.when(() -> RedisClient.create(redisURI)).thenReturn(mockClient);
 			LettuceConnection lettuceConnection = new LettuceConnection(config);
 			assertNotNull(lettuceConnection);
+			assertThrows(IllegalStateException.class,
+					() -> lettuceConnection.get("key".getBytes()));
 			assertThrows(IllegalStateException.class,
 					() -> lettuceConnection.put("key".getBytes(), "value".getBytes(), null));
 		}
