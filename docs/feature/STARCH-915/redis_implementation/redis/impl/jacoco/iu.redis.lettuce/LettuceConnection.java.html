@@ -35,78 +35,93 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.logging.Logger;
 
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+
+import edu.iu.IuException;
 import edu.iu.redis.IuRedis;
 import edu.iu.redis.IuRedisConfiguration;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisCommands;
+import io.lettuce.core.support.ConnectionPoolSupport;
 
 /**
  * Support Lettuce connection.
  */
 public class LettuceConnection implements IuRedis, AutoCloseable {
-	// private final GenericObjectPoolConfig poolConfig;
-<span class="fc" id="L50">	private static final Logger LOG = Logger.getLogger(LettuceConnection.class.getName());</span>
 
-	private final StatefulRedisConnection&lt;String, String&gt; connection;
+<span class="fc" id="L55">	private static final Logger LOG = Logger.getLogger(LettuceConnection.class.getName());</span>
 
-	private RedisCommands&lt;String, String&gt; getRedisCommands() {
-<span class="fc bfc" id="L55" title="All 2 branches covered.">		if (connection == null) {</span>
-<span class="fc" id="L56">			throw new IllegalStateException(&quot;connection is not established&quot;);</span>
-		}
-<span class="fc" id="L58">		RedisCommands&lt;String, String&gt; syncCommands = connection.sync();</span>
-<span class="fc" id="L59">		return syncCommands;</span>
-	}
+	private final GenericObjectPool&lt;StatefulRedisConnection&lt;String, String&gt;&gt; genericPool;
+	private final 	RedisClient redisClient;
+	
 
 	/**
 	 * constructor.
 	 * 
 	 * @param config redis configuration
 	 */
-<span class="fc" id="L67">	public LettuceConnection(IuRedisConfiguration config) {</span>
-<span class="fc" id="L68">		Objects.requireNonNull(config, &quot;config is required&quot;);</span>
-<span class="fc" id="L69">		String host = Objects.requireNonNull(config.getHost(), &quot;host is required&quot;);</span>
-<span class="fc" id="L70">		String port = Objects.requireNonNull(config.getPort(), &quot;port is required&quot;);</span>
-<span class="fc" id="L71">		String password = Objects.requireNonNull(config.getPassword(), &quot;password is required&quot;);</span>
-		// this.poolConfig = new GenericObjectPoolConfig();
-<span class="fc" id="L73">		RedisURI redisUri = RedisURI.Builder.redis(host, Integer.parseInt(port)) //</span>
-<span class="fc" id="L74">				.withPassword(password.toCharArray()) //</span>
-<span class="fc" id="L75">				.withSsl(true) //</span>
-<span class="fc" id="L76">				.build();</span>
-<span class="fc" id="L77">		RedisClient redisClient = RedisClient.create(redisUri);</span>
-<span class="fc" id="L78">		this.connection = redisClient.connect();</span>
-<span class="fc" id="L79">	}</span>
+<span class="fc" id="L66">	public LettuceConnection(IuRedisConfiguration config) {</span>
+<span class="fc" id="L67">		Objects.requireNonNull(config, &quot;config is required&quot;);</span>
+<span class="fc" id="L68">		String host = Objects.requireNonNull(config.getHost(), &quot;host is required&quot;);</span>
+<span class="fc" id="L69">		String port = Objects.requireNonNull(config.getPort(), &quot;port is required&quot;);</span>
+<span class="fc" id="L70">		String password = Objects.requireNonNull(config.getPassword(), &quot;password is required&quot;);</span>
+<span class="fc" id="L71">		RedisURI redisUri = RedisURI.Builder.redis(host, Integer.parseInt(port)) //</span>
+<span class="fc" id="L72">				.withPassword(password.toCharArray()) //</span>
+<span class="fc" id="L73">				.withSsl(true) //</span>
+<span class="fc" id="L74">				.build();</span>
+<span class="fc" id="L75">		this.redisClient = RedisClient.create(redisUri);</span>
+<span class="fc" id="L76">			this.genericPool = ConnectionPoolSupport</span>
+<span class="fc" id="L77">				.createGenericObjectPool(() -&gt; redisClient.connect(), new GenericObjectPoolConfig&lt;StatefulRedisConnection&lt;String, String&gt;&gt;());</span>
+<span class="fc" id="L78">	}</span>
 
 	@Override
 	public byte[] get(byte[] key) {
-<span class="fc" id="L83">		Objects.requireNonNull(key, &quot;key is required&quot;);</span>
-<span class="fc" id="L84">		String value = getRedisCommands().get(new String(key));</span>
-<span class="fc bfc" id="L85" title="All 2 branches covered.">		return value != null ? value.getBytes() : null;</span>
+<span class="fc" id="L82">		Objects.requireNonNull(key, &quot;key is required&quot;);</span>
+
+<span class="fc" id="L84">		try (StatefulRedisConnection&lt;String, String&gt; connection = genericPool.borrowObject()) {</span>
+
+<span class="fc" id="L86">			RedisCommands&lt;String, String&gt; commands = connection.sync();</span>
+<span class="fc" id="L87">			String value = commands.get(new String(key));</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">			return value != null ? value.getBytes() : null;</span>
+<span class="fc" id="L89">		} catch (Exception e) {</span>
+<span class="fc" id="L90">			IuException.suppress(e,()-&gt;  e.getMessage());</span>
+<span class="fc" id="L91">			throw new IllegalStateException(&quot;connection cannot be obtained from the pool&quot;);</span>
+		}
 	}
 
 	@Override
 	public void put(byte[] key, byte[] value, Duration ttl) {
-<span class="fc" id="L90">		Objects.requireNonNull(key, &quot;key is required&quot;);</span>
-<span class="fc" id="L91">		Objects.requireNonNull(value, &quot;value is required&quot;);</span>
-<span class="fc bfc" id="L92" title="All 6 branches covered.">		if (ttl != null &amp;&amp; !ttl.isZero() &amp;&amp; !ttl.isNegative()) {</span>
-<span class="fc" id="L93">			getRedisCommands().setex(key.toString(), ttl.toMillis(), value.toString());</span>
-		}
-<span class="fc" id="L95">		getRedisCommands().set(new String(key), new String(value));</span>
+<span class="fc" id="L97">		Objects.requireNonNull(key, &quot;key is required&quot;);</span>
+<span class="fc" id="L98">		Objects.requireNonNull(value, &quot;value is required&quot;);</span>
+<span class="fc" id="L99">		try (StatefulRedisConnection&lt;String, String&gt; connection = genericPool.borrowObject()) {</span>
 
-<span class="fc" id="L97">	}</span>
+<span class="fc" id="L101">			RedisCommands&lt;String, String&gt; commands = connection.sync();</span>
+<span class="fc bfc" id="L102" title="All 6 branches covered.">			if (ttl != null &amp;&amp; !ttl.isZero() &amp;&amp; !ttl.isNegative()) {</span>
+<span class="fc" id="L103">				commands.setex(key.toString(), ttl.toMillis(), value.toString());</span>
+			}
+
+<span class="fc" id="L106">			commands.set(new String(key), new String(value));</span>
+<span class="fc" id="L107">		} catch (Exception e) {</span>
+<span class="fc" id="L108">			IuException.suppress(e,()-&gt;  e.getMessage());</span>
+<span class="fc" id="L109">			throw new IllegalStateException(&quot;connection cannot be obtained from the pool&quot;);</span>
+<span class="fc" id="L110">		}</span>
+
+<span class="fc" id="L112">	}</span>
 
 	@Override
 	public Iterable&lt;?&gt; list() {
 
-<span class="fc" id="L102">		throw new UnsupportedOperationException(&quot;TODO STARCH-915 &quot;);</span>
+<span class="fc" id="L117">		throw new UnsupportedOperationException(&quot;TODO STARCH-915 &quot;);</span>
 	}
 
 	@Override
 	public void close() throws Exception {
-<span class="fc" id="L107">		throw new UnsupportedOperationException(&quot;TODO STARCH-915 &quot;);</span>
-
-	}
+<span class="fc" id="L122">		genericPool.close();</span>
+<span class="fc" id="L123">		redisClient.shutdown();</span>
+<span class="fc" id="L124">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
