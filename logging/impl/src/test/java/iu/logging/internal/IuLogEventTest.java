@@ -84,7 +84,7 @@ public class IuLogEventTest extends IuLoggingTestCase {
 			assertNull(event.getProcessLog());
 			assertNull(event.getError());
 			assertEquals(rec.getInstant(), event.getTimestamp());
-			assertEquals("INFO,,,,,,,," + Thread.currentThread().getName() + ",,,,," + event.getTimestamp() + ",,"
+			assertEquals("INFO,,,,,,,,," + Thread.currentThread().getName() + ",,,,," + event.getTimestamp() + ",,"
 					+ System.lineSeparator() + msg + System.lineSeparator(), event.format());
 		}
 	}
@@ -101,6 +101,7 @@ public class IuLogEventTest extends IuLoggingTestCase {
 		rec.setSourceMethodName(sourceMethodName);
 
 		final var requestId = IdGenerator.generateId();
+		final var endpoint = IdGenerator.generateId();
 		final var environment = IdGenerator.generateId();
 		final var application = IdGenerator.generateId();
 		final var module = IdGenerator.generateId();
@@ -114,6 +115,7 @@ public class IuLogEventTest extends IuLoggingTestCase {
 
 		final var env = mock(LogEnvironment.class);
 		when(env.getNodeId()).thenReturn(nodeId);
+		when(env.getEndpoint()).thenReturn(endpoint);
 		when(env.getEnvironment()).thenReturn(environment);
 		when(env.getApplication()).thenReturn(application);
 		when(env.getModule()).thenReturn(module);
@@ -137,6 +139,7 @@ public class IuLogEventTest extends IuLoggingTestCase {
 			assertEquals(msg, event.getMessage());
 			assertEquals(loggerName, event.getLoggerName());
 			assertEquals(requestId, event.getRequestId());
+			assertEquals(endpoint, event.getEndpoint());
 			assertEquals(environment, event.getEnvironment());
 			assertEquals(application, event.getApplication());
 			assertEquals(module, event.getModule());
@@ -152,11 +155,11 @@ public class IuLogEventTest extends IuLoggingTestCase {
 			assertNull(event.getProcessLog());
 			assertNull(event.getError());
 			assertEquals(rec.getInstant(), event.getTimestamp());
-			assertEquals("FINE," + requestId + "," + application + "," + environment + "," + module + "," + runtime
-					+ "," + component + "," + nodeId + "," + Thread.currentThread().getName() + "," + callerIpAddress
-					+ "," + calledUrl + "," + callerPrincipalName + "," + impersonatedPrincipalName + ","
-					+ event.getTimestamp() + "," + loggerName + "," + sourceClassName + "." + sourceMethodName + "()"
-					+ System.lineSeparator() + msg + System.lineSeparator(), event.toString());
+			assertEquals("FINE," + requestId + "," + endpoint + "," + application + "," + environment + "," + module
+					+ "," + runtime + "," + component + "," + nodeId + "," + Thread.currentThread().getName() + ","
+					+ callerIpAddress + "," + calledUrl + "," + callerPrincipalName + "," + impersonatedPrincipalName
+					+ "," + event.getTimestamp() + "," + loggerName + "," + sourceClassName + "." + sourceMethodName
+					+ "()" + System.lineSeparator() + msg + System.lineSeparator(), event.toString());
 		}
 	}
 
@@ -175,6 +178,7 @@ public class IuLogEventTest extends IuLoggingTestCase {
 
 		final var requestId = IdGenerator.generateId();
 		final var nodeId = IdGenerator.generateId();
+		final var endpoint = IdGenerator.generateId();
 		final var environment = IdGenerator.generateId();
 		final var application = IdGenerator.generateId();
 		final var module = IdGenerator.generateId();
@@ -188,6 +192,7 @@ public class IuLogEventTest extends IuLoggingTestCase {
 		final var context = mock(LogContext.class);
 		when(context.getRequestId()).thenReturn(requestId);
 		when(env.getNodeId()).thenReturn(nodeId);
+		when(env.getEndpoint()).thenReturn(endpoint);
 		when(env.getEnvironment()).thenReturn(environment);
 		when(env.getApplication()).thenReturn(application);
 		when(env.getModule()).thenReturn(module);
@@ -210,10 +215,12 @@ public class IuLogEventTest extends IuLoggingTestCase {
 			assertEquals(msg, event.getMessage());
 			assertEquals(loggerName, event.getLoggerName());
 			assertEquals(requestId, event.getRequestId());
+			assertEquals(endpoint, event.getEndpoint());
 			assertEquals(environment, event.getEnvironment());
 			assertEquals(application, event.getApplication());
 			assertEquals(module, event.getModule());
 			assertEquals(component, event.getComponent());
+			assertEquals(runtime, event.getRuntime());
 			assertEquals(nodeId, event.getNodeId());
 			assertEquals(Thread.currentThread().getName(), event.getThread());
 			assertEquals(callerIpAddress, event.getCallerIpAddress());
@@ -229,12 +236,12 @@ public class IuLogEventTest extends IuLoggingTestCase {
 			assertEquals(sw.toString(), event.getError());
 
 			assertEquals(rec.getInstant(), event.getTimestamp());
-			assertEquals("SEVERE," + requestId + "," + application + "," + environment + "," + module + "," + runtime
-					+ "," + component + "," + nodeId + "," + Thread.currentThread().getName() + "," + callerIpAddress
-					+ "," + calledUrl + "," + callerPrincipalName + "," + impersonatedPrincipalName + ","
-					+ event.getTimestamp() + "," + loggerName + "," + sourceClassName + "." + sourceMethodName + "()"
-					+ System.lineSeparator() + msg + System.lineSeparator() + processLog + System.lineSeparator() + sw
-					+ System.lineSeparator(), event.format());
+			assertEquals("SEVERE," + requestId + "," + endpoint + "," + application + "," + environment + "," + module
+					+ "," + runtime + "," + component + "," + nodeId + "," + Thread.currentThread().getName() + ","
+					+ callerIpAddress + "," + calledUrl + "," + callerPrincipalName + "," + impersonatedPrincipalName
+					+ "," + event.getTimestamp() + "," + loggerName + "," + sourceClassName + "." + sourceMethodName
+					+ "()" + System.lineSeparator() + msg + System.lineSeparator() + processLog + System.lineSeparator()
+					+ sw + System.lineSeparator(), event.format());
 		}
 	}
 

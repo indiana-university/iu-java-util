@@ -54,8 +54,9 @@ import edu.iu.type.base.TemporaryFile;
  * Recommended use is to ensure iu-java-base, iu-java-type-base, and
  * iu-java-logging are in the ({@code -p}) module path and start the JVM with
  * {@code -Djava.util.logging.config.class=iu.logging.boot.IuLoggingBootstrap}.
- * Alternatively, {@link #IuLoggingBootstrap(boolean)} may be used via
- * reflection to control logging configuration after initialization.
+ * Alternatively, {@link #IuLoggingBootstrap(boolean) new
+ * IuLoggingBootstrap(true)} may be used via reflection to control logging
+ * configuration after initialization.
  * </p>
  * 
  * <p>
@@ -64,7 +65,11 @@ import edu.iu.type.base.TemporaryFile;
  * </p>
  * <ul>
  * <li>{@code iu.config} - folder with logging.properties</li>
- * <li>{@code iu.logging.logPath} - root log folder</li>
+ * <li>{@code iu.logging.file.path} - root log folder</li>
+ * <li>{@code iu.logging.file.maxSize} - maximum size, in bytes, for each log
+ * file</li>
+ * <li>{@code iu.logging.file.nLimit} - maximum number of backup files to
+ * keep</li>
  * </ul>
  * 
  * <p>

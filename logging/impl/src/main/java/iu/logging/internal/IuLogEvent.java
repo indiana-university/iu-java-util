@@ -56,6 +56,7 @@ class IuLogEvent {
 	private final Level level;
 	private final String loggerName;
 	private final String requestId;
+	private final String endpoint;
 	private final String application;
 	private final String environment;
 	private final String module;
@@ -86,6 +87,7 @@ class IuLogEvent {
 		level = record.getLevel();
 		loggerName = record.getLoggerName();
 
+		endpoint = env.getEndpoint();
 		application = env.getApplication();
 		environment = env.getEnvironment();
 		module = env.getModule();
@@ -140,6 +142,7 @@ class IuLogEvent {
 		final var builder = IuJson.object();
 		IuJson.add(builder, "level", level.getName());
 		IuJson.add(builder, "requestId", requestId);
+		IuJson.add(builder, "endpoint", endpoint);
 		IuJson.add(builder, "application", application);
 		IuJson.add(builder, "environment", environment);
 		IuJson.add(builder, "module", module);
@@ -170,6 +173,7 @@ class IuLogEvent {
 		StringBuilder sb = new StringBuilder();
 		append(sb, level);
 		append(sb, requestId);
+		append(sb, endpoint);
 		append(sb, application);
 		append(sb, environment);
 		append(sb, module);
@@ -232,6 +236,24 @@ class IuLogEvent {
 	 */
 	public String getRequestId() {
 		return requestId;
+	}
+
+	/**
+	 * Gets {@link #endpoint}
+	 * 
+	 * @return {@link #endpoint}
+	 */
+	public String getEndpoint() {
+		return endpoint;
+	}
+
+	/**
+	 * Gets {@link #runtime}
+	 * 
+	 * @return {@link #runtime}
+	 */
+	public String getRuntime() {
+		return runtime;
 	}
 
 	/**

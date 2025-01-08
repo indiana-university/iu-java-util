@@ -123,13 +123,12 @@ public class IuAsynchronousPipe<T> implements Consumer<T>, AutoCloseable {
 					throw IuException.unchecked(error);
 			}
 
-			if (next != null)
+			if (next != null) {
+				receivedCount++;
 				action.accept(next);
+			}
 
 			synchronized (IuAsynchronousPipe.this) {
-				if (next != null)
-					receivedCount++;
-
 				if (!completed //
 						&& (completed = closed && queue.isEmpty()))
 					streamClose.run();

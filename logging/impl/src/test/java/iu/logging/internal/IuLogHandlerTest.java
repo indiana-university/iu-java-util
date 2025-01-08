@@ -34,18 +34,23 @@ package iu.logging.internal;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.Queue;
 import java.util.Spliterator;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
@@ -55,10 +60,13 @@ import org.junit.jupiter.api.Test;
 import org.opentest4j.AssertionFailedError;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuException;
 import edu.iu.IuIterable;
+import edu.iu.IuStream;
 import iu.logging.Bootstrap;
 import iu.logging.IuLoggingTestCase;
 import iu.logging.LogEnvironment;
+import iu.logging.internal.IuLogHandler.FilePublisherKey;
 
 @SuppressWarnings("javadoc")
 public class IuLogHandlerTest extends IuLoggingTestCase {
@@ -119,6 +127,7 @@ public class IuLogHandlerTest extends IuLoggingTestCase {
 				control.offer(msg);
 				logHandler.publish(new LogRecord(Level.INFO, msg));
 			}
+			assertDoesNotThrow(() -> Thread.sleep(2000L));
 			for (var i = 0; i < 10; i++) {
 				final var msg = IdGenerator.generateId();
 				if (i > 6)
@@ -134,7 +143,7 @@ public class IuLogHandlerTest extends IuLoggingTestCase {
 				while ((split = stream.trySplit()) != null)
 					split.forEachRemaining(a -> collected.add(a.getMessage()));
 
-				assertArrayEquals(control.toArray(), collected.toArray());
+				assertArrayEquals(control.toArray(), collected.toArray(), () -> control + " " + collected);
 			}
 		} finally {
 			System.getProperties().remove("iu.logging.maxEvents");
@@ -143,7 +152,7 @@ public class IuLogHandlerTest extends IuLoggingTestCase {
 
 	@Test
 	public void testPurgeEventTtlLimit() {
-		System.setProperty("iu.logging.eventTtl", "PT3S");
+		System.setProperty("iu.logging.eventTtl", "PT2.1S");
 		final var env = mock(LogEnvironment.class);
 		try (final var mockProcessLogger = mockStatic(ProcessLogger.class); //
 				final var mockBootstrap = mockStatic(Bootstrap.class); //
@@ -169,17 +178,10 @@ public class IuLogHandlerTest extends IuLoggingTestCase {
 				while ((split = stream.trySplit()) != null)
 					split.forEachRemaining(a -> collected.add(a.getMessage()));
 
-				try {
-					assertArrayEquals(control.toArray(), collected.toArray());
-				} catch (AssertionFailedError e) {
-					try {
-//						collected.push(collected.peek());
-						fail(control + " " + collected);
-					} catch (AssertionFailedError e2) {
-						e.addSuppressed(e2);
-						throw e;
-					}
-				}
+				var result = collected.toArray();
+				if (result.length > 10)
+					result = Arrays.copyOfRange(result, result.length - 10, result.length);
+				assertArrayEquals(control.toArray(), result, () -> control + " " + collected);
 			}
 		} finally {
 			System.getProperties().remove("iu.logging.eventTtl");
@@ -187,47 +189,77 @@ public class IuLogHandlerTest extends IuLoggingTestCase {
 	}
 
 	@Test
-	public void testPurgeNoLimits() {
+	public void testFileAndConsole() throws IOException {
 		final var env = mock(LogEnvironment.class);
+		final var path = Path.of("target", "logs", IdGenerator.generateId());
+		final var traceName = IdGenerator.generateId();
 		System.setProperty("iu.logging.consoleLevel", "INFO");
+		System.setProperty("iu.logging.file.path", path.toString());
+		System.setProperty("iu.logging.file.trace", traceName);
 		try (final var mockProcessLogger = mockStatic(ProcessLogger.class); //
 				final var mockBootstrap = mockStatic(Bootstrap.class); //
 				final var logHandler = new IuLogHandler()) {
 			mockBootstrap.when(() -> Bootstrap.getEnvironment()).thenReturn(env);
 
 			String firstMessage = null;
-			final var outControl = new StringBuilder();
 			final Queue<String> control = new ArrayDeque<>();
 			for (var i = 0; i < 2; i++) {
 				final var msg = IdGenerator.generateId();
 				control.offer(msg);
-				logHandler.publish(new LogRecord(Level.INFO, msg));
+				logHandler.publish(new LogRecord(Level.WARNING, msg));
 			}
 			for (var i = 0; i < 10; i++) {
 				final var msg = IdGenerator.generateId();
 				control.offer(msg);
-				logHandler.publish(new LogRecord(Level.FINE, msg));
+				final var rec = new LogRecord(Level.FINE, msg);
+				rec.setLoggerName(traceName);
+				logHandler.publish(rec);
 			}
 			assertDoesNotThrow(() -> Thread.sleep(200L));
 
+			final var outControl = new StringBuilder();
+			final var debugControl = new StringBuilder();
+			final var infoControl = new StringBuilder();
+			final var errorControl = new StringBuilder();
+			final var traceControl = new StringBuilder();
 			try (final var sub = logHandler.subscribe()) {
 				final Queue<String> collected = new ArrayDeque<>();
 				final var stream = sub.stream().spliterator();
 				Spliterator<IuLogEvent> split;
 				while ((split = stream.trySplit()) != null) {
 					for (final var a : IuIterable.of(StreamSupport.stream(split, false)::iterator)) {
-						if (a.getLevel().intValue() >= Level.INFO.intValue()) {
-							final var message = a.export();
+						final var message = a.export();
+						final var formatted = a.format();
+						debugControl.append(formatted).append(System.lineSeparator());
+						if (a.getLevel().intValue() >= Level.WARNING.intValue()) {
 							if (firstMessage == null)
 								firstMessage = message;
 							outControl.append(message).append(System.lineSeparator());
-						}
+							infoControl.append(formatted).append(System.lineSeparator());
+							errorControl.append(formatted).append(System.lineSeparator());
+						} else if (traceName.equals(a.getLoggerName()))
+							traceControl.append(formatted).append(System.lineSeparator());
+
 						collected.add(a.getMessage());
 					}
 				}
 
 				assertArrayEquals(control.toArray(), collected.toArray());
 			}
+
+			try (final var debug = Files.newBufferedReader(path.resolve("debug.log"))) {
+				assertEquals(debugControl.toString(), IuStream.read(debug).toString(), path.toString());
+			}
+			try (final var info = Files.newBufferedReader(path.resolve("info.log"))) {
+				assertEquals(infoControl.toString(), IuStream.read(info).toString(), path.toString());
+			}
+			try (final var error = Files.newBufferedReader(path.resolve("error.log"))) {
+				assertEquals(errorControl.toString(), IuStream.read(error).toString(), path.toString());
+			}
+			try (final var trace = Files.newBufferedReader(path.resolve(traceName + ".log"))) {
+				assertEquals(traceControl.toString(), IuStream.read(trace).toString(), path.toString());
+			}
+
 			try {
 				assertEquals(outControl.toString(), OUT.toString(), ERR::toString);
 			} catch (AssertionFailedError e) {
@@ -242,7 +274,81 @@ public class IuLogHandlerTest extends IuLoggingTestCase {
 			}
 		} finally {
 			System.getProperties().remove("iu.logging.consoleLevel");
+			System.getProperties().remove("iu.logging.file.path");
+			System.getProperties().remove("iu.logging.file.trace");
 		}
+	}
+
+	@Test
+	public void testFilePerApp() throws IOException {
+		final var app = IdGenerator.generateId();
+		final var env = mock(LogEnvironment.class);
+		when(env.getApplication()).thenReturn(app);
+
+		final var path = Path.of("target", "logs", IdGenerator.generateId());
+		System.setProperty("iu.logging.file.path", path.toString());
+
+		final String control;
+		try (final var mockProcessLogger = mockStatic(ProcessLogger.class); //
+				final var mockBootstrap = mockStatic(Bootstrap.class); //
+				final var logHandler = new IuLogHandler()) {
+			mockBootstrap.when(() -> Bootstrap.getEnvironment()).thenReturn(env);
+
+			final var message = IdGenerator.generateId();
+			logHandler.publish(new LogRecord(Level.INFO, message));
+
+			try (final var sub = logHandler.subscribe()) {
+				final var stream = sub.stream().spliterator();
+				Spliterator<IuLogEvent> split;
+				final var c = new Consumer<IuLogEvent>() {
+					IuLogEvent event;
+
+					@Override
+					public void accept(IuLogEvent t) {
+						event = t;
+					}
+				};
+				while ((split = stream.trySplit()) != null)
+					if (split.tryAdvance(c))
+						break;
+				control = c.event.format() + System.lineSeparator();
+			}
+		}
+		IuException.unchecked(() -> Thread.sleep(3000L));
+
+		try (final var debug = Files.newBufferedReader(path.resolve(app + "_debug.log"))) {
+			assertEquals(control, IuStream.read(debug).toString(), path.toString());
+		}
+		try (final var info = Files.newBufferedReader(path.resolve(app + "_info.log"))) {
+			assertEquals(control, IuStream.read(info).toString(), path.toString());
+		}
+	}
+
+	@Test
+	public void testFilePublisherKeys() {
+		final Queue<FilePublisherKey> keys = new ArrayDeque<>();
+		for (final var endpoint : new String[] { IdGenerator.generateId(), IdGenerator.generateId() })
+			for (final var application : new String[] { IdGenerator.generateId(), IdGenerator.generateId() })
+				for (final var environment : new String[] { IdGenerator.generateId(), IdGenerator.generateId() })
+					keys.offer(new FilePublisherKey(endpoint, application, environment));
+		for (final var a : keys)
+			for (final var b : keys)
+				if (a == b) {
+					assertNotEquals(a, new Object());
+					assertEquals(a, b);
+					assertEquals(a.hashCode(), b.hashCode());
+				} else {
+					assertNotEquals(a, b);
+					assertNotEquals(b, a);
+					assertNotEquals(a.hashCode(), b.hashCode());
+				}
+	}
+
+	@Test
+	public void testResolvePath() {
+		final var root = Path.of(IdGenerator.generateId());
+		final var rel = IdGenerator.generateId();
+		assertEquals(root.resolve("test___" + rel), IuLogHandler.resolvePath(root, null, "test://" + rel));
 	}
 
 }

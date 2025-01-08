@@ -31,9 +31,14 @@
  */
 package iu.logging.internal;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -41,9 +46,13 @@ import java.util.function.Function;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import edu.iu.IuAsynchronousSubject;
 import edu.iu.IuAsynchronousSubscription;
+import edu.iu.IuException;
+import edu.iu.IuObject;
 import edu.iu.IuRuntimeEnvironment;
 
 /**
@@ -53,8 +62,96 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 
 	private static volatile int c = 0;
 
+	/**
+	 * Key type for use with {@link IuLogHandler#filePublishers}.
+	 */
+	static class FilePublisherKey {
+		private final String endpoint;
+		private final String application;
+		private final String environment;
+
+		/**
+		 * Constructor.
+		 * 
+		 * @param endpoint    endpoint
+		 * @param application application
+		 * @param environment environment;
+		 */
+		FilePublisherKey(String endpoint, String application, String environment) {
+			this.endpoint = endpoint;
+			this.application = application;
+			this.environment = environment;
+		}
+
+		@Override
+		public int hashCode() {
+			return IuObject.hashCode(endpoint, application, environment);
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+			if (!IuObject.typeCheck(this, obj))
+				return false;
+			final var other = (FilePublisherKey) obj;
+			return IuObject.equals(endpoint, other.endpoint) //
+					&& IuObject.equals(application, other.application) //
+					&& IuObject.equals(environment, other.environment);
+		}
+	}
+
+	/**
+	 * Resolves a path relative to a given root, with characters that could
+	 * potentially corrupt file names ({@code :} and {@code /}) stripped out.
+	 * 
+	 * @param path root path
+	 * @param name one or more path entries
+	 * @return relative path
+	 */
+	static Path resolvePath(Path path, String... name) {
+		for (final var n : name)
+			if (n != null)
+				path = path.resolve(n.replaceAll("[:/]", "_"));
+		return path;
+	}
+
+	private static class LogFilePublishers {
+		private final LogFilePublisher debug;
+		private final LogFilePublisher info;
+		private final LogFilePublisher error;
+		private final Map<String, LogFilePublisher> trace;
+
+		private LogFilePublishers(Path logPath, String endpoint, String application, String environment) {
+			final Path path = resolvePath(logPath, endpoint, environment);
+			IuException.unchecked(() -> Files.createDirectories(path));
+
+			final var maxSize = Long.parseLong(Objects
+					.requireNonNullElse(IuRuntimeEnvironment.envOptional("iu.logging.file.maxSize"), "10485760"));
+			final var nLimit = Integer.parseInt(
+					Objects.requireNonNullElse(IuRuntimeEnvironment.envOptional("iu.logging.file.nLimit"), "10"));
+
+			debug = new LogFilePublisher(path.resolve(filename(application, "debug")), maxSize, nLimit);
+			info = new LogFilePublisher(path.resolve(filename(application, "info")), maxSize, nLimit);
+			error = new LogFilePublisher(path.resolve(filename(application, "error")), maxSize, nLimit);
+
+			trace = Objects.requireNonNullElseGet(IuObject.convert(
+					IuRuntimeEnvironment.envOptional("iu.logging.file.trace"),
+					a -> Stream.of(a.split(",")).collect(Collectors.toUnmodifiableMap(n -> n,
+							name -> new LogFilePublisher(path.resolve(filename(application, name)), maxSize, nLimit)))),
+					Collections::emptyMap);
+		}
+	}
+
+	private static String filename(String application, String type) {
+		final var sb = new StringBuilder();
+		if (application != null)
+			sb.append(application).append("_");
+		sb.append(type).append(".log");
+		return sb.toString();
+	}
+
 	private final Queue<IuLogEvent> logEvents = new ConcurrentLinkedQueue<>();
 	private final IuAsynchronousSubject<IuLogEvent> subject = new IuAsynchronousSubject<>(logEvents::spliterator);
+	private final Map<FilePublisherKey, LogFilePublishers> filePublishers = new HashMap<>();
 
 	private final int maxEvents;
 	private final Duration eventTtl;
@@ -78,6 +175,13 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 			final var console = new Thread(() -> this.consoleTask(consoleLevel), "iu-java-logging-console/" + c);
 			console.setDaemon(true);
 			console.start();
+		}
+
+		final var logPath = env("iu.logging.file.path", null, Path::of);
+		if (logPath != null) {
+			final var file = new Thread(() -> this.fileTask(logPath), "iu-java-logging-file/" + c);
+			file.setDaemon(true);
+			file.start();
 		}
 	};
 
@@ -106,6 +210,51 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 	void consoleTask(Level level) {
 		subject.subscribe().stream().filter(a -> a.getLevel().intValue() >= level.intValue())
 				.forEach(event -> System.out.println(event.export()));
+	}
+
+	/**
+	 * Subscribes to log messages, and writes each to log files.
+	 * 
+	 * @param logPath root filesystem for log file output
+	 */
+	void fileTask(Path logPath) {
+		final var sub = subject.subscribe();
+		sub.stream().forEach(event -> {
+			final var endpoint = event.getEndpoint();
+			final var application = event.getApplication();
+			final var environment = event.getEnvironment();
+			final var key = new FilePublisherKey(endpoint, application, environment);
+
+			final LogFilePublishers publishers;
+			synchronized (filePublishers) {
+				publishers = filePublishers.computeIfAbsent(key,
+						a -> new LogFilePublishers(logPath, endpoint, application, environment));
+			}
+
+			final var level = event.getLevel();
+			final var formatted = event.format();
+			if (level.intValue() >= Level.WARNING.intValue())
+				publishers.error.publish(formatted);
+			if (level.intValue() >= Level.INFO.intValue())
+				publishers.info.publish(formatted);
+			publishers.debug.publish(formatted);
+
+			if (publishers.trace != null)
+				publishers.trace.entrySet().stream().filter(e -> e.getKey().equals(event.getLoggerName()))
+						.map(e -> e.getValue()).forEach(p -> p.publish(formatted));
+
+			final var avail = sub.available();
+			if (avail == 0)
+				synchronized (filePublishers) {
+					filePublishers.values().forEach(a -> IuException.unchecked(() -> {
+						a.error.flush();
+						a.info.flush();
+						a.debug.flush();
+						for (final var trace : a.trace.values())
+							trace.flush();
+					}));
+				}
+		});
 	}
 
 	/**
@@ -204,8 +353,8 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 
 	@Override
 	public String toString() {
-		return "IuLogHandler [logEvents=" + logEvents.size() + ", maxEvents=" + maxEvents
-				+ ", eventTtl=" + eventTtl + ", purge=" + purge.getName() + ", closed=" + closed + "]";
+		return "IuLogHandler [logEvents=" + logEvents.size() + ", maxEvents=" + maxEvents + ", eventTtl=" + eventTtl
+				+ ", purge=" + purge.getName() + ", closed=" + closed + "]";
 	}
-	
+
 }
