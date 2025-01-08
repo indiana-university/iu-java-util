@@ -91,7 +91,7 @@ public final class Bootstrap {
 				throw new NullPointerException("Missing system property iu.config or environment variable IU_CONFIG");
 
 		final var loggingPropertiesFile = Path.of(configRoot, "logging.properties");
-		final var loggingPropertiesExists = Files.isReadable(loggingPropertiesFile);
+		final var loggingPropertiesExists = Files.exists(loggingPropertiesFile);
 		if (loggingPropertiesExists)
 			IuException.unchecked(() -> {
 				try (final var in = Files.newInputStream(loggingPropertiesFile)) {

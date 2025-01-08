@@ -218,7 +218,7 @@ public class BootstrapTest extends IuLoggingTestCase {
 			mockLogManager.when(() -> LogManager.getLogManager()).thenReturn(logManager);
 
 			final var loggingProperties = Path.of(config, "logging.properties");
-			mockFiles.when(() -> Files.isReadable(loggingProperties)).thenReturn(true);
+			mockFiles.when(() -> Files.exists(loggingProperties)).thenReturn(true);
 			mockFiles.when(() -> Files.newInputStream(loggingProperties)).thenReturn(in);
 
 			IuTestLogger.allow(Bootstrap.class.getName(), Level.CONFIG);
@@ -246,7 +246,7 @@ public class BootstrapTest extends IuLoggingTestCase {
 			mockLogManager.when(() -> LogManager.getLogManager()).thenReturn(logManager);
 
 			final var loggingProperties = Path.of(config, "logging.properties");
-			mockFiles.when(() -> Files.isReadable(loggingProperties)).thenReturn(true);
+			mockFiles.when(() -> Files.exists(loggingProperties)).thenReturn(true);
 			mockFiles.when(() -> Files.newInputStream(loggingProperties)).thenReturn(in);
 
 			IuTestLogger.allow(Bootstrap.class.getName(), Level.CONFIG);
