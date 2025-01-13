@@ -68,7 +68,7 @@ public class IuLoggingBootstrapIT {
 
 	@Test
 	public void testInit() throws IOException {
-		IuTestLogger.allow("", Level.CONFIG);
+		IuTestLogger.allow("", Level.INFO);
 		final var nodeId = IdGenerator.generateId();
 		final var development = ThreadLocalRandom.current().nextBoolean();
 		final var endpoint = IdGenerator.generateId();
