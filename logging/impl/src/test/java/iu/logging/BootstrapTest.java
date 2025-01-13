@@ -93,7 +93,7 @@ public class BootstrapTest extends IuLoggingTestCase {
 	@Test
 	public void testInitialize() throws IOException {
 		IuTestLogger.expect("", Level.CONFIG,
-				"IuLogContext initialized IuLogHandler \\[logEvents=\\d+, maxEvents=100000, eventTtl=PT24H, purge=iu-java-logging-purge/\\d+, closed=false\\] LogEnvironment \\[nodeId="
+				"IuLogContext initialized IuLogHandler \\[logEvents=\\d+, maxEvents=100000, eventTtl=PT24H, closeWait=PT15S, consoleTaskActive=false, fileTaskActive=false, purge=iu-java-logging-purge/\\d+, closed=false\\] LogEnvironment \\[nodeId="
 						+ NODE_ID + ", development=false, endpoint=" + DEFAULT_ENDPOINT + ", application="
 						+ DEFAULT_APPLICATION + ", environment=" + DEFAULT_ENVIRONMENT + ", module=" + DEFAULT_MODULE
 						+ ", runtime=" + DEFAULT_RUNTIME + ", component=" + DEFAULT_COMPONENT + "\\]");
@@ -133,7 +133,7 @@ public class BootstrapTest extends IuLoggingTestCase {
 			current.setContextClassLoader(loader);
 
 			IuTestLogger.expect("", Level.CONFIG,
-					"IuLogContext initialized IuLogHandler \\[logEvents=\\d+, maxEvents=100000, eventTtl=PT24H, purge=iu-java-logging-purge/\\d+, closed=false\\] LogEnvironment \\[nodeId="
+					"IuLogContext initialized IuLogHandler \\[logEvents=\\d+, maxEvents=100000, eventTtl=PT24H, closeWait=PT15S, consoleTaskActive=false, fileTaskActive=false, purge=iu-java-logging-purge/\\d+, closed=false\\] LogEnvironment \\[nodeId="
 							+ nodeId + ", development=true, endpoint=" + endpoint + ", application=" + application
 							+ ", environment=" + environment + ", module=" + module + ", runtime=" + runtime
 							+ ", component=" + component + ", defaults=LogEnvironment \\[nodeId=" + NODE_ID

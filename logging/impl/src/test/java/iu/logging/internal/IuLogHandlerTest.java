@@ -34,7 +34,9 @@ package iu.logging.internal;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -45,6 +47,8 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
@@ -196,12 +200,19 @@ public class IuLogHandlerTest extends IuLoggingTestCase {
 		System.setProperty("iu.logging.consoleLevel", "INFO");
 		System.setProperty("iu.logging.file.path", path.toString());
 		System.setProperty("iu.logging.file.trace", traceName);
+
+		final var outControl = new StringBuilder();
+		final var debugControl = new StringBuilder();
+		final var infoControl = new StringBuilder();
+		final var errorControl = new StringBuilder();
+		final var traceControl = new StringBuilder();
+		String firstMessage = null;
+
 		try (final var mockProcessLogger = mockStatic(ProcessLogger.class); //
 				final var mockBootstrap = mockStatic(Bootstrap.class); //
 				final var logHandler = new IuLogHandler()) {
 			mockBootstrap.when(() -> Bootstrap.getEnvironment()).thenReturn(env);
 
-			String firstMessage = null;
 			final Queue<String> control = new ArrayDeque<>();
 			for (var i = 0; i < 2; i++) {
 				final var msg = IdGenerator.generateId();
@@ -215,13 +226,7 @@ public class IuLogHandlerTest extends IuLoggingTestCase {
 				rec.setLoggerName(traceName);
 				logHandler.publish(rec);
 			}
-			assertDoesNotThrow(() -> Thread.sleep(200L));
 
-			final var outControl = new StringBuilder();
-			final var debugControl = new StringBuilder();
-			final var infoControl = new StringBuilder();
-			final var errorControl = new StringBuilder();
-			final var traceControl = new StringBuilder();
 			try (final var sub = logHandler.subscribe()) {
 				final Queue<String> collected = new ArrayDeque<>();
 				final var stream = sub.stream().spliterator();
@@ -247,36 +252,43 @@ public class IuLogHandlerTest extends IuLoggingTestCase {
 				assertArrayEquals(control.toArray(), collected.toArray());
 			}
 
-			try (final var debug = Files.newBufferedReader(path.resolve("debug.log"))) {
-				assertEquals(debugControl.toString(), IuStream.read(debug).toString(), path.toString());
-			}
-			try (final var info = Files.newBufferedReader(path.resolve("info.log"))) {
-				assertEquals(infoControl.toString(), IuStream.read(info).toString(), path.toString());
-			}
-			try (final var error = Files.newBufferedReader(path.resolve("error.log"))) {
-				assertEquals(errorControl.toString(), IuStream.read(error).toString(), path.toString());
-			}
-			try (final var trace = Files.newBufferedReader(path.resolve(traceName + ".log"))) {
-				assertEquals(traceControl.toString(), IuStream.read(trace).toString(), path.toString());
-			}
-
-			try {
-				assertEquals(outControl.toString(), OUT.toString(), ERR::toString);
-			} catch (AssertionFailedError e) {
-				if (firstMessage != null)
-					try { // async subject race condition < %1
-							// second split occasionally contains duplicates
-						assertEquals(firstMessage + outControl, OUT.toString());
-					} catch (AssertionFailedError e2) {
-						e.addSuppressed(e2);
-					}
-				throw e;
-			}
 		} finally {
 			System.getProperties().remove("iu.logging.consoleLevel");
 			System.getProperties().remove("iu.logging.file.path");
 			System.getProperties().remove("iu.logging.file.trace");
 		}
+
+		final var debugLog = path.resolve("debug.log");
+		final var now = Instant.now();
+		while (!Files.exists(debugLog) && Duration.between(now, Instant.now()).getSeconds() < 5L)
+			IuException.unchecked(() -> Thread.sleep(100L));
+
+		try (final var debug = Files.newBufferedReader(debugLog)) {
+			assertEquals(debugControl.toString(), IuStream.read(debug).toString(), path.toString());
+		}
+		try (final var info = Files.newBufferedReader(path.resolve("info.log"))) {
+			assertEquals(infoControl.toString(), IuStream.read(info).toString(), path.toString());
+		}
+		try (final var error = Files.newBufferedReader(path.resolve("error.log"))) {
+			assertEquals(errorControl.toString(), IuStream.read(error).toString(), path.toString());
+		}
+		try (final var trace = Files.newBufferedReader(path.resolve(traceName + ".log"))) {
+			assertEquals(traceControl.toString(), IuStream.read(trace).toString(), path.toString());
+		}
+
+		try {
+			assertEquals(outControl.toString(), OUT.toString(), ERR::toString);
+		} catch (AssertionFailedError e) {
+			if (firstMessage != null)
+				try { // async subject race condition < %1
+						// second split occasionally contains duplicates
+					assertEquals(firstMessage + outControl, OUT.toString());
+				} catch (AssertionFailedError e2) {
+					e.addSuppressed(e2);
+				}
+			throw e;
+		}
+
 	}
 
 	@Test
@@ -314,9 +326,16 @@ public class IuLogHandlerTest extends IuLoggingTestCase {
 				control = c.event.format() + System.lineSeparator();
 			}
 		}
-		IuException.unchecked(() -> Thread.sleep(3000L));
+		assertFalse(control.isEmpty());
+		assertNotNull(control);
 
-		try (final var debug = Files.newBufferedReader(path.resolve(app + "_debug.log"))) {
+		final var debugLog = path.resolve(app + "_debug.log");
+		final var now = Instant.now();
+		while (!Files.exists(debugLog) && Duration.between(now, Instant.now()).getSeconds() < 5L)
+			IuException.unchecked(() -> Thread.sleep(250L));
+		assertTrue(Files.exists(debugLog), debugLog + "\n" + control + "\n" + OUT);
+
+		try (final var debug = Files.newBufferedReader(debugLog)) {
 			assertEquals(control, IuStream.read(debug).toString(), path.toString());
 		}
 		try (final var info = Files.newBufferedReader(path.resolve(app + "_info.log"))) {

@@ -745,4 +745,14 @@ public class AsynchronousSubjectTest {
 		}
 	}
 
+	@Test
+	public void testReadsDelegaterAfterClose() throws Throwable {
+		final var value = IdGenerator.generateId();
+		final IuAsynchronousSubscription<String> sub;
+		try (final var subject = new IuAsynchronousSubject<>(List.of(value)::spliterator)) {
+			sub = subject.subscribe();
+		}
+		assertEquals(value, sub.stream().findFirst().get());
+	}
+
 }

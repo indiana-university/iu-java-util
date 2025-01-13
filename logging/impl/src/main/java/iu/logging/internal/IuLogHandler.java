@@ -36,11 +36,11 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Function;
 import java.util.logging.Handler;
@@ -151,11 +151,14 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 
 	private final Queue<IuLogEvent> logEvents = new ConcurrentLinkedQueue<>();
 	private final IuAsynchronousSubject<IuLogEvent> subject = new IuAsynchronousSubject<>(logEvents::spliterator);
-	private final Map<FilePublisherKey, LogFilePublishers> filePublishers = new HashMap<>();
+	private final Map<FilePublisherKey, LogFilePublishers> filePublishers = new ConcurrentHashMap<>();
 
 	private final int maxEvents;
 	private final Duration eventTtl;
+	private final Duration closeWait;
 	private final Thread purge;
+	private volatile boolean consoleTaskActive;
+	private volatile boolean fileTaskActive;
 	private volatile boolean closed;
 
 	/**
@@ -164,8 +167,11 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 	public IuLogHandler() {
 		final var c = ++IuLogHandler.c;
 
+		final var startWait = env("iu.logging.startWait", Duration.ofSeconds(5L), Duration::parse);
 		maxEvents = env("iu.logging.maxEvents", 100000, Integer::parseInt);
 		eventTtl = env("iu.logging.eventTtl", Duration.ofDays(1L), Duration::parse);
+		closeWait = env("iu.logging.closeWait", Duration.ofSeconds(15L), Duration::parse);
+
 		purge = new Thread(this::purgeTask, "iu-java-logging-purge/" + c);
 		purge.setDaemon(true);
 		purge.start();
@@ -175,6 +181,7 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 			final var console = new Thread(() -> this.consoleTask(consoleLevel), "iu-java-logging-console/" + c);
 			console.setDaemon(true);
 			console.start();
+			IuException.unchecked(() -> IuObject.waitFor(this, () -> consoleTaskActive, startWait));
 		}
 
 		final var logPath = env("iu.logging.file.path", null, Path::of);
@@ -182,6 +189,7 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 			final var file = new Thread(() -> this.fileTask(logPath), "iu-java-logging-file/" + c);
 			file.setDaemon(true);
 			file.start();
+			IuException.unchecked(() -> IuObject.waitFor(this, () -> fileTaskActive, startWait));
 		}
 	};
 
@@ -208,8 +216,17 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 	 * @param level Maximum log level to print
 	 */
 	void consoleTask(Level level) {
+		synchronized (this) {
+			consoleTaskActive = true;
+		}
+
 		subject.subscribe().stream().filter(a -> a.getLevel().intValue() >= level.intValue())
 				.forEach(event -> System.out.println(event.export()));
+
+		synchronized (this) {
+			consoleTaskActive = false;
+			this.notifyAll();
+		}
 	}
 
 	/**
@@ -218,6 +235,10 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 	 * @param logPath root filesystem for log file output
 	 */
 	void fileTask(Path logPath) {
+		synchronized (this) {
+			fileTaskActive = true;
+		}
+
 		final var sub = subject.subscribe();
 		sub.stream().forEach(event -> {
 			final var endpoint = event.getEndpoint();
@@ -225,11 +246,8 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 			final var environment = event.getEnvironment();
 			final var key = new FilePublisherKey(endpoint, application, environment);
 
-			final LogFilePublishers publishers;
-			synchronized (filePublishers) {
-				publishers = filePublishers.computeIfAbsent(key,
-						a -> new LogFilePublishers(logPath, endpoint, application, environment));
-			}
+			final var publishers = filePublishers.computeIfAbsent(key,
+					a -> new LogFilePublishers(logPath, endpoint, application, environment));
 
 			final var level = event.getLevel();
 			final var formatted = event.format();
@@ -239,22 +257,32 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 				publishers.info.publish(formatted);
 			publishers.debug.publish(formatted);
 
-			if (publishers.trace != null)
-				publishers.trace.entrySet().stream().filter(e -> e.getKey().equals(event.getLoggerName()))
-						.map(e -> e.getValue()).forEach(p -> p.publish(formatted));
+			publishers.trace.entrySet().stream().filter(e -> e.getKey().equals(event.getLoggerName()))
+					.map(e -> e.getValue()).forEach(p -> p.publish(formatted));
 
 			final var avail = sub.available();
 			if (avail == 0)
-				synchronized (filePublishers) {
-					filePublishers.values().forEach(a -> IuException.unchecked(() -> {
-						a.error.flush();
-						a.info.flush();
-						a.debug.flush();
-						for (final var trace : a.trace.values())
-							trace.flush();
-					}));
-				}
+				flushFiles();
 		});
+		flushFiles();
+
+		synchronized (this) {
+			fileTaskActive = false;
+			this.notifyAll();
+		}
+	}
+
+	/**
+	 * Synchronously flushes all file publisher buffers and related log files.
+	 */
+	void flushFiles() {
+		filePublishers.values().forEach(a -> IuException.unchecked(() -> {
+			a.error.flush();
+			a.info.flush();
+			a.debug.flush();
+			for (final var trace : a.trace.values())
+				trace.flush();
+		}));
 	}
 
 	/**
@@ -340,6 +368,7 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 	@Override
 	public void flush() {
 		purge();
+		flushFiles();
 	}
 
 	@Override
@@ -347,6 +376,10 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 		if (!closed) {
 			closed = true;
 			subject.close();
+			IuException.unchecked(() -> IuObject.waitFor(this, //
+					() -> !(consoleTaskActive //
+							|| fileTaskActive),
+					closeWait));
 			logEvents.clear();
 		}
 	}
@@ -354,7 +387,8 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 	@Override
 	public String toString() {
 		return "IuLogHandler [logEvents=" + logEvents.size() + ", maxEvents=" + maxEvents + ", eventTtl=" + eventTtl
-				+ ", purge=" + purge.getName() + ", closed=" + closed + "]";
+				+ ", closeWait=" + closeWait + ", consoleTaskActive=" + consoleTaskActive + ", fileTaskActive="
+				+ fileTaskActive + ", purge=" + purge.getName() + ", closed=" + closed + "]";
 	}
 
 }
