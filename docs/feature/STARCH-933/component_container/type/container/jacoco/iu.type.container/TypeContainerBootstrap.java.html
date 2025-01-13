@@ -103,7 +103,7 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 	public synchronized void run() throws Throwable {
 <span class="fc bfc" id="L104" title="All 2 branches covered.">		if (archives == null)</span>
 <span class="fc" id="L105">			return;</span>
-
+		
 <span class="fc" id="L107">		LOG.fine(&quot;before init container&quot;);</span>
 <span class="fc" id="L108">		final var filter = new FilteringClassLoader(IuIterable.iter(IuObject.class.getPackageName()), parentLoader);</span>
 <span class="fc" id="L109">		final var api = IuIterable.of(() -&gt; Stream.of(archives).flatMap(a -&gt; Stream.of(a.api())).iterator());</span>
@@ -133,53 +133,67 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 
 <span class="fc" id="L134">		initializedComponents = new ArrayDeque&lt;&gt;();</span>
 		try {
-<span class="fc" id="L136">			LOG.fine(&quot;after init base &quot; + base.getModuleLayer());</span>
-
-<span class="fc bfc" id="L138" title="All 2 branches covered.">			for (final var archive : archives) {</span>
-				final ClassLoader parent;
-<span class="fc bfc" id="L140" title="All 2 branches covered.">				if (archive.support().length == 0)</span>
-<span class="fc" id="L141">					parent = base;</span>
-				else {
-<span class="fc" id="L143">					support = new ModularClassLoader(false, IuIterable.iter(archive.support()), base.getModuleLayer(),</span>
-							base, c -&gt; {
-<span class="fc" id="L145">							});</span>
-<span class="fc" id="L146">					LOG.fine(() -&gt; &quot;after init support &quot; + support.getModuleLayer());</span>
-<span class="fc" id="L147">					parent = support;</span>
-				}
-
-<span class="fc" id="L150">				final List&lt;InputStream&gt; sources = new ArrayList&lt;&gt;(1 + archive.lib().length);</span>
-<span class="fc" id="L151">				sources.add(Files.newInputStream(archive.primary()));</span>
-<span class="fc bfc" id="L152" title="All 2 branches covered.">				for (final var lib : archive.lib())</span>
-<span class="fc" id="L153">					sources.add(Files.newInputStream(lib));</span>
-
-<span class="fc" id="L155">				final var compInit = new Consumer&lt;Controller&gt;() {</span>
-					@Override
-					public void accept(Controller c) {
-<span class="fc bfc" id="L158" title="All 2 branches covered.">						for (final var module : c.layer().modules()) {</span>
-<span class="fc" id="L159">							final var pendingExport = baseInit.pendingExports.get(module.getName());</span>
-<span class="fc bfc" id="L160" title="All 2 branches covered.">							if (pendingExport != null)</span>
-<span class="fc" id="L161">								baseInit.controller.addExports(pendingExport.module, pendingExport.exports.source(),</span>
-										module);
-<span class="fc" id="L163">						}</span>
-<span class="fc" id="L164">					}</span>
-				};
-<span class="fc" id="L166">				final var component = IuComponent.of(parent, base.getModuleLayer(), compInit, sources.get(0),</span>
-<span class="fc" id="L167">						sources.subList(1, sources.size()).toArray(InputStream[]::new));</span>
-
-<span class="fc bfc" id="L169" title="All 2 branches covered.">				for (final var source : sources)</span>
-<span class="fc" id="L170">					source.close();</span>
-
-<span class="fc" id="L172">				LOG.fine(() -&gt; &quot;after create &quot; + component);</span>
-<span class="fc" id="L173">				initializedComponents.push(component);</span>
+<span class="fc" id="L136">			final var current = Thread.currentThread();</span>
+<span class="fc" id="L137">			final var restore = current.getContextClassLoader();</span>
+			try {
+<span class="fc" id="L139">				current.setContextClassLoader(base);</span>
+<span class="fc" id="L140">				LOG.fine(&quot;after init base &quot; + base.getModuleLayer());</span>
+			} finally {
+<span class="fc" id="L142">				current.setContextClassLoader(restore);</span>
 			}
 
-<span class="fc" id="L176">			initializeComponents(initializedComponents);</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">			for (final var archive : archives) {</span>
+				final ClassLoader parent;
+<span class="fc bfc" id="L147" title="All 2 branches covered.">				if (archive.support().length == 0)</span>
+<span class="fc" id="L148">					parent = base;</span>
+				else {
+<span class="fc" id="L150">					support = new ModularClassLoader(false, IuIterable.iter(archive.support()), base.getModuleLayer(),</span>
+							base, c -&gt; {
+<span class="fc" id="L152">							});</span>
+					
+					try {
+<span class="fc" id="L155">						current.setContextClassLoader(support);</span>
+<span class="fc" id="L156">						LOG.fine(() -&gt; &quot;after init support &quot; + support.getModuleLayer());</span>
+					} finally {
+<span class="fc" id="L158">						current.setContextClassLoader(restore);</span>
+					}
 
-<span class="fc" id="L178">		} catch (Throwable e) {</span>
-<span class="fc" id="L179">			IuException.suppress(e, this::close);</span>
-<span class="fc" id="L180">			throw e;</span>
-<span class="fc" id="L181">		}</span>
-<span class="fc" id="L182">	}</span>
+<span class="fc" id="L161">					parent = support;</span>
+				}
+
+<span class="fc" id="L164">				final List&lt;InputStream&gt; sources = new ArrayList&lt;&gt;(1 + archive.lib().length);</span>
+<span class="fc" id="L165">				sources.add(Files.newInputStream(archive.primary()));</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">				for (final var lib : archive.lib())</span>
+<span class="fc" id="L167">					sources.add(Files.newInputStream(lib));</span>
+
+<span class="fc" id="L169">				final var compInit = new Consumer&lt;Controller&gt;() {</span>
+					@Override
+					public void accept(Controller c) {
+<span class="fc bfc" id="L172" title="All 2 branches covered.">						for (final var module : c.layer().modules()) {</span>
+<span class="fc" id="L173">							final var pendingExport = baseInit.pendingExports.get(module.getName());</span>
+<span class="fc bfc" id="L174" title="All 2 branches covered.">							if (pendingExport != null)</span>
+<span class="fc" id="L175">								baseInit.controller.addExports(pendingExport.module, pendingExport.exports.source(),</span>
+										module);
+<span class="fc" id="L177">						}</span>
+<span class="fc" id="L178">					}</span>
+				};
+<span class="fc" id="L180">				final var component = IuComponent.of(parent, base.getModuleLayer(), compInit, sources.get(0),</span>
+<span class="fc" id="L181">						sources.subList(1, sources.size()).toArray(InputStream[]::new));</span>
+
+<span class="fc bfc" id="L183" title="All 2 branches covered.">				for (final var source : sources)</span>
+<span class="fc" id="L184">					source.close();</span>
+
+<span class="fc" id="L186">				LOG.fine(() -&gt; &quot;after create &quot; + component);</span>
+<span class="fc" id="L187">				initializedComponents.push(component);</span>
+			}
+
+<span class="fc" id="L190">			initializeComponents(initializedComponents);</span>
+
+<span class="fc" id="L192">		} catch (Throwable e) {</span>
+<span class="fc" id="L193">			IuException.suppress(e, this::close);</span>
+<span class="fc" id="L194">			throw e;</span>
+<span class="fc" id="L195">		}</span>
+<span class="fc" id="L196">	}</span>
 
 	/**
 	 * Initializes components.
@@ -190,104 +204,104 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 	 */
 	@SuppressWarnings({ &quot;unchecked&quot;, &quot;rawtypes&quot; })
 	static void initializeComponents(Iterable&lt;IuComponent&gt; componentsToInitialize) throws Throwable {
-<span class="fc" id="L193">		final Map&lt;IuResourceKey&lt;?&gt;, IuResource&lt;?&gt;&gt; boundResources = new LinkedHashMap&lt;&gt;();</span>
-<span class="fc" id="L194">		final List&lt;TypeContainerResource&gt; containerResources = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L195" title="All 2 branches covered.">		for (final var component : componentsToInitialize)</span>
-<span class="fc bfc" id="L196" title="All 2 branches covered.">			for (final var resource : component.resources()) {</span>
-<span class="fc" id="L197">				IuObject.require(boundResources.put(IuResourceKey.from(resource), resource), Objects::isNull,</span>
+<span class="fc" id="L207">		final Map&lt;IuResourceKey&lt;?&gt;, IuResource&lt;?&gt;&gt; boundResources = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L208">		final List&lt;TypeContainerResource&gt; containerResources = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L209" title="All 2 branches covered.">		for (final var component : componentsToInitialize)</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">			for (final var resource : component.resources()) {</span>
+<span class="fc" id="L211">				IuObject.require(boundResources.put(IuResourceKey.from(resource), resource), Objects::isNull,</span>
 						&quot;already bound &quot; + resource);
-<span class="fc" id="L199">				containerResources.add(new TypeContainerResource(resource, component));</span>
-<span class="fc" id="L200">				LOG.fine(() -&gt; &quot;after create &quot; + resource);</span>
-<span class="fc" id="L201">			}</span>
+<span class="fc" id="L213">				containerResources.add(new TypeContainerResource(resource, component));</span>
+<span class="fc" id="L214">				LOG.fine(() -&gt; &quot;after create &quot; + resource);</span>
+<span class="fc" id="L215">			}</span>
 
-<span class="fc" id="L203">		final Map&lt;IuResourceKey&lt;?&gt;, Queue&lt;IuResourceReference&lt;?, ?&gt;&gt;&gt; resourceReferences = new LinkedHashMap&lt;&gt;();</span>
-<span class="fc bfc" id="L204" title="All 2 branches covered.">		for (final var component : componentsToInitialize)</span>
-<span class="fc bfc" id="L205" title="All 2 branches covered.">			for (final var resourceRef : component.resourceReferences()) {</span>
-<span class="fc" id="L206">				final var key = IuResourceKey.from(resourceRef);</span>
-<span class="fc" id="L207">				final IuResource resource = Objects.requireNonNull(boundResources.get(key),</span>
+<span class="fc" id="L217">		final Map&lt;IuResourceKey&lt;?&gt;, Queue&lt;IuResourceReference&lt;?, ?&gt;&gt;&gt; resourceReferences = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">		for (final var component : componentsToInitialize)</span>
+<span class="fc bfc" id="L219" title="All 2 branches covered.">			for (final var resourceRef : component.resourceReferences()) {</span>
+<span class="fc" id="L220">				final var key = IuResourceKey.from(resourceRef);</span>
+<span class="fc" id="L221">				final IuResource resource = Objects.requireNonNull(boundResources.get(key),</span>
 						&quot;Missing resource binding &quot; + key);
-<span class="fc" id="L209">				final var resourceReferenceQueue = resourceReferences.computeIfAbsent(key, k -&gt; new ArrayDeque&lt;&gt;());</span>
-<span class="fc" id="L210">				resourceReferenceQueue.add(resourceRef);</span>
-<span class="fc" id="L211">				resourceRef.bind(resource);</span>
-<span class="fc" id="L212">				LOG.fine(() -&gt; &quot;bind &quot; + resourceRef + &quot; &quot; + resource);</span>
-<span class="fc" id="L213">			}</span>
+<span class="fc" id="L223">				final var resourceReferenceQueue = resourceReferences.computeIfAbsent(key, k -&gt; new ArrayDeque&lt;&gt;());</span>
+<span class="fc" id="L224">				resourceReferenceQueue.add(resourceRef);</span>
+<span class="fc" id="L225">				resourceRef.bind(resource);</span>
+<span class="fc" id="L226">				LOG.fine(() -&gt; &quot;bind &quot; + resourceRef + &quot; &quot; + resource);</span>
+<span class="fc" id="L227">			}</span>
 
-<span class="fc" id="L215">		var priority = 0;</span>
-<span class="fc" id="L216">		Throwable error = null;</span>
-<span class="fc" id="L217">		final Queue&lt;TypeContainerResource&gt; pendingResources = new ArrayDeque&lt;&gt;();</span>
-<span class="fc" id="L218">		containerResources.sort(TypeContainerResource::compareTo);</span>
-<span class="fc bfc" id="L219" title="All 2 branches covered.">		for (final var containerResource : containerResources) {</span>
-<span class="fc bfc" id="L220" title="All 2 branches covered.">			if (containerResource.priority() != priority) {</span>
-<span class="fc" id="L221">				priority = containerResource.priority();</span>
-<span class="fc bfc" id="L222" title="All 2 branches covered.">				while (!pendingResources.isEmpty()) {</span>
-<span class="fc" id="L223">					final var pendingResource = pendingResources.poll();</span>
-<span class="fc" id="L224">					LOG.fine(() -&gt; &quot;before join &quot; + pendingResource);</span>
-<span class="fc" id="L225">					error = IuException.suppress(error, pendingResource::join);</span>
-<span class="fc" id="L226">				}</span>
-<span class="fc bfc" id="L227" title="All 2 branches covered.">				if (error != null)</span>
-<span class="fc" id="L228">					throw error;</span>
+<span class="fc" id="L229">		var priority = 0;</span>
+<span class="fc" id="L230">		Throwable error = null;</span>
+<span class="fc" id="L231">		final Queue&lt;TypeContainerResource&gt; pendingResources = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L232">		containerResources.sort(TypeContainerResource::compareTo);</span>
+<span class="fc bfc" id="L233" title="All 2 branches covered.">		for (final var containerResource : containerResources) {</span>
+<span class="fc bfc" id="L234" title="All 2 branches covered.">			if (containerResource.priority() != priority) {</span>
+<span class="fc" id="L235">				priority = containerResource.priority();</span>
+<span class="fc bfc" id="L236" title="All 2 branches covered.">				while (!pendingResources.isEmpty()) {</span>
+<span class="fc" id="L237">					final var pendingResource = pendingResources.poll();</span>
+<span class="fc" id="L238">					LOG.fine(() -&gt; &quot;before join &quot; + pendingResource);</span>
+<span class="fc" id="L239">					error = IuException.suppress(error, pendingResource::join);</span>
+<span class="fc" id="L240">				}</span>
+<span class="fc bfc" id="L241" title="All 2 branches covered.">				if (error != null)</span>
+<span class="fc" id="L242">					throw error;</span>
 			}
 
-<span class="fc" id="L231">			containerResource.asyncInit();</span>
-<span class="fc" id="L232">			pendingResources.add(containerResource);</span>
-<span class="fc" id="L233">		}</span>
+<span class="fc" id="L245">			containerResource.asyncInit();</span>
+<span class="fc" id="L246">			pendingResources.add(containerResource);</span>
+<span class="fc" id="L247">		}</span>
 
-<span class="fc bfc" id="L235" title="All 2 branches covered.">		for (final var containerResource : pendingResources) {</span>
-<span class="fc" id="L236">			LOG.fine(() -&gt; &quot;before join &quot; + containerResource);</span>
-<span class="fc" id="L237">			error = IuException.suppress(error, containerResource::join);</span>
-<span class="fc" id="L238">		}</span>
+<span class="fc bfc" id="L249" title="All 2 branches covered.">		for (final var containerResource : pendingResources) {</span>
+<span class="fc" id="L250">			LOG.fine(() -&gt; &quot;before join &quot; + containerResource);</span>
+<span class="fc" id="L251">			error = IuException.suppress(error, containerResource::join);</span>
+<span class="fc" id="L252">		}</span>
 
-<span class="fc bfc" id="L240" title="All 2 branches covered.">		if (error != null)</span>
-<span class="fc" id="L241">			throw error;</span>
+<span class="fc bfc" id="L254" title="All 2 branches covered.">		if (error != null)</span>
+<span class="fc" id="L255">			throw error;</span>
 
-<span class="fc" id="L243">	}</span>
+<span class="fc" id="L257">	}</span>
 
 	@Override
 	public synchronized void close() throws Exception {
-<span class="fc bfc" id="L247" title="All 2 branches covered.">		if (archives == null)</span>
-<span class="fc" id="L248">			return;</span>
+<span class="fc bfc" id="L261" title="All 2 branches covered.">		if (archives == null)</span>
+<span class="fc" id="L262">			return;</span>
 
-<span class="fc" id="L250">		Throwable error = null;</span>
+<span class="fc" id="L264">		Throwable error = null;</span>
 
-<span class="fc" id="L252">		final var initializedComponents = this.initializedComponents;</span>
-<span class="fc bfc" id="L253" title="All 2 branches covered.">		if (initializedComponents != null) {</span>
-<span class="fc" id="L254">			this.initializedComponents = null;</span>
-<span class="fc" id="L255">			synchronized (initializedComponents) {</span>
-<span class="fc bfc" id="L256" title="All 2 branches covered.">				while (!initializedComponents.isEmpty()) {</span>
-<span class="fc" id="L257">					final var component = initializedComponents.pop();</span>
-<span class="fc" id="L258">					LOG.fine(&quot;before destroy &quot; + component);</span>
-<span class="fc" id="L259">					error = IuException.suppress(error, component::close);</span>
-<span class="fc" id="L260">				}</span>
-<span class="fc" id="L261">			}</span>
+<span class="fc" id="L266">		final var initializedComponents = this.initializedComponents;</span>
+<span class="fc bfc" id="L267" title="All 2 branches covered.">		if (initializedComponents != null) {</span>
+<span class="fc" id="L268">			this.initializedComponents = null;</span>
+<span class="fc" id="L269">			synchronized (initializedComponents) {</span>
+<span class="fc bfc" id="L270" title="All 2 branches covered.">				while (!initializedComponents.isEmpty()) {</span>
+<span class="fc" id="L271">					final var component = initializedComponents.pop();</span>
+<span class="fc" id="L272">					LOG.fine(&quot;before destroy &quot; + component);</span>
+<span class="fc" id="L273">					error = IuException.suppress(error, component::close);</span>
+<span class="fc" id="L274">				}</span>
+<span class="fc" id="L275">			}</span>
 		}
 
-<span class="fc" id="L264">		final var support = this.support;</span>
-<span class="fc bfc" id="L265" title="All 2 branches covered.">		if (support != null) {</span>
-<span class="fc" id="L266">			this.support = null;</span>
-<span class="fc" id="L267">			LOG.fine(&quot;before destroy support &quot; + support.getModuleLayer());</span>
-<span class="fc" id="L268">			error = IuException.suppress(error, support::close);</span>
+<span class="fc" id="L278">		final var support = this.support;</span>
+<span class="fc bfc" id="L279" title="All 2 branches covered.">		if (support != null) {</span>
+<span class="fc" id="L280">			this.support = null;</span>
+<span class="fc" id="L281">			LOG.fine(&quot;before destroy support &quot; + support.getModuleLayer());</span>
+<span class="fc" id="L282">			error = IuException.suppress(error, support::close);</span>
 		}
 
-<span class="fc" id="L271">		final var base = this.base;</span>
-<span class="fc bfc" id="L272" title="All 2 branches covered.">		if (base != null) {</span>
-<span class="fc" id="L273">			this.base = null;</span>
-<span class="fc" id="L274">			LOG.fine(&quot;before destroy base &quot; + base.getModuleLayer());</span>
-<span class="fc" id="L275">			error = IuException.suppress(error, base::close);</span>
+<span class="fc" id="L285">		final var base = this.base;</span>
+<span class="fc bfc" id="L286" title="All 2 branches covered.">		if (base != null) {</span>
+<span class="fc" id="L287">			this.base = null;</span>
+<span class="fc" id="L288">			LOG.fine(&quot;before destroy base &quot; + base.getModuleLayer());</span>
+<span class="fc" id="L289">			error = IuException.suppress(error, base::close);</span>
 		}
 
-<span class="fc bfc" id="L278" title="All 2 branches covered.">		for (var i = 0; i &lt; archives.length; i++)</span>
-<span class="fc bfc" id="L279" title="All 2 branches covered.">			if (archives[i] != null) {</span>
-<span class="fc" id="L280">				error = IuException.suppress(error, archives[i]::close);</span>
-<span class="fc" id="L281">				archives[i] = null;</span>
+<span class="fc bfc" id="L292" title="All 2 branches covered.">		for (var i = 0; i &lt; archives.length; i++)</span>
+<span class="fc bfc" id="L293" title="All 2 branches covered.">			if (archives[i] != null) {</span>
+<span class="fc" id="L294">				error = IuException.suppress(error, archives[i]::close);</span>
+<span class="fc" id="L295">				archives[i] = null;</span>
 			}
 
-<span class="fc bfc" id="L284" title="All 2 branches covered.">		if (error != null)</span>
-<span class="fc" id="L285">			throw IuException.checked(error);</span>
-<span class="fc bfc" id="L286" title="All 2 branches covered.">		else if (!closed) {</span>
-<span class="fc" id="L287">			closed = true;</span>
-<span class="fc" id="L288">			LOG.fine(&quot;after destroy container&quot;);</span>
+<span class="fc bfc" id="L298" title="All 2 branches covered.">		if (error != null)</span>
+<span class="fc" id="L299">			throw IuException.checked(error);</span>
+<span class="fc bfc" id="L300" title="All 2 branches covered.">		else if (!closed) {</span>
+<span class="fc" id="L301">			closed = true;</span>
+<span class="fc" id="L302">			LOG.fine(&quot;after destroy container&quot;);</span>
 		}
-<span class="fc" id="L290">	}</span>
+<span class="fc" id="L304">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

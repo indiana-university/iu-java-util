@@ -76,13 +76,6 @@ public interface IuLogEvent {
 	String getProcessId();
 
 	/**
-	 * Gets the environment code
-	 * 
-	 * @return environment code
-	 */
-	String getEnvironment();
-
-	/**
 	 * Gets the application code
 	 * 
 	 * @return application code
@@ -90,11 +83,25 @@ public interface IuLogEvent {
 	String getApplication();
 
 	/**
+	 * Gets the environment code
+	 * 
+	 * @return environment code
+	 */
+	String getEnvironment();
+
+	/**
 	 * Gets the module code
 	 * 
 	 * @return module code
 	 */
 	String getModule();
+
+	/**
+	 * Gets the runtime configuration code
+	 * 
+	 * @return runtime configuration code
+	 */
+	String getRuntime();
 
 	/**
 	 * Gets the component code

@@ -4,7 +4,7 @@ IU Java Utilities API Reference/iu-java-base,edu.iu,IuRateLimitter,0,408,0,50,0,
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuBadRequestException,0,16,0,0,0,8,0,4,0,4
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuUtilityTaskController,0,116,0,6,0,23,0,10,0,7
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuCacheMap.CacheIterator,0,69,0,8,0,24,0,8,0,4
-IU Java Utilities API Reference/iu-java-base,edu.iu,IuAsynchronousPipe.Splitr,0,163,0,28,0,32,0,20,0,6
+IU Java Utilities API Reference/iu-java-base,edu.iu,IuAsynchronousPipe.Splitr,0,161,0,26,0,31,0,19,0,6
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuCacheMap.CacheCollection,0,151,0,6,0,32,0,19,0,16
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuStream.new ThreadLocal() {...},0,7,0,0,0,2,0,2,0,2
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuVisitor,0,89,0,12,0,27,0,12,0,6
@@ -350,8 +350,8 @@ IU Java Utilities API Reference/iu-java-auth-session,iu.auth.session,SessionHand
 IU Java Utilities API Reference/iu-java-auth-session,iu.auth.session,SessionAdapterFactory,0,34,0,6,0,9,0,5,0,2
 IU Java Utilities API Reference/iu-java-logging,edu.iu.auth.spi,IuAuthConfigSpi,0,4,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-logging,edu.iu.auth.session,IuSession,0,2,0,0,0,1,0,1,0,1
-IU Java Utilities API Reference/iu-java-logging,iu.logging.boot,IuLogManager,0,123,0,22,0,42,0,23,0,12
-IU Java Utilities API Reference/iu-java-logging,iu.logging.boot,IuLoggingBootstrap,0,252,0,10,0,54,0,21,0,16
+IU Java Utilities API Reference/iu-java-logging,iu.logging.boot,IuLogManager,0,113,0,14,0,42,0,20,0,13
+IU Java Utilities API Reference/iu-java-logging,iu.logging.boot,IuLoggingBootstrap,0,355,0,14,0,67,0,29,0,22
 IU Java Utilities API Reference/iu-java-logging,edu.iu.auth.config,IuOpenIdProviderMetadata,0,2,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-logging,edu.iu.auth.config,IuSamlServiceProviderMetadata,0,12,0,0,0,5,0,5,0,5
 IU Java Utilities API Reference/iu-java-logging,edu.iu.auth.config,IuAuthorizationClient.AuthMethod,0,96,0,0,0,18,0,5,0,5
@@ -368,6 +368,7 @@ IU Java Utilities API Reference/iu-java-logging,iu.auth.pki,PkiVerifier,0,371,0,
 IU Java Utilities API Reference/iu-java-logging,iu.auth.config,AuthConfig.new Object() {...},0,86,0,6,0,13,0,7,0,4
 IU Java Utilities API Reference/iu-java-logging,iu.auth.config,AuthConfig.StorageConfig,0,15,0,0,0,6,0,1,0,1
 IU Java Utilities API Reference/iu-java-logging,iu.auth.config,AuthConfig,0,293,0,22,0,69,0,29,0,18
+IU Java Utilities API Reference/iu-java-logging,iu.logging,Bootstrap,257,0,26,0,59,0,26,0,13,0
 IU Java Utilities API Reference/iu-java-logging,jakarta.json,EmptyObject,50,3,0,0,14,1,14,1,14,1
 IU Java Utilities API Reference/iu-java-logging,jakarta.json,JsonObjectBuilder,8,0,0,0,2,0,2,0,2,0
 IU Java Utilities API Reference/iu-java-logging,jakarta.json,JsonConfig.KeyStrategy,0,34,0,0,0,4,0,1,0,1
@@ -385,7 +386,6 @@ IU Java Utilities API Reference/iu-java-logging,jakarta.json,JsonValueImpl,4,31,
 IU Java Utilities API Reference/iu-java-logging,jakarta.json,JsonArray,10,0,0,0,2,0,1,0,1,0
 IU Java Utilities API Reference/iu-java-logging,jakarta.json,JsonValue,10,24,0,0,2,5,2,1,2,1
 IU Java Utilities API Reference/iu-java-logging,jakarta.json,JsonBuilderFactory,16,0,0,0,4,0,4,0,4,0
-IU Java Utilities API Reference/iu-java-logging,iu.logging,Bootstrap,178,0,12,0,43,0,17,0,11,0
 IU Java Utilities API Reference/iu-java-logging,iu.client,BasicJsonAdapter,0,229,0,44,0,56,0,26,0,4
 IU Java Utilities API Reference/iu-java-logging,iu.client,EnumerationAdapter,0,13,0,0,0,4,0,3,0,3
 IU Java Utilities API Reference/iu-java-logging,iu.client,Vault,0,808,1,65,0,164,1,69,0,37
@@ -425,15 +425,17 @@ IU Java Utilities API Reference/iu-java-logging,edu.iu.client,IuJsonAdapter,0,70
 IU Java Utilities API Reference/iu-java-logging,iu.auth.principal,PrincipalVerifierRegistry,0,21,0,0,0,8,0,3,0,3
 IU Java Utilities API Reference/iu-java-logging,iu.logging.internal,IuLoggingProxy,61,0,8,0,13,0,7,0,3,0
 IU Java Utilities API Reference/iu-java-logging,iu.logging.internal,IuLogEvent.new Formatter() {...},7,0,0,0,2,0,2,0,2,0
+IU Java Utilities API Reference/iu-java-logging,iu.logging.internal,IuLogHandler.LogFilePublishers,116,0,0,0,15,0,5,0,5,0
 IU Java Utilities API Reference/iu-java-logging,iu.logging.internal,LogFilePublisher,304,0,24,0,62,0,21,0,9,0
 IU Java Utilities API Reference/iu-java-logging,iu.logging.internal,ProcessLogger.new ThreadLocal() {...},8,0,0,0,2,0,2,0,2,0
 IU Java Utilities API Reference/iu-java-logging,iu.logging.internal,ProcessLogger.new ThreadLocal() {...},8,0,0,0,2,0,2,0,2,0
+IU Java Utilities API Reference/iu-java-logging,iu.logging.internal,IuLogHandler.FilePublisherKey,62,0,8,0,12,0,7,0,3,0
 IU Java Utilities API Reference/iu-java-logging,iu.logging.internal,ProcessLogger,365,0,24,0,78,0,24,0,12,0
-IU Java Utilities API Reference/iu-java-logging,iu.logging.internal,IuLogEvent,324,0,14,0,85,0,30,0,23,0
-IU Java Utilities API Reference/iu-java-logging,iu.logging.internal,IuLogHandler,354,0,32,0,80,0,34,0,18,0
-IU Java Utilities API Reference/iu-java-logging,iu.logging.internal,ProcessLogger.ProcessState,323,0,20,0,68,0,13,0,3,0
-IU Java Utilities API Reference/iu-java-logging,iu.logging.internal,DefaultLogContext,60,0,0,0,20,0,16,0,16,0
+IU Java Utilities API Reference/iu-java-logging,iu.logging.internal,IuLogEvent,481,0,16,0,122,0,35,0,27,0
+IU Java Utilities API Reference/iu-java-logging,iu.logging.internal,IuLogHandler,701,0,52,0,147,0,63,0,37,0
+IU Java Utilities API Reference/iu-java-logging,iu.logging.internal,ProcessLogger.ProcessState,327,0,20,0,69,0,13,0,3,0
 IU Java Utilities API Reference/iu-java-logging,iu.logging.internal,ProcessLogger.TracedMessage,138,0,10,0,32,0,8,0,3,0
+IU Java Utilities API Reference/iu-java-logging,iu.logging.internal,LogEnvironmentImpl,219,0,12,0,54,0,20,0,14,0
 IU Java Utilities API Reference/iu-java-logging,jakarta.json.stream,JsonParsingException,18,0,0,0,7,0,3,0,3,0
 IU Java Utilities API Reference/iu-java-logging,jakarta.json.stream,JsonParser.Event,0,104,0,0,0,11,0,1,0,1
 IU Java Utilities API Reference/iu-java-logging,jakarta.json.stream,JsonGenerationException,9,0,0,0,4,0,2,0,2,0
@@ -445,7 +447,7 @@ IU Java Utilities API Reference/iu-java-logging,edu.iu.auth,IuAuthenticationExce
 IU Java Utilities API Reference/iu-java-logging,edu.iu.auth.saml,IuSamlSessionVerifier,0,6,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-logging,iu.auth,IuAuthSpiFactory,0,54,0,4,0,12,0,4,0,2
 IU Java Utilities API Reference/iu-java-logging,jakarta.annotation,Resource.AuthenticationType,0,15,0,0,0,3,0,1,0,1
-IU Java Utilities API Reference/iu-java-logging,edu.iu.logging,IuLogContext,0,10,0,0,0,3,0,2,0,2
+IU Java Utilities API Reference/iu-java-logging,edu.iu.logging,IuLogContext,0,17,0,0,0,5,0,3,0,3
 IU Java Utilities API Reference/iu-java-logging,edu.iu.logging,IuLogEvent,0,2,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-logging,edu.iu.auth.nonce,IuOneTimeNumberConfig,0,7,0,0,0,4,0,4,0,4
 IU Java Utilities API Reference/iu-java-logging,iu.crypt.init,CryptImplResource,0,4,0,0,0,3,0,1,0,1
@@ -507,7 +509,7 @@ IU Java Utilities API Reference/iu-java-logging,org.eclipse.parsson,JsonArrayBui
 IU Java Utilities API Reference/iu-java-logging,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},6,11,1,1,1,3,1,2,0,2
 IU Java Utilities API Reference/iu-java-logging,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},0,9,0,0,0,2,0,2,0,2
 IU Java Utilities API Reference/iu-java-logging,org.eclipse.parsson,JsonObjectBuilderImpl.DuplicateStrategy.new JsonObjectBuilderImpl.DuplicateStrategy() {...},6,7,2,0,3,1,2,1,1,1
-IU Java Utilities API Reference/iu-java-logging,org.eclipse.parsson,JsonTokenizer,558,755,116,102,114,158,92,54,9,19
+IU Java Utilities API Reference/iu-java-logging,org.eclipse.parsson,JsonTokenizer,539,774,113,105,109,163,91,55,9,19
 IU Java Utilities API Reference/iu-java-logging,org.eclipse.parsson,JsonStructureParser.ArrayScope,28,0,0,0,8,0,5,0,5,0
 IU Java Utilities API Reference/iu-java-logging,org.eclipse.parsson,JsonObjectBuilderImpl.JsonObjectImpl,47,114,10,6,15,31,10,18,3,17
 IU Java Utilities API Reference/iu-java-logging,org.eclipse.parsson,JsonNumberImpl.JsonIntNumber,18,33,1,1,5,10,6,5,5,5

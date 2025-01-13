@@ -1,2 +1,3 @@
 module:iu.util.logging
 edu.iu.logging
+iu.logging.boot

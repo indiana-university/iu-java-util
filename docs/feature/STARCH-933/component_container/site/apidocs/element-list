@@ -26,6 +26,7 @@ module:iu.util.jdbc.pool
 edu.iu.jdbc.pool
 module:iu.util.logging
 edu.iu.logging
+iu.logging.boot
 module:iu.util.test
 edu.iu.test
 module:iu.util.type

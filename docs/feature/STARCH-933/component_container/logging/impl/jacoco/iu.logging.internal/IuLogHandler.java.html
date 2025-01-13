@@ -31,19 +31,28 @@
  */
 package iu.logging.internal;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Function;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import edu.iu.IuAsynchronousSubject;
 import edu.iu.IuAsynchronousSubscription;
+import edu.iu.IuException;
+import edu.iu.IuObject;
 import edu.iu.IuRuntimeEnvironment;
 
 /**
@@ -51,42 +60,145 @@ import edu.iu.IuRuntimeEnvironment;
  */
 public class IuLogHandler extends Handler implements AutoCloseable {
 
-<span class="fc" id="L54">	private static volatile int c = 0;</span>
+<span class="fc" id="L63">	private static volatile int c = 0;</span>
 
-<span class="fc" id="L56">	private final Queue&lt;IuLogEvent&gt; logEvents = new ConcurrentLinkedQueue&lt;&gt;();</span>
-<span class="fc" id="L57">	private final IuAsynchronousSubject&lt;IuLogEvent&gt; subject = new IuAsynchronousSubject&lt;&gt;(logEvents::spliterator);</span>
+	/**
+	 * Key type for use with {@link IuLogHandler#filePublishers}.
+	 */
+	static class FilePublisherKey {
+		private final String endpoint;
+		private final String application;
+		private final String environment;
+
+		/**
+		 * Constructor.
+		 * 
+		 * @param endpoint    endpoint
+		 * @param application application
+		 * @param environment environment;
+		 */
+<span class="fc" id="L80">		FilePublisherKey(String endpoint, String application, String environment) {</span>
+<span class="fc" id="L81">			this.endpoint = endpoint;</span>
+<span class="fc" id="L82">			this.application = application;</span>
+<span class="fc" id="L83">			this.environment = environment;</span>
+<span class="fc" id="L84">		}</span>
+
+		@Override
+		public int hashCode() {
+<span class="fc" id="L88">			return IuObject.hashCode(endpoint, application, environment);</span>
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+<span class="fc bfc" id="L93" title="All 2 branches covered.">			if (!IuObject.typeCheck(this, obj))</span>
+<span class="fc" id="L94">				return false;</span>
+<span class="fc" id="L95">			final var other = (FilePublisherKey) obj;</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">			return IuObject.equals(endpoint, other.endpoint) //</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">					&amp;&amp; IuObject.equals(application, other.application) //</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">					&amp;&amp; IuObject.equals(environment, other.environment);</span>
+		}
+	}
+
+	/**
+	 * Resolves a path relative to a given root, with characters that could
+	 * potentially corrupt file names ({@code :} and {@code /}) stripped out.
+	 * 
+	 * @param path root path
+	 * @param name one or more path entries
+	 * @return relative path
+	 */
+	static Path resolvePath(Path path, String... name) {
+<span class="fc bfc" id="L111" title="All 2 branches covered.">		for (final var n : name)</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">			if (n != null)</span>
+<span class="fc" id="L113">				path = path.resolve(n.replaceAll(&quot;[:/]&quot;, &quot;_&quot;));</span>
+<span class="fc" id="L114">		return path;</span>
+	}
+
+	private static class LogFilePublishers {
+		private final LogFilePublisher debug;
+		private final LogFilePublisher info;
+		private final LogFilePublisher error;
+		private final Map&lt;String, LogFilePublisher&gt; trace;
+
+<span class="fc" id="L123">		private LogFilePublishers(Path logPath, String endpoint, String application, String environment) {</span>
+<span class="fc" id="L124">			final Path path = resolvePath(logPath, endpoint, environment);</span>
+<span class="fc" id="L125">			IuException.unchecked(() -&gt; Files.createDirectories(path));</span>
+
+<span class="fc" id="L127">			final var maxSize = Long.parseLong(Objects</span>
+<span class="fc" id="L128">					.requireNonNullElse(IuRuntimeEnvironment.envOptional(&quot;iu.logging.file.maxSize&quot;), &quot;10485760&quot;));</span>
+<span class="fc" id="L129">			final var nLimit = Integer.parseInt(</span>
+<span class="fc" id="L130">					Objects.requireNonNullElse(IuRuntimeEnvironment.envOptional(&quot;iu.logging.file.nLimit&quot;), &quot;10&quot;));</span>
+
+<span class="fc" id="L132">			debug = new LogFilePublisher(path.resolve(filename(application, &quot;debug&quot;)), maxSize, nLimit);</span>
+<span class="fc" id="L133">			info = new LogFilePublisher(path.resolve(filename(application, &quot;info&quot;)), maxSize, nLimit);</span>
+<span class="fc" id="L134">			error = new LogFilePublisher(path.resolve(filename(application, &quot;error&quot;)), maxSize, nLimit);</span>
+
+<span class="fc" id="L136">			trace = Objects.requireNonNullElseGet(IuObject.convert(</span>
+<span class="fc" id="L137">					IuRuntimeEnvironment.envOptional(&quot;iu.logging.file.trace&quot;),</span>
+<span class="fc" id="L138">					a -&gt; Stream.of(a.split(&quot;,&quot;)).collect(Collectors.toUnmodifiableMap(n -&gt; n,</span>
+<span class="fc" id="L139">							name -&gt; new LogFilePublisher(path.resolve(filename(application, name)), maxSize, nLimit)))),</span>
+					Collections::emptyMap);
+<span class="fc" id="L141">		}</span>
+	}
+
+	private static String filename(String application, String type) {
+<span class="fc" id="L145">		final var sb = new StringBuilder();</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">		if (application != null)</span>
+<span class="fc" id="L147">			sb.append(application).append(&quot;_&quot;);</span>
+<span class="fc" id="L148">		sb.append(type).append(&quot;.log&quot;);</span>
+<span class="fc" id="L149">		return sb.toString();</span>
+	}
+
+<span class="fc" id="L152">	private final Queue&lt;IuLogEvent&gt; logEvents = new ConcurrentLinkedQueue&lt;&gt;();</span>
+<span class="fc" id="L153">	private final IuAsynchronousSubject&lt;IuLogEvent&gt; subject = new IuAsynchronousSubject&lt;&gt;(logEvents::spliterator);</span>
+<span class="fc" id="L154">	private final Map&lt;FilePublisherKey, LogFilePublishers&gt; filePublishers = new ConcurrentHashMap&lt;&gt;();</span>
 
 	private final int maxEvents;
 	private final Duration eventTtl;
+	private final Duration closeWait;
 	private final Thread purge;
+	private volatile boolean consoleTaskActive;
+	private volatile boolean fileTaskActive;
 	private volatile boolean closed;
 
 	/**
 	 * Constructor
 	 */
-<span class="fc" id="L67">	public IuLogHandler() {</span>
-<span class="fc" id="L68">		final var c = ++IuLogHandler.c;</span>
+<span class="fc" id="L167">	public IuLogHandler() {</span>
+<span class="fc" id="L168">		final var c = ++IuLogHandler.c;</span>
 
-<span class="fc" id="L70">		maxEvents = env(&quot;iu.logging.maxEvents&quot;, 100000, Integer::parseInt);</span>
-<span class="fc" id="L71">		eventTtl = env(&quot;iu.logging.eventTtl&quot;, Duration.ofDays(1L), Duration::parse);</span>
-<span class="fc" id="L72">		purge = new Thread(this::purgeTask, &quot;iu-java-logging-purge/&quot; + c);</span>
-<span class="fc" id="L73">		purge.setDaemon(true);</span>
-<span class="fc" id="L74">		purge.start();</span>
+<span class="fc" id="L170">		final var startWait = env(&quot;iu.logging.startWait&quot;, Duration.ofSeconds(5L), Duration::parse);</span>
+<span class="fc" id="L171">		maxEvents = env(&quot;iu.logging.maxEvents&quot;, 100000, Integer::parseInt);</span>
+<span class="fc" id="L172">		eventTtl = env(&quot;iu.logging.eventTtl&quot;, Duration.ofDays(1L), Duration::parse);</span>
+<span class="fc" id="L173">		closeWait = env(&quot;iu.logging.closeWait&quot;, Duration.ofSeconds(15L), Duration::parse);</span>
 
-<span class="fc" id="L76">		final var consoleLevel = env(&quot;iu.logging.consoleLevel&quot;, Level.OFF, Level::parse);</span>
-<span class="fc bfc" id="L77" title="All 2 branches covered.">		if (consoleLevel.intValue() &lt; Level.OFF.intValue()) {</span>
-<span class="fc" id="L78">			final var console = new Thread(() -&gt; this.consoleTask(consoleLevel), &quot;iu-java-logging-console/&quot; + c);</span>
-<span class="fc" id="L79">			console.setDaemon(true);</span>
-<span class="fc" id="L80">			console.start();</span>
+<span class="fc" id="L175">		purge = new Thread(this::purgeTask, &quot;iu-java-logging-purge/&quot; + c);</span>
+<span class="fc" id="L176">		purge.setDaemon(true);</span>
+<span class="fc" id="L177">		purge.start();</span>
+
+<span class="fc" id="L179">		final var consoleLevel = env(&quot;iu.logging.consoleLevel&quot;, Level.OFF, Level::parse);</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">		if (consoleLevel.intValue() &lt; Level.OFF.intValue()) {</span>
+<span class="fc" id="L181">			final var console = new Thread(() -&gt; this.consoleTask(consoleLevel), &quot;iu-java-logging-console/&quot; + c);</span>
+<span class="fc" id="L182">			console.setDaemon(true);</span>
+<span class="fc" id="L183">			console.start();</span>
+<span class="fc" id="L184">			IuException.unchecked(() -&gt; IuObject.waitFor(this, () -&gt; consoleTaskActive, startWait));</span>
 		}
-<span class="fc" id="L82">	};</span>
+
+<span class="fc" id="L187">		final var logPath = env(&quot;iu.logging.file.path&quot;, null, Path::of);</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">		if (logPath != null) {</span>
+<span class="fc" id="L189">			final var file = new Thread(() -&gt; this.fileTask(logPath), &quot;iu-java-logging-file/&quot; + c);</span>
+<span class="fc" id="L190">			file.setDaemon(true);</span>
+<span class="fc" id="L191">			file.start();</span>
+<span class="fc" id="L192">			IuException.unchecked(() -&gt; IuObject.waitFor(this, () -&gt; fileTaskActive, startWait));</span>
+		}
+<span class="fc" id="L194">	};</span>
 
 	private static &lt;T&gt; T env(String name, T defaultValue, Function&lt;String, T&gt; convert) {
-<span class="fc" id="L85">		final var value = IuRuntimeEnvironment.envOptional(name);</span>
-<span class="fc bfc" id="L86" title="All 2 branches covered.">		if (value == null)</span>
-<span class="fc" id="L87">			return defaultValue;</span>
+<span class="fc" id="L197">		final var value = IuRuntimeEnvironment.envOptional(name);</span>
+<span class="fc bfc" id="L198" title="All 2 branches covered.">		if (value == null)</span>
+<span class="fc" id="L199">			return defaultValue;</span>
 		else
-<span class="fc" id="L89">			return convert.apply(value);</span>
+<span class="fc" id="L201">			return convert.apply(value);</span>
 	}
 
 	/**
@@ -95,7 +207,7 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 	 * @return {@link IuAsynchronousSubscription} of {@link IuLogEvent}
 	 */
 	public IuAsynchronousSubscription&lt;IuLogEvent&gt; subscribe() {
-<span class="fc" id="L98">		return subject.subscribe();</span>
+<span class="fc" id="L210">		return subject.subscribe();</span>
 	}
 
 	/**
@@ -104,24 +216,89 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 	 * @param level Maximum log level to print
 	 */
 	void consoleTask(Level level) {
-<span class="fc bfc" id="L107" title="All 2 branches covered.">		subject.subscribe().stream().filter(a -&gt; a.getLevel().intValue() &gt;= level.intValue())</span>
-<span class="fc" id="L108">				.forEach(event -&gt; System.out.print(event.format()));</span>
-<span class="fc" id="L109">	}</span>
+<span class="fc" id="L219">		synchronized (this) {</span>
+<span class="fc" id="L220">			consoleTaskActive = true;</span>
+<span class="fc" id="L221">		}</span>
+
+<span class="fc bfc" id="L223" title="All 2 branches covered.">		subject.subscribe().stream().filter(a -&gt; a.getLevel().intValue() &gt;= level.intValue())</span>
+<span class="fc" id="L224">				.forEach(event -&gt; System.out.println(event.export()));</span>
+
+<span class="fc" id="L226">		synchronized (this) {</span>
+<span class="fc" id="L227">			consoleTaskActive = false;</span>
+<span class="fc" id="L228">			this.notifyAll();</span>
+<span class="fc" id="L229">		}</span>
+<span class="fc" id="L230">	}</span>
+
+	/**
+	 * Subscribes to log messages, and writes each to log files.
+	 * 
+	 * @param logPath root filesystem for log file output
+	 */
+	void fileTask(Path logPath) {
+<span class="fc" id="L238">		synchronized (this) {</span>
+<span class="fc" id="L239">			fileTaskActive = true;</span>
+<span class="fc" id="L240">		}</span>
+
+<span class="fc" id="L242">		final var sub = subject.subscribe();</span>
+<span class="fc" id="L243">		sub.stream().forEach(event -&gt; {</span>
+<span class="fc" id="L244">			final var endpoint = event.getEndpoint();</span>
+<span class="fc" id="L245">			final var application = event.getApplication();</span>
+<span class="fc" id="L246">			final var environment = event.getEnvironment();</span>
+<span class="fc" id="L247">			final var key = new FilePublisherKey(endpoint, application, environment);</span>
+
+<span class="fc" id="L249">			final var publishers = filePublishers.computeIfAbsent(key,</span>
+<span class="fc" id="L250">					a -&gt; new LogFilePublishers(logPath, endpoint, application, environment));</span>
+
+<span class="fc" id="L252">			final var level = event.getLevel();</span>
+<span class="fc" id="L253">			final var formatted = event.format();</span>
+<span class="fc bfc" id="L254" title="All 2 branches covered.">			if (level.intValue() &gt;= Level.WARNING.intValue())</span>
+<span class="fc" id="L255">				publishers.error.publish(formatted);</span>
+<span class="fc bfc" id="L256" title="All 2 branches covered.">			if (level.intValue() &gt;= Level.INFO.intValue())</span>
+<span class="fc" id="L257">				publishers.info.publish(formatted);</span>
+<span class="fc" id="L258">			publishers.debug.publish(formatted);</span>
+
+<span class="fc" id="L260">			publishers.trace.entrySet().stream().filter(e -&gt; e.getKey().equals(event.getLoggerName()))</span>
+<span class="fc" id="L261">					.map(e -&gt; e.getValue()).forEach(p -&gt; p.publish(formatted));</span>
+
+<span class="fc" id="L263">			final var avail = sub.available();</span>
+<span class="fc bfc" id="L264" title="All 2 branches covered.">			if (avail == 0)</span>
+<span class="fc" id="L265">				flushFiles();</span>
+<span class="fc" id="L266">		});</span>
+<span class="fc" id="L267">		flushFiles();</span>
+
+<span class="fc" id="L269">		synchronized (this) {</span>
+<span class="fc" id="L270">			fileTaskActive = false;</span>
+<span class="fc" id="L271">			this.notifyAll();</span>
+<span class="fc" id="L272">		}</span>
+<span class="fc" id="L273">	}</span>
+
+	/**
+	 * Synchronously flushes all file publisher buffers and related log files.
+	 */
+	void flushFiles() {
+<span class="fc" id="L279">		filePublishers.values().forEach(a -&gt; IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L280">			a.error.flush();</span>
+<span class="fc" id="L281">			a.info.flush();</span>
+<span class="fc" id="L282">			a.debug.flush();</span>
+<span class="fc bfc" id="L283" title="All 2 branches covered.">			for (final var trace : a.trace.values())</span>
+<span class="fc" id="L284">				trace.flush();</span>
+<span class="fc" id="L285">		}));</span>
+<span class="fc" id="L286">	}</span>
 
 	/**
 	 * Repeatedly invokes {@link #purge} in a loop as long as this instance is open.
 	 */
 	void purgeTask() {
-<span class="fc bfc" id="L115" title="All 2 branches covered.">		while (!closed)</span>
-<span class="fc" id="L116">			synchronized (purge) {</span>
+<span class="fc bfc" id="L292" title="All 2 branches covered.">		while (!closed)</span>
+<span class="fc" id="L293">			synchronized (purge) {</span>
 				try {
-<span class="fc" id="L118">					purge.wait(2000L);</span>
-<span class="fc" id="L119">					purge();</span>
-<span class="fc" id="L120">				} catch (Throwable e) {</span>
-<span class="fc" id="L121">					e.printStackTrace();</span>
-<span class="fc" id="L122">				}</span>
-<span class="fc" id="L123">			}</span>
-<span class="fc" id="L124">	}</span>
+<span class="fc" id="L295">					purge.wait(2000L);</span>
+<span class="fc" id="L296">					purge();</span>
+<span class="fc" id="L297">				} catch (Throwable e) {</span>
+<span class="fc" id="L298">					e.printStackTrace();</span>
+<span class="fc" id="L299">				}</span>
+<span class="fc" id="L300">			}</span>
+<span class="fc" id="L301">	}</span>
 
 	/**
 	 * Purges log events from the queue.
@@ -131,82 +308,88 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 	 * &lt;/p&gt;
 	 */
 	void purge() {
-<span class="fc" id="L134">		final var now = Instant.now();</span>
+<span class="fc" id="L311">		final var now = Instant.now();</span>
 
 		{ // First purge from tail based on eventTtl
-<span class="fc" id="L137">			final var notBefore = now.minus(eventTtl);</span>
-<span class="fc" id="L138">			final var iterator = logEvents.iterator();</span>
-<span class="fc bfc" id="L139" title="All 2 branches covered.">			while (iterator.hasNext())</span>
-<span class="fc bfc" id="L140" title="All 2 branches covered.">				if (iterator.next().getTimestamp().isBefore(notBefore))</span>
-<span class="fc" id="L141">					iterator.remove();</span>
+<span class="fc" id="L314">			final var notBefore = now.minus(eventTtl);</span>
+<span class="fc" id="L315">			final var iterator = logEvents.iterator();</span>
+<span class="fc bfc" id="L316" title="All 2 branches covered.">			while (iterator.hasNext())</span>
+<span class="fc bfc" id="L317" title="All 2 branches covered.">				if (iterator.next().getTimestamp().isBefore(notBefore))</span>
+<span class="fc" id="L318">					iterator.remove();</span>
 				else // assume chronological insert order
 					break;
 		}
 
-<span class="fc" id="L146">		var toPurge = logEvents.size() - maxEvents;</span>
-<span class="fc bfc" id="L147" title="All 2 branches covered.">		if (toPurge &lt;= 0)</span>
-<span class="fc" id="L148">			return; // under size, nothing to do</span>
+<span class="fc" id="L323">		var toPurge = logEvents.size() - maxEvents;</span>
+<span class="fc bfc" id="L324" title="All 2 branches covered.">		if (toPurge &lt;= 0)</span>
+<span class="fc" id="L325">			return; // under size, nothing to do</span>
 
-<span class="fc" id="L150">		var level = Level.OFF;</span>
+<span class="fc" id="L327">		var level = Level.OFF;</span>
 		{ // determine the highest level that can be fully retained within the max size
-<span class="fc" id="L152">			final Map&lt;Level, Integer&gt; countByLevel = new TreeMap&lt;&gt;(</span>
-<span class="fc" id="L153">					(a, b) -&gt; -Integer.compare(a.intValue(), b.intValue()));</span>
-<span class="fc bfc" id="L154" title="All 2 branches covered.">			logEvents.forEach(e -&gt; countByLevel.compute(e.getLevel(), (a, count) -&gt; count == null ? 1 : count + 1));</span>
+<span class="fc" id="L329">			final Map&lt;Level, Integer&gt; countByLevel = new TreeMap&lt;&gt;(</span>
+<span class="fc" id="L330">					(a, b) -&gt; -Integer.compare(a.intValue(), b.intValue()));</span>
+<span class="fc bfc" id="L331" title="All 2 branches covered.">			logEvents.forEach(e -&gt; countByLevel.compute(e.getLevel(), (a, count) -&gt; count == null ? 1 : count + 1));</span>
 
-<span class="fc" id="L156">			var total = 0;</span>
-<span class="fc bfc" id="L157" title="All 2 branches covered.">			for (final var countByLevelEntry : countByLevel.entrySet()) {</span>
-<span class="fc" id="L158">				total += countByLevelEntry.getValue();</span>
-<span class="fc bfc" id="L159" title="All 2 branches covered.">				if (total &lt;= maxEvents - toPurge)</span>
-<span class="fc" id="L160">					level = countByLevelEntry.getKey();</span>
-<span class="fc" id="L161">			}</span>
+<span class="fc" id="L333">			var total = 0;</span>
+<span class="fc bfc" id="L334" title="All 2 branches covered.">			for (final var countByLevelEntry : countByLevel.entrySet()) {</span>
+<span class="fc" id="L335">				total += countByLevelEntry.getValue();</span>
+<span class="fc bfc" id="L336" title="All 2 branches covered.">				if (total &lt;= maxEvents - toPurge)</span>
+<span class="fc" id="L337">					level = countByLevelEntry.getKey();</span>
+<span class="fc" id="L338">			}</span>
 		}
 
-<span class="fc" id="L164">		final var iterator = logEvents.iterator();</span>
-<span class="fc bfc" id="L165" title="All 2 branches covered.">		while (toPurge &gt; 0)</span>
-<span class="fc bfc" id="L166" title="All 2 branches covered.">			if (iterator.next().getLevel().intValue() &lt; level.intValue()) {</span>
-<span class="fc" id="L167">				iterator.remove();</span>
-<span class="fc" id="L168">				toPurge--;</span>
+<span class="fc" id="L341">		final var iterator = logEvents.iterator();</span>
+<span class="fc bfc" id="L342" title="All 2 branches covered.">		while (toPurge &gt; 0)</span>
+<span class="fc bfc" id="L343" title="All 2 branches covered.">			if (iterator.next().getLevel().intValue() &lt; level.intValue()) {</span>
+<span class="fc" id="L344">				iterator.remove();</span>
+<span class="fc" id="L345">				toPurge--;</span>
 			}
-<span class="fc" id="L170">	}</span>
+<span class="fc" id="L347">	}</span>
 
 	@Override
 	public void publish(LogRecord record) {
-<span class="fc bfc" id="L174" title="All 2 branches covered.">		if (closed)</span>
-<span class="fc" id="L175">			throw new IllegalStateException(&quot;closed&quot;);</span>
+<span class="fc bfc" id="L351" title="All 2 branches covered.">		if (closed)</span>
+<span class="fc" id="L352">			throw new IllegalStateException(&quot;closed&quot;);</span>
 
-<span class="fc bfc" id="L177" title="All 2 branches covered.">		if (record.getMessage() == null)</span>
-<span class="fc" id="L178">			return;</span>
+<span class="fc bfc" id="L354" title="All 2 branches covered.">		if (record.getMessage() == null)</span>
+<span class="fc" id="L355">			return;</span>
 
-<span class="fc" id="L180">		final var event = new IuLogEvent(record);</span>
-<span class="fc" id="L181">		ProcessLogger.trace(() -&gt; event.getMessage());</span>
-<span class="fc" id="L182">		logEvents.offer(event);</span>
-<span class="fc" id="L183">		subject.accept(event);</span>
+<span class="fc" id="L357">		final var event = new IuLogEvent(record);</span>
+<span class="fc" id="L358">		ProcessLogger.trace(() -&gt; event.getMessage());</span>
+<span class="fc" id="L359">		logEvents.offer(event);</span>
+<span class="fc" id="L360">		subject.accept(event);</span>
 
-<span class="fc bfc" id="L185" title="All 2 branches covered.">		if (logEvents.size() &gt;= maxEvents)</span>
-<span class="fc" id="L186">			synchronized (purge) {</span>
-<span class="fc" id="L187">				purge.notify();</span>
-<span class="fc" id="L188">			}</span>
-<span class="fc" id="L189">	}</span>
+<span class="fc bfc" id="L362" title="All 2 branches covered.">		if (logEvents.size() &gt;= maxEvents)</span>
+<span class="fc" id="L363">			synchronized (purge) {</span>
+<span class="fc" id="L364">				purge.notify();</span>
+<span class="fc" id="L365">			}</span>
+<span class="fc" id="L366">	}</span>
 
 	@Override
 	public void flush() {
-<span class="fc" id="L193">		purge();</span>
-<span class="fc" id="L194">	}</span>
+<span class="fc" id="L370">		purge();</span>
+<span class="fc" id="L371">		flushFiles();</span>
+<span class="fc" id="L372">	}</span>
 
 	@Override
 	public synchronized void close() {
-<span class="fc bfc" id="L198" title="All 2 branches covered.">		if (!closed) {</span>
-<span class="fc" id="L199">			closed = true;</span>
-<span class="fc" id="L200">			subject.close();</span>
-<span class="fc" id="L201">			logEvents.clear();</span>
+<span class="fc bfc" id="L376" title="All 2 branches covered.">		if (!closed) {</span>
+<span class="fc" id="L377">			closed = true;</span>
+<span class="fc" id="L378">			subject.close();</span>
+<span class="fc" id="L379">			IuException.unchecked(() -&gt; IuObject.waitFor(this, //</span>
+<span class="fc bfc" id="L380" title="All 4 branches covered.">					() -&gt; !(consoleTaskActive //</span>
+							|| fileTaskActive),
+					closeWait));
+<span class="fc" id="L383">			logEvents.clear();</span>
 		}
-<span class="fc" id="L203">	}</span>
+<span class="fc" id="L385">	}</span>
 
 	@Override
 	public String toString() {
-<span class="fc" id="L207">		return &quot;IuLogHandler [logEvents=&quot; + logEvents.size() + &quot;, maxEvents=&quot; + maxEvents</span>
-<span class="fc" id="L208">				+ &quot;, eventTtl=&quot; + eventTtl + &quot;, purge=&quot; + purge.getName() + &quot;, closed=&quot; + closed + &quot;]&quot;;</span>
+<span class="fc" id="L389">		return &quot;IuLogHandler [logEvents=&quot; + logEvents.size() + &quot;, maxEvents=&quot; + maxEvents + &quot;, eventTtl=&quot; + eventTtl</span>
+				+ &quot;, closeWait=&quot; + closeWait + &quot;, consoleTaskActive=&quot; + consoleTaskActive + &quot;, fileTaskActive=&quot;
+<span class="fc" id="L391">				+ fileTaskActive + &quot;, purge=&quot; + purge.getName() + &quot;, closed=&quot; + closed + &quot;]&quot;;</span>
 	}
-	
+
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

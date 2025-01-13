@@ -32,6 +32,7 @@
 package iu.logging;
 
 import java.lang.ModuleLayer.Controller;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -45,9 +46,9 @@ import java.util.stream.Stream;
 import edu.iu.IuException;
 import edu.iu.IuRuntimeEnvironment;
 import edu.iu.UnsafeSupplier;
-import iu.logging.internal.DefaultLogContext;
 import iu.logging.internal.IuLogHandler;
 import iu.logging.internal.IuLoggingProxy;
+import iu.logging.internal.LogEnvironmentImpl;
 import iu.logging.internal.ProcessLogger;
 
 /**
@@ -59,14 +60,15 @@ import iu.logging.internal.ProcessLogger;
  * {@link LogManager#readConfiguration(java.io.InputStream)
  * -Djava.util.logging.config.class} JVM argument. Invoke
  * {@link #configure(boolean)} first, then
- * {@link #initializeContext(String,String,String)} for each class loader prior
- * to using {@link #follow(Object, String, Object)} within its
- * {@link Thread#getContextClassLoader() context}.
+ * {@link #initializeContext(String, boolean, String, String, String, String, String, String)}
+ * for each class loader prior to using {@link #follow(Object, String, Object)}
+ * within its {@link Thread#getContextClassLoader() context}.
  * &lt;/p&gt;
  */
 public final class Bootstrap {
 
-<span class="fc" id="L69">	private static final Map&lt;ClassLoader, DefaultLogContext&gt; DEFAULT_CONTEXT = new WeakHashMap&lt;&gt;();</span>
+<span class="fc" id="L70">	private static final Map&lt;ClassLoader, LogEnvironmentImpl&gt; ENVIRONMENT = new WeakHashMap&lt;&gt;();</span>
+<span class="fc" id="L71">	private static final LogEnvironmentImpl PLATFORM = new LogEnvironmentImpl();</span>
 
 	private Bootstrap() {
 	}
@@ -77,81 +79,130 @@ public final class Bootstrap {
 	 * 
 	 * @param update True to update the existing configuration; false for initial
 	 *               system configuration.
+	 * @return true if logging configuration exists and was updated
 	 * @see LogManager#readConfiguration(java.io.InputStream)
 	 */
-	public static void configure(boolean update) {
-<span class="fc" id="L83">		final var configRoot = IuRuntimeEnvironment.env(&quot;iu.config&quot;);</span>
-<span class="fc" id="L84">		final var logManager = LogManager.getLogManager();</span>
-<span class="fc" id="L85">		final var loggingPropertiesFile = Path.of(configRoot, &quot;logging.properties&quot;);</span>
-<span class="fc" id="L86">		final var loggingPropertiesExists = Files.isReadable(loggingPropertiesFile);</span>
-<span class="fc bfc" id="L87" title="All 2 branches covered.">		if (loggingPropertiesExists)</span>
-<span class="fc" id="L88">			IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L89">				try (final var in = Files.newInputStream(loggingPropertiesFile)) {</span>
-<span class="fc bfc" id="L90" title="All 2 branches covered.">					if (update)</span>
-<span class="fc" id="L91">						logManager.updateConfiguration(in, null);</span>
+	public static boolean configure(boolean update) {
+<span class="fc" id="L86">		final var configRoot = IuRuntimeEnvironment.envOptional(&quot;iu.config&quot;);</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">		if (configRoot == null)</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">			if (update)</span>
+<span class="fc" id="L89">				return false;</span>
+			else
+<span class="fc" id="L91">				throw new NullPointerException(&quot;Missing system property iu.config or environment variable IU_CONFIG&quot;);</span>
+
+<span class="fc" id="L93">		final var loggingPropertiesFile = Path.of(configRoot, &quot;logging.properties&quot;);</span>
+<span class="fc" id="L94">		final var loggingPropertiesExists = Files.exists(loggingPropertiesFile);</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">		if (loggingPropertiesExists)</span>
+<span class="fc" id="L96">			IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L97">				try (final var in = Files.newInputStream(loggingPropertiesFile)) {</span>
+<span class="fc" id="L98">					final var logManager = LogManager.getLogManager();</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">					if (update)</span>
+<span class="fc" id="L100">						logManager.updateConfiguration(in, null);</span>
 					else
-<span class="fc" id="L93">						logManager.readConfiguration(in);</span>
+<span class="fc" id="L102">						logManager.readConfiguration(in);</span>
 				}
-<span class="fc" id="L95">				Logger.getLogger(&quot;&quot;).config(&quot;Logging configuration updated from &quot; + loggingPropertiesFile);</span>
-<span class="fc" id="L96">			});</span>
-<span class="fc" id="L97">	}</span>
+<span class="fc" id="L104">			});</span>
+
+<span class="fc" id="L106">		return loggingPropertiesExists;</span>
+	}
 
 	private static IuLogHandler handler() {
-<span class="fc" id="L100">		Logger.getLogger(&quot;&quot;);</span>
-<span class="fc" id="L101">		final var root = LogManager.getLogManager().getLogger(&quot;&quot;);</span>
+<span class="fc" id="L110">		Logger.getLogger(&quot;&quot;);</span>
+<span class="fc" id="L111">		final var root = LogManager.getLogManager().getLogger(&quot;&quot;);</span>
 
-<span class="fc" id="L103">		IuLogHandler handler = null;</span>
-<span class="fc bfc" id="L104" title="All 2 branches covered.">		for (final var h : root.getHandlers())</span>
-<span class="fc bfc" id="L105" title="All 2 branches covered.">			if (h instanceof IuLogHandler) {</span>
-<span class="fc" id="L106">				handler = (IuLogHandler) h;</span>
-<span class="fc" id="L107">				break;</span>
+<span class="fc" id="L113">		IuLogHandler handler = null;</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">		for (final var h : root.getHandlers())</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">			if (h instanceof IuLogHandler) {</span>
+<span class="fc" id="L116">				handler = (IuLogHandler) h;</span>
+<span class="fc" id="L117">				break;</span>
 			}
-<span class="fc bfc" id="L109" title="All 2 branches covered.">		if (handler == null)</span>
-<span class="fc" id="L110">			root.addHandler(handler = new IuLogHandler());</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">		if (handler == null)</span>
+<span class="fc" id="L120">			root.addHandler(handler = new IuLogHandler());</span>
 
-<span class="fc" id="L112">		return handler;</span>
+<span class="fc" id="L122">		return handler;</span>
 	}
 
 	/**
-	 * Binds top-level attributes to log events observed in the
-	 * {@link Thread#getContextClassLoader() current thread's context}.
+	 * Ensures that logging is fully initialized for the
+	 * {@link ClassLoader#getSystemClassLoader() system} and
+	 * {@link ClassLoader#getPlatformClassLoader() platform} {@link ClassLoader}s.
 	 * 
 	 * &lt;p&gt;
-	 * This method SHOULD be invoked exactly once during initialization, typically
-	 * once per container, to bind per-{@link ClassLoader} node-level runtime
-	 * attributes.
+	 * {@link IuRuntimeEnvironment#envOptional(String) Runtime properties}:
 	 * &lt;/p&gt;
+	 * &lt;ul&gt;
+	 * &lt;li&gt;iu.development - development environment flag&lt;/li&gt;
+	 * &lt;li&gt;iu.endpoint - refers to the external port or client node identifier for
+	 * the active runtime&lt;/li&gt;
+	 * &lt;li&gt;iu.application - refers to the application configuration code relative to
+	 * the runtime environment&lt;/li&gt;
+	 * &lt;li&gt;iu.environment - refers to the application's environment code, for
+	 * classifying runtime configuration&lt;/li&gt;
+	 * &lt;li&gt;iu.module - refers to the module configuration code, relative to
+	 * application and environment&lt;/li&gt;
+	 * &lt;li&gt;iu.runtime - refers to the runtime configuration code, relative to
+	 * application and environment&lt;/li&gt;
+	 * &lt;li&gt;iu.component - refers to the component name, relative to application,
+	 * environment, and runtime&lt;/li&gt;
+	 * &lt;/ul&gt;
 	 * 
-	 * @param endpoint    endpoint identifier
-	 * @param application application code
-	 * @param environment environment code
+	 * @see #initializeContext(String, boolean, String, String, String, String,
+	 *      String, String)
 	 */
-	public static void initializeContext(String endpoint, String application, String environment) {
-<span class="fc" id="L130">		final var handler = handler();</span>
-
-<span class="fc" id="L132">		final var context = Thread.currentThread().getContextClassLoader();</span>
-<span class="fc" id="L133">		var defaultContext = new DefaultLogContext(endpoint, application, environment);</span>
-<span class="fc" id="L134">		synchronized (DEFAULT_CONTEXT) {</span>
-<span class="fc" id="L135">			DEFAULT_CONTEXT.put(context, defaultContext);</span>
-<span class="fc" id="L136">		}</span>
-
-<span class="fc" id="L138">		Logger.getLogger(&quot;&quot;)</span>
-<span class="fc" id="L139">				.config(&quot;IU Logging Bootstrap initialized &quot; + handler + &quot; &quot; + defaultContext + &quot;; context: &quot; + context);</span>
-<span class="fc" id="L140">	}</span>
+	public static void initialize() {
+<span class="fc" id="L153">		final var handler = handler();</span>
+<span class="fc" id="L154">		Logger.getLogger(&quot;&quot;).config(&quot;IuLogContext initialized &quot; + handler + &quot; &quot; + PLATFORM);</span>
+<span class="fc" id="L155">	}</span>
 
 	/**
-	 * Gets the initialized {@link DefaultLogContext} for the current context
+	 * Initializes attributes for the {@link Thread#getContextClassLoader() current
+	 * thread's context}.
+	 * 
+	 * @param nodeId      runtime node identifier; defaults to
+	 *                    {@link InetAddress#getLocalHost()}{@link InetAddress#getHostName()
+	 *                    .getHostName()}
+	 * @param development development environment flag
+	 * @param endpoint    external port or client node identifier
+	 * @param application application configuration code
+	 * @param environment environment code
+	 * @param module      module configuration code, relative to application and
+	 *                    environment
+	 * @param runtime     runtime configuration code, relative to application and
+	 *                    environment
+	 * @param component   component name, relative to application, environment, and
+	 *                    runtime
+	 * @see #initialize()
+	 */
+	public static void initializeContext(String nodeId, boolean development, String endpoint, String application,
+			String environment, String module, String runtime, String component) {
+<span class="fc" id="L178">		final var context = Thread.currentThread().getContextClassLoader();</span>
+<span class="fc bfc" id="L179" title="All 2 branches covered.">		if (context == ClassLoader.getPlatformClassLoader() //</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">				|| context == ClassLoader.getSystemClassLoader())</span>
+<span class="fc" id="L181">			throw new IllegalStateException(&quot;Already initialized; &quot; + PLATFORM);</span>
+
+<span class="fc" id="L183">		final var handler = handler();</span>
+
+<span class="fc" id="L185">		LogEnvironmentImpl env = null;</span>
+<span class="fc" id="L186">		synchronized (ENVIRONMENT) {</span>
+<span class="fc" id="L187">			env = ENVIRONMENT.get(context);</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">			if (env != null)</span>
+<span class="fc" id="L189">				throw new IllegalStateException(&quot;Already initialized; &quot; + env);</span>
+
+<span class="fc" id="L191">			ENVIRONMENT.put(context, env = new LogEnvironmentImpl(PLATFORM, nodeId, development, endpoint, application,</span>
+					environment, module, runtime, component));
+<span class="fc" id="L193">		}</span>
+
+<span class="fc" id="L195">		Logger.getLogger(&quot;&quot;).config(&quot;IuLogContext initialized &quot; + handler + &quot; &quot; + env + &quot;; context: &quot; + context);</span>
+<span class="fc" id="L196">	}</span>
+
+	/**
+	 * Gets the initialized {@link LogEnvironment} for the current context
 	 * {@link ClassLoader}.
 	 * 
-	 * @return {@link DefaultLogContext}
+	 * @return {@link LogEnvironment}
 	 */
-	public static LogContext getDefaultContext() {
-<span class="fc" id="L149">		final var defaultContext = DEFAULT_CONTEXT.get(Thread.currentThread().getContextClassLoader());</span>
-<span class="fc bfc" id="L150" title="All 2 branches covered.">		if (defaultContext == null)</span>
-<span class="fc" id="L151">			return Objects.requireNonNull(DEFAULT_CONTEXT.get(ClassLoader.getPlatformClassLoader()),</span>
-					&quot;Not initialized; invoke init(ClassLoader.getPlatformClassLoader()) first&quot;);
-		else
-<span class="fc" id="L154">			return defaultContext;</span>
+	public static LogEnvironment getEnvironment() {
+<span class="fc" id="L205">		return Objects.requireNonNullElse(ENVIRONMENT.get(Thread.currentThread().getContextClassLoader()), PLATFORM);</span>
 	}
 
 	/**
@@ -162,7 +213,7 @@ public final class Bootstrap {
 	 * @return log context
 	 */
 	public static &lt;T&gt; T getActiveContext(Class&lt;T&gt; contextType) {
-<span class="fc" id="L165">		return IuLoggingProxy.adapt(contextType, ProcessLogger.getActiveContext());</span>
+<span class="fc" id="L216">		return IuLoggingProxy.adapt(contextType, ProcessLogger.getActiveContext());</span>
 	}
 
 	/**
@@ -178,8 +229,8 @@ public final class Bootstrap {
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	public static Object follow(Object context, String header, Object supplier) throws Throwable {
-<span class="fc" id="L181">		return ProcessLogger.follow(IuLoggingProxy.adapt(LogContext.class, context), header,</span>
-<span class="fc" id="L182">				IuLoggingProxy.adapt(UnsafeSupplier.class, supplier));</span>
+<span class="fc" id="L232">		return ProcessLogger.follow(IuLoggingProxy.adapt(LogContext.class, context), header,</span>
+<span class="fc" id="L233">				IuLoggingProxy.adapt(UnsafeSupplier.class, supplier));</span>
 	}
 
 	/**
@@ -190,7 +241,7 @@ public final class Bootstrap {
 	 * @return {@link Stream}
 	 */
 	public static &lt;T&gt; Stream&lt;T&gt; subscribe(Class&lt;T&gt; eventClass) {
-<span class="fc" id="L193">		return ((Stream&lt;?&gt;) handler().subscribe().stream()).map(a -&gt; IuLoggingProxy.adapt(eventClass, a));</span>
+<span class="fc" id="L244">		return ((Stream&lt;?&gt;) handler().subscribe().stream()).map(a -&gt; IuLoggingProxy.adapt(eventClass, a));</span>
 	}
 
 	/**
@@ -199,8 +250,21 @@ public final class Bootstrap {
 	 * @param messageSupplier Message {@link Supplier}
 	 */
 	public static void trace(Supplier&lt;String&gt; messageSupplier) {
-<span class="fc" id="L202">		ProcessLogger.trace(messageSupplier);</span>
-<span class="fc" id="L203">	}</span>
+<span class="fc" id="L253">		ProcessLogger.trace(messageSupplier);</span>
+<span class="fc" id="L254">	}</span>
+
+	/**
+	 * Tears down all registered resources.
+	 */
+	public static void destroy() {
+<span class="fc" id="L260">		final var root = LogManager.getLogManager().getLogger(&quot;&quot;);</span>
+<span class="fc bfc" id="L261" title="All 2 branches covered.">		if (root == null)</span>
+<span class="fc" id="L262">			return;</span>
+
+<span class="fc bfc" id="L264" title="All 2 branches covered.">		for (final var h : root.getHandlers())</span>
+<span class="fc bfc" id="L265" title="All 2 branches covered.">			if (h instanceof IuLogHandler)</span>
+<span class="fc" id="L266">				root.removeHandler(h);</span>
+<span class="fc" id="L267">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

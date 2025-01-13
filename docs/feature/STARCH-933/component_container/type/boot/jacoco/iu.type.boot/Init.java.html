@@ -38,6 +38,7 @@ import java.util.logging.Logger;
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.UnsafeRunnable;
+import edu.iu.logging.IuLogContext;
 import edu.iu.type.base.ModularClassLoader;
 import edu.iu.type.base.TemporaryFile;
 
@@ -46,10 +47,10 @@ import edu.iu.type.base.TemporaryFile;
  */
 public class Init implements AutoCloseable {
 	static {
-<span class="fc" id="L49">		IuObject.assertNotOpen(Init.class);</span>
+<span class="fc" id="L50">		IuObject.assertNotOpen(Init.class);</span>
 	}
 
-<span class="fc" id="L52">	private static final Logger LOG = Logger.getLogger(Init.class.getName());</span>
+<span class="fc" id="L53">	private static final Logger LOG = Logger.getLogger(Init.class.getName());</span>
 
 	private volatile ModularClassLoader loader;
 	private volatile AutoCloseable container;
@@ -60,61 +61,63 @@ public class Init implements AutoCloseable {
 	 * @throws IOException If an I/O errors occurs reading the container bundler or
 	 *                     a component archive.
 	 */
-<span class="fc" id="L63">	public Init() throws IOException {</span>
-<span class="fc" id="L64">		final var init = new UnsafeRunnable() {</span>
+<span class="fc" id="L64">	public Init() throws IOException {</span>
+<span class="fc" id="L65">		IuLogContext.initialize();</span>
+		
+<span class="fc" id="L67">		final var init = new UnsafeRunnable() {</span>
 			private ModularClassLoader loader;
 			private AutoCloseable containerBootstrap;
 
 			@Override
 			public void run() throws Throwable {
-<span class="fc" id="L70">				LOG.fine(&quot;before init loader&quot;);</span>
-<span class="fc" id="L71">				loader = new ModularClassLoader(false,</span>
-<span class="fc" id="L72">						TemporaryFile.readBundle(ClassLoader.getSystemResource(&quot;iu-java-type-container-bundle.jar&quot;)),</span>
-<span class="fc" id="L73">						ModuleLayer.boot(), ClassLoader.getSystemClassLoader(), c -&gt; {</span>
-<span class="fc" id="L74">							final var bootModule = Init.class.getModule();</span>
-<span class="fc" id="L75">							final var containerModule = c.layer().findModule(&quot;iu.util.type.container&quot;).get();</span>
-<span class="fc" id="L76">							c.addExports(containerModule, &quot;iu.type.container&quot;, bootModule);</span>
+<span class="fc" id="L73">				LOG.fine(&quot;before init loader&quot;);</span>
+<span class="fc" id="L74">				loader = new ModularClassLoader(false,</span>
+<span class="fc" id="L75">						TemporaryFile.readBundle(ClassLoader.getSystemResource(&quot;iu-java-type-container-bundle.jar&quot;)),</span>
+<span class="fc" id="L76">						ModuleLayer.boot(), ClassLoader.getSystemClassLoader(), c -&gt; {</span>
+<span class="fc" id="L77">							final var bootModule = Init.class.getModule();</span>
+<span class="fc" id="L78">							final var containerModule = c.layer().findModule(&quot;iu.util.type.container&quot;).get();</span>
+<span class="fc" id="L79">							c.addExports(containerModule, &quot;iu.type.container&quot;, bootModule);</span>
 
-<span class="fc" id="L78">							final var iuTypeBase = ModuleLayer.boot().findModule(&quot;iu.util.type.base&quot;).get();</span>
-<span class="fc" id="L79">							c.addReads(containerModule, iuTypeBase);</span>
-<span class="fc" id="L80">							c.addReads(c.layer().findModule(&quot;iu.util.type.bundle&quot;).get(), iuTypeBase);</span>
-<span class="fc" id="L81">						});</span>
+<span class="fc" id="L81">							final var iuTypeBase = ModuleLayer.boot().findModule(&quot;iu.util.type.base&quot;).get();</span>
+<span class="fc" id="L82">							c.addReads(containerModule, iuTypeBase);</span>
+<span class="fc" id="L83">							c.addReads(c.layer().findModule(&quot;iu.util.type.bundle&quot;).get(), iuTypeBase);</span>
+<span class="fc" id="L84">						});</span>
 
 				try {
-<span class="fc" id="L84">					LOG.fine(&quot;after init loader &quot; + loader.getModuleLayer());</span>
-<span class="fc" id="L85">					containerBootstrap = (AutoCloseable) loader //</span>
-<span class="fc" id="L86">							.loadClass(&quot;iu.type.container.TypeContainerBootstrap&quot;).getConstructor().newInstance();</span>
+<span class="fc" id="L87">					LOG.fine(&quot;after init loader &quot; + loader.getModuleLayer());</span>
+<span class="fc" id="L88">					containerBootstrap = (AutoCloseable) loader //</span>
+<span class="fc" id="L89">							.loadClass(&quot;iu.type.container.TypeContainerBootstrap&quot;).getConstructor().newInstance();</span>
 
-<span class="fc" id="L88">					LOG.fine(&quot;after init container bootstrap &quot; + containerBootstrap);</span>
-<span class="fc" id="L89">				} catch (Throwable e) {</span>
-<span class="fc" id="L90">					IuException.suppress(e, loader::close);</span>
-<span class="fc" id="L91">					throw e;</span>
-<span class="fc" id="L92">				}</span>
-<span class="fc" id="L93">			}</span>
+<span class="fc" id="L91">					LOG.fine(&quot;after init container bootstrap &quot; + containerBootstrap);</span>
+<span class="fc" id="L92">				} catch (Throwable e) {</span>
+<span class="fc" id="L93">					IuException.suppress(e, loader::close);</span>
+<span class="fc" id="L94">					throw e;</span>
+<span class="fc" id="L95">				}</span>
+<span class="fc" id="L96">			}</span>
 		};
-<span class="fc" id="L95">		TemporaryFile.init(init);</span>
-<span class="fc" id="L96">		loader = Objects.requireNonNull(init.loader);</span>
-<span class="fc" id="L97">		container = Objects.requireNonNull(init.containerBootstrap);</span>
-<span class="fc" id="L98">	}</span>
+<span class="fc" id="L98">		TemporaryFile.init(init);</span>
+<span class="fc" id="L99">		loader = Objects.requireNonNull(init.loader);</span>
+<span class="fc" id="L100">		container = Objects.requireNonNull(init.containerBootstrap);</span>
+<span class="fc" id="L101">	}</span>
 
 	@Override
 	public synchronized void close() {
-<span class="fc" id="L102">		final var container = this.container;</span>
-<span class="fc" id="L103">		final var loader = this.loader;</span>
-<span class="fc bfc" id="L104" title="All 2 branches covered.">		if (container != null) {</span>
-<span class="fc" id="L105">			this.container = null;</span>
-<span class="fc" id="L106">			this.loader = null;</span>
+<span class="fc" id="L105">		final var container = this.container;</span>
+<span class="fc" id="L106">		final var loader = this.loader;</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">		if (container != null) {</span>
+<span class="fc" id="L108">			this.container = null;</span>
+<span class="fc" id="L109">			this.loader = null;</span>
 
-<span class="fc" id="L108">			LOG.fine(&quot;before destroy container bootstrap &quot; + container);</span>
-<span class="fc" id="L109">			var error = IuException.suppress(null, container::close);</span>
+<span class="fc" id="L111">			LOG.fine(&quot;before destroy container bootstrap &quot; + container);</span>
+<span class="fc" id="L112">			var error = IuException.suppress(null, container::close);</span>
 
-<span class="fc" id="L111">			LOG.fine(&quot;before destroy loader &quot; + loader.getModuleLayer());</span>
-<span class="fc" id="L112">			error = IuException.suppress(error, loader::close);</span>
+<span class="fc" id="L114">			LOG.fine(&quot;before destroy loader &quot; + loader.getModuleLayer());</span>
+<span class="fc" id="L115">			error = IuException.suppress(error, loader::close);</span>
 
-<span class="fc bfc" id="L114" title="All 2 branches covered.">			if (error != null)</span>
-<span class="fc" id="L115">				throw IuException.unchecked(error);</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">			if (error != null)</span>
+<span class="fc" id="L118">				throw IuException.unchecked(error);</span>
 		}
-<span class="fc" id="L117">	}</span>
+<span class="fc" id="L120">	}</span>
 
 	/**
 	 * Entry point.
@@ -122,12 +125,12 @@ public class Init implements AutoCloseable {
 	 * @param a arguments
 	 */
 	public static void main(String... a) {
-<span class="fc" id="L125">		IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L126">			try (final var init = new Init()) {</span>
-<span class="fc" id="L127">				((UnsafeRunnable) init.container).run();</span>
+<span class="fc" id="L128">		IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L129">			try (final var init = new Init()) {</span>
+<span class="fc" id="L130">				((UnsafeRunnable) init.container).run();</span>
 			}
-<span class="fc" id="L129">		});</span>
-<span class="fc" id="L130">	}</span>
+<span class="fc" id="L132">		});</span>
+<span class="fc" id="L133">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
