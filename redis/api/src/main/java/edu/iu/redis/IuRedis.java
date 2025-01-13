@@ -42,7 +42,7 @@ import iu.redis.IuRedisSpiFactory;
  * connection across different Redis libraries.
  * </p>
  */
-public interface IuRedis extends IuDataStore {
+public interface IuRedis extends IuDataStore, AutoCloseable {
 
 	/**
 	 * Create a connection to Redis.

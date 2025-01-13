@@ -36,8 +36,9 @@
 module iu.util.auth.session {
 	exports iu.auth.session;
 
-	requires iu.util;
+	requires transitive iu.util;
 	requires iu.util.crypt;
 	requires transitive iu.util.auth;
 	requires transitive iu.util.auth.config;
+
 }

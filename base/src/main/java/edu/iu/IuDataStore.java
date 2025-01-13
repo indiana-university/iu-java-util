@@ -29,7 +29,7 @@ public interface IuDataStore {
 	 * @param data data to assign to the key, replaces existing data. May be null to
 	 *             delete existing data.
 	 */
-	//void put(String key, byte[] data);
+	void put(byte[] key, byte[] data);
 	
 	/**
 	 * Write the given key/value pair to Redis and set the expiration time if defined.

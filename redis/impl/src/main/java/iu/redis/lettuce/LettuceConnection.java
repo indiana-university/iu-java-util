@@ -39,6 +39,7 @@ import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 
 import edu.iu.IuException;
+import edu.iu.IuText;
 import edu.iu.redis.IuRedis;
 import edu.iu.redis.IuRedisConfiguration;
 import io.lettuce.core.RedisClient;
@@ -50,13 +51,11 @@ import io.lettuce.core.support.ConnectionPoolSupport;
 /**
  * Support Lettuce connection.
  */
-public class LettuceConnection implements IuRedis, AutoCloseable {
-
-	private static final Logger LOG = Logger.getLogger(LettuceConnection.class.getName());
+public class LettuceConnection implements IuRedis {
 
 	private final GenericObjectPool<StatefulRedisConnection<String, String>> genericPool;
 	private final 	RedisClient redisClient;
-	
+	private final IuRedisConfiguration config;
 
 	/**
 	 * constructor.
@@ -72,9 +71,16 @@ public class LettuceConnection implements IuRedis, AutoCloseable {
 				.withPassword(password.toCharArray()) //
 				.withSsl(true) //
 				.build();
+		this.config = config;
 		this.redisClient = RedisClient.create(redisUri);
-			this.genericPool = ConnectionPoolSupport
+		this.genericPool = ConnectionPoolSupport
 				.createGenericObjectPool(() -> redisClient.connect(), new GenericObjectPoolConfig<StatefulRedisConnection<String, String>>());
+	}
+
+	@Override
+	public void put(byte[] key, byte[] data) {
+		put(key, data, config.getKeyExpiration());
+
 	}
 
 	@Override
@@ -84,8 +90,10 @@ public class LettuceConnection implements IuRedis, AutoCloseable {
 		try (StatefulRedisConnection<String, String> connection = genericPool.borrowObject()) {
 
 			RedisCommands<String, String> commands = connection.sync();
-			String value = commands.get(new String(key));
+			String value = commands.get(IuText.utf8(key));
 			return value != null ? value.getBytes() : null;
+			
+			
 		} catch (Exception e) {
 			IuException.suppress(e,()->  e.getMessage());
 			throw new IllegalStateException("connection cannot be obtained from the pool");
@@ -103,7 +111,7 @@ public class LettuceConnection implements IuRedis, AutoCloseable {
 				commands.setex(key.toString(), ttl.toMillis(), value.toString());
 			}
 
-			commands.set(new String(key), new String(value));
+			commands.set(IuText.utf8(key), IuText.utf8(value));
 		} catch (Exception e) {
 			IuException.suppress(e,()->  e.getMessage());
 			throw new IllegalStateException("connection cannot be obtained from the pool");
@@ -113,7 +121,8 @@ public class LettuceConnection implements IuRedis, AutoCloseable {
 
 	@Override
 	public Iterable<?> list() {
-
+		// key
+		// expiration time, size of the value if we can't return size without loading data then return size 0
 		throw new UnsupportedOperationException("TODO STARCH-915 ");
 	}
 
