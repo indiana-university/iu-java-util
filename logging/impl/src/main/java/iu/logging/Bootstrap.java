@@ -102,8 +102,6 @@ public final class Bootstrap {
 						logManager.readConfiguration(in);
 				}
 			});
-		else if (!update)
-			throw new IllegalStateException("Missing " + loggingPropertiesFile);
 
 		return loggingPropertiesExists;
 	}

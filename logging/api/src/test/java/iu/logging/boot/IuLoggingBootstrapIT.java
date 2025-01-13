@@ -66,7 +66,6 @@ public class IuLoggingBootstrapIT {
 
 	@Test
 	public void testInit() throws IOException {
-//		final var nodeId = assertDoesNotThrow(() -> InetAddress.getLocalHost().getHostName());
 		final var nodeId = IdGenerator.generateId();
 		final var development = ThreadLocalRandom.current().nextBoolean();
 		final var endpoint = IdGenerator.generateId();
@@ -82,11 +81,6 @@ public class IuLoggingBootstrapIT {
 			current.setContextClassLoader(loader);
 			IuLogContext.initializeContext(nodeId, development, endpoint, application, environment, module, runtime,
 					component);
-//		IuTestLogger.expect("", Level.CONFIG,
-//				"IU Logging Bootstrap initialized IuLogHandler \\[logEvents=\\d+, maxEvents=100000, eventTtl=PT24H, purge=iu-java-logging-purge/\\d+, closed=false\\] DefaultLogContext \\[nodeId="
-//						+ nodeId + ", endpoint=" + endpoint + ", application=" + application + ", environment="
-//						+ environment + "\\]; context: "
-//						+ ClassLoader.getSystemClassLoader().toString().replace("$", "\\$"));
 
 			final var header = IdGenerator.generateId();
 			final var message = IdGenerator.generateId();
@@ -96,11 +90,6 @@ public class IuLoggingBootstrapIT {
 			final var bootstrap = assertDoesNotThrow(() -> new IuLoggingBootstrap(true));
 			try (final var sub = IuLoggingBootstrap.subscribe()) {
 				new Thread(() -> sub.forEach(events::push)).start();
-//
-//			IuTestLogger.expect("iu.logging.internal.ProcessLogger", Level.INFO, "begin 1: " + header);
-//			IuTestLogger.expect(IuLoggingBootstrapIT.class.getName(), Level.INFO, message);
-//			IuTestLogger.expect("iu.logging.internal.ProcessLogger", Level.INFO,
-//					"complete 1: " + header + ".*" + message + ".*");
 
 				assertDoesNotThrow(() -> IuLogContext.follow(context, header, () -> {
 					Logger.getLogger(IuLoggingBootstrapIT.class.getName()).info(message);

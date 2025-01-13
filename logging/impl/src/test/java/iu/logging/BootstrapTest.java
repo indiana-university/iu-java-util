@@ -46,7 +46,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -176,9 +175,7 @@ public class BootstrapTest extends IuLoggingTestCase {
 		try (final var mockLogManager = mockStatic(LogManager.class)) {
 			mockLogManager.when(() -> LogManager.getLogManager()).thenReturn(logManager);
 
-			final var error = assertThrows(IllegalStateException.class, () -> Bootstrap.configure(false));
-			assertEquals("Missing " + System.getProperty("iu.config") + File.separator + "logging.properties",
-					error.getMessage());
+			assertDoesNotThrow(() -> Bootstrap.configure(false));
 
 			mockLogManager.verifyNoInteractions();
 			verifyNoInteractions(logManager);
