@@ -19,6 +19,12 @@ public class InMemorySessionStore implements IuDataStore {
 	static {
 		PURGE_TIMER.schedule(new PurgeTask(), 15000L, 15000L);
 	}
+	
+	/**
+	 * Default constructor
+	 */
+	public InMemorySessionStore() {
+	}
 
 	/**
 	 * Purges all expired stored sessions.
