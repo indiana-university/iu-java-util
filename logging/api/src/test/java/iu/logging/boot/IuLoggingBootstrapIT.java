@@ -46,6 +46,7 @@ import java.net.URLClassLoader;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,7 @@ import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.logging.IuLogContext;
 import edu.iu.logging.IuLogEvent;
+import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
 public class IuLoggingBootstrapIT {
@@ -66,6 +68,7 @@ public class IuLoggingBootstrapIT {
 
 	@Test
 	public void testInit() throws IOException {
+		IuTestLogger.allow("", Level.CONFIG);
 		final var nodeId = IdGenerator.generateId();
 		final var development = ThreadLocalRandom.current().nextBoolean();
 		final var endpoint = IdGenerator.generateId();
