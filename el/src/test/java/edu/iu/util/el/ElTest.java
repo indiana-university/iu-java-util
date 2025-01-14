@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.client.IuJsonAdapter;
 import jakarta.json.Json;
+import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonValue;
 
@@ -189,6 +190,29 @@ public class ElTest {
 //		assertEquals("bam", El.eval(tb, "$.fooMap[$.foo]"));
 //		assertEquals("bar", El.eval(tb, "$.fooMap[$.fooMap[bam]]"));
 //	}
+	
+	// Try this test with a JsonObject instead of ExprTestBean
+	@Test
+	public void testBean() {
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		b.add("foo", "bar");
+		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.foo")));
+
+		b.add("fooList", Json.createArrayBuilder().add("foo").add("bar").add("baz"));
+		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.fooList.1")));
+
+		JsonObjectBuilder b1 = Json.createObjectBuilder();
+		b1.add("foo", "bar");
+		b1.add("bar", "bam");
+		b1.add("bam", "foo");
+		b.add("fooMap", b1);
+		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.fooMap.foo")));
+		// TODO: Is there a way to access a value of the JsonObject (equivalent to a Map) using an expression as a key?
+		// Current El doesn't like the brackets. Should it be able to interpret the brackets as a new expression?
+//		assertEquals("bam", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.fooMap?_.foo")));
+//		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.fooMap[$.fooMap[bam]]")));
+	}
+
 
 //	@Ignore // TODO: REMOVE or allow beans in El.eval
 //	@Test
@@ -321,13 +345,38 @@ public class ElTest {
 
 	@Test
 	public void testJson() {
-		JsonObjectBuilder b = Json.createObjectBuilder();
-		b.add("foo", "bar");
-		b.add("baz", "bif");
-		b.add("bim", "bam");
-		assertEquals("bar bif bam", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "<`{$.foo} {$.baz} {$.bim}`")));
-		assertEquals("inline template doesn't end with '`'", assertThrows(IllegalArgumentException.class, () -> El.eval(b.build(), "<`{$.foo} {$.baz} {$.bim}")).getMessage());
-		assertEquals("inline template doesn't end with '`'", assertThrows(IllegalArgumentException.class, () -> El.eval(b.build(), "<`")).getMessage());
+//		JsonObjectBuilder b = Json.createObjectBuilder();
+//		b.add("foo", "bar");
+//		b.add("baz", "bif");
+//		b.add("bim", "bam");
+//		final var context = b.build();
+//		assertEquals("bar bif bam", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "<`{$.foo} {$.baz} {$.bim}`")));
+//		assertEquals("inline template doesn't end with '`'", assertThrows(IllegalArgumentException.class, () -> El.eval(context, "<`{$.foo} {$.baz} {$.bim}")).getMessage());
+//		assertEquals("inline template doesn't end with '`'", assertThrows(IllegalArgumentException.class, () -> El.eval(context, "<`")).getMessage());
+//
+//		JsonObjectBuilder b1 = Json.createObjectBuilder();
+//		b1.add("foo", JsonValue.TRUE);
+//		b1.add("baz", JsonValue.FALSE);
+//		b1.add("bim", JsonValue.NULL);
+//		final var context1 = b1.build();
+//		assertEquals("true false ", IuJsonAdapter.of(String.class).fromJson(El.eval(context1, "<`{$.foo} {$.baz} {$.bim}`")));
+//		
+//		JsonObjectBuilder b2 = Json.createObjectBuilder();
+//		b2.add("foo", Json.createObjectBuilder().add("bar", "baz"));
+//		b2.add("baz", JsonValue.FALSE);
+//		final var context2 = b2.build();
+//		assertEquals("false", IuJsonAdapter.of(String.class).fromJson(El.eval(context2, "$.foo.bar?root.baz")));
+//		
+		JsonObjectBuilder b3 = Json.createObjectBuilder();
+		b3.add("foo", Json.createArrayBuilder().add("bar").add("bif").add("bam"));
+		final var context3 = b3.build();
+		assertEquals("true", IuJsonAdapter.of(String.class).fromJson(El.eval(context3, "$.foo?head")));
+		// Trying to figure out how to get to line 319 in ElContext.java and have the result be an array at that point
+		// but result is always an object because the initial context is an object and it keeps being passed as the context
+		// to each template evaluation.
+		// I'm not sure this is possible because there are places where the context is expected to be an object,
+		// such as using it for the context of a template
+		// Possibly relatedly, I'm not sure how iteration is possible with a JsonObject as the context
 	}
 
 	@Test
@@ -368,9 +417,12 @@ public class ElTest {
 		b.add("foo", true);
 		b.add("baz", false);
 		b.add("bim", "bam");
+		b.add("bar", JsonValue.NULL);
 		final var context = b.build();
 		assertEquals(JsonValue.TRUE, El.eval(context, "$.bim='bam"));
 		assertEquals(JsonValue.FALSE, El.eval(context, "$.bim='baz"));
+		assertEquals(JsonValue.FALSE, El.eval(context, "$.bim=$.p"));
+		assertEquals(JsonValue.FALSE, El.eval(context, "$.bim=$.bar"));
 	}
 
 	@Test
@@ -412,6 +464,18 @@ public class ElTest {
 	
 	@Test
 	public void testExecutionContext() {
+		// last result
+		JsonArrayBuilder arr = Json.createArrayBuilder();
+		arr.add("foo");
+		arr.add("bar");
+		arr.add("baz");
 		
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		b.add("arr", arr);
+		final var context = b.build();
+		
+		assertEquals("baz", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.arr.2?_!$.arr.1")));
+		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.arr?_.1!'arr is falsy")));
+//		assertEquals(JsonValue.FALSE, El.eval(context, "$.arr?_.3")); // out of bounds
 	}
 }
