@@ -185,7 +185,7 @@ public class JwtTest {
 	}
 
 	@Test
-	public void v() {
+	public void testSignAndVerify() {
 		final var tokenId = IdGenerator.generateId();
 		final var issuer = URI.create(IdGenerator.generateId());
 		final var subject = IdGenerator.generateId();
@@ -252,32 +252,6 @@ public class JwtTest {
 		assertEquals("SHA256withECDSA verification failed", error.getMessage());
 	}
 
-//	@Test
-//	public void testOneAudienceFlattensToString() {
-//		final var audience = URI.create(IdGenerator.generateId());
-//		final var claims = mock(WebTokenClaims.class);
-//		when(claims.getAudience()).thenReturn(Set.of(audience));
-//		final var token = new Jwt(claims);
-//		assertEquals(audience.toString(),
-//				IuJson.parse(token.toString()).asJsonObject().getJsonString("aud").getString());
-//	}
-//
-//	@Test
-//	public void testNullAudienceUndefined() {
-//		final var token = new Jwt(IuJson.object().build());
-//		assertFalse(IuJson.parse(token.toString()).asJsonObject().containsKey("aud"));
-//	}
-//
-//
-
-//
-//	@Test
-//	public void testInvalidToken() {
-//		final var invalidToken = IdGenerator.generateId();
-//		final var error = assertThrows(IllegalArgumentException.class, () -> Jwt.verify(invalidToken, (WebKey) null));
-//		assertEquals("Invalid token; must be enclosed in a compact JWS or JWE", error.getMessage());
-//	}
-//
 	@Test
 	public void testValidateMissingIssuer() {
 		final var jwt = new Jwt(IuJson.object().build());

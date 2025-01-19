@@ -119,62 +119,12 @@ public interface IuLogContext {
 	String getRequestId();
 
 	/**
-	 * Gets the node identifier.
-	 * 
-	 * @return Unique node identifier
-	 */
-	String getNodeId();
-
-	/**
-	 * Gets the endpoint identifier.
-	 * 
-	 * @return endpoint identifier
-	 */
-	String getEndpoint();
-
-	/**
-	 * Gets the application code.
-	 * 
-	 * @return application code
-	 */
-	String getApplication();
-
-	/**
-	 * Gets the application environment.
-	 * 
-	 * @return application environment
-	 */
-	String getEnvironment();
-
-	/**
-	 * Gets the module code.
-	 * 
-	 * @return module code
-	 */
-	String getModule();
-
-	/**
-	 * Gets the component code.
-	 * 
-	 * @return component code
-	 */
-	String getComponent();
-
-	/**
 	 * Gets log level to use for reporting information messages and process trace
 	 * dumps related to this logging context.
 	 * 
 	 * @return {@link Level}
 	 */
 	Level getLevel();
-
-	/**
-	 * Determines whether or not to enable extended debug logging appropriate for
-	 * development environments.
-	 * 
-	 * @return true to enable extended debug logging; else false
-	 */
-	boolean isDevelopment();
 
 	/**
 	 * Gets the caller IP address to report with logged messages
