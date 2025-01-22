@@ -29,7 +29,7 @@ public class DefaultEnvironmentTest extends TypeContainerTestCase {
 		System.setProperty("iu.config", "");
 		final var env = new DefaultEnvironment();
 		assertEquals("DefaultEnvironment [config=null]", env.toString());
-		assertNull(env.resolve(name, String.class, null));
+		assertNull(env.resolve(name, String.class));
 	}
 
 	@Test
@@ -40,7 +40,7 @@ public class DefaultEnvironmentTest extends TypeContainerTestCase {
 
 		IuTestLogger.expect(DefaultEnvironment.class.getName(), Level.CONFIG,
 				"missing " + config.resolve("environment.properties"));
-		assertNull(env.resolve(name, String.class, null));
+		assertNull(env.resolve(name, String.class));
 	}
 
 	@Test
@@ -143,9 +143,9 @@ public class DefaultEnvironmentTest extends TypeContainerTestCase {
 		IuTestLogger.expect(DefaultEnvironment.class.getName(), Level.CONFIG,
 				"loaded " + config.resolve("environment.properties"));
 
-		assertEquals(valueA, env.resolve(nameA, String.class, null));
-		assertEquals(valueB, env.resolve(nameB, String.class, null));
-		assertEquals(valueC, env.resolve(nameC, String.class, null));
+		assertEquals(valueA, env.resolve(nameA, String.class));
+		assertEquals(valueB, env.resolve(nameB, String.class));
+		assertEquals(valueC, env.resolve(nameC, String.class));
 	}
 
 }

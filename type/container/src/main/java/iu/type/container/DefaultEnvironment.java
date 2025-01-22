@@ -120,7 +120,7 @@ public class DefaultEnvironment implements IuEnvironment {
 	}
 
 	@Override
-	public <T> T resolve(String name, Class<T> type, T defaultValue) {
+	public <T> T resolve(String name, Class<T> type) {
 		T value = convert(type, props(application, environment).get(name));
 		if (value != null)
 			return value;
@@ -133,7 +133,7 @@ public class DefaultEnvironment implements IuEnvironment {
 		if (value != null)
 			return value;
 
-		return defaultValue;
+		return null;
 	}
 
 	@Override
