@@ -31,10 +31,18 @@
  */
 /**
  * Type introspection container bootstrap module.
+ * 
+ * @uses iu.type.container.spi.IuEnvironment environment integration
  */
 module iu.util.type.container {
+	exports iu.type.container.spi;
+
 	requires iu.util;
+	requires iu.util.logging;
 	requires iu.util.type;
 	requires iu.util.type.base;
+	requires iu.util.type.bundle;
 	requires java.logging;
+
+	uses iu.type.container.spi.IuEnvironment;
 }

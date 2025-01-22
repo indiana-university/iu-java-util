@@ -481,9 +481,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>test</module>
 				<module>crypt</module>
 				<module>logging</module>
-				<module>auth</module>
 				<module>jdbc</module>
 				<module>type</module>
+				<module>auth</module>
+				<module>web</module>
 				<module>site</module>
 			</modules>
 		</profile>

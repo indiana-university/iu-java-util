@@ -32,17 +32,28 @@
 package iu.type.container;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Properties;
+import java.util.ServiceLoader;
 import java.util.jar.Attributes.Name;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
@@ -58,19 +69,30 @@ import edu.iu.IuText;
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuResource;
+import edu.iu.type.IuResourceKey;
 import edu.iu.type.IuResourceReference;
 import edu.iu.type.IuType;
 import edu.iu.type.base.TemporaryFile;
+import edu.iu.type.bundle.IuTypeBundle;
+import iu.type.container.spi.IuEnvironment;
 
 @SuppressWarnings("javadoc")
-public class TypeContainerBootstrapTest {
+public class TypeContainerBootstrapTest extends TypeContainerTestCase {
 
 	@Test
 	public void testEmpty() throws Exception {
 		System.getProperties().remove("iu.boot.components");
 
-		try (final var typeContainerBootstrap = assertDoesNotThrow(TypeContainerBootstrap::new)) {
-			assertDoesNotThrow(typeContainerBootstrap::run);
+		final var env = mock(IuEnvironment.class);
+		final var loader = mock(ServiceLoader.class);
+		when(loader.iterator()).thenReturn(IuIterable.iter(env).iterator());
+
+		try (final var mockServiceLoader = mockStatic(ServiceLoader.class)) {
+			mockServiceLoader.when(() -> ServiceLoader.load(IuEnvironment.class)).thenReturn(loader);
+
+			try (final var typeContainerBootstrap = assertDoesNotThrow(TypeContainerBootstrap::new)) {
+				assertDoesNotThrow(typeContainerBootstrap::run);
+			}
 		}
 	}
 
@@ -88,6 +110,13 @@ public class TypeContainerBootstrapTest {
 				manifest.getMainAttributes().put(Name.MANIFEST_VERSION, "1.0");
 				jar.putNextEntry(new JarEntry("META-INF/MANIFEST.MF"));
 				manifest.write(jar);
+				jar.closeEntry();
+
+				jar.putNextEntry(new JarEntry("iu/type/container/spi/IuEnvironment.class"));
+				try (final var mod = Files
+						.newInputStream(Path.of("target/classes/iu/type/container/spi/IuEnvironment.class"))) {
+					IuStream.copy(mod, jar);
+				}
 				jar.closeEntry();
 
 				jar.putNextEntry(new JarEntry("module-info.class"));
@@ -113,6 +142,9 @@ public class TypeContainerBootstrapTest {
 
 		final var archiveName = TemporaryFile.of(InputStream.nullInputStream());
 		System.setProperty("iu.boot.components", archiveName.toString());
+
+		IuTestLogger.expect(TypeContainerBootstrap.class.getName(), Level.CONFIG,
+				"environment DefaultEnvironment \\[config=.*\\]; Component \\[.*\\]");
 
 		try (final var mockTypeContainerArchive = mockConstruction(TypeContainerArchive.class, (a, ctx) -> {
 			when(a.api()).thenReturn(new Path[0]);
@@ -145,6 +177,13 @@ public class TypeContainerBootstrapTest {
 				manifest.getMainAttributes().put(Name.MANIFEST_VERSION, "1.0");
 				jar.putNextEntry(new JarEntry("META-INF/MANIFEST.MF"));
 				manifest.write(jar);
+				jar.closeEntry();
+
+				jar.putNextEntry(new JarEntry("iu/type/container/spi/IuEnvironment.class"));
+				try (final var mod = Files
+						.newInputStream(Path.of("target/classes/iu/type/container/spi/IuEnvironment.class"))) {
+					IuStream.copy(mod, jar);
+				}
 				jar.closeEntry();
 
 				jar.putNextEntry(new JarEntry("module-info.class"));
@@ -196,6 +235,9 @@ public class TypeContainerBootstrapTest {
 		final var archiveName = TemporaryFile.of(InputStream.nullInputStream());
 		System.setProperty("iu.boot.components", archiveName.toString());
 
+		IuTestLogger.expect(TypeContainerBootstrap.class.getName(), Level.CONFIG,
+				"environment DefaultEnvironment \\[config=.*\\]; Component \\[.*\\]");
+
 		try (final var mockTypeContainerArchive = mockConstruction(TypeContainerArchive.class, (a, ctx) -> {
 			when(a.api()).thenReturn(new Path[0]);
 			when(a.support()).thenReturn(new Path[] { support });
@@ -228,6 +270,13 @@ public class TypeContainerBootstrapTest {
 				manifest.getMainAttributes().put(Name.MANIFEST_VERSION, "1.0");
 				jar.putNextEntry(new JarEntry("META-INF/MANIFEST.MF"));
 				manifest.write(jar);
+				jar.closeEntry();
+
+				jar.putNextEntry(new JarEntry("iu/type/container/spi/IuEnvironment.class"));
+				try (final var mod = Files
+						.newInputStream(Path.of("target/classes/iu/type/container/spi/IuEnvironment.class"))) {
+					IuStream.copy(mod, jar);
+				}
 				jar.closeEntry();
 
 				jar.putNextEntry(new JarEntry("module-info.class"));
@@ -283,6 +332,13 @@ public class TypeContainerBootstrapTest {
 				manifest.getMainAttributes().put(Name.MANIFEST_VERSION, "1.0");
 				jar.putNextEntry(new JarEntry("META-INF/MANIFEST.MF"));
 				manifest.write(jar);
+				jar.closeEntry();
+
+				jar.putNextEntry(new JarEntry("iu/type/container/spi/IuEnvironment.class"));
+				try (final var mod = Files
+						.newInputStream(Path.of("target/classes/iu/type/container/spi/IuEnvironment.class"))) {
+					IuStream.copy(mod, jar);
+				}
 				jar.closeEntry();
 
 				jar.putNextEntry(new JarEntry("module-info.class"));
@@ -343,6 +399,13 @@ public class TypeContainerBootstrapTest {
 				manifest.write(jar);
 				jar.closeEntry();
 
+				jar.putNextEntry(new JarEntry("iu/type/container/spi/IuEnvironment.class"));
+				try (final var mod = Files
+						.newInputStream(Path.of("target/classes/iu/type/container/spi/IuEnvironment.class"))) {
+					IuStream.copy(mod, jar);
+				}
+				jar.closeEntry();
+
 				jar.putNextEntry(new JarEntry("module-info.class"));
 				try (final var mod = Files.newInputStream(Path.of("target/classes/module-info.class"))) {
 					IuStream.copy(mod, jar);
@@ -366,6 +429,9 @@ public class TypeContainerBootstrapTest {
 
 		final var archiveName = TemporaryFile.of(InputStream.nullInputStream());
 		System.setProperty("iu.boot.components", archiveName.toString());
+
+		IuTestLogger.expect(TypeContainerBootstrap.class.getName(), Level.CONFIG,
+				"environment DefaultEnvironment \\[config=.*\\]; Component \\[.*\\]");
 
 		final var error = new IllegalStateException();
 		try (final var mockTypeContainerArchive = mockConstruction(TypeContainerArchive.class, (a, ctx) -> {
@@ -417,6 +483,10 @@ public class TypeContainerBootstrapTest {
 				"bind " + resourceRef + " " + aResource);
 
 		final var component = mock(IuComponent.class);
+		IuTestLogger.expect(TypeContainerBootstrap.class.getName(), Level.CONFIG,
+				"environment DefaultEnvironment [config=" + config + "]; " + component);
+
+		when(component.classLoader()).thenReturn(ClassLoader.getSystemClassLoader());
 		when(component.resources()).thenReturn((Iterable) IuIterable.iter(aResource, bResource));
 		when(component.resourceReferences()).thenReturn((Iterable) IuIterable.iter(resourceRef));
 		final var componentsToInitialize = IuIterable.iter(component);
@@ -449,8 +519,13 @@ public class TypeContainerBootstrapTest {
 				IllegalStateException.class, a -> a == error);
 
 		final var component = mock(IuComponent.class);
+		when(component.classLoader()).thenReturn(ClassLoader.getSystemClassLoader());
 		when(component.resources()).thenReturn((Iterable) IuIterable.iter(aResource, bResource));
 		final var componentsToInitialize = (Iterable) IuIterable.iter(component);
+
+		IuTestLogger.expect(TypeContainerBootstrap.class.getName(), Level.CONFIG,
+				"environment DefaultEnvironment [config=" + config + "]; " + component);
+
 		assertSame(error, assertThrows(IllegalStateException.class,
 				() -> TypeContainerBootstrap.initializeComponents(componentsToInitialize)));
 	}
@@ -485,10 +560,144 @@ public class TypeContainerBootstrapTest {
 						+ "/" + name + "/\\d+, priority=0, started=true, error=null\\]");
 
 		final var component = mock(IuComponent.class);
+		when(component.classLoader()).thenReturn(ClassLoader.getSystemClassLoader());
 		when(component.resources()).thenReturn((Iterable) IuIterable.iter(aResource, bResource));
 		final var componentsToInitialize = IuIterable.iter(component);
+
+		IuTestLogger.expect(TypeContainerBootstrap.class.getName(), Level.CONFIG,
+				"environment DefaultEnvironment [config=" + config + "]; " + component);
+
 		assertSame(error, assertThrows(IllegalStateException.class,
 				() -> TypeContainerBootstrap.initializeComponents(componentsToInitialize)));
+	}
+
+	@Test
+	public void testInitEnvironment() throws IOException {
+		final var propBuffer = new ByteArrayOutputStream();
+		final var application = IdGenerator.generateId();
+		final var environment = IdGenerator.generateId();
+		final var props = new Properties();
+		props.setProperty("application", application);
+		props.setProperty("environment", environment);
+		props.store(propBuffer, null);
+
+		final var env = mock(IuEnvironment.class);
+		final var serviceIter = mock(ServiceLoader.class);
+		when(serviceIter.iterator()).thenReturn(IuIterable.iter(env).iterator());
+
+		System.clearProperty("iu.application");
+		System.setProperty("iu.environment", IdGenerator.generateId());
+		try (final var loader = new URLClassLoader(new URL[0]) {
+			@Override
+			public InputStream getResourceAsStream(String name) {
+				if ("META-INF/iu-type-container.properties".equals(name))
+					return new ByteArrayInputStream(propBuffer.toByteArray());
+				return super.getResourceAsStream(name);
+			}
+		}; final var mockServiceLoader = mockStatic(ServiceLoader.class)) {
+			mockServiceLoader.when(() -> ServiceLoader.load(IuEnvironment.class)).thenReturn(serviceIter);
+			final var component = mock(IuComponent.class);
+			when(component.classLoader()).thenReturn(loader);
+			TypeContainerBootstrap.initEnvironment(component);
+		} finally {
+			System.clearProperty("iu.environment");
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testResolveResource() {
+		Map<IuResourceKey<?>, IuResource<?>> boundResources = new LinkedHashMap<>();
+		Map<IuType<?, ?>, Object> refInstance = new LinkedHashMap<>();
+		Map<IuComponent, IuEnvironment> envByComp = new LinkedHashMap<>();
+
+		final var component = mock(IuComponent.class);
+		final var env = mock(IuEnvironment.class);
+		envByComp.put(component, env);
+
+		final var name = IdGenerator.generateId();
+		final var resource = mock(IuResource.class);
+		final var resourceRef = mock(IuResourceReference.class);
+		when(resourceRef.name()).thenReturn(name);
+		when(resourceRef.type()).thenReturn(IuType.of(String.class));
+		final var key = IuResourceKey.from(resourceRef);
+		boundResources.put(key, resource);
+
+		assertSame(resource, TypeContainerBootstrap.resolveResource(boundResources, refInstance, envByComp, component,
+				resourceRef, key));
+	}
+
+	static class ResolvedResource {
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testResolveEnvResource() {
+		getClass().getModule().addOpens(getClass().getPackageName(), IuTypeBundle.getModule());
+
+		Map<IuResourceKey<?>, IuResource<?>> boundResources = new LinkedHashMap<>();
+		Map<IuType<?, ?>, Object> refInstance = new LinkedHashMap<>();
+		Map<IuComponent, IuEnvironment> envByComp = new LinkedHashMap<>();
+
+		final var name = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+
+		final var component = mock(IuComponent.class);
+		final var env = mock(IuEnvironment.class);
+		when(env.resolve(name, String.class)).thenReturn(value);
+		envByComp.put(component, env);
+
+		final var refType = IuType.of(ResolvedResource.class);
+		final var resourceRef = mock(IuResourceReference.class);
+		when(resourceRef.name()).thenReturn(name);
+		when(resourceRef.type()).thenReturn(IuType.of(String.class));
+		when(resourceRef.referrerType()).thenReturn(refType);
+		final var key = IuResourceKey.from(resourceRef);
+
+		final var resource = assertInstanceOf(EnvironmentResource.class, TypeContainerBootstrap
+				.resolveResource(boundResources, refInstance, envByComp, component, resourceRef, key));
+		assertEquals(value, resource.get());
+
+		final var instance = assertInstanceOf(ResolvedResource.class, refInstance.get(refType));
+
+		final var resource2 = assertInstanceOf(EnvironmentResource.class, TypeContainerBootstrap
+				.resolveResource(boundResources, refInstance, envByComp, component, resourceRef, key));
+		assertEquals(value, resource2.get());
+		assertSame(instance, refInstance.get(refType));
+	}
+
+	static class CorruptResource {
+		CorruptResource(boolean isCorrupt) {
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testResolveCorruptResource() {
+		getClass().getModule().addOpens(getClass().getPackageName(), IuTypeBundle.getModule());
+
+		Map<IuResourceKey<?>, IuResource<?>> boundResources = new LinkedHashMap<>();
+		Map<IuType<?, ?>, Object> refInstance = new LinkedHashMap<>();
+		Map<IuComponent, IuEnvironment> envByComp = new LinkedHashMap<>();
+
+		final var name = IdGenerator.generateId();
+
+		final var component = mock(IuComponent.class);
+		final var env = mock(IuEnvironment.class);
+		envByComp.put(component, env);
+
+		final var refType = IuType.of(CorruptResource.class);
+		final var resourceRef = mock(IuResourceReference.class);
+		when(resourceRef.name()).thenReturn(name);
+		when(resourceRef.type()).thenReturn(IuType.of(String.class));
+		when(resourceRef.referrerType()).thenReturn(refType);
+		final var key = IuResourceKey.from(resourceRef);
+
+		final var error = assertThrows(NullPointerException.class, () -> TypeContainerBootstrap
+				.resolveResource(boundResources, refInstance, envByComp, component, resourceRef, key));
+		assertEquals("Missing resource binding " + key, error.getMessage());
+		assertInstanceOf(IllegalArgumentException.class, error.getCause());
+		assertEquals("IuType[CorruptResource] missing constructor <init>()", error.getCause().getMessage());
 	}
 
 }

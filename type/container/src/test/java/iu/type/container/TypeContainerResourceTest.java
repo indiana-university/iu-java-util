@@ -50,7 +50,7 @@ import edu.iu.type.IuResource;
 import edu.iu.type.IuType;
 
 @SuppressWarnings("javadoc")
-public class TypeContainerResourceTest {
+public class TypeContainerResourceTest extends TypeContainerTestCase {
 
 	@Test
 	public void testNonRunnable() {

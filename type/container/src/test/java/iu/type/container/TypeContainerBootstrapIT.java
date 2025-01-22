@@ -44,11 +44,15 @@ import org.junit.jupiter.api.Test;
 import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
-public class TypeContainerBootstrapIT {
+public class TypeContainerBootstrapIT extends TypeContainerTestCase {
 
 	@Test
 	public void testInitCrypt() throws Exception {
 		System.setProperty("iu.boot.components", "target/dependency/iu-java-crypt-impl-bundle.jar");
+
+		IuTestLogger.expect(TypeContainerBootstrap.class.getName(), Level.CONFIG,
+				"environment DefaultEnvironment \\[config=.*\\]; Component \\[.*\\]");
+
 		try (final var typeContainerBootstrap = assertDoesNotThrow(TypeContainerBootstrap::new)) {
 			IuTestLogger.expect(TypeContainerBootstrap.class.getName(), Level.FINE, "before init container");
 			IuTestLogger.expect(TypeContainerBootstrap.class.getName(), Level.FINE, "after init base iu.util.crypt");
@@ -71,6 +75,10 @@ public class TypeContainerBootstrapIT {
 	@Test
 	public void testInitResourceError() throws Exception {
 		System.setProperty("iu.boot.components", "target/dependency/iu-java-crypt-impl-bundle.jar");
+
+		IuTestLogger.expect(TypeContainerBootstrap.class.getName(), Level.CONFIG,
+				"environment DefaultEnvironment \\[config=.*\\]; Component \\[.*\\]");
+
 		try (final var typeContainerBootstrap = assertDoesNotThrow(TypeContainerBootstrap::new)) {
 			IuTestLogger.expect(TypeContainerBootstrap.class.getName(), Level.FINE, "before init container");
 			IuTestLogger.expect(TypeContainerBootstrap.class.getName(), Level.FINE, "after init base iu.util.crypt");

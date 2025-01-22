@@ -78,7 +78,9 @@ class TypeContainerResource implements Comparable<TypeContainerResource> {
 		priority = resource.priority();
 
 		thread = new Thread(() -> {
-			Thread.currentThread().setContextClassLoader(component.classLoader());
+			final var loader = component.classLoader();
+			Thread.currentThread().setContextClassLoader(loader);
+
 			LOG.fine("init resource " + resource);
 			try {
 				final var init = resource.get();

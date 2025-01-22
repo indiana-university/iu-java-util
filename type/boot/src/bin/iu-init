@@ -41,7 +41,7 @@ IU_CONFIG=$ROOT/conf java \
 	-Diu.logging.file.path=$ROOT/logs \
   -Diu.boot.components=$COMPONENTS \
 	-Djava.io.temp=$TMP \
-  --add-modules=java.net.http \
+  --add-modules=java.net.http${IU_JVM_MODULES+,}$IU_JVM_MODULES \
 	-p $CLASSPATH \
 	-m iu.util.type.boot/iu.type.boot.Init
 

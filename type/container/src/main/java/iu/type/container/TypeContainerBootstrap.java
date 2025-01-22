@@ -1,4 +1,5 @@
 /*
+
  * Copyright © 2024 Indiana University
  * All rights reserved.
  *
@@ -43,7 +44,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Properties;
 import java.util.Queue;
+import java.util.ServiceLoader;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
@@ -53,12 +57,15 @@ import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.IuRuntimeEnvironment;
 import edu.iu.UnsafeRunnable;
+import edu.iu.logging.IuLogContext;
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuResource;
 import edu.iu.type.IuResourceKey;
 import edu.iu.type.IuResourceReference;
+import edu.iu.type.IuType;
 import edu.iu.type.base.FilteringClassLoader;
 import edu.iu.type.base.ModularClassLoader;
+import iu.type.container.spi.IuEnvironment;
 
 /**
  * Authentication and authorization bootstrap.
@@ -103,7 +110,7 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 	public synchronized void run() throws Throwable {
 		if (archives == null)
 			return;
-		
+
 		LOG.fine("before init container");
 		final var filter = new FilteringClassLoader(IuIterable.iter(IuObject.class.getPackageName()), parentLoader);
 		final var api = IuIterable.of(() -> Stream.of(archives).flatMap(a -> Stream.of(a.api())).iterator());
@@ -150,7 +157,7 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 					support = new ModularClassLoader(false, IuIterable.iter(archive.support()), base.getModuleLayer(),
 							base, c -> {
 							});
-					
+
 					try {
 						current.setContextClassLoader(support);
 						LOG.fine(() -> "after init support " + support.getModuleLayer());
@@ -196,34 +203,161 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 	}
 
 	/**
+	 * Initializes the environment for a {@link IuComponent}
+	 * 
+	 * @param component {@link IuComponent}
+	 * @return component
+	 */
+	static IuEnvironment initEnvironment(IuComponent component) {
+		final var loader = component.classLoader();
+		final var current = Thread.currentThread();
+		final var restore = current.getContextClassLoader();
+		try {
+			current.setContextClassLoader(loader);
+
+			final var properties = new Properties();
+			final var propertiesResource = loader.getResourceAsStream("META-INF/iu-type-container.properties");
+			if (propertiesResource != null)
+				IuException.unchecked(() -> {
+					properties.load(propertiesResource);
+					propertiesResource.close();
+				});
+
+			final var development = "true".equals(properties.getProperty("development"));
+			final var endpoint = properties.getProperty("endpoint");
+			final var application = properties.getProperty("application");
+			final var environment = properties.getProperty("environment");
+			final var module = properties.getProperty("module");
+			final var runtime = properties.getProperty("runtime");
+			final var comp = properties.getProperty("component");
+
+			IuLogContext.initializeContext(null, development, endpoint, application, environment, module, runtime,
+					comp);
+
+			final Queue<Runnable> undo = new ArrayDeque<>();
+			final BiConsumer<String, String> inject = (name, value) -> {
+				if (value == null)
+					return;
+
+				final var oldValue = System.getProperty(name);
+				System.setProperty(name, value);
+				if (oldValue == null)
+					undo.add(() -> System.clearProperty(name));
+				else
+					undo.add(() -> System.setProperty(name, oldValue));
+			};
+
+			synchronized (System.getProperties()) {
+				try {
+					inject.accept("iu.endpoint", endpoint);
+					inject.accept("iu.application", application);
+					inject.accept("iu.environment", environment);
+					inject.accept("iu.module", module);
+					inject.accept("iu.runtime", runtime);
+					inject.accept("iu.component", comp);
+
+					final var envLoader = ServiceLoader.load(IuEnvironment.class).iterator();
+
+					if (envLoader.hasNext())
+						return envLoader.next();
+					else
+						return new DefaultEnvironment();
+
+				} finally {
+					undo.forEach(Runnable::run);
+				}
+			}
+
+		} finally {
+			current.setContextClassLoader(restore);
+		}
+	}
+
+	/**
+	 * Helper method for {@link #initializeComponents(Iterable)}.
+	 * 
+	 * @param boundResources bound resources cache
+	 * @param refInstance    reference instance cache
+	 * @param envByComp      preinitialized environment instances
+	 * @param component      component containing the resource reference
+	 * @param resourceRef    resource reference to resolve
+	 * @param key            resource key constructed from resourceRef
+	 * @return bound resource or {@link EnvironmentResourceTest}
+	 */
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	static IuResource resolveResource( //
+			Map<IuResourceKey<?>, IuResource<?>> boundResources, //
+			Map<IuType<?, ?>, Object> refInstance, //
+			Map<IuComponent, IuEnvironment> envByComp, //
+			IuComponent component, //
+			IuResourceReference<?, ?> resourceRef, //
+			IuResourceKey<?> key) {
+		IuResource<?> resource = boundResources.get(key);
+
+		if (resource == null) {
+			final var referrerType = resourceRef.referrerType();
+
+			var instance = refInstance.get(referrerType);
+			if (instance == null)
+				try {
+					instance = referrerType.constructor().exec();
+					refInstance.put(referrerType, instance);
+				} catch (Throwable e) {
+					final var npe = new NullPointerException("Missing resource binding " + key);
+					npe.initCause(e);
+					throw npe;
+				}
+
+			final var name = resourceRef.name();
+			final var type = resourceRef.type();
+			final var defaultValue = ((IuResourceReference) resourceRef).value(instance);
+			resource = new EnvironmentResource(envByComp.get(component), name, type, defaultValue);
+//			Objects.requireNonNull(resource.get(), "Missing environment entry or resource binding for " + key);
+		}
+
+		return resource;
+	}
+
+	/**
 	 * Initializes components.
 	 * 
 	 * @param componentsToInitialize Created components that have not yet been
 	 *                               initialized
 	 * @throws Throwable If an error occurs
 	 */
-	@SuppressWarnings({ "unchecked", "rawtypes" })
+	@SuppressWarnings("unchecked")
 	static void initializeComponents(Iterable<IuComponent> componentsToInitialize) throws Throwable {
+		final Map<IuComponent, IuEnvironment> envByComp = new LinkedHashMap<>();
 		final Map<IuResourceKey<?>, IuResource<?>> boundResources = new LinkedHashMap<>();
 		final List<TypeContainerResource> containerResources = new ArrayList<>();
-		for (final var component : componentsToInitialize)
+
+		for (final var component : componentsToInitialize) {
+			final var env = initEnvironment(component);
+			envByComp.put(component, env);
+			LOG.config("environment " + env + "; " + component);
+
 			for (final var resource : component.resources()) {
 				IuObject.require(boundResources.put(IuResourceKey.from(resource), resource), Objects::isNull,
 						"already bound " + resource);
 				containerResources.add(new TypeContainerResource(resource, component));
 				LOG.fine(() -> "after create " + resource);
 			}
+		}
 
+		final Map<IuType<?, ?>, Object> refInstance = new LinkedHashMap<>();
 		final Map<IuResourceKey<?>, Queue<IuResourceReference<?, ?>>> resourceReferences = new LinkedHashMap<>();
 		for (final var component : componentsToInitialize)
 			for (final var resourceRef : component.resourceReferences()) {
 				final var key = IuResourceKey.from(resourceRef);
-				final IuResource resource = Objects.requireNonNull(boundResources.get(key),
-						"Missing resource binding " + key);
+				final var resource = resolveResource(boundResources, refInstance, envByComp, component, resourceRef,
+						key);
+
 				final var resourceReferenceQueue = resourceReferences.computeIfAbsent(key, k -> new ArrayDeque<>());
 				resourceReferenceQueue.add(resourceRef);
 				resourceRef.bind(resource);
-				LOG.fine(() -> "bind " + resourceRef + " " + resource);
+
+				final var r = resource;
+				LOG.fine(() -> "bind " + resourceRef + " " + r);
 			}
 
 		var priority = 0;
