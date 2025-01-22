@@ -81,6 +81,9 @@ public class Init implements AutoCloseable {
 							final var iuTypeBase = ModuleLayer.boot().findModule("iu.util.type.base").get();
 							c.addReads(containerModule, iuTypeBase);
 							c.addReads(c.layer().findModule("iu.util.type.bundle").get(), iuTypeBase);
+
+							final var iuLogging = ModuleLayer.boot().findModule("iu.util.logging").get();
+							c.addReads(containerModule, iuLogging);
 						});
 
 				try {
