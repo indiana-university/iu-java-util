@@ -155,7 +155,7 @@ class ComponentResourceReference<R, T> implements IuResourceReference<R, T>, Ins
 
 	@Override
 	public T value(R referrer) {
-		return type.erasedClass().cast(attribute.get(referrer));
+		return type.autoboxClass().cast(attribute.get(referrer));
 	}
 
 	@Override

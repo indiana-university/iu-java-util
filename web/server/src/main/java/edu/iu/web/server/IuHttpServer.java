@@ -18,13 +18,13 @@ public final class IuHttpServer implements UnsafeRunnable, AutoCloseable {
 
 	private static final Logger LOG = Logger.getLogger(IuHttpServer.class.getName());
 
-//	@Resource
-	private String host = "iu-server";
-//	@Resource
+	@Resource
+	private String host = "";
+	@Resource
 	private int port = 8780;
-//	@Resource
+	@Resource
 	private int backlog;
-//	@Resource
+	@Resource
 	private Duration stopDelay = Duration.ofSeconds(15L);
 
 	private volatile boolean closed;

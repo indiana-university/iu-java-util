@@ -142,9 +142,9 @@ class TypeContainerResource implements Comparable<TypeContainerResource> {
 		if (p1 == p2)
 			return Integer.compare(Math.abs(id), Math.abs(o.id));
 
-		if (p1 > 0 && p2 < 0)
+		if (p1 >= 0 && p2 < 0)
 			return -1;
-		if (p1 < 0 && p2 > 0)
+		if (p1 < 0 && p2 >= 0)
 			return 1;
 
 		return Integer.compare(Math.abs(p1), Math.abs(p2));

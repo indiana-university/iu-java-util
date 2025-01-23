@@ -181,6 +181,9 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 							if (pendingExport != null)
 								baseInit.controller.addExports(pendingExport.module, pendingExport.exports.source(),
 										module);
+							
+							if (support != null)
+								c.addReads(module, support.getUnnamedModule());
 						}
 					}
 				};
@@ -312,7 +315,6 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 			final var type = resourceRef.type();
 			final var defaultValue = ((IuResourceReference) resourceRef).value(instance);
 			resource = new EnvironmentResource(envByComp.get(component), name, type, defaultValue);
-//			Objects.requireNonNull(resource.get(), "Missing environment entry or resource binding for " + key);
 		}
 
 		return resource;

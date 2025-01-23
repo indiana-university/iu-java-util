@@ -68,11 +68,11 @@ public class InitIT {
 
 		IuTestLogger.expect(Init.class.getName(), Level.FINE, "before init loader");
 		IuTestLogger.expect(Init.class.getName(), Level.FINE,
-				"after init loader (iu\\.util\\.type(\\.container|\\.bundle|\\.base)?(, )?)+");
+				"after init loader (iu\\.util\\.(logging|type(\\.container|\\.bundle|\\.base)?)(, )?)+");
 		IuTestLogger.expect(Init.class.getName(), Level.FINE, "after init container bootstrap .*");
 		IuTestLogger.expect(Init.class.getName(), Level.FINE, "before destroy container bootstrap .*");
 		IuTestLogger.expect(Init.class.getName(), Level.FINE,
-				"before destroy loader (iu\\.util\\.type(\\.container|\\.bundle|\\.base)?(, )?)+");
+				"before destroy loader (iu\\.util\\.(logging|type(\\.container|\\.bundle|\\.base)?)(, )?)+");
 		assertDoesNotThrow(() -> Init.main());
 	}
 
@@ -82,7 +82,7 @@ public class InitIT {
 
 		IuTestLogger.expect(Init.class.getName(), Level.FINE, "before init loader");
 		IuTestLogger.expect(Init.class.getName(), Level.FINE,
-				"after init loader (iu\\.util\\.type(\\.container|\\.bundle|\\.base)?(, )?)+");
+				"after init loader (iu\\.util\\.(logging|type(\\.container|\\.bundle|\\.base)?)(, )?)+");
 
 		System.setProperty("iu.boot.components", IdGenerator.generateId());
 		try { // File not found
@@ -98,11 +98,11 @@ public class InitIT {
 
 		IuTestLogger.expect(Init.class.getName(), Level.FINE, "before init loader");
 		IuTestLogger.expect(Init.class.getName(), Level.FINE,
-				"after init loader (iu\\.util\\.type(\\.container|\\.bundle|\\.base)?(, )?)+");
+				"after init loader (iu\\.util\\.(logging|type(\\.container|\\.bundle|\\.base)?)(, )?)+");
 		IuTestLogger.expect(Init.class.getName(), Level.FINE, "after init container bootstrap .*");
 		IuTestLogger.expect(Init.class.getName(), Level.FINE, "before destroy container bootstrap .*");
 		IuTestLogger.expect(Init.class.getName(), Level.FINE,
-				"before destroy loader (iu\\.util\\.type(\\.container|\\.bundle|\\.base)?(, )?)+");
+				"before destroy loader (iu\\.util\\.(logging|type(\\.container|\\.bundle|\\.base)?)(, )?)+");
 		assertDoesNotThrow(() -> {
 			try (final var init = new Init()) {
 				init.close();
@@ -116,11 +116,11 @@ public class InitIT {
 
 		IuTestLogger.expect(Init.class.getName(), Level.FINE, "before init loader");
 		IuTestLogger.expect(Init.class.getName(), Level.FINE,
-				"after init loader (iu\\.util\\.type(\\.container|\\.bundle|\\.base)?(, )?)+");
+				"after init loader (iu\\.util\\.(logging|type(\\.container|\\.bundle|\\.base)?)(, )?)+");
 		IuTestLogger.expect(Init.class.getName(), Level.FINE, "after init container bootstrap .*");
 		IuTestLogger.expect(Init.class.getName(), Level.FINE, "before destroy container bootstrap .*");
 		IuTestLogger.expect(Init.class.getName(), Level.FINE,
-				"before destroy loader (iu\\.util\\.type(\\.container|\\.bundle|\\.base)?(, )?)+");
+				"before destroy loader (iu\\.util\\.(logging|type(\\.container|\\.bundle|\\.base)?)(, )?)+");
 
 		final var error = new IllegalStateException();
 		try (final var init = new Init()) {
