@@ -196,13 +196,12 @@ public class LettuceConnectionTest {
 		}
 	}
 
-
 	@Test
 	void closeClosesGenericPool() throws Exception {
 		final var config = mock(IuRedisConfiguration.class);
 		LettuceConnection connection = new LettuceConnection(config);
 		connection.close();
-		
+
 	}
 
 
