@@ -31,10 +31,14 @@
  */
 /**
  * Redis connection utilities
+ * 
+ * @uses edu.iu.redis.spi.IuRedisSpi
  */
 module iu.util.redis {
 	exports edu.iu.redis;
 	exports edu.iu.redis.spi;
 
 	requires iu.util;
+
+	uses edu.iu.redis.spi.IuRedisSpi;
 }

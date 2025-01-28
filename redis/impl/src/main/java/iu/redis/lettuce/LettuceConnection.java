@@ -33,7 +33,6 @@ package iu.redis.lettuce;
 
 import java.time.Duration;
 import java.util.Objects;
-import java.util.logging.Logger;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
@@ -54,8 +53,9 @@ import io.lettuce.core.support.ConnectionPoolSupport;
 public class LettuceConnection implements IuRedis {
 
 	private final GenericObjectPool<StatefulRedisConnection<String, String>> genericPool;
-	private final 	RedisClient redisClient;
+	private final RedisClient redisClient;
 	private final IuRedisConfiguration config;
+	private volatile boolean closed;
 
 	/**
 	 * constructor.
@@ -73,8 +73,9 @@ public class LettuceConnection implements IuRedis {
 				.build();
 		this.config = config;
 		this.redisClient = RedisClient.create(redisUri);
-		this.genericPool = ConnectionPoolSupport
-				.createGenericObjectPool(() -> redisClient.connect(), new GenericObjectPoolConfig<StatefulRedisConnection<String, String>>());
+		this.genericPool = ConnectionPoolSupport.createGenericObjectPool(() -> redisClient.connect(),
+				new GenericObjectPoolConfig<StatefulRedisConnection<String, String>>());
+		closed = false;
 	}
 
 	@Override
@@ -92,10 +93,9 @@ public class LettuceConnection implements IuRedis {
 			RedisCommands<String, String> commands = connection.sync();
 			String value = commands.get(IuText.utf8(key));
 			return value != null ? value.getBytes() : null;
-			
-			
+
 		} catch (Exception e) {
-			IuException.suppress(e,()->  e.getMessage());
+			IuException.suppress(e, () -> e.getMessage());
 			throw new IllegalStateException("connection cannot be obtained from the pool");
 		}
 	}
@@ -113,7 +113,7 @@ public class LettuceConnection implements IuRedis {
 
 			commands.set(IuText.utf8(key), IuText.utf8(value));
 		} catch (Exception e) {
-			IuException.suppress(e,()->  e.getMessage());
+			IuException.suppress(e, () -> e.getMessage());
 			throw new IllegalStateException("connection cannot be obtained from the pool");
 		}
 
@@ -122,14 +122,24 @@ public class LettuceConnection implements IuRedis {
 	@Override
 	public Iterable<?> list() {
 		// key
-		// expiration time, size of the value if we can't return size without loading data then return size 0
+		// expiration time, size of the value if we can't return size without loading
+		// data then return size 0
 		throw new UnsupportedOperationException("TODO STARCH-915 ");
 	}
 
 	@Override
-	public void close() throws Exception {
-		genericPool.close();
-		redisClient.shutdown();
+	public synchronized void close() throws Exception {
+		Throwable error = null;
+		if (!closed) {
+			closed = true;
+			if (genericPool != null)
+				error = IuException.suppress(error, genericPool::close);
+			if (redisClient != null)
+				error = IuException.suppress(error, redisClient::shutdown);
+		}
+
+		if (error != null)
+			throw IuException.checked(error);
 	}
 
 }

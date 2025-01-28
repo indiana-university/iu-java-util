@@ -159,6 +159,8 @@ public class LettuceConnectionTest {
 					() -> lettuceConnection.put("key".getBytes(), "value".getBytes(), Duration.ofSeconds(0)));
 			assertDoesNotThrow(
 					() -> lettuceConnection.put("key".getBytes(), "value".getBytes(), Duration.ofSeconds(-1)));
+			assertDoesNotThrow(
+					() -> lettuceConnection.put("key".getBytes(), "value".getBytes()));
 			assertDoesNotThrow(() -> lettuceConnection.get("key".getBytes()));
 			assertDoesNotThrow(() -> lettuceConnection.get("key".getBytes()));
 			assertThrows(UnsupportedOperationException.class, () -> lettuceConnection.list());
@@ -190,6 +192,19 @@ public class LettuceConnectionTest {
 					() -> lettuceConnection.get("key".getBytes()));
 			assertThrows(IllegalStateException.class,
 					() -> lettuceConnection.put("key".getBytes(), "value".getBytes(), null));
+			assertDoesNotThrow(() -> lettuceConnection.close());
 		}
 	}
+
+
+	@Test
+	void closeClosesGenericPool() throws Exception {
+		final var config = mock(IuRedisConfiguration.class);
+		LettuceConnection connection = new LettuceConnection(config);
+		connection.close();
+		
+	}
+
+
+
 }

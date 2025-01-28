@@ -30,14 +30,15 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /**
- * redis connection 
+ * redis connection
+ * 
  * @provides edu.iu.redis.spi.IuRedisSpi
  * 
  **/
 module iu.util.redis.impl {
 
-	requires org.apache.commons.pool2;
-	requires lettuce.core;
+	requires static org.apache.commons.pool2;
+	requires static lettuce.core;
 	requires iu.util;
 	requires iu.util.client;
 
