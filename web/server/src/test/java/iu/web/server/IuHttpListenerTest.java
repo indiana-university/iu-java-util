@@ -15,12 +15,9 @@ import static org.mockito.Mockito.when;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.Iterator;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Level;
 
@@ -32,7 +29,6 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
-import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.IuText;
 import edu.iu.test.IuTest;
@@ -47,14 +43,16 @@ public class IuHttpListenerTest {
 		final var address = mock(InetSocketAddress.class);
 		final int backlog = ThreadLocalRandom.current().nextInt();
 		final int stopDelay = ThreadLocalRandom.current().nextInt();
-		try (final var mockHttpServer = mockStatic(HttpServer.class);final var paths = mockStatic(Paths.class, CALLS_REAL_METHODS)) {
+		try (final var mockHttpServer = mockStatic(HttpServer.class);
+				final var paths = mockStatic(Paths.class, CALLS_REAL_METHODS)) {
 			mockHttpServer.when(() -> HttpServer.create(address, backlog)).thenReturn(server);
 
 			final var requestUri = "http://localhost:8080/";
 			IuTestLogger.expect(IuHttpListener.class.getName(), Level.FINE,
 					"started IuHttpListener [stopDelay=" + stopDelay + ", server=" + server + ']');
 			IuTestLogger.allow(IuHttpListener.class.getName(), Level.INFO, "path: /");
-			IuTestLogger.allow(IuHttpListener.class.getName(), Level.INFO, "file handler handling request URI: " + requestUri);
+			IuTestLogger.allow(IuHttpListener.class.getName(), Level.INFO,
+					"file handler handling request URI: " + requestUri);
 
 			final var archivePathProperty = IuTest.getProperty("teststatic.archive");
 			final var archivePath = Path.of(archivePathProperty);
@@ -99,7 +97,8 @@ public class IuHttpListenerTest {
 		final var address = mock(InetSocketAddress.class);
 		final int backlog = ThreadLocalRandom.current().nextInt();
 		final int stopDelay = ThreadLocalRandom.current().nextInt();
-		try (final var mockHttpServer = mockStatic(HttpServer.class);final var paths = mockStatic(Paths.class, CALLS_REAL_METHODS)) {
+		try (final var mockHttpServer = mockStatic(HttpServer.class);
+				final var paths = mockStatic(Paths.class, CALLS_REAL_METHODS)) {
 			mockHttpServer.when(() -> HttpServer.create(address, backlog)).thenReturn(server);
 
 			final var requestUri = "http://localhost:8080/";
@@ -107,7 +106,8 @@ public class IuHttpListenerTest {
 					"started IuHttpListener [stopDelay=" + stopDelay + ", server=" + server + ']');
 			IuTestLogger.allow(IuHttpListener.class.getName(), Level.INFO, "path: /");
 			IuTestLogger.allow(IuHttpListener.class.getName(), Level.WARNING, "files context method not allowed: POST");
-			IuTestLogger.allow(IuHttpListener.class.getName(), Level.INFO, "files context fallback. request URI: " + requestUri);
+			IuTestLogger.allow(IuHttpListener.class.getName(), Level.INFO,
+					"files context fallback. request URI: " + requestUri);
 
 			final var archivePathProperty = IuTest.getProperty("teststatic.archive");
 			final var archivePath = Path.of(archivePathProperty);
@@ -137,7 +137,8 @@ public class IuHttpListenerTest {
 		final var address = mock(InetSocketAddress.class);
 		final int backlog = ThreadLocalRandom.current().nextInt();
 		final int stopDelay = ThreadLocalRandom.current().nextInt();
-		try (final var mockHttpServer = mockStatic(HttpServer.class);final var paths = mockStatic(Paths.class, CALLS_REAL_METHODS)) {
+		try (final var mockHttpServer = mockStatic(HttpServer.class);
+				final var paths = mockStatic(Paths.class, CALLS_REAL_METHODS)) {
 			mockHttpServer.when(() -> HttpServer.create(address, backlog)).thenReturn(server);
 
 			final var baseAddress = "http://localhost:8080/";
@@ -147,11 +148,13 @@ public class IuHttpListenerTest {
 					"started IuHttpListener [stopDelay=" + stopDelay + ", server=" + server + ']');
 			IuTestLogger.allow(IuHttpListener.class.getName(), Level.INFO, "path: /" + reqPath);
 			IuTestLogger.allow(IuHttpListener.class.getName(), Level.INFO, "path: /");
-			IuTestLogger.allow(IuHttpListener.class.getName(), Level.INFO, "file handler handling request URI: " + requestUri);
-			IuTestLogger.allow(IuHttpListener.class.getName(), Level.INFO, "file handler handling request URI: " + baseAddress);
+			IuTestLogger.allow(IuHttpListener.class.getName(), Level.INFO,
+					"file handler handling request URI: " + requestUri);
+			IuTestLogger.allow(IuHttpListener.class.getName(), Level.INFO,
+					"file handler handling request URI: " + baseAddress);
 			IuTestLogger.allow(IuHttpListener.class.getName(), Level.WARNING, "file not found: /" + reqPath);
 			IuTestLogger.allow(IuHttpListener.class.getName(), Level.WARNING, "file not found: /");
-			
+
 			final var archivePathProperty = IuTest.getProperty("teststatic.archive");
 			final var archivePath = Path.of(archivePathProperty);
 			paths.when(() -> Paths.get("/opt/starch/resources")).thenReturn(archivePath);
@@ -168,7 +171,7 @@ public class IuHttpListenerTest {
 				when(exchange.getResponseBody()).thenReturn(body);
 
 				assertDoesNotThrow(() -> a.handle(exchange));
-				
+
 				try (final var mockFiles = mockStatic(Files.class)) {
 					mockFiles.when(() -> Files.isRegularFile(any())).thenReturn(false);
 					final var deletedTempExchange = mock(HttpExchange.class);
@@ -192,7 +195,8 @@ public class IuHttpListenerTest {
 		final var address = mock(InetSocketAddress.class);
 		final int backlog = ThreadLocalRandom.current().nextInt();
 		final int stopDelay = ThreadLocalRandom.current().nextInt();
-		try (final var mockHttpServer = mockStatic(HttpServer.class);final var paths = mockStatic(Paths.class, CALLS_REAL_METHODS)) {
+		try (final var mockHttpServer = mockStatic(HttpServer.class);
+				final var paths = mockStatic(Paths.class, CALLS_REAL_METHODS)) {
 			mockHttpServer.when(() -> HttpServer.create(address, backlog)).thenReturn(server);
 
 			final var reqPath = "assets/main.js.map";
@@ -200,7 +204,8 @@ public class IuHttpListenerTest {
 			IuTestLogger.expect(IuHttpListener.class.getName(), Level.FINE,
 					"started IuHttpListener [stopDelay=" + stopDelay + ", server=" + server + ']');
 			IuTestLogger.allow(IuHttpListener.class.getName(), Level.INFO, "path: /" + reqPath);
-			IuTestLogger.allow(IuHttpListener.class.getName(), Level.INFO, "file handler handling request URI: " + requestUri);
+			IuTestLogger.allow(IuHttpListener.class.getName(), Level.INFO,
+					"file handler handling request URI: " + requestUri);
 
 			final var archivePathProperty = IuTest.getProperty("teststatic.archive");
 			final var archivePath = Path.of(archivePathProperty);
@@ -235,7 +240,8 @@ public class IuHttpListenerTest {
 		final var address = mock(InetSocketAddress.class);
 		final int backlog = ThreadLocalRandom.current().nextInt();
 		final int stopDelay = ThreadLocalRandom.current().nextInt();
-		try (final var mockHttpServer = mockStatic(HttpServer.class);final var paths = mockStatic(Paths.class, CALLS_REAL_METHODS)) {
+		try (final var mockHttpServer = mockStatic(HttpServer.class);
+				final var paths = mockStatic(Paths.class, CALLS_REAL_METHODS)) {
 			mockHttpServer.when(() -> HttpServer.create(address, backlog)).thenReturn(server);
 
 			final var reqPath = "src/other/";
@@ -243,7 +249,8 @@ public class IuHttpListenerTest {
 			IuTestLogger.expect(IuHttpListener.class.getName(), Level.FINE,
 					"started IuHttpListener [stopDelay=" + stopDelay + ", server=" + server + ']');
 			IuTestLogger.allow(IuHttpListener.class.getName(), Level.INFO, "path: /" + reqPath);
-			IuTestLogger.allow(IuHttpListener.class.getName(), Level.INFO, "file handler handling request URI: " + requestUri);
+			IuTestLogger.allow(IuHttpListener.class.getName(), Level.INFO,
+					"file handler handling request URI: " + requestUri);
 
 			final var archivePathProperty = IuTest.getProperty("teststatic.archive");
 			final var archivePath = Path.of(archivePathProperty);
@@ -271,7 +278,7 @@ public class IuHttpListenerTest {
 
 		}
 	}
-	
+
 	@Test
 	public void testBootstrapStaticFileServerWithNonFileURL() {
 		try (final var paths = mockStatic(Paths.class, CALLS_REAL_METHODS)) {

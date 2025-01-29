@@ -9,13 +9,13 @@
 		<format>zip</format>
 	</formats>
 
-    <fileSets>
-        <fileSet>
-            <directory>.</directory>
-            <includes>
-                <include>**/*</include>
-            </includes>
-        </fileSet>
-    </fileSets>	
+	<fileSets>
+		<fileSet>
+			<directory>.</directory>
+			<includes>
+				<include>**/*</include>
+			</includes>
+		</fileSet>
+	</fileSets>	
 
 </assembly>

@@ -8,9 +8,9 @@
 		<groupId>edu.iu.util</groupId>
 		<artifactId>iu-java-web-parent</artifactId>
 		<version>7.0.7-SNAPSHOT</version>
- 	</parent>
+	</parent>
 
- 	<artifactId>iu-java-web-teststatic</artifactId>
+	<artifactId>iu-java-web-teststatic</artifactId>
 	<name>IU Web Server Unit Testing Static Resources</name>
 
 	<properties>
