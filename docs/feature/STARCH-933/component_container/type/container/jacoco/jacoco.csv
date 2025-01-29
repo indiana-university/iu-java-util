@@ -2,7 +2,11 @@ GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_
 IU Type Introspection Container,iu.type.container,TypeContainerArchive.new UnsafeRunnable() {...},0,133,0,16,0,27,0,10,0,2
 IU Type Introspection Container,iu.type.container,TypeContainerArchive,0,78,0,0,0,16,0,11,0,11
 IU Type Introspection Container,iu.type.container,TypeContainerBootstrap.new Object() {...},0,6,0,0,0,1,0,1,0,1
-IU Type Introspection Container,iu.type.container,TypeContainerBootstrap.new Consumer() {...},0,44,0,4,0,7,0,4,0,2
+IU Type Introspection Container,iu.type.container,EnvironmentResource,0,152,0,14,0,41,0,16,0,9
+IU Type Introspection Container,iu.type.container,DefaultEnvironment,0,269,0,40,0,65,0,28,0,8
+IU Type Introspection Container,iu.type.container,EnvironmentResource.new Consumer() {...},0,26,0,0,0,3,0,3,0,3
+IU Type Introspection Container,iu.type.container,TypeContainerBootstrap.new Consumer() {...},0,56,0,6,0,9,0,5,0,2
+IU Type Introspection Container,iu.type.container,DefaultEnvironment.Key,0,9,0,0,0,1,0,1,0,1
 IU Type Introspection Container,iu.type.container,TypeContainerBootstrap.new Consumer() {...},0,71,0,6,0,12,0,5,0,2
-IU Type Introspection Container,iu.type.container,TypeContainerResource,0,192,0,20,0,48,0,19,0,9
-IU Type Introspection Container,iu.type.container,TypeContainerBootstrap,0,662,0,52,0,129,0,42,0,16
+IU Type Introspection Container,iu.type.container,TypeContainerResource,0,194,0,20,0,49,0,19,0,9
+IU Type Introspection Container,iu.type.container,TypeContainerBootstrap,0,920,0,64,0,195,0,54,0,22

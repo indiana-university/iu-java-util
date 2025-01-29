@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuHttpListener.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Web Server Component</a> &gt; <a href="index.source.html" class="el_package">iu.web.server</a> &gt; <span class="el_source">IuHttpListener.java</span></div><h1>IuHttpListener.java</h1><pre class="source lang-java linenums">package iu.web.server;
+
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.URL;
+import java.net.URLConnection;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.UnaryOperator;
+import java.util.logging.Logger;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpHandlers;
+import com.sun.net.httpserver.HttpServer;
+
+import edu.iu.IuException;
+import edu.iu.IuStream;
+import edu.iu.UnsafeFunction;
+
+/**
+ * {@link HttpServer} configuration wrapper.
+ */
+public final class IuHttpListener implements AutoCloseable {
+
+<span class="fc" id="L33">	private static final Logger LOG = Logger.getLogger(IuHttpListener.class.getName());</span>
+
+	// Default for unknown content types, as per RFC 2046
+//	private static final String DEFAULT_CONTENT_TYPE = &quot;application/octet-stream&quot;;
+
+<span class="fc" id="L38">	private static final Map&lt;String, String&gt; MIME_TABLE = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L39">	private static final Map&lt;String, Path&gt; FILE_MAP = new ConcurrentHashMap&lt;&gt;();</span>
+//	private static final String FILES_ZIP = &quot;/ess-frontend-template-bundle.zip&quot;;
+
+	static {
+<span class="fc" id="L43">		String[] mimeTypes = { &quot;html&quot;, &quot;text/html&quot;, &quot;js&quot;, &quot;application/javascript&quot;, &quot;js.map&quot;, &quot;application/json&quot;, &quot;css&quot;,</span>
+				&quot;text/css&quot;, &quot;png&quot;, &quot;image/png&quot;, &quot;jpg&quot;, &quot;image/jpeg&quot;, &quot;jpeg&quot;, &quot;image/jpeg&quot;, &quot;gif&quot;, &quot;image/gif&quot;, &quot;svg&quot;,
+				&quot;image/svg+xml&quot; };
+<span class="fc bfc" id="L46" title="All 2 branches covered.">		for (int i = 0; i &lt; mimeTypes.length; i += 2) {</span>
+<span class="fc" id="L47">			MIME_TABLE.put(mimeTypes[i], mimeTypes[i + 1]);</span>
+		}
+
+		// Get the list of zip files in the directory /opt/starch/resources
+		// TODO: This should be configurable
+<span class="fc" id="L52">		Path dir = Paths.get(&quot;/opt/starch/resources&quot;);</span>
+
+<span class="fc" id="L54">		DirectoryStream&lt;Path&gt; stream = IuException.unchecked(() -&gt; Files.newDirectoryStream(dir, &quot;*.zip&quot;));</span>
+<span class="fc bfc" id="L55" title="All 2 branches covered.">		for (Path entry : stream) {</span>
+<span class="fc" id="L56">			URL fileUrl = IuException.unchecked(() -&gt; entry.toUri().toURL());</span>
+<span class="fc" id="L57">			FILE_MAP.putAll(bootstrapStaticFileServer(fileUrl));</span>
+<span class="fc" id="L58">		}</span>
+<span class="fc" id="L59">		IuException.unchecked(() -&gt; stream.close());</span>
+	}
+
+<span class="fc" id="L62">	private static final UnaryOperator&lt;String&gt; GET_MIME_TYPE = extension -&gt; {</span>
+<span class="fc" id="L63">		return MIME_TABLE.getOrDefault(extension, URLConnection.getFileNameMap().getContentTypeFor(extension));</span>
+	};
+
+	private final int stopDelay;
+	private volatile HttpServer server;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param localAddress local address
+	 * @param backlog      {@link HttpServer#bind(InetSocketAddress, int) backlog}
+	 * @param stopDelay    seconds to wait for all request to complete on close
+	 * @return {@link IuHttpListener}
+	 * @throws IOException If an error occurs binding to server socket
+	 */
+	public static IuHttpListener create(InetSocketAddress localAddress, int backlog, int stopDelay) throws IOException {
+<span class="fc" id="L79">		final var server = HttpServer.create(localAddress, backlog);</span>
+<span class="fc" id="L80">		server.createContext(&quot;/&quot;, HttpHandlers.handleOrElse((req) -&gt; {</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">			if (!req.getRequestMethod().equals(&quot;GET&quot;)) {</span>
+<span class="fc" id="L82">				LOG.warning(&quot;files context method not allowed: &quot; + req.getRequestMethod());</span>
+<span class="fc" id="L83">				return false;</span>
+			}
+<span class="fc" id="L85">			String reqPath = req.getRequestURI().getPath();</span>
+<span class="fc" id="L86">			LOG.info(&quot;path: &quot; + reqPath);</span>
+<span class="fc" id="L87">			return true;</span>
+<span class="fc" id="L88">		}, new HttpHandler() {</span>
+			@Override
+			public void handle(HttpExchange exchange) throws IOException {
+<span class="fc" id="L91">				LOG.info(&quot;file handler handling request URI: &quot; + exchange.getRequestURI().toString());</span>
+				// get the content type from the file extension in the request URI
+<span class="fc" id="L93">				String reqPath = exchange.getRequestURI().getPath();</span>
+<span class="fc" id="L94">				String assetPath = reqPath.substring(1); // remove leading /</span>
+				// if assetPath is empty or no filename is given, assume the request is for an
+				// index.html file
+<span class="fc bfc" id="L97" title="All 2 branches covered.">				if (assetPath.isEmpty() //</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">						|| assetPath.endsWith(&quot;/&quot;)) {</span>
+<span class="fc" id="L99">					assetPath += &quot;index.html&quot;;</span>
+				}
+				// special handling for .js.map files
+<span class="fc" id="L102">				int extIndex = 0;</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">				if (assetPath.endsWith(&quot;.js.map&quot;)) {</span>
+<span class="fc" id="L104">					extIndex = assetPath.length() - 7;</span>
+				} else {
+<span class="fc" id="L106">					extIndex = assetPath.lastIndexOf('.');</span>
+				}
+<span class="fc" id="L108">				String ext = assetPath.substring(extIndex + 1);</span>
+<span class="fc" id="L109">				String contentType = GET_MIME_TYPE.apply(ext);</span>
+<span class="fc" id="L110">				exchange.getResponseHeaders().add(&quot;content-type&quot;, contentType);</span>
+
+<span class="fc" id="L112">				Path file = FILE_MAP.get(assetPath);</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">				if (file == null //</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">						|| !Files.exists(file)) {</span>
+<span class="fc" id="L115">					LOG.warning(&quot;file not found: &quot; + reqPath);</span>
+<span class="fc" id="L116">					exchange.sendResponseHeaders(HttpURLConnection.HTTP_NOT_FOUND, 0);</span>
+<span class="fc" id="L117">					return;</span>
+				}
+				// get the file from the map of jar file entries
+<span class="fc" id="L120">				final var contents = Files.readAllBytes(file);</span>
+<span class="fc" id="L121">				exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, 0);</span>
+<span class="fc" id="L122">				try (final var body = exchange.getResponseBody()) {</span>
+<span class="fc" id="L123">					body.write(contents);</span>
+				}
+<span class="fc" id="L125">			}</span>
+		}, (exchange) -&gt; {
+			// TODO: fallback handler
+<span class="fc" id="L128">			LOG.info(&quot;files context fallback. request URI: &quot; + exchange.getRequestURI().toString());</span>
+<span class="fc" id="L129">		}));</span>
+<span class="fc" id="L130">		server.setExecutor(null); // creates a default executor</span>
+<span class="fc" id="L131">		server.start();</span>
+
+<span class="fc" id="L133">		final var listener = new IuHttpListener(server, stopDelay);</span>
+<span class="fc" id="L134">		LOG.fine(() -&gt; &quot;started &quot; + listener);</span>
+<span class="fc" id="L135">		return listener;</span>
+	}
+
+	/**
+	 * @param bundleResource
+	 * @return a map of file paths to temporary files
+	 */
+	public static Map&lt;String, Path&gt; bootstrapStaticFileServer(URL bundleResource) {
+<span class="fc" id="L143">		Map&lt;String, Path&gt; fileMap = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L144">		with(bundleResource, o -&gt; {</span>
+<span class="fc" id="L145">			try (final var in = Files.newInputStream((Path) o); //</span>
+<span class="fc" id="L146">					final var bundleZip = new ZipInputStream(in)) {</span>
+
+				ZipEntry entry;
+<span class="fc bfc" id="L149" title="All 2 branches covered.">				while ((entry = bundleZip.getNextEntry()) != null) {</span>
+<span class="fc" id="L150">					final var name = entry.getName();</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">					if (!entry.isDirectory()) {</span>
+<span class="fc" id="L152">						String fileNameWithExt = name.substring(name.lastIndexOf('/') + 1);</span>
+						// special handling for .js.map files
+<span class="fc" id="L154">						int extIndex = 0;</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">						if (fileNameWithExt.endsWith(&quot;.js.map&quot;)) {</span>
+<span class="fc" id="L156">							extIndex = fileNameWithExt.length() - 7;</span>
+						} else {
+<span class="fc" id="L158">							extIndex = fileNameWithExt.lastIndexOf('.');</span>
+						}
+
+<span class="fc" id="L161">						String fileName = fileNameWithExt.substring(0, extIndex) + &quot;-&quot;;</span>
+<span class="fc" id="L162">						String ext = fileNameWithExt.substring(extIndex);</span>
+						// Simplistic way to create a temporary file to hold the entry, rather than
+						// working around the iu-type....jar naming
+<span class="fc" id="L165">						Path temp = Files.createTempFile(fileName, ext);</span>
+<span class="fc" id="L166">						try (final var out = Files.newOutputStream(temp)) {</span>
+<span class="fc" id="L167">							IuStream.copy(bundleZip, out);</span>
+						}
+<span class="fc" id="L169">						fileMap.put(name, temp);</span>
+					}
+<span class="fc" id="L171">				}</span>
+<span class="fc" id="L172">				bundleZip.closeEntry();</span>
+			}
+<span class="fc" id="L174">			return null;</span>
+		});
+<span class="fc" id="L176">		return fileMap;</span>
+	}
+
+//	public static Iterable&lt;Path&gt; readBundle(URL bundleResource) {
+//		final Deque&lt;Path&gt; libs = new ArrayDeque&lt;&gt;();
+//		with(bundleResource, o -&gt; {
+//			try (final var in = (o instanceof Path) //
+//					? Files.newInputStream((Path) o) //
+//					: (InputStream) o; //
+//					final var bundleJar = new JarInputStream(in)) {
+//				JarEntry entry;
+//				while ((entry = bundleJar.getNextJarEntry()) != null) {
+//					final var name = entry.getName();
+//					if (name.endsWith(&quot;.jar&quot;)) {
+//						final var lib = name.startsWith(&quot;lib/&quot;);
+//						final var bundledLib = TemporaryFile.init(path -&gt; {
+//							try (final var out = Files.newOutputStream(path)) {
+//								IuStream.copy(bundleJar, out);
+//							}
+//							return path;
+//						});
+//						if (lib)
+//							libs.offer(bundledLib);
+//						else
+//							libs.offerFirst(bundledLib);
+//					}
+//				}
+//				bundleJar.closeEntry();
+//			}
+//			return null;
+//		});
+//		return libs;
+//	}
+
+	private static &lt;T&gt; T with(URL url, UnsafeFunction&lt;Object, T&gt; then) {
+<span class="fc" id="L211">		return IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L212">			final var uri = url.toURI();</span>
+<span class="fc" id="L213">			final var scheme = uri.getScheme();</span>
+
+<span class="fc bfc" id="L215" title="All 2 branches covered.">			if (&quot;file&quot;.equals(scheme))</span>
+<span class="fc" id="L216">				return then.apply(Path.of(uri).toRealPath());</span>
+
+<span class="fc" id="L218">			throw new IllegalArgumentException();</span>
+		});
+	}
+
+<span class="fc" id="L222">	private IuHttpListener(HttpServer server, int stopDelay) {</span>
+<span class="fc" id="L223">		this.server = server;</span>
+<span class="fc" id="L224">		this.stopDelay = stopDelay;</span>
+<span class="fc" id="L225">	}</span>
+
+	@Override
+	public synchronized void close() throws Exception {
+<span class="fc" id="L229">		final var server = this.server;</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">		if (server != null) {</span>
+<span class="fc" id="L231">			this.server = null;</span>
+<span class="fc" id="L232">			server.stop(stopDelay);</span>
+<span class="fc" id="L233">			LOG.fine(() -&gt; &quot;stopped &quot; + this + &quot;; &quot; + server);</span>
+		}
+<span class="fc" id="L235">	}</span>
+
+	@Override
+	public String toString() {
+<span class="fc" id="L239">		return &quot;IuHttpListener [stopDelay=&quot; + stopDelay + &quot;, server=&quot; + server + &quot;]&quot;;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

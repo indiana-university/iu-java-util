@@ -1,1 +1,1 @@
-typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"iu.type.container","l":"TypeContainerArchive"},{"p":"iu.type.container","l":"TypeContainerBootstrap"},{"p":"iu.type.container","l":"TypeContainerResource"}];updateSearchResults();
+typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"iu.type.container.spi","l":"IuEnvironment"}];updateSearchResults();
