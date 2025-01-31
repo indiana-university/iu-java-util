@@ -52,6 +52,11 @@
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-type-base</artifactId>
 			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+      <artifactId>iu-java-web-teststatic</artifactId>
+      <version>${project.version}</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>

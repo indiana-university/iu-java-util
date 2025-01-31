@@ -3,10 +3,13 @@ package edu.iu.web.server;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
 import java.net.InetSocketAddress;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Timer;
@@ -18,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.IuObject;
+import edu.iu.test.IuTest;
 import edu.iu.test.IuTestLogger;
 import iu.web.server.IuHttpListener;
 
@@ -64,7 +68,6 @@ public class IuHttpServerTest {
 						notifyAll();
 					}
 				}
-			}
 
 		};
 		thread.start();
@@ -92,7 +95,10 @@ public class IuHttpServerTest {
 			f.set(server, host);
 		});
 
-		final var listener = mock(IuHttpListener.class);
+		try (final var paths = mockStatic(Paths.class, CALLS_REAL_METHODS)) {
+			final var archivePathProperty = IuTest.getProperty("teststatic.archive");
+			final var archivePath = Path.of(archivePathProperty);
+			paths.when(() -> Paths.get("/opt/starch/resources")).thenReturn(archivePath);
 
 		IuTestLogger.expect(IuHttpServer.class.getName(), Level.CONFIG, "starting IuHttpServer [host=" + host
 				+ ", port=8780, backlog=0, stopDelay=PT15S, online=false, closed=false]");
@@ -119,6 +125,6 @@ public class IuHttpServerTest {
 				timer.cancel();
 			}
 		}
-	}
 
+	}
 }

@@ -23,6 +23,7 @@
 			</activation>
 			<modules>
 				<module>api</module>
+				<module>teststatic</module>
 				<module>server</module>
 			</modules>
 		</profile>
