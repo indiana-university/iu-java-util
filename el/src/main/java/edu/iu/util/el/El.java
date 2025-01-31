@@ -3,7 +3,6 @@ package edu.iu.util.el;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.Deque;
 import java.util.LinkedList;
 
@@ -87,7 +86,7 @@ public class El {
 	 * @return {@link JsonValue} representation of the input expression within the
 	 *         given context
 	 */
-	public static JsonValue eval(JsonObject context, String expr) {
+	public static JsonValue eval(JsonValue context, String expr) {
 		ElContext evalContext = new ElContext(null, false, null, context, expr);
 		Deque<ElContext> evalStack = new LinkedList<>();
 		evalStack.push(evalContext);
@@ -127,10 +126,9 @@ public class El {
 
 			case '<': // template
 				String templatePathExpr = etail.substring(1);
-				JsonObject result = evalContext.getResult() == null ? null : evalContext.getResult().asJsonObject();
-				
-				ElContext templatePathContext = new ElContext(evalContext, false, null,
-						result, templatePathExpr);
+				JsonValue result = evalContext.getResult();// == null ? null : convertContext(evalContext.getResult());
+
+				ElContext templatePathContext = new ElContext(evalContext, false, null, result, templatePathExpr);
 				templatePathContext.markAsRaw();
 
 				evalContext.setPositionAtEnd();
@@ -168,8 +166,8 @@ public class El {
 
 			case '!': // unless conditional
 				cval = evalContext.getResult();
-                if (cval == null // 
-                		|| JsonValue.FALSE.equals(cval))
+				if (cval == null //
+						|| JsonValue.FALSE.equals(cval))
 					evalStack.push(new ElContext(evalContext, etail.substring(1)));
 				evalContext.setPositionAtEnd();
 				continue;
@@ -188,7 +186,8 @@ public class El {
 					df.applyPattern(etail.substring(1));
 					evalContext.setResult(Json.createValue(df.format(((JsonNumber) cval).numberValue())));
 				}
-				// TODO: If we're only dealing with JSON values, how do we decide if it's a date?
+				// TODO: If we're only dealing with JSON values, how do we decide if it's a
+				// date?
 //				if (cval instanceof Date) {
 //					SimpleDateFormat df = DATE_FMT.get();
 //					df.applyPattern(etail.substring(1));
@@ -197,6 +196,22 @@ public class El {
 				evalContext.setPositionAtEnd();
 				break;
 
+			case 'p':
+				if (etail.length() > 1 && etail.charAt(1) == '.') {
+					String parentPathExpr = etail.substring(2);
+					ElContext parentContext = evalContext.getP();
+					if (parentContext == null)
+						throw new IllegalArgumentException("no parent context");
+					ElContext parentPathContext = new ElContext(parentContext, false, null, parentContext.get$(),
+							parentPathExpr);
+
+					parentPathContext.markAsRaw();
+					evalContext.setPositionAtEnd();
+
+					evalStack.push(evalContext);
+					evalStack.push(parentPathContext);
+					continue;
+				}
 			default:
 				int npos = elIndiceDe(etail, ANY, pos);
 				if (npos == -1)

@@ -118,7 +118,7 @@ public class ElContext {
 			int offset = context.templateBuffer.length();
 			context.templateBuffer.append(content);
 			for (TemplateExpression expr : expressions) {
-				ElContext elc = new ElContext(context, first, key, value.asJsonObject(), expr.expression);
+				ElContext elc = new ElContext(context, first, key, value, expr.expression);
 				elc.insertPoint = offset + expr.insertPoint;
 
 				// push template expressions in order found, to process the last
@@ -132,7 +132,7 @@ public class ElContext {
 	private final ElContext parent;
 	private final boolean head;
 	private final JsonValue index;
-	private final JsonObject context;
+	private final JsonValue context;
 
 	private final String expression;
 	private final Map<String, Template> templateCache;
@@ -148,7 +148,7 @@ public class ElContext {
 	private StringBuilder templateBuffer;
 	private int insertPoint = -1;
 
-	ElContext(ElContext parent, boolean head, JsonValue index, JsonObject context, String expression) {
+	ElContext(ElContext parent, boolean head, JsonValue index, JsonValue context, String expression) {
 		this.parent = parent;
 		this.head = head;
 		this.index = index;
@@ -240,6 +240,9 @@ public class ElContext {
 			resultText = ((JsonString) result).getString();
 		else if (result.equals(JsonValue.TRUE) || result.equals(JsonValue.FALSE) || (result instanceof JsonNumber))
 			resultText = result.toString();
+		// try adding this to skip to the next context if the parent is a template
+		else if (parent !=null && parent.isTemplate())
+			return;
 		else
 			throw new IllegalStateException("Non-atmoic result");
 
@@ -319,7 +322,7 @@ public class ElContext {
 		if (result instanceof JsonArray) {
 			var array = result.asJsonArray();
 			for (int i = 0; i < array.size(); i++)
-				template.apply(i == 0, Json.createValue(i), array.get(0), this, evalStack);
+				template.apply(i == 0, Json.createValue(i), array.get(i), this, evalStack);
 		} else
 			template.apply(false, null, result, this, evalStack);
 	}
@@ -330,7 +333,7 @@ public class ElContext {
 	 * @return the root JSON value
 	 */
 	public JsonValue getRoot() {
-	    return root;
+		return root;
 	}
 
 	/**
@@ -339,7 +342,7 @@ public class ElContext {
 	 * @return true if this context is the head, false otherwise
 	 */
 	public boolean isHead() {
-	    return head;
+		return head;
 	}
 
 	/**
@@ -348,7 +351,7 @@ public class ElContext {
 	 * @return true if this context is the tail, false otherwise
 	 */
 	public boolean isTail() {
-	    return !head;
+		return !head;
 	}
 
 	/**
@@ -357,16 +360,16 @@ public class ElContext {
 	 * @return the index JSON value
 	 */
 	public JsonValue getI() {
-	    return index;
+		return index;
 	}
 
 	/**
-	 * Returns the JSON object representing the context.
+	 * Returns the JSON value representing the context.
 	 *
-	 * @return the JSON object
+	 * @return the JSON value
 	 */
-	public JsonObject get$() {
-	    return context;
+	public JsonValue get$() {
+		return context;
 	}
 
 	/**
@@ -375,7 +378,16 @@ public class ElContext {
 	 * @return the last result JSON value
 	 */
 	public JsonValue get_() {
-	    return lastResult;
+		return lastResult;
+	}
+
+	/**
+	 * Returns the JSON value of the parent context.
+	 *
+	 * @return the parent context JSON value
+	 */
+	public ElContext getP() {
+		return parent;
 	}
 
 	/**
@@ -385,18 +397,18 @@ public class ElContext {
 	 */
 	@Override
 	public String toString() {
-	    return "EL" + (expression == null ? ""
-	        : " expression \"" + expression + "\" at " + position + ": \""
-	        + expression.substring(Math.max(0, position - 5), position) + "["
-	        + (position >= 0 && position < expression.length() ? expression.charAt(position) : "") + "]"
-	        + expression.substring(Math.min(expression.length(), position + 1),
-	            Math.min(expression.length(), position + 6))
-	        + "\"" + (insertPoint >= 0 ? " insert at " + insertPoint : "")
-	        + (template && templatePath != null
-	            ? "\n   in " + templatePath
-	            + (templateBuffer == null ? "" : " = \"" + templateBuffer + "\"")
-	            : "")
-	        + (parent == null ? "" : "\nParent " + parent));
+		return "EL" + (expression == null ? ""
+				: " expression \"" + expression + "\" at " + position + ": \""
+						+ expression.substring(Math.max(0, position - 5), position) + "["
+						+ (position >= 0 && position < expression.length() ? expression.charAt(position) : "") + "]"
+						+ expression.substring(Math.min(expression.length(), position + 1),
+								Math.min(expression.length(), position + 6))
+						+ "\"" + (insertPoint >= 0 ? " insert at " + insertPoint : "")
+						+ (template && templatePath != null
+								? "\n   in " + templatePath
+										+ (templateBuffer == null ? "" : " = \"" + templateBuffer + "\"")
+								: "")
+						+ (parent == null ? "" : "\nParent " + parent));
 	}
 
 }

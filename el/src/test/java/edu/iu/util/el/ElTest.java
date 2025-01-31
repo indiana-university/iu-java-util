@@ -344,39 +344,47 @@ public class ElTest {
 //	}
 
 	@Test
+	public void testTemplateExpr() {
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		JsonArrayBuilder arr = Json.createArrayBuilder();
+		arr.add("foo");
+		arr.add("bar");
+		arr.add("baz");
+		b.add("fooList", arr);
+		b.add("fool", "el/-list");
+		assertEquals("foo,bar,baz", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.fooList<p.$.fool")));
+	}
+	
+	@Test
 	public void testJson() {
-//		JsonObjectBuilder b = Json.createObjectBuilder();
-//		b.add("foo", "bar");
-//		b.add("baz", "bif");
-//		b.add("bim", "bam");
-//		final var context = b.build();
-//		assertEquals("bar bif bam", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "<`{$.foo} {$.baz} {$.bim}`")));
-//		assertEquals("inline template doesn't end with '`'", assertThrows(IllegalArgumentException.class, () -> El.eval(context, "<`{$.foo} {$.baz} {$.bim}")).getMessage());
-//		assertEquals("inline template doesn't end with '`'", assertThrows(IllegalArgumentException.class, () -> El.eval(context, "<`")).getMessage());
-//
-//		JsonObjectBuilder b1 = Json.createObjectBuilder();
-//		b1.add("foo", JsonValue.TRUE);
-//		b1.add("baz", JsonValue.FALSE);
-//		b1.add("bim", JsonValue.NULL);
-//		final var context1 = b1.build();
-//		assertEquals("true false ", IuJsonAdapter.of(String.class).fromJson(El.eval(context1, "<`{$.foo} {$.baz} {$.bim}`")));
-//		
-//		JsonObjectBuilder b2 = Json.createObjectBuilder();
-//		b2.add("foo", Json.createObjectBuilder().add("bar", "baz"));
-//		b2.add("baz", JsonValue.FALSE);
-//		final var context2 = b2.build();
-//		assertEquals("false", IuJsonAdapter.of(String.class).fromJson(El.eval(context2, "$.foo.bar?root.baz")));
-//		
-		JsonObjectBuilder b3 = Json.createObjectBuilder();
-		b3.add("foo", Json.createArrayBuilder().add("bar").add("bif").add("bam"));
-		final var context3 = b3.build();
-		assertEquals("true", IuJsonAdapter.of(String.class).fromJson(El.eval(context3, "$.foo?head")));
-		// Trying to figure out how to get to line 319 in ElContext.java and have the result be an array at that point
-		// but result is always an object because the initial context is an object and it keeps being passed as the context
-		// to each template evaluation.
-		// I'm not sure this is possible because there are places where the context is expected to be an object,
-		// such as using it for the context of a template
-		// Possibly relatedly, I'm not sure how iteration is possible with a JsonObject as the context
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		b.add("foo", "bar");
+		b.add("baz", "bif");
+		b.add("bim", "bam");
+		final var context = b.build();
+		assertEquals("bar bif bam", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "<`{$.foo} {$.baz} {$.bim}`")));
+		assertEquals("inline template doesn't end with '`'", assertThrows(IllegalArgumentException.class, () -> El.eval(context, "<`{$.foo} {$.baz} {$.bim}")).getMessage());
+		assertEquals("inline template doesn't end with '`'", assertThrows(IllegalArgumentException.class, () -> El.eval(context, "<`")).getMessage());
+
+		JsonObjectBuilder b1 = Json.createObjectBuilder();
+		b1.add("foo", JsonValue.TRUE);
+		b1.add("baz", JsonValue.FALSE);
+		b1.add("bim", JsonValue.NULL);
+		final var context1 = b1.build();
+		assertEquals("true false ", IuJsonAdapter.of(String.class).fromJson(El.eval(context1, "<`{$.foo} {$.baz} {$.bim}`")));
+		
+		JsonObjectBuilder b2 = Json.createObjectBuilder();
+		b2.add("foo", Json.createObjectBuilder().add("bar", "baz"));
+		b2.add("baz", JsonValue.FALSE);
+		final var context2 = b2.build();
+		assertEquals("false", IuJsonAdapter.of(String.class).fromJson(El.eval(context2, "$.foo.bar?root.baz")));
+		
+		// head is useless because nowhere in the code does the value get set to true
+		
+//		JsonObjectBuilder b3 = Json.createObjectBuilder();
+//		b3.add("foo", Json.createArrayBuilder().add("bar").add("bif").add("bam"));
+//		final var context3 = b3.build();
+//		assertEquals("true", IuJsonAdapter.of(String.class).fromJson(El.eval(context3, "$.foo?head")));
 	}
 
 	@Test
