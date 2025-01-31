@@ -43,6 +43,27 @@ public interface IuWebContext {
 	String getComponent();
 
 	/**
+	 * Gets the support pre-text.
+	 * 
+	 * @return support pre-text
+	 */
+	String getSupportPreText();
+
+	/**
+	 * Gets the support URL.
+	 * 
+	 * @return support URL
+	 */
+	String getSupportUrl();
+
+	/**
+	 * Gets the support label.
+	 * 
+	 * @return support label
+	 */
+	String getSupportLabel();
+
+	/**
 	 * Gets the context path relative to the server root.
 	 * 
 	 * @return context path, with leading slash

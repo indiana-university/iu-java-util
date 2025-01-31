@@ -821,7 +821,7 @@ public final class IuWebUtils {
 	}
 
 	/**
-	 * Parses the cookie request header, returning an {@link IuHttpCookie} for each
+	 * Parses the cookie request header, returning an {@link HttpCookie} for each
 	 * cookie sent with the request.
 	 * 
 	 * @param cookieHeaderValue {@code Cookie:} header value. This value MUST match

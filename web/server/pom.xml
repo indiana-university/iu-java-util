@@ -55,8 +55,8 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-      <artifactId>iu-java-web-teststatic</artifactId>
-      <version>${project.version}</version>
+			<artifactId>iu-java-web-teststatic</artifactId>
+			<version>${project.version}</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>

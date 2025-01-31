@@ -4,36 +4,29 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.URI;
-import java.util.ArrayDeque;
-import java.util.HashSet;
-import java.util.Queue;
-import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
-import com.sun.net.httpserver.Authenticator;
-import com.sun.net.httpserver.HttpServer;
-
-import edu.iu.IuException;
-import edu.iu.logging.IuLogContext;
-import edu.iu.web.IuWebContext;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayDeque;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import com.sun.net.httpserver.Authenticator;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpHandlers;
@@ -42,6 +35,9 @@ import com.sun.net.httpserver.HttpServer;
 import edu.iu.IuException;
 import edu.iu.IuStream;
 import edu.iu.UnsafeFunction;
+import edu.iu.logging.IuLogContext;
+import edu.iu.web.IuWebAuthenticator;
+import edu.iu.web.IuWebContext;
 
 /**
  * {@link HttpServer} configuration wrapper.
@@ -88,23 +84,34 @@ public final class IuHttpListener implements AutoCloseable {
 	/**
 	 * Constructor.
 	 * 
-	 * @param externalUri   external root {@link URI}
-	 * @param localAddress  local address
-	 * @param authenticator {@link Authenticator} to apply to all context
-	 * @param iuWebContext  contexts to initialize
-	 * @param threads       number of threads to allocate for handling requests
-	 * @param backlog       {@link HttpServer#bind(InetSocketAddress, int) backlog}
-	 * @param stopDelay     seconds to wait for all request to complete on close
+	 * @param externalUri         external root {@link URI}
+	 * @param localAddress        local address
+	 * @param allowedExternalUris {@link URI} allow list
+	 * @param iuWebAuthenticator  {@link Authenticator} to apply to all context
+	 * @param iuWebContext        contexts to initialize
+	 * @param threads             number of threads to allocate for handling
+	 *                            requests
+	 * @param backlog             {@link HttpServer#bind(InetSocketAddress, int)
+	 *                            backlog}
+	 * @param stopDelay           seconds to wait for all request to complete on
+	 *                            close
 	 * @return {@link IuHttpListener}
 	 * @throws IOException If an error occurs binding to server socket
 	 */
-	public static IuHttpListener create(URI externalUri, InetSocketAddress localAddress, Authenticator authenticator,
-			Iterable<IuWebContext> iuWebContext, int threads, int backlog, int stopDelay) throws IOException {
+	public static IuHttpListener create(URI externalUri, InetSocketAddress localAddress, URI[] allowedExternalUris,
+			IuWebAuthenticator iuWebAuthenticator, Iterable<IuWebContext> iuWebContext, int threads, int backlog,
+			int stopDelay) throws IOException {
 		final var server = HttpServer.create(localAddress, backlog);
+
+		final Queue<URI> allowedUris = new ArrayDeque<>();
+		allowedUris.add(externalUri);
+		for (final var allowedUri : allowedExternalUris)
+			allowedUris.offer(allowedUri);
 
 		final Set<String> used = new HashSet<>();
 		final Queue<IuWebContext> webContexts = new ArrayDeque<>();
-		final var contextFilter = new ContextFilter(webContexts);
+		final var contextFilter = new ContextFilter(webContexts, allowedUris);
+		final var authFilter = new AuthFilter(iuWebAuthenticator);
 		var root = false;
 		for (final var webContext : iuWebContext) {
 			final var path = webContext.getPath();
@@ -114,8 +121,10 @@ public final class IuHttpListener implements AutoCloseable {
 				throw new IllegalArgumentException("duplicate context path " + path);
 
 			final var httpContext = server.createContext(path);
-			httpContext.setAuthenticator(authenticator);
+//			httpContext.setAuthenticator(authenticator);
+
 			httpContext.getFilters().add(contextFilter);
+			httpContext.getFilters().add(authFilter);
 			httpContext.setHandler(webContext.getHandler());
 			if (!root && path.equals("/"))
 				root = true;
@@ -165,7 +174,7 @@ public final class IuHttpListener implements AutoCloseable {
 			}
 		};
 
- 		// TODO: convert to component
+		// TODO: convert to component
 		server.createContext("/staticpoc", HttpHandlers.handleOrElse((req) -> {
 			if (!req.getRequestMethod().equals("GET")) {
 				LOG.warning("files context method not allowed: " + req.getRequestMethod());

@@ -1,9 +1,8 @@
 package iu.web.server;
 
 import java.io.IOException;
-import java.util.HashSet;
+import java.net.URI;
 import java.util.Objects;
-import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -27,6 +26,20 @@ class ContextFilter extends Filter {
 	private static final Logger LOG = Logger.getLogger(ContextFilter.class.getName());
 	private static final ThreadLocal<IuWebContext> CONTEXT = new ThreadLocal<>();
 
+	private final Iterable<IuWebContext> webContexts;
+	private final Iterable<URI> acceptUris;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param webContexts {@link IuWebContext}
+	 * @param acceptUris  one or more allowed root {@link URI}s
+	 */
+	ContextFilter(Iterable<IuWebContext> webContexts, Iterable<URI> acceptUris) {
+		this.webContexts = webContexts;
+		this.acceptUris = acceptUris;
+	}
+
 	/**
 	 * Gets the active web context for the current request.
 	 * 
@@ -35,8 +48,6 @@ class ContextFilter extends Filter {
 	static IuWebContext getActiveWebContext() {
 		return Objects.requireNonNull(CONTEXT.get(), "not active");
 	}
-
-	private final Iterable<IuWebContext> webContexts;
 
 	/**
 	 * Describes the request attributes of a {@link HttpExchange}.
@@ -101,6 +112,7 @@ class ContextFilter extends Filter {
 				sb.append(" = ");
 				sb.append(headerValue);
 			}
+		return sb.toString();
 	}
 
 	void handleError(Throwable error, HttpExchange exchange) {
@@ -123,50 +135,19 @@ class ContextFilter extends Filter {
 			level = Level.SEVERE;
 		}
 
-		LOG.log(level, error, () -> {
-			StringBuilder sb = new StringBuilder("HTTP ");
-			sb.append(EndpointUtil.describeStatus(status));
-			if (aborted)
-				sb.append(" (client aborted) ");
-			else
-				sb.append(' ');
-			sb.append(req.getRequestURI());
+		final var errorState = new ErrorState();
+		errorState.setStatus(status);
+		// TODO: bind other attributes
 
-			Set<String> headerNames = new HashSet<>();
-			for (String headerName : resp.getHeaderNames())
-				if (headerNames.add(headerName))
-					for (String header : resp.getHeaders(headerName))
-						sb.append('\n').append(headerName).append(": ").append(header);
+		LOG.log(level, error, () -> describeResponse(exchange));
 
-			Throwable sentError = (Throwable) req.getAttribute("iu.endpoint.statusTrace");
-			if (sentError != null) {
-				if (_cause == null)
-					cause = sentError;
-				else {
-					if (sentError.getMessage() != null && !sentError.getMessage().equals(_cause.getMessage()))
-						sb.append("\n").append(sentError.getMessage());
-					cause.addSuppressed(sentError);
-				}
-			}
-			LOG.log(level, cause, sb::toString);
-		});
-
-		if (resp.isCommitted())
-			try {
-				resp.flushBuffer();
-			} catch (Throwable e) {
-				LOG.log(Level.INFO, e, () -> "Failed to flush buffer setting error status on committed response");
-			}
-
-	}
-
-	/**
-	 * Constructor.
-	 * 
-	 * @param webContexts {@link IuWebContext}
-	 */
-	ContextFilter(Iterable<IuWebContext> webContexts) {
-		this.webContexts = webContexts;
+//		if (resp.isCommitted())
+//			try {
+//				resp.flushBuffer();
+//			} catch (Throwable e) {
+//				LOG.log(Level.INFO, e, () -> "Failed to flush buffer setting error status on committed response");
+//			}
+//
 	}
 
 	@Override
@@ -196,9 +177,54 @@ class ContextFilter extends Filter {
 		return match;
 	}
 
+	private URI replaceHost(URI url, String host, int port) {
+		StringBuilder sb = new StringBuilder(url.toString());
+		int ss = sb.indexOf("//") + 2;
+		if (ss <= 1)
+			throw new IllegalArgumentException(url.toString());
+		int se = sb.indexOf("/", ss);
+		if (se == -1)
+			se = sb.length();
+		if (se <= ss)
+			throw new IllegalArgumentException(url.toString());
+		sb.delete(ss, se);
+		if (port > 0) {
+			sb.insert(ss, port);
+			sb.insert(ss, ':');
+		}
+		sb.insert(ss, host);
+		return URI.create(sb.toString());
+	}
+
 	@Override
 	public void doFilter(HttpExchange exchange, Chain chain) throws IOException {
-		final var requestUri = exchange.getRequestURI();
+		final var originalUrl = exchange.getRequestURI();
+//		HttpServletRequest hreq = (HttpServletRequest) req;
+//		String originalUrl = hreq.getRequestURL().toString();
+
+		final var forwardedHost = exchange.getRequestHeaders().get("X-Forwarded-Host");
+		final URI requestUri;
+		if (forwardedHost != null) {
+			requestUri = replaceHost(originalUrl, forwardedHost.getFirst(), -1);
+			LOG.info(() -> "Replaced host in " + originalUrl + " with value from x-forwarded-host header" + ": "
+					+ requestUri);
+		} else
+			requestUri = originalUrl;
+
+		var uriAccepted = false;
+		for (final var acceptUri : acceptUris)
+			if (IuWebUtils.isRootOf(acceptUri, requestUri)) {
+				LOG.fine(() -> "Accepting " + requestUri + "; matched " + acceptUri);
+				uriAccepted = true;
+				break;
+			}
+
+		if (!uriAccepted) {
+			LOG.info(() -> "Rejecting " + requestUri + ", not in acceptable URL list " + acceptUris);
+			handleError(new IuNotFoundException(), exchange);
+			return;
+		}
+
 		final var webContext = getWebContext(requestUri.getPath());
 
 		final var current = Thread.currentThread();
@@ -208,11 +234,18 @@ class ContextFilter extends Filter {
 			current.setContextClassLoader(webContext.getLoader());
 			CONTEXT.set(webContext);
 
+			// TODO: create response wrapper
+			// TODO: override streams
+			
 			IuException.checked(IOException.class,
 					() -> IuLogContext.follow(new HttpExchangeLogContext(exchange), requestUri.toString(), () -> {
+						LOG.log(Level.FINE, () -> "Incoming Web Request " + describeRequest(exchange));
 						chain.doFilter(exchange);
 						return null;
 					}));
+			
+			// TODO: finish response wrapper
+			
 		} catch (Throwable e) {
 			handleError(e, exchange);
 		} finally {

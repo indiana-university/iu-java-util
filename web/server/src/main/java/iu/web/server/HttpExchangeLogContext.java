@@ -1,11 +1,9 @@
 package iu.web.server;
 
-import java.security.Principal;
 import java.util.logging.Level;
 
 import com.sun.net.httpserver.HttpExchange;
 
-import edu.iu.IuObject;
 import edu.iu.logging.IuLogContext;
 
 /**
@@ -42,7 +40,11 @@ class HttpExchangeLogContext implements IuLogContext {
 
 	@Override
 	public String getCallerIpAddress() {
-		return exchange.getRemoteAddress().getAddress().getHostAddress();
+		final var clientIp = exchange.getRequestHeaders().get("X-Cluster-Client-Ip");
+		if (clientIp != null)
+			return clientIp.getFirst();
+		else
+			return exchange.getRemoteAddress().getAddress().getHostAddress();
 	}
 
 	@Override
@@ -52,13 +54,32 @@ class HttpExchangeLogContext implements IuLogContext {
 
 	@Override
 	public String getCallerPrincipalName() {
-		return exchange.getPrincipal().getUsername();
+		final var authSubject = AuthFilter.getAuthenticatedSubject();
+		if (authSubject == null)
+			return null;
+
+		final var firstPrincipal = authSubject.getPrincipals().stream().findFirst();
+		if (firstPrincipal.isEmpty())
+			return null;
+
+		return firstPrincipal.get().getName();
 	}
 
 	@Override
 	public String getImpersonatedPrincipalName() {
-		return IuObject.convert((Principal) exchange.getAttribute("iu.web.server.impersonatedPrincipal"),
-				Principal::getName);
+		final var authSubject = AuthFilter.getAuthenticatedSubject();
+		if (authSubject == null)
+			return null;
+
+		final var principalIterator = authSubject.getPrincipals().iterator();
+		if (!principalIterator.hasNext())
+			return null;
+
+		principalIterator.next(); // skip first principal
+		if (!principalIterator.hasNext())
+			return null;
+
+		return principalIterator.next().getName();
 	}
 
 }

@@ -6,9 +6,8 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.logging.Logger;
 
-import com.sun.net.httpserver.Authenticator;
-
 import edu.iu.UnsafeRunnable;
+import edu.iu.web.IuWebAuthenticator;
 import edu.iu.web.IuWebContext;
 import iu.web.server.IuHttpListener;
 import jakarta.annotation.Priority;
@@ -30,13 +29,15 @@ public final class IuHttpServer implements UnsafeRunnable, AutoCloseable {
 	@Resource
 	private int port = 8780;
 	@Resource
+	private URI[] allowedExternalUris = new URI[0];
+	@Resource
 	private int threads = 100;
 	@Resource
 	private int backlog;
 	@Resource
 	private Duration stopDelay = Duration.ofSeconds(15L);
 	@Resource
-	private Authenticator authenticator;
+	private IuWebAuthenticator iuWebAuthenticator;
 	@Resource
 	private Iterable<IuWebContext> iuWebContext = Collections.emptySet();
 
@@ -56,8 +57,8 @@ public final class IuHttpServer implements UnsafeRunnable, AutoCloseable {
 
 		LOG.config(() -> "starting " + this);
 
-		try (final var listener = IuHttpListener.create(externalUri, address, authenticator, iuWebContext, threads, backlog,
-				(int) stopDelay.toSeconds())) {
+		try (final var listener = IuHttpListener.create(externalUri, address, allowedExternalUris, iuWebAuthenticator,
+				iuWebContext, threads, backlog, (int) stopDelay.toSeconds())) {
 			started = true;
 			setOnline(true);
 			LOG.fine(() -> "started " + this + "; " + listener);
