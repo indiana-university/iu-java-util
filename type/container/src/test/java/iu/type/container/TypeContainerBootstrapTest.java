@@ -50,9 +50,11 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Queue;
 import java.util.ServiceLoader;
 import java.util.jar.Attributes.Name;
 import java.util.jar.JarEntry;
@@ -607,7 +609,7 @@ public class TypeContainerBootstrapTest extends TypeContainerTestCase {
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testResolveResource() {
-		Map<IuResourceKey<?>, IuResource<?>> boundResources = new LinkedHashMap<>();
+		Map<IuResourceKey<?>, Queue<IuResource<?>>> boundResources = new LinkedHashMap<>();
 		Map<IuType<?, ?>, Object> refInstance = new LinkedHashMap<>();
 		Map<IuComponent, IuEnvironment> envByComp = new LinkedHashMap<>();
 
@@ -621,10 +623,102 @@ public class TypeContainerBootstrapTest extends TypeContainerTestCase {
 		when(resourceRef.name()).thenReturn(name);
 		when(resourceRef.type()).thenReturn(IuType.of(String.class));
 		final var key = IuResourceKey.from(resourceRef);
-		boundResources.put(key, resource);
+
+		final Queue<IuResource<?>> resourceQueue = new ArrayDeque<>();
+		resourceQueue.offer(resource);
+		boundResources.put(key, resourceQueue);
 
 		assertSame(resource, TypeContainerBootstrap.resolveResource(boundResources, refInstance, envByComp, component,
 				resourceRef, key));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testResolveMultipleResourceError() {
+		Map<IuResourceKey<?>, Queue<IuResource<?>>> boundResources = new LinkedHashMap<>();
+		Map<IuType<?, ?>, Object> refInstance = new LinkedHashMap<>();
+		Map<IuComponent, IuEnvironment> envByComp = new LinkedHashMap<>();
+
+		final var component = mock(IuComponent.class);
+		final var env = mock(IuEnvironment.class);
+		envByComp.put(component, env);
+
+		class ItemType {
+		}
+		final var itemType = mock(IuType.class);
+		when(itemType.erasedClass()).thenReturn(ItemType.class);
+
+		final var type = mock(IuType.class);
+		when(type.erasedClass()).thenReturn(Iterable.class);
+		when(type.typeParameter("T")).thenReturn(itemType);
+		
+		final var name = IdGenerator.generateId();
+		final var resourceRef = mock(IuResourceReference.class);
+		when(resourceRef.name()).thenReturn(name);
+		when(resourceRef.type()).thenReturn(type);
+		final var key = IuResourceKey.from(resourceRef);
+
+		class ResourceType {
+		}
+		final var resourceType = mock(IuType.class);
+		when(resourceType.erasedClass()).thenReturn(ResourceType.class);
+		final Queue<IuResource<?>> resourceQueue = new ArrayDeque<>();
+		final var resource = mock(IuResource.class);
+		when(resource.type()).thenReturn(resourceType);
+		resourceQueue.offer(resource);
+		final var resource2 = mock(IuResource.class);
+		when(resource2.type()).thenReturn(resourceType);
+		resourceQueue.offer(resource2);
+		boundResources.put(key, resourceQueue);
+
+		final var error = assertThrows(IllegalStateException.class, () -> TypeContainerBootstrap
+				.resolveResource(boundResources, refInstance, envByComp, component, resourceRef, key));
+		assertEquals("Multiple resources defined matching " + resourceRef + " [" + resource + ", " + resource2 + "]",
+				error.getMessage());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testResolveCompoundResource() {
+		Map<IuResourceKey<?>, Queue<IuResource<?>>> boundResources = new LinkedHashMap<>();
+		Map<IuType<?, ?>, Object> refInstance = new LinkedHashMap<>();
+		Map<IuComponent, IuEnvironment> envByComp = new LinkedHashMap<>();
+
+		final var component = mock(IuComponent.class);
+		final var env = mock(IuEnvironment.class);
+		envByComp.put(component, env);
+
+		final var name = IdGenerator.generateId();
+		final var resourceRef = mock(IuResourceReference.class);
+		when(resourceRef.name()).thenReturn(name);
+
+		class ItemType {
+		}
+		final var itemType = mock(IuType.class);
+		when(itemType.erasedClass()).thenReturn(ItemType.class);
+
+		final var type = mock(IuType.class);
+		when(type.erasedClass()).thenReturn(Iterable.class);
+		when(type.typeParameter("T")).thenReturn(itemType);
+		when(resourceRef.type()).thenReturn(type);
+		final var key = IuResourceKey.from(resourceRef);
+
+		class ResourceType extends ItemType {
+		}
+		final var resourceType = mock(IuType.class);
+		when(resourceType.erasedClass()).thenReturn(ResourceType.class);
+
+		final Queue<IuResource<?>> resourceQueue = new ArrayDeque<>();
+		final var resource = mock(IuResource.class);
+		when(resource.type()).thenReturn(resourceType);
+		resourceQueue.offer(resource);
+		final var resource2 = mock(IuResource.class);
+		when(resource2.type()).thenReturn(itemType);
+		resourceQueue.offer(resource2);
+		boundResources.put(key, resourceQueue);
+
+		assertInstanceOf(CompoundResource.class, TypeContainerBootstrap.resolveResource(boundResources, refInstance,
+				envByComp, component, resourceRef, key));
 	}
 
 	static class ResolvedResource {
@@ -635,7 +729,7 @@ public class TypeContainerBootstrapTest extends TypeContainerTestCase {
 	public void testResolveEnvResource() {
 		getClass().getModule().addOpens(getClass().getPackageName(), IuTypeBundle.getModule());
 
-		Map<IuResourceKey<?>, IuResource<?>> boundResources = new LinkedHashMap<>();
+		Map<IuResourceKey<?>, Queue<IuResource<?>>> boundResources = new LinkedHashMap<>();
 		Map<IuType<?, ?>, Object> refInstance = new LinkedHashMap<>();
 		Map<IuComponent, IuEnvironment> envByComp = new LinkedHashMap<>();
 
@@ -676,7 +770,7 @@ public class TypeContainerBootstrapTest extends TypeContainerTestCase {
 	public void testResolveCorruptResource() {
 		getClass().getModule().addOpens(getClass().getPackageName(), IuTypeBundle.getModule());
 
-		Map<IuResourceKey<?>, IuResource<?>> boundResources = new LinkedHashMap<>();
+		Map<IuResourceKey<?>, Queue<IuResource<?>>> boundResources = new LinkedHashMap<>();
 		Map<IuType<?, ?>, Object> refInstance = new LinkedHashMap<>();
 		Map<IuComponent, IuEnvironment> envByComp = new LinkedHashMap<>();
 

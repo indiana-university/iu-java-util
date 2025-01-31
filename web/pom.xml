@@ -22,6 +22,7 @@
 				<activeByDefault>true</activeByDefault>
 			</activation>
 			<modules>
+				<module>api</module>
 				<module>server</module>
 			</modules>
 		</profile>

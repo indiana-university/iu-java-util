@@ -41,12 +41,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLDecoder;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.zip.Inflater;
+import java.util.zip.InflaterInputStream;
 
 import org.junit.jupiter.api.Test;
 
@@ -215,7 +220,7 @@ public class IuWebUtilsTest {
 	public void testVisibleAsciiBadChars() {
 		assertFalse(IuWebUtils.isVisibleAscii("\n", 1));
 	}
-	
+
 	@Test
 	public void testVisibleAsciiSuccess() {
 		final var b = new byte[32];
@@ -477,6 +482,149 @@ public class IuWebUtilsTest {
 		assertThrows(IllegalArgumentException.class, () -> IuWebUtils.validateUserAgent("foobar/"));
 		assertThrows(IllegalArgumentException.class, () -> IuWebUtils.validateUserAgent("foo(bar)"));
 		assertThrows(IllegalArgumentException.class, () -> IuWebUtils.validateUserAgent("foo\t\f(bar)"));
+	}
+
+	@Test
+	public void testCookieOctet() {
+		assertFalse(IuWebUtils.cookieOctet(' '));
+		assertTrue(IuWebUtils.cookieOctet('!'));
+		assertFalse(IuWebUtils.cookieOctet('\"'));
+		assertTrue(IuWebUtils.cookieOctet('#'));
+		assertFalse(IuWebUtils.cookieOctet(','));
+		assertTrue(IuWebUtils.cookieOctet('-'));
+		assertFalse(IuWebUtils.cookieOctet(';'));
+		assertTrue(IuWebUtils.cookieOctet('<'));
+		assertFalse(IuWebUtils.cookieOctet('\\'));
+		assertTrue(IuWebUtils.cookieOctet(']'));
+		assertFalse(IuWebUtils.cookieOctet((char) 0x7f));
+	}
+
+	@Test
+	public void testCookieValue() {
+		final var value = IdGenerator.generateId();
+		assertEquals(0, IuWebUtils.cookieValue("", 0));
+		assertEquals(value.length(), IuWebUtils.cookieValue(value, 0));
+		assertEquals(value.length(), IuWebUtils.cookieValue(value + ";", 0));
+		assertEquals("unterminated '\"' at 1",
+				assertThrows(IllegalArgumentException.class, () -> IuWebUtils.cookieValue("\"", 0)).getMessage());
+		assertEquals("unterminated '\"' at 33",
+				assertThrows(IllegalArgumentException.class, () -> IuWebUtils.cookieValue("\"" + value, 0))
+						.getMessage());
+		assertEquals("unterminated '\"' at 33",
+				assertThrows(IllegalArgumentException.class, () -> IuWebUtils.cookieValue("\"" + value + ';', 0))
+						.getMessage());
+		assertEquals(value.length() + 2, IuWebUtils.cookieValue("\"" + value + "\"", 0));
+		assertEquals(value.length() + 4, IuWebUtils.cookieValue("\"!" + value + "+\"", 0));
+	}
+
+	@Test
+	public void testCookieHeaderInvalidName() {
+		final var name = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var cookies = IuWebUtils.parseCookieHeader("[" + name + "]=" + value);
+		final var cookieIterator = cookies.iterator();
+		assertTrue(cookieIterator.hasNext());
+		final var error = assertThrows(IllegalArgumentException.class, cookieIterator::next);
+		assertEquals("invalid cookie-name at 0", error.getMessage());
+	}
+
+	@Test
+	public void testCookieHeaderMissingEquals() {
+		final var name = IdGenerator.generateId();
+		final var cookies = IuWebUtils.parseCookieHeader(name);
+		final var cookieIterator = cookies.iterator();
+		assertTrue(cookieIterator.hasNext());
+		final var error = assertThrows(IllegalArgumentException.class, cookieIterator::next);
+		assertEquals("expected '=' at 32", error.getMessage());
+	}
+
+	@Test
+	public void testCookieHeaderMissingEqualsOnFirstCookie() {
+		final var name = IdGenerator.generateId();
+		final var cookies = IuWebUtils.parseCookieHeader(name + "; " + IdGenerator.generateId() + "=");
+		final var cookieIterator = cookies.iterator();
+		assertTrue(cookieIterator.hasNext());
+		final var error = assertThrows(IllegalArgumentException.class, cookieIterator::next);
+		assertEquals("expected '=' at 32", error.getMessage());
+	}
+
+	@Test
+	public void testCookieHeaderSingleCookie() {
+		final var name = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var cookies = IuWebUtils.parseCookieHeader(name + "=" + value);
+		final var cookieIterator = cookies.iterator();
+		assertTrue(cookieIterator.hasNext());
+		final var cookie = cookieIterator.next();
+		assertEquals(name, cookie.getName());
+		assertEquals(value, cookie.getValue());
+		assertFalse(cookieIterator.hasNext());
+	}
+
+	@Test
+	public void testCookieHeaderBlankCookie() {
+		final var name = IdGenerator.generateId();
+		final var cookies = IuWebUtils.parseCookieHeader(name + "=");
+		final var cookieIterator = cookies.iterator();
+		assertTrue(cookieIterator.hasNext());
+		final var cookie = cookieIterator.next();
+		assertEquals(name, cookie.getName());
+		assertEquals("", cookie.getValue());
+		assertFalse(cookieIterator.hasNext());
+	}
+
+	@Test
+	public void testCookieHeaderQuotedCookie() {
+		final var name = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var cookies = IuWebUtils.parseCookieHeader(name + "=\"" + value + "\"");
+		final var cookieIterator = cookies.iterator();
+		assertTrue(cookieIterator.hasNext());
+		final var cookie = cookieIterator.next();
+		assertEquals(name, cookie.getName());
+		assertEquals(value, cookie.getValue());
+		assertFalse(cookieIterator.hasNext());
+	}
+
+	@Test
+	public void testCookieHeaderMultipleCookies() {
+		final var name = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var name2 = IdGenerator.generateId();
+		final var value2 = IdGenerator.generateId();
+		final var cookies = IuWebUtils.parseCookieHeader(name + "=" + value + "; " + name2 + "=" + value2);
+		final var cookieIterator = cookies.iterator();
+		assertTrue(cookieIterator.hasNext());
+		final var cookie = cookieIterator.next();
+		assertEquals(name, cookie.getName());
+		assertEquals(value, cookie.getValue());
+		assertTrue(cookieIterator.hasNext());
+		final var cookie2 = cookieIterator.next();
+		assertEquals(name2, cookie2.getName());
+		assertEquals(value2, cookie2.getValue());
+		assertFalse(cookieIterator.hasNext());
+	}
+
+	@Test
+	public void testCookieHeaderTrailingGarbage() {
+		final var name = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var cookies = IuWebUtils.parseCookieHeader(name + "=" + value + "  ;");
+		final var cookieIterator = cookies.iterator();
+		assertTrue(cookieIterator.hasNext());
+		final var error = assertThrows(IllegalArgumentException.class, cookieIterator::next);
+		assertEquals("expected ';' at 65", error.getMessage());
+	}
+
+	@Test
+	public void testCookieHeaderTrailingGarbage2() {
+		final var name = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var cookies = IuWebUtils.parseCookieHeader(name + "=" + value + ";;");
+		final var cookieIterator = cookies.iterator();
+		assertTrue(cookieIterator.hasNext());
+		final var error = assertThrows(IllegalArgumentException.class, cookieIterator::next);
+		assertEquals("expected ' ' at 66", error.getMessage());
 	}
 
 	private Map<String, ? extends Iterable<String>> assertQueryString(String qs) {

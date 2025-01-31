@@ -31,6 +31,7 @@
  */
 package iu.type.container;
 
+import java.util.Comparator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -134,20 +135,45 @@ class TypeContainerResource implements Comparable<TypeContainerResource> {
 			throw error;
 	}
 
-	@Override
-	public int compareTo(TypeContainerResource o) {
-		int p1 = priority;
-		int p2 = o.priority;
-
+	/**
+	 * Compares two priority values.
+	 * <ul>
+	 * <li>Non-negative values are higher priority (first in order), typically
+	 * indicating base container initialization resources.</li>
+	 * <li>Negative values are lower priority (last in order), ordered by absolute
+	 * value (-1 before -2), typically -1 through -5000 are used for application
+	 * initialization resources, and below -5000 for shutdown resources.</li>
+	 * </ul>
+	 * 
+	 * <p>
+	 * Resources that block awaiting a shutdown signal SHOULD use priority -5000.
+	 * </p>
+	 * 
+	 * @param p1 a priority value
+	 * @param p2 another priority valued
+	 * @return result consistent with {@link Comparator#compare(Object, Object)}
+	 */
+	static int comparePriority(int p1, int p2) {
 		if (p1 == p2)
-			return Integer.compare(Math.abs(id), Math.abs(o.id));
-
+			return 0;
 		if (p1 >= 0 && p2 < 0)
 			return -1;
 		if (p1 < 0 && p2 >= 0)
 			return 1;
 
 		return Integer.compare(Math.abs(p1), Math.abs(p2));
+
+	}
+
+	@Override
+	public int compareTo(TypeContainerResource o) {
+		int p1 = priority;
+		int p2 = o.priority;
+		final var rv = comparePriority(p1, p2);
+		if (rv == 0)
+			return Integer.compare(id, o.id);
+		else
+			return rv;
 	}
 
 	@Override

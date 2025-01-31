@@ -142,22 +142,25 @@ public class TypeContainerResourceTest extends TypeContainerTestCase {
 	@Test
 	public void testCompareToSamePriority() {
 		class A {
+			// priority == 0 -> instance creation order
 		}
 		final var a = new A();
 		final var component = mock(IuComponent.class);
 		final var aResource = mock(IuResource.class);
 		when(aResource.get()).thenReturn(a);
 		when(aResource.type()).thenReturn(IuType.of(A.class));
-		final var acr = new TypeContainerResource(aResource, component);
 
+		final var acr = new TypeContainerResource(aResource, component);
 		final var bcr = new TypeContainerResource(aResource, component);
 		assertEquals(-1, acr.compareTo(bcr));
 		assertEquals(1, bcr.compareTo(acr));
 	}
 
 	@Test
-	public void testCompareToPositiveHigh() {
+	public void testCompareToNonNegativeHigh() {
 		class A {
+			// non-negative n => first (higher priority)
+			// priority == 0 < -1
 		}
 		final var component = mock(IuComponent.class);
 		final var aResource = mock(IuResource.class);
@@ -169,27 +172,29 @@ public class TypeContainerResourceTest extends TypeContainerTestCase {
 		final var bResource = mock(IuResource.class);
 		when(bResource.get()).thenReturn(new A());
 		when(bResource.type()).thenReturn(IuType.of(A.class));
-		when(bResource.priority()).thenReturn(1);
+		when(bResource.priority()).thenReturn(0);
 		final var bcr = new TypeContainerResource(bResource, component);
 		assertEquals(1, acr.compareTo(bcr));
 		assertEquals(-1, bcr.compareTo(acr));
 	}
 
 	@Test
-	public void testCompareToBothPositive() {
+	public void testCompareToBothNonNegative() {
 		class A {
+			// lower abs(n) => first (higher priority)
+			// priority == 0 < 1
 		}
 		final var component = mock(IuComponent.class);
 		final var aResource = mock(IuResource.class);
 		when(aResource.get()).thenReturn(new A());
 		when(aResource.type()).thenReturn(IuType.of(A.class));
-		when(aResource.priority()).thenReturn(2);
+		when(aResource.priority()).thenReturn(1);
 		final var acr = new TypeContainerResource(aResource, component);
 
 		final var bResource = mock(IuResource.class);
 		when(bResource.get()).thenReturn(new A());
 		when(bResource.type()).thenReturn(IuType.of(A.class));
-		when(bResource.priority()).thenReturn(1);
+		when(bResource.priority()).thenReturn(0);
 		final var bcr = new TypeContainerResource(bResource, component);
 		assertEquals(1, acr.compareTo(bcr));
 		assertEquals(-1, bcr.compareTo(acr));
@@ -198,6 +203,8 @@ public class TypeContainerResourceTest extends TypeContainerTestCase {
 	@Test
 	public void testCompareToBothNegative() {
 		class A {
+			// lower abs(n) => first (higher priority)
+			// priority == -1 < -2
 		}
 		final var component = mock(IuComponent.class);
 		final var aResource = mock(IuResource.class);

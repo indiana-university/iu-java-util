@@ -31,6 +31,7 @@
  */
 package edu.iu;
 
+import java.net.HttpCookie;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URLDecoder;
@@ -746,6 +747,141 @@ public final class IuWebUtils {
 		}
 
 		return parsedHeader;
+	}
+
+	/**
+	 * cookie-octet = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E (US-ASCII
+	 * characters excluding CTLs, whitespace, DQUOTE, comma, semicolon, and
+	 * backslash)
+	 * 
+	 * @param c character
+	 * @return true of the character is in the cookie-octet character set.
+	 * @see <a href=
+	 *      "https://datatracker.ietf.org/doc/html/rfc6265#section-4.1">RFC-6265
+	 *      HTTP State Management, Section 4.1</a>
+	 */
+	static boolean cookieOctet(char c) {
+		return c == 0x21 // '!'
+				|| (c >= 0x23 // '#'-'+'
+						&& c <= 0x2b) //
+				|| (c >= 0x2d // '-'-':'
+						&& c <= 0x3a) //
+				|| (c >= 0x3c // '<'-'['
+						&& c <= 0x5b) //
+				|| (c >= 0x5d // ']'-'~'
+						&& c <= 0x7e);
+	}
+
+	/**
+	 * cookie-value = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )
+	 * <p>
+	 * cookie-octet = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E (US-ASCII
+	 * characters excluding CTLs, whitespace, DQUOTE, comma, semicolon, and
+	 * backslash)
+	 * </p>
+	 * 
+	 * @param cookieHeaderValue Cookie header value
+	 * @param pos               position at start of the cookie-value token
+	 * 
+	 * @return end position of the cookie value
+	 * @see <a href=
+	 *      "https://datatracker.ietf.org/doc/html/rfc6265#section-4.1">RFC-6265
+	 *      HTTP State Management, Section 4.1</a>
+	 */
+	static int cookieValue(String cookieHeaderValue, int pos) {
+		final var len = cookieHeaderValue.length();
+		if (pos >= len)
+			return pos;
+
+		var c = cookieHeaderValue.charAt(pos);
+
+		final boolean quoted = c == DQUOTE;
+		if (quoted) {
+			pos++;
+			if (pos >= len)
+				throw new IllegalArgumentException("unterminated '\"' at " + pos);
+			c = cookieHeaderValue.charAt(pos);
+		}
+
+		while (pos < len //
+				&& cookieOctet(c)) {
+			pos++;
+			if (pos < len)
+				c = cookieHeaderValue.charAt(pos);
+		}
+
+		if (quoted)
+			if (pos >= len //
+					|| cookieHeaderValue.charAt(pos) != DQUOTE)
+				throw new IllegalArgumentException("unterminated '\"' at " + pos);
+			else
+				return pos + 1;
+		else
+			return pos;
+	}
+
+	/**
+	 * Parses the cookie request header, returning an {@link IuHttpCookie} for each
+	 * cookie sent with the request.
+	 * 
+	 * @param cookieHeaderValue {@code Cookie:} header value. This value MUST match
+	 *                          the syntax defined for {@code cookie-string}
+	 *                          <a href=
+	 *                          "https://datatracker.ietf.org/doc/html/rfc6265#section-4.2.1">RFC-6265
+	 *                          HTTP State Management, Section 4.2.1</a>
+	 * @return Iterable of parsed cookies
+	 */
+	public static Iterable<HttpCookie> parseCookieHeader(String cookieHeaderValue) {
+		final var trimmedCookieHeaderValue = cookieHeaderValue.trim();
+		return IuIterable.of(() -> new Iterator<HttpCookie>() {
+			private int pos = 0;
+
+			@Override
+			public boolean hasNext() {
+				return pos < trimmedCookieHeaderValue.length();
+			}
+
+			@Override
+			public HttpCookie next() {
+				// cookie-header = "Cookie:" OWS cookie-string OWS
+				// cookie-string = cookie-pair *( ";" SP cookie-pair )
+
+				// cookie-pair = cookie-name "=" cookie-value
+				// cookie-name = token
+				// cookie-value = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )
+				// cookie-octet = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E
+
+				final var endOfCookieName = token(trimmedCookieHeaderValue, pos);
+				if (endOfCookieName == pos)
+					throw new IllegalArgumentException("invalid cookie-name at " + pos);
+
+				if (endOfCookieName >= trimmedCookieHeaderValue.length() //
+						|| trimmedCookieHeaderValue.charAt(endOfCookieName) != '=')
+					throw new IllegalArgumentException("expected '=' at " + endOfCookieName);
+
+				final var cookieName = trimmedCookieHeaderValue.substring(pos, endOfCookieName);
+				pos = endOfCookieName + 1;
+
+				final String cookieValue;
+				final var startOfCookieValue = pos;
+				pos = cookieValue(trimmedCookieHeaderValue, startOfCookieValue);
+				if (pos == startOfCookieValue)
+					cookieValue = "";
+				else if (trimmedCookieHeaderValue.charAt(pos - 1) == DQUOTE)
+					cookieValue = trimmedCookieHeaderValue.substring(startOfCookieValue + 1, pos - 1);
+				else
+					cookieValue = trimmedCookieHeaderValue.substring(startOfCookieValue, pos);
+
+				if (pos + 1 < trimmedCookieHeaderValue.length()) {
+					if (trimmedCookieHeaderValue.charAt(pos++) != ';')
+						throw new IllegalArgumentException("expected ';' at " + (pos - 1));
+					if (trimmedCookieHeaderValue.charAt(pos++) != SP)
+						throw new IllegalArgumentException("expected ' ' at " + (pos - 1));
+				}
+
+				return new HttpCookie(cookieName, cookieValue);
+			}
+		});
 	}
 
 	/**

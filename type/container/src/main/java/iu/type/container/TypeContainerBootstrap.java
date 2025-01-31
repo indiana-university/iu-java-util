@@ -43,7 +43,6 @@ import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.ServiceLoader;
@@ -181,7 +180,7 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 							if (pendingExport != null)
 								baseInit.controller.addExports(pendingExport.module, pendingExport.exports.source(),
 										module);
-							
+
 							if (support != null)
 								c.addReads(module, support.getUnnamedModule());
 						}
@@ -289,15 +288,18 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	static IuResource resolveResource( //
-			Map<IuResourceKey<?>, IuResource<?>> boundResources, //
+			Map<IuResourceKey<?>, Queue<IuResource<?>>> boundResources, //
 			Map<IuType<?, ?>, Object> refInstance, //
 			Map<IuComponent, IuEnvironment> envByComp, //
 			IuComponent component, //
 			IuResourceReference<?, ?> resourceRef, //
 			IuResourceKey<?> key) {
-		IuResource<?> resource = boundResources.get(key);
 
-		if (resource == null) {
+		final var name = resourceRef.name();
+		final var type = resourceRef.type();
+
+		final Iterable<IuResource<?>> resources = boundResources.get(key);
+		if (resources == null) {
 			final var referrerType = resourceRef.referrerType();
 
 			var instance = refInstance.get(referrerType);
@@ -311,13 +313,21 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 					throw npe;
 				}
 
-			final var name = resourceRef.name();
-			final var type = resourceRef.type();
 			final var defaultValue = ((IuResourceReference) resourceRef).value(instance);
-			resource = new EnvironmentResource(envByComp.get(component), name, type, defaultValue);
+			return new EnvironmentResource(envByComp.get(component), name, type, defaultValue);
 		}
 
-		return resource;
+		final var erased = type.erasedClass();
+		final var resourceIterator = resources.iterator();
+		final var firstResource = resourceIterator.next();
+		if (erased == Iterable.class //
+				&& type.typeParameter("T").erasedClass().isAssignableFrom(firstResource.type().erasedClass()))
+			return new CompoundResource(name, type, resources);
+
+		if (resourceIterator.hasNext())
+			throw new IllegalStateException("Multiple resources defined matching " + resourceRef + " " + resources);
+
+		return firstResource;
 	}
 
 	/**
@@ -330,7 +340,7 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 	@SuppressWarnings("unchecked")
 	static void initializeComponents(Iterable<IuComponent> componentsToInitialize) throws Throwable {
 		final Map<IuComponent, IuEnvironment> envByComp = new LinkedHashMap<>();
-		final Map<IuResourceKey<?>, IuResource<?>> boundResources = new LinkedHashMap<>();
+		final Map<IuResourceKey<?>, Queue<IuResource<?>>> boundResources = new LinkedHashMap<>();
 		final List<TypeContainerResource> containerResources = new ArrayList<>();
 
 		for (final var component : componentsToInitialize) {
@@ -339,8 +349,9 @@ public class TypeContainerBootstrap implements UnsafeRunnable, AutoCloseable {
 			LOG.config("environment " + env + "; " + component);
 
 			for (final var resource : component.resources()) {
-				IuObject.require(boundResources.put(IuResourceKey.from(resource), resource), Objects::isNull,
-						"already bound " + resource);
+				final var key = IuResourceKey.from(resource);
+				final Queue<IuResource<?>> resources = boundResources.computeIfAbsent(key, a -> new ArrayDeque<>());
+				resources.offer(resource);
 				containerResources.add(new TypeContainerResource(resource, component));
 				LOG.fine(() -> "after create " + resource);
 			}
