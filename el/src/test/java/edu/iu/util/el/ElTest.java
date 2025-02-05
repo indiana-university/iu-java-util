@@ -1,5 +1,6 @@
 package edu.iu.util.el;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -23,8 +24,11 @@ public class ElTest {
 	public void testEmptyExpression() {
 		assertNull(El.eval(null));
 		assertNull(El.eval(""));
-		assertEquals("Non-atmoic result", assertThrows(IllegalStateException.class, () -> El.eval(JsonValue.EMPTY_JSON_OBJECT, null)).getMessage());
-		assertEquals("Non-atmoic result", assertThrows(IllegalStateException.class, () -> El.eval(JsonValue.EMPTY_JSON_OBJECT, "")).getMessage());
+		assertEquals("Non-atmoic result",
+				assertThrows(IllegalStateException.class, () -> El.eval(JsonValue.EMPTY_JSON_OBJECT, null))
+						.getMessage());
+		assertEquals("Non-atmoic result",
+				assertThrows(IllegalStateException.class, () -> El.eval(JsonValue.EMPTY_JSON_OBJECT, "")).getMessage());
 	}
 
 	@Test
@@ -39,13 +43,16 @@ public class ElTest {
 		assertEquals("", IuJsonAdapter.of(String.class).fromJson(El.eval("'* a comment")));
 		assertEquals("* not a comment", IuJsonAdapter.of(String.class).fromJson(El.eval("'\\* not a comment")));
 		assertEquals("Some stuff", IuJsonAdapter.of(String.class).fromJson(El.eval("'Some stuff* with a comment")));
-		assertEquals("Some stuff* with a comment", IuJsonAdapter.of(String.class).fromJson(El.eval("'Some stuff\\* with a comment")));
+		assertEquals("Some stuff* with a comment",
+				IuJsonAdapter.of(String.class).fromJson(El.eval("'Some stuff\\* with a comment")));
 	}
 
 	@Test
 	public void testRaw() {
-		assertEquals("&lt;b&gt;Hello&lt;/b&gt; &quot;World&quot;", IuJsonAdapter.of(String.class).fromJson(El.eval("'<b>Hello</b> \"World\"")));
-		assertEquals("<b>Hello</b> \"World\"", IuJsonAdapter.of(String.class).fromJson(El.eval("@'<b>Hello</b> \"World\"")));
+		assertEquals("&lt;b&gt;Hello&lt;/b&gt; &quot;World&quot;",
+				IuJsonAdapter.of(String.class).fromJson(El.eval("'<b>Hello</b> \"World\"")));
+		assertEquals("<b>Hello</b> \"World\"",
+				IuJsonAdapter.of(String.class).fromJson(El.eval("@'<b>Hello</b> \"World\"")));
 	}
 
 	@Test
@@ -190,7 +197,7 @@ public class ElTest {
 //		assertEquals("bam", El.eval(tb, "$.fooMap[$.foo]"));
 //		assertEquals("bar", El.eval(tb, "$.fooMap[$.fooMap[bam]]"));
 //	}
-	
+
 	// Try this test with a JsonObject instead of ExprTestBean
 	@Test
 	public void testBean() {
@@ -207,12 +214,13 @@ public class ElTest {
 		b1.add("bam", "foo");
 		b.add("fooMap", b1);
 		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.fooMap.foo")));
-		// TODO: Is there a way to access a value of the JsonObject (equivalent to a Map) using an expression as a key?
-		// Current El doesn't like the brackets. Should it be able to interpret the brackets as a new expression?
+		// TODO: Is there a way to access a value of the JsonObject (equivalent to a
+		// Map) using an expression as a key?
+		// Current El doesn't like the brackets. Should it be able to interpret the
+		// brackets as a new expression?
 //		assertEquals("bam", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.fooMap?_.foo")));
 //		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.fooMap[$.fooMap[bam]]")));
 	}
-
 
 //	@Ignore // TODO: REMOVE or allow beans in El.eval
 //	@Test
@@ -343,6 +351,33 @@ public class ElTest {
 //		assertEquals("foo,bar,baz", El.eval(tb, "$.fooList<p.$.fool"));
 //	}
 
+// TODO: try using these tests with a JsonObject instead of ExprTestBean if it makes sense
+	// Otherwise, keep working on covering everything either in the Json test or
+	// create separate tests for each case
+//	@Ignore // TODO: REMOVE or allow beans in El.eval
+//	@Test
+//	public void testList() {
+//		ExprTestBean tb = new ExprTestBean();
+//
+//		tb.setFooList(Arrays.asList("foo", "bar", "baz"));
+//		assertEquals(tb.getFooList(), El.eval(tb, "@$.fooList"));
+//		assertEquals("[foo, bar, baz]", El.eval(tb, "$.fooList"));
+//		assertEquals("foo,bar,baz", El.eval(tb, "$.fooList<'el/-list"));
+//		assertEquals(" 0: foo\r\n 1: bar\r\n 2: baz", El.eval(tb, "$.fooList<'el/-hash"));
+//	}
+//
+//	@Ignore // TODO: REMOVE
+//	@Test
+//	public void testMap() {
+//		ExprTestBean tb = new ExprTestBean();
+//		Map<String, String> fooMap = new LinkedHashMap<>();
+//		fooMap.put("foo", "bar");
+//		fooMap.put("baz", "bif");
+//		fooMap.put("bim", "bam");
+//		tb.setFooMap(fooMap);
+//		assertEquals(" foo: bar\r\n baz: bif\r\n bim: bam", El.eval(tb, "$.fooMap<'el/-hash"));
+//	}
+//
 	@Test
 	public void testTemplateExpr() {
 		JsonObjectBuilder b = Json.createObjectBuilder();
@@ -354,7 +389,44 @@ public class ElTest {
 		b.add("fool", "el/-list");
 		assertEquals("foo,bar,baz", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.fooList<p.$.fool")));
 	}
-	
+
+	@Test
+	public void testTemplateExprWithHead() {
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		JsonArrayBuilder arr = Json.createArrayBuilder();
+		arr.add("foo");
+		arr.add("bar");
+		arr.add("baz");
+		b.add("fooList", arr);
+		b.add("fool", "el/-list-head");
+		assertEquals("0: foo, 1: bar, 2: baz",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.fooList<p.$.fool")));
+	}
+
+	@Test
+	public void testTemplateExprNoParent() {
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		b.add("fool", "el/-list");
+		final var err = assertThrows(IllegalArgumentException.class, () -> El.eval(b.build(), "p.$.fool"));
+		assertEquals("no parent context", err.getMessage());
+	}
+
+	@Test
+	public void testTemplateExprUnexpectedFirstSymbol() {
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		b.add("fool", "el/-list");
+		final var err = assertThrows(IllegalArgumentException.class, () -> El.eval(b.build(), "Z.fool"));
+		assertEquals("unexpected Z", err.getMessage());
+	}
+
+	@Test
+	public void testTemplateExprExpectedObjectOrArray() {
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		b.add("fool", "el/-list");
+		final var err = assertThrows(IllegalArgumentException.class, () -> El.eval(b.build(), "_.fool"));
+		assertEquals("expected object or array for fool", err.getMessage());
+	}
+
 	@Test
 	public void testJson() {
 		JsonObjectBuilder b = Json.createObjectBuilder();
@@ -362,29 +434,71 @@ public class ElTest {
 		b.add("baz", "bif");
 		b.add("bim", "bam");
 		final var context = b.build();
-		assertEquals("bar bif bam", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "<`{$.foo} {$.baz} {$.bim}`")));
-		assertEquals("inline template doesn't end with '`'", assertThrows(IllegalArgumentException.class, () -> El.eval(context, "<`{$.foo} {$.baz} {$.bim}")).getMessage());
-		assertEquals("inline template doesn't end with '`'", assertThrows(IllegalArgumentException.class, () -> El.eval(context, "<`")).getMessage());
+		assertEquals("bar bif bam",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "<`{$.foo} {$.baz} {$.bim}`")));
+		assertEquals("inline template doesn't end with '`'",
+				assertThrows(IllegalArgumentException.class, () -> El.eval(context, "<`{$.foo} {$.baz} {$.bim}"))
+						.getMessage());
+		assertEquals("inline template doesn't end with '`'",
+				assertThrows(IllegalArgumentException.class, () -> El.eval(context, "<`")).getMessage());
 
 		JsonObjectBuilder b1 = Json.createObjectBuilder();
 		b1.add("foo", JsonValue.TRUE);
 		b1.add("baz", JsonValue.FALSE);
 		b1.add("bim", JsonValue.NULL);
 		final var context1 = b1.build();
-		assertEquals("true false ", IuJsonAdapter.of(String.class).fromJson(El.eval(context1, "<`{$.foo} {$.baz} {$.bim}`")));
-		
+		assertEquals("true false ",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context1, "<`{$.foo} {$.baz} {$.bim}`")));
+
 		JsonObjectBuilder b2 = Json.createObjectBuilder();
 		b2.add("foo", Json.createObjectBuilder().add("bar", "baz"));
 		b2.add("baz", JsonValue.FALSE);
 		final var context2 = b2.build();
 		assertEquals("false", IuJsonAdapter.of(String.class).fromJson(El.eval(context2, "$.foo.bar?root.baz")));
-		
-		// head is useless because nowhere in the code does the value get set to true
-		
-//		JsonObjectBuilder b3 = Json.createObjectBuilder();
-//		b3.add("foo", Json.createArrayBuilder().add("bar").add("bif").add("bam"));
-//		final var context3 = b3.build();
-//		assertEquals("true", IuJsonAdapter.of(String.class).fromJson(El.eval(context3, "$.foo?head")));
+	}
+
+	@Test
+	public void testTemplateWithinTemplateWithContext() {
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		b.add("foo", Json.createObjectBuilder().add("bar", "baz").add("baz", "bar"));
+		final var context = b.build();
+		assertEquals("baz's bar",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo<`{$.bar}{<`\'s{<` {$.baz}`}`}`")));
+	}
+
+	@Test
+	public void testTemplateWithinTemplateWithinConditionalWithContext() {
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		b.add("foo", Json.createObjectBuilder().add("bar", "baz").add("baz", "bar"));
+		final var context = b.build();
+		assertEquals("baz's bar", IuJsonAdapter.of(String.class)
+				.fromJson(El.eval(context, "$.foo<`{$.bar?<`{$.bar}\'s{<` {$.baz}`}`}`")));
+	}
+
+	@Test
+	public void testEvalP() {
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		b.add("foo", Json.createObjectBuilder().add("bar", "baz").add("baz", "bar"));
+		final var context = b.build();
+		assertEquals("expected '.' after 'p'",
+				assertThrows(IllegalArgumentException.class,
+						() -> IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<`{p}`")))
+						.getMessage());
+		assertEquals("expected '.' after 'p'",
+				assertThrows(IllegalArgumentException.class,
+						() -> IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<`{p-}`")))
+						.getMessage());
+		assertEquals("unexpected \\p",
+				assertThrows(IllegalArgumentException.class,
+						() -> IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<`{\\p}`")))
+						.getMessage());
+		assertEquals("p", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<`{'p}`")));
+		assertEquals("baz", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<`{p._}`")));
+	}
+
+	@Test
+	public void testElDefault() {
+		assertDoesNotThrow(() -> new El());
 	}
 
 	@Test
@@ -396,10 +510,14 @@ public class ElTest {
 		b.add("bum", JsonValue.NULL);
 		final var context = b.build();
 		assertEquals("foo is true", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo?'foo is true")));
-		assertEquals("foo is true", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo?'foo is true!'foo is false")));
-		// TODO: if we decide JsonValue.NULL is false, this should move to testUnlessConditional
-		assertEquals("bum is true", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bum?'bum is true!'bum is false")));
-		assertEquals("bim exists", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bim?'bim exists!'bim does not exist")));
+		assertEquals("foo is true",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo?'foo is true!'foo is false")));
+		// TODO: if we decide JsonValue.NULL is false, this should move to
+		// testUnlessConditional
+		assertEquals("bum is true",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bum?'bum is true!'bum is false")));
+		assertEquals("bim exists",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bim?'bim exists!'bim does not exist")));
 		assertEquals(JsonValue.FALSE, El.eval(context, "$.baz?'baz is true"));
 		assertEquals(JsonValue.TRUE, El.eval(context, "$.foo!'foo is false"));
 		assertNull(El.eval("$?'no context"));
@@ -413,9 +531,11 @@ public class ElTest {
 		b.add("bim", "bam");
 		b.add("bum", JsonValue.NULL);
 		final var context = b.build();
-		assertEquals("baz is false", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.baz?'baz is true!'baz is false")));
+		assertEquals("baz is false",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.baz?'baz is true!'baz is false")));
 		assertEquals("baz is false", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.baz!'baz is false")));
-		assertEquals("bif is null", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bif?'bif is not null!'bif is null")));
+		assertEquals("bif is null",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bif?'bif is not null!'bif is null")));
 		assertEquals("bif is null", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bif!'bif is null")));
 	}
 
@@ -450,11 +570,15 @@ public class ElTest {
 
 		assertEquals("0123", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.string_int#00")));
 
-		assertEquals("1234567890", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bigger_int#0000000000")));
-		assertEquals("1,234,567,890", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bigger_int#0,000,000,000")));
+		assertEquals("1234567890",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bigger_int#0000000000")));
+		assertEquals("1,234,567,890",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bigger_int#0,000,000,000")));
 		assertEquals("1234567890", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bigger_int##")));
-		assertEquals("0,12,34,56,78,90", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bigger_int#0,00,00,00,00,00")));
-		assertEquals("1,234,567,890", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bigger_int####,###,###,###")));
+		assertEquals("0,12,34,56,78,90",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bigger_int#0,00,00,00,00,00")));
+		assertEquals("1,234,567,890",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bigger_int####,###,###,###")));
 
 		assertEquals("3", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.pi#0")));
 		assertEquals("3", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.pi##")));
@@ -466,10 +590,10 @@ public class ElTest {
 		assertEquals("3.141590", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.pi##.000000")));
 
 		// dates
-		
+
 		// ignored
 	}
-	
+
 	@Test
 	public void testExecutionContext() {
 		// last result
@@ -477,13 +601,12 @@ public class ElTest {
 		arr.add("foo");
 		arr.add("bar");
 		arr.add("baz");
-		
+
 		JsonObjectBuilder b = Json.createObjectBuilder();
 		b.add("arr", arr);
 		final var context = b.build();
-		
+
 		assertEquals("baz", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.arr.2?_!$.arr.1")));
 		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.arr?_.1!'arr is falsy")));
-//		assertEquals(JsonValue.FALSE, El.eval(context, "$.arr?_.3")); // out of bounds
 	}
 }

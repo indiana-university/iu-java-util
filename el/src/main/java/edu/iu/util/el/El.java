@@ -1,7 +1,6 @@
 package edu.iu.util.el;
 
 import java.text.DecimalFormat;
-import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.LinkedList;
@@ -30,17 +29,18 @@ public class El {
 		}
 	};
 
-	private static final ThreadLocal<SimpleDateFormat> DATE_FMT = new ThreadLocal<SimpleDateFormat>() {
-		@Override
-		protected SimpleDateFormat initialValue() {
-			return new SimpleDateFormat();
-		}
-	};
+//	private static final ThreadLocal<SimpleDateFormat> DATE_FMT = new ThreadLocal<SimpleDateFormat>() {
+//		@Override
+//		protected SimpleDateFormat initialValue() {
+//			return new SimpleDateFormat();
+//		}
+//	};
 
-	private static char ANY = '\0';
+	static char ANY = '\0';
 	static char ESC_TOKEN = '\\';
 	static char[] CONTROL_CHARS = new char[] { '\'', '@', '<', '`', '=', '?', '!', '&', '#', '*' };
 	static JsonString EMPTY = Json.createValue("");
+
 
 	static {
 		Arrays.sort(CONTROL_CHARS);
@@ -53,12 +53,12 @@ public class El {
 		for (int i = from; i < l; i++) {
 			char n = s.charAt(i);
 			if (depth > 0) {
-				assert i > 0 : i;
 				if (n == '`') {
 					char p = s.charAt(i - 1);
 					if (p == '<')
 						depth++;
-					else if (i + 1 == l || s.charAt(i + 1) == '}')
+					else if (i + 1 == l //
+							|| s.charAt(i + 1) == '}')
 						depth--;
 				}
 			} else if (any) {
@@ -126,7 +126,7 @@ public class El {
 
 			case '<': // template
 				String templatePathExpr = etail.substring(1);
-				JsonValue result = evalContext.getResult();// == null ? null : convertContext(evalContext.getResult());
+				JsonValue result = evalContext.getResult();
 
 				ElContext templatePathContext = new ElContext(evalContext, false, null, result, templatePathExpr);
 				templatePathContext.markAsRaw();
@@ -197,21 +197,23 @@ public class El {
 				break;
 
 			case 'p':
-				if (etail.length() > 1 && etail.charAt(1) == '.') {
-					String parentPathExpr = etail.substring(2);
-					ElContext parentContext = evalContext.getP();
-					if (parentContext == null)
-						throw new IllegalArgumentException("no parent context");
-					ElContext parentPathContext = new ElContext(parentContext, false, null, parentContext.get$(),
-							parentPathExpr);
-
-					parentPathContext.markAsRaw();
-					evalContext.setPositionAtEnd();
-
-					evalStack.push(evalContext);
-					evalStack.push(parentPathContext);
-					continue;
+				if (etail.length() < 2 //
+						|| etail.charAt(1) != '.') {
+					throw new IllegalArgumentException("expected '.' after 'p'");
 				}
+				String parentPathExpr = etail.substring(2);
+				ElContext parentContext = evalContext.getP();
+				if (parentContext == null)
+					throw new IllegalArgumentException("no parent context");
+				ElContext parentPathContext = new ElContext(parentContext, false, null, parentContext.get$(),
+						parentPathExpr);
+
+				parentPathContext.markAsRaw();
+				evalContext.setPositionAtEnd();
+
+				evalStack.push(evalContext);
+				evalStack.push(parentPathContext);
+				continue;
 			default:
 				int npos = elIndiceDe(etail, ANY, pos);
 				if (npos == -1)
@@ -268,7 +270,7 @@ public class El {
 					else if (selected instanceof JsonObject)
 						selected = selected.asJsonObject().get(pathElement);
 					else
-						throw new IllegalArgumentException("exepected object or array for " + pathElement);
+						throw new IllegalArgumentException("expected object or array for " + pathElement);
 
 					dot = nextDot;
 				}
@@ -278,9 +280,6 @@ public class El {
 				evalContext.advancePosition(npos);
 				break;
 			}
-
-			if (pos == evalContext.getPosition())
-				throw new IllegalStateException("Internal EL parser error");
 
 			evalStack.push(evalContext);
 		}
