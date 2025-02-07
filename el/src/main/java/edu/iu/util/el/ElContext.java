@@ -19,7 +19,6 @@ import edu.iu.IuStream;
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonNumber;
-import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
@@ -51,7 +50,8 @@ public class ElContext {
 		private final List<TemplateExpression> expressions;
 
 		private Template(String content) {
-			if (content == null) {
+			if (content == null //
+					|| content.isEmpty()) {
 				this.content = "";
 				this.expressions = Collections.emptyList();
 				return;
@@ -241,7 +241,8 @@ public class ElContext {
 		else if (result.equals(JsonValue.TRUE) || result.equals(JsonValue.FALSE) || (result instanceof JsonNumber))
 			resultText = result.toString();
 		// try adding this to skip to the next context if the parent is a template
-		else if (parent !=null && parent.isTemplate())
+		else if (parent != null //
+				&& parent.isTemplate())
 			return;
 		else
 			throw new IllegalStateException("Non-atmoic result");
@@ -249,7 +250,8 @@ public class ElContext {
 		if (!raw)
 			result = Json.createValue(resultText = StringEscapeUtils.escapeHtml4(resultText));
 
-		if (parent != null && parent.template)
+		if (parent != null //
+				&& parent.template)
 			if (insertPoint == -1) // template name expression
 				parent.setupTemplate(resultText, evalStack);
 			else
@@ -397,18 +399,32 @@ public class ElContext {
 	 */
 	@Override
 	public String toString() {
-		return "EL" + (expression == null ? ""
-				: " expression \"" + expression + "\" at " + position + ": \""
-						+ expression.substring(Math.max(0, position - 5), position) + "["
-						+ (position >= 0 && position < expression.length() ? expression.charAt(position) : "") + "]"
-						+ expression.substring(Math.min(expression.length(), position + 1),
-								Math.min(expression.length(), position + 6))
-						+ "\"" + (insertPoint >= 0 ? " insert at " + insertPoint : "")
-						+ (template && templatePath != null
-								? "\n   in " + templatePath
-										+ (templateBuffer == null ? "" : " = \"" + templateBuffer + "\"")
-								: "")
-						+ (parent == null ? "" : "\nParent " + parent));
+		if (expression == null)
+			return "EL";
+
+		String exprPriorToPos = expression.substring(Math.max(0, position - 5), position);
+		String exprCharAtPos = position >= 0 //
+				&& position < expression.length() //
+						? "" + expression.charAt(position) //
+						: "";
+		String exprAfterPos = expression.substring(Math.min(expression.length(), position + 1),
+				Math.min(expression.length(), position + 6));
+		String insertPointStr = insertPoint >= 0 //
+				? " insert at " + insertPoint //
+				: "";
+		String templateBufferStr = templateBuffer == null //
+				? "" //
+				: " = \"" + templateBuffer + "\"";
+		String templatePathStr = template //
+				&& templatePath != null //
+						? "\n   in " + templatePath + templateBufferStr //
+						: "";
+		String parentStr = parent == null //
+				? "" //
+				: "\nParent " + parent;
+
+		return "EL" + " expression \"" + expression + "\" at " + position + ": \"" + exprPriorToPos + "["
+				+ exprCharAtPos + "]" + exprAfterPos + "\"" + insertPointStr + templatePathStr + parentStr;
 	}
 
 }

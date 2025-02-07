@@ -41,7 +41,6 @@ public class El {
 	static char[] CONTROL_CHARS = new char[] { '\'', '@', '<', '`', '=', '?', '!', '&', '#', '*' };
 	static JsonString EMPTY = Json.createValue("");
 
-
 	static {
 		Arrays.sort(CONTROL_CHARS);
 	}

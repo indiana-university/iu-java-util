@@ -4,12 +4,20 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mockStatic;
+
+import java.io.IOException;
+import java.io.Reader;
+import java.util.logging.Level;
 
 //import java.util.logging.Logger;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.IuStream;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.test.IuTestLogger;
 import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObjectBuilder;
@@ -401,6 +409,48 @@ public class ElTest {
 		b.add("fool", "el/-list-head");
 		assertEquals("0: foo, 1: bar, 2: baz",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.fooList<p.$.fool")));
+	}
+
+	@Test
+	public void testNestedTemplateExpr() {
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		JsonObjectBuilder success = Json.createObjectBuilder().add("success", JsonValue.TRUE).add("message",
+				"success message");
+		JsonObjectBuilder failure = Json.createObjectBuilder().add("success", JsonValue.FALSE).add("message",
+				"failure message");
+		b.add("foo", Json.createObjectBuilder().add("baz", success).add("bim", failure));
+		assertEquals("Here it is a success success message!\r\n" + //
+				"Here it is a failure failure message!\r\n" + //
+				"List test-classes dir edu\nel\n\r\n" + //
+				"No resource path lists test resources bazTemplate\n-hash\nhello.txt\n-list\n-list-head\ntestTemplate\n",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.foo<'el/testTemplate")));
+	}
+
+	@Test
+	public void testTemplateExprResourceNotFound() {
+		IuTestLogger.allow("edu.iu.util.el.ElContext", Level.FINE);
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		b.add("foo", Json.createObjectBuilder().add("bar", "baz"));
+		b.add("fool", "el/-not-found");
+		final var err = assertThrows(IllegalArgumentException.class, () -> El.eval(b.build(), "$.foo<p.$.fool"));
+		assertEquals("el/-not-found", err.getMessage());
+	}
+
+	@Test
+	public void testTemplateExprReadError() {
+		try (final var mockStream = mockStatic(IuStream.class)) {
+			mockStream.when(() -> IuStream.read(any(Reader.class))).thenThrow(new IOException("test"));
+			JsonObjectBuilder b = Json.createObjectBuilder();
+			JsonArrayBuilder arr = Json.createArrayBuilder();
+			arr.add("foo");
+			arr.add("bar");
+			arr.add("baz");
+			b.add("fooList", arr);
+			b.add("fool", "el/-list");
+			assertEquals("java.io.IOException: test",
+					assertThrows(IllegalStateException.class, () -> El.eval(b.build(), "$.fooList<p.$.fool"))
+							.getMessage());
+		}
 	}
 
 	@Test
