@@ -4,9 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.ArrayDeque;
+import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.test.IuTestLogger;
 import jakarta.json.Json;
 import jakarta.json.JsonObjectBuilder;
 
@@ -179,6 +181,29 @@ public class ElContextTest {
 		final var context = b.build();
 		ElContext evalContext = new ElContext(null, false, null, context, null);
 		assertEquals("", evalContext.getExpression());
+	}
+
+	@Test
+	public void testUnclosedInlineTemplate() {
+		IuTestLogger.expect("edu.iu.util.el.ElContext", Level.FINE, "Resource `{_} (`{_}) not found");
+		JsonObjectBuilder p = Json.createObjectBuilder();
+		p.add("foo", "bar");
+		p.add("baz", "bif");
+		p.add("bim", "bam");
+		final var parentContextJson = p.build();
+		final var parentContext = new ElContext(null, false, null, parentContextJson, "$.foo<`{_}");
+		final var templateContext = new ElContext(parentContext, false, null, parentContextJson.get("foo"), "`{_}");
+		templateContext.markAsRaw();
+
+		parentContext.setPositionAtEnd();
+		parentContext.markAsTemplate();
+		ArrayDeque<ElContext> evalStack = new ArrayDeque<>();
+		evalStack.push(parentContext);
+		templateContext.setResult(Json.createValue("`{_}"));
+		templateContext.setPositionAtEnd();
+		assertEquals("`{_}",
+				assertThrows(IllegalArgumentException.class, () -> templateContext.postProcessResult(evalStack))
+						.getMessage());
 	}
 
 }

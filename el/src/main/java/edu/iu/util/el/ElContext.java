@@ -268,19 +268,18 @@ public class ElContext {
 	}
 
 	private void setupTemplate(String path, Deque<ElContext> evalStack) {
-		assert template && templatePath == null && templateBuffer == null;
-
-		String resourcePath = path == null ? "" : path;
-		boolean inline = resourcePath.length() > 1 && resourcePath.charAt(0) == '`'
+		String resourcePath = path;
+		boolean inline = resourcePath.length() > 1 //
+				&& resourcePath.charAt(0) == '`' //
 				&& resourcePath.charAt(resourcePath.length() - 1) == '`';
 		if (!inline) {
 			int ioc = resourcePath.indexOf(':');
-			if (ioc == -1 && (resourcePath.isEmpty() || resourcePath.charAt(0) != '/')) {
-				String parentDir;
+			if (ioc == -1 && //
+					(resourcePath.isEmpty() //
+							|| resourcePath.charAt(0) != '/')) {
+				String parentDir = "";
 				String parentPath = parent == null ? null : parent.templatePath;
-				if (parentPath == null)
-					parentDir = "";
-				else {
+				if (parentPath != null) {
 					int lioc = parentPath.indexOf(':') + 1;
 					int lios = parentPath.lastIndexOf('/');
 					parentDir = parentPath.substring(0, lios < lioc ? lioc : lios);
@@ -288,12 +287,14 @@ public class ElContext {
 
 				if (resourcePath.isEmpty())
 					resourcePath = parentDir;
-				else if (parentDir != null && !parentDir.isEmpty())
+				else if (!parentDir.isEmpty())
 					resourcePath = (parentDir + '/' + resourcePath).intern();
 			}
 
 			// Strip leading slash from resource path
-			if (resourcePath.isEmpty() || (resourcePath.length() == 1 && resourcePath.charAt(0) == '/'))
+			if (resourcePath.isEmpty() //
+					|| (resourcePath.length() == 1 //
+							&& resourcePath.charAt(0) == '/'))
 				resourcePath = "";
 			else if (resourcePath.charAt(0) == '/')
 				resourcePath = resourcePath.substring(1);

@@ -422,8 +422,19 @@ public class ElTest {
 		assertEquals("Here it is a success success message!\r\n" + //
 				"Here it is a failure failure message!\r\n" + //
 				"List test-classes dir edu\nel\n\r\n" + //
-				"No resource path lists test resources bazTemplate\n-hash\nhello.txt\n-list\n-list-head\ntestTemplate\n",
+				"No resource path lists test resources " + //
+				"bazTemplate\n-hash\nhello.txt\n-list\n-list-head\nparentTemplate\ntestTemplate\n",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.foo<'el/testTemplate")));
+	}
+
+	@Test
+	public void testTemplateEmptyResource() {
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		b.add("foo", Json.createObjectBuilder().add("bar", "baz"));
+		final var context = b.build();
+		assertEquals("edu\nel\n", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<'")));
+		assertEquals("edu\nel\n", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<'/")));
+		assertEquals("edu\nel\n", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<'.")));
 	}
 
 	@Test
@@ -434,6 +445,41 @@ public class ElTest {
 		b.add("fool", "el/-not-found");
 		final var err = assertThrows(IllegalArgumentException.class, () -> El.eval(b.build(), "$.foo<p.$.fool"));
 		assertEquals("el/-not-found", err.getMessage());
+	}
+
+	@Test
+	public void testTemplateExprParentDirWithColon() {
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		JsonObjectBuilder success = Json.createObjectBuilder().add("success", JsonValue.TRUE).add("message",
+				"success message");
+		JsonObjectBuilder failure = Json.createObjectBuilder().add("success", JsonValue.FALSE).add("message",
+				"failure message");
+		b.add("foo", Json.createObjectBuilder().add("bar", success).add("bim", failure));
+
+		// Set temporary custom class loader to return a valid resource from the parent
+		// templatePath
+		final var currentClassLoader = Thread.currentThread().getContextClassLoader();
+		try {
+			Thread.currentThread().setContextClassLoader(new ClassLoader() {
+				@Override
+				public java.net.URL getResource(String name) {
+					if (name.startsWith("C:\\\\"))
+						return getClass().getResource("/el/" + name.substring(4));
+
+					if (name.startsWith("C:/"))
+						return getClass().getResource("/el/" + name.substring(3));
+
+					return getClass().getResource("/" + name);
+				}
+			});
+
+			assertEquals("What do we have here? a success success message!",
+					IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.foo<'C:\\\\parentTemplate")));
+
+		} finally {
+			Thread.currentThread().setContextClassLoader(currentClassLoader);
+		}
+
 	}
 
 	@Test
