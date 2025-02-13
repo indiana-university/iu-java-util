@@ -23,7 +23,7 @@ import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
 /**
- * 
+ * Evaluation context for EL expressions.
  */
 public class ElContext {
 
@@ -148,6 +148,16 @@ public class ElContext {
 	private StringBuilder templateBuffer;
 	private int insertPoint = -1;
 
+	/**
+	 * Constructs a new evaluation context.
+	 * 
+	 * @param parent     the parent context
+	 * @param head       true if this is the first element in a list, false
+	 *                   otherwise
+	 * @param index      the index JSON value
+	 * @param context    the context JSON value
+	 * @param expression the expression to evaluate
+	 */
 	ElContext(ElContext parent, boolean head, JsonValue index, JsonValue context, String expression) {
 		this.parent = parent;
 		this.head = head;
@@ -166,6 +176,12 @@ public class ElContext {
 		setResult(context);
 	}
 
+	/**
+	 * Constructs a new evaluation context.
+	 * 
+	 * @param replace    the context to base this context on
+	 * @param expression the expression to evaluate
+	 */
 	ElContext(ElContext replace, String expression) {
 		this.parent = replace.parent;
 		this.head = replace.head;
@@ -180,34 +196,71 @@ public class ElContext {
 		setResult(context);
 	}
 
+	/**
+	 * Check if the context is empty.
+	 * 
+	 * @return true if the context is empty, false otherwise
+	 */
 	boolean isEmpty() {
 		return expression == null || position == -1 || position >= expression.length();
 	}
 
+	/**
+	 * Get the current position in the expression.
+	 * 
+	 * @return the position
+	 */
 	int getPosition() {
 		return position;
 	}
 
+	/**
+	 * Advance the position by a given amount.
+	 * 
+	 * @param position the position to set
+	 */
 	void advancePosition(int position) {
 		this.position += position;
 	}
 
+	/**
+	 * Set the position to the end of the expression
+	 */
 	void setPositionAtEnd() {
 		this.position = expression.length();
 	}
 
+	/**
+	 * Check if the context is raw.
+	 * 
+	 * @return true if the context is raw, false otherwise
+	 */
 	boolean isRaw() {
 		return raw;
 	}
 
+	/**
+	 * Mark the context as raw.
+	 */
 	void markAsRaw() {
 		this.raw = true;
 	}
 
+	/**
+	 * Get the expression to evaluate.
+	 * 
+	 * @return the expression
+	 */
 	String getExpression() {
 		return isEmpty() ? "" : expression.substring(position);
 	}
 
+	/**
+	 * Get the result of the current context
+	 * 
+	 * @return JsonValue representation of the input expression for the current
+	 *         context
+	 */
 	JsonValue getResult() {
 		if (matchResult == null)
 			return result;
@@ -218,14 +271,30 @@ public class ElContext {
 		return matchResult.equals(result) ? JsonValue.TRUE : JsonValue.FALSE;
 	}
 
+	/**
+	 * Sets the result
+	 * 
+	 * @param result the result to set
+	 */
 	void setResult(JsonValue result) {
 		this.result = result;
 	}
 
+	/**
+	 * Sets the result of a match evaluation.
+	 * 
+	 * @param matchResult the match result
+	 */
 	void setMatchResult(JsonValue matchResult) {
 		this.matchResult = matchResult;
 	}
 
+	/**
+	 * Process the current context to either get a result or setup a template.
+	 * 
+	 * @param evalStack the current evaluation stack. If a template is found, a new
+	 *                  context(s) is/are pushed onto the stack.
+	 */
 	void postProcessResult(Deque<ElContext> evalStack) {
 		if (template)
 			result = Json.createValue(templateBuffer.toString());
@@ -258,15 +327,29 @@ public class ElContext {
 				parent.templateBuffer.insert(insertPoint, resultText);
 	}
 
+	/**
+	 * Check if this context is a template.
+	 * 
+	 * @return true if this context is a template, false otherwise
+	 */
 	boolean isTemplate() {
 		return template;
 	}
 
+	/**
+	 * Mark the context as a template.
+	 */
 	void markAsTemplate() {
 		this.template = true;
 		this.raw = true;
 	}
 
+	/**
+	 * Prepares the template for evaluation.
+	 * 
+	 * @param path
+	 * @param evalStack
+	 */
 	private void setupTemplate(String path, Deque<ElContext> evalStack) {
 		String resourcePath = path;
 		boolean inline = resourcePath.length() > 1 //

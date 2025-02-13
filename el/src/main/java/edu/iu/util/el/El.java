@@ -22,6 +22,12 @@ import jakarta.json.JsonValue;
  */
 public class El {
 
+	/**
+	 * Default constructor
+	 */
+	El() {
+	}
+
 	private static final ThreadLocal<DecimalFormat> DECIMAL_FMT = new ThreadLocal<DecimalFormat>() {
 		@Override
 		protected DecimalFormat initialValue() {
@@ -36,9 +42,21 @@ public class El {
 //		}
 //	};
 
+	/**
+	 * Character to indicate any control character
+	 */
 	static char ANY = '\0';
+	/**
+	 * Escape character
+	 */
 	static char ESC_TOKEN = '\\';
+	/**
+	 * Control characters
+	 */
 	static char[] CONTROL_CHARS = new char[] { '\'', '@', '<', '`', '=', '?', '!', '&', '#', '*' };
+	/**
+	 * Empty JsonString
+	 */
 	static JsonString EMPTY = Json.createValue("");
 
 	static {
@@ -72,6 +90,8 @@ public class El {
 	}
 
 	/**
+	 * Evaluate an expression with no context.
+	 * 
 	 * @param expr input expression
 	 * @return {@link JsonValue} representation of the input expression
 	 */
@@ -80,8 +100,10 @@ public class El {
 	}
 
 	/**
-	 * @param context
-	 * @param expr
+	 * Evaluate an expression within a given context.
+	 * 
+	 * @param context context within which to evaluate the expression
+	 * @param expr    the expression to evaluate
 	 * @return {@link JsonValue} representation of the input expression within the
 	 *         given context
 	 */
