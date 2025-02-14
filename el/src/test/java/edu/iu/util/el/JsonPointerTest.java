@@ -96,10 +96,29 @@ public class JsonPointerTest {
 
 	@Test
 	public void testGetValue() {
+		// Exceptions
 		final var nonExistingPointer = JsonPointerImpl.create("/baz");
 		assertEquals("Value does not exist: /baz",
 				assertThrows(JsonException.class, () -> nonExistingPointer.getValue(json)).getMessage());
 
+		final var nonExistingArrayPointer = JsonPointerImpl.create("/foo/2");
+		assertEquals("Value does not exist: /foo/2",
+				assertThrows(JsonException.class, () -> nonExistingArrayPointer.getValue(json)).getMessage());
+
+		final var invalidArrayPointerStartsWithZeros = JsonPointerImpl.create("/foo/00001");
+		assertEquals("Invalid JSON Pointer: /foo/00001",
+				assertThrows(IllegalArgumentException.class, () -> invalidArrayPointerStartsWithZeros.getValue(json)).getMessage());
+
+		final var pointerString = "/foo/" + Long.MAX_VALUE;
+		final var invalidArrayPointerValueTooBig = JsonPointerImpl.create(pointerString);
+		assertEquals("Invalid JSON Pointer: " + pointerString,
+				assertThrows(IllegalArgumentException.class, () -> invalidArrayPointerValueTooBig.getValue(json)).getMessage());
+
+		final var validPointer = JsonPointerImpl.create("/foo/0/");
+		assertEquals("Invalid context: \"bar\"",
+				assertThrows(IllegalArgumentException.class, () -> validPointer.getValue(json)).getMessage());
+
+		// Spec-based valid pointer tests
 		for (var entry : expectedResults.entrySet()) {
 			assertEquals(entry.getValue(), JsonPointerImpl.create(entry.getKey()).getValue(json));
 		}

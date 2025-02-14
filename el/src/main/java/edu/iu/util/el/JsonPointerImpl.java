@@ -128,9 +128,11 @@ public class JsonPointerImpl implements JsonPointer {
 					fragmentJson = json.asJsonArray().get(Integer.parseInt(fragment));
 				} catch (NumberFormatException e) {
 					throw new IllegalArgumentException("Invalid JSON Pointer: " + pointer);
+				} catch(IndexOutOfBoundsException e) {
+					throw new JsonException("Value does not exist: " + pointer);
 				}
 			} else {
-				throw new IllegalArgumentException("Invalid JSON Pointer: " + pointer);
+				throw new IllegalArgumentException("Invalid context: " + json.toString());
 			}
 			json = fragmentJson;
 			start = nextSeparator + 1;
