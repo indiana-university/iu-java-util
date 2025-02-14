@@ -33,7 +33,7 @@ public class JsonPointerImpl implements JsonPointer {
 	 * JsonStructure to evaluate against to retrieve a value or manipulate the
 	 * JsonStructure as specified by the JsonPointer interface.
 	 * 
-	 * @param pointer
+	 * @param pointer the JSON Pointer string
 	 * @return a JsonPointer implementation
 	 */
 	public static JsonPointer create(String pointer) {
