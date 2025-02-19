@@ -135,7 +135,7 @@ class ContextFilter extends Filter {
 			level = Level.SEVERE;
 		}
 
-		final var errorState = new ErrorState();
+		final var errorState = new ErrorDetails();
 		errorState.setStatus(status);
 		// TODO: bind other attributes
 
@@ -199,8 +199,6 @@ class ContextFilter extends Filter {
 	@Override
 	public void doFilter(HttpExchange exchange, Chain chain) throws IOException {
 		final var originalUrl = exchange.getRequestURI();
-//		HttpServletRequest hreq = (HttpServletRequest) req;
-//		String originalUrl = hreq.getRequestURL().toString();
 
 		final var forwardedHost = exchange.getRequestHeaders().get("X-Forwarded-Host");
 		final URI requestUri;
@@ -220,7 +218,7 @@ class ContextFilter extends Filter {
 			}
 
 		if (!uriAccepted) {
-			LOG.info(() -> "Rejecting " + requestUri + ", not in acceptable URL list " + acceptUris);
+			LOG.info(() -> "rejecting " + requestUri + ", not in allow list " + acceptUris);
 			handleError(new IuNotFoundException(), exchange);
 			return;
 		}
