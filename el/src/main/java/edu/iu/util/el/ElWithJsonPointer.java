@@ -1,7 +1,12 @@
 package edu.iu.util.el;
 
 import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Deque;
 import java.util.LinkedList;
 
@@ -11,7 +16,6 @@ import jakarta.json.JsonException;
 import jakarta.json.JsonNumber;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
-import jakarta.json.JsonStructure;
 import jakarta.json.JsonValue;
 
 /**
@@ -37,12 +41,19 @@ public class ElWithJsonPointer {
 		}
 	};
 
-//	private static final ThreadLocal<SimpleDateFormat> DATE_FMT = new ThreadLocal<SimpleDateFormat>() {
-//		@Override
-//		protected SimpleDateFormat initialValue() {
-//			return new SimpleDateFormat();
-//		}
-//	};
+	private static final ThreadLocal<SimpleDateFormat> DATE_FMT = new ThreadLocal<SimpleDateFormat>() {
+		@Override
+		protected SimpleDateFormat initialValue() {
+			return new SimpleDateFormat();
+		}
+	};
+
+	private static final ThreadLocal<DateTimeFormatter> DATE_TIME_FMT = new ThreadLocal<DateTimeFormatter>() {
+		@Override
+		protected DateTimeFormatter initialValue() {
+			return DateTimeFormatter.ISO_INSTANT;
+		}
+	};
 
 	/**
 	 * Character to indicate any control character
@@ -209,13 +220,20 @@ public class ElWithJsonPointer {
 					df.applyPattern(etail.substring(1));
 					evalContext.setResult(Json.createValue(df.format(((JsonNumber) cval).numberValue())));
 				}
-				// TODO: If we're only dealing with JSON values, how do we decide if it's a
-				// date?
-//				if (cval instanceof Date) {
-//					SimpleDateFormat df = DATE_FMT.get();
-//					df.applyPattern(etail.substring(1));
-//					evalContext.setResult(Json.createValue(df.format(cval)));
-//				}
+				// Expect the value is formatted as ISO 8601, treat it as a date and apply the
+				// format pattern
+				if (cval instanceof JsonString) {
+					try {
+						DateTimeFormatter dtf = DATE_TIME_FMT.get();
+						final var instant = dtf.parse(((JsonString) cval).getString(), Instant::from);
+						SimpleDateFormat df = DATE_FMT.get();
+						df.applyPattern(etail.substring(1));
+						evalContext.setResult(Json.createValue(df.format(new Date(instant.toEpochMilli()))));
+					} catch (DateTimeParseException e) {
+						// ignore
+						// will return unformatted value
+					}
+				}
 				evalContext.setPositionAtEnd();
 				break;
 
@@ -287,13 +305,13 @@ public class ElWithJsonPointer {
 					final var pointer = Json.createPointer(pathElement);
 					try {
 						if (selected instanceof JsonObject)
-								selected = pointer.getValue(selected.asJsonObject());
+							selected = pointer.getValue(selected.asJsonObject());
 						else if (selected instanceof JsonArray)
-								selected = pointer.getValue(selected.asJsonArray());
+							selected = pointer.getValue(selected.asJsonArray());
 						else
-	                        throw new IllegalArgumentException("expected object or array for " + selected);
+							throw new IllegalArgumentException("expected object or array for " + selected);
 					} catch (JsonException e) {
-							selected = null;
+						selected = null;
 					}
 				}
 
