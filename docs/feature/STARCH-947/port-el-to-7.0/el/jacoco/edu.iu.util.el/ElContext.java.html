@@ -1,0 +1,515 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ElContext.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Expression Language Utilities</a> &gt; <a href="index.source.html" class="el_package">edu.iu.util.el</a> &gt; <span class="el_source">ElContext.java</span></div><h1>ElContext.java</h1><pre class="source lang-java linenums">package edu.iu.util.el;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.logging.Logger;
+
+import org.apache.commons.text.StringEscapeUtils;
+
+import edu.iu.IuStream;
+import jakarta.json.Json;
+import jakarta.json.JsonArray;
+import jakarta.json.JsonNumber;
+import jakarta.json.JsonString;
+import jakarta.json.JsonValue;
+
+/**
+ * Evaluation context for EL expressions.
+ */
+public class ElContext {
+
+<span class="fc" id="L30">	private static final Logger LOG = Logger.getLogger(ElContext.class.getName());</span>
+
+<span class="fc" id="L32">	private static char START_TOKEN = '{';</span>
+<span class="fc" id="L33">	private static char TEMPLATE_TOKEN = '&lt;';</span>
+<span class="fc" id="L34">	private static char INLINE_TOKEN = '`';</span>
+<span class="fc" id="L35">	private static char END_TOKEN = '}';</span>
+<span class="fc" id="L36">	private static String START = Character.toString(START_TOKEN);</span>
+
+	private static class TemplateExpression {
+		private final int insertPoint;
+		private final String expression;
+
+<span class="fc" id="L42">		private TemplateExpression(int insertPoint, String expression) {</span>
+<span class="fc" id="L43">			this.insertPoint = insertPoint;</span>
+<span class="fc" id="L44">			this.expression = expression;</span>
+<span class="fc" id="L45">		}</span>
+	}
+
+	private static class Template {
+		private final String content;
+		private final List&lt;TemplateExpression&gt; expressions;
+
+<span class="fc" id="L52">		private Template(String content) {</span>
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">			if (content == null //</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">					|| content.isEmpty()) {</span>
+<span class="fc" id="L55">				this.content = &quot;&quot;;</span>
+<span class="fc" id="L56">				this.expressions = Collections.emptyList();</span>
+<span class="fc" id="L57">				return;</span>
+			}
+
+<span class="fc" id="L60">			int iot = content.indexOf(START_TOKEN);</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">			if (iot == -1) {</span>
+<span class="fc" id="L62">				this.content = content;</span>
+<span class="fc" id="L63">				this.expressions = Collections.emptyList();</span>
+<span class="fc" id="L64">				return;</span>
+			}
+
+<span class="fc" id="L67">			List&lt;TemplateExpression&gt; el = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L68">			StringBuilder contentBuffer = new StringBuilder(content);</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">			while (iot != -1) {</span>
+
+<span class="fc bfc" id="L71" title="All 4 branches covered.">				if (iot &gt; 0 &amp;&amp; contentBuffer.charAt(iot - 1) == El.ESC_TOKEN) {</span>
+<span class="fc" id="L72">					contentBuffer.deleteCharAt(iot - 1);</span>
+<span class="fc" id="L73">					iot = contentBuffer.indexOf(START, iot);</span>
+<span class="fc" id="L74">					continue;</span>
+				}
+
+<span class="pc bpc" id="L77" title="1 of 4 branches missed.">				if (iot &gt; 0 &amp;&amp; iot &lt; contentBuffer.length() //</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">						&amp;&amp; contentBuffer.charAt(iot - 1) == '$' //</span>
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">						&amp;&amp; contentBuffer.charAt(iot) == '{') {</span>
+<span class="fc" id="L80">					iot = contentBuffer.indexOf(START, iot + 1);</span>
+<span class="fc" id="L81">					continue;</span>
+				}
+
+<span class="fc" id="L84">				int length = contentBuffer.length();</span>
+<span class="fc" id="L85">				int depth = 0;</span>
+<span class="fc" id="L86">				int sdepth = 1;</span>
+				int ioe;
+<span class="fc bfc" id="L88" title="All 2 branches covered.">				for (ioe = iot + 1; ioe &lt; length; ioe++) {</span>
+<span class="fc" id="L89">					char c = contentBuffer.charAt(ioe);</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">					if (c == INLINE_TOKEN) {</span>
+<span class="fc" id="L91">						char p = contentBuffer.charAt(ioe - 1);</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">						if (p == TEMPLATE_TOKEN)</span>
+<span class="fc" id="L93">							depth++;</span>
+<span class="pc bpc" id="L94" title="3 of 6 branches missed.">						else if (depth &gt; 0 &amp;&amp; ioe + 1 &lt; length &amp;&amp; contentBuffer.charAt(ioe + 1) == END_TOKEN)</span>
+<span class="fc" id="L95">							depth--;</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">					} else if (c == START_TOKEN)</span>
+<span class="fc" id="L97">						sdepth++;</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">					else if (c == END_TOKEN) {</span>
+<span class="fc" id="L99">						sdepth--;</span>
+<span class="pc bpc" id="L100" title="1 of 4 branches missed.">						if (depth == 0 &amp;&amp; sdepth == 0)</span>
+<span class="fc" id="L101">							break;</span>
+					}
+				}
+<span class="fc bfc" id="L104" title="All 2 branches covered.">				if (ioe == length)</span>
+<span class="fc" id="L105">					throw new IllegalStateException(&quot;Missing end token '`}': &quot; + content.substring(iot));</span>
+
+<span class="fc" id="L107">				el.add(new TemplateExpression(iot, contentBuffer.substring(iot + 1, ioe)));</span>
+<span class="fc" id="L108">				contentBuffer.delete(iot, ioe + 1);</span>
+
+<span class="fc" id="L110">				iot = contentBuffer.indexOf(START, iot);</span>
+<span class="fc" id="L111">			}</span>
+<span class="fc" id="L112">			this.content = contentBuffer.toString();</span>
+<span class="fc" id="L113">			this.expressions = el;</span>
+<span class="fc" id="L114">		}</span>
+
+		private void apply(boolean first, JsonValue key, JsonValue value, ElContext context,
+				Deque&lt;ElContext&gt; evalStack) {
+<span class="fc" id="L118">			int offset = context.templateBuffer.length();</span>
+<span class="fc" id="L119">			context.templateBuffer.append(content);</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">			for (TemplateExpression expr : expressions) {</span>
+<span class="fc" id="L121">				ElContext elc = new ElContext(context, first, key, value, expr.expression);</span>
+<span class="fc" id="L122">				elc.insertPoint = offset + expr.insertPoint;</span>
+
+				// push template expressions in order found, to process the last
+				// expression first and avoid the need to adjust insert points
+<span class="fc" id="L126">				evalStack.push(elc);</span>
+<span class="fc" id="L127">			}</span>
+<span class="fc" id="L128">		}</span>
+	}
+
+	private final JsonValue root;
+	private final ElContext parent;
+	private final boolean head;
+	private final JsonValue index;
+	private final JsonValue context;
+
+	private final String expression;
+	private final Map&lt;String, Template&gt; templateCache;
+
+	private boolean raw;
+	private int position;
+	private JsonValue result;
+	private JsonValue matchResult;
+	private JsonValue lastResult;
+
+	private boolean template;
+	private String templatePath;
+	private StringBuilder templateBuffer;
+<span class="fc" id="L149">	private int insertPoint = -1;</span>
+
+	/**
+	 * Constructs a new evaluation context.
+	 * 
+	 * @param parent     the parent context
+	 * @param head       true if this is the first element in a list, false
+	 *                   otherwise
+	 * @param index      the index JSON value
+	 * @param context    the context JSON value
+	 * @param expression the expression to evaluate
+	 */
+<span class="fc" id="L161">	ElContext(ElContext parent, boolean head, JsonValue index, JsonValue context, String expression) {</span>
+<span class="fc" id="L162">		this.parent = parent;</span>
+<span class="fc" id="L163">		this.head = head;</span>
+<span class="fc" id="L164">		this.index = index;</span>
+<span class="fc" id="L165">		this.context = context;</span>
+<span class="fc" id="L166">		this.expression = expression;</span>
+
+<span class="fc bfc" id="L168" title="All 2 branches covered.">		if (parent == null) {</span>
+<span class="fc" id="L169">			this.root = context;</span>
+<span class="fc" id="L170">			this.templateCache = new HashMap&lt;&gt;();</span>
+		} else {
+<span class="fc" id="L172">			this.root = parent.root;</span>
+<span class="fc" id="L173">			this.templateCache = parent.templateCache;</span>
+		}
+
+<span class="fc" id="L176">		setResult(context);</span>
+<span class="fc" id="L177">	}</span>
+
+	/**
+	 * Constructs a new evaluation context.
+	 * 
+	 * @param replace    the context to base this context on
+	 * @param expression the expression to evaluate
+	 */
+<span class="fc" id="L185">	ElContext(ElContext replace, String expression) {</span>
+<span class="fc" id="L186">		this.parent = replace.parent;</span>
+<span class="fc" id="L187">		this.head = replace.head;</span>
+<span class="fc" id="L188">		this.index = replace.index;</span>
+<span class="fc" id="L189">		this.context = replace.context;</span>
+<span class="fc" id="L190">		this.root = replace.root;</span>
+<span class="fc" id="L191">		this.templateCache = replace.templateCache;</span>
+<span class="fc" id="L192">		this.insertPoint = replace.insertPoint;</span>
+
+<span class="fc" id="L194">		this.expression = expression;</span>
+<span class="fc" id="L195">		this.lastResult = replace.getResult();</span>
+<span class="fc" id="L196">		setResult(context);</span>
+<span class="fc" id="L197">	}</span>
+
+	/**
+	 * Check if the context is empty.
+	 * 
+	 * @return true if the context is empty, false otherwise
+	 */
+	boolean isEmpty() {
+<span class="pc bpc" id="L205" title="1 of 6 branches missed.">		return expression == null || position == -1 || position &gt;= expression.length();</span>
+	}
+
+	/**
+	 * Get the current position in the expression.
+	 * 
+	 * @return the position
+	 */
+	int getPosition() {
+<span class="fc" id="L214">		return position;</span>
+	}
+
+	/**
+	 * Advance the position by a given amount.
+	 * 
+	 * @param position the position to set
+	 */
+	void advancePosition(int position) {
+<span class="fc" id="L223">		this.position += position;</span>
+<span class="fc" id="L224">	}</span>
+
+	/**
+	 * Set the position to the end of the expression
+	 */
+	void setPositionAtEnd() {
+<span class="fc" id="L230">		this.position = expression.length();</span>
+<span class="fc" id="L231">	}</span>
+
+	/**
+	 * Check if the context is raw.
+	 * 
+	 * @return true if the context is raw, false otherwise
+	 */
+	boolean isRaw() {
+<span class="fc" id="L239">		return raw;</span>
+	}
+
+	/**
+	 * Mark the context as raw.
+	 */
+	void markAsRaw() {
+<span class="fc" id="L246">		this.raw = true;</span>
+<span class="fc" id="L247">	}</span>
+
+	/**
+	 * Get the expression to evaluate.
+	 * 
+	 * @return the expression
+	 */
+	String getExpression() {
+<span class="fc bfc" id="L255" title="All 2 branches covered.">		return isEmpty() ? &quot;&quot; : expression.substring(position);</span>
+	}
+
+	/**
+	 * Get the result of the current context
+	 * 
+	 * @return JsonValue representation of the input expression for the current
+	 *         context
+	 */
+	JsonValue getResult() {
+<span class="fc bfc" id="L265" title="All 2 branches covered.">		if (matchResult == null)</span>
+<span class="fc" id="L266">			return result;</span>
+
+<span class="fc bfc" id="L268" title="All 2 branches covered.">		if (result == null)</span>
+<span class="fc" id="L269">			return JsonValue.FALSE;</span>
+
+<span class="fc bfc" id="L271" title="All 2 branches covered.">		return matchResult.equals(result) ? JsonValue.TRUE : JsonValue.FALSE;</span>
+	}
+
+	/**
+	 * Sets the result
+	 * 
+	 * @param result the result to set
+	 */
+	void setResult(JsonValue result) {
+<span class="fc" id="L280">		this.result = result;</span>
+<span class="fc" id="L281">	}</span>
+
+	/**
+	 * Sets the result of a match evaluation.
+	 * 
+	 * @param matchResult the match result
+	 */
+	void setMatchResult(JsonValue matchResult) {
+<span class="fc" id="L289">		this.matchResult = matchResult;</span>
+<span class="fc" id="L290">	}</span>
+
+	/**
+	 * Process the current context to either get a result or setup a template.
+	 * 
+	 * @param evalStack the current evaluation stack. If a template is found, a new
+	 *                  context(s) is/are pushed onto the stack.
+	 */
+	void postProcessResult(Deque&lt;ElContext&gt; evalStack) {
+<span class="fc bfc" id="L299" title="All 2 branches covered.">		if (template)</span>
+<span class="fc" id="L300">			result = Json.createValue(templateBuffer.toString());</span>
+
+<span class="fc bfc" id="L302" title="All 4 branches covered.">		if (raw &amp;&amp; parent == null)</span>
+<span class="fc" id="L303">			return;</span>
+
+		String resultText;
+<span class="fc bfc" id="L306" title="All 4 branches covered.">		if (result == null || result.equals(JsonValue.NULL))</span>
+<span class="fc" id="L307">			return;</span>
+<span class="fc bfc" id="L308" title="All 2 branches covered.">		else if (result instanceof JsonString)</span>
+<span class="fc" id="L309">			resultText = ((JsonString) result).getString();</span>
+<span class="fc bfc" id="L310" title="All 6 branches covered.">		else if (result.equals(JsonValue.TRUE) || result.equals(JsonValue.FALSE) || (result instanceof JsonNumber))</span>
+<span class="fc" id="L311">			resultText = result.toString();</span>
+		// try adding this to skip to the next context if the parent is a template
+<span class="fc bfc" id="L313" title="All 2 branches covered.">		else if (parent != null //</span>
+<span class="pc bpc" id="L314" title="1 of 2 branches missed.">				&amp;&amp; parent.isTemplate())</span>
+<span class="fc" id="L315">			return;</span>
+		else
+<span class="fc" id="L317">			throw new IllegalStateException(&quot;Non-atmoic result&quot;);</span>
+
+<span class="fc bfc" id="L319" title="All 2 branches covered.">		if (!raw)</span>
+<span class="fc" id="L320">			result = Json.createValue(resultText = StringEscapeUtils.escapeHtml4(resultText));</span>
+
+<span class="pc bpc" id="L322" title="1 of 4 branches missed.">		if (parent != null //</span>
+				&amp;&amp; parent.template)
+<span class="fc bfc" id="L324" title="All 2 branches covered.">			if (insertPoint == -1) // template name expression</span>
+<span class="fc" id="L325">				parent.setupTemplate(resultText, evalStack);</span>
+			else
+<span class="fc" id="L327">				parent.templateBuffer.insert(insertPoint, resultText);</span>
+<span class="fc" id="L328">	}</span>
+
+	/**
+	 * Check if this context is a template.
+	 * 
+	 * @return true if this context is a template, false otherwise
+	 */
+	boolean isTemplate() {
+<span class="fc" id="L336">		return template;</span>
+	}
+
+	/**
+	 * Mark the context as a template.
+	 */
+	void markAsTemplate() {
+<span class="fc" id="L343">		this.template = true;</span>
+<span class="fc" id="L344">		this.raw = true;</span>
+<span class="fc" id="L345">	}</span>
+
+	/**
+	 * Prepares the template for evaluation.
+	 * 
+	 * @param path
+	 * @param evalStack
+	 */
+	private void setupTemplate(String path, Deque&lt;ElContext&gt; evalStack) {
+<span class="fc" id="L354">		String resourcePath = path;</span>
+<span class="fc bfc" id="L355" title="All 2 branches covered.">		boolean inline = resourcePath.length() &gt; 1 //</span>
+<span class="fc bfc" id="L356" title="All 2 branches covered.">				&amp;&amp; resourcePath.charAt(0) == '`' //</span>
+<span class="fc bfc" id="L357" title="All 2 branches covered.">				&amp;&amp; resourcePath.charAt(resourcePath.length() - 1) == '`';</span>
+<span class="fc bfc" id="L358" title="All 2 branches covered.">		if (!inline) {</span>
+<span class="fc" id="L359">			int ioc = resourcePath.indexOf(':');</span>
+<span class="fc bfc" id="L360" title="All 2 branches covered.">			if (ioc == -1 &amp;&amp; //</span>
+<span class="fc bfc" id="L361" title="All 2 branches covered.">					(resourcePath.isEmpty() //</span>
+<span class="fc bfc" id="L362" title="All 2 branches covered.">							|| resourcePath.charAt(0) != '/')) {</span>
+<span class="fc" id="L363">				String parentDir = &quot;&quot;;</span>
+<span class="fc bfc" id="L364" title="All 2 branches covered.">				String parentPath = parent == null ? null : parent.templatePath;</span>
+<span class="fc bfc" id="L365" title="All 2 branches covered.">				if (parentPath != null) {</span>
+<span class="fc" id="L366">					int lioc = parentPath.indexOf(':') + 1;</span>
+<span class="fc" id="L367">					int lios = parentPath.lastIndexOf('/');</span>
+<span class="fc bfc" id="L368" title="All 2 branches covered.">					parentDir = parentPath.substring(0, lios &lt; lioc ? lioc : lios);</span>
+				}
+
+<span class="fc bfc" id="L371" title="All 2 branches covered.">				if (resourcePath.isEmpty())</span>
+<span class="fc" id="L372">					resourcePath = parentDir;</span>
+<span class="fc bfc" id="L373" title="All 2 branches covered.">				else if (!parentDir.isEmpty())</span>
+<span class="fc" id="L374">					resourcePath = (parentDir + '/' + resourcePath).intern();</span>
+			}
+
+			// Strip leading slash from resource path
+<span class="fc bfc" id="L378" title="All 2 branches covered.">			if (resourcePath.isEmpty() //</span>
+<span class="fc bfc" id="L379" title="All 2 branches covered.">					|| (resourcePath.length() == 1 //</span>
+<span class="fc bfc" id="L380" title="All 2 branches covered.">							&amp;&amp; resourcePath.charAt(0) == '/'))</span>
+<span class="fc" id="L381">				resourcePath = &quot;&quot;;</span>
+<span class="fc bfc" id="L382" title="All 2 branches covered.">			else if (resourcePath.charAt(0) == '/')</span>
+<span class="fc" id="L383">				resourcePath = resourcePath.substring(1);</span>
+		}
+
+<span class="fc" id="L386">		templatePath = resourcePath.intern();</span>
+
+<span class="fc" id="L388">		Template template = templateCache.get(templatePath);</span>
+<span class="fc bfc" id="L389" title="All 2 branches covered.">		if (template == null)</span>
+<span class="fc bfc" id="L390" title="All 2 branches covered.">			if (inline)</span>
+<span class="fc" id="L391">				template = new Template(resourcePath.substring(1, resourcePath.length() - 1));</span>
+			else {
+<span class="fc" id="L393">				URL rurl = Thread.currentThread().getContextClassLoader().getResource(resourcePath);</span>
+<span class="fc bfc" id="L394" title="All 2 branches covered.">				if (rurl == null) {</span>
+<span class="fc" id="L395">					LOG.fine(() -&gt; &quot;Resource &quot; + templatePath + &quot; (&quot; + path + &quot;) not found&quot;);</span>
+<span class="fc" id="L396">					throw new IllegalArgumentException(resourcePath);</span>
+				}
+
+<span class="fc" id="L399">				try (InputStream is = rurl.openStream(); Reader r = new InputStreamReader(is)) {</span>
+<span class="fc" id="L400">					templateCache.put(templatePath, template = new Template(IuStream.read(r)));</span>
+<span class="fc" id="L401">				} catch (IOException e) {</span>
+<span class="fc" id="L402">					throw new IllegalStateException(e);</span>
+<span class="fc" id="L403">				}</span>
+			}
+
+<span class="fc" id="L406">		templateBuffer = new StringBuilder();</span>
+
+<span class="fc bfc" id="L408" title="All 2 branches covered.">		if (result instanceof JsonArray) {</span>
+<span class="fc" id="L409">			var array = result.asJsonArray();</span>
+<span class="fc bfc" id="L410" title="All 2 branches covered.">			for (int i = 0; i &lt; array.size(); i++)</span>
+<span class="fc bfc" id="L411" title="All 2 branches covered.">				template.apply(i == 0, Json.createValue(i), array.get(i), this, evalStack);</span>
+<span class="fc" id="L412">		} else</span>
+<span class="fc" id="L413">			template.apply(false, null, result, this, evalStack);</span>
+<span class="fc" id="L414">	}</span>
+
+	/**
+	 * Returns the root JSON value of the context.
+	 *
+	 * @return the root JSON value
+	 */
+	public JsonValue getRoot() {
+<span class="fc" id="L422">		return root;</span>
+	}
+
+	/**
+	 * Checks if this context is the head context.
+	 *
+	 * @return true if this context is the head, false otherwise
+	 */
+	public boolean isHead() {
+<span class="fc" id="L431">		return head;</span>
+	}
+
+	/**
+	 * Checks if this context is the tail context.
+	 *
+	 * @return true if this context is the tail, false otherwise
+	 */
+	public boolean isTail() {
+<span class="fc bfc" id="L440" title="All 2 branches covered.">		return !head;</span>
+	}
+
+	/**
+	 * Returns the index JSON value of the context.
+	 *
+	 * @return the index JSON value
+	 */
+	public JsonValue getI() {
+<span class="fc" id="L449">		return index;</span>
+	}
+
+	/**
+	 * Returns the JSON value representing the context.
+	 *
+	 * @return the JSON value
+	 */
+	public JsonValue get$() {
+<span class="fc" id="L458">		return context;</span>
+	}
+
+	/**
+	 * Returns the last result JSON value of the context.
+	 *
+	 * @return the last result JSON value
+	 */
+	public JsonValue get_() {
+<span class="fc" id="L467">		return lastResult;</span>
+	}
+
+	/**
+	 * Returns the JSON value of the parent context.
+	 *
+	 * @return the parent context JSON value
+	 */
+	public ElContext getP() {
+<span class="fc" id="L476">		return parent;</span>
+	}
+
+	/**
+	 * Returns a string representation of the context.
+	 *
+	 * @return a string representation of the context
+	 */
+	@Override
+	public String toString() {
+<span class="fc bfc" id="L486" title="All 2 branches covered.">		if (expression == null)</span>
+<span class="fc" id="L487">			return &quot;EL&quot;;</span>
+
+<span class="fc" id="L489">		String exprPriorToPos = expression.substring(Math.max(0, position - 5), position);</span>
+		String exprCharAtPos = position &gt;= 0 //
+<span class="pc bpc" id="L491" title="1 of 4 branches missed.">				&amp;&amp; position &lt; expression.length() //</span>
+<span class="fc" id="L492">						? &quot;&quot; + expression.charAt(position) //</span>
+<span class="fc" id="L493">						: &quot;&quot;;</span>
+<span class="fc" id="L494">		String exprAfterPos = expression.substring(Math.min(expression.length(), position + 1),</span>
+<span class="fc" id="L495">				Math.min(expression.length(), position + 6));</span>
+<span class="fc bfc" id="L496" title="All 2 branches covered.">		String insertPointStr = insertPoint &gt;= 0 //</span>
+<span class="fc" id="L497">				? &quot; insert at &quot; + insertPoint //</span>
+<span class="fc" id="L498">				: &quot;&quot;;</span>
+<span class="fc bfc" id="L499" title="All 2 branches covered.">		String templateBufferStr = templateBuffer == null //</span>
+<span class="fc" id="L500">				? &quot;&quot; //</span>
+<span class="fc" id="L501">				: &quot; = \&quot;&quot; + templateBuffer + &quot;\&quot;&quot;;</span>
+		String templatePathStr = template //
+<span class="pc bpc" id="L503" title="1 of 4 branches missed.">				&amp;&amp; templatePath != null //</span>
+<span class="fc" id="L504">						? &quot;\n   in &quot; + templatePath + templateBufferStr //</span>
+<span class="fc" id="L505">						: &quot;&quot;;</span>
+<span class="fc bfc" id="L506" title="All 2 branches covered.">		String parentStr = parent == null //</span>
+<span class="fc" id="L507">				? &quot;&quot; //</span>
+<span class="fc" id="L508">				: &quot;\nParent &quot; + parent;</span>
+
+<span class="fc" id="L510">		return &quot;EL&quot; + &quot; expression \&quot;&quot; + expression + &quot;\&quot; at &quot; + position + &quot;: \&quot;&quot; + exprPriorToPos + &quot;[&quot;</span>
+				+ exprCharAtPos + &quot;]&quot; + exprAfterPos + &quot;\&quot;&quot; + insertPointStr + templatePathStr + parentStr;
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

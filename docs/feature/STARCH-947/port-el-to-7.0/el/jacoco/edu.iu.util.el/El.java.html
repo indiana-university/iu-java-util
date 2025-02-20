@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>El.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Expression Language Utilities</a> &gt; <a href="index.source.html" class="el_package">edu.iu.util.el</a> &gt; <span class="el_source">El.java</span></div><h1>El.java</h1><pre class="source lang-java linenums">package edu.iu.util.el;
+
+import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.Deque;
+import java.util.LinkedList;
+
+import jakarta.json.Json;
+import jakarta.json.JsonArray;
+import jakarta.json.JsonNumber;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
+import jakarta.json.JsonValue;
+
+/**
+ * Tiny expression/template language for building thin view templates based on
+ * module resources.
+ * 
+ * @author Mark Fyffe
+ * @version 6.0
+ * @since 5.4
+ */
+public class El {
+
+	/**
+	 * Default constructor
+	 */
+<span class="fc" id="L33">	El() {</span>
+<span class="fc" id="L34">	}</span>
+
+<span class="fc" id="L36">	private static final ThreadLocal&lt;DecimalFormat&gt; DECIMAL_FMT = new ThreadLocal&lt;DecimalFormat&gt;() {</span>
+		@Override
+		protected DecimalFormat initialValue() {
+<span class="fc" id="L39">			return new DecimalFormat();</span>
+		}
+	};
+
+<span class="fc" id="L43">	private static final ThreadLocal&lt;SimpleDateFormat&gt; DATE_FMT = new ThreadLocal&lt;SimpleDateFormat&gt;() {</span>
+		@Override
+		protected SimpleDateFormat initialValue() {
+<span class="fc" id="L46">			return new SimpleDateFormat();</span>
+		}
+	};
+
+<span class="fc" id="L50">	private static final ThreadLocal&lt;DateTimeFormatter&gt; DATE_TIME_FMT = new ThreadLocal&lt;DateTimeFormatter&gt;() {</span>
+		@Override
+		protected DateTimeFormatter initialValue() {
+<span class="fc" id="L53">			return DateTimeFormatter.ISO_INSTANT;</span>
+		}
+	};
+
+	/**
+	 * Character to indicate any control character
+	 */
+<span class="fc" id="L60">	static char ANY = '\0';</span>
+	/**
+	 * Escape character
+	 */
+<span class="fc" id="L64">	static char ESC_TOKEN = '\\';</span>
+	/**
+	 * Control characters
+	 */
+<span class="fc" id="L68">	static char[] CONTROL_CHARS = new char[] { '\'', '@', '&lt;', '`', '=', '?', '!', '&amp;', '#', '*' };</span>
+	/**
+	 * Empty JsonString
+	 */
+<span class="fc" id="L72">	static JsonString EMPTY = Json.createValue(&quot;&quot;);</span>
+
+	static {
+<span class="fc" id="L75">		Arrays.sort(CONTROL_CHARS);</span>
+<span class="fc" id="L76">	}</span>
+
+	private static int elIndiceDe(String s, char c, int from) {
+<span class="fc bfc" id="L79" title="All 2 branches covered.">		boolean any = c == ANY;</span>
+<span class="fc" id="L80">		int l = s.length();</span>
+<span class="fc" id="L81">		int depth = 0;</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">		for (int i = from; i &lt; l; i++) {</span>
+<span class="fc" id="L83">			char n = s.charAt(i);</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">			if (depth &gt; 0) {</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">				if (n == '`') {</span>
+<span class="fc" id="L86">					char p = s.charAt(i - 1);</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">					if (p == '&lt;')</span>
+<span class="fc" id="L88">						depth++;</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">					else if (i + 1 == l //</span>
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">							|| s.charAt(i + 1) == '}')</span>
+<span class="fc" id="L91">						depth--;</span>
+<span class="fc" id="L92">				}</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">			} else if (any) {</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">				if (Arrays.binarySearch(CONTROL_CHARS, n) &gt;= 0)</span>
+<span class="fc" id="L95">					return i;</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">			} else if (n == c)</span>
+<span class="fc" id="L97">				return i;</span>
+<span class="pc bpc" id="L98" title="2 of 6 branches missed.">			else if (n == '`' &amp;&amp; i &gt; 0 &amp;&amp; s.charAt(i - 1) == '&lt;')</span>
+<span class="fc" id="L99">				depth++;</span>
+		}
+<span class="fc" id="L101">		return -1;</span>
+	}
+
+	/**
+	 * Evaluate an expression with no context.
+	 * 
+	 * @param expr input expression
+	 * @return {@link JsonValue} representation of the input expression
+	 */
+	public static JsonValue eval(String expr) {
+<span class="fc" id="L111">		return eval(null, expr);</span>
+	}
+
+	/**
+	 * Evaluate an expression within a given context.
+	 * 
+	 * @param context context within which to evaluate the expression
+	 * @param expr    the expression to evaluate
+	 * @return {@link JsonValue} representation of the input expression within the
+	 *         given context
+	 */
+	public static JsonValue eval(JsonValue context, String expr) {
+<span class="fc" id="L123">		ElContext evalContext = new ElContext(null, false, null, context, expr);</span>
+<span class="fc" id="L124">		Deque&lt;ElContext&gt; evalStack = new LinkedList&lt;&gt;();</span>
+<span class="fc" id="L125">		evalStack.push(evalContext);</span>
+
+<span class="fc bfc" id="L127" title="All 2 branches covered.">		while (!evalStack.isEmpty()) {</span>
+<span class="fc" id="L128">			evalContext = evalStack.pop();</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">			if (evalContext.isEmpty()) {</span>
+<span class="fc" id="L130">				evalContext.postProcessResult(evalStack);</span>
+<span class="fc" id="L131">				continue;</span>
+			}
+
+<span class="fc" id="L134">			String etail = evalContext.getExpression();</span>
+<span class="fc" id="L135">			int pos = evalContext.getPosition();</span>
+<span class="fc bfc" id="L136" title="All 11 branches covered.">			switch (etail.charAt(0)) {</span>
+
+			case '*': // comment
+<span class="fc" id="L139">				evalContext.setResult(EMPTY);</span>
+<span class="fc" id="L140">				evalContext.setPositionAtEnd();</span>
+<span class="fc" id="L141">				break;</span>
+
+			case '\'': // quote
+<span class="fc" id="L144">				int commentPos = elIndiceDe(etail, '*', 1);</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">				if (commentPos == -1)</span>
+<span class="fc" id="L146">					evalContext.setResult(Json.createValue(etail.substring(1)));</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">				else if (etail.charAt(commentPos - 1) == ESC_TOKEN)</span>
+<span class="fc" id="L148">					evalContext.setResult(</span>
+<span class="fc" id="L149">							Json.createValue(etail.substring(1, commentPos - 1) + etail.substring(commentPos)));</span>
+				else
+<span class="fc" id="L151">					evalContext.setResult(Json.createValue(etail.substring(1, commentPos)));</span>
+<span class="fc" id="L152">				evalContext.setPositionAtEnd();</span>
+<span class="fc" id="L153">				break;</span>
+
+			case '@': // raw
+<span class="fc" id="L156">				evalContext.markAsRaw();</span>
+<span class="fc" id="L157">				evalContext.advancePosition(1);</span>
+<span class="fc" id="L158">				break;</span>
+
+			case '&lt;': // template
+<span class="fc" id="L161">				String templatePathExpr = etail.substring(1);</span>
+<span class="fc" id="L162">				JsonValue result = evalContext.getResult();</span>
+
+<span class="fc" id="L164">				ElContext templatePathContext = new ElContext(evalContext, false, null, result, templatePathExpr);</span>
+<span class="fc" id="L165">				templatePathContext.markAsRaw();</span>
+
+<span class="fc" id="L167">				evalContext.setPositionAtEnd();</span>
+<span class="fc" id="L168">				evalContext.markAsTemplate();</span>
+<span class="fc" id="L169">				evalStack.push(evalContext);</span>
+<span class="fc" id="L170">				evalStack.push(templatePathContext);</span>
+<span class="fc" id="L171">				continue;</span>
+
+			case '`': // inline template
+<span class="fc" id="L174">				int elen = etail.length();</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">				final var onlyOneBackTick = elen &lt;= 1;</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">				final var lastCharNotBackTick = etail.charAt(elen - 1) != '`';</span>
+<span class="fc bfc" id="L177" title="All 4 branches covered.">				if (onlyOneBackTick || lastCharNotBackTick)</span>
+<span class="fc" id="L178">					throw new IllegalArgumentException(&quot;inline template doesn't end with '`'&quot;);</span>
+<span class="fc" id="L179">				evalContext.setResult(Json.createValue(etail));</span>
+<span class="fc" id="L180">				evalContext.setPositionAtEnd();</span>
+<span class="fc" id="L181">				break;</span>
+
+			case '?': // if conditional
+<span class="fc" id="L184">				JsonValue cval = evalContext.getResult();</span>
+<span class="fc" id="L185">				int unlessPos = elIndiceDe(etail, '!', 1);</span>
+				// TODO: should JsonValue.NULL be considered as false?
+<span class="fc bfc" id="L187" title="All 2 branches covered.">				boolean cond = cval != null //</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">						&amp;&amp; !JsonValue.FALSE.equals(cval);</span>
+<span class="fc bfc" id="L189" title="All 2 branches covered.">				if (cond) {</span>
+<span class="fc bfc" id="L190" title="All 2 branches covered.">					final var trueCondExprToEval = unlessPos == -1 ? etail.substring(1) : etail.substring(1, unlessPos);</span>
+<span class="fc" id="L191">					evalStack.push(new ElContext(evalContext, trueCondExprToEval));</span>
+				}
+<span class="fc bfc" id="L193" title="All 4 branches covered.">				if (cond || unlessPos == -1) {</span>
+<span class="fc" id="L194">					evalContext.setPositionAtEnd();</span>
+<span class="fc" id="L195">					continue;</span>
+				}
+<span class="fc" id="L197">				evalContext.advancePosition(unlessPos);</span>
+<span class="fc" id="L198">				break;</span>
+
+			case '!': // unless conditional
+<span class="fc" id="L201">				cval = evalContext.getResult();</span>
+<span class="fc bfc" id="L202" title="All 2 branches covered.">				if (cval == null //</span>
+<span class="fc bfc" id="L203" title="All 2 branches covered.">						|| JsonValue.FALSE.equals(cval))</span>
+<span class="fc" id="L204">					evalStack.push(new ElContext(evalContext, etail.substring(1)));</span>
+<span class="fc" id="L205">				evalContext.setPositionAtEnd();</span>
+<span class="fc" id="L206">				continue;</span>
+
+			case '=': // equals match
+<span class="fc" id="L209">				ElContext melc = new ElContext(evalContext, etail.substring(1));</span>
+<span class="fc" id="L210">				melc.setMatchResult(evalContext.getResult());</span>
+<span class="fc" id="L211">				evalStack.push(melc);</span>
+<span class="fc" id="L212">				evalContext.setPositionAtEnd();</span>
+<span class="fc" id="L213">				continue;</span>
+
+			case '#': // format
+<span class="fc" id="L216">				cval = evalContext.getResult();</span>
+<span class="fc bfc" id="L217" title="All 2 branches covered.">				if (cval instanceof JsonNumber) {</span>
+<span class="fc" id="L218">					DecimalFormat df = DECIMAL_FMT.get();</span>
+<span class="fc" id="L219">					df.applyPattern(etail.substring(1));</span>
+<span class="fc" id="L220">					evalContext.setResult(Json.createValue(df.format(((JsonNumber) cval).numberValue())));</span>
+				}
+				// Expect the value is formatted as ISO 8601, treat it as a date and apply the
+				// format pattern
+<span class="fc bfc" id="L224" title="All 2 branches covered.">				if (cval instanceof JsonString) {</span>
+					try {
+<span class="fc" id="L226">						DateTimeFormatter dtf = DATE_TIME_FMT.get();</span>
+<span class="fc" id="L227">						final var instant = dtf.parse(((JsonString) cval).getString(), Instant::from);</span>
+<span class="fc" id="L228">						SimpleDateFormat df = DATE_FMT.get();</span>
+<span class="fc" id="L229">						df.applyPattern(etail.substring(1));</span>
+<span class="fc" id="L230">						evalContext.setResult(Json.createValue(df.format(new Date(instant.toEpochMilli()))));</span>
+<span class="fc" id="L231">					} catch (DateTimeParseException e) {</span>
+						// ignore
+						// will return unformatted value
+<span class="fc" id="L234">					}</span>
+				}
+<span class="fc" id="L236">				evalContext.setPositionAtEnd();</span>
+<span class="fc" id="L237">				break;</span>
+
+			case 'p':
+<span class="fc bfc" id="L240" title="All 2 branches covered.">				if (etail.length() &lt; 2 //</span>
+<span class="fc bfc" id="L241" title="All 2 branches covered.">						|| etail.charAt(1) != '.') {</span>
+<span class="fc" id="L242">					throw new IllegalArgumentException(&quot;expected '.' after 'p'&quot;);</span>
+				}
+<span class="fc" id="L244">				String parentPathExpr = etail.substring(2);</span>
+<span class="fc" id="L245">				ElContext parentContext = evalContext.getP();</span>
+<span class="fc bfc" id="L246" title="All 2 branches covered.">				if (parentContext == null)</span>
+<span class="fc" id="L247">					throw new IllegalArgumentException(&quot;no parent context&quot;);</span>
+<span class="fc" id="L248">				ElContext parentPathContext = new ElContext(parentContext, false, null, parentContext.get$(),</span>
+						parentPathExpr);
+
+<span class="fc" id="L251">				parentPathContext.markAsRaw();</span>
+<span class="fc" id="L252">				evalContext.setPositionAtEnd();</span>
+
+<span class="fc" id="L254">				evalStack.push(evalContext);</span>
+<span class="fc" id="L255">				evalStack.push(parentPathContext);</span>
+<span class="fc" id="L256">				continue;</span>
+			default:
+<span class="fc" id="L258">				int npos = elIndiceDe(etail, ANY, pos);</span>
+<span class="fc bfc" id="L259" title="All 2 branches covered.">				if (npos == -1)</span>
+<span class="fc" id="L260">					npos = etail.length();</span>
+
+<span class="fc" id="L262">				JsonValue selected = null;</span>
+<span class="fc" id="L263">				var path = etail.substring(0, npos);</span>
+<span class="fc" id="L264">				var dot = etail.indexOf('.');</span>
+
+				String firstSymbol;
+<span class="fc bfc" id="L267" title="All 2 branches covered.">				if (dot == -1)</span>
+<span class="fc" id="L268">					firstSymbol = path;</span>
+				else
+<span class="fc" id="L270">					firstSymbol = path.substring(0, dot);</span>
+<span class="fc bfc" id="L271" title="All 7 branches covered.">				switch (firstSymbol) {</span>
+				case &quot;$&quot;:
+<span class="fc" id="L273">					selected = evalContext.get$();</span>
+<span class="fc" id="L274">					break;</span>
+
+				case &quot;_&quot;:
+<span class="fc" id="L277">					selected = evalContext.get_();</span>
+<span class="fc" id="L278">					break;</span>
+
+				case &quot;root&quot;:
+<span class="fc" id="L281">					selected = evalContext.getRoot();</span>
+<span class="fc" id="L282">					break;</span>
+
+				case &quot;head&quot;:
+<span class="fc bfc" id="L285" title="All 2 branches covered.">					selected = evalContext.isHead() ? JsonValue.TRUE : JsonValue.FALSE;</span>
+<span class="fc" id="L286">					break;</span>
+
+				case &quot;tail&quot;:
+<span class="fc bfc" id="L289" title="All 2 branches covered.">					selected = evalContext.isTail() ? JsonValue.TRUE : JsonValue.FALSE;</span>
+<span class="fc" id="L290">					break;</span>
+
+				case &quot;i&quot;:
+<span class="fc" id="L293">					selected = evalContext.getI();</span>
+<span class="fc" id="L294">					break;</span>
+
+				default:
+<span class="fc" id="L297">					throw new IllegalArgumentException(&quot;unexpected &quot; + firstSymbol);</span>
+				}
+
+<span class="fc bfc" id="L300" title="All 2 branches covered.">				while (dot != -1) {</span>
+<span class="fc" id="L301">					var nextDot = path.indexOf('.', dot + 1);</span>
+					String pathElement;
+<span class="fc bfc" id="L303" title="All 2 branches covered.">					if (nextDot == -1)</span>
+<span class="fc" id="L304">						pathElement = path.substring(dot + 1);</span>
+					else
+<span class="fc" id="L306">						pathElement = path.substring(dot + 1, nextDot);</span>
+
+<span class="fc bfc" id="L308" title="All 2 branches covered.">					if (selected instanceof JsonArray)</span>
+<span class="fc" id="L309">						selected = selected.asJsonArray().get(Integer.parseInt(pathElement));</span>
+<span class="fc bfc" id="L310" title="All 2 branches covered.">					else if (selected instanceof JsonObject)</span>
+<span class="fc" id="L311">						selected = selected.asJsonObject().get(pathElement);</span>
+					else
+<span class="fc" id="L313">						throw new IllegalArgumentException(&quot;expected object or array for &quot; + selected);</span>
+
+<span class="fc" id="L315">					dot = nextDot;</span>
+<span class="fc" id="L316">				}</span>
+
+<span class="fc" id="L318">				evalContext.setResult(selected);</span>
+
+<span class="fc" id="L320">				evalContext.advancePosition(npos);</span>
+				break;
+			}
+
+<span class="fc" id="L324">			evalStack.push(evalContext);</span>
+<span class="fc" id="L325">		}</span>
+
+<span class="fc" id="L327">		return evalContext.getResult();</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
