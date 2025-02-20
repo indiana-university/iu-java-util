@@ -257,6 +257,15 @@ public class JsonPointerTest {
 	}
 
 	@Test
+	public void testReplacesubLevelObjectEmptyStringValueWithStringValue() {
+		final var pointer = Json.createPointer("/foo/");
+		final var json = Json.createObjectBuilder().add("foo", Json.createObjectBuilder().add("", "bar")).build();
+		final var expectedJson = Json.createObjectBuilder().add("foo", Json.createObjectBuilder().add("", "qux")).build();
+		final var value = Json.createValue("qux");
+		assertEquals(expectedJson, pointer.replace(json, value));
+	}
+
+	@Test
 	public void testReplaceTopLevelStringValueWithBooleanValue() {
 		final var pointer = Json.createPointer("/foo");
 		final var json = Json.createObjectBuilder().add("foo", "bar").build();
