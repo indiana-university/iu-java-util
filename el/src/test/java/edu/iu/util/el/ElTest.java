@@ -432,9 +432,12 @@ public class ElTest {
 		JsonObjectBuilder b = Json.createObjectBuilder();
 		b.add("foo", Json.createObjectBuilder().add("bar", "baz"));
 		final var context = b.build();
-		assertEquals("edu\nel\nel-with-json-pointer\n", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<'")));
-		assertEquals("edu\nel\nel-with-json-pointer\n", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<'/")));
-		assertEquals("edu\nel\nel-with-json-pointer\n", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<'.")));
+		assertEquals("edu\nel\nel-with-json-pointer\n",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<'")));
+		assertEquals("edu\nel\nel-with-json-pointer\n",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<'/")));
+		assertEquals("edu\nel\nel-with-json-pointer\n",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<'.")));
 	}
 
 	@Test
@@ -658,6 +661,8 @@ public class ElTest {
 		b.add("pi", 3.14159);
 		b.add("money", "3.50");
 		b.add("bigger_money", "1234567890.97");
+		b.add("date", "2025-02-03T22:23:24Z");
+		b.add("string", "foo");
 		final var context = b.build();
 		// numbers
 		assertEquals("1", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.int#0")));
@@ -686,8 +691,16 @@ public class ElTest {
 		assertEquals("3.141590", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.pi##.000000")));
 
 		// dates
+		assertEquals("02/03/2025", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.date#MM/dd/yyyy")));
+		assertEquals("3 Feb 2025", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.date#d MMM yyyy")));
+		assertEquals("02/03/2025 5:23 PM",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.date#MM/dd/yyyy h:mm a")));
+		assertEquals("3 Feb 2025 17:23:24",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.date#d MMM yyyy HH:mm:ss")));
 
 		// ignored
+		assertEquals("foo", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.string#0")));
+		assertEquals("foo", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.string#MM/dd/yyyy")));
 	}
 
 	@Test
