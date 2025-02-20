@@ -1,0 +1,1 @@
+a {$./success?'success!'failure} {$./message}!
