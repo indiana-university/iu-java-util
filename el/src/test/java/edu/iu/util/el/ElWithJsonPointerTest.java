@@ -425,9 +425,9 @@ public class ElWithJsonPointerTest {
 		JsonObjectBuilder failure = Json.createObjectBuilder().add("success", JsonValue.FALSE).add("message",
 				"failure message");
 		b.add("foo", Json.createObjectBuilder().add("baz", success).add("bim", failure));
-		assertEquals("Here it is a success success message!\r\n" + //
-				"Here it is a failure failure message!\r\n" + //
-				"List test-classes dir edu\nel\nel-with-json-pointer\n\r\n" + //
+		assertEquals("Here it is a success success message!" + System.lineSeparator() + //
+				"Here it is a failure failure message!" + System.lineSeparator() + //
+				"List test-classes dir edu\nel\nel-with-json-pointer\n" + System.lineSeparator() + //
 				"No resource path lists test resources " + //
 				"bazTemplate\n-hash\nhello.txt\n-list\n-list-head\nparentTemplate\ntestTemplate\n",
 				IuJsonAdapter.of(String.class)
