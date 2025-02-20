@@ -421,7 +421,7 @@ public class ElTest {
 		b.add("foo", Json.createObjectBuilder().add("baz", success).add("bim", failure));
 		assertEquals("Here it is a success success message!\r\n" + //
 				"Here it is a failure failure message!\r\n" + //
-				"List test-classes dir edu\nel\n\r\n" + //
+				"List test-classes dir edu\nel\nel-with-json-pointer\n\r\n" + //
 				"No resource path lists test resources " + //
 				"bazTemplate\n-hash\nhello.txt\n-list\n-list-head\nparentTemplate\ntestTemplate\n",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.foo<'el/testTemplate")));
@@ -432,9 +432,9 @@ public class ElTest {
 		JsonObjectBuilder b = Json.createObjectBuilder();
 		b.add("foo", Json.createObjectBuilder().add("bar", "baz"));
 		final var context = b.build();
-		assertEquals("edu\nel\n", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<'")));
-		assertEquals("edu\nel\n", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<'/")));
-		assertEquals("edu\nel\n", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<'.")));
+		assertEquals("edu\nel\nel-with-json-pointer\n", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<'")));
+		assertEquals("edu\nel\nel-with-json-pointer\n", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<'/")));
+		assertEquals("edu\nel\nel-with-json-pointer\n", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<'.")));
 	}
 
 	@Test
@@ -520,7 +520,7 @@ public class ElTest {
 		JsonObjectBuilder b = Json.createObjectBuilder();
 		b.add("fool", "el/-list");
 		final var err = assertThrows(IllegalArgumentException.class, () -> El.eval(b.build(), "_.fool"));
-		assertEquals("expected object or array for fool", err.getMessage());
+		assertEquals("expected object or array for null", err.getMessage());
 	}
 
 	@Test

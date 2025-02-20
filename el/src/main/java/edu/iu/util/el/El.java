@@ -291,7 +291,7 @@ public class El {
 					else if (selected instanceof JsonObject)
 						selected = selected.asJsonObject().get(pathElement);
 					else
-						throw new IllegalArgumentException("expected object or array for " + pathElement);
+						throw new IllegalArgumentException("expected object or array for " + selected);
 
 					dot = nextDot;
 				}
