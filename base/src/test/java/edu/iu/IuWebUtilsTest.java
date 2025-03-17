@@ -856,7 +856,7 @@ public class IuWebUtilsTest {
 
 		e = assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseNodeIdentifier("[::1]:_"));
 		assertEquals("invalid obfport", e.getMessage());
-		
+
 		e = assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseNodeIdentifier("[::1]:_abc"));
 		assertEquals("unknown obfport", e.getMessage());
 
@@ -868,6 +868,19 @@ public class IuWebUtilsTest {
 
 		e = assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseNodeIdentifier("[::1] "));
 		assertEquals("expected ':' or end of node", e.getMessage());
+
+		final var obfname = "_" + IdGenerator.generateId();
+		final var obfport = "_" + IdGenerator.generateId();
+		a = IuWebUtils.parseNodeIdentifier(obfname + ":" + obfport, s -> {
+			assertEquals(obfname, s);
+			return IuWebUtils.getInetAddress("::1");
+		}, s -> {
+			assertEquals(obfport, s);
+			return 8780;
+		});
+		assertEquals(IuWebUtils.getInetAddress("::1").getHostName(), a.getHostName());
+		assertEquals(8780, a.getPort());
+
 	}
 
 	private Map<String, ? extends Iterable<String>> assertQueryString(String qs) {

@@ -34,7 +34,7 @@ import edu.iu.test.IuTestLogger;
 import edu.iu.web.IuWebContext;
 
 @SuppressWarnings("javadoc")
-public class BaseFilterTest {
+public class WebServerUtilsTest {
 
 	// copied from com.sun.net.httpserver.Headers
 	private String normalize(String key) {
@@ -56,16 +56,6 @@ public class BaseFilterTest {
 				throw new IllegalArgumentException("illegal character in key");
 		}
 		return new String(b);
-	}
-
-	@Test
-	public void testDescription() {
-		final var filter = new BaseFilter() {
-			@Override
-			public void doFilter(HttpExchange exchange, Chain chain) throws IOException {
-			}
-		};
-		assertEquals(filter.getClass().getName(), filter.description());
 	}
 
 	@Test
@@ -101,7 +91,7 @@ public class BaseFilterTest {
 						+ remoteAddress + "\n  Local Address: " + localAddress + "\n  Context Path: " + contextPath
 						+ "\n  Request URI: " + requestUri + "\n  Headers:\n    " + normalize(headerName) + " = "
 						+ headerValue1 + "\n    " + normalize(headerName) + " = " + headerValue2,
-				BaseFilter.describeRequest(exchange));
+				WebServerUtils.describeRequest(exchange));
 	}
 
 	@Test
@@ -117,28 +107,28 @@ public class BaseFilterTest {
 		when(exchange.getResponseHeaders()).thenReturn(headers);
 
 		assertEquals("HTTP 200 OK\n  Headers:\n    " + normalize(headerName) + " = " + headerValue1 + "\n    "
-				+ normalize(headerName) + " = " + headerValue2, BaseFilter.describeResponse(exchange));
+				+ normalize(headerName) + " = " + headerValue2, WebServerUtils.describeResponse(exchange));
 	}
 
 	@Test
 	public void testGetStatus() {
-		assertEquals(400, BaseFilter.getStatus(new IuBadRequestException()));
-		assertEquals(403, BaseFilter.getStatus(new IuAuthorizationFailedException()));
-		assertEquals(404, BaseFilter.getStatus(new IuNotFoundException()));
-		assertEquals(500, BaseFilter.getStatus(new IllegalStateException()));
-		assertEquals(503, BaseFilter.getStatus(new IuOutOfServiceException()));
+		assertEquals(400, WebServerUtils.getStatus(new IuBadRequestException()));
+		assertEquals(403, WebServerUtils.getStatus(new IuAuthorizationFailedException()));
+		assertEquals(404, WebServerUtils.getStatus(new IuNotFoundException()));
+		assertEquals(500, WebServerUtils.getStatus(new IllegalStateException()));
+		assertEquals(503, WebServerUtils.getStatus(new IuOutOfServiceException()));
 	}
 
 	@Test
 	public void testGetLevel() {
-		assertEquals(Level.FINE, BaseFilter.getLevel(200));
-		assertEquals(Level.FINE, BaseFilter.getLevel(301));
-		assertEquals(Level.FINE, BaseFilter.getLevel(302));
-		assertEquals(Level.WARNING, BaseFilter.getLevel(400));
-		assertEquals(Level.INFO, BaseFilter.getLevel(403));
-		assertEquals(Level.INFO, BaseFilter.getLevel(404));
-		assertEquals(Level.SEVERE, BaseFilter.getLevel(500));
-		assertEquals(Level.CONFIG, BaseFilter.getLevel(503));
+		assertEquals(Level.FINE, WebServerUtils.getLevel(200));
+		assertEquals(Level.FINE, WebServerUtils.getLevel(301));
+		assertEquals(Level.FINE, WebServerUtils.getLevel(302));
+		assertEquals(Level.WARNING, WebServerUtils.getLevel(400));
+		assertEquals(Level.INFO, WebServerUtils.getLevel(403));
+		assertEquals(Level.INFO, WebServerUtils.getLevel(404));
+		assertEquals(Level.SEVERE, WebServerUtils.getLevel(500));
+		assertEquals(Level.CONFIG, WebServerUtils.getLevel(503));
 	}
 
 	@Test
@@ -157,7 +147,7 @@ public class BaseFilterTest {
 		when(exchange.getResponseBody()).thenReturn(responseBody);
 
 		final var webContext = mock(IuWebContext.class);
-		try (final var mockBaseFilter = mockStatic(BaseFilter.class, CALLS_REAL_METHODS);
+		try (final var mockWebServerUtils = mockStatic(WebServerUtils.class, CALLS_REAL_METHODS);
 				final var mockErrorDetails = mockConstruction(ErrorDetails.class, (a, ctx) -> {
 					final var args = ctx.arguments();
 					assertEquals(nodeId, args.get(0), args::toString);
@@ -166,11 +156,11 @@ public class BaseFilterTest {
 					assertEquals(500, args.get(3), args::toString);
 					when(a.toString()).thenReturn(serializedErrorDetails);
 				})) {
-			mockBaseFilter.when(() -> BaseFilter.describeRequest(exchange)).thenReturn(requestDescr);
-			mockBaseFilter.when(() -> BaseFilter.describeResponse(exchange)).thenReturn(responseDescr);
-			IuTestLogger.expect(BaseFilter.class.getName(), Level.SEVERE, responseDescr + "\n" + requestDescr,
+			mockWebServerUtils.when(() -> WebServerUtils.describeRequest(exchange)).thenReturn(requestDescr);
+			mockWebServerUtils.when(() -> WebServerUtils.describeResponse(exchange)).thenReturn(responseDescr);
+			IuTestLogger.expect(WebServerUtils.class.getName(), Level.SEVERE, responseDescr + "\n" + requestDescr,
 					Throwable.class, a -> a == error);
-			assertDoesNotThrow(() -> BaseFilter.handleError(nodeId, requestNum, error, exchange, webContext));
+			assertDoesNotThrow(() -> WebServerUtils.handleError(nodeId, requestNum, error, exchange, webContext));
 			try {
 				assertEquals(0, error.getSuppressed().length);
 			} catch (AssertionFailedError e) {
@@ -183,6 +173,20 @@ public class BaseFilterTest {
 			assertEquals(serializedErrorDetails, IuText.utf8(responseBody.toByteArray()));
 			verify(exchange).close();
 		}
+	}
+
+	@Test
+	public void testReplaceAuthority() {
+		final var was = IdGenerator.generateId();
+		final var path = "/" + IdGenerator.generateId();
+		final var u = URI.create("test://" + was + path);
+		assertEquals(u, WebServerUtils.replaceAuthority(u, null));
+		
+		final var is = IdGenerator.generateId();
+		assertEquals(URI.create("test://" + is + path), WebServerUtils.replaceAuthority(u, is));
+		
+		final var u2 = URI.create("test://" + was);
+		assertEquals(URI.create("test://" + is), WebServerUtils.replaceAuthority(u2, is));
 	}
 
 }

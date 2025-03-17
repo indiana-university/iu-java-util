@@ -43,7 +43,9 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
+import java.util.function.Function;
 
 /**
  * Provides useful utility methods for low-level web client and server
@@ -1305,46 +1307,74 @@ public final class IuWebUtils {
 	 * @see #alpha(char)
 	 */
 	public static InetSocketAddress parseNodeIdentifier(String nodeId) {
+		return parseNodeIdentifier(nodeId, a -> {
+			throw new IllegalArgumentException("unknown obfnode");
+		}, a -> {
+			throw new IllegalArgumentException("unknown obfport");
+		});
+	}
+
+	/**
+	 * Implements {@link #parseNodeIdentifier(String nodeId)} with obfuscated node
+	 * and port lookups.
+	 * 
+	 * @param nodeId               <a href=
+	 *                             "https://datatracker.ietf.org/doc/html/rfc7239#section-6">Node
+	 *                             identifier</a>
+	 * @param obfuscatedNodeLookup Resovles an obfuscated node name (obfnode) to
+	 *                             {@link InetAddress}
+	 * @param obfuscatedPortLookup Resovles an obfuscated node port (obfport) number
+	 * @return {@link InetSocketAddress}
+	 * @see #digit(char)
+	 * @see #alpha(char)
+	 */
+	public static InetSocketAddress parseNodeIdentifier(final String nodeId,
+			Function<String, InetAddress> obfuscatedNodeLookup, Function<String, Integer> obfuscatedPortLookup) {
 		if (nodeId == null || nodeId.isEmpty())
 			return null;
 
 		final var len = nodeId.length();
-		var pos = parseIPv4Address(nodeId, 0);
-		if (pos == 0) {
-			var c = nodeId.charAt(0);
-			if (c == '[') {
-				pos = parseIPv6Address(nodeId, 1);
-				if (pos == 1 //
-						|| pos >= len)
-					throw new IllegalArgumentException("invalid IPv6 address");
+		final int endOfName;
+		InetAddress obfnode = null;
+		{
+			var pos = parseIPv4Address(nodeId, 0);
+			if (pos == 0) {
+				var c = nodeId.charAt(0);
+				if (c == '[') {
+					pos = parseIPv6Address(nodeId, 1);
+					if (pos == 1 //
+							|| pos >= len)
+						throw new IllegalArgumentException("invalid IPv6 address");
+					else
+						pos++;
+				} else if (c == '_') {
+					pos = obf(nodeId, 0);
+					if (pos == 0)
+						throw new IllegalArgumentException("invalid obfnode");
+					else
+						obfnode = obfuscatedNodeLookup.apply(nodeId.substring(0, pos));
+				} else if (nodeId.startsWith("unknown"))
+					return null;
 				else
-					pos++;
-			} else if (c == '_') //
-				if (obf(nodeId, 0) == 0)
-					throw new IllegalArgumentException("invalid obfnode");
-				else // TODO: look up by obfuscated name
-					throw new IllegalArgumentException("unknown obfnode");
-			else if (nodeId.startsWith("unknown"))
-				return null;
-			else
-				throw new IllegalArgumentException("invalid nodename");
+					throw new IllegalArgumentException("invalid nodename");
+			}
+			endOfName = pos;
 		}
 
 		final int port;
-		if (pos >= len)
+		if (endOfName >= len)
 			port = 0;
-		else if (nodeId.charAt(pos) == ':') {
-			final var tail = nodeId.substring(pos + 1);
-			nodeId = nodeId.substring(0, pos);
-
+		else if (nodeId.charAt(endOfName) == ':') {
+			final var tail = nodeId.substring(endOfName + 1);
 			if (tail.isEmpty())
 				throw new IllegalArgumentException("empty node-port");
-			else if (tail.charAt(0) == '_')
-				if (obf(tail, 0) == 0)
+			else if (tail.charAt(0) == '_') {
+				final var endOfObfport = obf(tail, 0);
+				if (endOfObfport == 0)
 					throw new IllegalArgumentException("invalid obfport");
-				else // TODO: look up by obfuscated name
-					throw new IllegalArgumentException("unknown obfport");
-			else {
+				else
+					port = obfuscatedPortLookup.apply(tail.substring(0, endOfObfport));
+			} else {
 				final var portlen = tail.length();
 				if (portlen > 5)
 					throw new IllegalArgumentException("invalid node-port");
@@ -1356,10 +1386,14 @@ public final class IuWebUtils {
 		} else
 			throw new IllegalArgumentException("expected ':' or end of node");
 
-		if (nodeId.charAt(0) == '[') // trim brackets from IPv6
-			nodeId = nodeId.substring(1, pos - 1);
-
-		return new InetSocketAddress(getInetAddress(nodeId), port);
+		return new InetSocketAddress(Objects.requireNonNullElseGet(obfnode, () -> {
+			String name;
+			if (nodeId.charAt(0) == '[') // trim brackets from IPv6
+				name = nodeId.substring(1, endOfName - 1);
+			else
+				name = nodeId.substring(0, endOfName);
+			return getInetAddress(name);
+		}), port);
 	}
 
 	/**

@@ -41,6 +41,15 @@ class ThreadGuardFilter extends Filter implements Runnable, AutoCloseable {
 	private volatile Timer threadGuardReportingTimer;
 
 	/**
+	 * Gets {@link #threadLimit}
+	 * 
+	 * @return {@link #threadLimit}
+	 */
+	int threadLimit() {
+		return threadLimit;
+	}
+
+	/**
 	 * Observes thread state and generates a JSON object of captured metadata.
 	 * 
 	 * @param quiet true to retain state after capture; false to reset thread state
@@ -136,7 +145,8 @@ class ThreadGuardFilter extends Filter implements Runnable, AutoCloseable {
 			comp = ThreadGuard.GLOBAL_GUARD;
 		} else
 			synchronized (COMP_GUARD) {
-				comp = COMP_GUARD.computeIfAbsent(webContext.getLoader(), a -> new ThreadGuard(webContext.getPath()));
+				comp = COMP_GUARD.computeIfAbsent(webContext.getLoader(),
+						a -> new ThreadGuard(webContext.getRootUri()));
 			}
 
 		final var compActive = comp.active();

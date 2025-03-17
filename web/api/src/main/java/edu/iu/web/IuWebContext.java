@@ -1,5 +1,7 @@
 package edu.iu.web;
 
+import java.net.URI;
+
 import com.sun.net.httpserver.HttpHandler;
 
 /**
@@ -68,10 +70,17 @@ public interface IuWebContext {
 	 * 
 	 * @return context path, with leading slash
 	 */
-	String getPath();
+	URI getRootUri();
 
 	/**
-	 * Gets the {@link HttpHandler} for requests relative to {@link #getPath()}.
+	 * Allow-list of domains permitted to submit cross-origin fetch requests.
+	 * 
+	 * @return set of domains
+	 */
+	Iterable<String> getOriginAllow();
+
+	/**
+	 * Gets the {@link HttpHandler} for requests relative to {@link #getRootUri()}.
 	 * 
 	 * @return {@link HttpHandler}
 	 */

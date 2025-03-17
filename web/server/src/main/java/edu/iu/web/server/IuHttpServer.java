@@ -1,14 +1,8 @@
 package edu.iu.web.server;
 
-import java.net.InetSocketAddress;
-import java.net.URI;
-import java.time.Duration;
-import java.util.Collections;
 import java.util.logging.Logger;
 
 import edu.iu.UnsafeRunnable;
-import edu.iu.web.IuWebAuthenticator;
-import edu.iu.web.IuWebContext;
 import iu.web.server.IuHttpListener;
 import jakarta.annotation.Priority;
 import jakarta.annotation.Resource;
@@ -23,23 +17,7 @@ public final class IuHttpServer implements UnsafeRunnable, AutoCloseable {
 	private static final Logger LOG = Logger.getLogger(IuHttpServer.class.getName());
 
 	@Resource
-	private URI externalUri;
-	@Resource
-	private String host = "";
-	@Resource
-	private int port = 8780;
-	@Resource
-	private URI[] allowedExternalUris = new URI[0];
-	@Resource
-	private int threads = 100;
-	@Resource
-	private int backlog;
-	@Resource
-	private Duration stopDelay = Duration.ofSeconds(15L);
-	@Resource
-	private IuWebAuthenticator iuWebAuthenticator;
-	@Resource
-	private Iterable<IuWebContext> iuWebContext = Collections.emptySet();
+	private IuHttpListener iuHttpListener;
 
 	private volatile boolean started;
 	private volatile boolean online;
@@ -53,20 +31,21 @@ public final class IuHttpServer implements UnsafeRunnable, AutoCloseable {
 
 	@Override
 	public synchronized void run() throws Exception {
-		final var address = host.isEmpty() ? new InetSocketAddress(port) : new InetSocketAddress(host, port);
-
 		LOG.config(() -> "starting " + this);
 
-		try (final var listener = IuHttpListener.create(externalUri, address, allowedExternalUris, iuWebAuthenticator,
-				iuWebContext, threads, backlog, (int) stopDelay.toSeconds())) {
+		try {
+			iuHttpListener.start();
+
 			started = true;
 			setOnline(true);
-			LOG.fine(() -> "started " + this + "; " + listener);
+			LOG.fine(() -> "started " + this);
 
 			while (!closed)
 				wait(500L);
 
-			LOG.fine(() -> "stopping " + this + "; " + listener);
+			LOG.fine(() -> "stopping " + this);
+		} finally {
+			iuHttpListener.close();
 		}
 
 		LOG.config(() -> "stopped " + this);
@@ -106,8 +85,7 @@ public final class IuHttpServer implements UnsafeRunnable, AutoCloseable {
 
 	@Override
 	public String toString() {
-		return "IuHttpServer [host=" + host + ", port=" + port + ", backlog=" + backlog + ", stopDelay=" + stopDelay
-				+ ", online=" + online + ", closed=" + closed + "]";
+		return "IuHttpServer [iuHttpListener=" + iuHttpListener + ", online=" + online + ", closed=" + closed + "]";
 	}
 
 }

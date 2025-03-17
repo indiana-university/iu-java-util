@@ -1,10 +1,10 @@
 package iu.web.server;
 
+import java.net.URI;
 import java.util.Collections;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import com.sun.net.httpserver.Filter;
 import com.sun.net.httpserver.HttpExchange;
 
 import edu.iu.IuAuthorizationFailedException;
@@ -17,16 +17,13 @@ import edu.iu.IuWebUtils;
 import edu.iu.web.IuWebContext;
 
 /**
- * Binds {@link IuWebContext} to the active request.
+ * Utility methods for web server implementation components.
  */
-abstract class BaseFilter extends Filter {
+class WebServerUtils {
 
-	private static final Logger LOG = Logger.getLogger(BaseFilter.class.getName());
+	private static final Logger LOG = Logger.getLogger(WebServerUtils.class.getName());
 
-	/**
-	 * Constructor.
-	 */
-	BaseFilter() {
+	private WebServerUtils() {
 	}
 
 	/**
@@ -64,6 +61,33 @@ abstract class BaseFilter extends Filter {
 			}
 
 		return sb.toString();
+	}
+
+	/**
+	 * Replaces the authority section in the request URI with external-facing host
+	 * address of an upstream proxy.
+	 * 
+	 * @param originalUri Original request URI
+	 * @param host        replacement URI host authority
+	 * @return modified {@link URI}
+	 */
+	static URI replaceAuthority(URI originalUri, String host) {
+		if (host == null)
+			return originalUri;
+
+		final var newUriBuilder = new StringBuilder(originalUri.toString());
+
+		final var startOfAuthority = newUriBuilder.indexOf("//") + 2;
+		final var endOfAuthority = newUriBuilder.indexOf("/", startOfAuthority);
+		if (endOfAuthority > startOfAuthority)
+			newUriBuilder.delete(startOfAuthority, endOfAuthority);
+		else
+			newUriBuilder.setLength(startOfAuthority);
+
+		newUriBuilder.insert(startOfAuthority, host);
+
+		final var requestUri = URI.create(newUriBuilder.toString());
+		return requestUri;
 	}
 
 	/**
@@ -170,7 +194,7 @@ abstract class BaseFilter extends Filter {
 			IuWebContext webContext) {
 		final int status = getStatus(error);
 		final Level level = getLevel(status);
-		
+
 		IuException.suppress(error, () -> {
 			final var response = IuText.utf8(new ErrorDetails(nodeId, requestNumber, webContext, status).toString());
 			exchange.getResponseHeaders().put("Content-Type",
@@ -182,11 +206,6 @@ abstract class BaseFilter extends Filter {
 		});
 
 		LOG.log(level, error, () -> describeResponse(exchange) + "\n" + describeRequest(exchange));
-	}
-
-	@Override
-	public String description() {
-		return getClass().getName();
 	}
 
 }
