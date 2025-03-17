@@ -1,0 +1,13 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+IU Authentication and Authorization Configuration,edu.iu.auth.config,IuAuthorizationClient.AuthMethod,0,96,0,0,0,18,0,5,0,5
+IU Authentication and Authorization Configuration,edu.iu.auth.config,IuAuthenticationRealm.Type,0,135,0,4,0,16,0,8,0,6
+IU Authentication and Authorization Configuration,edu.iu.auth.config,IuSessionConfiguration,0,6,0,0,0,2,0,2,0,2
+IU Authentication and Authorization Configuration,edu.iu.auth.config,IuAuthorizationClient.GrantType,0,65,0,0,0,11,0,5,0,5
+IU Authentication and Authorization Configuration,edu.iu.auth.config,X500Utils,0,693,0,136,0,121,0,84,0,16
+IU Authentication and Authorization Configuration,edu.iu.auth.config,IuOpenIdProviderMetadata,0,2,0,0,0,1,0,1,0,1
+IU Authentication and Authorization Configuration,edu.iu.auth.config,IuBasicAuthCredentials,0,13,0,0,0,3,0,1,0,1
+IU Authentication and Authorization Configuration,edu.iu.auth.config,IuSamlServiceProviderMetadata,0,12,0,0,0,5,0,5,0,5
+IU Authentication and Authorization Configuration,edu.iu.auth.config,IuAuthenticationRealm,0,5,0,0,0,2,0,1,0,1
+IU Authentication and Authorization Configuration,iu.auth.config,AuthConfig,0,293,0,22,0,69,0,29,0,18
+IU Authentication and Authorization Configuration,iu.auth.config,AuthConfig.new Object() {...},0,86,0,6,0,13,0,7,0,4
+IU Authentication and Authorization Configuration,iu.auth.config,AuthConfig.StorageConfig,0,15,0,0,0,6,0,1,0,1
