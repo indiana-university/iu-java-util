@@ -1,4 +1,35 @@
-<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuFixedLimitOutputBuffer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Base Utilities Module</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuFixedLimitOutputBuffer.java</span></div><h1>IuFixedLimitOutputBuffer.java</h1><pre class="source lang-java linenums">package edu.iu;
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuFixedLimitOutputBuffer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Base Utilities Module</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuFixedLimitOutputBuffer.java</span></div><h1>IuFixedLimitOutputBuffer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2025 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -25,8 +56,8 @@ public class IuFixedLimitOutputBuffer {
 	 * @param maxSize maximum number of bytes to allow writing to the target
 	 */
 	public IuFixedLimitOutputBuffer(long maxSize) {
-<span class="fc" id="L28">		this(0, maxSize);</span>
-<span class="fc" id="L29">	}</span>
+<span class="fc" id="L59">		this(0, maxSize);</span>
+<span class="fc" id="L60">	}</span>
 
 	/**
 	 * Constructor.
@@ -35,8 +66,8 @@ public class IuFixedLimitOutputBuffer {
 	 * @param maxSize maximum number of bytes to allow writing to the target
 	 */
 	public IuFixedLimitOutputBuffer(long count, long maxSize) {
-<span class="fc" id="L38">		this(16384, count, maxSize);</span>
-<span class="fc" id="L39">	}</span>
+<span class="fc" id="L69">		this(16384, count, maxSize);</span>
+<span class="fc" id="L70">	}</span>
 
 	/**
 	 * Constructor.
@@ -45,18 +76,18 @@ public class IuFixedLimitOutputBuffer {
 	 * @param count      number of bytes previously written to the target
 	 * @param maxSize    maximum number of bytes to allow writing to the target
 	 */
-<span class="fc" id="L48">	public IuFixedLimitOutputBuffer(int bufferSize, long count, long maxSize) {</span>
-<span class="fc" id="L49">		this.buffer = new byte[bufferSize];</span>
-<span class="fc" id="L50">		this.count = count;</span>
-<span class="fc" id="L51">		this.maxSize = maxSize;</span>
-<span class="fc" id="L52">	}</span>
+<span class="fc" id="L79">	public IuFixedLimitOutputBuffer(int bufferSize, long count, long maxSize) {</span>
+<span class="fc" id="L80">		this.buffer = new byte[bufferSize];</span>
+<span class="fc" id="L81">		this.count = count;</span>
+<span class="fc" id="L82">		this.maxSize = maxSize;</span>
+<span class="fc" id="L83">	}</span>
 
 	/**
 	 * Resets the count of bytes written to the target.
 	 */
 	public void resetCount() {
-<span class="fc" id="L58">		count = 0;</span>
-<span class="fc" id="L59">	}</span>
+<span class="fc" id="L89">		count = 0;</span>
+<span class="fc" id="L90">	}</span>
 
 	/**
 	 * Gets the number of bytes remaining in the target output quota.
@@ -64,11 +95,11 @@ public class IuFixedLimitOutputBuffer {
 	 * @return number of bytes remaining in the target output quota.
 	 */
 	public int remaining() {
-<span class="fc" id="L67">		final var remaining = maxSize - count;</span>
-<span class="fc bfc" id="L68" title="All 2 branches covered.">		if (remaining &gt; Integer.MAX_VALUE)</span>
-<span class="fc" id="L69">			return Integer.MAX_VALUE;</span>
+<span class="fc" id="L98">		final var remaining = maxSize - count;</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">		if (remaining &gt; Integer.MAX_VALUE)</span>
+<span class="fc" id="L100">			return Integer.MAX_VALUE;</span>
 		else
-<span class="fc" id="L71">			return (int) remaining;</span>
+<span class="fc" id="L102">			return (int) remaining;</span>
 	}
 
 	/**
@@ -92,21 +123,21 @@ public class IuFixedLimitOutputBuffer {
 	 */
 	public void write(Supplier&lt;byte[]&gt; dataSupplier, OutputStream out) throws IOException {
 		int remaining;
-<span class="fc bfc" id="L95" title="All 2 branches covered.">		while ((pos &gt; mark || //</span>
-<span class="fc bfc" id="L96" title="All 2 branches covered.">				fill(dataSupplier)) &amp;&amp; //</span>
-<span class="fc bfc" id="L97" title="All 2 branches covered.">				(remaining = remaining()) &gt; 0) {</span>
-<span class="fc" id="L98">			final var len = pos - mark;</span>
-<span class="fc bfc" id="L99" title="All 2 branches covered.">			if (remaining &lt; len) {</span>
-<span class="fc" id="L100">				out.write(buffer, mark, remaining);</span>
-<span class="fc" id="L101">				count += remaining;</span>
-<span class="fc" id="L102">				mark += remaining;</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">		while ((pos &gt; mark || //</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">				fill(dataSupplier)) &amp;&amp; //</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">				(remaining = remaining()) &gt; 0) {</span>
+<span class="fc" id="L129">			final var len = pos - mark;</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">			if (remaining &lt; len) {</span>
+<span class="fc" id="L131">				out.write(buffer, mark, remaining);</span>
+<span class="fc" id="L132">				count += remaining;</span>
+<span class="fc" id="L133">				mark += remaining;</span>
 			} else {
-<span class="fc" id="L104">				out.write(buffer, mark, len);</span>
-<span class="fc" id="L105">				count += len;</span>
-<span class="fc" id="L106">				mark = pos = 0;</span>
+<span class="fc" id="L135">				out.write(buffer, mark, len);</span>
+<span class="fc" id="L136">				count += len;</span>
+<span class="fc" id="L137">				mark = pos = 0;</span>
 			}
-<span class="fc" id="L108">		}</span>
-<span class="fc" id="L109">	}</span>
+<span class="fc" id="L139">		}</span>
+<span class="fc" id="L140">	}</span>
 
 	/**
 	 * Fills the buffer with source data.
@@ -115,54 +146,54 @@ public class IuFixedLimitOutputBuffer {
 	 * @return true if data was added to the buffer; else false
 	 */
 	public boolean fill(Supplier&lt;byte[]&gt; dataSupplier) {
-<span class="fc" id="L118">		var available = available();</span>
-<span class="fc bfc" id="L119" title="All 2 branches covered.">		if (available &lt;= 0)</span>
-<span class="fc" id="L120">			return false;</span>
+<span class="fc" id="L149">		var available = available();</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">		if (available &lt;= 0)</span>
+<span class="fc" id="L151">			return false;</span>
 
-<span class="fc" id="L122">		final var opos = pos;</span>
+<span class="fc" id="L153">		final var opos = pos;</span>
 
-<span class="fc bfc" id="L124" title="All 2 branches covered.">		if (overflow != null) {</span>
-<span class="fc" id="L125">			final var overflowRemaining = overflow.length - overflowOffset;</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">		if (overflow != null) {</span>
+<span class="fc" id="L156">			final var overflowRemaining = overflow.length - overflowOffset;</span>
 
-<span class="fc bfc" id="L127" title="All 2 branches covered.">			if (overflowRemaining &gt; available) {</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">			if (overflowRemaining &gt; available) {</span>
 				// fill available space from overflow
-<span class="fc" id="L129">				System.arraycopy(overflow, overflowOffset, buffer, pos, available);</span>
-<span class="fc" id="L130">				pos += available;</span>
+<span class="fc" id="L160">				System.arraycopy(overflow, overflowOffset, buffer, pos, available);</span>
+<span class="fc" id="L161">				pos += available;</span>
 
 				// increment overflow offset for next iteration
-<span class="fc" id="L133">				overflowOffset += available;</span>
-<span class="fc" id="L134">				return true;</span>
+<span class="fc" id="L164">				overflowOffset += available;</span>
+<span class="fc" id="L165">				return true;</span>
 			}
 
 			// else copy all overflow bytes into the buffer
-<span class="fc" id="L138">			System.arraycopy(overflow, overflowOffset, buffer, pos, overflowRemaining);</span>
-<span class="fc" id="L139">			pos += overflowRemaining;</span>
-<span class="fc" id="L140">			overflow = null;</span>
-<span class="fc" id="L141">			overflowOffset = 0;</span>
+<span class="fc" id="L169">			System.arraycopy(overflow, overflowOffset, buffer, pos, overflowRemaining);</span>
+<span class="fc" id="L170">			pos += overflowRemaining;</span>
+<span class="fc" id="L171">			overflow = null;</span>
+<span class="fc" id="L172">			overflowOffset = 0;</span>
 		}
 
 		byte[] data;
-<span class="fc bfc" id="L145" title="All 2 branches covered.">		while ((data = dataSupplier.get()) != null) {</span>
-<span class="fc" id="L146">			available = available();</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">		while ((data = dataSupplier.get()) != null) {</span>
+<span class="fc" id="L177">			available = available();</span>
 
-<span class="fc" id="L148">			final var messageLength = data.length;</span>
-<span class="fc bfc" id="L149" title="All 2 branches covered.">			if (messageLength &gt; available) {</span>
+<span class="fc" id="L179">			final var messageLength = data.length;</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">			if (messageLength &gt; available) {</span>
 				// fill available space from data
-<span class="fc" id="L151">				System.arraycopy(data, 0, buffer, pos, available);</span>
-<span class="fc" id="L152">				pos += available;</span>
+<span class="fc" id="L182">				System.arraycopy(data, 0, buffer, pos, available);</span>
+<span class="fc" id="L183">				pos += available;</span>
 
 				// copy data reference as overflow buffer and set initial offset
-<span class="fc" id="L155">				overflow = data;</span>
-<span class="fc" id="L156">				overflowOffset = available;</span>
-<span class="fc" id="L157">				return true;</span>
+<span class="fc" id="L186">				overflow = data;</span>
+<span class="fc" id="L187">				overflowOffset = available;</span>
+<span class="fc" id="L188">				return true;</span>
 			}
 
 			// copy data into buffer and increment position
-<span class="fc" id="L161">			System.arraycopy(data, 0, buffer, pos, messageLength);</span>
-<span class="fc" id="L162">			pos += messageLength;</span>
-<span class="fc" id="L163">		}</span>
+<span class="fc" id="L192">			System.arraycopy(data, 0, buffer, pos, messageLength);</span>
+<span class="fc" id="L193">			pos += messageLength;</span>
+<span class="fc" id="L194">		}</span>
 
-<span class="fc bfc" id="L165" title="All 2 branches covered.">		return pos &gt; opos;</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">		return pos &gt; opos;</span>
 	}
 
 	/**
@@ -171,7 +202,7 @@ public class IuFixedLimitOutputBuffer {
 	 * @return number of bytes available in the buffer.
 	 */
 	int available() {
-<span class="fc" id="L174">		return buffer.length - pos;</span>
+<span class="fc" id="L205">		return buffer.length - pos;</span>
 	}
 
 }
