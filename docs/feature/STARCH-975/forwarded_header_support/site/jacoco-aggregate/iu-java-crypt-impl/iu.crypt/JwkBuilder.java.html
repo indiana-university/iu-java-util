@@ -1,0 +1,351 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>JwkBuilder.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-crypt-impl</a> &gt; <a href="index.source.html" class="el_package">iu.crypt</a> &gt; <span class="el_source">JwkBuilder.java</span></div><h1>JwkBuilder.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2025 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.crypt;
+
+import java.io.InputStream;
+import java.math.BigInteger;
+import java.security.Key;
+import java.security.KeyPair;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.cert.X509Certificate;
+import java.security.interfaces.ECPrivateKey;
+import java.security.interfaces.ECPublicKey;
+import java.security.interfaces.RSAPrivateCrtKey;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
+import java.security.interfaces.XECPrivateKey;
+import java.security.spec.NamedParameterSpec;
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Queue;
+
+import edu.iu.IdGenerator;
+import edu.iu.IuException;
+import edu.iu.IuObject;
+import edu.iu.IuText;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.EphemeralKeys;
+import edu.iu.crypt.PemEncoded;
+import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Builder;
+import edu.iu.crypt.WebKey.Operation;
+import edu.iu.crypt.WebKey.Type;
+import edu.iu.crypt.WebKey.Use;
+import jakarta.json.JsonObjectBuilder;
+import jakarta.json.JsonString;
+
+/**
+ * JWK {@link Builder} implementation.
+ */
+public class JwkBuilder extends KeyReferenceBuilder&lt;JwkBuilder&gt; implements Builder&lt;JwkBuilder&gt; {
+	static {
+<span class="fc" id="L77">		IuObject.assertNotOpen(JweBuilder.class);</span>
+	}
+
+<span class="fc" id="L80">	private static final BigInteger X25519_P = BigInteger.TWO.pow(255).add(BigInteger.valueOf(-19L));</span>
+<span class="fc" id="L81">	private static final BigInteger X448_P = BigInteger.TWO.pow(448)</span>
+<span class="fc" id="L82">			.add(BigInteger.TWO.pow(224).multiply(BigInteger.valueOf(-1L))).add(BigInteger.valueOf(-1L));</span>
+
+	/**
+	 * Creates a new {@link Builder}.
+	 * 
+	 * @param type key type
+	 * @return {@link Builder}
+	 */
+	public static Builder&lt;?&gt; of(Type type) {
+<span class="fc" id="L91">		return new JwkBuilder().type(type);</span>
+	}
+
+	private JwkBuilder() {
+	}
+
+	@Override
+	public JwkBuilder type(Type type) {
+<span class="fc" id="L99">		param(&quot;kty&quot;, type.kty);</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">		if (type.crv != null)</span>
+<span class="fc" id="L101">			param(&quot;crv&quot;, type.crv);</span>
+<span class="fc" id="L102">		return this;</span>
+	}
+
+	@Override
+	public JwkBuilder use(Use use) {
+<span class="fc" id="L107">		return param(&quot;use&quot;, use, CryptJsonAdapters.USE);</span>
+	}
+
+	@Override
+	public JwkBuilder ops(Operation... ops) {
+<span class="fc" id="L112">		return param(&quot;key_ops&quot;, ops, IuJsonAdapter.of(Operation[].class, CryptJsonAdapters.OP));</span>
+	}
+
+	@Override
+	public JwkBuilder ephemeral() {
+<span class="fc" id="L117">		return ephemeral(alg());</span>
+	}
+
+	@SuppressWarnings(&quot;deprecation&quot;)
+	@Override
+	public JwkBuilder ephemeral(Algorithm algorithm) {
+<span class="fc bfc" id="L123" title="All 6 branches covered.">		switch (algorithm) {</span>
+		case A128GCMKW:
+		case A192GCMKW:
+		case A256GCMKW:
+		case A128KW:
+		case A192KW:
+		case A256KW:
+<span class="fc" id="L130">			key(EphemeralKeys.secret(&quot;AES&quot;, algorithm.size));</span>
+<span class="fc" id="L131">			break;</span>
+
+		case HS256:
+		case HS384:
+		case HS512:
+<span class="fc" id="L136">			key(EphemeralKeys.secret(algorithm.algorithm, algorithm.size));</span>
+<span class="fc" id="L137">			break;</span>
+
+		case ECDH_ES:
+		case ECDH_ES_A128KW:
+		case ECDH_ES_A192KW:
+		case ECDH_ES_A256KW:
+		case ES256:
+		case ES384:
+		case ES512:
+		case EDDSA:
+<span class="fc" id="L147">			key(EphemeralKeys.ec(</span>
+<span class="fc" id="L148">					Objects.requireNonNull(WebKey.algorithmParams(type().algorithmParams), type() + &quot; not supported&quot;)));</span>
+<span class="fc" id="L149">			break;</span>
+
+		case PS256:
+		case PS384:
+		case PS512:
+		case RS256:
+		case RS384:
+		case RS512:
+		case RSA1_5:
+		case RSA_OAEP:
+		case RSA_OAEP_256:
+<span class="fc" id="L160">			key(EphemeralKeys.rsa(algorithm.type[0].kty, 2048));</span>
+<span class="fc" id="L161">			break;</span>
+
+		case PBES2_HS256_A128KW:
+		case PBES2_HS384_A192KW:
+		case PBES2_HS512_A256KW:
+<span class="fc" id="L166">			key(IuText.utf8(IdGenerator.generateId()));</span>
+<span class="fc" id="L167">			break;</span>
+
+		default:
+<span class="fc" id="L170">			throw new UnsupportedOperationException();</span>
+		}
+<span class="fc" id="L172">		return this;</span>
+	}
+
+	@Override
+	public JwkBuilder ephemeral(Encryption encryption) {
+<span class="fc" id="L177">		return key(EphemeralKeys.contentEncryptionKey(encryption.mac, encryption.size));</span>
+	}
+
+	@Override
+	public JwkBuilder key(byte[] key) {
+<span class="fc" id="L182">		type(Type.RAW);</span>
+<span class="fc" id="L183">		return param(&quot;k&quot;, key, CryptJsonAdapters.B64URL);</span>
+	}
+
+	@Override
+	public JwkBuilder key(PublicKey key) {
+<span class="fc" id="L188">		type(key);</span>
+<span class="fc bfc" id="L189" title="All 2 branches covered.">		if (key instanceof RSAPublicKey) {</span>
+<span class="fc" id="L190">			final var rsa = (RSAPublicKey) key;</span>
+<span class="fc" id="L191">			return param(&quot;n&quot;, rsa.getModulus(), CryptJsonAdapters.BIGINT) //</span>
+<span class="fc" id="L192">					.param(&quot;e&quot;, rsa.getPublicExponent(), CryptJsonAdapters.BIGINT);</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">		} else if (key instanceof ECPublicKey) {</span>
+<span class="fc" id="L194">			final var w = ((ECPublicKey) key).getW();</span>
+<span class="fc" id="L195">			return param(&quot;x&quot;, w.getAffineX(), CryptJsonAdapters.BIGINT) //</span>
+<span class="fc" id="L196">					.param(&quot;y&quot;, w.getAffineY(), CryptJsonAdapters.BIGINT);</span>
+		} else
+<span class="fc" id="L198">			return IuException.unchecked(() -&gt; {</span>
+				// TODO: convert to compiled code for source level 17+
+				// EdDSA support was introduced in JDK 15
+				// XDH was experimental in JDK 11
+
+<span class="fc" id="L203">				final var xkeyClass = ClassLoader.getPlatformClassLoader()</span>
+<span class="fc" id="L204">						.loadClass(&quot;java.security.interfaces.XECPublicKey&quot;);</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">				if (xkeyClass.isInstance(key)) {</span>
+<span class="fc" id="L206">					final var spec = (NamedParameterSpec) xkeyClass.getMethod(&quot;getParams&quot;).invoke(key);</span>
+<span class="fc" id="L207">					final var u = (BigInteger) xkeyClass.getMethod(&quot;getU&quot;).invoke(key);</span>
+					final int l;
+					final BigInteger p;
+<span class="fc bfc" id="L210" title="All 2 branches covered.">					if (spec.getName().equals(Type.X25519.algorithmParams)) {</span>
+<span class="fc" id="L211">						l = 32;</span>
+<span class="fc" id="L212">						p = X25519_P;</span>
+					} else {
+<span class="fc" id="L214">						l = 57;</span>
+<span class="fc" id="L215">						p = X448_P;</span>
+					}
+<span class="fc" id="L217">					return param(&quot;x&quot;, Arrays.copyOf(EncodingUtils.reverse(UnsignedBigInteger.bigInt(u.mod(p))), l),</span>
+							CryptJsonAdapters.B64URL);
+				} else {
+<span class="fc" id="L220">					final var keyClass = ClassLoader.getPlatformClassLoader()</span>
+<span class="fc" id="L221">							.loadClass(&quot;java.security.interfaces.EdECPublicKey&quot;);</span>
+<span class="fc" id="L222">					final var spec = (NamedParameterSpec) keyClass.getMethod(&quot;getParams&quot;).invoke(key);</span>
+<span class="fc bfc" id="L223" title="All 2 branches covered.">					final var l = spec.getName().equals(Type.ED25519.algorithmParams) ? 32 : 57;</span>
+
+<span class="fc" id="L225">					final var pointClass = ClassLoader.getPlatformClassLoader()</span>
+<span class="fc" id="L226">							.loadClass(&quot;java.security.spec.EdECPoint&quot;);</span>
+<span class="fc" id="L227">					final var point = keyClass.getMethod(&quot;getPoint&quot;).invoke(key);</span>
+<span class="fc" id="L228">					final var yint = (BigInteger) pointClass.getMethod(&quot;getY&quot;).invoke(point);</span>
+<span class="fc" id="L229">					final var xodd = (boolean) pointClass.getMethod(&quot;isXOdd&quot;).invoke(point);</span>
+
+					// Convert from JCE EdECPoint to RFC-8032 encoded format
+					// https://datatracker.ietf.org/doc/html/rfc8032#section-5.1.2
+					// https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/security/spec/EdECPoint.html
+<span class="fc" id="L234">					final var a = UnsignedBigInteger.bigInt(yint);</span>
+<span class="fc" id="L235">					final var y = Arrays.copyOf(EncodingUtils.reverse(a), l);</span>
+<span class="fc bfc" id="L236" title="All 2 branches covered.">					if (xodd)</span>
+<span class="fc" id="L237">						y[l - 1] |= 0x80;</span>
+
+					// convert from big- to little-endian
+<span class="fc" id="L240">					return param(&quot;x&quot;, y, CryptJsonAdapters.B64URL);</span>
+				}
+			});
+	}
+
+	@Override
+	public JwkBuilder key(PrivateKey key) {
+<span class="fc" id="L247">		type(key);</span>
+<span class="fc bfc" id="L248" title="All 2 branches covered.">		if (key instanceof RSAPrivateKey) {</span>
+<span class="fc" id="L249">			final var rsa = (RSAPrivateKey) key;</span>
+<span class="fc" id="L250">			param(&quot;n&quot;, rsa.getModulus(), CryptJsonAdapters.BIGINT);</span>
+<span class="fc" id="L251">			param(&quot;d&quot;, rsa.getPrivateExponent(), CryptJsonAdapters.BIGINT);</span>
+<span class="fc bfc" id="L252" title="All 2 branches covered.">			if (rsa instanceof RSAPrivateCrtKey) {</span>
+<span class="fc" id="L253">				final var crt = (RSAPrivateCrtKey) rsa;</span>
+<span class="fc" id="L254">				param(&quot;e&quot;, crt.getPublicExponent(), CryptJsonAdapters.BIGINT);</span>
+<span class="fc" id="L255">				param(&quot;p&quot;, crt.getPrimeP(), CryptJsonAdapters.BIGINT);</span>
+<span class="fc" id="L256">				param(&quot;q&quot;, crt.getPrimeQ(), CryptJsonAdapters.BIGINT);</span>
+<span class="fc" id="L257">				param(&quot;dp&quot;, crt.getPrimeExponentP(), CryptJsonAdapters.BIGINT);</span>
+<span class="fc" id="L258">				param(&quot;dq&quot;, crt.getPrimeExponentQ(), CryptJsonAdapters.BIGINT);</span>
+<span class="fc" id="L259">				param(&quot;qi&quot;, crt.getCrtCoefficient(), CryptJsonAdapters.BIGINT);</span>
+			}
+<span class="fc" id="L261">			return this;</span>
+<span class="fc bfc" id="L262" title="All 2 branches covered.">		} else if (key instanceof ECPrivateKey)</span>
+<span class="fc" id="L263">			return param(&quot;d&quot;, ((ECPrivateKey) key).getS(), CryptJsonAdapters.BIGINT);</span>
+<span class="fc bfc" id="L264" title="All 2 branches covered.">		else if (key instanceof XECPrivateKey)</span>
+<span class="fc" id="L265">			return param(&quot;d&quot;, ((XECPrivateKey) key).getScalar().get(), CryptJsonAdapters.B64URL);</span>
+		else
+<span class="fc" id="L267">			return IuException.unchecked(() -&gt; {</span>
+				// EdDSA support was introduced in JDK 15, not supported by JDK 11
+				// TODO: convert to compiled code for source level 17+
+<span class="fc" id="L270">				final var keyClass = ClassLoader.getPlatformClassLoader()</span>
+<span class="fc" id="L271">						.loadClass(&quot;java.security.interfaces.EdECPrivateKey&quot;);</span>
+				@SuppressWarnings(&quot;unchecked&quot;)
+<span class="fc" id="L273">				final var bytes = (Optional&lt;byte[]&gt;) keyClass.getMethod(&quot;getBytes&quot;).invoke(key);</span>
+<span class="fc" id="L274">				return param(&quot;d&quot;, bytes.get(), CryptJsonAdapters.B64URL);</span>
+			});
+	}
+
+	@Override
+	public JwkBuilder key(KeyPair keyPair) {
+<span class="fc" id="L280">		IuObject.convert(keyPair, a -&gt; key(a.getPublic()));</span>
+<span class="fc" id="L281">		return IuObject.convert(keyPair, a -&gt; key(a.getPrivate()));</span>
+	}
+
+	@Override
+	public JwkBuilder pem(InputStream pemEncoded) {
+<span class="fc" id="L286">		pem(PemEncoded.parse(pemEncoded));</span>
+<span class="fc" id="L287">		return this;</span>
+	}
+
+	@Override
+	public JwkBuilder pem(String pemEncoded) {
+<span class="fc" id="L292">		pem(PemEncoded.parse(pemEncoded));</span>
+<span class="fc" id="L293">		return this;</span>
+	}
+
+	@Override
+	public Jwk build() {
+<span class="fc" id="L298">		return new Jwk(toJson());</span>
+	}
+
+	@Override
+	protected JsonObjectBuilder build(JsonObjectBuilder builder) {
+<span class="fc" id="L303">		return super.build(builder);</span>
+	}
+
+	private void type(Key key) {
+<span class="fc" id="L307">		final var params = WebKey.algorithmParams(key);</span>
+<span class="fc bfc" id="L308" title="All 2 branches covered.">		if (params == null)</span>
+<span class="fc" id="L309">			type(Type.from(key.getAlgorithm(), null));</span>
+		else
+<span class="fc" id="L311">			type(Objects.requireNonNull(Type.from(params), params + &quot; &quot; + key));</span>
+<span class="fc" id="L312">	}</span>
+
+	private Type type() {
+<span class="fc" id="L315">		return Type.from(Objects.requireNonNull((JsonString) param(&quot;kty&quot;), &quot;Missing key type&quot;).getString(),</span>
+<span class="fc" id="L316">				IuObject.convert((JsonString) param(&quot;crv&quot;), JsonString::getString));</span>
+	}
+
+	private Algorithm alg() {
+<span class="fc" id="L320">		return CryptJsonAdapters.ALG.fromJson(Objects.requireNonNull(param(&quot;alg&quot;), &quot;algorithm is required&quot;));</span>
+	}
+
+	private void pem(Iterator&lt;PemEncoded&gt; pem) {
+<span class="fc" id="L324">		final var type = type();</span>
+<span class="fc bfc" id="L325" title="All 2 branches covered.">		final var keyAlg = type.kty.equals(&quot;OKP&quot;) ? type.algorithmParams : type.kty;</span>
+<span class="fc" id="L326">		final Queue&lt;X509Certificate&gt; certChain = new ArrayDeque&lt;&gt;();</span>
+<span class="fc bfc" id="L327" title="All 2 branches covered.">		while (pem.hasNext()) {</span>
+<span class="fc" id="L328">			final var next = pem.next();</span>
+
+<span class="fc bfc" id="L330" title="All 3 branches covered.">			switch (next.getKeyType()) {</span>
+			case PRIVATE_KEY:
+<span class="fc" id="L332">				key(next.asPrivate(keyAlg));</span>
+<span class="fc" id="L333">				break;</span>
+
+			case PUBLIC_KEY:
+<span class="fc" id="L336">				key(next.asPublic(keyAlg));</span>
+<span class="fc" id="L337">				break;</span>
+
+			case CERTIFICATE:
+			default:
+<span class="fc" id="L341">				certChain.offer(next.asCertificate());</span>
+				break;
+			}
+<span class="fc" id="L344">		}</span>
+
+<span class="fc bfc" id="L346" title="All 2 branches covered.">		if (!certChain.isEmpty())</span>
+<span class="fc" id="L347">			cert(certChain.toArray(X509Certificate[]::new));</span>
+<span class="fc" id="L348">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
