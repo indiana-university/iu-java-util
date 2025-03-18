@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Indiana University
+ * Copyright © 2024 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -323,8 +323,7 @@ public class AsynchronousSubjectTest {
 			final var subscriber = subject.subscribe();
 			final var subsplit = subscriber.stream().spliterator();
 			subject.accept("b");
-			assertNull(subsplit.trySplit()); // not exhausted
-			assertTrue(subsplit.tryAdvance(a -> assertEquals("a", a)));
+			assertTrue(subsplit.trySplit().tryAdvance(a -> assertEquals("a", a)));
 			assertTrue(subsplit.tryAdvance(a -> assertEquals("b", a)));
 			assertNull(subsplit.trySplit()); // bootstrap pipe
 			assertNull(subsplit.trySplit()); // reuse pipe
