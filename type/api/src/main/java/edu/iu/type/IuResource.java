@@ -72,6 +72,13 @@ public interface IuResource<T> extends Supplier<T> {
 	boolean shared();
 
 	/**
+	 * Indicates the initialization priority.
+	 * 
+	 * @return initialization priority
+	 */
+	int priority();
+
+	/**
 	 * Gets the factory to be used for creating new instances.
 	 * 
 	 * <p>
@@ -105,8 +112,8 @@ public interface IuResource<T> extends Supplier<T> {
 	 * </ul>
 	 * 
 	 * <p>
-	 * To selective override default behavior, call {@link #factory()}
-	 * first to get a reference to the default factory.
+	 * To selective override default behavior, call {@link #factory()} first to get
+	 * a reference to the default factory.
 	 * </p>
 	 * 
 	 * @param factory resource implementation factory.
