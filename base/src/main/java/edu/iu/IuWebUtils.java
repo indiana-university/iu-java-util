@@ -1027,7 +1027,8 @@ public final class IuWebUtils {
 	}
 
 	/**
-	 * Parses an IPV4Address for {@link #parseNodeIdentifier(String)}.o
+	 * Parses an IPV4Address for {@link #parseNodeIdentifier(String)}.
+
 	 * 
 	 * @param nodeId      {@link #parseNodeIdentifier(String) node identifier}
 	 * @param originalPos start position
