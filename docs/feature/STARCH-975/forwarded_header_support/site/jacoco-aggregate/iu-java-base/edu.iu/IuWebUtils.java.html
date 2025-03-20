@@ -758,13 +758,14 @@ public final class IuWebUtils {
 	 * backslash)
 	 * 
 	 * @param c character
-	 * @return true of the character is in the cookie-octet character set.
+	 * @return true if the character is in the cookie-octet character set.
+
 	 * @see &lt;a href=
 	 *      &quot;https://datatracker.ietf.org/doc/html/rfc6265#section-4.1&quot;&gt;RFC-6265
 	 *      HTTP State Management, Section 4.1&lt;/a&gt;
 	 */
 	static boolean cookieOctet(char c) {
-<span class="fc bfc" id="L767" title="All 18 branches covered.">		return c == 0x21 // '!'</span>
+<span class="fc bfc" id="L768" title="All 18 branches covered.">		return c == 0x21 // '!'</span>
 				|| (c &gt;= 0x23 // '#'-'+'
 						&amp;&amp; c &lt;= 0x2b) //
 				|| (c &gt;= 0x2d // '-'-':'
@@ -792,35 +793,35 @@ public final class IuWebUtils {
 	 *      HTTP State Management, Section 4.1&lt;/a&gt;
 	 */
 	static int cookieValue(String cookieHeaderValue, int pos) {
-<span class="fc" id="L795">		final var len = cookieHeaderValue.length();</span>
-<span class="fc bfc" id="L796" title="All 2 branches covered.">		if (pos &gt;= len)</span>
-<span class="fc" id="L797">			return pos;</span>
+<span class="fc" id="L796">		final var len = cookieHeaderValue.length();</span>
+<span class="fc bfc" id="L797" title="All 2 branches covered.">		if (pos &gt;= len)</span>
+<span class="fc" id="L798">			return pos;</span>
 
-<span class="fc" id="L799">		var c = cookieHeaderValue.charAt(pos);</span>
+<span class="fc" id="L800">		var c = cookieHeaderValue.charAt(pos);</span>
 
-<span class="fc bfc" id="L801" title="All 2 branches covered.">		final boolean quoted = c == DQUOTE;</span>
-<span class="fc bfc" id="L802" title="All 2 branches covered.">		if (quoted) {</span>
-<span class="fc" id="L803">			pos++;</span>
-<span class="fc bfc" id="L804" title="All 2 branches covered.">			if (pos &gt;= len)</span>
-<span class="fc" id="L805">				throw new IllegalArgumentException(&quot;unterminated '\&quot;' at &quot; + pos);</span>
-<span class="fc" id="L806">			c = cookieHeaderValue.charAt(pos);</span>
+<span class="fc bfc" id="L802" title="All 2 branches covered.">		final boolean quoted = c == DQUOTE;</span>
+<span class="fc bfc" id="L803" title="All 2 branches covered.">		if (quoted) {</span>
+<span class="fc" id="L804">			pos++;</span>
+<span class="fc bfc" id="L805" title="All 2 branches covered.">			if (pos &gt;= len)</span>
+<span class="fc" id="L806">				throw new IllegalArgumentException(&quot;unterminated '\&quot;' at &quot; + pos);</span>
+<span class="fc" id="L807">			c = cookieHeaderValue.charAt(pos);</span>
 		}
 
-<span class="fc bfc" id="L809" title="All 2 branches covered.">		while (pos &lt; len //</span>
-<span class="fc bfc" id="L810" title="All 2 branches covered.">				&amp;&amp; cookieOctet(c)) {</span>
-<span class="fc" id="L811">			pos++;</span>
-<span class="fc bfc" id="L812" title="All 2 branches covered.">			if (pos &lt; len)</span>
-<span class="fc" id="L813">				c = cookieHeaderValue.charAt(pos);</span>
+<span class="fc bfc" id="L810" title="All 2 branches covered.">		while (pos &lt; len //</span>
+<span class="fc bfc" id="L811" title="All 2 branches covered.">				&amp;&amp; cookieOctet(c)) {</span>
+<span class="fc" id="L812">			pos++;</span>
+<span class="fc bfc" id="L813" title="All 2 branches covered.">			if (pos &lt; len)</span>
+<span class="fc" id="L814">				c = cookieHeaderValue.charAt(pos);</span>
 		}
 
-<span class="fc bfc" id="L816" title="All 2 branches covered.">		if (quoted)</span>
-<span class="fc bfc" id="L817" title="All 2 branches covered.">			if (pos &gt;= len //</span>
-<span class="fc bfc" id="L818" title="All 2 branches covered.">					|| cookieHeaderValue.charAt(pos) != DQUOTE)</span>
-<span class="fc" id="L819">				throw new IllegalArgumentException(&quot;unterminated '\&quot;' at &quot; + pos);</span>
+<span class="fc bfc" id="L817" title="All 2 branches covered.">		if (quoted)</span>
+<span class="fc bfc" id="L818" title="All 2 branches covered.">			if (pos &gt;= len //</span>
+<span class="fc bfc" id="L819" title="All 2 branches covered.">					|| cookieHeaderValue.charAt(pos) != DQUOTE)</span>
+<span class="fc" id="L820">				throw new IllegalArgumentException(&quot;unterminated '\&quot;' at &quot; + pos);</span>
 			else
-<span class="fc" id="L821">				return pos + 1;</span>
+<span class="fc" id="L822">				return pos + 1;</span>
 		else
-<span class="fc" id="L823">			return pos;</span>
+<span class="fc" id="L824">			return pos;</span>
 	}
 
 	/**
@@ -835,13 +836,13 @@ public final class IuWebUtils {
 	 * @return Iterable of parsed cookies
 	 */
 	public static Iterable&lt;HttpCookie&gt; parseCookieHeader(String cookieHeaderValue) {
-<span class="fc" id="L838">		final var trimmedCookieHeaderValue = cookieHeaderValue.trim();</span>
-<span class="fc" id="L839">		return IuIterable.of(() -&gt; new Iterator&lt;HttpCookie&gt;() {</span>
-<span class="fc" id="L840">			private int pos = 0;</span>
+<span class="fc" id="L839">		final var trimmedCookieHeaderValue = cookieHeaderValue.trim();</span>
+<span class="fc" id="L840">		return IuIterable.of(() -&gt; new Iterator&lt;HttpCookie&gt;() {</span>
+<span class="fc" id="L841">			private int pos = 0;</span>
 
 			@Override
 			public boolean hasNext() {
-<span class="fc bfc" id="L844" title="All 2 branches covered.">				return pos &lt; trimmedCookieHeaderValue.length();</span>
+<span class="fc bfc" id="L845" title="All 2 branches covered.">				return pos &lt; trimmedCookieHeaderValue.length();</span>
 			}
 
 			@Override
@@ -854,35 +855,35 @@ public final class IuWebUtils {
 				// cookie-value = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )
 				// cookie-octet = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E
 
-<span class="fc" id="L857">				final var endOfCookieName = token(trimmedCookieHeaderValue, pos);</span>
-<span class="fc bfc" id="L858" title="All 2 branches covered.">				if (endOfCookieName == pos)</span>
-<span class="fc" id="L859">					throw new IllegalArgumentException(&quot;invalid cookie-name at &quot; + pos);</span>
+<span class="fc" id="L858">				final var endOfCookieName = token(trimmedCookieHeaderValue, pos);</span>
+<span class="fc bfc" id="L859" title="All 2 branches covered.">				if (endOfCookieName == pos)</span>
+<span class="fc" id="L860">					throw new IllegalArgumentException(&quot;invalid cookie-name at &quot; + pos);</span>
 
-<span class="fc bfc" id="L861" title="All 2 branches covered.">				if (endOfCookieName &gt;= trimmedCookieHeaderValue.length() //</span>
-<span class="fc bfc" id="L862" title="All 2 branches covered.">						|| trimmedCookieHeaderValue.charAt(endOfCookieName) != '=')</span>
-<span class="fc" id="L863">					throw new IllegalArgumentException(&quot;expected '=' at &quot; + endOfCookieName);</span>
+<span class="fc bfc" id="L862" title="All 2 branches covered.">				if (endOfCookieName &gt;= trimmedCookieHeaderValue.length() //</span>
+<span class="fc bfc" id="L863" title="All 2 branches covered.">						|| trimmedCookieHeaderValue.charAt(endOfCookieName) != '=')</span>
+<span class="fc" id="L864">					throw new IllegalArgumentException(&quot;expected '=' at &quot; + endOfCookieName);</span>
 
-<span class="fc" id="L865">				final var cookieName = trimmedCookieHeaderValue.substring(pos, endOfCookieName);</span>
-<span class="fc" id="L866">				pos = endOfCookieName + 1;</span>
+<span class="fc" id="L866">				final var cookieName = trimmedCookieHeaderValue.substring(pos, endOfCookieName);</span>
+<span class="fc" id="L867">				pos = endOfCookieName + 1;</span>
 
 				final String cookieValue;
-<span class="fc" id="L869">				final var startOfCookieValue = pos;</span>
-<span class="fc" id="L870">				pos = cookieValue(trimmedCookieHeaderValue, startOfCookieValue);</span>
-<span class="fc bfc" id="L871" title="All 2 branches covered.">				if (pos == startOfCookieValue)</span>
-<span class="fc" id="L872">					cookieValue = &quot;&quot;;</span>
-<span class="fc bfc" id="L873" title="All 2 branches covered.">				else if (trimmedCookieHeaderValue.charAt(pos - 1) == DQUOTE)</span>
-<span class="fc" id="L874">					cookieValue = trimmedCookieHeaderValue.substring(startOfCookieValue + 1, pos - 1);</span>
+<span class="fc" id="L870">				final var startOfCookieValue = pos;</span>
+<span class="fc" id="L871">				pos = cookieValue(trimmedCookieHeaderValue, startOfCookieValue);</span>
+<span class="fc bfc" id="L872" title="All 2 branches covered.">				if (pos == startOfCookieValue)</span>
+<span class="fc" id="L873">					cookieValue = &quot;&quot;;</span>
+<span class="fc bfc" id="L874" title="All 2 branches covered.">				else if (trimmedCookieHeaderValue.charAt(pos - 1) == DQUOTE)</span>
+<span class="fc" id="L875">					cookieValue = trimmedCookieHeaderValue.substring(startOfCookieValue + 1, pos - 1);</span>
 				else
-<span class="fc" id="L876">					cookieValue = trimmedCookieHeaderValue.substring(startOfCookieValue, pos);</span>
+<span class="fc" id="L877">					cookieValue = trimmedCookieHeaderValue.substring(startOfCookieValue, pos);</span>
 
-<span class="fc bfc" id="L878" title="All 2 branches covered.">				if (pos + 1 &lt; trimmedCookieHeaderValue.length()) {</span>
-<span class="fc bfc" id="L879" title="All 2 branches covered.">					if (trimmedCookieHeaderValue.charAt(pos++) != ';')</span>
-<span class="fc" id="L880">						throw new IllegalArgumentException(&quot;expected ';' at &quot; + (pos - 1));</span>
-<span class="fc bfc" id="L881" title="All 2 branches covered.">					if (trimmedCookieHeaderValue.charAt(pos++) != SP)</span>
-<span class="fc" id="L882">						throw new IllegalArgumentException(&quot;expected ' ' at &quot; + (pos - 1));</span>
+<span class="fc bfc" id="L879" title="All 2 branches covered.">				if (pos + 1 &lt; trimmedCookieHeaderValue.length()) {</span>
+<span class="fc bfc" id="L880" title="All 2 branches covered.">					if (trimmedCookieHeaderValue.charAt(pos++) != ';')</span>
+<span class="fc" id="L881">						throw new IllegalArgumentException(&quot;expected ';' at &quot; + (pos - 1));</span>
+<span class="fc bfc" id="L882" title="All 2 branches covered.">					if (trimmedCookieHeaderValue.charAt(pos++) != SP)</span>
+<span class="fc" id="L883">						throw new IllegalArgumentException(&quot;expected ' ' at &quot; + (pos - 1));</span>
 				}
 
-<span class="fc" id="L885">				return new HttpCookie(cookieName, cookieValue);</span>
+<span class="fc" id="L886">				return new HttpCookie(cookieName, cookieValue);</span>
 			}
 		});
 	}
@@ -909,7 +910,7 @@ public final class IuWebUtils {
 		//
 		// token = &lt;Defined in [RFC7230], Section 3.2.6&gt;
 		// quoted-string = &lt;Defined in [RFC7230], Section 3.2.6&gt;
-<span class="fc" id="L912">		final var parsedHeader = new IuForwardedHeader() {</span>
+<span class="fc" id="L913">		final var parsedHeader = new IuForwardedHeader() {</span>
 			String by;
 			String xfor;
 			String host;
@@ -917,75 +918,75 @@ public final class IuWebUtils {
 
 			@Override
 			public String getBy() {
-<span class="fc" id="L920">				return by;</span>
+<span class="fc" id="L921">				return by;</span>
 			}
 
 			@Override
 			public String getFor() {
-<span class="fc" id="L925">				return xfor;</span>
+<span class="fc" id="L926">				return xfor;</span>
 			}
 
 			@Override
 			public String getHost() {
-<span class="fc" id="L930">				return host;</span>
+<span class="fc" id="L931">				return host;</span>
 			}
 
 			@Override
 			public String getProto() {
-<span class="fc" id="L935">				return proto;</span>
+<span class="fc" id="L936">				return proto;</span>
 			}
 		};
 
-<span class="fc bfc" id="L939" title="All 2 branches covered.">		for (var pos = 0; pos &lt; forwardedHeaderValue.length();) {</span>
-<span class="fc" id="L940">			final var endOfName = token(forwardedHeaderValue, pos);</span>
-<span class="fc bfc" id="L941" title="All 2 branches covered.">			if (pos == endOfName)</span>
-<span class="fc" id="L942">				throw new IllegalArgumentException(&quot;expected token at &quot; + pos);</span>
+<span class="fc bfc" id="L940" title="All 2 branches covered.">		for (var pos = 0; pos &lt; forwardedHeaderValue.length();) {</span>
+<span class="fc" id="L941">			final var endOfName = token(forwardedHeaderValue, pos);</span>
+<span class="fc bfc" id="L942" title="All 2 branches covered.">			if (pos == endOfName)</span>
+<span class="fc" id="L943">				throw new IllegalArgumentException(&quot;expected token at &quot; + pos);</span>
 
-<span class="fc bfc" id="L944" title="All 2 branches covered.">			if (endOfName &gt;= forwardedHeaderValue.length() //</span>
-<span class="fc bfc" id="L945" title="All 2 branches covered.">					|| forwardedHeaderValue.charAt(endOfName) != '=')</span>
-<span class="fc" id="L946">				throw new IllegalArgumentException(&quot;expected '=' at &quot; + endOfName);</span>
+<span class="fc bfc" id="L945" title="All 2 branches covered.">			if (endOfName &gt;= forwardedHeaderValue.length() //</span>
+<span class="fc bfc" id="L946" title="All 2 branches covered.">					|| forwardedHeaderValue.charAt(endOfName) != '=')</span>
+<span class="fc" id="L947">				throw new IllegalArgumentException(&quot;expected '=' at &quot; + endOfName);</span>
 
-<span class="fc" id="L948">			final var name = forwardedHeaderValue.substring(pos, endOfName);</span>
-<span class="fc" id="L949">			pos = endOfName + 1;</span>
+<span class="fc" id="L949">			final var name = forwardedHeaderValue.substring(pos, endOfName);</span>
+<span class="fc" id="L950">			pos = endOfName + 1;</span>
 
 			final String value;
-<span class="fc bfc" id="L952" title="All 2 branches covered.">			if (pos &gt;= forwardedHeaderValue.length())</span>
-<span class="fc" id="L953">				value = &quot;&quot;;</span>
+<span class="fc bfc" id="L953" title="All 2 branches covered.">			if (pos &gt;= forwardedHeaderValue.length())</span>
+<span class="fc" id="L954">				value = &quot;&quot;;</span>
 			else {
 				int endOfValue;
-<span class="fc bfc" id="L956" title="All 2 branches covered.">				if (forwardedHeaderValue.charAt(pos) == DQUOTE) {</span>
-<span class="fc" id="L957">					endOfValue = quotedString(forwardedHeaderValue, pos);</span>
-<span class="fc bfc" id="L958" title="All 2 branches covered.">					if (endOfValue == pos)</span>
-<span class="fc" id="L959">						throw new IllegalArgumentException(&quot;unterminated '\&quot;' at &quot; + pos);</span>
+<span class="fc bfc" id="L957" title="All 2 branches covered.">				if (forwardedHeaderValue.charAt(pos) == DQUOTE) {</span>
+<span class="fc" id="L958">					endOfValue = quotedString(forwardedHeaderValue, pos);</span>
+<span class="fc bfc" id="L959" title="All 2 branches covered.">					if (endOfValue == pos)</span>
+<span class="fc" id="L960">						throw new IllegalArgumentException(&quot;unterminated '\&quot;' at &quot; + pos);</span>
 					else
-<span class="fc" id="L961">						value = forwardedHeaderValue.substring(pos + 1, endOfValue - 1);</span>
+<span class="fc" id="L962">						value = forwardedHeaderValue.substring(pos + 1, endOfValue - 1);</span>
 				} else {
-<span class="fc" id="L963">					endOfValue = token(forwardedHeaderValue, pos);</span>
-<span class="fc" id="L964">					value = forwardedHeaderValue.substring(pos, endOfValue);</span>
+<span class="fc" id="L964">					endOfValue = token(forwardedHeaderValue, pos);</span>
+<span class="fc" id="L965">					value = forwardedHeaderValue.substring(pos, endOfValue);</span>
 				}
-<span class="fc" id="L966">				pos = endOfValue;</span>
+<span class="fc" id="L967">				pos = endOfValue;</span>
 			}
 
-<span class="fc bfc" id="L969" title="All 2 branches covered.">			if (name.equalsIgnoreCase(&quot;by&quot;))</span>
-<span class="fc" id="L970">				parsedHeader.by = IuObject.once(parsedHeader.by, value);</span>
-<span class="fc bfc" id="L971" title="All 2 branches covered.">			else if (name.equalsIgnoreCase(&quot;for&quot;))</span>
-<span class="fc" id="L972">				parsedHeader.xfor = IuObject.once(parsedHeader.xfor, value);</span>
-<span class="fc bfc" id="L973" title="All 2 branches covered.">			else if (name.equalsIgnoreCase(&quot;host&quot;))</span>
-<span class="fc" id="L974">				parsedHeader.host = IuObject.once(parsedHeader.host, value);</span>
-<span class="fc bfc" id="L975" title="All 2 branches covered.">			else if (name.equalsIgnoreCase(&quot;proto&quot;))</span>
-<span class="fc" id="L976">				parsedHeader.proto = IuObject.once(parsedHeader.proto, value);</span>
+<span class="fc bfc" id="L970" title="All 2 branches covered.">			if (name.equalsIgnoreCase(&quot;by&quot;))</span>
+<span class="fc" id="L971">				parsedHeader.by = IuObject.once(parsedHeader.by, value);</span>
+<span class="fc bfc" id="L972" title="All 2 branches covered.">			else if (name.equalsIgnoreCase(&quot;for&quot;))</span>
+<span class="fc" id="L973">				parsedHeader.xfor = IuObject.once(parsedHeader.xfor, value);</span>
+<span class="fc bfc" id="L974" title="All 2 branches covered.">			else if (name.equalsIgnoreCase(&quot;host&quot;))</span>
+<span class="fc" id="L975">				parsedHeader.host = IuObject.once(parsedHeader.host, value);</span>
+<span class="fc bfc" id="L976" title="All 2 branches covered.">			else if (name.equalsIgnoreCase(&quot;proto&quot;))</span>
+<span class="fc" id="L977">				parsedHeader.proto = IuObject.once(parsedHeader.proto, value);</span>
 			else
-<span class="fc" id="L978">				throw new IllegalArgumentException(&quot;unexpected name &quot; + name);</span>
+<span class="fc" id="L979">				throw new IllegalArgumentException(&quot;unexpected name &quot; + name);</span>
 
-<span class="fc bfc" id="L980" title="All 2 branches covered.">			if (pos &lt; forwardedHeaderValue.length()) {</span>
-<span class="fc bfc" id="L981" title="All 2 branches covered.">				if (forwardedHeaderValue.charAt(pos) == ';')</span>
-<span class="fc" id="L982">					pos++;</span>
+<span class="fc bfc" id="L981" title="All 2 branches covered.">			if (pos &lt; forwardedHeaderValue.length()) {</span>
+<span class="fc bfc" id="L982" title="All 2 branches covered.">				if (forwardedHeaderValue.charAt(pos) == ';')</span>
+<span class="fc" id="L983">					pos++;</span>
 				else
-<span class="fc" id="L984">					throw new IllegalArgumentException(&quot;expected ';' at &quot; + pos);</span>
+<span class="fc" id="L985">					throw new IllegalArgumentException(&quot;expected ';' at &quot; + pos);</span>
 			}
-<span class="fc" id="L986">		}</span>
+<span class="fc" id="L987">		}</span>
 
-<span class="fc" id="L988">		return parsedHeader;</span>
+<span class="fc" id="L989">		return parsedHeader;</span>
 	}
 
 	/**
@@ -996,59 +997,60 @@ public final class IuWebUtils {
 	 * @return end position if matching; else returns start position
 	 */
 	static int decOctet(String nodeId, final int originalPos) {
-<span class="fc" id="L999">		final var len = nodeId.length();</span>
-<span class="fc bfc" id="L1000" title="All 2 branches covered.">		if (originalPos &gt;= len)</span>
-<span class="fc" id="L1001">			return originalPos;</span>
+<span class="fc" id="L1000">		final var len = nodeId.length();</span>
+<span class="fc bfc" id="L1001" title="All 2 branches covered.">		if (originalPos &gt;= len)</span>
+<span class="fc" id="L1002">			return originalPos;</span>
 
-<span class="fc" id="L1003">		var c1 = nodeId.charAt(originalPos);</span>
-<span class="fc bfc" id="L1004" title="All 2 branches covered.">		if (!digit(c1))</span>
-<span class="fc" id="L1005">			return originalPos;</span>
+<span class="fc" id="L1004">		var c1 = nodeId.charAt(originalPos);</span>
+<span class="fc bfc" id="L1005" title="All 2 branches covered.">		if (!digit(c1))</span>
+<span class="fc" id="L1006">			return originalPos;</span>
 
-<span class="fc" id="L1007">		var pos = originalPos + 1;</span>
+<span class="fc" id="L1008">		var pos = originalPos + 1;</span>
 		char c2;
-<span class="fc bfc" id="L1009" title="All 2 branches covered.">		if (pos &gt;= len // dec-octet = DIGIT ; 0-9</span>
-<span class="fc bfc" id="L1010" title="All 4 branches covered.">				|| !digit(c2 = nodeId.charAt(pos)) //</span>
+<span class="fc bfc" id="L1010" title="All 2 branches covered.">		if (pos &gt;= len // dec-octet = DIGIT ; 0-9</span>
+<span class="fc bfc" id="L1011" title="All 4 branches covered.">				|| !digit(c2 = nodeId.charAt(pos)) //</span>
 				|| c1 == 0x30)
-<span class="fc" id="L1012">			return pos;</span>
+<span class="fc" id="L1013">			return pos;</span>
 
 		char c3;
-<span class="fc bfc" id="L1015" title="All 4 branches covered.">		if (++pos &gt;= len // / %x31-39 DIGIT ; 10-99</span>
+<span class="fc bfc" id="L1016" title="All 4 branches covered.">		if (++pos &gt;= len // / %x31-39 DIGIT ; 10-99</span>
 				|| c1 &gt; 0x32 //
-<span class="fc bfc" id="L1017" title="All 10 branches covered.">				|| !digit(c3 = nodeId.charAt(pos)) // / &quot;1&quot; 2DIGIT ; 100-199</span>
+<span class="fc bfc" id="L1018" title="All 10 branches covered.">				|| !digit(c3 = nodeId.charAt(pos)) // / &quot;1&quot; 2DIGIT ; 100-199</span>
 				|| (c1 == 0x32 // / &quot;2&quot; %x30-34 DIGIT ; 200-249
 						&amp;&amp; c2 &gt; 0x35 //
 						|| (c2 == 0x35 // / &quot;25&quot; %x30-35 ; 250-255
 								&amp;&amp; c3 &gt; 0x35) //
 				))
-<span class="fc" id="L1023">			return pos;</span>
+<span class="fc" id="L1024">			return pos;</span>
 		else
-<span class="fc" id="L1025">			return pos + 1;</span>
+<span class="fc" id="L1026">			return pos + 1;</span>
 	}
 
 	/**
-	 * Parses an IPV4Address for {@link #parseNodeIdentifier(String)}.o
+	 * Parses an IPV4Address for {@link #parseNodeIdentifier(String)}.
+
 	 * 
 	 * @param nodeId      {@link #parseNodeIdentifier(String) node identifier}
 	 * @param originalPos start position
 	 * @return end position if matching; else returns start position
 	 */
 	static int parseIPv4Address(String nodeId, final int originalPos) {
-<span class="fc" id="L1036">		final var len = nodeId.length();</span>
-<span class="fc" id="L1037">		var pos = originalPos;</span>
-<span class="fc bfc" id="L1038" title="All 2 branches covered.">		for (var i = 0; i &lt; 3; i++) {</span>
-<span class="fc" id="L1039">			final var dot = decOctet(nodeId, pos);</span>
-<span class="fc bfc" id="L1040" title="All 4 branches covered.">			if (dot == pos //</span>
+<span class="fc" id="L1038">		final var len = nodeId.length();</span>
+<span class="fc" id="L1039">		var pos = originalPos;</span>
+<span class="fc bfc" id="L1040" title="All 2 branches covered.">		for (var i = 0; i &lt; 3; i++) {</span>
+<span class="fc" id="L1041">			final var dot = decOctet(nodeId, pos);</span>
+<span class="fc bfc" id="L1042" title="All 4 branches covered.">			if (dot == pos //</span>
 					|| dot &gt;= len //
-<span class="fc bfc" id="L1042" title="All 2 branches covered.">					|| nodeId.charAt(dot) != '.')</span>
-<span class="fc" id="L1043">				return originalPos;</span>
-<span class="fc" id="L1044">			pos = dot + 1;</span>
+<span class="fc bfc" id="L1044" title="All 2 branches covered.">					|| nodeId.charAt(dot) != '.')</span>
+<span class="fc" id="L1045">				return originalPos;</span>
+<span class="fc" id="L1046">			pos = dot + 1;</span>
 		}
 
-<span class="fc" id="L1047">		final var dot = decOctet(nodeId, pos);</span>
-<span class="fc bfc" id="L1048" title="All 2 branches covered.">		if (dot == pos)</span>
-<span class="fc" id="L1049">			return originalPos;</span>
+<span class="fc" id="L1049">		final var dot = decOctet(nodeId, pos);</span>
+<span class="fc bfc" id="L1050" title="All 2 branches covered.">		if (dot == pos)</span>
+<span class="fc" id="L1051">			return originalPos;</span>
 		else
-<span class="fc" id="L1051">			return dot;</span>
+<span class="fc" id="L1053">			return dot;</span>
 	}
 
 	/**
@@ -1063,7 +1065,7 @@ public final class IuWebUtils {
 	 *         else false
 	 */
 	static boolean hexdig(char c) {
-<span class="fc bfc" id="L1066" title="All 10 branches covered.">		return digit(c) //</span>
+<span class="fc bfc" id="L1068" title="All 10 branches covered.">		return digit(c) //</span>
 				|| (c &gt;= 0x41 //
 						&amp;&amp; c &lt;= 0x46) //
 				|| (c &gt;= 0x61 //
@@ -1079,14 +1081,14 @@ public final class IuWebUtils {
 	 * @return end position if matching; else returns start position
 	 */
 	static int h16(String nodeId, final int originalPos) {
-<span class="fc" id="L1082">		final var len = nodeId.length();</span>
-<span class="fc bfc" id="L1083" title="All 2 branches covered.">		for (var i = 0; i &lt; 4; i++) {</span>
-<span class="fc" id="L1084">			final var pos = originalPos + i;</span>
-<span class="fc bfc" id="L1085" title="All 2 branches covered.">			if (pos &gt;= len //</span>
-<span class="fc bfc" id="L1086" title="All 2 branches covered.">					|| !hexdig(nodeId.charAt(pos)))</span>
-<span class="fc" id="L1087">				return pos;</span>
+<span class="fc" id="L1084">		final var len = nodeId.length();</span>
+<span class="fc bfc" id="L1085" title="All 2 branches covered.">		for (var i = 0; i &lt; 4; i++) {</span>
+<span class="fc" id="L1086">			final var pos = originalPos + i;</span>
+<span class="fc bfc" id="L1087" title="All 2 branches covered.">			if (pos &gt;= len //</span>
+<span class="fc bfc" id="L1088" title="All 2 branches covered.">					|| !hexdig(nodeId.charAt(pos)))</span>
+<span class="fc" id="L1089">				return pos;</span>
 		}
-<span class="fc" id="L1089">		return originalPos + 4;</span>
+<span class="fc" id="L1091">		return originalPos + 4;</span>
 	}
 
 	/**
@@ -1098,24 +1100,24 @@ public final class IuWebUtils {
 	 * @return end position if matching; else returns start position
 	 */
 	static int ls32(String nodeId, final int originalPos) {
-<span class="fc" id="L1101">		final var len = nodeId.length();</span>
-<span class="fc" id="L1102">		final var h16a = h16(nodeId, originalPos);</span>
-<span class="fc bfc" id="L1103" title="All 4 branches covered.">		if (h16a == originalPos //</span>
+<span class="fc" id="L1103">		final var len = nodeId.length();</span>
+<span class="fc" id="L1104">		final var h16a = h16(nodeId, originalPos);</span>
+<span class="fc bfc" id="L1105" title="All 4 branches covered.">		if (h16a == originalPos //</span>
 				|| h16a &gt;= len)
-<span class="fc" id="L1105">			return originalPos;</span>
+<span class="fc" id="L1107">			return originalPos;</span>
 
-<span class="fc" id="L1107">		final var c = nodeId.charAt(h16a);</span>
-<span class="fc bfc" id="L1108" title="All 2 branches covered.">		if (c == ':') {</span>
-<span class="fc" id="L1109">			final var pos = h16a + 1;</span>
-<span class="fc" id="L1110">			final var h16b = h16(nodeId, pos);</span>
-<span class="fc bfc" id="L1111" title="All 2 branches covered.">			if (h16b == pos)</span>
-<span class="fc" id="L1112">				return originalPos;</span>
+<span class="fc" id="L1109">		final var c = nodeId.charAt(h16a);</span>
+<span class="fc bfc" id="L1110" title="All 2 branches covered.">		if (c == ':') {</span>
+<span class="fc" id="L1111">			final var pos = h16a + 1;</span>
+<span class="fc" id="L1112">			final var h16b = h16(nodeId, pos);</span>
+<span class="fc bfc" id="L1113" title="All 2 branches covered.">			if (h16b == pos)</span>
+<span class="fc" id="L1114">				return originalPos;</span>
 			else
-<span class="fc" id="L1114">				return h16b;</span>
-<span class="fc bfc" id="L1115" title="All 2 branches covered.">		} else if (c == '.')</span>
-<span class="fc" id="L1116">			return parseIPv4Address(nodeId, originalPos);</span>
+<span class="fc" id="L1116">				return h16b;</span>
+<span class="fc bfc" id="L1117" title="All 2 branches covered.">		} else if (c == '.')</span>
+<span class="fc" id="L1118">			return parseIPv4Address(nodeId, originalPos);</span>
 		else
-<span class="fc" id="L1118">			return originalPos;</span>
+<span class="fc" id="L1120">			return originalPos;</span>
 	}
 
 	/**
@@ -1126,56 +1128,56 @@ public final class IuWebUtils {
 	 * @return end position if matching; else returns start position
 	 */
 	static int parseIPv6Address(String nodeId, final int originalPos) {
-<span class="fc" id="L1129">		final var len = nodeId.length();</span>
+<span class="fc" id="L1131">		final var len = nodeId.length();</span>
 
-<span class="fc" id="L1131">		var pos = h16(nodeId, originalPos);</span>
-<span class="fc bfc" id="L1132" title="All 2 branches covered.">		if (pos &gt;= len)</span>
-<span class="fc" id="L1133">			return originalPos;</span>
+<span class="fc" id="L1133">		var pos = h16(nodeId, originalPos);</span>
+<span class="fc bfc" id="L1134" title="All 2 branches covered.">		if (pos &gt;= len)</span>
+<span class="fc" id="L1135">			return originalPos;</span>
 
-<span class="fc bfc" id="L1135" title="All 2 branches covered.">		var rel = pos == originalPos;</span>
-<span class="fc bfc" id="L1136" title="All 2 branches covered.">		if (rel) // starts with relative marker '::'</span>
-<span class="fc bfc" id="L1137" title="All 2 branches covered.">			if (len &lt;= originalPos + 1 //</span>
-<span class="fc bfc" id="L1138" title="All 2 branches covered.">					|| nodeId.charAt(originalPos) != ':' //</span>
-<span class="fc bfc" id="L1139" title="All 2 branches covered.">					|| nodeId.charAt(originalPos + 1) != ':')</span>
-<span class="fc" id="L1140">				return originalPos;</span>
+<span class="fc bfc" id="L1137" title="All 2 branches covered.">		var rel = pos == originalPos;</span>
+<span class="fc bfc" id="L1138" title="All 2 branches covered.">		if (rel) // starts with relative marker '::'</span>
+<span class="fc bfc" id="L1139" title="All 2 branches covered.">			if (len &lt;= originalPos + 1 //</span>
+<span class="fc bfc" id="L1140" title="All 2 branches covered.">					|| nodeId.charAt(originalPos) != ':' //</span>
+<span class="fc bfc" id="L1141" title="All 2 branches covered.">					|| nodeId.charAt(originalPos + 1) != ':')</span>
+<span class="fc" id="L1142">				return originalPos;</span>
 			else
-<span class="fc" id="L1142">				pos = originalPos + 1;</span>
+<span class="fc" id="L1144">				pos = originalPos + 1;</span>
 
-<span class="fc bfc" id="L1144" title="All 2 branches covered.">		if (nodeId.charAt(pos) != ':')</span>
-<span class="fc" id="L1145">			return originalPos;</span>
+<span class="fc bfc" id="L1146" title="All 2 branches covered.">		if (nodeId.charAt(pos) != ':')</span>
+<span class="fc" id="L1147">			return originalPos;</span>
 		else
-<span class="fc" id="L1147">			pos++;</span>
+<span class="fc" id="L1149">			pos++;</span>
 
 		// read up to five more ( h16 &quot;:&quot; ), non-terminal
 		// or at least one non-leading relative marker
-<span class="fc bfc" id="L1151" title="All 2 branches covered.">		for (var i = 0; i &lt; 5; i++) {</span>
-<span class="fc bfc" id="L1152" title="All 2 branches covered.">			if (pos &gt;= len)</span>
-<span class="fc" id="L1153">				return originalPos;</span>
+<span class="fc bfc" id="L1153" title="All 2 branches covered.">		for (var i = 0; i &lt; 5; i++) {</span>
+<span class="fc bfc" id="L1154" title="All 2 branches covered.">			if (pos &gt;= len)</span>
+<span class="fc" id="L1155">				return originalPos;</span>
 
 			// / [ *5( h16 &quot;:&quot; ) h16 ] &quot;::&quot; h16
-<span class="fc" id="L1156">			final var next = h16(nodeId, pos);</span>
+<span class="fc" id="L1158">			final var next = h16(nodeId, pos);</span>
 			final char c;
-<span class="fc bfc" id="L1158" title="All 2 branches covered.">			if (next &gt;= len //</span>
-<span class="fc bfc" id="L1159" title="All 2 branches covered.">					|| (c = nodeId.charAt(next)) == ']')</span>
-<span class="fc bfc" id="L1160" title="All 2 branches covered.">				if (rel)</span>
-<span class="fc" id="L1161">					return next;</span>
+<span class="fc bfc" id="L1160" title="All 2 branches covered.">			if (next &gt;= len //</span>
+<span class="fc bfc" id="L1161" title="All 2 branches covered.">					|| (c = nodeId.charAt(next)) == ']')</span>
+<span class="fc bfc" id="L1162" title="All 2 branches covered.">				if (rel)</span>
+<span class="fc" id="L1163">					return next;</span>
 				else
-<span class="fc" id="L1163">					return originalPos;</span>
+<span class="fc" id="L1165">					return originalPos;</span>
 
-<span class="fc bfc" id="L1165" title="All 4 branches covered.">			if (next == pos //</span>
+<span class="fc bfc" id="L1167" title="All 4 branches covered.">			if (next == pos //</span>
 					&amp;&amp; c == ':')
-<span class="fc bfc" id="L1167" title="All 2 branches covered.">				if (rel) // may observe exactly one relative marker '::'</span>
-<span class="fc" id="L1168">					return originalPos;</span>
+<span class="fc bfc" id="L1169" title="All 2 branches covered.">				if (rel) // may observe exactly one relative marker '::'</span>
+<span class="fc" id="L1170">					return originalPos;</span>
 				else
-<span class="fc" id="L1170">					rel = true;</span>
-<span class="fc bfc" id="L1171" title="All 2 branches covered.">			else if (c != ':')</span>
-<span class="fc" id="L1172">				return originalPos;</span>
+<span class="fc" id="L1172">					rel = true;</span>
+<span class="fc bfc" id="L1173" title="All 2 branches covered.">			else if (c != ':')</span>
+<span class="fc" id="L1174">				return originalPos;</span>
 
-<span class="fc" id="L1174">			pos = next + 1;</span>
+<span class="fc" id="L1176">			pos = next + 1;</span>
 
-<span class="fc bfc" id="L1176" title="All 4 branches covered.">			if (i &lt; 4 // must have all 8 segments or relative marker</span>
+<span class="fc bfc" id="L1178" title="All 4 branches covered.">			if (i &lt; 4 // must have all 8 segments or relative marker</span>
 					&amp;&amp; !rel) // IPv6address = 6( h16 &quot;:&quot; ) ls32
-<span class="fc" id="L1178">				continue;</span>
+<span class="fc" id="L1180">				continue;</span>
 
 			// / &quot;::&quot; 5( h16 &quot;:&quot; ) ls32
 			// / [ h16 ] &quot;::&quot; 4( h16 &quot;:&quot; ) ls32
@@ -1183,13 +1185,13 @@ public final class IuWebUtils {
 			// / [ *2( h16 &quot;:&quot; ) h16 ] &quot;::&quot; 2( h16 &quot;:&quot; ) ls32
 			// / [ *3( h16 &quot;:&quot; ) h16 ] &quot;::&quot; h16 &quot;:&quot; ls32
 			// / [ *4( h16 &quot;:&quot; ) h16 ] &quot;::&quot; ls32
-<span class="fc" id="L1186">			final var ls32 = ls32(nodeId, pos);</span>
-<span class="fc bfc" id="L1187" title="All 2 branches covered.">			if (ls32 &gt;= len //</span>
-<span class="fc bfc" id="L1188" title="All 2 branches covered.">					|| nodeId.charAt(ls32) == ']')</span>
-<span class="fc" id="L1189">				return ls32;</span>
+<span class="fc" id="L1188">			final var ls32 = ls32(nodeId, pos);</span>
+<span class="fc bfc" id="L1189" title="All 2 branches covered.">			if (ls32 &gt;= len //</span>
+<span class="fc bfc" id="L1190" title="All 2 branches covered.">					|| nodeId.charAt(ls32) == ']')</span>
+<span class="fc" id="L1191">				return ls32;</span>
 		}
 
-<span class="fc" id="L1192">		return originalPos;</span>
+<span class="fc" id="L1194">		return originalPos;</span>
 	}
 
 	/**
@@ -1200,22 +1202,22 @@ public final class IuWebUtils {
 	 * @return end position if matching; else returns start position
 	 */
 	static int obf(String nodeId, final int originalPos) {
-<span class="fc" id="L1203">		final var len = nodeId.length();</span>
+<span class="fc" id="L1205">		final var len = nodeId.length();</span>
 
 		char c;
 		int pos;
-<span class="fc" id="L1207">		for (pos = originalPos; pos &lt; len //</span>
-<span class="fc bfc" id="L1208" title="All 4 branches covered.">				&amp;&amp; (alpha(c = nodeId.charAt(pos)) //</span>
-<span class="fc bfc" id="L1209" title="All 8 branches covered.">						|| digit(c) //</span>
+<span class="fc" id="L1209">		for (pos = originalPos; pos &lt; len //</span>
+<span class="fc bfc" id="L1210" title="All 4 branches covered.">				&amp;&amp; (alpha(c = nodeId.charAt(pos)) //</span>
+<span class="fc bfc" id="L1211" title="All 8 branches covered.">						|| digit(c) //</span>
 						|| c == '.' //
 						|| c == '_' //
-<span class="fc" id="L1212">						|| c == '-'); pos++)</span>
+<span class="fc" id="L1214">						|| c == '-'); pos++)</span>
 			;
 
-<span class="fc bfc" id="L1215" title="All 2 branches covered.">		if (pos - originalPos &lt;= 1)</span>
-<span class="fc" id="L1216">			return originalPos;</span>
+<span class="fc bfc" id="L1217" title="All 2 branches covered.">		if (pos - originalPos &lt;= 1)</span>
+<span class="fc" id="L1218">			return originalPos;</span>
 		else
-<span class="fc" id="L1218">			return pos;</span>
+<span class="fc" id="L1220">			return pos;</span>
 	}
 
 	/**
@@ -1228,9 +1230,9 @@ public final class IuWebUtils {
 	 * @see #parseNodeIdentifier(String)
 	 */
 	public static boolean isIPv4Address(String nodename) {
-<span class="fc bfc" id="L1231" title="All 2 branches covered.">		return nodename != null //</span>
-<span class="fc bfc" id="L1232" title="All 2 branches covered.">				&amp;&amp; !nodename.isEmpty() //</span>
-<span class="fc bfc" id="L1233" title="All 2 branches covered.">				&amp;&amp; parseIPv4Address(nodename, 0) == nodename.length();</span>
+<span class="fc bfc" id="L1233" title="All 2 branches covered.">		return nodename != null //</span>
+<span class="fc bfc" id="L1234" title="All 2 branches covered.">				&amp;&amp; !nodename.isEmpty() //</span>
+<span class="fc bfc" id="L1235" title="All 2 branches covered.">				&amp;&amp; parseIPv4Address(nodename, 0) == nodename.length();</span>
 	}
 
 	/**
@@ -1243,9 +1245,9 @@ public final class IuWebUtils {
 	 * @see #parseNodeIdentifier(String)
 	 */
 	public static boolean isIPv6Address(String nodename) {
-<span class="fc bfc" id="L1246" title="All 2 branches covered.">		return nodename != null //</span>
-<span class="fc bfc" id="L1247" title="All 2 branches covered.">				&amp;&amp; !nodename.isEmpty() //</span>
-<span class="fc bfc" id="L1248" title="All 2 branches covered.">				&amp;&amp; parseIPv6Address(nodename, 0) == nodename.length();</span>
+<span class="fc bfc" id="L1248" title="All 2 branches covered.">		return nodename != null //</span>
+<span class="fc bfc" id="L1249" title="All 2 branches covered.">				&amp;&amp; !nodename.isEmpty() //</span>
+<span class="fc bfc" id="L1250" title="All 2 branches covered.">				&amp;&amp; parseIPv6Address(nodename, 0) == nodename.length();</span>
 	}
 
 	/**
@@ -1258,7 +1260,7 @@ public final class IuWebUtils {
 	 * @see #parseNodeIdentifier(String)
 	 */
 	public static boolean isIPAddress(String nodename) {
-<span class="fc bfc" id="L1261" title="All 4 branches covered.">		return isIPv4Address(nodename) || isIPv6Address(nodename);</span>
+<span class="fc bfc" id="L1263" title="All 4 branches covered.">		return isIPv4Address(nodename) || isIPv6Address(nodename);</span>
 	}
 
 	/**
@@ -1307,10 +1309,10 @@ public final class IuWebUtils {
 	 * @see #alpha(char)
 	 */
 	public static InetSocketAddress parseNodeIdentifier(String nodeId) {
-<span class="fc" id="L1310">		return parseNodeIdentifier(nodeId, a -&gt; {</span>
-<span class="fc" id="L1311">			throw new IllegalArgumentException(&quot;unknown obfnode&quot;);</span>
+<span class="fc" id="L1312">		return parseNodeIdentifier(nodeId, a -&gt; {</span>
+<span class="fc" id="L1313">			throw new IllegalArgumentException(&quot;unknown obfnode&quot;);</span>
 		}, a -&gt; {
-<span class="fc" id="L1313">			throw new IllegalArgumentException(&quot;unknown obfport&quot;);</span>
+<span class="fc" id="L1315">			throw new IllegalArgumentException(&quot;unknown obfport&quot;);</span>
 		});
 	}
 
@@ -1330,69 +1332,69 @@ public final class IuWebUtils {
 	 */
 	public static InetSocketAddress parseNodeIdentifier(final String nodeId,
 			Function&lt;String, InetAddress&gt; obfuscatedNodeLookup, Function&lt;String, Integer&gt; obfuscatedPortLookup) {
-<span class="fc bfc" id="L1333" title="All 4 branches covered.">		if (nodeId == null || nodeId.isEmpty())</span>
-<span class="fc" id="L1334">			return null;</span>
+<span class="fc bfc" id="L1335" title="All 4 branches covered.">		if (nodeId == null || nodeId.isEmpty())</span>
+<span class="fc" id="L1336">			return null;</span>
 
-<span class="fc" id="L1336">		final var len = nodeId.length();</span>
+<span class="fc" id="L1338">		final var len = nodeId.length();</span>
 		final int endOfName;
-<span class="fc" id="L1338">		InetAddress obfnode = null;</span>
+<span class="fc" id="L1340">		InetAddress obfnode = null;</span>
 		{
-<span class="fc" id="L1340">			var pos = parseIPv4Address(nodeId, 0);</span>
-<span class="fc bfc" id="L1341" title="All 2 branches covered.">			if (pos == 0) {</span>
-<span class="fc" id="L1342">				var c = nodeId.charAt(0);</span>
-<span class="fc bfc" id="L1343" title="All 2 branches covered.">				if (c == '[') {</span>
-<span class="fc" id="L1344">					pos = parseIPv6Address(nodeId, 1);</span>
-<span class="fc bfc" id="L1345" title="All 4 branches covered.">					if (pos == 1 //</span>
+<span class="fc" id="L1342">			var pos = parseIPv4Address(nodeId, 0);</span>
+<span class="fc bfc" id="L1343" title="All 2 branches covered.">			if (pos == 0) {</span>
+<span class="fc" id="L1344">				var c = nodeId.charAt(0);</span>
+<span class="fc bfc" id="L1345" title="All 2 branches covered.">				if (c == '[') {</span>
+<span class="fc" id="L1346">					pos = parseIPv6Address(nodeId, 1);</span>
+<span class="fc bfc" id="L1347" title="All 4 branches covered.">					if (pos == 1 //</span>
 							|| pos &gt;= len)
-<span class="fc" id="L1347">						throw new IllegalArgumentException(&quot;invalid IPv6 address&quot;);</span>
+<span class="fc" id="L1349">						throw new IllegalArgumentException(&quot;invalid IPv6 address&quot;);</span>
 					else
-<span class="fc" id="L1349">						pos++;</span>
-<span class="fc bfc" id="L1350" title="All 2 branches covered.">				} else if (c == '_') {</span>
-<span class="fc" id="L1351">					pos = obf(nodeId, 0);</span>
-<span class="fc bfc" id="L1352" title="All 2 branches covered.">					if (pos == 0)</span>
-<span class="fc" id="L1353">						throw new IllegalArgumentException(&quot;invalid obfnode&quot;);</span>
+<span class="fc" id="L1351">						pos++;</span>
+<span class="fc bfc" id="L1352" title="All 2 branches covered.">				} else if (c == '_') {</span>
+<span class="fc" id="L1353">					pos = obf(nodeId, 0);</span>
+<span class="fc bfc" id="L1354" title="All 2 branches covered.">					if (pos == 0)</span>
+<span class="fc" id="L1355">						throw new IllegalArgumentException(&quot;invalid obfnode&quot;);</span>
 					else
-<span class="fc" id="L1355">						obfnode = obfuscatedNodeLookup.apply(nodeId.substring(0, pos));</span>
-<span class="fc bfc" id="L1356" title="All 2 branches covered.">				} else if (nodeId.startsWith(&quot;unknown&quot;))</span>
-<span class="fc" id="L1357">					return null;</span>
+<span class="fc" id="L1357">						obfnode = obfuscatedNodeLookup.apply(nodeId.substring(0, pos));</span>
+<span class="fc bfc" id="L1358" title="All 2 branches covered.">				} else if (nodeId.startsWith(&quot;unknown&quot;))</span>
+<span class="fc" id="L1359">					return null;</span>
 				else
-<span class="fc" id="L1359">					throw new IllegalArgumentException(&quot;invalid nodename&quot;);</span>
+<span class="fc" id="L1361">					throw new IllegalArgumentException(&quot;invalid nodename&quot;);</span>
 			}
-<span class="fc" id="L1361">			endOfName = pos;</span>
+<span class="fc" id="L1363">			endOfName = pos;</span>
 		}
 
 		final int port;
-<span class="fc bfc" id="L1365" title="All 2 branches covered.">		if (endOfName &gt;= len)</span>
-<span class="fc" id="L1366">			port = 0;</span>
-<span class="fc bfc" id="L1367" title="All 2 branches covered.">		else if (nodeId.charAt(endOfName) == ':') {</span>
-<span class="fc" id="L1368">			final var tail = nodeId.substring(endOfName + 1);</span>
-<span class="fc bfc" id="L1369" title="All 2 branches covered.">			if (tail.isEmpty())</span>
-<span class="fc" id="L1370">				throw new IllegalArgumentException(&quot;empty node-port&quot;);</span>
-<span class="fc bfc" id="L1371" title="All 2 branches covered.">			else if (tail.charAt(0) == '_') {</span>
-<span class="fc" id="L1372">				final var endOfObfport = obf(tail, 0);</span>
-<span class="fc bfc" id="L1373" title="All 2 branches covered.">				if (endOfObfport == 0)</span>
-<span class="fc" id="L1374">					throw new IllegalArgumentException(&quot;invalid obfport&quot;);</span>
+<span class="fc bfc" id="L1367" title="All 2 branches covered.">		if (endOfName &gt;= len)</span>
+<span class="fc" id="L1368">			port = 0;</span>
+<span class="fc bfc" id="L1369" title="All 2 branches covered.">		else if (nodeId.charAt(endOfName) == ':') {</span>
+<span class="fc" id="L1370">			final var tail = nodeId.substring(endOfName + 1);</span>
+<span class="fc bfc" id="L1371" title="All 2 branches covered.">			if (tail.isEmpty())</span>
+<span class="fc" id="L1372">				throw new IllegalArgumentException(&quot;empty node-port&quot;);</span>
+<span class="fc bfc" id="L1373" title="All 2 branches covered.">			else if (tail.charAt(0) == '_') {</span>
+<span class="fc" id="L1374">				final var endOfObfport = obf(tail, 0);</span>
+<span class="fc bfc" id="L1375" title="All 2 branches covered.">				if (endOfObfport == 0)</span>
+<span class="fc" id="L1376">					throw new IllegalArgumentException(&quot;invalid obfport&quot;);</span>
 				else
-<span class="fc" id="L1376">					port = obfuscatedPortLookup.apply(tail.substring(0, endOfObfport));</span>
-<span class="fc" id="L1377">			} else {</span>
-<span class="fc" id="L1378">				final var portlen = tail.length();</span>
-<span class="fc bfc" id="L1379" title="All 2 branches covered.">				if (portlen &gt; 5)</span>
-<span class="fc" id="L1380">					throw new IllegalArgumentException(&quot;invalid node-port&quot;);</span>
-<span class="fc bfc" id="L1381" title="All 2 branches covered.">				for (var i = 0; i &lt; portlen; i++)</span>
-<span class="fc bfc" id="L1382" title="All 2 branches covered.">					if (!digit(tail.charAt(i)))</span>
-<span class="fc" id="L1383">						throw new IllegalArgumentException(&quot;invalid port&quot;);</span>
-<span class="fc" id="L1384">				port = Integer.parseInt(tail);</span>
+<span class="fc" id="L1378">					port = obfuscatedPortLookup.apply(tail.substring(0, endOfObfport));</span>
+<span class="fc" id="L1379">			} else {</span>
+<span class="fc" id="L1380">				final var portlen = tail.length();</span>
+<span class="fc bfc" id="L1381" title="All 2 branches covered.">				if (portlen &gt; 5)</span>
+<span class="fc" id="L1382">					throw new IllegalArgumentException(&quot;invalid node-port&quot;);</span>
+<span class="fc bfc" id="L1383" title="All 2 branches covered.">				for (var i = 0; i &lt; portlen; i++)</span>
+<span class="fc bfc" id="L1384" title="All 2 branches covered.">					if (!digit(tail.charAt(i)))</span>
+<span class="fc" id="L1385">						throw new IllegalArgumentException(&quot;invalid port&quot;);</span>
+<span class="fc" id="L1386">				port = Integer.parseInt(tail);</span>
 			}
-<span class="fc" id="L1386">		} else</span>
-<span class="fc" id="L1387">			throw new IllegalArgumentException(&quot;expected ':' or end of node&quot;);</span>
+<span class="fc" id="L1388">		} else</span>
+<span class="fc" id="L1389">			throw new IllegalArgumentException(&quot;expected ':' or end of node&quot;);</span>
 
-<span class="fc" id="L1389">		return new InetSocketAddress(Objects.requireNonNullElseGet(obfnode, () -&gt; {</span>
+<span class="fc" id="L1391">		return new InetSocketAddress(Objects.requireNonNullElseGet(obfnode, () -&gt; {</span>
 			String name;
-<span class="fc bfc" id="L1391" title="All 2 branches covered.">			if (nodeId.charAt(0) == '[') // trim brackets from IPv6</span>
-<span class="fc" id="L1392">				name = nodeId.substring(1, endOfName - 1);</span>
+<span class="fc bfc" id="L1393" title="All 2 branches covered.">			if (nodeId.charAt(0) == '[') // trim brackets from IPv6</span>
+<span class="fc" id="L1394">				name = nodeId.substring(1, endOfName - 1);</span>
 			else
-<span class="fc" id="L1394">				name = nodeId.substring(0, endOfName);</span>
-<span class="fc" id="L1395">			return getInetAddress(name);</span>
+<span class="fc" id="L1396">				name = nodeId.substring(0, endOfName);</span>
+<span class="fc" id="L1397">			return getInetAddress(name);</span>
 		}), port);
 	}
 
@@ -1411,17 +1413,17 @@ public final class IuWebUtils {
 	 *                                  name begins or ends with a hyphen.
 	 */
 	public static String normalizeHeaderName(String headerName) throws IllegalArgumentException {
-<span class="fc bfc" id="L1414" title="All 2 branches covered.">		if (!headerName.matches(&quot;\\p{Alpha}+(\\-\\p{Alpha}+?)*&quot;))</span>
-<span class="fc" id="L1415">			throw new IllegalArgumentException(&quot;Invalid header name &quot; + headerName);</span>
+<span class="fc bfc" id="L1416" title="All 2 branches covered.">		if (!headerName.matches(&quot;\\p{Alpha}+(\\-\\p{Alpha}+?)*&quot;))</span>
+<span class="fc" id="L1417">			throw new IllegalArgumentException(&quot;Invalid header name &quot; + headerName);</span>
 
-<span class="fc" id="L1417">		final var sb = new StringBuilder(headerName.toLowerCase());</span>
-<span class="fc" id="L1418">		sb.setCharAt(0, Character.toUpperCase(sb.charAt(0)));</span>
-<span class="fc" id="L1419">		for (int i = headerName.indexOf('-') + 1; //</span>
-<span class="fc bfc" id="L1420" title="All 2 branches covered.">				i != 0; //</span>
-<span class="fc" id="L1421">				i = headerName.indexOf('-', i + 1) + 1)</span>
-<span class="fc" id="L1422">			sb.setCharAt(i, Character.toUpperCase(sb.charAt(i)));</span>
+<span class="fc" id="L1419">		final var sb = new StringBuilder(headerName.toLowerCase());</span>
+<span class="fc" id="L1420">		sb.setCharAt(0, Character.toUpperCase(sb.charAt(0)));</span>
+<span class="fc" id="L1421">		for (int i = headerName.indexOf('-') + 1; //</span>
+<span class="fc bfc" id="L1422" title="All 2 branches covered.">				i != 0; //</span>
+<span class="fc" id="L1423">				i = headerName.indexOf('-', i + 1) + 1)</span>
+<span class="fc" id="L1424">			sb.setCharAt(i, Character.toUpperCase(sb.charAt(i)));</span>
 
-<span class="fc" id="L1424">		return sb.toString();</span>
+<span class="fc" id="L1426">		return sb.toString();</span>
 	}
 
 	/**
@@ -1431,89 +1433,89 @@ public final class IuWebUtils {
 	 * @return {@link String}
 	 */
 	public static String describeStatus(int statusCode) {
-<span class="fc bfc" id="L1434" title="All 41 branches covered.">		switch (statusCode) {</span>
+<span class="fc bfc" id="L1436" title="All 41 branches covered.">		switch (statusCode) {</span>
 		case 100:
-<span class="fc" id="L1436">			return statusCode + &quot; CONTINUE&quot;;</span>
+<span class="fc" id="L1438">			return statusCode + &quot; CONTINUE&quot;;</span>
 		case 101:
-<span class="fc" id="L1438">			return statusCode + &quot; SWITCHING PROTOCOLS&quot;;</span>
+<span class="fc" id="L1440">			return statusCode + &quot; SWITCHING PROTOCOLS&quot;;</span>
 		case 200:
-<span class="fc" id="L1440">			return statusCode + &quot; OK&quot;;</span>
+<span class="fc" id="L1442">			return statusCode + &quot; OK&quot;;</span>
 		case 201:
-<span class="fc" id="L1442">			return statusCode + &quot; CREATED&quot;;</span>
+<span class="fc" id="L1444">			return statusCode + &quot; CREATED&quot;;</span>
 		case 202:
-<span class="fc" id="L1444">			return statusCode + &quot; ACCEPTED&quot;;</span>
+<span class="fc" id="L1446">			return statusCode + &quot; ACCEPTED&quot;;</span>
 		case 203:
-<span class="fc" id="L1446">			return statusCode + &quot; NON AUTHORITATIVE INFORMATION&quot;;</span>
+<span class="fc" id="L1448">			return statusCode + &quot; NON AUTHORITATIVE INFORMATION&quot;;</span>
 		case 204:
-<span class="fc" id="L1448">			return statusCode + &quot; NO CONTENT&quot;;</span>
+<span class="fc" id="L1450">			return statusCode + &quot; NO CONTENT&quot;;</span>
 		case 205:
-<span class="fc" id="L1450">			return statusCode + &quot; RESET CONTENT&quot;;</span>
+<span class="fc" id="L1452">			return statusCode + &quot; RESET CONTENT&quot;;</span>
 		case 206:
-<span class="fc" id="L1452">			return statusCode + &quot; PARTIAL CONTENT&quot;;</span>
+<span class="fc" id="L1454">			return statusCode + &quot; PARTIAL CONTENT&quot;;</span>
 		case 300:
-<span class="fc" id="L1454">			return statusCode + &quot; MULTIPLE CHOICES&quot;;</span>
+<span class="fc" id="L1456">			return statusCode + &quot; MULTIPLE CHOICES&quot;;</span>
 		case 301:
-<span class="fc" id="L1456">			return statusCode + &quot; MOVED PERMANENTLY&quot;;</span>
+<span class="fc" id="L1458">			return statusCode + &quot; MOVED PERMANENTLY&quot;;</span>
 		case 302:
-<span class="fc" id="L1458">			return statusCode + &quot; FOUND&quot;;</span>
+<span class="fc" id="L1460">			return statusCode + &quot; FOUND&quot;;</span>
 		case 303:
-<span class="fc" id="L1460">			return statusCode + &quot; SEE OTHER&quot;;</span>
+<span class="fc" id="L1462">			return statusCode + &quot; SEE OTHER&quot;;</span>
 		case 304:
-<span class="fc" id="L1462">			return statusCode + &quot; NOT MODIFIED&quot;;</span>
+<span class="fc" id="L1464">			return statusCode + &quot; NOT MODIFIED&quot;;</span>
 		case 305:
-<span class="fc" id="L1464">			return statusCode + &quot; USE PROXY&quot;;</span>
+<span class="fc" id="L1466">			return statusCode + &quot; USE PROXY&quot;;</span>
 		case 307:
-<span class="fc" id="L1466">			return statusCode + &quot; TEMPORARY REDIRECT&quot;;</span>
+<span class="fc" id="L1468">			return statusCode + &quot; TEMPORARY REDIRECT&quot;;</span>
 		case 400:
-<span class="fc" id="L1468">			return statusCode + &quot; BAD REQUEST&quot;;</span>
+<span class="fc" id="L1470">			return statusCode + &quot; BAD REQUEST&quot;;</span>
 		case 401:
-<span class="fc" id="L1470">			return statusCode + &quot; UNAUTHORIZED&quot;;</span>
+<span class="fc" id="L1472">			return statusCode + &quot; UNAUTHORIZED&quot;;</span>
 		case 402:
-<span class="fc" id="L1472">			return statusCode + &quot; PAYMENT REQUIRED&quot;;</span>
+<span class="fc" id="L1474">			return statusCode + &quot; PAYMENT REQUIRED&quot;;</span>
 		case 403:
-<span class="fc" id="L1474">			return statusCode + &quot; FORBIDDEN&quot;;</span>
+<span class="fc" id="L1476">			return statusCode + &quot; FORBIDDEN&quot;;</span>
 		case 404:
-<span class="fc" id="L1476">			return statusCode + &quot; NOT FOUND&quot;;</span>
+<span class="fc" id="L1478">			return statusCode + &quot; NOT FOUND&quot;;</span>
 		case 405:
-<span class="fc" id="L1478">			return statusCode + &quot; METHOD NOT ALLOWED&quot;;</span>
+<span class="fc" id="L1480">			return statusCode + &quot; METHOD NOT ALLOWED&quot;;</span>
 		case 406:
-<span class="fc" id="L1480">			return statusCode + &quot; NOT ACCEPTABLE&quot;;</span>
+<span class="fc" id="L1482">			return statusCode + &quot; NOT ACCEPTABLE&quot;;</span>
 		case 407:
-<span class="fc" id="L1482">			return statusCode + &quot; PROXY AUTHENTICATION REQUIRED&quot;;</span>
+<span class="fc" id="L1484">			return statusCode + &quot; PROXY AUTHENTICATION REQUIRED&quot;;</span>
 		case 408:
-<span class="fc" id="L1484">			return statusCode + &quot; REQUEST TIMEOUT&quot;;</span>
+<span class="fc" id="L1486">			return statusCode + &quot; REQUEST TIMEOUT&quot;;</span>
 		case 409:
-<span class="fc" id="L1486">			return statusCode + &quot; CONFLICT&quot;;</span>
+<span class="fc" id="L1488">			return statusCode + &quot; CONFLICT&quot;;</span>
 		case 410:
-<span class="fc" id="L1488">			return statusCode + &quot; GONE&quot;;</span>
+<span class="fc" id="L1490">			return statusCode + &quot; GONE&quot;;</span>
 		case 411:
-<span class="fc" id="L1490">			return statusCode + &quot; LENGTH REQUIRED&quot;;</span>
+<span class="fc" id="L1492">			return statusCode + &quot; LENGTH REQUIRED&quot;;</span>
 		case 412:
-<span class="fc" id="L1492">			return statusCode + &quot; PRECONDITION FAILED&quot;;</span>
+<span class="fc" id="L1494">			return statusCode + &quot; PRECONDITION FAILED&quot;;</span>
 		case 413:
-<span class="fc" id="L1494">			return statusCode + &quot; REQUEST ENTITY TOO LARGE&quot;;</span>
+<span class="fc" id="L1496">			return statusCode + &quot; REQUEST ENTITY TOO LARGE&quot;;</span>
 		case 414:
-<span class="fc" id="L1496">			return statusCode + &quot; REQUEST URI TOO LONG&quot;;</span>
+<span class="fc" id="L1498">			return statusCode + &quot; REQUEST URI TOO LONG&quot;;</span>
 		case 415:
-<span class="fc" id="L1498">			return statusCode + &quot; UNSUPPORTED MEDIA TYPE&quot;;</span>
+<span class="fc" id="L1500">			return statusCode + &quot; UNSUPPORTED MEDIA TYPE&quot;;</span>
 		case 416:
-<span class="fc" id="L1500">			return statusCode + &quot; REQUESTED RANGE NOT SATISFIABLE&quot;;</span>
+<span class="fc" id="L1502">			return statusCode + &quot; REQUESTED RANGE NOT SATISFIABLE&quot;;</span>
 		case 417:
-<span class="fc" id="L1502">			return statusCode + &quot; EXPECTATION FAILED&quot;;</span>
+<span class="fc" id="L1504">			return statusCode + &quot; EXPECTATION FAILED&quot;;</span>
 		case 500:
-<span class="fc" id="L1504">			return statusCode + &quot; INTERNAL SERVER ERROR&quot;;</span>
+<span class="fc" id="L1506">			return statusCode + &quot; INTERNAL SERVER ERROR&quot;;</span>
 		case 501:
-<span class="fc" id="L1506">			return statusCode + &quot; NOT IMPLEMENTED&quot;;</span>
+<span class="fc" id="L1508">			return statusCode + &quot; NOT IMPLEMENTED&quot;;</span>
 		case 502:
-<span class="fc" id="L1508">			return statusCode + &quot; BAD GATEWAY&quot;;</span>
+<span class="fc" id="L1510">			return statusCode + &quot; BAD GATEWAY&quot;;</span>
 		case 503:
-<span class="fc" id="L1510">			return statusCode + &quot; SERVICE UNAVAILABLE&quot;;</span>
+<span class="fc" id="L1512">			return statusCode + &quot; SERVICE UNAVAILABLE&quot;;</span>
 		case 504:
-<span class="fc" id="L1512">			return statusCode + &quot; GATEWAY TIMEOUT&quot;;</span>
+<span class="fc" id="L1514">			return statusCode + &quot; GATEWAY TIMEOUT&quot;;</span>
 		case 505:
-<span class="fc" id="L1514">			return statusCode + &quot; HTTP VERSION NOT SUPPORTED&quot;;</span>
+<span class="fc" id="L1516">			return statusCode + &quot; HTTP VERSION NOT SUPPORTED&quot;;</span>
 		default:
-<span class="fc" id="L1516">			return statusCode + &quot; UNKNOWN&quot;;</span>
+<span class="fc" id="L1518">			return statusCode + &quot; UNKNOWN&quot;;</span>
 		}
 	}
 
@@ -1524,14 +1526,14 @@ public final class IuWebUtils {
 	 * @return resolved {@link InetAddress}
 	 */
 	public static InetAddress getInetAddress(String hostname) {
-<span class="fc" id="L1527">		var addr = IP_CACHE.get(hostname);</span>
-<span class="fc bfc" id="L1528" title="All 2 branches covered.">		if (addr != null)</span>
-<span class="fc" id="L1529">			return addr;</span>
+<span class="fc" id="L1529">		var addr = IP_CACHE.get(hostname);</span>
+<span class="fc bfc" id="L1530" title="All 2 branches covered.">		if (addr != null)</span>
+<span class="fc" id="L1531">			return addr;</span>
 
-<span class="fc" id="L1531">		addr = IuException.unchecked(() -&gt; InetAddress.getByName(hostname));</span>
-<span class="fc" id="L1532">		IP_CACHE.put(hostname, addr);</span>
+<span class="fc" id="L1533">		addr = IuException.unchecked(() -&gt; InetAddress.getByName(hostname));</span>
+<span class="fc" id="L1534">		IP_CACHE.put(hostname, addr);</span>
 
-<span class="fc" id="L1534">		return addr;</span>
+<span class="fc" id="L1536">		return addr;</span>
 	}
 
 	/**
@@ -1542,32 +1544,32 @@ public final class IuWebUtils {
 	 * @return true if the range includes the address; else false
 	 */
 	public static boolean isInetAddressInRange(InetAddress address, String range) {
-<span class="fc" id="L1545">		byte[] hostaddr = address.getAddress();</span>
-<span class="fc" id="L1546">		int lastSlash = range.lastIndexOf('/');</span>
+<span class="fc" id="L1547">		byte[] hostaddr = address.getAddress();</span>
+<span class="fc" id="L1548">		int lastSlash = range.lastIndexOf('/');</span>
 
 		byte[] rangeaddr;
 		int maskbits;
-<span class="fc bfc" id="L1550" title="All 2 branches covered.">		if (lastSlash == -1) {</span>
-<span class="fc" id="L1551">			rangeaddr = getInetAddress(range).getAddress();</span>
-<span class="fc" id="L1552">			maskbits = rangeaddr.length * 8;</span>
+<span class="fc bfc" id="L1552" title="All 2 branches covered.">		if (lastSlash == -1) {</span>
+<span class="fc" id="L1553">			rangeaddr = getInetAddress(range).getAddress();</span>
+<span class="fc" id="L1554">			maskbits = rangeaddr.length * 8;</span>
 		} else {
-<span class="fc" id="L1554">			rangeaddr = getInetAddress(range.substring(0, lastSlash)).getAddress();</span>
-<span class="fc" id="L1555">			maskbits = Integer.parseInt(range.substring(lastSlash + 1));</span>
+<span class="fc" id="L1556">			rangeaddr = getInetAddress(range.substring(0, lastSlash)).getAddress();</span>
+<span class="fc" id="L1557">			maskbits = Integer.parseInt(range.substring(lastSlash + 1));</span>
 		}
 
-<span class="fc bfc" id="L1558" title="All 2 branches covered.">		for (int i = 0; i &lt; rangeaddr.length; i++) {</span>
-<span class="fc bfc" id="L1559" title="All 2 branches covered.">			if (maskbits &gt;= 8) {</span>
-<span class="fc" id="L1560">				maskbits -= 8;</span>
-<span class="fc bfc" id="L1561" title="All 2 branches covered.">				if (hostaddr[i] != rangeaddr[i])</span>
-<span class="fc" id="L1562">					return false;</span>
-<span class="fc bfc" id="L1563" title="All 2 branches covered.">			} else if (maskbits &gt; 0) {</span>
-<span class="fc" id="L1564">				int mask = ~((1 &lt;&lt; (8 - maskbits)) - 1);</span>
-<span class="fc bfc" id="L1565" title="All 2 branches covered.">				return (hostaddr[i] &amp; mask) == (rangeaddr[i] &amp; mask);</span>
+<span class="fc bfc" id="L1560" title="All 2 branches covered.">		for (int i = 0; i &lt; rangeaddr.length; i++) {</span>
+<span class="fc bfc" id="L1561" title="All 2 branches covered.">			if (maskbits &gt;= 8) {</span>
+<span class="fc" id="L1562">				maskbits -= 8;</span>
+<span class="fc bfc" id="L1563" title="All 2 branches covered.">				if (hostaddr[i] != rangeaddr[i])</span>
+<span class="fc" id="L1564">					return false;</span>
+<span class="fc bfc" id="L1565" title="All 2 branches covered.">			} else if (maskbits &gt; 0) {</span>
+<span class="fc" id="L1566">				int mask = ~((1 &lt;&lt; (8 - maskbits)) - 1);</span>
+<span class="fc bfc" id="L1567" title="All 2 branches covered.">				return (hostaddr[i] &amp; mask) == (rangeaddr[i] &amp; mask);</span>
 			} else
 				break;
 		}
 
-<span class="fc" id="L1570">		return true;</span>
+<span class="fc" id="L1572">		return true;</span>
 	}
 
 	private IuWebUtils() {
