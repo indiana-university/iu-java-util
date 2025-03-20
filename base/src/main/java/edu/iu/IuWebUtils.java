@@ -758,7 +758,8 @@ public final class IuWebUtils {
 	 * backslash)
 	 * 
 	 * @param c character
-	 * @return true of the character is in the cookie-octet character set.
+	 * @return true if the character is in the cookie-octet character set.
+
 	 * @see <a href=
 	 *      "https://datatracker.ietf.org/doc/html/rfc6265#section-4.1">RFC-6265
 	 *      HTTP State Management, Section 4.1</a>
