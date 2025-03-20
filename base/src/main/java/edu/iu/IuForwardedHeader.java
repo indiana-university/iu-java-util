@@ -29,99 +29,44 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.web;
-
-import java.net.URI;
-
-import com.sun.net.httpserver.HttpHandler;
+package edu.iu;
 
 /**
- * Encapsulates a reference to an {@link HttpHandler} by context path.
+ * Provides parameters from the HTTP Forwarded header.
+ * 
+ * @see <a href=
+ *      "https://datatracker.ietf.org/doc/html/rfc7239#section-5">RFC-7239
+ *      Forwarded HTTP Extension, Section 5</a>
+ * @see IuWebUtils#parseForwardedHeader(String)
  */
-public interface IuWebContext {
+public interface IuForwardedHeader {
 
 	/**
-	 * Gets the application.
+	 * Gets the user-agent facing interface of the proxy.
 	 * 
-	 * @return application code
+	 * @return "by" value
 	 */
-	String getApplication();
+	String getBy();
 
 	/**
-	 * Gets the environment.
+	 * Gets the node making the request to the proxy.
 	 * 
-	 * @return environment code
+	 * @return "for" value
 	 */
-	String getEnvironment();
+	String getFor();
 
 	/**
-	 * Gets the module.
+	 * Gets the host request header field as received by the proxy.
 	 * 
-	 * @return module name
+	 * @return "host" value
 	 */
-	String getModule();
+	String getHost();
 
 	/**
-	 * Gets the runtime.
+	 * Gets the protocol used to make the request.
 	 * 
-	 * @return runtime name
+	 * @return "proto" value
 	 */
-	String getRuntime();
-
-	/**
-	 * Gets the component.
-	 * 
-	 * @return component name
-	 */
-	String getComponent();
-
-	/**
-	 * Gets the support pre-text.
-	 * 
-	 * @return support pre-text
-	 */
-	String getSupportPreText();
-
-	/**
-	 * Gets the support URL.
-	 * 
-	 * @return support URL
-	 */
-	String getSupportUrl();
-
-	/**
-	 * Gets the support label.
-	 * 
-	 * @return support label
-	 */
-	String getSupportLabel();
-
-	/**
-	 * Gets the context path relative to the server root.
-	 * 
-	 * @return context path, with leading slash
-	 */
-	URI getRootUri();
-
-	/**
-	 * Allow-list of domains permitted to submit cross-origin fetch requests.
-	 * 
-	 * @return set of domains
-	 */
-	Iterable<String> getOriginAllow();
-
-	/**
-	 * Gets the {@link HttpHandler} for requests relative to {@link #getRootUri()}.
-	 * 
-	 * @return {@link HttpHandler}
-	 */
-	HttpHandler getHandler();
-
-	/**
-	 * Gets the {@link ClassLoader} to use for binding threads to the context.
-	 * 
-	 * @return {@link ClassLoader}
-	 */
-	ClassLoader getLoader();
+	String getProto();
 
 }

@@ -215,7 +215,7 @@ public class IuWebUtilsTest {
 	public void testVisibleAsciiBadChars() {
 		assertFalse(IuWebUtils.isVisibleAscii("\n", 1));
 	}
-	
+
 	@Test
 	public void testVisibleAsciiSuccess() {
 		final var b = new byte[32];
@@ -477,6 +477,410 @@ public class IuWebUtilsTest {
 		assertThrows(IllegalArgumentException.class, () -> IuWebUtils.validateUserAgent("foobar/"));
 		assertThrows(IllegalArgumentException.class, () -> IuWebUtils.validateUserAgent("foo(bar)"));
 		assertThrows(IllegalArgumentException.class, () -> IuWebUtils.validateUserAgent("foo\t\f(bar)"));
+	}
+
+	@Test
+	public void testCookieOctet() {
+		assertFalse(IuWebUtils.cookieOctet(' '));
+		assertTrue(IuWebUtils.cookieOctet('!'));
+		assertFalse(IuWebUtils.cookieOctet('\"'));
+		assertTrue(IuWebUtils.cookieOctet('#'));
+		assertFalse(IuWebUtils.cookieOctet(','));
+		assertTrue(IuWebUtils.cookieOctet('-'));
+		assertFalse(IuWebUtils.cookieOctet(';'));
+		assertTrue(IuWebUtils.cookieOctet('<'));
+		assertFalse(IuWebUtils.cookieOctet('\\'));
+		assertTrue(IuWebUtils.cookieOctet(']'));
+		assertFalse(IuWebUtils.cookieOctet((char) 0x7f));
+	}
+
+	@Test
+	public void testCookieValue() {
+		final var value = IdGenerator.generateId();
+		assertEquals(0, IuWebUtils.cookieValue("", 0));
+		assertEquals(value.length(), IuWebUtils.cookieValue(value, 0));
+		assertEquals(value.length(), IuWebUtils.cookieValue(value + ";", 0));
+		assertEquals("unterminated '\"' at 1",
+				assertThrows(IllegalArgumentException.class, () -> IuWebUtils.cookieValue("\"", 0)).getMessage());
+		assertEquals("unterminated '\"' at 33",
+				assertThrows(IllegalArgumentException.class, () -> IuWebUtils.cookieValue("\"" + value, 0))
+						.getMessage());
+		assertEquals("unterminated '\"' at 33",
+				assertThrows(IllegalArgumentException.class, () -> IuWebUtils.cookieValue("\"" + value + ';', 0))
+						.getMessage());
+		assertEquals(value.length() + 2, IuWebUtils.cookieValue("\"" + value + "\"", 0));
+		assertEquals(value.length() + 4, IuWebUtils.cookieValue("\"!" + value + "+\"", 0));
+	}
+
+	@Test
+	public void testCookieHeaderInvalidName() {
+		final var name = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var cookies = IuWebUtils.parseCookieHeader("[" + name + "]=" + value);
+		final var cookieIterator = cookies.iterator();
+		assertTrue(cookieIterator.hasNext());
+		final var error = assertThrows(IllegalArgumentException.class, cookieIterator::next);
+		assertEquals("invalid cookie-name at 0", error.getMessage());
+	}
+
+	@Test
+	public void testCookieHeaderMissingEquals() {
+		final var name = IdGenerator.generateId();
+		final var cookies = IuWebUtils.parseCookieHeader(name);
+		final var cookieIterator = cookies.iterator();
+		assertTrue(cookieIterator.hasNext());
+		final var error = assertThrows(IllegalArgumentException.class, cookieIterator::next);
+		assertEquals("expected '=' at 32", error.getMessage());
+	}
+
+	@Test
+	public void testCookieHeaderMissingEqualsOnFirstCookie() {
+		final var name = IdGenerator.generateId();
+		final var cookies = IuWebUtils.parseCookieHeader(name + "; " + IdGenerator.generateId() + "=");
+		final var cookieIterator = cookies.iterator();
+		assertTrue(cookieIterator.hasNext());
+		final var error = assertThrows(IllegalArgumentException.class, cookieIterator::next);
+		assertEquals("expected '=' at 32", error.getMessage());
+	}
+
+	@Test
+	public void testCookieHeaderSingleCookie() {
+		final var name = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var cookies = IuWebUtils.parseCookieHeader(name + "=" + value);
+		final var cookieIterator = cookies.iterator();
+		assertTrue(cookieIterator.hasNext());
+		final var cookie = cookieIterator.next();
+		assertEquals(name, cookie.getName());
+		assertEquals(value, cookie.getValue());
+		assertFalse(cookieIterator.hasNext());
+	}
+
+	@Test
+	public void testCookieHeaderBlankCookie() {
+		final var name = IdGenerator.generateId();
+		final var cookies = IuWebUtils.parseCookieHeader(name + "=");
+		final var cookieIterator = cookies.iterator();
+		assertTrue(cookieIterator.hasNext());
+		final var cookie = cookieIterator.next();
+		assertEquals(name, cookie.getName());
+		assertEquals("", cookie.getValue());
+		assertFalse(cookieIterator.hasNext());
+	}
+
+	@Test
+	public void testCookieHeaderQuotedCookie() {
+		final var name = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var cookies = IuWebUtils.parseCookieHeader(name + "=\"" + value + "\"");
+		final var cookieIterator = cookies.iterator();
+		assertTrue(cookieIterator.hasNext());
+		final var cookie = cookieIterator.next();
+		assertEquals(name, cookie.getName());
+		assertEquals(value, cookie.getValue());
+		assertFalse(cookieIterator.hasNext());
+	}
+
+	@Test
+	public void testCookieHeaderMultipleCookies() {
+		final var name = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var name2 = IdGenerator.generateId();
+		final var value2 = IdGenerator.generateId();
+		final var cookies = IuWebUtils.parseCookieHeader(name + "=" + value + "; " + name2 + "=" + value2);
+		final var cookieIterator = cookies.iterator();
+		assertTrue(cookieIterator.hasNext());
+		final var cookie = cookieIterator.next();
+		assertEquals(name, cookie.getName());
+		assertEquals(value, cookie.getValue());
+		assertTrue(cookieIterator.hasNext());
+		final var cookie2 = cookieIterator.next();
+		assertEquals(name2, cookie2.getName());
+		assertEquals(value2, cookie2.getValue());
+		assertFalse(cookieIterator.hasNext());
+	}
+
+	@Test
+	public void testCookieHeaderTrailingGarbage() {
+		final var name = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var cookies = IuWebUtils.parseCookieHeader(name + "=" + value + "  ;");
+		final var cookieIterator = cookies.iterator();
+		assertTrue(cookieIterator.hasNext());
+		final var error = assertThrows(IllegalArgumentException.class, cookieIterator::next);
+		assertEquals("expected ';' at 65", error.getMessage());
+	}
+
+	@Test
+	public void testCookieHeaderTrailingGarbage2() {
+		final var name = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var cookies = IuWebUtils.parseCookieHeader(name + "=" + value + ";;");
+		final var cookieIterator = cookies.iterator();
+		assertTrue(cookieIterator.hasNext());
+		final var error = assertThrows(IllegalArgumentException.class, cookieIterator::next);
+		assertEquals("expected ' ' at 66", error.getMessage());
+	}
+
+	@Test
+	public void testForwardedHeaderRfc7239() {
+		var parsed = IuWebUtils.parseForwardedHeader("for=\"_gazonk\"");
+		assertEquals("_gazonk", parsed.getFor());
+		assertNull(parsed.getBy());
+		assertNull(parsed.getHost());
+		assertNull(parsed.getProto());
+
+		parsed = IuWebUtils.parseForwardedHeader("For=\"[2001:db8:cafe::17]:4711\"");
+		assertEquals("[2001:db8:cafe::17]:4711", parsed.getFor());
+		assertNull(parsed.getBy());
+		assertNull(parsed.getHost());
+		assertNull(parsed.getProto());
+
+		parsed = IuWebUtils.parseForwardedHeader("for=192.0.2.60;proto=http;by=203.0.113.43");
+		assertEquals("192.0.2.60", parsed.getFor());
+		assertEquals("203.0.113.43", parsed.getBy());
+		assertNull(parsed.getHost());
+		assertEquals("http", parsed.getProto());
+	}
+
+	@Test
+	public void testBlankForwardedHeader() {
+		assertEquals("expected token at 0",
+				assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseForwardedHeader(" ")).getMessage());
+	}
+
+	@Test
+	public void testMissingEqInForwardedHeader() {
+		assertEquals("expected '=' at 1",
+				assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseForwardedHeader("a")).getMessage());
+		assertEquals("expected '=' at 1",
+				assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseForwardedHeader("a ")).getMessage());
+	}
+
+	@Test
+	public void testEmptyHost() {
+		var parsed = IuWebUtils.parseForwardedHeader("host=");
+		assertNull(parsed.getFor());
+		assertNull(parsed.getBy());
+		assertEquals("", parsed.getHost());
+		assertNull(parsed.getProto());
+	}
+
+	@Test
+	public void testUnterminatedQuoteInForwarded() {
+		assertEquals("unterminated '\"' at 2",
+				assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseForwardedHeader("a=\""))
+						.getMessage());
+	}
+
+	@Test
+	public void testInvalidNameInForwarded() {
+		assertEquals("unexpected name a",
+				assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseForwardedHeader("a=\"b\""))
+						.getMessage());
+	}
+
+	@Test
+	public void testGarbageAfterForwarded() {
+		assertEquals("expected ';' at 6",
+				assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseForwardedHeader("by=\"b\" "))
+						.getMessage());
+	}
+
+	@Test
+	public void testDecOctet() {
+		assertEquals(0, IuWebUtils.decOctet("", 0));
+		assertEquals(0, IuWebUtils.decOctet(".", 0));
+		assertEquals(1, IuWebUtils.decOctet("0", 0));
+		assertEquals(1, IuWebUtils.decOctet("0.", 0));
+		assertEquals(1, IuWebUtils.decOctet("01", 0));
+		assertEquals(2, IuWebUtils.decOctet("10", 0));
+		assertEquals(2, IuWebUtils.decOctet("10.", 0));
+		assertEquals(3, IuWebUtils.decOctet("101", 0));
+		assertEquals(3, IuWebUtils.decOctet("101.", 0));
+		assertEquals(1, IuWebUtils.decOctet("2", 0));
+		assertEquals(1, IuWebUtils.decOctet("2.", 0));
+		assertEquals(2, IuWebUtils.decOctet("23", 0));
+		assertEquals(2, IuWebUtils.decOctet("23.", 0));
+		assertEquals(2, IuWebUtils.decOctet("25", 0));
+		assertEquals(2, IuWebUtils.decOctet("25.", 0));
+		assertEquals(3, IuWebUtils.decOctet("234", 0));
+		assertEquals(3, IuWebUtils.decOctet("234.", 0));
+		assertEquals(3, IuWebUtils.decOctet("249", 0));
+		assertEquals(3, IuWebUtils.decOctet("249.", 0));
+		assertEquals(3, IuWebUtils.decOctet("254", 0));
+		assertEquals(3, IuWebUtils.decOctet("254.", 0));
+		assertEquals(2, IuWebUtils.decOctet("256.", 0));
+		assertEquals(2, IuWebUtils.decOctet("260", 0));
+		assertEquals(1, IuWebUtils.decOctet("3", 0));
+		assertEquals(1, IuWebUtils.decOctet("3.", 0));
+		assertEquals(2, IuWebUtils.decOctet("32", 0));
+		assertEquals(2, IuWebUtils.decOctet("32.", 0));
+		assertEquals(2, IuWebUtils.decOctet("323.", 0));
+		assertEquals(2, IuWebUtils.decOctet("32~", 0));
+		assertEquals(2, IuWebUtils.decOctet("32 ", 0));
+	}
+
+	@Test
+	public void testIpV4() {
+		assertFalse(IuWebUtils.isIPv4Address(null));
+		assertFalse(IuWebUtils.isIPv4Address(""));
+		assertFalse(IuWebUtils.isIPv4Address("0"));
+		assertFalse(IuWebUtils.isIPv4Address("00"));
+		assertFalse(IuWebUtils.isIPv4Address("0.0"));
+		assertFalse(IuWebUtils.isIPv4Address("0.0.0."));
+		assertTrue(IuWebUtils.isIPv4Address("0.0.0.0"));
+		assertFalse(IuWebUtils.isIPv4Address("0.0.0.0 "));
+	}
+
+	@Test
+	public void testHexdig() {
+		assertTrue(IuWebUtils.hexdig('0'));
+		assertFalse(IuWebUtils.hexdig('@'));
+		assertTrue(IuWebUtils.hexdig('A'));
+		assertTrue(IuWebUtils.hexdig('F'));
+		assertFalse(IuWebUtils.hexdig('G'));
+		assertTrue(IuWebUtils.hexdig('a'), Integer.toHexString('a'));
+		assertTrue(IuWebUtils.hexdig('f'), Integer.toHexString('f'));
+		assertFalse(IuWebUtils.hexdig('g'), Integer.toHexString('g'));
+	}
+
+	@Test
+	public void testH16() {
+		assertEquals(0, IuWebUtils.h16("", 0));
+		assertEquals(1, IuWebUtils.h16("0", 0));
+		assertEquals(2, IuWebUtils.h16("EFGH", 0));
+		assertEquals(4, IuWebUtils.h16("8ACE", 0));
+	}
+
+	@Test
+	public void testLs32() {
+		assertEquals(0, IuWebUtils.ls32("", 0));
+		assertEquals(0, IuWebUtils.ls32("0123", 0));
+		assertEquals(0, IuWebUtils.ls32("0123:", 0));
+		assertEquals(9, IuWebUtils.ls32("0123:4567", 0));
+		assertEquals(8, IuWebUtils.ls32("10.1.2.3", 0));
+		assertEquals(0, IuWebUtils.ls32("01234", 0));
+	}
+
+	@Test
+	public void testIpV6() {
+		assertFalse(IuWebUtils.isIPv6Address(null));
+		assertFalse(IuWebUtils.isIPv6Address(""));
+		assertFalse(IuWebUtils.isIPv6Address(" "));
+		assertFalse(IuWebUtils.isIPv6Address("  "));
+		assertFalse(IuWebUtils.isIPv6Address(": "));
+		assertFalse(IuWebUtils.isIPv6Address("::"));
+		assertTrue(IuWebUtils.isIPv6Address("::1"));
+		assertFalse(IuWebUtils.isIPv6Address("0 "));
+		assertEquals(0, IuWebUtils.parseIPv6Address("0", 0));
+		assertFalse(IuWebUtils.isIPv6Address("0:1"));
+		assertFalse(IuWebUtils.isIPv6Address("0:*"));
+		assertFalse(IuWebUtils.isIPv6Address("0:2 "));
+		assertFalse(IuWebUtils.isIPv6Address("0:3  "));
+		assertFalse(IuWebUtils.isIPv6Address("::0:3::4:5"));
+		assertTrue(IuWebUtils.isIPv6Address("::1:2:3:4:5"));
+		assertTrue(IuWebUtils.isIPv6Address("::1:2:3:4:5:6:7"));
+		assertFalse(IuWebUtils.isIPv6Address("1:2:3:4:5:6:7"));
+		assertTrue(IuWebUtils.isIPv6Address("1:2:3:4:5:6:7:8"));
+		assertTrue(IuWebUtils.isIPv6Address("1:2:3:4::"));
+		assertEquals(9, IuWebUtils.parseIPv6Address("1:2:3:4::]", 0));
+		assertFalse(IuWebUtils.isIPv6Address("1:2:3:4::]"));
+
+		assertEquals(18, IuWebUtils.parseIPv6Address("2001:18e8:2:e::11e", 0));
+		assertEquals(18, IuWebUtils.parseIPv6Address("2001:18e8:2:e::11e]", 0));
+		assertEquals(0, IuWebUtils.parseIPv6Address("2001:18e8:2:e::11e ", 0));
+		assertEquals(16, IuWebUtils.parseIPv6Address("1:2:3:4::5.6.7.8", 0));
+		assertEquals(16, IuWebUtils.parseIPv6Address("1:2:3:4::5.6.7.8]", 0));
+		assertEquals(20, IuWebUtils.parseIPv6Address("1:2:3:4:5:6:7.8.9.10", 0));
+		assertEquals(20, IuWebUtils.parseIPv6Address("1:2:3:4:5:6:7.8.9.10]", 0));
+		assertEquals(0, IuWebUtils.parseIPv6Address("1:2:3:4:5:6:7.8.9.10.", 0));
+		assertEquals(0, IuWebUtils.parseIPv6Address("::0::FF00:01", 0));
+		assertEquals(10, IuWebUtils.parseIPv6Address("0::FF00:01", 0));
+		assertEquals(0, IuWebUtils.parseIPv6Address("0::FF00::01", 0));
+	}
+
+	@Test
+	public void testIp() {
+		assertTrue(IuWebUtils.isIPAddress("::1"));
+		assertTrue(IuWebUtils.isIPAddress("127.0.0.1"));
+		assertFalse(IuWebUtils.isIPAddress(""));
+	}
+
+	@Test
+	public void testObf() {
+		assertEquals(0, IuWebUtils.obf("", 0));
+		assertEquals(0, IuWebUtils.obf("_", 0));
+		assertEquals(7, IuWebUtils.obf("_a1_-.b:", 0));
+		assertEquals(2, IuWebUtils.obf("_. ", 0));
+	}
+
+	@Test
+	public void testNodeId() {
+		assertNull(IuWebUtils.parseNodeIdentifier(null));
+		assertNull(IuWebUtils.parseNodeIdentifier(""));
+		assertNull(IuWebUtils.parseNodeIdentifier("unknown"));
+
+		var a = IuWebUtils.parseNodeIdentifier("127.0.0.1:1234");
+		assertEquals(IuWebUtils.getInetAddress("127.0.0.1").getHostName(), a.getHostName());
+		assertEquals(1234, a.getPort());
+
+		a = IuWebUtils.parseNodeIdentifier("[0::FF00:01]:5432");
+		assertEquals(IuWebUtils.getInetAddress("0::FF00:01").getHostName(), a.getHostName());
+		assertEquals(5432, a.getPort());
+
+		var e = assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseNodeIdentifier("[g"));
+		assertEquals("invalid IPv6 address", e.getMessage());
+
+		e = assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseNodeIdentifier("[::1"));
+		assertEquals("invalid IPv6 address", e.getMessage());
+
+		e = assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseNodeIdentifier("[::1:2 "));
+		assertEquals("invalid IPv6 address", e.getMessage());
+
+		e = assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseNodeIdentifier("_ "));
+		assertEquals("invalid obfnode", e.getMessage());
+
+		e = assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseNodeIdentifier("_abc"));
+		assertEquals("unknown obfnode", e.getMessage());
+
+		e = assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseNodeIdentifier("abc"));
+		assertEquals("invalid nodename", e.getMessage());
+
+		a = IuWebUtils.parseNodeIdentifier("[::1]");
+		assertEquals(IuWebUtils.getInetAddress("::1").getHostName(), a.getHostName());
+		assertEquals(0, a.getPort());
+
+		e = assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseNodeIdentifier("[::1]:"));
+		assertEquals("empty node-port", e.getMessage());
+
+		e = assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseNodeIdentifier("[::1]:_"));
+		assertEquals("invalid obfport", e.getMessage());
+
+		e = assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseNodeIdentifier("[::1]:_abc"));
+		assertEquals("unknown obfport", e.getMessage());
+
+		e = assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseNodeIdentifier("[::1]:abcdef"));
+		assertEquals("invalid node-port", e.getMessage());
+
+		e = assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseNodeIdentifier("[::1]:abcde"));
+		assertEquals("invalid port", e.getMessage());
+
+		e = assertThrows(IllegalArgumentException.class, () -> IuWebUtils.parseNodeIdentifier("[::1] "));
+		assertEquals("expected ':' or end of node", e.getMessage());
+
+		final var obfname = "_" + IdGenerator.generateId();
+		final var obfport = "_" + IdGenerator.generateId();
+		a = IuWebUtils.parseNodeIdentifier(obfname + ":" + obfport, s -> {
+			assertEquals(obfname, s);
+			return IuWebUtils.getInetAddress("::1");
+		}, s -> {
+			assertEquals(obfport, s);
+			return 8780;
+		});
+		assertEquals(IuWebUtils.getInetAddress("::1").getHostName(), a.getHostName());
+		assertEquals(8780, a.getPort());
+
 	}
 
 	private Map<String, ? extends Iterable<String>> assertQueryString(String qs) {
