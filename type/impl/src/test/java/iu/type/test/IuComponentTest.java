@@ -303,37 +303,6 @@ public class IuComponentTest extends IuTypeTestCase {
 		}
 	}
 
-	@Disabled
-	@Test
-	public void testLoadsLegacyWar() throws Exception {
-		try (var parent = IuComponent.of(TestArchives.getComponentArchive("testlegacy"));
-				var component = parent.extend(TestArchives.getComponentArchive("testlegacyweb"),
-						TestArchives.getProvidedDependencyArchives("testlegacyweb"))) {
-
-			assertEquals(Kind.LEGACY_WAR, component.kind());
-			assertEquals("iu-java-type-testlegacyweb", component.version().name());
-			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
-
-			final Set<String> interfaces = new HashSet<>();
-			IuIterable.map(component.interfaces(), IuType::name).forEach(interfaces::add);
-			assertTrue(interfaces.contains("edu.iu.legacy.LegacyInterface"), interfaces::toString);
-			assertTrue(interfaces.contains("edu.iu.legacy.NotResource"), interfaces::toString);
-
-			var incompatible = component.annotatedTypes(Incompatible.class).iterator();
-			assertTrue(incompatible.hasNext());
-			assertEquals("edu.iu.legacy.LegacyResource", incompatible.next().name());
-			assertFalse(incompatible.hasNext(), () -> incompatible.next().name());
-
-			var testsShouldBeEmpty = component.annotatedTypes(Test.class).iterator();
-			assertFalse(testsShouldBeEmpty.hasNext(), () -> testsShouldBeEmpty.next().name());
-
-			var expectedResources = new HashSet<>(Set.of("two", "legacyResource", "index.jsp", "WEB-INF/web.xml"));
-			for (final var r : component.resources())
-				assertTrue(expectedResources.remove(r.name()));
-			assertTrue(expectedResources.isEmpty(), expectedResources::toString);
-		}
-	}
-
 	@Test
 	public void testScanFolder() throws Exception {
 		var scannedView = IuComponent.scan(getClass());
