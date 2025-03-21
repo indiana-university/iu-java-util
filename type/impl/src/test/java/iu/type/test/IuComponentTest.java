@@ -155,47 +155,6 @@ public class IuComponentTest extends IuTypeTestCase {
 		assertEquals("First component must be a module", error.getMessage());
 	}
 
-	@Disabled
-	@Test
-	public void testLoadsLegacy() throws Exception {
-		var publicUrlThatWorksAndReturnsJson = "https://idp-stg.login.iu.edu/.well-known/openid-configuration";
-		String expected;
-		try (InputStream in = URI.create(publicUrlThatWorksAndReturnsJson).toURL().openStream()) {
-			expected = new String(in.readAllBytes());
-		} catch (Throwable e) {
-			e.printStackTrace();
-			Assumptions.abort(
-					"Expected this to be a public URL that works and returns JSON " + publicUrlThatWorksAndReturnsJson);
-			return;
-		}
-
-		try (var component = IuComponent.of(TestArchives.getComponentArchive("testlegacy"))) {
-
-			assertEquals(Kind.LEGACY_JAR, component.kind());
-			assertEquals("iu-java-type-testlegacy", component.version().name());
-			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
-
-			var resources = component.resources().iterator();
-			assertTrue(resources.hasNext());
-			while (resources.hasNext()) {
-				final var resource = resources.next();
-				assertInstanceOf(resource.type().erasedClass(), resource.get());
-			}
-
-			var contextLoader = Thread.currentThread().getContextClassLoader();
-			var loader = component.classLoader();
-			try {
-				Thread.currentThread().setContextClassLoader(loader);
-				var urlReader = loader.loadClass("edu.iu.legacy.LegacyUrlReader");
-				var urlReader$ = urlReader.getConstructor().newInstance();
-				assertEquals(urlReader.getMethod("parseJson", String.class).invoke(urlReader$, expected),
-						urlReader.getMethod("get", String.class).invoke(urlReader$, publicUrlThatWorksAndReturnsJson));
-			} finally {
-				Thread.currentThread().setContextClassLoader(contextLoader);
-			}
-		}
-	}
-
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testLoadsTestComponent() throws Exception {
