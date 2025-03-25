@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -758,7 +758,8 @@ public final class IuWebUtils {
 	 * backslash)
 	 * 
 	 * @param c character
-	 * @return true of the character is in the cookie-octet character set.
+	 * @return true if the character is in the cookie-octet character set.
+
 	 * @see <a href=
 	 *      "https://datatracker.ietf.org/doc/html/rfc6265#section-4.1">RFC-6265
 	 *      HTTP State Management, Section 4.1</a>
@@ -1026,7 +1027,8 @@ public final class IuWebUtils {
 	}
 
 	/**
-	 * Parses an IPV4Address for {@link #parseNodeIdentifier(String)}.o
+	 * Parses an IPV4Address for {@link #parseNodeIdentifier(String)}.
+
 	 * 
 	 * @param nodeId      {@link #parseNodeIdentifier(String) node identifier}
 	 * @param originalPos start position
