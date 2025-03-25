@@ -29,38 +29,13 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.type.base;
+package edu.iu.type.testcomponent;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
-import org.junit.jupiter.api.Test;
-
-import edu.iu.IuIterable;
+import jakarta.annotation.Priority;
 import jakarta.annotation.Resource;
 
+@Resource
+@Priority(34)
 @SuppressWarnings("javadoc")
-public class FilteringClassLoaderTest {
-
-	@Test
-	public void testPlatform() throws Throwable {
-		final var loader = new FilteringClassLoader(IuIterable.empty(), getClass().getClassLoader());
-		assertThrows(ClassNotFoundException.class, () -> loader.loadClass(getClass().getName()));
-		assertDoesNotThrow(() -> getClass().getClassLoader().loadClass("javax.sql.DataSource"));
-		assertThrows(ClassNotFoundException.class, () -> loader.loadClass(Resource.class.getName()));
-		assertSame(Object.class, loader.loadClass(Object.class.getName()));
-	}
-
-	@Test
-	public void testAllowed() throws Throwable {
-		final var loader = new FilteringClassLoader( // full class name isn't a package --v
-				IuIterable.iter("javax.sql", getClass().getPackageName(), Resource.class.getName()),
-				getClass().getClassLoader());
-		assertSame(getClass(), loader.loadClass(getClass().getName()));
-		assertSame(getClass().getClassLoader().loadClass("javax.sql.DataSource"),
-				loader.loadClass("javax.sql.DataSource"));
-		assertThrows(ClassNotFoundException.class, () -> loader.loadClass(Resource.class.getName()));
-	}
-
+public class PriorityResource {
 }

@@ -174,10 +174,10 @@ public class ComponentResourceReferenceTest extends IuTypeTestCase {
 		when(resource.type()).thenReturn((IuType) TypeFactory.resolveRawClass(Object.class));
 		when(resource.get()).thenReturn(value);
 		ref.bind(resource);
-		assertSame(value, refer1.propResource);
+		assertSame(value, ref.value(refer1));
 
 		final var refer2 = TypeFactory.resolveRawClass(HasResourceRef.class).constructor().exec();
-		assertSame(value, refer2.propResource);
+		assertSame(value, ref.value(refer2));
 
 		// refer2 was already accepted by TypeTemplate, verify not accepted twice
 		final var refer2spy = spy(refer2);
