@@ -1,9 +1,9 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
 IU Type Introspection Implementation Module,iu.type,ArchiveSource,0,252,0,30,0,62,0,24,0,9
-IU Type Introspection Implementation Module,iu.type,ComponentResourceReference,0,253,0,36,0,54,0,29,0,11
+IU Type Introspection Implementation Module,iu.type,ComponentResourceReference,0,262,0,36,0,55,0,30,0,12
 IU Type Introspection Implementation Module,iu.type,TypeFactory.new Record() {...},0,9,0,0,0,1,0,1,0,1
 IU Type Introspection Implementation Module,iu.type,PropertyFacade,0,204,0,10,0,41,0,19,0,14
-IU Type Introspection Implementation Module,iu.type,ComponentResource,0,272,0,30,0,60,0,32,0,17
+IU Type Introspection Implementation Module,iu.type,ComponentResource,0,287,0,32,0,63,0,34,0,18
 IU Type Introspection Implementation Module,iu.type,ParameterizedFacade,0,6,0,0,0,1,0,1,0,1
 IU Type Introspection Implementation Module,iu.type,MethodFacade,0,117,0,12,0,22,0,14,0,8
 IU Type Introspection Implementation Module,iu.type,AnnotationBridge,0,165,0,18,0,42,0,14,0,5
@@ -15,7 +15,7 @@ IU Type Introspection Implementation Module,iu.type,TypeFactory.new Object() {..
 IU Type Introspection Implementation Module,iu.type,DeclaredElementBase,0,46,0,4,0,13,0,5,0,3
 IU Type Introspection Implementation Module,iu.type,ComponentModuleFinder,0,109,0,12,0,23,0,10,0,4
 IU Type Introspection Implementation Module,iu.type,TypeTemplate,0,977,1,115,0,191,1,108,0,51
-IU Type Introspection Implementation Module,iu.type,ComponentFactory,0,456,0,42,0,79,0,33,0,12
+IU Type Introspection Implementation Module,iu.type,ComponentFactory,0,386,0,40,0,72,0,30,0,10
 IU Type Introspection Implementation Module,iu.type,ComponentArchive.ScannedAttributes,0,21,0,0,0,1,0,1,0,1
 IU Type Introspection Implementation Module,iu.type,LegacyClassLoader,0,56,0,8,0,15,0,6,0,2
 IU Type Introspection Implementation Module,iu.type,ComponentModuleFinder.Ref,0,53,0,8,0,17,0,7,0,3

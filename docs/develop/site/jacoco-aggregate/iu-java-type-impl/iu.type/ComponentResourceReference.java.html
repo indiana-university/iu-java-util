@@ -154,19 +154,24 @@ class ComponentResourceReference&lt;R, T&gt; implements IuResourceReference&lt;R
 <span class="fc" id="L154">	}</span>
 
 	@Override
+	public T value(R referrer) {
+<span class="fc" id="L158">		return type.autoboxClass().cast(attribute.get(referrer));</span>
+	}
+
+	@Override
 	public synchronized void clear(R referrer) {
-<span class="fc bfc" id="L158" title="All 2 branches covered.">		if (referrer == null)</span>
-<span class="fc" id="L159">			return;</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">		if (referrer == null)</span>
+<span class="fc" id="L164">			return;</span>
 
-<span class="fc" id="L161">		visitor.clear(referrer);</span>
+<span class="fc" id="L166">		visitor.clear(referrer);</span>
 
-<span class="fc bfc" id="L163" title="All 2 branches covered.">		if (unboundValues.containsKey(referrer))</span>
-<span class="fc" id="L164">			attribute.set(referrer, unboundValues.remove(referrer).orElse(null));</span>
-<span class="fc" id="L165">	}</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">		if (unboundValues.containsKey(referrer))</span>
+<span class="fc" id="L169">			attribute.set(referrer, unboundValues.remove(referrer).orElse(null));</span>
+<span class="fc" id="L170">	}</span>
 
 	@Override
 	public String toString() {
-<span class="fc" id="L169">		return &quot;ComponentResourceReference [name=&quot; + name + &quot;, type=&quot; + type + &quot;, attribute=&quot; + attribute</span>
+<span class="fc" id="L174">		return &quot;ComponentResourceReference [name=&quot; + name + &quot;, type=&quot; + type + &quot;, attribute=&quot; + attribute</span>
 				+ &quot;, boundResource=&quot; + boundResource + &quot;]&quot;;
 	}
 

@@ -104,51 +104,53 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 <span class="fc" id="L104">						TypeBundleSpi.class.getClassLoader().getResource(&quot;iu-java-type-impl-bundle.jar&quot;),</span>
 						&quot;Missing iu-java-type-impl-bundle.jar classpath entry&quot;)),
 				c -&gt; {
-<span class="fc" id="L107">				});</span>
+<span class="fc" id="L107">					final var iuTypeBase = ModularClassLoader.class.getModule();</span>
+<span class="fc" id="L108">					c.addReads(c.layer().findModule(&quot;iu.util.type.impl&quot;).get(), iuTypeBase);</span>
+<span class="fc" id="L109">				});</span>
 
-<span class="fc" id="L109">		delegate = IuException.checked(IOException.class, () -&gt; IuException.initialize(bundleLoader,</span>
-<span class="fc" id="L110">				a -&gt; ServiceLoader.load(IuTypeSpi.class, a).findFirst().get()));</span>
+<span class="fc" id="L111">		delegate = IuException.checked(IOException.class, () -&gt; IuException.initialize(bundleLoader,</span>
+<span class="fc" id="L112">				a -&gt; ServiceLoader.load(IuTypeSpi.class, a).findFirst().get()));</span>
 
-<span class="fc" id="L112">		instance = this;</span>
-<span class="fc" id="L113">	}</span>
+<span class="fc" id="L114">		instance = this;</span>
+<span class="fc" id="L115">	}</span>
 
 	@Override
 	public IuType&lt;?, ?&gt; resolveType(Type type) {
-<span class="fc bfc" id="L117" title="All 2 branches covered.">		if (delegate == null)</span>
-<span class="fc" id="L118">			throw new IllegalStateException(&quot;closed&quot;);</span>
-<span class="fc" id="L119">		return delegate.resolveType(type);</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">		if (delegate == null)</span>
+<span class="fc" id="L120">			throw new IllegalStateException(&quot;closed&quot;);</span>
+<span class="fc" id="L121">		return delegate.resolveType(type);</span>
 	}
 
 	@Override
 	public IuComponent scanComponentEntry(ClassLoader classLoader, ModuleLayer moduleLayer, Path pathEntry)
 			throws IOException, ClassNotFoundException {
-<span class="fc bfc" id="L125" title="All 2 branches covered.">		if (delegate == null)</span>
-<span class="fc" id="L126">			throw new IllegalStateException(&quot;closed&quot;);</span>
-<span class="fc" id="L127">		return delegate.scanComponentEntry(classLoader, moduleLayer, pathEntry);</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">		if (delegate == null)</span>
+<span class="fc" id="L128">			throw new IllegalStateException(&quot;closed&quot;);</span>
+<span class="fc" id="L129">		return delegate.scanComponentEntry(classLoader, moduleLayer, pathEntry);</span>
 	}
 
 	@Override
 	public IuComponent createComponent(ClassLoader parent, ModuleLayer parentLayer,
 			Consumer&lt;Controller&gt; controllerCallback, InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) {
-<span class="fc bfc" id="L134" title="All 2 branches covered.">		if (delegate == null)</span>
-<span class="fc" id="L135">			throw new IllegalStateException(&quot;closed&quot;);</span>
-<span class="fc" id="L136">		return delegate.createComponent(parent, parentLayer, controllerCallback, componentArchiveSource,</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">		if (delegate == null)</span>
+<span class="fc" id="L137">			throw new IllegalStateException(&quot;closed&quot;);</span>
+<span class="fc" id="L138">		return delegate.createComponent(parent, parentLayer, controllerCallback, componentArchiveSource,</span>
 				providedDependencyArchiveSources);
 	}
 
 	@Override
 	public synchronized void close() throws Exception {
-<span class="fc" id="L142">		instance = null;</span>
+<span class="fc" id="L144">		instance = null;</span>
 
-<span class="fc" id="L144">		this.delegate = null;</span>
+<span class="fc" id="L146">		this.delegate = null;</span>
 
-<span class="fc bfc" id="L146" title="All 2 branches covered.">		if (bundleLoader != null) {</span>
-<span class="fc" id="L147">			final var bundleLoader = this.bundleLoader;</span>
-<span class="fc" id="L148">			this.bundleLoader = null;</span>
-<span class="fc" id="L149">			bundleLoader.close();</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">		if (bundleLoader != null) {</span>
+<span class="fc" id="L149">			final var bundleLoader = this.bundleLoader;</span>
+<span class="fc" id="L150">			this.bundleLoader = null;</span>
+<span class="fc" id="L151">			bundleLoader.close();</span>
 		}
-<span class="fc" id="L151">	}</span>
+<span class="fc" id="L153">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
