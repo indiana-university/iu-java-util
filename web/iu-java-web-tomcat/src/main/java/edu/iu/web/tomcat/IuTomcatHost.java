@@ -8,6 +8,7 @@ import java.util.regex.Pattern;
 import org.apache.catalina.Container;
 import org.apache.catalina.Context;
 import org.apache.catalina.Host;
+import org.apache.catalina.Lifecycle;
 import org.apache.catalina.LifecycleException;
 import org.apache.catalina.LifecycleState;
 
@@ -155,6 +156,7 @@ public class IuTomcatHost extends AbstractIuTomcatContainer implements Host {
 
 	@Override
 	protected void initInternal() throws LifecycleException {
+		throw new UnsupportedOperationException();
 	}
 
 	@Override
@@ -162,6 +164,7 @@ public class IuTomcatHost extends AbstractIuTomcatContainer implements Host {
 		context.start();
 		if (!context.getState().equals(LifecycleState.STARTED))
 			throw new IllegalStateException("Context " + context + " " + context.getStateName());
+
 		setState(LifecycleState.STARTING);
 	}
 
@@ -173,6 +176,7 @@ public class IuTomcatHost extends AbstractIuTomcatContainer implements Host {
 
 	@Override
 	protected void destroyInternal() throws LifecycleException {
+		throw new UnsupportedOperationException();
 	}
 
 	@Override
@@ -195,7 +199,7 @@ public class IuTomcatHost extends AbstractIuTomcatContainer implements Host {
 	@Override
 	public void setLegacyAppBase(String legacyAppBase) {
 		// TODO Auto-generated method stub
-
+		throw new UnsupportedOperationException();
 	}
 
 }

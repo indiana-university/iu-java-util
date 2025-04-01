@@ -90,26 +90,32 @@ public class IuTomcatSocketWrapper extends SocketWrapperBase<WebUpgradeSocketWra
 
 	@Override
 	protected void populateRemoteHost() {
+		throw new UnsupportedOperationException();
 	}
 
 	@Override
 	protected void populateRemoteAddr() {
+		throw new UnsupportedOperationException();
 	}
 
 	@Override
 	protected void populateRemotePort() {
+		throw new UnsupportedOperationException();
 	}
 
 	@Override
 	protected void populateLocalName() {
+		throw new UnsupportedOperationException();
 	}
 
 	@Override
 	protected void populateLocalAddr() {
+		throw new UnsupportedOperationException();
 	}
 
 	@Override
 	protected void populateLocalPort() {
+		throw new UnsupportedOperationException();
 	}
 
 	@Override
