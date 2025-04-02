@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.web.WebUpgradeSocketWrapper;
 
-class IuTomcatSocketEndpointTest {
+public class IuTomcatSocketEndpointTest {
 
     private IuTomcatSocketEndpoint socketEndpoint;
     private SocketWrapperBase<WebUpgradeSocketWrapper> socketWrapper;

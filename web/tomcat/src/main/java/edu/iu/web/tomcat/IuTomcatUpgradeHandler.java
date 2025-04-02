@@ -35,7 +35,9 @@ public class IuTomcatUpgradeHandler implements WebUpgradeHandler {
 		this.loader = Thread.currentThread().getContextClassLoader();
 	}
 
-	private void bind(boolean auth, UnsafeRunnable task) {
+	// TODO: changed to protected to facilitate testing. should it be private like
+	// the old code?
+	protected void bind(boolean auth, UnsafeRunnable task) {
 		try {
 //			IuResources.SPI.bound(new IuCallHeader() {
 //				@Override
@@ -147,7 +149,12 @@ public class IuTomcatUpgradeHandler implements WebUpgradeHandler {
 	@Override
 	public String upgradeDispatch(String status) {
 		if (!isInternal())
-			return WebUpgradeHandler.super.upgradeDispatch(status);
+			// TODO: explicitly throwing the exception allows this line to be covered by
+			// tests
+			// Code coverage tool doesn't see this as covered when the default method
+			// , which throws the exception, is called directly
+			throw new UnsupportedOperationException();
+//			return WebUpgradeHandler.super.upgradeDispatch(status);
 
 		String[] rv = new String[1];
 		bind(true, new UnsafeRunnable() {
@@ -169,7 +176,12 @@ public class IuTomcatUpgradeHandler implements WebUpgradeHandler {
 	@Override
 	public void setSocketWrapper(WebUpgradeSocketWrapper wrapper) {
 		if (!isInternal())
-			WebUpgradeHandler.super.setSocketWrapper(wrapper);
+			// TODO: explicitly throwing the exception allows this line to be covered by
+			// tests
+			// Code coverage tool doesn't see this as covered when the default method
+			// , which throws the exception, is called directly
+			throw new UnsupportedOperationException();
+//			WebUpgradeHandler.super.setSocketWrapper(wrapper);
 		else
 			((InternalHttpUpgradeHandler) upgradeHandler).setSocketWrapper(new IuTomcatSocketWrapper(wrapper));
 	}
@@ -177,7 +189,12 @@ public class IuTomcatUpgradeHandler implements WebUpgradeHandler {
 	@Override
 	public void setSslSupport(WebUpgradeSSLSupport sslSupport) {
 		if (!isInternal())
-			WebUpgradeHandler.super.setSslSupport(sslSupport);
+			// TODO: explicitly throwing the exception allows this line to be covered by
+			// tests
+			// Code coverage tool doesn't see this as covered when the default method
+			// , which throws the exception, is called directly
+			throw new UnsupportedOperationException();
+//			WebUpgradeHandler.super.setSslSupport(sslSupport);
 		else
 			((InternalHttpUpgradeHandler) upgradeHandler).setSslSupport(new IuTomcatSslSupport(sslSupport));
 	}
@@ -185,7 +202,12 @@ public class IuTomcatUpgradeHandler implements WebUpgradeHandler {
 	@Override
 	public void pause() {
 		if (!isInternal())
-			WebUpgradeHandler.super.pause();
+			// TODO: explicitly throwing the exception allows this line to be covered by
+			// tests
+			// Code coverage tool doesn't see this as covered when the default method
+			// , which throws the exception, is called directly
+			throw new UnsupportedOperationException();
+//			WebUpgradeHandler.super.pause();
 		else
 			((InternalHttpUpgradeHandler) upgradeHandler).pause();
 	}
@@ -193,7 +215,12 @@ public class IuTomcatUpgradeHandler implements WebUpgradeHandler {
 	@Override
 	public void timeoutAsync(long now) {
 		if (!isInternal())
-			WebUpgradeHandler.super.timeoutAsync(now);
+			// TODO: explicitly throwing the exception allows this line to be covered by
+			// tests
+			// Code coverage tool doesn't see this as covered when the default method
+			// , which throws the exception, is called directly
+			throw new UnsupportedOperationException();
+//			WebUpgradeHandler.super.timeoutAsync(now);
 		else
 			((InternalHttpUpgradeHandler) upgradeHandler).timeoutAsync(now);
 	}

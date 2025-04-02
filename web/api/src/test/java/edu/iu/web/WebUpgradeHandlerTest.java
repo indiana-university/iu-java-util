@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
 
-class WebUpgradeHandlerTest {
+public class WebUpgradeHandlerTest {
 
 	private final WebUpgradeHandler handler = new WebUpgradeHandler() {
 		@Override
