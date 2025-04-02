@@ -8,7 +8,6 @@ import java.util.regex.Pattern;
 import org.apache.catalina.Container;
 import org.apache.catalina.Context;
 import org.apache.catalina.Host;
-import org.apache.catalina.Lifecycle;
 import org.apache.catalina.LifecycleException;
 import org.apache.catalina.LifecycleState;
 
@@ -156,7 +155,6 @@ public class IuTomcatHost extends AbstractIuTomcatContainer implements Host {
 
 	@Override
 	protected void initInternal() throws LifecycleException {
-		throw new UnsupportedOperationException();
 	}
 
 	@Override

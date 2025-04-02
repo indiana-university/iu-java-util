@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 
 public class AbstractIuTomcatContainerTest {
 
-	private AbstractIuTomcatContainer container;
+	private TestContainer container;
 
 	private class TestContainer extends AbstractIuTomcatContainer {
 
