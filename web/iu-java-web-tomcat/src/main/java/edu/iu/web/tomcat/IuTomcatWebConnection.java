@@ -11,7 +11,7 @@ import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.WriteListener;
 import jakarta.servlet.http.WebConnection;
 
-public class IuTomcatWebConnection implements WebConnection {
+public class IuTomcatWebConnection implements WebConnection, AutoCloseable {
 
 	private final WebUpgradeConnection connection;
 
