@@ -21,6 +21,8 @@ import org.apache.catalina.util.LifecycleBase;
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
 
+import edu.iu.IuException;
+
 public abstract class AbstractIuTomcatContainer extends LifecycleBase implements Container {
 
 	private static final ContainerListener[] CL0 = new ContainerListener[0];
@@ -197,7 +199,8 @@ public abstract class AbstractIuTomcatContainer extends LifecycleBase implements
 
 	@Override
 	public File getCatalinaBase() {
-		return null;
+		return IuException.unchecked(() -> File.createTempFile("test", ""));
+//		return null;
 		// TODO: implement
 //		return IU.SPI.getTempDir();
 	}

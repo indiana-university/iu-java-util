@@ -78,7 +78,7 @@ public class IuTomcatContextTest {
 
 	@Test
 	void getLoader_returnsNull() {
-		assertNull(context.getLoader());
+		assertEquals("WebappLoader[IuTomcatContext[null]]", context.getLoader().toString());
 	}
 
 	@Test

@@ -134,8 +134,8 @@ public class AbstractIuTomcatContainerTest {
 	}
 
 	@Test
-	void getCatalinaBase_returnsNull() {
-		assertNull(container.getCatalinaBase());
+	void getCatalinaBase_doeNotReturnNull() {
+		assertNotNull(container.getCatalinaBase());
 	}
 
 	@Test

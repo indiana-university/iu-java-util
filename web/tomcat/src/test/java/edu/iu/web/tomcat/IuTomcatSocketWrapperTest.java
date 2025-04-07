@@ -23,13 +23,13 @@ public class IuTomcatSocketWrapperTest {
 
 	private IuTomcatSocketWrapper socketWrapper;
 	private WebUpgradeSocketWrapper endpointWrapper;
-	
+
 	@BeforeEach
 	void setUp() {
 		endpointWrapper = mock(WebUpgradeSocketWrapper.class);
 		socketWrapper = new IuTomcatSocketWrapper(endpointWrapper);
 	}
-	
+
 	@Test
 	void read_withBlockingAndByteArray_readsData() throws IOException {
 		byte[] buffer = new byte[10];
@@ -81,80 +81,81 @@ public class IuTomcatSocketWrapperTest {
 		socketWrapper.doWrite(true, buffer);
 		verify(endpointWrapper).doWrite(true, buffer);
 	}
-	
+
 	@Test
 	void hasAsyncIO_returnsFalse() {
 		assertFalse(socketWrapper.hasAsyncIO());
 	}
-	
+
 	@Test
 	void newOperationState_throwsUnsupportedOperationException() {
-		assertThrows(UnsupportedOperationException.class, () -> socketWrapper.newOperationState(true, null, 0, 0, null, 0, null, null, null, null, null, null));
+		assertThrows(UnsupportedOperationException.class,
+				() -> socketWrapper.newOperationState(true, null, 0, 0, null, 0, null, null, null, null, null, null));
 	}
-	
+
 	@Test
 	void registerReadInterest_throwsUnsupportedOperationException() {
 		assertThrows(UnsupportedOperationException.class, () -> socketWrapper.registerReadInterest());
 	}
-	
+
 	@Test
 	void registerWriteInterest_throwsUnsupportedOperationException() {
 		assertThrows(UnsupportedOperationException.class, () -> socketWrapper.registerWriteInterest());
 	}
-	
+
 	@Test
 	void populateRemoteHost_throwsUnsupportedOperationException() {
 		assertThrows(UnsupportedOperationException.class, () -> socketWrapper.populateRemoteHost());
 	}
-	
+
 	@Test
 	void populateRemoteAddr_throwsUnsupportedOperationException() {
 		assertThrows(UnsupportedOperationException.class, () -> socketWrapper.populateRemoteAddr());
 	}
-	
+
 	@Test
 	void populateRemotePort_throwsUnsupportedOperationException() {
 		assertThrows(UnsupportedOperationException.class, () -> socketWrapper.populateRemotePort());
 	}
-	
+
 	@Test
 	void populateLocalAddr_throwsUnsupportedOperationException() {
 		assertThrows(UnsupportedOperationException.class, () -> socketWrapper.populateLocalAddr());
 	}
-	
+
 	@Test
 	void populateLocalName_throwsUnsupportedOperationException() {
 		assertThrows(UnsupportedOperationException.class, () -> socketWrapper.populateLocalName());
 	}
-	
+
 	@Test
 	void populateLocalPort_throwsUnsupportedOperationException() {
 		assertThrows(UnsupportedOperationException.class, () -> socketWrapper.populateLocalPort());
 	}
-	
+
 	@Test
 	void createSendfileData_throwsUnsupportedOperationException() {
 		assertThrows(UnsupportedOperationException.class, () -> socketWrapper.createSendfileData(null, 0, 0));
 	}
-	
+
 	@Test
 	void processSendfile_throwsUnsupportedOperationException() {
 		assertThrows(UnsupportedOperationException.class, () -> socketWrapper.processSendfile(null));
 	}
-	
+
 	@Test
 	void doClientAuth_throwsUnsupportedOperationException() {
 		assertThrows(UnsupportedOperationException.class, () -> socketWrapper.doClientAuth(null));
 	}
-	
+
 	@Test
 	void getSslSupport_throwsUnsupportedOperationException() {
 		assertThrows(UnsupportedOperationException.class, () -> socketWrapper.getSslSupport());
 	}
-	
+
 	@Test
 	void flushNonBlocking_returnsFalse() {
 		assertFalse(IuException.unchecked(() -> socketWrapper.flushNonBlocking()));
 	}
-	
+
 }

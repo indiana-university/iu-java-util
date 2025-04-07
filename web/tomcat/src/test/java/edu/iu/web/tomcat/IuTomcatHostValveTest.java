@@ -82,7 +82,7 @@ public class IuTomcatHostValveTest {
 			throws IOException, ServletException {
 		when(request.isAsync()).thenReturn(false).thenReturn(true);
 		when(context.fireRequestInitEvent(request.getRequest())).thenReturn(true);
-		
+
 		hostValve.invoke(request, response);
 		verify(nextValve).invoke(request, response);
 		verify(context, never()).fireRequestDestroyEvent(request.getRequest());

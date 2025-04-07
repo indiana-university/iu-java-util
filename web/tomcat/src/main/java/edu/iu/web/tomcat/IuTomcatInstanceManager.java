@@ -59,8 +59,9 @@ public class IuTomcatInstanceManager implements InstanceManager {
 		// There may be a way to do the below with IuType or maybe a built-in Java
 		// method.
 //		Object o = IU.newInstance(type);
-		final var iuType = IuType.of(type);
-		final var o = iuType.erasedClass().getDeclaredConstructor().newInstance(new Object[0]);
+		final var con = type.getDeclaredConstructor();
+		con.setAccessible(true);
+		final var o = con.newInstance(new Object[0]);
 		newInstance(o); // TODO: see note on this method below
 		return o;
 	}

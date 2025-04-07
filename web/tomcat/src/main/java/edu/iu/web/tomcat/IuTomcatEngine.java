@@ -1,7 +1,6 @@
 package edu.iu.web.tomcat;
 
 import java.io.File;
-import java.lang.reflect.Type;
 import java.util.Objects;
 
 import org.apache.catalina.Container;
@@ -15,15 +14,13 @@ import org.apache.catalina.WebResourceRoot;
 import org.apache.catalina.connector.Connector;
 import org.apache.catalina.core.StandardContext;
 import org.apache.catalina.core.StandardService;
+import org.apache.catalina.startup.Catalina;
 import org.apache.catalina.startup.ContextConfig;
 import org.apache.catalina.startup.Tomcat;
 import org.apache.coyote.Adapter;
 import org.apache.tomcat.util.scan.StandardJarScanner;
 
 import edu.iu.type.IuComponent;
-import edu.iu.type.IuType;
-import edu.iu.type.spi.IuTypeSpi;
-import iu.type.TypeSpi;
 
 public class IuTomcatEngine extends AbstractIuTomcatContainer implements Engine {
 
@@ -46,12 +43,10 @@ public class IuTomcatEngine extends AbstractIuTomcatContainer implements Engine 
 		// TODO: what's the new way to do this?
 //		context.addLifecycleListener(
 //				IU.SPI.doLookup("java:comp/env/" + componentKind.name().toLowerCase() + "ContextListener"));
-		IuTypeSpi iuTypeSpi = new TypeSpi();
-		final var iuTypeOfListener = IuType.of(IuTomcatContextListener.class);
-		final var listenerConstructor = iuTypeOfListener.constructor(new Type[0]);
-		context.addLifecycleListener(listenerConstructor.exec(new Object[0]));
+		context.addLifecycleListener(new IuTomcatContextListener());
 
 		Tomcat tomcat = new Tomcat();
+//		tomcat.getServer().setCatalina(new Catalina());
 		context.addLifecycleListener(tomcat.getDefaultWebXmlListener());
 		context.setConfigFile(webResourceRoot.getResource("/WEB-INF/web.xml").getURL());
 
@@ -81,6 +76,7 @@ public class IuTomcatEngine extends AbstractIuTomcatContainer implements Engine 
 		service = new StandardService();
 		service.setName(contextName + "-service");
 		service.setContainer(this);
+		service.setServer(tomcat.getServer());
 
 		connector = new Connector(IuTomcatProtocolHandler.class.getName());
 		connector.setPort(0);

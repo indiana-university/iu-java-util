@@ -4,6 +4,8 @@ import java.net.URI;
 
 import org.apache.catalina.Loader;
 import org.apache.catalina.core.StandardContext;
+import org.apache.catalina.loader.WebappClassLoader;
+import org.apache.catalina.loader.WebappLoader;
 
 import com.sun.net.httpserver.HttpHandler;
 
@@ -102,8 +104,12 @@ public class IuTomcatContext extends StandardContext implements IuWebContext {
 
 //	@Override
 	public Loader getLoader() {
-		// TODO Auto-generated method stub
-		return null;
+		if (super.getLoader() != null) {
+			return super.getLoader();
+		}
+		WebappLoader loader = new WebappLoader();
+		loader.setContext(this);
+		return loader;
 	}
 
 }
