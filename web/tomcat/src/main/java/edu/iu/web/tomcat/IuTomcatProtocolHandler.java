@@ -8,11 +8,26 @@ import org.apache.coyote.ProtocolHandler;
 import org.apache.coyote.UpgradeProtocol;
 import org.apache.tomcat.util.net.SSLHostConfig;
 
+/**
+ * An implementation of the Tomcat Protocol Handler.
+ */
 public class IuTomcatProtocolHandler implements ProtocolHandler {
 
 	private Adapter adapter;
 	private ScheduledExecutorService utilityExector;
 
+	/**
+	 * Constructor.
+	 */
+	public IuTomcatProtocolHandler() {
+		// Default constructor
+	}
+
+	/**
+	 * Returns the port number.
+	 * 
+	 * @return the port number.
+	 */
 	public int getPort() {
 		return 0;
 	}

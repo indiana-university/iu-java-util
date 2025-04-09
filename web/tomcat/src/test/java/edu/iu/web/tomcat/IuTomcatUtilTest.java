@@ -31,12 +31,8 @@ import jakarta.servlet.WriteListener;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+@SuppressWarnings("javadoc")
 public class IuTomcatUtilTest {
-
-//	@BeforeAll
-//	static void setUp() {
-//		mockStatic(IuStream.class);
-//	}
 
 	@Test
 	void doStaticResource_withValidResource_returnsTrue() throws IOException, ServletException {

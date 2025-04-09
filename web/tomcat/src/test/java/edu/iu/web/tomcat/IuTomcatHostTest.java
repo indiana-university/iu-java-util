@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.test.IuTestLogger;
 
+@SuppressWarnings("javadoc")
 public class IuTomcatHostTest {
 
 	private IuTomcatHost host;

@@ -25,6 +25,7 @@ import edu.iu.web.WebUpgradeSSLSupport;
 import edu.iu.web.WebUpgradeSocketWrapper;
 import jakarta.servlet.http.HttpUpgradeHandler;
 
+@SuppressWarnings("javadoc")
 public class IuTomcatUpgradeHandlerTest {
 
 	@Test

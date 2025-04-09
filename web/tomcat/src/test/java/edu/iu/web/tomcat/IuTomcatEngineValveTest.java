@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 
 import jakarta.servlet.ServletException;
 
+@SuppressWarnings("javadoc")
 public class IuTomcatEngineValveTest {
 
 	private IuTomcatEngineValve engineValve;

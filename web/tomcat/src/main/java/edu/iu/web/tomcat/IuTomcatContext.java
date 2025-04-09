@@ -4,13 +4,16 @@ import java.net.URI;
 
 import org.apache.catalina.Loader;
 import org.apache.catalina.core.StandardContext;
-import org.apache.catalina.loader.WebappClassLoader;
 import org.apache.catalina.loader.WebappLoader;
 
 import com.sun.net.httpserver.HttpHandler;
 
 import edu.iu.web.IuWebContext;
 
+/**
+ * IU Tomcat Context class that extends StandardContext and implements
+ * IuWebContext.
+ */
 public class IuTomcatContext extends StandardContext implements IuWebContext {
 
 	private final String application;
@@ -21,6 +24,9 @@ public class IuTomcatContext extends StandardContext implements IuWebContext {
 	private final String supportPreText;
 	private final String supportUrl;
 
+	/**
+	 * Default constructor for IuTomcatContext.
+	 */
 	public IuTomcatContext() {
 		super();
 		this.application = null;
@@ -32,6 +38,17 @@ public class IuTomcatContext extends StandardContext implements IuWebContext {
 		this.supportUrl = null;
 	}
 
+	/**
+	 * Constructor for IuTomcatContext with parameters.
+	 * 
+	 * @param application the application name
+	 * @param environment the environment name
+	 * @param module the module name
+	 * @param runtime the runtime name
+	 * @param component the component name
+	 * @param supportPreText the support pre-text
+	 * @param supportUrl the support URL
+	 */
 	public IuTomcatContext(String application, String environment, String module, String runtime, String component,
 			String supportPreText, String supportUrl) {
 		this.application = application;

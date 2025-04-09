@@ -36,20 +36,20 @@ module iu.util.web.tomcat {
 	exports edu.iu.web.tomcat;
 
 	requires iu.util;
-	requires iu.util.type;
+	requires transitive iu.util.type;
 	requires iu.util.type.impl;
-	requires iu.util.web;
+	requires transitive iu.util.web;
 
 	requires jakarta.annotation;
 	requires transitive jakarta.servlet;
 
 	requires java.base;
-	requires java.desktop;
+	requires transitive java.desktop;
 	requires java.logging;
 	requires java.naming;
 
 	requires transitive jdk.httpserver;
 
-	requires org.apache.tomcat.catalina;
+	requires transitive org.apache.tomcat.catalina;
 	requires org.apache.tomcat.websocket;
 }

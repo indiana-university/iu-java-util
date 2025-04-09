@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.web.WebUpgradeSSLSupport;
 
+@SuppressWarnings("javadoc")
 public class IuTomcatSslSupportTest {
 
 	private IuTomcatSslSupport sslSupport;

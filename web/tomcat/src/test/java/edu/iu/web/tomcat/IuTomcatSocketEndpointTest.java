@@ -21,12 +21,14 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.web.WebUpgradeSocketWrapper;
 
+@SuppressWarnings("javadoc")
 public class IuTomcatSocketEndpointTest {
 
 	private IuTomcatSocketEndpoint socketEndpoint;
 	private SocketWrapperBase<WebUpgradeSocketWrapper> socketWrapper;
 	private SSLHostConfig sslHostConfig;
 
+	@SuppressWarnings("unchecked")
 	@BeforeEach
 	void setUp() {
 		socketEndpoint = spy(new IuTomcatSocketEndpoint());
@@ -45,6 +47,7 @@ public class IuTomcatSocketEndpointTest {
 		assertDoesNotThrow(() -> handler.recycle());
 	}
 
+	@SuppressWarnings("unchecked")
 	@Test
 	void getHandler_returnsSuperHandlerIfSet() {
 		final var mockHandler = mock(AbstractEndpoint.Handler.class);

@@ -6,10 +6,18 @@ import org.apache.tomcat.util.net.ApplicationBufferHandler;
 
 import edu.iu.web.WebApplicationBufferHandler;
 
+/**
+ * An implementation of the WebApplicationBufferHandler interface.
+ */
 public class IuTomcatWebAppBufferHandler implements WebApplicationBufferHandler {
 
 	private final ApplicationBufferHandler delegate;
 
+	/**
+	 * Creates a new instance of IuTomcatWebAppBufferHandler.
+	 * 
+	 * @param delegate The delegate buffer handler.
+	 */
 	public IuTomcatWebAppBufferHandler(ApplicationBufferHandler delegate) {
 		this.delegate = delegate;
 	}

@@ -72,7 +72,7 @@ public interface WebResponse {
 	 * @param name  header name
 	 * @param value header value
 	 */
-	void addHeader(String string, String contentType);
+	void addHeader(String name, String value);
 
 	/**
 	 * Sets the upgrade handler.

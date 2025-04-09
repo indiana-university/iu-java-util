@@ -35,6 +35,9 @@ import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpUpgradeHandler;
 
+/**
+ * A servlet filter that processes incoming HTTP requests.
+ */
 public class IuTomcatRequestFilter implements Filter {
 
 	private static final Logger LOG = Logger.getLogger(IuTomcatRequestFilter.class.getName());
@@ -76,6 +79,13 @@ public class IuTomcatRequestFilter implements Filter {
 		return sb.toString();
 	}
 
+	/**
+	 * Convert an object to a string, catching any exceptions that occur.
+	 * 
+	 * @param b The object to convert.
+	 * @return The string representation of the object, or "ERROR" if an exception
+	 *         occurs.
+	 */
 	public static String safeToString(Object b) {
 		try {
 			return b == null ? "" : b.toString();
@@ -181,6 +191,13 @@ public class IuTomcatRequestFilter implements Filter {
 		return sb.toString();
 	}
 
+	/**
+	 * Default constructor.
+	 */
+	public IuTomcatRequestFilter() {
+		// Default constructor
+	}
+
 	@Override
 	public void init(FilterConfig fc) throws ServletException {
 	}
@@ -189,10 +206,26 @@ public class IuTomcatRequestFilter implements Filter {
 	public void destroy() {
 	}
 
+	/**
+	 * Handle an error that occurred during request processing.
+	 * 
+	 * @param hreq  The servlet request.
+	 * @param hresp The servlet response.
+	 * @param e     The exception that occurred.
+	 */
 	static void handleError(HttpServletRequest hreq, HttpServletResponse hresp, Throwable e) {
 		handleError(hreq, hresp, 0, null, e);
 	}
 
+	/**
+	 * Handle an error that occurred during request processing.
+	 * 
+	 * @param hreq    The servlet request.
+	 * @param hresp   The servlet response.
+	 * @param status  The HTTP status code to send.
+	 * @param message The error message to send.
+	 * @param e       The exception that occurred.
+	 */
 	static void handleError(HttpServletRequest hreq, HttpServletResponse hresp, int status, String message,
 			Throwable e) {
 		if (status == 0)

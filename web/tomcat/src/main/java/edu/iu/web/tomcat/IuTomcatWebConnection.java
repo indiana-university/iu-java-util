@@ -11,10 +11,18 @@ import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.WriteListener;
 import jakarta.servlet.http.WebConnection;
 
+/**
+ * An implementation of the Jakarta WebConnection interface.
+ */
 public class IuTomcatWebConnection implements WebConnection, AutoCloseable {
 
 	private final WebUpgradeConnection connection;
 
+	/**
+	 * Creates a new instance of the IuTomcatWebConnection class.
+	 * 
+	 * @param connection The WebUpgradeConnection to wrap.
+	 */
 	public IuTomcatWebConnection(WebUpgradeConnection connection) {
 		this.connection = connection;
 	}

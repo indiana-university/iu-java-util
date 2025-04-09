@@ -11,11 +11,20 @@ import org.apache.catalina.Host;
 import org.apache.catalina.LifecycleException;
 import org.apache.catalina.LifecycleState;
 
+/**
+ * An implementation of the Tomcat Host.
+ */
 public class IuTomcatHost extends AbstractIuTomcatContainer implements Host {
 
 	private Context context;
 	private File appBase;
 
+	/**
+	 * Constructs an instance of the Tomcat Host.
+	 * 
+	 * @param context the context
+	 * @param appBase the application base directory
+	 */
 	public IuTomcatHost(Context context, File appBase) {
 		context.setParent(this);
 		this.context = context;

@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 
 import jakarta.servlet.ServletException;
 
+@SuppressWarnings("javadoc")
 public class IuTomcatHostValveTest {
 
 	private IuTomcatHostValve hostValve;
@@ -88,18 +89,4 @@ public class IuTomcatHostValveTest {
 		verify(context, never()).fireRequestDestroyEvent(request.getRequest());
 	}
 
-//	@Test
-//	void invoke_withNonAsyncRequest_firesRequestDestroyEvent() throws IOException, ServletException {
-//		when(request.isAsync()).thenReturn(false);
-//		when(context.fireRequestInitEvent(request.getRequest())).thenReturn(true);
-//
-//		hostValve.invoke(request, response);
-//		verify(context).fireRequestDestroyEvent(request.getRequest());
-//	}
-//
-//	@Test
-//	void invoke_setsResponseSuspendedToFalse() throws IOException, ServletException {
-//		hostValve.invoke(request, response);
-//		verify(response).setSuspended(false);
-//	}
 }

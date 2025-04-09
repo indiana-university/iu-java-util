@@ -19,6 +19,7 @@ import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.WriteListener;
 
+@SuppressWarnings("javadoc")
 public class IuTomcatWebConnectionTest {
 
 	private WebUpgradeConnection connection = mock(WebUpgradeConnection.class);

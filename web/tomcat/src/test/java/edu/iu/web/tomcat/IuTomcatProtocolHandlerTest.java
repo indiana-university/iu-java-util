@@ -15,6 +15,7 @@ import org.apache.tomcat.util.net.SSLHostConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+@SuppressWarnings("javadoc")
 public class IuTomcatProtocolHandlerTest {
 
 	private IuTomcatProtocolHandler protocolHandler;

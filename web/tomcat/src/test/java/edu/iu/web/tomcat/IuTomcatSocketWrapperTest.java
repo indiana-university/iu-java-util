@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IuException;
 import edu.iu.web.WebUpgradeSocketWrapper;
 
+@SuppressWarnings("javadoc")
 public class IuTomcatSocketWrapperTest {
 
 	private IuTomcatSocketWrapper socketWrapper;

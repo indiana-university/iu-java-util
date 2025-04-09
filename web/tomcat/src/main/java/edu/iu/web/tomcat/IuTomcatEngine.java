@@ -14,7 +14,6 @@ import org.apache.catalina.WebResourceRoot;
 import org.apache.catalina.connector.Connector;
 import org.apache.catalina.core.StandardContext;
 import org.apache.catalina.core.StandardService;
-import org.apache.catalina.startup.Catalina;
 import org.apache.catalina.startup.ContextConfig;
 import org.apache.catalina.startup.Tomcat;
 import org.apache.coyote.Adapter;
@@ -22,12 +21,25 @@ import org.apache.tomcat.util.scan.StandardJarScanner;
 
 import edu.iu.type.IuComponent;
 
+/**
+ * An implementation of the Tomcat Engine.
+ */
 public class IuTomcatEngine extends AbstractIuTomcatContainer implements Engine {
 
 	private Host host;
 	private Service service;
 	private Connector connector;
 
+	/**
+	 * Constructs an instance of the Tomcat Engine.
+	 * 
+	 * @param componentKind the component kind
+	 * @param contextName the context name
+	 * @param catalinaBase the catalina base directory
+	 * @param webResourceRoot the web resource root
+	 * @param webLoader the web loader
+	 * @throws Throwable if an error occurs during construction
+	 */
 	public IuTomcatEngine(IuComponent.Kind componentKind, String contextName, File catalinaBase,
 			WebResourceRoot webResourceRoot, Loader webLoader) throws Throwable {
 		StandardContext context = new IuTomcatContext();
@@ -105,6 +117,11 @@ public class IuTomcatEngine extends AbstractIuTomcatContainer implements Engine 
 	protected void destroyInternal() throws LifecycleException {
 	}
 
+	/**
+	 * Returns the Adapter from the connector.
+	 * 
+	 * @return the Adapter.
+	 */
 	public Adapter getAdapter() {
 		return connector.getProtocolHandler().getAdapter();
 	}

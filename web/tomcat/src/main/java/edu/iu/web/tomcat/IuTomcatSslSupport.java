@@ -7,10 +7,18 @@ import org.apache.tomcat.util.net.SSLSupport;
 
 import edu.iu.web.WebUpgradeSSLSupport;
 
+/**
+ * An implementation of the Tomcat SSLSupport interface.
+ */
 public class IuTomcatSslSupport implements SSLSupport {
 
 	private WebUpgradeSSLSupport delegate;
 
+	/**
+	 * Constructor.
+	 * 
+	 * @param delegate The delegate.
+	 */
 	public IuTomcatSslSupport(WebUpgradeSSLSupport delegate) {
 		this.delegate = delegate;
 	}

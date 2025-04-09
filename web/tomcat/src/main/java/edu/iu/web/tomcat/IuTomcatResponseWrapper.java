@@ -16,6 +16,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpServletResponseWrapper;
 
+/**
+ * Response wrapper for Tomcat.
+ */
 class IuTomcatResponseWrapper extends HttpServletResponseWrapper {
 
 	private final static Logger LOG = Logger.getLogger(IuTomcatResponseWrapper.class.getName());
@@ -33,6 +36,12 @@ class IuTomcatResponseWrapper extends HttpServletResponseWrapper {
 	private boolean authCookiesAdded;
 	private Throwable contentTypeSet;
 
+	/**
+	 * Constructor.
+	 * 
+	 * @param req The request.
+	 * @param resp The response.
+	 */
 	IuTomcatResponseWrapper(HttpServletRequest req, HttpServletResponse resp) {
 		super(resp);
 		this.req = req;
@@ -223,6 +232,11 @@ class IuTomcatResponseWrapper extends HttpServletResponseWrapper {
 		super.resetBuffer();
 	}
 
+	/**
+	 * Finish the response.
+	 * 
+	 * @throws IOException If an error occurs.
+	 */
 	void finish() throws IOException {
 		writer.flush();
 		try {

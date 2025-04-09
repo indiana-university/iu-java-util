@@ -9,10 +9,18 @@ import org.apache.catalina.valves.ValveBase;
 
 import jakarta.servlet.ServletException;
 
+/**
+ * Valve that handles Tomcat requests and responses.
+ */
 public class IuTomcatHostValve extends ValveBase {
 
 	private Context context;
 
+	/**
+	 * Constructs an instance of the Tomcat Host Valve.
+	 * 
+	 * @param context the context
+	 */
 	public IuTomcatHostValve(Context context) {
 		super(true);
 		this.context = context;

@@ -23,18 +23,31 @@ import org.apache.juli.logging.LogFactory;
 
 import edu.iu.IuException;
 
+/**
+ * Abstract base class for IU Tomcat containers.
+ */
 public abstract class AbstractIuTomcatContainer extends LifecycleBase implements Container {
 
 	private static final ContainerListener[] CL0 = new ContainerListener[0];
 
 	private final Log log = LogFactory.getLog(getClass());
 
+	/**
+	 * The pipeline associated with this container.
+	 */
 	protected Pipeline pipeline = new StandardPipeline(this);
 
 	private String name;
 	private Container parent;
 	private Realm realm = new NullRealm();
 	private List<ContainerListener> containerListeners = new ArrayList<>();
+
+	/**
+	 * Default constructor.
+	 */
+	public AbstractIuTomcatContainer() {
+		// Default constructor
+	}
 
 	@Override
 	public Log getLogger() {

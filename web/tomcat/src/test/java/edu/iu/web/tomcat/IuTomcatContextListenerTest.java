@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.test.IuTestLogger;
 
+@SuppressWarnings("javadoc")
 public class IuTomcatContextListenerTest {
 
 	private IuTomcatContextListener listener;
@@ -35,7 +36,6 @@ public class IuTomcatContextListenerTest {
 	void setUp() {
 		IuTestLogger.allow("org.apache.tomcat", Level.FINE);
 		listener = new IuTomcatContextListener();
-//        context = mock(Context.class);
 		contextSpy = spy(new StandardContext());
 		data = mock(Object.class);
 		event = new LifecycleEvent(contextSpy, "before_start", data);
@@ -57,7 +57,6 @@ public class IuTomcatContextListenerTest {
 			LifecycleEvent malformedEvent = new LifecycleEvent(context, "before_start", data);
 			assertThrows(IllegalStateException.class, () -> listener.lifecycleEvent(malformedEvent));
 		}
-		;
 	}
 
 	@Test

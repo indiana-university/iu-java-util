@@ -9,6 +9,7 @@ import static org.mockito.Mockito.spy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+@SuppressWarnings("javadoc")
 public class IuTomcatInstanceManagerTest {
 
 	private IuTomcatInstanceManager instanceManager;

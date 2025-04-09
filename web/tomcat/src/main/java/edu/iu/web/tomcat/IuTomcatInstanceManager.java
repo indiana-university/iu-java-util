@@ -7,11 +7,12 @@ import javax.naming.NamingException;
 import org.apache.tomcat.InstanceManager;
 //import org.apache.tomcat.websocket.pojo.PojoEndpointBase;
 
-import edu.iu.type.IuType;
-
 //import iu.util.IuCallHeader;
 //import iu.util.IuResources;
 
+/**
+ * An implementation of the Tomcat Instance Manager.
+ */
 public class IuTomcatInstanceManager implements InstanceManager {
 
 //	private static final Method GET_POJO;
@@ -33,6 +34,11 @@ public class IuTomcatInstanceManager implements InstanceManager {
 
 	private final ClassLoader loader;
 
+	/**
+	 * Constructs an instance of the Tomcat Instance Manager.
+	 * 
+	 * @param loader the class loader
+	 */
 	IuTomcatInstanceManager(ClassLoader loader) {
 		this.loader = loader;
 	}

@@ -17,12 +17,22 @@ import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletResponse;
 
+/**
+ * An implementation of the Tomcat Valve.
+ */
 public class IuTomcatValve extends ValveBase {
 
 	private static final Logger LOG = Logger.getLogger(IuTomcatValve.class.getName());
 
 	// TODO: implement request number
 	private static int requestNumber = 0;
+
+	/**
+	 * Default Constructor.
+	 */
+	public IuTomcatValve() {
+		// Default constructor.
+	}
 
 	@Override
 	public void invoke(Request request, Response response) throws IOException, ServletException {

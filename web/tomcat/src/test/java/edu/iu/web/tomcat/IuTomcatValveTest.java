@@ -24,6 +24,7 @@ import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletResponse;
 
+@SuppressWarnings("javadoc")
 public class IuTomcatValveTest {
 
 	@Test

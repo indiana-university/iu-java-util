@@ -15,13 +15,12 @@ import org.apache.tomcat.util.net.ApplicationBufferHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+@SuppressWarnings("javadoc")
 public class IuTomcatWebAppBufferHandlerTest {
 
 	private IuTomcatWebAppBufferHandler bufferHandler;
 	private ApplicationBufferHandler delegate;
 
-	// TODO: Understand this test class. Try having CoPilot generate tests for other
-	// classes.
 	@BeforeEach
 	void setUp() {
 		delegate = mock(ApplicationBufferHandler.class);

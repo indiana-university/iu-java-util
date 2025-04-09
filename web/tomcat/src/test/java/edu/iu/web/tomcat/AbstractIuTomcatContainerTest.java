@@ -16,6 +16,7 @@ import org.apache.catalina.realm.NullRealm;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+@SuppressWarnings("javadoc")
 public class AbstractIuTomcatContainerTest {
 
 	private TestContainer container;
@@ -24,38 +25,28 @@ public class AbstractIuTomcatContainerTest {
 
 		@Override
 		public Container findChild(String name) {
-			// TODO Auto-generated method stub
 			return null;
 		}
 
 		@Override
 		public Container[] findChildren() {
-			// TODO Auto-generated method stub
 			return null;
 		}
 
 		@Override
 		protected void initInternal() throws LifecycleException {
-			// TODO Auto-generated method stub
-
 		}
 
 		@Override
 		protected void startInternal() throws LifecycleException {
-			// TODO Auto-generated method stub
-
 		}
 
 		@Override
 		protected void stopInternal() throws LifecycleException {
-			// TODO Auto-generated method stub
-
 		}
 
 		@Override
 		protected void destroyInternal() throws LifecycleException {
-			// TODO Auto-generated method stub
-
 		}
 	}
 

@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuComponent;
 
+@SuppressWarnings("javadoc")
 public class IuTomcatEngineTest {
 
 	private static IuTomcatEngine engine;

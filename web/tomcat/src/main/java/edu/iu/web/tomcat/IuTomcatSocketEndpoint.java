@@ -12,7 +12,17 @@ import org.apache.tomcat.util.net.SocketWrapperBase;
 
 import edu.iu.web.WebUpgradeSocketWrapper;
 
+/**
+ * An implementation of the Tomcat Socket Endpoint.
+ */
 public class IuTomcatSocketEndpoint extends AbstractEndpoint<WebUpgradeSocketWrapper, WebUpgradeSocketWrapper> {
+	
+	/**
+	 * Default Constructor.
+	 */
+	public IuTomcatSocketEndpoint() {
+		// Default constructor
+	}
 
 	@Override
 	public Handler<WebUpgradeSocketWrapper> getHandler() {

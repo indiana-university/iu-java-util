@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.test.IuTestLogger;
 
+@SuppressWarnings("javadoc")
 public class IuTomcatContextTest {
 
 	private IuTomcatContext context;

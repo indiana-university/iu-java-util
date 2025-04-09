@@ -20,12 +20,25 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+/**
+ * Utility class for Tomcat servlet integration.
+ */
 class IuTomcatUtil {
 
 	private static final Logger LOG = Logger.getLogger(IuTomcatUtil.class.getName());
 
+	/**
+	 * Functional interface for a supplier that can throw an IOException.
+	 * 
+	 * @param <T> The type of the result.
+	 */
 	@FunctionalInterface
 	static interface IOSupplier<T> {
+		/**
+		 * Get a result.
+		 * @return The result.
+		 * @throws IOException If an I/O error occurs.
+		 */
 		T get() throws IOException;
 	}
 
@@ -97,7 +110,27 @@ class IuTomcatUtil {
 		}
 		return contentEncoding;
 	}
+	
+	/**
+	 * Default constructor.
+	 */
+	IuTomcatUtil() {
+		// Default constructor.
+	}
 
+	/**
+	 * Process a static resource request. This method is used to serve static resources.
+	 * It checks the requested path, retrieves the resource from the servlet context,
+	 * sets the appropriate headers, and sends the resource to the response output
+	 * stream. It also handles caching and conditional GET requests.
+	 * 
+	 * @param cache true if the resource should be cached, false otherwise.
+	 * @param request the HTTP request object.
+	 * @param response the HTTP response object.
+	 * @return true if the resource was found and sent, false otherwise.
+	 * @throws ServletException if a servlet error occurs.
+	 * @throws IOException if an I/O error occurs.
+	 */
 	static boolean doStaticResource(boolean cache, HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
 
@@ -175,6 +208,17 @@ class IuTomcatUtil {
 		return true;
 	}
 
+	/**
+	 * Send the content of the input stream to the response output stream. The
+	 * content is compressed if the request includes an Accept-Encoding header with
+	 * gzip or deflate.
+	 * 
+	 * @param request The servlet request.
+	 * @param response The servlet response.
+	 * @param input The input stream supplier.
+	 * @param contentType The content type to set in the response.
+	 * @throws IOException If an I/O error occurs.
+	 */
 	static void send(HttpServletRequest request, HttpServletResponse response, IOSupplier<InputStream> input,
 			String contentType) throws IOException {
 		if (contentType != null)

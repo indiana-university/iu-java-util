@@ -9,10 +9,18 @@ import org.apache.catalina.valves.ValveBase;
 
 import jakarta.servlet.ServletException;
 
+/**
+ * An implementation of the Tomcat Engine Valve.
+ */
 class IuTomcatEngineValve extends ValveBase {
 
 	private Host host;
 
+	/**
+	 * Constructs an instance of the Tomcat Engine Valve.
+	 * 
+	 * @param host the host
+	 */
 	IuTomcatEngineValve(Host host) {
 		this.host = host;
 	}

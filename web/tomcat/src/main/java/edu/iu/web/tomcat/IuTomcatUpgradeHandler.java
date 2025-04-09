@@ -12,6 +12,9 @@ import edu.iu.web.WebUpgradeSSLSupport;
 import edu.iu.web.WebUpgradeSocketWrapper;
 import jakarta.servlet.http.HttpUpgradeHandler;
 
+/**
+ * Implementation of the WebUpgradeHandler interface.
+ */
 public class IuTomcatUpgradeHandler implements WebUpgradeHandler {
 
 	private static final Logger LOG = Logger.getLogger(IuTomcatUpgradeHandler.class.getName());
@@ -29,6 +32,13 @@ public class IuTomcatUpgradeHandler implements WebUpgradeHandler {
 //		this.upgradeHandler = upgradeHandler;
 //		this.loader = ReflectionUtil.getContextLoader();
 //	}
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param requestPath    The request path.
+	 * @param upgradeHandler The upgrade handler.
+	 */
 	IuTomcatUpgradeHandler(String requestPath, HttpUpgradeHandler upgradeHandler) {
 		this.requestPath = requestPath;
 		this.upgradeHandler = upgradeHandler;
@@ -37,6 +47,12 @@ public class IuTomcatUpgradeHandler implements WebUpgradeHandler {
 
 	// TODO: changed to protected to facilitate testing. should it be private like
 	// the old code?
+	/**
+	 * Bind the task to the current thread.
+	 * 
+	 * @param auth Whether to authenticate the task.
+	 * @param task The task to run.
+	 */
 	protected void bind(boolean auth, UnsafeRunnable task) {
 		try {
 //			IuResources.SPI.bound(new IuCallHeader() {

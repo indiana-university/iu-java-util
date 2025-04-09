@@ -18,11 +18,22 @@ import jakarta.annotation.Resources;
 // TODO: is this supposed to be annotated like this if IuTomcatEngine sets the LifecycleListener 
 // the same way it did in the previous version?
 //@Resources({ @Resource(name = "webContextListener"), @Resource(name = "standaloneContextListener") })
+/**
+ * Implementation of LifecycleListener that sets up the context path and request
+ * filter.
+ */
 @Resources({ @Resource(name = "modular_entryContextListener"), @Resource(name = "modular_jarContextListener"),
 		@Resource(name = "modular_warContextListener") })
 public class IuTomcatContextListener implements LifecycleListener {
 
 	private static final Logger LOG = Logger.getLogger(IuTomcatContextListener.class.getName());
+
+	/**
+	 * Default Constructor.
+	 */
+	public IuTomcatContextListener() {
+		// Default constructor
+	}
 
 	@Override
 	public void lifecycleEvent(LifecycleEvent event) {

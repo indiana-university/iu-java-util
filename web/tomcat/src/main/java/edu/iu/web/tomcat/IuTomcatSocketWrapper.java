@@ -15,8 +15,16 @@ import org.apache.tomcat.util.net.SocketWrapperBase;
 
 import edu.iu.web.WebUpgradeSocketWrapper;
 
+/**
+ * An implementation of the Tomcat Socket Wrapper.
+ */
 public class IuTomcatSocketWrapper extends SocketWrapperBase<WebUpgradeSocketWrapper> {
 
+	/**
+	 * Constructor.
+	 * 
+	 * @param endpointWrapper The endpoint wrapper.
+	 */
 	public IuTomcatSocketWrapper(WebUpgradeSocketWrapper endpointWrapper) {
 		super(endpointWrapper, new IuTomcatSocketEndpoint());
 		this.socketBufferHandler = new SocketBufferHandler(16384, 16384, true);

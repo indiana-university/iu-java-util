@@ -26,6 +26,9 @@ import edu.iu.web.WebRequest;
 import edu.iu.web.WebResponse;
 import edu.iu.web.WebUpgradeHandler;
 
+/**
+ * Implementation of the Tomcat Web Invoker.
+ */
 public class IuTomcatInvoker implements WebInvoker {
 
 	private static final ThreadLocal<Throwable> ERROR = new ThreadLocal<>();
@@ -58,10 +61,20 @@ public class IuTomcatInvoker implements WebInvoker {
 	}
 
 	// End borrowed code.
+	
+	/**
+	 * Reports an error that occurred during the request processing.
+	 * 
+	 * @param error the error that occurred
+	 */
 	static void reportError(Throwable error) {
 		ERROR.set(error);
 	}
 
+	/**
+	 * Reports an upgrade handler for the request.
+	 * @param handler the upgrade handler
+	 */
 	static void reportUpgrade(WebUpgradeHandler handler) {
 		UPGRADE.set(handler);
 	}
@@ -69,6 +82,12 @@ public class IuTomcatInvoker implements WebInvoker {
 	private final ClassLoader classLoader;
 	private final Adapter adapter;
 
+	/**
+	 * Constructs an instance of the Tomcat Invoker.
+	 * 
+	 * @param classLoader the class loader
+	 * @param adapter the adapter
+	 */
 	public IuTomcatInvoker(ClassLoader classLoader, Adapter adapter) {
 		this.classLoader = classLoader;
 		this.adapter = adapter;
