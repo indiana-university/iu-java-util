@@ -71,6 +71,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<junit-jupiter.version>5.10.0</junit-jupiter.version>
 		<junit-platform.version>1.10.0</junit-platform.version>
 		<mockito.version>5.5.0</mockito.version>
+		
+		<tomcat.version>11.0.5</tomcat.version>
 	</properties>
 
 	<distributionManagement>

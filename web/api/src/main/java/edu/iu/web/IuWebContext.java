@@ -122,6 +122,9 @@ public interface IuWebContext {
 	 * 
 	 * @return {@link ClassLoader}
 	 */
-	ClassLoader getLoader();
+	// TODO: Conflict between this method signature and the 
+	// org.apache.catalina.core.StandardContext.getLoader() method
+	// So IuTomcatContext can't extend StandardContext and implement this interface, as-is
+//	ClassLoader getLoader();
 
 }
