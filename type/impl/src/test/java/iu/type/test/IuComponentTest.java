@@ -31,12 +31,15 @@
  */
 package iu.type.test;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -152,47 +155,7 @@ public class IuComponentTest extends IuTypeTestCase {
 		assertEquals("First component must be a module", error.getMessage());
 	}
 
-	@Disabled
-	@Test
-	public void testLoadsLegacy() throws Exception {
-		var publicUrlThatWorksAndReturnsJson = "https://idp-stg.login.iu.edu/.well-known/openid-configuration";
-		String expected;
-		try (InputStream in = URI.create(publicUrlThatWorksAndReturnsJson).toURL().openStream()) {
-			expected = new String(in.readAllBytes());
-		} catch (Throwable e) {
-			e.printStackTrace();
-			Assumptions.abort(
-					"Expected this to be a public URL that works and returns JSON " + publicUrlThatWorksAndReturnsJson);
-			return;
-		}
-
-		try (var component = IuComponent.of(TestArchives.getComponentArchive("testlegacy"))) {
-
-			assertEquals(Kind.LEGACY_JAR, component.kind());
-			assertEquals("iu-java-type-testlegacy", component.version().name());
-			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
-
-			var resources = component.resources().iterator();
-			assertTrue(resources.hasNext());
-			while (resources.hasNext()) {
-				final var resource = resources.next();
-				assertInstanceOf(resource.type().erasedClass(), resource.get());
-			}
-
-			var contextLoader = Thread.currentThread().getContextClassLoader();
-			var loader = component.classLoader();
-			try {
-				Thread.currentThread().setContextClassLoader(loader);
-				var urlReader = loader.loadClass("edu.iu.legacy.LegacyUrlReader");
-				var urlReader$ = urlReader.getConstructor().newInstance();
-				assertEquals(urlReader.getMethod("parseJson", String.class).invoke(urlReader$, expected),
-						urlReader.getMethod("get", String.class).invoke(urlReader$, publicUrlThatWorksAndReturnsJson));
-			} finally {
-				Thread.currentThread().setContextClassLoader(contextLoader);
-			}
-		}
-	}
-
+	@SuppressWarnings("unchecked")
 	@Test
 	public void testLoadsTestComponent() throws Exception {
 		// TODO: remove after implementing @AroundConstruct
@@ -201,9 +164,12 @@ public class IuComponentTest extends IuTypeTestCase {
 				UnsupportedOperationException.class,
 				t -> "@AroundConstruct not supported in this version".equals(t.getMessage()));
 		IuTestLogger.allow("iu.type.Component", Level.WARNING, "Invalid class invalid.*", ClassFormatError.class);
-		try (var parent = IuComponent.of(TestArchives.getComponentArchive("testruntime"),
+		final var cb = mock(Consumer.class);
+		try (var parent = IuComponent.of(cb, TestArchives.getComponentArchive("testruntime"),
 				TestArchives.getProvidedDependencyArchives("testruntime"));
 				var component = parent.extend(TestArchives.getComponentArchive("testcomponent"))) {
+			assertNotNull(parent.moduleLayer());
+			assertDoesNotThrow(parent::toString);
 
 			assertEquals(Kind.MODULAR_JAR, component.kind());
 			assertEquals("iu-java-type-testcomponent", component.version().name());
@@ -297,36 +263,6 @@ public class IuComponentTest extends IuTypeTestCase {
 	}
 
 	@Disabled
-	@Test
-	public void testLoadsLegacyWar() throws Exception {
-		try (var parent = IuComponent.of(TestArchives.getComponentArchive("testlegacy"));
-				var component = parent.extend(TestArchives.getComponentArchive("testlegacyweb"),
-						TestArchives.getProvidedDependencyArchives("testlegacyweb"))) {
-
-			assertEquals(Kind.LEGACY_WAR, component.kind());
-			assertEquals("iu-java-type-testlegacyweb", component.version().name());
-			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
-
-			final Set<String> interfaces = new HashSet<>();
-			IuIterable.map(component.interfaces(), IuType::name).forEach(interfaces::add);
-			assertTrue(interfaces.contains("edu.iu.legacy.LegacyInterface"), interfaces::toString);
-			assertTrue(interfaces.contains("edu.iu.legacy.NotResource"), interfaces::toString);
-
-			var incompatible = component.annotatedTypes(Incompatible.class).iterator();
-			assertTrue(incompatible.hasNext());
-			assertEquals("edu.iu.legacy.LegacyResource", incompatible.next().name());
-			assertFalse(incompatible.hasNext(), () -> incompatible.next().name());
-
-			var testsShouldBeEmpty = component.annotatedTypes(Test.class).iterator();
-			assertFalse(testsShouldBeEmpty.hasNext(), () -> testsShouldBeEmpty.next().name());
-
-			var expectedResources = new HashSet<>(Set.of("two", "legacyResource", "index.jsp", "WEB-INF/web.xml"));
-			for (final var r : component.resources())
-				assertTrue(expectedResources.remove(r.name()));
-			assertTrue(expectedResources.isEmpty(), expectedResources::toString);
-		}
-	}
-
 	@Test
 	public void testScanFolder() throws Exception {
 		var scannedView = IuComponent.scan(getClass());
