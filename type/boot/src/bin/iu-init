@@ -1,0 +1,47 @@
+#!/bin/bash
+
+ROOT=$(readlink -f $(dirname $0)/..)
+
+case $(uname -o) in
+Cygwin|Msys)
+  SEP=\;
+  ROOT=$(cygpath -w $ROOT | sed -e 's/\\/\//g')
+  export MSYS_NO_PATHCONV=1
+;;
+
+*)
+  SEP=:
+esac
+
+LIB=$ROOT/lib
+
+CLASSPATH=
+for l in $(ls $LIB)
+do
+	[ -n "$CLASSPATH" ] && CLASSPATH=${CLASSPATH}${SEP}
+	CLASSPATH=${CLASSPATH}${LIB}/${l}
+done
+
+COMP=$ROOT/components
+COMPONENTS=
+for c in $(ls $COMP)
+do
+	[ -n "$COMPONENTS" ] && COMPONENTS=${COMPONENTS},
+	COMPONENTS=${COMPONENTS}${COMP}/${c}
+done
+[ -n "$COMPONENTS" ] || {
+	echo "No components found in $COMP" 1>&2
+	exit 9
+}
+
+IU_CONFIG=$ROOT/conf java \
+  -Djava.util.logging.manager=iu.logging.boot.IuLogManager \
+  -Djava.util.logging.config.class=iu.logging.boot.IuLoggingBootstrap \
+	-Diu.logging.consoleLevel=CONFIG \
+	-Diu.logging.file.path=$ROOT/logs \
+  -Diu.boot.components=$COMPONENTS \
+	-Djava.io.temp=$TMP \
+  --add-modules=java.net.http${IU_JVM_MODULES+,}$IU_JVM_MODULES \
+	-p $CLASSPATH \
+	-m iu.util.type.boot/iu.type.boot.Init
+

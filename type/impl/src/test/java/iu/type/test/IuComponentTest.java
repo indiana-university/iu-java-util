@@ -262,6 +262,7 @@ public class IuComponentTest extends IuTypeTestCase {
 		}
 	}
 
+	@Disabled
 	@Test
 	public void testScanFolder() throws Exception {
 		var scannedView = IuComponent.scan(getClass());

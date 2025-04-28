@@ -204,6 +204,7 @@ public class JwtTest {
 				.add("nbf", notBefore.getEpochSecond()) //
 				.add("exp", expires.getEpochSecond()) //
 				.add("nonce", nonce).build());
+		IuTestLogger.allow("edu.iu.crypt.Init", Level.CONFIG);
 		final var issuerKey = WebKey.ephemeral(Algorithm.ES256);
 		final var signed = jwt.sign("JWT", Algorithm.ES256, issuerKey);
 		assertEquals(jwt, new Jwt(Jwt.verify(signed, issuerKey)));
@@ -233,6 +234,7 @@ public class JwtTest {
 				.add("nbf", notBefore.getEpochSecond()) //
 				.add("exp", expires.getEpochSecond()) //
 				.add("nonce", nonce).build());
+		IuTestLogger.allow("edu.iu.crypt.Init", Level.CONFIG);
 		final var issuerKey = WebKey.ephemeral(Algorithm.ES256);
 		final var audienceKey = WebKey.builder(Type.X25519).ephemeral(Algorithm.ECDH_ES).build();
 		final var signed = jwt.signAndEncrypt("JWT", Algorithm.ES256, issuerKey, Algorithm.ECDH_ES, Encryption.A128GCM,
@@ -250,32 +252,6 @@ public class JwtTest {
 		assertEquals("SHA256withECDSA verification failed", error.getMessage());
 	}
 
-//	@Test
-//	public void testOneAudienceFlattensToString() {
-//		final var audience = URI.create(IdGenerator.generateId());
-//		final var claims = mock(WebTokenClaims.class);
-//		when(claims.getAudience()).thenReturn(Set.of(audience));
-//		final var token = new Jwt(claims);
-//		assertEquals(audience.toString(),
-//				IuJson.parse(token.toString()).asJsonObject().getJsonString("aud").getString());
-//	}
-//
-//	@Test
-//	public void testNullAudienceUndefined() {
-//		final var token = new Jwt(IuJson.object().build());
-//		assertFalse(IuJson.parse(token.toString()).asJsonObject().containsKey("aud"));
-//	}
-//
-//
-
-//
-//	@Test
-//	public void testInvalidToken() {
-//		final var invalidToken = IdGenerator.generateId();
-//		final var error = assertThrows(IllegalArgumentException.class, () -> Jwt.verify(invalidToken, (WebKey) null));
-//		assertEquals("Invalid token; must be enclosed in a compact JWS or JWE", error.getMessage());
-//	}
-//
 	@Test
 	public void testValidateMissingIssuer() {
 		final var jwt = new Jwt(IuJson.object().build());

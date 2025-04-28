@@ -29,58 +29,56 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type;
+package iu.web.server;
 
-import java.net.URL;
-import java.net.URLClassLoader;
+import java.time.Duration;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
-import edu.iu.IuObject;
-import edu.iu.type.IuComponent.Kind;
+import edu.iu.IuException;
 
-/**
- * Class loader for {@link Kind#isModular() legacy} components.
- */
-class LegacyClassLoader extends URLClassLoader {
+class IuWebExecutor extends ThreadPoolExecutor {
 
-	private final boolean web;
+	private static final Logger LOG = Logger.getLogger(IuWebExecutor.class.getName());
 
-	/**
-	 * Constructor for use by {@link ComponentFactory}
-	 * 
-	 * @param web       true for <a href=
-	 *                  "https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0#web-application-class-loader">web
-	 *                  classloading semantics</a>; false for normal parent
-	 *                  delegation semantics
-	 * @param classpath class path URLs
-	 * @param parent    parent class loader
-	 */
-	LegacyClassLoader(boolean web, URL[] classpath, ClassLoader parent) {
-		super(classpath, parent);
-		this.web = web;
-	}
+	private static volatile int instanceCount;
 
-	@Override
-	protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-		if (!web || IuObject.isPlatformName(name))
-			return super.loadClass(name, resolve);
+	private static class Factory implements ThreadFactory {
+		private final int serial = ++instanceCount;
+		private volatile int num;
 
-		synchronized (getClassLoadingLock(name)) {
-			Class<?> rv = this.findLoadedClass(name);
-			if (rv != null)
-				return rv;
+		private final ThreadGroup threadGroup = new ThreadGroup("iu-java-web-server");
 
-			try {
-				rv = findClass(name);
-				if (resolve)
-					resolveClass(rv);
-				return rv;
-			} catch (ClassNotFoundException e) {
-				// will attempt throw again when called from
-				// super.loadClass if also not found in parent
+		@Override
+		public Thread newThread(Runnable r) {
+			synchronized (this) {
+				num = ++num;
 			}
-
-			return super.loadClass(name, resolve);
+			return new Thread(threadGroup, r, "iu-java-web-server-" + serial + "/" + num);
 		}
 	}
 
+	IuWebExecutor(int threads, Duration timeout) {
+		super( //
+				Integer.max(threads / 10, 2), // spawn 10% of max threads before queueing
+				Integer.max(threads, 2), // limit total threads at 100%
+				timeout.toNanos(), TimeUnit.NANOSECONDS, //
+				new ArrayBlockingQueue<>( //
+						Integer.max(threads / 2, 10) //
+				), new Factory());
+	}
+
+	@Override
+	public void execute(Runnable command) {
+		try {
+			super.execute(command);
+		} catch (Throwable e) {
+			LOG.log(Level.SEVERE, e, () -> "executor submit failure " + command);
+			throw IuException.unchecked(e);
+		}
+	}
 }

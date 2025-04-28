@@ -31,7 +31,9 @@
  */
 package edu.iu.crypt;
 
+import java.util.Objects;
 import java.util.ServiceLoader;
+import java.util.logging.Logger;
 
 import iu.crypt.spi.IuCryptSpi;
 
@@ -50,10 +52,24 @@ import iu.crypt.spi.IuCryptSpi;
  */
 public final class Init {
 
+	private static final Logger LOG = Logger.getLogger(Init.class.getName());
+
 	private Init() {
 	}
 
 	/** {@link IuCryptSpi} instance */
-	static final IuCryptSpi SPI = ServiceLoader.load(IuCryptSpi.class).findFirst().get();
+	static final IuCryptSpi SPI;
+
+	static {
+		SPI = ServiceLoader.load(IuCryptSpi.class).findFirst().get();
+		LOG.config("init iu-java-crypt SPI " + SPI);
+	}
+
+	/**
+	 * Verifies the SPI has fully initialized.
+	 */
+	public static void init() {
+		Objects.requireNonNull(SPI);
+	}
 
 }
