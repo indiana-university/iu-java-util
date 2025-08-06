@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>Session.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-auth-session</a> &gt; <a href="index.source.html" class="el_package">iu.auth.session</a> &gt; <span class="el_source">Session.java</span></div><h1>Session.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2025 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.session;
+
+import java.lang.reflect.Proxy;
+import java.net.URI;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
+
+import edu.iu.IuObject;
+import edu.iu.auth.session.IuSession;
+import edu.iu.crypt.WebCryptoHeader;
+import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Type;
+import iu.crypt.Jwt;
+import jakarta.json.JsonValue;
+
+/**
+ * {@link IuSession} implementation
+ */
+class Session implements IuSession {
+	static {
+<span class="fc" id="L58">		IuObject.assertNotOpen(Session.class);</span>
+<span class="fc" id="L59">	}</span>
+
+	/** root protected resource URI */
+	private URI resourceUri;
+
+	/** Session expiration time */
+	private Instant expires;
+
+	/** change flag to determine when session attributes change */
+	private boolean changed;
+
+	/** Session details */
+	private Map&lt;String, Map&lt;String, JsonValue&gt;&gt; details;
+	
+	/** strict mode */
+<span class="fc" id="L74">	private boolean strict = true;</span>
+
+	/**
+	 * New session constructor.
+	 * 
+	 * @param resourceUri root protected resource URI
+	 * @param expires     expiration time
+	 */
+<span class="fc" id="L82">	Session(URI resourceUri, Duration expires) {</span>
+<span class="fc" id="L83">		this.resourceUri = resourceUri;</span>
+<span class="fc" id="L84">		this.expires = Instant.now().plus(expires).truncatedTo(ChronoUnit.SECONDS);</span>
+<span class="fc" id="L85">		details = new LinkedHashMap&lt;String, Map&lt;String, JsonValue&gt;&gt;();</span>
+<span class="fc" id="L86">	}</span>
+
+	/**
+	 * Session token constructor.
+	 * 
+	 * @param token         tokenized session
+	 * @param secretKey     Secret key to use for detokenizing the session.
+	 * @param issuerKey     issuer key
+	 * @param maxSessionTtl maximum session time to live
+	 */
+<span class="fc" id="L96">	Session(String token, byte[] secretKey, WebKey issuerKey, Duration maxSessionTtl) {</span>
+<span class="fc" id="L97">		final var jose = WebCryptoHeader.getProtectedHeader(token);</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">		if (!Algorithm.DIRECT.equals(jose.getAlgorithm()))</span>
+<span class="fc" id="L99">			throw new IllegalArgumentException(&quot;Invalid token key protection algorithm&quot;);</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">		if (!Encryption.A256GCM.equals(WebCryptoHeader.Param.ENCRYPTION.get(jose)))</span>
+<span class="fc" id="L101">			throw new IllegalArgumentException(&quot;Invalid token content encryption algorithm&quot;);</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">		if (!&quot;session+jwt&quot;.equals(jose.getContentType()))</span>
+<span class="fc" id="L103">			throw new IllegalArgumentException(&quot;Invalid token type&quot;);</span>
+
+<span class="fc" id="L105">		final var jwt = new SessionJwt(</span>
+<span class="fc" id="L106">				Jwt.decryptAndVerify(token, issuerKey, WebKey.builder(Type.RAW).key(secretKey).build()));</span>
+
+<span class="fc" id="L108">		resourceUri = Objects.requireNonNull(jwt.getIssuer(), &quot;Missing token issuer&quot;);</span>
+<span class="fc" id="L109">		jwt.validateClaims(resourceUri, maxSessionTtl);</span>
+<span class="fc" id="L110">		IuObject.require(jwt.getSubject(), resourceUri.toString()::equals);</span>
+<span class="fc" id="L111">		expires = Objects.requireNonNull(jwt.getExpires());</span>
+<span class="fc" id="L112">		details = new LinkedHashMap&lt;&gt;(Objects.requireNonNull(jwt.getDetails()));</span>
+<span class="fc" id="L113">	}</span>
+
+	/**
+	 * Token constructor
+	 * 
+	 * @param secretKey secret key
+	 * @param issuerKey issuer key
+	 * @param algorithm algorithm
+	 * @return tokenized session
+	 */
+	String tokenize(byte[] secretKey, WebKey issuerKey, Algorithm algorithm) {
+<span class="fc" id="L124">		return new SessionJwtBuilder() //</span>
+<span class="fc" id="L125">				.iss(resourceUri) //</span>
+<span class="fc" id="L126">				.sub(resourceUri.toString()) //</span>
+<span class="fc" id="L127">				.aud(resourceUri) //</span>
+<span class="fc" id="L128">				.iat() //</span>
+<span class="fc" id="L129">				.exp(expires) //</span>
+<span class="fc" id="L130">				.details(details) //</span>
+<span class="fc" id="L131">				.build().signAndEncrypt(&quot;session+jwt&quot;, algorithm, issuerKey, Algorithm.DIRECT, Encryption.A256GCM,</span>
+<span class="fc" id="L132">						WebKey.builder(Type.RAW).key(secretKey).build());</span>
+	}
+
+	@Override
+	public &lt;T&gt; T getDetail(Class&lt;T&gt; type) {
+<span class="fc" id="L137">		final var module = type.getModule();</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">		if (!module.isNamed())</span>
+<span class="fc" id="L139">			throw new IllegalArgumentException(&quot;Invalid session type, must be in a named module&quot;);</span>
+
+<span class="fc" id="L141">		return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class&lt;?&gt;[] { type },</span>
+				new SessionDetail(
+<span class="fc" id="L143">						details.computeIfAbsent(module.getName() + &quot;/&quot; + type.getName(), a -&gt; new LinkedHashMap&lt;&gt;()),</span>
+						this, new SessionAdapterFactory&lt;&gt;(type))));
+	}
+
+	@Override
+	public void clearDetail(Class&lt;?&gt; type) {
+<span class="fc" id="L149">		final var module = type.getModule();</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">		if (!module.isNamed())</span>
+<span class="fc" id="L151">			throw new IllegalArgumentException(&quot;Invalid session type, must be in a named module&quot;);</span>
+
+<span class="fc bfc" id="L153" title="All 2 branches covered.">		if (details.remove(module.getName() + &quot;/&quot; + type.getName()) != null)</span>
+<span class="fc" id="L154">			changed = true;</span>
+<span class="fc" id="L155">	}</span>
+
+	@Override
+	public boolean isChanged() {
+<span class="fc" id="L159">		return changed;</span>
+	}
+
+	/**
+	 * Sets the change flag
+	 * 
+	 * @param changed set to true when session attributes change, otherwise false
+	 */
+	void setChanged(boolean changed) {
+<span class="fc" id="L168">		this.changed = changed;</span>
+<span class="fc" id="L169">	}</span>
+
+	/**
+	 * Gets session expire time
+	 * 
+	 * @return {@link Instant} session expire time
+	 */
+	Instant getExpires() {
+<span class="fc" id="L177">		return expires;</span>
+	}
+
+	@Override
+	public URI getResourceUri() {
+<span class="fc" id="L182">		return resourceUri;</span>
+	}
+	
+	@Override
+	public String toString() {
+<span class="fc" id="L187">		return &quot;Session [resourceUri=&quot; + resourceUri + &quot;, expires=&quot; + expires + &quot;, changed=&quot; + changed + &quot;, details=&quot;</span>
+				+ details + &quot;]&quot;;
+	}
+
+
+	/**
+	 * Gets strict 
+	 * @return strict mode
+	 */
+	public boolean isStrict() {
+<span class="fc" id="L197">		return strict;</span>
+	}
+
+	@Override
+	public void setStrict(boolean strict) {
+<span class="fc" id="L202">		this.changed = true;</span>
+<span class="fc" id="L203">		this.strict = strict;</span>
+<span class="fc" id="L204">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

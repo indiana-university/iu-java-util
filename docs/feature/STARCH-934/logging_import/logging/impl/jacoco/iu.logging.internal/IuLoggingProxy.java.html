@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuLoggingProxy.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Logging Implementation</a> &gt; <a href="index.source.html" class="el_package">iu.logging.internal</a> &gt; <span class="el_source">IuLoggingProxy.java</span></div><h1>IuLoggingProxy.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2025 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.logging.internal;
+
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+
+/**
+ * Proxy from an external interface to an implementation class that follows the
+ * same contract.
+ */
+public class IuLoggingProxy implements InvocationHandler {
+
+	private final Object impl;
+
+<span class="fc" id="L46">	private IuLoggingProxy(Object impl) {</span>
+<span class="fc" id="L47">		this.impl = impl;</span>
+<span class="fc" id="L48">	}</span>
+
+	/**
+	 * Adapts an implementation to an external interface it follows the contract
+	 * for.
+	 * 
+	 * @param &lt;T&gt;               external type
+	 * @param externalInterface external interface
+	 * @param impl              implementation
+	 * @return target if instance of interface, else a proxy wrapper that translates
+	 *         from the target to the interface
+	 */
+	public static &lt;T&gt; T adapt(Class&lt;T&gt; externalInterface, Object impl) {
+<span class="fc bfc" id="L61" title="All 2 branches covered.">		if (impl == null)</span>
+<span class="fc" id="L62">			return null;</span>
+
+<span class="fc bfc" id="L64" title="All 2 branches covered.">		if (externalInterface.isInstance(impl))</span>
+<span class="fc" id="L65">			return externalInterface.cast(impl);</span>
+
+<span class="fc bfc" id="L67" title="All 2 branches covered.">		if (Proxy.isProxyClass(impl.getClass())) {</span>
+<span class="fc" id="L68">			final var h = Proxy.getInvocationHandler(impl);</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">			if (h instanceof IuLoggingProxy)</span>
+<span class="fc" id="L70">				impl = ((IuLoggingProxy) h).impl;</span>
+		}
+
+<span class="fc" id="L73">		return externalInterface.cast(Proxy.newProxyInstance(externalInterface.getClassLoader(),</span>
+				new Class&lt;?&gt;[] { externalInterface }, new IuLoggingProxy(impl)));
+	}
+
+	@Override
+	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+<span class="fc" id="L79">		return impl.getClass().getMethod(method.getName(), method.getParameterTypes()).invoke(impl, args);</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
