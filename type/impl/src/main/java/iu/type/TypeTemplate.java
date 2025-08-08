@@ -52,7 +52,6 @@ import edu.iu.type.IuConstructor;
 import edu.iu.type.IuReferenceKind;
 import edu.iu.type.IuType;
 import edu.iu.type.IuTypeReference;
-import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 
 /**
@@ -438,9 +437,6 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 				listener.accept(instance);
 			return null;
 		});
-
-		for (final var method : annotatedMethods(PostConstruct.class))
-			IuException.unchecked(() -> method.exec(instance));
 	}
 
 	@Override
