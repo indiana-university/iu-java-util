@@ -42,6 +42,8 @@ import edu.iu.IuObject;
 import edu.iu.type.IuResource;
 import edu.iu.type.IuResourceKey;
 import edu.iu.type.IuType;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import jakarta.annotation.Priority;
 import jakarta.annotation.Resource;
 import jakarta.annotation.Resource.AuthenticationType;
@@ -62,7 +64,8 @@ class ComponentResource<T> implements IuResource<T> {
 	 * @return static web resource
 	 */
 	static ComponentResource<byte[]> createWebResource(String name, byte[] data) {
-		return new ComponentResource<byte[]>(true, true, -1, name, TypeFactory.resolveRawClass(byte[].class), () -> data);
+		return new ComponentResource<byte[]>(true, true, -1, name, TypeFactory.resolveRawClass(byte[].class),
+				() -> data);
 	}
 
 	/**
@@ -135,8 +138,18 @@ class ComponentResource<T> implements IuResource<T> {
 	private volatile T singleton;
 	private Supplier<?> factory;
 
-	private ComponentResource(boolean needsAuthentication, boolean shared, int priority, String name,
-			TypeTemplate<?, T> type, Supplier<?> factory) {
+	/**
+	 * Constructor.
+	 * 
+	 * @param needsAuthentication whether or not authentication is needed
+	 * @param shared              whether or not the resource is shared
+	 * @param priority            initialization priority
+	 * @param name                resource name
+	 * @param type                resource type
+	 * @param factory             factory for creating new instances
+	 */
+	ComponentResource(boolean needsAuthentication, boolean shared, int priority, String name, TypeTemplate<?, T> type,
+			Supplier<?> factory) {
 		this.needsAuthentication = needsAuthentication;
 		this.shared = shared;
 		this.priority = priority;
@@ -168,6 +181,22 @@ class ComponentResource<T> implements IuResource<T> {
 	@Override
 	public IuType<?, T> type() {
 		return type;
+	}
+
+	@Override
+	public void postConstruct() {
+		if (shared)
+			type.annotatedMethods(PostConstruct.class).forEach(m -> IuException.unchecked(() -> m.exec(get())));
+		else
+			throw new IllegalStateException("not shared");
+	}
+
+	@Override
+	public void preDestroy() {
+		if (shared)
+			type.annotatedMethods(PreDestroy.class).forEach(m -> IuException.unchecked(() -> m.exec(get())));
+		else
+			throw new IllegalStateException("not shared");
 	}
 
 	@Override

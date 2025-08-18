@@ -39,15 +39,21 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Proxy;
+import java.util.List;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.IdGenerator;
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuComponent;
+import edu.iu.type.IuMethod;
 import edu.iu.type.IuResourceKey;
 import edu.iu.type.IuType;
 import edu.iu.type.testresources.AnInterface;
@@ -63,6 +69,8 @@ import edu.iu.type.testresources.ProxyNonResource;
 import edu.iu.type.testresources.ProxyResource;
 import edu.iu.type.testresources.ThrownFromDefaultFactory;
 import edu.iu.type.testresources.ThrowsFromDefaultFactory;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import jakarta.annotation.Resource;
 import jakarta.annotation.Resources;
 
@@ -258,6 +266,56 @@ public class ComponentResourceTest extends IuTypeTestCase {
 	public void testDefaultFactoryThrows() {
 		assertThrows(ThrownFromDefaultFactory.class,
 				() -> ComponentResource.getResources(ThrowsFromDefaultFactory.class).iterator().next().factory().get());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testPostConstruct() throws Exception {
+		final var i = new Object();
+		final var name = IdGenerator.generateId();
+		final var type = mock(TypeTemplate.class);
+		final var m = mock(IuMethod.class);
+		when(type.annotatedMethods(PostConstruct.class)).thenReturn(List.of(m));
+		when(type.erasedClass()).thenReturn(Object.class);
+		final var res = new ComponentResource<>(false, true, 0, name, type, () -> i);
+		res.postConstruct();
+		verify(m).exec(i);
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testPostConstructNotShared() throws Exception {
+		final var i = new Object();
+		final var name = IdGenerator.generateId();
+		final var type = mock(TypeTemplate.class);
+		final var res = new ComponentResource<>(false, false, 0, name, type, () -> i);
+		final var error = assertThrows(IllegalStateException.class, res::postConstruct);
+		assertEquals("not shared", error.getMessage());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testPreDestroy() throws Exception {
+		final var i = new Object();
+		final var name = IdGenerator.generateId();
+		final var type = mock(TypeTemplate.class);
+		final var m = mock(IuMethod.class);
+		when(type.annotatedMethods(PreDestroy.class)).thenReturn(List.of(m));
+		when(type.erasedClass()).thenReturn(Object.class);
+		final var res = new ComponentResource<>(false, true, 0, name, type, () -> i);
+		res.preDestroy();
+		verify(m).exec(i);
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testPreDestroyNotShared() throws Exception {
+		final var i = new Object();
+		final var name = IdGenerator.generateId();
+		final var type = mock(TypeTemplate.class);
+		final var res = new ComponentResource<>(false, false, 0, name, type, () -> i);
+		final var error = assertThrows(IllegalStateException.class, res::preDestroy);
+		assertEquals("not shared", error.getMessage());
 	}
 
 }
