@@ -128,18 +128,16 @@ public class LettuceConnection implements IuRedis {
 	}
 
 	@Override
-	public synchronized void close() throws Exception {
+	public synchronized void close() {
 		Throwable error = null;
 		if (!closed) {
 			closed = true;
-			if (genericPool != null)
-				error = IuException.suppress(error, genericPool::close);
-			if (redisClient != null)
-				error = IuException.suppress(error, redisClient::shutdown);
+			error = IuException.suppress(error, genericPool::close);
+			error = IuException.suppress(error, redisClient::shutdown);
 		}
 
 		if (error != null)
-			throw IuException.checked(error);
+			throw IuException.unchecked(error);
 	}
 
 }

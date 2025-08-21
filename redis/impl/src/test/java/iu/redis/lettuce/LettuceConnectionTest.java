@@ -2,8 +2,10 @@ package iu.redis.lettuce;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
@@ -159,8 +161,7 @@ public class LettuceConnectionTest {
 					() -> lettuceConnection.put("key".getBytes(), "value".getBytes(), Duration.ofSeconds(0)));
 			assertDoesNotThrow(
 					() -> lettuceConnection.put("key".getBytes(), "value".getBytes(), Duration.ofSeconds(-1)));
-			assertDoesNotThrow(
-					() -> lettuceConnection.put("key".getBytes(), "value".getBytes()));
+			assertDoesNotThrow(() -> lettuceConnection.put("key".getBytes(), "value".getBytes()));
 			assertDoesNotThrow(() -> lettuceConnection.get("key".getBytes()));
 			assertDoesNotThrow(() -> lettuceConnection.get("key".getBytes()));
 			assertThrows(UnsupportedOperationException.class, () -> lettuceConnection.list());
@@ -188,22 +189,35 @@ public class LettuceConnectionTest {
 			redisClientStaticMock.when(() -> RedisClient.create(redisURI)).thenReturn(mockClient);
 			LettuceConnection lettuceConnection = new LettuceConnection(config);
 			assertNotNull(lettuceConnection);
-			assertThrows(IllegalStateException.class,
-					() -> lettuceConnection.get("key".getBytes()));
+			assertThrows(IllegalStateException.class, () -> lettuceConnection.get("key".getBytes()));
 			assertThrows(IllegalStateException.class,
 					() -> lettuceConnection.put("key".getBytes(), "value".getBytes(), null));
+			assertDoesNotThrow(() -> lettuceConnection.close());
 			assertDoesNotThrow(() -> lettuceConnection.close());
 		}
 	}
 
 	@Test
-	void closeClosesGenericPool() throws Exception {
+	public void testCloseError() {
+		IuTestLogger.allow("", Level.FINE);
+		String mockHost = "localhost";
+		String mockPort = "6379";
+		String mockPassword = "securePassword";
 		final var config = mock(IuRedisConfiguration.class);
-		LettuceConnection connection = new LettuceConnection(config);
-		connection.close();
+		when(config.getHost()).thenReturn(mockHost);
+		when(config.getPort()).thenReturn(mockPort);
+		when(config.getPassword()).thenReturn(mockPassword);
 
+		when(config.getUsername()).thenReturn("username");
+
+		final var error = new RuntimeException();
+		try (final var redisClientStaticMock = mockStatic(RedisClient.class)) {
+			final var mockClient = mock(RedisClient.class);
+			when(mockClient.connect()).thenReturn(null);
+			doThrow(error).when(mockClient).shutdown();
+			redisClientStaticMock.when(() -> RedisClient.create(redisURI)).thenReturn(mockClient);
+			LettuceConnection lettuceConnection = new LettuceConnection(config);
+			assertSame(error, assertThrows(RuntimeException.class, () -> lettuceConnection.close()));
+		}
 	}
-
-
-
 }
