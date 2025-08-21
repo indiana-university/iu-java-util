@@ -29,32 +29,23 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Low-level web cryptography support.
- * 
- * <p>
- * Provides full implementations of:
- * </p>
- * <ul>
- * <li><a href="https://datatracker.ietf.org/doc/html/rfc7515">RFC-7515 JSON Web
- * Signature (JWS)</a></li>
- * <li><a href="https://datatracker.ietf.org/doc/html/rfc7516">RFC-7516 JSON Web
- * Encryption (JWE)</a></li>
- * <li><a href="https://datatracker.ietf.org/doc/html/rfc7517">RFC-7517 JSON Web
- * Key (JWK)</a></li>
- * <li><a href="https://datatracker.ietf.org/doc/html/rfc7518">RFC-7518 JSON Web
- * Algorithms (JWA)</a></li>
- * </ul>
- * 
- * @provides iu.crypt.spi.IuCryptSpi Service provider implementation
- */
-module iu.util.crypt.impl {
-	exports iu.crypt;
-	
-	requires iu.util;
-	requires transitive iu.util.crypt;
-	requires transitive iu.util.client;
-	requires jakarta.annotation;
+package edu.iu.logging;
 
-	provides iu.crypt.spi.IuCryptSpi with iu.crypt.CryptSpi;
+import static org.mockito.Mockito.mockStatic;
+
+import org.junit.jupiter.api.Test;
+
+import iu.logging.boot.IuLoggingBootstrap;
+
+@SuppressWarnings("javadoc")
+public class IuLogEventTest {
+
+	@Test
+	public void testSubscribe() {
+		try (final var mockIuLoggingBootstrap = mockStatic(IuLoggingBootstrap.class)) {
+			IuLogEvent.subscribe();
+			mockIuLoggingBootstrap.verify(() -> IuLoggingBootstrap.subscribe());
+		}
+	}
+	
 }

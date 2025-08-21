@@ -29,32 +29,54 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Low-level web cryptography support.
- * 
- * <p>
- * Provides full implementations of:
- * </p>
- * <ul>
- * <li><a href="https://datatracker.ietf.org/doc/html/rfc7515">RFC-7515 JSON Web
- * Signature (JWS)</a></li>
- * <li><a href="https://datatracker.ietf.org/doc/html/rfc7516">RFC-7516 JSON Web
- * Encryption (JWE)</a></li>
- * <li><a href="https://datatracker.ietf.org/doc/html/rfc7517">RFC-7517 JSON Web
- * Key (JWK)</a></li>
- * <li><a href="https://datatracker.ietf.org/doc/html/rfc7518">RFC-7518 JSON Web
- * Algorithms (JWA)</a></li>
- * </ul>
- * 
- * @provides iu.crypt.spi.IuCryptSpi Service provider implementation
- */
-module iu.util.crypt.impl {
-	exports iu.crypt;
-	
-	requires iu.util;
-	requires transitive iu.util.crypt;
-	requires transitive iu.util.client;
-	requires jakarta.annotation;
+package iu.logging.internal;
 
-	provides iu.crypt.spi.IuCryptSpi with iu.crypt.CryptSpi;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+
+/**
+ * Proxy from an external interface to an implementation class that follows the
+ * same contract.
+ */
+public class IuLoggingProxy implements InvocationHandler {
+
+	private final Object impl;
+
+	private IuLoggingProxy(Object impl) {
+		this.impl = impl;
+	}
+
+	/**
+	 * Adapts an implementation to an external interface it follows the contract
+	 * for.
+	 * 
+	 * @param <T>               external type
+	 * @param externalInterface external interface
+	 * @param impl              implementation
+	 * @return target if instance of interface, else a proxy wrapper that translates
+	 *         from the target to the interface
+	 */
+	public static <T> T adapt(Class<T> externalInterface, Object impl) {
+		if (impl == null)
+			return null;
+
+		if (externalInterface.isInstance(impl))
+			return externalInterface.cast(impl);
+
+		if (Proxy.isProxyClass(impl.getClass())) {
+			final var h = Proxy.getInvocationHandler(impl);
+			if (h instanceof IuLoggingProxy)
+				impl = ((IuLoggingProxy) h).impl;
+		}
+
+		return externalInterface.cast(Proxy.newProxyInstance(externalInterface.getClassLoader(),
+				new Class<?>[] { externalInterface }, new IuLoggingProxy(impl)));
+	}
+
+	@Override
+	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+		return impl.getClass().getMethod(method.getName(), method.getParameterTypes()).invoke(impl, args);
+	}
+
 }

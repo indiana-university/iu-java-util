@@ -79,6 +79,16 @@ public interface IuResource<T> extends Supplier<T> {
 	int priority();
 
 	/**
+	 * Performs post-construct logic for a shared resource.
+	 */
+	void postConstruct();
+
+	/**
+	 * Performs pre-destroy logic for a shared resource.
+	 */
+	void preDestroy();
+
+	/**
 	 * Gets the factory to be used for creating new instances.
 	 * 
 	 * <p>

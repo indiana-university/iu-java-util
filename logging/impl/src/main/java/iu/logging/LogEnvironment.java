@@ -29,32 +29,68 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Low-level web cryptography support.
- * 
- * <p>
- * Provides full implementations of:
- * </p>
- * <ul>
- * <li><a href="https://datatracker.ietf.org/doc/html/rfc7515">RFC-7515 JSON Web
- * Signature (JWS)</a></li>
- * <li><a href="https://datatracker.ietf.org/doc/html/rfc7516">RFC-7516 JSON Web
- * Encryption (JWE)</a></li>
- * <li><a href="https://datatracker.ietf.org/doc/html/rfc7517">RFC-7517 JSON Web
- * Key (JWK)</a></li>
- * <li><a href="https://datatracker.ietf.org/doc/html/rfc7518">RFC-7518 JSON Web
- * Algorithms (JWA)</a></li>
- * </ul>
- * 
- * @provides iu.crypt.spi.IuCryptSpi Service provider implementation
- */
-module iu.util.crypt.impl {
-	exports iu.crypt;
-	
-	requires iu.util;
-	requires transitive iu.util.crypt;
-	requires transitive iu.util.client;
-	requires jakarta.annotation;
+package iu.logging;
 
-	provides iu.crypt.spi.IuCryptSpi with iu.crypt.CryptSpi;
+/**
+ * Provides environment-bound context attributes.
+ */
+public interface LogEnvironment {
+
+	/**
+	 * Gets the node identifier.
+	 * 
+	 * @return Unique node identifier
+	 */
+	String getNodeId();
+
+	/**
+	 * Gets the endpoint.
+	 * 
+	 * @return endpoint
+	 */
+	String getEndpoint();
+
+	/**
+	 * Gets the application code.
+	 * 
+	 * @return application code
+	 */
+	String getApplication();
+
+	/**
+	 * Gets the application environment.
+	 * 
+	 * @return application environment
+	 */
+	String getEnvironment();
+
+	/**
+	 * Gets the module code.
+	 * 
+	 * @return module code
+	 */
+	String getModule();
+
+	/**
+	 * Gets the runtime code.
+	 * 
+	 * @return runtime code
+	 */
+	String getRuntime();
+
+	/**
+	 * Gets the component code.
+	 * 
+	 * @return component code
+	 */
+	String getComponent();
+
+	/**
+	 * Determines whether or not to enable extended debug logging appropriate for
+	 * development environments.
+	 * 
+	 * @return true to enable extended debug logging; else false
+	 */
+	boolean isDevelopment();
+
 }

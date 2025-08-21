@@ -29,32 +29,59 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Low-level web cryptography support.
- * 
- * <p>
- * Provides full implementations of:
- * </p>
- * <ul>
- * <li><a href="https://datatracker.ietf.org/doc/html/rfc7515">RFC-7515 JSON Web
- * Signature (JWS)</a></li>
- * <li><a href="https://datatracker.ietf.org/doc/html/rfc7516">RFC-7516 JSON Web
- * Encryption (JWE)</a></li>
- * <li><a href="https://datatracker.ietf.org/doc/html/rfc7517">RFC-7517 JSON Web
- * Key (JWK)</a></li>
- * <li><a href="https://datatracker.ietf.org/doc/html/rfc7518">RFC-7518 JSON Web
- * Algorithms (JWA)</a></li>
- * </ul>
- * 
- * @provides iu.crypt.spi.IuCryptSpi Service provider implementation
- */
-module iu.util.crypt.impl {
-	exports iu.crypt;
-	
-	requires iu.util;
-	requires transitive iu.util.crypt;
-	requires transitive iu.util.client;
-	requires jakarta.annotation;
+package iu.logging;
 
-	provides iu.crypt.spi.IuCryptSpi with iu.crypt.CryptSpi;
+import java.util.logging.Level;
+
+/**
+ * Provides thread-bound context information for log events.
+ * <p>
+ * Mirrors iu.util.logging/edu.iu.logging.IuLogContext
+ * </p>
+ */
+public interface LogContext {
+
+	/**
+	 * Gets the unique identifier for the active request
+	 * 
+	 * @return unique request ID
+	 */
+	String getRequestId();
+
+	/**
+	 * Gets log level to use for reporting informational messages related to this
+	 * logging context.
+	 * 
+	 * @return {@link Level}
+	 */
+	Level getLevel();
+
+	/**
+	 * Gets the caller IP address to report with logged messages
+	 * 
+	 * @return caller IP address
+	 */
+	String getCallerIpAddress();
+
+	/**
+	 * Gets the called URL to report with logged messages
+	 * 
+	 * @return called URL
+	 */
+	String getCalledUrl();
+
+	/**
+	 * Gets the caller principal name to report with logged messages
+	 * 
+	 * @return caller principal name
+	 */
+	String getCallerPrincipalName();
+
+	/**
+	 * Gets the impersonated principal name to report with logged messages
+	 * 
+	 * @return impersonated principal name
+	 */
+	String getImpersonatedPrincipalName();
+
 }
