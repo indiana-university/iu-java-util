@@ -3,7 +3,7 @@ IU Type Introspection Implementation Module,iu.type,ArchiveSource,0,252,0,30,0,6
 IU Type Introspection Implementation Module,iu.type,ComponentResourceReference,0,262,0,36,0,55,0,30,0,12
 IU Type Introspection Implementation Module,iu.type,TypeFactory.new Record() {...},0,9,0,0,0,1,0,1,0,1
 IU Type Introspection Implementation Module,iu.type,PropertyFacade,0,204,0,10,0,41,0,19,0,14
-IU Type Introspection Implementation Module,iu.type,ComponentResource,0,353,0,36,0,72,0,42,0,24
+IU Type Introspection Implementation Module,iu.type,ComponentResource,0,385,0,36,0,83,0,43,0,25
 IU Type Introspection Implementation Module,iu.type,ParameterizedFacade,0,6,0,0,0,1,0,1,0,1
 IU Type Introspection Implementation Module,iu.type,MethodFacade,0,117,0,12,0,22,0,14,0,8
 IU Type Introspection Implementation Module,iu.type,AnnotationBridge,0,165,0,18,0,42,0,14,0,5
