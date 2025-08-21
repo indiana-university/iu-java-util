@@ -40,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -252,7 +253,7 @@ public class ComponentResourceTest extends IuTypeTestCase {
 		class ToStringResource {
 		}
 		assertEquals(
-				"ComponentResource [needsAuthentication=true, shared=true, name=toStringResource, type=IuType[ToStringResource]]",
+				"ComponentResource [needsAuthentication=true, shared=true, name=toStringResource, type=IuType[ToStringResource], singleton=null]",
 				ComponentResource.getResources(ToStringResource.class).iterator().next().toString());
 	}
 
@@ -278,7 +279,11 @@ public class ComponentResourceTest extends IuTypeTestCase {
 		when(type.annotatedMethods(PostConstruct.class)).thenReturn(List.of(m));
 		when(type.erasedClass()).thenReturn(Object.class);
 		final var res = new ComponentResource<>(false, true, 0, name, type, () -> i);
-		res.postConstruct();
+		IuTestLogger.expect(ComponentResource.class.getName(), Level.CONFIG, "post construct exec " + m + " " + i);
+		try (final var mockIuType = mockStatic(IuType.class)) {
+			mockIuType.when(() -> IuType.of(Object.class)).thenReturn(type);
+			res.postConstruct();
+		}
 		verify(m).exec(i);
 	}
 
@@ -303,7 +308,11 @@ public class ComponentResourceTest extends IuTypeTestCase {
 		when(type.annotatedMethods(PreDestroy.class)).thenReturn(List.of(m));
 		when(type.erasedClass()).thenReturn(Object.class);
 		final var res = new ComponentResource<>(false, true, 0, name, type, () -> i);
-		res.preDestroy();
+		IuTestLogger.expect(ComponentResource.class.getName(), Level.CONFIG, "pre destroy exec " + m + " " + i);
+		try (final var mockIuType = mockStatic(IuType.class)) {
+			mockIuType.when(() -> IuType.of(Object.class)).thenReturn(type);
+			res.preDestroy();
+		}
 		verify(m).exec(i);
 	}
 

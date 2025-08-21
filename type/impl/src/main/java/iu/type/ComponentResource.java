@@ -36,6 +36,7 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.function.Supplier;
+import java.util.logging.Logger;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
@@ -55,6 +56,8 @@ import jakarta.annotation.Resources;
  * @param <T> resource type
  */
 class ComponentResource<T> implements IuResource<T> {
+
+	private static final Logger LOG = Logger.getLogger(ComponentResource.class.getName());
 
 	/**
 	 * Creates a static web resource.
@@ -185,17 +188,27 @@ class ComponentResource<T> implements IuResource<T> {
 
 	@Override
 	public void postConstruct() {
-		if (shared)
-			type.annotatedMethods(PostConstruct.class).forEach(m -> IuException.unchecked(() -> m.exec(get())));
-		else
+		if (shared) {
+			final var i = get();
+			final var impl = IuType.of(i.getClass());
+			impl.annotatedMethods(PostConstruct.class).forEach(m -> IuException.unchecked(() -> {
+				LOG.config("post construct exec " + m + " " + i);
+				return m.exec(i);
+			}));
+		} else
 			throw new IllegalStateException("not shared");
 	}
 
 	@Override
 	public void preDestroy() {
-		if (shared)
-			type.annotatedMethods(PreDestroy.class).forEach(m -> IuException.unchecked(() -> m.exec(get())));
-		else
+		if (shared) {
+			final var i = get();
+			final var impl = IuType.of(i.getClass());
+			impl.annotatedMethods(PreDestroy.class).forEach(m -> IuException.unchecked(() -> {
+				LOG.config("pre destroy exec " + m + " " + i);
+				return m.exec(i);
+			}));
+		} else
 			throw new IllegalStateException("not shared");
 	}
 
@@ -224,7 +237,7 @@ class ComponentResource<T> implements IuResource<T> {
 	@Override
 	public String toString() {
 		return "ComponentResource [needsAuthentication=" + needsAuthentication + ", shared=" + shared + ", name=" + name
-				+ ", type=" + type + "]";
+				+ ", type=" + type + ", singleton=" + singleton + "]";
 	}
 
 	private T create() {
