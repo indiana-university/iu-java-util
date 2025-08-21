@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -72,6 +72,23 @@ public interface IuResource<T> extends Supplier<T> {
 	boolean shared();
 
 	/**
+	 * Indicates the initialization priority.
+	 * 
+	 * @return initialization priority
+	 */
+	int priority();
+
+	/**
+	 * Performs post-construct logic for a shared resource.
+	 */
+	void postConstruct();
+
+	/**
+	 * Performs pre-destroy logic for a shared resource.
+	 */
+	void preDestroy();
+
+	/**
 	 * Gets the factory to be used for creating new instances.
 	 * 
 	 * <p>
@@ -105,8 +122,8 @@ public interface IuResource<T> extends Supplier<T> {
 	 * </ul>
 	 * 
 	 * <p>
-	 * To selective override default behavior, call {@link #factory()}
-	 * first to get a reference to the default factory.
+	 * To selective override default behavior, call {@link #factory()} first to get
+	 * a reference to the default factory.
 	 * </p>
 	 * 
 	 * @param factory resource implementation factory.

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -39,12 +39,22 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Proxy;
+import java.util.List;
 import java.util.function.Supplier;
+import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.IdGenerator;
+import edu.iu.test.IuTestLogger;
+import edu.iu.type.IuComponent;
+import edu.iu.type.IuMethod;
 import edu.iu.type.IuResourceKey;
 import edu.iu.type.IuType;
 import edu.iu.type.testresources.AnInterface;
@@ -60,6 +70,8 @@ import edu.iu.type.testresources.ProxyNonResource;
 import edu.iu.type.testresources.ProxyResource;
 import edu.iu.type.testresources.ThrownFromDefaultFactory;
 import edu.iu.type.testresources.ThrowsFromDefaultFactory;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import jakarta.annotation.Resource;
 import jakarta.annotation.Resources;
 
@@ -71,29 +83,30 @@ public class ComponentResourceTest extends IuTypeTestCase {
 	}
 
 	private <T> ComponentResource<T> assertComponentResource(String name, Class<T> type, Supplier<?> factory) {
-		return assertComponentResource(true, true, name, type, type, factory);
+		return assertComponentResource(true, true, -1, name, type, type, factory);
 	}
 
 	private <T> ComponentResource<T> assertComponentResource(Class<T> type, Class<?> impl, Supplier<?> factory) {
-		return assertComponentResource(true, true, IuResourceKey.getDefaultResourceName(type), type, impl, factory);
+		return assertComponentResource(true, true, -1, IuResourceKey.getDefaultResourceName(type), type, impl, factory);
 	}
 
-	private <T> ComponentResource<T> assertComponentResource(boolean needsAuthentication, boolean shared, String name,
-			Class<T> type, Class<?> impl, Supplier<?> factory) {
+	private <T> ComponentResource<T> assertComponentResource(boolean needsAuthentication, boolean shared, int priority,
+			String name, Class<T> type, Class<?> impl, Supplier<?> factory) {
 		ComponentResource<T> last = null;
 		for (final var r : ComponentResource.getResources(impl)) {
 			r.factory(factory);
-			last = assertComponentResource(needsAuthentication, shared, name, type, r);
+			last = assertComponentResource(needsAuthentication, shared, priority, name, type, r);
 		}
 		assertNotNull(last);
 		return last;
 	}
 
 	@SuppressWarnings("unchecked")
-	private <T> ComponentResource<T> assertComponentResource(boolean needsAuthentication, boolean shared, String name,
-			Class<T> type, ComponentResource<?> r) {
+	private <T> ComponentResource<T> assertComponentResource(boolean needsAuthentication, boolean shared, int priority,
+			String name, Class<T> type, ComponentResource<?> r) {
 		assertEquals(shared, r.shared());
 		assertEquals(needsAuthentication, r.needsAuthentication());
+		assertEquals(priority, r.priority());
 		assertEquals(name, r.name());
 		assertSame(type, r.type().erasedClass());
 
@@ -130,6 +143,19 @@ public class ComponentResourceTest extends IuTypeTestCase {
 	@Test
 	public void testProxyResourceIsApplicationResourceWithoutAnInterface() {
 		assertFalse(ComponentResource.getResources(ProxyNonResource.class).iterator().hasNext());
+	}
+
+	@Test
+	public void testPriority() throws Exception {
+		IuTestLogger.allow("", Level.WARNING);
+		try (final var r = IuComponent.of(TestArchives.getComponentArchive("testruntime"),
+				TestArchives.getProvidedDependencyArchives("testruntime"));
+				final var c = r.extend(TestArchives.getComponentArchive("testcomponent"))) {
+			final var loader = c.classLoader();
+			final var type = loader.loadClass("edu.iu.type.testcomponent.PriorityResource");
+			final var resource = ComponentResource.getResources(type).iterator().next();
+			assertComponentResource(true, true, 34, "priorityResource", type, resource);
+		}
 	}
 
 	@Test
@@ -182,7 +208,7 @@ public class ComponentResourceTest extends IuTypeTestCase {
 
 	@Test
 	public void testNonSharedResource() {
-		assertComponentResource(false, false, "nonSharedResource", NonSharedResource.class, NonSharedResource.class,
+		assertComponentResource(false, false, -1, "nonSharedResource", NonSharedResource.class, NonSharedResource.class,
 				NonSharedResource::new);
 	}
 
@@ -194,12 +220,12 @@ public class ComponentResourceTest extends IuTypeTestCase {
 		assertTrue(resourceIterator.hasNext());
 		var resource = resourceIterator.next();
 		resource.factory(MultiResource::new);
-		assertComponentResource(true, true, "multiResource", MultiResource.class, resource);
+		assertComponentResource(true, true, -1, "multiResource", MultiResource.class, resource);
 
 		assertTrue(resourceIterator.hasNext());
 		resource = resourceIterator.next();
 		resource.factory(MultiResource::new);
-		assertComponentResource(true, false, "sharedMultiResource", MultiResource.class, resource);
+		assertComponentResource(true, false, -1, "sharedMultiResource", MultiResource.class, resource);
 		assertFalse(resourceIterator.hasNext());
 	}
 
@@ -227,7 +253,7 @@ public class ComponentResourceTest extends IuTypeTestCase {
 		class ToStringResource {
 		}
 		assertEquals(
-				"ComponentResource [needsAuthentication=true, shared=true, name=toStringResource, type=IuType[ToStringResource]]",
+				"ComponentResource [needsAuthentication=true, shared=true, name=toStringResource, type=IuType[ToStringResource], singleton=null]",
 				ComponentResource.getResources(ToStringResource.class).iterator().next().toString());
 	}
 
@@ -241,6 +267,64 @@ public class ComponentResourceTest extends IuTypeTestCase {
 	public void testDefaultFactoryThrows() {
 		assertThrows(ThrownFromDefaultFactory.class,
 				() -> ComponentResource.getResources(ThrowsFromDefaultFactory.class).iterator().next().factory().get());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testPostConstruct() throws Exception {
+		final var i = new Object();
+		final var name = IdGenerator.generateId();
+		final var type = mock(TypeTemplate.class);
+		final var m = mock(IuMethod.class);
+		when(type.annotatedMethods(PostConstruct.class)).thenReturn(List.of(m));
+		when(type.erasedClass()).thenReturn(Object.class);
+		final var res = new ComponentResource<>(false, true, 0, name, type, () -> i);
+		IuTestLogger.expect(ComponentResource.class.getName(), Level.CONFIG, "post construct exec " + m + " " + i);
+		try (final var mockIuType = mockStatic(IuType.class)) {
+			mockIuType.when(() -> IuType.of(Object.class)).thenReturn(type);
+			res.postConstruct();
+		}
+		verify(m).exec(i);
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testPostConstructNotShared() throws Exception {
+		final var i = new Object();
+		final var name = IdGenerator.generateId();
+		final var type = mock(TypeTemplate.class);
+		final var res = new ComponentResource<>(false, false, 0, name, type, () -> i);
+		final var error = assertThrows(IllegalStateException.class, res::postConstruct);
+		assertEquals("not shared", error.getMessage());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testPreDestroy() throws Exception {
+		final var i = new Object();
+		final var name = IdGenerator.generateId();
+		final var type = mock(TypeTemplate.class);
+		final var m = mock(IuMethod.class);
+		when(type.annotatedMethods(PreDestroy.class)).thenReturn(List.of(m));
+		when(type.erasedClass()).thenReturn(Object.class);
+		final var res = new ComponentResource<>(false, true, 0, name, type, () -> i);
+		IuTestLogger.expect(ComponentResource.class.getName(), Level.CONFIG, "pre destroy exec " + m + " " + i);
+		try (final var mockIuType = mockStatic(IuType.class)) {
+			mockIuType.when(() -> IuType.of(Object.class)).thenReturn(type);
+			res.preDestroy();
+		}
+		verify(m).exec(i);
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testPreDestroyNotShared() throws Exception {
+		final var i = new Object();
+		final var name = IdGenerator.generateId();
+		final var type = mock(TypeTemplate.class);
+		final var res = new ComponentResource<>(false, false, 0, name, type, () -> i);
+		final var error = assertThrows(IllegalStateException.class, res::preDestroy);
+		assertEquals("not shared", error.getMessage());
 	}
 
 }

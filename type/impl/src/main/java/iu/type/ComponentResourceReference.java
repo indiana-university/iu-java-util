@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -151,6 +151,11 @@ class ComponentResourceReference<R, T> implements IuResourceReference<R, T>, Ins
 			attribute.set(referrer, boundResource.get());
 
 		visitor.accept(referrer);
+	}
+
+	@Override
+	public T value(R referrer) {
+		return type.autoboxClass().cast(attribute.get(referrer));
 	}
 
 	@Override

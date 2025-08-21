@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -170,7 +170,7 @@ public class ComponentTest extends IuTypeTestCase {
 				path[i++] = archive.path().toUri().toURL();
 		}
 
-		final var loader = new LegacyClassLoader(false, path, ClassLoader.getSystemClassLoader());
+		final var loader = new URLClassLoader(path, ClassLoader.getSystemClassLoader());
 		try (var component = new Component(null, loader, ModuleLayer.boot(), archives, () -> {
 			loader.close();
 			destroy.run();
@@ -194,6 +194,7 @@ public class ComponentTest extends IuTypeTestCase {
 						() -> IuComponent.of(TestArchives.getComponentArchive("testruntime"), deps)).getMessage());
 	}
 
+	@SuppressWarnings("resource")
 	@Test
 	public void testCantExtendWeb() throws Exception {
 		try (var parent = IuComponent.of(TestArchives.getComponentArchive("testruntime"),

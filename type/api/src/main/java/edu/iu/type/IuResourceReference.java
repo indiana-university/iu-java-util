@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -86,6 +86,15 @@ public interface IuResourceReference<R, T> extends Consumer<R> {
 	 *                 may be null to unbind the reference
 	 */
 	void bind(IuResource<T> resource);
+
+	/**
+	 * Gets the default value to use when the resource reference could not be bound
+	 * to an environment entry or container resource.
+	 * 
+	 * @param referrer <strong>referrer instance</strong>
+	 * @return default value; null if no default is defined for the reference
+	 */
+	T value(R referrer);
 
 	/**
 	 * Accepts a <strong>referrer instance</strong> as a {@link #bind(IuResource)
