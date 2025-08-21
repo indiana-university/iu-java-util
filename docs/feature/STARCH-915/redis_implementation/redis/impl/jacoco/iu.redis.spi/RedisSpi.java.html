@@ -40,7 +40,7 @@ import iu.redis.lettuce.LettuceConnection;
  * Implementation of Redis service provider interface.
  */
 public class RedisSpi implements IuRedisSpi {
-	
+
 	/**
 	 * Default constructor
 	 */

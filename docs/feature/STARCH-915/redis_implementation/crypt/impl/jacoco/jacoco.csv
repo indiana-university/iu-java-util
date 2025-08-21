@@ -1,4 +1,5 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+IU Web Cryptography Utilities,iu.crypt.init,CryptImplResource,0,4,0,0,0,3,0,1,0,1
 IU Web Cryptography Utilities,iu.crypt,JwkBuilder,0,634,0,39,0,118,0,47,0,25
 IU Web Cryptography Utilities,iu.crypt,Jwe.AesCbcHmac,0,282,0,4,0,48,0,11,0,9
 IU Web Cryptography Utilities,iu.crypt,JoseBuilder,0,111,0,4,0,22,0,14,0,12

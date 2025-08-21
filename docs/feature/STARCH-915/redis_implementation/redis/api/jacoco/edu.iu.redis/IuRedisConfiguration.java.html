@@ -77,10 +77,10 @@ public interface IuRedisConfiguration {
 	/**
 	 * Returns the key expiration duration.
 	 * 
-	 * @return the key expiration duration
+	 * @return the key expiration duration, default is 15 minutes
 	 */
 	default Duration getKeyExpiration() {
-<span class="fc" id="L83">		return Duration.ofMinutes(5);</span>
+<span class="fc" id="L83">		return Duration.ofMinutes(15);</span>
 	}
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
