@@ -118,8 +118,9 @@ final class AnnotationBridge {
 		if (legacyAnnotation == null)
 			return null;
 
-		return annotationType.cast(Proxy.newProxyInstance(annotationType.getClassLoader(),
-				new Class<?>[] { annotationType }, new PotentiallyRemoteAnnotationHandler(annotationType, legacyAnnotation)));
+		return annotationType
+				.cast(Proxy.newProxyInstance(annotationType.getClassLoader(), new Class<?>[] { annotationType },
+						new PotentiallyRemoteAnnotationHandler(annotationType, legacyAnnotation)));
 	}
 
 	/**
@@ -139,7 +140,7 @@ final class AnnotationBridge {
 			Class<?> localClass;
 			try {
 				localClass = BackwardsCompatibility.getCompatibleClass(annotationType);
-			} catch (ClassNotFoundException e) {
+			} catch (NoClassDefFoundError e) {
 				continue;
 			}
 
@@ -147,8 +148,9 @@ final class AnnotationBridge {
 				localAnnotations.offer(annotation);
 			else if (Annotation.class.isAssignableFrom(localClass)) {
 				var localAnnotationType = localClass.asSubclass(Annotation.class);
-				localAnnotations.offer((Annotation) Proxy.newProxyInstance(localClass.getClassLoader(),
-						new Class<?>[] { localClass }, new PotentiallyRemoteAnnotationHandler(localAnnotationType, annotation)));
+				localAnnotations.offer(
+						(Annotation) Proxy.newProxyInstance(localClass.getClassLoader(), new Class<?>[] { localClass },
+								new PotentiallyRemoteAnnotationHandler(localAnnotationType, annotation)));
 			}
 		}
 

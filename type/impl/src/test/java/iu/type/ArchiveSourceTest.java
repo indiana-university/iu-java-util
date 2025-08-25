@@ -41,8 +41,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -152,24 +150,6 @@ public class ArchiveSourceTest extends IuTypeTestCase {
 		source.close();
 		assertFalse(source.hasNext());
 		assertThrows(NoSuchElementException.class, source::next);
-	}
-
-	@Test
-	public void testClassPath() throws Throwable {
-		ArchiveSource empty = read(createJar(Map.of()));
-		assertFalse(empty.classPath().iterator().hasNext());
-
-		try (final var source = new ArchiveSource(
-				Files.newInputStream(Path.of(IuTest.getProperty("testruntime.archive"))))) {
-			assertEquals(List.of(
-					"META-INF/lib/jakarta.interceptor-api-" + IuTest.getProperty("jakarta.interceptor-api.version")
-							+ ".jar",
-					"META-INF/lib/jakarta.annotation-api-" + IuTest.getProperty("jakarta.annotation-api.version")
-							+ ".jar",
-					"META-INF/lib/jakarta.json-api-" + IuTest.getProperty("jakarta.json-api.version") + ".jar",
-					"META-INF/lib/commons-lang-2.6.jar", "META-INF/lib/jakarta.ejb-api-4.0.0.jar",
-					"META-INF/lib/jakarta.transaction-api-2.0.0.jar"), source.classPath());
-		}
 	}
 
 	@Test

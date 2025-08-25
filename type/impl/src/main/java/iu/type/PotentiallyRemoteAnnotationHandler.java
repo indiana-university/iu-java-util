@@ -66,8 +66,14 @@ class PotentiallyRemoteAnnotationHandler implements InvocationHandler {
 		this.potentiallyRemoteAnnotation = potentiallyRemoteAnnotation;
 	}
 
+	/**
+	 * Converts an object to a given local type.
+	 * @param o object
+	 * @param localClass local type
+	 * @return o, converted
+	 */
 	@SuppressWarnings("unchecked")
-	private Object convert(Object o, Class<?> localClass) throws ClassNotFoundException {
+	Object convert(Object o, Class<?> localClass) {
 		if (localClass.isInstance(o))
 			return o;
 

@@ -39,7 +39,6 @@ import java.lang.module.ModuleDescriptor;
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
-import java.lang.reflect.Type;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.function.Consumer;
@@ -95,54 +94,6 @@ import edu.iu.type.spi.TypeImplementation;
  * module-info.class} in its <strong>archive</strong> <em>must</em> meet all
  * requirements of the <a href="https://openjdk.org/projects/jigsaw/">Java
  * Module System</a>.
- * </p>
- * 
- * <h2>Legacy Components</h2>
- * <p>
- * To preserve compatibility for <strong>components</strong> that
- * <strong>depend</strong> on IU JEE 6, Servlet 4, and EJB 3 <strong>legacy
- * components</strong> with such dependencies <em>must</em> be loaded in an
- * {@link Module#isNamed() unnamed module} by a {@link ClassLoader class loader}
- * that does not delegate to the {@link ClassLoader#getSystemClassLoader()
- * system class loader}.
- * </p>
- * 
- * <p>
- * A <strong>component</strong> <em>must</em> be loaded as a <strong>legacy
- * components</strong> if its archive does not include {@link ModuleDescriptor
- * module-info.class} and meets at least one of the following additional
- * criteria:
- * </p>
- * <ul>
- * <li>Does not include {@code Extension-List} in its
- * {@link Manifest#getMainAttributes() manifest's main attributes section}, or
- * if {@code Extension-List} includes {@code javax.servlet-api},
- * {@code javax.ejb-api}, {@code jakarta.servlet-api} with version &lt; 6.0, or
- * {@code jakarta.ejb-api} with version &lt; 4.0. If both
- * {@link ModuleDescriptor module-info.class} and a <strong>legacy
- * dependency</strong> is named, the <strong>component</strong> will be loaded
- * as <strong>modular</strong>.</li>
- * <li>Includes {@code META-INF/iu.properties}. When both
- * {@code META-INF/iu.properties} and {@link ModuleDescriptor module-info.class}
- * are present, the <strong>archive</strong> will be rejected with
- * {@link IllegalArgumentException}.</li>
- * </ul>
- * 
- * <p>
- * Types defined by <strong>legacy components</strong> that
- * <strong>depend</strong> on packages named {@code javax.*} <em>may</em> be
- * converted to access equivalent types named {@code jakarta.*} when an
- * equivalent package is <strong>inherited</strong> from a <strong>modular
- * parent component</strong>. To facilitate this consideration,
- * {@link IuType#referTo(Type) type references} and {@link IuAnnotatedElement
- * annotated elements} <em>may</em> automatically be converted to
- * <strong>non-legacy</strong> equivalents when performing introspection on
- * <strong>legacy components</strong>.
- * </p>
- * 
- * <p>
- * <strong>Legacy components</strong> <em>may</em> consider "<em>should</em>"
- * requirements outlined below as <em>optional</em>.
  * </p>
  * 
  * <h2>Dependencies</h2>
@@ -410,53 +361,24 @@ public interface IuComponent extends AutoCloseable {
 		 * Designates <strong>single entry</strong> component defined by a single
 		 * resource path in an externally managed {@link ClassLoader}.
 		 */
-		MODULAR_ENTRY(true, false),
-
-		/**
-		 * Designates <strong>single entry</strong> component defined by a single
-		 * resource path in an externally managed {@link ClassLoader}.
-		 */
-		LEGACY_ENTRY(false, false),
+		ENTRY(false),
 
 		/**
 		 * Designates <strong>modular</strong> component defined by one or more Java
 		 * Archive (jar) files.
 		 */
-		MODULAR_JAR(true, false),
-
-		/**
-		 * Designates an <strong>legacy</strong> component defined by a Java Archive
-		 * (jar) file.
-		 */
-		LEGACY_JAR(false, false),
+		JAR(false),
 
 		/**
 		 * Designates <strong>modular</strong> component defined by a Web Application
 		 * Archive (war) file.
 		 */
-		MODULAR_WAR(true, true),
+		WAR(true);
 
-		/**
-		 * Designates an <strong>legacy</strong> component defined by a Web Application
-		 * Archive (war) file.
-		 */
-		LEGACY_WAR(false, true);
-
-		private final boolean modular;
 		private final boolean web;
 
-		private Kind(boolean modular, boolean web) {
-			this.modular = modular;
+		private Kind(boolean web) {
 			this.web = web;
-		}
-
-		/**
-		 * Determines if the <strong>component</strong> is <strong>modular</strong>.
-		 * 
-		 * @return {@code true} if <strong>modular</strong>; else {@code false}
-		 */
-		public boolean isModular() {
-			return modular;
 		}
 
 		/**
@@ -773,18 +695,6 @@ public interface IuComponent extends AutoCloseable {
 	/**
 	 * Gets all of the component's public interfaces.
 	 * 
-	 * <p>
-	 * This method is intended to support resource and service discovery of public
-	 * APIs defined by the applications. A <strong>modular component</strong>
-	 * <em>Must not</em> include interfaces from a module that does not
-	 * {@link Module#isOpen(String, Module) open} the package containing the
-	 * interface to the {@code iu.util.type.impl} module. A <strong>legacy
-	 * component</strong> <em>Must not</em> include interfaces from any
-	 * <strong>dependencies</strong> unless the <strong>dependency</strong> is a
-	 * {@link Kind#LEGACY_JAR} that includes an {@code META-INF/iu.properties}
-	 * resource.
-	 * </p>
-	 * 
 	 * @return interface facades
 	 */
 	Iterable<? extends IuType<?, ?>> interfaces();
@@ -802,8 +712,7 @@ public interface IuComponent extends AutoCloseable {
 	 * ends with '/').</li>
 	 * <li>All types in the <strong>component</strong> and all
 	 * <strong>dependencies</strong> declared as part of an package open to
-	 * {@code iu.util.type.impl}, or in a <strong>legacy component</strong> with
-	 * {@code META-INF/iu.properties}, that includes the @Resource or @Resources
+	 * {@code iu.util.type.impl}, that includes the @Resource or @Resources
 	 * annotation where either the <strong>resource type</strong> designated by the
 	 * annotation {@link Class#isAssignableFrom(Class) is assignable from} the
 	 * <strong>annotated type</strong>, or the designated type is an interface and

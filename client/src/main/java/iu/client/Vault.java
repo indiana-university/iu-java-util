@@ -52,7 +52,6 @@ import java.util.logging.Logger;
 
 import edu.iu.IuCacheMap;
 import edu.iu.IuException;
-import edu.iu.IuObject;
 import edu.iu.IuRuntimeEnvironment;
 import edu.iu.client.HttpException;
 import edu.iu.client.HttpResponseHandler;
@@ -70,9 +69,6 @@ import jakarta.json.JsonValue;
  * 
  */
 public final class Vault implements IuVault {
-	static {
-		IuObject.assertNotOpen(Vault.class);
-	}
 
 	private static final Logger LOG = Logger.getLogger(Vault.class.getName());
 
@@ -256,48 +252,48 @@ public final class Vault implements IuVault {
 
 		final Consumer<JsonObject> mergePatchConsumer;
 
-			mergePatchConsumer = mergePatch -> IuException.unchecked(() -> {
-				final var data = dataSupplier.get();
-				final var metadata = metadataSupplier.get();
+		mergePatchConsumer = mergePatch -> IuException.unchecked(() -> {
+			final var data = dataSupplier.get();
+			final var metadata = metadataSupplier.get();
 
-				final var updatedData = IuJson.PROVIDER.createMergePatch(mergePatch).apply(data).asJsonObject();
+			final var updatedData = IuJson.PROVIDER.createMergePatch(mergePatch).apply(data).asJsonObject();
 
-				final String dataRequestPayload;
-				if (cubbyhole)
-					dataRequestPayload = updatedData.toString();
-				else {
-					final var dataRequestPayloadBuilder = IuJson.object();
-					dataRequestPayloadBuilder.add("options", IuJson.object().add("cas", metadata.getInt("version")));
-					dataRequestPayloadBuilder.add("data", updatedData);
-					dataRequestPayload = dataRequestPayloadBuilder.build().toString();
-				}
+			final String dataRequestPayload;
+			if (cubbyhole)
+				dataRequestPayload = updatedData.toString();
+			else {
+				final var dataRequestPayloadBuilder = IuJson.object();
+				dataRequestPayloadBuilder.add("options", IuJson.object().add("cas", metadata.getInt("version")));
+				dataRequestPayloadBuilder.add("data", updatedData);
+				dataRequestPayload = dataRequestPayloadBuilder.build().toString();
+			}
 
-				final HttpResponseHandler<?> responseHandler;
-				if (cubbyhole)
-					responseHandler = IuHttp.NO_CONTENT;
-				else
-					responseHandler = IuHttp.READ_JSON_OBJECT;
+			final HttpResponseHandler<?> responseHandler;
+			if (cubbyhole)
+				responseHandler = IuHttp.NO_CONTENT;
+			else
+				responseHandler = IuHttp.READ_JSON_OBJECT;
 
-				if (cubbyhole && updatedData.isEmpty())
-					IuHttp.send(dataUri, rb -> {
-						rb.DELETE();
-						this.authorize(rb);
-					}, responseHandler);
-				else
-					IuHttp.send(dataUri, rb -> {
-						rb.POST(BodyPublishers.ofString(dataRequestPayload));
-						this.authorize(rb);
-					}, responseHandler);
+			if (cubbyhole && updatedData.isEmpty())
+				IuHttp.send(dataUri, rb -> {
+					rb.DELETE();
+					this.authorize(rb);
+				}, responseHandler);
+			else
+				IuHttp.send(dataUri, rb -> {
+					rb.POST(BodyPublishers.ofString(dataRequestPayload));
+					this.authorize(rb);
+				}, responseHandler);
 
-				final var delete = mergePatch.values().stream().allMatch(JsonValue.NULL::equals);
-				LOG.config(() -> "vault:" + (delete ? "delete:" : "set:") + dataUri + ":" + mergePatch.keySet());
+			final var delete = mergePatch.values().stream().allMatch(JsonValue.NULL::equals);
+			LOG.config(() -> "vault:" + (delete ? "delete:" : "set:") + dataUri + ":" + mergePatch.keySet());
 
-				final var updated = readSecret(secret);
-				if (secretCache == null)
-					ref.data = updated;
-				else
-					secretCache.put(secret, updated);
-			});
+			final var updated = readSecret(secret);
+			if (secretCache == null)
+				ref.data = updated;
+			else
+				secretCache.put(secret, updated);
+		});
 
 		return new VaultSecret(secret, dataUri, dataSupplier, metadataSupplier, mergePatchConsumer, valueAdapter);
 	}

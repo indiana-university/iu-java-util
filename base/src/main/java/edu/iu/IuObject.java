@@ -144,6 +144,12 @@ public final class IuObject {
 	 * @return {@code true} if a platform type; else false
 	 */
 	public static boolean isPlatformName(String name) {
+		final var platformNames = IuRuntimeEnvironment.envOptional("iu.util.platformNames");
+		if (platformNames != null)
+			for (final var platformName : platformNames.split(","))
+				if (name.startsWith(platformName))
+					return true;
+
 		return name.startsWith("jakarta.") // JEE and related
 				// JDK packages:
 				|| name.startsWith("sun.") //
