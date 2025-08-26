@@ -151,6 +151,24 @@
 						</configuration>
 					</execution>
 					<execution>
+						<id>unpack-testlegacy-deps</id>
+						<goals>
+							<goal>unpack</goal>
+						</goals>
+						<phase>generate-test-resources</phase>
+						<configuration>
+							<outputDirectory>${project.build.directory}/dependency/iu-java-type-testlegacy-deps</outputDirectory>
+							<artifactItems>
+								<artifactItem>
+									<groupId>${project.groupId}</groupId>
+									<artifactId>iu-java-type-testlegacy</artifactId>
+									<version>${project.version}</version>
+									<classifier>deps</classifier>
+								</artifactItem>
+							</artifactItems>
+						</configuration>
+					</execution>
+					<execution>
 						<id>unpack-testweb-deps</id>
 						<goals>
 							<goal>unpack</goal>

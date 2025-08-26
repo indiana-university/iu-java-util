@@ -85,9 +85,11 @@ public class TestArchives extends IuTypeTestCase {
 		path.offer(Path.of(
 				"target/dependency/iu-java-type-" + componentName + (componentName.equals("testweb") ? ".war" : ".jar"))
 				.toUri().toURL());
-		for (var jar : Files.newDirectoryStream(Path.of("target/dependency/iu-java-type-" + componentName + "-deps")))
-			if (jar.toString().endsWith(".jar"))
-				path.offer(jar.toUri().toURL());
+		final var deps = Path.of("target/dependency/iu-java-type-" + componentName + "-deps");
+		if (Files.exists(deps))
+			for (var jar : Files.newDirectoryStream(deps))
+				if (jar.toString().endsWith(".jar"))
+					path.offer(jar.toUri().toURL());
 		return path.toArray(path.toArray(new URL[path.size()]));
 	}
 

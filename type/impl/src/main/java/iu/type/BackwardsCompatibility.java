@@ -97,7 +97,7 @@ final class BackwardsCompatibility {
 		}
 
 		try {
-			return Thread.currentThread().getContextClassLoader().loadClass(compatibleClassName);
+			return contextLoader.loadClass(compatibleClassName);
 		} catch (ClassNotFoundException e) {
 			final var err = new NoClassDefFoundError();
 			err.initCause(e);
