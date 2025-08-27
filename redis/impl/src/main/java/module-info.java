@@ -36,6 +36,8 @@
  * 
  **/
 module iu.util.redis.impl {
+	exports iu.redis.spi;
+	opens iu.redis.spi;
 
 	requires static org.apache.commons.pool2;
 	requires static lettuce.core;

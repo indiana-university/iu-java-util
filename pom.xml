@@ -416,6 +416,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 										<goals>
 											<goal>copy</goal>
 											<goal>copy-dependencies</goal>
+											<goal>unpack</goal>
+											<goal>unpack-dependencies</goal>
 										</goals>
 									</pluginExecutionFilter>
 									<action>

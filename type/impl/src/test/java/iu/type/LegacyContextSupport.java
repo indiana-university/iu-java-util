@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -29,39 +29,31 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.redis.spi;
+package iu.type;
 
-import edu.iu.IuException;
-import edu.iu.redis.IuRedis;
-import edu.iu.redis.IuRedisConfiguration;
-import edu.iu.redis.spi.IuRedisSpi;
-import iu.redis.lettuce.LettuceConnection;
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.Priority;
-import jakarta.annotation.Resource;
+import java.net.URLClassLoader;
+import java.util.Set;
 
-/**
- * Implementation of Redis service provider interface.
- */
-@Priority(100)
-@Resource
-public class RedisSpi implements IuRedisSpi {
+import org.junit.jupiter.api.extension.AfterAllCallback;
+import org.junit.jupiter.api.extension.BeforeAllCallback;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
-	/**
-	 * Default constructor
-	 */
-	public RedisSpi() {
-	}
+import edu.iu.type.base.FilteringClassLoader;
 
-	@PostConstruct
-	private void init() {
-		// ensure IuRedis context is bound to this impl module
-		IuException.unchecked(() -> Class.forName("iu.redis.IuRedisSpiFactory"));
+@SuppressWarnings({ "javadoc", "exports" })
+public class LegacyContextSupport implements BeforeAllCallback, AfterAllCallback {
+
+	static URLClassLoader loader;
+
+	@Override
+	public void beforeAll(ExtensionContext context) throws Exception {
+		loader = new URLClassLoader(TestArchives.getClassPath("testlegacy"),
+				new FilteringClassLoader(Set.of(), ClassLoader.getPlatformClassLoader()));
 	}
 
 	@Override
-	public IuRedis createConnection(IuRedisConfiguration config) {
-		return new LettuceConnection(config);
+	public void afterAll(ExtensionContext context) throws Exception {
+		loader.close();
 	}
 
 }

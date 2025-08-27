@@ -2,47 +2,29 @@ package iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.IOException;
-import java.net.URLClassLoader;
-import java.util.Set;
-
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import edu.iu.legacy.Incompatible;
-import edu.iu.legacy.IncompatibleEnum;
 import edu.iu.legacy.NotResource;
-import edu.iu.type.base.FilteringClassLoader;
 import jakarta.annotation.Resource;
 import jakarta.annotation.Resources;
 
+@ExtendWith(LegacyContextSupport.class)
 @SuppressWarnings("javadoc")
 public class PotentiallRemoteAnnotationHandlerTest {
-
-	private static URLClassLoader legacy;
-
-	@BeforeAll
-	public static void setup() throws IOException {
-		legacy = new URLClassLoader(TestArchives.getClassPath("testlegacy"),
-				new FilteringClassLoader(Set.of(), ClassLoader.getPlatformClassLoader()));
-	}
-
-	@AfterAll
-	public static void teardown() throws IOException {
-		legacy.close();
-	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
 	public void testConvert() throws Throwable {
-		final var legacyResource = BackwardsCompatibility.getCompatibleClass(Resource.class, legacy);
+		final var legacyResource = BackwardsCompatibility.getCompatibleClass(Resource.class, LegacyContextSupport.loader);
 		assertEquals("javax.annotation.Resource", legacyResource.getName());
-		final var legacyAnnotation = legacy.loadClass("edu.iu.legacy.LegacyResource")
+		final var legacyAnnotation = LegacyContextSupport.loader.loadClass("edu.iu.legacy.LegacyResource")
 				.getAnnotation((Class) legacyResource);
 		final var h = new PotentiallyRemoteAnnotationHandler(Resource.class, legacyAnnotation);
 		final var o = new Object();
@@ -64,22 +46,25 @@ public class PotentiallRemoteAnnotationHandlerTest {
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
 	public void testMulti() throws Throwable {
-		final var legacyResources = BackwardsCompatibility.getCompatibleClass(Resources.class, legacy);
+		final var legacyResources = BackwardsCompatibility.getCompatibleClass(Resources.class, LegacyContextSupport.loader);
 		assertEquals("javax.annotation.Resources", legacyResources.getName());
-		final var legacyAnnotation = legacy.loadClass("edu.iu.legacy.LegacyResource")
+		final var legacyAnnotation = LegacyContextSupport.loader.loadClass("edu.iu.legacy.LegacyResource")
 				.getAnnotation((Class) legacyResources);
 		final var h = new PotentiallyRemoteAnnotationHandler(Resources.class, legacyAnnotation);
 		final var r = assertInstanceOf(Resources.class,
 				TypeUtils.callWithContext(legacyResources, () -> h.convert(legacyAnnotation, Resources.class)));
+		assertNotEquals(r, new Object());
 		final var rs = r.value();
 		assertEquals(2, rs.length);
+		assertEquals(rs[0], rs[0]);
+		assertNotEquals(rs[0], rs[1]);
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
 	public void testIncompatible() throws Throwable {
-		final var incompatible = BackwardsCompatibility.getCompatibleClass(Incompatible.class, legacy);
-		final var legacyAnnotation = legacy.loadClass("edu.iu.legacy.LegacyResource")
+		final var incompatible = BackwardsCompatibility.getCompatibleClass(Incompatible.class, LegacyContextSupport.loader);
+		final var legacyAnnotation = LegacyContextSupport.loader.loadClass("edu.iu.legacy.LegacyResource")
 				.getAnnotation((Class) incompatible);
 		final var h = new PotentiallyRemoteAnnotationHandler(Resources.class, legacyAnnotation);
 

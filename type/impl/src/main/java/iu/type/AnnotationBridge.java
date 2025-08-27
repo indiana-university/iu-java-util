@@ -53,15 +53,13 @@ final class AnnotationBridge {
 	 * @param annotatedElement {@link AnnotatedElement} context target
 	 * @param localClass       local class
 	 * @return remote class; <em>may</em> be same as local class
-	 * @throws ClassNotFoundException if an equivalent remote type cannot be found
 	 */
-	static Class<?> getPotentiallyRemoteClass(AnnotatedElement annotatedElement, Class<?> localClass)
-			throws ClassNotFoundException {
+	static Class<?> getPotentiallyRemoteClass(AnnotatedElement annotatedElement, Class<?> localClass) {
 		try {
 			return TypeUtils.callWithContext(annotatedElement,
 					() -> BackwardsCompatibility.getCompatibleClass(localClass));
 		} catch (Throwable e) {
-			throw IuException.checked(e, ClassNotFoundException.class);
+			throw IuException.unchecked(e);
 		}
 	}
 
@@ -81,7 +79,7 @@ final class AnnotationBridge {
 		Class<?> legacyAnnotationType;
 		try {
 			legacyAnnotationType = getPotentiallyRemoteClass(annotatedElement, annotationType);
-		} catch (ClassNotFoundException e) {
+		} catch (NoClassDefFoundError e) {
 			return false;
 		}
 
@@ -107,7 +105,7 @@ final class AnnotationBridge {
 		Class<?> legacyAnnotationType;
 		try {
 			legacyAnnotationType = getPotentiallyRemoteClass(annotatedElement, annotationType);
-		} catch (ClassNotFoundException e) {
+		} catch (NoClassDefFoundError e) {
 			return null;
 		}
 

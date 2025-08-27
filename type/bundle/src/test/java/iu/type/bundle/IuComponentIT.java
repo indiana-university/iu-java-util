@@ -56,7 +56,7 @@ public class IuComponentIT {
 	@Test
 	public void testScan() {
 		IuComponent component = IuComponent.scan(getClass());
-		assertEquals(Kind.LEGACY_ENTRY, component.kind());
+		assertEquals(Kind.ENTRY, component.kind());
 	}
 
 }

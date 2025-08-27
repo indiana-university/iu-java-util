@@ -126,11 +126,15 @@ class ComponentResource<T> implements IuResource<T> {
 		else
 			name = resource.name();
 
-		final var priority = type.annotation(Priority.class);
+		final var targetType = TypeFactory.resolveRawClass(targetClass);
+
+		var priority = targetType.annotation(Priority.class);
+		if (priority == null)
+			priority = type.annotation(Priority.class);
 
 		return new ComponentResource<>(resource.authenticationType().equals(AuthenticationType.CONTAINER),
 				resource.shareable(), priority == null ? -1 : priority.value(), name, type,
-				() -> IuException.unchecked(() -> TypeFactory.resolveRawClass(targetClass).constructor().exec()));
+				() -> IuException.unchecked(() -> targetType.constructor().exec()));
 	}
 
 	private final boolean needsAuthentication;
