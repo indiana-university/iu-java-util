@@ -19,10 +19,10 @@ jobs:
     name: Verify and Deploy Maven Project
     runs-on: [ Linux ]
     container:
-      image: registry.docker.iu.edu/eshr-architecture/ess-build:latest
+      image: registry.docker.iu.edu/esas-build-prod/esas-java-build
       credentials:
-        username: ${{ secrets.ESHR_REGISTRY_USERNAME }}
-        password: ${{ secrets.ESHR_REGISTRY_PASSWORD }}
+        username: ${{ secrets.REGISTRY_USERNAME }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
       volumes:
         - /opt/actions/cache/m2/repository:/root/.m2/repository
 
@@ -30,17 +30,16 @@ jobs:
        - name: Clone GitHub repository
          uses: actions/checkout@v3
      
-       - name: Generate build time configuration
+       - name: Create gitconfig
+         run: echo -n '${{ secrets.GITCONFIG }}' > /tmp/.gitconfig
+
+       - name: Clone GitHub repository
+         uses: actions/checkout@v3
          env:
-          ESSBUILD_VAULT_APPROLE_ROLE_ID_UNT: ${{ secrets.ESSBUILD_VAULT_APPROLE_ROLE_ID_UNT }}
-          ESSBUILD_VAULT_APPROLE_SECRET_ID_UNT: ${{ secrets.ESSBUILD_VAULT_APPROLE_SECRET_ID_UNT }}
-          ESSBUILD_VAULT_APPROLE_ROLE_ID_STG: ${{ secrets.ESSBUILD_VAULT_APPROLE_ROLE_ID_STG }}
-          ESSBUILD_VAULT_APPROLE_SECRET_ID_STG: ${{ secrets.ESSBUILD_VAULT_APPROLE_SECRET_ID_STG }}
-          ESSBUILD_VAULT_APPROLE_ROLE_ID_REG: ${{ secrets.ESSBUILD_VAULT_APPROLE_ROLE_ID_REG }}
-          ESSBUILD_VAULT_APPROLE_SECRET_ID_REG: ${{ secrets.ESSBUILD_VAULT_APPROLE_SECRET_ID_REG }}
-         run: |
-           generate_build_properties
-           generate_deploy_properties
+          GIT_CONFIG_GLOBAL: /tmp/.gitconfig
+
+       - name: Create maven settings.xml
+         run: echo -n '${{ secrets.MAVEN_SETTINGS }}' > /root/.m2/settings.xml
 
        - name: Compile, Verify, and Build Javadoc
          id: verify

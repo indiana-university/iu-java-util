@@ -54,6 +54,7 @@ jobs:
       - name: Publish Documentation
         if: steps.compile.outcome == 'success'
         run: |
+          git config --global --add safe.directory $PWD
           if (git fetch origin github_pages)
           then
             git checkout github_pages
