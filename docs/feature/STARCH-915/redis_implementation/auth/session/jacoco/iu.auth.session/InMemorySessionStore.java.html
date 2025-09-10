@@ -3,9 +3,11 @@
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 import edu.iu.IuDataStore;
 import edu.iu.IuText;
@@ -14,17 +16,17 @@ import edu.iu.IuText;
  * In-memory session store implementation.
  */
 public class InMemorySessionStore implements IuDataStore {
-<span class="fc" id="L17">	private static final Map&lt;String, SessionToken&gt; SESSION_TOKENS = new ConcurrentHashMap&lt;&gt;();</span>
-<span class="fc" id="L18">	private static final Timer PURGE_TIMER = new Timer(&quot;session-purge&quot;, true);</span>
+<span class="fc" id="L19">	private static final Map&lt;String, SessionToken&gt; SESSION_TOKENS = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L20">	private static final Timer PURGE_TIMER = new Timer(&quot;session-purge&quot;, true);</span>
 	static {
-<span class="fc" id="L20">		PURGE_TIMER.schedule(new PurgeTask(), 15000L, 15000L);</span>
-<span class="fc" id="L21">	}</span>
+<span class="fc" id="L22">		PURGE_TIMER.schedule(new PurgeTask(), TimeUnit.SECONDS.toMillis(15L), TimeUnit.SECONDS.toMillis(15L));</span>
+<span class="fc" id="L23">	}</span>
 	
 	/**
 	 * Default constructor
 	 */
-<span class="fc" id="L26">	public InMemorySessionStore() {</span>
-<span class="fc" id="L27">	}</span>
+<span class="fc" id="L28">	public InMemorySessionStore() {</span>
+<span class="fc" id="L29">	}</span>
 
 	/**
 	 * Purges all expired stored sessions.
@@ -33,46 +35,48 @@ public class InMemorySessionStore implements IuDataStore {
 		/**
 		 * Default constructor
 		 */
-<span class="fc" id="L36">		PurgeTask() {</span>
-<span class="fc" id="L37">		}</span>
+<span class="fc" id="L38">		PurgeTask() {</span>
+<span class="fc" id="L39">		}</span>
 
 		@Override
 		public void run() {
-<span class="fc" id="L41">			final var purgeTime = Instant.now();</span>
-<span class="fc" id="L42">			final var i = SESSION_TOKENS.values().iterator();</span>
-<span class="fc bfc" id="L43" title="All 2 branches covered.">			while (i.hasNext())</span>
-<span class="fc bfc" id="L44" title="All 2 branches covered.">				if (i.next().inactivePurgeTime().isBefore(purgeTime))</span>
-<span class="fc" id="L45">					i.remove();</span>
-<span class="fc" id="L46">		}</span>
+<span class="fc" id="L43">			final var purgeTime = Instant.now();</span>
+<span class="fc" id="L44">			final var i = SESSION_TOKENS.values().iterator();</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">			while (i.hasNext())</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">				if (i.next().inactivePurgeTime().isBefore(purgeTime))</span>
+<span class="fc" id="L47">					i.remove();</span>
+<span class="fc" id="L48">		}</span>
 	}
 
 	@Override
 	public Iterable&lt;?&gt; list() {
-<span class="fc" id="L51">		return SESSION_TOKENS.keySet();</span>
+<span class="fc" id="L53">		return SESSION_TOKENS.keySet();</span>
 	}
 
 	@Override
 	public byte[] get(byte[] key) {
-<span class="fc" id="L56">		final var session = SESSION_TOKENS.get(IuText.base64(key));</span>
-<span class="fc bfc" id="L57" title="All 4 branches covered.">		if (session != null &amp;&amp; session.inactivePurgeTime().isBefore(Instant.now())) {</span>
-<span class="fc" id="L58">			SESSION_TOKENS.remove(IuText.base64(key));</span>
+<span class="fc" id="L58">		Objects.requireNonNull(key, &quot;key is required&quot;);</span>
+<span class="fc" id="L59">		final var session = SESSION_TOKENS.get(IuText.base64(key));</span>
+<span class="fc bfc" id="L60" title="All 4 branches covered.">		if (session != null &amp;&amp; session.inactivePurgeTime().isBefore(Instant.now())) {</span>
+<span class="fc" id="L61">			SESSION_TOKENS.remove(IuText.base64(key));</span>
 		}
-<span class="fc bfc" id="L60" title="All 2 branches covered.">		return session != null ? session.token() : null;</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">		return session != null ? session.token() : null;</span>
 	}
 
 	@Override
 	public void put(byte[] key, byte[] data) {
-<span class="fc bfc" id="L65" title="All 2 branches covered.">		if (data == null)</span>
-<span class="fc" id="L66">			SESSION_TOKENS.remove(IuText.base64(key));</span>
+<span class="fc" id="L68">		Objects.requireNonNull(key, &quot;key is required&quot;);</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">		if (data == null)</span>
+<span class="fc" id="L70">			SESSION_TOKENS.remove(IuText.base64(key));</span>
 		else
-<span class="fc" id="L68">			SESSION_TOKENS.put(IuText.base64(key), new SessionToken(data, Instant.now().plus(Duration.ofMinutes(15))));</span>
-<span class="fc" id="L69">	}</span>
+<span class="fc" id="L72">			SESSION_TOKENS.put(IuText.base64(key), new SessionToken(data, Instant.now().plus(Duration.ofMinutes(15))));</span>
+<span class="fc" id="L73">	}</span>
 
 	@Override
 	public void put(byte[] key, byte[] value, Duration ttl) {
-<span class="fc" id="L73">		SESSION_TOKENS.put(IuText.base64(key), new SessionToken(value, Instant.now().plus(ttl)));</span>
+<span class="fc" id="L77">		SESSION_TOKENS.put(IuText.base64(key), new SessionToken(value, Instant.now().plus(ttl)));</span>
 
-<span class="fc" id="L75">	}</span>
+<span class="fc" id="L79">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
