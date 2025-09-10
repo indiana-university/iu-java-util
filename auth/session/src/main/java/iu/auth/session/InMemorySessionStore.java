@@ -3,9 +3,11 @@ package iu.auth.session;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 import edu.iu.IuDataStore;
 import edu.iu.IuText;
@@ -17,7 +19,7 @@ public class InMemorySessionStore implements IuDataStore {
 	private static final Map<String, SessionToken> SESSION_TOKENS = new ConcurrentHashMap<>();
 	private static final Timer PURGE_TIMER = new Timer("session-purge", true);
 	static {
-		PURGE_TIMER.schedule(new PurgeTask(), 15000L, 15000L);
+		PURGE_TIMER.schedule(new PurgeTask(), TimeUnit.SECONDS.toMillis(15L), TimeUnit.SECONDS.toMillis(15L));
 	}
 	
 	/**
@@ -53,6 +55,7 @@ public class InMemorySessionStore implements IuDataStore {
 
 	@Override
 	public byte[] get(byte[] key) {
+		Objects.requireNonNull(key, "key is required");
 		final var session = SESSION_TOKENS.get(IuText.base64(key));
 		if (session != null && session.inactivePurgeTime().isBefore(Instant.now())) {
 			SESSION_TOKENS.remove(IuText.base64(key));
@@ -62,6 +65,7 @@ public class InMemorySessionStore implements IuDataStore {
 
 	@Override
 	public void put(byte[] key, byte[] data) {
+		Objects.requireNonNull(key, "key is required");
 		if (data == null)
 			SESSION_TOKENS.remove(IuText.base64(key));
 		else

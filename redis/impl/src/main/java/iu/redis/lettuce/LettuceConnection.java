@@ -81,22 +81,15 @@ public class LettuceConnection implements IuRedis {
 	@Override
 	public void put(byte[] key, byte[] data) {
 		put(key, data, config.getKeyExpiration());
-
 	}
 
 	@Override
 	public byte[] get(byte[] key) {
 		Objects.requireNonNull(key, "key is required");
-
-		try (StatefulRedisConnection<String, String> connection = genericPool.borrowObject()) {
-
+		try (final var connection = IuException.unchecked(() -> genericPool.borrowObject())) {
 			RedisCommands<String, String> commands = connection.sync();
 			String value = commands.get(IuText.utf8(key));
 			return value != null ? value.getBytes() : null;
-
-		} catch (Exception e) {
-			IuException.suppress(e, () -> e.getMessage());
-			throw new IllegalStateException("connection cannot be obtained from the pool");
 		}
 	}
 
@@ -104,7 +97,7 @@ public class LettuceConnection implements IuRedis {
 	public void put(byte[] key, byte[] value, Duration ttl) {
 		Objects.requireNonNull(key, "key is required");
 		Objects.requireNonNull(value, "value is required");
-		try (StatefulRedisConnection<String, String> connection = genericPool.borrowObject()) {
+		try (final var connection = IuException.unchecked(() -> genericPool.borrowObject())) {
 
 			RedisCommands<String, String> commands = connection.sync();
 			if (ttl != null && !ttl.isZero() && !ttl.isNegative()) {
@@ -112,11 +105,7 @@ public class LettuceConnection implements IuRedis {
 			}
 
 			commands.set(IuText.utf8(key), IuText.utf8(value));
-		} catch (Exception e) {
-			IuException.suppress(e, () -> e.getMessage());
-			throw new IllegalStateException("connection cannot be obtained from the pool");
 		}
-
 	}
 
 	@Override
@@ -124,7 +113,7 @@ public class LettuceConnection implements IuRedis {
 		// key
 		// expiration time, size of the value if we can't return size without loading
 		// data then return size 0
-		throw new UnsupportedOperationException("TODO STARCH-915 ");
+		throw new UnsupportedOperationException();
 	}
 
 	@Override

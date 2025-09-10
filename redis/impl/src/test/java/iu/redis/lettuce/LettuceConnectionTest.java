@@ -189,8 +189,8 @@ public class LettuceConnectionTest {
 			redisClientStaticMock.when(() -> RedisClient.create(redisURI)).thenReturn(mockClient);
 			LettuceConnection lettuceConnection = new LettuceConnection(config);
 			assertNotNull(lettuceConnection);
-			assertThrows(IllegalStateException.class, () -> lettuceConnection.get("key".getBytes()));
-			assertThrows(IllegalStateException.class,
+			assertThrows(NullPointerException.class, () -> lettuceConnection.get("key".getBytes()));
+			assertThrows(NullPointerException.class,
 					() -> lettuceConnection.put("key".getBytes(), "value".getBytes(), null));
 			assertDoesNotThrow(() -> lettuceConnection.close());
 			assertDoesNotThrow(() -> lettuceConnection.close());
