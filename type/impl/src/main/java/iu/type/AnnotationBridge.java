@@ -55,12 +55,8 @@ final class AnnotationBridge {
 	 * @return remote class; <em>may</em> be same as local class
 	 */
 	static Class<?> getPotentiallyRemoteClass(AnnotatedElement annotatedElement, Class<?> localClass) {
-		try {
-			return TypeUtils.callWithContext(annotatedElement,
-					() -> BackwardsCompatibility.getCompatibleClass(localClass));
-		} catch (Throwable e) {
-			throw IuException.unchecked(e);
-		}
+		return IuException.unchecked(() -> TypeUtils.callWithContext(annotatedElement,
+				() -> BackwardsCompatibility.getCompatibleClass(localClass)));
 	}
 
 	/**
