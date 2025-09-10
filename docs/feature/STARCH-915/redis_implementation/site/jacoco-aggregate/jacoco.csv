@@ -12,7 +12,7 @@ IU Java Utilities API Reference/iu-java-base,edu.iu,IuStream.Buffers,0,11,0,0,0,
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuWebUtils.new Iterator() {...},0,165,0,18,0,24,0,12,0,3
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuWebUtils.new Iterator() {...},0,265,0,30,0,45,0,18,0,3
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuWebUtils.new IuForwardedHeader() {...},0,15,0,0,0,5,0,5,0,5
-IU Java Utilities API Reference/iu-java-base,edu.iu,IuObject,0,768,0,170,0,185,0,114,0,29
+IU Java Utilities API Reference/iu-java-base,edu.iu,IuObject,0,797,0,176,0,190,0,117,0,29
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuWebUtils.1.new IuWebAuthenticationChallenge() {...},0,24,0,0,0,4,0,4,0,4
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuException,0,579,0,38,0,209,0,67,0,48
 IU Java Utilities API Reference/iu-java-base,edu.iu,IuAsynchronousSubject,0,95,0,12,0,24,0,14,0,8
@@ -79,7 +79,7 @@ IU Java Utilities API Reference/iu-java-client,iu.client,BooleanJsonAdapter,0,70
 IU Java Utilities API Reference/iu-java-client,iu.client,JsonArrayAdapter,0,61,0,8,0,15,0,8,0,4
 IU Java Utilities API Reference/iu-java-client,iu.client,VaultKeyedValue,0,95,0,10,0,19,0,13,0,8
 IU Java Utilities API Reference/iu-java-client,iu.client,BinaryJsonAdapter,0,27,0,4,0,9,0,5,0,3
-IU Java Utilities API Reference/iu-java-client,iu.client,Vault,0,748,1,59,0,152,1,64,0,35
+IU Java Utilities API Reference/iu-java-client,iu.client,Vault,0,746,1,59,0,151,1,64,0,35
 IU Java Utilities API Reference/iu-java-client,iu.client,IterableAdapter,0,9,0,0,0,4,0,3,0,3
 IU Java Utilities API Reference/iu-java-client,iu.client,VaultSecret,0,121,0,4,0,27,0,12,0,10
 IU Java Utilities API Reference/iu-java-client,iu.client,CalendarJsonAdapter,0,32,0,4,0,10,0,5,0,3
@@ -168,7 +168,7 @@ IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuTypeKey.Kind,0,33
 IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuComponentVersion.new IuComponentVersion() {...},0,93,0,14,0,16,0,15,0,8
 IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuAnnotatedElement,0,6,0,0,0,1,0,2,0,2
 IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuResourceKey,0,152,0,14,0,28,0,18,0,11
-IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuComponent.Kind,0,68,0,0,0,13,0,4,0,4
+IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuComponent.Kind,0,35,0,0,0,8,0,3,0,3
 IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,DefaultInterceptor.Scope,0,21,0,0,0,4,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuComponentVersion,0,157,0,32,0,46,0,20,0,4
 IU Java Utilities API Reference/iu-java-type-api,edu.iu.type,IuComponent,0,101,0,2,0,15,0,9,0,8
@@ -187,10 +187,10 @@ IU Java Utilities API Reference/iu-java-type-impl,iu.type,ArchiveSource,0,252,0,
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentResourceReference,0,262,0,36,0,55,0,30,0,12
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeFactory.new Record() {...},0,9,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,PropertyFacade,0,204,0,10,0,41,0,19,0,14
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentResource,0,385,0,36,0,83,0,43,0,25
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ParameterizedFacade,0,6,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,MethodFacade,0,117,0,12,0,22,0,14,0,8
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,AnnotationBridge,0,165,0,18,0,42,0,14,0,5
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentResource,0,394,0,38,0,86,0,44,0,25
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,AnnotationBridge,0,165,0,18,0,42,0,15,0,6
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ParameterFacade,0,55,0,2,0,14,0,8,0,7
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeFacade,0,189,0,0,0,42,0,33,0,33
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ParameterizedElement,0,179,0,24,0,46,0,18,0,6
@@ -199,26 +199,25 @@ IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeFactory.new Object
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,DeclaredElementBase,0,46,0,4,0,13,0,5,0,3
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentModuleFinder,0,109,0,12,0,23,0,10,0,4
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeTemplate,0,950,1,113,0,189,1,106,0,50
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentFactory,0,386,0,40,0,72,0,30,0,10
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentFactory,0,377,0,38,0,70,0,29,0,10
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentArchive.ScannedAttributes,0,21,0,0,0,1,0,1,0,1
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,LegacyClassLoader,0,56,0,8,0,15,0,6,0,2
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentModuleFinder.Ref,0,53,0,8,0,17,0,7,0,3
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentVersion,0,533,2,72,0,108,2,50,0,15
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentTarget,0,57,0,2,0,13,0,4,0,3
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentArchive,0,658,0,128,0,148,0,71,0,7
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentArchive,0,545,1,101,0,117,1,57,0,7
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ComponentEntry,0,116,0,14,0,30,0,15,0,8
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ExecutableBase,0,201,0,14,0,46,0,15,0,8
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeUtils,0,209,0,30,0,54,0,21,0,6
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeUtils,0,205,0,28,0,52,0,20,0,6
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeFactory,0,496,0,60,0,112,0,40,0,10
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,FieldFacade,0,119,0,10,0,21,0,14,0,9
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,BackwardsCompatibility,0,48,0,4,0,14,0,4,0,2
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,Component,0,851,0,80,0,184,0,66,0,26
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,BackwardsCompatibility,0,63,0,4,0,18,0,4,0,2
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,Component,0,845,0,78,0,184,0,65,0,26
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeSpi,0,21,0,0,0,5,0,4,0,4
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,PathEntryScanner,0,180,1,25,0,36,1,16,0,4
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeFacade.new Runnable() {...},0,96,0,4,0,18,0,6,0,4
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,TypeReference,0,291,0,32,0,62,0,28,0,12
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,AnnotatedElementBase,0,79,0,10,0,23,0,11,0,6
-IU Java Utilities API Reference/iu-java-type-impl,iu.type,PotentiallyRemoteAnnotationHandler,0,260,0,32,0,43,0,26,0,10
+IU Java Utilities API Reference/iu-java-type-impl,iu.type,PotentiallyRemoteAnnotationHandler,0,251,0,30,0,46,0,25,0,10
 IU Java Utilities API Reference/iu-java-type-impl,iu.type,ConstructorFacade,0,66,2,6,0,13,2,6,0,4
 IU Java Utilities API Reference/iu-java-type,jakarta.annotation,Resource.AuthenticationType,0,15,0,0,0,3,0,1,0,1
 IU Java Utilities API Reference/iu-java-type,jakarta.interceptor,InvocationContext,51,0,8,0,12,0,7,0,3,0
@@ -230,37 +229,36 @@ IU Java Utilities API Reference/iu-java-type,iu.type,ParameterizedElement,0,179,
 IU Java Utilities API Reference/iu-java-type,iu.type,ElementBase,0,62,0,6,0,19,0,8,0,5
 IU Java Utilities API Reference/iu-java-type,iu.type,ComponentModuleFinder,0,109,0,12,0,23,0,10,0,4
 IU Java Utilities API Reference/iu-java-type,iu.type,TypeTemplate,0,950,1,113,0,189,1,106,0,50
-IU Java Utilities API Reference/iu-java-type,iu.type,ComponentFactory,0,386,0,40,0,72,0,30,0,10
+IU Java Utilities API Reference/iu-java-type,iu.type,ComponentFactory,0,377,0,38,0,70,0,29,0,10
 IU Java Utilities API Reference/iu-java-type,iu.type,ComponentArchive.ScannedAttributes,0,21,0,0,0,1,0,1,0,1
-IU Java Utilities API Reference/iu-java-type,iu.type,LegacyClassLoader,0,56,0,8,0,15,0,6,0,2
 IU Java Utilities API Reference/iu-java-type,iu.type,ComponentModuleFinder.Ref,0,53,0,8,0,17,0,7,0,3
 IU Java Utilities API Reference/iu-java-type,iu.type,ComponentVersion,0,533,2,72,0,108,2,50,0,15
 IU Java Utilities API Reference/iu-java-type,iu.type,ComponentTarget,0,57,0,2,0,13,0,4,0,3
 IU Java Utilities API Reference/iu-java-type,iu.type,FieldFacade,0,119,0,10,0,21,0,14,0,9
-IU Java Utilities API Reference/iu-java-type,iu.type,BackwardsCompatibility,0,48,0,4,0,14,0,4,0,2
+IU Java Utilities API Reference/iu-java-type,iu.type,BackwardsCompatibility,0,63,0,4,0,18,0,4,0,2
 IU Java Utilities API Reference/iu-java-type,iu.type,AnnotatedElementBase,0,79,0,10,0,23,0,11,0,6
 IU Java Utilities API Reference/iu-java-type,iu.type,ConstructorFacade,0,66,2,6,0,13,2,6,0,4
 IU Java Utilities API Reference/iu-java-type,iu.type,ArchiveSource,0,252,0,30,0,62,0,24,0,9
 IU Java Utilities API Reference/iu-java-type,iu.type,ComponentResourceReference,0,262,0,36,0,55,0,30,0,12
 IU Java Utilities API Reference/iu-java-type,iu.type,TypeFactory.new Record() {...},0,9,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-type,iu.type,PropertyFacade,0,204,0,10,0,41,0,19,0,14
-IU Java Utilities API Reference/iu-java-type,iu.type,ComponentResource,0,385,0,36,0,83,0,43,0,25
 IU Java Utilities API Reference/iu-java-type,iu.type,MethodFacade,0,117,0,12,0,22,0,14,0,8
-IU Java Utilities API Reference/iu-java-type,iu.type,AnnotationBridge,0,165,0,18,0,42,0,14,0,5
+IU Java Utilities API Reference/iu-java-type,iu.type,ComponentResource,0,394,0,38,0,86,0,44,0,25
+IU Java Utilities API Reference/iu-java-type,iu.type,AnnotationBridge,0,165,0,18,0,42,0,15,0,6
 IU Java Utilities API Reference/iu-java-type,iu.type,ParameterFacade,0,55,0,2,0,14,0,8,0,7
 IU Java Utilities API Reference/iu-java-type,iu.type,TypeFactory.new Object() {...},0,6,0,0,0,3,0,1,0,1
 IU Java Utilities API Reference/iu-java-type,iu.type,DeclaredElementBase,0,46,0,4,0,13,0,5,0,3
-IU Java Utilities API Reference/iu-java-type,iu.type,ComponentArchive,0,658,0,128,0,148,0,71,0,7
+IU Java Utilities API Reference/iu-java-type,iu.type,ComponentArchive,0,545,1,101,0,117,1,57,0,7
 IU Java Utilities API Reference/iu-java-type,iu.type,ComponentEntry,0,116,0,14,0,30,0,15,0,8
 IU Java Utilities API Reference/iu-java-type,iu.type,ExecutableBase,0,201,0,14,0,46,0,15,0,8
-IU Java Utilities API Reference/iu-java-type,iu.type,TypeUtils,0,209,0,30,0,54,0,21,0,6
+IU Java Utilities API Reference/iu-java-type,iu.type,TypeUtils,0,205,0,28,0,52,0,20,0,6
 IU Java Utilities API Reference/iu-java-type,iu.type,TypeFactory,0,496,0,60,0,112,0,40,0,10
-IU Java Utilities API Reference/iu-java-type,iu.type,Component,0,851,0,80,0,184,0,66,0,26
+IU Java Utilities API Reference/iu-java-type,iu.type,Component,0,845,0,78,0,184,0,65,0,26
 IU Java Utilities API Reference/iu-java-type,iu.type,TypeSpi,0,21,0,0,0,5,0,4,0,4
 IU Java Utilities API Reference/iu-java-type,iu.type,PathEntryScanner,0,180,1,25,0,36,1,16,0,4
 IU Java Utilities API Reference/iu-java-type,iu.type,TypeFacade.new Runnable() {...},0,96,0,4,0,18,0,6,0,4
 IU Java Utilities API Reference/iu-java-type,iu.type,TypeReference,0,291,0,32,0,62,0,28,0,12
-IU Java Utilities API Reference/iu-java-type,iu.type,PotentiallyRemoteAnnotationHandler,0,260,0,32,0,43,0,26,0,10
+IU Java Utilities API Reference/iu-java-type,iu.type,PotentiallyRemoteAnnotationHandler,0,251,0,30,0,46,0,25,0,10
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.spi,TypeImplementation,0,9,0,0,0,2,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-loader,jakarta.annotation,Resource.AuthenticationType,0,15,0,0,0,3,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type.loader,IuComponentLoader,0,172,0,10,0,34,0,17,0,12
@@ -282,19 +280,18 @@ IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuProperty,0,167
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuExecutableKey,0,320,0,38,0,72,0,29,0,10
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuType,0,404,0,66,0,87,0,53,0,20
 IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuExecutable,0,6,0,0,0,1,0,1,0,1
-IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuComponent.Kind,0,68,0,0,0,13,0,4,0,4
+IU Java Utilities API Reference/iu-java-type-loader,edu.iu.type,IuComponent.Kind,0,35,0,0,0,8,0,3,0,3
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeFacade,0,189,0,0,0,42,0,33,0,33
-IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentFactory,0,386,0,40,0,72,0,30,0,10
-IU Java Utilities API Reference/iu-java-type-loader,iu.type,LegacyClassLoader,0,56,0,8,0,15,0,6,0,2
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentFactory,0,377,0,38,0,70,0,29,0,10
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentVersion,0,533,2,72,0,108,2,50,0,15
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentTarget,0,57,0,2,0,13,0,4,0,3
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,FieldFacade,0,119,0,10,0,21,0,14,0,9
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,AnnotatedElementBase,0,79,0,10,0,23,0,11,0,6
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeFactory.new Record() {...},0,9,0,0,0,1,0,1,0,1
-IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentResource,0,385,0,36,0,83,0,43,0,25
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,MethodFacade,0,117,0,12,0,22,0,14,0,8
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentResource,0,394,0,38,0,86,0,44,0,25
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,ParameterFacade,0,55,0,2,0,14,0,8,0,7
-IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeUtils,0,209,0,30,0,54,0,21,0,6
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeUtils,0,205,0,28,0,52,0,20,0,6
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,PathEntryScanner,0,180,1,25,0,36,1,16,0,4
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeReference,0,291,0,32,0,62,0,28,0,12
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,ParameterizedFacade,0,6,0,0,0,1,0,1,0,1
@@ -304,22 +301,22 @@ IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentModuleFinde
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeTemplate,0,950,1,113,0,189,1,106,0,50
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentArchive.ScannedAttributes,0,21,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentModuleFinder.Ref,0,53,0,8,0,17,0,7,0,3
-IU Java Utilities API Reference/iu-java-type-loader,iu.type,BackwardsCompatibility,0,48,0,4,0,14,0,4,0,2
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,BackwardsCompatibility,0,63,0,4,0,18,0,4,0,2
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,ConstructorFacade,0,66,2,6,0,13,2,6,0,4
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,ArchiveSource,0,252,0,30,0,62,0,24,0,9
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentResourceReference,0,262,0,36,0,55,0,30,0,12
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,PropertyFacade,0,204,0,10,0,41,0,19,0,14
-IU Java Utilities API Reference/iu-java-type-loader,iu.type,AnnotationBridge,0,165,0,18,0,42,0,14,0,5
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,AnnotationBridge,0,165,0,18,0,42,0,15,0,6
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeFactory.new Object() {...},0,6,0,0,0,3,0,1,0,1
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,DeclaredElementBase,0,46,0,4,0,13,0,5,0,3
-IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentArchive,0,658,0,128,0,148,0,71,0,7
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentArchive,0,545,1,101,0,117,1,57,0,7
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,ComponentEntry,0,116,0,14,0,30,0,15,0,8
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,ExecutableBase,0,201,0,14,0,46,0,15,0,8
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeFactory,0,496,0,60,0,112,0,40,0,10
-IU Java Utilities API Reference/iu-java-type-loader,iu.type,Component,0,851,0,80,0,184,0,66,0,26
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,Component,0,845,0,78,0,184,0,65,0,26
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeSpi,0,21,0,0,0,5,0,4,0,4
 IU Java Utilities API Reference/iu-java-type-loader,iu.type,TypeFacade.new Runnable() {...},0,96,0,4,0,18,0,6,0,4
-IU Java Utilities API Reference/iu-java-type-loader,iu.type,PotentiallyRemoteAnnotationHandler,0,260,0,32,0,43,0,26,0,10
+IU Java Utilities API Reference/iu-java-type-loader,iu.type,PotentiallyRemoteAnnotationHandler,0,251,0,30,0,46,0,25,0,10
 IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth.saml,IuSamlSessionVerifier,0,6,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth.spi,IuAuthConfigSpi,0,4,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth,IuAuthenticationException,0,19,0,0,0,8,0,5,0,5

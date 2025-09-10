@@ -80,7 +80,7 @@ final class TypeUtils {
 	static &lt;T&gt; T callWithContext(ClassLoader contextLoader, UnsafeSupplier&lt;T&gt; supplier) throws Throwable {
 <span class="fc bfc" id="L81" title="All 2 branches covered.">		if (contextLoader == null)</span>
 <span class="fc" id="L82">			contextLoader = ClassLoader.getPlatformClassLoader();</span>
-		
+
 <span class="fc" id="L84">		var current = Thread.currentThread();</span>
 <span class="fc" id="L85">		var loader = current.getContextClassLoader();</span>
 		try {
@@ -100,18 +100,15 @@ final class TypeUtils {
 	 * @throws Throwable from {@link UnsafeRunnable#run()}
 	 */
 	static void callWithContext(ClassLoader contextLoader, UnsafeRunnable runnable) throws Throwable {
-<span class="fc bfc" id="L103" title="All 2 branches covered.">		if (contextLoader == null)</span>
-<span class="fc" id="L104">			contextLoader = ClassLoader.getPlatformClassLoader();</span>
-		
-<span class="fc" id="L106">		var current = Thread.currentThread();</span>
-<span class="fc" id="L107">		var loader = current.getContextClassLoader();</span>
+<span class="fc" id="L103">		var current = Thread.currentThread();</span>
+<span class="fc" id="L104">		var loader = current.getContextClassLoader();</span>
 		try {
-<span class="fc" id="L109">			current.setContextClassLoader(contextLoader);</span>
-<span class="fc" id="L110">			runnable.run();</span>
+<span class="fc" id="L106">			current.setContextClassLoader(contextLoader);</span>
+<span class="fc" id="L107">			runnable.run();</span>
 		} finally {
-<span class="fc" id="L112">			current.setContextClassLoader(loader);</span>
+<span class="fc" id="L109">			current.setContextClassLoader(loader);</span>
 		}
-<span class="fc" id="L114">	}</span>
+<span class="fc" id="L111">	}</span>
 
 	/**
 	 * Invokes an {@link UnsafeSupplier} using a context appropriate for an
@@ -125,7 +122,7 @@ final class TypeUtils {
 	 * @throws Throwable from {@link UnsafeSupplier#get()}
 	 */
 	static &lt;T&gt; T callWithContext(AnnotatedElement element, UnsafeSupplier&lt;T&gt; supplier) throws Throwable {
-<span class="fc" id="L128">		return callWithContext(getContext(element), supplier);</span>
+<span class="fc" id="L125">		return callWithContext(getContext(element), supplier);</span>
 	}
 
 	/**
@@ -135,30 +132,30 @@ final class TypeUtils {
 	 * @return human-readable form
 	 */
 	static String printType(Type type) {
-<span class="fc bfc" id="L138" title="All 2 branches covered.">		if (type instanceof Class) {</span>
-<span class="fc" id="L139">			var c = (Class&lt;?&gt;) type;</span>
-<span class="fc bfc" id="L140" title="All 2 branches covered.">			if (c.isArray())</span>
-<span class="fc" id="L141">				return printType(c.componentType()) + &quot;[]&quot;;</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">		if (type instanceof Class) {</span>
+<span class="fc" id="L136">			var c = (Class&lt;?&gt;) type;</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">			if (c.isArray())</span>
+<span class="fc" id="L138">				return printType(c.componentType()) + &quot;[]&quot;;</span>
 			else
-<span class="fc" id="L143">				return c.getSimpleName();</span>
-<span class="fc bfc" id="L144" title="All 2 branches covered.">		} else if (type instanceof GenericArrayType) {</span>
-<span class="fc" id="L145">			var genericArrayType = (GenericArrayType) type;</span>
-<span class="fc" id="L146">			var genericComponentType = genericArrayType.getGenericComponentType();</span>
-<span class="fc" id="L147">			return printType(genericComponentType) + &quot;[]&quot;;</span>
-<span class="fc bfc" id="L148" title="All 2 branches covered.">		} else if (type instanceof ParameterizedType) {</span>
-<span class="fc" id="L149">			var parameterizedType = (ParameterizedType) type;</span>
-<span class="fc" id="L150">			StringBuilder sb = new StringBuilder(printType(parameterizedType.getRawType()));</span>
-<span class="fc" id="L151">			sb.append('&lt;');</span>
-<span class="fc" id="L152">			var l = sb.length();</span>
-<span class="fc bfc" id="L153" title="All 2 branches covered.">			for (var actualTypeArgument : parameterizedType.getActualTypeArguments()) {</span>
-<span class="fc bfc" id="L154" title="All 2 branches covered.">				if (sb.length() &gt; l)</span>
-<span class="fc" id="L155">					sb.append(',');</span>
-<span class="fc" id="L156">				sb.append(printType(actualTypeArgument));</span>
+<span class="fc" id="L140">				return c.getSimpleName();</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">		} else if (type instanceof GenericArrayType) {</span>
+<span class="fc" id="L142">			var genericArrayType = (GenericArrayType) type;</span>
+<span class="fc" id="L143">			var genericComponentType = genericArrayType.getGenericComponentType();</span>
+<span class="fc" id="L144">			return printType(genericComponentType) + &quot;[]&quot;;</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">		} else if (type instanceof ParameterizedType) {</span>
+<span class="fc" id="L146">			var parameterizedType = (ParameterizedType) type;</span>
+<span class="fc" id="L147">			StringBuilder sb = new StringBuilder(printType(parameterizedType.getRawType()));</span>
+<span class="fc" id="L148">			sb.append('&lt;');</span>
+<span class="fc" id="L149">			var l = sb.length();</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">			for (var actualTypeArgument : parameterizedType.getActualTypeArguments()) {</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">				if (sb.length() &gt; l)</span>
+<span class="fc" id="L152">					sb.append(',');</span>
+<span class="fc" id="L153">				sb.append(printType(actualTypeArgument));</span>
 			}
-<span class="fc" id="L158">			sb.append('&gt;');</span>
-<span class="fc" id="L159">			return sb.toString();</span>
+<span class="fc" id="L155">			sb.append('&gt;');</span>
+<span class="fc" id="L156">			return sb.toString();</span>
 		} else
-<span class="fc" id="L161">			return type.toString();</span>
+<span class="fc" id="L158">			return type.toString();</span>
 	}
 
 	/**
@@ -174,16 +171,16 @@ final class TypeUtils {
 	 */
 	static &lt;T&gt; IuType&lt;?, ? super T&gt; referTo(IuType&lt;?, T&gt; referrerType, Iterable&lt;TypeFacade&lt;?, ? super T&gt;&gt; hierarchy,
 			Type referentType) {
-<span class="fc" id="L177">		var erasedClass = TypeFactory.getErasedClass(referentType);</span>
-<span class="fc bfc" id="L178" title="All 2 branches covered.">		if (erasedClass == referrerType.erasedClass())</span>
-<span class="fc" id="L179">			return referrerType;</span>
+<span class="fc" id="L174">		var erasedClass = TypeFactory.getErasedClass(referentType);</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">		if (erasedClass == referrerType.erasedClass())</span>
+<span class="fc" id="L176">			return referrerType;</span>
 
-<span class="fc bfc" id="L181" title="All 2 branches covered.">		for (var superType : hierarchy)</span>
-<span class="fc bfc" id="L182" title="All 2 branches covered.">			if (superType.erasedClass() == erasedClass)</span>
-<span class="fc" id="L183">				return superType;</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">		for (var superType : hierarchy)</span>
+<span class="fc bfc" id="L179" title="All 2 branches covered.">			if (superType.erasedClass() == erasedClass)</span>
+<span class="fc" id="L180">				return superType;</span>
 
-<span class="fc" id="L185">		throw new IllegalArgumentException(</span>
-<span class="fc" id="L186">				printType(referentType) + &quot; not present in type hierarchy for &quot; + referrerType + &quot;; &quot; + hierarchy);</span>
+<span class="fc" id="L182">		throw new IllegalArgumentException(</span>
+<span class="fc" id="L183">				printType(referentType) + &quot; not present in type hierarchy for &quot; + referrerType + &quot;; &quot; + hierarchy);</span>
 	}
 
 	private TypeUtils() {

@@ -1,1 +1,1 @@
-packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html"},{"m":"iu.util.redis.impl","l":"iu.redis.lettuce"},{"m":"iu.util.redis.impl","l":"iu.redis.spi"}];updateSearchResults();
+packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html"},{"m":"iu.util.redis.impl","l":"iu.redis.spi"}];updateSearchResults();

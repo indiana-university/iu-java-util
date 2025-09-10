@@ -1,3 +1,2 @@
 module:iu.util.redis.impl
-iu.redis.lettuce
 iu.redis.spi
