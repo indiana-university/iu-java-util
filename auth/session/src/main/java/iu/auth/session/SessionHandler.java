@@ -33,15 +33,11 @@ package iu.auth.session;
 
 import java.net.HttpCookie;
 import java.net.URI;
-import java.time.Instant;
-import java.util.Map;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import edu.iu.IuDataStore;
 import edu.iu.IuDigest;
 import edu.iu.IuObject;
 import edu.iu.IuText;
@@ -62,37 +58,11 @@ public class SessionHandler implements IuSessionHandler {
 
 	private static final Logger LOG = Logger.getLogger(SessionHandler.class.getName());
 
-	private static final Map<String, SessionToken> SESSION_TOKENS = new ConcurrentHashMap<>();
-	private static final Timer PURGE_TIMER = new Timer("session-purge", true);
-
 	private final URI resourceUri;
 	private final IuSessionConfiguration configuration;
 	private final Supplier<WebKey> issuerKey;
 	private final Algorithm algorithm;
-
-	static {
-		PURGE_TIMER.schedule(new PurgeTask(), 15000L, 15000L);
-	}
-
-	/**
-	 * Purges all expired stored sessions.
-	 */
-	static class PurgeTask extends TimerTask {
-		/**
-		 * Default constructor
-		 */
-		PurgeTask() {
-		}
-
-		@Override
-		public void run() {
-			final var purgeTime = Instant.now();
-			final var i = SESSION_TOKENS.values().iterator();
-			while (i.hasNext())
-				if (i.next().inactivePurgeTime().isBefore(purgeTime))
-					i.remove();
-		}
-	}
+	private final IuDataStore dataStore;
 
 	/**
 	 * Constructor.
@@ -101,13 +71,15 @@ public class SessionHandler implements IuSessionHandler {
 	 * @param configuration {#link {@link IuSessionConfiguration}
 	 * @param issuerKey     issuer key supplier
 	 * @param algorithm     algorithm
+	 * @param dataStore     data store
 	 */
 	public SessionHandler(URI resourceUri, IuSessionConfiguration configuration, Supplier<WebKey> issuerKey,
-			Algorithm algorithm) {
+			Algorithm algorithm, IuDataStore dataStore) {
 		this.resourceUri = resourceUri;
 		this.configuration = configuration;
 		this.issuerKey = issuerKey;
 		this.algorithm = algorithm;
+		this.dataStore = dataStore;
 	}
 
 	@Override
@@ -119,35 +91,30 @@ public class SessionHandler implements IuSessionHandler {
 	public IuSession activate(Iterable<HttpCookie> cookies) {
 		final var cookieName = getSessionCookieName();
 
-		SessionToken activatedSession = null;
+		String activatedSession = null;
 		byte[] secretKey = null;
 		if (cookies != null)
 			for (final var cookie : cookies)
 				if (cookie.getName().equals(cookieName))
 					try {
 						final var value = IuText.base64Url(cookie.getValue());
-						
+
 						final var hashKey = hashKey(value);
-						final var session = SESSION_TOKENS.get(hashKey);
+						final var session = dataStore.get(hashKey);
 						if (session == null)
 							continue;
 
-						if (session.inactivePurgeTime().isBefore(Instant.now())) {
-							SESSION_TOKENS.remove(hashKey);
-							continue;
-						}
-
 						secretKey = value;
-						activatedSession = session;
+						activatedSession = IuText.utf8(session);
 						break;
 					} catch (Throwable e) {
 						LOG.log(Level.INFO, "Invalid session cookie value", e);
 					}
-		
+
 		if (activatedSession == null)
 			return null;
 
-		return new Session(activatedSession.token(), secretKey, issuerKey.get(), configuration.getMaxSessionTtl());
+		return new Session(activatedSession, secretKey, issuerKey.get(), configuration.getMaxSessionTtl());
 	}
 
 	@Override
@@ -155,8 +122,8 @@ public class SessionHandler implements IuSessionHandler {
 		final var secretKey = EphemeralKeys.secret("AES", 256);
 		final var s = (Session) session;
 
-		SESSION_TOKENS.put(hashKey(secretKey), new SessionToken(s.tokenize(secretKey, issuerKey.get(), algorithm),
-				Instant.now().plus(configuration.getInactiveTtl())));
+		dataStore.put(hashKey(secretKey), IuText.utf8(s.tokenize(secretKey, issuerKey.get(), algorithm)),
+				configuration.getInactiveTtl());
 
 		final var cookieBuilder = new StringBuilder();
 		cookieBuilder.append(getSessionCookieName());
@@ -187,7 +154,7 @@ public class SessionHandler implements IuSessionHandler {
 			for (final var cookie : cookies)
 				if (cookie.getName().equals(cookieName))
 					try {
-						SESSION_TOKENS.remove(hashKey(IuText.base64Url(cookie.getValue())));
+						dataStore.put(hashKey(IuText.base64Url(cookie.getValue())), null);
 					} catch (Throwable e) {
 						LOG.log(Level.INFO, "Invalid session cookie value", e);
 					}
@@ -200,8 +167,8 @@ public class SessionHandler implements IuSessionHandler {
 	 * @param secretKey secret key data
 	 * @return encoded digest of the session key
 	 */
-	static String hashKey(byte[] secretKey) {
-		return IuText.base64(IuDigest.sha256(secretKey));
+	static byte[] hashKey(byte[] secretKey) {
+		return IuDigest.sha256(secretKey);
 	}
 
 	/**

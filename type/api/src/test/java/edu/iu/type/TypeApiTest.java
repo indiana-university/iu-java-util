@@ -38,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -80,16 +81,16 @@ public class TypeApiTest {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Test
 	public void testParameterized() {
-		var parameterizedElement = IuTest.mockWithDefaults(IuParameterizedElement.class);
-		var type = IuTest.mockWithDefaults(IuType.class);
+		var parameterizedElement = mock(IuParameterizedElement.class, CALLS_REAL_METHODS);
+		var type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(parameterizedElement.typeParameters()).thenReturn((Map) Map.of("foo", type));
 		assertSame(type, parameterizedElement.typeParameter("foo"));
 	}
 
 	@Test
 	public void testExecutable() {
-		var executable = IuTest.mockWithDefaults(IuExecutable.class);
-		var param = IuTest.mockWithDefaults(IuParameter.class);
+		var executable = mock(IuExecutable.class, CALLS_REAL_METHODS);
+		var param = mock(IuParameter.class, CALLS_REAL_METHODS);
 		when(executable.parameters()).thenReturn(List.of(param));
 		assertSame(param, executable.parameter(0));
 	}
@@ -97,19 +98,19 @@ public class TypeApiTest {
 	@Test
 	@SuppressWarnings("unchecked")
 	public void testPermitted() {
-		var element = IuTest.mockWithDefaults(IuAnnotatedElement.class);
+		var element = mock(IuAnnotatedElement.class, CALLS_REAL_METHODS);
 		when(element.permitted(any())).then(a -> ((Predicate<String>) a.getArguments()[0]).test(""));
 		assertFalse(element.permitted());
 	}
 
 	@Test
 	public void testReadOnlyProperty() {
-		var property = IuTest.mockWithDefaults(IuProperty.class);
+		var property = mock(IuProperty.class, CALLS_REAL_METHODS);
 
-		var type = IuTest.mockWithDefaults(IuType.class);
+		var type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(property.declaringType()).thenReturn(type);
 
-		var method = IuTest.mockWithDefaults(IuMethod.class);
+		var method = mock(IuMethod.class, CALLS_REAL_METHODS);
 		when(property.read()).thenReturn(method);
 
 		assertTrue(property.canRead());
@@ -120,12 +121,12 @@ public class TypeApiTest {
 
 	@Test
 	public void testWriteOnlyProperty() {
-		var property = IuTest.mockWithDefaults(IuProperty.class);
+		var property = mock(IuProperty.class, CALLS_REAL_METHODS);
 
-		var type = IuTest.mockWithDefaults(IuType.class);
+		var type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(property.declaringType()).thenReturn(type);
 
-		var method = IuTest.mockWithDefaults(IuMethod.class);
+		var method = mock(IuMethod.class, CALLS_REAL_METHODS);
 		when(property.write()).thenReturn(method);
 
 		assertFalse(property.canRead());
@@ -136,16 +137,16 @@ public class TypeApiTest {
 
 	@Test
 	public void testTransientProperty() {
-		var property = IuTest.mockWithDefaults(IuProperty.class);
+		var property = mock(IuProperty.class, CALLS_REAL_METHODS);
 
-		var type = IuTest.mockWithDefaults(IuType.class);
+		var type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(property.declaringType()).thenReturn(type);
 
-		var read = IuTest.mockWithDefaults(IuMethod.class);
+		var read = mock(IuMethod.class, CALLS_REAL_METHODS);
 		when(read.hasAnnotation(Transient.class)).thenReturn(true);
 		when(property.read()).thenReturn(read);
 
-		var write = IuTest.mockWithDefaults(IuMethod.class);
+		var write = mock(IuMethod.class, CALLS_REAL_METHODS);
 		when(property.write()).thenReturn(write);
 
 		assertTrue(property.canRead());
@@ -156,16 +157,16 @@ public class TypeApiTest {
 
 	@Test
 	public void testReadWritePropertyPermittedByMethodAnnotation() {
-		var property = IuTest.mockWithDefaults(IuProperty.class);
+		var property = mock(IuProperty.class, CALLS_REAL_METHODS);
 
-		var type = IuTest.mockWithDefaults(IuType.class);
+		var type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(property.declaringType()).thenReturn(type);
 
-		var read = IuTest.mockWithDefaults(IuMethod.class);
+		var read = mock(IuMethod.class, CALLS_REAL_METHODS);
 		when(read.permitted()).thenReturn(true);
 		when(property.read()).thenReturn(read);
 
-		var write = IuTest.mockWithDefaults(IuMethod.class);
+		var write = mock(IuMethod.class, CALLS_REAL_METHODS);
 		when(property.write()).thenReturn(write);
 
 		assertTrue(property.canRead());
@@ -177,62 +178,62 @@ public class TypeApiTest {
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testType() {
-		var type = IuTest.mockWithDefaults(IuType.class);
+		var type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(Object.class);
 		assertSame(type, type.sub(Object.class));
 		assertSame(Object.class, type.autoboxClass());
 		assertNull(type.autoboxDefault());
 
-		type = IuTest.mockWithDefaults(IuType.class);
+		type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(boolean.class);
 		assertSame(Boolean.class, type.autoboxClass());
 		assertSame(Boolean.FALSE, type.autoboxDefault());
 
-		type = IuTest.mockWithDefaults(IuType.class);
+		type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(char.class);
 		assertSame(Character.class, type.autoboxClass());
 		assertSame('\0', type.autoboxDefault());
 
-		type = IuTest.mockWithDefaults(IuType.class);
+		type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(byte.class);
 		assertSame(Byte.class, type.autoboxClass());
 		assertSame((byte) 0, type.autoboxDefault());
 
-		type = IuTest.mockWithDefaults(IuType.class);
+		type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(short.class);
 		assertSame(Short.class, type.autoboxClass());
 		assertSame((short) 0, type.autoboxDefault());
 
-		type = IuTest.mockWithDefaults(IuType.class);
+		type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(int.class);
 		assertSame(Integer.class, type.autoboxClass());
 		assertSame((int) 0, type.autoboxDefault());
 
-		type = IuTest.mockWithDefaults(IuType.class);
+		type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(long.class);
 		assertSame(Long.class, type.autoboxClass());
 		assertSame(0L, type.autoboxDefault());
 
-		type = IuTest.mockWithDefaults(IuType.class);
+		type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(float.class);
 		assertSame(Float.class, type.autoboxClass());
 		assertEquals(0.0f, type.autoboxDefault());
 
-		type = IuTest.mockWithDefaults(IuType.class);
+		type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(double.class);
 		assertSame(Double.class, type.autoboxClass());
 		assertEquals(0.0, type.autoboxDefault());
 
-		type = IuTest.mockWithDefaults(IuType.class);
+		type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.erase()).thenReturn(type);
 		when(type.deref()).thenReturn(void.class);
 		assertSame(Void.class, type.autoboxClass());
@@ -247,7 +248,7 @@ public class TypeApiTest {
 		var con2 = mock(IuConstructor.class);
 		var key2 = IuExecutableKey.of(null, Object.class);
 		when(con2.getKey()).thenReturn(key2);
-		var type = IuTest.mockWithDefaults(IuType.class);
+		var type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.constructors()).thenReturn(List.of(con1, con2));
 		assertSame(con1, type.constructor());
 		assertSame(con2, type.constructor(Object.class));
@@ -266,7 +267,7 @@ public class TypeApiTest {
 		when(con1.getKey()).thenReturn(key1);
 		var con2 = mock(IuConstructor.class);
 		when(con2.getKey()).thenReturn(key2);
-		var type = IuTest.mockWithDefaults(IuType.class);
+		var type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.constructors()).thenReturn(List.of(con1, con2));
 		assertEquals(type + " missing constructor <init>()",
 				assertThrows(IllegalArgumentException.class, () -> type.constructor()).getMessage());
@@ -284,7 +285,7 @@ public class TypeApiTest {
 		when(f2.name()).thenReturn("b");
 		var f3 = mock(IuField.class);
 		when(f3.name()).thenReturn("b");
-		var type = IuTest.mockWithDefaults(IuType.class);
+		var type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.fields()).thenReturn(List.of(f1, f2, f3));
 		assertSame(f1, type.field("a"));
 		assertSame(f2, type.field("b"));
@@ -300,7 +301,7 @@ public class TypeApiTest {
 		when(f2.name()).thenReturn("b");
 		var f3 = mock(IuProperty.class);
 		when(f3.name()).thenReturn("b");
-		var type = IuTest.mockWithDefaults(IuType.class);
+		var type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.properties()).thenReturn(List.of(f1, f2, f3));
 		assertSame(f1, type.property("a"));
 		assertSame(f2, type.property("b"));
@@ -318,41 +319,41 @@ public class TypeApiTest {
 		when(awm.permitted(any())).thenReturn(true);
 		var dwm = mock(IuMethod.class);
 
-		var p = IuTest.mockWithDefaults(IuProperty.class);
+		var p = mock(IuProperty.class, CALLS_REAL_METHODS);
 		assertFalse(p.permitted());
 
-		p = IuTest.mockWithDefaults(IuProperty.class);
+		p = mock(IuProperty.class, CALLS_REAL_METHODS);
 		when(p.read()).thenReturn(arm);
 		assertTrue(p.permitted());
 
-		p = IuTest.mockWithDefaults(IuProperty.class);
+		p = mock(IuProperty.class, CALLS_REAL_METHODS);
 		when(p.write()).thenReturn(awm);
 		assertTrue(p.permitted());
 
-		p = IuTest.mockWithDefaults(IuProperty.class);
+		p = mock(IuProperty.class, CALLS_REAL_METHODS);
 		when(p.read()).thenReturn(drm);
 		assertFalse(p.permitted());
 
-		p = IuTest.mockWithDefaults(IuProperty.class);
+		p = mock(IuProperty.class, CALLS_REAL_METHODS);
 		when(p.write()).thenReturn(dwm);
 		assertFalse(p.permitted());
 
-		p = IuTest.mockWithDefaults(IuProperty.class);
+		p = mock(IuProperty.class, CALLS_REAL_METHODS);
 		when(p.read()).thenReturn(arm);
 		when(p.write()).thenReturn(awm);
 		assertTrue(p.permitted());
 
-		p = IuTest.mockWithDefaults(IuProperty.class);
+		p = mock(IuProperty.class, CALLS_REAL_METHODS);
 		when(p.read()).thenReturn(drm);
 		when(p.write()).thenReturn(awm);
 		assertFalse(p.permitted());
 
-		p = IuTest.mockWithDefaults(IuProperty.class);
+		p = mock(IuProperty.class, CALLS_REAL_METHODS);
 		when(p.read()).thenReturn(drm);
 		when(p.write()).thenReturn(dwm);
 		assertFalse(p.permitted());
 
-		p = IuTest.mockWithDefaults(IuProperty.class);
+		p = mock(IuProperty.class, CALLS_REAL_METHODS);
 		when(p.read()).thenReturn(drm);
 		when(p.write()).thenReturn(dwm);
 		assertFalse(p.permitted());
@@ -361,21 +362,21 @@ public class TypeApiTest {
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
 	public void testPropertyAnnotationOnBothReadAndWriteAndNotEqual() {
-		final var read = IuTest.mockWithDefaults(IuMethod.class);
+		final var read = mock(IuMethod.class, CALLS_REAL_METHODS);
 		final var readTransient = mock(Transient.class);
 		final var readAnnotations = List.of(readTransient);
 		when(read.hasAnnotation(Transient.class)).thenReturn(true);
 		when(read.annotation(Transient.class)).thenReturn(readTransient);
 		when(read.annotations()).thenReturn((List) readAnnotations);
 
-		final var write = IuTest.mockWithDefaults(IuMethod.class);
+		final var write = mock(IuMethod.class, CALLS_REAL_METHODS);
 		final var writeTransient = mock(Transient.class);
 		final var writeAnnotations = List.of(writeTransient);
 		when(write.hasAnnotation(Transient.class)).thenReturn(true);
 		when(write.annotation(Transient.class)).thenReturn(writeTransient);
 		when(write.annotations()).thenReturn((List) writeAnnotations);
 
-		final var prop = IuTest.mockWithDefaults(IuProperty.class);
+		final var prop = mock(IuProperty.class, CALLS_REAL_METHODS);
 		when(prop.read()).thenReturn(read);
 		when(prop.write()).thenReturn(write);
 
@@ -387,7 +388,8 @@ public class TypeApiTest {
 		assertFalse(annotationIterator.hasNext());
 
 		assertTrue(prop.hasAnnotation(Transient.class));
-		assertEquals(prop + " defines unequal values for @interface java.beans.Transient on both read and write methods",
+		assertEquals(
+				prop + " defines unequal values for @interface java.beans.Transient on both read and write methods",
 				assertThrows(IllegalArgumentException.class, () -> prop.annotation(Transient.class)).getMessage());
 	}
 
@@ -396,18 +398,18 @@ public class TypeApiTest {
 	public void testPropertyAnnotationOnBothReadAndWriteAndEqual() {
 		final var mockTransient = mock(Transient.class);
 		final var mockAnnotations = List.of(mockTransient);
-		
-		final var read = IuTest.mockWithDefaults(IuMethod.class);
+
+		final var read = mock(IuMethod.class, CALLS_REAL_METHODS);
 		when(read.hasAnnotation(Transient.class)).thenReturn(true);
 		when(read.annotation(Transient.class)).thenReturn(mockTransient);
 		when(read.annotations()).thenReturn((List) mockAnnotations);
 
-		final var write = IuTest.mockWithDefaults(IuMethod.class);
+		final var write = mock(IuMethod.class, CALLS_REAL_METHODS);
 		when(write.hasAnnotation(Transient.class)).thenReturn(true);
 		when(write.annotation(Transient.class)).thenReturn(mockTransient);
 		when(write.annotations()).thenReturn((List) mockAnnotations);
 
-		final var prop = IuTest.mockWithDefaults(IuProperty.class);
+		final var prop = mock(IuProperty.class, CALLS_REAL_METHODS);
 		when(prop.read()).thenReturn(read);
 		when(prop.write()).thenReturn(write);
 
@@ -427,18 +429,18 @@ public class TypeApiTest {
 	public void testPropertyAnnotationOnReadOnly() {
 		final var mockTransient = mock(Transient.class);
 		final var mockAnnotations = List.of(mockTransient);
-		
-		final var read = IuTest.mockWithDefaults(IuMethod.class);
+
+		final var read = mock(IuMethod.class, CALLS_REAL_METHODS);
 		when(read.hasAnnotation(Transient.class)).thenReturn(true);
 		when(read.annotation(Transient.class)).thenReturn(mockTransient);
 		when(read.annotations()).thenReturn((List) mockAnnotations);
 
-		final var write = IuTest.mockWithDefaults(IuMethod.class);
+		final var write = mock(IuMethod.class, CALLS_REAL_METHODS);
 		when(write.hasAnnotation(Transient.class)).thenReturn(false);
 		when(write.annotation(Transient.class)).thenReturn(null);
 		when(write.annotations()).thenReturn(List.of());
 
-		final var prop = IuTest.mockWithDefaults(IuProperty.class);
+		final var prop = mock(IuProperty.class, CALLS_REAL_METHODS);
 		when(prop.read()).thenReturn(read);
 		when(prop.write()).thenReturn(write);
 
@@ -456,18 +458,18 @@ public class TypeApiTest {
 	public void testPropertyAnnotationOnWriteOnly() {
 		final var mockTransient = mock(Transient.class);
 		final var mockAnnotations = List.of(mockTransient);
-		
-		final var read = IuTest.mockWithDefaults(IuMethod.class);
+
+		final var read = mock(IuMethod.class, CALLS_REAL_METHODS);
 		when(read.hasAnnotation(Transient.class)).thenReturn(false);
 		when(read.annotation(Transient.class)).thenReturn(null);
 		when(read.annotations()).thenReturn(List.of());
 
-		final var write = IuTest.mockWithDefaults(IuMethod.class);
+		final var write = mock(IuMethod.class, CALLS_REAL_METHODS);
 		when(write.hasAnnotation(Transient.class)).thenReturn(true);
 		when(write.annotation(Transient.class)).thenReturn(mockTransient);
 		when(write.annotations()).thenReturn((List) mockAnnotations);
 
-		final var prop = IuTest.mockWithDefaults(IuProperty.class);
+		final var prop = mock(IuProperty.class, CALLS_REAL_METHODS);
 		when(prop.read()).thenReturn(read);
 		when(prop.write()).thenReturn(write);
 
@@ -485,13 +487,13 @@ public class TypeApiTest {
 	public void testAnnotationOnReadOnlyProperty() {
 		final var mockTransient = mock(Transient.class);
 		final var mockAnnotations = List.of(mockTransient);
-		
-		final var read = IuTest.mockWithDefaults(IuMethod.class);
+
+		final var read = mock(IuMethod.class, CALLS_REAL_METHODS);
 		when(read.hasAnnotation(Transient.class)).thenReturn(true);
 		when(read.annotation(Transient.class)).thenReturn(mockTransient);
 		when(read.annotations()).thenReturn((List) mockAnnotations);
 
-		final var prop = IuTest.mockWithDefaults(IuProperty.class);
+		final var prop = mock(IuProperty.class, CALLS_REAL_METHODS);
 		when(prop.read()).thenReturn(read);
 
 		final var annotationIterator = prop.annotations().iterator();
@@ -508,13 +510,13 @@ public class TypeApiTest {
 	public void testAnnotationOnWriteOnlyProperty() {
 		final var mockTransient = mock(Transient.class);
 		final var mockAnnotations = List.of(mockTransient);
-		
-		final var write = IuTest.mockWithDefaults(IuMethod.class);
+
+		final var write = mock(IuMethod.class, CALLS_REAL_METHODS);
 		when(write.hasAnnotation(Transient.class)).thenReturn(true);
 		when(write.annotation(Transient.class)).thenReturn(mockTransient);
 		when(write.annotations()).thenReturn((List) mockAnnotations);
 
-		final var prop = IuTest.mockWithDefaults(IuProperty.class);
+		final var prop = mock(IuProperty.class, CALLS_REAL_METHODS);
 		when(prop.write()).thenReturn(write);
 
 		final var annotationIterator = prop.annotations().iterator();
@@ -536,7 +538,7 @@ public class TypeApiTest {
 		var m3 = mock(IuMethod.class);
 		var k3 = IuExecutableKey.of("", Object.class);
 		when(m3.getKey()).thenReturn(k3);
-		var type = IuTest.mockWithDefaults(IuType.class);
+		var type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.methods()).thenReturn(List.of(m1, m2, m3));
 		assertSame(m2, type.method(""));
 		assertSame(m3, type.method("", Object.class));
@@ -560,7 +562,7 @@ public class TypeApiTest {
 	public void testAnnotatedConstructor() {
 		var con = mock(IuConstructor.class);
 		when(con.hasAnnotation(AnAnnotation.class)).thenReturn(true);
-		var type = IuTest.mockWithDefaults(IuType.class);
+		var type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.constructors()).thenReturn(List.of(con));
 		assertSame(con, type.annotatedConstructors(AnAnnotation.class).iterator().next());
 		assertFalse(type.annotatedConstructors(AnotherAnnotation.class).iterator().hasNext());
@@ -571,7 +573,7 @@ public class TypeApiTest {
 	public void testAnnotatedField() {
 		var f = mock(IuField.class);
 		when(f.hasAnnotation(AnAnnotation.class)).thenReturn(true);
-		var type = IuTest.mockWithDefaults(IuType.class);
+		var type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.fields()).thenReturn(List.of(f));
 		assertSame(f, type.annotatedFields(AnAnnotation.class).iterator().next());
 		assertFalse(type.annotatedFields(AnotherAnnotation.class).iterator().hasNext());
@@ -582,7 +584,7 @@ public class TypeApiTest {
 	public void testAnnotatedMethod() {
 		var m = mock(IuMethod.class);
 		when(m.hasAnnotation(AnAnnotation.class)).thenReturn(true);
-		var type = IuTest.mockWithDefaults(IuType.class);
+		var type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.methods()).thenReturn(List.of(m));
 		assertSame(m, type.annotatedMethods(AnAnnotation.class).iterator().next());
 		assertFalse(type.annotatedMethods(AnotherAnnotation.class).iterator().hasNext());
@@ -593,7 +595,7 @@ public class TypeApiTest {
 	public void testAnnotatedProperty() {
 		var p = mock(IuProperty.class);
 		when(p.hasAnnotation(AnAnnotation.class)).thenReturn(true);
-		var type = IuTest.mockWithDefaults(IuType.class);
+		var type = mock(IuType.class, CALLS_REAL_METHODS);
 		when(type.properties()).thenReturn(List.of(p));
 		assertSame(p, type.annotatedProperties(AnAnnotation.class).iterator().next());
 		assertFalse(type.annotatedProperties(AnotherAnnotation.class).iterator().hasNext());

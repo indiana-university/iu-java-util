@@ -188,7 +188,7 @@ class Component implements IuComponent {
 		this.versions = Collections.unmodifiableSet(versions);
 
 		Set<String> resourceNames = PathEntryScanner.findResources(pathEntry);
-		this.kind = resourceNames.contains("module-info.class") ? Kind.MODULAR_ENTRY : Kind.LEGACY_ENTRY;
+		this.kind = Kind.ENTRY;
 
 		byte[] propertiesSource;
 		if (resourceNames.contains("META-INF/iu.properties"))
@@ -312,9 +312,7 @@ class Component implements IuComponent {
 	}
 
 	/**
-	 * Gets the {@code META-INF/iu-type.properties} for a
-	 * {@link edu.iu.type.IuComponent.Kind#isModular() modular component}, or
-	 * {@code META-INF/iu.properties} for a legacy component.
+	 * Gets the {@code META-INF/iu-type.properties}.
 	 * 
 	 * @return parsed properties
 	 */
@@ -390,7 +388,7 @@ class Component implements IuComponent {
 		try {
 			final var compatibleClass = BackwardsCompatibility.getCompatibleClass(annotationType, classLoader);
 			annotatedAttributes = this.annotatedAttributes.get(compatibleClass);
-		} catch (ClassNotFoundException e) {
+		} catch (NoClassDefFoundError e) {
 			return Collections.emptySet();
 		}
 
@@ -407,7 +405,7 @@ class Component implements IuComponent {
 		try {
 			annotatedTypes = this.annotatedTypes
 					.get(BackwardsCompatibility.getCompatibleClass(annotationType, classLoader));
-		} catch (ClassNotFoundException e) {
+		} catch (NoClassDefFoundError e) {
 			return Collections.emptySet();
 		}
 

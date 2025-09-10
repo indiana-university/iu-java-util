@@ -14,7 +14,6 @@
 	<name>IU Type Introspection Unit Testing Resources</name>
 
 	<properties>
-		<maven.install.skip>true</maven.install.skip>
 		<maven.deploy.skip>true</maven.deploy.skip>
 		<maven.javadoc.skip>true</maven.javadoc.skip>
 		<maven.test.skip>true</maven.test.skip>

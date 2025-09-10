@@ -38,12 +38,14 @@ import java.time.Instant;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.IuText;
+
 @SuppressWarnings("javadoc")
 public class SessionTokenTest {
 
 	@Test
 	void testCreateSessionTokenWithValidParameters() {
-		String token = "testToken";
+		byte[] token = IuText.utf8("testToken");
 		Instant inactivePurgeTime = Instant.now();
 		SessionToken sessionToken = new SessionToken(token, inactivePurgeTime);
 
@@ -60,7 +62,7 @@ public class SessionTokenTest {
 
 	@Test
 	void testCreateSessionTokenWithNullInactivePurgeTime() {
-		String token = "testToken";
+		byte[] token = IuText.utf8("testToken");
 
 		assertThrows(NullPointerException.class, () -> new SessionToken(token, null));
 	}

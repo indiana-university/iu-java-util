@@ -32,31 +32,28 @@
 package iu.type;
 
 import java.net.URLClassLoader;
+import java.util.Set;
 
-import org.junit.jupiter.api.extension.AfterEachCallback;
-import org.junit.jupiter.api.extension.BeforeEachCallback;
+import org.junit.jupiter.api.extension.AfterAllCallback;
+import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
+import edu.iu.type.base.FilteringClassLoader;
+
 @SuppressWarnings({ "javadoc", "exports" })
-public class LegacyContextSupport implements BeforeEachCallback, AfterEachCallback {
+public class LegacyContextSupport implements BeforeAllCallback, AfterAllCallback {
 
-	private static final ThreadLocal<URLClassLoader> LEGACY_CONTEXT = new ThreadLocal<>();
+	static URLClassLoader loader;
 
-	static URLClassLoader get() {
-		return LEGACY_CONTEXT.get();
+	@Override
+	public void beforeAll(ExtensionContext context) throws Exception {
+		loader = new URLClassLoader(TestArchives.getClassPath("testlegacy"),
+				new FilteringClassLoader(Set.of(), ClassLoader.getPlatformClassLoader()));
 	}
 
 	@Override
-	public void beforeEach(ExtensionContext context) throws Exception {
-		LEGACY_CONTEXT.set(new URLClassLoader(TestArchives.getClassPath("testlegacy"), null));
-	}
-
-	@Override
-	public void afterEach(ExtensionContext context) throws Exception {
-		var legacyContext = get();
-		LEGACY_CONTEXT.remove();
-		if (legacyContext != null)
-			legacyContext.close();
+	public void afterAll(ExtensionContext context) throws Exception {
+		loader.close();
 	}
 
 }

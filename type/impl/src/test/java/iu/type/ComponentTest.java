@@ -73,7 +73,7 @@ public class ComponentTest extends IuTypeTestCase {
 	@Test
 	public void testClosed() throws Throwable {
 		var archive = mock(ComponentArchive.class);
-		when(archive.kind()).thenReturn(Kind.LEGACY_JAR);
+		when(archive.kind()).thenReturn(Kind.JAR);
 
 		var loader = new URLClassLoader(new URL[0]);
 		var onClose = mock(UnsafeRunnable.class);
@@ -104,7 +104,7 @@ public class ComponentTest extends IuTypeTestCase {
 		var error = new Error();
 		var path = mock(Path.class);
 		var archive = mock(ComponentArchive.class);
-		when(archive.kind()).thenReturn(Kind.LEGACY_JAR);
+		when(archive.kind()).thenReturn(Kind.JAR);
 		when(archive.path()).thenReturn(path);
 
 		var loader = spy(new URLClassLoader(new URL[0]));
