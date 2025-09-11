@@ -144,17 +144,23 @@ public final class IuObject {
 	 * @return {@code true} if a platform type; else false
 	 */
 	public static boolean isPlatformName(String name) {
-<span class="fc bfc" id="L147" title="All 2 branches covered.">		return name.startsWith(&quot;jakarta.&quot;) // JEE and related</span>
+<span class="fc" id="L147">		final var platformNames = IuRuntimeEnvironment.envOptional(&quot;iu.util.platformNames&quot;);</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">		if (platformNames != null)</span>
+<span class="fc bfc" id="L149" title="All 2 branches covered.">			for (final var platformName : platformNames.split(&quot;,&quot;))</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">				if (name.startsWith(platformName))</span>
+<span class="fc" id="L151">					return true;</span>
+
+<span class="fc bfc" id="L153" title="All 2 branches covered.">		return name.startsWith(&quot;jakarta.&quot;) // JEE and related</span>
 				// JDK packages:
-<span class="fc bfc" id="L149" title="All 2 branches covered.">				|| name.startsWith(&quot;sun.&quot;) //</span>
-<span class="fc bfc" id="L150" title="All 2 branches covered.">				|| name.startsWith(&quot;com.sun.&quot;) //</span>
-<span class="fc bfc" id="L151" title="All 2 branches covered.">				|| name.startsWith(&quot;java.&quot;) //</span>
-<span class="fc bfc" id="L152" title="All 2 branches covered.">				|| name.startsWith(&quot;javax.&quot;) //</span>
-<span class="fc bfc" id="L153" title="All 2 branches covered.">				|| name.startsWith(&quot;jdk.&quot;) //</span>
-<span class="fc bfc" id="L154" title="All 2 branches covered.">				|| name.startsWith(&quot;netscape.javascript.&quot;) //</span>
-<span class="fc bfc" id="L155" title="All 2 branches covered.">				|| name.startsWith(&quot;org.ietf.jgss.&quot;) //</span>
-<span class="fc bfc" id="L156" title="All 2 branches covered.">				|| name.startsWith(&quot;org.w3c.dom.&quot;) //</span>
-<span class="fc bfc" id="L157" title="All 2 branches covered.">				|| name.startsWith(&quot;org.xml.sax.&quot;);</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">				|| name.startsWith(&quot;sun.&quot;) //</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">				|| name.startsWith(&quot;com.sun.&quot;) //</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">				|| name.startsWith(&quot;java.&quot;) //</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">				|| name.startsWith(&quot;javax.&quot;) //</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">				|| name.startsWith(&quot;jdk.&quot;) //</span>
+<span class="fc bfc" id="L160" title="All 2 branches covered.">				|| name.startsWith(&quot;netscape.javascript.&quot;) //</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">				|| name.startsWith(&quot;org.ietf.jgss.&quot;) //</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">				|| name.startsWith(&quot;org.w3c.dom.&quot;) //</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">				|| name.startsWith(&quot;org.xml.sax.&quot;);</span>
 	}
 
 	/**
@@ -166,10 +172,10 @@ public final class IuObject {
 	 *                               package
 	 */
 	public static void assertNotOpen(Class&lt;?&gt; classToCheck) throws IllegalStateException {
-<span class="fc" id="L169">		final var module = classToCheck.getModule();</span>
-<span class="fc bfc" id="L170" title="All 2 branches covered.">		if (module.isOpen(classToCheck.getPackageName()))</span>
-<span class="fc" id="L171">			throw new IllegalStateException(&quot;Must be in a named module and not open&quot;);</span>
-<span class="fc" id="L172">	}</span>
+<span class="fc" id="L175">		final var module = classToCheck.getModule();</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">		if (module.isOpen(classToCheck.getPackageName()))</span>
+<span class="fc" id="L177">			throw new IllegalStateException(&quot;Must be in a named module and not open&quot;);</span>
+<span class="fc" id="L178">	}</span>
 
 	/**
 	 * Determines if a class is a final implementation class.
@@ -178,10 +184,10 @@ public final class IuObject {
 	 * @return true if the class is not an interface and includes the final modifier
 	 */
 	public static Class&lt;?&gt; requireFinalImpl(Class&lt;?&gt; type) {
-<span class="fc bfc" id="L181" title="All 2 branches covered.">		if (type.isInterface() //</span>
-<span class="fc bfc" id="L182" title="All 2 branches covered.">				|| (type.getModifiers() &amp; Modifier.FINAL) == 0)</span>
-<span class="fc" id="L183">			throw new IllegalArgumentException(&quot;must be a final implementation class: &quot; + type);</span>
-<span class="fc" id="L184">		return type;</span>
+<span class="fc bfc" id="L187" title="All 2 branches covered.">		if (type.isInterface() //</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">				|| (type.getModifiers() &amp; Modifier.FINAL) == 0)</span>
+<span class="fc" id="L189">			throw new IllegalArgumentException(&quot;must be a final implementation class: &quot; + type);</span>
+<span class="fc" id="L190">		return type;</span>
 	}
 
 	/**
@@ -195,7 +201,7 @@ public final class IuObject {
 	 * @throws IllegalArgumentException if already set to the same value
 	 */
 	public static &lt;T&gt; T once(T current, T value) {
-<span class="fc" id="L198">		return once(current, value, () -&gt; &quot;requires a single non-null value&quot;);</span>
+<span class="fc" id="L204">		return once(current, value, () -&gt; &quot;requires a single non-null value&quot;);</span>
 	}
 
 	/**
@@ -211,7 +217,7 @@ public final class IuObject {
 	 * @throws IllegalArgumentException if already set to the same value
 	 */
 	public static &lt;T&gt; T once(T current, T value, String message) {
-<span class="fc" id="L214">		return once(current, value, () -&gt; message);</span>
+<span class="fc" id="L220">		return once(current, value, () -&gt; message);</span>
 	}
 
 	/**
@@ -228,7 +234,7 @@ public final class IuObject {
 	 * @throws IllegalArgumentException if already set to the same value
 	 */
 	public static &lt;T&gt; T once(T current, T value, Supplier&lt;String&gt; messageSupplier) {
-<span class="fc" id="L231">		return Objects.requireNonNull(first(current, value, messageSupplier), messageSupplier);</span>
+<span class="fc" id="L237">		return Objects.requireNonNull(first(current, value, messageSupplier), messageSupplier);</span>
 	}
 
 	/**
@@ -243,16 +249,16 @@ public final class IuObject {
 	 */
 	@SafeVarargs
 	public static &lt;T&gt; T first(T... values) {
-<span class="fc" id="L246">		T first = null;</span>
-<span class="fc bfc" id="L247" title="All 2 branches covered.">		for (final var value : values)</span>
-<span class="fc bfc" id="L248" title="All 2 branches covered.">			if (first == null)</span>
-<span class="fc" id="L249">				first = value;</span>
-<span class="fc bfc" id="L250" title="All 2 branches covered.">			else if (value == null)</span>
-<span class="fc" id="L251">				continue;</span>
-<span class="fc bfc" id="L252" title="All 2 branches covered.">			else if (!first.equals(value))</span>
-<span class="fc" id="L253">				throw new IllegalArgumentException(&quot;already set to another value&quot;);</span>
+<span class="fc" id="L252">		T first = null;</span>
+<span class="fc bfc" id="L253" title="All 2 branches covered.">		for (final var value : values)</span>
+<span class="fc bfc" id="L254" title="All 2 branches covered.">			if (first == null)</span>
+<span class="fc" id="L255">				first = value;</span>
+<span class="fc bfc" id="L256" title="All 2 branches covered.">			else if (value == null)</span>
+<span class="fc" id="L257">				continue;</span>
+<span class="fc bfc" id="L258" title="All 2 branches covered.">			else if (!first.equals(value))</span>
+<span class="fc" id="L259">				throw new IllegalArgumentException(&quot;already set to another value&quot;);</span>
 
-<span class="fc" id="L255">		return first;</span>
+<span class="fc" id="L261">		return first;</span>
 	}
 
 	/**
@@ -269,14 +275,14 @@ public final class IuObject {
 	 * @throws IllegalArgumentException if already set to the same value
 	 */
 	public static &lt;T&gt; T first(T current, T value, Supplier&lt;String&gt; messageSupplier) {
-<span class="fc bfc" id="L272" title="All 2 branches covered.">		if (current == null)</span>
-<span class="fc" id="L273">			return value;</span>
-<span class="fc bfc" id="L274" title="All 2 branches covered.">		else if (value == null)</span>
-<span class="fc" id="L275">			return current;</span>
-<span class="fc bfc" id="L276" title="All 2 branches covered.">		else if (!current.equals(value))</span>
-<span class="fc" id="L277">			throw new IllegalArgumentException(messageSupplier.get());</span>
-		else
+<span class="fc bfc" id="L278" title="All 2 branches covered.">		if (current == null)</span>
 <span class="fc" id="L279">			return value;</span>
+<span class="fc bfc" id="L280" title="All 2 branches covered.">		else if (value == null)</span>
+<span class="fc" id="L281">			return current;</span>
+<span class="fc bfc" id="L282" title="All 2 branches covered.">		else if (!current.equals(value))</span>
+<span class="fc" id="L283">			throw new IllegalArgumentException(messageSupplier.get());</span>
+		else
+<span class="fc" id="L285">			return value;</span>
 	}
 
 	/**
@@ -292,7 +298,7 @@ public final class IuObject {
 	 * @return true if either object is null or if both are equal; else false
 	 */
 	public static boolean represents(Object a, Object b) {
-<span class="fc bfc" id="L295" title="All 6 branches covered.">		return a == null || b == null || IuObject.equals(a, b);</span>
+<span class="fc bfc" id="L301" title="All 6 branches covered.">		return a == null || b == null || IuObject.equals(a, b);</span>
 	}
 
 	/**
@@ -306,9 +312,9 @@ public final class IuObject {
 	 */
 	public static &lt;T&gt; T requireType(Class&lt;T&gt; type, Object value) {
 		try {
-<span class="fc" id="L309">			return convert(value, type::cast);</span>
-<span class="fc" id="L310">		} catch (ClassCastException e) {</span>
-<span class="fc" id="L311">			throw new IllegalArgumentException(&quot;expected &quot; + type, e);</span>
+<span class="fc" id="L315">			return convert(value, type::cast);</span>
+<span class="fc" id="L316">		} catch (ClassCastException e) {</span>
+<span class="fc" id="L317">			throw new IllegalArgumentException(&quot;expected &quot; + type, e);</span>
 		}
 	}
 
@@ -322,7 +328,7 @@ public final class IuObject {
 	 * @throws IllegalArgumentException if the types don't match
 	 */
 	public static &lt;T&gt; T require(T value, Predicate&lt;T&gt; condition) {
-<span class="fc" id="L325">		return require(value, condition, (String) null);</span>
+<span class="fc" id="L331">		return require(value, condition, (String) null);</span>
 	}
 
 	/**
@@ -336,7 +342,7 @@ public final class IuObject {
 	 * @throws IllegalArgumentException if the types don't match
 	 */
 	public static &lt;T&gt; T require(T value, Predicate&lt;T&gt; condition, String message) {
-<span class="fc" id="L339">		return require(value, condition, () -&gt; message);</span>
+<span class="fc" id="L345">		return require(value, condition, () -&gt; message);</span>
 	}
 
 	/**
@@ -351,10 +357,10 @@ public final class IuObject {
 	 * @throws IllegalArgumentException if the types don't match
 	 */
 	public static &lt;T&gt; T require(T value, Predicate&lt;T&gt; condition, Supplier&lt;String&gt; messageSupplier) {
-<span class="fc bfc" id="L354" title="All 2 branches covered.">		if (value != null //</span>
-<span class="fc bfc" id="L355" title="All 2 branches covered.">				&amp;&amp; !condition.test(value))</span>
-<span class="fc" id="L356">			throw new IllegalArgumentException(messageSupplier.get());</span>
-<span class="fc" id="L357">		return value;</span>
+<span class="fc bfc" id="L360" title="All 2 branches covered.">		if (value != null //</span>
+<span class="fc bfc" id="L361" title="All 2 branches covered.">				&amp;&amp; !condition.test(value))</span>
+<span class="fc" id="L362">			throw new IllegalArgumentException(messageSupplier.get());</span>
+<span class="fc" id="L363">		return value;</span>
 	}
 
 	/**
@@ -367,10 +373,10 @@ public final class IuObject {
 	 * @return converted value
 	 */
 	public static &lt;S, T&gt; T convert(S value, Function&lt;S, T&gt; conversionFunction) {
-<span class="fc bfc" id="L370" title="All 2 branches covered.">		if (value == null)</span>
-<span class="fc" id="L371">			return null;</span>
+<span class="fc bfc" id="L376" title="All 2 branches covered.">		if (value == null)</span>
+<span class="fc" id="L377">			return null;</span>
 		else
-<span class="fc" id="L373">			return conversionFunction.apply(value);</span>
+<span class="fc" id="L379">			return conversionFunction.apply(value);</span>
 	}
 
 	/**
@@ -385,13 +391,13 @@ public final class IuObject {
 	 *         object's specific data.
 	 */
 	public static Integer compareNullCheck(Object o1, Object o2) {
-<span class="fc bfc" id="L388" title="All 2 branches covered.">		if (o1 == o2)</span>
-<span class="fc" id="L389">			return 0;</span>
-<span class="fc bfc" id="L390" title="All 2 branches covered.">		if (o1 == null)</span>
-<span class="fc" id="L391">			return -1;</span>
-<span class="fc bfc" id="L392" title="All 2 branches covered.">		if (o2 == null)</span>
-<span class="fc" id="L393">			return 1;</span>
-<span class="fc" id="L394">		return null;</span>
+<span class="fc bfc" id="L394" title="All 2 branches covered.">		if (o1 == o2)</span>
+<span class="fc" id="L395">			return 0;</span>
+<span class="fc bfc" id="L396" title="All 2 branches covered.">		if (o1 == null)</span>
+<span class="fc" id="L397">			return -1;</span>
+<span class="fc bfc" id="L398" title="All 2 branches covered.">		if (o2 == null)</span>
+<span class="fc" id="L399">			return 1;</span>
+<span class="fc" id="L400">		return null;</span>
 	}
 
 	/**
@@ -406,21 +412,21 @@ public final class IuObject {
 	 */
 	@SuppressWarnings({ &quot;rawtypes&quot;, &quot;unchecked&quot; })
 	public static int compareTo(Object o1, Object o2) {
-<span class="fc" id="L409">		Integer rv = compareNullCheck(o1, o2);</span>
-<span class="fc bfc" id="L410" title="All 2 branches covered.">		if (rv != null)</span>
-<span class="fc" id="L411">			return rv;</span>
+<span class="fc" id="L415">		Integer rv = compareNullCheck(o1, o2);</span>
+<span class="fc bfc" id="L416" title="All 2 branches covered.">		if (rv != null)</span>
+<span class="fc" id="L417">			return rv;</span>
 
 		Comparable v1;
 		Comparable v2;
-<span class="fc bfc" id="L415" title="All 4 branches covered.">		if ((o1.getClass() != o2.getClass()) || !(o1 instanceof Comparable)) {</span>
-<span class="fc" id="L416">			v1 = (Comparable) Integer.valueOf(o1.hashCode());</span>
-<span class="fc" id="L417">			v2 = (Comparable) Integer.valueOf(o2.hashCode());</span>
+<span class="fc bfc" id="L421" title="All 4 branches covered.">		if ((o1.getClass() != o2.getClass()) || !(o1 instanceof Comparable)) {</span>
+<span class="fc" id="L422">			v1 = (Comparable) Integer.valueOf(o1.hashCode());</span>
+<span class="fc" id="L423">			v2 = (Comparable) Integer.valueOf(o2.hashCode());</span>
 		} else {
-<span class="fc" id="L419">			v1 = (Comparable) o1;</span>
-<span class="fc" id="L420">			v2 = (Comparable) o2;</span>
+<span class="fc" id="L425">			v1 = (Comparable) o1;</span>
+<span class="fc" id="L426">			v2 = (Comparable) o2;</span>
 		}
 
-<span class="fc" id="L423">		return v1.compareTo(v2);</span>
+<span class="fc" id="L429">		return v1.compareTo(v2);</span>
 	}
 
 	/**
@@ -431,7 +437,7 @@ public final class IuObject {
 	 * @return hash code
 	 */
 	public static int hashCode(Object... oa) {
-<span class="fc" id="L434">		return hashCodeSuper(1, oa);</span>
+<span class="fc" id="L440">		return hashCodeSuper(1, oa);</span>
 	}
 
 	/**
@@ -443,39 +449,39 @@ public final class IuObject {
 	 * @return hash code
 	 */
 	public static int hashCodeSuper(int superHashCode, Object... oa) {
-<span class="fc" id="L446">		final int prime = 31;</span>
-<span class="fc" id="L447">		int result = superHashCode;</span>
-<span class="fc bfc" id="L448" title="All 2 branches covered.">		for (Object o : oa) {</span>
+<span class="fc" id="L452">		final int prime = 31;</span>
+<span class="fc" id="L453">		int result = superHashCode;</span>
+<span class="fc bfc" id="L454" title="All 2 branches covered.">		for (Object o : oa) {</span>
 			int hash;
-<span class="fc bfc" id="L450" title="All 2 branches covered.">			if (o == null)</span>
-<span class="fc" id="L451">				hash = 0;</span>
-<span class="fc bfc" id="L452" title="All 2 branches covered.">			else if (o instanceof boolean[])</span>
-<span class="fc" id="L453">				hash = Arrays.hashCode((boolean[]) o);</span>
-<span class="fc bfc" id="L454" title="All 2 branches covered.">			else if (o instanceof byte[])</span>
-<span class="fc" id="L455">				hash = Arrays.hashCode((byte[]) o);</span>
-<span class="fc bfc" id="L456" title="All 2 branches covered.">			else if (o instanceof char[])</span>
-<span class="fc" id="L457">				hash = Arrays.hashCode((char[]) o);</span>
-<span class="fc bfc" id="L458" title="All 2 branches covered.">			else if (o instanceof double[])</span>
-<span class="fc" id="L459">				hash = Arrays.hashCode((double[]) o);</span>
-<span class="fc bfc" id="L460" title="All 2 branches covered.">			else if (o instanceof float[])</span>
-<span class="fc" id="L461">				hash = Arrays.hashCode((float[]) o);</span>
-<span class="fc bfc" id="L462" title="All 2 branches covered.">			else if (o instanceof int[])</span>
-<span class="fc" id="L463">				hash = Arrays.hashCode((int[]) o);</span>
-<span class="fc bfc" id="L464" title="All 2 branches covered.">			else if (o instanceof long[])</span>
-<span class="fc" id="L465">				hash = Arrays.hashCode((long[]) o);</span>
-<span class="fc bfc" id="L466" title="All 2 branches covered.">			else if (o instanceof short[])</span>
-<span class="fc" id="L467">				hash = Arrays.hashCode((short[]) o);</span>
-<span class="fc bfc" id="L468" title="All 2 branches covered.">			else if (o.getClass().isArray()) {</span>
-<span class="fc" id="L469">				int l = Array.getLength(o);</span>
-<span class="fc" id="L470">				int h = o.getClass().getComponentType().hashCode();</span>
-<span class="fc bfc" id="L471" title="All 2 branches covered.">				for (int i = 0; i &lt; l; i++)</span>
-<span class="fc" id="L472">					h = prime * h + hashCode(Array.get(o, i));</span>
-<span class="fc" id="L473">				hash = h;</span>
-<span class="fc" id="L474">			} else</span>
-<span class="fc" id="L475">				hash = o.hashCode();</span>
-<span class="fc" id="L476">			result = prime * result + hash;</span>
+<span class="fc bfc" id="L456" title="All 2 branches covered.">			if (o == null)</span>
+<span class="fc" id="L457">				hash = 0;</span>
+<span class="fc bfc" id="L458" title="All 2 branches covered.">			else if (o instanceof boolean[])</span>
+<span class="fc" id="L459">				hash = Arrays.hashCode((boolean[]) o);</span>
+<span class="fc bfc" id="L460" title="All 2 branches covered.">			else if (o instanceof byte[])</span>
+<span class="fc" id="L461">				hash = Arrays.hashCode((byte[]) o);</span>
+<span class="fc bfc" id="L462" title="All 2 branches covered.">			else if (o instanceof char[])</span>
+<span class="fc" id="L463">				hash = Arrays.hashCode((char[]) o);</span>
+<span class="fc bfc" id="L464" title="All 2 branches covered.">			else if (o instanceof double[])</span>
+<span class="fc" id="L465">				hash = Arrays.hashCode((double[]) o);</span>
+<span class="fc bfc" id="L466" title="All 2 branches covered.">			else if (o instanceof float[])</span>
+<span class="fc" id="L467">				hash = Arrays.hashCode((float[]) o);</span>
+<span class="fc bfc" id="L468" title="All 2 branches covered.">			else if (o instanceof int[])</span>
+<span class="fc" id="L469">				hash = Arrays.hashCode((int[]) o);</span>
+<span class="fc bfc" id="L470" title="All 2 branches covered.">			else if (o instanceof long[])</span>
+<span class="fc" id="L471">				hash = Arrays.hashCode((long[]) o);</span>
+<span class="fc bfc" id="L472" title="All 2 branches covered.">			else if (o instanceof short[])</span>
+<span class="fc" id="L473">				hash = Arrays.hashCode((short[]) o);</span>
+<span class="fc bfc" id="L474" title="All 2 branches covered.">			else if (o.getClass().isArray()) {</span>
+<span class="fc" id="L475">				int l = Array.getLength(o);</span>
+<span class="fc" id="L476">				int h = o.getClass().getComponentType().hashCode();</span>
+<span class="fc bfc" id="L477" title="All 2 branches covered.">				for (int i = 0; i &lt; l; i++)</span>
+<span class="fc" id="L478">					h = prime * h + hashCode(Array.get(o, i));</span>
+<span class="fc" id="L479">				hash = h;</span>
+<span class="fc" id="L480">			} else</span>
+<span class="fc" id="L481">				hash = o.hashCode();</span>
+<span class="fc" id="L482">			result = prime * result + hash;</span>
 		}
-<span class="fc" id="L478">		return result;</span>
+<span class="fc" id="L484">		return result;</span>
 	}
 
 	/**
@@ -490,7 +496,7 @@ public final class IuObject {
 	 * @return True if both objects are not null and instances of the same class.
 	 */
 	public static &lt;T&gt; boolean typeCheck(T o1, T o2) {
-<span class="fc" id="L493">		return typeCheck(o1, o2, null);</span>
+<span class="fc" id="L499">		return typeCheck(o1, o2, null);</span>
 	}
 
 	/**
@@ -509,13 +515,13 @@ public final class IuObject {
 	 *         are the same class if type is null.
 	 */
 	public static &lt;T&gt; boolean typeCheck(T o1, T o2, Class&lt;?&gt; type) {
-<span class="fc bfc" id="L512" title="All 2 branches covered.">		if (type != null)</span>
-<span class="fc bfc" id="L513" title="All 4 branches covered.">			return type.isInstance(o1) &amp;&amp; type.isInstance(o2);</span>
-<span class="fc bfc" id="L514" title="All 2 branches covered.">		if (o1 == o2)</span>
-<span class="fc" id="L515">			return true;</span>
-<span class="fc bfc" id="L516" title="All 4 branches covered.">		if (o1 == null || o2 == null)</span>
-<span class="fc" id="L517">			return false;</span>
-<span class="fc bfc" id="L518" title="All 2 branches covered.">		return o1.getClass() == o2.getClass();</span>
+<span class="fc bfc" id="L518" title="All 2 branches covered.">		if (type != null)</span>
+<span class="fc bfc" id="L519" title="All 4 branches covered.">			return type.isInstance(o1) &amp;&amp; type.isInstance(o2);</span>
+<span class="fc bfc" id="L520" title="All 2 branches covered.">		if (o1 == o2)</span>
+<span class="fc" id="L521">			return true;</span>
+<span class="fc bfc" id="L522" title="All 4 branches covered.">		if (o1 == null || o2 == null)</span>
+<span class="fc" id="L523">			return false;</span>
+<span class="fc bfc" id="L524" title="All 2 branches covered.">		return o1.getClass() == o2.getClass();</span>
 	}
 
 	/**
@@ -527,70 +533,70 @@ public final class IuObject {
 	 *         o1.equals(o2) returns true. Otherwise, return false.
 	 */
 	public static boolean equals(Object o1, Object o2) {
-<span class="fc bfc" id="L530" title="All 2 branches covered.">		if (o1 == o2)</span>
-<span class="fc" id="L531">			return true;</span>
-<span class="fc bfc" id="L532" title="All 4 branches covered.">		if (o1 == null || o2 == null)</span>
-<span class="fc" id="L533">			return false;</span>
+<span class="fc bfc" id="L536" title="All 2 branches covered.">		if (o1 == o2)</span>
+<span class="fc" id="L537">			return true;</span>
+<span class="fc bfc" id="L538" title="All 4 branches covered.">		if (o1 == null || o2 == null)</span>
+<span class="fc" id="L539">			return false;</span>
 
-<span class="fc bfc" id="L535" title="All 2 branches covered.">		if (o1.getClass() != o2.getClass())</span>
-<span class="fc bfc" id="L536" title="All 8 branches covered.">			if (o1 instanceof Set &amp;&amp; o2 instanceof Set &amp;&amp; !(o1 instanceof SortedSet) &amp;&amp; !(o2 instanceof SortedSet)) {</span>
-<span class="fc" id="L537">				Set&lt;?&gt; s1 = (Set&lt;?&gt;) o1;</span>
-<span class="fc" id="L538">				Set&lt;?&gt; s2 = (Set&lt;?&gt;) o2;</span>
-<span class="fc bfc" id="L539" title="All 2 branches covered.">				if (s1.size() != s2.size())</span>
-<span class="fc" id="L540">					return false;</span>
-<span class="fc" id="L541">				return s1.containsAll(s2);</span>
-<span class="fc bfc" id="L542" title="All 4 branches covered.">			} else if (o1 instanceof Iterable &amp;&amp; o2 instanceof Iterable) {</span>
-<span class="fc" id="L543">				Iterator&lt;?&gt; i1 = ((Iterable&lt;?&gt;) o1).iterator();</span>
-<span class="fc" id="L544">				Iterator&lt;?&gt; i2 = ((Iterable&lt;?&gt;) o2).iterator();</span>
-<span class="fc bfc" id="L545" title="All 2 branches covered.">				while (i1.hasNext()) {</span>
-<span class="fc bfc" id="L546" title="All 2 branches covered.">					if (!i2.hasNext())</span>
-<span class="fc" id="L547">						return false;</span>
-<span class="fc bfc" id="L548" title="All 2 branches covered.">					if (!equals(i1.next(), i2.next()))</span>
-<span class="fc" id="L549">						return false;</span>
+<span class="fc bfc" id="L541" title="All 2 branches covered.">		if (o1.getClass() != o2.getClass())</span>
+<span class="fc bfc" id="L542" title="All 8 branches covered.">			if (o1 instanceof Set &amp;&amp; o2 instanceof Set &amp;&amp; !(o1 instanceof SortedSet) &amp;&amp; !(o2 instanceof SortedSet)) {</span>
+<span class="fc" id="L543">				Set&lt;?&gt; s1 = (Set&lt;?&gt;) o1;</span>
+<span class="fc" id="L544">				Set&lt;?&gt; s2 = (Set&lt;?&gt;) o2;</span>
+<span class="fc bfc" id="L545" title="All 2 branches covered.">				if (s1.size() != s2.size())</span>
+<span class="fc" id="L546">					return false;</span>
+<span class="fc" id="L547">				return s1.containsAll(s2);</span>
+<span class="fc bfc" id="L548" title="All 4 branches covered.">			} else if (o1 instanceof Iterable &amp;&amp; o2 instanceof Iterable) {</span>
+<span class="fc" id="L549">				Iterator&lt;?&gt; i1 = ((Iterable&lt;?&gt;) o1).iterator();</span>
+<span class="fc" id="L550">				Iterator&lt;?&gt; i2 = ((Iterable&lt;?&gt;) o2).iterator();</span>
+<span class="fc bfc" id="L551" title="All 2 branches covered.">				while (i1.hasNext()) {</span>
+<span class="fc bfc" id="L552" title="All 2 branches covered.">					if (!i2.hasNext())</span>
+<span class="fc" id="L553">						return false;</span>
+<span class="fc bfc" id="L554" title="All 2 branches covered.">					if (!equals(i1.next(), i2.next()))</span>
+<span class="fc" id="L555">						return false;</span>
 				}
-<span class="fc bfc" id="L551" title="All 2 branches covered.">				if (i2.hasNext())</span>
-<span class="fc" id="L552">					return false;</span>
-<span class="fc" id="L553">				return true;</span>
-<span class="fc bfc" id="L554" title="All 4 branches covered.">			} else if ((o1 instanceof Map &amp;&amp; o2 instanceof Map)) {</span>
-<span class="fc" id="L555">				Map&lt;?, ?&gt; m1 = (Map&lt;?, ?&gt;) o1;</span>
-<span class="fc" id="L556">				Map&lt;?, ?&gt; m2 = (Map&lt;?, ?&gt;) o2;</span>
-<span class="fc bfc" id="L557" title="All 2 branches covered.">				if (!equals(m1.keySet(), m2.keySet()))</span>
+<span class="fc bfc" id="L557" title="All 2 branches covered.">				if (i2.hasNext())</span>
 <span class="fc" id="L558">					return false;</span>
-<span class="fc bfc" id="L559" title="All 2 branches covered.">				for (Object k : m1.keySet())</span>
-<span class="fc bfc" id="L560" title="All 2 branches covered.">					if (!equals(m1.get(k), m2.get(k)))</span>
-<span class="fc" id="L561">						return false;</span>
-<span class="fc" id="L562">				return true;</span>
+<span class="fc" id="L559">				return true;</span>
+<span class="fc bfc" id="L560" title="All 4 branches covered.">			} else if ((o1 instanceof Map &amp;&amp; o2 instanceof Map)) {</span>
+<span class="fc" id="L561">				Map&lt;?, ?&gt; m1 = (Map&lt;?, ?&gt;) o1;</span>
+<span class="fc" id="L562">				Map&lt;?, ?&gt; m2 = (Map&lt;?, ?&gt;) o2;</span>
+<span class="fc bfc" id="L563" title="All 2 branches covered.">				if (!equals(m1.keySet(), m2.keySet()))</span>
+<span class="fc" id="L564">					return false;</span>
+<span class="fc bfc" id="L565" title="All 2 branches covered.">				for (Object k : m1.keySet())</span>
+<span class="fc bfc" id="L566" title="All 2 branches covered.">					if (!equals(m1.get(k), m2.get(k)))</span>
+<span class="fc" id="L567">						return false;</span>
+<span class="fc" id="L568">				return true;</span>
 			} else
-<span class="fc" id="L564">				return false;</span>
+<span class="fc" id="L570">				return false;</span>
 
-<span class="fc bfc" id="L566" title="All 2 branches covered.">		if (o1 instanceof boolean[])</span>
-<span class="fc" id="L567">			return Arrays.equals((boolean[]) o1, (boolean[]) o2);</span>
-<span class="fc bfc" id="L568" title="All 2 branches covered.">		if (o1 instanceof byte[])</span>
-<span class="fc" id="L569">			return Arrays.equals((byte[]) o1, (byte[]) o2);</span>
-<span class="fc bfc" id="L570" title="All 2 branches covered.">		if (o1 instanceof char[])</span>
-<span class="fc" id="L571">			return Arrays.equals((char[]) o1, (char[]) o2);</span>
-<span class="fc bfc" id="L572" title="All 2 branches covered.">		if (o1 instanceof double[])</span>
-<span class="fc" id="L573">			return Arrays.equals((double[]) o1, (double[]) o2);</span>
-<span class="fc bfc" id="L574" title="All 2 branches covered.">		if (o1 instanceof float[])</span>
-<span class="fc" id="L575">			return Arrays.equals((float[]) o1, (float[]) o2);</span>
-<span class="fc bfc" id="L576" title="All 2 branches covered.">		if (o1 instanceof int[])</span>
-<span class="fc" id="L577">			return Arrays.equals((int[]) o1, (int[]) o2);</span>
-<span class="fc bfc" id="L578" title="All 2 branches covered.">		if (o1 instanceof long[])</span>
-<span class="fc" id="L579">			return Arrays.equals((long[]) o1, (long[]) o2);</span>
-<span class="fc bfc" id="L580" title="All 2 branches covered.">		if (o1 instanceof short[])</span>
-<span class="fc" id="L581">			return Arrays.equals((short[]) o1, (short[]) o2);</span>
-<span class="fc bfc" id="L582" title="All 2 branches covered.">		if (o1.getClass().isArray()) {</span>
-<span class="fc" id="L583">			int l1 = Array.getLength(o1);</span>
-<span class="fc" id="L584">			int l2 = Array.getLength(o2);</span>
-<span class="fc bfc" id="L585" title="All 2 branches covered.">			if (l1 != l2)</span>
-<span class="fc" id="L586">				return false;</span>
-<span class="fc bfc" id="L587" title="All 2 branches covered.">			for (int i = 0; i &lt; l1; i++)</span>
-<span class="fc bfc" id="L588" title="All 2 branches covered.">				if (!equals(Array.get(o1, i), Array.get(o2, i)))</span>
-<span class="fc" id="L589">					return false;</span>
-<span class="fc" id="L590">			return true;</span>
+<span class="fc bfc" id="L572" title="All 2 branches covered.">		if (o1 instanceof boolean[])</span>
+<span class="fc" id="L573">			return Arrays.equals((boolean[]) o1, (boolean[]) o2);</span>
+<span class="fc bfc" id="L574" title="All 2 branches covered.">		if (o1 instanceof byte[])</span>
+<span class="fc" id="L575">			return Arrays.equals((byte[]) o1, (byte[]) o2);</span>
+<span class="fc bfc" id="L576" title="All 2 branches covered.">		if (o1 instanceof char[])</span>
+<span class="fc" id="L577">			return Arrays.equals((char[]) o1, (char[]) o2);</span>
+<span class="fc bfc" id="L578" title="All 2 branches covered.">		if (o1 instanceof double[])</span>
+<span class="fc" id="L579">			return Arrays.equals((double[]) o1, (double[]) o2);</span>
+<span class="fc bfc" id="L580" title="All 2 branches covered.">		if (o1 instanceof float[])</span>
+<span class="fc" id="L581">			return Arrays.equals((float[]) o1, (float[]) o2);</span>
+<span class="fc bfc" id="L582" title="All 2 branches covered.">		if (o1 instanceof int[])</span>
+<span class="fc" id="L583">			return Arrays.equals((int[]) o1, (int[]) o2);</span>
+<span class="fc bfc" id="L584" title="All 2 branches covered.">		if (o1 instanceof long[])</span>
+<span class="fc" id="L585">			return Arrays.equals((long[]) o1, (long[]) o2);</span>
+<span class="fc bfc" id="L586" title="All 2 branches covered.">		if (o1 instanceof short[])</span>
+<span class="fc" id="L587">			return Arrays.equals((short[]) o1, (short[]) o2);</span>
+<span class="fc bfc" id="L588" title="All 2 branches covered.">		if (o1.getClass().isArray()) {</span>
+<span class="fc" id="L589">			int l1 = Array.getLength(o1);</span>
+<span class="fc" id="L590">			int l2 = Array.getLength(o2);</span>
+<span class="fc bfc" id="L591" title="All 2 branches covered.">			if (l1 != l2)</span>
+<span class="fc" id="L592">				return false;</span>
+<span class="fc bfc" id="L593" title="All 2 branches covered.">			for (int i = 0; i &lt; l1; i++)</span>
+<span class="fc bfc" id="L594" title="All 2 branches covered.">				if (!equals(Array.get(o1, i), Array.get(o2, i)))</span>
+<span class="fc" id="L595">					return false;</span>
+<span class="fc" id="L596">			return true;</span>
 		}
 
-<span class="fc" id="L593">		return o1.equals(o2);</span>
+<span class="fc" id="L599">		return o1.equals(o2);</span>
 	}
 
 	/**
@@ -608,8 +614,8 @@ public final class IuObject {
 	 */
 	public static void waitFor(Object lock, BooleanSupplier condition, Duration timeout)
 			throws InterruptedException, TimeoutException {
-<span class="fc" id="L611">		waitFor(lock, condition, Instant.now().plus(timeout));</span>
-<span class="fc" id="L612">	}</span>
+<span class="fc" id="L617">		waitFor(lock, condition, Instant.now().plus(timeout));</span>
+<span class="fc" id="L618">	}</span>
 
 	/**
 	 * Waits until a condition is met or a timeout interval expires.
@@ -628,8 +634,8 @@ public final class IuObject {
 	 */
 	public static void waitFor(Object lock, BooleanSupplier condition, Duration timeout,
 			Supplier&lt;TimeoutException&gt; timeoutFactory) throws InterruptedException, TimeoutException {
-<span class="fc" id="L631">		waitFor(lock, condition, Instant.now().plus(timeout), timeoutFactory);</span>
-<span class="fc" id="L632">	}</span>
+<span class="fc" id="L637">		waitFor(lock, condition, Instant.now().plus(timeout), timeoutFactory);</span>
+<span class="fc" id="L638">	}</span>
 
 	/**
 	 * Waits until a condition is met or a timeout interval expires.
@@ -646,13 +652,13 @@ public final class IuObject {
 	 */
 	public static void waitFor(Object lock, BooleanSupplier condition, Instant expires)
 			throws InterruptedException, TimeoutException {
-<span class="fc" id="L649">		final var init = Instant.now();</span>
-<span class="fc" id="L650">		waitFor(lock, condition, expires, () -&gt; {</span>
-<span class="fc" id="L651">			StringBuilder sb = new StringBuilder(&quot;Timed out in &quot;);</span>
-<span class="fc" id="L652">			sb.append(Duration.between(init, expires));</span>
-<span class="fc" id="L653">			return new TimeoutException(sb.toString());</span>
+<span class="fc" id="L655">		final var init = Instant.now();</span>
+<span class="fc" id="L656">		waitFor(lock, condition, expires, () -&gt; {</span>
+<span class="fc" id="L657">			StringBuilder sb = new StringBuilder(&quot;Timed out in &quot;);</span>
+<span class="fc" id="L658">			sb.append(Duration.between(init, expires));</span>
+<span class="fc" id="L659">			return new TimeoutException(sb.toString());</span>
 		});
-<span class="fc" id="L655">	}</span>
+<span class="fc" id="L661">	}</span>
 
 	/**
 	 * Waits until a condition is met or a timeout interval expires.
@@ -671,17 +677,17 @@ public final class IuObject {
 	 */
 	public static void waitFor(Object lock, BooleanSupplier condition, Instant expires,
 			Supplier&lt;TimeoutException&gt; timeoutFactory) throws InterruptedException, TimeoutException {
-<span class="fc" id="L674">		synchronized (lock) {</span>
-<span class="fc bfc" id="L675" title="All 2 branches covered.">			while (!condition.getAsBoolean()) {</span>
-<span class="fc" id="L676">				final var now = Instant.now();</span>
-<span class="fc bfc" id="L677" title="All 2 branches covered.">				if (now.isBefore(expires)) {</span>
-<span class="fc" id="L678">					final var waitFor = Duration.between(now, expires);</span>
-<span class="fc" id="L679">					lock.wait(waitFor.toMillis(), waitFor.toNanosPart() % 1_000_000);</span>
-<span class="fc" id="L680">				} else</span>
-<span class="fc" id="L681">					throw timeoutFactory.get();</span>
-<span class="fc" id="L682">			}</span>
-<span class="fc" id="L683">		}</span>
-<span class="fc" id="L684">	}</span>
+<span class="fc" id="L680">		synchronized (lock) {</span>
+<span class="fc bfc" id="L681" title="All 2 branches covered.">			while (!condition.getAsBoolean()) {</span>
+<span class="fc" id="L682">				final var now = Instant.now();</span>
+<span class="fc bfc" id="L683" title="All 2 branches covered.">				if (now.isBefore(expires)) {</span>
+<span class="fc" id="L684">					final var waitFor = Duration.between(now, expires);</span>
+<span class="fc" id="L685">					lock.wait(waitFor.toMillis(), waitFor.toNanosPart() % 1_000_000);</span>
+<span class="fc" id="L686">				} else</span>
+<span class="fc" id="L687">					throw timeoutFactory.get();</span>
+<span class="fc" id="L688">			}</span>
+<span class="fc" id="L689">		}</span>
+<span class="fc" id="L690">	}</span>
 
 	private IuObject() {
 	};

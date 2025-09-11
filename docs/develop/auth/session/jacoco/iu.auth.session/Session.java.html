@@ -69,7 +69,7 @@ class Session implements IuSession {
 
 	/** Session details */
 	private Map&lt;String, Map&lt;String, JsonValue&gt;&gt; details;
-	
+
 	/** strict mode */
 <span class="fc" id="L74">	private boolean strict = true;</span>
 
@@ -181,16 +181,16 @@ class Session implements IuSession {
 	public URI getResourceUri() {
 <span class="fc" id="L182">		return resourceUri;</span>
 	}
-	
+
 	@Override
 	public String toString() {
 <span class="fc" id="L187">		return &quot;Session [resourceUri=&quot; + resourceUri + &quot;, expires=&quot; + expires + &quot;, changed=&quot; + changed + &quot;, details=&quot;</span>
 				+ details + &quot;]&quot;;
 	}
 
-
 	/**
-	 * Gets strict 
+	 * Gets strict
+	 * 
 	 * @return strict mode
 	 */
 	public boolean isStrict() {
