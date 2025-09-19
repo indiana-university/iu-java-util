@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TemporaryFile.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Type Introspection Base Utilities</a> &gt; <a href="index.source.html" class="el_package">edu.iu.type.base</a> &gt; <span class="el_source">TemporaryFile.java</span></div><h1>TemporaryFile.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2025 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu.type.base;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Queue;
+import java.util.jar.JarEntry;
+import java.util.jar.JarInputStream;
+
+import edu.iu.IuException;
+import edu.iu.IuStream;
+import edu.iu.UnsafeFunction;
+import edu.iu.UnsafeRunnable;
+
+/**
+ * Initializes a temporary file with fail-safe delete when initialization fails.
+ */
+public final class TemporaryFile {
+
+<span class="fc" id="L56">	private static final ThreadLocal&lt;Queue&lt;Path&gt;&gt; PENDING = new ThreadLocal&lt;&gt;();</span>
+
+	/**
+	 * Tracks temp files created by an initialization task, and either deletes all
+	 * created if an error is thrown, or returns a thunk that may be used to deletes
+	 * all files on teardown.
+	 * 
+	 * @param task initialization task
+	 * @return destroy thunk
+	 * @throws IOException from {@link UnsafeRunnable}
+	 */
+	public static UnsafeRunnable init(UnsafeRunnable task) throws IOException {
+<span class="fc" id="L68">		final Queue&lt;Path&gt; tempFilesToRestore = PENDING.get();</span>
+<span class="fc" id="L69">		final Queue&lt;Path&gt; tempFiles = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L70">		final UnsafeRunnable teardown = () -&gt; {</span>
+<span class="fc" id="L71">			Throwable e = null;</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">			for (final var path : tempFiles)</span>
+<span class="fc" id="L73">				e = IuException.suppress(e, () -&gt; Files.deleteIfExists(path));</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">			if (e != null)</span>
+<span class="fc" id="L75">				throw IuException.checked(e, IOException.class);</span>
+<span class="fc" id="L76">		};</span>
+
+		try {
+<span class="fc" id="L79">			PENDING.set(tempFiles);</span>
+<span class="fc" id="L80">			task.run();</span>
+<span class="fc" id="L81">			return teardown;</span>
+<span class="fc" id="L82">		} catch (Throwable e) {</span>
+<span class="fc" id="L83">			IuException.suppress(e, teardown);</span>
+<span class="fc" id="L84">			throw IuException.checked(e, IOException.class);</span>
+		} finally {
+<span class="fc bfc" id="L86" title="All 2 branches covered.">			if (tempFilesToRestore == null)</span>
+<span class="fc" id="L87">				PENDING.remove();</span>
+			else
+<span class="fc" id="L89">				PENDING.set(tempFilesToRestore);</span>
+		}
+	}
+
+	/**
+	 * Initializes a temp file.
+	 * 
+	 * @param &lt;T&gt;                 initialization result
+	 * @param tempFileInitializer initialization function
+	 * @return result of initialization; &lt;em&gt;must&lt;/em&gt; contain
+	 *         implementation-specific logic to delete the temp file as part of
+	 *         destroying the initialized resource
+	 * @throws IOException If an I/O error is thrown from the initializer
+	 */
+	public static &lt;T&gt; T init(UnsafeFunction&lt;Path, T&gt; tempFileInitializer) throws IOException {
+<span class="fc" id="L104">		class Box {</span>
+			T initialized;
+		}
+<span class="fc" id="L107">		final var box = new Box();</span>
+
+<span class="fc" id="L109">		UnsafeRunnable init = () -&gt; {</span>
+<span class="fc" id="L110">			Path temp = Files.createTempFile(&quot;iu-type-&quot;, &quot;.jar&quot;);</span>
+<span class="fc" id="L111">			PENDING.get().offer(temp);</span>
+<span class="fc" id="L112">			box.initialized = tempFileInitializer.apply(temp);</span>
+<span class="fc" id="L113">		};</span>
+
+<span class="fc bfc" id="L115" title="All 2 branches covered.">		if (PENDING.get() == null)</span>
+<span class="fc" id="L116">			init(init);</span>
+		else
+<span class="fc" id="L118">			IuException.checked(IOException.class, init);</span>
+
+<span class="fc" id="L120">		return box.initialized;</span>
+	}
+
+	/**
+	 * Copies data from an input stream and outputs to a temporary file.
+	 * 
+	 * @param in supplies data
+	 * @return {@link Path} to a temporary file with a copy of the data
+	 */
+	public static Path of(InputStream in) {
+<span class="fc" id="L130">		return IuException.unchecked(() -&gt; init(temporaryFile -&gt; {</span>
+<span class="fc" id="L131">			try (final var out = Files.newOutputStream(temporaryFile)) {</span>
+<span class="fc" id="L132">				IuStream.copy(in, out);</span>
+			}
+<span class="fc" id="L134">			return temporaryFile;</span>
+		}));
+	}
+
+	/**
+	 * Copies data from an input stream and outputs to a temporary file.
+	 * 
+	 * @param url supplies data; &lt;em&gt;must&lt;/em&gt; refer to a file or jar entry from a
+	 *            local filesystem. The method &lt;em&gt;should&lt;/em&gt; only be used with
+	 *            values from {@link ClassLoader#getResource(String)} or
+	 *            {@link ClassLoader#getResources(String)}
+	 * @return {@link Path} to the canonical file indicated by the URL, or to a
+	 *         temporary file with a copy of the Jar file entry
+	 */
+	public static Path of(URL url) {
+<span class="fc" id="L149">		return with(url, o -&gt; {</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">			if (o instanceof Path)</span>
+<span class="fc" id="L151">				return (Path) o;</span>
+			else
+<span class="fc" id="L153">				return of((InputStream) o);</span>
+		});
+	}
+
+	/**
+	 * Reads a mixed class/module path for loading a component from a bundled
+	 * classpath resource.
+	 * 
+	 * &lt;p&gt;
+	 * This package format expected by this method is a specific instance of
+	 * Enterprise Archive (EAR) useful for bootstrapping a resource adapter or
+	 * application client module as a iu-java-type compatible component. In the
+	 * sample Maven config below, the project that includes the embedding pom
+	 * segment uses this method to convert the embedded component EAR to a path.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;pre&gt;
+	 * final var path = TemporaryFile.of(getClass().getClassLoader().getResource(&quot;META-INF/client/my-bundle.jar&quot;);
+	 * &lt;/pre&gt;
+	 * 
+	 * &lt;h4&gt;bundle pom&lt;/h4&gt;
+	 * 
+	 * &lt;pre&gt;
+	&amp;lt;build&amp;gt;
+	&amp;lt;plugins&amp;gt;
+		&amp;lt;plugin&amp;gt;
+			&amp;lt;artifactId&amp;gt;maven-assembly-plugin&amp;lt;/artifactId&amp;gt;
+			&amp;lt;executions&amp;gt;
+				&amp;lt;execution&amp;gt;
+					&amp;lt;id&amp;gt;bundle-distribution&amp;lt;/id&amp;gt;
+					&amp;lt;goals&amp;gt;
+						&amp;lt;goal&amp;gt;single&amp;lt;/goal&amp;gt;
+					&amp;lt;/goals&amp;gt;
+					&amp;lt;phase&amp;gt;package&amp;lt;/phase&amp;gt;
+					&amp;lt;configuration&amp;gt;
+						&amp;lt;descriptors&amp;gt;
+							&amp;lt;descriptor&amp;gt;src/assembly/bundle.xml&amp;lt;/descriptor&amp;gt;
+						&amp;lt;/descriptors&amp;gt;
+					&amp;lt;/configuration&amp;gt;
+				&amp;lt;/execution&amp;gt;
+			&amp;lt;/executions&amp;gt;
+		&amp;lt;/plugin&amp;gt;
+	 * &lt;/pre&gt;
+	 * 
+	 * &lt;h4&gt;src/assembly/bundle.xml&lt;/h4&gt;
+	 * 
+	 * &lt;pre&gt;
+	&amp;lt;assembly xmlns=&quot;http://maven.apache.org/ASSEMBLY/2.2.0&quot;
+	xmlns:xsi=&quot;http://www.w3.org/2001/XMLSchema-instance&quot;
+	xsi:schemaLocation=
+	&quot;http://maven.apache.org/ASSEMBLY/2.2.0 http://maven.apache.org/xsd/assembly-2.2.0.xsd&quot;&amp;gt;
+	
+	&amp;lt;id&amp;gt;bundle&amp;lt;/id&amp;gt;
+	
+	&amp;lt;includeBaseDirectory&amp;gt;false&amp;lt;/includeBaseDirectory&amp;gt;
+	&amp;lt;formats&amp;gt;
+		&amp;lt;format&amp;gt;jar&amp;lt;/format&amp;gt;
+	&amp;lt;/formats&amp;gt;
+	
+	&amp;lt;dependencySets&amp;gt;
+		&amp;lt;dependencySet&amp;gt;
+			&amp;lt;includes&amp;gt;
+				&amp;lt;include&amp;gt;${project.groupId}:${project.artifactId}&amp;lt;/include&amp;gt;
+			&amp;lt;/includes&amp;gt;
+		&amp;lt;/dependencySet&amp;gt;
+		&amp;lt;dependencySet&amp;gt;
+			&amp;lt;scope&amp;gt;runtime&amp;lt;/scope&amp;gt;
+			&amp;lt;outputDirectory&amp;gt;lib/&amp;lt;/outputDirectory&amp;gt;
+			&amp;lt;excludes&amp;gt;
+				&amp;lt;exclude&amp;gt;${project.groupId}:${project.artifactId}&amp;lt;/exclude&amp;gt;
+			&amp;lt;/excludes&amp;gt;
+		&amp;lt;/dependencySet&amp;gt;
+	&amp;lt;/dependencySets&amp;gt;
+	
+	&amp;lt;/assembly&amp;gt;
+	 * &lt;/pre&gt;
+	 * 
+	 * &lt;h4&gt;embedding pom&lt;/h4&gt;
+	 * 
+	 * &lt;pre&gt;
+	&amp;lt;build&amp;gt;
+	&amp;lt;plugins&amp;gt;
+	    &amp;lt;plugin&amp;gt;
+	        &amp;lt;artifactId&amp;gt;maven-dependency-plugin&amp;lt;/artifactId&amp;gt;
+	        &amp;lt;executions&amp;gt;
+	            &amp;lt;execution&amp;gt;
+	                &amp;lt;id&amp;gt;import-bundle&amp;lt;/id&amp;gt;
+	                &amp;lt;phase&amp;gt;prepare-package&amp;lt;/phase&amp;gt;
+	                &amp;lt;goals&amp;gt;
+	                    &amp;lt;goal&amp;gt;copy&amp;lt;/goal&amp;gt;
+	                &amp;lt;/goals&amp;gt;
+	                &amp;lt;configuration&amp;gt;
+	                    &amp;lt;artifactItems&amp;gt;
+	                        &amp;lt;artifactItem&amp;gt;
+	                            &amp;lt;groupId&amp;gt;${project.groupId}&amp;lt;/groupId&amp;gt;
+	                            &amp;lt;artifactId&amp;gt;my-client&amp;lt;/artifactId&amp;gt;
+	                            &amp;lt;version&amp;gt;${project.version}&amp;lt;/version&amp;gt;
+	                            &amp;lt;classifier&amp;gt;bundle&amp;lt;/classifier&amp;gt;
+	                        &amp;lt;/artifactItem&amp;gt;
+	                    &amp;lt;/artifactItems&amp;gt;
+	                    &amp;lt;stripVersion&amp;gt;true&amp;lt;/stripVersion&amp;gt;
+	                    &amp;lt;outputDirectory&amp;gt;
+	                        ${project.build.outputDirectory}/META-INF/client&amp;lt;/outputDirectory&amp;gt;
+	                &amp;lt;/configuration&amp;gt;
+	            &amp;lt;/execution&amp;gt;
+	        &amp;lt;/executions&amp;gt;
+	    &amp;lt;/plugin&amp;gt;
+	 * &lt;/pre&gt;
+	 * 
+	 * @param bundleResource File or Jar {@link URL} indicating location of the
+	 *                       bundled EAR resource i.e., from
+	 *                       {@link ClassLoader#getResource(String)}
+	 * @return class/module path suitable for use with
+	 *         {@link ModularClassLoader#ModularClassLoader(boolean, Iterable, ModuleLayer, ClassLoader, java.util.function.Consumer)}.
+	 * 
+	 * @see &lt;a href=
+	 *      &quot;https://jakarta.ee/specifications/platform/10/jakarta-platform-spec-10.0#a2948&quot;&gt;JEE
+	 *      10 8.2.1&lt;/a&gt;
+	 */
+	public static Iterable&lt;Path&gt; readBundle(URL bundleResource) {
+<span class="fc" id="L273">		final Deque&lt;Path&gt; libs = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L274">		with(bundleResource, o -&gt; {</span>
+<span class="fc bfc" id="L275" title="All 2 branches covered.">			try (final var in = (o instanceof Path) //</span>
+<span class="fc" id="L276">					? Files.newInputStream((Path) o) //</span>
+<span class="fc" id="L277">					: (InputStream) o; //</span>
+<span class="fc" id="L278">					final var bundleJar = new JarInputStream(in)) {</span>
+				JarEntry entry;
+<span class="fc bfc" id="L280" title="All 2 branches covered.">				while ((entry = bundleJar.getNextJarEntry()) != null) {</span>
+<span class="fc" id="L281">					final var name = entry.getName();</span>
+<span class="fc bfc" id="L282" title="All 2 branches covered.">					if (name.endsWith(&quot;.jar&quot;)) {</span>
+<span class="fc" id="L283">						final var lib = name.startsWith(&quot;lib/&quot;);</span>
+<span class="fc" id="L284">						final var bundledLib = TemporaryFile.init(path -&gt; {</span>
+<span class="fc" id="L285">							try (final var out = Files.newOutputStream(path)) {</span>
+<span class="fc" id="L286">								IuStream.copy(bundleJar, out);</span>
+							}
+<span class="fc" id="L288">							return path;</span>
+						});
+<span class="fc bfc" id="L290" title="All 2 branches covered.">						if (lib)</span>
+<span class="fc" id="L291">							libs.offer(bundledLib);</span>
+						else
+<span class="fc" id="L293">							libs.offerFirst(bundledLib);</span>
+					}
+<span class="fc" id="L295">				}</span>
+<span class="fc" id="L296">				bundleJar.closeEntry();</span>
+			}
+<span class="fc" id="L298">			return null;</span>
+		});
+<span class="fc" id="L300">		return libs;</span>
+	}
+
+	private static &lt;T&gt; T with(URL url, UnsafeFunction&lt;Object, T&gt; then) {
+<span class="fc" id="L304">		return IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L305">			final var uri = url.toURI();</span>
+<span class="fc" id="L306">			final var scheme = uri.getScheme();</span>
+
+<span class="fc bfc" id="L308" title="All 2 branches covered.">			if (&quot;file&quot;.equals(scheme))</span>
+<span class="fc" id="L309">				return then.apply(Path.of(uri).toRealPath());</span>
+
+<span class="fc bfc" id="L311" title="All 2 branches covered.">			if (!&quot;jar&quot;.equals(scheme))</span>
+<span class="fc" id="L312">				throw new IllegalArgumentException();</span>
+
+<span class="fc" id="L314">			final var jarSpec = uri.getSchemeSpecificPart();</span>
+<span class="fc" id="L315">			final var bangSlash = jarSpec.indexOf(&quot;!/&quot;);</span>
+
+<span class="fc" id="L317">			final var jarUri = URI.create(jarSpec.substring(0, bangSlash));</span>
+<span class="fc bfc" id="L318" title="All 2 branches covered.">			if (!&quot;file&quot;.equals(jarUri.getScheme()))</span>
+<span class="fc" id="L319">				throw new IllegalArgumentException();</span>
+
+<span class="fc" id="L321">			final var entryName = jarSpec.substring(bangSlash + 2);</span>
+<span class="fc" id="L322">			try (final var jarFile = Files.newInputStream(Path.of(jarUri).toRealPath());</span>
+<span class="fc" id="L323">					final var jar = new JarInputStream(jarFile)) {</span>
+				JarEntry entry;
+<span class="fc bfc" id="L325" title="All 2 branches covered.">				while ((entry = jar.getNextJarEntry()) != null)</span>
+<span class="fc bfc" id="L326" title="All 2 branches covered.">					if (entry.getName().equals(entryName))</span>
+<span class="fc" id="L327">						return then.apply(jar);</span>
+<span class="pc bpc" id="L328" title="1 of 2 branches missed.">			}</span>
+
+<span class="fc" id="L330">			throw new IllegalArgumentException();</span>
+		});
+	}
+
+	private TemporaryFile() {
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

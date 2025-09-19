@@ -1,0 +1,1 @@
+packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html"},{"m":"iu.util.type.bundle","l":"edu.iu.type.bundle"}];updateSearchResults();
