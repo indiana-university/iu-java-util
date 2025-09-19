@@ -37,7 +37,7 @@
 module iu.util.auth.saml {
 	exports iu.auth.saml;
 	
-	requires iu.util;
+	requires static iu.util;
 	requires iu.util.auth;
 	requires transitive iu.util.auth.config;
 	requires iu.util.auth.principal;

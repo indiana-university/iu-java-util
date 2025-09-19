@@ -35,7 +35,7 @@
 module iu.util.auth.pki {
 	exports iu.auth.pki;
 	
-	requires iu.util;
+	requires static iu.util;
 	requires transitive iu.util.auth;
 	requires transitive iu.util.auth.config;
 	requires iu.util.auth.principal;

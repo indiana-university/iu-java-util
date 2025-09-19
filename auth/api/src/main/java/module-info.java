@@ -51,7 +51,7 @@ module iu.util.auth {
 
 	exports edu.iu.auth.spi;
 
-	requires iu.util;
+	requires static iu.util;
 	requires transitive java.net.http;
 
 	uses edu.iu.auth.spi.IuAuthConfigSpi;

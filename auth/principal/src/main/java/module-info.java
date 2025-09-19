@@ -38,7 +38,7 @@
 module iu.util.auth.principal {
 	exports iu.auth.principal;
 
-	requires iu.util;
+	requires static iu.util;
 	requires transitive iu.util.auth;
 	requires iu.util.auth.config;
 

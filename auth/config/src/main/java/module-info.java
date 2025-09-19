@@ -39,7 +39,7 @@ module iu.util.auth.config {
 	
 	opens edu.iu.auth.config to iu.util.client;
 
-	requires iu.util;
+	requires static iu.util;
 	requires transitive iu.util.auth;
 	requires transitive iu.util.crypt;
 	requires transitive iu.util.crypt.impl;

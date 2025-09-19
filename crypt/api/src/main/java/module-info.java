@@ -53,7 +53,7 @@ module iu.util.crypt {
 	exports edu.iu.crypt;
 	exports iu.crypt.spi to iu.util.crypt.impl;
 
-	requires iu.util;
+	requires static iu.util;
 
 	uses iu.crypt.spi.IuCryptSpi;
 }

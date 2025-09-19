@@ -82,10 +82,6 @@ import edu.iu.type.base.TemporaryFile;
  * @see LogManager
  */
 public class IuLoggingBootstrap {
-	static {
-		IuObject.assertNotOpen(IuObject.class);
-		IuObject.assertNotOpen(IuLoggingBootstrap.class);
-	}
 
 	private static IuLoggingBootstrap initialized;
 
@@ -116,7 +112,7 @@ public class IuLoggingBootstrap {
 
 		IuException.checked(() -> IuLogManager.bound(() -> {
 			destroy = TemporaryFile.init(() -> {
-				loader = ModularClassLoader.of(ClassLoader.getPlatformClassLoader(), ModuleLayer.boot(),
+				loader = ModularClassLoader.of(ClassLoader.getSystemClassLoader(), ModuleLayer.boot(),
 						() -> TemporaryFile.readBundle(Objects.requireNonNull(
 								IuLogContext.class.getClassLoader()
 										.getResource("META-INF/component/iu-java-logging-impl-bundle.jar"),
@@ -145,6 +141,7 @@ public class IuLoggingBootstrap {
 	}
 
 	private static void initImplModule(Controller c) {
+		c.addReads(c.layer().findModule("iu.util.logging.impl").get(), IuObject.class.getModule());
 	}
 
 	/**

@@ -35,7 +35,7 @@
 module iu.util.logging.impl {
 	exports iu.logging;
 	
-	requires iu.util;
+	requires static iu.util;
 	requires iu.util.client;
 	requires iu.util.crypt;
 	requires jakarta.annotation;

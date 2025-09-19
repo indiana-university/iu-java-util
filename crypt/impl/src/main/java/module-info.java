@@ -51,7 +51,7 @@
 module iu.util.crypt.impl {
 	exports iu.crypt;
 	
-	requires iu.util;
+	requires static iu.util;
 	requires transitive iu.util.crypt;
 	requires transitive iu.util.client;
 	requires jakarta.annotation;
