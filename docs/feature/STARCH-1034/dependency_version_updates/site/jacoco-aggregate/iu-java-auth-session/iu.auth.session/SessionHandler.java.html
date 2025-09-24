@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>SessionHandler.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-auth-session</a> &gt; <a href="index.source.html" class="el_package">iu.auth.session</a> &gt; <span class="el_source">SessionHandler.java</span></div><h1>SessionHandler.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2025 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.session;
+
+import java.net.HttpCookie;
+import java.net.URI;
+import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import edu.iu.IuDataStore;
+import edu.iu.IuDigest;
+import edu.iu.IuObject;
+import edu.iu.IuText;
+import edu.iu.auth.config.IuSessionConfiguration;
+import edu.iu.auth.session.IuSession;
+import edu.iu.auth.session.IuSessionHandler;
+import edu.iu.crypt.EphemeralKeys;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
+
+/**
+ * {@link IuSessionHandler} implementation
+ */
+public class SessionHandler implements IuSessionHandler {
+	static {
+<span class="fc" id="L56">		IuObject.assertNotOpen(SessionHandler.class);</span>
+	}
+
+<span class="fc" id="L59">	private static final Logger LOG = Logger.getLogger(SessionHandler.class.getName());</span>
+
+	private final URI resourceUri;
+	private final IuSessionConfiguration configuration;
+	private final Supplier&lt;WebKey&gt; issuerKey;
+	private final Algorithm algorithm;
+	private final IuDataStore dataStore;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param resourceUri   root protected resource URI
+	 * @param configuration {#link {@link IuSessionConfiguration}
+	 * @param issuerKey     issuer key supplier
+	 * @param algorithm     algorithm
+	 * @param dataStore     data store
+	 */
+	public SessionHandler(URI resourceUri, IuSessionConfiguration configuration, Supplier&lt;WebKey&gt; issuerKey,
+<span class="fc" id="L77">			Algorithm algorithm, IuDataStore dataStore) {</span>
+<span class="fc" id="L78">		this.resourceUri = resourceUri;</span>
+<span class="fc" id="L79">		this.configuration = configuration;</span>
+<span class="fc" id="L80">		this.issuerKey = issuerKey;</span>
+<span class="fc" id="L81">		this.algorithm = algorithm;</span>
+<span class="fc" id="L82">		this.dataStore = dataStore;</span>
+<span class="fc" id="L83">	}</span>
+
+	@Override
+	public IuSession create() {
+<span class="fc" id="L87">		return new Session(resourceUri, configuration.getMaxSessionTtl());</span>
+	}
+
+	@Override
+	public IuSession activate(Iterable&lt;HttpCookie&gt; cookies) {
+<span class="fc" id="L92">		final var cookieName = getSessionCookieName();</span>
+
+<span class="fc" id="L94">		String activatedSession = null;</span>
+<span class="fc" id="L95">		byte[] secretKey = null;</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">		if (cookies != null)</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">			for (final var cookie : cookies)</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">				if (cookie.getName().equals(cookieName))</span>
+					try {
+<span class="fc" id="L100">						final var value = IuText.base64Url(cookie.getValue());</span>
+
+<span class="fc" id="L102">						final var hashKey = hashKey(value);</span>
+<span class="fc" id="L103">						final var session = dataStore.get(hashKey);</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">						if (session == null)</span>
+<span class="fc" id="L105">							continue;</span>
+
+<span class="fc" id="L107">						secretKey = value;</span>
+<span class="fc" id="L108">						activatedSession = IuText.utf8(session);</span>
+<span class="fc" id="L109">						break;</span>
+<span class="fc" id="L110">					} catch (Throwable e) {</span>
+<span class="fc" id="L111">						LOG.log(Level.INFO, &quot;Invalid session cookie value&quot;, e);</span>
+					}
+
+<span class="fc bfc" id="L114" title="All 2 branches covered.">		if (activatedSession == null)</span>
+<span class="fc" id="L115">			return null;</span>
+
+<span class="fc" id="L117">		return new Session(activatedSession, secretKey, issuerKey.get(), configuration.getMaxSessionTtl());</span>
+	}
+
+	@Override
+	public String store(IuSession session) {
+<span class="fc" id="L122">		final var secretKey = EphemeralKeys.secret(&quot;AES&quot;, 256);</span>
+<span class="fc" id="L123">		final var s = (Session) session;</span>
+
+<span class="fc" id="L125">		dataStore.put(hashKey(secretKey), IuText.utf8(s.tokenize(secretKey, issuerKey.get(), algorithm)),</span>
+<span class="fc" id="L126">				configuration.getInactiveTtl());</span>
+
+<span class="fc" id="L128">		final var cookieBuilder = new StringBuilder();</span>
+<span class="fc" id="L129">		cookieBuilder.append(getSessionCookieName());</span>
+<span class="fc" id="L130">		cookieBuilder.append('=');</span>
+<span class="fc" id="L131">		cookieBuilder.append(IuText.base64Url(secretKey));</span>
+<span class="fc" id="L132">		cookieBuilder.append(&quot;; Path=&quot;);</span>
+
+<span class="fc" id="L134">		final var path = resourceUri.getPath();</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">		if (path.isEmpty())</span>
+<span class="fc" id="L136">			cookieBuilder.append(&quot;/&quot;);</span>
+		else
+<span class="fc" id="L138">			cookieBuilder.append(path);</span>
+
+<span class="fc bfc" id="L140" title="All 2 branches covered.">		if (IuObject.equals(resourceUri.getScheme(), &quot;https&quot;))</span>
+<span class="fc" id="L141">			cookieBuilder.append(&quot;; Secure&quot;);</span>
+
+<span class="fc" id="L143">		cookieBuilder.append(&quot;; HttpOnly&quot;);</span>
+
+<span class="fc bfc" id="L145" title="All 2 branches covered.">		if (s.isStrict())</span>
+<span class="fc" id="L146">			cookieBuilder.append(&quot;; SameSite=Strict&quot;);</span>
+<span class="fc" id="L147">		return cookieBuilder.toString();</span>
+	}
+
+	@Override
+	public void remove(Iterable&lt;HttpCookie&gt; cookies) {
+<span class="fc bfc" id="L152" title="All 2 branches covered.">		if (cookies != null) {</span>
+<span class="fc" id="L153">			final var cookieName = getSessionCookieName();</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">			for (final var cookie : cookies)</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">				if (cookie.getName().equals(cookieName))</span>
+					try {
+<span class="fc" id="L157">						dataStore.put(hashKey(IuText.base64Url(cookie.getValue())), null);</span>
+<span class="fc" id="L158">					} catch (Throwable e) {</span>
+<span class="fc" id="L159">						LOG.log(Level.INFO, &quot;Invalid session cookie value&quot;, e);</span>
+<span class="fc" id="L160">					}</span>
+		}
+<span class="fc" id="L162">	}</span>
+
+	/**
+	 * Gets the hash key to use for storing tokenized session data.
+	 * 
+	 * @param secretKey secret key data
+	 * @return encoded digest of the session key
+	 */
+	static byte[] hashKey(byte[] secretKey) {
+<span class="fc" id="L171">		return IuDigest.sha256(secretKey);</span>
+	}
+
+	/**
+	 * Gets the session cookie name for a protected resource URI
+	 * 
+	 * @return session cookie name
+	 */
+	String getSessionCookieName() {
+<span class="fc" id="L180">		return &quot;iu-sk_&quot; + IuText.base64Url(IuDigest.sha256(IuText.utf8(resourceUri.toString())));</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
