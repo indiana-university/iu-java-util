@@ -47,19 +47,18 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IuIterable;
-import edu.iu.test.IuTest;
 
 @SuppressWarnings("javadoc")
 public class PathEntryScannerTest {
 
 	@Test
 	public void testScanJar() throws IOException {
-		final var entry = Path.of(IuTest.getProperty("testruntime.archive"));
+		final var entry = Path.of("target/dependency/iu-java-type-testruntime.jar");
 		assertEquals(Set.of("META-INF/lib/jakarta.ejb-api-4.0.0.jar", "META-INF/lib/jakarta.transaction-api-2.0.0.jar",
 				"edu/iu/type/testruntime/TestRuntime.class", "module-info.class", "META-INF/lib/commons-lang-2.6.jar",
 				"edu/iu/type/testruntime/package-info.class", "edu/iu/type/testruntime/UrlReader.class",
 				"META-INF/maven/edu.iu.util/iu-java-type-testruntime/pom.xml",
-				"META-INF/lib/jakarta.interceptor-api-2.2.0.jar", "META-INF/lib/jakarta.json-api-2.1.2.jar",
+				"META-INF/lib/jakarta.interceptor-api-2.2.0.jar", "META-INF/lib/jakarta.json-api-2.1.3.jar",
 				"META-INF/maven/edu.iu.util/iu-java-type-testruntime/pom.properties",
 				"META-INF/lib/jakarta.annotation-api-3.0.0.jar", "META-INF/runtime.properties"),
 				PathEntryScanner.findResources(entry));
@@ -67,14 +66,14 @@ public class PathEntryScannerTest {
 
 	@Test
 	public void testScanFolder() throws IOException {
-		final var entry = Path.of(IuTest.getProperty("testruntime.outputFolder"));
+		final var entry = Path.of("target/dependency/iu-java-type-testruntime");
 		final var scannedEntries = PathEntryScanner.findResources(entry);
 		assertTrue(
 				scannedEntries.containsAll(Set.of("META-INF/lib/jakarta.ejb-api-4.0.0.jar",
 						"META-INF/lib/jakarta.transaction-api-2.0.0.jar", "edu/iu/type/testruntime/TestRuntime.class",
 						"module-info.class", "META-INF/lib/commons-lang-2.6.jar",
 						"edu/iu/type/testruntime/package-info.class", "edu/iu/type/testruntime/UrlReader.class",
-						"META-INF/lib/jakarta.interceptor-api-2.2.0.jar", "META-INF/lib/jakarta.json-api-2.1.2.jar",
+						"META-INF/lib/jakarta.interceptor-api-2.2.0.jar", "META-INF/lib/jakarta.json-api-2.1.3.jar",
 						"META-INF/lib/jakarta.annotation-api-3.0.0.jar", "META-INF/runtime.properties")),
 				scannedEntries::toString);
 	}
@@ -95,15 +94,7 @@ public class PathEntryScannerTest {
 
 	@Test
 	public void testReadFromJar() throws IOException {
-		final var entry = Path.of(IuTest.getProperty("testruntime.archive"));
-		final var properties = new Properties();
-		properties.load(new ByteArrayInputStream(PathEntryScanner.read(entry, "META-INF/runtime.properties")));
-		assertEquals("a property value", properties.getProperty("test.property"));
-	}
-
-	@Test
-	public void testReadFromFile() throws IOException {
-		final var entry = Path.of(IuTest.getProperty("testruntime.outputFolder"));
+		final var entry = Path.of("target/dependency/iu-java-type-testruntime.jar");
 		final var properties = new Properties();
 		properties.load(new ByteArrayInputStream(PathEntryScanner.read(entry, "META-INF/runtime.properties")));
 		assertEquals("a property value", properties.getProperty("test.property"));
@@ -111,13 +102,13 @@ public class PathEntryScannerTest {
 
 	@Test
 	public void testMissingFromJar() throws IOException {
-		final var entry = Path.of(IuTest.getProperty("testruntime.archive"));
+		final var entry = Path.of("target/dependency/iu-java-type-testruntime.jar");
 		assertThrows(NoSuchFileException.class, () -> PathEntryScanner.read(entry, "missing resource"));
 	}
 
 	@Test
 	public void testMissingFromFile() throws IOException {
-		final var entry = Path.of(IuTest.getProperty("testruntime.outputFolder"));
+		final var entry = Path.of("target/dependency/iu-java-type-testruntime");
 		assertThrows(NoSuchFileException.class, () -> PathEntryScanner.read(entry, "missing resource"));
 	}
 

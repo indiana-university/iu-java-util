@@ -100,8 +100,6 @@ final class ComponentFactory {
 			Iterable<ComponentArchive> archives, Consumer<Controller> controllerCallback, UnsafeRunnable destroy)
 			throws IOException {
 		final var firstComponent = archives.iterator().next();
-		if (!firstComponent.kind().isModular())
-			throw new IllegalArgumentException("First component must be a module");
 
 		final String firstModuleName;
 		try (final var finder = new CloseableModuleFinder(firstComponent.path())) {

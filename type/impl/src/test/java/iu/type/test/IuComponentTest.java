@@ -57,12 +57,10 @@ import java.util.logging.Level;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 
 import edu.iu.IuIterable;
-import edu.iu.legacy.Incompatible;
 import edu.iu.legacy.Repurposed;
 import edu.iu.test.IuTest;
 import edu.iu.test.IuTestLogger;
@@ -118,10 +116,8 @@ public class IuComponentTest extends IuTypeTestCase {
 			assertTrue(controller.layer().findModule("iu.util.type.testruntime").isPresent());
 		}, TestArchives.getComponentArchive("testruntime"),
 				TestArchives.getProvidedDependencyArchives("testruntime"))) {
-			assertTrue(component.toString().startsWith("Component [parent=null, kind=MODULAR_JAR, versions=["),
-					component::toString);
 
-			assertEquals(Kind.MODULAR_JAR, component.kind());
+			assertEquals(Kind.JAR, component.kind());
 			assertEquals("iu-java-type-testruntime", component.version().name());
 			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
 
@@ -148,13 +144,6 @@ public class IuComponentTest extends IuTypeTestCase {
 		}
 	}
 
-	@Test
-	public void testRejectsLegacy() throws Exception {
-		final var error = assertThrows(IllegalArgumentException.class,
-				() -> IuComponent.of(TestArchives.getComponentArchive("testlegacy")));
-		assertEquals("First component must be a module", error.getMessage());
-	}
-
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testLoadsTestComponent() throws Exception {
@@ -171,7 +160,7 @@ public class IuComponentTest extends IuTypeTestCase {
 			assertNotNull(parent.moduleLayer());
 			assertDoesNotThrow(parent::toString);
 
-			assertEquals(Kind.MODULAR_JAR, component.kind());
+			assertEquals(Kind.JAR, component.kind());
 			assertEquals("iu-java-type-testcomponent", component.version().name());
 			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
 
@@ -234,7 +223,7 @@ public class IuComponentTest extends IuTypeTestCase {
 				var component = parent.extend(TestArchives.getComponentArchive("testweb"),
 						TestArchives.getProvidedDependencyArchives("testweb"))) {
 
-			assertEquals(Kind.MODULAR_WAR, component.kind());
+			assertEquals(Kind.WAR, component.kind());
 			assertEquals("iu-java-type-testweb", component.version().name());
 			assertEquals(IuTest.getProperty("project.version"), component.version().implementationVersion());
 

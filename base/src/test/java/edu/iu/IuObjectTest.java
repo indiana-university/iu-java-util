@@ -146,6 +146,20 @@ public class IuObjectTest {
 	}
 
 	@Test
+	public void testPlatformTypeRuntime() {
+		final var rt1 = IdGenerator.generateId();
+		final var rt2 = IdGenerator.generateId();
+		System.setProperty("iu.util.platformNames", rt1 + "," + rt2);
+		try {
+			assertTrue(IuObject.isPlatformName(rt1));
+			assertTrue(IuObject.isPlatformName(rt2));
+			assertFalse(IuObject.isPlatformName(""));
+		} finally {
+			System.clearProperty("iu.util.platformNames");
+		}
+	}
+
+	@Test
 	public void testOnce() {
 		assertThrows(NullPointerException.class, () -> IuObject.once(null, null));
 		assertSame("foo", IuObject.once(null, "foo"));

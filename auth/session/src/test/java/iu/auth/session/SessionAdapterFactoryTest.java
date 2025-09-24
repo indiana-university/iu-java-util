@@ -87,14 +87,14 @@ public class SessionAdapterFactoryTest {
 	public interface IllegalSession {
 		IuSessionConfiguration getConfiguration(); // disallowed, not same module
 	}
-	
+
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Test
 	public void testIllegalSession() {
 		final var factory = new SessionAdapterFactory<>(IllegalSession.class);
-        final var adapter = (IuJsonAdapter) factory.apply(IllegalSession.class);
-        final var session = mock(IllegalSession.class);
-        assertThrows(UnsupportedOperationException.class, () -> adapter.toJson(session));
+		final var adapter = (IuJsonAdapter) factory.apply(IllegalSession.class);
+		final var session = mock(IllegalSession.class);
+		assertThrows(UnsupportedOperationException.class, () -> adapter.toJson(session));
 	}
-	
+
 }

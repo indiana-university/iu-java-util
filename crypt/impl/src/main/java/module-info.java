@@ -54,6 +54,7 @@ module iu.util.crypt.impl {
 	requires iu.util;
 	requires transitive iu.util.crypt;
 	requires transitive iu.util.client;
+	requires jakarta.annotation;
 
 	provides iu.crypt.spi.IuCryptSpi with iu.crypt.CryptSpi;
 }

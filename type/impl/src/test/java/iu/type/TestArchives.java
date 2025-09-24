@@ -44,8 +44,6 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 
-import edu.iu.test.IuTest;
-
 @SuppressWarnings("javadoc")
 public class TestArchives extends IuTypeTestCase {
 
@@ -70,25 +68,28 @@ public class TestArchives extends IuTypeTestCase {
 	}
 
 	public static InputStream getComponentArchive(String componentName) throws IOException {
-		return Files.newInputStream(Path.of(IuTest.getProperty(componentName + ".archive")));
+		return Files.newInputStream(Path.of("target/dependency/iu-java-type-" + componentName
+				+ (componentName.equals("testweb") ? ".war" : ".jar")));
 	}
 
 	public static InputStream[] getProvidedDependencyArchives(String componentName) throws IOException {
 		Queue<InputStream> providedDependencyArchives = new ArrayDeque<>();
-		var deps = IuTest.getProperty(componentName + ".deps");
-		if (deps != null)
-			for (var jar : Files.newDirectoryStream(Path.of(deps).toRealPath()))
+		for (var jar : Files.newDirectoryStream(Path.of("target/dependency/iu-java-type-" + componentName + "-deps")))
+			if (jar.toString().endsWith(".jar"))
 				providedDependencyArchives.offer(Files.newInputStream(jar));
 		return providedDependencyArchives.toArray(new InputStream[providedDependencyArchives.size()]);
 	}
 
 	public static URL[] getClassPath(String componentName) throws IOException {
 		Queue<URL> path = new ArrayDeque<>();
-		path.offer(Path.of(IuTest.getProperty(componentName + ".archive")).toUri().toURL());
-		var deps = IuTest.getProperty(componentName + ".deps");
-		if (deps != null)
-			for (var jar : Files.newDirectoryStream(Path.of(deps).toRealPath()))
-				path.offer(jar.toUri().toURL());
+		path.offer(Path.of(
+				"target/dependency/iu-java-type-" + componentName + (componentName.equals("testweb") ? ".war" : ".jar"))
+				.toUri().toURL());
+		final var deps = Path.of("target/dependency/iu-java-type-" + componentName + "-deps");
+		if (Files.exists(deps))
+			for (var jar : Files.newDirectoryStream(deps))
+				if (jar.toString().endsWith(".jar"))
+					path.offer(jar.toUri().toURL());
 		return path.toArray(path.toArray(new URL[path.size()]));
 	}
 

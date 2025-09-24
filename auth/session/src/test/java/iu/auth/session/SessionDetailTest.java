@@ -65,7 +65,7 @@ class SessionDetailTest {
 		boolean isNotThere();
 
 		void unsupported();
-		
+
 		void unsupported(String value);
 
 		void setUnsupported();

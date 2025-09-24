@@ -36,12 +36,15 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.function.Supplier;
+import java.util.logging.Logger;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.type.IuResource;
 import edu.iu.type.IuResourceKey;
 import edu.iu.type.IuType;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import jakarta.annotation.Priority;
 import jakarta.annotation.Resource;
 import jakarta.annotation.Resource.AuthenticationType;
@@ -54,6 +57,8 @@ import jakarta.annotation.Resources;
  */
 class ComponentResource<T> implements IuResource<T> {
 
+	private static final Logger LOG = Logger.getLogger(ComponentResource.class.getName());
+
 	/**
 	 * Creates a static web resource.
 	 * 
@@ -62,7 +67,8 @@ class ComponentResource<T> implements IuResource<T> {
 	 * @return static web resource
 	 */
 	static ComponentResource<byte[]> createWebResource(String name, byte[] data) {
-		return new ComponentResource<byte[]>(true, true, -1, name, TypeFactory.resolveRawClass(byte[].class), () -> data);
+		return new ComponentResource<byte[]>(true, true, -1, name, TypeFactory.resolveRawClass(byte[].class),
+				() -> data);
 	}
 
 	/**
@@ -120,11 +126,15 @@ class ComponentResource<T> implements IuResource<T> {
 		else
 			name = resource.name();
 
-		final var priority = type.annotation(Priority.class);
+		final var targetType = TypeFactory.resolveRawClass(targetClass);
+
+		var priority = targetType.annotation(Priority.class);
+		if (priority == null)
+			priority = type.annotation(Priority.class);
 
 		return new ComponentResource<>(resource.authenticationType().equals(AuthenticationType.CONTAINER),
 				resource.shareable(), priority == null ? -1 : priority.value(), name, type,
-				() -> IuException.unchecked(() -> TypeFactory.resolveRawClass(targetClass).constructor().exec()));
+				() -> IuException.unchecked(() -> targetType.constructor().exec()));
 	}
 
 	private final boolean needsAuthentication;
@@ -135,8 +145,18 @@ class ComponentResource<T> implements IuResource<T> {
 	private volatile T singleton;
 	private Supplier<?> factory;
 
-	private ComponentResource(boolean needsAuthentication, boolean shared, int priority, String name,
-			TypeTemplate<?, T> type, Supplier<?> factory) {
+	/**
+	 * Constructor.
+	 * 
+	 * @param needsAuthentication whether or not authentication is needed
+	 * @param shared              whether or not the resource is shared
+	 * @param priority            initialization priority
+	 * @param name                resource name
+	 * @param type                resource type
+	 * @param factory             factory for creating new instances
+	 */
+	ComponentResource(boolean needsAuthentication, boolean shared, int priority, String name, TypeTemplate<?, T> type,
+			Supplier<?> factory) {
 		this.needsAuthentication = needsAuthentication;
 		this.shared = shared;
 		this.priority = priority;
@@ -171,6 +191,32 @@ class ComponentResource<T> implements IuResource<T> {
 	}
 
 	@Override
+	public void postConstruct() {
+		if (shared) {
+			final var i = get();
+			final var impl = IuType.of(i.getClass());
+			impl.annotatedMethods(PostConstruct.class).forEach(m -> IuException.unchecked(() -> {
+				LOG.config("post construct exec " + m + " " + i);
+				return m.exec(i);
+			}));
+		} else
+			throw new IllegalStateException("not shared");
+	}
+
+	@Override
+	public void preDestroy() {
+		if (shared) {
+			final var i = get();
+			final var impl = IuType.of(i.getClass());
+			impl.annotatedMethods(PreDestroy.class).forEach(m -> IuException.unchecked(() -> {
+				LOG.config("pre destroy exec " + m + " " + i);
+				return m.exec(i);
+			}));
+		} else
+			throw new IllegalStateException("not shared");
+	}
+
+	@Override
 	public Supplier<?> factory() {
 		return factory;
 	}
@@ -195,7 +241,7 @@ class ComponentResource<T> implements IuResource<T> {
 	@Override
 	public String toString() {
 		return "ComponentResource [needsAuthentication=" + needsAuthentication + ", shared=" + shared + ", name=" + name
-				+ ", type=" + type + "]";
+				+ ", type=" + type + ", singleton=" + singleton + "]";
 	}
 
 	private T create() {
