@@ -1,4 +1,6 @@
-package edu.iu.auth.oauth;
+package edu.iu.auth.config;
+
+import edu.iu.auth.oauth.OAuthClient;
 
 /**
  * Encapsulates OAuth 2.0 Resource Owner Password grant authentication details.

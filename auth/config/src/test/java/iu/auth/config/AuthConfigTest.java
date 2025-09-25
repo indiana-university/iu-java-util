@@ -106,6 +106,9 @@ public class AuthConfigTest {
 	interface UnloadableConfig {
 	}
 
+	interface VerifiableConfig {
+	}
+
 	@BeforeEach
 	public void setup() throws Exception {
 		Field f;
@@ -251,6 +254,23 @@ public class AuthConfigTest {
 	@Test
 	public void testAdaptCert() {
 		assertSame(CryptJsonAdapters.CERT, AuthConfig.adaptJson(X509Certificate.class));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testLoadWithVerifier() {
+		final var key = IdGenerator.generateId();
+		final var vault = mock(IuVault.class);
+		final var vkv = mock(IuVaultKeyedValue.class);
+		when(vkv.getValue()).thenReturn("{}");
+		when(vault.get("verifiable/" + key)).thenReturn(vkv);
+
+		final var verifier = mock(java.util.function.Consumer.class);
+		assertDoesNotThrow(() -> AuthConfig.registerInterface("verifiable", VerifiableConfig.class, verifier, vault));
+
+		VerifiableConfig config = AuthConfig.load(VerifiableConfig.class, key);
+		assertInstanceOf(VerifiableConfig.class, config);
+		verify(verifier, times(1)).accept(config);
 	}
 
 }

@@ -41,7 +41,6 @@ import java.util.function.Consumer;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
-import edu.iu.auth.config.IuAuthenticationRealm;
 import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
 import edu.iu.auth.config.IuAuthorizationClient.GrantType;
 import edu.iu.client.IuJson;
@@ -100,7 +99,6 @@ public class AuthConfig {
 		registerAdapter(WebSignedPayload.class, JwsBuilder.JSON);
 		registerAdapter(X509Certificate.class, CryptJsonAdapters.CERT);
 		registerAdapter(X509CRL.class, CryptJsonAdapters.CRL);
-		registerAdapter(IuAuthenticationRealm.Type.class, IuAuthenticationRealm.Type.JSON);
 	}
 
 	/**
@@ -165,15 +163,8 @@ public class AuthConfig {
 	 * @param configInterface configuration interface
 	 * @param vault           vault to use for loading configuration
 	 */
-	@SuppressWarnings("unchecked")
 	public static synchronized <T> void registerInterface(String prefix, Class<T> configInterface, IuVault... vault) {
-		final Consumer<? super T> verifier;
-		if (IuAuthenticationRealm.class.isAssignableFrom(configInterface))
-			verifier = ((Consumer<? super T>) (Consumer<IuAuthenticationRealm>) IuAuthenticationRealm::verify);
-		else
-			verifier = null;
-
-		registerInterface(prefix, configInterface, verifier, vault);
+		registerInterface(prefix, configInterface, null, vault);
 	}
 
 	/**

@@ -38,7 +38,7 @@ import java.security.cert.X509Certificate;
  * Configures a certifying authority for an {@link X509Certificate X.509
  * certificate chain}.
  */
-public interface IuCertificateAuthority extends IuAuthenticationRealm {
+public interface IuCertificateAuthority {
 
 	/**
 	 * Gets the CA signing certificate.

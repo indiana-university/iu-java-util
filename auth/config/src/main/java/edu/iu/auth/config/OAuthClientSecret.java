@@ -1,4 +1,4 @@
-package edu.iu.auth.oauth;
+package edu.iu.auth.config;
 
 /**
  * Encapsulates OAuth 2.0 confidential client secret.
