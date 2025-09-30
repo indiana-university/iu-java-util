@@ -58,7 +58,7 @@ public class PathEntryScannerTest {
 				"edu/iu/type/testruntime/TestRuntime.class", "module-info.class", "META-INF/lib/commons-lang-2.6.jar",
 				"edu/iu/type/testruntime/package-info.class", "edu/iu/type/testruntime/UrlReader.class",
 				"META-INF/maven/edu.iu.util/iu-java-type-testruntime/pom.xml",
-				"META-INF/lib/jakarta.interceptor-api-2.2.0.jar", "META-INF/lib/jakarta.json-api-2.1.2.jar",
+				"META-INF/lib/jakarta.interceptor-api-2.2.0.jar", "META-INF/lib/jakarta.json-api-2.1.3.jar",
 				"META-INF/maven/edu.iu.util/iu-java-type-testruntime/pom.properties",
 				"META-INF/lib/jakarta.annotation-api-3.0.0.jar", "META-INF/runtime.properties"),
 				PathEntryScanner.findResources(entry));
@@ -73,7 +73,7 @@ public class PathEntryScannerTest {
 						"META-INF/lib/jakarta.transaction-api-2.0.0.jar", "edu/iu/type/testruntime/TestRuntime.class",
 						"module-info.class", "META-INF/lib/commons-lang-2.6.jar",
 						"edu/iu/type/testruntime/package-info.class", "edu/iu/type/testruntime/UrlReader.class",
-						"META-INF/lib/jakarta.interceptor-api-2.2.0.jar", "META-INF/lib/jakarta.json-api-2.1.2.jar",
+						"META-INF/lib/jakarta.interceptor-api-2.2.0.jar", "META-INF/lib/jakarta.json-api-2.1.3.jar",
 						"META-INF/lib/jakarta.annotation-api-3.0.0.jar", "META-INF/runtime.properties")),
 				scannedEntries::toString);
 	}
