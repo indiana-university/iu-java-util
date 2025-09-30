@@ -1,1 +1,0 @@
-typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"edu.iu.redis","l":"IuRedis"},{"p":"edu.iu.redis","l":"IuRedisConfiguration"},{"p":"edu.iu.redis.spi","l":"IuRedisSpi"}];updateSearchResults();
