@@ -1,0 +1,1579 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuWebUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Base Utilities Module</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuWebUtils.java</span></div><h1>IuWebUtils.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2025 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu;
+
+import java.net.HttpCookie;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.time.Duration;
+import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.function.Function;
+
+/**
+ * Provides useful utility methods for low-level web client and server
+ * interactions.
+ */
+public final class IuWebUtils {
+
+<span class="fc" id="L56">	private static final Map&lt;String, InetAddress&gt; IP_CACHE = new IuCacheMap&lt;&gt;(Duration.ofSeconds(5L));</span>
+
+<span class="fc" id="L58">	private static char DQUOTE = 0x22;</span>
+<span class="fc" id="L59">	private static char HTAB = 0x09;</span>
+<span class="fc" id="L60">	private static char SP = 0x20;</span>
+
+	/**
+	 * VCHAR = %x21-7E
+	 * 
+	 * @param c character
+	 * @return true if c matches VCHAR ABNF rule; else false
+	 * @see &lt;a href=
+	 *      &quot;https://datatracker.ietf.org/doc/html/rfc5234#appendix-B&quot;&gt;RFC-5234 Core
+	 *      ABNF&lt;/a&gt;
+	 */
+	static boolean vchar(char c) {
+<span class="fc bfc" id="L72" title="All 4 branches covered.">		return c &gt;= 0x21 //</span>
+				&amp;&amp; c &lt;= 0x7e;
+	}
+
+	/**
+	 * ALPHA = %x41-5A / %x61-7A
+	 * 
+	 * @param c character
+	 * @return true if c matches ALHPA ABNF rule; else false
+	 * @see &lt;a href=
+	 *      &quot;https://datatracker.ietf.org/doc/html/rfc5234#appendix-B&quot;&gt;RFC-5234 Core
+	 *      ABNF&lt;/a&gt;
+	 */
+	static boolean alpha(char c) {
+<span class="fc bfc" id="L86" title="All 8 branches covered.">		return (c &gt;= 0x41 //</span>
+				&amp;&amp; c &lt;= 0x5a) //
+				|| (c &gt;= 0x61 //
+						&amp;&amp; c &lt;= 0x7a);
+	}
+
+	/**
+	 * DIGIT = %x30-39
+	 * 
+	 * @param c character
+	 * @return true if c matches DIGIT ABNF rule; else false
+	 * @see &lt;a href=
+	 *      &quot;https://datatracker.ietf.org/doc/html/rfc5234#appendix-B&quot;&gt;RFC-5234 Core
+	 *      ABNF&lt;/a&gt;
+	 */
+	static boolean digit(char c) {
+<span class="fc bfc" id="L102" title="All 4 branches covered.">		return c &gt;= 0x30 //</span>
+				&amp;&amp; c &lt;= 0x39;
+	}
+
+	/**
+	 * ctext = HTAB / SP / %x21-27 / %x2A-5B / %x5D-7E / obs-text
+	 * 
+	 * @param c character
+	 * @return true if c matches ctext ABNF rule; else false
+	 * @see &lt;a href=
+	 *      &quot;https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf&quot;&gt;RFC-9110
+	 *      HTTP Semantics Collected ABNF&lt;/a&gt;
+	 */
+	static boolean ctext(char c) {
+<span class="fc bfc" id="L116" title="All 16 branches covered.">		return c == HTAB //</span>
+				|| c == SP //
+				|| (c &gt;= 0x21 // '!'-'''
+						&amp;&amp; c &lt;= 0x27) //
+				|| (c &gt;= 0x2A // '*'-'['
+						&amp;&amp; c &lt;= 0x5b) //
+				|| (c &gt;= 0x5d // ']'-'~'
+						&amp;&amp; c &lt;= 0x7e) //
+<span class="fc bfc" id="L124" title="All 2 branches covered.">				|| obsText(c);</span>
+	}
+
+	/**
+	 * obs-text = %x80-FF
+	 * 
+	 * @param c character
+	 * @return true if c matches obs-text ABNF rule; else false
+	 * @see &lt;a href=
+	 *      &quot;https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf&quot;&gt;RFC-9110
+	 *      HTTP Semantics Collected ABNF&lt;/a&gt;
+	 */
+	static boolean obsText(char c) {
+<span class="fc bfc" id="L137" title="All 4 branches covered.">		return c &gt;= 0x80 //</span>
+				&amp;&amp; c &lt;= 0xff;
+	}
+
+	/**
+	 * comment = &quot;(&quot; *( ctext / quoted-pair / comment ) &quot;)&quot;
+	 * 
+	 * @param s   input string
+	 * @param pos position at start of comment
+	 * @return end position after matching comment ABNF rule; returns pos if token68
+	 *         was not matched
+	 * @see &lt;a href=
+	 *      &quot;https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf&quot;&gt;RFC-9110
+	 *      HTTP Semantics Collected ABNF&lt;/a&gt;
+	 */
+	static int comment(String s, final int pos) {
+<span class="fc bfc" id="L153" title="All 2 branches covered.">		if (s.charAt(pos) != '(')</span>
+<span class="fc" id="L154">			return pos;</span>
+
+<span class="fc" id="L156">		var p = pos + 1;</span>
+		int n;
+		char c;
+		do {
+<span class="fc" id="L160">			c = s.charAt(p);</span>
+
+<span class="fc bfc" id="L162" title="All 2 branches covered.">			if (ctext(c))</span>
+<span class="fc" id="L163">				p++;</span>
+<span class="fc bfc" id="L164" title="All 2 branches covered.">			else if ((n = quotedPair(s, p)) &gt; p //</span>
+<span class="fc bfc" id="L165" title="All 2 branches covered.">					|| (n = comment(s, p)) &gt; p)</span>
+<span class="fc" id="L166">				p = n;</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">			else if (c == ')')</span>
+<span class="fc" id="L168">				return p + 1;</span>
+			else
+<span class="fc" id="L170">				return pos;</span>
+
+<span class="fc bfc" id="L172" title="All 2 branches covered.">		} while (p &lt; s.length());</span>
+
+<span class="fc" id="L174">		return pos;</span>
+	}
+
+	/**
+	 * token68 = 1*( ALPHA / DIGIT / &quot;-&quot; / &quot;.&quot; / &quot;_&quot; / &quot;~&quot; / &quot;+&quot; / &quot;/&quot; ) *&quot;=&quot;
+	 * 
+	 * @param s   input string
+	 * @param pos position at start of token68 character
+	 * @return end position after matching token68 ABNF rule; returns pos if token68
+	 *         was not matched
+	 * @see &lt;a href=
+	 *      &quot;https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf&quot;&gt;RFC-9110
+	 *      HTTP Semantics Collected ABNF&lt;/a&gt;
+	 */
+	static int token68(String s, int pos) {
+<span class="fc bfc" id="L189" title="All 2 branches covered.">		if (pos &gt;= s.length())</span>
+<span class="fc" id="L190">			return pos;</span>
+
+		char c;
+		do {
+<span class="fc bfc" id="L194" title="All 2 branches covered.">			if (pos == s.length())</span>
+<span class="fc" id="L195">				return pos;</span>
+<span class="fc" id="L196">			c = s.charAt(pos++);</span>
+<span class="fc bfc" id="L197" title="All 2 branches covered.">		} while (alpha(c) //</span>
+<span class="fc bfc" id="L198" title="All 2 branches covered.">				|| digit(c) //</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">				|| &quot;-._~+/&quot;.indexOf(c) != -1);</span>
+<span class="fc" id="L200">		pos--;</span>
+
+		do {
+<span class="fc bfc" id="L203" title="All 2 branches covered.">			if (pos == s.length())</span>
+<span class="fc" id="L204">				return pos;</span>
+<span class="fc" id="L205">			c = s.charAt(pos++);</span>
+<span class="fc bfc" id="L206" title="All 2 branches covered.">		} while (c == '=');</span>
+
+<span class="fc" id="L208">		return pos - 1;</span>
+	}
+
+	/**
+	 * tchar = &quot;!&quot; / &quot;#&quot; / &quot;$&quot; / &quot;%&quot; / &quot;&amp;amp;&quot; / &quot;'&quot; / &quot;*&quot; / &quot;+&quot; / &quot;-&quot; / &quot;.&quot; / &quot;^&quot; /
+	 * &quot;_&quot; / &quot;`&quot; / &quot;|&quot; / &quot;~&quot; / DIGIT / ALPHA
+	 * 
+	 * @param c character
+	 * @return true if c matches obs-text ABNF rule; else false
+	 * @see &lt;a href=
+	 *      &quot;https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf&quot;&gt;RFC-9110
+	 *      HTTP Semantics Collected ABNF&lt;/a&gt;
+	 */
+	static boolean tchar(char c) {
+<span class="fc bfc" id="L222" title="All 2 branches covered.">		return alpha(c) //</span>
+<span class="fc bfc" id="L223" title="All 2 branches covered.">				|| digit(c) //</span>
+<span class="fc bfc" id="L224" title="All 2 branches covered.">				|| &quot;!#$%&amp;'*+-.^_`!~&quot;.indexOf(c) != -1;</span>
+	}
+
+	/**
+	 * token = 1*tchar
+	 * 
+	 * @param s   input string
+	 * @param pos position at start of token character
+	 * @return end position of a matching token ABNF rule; returns pos if token was
+	 *         not matched
+	 * @see &lt;a href=
+	 *      &quot;https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf&quot;&gt;RFC-9110
+	 *      HTTP Semantics Collected ABNF&lt;/a&gt;
+	 */
+	static int token(String s, int pos) {
+<span class="fc bfc" id="L239" title="All 2 branches covered.">		if (pos &gt;= s.length())</span>
+<span class="fc" id="L240">			return pos;</span>
+
+		char c;
+		do {
+<span class="fc" id="L244">			c = s.charAt(pos++);</span>
+<span class="fc bfc" id="L245" title="All 2 branches covered.">			if (pos == s.length() //</span>
+<span class="fc bfc" id="L246" title="All 2 branches covered.">					&amp;&amp; tchar(c))</span>
+<span class="fc" id="L247">				return pos;</span>
+<span class="fc bfc" id="L248" title="All 2 branches covered.">		} while (tchar(c));</span>
+
+<span class="fc" id="L250">		return pos - 1;</span>
+	}
+
+	/**
+	 * BWS = OWS
+	 * 
+	 * &lt;p&gt;
+	 * OWS = *( SP / HTAB )
+	 * &lt;/p&gt;
+	 *
+	 * &lt;p&gt;
+	 * RWS = 1*( SP / HTAB )
+	 * &lt;/p&gt;
+	 * 
+	 * @param s   input string
+	 * @param pos position at start of token character
+	 * @return end position of a matching BWS ABNF rule
+	 * @see &lt;a href=
+	 *      &quot;https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf&quot;&gt;RFC-9110
+	 *      HTTP Semantics Collected ABNF&lt;/a&gt;
+	 */
+	static int bws(String s, int pos) {
+<span class="fc bfc" id="L272" title="All 2 branches covered.">		if (pos &gt;= s.length())</span>
+<span class="fc" id="L273">			return pos;</span>
+
+		char c;
+		do {
+<span class="fc" id="L277">			c = s.charAt(pos++);</span>
+<span class="fc bfc" id="L278" title="All 6 branches covered.">			if (pos == s.length() //</span>
+					&amp;&amp; (c == SP //
+							|| c == HTAB))
+<span class="fc" id="L281">				return pos;</span>
+<span class="fc bfc" id="L282" title="All 4 branches covered.">		} while (c == SP //</span>
+				|| c == HTAB);
+
+<span class="fc" id="L285">		return pos - 1;</span>
+	}
+
+	/**
+	 * 1*SP
+	 * 
+	 * @param s   input string
+	 * @param pos position at start of token character
+	 * @return end position of a matching sp ABNF rule
+	 * @see &lt;a href=
+	 *      &quot;https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf&quot;&gt;RFC-9110
+	 *      HTTP Semantics Collected ABNF&lt;/a&gt;
+	 */
+	static int sp(String s, int pos) {
+<span class="fc bfc" id="L299" title="All 2 branches covered.">		if (pos &gt;= s.length())</span>
+<span class="fc" id="L300">			return pos;</span>
+
+		char c;
+		do {
+<span class="fc" id="L304">			c = s.charAt(pos++);</span>
+<span class="fc bfc" id="L305" title="All 4 branches covered.">			if (pos == s.length() //</span>
+					&amp;&amp; (c == SP))
+<span class="fc" id="L307">				return pos;</span>
+<span class="fc bfc" id="L308" title="All 2 branches covered.">		} while (c == SP);</span>
+
+<span class="fc" id="L310">		return pos - 1;</span>
+	}
+
+	/**
+	 * product = token [ &quot;/&quot; product-version ]
+	 * &lt;p&gt;
+	 * product-version = token
+	 * &lt;/p&gt;
+	 * 
+	 * @param s   input string
+	 * @param pos position at start of product expression
+	 * @return end position of a matching product ABNF rule; pos if not matched
+	 */
+	static int product(String s, int pos) {
+<span class="fc" id="L324">		final var token = token(s, pos);</span>
+<span class="fc bfc" id="L325" title="All 2 branches covered.">		if (token == pos //</span>
+<span class="fc bfc" id="L326" title="All 2 branches covered.">				|| s.length() == token //</span>
+<span class="fc bfc" id="L327" title="All 2 branches covered.">				|| s.charAt(token) != '/')</span>
+<span class="fc" id="L328">			return token;</span>
+
+<span class="fc" id="L330">		final var version = token(s, token + 1);</span>
+<span class="fc bfc" id="L331" title="All 2 branches covered.">		if (version == token + 1)</span>
+<span class="fc" id="L332">			return pos;</span>
+		else
+<span class="fc" id="L334">			return version;</span>
+	}
+
+	/**
+	 * qdtext = HTAB / SP / &quot;!&quot; / %x23-5B / %x5D-7E / obs-text
+	 * 
+	 * @param c character
+	 * @return true if c matches qdtext ABNF rule; else false
+	 * @see &lt;a href=
+	 *      &quot;https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf&quot;&gt;RFC-9110
+	 *      HTTP Semantics Collected ABNF&lt;/a&gt;
+	 */
+	static boolean qdtext(char c) {
+<span class="fc bfc" id="L347" title="All 14 branches covered.">		return c == HTAB //</span>
+				|| c == SP //
+				|| c == '!' //
+				|| (c &gt;= 0x23 //
+						&amp;&amp; c &lt;= 0x5b) //
+				|| (c &gt;= 0x5d //
+						&amp;&amp; c &lt;= 0x7e) //
+<span class="fc bfc" id="L354" title="All 2 branches covered.">				|| obsText(c);</span>
+	}
+
+	/**
+	 * quoted-pair = &quot;\&quot; ( HTAB / SP / VCHAR / obs-text )
+	 * 
+	 * @param s   input string
+	 * @param pos position at start of token character
+	 * @return end position of a matching quoted-pair ABNF rule; pos if the rule was
+	 *         not matched
+	 * @see &lt;a href=
+	 *      &quot;https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf&quot;&gt;RFC-9110
+	 *      HTTP Semantics Collected ABNF&lt;/a&gt;
+	 */
+	static int quotedPair(String s, int pos) {
+		char c;
+<span class="fc bfc" id="L370" title="All 2 branches covered.">		if (pos &lt; s.length() - 1 //</span>
+<span class="fc bfc" id="L371" title="All 2 branches covered.">				&amp;&amp; s.charAt(pos) == '\\' //</span>
+<span class="fc bfc" id="L372" title="All 4 branches covered.">				&amp;&amp; ((c = s.charAt(pos + 1)) == HTAB //</span>
+						|| c == SP //
+<span class="fc bfc" id="L374" title="All 2 branches covered.">						|| vchar(c) //</span>
+<span class="fc bfc" id="L375" title="All 2 branches covered.">						|| obsText(c)))</span>
+<span class="fc" id="L376">			pos += 2;</span>
+<span class="fc" id="L377">		return pos;</span>
+	}
+
+	/**
+	 * quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE
+	 * 
+	 * @param s     input string
+	 * @param start position at start of token character
+	 * @return end position of a matching BWS ABNF rule
+	 * @see &lt;a href=
+	 *      &quot;https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf&quot;&gt;RFC-9110
+	 *      HTTP Semantics Collected ABNF&lt;/a&gt;
+	 */
+	static int quotedString(String s, int start) {
+<span class="fc bfc" id="L391" title="All 2 branches covered.">		if (start &gt;= s.length() - 1 //</span>
+<span class="fc bfc" id="L392" title="All 2 branches covered.">				|| s.charAt(start) != DQUOTE)</span>
+<span class="fc" id="L393">			return start;</span>
+
+<span class="fc" id="L395">		var pos = start + 1;</span>
+		do {
+<span class="fc" id="L397">			final var qp = quotedPair(s, pos);</span>
+<span class="fc bfc" id="L398" title="All 2 branches covered.">			if (qp != pos)</span>
+<span class="fc" id="L399">				pos = qp;</span>
+
+<span class="fc bfc" id="L401" title="All 2 branches covered.">			if (pos &gt;= s.length())</span>
+<span class="fc" id="L402">				return start;</span>
+
+<span class="fc bfc" id="L404" title="All 2 branches covered.">		} while (qdtext(s.charAt(pos++)));</span>
+
+<span class="fc bfc" id="L406" title="All 2 branches covered.">		if (s.charAt(pos - 1) != DQUOTE)</span>
+<span class="fc" id="L407">			return start;</span>
+		else
+<span class="fc" id="L409">			return pos;</span>
+	}
+
+	/**
+	 * Determines whether or not a string is composed entirely of non-whitespace
+	 * visible ASCII characters, and at least minLength characters, but no longer
+	 * than 1024.
+	 * 
+	 * @param s         string to check
+	 * @param minLength minimum length
+	 * @return true if all characters are visible ASCII
+	 */
+	public static boolean isVisibleAscii(String s, int minLength) {
+<span class="fc" id="L422">		final var len = s.length();</span>
+<span class="fc bfc" id="L423" title="All 4 branches covered.">		if (len &lt; minLength //</span>
+				|| len &gt; 1024)
+<span class="fc" id="L425">			return false;</span>
+
+<span class="fc bfc" id="L427" title="All 2 branches covered.">		for (var i = 0; i &lt; len; i++)</span>
+<span class="fc bfc" id="L428" title="All 2 branches covered.">			if (!vchar(s.charAt(i)))</span>
+<span class="fc" id="L429">				return false;</span>
+
+<span class="fc" id="L431">		return true;</span>
+	}
+
+	/**
+	 * Determines if a root {@link URI} encompasses a resource {@link URI}.
+	 * 
+	 * @param rootUri     root {@link URI}
+	 * @param resourceUri resource {@link URI}
+	 * @return {@link URI}
+	 */
+	public static boolean isRootOf(URI rootUri, URI resourceUri) {
+<span class="fc bfc" id="L442" title="All 2 branches covered.">		if (rootUri.equals(resourceUri))</span>
+<span class="fc" id="L443">			return true;</span>
+
+<span class="fc bfc" id="L445" title="All 2 branches covered.">		if (!resourceUri.isAbsolute() //</span>
+<span class="fc bfc" id="L446" title="All 2 branches covered.">				|| resourceUri.isOpaque() //</span>
+<span class="fc bfc" id="L447" title="All 2 branches covered.">				|| !IuObject.equals(rootUri.getScheme(), resourceUri.getScheme()) //</span>
+<span class="fc bfc" id="L448" title="All 2 branches covered.">				|| !IuObject.equals(rootUri.getAuthority(), resourceUri.getAuthority()))</span>
+<span class="fc" id="L449">			return false;</span>
+
+<span class="fc" id="L451">		final var root = rootUri.getPath();</span>
+<span class="fc bfc" id="L452" title="All 2 branches covered.">		if (root.isEmpty())</span>
+<span class="fc" id="L453">			return true;</span>
+
+<span class="fc" id="L455">		final var resource = resourceUri.getPath();</span>
+<span class="fc" id="L456">		final var l = root.length();</span>
+<span class="fc bfc" id="L457" title="All 2 branches covered.">		return resource.startsWith(root) //</span>
+<span class="fc bfc" id="L458" title="All 2 branches covered.">				&amp;&amp; (root.charAt(l - 1) == '/' //</span>
+<span class="fc bfc" id="L459" title="All 2 branches covered.">						|| resource.charAt(l) == '/');</span>
+	}
+
+	/**
+	 * Creates an authentication challenge sending to a client via the
+	 * &lt;strong&gt;WWW-Authenticate&lt;/strong&gt; header.
+	 * 
+	 * @param scheme authentication scheme to request
+	 * @param params challenge attributes for informing the client of how to
+	 *               authenticate
+	 * @return authentication challenge
+	 * @see &lt;a href=&quot;https://datatracker.ietf.org/doc/html/rfc9110&quot;&gt;RFC-9110 Section
+	 *      11.1&lt;/a&gt;
+	 */
+	public static String createChallenge(String scheme, Map&lt;String, String&gt; params) {
+<span class="fc bfc" id="L474" title="All 2 branches covered.">		if (!params.containsKey(&quot;realm&quot;))</span>
+<span class="fc" id="L475">			throw new IllegalArgumentException(&quot;missing realm&quot;);</span>
+
+<span class="fc" id="L477">		final var sb = new StringBuilder();</span>
+		// auth-scheme = token
+<span class="fc bfc" id="L479" title="All 2 branches covered.">		if (token(scheme, 0) != scheme.length())</span>
+<span class="fc" id="L480">			throw new IllegalArgumentException(&quot;invalid auth scheme&quot;);</span>
+<span class="fc" id="L481">		sb.append(scheme);</span>
+
+<span class="fc" id="L483">		sb.append(' ');</span>
+<span class="fc" id="L484">		var first = true;</span>
+<span class="fc bfc" id="L485" title="All 2 branches covered.">		for (final var paramEntry : params.entrySet()) {</span>
+			// auth-param = token BWS &quot;=&quot; BWS ( token / quoted-string )
+<span class="fc" id="L487">			final var key = paramEntry.getKey();</span>
+<span class="fc" id="L488">			final var value = paramEntry.getValue();</span>
+
+<span class="fc bfc" id="L490" title="All 2 branches covered.">			if (token(key, 0) == key.length()) {</span>
+<span class="fc bfc" id="L491" title="All 2 branches covered.">				for (int i = 0; i &lt; value.length(); i++) {</span>
+<span class="fc" id="L492">					final var c = value.charAt(i);</span>
+<span class="fc bfc" id="L493" title="All 4 branches covered.">					if (c &lt; SP //</span>
+							&amp;&amp; c != HTAB)
+<span class="fc" id="L495">						throw new IllegalArgumentException(&quot;invalid parameter value&quot;);</span>
+				}
+<span class="fc bfc" id="L497" title="All 2 branches covered.">			} else if (token68(key, 0) == key.length()) {</span>
+<span class="fc bfc" id="L498" title="All 2 branches covered.">				if (!value.isEmpty())</span>
+<span class="fc" id="L499">					throw new IllegalArgumentException(&quot;invalid encoded parameter&quot;);</span>
+			} else
+<span class="fc" id="L501">				throw new IllegalArgumentException(&quot;invalid auth param&quot;);</span>
+
+<span class="fc bfc" id="L503" title="All 2 branches covered.">			if (first)</span>
+<span class="fc" id="L504">				first = false;</span>
+			else
+<span class="fc" id="L506">				sb.append(&quot; &quot;);</span>
+
+<span class="fc" id="L508">			sb.append(key);</span>
+<span class="fc bfc" id="L509" title="All 2 branches covered.">			if (!value.isEmpty())</span>
+<span class="fc" id="L510">				sb.append(&quot;=\&quot;&quot;) //</span>
+<span class="fc" id="L511">						.append(paramEntry.getValue() //</span>
+<span class="fc" id="L512">								.replace(&quot;\\&quot;, &quot;\\\\&quot;) //</span>
+<span class="fc" id="L513">								.replace(&quot;\&quot;&quot;, &quot;\\\&quot;&quot;)) //</span>
+<span class="fc" id="L514">						.append(&quot;\&quot;&quot;);</span>
+<span class="fc" id="L515">		}</span>
+<span class="fc" id="L516">		return sb.toString();</span>
+	}
+
+	/**
+	 * Parses challenge parameters from a &lt;strong&gt;WWW-Authenticate&lt;/strong&gt; header.
+	 * 
+	 * @param wwwAuthenticate WWW-Authenticate header challenge value
+	 * @return Parsed authentication challenge parameters
+	 */
+	public static Iterator&lt;IuWebAuthenticationChallenge&gt; parseAuthenticateHeader(String wwwAuthenticate) {
+		// WWW-Authenticate = [ challenge *( OWS &quot;,&quot; OWS challenge ) ]
+<span class="fc" id="L527">		return new Iterator&lt;IuWebAuthenticationChallenge&gt;() {</span>
+<span class="fc" id="L528">			private int pos = 0;</span>
+
+			@Override
+			public boolean hasNext() {
+<span class="fc bfc" id="L532" title="All 2 branches covered.">				return pos &lt; wwwAuthenticate.length();</span>
+			}
+
+			@Override
+			public IuWebAuthenticationChallenge next() {
+				// challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]
+				// auth-scheme = token
+<span class="fc" id="L539">				final var endOfAuthScheme = token(wwwAuthenticate, pos);</span>
+<span class="fc bfc" id="L540" title="All 2 branches covered.">				if (endOfAuthScheme == pos)</span>
+<span class="fc" id="L541">					throw new IllegalArgumentException(&quot;invalid auth-scheme at &quot; + pos);</span>
+
+<span class="fc" id="L543">				final var authScheme = wwwAuthenticate.substring(pos, endOfAuthScheme);</span>
+<span class="fc" id="L544">				pos = sp(wwwAuthenticate, endOfAuthScheme);</span>
+
+<span class="fc" id="L546">				final Map&lt;String, String&gt; params = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L547" title="All 4 branches covered.">				while (hasNext() &amp;&amp; wwwAuthenticate.charAt(pos) != ',') {</span>
+					// auth-param = token BWS &quot;=&quot; BWS ( token / quoted-string )
+<span class="fc" id="L549">					var endOfToken = token(wwwAuthenticate, pos);</span>
+<span class="fc" id="L550">					var eqOrStartOfNextToken = bws(wwwAuthenticate, endOfToken);</span>
+<span class="fc bfc" id="L551" title="All 2 branches covered.">					if (endOfToken &gt; pos //</span>
+<span class="fc bfc" id="L552" title="All 2 branches covered.">							&amp;&amp; endOfToken &lt; wwwAuthenticate.length() //</span>
+<span class="fc bfc" id="L553" title="All 2 branches covered.">							&amp;&amp; eqOrStartOfNextToken &lt; wwwAuthenticate.length() //</span>
+<span class="fc bfc" id="L554" title="All 2 branches covered.">							&amp;&amp; wwwAuthenticate.charAt(eqOrStartOfNextToken) == '=') {</span>
+<span class="fc" id="L555">						final var name = wwwAuthenticate.substring(pos, endOfToken);</span>
+<span class="fc" id="L556">						pos = bws(wwwAuthenticate, eqOrStartOfNextToken + 1);</span>
+
+<span class="fc" id="L558">						var endOfValue = quotedString(wwwAuthenticate, pos);</span>
+<span class="fc bfc" id="L559" title="All 2 branches covered.">						if (endOfValue == pos) {</span>
+<span class="fc" id="L560">							endOfValue = token(wwwAuthenticate, pos);</span>
+<span class="fc bfc" id="L561" title="All 2 branches covered.">							if (endOfValue == pos)</span>
+<span class="fc" id="L562">								throw new IllegalArgumentException(&quot;expected quoted-string at &quot; + pos);</span>
+							else
+<span class="fc" id="L564">								params.put(name, wwwAuthenticate.substring(pos, endOfValue));</span>
+						} else
+<span class="fc" id="L566">							params.put(name, wwwAuthenticate.substring(pos + 1, endOfValue - 1) //</span>
+<span class="fc" id="L567">									.replace(&quot;\\\\&quot;, &quot;\\&quot;) //</span>
+<span class="fc" id="L568">									.replace(&quot;\\\&quot;&quot;, &quot;\&quot;&quot;));</span>
+
+<span class="fc" id="L570">						pos = sp(wwwAuthenticate, endOfValue);</span>
+
+<span class="fc" id="L572">					} else {</span>
+<span class="fc" id="L573">						endOfToken = token68(wwwAuthenticate, pos);</span>
+<span class="fc bfc" id="L574" title="All 2 branches covered.">						if (endOfToken == pos)</span>
+<span class="fc" id="L575">							throw new IllegalArgumentException(&quot;invalid auth-param at &quot; + pos);</span>
+<span class="fc bfc" id="L576" title="All 2 branches covered.">						else if (endOfToken &lt; wwwAuthenticate.length())</span>
+<span class="fc" id="L577">							throw new IllegalArgumentException(&quot;expected SP at &quot; + pos);</span>
+<span class="fc" id="L578">						params.put(wwwAuthenticate.substring(pos, endOfToken), &quot;&quot;);</span>
+<span class="fc" id="L579">						pos = sp(wwwAuthenticate, endOfToken);</span>
+					}
+
+<span class="fc" id="L582">					final var bws = bws(wwwAuthenticate, pos);</span>
+<span class="fc bfc" id="L583" title="All 2 branches covered.">					if (bws &lt; wwwAuthenticate.length() //</span>
+<span class="fc bfc" id="L584" title="All 2 branches covered.">							&amp;&amp; wwwAuthenticate.charAt(bws) == ',')</span>
+<span class="fc" id="L585">						pos = bws;</span>
+<span class="fc" id="L586">				}</span>
+
+<span class="fc" id="L588">				final var realm = params.remove(&quot;realm&quot;);</span>
+<span class="fc bfc" id="L589" title="All 2 branches covered.">				if (hasNext())</span>
+<span class="fc" id="L590">					pos = bws(wwwAuthenticate, pos + 1);</span>
+
+<span class="fc" id="L592">				return new IuWebAuthenticationChallenge() {</span>
+					@Override
+					public String getAuthScheme() {
+<span class="fc" id="L595">						return authScheme;</span>
+					}
+
+					@Override
+					public String getRealm() {
+<span class="fc" id="L600">						return realm;</span>
+					}
+
+					@Override
+					public Map&lt;String, String&gt; getParameters() {
+<span class="fc" id="L605">						return params;</span>
+					}
+				};
+			}
+		};
+	}
+
+	/**
+	 * Validates a user-agent header value.
+	 * 
+	 * &lt;p&gt;
+	 * User-Agent = product *( RWS ( product / comment ) )
+	 * &lt;/p&gt;
+	 * 
+	 * @param userAgent user-agent header value
+	 * @see &lt;a href=
+	 *      &quot;https://www.rfc-editor.org/rfc/rfc9110.html#name-collected-abnf&quot;&gt;RFC-9110
+	 *      Appendix A&lt;/a&gt;
+	 */
+	public static void validateUserAgent(String userAgent) {
+<span class="fc" id="L625">		var pos = product(userAgent, 0);</span>
+<span class="fc bfc" id="L626" title="All 2 branches covered.">		if (pos &lt;= 0)</span>
+<span class="fc" id="L627">			throw new IllegalArgumentException();</span>
+
+<span class="fc bfc" id="L629" title="All 2 branches covered.">		while (pos &lt; userAgent.length()) {</span>
+<span class="fc" id="L630">			var n = bws(userAgent, pos);</span>
+<span class="fc bfc" id="L631" title="All 2 branches covered.">			if (n &lt;= pos)</span>
+<span class="fc" id="L632">				throw new IllegalArgumentException();</span>
+			else
+<span class="fc" id="L634">				pos++;</span>
+
+<span class="fc bfc" id="L636" title="All 2 branches covered.">			if ((n = product(userAgent, pos)) &lt;= pos //</span>
+<span class="fc bfc" id="L637" title="All 2 branches covered.">					&amp;&amp; (n = comment(userAgent, pos)) &lt;= pos)</span>
+<span class="fc" id="L638">				throw new IllegalArgumentException();</span>
+			else
+<span class="fc" id="L640">				pos = n;</span>
+<span class="fc" id="L641">		}</span>
+<span class="fc" id="L642">	}</span>
+
+	/**
+	 * Parses a query string.
+	 * 
+	 * @param queryString query string
+	 * @return {@link Map}
+	 */
+	public static Map&lt;String, ? extends Iterable&lt;String&gt;&gt; parseQueryString(String queryString) {
+<span class="fc" id="L651">		final Map&lt;String, Queue&lt;String&gt;&gt; parsedParameterValues = new LinkedHashMap&lt;&gt;();</span>
+
+<span class="fc bfc" id="L653" title="All 2 branches covered.">		var startOfName = queryString.startsWith(&quot;?&quot;) ? 1 : 0;</span>
+<span class="fc bfc" id="L654" title="All 2 branches covered.">		if (startOfName == queryString.length())</span>
+<span class="fc" id="L655">			return parsedParameterValues;</span>
+
+<span class="fc" id="L657">		var endOfName = queryString.indexOf('=', startOfName);</span>
+<span class="fc" id="L658">		var endOfValue = queryString.indexOf('&amp;', startOfName);</span>
+
+		int startOfValue;
+<span class="fc bfc" id="L661" title="All 2 branches covered.">		if (endOfValue == -1)</span>
+<span class="fc" id="L662">			endOfValue = queryString.length();</span>
+
+<span class="fc bfc" id="L664" title="All 4 branches covered.">		if (endOfName == -1 //</span>
+				|| endOfName &gt; endOfValue)
+<span class="fc" id="L666">			endOfName = startOfValue = endOfValue;</span>
+		else
+<span class="fc" id="L668">			startOfValue = endOfName + 1;</span>
+
+		while (true) {
+<span class="fc" id="L671">			final var name = queryString.substring(startOfName, endOfName);</span>
+
+<span class="fc" id="L673">			var values = parsedParameterValues.get(name);</span>
+<span class="fc bfc" id="L674" title="All 2 branches covered.">			if (values == null)</span>
+<span class="fc" id="L675">				parsedParameterValues.put(name, values = new ArrayDeque&lt;&gt;());</span>
+
+<span class="fc bfc" id="L677" title="All 2 branches covered.">			if (endOfValue == queryString.length()) {</span>
+<span class="fc" id="L678">				final var value = queryString.substring(startOfValue);</span>
+<span class="fc" id="L679">				values.offer(IuException.unchecked(() -&gt; URLDecoder.decode(value, &quot;UTF-8&quot;)));</span>
+<span class="fc" id="L680">				endOfName = -1;</span>
+<span class="fc" id="L681">				break;</span>
+			}
+
+<span class="fc" id="L684">			final var value = queryString.substring(startOfValue, endOfValue);</span>
+<span class="fc" id="L685">			values.offer(IuException.unchecked(() -&gt; URLDecoder.decode(value, &quot;UTF-8&quot;)));</span>
+
+<span class="fc" id="L687">			startOfName = endOfValue + 1;</span>
+<span class="fc" id="L688">			endOfName = queryString.indexOf('=', startOfName);</span>
+<span class="fc" id="L689">			endOfValue = queryString.indexOf('&amp;', startOfName);</span>
+<span class="fc bfc" id="L690" title="All 2 branches covered.">			if (endOfValue == -1)</span>
+<span class="fc" id="L691">				endOfValue = queryString.length();</span>
+
+<span class="fc bfc" id="L693" title="All 4 branches covered.">			if (endOfName == -1 //</span>
+					|| endOfName &gt; endOfValue)
+<span class="fc" id="L695">				endOfName = startOfValue = endOfValue;</span>
+			else
+<span class="fc" id="L697">				startOfValue = endOfName + 1;</span>
+<span class="fc" id="L698">		}</span>
+
+<span class="fc" id="L700">		return parsedParameterValues;</span>
+	}
+
+	/**
+	 * Creates a query string from a map.
+	 * 
+	 * @param params {@link Map} of parameter values
+	 * @return query string
+	 */
+	public static String createQueryString(Map&lt;String, ? extends Iterable&lt;String&gt;&gt; params) {
+<span class="fc" id="L710">		final var queryString = new StringBuilder();</span>
+<span class="fc bfc" id="L711" title="All 2 branches covered.">		for (final var paramEntry : params.entrySet())</span>
+<span class="fc bfc" id="L712" title="All 2 branches covered.">			for (final var paramValue : paramEntry.getValue()) {</span>
+<span class="fc bfc" id="L713" title="All 2 branches covered.">				if (queryString.length() &gt; 0)</span>
+<span class="fc" id="L714">					queryString.append('&amp;');</span>
+<span class="fc" id="L715">				queryString.append(IuException.unchecked(() -&gt; URLEncoder.encode(paramEntry.getKey(), &quot;UTF-8&quot;)));</span>
+<span class="fc" id="L716">				queryString.append(&quot;=&quot;).append(IuException.unchecked(() -&gt; URLEncoder.encode(paramValue, &quot;UTF-8&quot;)));</span>
+<span class="fc" id="L717">			}</span>
+<span class="fc" id="L718">		return queryString.toString();</span>
+	}
+
+	/**
+	 * Parses a header value composed of key/value pairs separated by semicolon ';'.
+	 * 
+	 * @param headerValue header value
+	 * @return {@link Map} of header elements
+	 */
+	public static Map&lt;String, String&gt; parseHeader(String headerValue) {
+<span class="fc" id="L728">		int semicolon = headerValue.indexOf(';');</span>
+<span class="fc bfc" id="L729" title="All 2 branches covered.">		if (semicolon == -1)</span>
+<span class="fc" id="L730">			return Collections.singletonMap(&quot;&quot;, headerValue);</span>
+
+<span class="fc" id="L732">		final Map&lt;String, String&gt; parsedHeader = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L733">		parsedHeader.put(&quot;&quot;, headerValue.substring(0, semicolon));</span>
+
+<span class="fc bfc" id="L735" title="All 2 branches covered.">		while (semicolon &lt; headerValue.length()) {</span>
+<span class="fc" id="L736">			final var start = semicolon + 1;</span>
+<span class="fc" id="L737">			final var eq = headerValue.indexOf('=', start + 1);</span>
+
+<span class="fc" id="L739">			semicolon = headerValue.indexOf(';', start + 1);</span>
+<span class="fc bfc" id="L740" title="All 2 branches covered.">			if (semicolon == -1)</span>
+<span class="fc" id="L741">				semicolon = headerValue.length();</span>
+
+<span class="fc bfc" id="L743" title="All 4 branches covered.">			if (eq == -1 || eq &gt; semicolon)</span>
+<span class="fc" id="L744">				parsedHeader.put(headerValue.substring(start, semicolon).trim(), &quot;&quot;);</span>
+			else {
+<span class="fc" id="L746">				final var elementName = headerValue.substring(start, eq).trim();</span>
+<span class="fc" id="L747">				final String elementValue = headerValue.substring(eq + 1, semicolon).trim();</span>
+<span class="fc" id="L748">				parsedHeader.put(elementName, elementValue);</span>
+			}
+<span class="fc" id="L750">		}</span>
+
+<span class="fc" id="L752">		return parsedHeader;</span>
+	}
+
+	/**
+	 * cookie-octet = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E (US-ASCII
+	 * characters excluding CTLs, whitespace, DQUOTE, comma, semicolon, and
+	 * backslash)
+	 * 
+	 * @param c character
+	 * @return true if the character is in the cookie-octet character set.
+
+	 * @see &lt;a href=
+	 *      &quot;https://datatracker.ietf.org/doc/html/rfc6265#section-4.1&quot;&gt;RFC-6265
+	 *      HTTP State Management, Section 4.1&lt;/a&gt;
+	 */
+	static boolean cookieOctet(char c) {
+<span class="fc bfc" id="L768" title="All 18 branches covered.">		return c == 0x21 // '!'</span>
+				|| (c &gt;= 0x23 // '#'-'+'
+						&amp;&amp; c &lt;= 0x2b) //
+				|| (c &gt;= 0x2d // '-'-':'
+						&amp;&amp; c &lt;= 0x3a) //
+				|| (c &gt;= 0x3c // '&lt;'-'['
+						&amp;&amp; c &lt;= 0x5b) //
+				|| (c &gt;= 0x5d // ']'-'~'
+						&amp;&amp; c &lt;= 0x7e);
+	}
+
+	/**
+	 * cookie-value = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )
+	 * &lt;p&gt;
+	 * cookie-octet = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E (US-ASCII
+	 * characters excluding CTLs, whitespace, DQUOTE, comma, semicolon, and
+	 * backslash)
+	 * &lt;/p&gt;
+	 * 
+	 * @param cookieHeaderValue Cookie header value
+	 * @param pos               position at start of the cookie-value token
+	 * 
+	 * @return end position of the cookie value
+	 * @see &lt;a href=
+	 *      &quot;https://datatracker.ietf.org/doc/html/rfc6265#section-4.1&quot;&gt;RFC-6265
+	 *      HTTP State Management, Section 4.1&lt;/a&gt;
+	 */
+	static int cookieValue(String cookieHeaderValue, int pos) {
+<span class="fc" id="L796">		final var len = cookieHeaderValue.length();</span>
+<span class="fc bfc" id="L797" title="All 2 branches covered.">		if (pos &gt;= len)</span>
+<span class="fc" id="L798">			return pos;</span>
+
+<span class="fc" id="L800">		var c = cookieHeaderValue.charAt(pos);</span>
+
+<span class="fc bfc" id="L802" title="All 2 branches covered.">		final boolean quoted = c == DQUOTE;</span>
+<span class="fc bfc" id="L803" title="All 2 branches covered.">		if (quoted) {</span>
+<span class="fc" id="L804">			pos++;</span>
+<span class="fc bfc" id="L805" title="All 2 branches covered.">			if (pos &gt;= len)</span>
+<span class="fc" id="L806">				throw new IllegalArgumentException(&quot;unterminated '\&quot;' at &quot; + pos);</span>
+<span class="fc" id="L807">			c = cookieHeaderValue.charAt(pos);</span>
+		}
+
+<span class="fc bfc" id="L810" title="All 2 branches covered.">		while (pos &lt; len //</span>
+<span class="fc bfc" id="L811" title="All 2 branches covered.">				&amp;&amp; cookieOctet(c)) {</span>
+<span class="fc" id="L812">			pos++;</span>
+<span class="fc bfc" id="L813" title="All 2 branches covered.">			if (pos &lt; len)</span>
+<span class="fc" id="L814">				c = cookieHeaderValue.charAt(pos);</span>
+		}
+
+<span class="fc bfc" id="L817" title="All 2 branches covered.">		if (quoted)</span>
+<span class="fc bfc" id="L818" title="All 2 branches covered.">			if (pos &gt;= len //</span>
+<span class="fc bfc" id="L819" title="All 2 branches covered.">					|| cookieHeaderValue.charAt(pos) != DQUOTE)</span>
+<span class="fc" id="L820">				throw new IllegalArgumentException(&quot;unterminated '\&quot;' at &quot; + pos);</span>
+			else
+<span class="fc" id="L822">				return pos + 1;</span>
+		else
+<span class="fc" id="L824">			return pos;</span>
+	}
+
+	/**
+	 * Parses the cookie request header, returning an {@link HttpCookie} for each
+	 * cookie sent with the request.
+	 * 
+	 * @param cookieHeaderValue {@code Cookie:} header value. This value MUST match
+	 *                          the syntax defined for {@code cookie-string}
+	 *                          &lt;a href=
+	 *                          &quot;https://datatracker.ietf.org/doc/html/rfc6265#section-4.2.1&quot;&gt;RFC-6265
+	 *                          HTTP State Management, Section 4.2.1&lt;/a&gt;
+	 * @return Iterable of parsed cookies
+	 */
+	public static Iterable&lt;HttpCookie&gt; parseCookieHeader(String cookieHeaderValue) {
+<span class="fc" id="L839">		final var trimmedCookieHeaderValue = cookieHeaderValue.trim();</span>
+<span class="fc" id="L840">		return IuIterable.of(() -&gt; new Iterator&lt;HttpCookie&gt;() {</span>
+<span class="fc" id="L841">			private int pos = 0;</span>
+
+			@Override
+			public boolean hasNext() {
+<span class="fc bfc" id="L845" title="All 2 branches covered.">				return pos &lt; trimmedCookieHeaderValue.length();</span>
+			}
+
+			@Override
+			public HttpCookie next() {
+				// cookie-header = &quot;Cookie:&quot; OWS cookie-string OWS
+				// cookie-string = cookie-pair *( &quot;;&quot; SP cookie-pair )
+
+				// cookie-pair = cookie-name &quot;=&quot; cookie-value
+				// cookie-name = token
+				// cookie-value = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )
+				// cookie-octet = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E
+
+<span class="fc" id="L858">				final var endOfCookieName = token(trimmedCookieHeaderValue, pos);</span>
+<span class="fc bfc" id="L859" title="All 2 branches covered.">				if (endOfCookieName == pos)</span>
+<span class="fc" id="L860">					throw new IllegalArgumentException(&quot;invalid cookie-name at &quot; + pos);</span>
+
+<span class="fc bfc" id="L862" title="All 2 branches covered.">				if (endOfCookieName &gt;= trimmedCookieHeaderValue.length() //</span>
+<span class="fc bfc" id="L863" title="All 2 branches covered.">						|| trimmedCookieHeaderValue.charAt(endOfCookieName) != '=')</span>
+<span class="fc" id="L864">					throw new IllegalArgumentException(&quot;expected '=' at &quot; + endOfCookieName);</span>
+
+<span class="fc" id="L866">				final var cookieName = trimmedCookieHeaderValue.substring(pos, endOfCookieName);</span>
+<span class="fc" id="L867">				pos = endOfCookieName + 1;</span>
+
+				final String cookieValue;
+<span class="fc" id="L870">				final var startOfCookieValue = pos;</span>
+<span class="fc" id="L871">				pos = cookieValue(trimmedCookieHeaderValue, startOfCookieValue);</span>
+<span class="fc bfc" id="L872" title="All 2 branches covered.">				if (pos == startOfCookieValue)</span>
+<span class="fc" id="L873">					cookieValue = &quot;&quot;;</span>
+<span class="fc bfc" id="L874" title="All 2 branches covered.">				else if (trimmedCookieHeaderValue.charAt(pos - 1) == DQUOTE)</span>
+<span class="fc" id="L875">					cookieValue = trimmedCookieHeaderValue.substring(startOfCookieValue + 1, pos - 1);</span>
+				else
+<span class="fc" id="L877">					cookieValue = trimmedCookieHeaderValue.substring(startOfCookieValue, pos);</span>
+
+<span class="fc bfc" id="L879" title="All 2 branches covered.">				if (pos + 1 &lt; trimmedCookieHeaderValue.length()) {</span>
+<span class="fc bfc" id="L880" title="All 2 branches covered.">					if (trimmedCookieHeaderValue.charAt(pos++) != ';')</span>
+<span class="fc" id="L881">						throw new IllegalArgumentException(&quot;expected ';' at &quot; + (pos - 1));</span>
+<span class="fc bfc" id="L882" title="All 2 branches covered.">					if (trimmedCookieHeaderValue.charAt(pos++) != SP)</span>
+<span class="fc" id="L883">						throw new IllegalArgumentException(&quot;expected ' ' at &quot; + (pos - 1));</span>
+				}
+
+<span class="fc" id="L886">				return new HttpCookie(cookieName, cookieValue);</span>
+			}
+		});
+	}
+
+	/**
+	 * Parses the cookie request header, returning an {@link HttpCookie} for each
+	 * cookie sent with the request.
+	 * 
+	 * @param forwardedHeaderValue {@code Forwarded:} header value. This value MUST
+	 *                             match the syntax defined for {@code Forwarded} at
+	 *                             &lt;a href=
+	 *                             &quot;https://datatracker.ietf.org/doc/html/rfc7239#section-4&quot;&gt;RFC-7238
+	 *                             Forwarded HTTP Extension, Section 4&lt;/a&gt;
+	 * @return forwarded header value
+	 */
+	public static IuForwardedHeader parseForwardedHeader(String forwardedHeaderValue) {
+		// Forwarded = 1#forwarded-element
+		//
+		// forwarded-element =
+		// [ forwarded-pair ] *( &quot;;&quot; [ forwarded-pair ] )
+		//
+		// forwarded-pair = token &quot;=&quot; value
+		// value = token / quoted-string
+		//
+		// token = &lt;Defined in [RFC7230], Section 3.2.6&gt;
+		// quoted-string = &lt;Defined in [RFC7230], Section 3.2.6&gt;
+<span class="fc" id="L913">		final var parsedHeader = new IuForwardedHeader() {</span>
+			String by;
+			String xfor;
+			String host;
+			String proto;
+
+			@Override
+			public String getBy() {
+<span class="fc" id="L921">				return by;</span>
+			}
+
+			@Override
+			public String getFor() {
+<span class="fc" id="L926">				return xfor;</span>
+			}
+
+			@Override
+			public String getHost() {
+<span class="fc" id="L931">				return host;</span>
+			}
+
+			@Override
+			public String getProto() {
+<span class="fc" id="L936">				return proto;</span>
+			}
+		};
+
+<span class="fc bfc" id="L940" title="All 2 branches covered.">		for (var pos = 0; pos &lt; forwardedHeaderValue.length();) {</span>
+<span class="fc" id="L941">			final var endOfName = token(forwardedHeaderValue, pos);</span>
+<span class="fc bfc" id="L942" title="All 2 branches covered.">			if (pos == endOfName)</span>
+<span class="fc" id="L943">				throw new IllegalArgumentException(&quot;expected token at &quot; + pos);</span>
+
+<span class="fc bfc" id="L945" title="All 2 branches covered.">			if (endOfName &gt;= forwardedHeaderValue.length() //</span>
+<span class="fc bfc" id="L946" title="All 2 branches covered.">					|| forwardedHeaderValue.charAt(endOfName) != '=')</span>
+<span class="fc" id="L947">				throw new IllegalArgumentException(&quot;expected '=' at &quot; + endOfName);</span>
+
+<span class="fc" id="L949">			final var name = forwardedHeaderValue.substring(pos, endOfName);</span>
+<span class="fc" id="L950">			pos = endOfName + 1;</span>
+
+			final String value;
+<span class="fc bfc" id="L953" title="All 2 branches covered.">			if (pos &gt;= forwardedHeaderValue.length())</span>
+<span class="fc" id="L954">				value = &quot;&quot;;</span>
+			else {
+				int endOfValue;
+<span class="fc bfc" id="L957" title="All 2 branches covered.">				if (forwardedHeaderValue.charAt(pos) == DQUOTE) {</span>
+<span class="fc" id="L958">					endOfValue = quotedString(forwardedHeaderValue, pos);</span>
+<span class="fc bfc" id="L959" title="All 2 branches covered.">					if (endOfValue == pos)</span>
+<span class="fc" id="L960">						throw new IllegalArgumentException(&quot;unterminated '\&quot;' at &quot; + pos);</span>
+					else
+<span class="fc" id="L962">						value = forwardedHeaderValue.substring(pos + 1, endOfValue - 1);</span>
+				} else {
+<span class="fc" id="L964">					endOfValue = token(forwardedHeaderValue, pos);</span>
+<span class="fc" id="L965">					value = forwardedHeaderValue.substring(pos, endOfValue);</span>
+				}
+<span class="fc" id="L967">				pos = endOfValue;</span>
+			}
+
+<span class="fc bfc" id="L970" title="All 2 branches covered.">			if (name.equalsIgnoreCase(&quot;by&quot;))</span>
+<span class="fc" id="L971">				parsedHeader.by = IuObject.once(parsedHeader.by, value);</span>
+<span class="fc bfc" id="L972" title="All 2 branches covered.">			else if (name.equalsIgnoreCase(&quot;for&quot;))</span>
+<span class="fc" id="L973">				parsedHeader.xfor = IuObject.once(parsedHeader.xfor, value);</span>
+<span class="fc bfc" id="L974" title="All 2 branches covered.">			else if (name.equalsIgnoreCase(&quot;host&quot;))</span>
+<span class="fc" id="L975">				parsedHeader.host = IuObject.once(parsedHeader.host, value);</span>
+<span class="fc bfc" id="L976" title="All 2 branches covered.">			else if (name.equalsIgnoreCase(&quot;proto&quot;))</span>
+<span class="fc" id="L977">				parsedHeader.proto = IuObject.once(parsedHeader.proto, value);</span>
+			else
+<span class="fc" id="L979">				throw new IllegalArgumentException(&quot;unexpected name &quot; + name);</span>
+
+<span class="fc bfc" id="L981" title="All 2 branches covered.">			if (pos &lt; forwardedHeaderValue.length()) {</span>
+<span class="fc bfc" id="L982" title="All 2 branches covered.">				if (forwardedHeaderValue.charAt(pos) == ';')</span>
+<span class="fc" id="L983">					pos++;</span>
+				else
+<span class="fc" id="L985">					throw new IllegalArgumentException(&quot;expected ';' at &quot; + pos);</span>
+			}
+<span class="fc" id="L987">		}</span>
+
+<span class="fc" id="L989">		return parsedHeader;</span>
+	}
+
+	/**
+	 * Parses a decimal octet, as defined for an IPv4address.
+	 * 
+	 * @param nodeId      {@link #parseNodeIdentifier(String) node identifier}
+	 * @param originalPos start position
+	 * @return end position if matching; else returns start position
+	 */
+	static int decOctet(String nodeId, final int originalPos) {
+<span class="fc" id="L1000">		final var len = nodeId.length();</span>
+<span class="fc bfc" id="L1001" title="All 2 branches covered.">		if (originalPos &gt;= len)</span>
+<span class="fc" id="L1002">			return originalPos;</span>
+
+<span class="fc" id="L1004">		var c1 = nodeId.charAt(originalPos);</span>
+<span class="fc bfc" id="L1005" title="All 2 branches covered.">		if (!digit(c1))</span>
+<span class="fc" id="L1006">			return originalPos;</span>
+
+<span class="fc" id="L1008">		var pos = originalPos + 1;</span>
+		char c2;
+<span class="fc bfc" id="L1010" title="All 2 branches covered.">		if (pos &gt;= len // dec-octet = DIGIT ; 0-9</span>
+<span class="fc bfc" id="L1011" title="All 4 branches covered.">				|| !digit(c2 = nodeId.charAt(pos)) //</span>
+				|| c1 == 0x30)
+<span class="fc" id="L1013">			return pos;</span>
+
+		char c3;
+<span class="fc bfc" id="L1016" title="All 4 branches covered.">		if (++pos &gt;= len // / %x31-39 DIGIT ; 10-99</span>
+				|| c1 &gt; 0x32 //
+<span class="fc bfc" id="L1018" title="All 10 branches covered.">				|| !digit(c3 = nodeId.charAt(pos)) // / &quot;1&quot; 2DIGIT ; 100-199</span>
+				|| (c1 == 0x32 // / &quot;2&quot; %x30-34 DIGIT ; 200-249
+						&amp;&amp; c2 &gt; 0x35 //
+						|| (c2 == 0x35 // / &quot;25&quot; %x30-35 ; 250-255
+								&amp;&amp; c3 &gt; 0x35) //
+				))
+<span class="fc" id="L1024">			return pos;</span>
+		else
+<span class="fc" id="L1026">			return pos + 1;</span>
+	}
+
+	/**
+	 * Parses an IPV4Address for {@link #parseNodeIdentifier(String)}.
+
+	 * 
+	 * @param nodeId      {@link #parseNodeIdentifier(String) node identifier}
+	 * @param originalPos start position
+	 * @return end position if matching; else returns start position
+	 */
+	static int parseIPv4Address(String nodeId, final int originalPos) {
+<span class="fc" id="L1038">		final var len = nodeId.length();</span>
+<span class="fc" id="L1039">		var pos = originalPos;</span>
+<span class="fc bfc" id="L1040" title="All 2 branches covered.">		for (var i = 0; i &lt; 3; i++) {</span>
+<span class="fc" id="L1041">			final var dot = decOctet(nodeId, pos);</span>
+<span class="fc bfc" id="L1042" title="All 4 branches covered.">			if (dot == pos //</span>
+					|| dot &gt;= len //
+<span class="fc bfc" id="L1044" title="All 2 branches covered.">					|| nodeId.charAt(dot) != '.')</span>
+<span class="fc" id="L1045">				return originalPos;</span>
+<span class="fc" id="L1046">			pos = dot + 1;</span>
+		}
+
+<span class="fc" id="L1049">		final var dot = decOctet(nodeId, pos);</span>
+<span class="fc bfc" id="L1050" title="All 2 branches covered.">		if (dot == pos)</span>
+<span class="fc" id="L1051">			return originalPos;</span>
+		else
+<span class="fc" id="L1053">			return dot;</span>
+	}
+
+	/**
+	 * Determines if a character is a HEXDIG character.
+	 * &lt;p&gt;
+	 * HEXDIG = DIGIT / &quot;A&quot; / &quot;B&quot; / &quot;C&quot; / &quot;D&quot; / &quot;E&quot; / &quot;F&quot;
+	 * &lt;/p&gt;
+	 * 
+	 * @param c character
+	 * @return true if the character is matches the HEXDIG ABNF rules from &lt;a href=
+	 *         &quot;https://datatracker.ietf.org/doc/html/rfc5234#page-13&quot;&gt;RFC-5234&lt;/a&gt;;
+	 *         else false
+	 */
+	static boolean hexdig(char c) {
+<span class="fc bfc" id="L1068" title="All 10 branches covered.">		return digit(c) //</span>
+				|| (c &gt;= 0x41 //
+						&amp;&amp; c &lt;= 0x46) //
+				|| (c &gt;= 0x61 //
+						&amp;&amp; c &lt;= 0x66) //
+		;
+	}
+
+	/**
+	 * Parses an h16 (16-bit hexadecimal number).
+	 * 
+	 * @param nodeId      {@link #parseNodeIdentifier(String) node identifier}
+	 * @param originalPos start position
+	 * @return end position if matching; else returns start position
+	 */
+	static int h16(String nodeId, final int originalPos) {
+<span class="fc" id="L1084">		final var len = nodeId.length();</span>
+<span class="fc bfc" id="L1085" title="All 2 branches covered.">		for (var i = 0; i &lt; 4; i++) {</span>
+<span class="fc" id="L1086">			final var pos = originalPos + i;</span>
+<span class="fc bfc" id="L1087" title="All 2 branches covered.">			if (pos &gt;= len //</span>
+<span class="fc bfc" id="L1088" title="All 2 branches covered.">					|| !hexdig(nodeId.charAt(pos)))</span>
+<span class="fc" id="L1089">				return pos;</span>
+		}
+<span class="fc" id="L1091">		return originalPos + 4;</span>
+	}
+
+	/**
+	 * Parses an ls32 (least significant 32-bits), either as an
+	 * {@link #h16(String, int) h16 pair} or {@link #parseIPv4Address(String, int)}.
+	 * 
+	 * @param nodeId      {@link #parseNodeIdentifier(String) node identifier}
+	 * @param originalPos start position
+	 * @return end position if matching; else returns start position
+	 */
+	static int ls32(String nodeId, final int originalPos) {
+<span class="fc" id="L1103">		final var len = nodeId.length();</span>
+<span class="fc" id="L1104">		final var h16a = h16(nodeId, originalPos);</span>
+<span class="fc bfc" id="L1105" title="All 4 branches covered.">		if (h16a == originalPos //</span>
+				|| h16a &gt;= len)
+<span class="fc" id="L1107">			return originalPos;</span>
+
+<span class="fc" id="L1109">		final var c = nodeId.charAt(h16a);</span>
+<span class="fc bfc" id="L1110" title="All 2 branches covered.">		if (c == ':') {</span>
+<span class="fc" id="L1111">			final var pos = h16a + 1;</span>
+<span class="fc" id="L1112">			final var h16b = h16(nodeId, pos);</span>
+<span class="fc bfc" id="L1113" title="All 2 branches covered.">			if (h16b == pos)</span>
+<span class="fc" id="L1114">				return originalPos;</span>
+			else
+<span class="fc" id="L1116">				return h16b;</span>
+<span class="fc bfc" id="L1117" title="All 2 branches covered.">		} else if (c == '.')</span>
+<span class="fc" id="L1118">			return parseIPv4Address(nodeId, originalPos);</span>
+		else
+<span class="fc" id="L1120">			return originalPos;</span>
+	}
+
+	/**
+	 * Parses an IPV6Address for {@link #parseNodeIdentifier(String)}.
+	 * 
+	 * @param nodeId      {@link #parseNodeIdentifier(String) node identifier}
+	 * @param originalPos start position
+	 * @return end position if matching; else returns start position
+	 */
+	static int parseIPv6Address(String nodeId, final int originalPos) {
+<span class="fc" id="L1131">		final var len = nodeId.length();</span>
+
+<span class="fc" id="L1133">		var pos = h16(nodeId, originalPos);</span>
+<span class="fc bfc" id="L1134" title="All 2 branches covered.">		if (pos &gt;= len)</span>
+<span class="fc" id="L1135">			return originalPos;</span>
+
+<span class="fc bfc" id="L1137" title="All 2 branches covered.">		var rel = pos == originalPos;</span>
+<span class="fc bfc" id="L1138" title="All 2 branches covered.">		if (rel) // starts with relative marker '::'</span>
+<span class="fc bfc" id="L1139" title="All 2 branches covered.">			if (len &lt;= originalPos + 1 //</span>
+<span class="fc bfc" id="L1140" title="All 2 branches covered.">					|| nodeId.charAt(originalPos) != ':' //</span>
+<span class="fc bfc" id="L1141" title="All 2 branches covered.">					|| nodeId.charAt(originalPos + 1) != ':')</span>
+<span class="fc" id="L1142">				return originalPos;</span>
+			else
+<span class="fc" id="L1144">				pos = originalPos + 1;</span>
+
+<span class="fc bfc" id="L1146" title="All 2 branches covered.">		if (nodeId.charAt(pos) != ':')</span>
+<span class="fc" id="L1147">			return originalPos;</span>
+		else
+<span class="fc" id="L1149">			pos++;</span>
+
+		// read up to five more ( h16 &quot;:&quot; ), non-terminal
+		// or at least one non-leading relative marker
+<span class="fc bfc" id="L1153" title="All 2 branches covered.">		for (var i = 0; i &lt; 5; i++) {</span>
+<span class="fc bfc" id="L1154" title="All 2 branches covered.">			if (pos &gt;= len)</span>
+<span class="fc" id="L1155">				return originalPos;</span>
+
+			// / [ *5( h16 &quot;:&quot; ) h16 ] &quot;::&quot; h16
+<span class="fc" id="L1158">			final var next = h16(nodeId, pos);</span>
+			final char c;
+<span class="fc bfc" id="L1160" title="All 2 branches covered.">			if (next &gt;= len //</span>
+<span class="fc bfc" id="L1161" title="All 2 branches covered.">					|| (c = nodeId.charAt(next)) == ']')</span>
+<span class="fc bfc" id="L1162" title="All 2 branches covered.">				if (rel)</span>
+<span class="fc" id="L1163">					return next;</span>
+				else
+<span class="fc" id="L1165">					return originalPos;</span>
+
+<span class="fc bfc" id="L1167" title="All 4 branches covered.">			if (next == pos //</span>
+					&amp;&amp; c == ':')
+<span class="fc bfc" id="L1169" title="All 2 branches covered.">				if (rel) // may observe exactly one relative marker '::'</span>
+<span class="fc" id="L1170">					return originalPos;</span>
+				else
+<span class="fc" id="L1172">					rel = true;</span>
+<span class="fc bfc" id="L1173" title="All 2 branches covered.">			else if (c != ':')</span>
+<span class="fc" id="L1174">				return originalPos;</span>
+
+<span class="fc" id="L1176">			pos = next + 1;</span>
+
+<span class="fc bfc" id="L1178" title="All 4 branches covered.">			if (i &lt; 4 // must have all 8 segments or relative marker</span>
+					&amp;&amp; !rel) // IPv6address = 6( h16 &quot;:&quot; ) ls32
+<span class="fc" id="L1180">				continue;</span>
+
+			// / &quot;::&quot; 5( h16 &quot;:&quot; ) ls32
+			// / [ h16 ] &quot;::&quot; 4( h16 &quot;:&quot; ) ls32
+			// / [ *1( h16 &quot;:&quot; ) h16 ] &quot;::&quot; 3( h16 &quot;:&quot; ) ls32
+			// / [ *2( h16 &quot;:&quot; ) h16 ] &quot;::&quot; 2( h16 &quot;:&quot; ) ls32
+			// / [ *3( h16 &quot;:&quot; ) h16 ] &quot;::&quot; h16 &quot;:&quot; ls32
+			// / [ *4( h16 &quot;:&quot; ) h16 ] &quot;::&quot; ls32
+<span class="fc" id="L1188">			final var ls32 = ls32(nodeId, pos);</span>
+<span class="fc bfc" id="L1189" title="All 2 branches covered.">			if (ls32 &gt;= len //</span>
+<span class="fc bfc" id="L1190" title="All 2 branches covered.">					|| nodeId.charAt(ls32) == ']')</span>
+<span class="fc" id="L1191">				return ls32;</span>
+		}
+
+<span class="fc" id="L1194">		return originalPos;</span>
+	}
+
+	/**
+	 * Parses an obfnode or obfport for {@link #parseNodeIdentifier(String)}.
+	 * 
+	 * @param nodeId      {@link #parseNodeIdentifier(String) node identifier}
+	 * @param originalPos start position
+	 * @return end position if matching; else returns start position
+	 */
+	static int obf(String nodeId, final int originalPos) {
+<span class="fc" id="L1205">		final var len = nodeId.length();</span>
+
+		char c;
+		int pos;
+<span class="fc" id="L1209">		for (pos = originalPos; pos &lt; len //</span>
+<span class="fc bfc" id="L1210" title="All 4 branches covered.">				&amp;&amp; (alpha(c = nodeId.charAt(pos)) //</span>
+<span class="fc bfc" id="L1211" title="All 8 branches covered.">						|| digit(c) //</span>
+						|| c == '.' //
+						|| c == '_' //
+<span class="fc" id="L1214">						|| c == '-'); pos++)</span>
+			;
+
+<span class="fc bfc" id="L1217" title="All 2 branches covered.">		if (pos - originalPos &lt;= 1)</span>
+<span class="fc" id="L1218">			return originalPos;</span>
+		else
+<span class="fc" id="L1220">			return pos;</span>
+	}
+
+	/**
+	 * Determines whether or not a nodename string, i.e., from an HTTP header,
+	 * contains a valid IPv4 address.
+	 * 
+	 * @param nodename nodename string
+	 * @return true if nodename is a string that contains a valid IPv4 address; else
+	 *         false
+	 * @see #parseNodeIdentifier(String)
+	 */
+	public static boolean isIPv4Address(String nodename) {
+<span class="fc bfc" id="L1233" title="All 2 branches covered.">		return nodename != null //</span>
+<span class="fc bfc" id="L1234" title="All 2 branches covered.">				&amp;&amp; !nodename.isEmpty() //</span>
+<span class="fc bfc" id="L1235" title="All 2 branches covered.">				&amp;&amp; parseIPv4Address(nodename, 0) == nodename.length();</span>
+	}
+
+	/**
+	 * Determines whether or not a nodename string, i.e., from an HTTP header,
+	 * contains a valid IPv6 address.
+	 * 
+	 * @param nodename nodename string
+	 * @return true if nodename is a string that contains a valid IPv6 address; else
+	 *         false
+	 * @see #parseNodeIdentifier(String)
+	 */
+	public static boolean isIPv6Address(String nodename) {
+<span class="fc bfc" id="L1248" title="All 2 branches covered.">		return nodename != null //</span>
+<span class="fc bfc" id="L1249" title="All 2 branches covered.">				&amp;&amp; !nodename.isEmpty() //</span>
+<span class="fc bfc" id="L1250" title="All 2 branches covered.">				&amp;&amp; parseIPv6Address(nodename, 0) == nodename.length();</span>
+	}
+
+	/**
+	 * Determines whether or not a nodename string, i.e., from an HTTP header,
+	 * contains a valid IP address.
+	 * 
+	 * @param nodename nodename string
+	 * @return true if nodename is a string that contains a valid IP address; else
+	 *         false
+	 * @see #parseNodeIdentifier(String)
+	 */
+	public static boolean isIPAddress(String nodename) {
+<span class="fc bfc" id="L1263" title="All 4 branches covered.">		return isIPv4Address(nodename) || isIPv6Address(nodename);</span>
+	}
+
+	/**
+	 * Parses a node identifier.
+	 * &lt;p&gt;
+	 * The node identifier is defined by the ABNF syntax as:
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;pre&gt;
+	 * node = nodename [ &quot;:&quot; node-port ]
+	 * nodename = IPv4address / &quot;[&quot; IPv6address &quot;]&quot; / &quot;unknown&quot; / obfnode
+	 * 
+	 * IPv4address = dec-octet &quot;.&quot; dec-octet &quot;.&quot; dec-octet &quot;.&quot; dec-octet
+	 * dec-octet   = DIGIT                 ; 0-9
+	 *             / %x31-39 DIGIT         ; 10-99
+	 *             / &quot;1&quot; 2DIGIT            ; 100-199
+	 *             / &quot;2&quot; %x30-34 DIGIT     ; 200-249
+	 *             / &quot;25&quot; %x30-35          ; 250-255
+	 *
+	 * IPv6address =                            6( h16 &quot;:&quot; ) ls32
+	 *             /                       &quot;::&quot; 5( h16 &quot;:&quot; ) ls32
+	 *             / [               h16 ] &quot;::&quot; 4( h16 &quot;:&quot; ) ls32
+	 *             / [ *1( h16 &quot;:&quot; ) h16 ] &quot;::&quot; 3( h16 &quot;:&quot; ) ls32
+	 *             / [ *2( h16 &quot;:&quot; ) h16 ] &quot;::&quot; 2( h16 &quot;:&quot; ) ls32
+	 *             / [ *3( h16 &quot;:&quot; ) h16 ] &quot;::&quot;    h16 &quot;:&quot;   ls32
+	 *             / [ *4( h16 &quot;:&quot; ) h16 ] &quot;::&quot;              ls32
+	 *             / [ *5( h16 &quot;:&quot; ) h16 ] &quot;::&quot;              h16
+	 *             / [ *6( h16 &quot;:&quot; ) h16 ] &quot;::&quot;
+	 * ls32        = ( h16 &quot;:&quot; h16 ) / IPv4address
+	 *             ; least-significant 32 bits of address
+	 * h16         = 1*4HEXDIG
+	 *             ; 16 bits of address represented in hexadecimal
+	 *             
+	 * obfnode = &quot;_&quot; 1*(ALPHA / DIGIT / &quot;.&quot; / &quot;_&quot; / &quot;-&quot;)
+	 * 
+	 * node-port = port / obfport
+	 * port = 1*5DIGIT
+	 * obfport = &quot;_&quot; 1*(ALPHA / DIGIT / &quot;.&quot; / &quot;_&quot; / &quot;-&quot;)
+	 * &lt;/pre&gt;
+	 * 
+	 * @param nodeId &lt;a href=
+	 *               &quot;https://datatracker.ietf.org/doc/html/rfc7239#section-6&quot;&gt;Node
+	 *               identifier&lt;/a&gt;
+	 * @return {@link InetSocketAddress}
+	 * @see #digit(char)
+	 * @see #alpha(char)
+	 */
+	public static InetSocketAddress parseNodeIdentifier(String nodeId) {
+<span class="fc" id="L1312">		return parseNodeIdentifier(nodeId, a -&gt; {</span>
+<span class="fc" id="L1313">			throw new IllegalArgumentException(&quot;unknown obfnode&quot;);</span>
+		}, a -&gt; {
+<span class="fc" id="L1315">			throw new IllegalArgumentException(&quot;unknown obfport&quot;);</span>
+		});
+	}
+
+	/**
+	 * Implements {@link #parseNodeIdentifier(String nodeId)} with obfuscated node
+	 * and port lookups.
+	 * 
+	 * @param nodeId               &lt;a href=
+	 *                             &quot;https://datatracker.ietf.org/doc/html/rfc7239#section-6&quot;&gt;Node
+	 *                             identifier&lt;/a&gt;
+	 * @param obfuscatedNodeLookup Resovles an obfuscated node name (obfnode) to
+	 *                             {@link InetAddress}
+	 * @param obfuscatedPortLookup Resovles an obfuscated node port (obfport) number
+	 * @return {@link InetSocketAddress}
+	 * @see #digit(char)
+	 * @see #alpha(char)
+	 */
+	public static InetSocketAddress parseNodeIdentifier(final String nodeId,
+			Function&lt;String, InetAddress&gt; obfuscatedNodeLookup, Function&lt;String, Integer&gt; obfuscatedPortLookup) {
+<span class="fc bfc" id="L1335" title="All 4 branches covered.">		if (nodeId == null || nodeId.isEmpty())</span>
+<span class="fc" id="L1336">			return null;</span>
+
+<span class="fc" id="L1338">		final var len = nodeId.length();</span>
+		final int endOfName;
+<span class="fc" id="L1340">		InetAddress obfnode = null;</span>
+		{
+<span class="fc" id="L1342">			var pos = parseIPv4Address(nodeId, 0);</span>
+<span class="fc bfc" id="L1343" title="All 2 branches covered.">			if (pos == 0) {</span>
+<span class="fc" id="L1344">				var c = nodeId.charAt(0);</span>
+<span class="fc bfc" id="L1345" title="All 2 branches covered.">				if (c == '[') {</span>
+<span class="fc" id="L1346">					pos = parseIPv6Address(nodeId, 1);</span>
+<span class="fc bfc" id="L1347" title="All 4 branches covered.">					if (pos == 1 //</span>
+							|| pos &gt;= len)
+<span class="fc" id="L1349">						throw new IllegalArgumentException(&quot;invalid IPv6 address&quot;);</span>
+					else
+<span class="fc" id="L1351">						pos++;</span>
+<span class="fc bfc" id="L1352" title="All 2 branches covered.">				} else if (c == '_') {</span>
+<span class="fc" id="L1353">					pos = obf(nodeId, 0);</span>
+<span class="fc bfc" id="L1354" title="All 2 branches covered.">					if (pos == 0)</span>
+<span class="fc" id="L1355">						throw new IllegalArgumentException(&quot;invalid obfnode&quot;);</span>
+					else
+<span class="fc" id="L1357">						obfnode = obfuscatedNodeLookup.apply(nodeId.substring(0, pos));</span>
+<span class="fc bfc" id="L1358" title="All 2 branches covered.">				} else if (nodeId.startsWith(&quot;unknown&quot;))</span>
+<span class="fc" id="L1359">					return null;</span>
+				else
+<span class="fc" id="L1361">					throw new IllegalArgumentException(&quot;invalid nodename&quot;);</span>
+			}
+<span class="fc" id="L1363">			endOfName = pos;</span>
+		}
+
+		final int port;
+<span class="fc bfc" id="L1367" title="All 2 branches covered.">		if (endOfName &gt;= len)</span>
+<span class="fc" id="L1368">			port = 0;</span>
+<span class="fc bfc" id="L1369" title="All 2 branches covered.">		else if (nodeId.charAt(endOfName) == ':') {</span>
+<span class="fc" id="L1370">			final var tail = nodeId.substring(endOfName + 1);</span>
+<span class="fc bfc" id="L1371" title="All 2 branches covered.">			if (tail.isEmpty())</span>
+<span class="fc" id="L1372">				throw new IllegalArgumentException(&quot;empty node-port&quot;);</span>
+<span class="fc bfc" id="L1373" title="All 2 branches covered.">			else if (tail.charAt(0) == '_') {</span>
+<span class="fc" id="L1374">				final var endOfObfport = obf(tail, 0);</span>
+<span class="fc bfc" id="L1375" title="All 2 branches covered.">				if (endOfObfport == 0)</span>
+<span class="fc" id="L1376">					throw new IllegalArgumentException(&quot;invalid obfport&quot;);</span>
+				else
+<span class="fc" id="L1378">					port = obfuscatedPortLookup.apply(tail.substring(0, endOfObfport));</span>
+<span class="fc" id="L1379">			} else {</span>
+<span class="fc" id="L1380">				final var portlen = tail.length();</span>
+<span class="fc bfc" id="L1381" title="All 2 branches covered.">				if (portlen &gt; 5)</span>
+<span class="fc" id="L1382">					throw new IllegalArgumentException(&quot;invalid node-port&quot;);</span>
+<span class="fc bfc" id="L1383" title="All 2 branches covered.">				for (var i = 0; i &lt; portlen; i++)</span>
+<span class="fc bfc" id="L1384" title="All 2 branches covered.">					if (!digit(tail.charAt(i)))</span>
+<span class="fc" id="L1385">						throw new IllegalArgumentException(&quot;invalid port&quot;);</span>
+<span class="fc" id="L1386">				port = Integer.parseInt(tail);</span>
+			}
+<span class="fc" id="L1388">		} else</span>
+<span class="fc" id="L1389">			throw new IllegalArgumentException(&quot;expected ':' or end of node&quot;);</span>
+
+<span class="fc" id="L1391">		return new InetSocketAddress(Objects.requireNonNullElseGet(obfnode, () -&gt; {</span>
+			String name;
+<span class="fc bfc" id="L1393" title="All 2 branches covered.">			if (nodeId.charAt(0) == '[') // trim brackets from IPv6</span>
+<span class="fc" id="L1394">				name = nodeId.substring(1, endOfName - 1);</span>
+			else
+<span class="fc" id="L1396">				name = nodeId.substring(0, endOfName);</span>
+<span class="fc" id="L1397">			return getInetAddress(name);</span>
+		}), port);
+	}
+
+	/**
+	 * Validates and normalizes case for an HTTP header name.
+	 * 
+	 * &lt;p&gt;
+	 * Follows each hyphen '-' character with an upper case character; converts
+	 * other characters {@link Character#toLowerCase(char) to lower case}
+	 * &lt;/p&gt;
+	 * 
+	 * @param headerName HTTP header name
+	 * @return {@link String}
+	 * @throws IllegalArgumentException If the name contains non-alphabetic
+	 *                                  characters other than hyphen '-', or if the
+	 *                                  name begins or ends with a hyphen.
+	 */
+	public static String normalizeHeaderName(String headerName) throws IllegalArgumentException {
+<span class="fc bfc" id="L1416" title="All 2 branches covered.">		if (!headerName.matches(&quot;\\p{Alpha}+(\\-\\p{Alpha}+?)*&quot;))</span>
+<span class="fc" id="L1417">			throw new IllegalArgumentException(&quot;Invalid header name &quot; + headerName);</span>
+
+<span class="fc" id="L1419">		final var sb = new StringBuilder(headerName.toLowerCase());</span>
+<span class="fc" id="L1420">		sb.setCharAt(0, Character.toUpperCase(sb.charAt(0)));</span>
+<span class="fc" id="L1421">		for (int i = headerName.indexOf('-') + 1; //</span>
+<span class="fc bfc" id="L1422" title="All 2 branches covered.">				i != 0; //</span>
+<span class="fc" id="L1423">				i = headerName.indexOf('-', i + 1) + 1)</span>
+<span class="fc" id="L1424">			sb.setCharAt(i, Character.toUpperCase(sb.charAt(i)));</span>
+
+<span class="fc" id="L1426">		return sb.toString();</span>
+	}
+
+	/**
+	 * Describes an HTTP status code.
+	 * 
+	 * @param statusCode HTTP status code
+	 * @return {@link String}
+	 */
+	public static String describeStatus(int statusCode) {
+<span class="fc bfc" id="L1436" title="All 41 branches covered.">		switch (statusCode) {</span>
+		case 100:
+<span class="fc" id="L1438">			return statusCode + &quot; CONTINUE&quot;;</span>
+		case 101:
+<span class="fc" id="L1440">			return statusCode + &quot; SWITCHING PROTOCOLS&quot;;</span>
+		case 200:
+<span class="fc" id="L1442">			return statusCode + &quot; OK&quot;;</span>
+		case 201:
+<span class="fc" id="L1444">			return statusCode + &quot; CREATED&quot;;</span>
+		case 202:
+<span class="fc" id="L1446">			return statusCode + &quot; ACCEPTED&quot;;</span>
+		case 203:
+<span class="fc" id="L1448">			return statusCode + &quot; NON AUTHORITATIVE INFORMATION&quot;;</span>
+		case 204:
+<span class="fc" id="L1450">			return statusCode + &quot; NO CONTENT&quot;;</span>
+		case 205:
+<span class="fc" id="L1452">			return statusCode + &quot; RESET CONTENT&quot;;</span>
+		case 206:
+<span class="fc" id="L1454">			return statusCode + &quot; PARTIAL CONTENT&quot;;</span>
+		case 300:
+<span class="fc" id="L1456">			return statusCode + &quot; MULTIPLE CHOICES&quot;;</span>
+		case 301:
+<span class="fc" id="L1458">			return statusCode + &quot; MOVED PERMANENTLY&quot;;</span>
+		case 302:
+<span class="fc" id="L1460">			return statusCode + &quot; FOUND&quot;;</span>
+		case 303:
+<span class="fc" id="L1462">			return statusCode + &quot; SEE OTHER&quot;;</span>
+		case 304:
+<span class="fc" id="L1464">			return statusCode + &quot; NOT MODIFIED&quot;;</span>
+		case 305:
+<span class="fc" id="L1466">			return statusCode + &quot; USE PROXY&quot;;</span>
+		case 307:
+<span class="fc" id="L1468">			return statusCode + &quot; TEMPORARY REDIRECT&quot;;</span>
+		case 400:
+<span class="fc" id="L1470">			return statusCode + &quot; BAD REQUEST&quot;;</span>
+		case 401:
+<span class="fc" id="L1472">			return statusCode + &quot; UNAUTHORIZED&quot;;</span>
+		case 402:
+<span class="fc" id="L1474">			return statusCode + &quot; PAYMENT REQUIRED&quot;;</span>
+		case 403:
+<span class="fc" id="L1476">			return statusCode + &quot; FORBIDDEN&quot;;</span>
+		case 404:
+<span class="fc" id="L1478">			return statusCode + &quot; NOT FOUND&quot;;</span>
+		case 405:
+<span class="fc" id="L1480">			return statusCode + &quot; METHOD NOT ALLOWED&quot;;</span>
+		case 406:
+<span class="fc" id="L1482">			return statusCode + &quot; NOT ACCEPTABLE&quot;;</span>
+		case 407:
+<span class="fc" id="L1484">			return statusCode + &quot; PROXY AUTHENTICATION REQUIRED&quot;;</span>
+		case 408:
+<span class="fc" id="L1486">			return statusCode + &quot; REQUEST TIMEOUT&quot;;</span>
+		case 409:
+<span class="fc" id="L1488">			return statusCode + &quot; CONFLICT&quot;;</span>
+		case 410:
+<span class="fc" id="L1490">			return statusCode + &quot; GONE&quot;;</span>
+		case 411:
+<span class="fc" id="L1492">			return statusCode + &quot; LENGTH REQUIRED&quot;;</span>
+		case 412:
+<span class="fc" id="L1494">			return statusCode + &quot; PRECONDITION FAILED&quot;;</span>
+		case 413:
+<span class="fc" id="L1496">			return statusCode + &quot; REQUEST ENTITY TOO LARGE&quot;;</span>
+		case 414:
+<span class="fc" id="L1498">			return statusCode + &quot; REQUEST URI TOO LONG&quot;;</span>
+		case 415:
+<span class="fc" id="L1500">			return statusCode + &quot; UNSUPPORTED MEDIA TYPE&quot;;</span>
+		case 416:
+<span class="fc" id="L1502">			return statusCode + &quot; REQUESTED RANGE NOT SATISFIABLE&quot;;</span>
+		case 417:
+<span class="fc" id="L1504">			return statusCode + &quot; EXPECTATION FAILED&quot;;</span>
+		case 500:
+<span class="fc" id="L1506">			return statusCode + &quot; INTERNAL SERVER ERROR&quot;;</span>
+		case 501:
+<span class="fc" id="L1508">			return statusCode + &quot; NOT IMPLEMENTED&quot;;</span>
+		case 502:
+<span class="fc" id="L1510">			return statusCode + &quot; BAD GATEWAY&quot;;</span>
+		case 503:
+<span class="fc" id="L1512">			return statusCode + &quot; SERVICE UNAVAILABLE&quot;;</span>
+		case 504:
+<span class="fc" id="L1514">			return statusCode + &quot; GATEWAY TIMEOUT&quot;;</span>
+		case 505:
+<span class="fc" id="L1516">			return statusCode + &quot; HTTP VERSION NOT SUPPORTED&quot;;</span>
+		default:
+<span class="fc" id="L1518">			return statusCode + &quot; UNKNOWN&quot;;</span>
+		}
+	}
+
+	/**
+	 * Resolves and caches the {@link InetAddress IP address} for a host name.
+	 * 
+	 * @param hostname host name
+	 * @return resolved {@link InetAddress}
+	 */
+	public static InetAddress getInetAddress(String hostname) {
+<span class="fc" id="L1529">		var addr = IP_CACHE.get(hostname);</span>
+<span class="fc bfc" id="L1530" title="All 2 branches covered.">		if (addr != null)</span>
+<span class="fc" id="L1531">			return addr;</span>
+
+<span class="fc" id="L1533">		addr = IuException.unchecked(() -&gt; InetAddress.getByName(hostname));</span>
+<span class="fc" id="L1534">		IP_CACHE.put(hostname, addr);</span>
+
+<span class="fc" id="L1536">		return addr;</span>
+	}
+
+	/**
+	 * Determines whether or not an IP address is included in a CIDR range.
+	 * 
+	 * @param address address
+	 * @param range   CIDR range
+	 * @return true if the range includes the address; else false
+	 */
+	public static boolean isInetAddressInRange(InetAddress address, String range) {
+<span class="fc" id="L1547">		byte[] hostaddr = address.getAddress();</span>
+<span class="fc" id="L1548">		int lastSlash = range.lastIndexOf('/');</span>
+
+		byte[] rangeaddr;
+		int maskbits;
+<span class="fc bfc" id="L1552" title="All 2 branches covered.">		if (lastSlash == -1) {</span>
+<span class="fc" id="L1553">			rangeaddr = getInetAddress(range).getAddress();</span>
+<span class="fc" id="L1554">			maskbits = rangeaddr.length * 8;</span>
+		} else {
+<span class="fc" id="L1556">			rangeaddr = getInetAddress(range.substring(0, lastSlash)).getAddress();</span>
+<span class="fc" id="L1557">			maskbits = Integer.parseInt(range.substring(lastSlash + 1));</span>
+		}
+
+<span class="fc bfc" id="L1560" title="All 2 branches covered.">		for (int i = 0; i &lt; rangeaddr.length; i++) {</span>
+<span class="fc bfc" id="L1561" title="All 2 branches covered.">			if (maskbits &gt;= 8) {</span>
+<span class="fc" id="L1562">				maskbits -= 8;</span>
+<span class="fc bfc" id="L1563" title="All 2 branches covered.">				if (hostaddr[i] != rangeaddr[i])</span>
+<span class="fc" id="L1564">					return false;</span>
+<span class="fc bfc" id="L1565" title="All 2 branches covered.">			} else if (maskbits &gt; 0) {</span>
+<span class="fc" id="L1566">				int mask = ~((1 &lt;&lt; (8 - maskbits)) - 1);</span>
+<span class="fc bfc" id="L1567" title="All 2 branches covered.">				return (hostaddr[i] &amp; mask) == (rangeaddr[i] &amp; mask);</span>
+			} else
+				break;
+		}
+
+<span class="fc" id="L1572">		return true;</span>
+	}
+
+	private IuWebUtils() {
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

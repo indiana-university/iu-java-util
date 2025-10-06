@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuSamlServiceProviderMetadata.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Authentication and Authorization Configuration</a> &gt; <a href="index.source.html" class="el_package">edu.iu.auth.config</a> &gt; <span class="el_source">IuSamlServiceProviderMetadata.java</span></div><h1>IuSamlServiceProviderMetadata.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2025 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu.auth.config;
+
+import java.net.URI;
+import java.time.Duration;
+import java.util.Set;
+
+import edu.iu.IuIterable;
+import edu.iu.auth.saml.IuSamlAssertion;
+
+/**
+ * Provides client configuration metadata for interacting with an SAML
+ * authorization server.
+ * 
+ * &lt;p&gt;
+ * The interface &lt;em&gt;should&lt;/em&gt; be implemented by the application client module
+ * requiring authorization on behalf of an SAML identity provider.
+ * &lt;/p&gt;
+ */
+public interface IuSamlServiceProviderMetadata extends IuSessionConfiguration {
+
+	/**
+	 * Gets whether to fail on address mismatch or not, true if required, false if
+	 * not
+	 * 
+	 * @return failed on address mismatch
+	 */
+	default boolean isFailOnAddressMismatch() {
+<span class="fc" id="L59">		return false;</span>
+	}
+
+	/**
+	 * Gets the maximum length of time to allow an authenticated session to be
+	 * remain active before requesting the provide re-establish credentials for the
+	 * principal.
+	 * 
+	 * @return {@link Duration}, will be truncated to second
+	 */
+	default Duration getAuthenticatedSessionTimeout() {
+<span class="fc" id="L70">		return Duration.ofHours(12L);</span>
+	}
+
+	/**
+	 * Gets the maximum time interval to re-established metadata resolver typically
+	 * measured in seconds. Once this interval is passed, metadata resolver will be
+	 * re-established using metadata URIs.
+	 * 
+	 * @return metadaaTtl {@link Duration}
+	 */
+	default Duration getMetadataTtl() {
+<span class="fc" id="L81">		return Duration.ofMinutes(5L);</span>
+	}
+
+	/**
+	 * Gets allowed list of IP addresses to validate against SAML response
+	 * 
+	 * @return allowed ranged of IP addresses
+	 */
+	default Iterable&lt;String&gt; getAllowedRange() {
+<span class="fc" id="L90">		return IuIterable.empty();</span>
+	}
+
+	/**
+	 * Gets the SAML metadata {@link URI} to retrieve configure metadata file that
+	 * is configured directly into the SAML provider by administrator
+	 * 
+	 * @return metadata URL
+	 */
+	Iterable&lt;URI&gt; getMetadataUris();
+
+	/**
+	 * Gets the list of assertion Consumer {@link URI}
+	 * 
+	 * @return allowed list of assertion consumer {@link URI}
+	 */
+	Iterable&lt;URI&gt; getAcsUris();
+
+	/**
+	 * Gets the Service Provider registered Entity ID.
+	 * 
+	 * @return SP Entity ID
+	 */
+	String getServiceProviderEntityId();
+
+	/**
+	 * Gets an ordered set of registered Identity Provider Entity IDs.
+	 * 
+	 * &lt;p&gt;
+	 * The first entry in the set is the primary IDP for redirecting the user agent
+	 * to for initiating sign-in
+	 * &lt;/p&gt;
+	 * 
+	 * @return IDP Entity ID
+	 */
+	Set&lt;String&gt; getIdentityProviderEntityIds();
+
+	/**
+	 * Gets the SAML Service Provider identity keys.
+	 * 
+	 * @return SAML SP identity keys
+	 */
+	IuPrivateKeyPrincipal getIdentity();
+
+	/**
+	 * Gets the name of the SAML Assertion Attribute that contains the principal
+	 * name.
+	 * 
+	 * &lt;p&gt;
+	 * At least one assertion &lt;em&gt;must&lt;/em&gt; include this attribute value.
+	 * &lt;/p&gt;
+	 * 
+	 * @return principal name attribute
+	 */
+	default String getPrincipalNameAttribute() {
+<span class="fc" id="L145">		return IuSamlAssertion.EDU_PERSON_PRINCIPAL_NAME_OID;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

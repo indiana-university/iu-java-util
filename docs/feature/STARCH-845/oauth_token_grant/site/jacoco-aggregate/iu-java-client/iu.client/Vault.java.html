@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>Vault.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-client</a> &gt; <a href="index.source.html" class="el_package">iu.client</a> &gt; <span class="el_source">Vault.java</span></div><h1>Vault.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2025 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.client;
+
+import java.lang.reflect.Type;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpRequest;
+import java.net.http.HttpRequest.BodyPublishers;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Properties;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.logging.Logger;
+
+import edu.iu.IuCacheMap;
+import edu.iu.IuException;
+import edu.iu.IuRuntimeEnvironment;
+import edu.iu.client.HttpException;
+import edu.iu.client.HttpResponseHandler;
+import edu.iu.client.IuHttp;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuVault;
+import edu.iu.client.IuVaultKeyedValue;
+import edu.iu.client.IuVaultSecret;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
+
+/**
+ * Provides access to secrets stored in HashiCorp Vault.
+ * 
+ */
+public final class Vault implements IuVault {
+
+<span class="fc" id="L73">	private static final Logger LOG = Logger.getLogger(Vault.class.getName());</span>
+
+	/**
+	 * Implements {@link IuVault#of(Properties, Function)}.
+	 * 
+	 * @param properties   optional property overrides
+	 * @param valueAdapter
+	 * @return {@link Vault} instance
+	 */
+	public static Vault of(Properties properties, Function&lt;Type, IuJsonAdapter&lt;?&gt;&gt; valueAdapter) {
+<span class="fc" id="L83">		final var endpoint = prop(properties, &quot;iu.vault.endpoint&quot;, URI::create);</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">		if (endpoint == null) {</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">			if (properties == null)</span>
+<span class="fc" id="L86">				return null;</span>
+			else
+<span class="fc" id="L88">				throw new NullPointerException(&quot;Missing iu.vault.endpoint&quot;);</span>
+		}
+
+<span class="fc" id="L91">		final var cacheTtl = prop(properties, &quot;iu.vault.cacheTtl&quot;, Duration::parse);</span>
+		final Map&lt;String, JsonObject&gt; secretCache;
+<span class="fc bfc" id="L93" title="All 2 branches covered.">		if (cacheTtl == null)</span>
+<span class="fc" id="L94">			secretCache = null;</span>
+		else
+<span class="fc" id="L96">			secretCache = new IuCacheMap&lt;&gt;(cacheTtl);</span>
+
+<span class="fc" id="L98">		final var secretNames = prop(properties, &quot;iu.vault.secrets&quot;, a -&gt; a.split(&quot;,&quot;));</span>
+<span class="fc" id="L99">		final var token = prop(properties, &quot;iu.vault.token&quot;, a -&gt; a);</span>
+<span class="fc" id="L100">		final var cubbyhole = &quot;true&quot;.equals(prop(properties, &quot;iu.vault.cubbyhole&quot;, a -&gt; a));</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">		if (token != null)</span>
+<span class="fc" id="L102">			return new Vault(endpoint, secretNames, token, cubbyhole, valueAdapter, secretCache);</span>
+		else {
+<span class="fc" id="L104">			final var loginEndpoint = Objects.requireNonNull( //</span>
+<span class="fc" id="L105">					prop(properties, &quot;iu.vault.loginEndpoint&quot;, URI::create),</span>
+					&quot;Missing iu.vault.loginEndpoint or iu.vault.token&quot;);
+
+<span class="fc" id="L108">			final var roleId = Objects.requireNonNull( //</span>
+<span class="fc" id="L109">					prop(properties, &quot;iu.vault.roleId&quot;, a -&gt; a), &quot;Missing iu.vault.roleId&quot;);</span>
+<span class="fc" id="L110">			final var secretId = Objects.requireNonNull( //</span>
+<span class="fc" id="L111">					prop(properties, &quot;iu.vault.secretId&quot;, a -&gt; a), &quot;Missing iu.vault.secretId&quot;);</span>
+
+<span class="fc" id="L113">			return new Vault(endpoint, secretNames, loginEndpoint, roleId, secretId, cubbyhole, valueAdapter,</span>
+					secretCache);
+		}
+	}
+
+	/**
+	 * Determines if the {@link IuVault#RUNTIME} is configured and will be non-null.
+	 * 
+	 * @return true if {@link IuVault#RUNTIME} is configured; else false
+	 */
+	public static boolean isConfigured() {
+<span class="fc bfc" id="L124" title="All 2 branches covered.">		return prop(null, &quot;iu.vault.endpoint&quot;, URI::create) != null;</span>
+	}
+
+	/**
+	 * Reads a configuration property.
+	 * 
+	 * @param &lt;T&gt;                 property type
+	 * @param properties          runtime environment overrides
+	 * @param name                property name
+	 * @param textToValueFunction conversion function
+	 * @return property value
+	 */
+	static &lt;T&gt; T prop(Properties properties, String name, Function&lt;String, T&gt; textToValueFunction) {
+<span class="fc bfc" id="L137" title="All 2 branches covered.">		if (properties != null) {</span>
+<span class="fc" id="L138">			final var propertyValue = properties.getProperty(name);</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">			if (propertyValue != null)</span>
+<span class="fc" id="L140">				return textToValueFunction.apply(propertyValue);</span>
+		}
+
+<span class="fc" id="L143">		return IuRuntimeEnvironment.envOptional(name, textToValueFunction);</span>
+	}
+
+	private final URI endpoint;
+	private final String[] secretNames;
+	private final URI loginEndpoint;
+	private final String roleId;
+	private final String secretId;
+	private final boolean cubbyhole;
+	private final Function&lt;Type, IuJsonAdapter&lt;?&gt;&gt; valueAdapter;
+	private final Map&lt;String, JsonObject&gt; secretCache;
+
+	private String token;
+	private Instant tokenExpires;
+
+	private Vault(URI endpoint, String[] secretNames, String token, boolean cubbyhole,
+<span class="fc" id="L159">			Function&lt;Type, IuJsonAdapter&lt;?&gt;&gt; valueAdapter, Map&lt;String, JsonObject&gt; secretCache) {</span>
+<span class="fc" id="L160">		this.endpoint = endpoint;</span>
+<span class="fc" id="L161">		this.secretNames = secretNames;</span>
+<span class="fc" id="L162">		this.token = token;</span>
+<span class="fc" id="L163">		this.loginEndpoint = null;</span>
+<span class="fc" id="L164">		this.roleId = null;</span>
+<span class="fc" id="L165">		this.secretId = null;</span>
+<span class="fc" id="L166">		this.cubbyhole = cubbyhole;</span>
+<span class="fc" id="L167">		this.valueAdapter = valueAdapter;</span>
+<span class="fc" id="L168">		this.secretCache = secretCache;</span>
+<span class="fc" id="L169">	}</span>
+
+	private Vault(URI endpoint, String[] secretNames, URI loginEndpoint, String roleId, String secretId,
+<span class="fc" id="L172">			boolean cubbyhole, Function&lt;Type, IuJsonAdapter&lt;?&gt;&gt; valueAdapter, Map&lt;String, JsonObject&gt; secretCache) {</span>
+<span class="fc" id="L173">		this.endpoint = endpoint;</span>
+<span class="fc" id="L174">		this.secretNames = secretNames;</span>
+<span class="fc" id="L175">		this.token = null;</span>
+<span class="fc" id="L176">		this.loginEndpoint = loginEndpoint;</span>
+<span class="fc" id="L177">		this.roleId = roleId;</span>
+<span class="fc" id="L178">		this.secretId = secretId;</span>
+<span class="fc" id="L179">		this.cubbyhole = cubbyhole;</span>
+<span class="fc" id="L180">		this.valueAdapter = valueAdapter;</span>
+<span class="fc" id="L181">		this.secretCache = secretCache;</span>
+<span class="fc" id="L182">	}</span>
+
+	@Override
+	public Iterable&lt;IuVaultKeyedValue&lt;?&gt;&gt; list() {
+<span class="fc bfc" id="L186" title="All 2 branches covered.">		if (secretNames == null)</span>
+<span class="fc" id="L187">			throw new UnsupportedOperationException();</span>
+
+<span class="fc" id="L189">		final Map&lt;String, IuVaultKeyedValue&lt;?&gt;&gt; values = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L190" title="All 2 branches covered.">		for (final var secretName : secretNames) {</span>
+<span class="fc" id="L191">			final var secret = getSecret(secretName);</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">			for (final var key : secret.getData().keySet())</span>
+<span class="pc bpc" id="L193" title="1 of 2 branches missed.">				if (!values.containsKey(key))</span>
+<span class="fc" id="L194">					values.put(key, secret.get(key, Object.class));</span>
+		}
+
+<span class="fc" id="L197">		return values.values();</span>
+	}
+
+	@Override
+	public IuVaultKeyedValue&lt;String&gt; get(String name) {
+<span class="fc" id="L202">		return get(name, String.class);</span>
+	}
+
+	@Override
+	public &lt;T&gt; IuVaultKeyedValue&lt;T&gt; get(String name, Class&lt;T&gt; type) {
+<span class="fc bfc" id="L207" title="All 2 branches covered.">		if (secretNames == null)</span>
+<span class="fc" id="L208">			throw new UnsupportedOperationException();</span>
+
+<span class="fc bfc" id="L210" title="All 2 branches covered.">		for (String secretName : secretNames) {</span>
+<span class="fc" id="L211">			final var secret = getSecret(secretName);</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">			if (secret.getData().containsKey(name))</span>
+<span class="fc" id="L213">				return secret.get(name, type);</span>
+		}
+
+<span class="fc" id="L216">		throw new IllegalArgumentException(</span>
+<span class="fc" id="L217">				name + &quot; not found in Vault using &quot; + endpoint + '/' + Arrays.toString(secretNames));</span>
+	}
+
+	@Override
+	public IuVaultSecret getSecret(String secret) {
+<span class="fc" id="L222">		class Ref {</span>
+			JsonObject data;
+		}
+
+<span class="fc" id="L226">		final var dataUri = dataUri(secret);</span>
+
+		final Ref ref;
+		final Supplier&lt;JsonObject&gt; dataSupplier;
+		final Supplier&lt;JsonObject&gt; metadataSupplier;
+
+		final Function&lt;JsonObject, JsonObject&gt; convertData;
+		final Function&lt;JsonObject, JsonObject&gt; convertMetadata;
+<span class="fc bfc" id="L234" title="All 2 branches covered.">		if (cubbyhole) {</span>
+<span class="fc" id="L235">			convertData = a -&gt; a;</span>
+<span class="fc" id="L236">			convertMetadata = a -&gt; null;</span>
+		} else {
+<span class="fc" id="L238">			convertData = a -&gt; a.getJsonObject(&quot;data&quot;);</span>
+<span class="fc" id="L239">			convertMetadata = a -&gt; a.getJsonObject(&quot;metadata&quot;);</span>
+		}
+
+<span class="fc bfc" id="L242" title="All 2 branches covered.">		if (secretCache == null) {</span>
+<span class="fc" id="L243">			ref = new Ref();</span>
+<span class="fc" id="L244">			ref.data = readSecret(secret);</span>
+<span class="fc" id="L245">			dataSupplier = () -&gt; convertData.apply(ref.data);</span>
+<span class="fc" id="L246">			metadataSupplier = () -&gt; convertMetadata.apply(ref.data);</span>
+		} else {
+<span class="fc" id="L248">			ref = null;</span>
+<span class="fc" id="L249">			dataSupplier = () -&gt; convertData.apply(readSecretUsingCache(secret));</span>
+<span class="fc" id="L250">			metadataSupplier = () -&gt; convertMetadata.apply(readSecretUsingCache(secret));</span>
+		}
+
+		final Consumer&lt;JsonObject&gt; mergePatchConsumer;
+
+<span class="fc" id="L255">		mergePatchConsumer = mergePatch -&gt; IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L256">			final var data = dataSupplier.get();</span>
+<span class="fc" id="L257">			final var metadata = metadataSupplier.get();</span>
+
+<span class="fc" id="L259">			final var updatedData = IuJson.PROVIDER.createMergePatch(mergePatch).apply(data).asJsonObject();</span>
+
+			final String dataRequestPayload;
+<span class="fc bfc" id="L262" title="All 2 branches covered.">			if (cubbyhole)</span>
+<span class="fc" id="L263">				dataRequestPayload = updatedData.toString();</span>
+			else {
+<span class="fc" id="L265">				final var dataRequestPayloadBuilder = IuJson.object();</span>
+<span class="fc" id="L266">				dataRequestPayloadBuilder.add(&quot;options&quot;, IuJson.object().add(&quot;cas&quot;, metadata.getInt(&quot;version&quot;)));</span>
+<span class="fc" id="L267">				dataRequestPayloadBuilder.add(&quot;data&quot;, updatedData);</span>
+<span class="fc" id="L268">				dataRequestPayload = dataRequestPayloadBuilder.build().toString();</span>
+			}
+
+			final HttpResponseHandler&lt;?&gt; responseHandler;
+<span class="fc bfc" id="L272" title="All 2 branches covered.">			if (cubbyhole)</span>
+<span class="fc" id="L273">				responseHandler = IuHttp.NO_CONTENT;</span>
+			else
+<span class="fc" id="L275">				responseHandler = IuHttp.READ_JSON_OBJECT;</span>
+
+<span class="fc bfc" id="L277" title="All 4 branches covered.">			if (cubbyhole &amp;&amp; updatedData.isEmpty())</span>
+<span class="fc" id="L278">				IuHttp.send(dataUri, rb -&gt; {</span>
+<span class="fc" id="L279">					rb.DELETE();</span>
+<span class="fc" id="L280">					this.authorize(rb);</span>
+<span class="fc" id="L281">				}, responseHandler);</span>
+			else
+<span class="fc" id="L283">				IuHttp.send(dataUri, rb -&gt; {</span>
+<span class="fc" id="L284">					rb.POST(BodyPublishers.ofString(dataRequestPayload));</span>
+<span class="fc" id="L285">					this.authorize(rb);</span>
+<span class="fc" id="L286">				}, responseHandler);</span>
+
+<span class="fc" id="L288">			final var delete = mergePatch.values().stream().allMatch(JsonValue.NULL::equals);</span>
+<span class="fc bfc" id="L289" title="All 2 branches covered.">			LOG.config(() -&gt; &quot;vault:&quot; + (delete ? &quot;delete:&quot; : &quot;set:&quot;) + dataUri + &quot;:&quot; + mergePatch.keySet());</span>
+
+<span class="fc" id="L291">			final var updated = readSecret(secret);</span>
+<span class="fc bfc" id="L292" title="All 2 branches covered.">			if (secretCache == null)</span>
+<span class="fc" id="L293">				ref.data = updated;</span>
+			else
+<span class="fc" id="L295">				secretCache.put(secret, updated);</span>
+<span class="fc" id="L296">		});</span>
+
+<span class="fc" id="L298">		return new VaultSecret(secret, dataUri, dataSupplier, metadataSupplier, mergePatchConsumer, valueAdapter);</span>
+	}
+
+	private JsonObject readSecretUsingCache(String secret) {
+<span class="fc" id="L302">		var data = secretCache.get(secret);</span>
+<span class="fc bfc" id="L303" title="All 2 branches covered.">		if (data == null)</span>
+<span class="fc" id="L304">			secretCache.put(secret, data = readSecret(secret));</span>
+<span class="fc" id="L305">		return data;</span>
+	}
+
+	/**
+	 * Reads a secret using the Vault API.
+	 * 
+	 * @param secret secret name
+	 * @return parsed secret
+	 */
+	JsonObject readSecret(String secret) {
+<span class="fc" id="L315">		return IuException.unchecked(() -&gt; {</span>
+			try {
+<span class="fc" id="L317">				return IuHttp.send(dataUri(secret), this::authorize, IuHttp.READ_JSON_OBJECT).getJsonObject(&quot;data&quot;);</span>
+<span class="fc" id="L318">			} catch (HttpException e) {</span>
+<span class="fc bfc" id="L319" title="All 2 branches covered.">				if (e.getResponse().statusCode() == 404)</span>
+<span class="fc bfc" id="L320" title="All 2 branches covered.">					if (cubbyhole)</span>
+<span class="fc" id="L321">						return IuJson.object().build();</span>
+					else
+<span class="fc" id="L323">						return IuJson.object().add(&quot;data&quot;, IuJson.object()).build();</span>
+				else
+<span class="fc" id="L325">					throw e;</span>
+			}
+		});
+	}
+
+	/**
+	 * Creates a data URI for calling the Vault API.
+	 * 
+	 * @param secret secret name
+	 * @return Vault API data {@link URI}
+	 */
+	URI dataUri(String secret) {
+<span class="fc bfc" id="L337" title="All 2 branches covered.">		if (!secret.matches(&quot;[\\w\\/\\-]+&quot;))</span>
+<span class="fc" id="L338">			throw new IllegalArgumentException(&quot;invalid secret name&quot;);</span>
+
+<span class="fc" id="L340">		final var sb = new StringBuilder();</span>
+<span class="fc" id="L341">		sb.append(endpoint);</span>
+<span class="fc" id="L342">		sb.append('/');</span>
+<span class="fc bfc" id="L343" title="All 2 branches covered.">		if (cubbyhole)</span>
+<span class="fc" id="L344">			sb.append(secret);</span>
+		else
+<span class="fc" id="L346">			sb.append(URLEncoder.encode(secret, StandardCharsets.UTF_8));</span>
+<span class="fc" id="L347">		return URI.create(sb.toString());</span>
+	}
+
+	private void approle(HttpRequest.Builder requestBuilder) {
+<span class="fc" id="L351">		final var payload = IuJson.object();</span>
+<span class="fc" id="L352">		payload.add(&quot;role_id&quot;, roleId);</span>
+<span class="fc" id="L353">		payload.add(&quot;secret_id&quot;, secretId);</span>
+<span class="fc" id="L354">		requestBuilder.header(&quot;Content-Type&quot;, &quot;application/json;charset=utf-8&quot;);</span>
+<span class="fc" id="L355">		requestBuilder.POST(BodyPublishers.ofString(payload.build().toString()));</span>
+<span class="fc" id="L356">	}</span>
+
+	private void authorize(HttpRequest.Builder requestBuilder) {
+<span class="fc bfc" id="L359" title="All 2 branches covered.">		if (tokenExpires != null //</span>
+<span class="fc bfc" id="L360" title="All 2 branches covered.">				&amp;&amp; Instant.now().isAfter(tokenExpires))</span>
+<span class="fc" id="L361">			token = null;</span>
+
+<span class="fc bfc" id="L363" title="All 2 branches covered.">		if (token == null) {</span>
+<span class="fc" id="L364">			final var authResponse = IuException.unchecked( //</span>
+<span class="fc" id="L365">					() -&gt; IuHttp.send(loginEndpoint, this::approle, IuHttp.READ_JSON_OBJECT) //</span>
+<span class="fc" id="L366">							.getJsonObject(&quot;auth&quot;));</span>
+
+<span class="fc" id="L368">			tokenExpires = Instant.now().truncatedTo(ChronoUnit.SECONDS)</span>
+<span class="fc" id="L369">					.plusSeconds(authResponse.getInt(&quot;lease_duration&quot;, 0));</span>
+<span class="fc" id="L370">			token = authResponse.getString(&quot;client_token&quot;);</span>
+		}
+
+<span class="fc" id="L373">		requestBuilder.header(&quot;X-Vault-Token&quot;, token);</span>
+<span class="fc" id="L374">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
