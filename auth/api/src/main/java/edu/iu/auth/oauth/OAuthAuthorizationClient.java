@@ -4,13 +4,14 @@ import java.net.URI;
 
 /**
  * Encapsulates OAuth 2.0 authorization client details.
+ * @see <a href="https://www.rfc-editor.org/rfc/rfc6749.html">RFC-6749 OAuth 2.0</a>
  */
 public interface OAuthAuthorizationClient extends OAuthClient {
 
 	/**
-	 * Gets the token URI.
+	 * Gets the authorization endpoint URI.
 	 * 
-	 * @return OAuth 2.0 Token URI
+	 * @return OAuth 2.0 authorization endpoint URI
 	 */
 	URI getAuthorizeUri();
 
