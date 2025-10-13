@@ -630,10 +630,6 @@ public class SamlServiceProviderTest {
 	static IuSamlServiceProviderMetadata getConfig(List<URI> metadataUris, String serviceProviderEntityId,
 			IuPrivateKeyPrincipal pkp, List<URI> acsUris) {
 		final var config = new IuSamlServiceProviderMetadata() {
-			@Override
-			public Type getType() {
-				return Type.SAML;
-			}
 
 			@Override
 			public String getServiceProviderEntityId() {
