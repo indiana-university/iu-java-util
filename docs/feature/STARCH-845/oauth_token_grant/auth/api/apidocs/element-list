@@ -1,7 +1,0 @@
-module:iu.util.auth
-edu.iu.auth
-edu.iu.auth.nonce
-edu.iu.auth.oauth
-edu.iu.auth.saml
-edu.iu.auth.session
-edu.iu.auth.spi
