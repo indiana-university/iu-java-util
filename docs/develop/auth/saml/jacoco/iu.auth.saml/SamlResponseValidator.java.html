@@ -213,19 +213,21 @@ class SamlResponseValidator {
 <span class="fc" id="L213">		verifySubjectConfirmation();</span>
 
 <span class="fc" id="L215">		final var config = config();</span>
-<span class="fc" id="L216">		final var authnInstant = authnAssertion.getAuthnInstant();</span>
-<span class="fc" id="L217">		final var principalNameAttribute = config.getPrincipalNameAttribute();</span>
-<span class="fc" id="L218">		final var principalName = Objects.requireNonNull( //</span>
-<span class="fc" id="L219">				authnAssertion.getAttributes().get(principalNameAttribute), //</span>
+<span class="fc" id="L216">		final var authnAuthority = authnAssertion.getAuthnAuthority();</span>
+<span class="fc" id="L217">		final var authnInstant = authnAssertion.getAuthnInstant();</span>
+<span class="fc" id="L218">		final var principalNameAttribute = config.getPrincipalNameAttribute();</span>
+<span class="fc" id="L219">		final var principalName = Objects.requireNonNull( //</span>
+<span class="fc" id="L220">				authnAssertion.getAttributes().get(principalNameAttribute), //</span>
 				principalNameAttribute);
 
-<span class="fc" id="L222">		final var issuer = response.getIssuer().getValue();</span>
-<span class="fc" id="L223">		final var expires = authnInstant.plus(config.getAuthenticatedSessionTimeout());</span>
+<span class="fc" id="L223">		final var issuer = response.getIssuer().getValue();</span>
+<span class="fc" id="L224">		final var expires = authnInstant.plus(config.getAuthenticatedSessionTimeout());</span>
 
-<span class="fc" id="L225">		LOG.fine(() -&gt; &quot;saml:post-validate:&quot; + principalName + &quot;:&quot; + authnInstant + &quot;; issuer: &quot; + issuer + &quot; @&quot;</span>
-				+ issueInstant + &quot;, expires &quot; + expires + &quot;; assertions: &quot; + samlAssertions);
+<span class="fc" id="L226">		LOG.fine(() -&gt; &quot;saml:post-validate:&quot; + principalName + &quot;:&quot; + authnAuthority + &quot; @&quot; + authnInstant + &quot;; issuer: &quot;</span>
+				+ issuer + &quot; @&quot; + issueInstant + &quot;, expires &quot; + expires + &quot;; assertions: &quot; + samlAssertions);
 
-<span class="fc" id="L228">		return new SamlPrincipal(realm(), principalName, issueInstant, authnInstant, expires, samlAssertions);</span>
+<span class="fc" id="L229">		return new SamlPrincipal(realm(), principalName, issuer, issueInstant, authnAuthority, authnInstant, expires,</span>
+				samlAssertions);
 	}
 
 	/**
@@ -234,7 +236,7 @@ class SamlResponseValidator {
 	 * @return {@link #config}
 	 */
 	IuSamlServiceProviderMetadata config() {
-<span class="fc" id="L237">		return config;</span>
+<span class="fc" id="L239">		return config;</span>
 	}
 
 	/**
@@ -243,7 +245,7 @@ class SamlResponseValidator {
 	 * @return {@link #realm}
 	 */
 	String realm() {
-<span class="fc" id="L246">		return realm;</span>
+<span class="fc" id="L248">		return realm;</span>
 	}
 
 	/**
@@ -254,13 +256,13 @@ class SamlResponseValidator {
 	 * @throws SignatureException from signatureProfileValidator
 	 */
 	void validateSignature(Response response) throws SecurityException, SignatureException {
-<span class="fc" id="L257">		SignatureValidationParameters vparam = new SignatureValidationParameters();</span>
-<span class="fc" id="L258">		vparam.setSignatureTrustEngine(trustEngine);</span>
-<span class="fc" id="L259">		signatureProfileValidator.validate(response.getSignature());</span>
-<span class="fc bfc" id="L260" title="All 2 branches covered.">		if (!trustEngine.validate(response.getSignature(),</span>
+<span class="fc" id="L259">		SignatureValidationParameters vparam = new SignatureValidationParameters();</span>
+<span class="fc" id="L260">		vparam.setSignatureTrustEngine(trustEngine);</span>
+<span class="fc" id="L261">		signatureProfileValidator.validate(response.getSignature());</span>
+<span class="fc bfc" id="L262" title="All 2 branches covered.">		if (!trustEngine.validate(response.getSignature(),</span>
 				new CriteriaSet(new SignatureValidationParametersCriterion(vparam))))
-<span class="fc" id="L262">			throw new IllegalArgumentException(&quot;SAML signature verification failed&quot;);</span>
-<span class="fc" id="L263">	}</span>
+<span class="fc" id="L264">			throw new IllegalArgumentException(&quot;SAML signature verification failed&quot;);</span>
+<span class="fc" id="L265">	}</span>
 
 	/**
 	 * Validates potentially encrypted SAML assertions from a response
@@ -270,38 +272,38 @@ class SamlResponseValidator {
 	 * @throws Exception if an assertion fails to validate
 	 */
 	Iterable&lt;StoredSamlAssertion&gt; validateAssertions(Response response) throws Exception {
-<span class="fc" id="L273">		final Queue&lt;StoredSamlAssertion&gt; samlAssertions = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L275">		final Queue&lt;StoredSamlAssertion&gt; samlAssertions = new ArrayDeque&lt;&gt;();</span>
 
-<span class="fc bfc" id="L275" title="All 2 branches covered.">		for (Assertion assertion : response.getAssertions()) {</span>
-<span class="fc" id="L276">			assertionValidator.validate(assertion, validationContext);</span>
-<span class="fc" id="L277">			samlAssertions.offer(new SamlAssertion(assertion));</span>
-<span class="fc" id="L278">		}</span>
+<span class="fc bfc" id="L277" title="All 2 branches covered.">		for (Assertion assertion : response.getAssertions()) {</span>
+<span class="fc" id="L278">			assertionValidator.validate(assertion, validationContext);</span>
+<span class="fc" id="L279">			samlAssertions.offer(new SamlAssertion(assertion));</span>
+<span class="fc" id="L280">		}</span>
 
-<span class="fc bfc" id="L280" title="All 2 branches covered.">		for (EncryptedAssertion encryptedAssertion : response.getEncryptedAssertions()) {</span>
-<span class="fc" id="L281">			final var assertion = decrypter.decrypt(encryptedAssertion);</span>
-<span class="fc" id="L282">			assertionValidator.validate(assertion, validationContext);</span>
-<span class="fc" id="L283">			samlAssertions.offer(new SamlAssertion(assertion));</span>
-<span class="fc" id="L284">		}</span>
+<span class="fc bfc" id="L282" title="All 2 branches covered.">		for (EncryptedAssertion encryptedAssertion : response.getEncryptedAssertions()) {</span>
+<span class="fc" id="L283">			final var assertion = decrypter.decrypt(encryptedAssertion);</span>
+<span class="fc" id="L284">			assertionValidator.validate(assertion, validationContext);</span>
+<span class="fc" id="L285">			samlAssertions.offer(new SamlAssertion(assertion));</span>
+<span class="fc" id="L286">		}</span>
 
-<span class="fc" id="L286">		final var principalNameAttribute = config.getPrincipalNameAttribute();</span>
-<span class="fc" id="L287">		String principalName = null;</span>
-<span class="fc bfc" id="L288" title="All 2 branches covered.">		for (final var samlAssertion : samlAssertions) {</span>
-<span class="fc" id="L289">			final var assertionAuthnInstant = samlAssertion.getAuthnInstant();</span>
-<span class="fc bfc" id="L290" title="All 2 branches covered.">			if (assertionAuthnInstant != null) {</span>
-<span class="fc" id="L291">				final var attributes = samlAssertion.getAttributes();</span>
-<span class="fc" id="L292">				final var assertionPrincipalName = Objects.requireNonNull( //</span>
-<span class="fc" id="L293">						attributes.get(principalNameAttribute), //</span>
+<span class="fc" id="L288">		final var principalNameAttribute = config.getPrincipalNameAttribute();</span>
+<span class="fc" id="L289">		String principalName = null;</span>
+<span class="fc bfc" id="L290" title="All 2 branches covered.">		for (final var samlAssertion : samlAssertions) {</span>
+<span class="fc" id="L291">			final var assertionAuthnInstant = samlAssertion.getAuthnInstant();</span>
+<span class="fc bfc" id="L292" title="All 2 branches covered.">			if (assertionAuthnInstant != null) {</span>
+<span class="fc" id="L293">				final var attributes = samlAssertion.getAttributes();</span>
+<span class="fc" id="L294">				final var assertionPrincipalName = Objects.requireNonNull( //</span>
+<span class="fc" id="L295">						attributes.get(principalNameAttribute), //</span>
 						principalNameAttribute);
 
-<span class="fc" id="L296">				principalName = IuObject.once(principalName, assertionPrincipalName);</span>
+<span class="fc" id="L298">				principalName = IuObject.once(principalName, assertionPrincipalName);</span>
 			}
-<span class="fc" id="L298">		}</span>
+<span class="fc" id="L300">		}</span>
 
-<span class="fc" id="L300">		Objects.requireNonNull(principalName,</span>
+<span class="fc" id="L302">		Objects.requireNonNull(principalName,</span>
 				&quot;SAML Response must have at least one assertion with an AuthnStatement and principal name attribute &quot;
 						+ principalNameAttribute);
 
-<span class="fc" id="L304">		return samlAssertions;</span>
+<span class="fc" id="L306">		return samlAssertions;</span>
 	}
 
 	/**
@@ -309,14 +311,14 @@ class SamlResponseValidator {
 	 * confirmation.
 	 */
 	void verifySubjectConfirmation() {
-<span class="fc" id="L312">		final var confirmation = (SubjectConfirmation) Objects.requireNonNull(</span>
-<span class="fc" id="L313">				validationContext.getDynamicParameters()</span>
-<span class="fc" id="L314">						.get(SAML2AssertionValidationParameters.CONFIRMED_SUBJECT_CONFIRMATION),</span>
-<span class="fc" id="L315">				&quot;Missing subject confirmation: &quot; + validationContext.getValidationFailureMessages() + &quot;\n&quot;</span>
-<span class="fc" id="L316">						+ validationContext.getDynamicParameters());</span>
+<span class="fc" id="L314">		final var confirmation = (SubjectConfirmation) Objects.requireNonNull(</span>
+<span class="fc" id="L315">				validationContext.getDynamicParameters()</span>
+<span class="fc" id="L316">						.get(SAML2AssertionValidationParameters.CONFIRMED_SUBJECT_CONFIRMATION),</span>
+<span class="fc" id="L317">				&quot;Missing subject confirmation: &quot; + validationContext.getValidationFailureMessages() + &quot;\n&quot;</span>
+<span class="fc" id="L318">						+ validationContext.getDynamicParameters());</span>
 
-<span class="fc" id="L318">		LOG.fine(() -&gt; &quot;SAML2 subject confirmation &quot; + XmlDomUtil.getContent(confirmation.getDOM()));</span>
-<span class="fc" id="L319">	}</span>
+<span class="fc" id="L320">		LOG.fine(() -&gt; &quot;SAML2 subject confirmation &quot; + XmlDomUtil.getContent(confirmation.getDOM()));</span>
+<span class="fc" id="L321">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
