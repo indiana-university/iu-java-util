@@ -88,11 +88,39 @@ public interface SamlPostAuthentication {
 	Instant getIssueTime();
 
 	/**
+	 * Gets the issuer.
+	 * 
+	 * @return issuer
+	 */
+	String getIssuer();
+
+	/**
+	 * Sets the issuer.
+	 * 
+	 * @param issuer issuer
+	 */
+	void setIssuer(String issuer);
+
+	/**
 	 * Set issue time
 	 * 
 	 * @param issueTime issue time
 	 */
 	void setIssueTime(Instant issueTime);
+
+	/**
+	 * Gets the authenticating authority.
+	 * 
+	 * @return authenticating authority
+	 */
+	String getAuthnAuthority();
+
+	/**
+	 * Sets the authenticating authority.
+	 * 
+	 * @param authnAuthority authenticating authority
+	 */
+	void setAuthnAuthority(String authnAuthority);
 
 	/**
 	 * Get authentication time

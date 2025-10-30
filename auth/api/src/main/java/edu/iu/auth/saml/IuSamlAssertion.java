@@ -72,7 +72,13 @@ public interface IuSamlAssertion {
 	 */
 	Instant getNotOnOrAfter();
 
-	/** authnInstant */
+	/**
+	 * Gets the {@code authnAuthority} IDP entity ID.
+	 * 
+	 * @return authenticating authority
+	 */
+	String getAuthnAuthority();
+
 	/**
 	 * Gets the {@code authnInstant} authentication statement value.
 	 * 

@@ -63,17 +63,18 @@ public class SamlPrincipalTest {
 		final Queue<StoredSamlAssertion> samlAssertions = new ArrayDeque<>();
 		final var realm = IdGenerator.generateId();
 		final var principalName = IdGenerator.generateId();
+		final var issuer = IdGenerator.generateId();
 		final var issueInstant = Instant.now();
+		final var authnAuthority = IdGenerator.generateId();
 		final var authnInstant = Instant.now().minusSeconds(5L);
 		final var expires = authnInstant.plus(Duration.ofHours(12L));
 
-		SamlPrincipal samlPrincipal = new SamlPrincipal(realm, principalName, issueInstant, authnInstant, expires,
-				samlAssertions);
+		SamlPrincipal samlPrincipal = new SamlPrincipal(realm, principalName, issuer, issueInstant, authnAuthority,
+				authnInstant, expires, samlAssertions);
 
-		assertEquals(
-				"SamlPrincipal [realm=" + realm + ", name=" + principalName + ", issueTime=" + issueInstant
-						+ ", authTime=" + authnInstant + ", expires=" + expires + ", assertions=[]]",
-				samlPrincipal.toString());
+		assertEquals("SamlPrincipal [realm=" + realm + ", name=" + principalName + ", issuer=" + issuer + ", issueTime="
+				+ issueInstant + ", authority=" + authnAuthority + ", authTime=" + authnInstant + ", expires=" + expires
+				+ ", assertions=[]]", samlPrincipal.toString());
 
 		assertEquals(principalName, samlPrincipal.getName());
 		final var subject = samlPrincipal.getSubject();
@@ -96,12 +97,14 @@ public class SamlPrincipalTest {
 		final Queue<StoredSamlAssertion> samlAssertions = new ArrayDeque<>();
 		final var realm = IdGenerator.generateId();
 		final var principalName = "foo";
+		final var issuer = IdGenerator.generateId();
 		final var issueInstant = Instant.now();
+		final var authnAuthority = IdGenerator.generateId();
 		final var authnInstant = Instant.now();
 		final var expires = Instant.now().minus(Duration.ofSeconds(12L));
 
-		SamlPrincipal samlPrincipal = new SamlPrincipal(realm, principalName, issueInstant, authnInstant, expires,
-				samlAssertions);
+		SamlPrincipal samlPrincipal = new SamlPrincipal(realm, principalName, issuer, issueInstant, authnAuthority,
+				authnInstant, expires, samlAssertions);
 		final var e = assertThrows(IuAuthenticationException.class, () -> samlPrincipal.verify(realm));
 		assertInstanceOf(IllegalStateException.class, e.getCause());
 		assertEquals("expired", e.getCause().getMessage());
@@ -129,14 +132,18 @@ public class SamlPrincipalTest {
 	public void testFromAndBind() {
 		final var realm = IdGenerator.generateId();
 		final var name = IdGenerator.generateId();
+		final var issuer = IdGenerator.generateId();
 		final var issueTime = Instant.now();
+		final var authority = IdGenerator.generateId();
 		final var authTime = Instant.now().minusSeconds(15L);
 		final var expires = Instant.now().plusSeconds(15L);
 
 		final var details = mock(SamlPostAuthentication.class);
 		when(details.getRealm()).thenReturn(realm);
 		when(details.getName()).thenReturn(name);
+		when(details.getIssuer()).thenReturn(issuer);
 		when(details.getIssueTime()).thenReturn(issueTime);
+		when(details.getAuthnAuthority()).thenReturn(authority);
 		when(details.getAuthTime()).thenReturn(authTime);
 		when(details.getExpires()).thenReturn(expires);
 
@@ -147,6 +154,7 @@ public class SamlPrincipalTest {
 		final var principal = SamlPrincipal.from(details);
 		assertDoesNotThrow(() -> principal.verify(realm));
 		assertEquals(name, principal.getName());
+		assertEquals(issuer, principal.getIssuer());
 		assertEquals(issueTime, principal.getIssuedAt());
 		assertEquals(authTime, principal.getAuthTime());
 		assertEquals(expires, principal.getExpires());
@@ -158,7 +166,9 @@ public class SamlPrincipalTest {
 		principal.bind(details);
 		verify(details).setRealm(realm);
 		verify(details).setName(name);
+		verify(details).setIssuer(issuer);
 		verify(details).setIssueTime(issueTime);
+		verify(details).setAuthnAuthority(authority);
 		verify(details).setAuthTime(authTime);
 		verify(details).setExpires(expires);
 		verify(details).setAssertions(argThat(a -> {

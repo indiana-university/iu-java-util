@@ -49,6 +49,8 @@ import org.opensaml.core.xml.schema.XSString;
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.Attribute;
 import org.opensaml.saml.saml2.core.AttributeStatement;
+import org.opensaml.saml.saml2.core.AuthenticatingAuthority;
+import org.opensaml.saml.saml2.core.AuthnContext;
 import org.opensaml.saml.saml2.core.AuthnStatement;
 import org.opensaml.saml.saml2.core.Conditions;
 import org.w3c.dom.Element;
@@ -123,9 +125,114 @@ public class SamlAssertionTest {
 			assertEquals(nbf, samlAssertion.getNotBefore());
 			assertEquals(exp, samlAssertion.getNotOnOrAfter());
 		}
-
 	}
 
+	@Test
+	public void testAuthnAuthority() {
+		final var attribute = mock(Attribute.class);
+		final var name = IdGenerator.generateId();
+		final var friendlyName = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var xsstring = mock(XSString.class);
+		when(xsstring.getValue()).thenReturn(value);
+		when(attribute.getName()).thenReturn(name);
+		when(attribute.getFriendlyName()).thenReturn(friendlyName);
+		when(attribute.getAttributeValues()).thenReturn(List.of(xsstring));
+
+		final var attributeStatement = mock(AttributeStatement.class);
+		when(attributeStatement.getAttributes()).thenReturn(List.of(attribute));
+
+		final var assertion = mock(Assertion.class);
+		when(assertion.getAttributeStatements()).thenReturn(List.of(attributeStatement));
+
+		final var iat = Instant.now();
+		final var nbf = iat.minusSeconds(5L);
+		final var exp = iat.plusSeconds(15L);
+		final var conditions = mock(Conditions.class);
+		when(conditions.getNotBefore()).thenReturn(nbf);
+		when(conditions.getNotOnOrAfter()).thenReturn(exp);
+		when(assertion.getConditions()).thenReturn(conditions);
+
+		final var authnAuthorityUri = IdGenerator.generateId();
+		final var authnAuthority = mock(AuthenticatingAuthority.class);
+		when(authnAuthority.getURI()).thenReturn(authnAuthorityUri);
+		final var authnAuthorities = List.of(authnAuthority);
+		final var authnContext = mock(AuthnContext.class);
+		when(authnContext.getAuthenticatingAuthorities()).thenReturn(authnAuthorities);
+
+		final var authnStatement = mock(AuthnStatement.class);
+		when(authnStatement.getAuthnInstant()).thenReturn(iat);
+		when(authnStatement.getAuthnContext()).thenReturn(authnContext);
+		when(assertion.getAuthnStatements()).thenReturn(List.of(authnStatement));
+
+		final var dom = mock(Element.class);
+		when(assertion.getDOM()).thenReturn(dom);
+		try (final var mockXmlDomUtil = mockStatic(XmlDomUtil.class)) {
+			final var content = IdGenerator.generateId();
+			mockXmlDomUtil.when(() -> XmlDomUtil.getContent(dom)).thenReturn(content);
+			IuTestLogger.expect(SamlAssertion.class.getName(), Level.FINE, "SAML2 assertion " + content);
+
+			final var samlAssertion = new SamlAssertion(assertion);
+			assertEquals(value, samlAssertion.getAttributes().get(name));
+			assertEquals(value, samlAssertion.getAttributes().get(friendlyName));
+			assertEquals(authnAuthorityUri, samlAssertion.getAuthnAuthority());
+			assertEquals(iat, samlAssertion.getAuthnInstant());
+			assertEquals(nbf, samlAssertion.getNotBefore());
+			assertEquals(exp, samlAssertion.getNotOnOrAfter());
+		}
+	}
+
+	@Test
+	public void testAuthnAuthorityMissingFromContext() {
+		final var attribute = mock(Attribute.class);
+		final var name = IdGenerator.generateId();
+		final var friendlyName = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var xsstring = mock(XSString.class);
+		when(xsstring.getValue()).thenReturn(value);
+		when(attribute.getName()).thenReturn(name);
+		when(attribute.getFriendlyName()).thenReturn(friendlyName);
+		when(attribute.getAttributeValues()).thenReturn(List.of(xsstring));
+
+		final var attributeStatement = mock(AttributeStatement.class);
+		when(attributeStatement.getAttributes()).thenReturn(List.of(attribute));
+
+		final var assertion = mock(Assertion.class);
+		when(assertion.getAttributeStatements()).thenReturn(List.of(attributeStatement));
+
+		final var iat = Instant.now();
+		final var nbf = iat.minusSeconds(5L);
+		final var exp = iat.plusSeconds(15L);
+		final var conditions = mock(Conditions.class);
+		when(conditions.getNotBefore()).thenReturn(nbf);
+		when(conditions.getNotOnOrAfter()).thenReturn(exp);
+		when(assertion.getConditions()).thenReturn(conditions);
+
+		final var authnContext = mock(AuthnContext.class);
+		when(authnContext.getAuthenticatingAuthorities()).thenReturn(null);
+		final var authnStatement = mock(AuthnStatement.class);
+		when(authnStatement.getAuthnInstant()).thenReturn(iat);
+		when(authnStatement.getAuthnContext()).thenReturn(authnContext);
+		when(assertion.getAuthnStatements()).thenReturn(List.of(authnStatement));
+
+		final var dom = mock(Element.class);
+		when(assertion.getDOM()).thenReturn(dom);
+		try (final var mockXmlDomUtil = mockStatic(XmlDomUtil.class)) {
+			final var content = IdGenerator.generateId();
+			mockXmlDomUtil.when(() -> XmlDomUtil.getContent(dom)).thenReturn(content);
+			IuTestLogger.expect(SamlAssertion.class.getName(), Level.FINE, "SAML2 assertion " + content);
+
+			final var samlAssertion = new SamlAssertion(assertion);
+			assertEquals(value, samlAssertion.getAttributes().get(name));
+			assertEquals(value, samlAssertion.getAttributes().get(friendlyName));
+			assertNull(samlAssertion.getAuthnAuthority());
+			assertEquals(iat, samlAssertion.getAuthnInstant());
+			assertEquals(nbf, samlAssertion.getNotBefore());
+			assertEquals(exp, samlAssertion.getNotOnOrAfter());
+			assertDoesNotThrow(samlAssertion::toString);
+		}
+	}
+	
 	@Test
 	public void testConstructorFromEmpty() {
 		final var assertion = mock(Assertion.class);

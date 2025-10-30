@@ -213,6 +213,7 @@ class SamlResponseValidator {
 		verifySubjectConfirmation();
 
 		final var config = config();
+		final var authnAuthority = authnAssertion.getAuthnAuthority();
 		final var authnInstant = authnAssertion.getAuthnInstant();
 		final var principalNameAttribute = config.getPrincipalNameAttribute();
 		final var principalName = Objects.requireNonNull( //
@@ -222,10 +223,11 @@ class SamlResponseValidator {
 		final var issuer = response.getIssuer().getValue();
 		final var expires = authnInstant.plus(config.getAuthenticatedSessionTimeout());
 
-		LOG.fine(() -> "saml:post-validate:" + principalName + ":" + authnInstant + "; issuer: " + issuer + " @"
-				+ issueInstant + ", expires " + expires + "; assertions: " + samlAssertions);
+		LOG.fine(() -> "saml:post-validate:" + principalName + ":" + authnAuthority + " @" + authnInstant + "; issuer: "
+				+ issuer + " @" + issueInstant + ", expires " + expires + "; assertions: " + samlAssertions);
 
-		return new SamlPrincipal(realm(), principalName, issueInstant, authnInstant, expires, samlAssertions);
+		return new SamlPrincipal(realm(), principalName, issuer, issueInstant, authnAuthority, authnInstant, expires,
+				samlAssertions);
 	}
 
 	/**
