@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>TypeReference.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-type-impl</a> &gt; <a href="index.source.html" class="el_package">iu.type</a> &gt; <span class="el_source">TypeReference.java</span></div><h1>TypeReference.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2025 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.type;
+
+import java.util.Objects;
+
+import edu.iu.IuObject;
+import edu.iu.type.IuReferenceKind;
+import edu.iu.type.IuType;
+import edu.iu.type.IuTypeReference;
+
+/**
+ * Implementation of {@link IuTypeReference}.
+ * 
+ * @param &lt;T&gt; referent type
+ * @param &lt;R&gt; referrer type
+ */
+<span class="fc" id="L47">class TypeReference&lt;T, R extends ElementBase&gt; implements IuTypeReference&lt;T, R&gt; {</span>
+
+	private final IuReferenceKind kind;
+	private final R referrer;
+	private final IuType&lt;?, T&gt; referent;
+	private final String name;
+	private final int index;
+
+	/**
+	 * Gets a non-named, non-indexed reference.
+	 * 
+	 * @param kind     non-named, non-indexed kind
+	 * @param referrer referrer element
+	 * @param referent referent type
+	 */
+<span class="fc" id="L62">	TypeReference(IuReferenceKind kind, R referrer, IuType&lt;?, T&gt; referent) {</span>
+<span class="fc" id="L63">		kind.referrerType().cast(Objects.requireNonNull(referrer));</span>
+<span class="fc bfc" id="L64" title="All 4 branches covered.">		assert !kind.named() &amp;&amp; !kind.indexed();</span>
+<span class="fc" id="L65">		this.kind = Objects.requireNonNull(kind);</span>
+<span class="fc" id="L66">		this.referrer = referrer;</span>
+<span class="fc" id="L67">		this.referent = Objects.requireNonNull(referent);</span>
+<span class="fc" id="L68">		this.name = null;</span>
+<span class="fc" id="L69">		this.index = -1;</span>
+<span class="fc" id="L70">	}</span>
+
+	/**
+	 * Gets a named reference.
+	 * 
+	 * @param kind     named kind
+	 * @param referrer referrer element
+	 * @param referent referent type
+	 * @param name     name
+	 */
+<span class="fc" id="L80">	TypeReference(IuReferenceKind kind, R referrer, IuType&lt;?, T&gt; referent, String name) {</span>
+<span class="fc" id="L81">		kind.referrerType().cast(Objects.requireNonNull(referrer));</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">		assert kind.named();</span>
+<span class="fc" id="L83">		this.kind = Objects.requireNonNull(kind);</span>
+<span class="fc" id="L84">		this.referrer = Objects.requireNonNull(referrer);</span>
+<span class="fc" id="L85">		this.referent = Objects.requireNonNull(referent);</span>
+<span class="fc" id="L86">		this.name = Objects.requireNonNull(name);</span>
+<span class="fc" id="L87">		this.index = -1;</span>
+<span class="fc" id="L88">	}</span>
+
+	/**
+	 * Gets a indexed reference.
+	 * 
+	 * @param kind     indexed kind
+	 * @param referrer referrer element
+	 * @param referent referent type
+	 * @param index    index
+	 */
+<span class="fc" id="L98">	TypeReference(IuReferenceKind kind, R referrer, IuType&lt;?, T&gt; referent, int index) {</span>
+<span class="fc" id="L99">		kind.referrerType().cast(Objects.requireNonNull(referrer));</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">		assert kind.indexed();</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">		assert index &gt;= 0;</span>
+<span class="fc" id="L102">		this.kind = Objects.requireNonNull(kind);</span>
+<span class="fc" id="L103">		this.referrer = Objects.requireNonNull(referrer);</span>
+<span class="fc" id="L104">		this.referent = Objects.requireNonNull(referent);</span>
+<span class="fc" id="L105">		this.name = null;</span>
+<span class="fc" id="L106">		this.index = index;</span>
+<span class="fc" id="L107">	}</span>
+
+	@Override
+	public IuReferenceKind kind() {
+<span class="fc" id="L111">		return kind;</span>
+	}
+
+	@Override
+	public R referrer() {
+<span class="fc" id="L116">		return referrer;</span>
+	}
+
+	@Override
+	public IuType&lt;?, T&gt; referent() {
+<span class="fc" id="L121">		return referent;</span>
+	}
+
+	@Override
+	public String name() {
+<span class="fc" id="L126">		return name;</span>
+	}
+
+	@Override
+	public int index() {
+<span class="fc" id="L131">		return index;</span>
+	}
+
+	@Override
+	public int hashCode() {
+<span class="fc" id="L136">		return IuObject.hashCodeSuper(System.identityHashCode(referrer), index, kind, name, referent);</span>
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+<span class="fc bfc" id="L141" title="All 2 branches covered.">		if (this == obj)</span>
+<span class="fc" id="L142">			return true;</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">		if (!IuObject.typeCheck(this, obj))</span>
+<span class="fc" id="L144">			return false;</span>
+<span class="fc" id="L145">		TypeReference&lt;?, ?&gt; other = (TypeReference&lt;?, ?&gt;) obj;</span>
+<span class="fc bfc" id="L146" title="All 6 branches covered.">		return referrer == other.referrer //</span>
+				&amp;&amp; index == other.index //
+				&amp;&amp; kind == other.kind //
+<span class="fc bfc" id="L149" title="All 2 branches covered.">				&amp;&amp; IuObject.equals(name, other.name) //</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">				&amp;&amp; IuObject.equals(referent, other.referent);</span>
+	}
+
+	@Override
+	public String toString() {
+<span class="fc" id="L155">		var sb = new StringBuilder(TypeUtils.printType(referent.deref()));</span>
+<span class="fc" id="L156">		IuTypeReference&lt;?, ?&gt; ref = this;</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">		while (ref != null) {</span>
+<span class="fc" id="L158">			sb.append(' ').append(ref.kind());</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">			if (ref.index() &gt;= 0)</span>
+<span class="fc" id="L160">				sb.append('(').append(ref.index()).append(&quot;) &quot;);</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">			else if (ref.name() != null)</span>
+<span class="fc" id="L162">				sb.append('(').append(ref.name()).append(&quot;) &quot;);</span>
+			else
+<span class="fc" id="L164">				sb.append(&quot; &quot;);</span>
+
+<span class="fc" id="L166">			var referrer = ref.referrer();</span>
+
+<span class="fc bfc" id="L168" title="All 2 branches covered.">			if (referrer instanceof IuType) {</span>
+<span class="fc" id="L169">				var referrerType = (IuType&lt;?, ?&gt;) referrer;</span>
+<span class="fc" id="L170">				sb.append(TypeUtils.printType(referrerType.deref()));</span>
+<span class="fc" id="L171">				ref = referrerType.reference();</span>
+<span class="fc" id="L172">			} else {</span>
+<span class="fc" id="L173">				sb.append(referrer);</span>
+<span class="fc" id="L174">				ref = null;</span>
+			}
+<span class="fc" id="L176">		}</span>
+<span class="fc" id="L177">		return sb.toString();</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
