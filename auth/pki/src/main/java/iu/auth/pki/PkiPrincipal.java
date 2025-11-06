@@ -62,6 +62,7 @@ public final class PkiPrincipal implements IuPrincipalIdentity {
 	private final WebKey verify;
 	private final WebKey encrypt;
 	private final String name;
+	private final String issuer;
 	private final Instant issuedAt;
 	private final Instant authTime;
 	private final Instant expires;
@@ -83,7 +84,7 @@ public final class PkiPrincipal implements IuPrincipalIdentity {
 		name = X500Utils.getCommonName(cert.getSubjectX500Principal());
 		if (!name.equals(jwk.getKeyId()))
 			throw new IllegalArgumentException("Key ID doesn't match CN");
-		
+
 		final var keyUsage = new KeyUsage(cert);
 
 		alg = Objects.requireNonNull(pkp.getAlg(), "Missing digital signature algorithm");
@@ -124,6 +125,7 @@ public final class PkiPrincipal implements IuPrincipalIdentity {
 			encrypt = null;
 		}
 
+		issuer = X500Utils.getCommonName(cert.getIssuerX500Principal());
 		issuedAt = Instant.now().truncatedTo(ChronoUnit.SECONDS);
 		authTime = cert.getNotBefore().toInstant();
 		expires = cert.getNotAfter().toInstant();
@@ -132,6 +134,11 @@ public final class PkiPrincipal implements IuPrincipalIdentity {
 	@Override
 	public String getName() {
 		return name;
+	}
+
+	@Override
+	public String getIssuer() {
+		return issuer;
 	}
 
 	@Override

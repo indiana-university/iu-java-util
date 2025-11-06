@@ -580,6 +580,7 @@ public class SamlServiceProviderTest {
 	private static final class TestId implements IuPrincipalIdentity {
 
 		private final String name = IdGenerator.generateId();
+		private final String issuer = IdGenerator.generateId();
 		private final Instant issuedAt = Instant.now();
 		private final Instant authTime = issuedAt.truncatedTo(ChronoUnit.SECONDS);
 		private final Instant expires = authTime.plusSeconds(5L);
@@ -604,6 +605,11 @@ public class SamlServiceProviderTest {
 		@Override
 		public String getName() {
 			return name;
+		}
+
+		@Override
+		public String getIssuer() {
+			return issuer;
 		}
 
 		@Override

@@ -61,6 +61,13 @@ public interface IuPrincipalIdentity extends Principal {
 	}
 
 	/**
+	 * Gets the principal name of the principal issuer.
+	 * 
+	 * @return issuer principal name; e.g., OIDC Provider URI or SAML IDP Entity ID
+	 */
+	String getIssuer();
+
+	/**
 	 * Gets the point in time proof of principal identity was issued by an
 	 * authentication provider.
 	 * 
