@@ -1,1 +1,0 @@
-typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"iu.auth.nonce","l":"IssuedChallenge"},{"p":"iu.auth.nonce","l":"NonceSpi"},{"p":"iu.auth.nonce","l":"OneTimeNumber"},{"p":"iu.auth.nonce","l":"UsedChallenge"}];updateSearchResults();
