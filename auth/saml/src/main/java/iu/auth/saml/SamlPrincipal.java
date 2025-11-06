@@ -93,7 +93,7 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 		this.name = Objects.requireNonNull(name);
 		this.issuer = Objects.requireNonNull(issuer);
 		this.issueTime = Objects.requireNonNull(issueTime);
-		this.authority = Objects.requireNonNull(authority);
+		this.authority = authority;
 		this.authTime = Objects.requireNonNull(authTime);
 		this.expires = Objects.requireNonNull(expires);
 		this.assertions = IuIterable.stream(samlAssertions).toArray(StoredSamlAssertion[]::new);
