@@ -209,7 +209,6 @@ public class SamlAssertionTest {
 		when(assertion.getConditions()).thenReturn(conditions);
 
 		final var authnContext = mock(AuthnContext.class);
-		when(authnContext.getAuthenticatingAuthorities()).thenReturn(null);
 		final var authnStatement = mock(AuthnStatement.class);
 		when(authnStatement.getAuthnInstant()).thenReturn(iat);
 		when(authnStatement.getAuthnContext()).thenReturn(authnContext);
