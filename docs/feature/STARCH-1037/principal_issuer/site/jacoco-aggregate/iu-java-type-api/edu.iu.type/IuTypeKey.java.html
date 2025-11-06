@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>IuTypeKey.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-type-api</a> &gt; <a href="index.source.html" class="el_package">edu.iu.type</a> &gt; <span class="el_source">IuTypeKey.java</span></div><h1>IuTypeKey.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2025 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu.type;
+
+import java.lang.reflect.GenericArrayType;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
+import java.lang.reflect.WildcardType;
+import java.util.IdentityHashMap;
+import java.util.Map;
+import java.util.WeakHashMap;
+import java.util.function.Supplier;
+
+import edu.iu.IuIterable;
+import edu.iu.IuObject;
+
+/**
+ * Hash key for use with generic types.
+ * 
+ * &lt;p&gt;
+ * Java controls instances of {@link Class}, but instance control for other
+ * implementations of the {@link Type} interface is not clearly defined. The JDK
+ * typically, but is not required to, produces a new instance each time a
+ * generic type is referred to. This class inspects the generic type to
+ * determine strict equality as:
+ * &lt;/p&gt;
+ * 
+ * &lt;ul&gt;
+ * &lt;li&gt;Same instances are equal. Recursive base case: all leaf nodes are
+ * {@link Class}; and {@link Class} is strictly a leaf node.&lt;/li&gt;
+ * &lt;li&gt;Both {@code instanceof} matching exactly one of:
+ * &lt;ul&gt;
+ * &lt;li&gt;{@link ParameterizedType}
+ * &lt;ul&gt;
+ * &lt;li&gt;Recursively checks raw type and all type arguments&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;/li&gt;
+ * &lt;li&gt;{@link TypeVariable}
+ * &lt;ul&gt;
+ * &lt;li&gt;Checks variable name&lt;/li&gt;
+ * &lt;li&gt;Recursively checks bounds&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;/li&gt;
+ * &lt;li&gt;{@link WildcardType}
+ * &lt;ul&gt;
+ * &lt;li&gt;Recursively check upper and lower bounds&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;/li&gt;
+ * &lt;li&gt;{@link GenericArrayType}
+ * &lt;ul&gt;
+ * &lt;li&gt;Recursively check component type&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;/li&gt;
+ * &lt;/ul&gt;
+ */
+public class IuTypeKey {
+
+<span class="fc" id="L90">	private static final Map&lt;Type, IuTypeKey&gt; KEY_CACHE = new WeakHashMap&lt;&gt;();</span>
+<span class="fc" id="L91">	private static final ThreadLocal&lt;IdentityHashMap&lt;IuTypeKey, IuTypeKey&gt;&gt; LOOP = new ThreadLocal&lt;&gt;();</span>
+
+	/**
+	 * Distinguishes between kinds of generic types.
+	 * 
+	 * &lt;p&gt;
+	 * {@link Kind} loosely dictates internal structure for {@link IuTypeKey}.
+	 * &lt;/p&gt;
+	 */
+<span class="fc" id="L100">	public static enum Kind {</span>
+		/**
+		 * {@link Class}
+		 */
+<span class="fc" id="L104">		CLASS,</span>
+
+		/**
+		 * {@link ParameterizedType}
+		 */
+<span class="fc" id="L109">		PARAMETERIZED,</span>
+
+		/**
+		 * {@link TypeVariable}
+		 */
+<span class="fc" id="L114">		VARIABLE,</span>
+
+		/**
+		 * {@link WildcardType}
+		 */
+<span class="fc" id="L119">		WILDCARD,</span>
+
+		/**
+		 * {@link GenericArrayType}
+		 */
+<span class="fc" id="L124">		ARRAY</span>
+	}
+
+	/**
+	 * Refers to a type in the generic hierarchy of a &lt;strong&gt;reference
+	 * class&lt;/strong&gt; by {@link IuType#erase() erasure}.
+	 * 
+	 * @param referenceClass       &lt;strong&gt;reference class&lt;/strong&gt;
+	 * @param inheritedTypeErasure {@link IuType#erase() erasure}
+	 * @return Generic type extended or implemented by the &lt;strong&gt;reference
+	 *         class&lt;/strong&gt; with {@link IuType#erase() erasure}
+	 *         {@code == inheritedTypeErasure}
+	 */
+	public static Type referTo(final Class&lt;?&gt; referenceClass, final Class&lt;?&gt; inheritedTypeErasure) {
+<span class="fc bfc" id="L138" title="All 2 branches covered.">		if (referenceClass == inheritedTypeErasure)</span>
+<span class="fc" id="L139">			return referenceClass;</span>
+
+<span class="fc" id="L141">		var classToCheck = referenceClass;</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">		while (classToCheck != null) {</span>
+<span class="fc" id="L143">			final var rawInterfaces = classToCheck.getInterfaces();</span>
+<span class="fc" id="L144">			final var length = rawInterfaces.length;</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">			if (length &gt; 0)</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">				for (var i = 0; i &lt; length; i++)</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">					if (rawInterfaces[i] == inheritedTypeErasure)</span>
+<span class="fc" id="L148">						return classToCheck.getGenericInterfaces()[i];</span>
+
+<span class="fc" id="L150">			final var rawSuperclass = classToCheck.getSuperclass();</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">			if (inheritedTypeErasure == rawSuperclass)</span>
+<span class="fc" id="L152">				return classToCheck.getGenericSuperclass();</span>
+			else
+<span class="fc" id="L154">				classToCheck = rawSuperclass;</span>
+<span class="fc" id="L155">		}</span>
+
+<span class="fc" id="L157">		throw new IllegalArgumentException(</span>
+<span class="fc" id="L158">				inheritedTypeErasure.getSimpleName() + &quot; is not assignable from &quot; + referenceClass.getSimpleName());</span>
+	}
+
+	/**
+	 * Gets a hash key for a generic type.
+	 * 
+	 * @param type generic type
+	 * @return unique hash key
+	 */
+	public static IuTypeKey of(final Type type) {
+<span class="fc" id="L168">		IuTypeKey key = KEY_CACHE.get(type);</span>
+<span class="fc bfc" id="L169" title="All 2 branches covered.">		if (key != null)</span>
+<span class="fc" id="L170">			return key;</span>
+
+<span class="fc bfc" id="L172" title="All 2 branches covered.">		if (type instanceof Class rawClass)</span>
+<span class="fc" id="L173">			return new IuTypeKey(Kind.CLASS, type, rawClass, null, null);</span>
+
+<span class="fc bfc" id="L175" title="All 2 branches covered.">		if (type instanceof ParameterizedType parameterizedType)</span>
+<span class="fc" id="L176">			return new IuTypeKey(Kind.PARAMETERIZED, type, null, null, () -&gt; {</span>
+<span class="fc" id="L177">				final var actualTypeArguments = parameterizedType.getActualTypeArguments();</span>
+<span class="fc" id="L178">				final var length = actualTypeArguments.length;</span>
+<span class="fc" id="L179">				final var children = new IuTypeKey[length + 1];</span>
+<span class="fc" id="L180">				children[0] = of(parameterizedType.getRawType());</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">				for (var i = 0; i &lt; length; i++)</span>
+<span class="fc" id="L182">					children[i + 1] = of(actualTypeArguments[i]);</span>
+<span class="fc" id="L183">				return children;</span>
+			});
+
+<span class="fc bfc" id="L186" title="All 2 branches covered.">		if (type instanceof WildcardType wildcardType)</span>
+<span class="fc" id="L187">			return new IuTypeKey(Kind.WILDCARD, type, null, null, () -&gt; {</span>
+<span class="fc" id="L188">				final var upperBounds = wildcardType.getUpperBounds();</span>
+<span class="fc" id="L189">				final var upperBoundLimit = upperBounds.length;</span>
+<span class="fc" id="L190">				final var lowerBounds = wildcardType.getLowerBounds();</span>
+<span class="fc" id="L191">				final var lowerBoundLimit = lowerBounds.length;</span>
+<span class="fc" id="L192">				final var length = upperBoundLimit + lowerBoundLimit;</span>
+<span class="fc" id="L193">				final var children = new IuTypeKey[length];</span>
+<span class="fc bfc" id="L194" title="All 2 branches covered.">				for (var i = 0; i &lt; upperBoundLimit; i++)</span>
+<span class="fc" id="L195">					children[i] = of(upperBounds[i]);</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">				for (var i = 0; i &lt; lowerBoundLimit; i++)</span>
+<span class="fc" id="L197">					children[upperBoundLimit + i] = of(lowerBounds[i]);</span>
+<span class="fc" id="L198">				return children;</span>
+			});
+
+<span class="fc bfc" id="L201" title="All 2 branches covered.">		if (type instanceof TypeVariable&lt;?&gt; typeVariable)</span>
+<span class="fc" id="L202">			return new IuTypeKey(Kind.VARIABLE, type, null, typeVariable.getName(), () -&gt; {</span>
+<span class="fc" id="L203">				final var bounds = typeVariable.getBounds();</span>
+<span class="fc" id="L204">				final var length = bounds.length;</span>
+<span class="fc" id="L205">				final var children = new IuTypeKey[length];</span>
+<span class="fc bfc" id="L206" title="All 2 branches covered.">				for (var i = 0; i &lt; length; i++)</span>
+<span class="fc" id="L207">					children[i] = of(bounds[i]);</span>
+<span class="fc" id="L208">				return children;</span>
+			});
+
+<span class="fc bfc" id="L211" title="All 2 branches covered.">		if (type instanceof GenericArrayType genericArrayType)</span>
+<span class="fc" id="L212">			return new IuTypeKey(Kind.ARRAY, type, null, null,</span>
+<span class="fc" id="L213">					() -&gt; new IuTypeKey[] { of(genericArrayType.getGenericComponentType()) });</span>
+
+<span class="fc" id="L215">		throw new UnsupportedOperationException(&quot;Not supported in this version: &quot; + type.getClass().getSimpleName());</span>
+	}
+
+	private final Kind kind;
+	private final Class&lt;?&gt; raw;
+	private final String name;
+	private final IuTypeKey[] children;
+
+<span class="fc" id="L223">	private IuTypeKey(Kind kind, Type type, Class&lt;?&gt; raw, String name, Supplier&lt;IuTypeKey[]&gt; children) {</span>
+<span class="fc" id="L224">		synchronized (KEY_CACHE) {</span>
+<span class="fc" id="L225">			KEY_CACHE.put(type, this);</span>
+<span class="fc" id="L226">		}</span>
+
+<span class="fc" id="L228">		this.kind = kind;</span>
+<span class="fc" id="L229">		this.raw = raw;</span>
+<span class="fc" id="L230">		this.name = name;</span>
+
+<span class="fc bfc" id="L232" title="All 2 branches covered.">		if (children == null)</span>
+<span class="fc" id="L233">			this.children = null;</span>
+		else
+<span class="fc" id="L235">			this.children = children.get();</span>
+<span class="fc" id="L236">	}</span>
+
+	private &lt;T&gt; T preventLoop(Supplier&lt;T&gt; supplier, T baseCase) {
+<span class="fc" id="L239">		final var loop = LOOP.get();</span>
+		try {
+<span class="fc bfc" id="L241" title="All 2 branches covered.">			if (loop == null)</span>
+<span class="fc" id="L242">				LOOP.set(new IdentityHashMap&lt;&gt;(Map.of(this, this)));</span>
+<span class="fc bfc" id="L243" title="All 2 branches covered.">			else if (loop.containsKey(this))</span>
+<span class="fc" id="L244">				return baseCase;</span>
+			else
+<span class="fc" id="L246">				loop.put(this, this);</span>
+
+<span class="fc" id="L248">			return supplier.get();</span>
+
+		} finally {
+<span class="fc bfc" id="L251" title="All 2 branches covered.">			if (loop == null)</span>
+<span class="fc" id="L252">				LOOP.remove();</span>
+			else
+<span class="fc" id="L254">				loop.remove(this);</span>
+		}
+	}
+
+	@Override
+	public int hashCode() {
+<span class="fc" id="L260">		return preventLoop(() -&gt; IuObject.hashCode(kind, name, raw, children), 0);</span>
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+<span class="fc bfc" id="L265" title="All 2 branches covered.">		if (!IuObject.typeCheck(this, obj))</span>
+<span class="fc" id="L266">			return false;</span>
+
+<span class="fc" id="L268">		IuTypeKey other = (IuTypeKey) obj;</span>
+<span class="fc bfc" id="L269" title="All 4 branches covered.">		return kind == other.kind //</span>
+				&amp;&amp; raw == other.raw //
+<span class="fc bfc" id="L271" title="All 2 branches covered.">				&amp;&amp; IuObject.equals(name, other.name) //</span>
+<span class="fc bfc" id="L272" title="All 2 branches covered.">				&amp;&amp; IuObject.equals(children, other.children);</span>
+	}
+
+	@Override
+	public String toString() {
+<span class="fc bfc" id="L277" title="All 2 branches covered.">		if (kind == Kind.CLASS)</span>
+<span class="fc" id="L278">			return &quot;CLASS &quot; + raw.getSimpleName();</span>
+
+<span class="fc" id="L280">		final var sb = new StringBuilder(kind.name());</span>
+<span class="fc bfc" id="L281" title="All 2 branches covered.">		if (name != null)</span>
+<span class="fc" id="L282">			sb.append(' ').append(name);</span>
+		
+<span class="fc" id="L284">		final var childrenToString = preventLoop(() -&gt; IuIterable.print(IuIterable.iter(children)), &quot;&quot;);</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">		if (!childrenToString.isEmpty())</span>
+<span class="fc" id="L286">			sb.append(' ').append(childrenToString);</span>
+		
+<span class="fc" id="L288">		return sb.toString();</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
