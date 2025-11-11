@@ -1,1 +1,0 @@
-typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"edu.iu.type.loader","l":"IuComponentLoader"},{"p":"edu.iu.type.loader","l":"IuLoadedComponent"}];updateSearchResults();
