@@ -1,1 +1,0 @@
-memberSearchIndex = [{"p":"iu.redis.spi","c":"RedisSpi","l":"createConnection(IuRedisConfiguration)","u":"createConnection(edu.iu.redis.IuRedisConfiguration)"},{"p":"iu.redis.spi","c":"RedisSpi","l":"RedisSpi()","u":"%3Cinit%3E()"}];updateSearchResults();
