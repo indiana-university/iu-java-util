@@ -187,6 +187,7 @@ public class PkiPrincipalTest extends PkiTestCase {
 
 		final var now = Instant.now();
 		assertTrue(now.isAfter(pki.getAuthTime()));
+		assertEquals(pki.getName(), pki.getIssuer());
 		assertFalse(now.isBefore(pki.getIssuedAt()));
 		assertTrue(now.isBefore(pki.getExpires()));
 
@@ -353,6 +354,7 @@ public class PkiPrincipalTest extends PkiTestCase {
 
 		final var now = Instant.now();
 		assertTrue(now.isAfter(pki.getAuthTime()));
+		assertEquals("urn:example:iu-java-auth-pki#PkiPrincipalTest_CA", pki.getIssuer());
 		assertFalse(now.isBefore(pki.getIssuedAt()));
 		assertTrue(now.isBefore(pki.getExpires()));
 
