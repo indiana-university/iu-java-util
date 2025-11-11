@@ -10,4 +10,4 @@ IU Authentication and Authorization Configuration,iu.auth.config,AuthConfig,0,28
 IU Authentication and Authorization Configuration,iu.auth.config,OidcAuthorizationGrant,0,42,0,0,0,12,0,4,0,4
 IU Authentication and Authorization Configuration,iu.auth.config,AuthConfig.new Object() {...},0,86,0,6,0,13,0,7,0,4
 IU Authentication and Authorization Configuration,iu.auth.config,AuthConfig.StorageConfig,0,15,0,0,0,6,0,1,0,1
-IU Authentication and Authorization Configuration,iu.auth.config,OAuthAccessTokenGrant,0,93,0,4,0,21,0,7,0,5
+IU Authentication and Authorization Configuration,iu.auth.config,OAuthAccessTokenGrant,0,97,0,6,0,22,0,8,0,5

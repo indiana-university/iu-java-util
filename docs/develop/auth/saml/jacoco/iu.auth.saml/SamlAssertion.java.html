@@ -114,7 +114,7 @@ final class SamlAssertion implements StoredSamlAssertion {
 <span class="fc" id="L114">			final var authnContext = statement.getAuthnContext();</span>
 <span class="fc bfc" id="L115" title="All 2 branches covered.">			if (authnContext != null) {</span>
 <span class="fc" id="L116">				final var authorities = authnContext.getAuthenticatingAuthorities();</span>
-<span class="fc bfc" id="L117" title="All 2 branches covered.">				if (authorities != null)</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">				if (!authorities.isEmpty())</span>
 <span class="fc" id="L118">					authnAuthority = authorities.get(0).getURI().toString();</span>
 			}
 <span class="fc" id="L120">		}</span>

@@ -61,6 +61,13 @@ public interface IuPrincipalIdentity extends Principal {
 	}
 
 	/**
+	 * Gets the principal name of the principal issuer.
+	 * 
+	 * @return issuer principal name; e.g., OIDC Provider URI or SAML IDP Entity ID
+	 */
+	String getIssuer();
+
+	/**
 	 * Gets the point in time proof of principal identity was issued by an
 	 * authentication provider.
 	 * 
@@ -94,7 +101,7 @@ public interface IuPrincipalIdentity extends Principal {
 
 	@Override
 	default boolean implies(Subject subject) {
-<span class="fc bfc" id="L97" title="All 4 branches covered.">		return subject == getSubject() || Principal.super.implies(subject);</span>
+<span class="fc bfc" id="L104" title="All 4 branches covered.">		return subject == getSubject() || Principal.super.implies(subject);</span>
 	}
 
 }

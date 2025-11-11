@@ -62,7 +62,7 @@ public abstract class OAuthAccessTokenGrant {
 
 	/**
 	 * Gets the configured {@link OAuthClient}
-	 * 
+	 * 	
 	 * @return Configured {@link OAuthClient}
 	 */
 	protected OAuthClient getClient() {
@@ -84,16 +84,17 @@ public abstract class OAuthAccessTokenGrant {
 <span class="fc" id="L84">					.unchecked(() -&gt; IuHttp.send(tokenUri, this::tokenAuth, IuHttp.READ_JSON_OBJECT));</span>
 
 <span class="fc" id="L86">			final String accessToken = IuJson.get(tokenResponse, &quot;access_token&quot;);</span>
-<span class="fc" id="L87">			verifyToken(validateJwt(accessToken));</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">			if (getClient().getJwksUri() != null)</span>
+<span class="fc" id="L88">				verifyToken(validateJwt(accessToken));</span>
 
-<span class="fc" id="L89">			final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);</span>
-<span class="fc" id="L90">			notAfter = IuObject.require(</span>
-<span class="fc" id="L91">					now.plusSeconds(Objects.requireNonNull(</span>
-<span class="fc" id="L92">							IuJson.get(tokenResponse, &quot;expires_in&quot;, IuJsonAdapter.of(Integer.class)), &quot;expires_in&quot;)),</span>
-<span class="fc" id="L93">					now::isBefore, &quot;non-positive expires_in&quot;);</span>
-<span class="fc" id="L94">			this.accessToken = accessToken;</span>
+<span class="fc" id="L90">			final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);</span>
+<span class="fc" id="L91">			notAfter = IuObject.require(</span>
+<span class="fc" id="L92">					now.plusSeconds(Objects.requireNonNull(</span>
+<span class="fc" id="L93">							IuJson.get(tokenResponse, &quot;expires_in&quot;, IuJsonAdapter.of(Integer.class)), &quot;expires_in&quot;)),</span>
+<span class="fc" id="L94">					now::isBefore, &quot;non-positive expires_in&quot;);</span>
+<span class="fc" id="L95">			this.accessToken = accessToken;</span>
 		}
-<span class="fc" id="L96">		return accessToken;</span>
+<span class="fc" id="L97">		return accessToken;</span>
 	}
 
 }

@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>RemoteInvocationHandler.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-client</a> &gt; <a href="index.source.html" class="el_package">edu.iu.client</a> &gt; <span class="el_source">RemoteInvocationHandler.java</span></div><h1>RemoteInvocationHandler.java</h1><pre class="source lang-java linenums">package edu.iu.client;
+
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.net.URI;
+import java.net.http.HttpRequest;
+import java.net.http.HttpRequest.BodyPublishers;
+
+import edu.iu.IuStream;
+import edu.iu.IuText;
+import edu.iu.UnsafeConsumer;
+
+/**
+ * May be extended for synchronous client=side remote invocation of a Java
+ * interface via HTTP POST.
+ */
+public abstract class RemoteInvocationHandler implements InvocationHandler {
+
+	/**
+	 * Default constructor.
+	 */
+<span class="fc" id="L23">	protected RemoteInvocationHandler() {</span>
+<span class="fc" id="L24">	}</span>
+
+	/**
+	 * Supplies the remote invocation URI.
+	 * 
+	 * @param method remote method
+	 * @return {@link URI}
+	 */
+	protected abstract URI uri(Method method);
+
+	/**
+	 * Adds authorization headers to a pending remote call request
+	 * 
+	 * @param requestBuilder pending remote call request
+	 */
+	protected abstract void authorize(HttpRequest.Builder requestBuilder);
+
+	/**
+	 * Adds request payload to a pending remote call request.
+	 * 
+	 * &lt;p&gt;
+	 * Default behavior is to POST arguments as a JSON array, using
+	 * {@link #adapt(Type)} for conversion.
+	 * &lt;/p&gt;
+	 * 
+	 * @param requestBuilder pending remote call request
+	 * @param method         method
+	 * @param args           arguments
+	 */
+	protected void payload(HttpRequest.Builder requestBuilder, Method method, Object[] args) {
+<span class="fc" id="L54">		final var parameters = method.getParameters();</span>
+<span class="fc" id="L55">		final var requestBody = IuJson.array();</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">		for (var i = 0; i &lt; parameters.length; i++)</span>
+<span class="fc" id="L57">			requestBody.add(adapt(parameters[i].getParameterizedType()).toJson(args[i]));</span>
+
+<span class="fc" id="L59">		final var request = requestBody.build().toString();</span>
+<span class="fc" id="L60">		requestBuilder.header(&quot;Content-Type&quot;, &quot;application/json&quot;);</span>
+<span class="fc" id="L61">		requestBuilder.POST(BodyPublishers.ofString(request));</span>
+<span class="fc" id="L62">	}</span>
+
+	/**
+	 * Get a {@link IuJsonAdapter} for converting to a generic type.
+	 * 
+	 * @param &lt;T&gt; Java type
+	 * @param type Java type
+	 * @return {@link IuJsonAdapter}
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	protected &lt;T&gt; IuJsonAdapter&lt;T&gt; adapt(Type type) {
+<span class="fc bfc" id="L73" title="All 4 branches covered.">		if (type == RemoteInvocationFailure.class //</span>
+				|| type == RemoteInvocationDetail.class)
+<span class="fc" id="L75">			return (IuJsonAdapter&lt;T&gt;) IuJsonAdapter.from((Class&lt;?&gt;) type,</span>
+<span class="fc" id="L76">					IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, a -&gt; adapt(a));</span>
+		else
+<span class="fc" id="L78">			return IuJsonAdapter.of(type, a -&gt; adapt(a));</span>
+	}
+
+	@Override
+	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+<span class="fc bfc" id="L83" title="All 4 branches covered.">		switch (method.getName()) {</span>
+		case &quot;hashCode&quot;:
+<span class="fc" id="L85">			return System.identityHashCode(proxy);</span>
+		case &quot;equals&quot;:
+<span class="fc bfc" id="L87" title="All 2 branches covered.">			return proxy == args[0];</span>
+		case &quot;toString&quot;:
+<span class="fc" id="L89">			return toString();</span>
+		}
+
+<span class="fc" id="L92">		final UnsafeConsumer&lt;HttpRequest.Builder&gt; request = builder -&gt; {</span>
+<span class="fc" id="L93">			authorize(builder);</span>
+<span class="fc" id="L94">			payload(builder, method, args);</span>
+<span class="fc" id="L95">		};</span>
+
+		try {
+<span class="fc" id="L98">			final var type = method.getGenericReturnType();</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">			if (type == void.class)</span>
+<span class="fc" id="L100">				return IuHttp.send(uri(method), request, IuHttp.NO_CONTENT);</span>
+			else
+<span class="fc" id="L102">				return adapt(type).fromJson(IuHttp.send(uri(method), request, IuHttp.READ_JSON));</span>
+<span class="fc" id="L103">		} catch (HttpException e) {</span>
+			Throwable remoteError;
+<span class="fc" id="L105">			String body = null;</span>
+			try {
+<span class="fc" id="L107">				body = IuText.utf8(IuStream.read(e.getResponse().body()));</span>
+<span class="fc" id="L108">				remoteError = new RemoteInvocationException(</span>
+<span class="fc" id="L109">						(RemoteInvocationFailure) adapt(RemoteInvocationFailure.class).fromJson(IuJson.parse(body)));</span>
+<span class="fc" id="L110">				remoteError.addSuppressed(e);</span>
+<span class="fc" id="L111">			} catch (Throwable errorHandlingFailure) {</span>
+<span class="fc" id="L112">				remoteError = new IllegalStateException(body, e);</span>
+<span class="fc" id="L113">				remoteError.addSuppressed(errorHandlingFailure);</span>
+<span class="fc" id="L114">			}</span>
+<span class="fc" id="L115">			throw remoteError;</span>
+		}
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
