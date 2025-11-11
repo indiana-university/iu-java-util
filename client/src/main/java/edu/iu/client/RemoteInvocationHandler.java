@@ -64,6 +64,7 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 	/**
 	 * Get a {@link IuJsonAdapter} for converting to a generic type.
 	 * 
+	 * @param <T> Java type
 	 * @param type Java type
 	 * @return {@link IuJsonAdapter}
 	 */

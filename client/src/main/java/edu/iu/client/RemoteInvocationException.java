@@ -9,6 +9,7 @@ import java.util.List;
 public class RemoteInvocationException extends RuntimeException {
 	private static final long serialVersionUID = 1L;
 
+	/** Class name of remote exception type **/
 	private final String exceptionType;
 
 	/**
