@@ -62,7 +62,7 @@ public abstract class OAuthAccessTokenGrant {
 
 	/**
 	 * Gets the configured {@link OAuthClient}
-	 * 
+	 * 	
 	 * @return Configured {@link OAuthClient}
 	 */
 	protected OAuthClient getClient() {
@@ -84,7 +84,8 @@ public abstract class OAuthAccessTokenGrant {
 					.unchecked(() -> IuHttp.send(tokenUri, this::tokenAuth, IuHttp.READ_JSON_OBJECT));
 
 			final String accessToken = IuJson.get(tokenResponse, "access_token");
-			verifyToken(validateJwt(accessToken));
+			if (getClient().getJwksUri() != null)
+				verifyToken(validateJwt(accessToken));
 
 			final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
 			notAfter = IuObject.require(

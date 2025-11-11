@@ -112,6 +112,31 @@ public class OAuthAccessTokenGrantTest {
 			httpMock.verify(() -> IuHttp.send(any(URI.class), any(), any()), times(1));
 		}
 	}
+	
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	@Test
+	void testGetAccessTokenAndSkipValidateJwt() {
+		var mockClient = mock(OAuthAuthorizationClient.class);
+		when(mockClient.getTokenUri()).thenReturn(TOKEN_URI);
+		when(mockClient.getRedirectUri()).thenReturn(REDIRECT_URI);
+		Supplier<OAuthAuthorizationClient> clientSupplier = () -> mockClient;
+		OidcAuthorizationGrant grant = Mockito.spy(new OidcAuthorizationGrant(clientSupplier));
+		final var tokenResponse = IuJson.object().add("access_token", TOKEN).add("expires_in", EXPIRES_IN).build();
+		doNothing().when(grant).verifyToken(mockWebToken);
+		try (MockedStatic<IuHttp> httpMock = Mockito.mockStatic(IuHttp.class);
+				MockedStatic<IuJson> jsonMock = Mockito.mockStatic(IuJson.class);
+				MockedStatic<IuJsonAdapter> adapterMock = Mockito.mockStatic(IuJsonAdapter.class)) {
+			httpMock.when(() -> IuHttp.send(any(URI.class), any(), any())).thenReturn(tokenResponse);
+			jsonMock.when(() -> IuJson.get(tokenResponse, "access_token")).thenReturn(TOKEN);
+			jsonMock.when(() -> IuJson.get(tokenResponse, "expires_in", IuJsonAdapter.of(Integer.class)))
+					.thenReturn(EXPIRES_IN);
+			String token1 = grant.getAccessToken();
+			String token2 = grant.getAccessToken();
+			assertEquals(TOKEN, token1);
+			assertEquals(token1, token2); // cached
+			httpMock.verify(() -> IuHttp.send(any(URI.class), any(), any()), times(1));
+		}
+	}
 
 	@SuppressWarnings({ "rawtypes" })
 	@Test
