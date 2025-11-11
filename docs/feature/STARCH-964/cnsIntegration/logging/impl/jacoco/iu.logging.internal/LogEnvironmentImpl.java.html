@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LogEnvironmentImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Logging Implementation</a> &gt; <a href="index.source.html" class="el_package">iu.logging.internal</a> &gt; <span class="el_source">LogEnvironmentImpl.java</span></div><h1>LogEnvironmentImpl.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2025 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.logging.internal;
+
+import java.net.InetAddress;
+import java.util.function.Function;
+
+import edu.iu.IuException;
+import edu.iu.IuRuntimeEnvironment;
+import iu.logging.LogContext;
+import iu.logging.LogEnvironment;
+
+/**
+ * {@link LogContext} to fall back on, by context, when none is active on the
+ * current thread.
+ */
+public class LogEnvironmentImpl implements LogEnvironment {
+
+	private final LogEnvironmentImpl defaults;
+	private final String nodeId;
+	private final boolean development;
+	private final String endpoint;
+	private final String application;
+	private final String environment;
+	private final String module;
+	private final String runtime;
+	private final String component;
+
+	/**
+	 * Default constructor
+	 */
+	public LogEnvironmentImpl() {
+<span class="fc" id="L62">		this(null, //</span>
+<span class="fc" id="L63">				IuException.unchecked(() -&gt; InetAddress.getLocalHost().getHostName()), //</span>
+<span class="fc" id="L64">				&quot;true&quot;.equals(IuRuntimeEnvironment.envOptional(&quot;iu.development&quot;)), //</span>
+<span class="fc" id="L65">				IuRuntimeEnvironment.envOptional(&quot;iu.endpoint&quot;), //</span>
+<span class="fc" id="L66">				IuRuntimeEnvironment.envOptional(&quot;iu.application&quot;), //</span>
+<span class="fc" id="L67">				IuRuntimeEnvironment.envOptional(&quot;iu.environment&quot;), //</span>
+<span class="fc" id="L68">				IuRuntimeEnvironment.envOptional(&quot;iu.module&quot;), //</span>
+<span class="fc" id="L69">				IuRuntimeEnvironment.envOptional(&quot;iu.runtime&quot;), //</span>
+<span class="fc" id="L70">				IuRuntimeEnvironment.envOptional(&quot;iu.component&quot;) //</span>
+		);
+<span class="fc" id="L72">	}</span>
+
+	/**
+	 * Constructor
+	 *
+	 * @param defaults    {@link defaults}
+	 * @param nodeId      {@link #nodeId}
+	 * @param development {@link #development}
+	 * @param endpoint    {@link #endpoint}
+	 * @param application {@link #application}
+	 * @param environment {@link #environment}
+	 * @param module      {@link #module}
+	 * @param runtime     {@link #runtime}
+	 * @param component   {@link #component}
+	 */
+	public LogEnvironmentImpl(LogEnvironmentImpl defaults, String nodeId, boolean development, String endpoint,
+<span class="fc" id="L88">			String application, String environment, String module, String runtime, String component) {</span>
+<span class="fc" id="L89">		this.defaults = defaults;</span>
+<span class="fc" id="L90">		this.nodeId = nodeId;</span>
+<span class="fc" id="L91">		this.development = development;</span>
+<span class="fc" id="L92">		this.endpoint = endpoint;</span>
+<span class="fc" id="L93">		this.application = application;</span>
+<span class="fc" id="L94">		this.environment = environment;</span>
+<span class="fc" id="L95">		this.module = module;</span>
+<span class="fc" id="L96">		this.runtime = runtime;</span>
+<span class="fc" id="L97">		this.component = component;</span>
+<span class="fc" id="L98">	}</span>
+
+	private &lt;T&gt; T get(T value, Function&lt;LogEnvironmentImpl, T&gt; defaultFunction) {
+<span class="fc bfc" id="L101" title="All 2 branches covered.">		if (value != null)</span>
+<span class="fc" id="L102">			return value;</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">		if (defaults == null)</span>
+<span class="fc" id="L104">			return null;</span>
+<span class="fc" id="L105">		return defaultFunction.apply(defaults);</span>
+	}
+
+	@Override
+	public boolean isDevelopment() {
+<span class="fc bfc" id="L110" title="All 4 branches covered.">		return development || Boolean.TRUE.equals(get(null, LogEnvironmentImpl::isDevelopment));</span>
+	}
+
+	@Override
+	public String getNodeId() {
+<span class="fc" id="L115">		return get(nodeId, LogEnvironmentImpl::getNodeId);</span>
+	}
+
+	@Override
+	public String getEndpoint() {
+<span class="fc" id="L120">		return get(endpoint, LogEnvironmentImpl::getEndpoint);</span>
+	}
+
+	@Override
+	public String getApplication() {
+<span class="fc" id="L125">		return get(application, LogEnvironmentImpl::getApplication);</span>
+	}
+
+	@Override
+	public String getEnvironment() {
+<span class="fc" id="L130">		return get(environment, LogEnvironmentImpl::getEnvironment);</span>
+	}
+
+	@Override
+	public String getModule() {
+<span class="fc" id="L135">		return get(module, LogEnvironmentImpl::getModule);</span>
+	}
+
+	@Override
+	public String getRuntime() {
+<span class="fc" id="L140">		return get(runtime, LogEnvironmentImpl::getRuntime);</span>
+	}
+
+	@Override
+	public String getComponent() {
+<span class="fc" id="L145">		return get(component, LogEnvironmentImpl::getComponent);</span>
+	}
+
+	private static void append(StringBuilder sb, String label, Object value) {
+<span class="fc bfc" id="L149" title="All 2 branches covered.">		if (value == null)</span>
+<span class="fc" id="L150">			return;</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">		if (sb.charAt(sb.length() - 1) != '[')</span>
+<span class="fc" id="L152">			sb.append(&quot;, &quot;);</span>
+<span class="fc" id="L153">		sb.append(label);</span>
+<span class="fc" id="L154">		sb.append('=');</span>
+<span class="fc" id="L155">		sb.append(value);</span>
+<span class="fc" id="L156">	}</span>
+
+	@Override
+	public String toString() {
+<span class="fc" id="L160">		final var sb = new StringBuilder(&quot;LogEnvironment [&quot;);</span>
+<span class="fc" id="L161">		append(sb, &quot;nodeId&quot;, nodeId);</span>
+<span class="fc" id="L162">		append(sb, &quot;development&quot;, development);</span>
+<span class="fc" id="L163">		append(sb, &quot;endpoint&quot;, endpoint);</span>
+<span class="fc" id="L164">		append(sb, &quot;application&quot;, application);</span>
+<span class="fc" id="L165">		append(sb, &quot;environment&quot;, environment);</span>
+<span class="fc" id="L166">		append(sb, &quot;module&quot;, module);</span>
+<span class="fc" id="L167">		append(sb, &quot;runtime&quot;, runtime);</span>
+<span class="fc" id="L168">		append(sb, &quot;component&quot;, component);</span>
+<span class="fc" id="L169">		append(sb, &quot;defaults&quot;, defaults);</span>
+<span class="fc" id="L170">		sb.append(']');</span>
+<span class="fc" id="L171">		return sb.toString();</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
