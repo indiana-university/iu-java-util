@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuRuntimeEnvironment.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Base Utilities Module</a> &gt; <a href="index.source.html" class="el_package">edu.iu</a> &gt; <span class="el_source">IuRuntimeEnvironment.java</span></div><h1>IuRuntimeEnvironment.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2025 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu;
+
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.regex.Pattern;
+
+/**
+ * Provides basic utilities for inspecting the runtime environment.
+ * 
+ * &lt;p&gt;
+ * Runtime properties should be used sparingly, sufficient only to support
+ * bootstrapping the application's configuration management layer.
+ * &lt;/p&gt;
+ */
+public class IuRuntimeEnvironment {
+
+<span class="fc" id="L48">	private static final Pattern SYSTEM_PROPERTY_REGEX = Pattern.compile(&quot;[a-zA-Z][\\w\\.\\-]*&quot;);</span>
+
+	/**
+	 * Checks for the presence of a system property, then defaults to an environment
+	 * variable if not set. If the system property is set, but blank, returns null.
+	 * 
+	 * @param &lt;T&gt;                 value type
+	 * @param name                property name. Must start with a letter and
+	 *                            contain only letters, digits, '_', '-', and '.'.
+	 *                            Will be converted to upper case, '.' and '-'
+	 *                            replaced with '_', for checking the environment.
+	 * @param textToValueFunction converts a non-null property value to the target
+	 *                            type; not applied to null
+	 * @return system property value if set, environment variable if not set, null
+	 *         if blank or both are missing
+	 */
+	public static &lt;T&gt; T envOptional(String name, Function&lt;String, T&gt; textToValueFunction) {
+<span class="fc" id="L65">		final var env = envName(name); // validates system property name</span>
+<span class="fc" id="L66">		final var value = System.getProperty(name, System.getenv(env));</span>
+<span class="fc bfc" id="L67" title="All 4 branches covered.">		return value == null || value.isBlank() ? null : textToValueFunction.apply(value);</span>
+	}
+
+	/**
+	 * Checks for the presence of a system property, then defaults to an environment
+	 * variable if not set. If the system property is set, but blank, returns null.
+	 * 
+	 * @param name property name. Must start with a letter and contain only letters,
+	 *             digits, '_', '-', and '.'. Will be converted to upper case, '.'
+	 *             and '-' replaced with '_', for checking the environment.
+	 * @return system property value if set, environment variable if not set, null
+	 *         if blank or both are missing
+	 */
+	public static String envOptional(String name) {
+<span class="fc" id="L81">		return envOptional(name, a -&gt; a);</span>
+	}
+
+	/**
+	 * Checks for the presence of a system property, then defaults to an environment
+	 * variable if not set.
+	 * 
+	 * @param &lt;T&gt;  value type
+	 * @param name property name
+	 * @return system property value if set, environment variable if not set
+	 * @param textToValueFunction converts a non-null property value to the target
+	 *                            type; not applied to null
+	 * @throws NullPointerException if the system property is blank or both are
+	 *                              missing
+	 */
+	public static &lt;T&gt; T env(String name, Function&lt;String, T&gt; textToValueFunction) {
+<span class="fc" id="L97">		return Objects.requireNonNull(envOptional(name, textToValueFunction),</span>
+<span class="fc" id="L98">				&quot;Missing system property &quot; + name + &quot; or environment variable &quot; + envName(name));</span>
+
+	}
+
+	/**
+	 * Checks for the presence of a system property, then defaults to an environment
+	 * variable if not set.
+	 * 
+	 * @param name property name
+	 * @return system property value if set, environment variable if not set
+	 * @throws NullPointerException if the system property is blank or both are
+	 *                              missing
+	 */
+	public static String env(String name) {
+<span class="fc" id="L112">		return env(name, a -&gt; a);</span>
+	}
+
+	private static String envName(String system) {
+<span class="fc bfc" id="L116" title="All 2 branches covered.">		if (!SYSTEM_PROPERTY_REGEX.matcher(system).matches())</span>
+<span class="fc" id="L117">			throw new IllegalArgumentException();</span>
+		else
+<span class="fc" id="L119">			return system.toUpperCase().replace('.', '_').replace('-', '_');</span>
+	}
+
+	private IuRuntimeEnvironment() {
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
