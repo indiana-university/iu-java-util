@@ -32,6 +32,7 @@
 package edu.iu.auth.config;
 
 import java.net.URI;
+import java.time.Duration;
 
 import edu.iu.auth.nonce.IuOneTimeNumberConfig;
 
@@ -39,6 +40,15 @@ import edu.iu.auth.nonce.IuOneTimeNumberConfig;
  * Provides audience configuration.
  */
 public interface IuAuthorizedAudience {
+
+	/**
+	 * Get the max token lifetime
+	 * 
+	 * @return {@link Duration}
+	 */
+	default Duration getTokenTtl() {
+		return Duration.ofSeconds(15L);
+	};
 
 	/**
 	 * Gets the external root resource URI for this audience.
@@ -62,9 +72,11 @@ public interface IuAuthorizedAudience {
 	IuOneTimeNumberConfig getNonce();
 
 	/**
-	 * Gets audience private key principal.
+	 * Gets the principal identity of the audience endpoint, and optionally
+	 * additional trusted token issuer keys.
 	 * 
-	 * @return {@link IuPrivateKeyPrincipal}
+	 * @return {@link IuPrivateKeyPrincipal} of the audience entity, optionally
+	 *         followed by additional trusted token issuer keys
 	 */
 	Iterable<IuPrivateKeyPrincipal> getIdentity();
 
