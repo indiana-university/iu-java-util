@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>CallerAttributes.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-auth-config</a> &gt; <a href="index.source.html" class="el_package">edu.iu.auth.config</a> &gt; <span class="el_source">CallerAttributes.java</span></div><h1>CallerAttributes.java</h1><pre class="source lang-java linenums">package edu.iu.auth.config;
+
+import java.net.URI;
+
+/**
+ * Caller client identification and authentication details for authorizing
+ * remote invocation.
+ */
+public interface CallerAttributes extends AuthorizationDetails {
+
+	/**
+	 * Authorization details type value to match.
+	 */
+	static String TYPE = &quot;iu:caller_attributes&quot;;
+
+	@Override
+	default String getType() {
+<span class="fc" id="L18">		return TYPE;</span>
+	}
+
+	/**
+	 * Gets the full request URI to the resource that issued the token.
+	 * 
+	 * @return Request URI
+	 */
+	URI getRequestUri();
+
+	/**
+	 * Gets the remote client IP address.
+	 * 
+	 * @return IP address
+	 */
+	String getRemoteAddr();
+
+	/**
+	 * Gets the caller's user agent.
+	 * 
+	 * @return User-Agent header value
+	 */
+	String getUserAgent();
+
+	/**
+	 * Gets the principal name of the authenticated user.
+	 * 
+	 * @return Principal name
+	 */
+	String getAuthnPrincipal();
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

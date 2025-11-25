@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>PkiPrincipal.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-auth-pki</a> &gt; <a href="index.source.html" class="el_package">iu.auth.pki</a> &gt; <span class="el_source">PkiPrincipal.java</span></div><h1>PkiPrincipal.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2025 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.pki;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Objects;
+import java.util.Set;
+
+import javax.security.auth.Subject;
+
+import edu.iu.IuObject;
+import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.config.IuPrivateKeyPrincipal;
+import edu.iu.auth.config.X500Utils;
+import edu.iu.crypt.WebCertificateReference;
+import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Use;
+
+/**
+ * PKI principal identity implementation class.
+ */
+public final class PkiPrincipal implements IuPrincipalIdentity {
+	static {
+<span class="fc" id="L56">		IuObject.assertNotOpen(PkiPrincipal.class);</span>
+<span class="fc" id="L57">	}</span>
+
+	private final Algorithm alg;
+	private final Algorithm encryptAlg;
+	private final Encryption enc;
+	private final WebKey verify;
+	private final WebKey encrypt;
+	private final String name;
+	private final String issuer;
+	private final Instant issuedAt;
+	private final Instant authTime;
+	private final Instant expires;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param pkp Authentication realm metadata with original algorithm and
+	 *            certificate values
+	 */
+<span class="fc" id="L76">	public PkiPrincipal(IuPrivateKeyPrincipal pkp) {</span>
+<span class="fc" id="L77">		final var jwk = pkp.getJwk();</span>
+<span class="fc" id="L78">		final var keyType = jwk.getType();</span>
+<span class="fc" id="L79">		final var privateKey = jwk.getPrivateKey();</span>
+<span class="fc" id="L80">		final var certificateChain = Objects.requireNonNull( //</span>
+<span class="fc" id="L81">				WebCertificateReference.verify(jwk), &quot;missing certificate chain&quot;);</span>
+
+<span class="fc" id="L83">		final var cert = certificateChain[0];</span>
+<span class="fc" id="L84">		name = X500Utils.getCommonName(cert.getSubjectX500Principal());</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">		if (!name.equals(jwk.getKeyId()))</span>
+<span class="fc" id="L86">			throw new IllegalArgumentException(&quot;Key ID doesn't match CN&quot;);</span>
+
+<span class="fc" id="L88">		final var keyUsage = new KeyUsage(cert);</span>
+
+<span class="fc" id="L90">		alg = Objects.requireNonNull(pkp.getAlg(), &quot;Missing digital signature algorithm&quot;);</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">		if (!keyUsage.matches(Use.SIGN))</span>
+<span class="fc" id="L92">			throw new IllegalArgumentException(&quot;X.509 certificate doesn't allow digital signature&quot;);</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">		if (!Set.of(alg.type).contains(keyType))</span>
+<span class="fc" id="L94">			throw new IllegalArgumentException(&quot;Invalid key type &quot; + keyType + &quot; for algorithm &quot; + alg);</span>
+
+<span class="fc" id="L96">		final var verifyBuilder = WebKey.builder(keyType) //</span>
+<span class="fc" id="L97">				.algorithm(alg) //</span>
+<span class="fc" id="L98">				.keyId(&quot;verify&quot;) //</span>
+<span class="fc" id="L99">				.key(cert.getPublicKey()) //</span>
+<span class="fc" id="L100">				.cert(certificateChain);</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">		if (privateKey != null)</span>
+<span class="fc" id="L102">			verifyBuilder.key(privateKey);</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">		verifyBuilder.ops(keyUsage.ops(true, privateKey != null));</span>
+<span class="fc" id="L104">		verify = verifyBuilder.build();</span>
+
+<span class="fc" id="L106">		encryptAlg = pkp.getEncryptAlg();</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">		if (encryptAlg != null) {</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">			if (!keyUsage.matches(Use.ENCRYPT))</span>
+<span class="fc" id="L109">				throw new IllegalArgumentException(&quot;X.509 certificate doesn't allow encryption&quot;);</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">			if (!Set.of(encryptAlg.type).contains(keyType))</span>
+<span class="fc" id="L111">				throw new IllegalArgumentException(&quot;Invalid key type &quot; + keyType + &quot; for algorithm &quot; + encryptAlg);</span>
+<span class="fc" id="L112">			enc = Objects.requireNonNull(pkp.getEnc(), &quot;Missing content encryption algorithm&quot;);</span>
+
+<span class="fc" id="L114">			final var encryptBuilder = WebKey.builder(keyType) //</span>
+<span class="fc" id="L115">					.algorithm(encryptAlg) //</span>
+<span class="fc" id="L116">					.keyId(&quot;encrypt&quot;) //</span>
+<span class="fc" id="L117">					.key(cert.getPublicKey()) //</span>
+<span class="fc" id="L118">					.cert(certificateChain);</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">			if (privateKey != null)</span>
+<span class="fc" id="L120">				encryptBuilder.key(privateKey);</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">			encryptBuilder.ops(keyUsage.ops(false, privateKey != null));</span>
+<span class="fc" id="L122">			encrypt = encryptBuilder.build();</span>
+<span class="fc" id="L123">		} else {</span>
+<span class="fc" id="L124">			enc = null;</span>
+<span class="fc" id="L125">			encrypt = null;</span>
+		}
+
+<span class="fc" id="L128">		issuer = X500Utils.getCommonName(cert.getIssuerX500Principal());</span>
+<span class="fc" id="L129">		issuedAt = Instant.now().truncatedTo(ChronoUnit.SECONDS);</span>
+<span class="fc" id="L130">		authTime = cert.getNotBefore().toInstant();</span>
+<span class="fc" id="L131">		expires = cert.getNotAfter().toInstant();</span>
+<span class="fc" id="L132">	}</span>
+
+	@Override
+	public String getName() {
+<span class="fc" id="L136">		return name;</span>
+	}
+
+	@Override
+	public String getIssuer() {
+<span class="fc" id="L141">		return issuer;</span>
+	}
+
+	@Override
+	public Instant getIssuedAt() {
+<span class="fc" id="L146">		return issuedAt;</span>
+	}
+
+	@Override
+	public Instant getAuthTime() {
+<span class="fc" id="L151">		return authTime;</span>
+	}
+
+	@Override
+	public Instant getExpires() {
+<span class="fc" id="L156">		return expires;</span>
+	}
+
+	@Override
+	public Subject getSubject() {
+<span class="fc" id="L161">		final var subject = new Subject();</span>
+<span class="fc" id="L162">		subject.getPrincipals().add(this);</span>
+
+<span class="fc" id="L164">		final var priv = subject.getPrivateCredentials();</span>
+<span class="fc" id="L165">		final var pub = subject.getPublicCredentials();</span>
+
+<span class="fc bfc" id="L167" title="All 2 branches covered.">		if (verify.getPrivateKey() != null)</span>
+<span class="fc" id="L168">			priv.add(verify);</span>
+<span class="fc" id="L169">		pub.add(verify.wellKnown());</span>
+
+<span class="fc bfc" id="L171" title="All 2 branches covered.">		if (encrypt != null) {</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">			if (encrypt.getPrivateKey() != null)</span>
+<span class="fc" id="L173">				priv.add(encrypt);</span>
+<span class="fc" id="L174">			pub.add(encrypt.wellKnown());</span>
+		}
+
+<span class="fc" id="L177">		subject.setReadOnly();</span>
+<span class="fc" id="L178">		return subject;</span>
+	}
+
+	@Override
+	public int hashCode() {
+<span class="fc" id="L183">		return IuObject.hashCode(alg, enc, encrypt, encryptAlg, verify);</span>
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+<span class="fc bfc" id="L188" title="All 2 branches covered.">		if (!IuObject.typeCheck(this, obj))</span>
+<span class="fc" id="L189">			return false;</span>
+<span class="fc" id="L190">		PkiPrincipal other = (PkiPrincipal) obj;</span>
+<span class="fc bfc" id="L191" title="All 6 branches covered.">		return alg == other.alg //</span>
+				&amp;&amp; enc == other.enc //
+				&amp;&amp; encryptAlg == other.encryptAlg //
+<span class="fc bfc" id="L194" title="All 2 branches covered.">				&amp;&amp; IuObject.equals(encrypt, other.encrypt) //</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">				&amp;&amp; IuObject.equals(verify, other.verify);</span>
+	}
+
+	@Override
+	public String toString() {
+<span class="fc" id="L200">		final var sb = new StringBuilder();</span>
+<span class="fc bfc" id="L201" title="All 2 branches covered.">		if (verify.getPrivateKey() == null)</span>
+<span class="fc" id="L202">			sb.append(&quot;Well-Known&quot;);</span>
+		else
+<span class="fc" id="L204">			sb.append(&quot;Authoritative&quot;);</span>
+<span class="fc" id="L205">		sb.append(&quot; PKI Principal &quot;).append(getName());</span>
+
+<span class="fc" id="L207">		final var certChain = verify.getCertificateChain();</span>
+<span class="fc" id="L208">		final var issuer = certChain[certChain.length - 1].getIssuerX500Principal();</span>
+<span class="fc" id="L209">		final var subject = certChain[0].getSubjectX500Principal();</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">		if (subject.equals(issuer))</span>
+<span class="fc" id="L211">			sb.append(&quot;, Self-Issued&quot;);</span>
+		else
+<span class="fc" id="L213">			sb.append(&quot;, Issued by &quot;).append(X500Utils.getCommonName(issuer));</span>
+
+<span class="fc" id="L215">		return sb.toString();</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
