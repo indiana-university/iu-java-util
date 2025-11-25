@@ -25,6 +25,7 @@ public class RemoteAccessToken extends Jwt {
 	/**
 	 * Gets the called URL.
 	 *
+	 * @param <T>             details interface type
 	 * @param type            authorization details type
 	 * @param detailInterface authorization details interface
 	 * @return authorization details

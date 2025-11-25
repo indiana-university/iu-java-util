@@ -22,10 +22,17 @@ public class RemoteAccessTokenBuilder<B extends RemoteAccessTokenBuilder<B>> ext
 	private JsonArrayBuilder authorizationDetails = IuJson.array();
 
 	/**
+	 * Default constructor.
+	 */
+	public RemoteAccessTokenBuilder() {
+	}
+
+	/**
 	 * Adapts types related to the authorization_details claim.
 	 * 
+	 * @param <T>  adapted type
 	 * @param type details interface
-	 * @return {@link IuJsonTypeAdapter}
+	 * @return {@link IuJsonAdapter}
 	 */
 	@SuppressWarnings("unchecked")
 	static protected <T> IuJsonAdapter<T> adaptAuthorizationDetails(Type type) {

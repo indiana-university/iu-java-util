@@ -1,11 +1,7 @@
 package edu.iu.auth.config;
 
-import iu.auth.config.RemoteAccessTokenBuilder;
-
 /**
  * Base interface for supporting authorization_details claims.
- * 
- * @see {@link RemoteAccessTokenBuilder}
  */
 public interface AuthorizationDetails {
 
