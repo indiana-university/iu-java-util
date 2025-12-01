@@ -1,11 +1,10 @@
 package iu.auth.config;
 
 import java.lang.reflect.Type;
-import java.net.URI;
 
 import edu.iu.IuObject;
-import edu.iu.auth.config.AuthorizationDetails;
-import edu.iu.auth.config.CallerAttributes;
+import edu.iu.auth.oauth.IuAuthorizationDetails;
+import edu.iu.auth.oauth.IuCallerAttributes;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
@@ -24,7 +23,7 @@ public class RemoteAccessTokenBuilder<B extends RemoteAccessTokenBuilder<B>> ext
 	/**
 	 * Default constructor.
 	 */
-	public RemoteAccessTokenBuilder() {
+	protected RemoteAccessTokenBuilder() {
 	}
 
 	/**
@@ -54,7 +53,7 @@ public class RemoteAccessTokenBuilder<B extends RemoteAccessTokenBuilder<B>> ext
 	 * @return this
 	 */
 	@SuppressWarnings("unchecked")
-	protected B scope(String scope) {
+	public B scope(String scope) {
 		param("scope", scope);
 		return (B) this;
 	}
@@ -68,7 +67,7 @@ public class RemoteAccessTokenBuilder<B extends RemoteAccessTokenBuilder<B>> ext
 	 * @return this
 	 */
 	@SuppressWarnings("unchecked")
-	protected <T extends AuthorizationDetails> B authorizationDetails(Class<T> type, T authorizationDetails) {
+	protected <T extends IuAuthorizationDetails> B authorizationDetails(Class<T> type, T authorizationDetails) {
 		this.authorizationDetails.add(adaptAuthorizationDetails(type).toJson(authorizationDetails));
 		return (B) this;
 	}
@@ -76,34 +75,11 @@ public class RemoteAccessTokenBuilder<B extends RemoteAccessTokenBuilder<B>> ext
 	/**
 	 * Adds caller attributes as authorization details.
 	 * 
-	 * @param requestUri     Value for {@link CallerAttributes#getRequestUri()}
-	 * @param remoteAddr     Value for {@link CallerAttributes#getRemoteAddr()}
-	 * @param userAgent      Value for {@link CallerAttributes#getUserAgent()}
-	 * @param authnPrincipal Value for {@link CallerAttributes#getAuthnPrincipal()}
+	 * @param callerAttributes {@link IuCallerAttributes}
 	 * @return this
 	 */
-	public B caller(URI requestUri, String remoteAddr, String userAgent, String authnPrincipal) {
-		return authorizationDetails(CallerAttributes.class, new CallerAttributes() {
-			@Override
-			public URI getRequestUri() {
-				return requestUri;
-			}
-
-			@Override
-			public String getRemoteAddr() {
-				return remoteAddr;
-			}
-
-			@Override
-			public String getUserAgent() {
-				return userAgent;
-			}
-
-			@Override
-			public String getAuthnPrincipal() {
-				return authnPrincipal;
-			}
-		});
+	public B caller(IuCallerAttributes callerAttributes) {
+		return authorizationDetails(IuCallerAttributes.class, callerAttributes);
 	}
 
 	@Override

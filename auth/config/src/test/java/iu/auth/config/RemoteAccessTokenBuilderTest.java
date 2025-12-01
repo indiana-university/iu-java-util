@@ -11,7 +11,7 @@ import java.net.URI;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.auth.config.CallerAttributes;
+import edu.iu.auth.oauth.IuCallerAttributes;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 
@@ -54,7 +54,27 @@ public class RemoteAccessTokenBuilderTest {
 		final var authnPrincipal = IdGenerator.generateId();
 
 		final var t = new RemoteAccessTokenBuilder<>() //
-				.caller(requestUri, remoteAddr, userAgent, authnPrincipal) //
+				.caller(new IuCallerAttributes() {
+					@Override
+					public URI getRequestUri() {
+						return requestUri;
+					}
+
+					@Override
+					public String getRemoteAddr() {
+						return remoteAddr;
+					}
+
+					@Override
+					public String getUserAgent() {
+						return userAgent;
+					}
+
+					@Override
+					public String getAuthnPrincipal() {
+						return authnPrincipal;
+					}
+				}) //
 				.build();
 
 		final var callerAttributes = t.getCallerAttributes();

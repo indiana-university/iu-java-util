@@ -1,18 +1,28 @@
 package iu.auth.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.mockConstruction;
 
 import java.net.URI;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.auth.config.CallerAttributes;
+import edu.iu.auth.oauth.IuCallerAttributes;
 import edu.iu.client.IuJson;
 
 @SuppressWarnings("javadoc")
 public class RemoteAccessTokenTest {
 
+	@Test
+	public void testBuilder() {
+		try (final var mockRemoteAccessTokenBuilder = mockConstruction(RemoteAccessTokenBuilder.class)) {
+			final var b = RemoteAccessToken.builder();
+			assertSame(b, mockRemoteAccessTokenBuilder.constructed().get(0));
+		}
+	}
+	
 	@Test
 	public void testScope() {
 		final var scope = IdGenerator.generateId();
@@ -32,7 +42,7 @@ public class RemoteAccessTokenTest {
 
 		final var t = new RemoteAccessToken(IuJson.object()
 				.add("authorization_details", IuJson.array().add(IuJson.object() //
-						.add("type", CallerAttributes.TYPE) //
+						.add("type", IuCallerAttributes.TYPE) //
 						.add("request_uri", requestUri.toString()) //
 						.add("remote_addr", remoteAddr) //
 						.add("user_agent", userAgent) //

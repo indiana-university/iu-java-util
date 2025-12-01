@@ -2,8 +2,8 @@ package iu.auth.config;
 
 import java.net.URI;
 
-import edu.iu.auth.config.AuthorizationDetails;
-import edu.iu.auth.config.CallerAttributes;
+import edu.iu.auth.oauth.IuAuthorizationDetails;
+import edu.iu.auth.oauth.IuCallerAttributes;
 import edu.iu.client.IuJson;
 import iu.crypt.Jwt;
 import jakarta.json.JsonObject;
@@ -18,8 +18,17 @@ public class RemoteAccessToken extends Jwt {
 	 * 
 	 * @param claims Parsed JSON claims
 	 */
-	protected RemoteAccessToken(JsonObject claims) {
+	public RemoteAccessToken(JsonObject claims) {
 		super(claims);
+	}
+
+	/**
+	 * Gets a builder.
+	 * 
+	 * @return {@link RemoteAccessTokenBuilder}
+	 */
+	public static RemoteAccessTokenBuilder<?> builder() {
+		return new RemoteAccessTokenBuilder<>();
 	}
 
 	/**
@@ -30,7 +39,7 @@ public class RemoteAccessToken extends Jwt {
 	 * @param detailInterface authorization details interface
 	 * @return authorization details
 	 */
-	protected <T extends AuthorizationDetails> T getAuthorizationDetails(String type, Class<T> detailInterface) {
+	protected <T extends IuAuthorizationDetails> T getAuthorizationDetails(String type, Class<T> detailInterface) {
 		return detailInterface.cast(RemoteAccessTokenBuilder.adaptAuthorizationDetails(detailInterface)
 				.fromJson(claims.getJsonArray("authorization_details").stream()
 						.filter(a -> type.equals(IuJson.get(a.asJsonObject(), "type"))).findFirst().get()));
@@ -50,8 +59,8 @@ public class RemoteAccessToken extends Jwt {
 	 * 
 	 * @return {@link URI}
 	 */
-	public CallerAttributes getCallerAttributes() {
-		return getAuthorizationDetails(CallerAttributes.TYPE, CallerAttributes.class);
+	public IuCallerAttributes getCallerAttributes() {
+		return getAuthorizationDetails(IuCallerAttributes.TYPE, IuCallerAttributes.class);
 	}
 
 }

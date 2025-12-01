@@ -1,9 +1,9 @@
-package edu.iu.auth.config;
+package edu.iu.auth.oauth;
 
 /**
  * Base interface for supporting authorization_details claims.
  */
-public interface AuthorizationDetails {
+public interface IuAuthorizationDetails {
 
 	/**
 	 * Authorization details type.

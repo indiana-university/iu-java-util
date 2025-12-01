@@ -1,4 +1,4 @@
-package edu.iu.auth.config;
+package edu.iu.auth.oauth;
 
 import java.net.URI;
 
@@ -6,7 +6,7 @@ import java.net.URI;
  * Caller client identification and authentication details for authorizing
  * remote invocation.
  */
-public interface CallerAttributes extends AuthorizationDetails {
+public interface IuCallerAttributes extends IuAuthorizationDetails {
 
 	/**
 	 * Authorization details type value to match.
