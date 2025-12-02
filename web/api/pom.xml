@@ -7,7 +7,7 @@
 	<parent>
 		<groupId>edu.iu.util</groupId>
 		<artifactId>iu-java-web-parent</artifactId>
-		<version>7.0.7-SNAPSHOT</version>
+		<version>7.0.7</version>
 	</parent>
 
 	<artifactId>iu-java-web-api</artifactId>
