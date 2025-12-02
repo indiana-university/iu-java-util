@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TypeTemplate.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Type Introspection Implementation Module</a> &gt; <a href="index.source.html" class="el_package">iu.type</a> &gt; <span class="el_source">TypeTemplate.java</span></div><h1>TypeTemplate.java</h1><pre class="source lang-java linenums">/*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -52,7 +52,6 @@ import edu.iu.type.IuConstructor;
 import edu.iu.type.IuReferenceKind;
 import edu.iu.type.IuType;
 import edu.iu.type.IuTypeReference;
-import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 
 /**
@@ -129,14 +128,14 @@ import jakarta.annotation.PreDestroy;
  * @param &lt;D&gt; declaring type
  * @param &lt;T&gt; raw or generic type
  */
-<span class="fc" id="L132">final class TypeTemplate&lt;D, T&gt; extends DeclaredElementBase&lt;D, Class&lt;T&gt;&gt; implements IuType&lt;D, T&gt;, ParameterizedFacade {</span>
+<span class="fc" id="L131">final class TypeTemplate&lt;D, T&gt; extends DeclaredElementBase&lt;D, Class&lt;T&gt;&gt; implements IuType&lt;D, T&gt;, ParameterizedFacade {</span>
 
 	@SuppressWarnings(&quot;unchecked&quot;)
 	private static &lt;D&gt; TypeTemplate&lt;?, D&gt; resolveDeclaringType(Class&lt;?&gt; enclosed) {
-<span class="fc" id="L136">		final var declaringClass = enclosed.getDeclaringClass();</span>
-<span class="fc bfc" id="L137" title="All 2 branches covered.">		if (declaringClass == null)</span>
-<span class="fc" id="L138">			return null;</span>
-<span class="fc" id="L139">		return (TypeTemplate&lt;?, D&gt;) TypeFactory.resolveRawClass(declaringClass);</span>
+<span class="fc" id="L135">		final var declaringClass = enclosed.getDeclaringClass();</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">		if (declaringClass == null)</span>
+<span class="fc" id="L137">			return null;</span>
+<span class="fc" id="L138">		return (TypeTemplate&lt;?, D&gt;) TypeFactory.resolveRawClass(declaringClass);</span>
 	}
 
 	// Declared
@@ -151,20 +150,20 @@ import jakarta.annotation.PreDestroy;
 	private Iterable&lt;MethodFacade&lt;? super T, ?&gt;&gt; methods;
 
 	// Parameterized
-<span class="fc" id="L154">	private final ParameterizedElement parameterizedElement = new ParameterizedElement();</span>
+<span class="fc" id="L153">	private final ParameterizedElement parameterizedElement = new ParameterizedElement();</span>
 
 	// Instance management
-<span class="fc" id="L157">	private final IuVisitor&lt;InstanceReference&lt;T&gt;&gt; instanceReferences = new IuVisitor&lt;&gt;();</span>
+<span class="fc" id="L156">	private final IuVisitor&lt;InstanceReference&lt;T&gt;&gt; instanceReferences = new IuVisitor&lt;&gt;();</span>
 
 	private TypeTemplate(Class&lt;T&gt; annotatedElement, Consumer&lt;TypeTemplate&lt;?, ?&gt;&gt; preInitHook, Type type,
 			TypeTemplate&lt;D, T&gt; erasedType) {
-<span class="fc" id="L161">		super(annotatedElement, preInitHook, type, resolveDeclaringType(annotatedElement));</span>
+<span class="fc" id="L160">		super(annotatedElement, preInitHook, type, resolveDeclaringType(annotatedElement));</span>
 
-<span class="fc bfc" id="L163" title="All 4 branches covered.">		if (declaringType == null || isStatic())</span>
-<span class="fc" id="L164">			initializeDeclared(erasedType);</span>
+<span class="fc bfc" id="L162" title="All 4 branches covered.">		if (declaringType == null || isStatic())</span>
+<span class="fc" id="L163">			initializeDeclared(erasedType);</span>
 		else
-<span class="fc" id="L166">			declaringType.template.postInit(() -&gt; initializeDeclared(erasedType));</span>
-<span class="fc" id="L167">	}</span>
+<span class="fc" id="L165">			declaringType.template.postInit(() -&gt; initializeDeclared(erasedType));</span>
+<span class="fc" id="L166">	}</span>
 
 	/**
 	 * Raw class constructor intended for use only by {@link TypeFactory}.
@@ -174,8 +173,8 @@ import jakarta.annotation.PreDestroy;
 	 *                    annotated element but before initializing and members
 	 */
 	TypeTemplate(Class&lt;T&gt; rawClass, Consumer&lt;TypeTemplate&lt;?, ?&gt;&gt; preInitHook) {
-<span class="fc" id="L177">		this(rawClass, preInitHook, rawClass, null);</span>
-<span class="fc" id="L178">	}</span>
+<span class="fc" id="L176">		this(rawClass, preInitHook, rawClass, null);</span>
+<span class="fc" id="L177">	}</span>
 
 	/**
 	 * Generic type constructor intended for use only by {@link TypeFactory}.
@@ -189,209 +188,209 @@ import jakarta.annotation.PreDestroy;
 	 *                    argument to this parameter
 	 */
 	TypeTemplate(Consumer&lt;TypeTemplate&lt;?, ?&gt;&gt; preInitHook, Type type, TypeTemplate&lt;D, T&gt; erasedType) {
-<span class="fc" id="L192">		this(erasedType.erasedClass(), preInitHook, type, erasedType);</span>
-<span class="fc bfc" id="L193" title="All 2 branches covered.">		assert !(type instanceof Class) : type;</span>
-<span class="fc bfc" id="L194" title="All 2 branches covered.">		assert erasedType.erasedClass() == TypeFactory.getErasedClass(type)</span>
-<span class="fc" id="L195">				: erasedType + &quot; &quot; + TypeUtils.printType(type);</span>
+<span class="fc" id="L191">		this(erasedType.erasedClass(), preInitHook, type, erasedType);</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">		assert !(type instanceof Class) : type;</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">		assert erasedType.erasedClass() == TypeFactory.getErasedClass(type)</span>
+<span class="fc" id="L194">				: erasedType + &quot; &quot; + TypeUtils.printType(type);</span>
 
-<span class="fc" id="L197">		erasedType.postInit(() -&gt; sealHierarchy(erasedType.hierarchy));</span>
-<span class="fc" id="L198">	}</span>
+<span class="fc" id="L196">		erasedType.postInit(() -&gt; sealHierarchy(erasedType.hierarchy));</span>
+<span class="fc" id="L197">	}</span>
 
 	private boolean isNative() {
-<span class="fc" id="L201">		final var packageName = annotatedElement.getPackageName();</span>
-<span class="fc" id="L202">		final var targetModule = annotatedElement.getModule();</span>
-<span class="fc" id="L203">		final var typeImplModule = getClass().getModule();</span>
-<span class="fc bfc" id="L204" title="All 4 branches covered.">		return IuObject.isPlatformName(name()) //</span>
+<span class="fc" id="L200">		final var packageName = annotatedElement.getPackageName();</span>
+<span class="fc" id="L201">		final var targetModule = annotatedElement.getModule();</span>
+<span class="fc" id="L202">		final var typeImplModule = getClass().getModule();</span>
+<span class="fc bfc" id="L203" title="All 4 branches covered.">		return IuObject.isPlatformName(name()) //</span>
 				|| targetModule == typeImplModule //
-<span class="fc bfc" id="L206" title="All 2 branches covered.">				|| !targetModule.isOpen(packageName, typeImplModule);</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">				|| !targetModule.isOpen(packageName, typeImplModule);</span>
 	}
 
 	private void initializeDeclared(TypeTemplate&lt;D, T&gt; erasedType) {
-<span class="fc bfc" id="L210" title="All 4 branches covered.">		if (declaringType != null &amp;&amp; !isStatic())</span>
-<span class="fc" id="L211">			parameterizedElement.apply(declaringType.template.typeParameters());</span>
+<span class="fc bfc" id="L209" title="All 4 branches covered.">		if (declaringType != null &amp;&amp; !isStatic())</span>
+<span class="fc" id="L210">			parameterizedElement.apply(declaringType.template.typeParameters());</span>
 
-<span class="fc bfc" id="L213" title="All 2 branches covered.">		if (erasedType == null) {</span>
-<span class="fc" id="L214">			this.erasedType = this;</span>
-<span class="fc" id="L215">			initializeConstructors();</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">		if (erasedType == null) {</span>
+<span class="fc" id="L213">			this.erasedType = this;</span>
+<span class="fc" id="L214">			initializeConstructors();</span>
 		} else {
-<span class="fc" id="L217">			this.erasedType = new TypeFacade&lt;D, T&gt;(erasedType, this, IuReferenceKind.ERASURE);</span>
-<span class="fc" id="L218">			erasedType.postInit(() -&gt; {</span>
-<span class="fc" id="L219">				initializeConstructors();</span>
-<span class="fc" id="L220">			});</span>
+<span class="fc" id="L216">			this.erasedType = new TypeFacade&lt;D, T&gt;(erasedType, this, IuReferenceKind.ERASURE);</span>
+<span class="fc" id="L217">			erasedType.postInit(() -&gt; {</span>
+<span class="fc" id="L218">				initializeConstructors();</span>
+<span class="fc" id="L219">			});</span>
 		}
-<span class="fc" id="L222">	}</span>
+<span class="fc" id="L221">	}</span>
 
 	@SuppressWarnings({ &quot;rawtypes&quot;, &quot;unchecked&quot; })
 	private void initializeEnclosedTypes() {
-<span class="fc" id="L226">		Queue&lt;TypeFacade&lt;T, ?&gt;&gt; enclosedTypes = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L225">		Queue&lt;TypeFacade&lt;T, ?&gt;&gt; enclosedTypes = new ArrayDeque&lt;&gt;();</span>
 
-<span class="fc bfc" id="L228" title="All 2 branches covered.">		if (!isNative()) {</span>
-<span class="fc" id="L229">			Class&lt;?&gt;[] enclosedClasses = annotatedElement.getDeclaredClasses();</span>
-<span class="fc" id="L230">			postInit(() -&gt; {</span>
-<span class="fc bfc" id="L231" title="All 2 branches covered.">				for (var enclosedClass : enclosedClasses) {</span>
-<span class="fc" id="L232">					final var enclosedType = TypeFactory.resolveRawClass(enclosedClass);</span>
-<span class="fc" id="L233">					enclosedTypes.offer(new TypeFacade(enclosedType, this, IuReferenceKind.ENCLOSING_TYPE));</span>
+<span class="fc bfc" id="L227" title="All 2 branches covered.">		if (!isNative()) {</span>
+<span class="fc" id="L228">			Class&lt;?&gt;[] enclosedClasses = annotatedElement.getDeclaredClasses();</span>
+<span class="fc" id="L229">			postInit(() -&gt; {</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">				for (var enclosedClass : enclosedClasses) {</span>
+<span class="fc" id="L231">					final var enclosedType = TypeFactory.resolveRawClass(enclosedClass);</span>
+<span class="fc" id="L232">					enclosedTypes.offer(new TypeFacade(enclosedType, this, IuReferenceKind.ENCLOSING_TYPE));</span>
 				}
-<span class="fc" id="L235">			});</span>
+<span class="fc" id="L234">			});</span>
 		}
 
-<span class="fc" id="L238">		this.enclosedTypes = enclosedTypes;</span>
-<span class="fc" id="L239">	}</span>
+<span class="fc" id="L237">		this.enclosedTypes = enclosedTypes;</span>
+<span class="fc" id="L238">	}</span>
 
 	@SuppressWarnings(&quot;unchecked&quot;)
 	private void initializeConstructors() {
-<span class="fc" id="L243">		Queue&lt;ConstructorFacade&lt;T&gt;&gt; constructors = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L242">		Queue&lt;ConstructorFacade&lt;T&gt;&gt; constructors = new ArrayDeque&lt;&gt;();</span>
 
-<span class="fc bfc" id="L245" title="All 2 branches covered.">		if (!isNative() //</span>
-<span class="fc bfc" id="L246" title="All 2 branches covered.">				&amp;&amp; !annotatedElement.isInterface() //</span>
-<span class="fc bfc" id="L247" title="All 2 branches covered.">				&amp;&amp; !annotatedElement.isEnum())</span>
-<span class="fc bfc" id="L248" title="All 2 branches covered.">			for (var constructor : annotatedElement.getDeclaredConstructors())</span>
+<span class="fc bfc" id="L244" title="All 2 branches covered.">		if (!isNative() //</span>
+<span class="fc bfc" id="L245" title="All 2 branches covered.">				&amp;&amp; !annotatedElement.isInterface() //</span>
+<span class="fc bfc" id="L246" title="All 2 branches covered.">				&amp;&amp; !annotatedElement.isEnum())</span>
+<span class="fc bfc" id="L247" title="All 2 branches covered.">			for (var constructor : annotatedElement.getDeclaredConstructors())</span>
 				// _unchecked warning_: see source for #getDeclaredConstructors()
 				// =&gt; This cast is safe as of Java 17
-<span class="fc" id="L251">				constructors.offer(new ConstructorFacade&lt;&gt;((Constructor&lt;T&gt;) constructor, this));</span>
+<span class="fc" id="L250">				constructors.offer(new ConstructorFacade&lt;&gt;((Constructor&lt;T&gt;) constructor, this));</span>
 
-<span class="fc" id="L253">		this.constructors = constructors;</span>
-<span class="fc" id="L254">	}</span>
+<span class="fc" id="L252">		this.constructors = constructors;</span>
+<span class="fc" id="L253">	}</span>
 
 	@SuppressWarnings({ &quot;unchecked&quot;, &quot;rawtypes&quot; })
 	private Iterable&lt;FieldFacade&lt;? super T, ?&gt;&gt; initializeFields() {
-<span class="fc" id="L258">		Queue&lt;FieldFacade&lt;? super T, ?&gt;&gt; rv = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L257">		Queue&lt;FieldFacade&lt;? super T, ?&gt;&gt; rv = new ArrayDeque&lt;&gt;();</span>
 
-<span class="fc bfc" id="L260" title="All 2 branches covered.">		if (!isNative()) //</span>
-<span class="fc bfc" id="L261" title="All 2 branches covered.">			for (var field : annotatedElement.getDeclaredFields()) {</span>
+<span class="fc bfc" id="L259" title="All 2 branches covered.">		if (!isNative()) //</span>
+<span class="fc bfc" id="L260" title="All 2 branches covered.">			for (var field : annotatedElement.getDeclaredFields()) {</span>
 				TypeTemplate&lt;?, ?&gt; fieldType;
-<span class="fc bfc" id="L263" title="All 2 branches covered.">				if (field.getType() == annotatedElement)</span>
-<span class="fc" id="L264">					fieldType = this;</span>
+<span class="fc bfc" id="L262" title="All 2 branches covered.">				if (field.getType() == annotatedElement)</span>
+<span class="fc" id="L263">					fieldType = this;</span>
 				else
-<span class="fc" id="L266">					fieldType = TypeFactory.resolveType(field.getGenericType());</span>
+<span class="fc" id="L265">					fieldType = TypeFactory.resolveType(field.getGenericType());</span>
 
-<span class="fc" id="L268">				rv.offer(new FieldFacade(field, fieldType, this));</span>
+<span class="fc" id="L267">				rv.offer(new FieldFacade(field, fieldType, this));</span>
 			}
 
-<span class="fc bfc" id="L271" title="All 2 branches covered.">		for (var superType : hierarchy)</span>
-<span class="fc" id="L272">			superType.template.postInit(() -&gt; {</span>
-<span class="fc bfc" id="L273" title="All 2 branches covered.">				for (var inheritedField : superType.template.fields)</span>
-<span class="fc" id="L274">					rv.offer(inheritedField);</span>
-<span class="fc" id="L275">			});</span>
+<span class="fc bfc" id="L270" title="All 2 branches covered.">		for (var superType : hierarchy)</span>
+<span class="fc" id="L271">			superType.template.postInit(() -&gt; {</span>
+<span class="fc bfc" id="L272" title="All 2 branches covered.">				for (var inheritedField : superType.template.fields)</span>
+<span class="fc" id="L273">					rv.offer(inheritedField);</span>
+<span class="fc" id="L274">			});</span>
 
-<span class="fc" id="L277">		return rv;</span>
+<span class="fc" id="L276">		return rv;</span>
 	}
 
 	@SuppressWarnings({ &quot;unchecked&quot;, &quot;rawtypes&quot; })
 	private Iterable&lt;PropertyFacade&lt;? super T, ?&gt;&gt; initializeProperties() {
-<span class="fc" id="L282">		Queue&lt;PropertyFacade&lt;? super T, ?&gt;&gt; rv = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L281">		Queue&lt;PropertyFacade&lt;? super T, ?&gt;&gt; rv = new ArrayDeque&lt;&gt;();</span>
 
-<span class="fc bfc" id="L284" title="All 2 branches covered.">		if (!isNative()) //</span>
-<span class="fc bfc" id="L285" title="All 2 branches covered.">			for (var property : IuException.unchecked(() -&gt; Introspector.getBeanInfo(annotatedElement))</span>
-<span class="fc" id="L286">					.getPropertyDescriptors()) {</span>
-<span class="fc bfc" id="L287" title="All 2 branches covered.">				if (property.getName().equals(&quot;class&quot;))</span>
-<span class="fc" id="L288">					continue;</span>
+<span class="fc bfc" id="L283" title="All 2 branches covered.">		if (!isNative()) //</span>
+<span class="fc bfc" id="L284" title="All 2 branches covered.">			for (var property : IuException.unchecked(() -&gt; Introspector.getBeanInfo(annotatedElement))</span>
+<span class="fc" id="L285">					.getPropertyDescriptors()) {</span>
+<span class="fc bfc" id="L286" title="All 2 branches covered.">				if (property.getName().equals(&quot;class&quot;))</span>
+<span class="fc" id="L287">					continue;</span>
 
-<span class="fc" id="L290">				var readMethod = property.getReadMethod();</span>
-<span class="fc" id="L291">				var writeMethod = property.getWriteMethod();</span>
+<span class="fc" id="L289">				var readMethod = property.getReadMethod();</span>
+<span class="fc" id="L290">				var writeMethod = property.getWriteMethod();</span>
 
 				Type propertyType;
-<span class="fc bfc" id="L294" title="All 2 branches covered.">				if (readMethod != null)</span>
-<span class="fc" id="L295">					propertyType = readMethod.getGenericReturnType();</span>
-<span class="fc bfc" id="L296" title="All 2 branches covered.">				else if (writeMethod != null)</span>
-<span class="fc" id="L297">					propertyType = writeMethod.getGenericParameterTypes()[0];</span>
+<span class="fc bfc" id="L293" title="All 2 branches covered.">				if (readMethod != null)</span>
+<span class="fc" id="L294">					propertyType = readMethod.getGenericReturnType();</span>
+<span class="fc bfc" id="L295" title="All 2 branches covered.">				else if (writeMethod != null)</span>
+<span class="fc" id="L296">					propertyType = writeMethod.getGenericParameterTypes()[0];</span>
 				else
 					continue;
 
 				TypeTemplate&lt;?, T&gt; propertyTypeTemplate;
-<span class="fc bfc" id="L302" title="All 2 branches covered.">				if (propertyType == annotatedElement)</span>
-<span class="fc" id="L303">					propertyTypeTemplate = this;</span>
+<span class="fc bfc" id="L301" title="All 2 branches covered.">				if (propertyType == annotatedElement)</span>
+<span class="fc" id="L302">					propertyTypeTemplate = this;</span>
 				else
-<span class="fc" id="L305">					propertyTypeTemplate = (TypeTemplate&lt;?, T&gt;) TypeFactory.resolveType(propertyType);</span>
+<span class="fc" id="L304">					propertyTypeTemplate = (TypeTemplate&lt;?, T&gt;) TypeFactory.resolveType(propertyType);</span>
 
-<span class="fc" id="L307">				rv.offer(new PropertyFacade(property, propertyTypeTemplate, this));</span>
+<span class="fc" id="L306">				rv.offer(new PropertyFacade(property, propertyTypeTemplate, this));</span>
 			}
 
-<span class="fc bfc" id="L310" title="All 2 branches covered.">		for (var superType : hierarchy)</span>
-<span class="fc" id="L311">			superType.template.postInit(() -&gt; {</span>
-<span class="fc bfc" id="L312" title="All 2 branches covered.">				for (var inheritedProperty : superType.template.properties)</span>
-<span class="fc" id="L313">					rv.offer(inheritedProperty);</span>
-<span class="fc" id="L314">			});</span>
+<span class="fc bfc" id="L309" title="All 2 branches covered.">		for (var superType : hierarchy)</span>
+<span class="fc" id="L310">			superType.template.postInit(() -&gt; {</span>
+<span class="fc bfc" id="L311" title="All 2 branches covered.">				for (var inheritedProperty : superType.template.properties)</span>
+<span class="fc" id="L312">					rv.offer(inheritedProperty);</span>
+<span class="fc" id="L313">			});</span>
 
-<span class="fc" id="L316">		return rv;</span>
+<span class="fc" id="L315">		return rv;</span>
 	}
 
 	private Iterable&lt;MethodFacade&lt;? super T, ?&gt;&gt; initializeMethods() {
-<span class="fc" id="L320">		Queue&lt;MethodFacade&lt;? super T, ?&gt;&gt; rv = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L319">		Queue&lt;MethodFacade&lt;? super T, ?&gt;&gt; rv = new ArrayDeque&lt;&gt;();</span>
 
-<span class="fc bfc" id="L322" title="All 2 branches covered.">		if (!isNative()) //</span>
-<span class="fc bfc" id="L323" title="All 2 branches covered.">			for (var method : annotatedElement.getDeclaredMethods()) {</span>
-<span class="fc bfc" id="L324" title="All 2 branches covered.">				if (method.isSynthetic())</span>
-<span class="fc" id="L325">					continue; // skip lambdas</span>
+<span class="fc bfc" id="L321" title="All 2 branches covered.">		if (!isNative()) //</span>
+<span class="fc bfc" id="L322" title="All 2 branches covered.">			for (var method : annotatedElement.getDeclaredMethods()) {</span>
+<span class="fc bfc" id="L323" title="All 2 branches covered.">				if (method.isSynthetic())</span>
+<span class="fc" id="L324">					continue; // skip lambdas</span>
 
 				TypeTemplate&lt;?, ?&gt; returnType;
-<span class="fc bfc" id="L328" title="All 2 branches covered.">				if (method.getReturnType() == annotatedElement)</span>
-<span class="fc" id="L329">					returnType = this;</span>
+<span class="fc bfc" id="L327" title="All 2 branches covered.">				if (method.getReturnType() == annotatedElement)</span>
+<span class="fc" id="L328">					returnType = this;</span>
 				else
-<span class="fc" id="L331">					returnType = TypeFactory.resolveType(method.getGenericReturnType());</span>
+<span class="fc" id="L330">					returnType = TypeFactory.resolveType(method.getGenericReturnType());</span>
 
-<span class="fc" id="L333">				rv.offer(new MethodFacade&lt;&gt;(method, returnType, this));</span>
+<span class="fc" id="L332">				rv.offer(new MethodFacade&lt;&gt;(method, returnType, this));</span>
 			}
 
-<span class="fc bfc" id="L336" title="All 2 branches covered.">		for (var superType : hierarchy)</span>
-<span class="fc" id="L337">			superType.template.postInit(() -&gt; {</span>
-<span class="fc bfc" id="L338" title="All 2 branches covered.">				for (var inheritedMethod : superType.template.methods)</span>
-<span class="fc" id="L339">					rv.offer(inheritedMethod);</span>
-<span class="fc" id="L340">			});</span>
+<span class="fc bfc" id="L335" title="All 2 branches covered.">		for (var superType : hierarchy)</span>
+<span class="fc" id="L336">			superType.template.postInit(() -&gt; {</span>
+<span class="fc bfc" id="L337" title="All 2 branches covered.">				for (var inheritedMethod : superType.template.methods)</span>
+<span class="fc" id="L338">					rv.offer(inheritedMethod);</span>
+<span class="fc" id="L339">			});</span>
 
-<span class="fc" id="L342">		return rv;</span>
+<span class="fc" id="L341">		return rv;</span>
 	}
 
 	private void doSealHierarchy(Iterable&lt;? extends IuType&lt;?, ? super T&gt;&gt; hierarchy) {
-<span class="fc" id="L346">		Map&lt;Class&lt;?&gt;, TypeFacade&lt;?, ? super T&gt;&gt; hierarchyByErasure = new LinkedHashMap&lt;&gt;();</span>
-<span class="fc bfc" id="L347" title="All 2 branches covered.">		for (var superType : hierarchy) {</span>
-<span class="fc" id="L348">			var templateReference = superType.reference();</span>
+<span class="fc" id="L345">		Map&lt;Class&lt;?&gt;, TypeFacade&lt;?, ? super T&gt;&gt; hierarchyByErasure = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L346" title="All 2 branches covered.">		for (var superType : hierarchy) {</span>
+<span class="fc" id="L347">			var templateReference = superType.reference();</span>
 
 			TypeTemplate&lt;?, ? super T&gt; superTypeTemplate;
-<span class="fc bfc" id="L351" title="All 2 branches covered.">			if (templateReference == null) {</span>
-<span class="fc" id="L352">				superTypeTemplate = (TypeTemplate&lt;?, ? super T&gt;) superType;</span>
+<span class="fc bfc" id="L350" title="All 2 branches covered.">			if (templateReference == null) {</span>
+<span class="fc" id="L351">				superTypeTemplate = (TypeTemplate&lt;?, ? super T&gt;) superType;</span>
 
 				// common case: direct generalization of raw class
-<span class="fc" id="L355">				hierarchyByErasure.put(superType.erasedClass(),</span>
+<span class="fc" id="L354">				hierarchyByErasure.put(superType.erasedClass(),</span>
 						new TypeFacade&lt;&gt;(superTypeTemplate, this, IuReferenceKind.SUPER));
-<span class="fc" id="L357">				continue;</span>
+<span class="fc" id="L356">				continue;</span>
 			}
 
 			else // exception case: inherited generalization ...
-<span class="fc" id="L361">				superTypeTemplate = ((TypeFacade&lt;?, ? super T&gt;) superType).template;</span>
+<span class="fc" id="L360">				superTypeTemplate = ((TypeFacade&lt;?, ? super T&gt;) superType).template;</span>
 
 			// ... by type erasure, same as direct
-<span class="fc" id="L364">			var erasedReferrerClass = ((IuType&lt;?, ?&gt;) templateReference.referrer()).erasedClass();</span>
-<span class="fc bfc" id="L365" title="All 2 branches covered.">			if (erasedReferrerClass == annotatedElement) {</span>
-<span class="fc" id="L366">				hierarchyByErasure.put(superType.erasedClass(),</span>
+<span class="fc" id="L363">			var erasedReferrerClass = ((IuType&lt;?, ?&gt;) templateReference.referrer()).erasedClass();</span>
+<span class="fc bfc" id="L364" title="All 2 branches covered.">			if (erasedReferrerClass == annotatedElement) {</span>
+<span class="fc" id="L365">				hierarchyByErasure.put(superType.erasedClass(),</span>
 						new TypeFacade&lt;&gt;(superTypeTemplate, this, IuReferenceKind.SUPER));
-<span class="fc" id="L368">				continue;</span>
+<span class="fc" id="L367">				continue;</span>
 			}
 
 			// ... via superclass or interface, look up unsealed reference by erasure
-<span class="fc" id="L372">			final var referrer = Objects.requireNonNull(hierarchyByErasure.get(erasedReferrerClass));</span>
-<span class="fc" id="L373">			final var superTypeFacade = new TypeFacade&lt;&gt;(superTypeTemplate, referrer, IuReferenceKind.SUPER);</span>
-<span class="fc" id="L374">			hierarchyByErasure.put(superTypeFacade.erasedClass(), superTypeFacade);</span>
-<span class="fc" id="L375">		}</span>
+<span class="fc" id="L371">			final var referrer = Objects.requireNonNull(hierarchyByErasure.get(erasedReferrerClass));</span>
+<span class="fc" id="L372">			final var superTypeFacade = new TypeFacade&lt;&gt;(superTypeTemplate, referrer, IuReferenceKind.SUPER);</span>
+<span class="fc" id="L373">			hierarchyByErasure.put(superTypeFacade.erasedClass(), superTypeFacade);</span>
+<span class="fc" id="L374">		}</span>
 
-<span class="fc" id="L377">		this.hierarchy = hierarchyByErasure.values();</span>
+<span class="fc" id="L376">		this.hierarchy = hierarchyByErasure.values();</span>
 
-<span class="fc bfc" id="L379" title="All 2 branches covered.">		if (type instanceof ParameterizedType parameterizedType) {</span>
-<span class="fc" id="L380">			final var actualTypeArguments = parameterizedType.getActualTypeArguments();</span>
-<span class="fc" id="L381">			final var typeVariables = annotatedElement.getTypeParameters();</span>
-<span class="fc" id="L382">			final var length = actualTypeArguments.length;</span>
-<span class="fc bfc" id="L383" title="All 2 branches covered.">			assert typeVariables.length == length; // enforced by javac</span>
-<span class="fc bfc" id="L384" title="All 2 branches covered.">			for (var i = 0; i &lt; length; i++)</span>
-<span class="fc" id="L385">				parameterizedElement.apply(this, typeVariables[i], actualTypeArguments[i]);</span>
+<span class="fc bfc" id="L378" title="All 2 branches covered.">		if (type instanceof ParameterizedType parameterizedType) {</span>
+<span class="fc" id="L379">			final var actualTypeArguments = parameterizedType.getActualTypeArguments();</span>
+<span class="fc" id="L380">			final var typeVariables = annotatedElement.getTypeParameters();</span>
+<span class="fc" id="L381">			final var length = actualTypeArguments.length;</span>
+<span class="fc bfc" id="L382" title="All 2 branches covered.">			assert typeVariables.length == length; // enforced by javac</span>
+<span class="fc bfc" id="L383" title="All 2 branches covered.">			for (var i = 0; i &lt; length; i++)</span>
+<span class="fc" id="L384">				parameterizedElement.apply(this, typeVariables[i], actualTypeArguments[i]);</span>
 		}
 
-<span class="fc" id="L388">		fields = initializeFields();</span>
-<span class="fc" id="L389">		properties = initializeProperties();</span>
-<span class="fc" id="L390">		methods = initializeMethods();</span>
+<span class="fc" id="L387">		fields = initializeFields();</span>
+<span class="fc" id="L388">		properties = initializeProperties();</span>
+<span class="fc" id="L389">		methods = initializeMethods();</span>
 
-<span class="fc" id="L392">		parameterizedElement.seal(annotatedElement, this);</span>
-<span class="fc" id="L393">		super.seal();</span>
-<span class="fc" id="L394">	}</span>
+<span class="fc" id="L391">		parameterizedElement.seal(annotatedElement, this);</span>
+<span class="fc" id="L392">		super.seal();</span>
+<span class="fc" id="L393">	}</span>
 
 	/**
 	 * Unsupported, use {@link #sealHierarchy(Iterable)} to provide hierarchy when
@@ -401,16 +400,16 @@ import jakarta.annotation.PreDestroy;
 	 */
 	@Override
 	final void seal() throws UnsupportedOperationException {
-<span class="fc" id="L404">		throw new UnsupportedOperationException(&quot;use sealHierarchy() only with TypeTemplate&quot;);</span>
+<span class="fc" id="L403">		throw new UnsupportedOperationException(&quot;use sealHierarchy() only with TypeTemplate&quot;);</span>
 	}
 
 	private boolean isStatic() {
-<span class="fc" id="L408">		final var erased = erasedClass();</span>
-<span class="pc bpc" id="L409" title="1 of 6 branches missed.">		if (erased.isInterface() || erased.isRecord() || erased.isEnum())</span>
-<span class="fc" id="L410">			return true;</span>
+<span class="fc" id="L407">		final var erased = erasedClass();</span>
+<span class="pc bpc" id="L408" title="1 of 6 branches missed.">		if (erased.isInterface() || erased.isRecord() || erased.isEnum())</span>
+<span class="fc" id="L409">			return true;</span>
 
-<span class="fc" id="L412">		final var mod = annotatedElement.getModifiers();</span>
-<span class="fc bfc" id="L413" title="All 2 branches covered.">		return (mod | Modifier.STATIC) == mod;</span>
+<span class="fc" id="L411">		final var mod = annotatedElement.getModifiers();</span>
+<span class="fc bfc" id="L412" title="All 2 branches covered.">		return (mod | Modifier.STATIC) == mod;</span>
 	}
 
 	/**
@@ -419,140 +418,137 @@ import jakarta.annotation.PreDestroy;
 	 * @param hierarchy Resolved type hierarchy
 	 */
 	void sealHierarchy(Iterable&lt;? extends IuType&lt;?, ? super T&gt;&gt; hierarchy) {
-<span class="fc bfc" id="L422" title="All 4 branches covered.">		if (declaringType == null || isStatic())</span>
-<span class="fc" id="L423">			doSealHierarchy(hierarchy);</span>
+<span class="fc bfc" id="L421" title="All 4 branches covered.">		if (declaringType == null || isStatic())</span>
+<span class="fc" id="L422">			doSealHierarchy(hierarchy);</span>
 		else
-<span class="fc" id="L425">			declaringType.template.postInit(() -&gt; doSealHierarchy(hierarchy));</span>
-<span class="fc" id="L426">	}</span>
+<span class="fc" id="L424">			declaringType.template.postInit(() -&gt; doSealHierarchy(hierarchy));</span>
+<span class="fc" id="L425">	}</span>
 
 	@Override
 	public Runnable subscribe(InstanceReference&lt;T&gt; instanceReference) {
-<span class="fc" id="L430">		instanceReferences.accept(instanceReference);</span>
-<span class="fc" id="L431">		return () -&gt; instanceReferences.clear(instanceReference);</span>
+<span class="fc" id="L429">		instanceReferences.accept(instanceReference);</span>
+<span class="fc" id="L430">		return () -&gt; instanceReferences.clear(instanceReference);</span>
 	}
 
 	@Override
 	public void observe(T instance) {
-<span class="fc" id="L436">		instanceReferences.visit(listener -&gt; {</span>
-<span class="fc bfc" id="L437" title="All 2 branches covered.">			if (listener != null)</span>
-<span class="fc" id="L438">				listener.accept(instance);</span>
-<span class="fc" id="L439">			return null;</span>
+<span class="fc" id="L435">		instanceReferences.visit(listener -&gt; {</span>
+<span class="fc bfc" id="L436" title="All 2 branches covered.">			if (listener != null)</span>
+<span class="fc" id="L437">				listener.accept(instance);</span>
+<span class="fc" id="L438">			return null;</span>
 		});
-
-<span class="fc bfc" id="L442" title="All 2 branches covered.">		for (final var method : annotatedMethods(PostConstruct.class))</span>
-<span class="fc" id="L443">			IuException.unchecked(() -&gt; method.exec(instance));</span>
-<span class="fc" id="L444">	}</span>
+<span class="fc" id="L440">	}</span>
 
 	@Override
 	public void destroy(T instance) {
-<span class="fc" id="L448">		Throwable e = null;</span>
-<span class="fc bfc" id="L449" title="All 2 branches covered.">		for (final var method : annotatedMethods(PreDestroy.class))</span>
-<span class="fc" id="L450">			e = IuException.suppress(e, () -&gt; IuException.checkedInvocation(() -&gt; {</span>
-<span class="fc" id="L451">				method.exec(instance);</span>
-<span class="fc" id="L452">				return null;</span>
+<span class="fc" id="L444">		Throwable e = null;</span>
+<span class="fc bfc" id="L445" title="All 2 branches covered.">		for (final var method : annotatedMethods(PreDestroy.class))</span>
+<span class="fc" id="L446">			e = IuException.suppress(e, () -&gt; IuException.checkedInvocation(() -&gt; {</span>
+<span class="fc" id="L447">				method.exec(instance);</span>
+<span class="fc" id="L448">				return null;</span>
 			}));
 
-<span class="fc" id="L455">		e = IuException.suppress(e, () -&gt; instanceReferences.visit(listener -&gt; {</span>
-<span class="fc bfc" id="L456" title="All 2 branches covered.">			if (listener != null)</span>
-<span class="fc" id="L457">				listener.clear(instance);</span>
-<span class="fc" id="L458">			return null;</span>
+<span class="fc" id="L451">		e = IuException.suppress(e, () -&gt; instanceReferences.visit(listener -&gt; {</span>
+<span class="fc bfc" id="L452" title="All 2 branches covered.">			if (listener != null)</span>
+<span class="fc" id="L453">				listener.clear(instance);</span>
+<span class="fc" id="L454">			return null;</span>
 		}));
 
-<span class="fc bfc" id="L461" title="All 2 branches covered.">		if (e != null)</span>
-<span class="fc" id="L462">			throw IuException.unchecked(e);</span>
-<span class="fc" id="L463">	}</span>
+<span class="fc bfc" id="L457" title="All 2 branches covered.">		if (e != null)</span>
+<span class="fc" id="L458">			throw IuException.unchecked(e);</span>
+<span class="fc" id="L459">	}</span>
 
 	@Override
 	public Map&lt;String, TypeFacade&lt;?, ?&gt;&gt; typeParameters() {
-<span class="fc" id="L467">		checkSealed();</span>
-<span class="fc" id="L468">		return parameterizedElement.typeParameters();</span>
+<span class="fc" id="L463">		checkSealed();</span>
+<span class="fc" id="L464">		return parameterizedElement.typeParameters();</span>
 	}
 
 	@Override
 	public String name() {
-<span class="fc" id="L473">		return annotatedElement.getName();</span>
+<span class="fc" id="L469">		return annotatedElement.getName();</span>
 	}
 
 	@Override
 	public IuTypeReference&lt;T, ?&gt; reference() {
-<span class="fc" id="L478">		return null;</span>
+<span class="fc" id="L474">		return null;</span>
 	}
 
 	@Override
 	public Type deref() {
-<span class="fc" id="L483">		return type;</span>
+<span class="fc" id="L479">		return type;</span>
 	}
 
 	@Override
 	public IuType&lt;D, T&gt; erase() {
-<span class="fc" id="L488">		return erasedType;</span>
+<span class="fc" id="L484">		return erasedType;</span>
 	}
 
 	@Override
 	public Class&lt;T&gt; erasedClass() {
-<span class="fc" id="L493">		return annotatedElement;</span>
+<span class="fc" id="L489">		return annotatedElement;</span>
 	}
 
 	@Override
 	public IuType&lt;?, ? super T&gt; referTo(Type referentType) {
-<span class="fc" id="L498">		return TypeUtils.referTo(this, hierarchy(), referentType);</span>
+<span class="fc" id="L494">		return TypeUtils.referTo(this, hierarchy(), referentType);</span>
 	}
 
 	@Override
 	public Iterable&lt;TypeFacade&lt;T, ?&gt;&gt; enclosedTypes() {
-<span class="fc bfc" id="L503" title="All 2 branches covered.">		if (enclosedTypes == null)</span>
-<span class="fc" id="L504">			initializeEnclosedTypes();</span>
-<span class="fc" id="L505">		return enclosedTypes;</span>
+<span class="fc bfc" id="L499" title="All 2 branches covered.">		if (enclosedTypes == null)</span>
+<span class="fc" id="L500">			initializeEnclosedTypes();</span>
+<span class="fc" id="L501">		return enclosedTypes;</span>
 	}
 
 	@Override
 	public Iterable&lt;? extends IuConstructor&lt;T&gt;&gt; constructors() {
-<span class="fc" id="L510">		return constructors;</span>
+<span class="fc" id="L506">		return constructors;</span>
 	}
 
 	@Override
 	public Iterable&lt;TypeFacade&lt;?, ? super T&gt;&gt; hierarchy() {
-<span class="fc bfc" id="L515" title="All 2 branches covered.">		if (hierarchy == null)</span>
-<span class="fc" id="L516">			throw new IllegalStateException(&quot;hierarchy not sealed&quot;);</span>
-<span class="fc" id="L517">		return hierarchy;</span>
+<span class="fc bfc" id="L511" title="All 2 branches covered.">		if (hierarchy == null)</span>
+<span class="fc" id="L512">			throw new IllegalStateException(&quot;hierarchy not sealed&quot;);</span>
+<span class="fc" id="L513">		return hierarchy;</span>
 	}
 
 	@Override
 	@SuppressWarnings(&quot;unchecked&quot;)
 	public &lt;F&gt; FieldFacade&lt;? super T, F&gt; field(String name) {
-<span class="fc" id="L523">		return (FieldFacade&lt;? super T, F&gt;) IuType.super.field(name);</span>
+<span class="fc" id="L519">		return (FieldFacade&lt;? super T, F&gt;) IuType.super.field(name);</span>
 	}
 
 	@Override
 	public Iterable&lt;FieldFacade&lt;? super T, ?&gt;&gt; fields() {
-<span class="fc bfc" id="L528" title="All 2 branches covered.">		if (fields == null)</span>
-<span class="fc" id="L529">			throw new IllegalStateException(&quot;fields not sealed&quot;);</span>
-<span class="fc" id="L530">		return fields;</span>
+<span class="fc bfc" id="L524" title="All 2 branches covered.">		if (fields == null)</span>
+<span class="fc" id="L525">			throw new IllegalStateException(&quot;fields not sealed&quot;);</span>
+<span class="fc" id="L526">		return fields;</span>
 	}
 
 	@Override
 	@SuppressWarnings(&quot;unchecked&quot;)
 	public &lt;P&gt; PropertyFacade&lt;? super T, P&gt; property(String name) {
-<span class="fc" id="L536">		return (PropertyFacade&lt;? super T, P&gt;) IuType.super.property(name);</span>
+<span class="fc" id="L532">		return (PropertyFacade&lt;? super T, P&gt;) IuType.super.property(name);</span>
 	}
 
 	@Override
 	public Iterable&lt;PropertyFacade&lt;? super T, ?&gt;&gt; properties() {
-<span class="fc bfc" id="L541" title="All 2 branches covered.">		if (properties == null)</span>
-<span class="fc" id="L542">			throw new IllegalStateException(&quot;properties not sealed&quot;);</span>
-<span class="fc" id="L543">		return properties;</span>
+<span class="fc bfc" id="L537" title="All 2 branches covered.">		if (properties == null)</span>
+<span class="fc" id="L538">			throw new IllegalStateException(&quot;properties not sealed&quot;);</span>
+<span class="fc" id="L539">		return properties;</span>
 	}
 
 	@Override
 	public Iterable&lt;MethodFacade&lt;? super T, ?&gt;&gt; methods() {
-<span class="fc bfc" id="L548" title="All 2 branches covered.">		if (methods == null)</span>
-<span class="fc" id="L549">			throw new IllegalStateException(&quot;methods not sealed&quot;);</span>
-<span class="fc" id="L550">		return methods;</span>
+<span class="fc bfc" id="L544" title="All 2 branches covered.">		if (methods == null)</span>
+<span class="fc" id="L545">			throw new IllegalStateException(&quot;methods not sealed&quot;);</span>
+<span class="fc" id="L546">		return methods;</span>
 	}
 
 	@Override
 	public String toString() {
-<span class="fc" id="L555">		return &quot;IuType[&quot; + TypeUtils.printType(deref()) + ']';</span>
+<span class="fc" id="L551">		return &quot;IuType[&quot; + TypeUtils.printType(deref()) + ']';</span>
 	}
 
 }

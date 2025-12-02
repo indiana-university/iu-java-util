@@ -3,6 +3,7 @@ edu.iu
 module:iu.util.auth
 edu.iu.auth
 edu.iu.auth.nonce
+edu.iu.auth.oauth
 edu.iu.auth.saml
 edu.iu.auth.session
 edu.iu.auth.spi
@@ -31,6 +32,8 @@ edu.iu.type
 edu.iu.type.spi
 module:iu.util.type.base
 edu.iu.type.base
+module:iu.util.type.bundle
+edu.iu.type.bundle
 module:iu.util.type.impl
 iu.type
 module:iu.util.type.loader

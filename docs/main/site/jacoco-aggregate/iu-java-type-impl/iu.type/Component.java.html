@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>Component.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-type-impl</a> &gt; <a href="index.source.html" class="el_package">iu.type</a> &gt; <span class="el_source">Component.java</span></div><h1>Component.java</h1><pre class="source lang-java linenums">/*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -188,7 +188,7 @@ class Component implements IuComponent {
 <span class="fc" id="L188">		this.versions = Collections.unmodifiableSet(versions);</span>
 
 <span class="fc" id="L190">		Set&lt;String&gt; resourceNames = PathEntryScanner.findResources(pathEntry);</span>
-<span class="fc bfc" id="L191" title="All 2 branches covered.">		this.kind = resourceNames.contains(&quot;module-info.class&quot;) ? Kind.MODULAR_ENTRY : Kind.LEGACY_ENTRY;</span>
+<span class="fc" id="L191">		this.kind = Kind.ENTRY;</span>
 
 		byte[] propertiesSource;
 <span class="fc bfc" id="L194" title="All 2 branches covered.">		if (resourceNames.contains(&quot;META-INF/iu.properties&quot;))</span>
@@ -312,15 +312,13 @@ class Component implements IuComponent {
 	}
 
 	/**
-	 * Gets the {@code META-INF/iu-type.properties} for a
-	 * {@link edu.iu.type.IuComponent.Kind#isModular() modular component}, or
-	 * {@code META-INF/iu.properties} for a legacy component.
+	 * Gets the {@code META-INF/iu-type.properties}.
 	 * 
 	 * @return parsed properties
 	 */
 	Properties properties() {
-<span class="fc" id="L322">		checkClosed();</span>
-<span class="fc" id="L323">		return properties;</span>
+<span class="fc" id="L320">		checkClosed();</span>
+<span class="fc" id="L321">		return properties;</span>
 	}
 
 	/**
@@ -335,113 +333,113 @@ class Component implements IuComponent {
 	 * @return version information
 	 */
 	Set&lt;ComponentVersion&gt; versions() {
-<span class="fc" id="L338">		checkClosed();</span>
-<span class="fc" id="L339">		return versions;</span>
+<span class="fc" id="L336">		checkClosed();</span>
+<span class="fc" id="L337">		return versions;</span>
 	}
 
 	@Override
 	public Component extend(InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources)
 			throws IOException, IllegalArgumentException {
-<span class="fc" id="L345">		return extend(null, componentArchiveSource, providedDependencyArchiveSources);</span>
+<span class="fc" id="L343">		return extend(null, componentArchiveSource, providedDependencyArchiveSources);</span>
 	}
 
 	@Override
 	public Component extend(Consumer&lt;Controller&gt; controllerCallback, InputStream componentArchiveSource,
 			InputStream... providedDependencyArchiveSources) throws IOException, IllegalArgumentException {
-<span class="fc" id="L351">		checkClosed();</span>
-<span class="fc" id="L352">		return ComponentFactory.createComponent(this, classLoader, moduleLayer, controllerCallback,</span>
+<span class="fc" id="L349">		checkClosed();</span>
+<span class="fc" id="L350">		return ComponentFactory.createComponent(this, classLoader, moduleLayer, controllerCallback,</span>
 				componentArchiveSource, providedDependencyArchiveSources);
 	}
 
 	@Override
 	public Kind kind() {
-<span class="fc" id="L358">		checkClosed();</span>
-<span class="fc" id="L359">		return kind;</span>
+<span class="fc" id="L356">		checkClosed();</span>
+<span class="fc" id="L357">		return kind;</span>
 	}
 
 	@Override
 	public IuComponentVersion version() {
-<span class="fc" id="L364">		checkClosed();</span>
-<span class="fc" id="L365">		return versions.iterator().next();</span>
+<span class="fc" id="L362">		checkClosed();</span>
+<span class="fc" id="L363">		return versions.iterator().next();</span>
 	}
 
 	@Override
 	public ClassLoader classLoader() {
-<span class="fc" id="L370">		checkClosed();</span>
-<span class="fc" id="L371">		return classLoader;</span>
+<span class="fc" id="L368">		checkClosed();</span>
+<span class="fc" id="L369">		return classLoader;</span>
 	}
 
 	@Override
 	public ModuleLayer moduleLayer() {
-<span class="fc" id="L376">		checkClosed();</span>
-<span class="fc" id="L377">		return moduleLayer;</span>
+<span class="fc" id="L374">		checkClosed();</span>
+<span class="fc" id="L375">		return moduleLayer;</span>
 	}
 
 	@Override
 	public Set&lt;? extends IuType&lt;?, ?&gt;&gt; interfaces() {
-<span class="fc" id="L382">		checkClosed();</span>
-<span class="fc" id="L383">		return interfaces;</span>
+<span class="fc" id="L380">		checkClosed();</span>
+<span class="fc" id="L381">		return interfaces;</span>
 	}
 
 	@Override
 	public Iterable&lt;? extends IuAttribute&lt;?, ?&gt;&gt; annotatedAttributes(Class&lt;? extends Annotation&gt; annotationType) {
-<span class="fc" id="L388">		checkClosed();</span>
+<span class="fc" id="L386">		checkClosed();</span>
 		final List&lt;IuAttribute&lt;?, ?&gt;&gt; annotatedAttributes;
 		try {
-<span class="fc" id="L391">			final var compatibleClass = BackwardsCompatibility.getCompatibleClass(annotationType, classLoader);</span>
-<span class="fc" id="L392">			annotatedAttributes = this.annotatedAttributes.get(compatibleClass);</span>
-<span class="fc" id="L393">		} catch (ClassNotFoundException e) {</span>
-<span class="fc" id="L394">			return Collections.emptySet();</span>
-<span class="fc" id="L395">		}</span>
+<span class="fc" id="L389">			final var compatibleClass = BackwardsCompatibility.getCompatibleClass(annotationType, classLoader);</span>
+<span class="fc" id="L390">			annotatedAttributes = this.annotatedAttributes.get(compatibleClass);</span>
+<span class="fc" id="L391">		} catch (NoClassDefFoundError e) {</span>
+<span class="fc" id="L392">			return Collections.emptySet();</span>
+<span class="fc" id="L393">		}</span>
 
-<span class="fc bfc" id="L397" title="All 2 branches covered.">		if (annotatedAttributes == null)</span>
-<span class="fc" id="L398">			return Collections.emptySet();</span>
+<span class="fc bfc" id="L395" title="All 2 branches covered.">		if (annotatedAttributes == null)</span>
+<span class="fc" id="L396">			return Collections.emptySet();</span>
 		else
-<span class="fc" id="L400">			return annotatedAttributes;</span>
+<span class="fc" id="L398">			return annotatedAttributes;</span>
 	}
 
 	@Override
 	public Iterable&lt;? extends IuType&lt;?, ?&gt;&gt; annotatedTypes(Class&lt;? extends Annotation&gt; annotationType) {
-<span class="fc" id="L405">		checkClosed();</span>
+<span class="fc" id="L403">		checkClosed();</span>
 		List&lt;IuType&lt;?, ?&gt;&gt; annotatedTypes;
 		try {
-<span class="fc" id="L408">			annotatedTypes = this.annotatedTypes</span>
-<span class="fc" id="L409">					.get(BackwardsCompatibility.getCompatibleClass(annotationType, classLoader));</span>
-<span class="fc" id="L410">		} catch (ClassNotFoundException e) {</span>
-<span class="fc" id="L411">			return Collections.emptySet();</span>
-<span class="fc" id="L412">		}</span>
+<span class="fc" id="L406">			annotatedTypes = this.annotatedTypes</span>
+<span class="fc" id="L407">					.get(BackwardsCompatibility.getCompatibleClass(annotationType, classLoader));</span>
+<span class="fc" id="L408">		} catch (NoClassDefFoundError e) {</span>
+<span class="fc" id="L409">			return Collections.emptySet();</span>
+<span class="fc" id="L410">		}</span>
 
-<span class="fc bfc" id="L414" title="All 2 branches covered.">		if (annotatedTypes == null)</span>
-<span class="fc" id="L415">			return Collections.emptySet();</span>
+<span class="fc bfc" id="L412" title="All 2 branches covered.">		if (annotatedTypes == null)</span>
+<span class="fc" id="L413">			return Collections.emptySet();</span>
 		else
-<span class="fc" id="L417">			return annotatedTypes;</span>
+<span class="fc" id="L415">			return annotatedTypes;</span>
 	}
 
 	@Override
 	public Iterable&lt;? extends IuResource&lt;?&gt;&gt; resources() {
-<span class="fc" id="L422">		checkClosed();</span>
-<span class="fc" id="L423">		return resources;</span>
+<span class="fc" id="L420">		checkClosed();</span>
+<span class="fc" id="L421">		return resources;</span>
 	}
 
 	@Override
 	public Iterable&lt;? extends IuResourceReference&lt;?, ?&gt;&gt; resourceReferences() {
-<span class="fc" id="L428">		checkClosed();</span>
-<span class="fc" id="L429">		return resourceReferences;</span>
+<span class="fc" id="L426">		checkClosed();</span>
+<span class="fc" id="L427">		return resourceReferences;</span>
 	}
 
 	@Override
 	public synchronized void close() throws Exception {
-<span class="fc bfc" id="L434" title="All 2 branches covered.">		if (closed)</span>
-<span class="fc" id="L435">			return;</span>
+<span class="fc bfc" id="L432" title="All 2 branches covered.">		if (closed)</span>
+<span class="fc" id="L433">			return;</span>
 
-<span class="fc" id="L437">		closed = true;</span>
-<span class="fc bfc" id="L438" title="All 2 branches covered.">		if (onClose != null)</span>
-<span class="fc" id="L439">			IuException.checked(onClose::run);</span>
-<span class="fc" id="L440">	}</span>
+<span class="fc" id="L435">		closed = true;</span>
+<span class="fc bfc" id="L436" title="All 2 branches covered.">		if (onClose != null)</span>
+<span class="fc" id="L437">			IuException.checked(onClose::run);</span>
+<span class="fc" id="L438">	}</span>
 
 	@Override
 	public String toString() {
-<span class="fc" id="L444">		return &quot;Component [parent=&quot; + parent + &quot;, kind=&quot; + kind + &quot;, versions=&quot; + versions + &quot;, closed=&quot; + closed + &quot;]&quot;;</span>
+<span class="fc" id="L442">		return &quot;Component [parent=&quot; + parent + &quot;, kind=&quot; + kind + &quot;, versions=&quot; + versions + &quot;, closed=&quot; + closed + &quot;]&quot;;</span>
 	}
 
 }

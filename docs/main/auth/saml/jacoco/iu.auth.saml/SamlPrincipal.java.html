@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SamlPrincipal.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU SAML 2.0 Service Provider</a> &gt; <a href="index.source.html" class="el_package">iu.auth.saml</a> &gt; <span class="el_source">SamlPrincipal.java</span></div><h1>SamlPrincipal.java</h1><pre class="source lang-java linenums">/*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -57,8 +57,14 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	/** name */
 	private final String name;
 
+	/** issuer */
+	private final String issuer;
+
 	/** time authentication statement was issued by the IDP */
 	private final Instant issueTime;
+
+	/** authority */
+	private final String authority;
 
 	/** authentication time */
 	private final Instant authTime;
@@ -74,54 +80,68 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	 * 
 	 * @param realm          authentication realm
 	 * @param name           principal name
+	 * @param issuer         issuer
 	 * @param issueTime      time authentication statement was issued by the IDP
+	 * @param authority      authenticating authority
 	 * @param authTime       authentication time
 	 * @param expires        expire
 	 * @param samlAssertions verified SAML assertions
 	 */
-	SamlPrincipal(String realm, String name, Instant issueTime, Instant authTime, Instant expires,
-<span class="fc" id="L83">			Iterable&lt;StoredSamlAssertion&gt; samlAssertions) {</span>
-<span class="fc" id="L84">		this.realm = Objects.requireNonNull(realm);</span>
-<span class="fc" id="L85">		this.name = Objects.requireNonNull(name);</span>
-<span class="fc" id="L86">		this.authTime = Objects.requireNonNull(authTime);</span>
-<span class="fc" id="L87">		this.issueTime = Objects.requireNonNull(issueTime);</span>
-<span class="fc" id="L88">		this.expires = Objects.requireNonNull(expires);</span>
-<span class="fc" id="L89">		this.assertions = IuIterable.stream(samlAssertions).toArray(StoredSamlAssertion[]::new);</span>
-<span class="fc" id="L90">	}</span>
+	SamlPrincipal(String realm, String name, String issuer, Instant issueTime, String authority, Instant authTime,
+<span class="fc" id="L91">			Instant expires, Iterable&lt;StoredSamlAssertion&gt; samlAssertions) {</span>
+<span class="fc" id="L92">		this.realm = Objects.requireNonNull(realm);</span>
+<span class="fc" id="L93">		this.name = Objects.requireNonNull(name);</span>
+<span class="fc" id="L94">		this.issuer = Objects.requireNonNull(issuer);</span>
+<span class="fc" id="L95">		this.issueTime = Objects.requireNonNull(issueTime);</span>
+<span class="fc" id="L96">		this.authority = authority;</span>
+<span class="fc" id="L97">		this.authTime = Objects.requireNonNull(authTime);</span>
+<span class="fc" id="L98">		this.expires = Objects.requireNonNull(expires);</span>
+<span class="fc" id="L99">		this.assertions = IuIterable.stream(samlAssertions).toArray(StoredSamlAssertion[]::new);</span>
+<span class="fc" id="L100">	}</span>
 
 	@Override
 	public String getName() {
-<span class="fc" id="L94">		return name;</span>
+<span class="fc" id="L104">		return name;</span>
+	}
+
+	/**
+	 * Gets the IDP entity ID that issue the principal.
+	 * 
+	 * @return issuer IDP entity ID
+	 */
+	public String getIssuer() {
+<span class="fc" id="L113">		return issuer;</span>
 	}
 
 	@Override
 	public Instant getIssuedAt() {
-<span class="fc" id="L99">		return issueTime;</span>
+<span class="fc" id="L118">		return issueTime;</span>
 	}
 
 	@Override
 	public Instant getAuthTime() {
-<span class="fc" id="L104">		return authTime;</span>
+<span class="fc" id="L123">		return authTime;</span>
 	}
 
 	@Override
 	public Instant getExpires() {
-<span class="fc" id="L109">		return expires;</span>
+<span class="fc" id="L128">		return expires;</span>
 	}
 
 	@Override
 	public Subject getSubject() {
-<span class="fc" id="L114">		final var subject = new Subject();</span>
-<span class="fc" id="L115">		subject.getPrincipals().add(this);</span>
-<span class="fc" id="L116">		subject.getPublicCredentials().addAll(List.of(assertions));</span>
-<span class="fc" id="L117">		subject.setReadOnly();</span>
-<span class="fc" id="L118">		return subject;</span>
+<span class="fc" id="L133">		final var subject = new Subject();</span>
+<span class="fc" id="L134">		subject.getPrincipals().add(this);</span>
+<span class="fc" id="L135">		subject.getPublicCredentials().addAll(List.of(assertions));</span>
+<span class="fc" id="L136">		subject.setReadOnly();</span>
+<span class="fc" id="L137">		return subject;</span>
 	}
 
 	@Override
 	public String toString() {
-<span class="fc" id="L123">		return &quot;SamlPrincipal [realm=&quot; + realm + &quot;, name=&quot; + name + &quot;, issueTime=&quot; + issueTime + &quot;, authTime=&quot;</span>
-<span class="fc" id="L124">				+ authTime + &quot;, expires=&quot; + expires + &quot;, assertions=&quot; + Arrays.toString(assertions) + &quot;]&quot;;</span>
+<span class="fc" id="L142">		return &quot;SamlPrincipal [realm=&quot; + realm + &quot;, name=&quot; + name + &quot;, issuer=&quot; + issuer + &quot;, issueTime=&quot; + issueTime</span>
+				+ &quot;, authority=&quot; + authority + &quot;, authTime=&quot; + authTime + &quot;, expires=&quot; + expires + &quot;, assertions=&quot;
+<span class="fc" id="L144">				+ Arrays.toString(assertions) + &quot;]&quot;;</span>
 	}
 
 	/**
@@ -131,12 +151,12 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	 * @return true if bound
 	 */
 	static boolean isBound(SamlPostAuthentication details) {
-<span class="fc bfc" id="L134" title="All 2 branches covered.">		return details.getRealm() != null //</span>
-<span class="fc bfc" id="L135" title="All 2 branches covered.">				&amp;&amp; details.getName() != null //</span>
-<span class="fc bfc" id="L136" title="All 2 branches covered.">				&amp;&amp; details.getIssueTime() != null //</span>
-<span class="fc bfc" id="L137" title="All 2 branches covered.">				&amp;&amp; details.getAuthTime() != null //</span>
-<span class="fc bfc" id="L138" title="All 2 branches covered.">				&amp;&amp; details.getExpires() != null //</span>
-<span class="fc bfc" id="L139" title="All 2 branches covered.">				&amp;&amp; details.getAssertions() != null;</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">		return details.getRealm() != null //</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">				&amp;&amp; details.getName() != null //</span>
+<span class="fc bfc" id="L156" title="All 2 branches covered.">				&amp;&amp; details.getIssueTime() != null //</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">				&amp;&amp; details.getAuthTime() != null //</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">				&amp;&amp; details.getExpires() != null //</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">				&amp;&amp; details.getAssertions() != null;</span>
 	}
 
 	/**
@@ -146,9 +166,9 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	 * @return principal
 	 */
 	static SamlPrincipal from(SamlPostAuthentication details) {
-<span class="fc" id="L149">		IuObject.require(details, SamlPrincipal::isBound);</span>
-<span class="fc" id="L150">		return new SamlPrincipal(details.getRealm(), details.getName(), details.getIssueTime(), details.getAuthTime(),</span>
-<span class="fc" id="L151">				details.getExpires(), details.getAssertions());</span>
+<span class="fc" id="L169">		IuObject.require(details, SamlPrincipal::isBound);</span>
+<span class="fc" id="L170">		return new SamlPrincipal(details.getRealm(), details.getName(), details.getIssuer(), details.getIssueTime(),</span>
+<span class="fc" id="L171">				details.getAuthnAuthority(), details.getAuthTime(), details.getExpires(), details.getAssertions());</span>
 	}
 
 	/**
@@ -157,13 +177,15 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	 * @param details session details
 	 */
 	void bind(SamlPostAuthentication details) {
-<span class="fc" id="L160">		details.setRealm(realm);</span>
-<span class="fc" id="L161">		details.setName(name);</span>
-<span class="fc" id="L162">		details.setIssueTime(issueTime);</span>
-<span class="fc" id="L163">		details.setAuthTime(authTime);</span>
-<span class="fc" id="L164">		details.setExpires(expires);</span>
-<span class="fc" id="L165">		details.setAssertions(IuIterable.iter(assertions));</span>
-<span class="fc" id="L166">	}</span>
+<span class="fc" id="L180">		details.setRealm(realm);</span>
+<span class="fc" id="L181">		details.setName(name);</span>
+<span class="fc" id="L182">		details.setIssuer(issuer);</span>
+<span class="fc" id="L183">		details.setIssueTime(issueTime);</span>
+<span class="fc" id="L184">		details.setAuthnAuthority(authority);</span>
+<span class="fc" id="L185">		details.setAuthTime(authTime);</span>
+<span class="fc" id="L186">		details.setExpires(expires);</span>
+<span class="fc" id="L187">		details.setAssertions(IuIterable.iter(assertions));</span>
+<span class="fc" id="L188">	}</span>
 
 	/**
 	 * Verifies that the principal was issued by the indicated realm and has not
@@ -173,12 +195,12 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	 * @throws IuAuthenticationException if the session is expired
 	 */
 	void verify(String realm) throws IuAuthenticationException {
-<span class="fc bfc" id="L176" title="All 2 branches covered.">		if (!this.realm.equals(realm))</span>
-<span class="fc" id="L177">			throw new IllegalArgumentException(&quot;invalid realm&quot;);</span>
+<span class="fc bfc" id="L198" title="All 2 branches covered.">		if (!this.realm.equals(realm))</span>
+<span class="fc" id="L199">			throw new IllegalArgumentException(&quot;invalid realm&quot;);</span>
 
-<span class="fc bfc" id="L179" title="All 2 branches covered.">		if (Instant.now().isAfter(expires))</span>
-<span class="fc" id="L180">			throw new IuAuthenticationException(null, new IllegalStateException(&quot;expired&quot;));</span>
-<span class="fc" id="L181">	}</span>
+<span class="fc bfc" id="L201" title="All 2 branches covered.">		if (Instant.now().isAfter(expires))</span>
+<span class="fc" id="L202">			throw new IuAuthenticationException(null, new IllegalStateException(&quot;expired&quot;));</span>
+<span class="fc" id="L203">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

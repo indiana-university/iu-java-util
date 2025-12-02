@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>IuPrincipalIdentity.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-auth-api</a> &gt; <a href="index.source.html" class="el_package">edu.iu.auth</a> &gt; <span class="el_source">IuPrincipalIdentity.java</span></div><h1>IuPrincipalIdentity.java</h1><pre class="source lang-java linenums">/*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -61,6 +61,13 @@ public interface IuPrincipalIdentity extends Principal {
 	}
 
 	/**
+	 * Gets the principal name of the principal issuer.
+	 * 
+	 * @return issuer principal name; e.g., OIDC Provider URI or SAML IDP Entity ID
+	 */
+	String getIssuer();
+
+	/**
 	 * Gets the point in time proof of principal identity was issued by an
 	 * authentication provider.
 	 * 
@@ -94,7 +101,7 @@ public interface IuPrincipalIdentity extends Principal {
 
 	@Override
 	default boolean implies(Subject subject) {
-<span class="fc bfc" id="L97" title="All 4 branches covered.">		return subject == getSubject() || Principal.super.implies(subject);</span>
+<span class="fc bfc" id="L104" title="All 4 branches covered.">		return subject == getSubject() || Principal.super.implies(subject);</span>
 	}
 
 }

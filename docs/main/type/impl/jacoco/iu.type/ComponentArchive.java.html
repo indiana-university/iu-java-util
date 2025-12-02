@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentArchive.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Type Introspection Implementation Module</a> &gt; <a href="index.source.html" class="el_package">iu.type</a> &gt; <span class="el_source">ComponentArchive.java</span></div><h1>ComponentArchive.java</h1><pre class="source lang-java linenums">/*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -58,9 +58,7 @@ import edu.iu.type.base.TemporaryFile;
  *                             archive
  * @param kind                 component kind detected via {@link ArchiveSource}
  * @param version              component version info read from the archive
- * @param properties           {@code META-INF/iu-type.properties} when
- *                             {@link Kind#isModular()}, else
- *                             {@code META-INF/iu.properties}
+ * @param properties           {@code META-INF/iu-type.properties}
  * @param nonEnclosedTypeNames all top-level classes, including those defined
  *                             with package and protected encapsulation levels
  * @param webResources         all static web resources found in a
@@ -69,235 +67,188 @@ import edu.iu.type.base.TemporaryFile;
  * @param bundledDependencies  archive sources for all dependencies bundled
  *                             (i.e. WEB-INF/lib/*.jar) with the archive
  */
-<span class="fc" id="L72">record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properties properties,</span>
+<span class="fc" id="L70">record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properties properties,</span>
 		Set&lt;String&gt; nonEnclosedTypeNames, Map&lt;String, byte[]&gt; webResources,
 		Collection&lt;ArchiveSource&gt; bundledDependencies) {
 
-<span class="fc" id="L76">	private static record ScannedAttributes(Kind kind, ComponentVersion version, Properties properties,</span>
+<span class="fc" id="L74">	private static record ScannedAttributes(Kind kind, ComponentVersion version, Properties properties,</span>
 			Set&lt;String&gt; nonEnclosedTypeNames, Map&lt;String, byte[]&gt; webResources,
 			Collection&lt;ArchiveSource&gt; bundledDependencies) {
 	}
 
 	private static ScannedAttributes scan(ArchiveSource source, ComponentTarget target) throws IOException {
-<span class="fc" id="L82">		final Set&lt;String&gt; nonEnclosedTypeNames = new LinkedHashSet&lt;&gt;();</span>
-<span class="fc" id="L83">		final Map&lt;String, byte[]&gt; webResources = new LinkedHashMap&lt;&gt;();</span>
-<span class="fc" id="L84">		final Map&lt;String, ArchiveSource&gt; bundledDependencies = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L80">		final Set&lt;String&gt; nonEnclosedTypeNames = new LinkedHashSet&lt;&gt;();</span>
+<span class="fc" id="L81">		final Map&lt;String, byte[]&gt; webResources = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L82">		final Map&lt;String, ArchiveSource&gt; bundledDependencies = new LinkedHashMap&lt;&gt;();</span>
 
-<span class="fc" id="L86">		final Set&lt;String&gt; classPath = new HashSet&lt;&gt;();</span>
-<span class="fc" id="L87">		source.classPath().forEach(classPath::add);</span>
+<span class="fc" id="L84">		final Set&lt;String&gt; classPath = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L85">		source.classPath().forEach(classPath::add);</span>
 
-<span class="fc" id="L89">		var isWeb = false;</span>
-<span class="fc" id="L90">		var hasModuleDescriptor = false;</span>
-<span class="fc" id="L91">		var hasNonWebTypes = false;</span>
-<span class="fc" id="L92">		Properties pomProperties = null;</span>
-<span class="fc" id="L93">		Properties typeProperties = null;</span>
-<span class="fc" id="L94">		Properties iuProperties = null;</span>
+<span class="fc" id="L87">		var isWeb = false;</span>
+<span class="fc" id="L88">		var hasNonWebTypes = false;</span>
+<span class="fc" id="L89">		Properties pomProperties = null;</span>
+<span class="fc" id="L90">		Properties typeProperties = null;</span>
 
-<span class="fc bfc" id="L96" title="All 2 branches covered.">		while (source.hasNext()) {</span>
-<span class="fc" id="L97">			var componentEntry = source.next();</span>
-<span class="fc" id="L98">			var name = componentEntry.name();</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">		while (source.hasNext()) {</span>
+<span class="fc" id="L93">			var componentEntry = source.next();</span>
+<span class="fc" id="L94">			var name = componentEntry.name();</span>
 
-<span class="fc bfc" id="L100" title="All 2 branches covered.">			if (name.startsWith(&quot;META-INF/maven/&quot;)) {</span>
-<span class="fc bfc" id="L101" title="All 2 branches covered.">				if (name.endsWith(&quot;/pom.properties&quot;)) {</span>
-<span class="fc bfc" id="L102" title="All 2 branches covered.">					if (pomProperties != null)</span>
-<span class="fc" id="L103">						throw new IllegalArgumentException(&quot;Component archive must not be a shaded (uber-)jar&quot;);</span>
-<span class="fc" id="L104">					pomProperties = new Properties();</span>
-<span class="fc" id="L105">					final var data = componentEntry.data();</span>
-<span class="fc" id="L106">					pomProperties.load(new ByteArrayInputStream(data));</span>
-<span class="fc" id="L107">					target.put(name, new ByteArrayInputStream(data));</span>
-<span class="fc" id="L108">				}</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">			if (name.startsWith(&quot;META-INF/maven/&quot;)) {</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">				if (name.endsWith(&quot;/pom.properties&quot;)) {</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">					if (pomProperties != null)</span>
+<span class="fc" id="L99">						throw new IllegalArgumentException(&quot;Component archive must not be a shaded (uber-)jar&quot;);</span>
+<span class="fc" id="L100">					pomProperties = new Properties();</span>
+<span class="fc" id="L101">					final var data = componentEntry.data();</span>
+<span class="fc" id="L102">					pomProperties.load(new ByteArrayInputStream(data));</span>
+<span class="fc" id="L103">					target.put(name, new ByteArrayInputStream(data));</span>
+<span class="fc" id="L104">				}</span>
 				continue;
 			}
 
 			// Detect web component first; later logic expects isWeb == true if any
 			// component entry begins with WEB-INF, including the current entry
-<span class="fc bfc" id="L114" title="All 4 branches covered.">			if (!isWeb &amp;&amp; name.startsWith(&quot;WEB-INF/&quot;)) {</span>
-<span class="fc bfc" id="L115" title="All 2 branches covered.">				if (hasNonWebTypes)</span>
-<span class="fc" id="L116">					throw new IllegalArgumentException(&quot;Web archive must not define types outside WEB-INF/classes/&quot;);</span>
+<span class="fc bfc" id="L110" title="All 4 branches covered.">			if (!isWeb &amp;&amp; name.startsWith(&quot;WEB-INF/&quot;)) {</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">				if (hasNonWebTypes)</span>
+<span class="fc" id="L112">					throw new IllegalArgumentException(&quot;Web archive must not define types outside WEB-INF/classes/&quot;);</span>
 
-<span class="fc bfc" id="L118" title="All 2 branches covered.">				if (!bundledDependencies.isEmpty())</span>
-<span class="fc" id="L119">					throw new IllegalArgumentException(&quot;Web archive must not embed components outside WEB-INF/lib/&quot;);</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">				if (!bundledDependencies.isEmpty())</span>
+<span class="fc" id="L115">					throw new IllegalArgumentException(&quot;Web archive must not embed components outside WEB-INF/lib/&quot;);</span>
 
-<span class="fc bfc" id="L121" title="All 2 branches covered.">				if (typeProperties != null)</span>
-<span class="fc" id="L122">					throw new IllegalArgumentException(</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">				if (typeProperties != null)</span>
+<span class="fc" id="L118">					throw new IllegalArgumentException(</span>
 							&quot;Web archive must define META-INF/iu-type.properties as WEB-INF/classes/META-INF/iu-type.properties&quot;);
 
-<span class="fc bfc" id="L125" title="All 2 branches covered.">				if (iuProperties != null)</span>
-<span class="fc" id="L126">					throw new IllegalArgumentException(</span>
-							&quot;Web archive must define META-INF/iu.properties as WEB-INF/classes/META-INF/iu.properties&quot;);
-
-<span class="fc" id="L129">				isWeb = true;</span>
+<span class="fc" id="L121">				isWeb = true;</span>
 			}
 
-<span class="fc bfc" id="L132" title="All 2 branches covered.">			if (name.endsWith(&quot;.jar&quot;)) {</span>
-<span class="fc bfc" id="L133" title="All 4 branches covered.">				if (isWeb &amp;&amp; !name.startsWith(&quot;WEB-INF/lib/&quot;))</span>
-<span class="fc" id="L134">					throw new IllegalArgumentException(&quot;Web archive must not embed components outside WEB-INF/lib/&quot;);</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">			if (name.endsWith(&quot;.jar&quot;)) {</span>
+<span class="fc bfc" id="L125" title="All 4 branches covered.">				if (isWeb &amp;&amp; !name.startsWith(&quot;WEB-INF/lib/&quot;))</span>
+<span class="fc" id="L126">					throw new IllegalArgumentException(&quot;Web archive must not embed components outside WEB-INF/lib/&quot;);</span>
 
-<span class="fc bfc" id="L136" title="All 2 branches covered.">				if (classPath.remove(name) // allow embedded names from manifest Class-Path attribute</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">				if (classPath.remove(name) // allow embedded names from manifest Class-Path attribute</span>
 						// also temporarily allow IU JEE 6 embedded class path entries
 						// these will be validated for the presence of META-INF/iu.properties
 						// after scanning the full archive
-<span class="fc bfc" id="L140" title="All 2 branches covered.">						|| name.startsWith(&quot;WEB-INF/lib/&quot;) //</span>
-<span class="fc bfc" id="L141" title="All 2 branches covered.">						|| name.startsWith(&quot;META-INF/lib/&quot;) //</span>
-<span class="fc bfc" id="L142" title="All 2 branches covered.">						|| name.startsWith(&quot;META-INF/ejb/endorsed/&quot;) //</span>
-<span class="fc bfc" id="L143" title="All 2 branches covered.">						|| name.startsWith(&quot;META-INF/ejb/lib/&quot;)) {</span>
-<span class="fc" id="L144">					var embeddedDependencyData = componentEntry.data();</span>
-<span class="fc" id="L145">					var embeddedDependencyInput = new ByteArrayInputStream(embeddedDependencyData);</span>
-<span class="fc" id="L146">					var embeddedDependency = new ArchiveSource(embeddedDependencyInput);</span>
-<span class="fc" id="L147">					bundledDependencies.put(name, embeddedDependency);</span>
-<span class="fc" id="L148">					continue;</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">						|| name.startsWith(&quot;WEB-INF/lib/&quot;) //</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">						|| name.startsWith(&quot;META-INF/lib/&quot;) //</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">						|| name.startsWith(&quot;META-INF/ejb/endorsed/&quot;) //</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">						|| name.startsWith(&quot;META-INF/ejb/lib/&quot;)) {</span>
+<span class="fc" id="L136">					var embeddedDependencyData = componentEntry.data();</span>
+<span class="fc" id="L137">					var embeddedDependencyInput = new ByteArrayInputStream(embeddedDependencyData);</span>
+<span class="fc" id="L138">					var embeddedDependency = new ArchiveSource(embeddedDependencyInput);</span>
+<span class="fc" id="L139">					bundledDependencies.put(name, embeddedDependency);</span>
+<span class="fc" id="L140">					continue;</span>
 				}
 			}
 
-<span class="fc bfc" id="L152" title="All 2 branches covered.">			if (name.equals(&quot;META-INF/application.xml&quot;) //</span>
-<span class="fc bfc" id="L153" title="All 2 branches covered.">					|| name.equals(&quot;META-INF/ra.xml&quot;) //</span>
-<span class="fc bfc" id="L154" title="All 2 branches covered.">					|| name.endsWith(&quot;.jar&quot;) //</span>
-<span class="fc bfc" id="L155" title="All 2 branches covered.">					|| name.endsWith(&quot;.war&quot;) //</span>
-<span class="fc bfc" id="L156" title="All 2 branches covered.">					|| name.endsWith(&quot;.rar&quot;) //</span>
-<span class="fc bfc" id="L157" title="All 2 branches covered.">					|| name.endsWith(&quot;.dll&quot;) //</span>
-<span class="fc bfc" id="L158" title="All 2 branches covered.">					|| name.endsWith(&quot;.so&quot;))</span>
-<span class="fc" id="L159">				throw new IllegalArgumentException(</span>
+<span class="fc bfc" id="L144" title="All 2 branches covered.">			if (name.equals(&quot;META-INF/application.xml&quot;) //</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">					|| name.equals(&quot;META-INF/ra.xml&quot;) //</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">					|| name.endsWith(&quot;.jar&quot;) //</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">					|| name.endsWith(&quot;.war&quot;) //</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">					|| name.endsWith(&quot;.rar&quot;) //</span>
+<span class="fc bfc" id="L149" title="All 2 branches covered.">					|| name.endsWith(&quot;.dll&quot;) //</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">					|| name.endsWith(&quot;.so&quot;))</span>
+<span class="fc" id="L151">				throw new IllegalArgumentException(</span>
 						&quot;Component archive must not be an Enterprise Application (ear) or Resource Adapter Archive (rar) file&quot;);
 
-<span class="fc bfc" id="L162" title="All 2 branches covered.">			if (name.equals(&quot;WEB-INF/classes/META-INF/iu-type.properties&quot;) //</span>
-<span class="fc bfc" id="L163" title="All 2 branches covered.">					|| name.equals(&quot;META-INF/iu-type.properties&quot;)) {</span>
-<span class="fc bfc" id="L164" title="All 4 branches covered.">				if (isWeb &amp;&amp; name.startsWith(&quot;META-INF/&quot;))</span>
-<span class="fc" id="L165">					throw new IllegalArgumentException(</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">			if (name.equals(&quot;WEB-INF/classes/META-INF/iu-type.properties&quot;) //</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">					|| name.equals(&quot;META-INF/iu-type.properties&quot;)) {</span>
+<span class="fc bfc" id="L156" title="All 4 branches covered.">				if (isWeb &amp;&amp; name.startsWith(&quot;META-INF/&quot;))</span>
+<span class="fc" id="L157">					throw new IllegalArgumentException(</span>
 							&quot;Web archive must define META-INF/iu-type.properties as WEB-INF/classes/META-INF/iu-type.properties&quot;);
-<span class="fc" id="L167">				typeProperties = new Properties();</span>
-<span class="fc" id="L168">				final var data = componentEntry.data();</span>
-<span class="fc" id="L169">				typeProperties.load(new ByteArrayInputStream(data));</span>
-<span class="fc" id="L170">				target.put(name, new ByteArrayInputStream(data));</span>
-<span class="fc" id="L171">				continue;</span>
-			}
-
-<span class="fc bfc" id="L174" title="All 2 branches covered.">			if (name.equals(&quot;WEB-INF/classes/META-INF/iu.properties&quot;) //</span>
-<span class="fc bfc" id="L175" title="All 2 branches covered.">					|| name.equals(&quot;META-INF/iu.properties&quot;)) {</span>
-<span class="fc bfc" id="L176" title="All 2 branches covered.">				if (hasModuleDescriptor)</span>
-<span class="fc" id="L177">					throw new IllegalArgumentException(</span>
-							&quot;Modular component archive must not include META-INF/iu.properties&quot;);
-<span class="fc bfc" id="L179" title="All 4 branches covered.">				if (isWeb &amp;&amp; name.startsWith(&quot;META-INF/&quot;))</span>
-<span class="fc" id="L180">					throw new IllegalArgumentException(</span>
-							&quot;Web archive must define META-INF/iu.properties as WEB-INF/classes/META-INF/iu.properties&quot;);
-
-<span class="fc" id="L183">				iuProperties = new Properties();</span>
-<span class="fc" id="L184">				final var data = componentEntry.data();</span>
-<span class="fc" id="L185">				iuProperties.load(new ByteArrayInputStream(data));</span>
-<span class="fc" id="L186">				target.put(name, new ByteArrayInputStream(data));</span>
-<span class="fc" id="L187">				continue;</span>
+<span class="fc" id="L159">				typeProperties = new Properties();</span>
+<span class="fc" id="L160">				final var data = componentEntry.data();</span>
+<span class="fc" id="L161">				typeProperties.load(new ByteArrayInputStream(data));</span>
+<span class="fc" id="L162">				target.put(name, new ByteArrayInputStream(data));</span>
+<span class="fc" id="L163">				continue;</span>
 			}
 
 			// after this point, source resources are captured
 
-<span class="fc bfc" id="L192" title="All 2 branches covered.">			if (name.endsWith(&quot;.class&quot;)) {</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">			if (name.endsWith(&quot;.class&quot;)) {</span>
 				String resourceName;
-<span class="fc bfc" id="L194" title="All 2 branches covered.">				if (isWeb)</span>
-<span class="fc bfc" id="L195" title="All 2 branches covered.">					if (name.startsWith(&quot;WEB-INF/classes/&quot;))</span>
-<span class="fc" id="L196">						resourceName = name.substring(16);</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">				if (isWeb)</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">					if (name.startsWith(&quot;WEB-INF/classes/&quot;))</span>
+<span class="fc" id="L172">						resourceName = name.substring(16);</span>
 					else
 						// this error will also be triggered if a WEB-INF/ entry is read after a class
-<span class="fc" id="L199">						throw new IllegalArgumentException( // is detected outside WEB-INF/classes/</span>
+<span class="fc" id="L175">						throw new IllegalArgumentException( // is detected outside WEB-INF/classes/</span>
 								&quot;Web archive must not define types outside WEB-INF/classes/&quot;);
 				else {
-<span class="fc" id="L202">					hasNonWebTypes = true;</span>
-<span class="fc" id="L203">					resourceName = name;</span>
+<span class="fc" id="L178">					hasNonWebTypes = true;</span>
+<span class="fc" id="L179">					resourceName = name;</span>
 
-<span class="fc bfc" id="L205" title="All 2 branches covered.">					if (!webResources.isEmpty()) {</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">					if (!webResources.isEmpty()) {</span>
 						// This is not a web archive, so write all resources collected so far to
 						// the target archive and stop collecting web resource. Further entries
 						// with name starting with WEB-INF/ will trigger the same error as above
-<span class="fc bfc" id="L209" title="All 2 branches covered.">						for (var resourceEntry : webResources.entrySet()) {</span>
-<span class="fc" id="L210">							var resourceEntryName = resourceEntry.getKey();</span>
-<span class="fc bfc" id="L211" title="All 2 branches covered.">							if (resourceEntryName.charAt(resourceEntryName.length() - 1) != '/')</span>
-<span class="fc" id="L212">								target.put(resourceEntryName, new ByteArrayInputStream(resourceEntry.getValue()));</span>
-<span class="fc" id="L213">						}</span>
-<span class="fc" id="L214">						webResources.clear();</span>
+<span class="fc bfc" id="L185" title="All 2 branches covered.">						for (var resourceEntry : webResources.entrySet()) {</span>
+<span class="fc" id="L186">							var resourceEntryName = resourceEntry.getKey();</span>
+<span class="fc bfc" id="L187" title="All 2 branches covered.">							if (resourceEntryName.charAt(resourceEntryName.length() - 1) != '/')</span>
+<span class="fc" id="L188">								target.put(resourceEntryName, new ByteArrayInputStream(resourceEntry.getValue()));</span>
+<span class="fc" id="L189">						}</span>
+<span class="fc" id="L190">						webResources.clear();</span>
 					}
 				}
 
-<span class="fc bfc" id="L218" title="All 2 branches covered.">				if (resourceName.equals(&quot;module-info.class&quot;)) {</span>
-<span class="fc bfc" id="L219" title="All 2 branches covered.">					if (iuProperties != null)</span>
-<span class="fc" id="L220">						throw new IllegalArgumentException(</span>
-								&quot;Modular component archive must not include META-INF/iu.properties&quot;);
+<span class="fc bfc" id="L194" title="All 2 branches covered.">				if (!resourceName.endsWith(&quot;-info.class&quot;) //</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">						&amp;&amp; resourceName.indexOf('$') == -1) // check for '$' skips enclosed classes</span>
+<span class="fc" id="L196">					nonEnclosedTypeNames.add(resourceName.substring(0, resourceName.length() - 6).replace('/', '.'));</span>
 
-<span class="fc" id="L223">					hasModuleDescriptor = true;</span>
-<span class="fc bfc" id="L224" title="All 2 branches covered.">				} else if (!resourceName.endsWith(&quot;package-info.class&quot;) //</span>
-<span class="fc bfc" id="L225" title="All 2 branches covered.">						&amp;&amp; resourceName.indexOf('$') == -1) // check for '$' skips enclosed classes</span>
-<span class="fc" id="L226">					nonEnclosedTypeNames.add(resourceName.substring(0, resourceName.length() - 6).replace('/', '.'));</span>
+<span class="fc" id="L198">				componentEntry.read(in -&gt; target.put(resourceName, in));</span>
 
-<span class="fc" id="L228">				componentEntry.read(in -&gt; target.put(resourceName, in));</span>
+<span class="fc bfc" id="L200" title="All 2 branches covered.">			} else if (name.startsWith(&quot;WEB-INF/classes/&quot;)) {</span>
+<span class="fc" id="L201">				var resourceName = name.substring(16);</span>
+<span class="fc bfc" id="L202" title="All 4 branches covered.">				if (resourceName.startsWith(&quot;META-INF/&quot;) &amp;&amp; resourceName.charAt(resourceName.length() - 1) == '/')</span>
+<span class="fc" id="L203">					continue;</span>
 
-<span class="fc bfc" id="L230" title="All 2 branches covered.">			} else if (name.startsWith(&quot;WEB-INF/classes/&quot;)) {</span>
-<span class="fc" id="L231">				var resourceName = name.substring(16);</span>
-<span class="fc bfc" id="L232" title="All 4 branches covered.">				if (resourceName.startsWith(&quot;META-INF/&quot;) &amp;&amp; resourceName.charAt(resourceName.length() - 1) == '/')</span>
-<span class="fc" id="L233">					continue;</span>
+<span class="fc" id="L205">				componentEntry.read(in -&gt; target.put(resourceName, in));</span>
 
-<span class="fc" id="L235">				componentEntry.read(in -&gt; target.put(resourceName, in));</span>
+<span class="fc bfc" id="L207" title="All 4 branches covered.">			} else if ((name.startsWith(&quot;META-INF/&quot;) || name.startsWith(&quot;WEB-INF/&quot;))</span>
+<span class="fc bfc" id="L208" title="All 2 branches covered.">					&amp;&amp; name.charAt(name.length() - 1) == '/')</span>
+<span class="fc" id="L209">				continue;</span>
 
-<span class="fc bfc" id="L237" title="All 4 branches covered.">			} else if ((name.startsWith(&quot;META-INF/&quot;) || name.startsWith(&quot;WEB-INF/&quot;))</span>
-<span class="fc bfc" id="L238" title="All 2 branches covered.">					&amp;&amp; name.charAt(name.length() - 1) == '/')</span>
-<span class="fc" id="L239">				continue;</span>
+<span class="fc bfc" id="L211" title="All 2 branches covered.">			else if (!hasNonWebTypes)</span>
+<span class="fc" id="L212">				webResources.put(name, componentEntry.data());</span>
 
-<span class="fc bfc" id="L241" title="All 2 branches covered.">			else if (!hasNonWebTypes)</span>
-<span class="fc" id="L242">				webResources.put(name, componentEntry.data());</span>
+<span class="pc bpc" id="L214" title="1 of 2 branches missed.">			else if (name.charAt(name.length() - 1) != '/')</span>
+<span class="fc" id="L215">				componentEntry.read(in -&gt; target.put(name, in));</span>
+<span class="fc" id="L216">		}</span>
 
-<span class="fc bfc" id="L244" title="All 2 branches covered.">			else if (name.charAt(name.length() - 1) != '/')</span>
-<span class="fc" id="L245">				componentEntry.read(in -&gt; target.put(name, in));</span>
-<span class="fc" id="L246">		}</span>
-
-<span class="fc bfc" id="L248" title="All 2 branches covered.">		if (!classPath.isEmpty())</span>
-<span class="fc" id="L249">			throw new IllegalArgumentException(</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">		if (!classPath.isEmpty())</span>
+<span class="fc" id="L219">			throw new IllegalArgumentException(</span>
 					&quot;Component archive didn't include all bundled dependencies, missing &quot; + classPath);
 
-<span class="fc bfc" id="L252" title="All 2 branches covered.">		if (pomProperties == null)</span>
-<span class="fc" id="L253">			throw new IllegalArgumentException(&quot;Component archive missing META-INF/maven/.../pom.properties&quot;);</span>
+<span class="fc bfc" id="L222" title="All 2 branches covered.">		if (pomProperties == null)</span>
+<span class="fc" id="L223">			throw new IllegalArgumentException(&quot;Component archive missing META-INF/maven/.../pom.properties&quot;);</span>
 
-<span class="fc" id="L255">		var componentName = pomProperties.getProperty(&quot;artifactId&quot;);</span>
-<span class="fc bfc" id="L256" title="All 2 branches covered.">		if (componentName == null)</span>
-<span class="fc" id="L257">			throw new IllegalArgumentException(&quot;Component archive must provide a name as artifactId in pom.properties&quot;);</span>
+<span class="fc" id="L225">		var componentName = pomProperties.getProperty(&quot;artifactId&quot;);</span>
+<span class="fc bfc" id="L226" title="All 2 branches covered.">		if (componentName == null)</span>
+<span class="fc" id="L227">			throw new IllegalArgumentException(&quot;Component archive must provide a name as artifactId in pom.properties&quot;);</span>
 
-<span class="fc" id="L259">		var version = pomProperties.getProperty(&quot;version&quot;);</span>
-<span class="fc bfc" id="L260" title="All 2 branches covered.">		if (version == null)</span>
-<span class="fc" id="L261">			throw new IllegalArgumentException(&quot;Component archive must provide a version in pom.properties&quot;);</span>
+<span class="fc" id="L229">		var version = pomProperties.getProperty(&quot;version&quot;);</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">		if (version == null)</span>
+<span class="fc" id="L231">			throw new IllegalArgumentException(&quot;Component archive must provide a version in pom.properties&quot;);</span>
 
 		final Kind kind;
-		final Properties properties;
-<span class="fc bfc" id="L265" title="All 2 branches covered.">		if (isWeb) {</span>
+<span class="fc bfc" id="L234" title="All 2 branches covered.">		if (isWeb) {</span>
 
-<span class="fc" id="L267">			var webResourceIterator = webResources.entrySet().iterator();</span>
-<span class="fc bfc" id="L268" title="All 2 branches covered.">			while (webResourceIterator.hasNext())</span>
-<span class="fc bfc" id="L269" title="All 2 branches covered.">				if (webResourceIterator.next().getKey().startsWith(&quot;META-INF/&quot;))</span>
-<span class="fc" id="L270">					webResourceIterator.remove();</span>
+<span class="fc" id="L236">			var webResourceIterator = webResources.entrySet().iterator();</span>
+<span class="fc bfc" id="L237" title="All 2 branches covered.">			while (webResourceIterator.hasNext())</span>
+<span class="fc bfc" id="L238" title="All 2 branches covered.">				if (webResourceIterator.next().getKey().startsWith(&quot;META-INF/&quot;))</span>
+<span class="fc" id="L239">					webResourceIterator.remove();</span>
 
-<span class="fc" id="L272">			var isServlet6 = false;</span>
-<span class="fc bfc" id="L273" title="All 2 branches covered.">			for (var dependency : source.dependencies())</span>
-<span class="fc bfc" id="L274" title="All 2 branches covered.">				if (dependency.compareTo(ComponentVersion.SERVLET_6) &gt;= 0) {</span>
-<span class="fc" id="L275">					isServlet6 = true;</span>
-<span class="fc" id="L276">					continue;</span>
-				}
+<span class="fc" id="L241">			kind = Kind.WAR;</span>
+<span class="fc" id="L242">		} else</span>
+<span class="fc" id="L243">			kind = Kind.JAR;</span>
 
-<span class="fc bfc" id="L279" title="All 4 branches covered.">			if (hasModuleDescriptor || isServlet6) {</span>
-<span class="fc" id="L280">				kind = Kind.MODULAR_WAR;</span>
-<span class="fc" id="L281">				properties = typeProperties;</span>
-			} else {
-<span class="fc" id="L283">				kind = Kind.LEGACY_WAR;</span>
-<span class="fc" id="L284">				properties = iuProperties;</span>
-			}
-<span class="fc bfc" id="L286" title="All 2 branches covered.">		} else if (hasModuleDescriptor) {</span>
-<span class="fc" id="L287">			kind = Kind.MODULAR_JAR;</span>
-<span class="fc" id="L288">			properties = typeProperties;</span>
-		} else {
-<span class="fc" id="L290">			kind = Kind.LEGACY_JAR;</span>
-<span class="fc" id="L291">			properties = iuProperties;</span>
-		}
-
-<span class="fc" id="L294">		return new ScannedAttributes( //</span>
+<span class="fc" id="L245">		return new ScannedAttributes( //</span>
 				kind, //
 				new ComponentVersion(componentName, version), //
-				properties, //
-<span class="fc" id="L298">				Collections.unmodifiableSet(nonEnclosedTypeNames), //</span>
-<span class="fc" id="L299">				Collections.unmodifiableMap(webResources), //</span>
-<span class="fc" id="L300">				Collections.unmodifiableCollection(bundledDependencies.values()));</span>
+				typeProperties, //
+<span class="fc" id="L249">				Collections.unmodifiableSet(nonEnclosedTypeNames), //</span>
+<span class="fc" id="L250">				Collections.unmodifiableMap(webResources), //</span>
+<span class="fc" id="L251">				Collections.unmodifiableCollection(bundledDependencies.values()));</span>
 	}
 
 	/**
@@ -308,12 +259,12 @@ import edu.iu.type.base.TemporaryFile;
 	 * @throws IOException If an I/O error occurs reading from the source
 	 */
 	static ComponentArchive from(ArchiveSource source) throws IOException {
-<span class="fc" id="L311">		return TemporaryFile.init(path -&gt; {</span>
-<span class="fc" id="L312">			try (var target = new ComponentTarget(path)) {</span>
+<span class="fc" id="L262">		return TemporaryFile.init(path -&gt; {</span>
+<span class="fc" id="L263">			try (var target = new ComponentTarget(path)) {</span>
 
-<span class="fc" id="L314">				var scannedAttributes = scan(source, target);</span>
+<span class="fc" id="L265">				var scannedAttributes = scan(source, target);</span>
 
-<span class="fc" id="L316">				return new ComponentArchive(path, //</span>
+<span class="fc" id="L267">				return new ComponentArchive(path, //</span>
 						scannedAttributes.kind, //
 						scannedAttributes.version, //
 						scannedAttributes.properties, //
