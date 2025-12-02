@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -73,6 +73,7 @@ final class SamlAssertion implements StoredSamlAssertion {
 
 	private final Instant notBefore;
 	private final Instant notOnOrAfter;
+	private final String authnAuthority;
 	private final Instant authnInstant;
 	private final Map<String, String> attributes;
 
@@ -107,9 +108,18 @@ final class SamlAssertion implements StoredSamlAssertion {
 		}
 
 		Instant authnInstant = null;
-		for (AuthnStatement statement : assertion.getAuthnStatements())
+		String authnAuthority = null;
+		for (AuthnStatement statement : assertion.getAuthnStatements()) {
 			authnInstant = IuObject.once(authnInstant, statement.getAuthnInstant());
+			final var authnContext = statement.getAuthnContext();
+			if (authnContext != null) {
+				final var authorities = authnContext.getAuthenticatingAuthorities();
+				if (!authorities.isEmpty())
+					authnAuthority = authorities.get(0).getURI().toString();
+			}
+		}
 		this.authnInstant = authnInstant;
+		this.authnAuthority = authnAuthority;
 
 		this.attributes = Collections.unmodifiableMap(attributes);
 	}
@@ -125,6 +135,11 @@ final class SamlAssertion implements StoredSamlAssertion {
 	}
 
 	@Override
+	public String getAuthnAuthority() {
+		return authnAuthority;
+	}
+
+	@Override
 	public Instant getAuthnInstant() {
 		return authnInstant;
 	}
@@ -134,4 +149,10 @@ final class SamlAssertion implements StoredSamlAssertion {
 		return attributes;
 	}
 
+	@Override
+	public String toString() {
+		return "SamlAssertion [notBefore=" + notBefore + ", notOnOrAfter=" + notOnOrAfter + ", authnAuthority="
+				+ authnAuthority + ", authnInstant=" + authnInstant + ", attributes=" + attributes + "]";
+	}
+	
 }

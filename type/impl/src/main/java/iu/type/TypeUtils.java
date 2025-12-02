@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -80,7 +80,7 @@ final class TypeUtils {
 	static <T> T callWithContext(ClassLoader contextLoader, UnsafeSupplier<T> supplier) throws Throwable {
 		if (contextLoader == null)
 			contextLoader = ClassLoader.getPlatformClassLoader();
-		
+
 		var current = Thread.currentThread();
 		var loader = current.getContextClassLoader();
 		try {
@@ -100,9 +100,6 @@ final class TypeUtils {
 	 * @throws Throwable from {@link UnsafeRunnable#run()}
 	 */
 	static void callWithContext(ClassLoader contextLoader, UnsafeRunnable runnable) throws Throwable {
-		if (contextLoader == null)
-			contextLoader = ClassLoader.getPlatformClassLoader();
-		
 		var current = Thread.currentThread();
 		var loader = current.getContextClassLoader();
 		try {

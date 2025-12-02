@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -56,7 +56,7 @@ public class IuComponentIT {
 	@Test
 	public void testScan() {
 		IuComponent component = IuComponent.scan(getClass());
-		assertEquals(Kind.LEGACY_ENTRY, component.kind());
+		assertEquals(Kind.ENTRY, component.kind());
 	}
 
 }

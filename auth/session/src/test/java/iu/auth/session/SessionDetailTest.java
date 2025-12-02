@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -65,7 +65,7 @@ class SessionDetailTest {
 		boolean isNotThere();
 
 		void unsupported();
-		
+
 		void unsupported(String value);
 
 		void setUnsupported();

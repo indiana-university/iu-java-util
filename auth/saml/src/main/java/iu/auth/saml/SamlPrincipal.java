@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -57,8 +57,14 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	/** name */
 	private final String name;
 
+	/** issuer */
+	private final String issuer;
+
 	/** time authentication statement was issued by the IDP */
 	private final Instant issueTime;
+
+	/** authority */
+	private final String authority;
 
 	/** authentication time */
 	private final Instant authTime;
@@ -74,17 +80,21 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	 * 
 	 * @param realm          authentication realm
 	 * @param name           principal name
+	 * @param issuer         issuer
 	 * @param issueTime      time authentication statement was issued by the IDP
+	 * @param authority      authenticating authority
 	 * @param authTime       authentication time
 	 * @param expires        expire
 	 * @param samlAssertions verified SAML assertions
 	 */
-	SamlPrincipal(String realm, String name, Instant issueTime, Instant authTime, Instant expires,
-			Iterable<StoredSamlAssertion> samlAssertions) {
+	SamlPrincipal(String realm, String name, String issuer, Instant issueTime, String authority, Instant authTime,
+			Instant expires, Iterable<StoredSamlAssertion> samlAssertions) {
 		this.realm = Objects.requireNonNull(realm);
 		this.name = Objects.requireNonNull(name);
-		this.authTime = Objects.requireNonNull(authTime);
+		this.issuer = Objects.requireNonNull(issuer);
 		this.issueTime = Objects.requireNonNull(issueTime);
+		this.authority = authority;
+		this.authTime = Objects.requireNonNull(authTime);
 		this.expires = Objects.requireNonNull(expires);
 		this.assertions = IuIterable.stream(samlAssertions).toArray(StoredSamlAssertion[]::new);
 	}
@@ -92,6 +102,15 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	@Override
 	public String getName() {
 		return name;
+	}
+
+	/**
+	 * Gets the IDP entity ID that issue the principal.
+	 * 
+	 * @return issuer IDP entity ID
+	 */
+	public String getIssuer() {
+		return issuer;
 	}
 
 	@Override
@@ -120,8 +139,9 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 
 	@Override
 	public String toString() {
-		return "SamlPrincipal [realm=" + realm + ", name=" + name + ", issueTime=" + issueTime + ", authTime="
-				+ authTime + ", expires=" + expires + ", assertions=" + Arrays.toString(assertions) + "]";
+		return "SamlPrincipal [realm=" + realm + ", name=" + name + ", issuer=" + issuer + ", issueTime=" + issueTime
+				+ ", authority=" + authority + ", authTime=" + authTime + ", expires=" + expires + ", assertions="
+				+ Arrays.toString(assertions) + "]";
 	}
 
 	/**
@@ -147,8 +167,8 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	 */
 	static SamlPrincipal from(SamlPostAuthentication details) {
 		IuObject.require(details, SamlPrincipal::isBound);
-		return new SamlPrincipal(details.getRealm(), details.getName(), details.getIssueTime(), details.getAuthTime(),
-				details.getExpires(), details.getAssertions());
+		return new SamlPrincipal(details.getRealm(), details.getName(), details.getIssuer(), details.getIssueTime(),
+				details.getAuthnAuthority(), details.getAuthTime(), details.getExpires(), details.getAssertions());
 	}
 
 	/**
@@ -159,7 +179,9 @@ public final class SamlPrincipal implements IuPrincipalIdentity {
 	void bind(SamlPostAuthentication details) {
 		details.setRealm(realm);
 		details.setName(name);
+		details.setIssuer(issuer);
 		details.setIssueTime(issueTime);
+		details.setAuthnAuthority(authority);
 		details.setAuthTime(authTime);
 		details.setExpires(expires);
 		details.setAssertions(IuIterable.iter(assertions));

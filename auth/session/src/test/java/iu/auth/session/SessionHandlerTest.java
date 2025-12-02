@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -63,6 +63,7 @@ public class SessionHandlerTest {
 	private WebKey issuerKey;
 	private Algorithm algorithm;
 	private SessionHandler sessionHandler;
+	private InMemorySessionStore dataStore;
 
 	@Nested
 	class SessionHandlerTest_1 {
@@ -73,13 +74,15 @@ public class SessionHandlerTest {
 			when(configuration.getResourceUris()).thenReturn(Arrays.asList(resourceUri));
 			issuerKey = WebKey.ephemeral(Algorithm.HS256);
 			algorithm = Algorithm.HS256;
-			sessionHandler = new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm);
+			dataStore = new InMemorySessionStore();
+			sessionHandler = new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm, dataStore);
 			IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 		}
 
 		@Test
 		public void testSessionHandlerConstructorWithValidParameters() {
-			assertDoesNotThrow(() -> new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm));
+			assertDoesNotThrow(
+					() -> new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm, dataStore));
 		}
 
 		@Test
@@ -149,7 +152,7 @@ public class SessionHandlerTest {
 			Session session = new Session(resourceUri, Duration.ofHours(12L));
 			when(configuration.getInactiveTtl()).thenCallRealMethod();
 			session.setStrict(false);
-			
+
 			String cookie = sessionHandler.store(session);
 			assertNotNull(cookie);
 			final var cookieMatcher = Pattern
@@ -192,10 +195,10 @@ public class SessionHandlerTest {
 		public void testStoreSessionAndActivateSessionSuccessSubpath() {
 			final var path = "/" + IdGenerator.generateId();
 			final var uriWithPath = URI.create(resourceUri + path);
-			sessionHandler = new SessionHandler(uriWithPath, configuration, () -> issuerKey, algorithm);
+			sessionHandler = new SessionHandler(uriWithPath, configuration, () -> issuerKey, algorithm, dataStore);
 			Session session = new Session(uriWithPath, Duration.ofHours(12L));
 			session.setStrict(false);
-			
+
 			when(configuration.getInactiveTtl()).thenCallRealMethod();
 
 			String cookie = sessionHandler.store(session);
@@ -216,23 +219,23 @@ public class SessionHandlerTest {
 
 		@Test
 		public void testPurgeStoredSessionWhenExpire() {
-			when(configuration.getInactiveTtl()).thenReturn(Duration.ofMillis(250L));
+			when(configuration.getInactiveTtl()).thenReturn(Duration.ofMillis(150L));
 			Session session = new Session(resourceUri, Duration.ofHours(12L));
 			session.setStrict(false);
-			
+
 			String cookie = sessionHandler.store(session);
 			assertNotNull(cookie);
 			final var cookieMatcher = Pattern
 					.compile(sessionHandler.getSessionCookieName() + "=([^;]+); Path=/; HttpOnly").matcher(cookie);
 			assertTrue(cookieMatcher.matches(), cookie);
-			assertDoesNotThrow(() -> Thread.sleep(250L));
+			assertDoesNotThrow(() -> Thread.sleep(15000L));
 			assertNull(sessionHandler.activate(
 					Arrays.asList(new HttpCookie(sessionHandler.getSessionCookieName(), cookieMatcher.group(1)))));
 		}
 
 		@Test
 		public void testPurgeTask() {
-			final var purgeTask = new SessionHandler.PurgeTask();
+			final var purgeTask = new InMemorySessionStore.PurgeTask();
 			assertDoesNotThrow(purgeTask::run);
 			Session session = new Session(resourceUri, Duration.ofHours(12L));
 			sessionHandler.store(session);
@@ -241,7 +244,7 @@ public class SessionHandlerTest {
 
 		@Test
 		public void testStoreWithNoPurgeTask() {
-			final var purgeTask = new SessionHandler.PurgeTask();
+			final var purgeTask = new InMemorySessionStore.PurgeTask();
 			Session session = new Session(resourceUri, Duration.ofHours(12L));
 			sessionHandler.store(session);
 			assertDoesNotThrow(purgeTask::run);
@@ -249,7 +252,7 @@ public class SessionHandlerTest {
 
 		@Test
 		public void testStoreWithPurgeTaskAndActivate() {
-			final var purgeTask = new SessionHandler.PurgeTask();
+			final var purgeTask = new InMemorySessionStore.PurgeTask();
 			when(configuration.getInactiveTtl()).thenReturn(Duration.ofMillis(250L));
 			Session session = new Session(resourceUri, Duration.ofHours(12L));
 			String cookie = sessionHandler.store(session);
@@ -273,13 +276,14 @@ public class SessionHandlerTest {
 			when(configuration.getResourceUris()).thenReturn(Arrays.asList(resourceUri));
 			issuerKey = WebKey.ephemeral(Algorithm.HS256);
 			algorithm = Algorithm.HS256;
-			sessionHandler = new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm);
+			dataStore = new InMemorySessionStore();
+			sessionHandler = new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm, dataStore);
 			IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 		}
 
 		@Test
 		public void testStoreWithHttpsResourceUrl() {
-			final var purgeTask = new SessionHandler.PurgeTask();
+			final var purgeTask = new InMemorySessionStore.PurgeTask();
 			Session session = new Session(resourceUri, Duration.ofHours(12L));
 			sessionHandler.store(session);
 			assertDoesNotThrow(purgeTask::run);

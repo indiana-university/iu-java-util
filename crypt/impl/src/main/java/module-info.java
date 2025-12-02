@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -54,6 +54,7 @@ module iu.util.crypt.impl {
 	requires iu.util;
 	requires transitive iu.util.crypt;
 	requires transitive iu.util.client;
+	requires jakarta.annotation;
 
 	provides iu.crypt.spi.IuCryptSpi with iu.crypt.CryptSpi;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -31,162 +31,57 @@
  */
 package iu.type;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
+
+import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Type;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 
 import edu.iu.type.IuType;
 
 @SuppressWarnings("javadoc")
-@ExtendWith(LegacyContextSupport.class)
-public class TypeUtilsTest extends IuTypeTestCase {
+public class TypeUtilsTest {
 
+	@SuppressWarnings("unused")
 	@Test
-	public void testCallWithContextOfClass() throws Throwable {
-		TypeUtils.callWithContext(LegacyContextSupport.get().loadClass("edu.iu.legacy.LegacyBean"), () -> {
-			assertSame(LegacyContextSupport.get(), Thread.currentThread().getContextClassLoader());
-			return null;
-		});
-	}
+	public void testGetContext() throws Exception {
+		class C {
+			Object a;
 
-	@Test
-	public void testCallWithClassContext() throws Throwable {
-		TypeUtils.callWithContext(LegacyContextSupport.get(), () -> {
-			assertSame(LegacyContextSupport.get(), Thread.currentThread().getContextClassLoader());
-			return null;
-		});
-	}
-
-	@Test
-	public void testCallWithPlatformContext() throws Throwable {
-		TypeUtils.callWithContext(null, () -> {
-			assertSame(ClassLoader.getPlatformClassLoader(), Thread.currentThread().getContextClassLoader());
-		});
-	}
-
-	@Test
-	public void testContextOfClass() throws ClassNotFoundException {
-		var c = LegacyContextSupport.get().loadClass("edu.iu.legacy.LegacyBean");
-		assertSame(LegacyContextSupport.get(), TypeUtils.getContext(c));
-	}
-
-	@Test
-	public void testContextOfField() throws ClassNotFoundException, NoSuchFieldException {
-		var c = LegacyContextSupport.get().loadClass("edu.iu.legacy.LegacyBean");
-		assertSame(LegacyContextSupport.get(), TypeUtils.getContext(c.getDeclaredField("foo")));
-	}
-
-	@Test
-	public void testContextOfMethod() throws ClassNotFoundException, NoSuchMethodException {
-		var c = LegacyContextSupport.get().loadClass("edu.iu.legacy.LegacyBean");
-		assertSame(LegacyContextSupport.get(), TypeUtils.getContext(c.getDeclaredMethod("getFoo")));
-	}
-
-	@Test
-	public void testContextOfParameter() throws ClassNotFoundException, NoSuchMethodException {
-		var c = LegacyContextSupport.get().loadClass("edu.iu.legacy.LegacyBean");
-		assertSame(LegacyContextSupport.get(),
-				TypeUtils.getContext(c.getDeclaredMethod("setFoo", String.class).getParameters()[0]));
-	}
-
-	@Test
-	public void testContextOfPackageNotSupported() throws ClassNotFoundException {
-		var c = LegacyContextSupport.get().loadClass("edu.iu.legacy.LegacyBean");
-		assertEquals("Cannot determine context for package edu.iu.legacy",
-				assertThrows(UnsupportedOperationException.class, () -> TypeUtils.getContext(c.getPackage()))
-						.getMessage());
-	}
-
-	@Test
-	public void testPrintArrayType() {
-		assertEquals("byte[]", TypeUtils.printType(byte[].class));
-	}
-
-	@Test
-	public void testPrintGenericArrayType() throws Exception {
-		@SuppressWarnings("unused")
-		class HasGenericArray<B> {
-			B[] genericArray;
+			void b(Object c) {
+			}
 		}
-		assertEquals("B[]",
-				TypeUtils.printType(HasGenericArray.class.getDeclaredField("genericArray").getGenericType()));
+		assertSame(C.class.getClassLoader(), TypeUtils.getContext(C.class));
+		assertSame(C.class.getClassLoader(), TypeUtils.getContext(C.class.getDeclaredField("a")));
+		assertSame(C.class.getClassLoader(), TypeUtils.getContext(C.class.getDeclaredMethod("b", Object.class)));
+		assertSame(C.class.getClassLoader(),
+				TypeUtils.getContext(C.class.getDeclaredMethod("b", Object.class).getParameters()[0]));
+
+		final var ae = mock(AnnotatedElement.class);
+		assertThrows(UnsupportedOperationException.class, () -> TypeUtils.getContext(ae));
 	}
 
+	@SuppressWarnings("unchecked")
 	@Test
-	public void testMultipleTypeParams() throws Exception {
-		assertEquals("ExecutableBase<D,R,Method>", TypeUtils.printType(MethodFacade.class.getGenericSuperclass()));
+	public void testReferTo() {
+		class A {
+		}
+		class B {
+		}
+		final var type = mock(Type.class);
+		final var referrerType = mock(IuType.class);
+		when(referrerType.erasedClass()).thenReturn(B.class);
+		try (final var mockTypeFactory = mockStatic(TypeFactory.class)) {
+			mockTypeFactory.when(() -> TypeFactory.getErasedClass(type)).thenReturn(A.class);
+			assertThrows(IllegalArgumentException.class,
+					() -> TypeUtils.referTo(referrerType, Set.of(), type));
+		}
 	}
 
-	@Test
-	public void testReferToMustBePresentInHierarchy() throws Exception {
-		assertEquals("String not present in type hierarchy for IuType[Integer]; "
-				+ "[IuType[ConstantDesc SUPER Integer], IuType[Constable SUPER Integer], IuType[Comparable<Integer> SUPER Integer], "
-				+ "IuType[Number SUPER Integer], IuType[Serializable SUPER Number SUPER Integer], IuType[Object SUPER Number SUPER Integer]]",
-				assertThrows(IllegalArgumentException.class, () -> IuType.of(Integer.class).referTo(String.class))
-						.getMessage());
-	}
-
-	// TODO: REMOVE
-//	@Test
-//	public void testUpperBounds() {
-//		class HasBounds<N extends Number> {
-//		}
-//		Map<String, TypeFacade<?>> params = new HashMap<>();
-//		params.put("N", (TypeFacade<?>) IuType.of(HasBounds.class).typeParameter("N"));
-//
-//		Map<String, TypeFacade<?>> args = new HashMap<>();
-//		args.put("N", (TypeFacade<?>) IuType.of(String.class).referTo(CharSequence.class));
-//
-//		assertEquals("Type argument IuType[CharSequence SUPER String] doesn't match upper bound Number",
-//				assertThrows(IllegalArgumentException.class, () -> TypeUtils.sealTypeParameters(params, args))
-//						.getMessage());
-//	}
-//
-//	@Test
-//	public void testLowerBoundsMismatch() {
-//		@SuppressWarnings("unused")
-//		class HasBounds<N extends Number> {
-//			Class<? super N> hasLowerBound;
-//		}
-//		Map<String, TypeFacade<?>> params = new HashMap<>();
-//		params.put("N", (TypeFacade<?>) IuType.of(HasBounds.class).field("hasLowerBound").type().typeParameter("T"));
-//
-//		Map<String, TypeFacade<?>> args = new HashMap<>();
-//		args.put("N", (TypeFacade<?>) IuType.of(String.class).referTo(CharSequence.class));
-//
-//		assertEquals("Type argument IuType[CharSequence SUPER String] doesn't match lower bound N",
-//				assertThrows(IllegalArgumentException.class, () -> TypeUtils.sealTypeParameters(params, args))
-//						.getMessage());
-//	}
-//
-//	@Test
-//	public void testRetainsLowerBoundedWildcard() {
-//		@SuppressWarnings("unused")
-//		class HasBounds {
-//			Class<? super Number> hasLowerBound;
-//		}
-//		Map<String, TypeFacade<?>> params = new HashMap<>();
-//		params.put("", (TypeFacade<?>) IuType.of(HasBounds.class).field("hasLowerBound").type().typeParameter("T"));
-//
-//		assertSame(params.get(""), TypeUtils.sealTypeParameters(params, new HashMap<>()).get(""));
-//	}
-//
-//	@Test
-//	public void testLowerBoundsMatch() {
-//		@SuppressWarnings("unused")
-//		class HasBounds<N extends Number> {
-//			Class<? super N> hasLowerBound;
-//		}
-//		Map<String, TypeFacade<?>> params = new HashMap<>();
-//		params.put("N", (TypeFacade<?>) IuType.of(HasBounds.class).field("hasLowerBound").type().typeParameter("T"));
-//
-//		Map<String, TypeFacade<?>> args = new HashMap<>();
-//		args.put("N", (TypeFacade<?>) IuType.of(Integer.class).referTo(Serializable.class));
-//
-//		assertSame(args.get("N"), TypeUtils.sealTypeParameters(params, args).get("N"));
-//	}
-//
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -58,6 +58,7 @@ public class PrincipalVerifierRegistryTest {
 
 		private final String realm;
 		private final String name = IdGenerator.generateId();
+		private final String issuer = IdGenerator.generateId();
 		private final Instant issuedAt = Instant.now();
 		private final Instant authTime = issuedAt.truncatedTo(ChronoUnit.SECONDS);
 		private final Instant expires = authTime.plusSeconds(5L);
@@ -69,6 +70,11 @@ public class PrincipalVerifierRegistryTest {
 		@Override
 		public String getName() {
 			return name;
+		}
+
+		@Override
+		public String getIssuer() {
+			return issuer;
 		}
 
 		@Override

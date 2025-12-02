@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -65,7 +65,7 @@ public class IuParallelWorkloadControllerTest {
 	private Logger log;
 
 	@BeforeEach
-	private void setup(TestInfo testInfo) {
+	public void setup(@SuppressWarnings("exports") TestInfo testInfo) {
 		log = Logger.getAnonymousLogger();
 		log.setLevel(Level.ALL);
 		log.setUseParentHandlers(false);
@@ -96,7 +96,7 @@ public class IuParallelWorkloadControllerTest {
 	}
 
 	@AfterEach
-	private void teardown() throws Exception {
+	public void teardown() throws Exception {
 		if (workload != null)
 			workload.close();
 		workload = null;

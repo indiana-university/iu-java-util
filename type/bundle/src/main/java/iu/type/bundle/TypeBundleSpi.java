@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -104,6 +104,8 @@ public class TypeBundleSpi implements IuTypeSpi, AutoCloseable {
 						TypeBundleSpi.class.getClassLoader().getResource("iu-java-type-impl-bundle.jar"),
 						"Missing iu-java-type-impl-bundle.jar classpath entry")),
 				c -> {
+					final var iuTypeBase = ModularClassLoader.class.getModule();
+					c.addReads(c.layer().findModule("iu.util.type.impl").get(), iuTypeBase);
 				});
 
 		delegate = IuException.checked(IOException.class, () -> IuException.initialize(bundleLoader,

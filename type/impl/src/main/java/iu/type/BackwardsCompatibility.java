@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -62,10 +62,8 @@ final class BackwardsCompatibility {
 	 * 
 	 * @param contextSensitive <strong>context-sensitive</strong> class
 	 * @return context-compatible equivalent
-	 * @throws ClassNotFoundException If a remote equivalent is not available for
-	 *                                the local class.
 	 */
-	static Class<?> getCompatibleClass(Class<?> contextSensitive) throws ClassNotFoundException {
+	static Class<?> getCompatibleClass(Class<?> contextSensitive) {
 		return getCompatibleClass(contextSensitive, Thread.currentThread().getContextClassLoader());
 	}
 
@@ -76,11 +74,8 @@ final class BackwardsCompatibility {
 	 * @param contextSensitive <strong>context-sensitive</strong> class
 	 * @param contextLoader    {@link ClassLoader} that defines the context
 	 * @return context-compatible equivalent
-	 * @throws ClassNotFoundException If a remote equivalent is not available for
-	 *                                the local class.
 	 */
-	static Class<?> getCompatibleClass(Class<?> contextSensitive, ClassLoader contextLoader)
-			throws ClassNotFoundException {
+	static Class<?> getCompatibleClass(Class<?> contextSensitive, ClassLoader contextLoader) {
 		var className = contextSensitive.getName();
 
 		ClassNotFoundException contextClassNameNotFound;
@@ -95,14 +90,19 @@ final class BackwardsCompatibility {
 			compatibleClassName = "javax" + className.substring(7);
 		else if (className.startsWith("javax."))
 			compatibleClassName = "jakarta" + className.substring(5);
-		else
-			throw contextClassNameNotFound;
+		else {
+			final var err = new NoClassDefFoundError();
+			err.initCause(contextClassNameNotFound);
+			throw err;
+		}
 
 		try {
-			return Thread.currentThread().getContextClassLoader().loadClass(compatibleClassName);
+			return contextLoader.loadClass(compatibleClassName);
 		} catch (ClassNotFoundException e) {
-			e.addSuppressed(contextClassNameNotFound);
-			throw e;
+			final var err = new NoClassDefFoundError();
+			err.initCause(e);
+			err.addSuppressed(contextClassNameNotFound);
+			throw err;
 		}
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -33,6 +33,7 @@ package edu.iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -51,7 +52,6 @@ import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import edu.iu.test.IuTest;
 import edu.iu.type.spi.IuTypeSpi;
 import edu.iu.type.spi.TypeImplementation;
 
@@ -105,7 +105,7 @@ public class IuTypeSpiTest {
 	@Test
 	public void testExtendComponent() throws IOException {
 		var in = mock(InputStream.class);
-		var comp = IuTest.mockWithDefaults(IuComponent.class);
+		var comp = mock(IuComponent.class, CALLS_REAL_METHODS);
 		comp.extend(in);
 		verify(comp).extend((Consumer) null, in);
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -39,10 +39,12 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse.BodyHandlers;
 
+import jakarta.annotation.Resource;
 import jakarta.json.Json;
 import jakarta.json.JsonValue;
 
 @SuppressWarnings("javadoc")
+@Resource
 public class UrlReader {
 
 	public JsonValue parseJson(String json) {

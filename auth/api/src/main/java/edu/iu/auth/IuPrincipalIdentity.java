@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -59,6 +59,13 @@ public interface IuPrincipalIdentity extends Principal {
 	static boolean verify(IuPrincipalIdentity id, String realm) throws IuAuthenticationException {
 		return IuAuthSpiFactory.get(IuPrincipalSpi.class).verify(id, realm);
 	}
+
+	/**
+	 * Gets the principal name of the principal issuer.
+	 * 
+	 * @return issuer principal name; e.g., OIDC Provider URI or SAML IDP Entity ID
+	 */
+	String getIssuer();
 
 	/**
 	 * Gets the point in time proof of principal identity was issued by an

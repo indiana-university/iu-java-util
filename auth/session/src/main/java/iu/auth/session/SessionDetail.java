@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -65,8 +65,7 @@ class SessionDetail implements InvocationHandler {
 	 * @param session        session
 	 * @param adapterFactory adapter factory
 	 */
-	SessionDetail(Map<String, JsonValue> attributes, Session session,
-			Function<Type, IuJsonAdapter<?>> adapterFactory) {
+	SessionDetail(Map<String, JsonValue> attributes, Session session, Function<Type, IuJsonAdapter<?>> adapterFactory) {
 		this.attributes = attributes;
 		this.session = session;
 		this.adapterFactory = adapterFactory;

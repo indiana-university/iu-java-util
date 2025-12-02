@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -36,6 +36,7 @@
  * @provides edu.iu.type.spi.IuTypeSpi via bundled implementation bootstrap
  */
 module iu.util.type.bundle {
+	exports edu.iu.type.bundle;
 	opens edu.iu.type.bundle;
 
 	requires iu.util;

@@ -7,14 +7,13 @@
 	<parent>
 		<groupId>edu.iu.util</groupId>
 		<artifactId>iu-java-type-parent</artifactId>
-		<version>7.0.6</version>
+		<version>7.0.7-SNAPSHOT</version>
 	</parent>
 
 	<artifactId>iu-java-type-testruntime</artifactId>
 	<name>IU Type Introspection Test Runtime Component</name>
 
 	<properties>
-		<maven.install.skip>true</maven.install.skip>
 		<maven.deploy.skip>true</maven.deploy.skip>
 		<maven.javadoc.skip>true</maven.javadoc.skip>
 		<maven.test.skip>true</maven.test.skip>
@@ -116,6 +115,7 @@
 						<configuration>
 							<descriptors>
 								<descriptor>src/assembly/bundle.xml</descriptor>
+								<descriptor>src/assembly/deps.xml</descriptor>
 							</descriptors>
 						</configuration>
 					</execution>

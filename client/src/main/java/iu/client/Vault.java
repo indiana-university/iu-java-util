@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -52,7 +52,6 @@ import java.util.logging.Logger;
 
 import edu.iu.IuCacheMap;
 import edu.iu.IuException;
-import edu.iu.IuObject;
 import edu.iu.IuRuntimeEnvironment;
 import edu.iu.client.HttpException;
 import edu.iu.client.HttpResponseHandler;
@@ -70,9 +69,6 @@ import jakarta.json.JsonValue;
  * 
  */
 public final class Vault implements IuVault {
-	static {
-		IuObject.assertNotOpen(Vault.class);
-	}
 
 	private static final Logger LOG = Logger.getLogger(Vault.class.getName());
 
@@ -239,18 +235,7 @@ public final class Vault implements IuVault {
 			convertData = a -> a;
 			convertMetadata = a -> null;
 		} else {
-			// TODO: support launchpad through configuration
-			if (secret.startsWith("managed/")) {
-				final var lastSlash = secret.lastIndexOf('/');
-				final var prefix = secret.substring(lastSlash + 1) + '/';
-				convertData = a -> {
-					final var b = IuJson.object();
-					for (final var e : a.getJsonObject("data").entrySet())
-						b.add(prefix + e.getKey(), e.getValue());
-					return b.build();
-				};
-			} else
-				convertData = a -> a.getJsonObject("data");
+			convertData = a -> a.getJsonObject("data");
 			convertMetadata = a -> a.getJsonObject("metadata");
 		}
 
@@ -266,54 +251,49 @@ public final class Vault implements IuVault {
 		}
 
 		final Consumer<JsonObject> mergePatchConsumer;
-		if (secret.startsWith("managed/"))
-			mergePatchConsumer = a -> {
-				// TODO: support launchpad through configuration
-				throw new UnsupportedOperationException();
-			};
-		else
-			mergePatchConsumer = mergePatch -> IuException.unchecked(() -> {
-				final var data = dataSupplier.get();
-				final var metadata = metadataSupplier.get();
 
-				final var updatedData = IuJson.PROVIDER.createMergePatch(mergePatch).apply(data).asJsonObject();
+		mergePatchConsumer = mergePatch -> IuException.unchecked(() -> {
+			final var data = dataSupplier.get();
+			final var metadata = metadataSupplier.get();
 
-				final String dataRequestPayload;
-				if (cubbyhole)
-					dataRequestPayload = updatedData.toString();
-				else {
-					final var dataRequestPayloadBuilder = IuJson.object();
-					dataRequestPayloadBuilder.add("options", IuJson.object().add("cas", metadata.getInt("version")));
-					dataRequestPayloadBuilder.add("data", updatedData);
-					dataRequestPayload = dataRequestPayloadBuilder.build().toString();
-				}
+			final var updatedData = IuJson.PROVIDER.createMergePatch(mergePatch).apply(data).asJsonObject();
 
-				final HttpResponseHandler<?> responseHandler;
-				if (cubbyhole)
-					responseHandler = IuHttp.NO_CONTENT;
-				else
-					responseHandler = IuHttp.READ_JSON_OBJECT;
+			final String dataRequestPayload;
+			if (cubbyhole)
+				dataRequestPayload = updatedData.toString();
+			else {
+				final var dataRequestPayloadBuilder = IuJson.object();
+				dataRequestPayloadBuilder.add("options", IuJson.object().add("cas", metadata.getInt("version")));
+				dataRequestPayloadBuilder.add("data", updatedData);
+				dataRequestPayload = dataRequestPayloadBuilder.build().toString();
+			}
 
-				if (cubbyhole && updatedData.isEmpty())
-					IuHttp.send(dataUri, rb -> {
-						rb.DELETE();
-						this.authorize(rb);
-					}, responseHandler);
-				else
-					IuHttp.send(dataUri, rb -> {
-						rb.POST(BodyPublishers.ofString(dataRequestPayload));
-						this.authorize(rb);
-					}, responseHandler);
+			final HttpResponseHandler<?> responseHandler;
+			if (cubbyhole)
+				responseHandler = IuHttp.NO_CONTENT;
+			else
+				responseHandler = IuHttp.READ_JSON_OBJECT;
 
-				final var delete = mergePatch.values().stream().allMatch(JsonValue.NULL::equals);
-				LOG.config(() -> "vault:" + (delete ? "delete:" : "set:") + dataUri + ":" + mergePatch.keySet());
+			if (cubbyhole && updatedData.isEmpty())
+				IuHttp.send(dataUri, rb -> {
+					rb.DELETE();
+					this.authorize(rb);
+				}, responseHandler);
+			else
+				IuHttp.send(dataUri, rb -> {
+					rb.POST(BodyPublishers.ofString(dataRequestPayload));
+					this.authorize(rb);
+				}, responseHandler);
 
-				final var updated = readSecret(secret);
-				if (secretCache == null)
-					ref.data = updated;
-				else
-					secretCache.put(secret, updated);
-			});
+			final var delete = mergePatch.values().stream().allMatch(JsonValue.NULL::equals);
+			LOG.config(() -> "vault:" + (delete ? "delete:" : "set:") + dataUri + ":" + mergePatch.keySet());
+
+			final var updated = readSecret(secret);
+			if (secretCache == null)
+				ref.data = updated;
+			else
+				secretCache.put(secret, updated);
+		});
 
 		return new VaultSecret(secret, dataUri, dataSupplier, metadataSupplier, mergePatchConsumer, valueAdapter);
 	}

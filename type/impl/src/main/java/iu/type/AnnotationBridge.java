@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -53,16 +53,10 @@ final class AnnotationBridge {
 	 * @param annotatedElement {@link AnnotatedElement} context target
 	 * @param localClass       local class
 	 * @return remote class; <em>may</em> be same as local class
-	 * @throws ClassNotFoundException if an equivalent remote type cannot be found
 	 */
-	static Class<?> getPotentiallyRemoteClass(AnnotatedElement annotatedElement, Class<?> localClass)
-			throws ClassNotFoundException {
-		try {
-			return TypeUtils.callWithContext(annotatedElement,
-					() -> BackwardsCompatibility.getCompatibleClass(localClass));
-		} catch (Throwable e) {
-			throw IuException.checked(e, ClassNotFoundException.class);
-		}
+	static Class<?> getPotentiallyRemoteClass(AnnotatedElement annotatedElement, Class<?> localClass) {
+		return IuException.unchecked(() -> TypeUtils.callWithContext(annotatedElement,
+				() -> BackwardsCompatibility.getCompatibleClass(localClass)));
 	}
 
 	/**
@@ -81,7 +75,7 @@ final class AnnotationBridge {
 		Class<?> legacyAnnotationType;
 		try {
 			legacyAnnotationType = getPotentiallyRemoteClass(annotatedElement, annotationType);
-		} catch (ClassNotFoundException e) {
+		} catch (NoClassDefFoundError e) {
 			return false;
 		}
 
@@ -107,7 +101,7 @@ final class AnnotationBridge {
 		Class<?> legacyAnnotationType;
 		try {
 			legacyAnnotationType = getPotentiallyRemoteClass(annotatedElement, annotationType);
-		} catch (ClassNotFoundException e) {
+		} catch (NoClassDefFoundError e) {
 			return null;
 		}
 
@@ -118,8 +112,9 @@ final class AnnotationBridge {
 		if (legacyAnnotation == null)
 			return null;
 
-		return annotationType.cast(Proxy.newProxyInstance(annotationType.getClassLoader(),
-				new Class<?>[] { annotationType }, new PotentiallyRemoteAnnotationHandler(annotationType, legacyAnnotation)));
+		return annotationType
+				.cast(Proxy.newProxyInstance(annotationType.getClassLoader(), new Class<?>[] { annotationType },
+						new PotentiallyRemoteAnnotationHandler(annotationType, legacyAnnotation)));
 	}
 
 	/**
@@ -139,7 +134,7 @@ final class AnnotationBridge {
 			Class<?> localClass;
 			try {
 				localClass = BackwardsCompatibility.getCompatibleClass(annotationType);
-			} catch (ClassNotFoundException e) {
+			} catch (NoClassDefFoundError e) {
 				continue;
 			}
 
@@ -147,8 +142,9 @@ final class AnnotationBridge {
 				localAnnotations.offer(annotation);
 			else if (Annotation.class.isAssignableFrom(localClass)) {
 				var localAnnotationType = localClass.asSubclass(Annotation.class);
-				localAnnotations.offer((Annotation) Proxy.newProxyInstance(localClass.getClassLoader(),
-						new Class<?>[] { localClass }, new PotentiallyRemoteAnnotationHandler(localAnnotationType, annotation)));
+				localAnnotations.offer(
+						(Annotation) Proxy.newProxyInstance(localClass.getClassLoader(), new Class<?>[] { localClass },
+								new PotentiallyRemoteAnnotationHandler(localAnnotationType, annotation)));
 			}
 		}
 

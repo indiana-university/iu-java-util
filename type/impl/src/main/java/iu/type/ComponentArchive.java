@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -58,9 +58,7 @@ import edu.iu.type.base.TemporaryFile;
  *                             archive
  * @param kind                 component kind detected via {@link ArchiveSource}
  * @param version              component version info read from the archive
- * @param properties           {@code META-INF/iu-type.properties} when
- *                             {@link Kind#isModular()}, else
- *                             {@code META-INF/iu.properties}
+ * @param properties           {@code META-INF/iu-type.properties}
  * @param nonEnclosedTypeNames all top-level classes, including those defined
  *                             with package and protected encapsulation levels
  * @param webResources         all static web resources found in a
@@ -87,11 +85,9 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 		source.classPath().forEach(classPath::add);
 
 		var isWeb = false;
-		var hasModuleDescriptor = false;
 		var hasNonWebTypes = false;
 		Properties pomProperties = null;
 		Properties typeProperties = null;
-		Properties iuProperties = null;
 
 		while (source.hasNext()) {
 			var componentEntry = source.next();
@@ -121,10 +117,6 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 				if (typeProperties != null)
 					throw new IllegalArgumentException(
 							"Web archive must define META-INF/iu-type.properties as WEB-INF/classes/META-INF/iu-type.properties");
-
-				if (iuProperties != null)
-					throw new IllegalArgumentException(
-							"Web archive must define META-INF/iu.properties as WEB-INF/classes/META-INF/iu.properties");
 
 				isWeb = true;
 			}
@@ -171,22 +163,6 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 				continue;
 			}
 
-			if (name.equals("WEB-INF/classes/META-INF/iu.properties") //
-					|| name.equals("META-INF/iu.properties")) {
-				if (hasModuleDescriptor)
-					throw new IllegalArgumentException(
-							"Modular component archive must not include META-INF/iu.properties");
-				if (isWeb && name.startsWith("META-INF/"))
-					throw new IllegalArgumentException(
-							"Web archive must define META-INF/iu.properties as WEB-INF/classes/META-INF/iu.properties");
-
-				iuProperties = new Properties();
-				final var data = componentEntry.data();
-				iuProperties.load(new ByteArrayInputStream(data));
-				target.put(name, new ByteArrayInputStream(data));
-				continue;
-			}
-
 			// after this point, source resources are captured
 
 			if (name.endsWith(".class")) {
@@ -215,13 +191,7 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 					}
 				}
 
-				if (resourceName.equals("module-info.class")) {
-					if (iuProperties != null)
-						throw new IllegalArgumentException(
-								"Modular component archive must not include META-INF/iu.properties");
-
-					hasModuleDescriptor = true;
-				} else if (!resourceName.endsWith("package-info.class") //
+				if (!resourceName.endsWith("-info.class") //
 						&& resourceName.indexOf('$') == -1) // check for '$' skips enclosed classes
 					nonEnclosedTypeNames.add(resourceName.substring(0, resourceName.length() - 6).replace('/', '.'));
 
@@ -261,7 +231,6 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 			throw new IllegalArgumentException("Component archive must provide a version in pom.properties");
 
 		final Kind kind;
-		final Properties properties;
 		if (isWeb) {
 
 			var webResourceIterator = webResources.entrySet().iterator();
@@ -269,32 +238,14 @@ record ComponentArchive(Path path, Kind kind, ComponentVersion version, Properti
 				if (webResourceIterator.next().getKey().startsWith("META-INF/"))
 					webResourceIterator.remove();
 
-			var isServlet6 = false;
-			for (var dependency : source.dependencies())
-				if (dependency.compareTo(ComponentVersion.SERVLET_6) >= 0) {
-					isServlet6 = true;
-					continue;
-				}
-
-			if (hasModuleDescriptor || isServlet6) {
-				kind = Kind.MODULAR_WAR;
-				properties = typeProperties;
-			} else {
-				kind = Kind.LEGACY_WAR;
-				properties = iuProperties;
-			}
-		} else if (hasModuleDescriptor) {
-			kind = Kind.MODULAR_JAR;
-			properties = typeProperties;
-		} else {
-			kind = Kind.LEGACY_JAR;
-			properties = iuProperties;
-		}
+			kind = Kind.WAR;
+		} else
+			kind = Kind.JAR;
 
 		return new ScannedAttributes( //
 				kind, //
 				new ComponentVersion(componentName, version), //
-				properties, //
+				typeProperties, //
 				Collections.unmodifiableSet(nonEnclosedTypeNames), //
 				Collections.unmodifiableMap(webResources), //
 				Collections.unmodifiableCollection(bundledDependencies.values()));

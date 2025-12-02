@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -143,6 +143,20 @@ public class IuObjectTest {
 		assertTrue(IuObject.isPlatformName("org.ietf.jgss."));
 		assertTrue(IuObject.isPlatformName("org.w3c.dom."));
 		assertTrue(IuObject.isPlatformName("org.xml.sax."));
+	}
+
+	@Test
+	public void testPlatformTypeRuntime() {
+		final var rt1 = IdGenerator.generateId();
+		final var rt2 = IdGenerator.generateId();
+		System.setProperty("iu.util.platformNames", rt1 + "," + rt2);
+		try {
+			assertTrue(IuObject.isPlatformName(rt1));
+			assertTrue(IuObject.isPlatformName(rt2));
+			assertFalse(IuObject.isPlatformName(""));
+		} finally {
+			System.clearProperty("iu.util.platformNames");
+		}
 	}
 
 	@Test

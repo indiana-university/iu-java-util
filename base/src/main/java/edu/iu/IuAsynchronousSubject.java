@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -33,6 +33,7 @@ package edu.iu;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.Spliterator;
 import java.util.concurrent.ConcurrentLinkedDeque;
@@ -212,7 +213,6 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 
 	private class Subscriber implements Spliterator<T>, IuAsynchronousSubscription<T> {
 		private final Stream<T> stream;
-//		private volatile Source<T> source;
 		private final Queue<SourceSplit> children = new ConcurrentLinkedDeque<>();
 		private final Queue<T> accepted = new ConcurrentLinkedQueue<>();
 		private volatile Spliterator<T> delegate;
@@ -238,6 +238,13 @@ public class IuAsynchronousSubject<T> implements Consumer<T>, AutoCloseable {
 				final var split = delegate.trySplit();
 				if (split != null)
 					return new SourceSplit(split, this);
+				else {
+					final Queue<T> queue = new ArrayDeque<>();
+					if (delegate.tryAdvance(queue::offer)) {
+						delegate.forEachRemaining(queue::offer);
+						return new SourceSplit(queue.spliterator(), this);
+					}
+				}
 			}
 
 			if (error != null)

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -43,14 +43,8 @@ public class ComponentApiTest {
 
 	@Test
 	public void testCoversKind() throws ClassNotFoundException {
-		assertTrue(Kind.MODULAR_JAR.isModular());
-		assertFalse(Kind.MODULAR_JAR.isWeb());
-		assertTrue(Kind.MODULAR_WAR.isModular());
-		assertTrue(Kind.MODULAR_WAR.isWeb());
-		assertFalse(Kind.LEGACY_JAR.isModular());
-		assertFalse(Kind.LEGACY_JAR.isWeb());
-		assertFalse(Kind.LEGACY_WAR.isModular());
-		assertTrue(Kind.LEGACY_WAR.isWeb());
+		assertFalse(Kind.JAR.isWeb());
+		assertTrue(Kind.WAR.isWeb());
 	}
 
 }

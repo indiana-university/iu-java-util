@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -36,7 +36,6 @@ import java.lang.reflect.Array;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.Arrays;
 import java.util.Objects;
 
 import edu.iu.IuException;
@@ -66,20 +65,29 @@ class PotentiallyRemoteAnnotationHandler implements InvocationHandler {
 		this.potentiallyRemoteAnnotation = potentiallyRemoteAnnotation;
 	}
 
+	/**
+	 * Converts an object to a given local type.
+	 * 
+	 * @param o          object
+	 * @param localClass local type
+	 * @return o, converted
+	 */
 	@SuppressWarnings("unchecked")
-	private Object convert(Object o, Class<?> localClass) throws ClassNotFoundException {
+	Object convert(Object o, Class<?> localClass) {
 		if (localClass.isInstance(o))
 			return o;
 
 		if (Annotation.class.isAssignableFrom(localClass)) {
 			var potentiallyRemoteClass = BackwardsCompatibility.getCompatibleClass(localClass);
-			if (Annotation.class.isAssignableFrom(potentiallyRemoteClass) && potentiallyRemoteClass.isInstance(o))
+			if (Annotation.class.isAssignableFrom(potentiallyRemoteClass) //
+					&& potentiallyRemoteClass.isInstance(o))
 				return Proxy.newProxyInstance(localClass.getClassLoader(), new Class<?>[] { localClass },
 						new PotentiallyRemoteAnnotationHandler(localClass.asSubclass(Annotation.class),
 								(Annotation) o));
 		}
 
-		if (localClass.isArray() && o.getClass().isArray()) {
+		if (localClass.isArray() //
+				&& o.getClass().isArray()) {
 			var length = Array.getLength(o);
 			var componentType = localClass.getComponentType();
 			var convertedArray = Array.newInstance(componentType, length);
@@ -88,7 +96,8 @@ class PotentiallyRemoteAnnotationHandler implements InvocationHandler {
 			return convertedArray;
 		}
 
-		if (localClass.isEnum() && o.getClass().isEnum())
+		if (localClass.isEnum() //
+				&& o.getClass().isEnum())
 			return Enum.valueOf(localClass.asSubclass(Enum.class), ((Enum<?>) o).name());
 
 		throw new IllegalStateException("cannot convert " + o + " (" + o.getClass().getName() + ") to " + localClass
@@ -103,7 +112,8 @@ class PotentiallyRemoteAnnotationHandler implements InvocationHandler {
 			return false;
 
 		for (var method : localAnnotationType.getDeclaredMethods())
-			if (!Objects.equals(invoke(proxy, method, null), IuException.checkedInvocation(() -> method.invoke(object))))
+			if (!Objects.equals(invoke(proxy, method, null),
+					IuException.checkedInvocation(() -> method.invoke(object))))
 				return false;
 		return true;
 	}
@@ -117,7 +127,6 @@ class PotentiallyRemoteAnnotationHandler implements InvocationHandler {
 			if (method.equals(EQUALS))
 				return handleEquals(proxy, args[0]);
 
-			assert args == null : Arrays.toString(args);
 			var potentiallyRemoteMethod = potentiallyRemoteAnnotation.annotationType().getMethod(method.getName());
 			var potentiallyRemoteReturnValue = IuException
 					.checkedInvocation(() -> potentiallyRemoteMethod.invoke(potentiallyRemoteAnnotation));

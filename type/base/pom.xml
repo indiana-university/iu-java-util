@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>edu.iu.util</groupId>
 		<artifactId>iu-java-type-parent</artifactId>
-		<version>7.0.6</version>
+		<version>7.0.7-SNAPSHOT</version>
 	</parent>
 	
 	<artifactId>iu-java-type-base</artifactId>
@@ -22,6 +22,13 @@
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-test</artifactId>
 			<version>${project.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-type-testruntime</artifactId>
+			<version>${project.version}</version>
+			<classifier>bundle</classifier>
 			<scope>test</scope>
 		</dependency>
 		<dependency>

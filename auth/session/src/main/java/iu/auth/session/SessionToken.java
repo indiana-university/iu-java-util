@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -40,7 +40,7 @@ import java.util.Objects;
  * @param token             tokenized session
  * @param inactivePurgeTime inactive purge time
  */
-public record SessionToken(String token, Instant inactivePurgeTime) {
+public record SessionToken(byte[] token, Instant inactivePurgeTime) {
 
 	/**
 	 * constructor
@@ -48,7 +48,7 @@ public record SessionToken(String token, Instant inactivePurgeTime) {
 	 * @param token             token
 	 * @param inactivePurgeTime inactive purge time
 	 */
-	public SessionToken(String token, Instant inactivePurgeTime) {
+	public SessionToken(byte[] token, Instant inactivePurgeTime) {
 		Objects.requireNonNull(token, "token required");
 		Objects.requireNonNull(inactivePurgeTime, "inactivePurgeTime required");
 		this.token = token;

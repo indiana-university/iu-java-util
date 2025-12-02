@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -36,8 +36,9 @@
 module iu.util.auth.session {
 	exports iu.auth.session;
 
-	requires iu.util;
+	requires transitive iu.util;
 	requires iu.util.crypt;
 	requires transitive iu.util.auth;
 	requires transitive iu.util.auth.config;
+
 }

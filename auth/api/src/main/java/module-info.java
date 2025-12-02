@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -40,16 +40,14 @@
  */
 module iu.util.auth {
 	exports edu.iu.auth;
-
 	exports edu.iu.auth.nonce;
-
-	opens edu.iu.auth.nonce;
-
+	exports edu.iu.auth.oauth;
 	exports edu.iu.auth.saml;
-
 	exports edu.iu.auth.session;
-
 	exports edu.iu.auth.spi;
+
+	opens edu.iu.auth.oauth;
+	opens edu.iu.auth.nonce;
 
 	requires iu.util;
 	requires transitive java.net.http;

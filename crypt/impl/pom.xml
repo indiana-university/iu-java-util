@@ -7,7 +7,7 @@
 	<parent>
 		<groupId>edu.iu.util</groupId>
 		<artifactId>iu-java-crypt-parent</artifactId>
-		<version>7.0.6</version>
+		<version>7.0.7-SNAPSHOT</version>
 	</parent>
 
 	<artifactId>iu-java-crypt-impl</artifactId>
@@ -27,6 +27,11 @@
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
+      <groupId>jakarta.annotation</groupId>
+      <artifactId>jakarta.annotation-api</artifactId>
+      <version>${jakarta.annotation-api.version}</version>
+    </dependency>
+		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-client</artifactId>
 			<version>${project.version}</version>
@@ -45,4 +50,26 @@
 		</dependency>
 	</dependencies>
 	
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>bundle-distribution</id>
+            <goals>
+              <goal>single</goal>
+            </goals>
+            <phase>package</phase>
+            <configuration>
+              <descriptors>
+                <descriptor>src/assembly/bundle.xml</descriptor>
+              </descriptors>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
 </project>

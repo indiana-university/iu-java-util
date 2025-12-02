@@ -7,15 +7,15 @@
 	<parent>
 		<groupId>edu.iu.util</groupId>
 		<artifactId>iu-java-auth-parent</artifactId>
-		<version>7.0.6</version>
+		<version>7.0.7-SNAPSHOT</version>
 	</parent>
 
 	<artifactId>iu-java-auth-saml</artifactId>
 	<name>IU SAML 2.0 Service Provider</name>
 
 	<properties>
-		<opensaml.version>5.1.0</opensaml.version>
-		<slf4j.version>2.0.16</slf4j.version>
+		<opensaml.version>5.1.6</opensaml.version>
+		<slf4j.version>2.0.17</slf4j.version>
 	</properties>
 
 	<dependencies>

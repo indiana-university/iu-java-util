@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -72,7 +72,13 @@ public interface IuSamlAssertion {
 	 */
 	Instant getNotOnOrAfter();
 
-	/** authnInstant */
+	/**
+	 * Gets the {@code authnAuthority} IDP entity ID.
+	 * 
+	 * @return authenticating authority
+	 */
+	String getAuthnAuthority();
+
 	/**
 	 * Gets the {@code authnInstant} authentication statement value.
 	 * 

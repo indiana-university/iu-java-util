@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -41,7 +41,7 @@ import edu.iu.crypt.WebKey.Algorithm;
  * Configures the private key holder of an {@link X509Certificate X.509
  * certificate chain}.
  */
-public interface IuPrivateKeyPrincipal extends IuAuthenticationRealm {
+public interface IuPrivateKeyPrincipal {
 
 	/**
 	 * Gets the algorithm to use for creating new digital signatures or as the key

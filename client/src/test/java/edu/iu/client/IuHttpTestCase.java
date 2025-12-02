@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -61,7 +61,8 @@ public class IuHttpTestCase {
 			}
 
 		} finally {
-			System.getProperties().remove("iu-client.allowedUri");
+			System.getProperties().remove("iu.http.allowedUri");
+			System.getProperties().remove("iu.http.allowedInsecureUri");
 		}
 	}
 

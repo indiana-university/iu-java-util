@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -580,6 +580,7 @@ public class SamlServiceProviderTest {
 	private static final class TestId implements IuPrincipalIdentity {
 
 		private final String name = IdGenerator.generateId();
+		private final String issuer = IdGenerator.generateId();
 		private final Instant issuedAt = Instant.now();
 		private final Instant authTime = issuedAt.truncatedTo(ChronoUnit.SECONDS);
 		private final Instant expires = authTime.plusSeconds(5L);
@@ -607,6 +608,11 @@ public class SamlServiceProviderTest {
 		}
 
 		@Override
+		public String getIssuer() {
+			return issuer;
+		}
+
+		@Override
 		public Instant getIssuedAt() {
 			return issuedAt;
 		}
@@ -630,10 +636,6 @@ public class SamlServiceProviderTest {
 	static IuSamlServiceProviderMetadata getConfig(List<URI> metadataUris, String serviceProviderEntityId,
 			IuPrivateKeyPrincipal pkp, List<URI> acsUris) {
 		final var config = new IuSamlServiceProviderMetadata() {
-			@Override
-			public Type getType() {
-				return Type.SAML;
-			}
 
 			@Override
 			public String getServiceProviderEntityId() {

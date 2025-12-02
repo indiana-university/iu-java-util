@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -462,6 +462,7 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 			when(samlResponseValidator.realm()).thenReturn(realm);
 
 			final var issuedInstant = Instant.now();
+			final var authnAuthority = IdGenerator.generateId();
 			final var authnInstant = issuedInstant.minusSeconds(5L);
 
 			final var response = mock(Response.class);
@@ -481,6 +482,7 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 			when(config.getPrincipalNameAttribute()).thenReturn(principalNameAttribute);
 			final var principalName = IdGenerator.generateId();
 			final var assertion = mock(SamlAssertion.class);
+			when(assertion.getAuthnAuthority()).thenReturn(authnAuthority);
 			when(assertion.getAuthnInstant()).thenReturn(authnInstant);
 			when(assertion.getAttributes()).thenReturn(Map.of(principalNameAttribute, principalName));
 			assertDoesNotThrow(
@@ -491,7 +493,7 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 
 			IuTestLogger.expect(SamlResponseValidator.class.getName(), Level.FINE, "saml:pre-validate\n" + content);
 			IuTestLogger.expect(SamlResponseValidator.class.getName(), Level.FINE,
-					"saml:post-validate:" + principalName + ":" + authnInstant + "; issuer: " + iss + " @"
+					"saml:post-validate:" + principalName + ":" + authnAuthority + " @" + authnInstant + "; issuer: " + iss + " @"
 							+ issuedInstant + ", expires " + expires + "; assertions: [" + assertion + "]");
 
 			assertDoesNotThrow(() -> samlResponseValidator.validate(response));

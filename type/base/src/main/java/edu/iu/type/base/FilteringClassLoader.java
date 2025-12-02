@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2025 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -64,7 +64,6 @@ public class FilteringClassLoader extends ClassLoader {
 	@Override
 	protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
 		var match = !name.startsWith("jakarta.") && //
-				!name.startsWith("javax.") && //
 				IuObject.isPlatformName(name);
 
 		if (!match)
