@@ -54,6 +54,8 @@ import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpRequest.Builder;
 import java.net.http.HttpResponse;
 import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.LogManager;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -75,7 +77,9 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 	private MockedStatic<IuHttp> mockIuHttp;
 
 	@BeforeEach
-	void setup() {
+	void setup() throws Exception {
+		LogManager.getLogManager().getLogger(Class.forName(RemoteInvocationHandler.class.getName()).getName())
+				.setLevel(Level.FINER);
 		mockIuHttp = mockStatic(IuHttp.class);
 	}
 
