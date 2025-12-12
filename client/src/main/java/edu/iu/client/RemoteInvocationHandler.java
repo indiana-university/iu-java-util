@@ -39,6 +39,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.util.logging.Logger;
 
+import edu.iu.IuObject;
 import edu.iu.IuStream;
 import edu.iu.IuText;
 import edu.iu.UnsafeConsumer;
@@ -106,12 +107,14 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 	 */
 	@SuppressWarnings("unchecked")
 	protected <T> IuJsonAdapter<T> adapt(Type type) {
-		if (type == RemoteInvocationFailure.class //
-				|| type == RemoteInvocationDetail.class)
-			return (IuJsonAdapter<T>) IuJsonAdapter.from((Class<?>) type,
-					IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, a -> adapt(a));
-		else
-			return IuJsonAdapter.of(type, a -> adapt(a));
+		if (type instanceof Class) {
+			final var c = (Class<?>) type;
+			if (!IuObject.isPlatformName(c.getName()) && c.isInterface())
+				return (IuJsonAdapter<T>) IuJsonAdapter.from((Class<?>) type,
+						IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, a -> adapt(a));
+		}
+
+		return IuJsonAdapter.of(type, a -> adapt(a));
 	}
 
 	@Override
