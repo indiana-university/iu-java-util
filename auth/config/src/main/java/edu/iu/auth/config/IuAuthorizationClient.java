@@ -292,4 +292,22 @@ public interface IuAuthorizationClient {
 	 */
 	Iterable<? extends Credentials> getCredentials();
 
+	/**
+	 * Determines if a valid nonce claim is required.
+	 * 
+	 * @return true if nonce is required (default); else false
+	 */
+	default boolean isRequireNonce() {
+		return true;
+	}
+
+	/**
+	 * Determines if a valid jti claim is required.
+	 * 
+	 * @return true if jti is required (default); else false
+	 */
+	default boolean isRequireJti() {
+		return true;
+	}
+
 }
