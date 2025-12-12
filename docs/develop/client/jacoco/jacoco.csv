@@ -32,7 +32,7 @@ IU HTTP Client Utilities,edu.iu.client,IuJsonAdapter.new IuJsonAdapter() {...},0
 IU HTTP Client Utilities,edu.iu.client,ThrowableRemoteInvocationFailure,0,54,0,0,0,14,0,9,0,9
 IU HTTP Client Utilities,edu.iu.client,RemoteInvocationStackTraceElementDetail,0,22,0,0,0,7,0,5,0,5
 IU HTTP Client Utilities,edu.iu.client,RemoteInvocationException,0,150,1,15,0,28,1,11,0,4
-IU HTTP Client Utilities,edu.iu.client,RemoteInvocationHandler,0,172,0,14,0,37,0,15,0,7
+IU HTTP Client Utilities,edu.iu.client,RemoteInvocationHandler,0,207,0,16,0,43,0,19,0,10
 IU HTTP Client Utilities,edu.iu.client,IuHttp,0,381,0,26,0,74,0,35,0,22
 IU HTTP Client Utilities,edu.iu.client,IuJsonAdapter,0,74,0,2,0,12,0,15,0,14
 IU HTTP Client Utilities,edu.iu.client,HttpException,0,25,0,0,0,10,0,4,0,4

@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>RemoteAccessTokenBuilder.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-auth-config</a> &gt; <a href="index.source.html" class="el_package">iu.auth.config</a> &gt; <span class="el_source">RemoteAccessTokenBuilder.java</span></div><h1>RemoteAccessTokenBuilder.java</h1><pre class="source lang-java linenums">package iu.auth.config;
+
+import java.lang.reflect.Type;
+
+import edu.iu.IuObject;
+import edu.iu.auth.oauth.IuAuthorizationDetails;
+import edu.iu.auth.oauth.IuCallerAttributes;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonPropertyNameFormat;
+import iu.crypt.JwtBuilder;
+import jakarta.json.JsonArrayBuilder;
+
+/**
+ * Builds {@link RemoteAccessToken} instances.
+ * 
+ * @param &lt;B&gt; builder type
+ */
+public class RemoteAccessTokenBuilder&lt;B extends RemoteAccessTokenBuilder&lt;B&gt;&gt; extends JwtBuilder&lt;B&gt; {
+
+<span class="fc" id="L21">	private JsonArrayBuilder authorizationDetails = IuJson.array();</span>
+
+	/**
+	 * Default constructor.
+	 */
+<span class="fc" id="L26">	protected RemoteAccessTokenBuilder() {</span>
+<span class="fc" id="L27">	}</span>
+
+	/**
+	 * Adapts types related to the authorization_details claim.
+	 * 
+	 * @param &lt;T&gt;  adapted type
+	 * @param type details interface
+	 * @return {@link IuJsonAdapter}
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	static protected &lt;T&gt; IuJsonAdapter&lt;T&gt; adaptAuthorizationDetails(Type type) {
+<span class="fc bfc" id="L38" title="All 2 branches covered.">		if (type instanceof Class) {</span>
+<span class="fc" id="L39">			final var c = (Class&lt;?&gt;) type;</span>
+<span class="fc bfc" id="L40" title="All 2 branches covered.">			if (!IuObject.isPlatformName(c.getName()) //</span>
+<span class="fc bfc" id="L41" title="All 2 branches covered.">					&amp;&amp; c.isInterface())</span>
+<span class="fc" id="L42">				return (IuJsonAdapter&lt;T&gt;) IuJsonAdapter.from(c, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES,</span>
+						RemoteAccessTokenBuilder::adaptAuthorizationDetails);
+		}
+
+<span class="fc" id="L46">		return IuJsonAdapter.of(type);</span>
+	}
+
+	/**
+	 * Sets the scope granted with this token.
+	 * 
+	 * @param scope scope
+	 * @return this
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	public B scope(String scope) {
+<span class="fc" id="L57">		param(&quot;scope&quot;, scope);</span>
+<span class="fc" id="L58">		return (B) this;</span>
+	}
+
+	/**
+	 * Provides authorization details.
+	 * 
+	 * @param &lt;T&gt;                  details type
+	 * @param type                 details interface class
+	 * @param authorizationDetails authorization details
+	 * @return this
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	protected &lt;T extends IuAuthorizationDetails&gt; B authorizationDetails(Class&lt;T&gt; type, T authorizationDetails) {
+<span class="fc" id="L71">		this.authorizationDetails.add(adaptAuthorizationDetails(type).toJson(authorizationDetails));</span>
+<span class="fc" id="L72">		return (B) this;</span>
+	}
+
+	/**
+	 * Adds caller attributes as authorization details.
+	 * 
+	 * @param callerAttributes {@link IuCallerAttributes}
+	 * @return this
+	 */
+	public B caller(IuCallerAttributes callerAttributes) {
+<span class="fc" id="L82">		return authorizationDetails(IuCallerAttributes.class, callerAttributes);</span>
+	}
+
+	@Override
+	protected void prepare() {
+<span class="fc" id="L87">		super.prepare();</span>
+<span class="fc" id="L88">		final var authorizationDetails = this.authorizationDetails.build();</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">		if (!authorizationDetails.isEmpty())</span>
+<span class="fc" id="L90">			param(&quot;authorization_details&quot;, authorizationDetails);</span>
+<span class="fc" id="L91">	}</span>
+
+	@Override
+	public RemoteAccessToken build() {
+<span class="fc" id="L95">		prepare();</span>
+<span class="fc" id="L96">		return new RemoteAccessToken(toJson());</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

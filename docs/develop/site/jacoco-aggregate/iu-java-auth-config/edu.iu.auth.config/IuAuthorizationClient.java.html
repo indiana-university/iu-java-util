@@ -292,5 +292,23 @@ public interface IuAuthorizationClient {
 	 */
 	Iterable&lt;? extends Credentials&gt; getCredentials();
 
+	/**
+	 * Determines if a valid nonce claim is required.
+	 * 
+	 * @return true if nonce is required (default); else false
+	 */
+	default boolean isRequireNonce() {
+<span class="fc" id="L301">		return true;</span>
+	}
+
+	/**
+	 * Determines if a valid jti claim is required.
+	 * 
+	 * @return true if jti is required (default); else false
+	 */
+	default boolean isRequireJti() {
+<span class="fc" id="L310">		return true;</span>
+	}
+
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

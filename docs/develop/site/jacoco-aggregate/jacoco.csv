@@ -90,7 +90,7 @@ IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuJsonAdapter.new I
 IU Java Utilities API Reference/iu-java-client,edu.iu.client,ThrowableRemoteInvocationFailure,0,54,0,0,0,14,0,9,0,9
 IU Java Utilities API Reference/iu-java-client,edu.iu.client,RemoteInvocationStackTraceElementDetail,0,22,0,0,0,7,0,5,0,5
 IU Java Utilities API Reference/iu-java-client,edu.iu.client,RemoteInvocationException,0,150,1,15,0,28,1,11,0,4
-IU Java Utilities API Reference/iu-java-client,edu.iu.client,RemoteInvocationHandler,0,172,0,14,0,37,0,15,0,7
+IU Java Utilities API Reference/iu-java-client,edu.iu.client,RemoteInvocationHandler,0,207,0,16,0,43,0,19,0,10
 IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuHttp,0,381,0,26,0,74,0,35,0,22
 IU Java Utilities API Reference/iu-java-client,edu.iu.client,IuJsonAdapter,0,74,0,2,0,12,0,15,0,14
 IU Java Utilities API Reference/iu-java-client,edu.iu.client,HttpException,0,25,0,0,0,10,0,4,0,4
@@ -330,16 +330,21 @@ IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth,IuPrincipalIdentity
 IU Java Utilities API Reference/iu-java-auth-api,iu.auth,IuAuthSpiFactory,0,54,0,4,0,12,0,4,0,2
 IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth.session,IuSession,0,2,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth.nonce,IuOneTimeNumberConfig,0,7,0,0,0,4,0,4,0,4
+IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth.oauth,IuCallerAttributes,0,2,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthorizationClient.AuthMethod,0,96,0,0,0,18,0,5,0,5
+IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthorizationClient,0,4,0,0,0,2,0,2,0,2
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuSessionConfiguration,0,6,0,0,0,2,0,2,0,2
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthorizationClient.GrantType,0,65,0,0,0,11,0,5,0,5
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,X500Utils,0,693,0,136,0,121,0,84,0,16
+IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthorizedAudience,0,3,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuOpenIdProviderMetadata,0,2,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuBasicAuthCredentials,0,13,0,0,0,3,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuSamlServiceProviderMetadata,0,12,0,0,0,5,0,5,0,5
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,AuthConfig,0,281,0,20,0,65,0,28,0,18
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,OidcAuthorizationGrant,0,42,0,0,0,12,0,4,0,4
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,AuthConfig.new Object() {...},0,86,0,6,0,13,0,7,0,4
+IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,RemoteAccessTokenBuilder,0,72,0,8,0,21,0,11,0,7
+IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,RemoteAccessToken,0,45,0,0,0,8,0,6,0,6
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,AuthConfig.StorageConfig,0,15,0,0,0,6,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,OAuthAccessTokenGrant,0,97,0,6,0,22,0,8,0,5
 IU Java Utilities API Reference/iu-java-auth-principal,iu.auth.principal,PrincipalVerifierRegistry,0,21,0,0,0,8,0,3,0,3
