@@ -34,7 +34,7 @@ public class RemoteAccessTokenTest {
 	}
 
 	@Test
-	public void testCallerAttrbutes() {
+	public void testCallerAttributes() {
 		final var requestUri = URI.create(IdGenerator.generateId());
 		final var remoteAddr = IdGenerator.generateId();
 		final var userAgent = IdGenerator.generateId();
