@@ -37,6 +37,7 @@ import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
+import java.util.logging.Logger;
 
 import edu.iu.IuStream;
 import edu.iu.IuText;
@@ -48,11 +49,13 @@ import edu.iu.UnsafeConsumer;
  */
 public abstract class RemoteInvocationHandler implements InvocationHandler {
 
+<span class="fc" id="L52">	private static final Logger LOG = Logger.getLogger(RemoteInvocationHandler.class.getName());</span>
+
 	/**
 	 * Default constructor.
 	 */
-<span class="fc" id="L54">	protected RemoteInvocationHandler() {</span>
-<span class="fc" id="L55">	}</span>
+<span class="fc" id="L57">	protected RemoteInvocationHandler() {</span>
+<span class="fc" id="L58">	}</span>
 
 	/**
 	 * Supplies the remote invocation URI.
@@ -82,68 +85,74 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 	 * @param args           arguments
 	 */
 	protected void payload(HttpRequest.Builder requestBuilder, Method method, Object[] args) {
-<span class="fc" id="L85">		final var parameters = method.getParameters();</span>
-<span class="fc" id="L86">		final var requestBody = IuJson.array();</span>
-<span class="fc bfc" id="L87" title="All 2 branches covered.">		for (var i = 0; i &lt; parameters.length; i++)</span>
-<span class="fc" id="L88">			requestBody.add(adapt(parameters[i].getParameterizedType()).toJson(args[i]));</span>
+<span class="fc" id="L88">		final var parameters = method.getParameters();</span>
+<span class="fc" id="L89">		final var requestBody = IuJson.array();</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">		for (var i = 0; i &lt; parameters.length; i++)</span>
+<span class="fc" id="L91">			requestBody.add(adapt(parameters[i].getParameterizedType()).toJson(args[i]));</span>
 
-<span class="fc" id="L90">		final var request = requestBody.build().toString();</span>
-<span class="fc" id="L91">		requestBuilder.header(&quot;Content-Type&quot;, &quot;application/json&quot;);</span>
-<span class="fc" id="L92">		requestBuilder.POST(BodyPublishers.ofString(request));</span>
-<span class="fc" id="L93">	}</span>
+<span class="fc" id="L93">		final var request = requestBody.build().toString();</span>
+<span class="fc" id="L94">		LOG.finer(() -&gt; method + &quot; &quot; + request);</span>
+
+<span class="fc" id="L96">		requestBuilder.header(&quot;Content-Type&quot;, &quot;application/json&quot;);</span>
+<span class="fc" id="L97">		requestBuilder.POST(BodyPublishers.ofString(request));</span>
+<span class="fc" id="L98">	}</span>
 
 	/**
 	 * Get a {@link IuJsonAdapter} for converting to a generic type.
 	 * 
-	 * @param &lt;T&gt; Java type
+	 * @param &lt;T&gt;  Java type
 	 * @param type Java type
 	 * @return {@link IuJsonAdapter}
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	protected &lt;T&gt; IuJsonAdapter&lt;T&gt; adapt(Type type) {
-<span class="fc bfc" id="L104" title="All 4 branches covered.">		if (type == RemoteInvocationFailure.class //</span>
+<span class="fc bfc" id="L109" title="All 4 branches covered.">		if (type == RemoteInvocationFailure.class //</span>
 				|| type == RemoteInvocationDetail.class)
-<span class="fc" id="L106">			return (IuJsonAdapter&lt;T&gt;) IuJsonAdapter.from((Class&lt;?&gt;) type,</span>
-<span class="fc" id="L107">					IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, a -&gt; adapt(a));</span>
+<span class="fc" id="L111">			return (IuJsonAdapter&lt;T&gt;) IuJsonAdapter.from((Class&lt;?&gt;) type,</span>
+<span class="fc" id="L112">					IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, a -&gt; adapt(a));</span>
 		else
-<span class="fc" id="L109">			return IuJsonAdapter.of(type, a -&gt; adapt(a));</span>
+<span class="fc" id="L114">			return IuJsonAdapter.of(type, a -&gt; adapt(a));</span>
 	}
 
 	@Override
 	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-<span class="fc bfc" id="L114" title="All 4 branches covered.">		switch (method.getName()) {</span>
+<span class="fc bfc" id="L119" title="All 4 branches covered.">		switch (method.getName()) {</span>
 		case &quot;hashCode&quot;:
-<span class="fc" id="L116">			return System.identityHashCode(proxy);</span>
+<span class="fc" id="L121">			return System.identityHashCode(proxy);</span>
 		case &quot;equals&quot;:
-<span class="fc bfc" id="L118" title="All 2 branches covered.">			return proxy == args[0];</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">			return proxy == args[0];</span>
 		case &quot;toString&quot;:
-<span class="fc" id="L120">			return toString();</span>
+<span class="fc" id="L125">			return toString();</span>
 		}
 
-<span class="fc" id="L123">		final UnsafeConsumer&lt;HttpRequest.Builder&gt; request = builder -&gt; {</span>
-<span class="fc" id="L124">			authorize(builder);</span>
-<span class="fc" id="L125">			payload(builder, method, args);</span>
-<span class="fc" id="L126">		};</span>
+<span class="fc" id="L128">		final UnsafeConsumer&lt;HttpRequest.Builder&gt; request = builder -&gt; {</span>
+<span class="fc" id="L129">			authorize(builder);</span>
+<span class="fc" id="L130">			payload(builder, method, args);</span>
+<span class="fc" id="L131">		};</span>
 
 		try {
-<span class="fc" id="L129">			final var type = method.getGenericReturnType();</span>
-<span class="fc bfc" id="L130" title="All 2 branches covered.">			if (type == void.class)</span>
-<span class="fc" id="L131">				return IuHttp.send(uri(method), request, IuHttp.NO_CONTENT);</span>
-			else
-<span class="fc" id="L133">				return adapt(type).fromJson(IuHttp.send(uri(method), request, IuHttp.READ_JSON));</span>
-<span class="fc" id="L134">		} catch (HttpException e) {</span>
+<span class="fc" id="L134">			final var type = method.getGenericReturnType();</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">			if (type == void.class)</span>
+<span class="fc" id="L136">				return IuHttp.send(uri(method), request, IuHttp.NO_CONTENT);</span>
+			else {
+<span class="fc" id="L138">				final var responseJson = IuHttp.send(uri(method), request, IuHttp.READ_JSON);</span>
+<span class="fc" id="L139">				LOG.finer(() -&gt; method + &quot; &quot; + responseJson);</span>
+
+<span class="fc" id="L141">				return adapt(type).fromJson(responseJson);</span>
+			}
+<span class="fc" id="L143">		} catch (HttpException e) {</span>
 			Throwable remoteError;
-<span class="fc" id="L136">			String body = null;</span>
+<span class="fc" id="L145">			String body = null;</span>
 			try {
-<span class="fc" id="L138">				body = IuText.utf8(IuStream.read(e.getResponse().body()));</span>
-<span class="fc" id="L139">				remoteError = new RemoteInvocationException(</span>
-<span class="fc" id="L140">						(RemoteInvocationFailure) adapt(RemoteInvocationFailure.class).fromJson(IuJson.parse(body)));</span>
-<span class="fc" id="L141">				remoteError.addSuppressed(e);</span>
-<span class="fc" id="L142">			} catch (Throwable errorHandlingFailure) {</span>
-<span class="fc" id="L143">				remoteError = new IllegalStateException(body, e);</span>
-<span class="fc" id="L144">				remoteError.addSuppressed(errorHandlingFailure);</span>
-<span class="fc" id="L145">			}</span>
-<span class="fc" id="L146">			throw remoteError;</span>
+<span class="fc" id="L147">				body = IuText.utf8(IuStream.read(e.getResponse().body()));</span>
+<span class="fc" id="L148">				remoteError = new RemoteInvocationException(</span>
+<span class="fc" id="L149">						(RemoteInvocationFailure) adapt(RemoteInvocationFailure.class).fromJson(IuJson.parse(body)));</span>
+<span class="fc" id="L150">				remoteError.addSuppressed(e);</span>
+<span class="fc" id="L151">			} catch (Throwable errorHandlingFailure) {</span>
+<span class="fc" id="L152">				remoteError = new IllegalStateException(body, e);</span>
+<span class="fc" id="L153">				remoteError.addSuppressed(errorHandlingFailure);</span>
+<span class="fc" id="L154">			}</span>
+<span class="fc" id="L155">			throw remoteError;</span>
 		}
 	}
 

@@ -2,8 +2,8 @@
 
 import java.net.URI;
 
-import edu.iu.auth.config.AuthorizationDetails;
-import edu.iu.auth.config.CallerAttributes;
+import edu.iu.auth.oauth.IuAuthorizationDetails;
+import edu.iu.auth.oauth.IuCallerAttributes;
 import edu.iu.client.IuJson;
 import iu.crypt.Jwt;
 import jakarta.json.JsonObject;
@@ -18,9 +18,18 @@ public class RemoteAccessToken extends Jwt {
 	 * 
 	 * @param claims Parsed JSON claims
 	 */
-	protected RemoteAccessToken(JsonObject claims) {
+	public RemoteAccessToken(JsonObject claims) {
 <span class="fc" id="L22">		super(claims);</span>
 <span class="fc" id="L23">	}</span>
+
+	/**
+	 * Gets a builder.
+	 * 
+	 * @return {@link RemoteAccessTokenBuilder}
+	 */
+	public static RemoteAccessTokenBuilder&lt;?&gt; builder() {
+<span class="fc" id="L31">		return new RemoteAccessTokenBuilder&lt;&gt;();</span>
+	}
 
 	/**
 	 * Gets the called URL.
@@ -30,10 +39,10 @@ public class RemoteAccessToken extends Jwt {
 	 * @param detailInterface authorization details interface
 	 * @return authorization details
 	 */
-	protected &lt;T extends AuthorizationDetails&gt; T getAuthorizationDetails(String type, Class&lt;T&gt; detailInterface) {
-<span class="fc" id="L34">		return detailInterface.cast(RemoteAccessTokenBuilder.adaptAuthorizationDetails(detailInterface)</span>
-<span class="fc" id="L35">				.fromJson(claims.getJsonArray(&quot;authorization_details&quot;).stream()</span>
-<span class="fc" id="L36">						.filter(a -&gt; type.equals(IuJson.get(a.asJsonObject(), &quot;type&quot;))).findFirst().get()));</span>
+	protected &lt;T extends IuAuthorizationDetails&gt; T getAuthorizationDetails(String type, Class&lt;T&gt; detailInterface) {
+<span class="fc" id="L43">		return detailInterface.cast(RemoteAccessTokenBuilder.adaptAuthorizationDetails(detailInterface)</span>
+<span class="fc" id="L44">				.fromJson(claims.getJsonArray(&quot;authorization_details&quot;).stream()</span>
+<span class="fc" id="L45">						.filter(a -&gt; type.equals(IuJson.get(a.asJsonObject(), &quot;type&quot;))).findFirst().get()));</span>
 	}
 
 	/**
@@ -42,7 +51,7 @@ public class RemoteAccessToken extends Jwt {
 	 * @return scope
 	 */
 	public String getScope() {
-<span class="fc" id="L45">		return IuJson.get(claims, &quot;scope&quot;);</span>
+<span class="fc" id="L54">		return IuJson.get(claims, &quot;scope&quot;);</span>
 	}
 
 	/**
@@ -50,8 +59,8 @@ public class RemoteAccessToken extends Jwt {
 	 * 
 	 * @return {@link URI}
 	 */
-	public CallerAttributes getCallerAttributes() {
-<span class="fc" id="L54">		return getAuthorizationDetails(CallerAttributes.TYPE, CallerAttributes.class);</span>
+	public IuCallerAttributes getCallerAttributes() {
+<span class="fc" id="L63">		return getAuthorizationDetails(IuCallerAttributes.TYPE, IuCallerAttributes.class);</span>
 	}
 
 }
