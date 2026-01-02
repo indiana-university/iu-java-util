@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>JwsBuilder.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-crypt-impl</a> &gt; <a href="index.source.html" class="el_package">iu.crypt</a> &gt; <span class="el_source">JwsBuilder.java</span></div><h1>JwsBuilder.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2026 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.crypt;
+
+import java.io.InputStream;
+import java.net.URI;
+import java.security.Signature;
+import java.security.spec.MGF1ParameterSpec;
+import java.security.spec.PSSParameterSpec;
+import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.Set;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+
+import edu.iu.IuException;
+import edu.iu.IuIterable;
+import edu.iu.IuObject;
+import edu.iu.IuStream;
+import edu.iu.IuText;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.WebCryptoHeader.Param;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Use;
+import edu.iu.crypt.WebSignature.Builder;
+import edu.iu.crypt.WebSignedPayload;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
+import jakarta.json.JsonValue;
+
+/**
+ * Collects inputs for {@link Jws} encrypted messages.
+ */
+public class JwsBuilder implements Builder&lt;JwsBuilder&gt; {
+	static {
+<span class="fc" id="L73">		IuObject.assertNotOpen(JwsBuilder.class);</span>
+	}
+
+	/** {@link IuJsonAdapter} */
+<span class="fc" id="L77">	public static final IuJsonAdapter&lt;WebSignedPayload&gt; JSON = IuJsonAdapter.from(v -&gt; {</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">		if (v instanceof JsonString)</span>
+<span class="fc" id="L79">			return parse(((JsonString) v).getString());</span>
+		else
+<span class="fc" id="L81">			return IuObject.convert(v, a -&gt; parse(a.asJsonObject().toString()));</span>
+	}, h -&gt; {
+<span class="fc bfc" id="L83" title="All 2 branches covered.">		if (h == null)</span>
+<span class="fc" id="L84">			return null;</span>
+
+<span class="fc" id="L86">		final var jws = (JwsSignedPayload) h;</span>
+<span class="fc" id="L87">		final Iterator&lt;Jws&gt; signatureIterator = jws.getSignatures().iterator();</span>
+<span class="fc" id="L88">		signatureIterator.next();</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">		if (signatureIterator.hasNext())</span>
+<span class="fc" id="L90">			return IuJson.parse(jws.toString());</span>
+		else
+<span class="fc" id="L92">			return IuJson.string(jws.compact());</span>
+	});
+
+	/**
+	 * Parses JWS signed payload from serialized form
+	 * 
+	 * @param jws compact or JSON serialized from
+	 * @return JWS signed payload
+	 */
+	public static JwsSignedPayload parse(String jws) {
+<span class="fc bfc" id="L102" title="All 2 branches covered.">		if (jws.startsWith(&quot;{&quot;)) {</span>
+<span class="fc" id="L103">			final var json = IuJson.parse(jws).asJsonObject();</span>
+<span class="fc" id="L104">			final var payload = IuJson.get(json, &quot;payload&quot;, CryptJsonAdapters.B64URL);</span>
+
+<span class="fc" id="L106">			var signatures = IuJson.get(json, &quot;signatures&quot;,</span>
+<span class="fc" id="L107">					IuJsonAdapter.&lt;Iterable&lt;Jws&gt;&gt;of(Iterable.class, IuJsonAdapter.from(Jws::parse)));</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">			if (signatures == null)</span>
+<span class="fc" id="L109">				signatures = Collections.singleton(Jws.parse(json));</span>
+
+<span class="fc" id="L111">			return new JwsSignedPayload(payload, signatures);</span>
+		} else {
+<span class="fc" id="L113">			final var compact = CompactEncoded.compact(jws);</span>
+<span class="fc" id="L114">			final var protectedHeader = Objects</span>
+<span class="fc" id="L115">					.requireNonNull(IuJson.parse(IuText.utf8(IuText.base64Url(compact.next()))),</span>
+							&quot;protected header required&quot;)
+<span class="fc" id="L117">					.asJsonObject();</span>
+<span class="fc" id="L118">			final var payload = IuText.base64Url(compact.next());</span>
+<span class="fc" id="L119">			final var signature = IuText.base64Url(compact.next());</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">			if (compact.hasNext())</span>
+<span class="fc" id="L121">				throw new IllegalArgumentException(&quot;Unexpected content after JWS signature&quot;);</span>
+
+<span class="fc" id="L123">			return new JwsSignedPayload(payload,</span>
+<span class="fc" id="L124">					IuIterable.iter(new Jws(protectedHeader, new Jose(protectedHeader), signature)));</span>
+		}
+	}
+
+	private class PendingSignature extends JoseBuilder&lt;PendingSignature&gt; {
+<span class="fc" id="L129">		private PendingSignature(Algorithm algorithm) {</span>
+<span class="fc" id="L130">			super(algorithm);</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">			if (!algorithm.use.equals(Use.SIGN))</span>
+<span class="fc" id="L132">				throw new IllegalArgumentException(&quot;Not a signature algorithm &quot; + algorithm);</span>
+<span class="fc" id="L133">		}</span>
+
+		@Override
+		protected JsonValue param(String name) {
+<span class="fc" id="L137">			return super.param(name);</span>
+		}
+
+		private Jose header() {
+<span class="fc" id="L141">			return new Jose(toJson());</span>
+		}
+
+		private JsonObject protectedHeader() {
+<span class="fc" id="L145">			final var protectedHeaderBuilder = IuJson.object();</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">			if (compact)</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">				for (final var paramName : paramNames())</span>
+<span class="fc" id="L148">					protectedHeaderBuilder.add(paramName, param(paramName));</span>
+<span class="fc bfc" id="L149" title="All 2 branches covered.">			else if (protectedParameters.isEmpty())</span>
+<span class="fc" id="L150">				return null;</span>
+			else
+<span class="fc bfc" id="L152" title="All 2 branches covered.">				for (final var paramName : protectedParameters)</span>
+<span class="fc" id="L153">					protectedHeaderBuilder.add(paramName, Objects.requireNonNull(param(paramName), paramName));</span>
+
+<span class="fc" id="L155">			return protectedHeaderBuilder.build();</span>
+		}
+
+	}
+
+	private boolean compact;
+<span class="fc" id="L161">	private Set&lt;String&gt; protectedParameters = new LinkedHashSet&lt;&gt;();</span>
+<span class="fc" id="L162">	private Deque&lt;PendingSignature&gt; pendingSignatures = new ArrayDeque&lt;&gt;();</span>
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param algorithm {@link Algorithm}
+	 */
+<span class="fc" id="L169">	public JwsBuilder(Algorithm algorithm) {</span>
+<span class="fc" id="L170">		next(algorithm);</span>
+<span class="fc" id="L171">	}</span>
+
+	@Override
+	public JwsBuilder next(Algorithm algorithm) {
+<span class="fc" id="L175">		pendingSignatures.offer(new PendingSignature(algorithm));</span>
+<span class="fc" id="L176">		return this;</span>
+	}
+
+	@Override
+	public JwsBuilder compact() {
+<span class="fc" id="L181">		compact = true;</span>
+<span class="fc" id="L182">		return this;</span>
+	}
+
+	@Override
+	public JwsBuilder protect(Param... params) {
+<span class="fc bfc" id="L187" title="All 2 branches covered.">		for (final var param : params)</span>
+<span class="fc" id="L188">			protectedParameters.add(param.name);</span>
+<span class="fc" id="L189">		return this;</span>
+	}
+
+	@Override
+	public JwsBuilder protect(String... params) {
+<span class="fc bfc" id="L194" title="All 2 branches covered.">		for (final var param : params)</span>
+<span class="fc" id="L195">			protectedParameters.add(param);</span>
+<span class="fc" id="L196">		return this;</span>
+	}
+
+	@Override
+	public JwsBuilder keyId(String keyId) {
+<span class="fc" id="L201">		pendingSignatures.peekLast().keyId(keyId);</span>
+<span class="fc" id="L202">		return this;</span>
+	}
+
+	@Override
+	public JwsBuilder wellKnown(URI uri) {
+<span class="fc" id="L207">		pendingSignatures.peekLast().wellKnown(uri);</span>
+<span class="fc" id="L208">		return this;</span>
+	}
+
+	@Override
+	public JwsBuilder wellKnown(WebKey key) {
+<span class="fc" id="L213">		pendingSignatures.peekLast().wellKnown(key);</span>
+<span class="fc" id="L214">		return this;</span>
+	}
+
+	@Override
+	public JwsBuilder key(WebKey key) {
+<span class="fc" id="L219">		pendingSignatures.peekLast().key(key);</span>
+<span class="fc" id="L220">		return this;</span>
+	}
+
+	@Override
+	public JwsBuilder type(String type) {
+<span class="fc" id="L225">		pendingSignatures.peekLast().type(type);</span>
+<span class="fc" id="L226">		return this;</span>
+	}
+
+	@Override
+	public JwsBuilder contentType(String contentType) {
+<span class="fc" id="L231">		pendingSignatures.peekLast().contentType(contentType);</span>
+<span class="fc" id="L232">		return this;</span>
+	}
+
+	@Override
+	public JwsBuilder crit(String... parameterNames) {
+<span class="fc" id="L237">		pendingSignatures.peekLast().crit(parameterNames);</span>
+<span class="fc" id="L238">		return this;</span>
+	}
+
+	@Override
+	public &lt;T&gt; JwsBuilder param(Param param, T value) {
+<span class="fc" id="L243">		pendingSignatures.peekLast().param(param, value);</span>
+<span class="fc" id="L244">		return this;</span>
+	}
+
+	@Override
+	public &lt;T&gt; JwsBuilder param(String name, T value) {
+<span class="fc" id="L249">		pendingSignatures.peekLast().param(name, value);</span>
+<span class="fc" id="L250">		return this;</span>
+	}
+
+	@Override
+	public WebSignedPayload sign(InputStream in) {
+<span class="fc" id="L255">		final var payload = IuException.&lt;InputStream, byte[]&gt;unchecked(in, IuStream::read);</span>
+
+<span class="fc" id="L257">		final Queue&lt;Jws&gt; signatures = new ArrayDeque&lt;&gt;();</span>
+<span class="fc bfc" id="L258" title="All 2 branches covered.">		for (final var pendingSignature : pendingSignatures) {</span>
+<span class="fc" id="L259">			final var key = pendingSignature.key();</span>
+<span class="fc" id="L260">			final var header = pendingSignature.header();</span>
+<span class="fc" id="L261">			final var algorithm = header.getAlgorithm();</span>
+
+<span class="fc" id="L263">			final var protectedHeader = pendingSignature.protectedHeader();</span>
+<span class="fc" id="L264">			final var encodedHeader = IuText</span>
+<span class="fc" id="L265">					.base64Url(IuText.utf8(Objects.requireNonNullElse(protectedHeader, &quot;&quot;).toString()));</span>
+<span class="fc" id="L266">			final var encodedPayload = IuText.base64Url(payload);</span>
+<span class="fc" id="L267">			final var signingInput = encodedHeader + '.' + encodedPayload;</span>
+<span class="fc" id="L268">			final var dataToSign = IuText.utf8(signingInput);</span>
+
+			final byte[] signature;
+<span class="fc bfc" id="L271" title="All 2 branches covered.">			if (algorithm.algorithm.startsWith(&quot;Hmac&quot;)) {</span>
+<span class="fc" id="L272">				signature = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L273">					final var mac = Mac.getInstance(algorithm.algorithm);</span>
+<span class="fc" id="L274">					mac.init(new SecretKeySpec(key.getKey(), &quot;Hmac&quot;));</span>
+<span class="fc" id="L275">					return mac.doFinal(dataToSign);</span>
+				});
+			} else
+<span class="fc" id="L278">				signature = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L279">					final var sig = Signature.getInstance(algorithm.algorithm);</span>
+<span class="fc bfc" id="L280" title="All 4 branches covered.">					switch (algorithm) {</span>
+					case PS256:
+<span class="fc" id="L282">						sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA256.getDigestAlgorithm(), &quot;MGF1&quot;,</span>
+								MGF1ParameterSpec.SHA256, algorithm.size / 8, 1));
+<span class="fc" id="L284">						break;</span>
+					case PS384:
+<span class="fc" id="L286">						sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA384.getDigestAlgorithm(), &quot;MGF1&quot;,</span>
+								MGF1ParameterSpec.SHA384, algorithm.size / 8, 1));
+<span class="fc" id="L288">						break;</span>
+					case PS512:
+<span class="fc" id="L290">						sig.setParameter(new PSSParameterSpec(MGF1ParameterSpec.SHA512.getDigestAlgorithm(), &quot;MGF1&quot;,</span>
+								MGF1ParameterSpec.SHA512, algorithm.size / 8, 1));
+<span class="fc" id="L292">						break;</span>
+
+					default:
+						break;
+					}
+<span class="fc" id="L297">					sig.initSign(key.getPrivateKey());</span>
+<span class="fc" id="L298">					sig.update(dataToSign);</span>
+<span class="fc" id="L299">					return Jws.fromJce(key.getType(), algorithm, sig.sign());</span>
+				});
+
+<span class="fc" id="L302">			signatures.add(new Jws(protectedHeader, header, signature));</span>
+<span class="fc" id="L303">		}</span>
+
+<span class="fc" id="L305">		return new JwsSignedPayload(payload, Collections.unmodifiableCollection(signatures));</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ComponentResourceReference.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-type-impl</a> &gt; <a href="index.source.html" class="el_package">iu.type</a> &gt; <span class="el_source">ComponentResourceReference.java</span></div><h1>ComponentResourceReference.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2026 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.type;
+
+import java.util.Map;
+import java.util.Optional;
+import java.util.WeakHashMap;
+
+import edu.iu.IuVisitor;
+import edu.iu.type.InstanceReference;
+import edu.iu.type.IuAttribute;
+import edu.iu.type.IuProperty;
+import edu.iu.type.IuResource;
+import edu.iu.type.IuResourceReference;
+import edu.iu.type.IuType;
+import jakarta.annotation.Resource;
+
+/**
+ * Implementation of {@link IuResource};
+ * 
+ * @param &lt;R&gt; referrer type
+ * @param &lt;T&gt; resource type
+ */
+class ComponentResourceReference&lt;R, T&gt; implements IuResourceReference&lt;R, T&gt;, InstanceReference&lt;R&gt; {
+
+	private final String name;
+	private final TypeTemplate&lt;?, T&gt; type;
+	private final IuAttribute&lt;R, ? super T&gt; attribute;
+<span class="fc" id="L58">	private final Map&lt;R, Optional&lt;T&gt;&gt; unboundValues = new WeakHashMap&lt;&gt;();</span>
+<span class="fc" id="L59">	private final IuVisitor&lt;R&gt; visitor = new IuVisitor&lt;&gt;();</span>
+	private volatile IuResource&lt;T&gt; boundResource;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param attribute facade for the attribute backing the resource
+	 * @param resource  resource annotation associated with the attribute
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+<span class="fc" id="L69">	ComponentResourceReference(DeclaredAttribute&lt;R, ? super T&gt; attribute, Resource resource) {</span>
+<span class="fc" id="L70">		this.attribute = attribute;</span>
+
+<span class="fc" id="L72">		attribute.declaringType().template.subscribe(this);</span>
+
+<span class="fc bfc" id="L74" title="All 2 branches covered.">		if (resource == null)</span>
+<span class="fc" id="L75">			throw new IllegalArgumentException(&quot;Missing @Resource: &quot; + attribute);</span>
+
+<span class="fc" id="L77">		String name = resource.name();</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">		if (name.isEmpty())</span>
+<span class="fc" id="L79">			name = attribute.name();</span>
+<span class="fc" id="L80">		this.name = name;</span>
+
+		TypeTemplate&lt;?, T&gt; type;
+<span class="fc bfc" id="L83" title="All 2 branches covered.">		if (resource.type() != Object.class)</span>
+<span class="fc" id="L84">			type = TypeFactory.resolveRawClass((Class&lt;T&gt;) resource.type());</span>
+		else
+<span class="fc" id="L86">			type = (TypeTemplate&lt;?, T&gt;) attribute.type().template;</span>
+
+<span class="fc" id="L88">		final var erased = type.erasedClass();</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">		if (!attribute.type().erasedClass().isAssignableFrom(erased))</span>
+<span class="fc" id="L90">			throw new IllegalArgumentException(&quot;attribute &quot; + attribute + &quot; is not assignable from &quot; + type);</span>
+
+<span class="fc" id="L92">		this.type = type;</span>
+<span class="fc" id="L93">	}</span>
+
+	@Override
+	public String name() {
+<span class="fc" id="L97">		return name;</span>
+	}
+
+	@Override
+	public TypeTemplate&lt;?, T&gt; type() {
+<span class="fc" id="L102">		return type;</span>
+	}
+
+	@Override
+	public IuType&lt;?, R&gt; referrerType() {
+<span class="fc" id="L107">		return attribute.declaringType();</span>
+	}
+
+	@Override
+	public boolean isBound() {
+<span class="fc bfc" id="L112" title="All 2 branches covered.">		return boundResource != null;</span>
+	}
+
+	@Override
+	public synchronized void bind(IuResource&lt;T&gt; resource) {
+<span class="fc bfc" id="L117" title="All 2 branches covered.">		if (resource != null //</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">				&amp;&amp; (!resource.name().equals(name()) //</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">						|| !type().erasedClass().isAssignableFrom(resource.type().erasedClass())))</span>
+<span class="fc" id="L120">			throw new IllegalArgumentException(&quot;Resource &quot; + resource + &quot; does not apply to &quot; + this);</span>
+
+<span class="fc" id="L122">		boundResource = resource;</span>
+
+<span class="fc" id="L124">		visitor.visit(referrer -&gt; {</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">			if (referrer != null) {</span>
+				final T resourceValue;
+<span class="fc bfc" id="L127" title="All 2 branches covered.">				if (boundResource == null)</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">					if (unboundValues.containsKey(referrer))</span>
+<span class="fc" id="L129">						resourceValue = unboundValues.get(referrer).orElse(null);</span>
+					else
+<span class="fc" id="L131">						return null;</span>
+				else
+<span class="fc" id="L133">					resourceValue = boundResource.get();</span>
+
+<span class="fc" id="L135">				attribute.set(referrer, resourceValue);</span>
+			}
+<span class="fc" id="L137">			return null;</span>
+		});
+<span class="fc" id="L139">	}</span>
+
+	@Override
+	public synchronized void accept(R referrer) {
+<span class="fc bfc" id="L143" title="All 4 branches covered.">		if (visitor.visit(r -&gt; r == referrer ? Optional.empty() : null) != null)</span>
+<span class="fc" id="L144">			return;</span>
+
+<span class="fc bfc" id="L146" title="All 2 branches covered.">		if (!(attribute instanceof IuProperty property) //</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">				|| property.canRead())</span>
+<span class="fc" id="L148">			unboundValues.put(referrer, Optional.ofNullable(type.autoboxClass().cast(attribute.get(referrer))));</span>
+
+<span class="fc bfc" id="L150" title="All 2 branches covered.">		if (boundResource != null)</span>
+<span class="fc" id="L151">			attribute.set(referrer, boundResource.get());</span>
+
+<span class="fc" id="L153">		visitor.accept(referrer);</span>
+<span class="fc" id="L154">	}</span>
+
+	@Override
+	public T value(R referrer) {
+<span class="fc" id="L158">		return type.autoboxClass().cast(attribute.get(referrer));</span>
+	}
+
+	@Override
+	public synchronized void clear(R referrer) {
+<span class="fc bfc" id="L163" title="All 2 branches covered.">		if (referrer == null)</span>
+<span class="fc" id="L164">			return;</span>
+
+<span class="fc" id="L166">		visitor.clear(referrer);</span>
+
+<span class="fc bfc" id="L168" title="All 2 branches covered.">		if (unboundValues.containsKey(referrer))</span>
+<span class="fc" id="L169">			attribute.set(referrer, unboundValues.remove(referrer).orElse(null));</span>
+<span class="fc" id="L170">	}</span>
+
+	@Override
+	public String toString() {
+<span class="fc" id="L174">		return &quot;ComponentResourceReference [name=&quot; + name + &quot;, type=&quot; + type + &quot;, attribute=&quot; + attribute</span>
+				+ &quot;, boundResource=&quot; + boundResource + &quot;]&quot;;
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

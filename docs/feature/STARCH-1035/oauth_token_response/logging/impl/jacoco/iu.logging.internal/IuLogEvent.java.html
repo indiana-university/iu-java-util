@@ -1,0 +1,409 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuLogEvent.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Logging Implementation</a> &gt; <a href="index.source.html" class="el_package">iu.logging.internal</a> &gt; <span class="el_source">IuLogEvent.java</span></div><h1>IuLogEvent.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2026 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.logging.internal;
+
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.time.Instant;
+import java.util.logging.Formatter;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+
+import edu.iu.client.IuJson;
+import iu.logging.Bootstrap;
+
+/**
+ * Fully resolved buffered log event holder.
+ */
+class IuLogEvent {
+
+<span class="fc" id="L49">	private static final Formatter MESSAGE_FORMATTER = new Formatter() {</span>
+		@Override
+		public String format(LogRecord record) {
+<span class="fc" id="L52">			return formatMessage(record);</span>
+		}
+	};
+
+	private final Level level;
+	private final String loggerName;
+	private final String requestId;
+	private final String endpoint;
+	private final String application;
+	private final String environment;
+	private final String module;
+	private final String runtime;
+	private final String component;
+	private final String nodeId;
+<span class="fc" id="L66">	private final String thread = Thread.currentThread().getName();</span>
+	private final String callerIpAddress;
+	private final String calledUrl;
+	private final String callerPrincipalName;
+	private final String impersonatedPrincipalName;
+	private final Instant timestamp;
+	private final String sourceClassName;
+	private final String sourceMethodName;
+	private final String message;
+	private final String processLog;
+	private final String error;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param record {@link LogRecord}
+	 */
+<span class="fc" id="L83">	IuLogEvent(LogRecord record) {</span>
+<span class="fc" id="L84">		final var env = Bootstrap.getEnvironment();</span>
+<span class="fc" id="L85">		final var context = ProcessLogger.getActiveContext();</span>
+
+<span class="fc" id="L87">		level = record.getLevel();</span>
+<span class="fc" id="L88">		loggerName = record.getLoggerName();</span>
+
+<span class="fc" id="L90">		endpoint = env.getEndpoint();</span>
+<span class="fc" id="L91">		application = env.getApplication();</span>
+<span class="fc" id="L92">		environment = env.getEnvironment();</span>
+<span class="fc" id="L93">		module = env.getModule();</span>
+<span class="fc" id="L94">		component = env.getComponent();</span>
+<span class="fc" id="L95">		runtime = env.getRuntime();</span>
+<span class="fc" id="L96">		nodeId = env.getNodeId();</span>
+
+<span class="fc bfc" id="L98" title="All 2 branches covered.">		if (context != null) {</span>
+<span class="fc" id="L99">			requestId = context.getRequestId();</span>
+<span class="fc" id="L100">			callerIpAddress = context.getCallerIpAddress();</span>
+<span class="fc" id="L101">			calledUrl = context.getCalledUrl();</span>
+<span class="fc" id="L102">			callerPrincipalName = context.getCallerPrincipalName();</span>
+<span class="fc" id="L103">			impersonatedPrincipalName = context.getImpersonatedPrincipalName();</span>
+		} else {
+<span class="fc" id="L105">			requestId = null;</span>
+<span class="fc" id="L106">			callerIpAddress = null;</span>
+<span class="fc" id="L107">			calledUrl = null;</span>
+<span class="fc" id="L108">			callerPrincipalName = null;</span>
+<span class="fc" id="L109">			impersonatedPrincipalName = null;</span>
+		}
+
+<span class="fc" id="L112">		timestamp = record.getInstant();</span>
+<span class="fc" id="L113">		sourceClassName = record.getSourceClassName();</span>
+<span class="fc" id="L114">		sourceMethodName = record.getSourceMethodName();</span>
+<span class="fc" id="L115">		message = MESSAGE_FORMATTER.format(record);</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">		if (level.intValue() &gt;= Level.WARNING.intValue())</span>
+<span class="fc" id="L117">			processLog = ProcessLogger.export();</span>
+		else
+<span class="fc" id="L119">			processLog = null;</span>
+
+<span class="fc" id="L121">		Throwable thrown = record.getThrown();</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">		if (thrown != null) {</span>
+<span class="fc" id="L123">			StringWriter w = new StringWriter();</span>
+<span class="fc" id="L124">			thrown.printStackTrace(new PrintWriter(w));</span>
+<span class="fc" id="L125">			error = w.toString();</span>
+<span class="fc" id="L126">		} else</span>
+<span class="fc" id="L127">			error = null;</span>
+<span class="fc" id="L128">	}</span>
+
+	private void append(StringBuilder sb, Object value) {
+<span class="fc bfc" id="L131" title="All 2 branches covered.">		if (value != null)</span>
+<span class="fc" id="L132">			sb.append(value);</span>
+<span class="fc" id="L133">		sb.append(',');</span>
+<span class="fc" id="L134">	}</span>
+
+	/**
+	 * Exports the log message as JSON.
+	 * 
+	 * @return JSON formatted log message
+	 */
+	String export() {
+<span class="fc" id="L142">		final var builder = IuJson.object();</span>
+<span class="fc" id="L143">		IuJson.add(builder, &quot;level&quot;, level.getName());</span>
+<span class="fc" id="L144">		IuJson.add(builder, &quot;requestId&quot;, requestId);</span>
+<span class="fc" id="L145">		IuJson.add(builder, &quot;endpoint&quot;, endpoint);</span>
+<span class="fc" id="L146">		IuJson.add(builder, &quot;application&quot;, application);</span>
+<span class="fc" id="L147">		IuJson.add(builder, &quot;environment&quot;, environment);</span>
+<span class="fc" id="L148">		IuJson.add(builder, &quot;module&quot;, module);</span>
+<span class="fc" id="L149">		IuJson.add(builder, &quot;runtime&quot;, runtime);</span>
+<span class="fc" id="L150">		IuJson.add(builder, &quot;component&quot;, component);</span>
+<span class="fc" id="L151">		IuJson.add(builder, &quot;nodeId&quot;, nodeId);</span>
+<span class="fc" id="L152">		IuJson.add(builder, &quot;thread&quot;, thread);</span>
+<span class="fc" id="L153">		IuJson.add(builder, &quot;callerIpAddress&quot;, callerIpAddress);</span>
+<span class="fc" id="L154">		IuJson.add(builder, &quot;calledUrl&quot;, calledUrl);</span>
+<span class="fc" id="L155">		IuJson.add(builder, &quot;callerPrincipalName&quot;, callerPrincipalName);</span>
+<span class="fc" id="L156">		IuJson.add(builder, &quot;impersonatedPrincipalName&quot;, impersonatedPrincipalName);</span>
+<span class="fc" id="L157">		IuJson.add(builder, &quot;timestamp&quot;, timestamp.toString());</span>
+<span class="fc" id="L158">		IuJson.add(builder, &quot;loggerName&quot;, loggerName);</span>
+<span class="fc" id="L159">		IuJson.add(builder, &quot;sourceClassName&quot;, sourceClassName);</span>
+<span class="fc" id="L160">		IuJson.add(builder, &quot;sourceMethodName&quot;, sourceMethodName);</span>
+<span class="fc" id="L161">		IuJson.add(builder, &quot;message&quot;, message);</span>
+<span class="fc" id="L162">		IuJson.add(builder, &quot;processLog&quot;, processLog);</span>
+<span class="fc" id="L163">		IuJson.add(builder, &quot;error&quot;, error);</span>
+<span class="fc" id="L164">		return builder.build().toString();</span>
+	}
+
+	/**
+	 * Formats the log message as human-readable.
+	 * 
+	 * @return human-readable log message
+	 */
+	String format() {
+<span class="fc" id="L173">		StringBuilder sb = new StringBuilder();</span>
+<span class="fc" id="L174">		append(sb, level);</span>
+<span class="fc" id="L175">		append(sb, requestId);</span>
+<span class="fc" id="L176">		append(sb, endpoint);</span>
+<span class="fc" id="L177">		append(sb, application);</span>
+<span class="fc" id="L178">		append(sb, environment);</span>
+<span class="fc" id="L179">		append(sb, module);</span>
+<span class="fc" id="L180">		append(sb, runtime);</span>
+<span class="fc" id="L181">		append(sb, component);</span>
+<span class="fc" id="L182">		append(sb, nodeId);</span>
+<span class="fc" id="L183">		append(sb, thread);</span>
+<span class="fc" id="L184">		append(sb, callerIpAddress);</span>
+<span class="fc" id="L185">		append(sb, calledUrl);</span>
+<span class="fc" id="L186">		append(sb, callerPrincipalName);</span>
+<span class="fc" id="L187">		append(sb, impersonatedPrincipalName);</span>
+<span class="fc" id="L188">		append(sb, timestamp);</span>
+<span class="fc" id="L189">		append(sb, loggerName);</span>
+<span class="fc bfc" id="L190" title="All 2 branches covered.">		if (sourceClassName != null)</span>
+<span class="fc" id="L191">			sb.append(sourceClassName);</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">		if (sourceMethodName != null) {</span>
+<span class="fc" id="L193">			sb.append('.');</span>
+<span class="fc" id="L194">			sb.append(sourceMethodName);</span>
+<span class="fc" id="L195">			sb.append(&quot;()&quot;);</span>
+		}
+<span class="fc" id="L197">		sb.append(System.lineSeparator());</span>
+<span class="fc" id="L198">		sb.append(message);</span>
+
+<span class="fc bfc" id="L200" title="All 2 branches covered.">		if (processLog != null) {</span>
+<span class="fc" id="L201">			sb.append(System.lineSeparator());</span>
+<span class="fc" id="L202">			sb.append(processLog);</span>
+		}
+
+<span class="fc bfc" id="L205" title="All 2 branches covered.">		if (error != null) {</span>
+<span class="fc" id="L206">			sb.append(System.lineSeparator());</span>
+<span class="fc" id="L207">			sb.append(error);</span>
+		}
+
+<span class="fc" id="L210">		sb.append(System.lineSeparator());</span>
+<span class="fc" id="L211">		return sb.toString();</span>
+	}
+
+	/**
+	 * Gets {@link #level}
+	 * 
+	 * @return {@link #level}
+	 */
+	public Level getLevel() {
+<span class="fc" id="L220">		return level;</span>
+	}
+
+	/**
+	 * Gets {@link #loggerName}
+	 * 
+	 * @return {@link #loggerName}
+	 */
+	public String getLoggerName() {
+<span class="fc" id="L229">		return loggerName;</span>
+	}
+
+	/**
+	 * Gets {@link #requestId}
+	 * 
+	 * @return {@link #requestId}
+	 */
+	public String getRequestId() {
+<span class="fc" id="L238">		return requestId;</span>
+	}
+
+	/**
+	 * Gets {@link #endpoint}
+	 * 
+	 * @return {@link #endpoint}
+	 */
+	public String getEndpoint() {
+<span class="fc" id="L247">		return endpoint;</span>
+	}
+
+	/**
+	 * Gets {@link #runtime}
+	 * 
+	 * @return {@link #runtime}
+	 */
+	public String getRuntime() {
+<span class="fc" id="L256">		return runtime;</span>
+	}
+
+	/**
+	 * Gets {@link #environment}
+	 * 
+	 * @return {@link #environment}
+	 */
+	public String getEnvironment() {
+<span class="fc" id="L265">		return environment;</span>
+	}
+
+	/**
+	 * Gets {@link #application}
+	 * 
+	 * @return {@link #application}
+	 */
+	public String getApplication() {
+<span class="fc" id="L274">		return application;</span>
+	}
+
+	/**
+	 * Gets {@link #module}
+	 * 
+	 * @return {@link #module}
+	 */
+	public String getModule() {
+<span class="fc" id="L283">		return module;</span>
+	}
+
+	/**
+	 * Gets {@link #component}
+	 * 
+	 * @return {@link #component}
+	 */
+	public String getComponent() {
+<span class="fc" id="L292">		return component;</span>
+	}
+
+	/**
+	 * Gets {@link #nodeId}
+	 * 
+	 * @return {@link #nodeId}
+	 */
+	public String getNodeId() {
+<span class="fc" id="L301">		return nodeId;</span>
+	}
+
+	/**
+	 * Gets {@link #thread}
+	 * 
+	 * @return {@link #thread}
+	 */
+	public String getThread() {
+<span class="fc" id="L310">		return thread;</span>
+	}
+
+	/**
+	 * Gets {@link #callerIpAddress}
+	 * 
+	 * @return {@link #callerIpAddress}
+	 */
+	public String getCallerIpAddress() {
+<span class="fc" id="L319">		return callerIpAddress;</span>
+	}
+
+	/**
+	 * Gets {@link #calledUrl}
+	 * 
+	 * @return {@link #calledUrl}
+	 */
+	public String getCalledUrl() {
+<span class="fc" id="L328">		return calledUrl;</span>
+	}
+
+	/**
+	 * Gets {@link #callerPrincipalName}
+	 * 
+	 * @return {@link #callerPrincipalName}
+	 */
+	public String getCallerPrincipalName() {
+<span class="fc" id="L337">		return callerPrincipalName;</span>
+	}
+
+	/**
+	 * Gets {@link #impersonatedPrincipalName}
+	 * 
+	 * @return {@link #impersonatedPrincipalName}
+	 */
+	public String getImpersonatedPrincipalName() {
+<span class="fc" id="L346">		return impersonatedPrincipalName;</span>
+	}
+
+	/**
+	 * Gets {@link #timestamp}
+	 * 
+	 * @return {@link #timestamp}
+	 */
+	public Instant getTimestamp() {
+<span class="fc" id="L355">		return timestamp;</span>
+	}
+
+	/**
+	 * Gets {@link #sourceClassName}
+	 * 
+	 * @return {@link #sourceClassName}
+	 */
+	public String getSourceClassName() {
+<span class="fc" id="L364">		return sourceClassName;</span>
+	}
+
+	/**
+	 * Gets {@link #sourceMethodName}
+	 * 
+	 * @return {@link #sourceMethodName}
+	 */
+	public String getSourceMethodName() {
+<span class="fc" id="L373">		return sourceMethodName;</span>
+	}
+
+	/**
+	 * Gets {@link #message}
+	 * 
+	 * @return {@link #message}
+	 */
+	public String getMessage() {
+<span class="fc" id="L382">		return message;</span>
+	}
+
+	/**
+	 * Gets {@link #processLog}
+	 * 
+	 * @return {@link #processLog}
+	 */
+	public String getProcessLog() {
+<span class="fc" id="L391">		return processLog;</span>
+	}
+
+	/**
+	 * Gets {@link #error}
+	 * 
+	 * @return {@link #error}
+	 */
+	public String getError() {
+<span class="fc" id="L400">		return error;</span>
+	}
+
+	@Override
+	public String toString() {
+<span class="fc" id="L405">		return format();</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

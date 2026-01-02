@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ComponentResource.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Type Introspection Implementation Module</a> &gt; <a href="index.source.html" class="el_package">iu.type</a> &gt; <span class="el_source">ComponentResource.java</span></div><h1>ComponentResource.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2026 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.type;
+
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Proxy;
+import java.util.ArrayDeque;
+import java.util.Queue;
+import java.util.function.Supplier;
+import java.util.logging.Logger;
+
+import edu.iu.IuException;
+import edu.iu.IuObject;
+import edu.iu.type.IuResource;
+import edu.iu.type.IuResourceKey;
+import edu.iu.type.IuType;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import jakarta.annotation.Priority;
+import jakarta.annotation.Resource;
+import jakarta.annotation.Resource.AuthenticationType;
+import jakarta.annotation.Resources;
+
+/**
+ * Implementation of {@link IuResource};
+ * 
+ * @param &lt;T&gt; resource type
+ */
+class ComponentResource&lt;T&gt; implements IuResource&lt;T&gt; {
+
+<span class="fc" id="L60">	private static final Logger LOG = Logger.getLogger(ComponentResource.class.getName());</span>
+
+	/**
+	 * Creates a static web resource.
+	 * 
+	 * @param name name
+	 * @param data content
+	 * @return static web resource
+	 */
+	static ComponentResource&lt;byte[]&gt; createWebResource(String name, byte[] data) {
+<span class="fc" id="L70">		return new ComponentResource&lt;byte[]&gt;(true, true, -1, name, TypeFactory.resolveRawClass(byte[].class),</span>
+<span class="fc" id="L71">				() -&gt; data);</span>
+	}
+
+	/**
+	 * Gets all resources definitions tied to an implementation class
+	 * 
+	 * @param targetClass class to check
+	 * @return resource definitions
+	 */
+	static Iterable&lt;ComponentResource&lt;?&gt;&gt; getResources(Class&lt;?&gt; targetClass) {
+<span class="fc" id="L81">		Queue&lt;ComponentResource&lt;?&gt;&gt; componentResources = new ArrayDeque&lt;&gt;();</span>
+
+<span class="fc" id="L83">		var resources = AnnotationBridge.getAnnotation(Resources.class, targetClass);</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">		if (resources != null)</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">			for (var resourceReference : resources.value())</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">				if (isApplicationResource(resourceReference, targetClass))</span>
+<span class="fc" id="L87">					componentResources.add(createResource(resourceReference, targetClass));</span>
+
+<span class="fc" id="L89">		var resource = AnnotationBridge.getAnnotation(Resource.class, targetClass);</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">		if (resource != null)</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">			if (isApplicationResource(resource, targetClass))</span>
+<span class="fc" id="L92">				componentResources.add(createResource(resource, targetClass));</span>
+
+<span class="fc" id="L94">		return componentResources;</span>
+	}
+
+	private static boolean isApplicationResource(Resource resourceReference, Class&lt;?&gt; classToCheck) {
+<span class="fc" id="L98">		Class&lt;?&gt; resourceType = resourceReference.type();</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">		if (InvocationHandler.class.isAssignableFrom(classToCheck))</span>
+<span class="fc" id="L100">			return resourceType.isInterface();</span>
+		else
+<span class="fc" id="L102">			return resourceType.isAssignableFrom(classToCheck);</span>
+	}
+
+	private static ComponentResource&lt;?&gt; createResource(Resource resource, Class&lt;?&gt; targetClass) {
+		final TypeTemplate&lt;?, ?&gt; type;
+<span class="fc bfc" id="L107" title="All 2 branches covered.">		if (InvocationHandler.class.isAssignableFrom(targetClass))</span>
+<span class="fc" id="L108">			type = TypeFactory.resolveRawClass(resource.type());</span>
+		else {
+<span class="fc" id="L110">			Class&lt;?&gt; resourceClass = resource.type();</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">			if (resourceClass == Object.class) {</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">				for (var i : targetClass.getInterfaces())</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">					if (!IuObject.isPlatformName(i.getName())) {</span>
+<span class="fc" id="L114">						resourceClass = i;</span>
+<span class="fc" id="L115">						break;</span>
+					}
+<span class="fc bfc" id="L117" title="All 2 branches covered.">				if (resourceClass == Object.class)</span>
+<span class="fc" id="L118">					resourceClass = targetClass;</span>
+			}
+<span class="fc" id="L120">			type = TypeFactory.resolveRawClass(resourceClass);</span>
+		}
+
+		final String name;
+<span class="fc bfc" id="L124" title="All 2 branches covered.">		if (resource.name().isEmpty())</span>
+<span class="fc" id="L125">			name = IuResourceKey.getDefaultResourceName(type.erasedClass());</span>
+		else
+<span class="fc" id="L127">			name = resource.name();</span>
+
+<span class="fc" id="L129">		final var targetType = TypeFactory.resolveRawClass(targetClass);</span>
+
+<span class="fc" id="L131">		var priority = targetType.annotation(Priority.class);</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">		if (priority == null)</span>
+<span class="fc" id="L133">			priority = type.annotation(Priority.class);</span>
+
+<span class="fc" id="L135">		return new ComponentResource&lt;&gt;(resource.authenticationType().equals(AuthenticationType.CONTAINER),</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">				resource.shareable(), priority == null ? -1 : priority.value(), name, type,</span>
+<span class="fc" id="L137">				() -&gt; IuException.unchecked(() -&gt; targetType.constructor().exec()));</span>
+	}
+
+	private final boolean needsAuthentication;
+	private final boolean shared;
+	private final int priority;
+	private final String name;
+	private final TypeTemplate&lt;?, T&gt; type;
+	private volatile T singleton;
+	private Supplier&lt;?&gt; factory;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param needsAuthentication whether or not authentication is needed
+	 * @param shared              whether or not the resource is shared
+	 * @param priority            initialization priority
+	 * @param name                resource name
+	 * @param type                resource type
+	 * @param factory             factory for creating new instances
+	 */
+	ComponentResource(boolean needsAuthentication, boolean shared, int priority, String name, TypeTemplate&lt;?, T&gt; type,
+<span class="fc" id="L159">			Supplier&lt;?&gt; factory) {</span>
+<span class="fc" id="L160">		this.needsAuthentication = needsAuthentication;</span>
+<span class="fc" id="L161">		this.shared = shared;</span>
+<span class="fc" id="L162">		this.priority = priority;</span>
+<span class="fc" id="L163">		this.name = name;</span>
+<span class="fc" id="L164">		this.type = type;</span>
+<span class="fc" id="L165">		this.factory = factory;</span>
+<span class="fc" id="L166">	}</span>
+
+	@Override
+	public boolean needsAuthentication() {
+<span class="fc" id="L170">		return needsAuthentication;</span>
+	}
+
+	@Override
+	public boolean shared() {
+<span class="fc" id="L175">		return shared;</span>
+	}
+
+	@Override
+	public int priority() {
+<span class="fc" id="L180">		return priority;</span>
+	}
+
+	@Override
+	public String name() {
+<span class="fc" id="L185">		return name;</span>
+	}
+
+	@Override
+	public IuType&lt;?, T&gt; type() {
+<span class="fc" id="L190">		return type;</span>
+	}
+
+	@Override
+	public void postConstruct() {
+<span class="fc bfc" id="L195" title="All 2 branches covered.">		if (shared) {</span>
+<span class="fc" id="L196">			final var i = get();</span>
+<span class="fc" id="L197">			final var impl = IuType.of(i.getClass());</span>
+<span class="fc" id="L198">			impl.annotatedMethods(PostConstruct.class).forEach(m -&gt; IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L199">				LOG.config(&quot;post construct exec &quot; + m + &quot; &quot; + i);</span>
+<span class="fc" id="L200">				return m.exec(i);</span>
+			}));
+<span class="fc" id="L202">		} else</span>
+<span class="fc" id="L203">			throw new IllegalStateException(&quot;not shared&quot;);</span>
+<span class="fc" id="L204">	}</span>
+
+	@Override
+	public void preDestroy() {
+<span class="fc bfc" id="L208" title="All 2 branches covered.">		if (shared) {</span>
+<span class="fc" id="L209">			final var i = get();</span>
+<span class="fc" id="L210">			final var impl = IuType.of(i.getClass());</span>
+<span class="fc" id="L211">			impl.annotatedMethods(PreDestroy.class).forEach(m -&gt; IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L212">				LOG.config(&quot;pre destroy exec &quot; + m + &quot; &quot; + i);</span>
+<span class="fc" id="L213">				return m.exec(i);</span>
+			}));
+<span class="fc" id="L215">		} else</span>
+<span class="fc" id="L216">			throw new IllegalStateException(&quot;not shared&quot;);</span>
+<span class="fc" id="L217">	}</span>
+
+	@Override
+	public Supplier&lt;?&gt; factory() {
+<span class="fc" id="L221">		return factory;</span>
+	}
+
+	@Override
+	public void factory(Supplier&lt;?&gt; factory) {
+<span class="fc" id="L226">		this.factory = factory;</span>
+<span class="fc" id="L227">	}</span>
+
+	@Override
+	public T get() {
+<span class="fc bfc" id="L231" title="All 2 branches covered.">		if (shared)</span>
+<span class="fc" id="L232">			synchronized (this) {</span>
+<span class="fc bfc" id="L233" title="All 2 branches covered.">				if (singleton == null)</span>
+<span class="fc" id="L234">					singleton = create();</span>
+<span class="fc" id="L235">				return singleton;</span>
+			}
+		else
+<span class="fc" id="L238">			return create();</span>
+	}
+
+	@Override
+	public String toString() {
+<span class="fc" id="L243">		return &quot;ComponentResource [needsAuthentication=&quot; + needsAuthentication + &quot;, shared=&quot; + shared + &quot;, name=&quot; + name</span>
+				+ &quot;, type=&quot; + type + &quot;, singleton=&quot; + singleton + &quot;]&quot;;
+	}
+
+	private T create() {
+<span class="fc" id="L248">		var type = type().erasedClass();</span>
+<span class="fc" id="L249">		var impl = factory.get();</span>
+<span class="fc bfc" id="L250" title="All 2 branches covered.">		if (impl instanceof InvocationHandler)</span>
+<span class="fc" id="L251">			return type.cast(</span>
+<span class="fc" id="L252">					Proxy.newProxyInstance(type.getClassLoader(), new Class&lt;?&gt;[] { type }, (InvocationHandler) impl));</span>
+		else
+<span class="fc" id="L254">			return type.cast(impl);</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

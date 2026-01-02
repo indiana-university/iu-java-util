@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>IuHttp.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-client</a> &gt; <a href="index.source.html" class="el_package">edu.iu.client</a> &gt; <span class="el_source">IuHttp.java</span></div><h1>IuHttp.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2026 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu.client;
+
+import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.http.HttpResponse.BodyHandlers;
+import java.util.Collection;
+import java.util.function.BiPredicate;
+import java.util.function.Function;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import edu.iu.IuException;
+import edu.iu.IuObject;
+import edu.iu.IuRuntimeEnvironment;
+import edu.iu.IuWebUtils;
+import edu.iu.UnsafeConsumer;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
+
+/**
+ * Provides common base-level whitelisting, logging, and exception handling
+ * utilities for {@link HttpRequest} and {@link HttpResponse}.
+ * 
+ * &lt;p&gt;
+ * All requests are handled via a cached {@link HttpClient} instance configured
+ * with {@link HttpClient#newHttpClient default settings}.
+ * &lt;/p&gt;
+ */
+public class IuHttp {
+
+<span class="fc" id="L67">	private static final Logger LOG = Logger.getLogger(IuHttp.class.getName());</span>
+
+	static {
+<span class="fc" id="L70">		IuObject.assertNotOpen(IuHttp.class);</span>
+	}
+
+<span class="fc" id="L73">	private static final Collection&lt;URI&gt; ALLOWED_URI = IuRuntimeEnvironment.env(&quot;iu.http.allowedUri&quot;,</span>
+<span class="fc" id="L74">			a -&gt; Stream.of(a.split(&quot;,&quot;)).map(URI::create).collect(Collectors.toUnmodifiableList()));</span>
+
+<span class="fc" id="L76">	private static final Collection&lt;URI&gt; ALLOWED_INSECURE_URI = IuRuntimeEnvironment.envOptional(</span>
+			&quot;iu.http.allowedInsecureUri&quot;,
+<span class="fc" id="L78">			a -&gt; Stream.of(a.split(&quot;,&quot;)).map(URI::create).collect(Collectors.toUnmodifiableList()));</span>
+
+<span class="fc" id="L80">	private static final HttpClient HTTP = HttpClient.newHttpClient();</span>
+
+	/**
+	 * Validates a 200 OK response.
+	 */
+<span class="fc" id="L85">	public static final HttpResponseValidator OK = expectStatus(200);</span>
+
+	/**
+	 * Validates a 204 NO CONTENT response and returns null.
+	 */
+<span class="fc" id="L90">	public static final HttpResponseHandler&lt;?&gt; NO_CONTENT = validate(a -&gt; null, IuHttp.expectStatus(204));</span>
+
+	/**
+	 * Validates 200 OK then parses the response as a JSON object.
+	 */
+<span class="fc" id="L95">	public static final HttpResponseHandler&lt;JsonValue&gt; READ_JSON = validate(IuJson::parse, IuHttp.OK);</span>
+
+	/**
+	 * Validates 200 OK then parses the response as a JSON object.
+	 */
+<span class="fc" id="L100">	public static final HttpResponseHandler&lt;JsonObject&gt; READ_JSON_OBJECT = validate(a -&gt; IuJson.parse(a).asJsonObject(),</span>
+			IuHttp.OK);
+
+	/**
+	 * Creates an HTTP response handler.
+	 * 
+	 * @param &lt;T&gt;                value type
+	 * @param bodyDeserializer   function that deserializes the response body
+	 * @param responseValidators one or more verification checks to apply to the
+	 *                           response before passing to the handler
+	 * @return decorated response handler
+	 */
+	public static &lt;T&gt; HttpResponseHandler&lt;T&gt; validate(Function&lt;InputStream, T&gt; bodyDeserializer,
+			HttpResponseValidator... responseValidators) {
+<span class="fc" id="L114">		return response -&gt; {</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">			for (final var responseValidator : responseValidators)</span>
+<span class="fc" id="L116">				responseValidator.accept(response);</span>
+<span class="fc" id="L117">			return bodyDeserializer.apply(response.body());</span>
+		};
+	}
+
+	/**
+	 * Gets a {@link HttpResponseValidator} that verifies an expected status code.
+	 * 
+	 * @param expectedStatusCode status code
+	 * @return {@link HttpResponseValidator}
+	 */
+	public static HttpResponseValidator expectStatus(int expectedStatusCode) {
+<span class="fc" id="L128">		return response -&gt; {</span>
+<span class="fc" id="L129">			final var statusCode = response.statusCode();</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">			if (statusCode != expectedStatusCode)</span>
+<span class="fc" id="L131">				throw new HttpException(response, &quot;Expected &quot; + IuWebUtils.describeStatus(expectedStatusCode)</span>
+<span class="fc" id="L132">						+ &quot;, found &quot; + IuWebUtils.describeStatus(statusCode));</span>
+<span class="fc" id="L133">		};</span>
+	}
+
+	/**
+	 * Gets a {@link HttpResponseValidator} that tests response headers.
+	 * 
+	 * @param headerValidator test response headers
+	 * @return {@link HttpResponseValidator}
+	 */
+	public static HttpResponseValidator checkHeaders(BiPredicate&lt;String, String&gt; headerValidator) {
+<span class="fc" id="L143">		return response -&gt; {</span>
+<span class="fc bfc" id="L144" title="All 2 branches covered.">			for (final var headerEntry : response.headers().map().entrySet()) {</span>
+<span class="fc" id="L145">				final var name = headerEntry.getKey();</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">				for (final var value : headerEntry.getValue())</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">					if (!headerValidator.test(name, value))</span>
+<span class="fc" id="L148">						throw new HttpException(response, &quot;Invalid header &quot; + name);</span>
+<span class="fc" id="L149">			}</span>
+<span class="fc" id="L150">		};</span>
+	}
+
+	/**
+	 * Sends an HTTP GET request to a public URI.
+	 * 
+	 * @param uri public URI
+	 * 
+	 * @return {@link HttpResponse}
+	 * @throws HttpException If the response has error status code.
+	 */
+	public static HttpResponse&lt;InputStream&gt; get(URI uri) throws HttpException {
+<span class="fc" id="L162">		return send(uri, null);</span>
+	}
+
+	/**
+	 * Sends an HTTP GET request to a public URI.
+	 * 
+	 * @param &lt;T&gt;             response type
+	 * 
+	 * @param uri             public URI
+	 * @param responseHandler function that converts HTTP response data to the
+	 *                        response type.
+	 * 
+	 * @return response value
+	 * @throws HttpException If the response has error status code.
+	 */
+	public static &lt;T&gt; T get(URI uri, HttpResponseHandler&lt;T&gt; responseHandler) throws HttpException {
+<span class="fc" id="L178">		return responseHandler.apply(send(uri, null));</span>
+	}
+
+	/**
+	 * Sends a synchronous HTTP request.
+	 * 
+	 * @param uri             request URI
+	 * @param requestConsumer receives the {@link HttpRequest.Builder} before
+	 *                        sending to the server.
+	 * 
+	 * @return {@link HttpResponse}
+	 * @throws HttpException If the response has error status code.
+	 */
+	public static HttpResponse&lt;InputStream&gt; send(URI uri, UnsafeConsumer&lt;HttpRequest.Builder&gt; requestConsumer)
+			throws HttpException {
+<span class="fc" id="L193">		return send(HttpException.class, uri, requestConsumer);</span>
+	}
+
+	/**
+	 * Determines whether or not an allow list contains a root of a URI.
+	 * 
+	 * @param allowList allowed root URIs
+	 * @param uri       {@link URI} to check
+	 * @return true if the allow list is non-null and contains at least one entry
+	 *         that is a root of the supplied URI
+	 */
+	static boolean isAllowed(Collection&lt;URI&gt; allowList, URI uri) {
+<span class="fc bfc" id="L205" title="All 2 branches covered.">		if (allowList == null)</span>
+<span class="fc" id="L206">			return false;</span>
+		else
+<span class="fc" id="L208">			return allowList.stream().anyMatch(allowedUri -&gt; IuWebUtils.isRootOf(allowedUri, uri));</span>
+	}
+
+	/**
+	 * Sends a synchronous HTTP request.
+	 * 
+	 * @param &lt;E&gt;             additional exception type
+	 * 
+	 * @param uri             request URI
+	 * @param requestConsumer receives the {@link HttpRequest.Builder} before
+	 *                        sending to the server.
+	 * @param exceptionClass  additional checked exception type to allow thrown from
+	 *                        requestConsumer
+	 * 
+	 * @return {@link HttpResponse}
+	 * @throws HttpException If the response has error status code.
+	 * @throws E             from requestConsumer
+	 */
+	public static &lt;E extends Exception&gt; HttpResponse&lt;InputStream&gt; send(Class&lt;E&gt; exceptionClass, URI uri,
+			UnsafeConsumer&lt;HttpRequest.Builder&gt; requestConsumer) throws HttpException, E {
+<span class="fc bfc" id="L228" title="All 2 branches covered.">		if (!&quot;https&quot;.equals(uri.getScheme())) {</span>
+<span class="fc bfc" id="L229" title="All 2 branches covered.">			if (!isAllowed(ALLOWED_INSECURE_URI, uri))</span>
+<span class="fc" id="L230">				throw new IllegalArgumentException(</span>
+						&quot;Insecure URI not allowed, must be relative to &quot; + ALLOWED_INSECURE_URI);
+			else
+<span class="fc" id="L233">				LOG.info(() -&gt; &quot;Allowing insecure URI &quot; + uri);</span>
+<span class="fc bfc" id="L234" title="All 2 branches covered.">		} else if (!isAllowed(ALLOWED_URI, uri))</span>
+<span class="fc" id="L235">			throw new IllegalArgumentException(&quot;URI not allowed, must be relative to &quot; + ALLOWED_URI);</span>
+
+<span class="fc" id="L237">		return IuException.checked(HttpException.class, exceptionClass, () -&gt; {</span>
+<span class="fc" id="L238">			final var requestBuilder = HttpRequest.newBuilder(uri);</span>
+<span class="fc bfc" id="L239" title="All 2 branches covered.">			if (requestConsumer != null)</span>
+<span class="fc" id="L240">				requestConsumer.accept(requestBuilder);</span>
+<span class="fc" id="L241">			final var request = requestBuilder.build();</span>
+
+<span class="fc" id="L243">			final var sb = new StringBuilder();</span>
+<span class="fc" id="L244">			sb.append(request.method());</span>
+<span class="fc" id="L245">			sb.append(' ').append(request.uri());</span>
+<span class="fc" id="L246">			final var requestHeaders = request.headers();</span>
+<span class="fc" id="L247">			final var requestHeaderMap = requestHeaders.map();</span>
+<span class="fc bfc" id="L248" title="All 2 branches covered.">			if (!requestHeaderMap.isEmpty())</span>
+				// TODO: apply security filter
+<span class="fc" id="L250">				sb.append(' ').append(requestHeaderMap.keySet());</span>
+
+			final HttpResponse&lt;InputStream&gt; response;
+			try {
+<span class="fc" id="L254">				response = HTTP.send(request, BodyHandlers.ofInputStream());</span>
+<span class="fc" id="L255">			} catch (Throwable e) {</span>
+<span class="fc" id="L256">				final var m = &quot;HTTP connection failed &quot; + sb;</span>
+<span class="fc" id="L257">				LOG.log(Level.INFO, e, () -&gt; m);</span>
+<span class="fc" id="L258">				throw new IllegalStateException(m, e);</span>
+<span class="fc" id="L259">			}</span>
+
+<span class="fc" id="L261">			final var status = response.statusCode();</span>
+<span class="fc" id="L262">			sb.append(&quot; &quot;).append(IuWebUtils.describeStatus(status));</span>
+
+<span class="fc" id="L264">			final var responseHeaders = response.headers();</span>
+<span class="fc" id="L265">			final var responseHeaderMap = responseHeaders.map();</span>
+<span class="fc bfc" id="L266" title="All 2 branches covered.">			if (!responseHeaderMap.isEmpty())</span>
+				// TODO: apply security filter
+<span class="fc" id="L268">				sb.append(' ').append(responseHeaderMap.keySet());</span>
+
+<span class="fc bfc" id="L270" title="All 2 branches covered.">			if (response.statusCode() &gt;= 400) {</span>
+<span class="fc" id="L271">				final var m = sb.toString();</span>
+<span class="fc" id="L272">				final var e = new HttpException(response, m);</span>
+<span class="fc" id="L273">				LOG.log(Level.INFO, m, e);</span>
+<span class="fc" id="L274">				throw e;</span>
+			} else
+<span class="fc" id="L276">				LOG.fine(sb::toString);</span>
+
+<span class="fc" id="L278">			return response;</span>
+		});
+	}
+
+	/**
+	 * Sends a synchronous HTTP request expecting 200 OK and accepting all response
+	 * headers.
+	 * 
+	 * @param &lt;T&gt;             response type
+	 * 
+	 * @param uri             request URI
+	 * @param requestConsumer receives the {@link HttpRequest.Builder} before
+	 *                        sending to the server.
+	 * @param responseHandler function that converts HTTP response data to the
+	 *                        response type.
+	 * 
+	 * @return response value
+	 * @throws HttpException If the response has error status code.
+	 */
+	public static &lt;T&gt; T send(URI uri, UnsafeConsumer&lt;HttpRequest.Builder&gt; requestConsumer,
+			HttpResponseHandler&lt;T&gt; responseHandler) throws HttpException {
+<span class="fc" id="L299">		return send(HttpException.class, uri, requestConsumer, responseHandler);</span>
+	}
+
+	/**
+	 * Sends a synchronous HTTP request expecting 200 OK and accepting all response
+	 * headers.
+	 * 
+	 * @param &lt;T&gt;             response type
+	 * @param &lt;E&gt;             additional exception type
+	 * 
+	 * @param uri             request URI
+	 * @param requestConsumer receives the {@link HttpRequest.Builder} before
+	 *                        sending to the server.
+	 * @param exceptionClass  additional checked exception class to allow from
+	 *                        requestConsumer
+	 * @param responseHandler function that converts HTTP response data to the
+	 *                        response type.
+	 * 
+	 * @return response value
+	 * @throws HttpException If the response has error status code.
+	 * @throws E             from requestConsumer
+	 */
+	public static &lt;T, E extends Exception&gt; T send(Class&lt;E&gt; exceptionClass, URI uri,
+			UnsafeConsumer&lt;HttpRequest.Builder&gt; requestConsumer, HttpResponseHandler&lt;T&gt; responseHandler)
+			throws HttpException, E {
+<span class="fc" id="L324">		return responseHandler.apply(send(exceptionClass, uri, requestConsumer));</span>
+	}
+
+	private IuHttp() {
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

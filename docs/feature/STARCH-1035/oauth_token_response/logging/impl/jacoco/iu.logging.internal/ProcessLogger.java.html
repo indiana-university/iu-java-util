@@ -1,0 +1,412 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProcessLogger.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Logging Implementation</a> &gt; <a href="index.source.html" class="el_package">iu.logging.internal</a> &gt; <span class="el_source">ProcessLogger.java</span></div><h1>ProcessLogger.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2026 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.logging.internal;
+
+import java.text.DecimalFormat;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.Queue;
+import java.util.function.Supplier;
+import java.util.logging.Logger;
+
+import edu.iu.IuObject;
+import edu.iu.UnsafeSupplier;
+import iu.logging.Bootstrap;
+import iu.logging.LogContext;
+import iu.logging.LogEnvironment;
+
+/**
+ * Tracks log messages by bounded execution context.
+ */
+public final class ProcessLogger {
+
+<span class="fc" id="L55">	private static final Logger LOG = Logger.getLogger(ProcessLogger.class.getName());</span>
+
+	private static class TracedMessage {
+		private final Instant timestamp;
+		private final long free;
+		private final String message;
+		private final int depth;
+
+		private TracedMessage(String message, int depth) {
+<span class="fc" id="L64">			this(message, depth, Instant.now(), Runtime.getRuntime().freeMemory());</span>
+<span class="fc" id="L65">		}</span>
+
+<span class="fc" id="L67">		private TracedMessage(String message, int depth, Instant timestamp, long free) {</span>
+<span class="fc" id="L68">			this.message = message;</span>
+<span class="fc" id="L69">			this.depth = depth;</span>
+<span class="fc" id="L70">			this.timestamp = timestamp;</span>
+<span class="fc" id="L71">			this.free = free;</span>
+<span class="fc" id="L72">		}</span>
+
+		private void append(StringBuilder sb, Instant start, Instant lastTime, long lastFree) {
+<span class="fc" id="L75">			final var mark = sb.length();</span>
+
+<span class="fc bfc" id="L77" title="All 2 branches covered.">			for (int i = 0; i &lt; depth; i++)</span>
+<span class="fc" id="L78">				sb.append(' ');</span>
+<span class="fc" id="L79">			sb.append(this.message);</span>
+
+<span class="fc" id="L81">			final var limit = mark + 80;</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">			if (sb.length() &lt; limit)</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">				for (int i = sb.length(); i &lt; limit; i++)</span>
+<span class="fc" id="L84">					sb.append('.');</span>
+			else
+<span class="fc" id="L86">				sb.setLength(limit);</span>
+
+<span class="fc bfc" id="L88" title="All 2 branches covered.">			for (int i = mark; i &lt; limit; i++)</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">				if (sb.charAt(i) &lt; ' ')</span>
+<span class="fc" id="L90">					sb.setCharAt(i, ' ');</span>
+
+<span class="fc" id="L92">			final var diffTime = Duration.between(lastTime, timestamp);</span>
+<span class="fc" id="L93">			sb.append(' ');</span>
+<span class="fc" id="L94">			sb.append(intervalToString(diffTime));</span>
+<span class="fc" id="L95">			sb.append(' ');</span>
+<span class="fc" id="L96">			sb.append(intervalToString(Duration.between(start, timestamp)));</span>
+
+<span class="fc" id="L98">			final var diffFree = free - lastFree;</span>
+<span class="fc" id="L99">			sb.append(' ');</span>
+<span class="fc" id="L100">			sb.append(sizeToString(free));</span>
+<span class="fc" id="L101">			sb.append(' ');</span>
+<span class="fc" id="L102">			sb.append(sizeToString(diffFree));</span>
+
+<span class="fc" id="L104">			sb.append(System.lineSeparator());</span>
+<span class="fc" id="L105">		}</span>
+	}
+
+	private static class ProcessState {
+		private final String requestId;
+		private final LogEnvironment logEnvironment;
+		private final LogContext logContext;
+		private final String header;
+<span class="fc" id="L113">		private final Instant start = Instant.now();</span>
+<span class="fc" id="L114">		private final long startFree = Runtime.getRuntime().freeMemory();</span>
+<span class="fc" id="L115">		private final long startTot = Runtime.getRuntime().totalMemory();</span>
+<span class="fc" id="L116">		private final long startMax = Runtime.getRuntime().maxMemory();</span>
+		private Instant end;
+		private long endFree;
+		private long endTot;
+		private long endMax;
+<span class="fc" id="L121">		private final Queue&lt;Object&gt; children = new ArrayDeque&lt;&gt;();</span>
+		private final int depth;
+		private int subRequestId;
+
+<span class="fc" id="L125">		private ProcessState(LogContext logContext, String header) {</span>
+<span class="fc" id="L126">			this.header = header;</span>
+
+<span class="fc" id="L128">			final var active = ACTIVE_PROCESS_STATE.get();</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">			if (active == null) {</span>
+<span class="fc" id="L130">				requestId = Long.toString(++ProcessLogger.requestId);</span>
+<span class="fc" id="L131">				depth = 0;</span>
+			} else {
+<span class="fc" id="L133">				active.children.add(this);</span>
+<span class="fc" id="L134">				requestId = active.requestId + '.' + Integer.toString(++active.subRequestId);</span>
+<span class="fc" id="L135">				depth = active.depth + 1;</span>
+			}
+
+<span class="fc" id="L138">			this.logContext = logContext;</span>
+<span class="fc" id="L139">			this.logEnvironment = Bootstrap.getEnvironment();</span>
+
+<span class="fc" id="L141">			final var application = logEnvironment.getApplication();</span>
+<span class="fc" id="L142">			final var begin = new StringBuilder();</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">			begin.append((depth == 0) ? &quot;begin &quot; : &quot;&gt;&quot;).append(requestId);</span>
+<span class="fc bfc" id="L144" title="All 2 branches covered.">			if (application != null)</span>
+<span class="fc" id="L145">				begin.append(' ').append(application);</span>
+<span class="fc" id="L146">			begin.append(&quot;: &quot;).append(header);</span>
+
+<span class="fc" id="L148">			children.add(new TracedMessage(begin.toString(), Integer.max(0, depth - 1)));</span>
+<span class="fc" id="L149">		}</span>
+
+		private void end() {
+<span class="fc" id="L152">			final var runtime = Runtime.getRuntime();</span>
+<span class="fc" id="L153">			endFree = runtime.freeMemory();</span>
+<span class="fc" id="L154">			endTot = runtime.totalMemory();</span>
+<span class="fc" id="L155">			endMax = runtime.maxMemory();</span>
+<span class="fc" id="L156">			end = Instant.now();</span>
+
+<span class="fc" id="L158">			final var application = logEnvironment.getApplication();</span>
+<span class="fc" id="L159">			final var end = new StringBuilder();</span>
+<span class="fc bfc" id="L160" title="All 2 branches covered.">			end.append((depth == 0) ? &quot;end &quot; : &quot;&lt;&quot;).append(requestId);</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">			if (application != null)</span>
+<span class="fc" id="L162">				end.append(' ').append(application);</span>
+<span class="fc" id="L163">			end.append(&quot;: &quot;).append(header);</span>
+
+<span class="fc" id="L165">			children.add(new TracedMessage(end.toString(), depth - 1));</span>
+<span class="fc" id="L166">		}</span>
+
+		@Override
+		public String toString() {
+<span class="fc" id="L170">			var lastTime = start;</span>
+<span class="fc" id="L171">			var lastFree = startFree;</span>
+
+<span class="fc" id="L173">			final var sb = new StringBuilder();</span>
+
+<span class="fc" id="L175">			sb.append(&quot;init: &quot;).append(start).append(&quot; &quot;).append(memoryToString(startFree, startTot, startMax));</span>
+<span class="fc" id="L176">			sb.append(System.lineSeparator());</span>
+
+<span class="fc" id="L178">			final Deque&lt;Iterator&lt;?&gt;&gt; inProgress = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L179">			Iterator&lt;?&gt; current = children.iterator();</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">			while (current.hasNext() //</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">					|| !inProgress.isEmpty()) {</span>
+
+<span class="fc bfc" id="L183" title="All 2 branches covered.">				if (!current.hasNext())</span>
+<span class="fc" id="L184">					current = inProgress.pop();</span>
+
+				final TracedMessage message;
+<span class="fc" id="L187">				final var next = current.next();</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">				if (next instanceof TracedMessage) {</span>
+<span class="fc" id="L189">					message = (TracedMessage) next;</span>
+<span class="fc" id="L190">					message.append(sb, start, lastTime, lastFree);</span>
+
+<span class="fc" id="L192">					lastTime = message.timestamp;</span>
+<span class="fc" id="L193">					lastFree = message.free;</span>
+				} else {
+<span class="fc" id="L195">					final var state = (ProcessState) next;</span>
+
+<span class="fc" id="L197">					inProgress.push(current);</span>
+
+<span class="fc" id="L199">					current = state.children.iterator();</span>
+
+<span class="fc" id="L201">					lastTime = state.start;</span>
+<span class="fc" id="L202">					lastFree = state.startFree;</span>
+				}
+<span class="fc" id="L204">			}</span>
+
+<span class="fc bfc" id="L206" title="All 2 branches covered.">			if (end != null) {</span>
+<span class="fc" id="L207">				sb.append(&quot;final: &quot;);</span>
+<span class="fc" id="L208">				sb.append(end);</span>
+<span class="fc" id="L209">				sb.append(' ');</span>
+<span class="fc" id="L210">				sb.append(sizeToString(endFree - startFree));</span>
+<span class="fc" id="L211">				sb.append(' ');</span>
+<span class="fc" id="L212">				sb.append(memoryToString(endFree, endTot, endMax));</span>
+<span class="fc" id="L213">				sb.append(System.lineSeparator());</span>
+			}
+
+<span class="fc" id="L216">			return sb.toString();</span>
+		}
+	}
+
+<span class="fc" id="L220">	private static final String[] SIZE_INTERVALS = new String[] { &quot;Ki&quot;, &quot;Mi&quot;, &quot;Gi&quot;, &quot;Ti&quot;, };</span>
+
+<span class="fc" id="L222">	private static final ThreadLocal&lt;ProcessState&gt; ACTIVE_PROCESS_STATE = new ThreadLocal&lt;&gt;();</span>
+
+	private static volatile long requestId;
+
+<span class="fc" id="L226">	private static final ThreadLocal&lt;DecimalFormat&gt; DF3 = new ThreadLocal&lt;DecimalFormat&gt;() {</span>
+		@Override
+		protected DecimalFormat initialValue() {
+<span class="fc" id="L229">			return new DecimalFormat(&quot;000&quot;);</span>
+		}
+	};
+
+<span class="fc" id="L233">	private static final ThreadLocal&lt;DecimalFormat&gt; DF2 = new ThreadLocal&lt;DecimalFormat&gt;() {</span>
+		@Override
+		protected DecimalFormat initialValue() {
+<span class="fc" id="L236">			return new DecimalFormat(&quot;00&quot;);</span>
+		}
+	};
+
+	private ProcessLogger() {
+	}
+
+	/**
+	 * Prints a size in bytes rounded to largest non-zero unit.
+	 * 
+	 * @param bytes size in bytes
+	 * @return approximated size using largest non-zero unit
+	 */
+	static String sizeToString(long bytes) {
+<span class="fc" id="L250">		final var sb = new StringBuilder();</span>
+<span class="fc" id="L251">		var i = -1;</span>
+<span class="fc" id="L252">		var mod = 0;</span>
+<span class="fc bfc" id="L253" title="All 2 branches covered.">		if (bytes &lt; 0) {</span>
+<span class="fc" id="L254">			sb.append('-');</span>
+<span class="fc" id="L255">			bytes = Math.abs(bytes);</span>
+		}
+
+<span class="fc bfc" id="L258" title="All 4 branches covered.">		while (bytes / 1024 &gt; 0 &amp;&amp; i &lt; SIZE_INTERVALS.length - 1) {</span>
+<span class="fc" id="L259">			i++;</span>
+<span class="fc" id="L260">			mod = (int) (bytes % 1024);</span>
+<span class="fc" id="L261">			bytes /= 1024;</span>
+		}
+
+<span class="fc" id="L264">		sb.append(bytes);</span>
+<span class="fc bfc" id="L265" title="All 2 branches covered.">		if (mod &gt; 0) {</span>
+<span class="fc" id="L266">			sb.append('.');</span>
+<span class="fc" id="L267">			sb.append(DF3.get().format(mod * 1000 / 1024));</span>
+		}
+
+<span class="fc bfc" id="L270" title="All 2 branches covered.">		if (i &gt;= 0)</span>
+<span class="fc" id="L271">			sb.append(SIZE_INTERVALS[i]);</span>
+
+<span class="fc" id="L273">		sb.append(&quot;B&quot;);</span>
+
+<span class="fc" id="L275">		return sb.toString();</span>
+	}
+
+	/**
+	 * Formats a {@link Duration}
+	 * 
+	 * @param interval {@link Duration}
+	 * @return formatted text
+	 */
+	static String intervalToString(Duration interval) {
+<span class="fc" id="L285">		final var sb = new StringBuilder();</span>
+
+<span class="fc" id="L287">		final var df = DF3.get();</span>
+<span class="fc" id="L288">		sb.append('.');</span>
+<span class="fc" id="L289">		sb.append(df.format(interval.toMillisPart()));</span>
+
+<span class="fc" id="L291">		final var df2 = DF2.get();</span>
+<span class="fc" id="L292">		sb.insert(0, df2.format(interval.toSecondsPart()));</span>
+<span class="fc" id="L293">		sb.insert(0, ':');</span>
+<span class="fc" id="L294">		sb.insert(0, df2.format(interval.toMinutesPart()));</span>
+
+<span class="fc" id="L296">		final var hours = interval.toHoursPart();</span>
+<span class="fc bfc" id="L297" title="All 2 branches covered.">		if (hours &gt; 0) {</span>
+<span class="fc" id="L298">			sb.insert(0, ':');</span>
+<span class="fc" id="L299">			sb.insert(0, df2.format(hours % 24));</span>
+		}
+
+<span class="fc" id="L302">		final var days = interval.toDays();</span>
+<span class="fc bfc" id="L303" title="All 2 branches covered.">		if (days &gt; 0) {</span>
+<span class="fc" id="L304">			sb.insert(0, &quot; days, &quot;);</span>
+<span class="fc" id="L305">			sb.insert(0, days);</span>
+		}
+
+<span class="fc" id="L308">		return sb.toString();</span>
+	}
+
+	/**
+	 * Formats runtime memory stats for printing with the process trace.
+	 * 
+	 * @param free free memory
+	 * @param tot  total memory
+	 * @param max  maximum memory
+	 * @return formatted memory stats representation
+	 */
+	static String memoryToString(long free, long tot, long max) {
+<span class="fc" id="L320">		final var sb = new StringBuilder();</span>
+<span class="fc" id="L321">		sb.append(sizeToString(free));</span>
+<span class="fc" id="L322">		sb.append('/');</span>
+<span class="fc" id="L323">		sb.append(sizeToString(tot));</span>
+<span class="fc" id="L324">		sb.append('/');</span>
+<span class="fc" id="L325">		sb.append(sizeToString(max));</span>
+<span class="fc" id="L326">		sb.append(&quot; - &quot;);</span>
+<span class="fc" id="L327">		sb.append(free * 100 / tot);</span>
+<span class="fc" id="L328">		sb.append(&quot;% free&quot;);</span>
+<span class="fc" id="L329">		return sb.toString();</span>
+	}
+
+	/**
+	 * Retrieves a value from an {@link UnsafeSupplier} using the provided
+	 * {@link LogContext} bound to the current thread.
+	 * 
+	 * @param &lt;T&gt;      return type
+	 * @param context  {@link LogContext}
+	 * @param header   header message for the process log
+	 * @param supplier {@link UnsafeSupplier}
+	 * @return return value
+	 * @throws Throwable If an error occurs
+	 */
+	public static &lt;T&gt; T follow(LogContext context, String header, UnsafeSupplier&lt;T&gt; supplier) throws Throwable {
+<span class="fc" id="L344">		final var restore = ACTIVE_PROCESS_STATE.get();</span>
+		try {
+<span class="fc" id="L346">			final var state = new ProcessState(context, header);</span>
+
+<span class="fc" id="L348">			ACTIVE_PROCESS_STATE.remove();</span>
+<span class="fc" id="L349">			LOG.info(() -&gt; &quot;begin &quot; + state.requestId + &quot;: &quot; + header);</span>
+<span class="fc" id="L350">			ACTIVE_PROCESS_STATE.set(state);</span>
+
+<span class="fc" id="L352">			final var rv = supplier.get();</span>
+
+<span class="fc" id="L354">			state.end();</span>
+
+<span class="fc" id="L356">			ACTIVE_PROCESS_STATE.remove();</span>
+<span class="fc bfc" id="L357" title="All 2 branches covered.">			if (restore == null)</span>
+<span class="fc" id="L358">				LOG.info(() -&gt; &quot;complete &quot; + state.requestId + &quot;: &quot; + header + System.lineSeparator() + state);</span>
+			else
+<span class="fc" id="L360">				LOG.info(() -&gt; &quot;end &quot; + state.requestId + &quot;: &quot; + header);</span>
+
+<span class="fc" id="L362">			return rv;</span>
+
+		} finally {
+<span class="fc bfc" id="L365" title="All 2 branches covered.">			if (restore == null)</span>
+<span class="fc" id="L366">				ACTIVE_PROCESS_STATE.remove();</span>
+			else
+<span class="fc" id="L368">				ACTIVE_PROCESS_STATE.set(restore);</span>
+		}
+	}
+
+	/**
+	 * Gets an external proxy to the active log context.
+	 * 
+	 * @return Proxy instance of logContext for inspecting the active context
+	 */
+	public static LogContext getActiveContext() {
+<span class="fc" id="L378">		return IuObject.convert(ACTIVE_PROCESS_STATE.get(), a -&gt; a.logContext);</span>
+	}
+
+	/**
+	 * Captures the current process trace.
+	 * 
+	 * @return process trace
+	 */
+	public static String export() {
+<span class="fc" id="L387">		final var state = ACTIVE_PROCESS_STATE.get();</span>
+<span class="fc bfc" id="L388" title="All 2 branches covered.">		if (state == null)</span>
+<span class="fc" id="L389">			return null;</span>
+		else
+<span class="fc" id="L391">			return state.toString();</span>
+	}
+
+	/**
+	 * Adds a message to the active process trace without logging.
+	 * 
+	 * @param messageSupplier message supplier
+	 */
+	public static void trace(Supplier&lt;String&gt; messageSupplier) {
+<span class="fc" id="L400">		final var message = messageSupplier.get();</span>
+<span class="fc bfc" id="L401" title="All 2 branches covered.">		if (message == null)</span>
+<span class="fc" id="L402">			return;</span>
+
+<span class="fc" id="L404">		final var state = ACTIVE_PROCESS_STATE.get();</span>
+<span class="fc bfc" id="L405" title="All 2 branches covered.">		if (state == null)</span>
+<span class="fc" id="L406">			return;</span>
+
+<span class="fc" id="L408">		state.children.offer(new TracedMessage(message, state.depth));</span>
+<span class="fc" id="L409">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
