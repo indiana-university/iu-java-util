@@ -34,15 +34,12 @@ package iu.auth.config;
 import java.net.http.HttpRequest;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Objects;
 import java.util.function.Supplier;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.auth.oauth.OAuthClient;
 import edu.iu.client.IuHttp;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebToken;
 
@@ -93,7 +90,7 @@ public abstract class OAuthAccessTokenGrant {
 
 	/**
 	 * Gets the configured {@link OAuthClient}
-	 * 	
+	 * 
 	 * @return Configured {@link OAuthClient}
 	 */
 	protected OAuthClient getClient() {
@@ -111,18 +108,16 @@ public abstract class OAuthAccessTokenGrant {
 			final var clientCredentials = getClient();
 			final var tokenUri = clientCredentials.getTokenUri();
 
-			final var tokenResponse = IuException
-					.unchecked(() -> IuHttp.send(tokenUri, this::tokenAuth, IuHttp.READ_JSON_OBJECT));
+			final var tokenResponse = OAuthTokenResponse
+					.from(IuException.unchecked(() -> IuHttp.send(tokenUri, this::tokenAuth, IuHttp.READ_JSON_OBJECT)));
 
-			final String accessToken = IuJson.get(tokenResponse, "access_token");
+			final String accessToken = tokenResponse.getAccessToken();
 			if (getClient().getJwksUri() != null)
 				verifyToken(validateJwt(accessToken));
 
 			final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-			notAfter = IuObject.require(
-					now.plusSeconds(Objects.requireNonNull(
-							IuJson.get(tokenResponse, "expires_in", IuJsonAdapter.of(Integer.class)), "expires_in")),
-					now::isBefore, "non-positive expires_in");
+			notAfter = IuObject.require(now.plusSeconds(tokenResponse.getExpiresIn()), now::isBefore,
+					"non-positive expires_in");
 			this.accessToken = accessToken;
 		}
 		return accessToken;
