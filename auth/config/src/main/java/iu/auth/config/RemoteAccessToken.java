@@ -29,57 +29,69 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.config;
+package iu.auth.config;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
-import static org.mockito.Mockito.mock;
+import java.net.URI;
 
-import org.junit.jupiter.api.Test;
+import edu.iu.auth.oauth.IuAuthorizationDetails;
+import edu.iu.auth.oauth.IuCallerAttributes;
+import edu.iu.client.IuJson;
+import iu.crypt.Jwt;
+import jakarta.json.JsonObject;
 
-import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
-import edu.iu.auth.config.IuAuthorizationClient.GrantType;
-import jakarta.json.JsonString;
+/**
+ * Exposes claims specific to authorizing EJB invocation.
+ */
+public class RemoteAccessToken extends Jwt {
 
-@SuppressWarnings("javadoc")
-public class IuAuthorizationClientTest {
-
-	@Test
-	public void testAuthMethodFrom() {
-		for (final var authMethod : AuthMethod.values())
-			assertSame(authMethod, AuthMethod.from(authMethod.parameterValue));
+	/**
+	 * Constructor.
+	 * 
+	 * @param claims Parsed JSON claims
+	 */
+	public RemoteAccessToken(JsonObject claims) {
+		super(claims);
 	}
 
-	@Test
-	public void testGrantTypeFrom() {
-		for (final var grantType : GrantType.values())
-			assertSame(grantType, GrantType.from(grantType.parameterValue));
+	/**
+	 * Gets a builder.
+	 * 
+	 * @return {@link RemoteAccessTokenBuilder}
+	 */
+	public static RemoteAccessTokenBuilder<?> builder() {
+		return new RemoteAccessTokenBuilder<>();
 	}
 
-	@Test
-	public void testAuthMethodJson() {
-		for (final var a : AuthMethod.values()) {
-			final var j = AuthMethod.JSON.toJson(a);
-			assertEquals(a.parameterValue, ((JsonString) j).getString());
-			assertEquals(a, AuthMethod.JSON.fromJson(j));
-		}
+	/**
+	 * Gets the called URL.
+	 *
+	 * @param <T>             details interface type
+	 * @param type            authorization details type
+	 * @param detailInterface authorization details interface
+	 * @return authorization details
+	 */
+	protected <T extends IuAuthorizationDetails> T getAuthorizationDetails(String type, Class<T> detailInterface) {
+		return detailInterface.cast(RemoteAccessTokenBuilder.adaptAuthorizationDetails(detailInterface)
+				.fromJson(claims.getJsonArray("authorization_details").stream()
+						.filter(a -> type.equals(IuJson.get(a.asJsonObject(), "type"))).findFirst().get()));
 	}
 
-	@Test
-	public void testGrantTypeJson() {
-		for (final var a : GrantType.values()) {
-			final var j = GrantType.JSON.toJson(a);
-			assertEquals(a.parameterValue, ((JsonString) j).getString());
-			assertEquals(a, GrantType.JSON.fromJson(j));
-		}
+	/**
+	 * Gets the authorized scope.
+	 * 
+	 * @return scope
+	 */
+	public String getScope() {
+		return IuJson.get(claims, "scope");
 	}
 
-	@Test
-	public void testRequireNonceAndJti() {
-		final var client = mock(IuAuthorizationClient.class, CALLS_REAL_METHODS);
-		assertTrue(client.isRequireJti());
-		assertTrue(client.isRequireNonce());
+	/**
+	 * Gets the called URL.
+	 * 
+	 * @return {@link URI}
+	 */
+	public IuCallerAttributes getCallerAttributes() {
+		return getAuthorizationDetails(IuCallerAttributes.TYPE, IuCallerAttributes.class);
 	}
+
 }

@@ -29,57 +29,52 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.config;
+package edu.iu.auth.oauth;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
-import static org.mockito.Mockito.mock;
+import java.net.URI;
 
-import org.junit.jupiter.api.Test;
+/**
+ * Caller client identification and authentication details for authorizing
+ * remote invocation.
+ */
+public interface IuCallerAttributes extends IuAuthorizationDetails {
 
-import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
-import edu.iu.auth.config.IuAuthorizationClient.GrantType;
-import jakarta.json.JsonString;
+	/**
+	 * Authorization details type value to match.
+	 */
+	static String TYPE = "iu:caller_attributes";
 
-@SuppressWarnings("javadoc")
-public class IuAuthorizationClientTest {
-
-	@Test
-	public void testAuthMethodFrom() {
-		for (final var authMethod : AuthMethod.values())
-			assertSame(authMethod, AuthMethod.from(authMethod.parameterValue));
+	@Override
+	default String getType() {
+		return TYPE;
 	}
 
-	@Test
-	public void testGrantTypeFrom() {
-		for (final var grantType : GrantType.values())
-			assertSame(grantType, GrantType.from(grantType.parameterValue));
-	}
+	/**
+	 * Gets the full request URI to the resource that issued the token.
+	 * 
+	 * @return Request URI
+	 */
+	URI getRequestUri();
 
-	@Test
-	public void testAuthMethodJson() {
-		for (final var a : AuthMethod.values()) {
-			final var j = AuthMethod.JSON.toJson(a);
-			assertEquals(a.parameterValue, ((JsonString) j).getString());
-			assertEquals(a, AuthMethod.JSON.fromJson(j));
-		}
-	}
+	/**
+	 * Gets the remote client IP address.
+	 * 
+	 * @return IP address
+	 */
+	String getRemoteAddr();
 
-	@Test
-	public void testGrantTypeJson() {
-		for (final var a : GrantType.values()) {
-			final var j = GrantType.JSON.toJson(a);
-			assertEquals(a.parameterValue, ((JsonString) j).getString());
-			assertEquals(a, GrantType.JSON.fromJson(j));
-		}
-	}
+	/**
+	 * Gets the caller's user agent.
+	 * 
+	 * @return User-Agent header value
+	 */
+	String getUserAgent();
 
-	@Test
-	public void testRequireNonceAndJti() {
-		final var client = mock(IuAuthorizationClient.class, CALLS_REAL_METHODS);
-		assertTrue(client.isRequireJti());
-		assertTrue(client.isRequireNonce());
-	}
+	/**
+	 * Gets the principal name of the authenticated user.
+	 * 
+	 * @return Principal name
+	 */
+	String getAuthnPrincipal();
+
 }

@@ -32,54 +32,20 @@
 package edu.iu.auth.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 
+import java.time.Duration;
+
 import org.junit.jupiter.api.Test;
 
-import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
-import edu.iu.auth.config.IuAuthorizationClient.GrantType;
-import jakarta.json.JsonString;
-
 @SuppressWarnings("javadoc")
-public class IuAuthorizationClientTest {
+public class IuAuthorizedAudienceTest {
 
 	@Test
-	public void testAuthMethodFrom() {
-		for (final var authMethod : AuthMethod.values())
-			assertSame(authMethod, AuthMethod.from(authMethod.parameterValue));
+	public void testTokenTtl() {
+		final var a = mock(IuAuthorizedAudience.class, CALLS_REAL_METHODS);
+		assertEquals(Duration.ofSeconds(15L), a.getTokenTtl());
 	}
 
-	@Test
-	public void testGrantTypeFrom() {
-		for (final var grantType : GrantType.values())
-			assertSame(grantType, GrantType.from(grantType.parameterValue));
-	}
-
-	@Test
-	public void testAuthMethodJson() {
-		for (final var a : AuthMethod.values()) {
-			final var j = AuthMethod.JSON.toJson(a);
-			assertEquals(a.parameterValue, ((JsonString) j).getString());
-			assertEquals(a, AuthMethod.JSON.fromJson(j));
-		}
-	}
-
-	@Test
-	public void testGrantTypeJson() {
-		for (final var a : GrantType.values()) {
-			final var j = GrantType.JSON.toJson(a);
-			assertEquals(a.parameterValue, ((JsonString) j).getString());
-			assertEquals(a, GrantType.JSON.fromJson(j));
-		}
-	}
-
-	@Test
-	public void testRequireNonceAndJti() {
-		final var client = mock(IuAuthorizationClient.class, CALLS_REAL_METHODS);
-		assertTrue(client.isRequireJti());
-		assertTrue(client.isRequireNonce());
-	}
 }

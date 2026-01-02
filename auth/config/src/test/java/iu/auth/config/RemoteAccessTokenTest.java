@@ -29,57 +29,63 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.config;
+package iu.auth.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
+
+import java.net.URI;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
-import edu.iu.auth.config.IuAuthorizationClient.GrantType;
-import jakarta.json.JsonString;
+import edu.iu.IdGenerator;
+import edu.iu.auth.oauth.IuCallerAttributes;
+import edu.iu.client.IuJson;
 
 @SuppressWarnings("javadoc")
-public class IuAuthorizationClientTest {
+public class RemoteAccessTokenTest {
 
 	@Test
-	public void testAuthMethodFrom() {
-		for (final var authMethod : AuthMethod.values())
-			assertSame(authMethod, AuthMethod.from(authMethod.parameterValue));
-	}
-
-	@Test
-	public void testGrantTypeFrom() {
-		for (final var grantType : GrantType.values())
-			assertSame(grantType, GrantType.from(grantType.parameterValue));
-	}
-
-	@Test
-	public void testAuthMethodJson() {
-		for (final var a : AuthMethod.values()) {
-			final var j = AuthMethod.JSON.toJson(a);
-			assertEquals(a.parameterValue, ((JsonString) j).getString());
-			assertEquals(a, AuthMethod.JSON.fromJson(j));
+	public void testBuilder() {
+		try (final var mockRemoteAccessTokenBuilder = mockConstruction(RemoteAccessTokenBuilder.class)) {
+			final var b = RemoteAccessToken.builder();
+			assertSame(b, mockRemoteAccessTokenBuilder.constructed().get(0));
 		}
 	}
-
+	
 	@Test
-	public void testGrantTypeJson() {
-		for (final var a : GrantType.values()) {
-			final var j = GrantType.JSON.toJson(a);
-			assertEquals(a.parameterValue, ((JsonString) j).getString());
-			assertEquals(a, GrantType.JSON.fromJson(j));
-		}
+	public void testScope() {
+		final var scope = IdGenerator.generateId();
+
+		final var t = new RemoteAccessToken(IuJson.object().add("scope", scope) //
+				.build());
+
+		assertEquals(scope, t.getScope());
 	}
 
 	@Test
-	public void testRequireNonceAndJti() {
-		final var client = mock(IuAuthorizationClient.class, CALLS_REAL_METHODS);
-		assertTrue(client.isRequireJti());
-		assertTrue(client.isRequireNonce());
+	public void testCallerAttributes() {
+		final var requestUri = URI.create(IdGenerator.generateId());
+		final var remoteAddr = IdGenerator.generateId();
+		final var userAgent = IdGenerator.generateId();
+		final var authnPrincipal = IdGenerator.generateId();
+
+		final var t = new RemoteAccessToken(IuJson.object()
+				.add("authorization_details", IuJson.array().add(IuJson.object() //
+						.add("type", IuCallerAttributes.TYPE) //
+						.add("request_uri", requestUri.toString()) //
+						.add("remote_addr", remoteAddr) //
+						.add("user_agent", userAgent) //
+						.add("authn_principal", authnPrincipal) //
+						.build()))
+				.build());
+
+		final var callerAttributes = t.getCallerAttributes();
+		assertEquals(requestUri, callerAttributes.getRequestUri());
+		assertEquals(remoteAddr, callerAttributes.getRemoteAddr());
+		assertEquals(userAgent, callerAttributes.getUserAgent());
+		assertEquals(authnPrincipal, callerAttributes.getAuthnPrincipal());
 	}
+
 }
