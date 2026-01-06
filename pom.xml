@@ -490,6 +490,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>web</module>
 				<module>site</module>
 				<module>redis</module>
+				<module>metrics</module>
 			</modules>
 		</profile>
 		<profile>
@@ -498,7 +499,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<activeByDefault>true</activeByDefault>
 			</activation>
 			<modules>
-				<module>scan</module>
+				<module>logging</module>
 			</modules>
 		</profile>
 	</profiles>
