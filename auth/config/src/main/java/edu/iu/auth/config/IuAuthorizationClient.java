@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -291,5 +291,23 @@ public interface IuAuthorizationClient {
 	 * @return {@link Credentials}
 	 */
 	Iterable<? extends Credentials> getCredentials();
+
+	/**
+	 * Determines if a valid nonce claim is required.
+	 * 
+	 * @return true if nonce is required (default); else false
+	 */
+	default boolean isRequireNonce() {
+		return true;
+	}
+
+	/**
+	 * Determines if a valid jti claim is required.
+	 * 
+	 * @return true if jti is required (default); else false
+	 */
+	default boolean isRequireJti() {
+		return true;
+	}
 
 }
