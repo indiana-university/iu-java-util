@@ -139,7 +139,7 @@ public class OidcIdTokenTest {
 				.key(key) //
 				.sign(IuText.utf8(claims.toString())) //
 				.compact();
-		
+
 		final var audKey = WebKey.ephemeral(Algorithm.ECDH_ES_A256KW);
 		final var encryptedIdToken = WebEncryption.builder(Encryption.A256GCM) //
 				.compact() //
@@ -178,7 +178,7 @@ public class OidcIdTokenTest {
 				.key(key) //
 				.sign(IuText.utf8(claims.toString())) //
 				.compact();
-		
+
 		final var ttl = Duration.ofMinutes(15L);
 		final var verified = OidcIdToken.verify(idToken, key, null, null, null, null);
 		final var err = assertThrows(IllegalArgumentException.class, () -> verified.validateClaims(aud, ttl));
@@ -208,7 +208,7 @@ public class OidcIdTokenTest {
 				.key(key) //
 				.sign(IuText.utf8(claims.toString())) //
 				.compact();
-		
+
 		final var ttl = Duration.ofMinutes(15L);
 		final var verified = OidcIdToken.verify(idToken, key, null, nonce, null, null);
 		final var err = assertThrows(IllegalArgumentException.class, () -> verified.validateClaims(aud, ttl));
@@ -239,7 +239,7 @@ public class OidcIdTokenTest {
 				.key(key) //
 				.sign(IuText.utf8(claims.toString())) //
 				.compact();
-		
+
 		final var maxAge = Duration.ofHours(12L);
 		final var ttl = Duration.ofMinutes(15L);
 		final var verified = OidcIdToken.verify(idToken, key, null, null, null, maxAge);
@@ -272,11 +272,49 @@ public class OidcIdTokenTest {
 				.key(key) //
 				.sign(IuText.utf8(claims.toString())) //
 				.compact();
-		
+
 		final var ttl = Duration.ofMinutes(15L);
 		final var verified = OidcIdToken.verify(idToken, key, null, null, accessToken, null);
 		final var err = assertThrows(IllegalArgumentException.class, () -> verified.validateClaims(aud, ttl));
 		assertEquals("at_hash mismatch", err.getMessage());
+	}
+
+	@Test
+	public void testTokenWithAuthDetails() {
+		final var iss = URI.create(IdGenerator.generateId());
+		final var aud = URI.create(IdGenerator.generateId());
+		final var sub = IdGenerator.generateId();
+		final var iat = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+		final var exp = iat.plusSeconds(900L);
+		final var authType = IdGenerator.generateId();
+		final var a = IdGenerator.generateId();
+		final var authDetails = IuJson.object() //
+				.add("type", authType) //
+				.add("a", a) //
+				.build();
+
+		final var claims = IuJson.object() //
+				.add("iss", iss.toString()) //
+				.add("sub", sub) //
+				.add("aud", aud.toString()) //
+				.add("iat", iat.getEpochSecond()) //
+				.add("exp", exp.getEpochSecond()) //
+				.add("authorization_details", IuJson.array().add(authDetails)) //
+				.build();
+
+		final var key = WebKey.ephemeral(Algorithm.EDDSA);
+		final var idToken = WebSignature.builder(Algorithm.EDDSA) //
+				.compact() //
+				.key(key) //
+				.sign(IuText.utf8(claims.toString())) //
+				.compact();
+
+		final var ttl = Duration.ofMinutes(15L);
+		final var verified = OidcIdToken.verify(idToken, key, null, null, null, null);
+		assertDoesNotThrow(() -> verified.validateClaims(aud, ttl));
+		assertNull(verified.getAuthorizationDetails(""));
+		final var verifiedAuthDetails = verified.getAuthorizationDetails(authType);
+		assertEquals(a, IuJson.get(verifiedAuthDetails, "a"));
 	}
 
 }
