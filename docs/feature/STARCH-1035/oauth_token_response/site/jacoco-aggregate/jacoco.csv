@@ -345,6 +345,7 @@ IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,OidcAuthoriza
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,RemoteAccessTokenBuilder,0,72,0,8,0,21,0,11,0,7
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,RemoteAccessToken,0,45,0,0,0,8,0,6,0,6
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,OAuthAccessTokenGrant,0,88,0,6,0,19,0,8,0,5
+IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,OidcIdToken,0,237,0,22,0,51,0,20,0,9
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,AuthConfig.new Object() {...},0,86,0,6,0,13,0,7,0,4
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,OAuthTokenResponse,0,8,0,0,0,3,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,AuthConfig.StorageConfig,0,15,0,0,0,6,0,1,0,1
