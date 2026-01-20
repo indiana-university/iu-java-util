@@ -1,1 +1,0 @@
-memberSearchIndex = [{"p":"iu.metrics.spi","c":"MetricsSpi","l":"MetricsSpi()","u":"%3Cinit%3E()"},{"p":"iu.metrics.spi","c":"MetricsSpi","l":"of(IuMetricsConfiguration)","u":"of(edu.iu.metrics.IuMetricsConfiguration)"}];updateSearchResults();
