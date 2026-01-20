@@ -1,0 +1,1 @@
+packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html"},{"m":"iu.util.metrics","l":"edu.iu.metrics"},{"m":"iu.util.metrics","l":"edu.iu.metrics.spi"}];updateSearchResults();

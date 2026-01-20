@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>XmlDomUtil.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU SAML 2.0 Service Provider</a> &gt; <a href="index.source.html" class="el_package">iu.auth.saml</a> &gt; <span class="el_source">XmlDomUtil.java</span></div><h1>XmlDomUtil.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2026 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.saml;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.StringWriter;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.util.Date;
+import java.util.List;
+
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+import org.w3c.dom.DOMImplementation;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.w3c.dom.bootstrap.DOMImplementationRegistry;
+import org.w3c.dom.ls.DOMImplementationLS;
+import org.w3c.dom.ls.LSOutput;
+import org.w3c.dom.ls.LSSerializer;
+
+import edu.iu.IuException;
+import edu.iu.IuText;
+
+/**
+ * Provides simplified access to DOM document elements.
+ */
+final class XmlDomUtil {
+
+	/**
+	 * The standard XML date format.
+	 */
+	static final String DATE_FORMAT = &quot;yyyy-MM-dd'T'HH:mm:ss.SSSZ&quot;;
+
+	/**
+	 * Parse an XML document from a string.
+	 * 
+	 * @param string The XML document.
+	 * @return The document, parsed.
+	 */
+	static Document parse(String string) {
+<span class="fc" id="L79">		DocumentBuilderFactory builder = DocumentBuilderFactory.newInstance();</span>
+
+		// CWE-611 mitigation: Prevent XXE in XML Parse4
+		// See https://cwe.mitre.org/data/definitions/611.html
+		// See
+		// https://blog.shiftleft.io/preventing-xxe-in-java-applications-d557b6092db1
+<span class="fc" id="L85">		IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L86">			builder.setFeature(&quot;http://apache.org/xml/features/disallow-doctype-decl&quot;, true);</span>
+<span class="fc" id="L87">			builder.setFeature(&quot;http://xml.org/sax/features/external-general-entities&quot;, false);</span>
+<span class="fc" id="L88">			builder.setFeature(&quot;http://xml.org/sax/features/external-parameter-entities&quot;, false);</span>
+<span class="fc" id="L89">			builder.setFeature(&quot;http://apache.org/xml/features/nonvalidating/load-external-dtd&quot;, false);</span>
+<span class="fc" id="L90">			builder.setXIncludeAware(false);</span>
+<span class="fc" id="L91">			builder.setExpandEntityReferences(false);</span>
+<span class="fc" id="L92">		});</span>
+
+<span class="fc" id="L94">		return IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L95">			return builder.newDocumentBuilder().parse(new ByteArrayInputStream(string.getBytes()));</span>
+		});
+	}
+
+	/**
+	 * Parse an XML input stream to string
+	 * 
+	 * @param inputStream XML input stream
+	 * @return string representation of XML
+	 */
+	static String xmlToString(InputStream inputStream) {
+
+<span class="fc" id="L107">		DocumentBuilderFactory builder = DocumentBuilderFactory.newInstance();</span>
+
+		// CWE-611 mitigation: Prevent XXE in XML Parse4
+		// See https://cwe.mitre.org/data/definitions/611.html
+		// See
+		// https://blog.shiftleft.io/preventing-xxe-in-java-applications-d557b6092db1
+<span class="fc" id="L113">		return IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L114">			builder.setFeature(&quot;http://apache.org/xml/features/disallow-doctype-decl&quot;, true);</span>
+<span class="fc" id="L115">			builder.setFeature(&quot;http://xml.org/sax/features/external-general-entities&quot;, false);</span>
+<span class="fc" id="L116">			builder.setFeature(&quot;http://xml.org/sax/features/external-parameter-entities&quot;, false);</span>
+<span class="fc" id="L117">			builder.setFeature(&quot;http://apache.org/xml/features/nonvalidating/load-external-dtd&quot;, false);</span>
+<span class="fc" id="L118">			builder.setXIncludeAware(false);</span>
+<span class="fc" id="L119">			builder.setExpandEntityReferences(false);</span>
+<span class="fc" id="L120">			Document doc = builder.newDocumentBuilder().parse(inputStream);</span>
+<span class="fc" id="L121">			StringWriter stw = new StringWriter();</span>
+<span class="fc" id="L122">			Transformer serializer = TransformerFactory.newInstance().newTransformer();</span>
+<span class="fc" id="L123">			serializer.transform(new DOMSource(doc), new StreamResult(stw));</span>
+<span class="fc" id="L124">			return stw.toString();</span>
+		});
+
+	}
+
+	/**
+	 * Get an attribute value for a node.
+	 * 
+	 * @param node The node.
+	 * @param attr The attribute name.
+	 * @return The attribute value for the node.
+	 */
+	static String getAttribute(Node node, String attr) {
+<span class="fc bfc" id="L137" title="All 2 branches covered.">		if (!node.hasAttributes()) {</span>
+<span class="fc" id="L138">			return null;</span>
+		}
+<span class="fc" id="L140">		Node rv = node.getAttributes().getNamedItem(attr);</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">		if (rv == null) {</span>
+<span class="fc" id="L142">			return null;</span>
+		}
+<span class="fc" id="L144">		return rv.getTextContent();</span>
+	}
+
+	/**
+	 * Get an array of child nodes with the given node name.
+	 * 
+	 * @param node The node.
+	 * @param name The child node name.
+	 * @return An array of nodes that match the given node name.
+	 */
+	static Node[] getChildNodes(Node node, String name) {
+<span class="fc" id="L155">		List&lt;Node&gt; rv = new java.util.LinkedList&lt;Node&gt;();</span>
+<span class="fc" id="L156">		NodeList children = node.getChildNodes();</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">		for (int i = 0; i &lt; children.getLength(); i++) {</span>
+<span class="fc" id="L158">			Node c = children.item(i);</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">			if (name.equals(c.getNodeName())) {</span>
+<span class="fc" id="L160">				rv.add(c);</span>
+			}
+		}
+<span class="fc" id="L163">		return rv.toArray(new Node[rv.size()]);</span>
+	}
+
+	/**
+	 * Get the first child node with a given node name.
+	 * 
+	 * @param node The node.
+	 * @param name The child node name.
+	 * @return The first child node with the given node name.
+	 */
+	static Node getChildNode(Node node, String name) {
+<span class="fc" id="L174">		NodeList children = node.getChildNodes();</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">		for (int i = 0; i &lt; children.getLength(); i++) {</span>
+<span class="fc" id="L176">			Node c = children.item(i);</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">			if (name.equals(c.getNodeName())) {</span>
+<span class="fc" id="L178">				return c;</span>
+			}
+		}
+<span class="fc" id="L181">		return null;</span>
+	}
+
+	/**
+	 * Get the first occurrence of a document element by name.
+	 * 
+	 * @param doc  The document.
+	 * @param name The element name.
+	 * @return The first document element found by name, null if no match.
+	 */
+	static Element findElement(Document doc, String name) {
+<span class="fc" id="L192">		NodeList ctl = doc.getElementsByTagName(name);</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">		if (ctl.getLength() == 0) {</span>
+<span class="fc" id="L194">			return null;</span>
+		}
+<span class="fc" id="L196">		return (Element) ctl.item(0);</span>
+	}
+
+	/**
+	 * Convert a date to a standard XML date string.
+	 * 
+	 * @param rv The date.
+	 * @return The standard XML date string.
+	 */
+	static String dateToString(Date rv) {
+<span class="fc" id="L206">		DateFormat df = new java.text.SimpleDateFormat(DATE_FORMAT);</span>
+<span class="fc" id="L207">		return df.format(rv);</span>
+	}
+
+	/**
+	 * Convert a date to a standard XML date string.
+	 * 
+	 * @param rv The date.
+	 * @return The standard XML date string.
+	 */
+	static Date stringToDate(String rv) {
+<span class="fc" id="L217">		DateFormat df = new java.text.SimpleDateFormat(DATE_FORMAT);</span>
+		try {
+<span class="fc" id="L219">			return df.parse(rv);</span>
+<span class="fc" id="L220">		} catch (ParseException e) {</span>
+<span class="fc" id="L221">			throw new IllegalArgumentException(&quot;Invalid XML date: &quot; + rv, e);</span>
+		}
+	}
+
+	/**
+	 * Get a DOM instance.
+	 * 
+	 * @return DOM instance
+	 */
+	static DOMImplementation getDom() {
+		try {
+<span class="fc" id="L232">			return DOMImplementationRegistry.newInstance().getDOMImplementation(&quot;XML&quot;);</span>
+<span class="fc" id="L233">		} catch (IllegalAccessException iae) {</span>
+<span class="fc" id="L234">			throw new IllegalStateException(&quot;Illegal access acquiring DOM instance&quot;, iae);</span>
+<span class="fc" id="L235">		} catch (InstantiationException ite) {</span>
+<span class="fc" id="L236">			throw new IllegalStateException(&quot;Checked exception acquiring DOM instance&quot;, ite);</span>
+<span class="fc" id="L237">		} catch (ClassNotFoundException e) {</span>
+<span class="fc" id="L238">			throw new IllegalStateException(&quot;Class not found acquiring DOM instance&quot;, e);</span>
+		}
+	}
+
+	/**
+	 * Get a DOM LS instance.
+	 * 
+	 * @return DOM LS instance
+	 */
+	static DOMImplementationLS getDomLS() {
+		try {
+<span class="fc" id="L249">			return (DOMImplementationLS) DOMImplementationRegistry.newInstance().getDOMImplementation(&quot;LS&quot;);</span>
+<span class="fc" id="L250">		} catch (IllegalAccessException iae) {</span>
+<span class="fc" id="L251">			throw new IllegalStateException(&quot;Illegal access acquiring DOM LS instance&quot;, iae);</span>
+<span class="fc" id="L252">		} catch (InstantiationException ite) {</span>
+<span class="fc" id="L253">			throw new IllegalStateException(&quot;Checked exception acquiring DOM LS instance&quot;, ite);</span>
+<span class="fc" id="L254">		} catch (ClassNotFoundException e) {</span>
+<span class="fc" id="L255">			throw new IllegalStateException(&quot;Class not found acquiring DOM LS instance&quot;, e);</span>
+		}
+	}
+
+	/**
+	 * Render a DOM node as a string.
+	 * 
+	 * @param n The node.
+	 * @return A string representation of a DOM node.
+	 */
+	static String getContent(Node n) {
+<span class="fc" id="L266">		DOMImplementationLS ls = getDomLS();</span>
+<span class="fc" id="L267">		LSSerializer ser = ls.createLSSerializer();</span>
+<span class="fc" id="L268">		ByteArrayOutputStream baos = new ByteArrayOutputStream();</span>
+<span class="fc" id="L269">		LSOutput lso = ls.createLSOutput();</span>
+<span class="fc" id="L270">		lso.setEncoding(&quot;UTF-8&quot;);</span>
+<span class="fc" id="L271">		lso.setByteStream(baos);</span>
+<span class="fc" id="L272">		ser.write(n, lso);</span>
+<span class="fc" id="L273">		return IuText.utf8(baos.toByteArray());</span>
+
+	}
+
+	private XmlDomUtil() {
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
