@@ -308,5 +308,4 @@ public class SamlAuthenticateIT {
 		assertFalse(notBefore.isAfter(latestValid));
 		assertFalse(notOnOrAfter.isBefore(now.minus(Duration.ofMinutes(5))));
 	}
-	
 }
