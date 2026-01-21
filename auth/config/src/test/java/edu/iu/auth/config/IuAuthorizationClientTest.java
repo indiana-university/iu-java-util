@@ -81,5 +81,6 @@ public class IuAuthorizationClientTest {
 		final var client = mock(IuAuthorizationClient.class, CALLS_REAL_METHODS);
 		assertTrue(client.isRequireJti());
 		assertTrue(client.isRequireNonce());
+		assertTrue(client.isRequireUserAgent());
 	}
 }
