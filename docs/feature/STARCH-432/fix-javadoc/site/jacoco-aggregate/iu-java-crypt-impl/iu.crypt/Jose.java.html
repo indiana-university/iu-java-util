@@ -1,0 +1,317 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>Jose.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-crypt-impl</a> &gt; <a href="index.source.html" class="el_package">iu.crypt</a> &gt; <span class="el_source">Jose.java</span></div><h1>Jose.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2026 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.crypt;
+
+import java.net.URI;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Predicate;
+
+import edu.iu.IuIterable;
+import edu.iu.IuObject;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.WebCryptoHeader;
+import edu.iu.crypt.WebEncryption;
+import edu.iu.crypt.WebEncryptionRecipient;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Use;
+import edu.iu.crypt.WebSignature;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
+
+/**
+ * {@link WebCryptoHeader} implementation.
+ */
+public final class Jose extends JsonKeyReference&lt;Jose&gt; implements WebCryptoHeader {
+	static {
+<span class="fc" id="L59">		IuObject.assertNotOpen(Jose.class);</span>
+	}
+
+<span class="fc" id="L62">	private static final Map&lt;String, Extension&lt;?&gt;&gt; EXTENSIONS = new HashMap&lt;&gt;();</span>
+
+	/**
+	 * Extension provider interface.
+	 * 
+	 * @param &lt;T&gt; value type
+	 */
+	public interface Extension&lt;T&gt; extends IuJsonAdapter&lt;T&gt; {
+		/**
+		 * Validates an incoming parameter value.
+		 * 
+		 * @param value   value
+		 * @param builder {@link WebSignature.Builder} or
+		 *                {@link WebEncryptionRecipient.Builder}
+		 * @throws IllegalArgumentException if the value is invalid
+		 */
+		default void validate(T value, WebCryptoHeader.Builder&lt;?&gt; builder) throws IllegalArgumentException {
+<span class="fc" id="L79">		}</span>
+
+		/**
+		 * Applies extended verification logic for processing {@link WebCryptoHeader}.
+		 * 
+		 * @param header JOSE header
+		 * @throws IllegalStateException if the header verification fails
+		 */
+		default void verify(WebCryptoHeader header) throws IllegalStateException {
+<span class="fc" id="L88">		}</span>
+
+		/**
+		 * Applies extended verification logic for processing {@link WebSignature}.
+		 * 
+		 * @param signature JWS signature
+		 * @throws IllegalStateException if the verification fails
+		 */
+		default void verify(WebSignature signature) throws IllegalStateException {
+<span class="fc" id="L97">		}</span>
+
+		/**
+		 * Applies extended verification logic for processing {@link WebEncryption}.
+		 * 
+		 * @param encryption JWE encrypted message
+		 * @param recipient  JWE recipient, available via
+		 *                   {@link WebEncryption#getRecipients()}
+		 * @throws IllegalStateException if the verification fails
+		 */
+		default void verify(WebEncryption encryption, WebEncryptionRecipient recipient) throws IllegalStateException {
+<span class="fc" id="L108">		}</span>
+	}
+
+	/**
+	 * Registers an extension.
+	 *
+	 * @param &lt;T&gt;           parameter type
+	 * @param parameterName parameter name; &lt;em&gt;must not&lt;/em&gt; be a registered
+	 *                      parameter name enumerated by {@link Param},
+	 *                      &lt;em&gt;should&lt;/em&gt; be collision-resistant. Take care when
+	 *                      using {@link Extension} to implement an &lt;a href=
+	 *                      &quot;https://www.iana.org/assignments/jose/jose.xhtml#web-signature-encryption-header-parameters&quot;&gt;IANA
+	 *                      Registered Parameter&lt;/a&gt; not enumerated by
+	 *                      {@link Param}, since these may be implemented internally
+	 *                      in a future release.
+	 * @param extension     provider implementation
+	 * @see &lt;a href=
+	 *      &quot;https://datatracker.ietf.org/doc/html/rfc7515#section-4.2&quot;&gt;RFC-7516 JWS
+	 *      Section 4.2&lt;/a&gt;
+	 * @see &lt;a href=
+	 *      &quot;https://datatracker.ietf.org/doc/html/rfc7516#section-4.2&quot;&gt;RFC-7516 JWE
+	 *      Section 4.2&lt;/a&gt;
+	 */
+	public static synchronized &lt;T&gt; void register(String parameterName, Extension&lt;T&gt; extension) {
+<span class="fc bfc" id="L132" title="All 2 branches covered.">		if (Param.from(parameterName) != null)</span>
+<span class="fc" id="L133">			throw new IllegalArgumentException(&quot;Must not be a standard regsitered parameter name&quot;);</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">		if (EXTENSIONS.containsKey(parameterName))</span>
+<span class="fc" id="L135">			throw new IllegalArgumentException(&quot;Already registered&quot;);</span>
+
+<span class="fc" id="L137">		EXTENSIONS.put(parameterName, extension);</span>
+<span class="fc" id="L138">	}</span>
+
+	/**
+	 * Gets a registered extension.
+	 * 
+	 * @param &lt;T&gt;           parameter type
+	 * @param parameterName parameter name
+	 * @return extension registered for the named parameter
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	static &lt;T&gt; Extension&lt;T&gt; getExtension(String parameterName) {
+<span class="fc" id="L149">		return Objects.requireNonNull((Extension&lt;T&gt;) EXTENSIONS.get(parameterName),</span>
+				&quot;must understand extension &quot; + parameterName);
+	}
+
+	/**
+	 * Creates a JOSE header from serialized headers.
+	 * 
+	 * @param protectedHeader    protected header data
+	 * @param sharedHeader       unprotected shared header data
+	 * @param perRecipientHeader unprotected per-recipient header data
+	 * @return JOSE header
+	 */
+	static Jose from(JsonObject protectedHeader, JsonObject sharedHeader, JsonObject perRecipientHeader) {
+<span class="fc bfc" id="L162" title="All 4 branches covered.">		if (sharedHeader == null &amp;&amp; perRecipientHeader == null)</span>
+<span class="fc" id="L163">			return new Jose(protectedHeader);</span>
+
+<span class="fc" id="L165">		final var b = IuJson.object();</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">		for (final var header : IuIterable.iter(protectedHeader, sharedHeader, perRecipientHeader))</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">			if (header != null)</span>
+<span class="fc" id="L168">				header.forEach(b::add);</span>
+
+<span class="fc" id="L170">		return new Jose(b.build());</span>
+	}
+
+	/**
+	 * Determines if a parameter name not registered for use with JWS is understood.
+	 * 
+	 * @param paramName parameter name
+	 * @return true if the parameter name is not registered for JWS and understood
+	 *         by this implementation.
+	 */
+	private static boolean isUnderstood(String paramName) {
+<span class="fc" id="L181">		final var param = Param.from(paramName);</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">		if (param == null)</span>
+<span class="fc" id="L183">			return EXTENSIONS.containsKey(paramName);</span>
+		else
+<span class="fc bfc" id="L185" title="All 2 branches covered.">			return !param.isUsedFor(Use.SIGN);</span>
+	}
+
+	private final Jwk key;
+	private final URI keySetUri;
+	private final String type;
+	private final String contentType;
+	private final Set&lt;String&gt; criticalParameters;
+	private final JsonObject extendedParameters;
+	private final Jwk wellKnownKey;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param joseValue header parameters
+	 */
+	Jose(JsonValue joseValue) {
+<span class="fc" id="L202">		super(joseValue);</span>
+
+<span class="fc" id="L204">		final var jose = joseValue.asJsonObject();</span>
+<span class="fc" id="L205">		keySetUri = IuJson.get(jose, &quot;jku&quot;, IuJsonAdapter.of(URI.class));</span>
+<span class="fc" id="L206">		key = (Jwk) IuObject.convert(IuJson.get(jose, &quot;jwk&quot;, CryptJsonAdapters.WEBKEY), WebKey::wellKnown);</span>
+<span class="fc" id="L207">		type = IuJson.get(jose, &quot;typ&quot;);</span>
+<span class="fc" id="L208">		contentType = IuJson.get(jose, &quot;cty&quot;);</span>
+<span class="fc" id="L209">		criticalParameters = IuJson.get(jose, &quot;crit&quot;, IuJsonAdapter.of(Set.class, IuJsonAdapter.of(String.class)));</span>
+
+<span class="fc" id="L211">		final var extendedParametersBuilder = IuJson.object();</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">		for (final var parameterEntry : jose.entrySet()) {</span>
+<span class="fc" id="L213">			final var paramName = parameterEntry.getKey();</span>
+<span class="fc" id="L214">			IuJson.add(extendedParametersBuilder, paramName, parameterEntry.getValue(), () -&gt; isUnderstood(paramName));</span>
+<span class="fc" id="L215">		}</span>
+<span class="fc" id="L216">		this.extendedParameters = extendedParametersBuilder.build();</span>
+
+<span class="fc" id="L218">		wellKnownKey = (Jwk) WebCryptoHeader.verify(this);</span>
+
+<span class="fc bfc" id="L220" title="All 2 branches covered.">		for (final var paramName : extendedParameters.keySet())</span>
+<span class="fc bfc" id="L221" title="All 2 branches covered.">			if (Param.from(paramName) == null)</span>
+<span class="fc" id="L222">				getExtension(paramName).verify(this);</span>
+<span class="fc" id="L223">	}</span>
+
+	@Override
+	public URI getKeySetUri() {
+<span class="fc" id="L227">		return keySetUri;</span>
+	}
+
+	@Override
+	public Jwk getKey() {
+<span class="fc" id="L232">		return key;</span>
+	}
+
+	@Override
+	public String getType() {
+<span class="fc" id="L237">		return type;</span>
+	}
+
+	@Override
+	public String getContentType() {
+<span class="fc" id="L242">		return contentType;</span>
+	}
+
+	@Override
+	public Set&lt;String&gt; getCriticalParameters() {
+<span class="fc" id="L247">		return criticalParameters;</span>
+	}
+
+	@Override
+	public &lt;T&gt; T getExtendedParameter(String name) {
+<span class="fc" id="L252">		final var param = Param.from(name);</span>
+
+		final IuJsonAdapter&lt;T&gt; adapter;
+<span class="fc bfc" id="L255" title="All 2 branches covered.">		if (param != null)</span>
+<span class="fc" id="L256">			adapter = CryptJsonAdapters.of(param);</span>
+		else
+<span class="fc" id="L258">			adapter = Jose.getExtension(name);</span>
+
+<span class="fc" id="L260">		return IuJson.get(extendedParameters, name, adapter);</span>
+	}
+
+	@Override
+	public String toString() {
+<span class="fc" id="L265">		return toJson(a -&gt; true).toString();</span>
+	}
+
+	/**
+	 * Gets the verified well-known key resolved for this header.
+	 * 
+	 * @return well-known key
+	 */
+	Jwk wellKnown() {
+<span class="fc" id="L274">		return wellKnownKey;</span>
+	}
+
+	/**
+	 * Gets the extended parameters.
+	 * 
+	 * @return extended parameters
+	 */
+	JsonObject extendedParameters() {
+<span class="fc" id="L283">		return extendedParameters;</span>
+	}
+
+	/**
+	 * Gets the JOSE header as JSON.
+	 * 
+	 * @param nameFilter accepts standard or extended param name and returns true to
+	 *                   include the parameter; else false
+	 * @return {@link JsonObject}; null if no parameters match the filter
+	 */
+	JsonObject toJson(Predicate&lt;String&gt; nameFilter) {
+<span class="fc" id="L294">		final var headerBuilder = IuJson.object();</span>
+
+<span class="fc bfc" id="L296" title="All 2 branches covered.">		for (final var param : Param.values())</span>
+<span class="fc bfc" id="L297" title="All 2 branches covered.">			if (!param.equals(Param.KEY) //</span>
+<span class="fc bfc" id="L298" title="All 2 branches covered.">					&amp;&amp; param.isUsedFor(Use.SIGN) //</span>
+<span class="fc bfc" id="L299" title="All 2 branches covered.">					&amp;&amp; nameFilter.test(param.name))</span>
+<span class="fc" id="L300">				IuJson.add(headerBuilder, param.name, () -&gt; param.get(this), CryptJsonAdapters.of(param));</span>
+<span class="fc bfc" id="L301" title="All 2 branches covered.">		if (key != null)</span>
+<span class="fc" id="L302">			IuJson.add(headerBuilder, &quot;jwk&quot;, () -&gt; wellKnownKey, CryptJsonAdapters.WEBKEY);</span>
+
+<span class="fc bfc" id="L304" title="All 2 branches covered.">		for (final var extendedParameterEntry : extendedParameters.entrySet()) {</span>
+<span class="fc" id="L305">			final var name = extendedParameterEntry.getKey();</span>
+<span class="fc" id="L306">			IuJson.add(headerBuilder, name, extendedParameterEntry.getValue(), () -&gt; nameFilter.test(name));</span>
+<span class="fc" id="L307">		}</span>
+
+<span class="fc" id="L309">		final var header = headerBuilder.build();</span>
+<span class="fc bfc" id="L310" title="All 2 branches covered.">		if (header.isEmpty())</span>
+<span class="fc" id="L311">			return null;</span>
+		else
+<span class="fc" id="L313">			return header;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

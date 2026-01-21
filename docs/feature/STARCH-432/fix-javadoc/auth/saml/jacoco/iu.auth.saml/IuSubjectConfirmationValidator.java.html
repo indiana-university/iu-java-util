@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuSubjectConfirmationValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU SAML 2.0 Service Provider</a> &gt; <a href="index.source.html" class="el_package">iu.auth.saml</a> &gt; <span class="el_source">IuSubjectConfirmationValidator.java</span></div><h1>IuSubjectConfirmationValidator.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2026 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.saml;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.logging.Logger;
+
+import org.opensaml.saml.common.assertion.AssertionValidationException;
+import org.opensaml.saml.common.assertion.ValidationContext;
+import org.opensaml.saml.common.assertion.ValidationResult;
+import org.opensaml.saml.saml2.assertion.SAML2AssertionValidationParameters;
+import org.opensaml.saml.saml2.assertion.impl.BearerSubjectConfirmationValidator;
+import org.opensaml.saml.saml2.core.Assertion;
+import org.opensaml.saml.saml2.core.SubjectConfirmationData;
+
+import edu.iu.IuWebUtils;
+import net.shibboleth.shared.primitive.StringSupport;
+
+/**
+ * Validates a bearer subject confirmation. Support to validate subject details
+ * return as SAML response as successful authentication
+ */
+public class IuSubjectConfirmationValidator extends BearerSubjectConfirmationValidator {
+
+<span class="fc" id="L55">	private static final Logger LOG = Logger.getLogger(IuSubjectConfirmationValidator.class.getName());</span>
+
+	private final Iterable&lt;String&gt; allowedRanges;
+	private final boolean failOnAddressMismatch;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param allowedRanges         allowed IP address list
+	 * @param failOnAddressMismatch determine whether to fail on address mismatch or
+	 *                              not, true if required, false if not
+	 */
+<span class="fc" id="L67">	public IuSubjectConfirmationValidator(Iterable&lt;String&gt; allowedRanges, boolean failOnAddressMismatch) {</span>
+<span class="fc" id="L68">		this.allowedRanges = allowedRanges;</span>
+<span class="fc" id="L69">		this.failOnAddressMismatch = failOnAddressMismatch;</span>
+<span class="fc" id="L70">	}</span>
+
+	@Override
+	protected ValidationResult validateAddress(SubjectConfirmationData confirmationData, Assertion assertion,
+			ValidationContext context, boolean required) throws AssertionValidationException {
+<span class="fc" id="L75">		super.validateAddress(confirmationData, assertion, context, required);</span>
+
+<span class="fc" id="L77">		final Boolean checkAddress = (Boolean) context.getStaticParameters()</span>
+<span class="fc" id="L78">				.get(SAML2AssertionValidationParameters.SC_CHECK_ADDRESS);</span>
+
+<span class="pc bpc" id="L80" title="1 of 4 branches missed.">		if (checkAddress != null &amp;&amp; !checkAddress) {</span>
+<span class="fc" id="L81">			LOG.fine(&quot;SubjectConfirmationData/@Address check is disabled, skipping&quot;);</span>
+<span class="fc" id="L82">			return ValidationResult.VALID;</span>
+		}
+
+<span class="fc" id="L85">		final String address = StringSupport.trimOrNull(confirmationData.getAddress());</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">		if (address == null) {</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">			if (required) {</span>
+<span class="fc" id="L88">				context.getValidationFailureMessages()</span>
+<span class="fc" id="L89">						.add(&quot;SubjectConfirmationData/@Address was missing and was required&quot;);</span>
+<span class="fc" id="L90">				return ValidationResult.INVALID;</span>
+			}
+<span class="fc" id="L92">			return ValidationResult.VALID;</span>
+		}
+
+		InetAddress[] confirmingAddresses;
+		try {
+<span class="fc" id="L97">			confirmingAddresses = InetAddress.getAllByName(address);</span>
+<span class="fc" id="L98">		} catch (UnknownHostException e) {</span>
+<span class="fc" id="L99">			context.getValidationFailureMessages().add(String</span>
+<span class="fc" id="L100">					.format(&quot;Subject confirmation address '%s' is not resolvable hostname or IP address&quot;, address));</span>
+<span class="fc" id="L101">			return ValidationResult.INDETERMINATE;</span>
+<span class="fc" id="L102">		}</span>
+
+		// Assume that subject confirmation with a private IP resides on the same //
+		// network as the IDP. Since we don't have a way to confirm which NAT'd address
+		// the subject is calling from, this assumption will have to be good enough.
+<span class="fc bfc" id="L107" title="All 2 branches covered.">		for (InetAddress confirmingAddress : confirmingAddresses) {</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">			if (confirmingAddress.isSiteLocalAddress()) {</span>
+<span class="fc" id="L109">				LOG.fine(() -&gt; &quot;Allowing private IP &quot; + confirmingAddress);</span>
+<span class="fc" id="L110">				return ValidationResult.VALID;</span>
+			}
+<span class="fc bfc" id="L112" title="All 2 branches covered.">			if (allowedRanges != null)</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">				for (String range : allowedRanges)</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">					if (IuWebUtils.isInetAddressInRange(confirmingAddress, range.toString())) {</span>
+<span class="fc" id="L115">						LOG.fine(() -&gt; &quot;Allowing IP &quot; + confirmingAddress + &quot;; range = &quot; + range);</span>
+<span class="fc" id="L116">						return ValidationResult.VALID;</span>
+					}
+		}
+
+<span class="fc" id="L120">		ValidationResult result = super.validateAddress(confirmationData, assertion, context, required);</span>
+
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">		if (!ValidationResult.VALID.equals(result)) {</span>
+<span class="fc" id="L123">			LOG.info(() -&gt; &quot;IP address mismatch in SAML subject confirmation; remote address = &quot; + address</span>
+					+ &quot;; allowed ranges = &quot; + allowedRanges);
+
+<span class="fc bfc" id="L126" title="All 2 branches covered.">			if (!failOnAddressMismatch)</span>
+<span class="fc" id="L127">				return ValidationResult.VALID;</span>
+		}
+
+<span class="fc" id="L130">		return result;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

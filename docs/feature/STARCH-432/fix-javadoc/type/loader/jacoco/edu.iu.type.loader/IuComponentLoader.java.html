@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuComponentLoader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Type Introspection Module Loader</a> &gt; <a href="index.source.html" class="el_package">edu.iu.type.loader</a> &gt; <span class="el_source">IuComponentLoader.java</span></div><h1>IuComponentLoader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2026 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu.type.loader;
+
+import java.io.InputStream;
+import java.lang.ModuleLayer.Controller;
+import java.net.URL;
+import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.function.Consumer;
+
+import edu.iu.IuException;
+import edu.iu.IuObject;
+import edu.iu.type.base.ModularClassLoader;
+import edu.iu.type.base.TemporaryFile;
+import iu.type.loader.LoadedComponent;
+
+/**
+ * Loads components via IU type introspection into an isolated modular
+ * environment, without corrupting the application class path.
+ */
+public class IuComponentLoader implements AutoCloseable {
+
+<span class="fc" id="L55">	private static final URL[] TYPE_BUNDLE_MODULE_PATH = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L56">		final var loader = IuComponentLoader.class.getClassLoader();</span>
+<span class="fc" id="L57">		final Queue&lt;URL&gt; path = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L58">		path.offer(Objects.requireNonNull(loader.getResource(&quot;iu-java-type.jar&quot;)));</span>
+<span class="fc" id="L59">		path.offer(Objects.requireNonNull(loader.getResource(&quot;iu-java-type-api.jar&quot;)));</span>
+<span class="fc" id="L60">		return path.toArray(size -&gt; new URL[size]);</span>
+	});
+
+	private static Iterable&lt;Path&gt; toModulePath(Iterable&lt;InputStream&gt; modules) {
+<span class="fc" id="L64">		final Queue&lt;Path&gt; path = new ArrayDeque&lt;&gt;();</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">		for (final var url : TYPE_BUNDLE_MODULE_PATH)</span>
+<span class="fc" id="L66">			path.offer(TemporaryFile.of(url));</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">		for (final var module : modules)</span>
+<span class="fc" id="L68">			path.offer(TemporaryFile.of(module));</span>
+<span class="fc" id="L69">		return path;</span>
+	}
+
+	private volatile ModularClassLoader loader;
+	private volatile Module typeImplModule;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param typeConsumerModules Iterates modules that &lt;em&gt;may&lt;/em&gt; require
+	 *                            iu.util.type to extend type introspection
+	 */
+	public IuComponentLoader(Iterable&lt;InputStream&gt; typeConsumerModules) {
+<span class="fc" id="L82">		this(IuObject.class.getClassLoader(),</span>
+<span class="fc" id="L83">				Objects.requireNonNullElseGet(IuObject.class.getModule().getLayer(), ModuleLayer::boot),</span>
+				typeConsumerModules, c -&gt; {
+<span class="fc" id="L85">				});</span>
+<span class="fc" id="L86">	}</span>
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param parent              parent {@link ClassLoader}
+	 * @param parentLayer         parent {@link ModuleLayer}; &lt;em&gt;should&lt;/em&gt; contain
+	 *                            the iu.util and iu.util.type.loader modules
+	 * @param typeConsumerModules Iterates modules that &lt;em&gt;may&lt;/em&gt; require
+	 *                            iu.util.type to extend type introspection
+	 * @param controllerCallback  accepts a {@link Controller} for the
+	 *                            {@link ModuleLayer} that includes iu.util.type and
+	 *                            all modules defined by typeConsumerModules
+	 */
+	public IuComponentLoader(ClassLoader parent, ModuleLayer parentLayer, Iterable&lt;InputStream&gt; typeConsumerModules,
+<span class="fc" id="L101">			Consumer&lt;Controller&gt; controllerCallback) {</span>
+<span class="fc" id="L102">		loader = ModularClassLoader.of(parent, parentLayer, () -&gt; toModulePath(typeConsumerModules),</span>
+				controllerCallback);
+<span class="fc" id="L104">		typeImplModule = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L105">			final var typeBundle = loader.loadClass(&quot;edu.iu.type.bundle.IuTypeBundle&quot;);</span>
+<span class="fc" id="L106">			final var getModule = typeBundle.getMethod(&quot;getModule&quot;);</span>
+<span class="fc" id="L107">			return (Module) getModule.invoke(null);</span>
+		});
+<span class="fc" id="L109">	}</span>
+
+	/**
+	 * Loads a component
+	 * 
+	 * @param controllerCallback               receives a reference to an
+	 *                                         {@link Controller} that may be used
+	 *                                         to set up access rules for the
+	 *                                         component. This reference &lt;em&gt;should
+	 *                                         not&lt;/em&gt; be passed beyond the scope
+	 *                                         of the callback; see
+	 *                                         {@link ModularClassLoader}
+	 * @param componentArchiveSource           {@link InputStream} for reading the
+	 *                                         &lt;strong&gt;component archive&lt;/strong&gt;.
+	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
+	 *                                         &lt;strong&gt;provided dependency
+	 *                                         archives&lt;/strong&gt;.
+	 * @return {@link IuLoadedComponent}
+	 */
+	public IuLoadedComponent load(Consumer&lt;Controller&gt; controllerCallback, InputStream componentArchiveSource,
+			InputStream... providedDependencyArchiveSources) {
+<span class="fc" id="L130">		final var loadedComponent = new LoadedComponent(loader, loader.getModuleLayer(), controllerCallback,</span>
+				componentArchiveSource, providedDependencyArchiveSources);
+<span class="fc" id="L132">		return loadedComponent;</span>
+	}
+
+	/**
+	 * Gets the component's {@link ClassLoader}.
+	 * 
+	 * @return {@link ClassLoader}
+	 */
+	public ModularClassLoader getLoader() {
+<span class="fc bfc" id="L141" title="All 2 branches covered.">		if (loader == null)</span>
+<span class="fc" id="L142">			throw new IllegalStateException(&quot;closed&quot;);</span>
+		else
+<span class="fc" id="L144">			return loader;</span>
+	}
+
+	@Override
+	public synchronized void close() throws Exception {
+<span class="fc bfc" id="L149" title="All 2 branches covered.">		if (typeImplModule != null)</span>
+<span class="fc" id="L150">			typeImplModule = null;</span>
+
+<span class="fc bfc" id="L152" title="All 2 branches covered.">		if (loader != null) {</span>
+<span class="fc" id="L153">			loader.close();</span>
+<span class="fc" id="L154">			loader = null;</span>
+		}
+<span class="fc" id="L156">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
