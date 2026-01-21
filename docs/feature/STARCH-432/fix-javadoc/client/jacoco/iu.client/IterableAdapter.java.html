@@ -47,21 +47,20 @@ class IterableAdapter&lt;E&gt; extends JsonArrayAdapter&lt;Iterable&lt;E&gt;, E&
 	 * Constructor
 	 * 
 	 * @param itemAdapter item adapter
-	 * @param factory     creates a new collection
 	 */
 	protected IterableAdapter(IuJsonAdapter&lt;E&gt; itemAdapter) {
-<span class="fc" id="L53">		super(itemAdapter);</span>
-<span class="fc" id="L54">	}</span>
+<span class="fc" id="L52">		super(itemAdapter);</span>
+<span class="fc" id="L53">	}</span>
 
 	@Override
 	protected Iterator&lt;E&gt; iterator(Iterable&lt;E&gt; value) {
-<span class="fc" id="L58">		return value.iterator();</span>
+<span class="fc" id="L57">		return value.iterator();</span>
 	}
 
 	@Override
 	protected Iterable&lt;E&gt; collect(Iterable&lt;E&gt; items) {
-<span class="fc" id="L63">		return items;</span>
+<span class="fc" id="L62">		return items;</span>
 	}
 
 }
-</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

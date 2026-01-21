@@ -42,34 +42,41 @@ import jakarta.json.JsonValue;
 /**
  * Implements {@link IuJsonAdapter} for {@link CharSequence}
  */
-<span class="fc" id="L45">class TextJsonAdapter implements IuJsonAdapter&lt;CharSequence&gt; {</span>
+class TextJsonAdapter implements IuJsonAdapter&lt;CharSequence&gt; {
 
 	/**
 	 * Singleton instance.
 	 */
 <span class="fc" id="L50">	static TextJsonAdapter INSTANCE = new TextJsonAdapter();</span>
+	
+	/**
+	 * Default Constructor
+	 */
+	private TextJsonAdapter() {
+		// singleton
+	}
 
 	@Override
 	public String fromJson(JsonValue value) {
-<span class="fc bfc" id="L54" title="All 2 branches covered.">		if (value instanceof JsonString)</span>
-<span class="fc" id="L55">			return ((JsonString) value).getString();</span>
-<span class="fc bfc" id="L56" title="All 2 branches covered.">		else if ((value instanceof JsonNumber) //</span>
-<span class="fc bfc" id="L57" title="All 2 branches covered.">				|| JsonValue.TRUE.equals(value) //</span>
-<span class="fc bfc" id="L58" title="All 2 branches covered.">				|| JsonValue.FALSE.equals(value))</span>
-<span class="fc" id="L59">			return value.toString();</span>
-<span class="fc bfc" id="L60" title="All 2 branches covered.">		else if (value instanceof JsonArray)</span>
-<span class="fc" id="L61">			return String.join(&quot;,&quot;, IuIterable.map(((JsonArray) value), this::fromJson));</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">		if (value instanceof JsonString)</span>
+<span class="fc" id="L62">			return ((JsonString) value).getString();</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">		else if ((value instanceof JsonNumber) //</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">				|| JsonValue.TRUE.equals(value) //</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">				|| JsonValue.FALSE.equals(value))</span>
+<span class="fc" id="L66">			return value.toString();</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">		else if (value instanceof JsonArray)</span>
+<span class="fc" id="L68">			return String.join(&quot;,&quot;, IuIterable.map(((JsonArray) value), this::fromJson));</span>
 		else // if (value == null || JsonValue.NULL.equals(value))
-<span class="fc" id="L63">			return null;</span>
+<span class="fc" id="L70">			return null;</span>
 	}
 
 	@Override
 	public JsonValue toJson(CharSequence value) {
-<span class="fc bfc" id="L68" title="All 2 branches covered.">		if (value == null)</span>
-<span class="fc" id="L69">			return JsonValue.NULL;</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">		if (value == null)</span>
+<span class="fc" id="L76">			return JsonValue.NULL;</span>
 		else
-<span class="fc" id="L71">			return IuJson.PROVIDER.createValue(value.toString());</span>
+<span class="fc" id="L78">			return IuJson.PROVIDER.createValue(value.toString());</span>
 	}
 
 }
-</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

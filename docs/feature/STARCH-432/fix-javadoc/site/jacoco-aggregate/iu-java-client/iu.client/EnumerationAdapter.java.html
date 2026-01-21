@@ -47,33 +47,32 @@ class EnumerationAdapter&lt;E&gt; extends JsonArrayAdapter&lt;Enumeration&lt;E&g
 	 * Constructor
 	 * 
 	 * @param itemAdapter item adapter
-	 * @param factory     creates a new collection
 	 */
 	protected EnumerationAdapter(IuJsonAdapter&lt;E&gt; itemAdapter) {
-<span class="fc" id="L53">		super(itemAdapter);</span>
-<span class="fc" id="L54">	}</span>
+<span class="fc" id="L52">		super(itemAdapter);</span>
+<span class="fc" id="L53">	}</span>
 
 	@Override
 	protected Iterator&lt;E&gt; iterator(Enumeration&lt;E&gt; value) {
-<span class="fc" id="L58">		return value.asIterator();</span>
+<span class="fc" id="L57">		return value.asIterator();</span>
 	}
 
 	@Override
 	protected Enumeration&lt;E&gt; collect(Iterable&lt;E&gt; items) {
-<span class="fc" id="L63">		return new Enumeration&lt;&gt;() {</span>
-<span class="fc" id="L64">			final Iterator&lt;E&gt; i = items.iterator();</span>
+<span class="fc" id="L62">		return new Enumeration&lt;&gt;() {</span>
+<span class="fc" id="L63">			final Iterator&lt;E&gt; i = items.iterator();</span>
 
 			@Override
 			public boolean hasMoreElements() {
-<span class="fc" id="L68">				return i.hasNext();</span>
+<span class="fc" id="L67">				return i.hasNext();</span>
 			}
 
 			@Override
 			public E nextElement() {
-<span class="fc" id="L73">				return i.next();</span>
+<span class="fc" id="L72">				return i.next();</span>
 			}
 		};
 	}
 
 }
-</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>
