@@ -82,19 +82,23 @@ public interface IuSamlSessionVerifier {
 	 *                     after user has been authenticate
 	 * @param relayState   state value that received back from identity provider
 	 *                     after successful authentication.
+	 *                     
+	 * @param socialLogin  true if this is a social login flow
+	 * 
 	 * @return returnUri from related {@link #initRequest(IuSession, URI)}
 	 *
 	 * @throws IuAuthenticationException when relay state is invalid or verification
 	 *                                   failed
+	 *                                   
 	 */
-	URI verifyResponse(IuSession session, String remoteAddr, String samlResponse, String relayState)
+	URI verifyResponse(IuSession session, String remoteAddr, String samlResponse, String relayState, boolean socialLogin)
 			throws IuAuthenticationException;
 
 	/**
 	 * Gets the authenticated SAML principal.
 	 * 
 	 * @param preAuthSession  session used with
-	 *                        {@link #verifyResponse(IuSession, String, String, String)};
+	 *                        {@link #verifyResponse(IuSession, String, String, String, boolean)};
 	 *                        null if authentication handshake is already complete
 	 * @param postAuthSession session to bind principal attributes after completing
 	 *                        authentication handshake

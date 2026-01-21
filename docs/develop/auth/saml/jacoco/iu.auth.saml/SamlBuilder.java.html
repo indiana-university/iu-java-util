@@ -35,6 +35,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -86,50 +87,50 @@ import net.shibboleth.shared.xml.ParserPool;
 final class SamlBuilder {
 
 	static {
-<span class="fc" id="L89">		IuObject.assertNotOpen(SamlBuilder.class);</span>
+<span class="fc" id="L90">		IuObject.assertNotOpen(SamlBuilder.class);</span>
 
-<span class="fc" id="L91">		Thread current = Thread.currentThread();</span>
-<span class="fc" id="L92">		ClassLoader currentLoader = current.getContextClassLoader();</span>
+<span class="fc" id="L92">		Thread current = Thread.currentThread();</span>
+<span class="fc" id="L93">		ClassLoader currentLoader = current.getContextClassLoader();</span>
 		try {
-<span class="fc" id="L94">			IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L95">				ClassLoader scl = XMLObjectProviderRegistry.class.getClassLoader();</span>
-<span class="fc" id="L96">				current.setContextClassLoader(scl);</span>
-<span class="fc" id="L97">				ConfigurationService.register(XMLObjectProviderRegistry.class, new XMLObjectProviderRegistry());</span>
-<span class="fc" id="L98">				ConfigurationService.register(SAMLConfiguration.class, new SAMLConfiguration());</span>
-<span class="fc" id="L99">				ConfigurationService.register(DecryptionParserPool.class,</span>
+<span class="fc" id="L95">			IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L96">				ClassLoader scl = XMLObjectProviderRegistry.class.getClassLoader();</span>
+<span class="fc" id="L97">				current.setContextClassLoader(scl);</span>
+<span class="fc" id="L98">				ConfigurationService.register(XMLObjectProviderRegistry.class, new XMLObjectProviderRegistry());</span>
+<span class="fc" id="L99">				ConfigurationService.register(SAMLConfiguration.class, new SAMLConfiguration());</span>
+<span class="fc" id="L100">				ConfigurationService.register(DecryptionParserPool.class,</span>
 						new DecryptionParserPool(new SamlParserPool()));
 
-<span class="fc" id="L102">				XMLConfigurator config = new XMLConfigurator();</span>
-<span class="fc" id="L103">				config.load(scl.getResourceAsStream(&quot;default-config.xml&quot;));</span>
-<span class="fc" id="L104">				config.load(scl.getResourceAsStream(&quot;schema-config.xml&quot;));</span>
-<span class="fc" id="L105">				config.load(scl.getResourceAsStream(&quot;saml-ec-gss-config.xml&quot;));</span>
-<span class="fc" id="L106">				config.load(scl.getResourceAsStream(&quot;saml1-assertion-config.xml&quot;));</span>
-<span class="fc" id="L107">				config.load(scl.getResourceAsStream(&quot;saml1-metadata-config.xml&quot;));</span>
-<span class="fc" id="L108">				config.load(scl.getResourceAsStream(&quot;saml1-protocol-config.xml&quot;));</span>
-<span class="fc" id="L109">				config.load(scl.getResourceAsStream(&quot;saml2-assertion-config.xml&quot;));</span>
-<span class="fc" id="L110">				config.load(scl.getResourceAsStream(&quot;saml2-assertion-delegation-restriction-config.xml&quot;));</span>
-<span class="fc" id="L111">				config.load(scl.getResourceAsStream(&quot;saml2-channel-binding-config.xml&quot;));</span>
-<span class="fc" id="L112">				config.load(scl.getResourceAsStream(&quot;saml2-ecp-config.xml&quot;));</span>
-<span class="fc" id="L113">				config.load(scl.getResourceAsStream(&quot;saml2-metadata-algorithm-config.xml&quot;));</span>
-<span class="fc" id="L114">				config.load(scl.getResourceAsStream(&quot;saml2-metadata-attr-config.xml&quot;));</span>
-<span class="fc" id="L115">				config.load(scl.getResourceAsStream(&quot;saml2-metadata-config.xml&quot;));</span>
-<span class="fc" id="L116">				config.load(scl.getResourceAsStream(&quot;saml2-metadata-idp-discovery-config.xml&quot;));</span>
-<span class="fc" id="L117">				config.load(scl.getResourceAsStream(&quot;saml2-metadata-query-config.xml&quot;));</span>
-<span class="fc" id="L118">				config.load(scl.getResourceAsStream(&quot;saml2-metadata-reqinit-config.xml&quot;));</span>
-<span class="fc" id="L119">				config.load(scl.getResourceAsStream(&quot;saml2-metadata-rpi-config.xml&quot;));</span>
-<span class="fc" id="L120">				config.load(scl.getResourceAsStream(&quot;saml2-metadata-ui-config.xml&quot;));</span>
-<span class="fc" id="L121">				config.load(scl.getResourceAsStream(&quot;saml2-protocol-aslo-config.xml&quot;));</span>
-<span class="fc" id="L122">				config.load(scl.getResourceAsStream(&quot;saml2-protocol-config.xml&quot;));</span>
-<span class="fc" id="L123">				config.load(scl.getResourceAsStream(&quot;saml2-protocol-thirdparty-config.xml&quot;));</span>
-<span class="fc" id="L124">				config.load(scl.getResourceAsStream(&quot;signature-config.xml&quot;));</span>
-<span class="fc" id="L125">				config.load(scl.getResourceAsStream(&quot;encryption-config.xml&quot;));</span>
+<span class="fc" id="L103">				XMLConfigurator config = new XMLConfigurator();</span>
+<span class="fc" id="L104">				config.load(scl.getResourceAsStream(&quot;default-config.xml&quot;));</span>
+<span class="fc" id="L105">				config.load(scl.getResourceAsStream(&quot;schema-config.xml&quot;));</span>
+<span class="fc" id="L106">				config.load(scl.getResourceAsStream(&quot;saml-ec-gss-config.xml&quot;));</span>
+<span class="fc" id="L107">				config.load(scl.getResourceAsStream(&quot;saml1-assertion-config.xml&quot;));</span>
+<span class="fc" id="L108">				config.load(scl.getResourceAsStream(&quot;saml1-metadata-config.xml&quot;));</span>
+<span class="fc" id="L109">				config.load(scl.getResourceAsStream(&quot;saml1-protocol-config.xml&quot;));</span>
+<span class="fc" id="L110">				config.load(scl.getResourceAsStream(&quot;saml2-assertion-config.xml&quot;));</span>
+<span class="fc" id="L111">				config.load(scl.getResourceAsStream(&quot;saml2-assertion-delegation-restriction-config.xml&quot;));</span>
+<span class="fc" id="L112">				config.load(scl.getResourceAsStream(&quot;saml2-channel-binding-config.xml&quot;));</span>
+<span class="fc" id="L113">				config.load(scl.getResourceAsStream(&quot;saml2-ecp-config.xml&quot;));</span>
+<span class="fc" id="L114">				config.load(scl.getResourceAsStream(&quot;saml2-metadata-algorithm-config.xml&quot;));</span>
+<span class="fc" id="L115">				config.load(scl.getResourceAsStream(&quot;saml2-metadata-attr-config.xml&quot;));</span>
+<span class="fc" id="L116">				config.load(scl.getResourceAsStream(&quot;saml2-metadata-config.xml&quot;));</span>
+<span class="fc" id="L117">				config.load(scl.getResourceAsStream(&quot;saml2-metadata-idp-discovery-config.xml&quot;));</span>
+<span class="fc" id="L118">				config.load(scl.getResourceAsStream(&quot;saml2-metadata-query-config.xml&quot;));</span>
+<span class="fc" id="L119">				config.load(scl.getResourceAsStream(&quot;saml2-metadata-reqinit-config.xml&quot;));</span>
+<span class="fc" id="L120">				config.load(scl.getResourceAsStream(&quot;saml2-metadata-rpi-config.xml&quot;));</span>
+<span class="fc" id="L121">				config.load(scl.getResourceAsStream(&quot;saml2-metadata-ui-config.xml&quot;));</span>
+<span class="fc" id="L122">				config.load(scl.getResourceAsStream(&quot;saml2-protocol-aslo-config.xml&quot;));</span>
+<span class="fc" id="L123">				config.load(scl.getResourceAsStream(&quot;saml2-protocol-config.xml&quot;));</span>
+<span class="fc" id="L124">				config.load(scl.getResourceAsStream(&quot;saml2-protocol-thirdparty-config.xml&quot;));</span>
+<span class="fc" id="L125">				config.load(scl.getResourceAsStream(&quot;signature-config.xml&quot;));</span>
+<span class="fc" id="L126">				config.load(scl.getResourceAsStream(&quot;encryption-config.xml&quot;));</span>
 
-<span class="fc" id="L127">				XMLObjectProviderRegistrySupport.setParserPool(new SamlParserPool());</span>
-<span class="fc" id="L128">			});</span>
+<span class="fc" id="L128">				XMLObjectProviderRegistrySupport.setParserPool(new SamlParserPool());</span>
+<span class="fc" id="L129">			});</span>
 		} finally {
-<span class="fc" id="L130">			current.setContextClassLoader(currentLoader);</span>
+<span class="fc" id="L131">			current.setContextClassLoader(currentLoader);</span>
 		}
-<span class="fc" id="L132">	}</span>
+<span class="fc" id="L133">	}</span>
 
 	/** metadata URIs */
 	private final Iterable&lt;URI&gt; metadataUris;
@@ -141,7 +142,7 @@ final class SamlBuilder {
 	private final Iterable&lt;URI&gt; acsUris;
 
 	/** IDP redirect URI for single sign-on */
-	final URI singleSignOnLocation;
+	URI singleSignOnLocation;
 
 	/** unique service provider id that register with identity provider */
 	final String serviceProviderEntityId;
@@ -171,58 +172,61 @@ final class SamlBuilder {
 	private Instant lastMetadataUpdate;
 
 	/** credential resolver for validating the SAMLResponse signature */
-	CredentialResolver credentialResolver;
+<span class="fc" id="L175">	HashMap&lt;String, CredentialResolver&gt; credentialResolverMap = new HashMap&lt;&gt;();</span>
 
 	/**
 	 * Constructor
 	 * 
 	 * @param config {@link IuSamlServiceProviderMetadata} loaded from Vault
 	 */
-<span class="fc" id="L181">	public SamlBuilder(IuSamlServiceProviderMetadata config) {</span>
-<span class="fc" id="L182">		this.metadataUris = Objects.requireNonNull(config.getMetadataUris(), &quot;metadataUris&quot;);</span>
-<span class="fc" id="L183">		this.metadataTtl = Objects.requireNonNull(config.getMetadataTtl(), &quot;metadataTtl&quot;);</span>
-<span class="fc" id="L184">		this.acsUris = Objects.requireNonNull(config.getAcsUris(), &quot;acsUris&quot;);</span>
-<span class="fc" id="L185">		this.certificate = Objects.requireNonNull(config.getIdentity().getJwk().getCertificateChain()[0],</span>
+<span class="fc" id="L182">	public SamlBuilder(IuSamlServiceProviderMetadata config) {</span>
+<span class="fc" id="L183">		this.metadataUris = Objects.requireNonNull(config.getMetadataUris(), &quot;metadataUris&quot;);</span>
+<span class="fc" id="L184">		this.metadataTtl = Objects.requireNonNull(config.getMetadataTtl(), &quot;metadataTtl&quot;);</span>
+<span class="fc" id="L185">		this.acsUris = Objects.requireNonNull(config.getAcsUris(), &quot;acsUris&quot;);</span>
+<span class="fc" id="L186">		this.certificate = Objects.requireNonNull(config.getIdentity().getJwk().getCertificateChain()[0],</span>
 				&quot;certificate&quot;);
-<span class="fc" id="L187">		this.verifyAlg = Objects.requireNonNull(config.getIdentity().getAlg());</span>
-<span class="fc" id="L188">		this.serviceProviderEntityId = Objects.requireNonNull(config.getServiceProviderEntityId(),</span>
+<span class="fc" id="L188">		this.verifyAlg = Objects.requireNonNull(config.getIdentity().getAlg());</span>
+<span class="fc" id="L189">		this.serviceProviderEntityId = Objects.requireNonNull(config.getServiceProviderEntityId(),</span>
 				&quot;serviceProviderEntityId&quot;);
-<span class="fc" id="L190">		this.identityProviderEntityIds = Objects.requireNonNull(config.getIdentityProviderEntityIds(),</span>
+<span class="fc" id="L191">		this.identityProviderEntityIds = Objects.requireNonNull(config.getIdentityProviderEntityIds(),</span>
 				&quot;identityProviderEntityIds&quot;);
-<span class="fc" id="L192">		this.allowedRange = config.getAllowedRange();</span>
-<span class="fc" id="L193">		this.failOnAddressMismatch = config.isFailOnAddressMismatch();</span>
-<span class="fc" id="L194">		this.subjectConfirmationValidator = new IuSubjectConfirmationValidator(allowedRange, failOnAddressMismatch);</span>
+<span class="fc" id="L193">		this.allowedRange = config.getAllowedRange();</span>
+<span class="fc" id="L194">		this.failOnAddressMismatch = config.isFailOnAddressMismatch();</span>
+<span class="fc" id="L195">		this.subjectConfirmationValidator = new IuSubjectConfirmationValidator(allowedRange, failOnAddressMismatch);</span>
 
-<span class="fc" id="L196">		final var resolver = getMetadata();</span>
-<span class="fc" id="L197">		final var entityId = Objects.requireNonNull(config.getIdentityProviderEntityIds(), &quot;identityProviderEntityId&quot;)</span>
-<span class="fc" id="L198">				.iterator().next();</span>
-<span class="fc" id="L199">		final var entity = Objects.requireNonNull(</span>
-<span class="fc" id="L200">				IuException.unchecked(() -&gt; resolver.resolveSingle(new CriteriaSet(new EntityIdCriterion(entityId)))),</span>
-				&quot;Entity &quot; + entityId + &quot; not found in SAML metadata&quot;);
+<span class="fc" id="L197">		final var resolver = getMetadata();</span>
+<span class="fc" id="L198">		final var entityId = Objects.requireNonNull(config.getIdentityProviderEntityIds(), &quot;identityProviderEntityId&quot;);</span>
+		
+<span class="fc bfc" id="L200" title="All 2 branches covered.">		for (String idpEntityId : entityId) {</span>
+<span class="fc" id="L201">			final var entity = Objects.requireNonNull(</span>
+<span class="fc" id="L202">					IuException.unchecked(() -&gt; resolver.resolveSingle(new CriteriaSet(new EntityIdCriterion(idpEntityId)))),</span>
+					&quot;Entity &quot; + idpEntityId + &quot; not found in SAML metadata&quot;);
+<span class="fc" id="L204">			final var idp = Objects.requireNonNull(entity.getIDPSSODescriptor(&quot;urn:oasis:names:tc:SAML:2.0:protocol&quot;),</span>
+					&quot;Missing SAML 2.0 IDP descriptor for &quot; + entityId);
+			
+<span class="fc" id="L207">			List&lt;Credential&gt; certs = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L208" title="All 2 branches covered.">			for (final var keyDescriptor : idp.getKeyDescriptors())</span>
+<span class="fc bfc" id="L209" title="All 2 branches covered.">				for (final var x509data : keyDescriptor.getKeyInfo().getX509Datas())</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">					for (final var x509cert : x509data.getX509Certificates())</span>
+<span class="fc" id="L211">						certs.add(new BasicX509Credential(PemEncoded.parse(x509cert.getValue()).next().asCertificate()));</span>
 
-<span class="fc" id="L203">		final var idp = Objects.requireNonNull(entity.getIDPSSODescriptor(&quot;urn:oasis:names:tc:SAML:2.0:protocol&quot;),</span>
-				&quot;Missing SAML 2.0 IDP descriptor for &quot; + entityId);
+<span class="fc" id="L213">			CredentialResolver credentialResolver = new StaticCredentialResolver(certs);</span>
+<span class="fc" id="L214">			credentialResolverMap.put(idpEntityId, credentialResolver);</span>
+			
+<span class="fc" id="L216">			URI singleSignOnLocation = null;</span>
+<span class="fc bfc" id="L217" title="All 2 branches covered.">			for (final var sso : idp.getSingleSignOnServices())</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">				if (&quot;urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect&quot;.equals(sso.getBinding())) {</span>
+<span class="fc" id="L219">					singleSignOnLocation = URI.create(sso.getLocation());</span>
+<span class="fc" id="L220">					break;</span>
+				}
 
-<span class="fc" id="L206">		URI singleSignOnLocation = null;</span>
-<span class="fc bfc" id="L207" title="All 2 branches covered.">		for (final var sso : idp.getSingleSignOnServices())</span>
-<span class="fc bfc" id="L208" title="All 2 branches covered.">			if (&quot;urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect&quot;.equals(sso.getBinding())) {</span>
-<span class="fc" id="L209">				singleSignOnLocation = URI.create(sso.getLocation());</span>
-<span class="fc" id="L210">				break;</span>
-			}
+<span class="fc bfc" id="L223" title="All 2 branches covered.">			if (singleSignOnLocation == null)</span>
+<span class="fc" id="L224">				throw new IllegalStateException(&quot;Missing SAML 2.0 Redirect Binding in IDP descriptor for &quot; + entityId);</span>
 
-<span class="fc bfc" id="L213" title="All 2 branches covered.">		if (singleSignOnLocation == null)</span>
-<span class="fc" id="L214">			throw new IllegalStateException(&quot;Missing SAML 2.0 Redirect Binding in IDP descriptor for &quot; + entityId);</span>
-
-<span class="fc" id="L216">		this.singleSignOnLocation = singleSignOnLocation;</span>
-
-<span class="fc" id="L218">		List&lt;Credential&gt; certs = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L219" title="All 2 branches covered.">		for (final var keyDescriptor : idp.getKeyDescriptors())</span>
-<span class="fc bfc" id="L220" title="All 2 branches covered.">			for (final var x509data : keyDescriptor.getKeyInfo().getX509Datas())</span>
-<span class="fc bfc" id="L221" title="All 2 branches covered.">				for (final var x509cert : x509data.getX509Certificates())</span>
-<span class="fc" id="L222">					certs.add(new BasicX509Credential(PemEncoded.parse(x509cert.getValue()).next().asCertificate()));</span>
-
-<span class="fc" id="L224">		credentialResolver = new StaticCredentialResolver(certs);</span>
-<span class="fc" id="L225">	}</span>
+<span class="pc bpc" id="L226" title="1 of 2 branches missed.">			if (this.singleSignOnLocation == null)</span>
+<span class="fc" id="L227">			this.singleSignOnLocation = singleSignOnLocation;</span>
+<span class="fc" id="L228">		}</span>
+<span class="fc" id="L229">	}</span>
 
 	/**
 	 * Get credential resolver for SAML response
@@ -231,21 +235,21 @@ final class SamlBuilder {
 	 * @return credential resolver
 	 */
 	KeyInfoCredentialResolver getKeyInfoCredentialResolver(String entityId) {
-<span class="fc" id="L234">		final var entity = Objects.requireNonNull(</span>
+<span class="fc" id="L238">		final var entity = Objects.requireNonNull(</span>
 				IuException
-<span class="fc" id="L236">						.unchecked(() -&gt; getMetadata().resolveSingle(new CriteriaSet(new EntityIdCriterion(entityId)))),</span>
+<span class="fc" id="L240">						.unchecked(() -&gt; getMetadata().resolveSingle(new CriteriaSet(new EntityIdCriterion(entityId)))),</span>
 				&quot;Entity &quot; + entityId + &quot; not found in SAML metadata&quot;);
 
-<span class="fc" id="L239">		final var idp = Objects.requireNonNull(entity.getIDPSSODescriptor(&quot;urn:oasis:names:tc:SAML:2.0:protocol&quot;),</span>
+<span class="fc" id="L243">		final var idp = Objects.requireNonNull(entity.getIDPSSODescriptor(&quot;urn:oasis:names:tc:SAML:2.0:protocol&quot;),</span>
 				&quot;Missing SAML 2.0 IDP descriptor for &quot; + entityId);
 
-<span class="fc" id="L242">		final List&lt;Credential&gt; certs = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L243" title="All 2 branches covered.">		for (final var keyDescriptor : idp.getKeyDescriptors())</span>
-<span class="fc bfc" id="L244" title="All 2 branches covered.">			for (X509Data x509data : keyDescriptor.getKeyInfo().getX509Datas())</span>
-<span class="fc bfc" id="L245" title="All 2 branches covered.">				for (X509Certificate x509cert : x509data.getX509Certificates())</span>
-<span class="fc" id="L246">					certs.add(new BasicX509Credential(PemEncoded.parse(x509cert.getValue()).next().asCertificate()));</span>
+<span class="fc" id="L246">		final List&lt;Credential&gt; certs = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L247" title="All 2 branches covered.">		for (final var keyDescriptor : idp.getKeyDescriptors())</span>
+<span class="fc bfc" id="L248" title="All 2 branches covered.">			for (X509Data x509data : keyDescriptor.getKeyInfo().getX509Datas())</span>
+<span class="fc bfc" id="L249" title="All 2 branches covered.">				for (X509Certificate x509cert : x509data.getX509Certificates())</span>
+<span class="fc" id="L250">					certs.add(new BasicX509Credential(PemEncoded.parse(x509cert.getValue()).next().asCertificate()));</span>
 
-<span class="fc" id="L248">		return new StaticKeyInfoCredentialResolver(certs);</span>
+<span class="fc" id="L252">		return new StaticKeyInfoCredentialResolver(certs);</span>
 	}
 
 	/**
@@ -254,35 +258,35 @@ final class SamlBuilder {
 	 * @return {@link MetadataResolver} metadata resolver
 	 */
 	MetadataResolver getMetadata() {
-<span class="fc bfc" id="L257" title="All 2 branches covered.">		if (metadataResolver != null //</span>
-<span class="fc bfc" id="L258" title="All 2 branches covered.">				&amp;&amp; lastMetadataUpdate.plus(metadataTtl).isAfter(Instant.now()))</span>
-<span class="fc" id="L259">			return metadataResolver;</span>
+<span class="fc bfc" id="L261" title="All 2 branches covered.">		if (metadataResolver != null //</span>
+<span class="fc bfc" id="L262" title="All 2 branches covered.">				&amp;&amp; lastMetadataUpdate.plus(metadataTtl).isAfter(Instant.now()))</span>
+<span class="fc" id="L263">			return metadataResolver;</span>
 
-<span class="fc" id="L261">		metadataResolver = IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L262">			final List&lt;MetadataResolver&gt; resolvers = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L263">			final ParserPool parserPool = XMLObjectProviderRegistrySupport.getParserPool();</span>
-<span class="fc bfc" id="L264" title="All 2 branches covered.">			for (URI metadataUri : metadataUris) {</span>
+<span class="fc" id="L265">		metadataResolver = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L266">			final List&lt;MetadataResolver&gt; resolvers = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L267">			final ParserPool parserPool = XMLObjectProviderRegistrySupport.getParserPool();</span>
+<span class="fc bfc" id="L268" title="All 2 branches covered.">			for (URI metadataUri : metadataUris) {</span>
 				final Element metadataElement;
-<span class="fc" id="L266">				try (final var in = metadataUri.toURL().openStream()) {</span>
-<span class="fc" id="L267">					metadataElement = parserPool.parse(in).getDocumentElement();</span>
+<span class="fc" id="L270">				try (final var in = metadataUri.toURL().openStream()) {</span>
+<span class="fc" id="L271">					metadataElement = parserPool.parse(in).getDocumentElement();</span>
 				}
 
-<span class="fc" id="L270">				final var metadataResolver = new DOMMetadataResolver(metadataElement);</span>
-<span class="fc" id="L271">				metadataResolver.setId(IdGenerator.generateId());</span>
-<span class="fc" id="L272">				metadataResolver.setRequireValidMetadata(true);</span>
-<span class="fc" id="L273">				metadataResolver.initialize();</span>
-<span class="fc" id="L274">				resolvers.add(metadataResolver);</span>
-<span class="fc" id="L275">			}</span>
+<span class="fc" id="L274">				final var metadataResolver = new DOMMetadataResolver(metadataElement);</span>
+<span class="fc" id="L275">				metadataResolver.setId(IdGenerator.generateId());</span>
+<span class="fc" id="L276">				metadataResolver.setRequireValidMetadata(true);</span>
+<span class="fc" id="L277">				metadataResolver.initialize();</span>
+<span class="fc" id="L278">				resolvers.add(metadataResolver);</span>
+<span class="fc" id="L279">			}</span>
 
-<span class="fc" id="L277">			final var chainingMetadataResolver = new ChainingMetadataResolver();</span>
-<span class="fc" id="L278">			chainingMetadataResolver.setId(IdGenerator.generateId());</span>
-<span class="fc" id="L279">			chainingMetadataResolver.setResolvers(resolvers);</span>
-<span class="fc" id="L280">			chainingMetadataResolver.initialize();</span>
-<span class="fc" id="L281">			return chainingMetadataResolver;</span>
+<span class="fc" id="L281">			final var chainingMetadataResolver = new ChainingMetadataResolver();</span>
+<span class="fc" id="L282">			chainingMetadataResolver.setId(IdGenerator.generateId());</span>
+<span class="fc" id="L283">			chainingMetadataResolver.setResolvers(resolvers);</span>
+<span class="fc" id="L284">			chainingMetadataResolver.initialize();</span>
+<span class="fc" id="L285">			return chainingMetadataResolver;</span>
 		});
 
-<span class="fc" id="L284">		this.lastMetadataUpdate = Instant.now();</span>
-<span class="fc" id="L285">		return metadataResolver;</span>
+<span class="fc" id="L288">		this.lastMetadataUpdate = Instant.now();</span>
+<span class="fc" id="L289">		return metadataResolver;</span>
 	}
 
 	/**
@@ -291,7 +295,7 @@ final class SamlBuilder {
 	 * @return {@link SAMLSignatureProfileValidator}
 	 */
 	static SAMLSignatureProfileValidator createSignatureProfileValidator() {
-<span class="fc" id="L294">		return new SAMLSignatureProfileValidator();</span>
+<span class="fc" id="L298">		return new SAMLSignatureProfileValidator();</span>
 	}
 
 	/**
@@ -301,7 +305,8 @@ final class SamlBuilder {
 	 * @return {@link ExplicitKeySignatureTrustEngine}
 	 */
 	ExplicitKeySignatureTrustEngine createTrustEngine(String entityId) {
-<span class="fc" id="L304">		return new ExplicitKeySignatureTrustEngine(credentialResolver, getKeyInfoCredentialResolver(entityId));</span>
+<span class="fc" id="L308">		CredentialResolver credentialResolver = credentialResolverMap.get(entityId);</span>
+<span class="fc" id="L309">		return new ExplicitKeySignatureTrustEngine(credentialResolver, getKeyInfoCredentialResolver(entityId));</span>
 	}
 
 	/**
@@ -310,7 +315,7 @@ final class SamlBuilder {
 	 * @return serviceProviderEntityId
 	 */
 	String getServiceProviderEntityId() {
-<span class="fc" id="L313">		return serviceProviderEntityId;</span>
+<span class="fc" id="L318">		return serviceProviderEntityId;</span>
 	}
 
 	/**
@@ -319,7 +324,7 @@ final class SamlBuilder {
 	 * @return {@link #identityProviderEntityIds}
 	 */
 	Set&lt;String&gt; getIdentityProviderEntityIds() {
-<span class="fc" id="L322">		return identityProviderEntityIds;</span>
+<span class="fc" id="L327">		return identityProviderEntityIds;</span>
 	}
 
 	/**
@@ -328,7 +333,7 @@ final class SamlBuilder {
 	 * @return allowedRange
 	 */
 	Iterable&lt;String&gt; getAllowedRange() {
-<span class="fc" id="L331">		return allowedRange;</span>
+<span class="fc" id="L336">		return allowedRange;</span>
 	}
 
 	/**
@@ -337,7 +342,7 @@ final class SamlBuilder {
 	 * @return {@link #subjectConfirmationValidator}
 	 */
 	IuSubjectConfirmationValidator getSubjectConfirmationValidator() {
-<span class="fc" id="L340">		return subjectConfirmationValidator;</span>
+<span class="fc" id="L345">		return subjectConfirmationValidator;</span>
 	}
 
 	/**
@@ -346,87 +351,87 @@ final class SamlBuilder {
 	 * @return service provider metadata XML
 	 */
 	String getServiceProviderMetadata() {
-<span class="fc" id="L349">		Thread current = Thread.currentThread();</span>
-<span class="fc" id="L350">		final var restore = current.getContextClassLoader();</span>
-<span class="fc" id="L351">		ClassLoader samlBuilder = SamlBuilder.class.getClassLoader();</span>
+<span class="fc" id="L354">		Thread current = Thread.currentThread();</span>
+<span class="fc" id="L355">		final var restore = current.getContextClassLoader();</span>
+<span class="fc" id="L356">		ClassLoader samlBuilder = SamlBuilder.class.getClassLoader();</span>
 		try {
-<span class="fc" id="L353">			current.setContextClassLoader(samlBuilder);</span>
-<span class="fc" id="L354">			X509Certificate spX509Cert = (X509Certificate) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
-<span class="fc" id="L355">					.getBuilder(X509Certificate.DEFAULT_ELEMENT_NAME).buildObject(X509Certificate.DEFAULT_ELEMENT_NAME);</span>
+<span class="fc" id="L358">			current.setContextClassLoader(samlBuilder);</span>
+<span class="fc" id="L359">			X509Certificate spX509Cert = (X509Certificate) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
+<span class="fc" id="L360">					.getBuilder(X509Certificate.DEFAULT_ELEMENT_NAME).buildObject(X509Certificate.DEFAULT_ELEMENT_NAME);</span>
 
-<span class="fc" id="L357">			spX509Cert.setValue(IuText.base64((IuException.unchecked(certificate::getEncoded))));</span>
+<span class="fc" id="L362">			spX509Cert.setValue(IuText.base64((IuException.unchecked(certificate::getEncoded))));</span>
 
-<span class="fc" id="L359">			X509Data spX509data = (X509Data) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
-<span class="fc" id="L360">					.getBuilder(X509Data.DEFAULT_ELEMENT_NAME).buildObject(X509Data.DEFAULT_ELEMENT_NAME);</span>
-<span class="fc" id="L361">			spX509data.getX509Certificates().add(spX509Cert);</span>
+<span class="fc" id="L364">			X509Data spX509data = (X509Data) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
+<span class="fc" id="L365">					.getBuilder(X509Data.DEFAULT_ELEMENT_NAME).buildObject(X509Data.DEFAULT_ELEMENT_NAME);</span>
+<span class="fc" id="L366">			spX509data.getX509Certificates().add(spX509Cert);</span>
 
-<span class="fc" id="L363">			KeyInfo spKeyInfo = (KeyInfo) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
-<span class="fc" id="L364">					.getBuilder(KeyInfo.DEFAULT_ELEMENT_NAME).buildObject(KeyInfo.DEFAULT_ELEMENT_NAME);</span>
-<span class="fc" id="L365">			spKeyInfo.getX509Datas().add(spX509data);</span>
+<span class="fc" id="L368">			KeyInfo spKeyInfo = (KeyInfo) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
+<span class="fc" id="L369">					.getBuilder(KeyInfo.DEFAULT_ELEMENT_NAME).buildObject(KeyInfo.DEFAULT_ELEMENT_NAME);</span>
+<span class="fc" id="L370">			spKeyInfo.getX509Datas().add(spX509data);</span>
 
-<span class="fc" id="L367">			KeyDescriptor spKeyDescriptor = (KeyDescriptor) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
-<span class="fc" id="L368">					.getBuilder(KeyDescriptor.DEFAULT_ELEMENT_NAME).buildObject(KeyDescriptor.DEFAULT_ELEMENT_NAME);</span>
-<span class="fc" id="L369">			spKeyDescriptor.setKeyInfo(spKeyInfo);</span>
+<span class="fc" id="L372">			KeyDescriptor spKeyDescriptor = (KeyDescriptor) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
+<span class="fc" id="L373">					.getBuilder(KeyDescriptor.DEFAULT_ELEMENT_NAME).buildObject(KeyDescriptor.DEFAULT_ELEMENT_NAME);</span>
+<span class="fc" id="L374">			spKeyDescriptor.setKeyInfo(spKeyInfo);</span>
 
 			EntityDescriptor spEntityDescriptor = (EntityDescriptor) XMLObjectProviderRegistrySupport
-<span class="fc" id="L372">					.getBuilderFactory().getBuilder(EntityDescriptor.ELEMENT_QNAME)</span>
-<span class="fc" id="L373">					.buildObject(EntityDescriptor.ELEMENT_QNAME);</span>
-<span class="fc" id="L374">			spEntityDescriptor.setEntityID(serviceProviderEntityId);</span>
+<span class="fc" id="L377">					.getBuilderFactory().getBuilder(EntityDescriptor.ELEMENT_QNAME)</span>
+<span class="fc" id="L378">					.buildObject(EntityDescriptor.ELEMENT_QNAME);</span>
+<span class="fc" id="L379">			spEntityDescriptor.setEntityID(serviceProviderEntityId);</span>
 
 			AttributeConsumingService spAttrConsumingService = (AttributeConsumingService) XMLObjectProviderRegistrySupport
-<span class="fc" id="L377">					.getBuilderFactory().getBuilder(AttributeConsumingService.DEFAULT_ELEMENT_NAME)</span>
-<span class="fc" id="L378">					.buildObject(AttributeConsumingService.DEFAULT_ELEMENT_NAME);</span>
+<span class="fc" id="L382">					.getBuilderFactory().getBuilder(AttributeConsumingService.DEFAULT_ELEMENT_NAME)</span>
+<span class="fc" id="L383">					.buildObject(AttributeConsumingService.DEFAULT_ELEMENT_NAME);</span>
 
-<span class="fc" id="L380">			RequestedAttribute spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
-<span class="fc" id="L381">					.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)</span>
-<span class="fc" id="L382">					.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);</span>
-<span class="fc" id="L383">			spAttrEPPN.setFriendlyName(&quot;mail&quot;);</span>
-<span class="fc" id="L384">			spAttrEPPN.setName(&quot;urn:oid:0.9.2342.19200300.100.1.3&quot;);</span>
-<span class="fc" id="L385">			spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);</span>
-<span class="fc" id="L386">			spAttrEPPN.setIsRequired(true);</span>
-<span class="fc" id="L387">			spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);</span>
+<span class="fc" id="L385">			RequestedAttribute spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
+<span class="fc" id="L386">					.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)</span>
+<span class="fc" id="L387">					.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);</span>
+<span class="fc" id="L388">			spAttrEPPN.setFriendlyName(&quot;mail&quot;);</span>
+<span class="fc" id="L389">			spAttrEPPN.setName(&quot;urn:oid:0.9.2342.19200300.100.1.3&quot;);</span>
+<span class="fc" id="L390">			spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);</span>
+<span class="fc" id="L391">			spAttrEPPN.setIsRequired(true);</span>
+<span class="fc" id="L392">			spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);</span>
 
-<span class="fc" id="L389">			spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
-<span class="fc" id="L390">					.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)</span>
-<span class="fc" id="L391">					.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);</span>
-<span class="fc" id="L392">			spAttrEPPN.setFriendlyName(&quot;displayName&quot;);</span>
-<span class="fc" id="L393">			spAttrEPPN.setName(&quot;urn:oid:2.16.840.1.113730.3.1.241&quot;);</span>
-<span class="fc" id="L394">			spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);</span>
-<span class="fc" id="L395">			spAttrEPPN.setIsRequired(true);</span>
-<span class="fc" id="L396">			spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);</span>
+<span class="fc" id="L394">			spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
+<span class="fc" id="L395">					.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)</span>
+<span class="fc" id="L396">					.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);</span>
+<span class="fc" id="L397">			spAttrEPPN.setFriendlyName(&quot;displayName&quot;);</span>
+<span class="fc" id="L398">			spAttrEPPN.setName(&quot;urn:oid:2.16.840.1.113730.3.1.241&quot;);</span>
+<span class="fc" id="L399">			spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);</span>
+<span class="fc" id="L400">			spAttrEPPN.setIsRequired(true);</span>
+<span class="fc" id="L401">			spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);</span>
 
-<span class="fc" id="L398">			spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
-<span class="fc" id="L399">					.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)</span>
-<span class="fc" id="L400">					.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);</span>
-<span class="fc" id="L401">			spAttrEPPN.setFriendlyName(&quot;eduPersonPrincipalName&quot;);</span>
-<span class="fc" id="L402">			spAttrEPPN.setName(&quot;urn:oid:1.3.6.1.4.1.5923.1.1.1.6&quot;);</span>
-<span class="fc" id="L403">			spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);</span>
-<span class="fc" id="L404">			spAttrEPPN.setIsRequired(true);</span>
-<span class="fc" id="L405">			spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);</span>
+<span class="fc" id="L403">			spAttrEPPN = (RequestedAttribute) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
+<span class="fc" id="L404">					.getBuilder(RequestedAttribute.DEFAULT_ELEMENT_NAME)</span>
+<span class="fc" id="L405">					.buildObject(RequestedAttribute.DEFAULT_ELEMENT_NAME);</span>
+<span class="fc" id="L406">			spAttrEPPN.setFriendlyName(&quot;eduPersonPrincipalName&quot;);</span>
+<span class="fc" id="L407">			spAttrEPPN.setName(&quot;urn:oid:1.3.6.1.4.1.5923.1.1.1.6&quot;);</span>
+<span class="fc" id="L408">			spAttrEPPN.setNameFormat(RequestedAttribute.URI_REFERENCE);</span>
+<span class="fc" id="L409">			spAttrEPPN.setIsRequired(true);</span>
+<span class="fc" id="L410">			spAttrConsumingService.getRequestedAttributes().add(spAttrEPPN);</span>
 
-<span class="fc" id="L407">			SPSSODescriptor spsso = (SPSSODescriptor) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
-<span class="fc" id="L408">					.getBuilder(SPSSODescriptor.DEFAULT_ELEMENT_NAME).buildObject(SPSSODescriptor.DEFAULT_ELEMENT_NAME);</span>
-<span class="fc" id="L409">			spsso.getKeyDescriptors().add(spKeyDescriptor);</span>
-<span class="fc" id="L410">			spsso.getAttributeConsumingServices().add(spAttrConsumingService);</span>
-<span class="fc" id="L411">			spsso.addSupportedProtocol(&quot;urn:oasis:names:tc:SAML:2.0:protocol&quot;);</span>
+<span class="fc" id="L412">			SPSSODescriptor spsso = (SPSSODescriptor) XMLObjectProviderRegistrySupport.getBuilderFactory()</span>
+<span class="fc" id="L413">					.getBuilder(SPSSODescriptor.DEFAULT_ELEMENT_NAME).buildObject(SPSSODescriptor.DEFAULT_ELEMENT_NAME);</span>
+<span class="fc" id="L414">			spsso.getKeyDescriptors().add(spKeyDescriptor);</span>
+<span class="fc" id="L415">			spsso.getAttributeConsumingServices().add(spAttrConsumingService);</span>
+<span class="fc" id="L416">			spsso.addSupportedProtocol(&quot;urn:oasis:names:tc:SAML:2.0:protocol&quot;);</span>
 
-<span class="fc" id="L413">			spEntityDescriptor.getRoleDescriptors().add(spsso);</span>
+<span class="fc" id="L418">			spEntityDescriptor.getRoleDescriptors().add(spsso);</span>
 
-<span class="fc" id="L415">			int i = 0;</span>
-<span class="fc bfc" id="L416" title="All 2 branches covered.">			for (String acsUrl : IuIterable.map(acsUris, URI::toString)) {</span>
+<span class="fc" id="L420">			int i = 0;</span>
+<span class="fc bfc" id="L421" title="All 2 branches covered.">			for (String acsUrl : IuIterable.map(acsUris, URI::toString)) {</span>
 				AssertionConsumerService acs = (AssertionConsumerService) XMLObjectProviderRegistrySupport
-<span class="fc" id="L418">						.getBuilderFactory().getBuilder(AssertionConsumerService.DEFAULT_ELEMENT_NAME)</span>
-<span class="fc" id="L419">						.buildObject(AssertionConsumerService.DEFAULT_ELEMENT_NAME);</span>
-<span class="fc" id="L420">				acs.setBinding(&quot;urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST&quot;);</span>
-<span class="fc" id="L421">				acs.setLocation(acsUrl);</span>
-<span class="fc" id="L422">				acs.setIndex(i++);</span>
-<span class="fc" id="L423">				spsso.getAssertionConsumerServices().add(acs);</span>
-<span class="fc" id="L424">			}</span>
+<span class="fc" id="L423">						.getBuilderFactory().getBuilder(AssertionConsumerService.DEFAULT_ELEMENT_NAME)</span>
+<span class="fc" id="L424">						.buildObject(AssertionConsumerService.DEFAULT_ELEMENT_NAME);</span>
+<span class="fc" id="L425">				acs.setBinding(&quot;urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST&quot;);</span>
+<span class="fc" id="L426">				acs.setLocation(acsUrl);</span>
+<span class="fc" id="L427">				acs.setIndex(i++);</span>
+<span class="fc" id="L428">				spsso.getAssertionConsumerServices().add(acs);</span>
+<span class="fc" id="L429">			}</span>
 
-<span class="fc" id="L426">			return IuException.unchecked(() -&gt; XmlDomUtil.getContent(XMLObjectProviderRegistrySupport</span>
-<span class="fc" id="L427">					.getMarshallerFactory().getMarshaller(spEntityDescriptor).marshall(spEntityDescriptor)));</span>
+<span class="fc" id="L431">			return IuException.unchecked(() -&gt; XmlDomUtil.getContent(XMLObjectProviderRegistrySupport</span>
+<span class="fc" id="L432">					.getMarshallerFactory().getMarshaller(spEntityDescriptor).marshall(spEntityDescriptor)));</span>
 		} finally {
-<span class="fc" id="L429">			current.setContextClassLoader(restore);</span>
+<span class="fc" id="L434">			current.setContextClassLoader(restore);</span>
 		}
 	}
 
