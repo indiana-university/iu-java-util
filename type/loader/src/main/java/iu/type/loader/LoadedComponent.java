@@ -56,7 +56,7 @@ public class LoadedComponent implements IuLoadedComponent {
 	 * @param parentLayer                      parent {@link ModuleLayer}
 	 * 
 	 * @param controllerCallback               receives a reference to an
-	 *                                         {@link IuComponentController} that
+	 *                                         {@link Controller} that
 	 *                                         may be used to set up access rules
 	 *                                         for the component. This reference
 	 *                                         <em>should not</em> be passed beyond
@@ -67,7 +67,7 @@ public class LoadedComponent implements IuLoadedComponent {
 	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
 	 *                                         <strong>provided dependency
 	 *                                         archives</strong>.
-	 * @throws IOException If an IO error occurs initializing the component
+	 * @throws IllegalStateException custom throwable or Error If an error occurs initializing the component
 	 */
 	public LoadedComponent(ClassLoader parent, ModuleLayer parentLayer, Consumer<Controller> controllerCallback,
 			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources) {

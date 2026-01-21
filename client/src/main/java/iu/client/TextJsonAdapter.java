@@ -48,6 +48,13 @@ class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
 	 * Singleton instance.
 	 */
 	static TextJsonAdapter INSTANCE = new TextJsonAdapter();
+	
+	/**
+	 * Default Constructor
+	 */
+	private TextJsonAdapter() {
+		// singleton
+	}
 
 	@Override
 	public String fromJson(JsonValue value) {

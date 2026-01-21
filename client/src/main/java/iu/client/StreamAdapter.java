@@ -49,7 +49,6 @@ class StreamAdapter<E> extends JsonArrayAdapter<Stream<E>, E> {
 	 * Constructor
 	 * 
 	 * @param itemAdapter item adapter
-	 * @param factory     creates a new collection
 	 */
 	protected StreamAdapter(IuJsonAdapter<E> itemAdapter) {
 		super(itemAdapter);
