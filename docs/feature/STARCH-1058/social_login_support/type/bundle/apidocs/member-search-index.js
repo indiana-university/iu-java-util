@@ -1,1 +1,0 @@
-memberSearchIndex = [{"p":"edu.iu.type.bundle","c":"IuTypeBundle","l":"getModule()"},{"p":"edu.iu.type.bundle","c":"IuTypeBundle","l":"shutdown()"}];updateSearchResults();
