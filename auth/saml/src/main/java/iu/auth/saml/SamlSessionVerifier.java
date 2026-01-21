@@ -79,8 +79,8 @@ final class SamlSessionVerifier implements IuSamlSessionVerifier {
 	}
 
 	@Override
-	public URI verifyResponse(IuSession session, String remoteAddr, String samlResponse, String relayState)
-			throws IuAuthenticationException {
+	public URI verifyResponse(IuSession session, String remoteAddr, String samlResponse, String relayState,
+			boolean socialLogin) throws IuAuthenticationException {
 		final var preAuth = session.getDetail(SamlPreAuthentication.class);
 		session.clearDetail(SamlPreAuthentication.class);
 
@@ -91,9 +91,10 @@ final class SamlSessionVerifier implements IuSamlSessionVerifier {
 		try {
 			final var sessionId = Objects.requireNonNull(preAuth.getSessionId(), "Missing sessionId");
 
+			if (!socialLogin) 
 			IuObject.once(Objects.requireNonNull(relayState, "Missing RelayState parameter"),
-					Objects.requireNonNull(preAuth.getRelayState(), "Missing relayState in session"),
-					"RelayState mismatch");
+				Objects.requireNonNull(preAuth.getRelayState(), "Missing relayState in session"),
+			"RelayState mismatch");
 
 			final var response = Objects.requireNonNull(samlResponse, "Missing SAMLResponse parameter");
 

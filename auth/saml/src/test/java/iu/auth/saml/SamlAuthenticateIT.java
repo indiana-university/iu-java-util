@@ -52,10 +52,12 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.logging.Level;
+import java.util.regex.Pattern;
 
 import org.jsoup.Jsoup;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 
@@ -73,11 +75,23 @@ import edu.iu.test.IuTestLogger;
 import iu.auth.config.AuthConfig;
 import iu.auth.pki.PkiVerifier;
 
+/**
+ * Integration tests for SAML authentication
+ * Add the following to your runtime vault configuration to enable:
+ * <ul>
+ * <li>IU_HTTP_ALLOWEDURI</li>
+ * <li>IU_VAULT_ENDPOINT</li>
+ * <li>IU_VAULT_SECRETS</li>
+ * <li>IU_VAULT_TOKEN</li>
+ * </ul>
+ * @see edu.iu.client.IuVault for more information on configuring the vault.
+ * */
+
 @EnabledIf("edu.iu.client.IuVault#isConfigured")
 @SuppressWarnings("javadoc")
 public class SamlAuthenticateIT {
 
-	private static final String REALM = "iu-saml-test";
+	private static final String REALM = "thirdparty_saml";
 	private static URI postUri;
 
 	@BeforeAll
@@ -206,7 +220,7 @@ public class SamlAuthenticateIT {
 		IuTestLogger.expect(IuSubjectConfirmationValidator.class.getName(), Level.INFO,
 				"IP address mismatch in SAML subject confirmation; remote address = .*");
 		assertDoesNotThrow(
-				() -> samlSessionVerifier.verifyResponse(preAuthSession, "127.0.0.1", samlResponse, relayState));
+				() -> samlSessionVerifier.verifyResponse(preAuthSession, "127.0.0.1", samlResponse, relayState, false));
 		verify(prePostAuthDetail).setName(argThat(a -> {
 			when(prePostAuthDetail.getName()).thenReturn(a);
 			return true;
@@ -214,6 +228,10 @@ public class SamlAuthenticateIT {
 		verify(prePostAuthDetail).setRealm(argThat(a -> {
 			when(prePostAuthDetail.getRealm()).thenReturn(a);
 			return true;
+		}));
+		verify(prePostAuthDetail).setIssuer(argThat(a -> {
+			when(prePostAuthDetail.getIssuer()).thenReturn(a);
+			return a.equals(prePostAuthDetail.getIssuer());
 		}));
 		verify(prePostAuthDetail).setIssueTime(argThat(a -> {
 			when(prePostAuthDetail.getIssueTime()).thenReturn(a);
@@ -245,6 +263,11 @@ public class SamlAuthenticateIT {
 			when(postAuthDetail.getRealm()).thenReturn(a);
 			return a.equals(prePostAuthDetail.getRealm());
 		}));
+		verify(postAuthDetail).setIssuer(argThat(a -> {
+			when(postAuthDetail.getIssuer()).thenReturn(a);
+			return a.equals(prePostAuthDetail.getIssuer());
+		}));
+
 		verify(postAuthDetail).setIssueTime(argThat(a -> {
 			when(postAuthDetail.getIssueTime()).thenReturn(a);
 			return a.equals(prePostAuthDetail.getIssueTime());

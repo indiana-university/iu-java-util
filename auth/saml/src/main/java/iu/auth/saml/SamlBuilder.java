@@ -35,6 +35,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -141,7 +142,7 @@ final class SamlBuilder {
 	private final Iterable<URI> acsUris;
 
 	/** IDP redirect URI for single sign-on */
-	final URI singleSignOnLocation;
+	URI singleSignOnLocation;
 
 	/** unique service provider id that register with identity provider */
 	final String serviceProviderEntityId;
@@ -171,7 +172,7 @@ final class SamlBuilder {
 	private Instant lastMetadataUpdate;
 
 	/** credential resolver for validating the SAMLResponse signature */
-	CredentialResolver credentialResolver;
+	HashMap<String, CredentialResolver> credentialResolverMap = new HashMap<>();
 
 	/**
 	 * Constructor
@@ -194,34 +195,37 @@ final class SamlBuilder {
 		this.subjectConfirmationValidator = new IuSubjectConfirmationValidator(allowedRange, failOnAddressMismatch);
 
 		final var resolver = getMetadata();
-		final var entityId = Objects.requireNonNull(config.getIdentityProviderEntityIds(), "identityProviderEntityId")
-				.iterator().next();
-		final var entity = Objects.requireNonNull(
-				IuException.unchecked(() -> resolver.resolveSingle(new CriteriaSet(new EntityIdCriterion(entityId)))),
-				"Entity " + entityId + " not found in SAML metadata");
+		final var entityId = Objects.requireNonNull(config.getIdentityProviderEntityIds(), "identityProviderEntityId");
+		
+		for (String idpEntityId : entityId) {
+			final var entity = Objects.requireNonNull(
+					IuException.unchecked(() -> resolver.resolveSingle(new CriteriaSet(new EntityIdCriterion(idpEntityId)))),
+					"Entity " + idpEntityId + " not found in SAML metadata");
+			final var idp = Objects.requireNonNull(entity.getIDPSSODescriptor("urn:oasis:names:tc:SAML:2.0:protocol"),
+					"Missing SAML 2.0 IDP descriptor for " + entityId);
+			
+			List<Credential> certs = new ArrayList<>();
+			for (final var keyDescriptor : idp.getKeyDescriptors())
+				for (final var x509data : keyDescriptor.getKeyInfo().getX509Datas())
+					for (final var x509cert : x509data.getX509Certificates())
+						certs.add(new BasicX509Credential(PemEncoded.parse(x509cert.getValue()).next().asCertificate()));
 
-		final var idp = Objects.requireNonNull(entity.getIDPSSODescriptor("urn:oasis:names:tc:SAML:2.0:protocol"),
-				"Missing SAML 2.0 IDP descriptor for " + entityId);
+			CredentialResolver credentialResolver = new StaticCredentialResolver(certs);
+			credentialResolverMap.put(idpEntityId, credentialResolver);
+			
+			URI singleSignOnLocation = null;
+			for (final var sso : idp.getSingleSignOnServices())
+				if ("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect".equals(sso.getBinding())) {
+					singleSignOnLocation = URI.create(sso.getLocation());
+					break;
+				}
 
-		URI singleSignOnLocation = null;
-		for (final var sso : idp.getSingleSignOnServices())
-			if ("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect".equals(sso.getBinding())) {
-				singleSignOnLocation = URI.create(sso.getLocation());
-				break;
-			}
+			if (singleSignOnLocation == null)
+				throw new IllegalStateException("Missing SAML 2.0 Redirect Binding in IDP descriptor for " + entityId);
 
-		if (singleSignOnLocation == null)
-			throw new IllegalStateException("Missing SAML 2.0 Redirect Binding in IDP descriptor for " + entityId);
-
-		this.singleSignOnLocation = singleSignOnLocation;
-
-		List<Credential> certs = new ArrayList<>();
-		for (final var keyDescriptor : idp.getKeyDescriptors())
-			for (final var x509data : keyDescriptor.getKeyInfo().getX509Datas())
-				for (final var x509cert : x509data.getX509Certificates())
-					certs.add(new BasicX509Credential(PemEncoded.parse(x509cert.getValue()).next().asCertificate()));
-
-		credentialResolver = new StaticCredentialResolver(certs);
+			if (this.singleSignOnLocation == null)
+			this.singleSignOnLocation = singleSignOnLocation;
+		}
 	}
 
 	/**
@@ -301,6 +305,7 @@ final class SamlBuilder {
 	 * @return {@link ExplicitKeySignatureTrustEngine}
 	 */
 	ExplicitKeySignatureTrustEngine createTrustEngine(String entityId) {
+		CredentialResolver credentialResolver = credentialResolverMap.get(entityId);
 		return new ExplicitKeySignatureTrustEngine(credentialResolver, getKeyInfoCredentialResolver(entityId));
 	}
 
