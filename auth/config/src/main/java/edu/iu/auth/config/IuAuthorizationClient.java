@@ -300,7 +300,7 @@ public interface IuAuthorizationClient {
 	default boolean isRequireNonce() {
 		return true;
 	}
-	
+
 	/**
 	 * Determines if a valid user agent is required.
 	 * 
