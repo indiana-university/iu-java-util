@@ -136,7 +136,7 @@ public class SamlSessionVerifierTest {
 
 		final var verifier = new SamlSessionVerifier(postUri);
 		final var error = assertThrows(NullPointerException.class,
-				() -> verifier.verifyResponse(session, "127.0.0.1", null, null));
+				() -> verifier.verifyResponse(session, "127.0.0.1", null, null, false));
 		assertEquals("Missing returnUri", error.getMessage());
 	}
 
@@ -157,7 +157,7 @@ public class SamlSessionVerifierTest {
 		IuTestLogger.expect(SamlSessionVerifier.class.getName(), Level.INFO, "Invalid SAML Response",
 				NullPointerException.class, e -> "Missing sessionId".equals(e.getMessage()));
 		final var error = assertThrows(IuAuthenticationException.class,
-				() -> verifier.verifyResponse(session, "127.0.0.1", null, null));
+				() -> verifier.verifyResponse(session, "127.0.0.1", null, null, false));
 		verify(session).clearDetail(SamlPreAuthentication.class);
 		verify(session).clearDetail(SamlPostAuthentication.class);
 		verify(postAuth).setInvalid(true);
@@ -183,7 +183,7 @@ public class SamlSessionVerifierTest {
 		IuTestLogger.expect(SamlSessionVerifier.class.getName(), Level.INFO, "Invalid SAML Response",
 				NullPointerException.class, e -> "Missing RelayState parameter".equals(e.getMessage()));
 		final var error = assertThrows(IuAuthenticationException.class,
-				() -> verifier.verifyResponse(session, "127.0.0.1", null, null));
+				() -> verifier.verifyResponse(session, "127.0.0.1", null, null, false));
 		verify(session).clearDetail(SamlPreAuthentication.class);
 		verify(session).clearDetail(SamlPostAuthentication.class);
 		verify(postAuth).setInvalid(true);
@@ -210,7 +210,7 @@ public class SamlSessionVerifierTest {
 		IuTestLogger.expect(SamlSessionVerifier.class.getName(), Level.INFO, "Invalid SAML Response",
 				NullPointerException.class, e -> "Missing relayState in session".equals(e.getMessage()));
 		final var error = assertThrows(IuAuthenticationException.class,
-				() -> verifier.verifyResponse(session, "127.0.0.1", null, relayState));
+				() -> verifier.verifyResponse(session, "127.0.0.1", null, relayState, false));
 		verify(session).clearDetail(SamlPreAuthentication.class);
 		verify(session).clearDetail(SamlPostAuthentication.class);
 		verify(postAuth).setInvalid(true);
@@ -238,7 +238,7 @@ public class SamlSessionVerifierTest {
 		IuTestLogger.expect(SamlSessionVerifier.class.getName(), Level.INFO, "Invalid SAML Response",
 				IllegalArgumentException.class, e -> "RelayState mismatch".equals(e.getMessage()));
 		final var error = assertThrows(IuAuthenticationException.class,
-				() -> verifier.verifyResponse(session, "127.0.0.1", null, relayState));
+				() -> verifier.verifyResponse(session, "127.0.0.1", null, relayState, false));
 		verify(session).clearDetail(SamlPreAuthentication.class);
 		verify(session).clearDetail(SamlPostAuthentication.class);
 		verify(postAuth).setInvalid(true);
@@ -266,7 +266,7 @@ public class SamlSessionVerifierTest {
 		IuTestLogger.expect(SamlSessionVerifier.class.getName(), Level.INFO, "Invalid SAML Response",
 				NullPointerException.class, e -> "Missing SAMLResponse parameter".equals(e.getMessage()));
 		final var error = assertThrows(IuAuthenticationException.class,
-				() -> verifier.verifyResponse(session, "127.0.0.1", null, relayState));
+				() -> verifier.verifyResponse(session, "127.0.0.1", null, relayState, false));
 		verify(session).clearDetail(SamlPreAuthentication.class);
 		verify(session).clearDetail(SamlPostAuthentication.class);
 		verify(postAuth).setInvalid(true);
@@ -296,7 +296,7 @@ public class SamlSessionVerifierTest {
 		when(provider.verifyResponse(IuWebUtils.getInetAddress("127.0.0.1"), samlResponse, sessionId))
 				.thenReturn(principal);
 		assertEquals(returnUri,
-				assertDoesNotThrow(() -> verifier.verifyResponse(session, "127.0.0.1", samlResponse, relayState)));
+				assertDoesNotThrow(() -> verifier.verifyResponse(session, "127.0.0.1", samlResponse, relayState, false)));
 		verify(session).clearDetail(SamlPreAuthentication.class);
 		verify(session).clearDetail(SamlPostAuthentication.class);
 		verify(principal).bind(postAuth);
