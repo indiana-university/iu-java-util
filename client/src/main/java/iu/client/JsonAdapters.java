@@ -99,7 +99,7 @@ public final class JsonAdapters {
 	 * 
 	 * @param type         Java type
 	 * @param valueAdapter value type adapter
-	 * @return {@link JsonAdapter}
+	 * @return {@link IuJsonAdapter}
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public static IuJsonAdapter adapt(Type type, Function<Class<?>, IuJsonAdapter<?>> valueAdapter) {
