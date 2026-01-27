@@ -332,7 +332,7 @@ IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth.session,IuSession,0
 IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth.nonce,IuOneTimeNumberConfig,0,7,0,0,0,4,0,4,0,4
 IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth.oauth,IuCallerAttributes,0,2,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthorizationClient.AuthMethod,0,96,0,0,0,18,0,5,0,5
-IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthorizationClient,0,4,0,0,0,2,0,2,0,2
+IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthorizationClient,0,6,0,0,0,3,0,3,0,3
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuSessionConfiguration,0,6,0,0,0,2,0,2,0,2
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthorizationClient.GrantType,0,65,0,0,0,11,0,5,0,5
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,X500Utils,0,693,0,136,0,121,0,84,0,16

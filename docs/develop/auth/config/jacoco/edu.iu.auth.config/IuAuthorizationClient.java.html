@@ -302,12 +302,21 @@ public interface IuAuthorizationClient {
 	}
 
 	/**
+	 * Determines if a valid user agent is required.
+	 * 
+	 * @return true if user agent is required (default); else false
+	 */
+	default boolean isRequireUserAgent() {
+<span class="fc" id="L310">		return true;</span>
+	}
+
+	/**
 	 * Determines if a valid jti claim is required.
 	 * 
 	 * @return true if jti is required (default); else false
 	 */
 	default boolean isRequireJti() {
-<span class="fc" id="L310">		return true;</span>
+<span class="fc" id="L319">		return true;</span>
 	}
 
 }
