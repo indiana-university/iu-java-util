@@ -59,7 +59,7 @@ IU Java Utilities API Reference/iu-java-base,edu.iu,IuVisitor.ElementSplitter,0,
 IU Java Utilities API Reference/iu-java-base,iu,ParallelTaskController,0,329,0,40,0,81,0,38,0,18
 IU Java Utilities API Reference/iu-java-client,iu.client,JsonAdapters,0,641,0,172,0,157,0,95,0,9
 IU Java Utilities API Reference/iu-java-client,iu.client,DateJsonAdapter,0,83,0,8,0,21,0,8,0,4
-IU Java Utilities API Reference/iu-java-client,iu.client,TextJsonAdapter,0,51,0,12,0,14,0,10,0,4
+IU Java Utilities API Reference/iu-java-client,iu.client,TextJsonAdapter,0,48,0,12,0,13,0,9,0,3
 IU Java Utilities API Reference/iu-java-client,iu.client,TimeZoneJsonAdapter,0,40,0,4,0,10,0,5,0,3
 IU Java Utilities API Reference/iu-java-client,iu.client,CollectionAdapter,0,24,0,0,0,7,0,3,0,3
 IU Java Utilities API Reference/iu-java-client,iu.client,BasicJsonAdapter,0,229,0,44,0,56,0,26,0,4
@@ -332,7 +332,7 @@ IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth.session,IuSession,0
 IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth.nonce,IuOneTimeNumberConfig,0,7,0,0,0,4,0,4,0,4
 IU Java Utilities API Reference/iu-java-auth-api,edu.iu.auth.oauth,IuCallerAttributes,0,2,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthorizationClient.AuthMethod,0,96,0,0,0,18,0,5,0,5
-IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthorizationClient,0,4,0,0,0,2,0,2,0,2
+IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthorizationClient,0,6,0,0,0,3,0,3,0,3
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuAuthorizationClient.GrantType,0,65,0,0,0,11,0,5,0,5
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuOpenIdProviderMetadata,0,2,0,0,0,1,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuSessionConfiguration,0,6,0,0,0,2,0,2,0,2

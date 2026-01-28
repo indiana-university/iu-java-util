@@ -82,19 +82,23 @@ public interface IuSamlSessionVerifier {
 	 *                     after user has been authenticate
 	 * @param relayState   state value that received back from identity provider
 	 *                     after successful authentication.
+	 *                     
+	 * @param socialLogin  true if this is a social login flow
+	 * 
 	 * @return returnUri from related {@link #initRequest(IuSession, URI)}
 	 *
 	 * @throws IuAuthenticationException when relay state is invalid or verification
 	 *                                   failed
+	 *                                   
 	 */
-	URI verifyResponse(IuSession session, String remoteAddr, String samlResponse, String relayState)
+	URI verifyResponse(IuSession session, String remoteAddr, String samlResponse, String relayState, boolean socialLogin)
 			throws IuAuthenticationException;
 
 	/**
 	 * Gets the authenticated SAML principal.
 	 * 
 	 * @param preAuthSession  session used with
-	 *                        {@link #verifyResponse(IuSession, String, String, String)};
+	 *                        {@link #verifyResponse(IuSession, String, String, String, boolean)};
 	 *                        null if authentication handshake is already complete
 	 * @param postAuthSession session to bind principal attributes after completing
 	 *                        authentication handshake
@@ -110,4 +114,4 @@ public interface IuSamlSessionVerifier {
 			throws IuAuthenticationException;
 
 }
-</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>
