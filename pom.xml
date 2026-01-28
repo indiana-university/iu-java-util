@@ -332,7 +332,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<plugin>
 					<groupId>org.jacoco</groupId>
 					<artifactId>jacoco-maven-plugin</artifactId>
-					<version>0.8.10</version>
+					<version>0.8.14</version>
 					<configuration>
 						<skip>${skipTests}</skip>
 					</configuration>

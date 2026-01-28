@@ -76,7 +76,7 @@ public final class Vault implements IuVault {
 	 * Implements {@link IuVault#of(Properties, Function)}.
 	 * 
 	 * @param properties   optional property overrides
-	 * @param valueAdapter
+	 * @param valueAdapter value adapter function
 	 * @return {@link Vault} instance
 	 */
 	public static Vault of(Properties properties, Function<Type, IuJsonAdapter<?>> valueAdapter) {

@@ -511,7 +511,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	/**
 	 * Gets the number of times this connection has been used.
 	 * 
-	 * @return {@link long}
+	 * @return {@code long}
 	 */
 	public long getTransactionSegmentCount() {
 		return transactionSegmentCount;
