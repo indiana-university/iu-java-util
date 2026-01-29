@@ -31,37 +31,28 @@
  */
 package iu.auth.config;
 
-import static iu.auth.config.IuHttpAware.HOST;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doReturn;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import java.net.URI;
-import java.net.http.HttpRequest;
+import java.net.http.HttpRequest.Builder;
 import java.util.List;
-import java.util.function.Supplier;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 import edu.iu.IdGenerator;
-import edu.iu.IuWebUtils;
 import edu.iu.auth.oauth.OAuthAuthorizationClient;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebToken;
 
@@ -69,144 +60,97 @@ import edu.iu.crypt.WebToken;
 @ExtendWith(IuHttpAware.class)
 public class OAuthAccessTokenGrantTest {
 
-	private OAuthAuthorizationClient mockClient;
-	private Supplier<OAuthAuthorizationClient> clientSupplier;
-	private WebToken mockWebToken;
-	private static final String TOKEN = IdGenerator.generateId();
-	private static final int EXPIRES_IN = 3600;
-	private static final URI TOKEN_URI = URI.create("https://" + HOST + "/token");
-	private static final URI REDIRECT_URI = URI.create("https://" + HOST + "/redirect");
-	private static final URI JWKS_URI = URI.create("https://" + HOST + "/jwks");
+	@Test
+	void testConstruction() {
+		final var client = mock(OAuthAuthorizationClient.class);
+		final var grant = new OAuthAccessTokenGrant(() -> client) {
+			@Override
+			protected void verifyToken(WebToken jwt) {
+			}
 
-	@BeforeEach
-	void setup() {
-		mockClient = mock(OAuthAuthorizationClient.class);
-		when(mockClient.getTokenUri()).thenReturn(TOKEN_URI);
-		when(mockClient.getRedirectUri()).thenReturn(REDIRECT_URI);
-		when(mockClient.getJwksUri()).thenReturn(JWKS_URI);
-		clientSupplier = () -> mockClient;
-		mockWebToken = mock(WebToken.class);
+			@Override
+			protected void tokenAuth(Builder requestBuilder) {
+			}
+		};
+		assertSame(client, grant.getClient());
 	}
 
 	@Test
-	void testConstructorAndClientSupplier() {
-		OidcAuthorizationGrant grant = new OidcAuthorizationGrant(clientSupplier);
-		assertNotNull(grant);
-		assertEquals(mockClient, grant.getClient());
-	}
+	void testValidateJwt() {
+		final var token = IdGenerator.generateId();
+		final var jwksUri = URI.create(IdGenerator.generateId());
+		final var key = mock(WebKey.class);
+		try (final var mockWebToken = mockStatic(WebToken.class); //
+				final var mockWebKey = mockStatic(WebKey.class)) {
+			final var client = mock(OAuthAuthorizationClient.class);
+			when(client.getJwksUri()).thenReturn(jwksUri);
+			mockWebKey.when(() -> WebKey.readJwks(jwksUri)).thenReturn(List.of(key));
+			final var grant = new OAuthAccessTokenGrant(() -> client) {
+				@Override
+				protected void verifyToken(WebToken jwt) {
+				}
 
-	@Test
-	void testTokenAuthSetsHeadersAndBody() {
-		OidcAuthorizationGrant grant = new OidcAuthorizationGrant(clientSupplier);
-		HttpRequest.Builder builder = mock(HttpRequest.Builder.class);
-		when(builder.header(anyString(), anyString())).thenReturn(builder);
-		when(builder.POST(any())).thenReturn(builder);
-		try (MockedStatic<IuWebUtils> webUtilsMock = Mockito.mockStatic(IuWebUtils.class)) {
-			webUtilsMock.when(() -> IuWebUtils.createQueryString(any()))
-					.thenReturn("grant_type=authorization_code&redirect_uri=" + REDIRECT_URI);
-			grant.tokenAuth(builder);
-			verify(builder).header("Content-Type", "application/x-www-form-urlencoded");
-			verify(builder).POST(any());
+				@Override
+				protected void tokenAuth(Builder requestBuilder) {
+				}
+			};
+			assertDoesNotThrow(() -> grant.validateJwt(token));
+			mockWebToken.verify(() -> WebToken.verify(token, key));
 		}
 	}
 
 	@Test
-	void testVerifyTokenRequiresNbfAndExp() {
-		OidcAuthorizationGrant grant = new OidcAuthorizationGrant(clientSupplier);
-		when(mockWebToken.getNotBefore()).thenReturn(null);
-		when(mockWebToken.getExpires()).thenReturn(null);
-		assertThrows(NullPointerException.class, () -> grant.verifyToken(mockWebToken));
-		when(mockWebToken.getNotBefore()).thenReturn(java.time.Instant.now());
-		assertThrows(NullPointerException.class, () -> grant.verifyToken(mockWebToken));
-		when(mockWebToken.getExpires()).thenReturn(java.time.Instant.now().plusSeconds(3600));
-		assertDoesNotThrow(() -> grant.verifyToken(mockWebToken));
-	}
+	public void testGetAccessToken() {
+		final var token = IdGenerator.generateId();
+		final var tokenUri = URI.create(IdGenerator.generateId());
+		try (final var mockWebToken = mockStatic(WebToken.class); //
+				final var mockWebKey = mockStatic(WebKey.class); //
+				final var mockIuHttp = mockStatic(IuHttp.class)) {
+			final var client = mock(OAuthAuthorizationClient.class);
+			when(client.getTokenUri()).thenReturn(tokenUri);
+			mockIuHttp.when(() -> IuHttp.send(eq(tokenUri), argThat(a -> {
+				final var rb = mock(Builder.class);
+				assertDoesNotThrow(() -> a.accept(rb));
+				return true;
+			}), eq(IuHttp.READ_JSON_OBJECT)))
+					.thenReturn(IuJson.object().add("access_token", token).add("expires_in", 1).build());
 
-	@SuppressWarnings({ "rawtypes" })
-	@Test
-	void testGetAccessTokenRetrievesAndCachesToken() {
-		OidcAuthorizationGrant grant = Mockito.spy(new OidcAuthorizationGrant(clientSupplier));
-		final var tokenResponse = IuJson.object().add("access_token", TOKEN).add("expires_in", EXPIRES_IN).build();
-		doReturn(mockWebToken).when(grant).validateJwt(TOKEN);
-		doNothing().when(grant).verifyToken(mockWebToken);
-		try (MockedStatic<IuHttp> httpMock = Mockito.mockStatic(IuHttp.class);
-				MockedStatic<IuJson> jsonMock = Mockito.mockStatic(IuJson.class);
-				MockedStatic<IuJsonAdapter> adapterMock = Mockito.mockStatic(IuJsonAdapter.class)) {
-			httpMock.when(() -> IuHttp.send(any(URI.class), any(), any())).thenReturn(tokenResponse);
-			jsonMock.when(() -> IuJson.get(tokenResponse, "access_token")).thenReturn(TOKEN);
-			jsonMock.when(() -> IuJson.get(tokenResponse, "expires_in", IuJsonAdapter.of(Integer.class)))
-					.thenReturn(EXPIRES_IN);
-			String token1 = grant.getAccessToken();
-			String token2 = grant.getAccessToken();
-			assertEquals(TOKEN, token1);
-			assertEquals(token1, token2); // cached
-			httpMock.verify(() -> IuHttp.send(any(URI.class), any(), any()), times(1));
-		}
-	}
-	
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	@Test
-	void testGetAccessTokenAndSkipValidateJwt() {
-		var mockClient = mock(OAuthAuthorizationClient.class);
-		when(mockClient.getTokenUri()).thenReturn(TOKEN_URI);
-		when(mockClient.getRedirectUri()).thenReturn(REDIRECT_URI);
-		Supplier<OAuthAuthorizationClient> clientSupplier = () -> mockClient;
-		OidcAuthorizationGrant grant = Mockito.spy(new OidcAuthorizationGrant(clientSupplier));
-		final var tokenResponse = IuJson.object().add("access_token", TOKEN).add("expires_in", EXPIRES_IN).build();
-		doNothing().when(grant).verifyToken(mockWebToken);
-		try (MockedStatic<IuHttp> httpMock = Mockito.mockStatic(IuHttp.class);
-				MockedStatic<IuJson> jsonMock = Mockito.mockStatic(IuJson.class);
-				MockedStatic<IuJsonAdapter> adapterMock = Mockito.mockStatic(IuJsonAdapter.class)) {
-			httpMock.when(() -> IuHttp.send(any(URI.class), any(), any())).thenReturn(tokenResponse);
-			jsonMock.when(() -> IuJson.get(tokenResponse, "access_token")).thenReturn(TOKEN);
-			jsonMock.when(() -> IuJson.get(tokenResponse, "expires_in", IuJsonAdapter.of(Integer.class)))
-					.thenReturn(EXPIRES_IN);
-			String token1 = grant.getAccessToken();
-			String token2 = grant.getAccessToken();
-			assertEquals(TOKEN, token1);
-			assertEquals(token1, token2); // cached
-			httpMock.verify(() -> IuHttp.send(any(URI.class), any(), any()), times(1));
+			final var grant = new OAuthAccessTokenGrant(() -> client) {
+				WebToken verified;
+				Builder tokenAuthCalled;
+
+				@Override
+				protected void verifyToken(WebToken jwt) {
+					verified = jwt;
+				}
+
+				@Override
+				protected void tokenAuth(Builder requestBuilder) {
+					tokenAuthCalled = requestBuilder;
+				}
+			};
+			assertEquals(token, grant.getAccessToken());
+			assertNull(grant.verified);
+			assertNotNull(grant.tokenAuthCalled);
+
+			// cached
+			grant.tokenAuthCalled = null;
+			assertEquals(token, grant.getAccessToken());
+			assertNull(grant.verified);
+			assertNull(grant.tokenAuthCalled);
+
+			// not cached
+			final var key = mock(WebKey.class);
+			final var jwksUri = URI.create(IdGenerator.generateId());
+			final var webToken = mock(WebToken.class);
+			mockWebToken.when(() -> WebToken.verify(token, key)).thenReturn(webToken);
+			when(client.getJwksUri()).thenReturn(jwksUri);
+			mockWebKey.when(() -> WebKey.readJwks(jwksUri)).thenReturn(List.of(key));
+			assertDoesNotThrow(() -> Thread.sleep(1000L));
+			assertEquals(token, grant.getAccessToken());
+			assertEquals(webToken, grant.verified);
+			assertNotNull(grant.tokenAuthCalled);
 		}
 	}
 
-	@SuppressWarnings({ "rawtypes" })
-	@Test
-	void testGetAccessTokenRefreshesOnExpiry() throws InterruptedException {
-		OidcAuthorizationGrant grant = Mockito.spy(new OidcAuthorizationGrant(clientSupplier));
-		var tokenResponse = IuJson.object().add("access_token", TOKEN).add("expires_in", 1).build(); // expires
-																										// immediately
-		doReturn(mockWebToken).when(grant).validateJwt(TOKEN);
-		doNothing().when(grant).verifyToken(mockWebToken);
-		try (MockedStatic<IuHttp> httpMock = Mockito.mockStatic(IuHttp.class);
-				MockedStatic<IuJson> jsonMock = Mockito.mockStatic(IuJson.class);
-				MockedStatic<IuJsonAdapter> adapterMock = Mockito.mockStatic(IuJsonAdapter.class)) {
-			httpMock.when(() -> IuHttp.send(any(URI.class), any(), any())).thenReturn(tokenResponse);
-			jsonMock.when(() -> IuJson.get(tokenResponse, "access_token")).thenReturn(TOKEN);
-			jsonMock.when(() -> IuJson.get(tokenResponse, "expires_in", IuJsonAdapter.of(Integer.class))).thenReturn(1);
-			String token1 = grant.getAccessToken();
-			Thread.sleep(1000L);
-			String token2 = grant.getAccessToken();
-			assertEquals(token1, token2);
-			httpMock.verify(() -> IuHttp.send(any(URI.class), any(), any()), times(2));
-		}
-	}
-
-	@Test
-	void testValidateJwtCallsWebTokenVerifyWithCorrectArguments() {
-		OidcAuthorizationGrant grant = Mockito.spy(new OidcAuthorizationGrant(clientSupplier));
-		String jwtString = IdGenerator.generateId();
-		WebKey mockWebKey = mock(WebKey.class);
-		WebToken expectedToken = mock(WebToken.class);
-		try (MockedStatic<WebKey> webKeyMock = Mockito.mockStatic(WebKey.class);
-				MockedStatic<WebToken> webTokenMock = Mockito.mockStatic(WebToken.class)) {
-			// Mock JWKS conversion
-			List<WebKey> webKeyList = List.of(mockWebKey);
-			webKeyMock.when(() -> WebKey.readJwks(JWKS_URI)).thenReturn(webKeyList);
-			// Mock WebToken.verify
-			webTokenMock.when(() -> WebToken.verify(jwtString, mockWebKey)).thenReturn(expectedToken);
-			WebToken result = grant.validateJwt(jwtString);
-			assertEquals(expectedToken, result);
-			webTokenMock.verify(() -> WebToken.verify(jwtString, mockWebKey), times(1));
-		}
-	}
 }

@@ -405,7 +405,7 @@ public interface WebKey extends WebKeyReference {
 		/**
 		 * Edwards Elliptic Curve Digital Signature Algorithm.
 		 */
-		EDDSA("EdDSA", "EdDSA", 0, new Type[] { Type.ED25519, Type.ED448 }, Use.SIGN,
+		EDDSA("EdDSA", "EdDSA", 512, new Type[] { Type.ED25519, Type.ED448 }, Use.SIGN,
 				new Operation[] { Operation.SIGN, Operation.VERIFY }, Set.of()),
 
 		/**
