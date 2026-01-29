@@ -34,15 +34,12 @@ package iu.auth.config;
 import java.net.http.HttpRequest;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Objects;
 import java.util.function.Supplier;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.auth.oauth.OAuthClient;
 import edu.iu.client.IuHttp;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebToken;
 
@@ -62,9 +59,9 @@ public abstract class OAuthAccessTokenGrant {
 	 * 
 	 * @param client Configured {@link OAuthClient}
 	 */
-<span class="fc" id="L65">	public OAuthAccessTokenGrant(Supplier&lt;? extends OAuthClient&gt; client) {</span>
-<span class="fc" id="L66">		this.client = client;</span>
-<span class="fc" id="L67">	}</span>
+<span class="fc" id="L62">	public OAuthAccessTokenGrant(Supplier&lt;? extends OAuthClient&gt; client) {</span>
+<span class="fc" id="L63">		this.client = client;</span>
+<span class="fc" id="L64">	}</span>
 
 	/**
 	 * Prepares an {@link HttpRequest.Builder} for the token endpoint.
@@ -87,17 +84,17 @@ public abstract class OAuthAccessTokenGrant {
 	 * @return Parsed and validated {@link WebToken}
 	 */
 	protected WebToken validateJwt(String accessToken) {
-<span class="fc" id="L90">		return WebToken.verify(accessToken,</span>
-<span class="fc" id="L91">				IuObject.convert(getClient().getJwksUri(), WebKey::readJwks).iterator().next());</span>
+<span class="fc" id="L87">		return WebToken.verify(accessToken,</span>
+<span class="fc" id="L88">				IuObject.convert(getClient().getJwksUri(), WebKey::readJwks).iterator().next());</span>
 	}
 
 	/**
 	 * Gets the configured {@link OAuthClient}
-	 * 	
+	 * 
 	 * @return Configured {@link OAuthClient}
 	 */
 	protected OAuthClient getClient() {
-<span class="fc" id="L100">		return client.get();</span>
+<span class="fc" id="L97">		return client.get();</span>
 	}
 
 	/**
@@ -106,26 +103,24 @@ public abstract class OAuthAccessTokenGrant {
 	 * @return access token
 	 */
 	public String getAccessToken() {
-<span class="fc bfc" id="L109" title="All 2 branches covered.">		if (accessToken == null //</span>
-<span class="fc bfc" id="L110" title="All 2 branches covered.">				|| Instant.now().isAfter(notAfter)) {</span>
-<span class="fc" id="L111">			final var clientCredentials = getClient();</span>
-<span class="fc" id="L112">			final var tokenUri = clientCredentials.getTokenUri();</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">		if (accessToken == null //</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">				|| Instant.now().isAfter(notAfter)) {</span>
+<span class="fc" id="L108">			final var clientCredentials = getClient();</span>
+<span class="fc" id="L109">			final var tokenUri = clientCredentials.getTokenUri();</span>
 
-<span class="fc" id="L114">			final var tokenResponse = IuException</span>
-<span class="fc" id="L115">					.unchecked(() -&gt; IuHttp.send(tokenUri, this::tokenAuth, IuHttp.READ_JSON_OBJECT));</span>
+<span class="fc" id="L111">			final var tokenResponse = OAuthTokenResponse</span>
+<span class="fc" id="L112">					.from(IuException.unchecked(() -&gt; IuHttp.send(tokenUri, this::tokenAuth, IuHttp.READ_JSON_OBJECT)));</span>
 
-<span class="fc" id="L117">			final String accessToken = IuJson.get(tokenResponse, &quot;access_token&quot;);</span>
-<span class="fc bfc" id="L118" title="All 2 branches covered.">			if (getClient().getJwksUri() != null)</span>
-<span class="fc" id="L119">				verifyToken(validateJwt(accessToken));</span>
+<span class="fc" id="L114">			final String accessToken = tokenResponse.getAccessToken();</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">			if (getClient().getJwksUri() != null)</span>
+<span class="fc" id="L116">				verifyToken(validateJwt(accessToken));</span>
 
-<span class="fc" id="L121">			final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);</span>
-<span class="fc" id="L122">			notAfter = IuObject.require(</span>
-<span class="fc" id="L123">					now.plusSeconds(Objects.requireNonNull(</span>
-<span class="fc" id="L124">							IuJson.get(tokenResponse, &quot;expires_in&quot;, IuJsonAdapter.of(Integer.class)), &quot;expires_in&quot;)),</span>
-<span class="fc" id="L125">					now::isBefore, &quot;non-positive expires_in&quot;);</span>
-<span class="fc" id="L126">			this.accessToken = accessToken;</span>
+<span class="fc" id="L118">			final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);</span>
+<span class="fc" id="L119">			notAfter = IuObject.require(now.plusSeconds(tokenResponse.getExpiresIn()), now::isBefore,</span>
+					&quot;non-positive expires_in&quot;);
+<span class="fc" id="L121">			this.accessToken = accessToken;</span>
 		}
-<span class="fc" id="L128">		return accessToken;</span>
+<span class="fc" id="L123">		return accessToken;</span>
 	}
 
 }
