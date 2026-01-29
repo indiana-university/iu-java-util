@@ -40,8 +40,12 @@ public class MetricsSpi implements IuMetricsSpi {
 
 		} else if (config instanceof IuPrometheusMetricsConfiguration)
 			return new PrometheusMetricRegistry((IuPrometheusMetricsConfiguration) config);
-		else
+		else 
+			// TODO create JmxMetricConfiguration and check for it here
 			return new JmxMetricRegistry(config);
+		// TODO default to SimpleMetricRegistry when implemented
+		
+		
 	}
 
 }
