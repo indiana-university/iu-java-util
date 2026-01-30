@@ -88,9 +88,9 @@ public class SelfIssuedAccessTokenTest {
 		final var verifiedToken = new SelfIssuedAccessToken(pkp, audience, tokenTtl, authMatcher.token); 
 		assertEquals(authnPrincipal, verifiedToken.getName());
 		assertEquals(issuer.toString(), verifiedToken.getIssuer());
-		final var verfiedIat = verifiedToken.getIssuedAt();
-		assertNotNull(verfiedIat);
-		assertEquals(tokenTtl, Duration.between(verfiedIat, verifiedToken.getExpires()));
+		final var verifiedIat = verifiedToken.getIssuedAt();
+		assertNotNull(verifiedIat);
+		assertEquals(tokenTtl, Duration.between(verifiedIat, verifiedToken.getExpires()));
 		assertEquals(iat, verifiedToken.getAuthTime());
 
 		final var verifiedSub = verifiedToken.getSubject();
