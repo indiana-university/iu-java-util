@@ -31,9 +31,8 @@
  */
 package iu.auth.config;
 
-import java.lang.reflect.Type;
+import java.util.Objects;
 
-import edu.iu.IuObject;
 import edu.iu.auth.oauth.IuAuthorizationDetails;
 import edu.iu.auth.oauth.IuCallerAttributes;
 import edu.iu.client.IuJson;
@@ -58,26 +57,6 @@ public class RemoteAccessTokenBuilder<B extends RemoteAccessTokenBuilder<B>> ext
 	}
 
 	/**
-	 * Adapts types related to the authorization_details claim.
-	 * 
-	 * @param <T>  adapted type
-	 * @param type details interface
-	 * @return {@link IuJsonAdapter}
-	 */
-	@SuppressWarnings("unchecked")
-	static protected <T> IuJsonAdapter<T> adaptAuthorizationDetails(Type type) {
-		if (type instanceof Class) {
-			final var c = (Class<?>) type;
-			if (!IuObject.isPlatformName(c.getName()) //
-					&& c.isInterface())
-				return (IuJsonAdapter<T>) IuJsonAdapter.from(c, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES,
-						RemoteAccessTokenBuilder::adaptAuthorizationDetails);
-		}
-
-		return IuJsonAdapter.of(type);
-	}
-
-	/**
 	 * Sets the scope granted with this token.
 	 * 
 	 * @param scope scope
@@ -99,7 +78,10 @@ public class RemoteAccessTokenBuilder<B extends RemoteAccessTokenBuilder<B>> ext
 	 */
 	@SuppressWarnings("unchecked")
 	protected <T extends IuAuthorizationDetails> B authorizationDetails(Class<T> type, T authorizationDetails) {
-		this.authorizationDetails.add(adaptAuthorizationDetails(type).toJson(authorizationDetails));
+		final var json = IuJsonAdapter.adapt(type, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES)
+				.toJson(authorizationDetails);
+		Objects.requireNonNull(json.asJsonObject().get("type"), "missing type");
+		this.authorizationDetails.add(json);
 		return (B) this;
 	}
 
