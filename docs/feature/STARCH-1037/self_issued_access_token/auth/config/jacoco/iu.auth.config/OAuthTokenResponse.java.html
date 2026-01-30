@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OAuthTokenResponse.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Authentication and Authorization Configuration</a> &gt; <a href="index.source.html" class="el_package">iu.auth.config</a> &gt; <span class="el_source">OAuthTokenResponse.java</span></div><h1>OAuthTokenResponse.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2026 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.config;
+
+import java.net.URI;
+
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonPropertyNameFormat;
+import jakarta.json.JsonValue;
+
+/**
+ * Encapsulates the response from an OAuth Token Server.
+ * 
+ * @see &lt;a href=
+ *      &quot;https://datatracker.ietf.org/doc/html/rfc6749#section-5.1&quot;&gt;RFC-6749
+ *      OAuth 2.0 Section 5.1&lt;/a&gt;
+ */
+public interface OAuthTokenResponse {
+
+	/**
+	 * Derives {@link OAuthTokenResponse} from a parsed JSON value.
+	 * 
+	 * @param json parsed JSON value
+	 * @return {@link OAuthTokenResponse}
+	 */
+	static OAuthTokenResponse from(JsonValue json) {
+<span class="fc" id="L56">		return IuJsonAdapter</span>
+<span class="fc" id="L57">				.from(OAuthTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, IuJsonAdapter::of)</span>
+<span class="fc" id="L58">				.fromJson(json);</span>
+	}
+
+	/**
+	 * Gets the token type.
+	 * 
+	 * @return token type; i.e. &quot;bearer&quot;
+	 * @see &lt;a href=
+	 *      &quot;https://datatracker.ietf.org/doc/html/rfc6749#section-7.1&quot;&gt;RFC-6749
+	 *      OAuth 2.0 Section 7.1&lt;/a&gt;
+	 */
+	String getTokenType();
+
+	/**
+	 * Gets the access token.
+	 * 
+	 * @return access token
+	 */
+	String getAccessToken();
+
+	/**
+	 * Gets the OIDC ID token.
+	 * 
+	 * @return OIDC ID token
+	 */
+	String getIdToken();
+
+	/**
+	 * Gets the refresh token.
+	 * 
+	 * @return refresh token
+	 */
+	String getRefreshToken();
+
+	/**
+	 * Gets the number of seconds until the token expires.
+	 * 
+	 * @return number of seconds until the token expires
+	 */
+	int getExpiresIn();
+
+	/**
+	 * Gets the error; SHOULD be non-null if {@link #getAccessToken()} is null.
+	 * 
+	 * @return error code
+	 */
+	String getError();
+
+	/**
+	 * Gets the OPTIONAL error description.
+	 * 
+	 * @return error description
+	 */
+	String getErrorDescription();
+
+	/**
+	 * Gets the OPTIONAL error URI.
+	 * 
+	 * @return error URI
+	 */
+	URI getErrorUri();
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

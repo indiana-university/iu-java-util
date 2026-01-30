@@ -1,0 +1,5 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+IU Logging Configuration API,edu.iu.logging,IuLogEvent,0,2,0,0,0,1,0,1,0,1
+IU Logging Configuration API,edu.iu.logging,IuLogContext,0,17,0,0,0,5,0,3,0,3
+IU Logging Configuration API,iu.logging.boot,IuLoggingBootstrap,0,355,0,14,0,67,0,29,0,22
+IU Logging Configuration API,iu.logging.boot,IuLogManager,0,113,0,14,0,42,0,20,0,13
