@@ -31,9 +31,8 @@
  */
 package iu.auth.config;
 
-import java.lang.reflect.Type;
+import java.util.Objects;
 
-import edu.iu.IuObject;
 import edu.iu.auth.oauth.IuAuthorizationDetails;
 import edu.iu.auth.oauth.IuCallerAttributes;
 import edu.iu.client.IuJson;
@@ -49,33 +48,13 @@ import jakarta.json.JsonArrayBuilder;
  */
 public class RemoteAccessTokenBuilder&lt;B extends RemoteAccessTokenBuilder&lt;B&gt;&gt; extends JwtBuilder&lt;B&gt; {
 
-<span class="fc" id="L52">	private JsonArrayBuilder authorizationDetails = IuJson.array();</span>
+<span class="fc" id="L51">	private JsonArrayBuilder authorizationDetails = IuJson.array();</span>
 
 	/**
 	 * Default constructor.
 	 */
-<span class="fc" id="L57">	protected RemoteAccessTokenBuilder() {</span>
-<span class="fc" id="L58">	}</span>
-
-	/**
-	 * Adapts types related to the authorization_details claim.
-	 * 
-	 * @param &lt;T&gt;  adapted type
-	 * @param type details interface
-	 * @return {@link IuJsonAdapter}
-	 */
-	@SuppressWarnings(&quot;unchecked&quot;)
-	static protected &lt;T&gt; IuJsonAdapter&lt;T&gt; adaptAuthorizationDetails(Type type) {
-<span class="fc bfc" id="L69" title="All 2 branches covered.">		if (type instanceof Class) {</span>
-<span class="fc" id="L70">			final var c = (Class&lt;?&gt;) type;</span>
-<span class="fc bfc" id="L71" title="All 2 branches covered.">			if (!IuObject.isPlatformName(c.getName()) //</span>
-<span class="fc bfc" id="L72" title="All 2 branches covered.">					&amp;&amp; c.isInterface())</span>
-<span class="fc" id="L73">				return (IuJsonAdapter&lt;T&gt;) IuJsonAdapter.from(c, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES,</span>
-						RemoteAccessTokenBuilder::adaptAuthorizationDetails);
-		}
-
-<span class="fc" id="L77">		return IuJsonAdapter.of(type);</span>
-	}
+<span class="fc" id="L56">	protected RemoteAccessTokenBuilder() {</span>
+<span class="fc" id="L57">	}</span>
 
 	/**
 	 * Sets the scope granted with this token.
@@ -85,8 +64,8 @@ public class RemoteAccessTokenBuilder&lt;B extends RemoteAccessTokenBuilder&lt;B
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	public B scope(String scope) {
-<span class="fc" id="L88">		param(&quot;scope&quot;, scope);</span>
-<span class="fc" id="L89">		return (B) this;</span>
+<span class="fc" id="L67">		param(&quot;scope&quot;, scope);</span>
+<span class="fc" id="L68">		return (B) this;</span>
 	}
 
 	/**
@@ -99,8 +78,11 @@ public class RemoteAccessTokenBuilder&lt;B extends RemoteAccessTokenBuilder&lt;B
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	protected &lt;T extends IuAuthorizationDetails&gt; B authorizationDetails(Class&lt;T&gt; type, T authorizationDetails) {
-<span class="fc" id="L102">		this.authorizationDetails.add(adaptAuthorizationDetails(type).toJson(authorizationDetails));</span>
-<span class="fc" id="L103">		return (B) this;</span>
+<span class="fc" id="L81">		final var json = IuJsonAdapter.adapt(type, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES)</span>
+<span class="fc" id="L82">				.toJson(authorizationDetails);</span>
+<span class="fc" id="L83">		Objects.requireNonNull(json.asJsonObject().get(&quot;type&quot;), &quot;missing type&quot;);</span>
+<span class="fc" id="L84">		this.authorizationDetails.add(json);</span>
+<span class="fc" id="L85">		return (B) this;</span>
 	}
 
 	/**
@@ -110,21 +92,21 @@ public class RemoteAccessTokenBuilder&lt;B extends RemoteAccessTokenBuilder&lt;B
 	 * @return this
 	 */
 	public B caller(IuCallerAttributes callerAttributes) {
-<span class="fc" id="L113">		return authorizationDetails(IuCallerAttributes.class, callerAttributes);</span>
+<span class="fc" id="L95">		return authorizationDetails(IuCallerAttributes.class, callerAttributes);</span>
 	}
 
 	@Override
 	protected void prepare() {
-<span class="fc" id="L118">		super.prepare();</span>
-<span class="fc" id="L119">		final var authorizationDetails = this.authorizationDetails.build();</span>
-<span class="fc bfc" id="L120" title="All 2 branches covered.">		if (!authorizationDetails.isEmpty())</span>
-<span class="fc" id="L121">			param(&quot;authorization_details&quot;, authorizationDetails);</span>
-<span class="fc" id="L122">	}</span>
+<span class="fc" id="L100">		super.prepare();</span>
+<span class="fc" id="L101">		final var authorizationDetails = this.authorizationDetails.build();</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">		if (!authorizationDetails.isEmpty())</span>
+<span class="fc" id="L103">			param(&quot;authorization_details&quot;, authorizationDetails);</span>
+<span class="fc" id="L104">	}</span>
 
 	@Override
 	public RemoteAccessToken build() {
-<span class="fc" id="L126">		prepare();</span>
-<span class="fc" id="L127">		return new RemoteAccessToken(toJson());</span>
+<span class="fc" id="L108">		prepare();</span>
+<span class="fc" id="L109">		return new RemoteAccessToken(toJson());</span>
 	}
 
 }
