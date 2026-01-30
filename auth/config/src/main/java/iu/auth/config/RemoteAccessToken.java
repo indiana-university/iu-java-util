@@ -36,6 +36,8 @@ import java.net.URI;
 import edu.iu.auth.oauth.IuAuthorizationDetails;
 import edu.iu.auth.oauth.IuCallerAttributes;
 import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonPropertyNameFormat;
 import iu.crypt.Jwt;
 import jakarta.json.JsonObject;
 
@@ -63,17 +65,18 @@ public class RemoteAccessToken extends Jwt {
 	}
 
 	/**
-	 * Gets the called URL.
+	 * Gets authorization details by type
 	 *
 	 * @param <T>             details interface type
 	 * @param type            authorization details type
 	 * @param detailInterface authorization details interface
 	 * @return authorization details
 	 */
-	protected <T extends IuAuthorizationDetails> T getAuthorizationDetails(String type, Class<T> detailInterface) {
-		return detailInterface.cast(RemoteAccessTokenBuilder.adaptAuthorizationDetails(detailInterface)
-				.fromJson(claims.getJsonArray("authorization_details").stream()
-						.filter(a -> type.equals(IuJson.get(a.asJsonObject(), "type"))).findFirst().get()));
+	public <T extends IuAuthorizationDetails> T getAuthorizationDetails(String type, Class<T> detailInterface) {
+		return detailInterface
+				.cast(IuJsonAdapter.adapt(detailInterface, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES)
+						.fromJson(claims.getJsonArray("authorization_details").stream()
+								.filter(a -> type.equals(IuJson.get(a.asJsonObject(), "type"))).findFirst().get()));
 	}
 
 	/**
@@ -86,7 +89,7 @@ public class RemoteAccessToken extends Jwt {
 	}
 
 	/**
-	 * Gets the called URL.
+	 * Gets {@link IuCallerAttributes} from the token's authorization details.
 	 * 
 	 * @return {@link URI}
 	 */
