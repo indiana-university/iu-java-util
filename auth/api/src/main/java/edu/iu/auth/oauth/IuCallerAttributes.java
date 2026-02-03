@@ -77,4 +77,14 @@ public interface IuCallerAttributes extends IuAuthorizationDetails {
 	 */
 	String getAuthnPrincipal();
 
+	/**
+	 * Gets the principal name of the impersonated user.
+	 * 
+	 * @return Principal name; null (default) if impersonation is not in use, SHOULD
+	 *         be null in production environments
+	 */
+	default String getImpersonatedPrincipal() {
+		return null;
+	}
+
 }
