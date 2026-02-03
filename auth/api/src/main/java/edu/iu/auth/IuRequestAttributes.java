@@ -1,4 +1,4 @@
-package edu.iu.client;
+package edu.iu.auth;
 
 import java.net.HttpCookie;
 import java.net.URI;
@@ -6,7 +6,7 @@ import java.net.URI;
 /**
  * Encapsulates attributes commonly associated with an HTTP request.
  */
-public interface RequestAttributes {
+public interface IuRequestAttributes {
 
 	/**
 	 * Gets the full request URI to the resource that issued the token.
