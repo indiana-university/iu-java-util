@@ -36,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -65,6 +66,10 @@ import jakarta.json.JsonObject;
 @SuppressWarnings("javadoc")
 public class JwtTest {
 
+	interface Details {
+		String getType();
+	}
+
 	@Test
 	public void testNumericDate() {
 		final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
@@ -84,6 +89,13 @@ public class JwtTest {
 		assertNull(jwt.getNotBefore());
 		assertNull(jwt.getExpires());
 		assertNull(jwt.getNonce());
+		assertNull(jwt.getScope());
+
+		final var type = IdGenerator.generateId();
+		final var details = jwt.getAuthorizationDetails(Details.class, type);
+		assertNotNull(details);
+		assertFalse(details.iterator().hasNext());
+
 		assertFalse(jwt.isExpired());
 	}
 
@@ -97,6 +109,8 @@ public class JwtTest {
 		final var notBefore = issuedAt.minusSeconds(30L);
 		final var expires = issuedAt.plusSeconds(30L);
 		final var nonce = IdGenerator.generateId();
+		final var scope = IdGenerator.generateId();
+		final var type = IdGenerator.generateId();
 
 		final var jwt = new Jwt(IuJson.object() //
 				.add("jti", tokenId) //
@@ -107,6 +121,8 @@ public class JwtTest {
 				.add("nbf", notBefore.getEpochSecond()) //
 				.add("exp", expires.getEpochSecond()) //
 				.add("nonce", nonce) //
+				.add("scope", scope) //
+				.add("authorization_details", IuJson.array().add(IuJson.object().add("type", type))) //
 				.build());
 
 		assertEquals(tokenId, jwt.getTokenId());
@@ -117,6 +133,12 @@ public class JwtTest {
 		assertEquals(notBefore.truncatedTo(ChronoUnit.SECONDS), jwt.getNotBefore());
 		assertEquals(expires.truncatedTo(ChronoUnit.SECONDS), jwt.getExpires());
 		assertEquals(nonce, jwt.getNonce());
+		assertEquals(scope, jwt.getScope());
+
+		final var details = jwt.getAuthorizationDetails(Details.class, type);
+		assertNotNull(details);
+		assertInstanceOf(Details.class, details.iterator().next());
+
 		assertFalse(jwt.isExpired());
 	}
 
@@ -250,32 +272,6 @@ public class JwtTest {
 		assertEquals("SHA256withECDSA verification failed", error.getMessage());
 	}
 
-//	@Test
-//	public void testOneAudienceFlattensToString() {
-//		final var audience = URI.create(IdGenerator.generateId());
-//		final var claims = mock(WebTokenClaims.class);
-//		when(claims.getAudience()).thenReturn(Set.of(audience));
-//		final var token = new Jwt(claims);
-//		assertEquals(audience.toString(),
-//				IuJson.parse(token.toString()).asJsonObject().getJsonString("aud").getString());
-//	}
-//
-//	@Test
-//	public void testNullAudienceUndefined() {
-//		final var token = new Jwt(IuJson.object().build());
-//		assertFalse(IuJson.parse(token.toString()).asJsonObject().containsKey("aud"));
-//	}
-//
-//
-
-//
-//	@Test
-//	public void testInvalidToken() {
-//		final var invalidToken = IdGenerator.generateId();
-//		final var error = assertThrows(IllegalArgumentException.class, () -> Jwt.verify(invalidToken, (WebKey) null));
-//		assertEquals("Invalid token; must be enclosed in a compact JWS or JWE", error.getMessage());
-//	}
-//
 	@Test
 	public void testValidateMissingIssuer() {
 		final var jwt = new Jwt(IuJson.object().build());
@@ -374,4 +370,50 @@ public class JwtTest {
 		assertDoesNotThrow(() -> jwt.validateClaims(audience, Duration.ofMinutes(2L)));
 	}
 
+	@Test
+	public void testIgnoresInvalidAuthorizationDetails() {
+		final var issuer = URI.create(IdGenerator.generateId());
+		final var subject = IdGenerator.generateId();
+		final var audience = URI.create(IdGenerator.generateId());
+		final var issuedAt = Instant.now();
+		final var expires = issuedAt.plusSeconds(30L);
+		final var type = IdGenerator.generateId();
+
+		final var jwt = new Jwt(IuJson.object() //
+				.add("iss", issuer.toString()) //
+				.add("sub", subject) //
+				.add("aud", IuJson.array().add(audience.toString()).build()) //
+				.add("iat", issuedAt.getEpochSecond()) //
+				.add("exp", expires.getEpochSecond()) //
+				.add("authorization_details", IuJson.array().add(type)) //
+				.build());
+
+		final var details = jwt.getAuthorizationDetails(Details.class, type);
+		assertNotNull(details);
+		assertFalse(details.iterator().hasNext());
+	}
+	
+	@Test
+	public void testIgnoresNonMatcingAuthorizationDetails() {
+		final var issuer = URI.create(IdGenerator.generateId());
+		final var subject = IdGenerator.generateId();
+		final var audience = URI.create(IdGenerator.generateId());
+		final var issuedAt = Instant.now();
+		final var expires = issuedAt.plusSeconds(30L);
+		final var type = IdGenerator.generateId();
+
+		final var jwt = new Jwt(IuJson.object() //
+				.add("iss", issuer.toString()) //
+				.add("sub", subject) //
+				.add("aud", IuJson.array().add(audience.toString()).build()) //
+				.add("iat", issuedAt.getEpochSecond()) //
+				.add("exp", expires.getEpochSecond()) //
+				.add("authorization_details", IuJson.array().add(IuJson.object().add("type", IdGenerator.generateId()))) //
+				.build());
+
+		final var details = jwt.getAuthorizationDetails(Details.class, type);
+		assertNotNull(details);
+		assertFalse(details.iterator().hasNext());
+	}
+	
 }

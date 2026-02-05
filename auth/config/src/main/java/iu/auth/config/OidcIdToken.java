@@ -49,7 +49,6 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebSignedPayload;
 import iu.crypt.Jwt;
-import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
 
 /**
@@ -196,23 +195,6 @@ public class OidcIdToken extends Jwt {
 	 */
 	public String getAccessToken() {
 		return accessToken;
-	}
-
-	/**
-	 * Gets the first authorization_details entry of a given type
-	 * 
-	 * @param type authorization_details type
-	 * @return first entry with a matching type property
-	 */
-	public JsonObject getAuthorizationDetails(String type) {
-		final var authorizationDetails = (JsonArray) claims.get("authorization_details");
-		if (authorizationDetails != null)
-			for (final var authorizationDetail : authorizationDetails) {
-				final var o = authorizationDetail.asJsonObject();
-				if (type.equals(o.getString("type")))
-					return o;
-			}
-		return null;
 	}
 
 }

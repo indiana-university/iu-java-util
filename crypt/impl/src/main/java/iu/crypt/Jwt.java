@@ -35,13 +35,16 @@ import java.io.StringWriter;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 
 import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
@@ -49,6 +52,7 @@ import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebSignature;
 import edu.iu.crypt.WebSignedPayload;
 import edu.iu.crypt.WebToken;
+import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
 import jakarta.json.stream.JsonGenerator;
 
@@ -191,6 +195,28 @@ public class Jwt implements WebToken {
 	@Override
 	public String getNonce() {
 		return IuJson.get(claims, "nonce");
+	}
+
+	@Override
+	public String getScope() {
+		return IuJson.get(claims, "scope");
+	}
+
+	@Override
+	public <T> Iterable<T> getAuthorizationDetails(Class<T> detailInterface, String type) {
+		final Queue<T> rv = new ArrayDeque<>();
+
+		final var authorizationDetails = (JsonArray) claims.get("authorization_details");
+		if (authorizationDetails != null) {
+			final var adapter = IuJsonAdapter.adapt(detailInterface,
+					IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES);
+			for (final var authorizationDetail : authorizationDetails)
+				if (authorizationDetail instanceof JsonObject) {
+					if (type.equals(IuJson.get(authorizationDetail.asJsonObject(), "type")))
+						rv.offer(adapter.fromJson(authorizationDetail));
+				}
+		}
+		return rv;
 	}
 
 	@Override

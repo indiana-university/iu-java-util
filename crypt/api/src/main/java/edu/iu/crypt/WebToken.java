@@ -153,6 +153,23 @@ public interface WebToken {
 	boolean isExpired();
 
 	/**
+	 * Gets the scope claim.
+	 * 
+	 * @return scope claim
+	 */
+	String getScope();
+
+	/**
+	 * Gets the authorization_details entries by type
+	 * 
+	 * @param <T>             authorization details interface type
+	 * @param detailInterface authorization details interface class
+	 * @param type            authorization_details type property value
+	 * @return first entry with a matching type property
+	 */
+	<T> Iterable<T> getAuthorizationDetails(Class<T> detailInterface, String type);
+
+	/**
 	 * Verify JWT registered claims are well-formed and within the allowed time
 	 * window.
 	 * 

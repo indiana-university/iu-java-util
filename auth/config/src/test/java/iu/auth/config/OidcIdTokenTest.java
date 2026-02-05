@@ -113,7 +113,6 @@ public class OidcIdTokenTest {
 		final var verified = OidcIdToken.verify(idToken, key, client, nonce, accessToken, maxAge);
 		assertDoesNotThrow(() -> verified.validateClaims(aud, ttl));
 		assertEquals(accessToken, verified.getAccessToken());
-		assertNull(verified.getAuthorizationDetails(""));
 		assertEquals(name, verified.getFullName());
 	}
 
@@ -312,9 +311,6 @@ public class OidcIdTokenTest {
 		final var ttl = Duration.ofMinutes(15L);
 		final var verified = OidcIdToken.verify(idToken, key, null, null, null, null);
 		assertDoesNotThrow(() -> verified.validateClaims(aud, ttl));
-		assertNull(verified.getAuthorizationDetails(""));
-		final var verifiedAuthDetails = verified.getAuthorizationDetails(authType);
-		assertEquals(a, IuJson.get(verifiedAuthDetails, "a"));
 	}
 
 }
