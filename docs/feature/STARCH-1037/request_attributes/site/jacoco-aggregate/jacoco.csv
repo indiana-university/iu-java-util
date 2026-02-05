@@ -143,7 +143,7 @@ IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,JweRecipientBuilder,
 IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,Jose,0,354,0,38,0,67,0,40,0,21
 IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,JweRecipientBuilder.EncryptedKeyBuilder,0,397,0,10,0,77,0,18,0,11
 IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,CompactEncoded.new Iterator() {...},0,71,0,10,0,12,0,8,0,3
-IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,Jwt,0,298,0,20,0,61,0,33,0,23
+IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,Jwt,0,349,0,28,0,71,0,39,0,25
 IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,Jws,0,608,0,68,0,125,0,54,0,18
 IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,JsonCertificateReference,0,198,0,18,0,35,0,24,0,15
 IU Java Utilities API Reference/iu-java-crypt-impl,iu.crypt,JwsBuilder.PendingSignature,0,88,0,10,0,16,0,9,0,4
@@ -342,11 +342,12 @@ IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuBasicAu
 IU Java Utilities API Reference/iu-java-auth-config,edu.iu.auth.config,IuSamlServiceProviderMetadata,0,12,0,0,0,5,0,5,0,5
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,AuthConfig,0,281,0,20,0,65,0,28,0,18
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,OidcAuthorizationGrant,0,42,0,0,0,12,0,4,0,4
-IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,SelfIssuedAccessToken,0,181,0,0,0,36,0,9,0,9
+IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,OidcTokenIssuer,0,52,0,2,0,11,0,8,0,7
+IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,SelfIssuedAccessToken,0,207,0,6,0,42,0,13,0,10
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,RemoteAccessTokenBuilder,0,62,0,2,0,18,0,7,0,6
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,RemoteAccessToken,0,46,0,0,0,9,0,6,0,6
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,OAuthAccessTokenGrant,0,88,0,6,0,19,0,8,0,5
-IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,OidcIdToken,0,237,0,22,0,51,0,20,0,9
+IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,OidcIdToken,0,205,0,16,0,43,0,16,0,8
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,AuthConfig.new Object() {...},0,86,0,6,0,13,0,7,0,4
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,OAuthTokenResponse,0,8,0,0,0,3,0,1,0,1
 IU Java Utilities API Reference/iu-java-auth-config,iu.auth.config,AuthConfig.StorageConfig,0,15,0,0,0,6,0,1,0,1
