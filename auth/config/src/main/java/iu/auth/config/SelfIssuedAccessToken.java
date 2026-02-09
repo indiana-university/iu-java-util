@@ -37,15 +37,18 @@ public class SelfIssuedAccessToken implements IuApiCredentials {
 			IuCallerAttributes caller) {
 
 		Objects.requireNonNull(caller, "missing caller attributes");
-		Objects.requireNonNull(caller.getAuthnPrincipal(), "missing authn_principal");
+		final var authnPrincipal = Objects.requireNonNull(caller.getAuthnPrincipal(), "missing authn_principal");
 		Objects.requireNonNull(caller.getRemoteAddr(), "missing remote_addr");
 		Objects.requireNonNull(caller.getRequestUri(), "missing request_uri");
 		Objects.requireNonNull(caller.getUserAgent(), "missing user_agent");
 
+		final var impersonatedPrincipal = caller.getImpersonatedPrincipal();
+		final var sub = impersonatedPrincipal == null ? authnPrincipal : impersonatedPrincipal;
+
 		final var jwk = pkp.getJwk();
 		final var iss = URI.create(jwk.getKeyId());
 		accessToken = RemoteAccessToken.builder().jti() //
-				.iss(iss).aud(audience).sub(caller.getAuthnPrincipal()) //
+				.iss(iss).aud(audience).sub(sub) //
 				.iat().exp(Instant.now().plus(tokenTtl)) //
 				.caller(caller).build();
 		bearerToken = accessToken.sign("JWT", pkp.getAlg(), jwk);
@@ -67,12 +70,16 @@ public class SelfIssuedAccessToken implements IuApiCredentials {
 		accessToken.validateClaims(audience, tokenTtl);
 		IuObject.once(iss, accessToken.getIssuer(), "issuer mismatch");
 
-		final var caller = Objects.requireNonNull(accessToken.getCallerAttributes());
+		final var caller = Objects.requireNonNull(accessToken.getCallerAttributes(), "missing caller attributes");
 		final var authnPrincipal = Objects.requireNonNull(caller.getAuthnPrincipal(), "missing authn_principal");
 		Objects.requireNonNull(caller.getRemoteAddr(), "missing remote_addr");
 		Objects.requireNonNull(caller.getRequestUri(), "missing request_uri");
 		Objects.requireNonNull(caller.getUserAgent(), "missing user_agent");
-		IuObject.once(accessToken.getSubject(), authnPrincipal, "sub mismatch");
+
+		final var sub = accessToken.getSubject();
+		if (!authnPrincipal.equals(sub) //
+				&& !sub.equals(caller.getImpersonatedPrincipal()))
+			throw new IllegalArgumentException("sub mismatch");
 	}
 
 	@Override
@@ -109,6 +116,11 @@ public class SelfIssuedAccessToken implements IuApiCredentials {
 	public void applyTo(Builder requestBuilder) throws IuAuthenticationException {
 		requestBuilder.header("Authorization", //
 				"Bearer " + bearerToken);
+	}
+
+	@Override
+	public String toString() {
+		return "SelfIssuedAccessToken [" + accessToken + "]";
 	}
 
 }
