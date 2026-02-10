@@ -77,5 +77,15 @@ public interface IuCallerAttributes extends IuAuthorizationDetails {
 	 */
 	String getAuthnPrincipal();
 
+	/**
+	 * Gets the principal name of the impersonated user.
+	 * 
+	 * @return Principal name; null (default) if impersonation is not in use, SHOULD
+	 *         be null in production environments
+	 */
+	default String getImpersonatedPrincipal() {
+<span class="fc" id="L87">		return null;</span>
+	}
+
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>
