@@ -81,6 +81,7 @@ public class OidcIdTokenTest {
 		final var nonce = IdGenerator.generateId();
 		final var role = IdGenerator.generateId();
 		final var name = IdGenerator.generateId();
+		final var email = IdGenerator.generateId();
 		final var accessToken = IdGenerator.generateId();
 		final var atHash = IuException.unchecked(() -> IuText.base64Url(
 				Arrays.copyOfRange(MessageDigest.getInstance("SHA-512").digest(IuText.ascii(accessToken)), 0, 32)));
@@ -97,6 +98,7 @@ public class OidcIdTokenTest {
 				.add("auth_time", authTime.getEpochSecond()) //
 				.add("at_hash", atHash) //
 				.add("name", name) //
+				.add("email", email) //
 				.build();
 
 		final var key = WebKey.ephemeral(Algorithm.EDDSA);
@@ -115,6 +117,7 @@ public class OidcIdTokenTest {
 		assertDoesNotThrow(() -> verified.validateClaims(aud, ttl));
 		assertEquals(accessToken, verified.getAccessToken());
 		assertEquals(name, verified.getFullName());
+		assertEquals(email, verified.getEmail());
 		assertEquals(role, verified.getRoles().iterator().next());
 	}
 

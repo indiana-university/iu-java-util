@@ -181,6 +181,15 @@ public class OidcIdToken extends Jwt {
 	}
 
 	/**
+	 * Gets the preferred email address.
+	 * 
+	 * @return preferred email address
+	 */
+	public String getEmail() {
+		return IuJson.get(claims, "email");
+	}
+
+	/**
 	 * Gets the point in time authentication occurred.
 	 * 
 	 * @return auth_time claim
