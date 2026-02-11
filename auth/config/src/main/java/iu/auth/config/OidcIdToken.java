@@ -44,6 +44,7 @@ import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.auth.oauth.OAuthClient;
 import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
@@ -186,6 +187,15 @@ public class OidcIdToken extends Jwt {
 	 */
 	public Instant getAuthTime() {
 		return IuJson.get(claims, "auth_time", NUMERIC_DATE);
+	}
+
+	/**
+	 * Gets the roles that the authenticated user is authorized for.
+	 * 
+	 * @return authorized roles
+	 */
+	public Iterable<String> getRoles() {
+		return IuJson.get(claims, "roles", IuJsonAdapter.of(Iterable.class, IuJsonAdapter.of(String.class)));
 	}
 
 	/**
