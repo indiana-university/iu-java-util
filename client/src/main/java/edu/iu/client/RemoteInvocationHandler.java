@@ -117,8 +117,16 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 		return IuJsonAdapter.of(type, a -> adapt(a));
 	}
 
-	@Override
-	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+	/**
+	 * Handles object method invocation without remote call overhead.
+	 * 
+	 * @param proxy  proxy
+	 * @param method method
+	 * @param args   args
+	 * @return non-null if the method invoked was handled; null if not handled.
+	 * @throws Throwable
+	 */
+	protected final Object invokeObjectMethod(Object proxy, Method method, Object[] args) throws Throwable {
 		switch (method.getName()) {
 		case "hashCode":
 			return System.identityHashCode(proxy);
@@ -126,6 +134,17 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 			return proxy == args[0];
 		case "toString":
 			return toString();
+		}
+
+		return null;
+	}
+
+	@Override
+	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+		{
+			Object rv = invokeObjectMethod(proxy, method, args);
+			if (rv != null)
+				return rv;
 		}
 
 		final UnsafeConsumer<HttpRequest.Builder> request = builder -> {
