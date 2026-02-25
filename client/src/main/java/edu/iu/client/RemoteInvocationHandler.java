@@ -124,9 +124,8 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 	 * @param method method
 	 * @param args   args
 	 * @return non-null if the method invoked was handled; null if not handled.
-	 * @throws Throwable
 	 */
-	protected final Object invokeObjectMethod(Object proxy, Method method, Object[] args) throws Throwable {
+	protected final Object invokeObjectMethod(Object proxy, Method method, Object[] args) {
 		switch (method.getName()) {
 		case "hashCode":
 			return System.identityHashCode(proxy);
