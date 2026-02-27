@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>RequestCallerAttributes.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-auth-config</a> &gt; <a href="index.source.html" class="el_package">iu.auth.config</a> &gt; <span class="el_source">RequestCallerAttributes.java</span></div><h1>RequestCallerAttributes.java</h1><pre class="source lang-java linenums">package iu.auth.config;
+
+import java.net.URI;
+
+import edu.iu.auth.IuRequestAttributes;
+import edu.iu.auth.oauth.IuCallerAttributes;
+
+/**
+ * {@link IuCallerAttributes} implementation backed by {@link IuRequestAttributes}.
+ */
+public class RequestCallerAttributes implements IuCallerAttributes {
+
+	private final IuRequestAttributes requestAttributes;
+	private final String authnPrincipal;
+	private final String impersonatedPrincipal;
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param requestAttributes     {@link IuRequestAttributes}
+	 * @param authnPrincipal        authenticated principal name
+	 * @param impersonatedPrincipal impersonated principal name
+	 */
+	public RequestCallerAttributes(IuRequestAttributes requestAttributes, String authnPrincipal,
+<span class="fc" id="L25">			String impersonatedPrincipal) {</span>
+<span class="fc" id="L26">		this.requestAttributes = requestAttributes;</span>
+<span class="fc" id="L27">		this.authnPrincipal = authnPrincipal;</span>
+<span class="fc" id="L28">		this.impersonatedPrincipal = impersonatedPrincipal;</span>
+<span class="fc" id="L29">	}</span>
+
+	@Override
+	public URI getRequestUri() {
+<span class="fc" id="L33">		return requestAttributes.getRequestUri();</span>
+	}
+
+	@Override
+	public String getRemoteAddr() {
+<span class="fc" id="L38">		return requestAttributes.getRemoteAddr();</span>
+	}
+
+	@Override
+	public String getUserAgent() {
+<span class="fc" id="L43">		return requestAttributes.getUserAgent();</span>
+	}
+
+	@Override
+	public String getAuthnPrincipal() {
+<span class="fc" id="L48">		return authnPrincipal;</span>
+	}
+
+	@Override
+	public String getImpersonatedPrincipal() {
+<span class="fc" id="L53">		return impersonatedPrincipal;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>
