@@ -216,5 +216,15 @@ public class OidcIdToken extends Jwt {
 <span class="fc" id="L216">		return accessToken;</span>
 	}
 
+	/**
+	 * Gets the access token as a bearer token.
+	 * 
+	 * @return bearer token
+	 */
+	public BearerToken getBearerToken() {
+<span class="fc" id="L225">		return new BearerToken(getIssuer().toString(), getIssuedAt(), getAuthTime(), getExpires(), getSubject(),</span>
+				accessToken);
+	}
+
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,4 +1,35 @@
-<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>SelfIssuedAccessToken.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-auth-config</a> &gt; <a href="index.source.html" class="el_package">iu.auth.config</a> &gt; <span class="el_source">SelfIssuedAccessToken.java</span></div><h1>SelfIssuedAccessToken.java</h1><pre class="source lang-java linenums">package iu.auth.config;
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>SelfIssuedAccessToken.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-auth-config</a> &gt; <a href="index.source.html" class="el_package">iu.auth.config</a> &gt; <span class="el_source">SelfIssuedAccessToken.java</span></div><h1>SelfIssuedAccessToken.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2026 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.config;
 
 import java.net.URI;
 import java.net.http.HttpRequest.Builder;
@@ -34,25 +65,25 @@ public class SelfIssuedAccessToken implements IuApiCredentials {
 	 * @param caller   Caller attributes
 	 */
 	public SelfIssuedAccessToken(IuPrivateKeyPrincipal pkp, URI audience, Duration tokenTtl,
-<span class="fc" id="L37">			IuCallerAttributes caller) {</span>
+<span class="fc" id="L68">			IuCallerAttributes caller) {</span>
 
-<span class="fc" id="L39">		Objects.requireNonNull(caller, &quot;missing caller attributes&quot;);</span>
-<span class="fc" id="L40">		final var authnPrincipal = Objects.requireNonNull(caller.getAuthnPrincipal(), &quot;missing authn_principal&quot;);</span>
-<span class="fc" id="L41">		Objects.requireNonNull(caller.getRemoteAddr(), &quot;missing remote_addr&quot;);</span>
-<span class="fc" id="L42">		Objects.requireNonNull(caller.getRequestUri(), &quot;missing request_uri&quot;);</span>
-<span class="fc" id="L43">		Objects.requireNonNull(caller.getUserAgent(), &quot;missing user_agent&quot;);</span>
+<span class="fc" id="L70">		Objects.requireNonNull(caller, &quot;missing caller attributes&quot;);</span>
+<span class="fc" id="L71">		final var authnPrincipal = Objects.requireNonNull(caller.getAuthnPrincipal(), &quot;missing authn_principal&quot;);</span>
+<span class="fc" id="L72">		Objects.requireNonNull(caller.getRemoteAddr(), &quot;missing remote_addr&quot;);</span>
+<span class="fc" id="L73">		Objects.requireNonNull(caller.getRequestUri(), &quot;missing request_uri&quot;);</span>
+<span class="fc" id="L74">		Objects.requireNonNull(caller.getUserAgent(), &quot;missing user_agent&quot;);</span>
 
-<span class="fc" id="L45">		final var impersonatedPrincipal = caller.getImpersonatedPrincipal();</span>
-<span class="fc bfc" id="L46" title="All 2 branches covered.">		final var sub = impersonatedPrincipal == null ? authnPrincipal : impersonatedPrincipal;</span>
+<span class="fc" id="L76">		final var impersonatedPrincipal = caller.getImpersonatedPrincipal();</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">		final var sub = impersonatedPrincipal == null ? authnPrincipal : impersonatedPrincipal;</span>
 
-<span class="fc" id="L48">		final var jwk = pkp.getJwk();</span>
-<span class="fc" id="L49">		final var iss = URI.create(jwk.getKeyId());</span>
-<span class="fc" id="L50">		accessToken = RemoteAccessToken.builder().jti() //</span>
-<span class="fc" id="L51">				.iss(iss).aud(audience).sub(sub) //</span>
-<span class="fc" id="L52">				.iat().exp(Instant.now().plus(tokenTtl)) //</span>
-<span class="fc" id="L53">				.caller(caller).build();</span>
-<span class="fc" id="L54">		bearerToken = accessToken.sign(&quot;JWT&quot;, pkp.getAlg(), jwk);</span>
-<span class="fc" id="L55">	}</span>
+<span class="fc" id="L79">		final var jwk = pkp.getJwk();</span>
+<span class="fc" id="L80">		final var iss = URI.create(jwk.getKeyId());</span>
+<span class="fc" id="L81">		accessToken = RemoteAccessToken.builder().jti() //</span>
+<span class="fc" id="L82">				.iss(iss).aud(audience).sub(sub) //</span>
+<span class="fc" id="L83">				.iat().exp(Instant.now().plus(tokenTtl)) //</span>
+<span class="fc" id="L84">				.caller(caller).build();</span>
+<span class="fc" id="L85">		bearerToken = accessToken.sign(&quot;JWT&quot;, pkp.getAlg(), jwk);</span>
+<span class="fc" id="L86">	}</span>
 
 	/**
 	 * Constructor, for use by the verifying server endpoint.
@@ -62,65 +93,74 @@ public class SelfIssuedAccessToken implements IuApiCredentials {
 	 * @param tokenTtl    Duration between token issue and expiration times
 	 * @param bearerToken Bearer token
 	 */
-<span class="fc" id="L65">	public SelfIssuedAccessToken(IuPrivateKeyPrincipal pkp, URI audience, Duration tokenTtl, String bearerToken) {</span>
-<span class="fc" id="L66">		this.bearerToken = bearerToken;</span>
-<span class="fc" id="L67">		final var jwk = pkp.getJwk();</span>
-<span class="fc" id="L68">		final var iss = URI.create(jwk.getKeyId());</span>
-<span class="fc" id="L69">		accessToken = new RemoteAccessToken(Jwt.verify(bearerToken, jwk));</span>
-<span class="fc" id="L70">		accessToken.validateClaims(audience, tokenTtl);</span>
-<span class="fc" id="L71">		IuObject.once(iss, accessToken.getIssuer(), &quot;issuer mismatch&quot;);</span>
+<span class="fc" id="L96">	public SelfIssuedAccessToken(IuPrivateKeyPrincipal pkp, URI audience, Duration tokenTtl, String bearerToken) {</span>
+<span class="fc" id="L97">		this.bearerToken = bearerToken;</span>
+<span class="fc" id="L98">		final var jwk = pkp.getJwk();</span>
+<span class="fc" id="L99">		final var iss = URI.create(jwk.getKeyId());</span>
+<span class="fc" id="L100">		accessToken = new RemoteAccessToken(Jwt.verify(bearerToken, jwk));</span>
+<span class="fc" id="L101">		accessToken.validateClaims(audience, tokenTtl);</span>
+<span class="fc" id="L102">		IuObject.once(iss, accessToken.getIssuer(), &quot;issuer mismatch&quot;);</span>
 
-<span class="fc" id="L73">		final var caller = Objects.requireNonNull(accessToken.getCallerAttributes(), &quot;missing caller attributes&quot;);</span>
-<span class="fc" id="L74">		final var authnPrincipal = Objects.requireNonNull(caller.getAuthnPrincipal(), &quot;missing authn_principal&quot;);</span>
-<span class="fc" id="L75">		Objects.requireNonNull(caller.getRemoteAddr(), &quot;missing remote_addr&quot;);</span>
-<span class="fc" id="L76">		Objects.requireNonNull(caller.getRequestUri(), &quot;missing request_uri&quot;);</span>
-<span class="fc" id="L77">		Objects.requireNonNull(caller.getUserAgent(), &quot;missing user_agent&quot;);</span>
+<span class="fc" id="L104">		final var caller = Objects.requireNonNull(accessToken.getCallerAttributes(), &quot;missing caller attributes&quot;);</span>
+<span class="fc" id="L105">		final var authnPrincipal = Objects.requireNonNull(caller.getAuthnPrincipal(), &quot;missing authn_principal&quot;);</span>
+<span class="fc" id="L106">		Objects.requireNonNull(caller.getRemoteAddr(), &quot;missing remote_addr&quot;);</span>
+<span class="fc" id="L107">		Objects.requireNonNull(caller.getRequestUri(), &quot;missing request_uri&quot;);</span>
+<span class="fc" id="L108">		Objects.requireNonNull(caller.getUserAgent(), &quot;missing user_agent&quot;);</span>
 
-<span class="fc" id="L79">		final var sub = accessToken.getSubject();</span>
-<span class="fc bfc" id="L80" title="All 2 branches covered.">		if (!authnPrincipal.equals(sub) //</span>
-<span class="fc bfc" id="L81" title="All 2 branches covered.">				&amp;&amp; !sub.equals(caller.getImpersonatedPrincipal()))</span>
-<span class="fc" id="L82">			throw new IllegalArgumentException(&quot;sub mismatch&quot;);</span>
-<span class="fc" id="L83">	}</span>
+<span class="fc" id="L110">		final var sub = accessToken.getSubject();</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">		if (!authnPrincipal.equals(sub) //</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">				&amp;&amp; !sub.equals(caller.getImpersonatedPrincipal()))</span>
+<span class="fc" id="L113">			throw new IllegalArgumentException(&quot;sub mismatch&quot;);</span>
+<span class="fc" id="L114">	}</span>
 
 	@Override
 	public String getName() {
-<span class="fc" id="L87">		return accessToken.getSubject();</span>
+<span class="fc" id="L118">		return accessToken.getSubject();</span>
 	}
 
 	@Override
 	public String getIssuer() {
-<span class="fc" id="L92">		return accessToken.getIssuer().toString();</span>
+<span class="fc" id="L123">		return accessToken.getIssuer().toString();</span>
 	}
 
 	@Override
 	public Instant getIssuedAt() {
-<span class="fc" id="L97">		return accessToken.getIssuedAt();</span>
+<span class="fc" id="L128">		return accessToken.getIssuedAt();</span>
 	}
 
 	@Override
 	public Instant getAuthTime() {
-<span class="fc" id="L102">		return accessToken.getIssuedAt();</span>
+<span class="fc" id="L133">		return accessToken.getIssuedAt();</span>
 	}
 
 	@Override
 	public Instant getExpires() {
-<span class="fc" id="L107">		return accessToken.getExpires();</span>
+<span class="fc" id="L138">		return accessToken.getExpires();</span>
 	}
 
 	@Override
 	public Subject getSubject() {
-<span class="fc" id="L112">		return new Subject(true, Set.of(this), Set.of(accessToken.getCallerAttributes()), Set.of());</span>
+<span class="fc" id="L143">		return new Subject(true, Set.of(this), Set.of(accessToken.getCallerAttributes()), Set.of());</span>
+	}
+
+	/**
+	 * Gets the bearer token.
+	 * 
+	 * @return bearer token
+	 */
+	public String getBearerToken() {
+<span class="fc" id="L152">		return bearerToken;</span>
 	}
 
 	@Override
 	public void applyTo(Builder requestBuilder) throws IuAuthenticationException {
-<span class="fc" id="L117">		requestBuilder.header(&quot;Authorization&quot;, //</span>
+<span class="fc" id="L157">		requestBuilder.header(&quot;Authorization&quot;, //</span>
 				&quot;Bearer &quot; + bearerToken);
-<span class="fc" id="L119">	}</span>
+<span class="fc" id="L159">	}</span>
 
 	@Override
 	public String toString() {
-<span class="fc" id="L123">		return &quot;SelfIssuedAccessToken [&quot; + accessToken + &quot;]&quot;;</span>
+<span class="fc" id="L163">		return &quot;SelfIssuedAccessToken [&quot; + accessToken + &quot;]&quot;;</span>
 	}
 
 }
