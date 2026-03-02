@@ -29,42 +29,45 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth;
+package iu.auth.config;
 
-import java.net.HttpCookie;
-import java.net.URI;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
-/**
- * Encapsulates attributes commonly associated with an HTTP request.
- */
-public interface IuRequestAttributes {
+import java.net.http.HttpRequest;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Set;
 
-	/**
-	 * Gets the full request URI to the resource that issued the token.
-	 * 
-	 * @return Request URI
-	 */
-	URI getRequestUri();
+import javax.security.auth.Subject;
 
-	/**
-	 * Gets the remote client IP address.
-	 * 
-	 * @return IP address
-	 */
-	String getRemoteAddr();
+import org.junit.jupiter.api.Test;
 
-	/**
-	 * Gets the caller's user agent.
-	 * 
-	 * @return User-Agent header value
-	 */
-	String getUserAgent();
+import edu.iu.IdGenerator;
 
-	/**
-	 * Gets incoming request cookies.
-	 * 
-	 * @return request cookies
-	 */
-	Iterable<HttpCookie> getCookies();
+@SuppressWarnings("javadoc")
+public class BearerTokenTest {
+
+	@Test
+	void testProperties() {
+		final var issuer = IdGenerator.generateId();
+		final var iat = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+		final var authTime = iat.minusSeconds(2L);
+		final var exp = iat.plusSeconds(2L);
+		final var sub = IdGenerator.generateId();
+		final var token = IdGenerator.generateId();
+		final var bearerToken = new BearerToken(issuer, iat, authTime, exp, sub, token);
+		assertEquals(issuer, bearerToken.getIssuer());
+		assertEquals(iat, bearerToken.getIssuedAt());
+		assertEquals(authTime, bearerToken.getAuthTime());
+		assertEquals(exp, bearerToken.getExpires());
+		assertEquals(sub, bearerToken.getName());
+		assertEquals(new Subject(true, Set.of(bearerToken), Set.of(),Set.of()),bearerToken.getSubject());
+		final var rb = mock(HttpRequest.Builder.class);
+		assertDoesNotThrow(() -> bearerToken.applyTo(rb));
+		verify(rb).header("Authorization", "Bearer " + token);
+	}
 
 }

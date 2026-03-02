@@ -216,4 +216,14 @@ public class OidcIdToken extends Jwt {
 		return accessToken;
 	}
 
+	/**
+	 * Gets the access token as a bearer token.
+	 * 
+	 * @return bearer token
+	 */
+	public BearerToken getBearerToken() {
+		return new BearerToken(getIssuer().toString(), getIssuedAt(), getAuthTime(), getExpires(), getSubject(),
+				accessToken);
+	}
+
 }

@@ -35,9 +35,11 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.net.URI;
+import java.net.http.HttpRequest;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
@@ -119,6 +121,16 @@ public class OidcIdTokenTest {
 		assertEquals(name, verified.getFullName());
 		assertEquals(email, verified.getEmail());
 		assertEquals(role, verified.getRoles().iterator().next());
+
+		final var bearer = verified.getBearerToken();
+		assertEquals(sub, bearer.getName());
+		assertEquals(iss.toString(), bearer.getIssuer());
+		assertEquals(iat, bearer.getIssuedAt());
+		assertEquals(authTime, bearer.getAuthTime());
+		assertEquals(exp, bearer.getExpires());
+		final var rb = mock(HttpRequest.Builder.class);
+		assertDoesNotThrow(() -> bearer.applyTo(rb));
+		verify(rb).header("Authorization", "Bearer " + accessToken);
 	}
 
 	@Test

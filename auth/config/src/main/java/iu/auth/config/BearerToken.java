@@ -31,57 +31,79 @@
  */
 package iu.auth.config;
 
+import java.net.http.HttpRequest.Builder;
+import java.time.Instant;
 import java.util.Set;
 
-import edu.iu.IuIterable;
-import edu.iu.auth.config.IuOpenIdProviderMetadata;
-import edu.iu.auth.config.IuPrivateKeyPrincipal;
-import edu.iu.crypt.WebEncryption.Encryption;
-import edu.iu.crypt.WebKey;
-import edu.iu.crypt.WebKey.Algorithm;
-import edu.iu.crypt.WebKey.Use;
+import javax.security.auth.Subject;
+
+import edu.iu.auth.IuApiCredentials;
+import edu.iu.auth.IuAuthenticationException;
 
 /**
- * Provides public key metadata for an OIDC provider token issuer.
+ * Encapsulates a bearer token
  */
-public class OidcTokenIssuer implements IuPrivateKeyPrincipal {
+public class BearerToken implements IuApiCredentials {
 
-	private final IuOpenIdProviderMetadata oidcProvider;
+	private final String issuer;
+	private final Instant issuedAt;
+	private final Instant authTime;
+	private final Instant expires;
+	private final String name;
+	private final String token;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param oidcProvider OIDC provider metadata
+	 * @param issuer   token endpoint the token was issued from
+	 * @param issuedAt token point in time the token response was issued
+	 * @param authTime token authentication time, if known
+	 * @param expires  token expiration time
+	 * @param name     subject principal name
+	 * @param token    token value
 	 */
-	public OidcTokenIssuer(IuOpenIdProviderMetadata oidcProvider) {
-		this.oidcProvider = oidcProvider;
-	}
-
-	private <T> T firstOrNull(Set<T> s) {
-		if (s == null)
-			return null;
-		return s.stream().findFirst().orElse(null);
-	}
-
-	@Override
-	public Algorithm getAlg() {
-		return firstOrNull(oidcProvider.getIdTokenSigningAlgValuesSupported());
+	public BearerToken(String issuer, Instant issuedAt, Instant authTime, Instant expires, String name, String token) {
+		this.issuer = issuer;
+		this.issuedAt = issuedAt;
+		this.authTime = authTime;
+		this.expires = expires;
+		this.name = name;
+		this.token = token;
 	}
 
 	@Override
-	public Algorithm getEncryptAlg() {
-		return firstOrNull(oidcProvider.getIdTokenEncryptionAlgValuesSupported());
+	public String getIssuer() {
+		return issuer;
 	}
 
 	@Override
-	public Encryption getEnc() {
-		return firstOrNull(oidcProvider.getIdTokenEncryptionEncValuesSupported());
+	public Instant getIssuedAt() {
+		return issuedAt;
 	}
 
 	@Override
-	public WebKey getJwk() {
-		return IuIterable.filter(WebKey.readJwks(oidcProvider.getJwksUri()), jwk -> Use.SIGN.equals(jwk.getUse()))
-				.iterator().next();
+	public Instant getAuthTime() {
+		return authTime;
+	}
+
+	@Override
+	public Instant getExpires() {
+		return expires;
+	}
+
+	@Override
+	public Subject getSubject() {
+		return new Subject(true, Set.of(this), Set.of(), Set.of());
+	}
+
+	@Override
+	public String getName() {
+		return name;
+	}
+
+	@Override
+	public void applyTo(Builder httpRequestBuilder) throws IuAuthenticationException {
+		httpRequestBuilder.header("Authorization", "Bearer " + token);
 	}
 
 }
