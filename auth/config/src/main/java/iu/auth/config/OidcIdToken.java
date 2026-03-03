@@ -86,6 +86,18 @@ public class OidcIdToken extends Jwt {
 	}
 
 	/**
+	 * Creates a builder for generating a new ID token.
+	 * 
+	 * @param alg    Signature algorithm used to verify ID Token authenticity
+	 * @param client OAuth client configuration
+	 * @param maxAge Max length of time since last successful authentication
+	 * @return ID Token builder
+	 */
+	public static OidcIdTokenBuilder<?> builder(Algorithm alg, OAuthClient client, Duration maxAge) {
+		return new OidcIdTokenBuilder<>(alg, client, maxAge);
+	}
+
+	/**
 	 * Parses and verifies an ID token encoded with
 	 * {@link WebSignedPayload#compact() JWS compact serialization}.
 	 * 
