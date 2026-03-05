@@ -55,8 +55,8 @@ public class BearerToken implements IuApiCredentials {
 	/**
 	 * Constructor.
 	 * 
-	 * @param issuer   token endpoint the token was issued from
-	 * @param issuedAt token point in time the token response was issued
+	 * @param issuer   token issuer
+	 * @param issuedAt point in time the token response was issued
 	 * @param authTime token authentication time, if known
 	 * @param expires  token expiration time
 	 * @param name     subject principal name
