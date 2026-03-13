@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.auth.oauth.IuAuthorizationDetails;
-import edu.iu.auth.oauth.OAuthClient;
 import edu.iu.crypt.WebKey.Algorithm;
 
 @SuppressWarnings("javadoc")
@@ -41,11 +40,9 @@ public class OidcIdTokenBuilderTest {
 		final var nonce = IdGenerator.generateId();
 		final var alg = Algorithm.EDDSA;
 		final var clientId = IdGenerator.generateId();
-		final var client = mock(OAuthClient.class);
 		final var maxAge = Duration.ofHours(12L);
-		when(client.getClientId()).thenReturn(clientId);
 
-		final var idToken = OidcIdToken.builder(alg, client, maxAge).nonce(nonce) //
+		final var idToken = OidcIdToken.builder(alg, clientId, maxAge).nonce(nonce) //
 				.accessToken(accessToken) //
 				.iss(iss) //
 				.aud(aud) //
@@ -88,11 +85,9 @@ public class OidcIdTokenBuilderTest {
 		final var nonce = IdGenerator.generateId();
 		final var alg = Algorithm.EDDSA;
 		final var clientId = IdGenerator.generateId();
-		final var client = mock(OAuthClient.class);
 		final var maxAge = Duration.ofHours(12L);
-		when(client.getClientId()).thenReturn(clientId);
 
-		final var idToken = OidcIdToken.builder(alg, client, maxAge).nonce(nonce) //
+		final var idToken = OidcIdToken.builder(alg, clientId, maxAge).nonce(nonce) //
 				.accessToken(accessToken) //
 				.iss(iss) //
 				.aud(aud) //

@@ -41,7 +41,6 @@ import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.auth.oauth.IuAuthorizationDetails;
-import edu.iu.auth.oauth.OAuthClient;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
@@ -58,22 +57,22 @@ public class OidcIdTokenBuilder<B extends OidcIdTokenBuilder<B>> extends JwtBuil
 
 	private JsonArrayBuilder authorizationDetails = IuJson.array();
 
-	private Algorithm alg;
-	private OAuthClient client;
+	private final Algorithm alg;
+	private final String clientId;
+	private final Duration maxAge;
 	private String nonce;
 	private String accessToken;
-	private Duration maxAge;
 
 	/**
 	 * Default constructor.
 	 * 
-	 * @param alg    Signature algorithm used to verify ID Token authenticity
-	 * @param client OAuth client configuration
-	 * @param maxAge Max length of time since last successful authentication
+	 * @param alg      Signature algorithm used to verify ID Token authenticity
+	 * @param clientId Client ID to issue the token on behalf of
+	 * @param maxAge   Max length of time since last successful authentication
 	 */
-	protected OidcIdTokenBuilder(Algorithm alg, OAuthClient client, Duration maxAge) {
-		this.client = client;
+	protected OidcIdTokenBuilder(Algorithm alg, String clientId, Duration maxAge) {
 		this.alg = alg;
+		this.clientId = clientId;
 		this.maxAge = maxAge;
 	}
 
@@ -177,7 +176,7 @@ public class OidcIdTokenBuilder<B extends OidcIdTokenBuilder<B>> extends JwtBuil
 	@Override
 	public OidcIdToken build() {
 		prepare();
-		return new OidcIdToken(alg, client, nonce, accessToken, maxAge, toJson());
+		return new OidcIdToken(alg, clientId, nonce, accessToken, maxAge, toJson());
 	}
 
 }
