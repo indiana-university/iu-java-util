@@ -42,7 +42,6 @@ import java.util.Objects;
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuText;
-import edu.iu.auth.oauth.OAuthClient;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebEncryption;
@@ -58,7 +57,7 @@ import jakarta.json.JsonObject;
 public class OidcIdToken extends Jwt {
 
 	private final Algorithm alg;
-	private final OAuthClient client;
+	private final String clientId;
 	private final String nonce;
 	private final String accessToken;
 	private final Duration maxAge;
@@ -67,7 +66,7 @@ public class OidcIdToken extends Jwt {
 	 * Constructor.
 	 * 
 	 * @param alg         Signature algorithm used to verify ID Token authenticity
-	 * @param client      Client to which this token was issued
+	 * @param clientId    Client ID to which this token was issued
 	 * @param nonce       One-Time number (nonce) value provided with the original
 	 *                    authentication request
 	 * @param accessToken Access token issued with this ID token.
@@ -75,26 +74,26 @@ public class OidcIdToken extends Jwt {
 	 *                    authentication credentials were last verified.
 	 * @param claims      JWT claims
 	 */
-	public OidcIdToken(Algorithm alg, OAuthClient client, String nonce, String accessToken, Duration maxAge,
+	public OidcIdToken(Algorithm alg, String clientId, String nonce, String accessToken, Duration maxAge,
 			JsonObject claims) {
-<span class="fc" id="L80">		super(claims);</span>
-<span class="fc" id="L81">		this.alg = alg;</span>
-<span class="fc" id="L82">		this.client = client;</span>
-<span class="fc" id="L83">		this.nonce = nonce;</span>
-<span class="fc" id="L84">		this.accessToken = accessToken;</span>
-<span class="fc" id="L85">		this.maxAge = maxAge;</span>
-<span class="fc" id="L86">	}</span>
+<span class="fc" id="L79">		super(claims);</span>
+<span class="fc" id="L80">		this.alg = alg;</span>
+<span class="fc" id="L81">		this.clientId = clientId;</span>
+<span class="fc" id="L82">		this.nonce = nonce;</span>
+<span class="fc" id="L83">		this.accessToken = accessToken;</span>
+<span class="fc" id="L84">		this.maxAge = maxAge;</span>
+<span class="fc" id="L85">	}</span>
 
 	/**
 	 * Creates a builder for generating a new ID token.
 	 * 
-	 * @param alg    Signature algorithm used to verify ID Token authenticity
-	 * @param client OAuth client configuration
-	 * @param maxAge Max length of time since last successful authentication
+	 * @param alg      Signature algorithm used to verify ID Token authenticity
+	 * @param clientId Client ID to issue a token on behalf of
+	 * @param maxAge   Max length of time since last successful authentication
 	 * @return ID Token builder
 	 */
-	public static OidcIdTokenBuilder&lt;?&gt; builder(Algorithm alg, OAuthClient client, Duration maxAge) {
-<span class="fc" id="L97">		return new OidcIdTokenBuilder&lt;&gt;(alg, client, maxAge);</span>
+	public static OidcIdTokenBuilder&lt;?&gt; builder(Algorithm alg, String clientId, Duration maxAge) {
+<span class="fc" id="L96">		return new OidcIdTokenBuilder&lt;&gt;(alg, clientId, maxAge);</span>
 	}
 
 	/**
@@ -104,7 +103,7 @@ public class OidcIdToken extends Jwt {
 	 * @param jwt         {@link WebSignedPayload#compact() JWS compact
 	 *                    serialization}
 	 * @param issuerKey   Issuer public {@link WebKey}
-	 * @param client      Client to which this token was issued
+	 * @param clientId    Client ID to which this token was issued
 	 * @param nonce       One-Time number (nonce) value provided with the original
 	 *                    authentication request
 	 * @param accessToken Access token issued with this ID token.
@@ -112,14 +111,14 @@ public class OidcIdToken extends Jwt {
 	 *                    authentication credentials were last verified.
 	 * @return {@link OidcIdToken}
 	 */
-	public static OidcIdToken verify(String jwt, WebKey issuerKey, OAuthClient client, String nonce, String accessToken,
+	public static OidcIdToken verify(String jwt, WebKey issuerKey, String clientId, String nonce, String accessToken,
 			Duration maxAge) {
-<span class="fc" id="L117">		final var jws = WebSignedPayload.parse(jwt);</span>
-<span class="fc" id="L118">		jws.verify(issuerKey);</span>
-<span class="fc" id="L119">		final var claims = IuJson.parse(IuText.utf8(jws.getPayload())).asJsonObject();</span>
+<span class="fc" id="L116">		final var jws = WebSignedPayload.parse(jwt);</span>
+<span class="fc" id="L117">		jws.verify(issuerKey);</span>
+<span class="fc" id="L118">		final var claims = IuJson.parse(IuText.utf8(jws.getPayload())).asJsonObject();</span>
 
-<span class="fc" id="L121">		final var alg = jws.getSignatures().iterator().next().getHeader().getAlgorithm();</span>
-<span class="fc" id="L122">		return new OidcIdToken(alg, client, nonce, accessToken, maxAge, claims);</span>
+<span class="fc" id="L120">		final var alg = jws.getSignatures().iterator().next().getHeader().getAlgorithm();</span>
+<span class="fc" id="L121">		return new OidcIdToken(alg, clientId, nonce, accessToken, maxAge, claims);</span>
 	}
 
 	/**
@@ -131,7 +130,7 @@ public class OidcIdToken extends Jwt {
 	 * @param issuerKey   Issuer public {@link WebKey}
 	 * @param audienceKey Audience private {@link WebKey}, ignored if the JWT is not
 	 *                    encrypted
-	 * @param client      Client to which this token was issued
+	 * @param clientId    Client ID to which this token was issued
 	 * @param nonce       One-Time number (nonce) value provided with the original
 	 *                    authentication request
 	 * @param accessToken Access token issued with this ID token.
@@ -139,49 +138,49 @@ public class OidcIdToken extends Jwt {
 	 *                    authentication credentials were last verified.
 	 * @return {@link JsonObject} of token claims
 	 */
-	public static OidcIdToken decryptAndVerify(String jwt, WebKey issuerKey, WebKey audienceKey, OAuthClient client,
+	public static OidcIdToken decryptAndVerify(String jwt, WebKey issuerKey, WebKey audienceKey, String clientId,
 			String nonce, String accessToken, Duration maxAge) {
-<span class="fc" id="L144">		return verify(</span>
-<span class="fc" id="L145">				WebEncryption.parse(jwt)</span>
-<span class="fc" id="L146">						.decryptText(Objects.requireNonNull(audienceKey, &quot;Missing audience key for decryption&quot;)),</span>
-				issuerKey, client, nonce, accessToken, maxAge);
+<span class="fc" id="L143">		return verify(</span>
+<span class="fc" id="L144">				WebEncryption.parse(jwt)</span>
+<span class="fc" id="L145">						.decryptText(Objects.requireNonNull(audienceKey, &quot;Missing audience key for decryption&quot;)),</span>
+				issuerKey, clientId, nonce, accessToken, maxAge);
 	}
 
 	@Override
 	public void validateClaims(URI expectedAudience, Duration ttl) {
-<span class="fc" id="L152">		super.validateClaims(expectedAudience, ttl);</span>
+<span class="fc" id="L151">		super.validateClaims(expectedAudience, ttl);</span>
 
-<span class="fc" id="L154">		final var azp = IuJson.get(claims, &quot;azp&quot;);</span>
-<span class="fc bfc" id="L155" title="All 2 branches covered.">		if (azp != null)</span>
-<span class="fc" id="L156">			IuObject.once(client.getClientId(), azp, &quot;azp must match client_id&quot;);</span>
+<span class="fc" id="L153">		final var azp = IuJson.get(claims, &quot;azp&quot;);</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">		if (azp != null)</span>
+<span class="fc" id="L155">			IuObject.once(clientId, azp, &quot;azp must match client_id&quot;);</span>
 
-<span class="fc" id="L158">		final var nonce = getNonce();</span>
-<span class="fc bfc" id="L159" title="All 2 branches covered.">		if (this.nonce == null) {</span>
-<span class="fc bfc" id="L160" title="All 2 branches covered.">			if (nonce != null)</span>
-<span class="fc" id="L161">				throw new IllegalArgumentException(&quot;Unexpected nonce claim&quot;);</span>
-<span class="fc bfc" id="L162" title="All 2 branches covered.">		} else if (nonce == null)</span>
-<span class="fc" id="L163">			throw new IllegalArgumentException(&quot;Expected nonce claim&quot;);</span>
+<span class="fc" id="L157">		final var nonce = getNonce();</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">		if (this.nonce == null) {</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">			if (nonce != null)</span>
+<span class="fc" id="L160">				throw new IllegalArgumentException(&quot;Unexpected nonce claim&quot;);</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">		} else if (nonce == null)</span>
+<span class="fc" id="L162">			throw new IllegalArgumentException(&quot;Expected nonce claim&quot;);</span>
 		else
-<span class="fc" id="L165">			IuObject.once(nonce, IuJson.get(claims, &quot;nonce&quot;), &quot;nonce mismatch&quot;);</span>
+<span class="fc" id="L164">			IuObject.once(nonce, IuJson.get(claims, &quot;nonce&quot;), &quot;nonce mismatch&quot;);</span>
 
-<span class="fc bfc" id="L167" title="All 2 branches covered.">		if (maxAge != null) {</span>
-<span class="fc" id="L168">			final var authTime = Objects.requireNonNull(getAuthTime(), &quot;Missing auth_time claim&quot;);</span>
-<span class="fc" id="L169">			final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);</span>
-<span class="fc" id="L170">			final var authAge = Duration.between(authTime, now);</span>
-<span class="fc bfc" id="L171" title="All 2 branches covered.">			if (authAge.compareTo(maxAge) &gt;= 0)</span>
-<span class="fc" id="L172">				throw new IllegalArgumentException(</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">		if (maxAge != null) {</span>
+<span class="fc" id="L167">			final var authTime = Objects.requireNonNull(getAuthTime(), &quot;Missing auth_time claim&quot;);</span>
+<span class="fc" id="L168">			final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);</span>
+<span class="fc" id="L169">			final var authAge = Duration.between(authTime, now);</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">			if (authAge.compareTo(maxAge) &gt;= 0)</span>
+<span class="fc" id="L171">				throw new IllegalArgumentException(</span>
 						&quot;Authenticated session lifetime &quot; + authAge + &quot; exceeds maximum &quot; + maxAge);
 		}
 
-<span class="fc bfc" id="L176" title="All 2 branches covered.">		if (accessToken != null) {</span>
-<span class="fc" id="L177">			final var atHash = Objects.requireNonNull(IuJson.get(claims, &quot;at_hash&quot;), &quot;Missing at_hash claim&quot;);</span>
-<span class="fc" id="L178">			final var sha = IuException.unchecked(() -&gt; MessageDigest.getInstance(&quot;SHA-&quot; + alg.size));</span>
-<span class="fc" id="L179">			final var hash = sha.digest(IuText.ascii(accessToken));</span>
-<span class="fc" id="L180">			final var halfHash = Arrays.copyOfRange(hash, 0, alg.size / 16);</span>
-<span class="fc bfc" id="L181" title="All 2 branches covered.">			if (!IuText.base64Url(halfHash).equals(atHash))</span>
-<span class="fc" id="L182">				throw new IllegalArgumentException(&quot;at_hash mismatch&quot;);</span>
+<span class="fc bfc" id="L175" title="All 2 branches covered.">		if (accessToken != null) {</span>
+<span class="fc" id="L176">			final var atHash = Objects.requireNonNull(IuJson.get(claims, &quot;at_hash&quot;), &quot;Missing at_hash claim&quot;);</span>
+<span class="fc" id="L177">			final var sha = IuException.unchecked(() -&gt; MessageDigest.getInstance(&quot;SHA-&quot; + alg.size));</span>
+<span class="fc" id="L178">			final var hash = sha.digest(IuText.ascii(accessToken));</span>
+<span class="fc" id="L179">			final var halfHash = Arrays.copyOfRange(hash, 0, alg.size / 16);</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">			if (!IuText.base64Url(halfHash).equals(atHash))</span>
+<span class="fc" id="L181">				throw new IllegalArgumentException(&quot;at_hash mismatch&quot;);</span>
 		}
-<span class="fc" id="L184">	}</span>
+<span class="fc" id="L183">	}</span>
 
 	/**
 	 * Gets the full display name.
@@ -189,7 +188,7 @@ public class OidcIdToken extends Jwt {
 	 * @return full display name
 	 */
 	public String getFullName() {
-<span class="fc" id="L192">		return IuJson.get(claims, &quot;name&quot;);</span>
+<span class="fc" id="L191">		return IuJson.get(claims, &quot;name&quot;);</span>
 	}
 
 	/**
@@ -198,7 +197,7 @@ public class OidcIdToken extends Jwt {
 	 * @return preferred email address
 	 */
 	public String getEmail() {
-<span class="fc" id="L201">		return IuJson.get(claims, &quot;email&quot;);</span>
+<span class="fc" id="L200">		return IuJson.get(claims, &quot;email&quot;);</span>
 	}
 
 	/**
@@ -207,7 +206,7 @@ public class OidcIdToken extends Jwt {
 	 * @return auth_time claim
 	 */
 	public Instant getAuthTime() {
-<span class="fc" id="L210">		return IuJson.get(claims, &quot;auth_time&quot;, NUMERIC_DATE);</span>
+<span class="fc" id="L209">		return IuJson.get(claims, &quot;auth_time&quot;, NUMERIC_DATE);</span>
 	}
 
 	/**
@@ -216,7 +215,7 @@ public class OidcIdToken extends Jwt {
 	 * @return authorized roles
 	 */
 	public Iterable&lt;String&gt; getRoles() {
-<span class="fc" id="L219">		return IuJson.get(claims, &quot;roles&quot;, IuJsonAdapter.of(Iterable.class, IuJsonAdapter.of(String.class)));</span>
+<span class="fc" id="L218">		return IuJson.get(claims, &quot;roles&quot;, IuJsonAdapter.of(Iterable.class, IuJsonAdapter.of(String.class)));</span>
 	}
 
 	/**
@@ -225,7 +224,7 @@ public class OidcIdToken extends Jwt {
 	 * @return access token
 	 */
 	public String getAccessToken() {
-<span class="fc" id="L228">		return accessToken;</span>
+<span class="fc" id="L227">		return accessToken;</span>
 	}
 
 	/**
@@ -234,7 +233,7 @@ public class OidcIdToken extends Jwt {
 	 * @return bearer token
 	 */
 	public BearerToken getBearerToken() {
-<span class="fc" id="L237">		return new BearerToken(getIssuer().toString(), getIssuedAt(), getAuthTime(), getExpires(), getSubject(),</span>
+<span class="fc" id="L236">		return new BearerToken(getIssuer().toString(), getIssuedAt(), getAuthTime(), getExpires(), getSubject(),</span>
 				accessToken);
 	}
 

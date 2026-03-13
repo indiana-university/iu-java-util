@@ -41,7 +41,6 @@ import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.auth.oauth.IuAuthorizationDetails;
-import edu.iu.auth.oauth.OAuthClient;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
@@ -56,31 +55,31 @@ import jakarta.json.JsonArrayBuilder;
  */
 public class OidcIdTokenBuilder&lt;B extends OidcIdTokenBuilder&lt;B&gt;&gt; extends JwtBuilder&lt;B&gt; {
 
-<span class="fc" id="L59">	private JsonArrayBuilder authorizationDetails = IuJson.array();</span>
+<span class="fc" id="L58">	private JsonArrayBuilder authorizationDetails = IuJson.array();</span>
 
-	private Algorithm alg;
-	private OAuthClient client;
+	private final Algorithm alg;
+	private final String clientId;
+	private final Duration maxAge;
 	private String nonce;
 	private String accessToken;
-	private Duration maxAge;
 
 	/**
 	 * Default constructor.
 	 * 
-	 * @param alg    Signature algorithm used to verify ID Token authenticity
-	 * @param client OAuth client configuration
-	 * @param maxAge Max length of time since last successful authentication
+	 * @param alg      Signature algorithm used to verify ID Token authenticity
+	 * @param clientId Client ID to issue the token on behalf of
+	 * @param maxAge   Max length of time since last successful authentication
 	 */
-<span class="fc" id="L74">	protected OidcIdTokenBuilder(Algorithm alg, OAuthClient client, Duration maxAge) {</span>
-<span class="fc" id="L75">		this.client = client;</span>
-<span class="fc" id="L76">		this.alg = alg;</span>
-<span class="fc" id="L77">		this.maxAge = maxAge;</span>
-<span class="fc" id="L78">	}</span>
+<span class="fc" id="L73">	protected OidcIdTokenBuilder(Algorithm alg, String clientId, Duration maxAge) {</span>
+<span class="fc" id="L74">		this.alg = alg;</span>
+<span class="fc" id="L75">		this.clientId = clientId;</span>
+<span class="fc" id="L76">		this.maxAge = maxAge;</span>
+<span class="fc" id="L77">	}</span>
 
 	@Override
 	public B nonce(String nonce) {
-<span class="fc" id="L82">		this.nonce = nonce;</span>
-<span class="fc" id="L83">		return super.nonce(nonce);</span>
+<span class="fc" id="L81">		this.nonce = nonce;</span>
+<span class="fc" id="L82">		return super.nonce(nonce);</span>
 	}
 
 	/**
@@ -91,8 +90,8 @@ public class OidcIdTokenBuilder&lt;B extends OidcIdTokenBuilder&lt;B&gt;&gt; ext
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	public B fullName(String name) {
-<span class="fc" id="L94">		param(&quot;name&quot;, name);</span>
-<span class="fc" id="L95">		return (B) this;</span>
+<span class="fc" id="L93">		param(&quot;name&quot;, name);</span>
+<span class="fc" id="L94">		return (B) this;</span>
 	}
 
 	/**
@@ -103,8 +102,8 @@ public class OidcIdTokenBuilder&lt;B extends OidcIdTokenBuilder&lt;B&gt;&gt; ext
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	public B email(String email) {
-<span class="fc" id="L106">		param(&quot;email&quot;, email);</span>
-<span class="fc" id="L107">		return (B) this;</span>
+<span class="fc" id="L105">		param(&quot;email&quot;, email);</span>
+<span class="fc" id="L106">		return (B) this;</span>
 	}
 
 	/**
@@ -115,8 +114,8 @@ public class OidcIdTokenBuilder&lt;B extends OidcIdTokenBuilder&lt;B&gt;&gt; ext
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	public B authTime(Instant authTime) {
-<span class="fc" id="L118">		param(&quot;auth_time&quot;, authTime.getEpochSecond(), IuJsonAdapter.of(Long.class));</span>
-<span class="fc" id="L119">		return (B) this;</span>
+<span class="fc" id="L117">		param(&quot;auth_time&quot;, authTime.getEpochSecond(), IuJsonAdapter.of(Long.class));</span>
+<span class="fc" id="L118">		return (B) this;</span>
 	}
 
 	/**
@@ -127,8 +126,8 @@ public class OidcIdTokenBuilder&lt;B extends OidcIdTokenBuilder&lt;B&gt;&gt; ext
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	public B roles(String... roles) {
-<span class="fc" id="L130">		param(&quot;roles&quot;, roles, IuJsonAdapter.of(String[].class));</span>
-<span class="fc" id="L131">		return (B) this;</span>
+<span class="fc" id="L129">		param(&quot;roles&quot;, roles, IuJsonAdapter.of(String[].class));</span>
+<span class="fc" id="L130">		return (B) this;</span>
 	}
 
 	/**
@@ -139,14 +138,14 @@ public class OidcIdTokenBuilder&lt;B extends OidcIdTokenBuilder&lt;B&gt;&gt; ext
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	public B accessToken(String accessToken) {
-<span class="fc" id="L142">		this.accessToken = IuObject.once(this.accessToken, accessToken);</span>
+<span class="fc" id="L141">		this.accessToken = IuObject.once(this.accessToken, accessToken);</span>
 
-<span class="fc" id="L144">		final var sha = IuException.unchecked(() -&gt; MessageDigest.getInstance(&quot;SHA-&quot; + alg.size));</span>
-<span class="fc" id="L145">		final var hash = sha.digest(IuText.ascii(accessToken));</span>
-<span class="fc" id="L146">		final var halfHash = Arrays.copyOfRange(hash, 0, alg.size / 16);</span>
-<span class="fc" id="L147">		param(&quot;at_hash&quot;, IuText.base64Url(halfHash));</span>
+<span class="fc" id="L143">		final var sha = IuException.unchecked(() -&gt; MessageDigest.getInstance(&quot;SHA-&quot; + alg.size));</span>
+<span class="fc" id="L144">		final var hash = sha.digest(IuText.ascii(accessToken));</span>
+<span class="fc" id="L145">		final var halfHash = Arrays.copyOfRange(hash, 0, alg.size / 16);</span>
+<span class="fc" id="L146">		param(&quot;at_hash&quot;, IuText.base64Url(halfHash));</span>
 
-<span class="fc" id="L149">		return (B) this;</span>
+<span class="fc" id="L148">		return (B) this;</span>
 	}
 
 	/**
@@ -159,25 +158,25 @@ public class OidcIdTokenBuilder&lt;B extends OidcIdTokenBuilder&lt;B&gt;&gt; ext
 	 */
 	@SuppressWarnings(&quot;unchecked&quot;)
 	public &lt;T extends IuAuthorizationDetails&gt; B authorizationDetails(Class&lt;T&gt; type, T authorizationDetails) {
-<span class="fc" id="L162">		final var json = IuJsonAdapter.adapt(type, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES)</span>
-<span class="fc" id="L163">				.toJson(authorizationDetails);</span>
-<span class="fc" id="L164">		Objects.requireNonNull(json.asJsonObject().get(&quot;type&quot;), &quot;missing type&quot;);</span>
-<span class="fc" id="L165">		this.authorizationDetails.add(json);</span>
-<span class="fc" id="L166">		return (B) this;</span>
+<span class="fc" id="L161">		final var json = IuJsonAdapter.adapt(type, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES)</span>
+<span class="fc" id="L162">				.toJson(authorizationDetails);</span>
+<span class="fc" id="L163">		Objects.requireNonNull(json.asJsonObject().get(&quot;type&quot;), &quot;missing type&quot;);</span>
+<span class="fc" id="L164">		this.authorizationDetails.add(json);</span>
+<span class="fc" id="L165">		return (B) this;</span>
 	}
 
 	@Override
 	protected void prepare() {
-<span class="fc" id="L171">		super.prepare();</span>
-<span class="fc" id="L172">		final var authorizationDetails = this.authorizationDetails.build();</span>
-<span class="fc bfc" id="L173" title="All 2 branches covered.">		if (!authorizationDetails.isEmpty())</span>
-<span class="fc" id="L174">			param(&quot;authorization_details&quot;, authorizationDetails);</span>
-<span class="fc" id="L175">	}</span>
+<span class="fc" id="L170">		super.prepare();</span>
+<span class="fc" id="L171">		final var authorizationDetails = this.authorizationDetails.build();</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">		if (!authorizationDetails.isEmpty())</span>
+<span class="fc" id="L173">			param(&quot;authorization_details&quot;, authorizationDetails);</span>
+<span class="fc" id="L174">	}</span>
 
 	@Override
 	public OidcIdToken build() {
-<span class="fc" id="L179">		prepare();</span>
-<span class="fc" id="L180">		return new OidcIdToken(alg, client, nonce, accessToken, maxAge, toJson());</span>
+<span class="fc" id="L178">		prepare();</span>
+<span class="fc" id="L179">		return new OidcIdToken(alg, clientId, nonce, accessToken, maxAge, toJson());</span>
 	}
 
 }
