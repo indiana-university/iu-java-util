@@ -95,6 +95,7 @@ public class SelfIssuedAccessTokenTest {
 		assertNotNull(iat);
 		assertEquals(tokenTtl, Duration.between(iat, accessToken.getExpires()));
 		assertEquals(iat, accessToken.getAuthTime());
+		assertNotNull(accessToken.getAccessToken().getTokenId());
 
 		final var sub = accessToken.getSubject();
 		assertEquals(Set.of(accessToken), sub.getPrincipals());

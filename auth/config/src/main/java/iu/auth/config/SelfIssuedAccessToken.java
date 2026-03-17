@@ -144,6 +144,15 @@ public class SelfIssuedAccessToken implements IuApiCredentials {
 	}
 
 	/**
+	 * Gets the verified access token.
+	 * 
+	 * @return access token
+	 */
+	public RemoteAccessToken getAccessToken() {
+		return accessToken;
+	}
+
+	/**
 	 * Gets the bearer token.
 	 * 
 	 * @return bearer token
