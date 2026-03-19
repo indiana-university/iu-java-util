@@ -144,23 +144,32 @@ public class SelfIssuedAccessToken implements IuApiCredentials {
 	}
 
 	/**
+	 * Gets the verified access token.
+	 * 
+	 * @return access token
+	 */
+	public RemoteAccessToken getAccessToken() {
+<span class="fc" id="L152">		return accessToken;</span>
+	}
+
+	/**
 	 * Gets the bearer token.
 	 * 
 	 * @return bearer token
 	 */
 	public String getBearerToken() {
-<span class="fc" id="L152">		return bearerToken;</span>
+<span class="fc" id="L161">		return bearerToken;</span>
 	}
 
 	@Override
 	public void applyTo(Builder requestBuilder) throws IuAuthenticationException {
-<span class="fc" id="L157">		requestBuilder.header(&quot;Authorization&quot;, //</span>
+<span class="fc" id="L166">		requestBuilder.header(&quot;Authorization&quot;, //</span>
 				&quot;Bearer &quot; + bearerToken);
-<span class="fc" id="L159">	}</span>
+<span class="fc" id="L168">	}</span>
 
 	@Override
 	public String toString() {
-<span class="fc" id="L163">		return &quot;SelfIssuedAccessToken [&quot; + accessToken + &quot;]&quot;;</span>
+<span class="fc" id="L172">		return &quot;SelfIssuedAccessToken [&quot; + accessToken + &quot;]&quot;;</span>
 	}
 
 }

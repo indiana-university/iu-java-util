@@ -32,7 +32,6 @@
 package edu.iu.auth.config;
 
 import java.net.URI;
-import java.util.Set;
 
 import edu.iu.auth.config.IuAuthorizationClient.AuthMethod;
 import edu.iu.crypt.WebEncryption.Encryption;
@@ -117,18 +116,18 @@ public interface IuOpenIdProviderMetadata {
 	 * parameter is used, although those defined in [OpenID.Core] SHOULD be listed,
 	 * if supported.
 	 * 
-	 * @return {@link Set} of OAuth 2.0 scope values
+	 * @return {@link Iterable} of OAuth 2.0 scope values
 	 */
-	Set&lt;String&gt; getScopesSupported();
+	Iterable&lt;String&gt; getScopesSupported();
 
 	/**
 	 * JSON array containing a list of the OAuth 2.0 response_type values that this
 	 * OP supports. Dynamic OpenID Providers MUST support the code, id_token, and
 	 * the id_token token Response Type values.
 	 * 
-	 * @return {@link Set} of OAuth 2.0 response types
+	 * @return {@link Iterable} of OAuth 2.0 response types
 	 */
-	Set&lt;String&gt; getResponseTypesSupported();
+	Iterable&lt;String&gt; getResponseTypesSupported();
 
 	/**
 	 * JSON array containing a list of the OAuth 2.0 response_mode values that this
@@ -136,9 +135,9 @@ public interface IuOpenIdProviderMetadata {
 	 * Practices [OAuth.Responses]. If omitted, the default for Dynamic OpenID
 	 * Providers is [&quot;query&quot;, &quot;fragment&quot;].
 	 * 
-	 * @return {@link Set} of OAuth 2.0 response modes
+	 * @return {@link Iterable} of OAuth 2.0 response modes
 	 */
-	Set&lt;String&gt; getResponseModesSupported();
+	Iterable&lt;String&gt; getResponseModesSupported();
 
 	/**
 	 * JSON array containing a list of the OAuth 2.0 Grant Type values that this OP
@@ -146,25 +145,25 @@ public interface IuOpenIdProviderMetadata {
 	 * implicit Grant Type values and MAY support other Grant Types. If omitted, the
 	 * default value is [&quot;authorization_code&quot;, &quot;implicit&quot;].
 	 * 
-	 * @return {@link Set} of OAuth 2.0 grant types
+	 * @return {@link Iterable} of OAuth 2.0 grant types
 	 */
-	Set&lt;String&gt; getGrantTypesSupported();
+	Iterable&lt;String&gt; getGrantTypesSupported();
 
 	/**
 	 * JSON array containing a list of the Authentication Context Class Reference
 	 * values that this OP supports.
 	 * 
-	 * @return {@link Set} of ACR values
+	 * @return {@link Iterable} of ACR values
 	 */
-	Set&lt;String&gt; getAcrValuesSupported();
+	Iterable&lt;String&gt; getAcrValuesSupported();
 
 	/**
 	 * JSON array containing a list of the Subject Identifier types that this OP
 	 * supports. Valid types include pairwise and public.
 	 * 
-	 * @return {@link Set} of subject types
+	 * @return {@link Iterable} of subject types
 	 */
-	Set&lt;String&gt; getSubjectTypesSupported();
+	Iterable&lt;String&gt; getSubjectTypesSupported();
 
 	/**
 	 * JSON array containing a list of the JWS signing algorithms (alg values)
@@ -173,51 +172,51 @@ public interface IuOpenIdProviderMetadata {
 	 * NOT be used unless the Response Type used returns no ID Token from the
 	 * Authorization Endpoint (such as when using the Authorization Code Flow).
 	 * 
-	 * @return {@link Set} of {@link Algorithm}
+	 * @return {@link Iterable} of {@link Algorithm}
 	 */
-	Set&lt;Algorithm&gt; getIdTokenSigningAlgValuesSupported();
+	Iterable&lt;Algorithm&gt; getIdTokenSigningAlgValuesSupported();
 
 	/**
 	 * JSON array containing a list of the JWE encryption algorithms (alg values)
 	 * supported by the OP for the ID Token to encode the Claims in a JWT [JWT].
 	 * 
-	 * @return {@link Set} of {@link Algorithm}
+	 * @return {@link Iterable} of {@link Algorithm}
 	 */
-	Set&lt;Algorithm&gt; getIdTokenEncryptionAlgValuesSupported();
+	Iterable&lt;Algorithm&gt; getIdTokenEncryptionAlgValuesSupported();
 
 	/**
 	 * JSON array containing a list of the JWE encryption algorithms (enc values)
 	 * supported by the OP for the ID Token to encode the Claims in a JWT [JWT].
 	 * 
-	 * @return {@link Set} of {@link Encryption}
+	 * @return {@link Iterable} of {@link Encryption}
 	 */
-	Set&lt;Encryption&gt; getIdTokenEncryptionEncValuesSupported();
+	Iterable&lt;Encryption&gt; getIdTokenEncryptionEncValuesSupported();
 
 	/**
 	 * JSON array containing a list of the JWS [JWS] signing algorithms (alg values)
 	 * [JWA] supported by the UserInfo Endpoint to encode the Claims in a JWT [JWT].
 	 * The value none MAY be included.
 	 * 
-	 * @return {@link Set} of {@link Algorithm}
+	 * @return {@link Iterable} of {@link Algorithm}
 	 */
-	Set&lt;Algorithm&gt; getUserinfoSigningAlgValuesSupported();
+	Iterable&lt;Algorithm&gt; getUserinfoSigningAlgValuesSupported();
 
 	/**
 	 * JSON array containing a list of the JWE [JWE] encryption algorithms (alg
 	 * values) [JWA] supported by the UserInfo Endpoint to encode the Claims in a
 	 * JWT [JWT].
 	 * 
-	 * @return {@link Set} of {@link Algorithm}
+	 * @return {@link Iterable} of {@link Algorithm}
 	 */
-	Set&lt;Algorithm&gt; getUserinfoEncryptionAlgValuesSupported();
+	Iterable&lt;Algorithm&gt; getUserinfoEncryptionAlgValuesSupported();
 
 	/**
 	 * JSON array containing a list of the JWE encryption algorithms (enc values)
 	 * [JWA] supported by the UserInfo Endpoint to encode the Claims in a JWT [JWT].
 	 * 
-	 * @return {@link Set} of {@link Encryption}
+	 * @return {@link Iterable} of {@link Encryption}
 	 */
-	Set&lt;Encryption&gt; getUserinfoEncryptionEncValuesSupported();
+	Iterable&lt;Encryption&gt; getUserinfoEncryptionEncValuesSupported();
 
 	/**
 	 * JSON array containing a list of the JWS signing algorithms (alg values)
@@ -227,27 +226,27 @@ public interface IuOpenIdProviderMetadata {
 	 * it is passed by reference (using the request_uri parameter). Servers SHOULD
 	 * support none and RS256.
 	 * 
-	 * @return {@link Set} of {@link Algorithm}
+	 * @return {@link Iterable} of {@link Algorithm}
 	 */
-	Set&lt;Algorithm&gt; getRequestObjectSigningAlgValuesSupported();
+	Iterable&lt;Algorithm&gt; getRequestObjectSigningAlgValuesSupported();
 
 	/**
 	 * JSON array containing a list of the JWE encryption algorithms (alg values)
 	 * supported by the OP for Request Objects. These algorithms are used both when
 	 * the Request Object is passed by value and when it is passed by reference.
 	 * 
-	 * @return {@link Set} of {@link Algorithm}
+	 * @return {@link Iterable} of {@link Algorithm}
 	 */
-	Set&lt;Algorithm&gt; getRequestObjectEncryptionAlgValuesSupported();
+	Iterable&lt;Algorithm&gt; getRequestObjectEncryptionAlgValuesSupported();
 
 	/**
 	 * JSON array containing a list of the JWE encryption algorithms (enc values)
 	 * supported by the OP for Request Objects. These algorithms are used both when
 	 * the Request Object is passed by value and when it is passed by reference.
 	 * 
-	 * @return {@link Set} of {@link Encryption}
+	 * @return {@link Iterable} of {@link Encryption}
 	 */
-	Set&lt;Encryption&gt; getRequestObjectEncryptionEncValuesSupported();
+	Iterable&lt;Encryption&gt; getRequestObjectEncryptionEncValuesSupported();
 
 	/**
 	 * JSON array containing a list of Client Authentication methods supported by
@@ -258,9 +257,9 @@ public interface IuOpenIdProviderMetadata {
 	 * Basic Authentication Scheme specified in Section 2.3.1 of OAuth 2.0
 	 * [RFC6749].
 	 * 
-	 * @return {@link Set} of {@link AuthMethod}
+	 * @return {@link Iterable} of {@link AuthMethod}
 	 */
-	Set&lt;AuthMethod&gt; getTokenEndpointAuthMethodsSupported();
+	Iterable&lt;AuthMethod&gt; getTokenEndpointAuthMethodsSupported();
 
 	/**
 	 * JSON array containing a list of the JWS signing algorithms (alg values)
@@ -269,18 +268,18 @@ public interface IuOpenIdProviderMetadata {
 	 * client_secret_jwt authentication methods. Servers SHOULD support RS256. The
 	 * value none MUST NOT be used.
 	 * 
-	 * @return {@link Set} of {@link Algorithm}
+	 * @return {@link Iterable} of {@link Algorithm}
 	 */
-	Set&lt;Algorithm&gt; getTokenEndpointSigningAlgValuesSupported();
+	Iterable&lt;Algorithm&gt; getTokenEndpointSigningAlgValuesSupported();
 
 	/**
 	 * JSON array containing a list of the Claim Names of the Claims that the OpenID
 	 * Provider MAY be able to supply values for. Note that for privacy or other
 	 * reasons, this might not be an exhaustive list.
 	 * 
-	 * @return {@link Set} of supported claims names
+	 * @return {@link Iterable} of supported claims names
 	 */
-	Set&lt;String&gt; getClaimsSupported();
+	Iterable&lt;String&gt; getClaimsSupported();
 
 	/**
 	 * JSON array containing a list of the display parameter values that the OpenID
@@ -289,7 +288,7 @@ public interface IuOpenIdProviderMetadata {
 	 * 
 	 * @return supported display values
 	 */
-	Set&lt;String&gt; getDisplayValuesSupported();
+	Iterable&lt;String&gt; getDisplayValuesSupported();
 
 	/**
 	 * JSON array containing a list of the Claim Types that the OpenID Provider
@@ -300,7 +299,7 @@ public interface IuOpenIdProviderMetadata {
 	 * 
 	 * @return supported claim types
 	 */
-	Set&lt;String&gt; getClaimTypesSupported();
+	Iterable&lt;String&gt; getClaimTypesSupported();
 
 	/**
 	 * URL of a page containing human-readable information that developers might
@@ -320,7 +319,7 @@ public interface IuOpenIdProviderMetadata {
 	 * 
 	 * @return supported claim locales
 	 */
-	Set&lt;String&gt; getClaimsLocalesSupported();
+	Iterable&lt;String&gt; getClaimsLocalesSupported();
 
 	/**
 	 * Languages and scripts supported for the user interface, represented as a JSON
@@ -328,7 +327,7 @@ public interface IuOpenIdProviderMetadata {
 	 * 
 	 * @return supported ui locales
 	 */
-	Set&lt;String&gt; getUiLocalesSupported();
+	Iterable&lt;String&gt; getUiLocalesSupported();
 
 	/**
 	 * Boolean value specifying whether the OP supports use of the claims parameter,
@@ -355,7 +354,7 @@ public interface IuOpenIdProviderMetadata {
 	 * @return true if request_uri parameter is supported; else false
 	 */
 	default boolean isRequestUriParameterSupported() {
-<span class="fc" id="L358">		return true;</span>
+<span class="fc" id="L357">		return true;</span>
 	}
 
 	/**

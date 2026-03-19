@@ -62,8 +62,9 @@ package edu.iu.auth.config;
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import java.net.URI;
 import java.time.Duration;
+
+import edu.iu.crypt.WebKey.Algorithm;
 
 /**
  * Provides session configuration metadata for session handler
@@ -76,19 +77,20 @@ import java.time.Duration;
 public interface IuSessionConfiguration {
 
 	/**
-	 * Gets allowed resource URI
-	 * 
-	 * @return allowed resource URI
+	 * Gets the signature algorithm to use for stored session tokens.
+	 * @return {@link Algorithm}
 	 */
-	Iterable&lt;URI&gt; getResourceUris();
-
+	default Algorithm getAlg() {
+<span class="fc" id="L84">		return Algorithm.ES256;</span>
+	}
+	
 	/**
 	 * Gets time to live active {@link Duration} for store session.
 	 * 
 	 * @return {@link Duration}
 	 */
 	default Duration getInactiveTtl() {
-<span class="fc" id="L91">		return Duration.ofMinutes(15L);</span>
+<span class="fc" id="L93">		return Duration.ofMinutes(15L);</span>
 	}
 
 	/**
@@ -97,7 +99,7 @@ public interface IuSessionConfiguration {
 	 * @return {@link Duration}, will be truncated to second
 	 */
 	default Duration getMaxSessionTtl() {
-<span class="fc" id="L100">		return Duration.ofHours(12L);</span>
+<span class="fc" id="L102">		return Duration.ofHours(12L);</span>
 	}
 	
 }

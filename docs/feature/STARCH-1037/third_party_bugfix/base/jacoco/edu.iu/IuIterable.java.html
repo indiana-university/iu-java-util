@@ -464,10 +464,69 @@ public final class IuIterable {
 	 * @return The first element that meets the condition.
 	 */
 	public static &lt;T&gt; T select(Iterable&lt;T&gt; i, Predicate&lt;T&gt; p) {
-<span class="fc bfc" id="L467" title="All 2 branches covered.">		for (final var e : i)</span>
-<span class="fc bfc" id="L468" title="All 2 branches covered.">			if (p.test(e))</span>
-<span class="fc" id="L469">				return e;</span>
-<span class="fc" id="L470">		throw new NoSuchElementException();</span>
+<span class="fc bfc" id="L467" title="All 2 branches covered.">		if (i != null)</span>
+<span class="fc bfc" id="L468" title="All 2 branches covered.">			for (final var e : i)</span>
+<span class="fc bfc" id="L469" title="All 2 branches covered.">				if (p.test(e))</span>
+<span class="fc" id="L470">					return e;</span>
+<span class="fc" id="L471">		throw new NoSuchElementException();</span>
+	}
+
+	/**
+	 * Returns the first {@link Iterable} element.
+	 * 
+	 * @param &lt;T&gt; item type
+	 * @param i   iterable
+	 * @return The first element from the iterable; null if empty
+	 */
+	public static &lt;T&gt; T first(Iterable&lt;T&gt; i) {
+<span class="fc bfc" id="L482" title="All 2 branches covered.">		if (i == null)</span>
+<span class="fc" id="L483">			return null;</span>
+<span class="fc" id="L484">		final var it = i.iterator();</span>
+<span class="fc bfc" id="L485" title="All 2 branches covered.">		if (it.hasNext())</span>
+<span class="fc" id="L486">			return it.next();</span>
+		else
+<span class="fc" id="L488">			return null;</span>
+	}
+
+	/**
+	 * Returns the single {@link Iterable} element.
+	 * 
+	 * @param &lt;T&gt; item type
+	 * @param i   iterable
+	 * @return The first element from the iterable
+	 * @throws NullPointerException     when i is null
+	 * @throws NoSuchElementException   when i is empty
+	 * @throws IllegalArgumentException when i contains more than one element
+	 */
+	public static &lt;T&gt; T single(Iterable&lt;T&gt; i) {
+<span class="fc" id="L502">		final var it = i.iterator();</span>
+
+		final T next;
+<span class="fc bfc" id="L505" title="All 2 branches covered.">		if (it.hasNext())</span>
+<span class="fc" id="L506">			next = it.next();</span>
+		else
+<span class="fc" id="L508">			throw new NoSuchElementException();</span>
+
+<span class="fc bfc" id="L510" title="All 2 branches covered.">		if (it.hasNext())</span>
+<span class="fc" id="L511">			throw new IllegalArgumentException();</span>
+
+<span class="fc" id="L513">		return next;</span>
+	}
+
+	/**
+	 * Determines if a value is equal to one of the items in an iterable.
+	 * 
+	 * @param &lt;T&gt;   item type
+	 * @param i     iterable
+	 * @param value value to match
+	 * @return true if i is non-null and contains the value; else false
+	 */
+	public static &lt;T&gt; boolean contains(Iterable&lt;T&gt; i, T value) {
+<span class="fc bfc" id="L525" title="All 2 branches covered.">		if (i != null)</span>
+<span class="fc bfc" id="L526" title="All 2 branches covered.">			for (final var e : i)</span>
+<span class="fc bfc" id="L527" title="All 2 branches covered.">				if (IuObject.equals(e, value))</span>
+<span class="fc" id="L528">					return true;</span>
+<span class="fc" id="L529">		return false;</span>
 	}
 
 	/**
@@ -479,30 +538,30 @@ public final class IuIterable {
 	 * @return An iterable over the items for which the predicate returns true.
 	 */
 	public static &lt;T&gt; Iterable&lt;T&gt; filter(Iterable&lt;T&gt; i, Predicate&lt;T&gt; p) {
-<span class="fc" id="L482">		Objects.requireNonNull(p);</span>
-<span class="fc" id="L483">		return of(() -&gt; new Iterator&lt;T&gt;() {</span>
-<span class="fc" id="L484">			private Iterator&lt;T&gt; itr = i.iterator();</span>
+<span class="fc" id="L541">		Objects.requireNonNull(p);</span>
+<span class="fc" id="L542">		return of(() -&gt; new Iterator&lt;T&gt;() {</span>
+<span class="fc" id="L543">			private Iterator&lt;T&gt; itr = i.iterator();</span>
 			private boolean hasNext;
 			private T next;
 
 			@Override
 			public boolean hasNext() {
-<span class="fc bfc" id="L490" title="All 4 branches covered.">				while (!hasNext &amp;&amp; itr.hasNext()) {</span>
-<span class="fc" id="L491">					next = itr.next();</span>
-<span class="fc" id="L492">					hasNext = p.test(next);</span>
+<span class="fc bfc" id="L549" title="All 4 branches covered.">				while (!hasNext &amp;&amp; itr.hasNext()) {</span>
+<span class="fc" id="L550">					next = itr.next();</span>
+<span class="fc" id="L551">					hasNext = p.test(next);</span>
 				}
-<span class="fc" id="L494">				return hasNext;</span>
+<span class="fc" id="L553">				return hasNext;</span>
 			}
 
 			@Override
 			public T next() {
-<span class="fc bfc" id="L499" title="All 2 branches covered.">				if (!hasNext())</span>
-<span class="fc" id="L500">					throw new NoSuchElementException();</span>
+<span class="fc bfc" id="L558" title="All 2 branches covered.">				if (!hasNext())</span>
+<span class="fc" id="L559">					throw new NoSuchElementException();</span>
 
-<span class="fc" id="L502">				T rv = next;</span>
-<span class="fc" id="L503">				hasNext = false;</span>
-<span class="fc" id="L504">				next = null;</span>
-<span class="fc" id="L505">				return rv;</span>
+<span class="fc" id="L561">				T rv = next;</span>
+<span class="fc" id="L562">				hasNext = false;</span>
+<span class="fc" id="L563">				next = null;</span>
+<span class="fc" id="L564">				return rv;</span>
 			}
 		});
 	}
@@ -516,7 +575,7 @@ public final class IuIterable {
 	 * @return {@link Stream}
 	 */
 	public static &lt;T&gt; Stream&lt;T&gt; stream(Iterable&lt;T&gt; i) {
-<span class="fc" id="L519">		return StreamSupport.stream(() -&gt; i.spliterator(), Spliterator.IMMUTABLE, false);</span>
+<span class="fc" id="L578">		return StreamSupport.stream(() -&gt; i.spliterator(), Spliterator.IMMUTABLE, false);</span>
 	}
 
 	private IuIterable() {
