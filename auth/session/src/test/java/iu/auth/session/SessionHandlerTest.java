@@ -71,18 +71,17 @@ public class SessionHandlerTest {
 		public void setup() {
 			resourceUri = URI.create("http://" + IdGenerator.generateId());
 			configuration = mock(IuSessionConfiguration.class, CALLS_REAL_METHODS);
-			when(configuration.getResourceUris()).thenReturn(Arrays.asList(resourceUri));
 			issuerKey = WebKey.ephemeral(Algorithm.HS256);
 			algorithm = Algorithm.HS256;
+			when(configuration.getAlg()).thenReturn(algorithm);
 			dataStore = new InMemorySessionStore();
-			sessionHandler = new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm, dataStore);
+			sessionHandler = new SessionHandler(resourceUri, configuration, () -> issuerKey, dataStore);
 			IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 		}
 
 		@Test
 		public void testSessionHandlerConstructorWithValidParameters() {
-			assertDoesNotThrow(
-					() -> new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm, dataStore));
+			assertDoesNotThrow(() -> new SessionHandler(resourceUri, configuration, () -> issuerKey, dataStore));
 		}
 
 		@Test
@@ -195,7 +194,7 @@ public class SessionHandlerTest {
 		public void testStoreSessionAndActivateSessionSuccessSubpath() {
 			final var path = "/" + IdGenerator.generateId();
 			final var uriWithPath = URI.create(resourceUri + path);
-			sessionHandler = new SessionHandler(uriWithPath, configuration, () -> issuerKey, algorithm, dataStore);
+			sessionHandler = new SessionHandler(uriWithPath, configuration, () -> issuerKey, dataStore);
 			Session session = new Session(uriWithPath, Duration.ofHours(12L));
 			session.setStrict(false);
 
@@ -273,11 +272,11 @@ public class SessionHandlerTest {
 		public void setup() {
 			resourceUri = URI.create("https://" + IdGenerator.generateId());
 			configuration = mock(IuSessionConfiguration.class, CALLS_REAL_METHODS);
-			when(configuration.getResourceUris()).thenReturn(Arrays.asList(resourceUri));
 			issuerKey = WebKey.ephemeral(Algorithm.HS256);
 			algorithm = Algorithm.HS256;
+			when(configuration.getAlg()).thenReturn(algorithm);
 			dataStore = new InMemorySessionStore();
-			sessionHandler = new SessionHandler(resourceUri, configuration, () -> issuerKey, algorithm, dataStore);
+			sessionHandler = new SessionHandler(resourceUri, configuration, () -> issuerKey, dataStore);
 			IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 		}
 

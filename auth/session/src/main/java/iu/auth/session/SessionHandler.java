@@ -46,7 +46,6 @@ import edu.iu.auth.session.IuSession;
 import edu.iu.auth.session.IuSessionHandler;
 import edu.iu.crypt.EphemeralKeys;
 import edu.iu.crypt.WebKey;
-import edu.iu.crypt.WebKey.Algorithm;
 
 /**
  * {@link IuSessionHandler} implementation
@@ -61,7 +60,6 @@ public class SessionHandler implements IuSessionHandler {
 	private final URI resourceUri;
 	private final IuSessionConfiguration configuration;
 	private final Supplier<WebKey> issuerKey;
-	private final Algorithm algorithm;
 	private final IuDataStore dataStore;
 
 	/**
@@ -70,15 +68,13 @@ public class SessionHandler implements IuSessionHandler {
 	 * @param resourceUri   root protected resource URI
 	 * @param configuration {#link {@link IuSessionConfiguration}
 	 * @param issuerKey     issuer key supplier
-	 * @param algorithm     algorithm
 	 * @param dataStore     data store
 	 */
 	public SessionHandler(URI resourceUri, IuSessionConfiguration configuration, Supplier<WebKey> issuerKey,
-			Algorithm algorithm, IuDataStore dataStore) {
+			IuDataStore dataStore) {
 		this.resourceUri = resourceUri;
 		this.configuration = configuration;
 		this.issuerKey = issuerKey;
-		this.algorithm = algorithm;
 		this.dataStore = dataStore;
 	}
 
@@ -122,7 +118,7 @@ public class SessionHandler implements IuSessionHandler {
 		final var secretKey = EphemeralKeys.secret("AES", 256);
 		final var s = (Session) session;
 
-		dataStore.put(hashKey(secretKey), IuText.utf8(s.tokenize(secretKey, issuerKey.get(), algorithm)),
+		dataStore.put(hashKey(secretKey), IuText.utf8(s.tokenize(secretKey, issuerKey.get(), configuration.getAlg())),
 				configuration.getInactiveTtl());
 
 		final var cookieBuilder = new StringBuilder();

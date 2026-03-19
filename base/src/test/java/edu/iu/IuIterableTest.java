@@ -32,18 +32,22 @@
 package edu.iu;
 
 import static edu.iu.IuIterable.cat;
+import static edu.iu.IuIterable.contains;
 import static edu.iu.IuIterable.empty;
 import static edu.iu.IuIterable.filter;
+import static edu.iu.IuIterable.first;
 import static edu.iu.IuIterable.iter;
 import static edu.iu.IuIterable.map;
 import static edu.iu.IuIterable.of;
 import static edu.iu.IuIterable.print;
 import static edu.iu.IuIterable.remaindersAreEqual;
 import static edu.iu.IuIterable.select;
+import static edu.iu.IuIterable.single;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -243,6 +247,29 @@ public class IuIterableTest {
 		var set = Set.of("two");
 		assertEquals("two", select(iter("one", "two", "three"), set::contains));
 		assertThrows(NoSuchElementException.class, () -> select(iter("four", "five"), set::contains));
+		assertThrows(NoSuchElementException.class, () -> select(null, set::contains));
+	}
+	
+	@Test
+	public void testFirst() {
+		assertNull(first(null));
+		assertNull(first(iter()));
+		assertEquals("one", first(iter("one", "two")));
+	}
+
+	@Test
+	public void testSingle() {
+		assertThrows(NullPointerException.class, () -> single(null));
+		assertThrows(NoSuchElementException.class, () -> single(iter()));
+		assertEquals("one", single(iter("one")));
+		assertThrows(IllegalArgumentException.class, () -> single(iter("one", "two")));
+	}
+
+	@Test
+	public void testContains() {
+		assertFalse(contains(null, "two"));
+		assertTrue(contains(iter("one", "two", "three"), "two"));
+		assertFalse(contains(iter("one", "two", "three"), "four"));
 	}
 
 	@Test

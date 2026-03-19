@@ -45,7 +45,6 @@ import edu.iu.redis.IuRedisConfiguration;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
-import io.lettuce.core.api.sync.RedisCommands;
 import io.lettuce.core.support.ConnectionPoolSupport;
 
 /**
@@ -119,9 +118,9 @@ public class LettuceConnection implements IuRedis {
 				LOG.fine(() -> "redis:del:" + b64key + ":" + config.getHost() + ":" + config.getPort());
 			} else {
 				if (ttl != null && !ttl.isZero() && !ttl.isNegative())
-					commands.setex(key.toString(), ttl.toMillis(), value.toString());
+					commands.setex(key.toString(), ttl.toSeconds(), IuText.utf8(value));
 				commands.set(textkey, IuText.utf8(value));
-				LOG.fine(() -> "redis:put:" + b64key + ":" + config.getHost() + ":" + config.getPort() + " "
+				LOG.fine(() -> "redis:put:" + b64key + ":" + config.getHost() + ":" + config.getPort() + ":" + ttl + " "
 						+ value.length);
 			}
 		}

@@ -66,10 +66,17 @@ public interface IuPrivateKeyPrincipal {
 	Encryption getEnc();
 
 	/**
-	 * Gets the signature verification or encryption key.
+	 * Gets the signature verification key.
 	 * 
 	 * @return {@link WebKey}
 	 */
 	WebKey getJwk();
+
+	/**
+	 * Gets the encryption key.
+	 * 
+	 * @return {@link WebKey}
+	 */
+	WebKey getEncryptJwk();
 
 }
